@@ -9,9 +9,11 @@ import {
   NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
   NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
   POLAR_FOG_CAPTURE_SCENARIO_ID,
+  POLITICS_MENU_CAPTURE_SCENARIO_ID,
   assertChartIntegrityTelemetryBenchmarkBudget,
   createPerformanceBenchmarkState,
   performanceBenchmarkFromSearch,
+  performanceBenchmarkRequiresChartIntegrityTelemetry,
   recordPerformanceBenchmarkFrame,
   recordPerformanceBenchmarkStage
 } from "./performanceBenchmark.js";
@@ -22,7 +24,10 @@ test("busy-world benchmark query resolves deterministic defaults", () => {
     captureScenarioId: BUSY_WORLD_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
-    targetLandCarts: 14
+    targetLandCarts: 14,
+    initialScreen: null,
+    forceRenderEveryFrame: false,
+    requiresChartIntegrityTelemetry: true
   });
 });
 
@@ -44,7 +49,10 @@ test("combat-hotspot benchmark selects the eastern Mediterranean combat scene", 
     captureScenarioId: COMBAT_HOTSPOT_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
-    targetLandCarts: 2
+    targetLandCarts: 2,
+    initialScreen: null,
+    forceRenderEveryFrame: false,
+    requiresChartIntegrityTelemetry: true
   });
 });
 
@@ -54,7 +62,10 @@ test("cloud-cover benchmark selects the deterministic northern Aegean weather sc
     captureScenarioId: CLOUD_COVER_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
-    targetLandCarts: 2
+    targetLandCarts: 2,
+    initialScreen: null,
+    forceRenderEveryFrame: false,
+    requiresChartIntegrityTelemetry: true
   });
 });
 
@@ -64,7 +75,10 @@ test("polar-fog benchmark exercises the chart fog presentation pass", () => {
     captureScenarioId: POLAR_FOG_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
-    targetLandCarts: 2
+    targetLandCarts: 2,
+    initialScreen: null,
+    forceRenderEveryFrame: false,
+    requiresChartIntegrityTelemetry: true
   });
 });
 
@@ -74,7 +88,10 @@ test("nanjing-hotspot benchmark stages dense lower-Yangtze traffic", () => {
     captureScenarioId: NANJING_HOTSPOT_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
-    targetLandCarts: 14
+    targetLandCarts: 14,
+    initialScreen: null,
+    forceRenderEveryFrame: false,
+    requiresChartIntegrityTelemetry: true
   });
 });
 
@@ -84,7 +101,10 @@ test("gibraltar-hotspot benchmark stages dense traffic in the narrow strait", ()
     captureScenarioId: GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
-    targetLandCarts: 2
+    targetLandCarts: 2,
+    initialScreen: null,
+    forceRenderEveryFrame: false,
+    requiresChartIntegrityTelemetry: true
   });
 });
 
@@ -94,8 +114,26 @@ test("naples-approach benchmark crosses the port activation boundary", () => {
     captureScenarioId: NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
     warmupSeconds: 2,
     durationSeconds: 8,
-    targetLandCarts: 2
+    targetLandCarts: 2,
+    initialScreen: null,
+    forceRenderEveryFrame: false,
+    requiresChartIntegrityTelemetry: true
   });
+});
+
+test("politics-menu benchmark forces the paused screen to repaint", () => {
+  assert.deepEqual(performanceBenchmarkFromSearch("?benchmark=politics-menu"), {
+    id: "politics-menu",
+    captureScenarioId: POLITICS_MENU_CAPTURE_SCENARIO_ID,
+    warmupSeconds: 2,
+    durationSeconds: 8,
+    targetLandCarts: 2,
+    initialScreen: "politics",
+    forceRenderEveryFrame: true,
+    requiresChartIntegrityTelemetry: false
+  });
+  assert.equal(performanceBenchmarkRequiresChartIntegrityTelemetry("politics-menu"), false);
+  assert.equal(performanceBenchmarkRequiresChartIntegrityTelemetry("busy-world"), true);
 });
 
 test("benchmark report includes frame percentiles and skipped frame estimates", () => {

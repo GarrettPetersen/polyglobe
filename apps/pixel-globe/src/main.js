@@ -6283,7 +6283,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   }
   if (!simulationPaused && updateWorldSpriteAnimation(nowMs)) dirty = true;
   const renderDue = shouldRenderFrame({
-    forceRender,
+    forceRender: forceRender || PERFORMANCE_BENCHMARK?.forceRenderEveryFrame === true,
     dirty,
     continuousAnimation: Boolean(startMenu),
     simulationPaused,
@@ -6291,7 +6291,11 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     lastStatusMs,
     statusIntervalMs: 1000
   });
-  if (renderDue && (!chartRebuiltThisFrame || forceRender)) {
+  if (renderDue && (
+    !chartRebuiltThisFrame ||
+    forceRender ||
+    PERFORMANCE_BENCHMARK?.forceRenderEveryFrame === true
+  )) {
     dirty = false;
     measurePerformanceBenchmarkStage("render", () => render(nowMs));
     lastStatusMs = nowMs;
@@ -8472,6 +8476,8 @@ function createPoliticsMenuState() {
   return {
     isOpen: false,
     page: 0,
+    view: null,
+    paginationCache: null,
     newsDetailOpen: false,
     newsDetailScrollY: 0,
     newsDetailMaxScrollY: 0,
@@ -9794,6 +9800,7 @@ function setupPerformanceBenchmark() {
   gameState.memory.flags.oarTutorialShown = true;
   gameState.memory.flags.sailingBasicsTutorialShown = true;
   gameState.memory.flags.tackingTutorialShown = true;
+  if (PERFORMANCE_BENCHMARK.initialScreen === "politics") openPoliticsMenu();
   // Keep deterministic render benchmarks from ending early on a seeded polar collision.
   gameState.memory.icebergs.individuals = [];
   resetDistantWorldWorkerSchedule();
@@ -15580,6 +15587,8 @@ function openPoliticsMenu() {
   closeAchievementsMenu();
   closeShipInfoMenu();
   closeNavigationMenu();
+  politicsMenu.view = buildPoliticsView();
+  politicsMenu.paginationCache = null;
   politicsMenu.isOpen = true;
   politicsMenu.page = 0;
   closePoliticsNewsDetail();
@@ -15597,6 +15606,8 @@ function openPoliticsNewsFeed() {
 
 function closePoliticsMenu() {
   politicsMenu.isOpen = false;
+  politicsMenu.view = null;
+  politicsMenu.paginationCache = null;
   politicsMenu.panelRect = null;
   politicsMenu.closeButtonRect = null;
   politicsMenu.newsRect = null;
@@ -17625,6 +17636,7 @@ function stepPoliticsPage(direction) {
   const view = currentPoliticsView();
   const pagination = politicsCardPagination(view);
   politicsMenu.page = stepMenuIndex(politicsMenu.page, direction, pagination.page.pageCount);
+  politicsMenu.paginationCache = null;
   dirty = true;
 }
 
@@ -36214,7 +36226,9 @@ function drawWorldInterface(nowMs) {
   drawCaptainMenuButton();
   if (discoveriesMenu.isOpen) drawDiscoveriesMenu();
   if (shipInfoMenu.isOpen) drawShipInfoMenu();
-  if (politicsMenu.isOpen) drawPoliticsMenu();
+  if (politicsMenu.isOpen) {
+    measurePerformanceBenchmarkStage("render.politics", () => drawPoliticsMenu());
+  }
   if (navigationMenu.isOpen) drawNavigationMenu();
   if (aboardMenu.isOpen) drawAboardMenu();
   if (captainMenu.isOpen && !captainChildMenuIsOpen()) drawCaptainMenu(nowMs);
@@ -42824,6 +42838,18 @@ function politicsCardPagination(view, panel = captainNotebookPagePanel({
   w: POLITICS_PANEL_W,
   h: POLITICS_PANEL_H
 })) {
+  const cacheKey = [
+    panel.w,
+    panel.h,
+    currentLanguageProfile.tableRowHeight,
+    politicsMenu.page
+  ].join(":");
+  if (
+    politicsMenu.paginationCache?.key === cacheKey &&
+    politicsMenu.paginationCache.view === view
+  ) {
+    return politicsMenu.paginationCache.value;
+  }
   const newsHeight = 12;
   const layout = politicsCardGridLayout({
     panelWidth: panel.w,
@@ -42839,13 +42865,15 @@ function politicsCardPagination(view, panel = captainNotebookPagePanel({
     relationLineCapacities: layout.relationLineCapacities,
     powerCount: view.powers.length
   });
-  return {
+  const pagination = Object.freeze({
     layout,
     page: politicsCardEntriesPage(entries, politicsMenu.page, {
       columns: layout.columns,
       rows: layout.rows
     })
-  };
+  });
+  politicsMenu.paginationCache = { key: cacheKey, view, value: pagination };
+  return pagination;
 }
 
 function drawPoliticsLatestNews(view, panel, pagerY) {
@@ -43092,6 +43120,12 @@ function drawPoliticsCountryCard(entry, view, rect, layout) {
 }
 
 function currentPoliticsView() {
+  if (!politicsMenu.isOpen) throw new Error("Politics view requested while its menu is closed");
+  if (!politicsMenu.view) throw new Error("Open politics menu has no immutable view snapshot");
+  return politicsMenu.view;
+}
+
+function buildPoliticsView() {
   if (!(cityByTileId instanceof Map)) throw new Error("Politics view requires placed cities");
   return createPoliticsView(
     gameState,

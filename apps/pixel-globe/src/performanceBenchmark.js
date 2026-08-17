@@ -13,6 +13,8 @@ export const GIBRALTAR_HOTSPOT_BENCHMARK_ID = "gibraltar-hotspot";
 export const GIBRALTAR_HOTSPOT_CAPTURE_SCENARIO_ID = "benchmark-gibraltar-hotspot";
 export const NAPLES_APPROACH_BENCHMARK_ID = "naples-approach";
 export const NAPLES_APPROACH_CAPTURE_SCENARIO_ID = "benchmark-naples-approach";
+export const POLITICS_MENU_BENCHMARK_ID = "politics-menu";
+export const POLITICS_MENU_CAPTURE_SCENARIO_ID = BUSY_WORLD_CAPTURE_SCENARIO_ID;
 
 const BENCHMARKS = Object.freeze({
   [BUSY_WORLD_BENCHMARK_ID]: Object.freeze({
@@ -42,6 +44,13 @@ const BENCHMARKS = Object.freeze({
   [NAPLES_APPROACH_BENCHMARK_ID]: Object.freeze({
     captureScenarioId: NAPLES_APPROACH_CAPTURE_SCENARIO_ID,
     targetLandCarts: 2
+  }),
+  [POLITICS_MENU_BENCHMARK_ID]: Object.freeze({
+    captureScenarioId: POLITICS_MENU_CAPTURE_SCENARIO_ID,
+    targetLandCarts: 2,
+    initialScreen: "politics",
+    forceRenderEveryFrame: true,
+    requiresChartIntegrityTelemetry: false
   })
 });
 
@@ -66,8 +75,17 @@ export function performanceBenchmarkFromSearch(search) {
     captureScenarioId: definition.captureScenarioId,
     warmupSeconds: positiveQueryNumber(params, "benchmarkWarmup", DEFAULT_WARMUP_SECONDS),
     durationSeconds: positiveQueryNumber(params, "benchmarkDuration", DEFAULT_DURATION_SECONDS),
-    targetLandCarts: definition.targetLandCarts
+    targetLandCarts: definition.targetLandCarts,
+    initialScreen: definition.initialScreen ?? null,
+    forceRenderEveryFrame: definition.forceRenderEveryFrame === true,
+    requiresChartIntegrityTelemetry: definition.requiresChartIntegrityTelemetry !== false
   });
+}
+
+export function performanceBenchmarkRequiresChartIntegrityTelemetry(id) {
+  const definition = BENCHMARKS[id];
+  if (!definition) throw new Error(`Unknown performance benchmark: ${id}`);
+  return definition.requiresChartIntegrityTelemetry !== false;
 }
 
 export function createPerformanceBenchmarkState(config, startedAtMs) {
