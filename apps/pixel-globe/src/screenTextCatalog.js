@@ -944,7 +944,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Choose another wall. Write paid in full carefully; my family will frame the receipt where your claim once hung.",
   "Choose the targets we should automatically restore whenever you dock.",
   "Christ be with you, captain. It is good to hear the old prayers spoken beneath another sky.",
-  "Christ be with you, captain. It is good to meet another child of the old Church so far from home.",
+  "Christ be with you, captain. It is good to know we kneel before the same altar.",
   "Christ be with you, captain. It is good to meet another keeper of the ancient faith.",
   "Christ be with you, captain. Our churches differ, but the same sea lies beneath us.",
   "Christ be with you, captain. The times are sharp enough; let us keep doctrine from the scales.",

@@ -496,7 +496,10 @@ export function createNpcSeaRouteSystem({
   }
 
   const laneNodes = new Map(LANE_NODES.map((node) => [node.id, node]));
-  const baseEdges = buildDirectedLaneEdges(laneNodes);
+  const baseEdges = pruneUninhabitedRiverTails(
+    buildDirectedLaneEdges(laneNodes),
+    usablePorts
+  );
   const routeComponentByAnchorId = buildRouteAnchorComponents(laneNodes, baseEdges);
   const system = {
     ports: usablePorts,
@@ -1222,10 +1225,11 @@ function npcPlanUsesObsoleteRouteTopology(system, plan) {
 }
 
 function currentRoutePointUsesAnchor(system, point, anchorId) {
-  if (!Number.isInteger(point?.tileId)) return true;
-  const currentPoint = system.ports.find((port) => port.tileId === point.tileId) ||
-    system.fishingGrounds.find((ground) => ground.tileId === point.tileId) ||
-    system.whalingGrounds.find((ground) => ground.tileId === point.tileId);
+  const tileId = Number.isInteger(point?.tileId) ? point.tileId : point?.port?.tileId;
+  if (!Number.isInteger(tileId)) return true;
+  const currentPoint = system.ports.find((port) => port.tileId === tileId) ||
+    system.fishingGrounds.find((ground) => ground.tileId === tileId) ||
+    system.whalingGrounds.find((ground) => ground.tileId === tileId);
   if (!currentPoint) return true;
   return currentPoint.routeAnchors.includes(anchorId);
 }
@@ -3319,6 +3323,28 @@ function buildDirectedLaneEdges(laneNodes) {
   return adjacency;
 }
 
+function pruneUninhabitedRiverTails(baseEdges, ports) {
+  const adjacency = cloneBaseAdjacency(baseEdges);
+  const inhabitedAnchors = new Set(ports.flatMap((port) => port.routeAnchors));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [anchorId, edges] of adjacency) {
+      if (inhabitedAnchors.has(anchorId) || edges.length !== 1 || edges[0].kind !== "river") {
+        continue;
+      }
+      const neighborId = edges[0].to;
+      adjacency.set(anchorId, []);
+      adjacency.set(
+        neighborId,
+        (adjacency.get(neighborId) || []).filter((edge) => edge.to !== anchorId)
+      );
+      changed = true;
+    }
+  }
+  return adjacency;
+}
+
 function buildRouteAnchorComponents(laneNodes, baseEdges) {
   const componentByAnchorId = new Map();
   let componentId = 0;
@@ -3647,7 +3673,7 @@ function portRouteRegion(port) {
 
 function anchorIdsForPort(port) {
   const name = portName(port).toLowerCase();
-  if (name === "dienne") return ["niger-inner-delta"];
+  if (name === "timbuktu" || name === "tombouctou") return ["niger-bend"];
   if (name === "gao") return ["niger-gao"];
   if (isNorthwestCoastRoutePoint(port)) return ["yuquot"];
   const region = portRouteRegion(port);

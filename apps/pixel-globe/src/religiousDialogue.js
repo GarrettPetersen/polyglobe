@@ -27,7 +27,7 @@ const BUDDHIST_RELIGIONS = new Set([
 ]);
 
 const SHARED_GREETING_LINES = Object.freeze({
-  "roman-catholic": "Christ be with you, captain. It is good to meet another child of the old Church so far from home.",
+  "roman-catholic": "Christ be with you, captain. It is good to know we kneel before the same altar.",
   lutheran: "God's grace and a fair wind to you. It is good to meet another who trusts the Word above distant decrees.",
   "reformed-protestant": "God's peace to you. A shared confession is welcome company in a foreign harbor.",
   anglican: "God's peace attend you, captain. It is good to meet another subject of the English Church.",

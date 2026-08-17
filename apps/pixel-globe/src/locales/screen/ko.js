@@ -944,7 +944,7 @@ export default Object.freeze({
   "Choose another wall. Write paid in full carefully; my family will frame the receipt where your claim once hung.": "다른 벽을 선택하세요. 전액 지불을 주의깊게 써 주세요. 우리 가족은 귀하의 청구서가 한때 걸려 있던 영수증을 액자에 넣을 것입니다.",
   "Choose the targets we should automatically restore whenever you dock.": "도킹할 때마다 자동으로 복원할 대상을 선택하세요.",
   "Christ be with you, captain. It is good to hear the old prayers spoken beneath another sky.": "그리스도께서 당신과 함께하시기를 바랍니다, 선장. 다른 하늘 아래에서 들려오는 옛 기도를 듣는 것은 좋은 일이다.",
-  "Christ be with you, captain. It is good to meet another child of the old Church so far from home.": "그리스도께서 당신과 함께하시기를 바랍니다, 선장. 집에서 멀리 떨어진 옛 교회의 또 다른 어린이를 만나니 반갑습니다.",
+  "Christ be with you, captain. It is good to know we kneel before the same altar.": "그리스도께서 함께하시기를, 선장. 우리가 같은 제단 앞에 무릎 꿇는 이들이라니 반갑습니다.",
   "Christ be with you, captain. It is good to meet another keeper of the ancient faith.": "그리스도께서 당신과 함께하시기를 바랍니다, 선장. 고대 신앙의 또 다른 수호자를 만나는 것이 좋습니다.",
   "Christ be with you, captain. Our churches differ, but the same sea lies beneath us.": "그리스도께서 당신과 함께하시기를 바랍니다, 선장. 우리 교회는 서로 다르지만 우리 밑에는 같은 바다가 놓여 있습니다.",
   "Christ be with you, captain. The times are sharp enough; let us keep doctrine from the scales.": "그리스도께서 당신과 함께하시기를 바랍니다, 선장. 시대는 충분히 날카롭다. 저울에서 교리를 지키자.",

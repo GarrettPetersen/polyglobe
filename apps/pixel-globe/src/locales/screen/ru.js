@@ -944,7 +944,7 @@ export default Object.freeze({
   "Choose another wall. Write paid in full carefully; my family will frame the receipt where your claim once hung.": "Выберите другую стену. Внимательно пишите оплачено полностью; моя семья поместит в рамку квитанцию, на которой когда-то висела ваша претензия.",
   "Choose the targets we should automatically restore whenever you dock.": "Выберите цели, которые мы должны автоматически восстанавливать при каждой стыковке.",
   "Christ be with you, captain. It is good to hear the old prayers spoken beneath another sky.": "Христос с вами, капитан. Приятно слышать старые молитвы, произнесенные под другим небом.",
-  "Christ be with you, captain. It is good to meet another child of the old Church so far from home.": "Христос с вами, капитан. Приятно встретить еще одно дитя старой Церкви так далеко от дома.",
+  "Christ be with you, captain. It is good to know we kneel before the same altar.": "Христос с вами, капитан. Отрадно знать, что мы преклоняем колени перед одним алтарём.",
   "Christ be with you, captain. It is good to meet another keeper of the ancient faith.": "Христос с вами, капитан. Приятно встретить еще одного хранителя древней веры.",
   "Christ be with you, captain. Our churches differ, but the same sea lies beneath us.": "Христос с вами, капитан. Наши церкви разные, но под нами одно и то же море.",
   "Christ be with you, captain. The times are sharp enough; let us keep doctrine from the scales.": "Христос с вами, капитан. Времена достаточно суровы; давайте воздержимся от доктрины весов.",

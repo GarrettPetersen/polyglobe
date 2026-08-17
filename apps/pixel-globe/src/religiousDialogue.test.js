@@ -36,6 +36,12 @@ test("ordinary religious greetings remain occasional", () => {
   assert.ok(greetings.some((greeting) => greeting === null));
 });
 
+test("Catholic greetings do not assume the port is far from Catholic lands", () => {
+  const greeting = findOccasionalGreeting("roman-catholic", "roman-catholic");
+  assert.match(greeting, /same altar/);
+  assert.doesNotMatch(greeting, /far from home|foreign harbor/i);
+});
+
 test("Diet of Worms gossip follows the factor's denomination and the listener's", () => {
   const catholic = dietOfWormsGossip({
     speakerReligionId: "roman-catholic",

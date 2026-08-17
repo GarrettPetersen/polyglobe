@@ -944,7 +944,7 @@ export default Object.freeze({
   "Choose another wall. Write paid in full carefully; my family will frame the receipt where your claim once hung.": "別の壁を選択してください。全額支払ったことを慎重に記入してください。私の家族は、あなたの請求がかつてかかっていた領収書を額装します。",
   "Choose the targets we should automatically restore whenever you dock.": "ドッキングするたびに自動的に復元するターゲットを選択してください。",
   "Christ be with you, captain. It is good to hear the old prayers spoken beneath another sky.": "キリストがあなたと共におられますように、船長。別の空の下で語られる古い祈りを聞くのは良いことです。",
-  "Christ be with you, captain. It is good to meet another child of the old Church so far from home.": "キリストがあなたと共におられますように、船長。家から遠く離れた古い教会の子供たちに会えるのは嬉しいことです。",
+  "Christ be with you, captain. It is good to know we kneel before the same altar.": "キリストがあなたと共におられますように、船長。同じ祭壇の前にひざまずく者同士と知れて何よりです。",
   "Christ be with you, captain. It is good to meet another keeper of the ancient faith.": "キリストがあなたと共におられますように、船長。古代信仰の守護者にまた会えるのは嬉しいことです。",
   "Christ be with you, captain. Our churches differ, but the same sea lies beneath us.": "キリストがあなたと共におられますように、船長。私たちの教会は異なりますが、私たちの下には同じ海があります。",
   "Christ be with you, captain. The times are sharp enough; let us keep doctrine from the scales.": "キリストがあなたと共におられますように、船長。時代は十分に鋭くなっています。教義を天秤から遠ざけましょう。",

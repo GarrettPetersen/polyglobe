@@ -82,8 +82,9 @@ const DARDANELLES_PORTS = Object.freeze([
 
 const NIGER_PORTS = Object.freeze([
   ...PORTS,
-  port(14, "Dienne", "Senegal", "sub-saharan", 13.91, -4.55, 16000, "songhai"),
-  port(15, "Gao", "Mali", "sub-saharan", 16.27, -0.05, 70000, "songhai")
+  port(14, "Dienne", "Senegal", "sub-saharan", 15.03, -16.35, 16000, "songhai"),
+  port(15, "Gao", "Mali", "sub-saharan", 16.27, -0.05, 70000, "songhai"),
+  port(16, "Tombouctou", "Mali", "sub-saharan", 16.77, -3.01, 25000, "songhai")
 ]);
 
 const PACIFIC_PORTS = Object.freeze([
@@ -367,17 +368,24 @@ test("NPC routes traverse the Dardanelles and Bosporus rails in both directions"
   }
 });
 
-test("Niger ports route downstream around the river bend instead of toward its upstream end", () => {
+test("Niger routes stop at the furthest inhabited river anchor", () => {
   const economy = createWorldEconomy({ ports: NIGER_PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: NIGER_PORTS, startMinute: 0, economy });
   const dienne = routes.ports.find((port) => port.city === "Dienne");
   const gao = routes.ports.find((port) => port.city === "Gao");
+  const timbuktu = routes.ports.find((port) => port.city === "Tombouctou");
   const lisbon = routes.ports.find((port) => port.city === "Lisbon");
   assert.ok(dienne);
   assert.ok(gao);
+  assert.ok(timbuktu);
   assert.ok(lisbon);
-  assert.deepEqual(dienne.routeAnchors, ["niger-inner-delta"]);
+  assert.ok(!dienne.routeAnchors.some((anchorId) => anchorId.startsWith("niger-")));
   assert.deepEqual(gao.routeAnchors, ["niger-gao"]);
+  assert.deepEqual(timbuktu.routeAnchors, ["niger-bend"]);
+  assert.deepEqual(routes.baseEdges.get("niger-inner-delta"), []);
+  assert.ok(!(routes.baseEdges.get("niger-bend") || []).some((edge) => (
+    edge.to === "niger-inner-delta"
+  )));
 
   const expectedDownstream = [
     "niger-gao->niger-middle",
@@ -386,36 +394,36 @@ test("Niger ports route downstream around the river bend instead of toward its u
     "niger-delta->niger-bight",
     "niger-bight->guinea"
   ];
-  for (const origin of [dienne, gao]) {
+  for (const origin of [timbuktu, gao]) {
     const sailPairs = routeBetweenPorts(routes, origin, lisbon, "small-cog", 0).segments
       .filter((segment) => segment.kind === "sail")
       .map((segment) => `${segment.from.id}->${segment.to.id}`);
     for (const pair of expectedDownstream) assert.ok(sailPairs.includes(pair), sailPairs.join(", "));
-    assert.ok(!sailPairs.includes("niger-gao->niger-bend"), sailPairs.join(", "));
+    assert.ok(!sailPairs.some((pair) => pair.includes("niger-inner-delta")), sailPairs.join(", "));
   }
 });
 
-test("saved Niger routes aimed at the upstream end are replanned on restore", (t) => {
+test("saved Niger routes aimed beyond Timbuktu are replanned on restore", (t) => {
   const economy = createWorldEconomy({ ports: NIGER_PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: NIGER_PORTS, startMinute: 0, economy });
   const snapshot = snapshotNpcSeaRouteSystem(routes);
   const saved = snapshot.ships[0];
-  const gao = routes.ports.find((port) => port.city === "Gao");
+  const timbuktu = routes.ports.find((port) => port.city === "Tombouctou");
   const lisbon = routes.ports.find((port) => port.city === "Lisbon");
-  const guinea = routes.laneNodes.get("guinea");
-  assert.ok(gao);
+  const upstreamTail = routes.laneNodes.get("niger-inner-delta");
+  assert.ok(timbuktu);
   assert.ok(lisbon);
-  assert.ok(guinea);
-  const obsoleteGao = { ...gao, routeAnchors: ["guinea"] };
-  saved.currentPort = obsoleteGao;
+  assert.ok(upstreamTail);
+  const obsoleteTimbuktu = { ...timbuktu, routeAnchors: ["niger-inner-delta"] };
+  saved.currentPort = obsoleteTimbuktu;
   saved.finalDestination = lisbon;
   saved.plan = {
-    origin: obsoleteGao,
+    origin: obsoleteTimbuktu,
     destination: lisbon,
     segments: [{
       kind: "sail",
-      from: obsoleteGao,
-      to: guinea,
+      from: obsoleteTimbuktu,
+      to: upstreamTail,
       startMinute: 0,
       endMinute: 1000
     }],
@@ -435,9 +443,10 @@ test("saved Niger routes aimed at the upstream end are replanned on restore", (t
   const sailPairs = restored.plan.segments
     .filter((segment) => segment.kind === "sail")
     .map((segment) => `${segment.from.id}->${segment.to.id}`);
-  assert.ok(sailPairs.includes("niger-gao->niger-middle"), sailPairs.join(", "));
+  assert.ok(sailPairs.includes("niger-bend->niger-gao"), sailPairs.join(", "));
   assert.ok(sailPairs.includes("niger-delta->niger-bight"), sailPairs.join(", "));
-  assert.deepEqual(restored.currentPort.routeAnchors, ["niger-gao"]);
+  assert.ok(!sailPairs.some((pair) => pair.includes("niger-inner-delta")), sailPairs.join(", "));
+  assert.deepEqual(restored.currentPort.routeAnchors, ["niger-bend"]);
   assert.equal(restored.visualNavigation, null);
   assert.equal(messages.length, 1);
   assert.match(messages[0][0], /Replanned 1 saved NPC routes/);

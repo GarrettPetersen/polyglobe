@@ -25,6 +25,7 @@ const TELEMETRY_CHECKPOINT_INTERVAL_MS = 15 * 60 * 1000;
 const TELEMETRY_REQUEST_TIMEOUT_MS = 2500;
 const TELEMETRY_QUEUE_LIMIT = 12;
 const TELEMETRY_BATCH_LIMIT = 8;
+const BROWSER_EXTENSION_URL_PATTERN = /(?:chrome|moz|safari-web|ms-browser)-extension:\/\//i;
 const TELEMETRY_FEATURES = Object.freeze([
   ["trade", (state, decisions) => hasDecisionPrefix(decisions, "trade.buy.") ||
     hasDecisionPrefix(decisions, "trade.sell.")],
@@ -42,6 +43,11 @@ const TELEMETRY_FEATURES = Object.freeze([
   ["penguin", (state) => animalCompanionWasAcquired(state, "penguin")],
   ["raccoon", (state) => animalCompanionWasAcquired(state, "raccoon")]
 ]);
+
+export function shouldCaptureGlobalTelemetryError(error, sourceUrl = "") {
+  const stack = typeof error?.stack === "string" ? error.stack : "";
+  return !BROWSER_EXTENSION_URL_PATTERN.test(`${sourceUrl}\n${stack}`);
+}
 
 export function createGameTelemetry({
   storage,

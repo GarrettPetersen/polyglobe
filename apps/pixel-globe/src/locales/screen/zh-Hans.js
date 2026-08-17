@@ -944,7 +944,7 @@ export default Object.freeze({
   "Choose another wall. Write paid in full carefully; my family will frame the receipt where your claim once hung.": "选择另一面墙。仔细写下全额付款；我的家人会将收据框在您曾经挂着索赔的地方。",
   "Choose the targets we should automatically restore whenever you dock.": "选择每当您停靠时我们应自动恢复的目标。",
   "Christ be with you, captain. It is good to hear the old prayers spoken beneath another sky.": "基督与你同在，船长。很高兴听到在另一个天空下说出古老的祈祷。",
-  "Christ be with you, captain. It is good to meet another child of the old Church so far from home.": "基督与你同在，船长。很高兴在远离家乡的地方见到另一个老教会的孩子。",
+  "Christ be with you, captain. It is good to know we kneel before the same altar.": "愿基督与你同在，船长。得知我们跪拜于同一座祭坛前，实在令人欣慰。",
   "Christ be with you, captain. It is good to meet another keeper of the ancient faith.": "基督与你同在，船长。很高兴见到另一位古老信仰的守护者。",
   "Christ be with you, captain. Our churches differ, but the same sea lies beneath us.": "基督与你同在，船长。我们的教会不同，但我们脚下却是同一片大海。",
   "Christ be with you, captain. The times are sharp enough; let us keep doctrine from the scales.": "基督与你同在，船长。时代已经够尖锐了；让我们不要把教义置于天平之上。",

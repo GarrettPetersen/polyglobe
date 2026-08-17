@@ -14,6 +14,7 @@ import {
   createGameTelemetry,
   freezeTelemetryPayload,
   lowFrameRateTelemetryPayload,
+  shouldCaptureGlobalTelemetryError,
   telemetryRuntimeChannel,
   voyageStartTelemetryPayload,
   voyageTelemetryPayload
@@ -29,6 +30,21 @@ function memoryStorage(entries = {}) {
     values
   };
 }
+
+test("global telemetry ignores failures raised by injected browser extensions", () => {
+  const metaMaskError = new Error("Failed to connect to MetaMask");
+  metaMaskError.stack = "Error: Failed to connect to MetaMask\n" +
+    "    at chrome-extension://nkbihfbeogaeaoehlefnkodbefgpgknn/scripts/inpage.js:1:1";
+  assert.equal(shouldCaptureGlobalTelemetryError(metaMaskError), false);
+  assert.equal(shouldCaptureGlobalTelemetryError(
+    new Error("Extension failed"),
+    "moz-extension://example/injected.js"
+  ), false);
+  assert.equal(shouldCaptureGlobalTelemetryError(
+    new Error("Failed to connect to MetaMask"),
+    "https://pirates-of-the-pixel-globe.pages.dev/src/main.js"
+  ), true);
+});
 
 test("telemetry remains completely inert before consent and after refusal", async () => {
   const storage = memoryStorage();

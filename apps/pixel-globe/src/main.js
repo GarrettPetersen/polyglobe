@@ -1145,6 +1145,7 @@ import {
   TELEMETRY_CONSENT_GRANTED,
   TELEMETRY_CONSENT_UNKNOWN,
   createGameTelemetry,
+  shouldCaptureGlobalTelemetryError,
   telemetryRuntimeChannel
 } from "./gameTelemetry.js";
 import {
@@ -3763,12 +3764,14 @@ screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 window.addEventListener("pagehide", () => gameTelemetry.stop());
 crashCopyButton.addEventListener("click", () => void copyDisplayedCrashReport());
 window.addEventListener("error", (event) => {
-  if (event.error && !isRuntimeDiagnosticAssertionError(event.error)) {
+  if (event.error && shouldCaptureGlobalTelemetryError(event.error, event.filename) &&
+      !isRuntimeDiagnosticAssertionError(event.error)) {
     gameTelemetry.captureCrash(event.error, telemetryCrashContext());
   }
 });
 window.addEventListener("unhandledrejection", (event) => {
-  if (!isRuntimeDiagnosticAssertionError(event.reason)) {
+  if (shouldCaptureGlobalTelemetryError(event.reason) &&
+      !isRuntimeDiagnosticAssertionError(event.reason)) {
     gameTelemetry.captureCrash(event.reason, telemetryCrashContext());
   }
 });
