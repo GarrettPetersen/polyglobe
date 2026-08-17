@@ -1203,6 +1203,7 @@ import {
   dialogueFeedbackTextLines,
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
+  dialogueOptionMeasurementWidths,
   dialogueOptionNavigationLayout,
   dialogueOptionStackLayout,
   dialogueOptionTextLayout,
@@ -55579,7 +55580,15 @@ function dialogueTextToneColor(tone, fallback) {
 function drawCustomLoadoutDialogueOverlay(dialogueView) {
   const presentation = dialogueView.presentation;
   const panelW = Math.min(420, SCREEN_W - 12);
-  const panelH = Math.min(244, SCREEN_H - 12);
+  const optionWidth = panelW - 20;
+  const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_SMALL_8, optionWidth);
+  const optionGroups = dialogueOptionGroups(dialogueView.options);
+  const optionRows = dialogueRegularOptionRows(dialogueView, optionGroups.regular).length +
+    (optionGroups.exits.length > 0 ? 1 : 0);
+  const footerGap = optionGroups.regular.length > 0 && optionGroups.exits.length > 0 ? 4 : 0;
+  const minimumPanelHeight = 80 + presentation.fields.length * 24 +
+    optionRows * optionHeight + footerGap;
+  const panelH = Math.min(Math.max(244, minimumPanelHeight), SCREEN_H - 12);
   const panel = {
     x: Math.floor((SCREEN_W - panelW) / 2),
     y: Math.floor((SCREEN_H - panelH) / 2),
@@ -55593,13 +55602,9 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
   const shipY = titleY + 14;
   const dividerY = shipY + 12;
   const fieldsTop = dividerY + 6;
-  const optionWidth = panel.w - 20;
-  const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_SMALL_8, optionWidth);
-  const optionGroups = dialogueOptionGroups(dialogueView.options);
-  const optionRows = optionGroups.regular.length + (optionGroups.exits.length > 0 ? 1 : 0);
   const optionBottom = panel.y + panel.h - 8;
   const optionY = optionBottom - optionRows * optionHeight -
-    (optionGroups.regular.length > 0 && optionGroups.exits.length > 0 ? 4 : 0);
+    footerGap;
   const summaryY = optionY - 27;
   const availableFieldHeight = summaryY - fieldsTop - 3;
   const rowHeight = Math.max(24, Math.min(29, Math.floor(availableFieldHeight / presentation.fields.length)));
@@ -56462,15 +56467,18 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
 
 function dialogueOptionsHeight(view, font, width) {
   const minimumHeight = view.optionHeight || DIALOGUE_OPTION_H;
-  const conservativeWidth = Math.max(40, width - UI_PAGER_BUTTON_W - 5);
-  return view.options.reduce((height, option) => Math.max(
+  const measurementWidths = dialogueOptionMeasurementWidths({
+    options: view.options,
+    width,
+    optionColumns: view.optionColumns || 1,
+    regularWidthReserve: UI_PAGER_BUTTON_W + 5
+  });
+  return view.options.reduce((height, option, index) => Math.max(
     height,
     dialogueOptionTextMetrics(
       option,
       font,
-      option.rowId && view.optionColumns === 2
-        ? Math.max(40, Math.floor((conservativeWidth - 4) / 2))
-        : conservativeWidth,
+      measurementWidths[index],
       minimumHeight
     ).height
   ), minimumHeight);

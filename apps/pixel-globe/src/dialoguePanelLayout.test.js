@@ -9,6 +9,7 @@ import {
   dialogueOverlayIsVisible,
   dialogueOptionGroups,
   dialogueOptionLayout,
+  dialogueOptionMeasurementWidths,
   dialogueOptionNavigationLayout,
   dialogueOptionStackLayout,
   dialogueOptionTextLayout,
@@ -230,6 +231,30 @@ test("Back and Leave Port share the fixed town footer", () => {
     { x: 15, y: 217, w: 108, h: 22 },
     { x: 127, y: 217, w: 108, h: 22 }
   ]);
+});
+
+test("paired footer actions measure text against their actual button widths", () => {
+  const options = [
+    { label: "Apply custom loadout", placement: "port-exit" },
+    { label: "Back", placement: "port-exit" }
+  ];
+  const widths = dialogueOptionMeasurementWidths({
+    options,
+    width: 220,
+    regularWidthReserve: 29
+  });
+  assert.deepEqual(widths, [108, 108]);
+
+  const iconAndPromptReserve = 45;
+  const layout = dialogueOptionTextLayout({
+    label: options[0].label,
+    labelWidth: widths[0] - iconAndPromptReserve,
+    measureLabel: (text) => text.length * 6
+  });
+  assert.deepEqual(layout.labelLines, ["Apply", "custom", "loadout"]);
+  assert.equal(layout.height, 44);
+  assert.ok(layout.labelLines.every((line) => line.length * 6 <= widths[0] - iconAndPromptReserve));
+  assert.doesNotMatch(layout.labelLines.join(" "), /\.\.\./);
 });
 
 test("one-row dialogue paging keeps previous and next touch targets separate", () => {

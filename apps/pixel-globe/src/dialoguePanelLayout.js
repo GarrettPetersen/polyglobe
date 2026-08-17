@@ -1,4 +1,4 @@
-import { wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
+import { wrapAllMeasuredText } from "./measuredTextLayout.js";
 
 export function dialogueOverlayIsVisible({ dialogueActive, characterAlertActive }) {
   if (typeof dialogueActive !== "boolean" || typeof characterAlertActive !== "boolean") {
@@ -117,8 +117,6 @@ export function dialogueOptionTextLayout({
   measureLabel,
   measureDetail = measureLabel,
   minimumHeight = 24,
-  maximumLabelLines = 2,
-  maximumDetailLines = 2,
   labelLineHeight = 12,
   detailLineHeight = 10
 }) {
@@ -129,17 +127,15 @@ export function dialogueOptionTextLayout({
     labelWidth,
     detailWidth,
     minimumHeight,
-    maximumLabelLines,
-    maximumDetailLines,
     labelLineHeight,
     detailLineHeight
   })) {
     if (!Number.isFinite(value) || value <= 0) throw new Error(`Invalid dialogue option text ${name}`);
   }
 
-  const labelLines = wrapMeasuredText(label, labelWidth, maximumLabelLines, measureLabel);
+  const labelLines = wrapAllMeasuredText(label, labelWidth, measureLabel);
   const detailLines = detail
-    ? wrapMeasuredText(detail, detailWidth, maximumDetailLines, measureDetail)
+    ? wrapAllMeasuredText(detail, detailWidth, measureDetail)
     : [];
   const requiredHeight = 3 + labelLines.length * labelLineHeight + (detailLines.length > 0
     ? 1 + detailLines.length * detailLineHeight
@@ -150,6 +146,44 @@ export function dialogueOptionTextLayout({
     labelLines: Object.freeze(labelLines),
     detailLines: Object.freeze(detailLines)
   });
+}
+
+export function dialogueOptionMeasurementWidths({
+  options,
+  width,
+  optionColumns = 1,
+  regularWidthReserve = 0,
+  gap = 4
+}) {
+  for (const [label, value] of Object.entries({ width, optionColumns, regularWidthReserve, gap })) {
+    if (!Number.isFinite(value)) throw new Error(`Invalid dialogue option measurement ${label}`);
+  }
+  if (width <= 0) throw new Error("Dialogue option measurement width must be positive");
+  if (!Number.isInteger(optionColumns) || optionColumns < 1 || optionColumns > 2) {
+    throw new Error(`Unsupported dialogue option measurement column count: ${optionColumns}`);
+  }
+  if (regularWidthReserve < 0 || regularWidthReserve >= width) {
+    throw new Error("Dialogue option measurement reserve must fit its width");
+  }
+  if (gap < 0 || gap >= width) throw new Error("Dialogue option measurement gap must fit its width");
+
+  const groups = dialogueOptionGroups(options);
+  const widths = Array(options.length).fill(null);
+  const regularWidth = width - regularWidthReserve;
+  const pairedRegularWidth = Math.floor((regularWidth - gap) / 2);
+  for (const entry of groups.regular) {
+    widths[entry.index] = optionColumns === 2 && entry.option.rowId
+      ? pairedRegularWidth
+      : regularWidth;
+  }
+  const exitWidth = groups.exits.length === 2
+    ? Math.floor((width - gap) / 2)
+    : width;
+  for (const entry of groups.exits) widths[entry.index] = exitWidth;
+  if (widths.some((entry) => !Number.isFinite(entry) || entry <= 0)) {
+    throw new Error("Dialogue option measurement produced an invalid button width");
+  }
+  return Object.freeze(widths);
 }
 
 export function dialogueOptionLayout({
