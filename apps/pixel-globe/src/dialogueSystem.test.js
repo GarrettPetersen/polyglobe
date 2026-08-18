@@ -4615,7 +4615,7 @@ function establishNagasakiQuest(gameState, kyoto) {
   establishColony(gameState.memory.colonization, 102);
 }
 
-test("passenger dialogue can be declined and accepted later", () => {
+test("declining a passenger clears the offer without starting or failing it", () => {
   const origin = {
     tileId: 1,
     city: "Lisbon",
@@ -4660,14 +4660,8 @@ test("passenger dialogue can be declined and accepted later", () => {
   });
   assert.equal(gameState.memory.quests.active, null);
   assert.equal(gameState.memory.quests.passengerActive, null);
-
-  const acceptSession = createPassengerDialogueSession(origin, quest);
-  assert.deepEqual(selectPassengerDialogueOption(acceptSession, origin, quest, gameState, 0), {
-    closed: true,
-    action: null
-  });
-  assert.equal(gameState.memory.quests.passengerActive.id, quest.id);
   assert.equal(gameState.memory.quests.passengerOffers[quest.originKey], undefined);
+  assert.equal(gameState.memory.quests.failed?.[quest.id], undefined);
 });
 
 test("a passenger can disembark before the captain enters a barred destination", () => {

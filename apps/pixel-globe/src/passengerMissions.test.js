@@ -25,6 +25,7 @@ import {
   PASSENGER_MIN_DISTANCE_KM,
   PASSENGER_ROLL_PERIOD_MINUTES,
   activeNamedTravelMission,
+  declinePassengerOffer,
   envoyOfferForCapital,
   markPassengerOfferSeen,
   passengerOfferForCity,
@@ -109,6 +110,32 @@ test("passenger missions spawn as persistent medium-distance offers", () => {
     simMinute: 0
   }), offer);
   assert.equal(offer.seen, true);
+});
+
+test("declined passengers release their port slot for a later spawn period", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const ports = [LISBON, ISTANBUL, LONDON];
+  const first = passengerOfferForCity(state, LISBON, ports, {
+    spawnChance: 1,
+    simMinute: 0,
+    destinationTileId: ISTANBUL.tileId
+  });
+
+  declinePassengerOffer(state, first, { simMinute: 0 });
+  assert.equal(pendingPassengerOfferForCity(state, LISBON), null);
+  assert.equal(passengerOfferForCity(state, LISBON, ports, {
+    spawnChance: 1,
+    simMinute: 0,
+    destinationTileId: ISTANBUL.tileId
+  }), null);
+
+  const later = passengerOfferForCity(state, LISBON, ports, {
+    spawnChance: 1,
+    simMinute: PASSENGER_ROLL_PERIOD_MINUTES,
+    destinationTileId: LONDON.tileId
+  });
+  assert.ok(later);
+  assert.notEqual(later.id, first.id);
 });
 
 test("Baghdad participates in ordinary city work", () => {

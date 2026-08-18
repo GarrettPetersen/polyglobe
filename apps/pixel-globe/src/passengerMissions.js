@@ -108,8 +108,10 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
     const existing = pendingPassengerOfferForCity(state, city);
     if (isTreatyOfMadridQuest(existing)) return existing;
     const quest = buildTreatyOfMadridQuest(treatyPlan, context);
-    quests.passengerOffers[cityKey(city)] = quest;
-    return quest;
+    if (!passengerOfferWasDeclinedThisPeriod(quests, quest, context.simMinute)) {
+      quests.passengerOffers[cityKey(city)] = quest;
+      return quest;
+    }
   }
   const existing = pendingOrdinaryPassengerOfferForCity(state, city);
   if (existing) return existing;
@@ -117,25 +119,27 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   const eastAsianPlan = eastAsianMissionPlanForCity(state, city, portCities);
   if (eastAsianPlan) {
     const quest = buildEastAsianPassengerQuest(eastAsianPlan);
-    if (typeof context.createCharacter === "function") {
-      const scenario = {
-        id: eastAsianPlan.scenarioId,
-        expressionId: "attentive",
-        namePort: "origin"
-      };
-      const character = context.createCharacter({
-        quest,
-        origin: city,
-        destination: eastAsianPlan.destination,
-        scenario
-      });
-      if (character) {
-        quest.passenger = character;
-        quest.passengerName = character.name;
+    if (!passengerOfferWasDeclinedThisPeriod(quests, quest, context.simMinute)) {
+      if (typeof context.createCharacter === "function") {
+        const scenario = {
+          id: eastAsianPlan.scenarioId,
+          expressionId: "attentive",
+          namePort: "origin"
+        };
+        const character = context.createCharacter({
+          quest,
+          origin: city,
+          destination: eastAsianPlan.destination,
+          scenario
+        });
+        if (character) {
+          quest.passenger = character;
+          quest.passengerName = character.name;
+        }
       }
+      quests.passengerOffers[cityKey(city)] = quest;
+      return quest;
     }
-    quests.passengerOffers[cityKey(city)] = quest;
-    return quest;
   }
 
   const period = passengerRollPeriod(context.simMinute);
@@ -221,6 +225,7 @@ export function septemberTestamentOfferForCity(state, city, portCities, context 
     }
   );
   if (quests.completed[quest.id] || quests.failed?.[quest.id]) return null;
+  if (passengerOfferWasDeclinedThisPeriod(quests, quest, context.simMinute)) return null;
   quests.passengerOffers[passengerOfferStorageKey(quest)] = quest;
   return quest;
 }
@@ -468,6 +473,17 @@ export function markPassengerOfferSeen(state, quest) {
   offer.seen = true;
   quest.seen = true;
   return offer;
+}
+
+export function declinePassengerOffer(state, quest, context = {}) {
+  if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest)) || !quest.id) {
+    throw new Error("Declining a passenger offer requires a passenger or envoy quest");
+  }
+  const quests = questMemory(state);
+  for (const [storageKey, offer] of Object.entries(quests.passengerOffers)) {
+    if (offer?.id === quest.id) delete quests.passengerOffers[storageKey];
+  }
+  quests.passengerRolls[passengerOfferDeclineKey(quest, context.simMinute)] = true;
 }
 
 function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, options = {}) {
@@ -1162,6 +1178,14 @@ function passengerSpawnChance(value) {
 function passengerRollPeriod(simMinute) {
   if (!Number.isFinite(simMinute)) return 0;
   return Math.floor(simMinute / PASSENGER_ROLL_PERIOD_MINUTES);
+}
+
+function passengerOfferWasDeclinedThisPeriod(quests, quest, simMinute) {
+  return quests.passengerRolls[passengerOfferDeclineKey(quest, simMinute)] === true;
+}
+
+function passengerOfferDeclineKey(quest, simMinute) {
+  return `declined|${quest.id}|${passengerRollPeriod(simMinute)}`;
 }
 
 function seededFraction(value) {

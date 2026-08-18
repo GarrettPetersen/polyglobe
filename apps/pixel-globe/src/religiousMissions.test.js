@@ -5,6 +5,8 @@ import test from "node:test";
 import { generatePassengerCharacter } from "./characterPortraits.js";
 import { acceptQuest, createGameState, portEntryStatus } from "./gameState.js";
 import {
+  PASSENGER_ROLL_PERIOD_MINUTES,
+  declinePassengerOffer,
   passengerOfferForCity,
   passengerRoleLabel,
   pendingPassengerOffersForCity,
@@ -192,8 +194,23 @@ test("the September Testament offer does not consume an ordinary passenger offer
   assert.equal(testament.religiousMissionId, "september-testament");
   assert.deepEqual(new Set(offers.map(({ id }) => id)), new Set([ordinary.id, testament.id]));
 
-  acceptQuest(state, testament, { simMinute: 0 });
-  assert.equal(state.memory.quests.passengerActive.id, testament.id);
+  declinePassengerOffer(state, testament, { simMinute: 0 });
+  assert.deepEqual(pendingPassengerOffersForCity(state, origin).map(({ id }) => id), [ordinary.id]);
+  assert.equal(septemberTestamentOfferForCity(
+    state,
+    origin,
+    [origin, ...destinations],
+    context
+  ), null);
+
+  const laterTestament = septemberTestamentOfferForCity(
+    state,
+    origin,
+    [origin, ...destinations],
+    { ...context, simMinute: PASSENGER_ROLL_PERIOD_MINUTES }
+  );
+  acceptQuest(state, laterTestament, { simMinute: PASSENGER_ROLL_PERIOD_MINUTES });
+  assert.equal(state.memory.quests.passengerActive.id, laterTestament.id);
   assert.ok(Object.values(state.memory.quests.passengerOffers).some(({ id }) => id === ordinary.id));
 });
 

@@ -446,6 +446,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   buy: "action:buy",
   "accept-quest": "action:quest",
   "accept-passenger": "action:passenger",
+  "decline-passenger": "action:back",
   "accept-rescued-traveler": "action:passenger",
   "decline-rescued-traveler": "action:leave",
   "finish-rescued-traveler-offer": "action:quest",

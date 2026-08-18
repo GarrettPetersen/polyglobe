@@ -96,7 +96,10 @@ test("Treaty dialogue asks the captain to carry the delegation, not dictate term
   const offerSession = createPassengerDialogueSession(BORDEAUX, french);
   const offer = passengerDialogueView(offerSession, BORDEAUX, french, state);
   assert.match(offer.options[0].label, /^Carry delegation to Barcelona/);
-  assert.deepEqual(offer.options.map((entry) => entry.action.type), ["accept-passenger", "open-port"]);
+  assert.deepEqual(offer.options.map((entry) => entry.action.type), [
+    "accept-passenger",
+    "decline-passenger"
+  ]);
 
   acceptQuest(state, french, { simMinute: AFTER_PAVIA });
   const negotiationSession = createPassengerDialogueSession(BARCELONA, state.memory.quests.active);

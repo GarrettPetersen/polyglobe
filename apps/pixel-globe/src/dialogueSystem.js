@@ -114,6 +114,7 @@ import {
 import { isIslamicReligion, religionById } from "./characterReligion.js";
 import {
   HAJJ_PASSENGER_SCENARIO_ID,
+  declinePassengerOffer,
   isHajjPassengerQuest,
   passengerRoleLabel
 } from "./passengerMissions.js";
@@ -3132,7 +3133,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
         : `Take ${roleLabel}`} to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
         detail: formatDistanceKm(quest.distanceKm)
       }),
-      option("Decline", { type: "open-port" })
+      option("Decline", { type: "decline-passenger" })
     ]
   };
 }
@@ -3151,6 +3152,10 @@ export function selectPassengerDialogueOption(
   const action = selected.action;
   if (action.type === "close") return { closed: true, action: null };
   if (action.type === "open-port") return { closed: false, action: { type: "open-port" } };
+  if (action.type === "decline-passenger") {
+    declinePassengerOffer(gameState, quest, context);
+    return { closed: false, action: { type: "open-port" } };
+  }
   if (action.type === "acknowledge-quest-journey-dialogue") {
     if (session.journeyEvent?.id !== action.eventId) {
       throw new Error(`Passenger dialogue lost journey event: ${action.eventId}`);
