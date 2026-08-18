@@ -303,6 +303,7 @@ import {
   recordPeaceTreatyAuthority,
   recordPortCaptureAuthority,
   recordProtestantMissionAuthority,
+  recentSovereignAuthorityHeadlines,
   sovereignAuthorityScore,
   validateSovereignAuthority
 } from "./sovereignAuthority.js";
@@ -1273,8 +1274,12 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     currentMinute
   );
   let englishReformationConversions = 0;
+  let englishReformationAuthorityEvents = Object.freeze([]);
   if (papal.englishReformation) {
-    recordEnglishReformationAuthority(state.relations.authority, currentMinute);
+    englishReformationAuthorityEvents = recordEnglishReformationAuthority(
+      state.relations.authority,
+      currentMinute
+    );
     const convertedPlayer = convertEnglishCatholicCharacter(state.playerCharacter);
     if (convertedPlayer !== state.playerCharacter) {
       state.playerCharacter = convertedPlayer;
@@ -1304,7 +1309,10 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     papalCommissionRevoked: papal.commissionRevoked,
     courtActions: courts.actions,
     courtMattersOpened: courts.mattersOpened,
-    authorityEvents: authority.authorityEvents,
+    authorityEvents: Object.freeze([
+      ...authority.authorityEvents,
+      ...englishReformationAuthorityEvents
+    ]),
     conquistadorTransfers: conquistador.transfers,
     conquistadorRewardReady: conquistador.rewardReady,
     historicalTransitions,
@@ -1329,6 +1337,11 @@ export function recentGamePapalActions(state, limit = 3) {
 export function recentGameCourtActions(state, limit = 3) {
   assertGameState(state);
   return recentCourtActions(state.relations.courts, limit);
+}
+
+export function recentGameAuthorityHeadlines(state, limit = 3) {
+  assertGameState(state);
+  return recentSovereignAuthorityHeadlines(state.relations.authority, limit);
 }
 
 export function sovereignAuthorityForState(state, factionId) {

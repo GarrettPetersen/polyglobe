@@ -14,6 +14,8 @@ import {
   papalAuthorityResponseMultiplier,
   recordEnglishReformationAuthority,
   recordNavalAuthorityOutcome,
+  recentSovereignAuthorityHeadlines,
+  sovereignAuthorityHeadlineNotice,
   sovereignAuthorityScore,
   validateSovereignAuthority
 } from "./sovereignAuthority.js";
@@ -34,6 +36,16 @@ test("authority starts with one historically calibrated score per sovereign powe
   assert.equal(sovereignAuthorityScore(authority, "ottoman"), 88);
   assert.equal(sovereignAuthorityScore(authority, "ming"), 68);
   assert.ok(papalAuthorityResponseMultiplier(authority) < 1);
+});
+
+test("the two English Reformation authority changes produce one political headline", () => {
+  const authority = createSovereignAuthority({ seedKey: "reformation-headline" });
+  recordEnglishReformationAuthority(authority, 500);
+
+  const headlines = recentSovereignAuthorityHeadlines(authority, 10);
+
+  assert.equal(headlines.length, 1);
+  assert.equal(sovereignAuthorityHeadlineNotice(headlines[0]), "ENGLAND BREAKS WITH ROME");
 });
 
 test("weak shogunal authority causes nominal daimyo ties to loosen", () => {

@@ -36,6 +36,9 @@ const SUBJECT_REVIEW_MIN_DAYS = 105;
 const SUBJECT_REVIEW_MAX_DAYS = 180;
 const MAX_CATCH_UP_REVIEWS = 8;
 const VIENNA_SIEGE_AUTHORITY_MINUTE = gameMinuteForDate(1529, 10, 14);
+const AUTHORITY_HEADLINE_NOTICES = Object.freeze({
+  "english-reformation": "ENGLAND BREAKS WITH ROME"
+});
 const LUTHERAN_RECEPTIVE_FACTIONS = new Set([
   "habsburg",
   "hungary",
@@ -145,6 +148,32 @@ export function papalAuthorityResponseMultiplier(memoryOrScore) {
     : papalAuthorityScore(memoryOrScore);
   assertAuthorityScore(score, "papal response");
   return 0.35 + score / 100 * 0.9;
+}
+
+export function recentSovereignAuthorityHeadlines(memory, limit = 3) {
+  validateSovereignAuthority(memory);
+  if (!Number.isInteger(limit) || limit < 0) {
+    throw new Error(`Invalid authority headline history limit: ${limit}`);
+  }
+  if (limit === 0) return Object.freeze([]);
+  const headlines = [];
+  const seen = new Set();
+  for (const event of memory.history) {
+    if (!Object.hasOwn(AUTHORITY_HEADLINE_NOTICES, event.source)) continue;
+    const key = `${event.source}|${event.simMinute}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    headlines.push(event);
+    if (headlines.length >= limit) break;
+  }
+  return Object.freeze(headlines);
+}
+
+export function sovereignAuthorityHeadlineNotice(event) {
+  validateAuthorityEvent(event);
+  const notice = AUTHORITY_HEADLINE_NOTICES[event.source];
+  if (!notice) throw new Error(`Authority event is not a political headline: ${event.source}`);
+  return notice;
 }
 
 export function convertCatholicFactorForPapalAuthority(character, memoryOrScore) {

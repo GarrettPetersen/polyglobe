@@ -24,6 +24,7 @@ import {
   imposePapalAction
 } from "./papalPolitics.js";
 import { makeDiplomaticPeace } from "./worldDiplomacy.js";
+import { recordEnglishReformationAuthority } from "./sovereignAuthority.js";
 import {
   SPANISH_INDIES_TRADE_POLICY_ID,
   grantPersonalTradePass
@@ -255,6 +256,20 @@ test("the politics view preserves the complete newest papal headline", () => {
   assert.equal(view.latestNews.source, "papal");
   assert.match(view.latestNews.text, /PROCLAIMS A CRUSADE AGAINST OTTOMAN/);
   assert.equal(view.latestNews.text.endsWith("..."), false);
+});
+
+test("the English break with Rome persists once in politics history", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  recordEnglishReformationAuthority(state.relations.authority, 500);
+
+  const view = createPoliticsView(state, 500);
+
+  assert.equal(view.latestNews.source, "authority");
+  assert.equal(view.latestNews.text, "ENGLAND BREAKS WITH ROME");
+  assert.equal(
+    view.newsHistory.filter((entry) => entry.text === "ENGLAND BREAKS WITH ROME").length,
+    1
+  );
 });
 
 test("politics news keeps the ten newest dated developments", () => {

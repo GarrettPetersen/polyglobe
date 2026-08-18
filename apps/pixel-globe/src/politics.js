@@ -16,6 +16,7 @@ import {
   hasPersonalTradePass,
   hasLetterOfMarqueFrom,
   recentGameDiplomacyEvents,
+  recentGameAuthorityHeadlines,
   recentGameCourtActions,
   recentGamePapalActions,
   sovereignAuthorityForState,
@@ -47,6 +48,7 @@ import {
   suzeraintyForVassal
 } from "./suzerainty.js";
 import { diplomacyEventNotice } from "./worldDiplomacy.js";
+import { sovereignAuthorityHeadlineNotice } from "./sovereignAuthority.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_ALLY]: "Ally",
@@ -82,12 +84,17 @@ export function createPoliticsView(
   const recentEvents = recentGameDiplomacyEvents(gameState, POLITICS_NEWS_HISTORY_LIMIT);
   const recentPapalActions = recentGamePapalActions(gameState, POLITICS_NEWS_HISTORY_LIMIT);
   const recentCourtActions = recentGameCourtActions(gameState, POLITICS_NEWS_HISTORY_LIMIT);
+  const recentAuthorityHeadlines = recentGameAuthorityHeadlines(
+    gameState,
+    POLITICS_NEWS_HISTORY_LIMIT
+  );
   const pendingPapalMatter = papalPendingMatter(gameState.relations.papacy);
   const pendingCourtMatter = courtPendingMatter(gameState.relations.courts);
   const newsHistory = recentPoliticsNews({
     recentEvents,
     recentPapalActions,
     recentCourtActions,
+    recentAuthorityHeadlines,
     pendingPapalMatter,
     pendingCourtMatter
   });
@@ -96,6 +103,7 @@ export function createPoliticsView(
     recentEvents,
     recentPapalActions,
     recentCourtActions,
+    recentAuthorityHeadlines,
     pendingPapalMatter,
     pendingCourtMatter,
     newsHistory,
@@ -137,6 +145,13 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
       tone: "warn",
       text: courtActionNotice(action),
       tiePriority: 2
+    })),
+    ...(view.recentAuthorityHeadlines || []).map((event) => ({
+      source: "authority",
+      simMinute: event.simMinute,
+      tone: "warn",
+      text: sovereignAuthorityHeadlineNotice(event),
+      tiePriority: 4
     }))
   ];
   const matter = view.pendingPapalMatter || null;
