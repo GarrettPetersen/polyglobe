@@ -820,6 +820,7 @@ export function createWorldWebGL2Renderer({
   let atlasFloatCount = 0;
   const chunkTextures = new Map();
   const chunkLru = new LruChunkKeys(chunkCacheLimit);
+  const chunkSpriteVertices = new WeakMap();
   const persistentBatches = new Map();
   const persistentBatchLru = new LruChunkKeys(DEFAULT_PERSISTENT_BATCH_CACHE_LIMIT);
   const sceneTexture = createNearestTexture(gl);
@@ -1055,6 +1056,11 @@ export function createWorldWebGL2Renderer({
     const width = source.width || source.naturalWidth;
     const height = source.height || source.naturalHeight;
     const texture = residentChunkTexture(key, source, revision, width, height);
+    let cachedVertices = chunkSpriteVertices.get(sprites);
+    if (cachedVertices?.width === width && cachedVertices.height === height) {
+      drawVertices(texture, width, height, cachedVertices.vertices, offset);
+      return;
+    }
     const vertices = new Float32Array(sprites.length * FLOATS_PER_QUAD);
     let vertexOffset = 0;
     for (const sprite of sprites) {
@@ -1077,6 +1083,8 @@ export function createWorldWebGL2Renderer({
         swellPosition: null
       });
     }
+    cachedVertices = { width, height, vertices };
+    chunkSpriteVertices.set(sprites, cachedVertices);
     drawVertices(texture, width, height, vertices, offset);
   }
 

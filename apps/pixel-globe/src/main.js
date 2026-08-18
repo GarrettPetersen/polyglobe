@@ -1577,6 +1577,10 @@ import {
   isWorldWebGLContextLostError
 } from "./worldWebglRenderer.js";
 import {
+  navalProjectileSeed as cannonSeed,
+  navalProjectileUnit as cannonUnit
+} from "./navalProjectileRandom.js";
+import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
   SHIP_PAPER_ROW_CONTENT_INSET,
   compactShipMeterLayout,
@@ -29059,22 +29063,6 @@ function drawCannonSplashes(activeChart, painter) {
 
 function cannonBallPoint(ball, age) {
   return navalProjectilePoint(ball, age);
-}
-
-function cannonSeed(sequence, index, sideSalt, origin) {
-  const ox = Math.round(origin.x * 8);
-  const oy = Math.round(origin.y * 8);
-  return hashInt(
-    Math.imul(sequence, 0x9e3779b1) ^
-    Math.imul(index + 1, 0x85ebca6b) ^
-    Math.imul(ox, 0x45d9f3b) ^
-    Math.imul(oy, 0x27d4eb2d) ^
-    sideSalt
-  );
-}
-
-function cannonUnit(seed, salt) {
-  return (hashInt(seed ^ Math.imul(salt + 1, 0x7f4a7c15)) & 0xffff) / 0xffff;
 }
 
 function rotate2(direction, angle) {
