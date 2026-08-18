@@ -20,8 +20,10 @@ import { diplomacyBetween } from "./factions.js";
 import {
   HAJJ_PASSENGER_MAX_DISTANCE_KM,
   HAJJ_PASSENGER_SCENARIO_ID,
+  HAJJ_RETURN_PASSENGER_SCENARIO_ID,
   PASSENGER_MAX_DISTANCE_KM,
   PASSENGER_MIN_DISTANCE_KM,
+  PASSENGER_ROLL_PERIOD_MINUTES,
   activeNamedTravelMission,
   envoyOfferForCapital,
   markPassengerOfferSeen,
@@ -164,6 +166,57 @@ test("Hajj passage requires both a Muslim origin community and accessible Jeddah
     spawnChance: 1,
     scenarioId: HAJJ_PASSENGER_SCENARIO_ID,
     simMinute: 0,
+    sailingDistanceKm: () => 5000
+  }), null);
+});
+
+test("Jeddah commonly offers repeatable passages home to returning Hajj pilgrims", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  let characterRequest = null;
+  const first = passengerOfferForCity(state, JEDDAH, [JEDDAH, ACEH, LISBON], {
+    spawnChance: 1,
+    hajjReturnScenarioChance: 1,
+    simMinute: 0,
+    destinationTileId: ACEH.tileId,
+    sailingDistanceKm: () => 8600,
+    createCharacter: (request) => {
+      characterRequest = request;
+      return { name: "Nur Aisyah", religionId: request.quest.passengerReligionId };
+    }
+  });
+
+  assert.equal(first.scenarioId, HAJJ_RETURN_PASSENGER_SCENARIO_ID);
+  assert.equal(first.originName, "Jeddah");
+  assert.equal(first.destinationName, "Aceh");
+  assert.equal(first.passengerReligionId, "sunni-islam");
+  assert.equal(first.passenger.religionId, "sunni-islam");
+  assert.equal(characterRequest.scenario.namePort, "destination");
+  assert.match(first.dialogue.offer, /Hajj is complete/i);
+  assert.match(first.dialogue.offer, /passage home to Aceh/i);
+  assert.match(first.dialogue.arrival, /return from the Hajj/i);
+
+  acceptQuest(state, first);
+  completeQuest(state, ACEH, { simMinute: 240 });
+  const second = passengerOfferForCity(state, JEDDAH, [JEDDAH, ACEH, LISBON], {
+    spawnChance: 1,
+    hajjReturnScenarioChance: 1,
+    simMinute: PASSENGER_ROLL_PERIOD_MINUTES,
+    destinationTileId: ACEH.tileId,
+    sailingDistanceKm: () => 8600
+  });
+
+  assert.ok(second);
+  assert.equal(second.scenarioId, HAJJ_RETURN_PASSENGER_SCENARIO_ID);
+  assert.notEqual(second.id, first.id);
+});
+
+test("Hajj return passengers can only name Muslim communities as home", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  assert.equal(passengerOfferForCity(state, JEDDAH, [JEDDAH, LISBON], {
+    spawnChance: 1,
+    scenarioId: HAJJ_RETURN_PASSENGER_SCENARIO_ID,
+    simMinute: 0,
+    destinationTileId: LISBON.tileId,
     sailingDistanceKm: () => 5000
   }), null);
 });

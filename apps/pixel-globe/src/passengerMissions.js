@@ -42,7 +42,8 @@ import {
 import { courtMatterDialogue, courtMissionPlan } from "./courtPolitics.js";
 import {
   CANONICAL_PORTS,
-  findCanonicalPort
+  findCanonicalPort,
+  portMatchesCanonicalReference
 } from "./canonicalPorts.js";
 import {
   EAST_ASIAN_MISSION_NINGBO,
@@ -71,6 +72,8 @@ export const PASSENGER_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
 export const ENVOY_SPAWN_CHANCE = 0.08;
 export const HAJJ_PASSENGER_SCENARIO_ID = "hajj";
 export const HAJJ_PASSENGER_SCENARIO_CHANCE = 0.35;
+export const HAJJ_RETURN_PASSENGER_SCENARIO_ID = "hajj-return";
+export const HAJJ_RETURN_PASSENGER_SCENARIO_CHANCE = 0.65;
 export const HAJJ_PASSENGER_MIN_DISTANCE_KM = 300;
 export const HAJJ_PASSENGER_MAX_DISTANCE_KM = 16000;
 
@@ -78,6 +81,12 @@ const HAJJ_PASSENGER_SCENARIO = Object.freeze({
   id: HAJJ_PASSENGER_SCENARIO_ID,
   expressionId: "attentive",
   namePort: "origin"
+});
+
+const HAJJ_RETURN_PASSENGER_SCENARIO = Object.freeze({
+  id: HAJJ_RETURN_PASSENGER_SCENARIO_ID,
+  expressionId: "happy",
+  namePort: "destination"
 });
 
 export const PASSENGER_SCENARIOS = Object.freeze([
@@ -130,14 +139,21 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
   const period = passengerRollPeriod(context.simMinute);
   const originKey = cityKey(city);
   const rollKey = `${originKey}|${period}`;
-  const hajjPlan = hajjPassengerPlan(city, portCities, context, rollKey);
-  const religiousPlan = hajjPlan
+  const hajjReturnPlan = hajjReturnPassengerPlan(city, portCities, context, rollKey);
+  const hajjPlan = hajjReturnPlan
+    ? null
+    : hajjPassengerPlan(city, portCities, context, rollKey);
+  const religiousPlan = hajjReturnPlan || hajjPlan
     ? null
     : religiousPassengerPlan(state, city, portCities, context, rollKey);
-  const specialPlan = hajjPlan || religiousPlan;
+  const specialPlan = hajjReturnPlan || hajjPlan || religiousPlan;
   const forcedReligiousMission = context.religiousMissionId !== undefined ||
     religiousMissionByScenarioId(context.scenarioId) !== null;
-  if ((context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID || forcedReligiousMission) && !specialPlan) {
+  const forcedHajjMission = [
+    HAJJ_PASSENGER_SCENARIO_ID,
+    HAJJ_RETURN_PASSENGER_SCENARIO_ID
+  ].includes(context.scenarioId);
+  if ((forcedHajjMission || forcedReligiousMission) && !specialPlan) {
     return null;
   }
   const destination = specialPlan?.destination || choosePassengerDestination(city, portCities, context);
@@ -709,6 +725,11 @@ export function isHajjPassengerQuest(quest) {
   return quest?.kind === "passenger" && quest.scenarioId === HAJJ_PASSENGER_SCENARIO_ID;
 }
 
+export function isHajjReturnPassengerQuest(quest) {
+  return quest?.kind === "passenger" &&
+    quest.scenarioId === HAJJ_RETURN_PASSENGER_SCENARIO_ID;
+}
+
 export function passengerRoleLabel(quest) {
   if (isEastAsianMissionQuest(quest)) return quest.passengerRoleLabel;
   if (isTreatyOfMadridQuest(quest)) return quest.passengerRoleLabel;
@@ -840,6 +861,13 @@ function passengerDialogueText(scenarioId, origin, destination, reward, religiou
       arrival: `${destinationName} at last—the sea gate to Mecca. From here the pilgrims take the road inland. You have carried me to the threshold of the Hajj.`
     };
   }
+  if (scenarioId === HAJJ_RETURN_PASSENGER_SCENARIO_ID) {
+    return {
+      offer: `Praise be to God, my Hajj is complete. Now I need passage home to ${destinationName}. Carry me there and I will pay ${reward} db.`,
+      underway: `After the crowds of Mecca, the quiet sea is welcome. I am returning home to ${destinationName} from the Hajj.`,
+      arrival: `${destinationName} at last. I left home a pilgrim and return from the Hajj. You have my thanks.`
+    };
+  }
   if (scenarioId === "return-home") {
     return {
       offer: `Captain, I was born in ${destinationName}. My last berth ended here, and I have no kin in this harbor. Carry me home and I will pay ${reward} db.`,
@@ -948,6 +976,48 @@ function hajjPassengerPlan(origin, portCities, context, rollKey) {
   };
 }
 
+function hajjReturnPassengerPlan(origin, portCities, context, rollKey) {
+  const forcedReturn = context.scenarioId === HAJJ_RETURN_PASSENGER_SCENARIO_ID;
+  if (context.scenarioId && !forcedReturn) return null;
+  if (!portMatchesCanonicalReference(origin, CANONICAL_PORTS.JEDDAH)) return null;
+
+  const candidates = portCities
+    .filter((port) => port.tileId !== origin.tileId)
+    .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
+    .filter((port) => (
+      context.destinationTileId === undefined || port.tileId === context.destinationTileId
+    ))
+    .map((port) => {
+      const distanceKm = passengerTravelDistanceKm(origin, port, context);
+      const passengerReligionId = islamicReligionForHome(
+        port,
+        `${rollKey}|hajj-return|${cityKey(port)}`
+      );
+      return { port, distanceKm, passengerReligionId };
+    })
+    .filter(({ distanceKm, passengerReligionId }) => (
+      passengerReligionId && hajjPassengerDistanceIsAllowed(distanceKm)
+    ));
+  if (candidates.length === 0) return null;
+
+  const chance = hajjReturnPassengerScenarioChance(context.hajjReturnScenarioChance);
+  if (!forcedReturn && chance < 1 && seededFraction(`${rollKey}|hajj-return`) >= chance) {
+    return null;
+  }
+  const selected = candidates
+    .map((candidate) => ({
+      ...candidate,
+      score: destinationScore(`${rollKey}|hajj-return`, candidate.port, candidate.distanceKm)
+    }))
+    .sort((a, b) => a.score - b.score)[0];
+  return {
+    destination: selected.port,
+    distanceKm: selected.distanceKm,
+    passengerReligionId: selected.passengerReligionId,
+    scenario: HAJJ_RETURN_PASSENGER_SCENARIO
+  };
+}
+
 function passengerTravelDistanceKm(origin, destination, context) {
   if (typeof context.sailingDistanceKm === "function") {
     return context.sailingDistanceKm(origin, destination);
@@ -978,7 +1048,7 @@ function hajjPassengerDistanceIsAllowed(distanceKm) {
 }
 
 function passengerDistanceIsAllowed(quest) {
-  return isHajjPassengerQuest(quest)
+  return isHajjPassengerQuest(quest) || isHajjReturnPassengerQuest(quest)
     ? hajjPassengerDistanceIsAllowed(quest.distanceKm)
     : isReligiousPassengerQuest(quest)
       ? religiousPassengerDistanceIsAllowed(quest.distanceKm, quest.religiousMissionId)
@@ -987,6 +1057,9 @@ function passengerDistanceIsAllowed(quest) {
 
 function choosePassengerScenario(seed, context) {
   if (context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID) return HAJJ_PASSENGER_SCENARIO;
+  if (context.scenarioId === HAJJ_RETURN_PASSENGER_SCENARIO_ID) {
+    return HAJJ_RETURN_PASSENGER_SCENARIO;
+  }
   if (context.scenarioId) {
     const forced = PASSENGER_SCENARIOS.find((scenario) => scenario.id === context.scenarioId);
     if (forced) return forced;
@@ -996,6 +1069,11 @@ function choosePassengerScenario(seed, context) {
 
 function hajjPassengerScenarioChance(value) {
   if (!Number.isFinite(value)) return HAJJ_PASSENGER_SCENARIO_CHANCE;
+  return Math.max(0, Math.min(1, value));
+}
+
+function hajjReturnPassengerScenarioChance(value) {
+  if (!Number.isFinite(value)) return HAJJ_RETURN_PASSENGER_SCENARIO_CHANCE;
   return Math.max(0, Math.min(1, value));
 }
 

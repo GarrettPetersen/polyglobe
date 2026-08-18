@@ -194,6 +194,42 @@ const REVIEWED_OVERRIDES = Object.freeze({
     "zh-Hant": "巴布爾的新朝廷意在把北印度的道路與河流都繫於阿格拉。",
     ko: "바부르의 새 조정은 북인도의 도로와 강을 아그라에 잇고자 한다."
   }),
+  "Praise be to God, my Hajj is complete. Now I need passage home to {0}. Carry me there and I will pay {1} db.": Object.freeze({
+    "zh-Hans": "感谢真主，我已完成朝觐。现在我需要搭船返回{0}的家。送我回去，我会付你{1}达布隆。",
+    ru: "Хвала Аллаху, мой хадж завершён. Теперь мне нужен корабль домой, в {0}. Доставьте меня туда, и я заплачу {1} дублонов.",
+    es: "Alabado sea Dios, he completado el Hajj. Ahora necesito pasaje de regreso a {0}. Lléveme allí y le pagaré {1} doblones.",
+    "pt-BR": "Graças a Deus, completei o Hajj. Agora preciso de uma passagem de volta para {0}. Leve-me até lá e pagarei {1} dobrões.",
+    ja: "アッラーに感謝を。ハッジを終えました。今度は故郷の{0}まで船に乗せてください。送り届けてくだされば{1}ダブロンをお支払いします。",
+    de: "Gott sei gepriesen, mein Haddsch ist vollendet. Nun brauche ich eine Überfahrt nach Hause, nach {0}. Bringt mich dorthin, und ich zahle {1} Dublonen.",
+    fr: "Dieu soit loué, mon hajj est accompli. Il me faut maintenant rentrer chez moi à {0}. Conduisez-moi et je vous paierai {1} doublons.",
+    pl: "Chwała Bogu, mój hadżdż dobiegł końca. Teraz potrzebuję transportu do domu, do {0}. Zawieźcie mnie tam, a zapłacę {1} dublonów.",
+    "zh-Hant": "感謝真主，我已完成朝覲。現在我需要搭船返回{0}的家。送我回去，我會付你{1}達布隆。",
+    ko: "알라께 찬미를, 하지 순례를 마쳤습니다. 이제 고향 {0}으로 돌아갈 배편이 필요합니다. 데려다주시면 {1}더블룬을 드리겠습니다."
+  }),
+  "After the crowds of Mecca, the quiet sea is welcome. I am returning home to {0} from the Hajj.": Object.freeze({
+    "zh-Hans": "离开麦加的人潮，宁静的海面令人舒心。我完成朝觐，正返回{0}的家。",
+    ru: "После толп Мекки тихое море — благословение. Я возвращаюсь домой, в {0}, после хаджа.",
+    es: "Después de las multitudes de La Meca, el mar en calma es un alivio. Regreso a casa, a {0}, después del Hajj.",
+    "pt-BR": "Depois das multidões de Meca, o mar tranquilo é um alívio. Estou voltando para casa, em {0}, depois do Hajj.",
+    ja: "メッカの群衆を離れると、静かな海がありがたく感じます。ハッジを終え、故郷の{0}へ帰るところです。",
+    de: "Nach dem Gedränge in Mekka ist die ruhige See willkommen. Vom Haddsch kehre ich heim nach {0}.",
+    fr: "Après la foule de La Mecque, le calme de la mer fait du bien. Je rentre chez moi à {0} après le hajj.",
+    pl: "Po tłumach Mekki spokojne morze jest prawdziwą ulgą. Wracam z hadżdżu do domu, do {0}.",
+    "zh-Hant": "離開麥加的人潮，寧靜的海面令人舒心。我完成朝覲，正返回{0}的家。",
+    ko: "메카의 군중을 벗어나니 고요한 바다가 반갑습니다. 하지 순례를 마치고 고향 {0}으로 돌아가는 길입니다."
+  }),
+  "{0} at last. I left home a pilgrim and return from the Hajj. You have my thanks.": Object.freeze({
+    "zh-Hans": "终于回到{0}了。我离家时是朝圣者，如今完成朝觐归来。多谢你。",
+    ru: "Наконец-то {0}. Здесь началось моё паломничество, а теперь я возвращаюсь после хаджа. Благодарю вас.",
+    es: "Por fin, {0}. Partí para peregrinar y regreso del Hajj. Tiene mi agradecimiento.",
+    "pt-BR": "Finalmente, {0}. Parti em peregrinação e volto do Hajj. Você tem minha gratidão.",
+    ja: "ようやく{0}です。巡礼の旅に出た故郷へ、ハッジを終えて帰ってきました。ありがとうございます。",
+    de: "Endlich {0}. Zur Pilgerfahrt zog ich fort, nun kehre ich vom Haddsch zurück. Habt meinen Dank.",
+    fr: "Enfin {0}. J'étais parti en pèlerinage ; je reviens du hajj. Vous avez toute ma gratitude.",
+    pl: "Nareszcie {0}. Stąd rozpoczęła się moja pielgrzymka; teraz wracam z hadżdżu. Dziękuję.",
+    "zh-Hant": "終於回到{0}了。我離家時是朝聖者，如今完成朝覲歸來。多謝你。",
+    ko: "마침내 {0}입니다. 순례자로 고향을 떠났다가 하지를 마치고 돌아왔습니다. 감사합니다."
+  }),
   "Babur has won a new empire, but its maps still end where caravan reports begin. Bring Agra a captain's account of the seas.": Object.freeze({
     "zh-Hans": "巴布尔赢得了一个新帝国，但它的地图仍止于商队传闻。把一位船长对海洋的见闻带到阿格拉。",
     ru: "Бабур завоевал новую империю, но её карты всё ещё кончаются там, где начинаются рассказы караванщиков. Доставьте в Агру морской отчёт капитана.",
