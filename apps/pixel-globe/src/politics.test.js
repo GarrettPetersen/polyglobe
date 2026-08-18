@@ -21,10 +21,18 @@ import {
 } from "./gameState.js";
 import {
   PAPAL_ACTION_CRUSADE,
-  imposePapalAction
+  acceptPapalCommission,
+  advancePapalPolitics,
+  imposePapalAction,
+  revokeActivePapalCommission
 } from "./papalPolitics.js";
 import { makeDiplomaticPeace } from "./worldDiplomacy.js";
 import { recordEnglishReformationAuthority } from "./sovereignAuthority.js";
+import {
+  expelHostileForeignSettlements,
+  withForeignSettlements1522
+} from "./foreignSettlements.js";
+import { recordPortCapture } from "./portConquest.js";
 import {
   SPANISH_INDIES_TRADE_POLICY_ID,
   grantPersonalTradePass
@@ -270,6 +278,66 @@ test("the English break with Rome persists once in politics history", () => {
     view.newsHistory.filter((entry) => entry.text === "ENGLAND BREAKS WITH ROME").length,
     1
   );
+});
+
+test("scripted political notices remain available in dated politics history", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  recordPortCapture(state.memory.conquest, {
+    tileId: 900001,
+    city: "Cuzco",
+    country: "Peru",
+    factionId: "inca"
+  }, "spain", 300, "conquistador-campaign");
+  const ternate = withForeignSettlements1522({
+    tileId: 900002,
+    city: "Ternate",
+    country: "Indonesia",
+    factionId: "ternate"
+  });
+  expelHostileForeignSettlements({
+    memory: state.relations.foreignSettlementExpulsions,
+    ports: [ternate],
+    relationBetween: () => "war",
+    simMinute: 400
+  });
+
+  const papacy = state.relations.papacy;
+  advancePapalPolitics(papacy, state.relations.diplomacy, papacy.nextActionMinute);
+  assert.ok(papacy.pendingMatter);
+  const context = {
+    playerFactionId: "spain",
+    playerReligionId: "roman-catholic",
+    papalReputation: 20
+  };
+  acceptPapalCommission(papacy, state.relations.diplomacy, {
+    ...context,
+    simMinute: papacy.lastUpdateMinute,
+    originTileId: 1,
+    itinerary: [{
+      tileId: 2,
+      portName: "Test Port",
+      factionId: "habsburg",
+      purpose: "test"
+    }],
+    rewardDoubloons: 500,
+    nuncio: { id: "nuncio-politics-history", name: "Monsignor Test" }
+  });
+  const revokedMinute = papacy.lastUpdateMinute + 10;
+  revokeActivePapalCommission(papacy, revokedMinute, "papal-enemy");
+
+  const history = createPoliticsView(state, revokedMinute).newsHistory;
+
+  assert.ok(history.some((entry) => (
+    entry.source === "conquistador" && entry.text === "CUZCO FALLS TO THE SPANISH COLUMNS"
+  )));
+  assert.ok(history.some((entry) => (
+    entry.source === "settlement-expulsion" &&
+    entry.text === "PORTUGUESE SETTLEMENT EXPELLED FROM TERNATE"
+  )));
+  assert.ok(history.some((entry) => (
+    entry.source === "papal-matter" && entry.simMinute === revokedMinute &&
+    entry.text === "PAPAL LEGATION REVOKED"
+  )));
 });
 
 test("politics news keeps the ten newest dated developments", () => {

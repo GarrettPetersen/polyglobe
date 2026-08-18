@@ -18,7 +18,8 @@ import {
   migratePapalPolitics,
   papalCommissionEligibility,
   papalCommissionObjective,
-  papalActionNotice
+  papalActionNotice,
+  papalMatterNotice
 } from "./papalPolitics.js";
 import { ENGLISH_REFORMATION_MINUTE } from "./rulers.js";
 import { advanceGamePolitics, createGameState } from "./gameState.js";
@@ -98,6 +99,11 @@ test("an accepted commission blocks autonomous policy and is revoked if Papal st
   assert.equal(result.actions.length, 0);
   assert.equal(result.commissionRevoked.reason, "insufficient-papal-standing");
   assert.equal(papacy.pendingMatter.status, PAPAL_MATTER_AVAILABLE);
+  assert.deepEqual(papacy.pendingMatter.revocation, {
+    reason: "insufficient-papal-standing",
+    simMinute: papacy.lastUpdateMinute
+  });
+  assert.equal(papalMatterNotice(papacy.pendingMatter), "PAPAL LEGATION REVOKED");
 });
 
 test("version 1 Papal memory migrates with no invented pending matter", () => {
@@ -105,7 +111,7 @@ test("version 1 Papal memory migrates with no invented pending matter", () => {
   legacy.version = 1;
   delete legacy.pendingMatter;
   const migrated = migratePapalPolitics(legacy);
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.pendingMatter, null);
 });
 
@@ -184,7 +190,7 @@ test("version 2 Papal transport matters gain cargo without losing their queue po
   delete legacy.pendingMatter.cargoRequirements;
 
   const migrated = migratePapalPolitics(legacy);
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, 4);
   assert.equal(migrated.pendingMatter.id, papacy.pendingMatter.id);
   assert.deepEqual(
     migrated.pendingMatter.cargoRequirements.map(({ goodId, quantity }) => [goodId, quantity]),

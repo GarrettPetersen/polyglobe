@@ -25,7 +25,7 @@ import {
   isRomanCatholicReligion
 } from "./religiousAttitudes.js";
 
-export const PAPAL_POLITICS_VERSION = 3;
+export const PAPAL_POLITICS_VERSION = 4;
 export const PAPAL_FACTION_ID = "papal-states";
 export const PAPAL_ACTION_FAVOUR = "papal-favour";
 export const PAPAL_ACTION_EXCOMMUNICATION = "papal-excommunication";
@@ -110,7 +110,7 @@ export function migratePapalPolitics(memory, { startMinute = 0, seedKey = "papac
   if (migrated?.version === 2) {
     migrated = {
       ...migrated,
-      version: PAPAL_POLITICS_VERSION,
+      version: 3,
       history: migrated.history.map((action) => ({ ...action, logistics: null })),
       pendingMatter: migrated.pendingMatter ? {
         ...migrated.pendingMatter,
@@ -118,6 +118,23 @@ export function migratePapalPolitics(memory, { startMinute = 0, seedKey = "papac
           migrated.pendingMatter.id,
           migrated.pendingMatter.commissionKind
         )
+      } : null
+    };
+  }
+  if (migrated?.version === 3) {
+    const revoked = migrated.pendingMatter?.playerOfferStatus === "revoked";
+    migrated = {
+      ...migrated,
+      version: PAPAL_POLITICS_VERSION,
+      pendingMatter: migrated.pendingMatter ? {
+        ...migrated.pendingMatter,
+        revocation: revoked ? {
+          reason: "legacy-revocation",
+          simMinute: Math.max(
+            migrated.pendingMatter.createdMinute,
+            migrated.pendingMatter.autonomousDecisionMinute - 7 * MINUTES_PER_DAY
+          )
+        } : null
       } : null
     };
   }
@@ -350,6 +367,7 @@ export function acceptPapalCommission(memory, diplomacy, {
   const matter = memory.pendingMatter;
   matter.status = PAPAL_MATTER_COMMISSIONED;
   matter.playerOfferStatus = "accepted";
+  matter.revocation = null;
   matter.commission = {
     acceptedMinute: simMinute,
     deadlineMinute: simMinute + PAPAL_COMMISSION_DEADLINE_DAYS * MINUTES_PER_DAY,
@@ -502,6 +520,9 @@ export function papalCommissionLabel(kind) {
 
 export function papalMatterNotice(matter) {
   const view = matter?.commissionKind ? matter : papalMatterView(matter);
+  if (view.playerOfferStatus === "revoked") {
+    return papalCommissionRevocationNotice(view.revocation);
+  }
   const target = factionById(view.targetFactionId);
   if (view.commissionKind === PAPAL_COMMISSION_RELIEF) {
     if (!view.beneficiaryFactionId) throw new Error("Papal war relief has no beneficiary");
@@ -519,6 +540,16 @@ export function papalMatterNotice(matter) {
     return `${papalCommissionLabel(view.commissionKind).toUpperCase()} UNDERWAY CONCERNING ${target.shortName.toUpperCase()}`;
   }
   return `ROME DELIBERATES A ${papalCommissionLabel(view.commissionKind).toUpperCase()} CONCERNING ${target.shortName.toUpperCase()}`;
+}
+
+export function papalCommissionRevocationNotice(revocation) {
+  if (!revocation || typeof revocation.reason !== "string" ||
+      !Number.isFinite(revocation.simMinute) || revocation.simMinute < 0) {
+    throw new Error("Papal commission revocation notice requires a valid revocation");
+  }
+  return revocation.reason === "commission-expired"
+    ? "PAPAL LEGATION EXPIRED - ROME ACTS WITHOUT US"
+    : "PAPAL LEGATION REVOKED";
 }
 
 export function imposePapalAction(memory, diplomacy, {
@@ -788,6 +819,7 @@ function createPapalMatter(memory, diplomacy, proposal, simMinute) {
     createdMinute: simMinute,
     autonomousDecisionMinute: simMinute + PAPAL_MATTER_DECISION_DAYS * MINUTES_PER_DAY,
     playerOfferStatus: null,
+    revocation: null,
     commission: null
   };
   validatePapalMatter(matter);
@@ -937,6 +969,7 @@ function revokePapalCommission(memory, simMinute, reason) {
   });
   matter.status = PAPAL_MATTER_AVAILABLE;
   matter.playerOfferStatus = "revoked";
+  matter.revocation = { reason, simMinute };
   matter.commission = null;
   matter.autonomousDecisionMinute = Math.max(
     simMinute + 7 * MINUTES_PER_DAY,
@@ -1008,6 +1041,15 @@ function validatePapalMatter(matter) {
   }
   if (![null, "accepted", "declined", "denied", "revoked"].includes(matter.playerOfferStatus)) {
     throw new Error(`Invalid Papal player offer status: ${matter.playerOfferStatus}`);
+  }
+  if (matter.playerOfferStatus === "revoked") {
+    if (!matter.revocation || typeof matter.revocation.reason !== "string" ||
+        matter.revocation.reason.trim() === "") {
+      throw new Error("Revoked Papal matter requires a reason");
+    }
+    assertMinute(matter.revocation.simMinute, "Papal matter revocation");
+  } else if (matter.revocation !== null) {
+    throw new Error("Active Papal matter retains a revocation");
   }
   if (matter.status === PAPAL_MATTER_COMMISSIONED) validatePapalCommission(matter.commission);
   else if (matter.commission !== null) throw new Error("Available Papal matter retains a commission");

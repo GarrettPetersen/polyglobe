@@ -7,6 +7,7 @@ import {
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   assertFactionId,
+  factionById,
   factionHasFlag
 } from "./factions.js";
 
@@ -314,6 +315,16 @@ export function expelHostileForeignSettlements({
   }
   validateForeignSettlementExpulsionMemory(memory);
   return Object.freeze(events);
+}
+
+export function foreignSettlementExpulsionNotice(events) {
+  if (!Array.isArray(events) || events.length === 0) {
+    throw new Error("Foreign settlement expulsion notice requires an event");
+  }
+  const event = events[0];
+  const resident = factionById(event.residentFactionId);
+  const suffix = events.length > 1 ? ` +${events.length - 1} OTHERS` : "";
+  return `${resident.adjective.toUpperCase()} SETTLEMENT EXPELLED FROM ${event.city.toUpperCase()}${suffix}`;
 }
 
 export function foreignSettlementWasExpelled(memory, settlementId) {

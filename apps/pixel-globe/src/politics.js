@@ -49,6 +49,11 @@ import {
 } from "./suzerainty.js";
 import { diplomacyEventNotice } from "./worldDiplomacy.js";
 import { sovereignAuthorityHeadlineNotice } from "./sovereignAuthority.js";
+import { foreignSettlementExpulsionNotice } from "./foreignSettlements.js";
+import {
+  CONQUISTADOR_STAGE_COMPLETE,
+  CONQUISTADOR_STAGE_REWARD_READY
+} from "./conquistadorQuest.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_ALLY]: "Ally",
@@ -88,6 +93,10 @@ export function createPoliticsView(
     gameState,
     POLITICS_NEWS_HISTORY_LIMIT
   );
+  const recentScriptedEvents = recentScriptedPoliticsEvents(
+    gameState,
+    POLITICS_NEWS_HISTORY_LIMIT
+  );
   const pendingPapalMatter = papalPendingMatter(gameState.relations.papacy);
   const pendingCourtMatter = courtPendingMatter(gameState.relations.courts);
   const newsHistory = recentPoliticsNews({
@@ -95,6 +104,7 @@ export function createPoliticsView(
     recentPapalActions,
     recentCourtActions,
     recentAuthorityHeadlines,
+    recentScriptedEvents,
     pendingPapalMatter,
     pendingCourtMatter
   });
@@ -104,6 +114,7 @@ export function createPoliticsView(
     recentPapalActions,
     recentCourtActions,
     recentAuthorityHeadlines,
+    recentScriptedEvents,
     pendingPapalMatter,
     pendingCourtMatter,
     newsHistory,
@@ -152,13 +163,18 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
       tone: "warn",
       text: sovereignAuthorityHeadlineNotice(event),
       tiePriority: 4
+    })),
+    ...(view.recentScriptedEvents || []).map((event) => ({
+      ...event,
+      tiePriority: 5
     }))
   ];
   const matter = view.pendingPapalMatter || null;
   if (matter) {
     entries.push({
       source: "papal-matter",
-      simMinute: matter.commission?.acceptedMinute ?? matter.createdMinute,
+      simMinute: matter.revocation?.simMinute ??
+        matter.commission?.acceptedMinute ?? matter.createdMinute,
       tone: matter.status === "commissioned" ? "good" : "warn",
       text: papalMatterNotice(matter),
       tiePriority: 3
@@ -178,6 +194,49 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
     .sort((left, right) => right.simMinute - left.simMinute || right.tiePriority - left.tiePriority)
     .slice(0, limit)
     .map(({ tiePriority: _tiePriority, ...entry }) => Object.freeze(entry)));
+}
+
+function recentScriptedPoliticsEvents(gameState, limit) {
+  const entries = [];
+  for (const event of gameState.memory.conquest.events) {
+    if (event.source !== "conquistador-campaign") continue;
+    entries.push({
+      source: "conquistador",
+      simMinute: event.simMinute,
+      tone: "warn",
+      text: `${event.cityName.toUpperCase()} FALLS TO THE SPANISH COLUMNS`
+    });
+  }
+  const conquistador = gameState.memory.quests.conquistador;
+  if ([CONQUISTADOR_STAGE_REWARD_READY, CONQUISTADOR_STAGE_COMPLETE]
+    .includes(conquistador.stage)) {
+    entries.push({
+      source: "conquistador",
+      simMinute: conquistador.rewardReadyMinute,
+      tone: "warn",
+      text: "THE CONQUEST'S SPOILS AWAIT AT TRUJILLO"
+    });
+  }
+
+  const expulsionsByMinute = new Map();
+  for (const event of Object.values(gameState.relations.foreignSettlementExpulsions.byId)) {
+    const group = expulsionsByMinute.get(event.simMinute) || [];
+    group.push(event);
+    expulsionsByMinute.set(event.simMinute, group);
+  }
+  for (const [simMinute, events] of expulsionsByMinute) {
+    entries.push({
+      source: "settlement-expulsion",
+      simMinute,
+      tone: "warn",
+      text: foreignSettlementExpulsionNotice(events)
+    });
+  }
+
+  return Object.freeze(entries
+    .sort((left, right) => right.simMinute - left.simMinute || left.text.localeCompare(right.text))
+    .slice(0, limit)
+    .map((entry) => Object.freeze(entry)));
 }
 
 export function politicalPowers(gameState = null) {

@@ -1381,7 +1381,8 @@ import {
 } from "./factions.js";
 import {
   cityFlagFactionIds,
-  expelHostileForeignSettlements
+  expelHostileForeignSettlements,
+  foreignSettlementExpulsionNotice
 } from "./foreignSettlements.js";
 import {
   CAPITAL_PEACE_TERM_ANNEXATION,
@@ -1476,6 +1477,7 @@ import {
   papalCommissionCargoRequirements,
   papalCommissionLabel,
   papalCommissionObjective,
+  papalCommissionRevocationNotice,
   papalExcommunicationTargetCandidates,
   papalMatterNotice,
   papalPendingMatter,
@@ -29268,9 +29270,7 @@ function updateWorldDiplomacy() {
     clearPapalCommissionSafePassage(result.papalCommissionRevoked);
     clearPapalCommissionCargoProgress(result.papalCommissionRevoked);
     showSurvivalNotice(
-      result.papalCommissionRevoked.reason === "commission-expired"
-        ? "PAPAL LEGATION EXPIRED - ROME ACTS WITHOUT US"
-        : "PAPAL LEGATION REVOKED",
+      papalCommissionRevocationNotice(result.papalCommissionRevoked),
       "warn",
       "politics-news"
     );
@@ -29387,16 +29387,6 @@ function reconcileForeignSettlementPolitics({ notify = false } = {}) {
   }
   dirty = true;
   return events;
-}
-
-function foreignSettlementExpulsionNotice(events) {
-  if (!Array.isArray(events) || events.length === 0) {
-    throw new Error("Foreign settlement expulsion notice requires an event");
-  }
-  const event = events[0];
-  const resident = factionById(event.residentFactionId);
-  const suffix = events.length > 1 ? ` +${events.length - 1} OTHERS` : "";
-  return `${resident.adjective.toUpperCase()} SETTLEMENT EXPELLED FROM ${event.city.toUpperCase()}${suffix}`;
 }
 
 function recordNpcDiplomaticPortCall(visitingFactionId, portFactionId, simMinute) {
