@@ -407,9 +407,20 @@ import {
   migrateChartReframeDialogueMemory,
   validateChartReframeDialogueMemory
 } from "./chartReframeDialogue.js";
+import {
+  SHIPYARD_INVESTMENT_CAPITAL,
+  SHIPYARD_INVESTMENT_MATERIALS,
+  beginShipyardInvestment,
+  completeShipyardInvestment,
+  createShipyardInvestmentMemory,
+  migrateShipyardInvestmentMemory,
+  playerBackedShipyardAtPort,
+  shipyardInvestmentAtPort,
+  validateShipyardInvestmentMemory
+} from "./shipyardInvestment.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 76;
+export const GAME_STATE_VERSION = 77;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -658,6 +669,7 @@ export function createGameState({
       specialEquipmentOffers: createSpecialEquipmentOfferMemory(),
       illicitTradeEnforcement: createIllicitTradeEnforcementMemory(),
       chartReframeDialogue: createChartReframeDialogueMemory(),
+      shipyardInvestment: createShipyardInvestmentMemory(),
       navigation: {
         lastLongitudeDeg: null,
         cumulativeLongitudeDeg: 0,
@@ -721,7 +733,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -858,6 +870,7 @@ export function migrateGameState(state, shipStats) {
       chartReframeDialogue: migrateChartReframeDialogueMemory(
         state.memory?.chartReframeDialogue
       ),
+      shipyardInvestment: migrateShipyardInvestmentMemory(state.memory?.shipyardInvestment),
       animals: state.memory?.animals || createAnimalEncounterMemory(),
       animalCompanions: migrateAnimalCompanionMemory(savedAnimalCompanions, {
         legacyPanda: legacyPandaCompanion
@@ -4788,6 +4801,83 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
   return { good: row.good, quantity, price: total, costBasis: soldCost, pnl, tradeTerms: terms };
 }
 
+export function startPlayerShipyardInvestment(state, city, yard, context = {}) {
+  assertGameState(state);
+  return beginShipyardInvestment(state, city, yard, context.simMinute ?? 0);
+}
+
+export function payPlayerShipyardInvestment(state, city, context = {}) {
+  assertGameState(state);
+  const project = requiredFundingShipyardProject(state, city);
+  if (project.capitalPaid) throw new Error("Shipyard seed capital is already paid");
+  if (state.doubloons < SHIPYARD_INVESTMENT_CAPITAL) {
+    throw new Error(`Need ${SHIPYARD_INVESTMENT_CAPITAL - state.doubloons} more doubloons`);
+  }
+  state.doubloons -= SHIPYARD_INVESTMENT_CAPITAL;
+  project.capitalPaid = true;
+  recordLedgerEntry(state, city, context, {
+    kind: "shipyard",
+    description: `Invest in ${project.portName} shipyard`,
+    goodId: null,
+    quantity: 0,
+    amount: -SHIPYARD_INVESTMENT_CAPITAL,
+    costBasis: SHIPYARD_INVESTMENT_CAPITAL,
+    pnl: null
+  });
+  return project;
+}
+
+export function deliverPlayerShipyardMaterials(state, city, goodId) {
+  assertGameState(state);
+  const project = requiredFundingShipyardProject(state, city);
+  const required = SHIPYARD_INVESTMENT_MATERIALS[goodId];
+  if (!required) throw new Error(`Unknown shipyard investment material: ${goodId}`);
+  const remaining = required - project.materialsDelivered[goodId];
+  if (remaining <= 0) throw new Error(`${tradeGoodById(goodId).label} is already complete`);
+  const delivered = Math.min(remaining, Math.floor(state.cargo[goodId] || 0));
+  if (delivered <= 0) throw new Error(`No ${tradeGoodById(goodId).label} aboard`);
+  trimCargoQuantity(state, goodId, (state.cargo[goodId] || 0) - delivered);
+  project.materialsDelivered[goodId] += delivered;
+  return { project, goodId, delivered, remaining: remaining - delivered };
+}
+
+export function finishPlayerShipyardInvestment(state, city, context = {}) {
+  assertGameState(state);
+  const project = requiredFundingShipyardProject(state, city);
+  return completeShipyardInvestment(
+    state.memory.shipyardInvestment,
+    project,
+    context.simMinute ?? 0
+  );
+}
+
+export function receivePlayerShipyardDividends(state, city, amount, context = {}) {
+  assertGameState(state);
+  if (!playerBackedShipyardAtPort(state, city)) {
+    throw new Error("No player-backed shipyard here");
+  }
+  if (!Number.isInteger(amount) || amount <= 0) throw new Error(`Invalid shipyard dividend: ${amount}`);
+  state.doubloons += amount;
+  recordLedgerEntry(state, city, context, {
+    kind: "shipyard",
+    description: `${cityLabel(city)} shipyard dividends`,
+    goodId: null,
+    quantity: 0,
+    amount,
+    costBasis: null,
+    pnl: amount
+  });
+  return amount;
+}
+
+function requiredFundingShipyardProject(state, city) {
+  const project = shipyardInvestmentAtPort(state, city);
+  if (!project || project.stage !== "funding") {
+    throw new Error(`No shipyard project is being funded at ${cityLabel(city)}`);
+  }
+  return project;
+}
+
 export function createMarketUndoSnapshot(state, economy, city) {
   assertGameState(state);
   return Object.freeze({
@@ -7985,6 +8075,7 @@ function assertGameState(state) {
   validateSpecialEquipmentOfferMemory(state.memory.specialEquipmentOffers);
   validateIllicitTradeEnforcementMemory(state.memory.illicitTradeEnforcement);
   validateChartReframeDialogueMemory(state.memory.chartReframeDialogue);
+  validateShipyardInvestmentMemory(state.memory.shipyardInvestment);
   assertCargoReservations(state.memory.cargoReservations);
   assertMissionItemGifts(state.memory.missionItemGifts);
   assertDiplomaticQuestMemory(state.memory.quests);

@@ -57,6 +57,11 @@ import {
 } from "./fishingNets.js";
 import { defaultSovereignTradeGrantedToFaction } from "./sovereignTradeAccess.js";
 import {
+  claimNpcShipyardSale,
+  claimNpcShipyardSaleById,
+  npcShipyardSales
+} from "./shipyards.js";
+import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
   PORTUGUESE_FACTION_ID,
   evaluateTradeAccess,
@@ -108,6 +113,8 @@ const NPC_FISH_GOOD_ID = "fish";
 const NPC_REPLACEMENT_MIN_DAYS = 90;
 const NPC_REPLACEMENT_BASE_DAYS = 260;
 const NPC_REPLACEMENT_SPREAD_DAYS = 220;
+const NPC_SHIPYARD_FLEET_GROWTH_RATIO = 1.15;
+const NPC_SHIPYARD_PURCHASES_PER_MAINTENANCE = 2;
 const FISHING_GROUND_TARGET = 220;
 const FISHING_GROUND_SAMPLE_DISTANCES_KM = Object.freeze([220, 520, 1100, 2100, 3400]);
 const FISHING_GROUND_SAMPLE_BEARINGS_DEG = Object.freeze([0, 45, 90, 135, 180, 225, 270, 315]);
@@ -201,6 +208,7 @@ const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JOSEON_HYEOPSEON_SLUG = "joseon-hyeopseon";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
 const PORTUGUESE_CARRACK_SLUG = "portuguese-carrack";
+const SPANISH_NAO_SLUG = "spanish-nao";
 const NUSANTARAN_OUTRIGGER_SLUG = "nusantaran-outrigger";
 const KELULUS_SLUG = "kelulus";
 const PENJAJAP_SLUG = "penjajap";
@@ -447,6 +455,7 @@ export const NPC_SHIP_SLUGS = Object.freeze([...new Set([
   ...PIRATE_SHIP_SLUGS,
   ...JOSEON_WARSHIP_SLUGS,
   ...JAPANESE_SHIP_SLUGS,
+  SPANISH_NAO_SLUG,
   PORTUGUESE_CARRACK_SLUG,
   OTTOMAN_COASTAL_TRADER_SLUG,
   FUSTA_SLUG,
@@ -527,7 +536,8 @@ export function createNpcSeaRouteSystem({
     pirateHideoutDangerUntil: new Map(),
     ships: [],
     shipById: new Map(),
-    replacementQueue: []
+    replacementQueue: [],
+    shipyardFleetGrowthLimit: 0
   };
   system.ships = createNpcFleet(system, startMinute);
   synchronizePacificFleet(system, startMinute);
@@ -535,6 +545,7 @@ export function createNpcSeaRouteSystem({
   if (system.ships.length === 0) throw new Error("NPC sea routes created no ships");
   system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
   if (system.shipById.size !== system.ships.length) throw new Error("NPC sea routes created duplicate ship ids");
+  system.shipyardFleetGrowthLimit = Math.ceil(system.ships.length * NPC_SHIPYARD_FLEET_GROWTH_RATIO);
   return system;
 }
 
@@ -1533,6 +1544,7 @@ export function updateNpcSeaRouteSystem(system, clockMinutes) {
   let changed = reconcileNpcFleetCargo(system, "route update");
   if (rerouteHostileNpcTradePlans(system, clockMinutes)) changed = true;
   if (spawnDueNpcReplacements(system, clockMinutes)) changed = true;
+  if (purchaseNpcShipyardFleetGrowth(system, clockMinutes)) changed = true;
   for (const ship of system.ships) {
     if (settleNpcShipToClock(system, ship, npcEffectiveClock(ship, clockMinutes), 12)) changed = true;
   }
@@ -1596,6 +1608,7 @@ export function updateNpcSeaRouteEvents(
     if (reconcileNpcFleetCargo(system, "route update")) changed = true;
     if (rerouteHostileNpcTradePlans(system, clockMinutes)) changed = true;
     if (spawnDueNpcReplacements(system, clockMinutes)) changed = true;
+    if (purchaseNpcShipyardFleetGrowth(system, clockMinutes)) changed = true;
   }
   const seen = new Set();
   for (const shipId of shipIds) {
@@ -2072,7 +2085,22 @@ function spawnDueNpcReplacements(system, clockMinutes) {
     }
     const origin = system.ports.find((port) => port.tileId === replacement.originPortId);
     if (!origin) throw new Error(`NPC replacement port is missing: ${replacement.originPortId}`);
-    const slug = weightedCheapShipSlug(replacement.slugs, replacement.seed);
+    const shipyardSale = claimNpcShipyardSale(system.economy.shipyards, {
+      portId: replacement.originPortId,
+      factionId: replacement.factionId,
+      allowedSlugs: replacement.slugs,
+      mode: replacement.mode
+    });
+    const shipyardWaitDays = replacement.shipyardWaitDays || 0;
+    if (!shipyardSale && shipyardWaitDays < 360) {
+      replacement.shipyardWaitDays = shipyardWaitDays + 30;
+      replacement.readyMinute += 30 * WEATHER_MINUTES_PER_DAY;
+      system.replacementQueue.push(replacement);
+      system.replacementQueue.sort((a, b) => a.readyMinute - b.readyMinute || a.shipId.localeCompare(b.shipId));
+      changed = true;
+      continue;
+    }
+    const slug = shipyardSale?.shipSlug || weightedCheapShipSlug(replacement.slugs, replacement.seed);
     const profileSpec = fleetProfileForId(replacement.profileId);
     assertNpcShipSupportsFleetMode(slug, profileSpec, replacement.shipId);
     const ship = createNpcShipRecord({
@@ -2093,6 +2121,60 @@ function spawnDueNpcReplacements(system, clockMinutes) {
     changed = true;
   }
   return changed;
+}
+
+function purchaseNpcShipyardFleetGrowth(system, clockMinutes) {
+  const activeAndQueued = system.ships.length + system.replacementQueue.length;
+  if (activeAndQueued >= system.shipyardFleetGrowthLimit) return false;
+  let changed = false;
+  let purchases = 0;
+  for (const sale of npcShipyardSales(system.economy.shipyards)) {
+    if (purchases >= NPC_SHIPYARD_PURCHASES_PER_MAINTENANCE) break;
+    if (system.ships.length + system.replacementQueue.length >= system.shipyardFleetGrowthLimit) break;
+    const origin = system.ports.find((port) => port.tileId === sale.portId);
+    if (!origin) continue;
+    const purchaser = npcShipyardPurchaserForSale(system, origin, sale);
+    if (!purchaser) continue;
+    claimNpcShipyardSaleById(system.economy.shipyards, sale.id);
+    const seed = hashString32(npcSeedKey(system, `${sale.id}|fleet-growth`));
+    const id = `shipyard:${sale.id}`;
+    if (system.shipById.has(id) || system.replacementQueue.some((entry) => entry.shipId === id)) {
+      throw new Error(`NPC shipyard sale produced duplicate ship id: ${sale.id}`);
+    }
+    const slugs = profileSlugsForRole(purchaser.profileSpec, purchaser.role, sale.factionId);
+    const ship = createNpcShipRecord({
+      id,
+      factionId: sale.factionId,
+      role: purchaser.role,
+      profileSpec: purchaser.profileSpec,
+      slugs,
+      slug: sale.shipSlug,
+      seed,
+      origin
+    });
+    seedNpcShipOnRoute(system, ship, Math.max(clockMinutes, sale.soldMinute));
+    system.ships.push(ship);
+    system.shipById.set(ship.id, ship);
+    purchases++;
+    changed = true;
+  }
+  return changed;
+}
+
+function npcShipyardPurchaserForSale(system, origin, sale) {
+  if (sale.factionId === PIRATE_FACTION_ID) return null;
+  const candidates = [];
+  for (const profileSpec of FLEET_PROFILES) {
+    if (!profileSpec.portPredicate(origin) || !npcShipSupportsFleetMode(sale.shipSlug, profileSpec.mode)) continue;
+    if (rankedProfilePorts(system.ports, profileSpec).length < 2) continue;
+    for (const role of [NPC_ROLE_MERCHANT, NPC_ROLE_WARSHIP, NPC_ROLE_FISHERMAN]) {
+      if (!profileSlugsForRole(profileSpec, role, sale.factionId).includes(sale.shipSlug)) continue;
+      candidates.push({ profileSpec, role });
+    }
+  }
+  if (candidates.length === 0) return null;
+  const seed = hashString32(`${sale.id}|purchaser`);
+  return candidates[seed % candidates.length];
 }
 
 function chooseNpcReplacementPort(system, ship) {
@@ -2212,6 +2294,31 @@ function profileSlugsForRole(profileSpec, role, factionId = null) {
   }
   if (factionId === "joseon" && role === NPC_ROLE_WARSHIP && profileSpec.id === "east-asia") {
     return JOSEON_WARSHIP_SLUGS;
+  }
+  if (
+    factionId === "spain" &&
+    [NPC_ROLE_MERCHANT, NPC_ROLE_WARSHIP].includes(role) &&
+    ["atlantic-coast", "cape-trade", "wide-world"].includes(profileSpec.id)
+  ) {
+    const base = role === NPC_ROLE_WARSHIP ? profileSpec.warshipSlugs : profileSpec.merchantSlugs;
+    return [...base, SPANISH_NAO_SLUG];
+  }
+  if (
+    factionId === "portugal" &&
+    role === NPC_ROLE_MERCHANT &&
+    ["atlantic-coast", "cape-trade", "wide-world"].includes(profileSpec.id)
+  ) {
+    return [...profileSpec.merchantSlugs, PORTUGUESE_CARRACK_SLUG];
+  }
+  if (
+    factionId === "ottoman" && role === NPC_ROLE_MERCHANT && profileSpec.id === "mediterranean"
+  ) {
+    return [...profileSpec.merchantSlugs, OTTOMAN_COASTAL_TRADER_SLUG];
+  }
+  if (
+    factionId === "venice" && role === NPC_ROLE_WARSHIP && profileSpec.id === "mediterranean"
+  ) {
+    return [...profileSpec.warshipSlugs, GALLEASS_SLUG];
   }
   if (role === NPC_ROLE_PIRATE) {
     return profileSpec.mode === "interregional"
@@ -4140,6 +4247,7 @@ function easeInOut(t) {
 function assertSaveableNpcRouteSystem(system) {
   if (!system || !Array.isArray(system.ships) || !(system.shipById instanceof Map) ||
       !Array.isArray(system.replacementQueue) || !(system.pirateHideoutDangerUntil instanceof Map) ||
+      !Number.isInteger(system.shipyardFleetGrowthLimit) || system.shipyardFleetGrowthLimit <= 0 ||
       !Array.isArray(system.whalingGrounds) ||
       !(system.routeComponentByAnchorId instanceof Map) ||
       !(system.routeCache instanceof Map) || !(system.edgeCostCache instanceof Map) ||

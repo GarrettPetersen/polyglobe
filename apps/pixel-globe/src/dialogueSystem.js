@@ -43,6 +43,8 @@ import {
   portMemory,
   portEntryStatus,
   playerShipReplacementCargoUsed,
+  deliverPlayerShipyardMaterials,
+  finishPlayerShipyardInvestment,
   playerCannonEquipment,
   playerFishingNet,
   personalTradePassStatus,
@@ -72,7 +74,9 @@ import {
   restockCustomShipLoadoutAtPort,
   restockShipLoadoutAtPort,
   sellGood,
-  questCargoSaleTheftStatus
+  questCargoSaleTheftStatus,
+  payPlayerShipyardInvestment,
+  startPlayerShipyardInvestment
 } from "./gameState.js";
 import { isTeaRaceQuest } from "./teaRaceQuest.js";
 import { captureCapitalPoliticalContext } from "./captureCommissionDialogue.js";
@@ -176,6 +180,14 @@ import {
   shipReplacementTermsWithoutTradeIn,
   shipyardPurchaseTerms
 } from "./shipyards.js";
+import {
+  SHIPYARD_INVESTMENT_CAPITAL,
+  SHIPYARD_INVESTMENT_MATERIALS,
+  playerBackedShipyardAtPort,
+  shipyardInvestmentAtPort,
+  shipyardInvestmentComplete,
+  shipyardInvestmentOfferAvailable
+} from "./shipyardInvestment.js";
 import { FISHING_NETS } from "./fishingNets.js";
 import { CANNON_EQUIPMENT } from "./cannonEquipment.js";
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
@@ -384,6 +396,7 @@ export function createPortDialogueSession(city, options = {}) {
     tradeTip: null,
     questCargoTip: null,
     shipHandover: null,
+    shipyardDividendArrival: null,
     specialEquipmentOffer: null,
     equipmentFactorPitch: options.equipmentFactorPitch || null,
     equipmentFactorPitchOutcome: null,
@@ -1525,6 +1538,12 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "custom-loadout") return customLoadoutView(session, city, gameState, context);
   if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
+  if (session.nodeId === "shipyard-investment") {
+    return shipyardInvestmentView(session, city, gameState, context);
+  }
+  if (session.nodeId === "shipyard-dividend-arrival") {
+    return shipyardDividendArrivalView(session, city);
+  }
   if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
   if (session.nodeId === "japanese-matchlocks") {
     return japaneseMatchlockView(session, city, gameState);
@@ -1890,6 +1909,36 @@ export function selectPortDialogueOption(
   }
   if (action.type === "purchase-ship") {
     return { closed: false, action };
+  }
+  if (action.type === "begin-shipyard-investment") {
+    startPlayerShipyardInvestment(gameState, city, context.shipyard, { simMinute: context.simMinute ?? 0 });
+    session.nodeId = "shipyard-investment";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "pay-shipyard-investment") {
+    payPlayerShipyardInvestment(gameState, city, { simMinute: context.simMinute ?? 0 });
+    session.selectedIndex = 0;
+    session.feedback = "The syndicate has its seed capital.";
+    return { closed: false };
+  }
+  if (action.type === "deliver-shipyard-material") {
+    const delivery = deliverPlayerShipyardMaterials(gameState, city, action.goodId);
+    session.selectedIndex = 0;
+    session.feedback = delivery.remaining > 0
+      ? `Delivered ${delivery.delivered}; ${delivery.remaining} still needed.`
+      : `${tradeGoodById(action.goodId).label} complete.`;
+    return { closed: false };
+  }
+  if (action.type === "open-player-shipyard") {
+    const investment = finishPlayerShipyardInvestment(gameState, city, {
+      simMinute: context.simMinute ?? 0
+    });
+    session.selectedIndex = 0;
+    session.feedback = "The new yard is open, and your share is entered in the books.";
+    session.nodeId = "shipyard";
+    return { closed: false, action: { type: "fund-player-shipyard", investment } };
   }
   if (action.type === "purchase-viking-longship") {
     return { closed: false, action };
@@ -3695,6 +3744,14 @@ function rootView(session, city, gameState, economy, context) {
   const illicitMarket = tradeAccess.illicit || cartazIllicitMarket;
   const activeQuest = gameState.memory.quests?.active || null;
   const canCompleteQuest = activeQuest?.destinationTileId === city.tileId;
+  const shipyardProject = shipyardInvestmentAtPort(gameState, city);
+  const shipyardProjectOffer = shipyardInvestmentOfferAvailable(
+    gameState,
+    city,
+    context.shipyard,
+    context.simMinute ?? 0
+  );
+  const playerBackedShipyard = playerBackedShipyardAtPort(gameState, city);
   const options = [
     ...(tradeAccess.allowed
       ? [option(pirateHideout ? "Buy doubtful goods" : illicitMarket ? "Buy illicit goods" : "Buy goods", {
@@ -3719,6 +3776,16 @@ function rootView(session, city, gameState, economy, context) {
         type: "node",
         nodeId: "shipyard"
       })]
+      : []),
+    ...(tradeAccess.allowed && (shipyardProject || shipyardProjectOffer || playerBackedShipyard)
+      ? [option(
+        playerBackedShipyard ? "Review my shipyard" : "Meet the shipyard syndicate",
+        shipyardProject
+          ? { type: "node", nodeId: "shipyard-investment" }
+          : playerBackedShipyard
+            ? { type: "node", nodeId: "shipyard-investment" }
+          : { type: "begin-shipyard-investment" }
+      )]
       : []),
     ...(tradeAccess.allowed
       ? [option(pirateHideout ? "Fence cargo" : illicitMarket ? "Sell cargo illicitly" : "Sell cargo", {
@@ -5127,6 +5194,7 @@ function whaleHarpoonView(session, city, gameState, economy) {
 function shipyardView(session, city, gameState, context) {
   const yard = context.shipyard || null;
   const listing = yard?.listing || null;
+  const investmentOptions = shipyardInvestmentOptions(city, gameState, yard, context.simMinute ?? 0);
   if (!listing) {
     const nearestListing = context.nearestShipyardListing || null;
     if (nearestListing && !Number.isInteger(nearestListing.portId)) {
@@ -5155,6 +5223,7 @@ function shipyardView(session, city, gameState, context) {
           reason: PORT_NAVIGATION_REASON_NEW_SHIP,
           nextNodeId: "root"
         })] : []),
+        ...investmentOptions,
         option("Back", { type: "node", nodeId: "root" })
       ]
     };
@@ -5204,8 +5273,99 @@ function shipyardView(session, city, gameState, context) {
         disabled: Boolean(disabledReason),
         disabledReason
       }),
+      ...investmentOptions,
       option("Back", { type: "node", nodeId: "root" })
     ]
+  };
+}
+
+function shipyardInvestmentOptions(city, gameState, yard, simMinute) {
+  if (!yard) return [];
+  const project = shipyardInvestmentAtPort(gameState, city);
+  if (project) {
+    return [option("Fund the new shipyard", { type: "node", nodeId: "shipyard-investment" })];
+  }
+  if (playerBackedShipyardAtPort(gameState, city)) {
+    return [option("Review my shipyard", { type: "node", nodeId: "shipyard-investment" })];
+  }
+  return shipyardInvestmentOfferAvailable(gameState, city, yard, simMinute)
+    ? [option("Back a great shipyard", { type: "begin-shipyard-investment" })]
+    : [];
+}
+
+function shipyardInvestmentView(session, city, gameState, context) {
+  const yard = context.shipyard;
+  const project = shipyardInvestmentAtPort(gameState, city);
+  if (!yard) throw new Error("Shipyard investment dialogue requires the local yard");
+  if (!project && playerBackedShipyardAtPort(gameState, city)) {
+    return {
+      speaker: `${cityLabel(city)} master shipwright`,
+      expressionId: "attentive",
+      text: `A stout hull is on the stocks. We will hold your share from every sale until you next enter port. The books show ${yard.lifetimePlayerDividends} doubloons earned so far.`,
+      feedback: session.feedback,
+      options: [
+        option("Back", { type: "node", nodeId: "shipyard" })
+      ]
+    };
+  }
+  if (!project) throw new Error("Shipyard investment dialogue requires the local project");
+
+  const rows = [];
+  if (!project.capitalPaid) {
+    rows.push(option(`Invest ${SHIPYARD_INVESTMENT_CAPITAL} doubloons`, {
+      type: "pay-shipyard-investment"
+    }, {
+      disabled: gameState.doubloons < SHIPYARD_INVESTMENT_CAPITAL,
+      disabledReason: gameState.doubloons < SHIPYARD_INVESTMENT_CAPITAL
+        ? `Need ${SHIPYARD_INVESTMENT_CAPITAL - gameState.doubloons} more doubloons.`
+        : null
+    }));
+  }
+  for (const [goodId, required] of Object.entries(SHIPYARD_INVESTMENT_MATERIALS)) {
+    const delivered = project.materialsDelivered[goodId];
+    const remaining = required - delivered;
+    if (remaining <= 0) continue;
+    const held = Math.floor(gameState.cargo[goodId] || 0);
+    const label = tradeGoodById(goodId).label;
+    rows.push(option(`Deliver ${label}  ${delivered}/${required}`, {
+      type: "deliver-shipyard-material",
+      goodId
+    }, {
+      disabled: held <= 0,
+      disabledReason: held <= 0 ? `No ${label} aboard.` : null,
+      detail: held > 0 ? `${Math.min(held, remaining)} can be delivered now` : null
+    }));
+  }
+  if (shipyardInvestmentComplete(project)) {
+    rows.push(option("Open the shipyard", { type: "open-player-shipyard" }));
+  }
+  rows.push(option("Back", { type: "node", nodeId: "shipyard" }));
+  return {
+    speaker: `${cityLabel(city)} master shipwright`,
+    expressionId: "attentive",
+    text: `A deepwater yard needs ${SHIPYARD_INVESTMENT_CAPITAL} doubloons, timber, iron, and naval stores. Back it, and your share of every vessel sold will be entered in the yard's books.`,
+    feedback: session.feedback,
+    options: rows
+  };
+}
+
+function shipyardDividendArrivalView(session, city) {
+  const payout = session.shipyardDividendArrival;
+  if (!payout || !Number.isInteger(payout.amount) || payout.amount <= 0 ||
+      !Array.isArray(payout.sales) || typeof payout.salesSummary !== "string" ||
+      payout.salesSummary === "") {
+    throw new Error("Shipyard dividend arrival requires an itemized payout");
+  }
+  return {
+    speaker: `${cityLabel(city)} master shipwright`,
+    expressionId: "pleased",
+    text: `${payout.salesSummary} Your share comes to ${payout.amount} doubloons. ` +
+      `Altogether, this yard has earned you ${payout.lifetimeTotal}.`,
+    feedback: null,
+    options: [option("Enter the payment in my ledger", {
+      type: "node",
+      nodeId: session.nextPortNodeId || "greeting"
+    })]
   };
 }
 

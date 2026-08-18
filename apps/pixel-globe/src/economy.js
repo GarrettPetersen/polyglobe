@@ -1,9 +1,13 @@
 import {
+  SHIPBUILDING_MATERIAL_GOOD_IDS,
   addWorldShipyardPort,
   advanceWorldShipyards,
   createWorldShipyards,
+  fundPlayerShipyard,
   replaceWorldShipyardPort,
   restoreWorldShipyards,
+  shipyardDailyMaterialDemand,
+  shipyardAtPort,
   snapshotWorldShipyards,
   worldShipyardHasPort
 } from "./shipyards.js";
@@ -779,12 +783,16 @@ export function createWorldEconomy({ ports, shipyardPorts = ports, startMinute, 
     const portId = requiredPortId(shipyardPort);
     if (!portStates.has(portId)) throw new Error(`Shipyard city is missing from the economy: ${portId}`);
   }
+  const shipyards = createWorldShipyards({ ports: shipyardPorts, startMinute, seedKey });
+  for (const yard of shipyards.yards.values()) {
+    applyShipyardMaterialDemand(portStates.get(yard.portId), yard, { seedInitialStock: true });
+  }
   return {
     version: 1,
     seedKey,
     lastMinute: startMinute,
     portStates,
-    shipyards: createWorldShipyards({ ports: shipyardPorts, startMinute, seedKey })
+    shipyards
   };
 }
 
@@ -863,6 +871,7 @@ export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMi
   if (economy.portStates.has(portId)) throw new Error(`Economy port already exists: ${portId}`);
   const state = createPortState(port, economy.seedKey);
   const yard = addWorldShipyardPort(economy.shipyards, port, startMinute);
+  applyShipyardMaterialDemand(state, yard, { seedInitialStock: true });
   economy.portStates.set(portId, state);
   invalidateWorldMarketMedianCache(economy);
   return { port: state, shipyard: yard };
@@ -880,7 +889,9 @@ export function addWorldEconomyShipyardPort(economy, port, startMinute = economy
   if (!economy.portStates.has(portId)) {
     throw new Error(`Cannot add a shipyard without an economy port: ${portId}`);
   }
-  return addWorldShipyardPort(economy.shipyards, port, startMinute);
+  const yard = addWorldShipyardPort(economy.shipyards, port, startMinute);
+  applyShipyardMaterialDemand(economy.portStates.get(portId), yard, { seedInitialStock: true });
+  return yard;
 }
 
 export function replaceWorldEconomyPort(economy, port, startMinute = economy?.lastMinute) {
@@ -897,10 +908,23 @@ export function replaceWorldEconomyPort(economy, port, startMinute = economy?.la
     state.stock = Math.max(state.stock, oldState.stock);
     state.industryProductionPerDay = oldState.industryProductionPerDay;
   }
+  const yard = replaceWorldShipyardPort(economy.shipyards, port, startMinute);
+  applyShipyardMaterialDemand(replacement, yard, { seedInitialStock: false });
   economy.portStates.set(portId, replacement);
-  replaceWorldShipyardPort(economy.shipyards, port, startMinute);
   invalidateWorldMarketMedianCache(economy);
   return replacement;
+}
+
+export function fundWorldEconomyShipyard(economy, port, backing) {
+  assertEconomy(economy);
+  const yard = shipyardAtPort(economy.shipyards, port);
+  const previousDemand = shipyardDailyMaterialDemand(yard);
+  fundPlayerShipyard(economy.shipyards, port, backing);
+  const nextDemand = shipyardDailyMaterialDemand(yard);
+  const portState = economy.portStates.get(requiredPortId(port));
+  applyShipyardMaterialDemandChange(portState, previousDemand, nextDemand);
+  invalidateWorldMarketMedianCache(economy);
+  return yard;
 }
 
 export function worldEconomyPortSettlementType(economy, port) {
@@ -1097,7 +1121,19 @@ export function advanceWorldEconomy(economy, clockMinute) {
     for (const port of economy.portStates.values()) advancePortEconomy(port, ECONOMY_STEP_DAYS);
   }
   economy.lastMinute += steps * ECONOMY_STEP_MINUTES;
-  advanceWorldShipyards(economy.shipyards, economy.lastMinute);
+  advanceWorldShipyards(economy.shipyards, economy.lastMinute, {
+    available: (portId, goodId) => economy.portStates.get(portId)?.goods.get(goodId)?.stock ?? 0,
+    consume: (portId, goodId, quantity) => {
+      const port = economy.portStates.get(portId);
+      if (!port) throw new Error(`Shipyard material port is missing: ${portId}`);
+      const state = port.goods.get(goodId);
+      if (!state) throw new Error(`${port.name} has no shipyard material stock for ${goodId}`);
+      state.stock = normalizedEconomyStock(
+        state.stock - quantity,
+        `shipyard material stock for ${port.name}: ${goodId}`
+      );
+    }
+  });
   invalidateWorldMarketMedianCache(economy);
   return true;
 }
@@ -2034,6 +2070,33 @@ function establishIndustryAtPort(port, goodId, productionPerDay, initialStock) {
     productionPerDay,
     stock: Math.floor(state.stock)
   });
+}
+
+function applyShipyardMaterialDemand(port, yard, { seedInitialStock }) {
+  if (!port) throw new Error(`Shipyard economy port is missing: ${yard.portId}`);
+  const demand = shipyardDailyMaterialDemand(yard);
+  for (const [goodId, dailyQuantity] of Object.entries(demand)) {
+    const state = port.goods.get(goodId);
+    if (!state) throw new Error(`${port.name} has no shipbuilding material state for ${goodId}`);
+    const previousTarget = state.targetStock;
+    state.consumptionPerDay += dailyQuantity;
+    state.targetStock = targetStockForState(state);
+    if (seedInitialStock) {
+      state.stock += Math.max(0, state.targetStock - previousTarget) * 0.85;
+    }
+    refreshPortGoodPriceFactors(port, tradeGoodById(goodId));
+  }
+}
+
+function applyShipyardMaterialDemandChange(port, previousDemand, nextDemand) {
+  if (!port) throw new Error("Player-backed shipyard economy port is missing");
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    const state = port.goods.get(goodId);
+    if (!state) throw new Error(`${port.name} has no shipbuilding material state for ${goodId}`);
+    state.consumptionPerDay += nextDemand[goodId] - previousDemand[goodId];
+    state.targetStock = targetStockForState(state);
+    refreshPortGoodPriceFactors(port, tradeGoodById(goodId));
+  }
 }
 
 function targetStockForState(state) {

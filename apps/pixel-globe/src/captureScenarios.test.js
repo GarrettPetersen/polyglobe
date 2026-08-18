@@ -477,10 +477,10 @@ test("capture validation rejects unknown vessels and malformed clocks", () => {
   assert.throws(() => validateCaptureScenario(valid), /Missing ship stats/);
 
   const unsupportedEncounter = structuredClone(captureScenarioFromSearch("?capture=turtle-ship-war"));
-  unsupportedEncounter.encounters[0].shipSlug = "spanish-nao";
+  unsupportedEncounter.encounters[0].shipSlug = "viking-longship";
   assert.throws(
     () => validateCaptureScenario(unsupportedEncounter),
-    /has no NPC sprite asset: spanish-nao/
+    /has no NPC sprite asset: viking-longship/
   );
 
   const malformedTarget = structuredClone(captureScenarioFromSearch("?capture=trailer-explore-pyramid"));

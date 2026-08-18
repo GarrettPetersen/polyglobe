@@ -1787,10 +1787,11 @@ test("temporary fisherman encounters receive valid fishing equipment", () => {
   assert.equal(fishingNetById(fisherman.fishingNetId).id, fisherman.fishingNetId);
 });
 
-test("sunk NPC ships are replaced after a rare shipyard delay", () => {
+test("sunk NPC ships wait for shipyard output before rejoining the fleet", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const originalCount = routes.ships.length;
+  routes.shipyardFleetGrowthLimit = originalCount;
   const lost = routes.ships.find((ship) => ship.role === NPC_ROLE_MERCHANT);
   assert.ok(lost);
   const originalRole = lost.role;
@@ -1814,6 +1815,15 @@ test("sunk NPC ships are replaced after a rare shipyard delay", () => {
   updateNpcSeaRouteSystem(routes, sinking.replacement.readyMinute - 1);
   assert.equal(routes.shipById.has(lost.id), false);
   updateNpcSeaRouteSystem(routes, sinking.replacement.readyMinute);
+  assert.equal(routes.shipById.has(lost.id), false);
+  for (
+    let minute = sinking.replacement.readyMinute + 30 * 24 * 60;
+    !routes.shipById.has(lost.id) && minute <= sinking.replacement.readyMinute + 390 * 24 * 60;
+    minute += 30 * 24 * 60
+  ) {
+    advanceWorldEconomy(economy, minute);
+    updateNpcSeaRouteSystem(routes, minute);
+  }
   const replacement = routes.shipById.get(lost.id);
   assert.ok(replacement);
   assert.equal(routes.ships.length, originalCount);
@@ -1821,6 +1831,32 @@ test("sunk NPC ships are replaced after a rare shipyard delay", () => {
   assert.equal(replacement.factionId, originalFaction);
   assert.equal(replacement.hitPoints, replacement.maxHitPoints);
   assert.equal(routes.replacementQueue.length, 0);
+});
+
+test("unsold shipyard hulls create capped peacetime NPC fleet growth", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const originalCount = routes.ships.length;
+  routes.shipyardFleetGrowthLimit = originalCount + 1;
+  economy.shipyards.npcSales.length = 0;
+  economy.shipyards.npcSales.push(Object.freeze({
+    id: "shipyard-growth-test:npc-sale",
+    portId: PORTS[0].tileId,
+    factionId: PORTS[0].factionId,
+    shipSlug: "caravel",
+    price: 12000,
+    soldMinute: 0
+  }));
+
+  updateNpcSeaRouteSystem(routes, 1);
+
+  assert.equal(routes.ships.length, originalCount + 1);
+  assert.equal(economy.shipyards.npcSales.length, 0);
+  const newShip = routes.ships.find((ship) => ship.id.startsWith("shipyard:"));
+  assert.equal(newShip?.slug, "caravel");
+  assert.equal(newShip?.factionId, "portugal");
+  updateNpcSeaRouteSystem(routes, 2);
+  assert.equal(routes.ships.length, originalCount + 1);
 });
 
 test("temporary quest encounters persist in saves but never enter the replacement queue", () => {

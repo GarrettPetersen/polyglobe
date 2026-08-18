@@ -4,13 +4,17 @@ import test from "node:test";
 import {
   addWorldShipyardPort,
   advanceWorldShipyards,
+  claimNpcShipyardSale,
+  claimPlayerShipyardPayout,
   claimShipyardListing,
   createWorldShipyards,
   generateShipyardListing,
+  fundPlayerShipyard,
   nearestShipyardListingForPort,
   restoreWorldShipyards,
   shipConstructionPrice,
   shipReplacementTermsWithoutTradeIn,
+  shipbuildingMaterialRequirements,
   shipTradeInValue,
   shipyardAtPort,
   shipyardPurchaseTerms,
@@ -45,7 +49,7 @@ test("new-build listings are uncommon but available across a useful share of por
 
   assert.equal(system.yards.size, ports.length);
   assert.ok(active.length >= ports.length * 0.06, `${active.length} active listings`);
-  assert.ok(active.length < ports.length * 0.15, `${active.length} active listings`);
+  assert.ok(active.length < ports.length * 0.3, `${active.length} active listings`);
 });
 
 test("shipyard purchase terms apply half the standard value of the current hull", () => {
@@ -355,6 +359,82 @@ test("new listings spawn over time and purchased listings disappear", () => {
   const claimed = claimShipyardListing(system, SMALL_PORT, yard.listing.id);
   assert.equal(claimed.portId, SMALL_PORT.tileId);
   assert.equal(yard.listing, null);
+});
+
+test("famous yards put advanced hulls on the market within an ordinary five-year voyage", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "five-year-yard" });
+  const yard = shipyardAtPort(system, LISBON);
+  const advanced = new Set(["carrack", "galleass", "galleon", "ship-of-the-line"]);
+  const observed = new Set();
+  for (let day = 30; day <= 5 * 365; day += 30) {
+    advanceWorldShipyards(system, day * 24 * 60);
+    if (yard.listing) observed.add(yard.listing.shipSlug);
+    for (const sale of system.npcSales) observed.add(sale.shipSlug);
+  }
+  assert.ok(yard.buildNumber >= 4, `expected at least four Lisbon builds, got ${yard.buildNumber}`);
+  assert.ok([...observed].some((slug) => advanced.has(slug)), `observed ${[...observed].join(", ")}`);
+});
+
+test("an unsold shipyard listing becomes an NPC hull purchase", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0 });
+  const yard = shipyardAtPort(system, LISBON);
+  yard.listing = generateShipyardListing(yard, 22, 0);
+  const listing = yard.listing;
+  advanceWorldShipyards(system, listing.expiresMinute + 1);
+  const sale = claimNpcShipyardSale(system, {
+    portId: LISBON.tileId,
+    factionId: LISBON.factionId,
+    allowedSlugs: [listing.shipSlug],
+    mode: "regional"
+  });
+  assert.equal(sale.shipSlug, listing.shipSlug);
+  assert.equal(system.npcSales.length, 0);
+});
+
+test("completed hulls consume timber, iron, and naval stores from the port economy", () => {
+  const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0, seedKey: "materials" });
+  const yard = shipyardAtPort(system, SMALL_PORT);
+  yard.listing = null;
+  yard.nextBuildMinute = 1;
+  const stocks = { timber: 100, iron: 100, "naval-stores": 100 };
+  advanceWorldShipyards(system, 2, {
+    available: (_portId, goodId) => stocks[goodId],
+    consume: (_portId, goodId, quantity) => { stocks[goodId] -= quantity; }
+  });
+  const requirements = shipbuildingMaterialRequirements(yard.listing.shipSlug);
+  for (const [goodId, quantity] of Object.entries(requirements)) {
+    assert.equal(stocks[goodId], 100 - quantity, goodId);
+  }
+});
+
+test("player-backed yards favor major hulls and return a sale share", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "backed-yard" });
+  const yard = fundPlayerShipyard(system, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  const prices = Array.from({ length: 20 }, (_, index) => (
+    shipConstructionPrice(generateShipyardListing(yard, index + 1, index * 1000).shipSlug)
+  ));
+  assert.ok(prices.filter((price) => price >= 76000).length >= 8, prices.join(", "));
+
+  yard.listing = generateShipyardListing(yard, 40, 0);
+  const listing = yard.listing;
+  advanceWorldShipyards(system, listing.expiresMinute + 1);
+  assert.ok(yard.playerDividendBalance >= listing.price * 0.2);
+  const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "backed-yard" });
+  restoreWorldShipyards(restored, snapshotWorldShipyards(system));
+  const restoredYard = shipyardAtPort(restored, LISBON);
+  const payout = claimPlayerShipyardPayout(restored, LISBON);
+  assert.equal(payout.amount, restoredYard.lifetimePlayerDividends);
+  assert.ok(payout.sales.some((sale) => sale.shipSlug === listing.shipSlug));
+  assert.equal(
+    payout.sales.reduce((sum, sale) => sum + sale.dividend, 0),
+    payout.amount
+  );
+  assert.equal(restoredYard.playerDividendBalance, 0);
+  assert.deepEqual(restoredYard.playerPendingSales, []);
 });
 
 test("restoring a voyage applies the current ship prices and construction cadence", () => {

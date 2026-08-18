@@ -416,6 +416,7 @@ import {
   receiveWhaleBlubber,
   receivePortConquestPrize,
   receivePortRaidPrize,
+  receivePlayerShipyardDividends,
   receiveCastawayShoreAid,
   receiveRescuedTravelerReunionReward,
   receiveSurrenderedLoot,
@@ -1529,6 +1530,7 @@ import {
   createWorldEconomy,
   destroyPortGoodStock,
   establishPortIndustry,
+  fundWorldEconomyShipyard,
   nextWorldEconomyEventMinute,
   portMarket,
   replaceWorldEconomyPort,
@@ -1599,6 +1601,7 @@ import {
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import {
+  claimPlayerShipyardPayout,
   claimShipyardListing,
   nearestShipyardListingForPort,
   shipReplacementTermsWithoutTradeIn,
@@ -1606,6 +1609,11 @@ import {
   shipyardPurchaseTerms,
   shipyardRumorForPort
 } from "./shipyards.js";
+import {
+  SHIPYARD_INVESTMENT_CAPITAL,
+  SHIPYARD_INVESTMENT_MATERIALS,
+  shipyardInvestmentAtPort
+} from "./shipyardInvestment.js";
 import {
   LOCAL_SAVE_MODE_FULL,
   clearLocalSave,
@@ -18199,6 +18207,7 @@ function continuePortArrivalDialogues() {
   return openNextPortArrivalFollowup([
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
+    () => maybeOpenShipyardDividendDialogue(cityCall),
     () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
     () => maybeOpenColonizationAftermathPortDialogue(cityCall),
     () => activePapalCommissionObjectiveIsAt(cityCall) &&
@@ -18212,6 +18221,56 @@ function continuePortArrivalDialogues() {
     ),
     () => openPendingDiscoveryPortDialogue()
   ]);
+}
+
+function maybeOpenShipyardDividendDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) ||
+      dialogueState.shipyardDividendArrival !== null) {
+    return false;
+  }
+  const yard = worldEconomy?.shipyards.yards.get(cityCall.tileId) || null;
+  if (!yard?.playerBacking || yard.playerDividendBalance <= 0) return false;
+  const payout = claimPlayerShipyardPayout(worldEconomy.shipyards, cityCall);
+  if (payout.amount <= 0) throw new Error("Player-backed shipyard payout is empty");
+  receivePlayerShipyardDividends(gameState, cityCall, payout.amount, {
+    simMinute: Math.floor(weatherClockMinutes)
+  });
+  dialogueState.shipyardDividendArrival = {
+    ...payout,
+    salesSummary: shipyardPayoutSalesSummary(payout.sales),
+    lifetimeTotal: yard.lifetimePlayerDividends
+  };
+  dialogueState.nextPortNodeId = dialogueState.nodeId;
+  dialogueState.nodeId = "shipyard-dividend-arrival";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  playCoinClinkSound();
+  saveVoyageNow("received shipyard sale shares");
+  dirty = true;
+  return true;
+}
+
+function shipyardPayoutSalesSummary(sales) {
+  if (!Array.isArray(sales)) throw new Error("Shipyard payout sales must be an array");
+  if (sales.length === 0) {
+    return "The old books record several vessels sold since your last visit.";
+  }
+  const counts = new Map();
+  for (const sale of sales) {
+    const label = shipLabelForSlug(sale.shipSlug);
+    counts.set(label, (counts.get(label) || 0) + 1);
+  }
+  const descriptions = [...counts.entries()].map(([label, count]) => (
+    count === 1 ? `a ${label}` : `${count} ${label}s`
+  ));
+  const sold = descriptions.length === 1
+    ? descriptions[0]
+    : descriptions.length === 2
+      ? `${descriptions[0]} and ${descriptions[1]}`
+      : `${descriptions.slice(0, -1).join(", ")}, and ${descriptions.at(-1)}`;
+  return `Since your last visit, we sold ${sold}.`;
 }
 
 function maybeOpenConquistadorReplenishmentDialogue(cityCall) {
@@ -21244,6 +21303,19 @@ function applyDialogueOption(optionIndex) {
     if (result.action?.type === "purchase-ship") {
       void purchaseShipyardShip(result.action);
       return;
+    }
+    if (result.action?.type === "fund-player-shipyard") {
+      const city = currentDialogueCity();
+      const investment = result.action.investment;
+      if (!investment || investment.portTileId !== city.tileId) {
+        throw new Error("Completed shipyard investment is missing its funding record");
+      }
+      fundWorldEconomyShipyard(worldEconomy, city, {
+        investedMinute: investment.investedMinute,
+        seedCapital: investment.seedCapital,
+        materialContributions: investment.materialContributions
+      });
+      saveVoyageNow("funded player shipyard");
     }
     if (["purchase-viking-longship", "accept-viking-longship-reward"].includes(result.action?.type)) {
       void acquireVikingLongship(result.action);
@@ -39475,6 +39547,26 @@ function currentReadyFetchQuestDestinations() {
 function questJournalEntries() {
   if (!gameState) return [];
   const entries = [];
+  const shipyardProject = gameState.memory.shipyardInvestment.project;
+  if (shipyardProject) {
+    const remainingMaterials = Object.entries(SHIPYARD_INVESTMENT_MATERIALS)
+      .map(([goodId, required]) => ({
+        label: tradeGoodById(goodId).label.toUpperCase(),
+        remaining: required - shipyardProject.materialsDelivered[goodId]
+      }))
+      .filter((entry) => entry.remaining > 0);
+    const nextStep = !shipyardProject.capitalPaid
+        ? `INVEST ${SHIPYARD_INVESTMENT_CAPITAL} DB AT ${shipyardProject.portName.toUpperCase()}`
+        : remainingMaterials.length > 0
+          ? `DELIVER ${remainingMaterials.map((entry) => `${entry.remaining} ${entry.label}`).join(", ")}`
+          : `OPEN THE YARD AT ${shipyardProject.portName.toUpperCase()}`;
+    entries.push({
+      id: "shipyard-investment",
+      title: "GREAT SHIPYARD",
+      nextStep,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
   const campaignGoal = gameState.memory.campaignGoal;
   const campaignDestination = activeCampaignGoalDestination();
   if (campaignGoal) {
@@ -40189,6 +40281,20 @@ function nativeCaptainChartMinimap(width, height, viewport) {
 function navigationMenuEntries() {
   if (!gameState) throw new Error("Navigation menu requires an active game state");
   const entries = [];
+  const shipyardProject = gameState.memory.shipyardInvestment.project;
+  if (shipyardProject) {
+    const destination = portCitiesByTileId.get(shipyardProject.portTileId) ||
+      cityByTileId.get(shipyardProject.portTileId);
+    if (!destination) throw new Error(`Player-backed shipyard port is missing: ${shipyardProject.portName}`);
+    entries.push({
+      id: "shipyard-investment",
+      destinationName: cityLabelText(destination),
+      reason: "FUND THE SHIPYARD",
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: placedCityTargetVector(destination),
+      optionalWaypointId: null
+    });
+  }
   const papalMatter = papalPendingMatter(gameState.relations.papacy);
   if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
     const objective = papalCommissionObjective(gameState.relations.papacy);

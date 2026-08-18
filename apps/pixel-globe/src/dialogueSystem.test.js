@@ -4129,6 +4129,75 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
   assert.equal(session.feedback, "Heading set for Porto.");
 });
 
+test("a wealthy captain sees and can begin the major-port shipyard project", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    settlementType: "city",
+    population: 100000,
+    factionId: "portugal",
+    character: { name: "Fernao da Cunha" }
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.doubloons = 75000;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const yard = economy.shipyards.yards.get(city.tileId);
+  const context = { shipStats: stats, shipyard: yard, simMinute: 100 };
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
+  const offerIndex = root.options.findIndex((entry) => entry.label === "Meet the shipyard syndicate");
+  assert.ok(offerIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], offerIndex, context);
+  assert.equal(session.nodeId, "shipyard-investment");
+
+  const project = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(project.text, /100000 doubloons, timber, iron, and naval stores/);
+  const capital = project.options.find((entry) => entry.action.type === "pay-shipyard-investment");
+  assert.equal(capital.disabled, true);
+  assert.equal(capital.disabledReason, "Need 25000 more doubloons.");
+});
+
+test("a returning shipyard investor receives an itemized sale-share greeting", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    settlementType: "city",
+    population: 100000,
+    factionId: "portugal",
+    character: { name: "Fernao da Cunha" }
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "shipyard-dividend-arrival",
+    admittedToPort: true
+  });
+  session.shipyardDividendArrival = {
+    amount: 22000,
+    sales: [{ shipSlug: "galleon" }],
+    salesSummary: "Since your last visit, we sold a Galleon.",
+    lifetimeTotal: 54000
+  };
+  const view = portDialogueView(session, city, gameState, economy, [city], {
+    shipStats: stats,
+    shipyard: economy.shipyards.yards.get(city.tileId),
+    simMinute: 100
+  });
+  assert.match(view.text, /sold a Galleon/);
+  assert.match(view.text, /share comes to 22000 doubloons/);
+  assert.match(view.text, /earned you 54000/);
+});
+
 test("a completed ship sale gets a named historical handover before returning to port", () => {
   const city = {
     tileId: 10,

@@ -11,12 +11,16 @@ import {
 import { JAPANESE_POLITY_FACTION_IDS } from "./factions.js";
 
 const MINUTES_PER_DAY = 24 * 60;
-const SHIPYARD_SNAPSHOT_VERSION = 2;
+const SHIPYARD_SNAPSHOT_VERSION = 4;
 const LEGACY_BUILD_TIME_SCALE = 0.75;
-const NORMAL_BUILD_INTERVAL_DAYS = 3900;
-const FAMOUS_BUILD_INTERVAL_DAYS = 1350;
+const NORMAL_BUILD_INTERVAL_DAYS = 1200;
+const FAMOUS_BUILD_INTERVAL_DAYS = 480;
 const NORMAL_LISTING_DAYS = 180;
 const FAMOUS_LISTING_DAYS = 240;
+const MATERIAL_RETRY_DAYS = 30;
+const MAX_MATERIAL_DELAY_DAYS = 180;
+const PLAYER_BACKED_BUILD_INTERVAL_MULTIPLIER = 0.62;
+const PLAYER_BACKED_DIVIDEND_RATE = 0.22;
 const GOSSIP_RADIUS_KM = 1800;
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
@@ -69,6 +73,12 @@ export const FAMOUS_SHIPBUILDING_TOWNS = Object.freeze([
   "Nanjing", "Nagasaki", "Seoul", "Busan", "Tongyeong", "Yeosu"
 ]);
 
+export const SHIPBUILDING_MATERIAL_GOOD_IDS = Object.freeze([
+  "timber",
+  "iron",
+  "naval-stores"
+]);
+
 const FAMOUS_TOWN_KEYS = new Set(FAMOUS_SHIPBUILDING_TOWNS.map(normalizeName));
 
 const REGION_SHIP_POOLS = Object.freeze({
@@ -118,7 +128,7 @@ export function createWorldShipyards({ ports, startMinute, seedKey = null }) {
     if (yards.has(yard.portId)) throw new Error(`Duplicate shipyard port tile: ${yard.portId}`);
     yards.set(yard.portId, yard);
   }
-  return { version: 1, seedKey, lastMinute: startMinute, yards };
+  return { version: 1, seedKey, lastMinute: startMinute, yards, npcSales: [] };
 }
 
 export function addWorldShipyardPort(system, port, startMinute = system?.lastMinute) {
@@ -145,6 +155,11 @@ export function replaceWorldShipyardPort(system, port, startMinute = system?.las
   replacement.buildNumber = previous.buildNumber;
   replacement.listing = previous.listing;
   replacement.nextBuildMinute = Math.min(previous.nextBuildMinute, replacement.nextBuildMinute);
+  replacement.materialDelayDays = previous.materialDelayDays;
+  replacement.playerBacking = previous.playerBacking ? { ...previous.playerBacking } : null;
+  replacement.playerDividendBalance = previous.playerDividendBalance;
+  replacement.lifetimePlayerDividends = previous.lifetimePlayerDividends;
+  replacement.playerPendingSales = previous.playerPendingSales.map((sale) => ({ ...sale }));
   system.yards.set(portId, replacement);
   return replacement;
 }
@@ -154,11 +169,17 @@ export function snapshotWorldShipyards(system) {
   return {
     version: SHIPYARD_SNAPSHOT_VERSION,
     lastMinute: system.lastMinute,
+    npcSales: system.npcSales.map((sale) => ({ ...sale })),
     yards: [...system.yards.values()].map((yard) => ({
       portId: yard.portId,
       buildNumber: yard.buildNumber,
       listing: yard.listing ? { ...yard.listing } : null,
-      nextBuildMinute: yard.nextBuildMinute
+      nextBuildMinute: yard.nextBuildMinute,
+      materialDelayDays: yard.materialDelayDays,
+      playerBacking: yard.playerBacking ? { ...yard.playerBacking } : null,
+      playerDividendBalance: yard.playerDividendBalance,
+      lifetimePlayerDividends: yard.lifetimePlayerDividends,
+      playerPendingSales: yard.playerPendingSales.map((sale) => ({ ...sale }))
     }))
   };
 }
@@ -168,13 +189,17 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
   validateOptionalSeedKey(seedKey, "restored shipyard");
   if (
     !snapshot ||
-    (snapshot.version !== 1 && snapshot.version !== SHIPYARD_SNAPSHOT_VERSION) ||
-    !Array.isArray(snapshot.yards)
+    ![1, 2, 3, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
+    !Array.isArray(snapshot.yards) ||
+    (snapshot.version >= 3 && !Array.isArray(snapshot.npcSales))
   ) {
     throw new Error("Unsupported shipyard save data");
   }
   if (!Number.isFinite(snapshot.lastMinute)) throw new Error("Invalid saved shipyard minute");
   system.seedKey = seedKey;
+  system.npcSales = snapshot.version >= 3
+    ? snapshot.npcSales.map((sale) => restoreNpcSale(sale))
+    : [];
   for (const yard of system.yards.values()) yard.seedKey = seedKey;
   for (const saved of snapshot.yards) {
     const yard = system.yards.get(saved.portId);
@@ -184,6 +209,14 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
     }
     if (!Number.isFinite(saved.nextBuildMinute)) {
       throw new Error(`Invalid saved shipyard build minute: ${saved.nextBuildMinute}`);
+    }
+    if (snapshot.version >= 3 && (
+      !Number.isInteger(saved.materialDelayDays) || saved.materialDelayDays < 0 ||
+      !Number.isInteger(saved.playerDividendBalance) || saved.playerDividendBalance < 0 ||
+      !Number.isInteger(saved.lifetimePlayerDividends) || saved.lifetimePlayerDividends < 0 ||
+      (snapshot.version >= 4 && !Array.isArray(saved.playerPendingSales))
+    )) {
+      throw new Error(`Invalid saved shipyard accounts: ${saved.portId}`);
     }
   }
   for (const saved of snapshot.yards) {
@@ -196,6 +229,15 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
           (saved.nextBuildMinute - snapshot.lastMinute) * LEGACY_BUILD_TIME_SCALE
         )
       : saved.nextBuildMinute;
+    yard.materialDelayDays = snapshot.version >= 3 ? saved.materialDelayDays : 0;
+    yard.playerBacking = snapshot.version >= 3 && saved.playerBacking
+      ? restorePlayerBacking(saved.playerBacking, yard.portId)
+      : null;
+    yard.playerDividendBalance = snapshot.version >= 3 ? saved.playerDividendBalance : 0;
+    yard.lifetimePlayerDividends = snapshot.version >= 3 ? saved.lifetimePlayerDividends : 0;
+    yard.playerPendingSales = snapshot.version >= 4
+      ? saved.playerPendingSales.map(restorePlayerPendingSale)
+      : [];
   }
   system.lastMinute = snapshot.lastMinute;
   return system;
@@ -217,23 +259,36 @@ function restoreShipyardListing(yard, saved) {
   };
 }
 
-export function advanceWorldShipyards(system, simMinute) {
+export function advanceWorldShipyards(system, simMinute, materialMarket = null) {
   assertShipyardSystem(system);
   if (!Number.isFinite(simMinute)) throw new Error(`Invalid shipyard minute: ${simMinute}`);
   if (simMinute <= system.lastMinute) return false;
   let changed = false;
   for (const yard of system.yards.values()) {
     if (yard.listing && simMinute >= yard.listing.expiresMinute) {
+      completeShipyardSale(system, yard, yard.listing, "npc");
       yard.listing = null;
       changed = true;
     }
     while (simMinute >= yard.nextBuildMinute) {
+      const buildMinute = yard.nextBuildMinute;
+      const plannedListing = generateShipyardListing(yard, yard.buildNumber + 1, buildMinute);
+      const materialResult = acquireShipbuildingMaterials(yard, plannedListing, materialMarket);
+      if (!materialResult.ready) {
+        yard.materialDelayDays += MATERIAL_RETRY_DAYS;
+        yard.nextBuildMinute += MATERIAL_RETRY_DAYS * MINUTES_PER_DAY;
+        changed = true;
+        continue;
+      }
+      if (yard.listing) completeShipyardSale(system, yard, yard.listing, "npc", buildMinute);
       yard.buildNumber += 1;
-      yard.listing = generateShipyardListing(yard, yard.buildNumber, yard.nextBuildMinute);
+      yard.listing = plannedListing;
+      yard.materialDelayDays = 0;
       yard.nextBuildMinute += shipyardBuildIntervalDays(yard, yard.buildNumber) * MINUTES_PER_DAY;
       changed = true;
     }
     if (yard.listing && simMinute >= yard.listing.expiresMinute) {
+      completeShipyardSale(system, yard, yard.listing, "npc");
       yard.listing = null;
       changed = true;
     }
@@ -255,8 +310,102 @@ export function claimShipyardListing(system, port, listingId) {
     throw new Error(`Shipyard listing is no longer available: ${listingId}`);
   }
   const listing = yard.listing;
+  completeShipyardSale(system, yard, listing, "player");
   yard.listing = null;
   return listing;
+}
+
+export function claimNpcShipyardSale(system, {
+  portId,
+  factionId,
+  allowedSlugs,
+  mode = "regional"
+}) {
+  assertShipyardSystem(system);
+  if (!Number.isInteger(portId)) throw new Error(`NPC shipyard sale requires a port id: ${portId}`);
+  if (typeof factionId !== "string" || factionId === "") throw new Error("NPC shipyard sale requires a faction");
+  if (!Array.isArray(allowedSlugs) || allowedSlugs.length === 0) {
+    throw new Error("NPC shipyard sale requires allowed hulls");
+  }
+  const allowed = new Set(allowedSlugs);
+  const candidateIndex = system.npcSales.findIndex((sale) => (
+    sale.portId === portId &&
+    sale.factionId === factionId &&
+    allowed.has(sale.shipSlug) &&
+    (mode === "regional" || shipStatsForSlug(sale.shipSlug).seaworthiness >= 5)
+  ));
+  if (candidateIndex < 0) return null;
+  return system.npcSales.splice(candidateIndex, 1)[0];
+}
+
+export function npcShipyardSales(system) {
+  assertShipyardSystem(system);
+  return system.npcSales.slice();
+}
+
+export function claimNpcShipyardSaleById(system, saleId) {
+  assertShipyardSystem(system);
+  if (typeof saleId !== "string" || saleId === "") throw new Error("NPC shipyard sale requires an id");
+  const index = system.npcSales.findIndex((sale) => sale.id === saleId);
+  if (index < 0) throw new Error(`NPC shipyard sale is missing: ${saleId}`);
+  return system.npcSales.splice(index, 1)[0];
+}
+
+export function fundPlayerShipyard(system, port, {
+  investedMinute,
+  seedCapital,
+  materialContributions
+}) {
+  const yard = shipyardAtPort(system, port);
+  if (yard.playerBacking) throw new Error(`${yard.portName} shipyard is already player-backed`);
+  if (!Number.isFinite(investedMinute)) throw new Error(`Invalid shipyard investment minute: ${investedMinute}`);
+  if (!Number.isInteger(seedCapital) || seedCapital < 100000) {
+    throw new Error(`Shipyard seed capital must be at least 100000 doubloons: ${seedCapital}`);
+  }
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    if (!Number.isInteger(materialContributions?.[goodId]) || materialContributions[goodId] <= 0) {
+      throw new Error(`Shipyard investment requires ${goodId}`);
+    }
+  }
+  yard.playerBacking = Object.freeze({
+    investedMinute,
+    seedCapital,
+    materialContributions: Object.freeze({ ...materialContributions })
+  });
+  yard.famous = true;
+  yard.nextBuildMinute = Math.min(
+    yard.nextBuildMinute,
+    investedMinute + 90 * MINUTES_PER_DAY
+  );
+  return yard;
+}
+
+export function claimPlayerShipyardPayout(system, port) {
+  const yard = shipyardAtPort(system, port);
+  const amount = yard.playerDividendBalance;
+  if (!Number.isInteger(amount) || amount < 0) throw new Error(`Invalid shipyard dividend balance: ${amount}`);
+  const sales = yard.playerPendingSales.map((sale) => Object.freeze({ ...sale }));
+  yard.playerDividendBalance = 0;
+  yard.playerPendingSales = [];
+  return Object.freeze({ amount, sales });
+}
+
+export function shipbuildingMaterialRequirements(shipSlug) {
+  const stats = shipStatsForSlug(shipSlug);
+  return Object.freeze({
+    timber: Math.max(2, Math.ceil((stats.mass + stats.cargoCapacity * 0.35) / 22)),
+    iron: Math.max(1, Math.ceil((stats.mass * 0.18 + stats.cannons * 2.5) / 12)),
+    "naval-stores": Math.max(1, Math.ceil((stats.mass + stats.seaworthiness * 5) / 45))
+  });
+}
+
+export function shipyardDailyMaterialDemand(yard) {
+  const representativeSlug = representativeShipyardHull(yard);
+  const requirements = shipbuildingMaterialRequirements(representativeSlug);
+  const intervalDays = shipyardBuildIntervalDays(yard, Math.max(1, yard.buildNumber + 1));
+  return Object.freeze(Object.fromEntries(
+    SHIPBUILDING_MATERIAL_GOOD_IDS.map((goodId) => [goodId, requirements[goodId] / intervalDays * 0.2])
+  ));
 }
 
 export function shipyardRumorForPort(
@@ -327,17 +476,24 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
   if (!regionalPool) throw new Error(`No shipyard hull pool for region: ${yard.cityType}`);
   const pool = regionalPool;
   const seed = shipyardListingSeed(yard, buildNumber);
-  const masterworkChance = yard.famous ? 0.055 : 0.008;
-  const masterwork = hashUnit(`${seed}|masterwork`) < masterworkChance;
+  const masterworkChance = yard.playerBacking ? 0.42 : yard.famous ? 0.18 : 0.025;
+  const scheduledMasterwork = yard.playerBacking
+    ? buildNumber % 2 === 0
+    : yard.famous && buildNumber % 4 === 0;
+  const masterwork = scheduledMasterwork || hashUnit(`${seed}|masterwork`) < masterworkChance;
   const qualityBudget = masterwork ? Infinity : shipyardQualityBudget(yard);
   const eligible = pool
     .map((slug) => ({ slug, price: shipConstructionPrice(slug) }))
     .filter((entry) => entry.price <= qualityBudget)
     .sort((a, b) => a.price - b.price || a.slug.localeCompare(b.slug));
   const candidates = eligible.length > 0 ? eligible : [{ slug: pool[0], price: shipConstructionPrice(pool[0]) }];
-  const wealthFraction = clamp((yard.wealthScale - 0.45) / 3.75 + (yard.famous ? 0.18 : 0), 0, 1);
+  const wealthFraction = clamp(
+    (yard.wealthScale - 0.45) / 3.75 + (yard.famous ? 0.3 : 0) + (yard.playerBacking ? 0.3 : 0),
+    0,
+    1
+  );
   const roll = hashUnit(`${seed}|rank`);
-  const rankFraction = Math.pow(roll, 2.15 - wealthFraction * 1.15);
+  const rankFraction = Math.pow(roll, 1.75 - wealthFraction * 1.25);
   const selected = candidates[Math.min(candidates.length - 1, Math.floor(rankFraction * candidates.length))];
   const price = shipyardListingPrice(selected.slug, seed);
   const listingDays = yard.famous ? FAMOUS_LISTING_DAYS : NORMAL_LISTING_DAYS;
@@ -414,8 +570,9 @@ export function shipReplacementTermsWithoutTradeIn(listingPrice) {
 }
 
 export function shipyardQualityBudget(yard) {
-  const famousBonus = yard.famous ? 26000 : 0;
-  return 7000 + yard.wealthScale * 22000 + famousBonus;
+  const famousBonus = yard.famous ? 50000 : 0;
+  const playerBonus = yard.playerBacking ? 60000 : 0;
+  return 7000 + yard.wealthScale * 22000 + famousBonus + playerBonus;
 }
 
 function createShipyard(port, startMinute, seedKey) {
@@ -440,7 +597,12 @@ function createShipyard(port, startMinute, seedKey) {
     famous,
     buildNumber: 0,
     listing: null,
-    nextBuildMinute: startMinute
+    nextBuildMinute: startMinute,
+    materialDelayDays: 0,
+    playerBacking: null,
+    playerDividendBalance: 0,
+    lifetimePlayerDividends: 0,
+    playerPendingSales: []
   };
   const intervalDays = shipyardBuildIntervalDays(yard, 0);
   const listingDays = famous ? FAMOUS_LISTING_DAYS : NORMAL_LISTING_DAYS;
@@ -457,7 +619,104 @@ function shipyardBuildIntervalDays(yard, buildNumber) {
   const variation = 0.78 + hashUnit(
     shipyardSeedKey(yard.seedKey, `${yard.portId}|${buildNumber}|interval`)
   ) * 0.44;
-  return Math.max(240, Math.round(base / wealthFactor * variation));
+  const backingFactor = yard.playerBacking ? PLAYER_BACKED_BUILD_INTERVAL_MULTIPLIER : 1;
+  return Math.max(120, Math.round(base / wealthFactor * variation * backingFactor));
+}
+
+function representativeShipyardHull(yard) {
+  const pool = [...new Set(shipPoolForYard(yard))].sort((a, b) => (
+    shipConstructionPrice(a) - shipConstructionPrice(b) || a.localeCompare(b)
+  ));
+  return pool[Math.floor((pool.length - 1) * (yard.playerBacking ? 0.85 : yard.famous ? 0.65 : 0.4))];
+}
+
+function acquireShipbuildingMaterials(yard, listing, materialMarket) {
+  if (!materialMarket) return { ready: true, emergencyProcurement: false };
+  if (typeof materialMarket.available !== "function" || typeof materialMarket.consume !== "function") {
+    throw new Error("Shipyard material market requires available and consume functions");
+  }
+  const requirements = shipbuildingMaterialRequirements(listing.shipSlug);
+  const missing = SHIPBUILDING_MATERIAL_GOOD_IDS.filter((goodId) => (
+    materialMarket.available(yard.portId, goodId) + 1e-9 < requirements[goodId]
+  ));
+  if (missing.length > 0 && yard.materialDelayDays < MAX_MATERIAL_DELAY_DAYS) {
+    return { ready: false, missing };
+  }
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    const available = Math.max(0, materialMarket.available(yard.portId, goodId));
+    const quantity = Math.min(requirements[goodId], available);
+    if (quantity > 0) materialMarket.consume(yard.portId, goodId, quantity);
+  }
+  return { ready: true, emergencyProcurement: missing.length > 0 };
+}
+
+function completeShipyardSale(system, yard, listing, buyer, soldMinute = listing.expiresMinute) {
+  if (buyer !== "player" && buyer !== "npc") throw new Error(`Unknown shipyard buyer: ${buyer}`);
+  if (yard.playerBacking) {
+    const dividend = Math.max(100, Math.round(listing.price * PLAYER_BACKED_DIVIDEND_RATE / 100) * 100);
+    yard.playerDividendBalance += dividend;
+    yard.lifetimePlayerDividends += dividend;
+    yard.playerPendingSales.push(Object.freeze({
+      id: `${listing.id}:${buyer}-player-share`,
+      shipSlug: listing.shipSlug,
+      price: listing.price,
+      dividend,
+      buyer,
+      soldMinute
+    }));
+    if (yard.playerPendingSales.length > 64) {
+      yard.playerPendingSales.splice(0, yard.playerPendingSales.length - 64);
+    }
+  }
+  if (buyer === "npc") {
+    system.npcSales.push(Object.freeze({
+      id: `${listing.id}:npc-sale`,
+      portId: yard.portId,
+      factionId: yard.factionId,
+      shipSlug: listing.shipSlug,
+      price: listing.price,
+      soldMinute
+    }));
+    if (system.npcSales.length > 512) system.npcSales.splice(0, system.npcSales.length - 512);
+  }
+}
+
+function restoreNpcSale(sale) {
+  if (!sale || typeof sale.id !== "string" || !Number.isInteger(sale.portId) ||
+      typeof sale.factionId !== "string" || typeof sale.shipSlug !== "string" ||
+      !Number.isInteger(sale.price) || !Number.isFinite(sale.soldMinute)) {
+    throw new Error("Invalid saved NPC shipyard sale");
+  }
+  shipStatsForSlug(sale.shipSlug);
+  return Object.freeze({ ...sale });
+}
+
+function restorePlayerPendingSale(sale) {
+  if (!sale || typeof sale.id !== "string" || typeof sale.shipSlug !== "string" ||
+      !Number.isInteger(sale.price) || sale.price <= 0 ||
+      !Number.isInteger(sale.dividend) || sale.dividend <= 0 ||
+      !["player", "npc"].includes(sale.buyer) || !Number.isFinite(sale.soldMinute)) {
+    throw new Error("Invalid saved player shipyard sale");
+  }
+  shipStatsForSlug(sale.shipSlug);
+  return Object.freeze({ ...sale });
+}
+
+function restorePlayerBacking(backing, portId) {
+  if (!Number.isFinite(backing.investedMinute) || !Number.isInteger(backing.seedCapital) ||
+      backing.seedCapital < 100000 || !backing.materialContributions) {
+    throw new Error(`Invalid player-backed shipyard at ${portId}`);
+  }
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    if (!Number.isInteger(backing.materialContributions[goodId]) || backing.materialContributions[goodId] <= 0) {
+      throw new Error(`Invalid player-backed shipyard material at ${portId}: ${goodId}`);
+    }
+  }
+  return Object.freeze({
+    investedMinute: backing.investedMinute,
+    seedCapital: backing.seedCapital,
+    materialContributions: Object.freeze({ ...backing.materialContributions })
+  });
 }
 
 function assertSailingDistanceResolver(resolver) {
@@ -498,7 +757,7 @@ function hashString32(value) {
 }
 
 function assertShipyardSystem(system) {
-  if (!system || system.version !== 1 || !(system.yards instanceof Map) ||
+  if (!system || system.version !== 1 || !(system.yards instanceof Map) || !Array.isArray(system.npcSales) ||
       (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === ""))) {
     throw new Error("Invalid world shipyards");
   }

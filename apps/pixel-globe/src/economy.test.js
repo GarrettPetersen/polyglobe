@@ -42,6 +42,7 @@ import {
   establishPortIndustry,
   executePortPurchase,
   executePortSale,
+  fundWorldEconomyShipyard,
   maximumPortPurchaseQuantity,
   maximumPortSaleQuantity,
   planNpcTrade,
@@ -1326,6 +1327,25 @@ test("production and consumption advance in coarse simulation steps", () => {
   const pepperAfter = marketByGood(economy, GOA).get("pepper").stock;
   assert.ok(pepperAfter > pepperBefore);
   assert.equal(advanceWorldEconomy(economy, 10 * 24 * 60), false);
+});
+
+test("a player-backed yard increases ordinary shipbuilding-material demand", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const before = marketByGood(economy, LONDON);
+  const timberBefore = before.get("timber").consumptionPerDay;
+  const ironBefore = before.get("iron").consumptionPerDay;
+  const storesBefore = before.get(NAVAL_STORES_GOOD_ID).consumptionPerDay;
+
+  fundWorldEconomyShipyard(economy, LONDON, {
+    investedMinute: 10,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+
+  const after = marketByGood(economy, LONDON);
+  assert.ok(after.get("timber").consumptionPerDay > timberBefore);
+  assert.ok(after.get("iron").consumptionPerDay > ironBefore);
+  assert.ok(after.get(NAVAL_STORES_GOOD_ID).consumptionPerDay > storesBefore);
 });
 
 test("economy snapshots restore stocks, specie, clocks, and shipyards", () => {
