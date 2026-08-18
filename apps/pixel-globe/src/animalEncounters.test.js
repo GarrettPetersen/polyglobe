@@ -42,7 +42,7 @@ const REVIEWED_STATIC_PORTRAIT_HASHES = Object.freeze({
   "brown-bear": "77731f8b102a978b685b1f4ec18c5dbc72b074bbbb4be71a5c3f99add5411779",
   elephant: "59c9e17784eef9d25ee25d6aac8240c7a77fba6b6ca1567b19a8c8f8da77fb7a",
   rhinoceros: "b9871bb6d1e18741ac16f97122096136d03068c72b27a23c085e17e304f21797",
-  otter: "138e3e02d84593a9c5d178de1d923a9a0db04dcafc9984ea684a2df224d19806",
+  otter: "7d09cb6d9267a01ee053d87db5229b121a9e3cec8fb8b8964819e9abfc50ed35",
   chipmunk: "11440df1841c3597b0195f87133665ff27afeb85e53d6fda8ed4cdb02df5d23e",
   giraffe: "1f2d5973690adfb9d87506b6305e233afde5f7d1aaa26ca5f6b4d8ce842fd3e6",
   fox: "f6aeb58d4b612ee6db15c49e587b896875315d1dd01e89fcde0fb8ade993b25d",

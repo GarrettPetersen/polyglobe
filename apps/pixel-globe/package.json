@@ -23,6 +23,7 @@
     "check": "node --check src/main.js && npm test && npm run build",
     "dev": "node server.mjs",
     "generate:characters": "node tools/build-character-portrait-manifest.mjs",
+    "refine:openai-portraits": "node tools/refine-openai-portraits.mjs",
     "preview:character-expressions": "node tools/render-character-expression-review.mjs",
     "benchmark:busy": "node tools/run-performance-benchmark.mjs",
     "benchmark:busy:electron": "node tools/run-performance-benchmark.mjs --electron",

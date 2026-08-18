@@ -15,7 +15,7 @@ import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-19";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-20";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const OLD_BUCCANEER_MINIMUM_AGE = 45;
