@@ -3770,11 +3770,14 @@ function rootView(session, city, gameState, economy, context) {
       nodeId: "conquistador"
     }));
   }
-  if (context.passengerOffer && !session.disguisedEntry && !pirateHideout) {
-    options.splice(2, 0, option(`Speak with ${passengerName(context.passengerOffer)}`, {
-      type: "open-passenger",
-      quest: context.passengerOffer
-    }));
+  const passengerOffers = Array.isArray(context.passengerOffers)
+    ? context.passengerOffers
+    : context.passengerOffer ? [context.passengerOffer] : [];
+  if (passengerOffers.length > 0 && !session.disguisedEntry && !pirateHideout) {
+    options.splice(2, 0, ...passengerOffers.map((quest) => option(
+      `Speak with ${passengerName(quest)}`,
+      { type: "open-passenger", quest }
+    )));
   }
   if (!session.disguisedEntry && letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
     options.push(option("Letter of marque", { type: "node", nodeId: "marque" }));

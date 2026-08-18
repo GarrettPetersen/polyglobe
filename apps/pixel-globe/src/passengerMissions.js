@@ -26,7 +26,8 @@ import {
   religiousMissionDialogueText,
   religiousMissionRoleLabel,
   religiousPassengerDistanceIsAllowed,
-  religiousPassengerPlan
+  religiousPassengerPlan,
+  SEPTEMBER_TESTAMENT_MISSION_ID
 } from "./religiousMissions.js";
 import {
   COURT_ENVOY_QUEST_KIND,
@@ -76,6 +77,7 @@ export const HAJJ_RETURN_PASSENGER_SCENARIO_ID = "hajj-return";
 export const HAJJ_RETURN_PASSENGER_SCENARIO_CHANCE = 0.65;
 export const HAJJ_PASSENGER_MIN_DISTANCE_KM = 300;
 export const HAJJ_PASSENGER_MAX_DISTANCE_KM = 16000;
+export const SCRIPTED_RELIGIOUS_PASSENGER_OFFER_CHANNEL = "scripted-religious";
 
 const HAJJ_PASSENGER_SCENARIO = Object.freeze({
   id: HAJJ_PASSENGER_SCENARIO_ID,
@@ -109,7 +111,7 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
     quests.passengerOffers[cityKey(city)] = quest;
     return quest;
   }
-  const existing = pendingPassengerOfferForCity(state, city);
+  const existing = pendingOrdinaryPassengerOfferForCity(state, city);
   if (existing) return existing;
 
   const eastAsianPlan = eastAsianMissionPlanForCity(state, city, portCities);
@@ -145,7 +147,15 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
     : hajjPassengerPlan(city, portCities, context, rollKey);
   const religiousPlan = hajjReturnPlan || hajjPlan
     ? null
-    : religiousPassengerPlan(state, city, portCities, context, rollKey);
+    : religiousPassengerPlan(state, city, portCities, {
+        ...context,
+        excludedReligiousMissionIds: context.religiousMissionId === undefined
+          ? [
+              ...(context.excludedReligiousMissionIds || []),
+              SEPTEMBER_TESTAMENT_MISSION_ID
+            ]
+          : context.excludedReligiousMissionIds || []
+      }, rollKey);
   const specialPlan = hajjReturnPlan || hajjPlan || religiousPlan;
   const forcedReligiousMission = context.religiousMissionId !== undefined ||
     religiousMissionByScenarioId(context.scenarioId) !== null;
@@ -170,29 +180,48 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
     `${rollKey}|${cityKey(destination)}`,
     context
   );
-  const quest = buildPassengerQuest(city, destination, scenario, distanceKm, period, {
+  const quest = createPassengerQuest(city, destination, scenario, distanceKm, period, context, {
     passengerReligionId: specialPlan?.passengerReligionId || null,
     religiousMissionId: religiousPlan?.religiousMissionId || null,
     catholicContraband: religiousPlan?.mission?.catholicContraband === true,
     religiousItinerary: religiousPlan?.itinerary || null
   });
-  if (typeof context.createCharacter === "function") {
-    let character = context.createCharacter({ quest, origin: city, destination, scenario });
-    if (character) {
-      if (
-        quest.passengerReligionId &&
-        character.religionId !== quest.passengerReligionId
-      ) {
-        character = Object.freeze({
-          ...character,
-          religionId: quest.passengerReligionId
-        });
-      }
-      quest.passenger = character;
-      quest.passengerName = character.name;
-    }
-  }
   quests.passengerOffers[originKey] = quest;
+  return quest;
+}
+
+export function septemberTestamentOfferForCity(state, city, portCities, context = {}) {
+  const quests = questMemory(state);
+  if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
+  const existing = pendingPassengerOffersForCity(state, city)
+    .find((offer) => offer.religiousMissionId === SEPTEMBER_TESTAMENT_MISSION_ID);
+  if (existing) return existing;
+
+  const period = passengerRollPeriod(context.simMinute);
+  const originKey = cityKey(city);
+  const plan = religiousPassengerPlan(state, city, portCities, {
+    ...context,
+    religiousMissionId: SEPTEMBER_TESTAMENT_MISSION_ID,
+    religiousScenarioChance: 1
+  }, `${originKey}|${period}|${SCRIPTED_RELIGIOUS_PASSENGER_OFFER_CHANNEL}`);
+  if (!plan) return null;
+
+  const quest = createPassengerQuest(
+    city,
+    plan.destination,
+    plan.scenario,
+    plan.distanceKm,
+    period,
+    context,
+    {
+      passengerReligionId: plan.passengerReligionId,
+      religiousMissionId: plan.religiousMissionId,
+      catholicContraband: plan.mission.catholicContraband === true,
+      religiousItinerary: plan.itinerary
+    }
+  );
+  if (quests.completed[quest.id] || quests.failed?.[quest.id]) return null;
+  quests.passengerOffers[passengerOfferStorageKey(quest)] = quest;
   return quest;
 }
 
@@ -201,7 +230,7 @@ export function travelMissionOfferForCity(state, city, portCities, context = {})
   if (!quests.active && treatyOfMadridMissionPlanForCity(state, city, portCities, context)) {
     return passengerOfferForCity(state, city, portCities, context);
   }
-  const existing = pendingPassengerOfferForCity(state, city);
+  const existing = pendingOrdinaryPassengerOfferForCity(state, city);
   if (existing || quests.passengerActive) return existing;
   if (quests.active && quests.active.kind !== "delivery") return null;
   if (eastAsianMissionPlanForCity(state, city, portCities)) {
@@ -214,10 +243,16 @@ export function travelMissionOfferForCity(state, city, portCities, context = {})
   return passengerOfferForCity(state, city, portCities, context);
 }
 
+export function travelMissionOffersForCity(state, city, portCities, context = {}) {
+  septemberTestamentOfferForCity(state, city, portCities, context);
+  travelMissionOfferForCity(state, city, portCities, context);
+  return pendingPassengerOffersForCity(state, city);
+}
+
 export function envoyOfferForCapital(state, city, portCities, context = {}) {
   const quests = questMemory(state);
   if (quests.active || quests.passengerActive) return null;
-  const existing = pendingPassengerOfferForCity(state, city);
+  const existing = pendingOrdinaryPassengerOfferForCity(state, city);
   if (existing) return existing;
   if (!city?.isFactionCapital || city.capitalOfFactionId !== city.factionId) return null;
   if (typeof context.relationBetween !== "function") {
@@ -356,29 +391,44 @@ function attachEnvoyCharacter(quest, origin, destination, context) {
   }
 }
 
-export function pendingPassengerOfferForCity(state, city) {
-  if (!state || !city) return null;
+export function pendingPassengerOffersForCity(state, city) {
+  if (!state || !city) return [];
   const quests = questMemory(state);
-  const offer = quests.passengerOffers[cityKey(city)];
-  if (!offer || quests.completed[offer.id] || quests.failed?.[offer.id]) return null;
-  if (!treatyOfMadridOfferStillValid(state, offer)) {
-    delete quests.passengerOffers[cityKey(city)];
-    return null;
+  const originKey = cityKey(city);
+  const offers = [];
+  for (const [storageKey, offer] of Object.entries(quests.passengerOffers)) {
+    if (offer?.originKey !== originKey) continue;
+    if (!passengerOfferIsPending(state, quests, offer)) {
+      delete quests.passengerOffers[storageKey];
+      continue;
+    }
+    offers.push(offer);
   }
+  return offers.sort((left, right) => (
+    Number(isScriptedPassengerOffer(right)) - Number(isScriptedPassengerOffer(left)) ||
+    left.id.localeCompare(right.id)
+  ));
+}
+
+export function pendingPassengerOfferForCity(state, city) {
+  return pendingPassengerOffersForCity(state, city)[0] || null;
+}
+
+function pendingOrdinaryPassengerOfferForCity(state, city) {
+  return pendingPassengerOffersForCity(state, city)
+    .find((offer) => !isScriptedPassengerOffer(offer)) || null;
+}
+
+function passengerOfferIsPending(state, quests, offer) {
+  if (!offer || quests.completed[offer.id] || quests.failed?.[offer.id]) return false;
+  if (!treatyOfMadridOfferStillValid(state, offer)) return false;
   if (offer.tradeAccessPolicyId && sovereignTradeOpenToFaction(
     state,
     offer.tradeAccessPolicyId,
     offer.tradeAccessOpeningFactionId
-  )) {
-    delete quests.passengerOffers[cityKey(city)];
-    return null;
-  }
-  if (offer.kind === "passenger" && !offer.tradeAccessPolicyId &&
-      !isEastAsianMissionQuest(offer) && !passengerDistanceIsAllowed(offer)) {
-    delete quests.passengerOffers[cityKey(city)];
-    return null;
-  }
-  return offer;
+  )) return false;
+  return !(offer.kind === "passenger" && !offer.tradeAccessPolicyId &&
+    !isEastAsianMissionQuest(offer) && !passengerDistanceIsAllowed(offer));
 }
 
 export function activePassengerQuest(state) {
@@ -413,8 +463,8 @@ export function passengerQuestById(state, questId) {
 export function markPassengerOfferSeen(state, quest) {
   if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest)) || !quest.originKey) return null;
   const quests = questMemory(state);
-  const offer = quests.passengerOffers[quest.originKey];
-  if (!offer || offer.id !== quest.id) return null;
+  const offer = Object.values(quests.passengerOffers).find((candidate) => candidate?.id === quest.id);
+  if (!offer) return null;
   offer.seen = true;
   quest.seen = true;
   return offer;
@@ -798,6 +848,22 @@ function buildEastAsianPassengerQuest(plan) {
   };
 }
 
+function createPassengerQuest(origin, destination, scenario, distanceKm, period, context, options = {}) {
+  const quest = buildPassengerQuest(origin, destination, scenario, distanceKm, period, options);
+  if (typeof context.createCharacter !== "function") return quest;
+  let character = context.createCharacter({ quest, origin, destination, scenario });
+  if (!character) return quest;
+  if (quest.passengerReligionId && character.religionId !== quest.passengerReligionId) {
+    character = Object.freeze({
+      ...character,
+      religionId: quest.passengerReligionId
+    });
+  }
+  quest.passenger = character;
+  quest.passengerName = character.name;
+  return quest;
+}
+
 function buildPassengerQuest(origin, destination, scenario, distanceKm, period, options = {}) {
   const originKey = cityKey(origin);
   const destinationKey = cityKey(destination);
@@ -845,6 +911,17 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period, 
       options.religiousMissionId
     )
   };
+}
+
+function passengerOfferStorageKey(offer) {
+  if (isScriptedPassengerOffer(offer)) {
+    return `${offer.originKey}|${SCRIPTED_RELIGIOUS_PASSENGER_OFFER_CHANNEL}|${offer.religiousMissionId}`;
+  }
+  return offer.originKey;
+}
+
+function isScriptedPassengerOffer(offer) {
+  return offer?.religiousMissionId === SEPTEMBER_TESTAMENT_MISSION_ID;
 }
 
 function passengerDialogueText(scenarioId, origin, destination, reward, religiousMissionId = null) {

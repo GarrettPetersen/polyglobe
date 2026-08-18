@@ -8,6 +8,7 @@ import { greatCircleDistanceKm } from "./worldDistance.js";
 export const RELIGIOUS_PASSENGER_SCENARIO_CHANCE = 0.45;
 export const RELIGIOUS_PASSENGER_MIN_DISTANCE_KM = 250;
 export const RELIGIOUS_PASSENGER_MAX_DISTANCE_KM = 8000;
+export const SEPTEMBER_TESTAMENT_MISSION_ID = "september-testament";
 
 const PROTESTANT_RELIGIONS = Object.freeze([
   "lutheran",
@@ -135,7 +136,7 @@ export const RELIGIOUS_MISSION_CATALOG = Object.freeze([
     bonusLabel: "Reformation reading"
   }),
   religiousMission({
-    id: "september-testament",
+    id: SEPTEMBER_TESTAMENT_MISSION_ID,
     title: "The September Testament",
     passengerReligionIds: ["lutheran"],
     participantReligionIds: PROTESTANT_RELIGIONS,
@@ -484,7 +485,9 @@ export function religiousPassengerPlan(state, origin, portCities, context, rollK
     return null;
   }
   const playerReligionId = state?.playerCharacter?.religionId || null;
+  const excludedMissionIds = new Set(context.excludedReligiousMissionIds || []);
   const missions = (forcedMission ? [forcedMission] : RELIGIOUS_MISSION_CATALOG)
+    .filter((mission) => !excludedMissionIds.has(mission.id))
     .map((mission) => buildMissionPlan(
       mission,
       origin,

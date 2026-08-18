@@ -136,7 +136,8 @@ import {
   isReligiousPassengerQuest,
   religiousMissionChallengesPapalAuthority,
   religiousMissionIsCatholicContraband,
-  religiousMissionTitle
+  religiousMissionTitle,
+  SEPTEMBER_TESTAMENT_MISSION_ID
 } from "./religiousMissions.js";
 import {
   PAPAL_MATTER_COMMISSIONED,
@@ -5881,7 +5882,11 @@ export function reconcileQuestPortTiles(state, portCities) {
   const offers = {};
   for (const [storedKey, offer] of Object.entries(quests.passengerOffers)) {
     reconcile(offer);
-    offers[offer?.originKey || storedKey] = offer;
+    const originKey = offer?.originKey || storedKey;
+    const storageKey = offer?.religiousMissionId === SEPTEMBER_TESTAMENT_MISSION_ID
+      ? `${originKey}|scripted-religious|${offer.religiousMissionId}`
+      : originKey;
+    offers[storageKey] = offer;
   }
   quests.passengerOffers = offers;
   const courtOffers = {};
@@ -6146,7 +6151,9 @@ export function acceptQuest(state, quest, context = {}) {
       : {})
   };
   if ((quest.kind === "passenger" || isEnvoyQuest(quest)) && quest.originKey) {
-    delete quests.passengerOffers[quest.originKey];
+    for (const [storageKey, offer] of Object.entries(quests.passengerOffers)) {
+      if (offer?.id === quest.id) delete quests.passengerOffers[storageKey];
+    }
   }
   if ((quest.kind === "delivery" || isTeaRaceQuest(quest)) && quest.originKey) {
     delete quests.deliveryOffers[quest.originKey];

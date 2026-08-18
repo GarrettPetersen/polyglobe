@@ -1063,6 +1063,32 @@ test("a factor explains customs once and repeats the explanation only after the 
   assert.match(changed.text, /favored 2% customs rate/i);
 });
 
+test("a port lists independent passenger and scripted travel offers together", () => {
+  const city = {
+    tileId: 190,
+    city: "Hamburg",
+    displayCity: "Hamburg",
+    country: "Germany",
+    cityType: "northern-european",
+    population: 35000,
+    factionId: "denmark-norway",
+    character: { name: "Johann Adler" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortDialogueSession(city, { initialNodeId: "root" });
+
+  const view = portDialogueView(session, city, gameState, economy, [city], {
+    passengerOffers: [
+      { id: "testament", passengerName: "Lutheran Bookseller" },
+      { id: "ordinary", passengerName: "Ordinary Passenger" }
+    ]
+  });
+
+  assert.ok(view.options.some(({ label }) => label === "Speak with Lutheran Bookseller"));
+  assert.ok(view.options.some(({ label }) => label === "Speak with Ordinary Passenger"));
+});
+
 test("a foreign settlement is explained by the factor and supplies its resident customs privilege", () => {
   const city = withForeignSettlements1522({
     tileId: 92,

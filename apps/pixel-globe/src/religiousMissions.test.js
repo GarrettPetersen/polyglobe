@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { generatePassengerCharacter } from "./characterPortraits.js";
-import { createGameState, portEntryStatus } from "./gameState.js";
+import { acceptQuest, createGameState, portEntryStatus } from "./gameState.js";
 import {
   passengerOfferForCity,
-  passengerRoleLabel
+  passengerRoleLabel,
+  pendingPassengerOffersForCity,
+  septemberTestamentOfferForCity
 } from "./passengerMissions.js";
 import {
   RELIGIOUS_MISSION_CATALOG,
@@ -145,6 +147,54 @@ test("the September Testament visits three Catholic factors before completion", 
   assert.equal(quest.destinationTileId, quest.itinerary.stops[0].tileId);
   assert.deepEqual(quest.itinerary.completedTileIds, []);
   assert.match(quest.dialogue.offer, /three hidden ports/);
+});
+
+test("the September Testament offer does not consume an ordinary passenger offer", () => {
+  const origin = port(31, "Hamburg", "Germany", "denmark-norway", "northern-european");
+  const destinations = [
+    port(32, "Amsterdam", "Netherlands", "habsburg", "northern-european"),
+    port(33, "London", "United Kingdom", "england", "northern-european"),
+    port(34, "Rouen", "France", "france", "northern-european")
+  ];
+  destinations[0].lat = origin.lat;
+  destinations[0].lon = origin.lon + 12;
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Captain Test",
+      nationalityId: "denmark-norway",
+      religionId: "roman-catholic",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  const context = {
+    spawnChance: 1,
+    scenarioId: "patron-papers",
+    destinationTileId: destinations[0].tileId,
+    simMinute: 0,
+    sailingDistanceKm: () => 700,
+    portFactorReligionId: () => "roman-catholic",
+    createCharacter: ({ scenario }) => ({
+      name: scenario.id === "patron-papers" ? "Ordinary Passenger" : "Lutheran Bookseller"
+    })
+  };
+
+  const ordinary = passengerOfferForCity(state, origin, [origin, ...destinations], context);
+  const testament = septemberTestamentOfferForCity(
+    state,
+    origin,
+    [origin, ...destinations],
+    context
+  );
+  const offers = pendingPassengerOffersForCity(state, origin);
+
+  assert.equal(ordinary.passengerName, "Ordinary Passenger");
+  assert.equal(testament.religiousMissionId, "september-testament");
+  assert.deepEqual(new Set(offers.map(({ id }) => id)), new Set([ordinary.id, testament.id]));
+
+  acceptQuest(state, testament, { simMinute: 0 });
+  assert.equal(state.memory.quests.passengerActive.id, testament.id);
+  assert.ok(Object.values(state.memory.quests.passengerOffers).some(({ id }) => id === ordinary.id));
 });
 
 test("Christian missionary voyages use their documented 1522 routes", () => {

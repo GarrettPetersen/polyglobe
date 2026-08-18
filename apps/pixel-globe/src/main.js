@@ -1784,7 +1784,8 @@ import {
   passengerOfferForCity,
   passengerQuestById,
   pendingPassengerOfferForCity,
-  travelMissionOfferForCity
+  pendingPassengerOffersForCity,
+  travelMissionOffersForCity
 } from "./passengerMissions.js";
 import {
   isTreatyOfMadridQuest,
@@ -22292,6 +22293,9 @@ function portDialogueContext() {
   const shipyard = city && !questOnlyColony ? shipyardAtPort(worldEconomy.shipyards, city) : null;
   const simMinute = Math.floor(weatherClockMinutes);
   const accessiblePorts = playerAccessiblePortCities();
+  const passengerOffers = city && dialogueState?.kind === "port"
+    ? pendingPassengerOffersForCity(gameState, city)
+    : [];
   return {
     random: Math.random,
     missionGiftRandom: Math.random,
@@ -22337,9 +22341,8 @@ function portDialogueContext() {
         mediterraneanDemoVoyageIsActive() ? demoAccessiblePortIds : undefined
       )
       : null,
-    passengerOffer: city && dialogueState?.kind === "port"
-      ? pendingPassengerOfferForCity(gameState, city)
-      : null
+    passengerOffer: passengerOffers[0] || null,
+    passengerOffers
   };
 }
 
@@ -22388,7 +22391,7 @@ function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
     return questHasDestination(activeMission, city) ? activeMission : null;
   }
   if (!createOffer) return pendingPassengerOfferForCity(gameState, city);
-  return travelMissionOfferForCity(gameState, city, playerAccessiblePortCities(), {
+  const offers = travelMissionOffersForCity(gameState, city, playerAccessiblePortCities(), {
     simMinute: Math.floor(weatherClockMinutes),
     historicalWorldState: historicalGossipWorldState(),
     relationBetween: currentDiplomacyBetween,
@@ -22396,6 +22399,7 @@ function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
     portFactorReligionId: (port) => portCityCharacters.get(port.tileId)?.religionId || null,
     createCharacter: createPassengerCharacterForQuest
   });
+  return offers.find((offer) => offer.seen !== true) || offers[0] || null;
 }
 
 function shouldAutoOpenPassengerDialogue(city, quest) {
