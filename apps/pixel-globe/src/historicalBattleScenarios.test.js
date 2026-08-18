@@ -102,8 +102,8 @@ test("Lepanto exposes one map marker and six playable historical commanders", ()
   const supportingCharacters = scenario.selection.supportingCharacters;
 
   assert.deepEqual(scenario.selection.marker, {
-    longitudeDeg: 21.25,
-    latitudeDeg: 38.2,
+    longitudeDeg: 21.18,
+    latitudeDeg: 38.23,
     shipSlug: "galleass"
   });
   assert.equal(commanders.length, 6);

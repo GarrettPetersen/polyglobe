@@ -128,7 +128,7 @@ test("the HUD tracks every other surviving commander by allegiance and distance"
   assert.ok(markers.every((marker) => marker.distanceKm > 0 && marker.distanceKm < 100));
 });
 
-test("the separated fleets suffer no losses or collisions before first contact", () => {
+test("the fleets have a brief orderly approach before first contact", () => {
   const battle = createBattle();
   const initialRemaining = battle.sides.map((side) => side.remainingShips);
   const openingEvents = [];
@@ -137,9 +137,12 @@ test("the separated fleets suffer no losses or collisions before first contact",
     .filter((ship) => ship.sideId !== player.sideId)
     .map((ship) => Math.hypot(ship.x - player.x, ship.y - player.y)));
 
-  assert.ok(nearestEnemyDistance > 2000, `enemy fleet starts only ${nearestEnemyDistance}px away`);
+  assert.ok(
+    nearestEnemyDistance >= 1_800 && nearestEnemyDistance <= 3_200,
+    `player approach starts at ${nearestEnemyDistance}px`
+  );
 
-  for (let tick = 0; tick < 200; tick++) {
+  for (let tick = 0; tick < 60; tick++) {
     updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
       desiredHeadingRad: 0,
       rowingRequested: true
@@ -152,6 +155,20 @@ test("the separated fleets suffer no losses or collisions before first contact",
     openingEvents.some((event) => ["collision", "fire", "hit", "sunk", "surrendered"].includes(event.type)),
     false
   );
+
+  let firstContactSeconds = null;
+  for (let tick = 60; tick < 600 && firstContactSeconds === null; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: 0,
+      rowingRequested: true
+    });
+    const contact = drainHistoricalBattleEvents(battle).some((event) => (
+      ["collision", "fire", "hit"].includes(event.type)
+    ));
+    if (contact) firstContactSeconds = battle.elapsedSeconds;
+  }
+  assert.ok(firstContactSeconds !== null, "the fleets did not enter combat within 30 seconds");
+  assert.ok(firstContactSeconds >= 4, `combat began too abruptly at ${firstContactSeconds}s`);
 });
 
 test("both fleets deploy east of Cephalonia with clear water ahead", () => {
@@ -189,7 +206,10 @@ test("the opening battle lines have an unclogged maneuvering corridor", () => {
   const ottomans = battle.ships.filter((ship) => ship.sideId === OTTOMAN_SIDE_ID);
   const leagueMaxX = Math.max(...league.map((ship) => ship.x));
   const ottomanMinX = Math.min(...ottomans.map((ship) => ship.x));
-  assert.ok(ottomanMinX - leagueMaxX >= 4_500, "the fleets begin in a shared choke point");
+  assert.ok(
+    ottomanMinX - leagueMaxX >= 500 && ottomanMinX - leagueMaxX <= 900,
+    "the opening maneuvering corridor is too narrow or too long"
+  );
   assert.ok(
     Math.max(...league.map((ship) => ship.y)) - Math.min(...league.map((ship) => ship.y)) >= 15_000,
     "the Holy League is packed into too little frontage"
@@ -483,25 +503,31 @@ test("AI divisions pursue their historical counterparts before mopping up", () =
   assert.notEqual(mopUpTarget.divisionId, "ottoman-center");
 });
 
-test("the Holy League sailing squadron tacks toward battle instead of stalling upwind", () => {
+test("the Holy League sailing squadron reaches battle instead of stalling upwind", () => {
   const battle = createBattle();
   const squadron = battle.squadrons.find((entry) => entry.id === "league-sailing");
   const leader = battle.ships[squadron.leaderIndex];
   const start = { x: leader.x, y: leader.y };
+  let fireEvents = 0;
 
   for (let tick = 0; tick < 400; tick++) {
     updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
       desiredHeadingRad: 0,
       rowingRequested: false
     });
+    for (const event of drainHistoricalBattleEvents(battle)) {
+      if (event.type === "fire" && battle.ships[event.shipIndex]?.divisionId === "league-sailing") {
+        fireEvents += 1;
+      }
+    }
   }
 
-  assert.notEqual(leader.tackSide, 0);
   assert.ok(
     Math.hypot(leader.x - start.x, leader.y - start.y) > 20,
     "sail-only squadron remained stalled at deployment"
   );
   assert.ok(leader.x > start.x, "sailing squadron made no progress toward the Ottoman line");
+  assert.ok(fireEvents > 0, "sailing squadron did not join the opening engagement");
 });
 
 test("a broken side retreats through a timed mop-up instead of requiring annihilation", () => {

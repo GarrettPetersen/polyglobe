@@ -14,8 +14,8 @@ import {
 
 test("the Lepanto field is a ship-scale crop of the historical battle water", () => {
   const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
-  const leagueWater = historicalBattleMapPointForLonLat(map, 20.94, 38.25);
-  const ottomanWater = historicalBattleMapPointForLonLat(map, 21.10, 38.25);
+  const leagueWater = historicalBattleMapPointForLonLat(map, 21.15, 38.23);
+  const ottomanWater = historicalBattleMapPointForLonLat(map, 21.19, 38.23);
   const cephalonia = historicalBattleMapPointForLonLat(map, 20.55, 38.20);
   const echinades = historicalBattleMapPointForLonLat(map, 21.38, 38.20);
   const mainland = historicalBattleMapPointForLonLat(map, 21.50, 38.10);
@@ -73,8 +73,8 @@ test("the Lepanto minimap distinguishes the battle water from islands and mainla
     return landMask[x + y * width];
   };
 
-  assert.equal(maskAt(20.94, 38.25), 0, "Holy League deployment should read as water");
-  assert.equal(maskAt(21.10, 38.25), 0, "Ottoman deployment should read as water");
+  assert.equal(maskAt(21.15, 38.23), 0, "Holy League deployment should read as water");
+  assert.equal(maskAt(21.19, 38.23), 0, "Ottoman deployment should read as water");
   assert.equal(maskAt(21.38, 38.20), 1, "Echinades should read as land");
   assert.equal(maskAt(21.50, 38.10), 1, "mainland should read as land");
 });
