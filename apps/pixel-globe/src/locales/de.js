@@ -89,6 +89,7 @@ export default {
   "historical.victory": "SIEG",
   "historical.defeat": "NIEDERLAGE",
   "historical.draw": "UNENTSCHIEDEN",
+  "historical.sideBroken": "DIE LINIE VON {side} BRICHT - VERFOLGUNG",
   "historical.resume": "FORTSETZEN",
   "historical.restart": "NEU STARTEN",
   "historical.rematch": "REVANCHE",

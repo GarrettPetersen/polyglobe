@@ -89,6 +89,7 @@ export default {
   "historical.victory": "勝利",
   "historical.defeat": "戰敗",
   "historical.draw": "平局",
+  "historical.sideBroken": "{side}戰線崩潰 - 追擊殘敵",
   "historical.resume": "繼續",
   "historical.restart": "重新開始",
   "historical.rematch": "再次交戰",

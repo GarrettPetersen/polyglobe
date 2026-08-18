@@ -103,6 +103,21 @@ const LEPANTO_SCENARIO = scenario({
       victoryCount: 82
     }
   },
+  strategy: {
+    counterparts: {
+      "league-galleasses": "ottoman-center",
+      "league-left": "ottoman-right",
+      "league-center": "ottoman-center",
+      "league-right": "ottoman-left",
+      "league-reserve": "ottoman-center",
+      "league-sailing": "ottoman-left",
+      "league-auxiliaries": "ottoman-left",
+      "ottoman-right": "league-left",
+      "ottoman-center": "league-center",
+      "ottoman-left": "league-right",
+      "ottoman-reserve": "league-center"
+    }
+  },
   sides: [
     side({
       id: HOLY_LEAGUE_SIDE_ID,
@@ -170,7 +185,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 210,
           tacticalColumnSpacingPx: 260
         }),
-        squadron("league-sailing", "Sailing Squadron", "Cesare d'Avalos", 20.90, 38.04, 26, [
+        squadron("league-sailing", "Sailing Squadron", "Cesare d'Avalos", 21.00, 38.18, 26, [
           shipGroup(GALLEON_SLUG, 24, "sailing-warship", "spain", 24, ["matchlock-arquebuses"]),
           shipGroup(CARRACK_SLUG, 2, "sailing-warship", "venice", 20, ["matchlock-arquebuses"])
         ], 3, {
@@ -308,8 +323,34 @@ function scenario(value) {
     if (ids.has(sideValue.id)) throw new Error(`Duplicate historical battle side: ${sideValue.id}`);
     ids.add(sideValue.id);
   }
+  assertHistoricalBattleStrategy(value);
   assertHistoricalBattleSelection(value);
   return deepFreeze(value);
+}
+
+function assertHistoricalBattleStrategy(value) {
+  const divisions = new Map(value.sides.flatMap((sideValue) => (
+    sideValue.squadrons.map((squadronValue) => [squadronValue.id, sideValue.id])
+  )));
+  const counterparts = value.strategy?.counterparts;
+  if (!counterparts || typeof counterparts !== "object" || Array.isArray(counterparts)) {
+    throw new Error(`Historical battle strategy is missing: ${value.id}`);
+  }
+  for (const [divisionId, sideId] of divisions) {
+    const counterpartId = counterparts[divisionId];
+    const counterpartSideId = divisions.get(counterpartId);
+    if (!counterpartSideId) {
+      throw new Error(`Historical division has no valid counterpart: ${divisionId}`);
+    }
+    if (counterpartSideId === sideId) {
+      throw new Error(`Historical division targets its own side: ${divisionId}/${counterpartId}`);
+    }
+  }
+  for (const divisionId of Object.keys(counterparts)) {
+    if (!divisions.has(divisionId)) {
+      throw new Error(`Historical strategy references an unknown division: ${divisionId}`);
+    }
+  }
 }
 
 function assertHistoricalBattleSelection(value) {

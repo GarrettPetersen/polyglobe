@@ -2081,6 +2081,7 @@ import {
   createHistoricalBattleReplay,
   createHistoricalBattle,
   drainHistoricalBattleEvents,
+  historicalBattleCommanderMarkers,
   historicalBattleInterpolatedShipPose,
   historicalBattlePlayerShip,
   historicalBattleSideSummary,
@@ -12878,6 +12879,7 @@ function createHistoricalBattleModeState() {
     hoverPoint: null,
     scenarioMarkerRects: [],
     commanderRects: [],
+    commanderArrowTargets: [],
     backRect: null,
     actionRects: [],
     pauseButtonRect: null,
@@ -13606,6 +13608,8 @@ function processHistoricalBattleEvents(battle, nowMs) {
       }
     } else if (event.type === "finished") {
       recordCompletedHistoricalBattle(battle);
+    } else if (event.type === "side-broken") {
+      // The battle HUD announces the retreat throughout the opening mop-up seconds.
     } else if (event.type === "collision") {
       const collisionShip = battle.ships[event.shipIndex];
       if (collisionShip && historicalBattleShipNearViewport(collisionShip) && impactSounds < 4) {
@@ -43622,6 +43626,8 @@ function drawHistoricalBattleField(battle, nowMs) {
   drawHistoricalBattleSinkEffects(battle, nowMs);
   drawHistoricalBattleHud(battle);
   drawHistoricalBattleMinimap(battle);
+  drawHistoricalBattleCommanderArrows(battle, nowMs);
+  drawHistoricalBattleBreakNotice(battle);
 }
 
 function drawHistoricalBattleCannonSmoke(drawLayer) {
@@ -43971,7 +43977,7 @@ function drawHistoricalBattlePlayerStatus(battle, x, y, width) {
     { font: PIXEL_FONT_SMALL_8, color: PIRATE_MENU_INK_MUTED }
   );
   drawOptionsText(
-    `${player.hitPoints}/${player.maxHitPoints}`,
+    `${player.hitPoints}/${player.maxHitPoints}${player.repairing ? " +" : ""}`,
     valueRight,
     y + 4,
     { font: PIXEL_FONT_LATIN_SMALL_8, align: "right", color: PIRATE_MENU_INK }
@@ -44074,10 +44080,7 @@ function drawHistoricalBattleStrengthPanel(side, x, y, width, alignRight) {
 }
 
 function drawHistoricalBattleMinimap(battle) {
-  const width = Math.min(112, Math.floor(SCREEN_W * 0.3));
-  const height = Math.max(42, Math.round(width * battle.map.height / battle.map.width));
-  const x = SCREEN_W - width - 5;
-  const y = SCREEN_H - height - 5;
+  const { x, y, w: width, h: height } = historicalBattleMinimapRect(battle);
   const terrainWidth = width - 2;
   const terrainHeight = height - 2;
   ctx.drawImage(
@@ -44103,6 +44106,126 @@ function drawHistoricalBattleMinimap(battle) {
     Math.max(3, Math.round(SCREEN_W / battle.map.width * width)),
     Math.max(3, Math.round(SCREEN_H / battle.map.height * height))
   );
+}
+
+function historicalBattleMinimapRect(battle) {
+  const width = Math.min(112, Math.floor(SCREEN_W * 0.3));
+  const height = Math.max(42, Math.round(width * battle.map.height / battle.map.width));
+  return {
+    x: SCREEN_W - width - 5,
+    y: SCREEN_H - height - 5,
+    w: width,
+    h: height
+  };
+}
+
+function drawHistoricalBattleCommanderArrows(battle, nowMs) {
+  const markers = historicalBattleCommanderMarkers(battle);
+  const reservedRects = historicalBattleCommanderArrowReservedRects(battle);
+  const reservedClearance = QUEST_ARROW_SIZE_PX + QUEST_ARROW_CONTROL_GAP_PX;
+  lakeBattleMode.commanderArrowTargets = [];
+  for (const marker of markers) {
+    const targetPoint = historicalBattleWorldToScreen(marker);
+    const directionFromCenter = waypointArrowDirectionFromCenter({
+      point: targetPoint,
+      screenWidth: SCREEN_W,
+      screenHeight: SCREEN_H
+    });
+    if (!directionFromCenter) continue;
+    const targetOnScreen = pointWithinWaypointBounds(
+      targetPoint,
+      QUEST_ARROW_EDGE_MARGIN_PX,
+      SCREEN_H - QUEST_ARROW_EDGE_MARGIN_PX
+    );
+    let point;
+    let direction;
+    if (targetOnScreen && !waypointPointOverlapsReservedRects(
+      targetPoint,
+      reservedRects,
+      reservedClearance
+    )) {
+      point = { x: Math.round(targetPoint.x), y: Math.round(targetPoint.y - 13) };
+      direction = { x: 0, y: 1 };
+    } else {
+      point = waypointArrowEdgePoint({
+        direction: directionFromCenter,
+        screenWidth: SCREEN_W,
+        screenHeight: SCREEN_H,
+        margin: QUEST_ARROW_EDGE_MARGIN_PX,
+        reservedRects,
+        clearance: reservedClearance
+      });
+      direction = directionFromCenter;
+    }
+    const allied = marker.sideId === battle.playerSideId;
+    const distanceScale = clamp(1 - marker.distancePx / 60_000, 0.72, 1);
+    const hitRect = drawQuestArrowGlyph(
+      point,
+      direction,
+      nowMs,
+      allied
+        ? { light: "#8bd5ff", dark: "#3978a8", shadow: "rgba(22, 41, 58, 0.82)" }
+        : { light: "#ff8b7b", dark: "#c04b56", shadow: "rgba(61, 24, 30, 0.82)" },
+      distanceScale
+    );
+    lakeBattleMode.commanderArrowTargets.push({
+      id: `historical-commander:${marker.commanderId}`,
+      label: formatWaypointLabel(
+        uiText(`historical.commander.${marker.commanderId}`),
+        marker.distanceKm
+      ),
+      point,
+      direction,
+      hitRect
+    });
+  }
+  const hovered = historicalBattleCommanderArrowAtPoint(lakeBattleMode.hoverPoint);
+  if (hovered) drawWaypointArrowTooltipTarget(hovered);
+}
+
+function historicalBattleCommanderArrowReservedRects(battle) {
+  const panelWidth = Math.min(154, Math.floor((SCREEN_W - 38) / 2));
+  const minimap = historicalBattleMinimapRect(battle);
+  return [
+    { x: 4, y: 4, w: panelWidth, h: 88 },
+    { x: SCREEN_W - panelWidth - 32, y: 4, w: panelWidth + 27, h: 25 },
+    { x: 4, y: SCREEN_H - 20, w: Math.min(190, SCREEN_W - 8), h: 20 },
+    minimap
+  ];
+}
+
+function historicalBattleCommanderArrowAtPoint(point) {
+  if (!point) return null;
+  for (let index = lakeBattleMode.commanderArrowTargets.length - 1; index >= 0; index--) {
+    const target = lakeBattleMode.commanderArrowTargets[index];
+    if (pointInRect(point, target.hitRect)) return target;
+  }
+  return null;
+}
+
+function drawHistoricalBattleBreakNotice(battle) {
+  if (battle.brokenSideId === null ||
+      battle.elapsedSeconds - battle.brokenAtSeconds > 8) return;
+  const side = battle.sides.find((candidate) => candidate.id === battle.brokenSideId);
+  if (!side) throw new Error(`Historical battle lost broken side ${battle.brokenSideId}`);
+  const maximumWidth = Math.max(80, SCREEN_W - 24);
+  const text = uiText("historical.sideBroken", { side: historicalBattleSideText(side) });
+  const lines = wrapPixelText(text, PIXEL_FONT_SMALL_8, maximumWidth - 12, 2);
+  const width = Math.min(
+    maximumWidth,
+    Math.max(...lines.map((line) => measurePixelTextWidth(line, PIXEL_FONT_SMALL_8))) + 12
+  );
+  const height = 8 + lines.length * localizedLineHeight(9);
+  const x = Math.round((SCREEN_W - width) / 2);
+  const y = Math.round(clamp(SCREEN_H * 0.36, 96, SCREEN_H - height - 28));
+  drawHistoricalBattleHudPanel({ x, y, w: width, h: height }, side.color);
+  lines.forEach((line, index) => {
+    drawOptionsText(line, SCREEN_W / 2, y + 4 + index * localizedLineHeight(9), {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center",
+      color: PIRATE_MENU_INK
+    });
+  });
 }
 
 function historicalBattleMinimapTerrainCanvas(map, width, height) {
@@ -52455,6 +52578,10 @@ function drawWaypointArrowTooltip() {
   }
   if (!target) return;
 
+  drawWaypointArrowTooltipTarget(target);
+}
+
+function drawWaypointArrowTooltipTarget(target) {
   const label = fitPixelText(target.label, PIXEL_FONT_SMALL_8, SCREEN_W - 16);
   const width = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8) + 8;
   const x = Math.round(clamp(target.point.x - width / 2, 4, SCREEN_W - width - 4));
@@ -52536,14 +52663,17 @@ function pointWithinWaypointBounds(point, margin, maxY) {
     point.y <= maxY;
 }
 
-function drawQuestArrowGlyph(point, direction, nowMs, style = {}) {
+function drawQuestArrowGlyph(point, direction, nowMs, style = {}, sizeScale = 1) {
+  if (!Number.isFinite(sizeScale) || sizeScale <= 0 || sizeScale > 1) {
+    throw new Error(`Invalid quest arrow size scale: ${sizeScale}`);
+  }
   const pulse = reducedMotionPreferred ? 0.5 : 0.5 + Math.sin(nowMs / 420 * Math.PI * 2) * 0.5;
-  const size = QUEST_ARROW_SIZE_PX + (pulse > 0.72 ? 1 : 0);
+  const size = Math.max(4, Math.round((QUEST_ARROW_SIZE_PX + (pulse > 0.72 ? 1 : 0)) * sizeScale));
   const geometry = waypointArrowGeometry({
     point,
     direction,
     size,
-    width: 4
+    width: Math.max(3, Math.round(4 * sizeScale))
   });
   const { tip, base, left, right } = geometry;
 

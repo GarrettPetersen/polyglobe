@@ -56,12 +56,16 @@ import {
   FLAT_BATTLE_PIXELS_PER_RADIAN as PIXELS_PER_RADIAN,
   advanceFlatBattleShipKinematics
 } from "./flatBattleShipMotion.js";
-import { chooseNpcObstacleAvoidanceDirection } from "./npcVisualNavigation.js";
+import {
+  chooseNpcObstacleAvoidanceDirection,
+  chooseNpcSailingDirection
+} from "./npcVisualNavigation.js";
 import {
   historicalBattleScenarioById,
   historicalBattleSideById,
   historicalBattleSquadronById
 } from "./historicalBattleScenarios.js";
+import { EARTH_RADIUS_KM } from "./worldDistance.js";
 import {
   createHistoricalBattleMap,
   historicalBattleMapEscapeAt,
@@ -99,6 +103,9 @@ const HISTORICAL_NAVIGATION_DECISION_TICKS = 4;
 const HISTORICAL_NAVIGATION_ENTER_CLEARANCE_PX = 104;
 const HISTORICAL_NAVIGATION_REJOIN_CLEARANCE_PX = 148;
 const HISTORICAL_NAVIGATION_REJOIN_DECISIONS = 3;
+const HISTORICAL_STRATEGY_REFRESH_TICKS = 20;
+const HISTORICAL_RESERVE_RELEASE_SECONDS = 75;
+const HISTORICAL_TACK_DURATION_TICKS = 360;
 const HISTORICAL_NAVIGATION_PROBE_DISTANCES_PX = Object.freeze([
   24, 48, 80, 120, 180, 260, 380, 520
 ]);
@@ -109,8 +116,13 @@ const IMPACT_TTL_SECONDS = 0.32;
 const MAX_EVENTS = 2048;
 const MAX_PORTABLE_VISUAL_PROJECTILES = 6;
 const BATTLE_TIME_LIMIT_SECONDS = 24 * 60;
-const VICTORY_REMAINING_RATIO = 0.08;
-const STRATEGIC_RETREAT_RATIO = 0.46;
+const BATTLE_BREAK_REMAINING_RATIO = 0.38;
+const BATTLE_BREAK_MINIMUM_SECONDS = 90;
+const BATTLE_MOP_UP_SECONDS = 45;
+const PLAYER_REPAIR_DAMAGE_COOLDOWN_SECONDS = 12;
+const PLAYER_REPAIR_SECONDS_PER_HIT_POINT = 20;
+const PLAYER_REPAIR_SAFE_RADIUS_PX = 240;
+const PLAYER_REPAIR_HULL_RATIO = 0.5;
 const TWO_PI = Math.PI * 2;
 
 export function createHistoricalBattle({
@@ -152,7 +164,8 @@ export function createHistoricalBattle({
           sideIndex,
           divisionValue,
           divisionIndex,
-          tacticalValue
+          tacticalValue,
+          scenario.strategy.counterparts[divisionValue.id]
         );
         squadronState.globalIndex = squadrons.length;
         squadrons.push(squadronState);
@@ -193,6 +206,9 @@ export function createHistoricalBattle({
     outcome: null,
     winningSideId: null,
     elapsedSeconds: 0,
+    brokenSideId: null,
+    brokenAtSeconds: null,
+    mopUpEndsAtSeconds: null,
     accumulatorSeconds: 0,
     tick: 0,
     initialSeed: seed >>> 0,
@@ -432,6 +448,56 @@ export function historicalBattleSquadronSummary(state, squadronId) {
   });
 }
 
+export function historicalBattleCommanderMarkers(state) {
+  assertBattle(state);
+  const player = historicalBattlePlayerShip(state);
+  const playerCommander = state.scenario.selection.commanders.find((commander) => (
+    commander.sideId === state.playerSideId && commander.squadronId === state.playerSquadronId
+  ));
+  if (!playerCommander) {
+    throw new Error(`Historical battle has no selected commander for ${state.playerSquadronId}`);
+  }
+  return Object.freeze(state.scenario.selection.commanders
+    .filter((commander) => commander.id !== playerCommander.id)
+    .map((commander) => {
+      const shipIndex = historicalCommanderShipIndex(state, commander);
+      if (shipIndex < 0) return null;
+      const ship = state.ships[shipIndex];
+      return Object.freeze({
+        commanderId: commander.id,
+        sideId: commander.sideId,
+        shipIndex,
+        x: ship.x,
+        y: ship.y,
+        distancePx: Math.hypot(ship.x - player.x, ship.y - player.y),
+        distanceKm: historicalBattleMapDistanceKm(state.map, player, ship)
+      });
+    })
+    .filter(Boolean));
+}
+
+function historicalBattleMapDistanceKm(map, from, to) {
+  const longitudeSpanRad = (map.bounds.maxLongitudeDeg - map.bounds.minLongitudeDeg) *
+    Math.PI / 180;
+  const latitudeSpanRad = (map.bounds.maxLatitudeDeg - map.bounds.minLatitudeDeg) *
+    Math.PI / 180;
+  const longitudeDistanceRad = (to.x - from.x) / map.width * longitudeSpanRad *
+    Math.cos(map.latitudeDeg * Math.PI / 180);
+  const latitudeDistanceRad = (to.y - from.y) / map.height * latitudeSpanRad;
+  return Math.hypot(longitudeDistanceRad, latitudeDistanceRad) * EARTH_RADIUS_KM;
+}
+
+function historicalCommanderShipIndex(state, commander) {
+  let fallbackIndex = -1;
+  for (let index = 0; index < state.ships.length; index++) {
+    const ship = state.ships[index];
+    if (!ship.active || ship.divisionId !== commander.squadronId) continue;
+    if (ship.squadronId === commander.squadronId) return index;
+    if (fallbackIndex < 0) fallbackIndex = index;
+  }
+  return fallbackIndex;
+}
+
 export function historicalBattleVisibleShips(state, camera, width, height, margin = 48) {
   assertBattle(state);
   if (!Number.isFinite(camera?.x) || !Number.isFinite(camera?.y)) {
@@ -480,6 +546,8 @@ export function historicalBattleSnapshot(state) {
     tick: state.tick,
     phase: state.phase,
     outcome: state.outcome,
+    brokenSideId: state.brokenSideId,
+    mopUpEndsAtSeconds: state.mopUpEndsAtSeconds,
     randomSeed: state.randomSeed,
     sides: Object.freeze(state.sides.map((side) => Object.freeze({
       id: side.id,
@@ -495,6 +563,7 @@ export function historicalBattleSnapshot(state) {
       headingRad: roundSnapshot(ship.headingRad),
       speedPx: roundSnapshot(ship.speedPx),
       hitPoints: ship.hitPoints,
+      repairing: ship.repairing,
       woundedCrew: ship.woundedCrew,
       active: ship.active,
       surrendered: ship.surrendered,
@@ -510,8 +579,9 @@ function stepHistoricalBattle(state, command) {
   state.wind.directionRad = wind.directionRad;
   state.wind.strength = wind.strength;
   state.metrics.fixedSteps += 1;
-  updateStrategicRetreats(state);
   rebuildBattleSpatialGrid(state.spatialGrid, state.ships);
+  updateSquadronLeaders(state);
+  updateStrategicObjectives(state);
   refreshTargets(state);
   updateShipMotion(state, command);
   rebuildBattleSpatialGrid(state.spatialGrid, state.ships);
@@ -519,7 +589,9 @@ function stepHistoricalBattle(state, command) {
   updateShipWeapons(state, command);
   updateBattleProjectiles(state);
   updateHistoricalBattleEffects(state);
+  updateHistoricalPlayerRepairs(state);
   recountHistoricalBattleSides(state);
+  updateBrokenBattleState(state);
   finishHistoricalBattleIfNeeded(state);
 }
 
@@ -597,10 +669,15 @@ function expandSquadronShips(
         maxCrew: stats.crewCapacity,
         collisionRadius: 0,
         collisionCooldownSeconds: 0,
+        lastDamageAtSeconds: Number.NEGATIVE_INFINITY,
+        repairProgressSeconds: 0,
+        repairing: false,
         rowing: false,
         rowingMode: SHIP_ROWING_MODE_IDLE,
         navigationCourseRad: normalizeAngle(sideValue.headingRad),
         navigationDecisionTick: squadronState.globalIndex % HISTORICAL_NAVIGATION_DECISION_TICKS,
+        tackSide: 0,
+        nextTackTick: 0,
         shoreAvoidanceActive: false,
         shoreAvoidanceSide: 0,
         shoreAvoidanceClearDecisions: 0,
@@ -619,7 +696,14 @@ function expandSquadronShips(
   }
 }
 
-function createSquadronState(sideValue, sideIndex, divisionValue, divisionIndex, tacticalValue) {
+function createSquadronState(
+  sideValue,
+  sideIndex,
+  divisionValue,
+  divisionIndex,
+  tacticalValue,
+  counterpartDivisionId
+) {
   const role = divisionValue.role;
   return {
     id: tacticalValue.id,
@@ -638,6 +722,9 @@ function createSquadronState(sideValue, sideIndex, divisionValue, divisionIndex,
     headingRad: sideValue.headingRad,
     formationHeadingRad: sideValue.headingRad,
     stance: role === "reserve" ? "hold" : "advance",
+    counterpartDivisionId,
+    counterpartActive: true,
+    strategicTargetIndex: -1,
     role
   };
 }
@@ -741,6 +828,55 @@ function projectFormationPoint(x, y, headingRad, forward, lateral) {
   };
 }
 
+function updateStrategicObjectives(state) {
+  if (state.tick % HISTORICAL_STRATEGY_REFRESH_TICKS !== 0) return;
+  if (state.elapsedSeconds >= HISTORICAL_RESERVE_RELEASE_SECONDS) {
+    for (const squadron of state.squadrons) {
+      if (squadron.stance === "hold") squadron.stance = "advance";
+    }
+  }
+  for (const squadron of state.squadrons) {
+    if (squadron.stance === "withdraw") {
+      squadron.strategicTargetIndex = -1;
+      continue;
+    }
+    const leader = state.ships[squadron.leaderIndex];
+    if (!leader?.active) {
+      squadron.strategicTargetIndex = -1;
+      continue;
+    }
+    const counterpartSquadrons = state.squadrons.filter((candidate) => (
+      candidate.divisionId === squadron.counterpartDivisionId &&
+      state.ships[candidate.leaderIndex]?.active
+    ));
+    squadron.counterpartActive = counterpartSquadrons.length > 0;
+    if (counterpartSquadrons.length > 0) {
+      const counterpart = counterpartSquadrons[
+        squadron.tacticalIndex % counterpartSquadrons.length
+      ];
+      squadron.strategicTargetIndex = counterpart.leaderIndex;
+      continue;
+    }
+    squadron.strategicTargetIndex = nearestEnemySquadronLeaderIndex(state, squadron, leader);
+  }
+}
+
+function nearestEnemySquadronLeaderIndex(state, squadron, leader) {
+  let nearestIndex = -1;
+  let nearestDistanceSq = Number.POSITIVE_INFINITY;
+  for (const candidate of state.squadrons) {
+    if (candidate.sideIndex === squadron.sideIndex) continue;
+    const candidateLeader = state.ships[candidate.leaderIndex];
+    if (!candidateLeader?.active) continue;
+    const distanceSq = (candidateLeader.x - leader.x) ** 2 +
+      (candidateLeader.y - leader.y) ** 2;
+    if (distanceSq >= nearestDistanceSq) continue;
+    nearestDistanceSq = distanceSq;
+    nearestIndex = candidate.leaderIndex;
+  }
+  return nearestIndex;
+}
+
 function refreshTargets(state) {
   state.targetPressure.fill(0);
   for (const ship of state.ships) {
@@ -752,6 +888,11 @@ function refreshTargets(state) {
   for (let index = 0; index < state.ships.length; index++) {
     const ship = state.ships[index];
     if (!ship.active) continue;
+    const squadron = state.squadrons[ship.squadronIndex];
+    if (squadron?.stance === "withdraw") {
+      ship.targetIndex = -1;
+      continue;
+    }
     const current = state.ships[ship.targetIndex];
     const currentDistance = current?.active && current.sideIndex !== ship.sideIndex
       ? Math.hypot(current.x - ship.x, current.y - ship.y)
@@ -771,12 +912,15 @@ function refreshTargets(state) {
 
 function nearestEnemyIndex(state, shipIndex, radius) {
   const ship = state.ships[shipIndex];
+  const squadron = state.squadrons[ship.squadronIndex];
   queryBattleSpatialGrid(state.spatialGrid, ship.x, ship.y, radius, state.spatialScratch);
   state.metrics.targetQueries += 1;
   state.metrics.spatialCandidates += state.spatialScratch.length;
   const radiusSq = radius * radius;
   let bestIndex = -1;
   let bestScore = Number.POSITIVE_INFINITY;
+  let bestCounterpartIndex = -1;
+  let bestCounterpartScore = Number.POSITIVE_INFINITY;
   for (const candidateIndex of state.spatialScratch) {
     const candidate = state.ships[candidateIndex];
     if (!candidate.active || candidate.sideIndex === ship.sideIndex) continue;
@@ -786,15 +930,22 @@ function nearestEnemyIndex(state, shipIndex, radius) {
     if (distanceSq >= radiusSq) continue;
     const pressure = state.targetPressure[candidateIndex];
     const score = distanceSq + pressure * TARGET_PRESSURE_DISTANCE_PX ** 2;
+    if (squadron?.counterpartActive &&
+        candidate.divisionId === squadron.counterpartDivisionId) {
+      if (score < bestCounterpartScore) {
+        bestCounterpartScore = score;
+        bestCounterpartIndex = candidateIndex;
+      }
+      continue;
+    }
     if (score >= bestScore) continue;
     bestScore = score;
     bestIndex = candidateIndex;
   }
-  return bestIndex;
+  return bestCounterpartIndex >= 0 ? bestCounterpartIndex : bestIndex;
 }
 
 function updateShipMotion(state, command) {
-  updateSquadronLeaders(state);
   const player = state.ships[state.playerShipIndex];
   for (let index = 0; index < state.ships.length; index++) {
     const ship = state.ships[index];
@@ -820,6 +971,9 @@ function updateShipMotion(state, command) {
       const intent = followerMotionIntent(state, ship, target, targetDistance);
       desiredHeading = intent.headingRad;
       speedCapPx = intent.speedCapPx;
+    }
+    if (!ship.playerControlled && speedCapPx !== 0 && !shipCanUseOars(ship.stats)) {
+      desiredHeading = historicalBattleSailingHeading(state, ship, desiredHeading);
     }
     if (!ship.playerControlled && state.tick < ship.friendlyYieldUntilTick) {
       desiredHeading = ship.friendlyYieldHeadingRad;
@@ -889,14 +1043,18 @@ function leaderMotionIntent(state, ship, target, targetDistance) {
       speedCapPx: Number.POSITIVE_INFINITY
     };
   }
+  const strategicTarget = state.ships[squadron.strategicTargetIndex];
+  if (strategicTarget?.active) {
+    return {
+      headingRad: Math.atan2(strategicTarget.y - ship.y, strategicTarget.x - ship.x),
+      speedCapPx: Number.POSITIVE_INFINITY
+    };
+  }
   return { headingRad: squadron.headingRad, speedCapPx: Number.POSITIVE_INFINITY };
 }
 
 function followerMotionIntent(state, ship, target, targetDistance) {
   const squadron = state.squadrons[ship.squadronIndex];
-  if (squadron?.stance === "withdraw") {
-    return { headingRad: retreatHeading(state, ship), speedCapPx: Number.POSITIVE_INFINITY };
-  }
   if (squadron?.stance === "hold" && squadron.id !== state.playerSquadronId &&
       targetDistance > ENGAGEMENT_RANGE_PX) {
     return { headingRad: squadron.headingRad, speedCapPx: 0 };
@@ -941,6 +1099,39 @@ function broadsideApproach(ship, target) {
 
 function retreatHeading(state, ship) {
   return ship.sideId === state.map.escape.sideId ? 0 : Math.PI;
+}
+
+function historicalBattleSailingHeading(state, ship, desiredHeadingRad) {
+  const tackExpired = state.tick >= ship.nextTackTick;
+  const preferredTackSide = ship.tackSide === 0
+    ? (ship.squadronIndex % 2 === 0 ? -1 : 1)
+    : tackExpired
+      ? -ship.tackSide
+      : ship.tackSide;
+  const sailing = chooseNpcSailingDirection({
+    desiredDirection: {
+      x: Math.cos(desiredHeadingRad),
+      y: Math.sin(desiredHeadingRad)
+    },
+    windFlowDirection: {
+      x: Math.cos(state.wind.directionRad + Math.PI),
+      y: Math.sin(state.wind.directionRad + Math.PI)
+    },
+    stallAngleRad: ship.stats.upwindStallAngleRad,
+    currentDirection: {
+      x: Math.cos(ship.headingRad),
+      y: Math.sin(ship.headingRad)
+    },
+    preferredTackSide,
+    committedTackSide: tackExpired ? 0 : ship.tackSide
+  });
+  if (sailing.tacking && sailing.tackSide !== ship.tackSide) {
+    ship.nextTackTick = state.tick + HISTORICAL_TACK_DURATION_TICKS;
+  } else if (!sailing.tacking) {
+    ship.nextTackTick = 0;
+  }
+  ship.tackSide = sailing.tackSide;
+  return Math.atan2(sailing.direction.y, sailing.direction.x);
 }
 
 function moveShipWithStandardPropulsion(
@@ -1234,17 +1425,6 @@ function updateSquadronLeaders(state) {
   }
 }
 
-function updateStrategicRetreats(state) {
-  if (state.tick % 100 !== 0) return;
-  const escapeSide = state.sides.find((side) => side.id === state.map.escape.sideId);
-  if (!escapeSide || escapeSide.remainingShips > escapeSide.startingShips * STRATEGIC_RETREAT_RATIO) return;
-  for (const squadron of state.squadrons) {
-    if (squadron.sideId === escapeSide.id && squadron.stance !== "withdraw") {
-      squadron.stance = "withdraw";
-    }
-  }
-}
-
 function resolveHistoricalShipCollisions(state) {
   const collisionBodies = new Array(state.ships.length);
   const bodyFor = (index) => {
@@ -1303,6 +1483,8 @@ function resolveHistoricalShipCollisions(state) {
       if (shipDamage === 0 && otherDamage === 0) continue;
       ship.hitPoints = Math.max(0, ship.hitPoints - shipDamage);
       other.hitPoints = Math.max(0, other.hitPoints - otherDamage);
+      if (shipDamage > 0) ship.lastDamageAtSeconds = state.elapsedSeconds;
+      if (otherDamage > 0) other.lastDamageAtSeconds = state.elapsedSeconds;
       ship.collisionCooldownSeconds = 0.5;
       other.collisionCooldownSeconds = 0.5;
       pushBattleEvent(state, {
@@ -1723,6 +1905,9 @@ function applyHistoricalProjectileHit(state, projectile, shipIndex, point) {
   target.hitPoints = result.hitPoints;
   target.woundedCrew = result.woundedCrew;
   target.surrendered = result.surrendered;
+  if (result.damage > 0 || result.newWounds > 0) {
+    target.lastDamageAtSeconds = state.elapsedSeconds;
+  }
   if (result.damage > 0 && target.hitPoints > 0 &&
       (projectile.kind === "cannon" || projectile.kind === "arrow")) {
     state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
@@ -1759,6 +1944,45 @@ function updateHistoricalBattleEffects(state) {
   for (const effect of state.impacts) effect.age += HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
   state.splashes = state.splashes.filter((effect) => effect.age < effect.ttl);
   state.impacts = state.impacts.filter((effect) => effect.age < effect.ttl);
+}
+
+function updateHistoricalPlayerRepairs(state) {
+  const repairCap = (ship) => Math.max(2, Math.ceil(ship.maxHitPoints * PLAYER_REPAIR_HULL_RATIO));
+  for (let index = 0; index < state.ships.length; index++) {
+    const ship = state.ships[index];
+    if (!ship.playerControlled || !ship.active || ship.hitPoints >= repairCap(ship)) {
+      ship.repairing = false;
+      ship.repairProgressSeconds = 0;
+      continue;
+    }
+    const damageCooldownComplete = state.elapsedSeconds - ship.lastDamageAtSeconds >=
+      PLAYER_REPAIR_DAMAGE_COOLDOWN_SECONDS;
+    const clearOfEnemies = damageCooldownComplete && historicalPlayerShipClearOfEnemies(
+      state,
+      index,
+      PLAYER_REPAIR_SAFE_RADIUS_PX
+    );
+    ship.repairing = clearOfEnemies;
+    if (!clearOfEnemies) {
+      ship.repairProgressSeconds = 0;
+      continue;
+    }
+    ship.repairProgressSeconds += HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
+    if (ship.repairProgressSeconds + 1e-9 < PLAYER_REPAIR_SECONDS_PER_HIT_POINT) continue;
+    ship.repairProgressSeconds -= PLAYER_REPAIR_SECONDS_PER_HIT_POINT;
+    ship.hitPoints = Math.min(repairCap(ship), ship.hitPoints + 1);
+  }
+}
+
+function historicalPlayerShipClearOfEnemies(state, shipIndex, radiusPx) {
+  const ship = state.ships[shipIndex];
+  queryBattleSpatialGrid(state.spatialGrid, ship.x, ship.y, radiusPx, state.spatialScratch);
+  const radiusSq = radiusPx ** 2;
+  return !state.spatialScratch.some((candidateIndex) => {
+    const candidate = state.ships[candidateIndex];
+    return candidate.active && candidate.sideIndex !== ship.sideIndex &&
+      (candidate.x - ship.x) ** 2 + (candidate.y - ship.y) ** 2 < radiusSq;
+  });
 }
 
 function trimHistoricalEffects(state) {
@@ -1806,6 +2030,38 @@ function recountHistoricalBattleSides(state) {
   }
 }
 
+function updateBrokenBattleState(state) {
+  if (state.brokenSideId !== null) return;
+  const candidates = state.sides.filter((side) => (
+    side.remainingShips === 0 || (
+      state.elapsedSeconds >= BATTLE_BREAK_MINIMUM_SECONDS &&
+      side.remainingShips <= side.startingShips * BATTLE_BREAK_REMAINING_RATIO
+    )
+  ));
+  if (candidates.length === 0) return;
+  candidates.sort((a, b) => (
+    a.remainingShips / a.startingShips - b.remainingShips / b.startingShips
+  ));
+  if (candidates.length > 1 &&
+      candidates[0].remainingShips / candidates[0].startingShips ===
+        candidates[1].remainingShips / candidates[1].startingShips) {
+    return;
+  }
+  const broken = candidates[0];
+  state.brokenSideId = broken.id;
+  state.brokenAtSeconds = state.elapsedSeconds;
+  state.mopUpEndsAtSeconds = state.elapsedSeconds + BATTLE_MOP_UP_SECONDS;
+  for (const squadron of state.squadrons) {
+    if (squadron.sideId !== broken.id) continue;
+    squadron.stance = "withdraw";
+    squadron.strategicTargetIndex = -1;
+  }
+  for (const ship of state.ships) {
+    if (ship.sideId === broken.id) ship.targetIndex = -1;
+  }
+  pushBattleEvent(state, { type: "side-broken", sideId: broken.id });
+}
+
 function finishHistoricalBattleIfNeeded(state) {
   const escapeSide = state.sides.find((side) => side.id === state.map.escape.sideId);
   if (escapeSide?.escapedShips >= state.map.escape.victoryCount) {
@@ -1821,13 +2077,13 @@ function finishHistoricalBattleIfNeeded(state) {
     finishHistoricalBattle(state, "defeat", opponentSideId(state, state.playerSideId));
     return;
   }
-  const defeatedSides = state.sides.filter((side) => (
-    side.remainingShips <= Math.max(1, Math.floor(side.startingShips * VICTORY_REMAINING_RATIO))
-  ));
-  if (defeatedSides.length === 1) {
-    const winner = state.sides.find((side) => side.id !== defeatedSides[0].id);
+  if (state.brokenSideId !== null && state.elapsedSeconds >= state.mopUpEndsAtSeconds) {
+    const winner = state.sides.find((side) => side.id !== state.brokenSideId);
+    if (!winner) throw new Error(`Historical battle lost the opponent of ${state.brokenSideId}`);
     finishHistoricalBattle(state, winner.id === state.playerSideId ? "victory" : "defeat", winner.id);
-  } else if (defeatedSides.length === 2 || state.elapsedSeconds >= BATTLE_TIME_LIMIT_SECONDS) {
+    return;
+  }
+  if (state.elapsedSeconds >= BATTLE_TIME_LIMIT_SECONDS) {
     const scores = state.sides.map((side) => ({
       side,
       score: side.remainingShips + side.escapedShips * 0.65

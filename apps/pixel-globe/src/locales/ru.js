@@ -89,6 +89,7 @@ export default {
   "historical.victory": "ПОБЕДА",
   "historical.defeat": "ПОРАЖЕНИЕ",
   "historical.draw": "НИЧЬЯ",
+  "historical.sideBroken": "СТРОЙ {side} СЛОМЛЕН - ДОБИТЬ ОСТАВШИХСЯ",
   "historical.resume": "ПРОДОЛЖИТЬ",
   "historical.restart": "НАЧАТЬ ЗАНОВО",
   "historical.rematch": "РЕВАНШ",

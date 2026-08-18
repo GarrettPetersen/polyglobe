@@ -89,6 +89,7 @@ export default {
   "historical.victory": "승리",
   "historical.defeat": "패배",
   "historical.draw": "무승부",
+  "historical.sideBroken": "{side} 전열 붕괴 - 잔적 소탕",
   "historical.resume": "계속",
   "historical.restart": "다시 시작",
   "historical.rematch": "재대결",

@@ -10,6 +10,7 @@ import {
   createHistoricalBattleReplay,
   drainHistoricalBattleEvents,
   fireHistoricalBattleBroadside,
+  historicalBattleCommanderMarkers,
   historicalBattleInterpolatedShipPose,
   historicalBattleNavigableCourse,
   historicalBattlePlayerShip,
@@ -112,6 +113,21 @@ test("the chosen squadron flagship is the only player-controlled ship", () => {
   );
 });
 
+test("the HUD tracks every other surviving commander by allegiance and distance", () => {
+  const battle = createBattle();
+  const markers = historicalBattleCommanderMarkers(battle);
+
+  assert.equal(markers.length, 5);
+  assert.deepEqual(
+    markers.map((marker) => marker.commanderId).sort(),
+    ["agostino-barbarigo", "ali-pasha", "giovanni-andrea-doria", "mahomet-sirocco", "uluc-ali"]
+  );
+  assert.equal(markers.filter((marker) => marker.sideId === battle.playerSideId).length, 2);
+  assert.equal(markers.filter((marker) => marker.sideId !== battle.playerSideId).length, 3);
+  assert.ok(markers.every((marker) => marker.distancePx > 0));
+  assert.ok(markers.every((marker) => marker.distanceKm > 0 && marker.distanceKm < 100));
+});
+
 test("the separated fleets suffer no losses or collisions before first contact", () => {
   const battle = createBattle();
   const initialRemaining = battle.sides.map((side) => side.remainingShips);
@@ -175,7 +191,7 @@ test("the opening battle lines have an unclogged maneuvering corridor", () => {
   const ottomanMinX = Math.min(...ottomans.map((ship) => ship.x));
   assert.ok(ottomanMinX - leagueMaxX >= 4_500, "the fleets begin in a shared choke point");
   assert.ok(
-    Math.max(...league.map((ship) => ship.y)) - Math.min(...league.map((ship) => ship.y)) >= 20_000,
+    Math.max(...league.map((ship) => ship.y)) - Math.min(...league.map((ship) => ship.y)) >= 15_000,
     "the Holy League is packed into too little frontage"
   );
   assert.ok(
@@ -432,6 +448,133 @@ test("the player's squadron follows its flagship while the other divisions advan
   assert.ok(centerFollowers.some((ship) => ship.x > startX - 80));
 });
 
+test("AI divisions pursue their historical counterparts before mopping up", () => {
+  const battle = createBattle();
+  for (let tick = 0; tick < 20; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: 0,
+      rowingRequested: false
+    });
+  }
+
+  for (const squadron of battle.squadrons) {
+    const target = battle.ships[squadron.strategicTargetIndex];
+    assert.ok(target?.active, `${squadron.id} has no strategic target`);
+    assert.equal(
+      target.divisionId,
+      squadron.counterpartDivisionId,
+      `${squadron.id} ignored ${squadron.counterpartDivisionId}`
+    );
+  }
+
+  for (const ship of battle.ships) {
+    if (ship.divisionId === "ottoman-center") ship.active = false;
+  }
+  for (let tick = 0; tick < 20; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: 0,
+      rowingRequested: false
+    });
+  }
+  const leagueCenter = battle.squadrons.find((squadron) => squadron.id === "league-center");
+  const mopUpTarget = battle.ships[leagueCenter.strategicTargetIndex];
+  assert.ok(mopUpTarget?.active);
+  assert.equal(mopUpTarget.sideId, OTTOMAN_SIDE_ID);
+  assert.notEqual(mopUpTarget.divisionId, "ottoman-center");
+});
+
+test("the Holy League sailing squadron tacks toward battle instead of stalling upwind", () => {
+  const battle = createBattle();
+  const squadron = battle.squadrons.find((entry) => entry.id === "league-sailing");
+  const leader = battle.ships[squadron.leaderIndex];
+  const start = { x: leader.x, y: leader.y };
+
+  for (let tick = 0; tick < 400; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: 0,
+      rowingRequested: false
+    });
+  }
+
+  assert.notEqual(leader.tackSide, 0);
+  assert.ok(
+    Math.hypot(leader.x - start.x, leader.y - start.y) > 20,
+    "sail-only squadron remained stalled at deployment"
+  );
+  assert.ok(leader.x > start.x, "sailing squadron made no progress toward the Ottoman line");
+});
+
+test("a broken side retreats through a timed mop-up instead of requiring annihilation", () => {
+  const battle = createBattle();
+  const ottomanShips = battle.ships.filter((ship) => ship.sideId === OTTOMAN_SIDE_ID);
+  const survivors = Math.floor(ottomanShips.length * 0.35);
+  for (const ship of ottomanShips.slice(survivors)) {
+    ship.active = false;
+    ship.surrendered = true;
+  }
+  battle.elapsedSeconds = 90;
+
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+    desiredHeadingRad: 0,
+    rowingRequested: false
+  });
+  const events = drainHistoricalBattleEvents(battle);
+  assert.equal(battle.brokenSideId, OTTOMAN_SIDE_ID);
+  assert.equal(battle.phase, HISTORICAL_BATTLE_PHASE_ACTIVE);
+  assert.ok(events.some((event) => event.type === "side-broken" && event.sideId === OTTOMAN_SIDE_ID));
+  assert.ok(battle.squadrons
+    .filter((squadron) => squadron.sideId === OTTOMAN_SIDE_ID)
+    .every((squadron) => squadron.stance === "withdraw"));
+
+  battle.elapsedSeconds = battle.mopUpEndsAtSeconds - HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+    desiredHeadingRad: 0,
+    rowingRequested: false
+  });
+  assert.equal(battle.phase, "finished");
+  assert.equal(battle.winningSideId, HOLY_LEAGUE_SIDE_ID);
+});
+
+test("a disengaged player flagship slowly repairs to half hull and not under threat", () => {
+  const battle = createBattle();
+  const player = historicalBattlePlayerShip(battle);
+  player.hitPoints = 1;
+  player.lastDamageAtSeconds = 0;
+  player.repairProgressSeconds = 19.95;
+  battle.elapsedSeconds = 12;
+
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+    desiredHeadingRad: null,
+    rowingRequested: false
+  });
+  assert.equal(player.hitPoints, 2);
+  assert.equal(player.repairing, true);
+
+  const enemy = battle.ships.find((ship) => ship.sideId !== player.sideId && ship.active);
+  enemy.x = player.x + 200;
+  enemy.y = player.y;
+  enemy.previousX = enemy.x;
+  enemy.previousY = enemy.y;
+  player.hitPoints = 1;
+  player.repairProgressSeconds = 19.95;
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+    desiredHeadingRad: null,
+    rowingRequested: false
+  });
+  assert.equal(player.hitPoints, 1);
+  assert.equal(player.repairing, false);
+
+  enemy.x = player.x + 1000;
+  enemy.previousX = enemy.x;
+  player.hitPoints = Math.ceil(player.maxHitPoints * 0.5);
+  player.repairProgressSeconds = 19.95;
+  updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+    desiredHeadingRad: null,
+    rowingRequested: false
+  });
+  assert.equal(player.hitPoints, Math.ceil(player.maxHitPoints * 0.5));
+});
+
 test("a player-led reserve follows its flagship without manual orders", () => {
   const battle = createBattle({ playerSquadronId: "league-reserve" });
   const player = historicalBattlePlayerShip(battle);
@@ -547,6 +690,7 @@ test("render visibility culls the large fleet to the local camera", () => {
 test("the fleet engagement produces combat casualties without world-sandbox state", () => {
   const battle = createBattle();
   const initialRemaining = battle.sides.reduce((total, side) => total + side.remainingShips, 0);
+  let sailingSquadronFireEvents = 0;
   for (let tick = 0; tick < 3600 && battle.phase === HISTORICAL_BATTLE_PHASE_ACTIVE; tick++) {
     updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
       desiredHeadingRad: 0,
@@ -554,10 +698,17 @@ test("the fleet engagement produces combat casualties without world-sandbox stat
       firePort: tick % 120 === 0,
       fireStarboard: tick % 120 === 60
     });
+    for (const event of drainHistoricalBattleEvents(battle)) {
+      const firingShip = battle.ships[event.shipIndex];
+      if (event.type === "fire" && firingShip?.divisionId === "league-sailing") {
+        sailingSquadronFireEvents += 1;
+      }
+    }
   }
 
   const remaining = battle.sides.reduce((total, side) => total + side.remainingShips, 0);
   assert.ok(remaining < initialRemaining, `all ${remaining} ships remained active`);
+  assert.ok(sailingSquadronFireEvents > 0, "Holy League sailing squadron never entered combat");
   assert.equal("gameState" in battle, false);
   assert.equal("localLayout" in battle, false);
 });

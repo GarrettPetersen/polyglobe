@@ -89,6 +89,7 @@ export default {
   "historical.victory": "ZWYCIĘSTWO",
   "historical.defeat": "PORAŻKA",
   "historical.draw": "REMIS",
+  "historical.sideBroken": "LINIA {side} ZAŁAMANA - POŚCIG",
   "historical.resume": "WZNÓW",
   "historical.restart": "URUCHOM PONOWNIE",
   "historical.rematch": "REWANŻ",

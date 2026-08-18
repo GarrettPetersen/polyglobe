@@ -89,6 +89,7 @@ export default {
   "historical.victory": "VITÓRIA",
   "historical.defeat": "DERROTA",
   "historical.draw": "EMPATE",
+  "historical.sideBroken": "A LINHA DE {side} ROMPEU - PERSEGUIÇÃO",
   "historical.resume": "CONTINUAR",
   "historical.restart": "REINICIAR",
   "historical.rematch": "REVANCHE",
