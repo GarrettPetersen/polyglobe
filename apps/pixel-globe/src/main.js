@@ -1062,6 +1062,7 @@ import {
   captainChartHousePixels,
   captainChartPanAvailability,
   captainChartPannedViewport,
+  captainChartPreviewCrop,
   captainChartSettlementMarkerSize
 } from "./captainChartMap.js";
 import {
@@ -1274,6 +1275,7 @@ import {
 import { copyCrashReport, formatCrashReport } from "./crashReport.js";
 import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 import { questJournalWindow, steppedQuestJournalScroll } from "./questJournalLayout.js";
+import { orderQuestJournalEntries } from "./questJournalOrder.js";
 import {
   advanceFetchQuestReadiness,
   fetchQuestRequirements,
@@ -1645,6 +1647,7 @@ import {
   ACHIEVEMENT_CATALOG,
   ACHIEVEMENT_IDS,
   achievementCatalogPageForId,
+  achievementEarnedDuringCurrentVoyage,
   achievementPlatformAdapter,
   achievementPresentation,
   achievementProgress,
@@ -2759,6 +2762,7 @@ const MINIMAP_W = 80;
 const MINIMAP_H = 26;
 const MINIMAP_MAX_LAT_DEG = 72;
 const CAPTAIN_CHART_RASTER_FRAME_BUDGET_MS = 4;
+const CAPTAIN_CHART_RASTER_CACHE_LIMIT = 8;
 let MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 let MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
 const MINIMAP_UNKNOWN_COLOR = [74, 66, 55];
@@ -3561,7 +3565,8 @@ let localLayout;
 const recoveredProtectedStitchEdges = new Set();
 const PROTECTED_STITCH_DIAGNOSTIC_COOLDOWN_MS = 30 * 86_400_000;
 let minimap;
-let captainChartMinimap;
+let captainChartMinimapCache = new Map();
+let captainChartMinimapCacheRevision = -1;
 let themeMusic = null;
 let soundEffects = null;
 const stormLightningState = createStormLightningState();
@@ -4372,7 +4377,8 @@ async function main() {
   activeIcebergSpawnCandidates = [];
   icebergCollisionMomentum.clear();
   minimap = buildMinimap();
-  captainChartMinimap = null;
+  captainChartMinimapCache = new Map();
+  captainChartMinimapCacheRevision = -1;
   ship = createShip(
     playerStartPosition.lat,
     playerStartPosition.lon,
@@ -39568,6 +39574,13 @@ function currentFetchQuestRequirements() {
         conquistador.fetchStage.quantity
       )
     : null;
+  const shipyardProject = gameState.memory.shipyardInvestment.project;
+  const shipyardDestination = shipyardProject
+    ? portCitiesByTileId.get(shipyardProject.portTileId) || cityByTileId.get(shipyardProject.portTileId)
+    : null;
+  if (shipyardProject && !shipyardDestination) {
+    throw new Error(`Player-backed shipyard port is missing: ${shipyardProject.portName}`);
+  }
   return fetchQuestRequirements({
     colonization: colonizationQuestView(gameState, {
       currentMinute: Math.max(0, weatherClockMinutes)
@@ -39586,6 +39599,18 @@ function currentFetchQuestRequirements() {
     chefPort,
     conquistador: conquistador?.fetchStage
       ? { ...conquistador, delivered: conquistadorProgress.deliveredQuantity }
+      : null,
+    shipyard: shipyardProject
+      ? {
+          destination: shipyardDestination,
+          materials: Object.entries(SHIPYARD_INVESTMENT_MATERIALS).map(([goodId, quantity]) => ({
+            goodId,
+            goodLabel: tradeGoodById(goodId).label,
+            quantity,
+            delivered: shipyardProject.materialsDelivered[goodId],
+            held: gameState.cargo?.[goodId] || 0
+          }))
+        }
       : null
   });
 }
@@ -39822,7 +39847,9 @@ function questJournalEntries() {
   if (caribbeanGingerEntry) entries.push(caribbeanGingerEntry);
   const naturalistEntry = naturalistJournalEntry();
   if (naturalistEntry) entries.push(naturalistEntry);
-  return entries;
+  return orderQuestJournalEntries(entries, {
+    campaignComplete: campaignGoal?.status === CAMPAIGN_GOAL_COMPLETE
+  });
 }
 
 function naturalistJournalEntry() {
@@ -40285,13 +40312,25 @@ function drawCaptainMapPanButton(rect, directionX, directionY) {
 }
 
 function nativeCaptainChartMinimap(width, height, viewport) {
-  if (!captainChartMinimap ||
-      captainChartMinimap.width !== width || captainChartMinimap.height !== height) {
+  if (captainChartMinimapCacheRevision !== minimap.rasterRevision) {
+    captainChartMinimapCache.clear();
+    captainChartMinimapCacheRevision = minimap.rasterRevision;
+  }
+  const viewportKey = minimapViewportRenderKey(viewport);
+  const cacheKey = `${width}x${height}:${viewportKey}`;
+  let captainChartMinimap = captainChartMinimapCache.get(cacheKey);
+  if (!captainChartMinimap) {
     captainChartMinimap = buildMinimapRaster(width, height, {
       sampleOffsets: CAPTAIN_CHART_SAMPLE_OFFSETS
     });
+    captainChartMinimapCache.set(cacheKey, captainChartMinimap);
+    while (captainChartMinimapCache.size > CAPTAIN_CHART_RASTER_CACHE_LIMIT) {
+      captainChartMinimapCache.delete(captainChartMinimapCache.keys().next().value);
+    }
+  } else {
+    captainChartMinimapCache.delete(cacheKey);
+    captainChartMinimapCache.set(cacheKey, captainChartMinimap);
   }
-  const viewportKey = minimapViewportRenderKey(viewport);
   const pending = captainChartMinimap.pendingRender;
   const renderIsCurrent = captainChartMinimap.sourceRevision === minimap.rasterRevision &&
     captainChartMinimap.renderedViewportKey === viewportKey;
@@ -40305,13 +40344,7 @@ function nativeCaptainChartMinimap(width, height, viewport) {
       viewport,
       focus?.y ?? Math.floor(height / 2)
     );
-    if (
-      minimap.sourceRevision === minimap.rasterRevision &&
-      minimap.renderedViewportKey === viewportKey
-    ) {
-      captainChartMinimap.ctx.imageSmoothingEnabled = false;
-      captainChartMinimap.ctx.drawImage(minimap.canvas, 0, 0, width, height);
-    }
+    drawCaptainChartMinimapPreview(captainChartMinimap, viewport);
   }
   if (captainChartMinimap.pendingRender) {
     const result = advanceIncrementalRowJob(captainChartMinimap.pendingRender.rowJob, {
@@ -40326,6 +40359,31 @@ function nativeCaptainChartMinimap(width, height, viewport) {
     else dirty = true;
   }
   return captainChartMinimap;
+}
+
+function drawCaptainChartMinimapPreview(targetRaster, targetViewport) {
+  if (minimap.sourceRevision !== minimap.rasterRevision || !minimap.renderedViewport) return false;
+  const crop = captainChartPreviewCrop({
+    sourceViewport: minimap.renderedViewport,
+    targetViewport,
+    worldWidth: MINIMAP_W,
+    sourcePixelWidth: minimap.width,
+    sourcePixelHeight: minimap.height
+  });
+  if (!crop) return false;
+  targetRaster.ctx.imageSmoothingEnabled = false;
+  targetRaster.ctx.drawImage(
+    minimap.canvas,
+    crop.x,
+    crop.y,
+    crop.width,
+    crop.height,
+    0,
+    0,
+    targetRaster.width,
+    targetRaster.height
+  );
+  return true;
 }
 
 function navigationMenuEntries() {
@@ -42886,9 +42944,13 @@ function buildAchievementsMenuView() {
         snapshot,
         entry.id
       );
+      const earnedDuringCurrentVoyage = achievementEarnedDuringCurrentVoyage(entry, progress);
       return {
         entry,
         progress,
+        completedForDisplay: entry.scope === "voyage"
+          ? earnedDuringCurrentVoyage
+          : progress.unlocked,
         presentation: achievementPresentation(entry, progress.unlocked)
       };
     })
@@ -42948,12 +43010,12 @@ function drawAchievementsMenu() {
   const rowW = panel.w - 20;
   const rowH = 39;
 
-  entries.forEach(({ entry, progress, presentation }, index) => {
+  entries.forEach(({ entry, progress, completedForDisplay, presentation }, index) => {
     const concealed = presentation.concealed;
     const row = { x: listX, y: listY + index * rowH, w: rowW, h: rowH - 2 };
-    ctx.fillStyle = progress.unlocked ? "#dec99e" : PIRATE_MENU_PAPER_INSET;
+    ctx.fillStyle = completedForDisplay ? "#dec99e" : PIRATE_MENU_PAPER_INSET;
     ctx.fillRect(row.x, row.y, row.w, row.h);
-    ctx.fillStyle = progress.unlocked ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED;
+    ctx.fillStyle = completedForDisplay ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED;
     ctx.fillRect(row.x, row.y, 2, row.h);
     drawGameIcon(presentation.iconId, row.x + 6, row.y + 9, {
       alpha: progress.unlocked ? 1 : 0.48
@@ -42982,7 +43044,7 @@ function drawAchievementsMenu() {
     if (progressLabel) {
       drawOptionsText(progressLabel, progressRightX, row.y + 3, {
         align: "right",
-        color: progress.unlocked ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
+        color: completedForDisplay ? PIRATE_MENU_SUCCESS : PIRATE_MENU_INK_MUTED
       });
     }
     drawGameIcon(achievementStatusIconId(progress.unlocked), statusX, row.y + 1);
@@ -43002,7 +43064,7 @@ function drawAchievementsMenu() {
     ctx.fillStyle = "#b99a67";
     ctx.fillRect(textX, row.y + row.h - 4, row.w - (textX - row.x) - 7, 2);
     if (fraction > 0) {
-      ctx.fillStyle = progress.unlocked ? PIRATE_MENU_SUCCESS : "#d6a84f";
+      ctx.fillStyle = completedForDisplay ? PIRATE_MENU_SUCCESS : "#d6a84f";
       ctx.fillRect(
         textX,
         row.y + row.h - 4,

@@ -422,6 +422,16 @@ test("political power codes are compact for card relationship tokens", () => {
   assert.equal(powers.find((faction) => faction.id === "pirate").code, "PX");
 });
 
+test("Mughal and Muscovite politics codes remain distinct after Panipat", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.memory.conquest.collapsedFactionIds = state.memory.conquest.collapsedFactionIds
+    .filter((factionId) => factionId !== "mughal");
+  const powers = politicalPowers(state);
+  assert.equal(powers.find((faction) => faction.id === "mughal").code, "MG");
+  assert.equal(powers.find((faction) => faction.id === "muscovy").code, "MU");
+  assert.equal(new Set(powers.map((faction) => faction.code)).size, powers.length);
+});
+
 test("player standing labels summarize reputation ranges", () => {
   assert.equal(playerStandingForReputation(0).label, "Neutral");
   assert.equal(playerStandingForReputation(8).label, "Warm");

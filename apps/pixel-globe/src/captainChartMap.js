@@ -96,6 +96,39 @@ export function captainChartSettlementMarkerSize(hexPixelSpan) {
   return Math.min(MAX_HOUSE_SIZE, size);
 }
 
+export function captainChartPreviewCrop({
+  sourceViewport,
+  targetViewport,
+  worldWidth,
+  sourcePixelWidth,
+  sourcePixelHeight
+}) {
+  for (const [label, value] of Object.entries({
+    worldWidth,
+    sourcePixelWidth,
+    sourcePixelHeight
+  })) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`Invalid captain chart preview ${label}: ${value}`);
+    }
+  }
+  if (!sourceViewport || !targetViewport) return null;
+  const xOffset = ((targetViewport.startX - sourceViewport.startX) % worldWidth + worldWidth) % worldWidth;
+  const yOffset = targetViewport.startY - sourceViewport.startY;
+  const epsilon = 1e-6;
+  if (xOffset < -epsilon || yOffset < -epsilon ||
+      xOffset + targetViewport.spanX > sourceViewport.spanX + epsilon ||
+      yOffset + targetViewport.spanY > sourceViewport.spanY + epsilon) {
+    return null;
+  }
+  return Object.freeze({
+    x: xOffset / sourceViewport.spanX * sourcePixelWidth,
+    y: yOffset / sourceViewport.spanY * sourcePixelHeight,
+    width: targetViewport.spanX / sourceViewport.spanX * sourcePixelWidth,
+    height: targetViewport.spanY / sourceViewport.spanY * sourcePixelHeight
+  });
+}
+
 export function captainChartHousePixels(size) {
   if (!Number.isInteger(size) || size < 3 || size > MAX_HOUSE_SIZE || size % 2 === 0) {
     throw new Error(`Invalid captain chart house size: ${size}`);

@@ -11,6 +11,7 @@ const KYOTO = Object.freeze({ tileId: 20, city: "Kyoto", country: "Japan" });
 const NAGASAKI = Object.freeze({ tileId: 30, city: "Nagasaki", country: "Japan" });
 const HAFNARFJORDUR = Object.freeze({ tileId: 40, city: "Hafnarfjordur", country: "Iceland" });
 const HAVANA = Object.freeze({ tileId: 50, city: "Havana", country: "Cuba" });
+const CADIZ = Object.freeze({ tileId: 60, city: "Cadiz", country: "Spain" });
 
 test("colonization fetch cargo points back to the sponsor only when complete", () => {
   const colonization = colonizationView({
@@ -137,6 +138,25 @@ test("readiness transitions announce once per threshold crossing", () => {
   state = advanceFetchQuestReadiness(state.next, requirement(6));
   state = advanceFetchQuestReadiness(state.next, requirement(8));
   assert.equal(state.newlyReady.length, 1);
+});
+
+test("shipyard materials announce when the remaining order is all aboard", () => {
+  const requirements = (held) => fetchQuestRequirements({
+    shipyard: {
+      destination: CADIZ,
+      materials: [{
+        goodId: "timber",
+        goodLabel: "Timber",
+        quantity: 20,
+        delivered: 8,
+        held
+      }]
+    }
+  });
+  assert.equal(requirements(11)[0].ready, false);
+  assert.equal(requirements(12)[0].quantity, 12);
+  assert.equal(requirements(12)[0].ready, true);
+  assert.equal(readyFetchQuestDestinations(requirements(12))[0].destination.city, "Cadiz");
 });
 
 function colonizationView(overrides) {

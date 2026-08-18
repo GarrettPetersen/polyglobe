@@ -541,11 +541,14 @@ export function achievementProgress(profile, progress, snapshot, achievementId) 
   validateAchievementSnapshot(snapshot);
   assertAchievementId(achievementId);
   const unlocked = Boolean(profile.unlocked[achievementId]);
-  let value = unlocked ? 1 : 0;
+  const catalogEntry = ACHIEVEMENT_CATALOG_BY_ID.get(achievementId);
+  let value = catalogEntry.scope === "lifetime" && unlocked ? 1 : 0;
   let target = 1;
   if (achievementId === ACHIEVEMENT_IDS.GREAT_EXPLORER) {
     value = currentVoyageDiscoveryCount(snapshot);
     target = snapshot.discoveryCatalogIds.length;
+  } else if (achievementId === ACHIEVEMENT_IDS.MAGELLAN) {
+    value = snapshot.discoveryIds.includes(snapshot.circumnavigationDiscoveryId) ? 1 : 0;
   } else if (achievementId === ACHIEVEMENT_IDS.SPICE_TRADER) {
     value = progress.soldSpiceGoodIds.length;
     target = SPICE_TRADER_GOOD_IDS.length;
@@ -555,9 +558,23 @@ export function achievementProgress(profile, progress, snapshot, achievementId) 
   } else if (achievementId === ACHIEVEMENT_IDS.COLONIST) {
     value = progress.foundedCityIds.length;
     target = 5;
+  } else if (achievementId === ACHIEVEMENT_IDS.CONQUEROR) {
+    value = snapshot.capturedCapitalCount > 0 ? 1 : 0;
   } else if (achievementId === ACHIEVEMENT_IDS.WELL_ROUNDED) {
     value = snapshot.shipCatalogSlugs.filter((slug) => profile.lifetime.sailedShipSlugs.includes(slug)).length;
     target = snapshot.shipCatalogSlugs.length;
+  } else if (achievementId === ACHIEVEMENT_IDS.HISTORY_ENTHUSIAST) {
+    value = snapshot.vikingLongshipUnlocked ? 1 : 0;
+  } else if (achievementId === ACHIEVEMENT_IDS.CAPTAIN_AHAB) {
+    value = progress.whiteWhaleKilled ? 1 : 0;
+  } else if (achievementId === ACHIEVEMENT_IDS.GOLDEN) {
+    value = snapshot.discoveryIds.includes(snapshot.elDoradoDiscoveryId) ? 1 : 0;
+  } else if (achievementId === ACHIEVEMENT_IDS.DRUNKEN_SAILOR) {
+    value = progress.arrivedInPortDrunk ? 1 : 0;
+  } else if (achievementId === ACHIEVEMENT_IDS.TEPPO) {
+    value = snapshot.japaneseMatchlockIndustryCreated ? 1 : 0;
+  } else if (achievementId === ACHIEVEMENT_IDS.GINGER_FARMER) {
+    value = snapshot.caribbeanGingerIndustryCreated ? 1 : 0;
   } else if (achievementId === ACHIEVEMENT_IDS.NEW_HORIZONS) {
     value = snapshot.discoveryIds.length;
   } else if (achievementId === ACHIEVEMENT_IDS.CHART_MAKER) {
@@ -656,6 +673,17 @@ export function achievementProgress(profile, progress, snapshot, achievementId) 
     target = snapshot.animalCatalogIds.length;
   }
   return Object.freeze({ unlocked, value: Math.min(value, target), target });
+}
+
+export function achievementEarnedDuringCurrentVoyage(entry, progress) {
+  if (!entry || !ACHIEVEMENT_CATALOG_BY_ID.has(entry.id)) {
+    throw new Error(`Unknown current-voyage achievement: ${entry?.id ?? "missing"}`);
+  }
+  if (!progress || !Number.isFinite(progress.value) || !Number.isFinite(progress.target) ||
+      progress.value < 0 || progress.target <= 0) {
+    throw new Error(`Invalid current-voyage achievement progress: ${entry.id}`);
+  }
+  return entry.scope === "voyage" && progress.value >= progress.target;
 }
 
 function currentVoyageDiscoveryCount(snapshot) {

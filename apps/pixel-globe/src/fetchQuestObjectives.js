@@ -8,7 +8,8 @@ export function fetchQuestRequirements({
   vikingPort = null,
   chef = null,
   chefPort = null,
-  conquistador = null
+  conquistador = null,
+  shipyard = null
 } = {}) {
   const requirements = [];
 
@@ -116,6 +117,24 @@ export function fetchQuestRequirements({
       delivered: conquistador.delivered,
       destination: conquistador.origin
     }));
+  }
+
+  if (shipyard?.destination) {
+    if (!Array.isArray(shipyard.materials)) {
+      throw new Error("Shipyard fetch quest requires a materials array");
+    }
+    for (const material of shipyard.materials) {
+      if (material.delivered >= material.quantity) continue;
+      requirements.push(requirement({
+        id: `shipyard-investment:${material.goodId}`,
+        questId: "shipyard-investment",
+        stageId: material.goodId,
+        good: material,
+        held: material.held,
+        delivered: material.delivered,
+        destination: shipyard.destination
+      }));
+    }
   }
 
   return Object.freeze(requirements);

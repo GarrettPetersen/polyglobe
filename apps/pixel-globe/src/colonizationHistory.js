@@ -47,7 +47,7 @@ const HISTORIES = Object.freeze([
     fetch: [
       stage("river-fort", "timber", 8, "a riverside stockade, boats, and raised store floors", "Floodwater and distance will punish a careless camp. Bring"),
       stage("expedition-arms", "arms", 4, "the garrison and the expeditions sent farther upriver", "The fort is also a base for a dangerous inland search. Supply"),
-      stage("river-seed", "grain", 10, "seed and food while river gardens are established", "The Cario fields cannot be treated as an endless Spanish storehouse. Bring our own")
+      stage("river-seed", "grain", 10, "seed and food while river gardens are established", "We cannot strip the Cario Guarani fields to fill a Spanish storehouse. Bring our own")
     ],
     ready: "The plan is modest: a Casa Fuerte on the river, part refuge and part launch point for expeditions into the continent.",
     departed: "The company is aboard with shallow boats nested among the fort timbers.",

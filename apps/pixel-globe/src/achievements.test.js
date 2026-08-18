@@ -6,6 +6,7 @@ import {
   ACHIEVEMENT_IDS,
   ACHIEVEMENT_PROFILE_STORAGE_KEY,
   achievementCatalogPageForId,
+  achievementEarnedDuringCurrentVoyage,
   achievementPlatformAdapter,
   achievementPresentation,
   achievementProgress,
@@ -428,6 +429,46 @@ test("achievement progress reports partial requirements", () => {
     achievementProgress(profile, progress, snapshot(), ACHIEVEMENT_IDS.SPICE_TRADER),
     { unlocked: false, value: 2, target: 5 }
   );
+});
+
+test("a previously unlocked main-voyage achievement highlights only after this captain earns it", () => {
+  const profile = createAchievementProfile();
+  profile.unlocked[ACHIEVEMENT_IDS.VOYAGE_FULFILLED] = { unlockedAt: 1000 };
+  const entry = ACHIEVEMENT_CATALOG.find((achievement) => (
+    achievement.id === ACHIEVEMENT_IDS.VOYAGE_FULFILLED
+  ));
+  const progress = createVoyageAchievementProgress();
+  const before = achievementProgress(
+    profile,
+    progress,
+    snapshot({ campaignVictory: false }),
+    ACHIEVEMENT_IDS.VOYAGE_FULFILLED
+  );
+  const after = achievementProgress(
+    profile,
+    progress,
+    snapshot({ campaignVictory: true }),
+    ACHIEVEMENT_IDS.VOYAGE_FULFILLED
+  );
+  assert.equal(before.unlocked, true);
+  assert.equal(achievementEarnedDuringCurrentVoyage(entry, before), false);
+  assert.equal(achievementEarnedDuringCurrentVoyage(entry, after), true);
+});
+
+test("global Steam unlocks do not invent progress for a later captain", () => {
+  const profile = createAchievementProfile();
+  const progress = createVoyageAchievementProgress();
+  for (const entry of ACHIEVEMENT_CATALOG.filter((achievement) => achievement.scope === "voyage")) {
+    profile.unlocked[entry.id] = { unlockedAt: 1000 };
+    assert.equal(
+      achievementEarnedDuringCurrentVoyage(
+        entry,
+        achievementProgress(profile, progress, snapshot(), entry.id)
+      ),
+      false,
+      entry.id
+    );
+  }
 });
 
 test("Great Explorer tracks the current voyage and retains the best voyage total", () => {

@@ -510,5 +510,6 @@ function factionCode(faction) {
   if (faction.id === "moldavia") return "MD";
   if (faction.id === "ragusa") return "RG";
   if (faction.id === "hejaz") return "HJ";
+  if (faction.id === "mughal") return "MG";
   return faction.id.slice(0, 2).toUpperCase();
 }

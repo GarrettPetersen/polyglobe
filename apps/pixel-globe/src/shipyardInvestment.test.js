@@ -112,6 +112,31 @@ test("another major-port yard can be backed after the investment cooldown", () =
   ), false);
 });
 
+test("a later investment can fund a famous Ottoman-controlled yard", () => {
+  const state = {
+    doubloons: 200000,
+    memory: {
+      shipyardInvestment: {
+        ...createShipyardInvestmentMemory(),
+        backedPortTileIds: [LISBON.tileId],
+        lastCompletedMinute: 1000
+      }
+    }
+  };
+  const ottomanPort = {
+    ...LISBON,
+    tileId: 3,
+    city: "Constantinople",
+    factionId: "ottoman"
+  };
+  assert.equal(shipyardInvestmentOfferAvailable(
+    state,
+    ottomanPort,
+    { famous: true, playerBacking: null },
+    1000 + SHIPYARD_INVESTMENT_REOFFER_MINUTES
+  ), true);
+});
+
 test("legacy operating projects migrate into the backed-yard portfolio", () => {
   const memory = migrateShipyardInvestmentMemory({
     version: 1,

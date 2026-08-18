@@ -6,6 +6,7 @@ import {
   captainChartHexPixelSpan,
   captainChartHousePixels,
   captainChartPanAvailability,
+  captainChartPreviewCrop,
   captainChartSettlementMarkerSize
 } from "./captainChartMap.js";
 
@@ -67,4 +68,24 @@ test("zoomed settlement houses are crisp odd-sized pixel silhouettes", () => {
   assert.ok(captainChartHousePixels(5).some(({ x, y }) => x === 0 && y === 2));
   assert.equal(captainChartHousePixels(5).some(({ x, y }) => x === 2 && y === 4), false);
   assert.throws(() => captainChartHousePixels(4), /Invalid captain chart house size/);
+});
+
+test("captain chart derives an immediate zoom preview from the explored map", () => {
+  assert.deepEqual(captainChartPreviewCrop({
+    sourceViewport: BASE,
+    targetViewport: { startX: 20, startY: 8, spanX: 20, spanY: 8 },
+    worldWidth: 80,
+    sourcePixelWidth: 80,
+    sourcePixelHeight: 32
+  }), { x: 20, y: 8, width: 40, height: 16 });
+});
+
+test("captain chart preview crops work across the longitude seam", () => {
+  assert.deepEqual(captainChartPreviewCrop({
+    sourceViewport: { startX: 70, startY: 4, spanX: 30, spanY: 12 },
+    targetViewport: { startX: 76, startY: 7, spanX: 12, spanY: 6 },
+    worldWidth: 80,
+    sourcePixelWidth: 90,
+    sourcePixelHeight: 36
+  }), { x: 18, y: 9, width: 36, height: 18 });
 });
