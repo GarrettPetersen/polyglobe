@@ -80,6 +80,8 @@ const TARGET_SEARCH_RADIUS_PX = 190;
 const ENGAGEMENT_RANGE_PX = 92;
 const FORMATION_COLUMN_SPACING_PX = 44;
 const FORMATION_ROW_SPACING_PX = 38;
+const TACTICAL_SQUADRON_COLUMN_SPACING_PX = 250;
+const TACTICAL_SQUADRON_ROW_SPACING_PX = 210;
 const FORMATION_REJOIN_DISTANCE_PX = 210;
 const FRIENDLY_AVOIDANCE_RADIUS_PX = 48;
 const TARGET_PRESSURE_DISTANCE_PX = 26;
@@ -89,7 +91,9 @@ const HISTORICAL_NAVIGATION_DECISION_TICKS = 4;
 const HISTORICAL_NAVIGATION_ENTER_CLEARANCE_PX = 104;
 const HISTORICAL_NAVIGATION_REJOIN_CLEARANCE_PX = 148;
 const HISTORICAL_NAVIGATION_REJOIN_DECISIONS = 3;
-const HISTORICAL_NAVIGATION_PROBE_DISTANCES_PX = Object.freeze([16, 32, 56, 80, 104, 148, 204]);
+const HISTORICAL_NAVIGATION_PROBE_DISTANCES_PX = Object.freeze([
+  24, 48, 80, 120, 180, 260, 380, 520
+]);
 const CANNON_RANGE_PX = 74;
 const CANNON_SPEED_PX = 88;
 const CANNON_ARC_HEIGHT_PX = 13;
@@ -136,20 +140,28 @@ export function createHistoricalBattle({
 
   for (let sideIndex = 0; sideIndex < scenario.sides.length; sideIndex++) {
     const sideValue = scenario.sides[sideIndex];
-    for (let squadronIndex = 0; squadronIndex < sideValue.squadrons.length; squadronIndex++) {
-      const squadronValue = sideValue.squadrons[squadronIndex];
-      const squadronState = createSquadronState(sideValue, sideIndex, squadronValue, squadronIndex);
-      squadronState.globalIndex = squadrons.length;
-      squadrons.push(squadronState);
-      expandSquadronShips(
-        ships,
-        map,
-        squadronState,
-        sideValue,
-        squadronValue,
-        playerSideId,
-        playerSquadronId
-      );
+    for (let divisionIndex = 0; divisionIndex < sideValue.squadrons.length; divisionIndex++) {
+      const divisionValue = sideValue.squadrons[divisionIndex];
+      const tacticalSquadrons = createTacticalSquadronValues(map, sideValue, divisionValue);
+      for (const tacticalValue of tacticalSquadrons) {
+        const squadronState = createSquadronState(
+          sideValue,
+          sideIndex,
+          divisionValue,
+          divisionIndex,
+          tacticalValue
+        );
+        squadronState.globalIndex = squadrons.length;
+        squadrons.push(squadronState);
+        expandSquadronShips(
+          ships,
+          squadronState,
+          sideValue,
+          tacticalValue,
+          playerSideId,
+          playerSquadronId
+        );
+      }
     }
   }
 
@@ -533,26 +545,21 @@ function stepHistoricalBattle(state, command) {
 
 function expandSquadronShips(
   ships,
-  map,
   squadronState,
   sideValue,
-  squadronValue,
+  tacticalValue,
   playerSideId,
   playerSquadronId
 ) {
-  const anchor = historicalBattleMapPointForLonLat(
-    map,
-    squadronValue.longitudeDeg,
-    squadronValue.latitudeDeg
-  );
+  const anchor = { x: squadronState.anchorX, y: squadronState.anchorY };
   let slotIndex = 0;
-  for (const group of squadronValue.shipGroups) {
+  for (const group of tacticalValue.shipGroups) {
     for (let groupIndex = 0; groupIndex < group.count; groupIndex++) {
       const formation = formationOffset(
         slotIndex,
-        squadronValue.frontage,
-        squadronValue.rowSpacingPx ?? FORMATION_ROW_SPACING_PX,
-        squadronValue.columnSpacingPx ?? FORMATION_COLUMN_SPACING_PX
+        tacticalValue.frontage,
+        tacticalValue.rowSpacingPx ?? FORMATION_ROW_SPACING_PX,
+        tacticalValue.columnSpacingPx ?? FORMATION_COLUMN_SPACING_PX
       );
       const position = projectFormationPoint(
         anchor.x,
@@ -564,7 +571,7 @@ function expandSquadronShips(
       const baseStats = shipStatsForSlug(group.shipSlug);
       const stats = Object.freeze({ ...baseStats, cannons: group.cannons });
       const playerControlled = sideValue.id === playerSideId &&
-        squadronValue.id === playerSquadronId && slotIndex === 0;
+        squadronState.id === playerSquadronId && slotIndex === 0;
       const weapon = group.cannons > 0
         ? cannonWeaponWithEquipment(
             navalWeaponForShip({ cannons: group.cannons }),
@@ -573,10 +580,11 @@ function expandSquadronShips(
         : null;
       const stagger = (slotIndex % 11) * 0.17;
       ships.push({
-        id: `${sideValue.id}:${squadronValue.id}:${String(slotIndex + 1).padStart(3, "0")}`,
+        id: `${sideValue.id}:${squadronState.id}:${String(slotIndex + 1).padStart(3, "0")}`,
         sideId: sideValue.id,
         sideIndex: squadronState.sideIndex,
-        squadronId: squadronValue.id,
+        divisionId: squadronState.divisionId,
+        squadronId: squadronState.id,
         squadronIndex: squadronState.globalIndex,
         factionId: group.factionId,
         slotIndex,
@@ -626,22 +634,104 @@ function expandSquadronShips(
   }
 }
 
-function createSquadronState(sideValue, sideIndex, squadronValue, sideSquadronIndex) {
-  const role = squadronValue.role;
+function createSquadronState(sideValue, sideIndex, divisionValue, divisionIndex, tacticalValue) {
+  const role = divisionValue.role;
   return {
-    id: squadronValue.id,
+    id: tacticalValue.id,
+    divisionId: divisionValue.id,
     sideId: sideValue.id,
     sideIndex,
-    sideSquadronIndex,
+    divisionIndex,
+    tacticalIndex: tacticalValue.tacticalIndex,
     globalIndex: -1,
-    name: squadronValue.name,
-    commander: squadronValue.commander,
-    startingShips: squadronValue.count,
+    name: tacticalValue.name,
+    commander: divisionValue.commander,
+    startingShips: tacticalValue.count,
     leaderIndex: -1,
+    anchorX: tacticalValue.anchorX,
+    anchorY: tacticalValue.anchorY,
     headingRad: sideValue.headingRad,
     order: role === "reserve" ? "hold" : "advance",
     followSquadronId: null,
     role
+  };
+}
+
+function createTacticalSquadronValues(map, sideValue, divisionValue) {
+  const shipGroups = partitionHistoricalShipGroups(
+    divisionValue.shipGroups,
+    divisionValue.tacticalSize
+  );
+  const anchor = historicalBattleMapPointForLonLat(
+    map,
+    divisionValue.longitudeDeg,
+    divisionValue.latitudeDeg
+  );
+  const tacticalFrontage = Math.min(divisionValue.tacticalFrontage, shipGroups.length);
+  return shipGroups.map((groups, tacticalIndex) => {
+    const offset = tacticalSquadronOffset(
+      tacticalIndex,
+      shipGroups.length,
+      tacticalFrontage,
+      divisionValue.tacticalRowSpacingPx ?? TACTICAL_SQUADRON_ROW_SPACING_PX,
+      divisionValue.tacticalColumnSpacingPx ?? TACTICAL_SQUADRON_COLUMN_SPACING_PX
+    );
+    const position = projectFormationPoint(
+      anchor.x,
+      anchor.y,
+      sideValue.headingRad,
+      offset.forward,
+      offset.lateral
+    );
+    const id = tacticalIndex === 0
+      ? divisionValue.id
+      : `${divisionValue.id}-${tacticalIndex + 1}`;
+    return {
+      id,
+      name: tacticalIndex === 0
+        ? divisionValue.name
+        : `${divisionValue.name} ${tacticalIndex + 1}`,
+      tacticalIndex,
+      count: groups.reduce((total, group) => total + group.count, 0),
+      shipGroups: groups,
+      frontage: Math.min(divisionValue.frontage, divisionValue.tacticalSize),
+      rowSpacingPx: divisionValue.rowSpacingPx,
+      columnSpacingPx: divisionValue.columnSpacingPx,
+      anchorX: position.x,
+      anchorY: position.y
+    };
+  });
+}
+
+function partitionHistoricalShipGroups(shipGroups, tacticalSize) {
+  const partitions = [];
+  let partition = [];
+  let partitionCount = 0;
+  for (const group of shipGroups) {
+    let remaining = group.count;
+    while (remaining > 0) {
+      const count = Math.min(remaining, tacticalSize - partitionCount);
+      partition.push({ ...group, count });
+      partitionCount += count;
+      remaining -= count;
+      if (partitionCount !== tacticalSize) continue;
+      partitions.push(partition);
+      partition = [];
+      partitionCount = 0;
+    }
+  }
+  if (partitionCount > 0) partitions.push(partition);
+  return partitions;
+}
+
+function tacticalSquadronOffset(index, count, frontage, rowSpacingPx, columnSpacingPx) {
+  const column = Math.floor(index / frontage);
+  const columnStart = column * frontage;
+  const shipsInColumn = Math.min(frontage, count - columnStart);
+  const row = index - columnStart;
+  return {
+    forward: -column * columnSpacingPx,
+    lateral: (row - (shipsInColumn - 1) / 2) * rowSpacingPx
   };
 }
 

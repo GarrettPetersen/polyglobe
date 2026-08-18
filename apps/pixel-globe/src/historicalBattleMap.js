@@ -18,6 +18,11 @@ export function createHistoricalBattleMap(mapSpec) {
     throw new Error(`Unknown historical battle map: ${mapSpec.id}`);
   }
   const geography = lepantoGeography(mapSpec);
+  const escapePoint = historicalBattleMapPointForLonLat(
+    mapSpec,
+    mapSpec.escape.longitudeDeg,
+    mapSpec.latitudeDeg
+  );
   const base = {
     version: 3,
     id: mapSpec.id,
@@ -25,7 +30,7 @@ export function createHistoricalBattleMap(mapSpec) {
     height: mapSpec.height,
     latitudeDeg: mapSpec.latitudeDeg,
     wind: Object.freeze({ ...mapSpec.wind }),
-    escape: Object.freeze({ ...mapSpec.escape }),
+    escape: Object.freeze({ ...mapSpec.escape, thresholdX: escapePoint.x }),
     ...geography
   };
   return buildTerrainGrid(base);
@@ -155,7 +160,7 @@ function nearestTerrainCell(map, x, y) {
 export function historicalBattleMapEscapeAt(map, sideId, x, y) {
   assertMap(map);
   if (sideId !== map.escape.sideId || map.escape.edge !== "east") return false;
-  return x >= map.width - 2 && historicalBattleMapWaterAt(map, map.width - 3, y, 6);
+  return x >= map.escape.thresholdX && historicalBattleMapWaterAt(map, x, y, 6);
 }
 
 export function historicalBattleMapPolygons(map) {

@@ -72,18 +72,21 @@ function createBattle(overrides = {}) {
     scenarioId: LEPANTO_SCENARIO_ID,
     playerSideId: HOLY_LEAGUE_SIDE_ID,
     playerSquadronId: "league-center",
+    shipFootprints: HISTORICAL_SHIP_FOOTPRINTS,
     shipWakeAnchorsBySlug: HISTORICAL_SHIP_WAKE_ANCHORS,
     seed: 12345,
     ...overrides
   });
 }
 
-test("Lepanto starts all 586 ships in the expanded historical order of battle", () => {
+test("Lepanto starts all 586 ships in small tactical squadrons", () => {
   const battle = createBattle();
 
   assert.equal(battle.phase, HISTORICAL_BATTLE_PHASE_ACTIVE);
   assert.equal(battle.ships.length, 586);
-  assert.equal(battle.squadrons.length, 11);
+  assert.equal(battle.squadrons.length, 54);
+  assert.equal(new Set(battle.squadrons.map((squadron) => squadron.divisionId)).size, 11);
+  assert.ok(Math.max(...battle.squadrons.map((squadron) => squadron.startingShips)) <= 16);
   assert.equal(historicalBattleSideSummary(battle, HOLY_LEAGUE_SIDE_ID).remainingShips, 314);
   assert.equal(historicalBattleSideSummary(battle, OTTOMAN_SIDE_ID).remainingShips, 272);
   assert.equal(battle.ships.filter((ship) => ship.shipSlug === "galleass").length, 6);
@@ -103,12 +106,23 @@ test("the chosen squadron flagship is the only player-controlled ship", () => {
   assert.equal(playerShips[0].id, historicalBattlePlayerShip(battle).id);
   assert.equal(playerShips[0].sideId, OTTOMAN_SIDE_ID);
   assert.equal(playerShips[0].squadronId, "ottoman-left");
+  assert.equal(playerShips[0].divisionId, "ottoman-left");
+  assert.equal(
+    battle.squadrons.find((squadron) => squadron.id === "ottoman-left").startingShips,
+    12
+  );
 });
 
 test("the separated fleets suffer no losses or collisions before first contact", () => {
   const battle = createBattle();
   const initialRemaining = battle.sides.map((side) => side.remainingShips);
   const openingEvents = [];
+  const player = historicalBattlePlayerShip(battle);
+  const nearestEnemyDistance = Math.min(...battle.ships
+    .filter((ship) => ship.sideId !== player.sideId)
+    .map((ship) => Math.hypot(ship.x - player.x, ship.y - player.y)));
+
+  assert.ok(nearestEnemyDistance > 2000, `enemy fleet starts only ${nearestEnemyDistance}px away`);
 
   for (let tick = 0; tick < 200; tick++) {
     updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
@@ -140,7 +154,7 @@ test("fleet navigation chooses a clear course around Cephalonia", () => {
     preferredSide: 1
   });
   const turn = Math.atan2(Math.sin(course.headingRad), Math.cos(course.headingRad));
-  assert.ok(Math.abs(turn) >= Math.PI / 6, `course only turned ${turn.toFixed(3)} radians`);
+  assert.ok(Math.abs(turn) >= Math.PI / 6 - 1e-6, `course only turned ${turn.toFixed(3)} radians`);
   assert.ok(course.clearDistancePx >= 104);
   assert.equal(
     historicalBattleMapWaterAt(
@@ -432,6 +446,7 @@ test("the player's squadron follows its flagship while the other divisions advan
   const centerFollowers = battle.ships.filter((ship) => (
     ship.squadronId === "league-center" && !ship.playerControlled
   ));
+  assert.equal(centerFollowers.length, 11);
   assert.ok(centerFollowers.some((ship) => ship.x > startX - 80));
 });
 

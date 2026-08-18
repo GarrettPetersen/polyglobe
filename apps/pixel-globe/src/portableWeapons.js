@@ -139,7 +139,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["global"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.2, rangeScale: 0.48, speedScale: 1.3, arcHeightScale: 0.8,
+      crewHitChance: 0.14, rangeScale: 0.48, speedScale: 1.3, arcHeightScale: 0.8,
       reloadSeconds: 2.4, bow: true
     }
   }),
@@ -155,7 +155,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["england"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.27, rangeScale: 0.64, speedScale: 1.38, arcHeightScale: 0.7,
+      crewHitChance: 0.18, rangeScale: 0.64, speedScale: 1.38, arcHeightScale: 0.7,
       reloadSeconds: 2.7, crewProtectionPenetration: 0.1, bow: true
     }
   }),
@@ -171,7 +171,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["islamic", "south-asia", "southeast-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.25, rangeScale: 0.57, speedScale: 1.4, arcHeightScale: 0.72,
+      crewHitChance: 0.17, rangeScale: 0.57, speedScale: 1.4, arcHeightScale: 0.72,
       reloadSeconds: 2.0, crewProtectionPenetration: 0.08, bow: true
     }
   }),
@@ -187,7 +187,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["japan"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.28, rangeScale: 0.61, speedScale: 1.38, arcHeightScale: 0.72,
+      crewHitChance: 0.19, rangeScale: 0.61, speedScale: 1.38, arcHeightScale: 0.72,
       reloadSeconds: 2.3, crewProtectionPenetration: 0.08, bow: true
     }
   }),
@@ -204,7 +204,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     rewardOnly: true,
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.25, rangeScale: 0.56, speedScale: 1.34, arcHeightScale: 0.75,
+      crewHitChance: 0.17, rangeScale: 0.56, speedScale: 1.34, arcHeightScale: 0.75,
       reloadSeconds: 2.25, crewProtectionPenetration: 0.05, bow: true
     }
   }),
@@ -220,7 +220,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["europe", "east-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.44, rangeScale: 0.62, speedScale: 1.55, arcHeightScale: 0.55,
+      crewHitChance: 0.3, rangeScale: 0.62, speedScale: 1.55, arcHeightScale: 0.55,
       reloadSeconds: 4, crewProtectionPenetration: 0.35
     }
   }),
@@ -236,7 +236,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["europe", "islamic", "south-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_BULLET, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.78, rangeScale: 0.55, speedScale: 2.1, arcHeightScale: 0.16,
+      crewHitChance: 0.58, rangeScale: 0.55, speedScale: 2.1, arcHeightScale: 0.16,
       reloadSeconds: 5.8, crewProtectionPenetration: 0.7,
       smokeScale: 0.35
     }
@@ -253,7 +253,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["europe"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_BULLET, hullDamage: 0, crewDamage: 1,
-      crewHitChance: 0.7, rangeScale: 0.32, speedScale: 2.0, arcHeightScale: 0.12,
+      crewHitChance: 0.52, rangeScale: 0.32, speedScale: 2.0, arcHeightScale: 0.12,
       reloadSeconds: 4.8, crewProtectionPenetration: 0.55,
       smokeScale: 0.28
     }
@@ -270,7 +270,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     regions: ["europe", "islamic", "south-asia", "east-asia", "southeast-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_CANNON, hullDamage: 0.5, crewDamage: 2,
-      crewHitChance: 0.68, rangeScale: 0.76, speedScale: 1.5, arcHeightScale: 0.18,
+      crewHitChance: 0.52, rangeScale: 0.76, speedScale: 1.5, arcHeightScale: 0.18,
       reloadSeconds: 8, singleInstallation: true, crewProtectionPenetration: 0.75,
       projectileSize: 1, smokeScale: 0.55, swivel: true
     }
@@ -468,14 +468,19 @@ export function activePortableWeaponAssignments({
     Math.ceil(installedCannons / 3)
   );
   let freeCrew = Math.max(0, activeCrew - sailingReserve - cannonReserve);
+  let firingPositions = Math.min(freeCrew, Math.ceil(Math.sqrt(freeCrew) * 2));
   const assignments = [];
   for (const weapon of availableWeapons) {
-    if (freeCrew <= 0) break;
-    // Small-arms purchases stock an armory for every free hand; mounted weapons are singular.
-    const operators = weapon.singleInstallation ? Math.min(1, freeCrew) : freeCrew;
+    if (freeCrew <= 0 || firingPositions <= 0) break;
+    // An armory equips every free hand, but only the crew with a clear place along the
+    // exposed deck can contribute to one simultaneous volley. The rest rotate in later.
+    const operators = weapon.singleInstallation
+      ? Math.min(1, freeCrew, firingPositions)
+      : Math.min(freeCrew, firingPositions);
     if (operators <= 0) continue;
     assignments.push(Object.freeze({ weapon, operators }));
     freeCrew -= operators;
+    firingPositions -= operators;
   }
   return Object.freeze(assignments);
 }

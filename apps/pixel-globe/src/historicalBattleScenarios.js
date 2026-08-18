@@ -79,8 +79,8 @@ const LEPANTO_SCENARIO = scenario({
   },
   map: {
     id: "lepanto-gulf-of-patras",
-    width: 7680,
-    height: 5920,
+    width: 11200,
+    height: 7400,
     latitudeDeg: 38.2,
     wind: {
       // An east wind aided the westbound Ottomans, then lulled and reversed
@@ -88,9 +88,9 @@ const LEPANTO_SCENARIO = scenario({
       directionRad: 0,
       strength: 0.32,
       shift: {
-        beginsAtSeconds: 8,
-        reversesAtSeconds: 14,
-        completesAtSeconds: 20,
+        beginsAtSeconds: 80,
+        reversesAtSeconds: 110,
+        completesAtSeconds: 140,
         directionRad: Math.PI,
         strength: 0.3,
         lullStrength: 0.04
@@ -99,6 +99,7 @@ const LEPANTO_SCENARIO = scenario({
     escape: {
       sideId: OTTOMAN_SIDE_ID,
       edge: "east",
+      longitudeDeg: 21.72,
       victoryCount: 82
     }
   },
@@ -112,37 +113,86 @@ const LEPANTO_SCENARIO = scenario({
       squadrons: [
         squadron("league-galleasses", "Galleass Vanguard", "Francesco Duodo", 20.32, 38.18, 6, [
           shipGroup(GALLEASS_SLUG, 6, "galleass", "venice", 36, ["matchlock-arquebuses"])
-        ], 3, { role: "vanguard", rowSpacingPx: 230, columnSpacingPx: 104 }),
+        ], 3, {
+          role: "vanguard",
+          rowSpacingPx: 116,
+          columnSpacingPx: 104,
+          tacticalSize: 6,
+          tacticalFrontage: 1
+        }),
         squadron("league-left", "Left Wing", "Agostino Barbarigo", 19.95, 38.43, 53, [
           shipGroup(GALLEY_SLUG, 53, "galley", "venice", 8, ["matchlock-arquebuses"])
-        ], 9, { rowSpacingPx: 42, columnSpacingPx: 64 }),
+        ], 4, {
+          rowSpacingPx: 42,
+          columnSpacingPx: 64,
+          tacticalSize: 12,
+          tacticalFrontage: 3,
+          tacticalRowSpacingPx: 220,
+          tacticalColumnSpacingPx: 270
+        }),
         squadron("league-center", "Center", "Don John of Austria", 19.92, 38.22, 62, [
           shipGroup(GALLEY_SLUG, 38, "galley", "spain", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 12, "galley", "venice", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 7, "galley", "papal-states", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 5, "galley", "habsburg", 8, ["matchlock-arquebuses"])
-        ], 10, { rowSpacingPx: 42, columnSpacingPx: 64 }),
+        ], 4, {
+          rowSpacingPx: 42,
+          columnSpacingPx: 64,
+          tacticalSize: 12,
+          tacticalFrontage: 3,
+          tacticalRowSpacingPx: 220,
+          tacticalColumnSpacingPx: 270
+        }),
         squadron("league-right", "Right Wing", "Giovanni Andrea Doria", 19.95, 38.01, 53, [
           shipGroup(GALLEY_SLUG, 27, "galley", "genoa", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 20, "galley", "venice", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 6, "galley", "spain", 8, ["matchlock-arquebuses"])
-        ], 9, { rowSpacingPx: 42, columnSpacingPx: 64 }),
+        ], 4, {
+          rowSpacingPx: 42,
+          columnSpacingPx: 64,
+          tacticalSize: 12,
+          tacticalFrontage: 3,
+          tacticalRowSpacingPx: 220,
+          tacticalColumnSpacingPx: 270
+        }),
         squadron("league-reserve", "Reserve", "Alvaro de Bazan", 19.68, 38.22, 38, [
           shipGroup(GALLEY_SLUG, 18, "galley", "venice", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 5, "galley", "spain", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 5, "galley", "papal-states", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 7, "galley", "habsburg", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 3, "galley", "hospitallers", 8, ["matchlock-arquebuses"])
-        ], 8, { role: "reserve", rowSpacingPx: 42, columnSpacingPx: 64 }),
+        ], 4, {
+          role: "reserve",
+          rowSpacingPx: 42,
+          columnSpacingPx: 64,
+          tacticalSize: 10,
+          tacticalFrontage: 4,
+          tacticalRowSpacingPx: 210,
+          tacticalColumnSpacingPx: 260
+        }),
         squadron("league-sailing", "Sailing Squadron", "Cesare d'Avalos", 19.78, 37.72, 26, [
           shipGroup(GALLEON_SLUG, 24, "sailing-warship", "spain", 24, ["matchlock-arquebuses"]),
           shipGroup(CARRACK_SLUG, 2, "sailing-warship", "venice", 20, ["matchlock-arquebuses"])
-        ], 6, { rowSpacingPx: 48, columnSpacingPx: 76 }),
+        ], 3, {
+          rowSpacingPx: 48,
+          columnSpacingPx: 76,
+          tacticalSize: 8,
+          tacticalFrontage: 4,
+          tacticalRowSpacingPx: 230,
+          tacticalColumnSpacingPx: 290
+        }),
         squadron("league-auxiliaries", "Auxiliary Squadron", "Juan de Cardona", 19.74, 37.93, 76, [
           shipGroup(FUSTA_SLUG, 50, "auxiliary", "spain", 2, ["matchlock-arquebuses"]),
           shipGroup(FUSTA_SLUG, 20, "auxiliary", "venice", 2, ["matchlock-arquebuses"]),
           shipGroup(FUSTA_SLUG, 6, "auxiliary", "papal-states", 2, ["matchlock-arquebuses"])
-        ], 10, { rowSpacingPx: 32, columnSpacingPx: 46 })
+        ], 4, {
+          rowSpacingPx: 32,
+          columnSpacingPx: 46,
+          tacticalSize: 16,
+          tacticalFrontage: 4,
+          tacticalRowSpacingPx: 180,
+          tacticalColumnSpacingPx: 230
+        })
       ]
     }),
     side({
@@ -155,19 +205,48 @@ const LEPANTO_SCENARIO = scenario({
         squadron("ottoman-right", "Right Wing", "Mehmed Siroco", 20.88, 38.38, 71, [
           shipGroup(GALLEY_SLUG, 55, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 16, "galliot", "ottoman", 2, ["composite-recurve-bows"])
-        ], 10, { rowSpacingPx: 38, columnSpacingPx: 60 }),
+        ], 4, {
+          rowSpacingPx: 38,
+          columnSpacingPx: 60,
+          tacticalSize: 12,
+          tacticalFrontage: 3,
+          tacticalRowSpacingPx: 190,
+          tacticalColumnSpacingPx: 260
+        }),
         squadron("ottoman-center", "Center", "Muezzinzade Ali Pasha", 20.90, 38.17, 107, [
           shipGroup(GALLEY_SLUG, 87, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 20, "galliot", "ottoman", 2, ["composite-recurve-bows"])
-        ], 12, { rowSpacingPx: 38, columnSpacingPx: 60 }),
+        ], 4, {
+          rowSpacingPx: 38,
+          columnSpacingPx: 60,
+          tacticalSize: 12,
+          tacticalFrontage: 5,
+          tacticalRowSpacingPx: 190,
+          tacticalColumnSpacingPx: 260
+        }),
         squadron("ottoman-left", "Left Wing", "Uluc Ali", 20.88, 37.94, 77, [
           shipGroup(GALLEY_SLUG, 61, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 16, "galliot", "ottoman", 2, ["composite-recurve-bows"])
-        ], 10, { rowSpacingPx: 38, columnSpacingPx: 60 }),
+        ], 4, {
+          rowSpacingPx: 38,
+          columnSpacingPx: 60,
+          tacticalSize: 12,
+          tacticalFrontage: 4,
+          tacticalRowSpacingPx: 210,
+          tacticalColumnSpacingPx: 260
+        }),
         squadron("ottoman-reserve", "Reserve", "Murat Dragut", 21.08, 38.17, 17, [
           shipGroup(GALLEY_SLUG, 13, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 4, "galliot", "ottoman", 2, ["composite-recurve-bows"])
-        ], 7, { role: "reserve", rowSpacingPx: 38, columnSpacingPx: 60 })
+        ], 4, {
+          role: "reserve",
+          rowSpacingPx: 38,
+          columnSpacingPx: 60,
+          tacticalSize: 9,
+          tacticalFrontage: 2,
+          tacticalRowSpacingPx: 210,
+          tacticalColumnSpacingPx: 250
+        })
       ]
     })
   ]
@@ -216,6 +295,11 @@ function scenario(value) {
     throw new Error(`Historical battle map dimensions are invalid: ${value.id}`);
   }
   assertHistoricalWind(value.map.wind, value.id);
+  if (!value.map.escape?.sideId || value.map.escape.edge !== "east" ||
+      !Number.isFinite(value.map.escape.longitudeDeg) ||
+      !Number.isInteger(value.map.escape.victoryCount) || value.map.escape.victoryCount <= 0) {
+    throw new Error(`Historical battle escape objective is invalid: ${value.id}`);
+  }
   if (!Array.isArray(value.sides) || value.sides.length !== 2) {
     throw new Error(`Historical battle must have exactly two sides: ${value.id}`);
   }
@@ -323,6 +407,18 @@ function squadron(
   if (formation.columnSpacingPx !== undefined &&
       (!Number.isFinite(formation.columnSpacingPx) || formation.columnSpacingPx <= 0)) {
     throw new Error(`Invalid squadron column spacing: ${id}`);
+  }
+  if (!Number.isInteger(formation.tacticalSize) || formation.tacticalSize <= 0) {
+    throw new Error(`Invalid tactical squadron size: ${id}`);
+  }
+  if (!Number.isInteger(formation.tacticalFrontage) || formation.tacticalFrontage <= 0) {
+    throw new Error(`Invalid tactical squadron frontage: ${id}`);
+  }
+  for (const spacingKey of ["tacticalRowSpacingPx", "tacticalColumnSpacingPx"]) {
+    if (formation[spacingKey] !== undefined &&
+        (!Number.isFinite(formation[spacingKey]) || formation[spacingKey] <= 0)) {
+      throw new Error(`Invalid ${spacingKey}: ${id}`);
+    }
   }
   const groupCount = shipGroups.reduce((total, group) => total + group.count, 0);
   if (groupCount !== count) {

@@ -22,7 +22,7 @@ import {
   portableWeaponSoundKind,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
-import { effectiveCrewHitChance } from "./combatWounds.js";
+import { crewWoundsForceSurrender, effectiveCrewHitChance } from "./combatWounds.js";
 import { GRAMMATICAL_NUMBER_PLURAL } from "./grammaticalNumber.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
@@ -91,7 +91,7 @@ test("crew staffing reserves sailors and gunners before assigning small arms", (
   assert.ok(assignments.reduce((sum, entry) => sum + entry.operators, 0) < 8);
 });
 
-test("one small-arms purchase equips every free crew member while a swivel remains singular", () => {
+test("one small-arms purchase equips the crew while deck frontage limits each volley", () => {
   const assignments = activePortableWeaponAssignments({
     ownedItemIds: [SWIVEL_GUN_ITEM_ID, MATCHLOCK_ARQUEBUSES_ITEM_ID],
     activeCrew: 20,
@@ -105,7 +105,60 @@ test("one small-arms purchase equips every free crew member while a swivel remai
   assert.equal(assignments[0].operators, 1);
   assert.equal(assignments[1].weapon.itemId, MATCHLOCK_ARQUEBUSES_ITEM_ID);
   assert.ok(assignments[1].operators > 5);
+  assert.ok(assignments.reduce((sum, entry) => sum + entry.operators, 0) < 20);
   assert.equal(assignments.length, 2);
+});
+
+test("large crews gain small-arms firepower with diminishing simultaneous frontage", () => {
+  const assignmentsFor = (shipSlug, activeCrew) => activePortableWeaponAssignments({
+    ownedItemIds: [MATCHLOCK_ARQUEBUSES_ITEM_ID],
+    activeCrew,
+    shipStats: shipStatsForSlug(shipSlug),
+    installedCannons: 0,
+    targetDistancePx: 20,
+    baseRangePx: 74
+  });
+  const smallVolley = assignmentsFor("fusta", 12)[0].operators;
+  const largeVolley = assignmentsFor("galleass", 60)[0].operators;
+
+  assert.ok(largeVolley > smallVolley);
+  assert.ok(largeVolley <= 13, `large deck exposed ${largeVolley} simultaneous shooters`);
+  assert.ok(largeVolley < 60 / 4);
+});
+
+test("portable weapons leave a substantial miss chance before cover", () => {
+  for (const itemId of [
+    MARINERS_BOWS_ITEM_ID,
+    ENGLISH_LONGBOWS_ITEM_ID,
+    COMPOSITE_BOWS_ITEM_ID,
+    YUMI_ITEM_ID,
+    CROSSBOWS_ITEM_ID,
+    MATCHLOCK_ARQUEBUSES_ITEM_ID,
+    WHEELLOCK_PISTOLS_ITEM_ID,
+    SWIVEL_GUN_ITEM_ID
+  ]) {
+    assert.ok(
+      portableWeaponItemById(itemId).weapon.crewHitChance <= 0.58,
+      `${itemId} is too accurate from a moving deck`
+    );
+  }
+});
+
+test("one intact capital ship cannot erase an intact galley crew in one volley", () => {
+  const assignments = activePortableWeaponAssignments({
+    ownedItemIds: [SWIVEL_GUN_ITEM_ID, MATCHLOCK_ARQUEBUSES_ITEM_ID],
+    activeCrew: 60,
+    shipStats: shipStatsForSlug("galleass"),
+    installedCannons: 36,
+    targetDistancePx: 20,
+    baseRangePx: 74
+  });
+  const maximumWounds = assignments.reduce((total, { weapon, operators }) => (
+    total + weapon.crewDamage * operators
+  ), 0);
+  const targetCrew = shipStatsForSlug("mediterranean-galley").crewCapacity;
+
+  assert.equal(crewWoundsForceSurrender(targetCrew, maximumWounds), false);
 });
 
 test("merchants treat small arms as strict armory upgrades", () => {

@@ -9,7 +9,7 @@ const NATURAL_EARTH_LAND_URL =
 const OUTPUT_PATH = resolve("src/generated/lepantoLandData.js");
 const LEPANTO_BOUNDS = Object.freeze({
   minLongitudeDeg: 19.3,
-  maxLongitudeDeg: 22.6,
+  maxLongitudeDeg: 23.15,
   minLatitudeDeg: 37.2,
   maxLatitudeDeg: 39.2
 });
