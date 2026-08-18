@@ -10,6 +10,13 @@ export const CHART_WEATHER_REPAIR_CONFIRMATION_MS = 10_000;
 export const CHART_SEVERE_REPAIR_CONFIRMATION_MS = 3_000;
 export const CHART_IMMEDIATE_REPAIR_FAULT_PX = 32;
 
+export function chartVisualRepairMayEnterCooldown({ pendingTileRepairs, faultRemains }) {
+  if (typeof pendingTileRepairs !== "boolean" || typeof faultRemains !== "boolean") {
+    throw new Error("Chart repair cooldown requires explicit repair state");
+  }
+  return !pendingTileRepairs && !faultRemains;
+}
+
 export function chooseChartVisualRepair({
   drift,
   terrainTear,

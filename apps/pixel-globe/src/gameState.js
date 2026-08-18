@@ -5101,9 +5101,8 @@ export function payPortugueseCartazFine(state, npcShipId, simMinute) {
 }
 
 function portugueseCartazEnforcementFine(state) {
-  const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const neutralPermitFee = portugueseCartazFee({
-    traderFactionId,
+    traderFactionId: NEUTRAL_FACTION_ID,
     relation: DIPLOMACY_NEUTRAL,
     cargoCapacity: state.cargoCapacity
   });

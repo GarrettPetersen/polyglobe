@@ -286,7 +286,7 @@ test("inherited polar fog clears through a latitude band instead of vanishing", 
 
 test("polar repair pressure rises only where polar fog is climatically plausible", () => {
   const metrics = {
-    drift: { rotationDeg: 12 },
+    drift: { rotationDeg: 12, rmsDistortionPx: 0, maxDistortionPx: 0 },
     terrainTear: { extraPx: 20, compressionPx: 4 }
   };
   assert.equal(nextPolarChartRepairPressure({
@@ -306,26 +306,51 @@ test("polar repair pressure rises only where polar fog is climatically plausible
     currentPressure: 0,
     latitudeDeg: 67,
     elapsedSeconds: 0.5,
-    drift: { rotationDeg: 0 },
+    drift: { rotationDeg: 0, rmsDistortionPx: 0, maxDistortionPx: 0 },
     terrainTear: { extraPx: 0 }
   }) > 0, true);
   assert.equal(nextPolarChartRepairPressure({
     currentPressure: 0.5,
     latitudeDeg: 30,
     elapsedSeconds: 0.5,
-    drift: { rotationDeg: 0 },
+    drift: { rotationDeg: 0, rmsDistortionPx: 0, maxDistortionPx: 0 },
     terrainTear: { extraPx: 0, compressionPx: 0 }
   }), 0.495);
 });
 
 test("polar repair pressure follows whichever chart view is more tilted", () => {
-  const visible = { rotationDeg: -8, scope: "visible" };
-  const complete = { rotationDeg: 3, scope: "complete" };
+  const visible = {
+    rotationDeg: -8,
+    rmsDistortionPx: 2,
+    maxDistortionPx: 4,
+    scope: "visible"
+  };
+  const complete = {
+    rotationDeg: 3,
+    rmsDistortionPx: 4,
+    maxDistortionPx: 7,
+    scope: "complete"
+  };
   assert.equal(chartRepairPressureDrift(visible, complete), visible);
   assert.equal(chartRepairPressureDrift(
-    { rotationDeg: -2 },
-    { rotationDeg: 5 }
+    { rotationDeg: -2, rmsDistortionPx: 2, maxDistortionPx: 3 },
+    { rotationDeg: 5, rmsDistortionPx: 2, maxDistortionPx: 3 }
   ).rotationDeg, 5);
+});
+
+test("polar repair pressure reacts to distortion without a large rotation", () => {
+  const pressure = nextPolarChartRepairPressure({
+    currentPressure: 0.2,
+    latitudeDeg: 61.46,
+    elapsedSeconds: 1,
+    drift: { rotationDeg: 1, rmsDistortionPx: 14.22, maxDistortionPx: 17.36 },
+    terrainTear: { extraPx: 3.86, compressionPx: 5.89 }
+  });
+  assert.ok(pressure > 0.2);
+
+  const visible = { rotationDeg: 1, rmsDistortionPx: 14, maxDistortionPx: 18 };
+  const complete = { rotationDeg: 3, rmsDistortionPx: 2, maxDistortionPx: 4 };
+  assert.equal(chartRepairPressureDrift(visible, complete), visible);
 });
 
 test("fog permits gradual repair in its visible band before full concealment", () => {

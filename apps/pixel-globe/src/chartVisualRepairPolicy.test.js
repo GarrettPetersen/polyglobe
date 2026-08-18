@@ -4,6 +4,7 @@ import {
   CHART_SEVERE_REPAIR_CONFIRMATION_MS,
   CHART_WEATHER_REPAIR_CONFIRMATION_MS,
   advanceChartWeatherRepairConfirmation,
+  chartVisualRepairMayEnterCooldown,
   chooseChartVisualRepair
 } from "./chartVisualRepairPolicy.js";
 
@@ -15,6 +16,21 @@ const calm = {
   maxDistortionPx: 0
 };
 const attachedTerrain = { extraPx: 0, surface: null, screenX: 350, screenY: 100 };
+
+test("chart weather repairs cool down only after their fault is settled", () => {
+  assert.equal(chartVisualRepairMayEnterCooldown({
+    pendingTileRepairs: false,
+    faultRemains: false
+  }), true);
+  assert.equal(chartVisualRepairMayEnterCooldown({
+    pendingTileRepairs: true,
+    faultRemains: false
+  }), false);
+  assert.equal(chartVisualRepairMayEnterCooldown({
+    pendingTileRepairs: false,
+    faultRemains: true
+  }), false);
+});
 
 test("stable charts do not summon concealment effects", () => {
   assert.equal(repairKind({ drift: calm, terrainTear: attachedTerrain }), "none");

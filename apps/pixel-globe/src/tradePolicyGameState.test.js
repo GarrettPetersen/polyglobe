@@ -115,6 +115,23 @@ test("an unlicensed ship in Estado waters can settle or surrender an inspection"
   }).valid, true);
 });
 
+test("Portuguese captains remain exempt when a patrol checks Cartaz status", () => {
+  const state = createGameState({
+    cargoCapacity: 30,
+    playerCharacter: { ...PLAYER, nationalityId: "portugal" }
+  });
+  const inspection = portugueseCartazInspectionStatus(state, {
+    npcShipId: "portuguese-patrol-1",
+    simMinute: 100,
+    latitudeDeg: 15,
+    longitudeDeg: 74
+  });
+
+  assert.equal(inspection.required, false);
+  assert.equal(inspection.valid, true);
+  assert.ok(inspection.fine > 0);
+});
+
 test("inspection fines are punitive and provide grace without issuing a cartaz", () => {
   const fineState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const inspection = portugueseCartazInspectionStatus(fineState, {

@@ -205,6 +205,8 @@ export function nextPolarChartRepairPressure({
     latitudeDeg,
     elapsedSeconds,
     rotationDeg: drift.rotationDeg,
+    rmsDistortionPx: drift.rmsDistortionPx,
+    maxDistortionPx: drift.maxDistortionPx,
     terrainTearPx: terrainTear.extraPx,
     terrainCompressionPx
   })) {
@@ -216,6 +218,8 @@ export function nextPolarChartRepairPressure({
     throw new Error(`Polar chart repair pressure must be in 0..1: ${currentPressure}`);
   }
   const rotationPressure = Math.min(1, Math.abs(drift.rotationDeg) / 6);
+  const rmsDistortionPressure = Math.min(1, drift.rmsDistortionPx / 12);
+  const maximumDistortionPressure = Math.min(1, drift.maxDistortionPx / 26);
   const tearPressure = Math.min(1, Math.max(
     terrainTear.extraPx,
     terrainCompressionPx
@@ -230,14 +234,25 @@ export function nextPolarChartRepairPressure({
     Math.abs(latitudeDeg) >= POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG
   );
   const target = polarRepairEligible
-    ? Math.max(latitudePressure, rotationPressure, tearPressure)
+    ? Math.max(
+        latitudePressure,
+        rotationPressure,
+        rmsDistortionPressure,
+        maximumDistortionPressure,
+        tearPressure
+      )
     : 0;
   // Natural polar fog is already visible cover. Preserve that displayed
   // concealment as repair pressure before the ship sails toward clearer
   // latitudes, otherwise the bank can retreat faster than its hidden tiles
   // settle and reveal an unfinished chart.
   const effectiveCurrentPressure = Math.max(currentPressure, latitudePressure);
-  const severeDistortion = Math.max(rotationPressure, tearPressure) >= 0.75;
+  const severeDistortion = Math.max(
+    rotationPressure,
+    rmsDistortionPressure,
+    maximumDistortionPressure,
+    tearPressure
+  ) >= 0.75;
   if (elapsedSeconds < 0) {
     throw new Error(`Polar chart repair pressure elapsed time cannot be negative: ${elapsedSeconds}`);
   }
@@ -256,13 +271,23 @@ export function chartRepairPressureDrift(visibleDrift, completeDrift) {
     throw new Error("Chart repair pressure requires visible and complete drift metrics");
   }
   for (const [label, drift] of Object.entries({ visibleDrift, completeDrift })) {
-    if (!Number.isFinite(drift.rotationDeg)) {
-      throw new Error(`Chart repair pressure has invalid ${label} rotation`);
+    for (const metric of ["rotationDeg", "rmsDistortionPx", "maxDistortionPx"]) {
+      if (!Number.isFinite(drift[metric])) {
+        throw new Error(`Chart repair pressure has invalid ${label} ${metric}`);
+      }
     }
   }
-  return Math.abs(visibleDrift.rotationDeg) >= Math.abs(completeDrift.rotationDeg)
+  return chartRepairDriftPressure(visibleDrift) >= chartRepairDriftPressure(completeDrift)
     ? visibleDrift
     : completeDrift;
+}
+
+function chartRepairDriftPressure(drift) {
+  return Math.max(
+    Math.abs(drift.rotationDeg) / 6,
+    drift.rmsDistortionPx / 12,
+    drift.maxDistortionPx / 26
+  );
 }
 
 export function chartFogObscuresCircle(frame, x, y, radius = 0) {

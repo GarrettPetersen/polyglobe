@@ -1901,6 +1901,7 @@ import {
 } from "./chartIntegrityTelemetry.js";
 import {
   advanceChartWeatherRepairConfirmation,
+  chartVisualRepairMayEnterCooldown,
   chooseChartVisualRepair
 } from "./chartVisualRepairPolicy.js";
 import { chartVisualRepairBurden } from "./chartVisualRepairBurden.js";
@@ -24451,7 +24452,14 @@ function updateChartVisualRepair(nowMs) {
         else chartVisualRepairStats.cloudReframesCompleted++;
       }
       chartRepairCloudBank = null;
-      chartRepairCooldownUntilMs = nowMs + CHART_REPAIR_WEATHER_COOLDOWN_MS;
+      const pendingTileRepairs = coveredChartRepairQueue.size > 0;
+      const faultRemains = pendingTileRepairs ? true : currentChartVisualFaultNeedsRepair();
+      chartRepairCooldownUntilMs = chartVisualRepairMayEnterCooldown({
+        pendingTileRepairs,
+        faultRemains
+      })
+        ? nowMs + CHART_REPAIR_WEATHER_COOLDOWN_MS
+        : nowMs;
     }
     changed = true;
   }

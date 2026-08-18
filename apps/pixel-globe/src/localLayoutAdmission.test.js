@@ -114,7 +114,9 @@ import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
 
-const TRAVERSAL_SCREEN_W = 455;
+// Exercise the widest compact sailing viewport currently observed in chart
+// integrity telemetry; wider views expose more globe curvature at once.
+const TRAVERSAL_SCREEN_W = 482;
 const TRAVERSAL_SCREEN_H = 256;
 const TRAVERSAL_MARGIN = 72;
 const TRAVERSAL_PIXELS_PER_RADIAN = 620;
@@ -1621,6 +1623,56 @@ test("a northbound Scotland-to-Arctic-Norway voyage never outruns drawn terrain"
   );
   assert.equal(result.missingVisibleLandNeighbors, 0);
   assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `Northbound chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeCompressionPx <= 12,
+    `Northbound chart compressed a visible edge by ` +
+      `${result.maxTerrainEdgeCompressionPx.toFixed(2)}px`
+  );
+});
+
+test("a Scotland-to-Iceland voyage repairs North Atlantic distortion", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [55.9, -4.3],
+        [56.53, -2.66],
+        [58.0, -5.0],
+        [59.5, -9.0],
+        [60.5, -13.5],
+        [61.46, -17.72],
+        [63.0, -20.0],
+        [64.15, -21.94]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("scotland-iceland", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRotationDeg <= 6,
+    `North Atlantic chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
+  );
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `North Atlantic chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeCompressionPx <= 12,
+    `North Atlantic chart compressed a visible edge by ` +
+      `${result.maxTerrainEdgeCompressionPx.toFixed(2)}px`
+  );
+  assertLandTraversalIsContinuous(result, "Scotland-to-Iceland crossing");
 });
 
 test("a south-to-north Argentina coastal traversal cannot tear adjacent land", () => {
@@ -1841,7 +1893,10 @@ function simulateHighLatitudeTraversal(admitTiles) {
     }
 
     const centerId = findNearestTileId(graph, directionIndex, direction);
-    const projectedVisible = collectTraversalTiles(graph, camera);
+    const projectedVisible = collectTraversalTiles(graph, camera, {
+      viewportWidth: 455,
+      viewportHeight: 256
+    });
     const projectedById = new Map(projectedVisible.map((point) => [point.id, point]));
     const admissionAnchorId = resolveLocalLayoutAnchor({
       positions,
@@ -4036,7 +4091,9 @@ function collectTraversalTiles(
   {
     centerId = null,
     pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN,
-    chartMargin = TRAVERSAL_MARGIN
+    chartMargin = TRAVERSAL_MARGIN,
+    viewportWidth = TRAVERSAL_SCREEN_W,
+    viewportHeight = TRAVERSAL_SCREEN_H
   } = {}
 ) {
   const points = [];
@@ -4044,13 +4101,16 @@ function collectTraversalTiles(
     ? Array.from({ length: graph.tileCount }, (_, id) => id)
     : traversalTileIdsNearViewport(graph, camera, centerId, pixelsPerRadian, chartMargin);
   for (const id of ids) {
-    const projected = projectDirection(graphCenter(graph, id), camera, pixelsPerRadian);
+    const projected = projectDirection(graphCenter(graph, id), camera, pixelsPerRadian, {
+      viewportWidth,
+      viewportHeight
+    });
     if (!projected) continue;
     if (
       projected.x < -chartMargin ||
-      projected.x > TRAVERSAL_SCREEN_W + chartMargin ||
+      projected.x > viewportWidth + chartMargin ||
       projected.y < -chartMargin ||
-      projected.y > TRAVERSAL_SCREEN_H + chartMargin
+      projected.y > viewportHeight + chartMargin
     ) continue;
     points.push({ id, ...projected });
   }
@@ -4079,7 +4139,15 @@ function traversalTileIdsNearViewport(graph, camera, centerId, pixelsPerRadian, 
   return ids;
 }
 
-function projectDirection(direction, camera, pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN) {
+function projectDirection(
+  direction,
+  camera,
+  pixelsPerRadian = TRAVERSAL_PIXELS_PER_RADIAN,
+  {
+    viewportWidth = TRAVERSAL_SCREEN_W,
+    viewportHeight = TRAVERSAL_SCREEN_H
+  } = {}
+) {
   const d = dot3(direction, camera.center);
   if (d <= 0.2) return null;
   const vx = dot3(direction, camera.right);
@@ -4087,8 +4155,8 @@ function projectDirection(direction, camera, pixelsPerRadian = TRAVERSAL_PIXELS_
   const sinTheta = Math.sqrt(Math.max(0, 1 - d * d));
   const scale = sinTheta > 1e-6 ? Math.acos(clamp(d, -1, 1)) / sinTheta : 1;
   return {
-    x: Math.round(TRAVERSAL_SCREEN_W / 2 + vx * scale * pixelsPerRadian),
-    y: Math.round(TRAVERSAL_SCREEN_H / 2 - vy * scale * pixelsPerRadian)
+    x: Math.round(viewportWidth / 2 + vx * scale * pixelsPerRadian),
+    y: Math.round(viewportHeight / 2 - vy * scale * pixelsPerRadian)
   };
 }
 
