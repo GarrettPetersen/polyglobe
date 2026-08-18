@@ -188,6 +188,28 @@ test("catastrophic structural faults start repair immediately", () => {
   assert.equal(result.repair, candidate);
 });
 
+test("benchmark-breaking frame distortion bypasses weather cooldown", () => {
+  const candidate = repairCandidate({
+    drift: { ...calm, rotationDeg: -5.21, rmsDistortionPx: 13.69, maxDistortionPx: 21.81 },
+    terrainTear: {
+      extraPx: 1.33,
+      surface: "coast",
+      screenX: 430,
+      screenY: 20
+    },
+    distortionSurface: "water"
+  });
+  const result = advanceChartWeatherRepairConfirmation({
+    pending: null,
+    candidate,
+    nowMs: 100
+  });
+
+  assert.equal(candidate.kind, "full-cloud");
+  assert.equal(candidate.confirmationMs, 0);
+  assert.equal(result.repair, candidate);
+});
+
 test("broad distortion keeps one confirmation window when its worst point moves", () => {
   const firstCandidate = repairCandidate({
     drift: { ...calm, rmsDistortionPx: 14, maxDistortionPx: 17 },

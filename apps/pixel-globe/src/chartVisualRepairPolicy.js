@@ -9,6 +9,9 @@ export const CHART_REPAIR_CLOSING_FOG_TEAR_PX = 32;
 export const CHART_WEATHER_REPAIR_CONFIRMATION_MS = 10_000;
 export const CHART_SEVERE_REPAIR_CONFIRMATION_MS = 3_000;
 export const CHART_IMMEDIATE_REPAIR_FAULT_PX = 32;
+export const CHART_IMMEDIATE_REPAIR_ROTATION_DEG = 8;
+export const CHART_IMMEDIATE_REPAIR_RMS_PX = 12;
+export const CHART_IMMEDIATE_REPAIR_MAX_DISTORTION_PX = 24;
 
 export function chartVisualRepairMayEnterCooldown({ pendingTileRepairs, faultRemains }) {
   if (typeof pendingTileRepairs !== "boolean" || typeof faultRemains !== "boolean") {
@@ -73,7 +76,12 @@ export function chooseChartVisualRepair({
         surface: distortionSurface
       };
   const frameWide = !tear;
-  const confirmationMs = fault.sizePx >= CHART_IMMEDIATE_REPAIR_FAULT_PX
+  const severeFrameDistortion = Math.abs(drift.rotationDeg) >=
+      CHART_IMMEDIATE_REPAIR_ROTATION_DEG ||
+    drift.rmsDistortionPx >= CHART_IMMEDIATE_REPAIR_RMS_PX ||
+    drift.maxDistortionPx >= CHART_IMMEDIATE_REPAIR_MAX_DISTORTION_PX;
+  const confirmationMs = fault.sizePx >= CHART_IMMEDIATE_REPAIR_FAULT_PX ||
+      severeFrameDistortion
     ? 0
     : frameWide || fault.sizePx >= CHART_CLOUD_REPAIR_MAX_DISTORTION_PX
     ? CHART_SEVERE_REPAIR_CONFIRMATION_MS
