@@ -27,6 +27,14 @@ export const INCENDIARY_ARROWS_ITEM_ID = "incendiary-arrows";
 export const VIKING_BOWS_ITEM_ID = "viking-bows";
 export const INCENDIARY_ARROW_HULL_HIT_CHANCE = 0.2;
 const PORTABLE_WEAPON_RATING_CREW = 5;
+const PORTABLE_WEAPON_AIM_JITTER_PX = Object.freeze({
+  [PORTABLE_PROJECTILE_ARROW]: 10,
+  [PORTABLE_PROJECTILE_BULLET]: 8,
+  [PORTABLE_PROJECTILE_CANNON]: 8
+});
+const PORTABLE_WEAPON_TARGET_EXTENT_JITTER_SCALE = 1;
+const PORTABLE_WEAPON_VOLLEY_INTERVAL_SECONDS = 0.11;
+const PORTABLE_WEAPON_VOLLEY_MAX_SPAN_SECONDS = 1.25;
 
 const EUROPEAN_FACTIONS = new Set([
   "england", "scotland", "france", "spain", "portugal", "habsburg", "hungary",
@@ -483,6 +491,114 @@ export function activePortableWeaponAssignments({
     firingPositions -= operators;
   }
   return Object.freeze(assignments);
+}
+
+export function portableWeaponAimPoint({
+  weapon,
+  targetX,
+  targetY,
+  unitX,
+  unitY,
+  targetSilhouette = null,
+  targetRadius = 0
+}) {
+  if (!weapon || typeof weapon !== "object") throw new Error("Portable aim requires a weapon");
+  if (![targetX, targetY].every(Number.isFinite)) {
+    throw new Error(`Portable aim requires a finite target: ${targetX},${targetY}`);
+  }
+  for (const [label, value] of [["x", unitX], ["y", unitY]]) {
+    if (!Number.isFinite(value) || value < 0 || value >= 1) {
+      throw new Error(`Portable aim ${label} roll must be in [0,1): ${value}`);
+    }
+  }
+  const jitterPx = PORTABLE_WEAPON_AIM_JITTER_PX[weapon.animationKind];
+  if (!Number.isFinite(jitterPx)) {
+    throw new Error(`Portable aim has an unknown projectile: ${weapon.animationKind}`);
+  }
+  const extents = portableWeaponTargetAimExtents({
+    targetX,
+    targetY,
+    targetSilhouette,
+    targetRadius
+  });
+  return Object.freeze({
+    x: targetX + (unitX * 2 - 1) * (
+      jitterPx + extents.x * PORTABLE_WEAPON_TARGET_EXTENT_JITTER_SCALE
+    ),
+    y: targetY + (unitY * 2 - 1) * (
+      jitterPx + extents.y * PORTABLE_WEAPON_TARGET_EXTENT_JITTER_SCALE
+    )
+  });
+}
+
+export function portableWeaponVolleyLaunchDelaySeconds({ shotIndex, shotCount, unit }) {
+  if (!Number.isInteger(shotIndex) || !Number.isInteger(shotCount) ||
+      shotIndex < 0 || shotCount <= 0 || shotIndex >= shotCount) {
+    throw new Error(`Invalid portable volley shot: ${shotIndex}/${shotCount}`);
+  }
+  if (!Number.isFinite(unit) || unit < 0 || unit >= 1) {
+    throw new Error(`Portable volley timing roll must be in [0,1): ${unit}`);
+  }
+  if (shotIndex === 0 || shotCount === 1) return 0;
+  const span = Math.min(
+    PORTABLE_WEAPON_VOLLEY_MAX_SPAN_SECONDS,
+    (shotCount - 1) * PORTABLE_WEAPON_VOLLEY_INTERVAL_SECONDS
+  );
+  const minimumDelay = Math.min(PORTABLE_WEAPON_VOLLEY_INTERVAL_SECONDS, span);
+  return minimumDelay + unit * Math.max(0, span - minimumDelay);
+}
+
+export function advancePortableProjectileLaunch(projectile, dt) {
+  if (!projectile?.portable) throw new Error("Portable launch timing requires a portable projectile");
+  if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid portable launch delta: ${dt}`);
+  if (projectile.launched === true) {
+    return Object.freeze({ activeDt: dt, justLaunched: false });
+  }
+  const delay = projectile.launchDelaySeconds ?? 0;
+  if (!Number.isFinite(delay) || delay < 0) {
+    throw new Error(`Invalid portable launch delay: ${delay}`);
+  }
+  if (dt < delay) {
+    projectile.launchDelaySeconds = delay - dt;
+    return Object.freeze({ activeDt: 0, justLaunched: false });
+  }
+  projectile.launchDelaySeconds = 0;
+  projectile.launched = true;
+  return Object.freeze({ activeDt: dt - delay, justLaunched: true });
+}
+
+export function portableWeaponAimJitterPx(weapon) {
+  if (!weapon || typeof weapon !== "object") throw new Error("Portable aim requires a weapon");
+  const jitterPx = PORTABLE_WEAPON_AIM_JITTER_PX[weapon.animationKind];
+  if (!Number.isFinite(jitterPx)) {
+    throw new Error(`Portable aim has an unknown projectile: ${weapon.animationKind}`);
+  }
+  return jitterPx;
+}
+
+function portableWeaponTargetAimExtents({
+  targetX,
+  targetY,
+  targetSilhouette,
+  targetRadius
+}) {
+  if (!Number.isFinite(targetRadius) || targetRadius < 0) {
+    throw new Error(`Invalid portable aim target radius: ${targetRadius}`);
+  }
+  if (targetSilhouette === null) return { x: targetRadius, y: targetRadius };
+  if (!Array.isArray(targetSilhouette) || targetSilhouette.length < 3) {
+    throw new Error("Portable aim target silhouette requires at least three points");
+  }
+  let x = targetRadius;
+  let y = targetRadius;
+  for (const point of targetSilhouette) {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      throw new Error("Portable aim target silhouette contains a non-finite point");
+    }
+    x = Math.max(x, Math.abs(point.x - targetX));
+    y = Math.max(y, Math.abs(point.y - targetY));
+  }
+  return { x, y };
 }
 
 export function portableWeaponEffectLabel(itemId) {

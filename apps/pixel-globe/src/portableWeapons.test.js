@@ -15,8 +15,12 @@ import {
   WHEELLOCK_PISTOLS_ITEM_ID,
   YUMI_ITEM_ID,
   activePortableWeaponAssignments,
+  advancePortableProjectileLaunch,
   npcPortableWeaponItemIds,
   ownedPortableWeaponItemIds,
+  portableWeaponAimJitterPx,
+  portableWeaponAimPoint,
+  portableWeaponVolleyLaunchDelaySeconds,
   portableWeaponItemById,
   portableWeaponItemIsArmoryUpgrade,
   portableWeaponSoundKind,
@@ -142,6 +146,67 @@ test("portable weapons leave a substantial miss chance before cover", () => {
       `${itemId} is too accurate from a moving deck`
     );
   }
+});
+
+test("every portable projectile uses enlarged two-axis aim jitter", () => {
+  for (const itemId of [
+    MARINERS_BOWS_ITEM_ID,
+    MATCHLOCK_ARQUEBUSES_ITEM_ID,
+    SWIVEL_GUN_ITEM_ID
+  ]) {
+    const weapon = portableWeaponItemById(itemId).weapon;
+    const jitter = portableWeaponAimJitterPx(weapon);
+    const aim = portableWeaponAimPoint({
+      weapon,
+      targetX: 20,
+      targetY: 30,
+      unitX: 0,
+      unitY: 0.999,
+      targetSilhouette: [
+        { x: 8, y: 24 },
+        { x: 32, y: 24 },
+        { x: 32, y: 36 },
+        { x: 8, y: 36 }
+      ]
+    });
+
+    assert.ok(jitter >= 8);
+    assert.equal(aim.x, 20 - jitter - 12);
+    assert.ok(aim.y > 30 + (jitter + 6) * 0.99);
+  }
+});
+
+test("portable volleys spread launches over a bounded firing window", () => {
+  assert.equal(portableWeaponVolleyLaunchDelaySeconds({
+    shotIndex: 0,
+    shotCount: 12,
+    unit: 0.9
+  }), 0);
+  const early = portableWeaponVolleyLaunchDelaySeconds({
+    shotIndex: 1,
+    shotCount: 12,
+    unit: 0
+  });
+  const late = portableWeaponVolleyLaunchDelaySeconds({
+    shotIndex: 11,
+    shotCount: 12,
+    unit: 0.999
+  });
+  assert.ok(early >= 0.1);
+  assert.ok(late > 1.1 && late <= 1.25);
+});
+
+test("delayed portable shots remain inactive until their individual launch", () => {
+  const projectile = { portable: true, launched: false, launchDelaySeconds: 0.3 };
+  assert.deepEqual(advancePortableProjectileLaunch(projectile, 0.1), {
+    activeDt: 0,
+    justLaunched: false
+  });
+  assert.ok(Math.abs(projectile.launchDelaySeconds - 0.2) < 1e-9);
+  const launch = advancePortableProjectileLaunch(projectile, 0.25);
+  assert.equal(launch.justLaunched, true);
+  assert.ok(Math.abs(launch.activeDt - 0.05) < 1e-9);
+  assert.equal(projectile.launched, true);
 });
 
 test("one intact capital ship cannot erase an intact galley crew in one volley", () => {

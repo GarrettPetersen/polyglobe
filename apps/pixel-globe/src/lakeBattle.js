@@ -8,7 +8,10 @@ import {
 import {
   PORTABLE_PROJECTILE_CANNON,
   activePortableWeaponAssignments,
+  advancePortableProjectileLaunch,
+  portableWeaponAimPoint,
   portableWeaponItemById,
+  portableWeaponVolleyLaunchDelaySeconds,
   representativePortableWeaponItemIdsForShip
 } from "./portableWeapons.js";
 import { activeCombatCrew, crewWoundsForceSurrender } from "./combatWounds.js";
@@ -392,9 +395,21 @@ export function fireLakeBattlePortableWeapons(state, shipId) {
       const seed = Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0;
       const startX = sourcePoint.x + heading.x * lineT * 8;
       const startY = sourcePoint.y + heading.y * lineT * 8;
-      const jitter = weapon.animationKind === "bullet" ? 2 : 3.5;
-      const targetX = targetPoint.x + (nextBattleRandom(state) - 0.5) * jitter * 2;
-      const targetY = targetPoint.y + (nextBattleRandom(state) - 0.5) * jitter * 2;
+      const aim = portableWeaponAimPoint({
+        weapon,
+        targetX: targetPoint.x,
+        targetY: targetPoint.y,
+        unitX: nextBattleRandom(state),
+        unitY: nextBattleRandom(state),
+        targetSilhouette: lakeBattleCombatantIsCity(target)
+          ? null
+          : lakeBattleShipWorldProjectileSilhouette(state, target),
+        targetRadius: lakeBattleCombatantIsCity(target)
+          ? lakeBattleCombatantHitRadius(target)
+          : 0
+      });
+      const targetX = aim.x;
+      const targetY = aim.y;
       const projectileRange = Math.hypot(targetX - startX, targetY - startY);
       addLakeBattleProjectile(state, ship, {
         id: state.projectileSerial++,
@@ -416,10 +431,16 @@ export function fireLakeBattlePortableWeapons(state, shipId) {
         projectileSize: weapon.projectileSize,
         smokeScale: weapon.smokeScale,
         incendiary: weapon.incendiary === true,
+        launchDelaySeconds: portableWeaponVolleyLaunchDelaySeconds({
+          shotIndex: index,
+          shotCount: operators,
+          unit: ((seed >>> 8) & 0xffffff) / 0x1000000
+        }),
+        launched: false,
         seed
       });
     }
-    finishLakeBattleVolley(state, ship, operators, weapon.animationKind, weapon.itemId);
+    finishLakeBattleVolley(state, ship, operators, weapon.animationKind, weapon.itemId, false);
   }
   return true;
 }
@@ -433,18 +454,27 @@ function addLakeBattleProjectile(state, ship, projectile) {
     throw new Error(`Lake battle projectile does not match firing ship: ${ship.id}`);
   }
   state.projectiles.push(projectile);
-  if (projectile.kind === NAVAL_WEAPON_CANNON || projectile.kind === PORTABLE_PROJECTILE_CANNON ||
-      projectile.weapon?.smokeScale > 0) {
+  if (!projectile.portable && (
+    projectile.kind === NAVAL_WEAPON_CANNON || projectile.kind === PORTABLE_PROJECTILE_CANNON ||
+    projectile.weapon?.smokeScale > 0
+  )) {
     state.cannonSmokeBursts.push(createCannonSmokeBurst(projectile));
   }
 }
 
-function finishLakeBattleVolley(state, ship, count, weaponKind = ship.weapon?.kind, weaponId = null) {
+function finishLakeBattleVolley(
+  state,
+  ship,
+  count,
+  weaponKind = ship.weapon?.kind,
+  weaponId = null,
+  emitFireEvent = true
+) {
   if (!weaponKind) throw new Error(`Lake battle volley has no weapon kind: ${ship.id}`);
   if (state.projectiles.length > MAX_PROJECTILES) {
     state.projectiles.splice(0, state.projectiles.length - MAX_PROJECTILES);
   }
-  state.events.push({ type: "fire", shipId: ship.id, weaponKind, weaponId, count });
+  if (emitFireEvent) state.events.push({ type: "fire", shipId: ship.id, weaponKind, weaponId, count });
 }
 
 export function lakeBattleWaterAt(state, x, y, margin = 0) {
@@ -871,8 +901,29 @@ function fireEnemyWhenAligned(state) {
 function updateProjectiles(state, dt) {
   const kept = [];
   for (const projectile of state.projectiles) {
+    let activeDt = dt;
+    if (projectile.portable) {
+      const launch = advancePortableProjectileLaunch(projectile, dt);
+      activeDt = launch.activeDt;
+      if (launch.justLaunched) {
+        state.events.push({
+          type: "fire",
+          shipId: projectile.ownerId,
+          weaponKind: projectile.kind,
+          weaponId: projectile.weaponId,
+          count: 1
+        });
+        if (projectile.weapon?.smokeScale > 0) {
+          state.cannonSmokeBursts.push(createCannonSmokeBurst(projectile));
+        }
+      }
+      if (activeDt <= 0) {
+        kept.push(projectile);
+        continue;
+      }
+    }
     const previousAge = projectile.age;
-    projectile.age = Math.min(projectile.duration, projectile.age + dt);
+    projectile.age = Math.min(projectile.duration, projectile.age + activeDt);
     if (projectile.kind === NAVAL_WEAPON_CANNON && navalProjectileMayHitBystanders(projectile)) {
       const target = lakeBattleProjectileTarget(state, projectile);
       const hit = target.hitPoints > 0
@@ -908,7 +959,7 @@ function updateProjectiles(state, dt) {
         ) <= lakeBattleCombatantHitRadius(target)
       : pointInShipFootprint(
           { x: projectile.targetX, y: projectile.targetY },
-          lakeBattleShipWorldFootprint(state, target)
+          lakeBattleShipWorldProjectileSilhouette(state, target)
         ));
     if (hit) {
       applyLakeBattleProjectileHit(state, projectile, target, {

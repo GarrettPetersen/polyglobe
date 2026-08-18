@@ -2004,11 +2004,14 @@ import {
   PORTABLE_WEAPON_SOUND_SMALL_FIREARM,
   VIKING_BOWS_ITEM_ID,
   activePortableWeaponAssignments,
+  advancePortableProjectileLaunch,
   isPortableWeaponItemId,
   npcPortableWeaponItemIds,
   ownedPortableWeaponItemIds,
+  portableWeaponAimPoint,
   portableWeaponItemById,
   portableWeaponSoundKind,
+  portableWeaponVolleyLaunchDelaySeconds,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
 import {
@@ -28190,16 +28193,23 @@ function firePlayerPortableWeaponsAtWill() {
       weapon: weapon.itemId,
       count: operators
     });
-    playPortableWeaponAttackSound(weapon, operators);
     const sequence = ++ship.cannonSequence;
     for (let index = 0; index < operators; index++) {
       const lineT = operators === 1 ? 0 : index / (operators - 1) - 0.5;
       const seed = cannonSeed(sequence, index, 0x6172726f, origin);
       const startX = origin.x + heading.x * lineT * 8;
       const startY = origin.y + heading.y * lineT * 8;
-      const jitter = weapon.animationKind === PORTABLE_PROJECTILE_BULLET ? 2 : 3.5;
-      const targetX = target.point.x + (cannonUnit(seed, 1) * 2 - 1) * jitter;
-      const targetY = target.point.y + (cannonUnit(seed, 2) * 2 - 1) * jitter;
+      const aim = portableWeaponAimPoint({
+        weapon,
+        targetX: target.point.x,
+        targetY: target.point.y,
+        unitX: cannonUnit(seed, 1),
+        unitY: cannonUnit(seed, 2),
+        targetSilhouette: target.projectileSilhouette,
+        targetRadius: target.radius
+      });
+      const targetX = aim.x;
+      const targetY = aim.y;
       const range = Math.hypot(targetX - startX, targetY - startY);
       const projectile = {
         ...portableCombatProjectile({
@@ -28211,12 +28221,17 @@ function firePlayerPortableWeaponsAtWill() {
           targetX,
           targetY,
           range,
-          seed
+          seed,
+          launchDelaySeconds: portableWeaponVolleyLaunchDelaySeconds({
+            shotIndex: index,
+            shotCount: operators,
+            unit: cannonUnit(seed, 5)
+          }),
+          launchSoundDistancePx: 0
         }),
         smokeOcclusionY: origin.y
       };
       ship.navalProjectiles.push(projectile);
-      if (weapon.smokeScale > 0) addCannonSmokeBurst(projectile);
     }
   }
   startCombatMusicForThreat("small");
@@ -28246,7 +28261,11 @@ function nearestPlayerPortableWeaponTarget(range) {
     if (!point) continue;
     const distance = Math.hypot(point.x - origin.x, point.y - origin.y);
     if (distance > range || distance >= (nearest?.distance ?? Infinity)) continue;
-    nearest = { id, point, distance };
+    const projectileSilhouette = npcVisualShips.has(id)
+      ? combatShipProjectileShape(id).projectileSilhouette
+      : null;
+    const radius = shoreBatteryStates.has(id) ? NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX : 0;
+    nearest = { id, point, distance, projectileSilhouette, radius };
   }
   return nearest;
 }
@@ -28255,7 +28274,19 @@ function playerOwnedPortableWeaponItemIds() {
   return ownedPortableWeaponItemIds(gameState?.inventory?.items || {});
 }
 
-function portableCombatProjectile({ weapon, ownerId, targetId, startX, startY, targetX, targetY, range, seed }) {
+function portableCombatProjectile({
+  weapon,
+  ownerId,
+  targetId,
+  startX,
+  startY,
+  targetX,
+  targetY,
+  range,
+  seed,
+  launchDelaySeconds = 0,
+  launchSoundDistancePx = 0
+}) {
   return {
     kind: weapon.animationKind,
     portable: true,
@@ -28278,8 +28309,18 @@ function portableCombatProjectile({ weapon, ownerId, targetId, startX, startY, t
     projectileSize: weapon.projectileSize,
     smokeScale: weapon.smokeScale,
     incendiary: weapon.incendiary === true,
+    launchDelaySeconds,
+    launchSoundDistancePx,
+    launched: false,
     seed
   };
+}
+
+function triggerPortableCombatProjectileLaunch(projectile) {
+  const weapon = portableWeaponItemById(projectile.weaponId).weapon;
+  if (!weapon) throw new Error(`Portable projectile has a non-weapon item: ${projectile.weaponId}`);
+  playPortableWeaponAttackSound(weapon, 1, projectile.launchSoundDistancePx);
+  if (weapon.smokeScale > 0) addCannonSmokeBurst(projectile);
 }
 
 function drawCombatBroadsideControls() {
@@ -28516,8 +28557,18 @@ function updateNavalWeapons(dt) {
   if (ship.navalProjectiles.length > 0) {
     const keptBalls = [];
     for (const ball of ship.navalProjectiles) {
+      let activeDt = dt;
+      if (ball.portable) {
+        const launch = advancePortableProjectileLaunch(ball, dt);
+        activeDt = launch.activeDt;
+        if (launch.justLaunched) triggerPortableCombatProjectileLaunch(ball);
+        if (activeDt <= 0) {
+          keptBalls.push(ball);
+          continue;
+        }
+      }
       const previousAge = ball.age;
-      ball.age = Math.min(ball.duration, ball.age + dt);
+      ball.age = Math.min(ball.duration, ball.age + activeDt);
       if (
         ball.kind === NAVAL_WEAPON_CANNON &&
         navalProjectileMayHitBystanders(ball) &&
@@ -28606,9 +28657,11 @@ function resolvePlayerNavalImpact(ball) {
   const target = npcVisualShips.get(ball.targetId) || shoreBatteryStates.get(ball.targetId);
   const point = combatEntityPoint(ball.targetId);
   if (!target || !point) return false;
-  const footprint = npcVisualShips.has(ball.targetId) ? combatShipFootprint(ball.targetId) : null;
-  const hit = footprint
-    ? pointInShipFootprint({ x: ball.targetX, y: ball.targetY }, footprint)
+  const silhouette = npcVisualShips.has(ball.targetId)
+    ? combatShipProjectileShape(ball.targetId).projectileSilhouette
+    : null;
+  const hit = silhouette
+    ? pointInShipFootprint({ x: ball.targetX, y: ball.targetY }, silhouette)
     : Math.hypot(point.x - ball.targetX, point.y - ball.targetY) <= NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX;
   if (!hit) return false;
 
@@ -28989,6 +29042,7 @@ function drawNavalEffects(activeChart, painter = CANVAS_WORLD_PRIMITIVE_PAINTER)
 
 function drawNpcCombatProjectiles(painter) {
   for (const ball of npcCombatProjectiles) {
+    if (ball.portable && ball.launched !== true) continue;
     const point = cannonBallPoint(ball, ball.age);
     drawNavalProjectile(ball, point, painter);
   }
@@ -29008,6 +29062,7 @@ function drawNpcCombatSplashes(activeChart, painter) {
 function drawPlayerNavalProjectiles(painter) {
   if (!ship.navalProjectiles.length) return;
   for (const ball of ship.navalProjectiles) {
+    if (ball.portable && ball.launched !== true) continue;
     const point = cannonBallPoint(ball, ball.age);
     drawNavalProjectile(ball, point, painter);
   }
@@ -32007,17 +32062,33 @@ function fireShoreBatteryAtNearestTarget(state) {
     count: state.gunCount
   });
   armShoreBatteryReload(state);
-  playShoreBatteryAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
+  if (!weapon.portable) {
+    playShoreBatteryAttackSound(weapon, state.gunCount, distanceFromPlayerPoint(origin));
+  }
   startCombatMusicForThreat(state.gunCount >= 2 ? "big" : "small");
   const trueShotIndex = weapon.kind === NAVAL_WEAPON_CANNON
     ? accurateBroadsideShotIndex(state.gunCount)
     : -1;
   for (let index = 0; index < state.gunCount; index++) {
     const seed = cannonSeed(state.shotSequence, index, state.cityTileId * 0x51a7, origin);
-    const jitter = weapon.kind === NAVAL_WEAPON_ARROW ? 2.5 : 5;
     const trueShot = index === trueShotIndex;
-    const targetX = target.x + (trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * jitter);
-    const targetY = target.y + (trueShot ? 0 : (cannonUnit(seed, 2) * 2 - 1) * jitter);
+    const targetShape = targetId === PLAYER_COMBAT_ID || npcVisualShips.has(targetId)
+      ? combatShipProjectileShape(targetId).projectileSilhouette
+      : null;
+    const portableAim = weapon.portable
+      ? portableWeaponAimPoint({
+          weapon,
+          targetX: target.x,
+          targetY: target.y,
+          unitX: cannonUnit(seed, 1),
+          unitY: cannonUnit(seed, 2),
+          targetSilhouette: targetShape,
+          targetRadius: shoreBatteryStates.has(targetId) ? NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX : 0
+        })
+      : null;
+    const jitter = 5;
+    const targetX = portableAim?.x ?? target.x + (trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * jitter);
+    const targetY = portableAim?.y ?? target.y + (trueShot ? 0 : (cannonUnit(seed, 2) * 2 - 1) * jitter);
     const range = Math.hypot(targetX - origin.x, targetY - origin.y);
     const projectile = weapon.portable
       ? portableCombatProjectile({
@@ -32029,7 +32100,13 @@ function fireShoreBatteryAtNearestTarget(state) {
           targetX,
           targetY,
           range,
-          seed
+          seed,
+          launchDelaySeconds: portableWeaponVolleyLaunchDelaySeconds({
+            shotIndex: index,
+            shotCount: state.gunCount,
+            unit: cannonUnit(seed, 5)
+          }),
+          launchSoundDistancePx: distanceFromPlayerPoint(origin)
         })
       : {
           kind: weapon.kind,
@@ -32046,7 +32123,7 @@ function fireShoreBatteryAtNearestTarget(state) {
           seed
         };
     npcCombatProjectiles.push(projectile);
-    if (weapon.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
+    if (!weapon.portable && weapon.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
   }
   return true;
 }
@@ -32353,6 +32430,10 @@ function fireNpcPortableWeaponsAtTarget(state, targetId) {
   if (state.combatGrace) return false;
   const target = combatEntityAimPoint(targetId);
   if (!target) return false;
+  const targetSilhouette = targetId === PLAYER_COMBAT_ID || npcVisualShips.has(targetId)
+    ? combatShipProjectileShape(targetId).projectileSilhouette
+    : null;
+  const targetRadius = shoreBatteryStates.has(targetId) ? NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX : 0;
   const distance = Math.hypot(target.x - state.x, target.y - state.y);
   const assignments = activePortableWeaponAssignments({
     ownedItemIds: state.portableWeaponItemIds,
@@ -32375,12 +32456,19 @@ function fireNpcPortableWeaponsAtTarget(state, targetId) {
       weapon: weapon.itemId,
       count: operators
     });
-    playPortableWeaponAttackSound(weapon, operators, distanceFromPlayerPoint(state));
     for (let index = 0; index < operators; index++) {
       const seed = cannonSeed(state.weaponSequence, index, state.id.length * 0x7151, state);
-      const jitter = weapon.animationKind === PORTABLE_PROJECTILE_BULLET ? 2 : 3.5;
-      const targetX = target.x + (cannonUnit(seed, 1) * 2 - 1) * jitter;
-      const targetY = target.y + (cannonUnit(seed, 2) * 2 - 1) * jitter;
+      const aim = portableWeaponAimPoint({
+        weapon,
+        targetX: target.x,
+        targetY: target.y,
+        unitX: cannonUnit(seed, 1),
+        unitY: cannonUnit(seed, 2),
+        targetSilhouette,
+        targetRadius
+      });
+      const targetX = aim.x;
+      const targetY = aim.y;
       const lineT = operators === 1 ? 0 : index / (operators - 1) - 0.5;
       const startX = state.x + heading.x * lineT * 8;
       const startY = state.y + heading.y * lineT * 8;
@@ -32395,12 +32483,17 @@ function fireNpcPortableWeaponsAtTarget(state, targetId) {
           targetX,
           targetY,
           range,
-          seed
+          seed,
+          launchDelaySeconds: portableWeaponVolleyLaunchDelaySeconds({
+            shotIndex: index,
+            shotCount: operators,
+            unit: cannonUnit(seed, 5)
+          }),
+          launchSoundDistancePx: distanceFromPlayerPoint(state)
         }),
         smokeOcclusionY: state.y
       };
       npcCombatProjectiles.push(projectile);
-      if (weapon.smokeScale > 0) addCannonSmokeBurst(projectile);
     }
   }
   startCombatMusicForThreat("small");
@@ -32427,8 +32520,19 @@ function updateNpcCombatProjectiles(dt) {
       changed = true;
       continue;
     }
+    let activeDt = dt;
+    if (ball.portable) {
+      const launch = advancePortableProjectileLaunch(ball, dt);
+      activeDt = launch.activeDt;
+      if (launch.justLaunched) triggerPortableCombatProjectileLaunch(ball);
+      if (activeDt <= 0) {
+        kept.push(ball);
+        changed = true;
+        continue;
+      }
+    }
     const previousAge = ball.age;
-    ball.age = Math.min(ball.duration, ball.age + dt);
+    ball.age = Math.min(ball.duration, ball.age + activeDt);
     if (ball.kind === NAVAL_WEAPON_CANNON &&
         navalProjectileMayHitBystanders(ball) &&
         resolveNpcCannonPathHit(ball, previousAge)) {
@@ -32519,14 +32623,14 @@ function resolveNpcCannonPathHit(ball, previousAge) {
 function resolveNpcCombatImpact(ball) {
   const target = combatEntityPoint(ball.targetId);
   const active = combatEngagementIsActive(ball.ownerId, ball.targetId);
-  const shipFootprint = ball.targetId === PLAYER_COMBAT_ID || npcVisualShips.has(ball.targetId)
-    ? combatShipFootprint(ball.targetId)
+  const shipSilhouette = ball.targetId === PLAYER_COMBAT_ID || npcVisualShips.has(ball.targetId)
+    ? combatShipProjectileShape(ball.targetId).projectileSilhouette
     : null;
   if (
     !target ||
     !active ||
-    (shipFootprint
-      ? !pointInShipFootprint({ x: ball.targetX, y: ball.targetY }, shipFootprint)
+    (shipSilhouette
+      ? !pointInShipFootprint({ x: ball.targetX, y: ball.targetY }, shipSilhouette)
       : Math.hypot(target.x - ball.targetX, target.y - ball.targetY) > NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX)
   ) {
     if (!ball.portable) addNpcCombatSplash(ball);
@@ -43825,6 +43929,7 @@ function drawHistoricalBattleArenaBoundary(map) {
 
 function drawHistoricalBattleProjectiles(battle) {
   for (const projectile of battle.projectiles) {
+    if (projectile.portable && projectile.launched !== true) continue;
     const worldPoint = navalProjectilePoint(projectile);
     const screenPoint = historicalBattleWorldToScreen(navalProjectileScreenPoint(worldPoint));
     if (screenPoint.x < -2 || screenPoint.x > SCREEN_W + 2 ||
@@ -44535,6 +44640,7 @@ function drawLakeBattleWakes(battle) {
 
 function drawLakeBattleEffects(battle) {
   for (const projectile of battle.projectiles) {
+    if (projectile.portable && projectile.launched !== true) continue;
     drawNavalProjectile(projectile, lakeBattleProjectilePoint(projectile));
   }
   for (const splash of battle.splashes) {
