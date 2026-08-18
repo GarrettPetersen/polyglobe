@@ -8,10 +8,10 @@ const NATURAL_EARTH_LAND_URL =
   "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_10m_land.geojson";
 const OUTPUT_PATH = resolve("src/generated/lepantoLandData.js");
 const LEPANTO_BOUNDS = Object.freeze({
-  minLongitudeDeg: 19.3,
-  maxLongitudeDeg: 23.15,
-  minLatitudeDeg: 37.2,
-  maxLatitudeDeg: 39.2
+  minLongitudeDeg: 20.82,
+  maxLongitudeDeg: 21.62,
+  minLatitudeDeg: 37.95,
+  maxLatitudeDeg: 38.52
 });
 
 const inputPath = argumentValue("--input");
@@ -51,7 +51,7 @@ const polygons = clippedPolygons
   ))))
   .filter((polygon) => polygon[0]?.length >= 4)
   .sort(comparePolygons);
-if (polygons.length < 5) {
+if (polygons.length < 3) {
   throw new Error(`Lepanto map bake retained too little land geometry: ${polygons.length} polygons`);
 }
 

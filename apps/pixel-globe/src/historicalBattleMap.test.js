@@ -8,35 +8,34 @@ import {
   historicalBattleMapPointForLonLat,
   historicalBattleMapPolygons,
   historicalBattleMapWaterAt,
-  historicalBattleMinimapLandMask
+  historicalBattleMinimapLandMask,
+  historicalBattleTerrainWindowMap
 } from "./historicalBattleMap.js";
 
-test("the real Lepanto field has a broad navigable gulf, islands, and solid shores", () => {
+test("the Lepanto field is a ship-scale crop of the historical battle water", () => {
   const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
-  const ionianSea = historicalBattleMapPointForLonLat(map, 20.15, 38.20);
-  const gulfOfPatras = historicalBattleMapPointForLonLat(map, 21.10, 38.20);
+  const leagueWater = historicalBattleMapPointForLonLat(map, 20.94, 38.25);
+  const ottomanWater = historicalBattleMapPointForLonLat(map, 21.10, 38.25);
   const cephalonia = historicalBattleMapPointForLonLat(map, 20.55, 38.20);
-  const peloponnese = historicalBattleMapPointForLonLat(map, 21.70, 37.85);
-  const corinthianGulf = historicalBattleMapPointForLonLat(map, 22.75, 38.05);
-  const corinthIsthmus = historicalBattleMapPointForLonLat(map, 23.00, 37.93);
+  const echinades = historicalBattleMapPointForLonLat(map, 21.38, 38.20);
+  const mainland = historicalBattleMapPointForLonLat(map, 21.50, 38.10);
 
-  assert.equal(historicalBattleMapWaterAt(map, ionianSea.x, ionianSea.y, 20), true);
-  assert.equal(historicalBattleMapWaterAt(map, gulfOfPatras.x, gulfOfPatras.y, 20), true);
-  assert.equal(historicalBattleMapWaterAt(map, cephalonia.x, cephalonia.y), false);
-  assert.equal(historicalBattleMapWaterAt(map, peloponnese.x, peloponnese.y), false);
-  assert.equal(historicalBattleMapWaterAt(map, corinthianGulf.x, corinthianGulf.y), true);
-  assert.equal(historicalBattleMapWaterAt(map, corinthIsthmus.x, corinthIsthmus.y), false);
+  assert.equal(historicalBattleMapWaterAt(map, leagueWater.x, leagueWater.y, 20), true);
+  assert.equal(historicalBattleMapWaterAt(map, ottomanWater.x, ottomanWater.y, 20), true);
+  assert.ok(cephalonia.x < 0, "Cephalonia should be west of the tactical map");
+  assert.equal(historicalBattleMapWaterAt(map, echinades.x, echinades.y), false);
+  assert.equal(historicalBattleMapWaterAt(map, mainland.x, mainland.y), false);
   assert.equal(historicalBattleMapWaterAt(map, -1, map.height / 2), false);
-  assert.ok(historicalBattleMapPolygons(map).length >= 8);
-  assert.ok(map.cells.length > 170_000);
-  assert.ok(map.width >= 11_000);
-  assert.ok(map.height >= 7_000);
+  assert.ok(historicalBattleMapPolygons(map).length >= 3);
+  assert.ok(map.width >= 48_000);
+  assert.ok(map.height >= 43_000);
+  assert.equal(map.cells, undefined, "the full 48k map must not allocate every terrain tile");
 });
 
-test("Ottoman ships escape toward Lepanto rather than through the Corinth isthmus", () => {
+test("Ottoman ships escape east into the Gulf of Patras", () => {
   const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
-  const beforeLine = historicalBattleMapPointForLonLat(map, 21.70, 38.30);
-  const beyondLine = historicalBattleMapPointForLonLat(map, 21.74, 38.30);
+  const beforeLine = historicalBattleMapPointForLonLat(map, 21.50, 38.25);
+  const beyondLine = historicalBattleMapPointForLonLat(map, 21.54, 38.25);
 
   assert.equal(historicalBattleMapEscapeAt(map, "ottoman-empire", beforeLine.x, beforeLine.y), false);
   assert.equal(historicalBattleMapEscapeAt(map, "ottoman-empire", beyondLine.x, beyondLine.y), true);
@@ -45,8 +44,15 @@ test("Ottoman ships escape toward Lepanto rather than through the Corinth isthmu
 
 test("authored shore clearance rejects ships that only have their center in water", () => {
   const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
-  const coastalWater = map.cells.find((cell) => cell.water && cell.shoreDistance === 1);
-  const openWater = map.cells.find((cell) => cell.water && cell.shoreDistance >= 4);
+  const coast = historicalBattleMapPointForLonLat(map, 21.38, 38.20);
+  const terrainWindow = historicalBattleTerrainWindowMap(map, {
+    minX: coast.x - 500,
+    minY: coast.y - 500,
+    maxX: coast.x + 500,
+    maxY: coast.y + 500
+  });
+  const coastalWater = terrainWindow.cells.find((cell) => cell.water && cell.shoreDistance === 1);
+  const openWater = terrainWindow.cells.find((cell) => cell.water && cell.shoreDistance >= 4);
 
   assert.ok(coastalWater);
   assert.ok(openWater);
@@ -55,7 +61,7 @@ test("authored shore clearance rejects ships that only have their center in wate
   assert.equal(historicalBattleMapWaterAt(map, openWater.x, openWater.y, 8), true);
 });
 
-test("the Lepanto minimap distinguishes the gulf from its islands and mainland", () => {
+test("the Lepanto minimap distinguishes the battle water from islands and mainland", () => {
   const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
   const width = 192;
   const height = 148;
@@ -67,9 +73,8 @@ test("the Lepanto minimap distinguishes the gulf from its islands and mainland",
     return landMask[x + y * width];
   };
 
-  assert.equal(maskAt(20.15, 38.20), 0, "Ionian Sea should read as water");
-  assert.equal(maskAt(21.10, 38.20), 0, "Gulf of Patras should read as water");
-  assert.equal(maskAt(20.55, 38.20), 1, "Cephalonia should read as land");
-  assert.equal(maskAt(21.70, 37.85), 1, "Peloponnese should read as land");
-  assert.equal(maskAt(23.00, 37.93), 1, "Corinth isthmus should read as land");
+  assert.equal(maskAt(20.94, 38.25), 0, "Holy League deployment should read as water");
+  assert.equal(maskAt(21.10, 38.25), 0, "Ottoman deployment should read as water");
+  assert.equal(maskAt(21.38, 38.20), 1, "Echinades should read as land");
+  assert.equal(maskAt(21.50, 38.10), 1, "mainland should read as land");
 });

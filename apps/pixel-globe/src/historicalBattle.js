@@ -41,6 +41,8 @@ import {
   SHIP_ROWING_MODE_AHEAD,
   SHIP_ROWING_MODE_ASTERN,
   SHIP_ROWING_MODE_IDLE,
+  SHIP_ROWING_MODE_PIVOT_PORT,
+  SHIP_ROWING_MODE_PIVOT_STARBOARD,
   normalizeShipRowingMode,
   shipRowingModeIsActive,
   shipRowingModeIsPivot,
@@ -87,7 +89,12 @@ const FORMATION_ROW_SPACING_PX = 38;
 const TACTICAL_SQUADRON_COLUMN_SPACING_PX = 250;
 const TACTICAL_SQUADRON_ROW_SPACING_PX = 210;
 const FORMATION_REJOIN_DISTANCE_PX = 210;
-const FRIENDLY_AVOIDANCE_RADIUS_PX = 48;
+const FRIENDLY_AVOIDANCE_RADIUS_PX = 64;
+const FRIENDLY_AVOIDANCE_LOOKAHEAD_SECONDS = 3.2;
+const FRIENDLY_AVOIDANCE_SEPARATION_PX = 30;
+const FRIENDLY_AVOIDANCE_DECISION_TICKS = 4;
+const FRIENDLY_COLLISION_YIELD_TICKS = 40;
+const FORMATION_ROTATION_RATE_RAD = 0.34;
 const TARGET_PRESSURE_DISTANCE_PX = 26;
 const HISTORICAL_WAKE_SIMULATION_RADIUS_PX = 520;
 const HISTORICAL_WAKE_PARTICLE_LIMIT = 72;
@@ -202,7 +209,6 @@ export function createHistoricalBattle({
     ships,
     squadrons,
     sides,
-    designatedTargetIndex: -1,
     spatialGrid: createBattleSpatialGrid(HISTORICAL_BATTLE_SPATIAL_CELL_SIZE),
     spatialScratch: [],
     targetPressure: new Uint16Array(ships.length),
@@ -217,7 +223,9 @@ export function createHistoricalBattle({
       targetQueries: 0,
       spatialCandidates: 0,
       broadsideChecks: 0,
-      collisionChecks: 0
+      collisionChecks: 0,
+      friendlyCollisionCorrections: 0,
+      playerSquadronFriendlyCollisionCorrections: 0
     }
   };
   initializeHistoricalShipCollisionRadii(state);
@@ -256,10 +264,7 @@ export function createHistoricalBattleReplay(state) {
     playerSideId: state.playerSideId,
     playerSquadronId: state.playerSquadronId,
     seed: state.initialSeed,
-    commands: Object.freeze(state.commandLog.map((command) => Object.freeze({
-      ...command,
-      unitCommand: command.unitCommand ? Object.freeze({ ...command.unitCommand }) : null
-    })))
+    commands: Object.freeze(state.commandLog.map((command) => Object.freeze({ ...command })))
   });
 }
 
@@ -328,16 +333,13 @@ export function createHistoricalBattleCommand(tick, input = {}) {
   const rowingMode = input.rowingMode === undefined
     ? (rowingRequested ? SHIP_ROWING_MODE_AHEAD : SHIP_ROWING_MODE_IDLE)
     : normalizeShipRowingMode(input.rowingMode);
-  const unitCommand = normalizeUnitCommand(input.unitCommand ?? null);
   return Object.freeze({
     tick,
     desiredHeadingQ: desiredHeadingRad === null ? null : Math.round(desiredHeadingRad / TWO_PI * 65535),
     rowingRequested,
     rowingMode,
     firePort: input.firePort === true,
-    fireStarboard: input.fireStarboard === true,
-    squadronOrder: normalizeSquadronOrder(input.squadronOrder ?? null),
-    unitCommand
+    fireStarboard: input.fireStarboard === true
   });
 }
 
@@ -433,7 +435,6 @@ export function historicalBattleSquadronSummary(state, squadronId) {
     id: squadron.id,
     name: squadron.name,
     commander: squadron.commander,
-    order: squadron.order,
     startingShips: squadron.startingShips,
     remainingShips
   });
@@ -455,25 +456,6 @@ export function historicalBattleVisibleShips(state, camera, width, height, margi
     (ship.active || ship.surrendered) &&
     ship.x >= left && ship.x <= right && ship.y >= top && ship.y <= bottom
   ));
-}
-
-export function historicalBattleShipAtPoint(state, x, y, radius = 16) {
-  assertBattle(state);
-  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(radius) || radius <= 0) {
-    throw new Error(`Invalid historical battle selection point: ${x},${y}/${radius}`);
-  }
-  queryBattleSpatialGrid(state.spatialGrid, x, y, radius, state.spatialScratch);
-  let best = null;
-  let bestDistance = radius;
-  for (const index of state.spatialScratch) {
-    const ship = state.ships[index];
-    if (!ship.active) continue;
-    const distance = Math.hypot(ship.x - x, ship.y - y);
-    if (distance >= bestDistance) continue;
-    best = ship;
-    bestDistance = distance;
-  }
-  return best;
 }
 
 export function drainHistoricalBattleEvents(state) {
@@ -532,8 +514,6 @@ function stepHistoricalBattle(state, command) {
   state.wind.directionRad = wind.directionRad;
   state.wind.strength = wind.strength;
   state.metrics.fixedSteps += 1;
-  applySquadronCommand(state, command);
-  applyUnitCommand(state, command.unitCommand);
   updateStrategicRetreats(state);
   rebuildBattleSpatialGrid(state.spatialGrid, state.ships);
   refreshTargets(state);
@@ -628,6 +608,11 @@ function expandSquadronShips(
         shoreAvoidanceActive: false,
         shoreAvoidanceSide: 0,
         shoreAvoidanceClearDecisions: 0,
+        friendlyYieldUntilTick: 0,
+        friendlyYieldHeadingRad: normalizeAngle(sideValue.headingRad),
+        friendlyAvoidanceHeadingOffsetRad: 0,
+        friendlyAvoidanceSpeedCapPx: Number.POSITIVE_INFINITY,
+        friendlyAvoidanceCollisionRisk: 0,
         wake: [],
         lastWakePoint: null,
         wakeSeedCounter: 0,
@@ -655,8 +640,8 @@ function createSquadronState(sideValue, sideIndex, divisionValue, divisionIndex,
     anchorX: tacticalValue.anchorX,
     anchorY: tacticalValue.anchorY,
     headingRad: sideValue.headingRad,
-    order: role === "reserve" ? "hold" : "advance",
-    followSquadronId: null,
+    formationHeadingRad: sideValue.headingRad,
+    stance: role === "reserve" ? "hold" : "advance",
     role
   };
 }
@@ -771,10 +756,6 @@ function refreshTargets(state) {
   for (let index = 0; index < state.ships.length; index++) {
     const ship = state.ships[index];
     if (!ship.active) continue;
-    if (ship.sideId === state.playerSideId && state.ships[state.designatedTargetIndex]?.active) {
-      ship.targetIndex = state.designatedTargetIndex;
-      continue;
-    }
     const current = state.ships[ship.targetIndex];
     const currentDistance = current?.active && current.sideIndex !== ship.sideIndex
       ? Math.hypot(current.x - ship.x, current.y - ship.y)
@@ -844,8 +825,29 @@ function updateShipMotion(state, command) {
       desiredHeading = intent.headingRad;
       speedCapPx = intent.speedCapPx;
     }
+    if (!ship.playerControlled && state.tick < ship.friendlyYieldUntilTick) {
+      desiredHeading = ship.friendlyYieldHeadingRad;
+      rowingMode = shipCanUseOars(ship.stats) ? SHIP_ROWING_MODE_AHEAD : SHIP_ROWING_MODE_IDLE;
+      speedCapPx = Number.POSITIVE_INFINITY;
+    }
     if (speedCapPx !== 0) {
-      desiredHeading = avoidFriendlyCollisionHeading(state, index, desiredHeading);
+      if (!ship.playerControlled) {
+        if ((state.tick + index) % FRIENDLY_AVOIDANCE_DECISION_TICKS === 0) {
+          updateFriendlyCollisionAvoidance(state, index, desiredHeading);
+        }
+        desiredHeading = normalizeAngle(
+          desiredHeading + ship.friendlyAvoidanceHeadingOffsetRad
+        );
+        speedCapPx = Math.min(speedCapPx, ship.friendlyAvoidanceSpeedCapPx);
+        if (ship.friendlyAvoidanceCollisionRisk > 0.2 && shipCanUseOars(ship.stats)) {
+          const pivotSpeedPx = ship.stats.topSpeedRad * PIXELS_PER_RADIAN * 0.22;
+          rowingMode = Math.abs(ship.speedPx) > pivotSpeedPx
+            ? SHIP_ROWING_MODE_ASTERN
+            : signedAngle(desiredHeading - ship.headingRad) >= 0
+              ? SHIP_ROWING_MODE_PIVOT_STARBOARD
+              : SHIP_ROWING_MODE_PIVOT_PORT;
+        }
+      }
       if (!ship.playerControlled && isSquadronLeader(state, index)) {
         desiredHeading = updateHistoricalBattleNavigationCourse(
           state.map,
@@ -873,20 +875,10 @@ function updateShipMotion(state, command) {
 function leaderMotionIntent(state, ship, target, targetDistance) {
   const squadron = state.squadrons[ship.squadronIndex];
   if (!squadron) throw new Error(`Historical ship has missing squadron: ${ship.id}`);
-  if (squadron.order === "follow") {
-    const followed = state.squadrons.find((entry) => entry.id === squadron.followSquadronId);
-    const leader = state.ships[followed?.leaderIndex];
-    if (leader?.active) {
-      return {
-        headingRad: Math.atan2(leader.y - ship.y, leader.x - ship.x),
-        speedCapPx: Number.POSITIVE_INFINITY
-      };
-    }
-  }
-  if (squadron.order === "hold" && targetDistance > ENGAGEMENT_RANGE_PX) {
+  if (squadron.stance === "hold" && targetDistance > ENGAGEMENT_RANGE_PX) {
     return { headingRad: squadron.headingRad, speedCapPx: 0 };
   }
-  if (squadron.order === "withdraw") {
+  if (squadron.stance === "withdraw") {
     return { headingRad: retreatHeading(state, ship), speedCapPx: Number.POSITIVE_INFINITY };
   }
   if (target?.active && targetDistance <= 27 && bowAlignment(ship, target) > 0.7) {
@@ -906,10 +898,11 @@ function leaderMotionIntent(state, ship, target, targetDistance) {
 
 function followerMotionIntent(state, ship, target, targetDistance) {
   const squadron = state.squadrons[ship.squadronIndex];
-  if (squadron?.order === "withdraw") {
+  if (squadron?.stance === "withdraw") {
     return { headingRad: retreatHeading(state, ship), speedCapPx: Number.POSITIVE_INFINITY };
   }
-  if (squadron?.order === "hold" && targetDistance > ENGAGEMENT_RANGE_PX) {
+  if (squadron?.stance === "hold" && squadron.id !== state.playerSquadronId &&
+      targetDistance > ENGAGEMENT_RANGE_PX) {
     return { headingRad: squadron.headingRad, speedCapPx: 0 };
   }
   if (target?.active && targetDistance <= 27 && bowAlignment(ship, target) > 0.72) {
@@ -931,13 +924,15 @@ function followerMotionIntent(state, ship, target, targetDistance) {
   const slot = projectFormationPoint(
     leader.x,
     leader.y,
-    leader.headingRad,
+    squadron.formationHeadingRad,
     ship.formationForward,
     ship.formationLateral
   );
   const distance = Math.hypot(slot.x - ship.x, slot.y - ship.y);
   return {
-    headingRad: distance < 4 ? leader.headingRad : Math.atan2(slot.y - ship.y, slot.x - ship.x),
+    headingRad: distance < 4
+      ? squadron.formationHeadingRad
+      : Math.atan2(slot.y - ship.y, slot.x - ship.x),
     speedCapPx: Math.abs(leader.speedPx) + Math.max(0, distance - 4) * 0.75
   };
 }
@@ -1172,7 +1167,7 @@ function requireHistoricalWakeAnchors(scenario, anchorsBySlug) {
   }
 }
 
-function avoidFriendlyCollisionHeading(state, shipIndex, desiredHeading) {
+function updateFriendlyCollisionAvoidance(state, shipIndex, desiredHeading) {
   const ship = state.ships[shipIndex];
   queryBattleSpatialGrid(
     state.spatialGrid,
@@ -1181,30 +1176,96 @@ function avoidFriendlyCollisionHeading(state, shipIndex, desiredHeading) {
     FRIENDLY_AVOIDANCE_RADIUS_PX,
     state.spatialScratch
   );
+  const desiredX = Math.cos(desiredHeading);
+  const desiredY = Math.sin(desiredHeading);
+  const expectedSpeedPx = Math.max(
+    Math.abs(ship.speedPx),
+    ship.stats.topSpeedRad * PIXELS_PER_RADIAN * 0.72
+  );
   let awayX = 0;
   let awayY = 0;
+  let speedCapPx = Number.POSITIVE_INFINITY;
+  let collisionRisk = 0;
   for (const otherIndex of state.spatialScratch) {
     if (otherIndex === shipIndex) continue;
     const other = state.ships[otherIndex];
     if (!other.active || other.sideIndex !== ship.sideIndex) continue;
-    const dx = ship.x - other.x;
-    const dy = ship.y - other.y;
-    const distance = Math.hypot(dx, dy);
+    const toOtherX = other.x - ship.x;
+    const toOtherY = other.y - ship.y;
+    const distance = Math.hypot(toOtherX, toOtherY);
     if (distance <= 1e-6 || distance >= FRIENDLY_AVOIDANCE_RADIUS_PX) continue;
-    const strength = 1 - distance / FRIENDLY_AVOIDANCE_RADIUS_PX;
-    awayX += dx / distance * strength;
-    awayY += dy / distance * strength;
+    const otherVelocityX = Math.cos(other.headingRad) * other.speedPx;
+    const otherVelocityY = Math.sin(other.headingRad) * other.speedPx;
+    const relativeVelocityX = otherVelocityX - desiredX * expectedSpeedPx;
+    const relativeVelocityY = otherVelocityY - desiredY * expectedSpeedPx;
+    const relativeSpeedSq = relativeVelocityX ** 2 + relativeVelocityY ** 2;
+    const closestSeconds = relativeSpeedSq <= 1e-6
+      ? 0
+      : clamp(
+          -(toOtherX * relativeVelocityX + toOtherY * relativeVelocityY) / relativeSpeedSq,
+          0,
+          FRIENDLY_AVOIDANCE_LOOKAHEAD_SECONDS
+        );
+    const closestX = toOtherX + relativeVelocityX * closestSeconds;
+    const closestY = toOtherY + relativeVelocityY * closestSeconds;
+    const closestDistance = Math.hypot(closestX, closestY);
+    const immediateStrength = Math.max(
+      0,
+      1 - distance / (FRIENDLY_AVOIDANCE_SEPARATION_PX * 1.35)
+    );
+    const predictedStrength = closestSeconds > 0
+      ? Math.max(0, 1 - closestDistance / FRIENDLY_AVOIDANCE_SEPARATION_PX)
+      : 0;
+    const crossingStrength = other.squadronId === ship.squadronId ? 0 : predictedStrength;
+    collisionRisk = Math.max(collisionRisk, crossingStrength);
+    const strength = Math.max(immediateStrength, crossingStrength);
+    if (strength > 0) {
+      if (closestDistance > 1e-4) {
+        awayX -= closestX / closestDistance * strength;
+        awayY -= closestY / closestDistance * strength;
+      } else {
+        awayX += desiredY * strength;
+        awayY -= desiredX * strength;
+      }
+    }
+    const aheadPx = toOtherX * desiredX + toOtherY * desiredY;
+    const lateralPx = Math.abs(toOtherX * desiredY - toOtherY * desiredX);
+    if (aheadPx > 0 && aheadPx < 58 && lateralPx < 18) {
+      const otherAlongCoursePx = Math.max(
+        0,
+        otherVelocityX * desiredX + otherVelocityY * desiredY
+      );
+      speedCapPx = Math.min(
+        speedCapPx,
+        otherAlongCoursePx + Math.max(0, aheadPx - 24) * 0.16
+      );
+    }
   }
-  if (Math.hypot(awayX, awayY) < 0.08) return desiredHeading;
-  const desiredX = Math.cos(desiredHeading);
-  const desiredY = Math.sin(desiredHeading);
-  return Math.atan2(desiredY + awayY * 0.7, desiredX + awayX * 0.7);
+  const avoidanceStrength = Math.hypot(awayX, awayY);
+  const avoidedHeading = avoidanceStrength < 0.04
+    ? desiredHeading
+    : Math.atan2(desiredY + awayY * 1.45, desiredX + awayX * 1.45);
+  ship.friendlyAvoidanceHeadingOffsetRad = signedAngle(avoidedHeading - desiredHeading);
+  ship.friendlyAvoidanceSpeedCapPx = shipCanUseOars(ship.stats)
+    ? speedCapPx
+    : Math.min(speedCapPx, expectedSpeedPx * (1 - collisionRisk * 0.75));
+  ship.friendlyAvoidanceCollisionRisk = collisionRisk;
 }
 
 function updateSquadronLeaders(state) {
   for (const squadron of state.squadrons) {
-    if (state.ships[squadron.leaderIndex]?.active) continue;
-    squadron.leaderIndex = state.ships.findIndex((ship) => ship.active && ship.squadronId === squadron.id);
+    if (!state.ships[squadron.leaderIndex]?.active) {
+      squadron.leaderIndex = state.ships.findIndex((ship) => (
+        ship.active && ship.squadronId === squadron.id
+      ));
+    }
+    const leader = state.ships[squadron.leaderIndex];
+    if (!leader?.active) continue;
+    squadron.formationHeadingRad = turnToward(
+      squadron.formationHeadingRad,
+      leader.headingRad,
+      FORMATION_ROTATION_RATE_RAD * HISTORICAL_BATTLE_FIXED_STEP_SECONDS
+    );
   }
 }
 
@@ -1213,7 +1274,9 @@ function updateStrategicRetreats(state) {
   const escapeSide = state.sides.find((side) => side.id === state.map.escape.sideId);
   if (!escapeSide || escapeSide.remainingShips > escapeSide.startingShips * STRATEGIC_RETREAT_RATIO) return;
   for (const squadron of state.squadrons) {
-    if (squadron.sideId === escapeSide.id && squadron.order !== "withdraw") squadron.order = "withdraw";
+    if (squadron.sideId === escapeSide.id && squadron.stance !== "withdraw") {
+      squadron.stance = "withdraw";
+    }
   }
 }
 
@@ -1260,7 +1323,15 @@ function resolveHistoricalShipCollisions(state) {
       collisionBodies[otherIndex] = null;
       ship.speedPx = result.a.vx * Math.cos(ship.headingRad) + result.a.vy * Math.sin(ship.headingRad);
       other.speedPx = result.b.vx * Math.cos(other.headingRad) + result.b.vy * Math.sin(other.headingRad);
-      if (ship.sideIndex === other.sideIndex) continue;
+      if (ship.sideIndex === other.sideIndex) {
+        separateFriendlyShips(state, ship, other);
+        state.metrics.friendlyCollisionCorrections += 1;
+        if (ship.squadronId === state.playerSquadronId ||
+            other.squadronId === state.playerSquadronId) {
+          state.metrics.playerSquadronFriendlyCollisionCorrections += 1;
+        }
+        continue;
+      }
       if (ship.collisionCooldownSeconds > 0 || other.collisionCooldownSeconds > 0) continue;
       const shipDamage = collisionDamageAfterResistance(state, ship, result.a.damage);
       const otherDamage = collisionDamageAfterResistance(state, other, result.b.damage);
@@ -1279,6 +1350,38 @@ function resolveHistoricalShipCollisions(state) {
       resolveShipDefeat(state, ship);
       resolveShipDefeat(state, other);
     }
+  }
+}
+
+function separateFriendlyShips(state, ship, other) {
+  const dx = other.x - ship.x;
+  const dy = other.y - ship.y;
+  const distance = Math.hypot(dx, dy);
+  if (distance <= 1e-6) return;
+  const nx = dx / distance;
+  const ny = dy / distance;
+  const shipShare = ship.playerControlled ? 0 : other.playerControlled ? 1 : 0.5;
+  const otherShare = 1 - shipShare;
+  const clearancePx = 14;
+  const shipX = ship.x - nx * clearancePx * shipShare;
+  const shipY = ship.y - ny * clearancePx * shipShare;
+  const otherX = other.x + nx * clearancePx * otherShare;
+  const otherY = other.y + ny * clearancePx * otherShare;
+  if (shipShare > 0 && historicalBattleMapWaterAt(state.map, shipX, shipY, 5)) {
+    ship.x = shipX;
+    ship.y = shipY;
+  }
+  if (otherShare > 0 && historicalBattleMapWaterAt(state.map, otherX, otherY, 5)) {
+    other.x = otherX;
+    other.y = otherY;
+  }
+  if (!ship.playerControlled) {
+    ship.friendlyYieldUntilTick = state.tick + FRIENDLY_COLLISION_YIELD_TICKS;
+    ship.friendlyYieldHeadingRad = Math.atan2(-ny, -nx);
+  }
+  if (!other.playerControlled) {
+    other.friendlyYieldUntilTick = state.tick + FRIENDLY_COLLISION_YIELD_TICKS;
+    other.friendlyYieldHeadingRad = Math.atan2(ny, nx);
   }
 }
 
@@ -1808,37 +1911,6 @@ function finishHistoricalBattle(state, outcome, winningSideId) {
   pushBattleEvent(state, { type: "finished", outcome, winningSideId });
 }
 
-function applySquadronCommand(state, command) {
-  if (!command.squadronOrder) return;
-  const squadron = state.squadrons.find((entry) => entry.id === state.playerSquadronId);
-  if (!squadron) throw new Error(`Player squadron is missing: ${state.playerSquadronId}`);
-  squadron.order = command.squadronOrder;
-}
-
-function applyUnitCommand(state, unitCommand) {
-  if (!unitCommand) return;
-  const ship = state.ships[unitCommand.shipIndex];
-  if (!ship?.active) return;
-  if (unitCommand.action === "target") {
-    if (ship.sideId === state.playerSideId) throw new Error("Cannot designate an allied ship as a target");
-    state.designatedTargetIndex = unitCommand.shipIndex;
-    return;
-  }
-  if (ship.sideId !== state.playerSideId) throw new Error("Cannot command an enemy squadron");
-  const squadron = state.squadrons[ship.squadronIndex];
-  if (!squadron) throw new Error(`Commanded ship has no squadron: ${ship.id}`);
-  if (unitCommand.action === "follow") {
-    squadron.order = "follow";
-    squadron.followSquadronId = state.playerSquadronId;
-  } else if (unitCommand.action === "attack") {
-    squadron.order = "advance";
-    squadron.followSquadronId = null;
-  } else if (unitCommand.action === "retreat") {
-    squadron.order = "withdraw";
-    squadron.followSquadronId = null;
-  }
-}
-
 function validateInitialFleetPositions(state) {
   for (let index = 0; index < state.ships.length; index++) {
     const ship = state.ships[index];
@@ -1888,37 +1960,17 @@ function bowAlignment(ship, target) {
   return direction.x * Math.cos(ship.headingRad) + direction.y * Math.sin(ship.headingRad);
 }
 
-function normalizeSquadronOrder(order) {
-  if (order === null) return null;
-  if (!["advance", "hold", "withdraw", "follow"].includes(order)) {
-    throw new Error(`Unknown historical squadron order: ${order}`);
-  }
-  return order;
-}
-
-function normalizeUnitCommand(command) {
-  if (command === null) return null;
-  if (!command || !Number.isInteger(command.shipIndex) || command.shipIndex < 0 ||
-      !["follow", "attack", "retreat", "target"].includes(command.action)) {
-    throw new Error(`Invalid historical battle unit command: ${JSON.stringify(command)}`);
-  }
-  return Object.freeze({ shipIndex: command.shipIndex, action: command.action });
-}
-
 function commandWithoutOneShotActions(command) {
   return Object.freeze({
     ...command,
     firePort: false,
-    fireStarboard: false,
-    squadronOrder: null,
-    unitCommand: null
+    fireStarboard: false
   });
 }
 
 function appendCommandLog(state, command) {
   const previous = state.commandLog[state.commandLog.length - 1];
-  const hasOneShotAction = command.firePort || command.fireStarboard ||
-    command.squadronOrder !== null || command.unitCommand !== null;
+  const hasOneShotAction = command.firePort || command.fireStarboard;
   if (previous && !hasOneShotAction && commandsSharePersistentIntent(previous, command)) return;
   state.commandLog.push(command);
 }
@@ -1963,8 +2015,6 @@ function validateHistoricalBattleCommand(command) {
     throw new Error("Historical battle replay command flags are invalid");
   }
   normalizeShipRowingMode(command.rowingMode);
-  normalizeSquadronOrder(command.squadronOrder);
-  normalizeUnitCommand(command.unitCommand);
   return command;
 }
 

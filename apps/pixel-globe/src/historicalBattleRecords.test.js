@@ -92,6 +92,25 @@ test("legacy verbose historical battle replays still load", () => {
   assert.deepEqual(readHistoricalBattleRecords({ storage }).records, records);
 });
 
+test("legacy compact squadron commands migrate to movement-only controls", () => {
+  const records = recordsWithReplayCommands(0);
+  records.latestReplay.commands = [[1, 123, 7, "ahead", "advance", 2, "follow"]];
+  records.latestReplay.commandEncoding = "tuple-v1";
+  const storage = memoryStorage({
+    "marque-and-reprisal.historical-battle-records": JSON.stringify(records)
+  });
+
+  const loaded = readHistoricalBattleRecords({ storage }).records;
+  assert.deepEqual(loaded.latestReplay.commands, [{
+    tick: 1,
+    desiredHeadingQ: 123,
+    rowingRequested: true,
+    rowingMode: "ahead",
+    firePort: true,
+    fireStarboard: true
+  }]);
+});
+
 function recordsWithReplayCommands(count) {
   const records = createHistoricalBattleRecords();
   const value = replay();
@@ -101,9 +120,7 @@ function recordsWithReplayCommands(count) {
     rowingRequested: index % 2 === 0,
     rowingMode: index % 2 === 0 ? "ahead" : "idle",
     firePort: index % 19 === 0,
-    fireStarboard: index % 23 === 0,
-    squadronOrder: index % 101 === 0 ? "advance" : null,
-    unitCommand: index % 137 === 0 ? { shipIndex: 2, action: "follow" } : null
+    fireStarboard: index % 23 === 0
   }));
   recordHistoricalBattleResult(records, {
     scenarioId: "lepanto-1571",

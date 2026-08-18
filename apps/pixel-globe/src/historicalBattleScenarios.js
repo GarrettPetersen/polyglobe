@@ -79,8 +79,8 @@ const LEPANTO_SCENARIO = scenario({
   },
   map: {
     id: "lepanto-gulf-of-patras",
-    width: 11200,
-    height: 7400,
+    width: 48000,
+    height: 43200,
     latitudeDeg: 38.2,
     wind: {
       // An east wind aided the westbound Ottomans, then lulled and reversed
@@ -99,7 +99,7 @@ const LEPANTO_SCENARIO = scenario({
     escape: {
       sideId: OTTOMAN_SIDE_ID,
       edge: "east",
-      longitudeDeg: 21.72,
+      longitudeDeg: 21.52,
       victoryCount: 82
     }
   },
@@ -111,7 +111,7 @@ const LEPANTO_SCENARIO = scenario({
       color: "#3978a8",
       headingRad: 0,
       squadrons: [
-        squadron("league-galleasses", "Galleass Vanguard", "Francesco Duodo", 20.32, 38.18, 6, [
+        squadron("league-galleasses", "Galleass Vanguard", "Francesco Duodo", 21.00, 38.25, 6, [
           shipGroup(GALLEASS_SLUG, 6, "galleass", "venice", 36, ["matchlock-arquebuses"])
         ], 3, {
           role: "vanguard",
@@ -120,7 +120,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalSize: 6,
           tacticalFrontage: 1
         }),
-        squadron("league-left", "Left Wing", "Agostino Barbarigo", 19.95, 38.43, 53, [
+        squadron("league-left", "Left Wing", "Agostino Barbarigo", 20.94, 38.32, 53, [
           shipGroup(GALLEY_SLUG, 53, "galley", "venice", 8, ["matchlock-arquebuses"])
         ], 4, {
           rowSpacingPx: 42,
@@ -130,7 +130,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 220,
           tacticalColumnSpacingPx: 270
         }),
-        squadron("league-center", "Center", "Don John of Austria", 19.92, 38.22, 62, [
+        squadron("league-center", "Center", "Don John of Austria", 20.94, 38.25, 62, [
           shipGroup(GALLEY_SLUG, 38, "galley", "spain", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 12, "galley", "venice", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 7, "galley", "papal-states", 8, ["matchlock-arquebuses"]),
@@ -143,7 +143,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 220,
           tacticalColumnSpacingPx: 270
         }),
-        squadron("league-right", "Right Wing", "Giovanni Andrea Doria", 19.95, 38.01, 53, [
+        squadron("league-right", "Right Wing", "Giovanni Andrea Doria", 20.94, 38.18, 53, [
           shipGroup(GALLEY_SLUG, 27, "galley", "genoa", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 20, "galley", "venice", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 6, "galley", "spain", 8, ["matchlock-arquebuses"])
@@ -155,7 +155,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 220,
           tacticalColumnSpacingPx: 270
         }),
-        squadron("league-reserve", "Reserve", "Alvaro de Bazan", 19.68, 38.22, 38, [
+        squadron("league-reserve", "Reserve", "Alvaro de Bazan", 20.90, 38.25, 38, [
           shipGroup(GALLEY_SLUG, 18, "galley", "venice", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 5, "galley", "spain", 8, ["matchlock-arquebuses"]),
           shipGroup(GALLEY_SLUG, 5, "galley", "papal-states", 8, ["matchlock-arquebuses"]),
@@ -170,7 +170,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 210,
           tacticalColumnSpacingPx: 260
         }),
-        squadron("league-sailing", "Sailing Squadron", "Cesare d'Avalos", 19.78, 37.72, 26, [
+        squadron("league-sailing", "Sailing Squadron", "Cesare d'Avalos", 20.90, 38.04, 26, [
           shipGroup(GALLEON_SLUG, 24, "sailing-warship", "spain", 24, ["matchlock-arquebuses"]),
           shipGroup(CARRACK_SLUG, 2, "sailing-warship", "venice", 20, ["matchlock-arquebuses"])
         ], 3, {
@@ -181,7 +181,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 230,
           tacticalColumnSpacingPx: 290
         }),
-        squadron("league-auxiliaries", "Auxiliary Squadron", "Juan de Cardona", 19.74, 37.93, 76, [
+        squadron("league-auxiliaries", "Auxiliary Squadron", "Juan de Cardona", 20.90, 38.10, 76, [
           shipGroup(FUSTA_SLUG, 50, "auxiliary", "spain", 2, ["matchlock-arquebuses"]),
           shipGroup(FUSTA_SLUG, 20, "auxiliary", "venice", 2, ["matchlock-arquebuses"]),
           shipGroup(FUSTA_SLUG, 6, "auxiliary", "papal-states", 2, ["matchlock-arquebuses"])
@@ -202,7 +202,7 @@ const LEPANTO_SCENARIO = scenario({
       color: "#c04b56",
       headingRad: Math.PI,
       squadrons: [
-        squadron("ottoman-right", "Right Wing", "Mehmed Siroco", 20.88, 38.38, 71, [
+        squadron("ottoman-right", "Right Wing", "Mehmed Siroco", 21.08, 38.32, 71, [
           shipGroup(GALLEY_SLUG, 55, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 16, "galliot", "ottoman", 2, ["composite-recurve-bows"])
         ], 4, {
@@ -213,7 +213,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 190,
           tacticalColumnSpacingPx: 260
         }),
-        squadron("ottoman-center", "Center", "Muezzinzade Ali Pasha", 20.90, 38.17, 107, [
+        squadron("ottoman-center", "Center", "Muezzinzade Ali Pasha", 21.10, 38.25, 107, [
           shipGroup(GALLEY_SLUG, 87, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 20, "galliot", "ottoman", 2, ["composite-recurve-bows"])
         ], 4, {
@@ -224,7 +224,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 190,
           tacticalColumnSpacingPx: 260
         }),
-        squadron("ottoman-left", "Left Wing", "Uluc Ali", 20.88, 37.94, 77, [
+        squadron("ottoman-left", "Left Wing", "Uluc Ali", 21.08, 38.18, 77, [
           shipGroup(GALLEY_SLUG, 61, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 16, "galliot", "ottoman", 2, ["composite-recurve-bows"])
         ], 4, {
@@ -235,7 +235,7 @@ const LEPANTO_SCENARIO = scenario({
           tacticalRowSpacingPx: 210,
           tacticalColumnSpacingPx: 260
         }),
-        squadron("ottoman-reserve", "Reserve", "Murat Dragut", 21.08, 38.17, 17, [
+        squadron("ottoman-reserve", "Reserve", "Murat Dragut", 21.14, 38.25, 17, [
           shipGroup(GALLEY_SLUG, 13, "galley", "ottoman", 4, ["composite-recurve-bows"]),
           shipGroup(FUSTA_SLUG, 4, "galliot", "ottoman", 2, ["composite-recurve-bows"])
         ], 4, {

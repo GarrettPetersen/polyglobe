@@ -93,7 +93,7 @@ test("Lepanto records faction flags, asymmetric artillery, and an Ottoman escape
   assert.equal(scenario.map.wind.shift.directionRad, Math.PI);
   assert.ok(scenario.map.wind.shift.beginsAtSeconds >= 60);
   assert.ok(scenario.map.wind.shift.completesAtSeconds <= 150);
-  assert.equal(scenario.map.escape.longitudeDeg, 21.72);
+  assert.equal(scenario.map.escape.longitudeDeg, 21.52);
 });
 
 test("Lepanto exposes one map marker and six playable historical commanders", () => {

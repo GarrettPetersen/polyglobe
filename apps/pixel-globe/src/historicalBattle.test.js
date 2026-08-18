@@ -19,11 +19,9 @@ import {
   historicalBattleWindAt,
   historicalBattleWindFlowDirection,
   updateHistoricalBattle,
-  updateHistoricalBattleNavigationCourse,
   updateHistoricalBattleReplay
 } from "./historicalBattle.js";
 import {
-  historicalBattleMapPointForLonLat,
   historicalBattleMapWaterAt
 } from "./historicalBattleMap.js";
 import { validateShipFootprintBake } from "./shipFootprint.js";
@@ -139,78 +137,50 @@ test("the separated fleets suffer no losses or collisions before first contact",
   );
 });
 
-test("fleet navigation chooses a clear course around Cephalonia", () => {
+test("both fleets deploy east of Cephalonia with clear water ahead", () => {
   const battle = createBattle();
-  const start = historicalBattleMapPointForLonLat(battle.map, 20.30, 38.20);
-  assert.equal(historicalBattleMapWaterAt(battle.map, start.x, start.y, 7), true);
-  assert.equal(historicalBattleMapWaterAt(battle.map, start.x + 104, start.y, 7), false);
-
-  const course = historicalBattleNavigableCourse(battle.map, {
-    x: start.x,
-    y: start.y,
-    desiredHeadingRad: 0,
-    currentHeadingRad: 0,
-    clearancePx: 7,
-    preferredSide: 1
-  });
-  const turn = Math.atan2(Math.sin(course.headingRad), Math.cos(course.headingRad));
-  assert.ok(Math.abs(turn) >= Math.PI / 6 - 1e-6, `course only turned ${turn.toFixed(3)} radians`);
-  assert.ok(course.clearDistancePx >= 104);
-  assert.equal(
-    historicalBattleMapWaterAt(
-      battle.map,
-      start.x + Math.cos(course.headingRad) * course.clearDistancePx,
-      start.y + Math.sin(course.headingRad) * course.clearDistancePx,
-      7
-    ),
-    true
-  );
+  assert.ok(battle.map.bounds.minLongitudeDeg > 20.8, "Cephalonia entered the tactical field");
+  for (const squadron of battle.squadrons) {
+    const leader = battle.ships[squadron.leaderIndex];
+    const headingRad = leader.sideId === HOLY_LEAGUE_SIDE_ID ? 0 : Math.PI;
+    const clearancePx = leader.role === "galleass" ? 10 : 7;
+    assert.equal(
+      historicalBattleMapWaterAt(battle.map, leader.x, leader.y, clearancePx),
+      true,
+      `${leader.id} starts outside navigable water`
+    );
+    const course = historicalBattleNavigableCourse(battle.map, {
+      x: leader.x,
+      y: leader.y,
+      desiredHeadingRad: headingRad,
+      currentHeadingRad: headingRad,
+      clearancePx,
+      preferredSide: 1
+    });
+    const turn = Math.atan2(
+      Math.sin(course.headingRad - headingRad),
+      Math.cos(course.headingRad - headingRad)
+    );
+    assert.ok(Math.abs(turn) < 1e-6, `${leader.id} must turn ${turn.toFixed(3)} radians at deployment`);
+    assert.ok(course.clearDistancePx >= 520, `${leader.id} starts only ${course.clearDistancePx}px from land`);
+  }
 });
 
-test("a committed fleet course rounds Cephalonia instead of pressing into its shore", () => {
+test("the opening battle lines have an unclogged maneuvering corridor", () => {
   const battle = createBattle();
-  const start = historicalBattleMapPointForLonLat(battle.map, 20.30, 38.20);
-  const destination = historicalBattleMapPointForLonLat(battle.map, 20.90, 38.20);
-  const navigator = {
-    role: "galley",
-    x: start.x,
-    y: start.y,
-    headingRad: 0,
-    squadronIndex: 1,
-    navigationCourseRad: 0,
-    navigationDecisionTick: 0,
-    shoreAvoidanceActive: false,
-    shoreAvoidanceSide: 0,
-    shoreAvoidanceClearDecisions: 0
-  };
-  let maximumCrossTrackPx = 0;
-  for (let tick = 0; tick < 1600 && navigator.x < destination.x; tick++) {
-    const desiredHeadingRad = Math.atan2(
-      destination.y - navigator.y,
-      destination.x - navigator.x
-    );
-    const course = updateHistoricalBattleNavigationCourse(
-      battle.map,
-      navigator,
-      tick,
-      desiredHeadingRad
-    );
-    const turn = Math.atan2(
-      Math.sin(course - navigator.headingRad),
-      Math.cos(course - navigator.headingRad)
-    );
-    navigator.headingRad += Math.max(-0.08, Math.min(0.08, turn));
-    const nextX = navigator.x + Math.cos(navigator.headingRad) * 4;
-    const nextY = navigator.y + Math.sin(navigator.headingRad) * 4;
-    if (historicalBattleMapWaterAt(battle.map, nextX, nextY, 7)) {
-      navigator.x = nextX;
-      navigator.y = nextY;
-    }
-    maximumCrossTrackPx = Math.max(maximumCrossTrackPx, Math.abs(navigator.y - start.y));
-  }
-
-  assert.ok(navigator.x >= destination.x, "fleet course never passed the island");
-  assert.ok(maximumCrossTrackPx > 180, "fleet course did not visibly round the island");
+  const league = battle.ships.filter((ship) => ship.sideId === HOLY_LEAGUE_SIDE_ID);
+  const ottomans = battle.ships.filter((ship) => ship.sideId === OTTOMAN_SIDE_ID);
+  const leagueMaxX = Math.max(...league.map((ship) => ship.x));
+  const ottomanMinX = Math.min(...ottomans.map((ship) => ship.x));
+  assert.ok(ottomanMinX - leagueMaxX >= 4_500, "the fleets begin in a shared choke point");
+  assert.ok(
+    Math.max(...league.map((ship) => ship.y)) - Math.min(...league.map((ship) => ship.y)) >= 20_000,
+    "the Holy League is packed into too little frontage"
+  );
+  assert.ok(
+    Math.max(...ottomans.map((ship) => ship.y)) - Math.min(...ottomans.map((ship) => ship.y)) >= 10_000,
+    "the Ottoman fleet is packed into too little frontage"
+  );
 });
 
 test("portable fire events retain the weapon identity needed by shared audio", () => {
@@ -318,12 +288,11 @@ test("render poses interpolate between deterministic physics ticks", () => {
   assert.notEqual(pose.headingRad, player.headingRad);
 });
 
-test("player commands are compact, quantized, and tick stamped for future networking", () => {
+test("player controls are compact, quantized, and tick stamped for future networking", () => {
   const command = createHistoricalBattleCommand(17, {
     desiredHeadingRad: Math.PI / 3,
     rowingRequested: true,
-    firePort: true,
-    squadronOrder: "advance"
+    firePort: true
   });
 
   assert.deepEqual(command, {
@@ -332,9 +301,7 @@ test("player commands are compact, quantized, and tick stamped for future networ
       rowingRequested: true,
       rowingMode: "ahead",
       firePort: true,
-      fireStarboard: false,
-      squadronOrder: "advance",
-      unitCommand: null
+      fireStarboard: false
   });
   assert.equal(Object.isFrozen(command), true);
 });
@@ -448,6 +415,92 @@ test("the player's squadron follows its flagship while the other divisions advan
   ));
   assert.equal(centerFollowers.length, 11);
   assert.ok(centerFollowers.some((ship) => ship.x > startX - 80));
+});
+
+test("a player-led reserve follows its flagship without manual orders", () => {
+  const battle = createBattle({ playerSquadronId: "league-reserve" });
+  const player = historicalBattlePlayerShip(battle);
+  const followers = battle.ships.filter((ship) => (
+    ship.squadronId === battle.playerSquadronId && !ship.playerControlled
+  ));
+  const initialAverageX = followers.reduce((sum, ship) => sum + ship.x, 0) / followers.length;
+
+  for (let tick = 0; tick < 100; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: 0,
+      rowingRequested: true
+    });
+  }
+
+  const averageX = followers.reduce((sum, ship) => sum + ship.x, 0) / followers.length;
+  assert.ok(player.x > initialAverageX + 20);
+  assert.ok(averageX > initialAverageX + 5, "reserve followers stayed at their starting anchor");
+});
+
+test("squadron mates engage nearby enemies and reform on the flagship afterward", () => {
+  const battle = createBattle();
+  const player = historicalBattlePlayerShip(battle);
+  const follower = battle.ships.find((ship) => (
+    ship.squadronId === battle.playerSquadronId && !ship.playerControlled
+  ));
+  const enemy = battle.ships.find((ship) => ship.sideId !== battle.playerSideId);
+  const enemyIndex = battle.ships.indexOf(enemy);
+  enemy.x = follower.x + 82;
+  enemy.y = follower.y;
+  enemy.previousX = enemy.x;
+  enemy.previousY = enemy.y;
+
+  for (let tick = 0; tick < 16 && follower.targetIndex !== enemyIndex; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: player.headingRad,
+      rowingRequested: false
+    });
+  }
+  assert.equal(follower.targetIndex, enemyIndex, "squadron mate ignored a nearby enemy");
+
+  enemy.active = false;
+  follower.x += 110;
+  follower.y += 70;
+  follower.previousX = follower.x;
+  follower.previousY = follower.y;
+  const formationDistance = () => {
+    const cos = Math.cos(player.headingRad);
+    const sin = Math.sin(player.headingRad);
+    const slotX = player.x + cos * follower.formationForward - sin * follower.formationLateral;
+    const slotY = player.y + sin * follower.formationForward + cos * follower.formationLateral;
+    return Math.hypot(follower.x - slotX, follower.y - slotY);
+  };
+  const displacedDistance = formationDistance();
+
+  for (let tick = 0; tick < 64; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: player.headingRad,
+      rowingRequested: false
+    });
+  }
+
+  assert.equal(follower.targetIndex, -1);
+  assert.ok(
+    formationDistance() < displacedDistance - 10,
+    "squadron mate did not regroup after its target left combat"
+  );
+});
+
+test("a player squadron flows through a hard turn without an allied collision pileup", () => {
+  const battle = createBattle();
+
+  for (let tick = 0; tick < 120; tick++) {
+    updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
+      desiredHeadingRad: Math.PI / 2,
+      rowingRequested: true
+    });
+  }
+
+  const playerSquadron = historicalBattleSquadronSummary(battle, battle.playerSquadronId);
+  assert.ok(
+    battle.metrics.playerSquadronFriendlyCollisionCorrections <= playerSquadron.startingShips / 2,
+    `hard turn caused ${battle.metrics.playerSquadronFriendlyCollisionCorrections} repeated allied contacts`
+  );
 });
 
 test("spatial targeting keeps fleet work far below all-pairs scans", () => {

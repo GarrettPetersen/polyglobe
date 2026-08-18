@@ -6,7 +6,8 @@ export const HISTORICAL_BATTLE_RECORDS_STORAGE_KEY =
 export const HISTORICAL_BATTLE_RECORDS_VERSION = 1;
 
 const MAX_RECENT_RESULTS = 20;
-const REPLAY_COMMAND_ENCODING = "tuple-v1";
+const REPLAY_COMMAND_ENCODING = "tuple-v2";
+const LEGACY_REPLAY_COMMAND_ENCODING = "tuple-v1";
 
 export function createHistoricalBattleRecords() {
   return {
@@ -188,10 +189,7 @@ function encodeStoredHistoricalBattleRecords(records) {
         (command.rowingRequested ? 1 : 0) |
           (command.firePort ? 2 : 0) |
           (command.fireStarboard ? 4 : 0),
-        command.rowingMode,
-        command.squadronOrder,
-        command.unitCommand?.shipIndex ?? null,
-        command.unitCommand?.action ?? null
+        command.rowingMode
       ])
     }
   };
@@ -200,35 +198,26 @@ function encodeStoredHistoricalBattleRecords(records) {
 function decodeStoredHistoricalBattleRecords(records) {
   const storedReplay = records?.latestReplay;
   if (!storedReplay || storedReplay.commandEncoding === undefined) return records;
-  if (storedReplay.commandEncoding !== REPLAY_COMMAND_ENCODING ||
+  if (![REPLAY_COMMAND_ENCODING, LEGACY_REPLAY_COMMAND_ENCODING].includes(
+        storedReplay.commandEncoding
+      ) ||
       !Array.isArray(storedReplay.commands)) {
     throw new Error(`Unsupported historical battle replay encoding: ${storedReplay.commandEncoding}`);
   }
   const commands = storedReplay.commands.map((tuple, index) => {
-    if (!Array.isArray(tuple) || tuple.length !== 7 ||
+    const expectedLength = storedReplay.commandEncoding === REPLAY_COMMAND_ENCODING ? 4 : 7;
+    if (!Array.isArray(tuple) || tuple.length !== expectedLength ||
         !Number.isInteger(tuple[2]) || tuple[2] < 0 || tuple[2] > 7) {
       throw new Error(`Invalid stored historical battle command tuple: ${index}`);
     }
-    const [
-      tick,
-      desiredHeadingQ,
-      flags,
-      rowingMode,
-      squadronOrder,
-      unitShipIndex,
-      unitAction
-    ] = tuple;
+    const [tick, desiredHeadingQ, flags, rowingMode] = tuple;
     return {
       tick,
       desiredHeadingQ,
       rowingRequested: Boolean(flags & 1),
       rowingMode,
       firePort: Boolean(flags & 2),
-      fireStarboard: Boolean(flags & 4),
-      squadronOrder,
-      unitCommand: unitShipIndex === null && unitAction === null
-        ? null
-        : { shipIndex: unitShipIndex, action: unitAction }
+      fireStarboard: Boolean(flags & 4)
     };
   });
   const { commandEncoding: _commandEncoding, ...replay } = storedReplay;

@@ -9,6 +9,7 @@ import {
 
 const COAST_SAMPLE_COUNT = 8;
 const HISTORICAL_BATTLE_TILE_ID_BASE = 3_000_000;
+const TERRAIN_WINDOW_PADDING_CELLS = 6;
 
 export function createHistoricalBattleMap(mapSpec) {
   if (!mapSpec?.id || !Number.isInteger(mapSpec.width) || !Number.isInteger(mapSpec.height)) {
@@ -24,7 +25,7 @@ export function createHistoricalBattleMap(mapSpec) {
     mapSpec.latitudeDeg
   );
   const base = {
-    version: 3,
+    version: 4,
     id: mapSpec.id,
     width: mapSpec.width,
     height: mapSpec.height,
@@ -33,7 +34,7 @@ export function createHistoricalBattleMap(mapSpec) {
     escape: Object.freeze({ ...mapSpec.escape, thresholdX: escapePoint.x }),
     ...geography
   };
-  return buildTerrainGrid(base);
+  return createTerrainGridDescriptor(base);
 }
 
 function lepantoGeography(mapSpec) {
@@ -61,20 +62,51 @@ export function historicalBattleMapPointForLonLat(map, longitudeDeg, latitudeDeg
   );
 }
 
-function buildTerrainGrid(map) {
+function createTerrainGridDescriptor(map) {
   const originX = -LAKE_BATTLE_HEX_COLUMN_SPACING;
   const originY = -LAKE_BATTLE_HEX_ROW_SPACING;
   const columnCount = Math.ceil((map.width - originX) / LAKE_BATTLE_HEX_COLUMN_SPACING) + 2;
   const rowCount = Math.ceil((map.height - originY) / LAKE_BATTLE_HEX_ROW_SPACING) + 2;
+  return Object.freeze({ ...map, originX, originY, columnCount, rowCount });
+}
+
+export function historicalBattleTerrainWindowMap(map, bounds) {
+  assertMap(map);
+  assertBounds(bounds);
+  const minRow = clampInteger(
+    Math.floor((bounds.minY - map.originY) / LAKE_BATTLE_HEX_ROW_SPACING) -
+      TERRAIN_WINDOW_PADDING_CELLS,
+    0,
+    map.rowCount - 1
+  );
+  const maxRow = clampInteger(
+    Math.ceil((bounds.maxY - map.originY) / LAKE_BATTLE_HEX_ROW_SPACING) +
+      TERRAIN_WINDOW_PADDING_CELLS,
+    0,
+    map.rowCount - 1
+  );
   const cells = [];
   const cellByGridKey = new Map();
   const cellById = new Map();
-  for (let row = 0; row < rowCount; row++) {
-    for (let column = 0; column < columnCount; column++) {
-      const x = originX + column * LAKE_BATTLE_HEX_COLUMN_SPACING +
+  for (let row = minRow; row <= maxRow; row++) {
+    const rowOffset = (row % 2) * LAKE_BATTLE_HEX_COLUMN_SPACING / 2;
+    const minColumn = clampInteger(
+      Math.floor((bounds.minX - map.originX - rowOffset) / LAKE_BATTLE_HEX_COLUMN_SPACING) -
+        TERRAIN_WINDOW_PADDING_CELLS,
+      0,
+      map.columnCount - 1
+    );
+    const maxColumn = clampInteger(
+      Math.ceil((bounds.maxX - map.originX - rowOffset) / LAKE_BATTLE_HEX_COLUMN_SPACING) +
+        TERRAIN_WINDOW_PADDING_CELLS,
+      0,
+      map.columnCount - 1
+    );
+    for (let column = minColumn; column <= maxColumn; column++) {
+      const x = map.originX + column * LAKE_BATTLE_HEX_COLUMN_SPACING +
         (row % 2) * LAKE_BATTLE_HEX_COLUMN_SPACING / 2;
-      const y = originY + row * LAKE_BATTLE_HEX_ROW_SPACING;
-      const id = HISTORICAL_BATTLE_TILE_ID_BASE + row * columnCount + column;
+      const y = map.originY + row * LAKE_BATTLE_HEX_ROW_SPACING;
+      const id = HISTORICAL_BATTLE_TILE_ID_BASE + row * map.columnCount + column;
       const cell = {
         id,
         column,
@@ -106,16 +138,12 @@ function buildTerrainGrid(map) {
       (LEPANTO_MAP_BOUNDS.maxLatitudeDeg - LEPANTO_MAP_BOUNDS.minLatitudeDeg);
     cell.terrain = terrainForCell(cell, latitudeDeg);
   }
-  return Object.freeze({
+  return {
     ...map,
-    originX,
-    originY,
-    columnCount,
-    rowCount,
-    cells: Object.freeze(cells),
+    cells,
     cellById,
     cellByGridKey
-  });
+  };
 }
 
 export function historicalBattleMapWaterAt(map, x, y, margin = 0) {
@@ -127,12 +155,9 @@ export function historicalBattleMapWaterAt(map, x, y, margin = 0) {
     throw new Error(`Invalid historical battle map margin: ${margin}`);
   }
   if (x < 0 || x >= map.width || y < 0 || y >= map.height) return false;
-  const nearestCell = nearestTerrainCell(map, x, y);
-  if (!nearestCell.water) return false;
-  const exactCoastCheckNeeded = nearestCell.shoreDistance <= 2;
-  if (!exactCoastCheckNeeded) return true;
   if (!pointIsWater(map, x, y)) return false;
   if (margin === 0) return true;
+  if (!pointMayBeNearLand(map, x, y, margin)) return true;
   for (let index = 0; index < COAST_SAMPLE_COUNT; index++) {
     const angle = index / COAST_SAMPLE_COUNT * Math.PI * 2;
     if (!pointIsWater(map, x + Math.cos(angle) * margin, y + Math.sin(angle) * margin)) return false;
@@ -140,21 +165,11 @@ export function historicalBattleMapWaterAt(map, x, y, margin = 0) {
   return true;
 }
 
-function nearestTerrainCell(map, x, y) {
-  const row = clampInteger(
-    Math.round((y - map.originY) / LAKE_BATTLE_HEX_ROW_SPACING),
-    0,
-    map.rowCount - 1
-  );
-  const rowOffset = (row % 2) * LAKE_BATTLE_HEX_COLUMN_SPACING / 2;
-  const column = clampInteger(
-    Math.round((x - map.originX - rowOffset) / LAKE_BATTLE_HEX_COLUMN_SPACING),
-    0,
-    map.columnCount - 1
-  );
-  const cell = map.cellByGridKey.get(gridKey(column, row));
-  if (!cell) throw new Error(`Historical terrain grid is missing ${column},${row}`);
-  return cell;
+function pointMayBeNearLand(map, x, y, margin) {
+  return map.landPolygonBounds.some((bounds) => (
+    x + margin >= bounds.minX && x - margin <= bounds.maxX &&
+    y + margin >= bounds.minY && y - margin <= bounds.maxY
+  ));
 }
 
 export function historicalBattleMapEscapeAt(map, sideId, x, y) {
@@ -259,6 +274,14 @@ function pointInBounds(x, y, bounds) {
   return x >= bounds.minX && x <= bounds.maxX && y >= bounds.minY && y <= bounds.maxY;
 }
 
+function assertBounds(bounds) {
+  if (!bounds || !Number.isFinite(bounds.minX) || !Number.isFinite(bounds.minY) ||
+      !Number.isFinite(bounds.maxX) || !Number.isFinite(bounds.maxY) ||
+      bounds.minX > bounds.maxX || bounds.minY > bounds.maxY) {
+    throw new Error("Invalid historical battle terrain window bounds");
+  }
+}
+
 function neighborOffsets(row) {
   return row % 2 === 0
     ? [[-1, 0], [1, 0], [-1, -1], [0, -1], [-1, 1], [0, 1]]
@@ -286,8 +309,9 @@ function hashInt(value) {
 
 function assertMap(map) {
   if (
-    !map || map.version !== 3 || map.id !== "lepanto-gulf-of-patras" ||
-    !Array.isArray(map.landPolygons) || !Array.isArray(map.cells)
+    !map || map.version !== 4 || map.id !== "lepanto-gulf-of-patras" ||
+    !Array.isArray(map.landPolygons) || !Number.isInteger(map.columnCount) ||
+    !Number.isInteger(map.rowCount)
   ) {
     throw new Error("Invalid historical battle map");
   }
