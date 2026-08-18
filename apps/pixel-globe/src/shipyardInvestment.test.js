@@ -28,6 +28,10 @@ const LISBON = Object.freeze({
   isPirateHideout: false
 });
 
+test("shipyard investment opportunities can recur after sixty in-game days", () => {
+  assert.equal(SHIPYARD_INVESTMENT_REOFFER_MINUTES, 60 * 24 * 60);
+});
+
 test("a wealthy captain can begin one major-port shipyard investment", () => {
   const state = {
     doubloons: 75000,

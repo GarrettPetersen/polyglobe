@@ -5,7 +5,7 @@ export const SHIPYARD_INVESTMENT_MATERIALS = Object.freeze({
   iron: 12,
   "naval-stores": 10
 });
-export const SHIPYARD_INVESTMENT_REOFFER_MINUTES = 180 * 24 * 60;
+export const SHIPYARD_INVESTMENT_REOFFER_MINUTES = 60 * 24 * 60;
 
 const SHIPYARD_INVESTMENT_VERSION = 2;
 
