@@ -897,6 +897,16 @@ const REVIEWED_OVERRIDES = Object.freeze({
     "pt-BR": "PESCAR {0}", ja: "{0}を釣る", de: "AUF {0} FISCHEN",
     fr: "PÊCHER : {0}", pl: "ŁOWIĆ: {0}", "zh-Hant": "捕撈{0}", ko: "{0} 낚기"
   }),
+  "x{0} / {1} DRINKS": Object.freeze({
+    "zh-Hans": "x{0} / {1} 饮料", ru: "x{0} / {1} НАПИТКИ", es: "x{0} / {1} BEBIDAS",
+    "pt-BR": "x{0} / {1} BEBIDAS", ja: "x{0} / {1} ドリンク", de: "x{0} / {1} GETRÄNKE",
+    fr: "x{0} / {1} BOISSONS", pl: "x{0} / {1} NAPOJE", "zh-Hant": "x{0} / {1} 飲料", ko: "x{0} / {1} 음료"
+  }),
+  "x{0} / {1} RATIONS": Object.freeze({
+    "zh-Hans": "x{0} / {1} 口粮", ru: "x{0} / {1} РАЦИОНЫ", es: "x{0} / {1} RACIONES",
+    "pt-BR": "x{0} / {1} RAÇÕES", ja: "x{0} / {1} 配給", de: "x{0} / {1} RATIONEN",
+    fr: "x{0} / {1} RATIONS", pl: "x{0} / {1} RACJE ŻYWNOŚCIOWE", "zh-Hant": "x{0} / {1} 口糧", ko: "x{0} / {1} 배급"
+  }),
   "HOLD FAST": Object.freeze({
     "zh-Hans": "保持停泊", ru: "СТОЯТЬ НА ЯКОРЕ", es: "MANTENER POSICIÓN",
     "pt-BR": "MANTER POSIÇÃO", ja: "停泊を続ける", de: "FESTMACHEN",

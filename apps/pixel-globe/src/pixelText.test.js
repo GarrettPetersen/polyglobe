@@ -4,6 +4,7 @@ import { readFile, readdir } from "node:fs/promises";
 
 import {
   hardenPixelTextAlpha,
+  pixelFontCompatibleText,
   pixelFontSizePx,
   pixelTextOrigin,
   pixelTextRasterHeight,
@@ -54,6 +55,21 @@ test("pixel font sizes occupy whole logical canvas pixels", () => {
   assert.throws(() => pixelFontSizePx('12px "Galmuri11"'), /multiple of 11px/);
   assert.throws(() => pixelFontSizePx('8px "Tiny5"'), /Unsupported pixel font family/);
   assert.throws(() => pixelFontSizePx('small "Dogica"'), /no px size/);
+});
+
+test("extended Latin names remain readable in the compact Latin pixel fonts", () => {
+  assert.equal(
+    pixelFontCompatibleText("Pēwhairangi", '8px "Dogica", monospace'),
+    "Pewhairangi"
+  );
+  assert.equal(
+    pixelFontCompatibleText("Tōkyō / Łódź", '8px "Silkscreen", monospace'),
+    "Tokyo / Lodz"
+  );
+  assert.equal(
+    pixelFontCompatibleText("Pēwhairangi", '12px "zpix", monospace'),
+    "Pēwhairangi"
+  );
 });
 
 test("pixel text uses an alphabetic scratch baseline inside the logical raster", () => {

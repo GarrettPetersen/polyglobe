@@ -74,10 +74,10 @@ test("repair fog uses its full-screen mask and broad pixel-grid diffusion", () =
     /u_repairCloudFullscreen[\s\S]*texture\(u_repairCloudMask, screenPixel \/ u_repairCloudMaskSize\)\.a/
   );
   assert.match(PRESENT_FRAGMENT_SHADER, /vec3 pixelGridWideBlur\(/);
-  assert.match(PRESENT_FRAGMENT_SHADER, /sampleY = -2; sampleY <= 2/);
-  assert.match(PRESENT_FRAGMENT_SHADER, /sampleX = -2; sampleX <= 2/);
-  assert.match(PRESENT_FRAGMENT_SHADER, /ivec2\(sampleX, sampleY\) \* 8/);
-  assert.match(PRESENT_FRAGMENT_SHADER, /return sum \/ 25\.0/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /sampleY = -1; sampleY <= 1/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /sampleX = -1; sampleX <= 1/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /ivec2\(sampleX, sampleY\) \* 12/);
+  assert.match(PRESENT_FRAGMENT_SHADER, /return sum \/ 9\.0/);
   assert.match(PRESENT_FRAGMENT_SHADER, /smoothstep\(0\.05, 0\.6, rawBlur\)/);
   assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /filter\s*:\s*blur|imageSmoothingEnabled\s*=\s*true/);
 });

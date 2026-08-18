@@ -1340,6 +1340,78 @@ export function maximumPortPurchaseQuantity(economy, city, goodId, requestedQuan
   return maximumAffordablePortPurchaseQuantity(port, good, requestedQuantity, port.specie, priceMultiplier);
 }
 
+export function quoteRepeatedPortPurchase(
+  economy,
+  city,
+  goodId,
+  quantity,
+  priceMultiplier = 1
+) {
+  assertTradeQuantity(quantity);
+  const port = requiredPortState(economy, city);
+  const good = tradeGoodById(goodId);
+  if (good.sellable === false) throw new Error(`${port.name} does not buy ${good.label}`);
+  return repeatedPortPurchaseTotals(port, good, quantity, priceMultiplier).total;
+}
+
+export function maximumRepeatedPortPurchaseQuantity(
+  economy,
+  city,
+  goodId,
+  requestedQuantity,
+  priceMultiplier = 1
+) {
+  assertTradeQuantity(requestedQuantity);
+  const port = requiredPortState(economy, city);
+  const good = tradeGoodById(goodId);
+  if (good.sellable === false) return 0;
+  if (portMintsGood(port, good)) return requestedQuantity;
+  let low = 0;
+  let high = requestedQuantity;
+  while (low < high) {
+    const middle = Math.ceil((low + high) / 2);
+    const total = repeatedPortPurchaseTotals(port, good, middle, priceMultiplier).total;
+    if (total <= port.specie + 1e-6) low = middle;
+    else high = middle - 1;
+  }
+  return low;
+}
+
+export function executeRepeatedPortPurchase(
+  economy,
+  city,
+  goodId,
+  quantity,
+  priceMultiplier = 1
+) {
+  assertTradeQuantity(quantity);
+  const port = requiredPortState(economy, city);
+  const good = tradeGoodById(goodId);
+  if (good.sellable === false) throw new Error(`${port.name} does not buy ${good.label}`);
+  const totals = repeatedPortPurchaseTotals(port, good, quantity, priceMultiplier);
+  const minted = portMintsGood(port, good);
+  if (!minted && port.specie + 1e-6 < totals.total) {
+    throw new Error(`${port.name} market has insufficient specie for ${quantity} ${good.label}`);
+  }
+  if (!minted) {
+    port.goods.get(goodId).stock += quantity;
+    port.specie -= totals.total;
+  }
+  const mintingFee = minted ? totals.mintingFee : 0;
+  const retainedDuty = minted ? totals.grossTotal - totals.total : 0;
+  port.specie += mintingFee;
+  invalidateWorldMarketMedianCache(economy);
+  return {
+    good,
+    quantity,
+    total: totals.total,
+    unitPrice: Math.max(1, Math.round(totals.total / quantity)),
+    mintedSpecie: minted ? totals.total + mintingFee : 0,
+    mintingFee,
+    retainedDuty
+  };
+}
+
 export function planNpcTrade(
   economy,
   origin,
@@ -1753,11 +1825,15 @@ function criticalStockIntegratedMultiplier(port, good, stock, localMultiplier) {
 }
 
 function speciePriceMultiplier(port) {
-  if (!Number.isFinite(port.specie) || port.specie < 0 ||
+  return speciePriceMultiplierAtSpecie(port, port.specie);
+}
+
+function speciePriceMultiplierAtSpecie(port, specie) {
+  if (!Number.isFinite(specie) || specie < 0 ||
       !Number.isFinite(port.targetSpecie) || port.targetSpecie <= 0) {
     throw new Error(`${port.name} has invalid specie price inputs`);
   }
-  const ratio = port.specie / port.targetSpecie;
+  const ratio = specie / port.targetSpecie;
   return clamp(
     Math.pow(ratio, SPECIE_PRICE_ELASTICITY),
     MIN_SPECIE_PRICE_MULTIPLIER,
@@ -1811,16 +1887,64 @@ function criticalStockPriceMultiplier(good, state, stock) {
   return 1 + (MAX_PRICE_MULTIPLIER - 1) * Math.pow(shortage, CRITICAL_STOCK_PRICE_EXPONENT);
 }
 
-function quoteTransaction(port, good, quantity, stockDirection, priceKey) {
+function quoteTransactionAtStock(
+  port,
+  good,
+  startStock,
+  quantity,
+  stockDirection,
+  priceKey,
+  specieMultiplier = speciePriceMultiplier(port)
+) {
   if (quantity <= 0) return 0;
   if (priceKey === "sellPrice" && good.sellable === false) {
     throw new Error(`${port.name} does not buy ${good.label}`);
   }
-  const state = port.goods.get(good.id);
-  const startPrice = marketPrice(port, good, state.stock)[priceKey];
-  const endStock = Math.max(0, state.stock + stockDirection * quantity);
-  const endPrice = marketPrice(port, good, endStock)[priceKey];
+  const startPrice = marketPrice(port, good, startStock, specieMultiplier)[priceKey];
+  const endStock = Math.max(0, startStock + stockDirection * quantity);
+  const endPrice = marketPrice(port, good, endStock, specieMultiplier)[priceKey];
   return Math.max(quantity, Math.round((startPrice + endPrice) * 0.5 * quantity));
+}
+
+function quoteTransaction(port, good, quantity, stockDirection, priceKey) {
+  const state = port.goods.get(good.id);
+  return quoteTransactionAtStock(
+    port,
+    good,
+    state.stock,
+    quantity,
+    stockDirection,
+    priceKey
+  );
+}
+
+function repeatedPortPurchaseTotals(port, good, quantity, priceMultiplier) {
+  const startStock = port.goods.get(good.id).stock;
+  const minted = portMintsGood(port, good);
+  let simulatedSpecie = port.specie;
+  let grossTotal = 0;
+  let total = 0;
+  let mintingFee = 0;
+  for (let index = 0; index < quantity; index++) {
+    const unitGross = quoteTransactionAtStock(
+      port,
+      good,
+      startStock + index,
+      1,
+      1,
+      "sellPrice",
+      speciePriceMultiplierAtSpecie(port, simulatedSpecie)
+    );
+    const unitTotal = applyTransactionPriceMultiplier(unitGross, priceMultiplier);
+    const unitMintingFee = Math.max(1, Math.round(unitTotal * MINT_FEE_RATE));
+    grossTotal += unitGross;
+    total += unitTotal;
+    mintingFee += unitMintingFee;
+    simulatedSpecie = minted
+      ? simulatedSpecie + unitMintingFee
+      : Math.max(0, simulatedSpecie - unitTotal);
+  }
+  return Object.freeze({ grossTotal, total, mintingFee });
 }
 
 function maximumAffordablePortPurchaseQuantity(

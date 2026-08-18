@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CAPTAIN_CHART_SAMPLE_OFFSETS,
   captainChartHexPixelSpan,
   captainChartHousePixels,
   captainChartPanAvailability,
@@ -10,6 +11,10 @@ import {
 
 const WORLD = Object.freeze({ worldWidth: 80, worldHeight: 26 });
 const BASE = Object.freeze({ startX: 10, startY: 4, spanX: 40, spanY: 16 });
+
+test("captain chart samples thin terrain details across every output pixel", () => {
+  assert.deepEqual(CAPTAIN_CHART_SAMPLE_OFFSETS, [1 / 6, 1 / 2, 5 / 6]);
+});
 
 test("captain chart hides pan arrows at each reached boundary", () => {
   const topLeft = Object.freeze({ startX: 10, startY: 4, spanX: 20, spanY: 8 });

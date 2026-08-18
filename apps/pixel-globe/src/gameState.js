@@ -9,10 +9,13 @@ import {
   TEA_GOOD_ID,
   TRADE_GOODS,
   executePortPurchase,
+  executeRepeatedPortPurchase,
   executePortSale,
   maximumPortPurchaseQuantity,
+  maximumRepeatedPortPurchaseQuantity,
   portMarket,
   quotePortPurchase,
+  quoteRepeatedPortPurchase,
   quotePortSale,
   restorePortTradeState,
   snapshotPortTradeState,
@@ -2409,10 +2412,12 @@ export function cargoRows(state) {
 export function cargoQuantityLabel(good, quantity) {
   if (!good || typeof good !== "object") throw new Error("Cargo quantity label requires a trade good");
   if (good.category === "food") {
-    return `${foodRationsForCargoQuantity(quantity)} RATIONS`;
+    return `x${formatDisplayQuantity(quantity)} / ${foodRationsForCargoQuantity(quantity)} RATIONS`;
   }
   if (good.category === "drink") {
-    return `${Math.max(1, Math.round(quantity * WINE_PERSON_DAYS_PER_UNIT))} DRINKS`;
+    return `x${formatDisplayQuantity(quantity)} / ${Math.max(1, Math.round(
+      quantity * WINE_PERSON_DAYS_PER_UNIT
+    ))} DRINKS`;
   }
   if (!Number.isInteger(quantity) || quantity < 0) {
     throw new Error(`Invalid ${good.id || "unknown"} cargo quantity: ${quantity}`);
@@ -4754,7 +4759,42 @@ function portPurchasePriceMultiplier(city) {
   return multiplier;
 }
 
+const BULK_PORT_PURCHASE = Object.freeze({
+  execute: executePortPurchase,
+  maximum: maximumPortPurchaseQuantity,
+  quote: quotePortPurchase
+});
+const REPEATED_PORT_PURCHASE = Object.freeze({
+  execute: executeRepeatedPortPurchase,
+  maximum: maximumRepeatedPortPurchaseQuantity,
+  quote: quoteRepeatedPortPurchase
+});
+
 export function sellGood(state, economy, city, goodId, quantity = 1, context = {}) {
+  return sellGoodWithPricing(
+    state,
+    economy,
+    city,
+    goodId,
+    quantity,
+    context,
+    BULK_PORT_PURCHASE
+  );
+}
+
+export function sellAllGood(state, economy, city, goodId, quantity, context = {}) {
+  return sellGoodWithPricing(
+    state,
+    economy,
+    city,
+    goodId,
+    quantity,
+    context,
+    REPEATED_PORT_PURCHASE
+  );
+}
+
+function sellGoodWithPricing(state, economy, city, goodId, quantity, context, pricing) {
   assertGameState(state);
   assertQuantity(quantity, "sell quantity");
   assertPlayerTradeAccess(state, city, context);
@@ -4769,14 +4809,14 @@ export function sellGood(state, economy, city, goodId, quantity = 1, context = {
   if (!terms.allowed) {
     throw new Error(`${cityLabel(city)} official market requires a valid Portuguese cartaz for ${row.good.label}`);
   }
-  const total = quotePortPurchase(economy, city, goodId, quantity, terms.saleMultiplier);
-  if (maximumPortPurchaseQuantity(economy, city, goodId, quantity, terms.saleMultiplier) < quantity) {
+  const total = pricing.quote(economy, city, goodId, quantity, terms.saleMultiplier);
+  if (pricing.maximum(economy, city, goodId, quantity, terms.saleMultiplier) < quantity) {
     throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
   }
   const basis = cargoCostBasis(state, row.good.id);
   const soldCost = basis.known ? basis.total * quantity / held : 0;
   const pnl = basis.known ? total - soldCost : null;
-  executePortPurchase(economy, city, goodId, quantity, terms.saleMultiplier);
+  pricing.execute(economy, city, goodId, quantity, terms.saleMultiplier);
   state.doubloons += total;
   const remaining = held - quantity;
   if (remaining > 0) {

@@ -65,6 +65,10 @@ test("ship information uses live hull, currency, stats, and cargo", () => {
     ["grain", 2],
     ["wine", 1]
   ]);
+  assert.deepEqual(view.cargo.map(({ id, quantityLabel }) => [id, quantityLabel]), [
+    ["grain", "x2 / 24 RATIONS"],
+    ["wine", "x1 / 8 DRINKS"]
+  ]);
 });
 
 test("shipyard previews expose the full vessel specification", () => {

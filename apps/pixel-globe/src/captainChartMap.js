@@ -5,6 +5,7 @@ import {
 
 const PAN_EPSILON = 1e-9;
 const MAX_HOUSE_SIZE = 9;
+export const CAPTAIN_CHART_SAMPLE_OFFSETS = Object.freeze([1 / 6, 1 / 2, 5 / 6]);
 
 export function captainChartPannedViewport({
   baseViewport,

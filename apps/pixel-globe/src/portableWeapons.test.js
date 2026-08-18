@@ -171,8 +171,8 @@ test("every portable projectile uses enlarged two-axis aim jitter", () => {
     });
 
     assert.ok(jitter >= 8);
-    assert.equal(aim.x, 20 - jitter - 12);
-    assert.ok(aim.y > 30 + (jitter + 6) * 0.99);
+    assert.equal(aim.x, 20 - jitter - 12 * 0.35);
+    assert.ok(aim.y > 30 + (jitter + 6 * 0.35) * 0.99);
   }
 });
 

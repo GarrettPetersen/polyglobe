@@ -1026,6 +1026,7 @@ import { canvasDisplayLayout } from "./displayScaling.js";
 import {
   hardenPixelTextAlpha,
   pixelFontSizePx,
+  pixelFontCompatibleText,
   pixelTextOrigin,
   pixelTextRasterHeight,
   pixelTextScratchRasterLayout,
@@ -1053,6 +1054,7 @@ import {
   captainNotebookFrameLayout
 } from "./captainChartLayout.js";
 import {
+  CAPTAIN_CHART_SAMPLE_OFFSETS,
   captainChartHexPixelSpan,
   captainChartHousePixels,
   captainChartPanAvailability,
@@ -2472,6 +2474,7 @@ const CHART_REPAIR_CLOUD_TILE_SCAN_INTERVAL_MS = 120;
 const CHART_REPAIR_CLOUD_SPEED_SCALE = 0.22;
 const CHART_REPAIR_CLOUD_MIN_SPEED_PX_PER_SECOND = 7;
 const CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS = 600;
+const POLAR_CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS = 1200;
 const CHART_REPAIR_HEAT_HAZE_TILE_SCAN_INTERVAL_MS = 900;
 const CHART_REPAIR_TILE_VISUAL_RADIUS_PX = TILE_ART_HALF + 3;
 const CHART_CONTINUITY_CORRECTION_LIMITS_BY_CLASS = new Map([
@@ -2752,7 +2755,6 @@ const CUSTOM_LOADOUT_FIELD_COLORS = Object.freeze({
 const MINIMAP_W = 80;
 const MINIMAP_H = 26;
 const MINIMAP_MAX_LAT_DEG = 72;
-const CAPTAIN_CHART_SAMPLE_OFFSETS = Object.freeze([0.5]);
 const CAPTAIN_CHART_RASTER_FRAME_BUDGET_MS = 4;
 let MINIMAP_X = SCREEN_W - MINIMAP_W - 5;
 let MINIMAP_Y = SCREEN_H - MINIMAP_H - 5;
@@ -24471,7 +24473,7 @@ function updateChartVisualRepair(nowMs) {
     !chartRepairHeatHaze &&
     nowMs >= polarFogNextTileRepairAtMs
   ) {
-    polarFogNextTileRepairAtMs = nowMs + CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS;
+    polarFogNextTileRepairAtMs = nowMs + POLAR_CHART_REPAIR_FOG_TILE_SCAN_INTERVAL_MS;
     const severePolarDistortion = currentChartRepairIsSevere();
     const fogOffset = layoutOffsetPixels();
     if (repairFogCoveredChartTiles(
@@ -46339,17 +46341,18 @@ function drawPixelText(text, x, y, options = {}) {
   if (typeof text !== "string") throw new Error(`Pixel text must be a string: ${text}`);
   const renderedText = renderedUiText(text);
   const font = resolvedPixelFont(options.font || PIXEL_FONT_SMALL_8, renderedText);
+  const compatibleText = pixelFontCompatibleText(renderedText, font);
   const align = options.align || "left";
   ctx.font = font;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  const textW = measureRenderedPixelTextWidth(renderedText, font);
+  const textW = measureRenderedPixelTextWidth(compatibleText, font);
   const alignedOrigin = pixelTextOrigin({ x, y, width: textW, align });
   const origin = snapPointToTransformedPixelGrid(alignedOrigin, ctx.getTransform());
   if (typeof ctx.fillStyle !== "string") {
     throw new Error("Pixel text requires a solid CSS fill color");
   }
-  const raster = pixelTextRaster(renderedText, font, ctx.fillStyle, textW);
+  const raster = pixelTextRaster(compatibleText, font, ctx.fillStyle, textW);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(raster, origin.x, origin.y);
@@ -46420,7 +46423,8 @@ function measurePixelTextWidth(text, font = PIXEL_FONT_SMALL_8) {
 
 function measureRenderedPixelTextWidth(renderedText, font = PIXEL_FONT_SMALL_8) {
   const resolvedFont = resolvedPixelFont(font, renderedText);
-  const key = `${resolvedFont}\u0000${renderedText}`;
+  const compatibleText = pixelFontCompatibleText(renderedText, resolvedFont);
+  const key = `${resolvedFont}\u0000${compatibleText}`;
   const cached = pixelTextWidthCache.get(key);
   if (cached !== undefined) {
     pixelTextWidthCache.delete(key);
@@ -46430,7 +46434,7 @@ function measureRenderedPixelTextWidth(renderedText, font = PIXEL_FONT_SMALL_8) 
   ctx.font = resolvedFont;
   ctx.textAlign = "left";
   ctx.textBaseline = "top";
-  const width = Math.ceil(ctx.measureText(renderedText).width);
+  const width = Math.ceil(ctx.measureText(compatibleText).width);
   if (pixelTextWidthCache.size >= PIXEL_TEXT_RASTER_CACHE_LIMIT) {
     const oldestKey = pixelTextWidthCache.keys().next().value;
     if (oldestKey === undefined) throw new Error("Pixel text width cache eviction failed");

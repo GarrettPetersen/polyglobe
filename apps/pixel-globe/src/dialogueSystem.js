@@ -73,6 +73,7 @@ import {
   restoreMarketUndoSnapshot,
   restockCustomShipLoadoutAtPort,
   restockShipLoadoutAtPort,
+  sellAllGood,
   sellGood,
   questCargoSaleTheftStatus,
   payPlayerShipyardInvestment,
@@ -86,11 +87,13 @@ import {
   HARDTACK_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   establishPortIndustry,
+  maximumRepeatedPortPurchaseQuantity,
   maximumPortSaleQuantity,
   maximumPortPurchaseQuantity,
   portEconomySummary,
   portMarket,
   quotePortPurchase,
+  quoteRepeatedPortPurchase,
   quotePortSale,
   tradeGoodById,
   worldMarketPriceComparison
@@ -2631,7 +2634,16 @@ export function selectPortDialogueOption(
       session.feedback = null;
       return { closed: false };
     }
-    return executeMarketSale(session, city, gameState, economy, action.goodId, quantity, context);
+    return executeMarketSale(
+      session,
+      city,
+      gameState,
+      economy,
+      action.goodId,
+      quantity,
+      context,
+      action.type === "sell-all"
+    );
   }
   if (action.type === "confirm-tribute-theft") {
     const pending = session.pendingTributeTheft;
@@ -2643,7 +2655,8 @@ export function selectPortDialogueOption(
       economy,
       pending.action.goodId,
       pending.action.quantity,
-      context
+      context,
+      pending.action.type === "sell-all"
     );
     const theftResult = recordQuestCargoTheft(gameState, pending.theft, context);
     clearMarketUndoSession(session);
@@ -5841,9 +5854,19 @@ function ensureMarketUndoSession(session, nodeId, gameState, economy, city) {
   beginMarketUndoSession(session, nodeId, gameState, economy, city);
 }
 
-function executeMarketSale(session, city, gameState, economy, goodId, quantity, context) {
+function executeMarketSale(
+  session,
+  city,
+  gameState,
+  economy,
+  goodId,
+  quantity,
+  context,
+  sellAll = false
+) {
   ensureMarketUndoSession(session, "sell", gameState, economy, city);
-  const result = sellGood(gameState, economy, city, goodId, quantity, tradeContext(session, context));
+  const sale = sellAll ? sellAllGood : sellGood;
+  const result = sale(gameState, economy, city, goodId, quantity, tradeContext(session, context));
   session.marketSales += result.quantity;
   recordIllicitMarketTransaction(session, result, "sell");
   const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
@@ -6052,9 +6075,9 @@ function sellView(session, city, gameState, economy, context) {
       terms.saleMultiplier
     ) < 1;
     const fullSalePrice = heldLots > 0
-      ? quotePortPurchase(economy, city, goodId, heldLots, terms.saleMultiplier)
+      ? quoteRepeatedPortPurchase(economy, city, goodId, heldLots, terms.saleMultiplier)
       : 0;
-    const marketCanBuyAll = heldLots > 0 && maximumPortPurchaseQuantity(
+    const marketCanBuyAll = heldLots > 0 && maximumRepeatedPortPurchaseQuantity(
       economy,
       city,
       goodId,

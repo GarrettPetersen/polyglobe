@@ -230,15 +230,15 @@ vec3 pixelGridBlur(ivec2 coordinate, ivec2 sceneSize) {
 
 vec3 pixelGridWideBlur(ivec2 coordinate, ivec2 sceneSize) {
   vec3 sum = vec3(0.0);
-  for (int sampleY = -2; sampleY <= 2; sampleY++) {
-    for (int sampleX = -2; sampleX <= 2; sampleX++) {
+  for (int sampleY = -1; sampleY <= 1; sampleY++) {
+    for (int sampleX = -1; sampleX <= 1; sampleX++) {
       sum += scenePixel(
-        coordinate + ivec2(sampleX, sampleY) * 8,
+        coordinate + ivec2(sampleX, sampleY) * 12,
         sceneSize
       );
     }
   }
-  return sum / 25.0;
+  return sum / 9.0;
 }
 
 float repairCloudMaskAlpha(vec2 screenPixel) {

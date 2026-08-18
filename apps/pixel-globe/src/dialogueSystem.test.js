@@ -1757,6 +1757,48 @@ test("sell all remains actionable when only one unit is held", () => {
   assert.equal(gameState.cargo.wool, undefined);
 });
 
+test("sell all matches the same sequence of rounded prices as individual sales", () => {
+  const city = {
+    tileId: 304,
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const port = economy.portStates.get(city.tileId);
+  port.goods.get("wool").stock = 30;
+  port.specie = 28;
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.wool = 3;
+  gameState.accounts.cargoCostBasis.wool = 24;
+  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const view = portDialogueView(session, city, gameState, economy, [city]);
+  const sellAllIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell-all" && entry.action.goodId === "wool"
+  ));
+
+  assert.ok(sellAllIndex >= 0);
+  assert.equal(view.options[sellAllIndex].disabled, false);
+  assert.match(view.options[sellAllIndex].label, /25 db/);
+  const sale = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    sellAllIndex,
+    { simMinute: 10 }
+  );
+
+  assert.equal(sale.marketSale.quantity, 3);
+  assert.equal(sale.marketSale.price, 25);
+  assert.equal(gameState.cargo.wool, undefined);
+  assert.equal(port.specie, 3);
+});
+
 test("market comparisons use pixel-font-safe directional wording", () => {
   assert.equal(worldPriceIndicator({ direction: "high", percent: 18 }), "18% ABOVE WORLD");
   assert.equal(worldPriceIndicator({ direction: "low", percent: -12 }), "12% BELOW WORLD");
