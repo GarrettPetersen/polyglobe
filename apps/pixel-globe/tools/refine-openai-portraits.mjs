@@ -13,6 +13,7 @@ import {
   RESURRECT_64_HEX,
   nearestResurrect64Hex
 } from "../src/waterLatitudePalette.js";
+import { cleanPortraitChromaMatte } from "../src/portraitMatteCleanup.js";
 
 const API_BASE_URL = "https://api.retrodiffusion.ai/v1";
 const PORTRAIT_SIZE = 64;
@@ -39,7 +40,7 @@ const stagingRoot = resolve(args.stagingDir);
 const apiKey = process.env.RETRO_DIFFUSION_API_KEY;
 let lastNeuralStartedAt = 0;
 
-if (!apiKey && !args.reviewOnly) {
+if (!apiKey && !args.reviewOnly && !args.cleanMatte) {
   throw new Error("RETRO_DIFFUSION_API_KEY is required unless --review-only is used");
 }
 
@@ -51,8 +52,13 @@ function pack(slug, sourceFilename, productionDirectory) {
 
 async function main() {
   mkdirSync(stagingRoot, { recursive: true });
-  const palettePng = await resurrectPalettePng();
   const allJobs = await buildJobs();
+  if (args.cleanMatte) {
+    await cleanProductionPortraits(allJobs);
+    await rebuildProductionSheets();
+    return;
+  }
+  const palettePng = await resurrectPalettePng();
   const selectedJobs = args.id === null ? allJobs : allJobs.filter((job) => job.id === args.id);
   if (args.id !== null && selectedJobs.length !== 1) throw new Error(`Unknown portrait id: ${args.id}`);
   const jobs = args.limit === null ? selectedJobs : selectedJobs.slice(0, args.limit);
@@ -107,6 +113,7 @@ async function main() {
 
   if (args.applyVariant !== null || args.applyRecommended) {
     applyCandidates(jobs, results, args.applyVariant);
+    await cleanProductionPortraits(jobs);
     await rebuildProductionSheets();
   }
 
@@ -729,6 +736,23 @@ function applyCandidates(jobs, results, fixedVariant) {
   console.log(`Applied ${applied} ${fixedVariant ?? "recommended"} portrait refinements`);
 }
 
+async function cleanProductionPortraits(jobs) {
+  let changedPortraits = 0;
+  let changedPixels = 0;
+  for (const job of jobs) {
+    const image = await readRgba(job.productionPath);
+    assertPortrait(image, `${job.id} production portrait`);
+    const cleaned = cleanPortraitChromaMatte(image);
+    if (cleaned.changedPixels === 0) continue;
+    await sharp(cleaned.data, {
+      raw: { width: image.width, height: image.height, channels: 4 }
+    }).png().toFile(job.productionPath);
+    changedPortraits += 1;
+    changedPixels += cleaned.changedPixels;
+  }
+  console.log(`Cleaned ${changedPixels} chroma-matte pixels from ${changedPortraits} portraits`);
+}
+
 async function rebuildProductionSheets() {
   for (const packConfig of PACKS) {
     const directory = join(appRoot, "public", "assets", "characters", packConfig.productionDirectory);
@@ -773,11 +797,13 @@ function parseArgs(values) {
     id: null,
     limit: null,
     reviewOnly: false,
+    cleanMatte: false,
     stagingDir: DEFAULT_STAGING_DIR
   };
   for (let index = 0; index < values.length; index += 1) {
     const value = values[index];
     if (value === "--apply-recommended") options.applyRecommended = true;
+    else if (value === "--clean-matte") options.cleanMatte = true;
     else if (value === "--apply-variant") options.applyVariant = values[++index];
     else if (value === "--id") options.id = values[++index];
     else if (value === "--limit") options.limit = Number.parseInt(values[++index], 10);
@@ -788,6 +814,9 @@ function parseArgs(values) {
   if (!options.stagingDir) throw new Error("--staging-dir requires a path");
   if (options.applyRecommended && options.applyVariant !== null) {
     throw new Error("Use either --apply-recommended or --apply-variant, not both");
+  }
+  if (options.cleanMatte && (options.applyRecommended || options.applyVariant !== null || options.id !== null)) {
+    throw new Error("--clean-matte cannot be combined with candidate selection");
   }
   if (options.applyVariant !== null && !["nearest", "rd-palette"].includes(options.applyVariant)) {
     throw new Error("--apply-variant requires nearest or rd-palette");
