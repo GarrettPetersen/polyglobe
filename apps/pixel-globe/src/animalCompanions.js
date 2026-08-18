@@ -1,6 +1,6 @@
 import { ANIMAL_CATALOG_BY_ID } from "./animalEncounters.js";
 
-export const ANIMAL_COMPANION_MEMORY_VERSION = 1;
+export const ANIMAL_COMPANION_MEMORY_VERSION = 2;
 export const ANIMAL_COMPANION_UNMET = "unmet";
 export const ANIMAL_COMPANION_PENDING = "pending";
 export const ANIMAL_COMPANION_DECLINED = "declined";
@@ -79,7 +79,19 @@ export const ANIMAL_COMPANION_CATALOG = Object.freeze([
     naturalistOffer: "A decisive rebuttal! Leave the panda in my care and I shall pay you {payment} doubloons. Imagine the observations!",
     naturalistAccept: "Splendid! I shall provide bamboo, patience, and absolutely no employment. It should feel perfectly at home.",
     naturalistFarewell: "Take good care of it. It was a useless sailor, but a remarkably memorable one.",
-    naturalistRejectAnimalText: "Hrrmph."
+    naturalistRejectAnimalText: "Hrrmph.",
+    naturalistGreetings: [
+      {
+        naturalistText: "Your panda has eaten through my bamboo budget and now sleeps on the manuscript.",
+        animalText: "Hrrmph.",
+        captainText: "Then she remembers shipboard discipline perfectly."
+      },
+      {
+        naturalistText: "I tried to weigh her. She sat on the scales, ate the counterweight, and went back to sleep.",
+        animalText: "Meee-eh!",
+        captainText: "A decisive result, by her standards."
+      }
+    ]
   }),
   companion({
     id: "raccoon",
@@ -116,7 +128,19 @@ export const ANIMAL_COMPANION_CATALOG = Object.freeze([
     naturalistOffer: "A most dexterous subject. Leave the raccoon in my care and I shall pay you {payment} doubloons. I shall begin by purchasing stronger locks.",
     naturalistAccept: "Splendid! I shall observe its habits scientifically, beginning with where it hid my purse.",
     naturalistFarewell: "Take care of him. He contributed no labor, but he did keep every cupboard under inspection.",
-    naturalistRejectAnimalText: "Krrrk!"
+    naturalistRejectAnimalText: "Krrrk!",
+    naturalistGreetings: [
+      {
+        naturalistText: "Your raccoon has advanced natural philosophy: I now know precisely which of my locks are useless.",
+        animalText: "Chrrr-chrrr!",
+        captainText: "Check your purse before we leave."
+      },
+      {
+        naturalistText: "He washed my best specimen in the inkpot, then hid the inkpot. I am counting both as observations.",
+        animalText: "Krrrk!",
+        captainText: "He always did insist on reviewing the evidence."
+      }
+    ]
   }),
   companion({
     id: "penguin",
@@ -151,7 +175,19 @@ export const ANIMAL_COMPANION_CATALOG = Object.freeze([
     naturalistOffer: "Remarkable. Leave the penguin in my care and I shall pay you {payment} doubloons. I have fish, ink, and several questions he may decline to answer.",
     naturalistAccept: "Excellent! I shall build him a cold pool and keep the larder under lock. My next volume may require an entire chapter.",
     naturalistFarewell: "Look after him. He never hauled a line, but the deck will seem strangely empty without him.",
-    naturalistRejectAnimalText: "Honk!"
+    naturalistRejectAnimalText: "Honk!",
+    naturalistGreetings: [
+      {
+        naturalistText: "The penguin inspects my study each morning, eats one specimen, and honks at the footnotes.",
+        animalText: "HONK!",
+        captainText: "A strict editor. I did warn you."
+      },
+      {
+        naturalistText: "I built him a cold pool. He prefers my chair and regards the pool as a place to store fish.",
+        animalText: "Honk.",
+        captainText: "Promotion has not made him less opinionated."
+      }
+    ]
   })
 ]);
 
@@ -309,7 +345,7 @@ export function createAnimalCompanionMemory() {
 
 export function migrateAnimalCompanionMemory(memory, { legacyPanda = null } = {}) {
   if (memory) {
-    if (memory.version !== ANIMAL_COMPANION_MEMORY_VERSION) {
+    if (![1, ANIMAL_COMPANION_MEMORY_VERSION].includes(memory.version)) {
       throw new Error(`Cannot migrate animal companion memory version: ${memory.version ?? "missing"}`);
     }
     const migrated = createAnimalCompanionMemory();
@@ -411,6 +447,41 @@ export function availableAnimalNaturalistOfferIds(memory) {
   return Object.freeze(ANIMAL_COMPANION_CATALOG
     .filter(({ id }) => animalNaturalistOfferIsAvailable(memory, id))
     .map(({ id }) => id));
+}
+
+export function animalNaturalistGreetingIds(memory, { includeSeen = false } = {}) {
+  validateAnimalCompanionMemory(memory);
+  if (typeof includeSeen !== "boolean") {
+    throw new Error("Former companion greeting inclusion must be boolean");
+  }
+  return Object.freeze(ANIMAL_COMPANION_CATALOG
+    .filter(({ id }) => {
+      const state = memory.byId[id];
+      return state.status === ANIMAL_COMPANION_WITH_NATURALIST &&
+        (includeSeen || state.naturalistGreetingCount === 0);
+    })
+    .sort((left, right) => (
+      memory.byId[left.id].naturalistGreetingCount - memory.byId[right.id].naturalistGreetingCount
+    ))
+    .map(({ id }) => id));
+}
+
+export function animalNaturalistGreeting(memory, companionId) {
+  const state = companionState(memory, companionId);
+  if (state.status !== ANIMAL_COMPANION_WITH_NATURALIST) {
+    throw new Error(`Cannot greet ${companionId} outside the naturalist's care`);
+  }
+  const entry = requiredCompanion(companionId);
+  return entry.naturalistGreetings[state.naturalistGreetingCount % entry.naturalistGreetings.length];
+}
+
+export function recordAnimalNaturalistGreeting(memory, companionId) {
+  const state = companionState(memory, companionId);
+  if (state.status !== ANIMAL_COMPANION_WITH_NATURALIST) {
+    throw new Error(`Cannot record a ${companionId} greeting outside the naturalist's care`);
+  }
+  state.naturalistGreetingCount += 1;
+  return validateAnimalCompanionMemory(memory);
 }
 
 export function declineAnimalNaturalistOffer(memory, companionId) {
@@ -614,7 +685,8 @@ function companion(options) {
     naturalistOffer,
     naturalistAccept,
     naturalistFarewell,
-    naturalistRejectAnimalText
+    naturalistRejectAnimalText,
+    naturalistGreetings
   } = options;
   if (!ANIMAL_CATALOG_BY_ID.has(id)) throw new Error(`Animal companion has no animal entry: ${id}`);
   if (typeof skillId !== "string" || skillId.trim() === "") {
@@ -624,6 +696,14 @@ function companion(options) {
       !Number.isInteger(statusIcon.width) || statusIcon.width <= 0 ||
       !Number.isInteger(statusIcon.height) || statusIcon.height <= 0) {
     throw new Error(`Animal companion has an invalid status icon: ${id}`);
+  }
+  if (!Array.isArray(naturalistGreetings) || naturalistGreetings.length === 0 ||
+      naturalistGreetings.some((greeting) => (
+        !greeting || typeof greeting !== "object" ||
+        [greeting.naturalistText, greeting.animalText, greeting.captainText]
+          .some((text) => typeof text !== "string" || text.trim() === "")
+      ))) {
+    throw new Error(`Animal companion has invalid naturalist greetings: ${id}`);
   }
   return Object.freeze({
     id,
@@ -654,7 +734,8 @@ function companion(options) {
     naturalistOffer,
     naturalistAccept,
     naturalistFarewell,
-    naturalistRejectAnimalText
+    naturalistRejectAnimalText,
+    naturalistGreetings: Object.freeze(naturalistGreetings.map((greeting) => Object.freeze({ ...greeting })))
   });
 }
 
@@ -663,6 +744,7 @@ function createCompanionState() {
     status: ANIMAL_COMPANION_UNMET,
     joinedMinute: null,
     naturalistOffer: ANIMAL_NATURALIST_OFFER_UNRESOLVED,
+    naturalistGreetingCount: 0,
     npcReactionKeys: [],
     restrictedFoodRationDebt: 0
   };
@@ -672,6 +754,9 @@ function migrateCompanionState(state) {
   return {
     ...state,
     naturalistOffer: state.naturalistOffer ?? ANIMAL_NATURALIST_OFFER_UNRESOLVED,
+    naturalistGreetingCount: Number.isInteger(state.naturalistGreetingCount)
+      ? state.naturalistGreetingCount
+      : 0,
     npcReactionKeys: Array.isArray(state.npcReactionKeys) ? [...state.npcReactionKeys] : [],
     restrictedFoodRationDebt: Number.isFinite(state.restrictedFoodRationDebt)
       ? state.restrictedFoodRationDebt
@@ -723,6 +808,12 @@ function validateCompanionState(state, companionId) {
   if (state.status !== ANIMAL_COMPANION_ABOARD && state.status !== ANIMAL_COMPANION_WITH_NATURALIST &&
       state.naturalistOffer !== ANIMAL_NATURALIST_OFFER_UNRESOLVED) {
     throw new Error(`${companionId} naturalist offer cannot be ${state.naturalistOffer} while ${state.status}`);
+  }
+  if (!Number.isInteger(state.naturalistGreetingCount) || state.naturalistGreetingCount < 0) {
+    throw new Error(`Invalid ${companionId} naturalist greeting count: ${state.naturalistGreetingCount}`);
+  }
+  if (state.status !== ANIMAL_COMPANION_WITH_NATURALIST && state.naturalistGreetingCount !== 0) {
+    throw new Error(`${companionId} has naturalist greetings outside the naturalist's care`);
   }
   if (!Array.isArray(state.npcReactionKeys) ||
       state.npcReactionKeys.some((key) => typeof key !== "string" || key.trim() === "")) {

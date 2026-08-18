@@ -149,14 +149,18 @@ export function naturalistQuestView(memory, animalMemory, {
 }
 
 export function naturalistShouldApproach(memory, animalMemory, cityTileId, {
-  companionOfferAvailable = false
+  companionOfferAvailable = false,
+  formerCompanionGreetingAvailable = false
 } = {}) {
   if (typeof companionOfferAvailable !== "boolean") {
     throw new Error("Naturalist companion offer availability must be boolean");
   }
+  if (typeof formerCompanionGreetingAvailable !== "boolean") {
+    throw new Error("Former companion greeting availability must be boolean");
+  }
   const view = naturalistQuestView(memory, animalMemory);
   return view.portTileId === cityTileId &&
-    (!view.met || view.hasUnreportedAnimals || companionOfferAvailable);
+    (!view.met || view.hasUnreportedAnimals || companionOfferAvailable || formerCompanionGreetingAvailable);
 }
 
 export function meetNaturalist(memory) {

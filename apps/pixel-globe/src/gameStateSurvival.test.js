@@ -80,7 +80,8 @@ import {
 } from "./castawayQuest.js";
 import {
   acceptAnimalCompanion,
-  beginAnimalCompanionRecruitment
+  beginAnimalCompanionRecruitment,
+  placeAnimalWithNaturalist
 } from "./animalCompanions.js";
 import {
   NAMED_CREW_ROLE_HISTORIAN,
@@ -197,6 +198,7 @@ test("version 36 saves preserve an aboard panda and gain the naturalist offer", 
     status: "aboard",
     joinedMinute: 123,
     naturalistOffer: "unresolved",
+    naturalistGreetingCount: 0,
     npcReactionKeys: [],
     restrictedFoodRationDebt: 0
   });
@@ -217,6 +219,25 @@ test("version 49 saves gain an unmet raccoon without changing existing companion
   assert.equal(migrated.memory.animalCompanions.byId.panda.status, "declined");
   assert.equal(migrated.memory.animalCompanions.byId.penguin.status, "unmet");
   assert.equal(migrated.memory.animalCompanions.byId.raccoon.status, "unmet");
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 77 saves revisit companions already placed with the naturalist", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  beginAnimalCompanionRecruitment(state.memory.animalCompanions, "raccoon");
+  acceptAnimalCompanion(state.memory.animalCompanions, "raccoon", 20);
+  placeAnimalWithNaturalist(state.memory.animalCompanions, "raccoon");
+  state.version = 77;
+  state.memory.animalCompanions.version = 1;
+  for (const companion of Object.values(state.memory.animalCompanions.byId)) {
+    delete companion.naturalistGreetingCount;
+  }
+
+  const migrated = migrateGameState(state);
+
+  assert.equal(migrated.memory.animalCompanions.version, 2);
+  assert.equal(migrated.memory.animalCompanions.byId.raccoon.status, "with-naturalist");
+  assert.equal(migrated.memory.animalCompanions.byId.raccoon.naturalistGreetingCount, 0);
   assert.equal(validateGameState(migrated), migrated);
 });
 

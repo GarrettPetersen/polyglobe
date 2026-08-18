@@ -12,6 +12,8 @@ import {
   acceptAnimalCompanion,
   animalCompanionCharacter,
   animalCompanionConsumption,
+  animalNaturalistGreeting,
+  animalNaturalistGreetingIds,
   animalNaturalistOfferIsAvailable,
   beginAnimalCompanionRecruitment,
   createAnimalCompanionMemory,
@@ -21,6 +23,7 @@ import {
   migrateAnimalCompanionMemory,
   pendingAnimalCompanionIntroduction,
   placeAnimalWithNaturalist,
+  recordAnimalNaturalistGreeting,
   recordAnimalCompanionIntroduction,
   recordAnimalCompanionNpcReaction,
   validateAnimalCompanionMemory
@@ -111,6 +114,37 @@ test("naturalist offers are resolved independently for every companion", () => {
   placeAnimalWithNaturalist(memory, "raccoon");
   assert.equal(memory.byId.raccoon.status, ANIMAL_COMPANION_WITH_NATURALIST);
   assert.deepEqual(aboardAnimalCompanionIds(memory), ["panda", "penguin"]);
+});
+
+test("former companions receive a guaranteed reunion and then rotate through later greetings", () => {
+  const memory = createAnimalCompanionMemory();
+  for (const id of ["panda", "raccoon"]) {
+    beginAnimalCompanionRecruitment(memory, id);
+    acceptAnimalCompanion(memory, id, 10);
+    placeAnimalWithNaturalist(memory, id);
+  }
+
+  assert.deepEqual(animalNaturalistGreetingIds(memory), ["panda", "raccoon"]);
+  assert.match(animalNaturalistGreeting(memory, "panda").naturalistText, /bamboo budget/i);
+  recordAnimalNaturalistGreeting(memory, "panda");
+  assert.deepEqual(animalNaturalistGreetingIds(memory), ["raccoon"]);
+  assert.deepEqual(animalNaturalistGreetingIds(memory, { includeSeen: true }), ["raccoon", "panda"]);
+  assert.match(animalNaturalistGreeting(memory, "panda").naturalistText, /weigh her/i);
+  validateAnimalCompanionMemory(memory);
+});
+
+test("version 1 companion memories migrate with pending former-companion reunions", () => {
+  const current = createAnimalCompanionMemory();
+  beginAnimalCompanionRecruitment(current, "penguin");
+  acceptAnimalCompanion(current, "penguin", 12);
+  placeAnimalWithNaturalist(current, "penguin");
+  const legacy = structuredClone(current);
+  legacy.version = 1;
+  for (const state of Object.values(legacy.byId)) delete state.naturalistGreetingCount;
+
+  const migrated = migrateAnimalCompanionMemory(legacy);
+  assert.deepEqual(animalNaturalistGreetingIds(migrated), ["penguin"]);
+  assert.equal(migrated.byId.penguin.naturalistGreetingCount, 0);
 });
 
 test("every pair of animal companions has a one-time introduction", () => {

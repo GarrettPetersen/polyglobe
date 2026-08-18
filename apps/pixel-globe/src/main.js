@@ -500,6 +500,8 @@ import {
   animalCompanionCharacter,
   animalCompanionRetirementDialogueSteps,
   animalCompanionRecruitmentIsPending,
+  animalNaturalistGreeting,
+  animalNaturalistGreetingIds,
   animalNaturalistOfferIsAvailable,
   availableAnimalNaturalistOfferIds,
   beginAnimalCompanionRecruitment,
@@ -509,6 +511,7 @@ import {
   pendingAnimalCompanionIntroduction,
   pendingAnimalCompanionRecruitmentId,
   placeAnimalWithNaturalist,
+  recordAnimalNaturalistGreeting,
   recordAnimalCompanionIntroduction,
   recordAnimalCompanionNpcReaction
 } from "./animalCompanions.js";
@@ -19386,9 +19389,17 @@ function clearPapalCommissionCargoProgress(result) {
 
 function maybeOpenNaturalistPortDialogue(cityCall) {
   const memory = gameState?.memory?.quests?.naturalist;
+  if (!memory) return false;
+  const before = naturalistQuestViewForBuild();
   const companionOfferIds = availableAnimalNaturalistOfferIds(gameState.memory.animalCompanions);
-  if (!memory || !naturalistShouldApproach(memory, gameState.memory.animals, cityCall.tileId, {
-    companionOfferAvailable: companionOfferIds.length > 0
+  const hasOtherNaturalistBusiness = !before.met || before.hasUnreportedAnimals || companionOfferIds.length > 0;
+  const companionGreetingIds = animalNaturalistGreetingIds(gameState.memory.animalCompanions, {
+    includeSeen: hasOtherNaturalistBusiness
+  });
+  const companionGreetingId = companionGreetingIds[0] || null;
+  if (!naturalistShouldApproach(memory, gameState.memory.animals, cityCall.tileId, {
+    companionOfferAvailable: companionOfferIds.length > 0,
+    formerCompanionGreetingAvailable: companionGreetingId !== null
   })) return false;
   const naturalist = ensureNaturalistCharacter(gameState);
   const naturalistLine = (expressionId, message) => pairedCharacterAlertStep({
@@ -19405,7 +19416,6 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     expressionId,
     message
   });
-  const before = naturalistQuestViewForBuild();
   const steps = [];
   if (!before.met) {
     meetNaturalist(memory);
@@ -19465,19 +19475,57 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
       presentation.ongoingDialogue
     ));
   }
+  if (companionGreetingId) {
+    steps.push(...naturalistFormerCompanionGreetingSteps(naturalist, companionGreetingId));
+  }
   const offeredCompanionId = companionOfferIds[0] || null;
   if (offeredCompanionId) steps.push(...naturalistCompanionOfferSteps(naturalist, offeredCompanionId));
   if (steps.length === 0) return false;
-  startCharacterAlertSequence(steps, () => {
+  const opened = startCharacterAlertSequence(steps, () => {
     syncAchievementsFromGameState();
-    saveVoyageNow("reported animals to naturalist");
+    saveVoyageNow(companionGreetingId ? "visited former companion" : "reported animals to naturalist");
     if (offeredCompanionId) {
       openAnimalNaturalistOfferChoice(naturalist, cityCall, offeredCompanionId);
       return;
     }
     dirty = true;
   });
+  if (!opened) throw new Error("Naturalist greeting dialogue could not open");
+  if (companionGreetingId) {
+    recordAnimalNaturalistGreeting(gameState.memory.animalCompanions, companionGreetingId);
+  }
   return true;
+}
+
+function naturalistFormerCompanionGreetingSteps(naturalist, companionId) {
+  const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
+  if (!entry) throw new Error(`Naturalist greeting names an unknown companion: ${companionId}`);
+  const greeting = animalNaturalistGreeting(gameState.memory.animalCompanions, companionId);
+  const animal = animalCompanionCharacter(companionId);
+  return [
+    pairedCharacterAlertStep({
+      leftCharacter: naturalist,
+      rightCharacter: animal,
+      speakerCharacter: naturalist,
+      expressionId: "amused",
+      message: greeting.naturalistText
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: naturalist,
+      rightCharacter: animal,
+      speakerCharacter: animal,
+      expressionId: "happy",
+      message: greeting.animalText,
+      animalSoundKind: ANIMAL_CATALOG_BY_ID.get(entry.animalId).soundKind
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: animal,
+      speakerCharacter: gameState.playerCharacter,
+      expressionId: "amused",
+      message: greeting.captainText
+    })
+  ];
 }
 
 function naturalistCompanionOfferSteps(naturalist, companionId) {
