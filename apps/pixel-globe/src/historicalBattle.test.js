@@ -9,6 +9,7 @@ import {
   createHistoricalBattleCommand,
   createHistoricalBattleReplay,
   drainHistoricalBattleEvents,
+  fireHistoricalBattleBroadside,
   historicalBattleInterpolatedShipPose,
   historicalBattleNavigableCourse,
   historicalBattlePlayerShip,
@@ -329,6 +330,20 @@ test("port and starboard cannon reloads remain independent", () => {
   assert.ok(fireEvent.smokeProjectiles.every((projectile) => (
     projectile.kind === "cannon" && Number.isInteger(projectile.seed)
   )));
+});
+
+test("the player can fire a centerline broadside without an auto-selected target", () => {
+  const battle = createBattle();
+  const player = historicalBattlePlayerShip(battle);
+  player.headingRad = 0;
+
+  assert.equal(fireHistoricalBattleBroadside(battle, "port"), true);
+  assert.ok(battle.projectiles.length > 0);
+  assert.ok(battle.projectiles.every((projectile) => projectile.targetIndex === -1));
+  const trueShot = battle.projectiles.find((projectile) => projectile.trueShot);
+  assert.ok(trueShot);
+  assert.ok(Math.abs(trueShot.targetX - trueShot.startX) < 1e-9);
+  assert.ok(trueShot.targetY < trueShot.startY);
 });
 
 test("historical wind uses the shared downwind flow convention", () => {

@@ -1981,7 +1981,6 @@ import {
 } from "./controllerPrompts.js";
 import {
   broadsideArcGeometry,
-  broadsideHullEdgeDistance,
   broadsideReloadGeometry,
   pointInBroadsideArc,
   projectBroadsideFrameToScreen
@@ -1989,6 +1988,10 @@ import {
 import {
   accurateBroadsideShotIndex,
   advanceCannonReload,
+  NAVAL_CANNON_AIM_SPREAD_RAD as CANNON_AIM_SPREAD_RAD,
+  NAVAL_CANNON_ARC_HEIGHT_PX as CANNON_ARC_HEIGHT_PX,
+  NAVAL_CANNON_RANGE_PX as CANNON_RANGE_PX,
+  NAVAL_CANNON_SPEED_PX as CANNON_SPEED_PX,
   NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
   isPreGunpowderCulture,
@@ -2021,6 +2024,11 @@ import {
   crewWoundsForceSurrender
 } from "./combatWounds.js";
 import { projectileHullDamage } from "./navalCombatResolution.js";
+import { createPortableNavalProjectile } from "./navalProjectileFactory.js";
+import {
+  createNavalBroadsideVolley,
+  navalBroadsideSideForTarget
+} from "./navalBroadsideVolley.js";
 import {
   firstNavalProjectileHit,
   navalProjectileMayHitBystanders,
@@ -2357,9 +2365,6 @@ const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
 const NPC_MAJOR_PORT_AVOID_RADIUS_PX = 132;
 const NPC_COMBAT_ORBIT_RANGE_PX = 38;
-const NPC_COMBAT_FIRE_RANGE_PX = 64;
-const NPC_COMBAT_BROADSIDE_DOT = 0.78;
-const NPC_COMBAT_COOLDOWN_SECONDS = 3.8;
 const NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX = 7;
 const NPC_COMBAT_MAX_PROJECTILES = 180;
 const SHIP_COLLISION_DAMAGE_COOLDOWN_SECONDS = 0.72;
@@ -2377,12 +2382,6 @@ const NPC_HAIL_CLICK_PAD_PX = 4;
 const WAKE_WATER_BUCKET_PX = 24;
 const WAKE_WATER_SEARCH_RADIUS_PX = 26;
 const WAKE_RIVER_RADIUS_PX = RIVER_MOUTH_RADIUS_PX + 2;
-const CANNON_MUZZLE_FORE_AFT_SPAN_PX = 13;
-const CANNON_RANGE_PX = 74;
-const CANNON_RANGE_JITTER_PX = 15;
-const CANNON_SPEED_PX = 88;
-const CANNON_AIM_SPREAD_RAD = 0.18;
-const CANNON_ARC_HEIGHT_PX = 13;
 const CANNON_TRAIL_MAX_PX = 3;
 const CANNONBALL_SIZE_PX = 2;
 const CANNON_SPLASH_TTL_SECONDS = 0.46;
@@ -27971,52 +27970,27 @@ function fireBroadside(sideName) {
   playNavalAttackSound(weapon, broadsideCount);
 
   const heading = shipScreenHeading();
-  const starboard = { x: -heading.y, y: heading.x };
-  const side = sideName === "starboard" ? starboard : scale2(starboard, -1);
   const origin = { x: localLayout.viewX, y: localLayout.viewY };
-  const muzzleSideOffset = broadsideHullEdgeDistance(
-    combatShipFootprint(PLAYER_COMBAT_ID),
-    origin,
-    side
-  );
   const sequenceBase = ++ship.cannonSequence;
   const sideSalt = sideName === "starboard" ? 0x51a7b04d : 0x704f1b23;
-  const muzzleSpan = cannonMuzzleForeAftSpan(broadsideCount);
   const aimSpreadRad = CANNON_AIM_SPREAD_RAD *
     currentPlayerPerkTotals().cannonSpreadMultiplier;
-  const trueShotIndex = accurateBroadsideShotIndex(broadsideCount);
-
-  for (let i = 0; i < broadsideCount; i++) {
-    const lineT = broadsideCount === 1
-      ? 0
-      : i / (broadsideCount - 1) - 0.5;
-    const seed = cannonSeed(sequenceBase, i, sideSalt, origin);
-    const trueShot = i === trueShotIndex;
-    const spread = trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * aimSpreadRad;
-    const range = (CANNON_RANGE_PX + (cannonUnit(seed, 2) * 2 - 1) * CANNON_RANGE_JITTER_PX) *
-      weapon.rangeScale;
-    const sideJitter = trueShot ? 0 : (cannonUnit(seed, 3) * 2 - 1) * 0.75;
-    const aim = rotate2(side, spread);
-    const startX = origin.x +
-      heading.x * lineT * muzzleSpan +
-      side.x * (muzzleSideOffset + sideJitter);
-    const startY = origin.y +
-      heading.y * lineT * muzzleSpan +
-      side.y * (muzzleSideOffset + sideJitter);
-    const targetX = startX + aim.x * range;
-    const targetY = startY + aim.y * range;
+  const shotSeed = (index) => cannonSeed(sequenceBase, index, sideSalt, origin);
+  const volley = createNavalBroadsideVolley({
+    origin,
+    heading,
+    hullFootprint: combatShipFootprint(PLAYER_COMBAT_ID),
+    sideName,
+    projectileCount: broadsideCount,
+    weapon,
+    spreadRad: aimSpreadRad,
+    seedForShot: shotSeed,
+    randomUnit: (index, salt) => cannonUnit(shotSeed(index), salt)
+  });
+  for (const shot of volley) {
     const projectile = {
-      kind: weapon.kind,
+      ...shot,
       ownerId: PLAYER_COMBAT_ID,
-      startX,
-      startY,
-      targetX,
-      targetY,
-      age: 0,
-      duration: range / (CANNON_SPEED_PX * weapon.speedScale),
-      arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 4) * 4) * weapon.arcHeightScale,
-      damage: weapon.damage,
-      seed,
       smokeOcclusionY: origin.y,
       firedDuringCombat: true,
       volleyId: sequenceBase
@@ -28152,37 +28126,24 @@ function portableCombatProjectile({
   startY,
   targetX,
   targetY,
-  range,
   seed,
   launchDelaySeconds = 0,
   launchSoundDistancePx = 0
 }) {
   return {
-    kind: weapon.animationKind,
-    portable: true,
-    weaponId: weapon.itemId,
+    ...createPortableNavalProjectile({
+      weapon,
+      startX,
+      startY,
+      targetX,
+      targetY,
+      seed,
+      arcHeightUnit: cannonUnit(seed, 3),
+      launchDelaySeconds,
+      launchSoundDistancePx
+    }),
     ownerId,
-    targetId,
-    startX,
-    startY,
-    targetX,
-    targetY,
-    age: 0,
-    duration: Math.max(0.1, range / (CANNON_SPEED_PX * weapon.speedScale)),
-    arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 4) * weapon.arcHeightScale,
-    damage: weapon.hullDamage,
-    hullDamage: weapon.hullDamage,
-    hullHitChance: weapon.hullHitChance,
-    crewDamage: weapon.crewDamage,
-    crewHitChance: weapon.crewHitChance,
-    crewProtectionPenetration: weapon.crewProtectionPenetration,
-    projectileSize: weapon.projectileSize,
-    smokeScale: weapon.smokeScale,
-    incendiary: weapon.incendiary === true,
-    launchDelaySeconds,
-    launchSoundDistancePx,
-    launched: false,
-    seed
+    targetId
   };
 }
 
@@ -28375,10 +28336,6 @@ function playerNavalWeapon() {
   }
   playerNavalWeaponCache = { signature, weapon };
   return weapon;
-}
-
-function cannonMuzzleForeAftSpan(broadsideCount) {
-  return CANNON_MUZZLE_FORE_AFT_SPAN_PX + Math.min(9, Math.max(0, broadsideCount - 7) * 0.38);
 }
 
 function updateNavalWeapons(dt) {
@@ -32238,11 +32195,11 @@ function fireNpcWeaponAtTarget(state, targetId) {
   const dx = target.x - state.x;
   const dy = target.y - state.y;
   const distance = Math.hypot(dx, dy);
-  if (distance > NPC_COMBAT_FIRE_RANGE_PX * weapon.rangeScale || distance <= 1e-6) return false;
+  if (distance > CANNON_RANGE_PX * weapon.rangeScale || distance <= 1e-6) return false;
   const heading = tangentToScreenDirection(state.heading);
   if (!heading) return false;
-  const direct = { x: dx / distance, y: dy / distance };
-  if (Math.abs(heading.x * direct.x + heading.y * direct.y) > NPC_COMBAT_BROADSIDE_DOT) return false;
+  const sideName = navalBroadsideSideForTarget(heading, state, target);
+  if (!sideName) return false;
 
   const volleyCount = Math.min(4, Math.max(1, Math.ceil(stats.cannons / 10)));
   emitCaptureEvent("weapon-fired", {
@@ -32251,7 +32208,7 @@ function fireNpcWeaponAtTarget(state, targetId) {
     weapon: weapon.kind,
     count: volleyCount
   });
-  state.weaponCooldown = NPC_COMBAT_COOLDOWN_SECONDS;
+  state.weaponCooldown = weapon.reloadSeconds;
   state.weaponSequence += 1;
   playNavalAttackSound(
     weapon,
@@ -32259,33 +32216,29 @@ function fireNpcWeaponAtTarget(state, targetId) {
     distanceFromPlayerPoint(state)
   );
   startCombatMusicForThreat(stats.cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
-  const trueShotIndex = accurateBroadsideShotIndex(volleyCount);
-
-  for (let index = 0; index < volleyCount; index++) {
-    const seed = cannonSeed(state.weaponSequence, index, state.id.length * 0x51a7, state);
-    const jitterScale = 7;
-    const trueShot = index === trueShotIndex;
-    const jitterX = trueShot ? 0 : (cannonUnit(seed, 1) * 2 - 1) * jitterScale;
-    const jitterY = trueShot ? 0 : (cannonUnit(seed, 2) * 2 - 1) * jitterScale;
-    const targetX = target.x + jitterX;
-    const targetY = target.y + jitterY;
-    const lineT = volleyCount === 1 ? 0 : index / (volleyCount - 1) - 0.5;
-    const startX = state.x;
-    const startY = state.y;
-    const range = Math.hypot(targetX - startX, targetY - startY);
+  const shotSeed = (index) => cannonSeed(
+    state.weaponSequence,
+    index,
+    state.id.length * 0x51a7,
+    state
+  );
+  const volley = createNavalBroadsideVolley({
+    origin: state,
+    heading,
+    hullFootprint: combatShipFootprint(state.id),
+    sideName,
+    projectileCount: volleyCount,
+    weapon,
+    targetPoint: target,
+    aimAtTarget: true,
+    seedForShot: shotSeed,
+    randomUnit: (index, salt) => cannonUnit(shotSeed(index), salt)
+  });
+  for (const shot of volley) {
     const projectile = {
-      kind: weapon.kind,
+      ...shot,
       ownerId: state.id,
-      targetId,
-      startX,
-      startY,
-      targetX,
-      targetY,
-      age: 0,
-      duration: range / (CANNON_SPEED_PX * weapon.speedScale),
-      arcHeight: (CANNON_ARC_HEIGHT_PX + cannonUnit(seed, 3) * 3) * weapon.arcHeightScale,
-      damage: weapon.damage,
-      seed
+      targetId
     };
     npcCombatProjectiles.push(projectile);
     if (projectile.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
@@ -32311,7 +32264,7 @@ function fireNpcPortableWeaponsAtTarget(state, targetId) {
     shipStats: state.stats,
     installedCannons: state.stats.cannons,
     targetDistancePx: distance,
-    baseRangePx: NPC_COMBAT_FIRE_RANGE_PX,
+    baseRangePx: CANNON_RANGE_PX,
     targetCrewProtection: combatEntityCrewProtection(targetId)
   }).filter(({ weapon }) => (state.portableWeaponCooldowns[weapon.itemId] || 0) <= 0);
   if (assignments.length === 0) return false;

@@ -1,6 +1,6 @@
 import {
-  accurateBroadsideShotIndex,
   advanceCannonReload,
+  NAVAL_CANNON_RANGE_PX as CANNON_RANGE_PX,
   navalWeaponForShip,
   navalWeaponUsesBroadside,
   NAVAL_WEAPON_CANNON
@@ -23,12 +23,17 @@ import { advanceCannonSmokeBursts, createCannonSmokeBurst } from "./cannonSmoke.
 import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
 import { resolveShipCollision } from "./shipCollision.js";
 import { resolveNavalProjectileImpact } from "./navalCombatResolution.js";
+import { createPortableNavalProjectile } from "./navalProjectileFactory.js";
 import {
   firstNavalProjectileHit,
   navalProjectileMayHitBystanders,
   navalProjectilePoint
 } from "./navalProjectile.js";
-import { broadsideHullEdgeDistance } from "./broadsideControls.js";
+import {
+  createNavalBroadsideVolley,
+  navalBroadsideDirection,
+  navalBroadsideSideForTarget
+} from "./navalBroadsideVolley.js";
 import {
   pointInShipFootprint,
   shipFootprintCenter,
@@ -40,20 +45,11 @@ import {
 import {
   SHIP_ROWING_MODE_AHEAD,
   SHIP_ROWING_MODE_IDLE,
-  SHIP_ROWING_MODE_PIVOT_PORT,
-  SHIP_ROWING_MODE_PIVOT_STARBOARD,
-  normalizeShipRowingMode,
-  shipRowingModeIsActive,
-  shipRowingModeIsPivot,
-  shipRowingModeThrustDirection
+  normalizeShipRowingMode
 } from "./shipRowingAnimation.js";
 import {
-  SHIP_MINIMUM_POWERED_SPEED_RAD,
-  rowingCrewRatio,
   sailingEfficiencyForAlignment,
-  shipCanUseOars,
-  shipDragFactor,
-  shipPropulsionPerformance
+  shipCanUseOars
 } from "./shipPropulsion.js";
 import {
   SHIP_PROPULSION_SAIL,
@@ -62,7 +58,7 @@ import {
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
-import { oarPivotTurnRate, shipTurnRate } from "./shipTurning.js";
+import { advanceFlatBattleShipKinematics } from "./flatBattleShipMotion.js";
 import {
   chooseNpcObstacleAvoidanceDirection,
   chooseNpcSailingDirection
@@ -106,12 +102,6 @@ const LAKE_BATTLE_CITY_STATS = Object.freeze({
   propulsion: null
 });
 
-const PIXELS_PER_RADIAN = 2450;
-const BROADSIDE_HALF_ANGLE_RAD = 0.62;
-const CANNON_RANGE_PX = 74;
-const CANNON_SPEED_PX = 88;
-const CANNON_ARC_HEIGHT_PX = 13;
-const CANNON_SPREAD_RAD = 0.18;
 const SPLASH_TTL_SECONDS = 0.46;
 const IMPACT_TTL_SECONDS = 0.32;
 const MAX_PROJECTILES = 160;
@@ -312,53 +302,27 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
 
   ship.cooldowns[sideName] = ship.weapon.reloadSeconds;
   const count = Math.max(1, Math.ceil(ship.stats.cannons / 2));
-  const side = lakeBattleBroadsideDirection(ship, sideName);
   const sourcePoint = lakeBattleCombatantPoint(ship);
-  const muzzleSideOffset = lakeBattleCombatantIsCity(ship)
-    ? 8
-    : broadsideHullEdgeDistance(
-        lakeBattleShipWorldFootprint(state, ship),
-        sourcePoint,
-        side
-      );
   const targetPoint = lakeBattleCombatantAimPoint(state, target);
-  const toTarget = normalizedDirection(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
-  const targetDistance = Math.hypot(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
-  const range = lakeBattleWeaponRange(ship);
-  const aimed = targetDistance <= range * 1.08 && dot2(side, toTarget) >= Math.cos(BROADSIDE_HALF_ANGLE_RAD);
-  const trueShotIndex = accurateBroadsideShotIndex(count);
-
-  for (let index = 0; index < count; index++) {
-    const random = nextBattleRandom(state);
-    const rangeRandom = nextBattleRandom(state);
-    const trueShot = index === trueShotIndex;
-    const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
-    const heading = lakeBattleHeadingVector(ship);
-    const startX = sourcePoint.x + heading.x * lineT * 13 + side.x * muzzleSideOffset;
-    const startY = sourcePoint.y + heading.y * lineT * 13 + side.y * muzzleSideOffset;
-    const spread = trueShot ? 0 : (random - 0.5) * 2 * CANNON_SPREAD_RAD;
-    const aim = rotate2(aimed ? toTarget : side, spread);
-    const projectileRange = aimed
-      ? targetDistance + (rangeRandom - 0.5) * 7
-      : range * (0.82 + rangeRandom * 0.28);
-    const targetX = aimed && trueShot ? targetPoint.x : startX + aim.x * projectileRange;
-    const targetY = aimed && trueShot ? targetPoint.y : startY + aim.y * projectileRange;
-    const actualRange = Math.hypot(targetX - startX, targetY - startY);
+  const volley = createNavalBroadsideVolley({
+    origin: sourcePoint,
+    heading: lakeBattleHeadingVector(ship),
+    hullFootprint: lakeBattleBroadsideSourceFootprint(state, ship),
+    sideName,
+    projectileCount: count,
+    weapon: ship.weapon,
+    targetPoint,
+    aimAtTarget: ship.id !== LAKE_BATTLE_PLAYER_ID,
+    randomUnit: () => nextBattleRandom(state),
+    seedForShot: () => Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0
+  });
+  for (const shot of volley) {
     addLakeBattleProjectile(state, ship, {
+      ...shot,
       id: state.projectileSerial++,
       ownerId: ship.id,
-      targetId: aimed ? target.id : null,
-      kind: ship.weapon.kind,
-      startX,
-      startY,
-      targetX,
-      targetY,
-      smokeOcclusionY: sourcePoint.y,
-      age: 0,
-      duration: Math.max(0.12, actualRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
-      arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * ship.weapon.arcHeightScale,
-      damage: ship.weapon.damage,
-      seed: Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0
+      targetId: target.id,
+      smokeOcclusionY: sourcePoint.y
     });
   }
   finishLakeBattleVolley(state, ship, count);
@@ -410,34 +374,25 @@ export function fireLakeBattlePortableWeapons(state, shipId) {
       });
       const targetX = aim.x;
       const targetY = aim.y;
-      const projectileRange = Math.hypot(targetX - startX, targetY - startY);
       addLakeBattleProjectile(state, ship, {
+        ...createPortableNavalProjectile({
+          weapon,
+          startX,
+          startY,
+          targetX,
+          targetY,
+          seed,
+          arcHeightUnit: nextBattleRandom(state),
+          launchDelaySeconds: portableWeaponVolleyLaunchDelaySeconds({
+            shotIndex: index,
+            shotCount: operators,
+            unit: ((seed >>> 8) & 0xffffff) / 0x1000000
+          })
+        }),
         id: state.projectileSerial++,
         ownerId: ship.id,
         targetId: target.id,
-        kind: weapon.animationKind,
-        portable: true,
-        weaponId: weapon.itemId,
-        weapon,
-        startX,
-        startY,
-        targetX,
-        targetY,
-        smokeOcclusionY: sourcePoint.y,
-        age: 0,
-        duration: Math.max(0.12, projectileRange / (CANNON_SPEED_PX * weapon.speedScale)),
-        arcHeight: (CANNON_ARC_HEIGHT_PX + nextBattleRandom(state) * 4) * weapon.arcHeightScale,
-        damage: weapon.hullDamage,
-        projectileSize: weapon.projectileSize,
-        smokeScale: weapon.smokeScale,
-        incendiary: weapon.incendiary === true,
-        launchDelaySeconds: portableWeaponVolleyLaunchDelaySeconds({
-          shotIndex: index,
-          shotCount: operators,
-          unit: ((seed >>> 8) & 0xffffff) / 0x1000000
-        }),
-        launched: false,
-        seed
+        smokeOcclusionY: sourcePoint.y
       });
     }
     finishLakeBattleVolley(state, ship, operators, weapon.animationKind, weapon.itemId, false);
@@ -518,9 +473,7 @@ export function lakeBattleBroadsideDirection(ship, sideName) {
   if (sideName !== "port" && sideName !== "starboard") {
     throw new Error(`Unknown lake battle broadside: ${sideName}`);
   }
-  const heading = lakeBattleHeadingVector(ship);
-  const starboard = { x: -heading.y, y: heading.x };
-  return sideName === "starboard" ? starboard : { x: -starboard.x, y: -starboard.y };
+  return navalBroadsideDirection(lakeBattleHeadingVector(ship), sideName);
 }
 
 export function lakeBattleWeaponRange(ship) {
@@ -677,64 +630,17 @@ function relocateShipToNavigableMapCell(state, ship) {
 
 function updateBattleShipMotion(state, ship, desiredHeadingRad, rowingMode, dt) {
   if (ship.kind === "city") return;
-  let normalizedRowingMode = normalizeShipRowingMode(rowingMode);
-  if (
-    normalizedRowingMode === SHIP_ROWING_MODE_AHEAD &&
-    desiredHeadingRad !== null &&
-    shipCanUseOars(ship.stats) &&
-    Math.abs(ship.speedPx) <= ship.stats.topSpeedRad * PIXELS_PER_RADIAN * 0.2
-  ) {
-    const turn = shortestAngle(desiredHeadingRad - ship.headingRad);
-    if (Math.abs(turn) > 20 * Math.PI / 180 && Math.cos(turn) > -Math.cos(35 * Math.PI / 180)) {
-      normalizedRowingMode = turn > 0
-        ? SHIP_ROWING_MODE_PIVOT_STARBOARD
-        : SHIP_ROWING_MODE_PIVOT_PORT;
-    }
-  }
-  const rowerRatio = rowingCrewRatio(
-    activeCombatCrew(ship.crew, ship.woundedCrew),
-    ship.stats.crewCapacity
-  );
-  if (desiredHeadingRad !== null) {
-    const turnRate = shipRowingModeIsPivot(normalizedRowingMode)
-      ? oarPivotTurnRate({
-          turnRateRad: ship.stats.turnRateRad,
-          mass: ship.stats.mass,
-          rowerRatio
-        })
-      : shipTurnRate({
-          turnRateRad: ship.stats.turnRateRad,
-          speedRad: Math.abs(ship.speedPx) / PIXELS_PER_RADIAN,
-          topSpeedRad: ship.stats.topSpeedRad
-        });
-    ship.headingRad = rotateAngleToward(ship.headingRad, desiredHeadingRad, turnRate * dt);
-    nudgeLakeBattleShipTowardClearWater(state, ship);
-  }
-  const heading = lakeBattleHeadingVector(ship);
-  const windFlowDirection = lakeBattleWindFlowDirection(state);
-  const windFlow = { x: Math.cos(windFlowDirection), y: Math.sin(windFlowDirection) };
-  const pivoting = shipRowingModeIsPivot(normalizedRowingMode);
-  const sailEfficiency = pivoting ? 0 : sailingEfficiencyForStats(ship.stats, heading, windFlow);
-  const thrustDirection = shipRowingModeThrustDirection(normalizedRowingMode);
-  const propulsion = shipPropulsionPerformance(ship.stats, {
+  const kinematics = advanceFlatBattleShipKinematics({
+    ship,
+    dt,
+    desiredHeadingRad,
+    rowingMode,
+    windDirectionRad: state.wind.directionRad,
     windStrength: state.wind.strength,
-    sailEfficiency,
-    minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
-    rowerRatio,
-    rowingRequested: thrustDirection !== 0,
-    rowingDirection: thrustDirection < 0 ? -1 : 1
+    autoPivot: true
   });
-  ship.rowingMode = pivoting ? normalizedRowingMode : (
-    propulsion.rowing ? normalizedRowingMode : SHIP_ROWING_MODE_IDLE
-  );
-  ship.rowing = shipRowingModeIsActive(ship.rowingMode);
-  ship.speedPx += ship.stats.accelerationRad * PIXELS_PER_RADIAN *
-    propulsion.accelerationFactor * propulsion.propulsionDirection * dt;
-  ship.speedPx *= shipDragFactor(propulsion.stalled, dt);
-  const maxSpeedPx = propulsion.stalled ? 0 : propulsion.maxSpeedRad * PIXELS_PER_RADIAN;
-  const finiteMaxSpeedPx = Number.isFinite(maxSpeedPx) ? maxSpeedPx : Math.abs(ship.speedPx);
-  ship.speedPx = clamp(ship.speedPx, -finiteMaxSpeedPx, finiteMaxSpeedPx);
-  const movedDistance = moveShipInsideLake(state, ship, ship.speedPx * dt);
+  if (desiredHeadingRad !== null) nudgeLakeBattleShipTowardClearWater(state, ship);
+  const movedDistance = moveShipInsideLake(state, ship, kinematics.distancePx);
   if (ship.tackSide !== 0) {
     ship.tackRemainingPx = Math.max(0, ship.tackRemainingPx - movedDistance);
   }
@@ -886,15 +792,14 @@ function fireEnemyWhenAligned(state) {
     enemy.headingRad = normalizeAngle(direction - Math.PI / 2);
     return fireLakeBattleBroadside(state, enemy.id, "starboard");
   }
-  const targetDirection = normalizedDirection(state.player.x - enemy.x, state.player.y - enemy.y);
   const targetDistance = Math.hypot(state.player.x - enemy.x, state.player.y - enemy.y);
   if (targetDistance > lakeBattleWeaponRange(enemy) * 1.04) return false;
-  const port = lakeBattleBroadsideDirection(enemy, "port");
-  const starboard = lakeBattleBroadsideDirection(enemy, "starboard");
-  const portDot = dot2(port, targetDirection);
-  const starboardDot = dot2(starboard, targetDirection);
-  const sideName = portDot >= starboardDot ? "port" : "starboard";
-  if (Math.max(portDot, starboardDot) < Math.cos(BROADSIDE_HALF_ANGLE_RAD * 0.82)) return false;
+  const sideName = navalBroadsideSideForTarget(
+    lakeBattleHeadingVector(enemy),
+    lakeBattleCombatantPoint(enemy),
+    lakeBattleCombatantAimPoint(state, state.player)
+  );
+  if (!sideName) return false;
   return fireLakeBattleBroadside(state, enemy.id, sideName);
 }
 
@@ -993,14 +898,16 @@ function applyLakeBattleProjectileHit(state, projectile, target, point) {
   if (projectile.portable && !weapon) {
     throw new Error(`Lake battle portable projectile has no weapon: ${projectile.weaponId}`);
   }
+  const impactProjectile = projectile.portable
+    ? projectile
+    : {
+        ...projectile,
+        crewDamage: 0,
+        crewHitChance: 0,
+        crewProtectionPenetration: 0
+      };
   const result = resolveNavalProjectileImpact({
-    projectile: {
-      damage: projectile.damage,
-      hullHitChance: weapon?.hullHitChance ?? 1,
-      crewDamage: weapon?.crewDamage || 0,
-      crewHitChance: weapon?.crewHitChance || 0,
-      crewProtectionPenetration: weapon?.crewProtectionPenetration || 0
-    },
+    projectile: impactProjectile,
     target,
     allowHullResistance: target.kind !== "city",
     random: () => nextBattleRandom(state)
@@ -1200,6 +1107,19 @@ function lakeBattleShipWorldFootprint(state, ship) {
   return translatedShipFootprint(lakeBattleShipFootprintFrame(state, ship), point.x, point.y);
 }
 
+function lakeBattleBroadsideSourceFootprint(state, combatant) {
+  if (!lakeBattleCombatantIsCity(combatant)) {
+    return lakeBattleShipWorldFootprint(state, combatant);
+  }
+  const point = lakeBattleCombatantPoint(combatant);
+  return [
+    { x: point.x - 8, y: point.y - 8 },
+    { x: point.x + 8, y: point.y - 8 },
+    { x: point.x + 8, y: point.y + 8 },
+    { x: point.x - 8, y: point.y + 8 }
+  ];
+}
+
 function lakeBattleShipWorldProjectileSilhouette(state, ship) {
   const point = lakeBattleCombatantPoint(ship);
   return translatedShipProjectileSilhouette(lakeBattleShipFootprintFrame(state, ship), point.x, point.y);
@@ -1294,11 +1214,6 @@ function normalizedDirection(x, y) {
   const length = Math.hypot(x, y);
   if (length <= 1e-9) return { x: 1, y: 0 };
   return { x: x / length, y: y / length };
-}
-
-function rotateAngleToward(current, target, maxStep) {
-  const delta = shortestAngle(target - current);
-  return normalizeAngle(current + clamp(delta, -maxStep, maxStep));
 }
 
 function normalizeAngle(angle) {

@@ -9,26 +9,29 @@ import {
   cannonWeaponWithEquipment
 } from "./cannonEquipment.js";
 import {
-  accurateBroadsideShotIndex,
   advanceCannonReload,
+  NAVAL_CANNON_RANGE_PX as CANNON_RANGE_PX,
   navalWeaponForShip
 } from "./navalWeapons.js";
 import {
   activePortableWeaponAssignments,
   advancePortableProjectileLaunch,
   portableWeaponAimPoint,
-  portableWeaponItemById,
   portableWeaponVolleyLaunchDelaySeconds
 } from "./portableWeapons.js";
 import { resolveShipCollision } from "./shipCollision.js";
 import { resolveNavalProjectileImpact } from "./navalCombatResolution.js";
+import { createPortableNavalProjectile } from "./navalProjectileFactory.js";
 import {
   firstNavalProjectileHit,
   navalProjectileMayHitBystanders,
   navalProjectilePoint
 } from "./navalProjectile.js";
 import { advanceHullSplinterBursts, createHullSplinterBurst } from "./hullSplinters.js";
-import { broadsideHullEdgeDistance } from "./broadsideControls.js";
+import {
+  createNavalBroadsideVolley,
+  navalBroadsideSideForTarget
+} from "./navalBroadsideVolley.js";
 import {
   pointInShipFootprint,
   shipFootprintFrame,
@@ -43,21 +46,16 @@ import {
   SHIP_ROWING_MODE_IDLE,
   SHIP_ROWING_MODE_PIVOT_PORT,
   SHIP_ROWING_MODE_PIVOT_STARBOARD,
-  normalizeShipRowingMode,
-  shipRowingModeIsActive,
-  shipRowingModeIsPivot,
-  shipRowingModeThrustDirection
+  normalizeShipRowingMode
 } from "./shipRowingAnimation.js";
 import {
-  SHIP_MINIMUM_POWERED_SPEED_RAD,
-  rowingCrewRatio,
-  sailingEfficiencyForAlignment,
-  shipCanUseOars,
-  shipDragFactor,
-  shipPropulsionPerformance
+  shipCanUseOars
 } from "./shipPropulsion.js";
 import { shipHullResistsDamage, shipStatsForSlug } from "./shipStats.js";
-import { oarPivotTurnRate, shipTurnRate } from "./shipTurning.js";
+import {
+  FLAT_BATTLE_PIXELS_PER_RADIAN as PIXELS_PER_RADIAN,
+  advanceFlatBattleShipKinematics
+} from "./flatBattleShipMotion.js";
 import { chooseNpcObstacleAvoidanceDirection } from "./npcVisualNavigation.js";
 import {
   historicalBattleScenarioById,
@@ -78,7 +76,6 @@ export const HISTORICAL_BATTLE_FIXED_STEP_SECONDS = 1 / 20;
 export const HISTORICAL_BATTLE_SPATIAL_CELL_SIZE = 48;
 export const HISTORICAL_BATTLE_REPLAY_VERSION = 1;
 
-const PIXELS_PER_RADIAN = 2450;
 const MAX_FRAME_SECONDS = 0.25;
 const MAX_ACCUMULATED_SECONDS = 0.5;
 const TARGET_REFRESH_TICKS = 16;
@@ -105,11 +102,6 @@ const HISTORICAL_NAVIGATION_REJOIN_DECISIONS = 3;
 const HISTORICAL_NAVIGATION_PROBE_DISTANCES_PX = Object.freeze([
   24, 48, 80, 120, 180, 260, 380, 520
 ]);
-const CANNON_RANGE_PX = 74;
-const CANNON_SPEED_PX = 88;
-const CANNON_ARC_HEIGHT_PX = 13;
-const CANNON_SPREAD_RAD = 0.18;
-const BROADSIDE_HALF_ANGLE_RAD = 0.62;
 const MAX_PROJECTILES = 1600;
 const MAX_EFFECTS = 512;
 const SPLASH_TTL_SECONDS = 0.46;
@@ -474,8 +466,12 @@ export function fireHistoricalBattleBroadside(state, sideName) {
   const ship = historicalBattlePlayerShip(state);
   if (!ship.active || ship.cooldowns[sideName] > 0) return false;
   const targetIndex = bestBroadsideTarget(state, ship, sideName);
-  if (targetIndex < 0) return false;
-  return fireShipBroadside(state, ship, state.ships[targetIndex], sideName);
+  return fireShipBroadside(
+    state,
+    ship,
+    targetIndex < 0 ? null : state.ships[targetIndex],
+    sideName
+  );
 }
 
 export function historicalBattleSnapshot(state) {
@@ -956,53 +952,22 @@ function moveShipWithStandardPropulsion(
   wakeEnabled = true
 ) {
   const dt = HISTORICAL_BATTLE_FIXED_STEP_SECONDS;
-  const activeCrew = activeCombatCrew(ship.crew, ship.woundedCrew);
-  const rowerRatio = rowingCrewRatio(activeCrew, ship.stats.crewCapacity);
-  const normalizedRowingMode = shipCanUseOars(ship.stats)
-    ? normalizeShipRowingMode(rowingMode)
-    : SHIP_ROWING_MODE_IDLE;
-  const turnRate = shipRowingModeIsPivot(normalizedRowingMode)
-    ? oarPivotTurnRate({
-        turnRateRad: ship.stats.turnRateRad,
-        mass: ship.stats.mass,
-        rowerRatio
-      })
-    : shipTurnRate({
-        turnRateRad: ship.stats.turnRateRad,
-        speedRad: Math.abs(ship.speedPx) / PIXELS_PER_RADIAN,
-        topSpeedRad: ship.stats.topSpeedRad
-      });
   ship.previousX = ship.x;
   ship.previousY = ship.y;
   ship.previousHeadingRad = ship.headingRad;
-  ship.headingRad = turnToward(ship.headingRad, desiredHeading, turnRate * dt);
-  const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
-  const windFlow = historicalBattleWindFlowDirection(state);
-  const alignment = clamp(heading.x * Math.cos(windFlow) + heading.y * Math.sin(windFlow), -1, 1);
-  const sailEfficiency = shipRowingModeIsPivot(normalizedRowingMode)
-    ? 0
-    : sailingEfficiencyForAlignment(ship.stats, alignment);
-  const thrustDirection = shipRowingModeThrustDirection(normalizedRowingMode);
-  const propulsion = shipPropulsionPerformance(ship.stats, {
+  const kinematics = advanceFlatBattleShipKinematics({
+    ship,
+    dt,
+    desiredHeadingRad: desiredHeading,
+    rowingMode,
+    windDirectionRad: state.wind.directionRad,
     windStrength: state.wind.strength,
-    sailEfficiency,
-    minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD,
-    rowerRatio,
-    rowingRequested: thrustDirection !== 0,
-    rowingDirection: thrustDirection < 0 ? -1 : 1
+    speedCapPx,
+    autoPivot: true
   });
-  ship.rowingMode = propulsion.rowing ? normalizedRowingMode : SHIP_ROWING_MODE_IDLE;
-  ship.rowing = shipRowingModeIsActive(ship.rowingMode);
-  ship.speedPx += ship.stats.accelerationRad * PIXELS_PER_RADIAN *
-    propulsion.accelerationFactor * propulsion.propulsionDirection * dt;
-  ship.speedPx *= shipDragFactor(propulsion.stalled, dt);
-  const propulsionMaxSpeedPx = propulsion.stalled ? 0 : propulsion.maxSpeedRad * PIXELS_PER_RADIAN;
-  const maxSpeedPx = Math.min(propulsionMaxSpeedPx, Math.max(0, speedCapPx));
-  ship.speedPx = clamp(ship.speedPx, -maxSpeedPx, maxSpeedPx);
-  const movementAngle = ship.headingRad + (ship.speedPx < 0 ? Math.PI : 0);
-  const distance = Math.abs(ship.speedPx * dt);
-  const nextX = ship.x + Math.cos(movementAngle) * distance;
-  const nextY = ship.y + Math.sin(movementAngle) * distance;
+  const distance = Math.abs(kinematics.distancePx);
+  const nextX = ship.x + Math.cos(kinematics.movementHeadingRad) * distance;
+  const nextY = ship.y + Math.sin(kinematics.movementHeadingRad) * distance;
   if (historicalBattleMapEscapeAt(state.map, ship.sideId, nextX, nextY)) {
     escapeShip(state, ship);
     return;
@@ -1536,63 +1501,45 @@ function bestBroadsideTarget(state, ship, sideName) {
 }
 
 function broadsideSideForTarget(ship, target) {
-  const bearing = Math.atan2(target.y - ship.y, target.x - ship.x);
-  const delta = signedAngle(bearing - ship.headingRad);
-  if (Math.abs(Math.abs(delta) - Math.PI / 2) > BROADSIDE_HALF_ANGLE_RAD) return null;
-  return delta > 0 ? "starboard" : "port";
+  return navalBroadsideSideForTarget(
+    { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) },
+    ship,
+    target
+  );
 }
 
 function fireShipBroadside(state, ship, target, sideName) {
-  if (!ship.weapon || ship.cooldowns[sideName] > 0 || !ship.active || !target.active) return false;
+  if (!ship.weapon || ship.cooldowns[sideName] > 0 || !ship.active ||
+      (!ship.playerControlled && !target?.active)) return false;
   ship.cooldowns[sideName] = ship.weapon.reloadSeconds;
   const count = Math.max(1, Math.ceil(ship.stats.cannons / 2));
-  const sideDirection = broadsideDirection(ship, sideName);
-  const muzzleSideOffset = broadsideHullEdgeDistance(
-    historicalShipWorldFootprint(state, ship),
-    ship,
-    sideDirection
-  );
-  const toTarget = normalizedDirection(target.x - ship.x, target.y - ship.y);
-  const targetDistance = Math.hypot(target.x - ship.x, target.y - ship.y);
-  const aimed = targetDistance <= cannonRange(ship) * 1.08 &&
-    dot(sideDirection, toTarget) >= Math.cos(BROADSIDE_HALF_ANGLE_RAD);
-  const trueShotIndex = accurateBroadsideShotIndex(count);
+  const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
+  const targetIndex = target ? state.ships.indexOf(target) : -1;
+  const volley = createNavalBroadsideVolley({
+    origin: ship,
+    heading,
+    hullFootprint: historicalShipWorldFootprint(state, ship),
+    sideName,
+    projectileCount: count,
+    weapon: ship.weapon,
+    targetPoint: target,
+    aimAtTarget: !ship.playerControlled,
+    randomUnit: () => nextRandom(state),
+    seedForShot: (index) => (
+      state.randomSeed ^ state.projectileSerial ^ Math.imul(index + 1, 0x9e3779b1)
+    ) >>> 0
+  });
   const smokeProjectiles = [];
-  for (let index = 0; index < count; index++) {
-    const trueShot = index === trueShotIndex;
-    const lineT = count === 1 ? 0 : index / (count - 1) - 0.5;
-    const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
-    const startX = ship.x + heading.x * lineT * 13 + sideDirection.x * muzzleSideOffset;
-    const startY = ship.y + heading.y * lineT * 13 + sideDirection.y * muzzleSideOffset;
-    const spread = trueShot ? 0 : (nextRandom(state) - 0.5) * 2 * CANNON_SPREAD_RAD;
-    const aim = rotate(aimed ? toTarget : sideDirection, spread);
-    const projectileRange = aimed
-      ? targetDistance + (nextRandom(state) - 0.5) * 7
-      : cannonRange(ship) * (0.82 + nextRandom(state) * 0.28);
-    const targetX = aimed && trueShot ? target.x : startX + aim.x * projectileRange;
-    const targetY = aimed && trueShot ? target.y : startY + aim.y * projectileRange;
-    const actualRange = Math.hypot(targetX - startX, targetY - startY);
+  for (let index = 0; index < volley.length; index++) {
+    const shot = volley[index];
     const projectile = {
+      ...shot,
       id: state.projectileSerial++,
-      kind: "cannon",
       ownerIndex: state.ships.indexOf(ship),
-      targetIndex: aimed ? state.ships.indexOf(target) : -1,
-      startX,
-      startY,
-      targetX,
-      targetY,
-      ageSeconds: 0,
-      durationSeconds: Math.max(0.12, actualRange / (CANNON_SPEED_PX * ship.weapon.speedScale)),
-      damage: ship.weapon.damage,
-      crewDamage: 0,
-      crewHitChance: 0,
-      crewProtectionPenetration: 0,
-      arcHeight: CANNON_ARC_HEIGHT_PX,
-      projectileSize: 2,
-      seed: (state.randomSeed ^ state.projectileSerial ^ Math.imul(index + 1, 0x9e3779b1)) >>> 0
+      targetIndex: shot.targetAimed ? targetIndex : -1
     };
     addProjectile(state, projectile);
-    if (index === 0 || index === count - 1 || index === trueShotIndex) {
+    if (index === 0 || index === count - 1 || shot.trueShot) {
       smokeProjectiles.push(projectile);
     }
   }
@@ -1633,41 +1580,31 @@ function firePortableWeapons(state, ship, target, targetDistance) {
       });
       const targetX = aim.x;
       const targetY = aim.y;
-      const range = Math.hypot(targetX - ship.x, targetY - ship.y);
       const projectileSeed = (
         state.randomSeed ^ state.projectileSerial ^ Math.imul(index + 1, 0x85ebca6b)
       ) >>> 0;
       addProjectile(state, {
+        ...createPortableNavalProjectile({
+          weapon,
+          startX: ship.x,
+          startY: ship.y,
+          targetX,
+          targetY,
+          seed: projectileSeed,
+          arcHeightUnit: nextRandom(state),
+          damageScale: share,
+          hullDamageAttempts: share,
+          crewDamageScale: share,
+          operatorShare: share,
+          launchDelaySeconds: portableWeaponVolleyLaunchDelaySeconds({
+            shotIndex: index,
+            shotCount: visualCount,
+            unit: ((projectileSeed >>> 8) & 0xffffff) / 0x1000000
+          })
+        }),
         id: state.projectileSerial++,
-        kind: weapon.animationKind,
-        portable: true,
-        weaponId: weapon.itemId,
         ownerIndex: state.ships.indexOf(ship),
         targetIndex: state.ships.indexOf(target),
-        startX: ship.x,
-        startY: ship.y,
-        targetX,
-        targetY,
-        age: 0,
-        duration: Math.max(0.12, range / (CANNON_SPEED_PX * weapon.speedScale)),
-        arcHeight: weapon.animationKind === "arrow" ? 4 : 1,
-        damage: weapon.hullDamage * share,
-        hullHitChance: weapon.hullHitChance,
-        hullDamageAttempts: share,
-        crewDamage: weapon.crewDamage * share,
-        projectileSize: weapon.projectileSize,
-        smokeScale: weapon.smokeScale,
-        crewHitChance: weapon.crewHitChance,
-        crewProtectionPenetration: weapon.crewProtectionPenetration,
-        incendiary: weapon.incendiary === true,
-        operatorShare: share,
-        launchDelaySeconds: portableWeaponVolleyLaunchDelaySeconds({
-          shotIndex: index,
-          shotCount: visualCount,
-          unit: ((projectileSeed >>> 8) & 0xffffff) / 0x1000000
-        }),
-        launched: false,
-        seed: projectileSeed
       });
     }
   }
@@ -1948,13 +1885,6 @@ function cannonRange(ship) {
   return CANNON_RANGE_PX * (ship.weapon?.rangeScale || 0);
 }
 
-function broadsideDirection(ship, sideName) {
-  const heading = { x: Math.cos(ship.headingRad), y: Math.sin(ship.headingRad) };
-  return sideName === "port"
-    ? { x: heading.y, y: -heading.x }
-    : { x: -heading.y, y: heading.x };
-}
-
 function bowAlignment(ship, target) {
   const direction = normalizedDirection(target.x - ship.x, target.y - ship.y);
   return direction.x * Math.cos(ship.headingRad) + direction.y * Math.sin(ship.headingRad);
@@ -2049,16 +1979,6 @@ function signedAngle(value) {
 function normalizeAngle(value) {
   if (value >= 0 && value < TWO_PI) return value;
   return ((value % TWO_PI) + TWO_PI) % TWO_PI;
-}
-
-function rotate(vector, angle) {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  return { x: vector.x * cos - vector.y * sin, y: vector.x * sin + vector.y * cos };
-}
-
-function dot(a, b) {
-  return a.x * b.x + a.y * b.y;
 }
 
 function roundSnapshot(value) {

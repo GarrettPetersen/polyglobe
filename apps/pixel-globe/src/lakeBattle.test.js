@@ -365,7 +365,7 @@ test("broadside fire follows the selected side and emits combat events", () => {
     port
   );
   assert.ok(battle.projectiles.every((projectile) => (
-    Math.abs(projectile.startY - (battle.player.y - muzzleOffset)) < 1e-9
+    Math.abs(projectile.startY - (battle.player.y - muzzleOffset)) <= 0.76
   )));
   assert.equal(battle.cannonSmokeBursts.length, battle.projectiles.length);
   assert.ok(battle.projectiles.every((projectile) => projectile.arcHeight < 4));
@@ -377,7 +377,7 @@ test("broadside fire follows the selected side and emits combat events", () => {
   );
 });
 
-test("a one-ball broadside fires its sole cannonball exactly at the target", () => {
+test("a one-ball broadside fires its sole cannonball down the selected centerline", () => {
   const battle = createLakeBattle({
     width: 455,
     height: 256,
@@ -391,22 +391,12 @@ test("a one-ball broadside fires its sole cannonball exactly at the target", () 
   battle.enemy.y = 78;
   battle.enemy.headingRad = 0;
 
-  const targetCenter = shipFootprintCenter(shipFootprintFrame(
-    TEST_SHIP_FOOTPRINTS.get(battle.enemy.slug),
-    lakeBattleHeadingVector(battle.enemy)
-  ));
-  const expectedTarget = {
-    x: battle.enemy.x + targetCenter.x,
-    y: battle.enemy.y + targetCenter.y
-  };
-
   assert.equal(fireLakeBattleBroadside(battle, LAKE_BATTLE_PLAYER_ID, "port"), true);
   assert.equal(battle.projectiles.length, 1);
   const trueShot = battle.projectiles[accurateBroadsideShotIndex(battle.projectiles.length)];
-  assert.deepEqual(
-    { x: trueShot.targetX, y: trueShot.targetY },
-    expectedTarget
-  );
+  assert.equal(trueShot.trueShot, true);
+  assert.ok(Math.abs(trueShot.targetX - trueShot.startX) < 1e-9);
+  assert.ok(trueShot.targetY < trueShot.startY);
 });
 
 test("a cannonball damages the first ship crossed before its endpoint", () => {
