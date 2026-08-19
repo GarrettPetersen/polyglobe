@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   CAPTAIN_CHART_SAMPLE_OFFSETS,
+  captainChartDragPreviewOffset,
   captainChartHexPixelSpan,
   captainChartHousePixels,
   captainChartPanAvailability,
@@ -88,4 +89,24 @@ test("captain chart preview crops work across the longitude seam", () => {
     sourcePixelWidth: 90,
     sourcePixelHeight: 36
   }), { x: 18, y: 9, width: 36, height: 18 });
+});
+
+test("captain chart drag keeps the detailed raster aligned with the pointer", () => {
+  assert.deepEqual(captainChartDragPreviewOffset({
+    sourceViewport: { startX: 20, startY: 8, spanX: 20, spanY: 8 },
+    targetViewport: { startX: 22, startY: 9, spanX: 20, spanY: 8 },
+    worldWidth: 80,
+    pixelWidth: 100,
+    pixelHeight: 40
+  }), { x: -10, y: -5 });
+});
+
+test("captain chart drag keeps the detailed raster aligned across the longitude seam", () => {
+  assert.deepEqual(captainChartDragPreviewOffset({
+    sourceViewport: { startX: 78, startY: 8, spanX: 20, spanY: 8 },
+    targetViewport: { startX: 0, startY: 8, spanX: 20, spanY: 8 },
+    worldWidth: 80,
+    pixelWidth: 100,
+    pixelHeight: 40
+  }), { x: -10, y: 0 });
 });

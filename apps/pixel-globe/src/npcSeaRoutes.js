@@ -764,6 +764,46 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
   return ship;
 }
 
+export function reconcileNpcRouteEncounterIdentity(system, shipId, {
+  factionId,
+  role,
+  shipSlug
+}) {
+  assertSaveableNpcRouteSystem(system);
+  assertFactionId(factionId);
+  if (!NPC_ROLE_SET.has(role)) throw new Error(`Unknown NPC route encounter role: ${role}`);
+  const stats = shipStatsForSlug(shipSlug);
+  const ship = requiredNpcShip(system, shipId);
+  const factionChanged = ship.factionId !== factionId;
+  const roleChanged = ship.role !== role;
+  const shipChanged = ship.slug !== shipSlug;
+  if (shipChanged) {
+    const cargoUnits = npcCargoUnits(ship);
+    if (cargoUnits > stats.cargoCapacity) {
+      throw new Error(
+        `NPC route encounter ${shipId} carries ${cargoUnits} cargo but ${shipSlug} holds ${stats.cargoCapacity}`
+      );
+    }
+    const hullFraction = ship.maxHitPoints > 0
+      ? Math.max(0, Math.min(1, ship.hitPoints / ship.maxHitPoints))
+      : 1;
+    ship.slug = shipSlug;
+    ship.slugs = [shipSlug];
+    ship.maxHitPoints = stats.hitPoints;
+    ship.hitPoints = Math.max(1, Math.round(stats.hitPoints * hullFraction));
+    ship.cargoCapacity = stats.cargoCapacity;
+  }
+  ship.factionId = factionId;
+  ship.role = role;
+  if (role !== NPC_ROLE_FISHERMAN) ship.fishingNetId = null;
+  return Object.freeze({
+    changed: factionChanged || roleChanged || shipChanged,
+    factionChanged,
+    roleChanged,
+    shipChanged
+  });
+}
+
 export function stageNpcRouteEncounterAtDestination(
   system,
   shipId,

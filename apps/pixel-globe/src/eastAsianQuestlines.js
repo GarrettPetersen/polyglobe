@@ -122,7 +122,7 @@ export function ningboDelegationManifest(questId, delegationOrigins, destination
         id: `${questId}-${factionId}-courier`,
         factionId,
         role: "warship",
-        shipSlug: "japanese-kuribune",
+        shipSlug: "japanese-sekibune",
         originPortId,
         destinationPortId,
         delegationRole: "courier",
@@ -142,6 +142,40 @@ export function ningboDelegationManifest(questId, delegationOrigins, destination
       })
     ];
   }));
+}
+
+export function reconcileNingboMissionDelegationManifest(
+  quest,
+  delegationOrigins,
+  destinationPortId
+) {
+  if (quest?.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO) {
+    throw new Error(`Cannot reconcile a non-Ningbo mission: ${quest?.id}`);
+  }
+  const canonical = ningboDelegationManifest(quest.id, delegationOrigins, destinationPortId);
+  const existing = Array.isArray(quest.eastAsianDelegationShips)
+    ? quest.eastAsianDelegationShips
+    : [];
+  const matches = canonical.length === existing.length && canonical.every((spec, index) => (
+    Object.entries(spec).every(([key, value]) => existing[index]?.[key] === value)
+  ));
+  if (!matches) quest.eastAsianDelegationShips = canonical;
+  const manifest = matches ? existing : canonical;
+  if (quest.eastAsianStage === "battle" && NINGBO_FACTIONS.includes(quest.eastAsianBattleFactionId)) {
+    const enemyFactionId = quest.eastAsianBattleFactionId;
+    const alliedFactionId = enemyFactionId === "hosokawa" ? "ouchi" : "hosokawa";
+    quest.eastAsianBattleShipIds = manifest
+      .filter((ship) => ship.factionId === enemyFactionId)
+      .map((ship) => ship.id);
+    quest.eastAsianAlliedShipIds = manifest
+      .filter((ship) => ship.factionId === alliedFactionId)
+      .map((ship) => ship.id);
+    quest.eastAsianDefeatedShipIds = (quest.eastAsianDefeatedShipIds || [])
+      .filter((id) => quest.eastAsianBattleShipIds.includes(id));
+    quest.eastAsianLostShipIds = (quest.eastAsianLostShipIds || [])
+      .filter((id) => quest.eastAsianAlliedShipIds.includes(id));
+  }
+  return manifest;
 }
 
 export function ningboMissionWaypointShips(quest) {

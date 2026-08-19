@@ -129,6 +129,36 @@ export function captainChartPreviewCrop({
   });
 }
 
+export function captainChartDragPreviewOffset({
+  sourceViewport,
+  targetViewport,
+  worldWidth,
+  pixelWidth,
+  pixelHeight
+}) {
+  for (const [label, value] of Object.entries({ worldWidth, pixelWidth, pixelHeight })) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`Invalid captain chart drag preview ${label}: ${value}`);
+    }
+  }
+  if (!sourceViewport || !targetViewport) return null;
+  const epsilon = 1e-6;
+  if (Math.abs(sourceViewport.spanX - targetViewport.spanX) > epsilon ||
+      Math.abs(sourceViewport.spanY - targetViewport.spanY) > epsilon) {
+    return null;
+  }
+  let offsetX = sourceViewport.startX - targetViewport.startX;
+  if (offsetX > worldWidth / 2) offsetX -= worldWidth;
+  else if (offsetX < -worldWidth / 2) offsetX += worldWidth;
+  return Object.freeze({
+    x: Math.round(offsetX / targetViewport.spanX * pixelWidth),
+    y: Math.round(
+      (sourceViewport.startY - targetViewport.startY) /
+      targetViewport.spanY * pixelHeight
+    )
+  });
+}
+
 export function captainChartHousePixels(size) {
   if (!Number.isInteger(size) || size < 3 || size > MAX_HOUSE_SIZE || size % 2 === 0) {
     throw new Error(`Invalid captain chart house size: ${size}`);

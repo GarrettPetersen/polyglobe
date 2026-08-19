@@ -29,6 +29,7 @@ import {
   npcPortHasMajorProtection,
   npcSeaRoutePortSettlementType,
   reconcileNpcCargoCapacity,
+  reconcileNpcRouteEncounterIdentity,
   routeBetweenPorts,
   npcSeaRouteEventSchedule,
   npcShipHasCombatGrace,
@@ -1968,6 +1969,39 @@ test("routed delegation encounters depart for and wait at their specified destin
     arrivalMinute + 3,
     { holdProgress: 0.99 }
   ), false);
+});
+
+test("legacy routed encounters adopt their canonical faction and vessel without losing position", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const delegation = configureNpcRouteEncounter(routes, {
+    id: "delegation:identity",
+    originPortId: 8,
+    destinationPortId: 9,
+    factionId: "hosokawa",
+    role: NPC_ROLE_MERCHANT,
+    shipSlug: "japanese-kuribune",
+    replaceOnSink: false,
+    encounter: { kind: "test-delegation", destinationPortId: 9 }
+  }, 1000);
+  const routeVector = npcShipSnapshotForId(routes, delegation.id, 1000).routeVector;
+
+  const result = reconcileNpcRouteEncounterIdentity(routes, delegation.id, {
+    factionId: "ouchi",
+    role: NPC_ROLE_WARSHIP,
+    shipSlug: "japanese-sekibune"
+  });
+
+  assert.deepEqual(result, {
+    changed: true,
+    factionChanged: true,
+    roleChanged: true,
+    shipChanged: true
+  });
+  assert.equal(delegation.factionId, "ouchi");
+  assert.equal(delegation.role, NPC_ROLE_WARSHIP);
+  assert.equal(delegation.slug, "japanese-sekibune");
+  assert.deepEqual(npcShipSnapshotForId(routes, delegation.id, 1000).routeVector, routeVector);
 });
 
 test("routed delegations can be assembled at their hearing without waiting for the route clock", () => {

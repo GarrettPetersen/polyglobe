@@ -29,6 +29,7 @@ import {
   eastAsianMissionDialogue,
   eastAsianMissionPlanForCity,
   eastAsianMissionOutcomeOptions,
+  reconcileNingboMissionDelegationManifest,
   ningboMissionJournalPresentation,
   ningboMissionWaypointShips
 } from "./eastAsianQuestlines.js";
@@ -323,6 +324,35 @@ test("Ningbo loyalty and defection require a two-ship battle with a loss conditi
   assert.equal(recordNingboMissionShipDefeated(defectState, alliedIds[1]).status, "defeat");
   assert.equal(defectState.memory.quests.passengerActive, null);
   assert.equal(defectState.memory.quests.failed[defectActive.id].reason, "ningbo-delegation-defeated");
+});
+
+test("legacy Ningbo fleets reconcile faction identity, battle rosters, and warship types", () => {
+  const state = gameState();
+  const quest = acceptQuest(state, offer(state, SAKAI), { simMinute: 0 });
+  recordNingboMissionArrival(state, quest.id, { simMinute: 60, rivalArrivalMinute: 90 });
+  refuseNingboMissionBribe(state, quest.id);
+  selectEastAsianMissionOutcome(state, quest.id, "support-origin");
+  quest.eastAsianDelegationShips = quest.eastAsianDelegationShips.map((ship) => ({
+    ...ship,
+    factionId: ship.id.includes("-ouchi-") ? "hosokawa" : ship.factionId,
+    shipSlug: ship.delegationRole === "courier" ? "japanese-kuribune" : ship.shipSlug
+  }));
+  quest.eastAsianBattleShipIds = [quest.eastAsianDelegationShips[0].id];
+
+  const manifest = reconcileNingboMissionDelegationManifest(
+    quest,
+    { hosokawa: SAKAI.tileId, ouchi: YAMAGUCHI.tileId },
+    NINGBO.tileId
+  );
+
+  assert.equal(manifest.length, 4);
+  assert.ok(manifest.every((ship) => ship.role === "warship"));
+  assert.ok(manifest.filter((ship) => ship.delegationRole === "courier")
+    .every((ship) => ship.shipSlug === "japanese-sekibune"));
+  assert.deepEqual(
+    quest.eastAsianBattleShipIds,
+    manifest.filter((ship) => ship.factionId === "ouchi").map((ship) => ship.id)
+  );
 });
 
 test("Ningbo journal copy and ship waypoints follow the race and battle stages", () => {

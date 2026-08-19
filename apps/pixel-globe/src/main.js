@@ -473,9 +473,9 @@ import {
   NINGBO_DEFECTION_BRIBE,
   NINGBO_BRIBE_JOURNEY_EVENT_ID,
   eastAsianMissionHasOutcomes,
-  ningboDelegationManifest,
   ningboMissionJournalPresentation,
-  ningboMissionWaypointShips
+  ningboMissionWaypointShips,
+  reconcileNingboMissionDelegationManifest
 } from "./eastAsianQuestlines.js";
 import {
   createDecisionBackedQuestJourneyDialogueSubject,
@@ -869,6 +869,7 @@ import {
   npcShipIdsAddedSinceSimulationSnapshot,
   npcShipSnapshotForId,
   npcShipSnapshots,
+  reconcileNpcRouteEncounterIdentity,
   replaceNpcSeaRoutePort,
   releaseNpcShipVisualNavigation,
   restoreNpcSurrenderContinuity,
@@ -1058,6 +1059,7 @@ import {
 } from "./captainChartLayout.js";
 import {
   CAPTAIN_CHART_SAMPLE_OFFSETS,
+  captainChartDragPreviewOffset,
   captainChartHexPixelSpan,
   captainChartHousePixels,
   captainChartPanAvailability,
@@ -6574,7 +6576,8 @@ function createCaptainMenuState() {
     mapPanRects: null,
     mapDragPointerId: null,
     mapDragStartPoint: null,
-    mapDragStartCenter: null
+    mapDragStartCenter: null,
+    mapDragPreview: null
   };
 }
 
@@ -7715,22 +7718,18 @@ function retireTeaRaceFleet(quest) {
 }
 
 function reconcileNingboDelegationManifest(quest) {
-  if (Array.isArray(quest.eastAsianDelegationShips) && quest.eastAsianDelegationShips.length === 4) {
-    return quest.eastAsianDelegationShips;
-  }
   const delegationOrigins = {};
   for (const factionId of ["hosokawa", "ouchi"]) {
     const capital = portCities.find((city) => city.factionId === factionId && city.isFactionCapital === true);
     if (!capital) throw new Error(`Ningbo mission requires a ${factionId} capital`);
     delegationOrigins[factionId] = capital.tileId;
   }
-  quest.eastAsianDelegationShips = ningboDelegationManifest(
-    quest.id,
+  quest.eastAsianStage ||= "race";
+  return reconcileNingboMissionDelegationManifest(
+    quest,
     delegationOrigins,
     quest.destinationTileId
   );
-  quest.eastAsianStage ||= "race";
-  return quest.eastAsianDelegationShips;
 }
 
 function ensureNingboMissionEncounters({ assignCaptains = true } = {}) {
@@ -7745,6 +7744,7 @@ function ensureNingboMissionEncounters({ assignCaptains = true } = {}) {
   for (const spec of manifest) {
     if (removedIds.has(spec.id)) continue;
     let strategic = npcSeaRoutes.shipById.get(spec.id);
+    let identityChanged = false;
     if (!strategic) {
       strategic = configureNpcRouteEncounter(npcSeaRoutes, {
         ...spec,
@@ -7760,9 +7760,40 @@ function ensureNingboMissionEncounters({ assignCaptains = true } = {}) {
             quest.eastAsianBattleShipIds?.includes(spec.id) === true
         }
       }, weatherClockMinutes);
-    } else if (strategic.encounter?.kind === "ningbo-delegation") {
+    } else {
+      const identity = reconcileNpcRouteEncounterIdentity(npcSeaRoutes, strategic.id, spec);
+      identityChanged = identity.changed;
+      if (identity.factionChanged) npcShipCaptains?.delete(strategic.id);
+      if (strategic.encounter?.kind !== "ningbo-delegation") {
+        strategic.encounter = {
+          kind: "ningbo-delegation",
+          questId: quest.id,
+          delegationRole: spec.delegationRole,
+          destinationPortId: spec.destinationPortId,
+          holdAtDestination: true,
+          holdProgress: spec.holdProgress,
+          originPortId: spec.originPortId
+        };
+      }
       strategic.encounter.forceAttack = quest.eastAsianStage === "battle" &&
         quest.eastAsianBattleShipIds?.includes(spec.id) === true;
+    }
+    if (identityChanged) {
+      const visualState = npcVisualShips.get(strategic.id);
+      if (visualState) discardNpcVisualState(visualState);
+      npcVisualSnapshotCache.reset();
+    }
+    const isBattleParticipant = quest.eastAsianStage === "battle" && (
+      quest.eastAsianBattleShipIds?.includes(spec.id) === true ||
+      quest.eastAsianAlliedShipIds?.includes(spec.id) === true
+    );
+    if (isBattleParticipant && npcShipHasCombatGrace(npcSeaRoutes, strategic.id)) {
+      const result = recordNingboMissionShipDefeated(gameState, strategic.id);
+      if (!result) {
+        throw new Error(`Struck Ningbo delegation ship was not in the battle ledger: ${strategic.id}`);
+      }
+      removedIds.add(strategic.id);
+      continue;
     }
     if (assignCaptains) ensureNpcShipCaptain(strategic.id);
     active.push(strategic);
@@ -16017,6 +16048,7 @@ function closeCaptainMenu() {
   captainMenu.mapDragPointerId = null;
   captainMenu.mapDragStartPoint = null;
   captainMenu.mapDragStartCenter = null;
+  captainMenu.mapDragPreview = null;
   dirty = true;
 }
 
@@ -16779,6 +16811,7 @@ function handlePointerUp(event) {
     captainMenu.mapDragPointerId = null;
     captainMenu.mapDragStartPoint = null;
     captainMenu.mapDragStartCenter = null;
+    captainMenu.mapDragPreview = null;
     dirty = true;
   }
   if (optionsMenu.activeSliderKey) {
@@ -16820,6 +16853,7 @@ function handleCaptainMenuPointerDown(event, point) {
     captainMenu.mapDragPointerId = event.pointerId;
     captainMenu.mapDragStartPoint = { ...point };
     captainMenu.mapDragStartCenter = minimapViewportCenter(viewport, MINIMAP_W);
+    captainMenu.mapDragPreview = captureCaptainChartDragPreview(viewport);
     return;
   }
   if (captainMenu.journalPreviousRect && pointInRect(point, captainMenu.journalPreviousRect)) {
@@ -40321,6 +40355,9 @@ function nativeCaptainChartMinimap(width, height, viewport) {
     captainChartMinimapCache.clear();
     captainChartMinimapCacheRevision = minimap.rasterRevision;
   }
+  if (captainMenu.mapDragPointerId !== null && captainMenu.mapDragPreview) {
+    return drawCaptainChartDragPreview(width, height, viewport);
+  }
   const viewportKey = minimapViewportRenderKey(viewport);
   const cacheKey = `${width}x${height}:${viewportKey}`;
   let captainChartMinimap = captainChartMinimapCache.get(cacheKey);
@@ -40364,6 +40401,52 @@ function nativeCaptainChartMinimap(width, height, viewport) {
     else dirty = true;
   }
   return captainChartMinimap;
+}
+
+function captureCaptainChartDragPreview(viewport) {
+  if (!captainMenu.mapRect || !viewport) return null;
+  const { w: width, h: height } = captainMenu.mapRect;
+  const viewportKey = minimapViewportRenderKey(viewport);
+  const sourceRaster = captainChartMinimapCache.get(`${width}x${height}:${viewportKey}`);
+  if (!sourceRaster) return null;
+  const sourceCanvas = document.createElement("canvas");
+  sourceCanvas.width = width;
+  sourceCanvas.height = height;
+  const sourceCtx = sourceCanvas.getContext("2d", { alpha: false });
+  if (!sourceCtx) throw new Error("Could not capture captain chart drag preview");
+  sourceCtx.imageSmoothingEnabled = false;
+  sourceCtx.drawImage(sourceRaster.canvas, 0, 0);
+  const previewRaster = buildMinimapRaster(width, height, {
+    sampleOffsets: CAPTAIN_CHART_SAMPLE_OFFSETS
+  });
+  return { sourceCanvas, sourceViewport: viewport, previewRaster };
+}
+
+function drawCaptainChartDragPreview(width, height, viewport) {
+  const preview = captainMenu.mapDragPreview;
+  if (!preview || preview.previewRaster.width !== width || preview.previewRaster.height !== height) {
+    captainMenu.mapDragPreview = null;
+    return nativeCaptainChartMinimap(width, height, viewport);
+  }
+  const offset = captainChartDragPreviewOffset({
+    sourceViewport: preview.sourceViewport,
+    targetViewport: viewport,
+    worldWidth: MINIMAP_W,
+    pixelWidth: width,
+    pixelHeight: height
+  });
+  if (!offset) {
+    captainMenu.mapDragPreview = null;
+    return nativeCaptainChartMinimap(width, height, viewport);
+  }
+  const raster = preview.previewRaster;
+  drawCaptainChartMinimapPreview(raster, viewport);
+  raster.ctx.imageSmoothingEnabled = false;
+  raster.ctx.drawImage(preview.sourceCanvas, offset.x, offset.y);
+  raster.renderedViewport = viewport;
+  raster.renderedViewportKey = minimapViewportRenderKey(viewport);
+  raster.sourceRevision = minimap.rasterRevision;
+  return raster;
 }
 
 function drawCaptainChartMinimapPreview(targetRaster, targetViewport) {
