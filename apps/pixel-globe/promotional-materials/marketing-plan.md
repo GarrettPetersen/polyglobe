@@ -1,6 +1,41 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **August 13, 2026**.
+Last updated: **August 19, 2026**.
+
+## Dated marketing calendar
+
+- **August 19–30:** Continue the daily YouTube Short cadence at 9:00 a.m.
+  Pacific and cross-post each Short to X. Track the individual topics, upload
+  status and links in
+  [youtube-shorts-release-log.md](youtube-shorts-release-log.md).
+- **August 24:** Galaxies Autumn selection notices are due. If selected, begin
+  a distinct 30- or 60-second showcase trailer immediately.
+- **August 26:** The Indie Game Award 2027 pre-selection material-upload portal
+  opens. Upload the strongest current build and current promotional material;
+  record the final upload deadline when the reminder email arrives.
+- **September 7:** IGF 2027 fee-waiver request deadline.
+- **September 13:** IGF 2027 application and build deadline.
+- **September 21:** Submit the Next Fest demo build and store page for review
+  to be ready for the press preview.
+- **September 22–29:** SCHMOOVEMENT Festival.
+- **September 28:** Galaxies Autumn trailer deadline, if selected.
+- **October 5:** Submit all Next Fest materials. The Atlantic Canada Game
+  Celebration also begins, so the demo should already be public and its
+  logged-out install flow verified.
+- **October 5–12:** Atlantic Canada Game Celebration.
+- **October 15:** Galaxies Autumn showcase, if selected.
+- **October 19 at 10:00 a.m. PDT:** Absolute Next Fest deadline for the public
+  demo. Our operational target is earlier than October 5 because of ACGC.
+- **October 19–26:** Steam Next Fest.
+- **After October 26:** Review wishlists, demo conversion, creator coverage and
+  build stability, then make the release go/no-go decision. Tentative release
+  window remains November or early December, avoiding the December 17 Steam
+  Winter Sale start.
+
+The coordinated public demo launch does not have a date yet. Set it only after
+the release-blocking demo checks below pass, then work backward one to two weeks
+for creator access and prepare the Steam, X, Reddit, Japanese-press and
+GamesPress posts for the same launch beat.
 
 ## Store and build
 
@@ -40,7 +75,7 @@ Last updated: **August 13, 2026**.
 
 ## BiteMe Games checklist audit
 
-Checked **August 13, 2026** against BiteMe Games' public
+Rechecked **August 19, 2026** against BiteMe Games' live public
 [Steam Store Page Checklist](https://bmg.yt/steampage) and
 [Steam Demo Checklist](https://bmg.yt/demo).
 These are useful QA lists, not Steam requirements. Apply the recommendations
@@ -55,21 +90,47 @@ game merely to tick every box.
   visible, 20 tags, 11 localized store languages, a website and a press kit.
 - [x] The current trailer is within BiteMe's recommended 30–50-second range.
 - [x] The demo is also available on itch.io.
+- [x] The demo has a main menu and localization rather than launching directly
+  into an unexplained game state.
 
 ### Complete before the public demo beat
 
-- [ ] **Run a clean-install demo onboarding and exit-path QA pass.**
-  - Confirm there are no crashes, blockers or dead ends.
-  - Put the core sailing loop in front of a new player within the first three
-    minutes; avoid an opening lore dump.
-  - Confirm the main menu, pause menu, settings and tutorial/control prompts all
-    work with mouse, keyboard and controller.
+- [ ] **Pass the BiteMe release-blocker audit on a clean installation.**
+  - Confirm the demo is a stable slice rather than a public playtest: no known
+    crashes, progression blockers, dead ends or broken save states.
+  - Confirm the pause menu actually pauses play and provides access to the
+    necessary settings.
   - Test `Shift+Tab`: opening the Steam Overlay should pause the game.
-  - Test a non-QWERTY keyboard layout and make sure no required input can
-    soft-lock the player.
+  - Put the core sailing loop in front of a new player within the first three
+    minutes. Do not make the player sit through an opening cinematic or lore
+    dump before reaching it.
+  - Give the demo a clear endpoint and wishlist call to action even though it
+    has no timer.
   - Make Quit behave like Quit. Do not force-open Steam or a browser as the
     price of leaving the game.
-  - Give the demo a clear endpoint even though it has no timer.
+
+- [ ] **Pass the BiteMe onboarding audit with a new player.**
+  - Start at a functioning main menu.
+  - Provide enough tutorial guidance for the player to understand the goal and
+    first actions without outside instructions.
+  - Display the required controls through prompts or a clear input diagram.
+  - Test mouse, keyboard and Xbox-style controller input throughout the menu,
+    tutorial, pause screen and core loop.
+  - Test AZERTY and QWERTZ layouts so a non-QWERTY player cannot be soft-locked.
+  - Make support or Steam Discussions easy to reach from the main menu.
+
+- [ ] **Pass an audio and settings audit.**
+  - Confirm music, wind/sea ambience and sound effects cover every major
+    interaction without abrupt cutoffs or important silent actions.
+  - Check default mix levels on headphones and speakers; do not adopt an
+    arbitrary 50% default if a different mix is better.
+  - Confirm master, music, effects and ambient controls behave correctly where
+    those channels are exposed.
+  - Verify windowed/fullscreen behaviour, resolution or window resizing, VSync
+    and frame limiting on the packaged Windows, macOS and Linux builds. Add
+    options that solve real packaged-build problems rather than copying a
+    generic settings menu verbatim.
+  - Recheck all 11 localizations in the packaged demo.
 
 - [ ] **Add a low-friction wishlist call to action.**
   - Put a Steam wishlist button in the demo's main menu and at its natural
@@ -103,15 +164,24 @@ game merely to tick every box.
     highest-priority creators.
   - Do not mass-send all 2,837 contacts before measuring the first batches.
 
+- [ ] **Prepare the demo-release trailer and external launch package.**
+  - Use a clean current-build trailer with a clear **Play the demo** call to
+    action. Do not create another cut if the current trailer only needs a new
+    end card.
+  - Confirm the itch.io demo is current and under its platform limits.
+  - Prepare Steam, X, Reddit, Japanese-press, creator and GamesPress copy using
+    campaign-specific UTM links.
+
 ### Recommendations not adopted automatically
 
 - Keep the substantial localized About This Game section. Do not cut it to an
   arbitrary character count while it is doing useful work explaining a complex
   game; judge it by store-page conversion data.
-- Treat animated menus, button squish, randomized sound pitch, every frame-cap
-  option and every display-mode variant as product-polish suggestions. Add them
-  when playtesting or packaged-build QA identifies a real problem, not solely
-  because they appear on a generic checklist.
+- Treat animated menus, hover sounds, button scaling/squish, tweened windows,
+  universally randomized sound pitch, a fixed 50% starting volume, every
+  frame-cap option and every display-mode variant as product-polish
+  suggestions. Add them when playtesting or packaged-build QA identifies a
+  real problem, not solely because they appear on a generic checklist.
 - Do not add Discord, extra social accounts or more store languages without a
   plan to support them well.
 
@@ -359,6 +429,21 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Cost: Free; demos and upcoming games are accepted.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSckJ8MkHT7maY5DWd58cjXLmbsVUbeYQrN6TrlxzB_pMfd7lw/viewform
 
+- [x] **Indie Game Award 2027 — registration completed**
+  - The organizer confirmed the registration. The pre-selection material-upload
+    system opens **August 26**, with an email reminder promised.
+  - On August 26, upload the strongest stable build, current trailer,
+    screenshots, team introduction and the finished Iron Pagoda logo. Record
+    the final material deadline and judging schedule from the portal rather
+    than assuming registration alone completes the entry.
+  - Enter the developer as **Iron Pagoda**, with Garrett Petersen identified as
+    the solo developer and contact.
+  - Use https://marque-and-reprisal.com/ as the official game/team website and
+    `@garrettpetersen` as the official team social profile.
+  - Taipei Game Show's INDIE HOUSE and B2B registrations are separate decisions;
+    do not treat the award registration as an exhibition booking.
+  - Schedule: https://tgs.tca.org.tw/indie_award_e.php
+
 - [ ] **Independent Games Festival 2027 — apply by September 13**
   - Status: Submissions opened August 3. Start the application now and prepare
     the strongest stable full build for the final entry.
@@ -423,10 +508,11 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 
 ## Current critical path
 
-In parallel now: complete the BiteMe demo-onboarding and store-asset audit; add
-the in-demo wishlist call to action; start the IGF submission; set up the
-authenticated campaign sender; finish the demo-launch package and UTM links;
-verify the first 25–50 creator contacts.
+In parallel now: complete the BiteMe demo release-blocker, onboarding,
+audio/settings and store-asset audits; add the in-demo wishlist call to action;
+prepare the August 26 Indie Game Award upload; start the IGF submission; set up
+the authenticated campaign sender; finish the demo-launch package and UTM
+links; verify the first 25–50 creator contacts.
 
 Generate and test full-build review keys → give selected creators advance access
 → make the approved demo public and verify its logged-out install flow → publish
