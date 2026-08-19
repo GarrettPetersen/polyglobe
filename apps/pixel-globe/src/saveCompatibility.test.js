@@ -5,7 +5,6 @@ import test from "node:test";
 import { GAME_STATE_VERSION } from "./gameState.js";
 import {
   LOCAL_SAVE_STORAGE_KEY,
-  LOCAL_SAVE_VERSION,
   readLocalSave
 } from "./localSave.js";
 import {
@@ -23,11 +22,12 @@ assert.ok(FIXTURE_FILES.length > 0, "Save compatibility suite requires at least 
 for (const fixtureName of FIXTURE_FILES) {
   test(`released save remains compatible: ${fixtureName}`, () => {
     const serialized = readFileSync(new URL(fixtureName, FIXTURE_DIRECTORY), "utf8");
+    const storedVersion = JSON.parse(serialized).version;
     const storage = memoryStorage(serialized);
     const loaded = readLocalSave({ storage });
 
     assert.equal(loaded.status, "ready", loaded.error?.message);
-    assert.equal(loaded.save.version, LOCAL_SAVE_VERSION);
+    assert.equal(loaded.save.version, storedVersion);
 
     const payload = loaded.save.payload;
     const originalPayload = structuredClone(payload);

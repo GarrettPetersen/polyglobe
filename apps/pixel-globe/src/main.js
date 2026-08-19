@@ -1638,7 +1638,7 @@ import {
   LOCAL_SAVE_MODE_FULL,
   clearLocalSave,
   readLocalSave,
-  writeLocalSaveWithRecovery
+  writeLocalSaveWithRecoveryAsync
 } from "./localSave.js";
 import {
   migrateSavedVoyageCore,
@@ -3358,6 +3358,9 @@ let survivalNotice = null;
 let survivalNoticeRect = null;
 let savePersistenceWarning = null;
 let lastLocalSaveMode = LOCAL_SAVE_MODE_FULL;
+let localSaveWriteActive = false;
+let pendingLocalSaveWrite = null;
+let localSaveAbortController = new AbortController();
 let achievementNotice = null;
 let achievementNoticeRect = null;
 let achievementNoticeHoverPoint = null;
@@ -14470,6 +14473,7 @@ function startNewVoyage() {
     const voyageWasStarted = hasStartedVoyage;
     hasStartedVoyage = false;
     try {
+      abortPendingLocalSaveWrites();
       clearLocalSave();
       const clearedSave = readLocalSave();
       if (clearedSave.status !== "empty") {
@@ -15135,25 +15139,12 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
     }
     const materializeSave = includeWorldTraffic || localSaveResult.status !== "ready" ||
       Boolean(savePersistenceWarning);
-    const write = writeLocalSaveWithRecovery(payload, { materializeSave });
-    if (write.save) {
-      localSaveResult = { status: "ready", save: write.save, error: null };
-    }
-    const previousFailure = savePersistenceWarning;
-    savePersistenceWarning = null;
-    if (previousFailure) showSurvivalNotice("SAVE RESTORED", "good");
-    if ((includeWorldTraffic && write.mode !== LOCAL_SAVE_MODE_FULL) || snapshotErrors.length > 0) {
-      console.warn(
-        `[pixel-globe] saved voyage in ${write.mode} mode; reconstructible world traffic will rebuild on load`,
-        { snapshotErrors, attempts: write.attempts }
-      );
-    }
-    lastLocalSaveMode = write.mode;
-    if (reason === "new voyage" || reason === "continued voyage") {
-      console.info(
-        `[pixel-globe] local save: ${Math.ceil(write.byteLength / 1024)} KiB (${write.mode})`
-      );
-    }
+    queueLocalSaveWrite(payload, {
+      reason,
+      includeWorldTraffic,
+      materializeSave,
+      snapshotErrors
+    });
     lastAutosaveMs = performance.now();
     return true;
   } catch (error) {
@@ -15180,6 +15171,90 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
       );
     }
   }
+}
+
+function queueLocalSaveWrite(
+  payload,
+  { reason, includeWorldTraffic, materializeSave, snapshotErrors }
+) {
+  const request = {
+    payload,
+    reason,
+    includeWorldTraffic,
+    materializeSave,
+    snapshotErrors
+  };
+  if (localSaveWriteActive) {
+    pendingLocalSaveWrite = {
+      ...request,
+      payload: structuredClone(payload)
+    };
+    return;
+  }
+  startLocalSaveWrite(request);
+}
+
+function startLocalSaveWrite(request) {
+  localSaveWriteActive = true;
+  const signal = localSaveAbortController.signal;
+  const write = writeLocalSaveWithRecoveryAsync(request.payload, {
+    materializeSave: request.materializeSave,
+    signal
+  });
+  void write.then(
+    (result) => completeLocalSaveWrite(result, {
+      reason: request.reason,
+      includeWorldTraffic: request.includeWorldTraffic,
+      snapshotErrors: request.snapshotErrors
+    }),
+    (error) => failLocalSaveWrite(error, request.reason)
+  ).finally(() => {
+    localSaveWriteActive = false;
+    if (!pendingLocalSaveWrite) return;
+    const next = pendingLocalSaveWrite;
+    pendingLocalSaveWrite = null;
+    startLocalSaveWrite(next);
+  });
+}
+
+function completeLocalSaveWrite(write, { reason, includeWorldTraffic, snapshotErrors }) {
+  if (write.save) {
+    localSaveResult = { status: "ready", save: write.save, error: null };
+  }
+  const previousFailure = savePersistenceWarning;
+  savePersistenceWarning = null;
+  if (previousFailure) showSurvivalNotice("SAVE RESTORED", "good");
+  if ((includeWorldTraffic && write.mode !== LOCAL_SAVE_MODE_FULL) || snapshotErrors.length > 0) {
+    console.warn(
+      `[pixel-globe] saved voyage in ${write.mode} mode; reconstructible world traffic will rebuild on load`,
+      { snapshotErrors, attempts: write.attempts }
+    );
+  }
+  lastLocalSaveMode = write.mode;
+  if (reason === "new voyage" || reason === "continued voyage") {
+    console.info(
+      `[pixel-globe] local save: ${Math.ceil(write.byteLength / 1024)} KiB (${write.mode})`
+    );
+  }
+}
+
+function failLocalSaveWrite(error, reason) {
+  if (error?.name === "AbortError") return;
+  console.warn(`[pixel-globe] local save failed (${reason})`, error);
+  gameTelemetry.captureCrash(error, telemetryCrashContext("save-write"));
+  savePersistenceWarning = {
+    text: "SAVE FAILED - RETRYING",
+    reason,
+    error
+  };
+  showSurvivalNotice(savePersistenceWarning.text, "warn");
+  dirty = true;
+}
+
+function abortPendingLocalSaveWrites() {
+  localSaveAbortController.abort();
+  localSaveAbortController = new AbortController();
+  pendingLocalSaveWrite = null;
 }
 
 function addOptionalSaveSnapshot(payload, errors, key, label, snapshot) {
@@ -30228,6 +30303,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   combatMusicUntilMs = 0;
   stormMusicActive = false;
   try {
+    abortPendingLocalSaveWrites();
     clearLocalSave();
     localSaveResult = { status: "empty", save: null, error: null };
   } catch (error) {

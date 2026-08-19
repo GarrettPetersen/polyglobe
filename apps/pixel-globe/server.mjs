@@ -27,6 +27,9 @@ const contentTypes = new Map([
 function resolveStaticPath(urlPath) {
   if (urlPath === "/") return join(appRoot, "index.html");
   if (urlPath.startsWith("/src/")) return join(appRoot, urlPath.slice(1));
+  if (urlPath === "/node_modules/fflate/esm/browser.js") {
+    return join(appRoot, urlPath.slice(1));
+  }
   if (urlPath.startsWith("/assets/")) return join(publicRoot, urlPath.slice(1));
   if (urlPath === "/earth-globe-cache-7.json" || urlPath === "/shared/earth-globe-cache-7.json") {
     return join(sharedDataRoot, "earth-globe-cache-7.json");

@@ -77,6 +77,13 @@ const appEntries = edition === BUILD_EDITION_DEMO
       ["src", "src"]
     ];
 
+const runtimeDependencyEntries = [
+  ["node_modules/fflate/LICENSE", "node_modules/fflate/LICENSE"],
+  ...(edition === BUILD_EDITION_FULL
+    ? [["node_modules/fflate/esm/browser.js", "node_modules/fflate/esm/browser.js"]]
+    : [])
+];
+
 const publicEntries = [
   ["assets", "assets"]
 ];
@@ -450,7 +457,8 @@ async function bundleDemoRuntime() {
     entryPoints: {
       bootstrap: join(appRoot, "src/bootstrap.js"),
       loadingScreenWorker: join(appRoot, "src/loadingScreenWorker.js"),
-      distantWorldWorker: join(appRoot, "src/distantWorldWorker.js")
+      distantWorldWorker: join(appRoot, "src/distantWorldWorker.js"),
+      localSaveCompressionWorker: join(appRoot, "src/localSaveCompressionWorker.js")
     },
     outdir: join(distRoot, "src"),
     bundle: true,
@@ -477,7 +485,11 @@ async function bundleDemoRuntime() {
 }
 
 async function assertStandaloneDemoWorkers() {
-  for (const fileName of ["loadingScreenWorker.js", "distantWorldWorker.js"]) {
+  for (const fileName of [
+    "loadingScreenWorker.js",
+    "distantWorldWorker.js",
+    "localSaveCompressionWorker.js"
+  ]) {
     const workerPath = join(distRoot, "src", fileName);
     const source = await readFile(workerPath, "utf8");
     const relativeImports = [
@@ -495,6 +507,7 @@ await rm(distRoot, { recursive: true, force: true });
 await mkdir(distRoot, { recursive: true });
 
 for (const entry of appEntries) await copyEntry(appRoot, entry, shouldCopyAppPath);
+for (const entry of runtimeDependencyEntries) await copyEntry(appRoot, entry);
 for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopyPublicPath);
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 if (edition === BUILD_EDITION_DEMO) await buildDemoFactionFlagAtlas();
