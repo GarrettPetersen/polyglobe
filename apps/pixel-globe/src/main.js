@@ -681,6 +681,10 @@ import {
   whaleVisualPresentationPoint
 } from "./whaleVisualPresentation.js";
 import {
+  markWhaleExhaustionTutorialShown,
+  whaleExhaustionTutorialShouldOpen
+} from "./whaleHuntTutorial.js";
+import {
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_DEAD,
   WHALE_PHASE_SURFACED,
@@ -23266,7 +23270,17 @@ function updateWhales(dt, nowMs) {
       changed = true;
     } else if (event.type === "exhausted") {
       const whale = whaleById(gameState.memory.whales, event.whaleId);
-      openCaptainAlertModal(whaleExhaustedMessage(), WHALE_EXHAUSTED_EXPRESSION_ID);
+      if (whaleExhaustionTutorialShouldOpen(gameState.memory.decisions)) {
+        const opened = openCaptainAlertModal(
+          whaleExhaustedMessage(),
+          WHALE_EXHAUSTED_EXPRESSION_ID
+        );
+        if (!opened) throw new Error("Whale exhaustion tutorial could not open");
+        markWhaleExhaustionTutorialShown(gameState.memory.decisions);
+        saveVoyageNow("showed whale exhaustion tutorial");
+      } else {
+        playCollectionDingSound();
+      }
       changed = true;
     } else if (event.type === "ice-line-break") {
       showSurvivalNotice("SEA ICE PARTED THE HARPOON LINE", "warn");
