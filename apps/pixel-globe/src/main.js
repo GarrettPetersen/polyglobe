@@ -24667,6 +24667,8 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     directionX: windFlow.x,
     directionY: windFlow.y,
     speedPxPerSecond: cloudSpeedPxPerSecond,
+    worldViewX: localLayout.viewX,
+    worldViewY: localLayout.viewY,
     targetX: repairTarget.x,
     targetY: repairTarget.y,
     targetWidth: repairWidth,
@@ -24729,7 +24731,7 @@ function updateChartVisualRepair(nowMs) {
   }
   if (chartRepairCloudBank) {
     const state = chartRepairCloudBank;
-    const frame = chartRepairCloudBankFrame(state.animation, nowMs);
+    const frame = currentChartRepairCloudBankFrame(state.animation, nowMs);
     if (nowMs >= state.nextTileRepairAtMs || frame.finished) {
       state.nextTileRepairAtMs = nowMs + CHART_REPAIR_CLOUD_TILE_SCAN_INTERVAL_MS;
       const severeCloudDistortion = currentChartRepairIsSevere();
@@ -24962,7 +24964,10 @@ function chartVisualCoverFullyCoversLocalPosition(
     ) return true;
   }
   if (!chartRepairCloudBank) return false;
-  const cloudFrame = chartRepairCloudBankFrame(chartRepairCloudBank.animation, lastFrameMs);
+  const cloudFrame = currentChartRepairCloudBankFrame(
+    chartRepairCloudBank.animation,
+    lastFrameMs
+  );
   return chartRepairCloudFullyCoversCircle(cloudFrame, screenX, screenY, radiusPx);
 }
 
@@ -25193,19 +25198,28 @@ function repairCoveredChartTiles({
 
 function chartTilesInCloudRepairPath(animation) {
   if (!animation || !localLayout) return new Set();
-  const offset = layoutOffsetPixels();
   const tileIds = new Set();
   for (const [id, position] of localLayout.positions.entries()) {
     if (id === ship?.tileId || id === centerTileId) continue;
     if (!chartRepairCloudMayMostlyCoverCircle(
       animation,
-      position.x + offset.x,
-      position.y + offset.y,
+      position.x,
+      position.y,
       CHART_REPAIR_TILE_VISUAL_RADIUS_PX
     )) continue;
     tileIds.add(id);
   }
   return tileIds;
+}
+
+function currentChartRepairCloudBankFrame(animation, nowMs) {
+  if (!localLayout) {
+    throw new Error("Chart repair cloud frame requires a local layout");
+  }
+  return chartRepairCloudBankFrame(animation, nowMs, {
+    worldViewX: localLayout.viewX,
+    worldViewY: localLayout.viewY
+  });
 }
 
 function planConcealedChartTileRepairs(tileIds) {
@@ -37918,7 +37932,7 @@ function pendingChartRepairRemainsCovered(position, reason) {
   }
   if (reason.includes("cloud") && chartRepairCloudBank) {
     return chartRepairCloudMostlyCoversCircle(
-      chartRepairCloudBankFrame(chartRepairCloudBank.animation, lastFrameMs),
+      currentChartRepairCloudBankFrame(chartRepairCloudBank.animation, lastFrameMs),
       screenX,
       screenY,
       CHART_REPAIR_TILE_VISUAL_RADIUS_PX
@@ -48689,7 +48703,7 @@ function drawChartRepairOcclusion(nowMs) {
     ));
   }
   if (chartRepairCloudBank) {
-    drawChartRepairCloudBank(chartRepairCloudBankFrame(
+    drawChartRepairCloudBank(currentChartRepairCloudBankFrame(
       chartRepairCloudBank.animation,
       nowMs
     ));
@@ -48716,7 +48730,7 @@ function chartRepairBlurEffect(nowMs) {
     });
   }
   if (!chartRepairCloudBank || !cloudSpriteSheet) return null;
-  const frame = chartRepairCloudBankFrame(chartRepairCloudBank.animation, nowMs);
+  const frame = currentChartRepairCloudBankFrame(chartRepairCloudBank.animation, nowMs);
   if (frame.clouds.length > MAX_REPAIR_CLOUD_BLUR_SPRITES) {
     const source = chartRepairCloudMaskTexture(frame);
     return Object.freeze({

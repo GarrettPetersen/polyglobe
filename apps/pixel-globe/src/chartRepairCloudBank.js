@@ -6,6 +6,7 @@ const CLOUD_CROSSWIND_SPACING_PX = 44;
 const CLOUD_LOCAL_TARGET_SPAN_PER_SPRITE_PX = 110;
 const CLOUD_LOCAL_TARGET_MAX_SPRITES = 5;
 const CLOUD_BANK_SPEED_DIVISOR = 3;
+const CHART_REPAIR_CLOUD_VARIANT_INDICES = Object.freeze([0, 1, 2, 4]);
 
 export const CHART_REPAIR_CLOUD_SPRITE_ALPHA = 0.62;
 export const CHART_REPAIR_CLOUD_BLUR_STRENGTH = 0.88;
@@ -17,6 +18,8 @@ export function createChartRepairCloudBank({
   directionX,
   directionY,
   speedPxPerSecond,
+  worldViewX,
+  worldViewY,
   targetX = viewportWidth / 2,
   targetY = viewportHeight / 2,
   targetWidth = viewportWidth,
@@ -29,6 +32,8 @@ export function createChartRepairCloudBank({
     directionX,
     directionY,
     speedPxPerSecond,
+    worldViewX,
+    worldViewY,
     targetX,
     targetY,
     targetWidth,
@@ -61,12 +66,16 @@ export function createChartRepairCloudBank({
   const crosswindTargetSpan = Math.abs(dy) * targetWidth + Math.abs(dx) * targetHeight;
   const frameWideTarget = targetWidth >= viewportWidth && targetHeight >= viewportHeight;
   const cloudCount = cloudCountForTarget(crosswindTargetSpan, frameWideTarget);
+  const targetWorldX = worldViewX + targetX - viewportWidth / 2;
+  const targetWorldY = worldViewY + targetY - viewportHeight / 2;
   const cloudOffsets = Object.freeze(Array.from({ length: cloudCount }, (_, index) => {
     const centeredIndex = index - (cloudCount - 1) / 2;
     return Object.freeze({
       span: centeredIndex * CLOUD_CROSSWIND_SPACING_PX,
       depth: staggeredDepth(centeredIndex),
-      variantIndex: index
+      variantIndex: CHART_REPAIR_CLOUD_VARIANT_INDICES[
+        index % CHART_REPAIR_CLOUD_VARIANT_INDICES.length
+      ]
     });
   }));
   return Object.freeze({
@@ -74,8 +83,10 @@ export function createChartRepairCloudBank({
     durationMs: travelLimit * 2 / speedPxPerSecond * 1000,
     dx,
     dy,
-    targetX,
-    targetY,
+    viewportWidth,
+    viewportHeight,
+    targetWorldX,
+    targetWorldY,
     targetWidth,
     targetHeight,
     travelLimit,
@@ -91,14 +102,21 @@ export function slowedChartRepairCloudSpeed(speedPxPerSecond) {
   return speedPxPerSecond / CLOUD_BANK_SPEED_DIVISOR;
 }
 
-export function chartRepairCloudBankFrame(bank, nowMs) {
-  if (!bank || !Number.isFinite(nowMs)) {
+export function chartRepairCloudBankFrame(bank, nowMs, { worldViewX, worldViewY }) {
+  if (
+    !bank ||
+    !Number.isFinite(nowMs) ||
+    !Number.isFinite(worldViewX) ||
+    !Number.isFinite(worldViewY)
+  ) {
     throw new Error("Chart repair cloud bank frame requires state and time");
   }
   const progress = Math.max(0, Math.min(1, (nowMs - bank.startedAtMs) / bank.durationMs));
   const travel = -bank.travelLimit + bank.travelLimit * 2 * progress;
-  const centerX = bank.targetX + bank.dx * travel;
-  const centerY = bank.targetY + bank.dy * travel;
+  const centerWorldX = bank.targetWorldX + bank.dx * travel;
+  const centerWorldY = bank.targetWorldY + bank.dy * travel;
+  const centerX = centerWorldX - worldViewX + bank.viewportWidth / 2;
+  const centerY = centerWorldY - worldViewY + bank.viewportHeight / 2;
   const clouds = Object.freeze(bank.cloudOffsets.map((offset) => Object.freeze({
     x: centerX - bank.dy * offset.span + bank.dx * offset.depth,
     y: centerY + bank.dx * offset.span + bank.dy * offset.depth,
@@ -110,8 +128,8 @@ export function chartRepairCloudBankFrame(bank, nowMs) {
     centerY,
     dx: bank.dx,
     dy: bank.dy,
-    targetX: bank.targetX,
-    targetY: bank.targetY,
+    targetWorldX: bank.targetWorldX,
+    targetWorldY: bank.targetWorldY,
     targetWidth: bank.targetWidth,
     targetHeight: bank.targetHeight,
     clouds,
@@ -178,8 +196,8 @@ function validateCloudCoveragePoint(x, y, radius, subject) {
 function cloudPathPassesWithin(bank, x, y, centerTolerance) {
   if (centerTolerance < 0) return false;
   return bank.cloudOffsets.some((offset) => {
-    const centerX = bank.targetX - bank.dy * offset.span + bank.dx * offset.depth;
-    const centerY = bank.targetY + bank.dx * offset.span + bank.dy * offset.depth;
+    const centerX = bank.targetWorldX - bank.dy * offset.span + bank.dx * offset.depth;
+    const centerY = bank.targetWorldY + bank.dx * offset.span + bank.dy * offset.depth;
     const along = (x - centerX) * bank.dx + (y - centerY) * bank.dy;
     const clampedAlong = Math.max(-bank.travelLimit, Math.min(bank.travelLimit, along));
     const nearestX = centerX + bank.dx * clampedAlong;
