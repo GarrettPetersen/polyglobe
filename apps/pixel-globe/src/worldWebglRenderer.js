@@ -161,6 +161,8 @@ void main() {
 }
 `;
 
+export const MAX_REPAIR_CLOUD_BLUR_SPRITES = 5;
+
 const PRESENT_VERTEX_SHADER = `#version 300 es
 in vec2 a_position;
 in vec2 a_texCoord;
@@ -183,7 +185,7 @@ uniform bool u_repairCloudBlur;
 uniform bool u_repairCloudFullscreen;
 uniform bool u_repairCloudWideBlur;
 uniform int u_repairCloudCount;
-uniform vec3 u_repairClouds[5];
+uniform vec3 u_repairClouds[${MAX_REPAIR_CLOUD_BLUR_SPRITES}];
 uniform vec2 u_repairCloudMaskSize;
 uniform float u_repairCloudSpriteSize;
 uniform float u_repairCloudBlurStrength;
@@ -246,7 +248,7 @@ float repairCloudMaskAlpha(vec2 screenPixel) {
     return texture(u_repairCloudMask, screenPixel / u_repairCloudMaskSize).a;
   }
   float alpha = 0.0;
-  for (int index = 0; index < 5; index++) {
+  for (int index = 0; index < ${MAX_REPAIR_CLOUD_BLUR_SPRITES}; index++) {
     if (index >= u_repairCloudCount) break;
     vec3 cloud = u_repairClouds[index];
     vec2 local = (screenPixel - cloud.xy) / u_repairCloudSpriteSize + 0.5;
@@ -304,7 +306,6 @@ const INITIAL_ATLAS_QUAD_CAPACITY = 1024;
 const DEFAULT_ATLAS_SIZE = 4096;
 const DEFAULT_CHUNK_CACHE_LIMIT = 24;
 const DEFAULT_PERSISTENT_BATCH_CACHE_LIMIT = 48;
-const MAX_REPAIR_CLOUD_BLUR_SPRITES = 5;
 
 export class TextureAtlasAllocator {
   constructor(width, height, padding = 1) {

@@ -75,7 +75,7 @@ export function chooseChartVisualRepair({
         sizePx: drift.maxDistortionPx,
         surface: distortionSurface
       };
-  const frameWide = !tear;
+  const frameWide = rotation || distortion;
   const severeFrameDistortion = Math.abs(drift.rotationDeg) >=
       CHART_IMMEDIATE_REPAIR_ROTATION_DEG ||
     drift.rmsDistortionPx >= CHART_IMMEDIATE_REPAIR_RMS_PX ||
@@ -97,10 +97,10 @@ export function chooseChartVisualRepair({
   if (polarFogCoversFault) {
     return chartVisualRepairCandidate("polar-fog", fault, { frameWide, confirmationMs: 0 });
   }
-  // Rotation is a frame-wide fault even when one stretched edge happens to be
-  // the largest local symptom. A local cloud can mend that edge while leaving
-  // the rest of the chart badly tilted, so cover the full affected frame.
-  if (rotation) {
+  // Broad drift is a frame-wide fault even when one stretched edge happens to
+  // be the largest local symptom. A local cloud can mend that edge while
+  // leaving the rest of the chart distorted, so cover the full affected frame.
+  if (frameWide) {
     return chartVisualRepairCandidate(
       heatHazeAvailable ? "heat-haze" : "full-cloud",
       fault,

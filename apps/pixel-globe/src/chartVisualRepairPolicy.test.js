@@ -210,6 +210,39 @@ test("benchmark-breaking frame distortion bypasses weather cooldown", () => {
   assert.equal(result.repair, candidate);
 });
 
+test("broad rms distortion receives a frame-wide repair below the rotation threshold", () => {
+  const candidate = repairCandidate({
+    drift: { ...calm, rotationDeg: 3.5, rmsDistortionPx: 15.99, maxDistortionPx: 22.45 },
+    terrainTear: {
+      extraPx: 4.83,
+      surface: "land",
+      screenX: 220,
+      screenY: 90
+    },
+    distortionSurface: "coast"
+  });
+
+  assert.equal(candidate.kind, "full-cloud");
+  assert.equal(candidate.frameWide, true);
+  assert.equal(candidate.confirmationMs, 0);
+});
+
+test("broad distortion remains frame-wide when it also has a local tear", () => {
+  const candidate = repairCandidate({
+    drift: { ...calm, rotationDeg: 2, rmsDistortionPx: 13, maxDistortionPx: 20 },
+    terrainTear: {
+      extraPx: 9,
+      surface: "land",
+      screenX: 220,
+      screenY: 90
+    },
+    distortionSurface: "land"
+  });
+
+  assert.equal(candidate.kind, "full-cloud");
+  assert.equal(candidate.frameWide, true);
+});
+
 test("broad distortion keeps one confirmation window when its worst point moves", () => {
   const firstCandidate = repairCandidate({
     drift: { ...calm, rmsDistortionPx: 14, maxDistortionPx: 17 },

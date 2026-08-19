@@ -219,6 +219,22 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: []
   }),
+  "diagnostic-chart-recovery-north-sea": scenario({
+    id: "diagnostic-chart-recovery-north-sea",
+    title: "chart-recovery-north-sea",
+    seed: "diagnostic-chart-recovery-north-sea-v1",
+    player: {
+      factionId: "england",
+      shipSlug: "caravel",
+      lat: 53.05,
+      lon: 3.61,
+      headingDeg: 90,
+      activePlaySeconds: 90
+    },
+    world: { day: 196, hour: 13, minute: 20, timeScale: 180 },
+    diplomacy: [],
+    encounters: []
+  }),
   "diagnostic-chart-recovery-scandinavia": scenario({
     id: "diagnostic-chart-recovery-scandinavia",
     title: "chart-recovery-scandinavia",

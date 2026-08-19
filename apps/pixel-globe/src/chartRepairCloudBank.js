@@ -3,7 +3,8 @@ const CLOUD_SPRITE_HALF_SIZE_PX = 32;
 const CLOUD_REPAIR_CORE_RADIUS_PX = 31;
 const CLOUD_REPAIR_VISIBLE_RADIUS_WEIGHT = 0.35;
 const CLOUD_CROSSWIND_SPACING_PX = 44;
-const CLOUD_BANK_MAX_SPRITES = 5;
+const CLOUD_LOCAL_TARGET_SPAN_PER_SPRITE_PX = 110;
+const CLOUD_LOCAL_TARGET_MAX_SPRITES = 5;
 const CLOUD_BANK_SPEED_DIVISOR = 3;
 
 export const CHART_REPAIR_CLOUD_SPRITE_ALPHA = 0.62;
@@ -58,7 +59,8 @@ export function createChartRepairCloudBank({
   const travelLimit = viewportDepth + targetOffsetDepth +
     CLOUD_SPRITE_HALF_SIZE_PX + CLOUD_BANK_START_MARGIN_PX;
   const crosswindTargetSpan = Math.abs(dy) * targetWidth + Math.abs(dx) * targetHeight;
-  const cloudCount = sparseCloudCount(crosswindTargetSpan);
+  const frameWideTarget = targetWidth >= viewportWidth && targetHeight >= viewportHeight;
+  const cloudCount = cloudCountForTarget(crosswindTargetSpan, frameWideTarget);
   const cloudOffsets = Object.freeze(Array.from({ length: cloudCount }, (_, index) => {
     const centeredIndex = index - (cloudCount - 1) / 2;
     return Object.freeze({
@@ -186,17 +188,21 @@ function cloudPathPassesWithin(bank, x, y, centerTolerance) {
   });
 }
 
-function sparseCloudCount(crosswindTargetSpan) {
-  const desired = Math.max(1, Math.ceil(crosswindTargetSpan / 110));
+function cloudCountForTarget(crosswindTargetSpan, frameWideTarget) {
+  const spanPerSprite = frameWideTarget
+    ? CLOUD_CROSSWIND_SPACING_PX
+    : CLOUD_LOCAL_TARGET_SPAN_PER_SPRITE_PX;
+  const desired = Math.max(1, Math.ceil(crosswindTargetSpan / spanPerSprite));
   const oddCount = desired % 2 === 0 ? desired + 1 : desired;
-  return Math.min(CLOUD_BANK_MAX_SPRITES, oddCount);
+  return frameWideTarget
+    ? oddCount
+    : Math.min(CLOUD_LOCAL_TARGET_MAX_SPRITES, oddCount);
 }
 
 function staggeredDepth(centeredIndex) {
   if (centeredIndex === 0) return 0;
-  if (centeredIndex === -2) return -16;
-  if (centeredIndex === -1) return 20;
-  if (centeredIndex === 1) return -22;
-  if (centeredIndex === 2) return 17;
-  throw new Error(`Chart repair cloud has unsupported stagger index: ${centeredIndex}`);
+  const depthPattern = [-16, 20, -22, 17, -10, 13];
+  const sideOffset = centeredIndex < 0 ? 0 : 3;
+  const patternIndex = (Math.abs(centeredIndex) - 1 + sideOffset) % depthPattern.length;
+  return depthPattern[patternIndex];
 }

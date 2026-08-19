@@ -1593,6 +1593,7 @@ import {
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
 import {
+  MAX_REPAIR_CLOUD_BLUR_SPRITES,
   TextureAtlasAllocator,
   createWorldWebGL2Renderer,
   isWorldWebGLContextLostError
@@ -3305,6 +3306,9 @@ let stormEdgeFogCanvas = null;
 let chartRepairFogMaskCanvas = null;
 let chartRepairFogMaskContext = null;
 let chartRepairFogMaskKey = "";
+let chartRepairCloudMaskCanvas = null;
+let chartRepairCloudMaskContext = null;
+let chartRepairCloudMaskRevision = 0;
 let chartRepairFogMaskField = null;
 let chartRepairFogMaskFieldKey = "";
 const CHART_REPAIR_FOG_MASK_PIXEL_SIZE = 1;
@@ -10079,12 +10083,16 @@ function setupChartRecoveryDiagnostic() {
   window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__ = Object.freeze({
     start({
       tiltDeg = 12,
+      distortionScale = 1,
       speedRatio = 0.55,
       passiveOnly = false,
       allowDialogue = true
     } = {}) {
       if (!Number.isFinite(tiltDeg) || Math.abs(tiltDeg) > 30) {
         throw new Error(`Chart recovery diagnostic tilt is invalid: ${tiltDeg}`);
+      }
+      if (!Number.isFinite(distortionScale) || distortionScale < 0.8 || distortionScale > 1.25) {
+        throw new Error(`Chart recovery diagnostic scale is invalid: ${distortionScale}`);
       }
       if (!Number.isFinite(speedRatio) || speedRatio <= 0 || speedRatio > 1) {
         throw new Error(`Chart recovery diagnostic speed ratio is invalid: ${speedRatio}`);
@@ -10095,7 +10103,9 @@ function setupChartRecoveryDiagnostic() {
       if (typeof allowDialogue !== "boolean") {
         throw new Error("Chart recovery diagnostic dialogue flag must be boolean");
       }
-      if (Math.abs(tiltDeg) >= 0.1) injectChartRecoveryDiagnosticTilt(tiltDeg);
+      if (Math.abs(tiltDeg) >= 0.1 || Math.abs(distortionScale - 1) >= 0.001) {
+        injectChartRecoveryDiagnosticDistortion(tiltDeg, distortionScale);
+      }
       ship.velocity = scaleVector(
         ship.heading,
         currentPlayerEffectiveShipStats().topSpeedRad * speedRatio
@@ -10224,7 +10234,7 @@ function advanceChartRecoveryDiagnosticVisualRepair(elapsedMs) {
   }
 }
 
-function injectChartRecoveryDiagnosticTilt(tiltDeg) {
+function injectChartRecoveryDiagnosticDistortion(tiltDeg, distortionScale) {
   if (!ship || !camera || !chart || !localLayout) {
     throw new Error("Chart recovery diagnostic requires an initialized voyage");
   }
@@ -10235,12 +10245,12 @@ function injectChartRecoveryDiagnosticTilt(tiltDeg) {
   for (const [id, position] of localLayout.positions.entries()) {
     const dx = position.x - localLayout.viewX;
     const dy = position.y - localLayout.viewY;
-    const rotated = {
-      x: Math.round(localLayout.viewX + dx * cosine - dy * sine),
-      y: Math.round(localLayout.viewY + dx * sine + dy * cosine)
+    const distorted = {
+      x: Math.round(localLayout.viewX + (dx * cosine - dy * sine) * distortionScale),
+      y: Math.round(localLayout.viewY + (dx * sine + dy * cosine) * distortionScale)
     };
-    localLayout.positions.set(id, rotated);
-    positionLocks.set(id, rotated);
+    localLayout.positions.set(id, distorted);
+    positionLocks.set(id, distorted);
   }
   chartRepairCloudBank = null;
   chartRepairFog = null;
@@ -24635,12 +24645,21 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     CHART_REPAIR_CLOUD_MIN_SPEED_PX_PER_SECOND,
     windDrivenCloudSpeedPxPerSecond * CHART_REPAIR_CLOUD_SPEED_SCALE
   ));
-  const localRepair = repair.kind === "partial-cloud";
+  const frameWideRepair = repair.frameWide === true;
+  const localRepair = repair.kind === "partial-cloud" && !frameWideRepair;
+  if (repair.kind === "full-cloud" && !frameWideRepair) {
+    throw new Error("Full chart cloud repair requires a frame-wide fault");
+  }
   const localFault = repair.fault || { x: SCREEN_W / 2, y: SCREEN_H / 2, sizePx: 0 };
-  const repairTarget = nearestChartRepairTarget(localFault);
-  const repairSpan = localRepair
-    ? Math.max(56, Math.min(96, localFault.sizePx + TILE_ART_SIZE))
-    : Math.max(116, Math.min(164, localFault.sizePx + TILE_ART_SIZE * 3));
+  const repairTarget = frameWideRepair
+    ? { x: SCREEN_W / 2, y: SCREEN_H / 2 }
+    : nearestChartRepairTarget(localFault);
+  const repairWidth = frameWideRepair
+    ? SCREEN_W
+    : Math.max(56, Math.min(96, localFault.sizePx + TILE_ART_SIZE));
+  const repairHeight = frameWideRepair
+    ? SCREEN_H
+    : repairWidth;
   const animation = createChartRepairCloudBank({
     nowMs,
     viewportWidth: SCREEN_W,
@@ -24650,8 +24669,8 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     speedPxPerSecond: cloudSpeedPxPerSecond,
     targetX: repairTarget.x,
     targetY: repairTarget.y,
-    targetWidth: repairSpan,
-    targetHeight: repairSpan
+    targetWidth: repairWidth,
+    targetHeight: repairHeight
   });
   const plannedTileIds = chartTilesInCloudRepairPath(animation);
   const repairPlan = planConcealedChartTileRepairs(plannedTileIds);
@@ -48698,6 +48717,18 @@ function chartRepairBlurEffect(nowMs) {
   }
   if (!chartRepairCloudBank || !cloudSpriteSheet) return null;
   const frame = chartRepairCloudBankFrame(chartRepairCloudBank.animation, nowMs);
+  if (frame.clouds.length > MAX_REPAIR_CLOUD_BLUR_SPRITES) {
+    const source = chartRepairCloudMaskTexture(frame);
+    return Object.freeze({
+      source,
+      sourceRevision: chartRepairCloudMaskRevision,
+      fullscreen: true,
+      wide: false,
+      spriteSize: 1,
+      strength: CHART_REPAIR_CLOUD_BLUR_STRENGTH,
+      clouds: []
+    });
+  }
   return Object.freeze({
     source: cloudSpriteSheet,
     fullscreen: false,
@@ -48706,6 +48737,46 @@ function chartRepairBlurEffect(nowMs) {
     strength: CHART_REPAIR_CLOUD_BLUR_STRENGTH,
     clouds: frame.clouds
   });
+}
+
+function chartRepairCloudMaskTexture(frame) {
+  if (!frame || !cloudSpriteSheet) {
+    throw new Error("Chart repair cloud mask requires a frame and sprite sheet");
+  }
+  if (!chartRepairCloudMaskCanvas) {
+    chartRepairCloudMaskCanvas = document.createElement("canvas");
+    chartRepairCloudMaskContext = chartRepairCloudMaskCanvas.getContext("2d");
+    if (!chartRepairCloudMaskContext) {
+      throw new Error("Chart repair clouds require a mask canvas");
+    }
+  }
+  if (
+    chartRepairCloudMaskCanvas.width !== SCREEN_W ||
+    chartRepairCloudMaskCanvas.height !== SCREEN_H
+  ) {
+    chartRepairCloudMaskCanvas.width = SCREEN_W;
+    chartRepairCloudMaskCanvas.height = SCREEN_H;
+  }
+  const maskContext = chartRepairCloudMaskContext;
+  maskContext.clearRect(0, 0, SCREEN_W, SCREEN_H);
+  maskContext.imageSmoothingEnabled = false;
+  const frameCount = Math.max(1, Math.floor(cloudSpriteSheet.width / CLOUD_SPRITE_FRAME_SIZE));
+  for (const cloud of frame.clouds) {
+    const sourceX = cloud.variantIndex % frameCount * CLOUD_SPRITE_FRAME_SIZE;
+    maskContext.drawImage(
+      cloudSpriteSheet,
+      sourceX,
+      0,
+      CLOUD_SPRITE_FRAME_SIZE,
+      CLOUD_SPRITE_FRAME_SIZE,
+      Math.round(cloud.x - CLOUD_SPRITE_FRAME_SIZE / 2),
+      Math.round(cloud.y - CLOUD_SPRITE_FRAME_SIZE / 2),
+      CLOUD_SPRITE_FRAME_SIZE,
+      CLOUD_SPRITE_FRAME_SIZE
+    );
+  }
+  chartRepairCloudMaskRevision++;
+  return chartRepairCloudMaskCanvas;
 }
 
 function chartRepairHeatHazeEffect(nowMs) {

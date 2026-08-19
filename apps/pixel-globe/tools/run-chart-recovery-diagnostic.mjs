@@ -49,6 +49,26 @@ const allCases = [
     forbidAtmosphericRepairs: true
   },
   {
+    id: "north-sea-broad-distortion-repair",
+    scenarioId: "diagnostic-chart-recovery-north-sea",
+    tiltDeg: 3.5,
+    distortionScale: 1.07,
+    speedRatio: 0.35,
+    durationSeconds: 48,
+    deterministicTravelPx: 90,
+    passiveOnly: false,
+    allowDialogue: false,
+    maximumFinalTiltDeg: 4,
+    minimumRmsImprovementRatio: 0.1,
+    maximumFinalTearPx: 10,
+    maximumFinalWaterTearPx: 18,
+    maximumObservedTiltDeg: 6,
+    maximumObservedVisibleTiltDeg: 6,
+    maximumObservedUnobscuredTearPx: 10,
+    maximumObservedUnobscuredWaterTearPx: 18,
+    requireCloudCoveredTileMovement: true
+  },
+  {
     id: "scandinavian-coast-preventive",
     scenarioId: "diagnostic-chart-recovery-scandinavia",
     tiltDeg: 0,
@@ -161,6 +181,7 @@ async function runDiagnosticCase(browser, baseUrl, diagnosticCase) {
       window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__.start(options)
     ), {
       tiltDeg: diagnosticCase.tiltDeg,
+      distortionScale: diagnosticCase.distortionScale ?? 1,
       speedRatio: diagnosticCase.speedRatio,
       passiveOnly: diagnosticCase.passiveOnly,
       allowDialogue: diagnosticCase.allowDialogue
@@ -266,6 +287,35 @@ function validateCase(diagnosticCase, samples) {
         `limit ${diagnosticCase.maximumFinalTiltDeg}`
     );
   }
+  if (
+    Number.isFinite(diagnosticCase.maximumFinalRmsDistortionPx) &&
+    final.rmsDistortionPx > diagnosticCase.maximumFinalRmsDistortionPx
+  ) {
+    failures.push(
+      `finished with ${final.rmsDistortionPx.toFixed(2)}px RMS distortion; ` +
+        `limit ${diagnosticCase.maximumFinalRmsDistortionPx}px`
+    );
+  }
+  if (
+    Number.isFinite(diagnosticCase.maximumFinalMaximumDistortionPx) &&
+    final.maximumDistortionPx > diagnosticCase.maximumFinalMaximumDistortionPx
+  ) {
+    failures.push(
+      `finished with ${final.maximumDistortionPx.toFixed(2)}px maximum distortion; ` +
+        `limit ${diagnosticCase.maximumFinalMaximumDistortionPx}px`
+    );
+  }
+  if (Number.isFinite(diagnosticCase.minimumRmsImprovementRatio)) {
+    const improvementRatio = initial.rmsDistortionPx > 0
+      ? (initial.rmsDistortionPx - final.rmsDistortionPx) / initial.rmsDistortionPx
+      : 0;
+    if (improvementRatio < diagnosticCase.minimumRmsImprovementRatio) {
+      failures.push(
+        `improved RMS distortion by only ${(improvementRatio * 100).toFixed(1)}%; ` +
+          `minimum ${(diagnosticCase.minimumRmsImprovementRatio * 100).toFixed(1)}%`
+      );
+    }
+  }
   if (final.terrainTearPx > diagnosticCase.maximumFinalTearPx) {
     failures.push(
       `finished with ${final.terrainTearPx.toFixed(2)}px land/coast tear; ` +
@@ -345,6 +395,15 @@ function validateCase(diagnosticCase, samples) {
     const fogMoves = final.coveredTileMoves.filter((move) => move.reason.includes("fog"));
     if (fogMoves.length === 0) {
       failures.push("staged no fog-covered tile movement");
+    }
+    if (final.coveredTileApplications === 0) {
+      failures.push("applied no covered tile movement to the live chart");
+    }
+  }
+  if (diagnosticCase.requireCloudCoveredTileMovement) {
+    const cloudMoves = final.coveredTileMoves.filter((move) => move.reason.includes("cloud"));
+    if (cloudMoves.length === 0) {
+      failures.push("staged no cloud-covered tile movement");
     }
     if (final.coveredTileApplications === 0) {
       failures.push("applied no covered tile movement to the live chart");

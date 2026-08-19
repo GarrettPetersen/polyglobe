@@ -20,7 +20,7 @@ test("repair clouds trade opacity for a silhouette-clipped world blur", () => {
   assert.ok(CHART_REPAIR_CLOUD_BLUR_STRENGTH < 1);
 });
 
-test("repair clouds are sparse, staggered, and never carry a rotation", () => {
+test("repair clouds span their target, stay staggered, and never carry a rotation", () => {
   const bank = createChartRepairCloudBank({
     nowMs: 0,
     viewportWidth: 455,
@@ -31,7 +31,7 @@ test("repair clouds are sparse, staggered, and never carry a rotation", () => {
   });
   const frame = chartRepairCloudBankFrame(bank, bank.durationMs / 2);
 
-  assert.ok(frame.clouds.length >= 1 && frame.clouds.length <= 5);
+  assert.ok(frame.clouds.length >= 7 && frame.clouds.length <= 13);
   assert.equal(Object.hasOwn(frame, "angleRad"), false);
   assert.equal(frame.clouds.some((cloud) => cloud.x !== frame.centerX), true);
   assert.equal(frame.clouds.some((cloud) => cloud.y !== frame.centerY), true);
@@ -142,18 +142,42 @@ test("a mostly covered tile may settle gradually before full cloud cover", () =>
   );
 });
 
-test("a sparse cloud group leaves most of the viewport uncovered", () => {
+test("a local cloud group leaves most of the viewport uncovered", () => {
   const bank = createChartRepairCloudBank({
     nowMs: 0,
     viewportWidth: 455,
     viewportHeight: 256,
     directionX: 1,
     directionY: 0.2,
-    speedPxPerSecond: 100
+    speedPxPerSecond: 100,
+    targetX: 90,
+    targetY: 80,
+    targetWidth: 70,
+    targetHeight: 56
   });
   const frame = chartRepairCloudBankFrame(bank, bank.durationMs / 2);
   const covered = Array.from({ length: 12 }, (_, index) => (
     chartRepairCloudFullyCoversCircle(frame, 20 + index * 36, 30, 0)
   )).filter(Boolean).length;
   assert.ok(covered < 4);
+});
+
+test("a frame-wide cloud path reaches every crosswind part of a tall viewport", () => {
+  const bank = createChartRepairCloudBank({
+    nowMs: 0,
+    viewportWidth: 455,
+    viewportHeight: 256,
+    directionX: 0,
+    directionY: 1,
+    speedPxPerSecond: 36
+  });
+
+  assert.equal(bank.cloudOffsets.length, 11);
+  for (let x = 0; x <= 455; x += 7) {
+    assert.equal(
+      chartRepairCloudMayMostlyCoverCircle(bank, x, 128, 18),
+      true,
+      `cloud path missed x=${x}`
+    );
+  }
 });
