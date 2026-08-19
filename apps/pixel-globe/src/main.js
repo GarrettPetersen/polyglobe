@@ -83,6 +83,11 @@ import {
 } from "./pixelBezier.js";
 import { projectedRiverEdgeDirection } from "./riverEdgeProjection.js";
 import {
+  BEACH_WAVE_FRAME_COUNT,
+  BEACH_WAVE_PERIOD_MS,
+  beachWaveState
+} from "./beachWaveCadence.js";
+import {
   riverConnectorRasterKey,
   riverConnectorWaterRasterCacheKey
 } from "./riverConnectorRasterCache.js";
@@ -1626,7 +1631,8 @@ import {
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
   SHIPYARD_INVESTMENT_MATERIALS,
-  shipyardInvestmentAtPort
+  shipyardInvestmentAtPort,
+  shipyardInvestmentOfferAvailable
 } from "./shipyardInvestment.js";
 import {
   LOCAL_SAVE_MODE_FULL,
@@ -2250,12 +2256,6 @@ const BEACH_SPECKLE_COUNT = 5;
 const BEACH_LIGHT_SPECKLE_COLOR = "rgba(255, 236, 151, 0.46)";
 const BEACH_DARK_SPECKLE_COLOR = "rgba(218, 184, 92, 0.26)";
 const BEACH_LAND_EDGE_JAG_COUNT = 4;
-const BEACH_WAVE_PERIOD_MS = 3600;
-const BEACH_WAVE_FRAME_COUNT = 16;
-const BEACH_WAVE_ADVANCE_RATIO = 0.44;
-const BEACH_WAVE_RECEDE_RATIO = 0.38;
-const BEACH_WAVE_MIN_REACH = 0.16;
-const BEACH_WAVE_MAX_REACH = 0.78;
 const BEACH_WAVE_WATER_ALPHA = 0.58;
 const BEACH_WAVE_EDGE_RECESS = 0.2;
 const RIVER_ARM_LENGTH_PX = 15;
@@ -18264,6 +18264,7 @@ function continuePortArrivalDialogues() {
     () => maybeOpenConquistadorRewardDialogue(cityCall),
     () => maybeOpenShipyardDividendDialogue(cityCall),
     () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
+    () => maybeOpenShipyardInvestmentOfferDialogue(cityCall),
     () => maybeOpenColonizationAftermathPortDialogue(cityCall),
     () => activePapalCommissionObjectiveIsAt(cityCall) &&
       maybeOpenPapalCommissionPortDialogue(cityCall),
@@ -18276,6 +18277,32 @@ function continuePortArrivalDialogues() {
     ),
     () => openPendingDiscoveryPortDialogue()
   ]);
+}
+
+function maybeOpenShipyardInvestmentOfferDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) ||
+      dialogueState.shipyardInvestmentOfferApproached === true) {
+    return false;
+  }
+  const yard = worldEconomy?.shipyards.yards.get(cityCall.tileId) || null;
+  if (!shipyardInvestmentOfferAvailable(
+    gameState,
+    cityCall,
+    yard,
+    Math.floor(weatherClockMinutes)
+  )) {
+    return false;
+  }
+  dialogueState.shipyardInvestmentOfferApproached = true;
+  dialogueState.shipyardInvestmentArrival = true;
+  dialogueState.nextPortNodeId = dialogueState.nodeId;
+  dialogueState.nodeId = "shipyard-investment-offer";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
 }
 
 function maybeOpenShipyardDividendDialogue(cityCall) {
@@ -47461,36 +47488,6 @@ function drawBeachWave(targetCtx, call, ax, ay, mx, my, bx, by, nx, ny, width, w
     foamT,
     wave.foamAlpha
   );
-}
-
-function beachWaveState(call, clockMs = waterAnimationClockMs) {
-  if (!Number.isFinite(clockMs) || clockMs < 0) throw new Error(`Invalid beach wave clock: ${clockMs}`);
-  const offsetMs = hashInt(call.a ^ Math.imul(call.b, 0x632be59b)) % BEACH_WAVE_PERIOD_MS;
-  const phase = ((clockMs + offsetMs) % BEACH_WAVE_PERIOD_MS) / BEACH_WAVE_PERIOD_MS;
-  const reachSpan = BEACH_WAVE_MAX_REACH - BEACH_WAVE_MIN_REACH;
-  if (phase < BEACH_WAVE_ADVANCE_RATIO) {
-    const p = easeInOut(phase / BEACH_WAVE_ADVANCE_RATIO);
-    const reach = BEACH_WAVE_MIN_REACH + reachSpan * p;
-    return { reach, foamReach: reach, foamAlpha: 0.92 };
-  }
-
-  const fadePhase = (phase - BEACH_WAVE_ADVANCE_RATIO) / (1 - BEACH_WAVE_ADVANCE_RATIO);
-  const foamAlpha = 0.92 * (1 - easeInOut(fadePhase));
-  const recedeEnd = BEACH_WAVE_ADVANCE_RATIO + BEACH_WAVE_RECEDE_RATIO;
-  if (phase < recedeEnd) {
-    const p = easeInOut((phase - BEACH_WAVE_ADVANCE_RATIO) / BEACH_WAVE_RECEDE_RATIO);
-    return {
-      reach: BEACH_WAVE_MAX_REACH - reachSpan * p,
-      foamReach: BEACH_WAVE_MAX_REACH,
-      foamAlpha
-    };
-  }
-
-  return {
-    reach: BEACH_WAVE_MIN_REACH,
-    foamReach: BEACH_WAVE_MAX_REACH,
-    foamAlpha
-  };
 }
 
 function drawBeachWaveWater(targetCtx, ax, ay, mx, my, bx, by, nx, ny, width, fromT, toT, color) {

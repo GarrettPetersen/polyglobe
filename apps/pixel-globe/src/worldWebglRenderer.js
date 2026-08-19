@@ -1,16 +1,10 @@
 import { UNDERWATER_REFRACTION_SHADER_TIME_COEFFICIENT } from "./underwaterRefraction.js";
 import { SHIP_SURFACE_LIGHTING_BLEND } from "./shipLighting.js";
-import {
-  OCEAN_SWELL_SPATIAL_CYCLES,
-  OCEAN_SWELL_STAGGER_PATTERN
-} from "./oceanSwell.js";
+import { OCEAN_SWELL_SPATIAL_CYCLES } from "./oceanSwell.js";
 
 if (SHIP_SURFACE_LIGHTING_BLEND !== "soft-light") {
   throw new Error(`World renderer cannot apply ship-lighting blend: ${SHIP_SURFACE_LIGHTING_BLEND}`);
 }
-
-const [SWELL_STAGGER_0, SWELL_STAGGER_1, SWELL_STAGGER_2, SWELL_STAGGER_3] =
-  OCEAN_SWELL_STAGGER_PATTERN;
 
 export const WORLD_SCENE_VERTEX_SHADER = `#version 300 es
 in vec2 a_position;
@@ -24,7 +18,6 @@ uniform vec2 u_translation;
 uniform vec2 u_swellFlow;
 uniform vec3 u_swellPhaseAxis;
 uniform float u_swellCycle;
-uniform float u_swellSerial;
 uniform float u_swellAmplitude;
 uniform float u_swellBandWidth;
 
@@ -37,16 +30,8 @@ void main() {
   if (a_swellPosition.w > 0.5 && u_swellAmplitude > 0.0) {
     float spatialCycles = dot(a_swellPosition.xyz, u_swellPhaseAxis) *
       ${OCEAN_SWELL_SPATIAL_CYCLES.toFixed(1)};
-    float waveCoordinate = u_swellSerial + u_swellCycle - spatialCycles;
-    float waveOrdinal = floor(waveCoordinate);
-    float patternIndex = mod(mod(waveOrdinal, ${OCEAN_SWELL_STAGGER_PATTERN.length.toFixed(1)}) +
-      ${OCEAN_SWELL_STAGGER_PATTERN.length.toFixed(1)},
-      ${OCEAN_SWELL_STAGGER_PATTERN.length.toFixed(1)});
-    float stagger = patternIndex < 0.5 ? ${SWELL_STAGGER_0.toFixed(2)} :
-      patternIndex < 1.5 ? ${SWELL_STAGGER_1.toFixed(2)} :
-      patternIndex < 2.5 ? ${SWELL_STAGGER_2.toFixed(2)} : ${SWELL_STAGGER_3.toFixed(2)};
-    float bandPhase = fract(waveCoordinate) - stagger * (1.0 - u_swellBandWidth);
-    if (bandPhase >= 0.0 && bandPhase < u_swellBandWidth) {
+    float bandPhase = fract(u_swellCycle - spatialCycles);
+    if (bandPhase < u_swellBandWidth) {
       float progress = bandPhase / u_swellBandWidth;
       float envelope = sin(3.14159265359 * progress);
       float displacement = sin(6.28318530718 * progress) * envelope * envelope *
@@ -735,7 +720,6 @@ export function createWorldWebGL2Renderer({
     swellFlow: requiredUniform(gl, sceneProgram, "u_swellFlow"),
     swellPhaseAxis: requiredUniform(gl, sceneProgram, "u_swellPhaseAxis"),
     swellCycle: requiredUniform(gl, sceneProgram, "u_swellCycle"),
-    swellSerial: requiredUniform(gl, sceneProgram, "u_swellSerial"),
     swellAmplitude: requiredUniform(gl, sceneProgram, "u_swellAmplitude"),
     swellBandWidth: requiredUniform(gl, sceneProgram, "u_swellBandWidth")
   };
@@ -992,7 +976,6 @@ export function createWorldWebGL2Renderer({
       swell?.phaseAxis[2] ?? 0
     );
     gl.uniform1f(sceneLocations.swellCycle, swell?.cycle ?? 0);
-    gl.uniform1f(sceneLocations.swellSerial, swell?.waveSerial ?? 0);
     gl.uniform1f(sceneLocations.swellAmplitude, swell?.amplitudePx ?? 0);
     gl.uniform1f(sceneLocations.swellBandWidth, swell?.bandWidth ?? 1);
     gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFramebuffer);
@@ -1973,16 +1956,14 @@ function validateSwellPosition(position) {
 
 function validateOceanSwell(swell) {
   if (swell === null) return;
-  if (!swell || !Number.isFinite(swell.cycle) || !Number.isInteger(swell.waveSerial) ||
+  if (!swell || !Number.isFinite(swell.cycle) ||
       !Number.isFinite(swell.amplitudePx) || !Number.isFinite(swell.bandWidth) ||
       !swell.flow || !Number.isFinite(swell.flow.x) || !Number.isFinite(swell.flow.y) ||
       !Array.isArray(swell.phaseAxis) || swell.phaseAxis.length !== 3 ||
       swell.phaseAxis.some((value) => !Number.isFinite(value))) {
     throw new Error("World frame ocean swell is malformed");
   }
-  if (swell.cycle < 0 || swell.cycle >= 1 || swell.waveSerial < 0 ||
-      swell.waveSerial >= OCEAN_SWELL_STAGGER_PATTERN.length ||
-      swell.amplitudePx < 0 ||
+  if (swell.cycle < 0 || swell.cycle >= 1 || swell.amplitudePx < 0 ||
       swell.bandWidth <= 0 || swell.bandWidth >= 1) {
     throw new Error("World frame ocean swell is outside its supported range");
   }

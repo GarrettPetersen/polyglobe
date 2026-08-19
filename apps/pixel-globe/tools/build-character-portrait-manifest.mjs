@@ -25,6 +25,13 @@ const individualSequencePacks = new Set([
 ]);
 const numericGridPacks = new Map();
 
+const portraitExpressionSourceOverrides = new Map([
+  [
+    "Curated Historical Portraits by CaptainSkolot/Mercenary Warrior",
+    ["assets/characters/Warrior%20with%20Beard%20Pack%20by%20Captainskolot/Warrior%20with%20Beard_1.png"]
+  ]
+]);
+
 const singleSexPortraitDirectories = new Map([
   ["Blacksmith Portrait Pack by Captainskeleto", "male"],
   ["Blond Villager Portrait Pack by Captainskeleto", "male"],
@@ -687,6 +694,11 @@ function numberedPortraitName(rawBase) {
 function normalizeExpressionGroup(group) {
   const sorted = group.expressions
     .sort((a, b) => a.expressionIndex - b.expressionIndex || a.relPath.localeCompare(b.relPath));
+  const sourceKey = `${group.relDir}/${group.labelSeed}`;
+  const sourceOverrides = portraitExpressionSourceOverrides.get(sourceKey) || null;
+  if (sourceOverrides && sourceOverrides.length !== sorted.length) {
+    throw new Error(`Portrait source override count mismatch for ${sourceKey}`);
+  }
   const usedExpressionIds = new Set();
   const semanticLabels = expressionLabelsForGroup(group, sorted.length);
   const expressions = sorted.map((expression, position) => {
@@ -697,7 +709,7 @@ function normalizeExpressionGroup(group) {
       id,
       label: semantic.label,
       index: expression.expressionIndex,
-      src: expression.src,
+      src: sourceOverrides?.[position] || expression.src,
       width: portraitSize,
       height: portraitSize
     };

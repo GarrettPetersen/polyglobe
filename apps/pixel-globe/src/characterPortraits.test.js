@@ -682,6 +682,16 @@ test("Knight Portrait opens on its calm neutral frame", () => {
   assert.equal(knight.expressions[0].id, "happy");
 });
 
+test("the bloodied mercenary frame is never used as a neutral portrait", () => {
+  const mercenary = GENERATED_MANIFEST.sourceCharacters.find((source) => (
+    source.id === "curated-historical-portraits-by-captainskolot-mercenary-warrior"
+  ));
+  const neutral = mercenary.expressions.find((expression) => expression.id === "neutral");
+
+  assert.doesNotMatch(neutral.src, /Mercenary%20Warrior\.png$/);
+  assert.match(neutral.src, /Warrior%20with%20Beard_1\.png$/);
+});
+
 test("visually reviewed expression packs use calm neutral frames", () => {
   const neutralIndices = new Map([
     ["blacksmith-portrait-pack-by-captainskeleto-blacksmith-portrait", 1],

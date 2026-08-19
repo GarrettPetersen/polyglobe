@@ -4,12 +4,11 @@ export const CALM_SWELL_PACKET_DURATION_MS = 11000;
 export const CALM_SWELL_PACKET_FADE_MS = 1000;
 export const CALM_SWELL_MAX_AMPLITUDE_PX = 1;
 export const STORM_SWELL_MAX_AMPLITUDE_PX = 3;
-export const CALM_SWELL_WAVE_PERIOD_MS = 8500;
+export const CALM_SWELL_WAVE_PERIOD_MS = 6500;
 export const STORM_SWELL_PERIOD_MS = 6500;
 export const OCEAN_SWELL_SPATIAL_CYCLES = 7;
-export const CALM_SWELL_BAND_WIDTH = 0.18;
-export const STORM_SWELL_BAND_WIDTH = 0.26;
-export const OCEAN_SWELL_STAGGER_PATTERN = Object.freeze([0, 0.58, 0.2, 0.78]);
+export const CALM_SWELL_BAND_WIDTH = 0.14;
+export const STORM_SWELL_BAND_WIDTH = 0.16;
 
 const PHASE_AXIS_QUANTIZATION = 64;
 const TAU = Math.PI * 2;
@@ -37,7 +36,6 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseA
   );
   const periodMs = lerp(CALM_SWELL_WAVE_PERIOD_MS, STORM_SWELL_PERIOD_MS, stormStrength);
   const cycle = modulo(nowMs / periodMs, 1);
-  const waveSerial = modulo(Math.floor(nowMs / periodMs), OCEAN_SWELL_STAGGER_PATTERN.length);
   const frame = Math.floor(cycle * OCEAN_SWELL_FRAME_COUNT) % OCEAN_SWELL_FRAME_COUNT;
   const directionBin = modulo(
     Math.round(flowDirectionRad / TAU * 16),
@@ -57,7 +55,7 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseA
   return Object.freeze({
     amplitudePx: amplitudeBin / 4,
     bandWidth: bandWidthBin / PHASE_AXIS_QUANTIZATION,
-    cacheKey: `${cachedFrame}:${cachedDirectionBin}:${amplitudeBin}:${bandWidthBin}:${phaseAxisKey}:${settled ? 0 : waveSerial}`,
+    cacheKey: `${cachedFrame}:${cachedDirectionBin}:${amplitudeBin}:${bandWidthBin}:${phaseAxisKey}`,
     cycle: settled ? 0 : cachedFrame / OCEAN_SWELL_FRAME_COUNT,
     flow: Object.freeze({
       x: Math.cos(cachedDirectionRad),
@@ -66,14 +64,12 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseA
     frame: cachedFrame,
     phaseAxis: Object.freeze(cachedPhaseAxis),
     stormStrength,
-    travelPeriodMs: periodMs,
-    waveSerial: settled ? 0 : waveSerial
+    travelPeriodMs: periodMs
   });
 }
 
 export function oceanSwellOffset(state, globePosition) {
   if (!state || !Number.isFinite(state.amplitudePx) || !Number.isFinite(state.cycle) ||
-      !Number.isInteger(state.waveSerial) ||
       !Number.isFinite(state.bandWidth) || state.bandWidth <= 0 || state.bandWidth >= 1) {
     throw new Error("Ocean swell offset requires a valid swell state");
   }
@@ -84,11 +80,7 @@ export function oceanSwellOffset(state, globePosition) {
   if (state.amplitudePx <= 0) return { x: 0, y: 0 };
 
   const spatialCycles = dot3(globePosition, state.phaseAxis) * OCEAN_SWELL_SPATIAL_CYCLES;
-  const waveCoordinate = state.waveSerial + state.cycle - spatialCycles;
-  const waveOrdinal = Math.floor(waveCoordinate);
-  const stagger = swellBandStagger(waveOrdinal) * (1 - state.bandWidth);
-  const bandPhase = modulo(waveCoordinate, 1) - stagger;
-  if (bandPhase < 0) return { x: 0, y: 0 };
+  const bandPhase = modulo(state.cycle - spatialCycles, 1);
   if (bandPhase >= state.bandWidth) return { x: 0, y: 0 };
   const bandProgress = bandPhase / state.bandWidth;
   const bandEnvelope = Math.sin(Math.PI * bandProgress) ** 2;
@@ -97,16 +89,6 @@ export function oceanSwellOffset(state, globePosition) {
     x: roundPixel(state.flow.x * displacement),
     y: roundPixel(state.flow.y * displacement)
   };
-}
-
-export function swellBandStagger(waveOrdinal) {
-  if (!Number.isInteger(waveOrdinal)) {
-    throw new Error(`Ocean swell wave ordinal must be an integer: ${waveOrdinal}`);
-  }
-  return OCEAN_SWELL_STAGGER_PATTERN[modulo(
-    waveOrdinal,
-    OCEAN_SWELL_STAGGER_PATTERN.length
-  )];
 }
 
 export function calmSwellEnvelope(nowMs) {

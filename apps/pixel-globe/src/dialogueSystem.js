@@ -400,6 +400,8 @@ export function createPortDialogueSession(city, options = {}) {
     questCargoTip: null,
     shipHandover: null,
     shipyardDividendArrival: null,
+    shipyardInvestmentArrival: options.shipyardInvestmentArrival === true,
+    shipyardInvestmentOfferApproached: false,
     specialEquipmentOffer: null,
     equipmentFactorPitch: options.equipmentFactorPitch || null,
     equipmentFactorPitchOutcome: null,
@@ -1541,6 +1543,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "custom-loadout") return customLoadoutView(session, city, gameState, context);
   if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
+  if (session.nodeId === "shipyard-investment-offer") {
+    return shipyardInvestmentOfferView(session, city, gameState, context);
+  }
   if (session.nodeId === "shipyard-investment") {
     return shipyardInvestmentView(session, city, gameState, context);
   }
@@ -3797,7 +3802,7 @@ function rootView(session, city, gameState, economy, context) {
           ? { type: "node", nodeId: "shipyard-investment" }
           : playerBackedShipyard
             ? { type: "node", nodeId: "shipyard-investment" }
-          : { type: "begin-shipyard-investment" }
+          : { type: "node", nodeId: "shipyard-investment-offer" }
       )]
       : []),
     ...(tradeAccess.allowed
@@ -5302,8 +5307,28 @@ function shipyardInvestmentOptions(city, gameState, yard, simMinute) {
     return [option("Review my shipyard", { type: "node", nodeId: "shipyard-investment" })];
   }
   return shipyardInvestmentOfferAvailable(gameState, city, yard, simMinute)
-    ? [option("Back a great shipyard", { type: "begin-shipyard-investment" })]
+    ? [option("Back a great shipyard", { type: "node", nodeId: "shipyard-investment-offer" })]
     : [];
+}
+
+function shipyardInvestmentOfferView(session, city, gameState, context) {
+  const yard = context.shipyard;
+  if (!shipyardInvestmentOfferAvailable(gameState, city, yard, context.simMinute ?? 0)) {
+    throw new Error(`Shipyard investment offer is unavailable at ${cityLabel(city)}`);
+  }
+  return {
+    speaker: `${cityLabel(city)} master shipwright`,
+    expressionId: "pleased",
+    text: `A deepwater yard needs ${SHIPYARD_INVESTMENT_CAPITAL} doubloons, timber, iron, and naval stores. Back it, and your share of every vessel sold will be entered in the yard's books.`,
+    feedback: null,
+    options: [
+      option("Meet the shipyard syndicate", { type: "begin-shipyard-investment" }),
+      option("Not now", {
+        type: "node",
+        nodeId: session.shipyardInvestmentArrival ? session.nextPortNodeId || "greeting" : "root"
+      })
+    ]
+  };
 }
 
 function shipyardInvestmentView(session, city, gameState, context) {
@@ -5352,7 +5377,10 @@ function shipyardInvestmentView(session, city, gameState, context) {
   if (shipyardInvestmentComplete(project)) {
     rows.push(option("Open the shipyard", { type: "open-player-shipyard" }));
   }
-  rows.push(option("Back", { type: "node", nodeId: "shipyard" }));
+  rows.push(option("Back", {
+    type: "node",
+    nodeId: session.shipyardInvestmentArrival ? session.nextPortNodeId || "greeting" : "shipyard"
+  }));
   return {
     speaker: `${cityLabel(city)} master shipwright`,
     expressionId: "attentive",

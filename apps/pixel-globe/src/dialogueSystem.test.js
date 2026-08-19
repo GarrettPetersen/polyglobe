@@ -4195,6 +4195,10 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
   const offerIndex = root.options.findIndex((entry) => entry.label === "Meet the shipyard syndicate");
   assert.ok(offerIndex >= 0);
   selectPortDialogueOption(session, city, gameState, economy, [city], offerIndex, context);
+  assert.equal(session.nodeId, "shipyard-investment-offer");
+  const offer = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(offer.text, /A deepwater yard needs 100000 doubloons/);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
   assert.equal(session.nodeId, "shipyard-investment");
 
   const project = portDialogueView(session, city, gameState, economy, [city], context);
@@ -4202,6 +4206,51 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
   const capital = project.options.find((entry) => entry.action.type === "pay-shipyard-investment");
   assert.equal(capital.disabled, true);
   assert.equal(capital.disabledReason, "Need 25000 more doubloons.");
+});
+
+test("a proactive shipyard offer can be declined back into the arrival queue", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    settlementType: "city",
+    population: 100000,
+    factionId: "portugal",
+    character: { name: "Fernao da Cunha" }
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.doubloons = 75000;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const context = {
+    shipStats: stats,
+    shipyard: economy.shipyards.yards.get(city.tileId),
+    simMinute: 100
+  };
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "shipyard-investment-offer",
+    admittedToPort: true,
+    nextPortNodeId: "greeting",
+    shipyardInvestmentArrival: true
+  });
+  session.shipyardInvestmentOfferApproached = true;
+
+  const offer = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(offer.options.at(-1).label, "Not now");
+  assert.equal(offer.options.at(-1).action.nodeId, "greeting");
+  selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    offer.options.length - 1,
+    context
+  );
+  assert.equal(session.nodeId, "greeting");
+  assert.equal(gameState.memory.shipyardInvestment.project, null);
 });
 
 test("a returning shipyard investor receives an itemized sale-share greeting", () => {
