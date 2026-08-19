@@ -4,8 +4,10 @@ import test from "node:test";
 import {
   CALM_SWELL_BAND_WIDTH,
   CALM_SWELL_PACKET_DURATION_MS,
+  CALM_SWELL_PACKET_FADE_MS,
   CALM_SWELL_PACKET_PERIOD_MS,
   CALM_SWELL_WAVE_PERIOD_MS,
+  OCEAN_SWELL_FRAME_COUNT,
   OCEAN_SWELL_SPATIAL_CYCLES,
   STORM_SWELL_MAX_AMPLITUDE_PX,
   STORM_SWELL_BAND_WIDTH,
@@ -25,7 +27,12 @@ test("calm ocean swells arrive as brief low-amplitude packets", () => {
   assert.equal(calmSwellEnvelope(0), 0);
   assert.equal(calmSwellEnvelope(CALM_SWELL_PACKET_DURATION_MS), 0);
   assert.equal(calmSwellEnvelope(CALM_SWELL_PACKET_PERIOD_MS - 1), 0);
-  assert.ok(calmSwellEnvelope(CALM_SWELL_PACKET_DURATION_MS / 2) > 0.99);
+  assert.equal(calmSwellEnvelope(CALM_SWELL_PACKET_FADE_MS), 1);
+  assert.equal(calmSwellEnvelope(CALM_SWELL_PACKET_DURATION_MS / 2), 1);
+  assert.equal(
+    calmSwellEnvelope(CALM_SWELL_PACKET_DURATION_MS - CALM_SWELL_PACKET_FADE_MS),
+    1
+  );
 
   const quiet = swellState({
     nowMs: CALM_SWELL_PACKET_DURATION_MS + 1000,
@@ -41,6 +48,15 @@ test("calm ocean swells arrive as brief low-amplitude packets", () => {
   });
   assert.equal(crest.amplitudePx, 1);
   assert.equal(crest.travelPeriodMs, CALM_SWELL_WAVE_PERIOD_MS);
+  assert.ok(
+    CALM_SWELL_WAVE_PERIOD_MS / OCEAN_SWELL_FRAME_COUNT <= 150,
+    "swell phase should advance on nearly every water animation tick"
+  );
+  assert.ok(
+    CALM_SWELL_PACKET_DURATION_MS - CALM_SWELL_PACKET_FADE_MS * 2 >=
+      CALM_SWELL_WAVE_PERIOD_MS,
+    "a calm packet must hold its full amplitude through one complete wave traversal"
+  );
   assert.ok(CALM_SWELL_PACKET_DURATION_MS < CALM_SWELL_PACKET_PERIOD_MS);
 });
 
@@ -78,7 +94,11 @@ test("swell motion travels in distinct bands with settled water between them", (
 
 test("visually settled water shares one terrain cache state", () => {
   const early = swellState({ nowMs: 100, stormStrength: 0, flowDirectionRad: 0 });
-  const later = swellState({ nowMs: 700, stormStrength: 0, flowDirectionRad: 2.4 });
+  const later = swellState({
+    nowMs: CALM_SWELL_PACKET_DURATION_MS + 700,
+    stormStrength: 0,
+    flowDirectionRad: 2.4
+  });
 
   assert.equal(early.amplitudePx, 0);
   assert.equal(later.amplitudePx, 0);

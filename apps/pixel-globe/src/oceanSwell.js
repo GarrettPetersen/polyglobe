@@ -1,6 +1,7 @@
-export const OCEAN_SWELL_FRAME_COUNT = 32;
-export const CALM_SWELL_PACKET_PERIOD_MS = 26000;
-export const CALM_SWELL_PACKET_DURATION_MS = 7000;
+export const OCEAN_SWELL_FRAME_COUNT = 64;
+export const CALM_SWELL_PACKET_PERIOD_MS = 20000;
+export const CALM_SWELL_PACKET_DURATION_MS = 11000;
+export const CALM_SWELL_PACKET_FADE_MS = 1000;
 export const CALM_SWELL_MAX_AMPLITUDE_PX = 1;
 export const STORM_SWELL_MAX_AMPLITUDE_PX = 3;
 export const CALM_SWELL_WAVE_PERIOD_MS = 8500;
@@ -96,8 +97,16 @@ export function calmSwellEnvelope(nowMs) {
   }
   const packetTime = modulo(nowMs, CALM_SWELL_PACKET_PERIOD_MS);
   if (packetTime >= CALM_SWELL_PACKET_DURATION_MS) return 0;
-  const progress = packetTime / CALM_SWELL_PACKET_DURATION_MS;
-  return Math.sin(Math.PI * progress) ** 2;
+  if (packetTime < CALM_SWELL_PACKET_FADE_MS) {
+    return smoothstep01(packetTime / CALM_SWELL_PACKET_FADE_MS);
+  }
+  const fadeOutStart = CALM_SWELL_PACKET_DURATION_MS - CALM_SWELL_PACKET_FADE_MS;
+  if (packetTime > fadeOutStart) {
+    return smoothstep01(
+      (CALM_SWELL_PACKET_DURATION_MS - packetTime) / CALM_SWELL_PACKET_FADE_MS
+    );
+  }
+  return 1;
 }
 
 function normalize3(vector) {
@@ -117,6 +126,11 @@ function dot3(a, b) {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+function smoothstep01(value) {
+  const t = Math.max(0, Math.min(1, value));
+  return t * t * (3 - 2 * t);
 }
 
 function modulo(value, divisor) {

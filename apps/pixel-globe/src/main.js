@@ -7775,7 +7775,12 @@ function stageNingboMissionFleetAtDestination(quest) {
     throw new Error(`Cannot stage an inactive Ningbo mission: ${quest?.id}`);
   }
   let changed = false;
+  const manifestById = new Map(
+    reconcileNingboDelegationManifest(quest).map((spec) => [spec.id, spec])
+  );
   for (const strategic of ensureNingboMissionEncounters()) {
+    const spec = manifestById.get(strategic.id);
+    if (!spec) throw new Error(`Ningbo mission lost delegation manifest entry: ${strategic.id}`);
     const holdProgress = strategic.encounter.delegationRole === "courier"
       ? 0.988
       : 0.978;
@@ -7783,7 +7788,7 @@ function stageNingboMissionFleetAtDestination(quest) {
       npcSeaRoutes,
       strategic.id,
       Math.floor(weatherClockMinutes),
-      { holdProgress }
+      { holdProgress, originPortId: spec.originPortId }
     );
     if (!staged) continue;
     const visualState = npcVisualShips.get(strategic.id);

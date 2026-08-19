@@ -734,6 +734,13 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
     origin
   });
   ship.encounter = spec.encounter ? cloneJsonData(spec.encounter) : null;
+  if (ship.encounter) {
+    const savedOriginPortId = ship.encounter.originPortId;
+    if (savedOriginPortId !== undefined && savedOriginPortId !== spec.originPortId) {
+      throw new Error(`NPC route encounter origin does not match its route: ${spec.id}`);
+    }
+    ship.encounter.originPortId = spec.originPortId;
+  }
   ship.replaceOnSink = spec.replaceOnSink !== false;
   if (spec.specie !== undefined) {
     if (!Number.isFinite(spec.specie) || spec.specie < 0) {
@@ -761,7 +768,7 @@ export function stageNpcRouteEncounterAtDestination(
   system,
   shipId,
   clockMinutes,
-  { holdProgress = null } = {}
+  { holdProgress = null, originPortId = null } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
   if (!Number.isFinite(clockMinutes) || clockMinutes < 0) {
@@ -778,13 +785,27 @@ export function stageNpcRouteEncounterAtDestination(
       (!Number.isFinite(holdProgress) || holdProgress <= 0 || holdProgress > 1)) {
     throw new Error(`Invalid NPC encounter staging progress: ${shipId}`);
   }
+  if (originPortId !== null && !Number.isInteger(originPortId)) {
+    throw new Error(`Invalid NPC encounter staging origin: ${shipId}`);
+  }
+  if (originPortId !== null) {
+    const savedOriginPortId = ship.encounter.originPortId;
+    if (savedOriginPortId !== undefined && savedOriginPortId !== originPortId) {
+      throw new Error(`NPC encounter staging origin changed: ${shipId}`);
+    }
+    ship.encounter.originPortId = originPortId;
+  }
   if (
     ship.currentPort?.tileId === destinationPortId &&
     ship.plan?.segments?.length === 1 &&
     ship.plan.segments[0].kind === "wait"
   ) {
-    if (holdProgress === null || holdProgress === ship.encounter.holdProgress) return false;
-    repositionHeldNpcRouteEncounter(ship, destination, holdProgress);
+    const hasVisualPosition = Array.isArray(ship.visualNavigation?.vector) &&
+      ship.visualNavigation.vector.length === 3;
+    if ((holdProgress === null || holdProgress === ship.encounter.holdProgress) &&
+        hasVisualPosition) return false;
+    const restoredProgress = holdProgress ?? ship.encounter.holdProgress ?? 0.96;
+    repositionHeldNpcRouteEncounter(system, ship, destination, restoredProgress, clockMinutes);
     return true;
   }
   const lastSail = [...(ship.plan?.segments || [])]
@@ -2558,7 +2579,7 @@ function holdNpcRouteEncounterAtDestination(ship, destination, arrivalMinute, la
   };
 }
 
-function repositionHeldNpcRouteEncounter(ship, destination, holdProgress) {
+function repositionHeldNpcRouteEncounter(system, ship, destination, holdProgress, clockMinutes) {
   const previousProgress = ship.encounter.holdProgress ?? 0.96;
   const savedApproach = ship.encounter.holdApproachVectors;
   let holdVectors;
@@ -2568,17 +2589,24 @@ function repositionHeldNpcRouteEncounter(ship, destination, holdProgress) {
     effectiveProgress = holdProgress;
   } else {
     const currentVector = ship.visualNavigation?.vector;
-    if (!Array.isArray(currentVector) || currentVector.length !== 3) {
-      throw new Error(`Held NPC encounter is missing its visual position: ${ship.id}`);
+    if (Array.isArray(currentVector) && currentVector.length === 3) {
+      holdVectors = {
+        from: currentVector,
+        to: latLonToVector(destination.lat, destination.lon)
+      };
+      const remainingProgress = Math.max(1e-6, 1 - previousProgress);
+      effectiveProgress = Math.max(0, Math.min(1,
+        (holdProgress - previousProgress) / remainingProgress
+      ));
+    } else {
+      holdVectors = restoredEncounterApproachVectors(
+        system,
+        ship,
+        destination,
+        clockMinutes
+      );
+      effectiveProgress = holdProgress;
     }
-    holdVectors = {
-      from: currentVector,
-      to: latLonToVector(destination.lat, destination.lon)
-    };
-    const remainingProgress = Math.max(1e-6, 1 - previousProgress);
-    effectiveProgress = Math.max(0, Math.min(1,
-      (holdProgress - previousProgress) / remainingProgress
-    ));
     ship.encounter.holdApproachVectors = {
       from: [...holdVectors.from],
       to: [...holdVectors.to]
@@ -2590,6 +2618,21 @@ function repositionHeldNpcRouteEncounter(ship, destination, holdProgress) {
     vector: heldPosition,
     heading: headingVectorForVectors(heldPosition, holdVectors.from, holdVectors.to)
   };
+}
+
+function restoredEncounterApproachVectors(system, ship, destination, clockMinutes) {
+  const originPortId = ship.encounter?.originPortId;
+  if (!Number.isInteger(originPortId)) {
+    throw new Error(`Held NPC encounter is missing its route origin: ${ship.id}`);
+  }
+  const origin = system.ports.find((port) => port.tileId === originPortId);
+  if (!origin) throw new Error(`Held NPC encounter route origin is missing: ${originPortId}`);
+  const route = routeBetweenPorts(system, origin, destination, ship.slug, clockMinutes);
+  const lastSail = [...route.segments]
+    .reverse()
+    .find((segment) => segment.kind === "sail");
+  if (!lastSail) throw new Error(`Held NPC encounter route has no sailing segment: ${ship.id}`);
+  return vectorsForRouteSegment(lastSail);
 }
 
 function rebaseStaleNpcShipPlan(system, ship, clockMinutes) {

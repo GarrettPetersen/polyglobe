@@ -2008,6 +2008,42 @@ test("routed delegations can be assembled at their hearing without waiting for t
   assert.deepEqual(npcShipSnapshotForId(routes, delegation.id, 1101).routeVector, held.routeVector);
 });
 
+test("legacy held delegations recover their visual position when restaged", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const delegation = configureNpcRouteEncounter(routes, {
+    id: "delegation:legacy-held",
+    originPortId: 8,
+    destinationPortId: 9,
+    factionId: "ming",
+    role: NPC_ROLE_WARSHIP,
+    shipSlug: "small-junk",
+    replaceOnSink: false,
+    encounter: {
+      kind: "test-delegation",
+      destinationPortId: 9,
+      holdAtDestination: true,
+      holdProgress: 0.93
+    }
+  }, 1000);
+  stageNpcRouteEncounterAtDestination(routes, delegation.id, 1100);
+  delegation.visualNavigation = null;
+  delete delegation.encounter.holdApproachVectors;
+  delete delegation.encounter.originPortId;
+
+  assert.equal(stageNpcRouteEncounterAtDestination(
+    routes,
+    delegation.id,
+    1101,
+    { holdProgress: 0.93, originPortId: 8 }
+  ), true);
+  const restored = npcShipSnapshotForId(routes, delegation.id, 1101);
+  assert.equal(restored.id, delegation.id);
+  assert.match(restored.routeKey, /^held:/);
+  assert.equal(delegation.encounter.originPortId, 8);
+  assert.equal(delegation.encounter.holdProgress, 0.93);
+});
+
 test("the annual tea race launches five distinct wind-routed merchants for London", () => {
   const london = port(100, "London", "United Kingdom", "northern-european", 51.51, -0.13, 120000, "england");
   const ports = [...PORTS, london];
