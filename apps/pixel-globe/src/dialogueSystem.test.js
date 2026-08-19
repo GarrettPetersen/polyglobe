@@ -14,6 +14,7 @@ import {
   createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
+  personalHostilityDialogue,
   portDialogueView,
   prepareDamageSurrenderDialogue,
   prepareSurrenderPrizeDialogue,
@@ -418,6 +419,18 @@ test("shore batteries do not quote passage that the faction will refuse", () => 
   assert.match(view.text, /at war with your flag/);
   assert.deepEqual(view.options.map((entry) => entry.label), ["To arms"]);
   assert.ok(view.options.every((entry) => entry.action.type !== "purchase-safe-passage"));
+});
+
+test("personal hostility challenges blame the captain rather than a war between flags", () => {
+  assert.equal(
+    personalHostilityDialogue("Kingdom of France"),
+    "Your flag is not our quarrel, captain. You are. Kingdom of France has declared you an outlaw. Heave to!"
+  );
+  assert.equal(
+    personalHostilityDialogue("Kingdom of France", { defensive: true }),
+    "Peace may hold between our flags, but your name is cursed in Kingdom of France. Keep away, or we will defend ourselves!"
+  );
+  assert.throws(() => personalHostilityDialogue(""), /requires a faction name/);
 });
 
 test("disabled shore battery passage offers stay open without crashing", () => {

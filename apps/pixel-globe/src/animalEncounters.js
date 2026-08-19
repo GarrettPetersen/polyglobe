@@ -357,7 +357,11 @@ function tigerRange(h) {
 }
 
 function northernWilds(h) {
-  return h.latitudeDeg >= 30 && h.latitudeDeg <= 72 &&
+  const holarctic = h.latitudeDeg >= 35 && h.latitudeDeg <= 72;
+  const southwestAsia = h.latitudeDeg >= 30 && h.latitudeDeg < 35 && longitudeIn(h, 25, 80);
+  const atlasMountains = h.latitudeDeg >= 28 && h.latitudeDeg <= 37 && longitudeIn(h, -13, 12) &&
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.MOUNTAIN);
+  return (holarctic || southwestAsia || atlasMountains) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.ROCK, TERRAIN_TRAIT.TUNDRA, TERRAIN_TRAIT.GRASS);
 }
 

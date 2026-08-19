@@ -833,6 +833,7 @@ import {
   createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
+  personalHostilityDialogue,
   portDialogueView,
   prepareDamageSurrenderDialogue,
   preparePassengerDialogueArrival,
@@ -22545,11 +22546,12 @@ function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
   const state = npcVisualShips.get(npcShipId);
   const factionId = state?.factionId || npcSeaRoutes?.shipById?.get(npcShipId)?.factionId || fallbackFactionId;
   if (!factionId || factionId === PIRATE_FACTION_ID) return;
+  const lawfulWartimeAction = hasPrivateeringAuthorityAgainst(gameState, factionId);
   if (!state?.playerAttackRecorded) {
-    recordAttackAgainstFaction(gameState, factionId);
+    recordAttackAgainstFaction(gameState, factionId, { lawfulWartimeAction });
     if (state) state.playerAttackRecorded = true;
   }
-  if (hasPrivateeringAuthorityAgainst(gameState, factionId)) return;
+  if (lawfulWartimeAction) return;
   if (!state?.playerPiracyRecorded) {
     const hideoutsWereVisible = pirateHideoutsVisibleToPlayer(gameState);
     recordPiracyAgainstFaction(gameState, factionId, { includeVictim: false });
@@ -29298,7 +29300,9 @@ function beginPlayerInitiatedShoreCombat(battery) {
   battery.playerAttackActive = true;
   if (battery.playerAttackRecorded) return;
   if (battery.factionId !== PIRATE_FACTION_ID) {
-    recordAttackAgainstFaction(gameState, battery.factionId);
+    recordAttackAgainstFaction(gameState, battery.factionId, {
+      lawfulWartimeAction: attackStatus.piracy === false
+    });
   }
   if (attackStatus.piracy) {
     recordPiracyAgainstFaction(gameState, battery.factionId, { includeVictim: false });
@@ -32188,15 +32192,28 @@ function npcCombatAttackReason(state) {
     state.role === NPC_ROLE_FISHERMAN ||
     state.role === NPC_ROLE_WHALER
   ) {
-    return ship.factionId === PIRATE_FACTION_ID
-      ? "You sail under pirate colors. Keep away, or we will defend ourselves!"
-      : "Your flag is hostile to ours. Keep away, or we will defend ourselves!";
+    if (ship.factionId === PIRATE_FACTION_ID) {
+      return "You sail under pirate colors. Keep away, or we will defend ourselves!";
+    }
+    if (currentDiplomacyBetween(ship.factionId, state.factionId) === DIPLOMACY_WAR) {
+      return "Your flag is hostile to ours. Keep away, or we will defend ourselves!";
+    }
+    if (factionReputation(gameState, state.factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD) {
+      return personalHostilityDialogue(factionById(state.factionId).name, { defensive: true });
+    }
+    return "Keep away, or we will defend ourselves!";
   }
   if (ship.factionId === PIRATE_FACTION_ID) {
     return "You sail under pirate colors. Strike them, or we open fire!";
   }
   const faction = factionById(state.factionId);
-  return `${faction.name} is at war with your flag. Heave to, or we open fire!`;
+  if (currentDiplomacyBetween(ship.factionId, state.factionId) === DIPLOMACY_WAR) {
+    return `${faction.name} is at war with your flag. Heave to, or we open fire!`;
+  }
+  if (factionReputation(gameState, state.factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD) {
+    return personalHostilityDialogue(faction.name);
+  }
+  return `${faction.name} has ordered us to stop you. Heave to, or we open fire!`;
 }
 
 function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playerCombatActive) {

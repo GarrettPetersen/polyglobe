@@ -277,6 +277,20 @@ test("every catalog animal has geographic and terrain habitat boundaries", () =>
   }
 });
 
+test("brown bears include the Atlas Mountains but not coastal Tripoli", () => {
+  const brownBear = ANIMAL_CATALOG_BY_ID.get("brown-bear");
+  assert.equal(brownBear.matches(habitat({
+    latitudeDeg: 34.1,
+    longitudeDeg: -5.0,
+    terrain: "mountain"
+  })), true);
+  assert.equal(brownBear.matches(habitat({
+    latitudeDeg: 32.9,
+    longitudeDeg: 13.2,
+    terrain: "rock"
+  })), false);
+});
+
 test("penguins include native temperate Southern Hemisphere coasts", () => {
   const penguin = ANIMAL_CATALOG_BY_ID.get("penguin");
   for (const overrides of [

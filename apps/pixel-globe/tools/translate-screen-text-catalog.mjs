@@ -124,6 +124,30 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Peace may hold between our flags, but your name is cursed in {0}. Keep away, or we will defend ourselves!": Object.freeze({
+    "zh-Hans": "我们的旗帜之间或许已经停战，但你的名字在{0}仍受唾骂。离远些，否则我们就自卫！",
+    ru: "Между нашими флагами может быть мир, но в {0} ваше имя проклято. Держитесь подальше, иначе мы будем защищаться!",
+    es: "Puede haber paz entre nuestras banderas, pero vuestro nombre está maldito en {0}. ¡Manteneos lejos o nos defenderemos!",
+    "pt-BR": "Pode haver paz entre nossas bandeiras, mas seu nome é maldito em {0}. Fique longe ou vamos nos defender!",
+    ja: "我らの旗同士は和平を結んだかもしれぬが、{0}では貴殿の名は呪われている。近づくな、さもなくば自衛する！",
+    de: "Zwischen unseren Flaggen mag Frieden herrschen, doch Euer Name ist in {0} verflucht. Bleibt fern, sonst verteidigen wir uns!",
+    fr: "La paix règne peut-être entre nos pavillons, mais votre nom est maudit en {0}. Restez à distance, ou nous nous défendrons !",
+    pl: "Między naszymi banderami może panować pokój, lecz w {0} wasze imię jest przeklęte. Trzymajcie się z dala, inaczej będziemy się bronić!",
+    "zh-Hant": "我們的旗幟之間或許已經停戰，但你的名字在{0}仍受唾罵。離遠些，否則我們就自衛！",
+    ko: "우리 두 깃발 사이에는 평화가 있을지 몰라도, {0}에서는 선장 이름이 저주받았소. 물러나시오. 아니면 우리도 방어하겠소!"
+  }),
+  "Your flag is not our quarrel, captain. You are. {0} has declared you an outlaw. Heave to!": Object.freeze({
+    "zh-Hans": "船长，我们的敌人不是你的旗帜，而是你本人。{0}已宣布你为不法之徒。立即停船！",
+    ru: "Не ваш флаг нам враг, капитан. Вы. Власти {0} объявили вас вне закона. Лечь в дрейф!",
+    es: "El problema no es vuestra bandera, capitán. Sois vos. {0} os ha declarado fuera de la ley. ¡Poneos al pairo!",
+    "pt-BR": "A questão não é sua bandeira, capitão. É você. {0} declarou você fora da lei. Pare o navio!",
+    ja: "争いがあるのは貴船の旗ではない、船長。貴殿自身だ。{0}は貴殿を無法者と宣告した。停船せよ！",
+    de: "Nicht Eure Flagge ist unser Feind, Kapitän. Ihr seid es. {0} hat Euch zum Geächteten erklärt. Beidrehen!",
+    fr: "Ce n'est pas votre pavillon qui nous querelle, capitaine. C'est vous. {0} vous a déclaré hors-la-loi. Mettez en panne !",
+    pl: "Nie z waszą banderą mamy zatarg, kapitanie. Z wami. Władcy {0} uznali was za banitę. Położyć się w dryf!",
+    "zh-Hant": "船長，我們的敵人不是你的旗幟，而是你本人。{0}已宣告你為不法之徒。立即停船！",
+    ko: "문제는 선장 깃발이 아니라 선장 자신이오. {0} 당국은 선장을 무법자로 선포했소. 정선하시오!"
+  }),
   "PET IT": Object.freeze({
     "zh-Hans": "摸摸它", ru: "ПОГЛАДИТЬ", es: "ACARICIARLO", "pt-BR": "ACARICIAR",
     ja: "撫でる", de: "STREICHELN", fr: "LE CARESSER", pl: "POGŁASKAĆ",

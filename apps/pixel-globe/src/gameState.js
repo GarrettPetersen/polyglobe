@@ -423,7 +423,7 @@ import {
 } from "./shipyardInvestment.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 78;
+export const GAME_STATE_VERSION = 79;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -736,7 +736,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -837,7 +837,10 @@ export function migrateGameState(state, shipStats) {
     },
     relations: {
       ...migratedRelationBase,
-      factionReputation: migrateFactionReputationTable(state.relations.factionReputation),
+      factionReputation: migrateLawfulWartimeAttackReputation(
+        state,
+        migrateFactionReputationTable(state.relations.factionReputation)
+      ),
       lettersOfMarque: removeRetiredFactionKeys(state.relations.lettersOfMarque),
       safePassageUntilMinute: state.version === 8
         ? {}
@@ -4468,9 +4471,15 @@ export function recordDeliveryForFaction(state, factionId) {
   return after;
 }
 
-export function recordAttackAgainstFaction(state, factionId) {
+export function recordAttackAgainstFaction(state, factionId, options = {}) {
   assertGameState(state);
   const id = assertFactionId(factionId);
+  if (!options || typeof options !== "object" || Array.isArray(options) ||
+      Object.keys(options).some((key) => key !== "lawfulWartimeAction") ||
+      (options.lawfulWartimeAction !== undefined && typeof options.lawfulWartimeAction !== "boolean")) {
+    throw new Error("Attack consequences require an optional lawful-wartime-action flag");
+  }
+  const lawfulWartimeAction = options.lawfulWartimeAction === true;
   if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) return factionReputation(state, id);
   if (id === "papal-states") {
     const revoked = revokeActivePapalCommission(
@@ -4492,10 +4501,33 @@ export function recordAttackAgainstFaction(state, factionId) {
     delete state.relations.lettersOfMarque[id];
     recordDecision(state, `letter-of-marque.revoked.${id}`, 1);
   }
+  if (lawfulWartimeAction) {
+    recordDecision(state, `privateering.attack.${id}`, 1);
+    return factionReputation(state, id);
+  }
   const before = factionReputation(state, id);
   const after = applyAttackReputationPenalty(state, id);
   if (after !== before) recordDecision(state, `reputation.attack.${id}`, 1);
   return after;
+}
+
+function migrateLawfulWartimeAttackReputation(state, reputation) {
+  if (state.version >= 79) return reputation;
+  const decisions = state.memory?.decisions || {};
+  const migrated = { ...reputation };
+  for (const faction of FACTIONS) {
+    const attackCount = Number(decisions[`reputation.attack.${faction.id}`] || 0);
+    const piracyCount = Number(decisions[`reputation.piracy.${faction.id}`] || 0);
+    if (!Number.isFinite(attackCount) || attackCount <= 0 || piracyCount !== 0 ||
+        migrated[faction.id] > HOSTILE_PORT_REPUTATION_THRESHOLD) {
+      continue;
+    }
+    migrated[faction.id] = roundReputation(Math.max(
+      migrated[faction.id] - SHIP_ATTACK_REPUTATION_PENALTY,
+      HOSTILE_PORT_REPUTATION_THRESHOLD + 1
+    ));
+  }
+  return migrated;
 }
 
 export function recordFriendlyFireAgainstFaction(state, factionId) {

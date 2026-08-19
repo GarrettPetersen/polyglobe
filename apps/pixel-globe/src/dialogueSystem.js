@@ -827,6 +827,15 @@ export function shoreBatteryDialogueView(session, city) {
   };
 }
 
+export function personalHostilityDialogue(factionName, { defensive = false } = {}) {
+  if (typeof factionName !== "string" || factionName.trim() === "" || typeof defensive !== "boolean") {
+    throw new Error("Personal hostility challenge requires a faction name and defensive flag");
+  }
+  return defensive
+    ? `Peace may hold between our flags, but your name is cursed in ${factionName}. Keep away, or we will defend ourselves!`
+    : `Your flag is not our quarrel, captain. You are. ${factionName} has declared you an outlaw. Heave to!`;
+}
+
 function safePassageDurationLabel() {
   return FACTION_SAFE_PASSAGE_DAYS === 30 ? "one month" : `${FACTION_SAFE_PASSAGE_DAYS} days`;
 }

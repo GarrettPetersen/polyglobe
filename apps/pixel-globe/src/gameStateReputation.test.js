@@ -574,6 +574,37 @@ test("attacking a nation's ships makes that faction hate the player", () => {
   assert.equal(factionReputation(state, "pirate"), pirateBefore);
 });
 
+test("lawful wartime attacks do not turn commissioned privateers into permanent outlaws", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  const frenchBefore = factionReputation(state, "france");
+
+  recordAttackAgainstFaction(state, "france", { lawfulWartimeAction: true });
+
+  assert.equal(factionReputation(state, "france"), frenchBefore);
+  assert.equal(state.memory.decisions["privateering.attack.france"], 1);
+  assert.equal(state.memory.decisions["reputation.attack.france"], undefined);
+});
+
+test("version 78 saves conservatively pardon privateering penalties but not recorded piracy", () => {
+  const privateer = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  privateer.version = 78;
+  privateer.relations.factionReputation.france = -100;
+  privateer.memory.decisions["reputation.attack.france"] = 6;
+
+  const restoredPrivateer = migrateGameState(privateer, null);
+  assert.equal(factionReputation(restoredPrivateer, "france"), -65);
+  assert.ok(factionReputation(restoredPrivateer, "france") > HOSTILE_PORT_REPUTATION_THRESHOLD);
+
+  const pirate = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  pirate.version = 78;
+  pirate.relations.factionReputation.france = -100;
+  pirate.memory.decisions["reputation.attack.france"] = 2;
+  pirate.memory.decisions["reputation.piracy.france"] = 1;
+
+  const restoredPirate = migrateGameState(pirate, null);
+  assert.equal(factionReputation(restoredPirate, "france"), -100);
+});
+
 test("a first deliberate attack makes a neutral victim treat the captain as an outlaw", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
   assert.equal(diplomacyBetweenForState(state, "england", "ming"), "neutral");
