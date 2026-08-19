@@ -21086,14 +21086,66 @@ function presentAnchoredAnimalEncounter(animalEntry) {
       message: animalEntry.reaction.text
     }));
   }
-  startCharacterAlertSequence(steps, companionEncounter
-    ? () => openAnimalCompanionRecruitmentChoice(animalEntry.id)
-    : () => {
-        dirty = true;
-      });
+  startCharacterAlertSequence(steps, () => openAnimalEncounterFollowup(animalEntry));
   showSurvivalNotice(`NEW ANIMAL: ${animalEntry.displayName.toUpperCase()}`, "good");
   playDiscoverySuccessSound();
   return true;
+}
+
+function openAnimalEncounterFollowup(animalEntry) {
+  if (animalEntry.encounterChoice) return openAnimalEncounterChoice(animalEntry);
+  if (ANIMAL_COMPANION_BY_ID.has(animalEntry.id)) {
+    return openAnimalCompanionRecruitmentChoice(animalEntry.id);
+  }
+  dirty = true;
+  return true;
+}
+
+function openAnimalEncounterChoice(animalEntry) {
+  const choice = animalEntry.encounterChoice;
+  if (!choice) throw new Error(`${animalEntry.displayName} has no encounter choice`);
+  const captain = gameState.playerCharacter;
+  const animal = animalDialogueCharacter(animalEntry);
+  const opened = openCharacterChoiceAlertModal(
+    captain,
+    choice.prompt,
+    choice.options.map((option) => ({
+      label: option.label,
+      onSelect: () => resolveAnimalEncounterChoice(animalEntry, option)
+    })),
+    "amused",
+    { leftCharacter: captain, rightCharacter: animal }
+  );
+  if (!opened) {
+    throw new Error(`Could not open ${animalEntry.displayName} encounter choice`);
+  }
+  return true;
+}
+
+function resolveAnimalEncounterChoice(animalEntry, option) {
+  if (!animalEntry.encounterChoice?.options.includes(option)) {
+    throw new Error(`Unknown ${animalEntry.displayName} encounter choice: ${option?.id ?? "missing"}`);
+  }
+  const captain = gameState.playerCharacter;
+  const animal = animalDialogueCharacter(animalEntry);
+  const steps = option.steps.map((step) => {
+    const speakerCharacter = step.speaker === "animal" ? animal : captain;
+    return pairedCharacterAlertStep({
+      leftCharacter: captain,
+      rightCharacter: animal,
+      speakerCharacter,
+      expressionId: step.expressionId,
+      message: step.message,
+      ...(step.speaker === "animal" ? { animalSoundKind: animalEntry.soundKind } : {})
+    });
+  });
+  startCharacterAlertSequence(steps, () => {
+    if (ANIMAL_COMPANION_BY_ID.has(animalEntry.id)) {
+      openAnimalCompanionRecruitmentChoice(animalEntry.id);
+      return;
+    }
+    dirty = true;
+  });
 }
 
 function openAnimalCompanionRecruitmentChoice(companionId) {

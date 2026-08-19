@@ -104,6 +104,17 @@ test("animal catalog is unique and every portrait is expression-ready", () => {
   }
 });
 
+test("meeting the wild dog offers an explicit pet-the-dog choice", () => {
+  const choice = ANIMAL_CATALOG_BY_ID.get("wild-dog").encounterChoice;
+  assert.match(choice.prompt, /pet it/i);
+  assert.deepEqual(choice.options.map(({ id, label }) => ({ id, label })), [
+    { id: "pet", label: "PET IT" },
+    { id: "leave", label: "DON'T PET IT" }
+  ]);
+  assert.match(choice.options[0].steps.at(-1).message, /all ten fingers/i);
+  assert.match(choice.options[1].steps[0].message, /admire the dog from here/i);
+});
+
 test("animal portraits remain on the visually reviewed species and expression frames", () => {
   assert.deepEqual(
     Object.keys(REVIEWED_STATIC_PORTRAIT_HASHES).sort(),

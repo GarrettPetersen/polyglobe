@@ -36,7 +36,28 @@ export const ANIMAL_CATALOG = Object.freeze([
   animal("moose", "Moose", "A gigantic deer of cold northern forests and wetlands.", "grunt", "moose.png", farNorthForest,
     ["A deer built to the dimensions of a small ship."], "Urrrgh!"),
   animal("wild-dog", "Wild Dog", "A tireless pack hunter of African grasslands.", "bark", "wild-dog.png", africanGrassland,
-    ["The whole pack moves like a practiced gun crew, only considerably faster."], "Yap-yap-yap!"),
+    ["The whole pack moves like a practiced gun crew, only considerably faster."], "Yap-yap-yap!", {
+      encounterChoice: animalEncounterChoice(
+        "It is a wild hunter, but it is also a dog. Shall I pet it?",
+        [
+          animalEncounterChoiceOption("pet", "PET IT", [
+            animalEncounterChoiceStep("animal", "Yap-yap-yap!", "neutral"),
+            animalEncounterChoiceStep(
+              "captain",
+              "Success. I have petted the dog and retained all ten fingers.",
+              "amused"
+            )
+          ]),
+          animalEncounterChoiceOption("leave", "DON'T PET IT", [
+            animalEncounterChoiceStep(
+              "captain",
+              "Prudence wins. We shall admire the dog from here.",
+              "neutral"
+            )
+          ])
+        ]
+      )
+    }),
   animal("sloth", "Sloth", "A slow tree-dweller of tropical America.", "chirp", "sloth.png", tropicalAmericaForest,
     ["We have watched it cross one branch since breakfast. I admire its refusal to be hurried."], "Eeeh."),
   animalWithExpressions("panda", "Giant Panda", "A bamboo-eating bear of China's mountain forests.", "bleat", pandaRange,
@@ -180,10 +201,20 @@ export function animalDialogueCharacter(animalEntry) {
   });
 }
 
-function animal(id, displayName, detail, soundKind, portraitFile, matches, commentary, callText, effect = null) {
+function animal(
+  id,
+  displayName,
+  detail,
+  soundKind,
+  portraitFile,
+  matches,
+  commentary,
+  callText,
+  { effect = null, encounterChoice = null } = {}
+) {
   return animalRecord(id, displayName, detail, soundKind, matches, commentary, callText, effect, {
     neutral: portraitFile
-  }, null, 1);
+  }, null, 1, encounterChoice);
 }
 
 function animalWithExpressions(
@@ -215,7 +246,8 @@ function animalWithExpressions(
     effect,
     files,
     reaction,
-    encounterWeight
+    encounterWeight,
+    null
   );
 }
 
@@ -230,7 +262,8 @@ function animalRecord(
   effect,
   expressionFiles,
   reaction,
-  encounterWeight
+  encounterWeight,
+  encounterChoice
 ) {
   if (!Number.isFinite(encounterWeight) || encounterWeight <= 0) {
     throw new Error(`Invalid animal encounter weight for ${id}: ${encounterWeight}`);
@@ -250,8 +283,42 @@ function animalRecord(
     effect,
     expressions,
     reaction,
-    encounterWeight
+    encounterWeight,
+    encounterChoice
   });
+}
+
+function animalEncounterChoice(prompt, options) {
+  if (typeof prompt !== "string" || prompt.trim() === "") {
+    throw new Error("Animal encounter choice requires a prompt");
+  }
+  if (!Array.isArray(options) || options.length < 2 || options.length > 3) {
+    throw new Error("Animal encounter choice requires two or three options");
+  }
+  if (new Set(options.map((option) => option.id)).size !== options.length) {
+    throw new Error("Animal encounter choice option ids must be unique");
+  }
+  return Object.freeze({ prompt, options: Object.freeze(options) });
+}
+
+function animalEncounterChoiceOption(id, label, steps) {
+  if (typeof id !== "string" || id.trim() === "" ||
+      typeof label !== "string" || label.trim() === "") {
+    throw new Error("Animal encounter choice option requires an id and label");
+  }
+  if (!Array.isArray(steps) || steps.length === 0) {
+    throw new Error(`Animal encounter choice ${id} requires result steps`);
+  }
+  return Object.freeze({ id, label, steps: Object.freeze(steps) });
+}
+
+function animalEncounterChoiceStep(speaker, message, expressionId) {
+  if (!["animal", "captain"].includes(speaker) ||
+      typeof message !== "string" || message.trim() === "" ||
+      typeof expressionId !== "string" || expressionId.trim() === "") {
+    throw new Error("Animal encounter choice step is malformed");
+  }
+  return Object.freeze({ speaker, message, expressionId });
 }
 
 function validateHabitat(habitat) {

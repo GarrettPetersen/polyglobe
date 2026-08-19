@@ -124,6 +124,52 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "PET IT": Object.freeze({
+    "zh-Hans": "摸摸它", ru: "ПОГЛАДИТЬ", es: "ACARICIARLO", "pt-BR": "ACARICIAR",
+    ja: "撫でる", de: "STREICHELN", fr: "LE CARESSER", pl: "POGŁASKAĆ",
+    "zh-Hant": "摸摸牠", ko: "쓰다듬는다"
+  }),
+  "DON'T PET IT": Object.freeze({
+    "zh-Hans": "别摸它", ru: "НЕ ГЛАДИТЬ", es: "NO ACARICIARLO", "pt-BR": "NÃO ACARICIAR",
+    ja: "撫でない", de: "NICHT STREICHELN", fr: "NE PAS LE CARESSER", pl: "NIE GŁASKAĆ",
+    "zh-Hant": "別摸牠", ko: "쓰다듬지 않는다"
+  }),
+  "It is a wild hunter, but it is also a dog. Shall I pet it?": Object.freeze({
+    "zh-Hans": "它是凶猛的猎手，但终究也是狗。我要摸摸它吗？",
+    ru: "Это дикий охотник, но всё же собака. Погладить его?",
+    es: "Es un cazador salvaje, pero sigue siendo un perro. ¿Lo acaricio?",
+    "pt-BR": "É um caçador selvagem, mas continua sendo um cachorro. Devo acariciá-lo?",
+    ja: "野生の狩人だが、やはり犬でもある。撫でてみようか？",
+    de: "Es ist ein wilder Jäger, aber eben auch ein Hund. Soll ich ihn streicheln?",
+    fr: "C'est un chasseur sauvage, mais c'est tout de même un chien. Dois-je le caresser ?",
+    pl: "To dziki łowca, ale jednak pies. Pogłaskać go?",
+    "zh-Hant": "牠是兇猛的獵手，但終究也是狗。我要摸摸牠嗎？",
+    ko: "사나운 사냥꾼이지만, 그래도 개다. 쓰다듬어 볼까?"
+  }),
+  "Prudence wins. We shall admire the dog from here.": Object.freeze({
+    "zh-Hans": "谨慎占了上风。我们还是站在这里欣赏这只狗吧。",
+    ru: "Осторожность победила. Полюбуемся собакой отсюда.",
+    es: "Vence la prudencia. Admiraremos al perro desde aquí.",
+    "pt-BR": "A prudência vence. Vamos admirar o cachorro daqui.",
+    ja: "ここは慎重にいこう。犬はここから眺めることにする。",
+    de: "Die Vorsicht siegt. Wir bewundern den Hund von hier aus.",
+    fr: "La prudence l'emporte. Nous admirerons le chien d'ici.",
+    pl: "Rozsądek zwycięża. Będziemy podziwiać psa stąd.",
+    "zh-Hant": "謹慎佔了上風。我們還是站在這裡欣賞這隻狗吧。",
+    ko: "신중함이 이겼다. 여기서 바라보기로 하자."
+  }),
+  "Success. I have petted the dog and retained all ten fingers.": Object.freeze({
+    "zh-Hans": "成功。我摸到了狗，十根手指也都还在。",
+    ru: "Успех: удалось погладить собаку и сохранить все десять пальцев.",
+    es: "Éxito. He acariciado al perro y aún conservo los diez dedos.",
+    "pt-BR": "Sucesso. Acariciei o cachorro e continuo com os dez dedos.",
+    ja: "成功だ。犬を撫でたが、指は十本とも無事だ。",
+    de: "Ein Erfolg. Ich habe den Hund gestreichelt und noch alle zehn Finger.",
+    fr: "Succès. J'ai caressé le chien et conservé mes dix doigts.",
+    pl: "Sukces. Udało się pogłaskać psa i zachować wszystkie dziesięć palców.",
+    "zh-Hant": "成功。我摸到了狗，十根手指也都還在。",
+    ko: "성공이다. 개를 쓰다듬었고 손가락 열 개도 모두 무사하다."
+  }),
   "By order of the Estado da India, heave to. Your vessel carries no valid Portuguese cartaz. At sea, it is too late to buy a license. Pay the Crown's fine, surrender controlled spice cargo, or fight.": Object.freeze({
     "zh-Hans": "奉葡属印度之命，停船！你的船没有有效的葡萄牙卡塔兹。在海上已来不及购买许可证。缴纳王室罚金、交出管制香料，或开战。",
     ru: "Лечь в дрейф по приказу Estado da Índia! На вашем судне нет действующего португальского картаза. В море покупать лицензию уже поздно. Заплатите штраф Короне, сдайте подконтрольный груз пряностей или сражайтесь.",
