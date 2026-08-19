@@ -46,6 +46,26 @@ test("an exact port pixel overrides a closer padded ship hit", () => {
   assert.equal(selectPixelInteractionCandidate([ship, port]), port);
 });
 
+test("an opaque ship pixel overrides a city label covering the same point", () => {
+  const label = {
+    target: { kind: "port" },
+    exact: true,
+    pixelPerfect: false,
+    visualPriority: 60,
+    distanceSquared: 1,
+    order: 0
+  };
+  const ship = {
+    target: { kind: "ship" },
+    exact: true,
+    pixelPerfect: true,
+    visualPriority: 40,
+    distanceSquared: 20,
+    order: 1
+  };
+  assert.equal(selectPixelInteractionCandidate([label, ship]), ship);
+});
+
 test("visual draw priority resolves genuinely overlapping opaque pixels", () => {
   const port = { target: { kind: "port" }, exact: true, visualPriority: 20, distanceSquared: 1, order: 0 };
   const ship = { target: { kind: "ship" }, exact: true, visualPriority: 40, distanceSquared: 20, order: 1 };
@@ -56,4 +76,15 @@ test("generous fallback hits choose the nearest target", () => {
   const port = { target: { kind: "port" }, exact: false, visualPriority: 20, distanceSquared: 4, order: 0 };
   const ship = { target: { kind: "ship" }, exact: false, visualPriority: 40, distanceSquared: 16, order: 1 };
   assert.equal(selectPixelInteractionCandidate([ship, port]), port);
+});
+
+test("pixel-perfect metadata must be boolean", () => {
+  assert.throws(() => selectPixelInteractionCandidate([{
+    target: { kind: "ship" },
+    exact: true,
+    pixelPerfect: "yes",
+    visualPriority: 40,
+    distanceSquared: 0,
+    order: 0
+  }]), /invalid candidate/);
 });

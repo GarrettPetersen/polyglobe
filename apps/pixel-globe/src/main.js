@@ -2568,9 +2568,9 @@ const WORLD_INTERACTION_VISUAL_PRIORITY = Object.freeze({
   fish: 10,
   port: 20,
   whale: 30,
-  ship: 40,
-  raisedPort: 50,
-  portLabel: 60
+  raisedPort: 40,
+  portLabel: 50,
+  ship: 60
 });
 const INTERACTION_BUTTON_W = 156;
 const INTERACTION_BUTTON_H = 28;
@@ -23504,10 +23504,18 @@ function worldInteractionTargetAtPoint(point) {
   const offset = chartOffsetPixels(chart);
   const candidates = [];
   let order = 0;
-  const addCandidate = (target, exact, visualPriority, centerX, centerY) => {
+  const addCandidate = (
+    target,
+    exact,
+    visualPriority,
+    centerX,
+    centerY,
+    pixelPerfect = exact
+  ) => {
     candidates.push({
       target,
       exact,
+      pixelPerfect,
       visualPriority,
       distanceSquared: distance2(point.x, point.y, centerX, centerY),
       order: order++
@@ -23544,7 +23552,8 @@ function worldInteractionTargetAtPoint(point) {
       true,
       WORLD_INTERACTION_VISUAL_PRIORITY.portLabel,
       call.x + offset.x,
-      call.y + offset.y
+      call.y + offset.y,
+      false
     );
   }
 

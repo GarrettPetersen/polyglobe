@@ -58,6 +58,9 @@ export function selectPixelInteractionCandidate(candidates) {
 }
 
 function compareCandidates(a, b) {
+  const aPixelPerfect = candidateIsPixelPerfect(a);
+  const bPixelPerfect = candidateIsPixelPerfect(b);
+  if (aPixelPerfect !== bPixelPerfect) return aPixelPerfect ? -1 : 1;
   if (a.exact !== b.exact) return a.exact ? -1 : 1;
   if (a.exact && a.visualPriority !== b.visualPriority) {
     return b.visualPriority - a.visualPriority;
@@ -69,9 +72,14 @@ function compareCandidates(a, b) {
 
 function validateCandidate(candidate) {
   if (!candidate?.target || typeof candidate.exact !== "boolean" ||
+      (candidate.pixelPerfect !== undefined && typeof candidate.pixelPerfect !== "boolean") ||
       !Number.isFinite(candidate.visualPriority) ||
       !Number.isFinite(candidate.distanceSquared) || candidate.distanceSquared < 0 ||
       !Number.isInteger(candidate.order) || candidate.order < 0) {
     throw new Error("Pixel interaction selection received an invalid candidate");
   }
+}
+
+function candidateIsPixelPerfect(candidate) {
+  return candidate.pixelPerfect ?? candidate.exact;
 }
