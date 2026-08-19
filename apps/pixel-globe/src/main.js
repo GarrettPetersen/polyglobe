@@ -16853,7 +16853,7 @@ function handleCaptainMenuPointerDown(event, point) {
     captainMenu.mapDragPointerId = event.pointerId;
     captainMenu.mapDragStartPoint = { ...point };
     captainMenu.mapDragStartCenter = minimapViewportCenter(viewport, MINIMAP_W);
-    captainMenu.mapDragPreview = captureCaptainChartDragPreview(viewport);
+    captainMenu.mapDragPreview = captureCaptainChartDragRaster(viewport);
     return;
   }
   if (captainMenu.journalPreviousRect && pointInRect(point, captainMenu.journalPreviousRect)) {
@@ -40356,7 +40356,7 @@ function nativeCaptainChartMinimap(width, height, viewport) {
     captainChartMinimapCacheRevision = minimap.rasterRevision;
   }
   if (captainMenu.mapDragPointerId !== null && captainMenu.mapDragPreview) {
-    return drawCaptainChartDragPreview(width, height, viewport);
+    return drawCaptainChartDragRaster(width, height, viewport);
   }
   const viewportKey = minimapViewportRenderKey(viewport);
   const cacheKey = `${width}x${height}:${viewportKey}`;
@@ -40403,7 +40403,7 @@ function nativeCaptainChartMinimap(width, height, viewport) {
   return captainChartMinimap;
 }
 
-function captureCaptainChartDragPreview(viewport) {
+function captureCaptainChartDragRaster(viewport) {
   if (!captainMenu.mapRect || !viewport) return null;
   const { w: width, h: height } = captainMenu.mapRect;
   const viewportKey = minimapViewportRenderKey(viewport);
@@ -40422,7 +40422,7 @@ function captureCaptainChartDragPreview(viewport) {
   return { sourceCanvas, sourceViewport: viewport, previewRaster };
 }
 
-function drawCaptainChartDragPreview(width, height, viewport) {
+function drawCaptainChartDragRaster(width, height, viewport) {
   const preview = captainMenu.mapDragPreview;
   if (!preview || preview.previewRaster.width !== width || preview.previewRaster.height !== height) {
     captainMenu.mapDragPreview = null;
