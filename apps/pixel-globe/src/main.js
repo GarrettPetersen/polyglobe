@@ -107,6 +107,10 @@ import {
 } from "./aboardRoster.js";
 import { stepAboardGridIndex } from "./aboardGridSelection.js";
 import {
+  contentSizedGridLayout,
+  contentSizedTextStackLayout
+} from "./contentSizedTextLayout.js";
+import {
   captainCharacterGoal,
   colonyLeaderCharacterGoal,
   namedCrewCharacterGoal,
@@ -2835,12 +2839,12 @@ const CAPTAIN_MENU_PANEL_H = 420;
 const ABOARD_MENU_PANEL_W = 420;
 const ABOARD_MENU_PANEL_H = 420;
 const ABOARD_NAMED_TILE_MIN_W = 76;
-const ABOARD_NAMED_TILE_H = 106;
+const ABOARD_NAMED_TILE_MIN_H = 106;
 const ABOARD_GENERIC_TILE_MIN_W = 52;
-const ABOARD_GENERIC_TILE_H = 42;
+const ABOARD_GENERIC_TILE_MIN_H = 42;
 const ABOARD_GENERIC_FRAME_SIZE = 22;
 const ABOARD_CONTENT_SECTION_GAP = 8;
-const ABOARD_SCROLL_STEP = ABOARD_GENERIC_TILE_H;
+const ABOARD_SCROLL_STEP = ABOARD_GENERIC_TILE_MIN_H;
 const CAPTAIN_MAP_CONTROL_SIZE = 18;
 const CAPTAIN_MAP_PAN_FRACTION = 0.2;
 const NAVIGATION_MENU_PANEL_W = 420;
@@ -17333,8 +17337,8 @@ function focusAboardCharacterAtIndex(index, suppliedLayout = null) {
   const viewportHeight = Math.max(1, aboardMenu.viewportHeight);
   if (entry.y < aboardMenu.scrollY) {
     setAboardMenuScroll(entry.y);
-  } else if (entry.y + ABOARD_NAMED_TILE_H > aboardMenu.scrollY + viewportHeight) {
-    setAboardMenuScroll(entry.y + ABOARD_NAMED_TILE_H - viewportHeight);
+  } else if (entry.y + entry.h > aboardMenu.scrollY + viewportHeight) {
+    setAboardMenuScroll(entry.y + entry.h - viewportHeight);
   } else {
     dirty = true;
   }
@@ -17346,7 +17350,7 @@ function aboardMenuBodyWidth() {
 
 function scrollAboardMenu(direction, page = false) {
   const distance = page
-    ? Math.max(ABOARD_SCROLL_STEP, aboardMenu.viewportHeight - ABOARD_GENERIC_TILE_H)
+    ? Math.max(ABOARD_SCROLL_STEP, aboardMenu.viewportHeight - ABOARD_GENERIC_TILE_MIN_H)
     : ABOARD_SCROLL_STEP;
   return setAboardMenuScroll(aboardMenu.scrollY + Math.sign(direction) * distance);
 }
@@ -42641,7 +42645,7 @@ function drawAboardMenu() {
   aboardMenu.namedEntryRects = [];
   for (const entry of layout.named) {
     const drawY = body.y + entry.y - aboardMenu.scrollY;
-    if (drawY + ABOARD_NAMED_TILE_H < body.y || drawY > body.y + body.h) continue;
+    if (drawY + entry.h < body.y || drawY > body.y + body.h) continue;
     const entryRect = drawAboardNamedEntry(
       entry,
       body.x + entry.x,
@@ -42652,7 +42656,7 @@ function drawAboardMenu() {
   }
   for (const entry of layout.generic) {
     const drawY = body.y + entry.y - aboardMenu.scrollY;
-    if (drawY + ABOARD_GENERIC_TILE_H < body.y || drawY > body.y + body.h) continue;
+    if (drawY + entry.h < body.y || drawY > body.y + body.h) continue;
     drawAboardGenericEntry(entry, body.x + entry.x, drawY);
   }
   ctx.restore();
@@ -42694,38 +42698,100 @@ function aboardRosterLayout(roster, width) {
     roster.named.length,
     Math.floor(width / ABOARD_NAMED_TILE_MIN_W)
   ));
-  const namedCellW = Math.floor(width / namedColumns);
-  const namedRows = Math.ceil(roster.named.length / namedColumns);
-  const named = roster.named.map((entry, index) => ({
+  const namedGrid = contentSizedGridLayout({
+    entries: roster.named,
+    width,
+    columns: namedColumns,
+    minimumHeight: ABOARD_NAMED_TILE_MIN_H,
+    measureHeight: (entry, entryWidth) => aboardNamedEntryTextLayout(entry, entryWidth).tileHeight
+  });
+  const named = namedGrid.entries.map((entry) => ({
     ...entry,
-    x: (index % namedColumns) * namedCellW,
-    y: Math.floor(index / namedColumns) * ABOARD_NAMED_TILE_H,
-    w: namedCellW
+    textLayout: aboardNamedEntryTextLayout(entry, entry.w)
   }));
 
-  const genericStartY = namedRows * ABOARD_NAMED_TILE_H +
-    (roster.generic.length > 0 ? ABOARD_CONTENT_SECTION_GAP : 0);
+  const genericStartY = namedGrid.height +
+    (roster.named.length > 0 && roster.generic.length > 0 ? ABOARD_CONTENT_SECTION_GAP : 0);
   const genericColumns = Math.max(1, Math.floor(width / ABOARD_GENERIC_TILE_MIN_W));
-  const genericCellW = Math.floor(width / genericColumns);
-  const genericRows = Math.ceil(roster.generic.length / genericColumns);
-  const generic = roster.generic.map((entry, index) => {
+  const genericGrid = contentSizedGridLayout({
+    entries: roster.generic,
+    width,
+    columns: genericColumns,
+    minimumHeight: ABOARD_GENERIC_TILE_MIN_H,
+    measureHeight: (entry, entryWidth) => aboardGenericEntryTextLayout(entry, entryWidth).height
+  });
+  const generic = genericGrid.entries.map((entry, index) => {
     const row = Math.floor(index / genericColumns);
-    const column = index % genericColumns;
     const rowCount = Math.min(genericColumns, roster.generic.length - row * genericColumns);
-    const rowOffset = Math.floor((width - rowCount * genericCellW) / 2);
+    const rowWidth = genericGrid.entries
+      .slice(row * genericColumns, row * genericColumns + rowCount)
+      .reduce((sum, rowEntry) => sum + rowEntry.w, 0);
+    const rowOffset = Math.floor((width - rowWidth) / 2);
     return {
       ...entry,
-      x: rowOffset + column * genericCellW,
-      y: genericStartY + row * ABOARD_GENERIC_TILE_H,
-      w: genericCellW
+      x: rowOffset + entry.x,
+      y: genericStartY + entry.y,
+      textLayout: aboardGenericEntryTextLayout(entry, entry.w)
     };
   });
   return {
     named,
     namedColumns,
     generic,
-    height: genericStartY + genericRows * ABOARD_GENERIC_TILE_H
+    height: genericStartY + genericGrid.height
   };
+}
+
+function aboardNamedEntryTextLayout(entry, width) {
+  const lineHeight = localizedLineHeight(8);
+  const layout = contentSizedTextStackLayout({
+    sections: [
+      { id: "name", text: renderedUiText(entry.character.name.toUpperCase()) },
+      { id: "role", text: renderedUiText(aboardRoleLabel(entry.role)), gapBefore: 1 },
+      {
+        id: "skills",
+        text: renderedUiText(
+          characterSkills(entry.character).map((skill) => skill.label).join(" / ").toUpperCase()
+        ),
+        gapBefore: 2
+      }
+    ],
+    width: Math.max(1, Math.floor(width) - 6),
+    measureText: (text) => measureRenderedPixelTextWidth(text, PIXEL_FONT_SMALL_8),
+    lineHeight,
+    startY: 71,
+    bottomPadding: 11,
+    minimumHeight: ABOARD_NAMED_TILE_MIN_H - 2
+  });
+  const [name, role, skills] = layout.sections;
+  return Object.freeze({
+    name,
+    role,
+    skills,
+    lineHeight,
+    cardHeight: layout.height,
+    tileHeight: layout.height + 2
+  });
+}
+
+function aboardGenericEntryTextLayout(entry, width) {
+  const lineHeight = localizedLineHeight(8);
+  const layout = contentSizedTextStackLayout({
+    sections: [
+      { id: "role", text: renderedUiText(aboardRoleLabel(entry.role)) }
+    ],
+    width: Math.max(1, Math.floor(width) - 2),
+    measureText: (text) => measureRenderedPixelTextWidth(text, PIXEL_FONT_SMALL_8),
+    lineHeight,
+    startY: 25,
+    bottomPadding: 1,
+    minimumHeight: ABOARD_GENERIC_TILE_MIN_H
+  });
+  return Object.freeze({
+    role: layout.sections[0],
+    lineHeight,
+    height: layout.height
+  });
 }
 
 function drawAboardNamedEntry(entry, x, y, selected) {
@@ -42733,7 +42799,7 @@ function drawAboardNamedEntry(entry, x, y, selected) {
     x: Math.round(x + 1),
     y: Math.round(y),
     w: Math.max(1, Math.round(entry.w - 2)),
-    h: ABOARD_NAMED_TILE_H - 2
+    h: entry.textLayout.cardHeight
   };
   const hovered = pointInRect(captainMenu.hoverPoint, cardRect);
   drawPiratePaperInset(cardRect, selected || hovered);
@@ -42751,30 +42817,19 @@ function drawAboardNamedEntry(entry, x, y, selected) {
   ctx.strokeRect(frameX + 0.5, frameY + 0.5, frameSize - 1, frameSize - 1);
   drawDialoguePortrait(entry.character, "neutral", frameX + 1, frameY + 1);
 
-  drawOptionsText(
-    fitPixelText(entry.character.name.toUpperCase(), PIXEL_FONT_SMALL_8, entry.w - 2),
-    x + entry.w / 2,
-    y + 71,
-    { align: "center", color: PIRATE_MENU_INK }
-  );
-  drawOptionsText(
-    fitPixelText(aboardRoleLabel(entry.role), PIXEL_FONT_SMALL_8, entry.w - 2),
-    x + entry.w / 2,
-    y + 80,
-    { align: "center", color }
-  );
-  const skillLines = wrapPixelText(
-    characterSkills(entry.character).map((skill) => skill.label).join(" / ").toUpperCase(),
-    PIXEL_FONT_SMALL_8,
-    entry.w - 4,
-    2
-  );
-  skillLines.forEach((line, index) => drawOptionsText(
-    line,
-    x + entry.w / 2,
-    y + 90 + index * 8,
-    { align: "center", color: PIRATE_MENU_INK_MUTED }
-  ));
+  const textSections = [
+    [entry.textLayout.name, PIRATE_MENU_INK],
+    [entry.textLayout.role, color],
+    [entry.textLayout.skills, PIRATE_MENU_INK_MUTED]
+  ];
+  for (const [section, textColor] of textSections) {
+    section.lines.forEach((line, index) => drawOptionsText(
+      line,
+      x + entry.w / 2,
+      y + section.y + index * entry.textLayout.lineHeight,
+      { align: "center", color: textColor }
+    ));
+  }
   drawOptionsText(
     ">",
     cardRect.x + cardRect.w - 4,
@@ -42983,16 +43038,10 @@ function drawAboardGenericEntry(entry, x, y) {
     ABOARD_GENERIC_FRAME_SIZE - 1
   );
   drawGameIcon("menu:captain", frameX + 3, frameY + 3, { alpha: 0.9 });
-  const labelLines = wrapPixelText(
-    aboardRoleLabel(entry.role),
-    PIXEL_FONT_SMALL_8,
-    entry.w - 1,
-    2
-  );
-  labelLines.forEach((line, index) => drawOptionsText(
+  entry.textLayout.role.lines.forEach((line, index) => drawOptionsText(
     line,
     x + entry.w / 2,
-    y + 25 + index * 8,
+    y + entry.textLayout.role.y + index * entry.textLayout.lineHeight,
     { align: "center", color }
   ));
 }
@@ -55106,23 +55155,30 @@ function characterSkillBadgeLayout(character, x, y, width) {
   const skills = characterSkills(character);
   const skill = characterSkillSummary(skills[0].id);
   const rectWidth = Math.round(width);
-  const labelLines = wrapPixelTextAll(
-    skill.label.toUpperCase(),
-    PIXEL_FONT_SMALL_8,
-    rectWidth - 8
-  );
   const lineHeight = localizedLineHeight(9);
+  const textLayout = contentSizedTextStackLayout({
+    sections: [
+      { id: "skill", text: renderedUiText(skill.label.toUpperCase()) }
+    ],
+    width: Math.max(1, rectWidth - 8),
+    measureText: (text) => measureRenderedPixelTextWidth(text, PIXEL_FONT_SMALL_8),
+    lineHeight,
+    startY: 12,
+    bottomPadding: 3,
+    minimumHeight: 24
+  });
+  const label = textLayout.sections[0];
   const rect = {
     x: Math.round(x),
     y: Math.round(y),
     w: rectWidth,
-    h: 15 + labelLines.length * lineHeight
+    h: textLayout.height
   };
-  return { skill, labelLines, lineHeight, rect };
+  return { skill, label, lineHeight, rect };
 }
 
 function drawCharacterSkillBadge(character, x, y, width) {
-  const { skill, labelLines, lineHeight, rect } = characterSkillBadgeLayout(
+  const { skill, label, lineHeight, rect } = characterSkillBadgeLayout(
     character,
     x,
     y,
@@ -55138,10 +55194,10 @@ function drawCharacterSkillBadge(character, x, y, width) {
     align: "center"
   });
   ctx.fillStyle = PIRATE_MENU_INK;
-  labelLines.forEach((line, index) => drawPixelText(
+  label.lines.forEach((line, index) => drawPixelText(
     line,
     rect.x + rect.w / 2,
-    rect.y + 12 + index * lineHeight,
+    rect.y + label.y + index * lineHeight,
     { font: PIXEL_FONT_SMALL_8, align: "center" }
   ));
   return rect;
