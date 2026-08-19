@@ -138,18 +138,30 @@ test("a local water swell cannot claim broad archipelago distortion", () => {
   };
   assert.equal(chartFaultCanRelyOnSwell({
     drift: aleutianDistortion,
-    fullyElasticOpenOcean: false,
+    waterOnlyViewport: false,
     localWaterFault: true
   }), false);
   assert.equal(chartFaultCanRelyOnSwell({
     drift: aleutianDistortion,
-    fullyElasticOpenOcean: true,
+    waterOnlyViewport: true,
     localWaterFault: true
   }), true);
   assert.equal(chartFaultCanRelyOnSwell({
     drift: { rotationDeg: 0, rmsDistortionPx: 0, maxDistortionPx: 0 },
-    fullyElasticOpenOcean: false,
+    waterOnlyViewport: false,
     localWaterFault: true
+  }), true);
+});
+
+test("a water-only viewport always keeps repair in the water system", () => {
+  assert.equal(chartFaultCanRelyOnSwell({
+    drift: {
+      rotationDeg: 9,
+      rmsDistortionPx: 20,
+      maxDistortionPx: 48
+    },
+    waterOnlyViewport: true,
+    localWaterFault: false
   }), true);
 });
 

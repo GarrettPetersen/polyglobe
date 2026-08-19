@@ -5,6 +5,7 @@ import {
   MODAL_REFRAME_WAVE_BAND_PX,
   MODAL_REFRAME_WAVE_DURATION_MS,
   createModalReframeWave,
+  modalReframeScreenProgress,
   modalReframeTileMotion,
   modalReframeWaveFrame
 } from "./modalReframeWave.js";
@@ -22,11 +23,17 @@ test("a modal reframe wave crosses the whole viewport diagonally", () => {
   const middle = modalReframeWaveFrame(wave, 1000 + MODAL_REFRAME_WAVE_DURATION_MS / 2);
   assert.equal(middle.frontPx, 100);
   assert.equal(middle.bandWidthPx, MODAL_REFRAME_WAVE_BAND_PX);
-  assert.equal(middle.crestAmplitudePx, 1);
 
   const complete = modalReframeWaveFrame(wave, 1000 + MODAL_REFRAME_WAVE_DURATION_MS);
   assert.equal(complete.frontPx, 120 + 80 + MODAL_REFRAME_WAVE_BAND_PX);
   assert.equal(complete.complete, true);
+});
+
+test("the complete old frame remains fixed until the crestless reframe band reaches it", () => {
+  const frame = Object.freeze({ frontPx: 100, bandWidthPx: 40 });
+  assert.equal(modalReframeScreenProgress(frame, { x: 80, y: 40 }), 0);
+  assert.equal(modalReframeScreenProgress(frame, { x: 50, y: 30 }), 0.5);
+  assert.equal(modalReframeScreenProgress(frame, { x: 20, y: 20 }), 1);
 });
 
 test("each reframe tile receives one pixel-grid offset and diagonal phase", () => {

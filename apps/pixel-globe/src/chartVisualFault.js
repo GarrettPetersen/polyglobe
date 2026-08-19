@@ -136,14 +136,14 @@ export function chartFaultNeedsCloudRepair({ drift, terrainTear }) {
 
 export function chartFaultCanRelyOnSwell({
   drift,
-  fullyElasticOpenOcean,
+  waterOnlyViewport,
   localWaterFault
 }) {
-  if (!drift || typeof fullyElasticOpenOcean !== "boolean" ||
+  if (!drift || typeof waterOnlyViewport !== "boolean" ||
       typeof localWaterFault !== "boolean") {
     throw new Error("Chart swell repair policy requires drift and explicit water states");
   }
-  if (fullyElasticOpenOcean) return true;
+  if (waterOnlyViewport) return true;
   return localWaterFault && !chartDriftNeedsCloudRepair(drift);
 }
 

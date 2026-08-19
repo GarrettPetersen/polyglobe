@@ -1,6 +1,5 @@
 export const MODAL_REFRAME_WAVE_DURATION_MS = 2200;
 export const MODAL_REFRAME_WAVE_BAND_PX = 44;
-export const MODAL_REFRAME_WAVE_CREST_PX = 1;
 
 export function createModalReframeWave({ startedAtMs, viewportWidth, viewportHeight }) {
   if (!Number.isFinite(startedAtMs)) {
@@ -23,9 +22,18 @@ export function modalReframeWaveFrame(wave, nowMs) {
   return Object.freeze({
     bandWidthPx: MODAL_REFRAME_WAVE_BAND_PX,
     complete: progress >= 1,
-    crestAmplitudePx: MODAL_REFRAME_WAVE_CREST_PX,
     frontPx: Math.round(start + smootherstep(progress) * (end - start))
   });
+}
+
+export function modalReframeScreenProgress(frame, screenPosition) {
+  validateFrame(frame);
+  validatePoint(screenPosition, "screen");
+  return smootherstep(clamp(
+    (frame.frontPx - screenPosition.x - screenPosition.y) / frame.bandWidthPx,
+    0,
+    1
+  ));
 }
 
 export function modalReframeTileMotion({ oldPosition, newPosition, fallbackOffset = null }) {
@@ -53,6 +61,13 @@ function validateWave(wave) {
       !Number.isInteger(wave.viewportWidth) || wave.viewportWidth <= 0 ||
       !Number.isInteger(wave.viewportHeight) || wave.viewportHeight <= 0) {
     throw new Error("Invalid modal reframe wave");
+  }
+}
+
+function validateFrame(frame) {
+  if (!frame || !Number.isFinite(frame.frontPx) ||
+      !Number.isFinite(frame.bandWidthPx) || frame.bandWidthPx <= 0) {
+    throw new Error("Invalid modal reframe wave frame");
   }
 }
 

@@ -1572,7 +1572,10 @@ import {
   questCargoDeliveryProgress,
   questCargoTransfersFromDeliveries
 } from "./questCargoDeliveries.js";
-import { questSiteArrivalCandidate } from "./questSiteArrival.js";
+import {
+  questSiteArrivalCandidate,
+  resolveQuestSiteAnchorOnDialogueClose
+} from "./questSiteArrival.js";
 import {
   darkerResurrect64Hex,
   waterDepthIndexForSpriteKey,
@@ -14798,8 +14801,7 @@ async function restoreSavedVoyage(payload) {
   whaleBlowBursts = [];
   whaleKillEffects = [];
   itemAcquisitionEffects = [];
-  chartModalReframeSourceTilePositions = null;
-  chartModalReframeWave = null;
+  cancelChartModalReframeTransition();
   goldTreasureSequence = null;
   shoreScavengeAction = null;
   portWaitState = null;
@@ -20900,10 +20902,17 @@ function maybeAutoAnchorAtNonPortQuestSite() {
   });
   if (!arrival) return false;
   if (arrival.kind === "treasure") return toggleAnchor();
+  if (arrival.kind !== "colonization" || arrival.releaseAnchorOnDialogueClose !== true) {
+    throw new Error(`Unknown automatic quest-site arrival policy: ${arrival.kind}`);
+  }
   anchored = true;
   initialAnimalEncounterRollPending = false;
   stopShipMotion();
   openPortDialogue(arrival.call);
+  if (!dialogueState) {
+    throw new Error("Automatic quest-site arrival did not open a dialogue");
+  }
+  dialogueState.releaseAutomaticQuestSiteAnchorOnClose = true;
   return true;
 }
 
@@ -21487,6 +21496,9 @@ function closeDialogue() {
       Math.floor(weatherClockMinutes)
     );
   }
+  if (dialogueState?.releaseAutomaticQuestSiteAnchorOnClose === true) {
+    releaseAutomaticQuestSiteAnchor();
+  }
   dialogueState = null;
   clearPausedView(dialogueViewCache);
   dialogueLayout = createDialogueLayoutState();
@@ -21499,6 +21511,18 @@ function closeDialogue() {
   }
   resumeShipAfterOverlayIfReady();
   dirty = true;
+}
+
+function releaseAutomaticQuestSiteAnchor() {
+  const closure = resolveQuestSiteAnchorOnDialogueClose({
+    anchored,
+    releaseAnchorOnDialogueClose: true
+  });
+  anchored = closure.anchored;
+  initialAnimalEncounterRollPending = false;
+  departureControlFeedback = null;
+  keys.clear();
+  clearPointerSteering();
 }
 
 function chooseDialogueOption(optionIndex) {
@@ -24604,10 +24628,10 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     nowMs
   );
   const distortionSurface = chartSurfaceAtScreenPoint(chartWorstDistortionPoint);
-  const fullyElasticOpenOcean = chartViewportIsFullyElasticOpenOcean();
+  const waterOnlyViewport = chartViewportIsWaterOnlyForSwell();
   const swellRepairAvailable = chartFaultCanRelyOnSwell({
     drift,
-    fullyElasticOpenOcean,
+    waterOnlyViewport,
     localWaterFault: chartFaultHasLocalElasticWaterTarget(terrainTear)
   });
   if (
@@ -25377,7 +25401,7 @@ function exactNorthUpLayoutTargets(tileIds, excludedTileId = null) {
   });
 }
 
-function chartViewportIsFullyElasticOpenOcean() {
+function chartViewportIsWaterOnlyForSwell() {
   if (!chart || !localLayout) return false;
   const offset = layoutOffsetPixels();
   const visibleCalls = chart.tileCalls.filter((call) => (
@@ -25386,16 +25410,13 @@ function chartViewportIsFullyElasticOpenOcean() {
   return visibleCalls.length > 0 && visibleCalls.every((call) => (
     isWaterSurfaceRow(call.row) &&
     !tileHasSurfaceIce(call.id)
-  )) && visibleCalls.some((call) => (
-    chartTileProtection[call.id] === 0 &&
-    chartElasticCorrectionMask[call.id] !== 0
   ));
 }
 
 function currentChartVisualFaultNeedsRepair() {
   chartNorthUpDrift = measureCurrentChartNorthUpDrift();
   const terrainTear = measureCurrentVisibleTerrainTear();
-  const fullyElasticOpenOcean = chartViewportIsFullyElasticOpenOcean();
+  const waterOnlyViewport = chartViewportIsWaterOnlyForSwell();
   return chooseChartVisualRepair({
     drift: chartNorthUpDrift,
     terrainTear,
@@ -25404,7 +25425,7 @@ function currentChartVisualFaultNeedsRepair() {
     viewportHeight: SCREEN_H,
     swellRepairAvailable: chartFaultCanRelyOnSwell({
       drift: chartNorthUpDrift,
-      fullyElasticOpenOcean,
+      waterOnlyViewport,
       localWaterFault: chartFaultHasLocalElasticWaterTarget(terrainTear)
     }),
     distortionSurface: chartSurfaceAtScreenPoint(chartWorstDistortionPoint)
@@ -25535,6 +25556,21 @@ function createChartModalReframeWave(sourcePositions) {
   };
 }
 
+function cancelChartModalReframeTransition() {
+  chartModalReframeSourceTilePositions = null;
+  chartModalReframeWave = null;
+  worldRenderer.releaseModalReframeSource();
+}
+
+function finishChartModalReframeTransition() {
+  if (!chartModalReframeWave) {
+    throw new Error("Cannot finish an inactive modal reframe transition");
+  }
+  chartModalReframeWave = null;
+  worldRenderer.releaseModalReframeSource();
+  dirty = true;
+}
+
 function medianInteger(values) {
   if (!Array.isArray(values) || values.length === 0 ||
       values.some((value) => !Number.isFinite(value))) {
@@ -25556,6 +25592,7 @@ function prepareNorthUpWorldBehindCover() {
     chartWorldRenderPendingBehindCover = false;
     chartWorldRenderPreparationBehindCover = null;
     chartModalReframeSourceTilePositions = null;
+    if (!chartModalReframeWave) worldRenderer.releaseModalReframeSource();
   } else if (coverOpened) {
     chartReframePendingBehindCover = false;
     chartWorldRenderPendingBehindCover = false;
@@ -25572,8 +25609,11 @@ function prepareNorthUpWorldBehindCover() {
       // Paint the newly opened screen before doing the hidden world rebuild.
       // This keeps menu input responsive even when a large chart needs a full
       // north-up reset.
-      chartModalReframeWave = null;
+      cancelChartModalReframeTransition();
       chartModalReframeSourceTilePositions = captureModalReframeTilePositions();
+      if (chartModalReframeSourceTilePositions) {
+        worldRenderer.captureModalReframeSource();
+      }
       chartReframePendingBehindCover = true;
       chartWorldFramePreparedBehindCover = false;
       dirty = true;
@@ -25585,6 +25625,7 @@ function prepareNorthUpWorldBehindCover() {
       ? createChartModalReframeWave(chartModalReframeSourceTilePositions)
       : null;
     chartModalReframeSourceTilePositions = null;
+    if (!chartModalReframeWave) worldRenderer.releaseModalReframeSource();
     chartWorldRenderPendingBehindCover = reframed;
     chartWorldFramePreparedBehindCover = !reframed && worldFramePresented;
     chartWorldRenderPreparationBehindCover = null;
@@ -36568,7 +36609,10 @@ function smoothstep(edge0, edge1, x) {
 }
 
 function currentModalReframePresentation(nowMs) {
-  if (!chartModalReframeWave || chartModalReframeWave.layout !== localLayout) return null;
+  if (!chartModalReframeWave) return null;
+  if (chartModalReframeWave.layout !== localLayout) {
+    throw new Error("Modal reframe layout changed before its transition completed");
+  }
   if (!chartModalReframeWave.motion) {
     chartModalReframeWave.motion = createModalReframeWave({
       startedAtMs: nowMs,
@@ -36578,8 +36622,7 @@ function currentModalReframePresentation(nowMs) {
   }
   const frame = modalReframeWaveFrame(chartModalReframeWave.motion, nowMs);
   if (frame.complete) {
-    chartModalReframeWave = null;
-    dirty = true;
+    finishChartModalReframeTransition();
     return null;
   }
   dirty = true;

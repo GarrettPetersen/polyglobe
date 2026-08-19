@@ -23,7 +23,6 @@ uniform float u_swellBandWidth;
 uniform float u_reframeActive;
 uniform float u_reframeFront;
 uniform float u_reframeBandWidth;
-uniform float u_reframeCrestAmplitude;
 
 out vec2 v_texCoord;
 out vec4 v_color;
@@ -40,8 +39,6 @@ void main() {
       );
       float settled = progress * progress * (3.0 - 2.0 * progress);
       position += round(a_tileMotion.xy * (1.0 - settled));
-      float crest = sin(3.14159265359 * progress) * u_reframeCrestAmplitude;
-      position += round(vec2(0.70710678118) * crest);
     }
   } else if (a_tileMotion.w > 0.5 && u_swellAmplitude > 0.0) {
     float spatialCycles = dot(a_tileMotion.xyz, u_swellPhaseAxis) *
@@ -194,8 +191,12 @@ export const PRESENT_FRAGMENT_SHADER = `#version 300 es
 precision highp float;
 
 uniform sampler2D u_scene;
+uniform sampler2D u_modalReframeSource;
 uniform sampler2D u_palette;
 uniform sampler2D u_repairCloudMask;
+uniform bool u_modalReframeComposite;
+uniform float u_modalReframeFront;
+uniform float u_modalReframeBandWidth;
 uniform bool u_grade;
 uniform bool u_repairCloudBlur;
 uniform bool u_repairCloudFullscreen;
@@ -293,6 +294,18 @@ void main() {
     sceneCoordinate.x = clamp(sceneCoordinate.x + offsetX, 0, sceneSize.x - 1);
   }
   vec4 source = texelFetch(u_scene, sceneCoordinate, 0);
+  if (u_modalReframeComposite) {
+    float screenX = float(outputCoordinate.x);
+    float screenY = float(sceneSize.y - 1 - outputCoordinate.y);
+    float progress = clamp(
+      (u_modalReframeFront - screenX - screenY) / u_modalReframeBandWidth,
+      0.0,
+      1.0
+    );
+    float settled = progress * progress * (3.0 - 2.0 * progress);
+    vec4 previous = texelFetch(u_modalReframeSource, sceneCoordinate, 0);
+    source = mix(previous, source, settled);
+  }
   if (u_repairCloudBlur) {
     vec2 screenPixel = vec2(
       float(outputCoordinate.x) + 0.5,
@@ -748,8 +761,7 @@ export function createWorldWebGL2Renderer({
     swellBandWidth: requiredUniform(gl, sceneProgram, "u_swellBandWidth"),
     reframeActive: requiredUniform(gl, sceneProgram, "u_reframeActive"),
     reframeFront: requiredUniform(gl, sceneProgram, "u_reframeFront"),
-    reframeBandWidth: requiredUniform(gl, sceneProgram, "u_reframeBandWidth"),
-    reframeCrestAmplitude: requiredUniform(gl, sceneProgram, "u_reframeCrestAmplitude")
+    reframeBandWidth: requiredUniform(gl, sceneProgram, "u_reframeBandWidth")
   };
   const bitMaskProgram = createProgram(gl, BIT_MASK_VERTEX_SHADER, BIT_MASK_FRAGMENT_SHADER);
   const bitMaskLocations = {
@@ -777,8 +789,12 @@ export function createWorldWebGL2Renderer({
     position: requiredAttribute(gl, presentProgram, "a_position"),
     texCoord: requiredAttribute(gl, presentProgram, "a_texCoord"),
     scene: requiredUniform(gl, presentProgram, "u_scene"),
+    modalReframeSource: requiredUniform(gl, presentProgram, "u_modalReframeSource"),
     palette: requiredUniform(gl, presentProgram, "u_palette"),
     repairCloudMask: requiredUniform(gl, presentProgram, "u_repairCloudMask"),
+    modalReframeComposite: requiredUniform(gl, presentProgram, "u_modalReframeComposite"),
+    modalReframeFront: requiredUniform(gl, presentProgram, "u_modalReframeFront"),
+    modalReframeBandWidth: requiredUniform(gl, presentProgram, "u_modalReframeBandWidth"),
     grade: requiredUniform(gl, presentProgram, "u_grade"),
     repairCloudBlur: requiredUniform(gl, presentProgram, "u_repairCloudBlur"),
     repairCloudFullscreen: requiredUniform(gl, presentProgram, "u_repairCloudFullscreen"),
@@ -854,6 +870,12 @@ export function createWorldWebGL2Renderer({
   const sceneTexture = createNearestTexture(gl);
   const sceneFramebuffer = gl.createFramebuffer();
   if (!sceneFramebuffer) throw new Error("Could not allocate world scene framebuffer");
+  let modalReframeSourceTexture = null;
+  let modalReframeSourceFramebuffer = null;
+  let modalReframeSourceWidth = 0;
+  let modalReframeSourceHeight = 0;
+  let modalReframeSourceFormat = null;
+  let modalReframeSourceReady = false;
   let captureTexture = null;
   let captureFramebuffer = null;
   let captureCanvas = null;
@@ -917,6 +939,7 @@ export function createWorldWebGL2Renderer({
     configureAttribute(gl, presentLocations.position, 2, 4 * 4, 0);
     configureAttribute(gl, presentLocations.texCoord, 2, 4 * 4, 2 * 4);
     gl.uniform1i(presentLocations.scene, 0);
+    gl.uniform1i(presentLocations.modalReframeSource, 3);
     gl.uniform1i(presentLocations.palette, 1);
     gl.uniform1i(presentLocations.repairCloudMask, 2);
   }
@@ -951,6 +974,7 @@ export function createWorldWebGL2Renderer({
       throw new Error(`Invalid world renderer viewport: ${width}x${height}`);
     }
     if (sceneWidth === width && sceneHeight === height) return;
+    modalReframeSourceReady = false;
     sceneWidth = width;
     sceneHeight = height;
     canvas.width = width;
@@ -994,6 +1018,9 @@ export function createWorldWebGL2Renderer({
     frameTimeMs = timeMs;
     validateOceanSwell(oceanSwell);
     validateModalReframe(modalReframe);
+    if (modalReframe && !modalReframeSourceReady) {
+      throw new Error("Modal reframe cannot begin without its captured source frame");
+    }
     frameOceanSwell = oceanSwell;
     frameModalReframe = modalReframe;
     frameGrade = Boolean(paletteVariant);
@@ -1014,7 +1041,6 @@ export function createWorldWebGL2Renderer({
     gl.uniform1f(sceneLocations.reframeActive, reframe ? 1 : 0);
     gl.uniform1f(sceneLocations.reframeFront, reframe?.frontPx ?? 0);
     gl.uniform1f(sceneLocations.reframeBandWidth, reframe?.bandWidthPx ?? 1);
-    gl.uniform1f(sceneLocations.reframeCrestAmplitude, reframe?.crestAmplitudePx ?? 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFramebuffer);
     gl.viewport(0, 0, width, height);
     gl.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
@@ -1772,6 +1798,12 @@ export function createWorldWebGL2Renderer({
     gl.bindTexture(gl.TEXTURE_2D, paletteTexture);
     gl.activeTexture(gl.TEXTURE2);
     gl.bindTexture(gl.TEXTURE_2D, repairCloudMaskTexture);
+    gl.activeTexture(gl.TEXTURE3);
+    gl.bindTexture(gl.TEXTURE_2D, modalReframeSourceTexture || sceneTexture);
+    const reframe = frameModalReframe;
+    gl.uniform1i(presentLocations.modalReframeComposite, reframe ? 1 : 0);
+    gl.uniform1f(presentLocations.modalReframeFront, reframe?.frontPx ?? 0);
+    gl.uniform1f(presentLocations.modalReframeBandWidth, reframe?.bandWidthPx ?? 1);
     gl.uniform1i(presentLocations.grade, frameGrade ? 1 : 0);
     const haze = frameHeatHaze;
     gl.uniform1i(presentLocations.heatHaze, haze ? 1 : 0);
@@ -1815,6 +1847,70 @@ export function createWorldWebGL2Renderer({
     setHeatHaze(heatHaze);
     presentScene(null);
     return canvas;
+  }
+
+  function captureModalReframeSource() {
+    if (sceneWidth <= 0 || sceneHeight <= 0) {
+      throw new Error("Cannot capture a modal reframe before the first world frame");
+    }
+    flushBatches();
+    ensureModalReframeSourceTarget();
+    gl.bindFramebuffer(gl.READ_FRAMEBUFFER, sceneFramebuffer);
+    gl.bindFramebuffer(gl.DRAW_FRAMEBUFFER, modalReframeSourceFramebuffer);
+    gl.blitFramebuffer(
+      0,
+      0,
+      sceneWidth,
+      sceneHeight,
+      0,
+      0,
+      sceneWidth,
+      sceneHeight,
+      gl.COLOR_BUFFER_BIT,
+      gl.NEAREST
+    );
+    const error = gl.getError();
+    if (error !== gl.NO_ERROR) {
+      throw new Error(`Could not copy modal reframe source frame: WebGL error ${error}`);
+    }
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, sceneWidth, sceneHeight);
+    modalReframeSourceReady = true;
+  }
+
+  function releaseModalReframeSource() {
+    modalReframeSourceReady = false;
+  }
+
+  function ensureModalReframeSourceTarget() {
+    if (
+      modalReframeSourceTexture &&
+      modalReframeSourceFramebuffer &&
+      modalReframeSourceWidth === sceneWidth &&
+      modalReframeSourceHeight === sceneHeight &&
+      modalReframeSourceFormat === sceneTextureFormat
+    ) return;
+    modalReframeSourceTexture ??= createNearestTexture(gl);
+    modalReframeSourceFramebuffer ??= gl.createFramebuffer();
+    if (!modalReframeSourceFramebuffer) {
+      throw new Error("Could not allocate modal reframe source framebuffer");
+    }
+    const allocatedFormat = allocateWorldSceneTexture(gl, {
+      texture: modalReframeSourceTexture,
+      framebuffer: modalReframeSourceFramebuffer,
+      width: sceneWidth,
+      height: sceneHeight,
+      preferredFormat: sceneTextureFormat
+    });
+    if (allocatedFormat !== sceneTextureFormat) {
+      throw new Error(
+        `Modal reframe source format ${allocatedFormat} does not match scene ${sceneTextureFormat}`
+      );
+    }
+    modalReframeSourceWidth = sceneWidth;
+    modalReframeSourceHeight = sceneHeight;
+    modalReframeSourceFormat = allocatedFormat;
+    modalReframeSourceReady = false;
   }
 
   function captureFrameCanvas() {
@@ -1876,6 +1972,8 @@ export function createWorldWebGL2Renderer({
     drawSolidRect,
     drawSolidRects,
     endFrame,
+    captureModalReframeSource,
+    releaseModalReframeSource,
     captureFrameCanvas,
     stats: () => Object.freeze({
       residentChunks: chunkTextures.size,
@@ -2035,8 +2133,7 @@ function validateOceanSwell(swell) {
 function validateModalReframe(reframe) {
   if (reframe === null) return;
   if (!reframe || !Number.isFinite(reframe.frontPx) ||
-      !Number.isFinite(reframe.bandWidthPx) || reframe.bandWidthPx <= 0 ||
-      !Number.isFinite(reframe.crestAmplitudePx) || reframe.crestAmplitudePx < 0) {
+      !Number.isFinite(reframe.bandWidthPx) || reframe.bandWidthPx <= 0) {
     throw new Error("World frame modal reframe is malformed");
   }
 }

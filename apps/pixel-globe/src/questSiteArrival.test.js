@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { questSiteArrivalCandidate } from "./questSiteArrival.js";
+import {
+  questSiteArrivalCandidate,
+  resolveQuestSiteAnchorOnDialogueClose
+} from "./questSiteArrival.js";
 
 const SITE = Object.freeze({ tileId: 41, requiredTradePort: false });
 
@@ -14,6 +17,7 @@ test("colony and lost-colony shore objectives automatically arrive inside intera
     });
     assert.equal(arrival.kind, "colonization");
     assert.equal(arrival.call, SITE);
+    assert.equal(arrival.releaseAnchorOnDialogueClose, true);
   }
 });
 
@@ -48,4 +52,19 @@ test("a completed pirate map automatically arrives only at its exact shore tile"
     treasureTileId: 73,
     nearestShoreTileId: 74
   }), null);
+});
+
+test("closing an automatically anchored quest-site dialogue raises only its own anchor", () => {
+  assert.deepEqual(resolveQuestSiteAnchorOnDialogueClose({
+    anchored: true,
+    releaseAnchorOnDialogueClose: true
+  }), { anchored: false, released: true });
+  assert.deepEqual(resolveQuestSiteAnchorOnDialogueClose({
+    anchored: true,
+    releaseAnchorOnDialogueClose: false
+  }), { anchored: true, released: false });
+  assert.throws(() => resolveQuestSiteAnchorOnDialogueClose({
+    anchored: false,
+    releaseAnchorOnDialogueClose: true
+  }), /without its anchor down/);
 });
