@@ -1661,13 +1661,42 @@ test("struck colors survive a compact save that rebuilds world traffic", () => {
   const savedSpecie = loser.specie;
 
   const rebuilt = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
-  assert.equal(npcShipHasCombatGrace(rebuilt, loser.id), false);
-  restoreNpcSurrenderContinuity(rebuilt, continuity);
+  const rebuiltIndex = rebuilt.ships.findIndex((ship) => ship.id === loser.id);
+  assert.ok(rebuiltIndex >= 0);
+  rebuilt.ships.splice(rebuiltIndex, 1);
+  rebuilt.shipById.delete(loser.id);
+  assert.equal(restoreNpcSurrenderContinuity(rebuilt, continuity), 1);
 
   const restored = rebuilt.shipById.get(loser.id);
+  assert.ok(restored);
   assert.equal(npcShipHasCombatGrace(rebuilt, loser.id), true);
   assert.deepEqual(restored.cargo, savedCargo);
   assert.equal(restored.specie, savedSpecie);
+});
+
+test("legacy compact saves omit an unreconstructible surrendered ship without blocking load", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const warnings = [];
+  const originalWarn = console.warn;
+  console.warn = (...args) => warnings.push(args.join(" "));
+  try {
+    const restored = restoreNpcSurrenderContinuity(routes, {
+      version: 1,
+      ships: [{
+        id: "shipyard:legacy-missing:npc-sale",
+        hitPointRatio: 0.5,
+        specie: 0,
+        cargo: {},
+        cargoCost: {},
+        seekingHideout: false
+      }]
+    });
+    assert.equal(restored, 0);
+  } finally {
+    console.warn = originalWarn;
+  }
+  assert.match(warnings.join("\n"), /omitted legacy surrendered ship/);
 });
 
 test("a merciful surrender leaves stores aboard until the player accepts the prize", () => {

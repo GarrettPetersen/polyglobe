@@ -10,10 +10,11 @@ import {
 
 const MINIMUM_DISPLAY_MS = 1100;
 const EXIT_DURATION_MS = 420;
+const MAXIMUM_WORKER_ATTEMPTS = 2;
 
 export function startCapsuleLoadingScreen() {
   const root = requiredElement("loading-screen", HTMLElement);
-  const displayCanvas = requiredElement("loading-art", HTMLCanvasElement);
+  let displayCanvas = requiredElement("loading-art", HTMLCanvasElement);
   const status = requiredElement("loading-status-text", HTMLElement);
   const statusLabel = status.querySelector("span");
   if (!(statusLabel instanceof HTMLElement) || statusLabel.textContent?.trim() === "") {
@@ -35,8 +36,8 @@ export function startCapsuleLoadingScreen() {
   );
   const titleAtlasFile = loadingCapsuleTitleAtlasFile(language);
   const startedAtMs = performance.now();
-  const offscreenCanvas = displayCanvas.transferControlToOffscreen();
-  const worker = new Worker(new URL("./loadingScreenWorker.js", import.meta.url), { type: "module" });
+  let worker = null;
+  let workerAttempt = 0;
   let exitTimerId = null;
   let hideTimerId = null;
   let lifecycle = "loading";
@@ -52,26 +53,15 @@ export function startCapsuleLoadingScreen() {
   root.hidden = false;
   root.dataset.state = "loading";
 
-  worker.addEventListener("message", handleWorkerMessage);
-  worker.addEventListener("error", handleWorkerError);
   const resizeObserver = new ResizeObserver(syncDisplayCanvasSize);
   resizeObserver.observe(root);
   window.visualViewport?.addEventListener("resize", syncDisplayCanvasSize);
-
-  const initialSize = currentRenderSize(root, displayCanvas);
-  worker.postMessage({
-    type: "start",
-    canvas: offscreenCanvas,
-    width: initialSize.width,
-    height: initialSize.height,
-    reducedMotion,
-    statusText: statusLabel.textContent.trim(),
-    titleAtlasFile
-  }, [offscreenCanvas]);
+  startWorkerAttempt();
 
   return Object.freeze({ ready, finish, fail });
 
   function handleWorkerMessage(event) {
+    if (event.currentTarget !== worker) return;
     const message = event.data;
     if (!message || typeof message.type !== "string") {
       fail(new Error("Capsule loading worker sent a malformed message"));
@@ -86,21 +76,74 @@ export function startCapsuleLoadingScreen() {
     }
     if (message.type === "error") {
       const error = new Error(message.message || "Capsule loading worker failed");
-      fail(error);
+      recoverWorkerOrFail(error);
       return;
     }
     fail(new Error(`Capsule loading worker sent an unknown message: ${message.type}`));
   }
 
   function handleWorkerError(event) {
+    if (event.currentTarget !== worker) return;
+    event.preventDefault?.();
     const error = new Error(event.message || "Capsule loading worker crashed");
-    fail(error);
+    recoverWorkerOrFail(error);
+  }
+
+  function startWorkerAttempt() {
+    workerAttempt++;
+    try {
+      const nextWorker = new Worker(new URL("./loadingScreenWorker.js", import.meta.url), {
+        type: "module"
+      });
+      worker = nextWorker;
+      nextWorker.addEventListener("message", handleWorkerMessage);
+      nextWorker.addEventListener("error", handleWorkerError);
+      const initialSize = currentRenderSize(root, displayCanvas);
+      const offscreenCanvas = displayCanvas.transferControlToOffscreen();
+      nextWorker.postMessage({
+        type: "start",
+        canvas: offscreenCanvas,
+        width: initialSize.width,
+        height: initialSize.height,
+        reducedMotion,
+        statusText: statusLabel.textContent.trim(),
+        titleAtlasFile
+      }, [offscreenCanvas]);
+    } catch (error) {
+      recoverWorkerOrFail(normalizedError(error, "Capsule loading worker could not start"));
+    }
+  }
+
+  function recoverWorkerOrFail(error) {
+    if (lifecycle === "running") {
+      console.warn("[pixel-globe] capsule loading animation stopped after initialization", error);
+      worker?.terminate();
+      worker = null;
+      return;
+    }
+    if (lifecycle !== "loading" || workerAttempt >= MAXIMUM_WORKER_ATTEMPTS) {
+      fail(error);
+      return;
+    }
+    console.warn(
+      `[pixel-globe] capsule loading worker attempt ${workerAttempt} failed; retrying`,
+      error
+    );
+    worker?.terminate();
+    const replacement = displayCanvas.cloneNode(false);
+    if (!(replacement instanceof HTMLCanvasElement)) {
+      fail(new Error("Capsule loading canvas could not be replaced after a worker failure"));
+      return;
+    }
+    displayCanvas.replaceWith(replacement);
+    displayCanvas = replacement;
+    startWorkerAttempt();
   }
 
   function syncDisplayCanvasSize() {
     if (lifecycle === "finished" || lifecycle === "failed") return;
     const size = currentRenderSize(root, displayCanvas);
-    worker.postMessage({ type: "resize", width: size.width, height: size.height });
+    worker?.postMessage({ type: "resize", width: size.width, height: size.height });
   }
 
   function finish() {
@@ -124,7 +167,7 @@ export function startCapsuleLoadingScreen() {
     cancelScheduledWork();
     resizeObserver.disconnect();
     window.visualViewport?.removeEventListener("resize", syncDisplayCanvasSize);
-    worker.terminate();
+    worker?.terminate();
     root.dataset.state = "failed";
     status.textContent = `COULD NOT CHART THE WORLD — ${errorMessage(error)}`;
     shell.setAttribute("aria-busy", "false");
@@ -135,7 +178,7 @@ export function startCapsuleLoadingScreen() {
     cancelScheduledWork();
     resizeObserver.disconnect();
     window.visualViewport?.removeEventListener("resize", syncDisplayCanvasSize);
-    worker.terminate();
+    worker?.terminate();
     root.hidden = true;
   }
 
@@ -174,4 +217,8 @@ function requiredElement(id, constructor) {
 
 function errorMessage(error) {
   return error instanceof Error ? error.message : String(error);
+}
+
+function normalizedError(error, fallbackMessage) {
+  return error instanceof Error ? error : new Error(error ? String(error) : fallbackMessage);
 }

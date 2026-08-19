@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   advanceFetchQuestReadiness,
+  fetchQuestHasDedicatedNavigationEntry,
   fetchQuestRequirements,
   readyFetchQuestDestinations
 } from "./fetchQuestObjectives.js";
@@ -157,6 +158,14 @@ test("shipyard materials announce when the remaining order is all aboard", () =>
   assert.equal(requirements(12)[0].quantity, 12);
   assert.equal(requirements(12)[0].ready, true);
   assert.equal(readyFetchQuestDestinations(requirements(12))[0].destination.city, "Cadiz");
+});
+
+test("quest systems with their own navigation entry are never duplicated by fetch routing", () => {
+  assert.equal(fetchQuestHasDedicatedNavigationEntry("colonization"), true);
+  assert.equal(fetchQuestHasDedicatedNavigationEntry("conquistador"), true);
+  assert.equal(fetchQuestHasDedicatedNavigationEntry("shipyard-investment"), true);
+  assert.equal(fetchQuestHasDedicatedNavigationEntry("viking-longship"), false);
+  assert.throws(() => fetchQuestHasDedicatedNavigationEntry(""), /requires a quest id/);
 });
 
 function colonizationView(overrides) {

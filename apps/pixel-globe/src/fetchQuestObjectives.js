@@ -1,3 +1,16 @@
+const DEDICATED_NAVIGATION_ENTRY_QUEST_IDS = Object.freeze(new Set([
+  "colonization",
+  "conquistador",
+  "shipyard-investment"
+]));
+
+export function fetchQuestHasDedicatedNavigationEntry(questId) {
+  if (typeof questId !== "string" || questId.length === 0) {
+    throw new Error("Fetch quest navigation requires a quest id");
+  }
+  return DEDICATED_NAVIGATION_ENTRY_QUEST_IDS.has(questId);
+}
+
 export function fetchQuestRequirements({
   colonization = null,
   japaneseMatchlocks = null,

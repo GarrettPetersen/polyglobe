@@ -912,14 +912,18 @@ export function snapshotNpcSurrenderContinuity(system) {
     inspectNpcCargo(ship);
   }
   return {
-    version: 1,
+    version: 2,
     ships: surrenderedShips.map((ship) => ({
       id: ship.id,
       hitPointRatio: ship.hitPoints / ship.maxHitPoints,
       specie: ship.specie,
       cargo: cloneJsonData(ship.cargo),
       cargoCost: cloneJsonData(ship.cargoCost),
-      seekingHideout: ship.seekingHideout
+      seekingHideout: ship.seekingHideout,
+      ship: {
+        ...cloneJsonData(ship),
+        visualNavigation: null
+      }
     }))
   };
 }
@@ -927,10 +931,11 @@ export function snapshotNpcSurrenderContinuity(system) {
 export function restoreNpcSurrenderContinuity(system, snapshot) {
   assertSaveableNpcRouteSystem(system);
   if (snapshot === undefined || snapshot === null) return 0;
-  if (!snapshot || snapshot.version !== 1 || !Array.isArray(snapshot.ships)) {
+  if (!snapshot || ![1, 2].includes(snapshot.version) || !Array.isArray(snapshot.ships)) {
     throw new Error("Unsupported NPC surrender continuity data");
   }
   const seenIds = new Set();
+  let restoredCount = 0;
   for (const saved of snapshot.ships) {
     if (!saved || typeof saved.id !== "string" || saved.id === "" || seenIds.has(saved.id)) {
       throw new Error(`Invalid surrendered NPC ship id: ${saved?.id}`);
@@ -945,8 +950,22 @@ export function restoreNpcSurrenderContinuity(system, snapshot) {
         typeof saved.seekingHideout !== "boolean") {
       throw new Error(`Invalid surrendered NPC continuity state: ${saved.id}`);
     }
-    const ship = system.shipById.get(saved.id);
-    if (!ship) throw new Error(`Surrendered NPC ship is absent after route restore: ${saved.id}`);
+    if (snapshot.version === 2 && (!saved.ship || saved.ship.id !== saved.id)) {
+      throw new Error(`Surrendered NPC ship record is invalid: ${saved.id}`);
+    }
+    let ship = system.shipById.get(saved.id);
+    if (!ship && saved.ship) {
+      ship = cloneJsonData(saved.ship);
+      reconcileRestoredNpcShip(ship, "surrender continuity restore");
+      ship.visualNavigation = null;
+      system.ships.push(ship);
+      system.shipById.set(ship.id, ship);
+    } else if (!ship) {
+      console.warn(
+        `[pixel-globe] omitted legacy surrendered ship absent from rebuilt traffic: ${saved.id}`
+      );
+      continue;
+    }
     ship.hitPoints = Math.max(1, Math.round(ship.maxHitPoints * saved.hitPointRatio));
     ship.specie = saved.specie;
     ship.cargo = cloneJsonData(saved.cargo);
@@ -954,8 +973,9 @@ export function restoreNpcSurrenderContinuity(system, snapshot) {
     ship.seekingHideout = saved.seekingHideout;
     ship.graceUntilPortVisit = Number.MAX_SAFE_INTEGER;
     reconcileNpcCargoCapacity(ship, "surrender continuity restore");
+    restoredCount++;
   }
-  return snapshot.ships.length;
+  return restoredCount;
 }
 
 export function applyNpcSeaRouteSimulationSnapshot(
@@ -1053,21 +1073,7 @@ export function restoreNpcSeaRouteSystem(
     if (!ship || typeof ship.id !== "string" || ship.id === "" || shipById.has(ship.id)) {
       throw new Error(`Invalid saved NPC ship id: ${ship?.id}`);
     }
-    if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
-        !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
-      throw new Error(`Invalid saved NPC hull: ${ship.id}`);
-    }
-    ship.cultureType = ship.cultureType || ship.currentPort?.cityType || null;
-    ship.cartazUntilMinute = ship.cartazUntilMinute ?? 0;
-    if (!Number.isFinite(ship.cartazUntilMinute) || ship.cartazUntilMinute < 0) {
-      throw new Error(`Invalid saved NPC cartaz expiry: ${ship.id}`);
-    }
-    assertFactionId(ship.factionId);
-    const stats = shipStatsForSlug(ship.slug);
-    const reconciledHull = reconcileShipHullForCurrentStats(stats, ship.hitPoints, ship.maxHitPoints);
-    ship.hitPoints = reconciledHull.hitPoints;
-    ship.maxHitPoints = reconciledHull.maxHitPoints;
-    reconcileNpcCargoCapacity(ship, "save restore");
+    reconcileRestoredNpcShip(ship, "save restore");
     shipById.set(ship.id, ship);
   }
   const danger = new Map();
@@ -1126,6 +1132,28 @@ export function restoreNpcSeaRouteSystem(
     throw new Error("NPC route restore created duplicate ship ids");
   }
   return system;
+}
+
+function reconcileRestoredNpcShip(ship, context) {
+  if (!ship || typeof ship.id !== "string" || ship.id === "") {
+    throw new Error(`Invalid restored NPC ship id: ${ship?.id}`);
+  }
+  if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
+      !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
+    throw new Error(`Invalid restored NPC hull: ${ship.id}`);
+  }
+  ship.cultureType = ship.cultureType || ship.currentPort?.cityType || null;
+  ship.cartazUntilMinute = ship.cartazUntilMinute ?? 0;
+  if (!Number.isFinite(ship.cartazUntilMinute) || ship.cartazUntilMinute < 0) {
+    throw new Error(`Invalid restored NPC cartaz expiry: ${ship.id}`);
+  }
+  assertFactionId(ship.factionId);
+  const stats = shipStatsForSlug(ship.slug);
+  const reconciledHull = reconcileShipHullForCurrentStats(stats, ship.hitPoints, ship.maxHitPoints);
+  ship.hitPoints = reconciledHull.hitPoints;
+  ship.maxHitPoints = reconciledHull.maxHitPoints;
+  reconcileNpcCargoCapacity(ship, context);
+  return ship;
 }
 
 function migrateNpcRouteFactionsTo1522(ships, replacementQueue) {

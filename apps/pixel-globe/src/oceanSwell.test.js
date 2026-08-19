@@ -9,12 +9,14 @@ import {
   CALM_SWELL_WAVE_PERIOD_MS,
   OCEAN_SWELL_FRAME_COUNT,
   OCEAN_SWELL_SPATIAL_CYCLES,
+  OCEAN_SWELL_STAGGER_PATTERN,
   STORM_SWELL_MAX_AMPLITUDE_PX,
   STORM_SWELL_BAND_WIDTH,
   STORM_SWELL_PERIOD_MS,
   calmSwellEnvelope,
   oceanSwellOffset,
-  oceanSwellState
+  oceanSwellState,
+  swellBandStagger
 } from "./oceanSwell.js";
 
 const EASTWARD_PHASE = [1, 0, 0];
@@ -90,6 +92,23 @@ test("swell motion travels in distinct bands with settled water between them", (
   assert.ok(moving > 0);
   assert.ok(settled > moving);
   assert.ok(CALM_SWELL_BAND_WIDTH < STORM_SWELL_BAND_WIDTH);
+});
+
+test("successive swell bands use a repeating staggered cadence", () => {
+  assert.deepEqual(
+    Array.from({ length: 8 }, (_, index) => swellBandStagger(index)),
+    [...OCEAN_SWELL_STAGGER_PATTERN, ...OCEAN_SWELL_STAGGER_PATTERN]
+  );
+  assert.equal(swellBandStagger(-1), OCEAN_SWELL_STAGGER_PATTERN.at(-1));
+  assert.ok(new Set(OCEAN_SWELL_STAGGER_PATTERN).size > 2);
+  assert.throws(() => swellBandStagger(0.5), /must be an integer/);
+
+  const serials = Array.from({ length: 5 }, (_, index) => swellState({
+    nowMs: index * STORM_SWELL_PERIOD_MS + 100,
+    stormStrength: 1,
+    flowDirectionRad: 0
+  }).waveSerial);
+  assert.deepEqual(serials, [0, 1, 2, 3, 0]);
 });
 
 test("visually settled water shares one terrain cache state", () => {

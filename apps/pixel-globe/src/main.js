@@ -1284,6 +1284,7 @@ import { questJournalWindow, steppedQuestJournalScroll } from "./questJournalLay
 import { orderQuestJournalEntries } from "./questJournalOrder.js";
 import {
   advanceFetchQuestReadiness,
+  fetchQuestHasDedicatedNavigationEntry,
   fetchQuestRequirements,
   readyFetchQuestDestinations
 } from "./fetchQuestObjectives.js";
@@ -40590,7 +40591,7 @@ function navigationMenuEntries() {
   }
 
   for (const fetchTarget of currentReadyFetchQuestDestinations()) {
-    if (["colonization", "conquistador"].includes(fetchTarget.questId)) continue;
+    if (fetchQuestHasDedicatedNavigationEntry(fetchTarget.questId)) continue;
     const destination = fetchQuestWorldDestination(fetchTarget);
     entries.push({
       id: `fetch:${fetchTarget.id}`,
