@@ -1167,20 +1167,39 @@ function migrateAddedAgraOwnership(conquest) {
   return conquest;
 }
 
-export function addPortNavigationWaypoint(state, { destinationTileId, destinationName, reason }) {
+export function addPortNavigationWaypoint(state, {
+  destinationTileId,
+  destinationName,
+  reason,
+  questCargoGoodId = null
+}) {
   assertGameState(state);
+  if (questCargoGoodId !== null && (
+    reason !== PORT_NAVIGATION_REASON_QUEST_CARGO ||
+    typeof questCargoGoodId !== "string" ||
+    questCargoGoodId === ""
+  )) {
+    throw new Error("Quest cargo waypoint goods require a quest cargo navigation reason");
+  }
   const waypoint = {
-    id: `port:${destinationTileId}`,
+    id: portNavigationWaypointId({ destinationTileId, reason, questCargoGoodId }),
     destinationTileId,
     destinationName,
     reason
   };
+  if (questCargoGoodId !== null) waypoint.questCargoGoodId = questCargoGoodId;
   assertOptionalNavigationWaypoint(waypoint);
   const waypoints = state.memory.navigation.optionalWaypoints;
   const existingIndex = waypoints.findIndex((entry) => entry.id === waypoint.id);
   if (existingIndex >= 0) waypoints[existingIndex] = waypoint;
   else waypoints.push(waypoint);
   return waypoint;
+}
+
+function portNavigationWaypointId({ destinationTileId, reason, questCargoGoodId = null }) {
+  return reason === PORT_NAVIGATION_REASON_QUEST_CARGO && questCargoGoodId
+    ? `port:${destinationTileId}:quest-cargo:${questCargoGoodId}`
+    : `port:${destinationTileId}`;
 }
 
 export function portNavigationReasonLabel(reason) {
@@ -6044,7 +6063,11 @@ export function reconcileQuestPortTiles(state, portCities) {
     )) {
       waypoint.destinationTileId = destination.tileId;
       waypoint.destinationName = cityLabel(destination);
-      waypoint.id = `port:${destination.tileId}`;
+      waypoint.id = portNavigationWaypointId({
+        destinationTileId: destination.tileId,
+        reason: waypoint.reason,
+        questCargoGoodId: waypoint.questCargoGoodId || null
+      });
       updates += 1;
     }
     const existingIndex = reconciledWaypoints.findIndex((entry) => entry.id === waypoint.id);
@@ -8005,6 +8028,13 @@ function assertOptionalNavigationWaypoint(waypoint) {
   }
   if (typeof waypoint.reason !== "string" || waypoint.reason.trim() === "") {
     throw new Error("Optional navigation waypoint requires a reason");
+  }
+  if (waypoint.questCargoGoodId !== undefined && (
+    waypoint.reason !== PORT_NAVIGATION_REASON_QUEST_CARGO ||
+    typeof waypoint.questCargoGoodId !== "string" ||
+    waypoint.questCargoGoodId === ""
+  )) {
+    throw new Error("Optional quest cargo waypoint requires a trade good id");
   }
 }
 

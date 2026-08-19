@@ -65,6 +65,28 @@ export function questCargoDeliverableQuantity(state, requirementId, requiredQuan
   return Math.min(Math.floor(heldQuantity), progress.remainingQuantity);
 }
 
+export function questCargoTransfer(goodId, quantity) {
+  if (typeof goodId !== "string" || goodId.trim() === "") {
+    throw new Error("Quest cargo transfer requires a good id");
+  }
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error(`Quest cargo transfer requires a positive integer quantity: ${quantity}`);
+  }
+  return Object.freeze({ goodId, quantity });
+}
+
+export function questCargoTransferFromDelivery(delivery) {
+  if (!delivery?.good || typeof delivery.good.id !== "string") {
+    throw new Error("Quest cargo transfer requires a completed cargo delivery");
+  }
+  return questCargoTransfer(delivery.good.id, delivery.quantity);
+}
+
+export function questCargoTransfersFromDeliveries(deliveries) {
+  if (!Array.isArray(deliveries)) throw new Error("Quest cargo transfers require a delivery array");
+  return Object.freeze(deliveries.map(questCargoTransferFromDelivery));
+}
+
 function questCargoDeliveryMemory(state) {
   return validateQuestCargoDeliveryMemory(state?.memory?.quests?.cargoDeliveries);
 }

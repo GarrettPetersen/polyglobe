@@ -503,7 +503,7 @@ function verifyFeaturedSfxAudio(sidecar, audioPath, scenarioId) {
     featuredEvents.push(...sidecar.events.filter((event) => (
       event.type === "capture-sfx" && event.data?.assetPath === FEATURED_SFX.whaleKill
     )));
-  } else if (sequence.kind === "fight" ||
+  } else if ((sequence.kind === "fight" && sequence.variant !== "small-arms") ||
       (sequence.kind === "pillage" && sequence.variant === "bombard")) {
     const playerCannonTimes = new Set(sidecar.events.filter((event) => (
       event.type === "weapon-fired" && event.data?.ownerId === "player" && event.data?.weapon === "cannon"
@@ -674,7 +674,7 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
       throw new Error(`${scenarioId} did not pair the whale killing blow with its SFX`);
     }
   }
-  const requiresPlayerCannons = sequence.kind === "fight" ||
+  const requiresPlayerCannons = (sequence.kind === "fight" && sequence.variant !== "small-arms") ||
     (sequence.kind === "pillage" && sequence.variant === "bombard");
   if (requiresPlayerCannons) {
     const cannonEvents = sidecar.events.filter((event) => (
@@ -704,6 +704,31 @@ function verifyFeaturedSfx(sidecar, scenarioId) {
     ));
     if (playerHits.length === 0) {
       throw new Error(`${scenarioId} broadside did not hit its intended target`);
+    }
+  }
+  if (sequence.kind === "fight" && sequence.variant === "small-arms") {
+    const portableWeapons = new Set(["crossbows", "matchlock-arquebuses"]);
+    const playerCannons = sidecar.events.filter((event) => (
+      event.type === "weapon-fired" && event.data?.ownerId === "player" &&
+      event.data?.weapon === "cannon"
+    ));
+    if (playerCannons.length !== 0) {
+      throw new Error(`${scenarioId} fired a cannon during its small-arms exchange`);
+    }
+    const portableVolleys = sidecar.events.filter((event) => (
+      event.type === "weapon-fired" && portableWeapons.has(event.data?.weapon)
+    ));
+    const playerVolleys = portableVolleys.filter((event) => event.data?.ownerId === "player");
+    const enemyVolleys = portableVolleys.filter((event) => (
+      event.data?.ownerId === sequence.encounterId
+    ));
+    const firedWeapons = new Set(portableVolleys.map((event) => event.data.weapon));
+    if (playerVolleys.length < 1 || enemyVolleys.length < 1 || firedWeapons.size !== 2) {
+      throw new Error(
+        `${scenarioId} needs two-way crossbow and matchlock fire; ` +
+        `found player=${playerVolleys.length}, enemy=${enemyVolleys.length}, ` +
+        `weapons=${[...firedWeapons].join(",")}`
+      );
     }
   }
 }

@@ -68,6 +68,30 @@ export function createItemDepartureEffect({
   });
 }
 
+export function createQuestItemDeliveryEffect({
+  iconId,
+  startX,
+  startY,
+  startedAtMs,
+  iconSize,
+  viewportHeight,
+  arrivalSoundId = null
+}) {
+  if (!Number.isInteger(viewportHeight) || viewportHeight <= 0) {
+    throw new Error(`Quest item delivery effect requires a positive integer viewportHeight: ${viewportHeight}`);
+  }
+  return createItemAcquisitionEffect({
+    iconId,
+    startX,
+    startY,
+    startedAtMs,
+    iconSize,
+    targetX: -iconSize - ITEM_ACQUISITION_EDGE_MARGIN_PX,
+    targetY: viewportHeight + ITEM_ACQUISITION_EDGE_MARGIN_PX,
+    arrivalSoundId
+  });
+}
+
 export function createItemAcquisitionBurst({
   iconId,
   count,

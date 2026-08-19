@@ -11,7 +11,7 @@ in vec2 a_position;
 in vec2 a_texCoord;
 in vec4 a_color;
 in vec2 a_effect;
-in vec4 a_swellPosition;
+in vec4 a_tileMotion;
 
 uniform vec2 u_resolution;
 uniform vec2 u_translation;
@@ -20,6 +20,10 @@ uniform vec3 u_swellPhaseAxis;
 uniform float u_swellCycle;
 uniform float u_swellAmplitude;
 uniform float u_swellBandWidth;
+uniform float u_reframeActive;
+uniform float u_reframeFront;
+uniform float u_reframeBandWidth;
+uniform float u_reframeCrestAmplitude;
 
 out vec2 v_texCoord;
 out vec4 v_color;
@@ -27,8 +31,20 @@ out vec2 v_effect;
 
 void main() {
   vec2 position = a_position;
-  if (a_swellPosition.w > 0.5 && u_swellAmplitude > 0.0) {
-    float spatialCycles = dot(a_swellPosition.xyz, u_swellPhaseAxis) *
+  if (a_tileMotion.w > 1.5) {
+    if (u_reframeActive > 0.5) {
+      float progress = clamp(
+        (u_reframeFront - a_tileMotion.z) / u_reframeBandWidth,
+        0.0,
+        1.0
+      );
+      float settled = progress * progress * (3.0 - 2.0 * progress);
+      position += round(a_tileMotion.xy * (1.0 - settled));
+      float crest = sin(3.14159265359 * progress) * u_reframeCrestAmplitude;
+      position += round(vec2(0.70710678118) * crest);
+    }
+  } else if (a_tileMotion.w > 0.5 && u_swellAmplitude > 0.0) {
+    float spatialCycles = dot(a_tileMotion.xyz, u_swellPhaseAxis) *
       ${OCEAN_SWELL_SPATIAL_CYCLES.toFixed(1)};
     float bandPhase = fract(u_swellCycle - spatialCycles);
     if (bandPhase < u_swellBandWidth) {
@@ -447,7 +463,8 @@ export function quadVertices({
   refractionPx = 0,
   alphaThreshold = 0,
   flipX = false,
-  swellPosition = null
+  swellPosition = null,
+  reframeMotion = null
 }) {
   validateRect(sourceRect, "source");
   validateRect(destinationRect, "destination");
@@ -463,6 +480,8 @@ export function quadVertices({
     throw new Error("Quad effects must be finite");
   }
   validateSwellPosition(swellPosition);
+  validateReframeMotion(reframeMotion);
+  validateExclusiveTileMotion(swellPosition, reframeMotion);
 
   const vertices = new Float32Array(FLOATS_PER_QUAD);
   writeQuadVertices(vertices, 0, {
@@ -474,7 +493,8 @@ export function quadVertices({
     refractionPx,
     alphaThreshold,
     flipX,
-    swellPosition
+    swellPosition,
+    reframeMotion
   });
   return vertices;
 }
@@ -488,7 +508,8 @@ function writeQuadVertices(target, offset, {
   refractionPx,
   alphaThreshold,
   flipX,
-  swellPosition
+  swellPosition,
+  reframeMotion
 }) {
   const x0 = destinationRect.x;
   const y0 = destinationRect.y;
@@ -503,12 +524,12 @@ function writeQuadVertices(target, offset, {
     u0 = u1;
     u1 = swap;
   }
-  offset = writeQuadVertex(target, offset, x0, y0, u0, v0, color, refractionPx, alphaThreshold, swellPosition);
-  offset = writeQuadVertex(target, offset, x1, y0, u1, v0, color, refractionPx, alphaThreshold, swellPosition);
-  offset = writeQuadVertex(target, offset, x0, y1, u0, v1, color, refractionPx, alphaThreshold, swellPosition);
-  offset = writeQuadVertex(target, offset, x0, y1, u0, v1, color, refractionPx, alphaThreshold, swellPosition);
-  offset = writeQuadVertex(target, offset, x1, y0, u1, v0, color, refractionPx, alphaThreshold, swellPosition);
-  return writeQuadVertex(target, offset, x1, y1, u1, v1, color, refractionPx, alphaThreshold, swellPosition);
+  offset = writeQuadVertex(target, offset, x0, y0, u0, v0, color, refractionPx, alphaThreshold, swellPosition, reframeMotion);
+  offset = writeQuadVertex(target, offset, x1, y0, u1, v0, color, refractionPx, alphaThreshold, swellPosition, reframeMotion);
+  offset = writeQuadVertex(target, offset, x0, y1, u0, v1, color, refractionPx, alphaThreshold, swellPosition, reframeMotion);
+  offset = writeQuadVertex(target, offset, x0, y1, u0, v1, color, refractionPx, alphaThreshold, swellPosition, reframeMotion);
+  offset = writeQuadVertex(target, offset, x1, y0, u1, v0, color, refractionPx, alphaThreshold, swellPosition, reframeMotion);
+  return writeQuadVertex(target, offset, x1, y1, u1, v1, color, refractionPx, alphaThreshold, swellPosition, reframeMotion);
 }
 
 function writeQuadVertex(
@@ -521,7 +542,8 @@ function writeQuadVertex(
   color,
   refractionPx,
   alphaThreshold,
-  swellPosition
+  swellPosition,
+  reframeMotion
 ) {
   target[offset++] = x;
   target[offset++] = y;
@@ -533,10 +555,11 @@ function writeQuadVertex(
   target[offset++] = color[3];
   target[offset++] = refractionPx;
   target[offset++] = alphaThreshold;
-  target[offset++] = swellPosition?.[0] ?? 0;
-  target[offset++] = swellPosition?.[1] ?? 0;
-  target[offset++] = swellPosition?.[2] ?? 0;
-  target[offset++] = swellPosition ? 1 : 0;
+  const tileMotion = reframeMotion ?? swellPosition;
+  target[offset++] = tileMotion?.[0] ?? 0;
+  target[offset++] = tileMotion?.[1] ?? 0;
+  target[offset++] = tileMotion?.[2] ?? 0;
+  target[offset++] = reframeMotion ? 2 : swellPosition ? 1 : 0;
   return offset;
 }
 
@@ -712,7 +735,7 @@ export function createWorldWebGL2Renderer({
     texCoord: requiredAttribute(gl, sceneProgram, "a_texCoord"),
     color: requiredAttribute(gl, sceneProgram, "a_color"),
     effect: requiredAttribute(gl, sceneProgram, "a_effect"),
-    swellPosition: requiredAttribute(gl, sceneProgram, "a_swellPosition"),
+    tileMotion: requiredAttribute(gl, sceneProgram, "a_tileMotion"),
     resolution: requiredUniform(gl, sceneProgram, "u_resolution"),
     translation: requiredUniform(gl, sceneProgram, "u_translation"),
     source: requiredUniform(gl, sceneProgram, "u_source"),
@@ -722,7 +745,11 @@ export function createWorldWebGL2Renderer({
     swellPhaseAxis: requiredUniform(gl, sceneProgram, "u_swellPhaseAxis"),
     swellCycle: requiredUniform(gl, sceneProgram, "u_swellCycle"),
     swellAmplitude: requiredUniform(gl, sceneProgram, "u_swellAmplitude"),
-    swellBandWidth: requiredUniform(gl, sceneProgram, "u_swellBandWidth")
+    swellBandWidth: requiredUniform(gl, sceneProgram, "u_swellBandWidth"),
+    reframeActive: requiredUniform(gl, sceneProgram, "u_reframeActive"),
+    reframeFront: requiredUniform(gl, sceneProgram, "u_reframeFront"),
+    reframeBandWidth: requiredUniform(gl, sceneProgram, "u_reframeBandWidth"),
+    reframeCrestAmplitude: requiredUniform(gl, sceneProgram, "u_reframeCrestAmplitude")
   };
   const bitMaskProgram = createProgram(gl, BIT_MASK_VERTEX_SHADER, BIT_MASK_FRAGMENT_SHADER);
   const bitMaskLocations = {
@@ -842,6 +869,7 @@ export function createWorldWebGL2Renderer({
   let paletteKey = null;
   let frameTimeMs = 0;
   let frameOceanSwell = null;
+  let frameModalReframe = null;
   let frameGrade = false;
   let frameRepairCloudBlur = null;
   let frameHeatHaze = null;
@@ -878,7 +906,7 @@ export function createWorldWebGL2Renderer({
     configureAttribute(gl, sceneLocations.texCoord, 2, stride, 2 * 4);
     configureAttribute(gl, sceneLocations.color, 4, stride, 4 * 4);
     configureAttribute(gl, sceneLocations.effect, 2, stride, 8 * 4);
-    configureAttribute(gl, sceneLocations.swellPosition, 4, stride, 10 * 4);
+    configureAttribute(gl, sceneLocations.tileMotion, 4, stride, 10 * 4);
     gl.uniform1i(sceneLocations.source, 0);
   }
 
@@ -949,7 +977,8 @@ export function createWorldWebGL2Renderer({
     clearColor,
     paletteVariant = null,
     timeMs = 0,
-    oceanSwell = null
+    oceanSwell = null,
+    modalReframe = null
   }) {
     assertWorldWebGLContextAvailable(gl);
     resize(width, height);
@@ -964,7 +993,9 @@ export function createWorldWebGL2Renderer({
     persistentBatchDraws = 0;
     frameTimeMs = timeMs;
     validateOceanSwell(oceanSwell);
+    validateModalReframe(modalReframe);
     frameOceanSwell = oceanSwell;
+    frameModalReframe = modalReframe;
     frameGrade = Boolean(paletteVariant);
     updatePaletteTexture(paletteVariant);
     gl.useProgram(sceneProgram);
@@ -979,6 +1010,11 @@ export function createWorldWebGL2Renderer({
     gl.uniform1f(sceneLocations.swellCycle, swell?.cycle ?? 0);
     gl.uniform1f(sceneLocations.swellAmplitude, swell?.amplitudePx ?? 0);
     gl.uniform1f(sceneLocations.swellBandWidth, swell?.bandWidth ?? 1);
+    const reframe = frameModalReframe;
+    gl.uniform1f(sceneLocations.reframeActive, reframe ? 1 : 0);
+    gl.uniform1f(sceneLocations.reframeFront, reframe?.frontPx ?? 0);
+    gl.uniform1f(sceneLocations.reframeBandWidth, reframe?.bandWidthPx ?? 1);
+    gl.uniform1f(sceneLocations.reframeCrestAmplitude, reframe?.crestAmplitudePx ?? 0);
     gl.bindFramebuffer(gl.FRAMEBUFFER, sceneFramebuffer);
     gl.viewport(0, 0, width, height);
     gl.clearColor(clearColor[0], clearColor[1], clearColor[2], clearColor[3]);
@@ -1206,7 +1242,8 @@ export function createWorldWebGL2Renderer({
     refractionPx = 0,
     alphaThreshold = 0,
     flipX = false,
-    swellPosition = null
+    swellPosition = null,
+    reframeMotion = null
   }) {
     const entry = registerAtlasSource(source);
     activateAtlasPage(entry.pageIndex);
@@ -1225,6 +1262,8 @@ export function createWorldWebGL2Renderer({
       throw new Error("Atlas sprite effects must be finite");
     }
     validateSwellPosition(swellPosition);
+    validateReframeMotion(reframeMotion);
+    validateExclusiveTileMotion(swellPosition, reframeMotion);
     appendAtlasQuad({
       sourceRect: {
         x: entry.x + local.x,
@@ -1239,7 +1278,8 @@ export function createWorldWebGL2Renderer({
       refractionPx,
       alphaThreshold,
       flipX,
-      swellPosition
+      swellPosition,
+      reframeMotion
     });
   }
 
@@ -1313,6 +1353,7 @@ export function createWorldWebGL2Renderer({
       const refractionPx = sprite.refractionPx ?? 0;
       const alphaThreshold = sprite.alphaThreshold ?? 0;
       const swellPosition = sprite.swellPosition ?? null;
+      const reframeMotion = sprite.reframeMotion ?? null;
       validateUnitInterval(alpha, "persistent atlas alpha");
       if (!Array.isArray(tint) || tint.length !== 3 ||
           tint.some((channel) => !Number.isFinite(channel))) {
@@ -1322,6 +1363,8 @@ export function createWorldWebGL2Renderer({
         throw new Error(`Persistent atlas batch ${key} effects must be finite`);
       }
       validateSwellPosition(swellPosition);
+      validateReframeMotion(reframeMotion);
+      validateExclusiveTileMotion(swellPosition, reframeMotion);
       return {
         pageIndex: entry.pageIndex,
         sourceRect: {
@@ -1335,7 +1378,8 @@ export function createWorldWebGL2Renderer({
         refractionPx,
         alphaThreshold,
         flipX: Boolean(sprite.flipX),
-        swellPosition
+        swellPosition,
+        reframeMotion
       };
     });
 
@@ -1354,7 +1398,8 @@ export function createWorldWebGL2Renderer({
           refractionPx: entry.refractionPx,
           alphaThreshold: entry.alphaThreshold,
           flipX: entry.flipX,
-          swellPosition: entry.swellPosition
+          swellPosition: entry.swellPosition,
+          reframeMotion: entry.reframeMotion
         });
       }
       const buffer = requiredBuffer(gl, `persistent atlas batch ${key}`);
@@ -1368,7 +1413,7 @@ export function createWorldWebGL2Renderer({
       configureAttribute(gl, sceneLocations.texCoord, 2, stride, 2 * 4);
       configureAttribute(gl, sceneLocations.color, 4, stride, 4 * 4);
       configureAttribute(gl, sceneLocations.effect, 2, stride, 8 * 4);
-      configureAttribute(gl, sceneLocations.swellPosition, 4, stride, 10 * 4);
+      configureAttribute(gl, sceneLocations.tileMotion, 4, stride, 10 * 4);
       return Object.freeze({
         pageIndex,
         buffer,
@@ -1575,7 +1620,8 @@ export function createWorldWebGL2Renderer({
     refractionPx,
     alphaThreshold,
     flipX,
-    swellPosition
+    swellPosition,
+    reframeMotion
   }) {
     ensureAtlasVertexCapacity(atlasFloatCount + FLOATS_PER_QUAD);
     atlasFloatCount = writeQuadVertices(atlasVertices, atlasFloatCount, {
@@ -1587,7 +1633,8 @@ export function createWorldWebGL2Renderer({
       refractionPx,
       alphaThreshold,
       flipX,
-      swellPosition
+      swellPosition,
+      reframeMotion
     });
   }
 
@@ -1955,6 +2002,21 @@ function validateSwellPosition(position) {
   }
 }
 
+function validateReframeMotion(motion) {
+  if (motion === null || motion === undefined) return;
+  if (!Array.isArray(motion) || motion.length !== 3 ||
+      motion.some((value) => !Number.isFinite(value))) {
+    throw new Error("World sprite reframe motion must be a finite offset and phase or null");
+  }
+}
+
+function validateExclusiveTileMotion(swellPosition, reframeMotion) {
+  if (swellPosition !== null && swellPosition !== undefined &&
+      reframeMotion !== null && reframeMotion !== undefined) {
+    throw new Error("World sprite cannot use ocean swell and modal reframe motion together");
+  }
+}
+
 function validateOceanSwell(swell) {
   if (swell === null) return;
   if (!swell || !Number.isFinite(swell.cycle) ||
@@ -1967,6 +2029,15 @@ function validateOceanSwell(swell) {
   if (swell.cycle < 0 || swell.cycle >= 1 || swell.amplitudePx < 0 ||
       swell.bandWidth <= 0 || swell.bandWidth >= 1) {
     throw new Error("World frame ocean swell is outside its supported range");
+  }
+}
+
+function validateModalReframe(reframe) {
+  if (reframe === null) return;
+  if (!reframe || !Number.isFinite(reframe.frontPx) ||
+      !Number.isFinite(reframe.bandWidthPx) || reframe.bandWidthPx <= 0 ||
+      !Number.isFinite(reframe.crestAmplitudePx) || reframe.crestAmplitudePx < 0) {
+    throw new Error("World frame modal reframe is malformed");
   }
 }
 

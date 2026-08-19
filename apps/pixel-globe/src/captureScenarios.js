@@ -803,6 +803,65 @@ const CAPTURE_SCENARIOS = Object.freeze({
       broadsideSide: "starboard"
     })
   }),
+  "short-fight-small-arms": trailerScenario({
+    id: "short-fight-small-arms",
+    title: "Crossbows",
+    seed: "short-fight-small-arms-v2",
+    player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29.0, 90),
+    world: captureWorld(205, 14, 20),
+    diplomacy: [{ factionAId: "portugal", factionBId: "spain", relation: "war" }],
+    encounters: [
+      captureFightEncounter("short-small-arms-galleon", "spain", "galleon", 35.7, -27.88, 0)
+    ],
+    sequence: trailerSequence("fight", "small-arms", {
+      durationSeconds: 30,
+      encounterId: "short-small-arms-galleon"
+    })
+  }),
+  "short-fight-small-arms-korea": trailerScenario({
+    id: "short-fight-small-arms-korea",
+    title: "Crossbows",
+    seed: "short-fight-small-arms-korea-v1",
+    player: capturePlayer("joseon", "joseon-turtle-ship", 33.2, 128.2, 90),
+    world: captureWorld(196, 11, 20),
+    diplomacy: [{ factionAId: "joseon", factionBId: "japan", relation: "war" }],
+    encounters: [
+      captureFightEncounter(
+        "short-small-arms-atakebune",
+        "japan",
+        "japanese-atakebune",
+        33.2,
+        129.35,
+        0
+      )
+    ],
+    sequence: trailerSequence("fight", "small-arms", {
+      durationSeconds: 30,
+      encounterId: "short-small-arms-atakebune"
+    })
+  }),
+  "short-fight-small-arms-mediterranean": trailerScenario({
+    id: "short-fight-small-arms-mediterranean",
+    title: "Crossbows",
+    seed: "short-fight-small-arms-mediterranean-v1",
+    player: capturePlayer("ottoman", "xebec", 35.5, 17.0, 90),
+    world: captureWorld(184, 12, 20),
+    diplomacy: [{ factionAId: "ottoman", factionBId: "venice", relation: "war" }],
+    encounters: [
+      captureFightEncounter(
+        "short-small-arms-galleass",
+        "venice",
+        "galleass",
+        35.5,
+        18.25,
+        0
+      )
+    ],
+    sequence: trailerSequence("fight", "small-arms", {
+      durationSeconds: 30,
+      encounterId: "short-small-arms-galleass"
+    })
+  }),
   "trailer-pillage-havana": trailerScenario({
     id: "trailer-pillage-havana",
     title: "Bombard Havana",
@@ -1759,7 +1818,8 @@ function validateCaptureSequence(value) {
   if (value.factorPortraitSourceId !== undefined && value.kind !== "trade") {
     throw new Error("Capture factor portrait source requires a trade sequence");
   }
-  if (value.kind === "fight" || (value.kind === "pillage" && value.variant === "bombard") ||
+  if ((value.kind === "fight" && value.variant !== "small-arms") ||
+      (value.kind === "pillage" && value.variant === "bombard") ||
       (value.kind === "companions" && value.variant === "pirate-revenge")) {
     if (!["port", "starboard"].includes(value.broadsideSide)) {
       throw new Error(`Invalid capture sequence broadside side: ${value.broadsideSide}`);
@@ -1975,6 +2035,13 @@ function trailerSequence(kind, variant, values = {}) {
 
 function captureEncounter(id, factionId, shipSlug, lat, lon, headingDeg) {
   return { id, factionId, shipSlug, role: "warship", lat, lon, headingDeg };
+}
+
+function captureFightEncounter(id, factionId, shipSlug, lat, lon, headingDeg) {
+  return {
+    ...captureEncounter(id, factionId, shipSlug, lat, lon, headingDeg),
+    encounter: { kind: "capture-fight", forceAttack: true }
+  };
 }
 
 function busyWorldBenchmarkEncounters() {

@@ -13,6 +13,7 @@ import {
   STORM_SWELL_BAND_WIDTH,
   STORM_SWELL_PERIOD_MS,
   calmSwellEnvelope,
+  oceanSwellLiftPx,
   oceanSwellOffset,
   oceanSwellState
 } from "./oceanSwell.js";
@@ -118,6 +119,23 @@ test("whole ocean sprites move along the wind without exceeding swell amplitude"
   assert.equal(northOffset.x, 0);
   assert.ok(Math.abs(eastOffset.x) <= STORM_SWELL_MAX_AMPLITUDE_PX);
   assert.ok(Math.abs(northOffset.y) <= STORM_SWELL_MAX_AMPLITUDE_PX);
+});
+
+test("a ship rises and settles on the same pixel-snapped swell band as the ocean", () => {
+  const state = swellState({ nowMs: 1733, stormStrength: 1, flowDirectionRad: 0 });
+  let lifted = false;
+  let settled = false;
+  for (let index = 0; index <= 200; index++) {
+    const x = -1 + index / 100;
+    const y = Math.sqrt(Math.max(0, 1 - x * x));
+    const lift = oceanSwellLiftPx(state, [x, y, 0]);
+    assert.ok(Number.isInteger(lift));
+    assert.ok(Math.abs(lift) <= STORM_SWELL_MAX_AMPLITUDE_PX);
+    if (lift !== 0) lifted = true;
+    else settled = true;
+  }
+  assert.equal(lifted, true);
+  assert.equal(settled, true);
 });
 
 test("swell phase is anchored to globe position rather than screen position", () => {

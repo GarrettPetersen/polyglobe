@@ -6,6 +6,7 @@ import {
   createItemAcquisitionBurst,
   createItemAcquisitionEffect,
   createItemDepartureEffect,
+  createQuestItemDeliveryEffect,
   itemAcquisitionEffectComplete,
   itemAcquisitionEffectEndMs,
   itemAcquisitionEffectFrame
@@ -77,6 +78,24 @@ test("item departure icons leave through the bottom-right", () => {
     itemAcquisitionEffectFrame(state, 1000 + ITEM_ACQUISITION_EFFECT_DURATION_MS),
     { complete: true, x: 457, y: 258 }
   );
+});
+
+test("quest item deliveries leave through the bottom-left with a non-coin sound", () => {
+  const state = createQuestItemDeliveryEffect({
+    iconId: "good:timber",
+    startX: 60,
+    startY: 40,
+    startedAtMs: 1000,
+    iconSize: 16,
+    viewportHeight: 180,
+    arrivalSoundId: "quest-delivery"
+  });
+
+  assert.deepEqual(
+    itemAcquisitionEffectFrame(state, 1000 + ITEM_ACQUISITION_EFFECT_DURATION_MS),
+    { complete: true, x: -18, y: 182 }
+  );
+  assert.equal(state.arrivalSoundId, "quest-delivery");
 });
 
 test("item acquisition bursts create one staggered icon per awarded hold space", () => {

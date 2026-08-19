@@ -185,10 +185,10 @@ import {
 } from "./shipyards.js";
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
-  SHIPYARD_INVESTMENT_MATERIALS,
   playerBackedShipyardAtPort,
   shipyardInvestmentAtPort,
   shipyardInvestmentComplete,
+  shipyardInvestmentMaterialProgress,
   shipyardInvestmentOfferAvailable
 } from "./shipyardInvestment.js";
 import { FISHING_NETS } from "./fishingNets.js";
@@ -281,7 +281,10 @@ import {
 } from "./conquistadorQuest.js";
 import {
   questCargoDeliverableQuantity,
-  questCargoDeliveryProgress
+  questCargoDeliveryProgress,
+  questCargoTransfer,
+  questCargoTransferFromDelivery,
+  questCargoTransfersFromDeliveries
 } from "./questCargoDeliveries.js";
 import {
   JAPANESE_MATCHLOCK_COMPLETION_REWARD,
@@ -353,7 +356,7 @@ const REMEMBERED_REPEAT_DRUNK_FACTOR_LINES = Object.freeze([
 ]);
 
 export const QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES = 60 * 24 * 60;
-const QUEST_CARGO_HINT_DECLINE_DECISION = "quest-cargo.market-hint-declined";
+const QUEST_CARGO_HINT_DECLINE_DECISION_PREFIX = "quest-cargo.market-hint-declined";
 
 export function createPortDialogueSession(city, options = {}) {
   if (options.rumorText !== undefined && (typeof options.rumorText !== "string" || options.rumorText === "")) {
@@ -1814,6 +1817,11 @@ export function selectPortDialogueOption(
     if (typeof action.reason !== "string" || action.reason.trim() === "") {
       throw new Error("Port heading requires a reason");
     }
+    if (action.reason === PORT_NAVIGATION_REASON_QUEST_CARGO && (
+      typeof action.questCargoGoodId !== "string" || action.questCargoGoodId === ""
+    )) {
+      throw new Error("Quest cargo heading requires a trade good id");
+    }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "quest-cargo-tip") session.questCargoTip = null;
     session.nodeId = action.nextNodeId;
@@ -1825,7 +1833,10 @@ export function selectPortDialogueOption(
         type: "set-port-heading",
         destinationTileId: action.destinationTileId,
         destinationName: action.destinationName,
-        reason: action.reason
+        reason: action.reason,
+        ...(action.questCargoGoodId
+          ? { questCargoGoodId: action.questCargoGoodId }
+          : {})
       }
     };
   }
@@ -1833,7 +1844,11 @@ export function selectPortDialogueOption(
     if (session.nodeId !== "quest-cargo-tip" || !session.questCargoTip) {
       throw new Error("Quest cargo hint decline requires an active hint");
     }
-    recordQuestCargoHintDecline(gameState, context.simMinute ?? 0);
+    recordQuestCargoHintDecline(
+      gameState,
+      context.simMinute ?? 0,
+      session.questCargoTip.goodId
+    );
     session.questCargoTip = null;
     session.nodeId = action.nextNodeId;
     session.selectedIndex = 0;
@@ -1937,7 +1952,10 @@ export function selectPortDialogueOption(
     session.feedback = delivery.remaining > 0
       ? `Delivered ${delivery.delivered}; ${delivery.remaining} still needed.`
       : `${tradeGoodById(action.goodId).label} complete.`;
-    return { closed: false };
+    return {
+      closed: false,
+      questCargoTransfers: [questCargoTransfer(delivery.goodId, delivery.delivered)]
+    };
   }
   if (action.type === "open-player-shipyard") {
     const investment = finishPlayerShipyardInvestment(gameState, city, {
@@ -1976,7 +1994,12 @@ export function selectPortDialogueOption(
       })
       : null;
     session.selectedIndex = 0;
-    return { closed: false, vikingLongshipDelivery: result, missionItemGift };
+    return {
+      closed: false,
+      vikingLongshipDelivery: result,
+      questCargoTransfers: [questCargoTransferFromDelivery(result)],
+      missionItemGift
+    };
   }
   if (action.type === "deliver-chef-ingredients") {
     const quest = chefQuestState(gameState, city);
@@ -1998,7 +2021,11 @@ export function selectPortDialogueOption(
     if (!updated.complete) {
       session.feedback = `Ingredients delivered: ${deliveries.length}.`;
       session.selectedIndex = 0;
-      return { closed: false, chefIngredientDeliveries: deliveries };
+      return {
+        closed: false,
+        chefIngredientDeliveries: deliveries,
+        questCargoTransfers: questCargoTransfersFromDeliveries(deliveries)
+      };
     }
     const result = completeChefBanquet(gameState, city, context.simMinute ?? 0);
     const payment = receiveQuestPayment(
@@ -2021,6 +2048,7 @@ export function selectPortDialogueOption(
       closed: false,
       chefBanquetCompleted: result,
       chefIngredientDeliveries: deliveries,
+      questCargoTransfers: questCargoTransfersFromDeliveries(deliveries),
       payment,
       missionItemGift
     };
@@ -2083,6 +2111,7 @@ export function selectPortDialogueOption(
     return {
       closed: false,
       japaneseMatchlockDelivery: delivery,
+      questCargoTransfers: [questCargoTransferFromDelivery(delivery)],
       japaneseMatchlockIndustry: industry,
       japaneseMatchlockPayment: payment,
       missionItemGift
@@ -2134,6 +2163,7 @@ export function selectPortDialogueOption(
     return {
       closed: false,
       caribbeanGingerDelivery: delivery,
+      questCargoTransfers: [questCargoTransferFromDelivery(delivery)],
       caribbeanGingerQuest: quest,
       caribbeanGingerIndustry: industry,
       caribbeanGingerPayment: payment,
@@ -2173,6 +2203,7 @@ export function selectPortDialogueOption(
       closed: false,
       colonizationChanged: true,
       colonizationDelivery: delivery,
+      questCargoTransfers: [questCargoTransferFromDelivery(delivery)],
       colonizationPayment: payment
     };
   }
@@ -2221,6 +2252,7 @@ export function selectPortDialogueOption(
       closed: false,
       conquistadorChanged: true,
       conquistadorDelivery: delivery,
+      questCargoTransfers: [questCargoTransferFromDelivery(delivery)],
       conquistadorPayment: payment
     };
   }
@@ -2306,6 +2338,7 @@ export function selectPortDialogueOption(
         colonizationChanged: true,
         colonizationApprovalGranted: false,
         colonizationApprovalDeliveries: deliveries,
+        questCargoTransfers: questCargoTransfersFromDeliveries(deliveries),
         colonizationDiplomacyEvents: []
       };
     }
@@ -2325,6 +2358,7 @@ export function selectPortDialogueOption(
       colonizationChanged: true,
       colonizationApprovalGranted: true,
       colonizationApprovalDeliveries: deliveries,
+      questCargoTransfers: questCargoTransfersFromDeliveries(deliveries),
       colonizationDiplomacyEvents: diplomacyEvents
     };
   }
@@ -2400,6 +2434,7 @@ export function selectPortDialogueOption(
         colonyEstablished: false,
         colonizationDefenseStarted: false,
         colonizationDelivery: delivery,
+        questCargoTransfers: [questCargoTransferFromDelivery(delivery)],
         missionItemGift: null
       };
     }
@@ -2438,6 +2473,7 @@ export function selectPortDialogueOption(
       colonyEstablished: !defenseStarted,
       colonizationDefenseStarted: defenseStarted,
       colonizationDelivery: delivery,
+      questCargoTransfers: [questCargoTransferFromDelivery(delivery)],
       missionItemGift
     };
   }
@@ -2753,7 +2789,18 @@ export function selectPortDialogueOption(
     session.nodeId = session.nextPortNodeId || "root";
     session.nextPortNodeId = null;
     session.selectedIndex = 0;
-    return { closed: false, completedQuest: quest, missionItemGift, nextDeliveryOffer };
+    const questCargoTransfers = isTeaRaceQuest(quest)
+      ? quest.teaRaceCargoRequirements.map(({ goodId, quantity }) => (
+          questCargoTransfer(goodId, quantity)
+        ))
+      : [];
+    return {
+      closed: false,
+      completedQuest: quest,
+      questCargoTransfers,
+      missionItemGift,
+      nextDeliveryOffer
+    };
   }
   if (action.type === "request-marque") {
     const result = grantLetterOfMarque(gameState, city, context.shipPower || 0, context);
@@ -3242,7 +3289,13 @@ export function selectPassengerDialogueOption(
     const negotiation = negotiateEnvoyQuest(gameState, city, context);
     session.envoyNegotiationResult = negotiation;
     session.selectedIndex = 0;
-    return { closed: false, action: { type: "envoy-negotiated", negotiation } };
+    return {
+      closed: false,
+      action: { type: "envoy-negotiated", negotiation },
+      questCargoTransfers: (negotiation.tributeCargo || []).map(({ goodId, quantity }) => (
+        questCargoTransfer(goodId, quantity)
+      ))
+    };
   }
   if (action.type === "finish-envoy-negotiation") {
     if (!session.envoyNegotiationResult) {
@@ -5359,9 +5412,7 @@ function shipyardInvestmentView(session, city, gameState, context) {
         : null
     }));
   }
-  for (const [goodId, required] of Object.entries(SHIPYARD_INVESTMENT_MATERIALS)) {
-    const delivered = project.materialsDelivered[goodId];
-    const remaining = required - delivered;
+  for (const { goodId, required, delivered, remaining } of shipyardInvestmentMaterialProgress(project)) {
     if (remaining <= 0) continue;
     const held = Math.floor(gameState.cargo[goodId] || 0);
     const label = tradeGoodById(goodId).label;
@@ -5424,6 +5475,9 @@ function shipHandoverView(session, city) {
 
 function buyView(session, city, gameState, economy, context) {
   const hold = cargoHoldStatus(gameState);
+  const requiredQuestCargo = activeQuestCargoReservedQuantities(gameState, {
+    currentMinute: context.simMinute ?? 0
+  });
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
   const tradeRows = marketBuyGoodIds(session, market).map((goodId) => {
     const row = market.get(goodId);
@@ -5471,12 +5525,15 @@ function buyView(session, city, gameState, economy, context) {
               : `Needs ${totalSize} cargo spaces; ${hold.freeWholeUnits} free.`
             : null;
       const rowId = `market-${row.good.id}`;
+      const questCargoNeeded = (gameState.cargo[row.good.id] || 0) <
+        (requiredQuestCargo[row.good.id] || 0);
       return [
         option(`Buy 1 ${row.good.label}  ${displayedPrice} db`, { type: "buy", goodId: row.good.id }, {
           detail: `${tradeTermsDetail(terms, "buy")}  ${worldPriceIndicator(comparison)}  ${marketStockIndicator(row.stock)}`,
           rowId,
           disabled: cartazBlocked || outOfStock || cannotAfford || cannotFit,
-          disabledReason
+          disabledReason,
+          emphasis: questCargoNeeded ? "quest-cargo" : null
         }),
         option(`Buy max x${maximumQuantity}  ${maximumPrice} db`, {
           type: "buy-max",
@@ -5486,7 +5543,8 @@ function buyView(session, city, gameState, economy, context) {
           detail: `${marketCargoSpaceIndicator(totalSize)}  ${marketStockIndicator(row.stock)}`,
           rowId,
           disabled: cartazBlocked || maximumQuantity <= 1,
-          disabledReason: disabledReason || "Only one unit fits or is affordable; use Buy 1."
+          disabledReason: disabledReason || "Only one unit fits or is affordable; use Buy 1.",
+          emphasis: questCargoNeeded ? "quest-cargo" : null
         })
       ];
     });
@@ -5563,6 +5621,7 @@ function questCargoTipView(session, city) {
         destinationTileId: tip.destinationTileId,
         destinationName: tip.destinationName,
         reason: PORT_NAVIGATION_REASON_QUEST_CARGO,
+        questCargoGoodId: tip.goodId,
         nextNodeId: tip.nextNodeId
       }),
       option("No, thank you", {
@@ -5589,8 +5648,6 @@ export function bestQuestCargoSource({
   if (!Number.isFinite(simMinute) || simMinute < 0) {
     throw new Error(`Invalid quest cargo advice minute: ${simMinute}`);
   }
-  if (questCargoHintOnCooldown(gameState, simMinute)) return null;
-
   const requiredQuantities = activeQuestCargoReservedQuantities(gameState, {
     currentMinute: simMinute
   });
@@ -5604,12 +5661,18 @@ export function bestQuestCargoSource({
   }
   if (typeof random !== "function") throw new Error("Quest cargo advice requires a random source");
 
-  const existingWaypointTileIds = new Set(
-    gameState.memory.navigation.optionalWaypoints.map((waypoint) => waypoint.destinationTileId)
+  const waypointGoodIds = new Set(
+    gameState.memory.navigation.optionalWaypoints
+      .filter((waypoint) => waypoint.reason === PORT_NAVIGATION_REASON_QUEST_CARGO)
+      .map((waypoint) => waypoint.questCargoGoodId)
+      .filter(Boolean)
   );
   const currentMarket = portMarket(economy, originCity);
   const hints = [];
   for (const goodId of neededGoodIds) {
+    if (waypointGoodIds.has(goodId) || questCargoHintOnCooldown(gameState, simMinute, goodId)) {
+      continue;
+    }
     const currentRow = currentMarket.find((row) => row.good.id === goodId);
     if (!currentRow) throw new Error(`Quest cargo good is absent from the market: ${goodId}`);
     if (currentRow.listedForSale && currentRow.stock >= 1) continue;
@@ -5617,7 +5680,6 @@ export function bestQuestCargoSource({
     const sources = [];
     for (const destination of portCities) {
       if (destination.tileId === originCity.tileId ||
-          existingWaypointTileIds.has(destination.tileId) ||
           !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) {
         continue;
       }
@@ -5661,20 +5723,30 @@ export function bestQuestCargoSource({
   return hints[Math.floor(roll * hints.length)];
 }
 
-function recordQuestCargoHintDecline(gameState, simMinute) {
+function recordQuestCargoHintDecline(gameState, simMinute, goodId) {
   if (!Number.isFinite(simMinute) || simMinute < 0) {
     throw new Error(`Invalid quest cargo hint decline minute: ${simMinute}`);
   }
-  gameState.memory.decisions[QUEST_CARGO_HINT_DECLINE_DECISION] = simMinute + 1;
+  if (typeof goodId !== "string" || goodId === "") {
+    throw new Error("Quest cargo hint decline requires a trade good id");
+  }
+  gameState.memory.decisions[questCargoHintDeclineDecision(goodId)] = simMinute + 1;
 }
 
-function questCargoHintOnCooldown(gameState, simMinute) {
-  const value = gameState?.memory?.decisions?.[QUEST_CARGO_HINT_DECLINE_DECISION];
+function questCargoHintOnCooldown(gameState, simMinute, goodId) {
+  const value = gameState?.memory?.decisions?.[questCargoHintDeclineDecision(goodId)];
   if (value === undefined) return false;
   if (!Number.isFinite(value) || value < 1) {
     throw new Error(`Invalid quest cargo hint decline record: ${value}`);
   }
   return simMinute - (value - 1) < QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES;
+}
+
+function questCargoHintDeclineDecision(goodId) {
+  if (typeof goodId !== "string" || goodId === "") {
+    throw new Error("Quest cargo hint cooldown requires a trade good id");
+  }
+  return `${QUEST_CARGO_HINT_DECLINE_DECISION_PREFIX}:${goodId}`;
 }
 
 export function bestPurchasedTradeRoute({
@@ -6714,6 +6786,12 @@ function option(label, action, details = {}) {
     rowId: details.rowId || null
   };
   if (details.detailTone !== undefined) entry.detailTone = details.detailTone;
+  if (details.emphasis !== undefined && details.emphasis !== null) {
+    if (details.emphasis !== "quest-cargo") {
+      throw new Error(`Unknown dialogue option emphasis: ${details.emphasis}`);
+    }
+    entry.emphasis = details.emphasis;
+  }
   if (details.placement !== undefined) entry.placement = details.placement;
   return entry;
 }

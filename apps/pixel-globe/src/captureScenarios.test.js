@@ -137,6 +137,24 @@ test("the general trailer roster includes feature pairs and eight fast sailing s
   });
 });
 
+test("the boarding-duel Short stages three long distinct small-arms fights", () => {
+  const ids = captureScenarioIds().filter((id) => id.startsWith("short-fight-small-arms"));
+  assert.deepEqual(ids, [
+    "short-fight-small-arms",
+    "short-fight-small-arms-korea",
+    "short-fight-small-arms-mediterranean"
+  ]);
+  const captures = ids.map((id) => captureScenarioFromSearch(`?capture=${id}`));
+  assert.ok(captures.every((capture) => capture.sequence.kind === "fight"));
+  assert.ok(captures.every((capture) => capture.sequence.variant === "small-arms"));
+  assert.ok(captures.every((capture) => capture.sequence.durationSeconds === 30));
+  assert.deepEqual(
+    captures.map((capture) => capture.player.shipSlug),
+    ["portuguese-carrack", "joseon-turtle-ship", "xebec"]
+  );
+  assert.equal(new Set(captures.map((capture) => capture.sequence.encounterId)).size, 3);
+});
+
 test("the storm-wave Short stages a real sinking and a modal-free overboard rescue", () => {
   const sinking = captureScenarioFromSearch("?capture=short-storm-lightning-sinking");
   assert.equal(sinking.player.shipSlug, "fishing-lugger");

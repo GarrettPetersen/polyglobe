@@ -10,6 +10,7 @@ import {
   STORM_BREAKING_WAVE_DURATION_SECONDS,
   STORM_BREAKING_WAVE_MIN_INTENSITY,
   STORM_BREAKING_WAVE_RESET_INTENSITY,
+  STORM_BREAKING_WAVE_SHIP_LIFT_MAX_PX,
   STORM_OVERBOARD_MIN_INTENSITY,
   createStormWaveState,
   overboardFlightLiftPx,
@@ -18,6 +19,7 @@ import {
   stormWaveCrestParticles,
   stormWaveFrame,
   stormWaveImpactSoundVolume,
+  stormWaveShipLiftPx,
   stormWaveSweptCrewCount,
   restoreOverboardCrew,
   snapshotOverboardCrew,
@@ -44,6 +46,27 @@ test("breaking storm waves use the existing wind-aligned swell direction", () =>
   assert.ok(Math.abs(frame.center.y - 256 / 2) < 0.001);
   assert.ok(frame.wash > 0.99);
   assert.ok(stormWaveCrestParticles(state.active, 455, 256).length > 100);
+  assert.equal(
+    stormWaveShipLiftPx(state.active, 455, 256),
+    -STORM_BREAKING_WAVE_SHIP_LIFT_MAX_PX
+  );
+});
+
+test("a breaking crest lifts the ship only while its front crosses the hull", () => {
+  const state = createStormWaveState();
+  updateStormWaveState(state, {
+    dt: 0,
+    intensity: 1,
+    eligible: true,
+    flow: { x: 1, y: 0 },
+    random: () => 0.25,
+    immediate: true
+  });
+  assert.equal(stormWaveShipLiftPx(state.active, 455, 256), 0);
+  state.active.elapsedSeconds = STORM_BREAKING_WAVE_DURATION_SECONDS / 2;
+  assert.equal(stormWaveShipLiftPx(state.active, 455, 256), -3);
+  state.active.elapsedSeconds = STORM_BREAKING_WAVE_DURATION_SECONDS;
+  assert.equal(stormWaveShipLiftPx(state.active, 455, 256), 0);
 });
 
 test("every active storm can show breakers without making mild storms sweep crew", () => {

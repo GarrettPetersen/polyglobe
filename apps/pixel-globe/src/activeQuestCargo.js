@@ -38,6 +38,10 @@ import {
   CONQUISTADOR_STAGE_FETCH,
   conquistadorFetchRequirementId
 } from "./conquistadorQuest.js";
+import {
+  shipyardInvestmentAtPort,
+  shipyardInvestmentMaterialProgress
+} from "./shipyardInvestment.js";
 
 export const QUEST_CARGO_PROMPT_VIKING = "viking-longship";
 export const QUEST_CARGO_PROMPT_MATCHLOCKS = "japanese-matchlocks";
@@ -45,6 +49,7 @@ export const QUEST_CARGO_PROMPT_GINGER = "caribbean-ginger";
 export const QUEST_CARGO_PROMPT_CHEF = "chef-quest";
 export const QUEST_CARGO_PROMPT_COLONIZATION = "colonization";
 export const QUEST_CARGO_PROMPT_CONQUISTADOR = "conquistador";
+export const QUEST_CARGO_PROMPT_SHIPYARD = "shipyard-investment";
 
 const PROMPT_PRESENTATION = Object.freeze({
   [QUEST_CARGO_PROMPT_VIKING]: Object.freeze({
@@ -70,6 +75,10 @@ const PROMPT_PRESENTATION = Object.freeze({
   [QUEST_CARGO_PROMPT_CONQUISTADOR]: Object.freeze({
     nodeId: "conquistador",
     arrivalFlag: "conquistadorArrival"
+  }),
+  [QUEST_CARGO_PROMPT_SHIPYARD]: Object.freeze({
+    nodeId: "shipyard-investment",
+    arrivalFlag: "shipyardInvestmentArrival"
   })
 });
 
@@ -165,6 +174,17 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
     add(`conquistador.${stage.id}`, stage.goodId, progress.remainingQuantity);
   }
 
+  const shipyardProject = state.memory.shipyardInvestment.project;
+  if (shipyardProject) {
+    for (const { goodId, remaining } of shipyardInvestmentMaterialProgress(shipyardProject)) {
+      add(
+        `shipyard.${shipyardProject.portTileId}.${goodId}`,
+        goodId,
+        remaining
+      );
+    }
+  }
+
   for (const requirement of papalCommissionCargoRequirements(state.relations.papacy)) {
     const progress = questCargoDeliveryProgress(state, requirement.id, requirement.quantity);
     add(requirement.id, requirement.goodId, progress.remainingQuantity);
@@ -223,6 +243,14 @@ export function questCargoDeliveryPromptsAtPort(state, city, { currentMinute = 0
       (state.cargo[stage.goodId] || 0) > 0 && progress.remainingQuantity > 0
     );
   }
+
+  const shipyardProject = shipyardInvestmentAtPort(state, city);
+  add(
+    QUEST_CARGO_PROMPT_SHIPYARD,
+    shipyardProject !== null && shipyardInvestmentMaterialProgress(shipyardProject).some(
+      ({ goodId, remaining }) => remaining > 0 && (state.cargo[goodId] || 0) > 0
+    )
+  );
 
   return Object.freeze(promptIds.map((id) => Object.freeze({ id, ...PROMPT_PRESENTATION[id] })));
 }

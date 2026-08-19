@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   GAME_STATE_VERSION,
+  PORT_NAVIGATION_REASON_QUEST_CARGO,
   addPortNavigationWaypoint,
   clearPortNavigationWaypointsAt,
   createGameState,
@@ -11,6 +12,27 @@ import {
   reconcileQuestPortTiles,
   removeOptionalNavigationWaypoint
 } from "./gameState.js";
+
+test("quest cargo waypoints remain distinct per required good", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  addPortNavigationWaypoint(state, {
+    destinationTileId: 42,
+    destinationName: "Porto",
+    reason: PORT_NAVIGATION_REASON_QUEST_CARGO,
+    questCargoGoodId: "wool"
+  });
+  addPortNavigationWaypoint(state, {
+    destinationTileId: 42,
+    destinationName: "Porto",
+    reason: PORT_NAVIGATION_REASON_QUEST_CARGO,
+    questCargoGoodId: "grain"
+  });
+
+  assert.deepEqual(state.memory.navigation.optionalWaypoints.map((waypoint) => waypoint.id), [
+    "port:42:quest-cargo:wool",
+    "port:42:quest-cargo:grain"
+  ]);
+});
 
 test("optional port waypoints persist independently until removed or reached", () => {
   const state = createGameState({ cargoCapacity: 10 });

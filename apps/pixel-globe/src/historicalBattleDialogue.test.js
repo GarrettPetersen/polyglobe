@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -117,6 +118,19 @@ test("historical dialogue advances to battle and result actions", () => {
     assert.equal(result.closed, true);
     assert.equal(result.action.type, actionType);
   }
+});
+
+test("closing historical dialogue replaces stale battle UI with a fresh result screen", async () => {
+  const mainSource = await readFile(new URL("./main.js", import.meta.url), "utf8");
+  const closeSource = mainSource.match(
+    /function closeHistoricalBattleDialogue[\s\S]*?\n}\n\nfunction stepHistoricalBattleScenario/
+  )?.[0];
+  assert.ok(closeSource, "historical dialogue closing transition must remain discoverable");
+  assert.match(closeSource, /clearPausedView\(dialogueViewCache\)/);
+  assert.match(closeSource, /lakeBattleMode\.screen = LAKE_BATTLE_SCREEN_RESULT/);
+  assert.match(closeSource, /lakeBattleMode\.resultReadyAtMs = null/);
+  assert.match(closeSource, /lakeBattleMode\.actionRects = \[\]/);
+  assert.match(closeSource, /clearHistoricalBattlePendingActions\(\)/);
 });
 
 test("all historical dialogue is translated in every supported language", () => {

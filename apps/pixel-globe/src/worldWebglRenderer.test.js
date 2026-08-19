@@ -49,9 +49,21 @@ test("underwater refraction stays anchored to sprite pixels while the camera mov
 });
 
 test("ocean swell moves whole terrain quads on the GPU pixel grid", () => {
-  assert.match(WORLD_SCENE_VERTEX_SHADER, /in vec4 a_swellPosition/);
-  assert.match(WORLD_SCENE_VERTEX_SHADER, /dot\(a_swellPosition\.xyz, u_swellPhaseAxis\)/);
+  assert.match(WORLD_SCENE_VERTEX_SHADER, /in vec4 a_tileMotion/);
+  assert.match(WORLD_SCENE_VERTEX_SHADER, /dot\(a_tileMotion\.xyz, u_swellPhaseAxis\)/);
   assert.match(WORLD_SCENE_VERTEX_SHADER, /position \+= round\(u_swellFlow \* displacement\)/);
+});
+
+test("modal reframes move each complete terrain quad through one diagonal GPU band", () => {
+  assert.match(WORLD_SCENE_VERTEX_SHADER, /a_tileMotion\.w > 1\.5/);
+  assert.match(
+    WORLD_SCENE_VERTEX_SHADER,
+    /\(u_reframeFront - a_tileMotion\.z\) \/ u_reframeBandWidth/
+  );
+  assert.match(
+    WORLD_SCENE_VERTEX_SHADER,
+    /position \+= round\(a_tileMotion\.xy \* \(1\.0 - settled\)\)/
+  );
 });
 
 test("repair clouds blur only their alpha silhouettes on the logical pixel grid", () => {
@@ -174,6 +186,27 @@ test("batched terrain quads retain one globe anchor for vertex-shader swell", ()
   for (let offset = 0; offset < vertices.length; offset += 14) {
     assert.deepEqual([...vertices.slice(offset + 10, offset + 14)], [0.25, -0.5, 0.75, 1]);
   }
+});
+
+test("batched terrain quads retain one old-to-new offset for modal reframing", () => {
+  const vertices = quadVertices({
+    sourceRect: { x: 0, y: 0, width: 8, height: 8 },
+    textureWidth: 8,
+    textureHeight: 8,
+    destinationRect: { x: 10, y: 20, width: 8, height: 8 },
+    reframeMotion: [12, -4, 160]
+  });
+  for (let offset = 0; offset < vertices.length; offset += 14) {
+    assert.deepEqual([...vertices.slice(offset + 10, offset + 14)], [12, -4, 160, 2]);
+  }
+  assert.throws(() => quadVertices({
+    sourceRect: { x: 0, y: 0, width: 8, height: 8 },
+    textureWidth: 8,
+    textureHeight: 8,
+    destinationRect: { x: 10, y: 20, width: 8, height: 8 },
+    swellPosition: [0, 1, 0],
+    reframeMotion: [12, -4, 160]
+  }), /cannot use ocean swell and modal reframe motion together/);
 });
 
 test("batched quad vertices can mirror a sprite without changing its geometry", () => {

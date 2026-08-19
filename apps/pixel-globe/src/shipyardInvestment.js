@@ -102,9 +102,27 @@ export function shipyardInvestmentAtPort(state, city) {
   return project?.portTileId === city?.tileId ? project : null;
 }
 
+export function shipyardInvestmentMaterialProgress(project) {
+  if (!project?.materialsDelivered || typeof project.materialsDelivered !== "object") {
+    throw new Error("Shipyard material progress requires an active project");
+  }
+  return Object.freeze(Object.entries(SHIPYARD_INVESTMENT_MATERIALS).map(([goodId, required]) => {
+    const delivered = project.materialsDelivered[goodId];
+    if (!Number.isInteger(delivered) || delivered < 0 || delivered > required) {
+      throw new Error(`Invalid shipyard material delivery: ${goodId}=${delivered}`);
+    }
+    return Object.freeze({
+      goodId,
+      required,
+      delivered,
+      remaining: required - delivered
+    });
+  }));
+}
+
 export function shipyardInvestmentComplete(project) {
-  return project.capitalPaid && Object.entries(SHIPYARD_INVESTMENT_MATERIALS).every(
-    ([goodId, required]) => project.materialsDelivered[goodId] === required
+  return project.capitalPaid && shipyardInvestmentMaterialProgress(project).every(
+    ({ remaining }) => remaining === 0
   );
 }
 

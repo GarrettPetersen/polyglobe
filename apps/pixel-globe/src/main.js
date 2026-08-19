@@ -548,6 +548,7 @@ import {
   QUEST_CARGO_PROMPT_CONQUISTADOR,
   QUEST_CARGO_PROMPT_GINGER,
   QUEST_CARGO_PROMPT_MATCHLOCKS,
+  QUEST_CARGO_PROMPT_SHIPYARD,
   QUEST_CARGO_PROMPT_VIKING,
   activeQuestCargoReservedQuantities,
   questCargoDeliveryPromptsAtPort
@@ -658,6 +659,7 @@ import {
   createItemAcquisitionBurst,
   createItemAcquisitionEffect,
   createItemDepartureEffect,
+  createQuestItemDeliveryEffect,
   itemAcquisitionEffectComplete,
   itemAcquisitionEffectEndMs,
   itemAcquisitionEffectFrame
@@ -978,6 +980,10 @@ import {
   SHIP_WATERLINE_LEVEL,
   liveShipRefractionOffset
 } from "./shipWaterline.js";
+import {
+  WATER_SURFACE_REFRACTION_PX,
+  waterSurfaceRefractionPx
+} from "./underwaterRefraction.js";
 import { validateShipRenderLayerManifest } from "./shipRenderLayerBake.js";
 import {
   scaledShipLightingRgba,
@@ -1084,7 +1090,7 @@ import {
   politicsRelationTextColor
 } from "./politicsCardLayout.js";
 import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
-import { oceanSwellOffset, oceanSwellState } from "./oceanSwell.js";
+import { oceanSwellLiftPx, oceanSwellOffset, oceanSwellState } from "./oceanSwell.js";
 import {
   createStormWaveState,
   overboardFlightDurationSeconds,
@@ -1096,6 +1102,7 @@ import {
   stormWaveCrestParticles,
   stormWaveFrame,
   stormWaveImpactSoundVolume,
+  stormWaveShipLiftPx,
   stormWaveSweptCrewCount,
   updateStormWaveState
 } from "./stormWave.js";
@@ -1562,7 +1569,8 @@ import {
 } from "./economy.js";
 import {
   questCargoDeliverableQuantity,
-  questCargoDeliveryProgress
+  questCargoDeliveryProgress,
+  questCargoTransfersFromDeliveries
 } from "./questCargoDeliveries.js";
 import { questSiteArrivalCandidate } from "./questSiteArrival.js";
 import {
@@ -1631,8 +1639,8 @@ import {
 } from "./shipyards.js";
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
-  SHIPYARD_INVESTMENT_MATERIALS,
   shipyardInvestmentAtPort,
+  shipyardInvestmentMaterialProgress,
   shipyardInvestmentOfferAvailable
 } from "./shipyardInvestment.js";
 import {
@@ -1910,6 +1918,11 @@ import {
   gameOverReframeCoverIsOpaque
 } from "./chartReframeCover.js";
 import {
+  createModalReframeWave,
+  modalReframeTileMotion,
+  modalReframeWaveFrame
+} from "./modalReframeWave.js";
+import {
   advanceChartReframeDialogueTrigger,
   chartDialogueRegionTags,
   chartReframeDialogueCooldownElapsed,
@@ -1971,6 +1984,7 @@ import {
   chartRepairHeatHazePixelOffset,
   createChartRepairHeatHaze
 } from "./chartRepairHeatHaze.js";
+import { repairWeatherObscuresScreenRect } from "./worldLabelOcclusion.js";
 import {
   partitionVisualStateReprojections,
   resolveVisualStateReprojection
@@ -2046,7 +2060,9 @@ import {
   VIKING_BOWS_ITEM_ID,
   activePortableWeaponAssignments,
   advancePortableProjectileLaunch,
+  CROSSBOWS_ITEM_ID,
   isPortableWeaponItemId,
+  MATCHLOCK_ARQUEBUSES_ITEM_ID,
   npcPortableWeaponItemIds,
   ownedPortableWeaponItemIds,
   portableWeaponAimPoint,
@@ -2752,6 +2768,7 @@ const PIRATE_MENU_INK_MUTED = "#715033";
 const PIRATE_MENU_CHART_LINE = "#547e64";
 const PIRATE_MENU_PAPER_INSET = "#d6bd8f";
 const PIRATE_MENU_PAPER_INSET_ALT = "#c9aa78";
+const PIRATE_MENU_QUEST_CARGO = "#c7bf88";
 const PIRATE_MENU_DANGER = "#9e3e36";
 const PIRATE_MENU_SUCCESS = "#547e64";
 const CUSTOM_LOADOUT_FIELD_ICONS = Object.freeze({
@@ -3315,6 +3332,7 @@ const CHART_REPAIR_FOG_MASK_PIXEL_SIZE = 1;
 const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches || false;
 const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
 const ITEM_ARRIVAL_SOUND_COIN_CLINK = "coin-clink";
+const ITEM_ARRIVAL_SOUND_QUEST_DELIVERY = "quest-delivery";
 
 const steamPlatformBridge = platformServicesAdapter(window);
 const platformActivityPublisher = createPlatformActivityPublisher(steamPlatformBridge);
@@ -3728,6 +3746,8 @@ let chartReframePendingBehindCover = false;
 let chartWorldRenderPendingBehindCover = false;
 let chartWorldFramePreparedBehindCover = false;
 let chartWorldRenderPreparationBehindCover = null;
+let chartModalReframeSourceTilePositions = null;
+let chartModalReframeWave = null;
 let chartDriftMeasuredAtMs = -Infinity;
 const CHART_DRIFT_MEASURE_INTERVAL_MS = 500;
 let chartViewportCoverageRepairPending = false;
@@ -10839,11 +10859,23 @@ function updateCaptureFight(sequence) {
   if (captureDirector.elapsedSeconds >= 1.2) dismissCaptureOverlays();
   const target = npcVisualShips.get(sequence.encounterId);
   if (!target) return;
-  if (captureCue("engage", 0.8)) {
+  if (sequence.variant === "small-arms" && !captureDirector.smallArmsTargetStaged) {
+    target.navalWeapon = null;
+    target.cannons = 0;
+    target.portableWeaponItemIds = Object.freeze([
+      CROSSBOWS_ITEM_ID,
+      MATCHLOCK_ARQUEBUSES_ITEM_ID
+    ]);
+    target.heading = ship.heading.slice();
+    target.targetHeading = ship.heading.slice();
+    target.velocity = [0, 0, 0];
+    captureDirector.smallArmsTargetStaged = true;
+  }
+  if (captureCue("engage", sequence.variant === "small-arms" ? 0.1 : 0.8)) {
     forceShipEngagement(shipCombatState, PLAYER_COMBAT_ID, target.id);
     emitCaptureEvent("capture-beat", { action: "engage-ship", targetId: target.id });
   }
-  if (captureCue("fire-broadside", 1.4)) {
+  if (sequence.variant !== "small-arms" && captureCue("fire-broadside", 1.4)) {
     const geometry = captureBroadsideGeometry(target.vector, sequence.broadsideSide);
     assertCaptureBroadsideGeometry(geometry, sequence.encounterId);
     if (!fireBroadside(sequence.broadsideSide)) {
@@ -11888,9 +11920,16 @@ function stageCaptureFight(sequence) {
   if (encounters.length !== 1) {
     throw new Error(`Capture encounter ${sequence.encounterId} matched ${encounters.length} scenarios`);
   }
+  if (sequence.variant === "small-arms") {
+    gameState.ship.cannons = 0;
+    gameState.inventory.items = {
+      [CROSSBOWS_ITEM_ID]: 1,
+      [MATCHLOCK_ARQUEBUSES_ITEM_ID]: 1
+    };
+  }
   aimCaptureBroadsideAt(
     latLonToDirection(encounters[0].lat, encounters[0].lon),
-    sequence.broadsideSide,
+    sequence.broadsideSide || "starboard",
     sequence.encounterId
   );
 }
@@ -13055,6 +13094,7 @@ function closeHistoricalBattleDialogue(actionType) {
   }
   const phase = dialogueState.phase;
   dialogueState = null;
+  clearPausedView(dialogueViewCache);
   dialogueLayout = createDialogueLayoutState();
   if (phase === HISTORICAL_BATTLE_DIALOGUE_OPENING) {
     if (actionType !== "begin-historical-battle") {
@@ -13068,6 +13108,12 @@ function closeHistoricalBattleDialogue(actionType) {
     }
     lakeBattleMode.screen = LAKE_BATTLE_SCREEN_RESULT;
     lakeBattleMode.selectedIndex = 0;
+    lakeBattleMode.resultReadyAtMs = null;
+    lakeBattleMode.actionRects = [];
+    lakeBattleMode.hoverPoint = null;
+    clearHistoricalBattlePendingActions();
+    keys.clear();
+    clearPointerSteering();
   } else {
     throw new Error(`Unknown historical dialogue phase: ${phase}`);
   }
@@ -14752,6 +14798,8 @@ async function restoreSavedVoyage(payload) {
   whaleBlowBursts = [];
   whaleKillEffects = [];
   itemAcquisitionEffects = [];
+  chartModalReframeSourceTilePositions = null;
+  chartModalReframeWave = null;
   goldTreasureSequence = null;
   shoreScavengeAction = null;
   portWaitState = null;
@@ -18579,7 +18627,7 @@ function maybeOpenQuestCargoDeliveryDialogue(cityCall) {
     markChefQuestOfferSeen(gameState);
   } else if (prompt.id === QUEST_CARGO_PROMPT_CONQUISTADOR) {
     ensureConquistadorQuestGiver(gameState);
-  } else if (prompt.id !== QUEST_CARGO_PROMPT_COLONIZATION) {
+  } else if (![QUEST_CARGO_PROMPT_COLONIZATION, QUEST_CARGO_PROMPT_SHIPYARD].includes(prompt.id)) {
     throw new Error(`Unknown quest cargo delivery prompt: ${prompt.id}`);
   }
 
@@ -19317,6 +19365,13 @@ function maybeDeliverPapalCommissionCargo(cityCall, matter, destination, before)
       addPortGoodStock(economy, cityCall, delivery.good.id, delivery.quantity);
       return delivery;
     });
+  if (deliveries.length > 0) {
+    presentQuestCargoTransfers(
+      questCargoTransfersFromDeliveries(deliveries),
+      null,
+      lastFrameMs
+    );
+  }
   const after = papalCommissionCargoStatus(destination);
   dialogueState.papalCommissionCargoPromptKey = papalCommissionCargoPromptKey(matter, after);
 
@@ -21490,6 +21545,9 @@ function applyDialogueOption(optionIndex) {
     if (result.marketSale) {
       spawnItemDepartureEffect(result.marketSale.good.id, purchaseIconOrigin, lastFrameMs);
     }
+    if (result.questCargoTransfers?.length > 0) {
+      presentQuestCargoTransfers(result.questCargoTransfers, purchaseIconOrigin, lastFrameMs);
+    }
     if (isWokouHuntQuest(result.acceptedQuest)) ensureWokouHuntEncounter();
     if (isTeaRaceQuest(result.acceptedQuest)) ensureTeaRaceEncounters();
     if (result.questCargoTheft?.quest) retireTeaRaceFleet(result.questCargoTheft.quest);
@@ -21576,6 +21634,13 @@ function applyDialogueOption(optionIndex) {
       optionIndex,
       portDialogueContext()
     );
+    if (result.questCargoTransfers?.length > 0) {
+      presentQuestCargoTransfers(
+        result.questCargoTransfers,
+        dialogueOptionIconOrigin(optionIndex),
+        lastFrameMs
+      );
+    }
     reconcileForeignSettlementPolitics({ notify: true });
     if (result.religiousLegDelivery) {
       const converted = reconcilePapalAuthorityCharacters();
@@ -21854,6 +21919,35 @@ function spawnItemDepartureEffect(goodId, origin, nowMs) {
   dirty = true;
 }
 
+function presentQuestCargoTransfers(transfers, origin, nowMs) {
+  if (!Array.isArray(transfers) || transfers.length === 0) {
+    throw new Error("Quest cargo presentation requires at least one transfer");
+  }
+  const start = origin || {
+    x: Math.round(SCREEN_W / 2 - GAME_ICON_SIZE / 2),
+    y: Math.round(SCREEN_H / 2 - GAME_ICON_SIZE / 2)
+  };
+  for (const [index, transfer] of transfers.entries()) {
+    if (!transfer || typeof transfer.goodId !== "string" ||
+        !Number.isInteger(transfer.quantity) || transfer.quantity <= 0) {
+      throw new Error(`Invalid quest cargo presentation transfer at ${index}`);
+    }
+    itemAcquisitionEffects.push(createQuestItemDeliveryEffect({
+      iconId: tradeGoodIconId(transfer.goodId),
+      startX: start.x + index * 2,
+      startY: start.y + index * 2,
+      startedAtMs: nowMs + index * 90,
+      iconSize: GAME_ICON_SIZE,
+      viewportHeight: SCREEN_H,
+      arrivalSoundId: index === transfers.length - 1
+        ? ITEM_ARRIVAL_SOUND_QUEST_DELIVERY
+        : null
+    }));
+  }
+  trimItemAcquisitionEffects();
+  dirty = true;
+}
+
 function spawnIconAcquisitionEffect(iconId, origin, nowMs) {
   itemAcquisitionEffects.push(createItemAcquisitionEffect({
     iconId,
@@ -21900,6 +21994,7 @@ function updateItemAcquisitionEffects(nowMs) {
     }
     changed = true;
     if (effect.arrivalSoundId === ITEM_ARRIVAL_SOUND_COIN_CLINK) playCoinClinkSound();
+    else if (effect.arrivalSoundId === ITEM_ARRIVAL_SOUND_QUEST_DELIVERY) playCollectionDingSound();
     else if (effect.arrivalSoundId !== null) {
       throw new Error(`Unknown item acquisition arrival sound: ${effect.arrivalSoundId}`);
     }
@@ -25396,6 +25491,62 @@ function currentFogCoveredChartTileCount() {
   return count;
 }
 
+function captureModalReframeTilePositions(activeChart = chart) {
+  if (!worldFramePresented || reducedMotionPreferred || !activeChart) return null;
+  const offset = chartOffsetPixels(activeChart);
+  return new Map(activeChart.tileCalls.map((call) => [
+    call.id,
+    Object.freeze({
+      x: Math.round(call.drawSurfaceX + offset.x),
+      y: Math.round(call.drawSurfaceY + offset.y)
+    })
+  ]));
+}
+
+function createChartModalReframeWave(sourcePositions) {
+  if (!(sourcePositions instanceof Map) || sourcePositions.size === 0) return null;
+  const targetPositions = captureModalReframeTilePositions(chart);
+  if (!(targetPositions instanceof Map) || targetPositions.size === 0) {
+    throw new Error("Modal reframe has no rebuilt chart tile positions");
+  }
+  const sharedOffsets = [];
+  for (const [id, target] of targetPositions) {
+    const source = sourcePositions.get(id);
+    if (source) sharedOffsets.push({ x: source.x - target.x, y: source.y - target.y });
+  }
+  const fallbackOffset = sharedOffsets.length > 0
+    ? Object.freeze({
+        x: medianInteger(sharedOffsets.map((offset) => offset.x)),
+        y: medianInteger(sharedOffsets.map((offset) => offset.y))
+      })
+    : Object.freeze({ x: 0, y: 0 });
+  const tileMotionById = new Map();
+  for (const [id, target] of targetPositions) {
+    tileMotionById.set(id, modalReframeTileMotion({
+      oldPosition: sourcePositions.get(id) || null,
+      newPosition: target,
+      fallbackOffset
+    }));
+  }
+  return {
+    layout: localLayout,
+    motion: null,
+    tileMotionById
+  };
+}
+
+function medianInteger(values) {
+  if (!Array.isArray(values) || values.length === 0 ||
+      values.some((value) => !Number.isFinite(value))) {
+    throw new Error("Modal reframe median requires finite values");
+  }
+  const sorted = values.slice().sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return Math.round(sorted.length % 2 === 1
+    ? sorted[middle]
+    : (sorted[middle - 1] + sorted[middle]) / 2);
+}
+
 function prepareNorthUpWorldBehindCover() {
   const coverIsActive = opaqueWorldCoverIsActive();
   let reframed = false;
@@ -25404,6 +25555,7 @@ function prepareNorthUpWorldBehindCover() {
     chartReframePendingBehindCover = false;
     chartWorldRenderPendingBehindCover = false;
     chartWorldRenderPreparationBehindCover = null;
+    chartModalReframeSourceTilePositions = null;
   } else if (coverOpened) {
     chartReframePendingBehindCover = false;
     chartWorldRenderPendingBehindCover = false;
@@ -25420,6 +25572,8 @@ function prepareNorthUpWorldBehindCover() {
       // Paint the newly opened screen before doing the hidden world rebuild.
       // This keeps menu input responsive even when a large chart needs a full
       // north-up reset.
+      chartModalReframeWave = null;
+      chartModalReframeSourceTilePositions = captureModalReframeTilePositions();
       chartReframePendingBehindCover = true;
       chartWorldFramePreparedBehindCover = false;
       dirty = true;
@@ -25427,6 +25581,10 @@ function prepareNorthUpWorldBehindCover() {
   } else if (chartReframePendingBehindCover) {
     chartReframePendingBehindCover = false;
     reframed = reframeWorldNorthUp("opaque screen opened");
+    chartModalReframeWave = reframed
+      ? createChartModalReframeWave(chartModalReframeSourceTilePositions)
+      : null;
+    chartModalReframeSourceTilePositions = null;
     chartWorldRenderPendingBehindCover = reframed;
     chartWorldFramePreparedBehindCover = !reframed && worldFramePresented;
     chartWorldRenderPreparationBehindCover = null;
@@ -32573,7 +32731,7 @@ function fireNpcPortableWeaponsAtTarget(state, targetId) {
     ownedItemIds: state.portableWeaponItemIds,
     activeCrew: activeCombatCrew(state.crew, state.woundedCrew),
     shipStats: state.stats,
-    installedCannons: state.stats.cannons,
+    installedCannons: state.cannons,
     targetDistancePx: distance,
     baseRangePx: CANNON_RANGE_PX,
     targetCrewProtection: combatEntityCrewProtection(targetId)
@@ -36016,6 +36174,7 @@ function drawDayNightWorld(layers, nowMs) {
   const light = localDayNightLight();
   const variant = dayNightPaletteVariant(light);
   const swell = currentOceanSwellPresentation();
+  const modalReframe = currentModalReframePresentation(nowMs);
   measurePerformanceBenchmarkStage("render.world.begin", () => {
     worldRenderer.beginFrame({
       width: SCREEN_W,
@@ -36023,14 +36182,22 @@ function drawDayNightWorld(layers, nowMs) {
       clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
       paletteVariant: variant,
       timeMs: nowMs,
-      oceanSwell: swell
+      oceanSwell: swell,
+      modalReframe: modalReframe?.frame || null
     });
   });
   renderWorldLayerStack({
     oceanGapFill: () => measurePerformanceBenchmarkStage("render.world.oceanGapFill", () => {
       for (const fillCalls of [layers.oceanShearFillCalls, layers.landShearFillCalls]) {
         if (fillCalls.length === 0) continue;
-        drawTerrainAtlasTiles(fillCalls, layers.activeChart, layers.offset, nowMs, swell);
+        drawTerrainAtlasTiles(
+          fillCalls,
+          layers.activeChart,
+          layers.offset,
+          nowMs,
+          swell,
+          modalReframe
+        );
       }
     }),
     connectorBase: () => measurePerformanceBenchmarkStage("render.world.connectorBase", () => {
@@ -36050,7 +36217,8 @@ function drawDayNightWorld(layers, nowMs) {
         layers.activeChart,
         layers.offset,
         nowMs,
-        swell
+        swell,
+        modalReframe
       );
     }),
     surfaceDetails: () => measurePerformanceBenchmarkStage("render.world.surfaceDetails", () => {
@@ -36178,7 +36346,7 @@ function riverSurfaceSprites(staticLayer) {
   return sprites;
 }
 
-function drawTerrainAtlasTiles(tileCalls, activeChart, offset, nowMs, swell) {
+function drawTerrainAtlasTiles(tileCalls, activeChart, offset, nowMs, swell, modalReframe) {
   if (!Array.isArray(tileCalls) || !activeChart) {
     throw new Error("Terrain atlas rendering requires tile calls and an active chart");
   }
@@ -36199,11 +36367,16 @@ function drawTerrainAtlasTiles(tileCalls, activeChart, offset, nowMs, swell) {
     key: batchKey,
     revision,
     offset,
-    createSprites: () => terrainPersistentSprites(tileCalls, activeChart, nowMs)
+    createSprites: () => terrainPersistentSprites(
+      tileCalls,
+      activeChart,
+      nowMs,
+      modalReframe
+    )
   });
 }
 
-function terrainPersistentSprites(tileCalls, activeChart, nowMs) {
+function terrainPersistentSprites(tileCalls, activeChart, nowMs, modalReframe) {
   const sprites = [];
   for (const call of tileCalls) {
     const imagesToDraw = terrainDrawImagesForTile(call, nowMs);
@@ -36213,8 +36386,17 @@ function terrainPersistentSprites(tileCalls, activeChart, nowMs) {
       width: TILE_ART_SIZE,
       height: TILE_ART_SIZE
     };
-    const swellPosition = oceanSwellPositionForTile(call, activeChart);
-    for (const source of imagesToDraw) sprites.push({ source, destinationRect, swellPosition });
+    const reframeMotion = modalReframe?.tileMotionById.get(call.id) || null;
+    const swellPosition = reframeMotion ? null : oceanSwellPositionForTile(call, activeChart);
+    const iceState = terrainSurfaceIceState(call, nowMs);
+    const refractionPx = waterSurfaceRefractionPx({
+      isWaterSurface: isWaterSurfaceRow(call.row),
+      hasSurfaceIce: Boolean(iceState && (iceState.fromIce || iceState.toIce)),
+      reducedMotion: reducedMotionPreferred
+    });
+    for (const source of imagesToDraw) {
+      sprites.push({ source, destinationRect, swellPosition, reframeMotion, refractionPx });
+    }
   }
   return sprites;
 }
@@ -36385,6 +36567,28 @@ function smoothstep(edge0, edge1, x) {
   return easeInOut((x - edge0) / (edge1 - edge0));
 }
 
+function currentModalReframePresentation(nowMs) {
+  if (!chartModalReframeWave || chartModalReframeWave.layout !== localLayout) return null;
+  if (!chartModalReframeWave.motion) {
+    chartModalReframeWave.motion = createModalReframeWave({
+      startedAtMs: nowMs,
+      viewportWidth: SCREEN_W,
+      viewportHeight: SCREEN_H
+    });
+  }
+  const frame = modalReframeWaveFrame(chartModalReframeWave.motion, nowMs);
+  if (frame.complete) {
+    chartModalReframeWave = null;
+    dirty = true;
+    return null;
+  }
+  dirty = true;
+  return {
+    frame,
+    tileMotionById: chartModalReframeWave.tileMotionById
+  };
+}
+
 function render(nowMs) {
   worldRenderCount++;
   gpuShipDrawCommands = [];
@@ -36404,6 +36608,7 @@ function render(nowMs) {
   ctx = screenCtx;
   const reframedBehindCover = prepareNorthUpWorldBehindCover();
   const coverIsActive = opaqueWorldCoverIsActive();
+  const modalReframeWaveActive = Boolean(chartModalReframeWave);
   if (coldCoveredWorldDefersFullRender({
     worldFramePresented,
     coverIsActive,
@@ -36418,6 +36623,7 @@ function render(nowMs) {
     worldFramePresented &&
     !coverIsActive &&
     chartWorldFramePreparedBehindCover &&
+    !modalReframeWaveActive &&
     !gameOverReason
   ) {
     chartWorldFramePreparedBehindCover = false;
@@ -36430,6 +36636,7 @@ function render(nowMs) {
     worldFramePresented &&
     coverIsActive &&
     (!chartWorldRenderPendingBehindCover || reframedBehindCover) &&
+    !modalReframeWaveActive &&
     !gameOverReason
   ) {
     drawChartRepairOcclusion(nowMs);
@@ -36703,7 +36910,7 @@ function drawGpuDynamicWorld(dynamicWorld) {
   measurePerformanceBenchmarkStage("render.clouds", () => {
     drawCloudLayerWebGL(cloudCalls, offset);
   });
-  drawCityLabelsWebGL(activeChart.cityCalls, activeChart, offset);
+  drawCityLabelsWebGL(activeChart.cityCalls, activeChart, offset, nowMs);
 }
 
 function chartTileCallNearViewport(call, offset, margin = TILE_ART_SIZE) {
@@ -36947,8 +37154,10 @@ function drawStormShipStrike(nowMs) {
 
   const origin = shipScreenOrigin(SHIP_SHEET_FRAME_SIZE);
   const bobbed = stormBobbedShipCall({
+    kind: "player",
     tileId: ship.tileId,
     bobSeed: 0x504c4159,
+    globePosition: ship.position,
     x: origin.x,
     y: origin.y
   }, nowMs);
@@ -37053,7 +37262,7 @@ function drawFishSchoolsWebGL(calls, offset) {
       },
       alpha: call.alpha,
       flipX: call.flip,
-      refractionPx: 0.45
+      refractionPx: WATER_SURFACE_REFRACTION_PX
     });
   }
 }
@@ -37091,7 +37300,7 @@ function drawFishSelectionOutlinesWebGL(fishCalls, offset, nowMs) {
         height: outline.height
       },
       alpha: FISH_SELECTION_OUTLINE_ALPHA,
-      refractionPx: 0.45
+      refractionPx: WATER_SURFACE_REFRACTION_PX
     });
   }
 }
@@ -39792,12 +40001,12 @@ function currentFetchQuestRequirements() {
     shipyard: shipyardProject
       ? {
           destination: shipyardDestination,
-          materials: Object.entries(SHIPYARD_INVESTMENT_MATERIALS).map(([goodId, quantity]) => ({
-            goodId,
-            goodLabel: tradeGoodById(goodId).label,
-            quantity,
-            delivered: shipyardProject.materialsDelivered[goodId],
-            held: gameState.cargo?.[goodId] || 0
+          materials: shipyardInvestmentMaterialProgress(shipyardProject).map((material) => ({
+            goodId: material.goodId,
+            goodLabel: tradeGoodById(material.goodId).label,
+            quantity: material.required,
+            delivered: material.delivered,
+            held: gameState.cargo?.[material.goodId] || 0
           }))
         }
       : null
@@ -39813,10 +40022,10 @@ function questJournalEntries() {
   const entries = [];
   const shipyardProject = gameState.memory.shipyardInvestment.project;
   if (shipyardProject) {
-    const remainingMaterials = Object.entries(SHIPYARD_INVESTMENT_MATERIALS)
-      .map(([goodId, required]) => ({
+    const remainingMaterials = shipyardInvestmentMaterialProgress(shipyardProject)
+      .map(({ goodId, remaining }) => ({
         label: tradeGoodById(goodId).label.toUpperCase(),
-        remaining: required - shipyardProject.materialsDelivered[goodId]
+        remaining
       }))
       .filter((entry) => entry.remaining > 0);
     const nextStep = !shipyardProject.capitalPaid
@@ -45607,8 +45816,12 @@ function drawPiratePaperModalPanel(panel) {
   ctx.strokeRect(panel.x + 3.5, panel.y + 3.5, panel.w - 7, panel.h - 7);
 }
 
-function drawPiratePaperInset(rect, highlighted = false) {
-  ctx.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_PAPER_INSET;
+function drawPiratePaperInset(
+  rect,
+  highlighted = false,
+  baseColor = PIRATE_MENU_PAPER_INSET
+) {
+  ctx.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : baseColor;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
   ctx.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_INK_MUTED;
   ctx.lineWidth = 1;
@@ -48380,15 +48593,7 @@ function terrainDrawImagesForTile(call, nowMs, { surfaceIce = true } = {}) {
   if (typeof surfaceIce !== "boolean") {
     throw new Error(`Terrain surface ice flag must be boolean: ${surfaceIce}`);
   }
-  const transitionState = surfaceIce && isWaterSurfaceRow(call.row)
-    ? surfaceIceStateForTile({
-        transition: surfaceIceTransition,
-        seaMask: seaIceMask,
-        freshwaterMask: freshwaterIceMask,
-        tileId: call.id,
-        nowMs
-      })
-    : null;
+  const transitionState = surfaceIce ? terrainSurfaceIceState(call, nowMs) : null;
   if (transitionState && transitionState.fromIce !== transitionState.toIce) {
     const spriteKey = spriteForTerrain(call.row, call.id);
     const waterImage = waterLatitudeTerrainImage(spriteKey, call.id, call.row);
@@ -48403,6 +48608,17 @@ function terrainDrawImagesForTile(call, nowMs, { surfaceIce = true } = {}) {
 
   const [baseImage, ...overlayImages] = terrainLayerImagesForTile(call.row, call.id);
   return [baseImage, ...overlayImages];
+}
+
+function terrainSurfaceIceState(call, nowMs) {
+  if (!isWaterSurfaceRow(call.row)) return null;
+  return surfaceIceStateForTile({
+    transition: surfaceIceTransition,
+    seaMask: seaIceMask,
+    freshwaterMask: freshwaterIceMask,
+    tileId: call.id,
+    nowMs
+  });
 }
 
 function surfaceIceTransitionSprite({ fromImage, toImage, tileId, stageIndex }) {
@@ -52311,6 +52527,7 @@ function playerShipDrawCall(light) {
     kind: "player",
     tileId: ship.tileId,
     bobSeed: 0x504c4159,
+    globePosition: ship.position,
     slug: ship.typeSlug,
     img: shipImage,
     sinkDepthImg: shipSinkDepthImage,
@@ -52510,12 +52727,43 @@ function playerRowerRatio() {
 
 function stormBobbedShipCall(call, nowMs) {
   const intensity = stormIntensityForTile(call.tileId);
-  if (intensity < STORM_SHIP_BOB_ENTER_INTENSITY) return call;
-  const t = clamp((intensity - STORM_SHIP_BOB_ENTER_INTENSITY) / (1 - STORM_SHIP_BOB_ENTER_INTENSITY), 0, 1);
-  const seedPhase = (call.bobSeed & 0xffff) / 0xffff * Math.PI * 2;
-  const x = call.x + Math.round(Math.sin(nowMs * 0.008 + seedPhase * 0.7) * STORM_SHIP_BOB_MAX_X_PX * t);
-  const y = call.y + Math.round(Math.sin(nowMs * 0.013 + seedPhase) * STORM_SHIP_BOB_MAX_Y_PX * t);
-  return { ...call, x, y, depthY: call.depthY + y - call.y };
+  let x = call.x;
+  let y = call.y;
+  if (intensity >= STORM_SHIP_BOB_ENTER_INTENSITY) {
+    const t = clamp(
+      (intensity - STORM_SHIP_BOB_ENTER_INTENSITY) /
+        (1 - STORM_SHIP_BOB_ENTER_INTENSITY),
+      0,
+      1
+    );
+    const seedPhase = (call.bobSeed & 0xffff) / 0xffff * Math.PI * 2;
+    x += Math.round(
+      Math.sin(nowMs * 0.008 + seedPhase * 0.7) * STORM_SHIP_BOB_MAX_X_PX * t
+    );
+    y += Math.round(
+      Math.sin(nowMs * 0.013 + seedPhase) * STORM_SHIP_BOB_MAX_Y_PX * t
+    );
+  }
+  if (call.kind === "player" && Array.isArray(call.globePosition)) {
+    if (oceanSwellPositionForShip(call.tileId)) {
+      y += oceanSwellLiftPx(currentOceanSwellPresentation(), call.globePosition);
+    }
+    if (stormWaveState.active) {
+      y += stormWaveShipLiftPx(stormWaveState.active, SCREEN_W, SCREEN_H);
+    }
+  }
+  if (x === call.x && y === call.y) return call;
+  const depthY = Number.isFinite(call.depthY)
+    ? call.depthY + y - call.y
+    : call.depthY;
+  return { ...call, x, y, depthY };
+}
+
+function oceanSwellPositionForShip(tileId) {
+  return Number.isInteger(tileId) &&
+    isWaterSurfaceRow(earthById[tileId]) &&
+    chartTileProtection?.[tileId] === 0 &&
+    !tileHasSurfaceIce(tileId);
 }
 
 function npcCombatAllegiance(npcShipId, factionId, drawContext = null) {
@@ -53013,25 +53261,23 @@ function drawWorldTargetArrow({
       registerWaypointArrow({ id, label, targetVector, point, direction, hitRect });
       return;
     }
-    if (pointIsOnScreen) {
-      const direction = waypointArrowDirectionFromCenter({
-        point,
-        screenWidth: SCREEN_W,
-        screenHeight: SCREEN_H
-      });
-      if (!direction) return;
-      const trackPoint = waypointArrowEdgePoint({
-        direction,
-        screenWidth: SCREEN_W,
-        screenHeight: SCREEN_H,
-        margin: QUEST_ARROW_EDGE_MARGIN_PX,
-        reservedRects,
-        clearance: reservedClearance
-      });
-      const hitRect = drawQuestArrowGlyph(trackPoint, direction, nowMs, style);
-      registerWaypointArrow({ id, label, targetVector, point: trackPoint, direction, hitRect });
-      return;
-    }
+    const direction = waypointArrowDirectionFromCenter({
+      point,
+      screenWidth: SCREEN_W,
+      screenHeight: SCREEN_H
+    });
+    if (!direction) return;
+    const trackPoint = waypointArrowEdgePoint({
+      direction,
+      screenWidth: SCREEN_W,
+      screenHeight: SCREEN_H,
+      margin: QUEST_ARROW_EDGE_MARGIN_PX,
+      reservedRects,
+      clearance: reservedClearance
+    });
+    const hitRect = drawQuestArrowGlyph(trackPoint, direction, nowMs, style);
+    registerWaypointArrow({ id, label, targetVector, point: trackPoint, direction, hitRect });
+    return;
   }
   const tangent = normalizeOrNull(projectTangentVector(targetVector, ship.position));
   const direction = tangent ? tangentToScreenDirection(tangent) : null;
@@ -53894,8 +54140,22 @@ function shipScreenSortY() {
   return Math.round(SCREEN_H / 2 + SHIP_SHEET_FRAME_SIZE / 2);
 }
 
-function drawCityLabelsWebGL(cityCalls, activeChart, offset) {
+function drawCityLabelsWebGL(cityCalls, activeChart, offset, nowMs) {
+  const fogFrames = activeChartFogFrames(nowMs);
+  const cloudFrame = chartRepairCloudBank
+    ? currentChartRepairCloudBankFrame(chartRepairCloudBank.animation, nowMs)
+    : null;
   for (const { label, box } of cityLabelBoxes(cityCalls, activeChart)) {
+    if (repairWeatherObscuresScreenRect({
+      rect: {
+        x: box.x + offset.x,
+        y: box.y + offset.y,
+        w: box.w,
+        h: box.h
+      },
+      fogFrames,
+      cloudFrame
+    })) continue;
     const source = cityLabelRaster(label);
     worldRenderer.drawAtlasSprite({
       source,
@@ -57055,7 +57315,11 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
   dialogueLayout.optionRects.push({ index, rect });
   const selected = index === dialogueState.selectedIndex;
   if (isExit && !option.disabled) drawPirateHudButton(rect, selected);
-  else drawPiratePaperInset(rect, selected && !option.disabled);
+  else drawPiratePaperInset(
+    rect,
+    selected && !option.disabled,
+    option.emphasis === "quest-cargo" ? PIRATE_MENU_QUEST_CARGO : PIRATE_MENU_PAPER_INSET
+  );
   if (selected) {
     ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
     ctx.fillRect(rect.x + 2, rect.y + 3, 2, Math.max(2, rect.h - 6));

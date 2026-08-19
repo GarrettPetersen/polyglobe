@@ -160,6 +160,9 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Galati", "Romania", "moldavia"],
     ["Ragusa", "Croatia", "ragusa"],
     ["Jeddah", "Saudi Arabia", "hejaz"],
+    ["Jerusalem", "Israel", "ottoman"],
+    ["Aleppo", "Syria", "ottoman"],
+    ["Antioch", "Syria/Turkey", "ottoman"],
     ["Naha", "Japan", "ryukyu"],
     ["Akkeshi Kotan", "Japan", "ainu"]
   ];

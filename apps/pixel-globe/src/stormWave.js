@@ -6,6 +6,7 @@ export const STORM_BREAKING_WAVE_RESET_INTENSITY = STORM_ACTIVE_INTENSITY * 0.65
 export const STORM_OVERBOARD_MIN_INTENSITY = 0.5;
 export const STORM_BREAKING_WAVE_DURATION_SECONDS = 4.8;
 export const STORM_BREAKING_WAVE_IMPACT_PROGRESS = 0.5;
+export const STORM_BREAKING_WAVE_SHIP_LIFT_MAX_PX = 3;
 export const OVERBOARD_SWIM_MIN_SECONDS = 60;
 export const OVERBOARD_SWIM_MAX_SECONDS = 180;
 export const OVERBOARD_FLIGHT_MIN_SECONDS = 0.72;
@@ -170,6 +171,15 @@ export function stormWaveCrestParticles(wave, screenWidth, screenHeight) {
     }
   }
   return Object.freeze(particles);
+}
+
+export function stormWaveShipLiftPx(wave, screenWidth, screenHeight) {
+  const frame = stormWaveFrame(wave, screenWidth, screenHeight);
+  const amplitude = 2 + wave.intensity;
+  const lift = -Math.round(
+    frame.wash * Math.min(STORM_BREAKING_WAVE_SHIP_LIFT_MAX_PX, amplitude)
+  );
+  return Object.is(lift, -0) ? 0 : lift;
 }
 
 export function stormWaveCrewLossChance({ seaworthiness, intensity }) {

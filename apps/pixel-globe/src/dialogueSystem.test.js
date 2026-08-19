@@ -43,6 +43,7 @@ import {
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   TRADE_PASS_REPUTATION_REQUIRED,
   acceptQuest,
+  addPortNavigationWaypoint,
   adjustFactionReputation,
   attemptPortDisguise,
   cargoFree,
@@ -2266,10 +2267,109 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
         type: "set-port-heading",
         destinationTileId: london.tileId,
         destinationName: "London",
-        reason: "QUEST CARGO SOURCE"
+        reason: "QUEST CARGO SOURCE",
+        questCargoGoodId: "wool"
       }
     }
   );
+});
+
+test("an outstanding quest cargo waypoint does not suppress hints for another good", () => {
+  const origin = {
+    tileId: 601,
+    city: "Ternate",
+    country: "Ternate",
+    factionId: "neutral",
+    cityType: "southeast-asian",
+    lat: 0.79,
+    lon: 127.38,
+    population: 25000,
+    character: { name: "Hamza Darwis" }
+  };
+  const source = {
+    tileId: 602,
+    city: "London",
+    country: "England",
+    factionId: "neutral",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000
+  };
+  const economy = createWorldEconomy({ ports: [origin, source], startMinute: 0 });
+  const shipStats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
+  maybeSpawnVikingLongshipQuest(state, {
+    tileId: 603,
+    city: VIKING_LONGSHIP_PORT_CITY,
+    country: "Iceland"
+  }, { spawnChance: 1, simMinute: 0 });
+  maybeSpawnChefQuest(state, origin, {
+    spawnChance: 1,
+    simMinute: 0,
+    availableIngredientGoodIds: new Set(["grain", "pepper", "wine", "olive-oil"])
+  });
+  for (const goodId of ["wool", "grain", "pepper", "wine", "olive-oil"]) {
+    economy.portStates.get(origin.tileId).goods.get(goodId).stock = 0;
+    economy.portStates.get(source.tileId).goods.get(goodId).stock = 20;
+  }
+  addPortNavigationWaypoint(state, {
+    destinationTileId: source.tileId,
+    destinationName: "London",
+    reason: "QUEST CARGO SOURCE",
+    questCargoGoodId: "wool"
+  });
+
+  const hint = bestQuestCargoSource({
+    originCity: origin,
+    gameState: state,
+    economy,
+    portCities: [origin, source],
+    simMinute: 100,
+    sailingDistanceKm: testSailingDistances([[origin, source, 14200]]),
+    random: () => 0
+  });
+
+  assert.equal(hint.goodId, "grain");
+  assert.equal(hint.destinationTileId, source.tileId);
+});
+
+test("market buy controls subtly mark goods still needed for quests", () => {
+  const city = {
+    tileId: 604,
+    city: "London",
+    country: "England",
+    factionId: "neutral",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000,
+    character: { name: "Thomas More" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  for (const [goodId, goodState] of economy.portStates.get(city.tileId).goods) {
+    goodState.stock = goodId === "wool" ? 20 : 0;
+  }
+  const shipStats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
+  maybeSpawnVikingLongshipQuest(state, {
+    tileId: 605,
+    city: VIKING_LONGSHIP_PORT_CITY,
+    country: "Iceland"
+  }, { spawnChance: 1, simMinute: 0 });
+
+  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const view = portDialogueView(session, city, state, economy, [city]);
+  const woolControls = view.options.filter((entry) => entry.action.goodId === "wool");
+  assert.equal(woolControls.length, 2);
+  assert.ok(woolControls.every((entry) => entry.emphasis === "quest-cargo"));
+
+  state.cargo.wool = 8;
+  const stockedSession = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const stockedView = portDialogueView(stockedSession, city, state, economy, [city]);
+  assert.ok(stockedView.options
+    .filter((entry) => entry.action.goodId === "wool")
+    .every((entry) => entry.emphasis === undefined));
 });
 
 test("leaving the sell screen without a sale recommends a market for held trade goods", () => {

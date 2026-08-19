@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   QUEST_CARGO_PROMPT_CHEF,
   QUEST_CARGO_PROMPT_COLONIZATION,
+  QUEST_CARGO_PROMPT_SHIPYARD,
   QUEST_CARGO_PROMPT_VIKING,
   activeQuestCargoRequirements,
   activeQuestCargoReservedQuantities,
@@ -27,6 +28,10 @@ import {
   createPapalPolitics
 } from "./papalPolitics.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import {
+  SHIPYARD_INVESTMENT_MATERIALS,
+  beginShipyardInvestment
+} from "./shipyardInvestment.js";
 import { createWorldDiplomacy } from "./worldDiplomacy.js";
 import {
   VIKING_LONGSHIP_PORT_CITY,
@@ -57,6 +62,12 @@ const BORDEAUX = Object.freeze({
 const PORT_ROYAL = Object.freeze({
   ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
   tileId: 123
+});
+const CADIZ = Object.freeze({
+  tileId: 77,
+  city: "Cadiz",
+  country: "Spain",
+  settlementType: "city"
 });
 
 function game() {
@@ -130,6 +141,36 @@ test("colony resupply cargo is protected and offered immediately after landing",
       .map((prompt) => prompt.id),
     [QUEST_CARGO_PROMPT_COLONIZATION]
   );
+});
+
+test("shipyard materials are protected and offered immediately after landing", () => {
+  const state = game();
+  state.doubloons = 100000;
+  beginShipyardInvestment(state, CADIZ, {
+    famous: true,
+    playerBacking: null
+  }, 100);
+  state.cargo.timber = 20;
+
+  assert.deepEqual(
+    activeQuestCargoRequirements(state).filter((requirement) => requirement.id.startsWith("shipyard.")),
+    [
+      { id: "shipyard.77.timber", goodId: "timber", remainingQuantity: 20 },
+      { id: "shipyard.77.iron", goodId: "iron", remainingQuantity: 12 },
+      { id: "shipyard.77.naval-stores", goodId: "naval-stores", remainingQuantity: 10 }
+    ]
+  );
+  assert.equal(
+    activeQuestCargoReservedQuantities(state).timber,
+    SHIPYARD_INVESTMENT_MATERIALS.timber
+  );
+  assert.deepEqual(
+    questCargoDeliveryPromptsAtPort(state, CADIZ).map((prompt) => prompt.id),
+    [QUEST_CARGO_PROMPT_SHIPYARD]
+  );
+
+  delete state.cargo.timber;
+  assert.deepEqual(questCargoDeliveryPromptsAtPort(state, CADIZ), []);
 });
 
 test("accepted Papal transport cargo is protected with other quest provisions", () => {

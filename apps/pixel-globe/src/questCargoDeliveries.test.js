@@ -9,10 +9,33 @@ import {
 } from "./gameState.js";
 import {
   questCargoDeliverableQuantity,
-  questCargoDeliveryProgress
+  questCargoDeliveryProgress,
+  questCargoTransfer,
+  questCargoTransferFromDelivery,
+  questCargoTransfersFromDeliveries
 } from "./questCargoDeliveries.js";
 
 const CITY = Object.freeze({ tileId: 10, city: "Porto", country: "Portugal" });
+
+test("quest cargo deliveries expose one strict presentation contract", () => {
+  assert.deepEqual(questCargoTransfer("timber", 6), { goodId: "timber", quantity: 6 });
+  assert.deepEqual(
+    questCargoTransferFromDelivery({ good: { id: "iron" }, quantity: 2 }),
+    { goodId: "iron", quantity: 2 }
+  );
+  assert.deepEqual(
+    questCargoTransfersFromDeliveries([
+      { good: { id: "grain" }, quantity: 3 },
+      { good: { id: "wine" }, quantity: 1 }
+    ]),
+    [
+      { goodId: "grain", quantity: 3 },
+      { goodId: "wine", quantity: 1 }
+    ]
+  );
+  assert.throws(() => questCargoTransfer("", 1), /good id/);
+  assert.throws(() => questCargoTransfer("timber", 0), /positive integer quantity/);
+});
 
 test("quest cargo can be delivered in any number of installments", () => {
   const state = createGameState({ cargoCapacity: 20 });

@@ -69,6 +69,19 @@ export function oceanSwellState({ nowMs, stormStrength, flowDirectionRad, phaseA
 }
 
 export function oceanSwellOffset(state, globePosition) {
+  const displacement = oceanSwellBandDisplacement(state, globePosition);
+  if (displacement === 0) return { x: 0, y: 0 };
+  return {
+    x: roundPixel(state.flow.x * displacement),
+    y: roundPixel(state.flow.y * displacement)
+  };
+}
+
+export function oceanSwellLiftPx(state, globePosition) {
+  return -roundPixel(oceanSwellBandDisplacement(state, globePosition));
+}
+
+function oceanSwellBandDisplacement(state, globePosition) {
   if (!state || !Number.isFinite(state.amplitudePx) || !Number.isFinite(state.cycle) ||
       !Number.isFinite(state.bandWidth) || state.bandWidth <= 0 || state.bandWidth >= 1) {
     throw new Error("Ocean swell offset requires a valid swell state");
@@ -77,18 +90,14 @@ export function oceanSwellOffset(state, globePosition) {
       globePosition.some((value) => !Number.isFinite(value))) {
     throw new Error("Ocean swell offset requires a finite globe position");
   }
-  if (state.amplitudePx <= 0) return { x: 0, y: 0 };
+  if (state.amplitudePx <= 0) return 0;
 
   const spatialCycles = dot3(globePosition, state.phaseAxis) * OCEAN_SWELL_SPATIAL_CYCLES;
   const bandPhase = modulo(state.cycle - spatialCycles, 1);
-  if (bandPhase >= state.bandWidth) return { x: 0, y: 0 };
+  if (bandPhase >= state.bandWidth) return 0;
   const bandProgress = bandPhase / state.bandWidth;
   const bandEnvelope = Math.sin(Math.PI * bandProgress) ** 2;
-  const displacement = Math.sin(TAU * bandProgress) * bandEnvelope * state.amplitudePx;
-  return {
-    x: roundPixel(state.flow.x * displacement),
-    y: roundPixel(state.flow.y * displacement)
-  };
+  return Math.sin(TAU * bandProgress) * bandEnvelope * state.amplitudePx;
 }
 
 export function calmSwellEnvelope(nowMs) {
