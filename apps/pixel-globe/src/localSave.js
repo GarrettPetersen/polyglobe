@@ -2,7 +2,7 @@ import { gameStorage, isStorageCapacityError } from "./gameStorage.js";
 import {
   strFromU8,
   unzlibSync
-} from "../node_modules/fflate/esm/browser.js";
+} from "../vendor/fflate.js";
 
 export const LOCAL_SAVE_STORAGE_KEY = "marque-and-reprisal.save";
 export const LOCAL_SAVE_VERSION = 2;

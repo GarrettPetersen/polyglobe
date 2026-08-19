@@ -12,6 +12,7 @@ import {
   SHIP_SPRITE_SHEET_HEIGHT,
   SHIP_SPRITE_SHEET_WIDTH
 } from "../src/shipSpriteLayout.js";
+import { verifyLocalModuleGraph } from "./moduleGraphVerifier.mjs";
 
 const BUILD_EDITION_FULL = "full";
 const BUILD_EDITION_DEMO = "demo";
@@ -78,9 +79,9 @@ const appEntries = edition === BUILD_EDITION_DEMO
     ];
 
 const runtimeDependencyEntries = [
-  ["node_modules/fflate/LICENSE", "node_modules/fflate/LICENSE"],
+  ["node_modules/fflate/LICENSE", "vendor/fflate.LICENSE"],
   ...(edition === BUILD_EDITION_FULL
-    ? [["node_modules/fflate/esm/browser.js", "node_modules/fflate/esm/browser.js"]]
+    ? [["node_modules/fflate/esm/browser.js", "vendor/fflate.js"]]
     : [])
 ];
 
@@ -526,5 +527,9 @@ if (demoCharacterManifest) {
     `${JSON.stringify(demoCharacterManifest, null, 2)}\n`
   );
 }
+await verifyLocalModuleGraph({
+  rootDirectory: distRoot,
+  entryPaths: ["src/bootstrap.js"]
+});
 
 console.log(`Built Marque & Reprisal ${edition} static site at ${distRoot}`);

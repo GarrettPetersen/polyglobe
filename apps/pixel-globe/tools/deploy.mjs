@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { verifyRemoteModuleGraph } from "./moduleGraphVerifier.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(appRoot, "../..");
@@ -53,6 +54,18 @@ if (deployment.error) throw deployment.error;
 if (deployment.status !== 0) {
   throw new Error("Cloudflare Pages deployment exited with code " + deployment.status);
 }
+
+const buildEditionSource = readFileSync(path.join(distPath, "src/buildEdition.js"), "utf8");
+const revisionMatch = buildEditionSource.match(/BUILD_REVISION\s*=\s*"([^"]+)"/);
+if (!revisionMatch) throw new Error("Game build is missing its revision marker");
+await verifyRemoteModuleGraph({
+  baseUrl: "https://pirates-of-the-pixel-globe.pages.dev/",
+  entryPaths: ["src/bootstrap.js"],
+  expectedRevision: revisionMatch[1],
+  attempts: 20,
+  retryDelayMs: 1_000
+});
+process.stdout.write(`Verified deployed JavaScript module graph for ${revisionMatch[1]}\n`);
 
 function parseEnv(contents) {
   const values = {};
