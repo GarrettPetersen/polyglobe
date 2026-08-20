@@ -3011,6 +3011,7 @@ const SFX_SCAVENGE_FAILURE_URL = "assets/sfx/dominik-braun-failure-sound.mp3";
 const SFX_FIRE_URL = "assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg";
 const SFX_CREW_DEATH_URL = "assets/sfx/universfield-dramatic-death-collapse-352720.ogg";
 const SFX_WHALE_BLOW_URL = "assets/sfx/nps-humpback-whale-surface-blow.ogg";
+const SFX_BLADE_READY_URL = "assets/sfx/three-kingdoms-stratagem-unsheath-sword.ogg";
 const SFX_WHALE_KILL_URL = "assets/sfx/universfield-wet-squelch-impact-352302.ogg";
 const SFX_WHALE_SONG_URLS = Object.freeze([
   "assets/sfx/dragon-studio-creepy-whale-song-323612.ogg",
@@ -3037,6 +3038,7 @@ const SFX_COLLECTION_POOL_SIZE = 2;
 const SFX_LIGHTNING_POOL_SIZE = 2;
 const SFX_CREW_DEATH_POOL_SIZE = 2;
 const SFX_WHALE_BLOW_POOL_SIZE = 3;
+const SFX_BLADE_READY_POOL_SIZE = 2;
 const SFX_WHALE_KILL_POOL_SIZE = 2;
 const SHORE_BATTERY_CANNON_SOUND_DISTANCE_CAP_PX = 48;
 const SFX_CANNON_VOLUME = 0.76;
@@ -3058,6 +3060,7 @@ const SFX_COLLECTION_VOLUME = 0.64;
 const SFX_LIGHTNING_VOLUME = 0.72;
 const SFX_CREW_DEATH_VOLUME = 0.52;
 const SFX_WHALE_BLOW_VOLUME = 0.7;
+const SFX_BLADE_READY_VOLUME = 0.72;
 const SFX_WHALE_KILL_VOLUME = 0.86;
 const WHALE_EXHAUSTED_EXPRESSION_ID = "stern";
 const SFX_WHALE_SONG_MAX_VOLUME = 0.055;
@@ -7234,12 +7237,13 @@ function pirateCaptiveJourneyWitness(quest) {
   )) || null;
 }
 
+const PIRATE_CAPTIVE_SWORD_ITEM_IDS = new Set(["longsword", "tulwar", "katana"]);
+
 function pirateCaptiveConfrontationWeapon() {
-  const swordIds = new Set(["longsword", "tulwar", "katana"]);
   return Object.entries(gameState.inventory.items)
     .filter(([, count]) => Number.isInteger(count) && count > 0)
     .map(([itemId]) => perkItemById(itemId))
-    .filter((item) => swordIds.has(item.id) || (item.weapon && item.weapon.swivel !== true))
+    .filter((item) => PIRATE_CAPTIVE_SWORD_ITEM_IDS.has(item.id) || (item.weapon && item.weapon.swivel !== true))
     .sort((a, b) => b.tier - a.tier || b.price - a.price || a.id.localeCompare(b.id))[0] || null;
 }
 
@@ -7278,6 +7282,7 @@ function openPirateCaptiveWarning(quest, witness) {
 }
 
 function resolvePirateCaptiveConfrontation(quest, weapon) {
+  if (weapon && PIRATE_CAPTIVE_SWORD_ITEM_IDS.has(weapon.id)) playBladeReadySound();
   const outcome = confrontPirateCaptive(quest, {
     weaponItemId: weapon?.id || null,
     currentMinute: Math.floor(weatherClockMinutes)
@@ -8936,6 +8941,7 @@ function setupSoundEffects() {
     ),
     crewDeath: createSoundPool(SFX_CREW_DEATH_URL, SFX_CREW_DEATH_POOL_SIZE, "crew death"),
     whaleBlow: createSoundPool(SFX_WHALE_BLOW_URL, SFX_WHALE_BLOW_POOL_SIZE, "whale surface blow"),
+    bladeReady: createSoundPool(SFX_BLADE_READY_URL, SFX_BLADE_READY_POOL_SIZE, "blade drawn"),
     whaleKill: createSoundPool(SFX_WHALE_KILL_URL, SFX_WHALE_KILL_POOL_SIZE, "whale killing blow"),
     whaleSongs: createAmbientPlaylist(SFX_WHALE_SONG_URLS, "underwater whale song"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
@@ -9279,6 +9285,10 @@ function playCrewDeathSound() {
 
 function playWhaleBlowSound() {
   playSoundEffect(soundEffects?.whaleBlow, SFX_WHALE_BLOW_VOLUME);
+}
+
+function playBladeReadySound() {
+  playSoundEffect(soundEffects?.bladeReady, SFX_BLADE_READY_VOLUME);
 }
 
 function playWhaleKillSound() {
@@ -20194,6 +20204,7 @@ function playerPortConquestStatus(cityCall) {
 function attemptPlayerPortConquest(cityCall, random = Math.random) {
   if (typeof random !== "function") throw new Error("Port conquest requires a random source");
   const status = playerPortConquestStatus(cityCall);
+  playBladeReadySound();
   const outcome = resolvePortConquest(status, random(), random());
   if (!outcome.success) {
     const companyFailure = status.conquistadorCompany
@@ -23376,6 +23387,7 @@ function updateWhales(dt, nowMs) {
       changed = true;
     } else if (event.type === "exhausted") {
       const whale = whaleById(gameState.memory.whales, event.whaleId);
+      playBladeReadySound();
       if (whaleExhaustionTutorialShouldOpen(gameState.memory.decisions)) {
         const opened = openCaptainAlertModal(
           whaleExhaustedMessage(),
@@ -23384,8 +23396,6 @@ function updateWhales(dt, nowMs) {
         if (!opened) throw new Error("Whale exhaustion tutorial could not open");
         markWhaleExhaustionTutorialShown(gameState.memory.decisions);
         saveVoyageNow("showed whale exhaustion tutorial");
-      } else {
-        playCollectionDingSound();
       }
       changed = true;
     } else if (event.type === "ice-line-break") {
