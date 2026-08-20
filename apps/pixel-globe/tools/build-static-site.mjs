@@ -18,9 +18,9 @@ const BUILD_EDITION_FULL = "full";
 const BUILD_EDITION_DEMO = "demo";
 const DEMO_PORTRAIT_EXPRESSION_LIMIT = 3;
 const CHARACTER_MANIFEST_PATH = "assets/characters/generated/character-portraits.json";
-const DEMO_CHARACTER_ATLAS_PATH = "assets/characters/generated/character-portraits-atlas.png";
+const CHARACTER_ATLAS_PATH = "assets/characters/generated/character-portraits-atlas.png";
 const CHARACTER_PORTRAIT_SIZE = 64;
-const DEMO_CHARACTER_ATLAS_COLUMNS = 24;
+const CHARACTER_ATLAS_COLUMNS = 24;
 const FACTION_FLAG_ATLAS_PATH = "assets/factions/flags-atlas.png";
 const FACTION_FLAG_ATLAS_COLUMNS = 8;
 const FACTION_FLAG_WIDTH = 32;
@@ -108,9 +108,14 @@ const sharedEntries = [
 const fullCharacterManifest = JSON.parse(
   await readFile(join(publicRoot, CHARACTER_MANIFEST_PATH), "utf8")
 );
-const demoCharacterManifest = edition === BUILD_EDITION_DEMO
+const characterPortraitSourcePaths = new Set(
+  fullCharacterManifest.sourceCharacters.flatMap((character) => (
+    character.expressions.map((expression) => normalizePath(decodeURIComponent(expression.src)))
+  ))
+);
+const buildCharacterManifest = edition === BUILD_EDITION_DEMO
   ? createDemoCharacterManifest(fullCharacterManifest)
-  : null;
+  : structuredClone(fullCharacterManifest);
 const buildRevision = await resolveBuildRevision();
 
 async function mustExist(path) {
@@ -198,6 +203,7 @@ function shouldCopyPublicPath(path) {
   if (normalized === "assets/social/gameplay-source.png") return false;
   if (normalized === "assets/fonts/born2bsporty-fs.otf") return false;
   if (normalized === "assets/ui/game-icons.json") return false;
+  if (normalized === CHARACTER_ATLAS_PATH || characterPortraitSourcePaths.has(normalized)) return false;
   if (normalized.startsWith("assets/vehicles/sail-ship-16-headings")) return false;
   if (normalized.endsWith("/contact-sheet.png") || normalized.endsWith("-contact-sheet.png")) {
     return false;
@@ -291,11 +297,11 @@ function normalizePath(path) {
   return path.split(sep).join("/");
 }
 
-async function buildDemoCharacterPortraitAtlas(manifest) {
+async function buildCharacterPortraitAtlas(manifest) {
   const expressions = manifest.sourceCharacters.flatMap((character) => character.expressions);
-  const rows = Math.ceil(expressions.length / DEMO_CHARACTER_ATLAS_COLUMNS);
+  const rows = Math.ceil(expressions.length / CHARACTER_ATLAS_COLUMNS);
   const canvas = createCanvas(
-    DEMO_CHARACTER_ATLAS_COLUMNS * CHARACTER_PORTRAIT_SIZE,
+    CHARACTER_ATLAS_COLUMNS * CHARACTER_PORTRAIT_SIZE,
     rows * CHARACTER_PORTRAIT_SIZE
   );
   const context = canvas.getContext("2d");
@@ -303,24 +309,24 @@ async function buildDemoCharacterPortraitAtlas(manifest) {
 
   for (const [index, expression] of expressions.entries()) {
     if (typeof expression.src !== "string" || !expression.src.startsWith("assets/characters/")) {
-      throw new Error(`Demo portrait has invalid relative source: ${expression.src}`);
+      throw new Error(`Character portrait has invalid relative source: ${expression.src}`);
     }
     const image = await loadImage(join(publicRoot, decodeURIComponent(expression.src)));
     if (image.width !== CHARACTER_PORTRAIT_SIZE || image.height !== CHARACTER_PORTRAIT_SIZE) {
       throw new Error(
-        `Demo portrait ${expression.src} must be ${CHARACTER_PORTRAIT_SIZE}x` +
+        `Character portrait ${expression.src} must be ${CHARACTER_PORTRAIT_SIZE}x` +
         `${CHARACTER_PORTRAIT_SIZE}, got ${image.width}x${image.height}`
       );
     }
-    const atlasX = (index % DEMO_CHARACTER_ATLAS_COLUMNS) * CHARACTER_PORTRAIT_SIZE;
-    const atlasY = Math.floor(index / DEMO_CHARACTER_ATLAS_COLUMNS) * CHARACTER_PORTRAIT_SIZE;
+    const atlasX = (index % CHARACTER_ATLAS_COLUMNS) * CHARACTER_PORTRAIT_SIZE;
+    const atlasY = Math.floor(index / CHARACTER_ATLAS_COLUMNS) * CHARACTER_PORTRAIT_SIZE;
     context.drawImage(image, atlasX, atlasY);
-    expression.src = DEMO_CHARACTER_ATLAS_PATH;
+    expression.src = CHARACTER_ATLAS_PATH;
     expression.atlasX = atlasX;
     expression.atlasY = atlasY;
   }
 
-  const atlasPath = join(distRoot, DEMO_CHARACTER_ATLAS_PATH);
+  const atlasPath = join(distRoot, CHARACTER_ATLAS_PATH);
   await mkdir(dirname(atlasPath), { recursive: true });
   await writeFile(atlasPath, canvas.toBuffer("image/png"));
 }
@@ -512,7 +518,7 @@ for (const entry of runtimeDependencyEntries) await copyEntry(appRoot, entry);
 for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopyPublicPath);
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
 if (edition === BUILD_EDITION_DEMO) await buildDemoFactionFlagAtlas();
-if (demoCharacterManifest) await buildDemoCharacterPortraitAtlas(demoCharacterManifest);
+await buildCharacterPortraitAtlas(buildCharacterManifest);
 if (edition === BUILD_EDITION_DEMO) await buildDemoRowingAtlases();
 if (edition === BUILD_EDITION_DEMO) await buildDemoLandVehicleAtlases();
 
@@ -521,12 +527,10 @@ if (edition === BUILD_EDITION_DEMO) {
   await stripDemoSocialMetadata();
   await bundleDemoRuntime();
 }
-if (demoCharacterManifest) {
-  await writeFile(
-    join(distRoot, CHARACTER_MANIFEST_PATH),
-    `${JSON.stringify(demoCharacterManifest, null, 2)}\n`
-  );
-}
+await writeFile(
+  join(distRoot, CHARACTER_MANIFEST_PATH),
+  `${JSON.stringify(buildCharacterManifest, null, 2)}\n`
+);
 await verifyLocalModuleGraph({
   rootDirectory: distRoot,
   entryPaths: ["src/bootstrap.js"]
