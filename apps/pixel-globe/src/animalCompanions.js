@@ -1,6 +1,6 @@
 import { ANIMAL_CATALOG_BY_ID } from "./animalEncounters.js";
 
-export const ANIMAL_COMPANION_MEMORY_VERSION = 2;
+export const ANIMAL_COMPANION_MEMORY_VERSION = 3;
 export const ANIMAL_COMPANION_UNMET = "unmet";
 export const ANIMAL_COMPANION_PENDING = "pending";
 export const ANIMAL_COMPANION_DECLINED = "declined";
@@ -345,7 +345,7 @@ export function createAnimalCompanionMemory() {
 
 export function migrateAnimalCompanionMemory(memory, { legacyPanda = null } = {}) {
   if (memory) {
-    if (![1, ANIMAL_COMPANION_MEMORY_VERSION].includes(memory.version)) {
+    if (![1, 2, ANIMAL_COMPANION_MEMORY_VERSION].includes(memory.version)) {
       throw new Error(`Cannot migrate animal companion memory version: ${memory.version ?? "missing"}`);
     }
     const migrated = createAnimalCompanionMemory();
@@ -449,15 +449,23 @@ export function availableAnimalNaturalistOfferIds(memory) {
     .map(({ id }) => id));
 }
 
-export function animalNaturalistGreetingIds(memory, { includeSeen = false } = {}) {
+export function animalNaturalistGreetingIds(memory, {
+  includeSeen = false,
+  currentVisit = null
+} = {}) {
   validateAnimalCompanionMemory(memory);
   if (typeof includeSeen !== "boolean") {
     throw new Error("Former companion greeting inclusion must be boolean");
+  }
+  if (currentVisit !== null && (!Number.isInteger(currentVisit) || currentVisit < 1)) {
+    throw new Error(`Invalid naturalist port visit: ${currentVisit}`);
   }
   return Object.freeze(ANIMAL_COMPANION_CATALOG
     .filter(({ id }) => {
       const state = memory.byId[id];
       return state.status === ANIMAL_COMPANION_WITH_NATURALIST &&
+        (currentVisit === null || state.naturalistPlacementVisit === null ||
+          state.naturalistPlacementVisit < currentVisit) &&
         (includeSeen || state.naturalistGreetingCount === 0);
     })
     .sort((left, right) => (
@@ -492,13 +500,17 @@ export function declineAnimalNaturalistOffer(memory, companionId) {
   return validateAnimalCompanionMemory(memory);
 }
 
-export function placeAnimalWithNaturalist(memory, companionId) {
+export function placeAnimalWithNaturalist(memory, companionId, currentVisit) {
   if (!animalNaturalistOfferIsAvailable(memory, companionId)) {
     throw new Error(`Cannot place ${companionId} with the naturalist without an available offer`);
+  }
+  if (!Number.isInteger(currentVisit) || currentVisit < 1) {
+    throw new Error(`Cannot place ${companionId} with the naturalist during invalid visit ${currentVisit}`);
   }
   const state = memory.byId[companionId];
   state.status = ANIMAL_COMPANION_WITH_NATURALIST;
   state.naturalistOffer = ANIMAL_NATURALIST_OFFER_ACCEPTED;
+  state.naturalistPlacementVisit = currentVisit;
   return validateAnimalCompanionMemory(memory);
 }
 
@@ -745,6 +757,7 @@ function createCompanionState() {
     joinedMinute: null,
     naturalistOffer: ANIMAL_NATURALIST_OFFER_UNRESOLVED,
     naturalistGreetingCount: 0,
+    naturalistPlacementVisit: null,
     npcReactionKeys: [],
     restrictedFoodRationDebt: 0
   };
@@ -757,6 +770,9 @@ function migrateCompanionState(state) {
     naturalistGreetingCount: Number.isInteger(state.naturalistGreetingCount)
       ? state.naturalistGreetingCount
       : 0,
+    naturalistPlacementVisit: Number.isInteger(state.naturalistPlacementVisit)
+      ? state.naturalistPlacementVisit
+      : null,
     npcReactionKeys: Array.isArray(state.npcReactionKeys) ? [...state.npcReactionKeys] : [],
     restrictedFoodRationDebt: Number.isFinite(state.restrictedFoodRationDebt)
       ? state.restrictedFoodRationDebt
@@ -814,6 +830,13 @@ function validateCompanionState(state, companionId) {
   }
   if (state.status !== ANIMAL_COMPANION_WITH_NATURALIST && state.naturalistGreetingCount !== 0) {
     throw new Error(`${companionId} has naturalist greetings outside the naturalist's care`);
+  }
+  if (state.naturalistPlacementVisit !== null &&
+      (!Number.isInteger(state.naturalistPlacementVisit) || state.naturalistPlacementVisit < 1)) {
+    throw new Error(`Invalid ${companionId} naturalist placement visit: ${state.naturalistPlacementVisit}`);
+  }
+  if (state.status !== ANIMAL_COMPANION_WITH_NATURALIST && state.naturalistPlacementVisit !== null) {
+    throw new Error(`${companionId} has a naturalist placement visit outside the naturalist's care`);
   }
   if (!Array.isArray(state.npcReactionKeys) ||
       state.npcReactionKeys.some((key) => typeof key !== "string" || key.trim() === "")) {

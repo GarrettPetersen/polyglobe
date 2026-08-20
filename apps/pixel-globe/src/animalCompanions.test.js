@@ -111,7 +111,7 @@ test("naturalist offers are resolved independently for every companion", () => {
   assert.equal(animalNaturalistOfferIsAvailable(memory, "penguin"), true);
   assert.equal(animalNaturalistOfferIsAvailable(memory, "raccoon"), true);
   assert.equal(ANIMAL_COMPANION_BY_ID.get("raccoon").naturalistPayment, 1000);
-  placeAnimalWithNaturalist(memory, "raccoon");
+  placeAnimalWithNaturalist(memory, "raccoon", 1);
   assert.equal(memory.byId.raccoon.status, ANIMAL_COMPANION_WITH_NATURALIST);
   assert.deepEqual(aboardAnimalCompanionIds(memory), ["panda", "penguin"]);
 });
@@ -121,30 +121,40 @@ test("former companions receive a guaranteed reunion and then rotate through lat
   for (const id of ["panda", "raccoon"]) {
     beginAnimalCompanionRecruitment(memory, id);
     acceptAnimalCompanion(memory, id, 10);
-    placeAnimalWithNaturalist(memory, id);
+    placeAnimalWithNaturalist(memory, id, 4);
   }
 
-  assert.deepEqual(animalNaturalistGreetingIds(memory), ["panda", "raccoon"]);
+  assert.deepEqual(animalNaturalistGreetingIds(memory, { currentVisit: 4 }), []);
+  assert.deepEqual(animalNaturalistGreetingIds(memory, { currentVisit: 5 }), ["panda", "raccoon"]);
   assert.match(animalNaturalistGreeting(memory, "panda").naturalistText, /bamboo budget/i);
   recordAnimalNaturalistGreeting(memory, "panda");
-  assert.deepEqual(animalNaturalistGreetingIds(memory), ["raccoon"]);
-  assert.deepEqual(animalNaturalistGreetingIds(memory, { includeSeen: true }), ["raccoon", "panda"]);
+  assert.deepEqual(animalNaturalistGreetingIds(memory, { currentVisit: 5 }), ["raccoon"]);
+  assert.deepEqual(animalNaturalistGreetingIds(memory, {
+    includeSeen: true,
+    currentVisit: 5
+  }), ["raccoon", "panda"]);
   assert.match(animalNaturalistGreeting(memory, "panda").naturalistText, /weigh her/i);
   validateAnimalCompanionMemory(memory);
 });
 
-test("version 1 companion memories migrate with pending former-companion reunions", () => {
+test("older companion memories migrate with pending former-companion reunions", () => {
   const current = createAnimalCompanionMemory();
   beginAnimalCompanionRecruitment(current, "penguin");
   acceptAnimalCompanion(current, "penguin", 12);
-  placeAnimalWithNaturalist(current, "penguin");
-  const legacy = structuredClone(current);
-  legacy.version = 1;
-  for (const state of Object.values(legacy.byId)) delete state.naturalistGreetingCount;
+  placeAnimalWithNaturalist(current, "penguin", 1);
+  for (const version of [1, 2]) {
+    const legacy = structuredClone(current);
+    legacy.version = version;
+    for (const state of Object.values(legacy.byId)) {
+      delete state.naturalistPlacementVisit;
+      if (version === 1) delete state.naturalistGreetingCount;
+    }
 
-  const migrated = migrateAnimalCompanionMemory(legacy);
-  assert.deepEqual(animalNaturalistGreetingIds(migrated), ["penguin"]);
-  assert.equal(migrated.byId.penguin.naturalistGreetingCount, 0);
+    const migrated = migrateAnimalCompanionMemory(legacy);
+    assert.deepEqual(animalNaturalistGreetingIds(migrated), ["penguin"]);
+    assert.equal(migrated.byId.penguin.naturalistGreetingCount, 0);
+    assert.equal(migrated.byId.penguin.naturalistPlacementVisit, null);
+  }
 });
 
 test("every pair of animal companions has a one-time introduction", () => {

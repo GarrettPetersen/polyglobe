@@ -19884,8 +19884,10 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
   const before = naturalistQuestViewForBuild();
   const companionOfferIds = availableAnimalNaturalistOfferIds(gameState.memory.animalCompanions);
   const hasOtherNaturalistBusiness = !before.met || before.hasUnreportedAnimals || companionOfferIds.length > 0;
+  const currentVisit = naturalistPortVisitNumber(cityCall);
   const companionGreetingIds = animalNaturalistGreetingIds(gameState.memory.animalCompanions, {
-    includeSeen: hasOtherNaturalistBusiness
+    includeSeen: hasOtherNaturalistBusiness,
+    currentVisit
   });
   const companionGreetingId = companionGreetingIds[0] || null;
   if (!naturalistShouldApproach(memory, gameState.memory.animals, cityCall.tileId, {
@@ -20081,7 +20083,11 @@ function openAnimalNaturalistOfferChoice(naturalist, cityCall, companionId) {
 function acceptAnimalNaturalistOffer(naturalist, cityCall, companionId) {
   const entry = ANIMAL_COMPANION_BY_ID.get(companionId);
   const animal = animalCompanionCharacter(companionId);
-  placeAnimalWithNaturalist(gameState.memory.animalCompanions, companionId);
+  placeAnimalWithNaturalist(
+    gameState.memory.animalCompanions,
+    companionId,
+    naturalistPortVisitNumber(cityCall)
+  );
   receiveQuestPayment(
     gameState,
     cityCall,
@@ -20165,6 +20171,14 @@ function continueAnimalNaturalistOffers(naturalist, cityCall) {
     () => openAnimalNaturalistOfferChoice(naturalist, cityCall, companionId)
   );
   if (!opened) throw new Error(`Naturalist could not continue to the ${companionId} offer`);
+}
+
+function naturalistPortVisitNumber(cityCall) {
+  const visits = portMemory(gameState, cityCall).visits;
+  if (!Number.isInteger(visits) || visits < 1) {
+    throw new Error(`Naturalist dialogue requires a recorded visit to ${cityLabelText(cityCall)}`);
+  }
+  return visits;
 }
 
 function naturalistAnimalList(names) {

@@ -79,6 +79,7 @@ import {
   markCastawayEmergencyAidReceived
 } from "./castawayQuest.js";
 import {
+  ANIMAL_COMPANION_MEMORY_VERSION,
   acceptAnimalCompanion,
   beginAnimalCompanionRecruitment,
   placeAnimalWithNaturalist
@@ -199,6 +200,7 @@ test("version 36 saves preserve an aboard panda and gain the naturalist offer", 
     joinedMinute: 123,
     naturalistOffer: "unresolved",
     naturalistGreetingCount: 0,
+    naturalistPlacementVisit: null,
     npcReactionKeys: [],
     restrictedFoodRationDebt: 0
   });
@@ -226,18 +228,20 @@ test("version 77 saves revisit companions already placed with the naturalist", (
   const state = createGameState({ cargoCapacity: 10 });
   beginAnimalCompanionRecruitment(state.memory.animalCompanions, "raccoon");
   acceptAnimalCompanion(state.memory.animalCompanions, "raccoon", 20);
-  placeAnimalWithNaturalist(state.memory.animalCompanions, "raccoon");
+  placeAnimalWithNaturalist(state.memory.animalCompanions, "raccoon", 1);
   state.version = 77;
   state.memory.animalCompanions.version = 1;
   for (const companion of Object.values(state.memory.animalCompanions.byId)) {
     delete companion.naturalistGreetingCount;
+    delete companion.naturalistPlacementVisit;
   }
 
   const migrated = migrateGameState(state);
 
-  assert.equal(migrated.memory.animalCompanions.version, 2);
+  assert.equal(migrated.memory.animalCompanions.version, ANIMAL_COMPANION_MEMORY_VERSION);
   assert.equal(migrated.memory.animalCompanions.byId.raccoon.status, "with-naturalist");
   assert.equal(migrated.memory.animalCompanions.byId.raccoon.naturalistGreetingCount, 0);
+  assert.equal(migrated.memory.animalCompanions.byId.raccoon.naturalistPlacementVisit, null);
   assert.equal(validateGameState(migrated), migrated);
 });
 
