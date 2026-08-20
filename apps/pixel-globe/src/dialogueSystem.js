@@ -415,6 +415,8 @@ export function createPortDialogueSession(city, options = {}) {
     shipyardLedgerTab: options.shipyardLedgerTab || "yard",
     shipyardLedgerScrollOffset: 0,
     shipyardLedgerReturnNodeId: null,
+    shipyardPurchaseListingId: null,
+    shipyardPurchaseReturnNodeId: null,
     shipyardInvestmentArrival: options.shipyardInvestmentArrival === true,
     shipyardInvestmentOfferApproached: false,
     specialEquipmentOffer: null,
@@ -1598,6 +1600,12 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "custom-loadout") return customLoadoutView(session, city, gameState, context);
   if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
+  if (session.nodeId === "shipyard-purchase") {
+    return shipyardPurchaseView(session, city, gameState, context);
+  }
+  if (session.nodeId === "shipyard-purchase-confirm") {
+    return shipyardPurchaseConfirmationView(session, city, gameState, context);
+  }
   if (session.nodeId === "shipyard-investment-offer") {
     return shipyardInvestmentOfferView(session, city, gameState, context);
   }
@@ -1774,6 +1782,10 @@ export function selectPortDialogueOption(
       session.shipyardDividendArrival = null;
       session.shipyardLedgerReturnNodeId = null;
     }
+    if (session.nodeId === "shipyard-purchase") {
+      session.shipyardPurchaseListingId = null;
+      session.shipyardPurchaseReturnNodeId = null;
+    }
     if (session.nodeId === "marque" && action.nodeId !== "marque") {
       session.marqueGrantedFactionId = null;
     }
@@ -1806,6 +1818,45 @@ export function selectPortDialogueOption(
     session.shipyardLedgerTab = action.tab;
     session.shipyardLedgerScrollOffset = 0;
     session.selectedIndex = action.tab === "yard" ? 0 : 1;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "inspect-shipyard-listing") {
+    if (session.nodeId !== "shipyard") {
+      throw new Error(`Shipyard listing inspection requires the shipyard ledger: ${session.nodeId}`);
+    }
+    requireShipyardListingAction(action, context);
+    session.shipyardPurchaseListingId = action.listingId;
+    session.shipyardPurchaseReturnNodeId = null;
+    session.nodeId = "shipyard-purchase";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "confirm-ship-purchase") {
+    if (!["shipyard", "shipyard-purchase"].includes(session.nodeId)) {
+      throw new Error(`Ship purchase confirmation requires a vessel comparison: ${session.nodeId}`);
+    }
+    requireShipyardListingAction(action, context);
+    session.shipyardPurchaseListingId = action.listingId;
+    session.shipyardPurchaseReturnNodeId = session.nodeId;
+    session.nodeId = "shipyard-purchase-confirm";
+    session.selectedIndex = 1;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "cancel-ship-purchase") {
+    if (session.nodeId !== "shipyard-purchase-confirm") {
+      throw new Error(`Ship purchase cancellation requires confirmation: ${session.nodeId}`);
+    }
+    const returnNodeId = session.shipyardPurchaseReturnNodeId;
+    if (!["shipyard", "shipyard-purchase"].includes(returnNodeId)) {
+      throw new Error(`Ship purchase confirmation has invalid return node: ${returnNodeId}`);
+    }
+    session.nodeId = returnNodeId;
+    session.shipyardPurchaseReturnNodeId = null;
+    if (returnNodeId === "shipyard") session.shipyardPurchaseListingId = null;
+    session.selectedIndex = 0;
     session.feedback = null;
     return { closed: false };
   }
@@ -2002,6 +2053,11 @@ export function selectPortDialogueOption(
     };
   }
   if (action.type === "purchase-ship") {
+    if (session.nodeId !== "shipyard-purchase-confirm" ||
+        session.shipyardPurchaseListingId !== action.listingId) {
+      throw new Error("Ship purchase requires explicit confirmation");
+    }
+    requireShipyardListingAction(action, context);
     return { closed: false, action };
   }
   if (action.type === "begin-shipyard-investment") {
@@ -5419,6 +5475,18 @@ function shipyardView(session, city, gameState, context) {
       ]
     };
   }
+  return shipyardListingView(session, city, gameState, context, listing, "root");
+}
+
+function shipyardPurchaseView(session, city, gameState, context) {
+  const listing = requireShipyardPurchaseListing(session, context);
+  if (!playerBackedShipyardAtPort(gameState, city)) {
+    throw new Error("Owned shipyard vessel inspection requires a player-backed yard");
+  }
+  return shipyardListingView(session, city, gameState, context, listing, "shipyard");
+}
+
+function shipyardListingView(session, city, gameState, context, listing, backNodeId) {
   const purchase = shipyardPurchaseOffer(listing, gameState, context);
   return {
     speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
@@ -5433,17 +5501,61 @@ function shipyardView(session, city, gameState, context) {
     },
     options: [
       option(purchase.purchaseLabel, {
-        type: "purchase-ship",
+        type: "confirm-ship-purchase",
         listingId: listing.id,
         shipSlug: listing.shipSlug
       }, {
         disabled: Boolean(purchase.disabledReason),
         disabledReason: purchase.disabledReason
       }),
-      ...investmentOptions,
-      option("Back", { type: "node", nodeId: "root" })
+      ...(backNodeId === "root"
+        ? shipyardInvestmentOptions(city, gameState, context.shipyard, context.simMinute ?? 0)
+        : []),
+      option("Back", { type: "node", nodeId: backNodeId })
     ]
   };
+}
+
+function shipyardPurchaseConfirmationView(session, city, gameState, context) {
+  const listing = requireShipyardPurchaseListing(session, context);
+  const purchase = shipyardPurchaseOffer(listing, gameState, context);
+  if (purchase.disabledReason) {
+    throw new Error(`Unavailable ship reached purchase confirmation: ${purchase.disabledReason}`);
+  }
+  const tradeQuestion = purchase.purchaseTerms.netPrice >= 0
+    ? `Trade your ${purchase.currentShipLabel} and pay ${purchase.purchaseTerms.netPrice} doubloons for the ${listing.shipLabel}`
+    : `Trade your ${purchase.currentShipLabel} for the ${listing.shipLabel} and receive ${-purchase.purchaseTerms.netPrice} doubloons`;
+  return {
+    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
+    expressionId: "attentive",
+    text: `${tradeQuestion}? This cannot be undone.`,
+    feedback: session.feedback,
+    feedbackTone: "warning",
+    options: [
+      option("Confirm exchange", {
+        type: "purchase-ship",
+        listingId: listing.id,
+        shipSlug: listing.shipSlug
+      }),
+      option(`Keep ${purchase.currentShipLabel}`, { type: "cancel-ship-purchase" })
+    ]
+  };
+}
+
+function requireShipyardPurchaseListing(session, context) {
+  const listing = context.shipyard?.listing || null;
+  if (!listing || listing.id !== session.shipyardPurchaseListingId) {
+    throw new Error(`Shipyard purchase listing is no longer available: ${session.shipyardPurchaseListingId}`);
+  }
+  return listing;
+}
+
+function requireShipyardListingAction(action, context) {
+  const listing = context.shipyard?.listing || null;
+  if (!listing || listing.id !== action.listingId || listing.shipSlug !== action.shipSlug) {
+    throw new Error(`Shipyard action does not match the current listing: ${action.listingId}`);
+  }
+  return listing;
 }
 
 function playerShipyardLedgerView(session, city, gameState, context, yard) {
@@ -5491,13 +5603,10 @@ function playerShipyardLedgerView(session, city, gameState, context, yard) {
         rowId: "shipyard-ledger-tabs",
         iconId: "action:letter"
       }),
-      ...(tab === "yard" && listing ? [option(purchase.purchaseLabel, {
-        type: "purchase-ship",
+      ...(tab === "yard" && listing ? [option(`Inspect ${listing.shipLabel}`, {
+        type: "inspect-shipyard-listing",
         listingId: listing.id,
         shipSlug: listing.shipSlug
-      }, {
-        disabled: Boolean(purchase.disabledReason),
-        disabledReason: purchase.disabledReason
       })] : []),
       option(payout ? "Continue" : "Back", { type: "node", nodeId: returnNodeId }, {
         placement: "port-exit"

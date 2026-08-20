@@ -22498,6 +22498,10 @@ function updateItemAcquisitionEffects(nowMs) {
 async function purchaseShipyardShip(action) {
   if (shipyardPurchaseListingId) return;
   const session = dialogueState;
+  if (session?.kind !== "port" || session.nodeId !== "shipyard-purchase-confirm" ||
+      session.shipyardPurchaseListingId !== action.listingId) {
+    throw new Error("Shipyard trade attempted without the active confirmation screen");
+  }
   const city = currentDialogueCity();
   const yard = shipyardAtPort(worldEconomy.shipyards, city);
   const listing = yard.listing;
@@ -22514,7 +22518,8 @@ async function purchaseShipyardShip(action) {
   try {
     const stats = shipStatsForSlug(listing.shipSlug);
     const assets = await loadShipAssetSet(listing.shipSlug);
-    if (dialogueState !== session || session.nodeId !== "shipyard") return;
+    if (dialogueState !== session || session.nodeId !== "shipyard-purchase-confirm" ||
+        session.shipyardPurchaseListingId !== listing.id) return;
     const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
     const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
     const purchase = purchasePlayerShip(gameState, city, stats, purchaseTerms, {
@@ -22541,6 +22546,8 @@ async function purchaseShipyardShip(action) {
     syncShipCargoFromGameState();
     playCoinClinkSound();
     playShipHandoverSound();
+    session.shipyardPurchaseListingId = null;
+    session.shipyardPurchaseReturnNodeId = null;
     const transactionText = purchaseTerms.netPrice >= 0
       ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
       : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`;

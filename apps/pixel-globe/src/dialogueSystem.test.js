@@ -4211,16 +4211,27 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
     poorView.text,
     "A newly built Brigantine is offered for 35000 doubloons. Your Fishing Barque is worth 900 in trade."
   );
-  const poorPurchase = poorView.options.find((entry) => entry.action.type === "purchase-ship");
+  const poorPurchase = poorView.options.find((entry) => entry.action.type === "confirm-ship-purchase");
   assert.equal(poorPurchase.disabled, true);
   assert.equal(poorPurchase.label, "Buy Brigantine  34100 db");
   assert.equal(poorPurchase.disabledReason, "You need 33740 more doubloons.");
 
   gameState.doubloons = 40000;
   const richView = portDialogueView(session, city, gameState, economy, [city], context);
-  const richPurchaseIndex = richView.options.findIndex((entry) => entry.action.type === "purchase-ship");
+  const richPurchaseIndex = richView.options.findIndex((entry) => (
+    entry.action.type === "confirm-ship-purchase"
+  ));
   assert.equal(richView.options[richPurchaseIndex].disabled, false);
   assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], richPurchaseIndex, context), {
+    closed: false
+  });
+  assert.equal(session.nodeId, "shipyard-purchase-confirm");
+  assert.equal(session.selectedIndex, 1);
+
+  const confirmationView = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(confirmationView.options[session.selectedIndex].label, "Keep Fishing Barque");
+  assert.match(confirmationView.text, /This cannot be undone/);
+  assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
     closed: false,
     action: { type: "purchase-ship", listingId: listing.id, shipSlug: "brigantine" }
   });
@@ -4257,7 +4268,7 @@ test("shipyards allow a profitable downgrade after projecting the smaller loadou
 
   assert.ok(cargoUsed(gameState) > shipStatsForSlug("felucca").cargoCapacity);
   const view = portDialogueView(session, city, gameState, economy, [city], context);
-  const purchase = view.options.find((entry) => entry.action.type === "purchase-ship");
+  const purchase = view.options.find((entry) => entry.action.type === "confirm-ship-purchase");
 
   assert.equal(purchase.disabled, false);
   assert.match(purchase.label, /^Trade for Felucca  \+\d+ db$/);
@@ -4287,7 +4298,7 @@ test("shipyards still block a smaller ship when transferred trade cargo cannot f
   const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
 
   const view = portDialogueView(session, city, gameState, economy, [city], context);
-  const purchase = view.options.find((entry) => entry.action.type === "purchase-ship");
+  const purchase = view.options.find((entry) => entry.action.type === "confirm-ship-purchase");
 
   assert.equal(purchase.disabled, true);
   assert.match(purchase.disabledReason, /transferred cargo uses/);
@@ -4323,7 +4334,7 @@ test("shipyards explain when permanent crew cannot berth instead of formatting i
   const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
 
   const view = portDialogueView(session, city, gameState, economy, [city], context);
-  const purchase = view.options.find((entry) => entry.action.type === "purchase-ship");
+  const purchase = view.options.find((entry) => entry.action.type === "confirm-ship-purchase");
 
   assert.equal(purchase.disabled, true);
   assert.equal(
@@ -4378,7 +4389,7 @@ test("shipyards account for the historian leaving with a traded-in Viking longsh
   const session = createPortDialogueSession(city, { initialNodeId: "shipyard" });
 
   const view = portDialogueView(session, city, gameState, economy, [city], context);
-  const purchase = view.options.find((entry) => entry.action.type === "purchase-ship");
+  const purchase = view.options.find((entry) => entry.action.type === "confirm-ship-purchase");
 
   assert.equal(purchase.disabled, false);
 });
@@ -4600,7 +4611,42 @@ test("a player-backed yard replaces the ordinary shipyard and keeps its finished
   assert.equal(view.presentation.kind, "player-shipyard-ledger");
   assert.equal(view.presentation.ledger.currentBuild.daysRemaining, 60);
   assert.equal(view.presentation.ledger.finishedShip.id, yard.listing.id);
-  assert.ok(view.options.some((entry) => entry.action.type === "purchase-ship"));
+  const inspectIndex = view.options.findIndex((entry) => entry.action.type === "inspect-shipyard-listing");
+  assert.ok(inspectIndex >= 0);
+  assert.ok(!view.options.some((entry) => entry.action.type === "purchase-ship"));
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], inspectIndex, {
+      shipStats: stats,
+      shipyard: yard,
+      simMinute: 30 * 1440
+    }),
+    { closed: false }
+  );
+  const purchaseView = portDialogueView(session, city, gameState, economy, [city], {
+    shipStats: stats,
+    shipyard: yard,
+    simMinute: 30 * 1440
+  });
+  assert.equal(purchaseView.presentation.kind, "shipyard");
+  assert.equal(purchaseView.presentation.listing.id, yard.listing.id);
+  const confirmIndex = purchaseView.options.findIndex((entry) => (
+    entry.action.type === "confirm-ship-purchase"
+  ));
+  assert.ok(confirmIndex >= 0);
+  assert.ok(!purchaseView.options.some((entry) => entry.action.type === "purchase-ship"));
+  selectPortDialogueOption(session, city, gameState, economy, [city], confirmIndex, {
+    shipStats: stats,
+    shipyard: yard,
+    simMinute: 30 * 1440
+  });
+  const confirmationView = portDialogueView(session, city, gameState, economy, [city], {
+    shipStats: stats,
+    shipyard: yard,
+    simMinute: 30 * 1440
+  });
+  assert.equal(session.nodeId, "shipyard-purchase-confirm");
+  assert.equal(session.selectedIndex, 1);
+  assert.match(confirmationView.options[1].label, /^Keep /);
   assert.equal(view.options.filter((entry) => entry.label.includes("shipyard")).length, 0);
 });
 
