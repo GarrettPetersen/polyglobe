@@ -224,17 +224,34 @@ export function explorerDiscoveryReward(discovery, homePort) {
 export function campaignGoalDestination(goal, {
   discoveredIds = null,
   currentMinute = null,
-  doubloons = null
+  doubloons = null,
+  retirementBlocked = false
 } = {}) {
-  return campaignGoalDestinations(goal, { discoveredIds, currentMinute, doubloons })[0] || null;
+  return campaignGoalDestinations(goal, {
+    discoveredIds,
+    currentMinute,
+    doubloons,
+    retirementBlocked
+  })[0] || null;
 }
 
 export function campaignGoalDestinations(goal, {
   discoveredIds = null,
   currentMinute = null,
-  doubloons = null
+  doubloons = null,
+  retirementBlocked = false
 } = {}) {
   validateCampaignGoal(goal);
+  if (typeof retirementBlocked !== "boolean") {
+    throw new Error(`Invalid campaign retirement block: ${retirementBlocked}`);
+  }
+  if (goal.status === CAMPAIGN_GOAL_COMPLETE) {
+    return retirementBlocked ? [] : [{
+      kind: CAMPAIGN_DESTINATION_HOME,
+      homePortTileId: goal.homePortTileId,
+      reason: "retire"
+    }];
+  }
   if (goal.status !== CAMPAIGN_GOAL_ACTIVE) return [];
   if (goal.type === CAMPAIGN_GOAL_EXPLORER) {
     if (!(discoveredIds instanceof Set)) {

@@ -253,6 +253,8 @@ export default {
   "navigation.payFamilyDebt": "가문의 빚 갚기",
   "navigation.returnVictorious": "승리하여 귀향",
   "navigation.returnHome": "고향으로 귀환",
+  "navigation.retire": "고향으로 돌아가 은퇴하기",
+  "navigation.collectShipyardEarnings": "조선소 수익금 받기",
   "navigation.securePermission": "허가 받기",
   "navigation.deliverColonyMaterials": "식민지 자재 전달",
   "navigation.deliverLongshipMaterials": "롱십 자재 전달",

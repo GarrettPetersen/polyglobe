@@ -390,6 +390,18 @@ export function claimPlayerShipyardPayout(system, port) {
   return Object.freeze({ amount, sales });
 }
 
+export function availablePlayerShipyardPayouts(system) {
+  assertShipyardSystem(system);
+  return Object.freeze([...system.yards.values()]
+    .filter((yard) => yard.playerBacking && yard.playerDividendBalance > 0)
+    .map((yard) => Object.freeze({
+      portId: yard.portId,
+      portName: yard.portName,
+      amount: yard.playerDividendBalance
+    }))
+    .sort((a, b) => a.portId - b.portId));
+}
+
 export function shipbuildingMaterialRequirements(shipSlug) {
   const stats = shipStatsForSlug(shipSlug);
   return Object.freeze({

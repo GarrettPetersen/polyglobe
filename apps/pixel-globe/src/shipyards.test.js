@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   addWorldShipyardPort,
   advanceWorldShipyards,
+  availablePlayerShipyardPayouts,
   claimNpcShipyardSale,
   claimPlayerShipyardPayout,
   claimShipyardListing,
@@ -423,6 +424,11 @@ test("player-backed yards favor major hulls and return a sale share", () => {
   const listing = yard.listing;
   advanceWorldShipyards(system, listing.expiresMinute + 1);
   assert.ok(yard.playerDividendBalance >= listing.price * 0.2);
+  assert.deepEqual(availablePlayerShipyardPayouts(system), [{
+    portId: LISBON.tileId,
+    portName: LISBON.city,
+    amount: yard.playerDividendBalance
+  }]);
   const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "backed-yard" });
   restoreWorldShipyards(restored, snapshotWorldShipyards(system));
   const restoredYard = shipyardAtPort(restored, LISBON);
@@ -434,6 +440,7 @@ test("player-backed yards favor major hulls and return a sale share", () => {
     payout.amount
   );
   assert.equal(restoredYard.playerDividendBalance, 0);
+  assert.deepEqual(availablePlayerShipyardPayouts(restored), []);
   assert.deepEqual(restoredYard.playerPendingSales, []);
 });
 

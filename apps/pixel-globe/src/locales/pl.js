@@ -253,6 +253,8 @@ export default {
   "navigation.payFamilyDebt": "SPŁAĆ DŁUG RODZINNY",
   "navigation.returnVictorious": "WRÓĆ ZWYCIĘSKO DO DOMU",
   "navigation.returnHome": "WRÓĆ DO DOMU",
+  "navigation.retire": "WRÓĆ DO DOMU I ZAKOŃCZ REJS",
+  "navigation.collectShipyardEarnings": "ODBIERZ ZYSKI ZE STOCZNI",
   "navigation.securePermission": "ZDOBĄDŹ POZWOLENIE",
   "navigation.deliverColonyMaterials": "DOSTARCZ MATERIAŁY KOLONII",
   "navigation.deliverLongshipMaterials": "DOSTARCZ MATERIAŁY DRAKKARA",

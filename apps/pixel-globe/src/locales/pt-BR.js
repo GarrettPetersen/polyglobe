@@ -253,6 +253,8 @@ export default {
   "navigation.payFamilyDebt": "PAGAR A DÍVIDA DA FAMÍLIA",
   "navigation.returnVictorious": "VOLTAR VITORIOSO PARA CASA",
   "navigation.returnHome": "VOLTAR PARA CASA",
+  "navigation.retire": "VOLTAR PARA CASA E SE APOSENTAR",
+  "navigation.collectShipyardEarnings": "RECEBER LUCROS DO ESTALEIRO",
   "navigation.securePermission": "OBTER PERMISSÃO",
   "navigation.deliverColonyMaterials": "ENTREGAR MATERIAIS COLONIAIS",
   "navigation.deliverLongshipMaterials": "ENTREGAR MATERIAIS DO DRACAR",

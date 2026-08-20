@@ -253,6 +253,8 @@ export default {
   "navigation.payFamilyDebt": "PAYER LA DETTE FAMILIALE",
   "navigation.returnVictorious": "RENTRER VICTORIEUX",
   "navigation.returnHome": "RENTRER CHEZ SOI",
+  "navigation.retire": "RENTRER CHEZ SOI POUR SE RETIRER",
+  "navigation.collectShipyardEarnings": "PERCEVOIR LES REVENUS DU CHANTIER",
   "navigation.securePermission": "OBTENIR L'AUTORISATION",
   "navigation.deliverColonyMaterials": "LIVRER LES MATÉRIAUX COLONIAUX",
   "navigation.deliverLongshipMaterials": "LIVRER LES MATÉRIAUX DU DRAKKAR",

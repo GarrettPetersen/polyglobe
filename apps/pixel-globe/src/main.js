@@ -1663,6 +1663,7 @@ import {
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import {
+  availablePlayerShipyardPayouts,
   claimPlayerShipyardPayout,
   claimShipyardListing,
   nearestShipyardListingForPort,
@@ -7157,7 +7158,9 @@ function activeCampaignGoalDestinations() {
   return campaignGoalDestinations(goal, {
     discoveredIds: new Set(gameState.memory.discoveryOrder),
     currentMinute: weatherClockMinutes,
-    doubloons: gameState.doubloons
+    doubloons: gameState.doubloons,
+    retirementBlocked: goal.status === CAMPAIGN_GOAL_COMPLETE &&
+      Boolean(currentCampaignRetirementObligation())
   });
 }
 
@@ -37274,6 +37277,7 @@ function drawWorldInterface(nowMs) {
     drawQuestShipArrows(nowMs);
     drawRescuedTravelerDestinationArrows(nowMs);
     drawFetchQuestDestinationArrows(nowMs);
+    drawShipyardDividendDestinationArrows(nowMs);
     drawColonizationDestinationArrow(nowMs);
     drawCampaignGoalDestinationArrow(nowMs);
     drawNaturalistDestinationArrow(nowMs);
@@ -41415,6 +41419,7 @@ function navigationMenuEntries() {
       optionalWaypointId: null
     });
   }
+  entries.push(...shipyardDividendNavigationEntries());
   const papalMatter = papalPendingMatter(gameState.relations.papacy);
   if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
     const objective = papalCommissionObjective(gameState.relations.papacy);
@@ -41711,6 +41716,8 @@ function campaignNavigationMenuEntry(destination) {
           ? "BREAK THE PIRATE BLOCKADE"
           : destination.reason === "return-with-treasure"
             ? "BRING THE TREASURE HOME"
+            : destination.reason === "retire"
+              ? uiText("navigation.retire")
         : "RETURN HOME";
   return {
     id: `campaign:home:${home.tileId}`,
@@ -41720,6 +41727,23 @@ function campaignNavigationMenuEntry(destination) {
     targetVector: latLonToDirection(home.lat, home.lon),
     optionalWaypointId: null
   };
+}
+
+function shipyardDividendNavigationEntries() {
+  if (!worldEconomy) return [];
+  return availablePlayerShipyardPayouts(worldEconomy.shipyards).map((payout) => {
+    const destination = portCitiesByTileId.get(payout.portId) || cityByTileId.get(payout.portId);
+    if (!destination) throw new Error(`Player-backed shipyard port is missing: ${payout.portName}`);
+    return {
+      id: `shipyard-dividend:${payout.portId}`,
+      destinationName: cityLabelText(destination),
+      reason: uiText("navigation.collectShipyardEarnings"),
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: placedCityTargetVector(destination),
+      optionalWaypointId: null,
+      destination
+    };
+  });
 }
 
 function portWaypointDestination(waypoint) {
@@ -53913,6 +53937,22 @@ function drawFetchQuestDestinationArrows(nowMs) {
       localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
       nowMs,
       style: QUEST_NAVIGATION_STYLE
+    });
+  }
+}
+
+function drawShipyardDividendDestinationArrows(nowMs) {
+  if (!ship || !chart || !localLayout) return;
+  for (const entry of shipyardDividendNavigationEntries()) {
+    const visibleCity = chart.cityCalls?.find((call) => call.tileId === entry.destination.tileId);
+    drawWorldTargetArrow({
+      id: entry.id,
+      label: entry.destinationName,
+      targetVector: entry.targetVector,
+      localPoint: visibleCity || localPointForGlobeVector(entry.targetVector),
+      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      nowMs,
+      style: entry.style
     });
   }
 }

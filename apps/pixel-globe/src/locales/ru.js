@@ -253,6 +253,8 @@ export default {
   "navigation.payFamilyDebt": "ВЫПЛАТИТЬ СЕМЕЙНЫЙ ДОЛГ",
   "navigation.returnVictorious": "ВЕРНУТЬСЯ С ПОБЕДОЙ",
   "navigation.returnHome": "ВЕРНУТЬСЯ ДОМОЙ",
+  "navigation.retire": "ВЕРНУТЬСЯ ДОМОЙ И УЙТИ НА ПОКОЙ",
+  "navigation.collectShipyardEarnings": "ЗАБРАТЬ ДОХОДЫ ВЕРФИ",
   "navigation.securePermission": "ПОЛУЧИТЬ РАЗРЕШЕНИЕ",
   "navigation.deliverColonyMaterials": "ДОСТАВИТЬ МАТЕРИАЛЫ КОЛОНИИ",
   "navigation.deliverLongshipMaterials": "ДОСТАВИТЬ МАТЕРИАЛЫ ДРАККАРА",

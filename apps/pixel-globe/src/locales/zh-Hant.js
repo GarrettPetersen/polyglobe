@@ -253,6 +253,8 @@ export default {
   "navigation.payFamilyDebt": "償還家族債務",
   "navigation.returnVictorious": "凱旋歸鄉",
   "navigation.returnHome": "返回故鄉",
+  "navigation.retire": "返鄉退隱",
+  "navigation.collectShipyardEarnings": "領取造船廠收益",
   "navigation.securePermission": "取得許可",
   "navigation.deliverColonyMaterials": "交付殖民物資",
   "navigation.deliverLongshipMaterials": "交付長船材料",

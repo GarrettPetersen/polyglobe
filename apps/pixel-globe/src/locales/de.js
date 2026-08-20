@@ -253,6 +253,8 @@ export default {
   "navigation.payFamilyDebt": "FAMILIENSCHULD BEZAHLEN",
   "navigation.returnVictorious": "SIEGREICH HEIMKEHREN",
   "navigation.returnHome": "HEIMKEHREN",
+  "navigation.retire": "HEIMKEHREN UND ZUR RUHE SETZEN",
+  "navigation.collectShipyardEarnings": "WERFTEINNAHMEN ABHOLEN",
   "navigation.securePermission": "GENEHMIGUNG EINHOLEN",
   "navigation.deliverColonyMaterials": "KOLONIEMATERIAL LIEFERN",
   "navigation.deliverLongshipMaterials": "LANGSCHIFFMATERIAL LIEFERN",
