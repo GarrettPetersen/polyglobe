@@ -32,6 +32,11 @@ test("quest cargo waypoints remain distinct per required good", () => {
     "port:42:quest-cargo:wool",
     "port:42:quest-cargo:grain"
   ]);
+  assert.throws(() => addPortNavigationWaypoint(state, {
+    destinationTileId: 42,
+    destinationName: "Porto",
+    reason: PORT_NAVIGATION_REASON_QUEST_CARGO
+  }), /require a trade good id/);
 });
 
 test("optional port waypoints persist independently until removed or reached", () => {
@@ -50,10 +55,11 @@ test("optional port waypoints persist independently until removed or reached", (
   addPortNavigationWaypoint(state, {
     destinationTileId: 81,
     destinationName: "London",
-    reason: "TRADE PRICE TIP"
+    reason: "TRADE PRICE TIP",
+    tradeGoodId: "cloves"
   });
   assert.equal(clearPortNavigationWaypointsAt(state, 41), false);
-  assert.equal(removeOptionalNavigationWaypoint(state, "port:81"), true);
+  assert.equal(removeOptionalNavigationWaypoint(state, "port:81:trade-price:cloves"), true);
   assert.deepEqual(state.memory.navigation.optionalWaypoints, [{
     id: "port:42",
     destinationTileId: 42,
@@ -62,6 +68,32 @@ test("optional port waypoints persist independently until removed or reached", (
   }]);
   assert.equal(clearPortNavigationWaypointsAt(state, 42), true);
   assert.deepEqual(state.memory.navigation.optionalWaypoints, []);
+});
+
+test("trade price waypoints remain distinct and name their goods", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  addPortNavigationWaypoint(state, {
+    destinationTileId: 81,
+    destinationName: "London",
+    reason: "TRADE PRICE TIP",
+    tradeGoodId: "cloves"
+  });
+  addPortNavigationWaypoint(state, {
+    destinationTileId: 81,
+    destinationName: "London",
+    reason: "TRADE PRICE TIP",
+    tradeGoodId: "tea"
+  });
+
+  assert.deepEqual(state.memory.navigation.optionalWaypoints.map((waypoint) => waypoint.id), [
+    "port:81:trade-price:cloves",
+    "port:81:trade-price:tea"
+  ]);
+  assert.throws(() => addPortNavigationWaypoint(state, {
+    destinationTileId: 81,
+    destinationName: "London",
+    reason: "TRADE PRICE TIP"
+  }), /require a trade good id/);
 });
 
 test("saved optional waypoints follow a port moved onto its real island", () => {
@@ -123,4 +155,6 @@ test("an already-migrated shipyard heading has a useful player-facing reason", (
   assert.equal(portNavigationReasonLabel("PLAYER HEADING"), "NEW SHIP FOR SALE");
   assert.equal(portNavigationReasonLabel("SHIPYARD RUMOUR"), "NEW SHIP FOR SALE");
   assert.equal(portNavigationReasonLabel("TRADE PRICE TIP"), "TRADE PRICE TIP");
+  assert.equal(portNavigationReasonLabel("TRADE PRICE TIP", "cloves"), "Price tip: Cloves");
+  assert.equal(portNavigationReasonLabel("QUEST CARGO SOURCE", "wool"), "Quest cargo: Wool");
 });

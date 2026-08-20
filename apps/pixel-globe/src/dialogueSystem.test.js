@@ -1970,7 +1970,8 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
         type: "set-port-heading",
         destinationTileId: london.tileId,
         destinationName: "London",
-        reason: "TRADE PRICE TIP"
+        reason: "TRADE PRICE TIP",
+        tradeGoodId: "cloves"
       }
     }
   );

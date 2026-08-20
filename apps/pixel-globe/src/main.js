@@ -41612,7 +41612,10 @@ function navigationMenuEntries() {
     entries.push({
       id: waypoint.id,
       destinationName: waypoint.destinationName,
-      reason: portNavigationReasonLabel(waypoint.reason),
+      reason: portNavigationReasonLabel(
+        waypoint.reason,
+        waypoint.questCargoGoodId || waypoint.tradeGoodId || null
+      ),
       style: OPTIONAL_NAVIGATION_STYLE,
       targetVector: placedCityTargetVector(destination),
       optionalWaypointId: waypoint.id

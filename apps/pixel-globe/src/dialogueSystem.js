@@ -1896,6 +1896,11 @@ export function selectPortDialogueOption(
     )) {
       throw new Error("Quest cargo heading requires a trade good id");
     }
+    if (action.reason === PORT_NAVIGATION_REASON_TRADE_PRICE && (
+      typeof action.tradeGoodId !== "string" || action.tradeGoodId === ""
+    )) {
+      throw new Error("Trade-price heading requires a trade good id");
+    }
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "quest-cargo-tip") session.questCargoTip = null;
     session.nodeId = action.nextNodeId;
@@ -1910,7 +1915,8 @@ export function selectPortDialogueOption(
         reason: action.reason,
         ...(action.questCargoGoodId
           ? { questCargoGoodId: action.questCargoGoodId }
-          : {})
+          : {}),
+        ...(action.tradeGoodId ? { tradeGoodId: action.tradeGoodId } : {})
       }
     };
   }
@@ -5785,6 +5791,7 @@ function tradeTipView(session, city) {
         destinationTileId: tip.destinationTileId,
         destinationName: tip.destinationName,
         reason: PORT_NAVIGATION_REASON_TRADE_PRICE,
+        tradeGoodId: tip.goodId,
         nextNodeId: tip.nextNodeId
       }),
       option("Continue", { type: "node", nodeId: tip.nextNodeId })
