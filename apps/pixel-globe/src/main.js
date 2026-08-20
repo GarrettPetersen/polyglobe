@@ -121,6 +121,7 @@ import {
   namedCrewCharacterGoal,
   travelerCharacterGoal
 } from "./characterGoals.js";
+import { campaignRetirementObligation } from "./campaignRetirement.js";
 import {
   characterAgeAtMinute,
   characterBirthdayLabel,
@@ -20207,18 +20208,18 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE && !goal.whiteWhaleKilled) return null;
   if (goal.type === CAMPAIGN_GOAL_TREASURE && !treasureAmbushComplete(goal)) return null;
   if (goal.status === CAMPAIGN_GOAL_COMPLETE) {
-    const retirementBlocked = campaignRetirementBlockedByTravelers();
+    const retirementObligation = currentCampaignRetirementObligation();
     const session = createCampaignDialogueSession({
       cityTileId: cityCall.tileId,
       steps: [
         ...campaignRetirementReturnSteps(goal, gameState.playerCharacter),
-        ...(retirementBlocked ? campaignRetirementBlockedSteps() : [])
+        ...(retirementObligation ? campaignRetirementBlockedSteps(retirementObligation) : [])
       ],
       phase: `${goal.type}-retirement-choice`,
       continueToPortOnClose: true,
       nextPortNodeId: needsLoadout ? "loadout" : "greeting",
-      retirementChoiceOnClose: !retirementBlocked,
-      retirementBlockedOnClose: retirementBlocked
+      retirementChoiceOnClose: !retirementObligation,
+      retirementBlockedOnClose: Boolean(retirementObligation)
     });
     session.needsLoadout = needsLoadout;
     return session;
@@ -20243,27 +20244,29 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
   const steps = arrivedDrunk
     ? [...drunkenCampaignHomecomingSteps(goal, gameState.playerCharacter), ...ordinarySteps]
     : ordinarySteps;
-  const retirementBlocked = outcome.completed && campaignRetirementBlockedByTravelers();
+  const retirementObligation = outcome.completed ? currentCampaignRetirementObligation() : null;
   const session = createCampaignDialogueSession({
     cityTileId: cityCall.tileId,
     steps: [
       ...steps,
-      ...(retirementBlocked ? campaignRetirementBlockedSteps() : [])
+      ...(retirementObligation ? campaignRetirementBlockedSteps(retirementObligation) : [])
     ],
     phase: outcome.completed
       ? `${goal.type}-victory`
       : goal.type,
     continueToPortOnClose: true,
     nextPortNodeId: needsLoadout ? "loadout" : "greeting",
-    retirementChoiceOnClose: outcome.completed && !retirementBlocked,
-    retirementBlockedOnClose: retirementBlocked
+    retirementChoiceOnClose: outcome.completed && !retirementObligation,
+    retirementBlockedOnClose: Boolean(retirementObligation)
   });
   session.needsLoadout = needsLoadout;
   return session;
 }
 
-function campaignRetirementBlockedByTravelers() {
-  return shipTravelerManifest(gameState).some(({ count }) => count > 0);
+function currentCampaignRetirementObligation() {
+  const travelerGroups = shipTravelerManifest(gameState);
+  if (!travelerGroups.some(({ count }) => count > 0)) return null;
+  return campaignRetirementObligation(travelerGroups, currentAboardRoster().named);
 }
 
 function openPendingDiscoveryPortDialogue() {
@@ -20821,10 +20824,11 @@ function beginCampaignRetirement() {
     throw new Error("Campaign retirement requires a completed campaign goal");
   }
   const city = currentDialogueCity();
-  if (campaignRetirementBlockedByTravelers()) {
+  const retirementObligation = currentCampaignRetirementObligation();
+  if (retirementObligation) {
     dialogueState = createCampaignDialogueSession({
       cityTileId: city.tileId,
-      steps: campaignRetirementBlockedSteps(),
+      steps: campaignRetirementBlockedSteps(retirementObligation),
       phase: `${goal.type}-retirement-blocked`,
       continueToPortOnClose: true,
       nextPortNodeId: "greeting",

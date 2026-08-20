@@ -37,9 +37,22 @@ test("captain goals come from the campaign goal registry", () => {
 });
 
 test("traveler and colony goals identify their current destination", () => {
-  assert.equal(travelerCharacterGoal({ id: "passenger-1", destinationName: "Calicut" }).text, "Reach Calicut");
-  assert.equal(travelerCharacterGoal({ id: "envoy-1", destinationName: "Lisbon", stage: "return" }).text, "Reach Lisbon");
-  assert.equal(colonyLeaderCharacterGoal("New Bordeaux Colony").text, "Found New Bordeaux Colony");
+  assert.deepEqual(
+    travelerCharacterGoal({ id: "passenger-1", destinationName: "Calicut" }),
+    { id: "travel:passenger-1", text: "Reach Calicut", destinationName: "Calicut" }
+  );
+  assert.deepEqual(
+    travelerCharacterGoal({ id: "envoy-1", destinationName: "Lisbon", stage: "return" }),
+    { id: "travel:envoy-1", text: "Reach Lisbon", destinationName: "Lisbon" }
+  );
+  assert.deepEqual(
+    colonyLeaderCharacterGoal("New Bordeaux Colony"),
+    {
+      id: "colony:New Bordeaux Colony",
+      text: "Found New Bordeaux Colony",
+      destinationName: "New Bordeaux Colony"
+    }
+  );
 });
 
 test("named crewmates can carry an explicit future quest goal", () => {
@@ -60,4 +73,11 @@ test("rescued travelers normalize their explicit homecoming goal for the people 
 
   assert.equal(goal.id, "character:pirate-captive:copenhagen");
   assert.equal(goal.text, "Reunite with family in Copenhagen");
+});
+
+test("structured traveler destinations fail loudly when malformed", () => {
+  assert.throws(
+    () => travelerCharacterGoal({ id: "lost-passenger", destinationName: "" }),
+    /requires a destination/
+  );
 });

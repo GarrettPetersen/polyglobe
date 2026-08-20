@@ -23,6 +23,7 @@ import {
   campaignGoalTypeForCharacter,
   campaignGoalTypeForStoredLabel,
   campaignHomecomingSteps,
+  campaignRetirementBlockedSteps,
   campaignRetirementReturnSteps,
   campaignVictorySummary,
   createCampaignDialogueSession,
@@ -585,6 +586,19 @@ test("the final homecoming dialogue lets the captain retire or keep sailing", ()
     closed: true,
     action: { type: "campaign-keep-sailing" }
   });
+});
+
+test("blocked retirement names the traveler and destination the captain actually owes", () => {
+  assert.equal(campaignRetirementBlockedSteps({
+    travelerName: "Thomas Hale",
+    destinationName: "Algiers",
+    additionalTravelerCount: 0
+  })[0].text, "My own quest is finished, but Thomas Hale is still counting on me for passage to Algiers. I will see that promise kept before I retire.");
+  assert.match(campaignRetirementBlockedSteps({
+    travelerName: "Lady Anne",
+    destinationName: "London",
+    additionalTravelerCount: 3
+  })[0].text, /Lady Anne.*London.*3 other travelers/);
 });
 
 test("every campaign intro phase closes into a valid voyage start", () => {

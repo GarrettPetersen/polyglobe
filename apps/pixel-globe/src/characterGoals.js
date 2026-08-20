@@ -16,14 +16,22 @@ export function travelerCharacterGoal(quest) {
   if (typeof destination !== "string" || destination.trim() === "") {
     throw new Error("Traveler goal requires a destination");
   }
-  return characterGoal(`travel:${quest.id || destination}`, `Reach ${destination.trim()}`);
+  return characterGoal(
+    `travel:${quest.id || destination}`,
+    `Reach ${destination.trim()}`,
+    { destinationName: destination.trim() }
+  );
 }
 
 export function colonyLeaderCharacterGoal(colonyName) {
   if (typeof colonyName !== "string" || colonyName.trim() === "") {
     throw new Error("Colony leader goal requires a colony name");
   }
-  return characterGoal(`colony:${colonyName.trim()}`, `Found ${colonyName.trim()}`);
+  return characterGoal(
+    `colony:${colonyName.trim()}`,
+    `Found ${colonyName.trim()}`,
+    { destinationName: colonyName.trim() }
+  );
 }
 
 export function namedCrewCharacterGoal(character) {
@@ -50,9 +58,14 @@ export function validateCharacterGoal(goal) {
   if (typeof goal.text !== "string" || goal.text.trim() === "") {
     throw new Error(`Character goal ${goal.id} requires text`);
   }
+  if (goal.destinationName !== undefined && (
+    typeof goal.destinationName !== "string" || goal.destinationName.trim() === ""
+  )) {
+    throw new Error(`Character goal ${goal.id} has an invalid destination`);
+  }
   return goal;
 }
 
-function characterGoal(id, text) {
-  return Object.freeze(validateCharacterGoal({ id, text }));
+function characterGoal(id, text, details = {}) {
+  return Object.freeze(validateCharacterGoal({ id, text, ...details }));
 }

@@ -676,12 +676,29 @@ export function campaignRetirementReturnSteps(goal, playerCharacter) {
   ];
 }
 
-export function campaignRetirementBlockedSteps() {
-  return [step(
-    "player",
-    "determined",
-    "My own quest is finished, but passengers, emissaries, or colonists are still aboard. I will not retire until everyone entrusted to this ship reaches their destination."
-  )];
+export function campaignRetirementBlockedSteps({
+  travelerName,
+  destinationName,
+  additionalTravelerCount
+}) {
+  const name = requiredDialogueText(travelerName, "retirement traveler name");
+  const destination = requiredDialogueText(destinationName, "retirement traveler destination");
+  if (!Number.isInteger(additionalTravelerCount) || additionalTravelerCount < 0) {
+    throw new Error(`Invalid additional retirement traveler count: ${additionalTravelerCount}`);
+  }
+  const text = additionalTravelerCount === 0
+    ? `My own quest is finished, but ${name} is still counting on me for passage to ${destination}. I will see that promise kept before I retire.`
+    : additionalTravelerCount === 1
+      ? `My own quest is finished, but ${name} is still counting on me for passage to ${destination}, and one other traveler still depends on this ship. I will see them both to their destinations before I retire.`
+      : `My own quest is finished, but ${name} is still counting on me for passage to ${destination}, and ${additionalTravelerCount} other travelers still depend on this ship. I will see them all to their destinations before I retire.`;
+  return [step("player", "determined", text)];
+}
+
+function requiredDialogueText(value, label) {
+  if (typeof value !== "string" || value.trim() === "") {
+    throw new Error(`Missing ${label}`);
+  }
+  return value.trim();
 }
 
 export function drunkenCampaignHomecomingSteps(goal, playerCharacter) {
