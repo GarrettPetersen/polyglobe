@@ -1,7 +1,31 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
+import {
+  buildPixelIconMonochromePixels,
+  buildPixelIconOutlinePixels
+} from "./pixelIconContrast.js";
+
+test("pixel icon monochrome pixels preserve alpha while replacing color", () => {
+  const sourcePixels = new Uint8ClampedArray([
+    10, 20, 30, 255,
+    40, 50, 60, 0,
+    70, 80, 90, 128
+  ]);
+  assert.deepEqual(
+    buildPixelIconMonochromePixels({
+      sourcePixels,
+      width: 3,
+      height: 1,
+      color: { r: 255, g: 255, b: 255, a: 255 }
+    }),
+    new Uint8ClampedArray([
+      255, 255, 255, 255,
+      0, 0, 0, 0,
+      255, 255, 255, 128
+    ])
+  );
+});
 
 test("pixel icon outlines add a light cardinal edge without bleeding between atlas cells", () => {
   const width = 8;

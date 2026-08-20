@@ -12,6 +12,9 @@ export const CHART_IMMEDIATE_REPAIR_FAULT_PX = 32;
 export const CHART_IMMEDIATE_REPAIR_ROTATION_DEG = 8;
 export const CHART_IMMEDIATE_REPAIR_RMS_PX = 12;
 export const CHART_IMMEDIATE_REPAIR_MAX_DISTORTION_PX = 24;
+export const CHART_CLOSING_FOG_ROTATION_DEG = 6;
+export const CHART_CLOSING_FOG_RMS_PX = 20;
+export const CHART_CLOSING_FOG_MAX_DISTORTION_PX = 36;
 
 export function chartVisualRepairMayEnterCooldown({ pendingTileRepairs, faultRemains }) {
   if (typeof pendingTileRepairs !== "boolean" || typeof faultRemains !== "boolean") {
@@ -97,14 +100,33 @@ export function chooseChartVisualRepair({
   if (polarFogCoversFault) {
     return chartVisualRepairCandidate("polar-fog", fault, { frameWide, confirmationMs: 0 });
   }
-  // Broad drift is a frame-wide fault even when one stretched edge happens to
-  // be the largest local symptom. A local cloud can mend that edge while
-  // leaving the rest of the chart distorted, so cover the full affected frame.
+  // Broad drift is allowed to escalate. A sparse cloud first repairs the worst
+  // local part of a moderate frame fault; the next measurement then targets
+  // the next-worst area. Reserve full closing fog for distortion that has
+  // already grown too severe for those quiet incremental repairs.
   if (frameWide) {
+    if (heatHazeAvailable) {
+      return chartVisualRepairCandidate("heat-haze", fault, {
+        frameWide: true,
+        broadFault: true,
+        confirmationMs
+      });
+    }
+    const closingFogRequired = Math.abs(drift.rotationDeg) >=
+        CHART_CLOSING_FOG_ROTATION_DEG ||
+      drift.rmsDistortionPx >= CHART_CLOSING_FOG_RMS_PX ||
+      drift.maxDistortionPx >= CHART_CLOSING_FOG_MAX_DISTORTION_PX;
+    if (!closingFogRequired) {
+      return chartVisualRepairCandidate("partial-cloud", fault, {
+        frameWide: false,
+        broadFault: true,
+        confirmationMs
+      });
+    }
     return chartVisualRepairCandidate(
-      heatHazeAvailable ? "heat-haze" : "full-cloud",
+      "closing-fog",
       fault,
-      { frameWide: true, confirmationMs }
+      { frameWide: true, broadFault: true, confirmationMs }
     );
   }
 
@@ -158,11 +180,16 @@ export function advanceChartWeatherRepairConfirmation({ pending, candidate, nowM
   });
 }
 
-function chartVisualRepairCandidate(kind, fault, { frameWide, confirmationMs }) {
+function chartVisualRepairCandidate(
+  kind,
+  fault,
+  { frameWide, broadFault = frameWide, confirmationMs }
+) {
   return Object.freeze({
     kind,
     fault: Object.freeze(fault),
     frameWide,
+    broadFault,
     confirmationMs
   });
 }
@@ -177,7 +204,7 @@ function chartWeatherRepairConfirmationKey(candidate) {
   ) {
     throw new Error(`Chart weather repair ${candidate.kind} requires a terrain fault`);
   }
-  if (candidate.frameWide) return `${candidate.kind}:frame`;
+  if (candidate.broadFault) return `${candidate.kind}:frame`;
   const neighborhoodSizePx = 96;
   return [
     candidate.kind,

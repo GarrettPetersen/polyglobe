@@ -1,4 +1,11 @@
 const DEFAULT_RETRY_DELAYS_MS = Object.freeze([250, 750, 1500]);
+export const STREAMED_IMAGE_RETRY_DELAYS_MS = Object.freeze([
+  250,
+  750,
+  1500,
+  3000,
+  6000
+]);
 
 export async function loadImageWithRetry({
   src,

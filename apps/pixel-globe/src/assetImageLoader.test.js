@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { loadImageWithRetry } from "./assetImageLoader.js";
+import {
+  STREAMED_IMAGE_RETRY_DELAYS_MS,
+  loadImageWithRetry
+} from "./assetImageLoader.js";
+
+test("streamed images retain a longer retry window than startup assets", () => {
+  assert.deepEqual(STREAMED_IMAGE_RETRY_DELAYS_MS, [250, 750, 1500, 3000, 6000]);
+});
 
 test("image loading retries a temporary failure with a fresh request", async () => {
   const requestedSources = [];

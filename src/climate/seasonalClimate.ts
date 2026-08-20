@@ -297,7 +297,20 @@ export function climateSurfaceSnowVisualForTerrain(
     monthlyMeanTempC ?? null,
     calendarUtc ?? null
   );
-  const cold = Math.max(0, Math.min(1, (0.47 - temp) / 0.28));
+  return climateSurfaceSnowVisualFromTemperature(latDeg, temp);
+}
+
+export function climateSurfaceSnowVisualFromTemperature(
+  latDeg: number,
+  temperature01: number
+): number {
+  if (!Number.isFinite(latDeg) || latDeg < -90 || latDeg > 90) {
+    throw new Error(`Invalid snow-cover latitude: ${latDeg}`);
+  }
+  if (!Number.isFinite(temperature01) || temperature01 < 0 || temperature01 > 1) {
+    throw new Error(`Invalid snow-cover temperature: ${temperature01}`);
+  }
+  const cold = Math.max(0, Math.min(1, (0.47 - temperature01) / 0.28));
   const polar = Math.max(0, Math.min(1, (Math.abs(latDeg) - 35) / 45));
   return Math.max(0, Math.min(1, cold * (0.15 + 0.85 * polar)));
 }

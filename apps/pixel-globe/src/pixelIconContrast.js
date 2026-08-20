@@ -5,6 +5,31 @@ export const PIXEL_ICON_OUTLINE_COLOR = Object.freeze({
   a: 255
 });
 
+export function buildPixelIconMonochromePixels({
+  sourcePixels,
+  width,
+  height,
+  color
+}) {
+  if (!(sourcePixels instanceof Uint8ClampedArray) || sourcePixels.length !== width * height * 4) {
+    throw new Error("Pixel icon monochrome source must match its RGBA atlas dimensions");
+  }
+  if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+    throw new Error(`Invalid pixel icon atlas dimensions: ${width}x${height}`);
+  }
+  validateOutlineColor(color);
+  const result = new Uint8ClampedArray(sourcePixels.length);
+  for (let offset = 0; offset < sourcePixels.length; offset += 4) {
+    const alpha = sourcePixels[offset + 3];
+    if (alpha === 0) continue;
+    result[offset] = color.r;
+    result[offset + 1] = color.g;
+    result[offset + 2] = color.b;
+    result[offset + 3] = Math.round(alpha * color.a / 255);
+  }
+  return result;
+}
+
 export function buildPixelIconOutlinePixels({
   sourcePixels,
   width,

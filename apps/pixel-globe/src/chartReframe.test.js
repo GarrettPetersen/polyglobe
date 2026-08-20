@@ -45,6 +45,49 @@ test("unified chart settlement pulls a torn adjacent pair back together", () => 
   assert.ok(result.worstEdge.errorPx <= result.worstEdge.allowedErrorPx + 1);
 });
 
+test("a covered tile may use its about-to-be-covered neighbors as elastic support", () => {
+  const angle = 16 * Math.PI / 180;
+  const positions = new Map();
+  const targetsById = new Map();
+  for (let id = 0; id < 5; id++) {
+    positions.set(id, {
+      x: Math.round(Math.cos(angle) * id * 24),
+      y: Math.round(Math.sin(angle) * id * 24)
+    });
+    targetsById.set(id, { x: id * 24, y: 0 });
+  }
+  const neighborsById = Array.from({ length: 5 }, () => []);
+  for (let id = 0; id < 4; id++) {
+    neighborsById[id].push(id + 1);
+    neighborsById[id + 1].push(id);
+  }
+
+  const result = planChartSettlementTowardTargets({
+    positions,
+    targetsById,
+    tileIds: new Set([1, 2, 3, 4]),
+    appliedTileIds: new Set([3]),
+    maximumStepPx: 4,
+    referencePositions: targetsById,
+    neighborsById,
+    surfaceMaskById: Uint8Array.from([0, 2, 2, 2, 2]),
+    landSlackPx: 3,
+    waterSlackPx: 6,
+    incrementalRepair: true
+  });
+
+  assert.deepEqual([...result.settledPositions.keys()], [3]);
+  const repaired = result.settledPositions.get(3);
+  assert.ok(repaired, "covered tile did not move");
+  assert.ok(
+    Math.hypot(repaired.x - targetsById.get(3).x, repaired.y - targetsById.get(3).y) <
+      Math.hypot(
+        positions.get(3).x - targetsById.get(3).x,
+        positions.get(3).y - targetsById.get(3).y
+      )
+  );
+});
+
 test("full patch settlement cannot grandfather a newly admitted tear", () => {
   const positions = new Map([
     [1, { x: 200, y: 0 }],

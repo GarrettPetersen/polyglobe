@@ -1,6 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
+import {
+  terrainConnectorLengthIsRenderable,
+  terrainConnectorRasterSpans
+} from "./terrainConnectorRaster.js";
 
 const CONNECTOR = Object.freeze([
   { x: 2, y: 1 },
@@ -42,4 +45,18 @@ test("terrain connector raster rejects malformed geometry", () => {
     /invalid point/
   );
   assert.throws(() => terrainConnectorRasterSpans(CONNECTOR, 1.5), /integer seed/);
+});
+
+test("terrain connector rendering rejects pathological chart stretches", () => {
+  assert.equal(terrainConnectorLengthIsRenderable(36, 72), true);
+  assert.equal(terrainConnectorLengthIsRenderable(72, 72), true);
+  assert.equal(terrainConnectorLengthIsRenderable(72.01, 72), false);
+  assert.throws(
+    () => terrainConnectorLengthIsRenderable(Infinity, 72),
+    /finite and non-negative/
+  );
+  assert.throws(
+    () => terrainConnectorLengthIsRenderable(36, 0),
+    /maximum length must be positive/
+  );
 });

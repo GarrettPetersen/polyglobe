@@ -14,6 +14,7 @@ import type { GeodesicTile } from "../core/geodesic.js";
 import { tileCenterToLatLon } from "../earth/earthSampling.js";
 import type { TerrainType } from "../terrain/types.js";
 import {
+  climateSurfaceSnowVisualFromTemperature,
   getTileTemperature01,
   GROUND_FREEZE_TEMPERATURE_THRESHOLD_01,
 } from "./seasonalClimate.js";
@@ -72,6 +73,24 @@ export const TILE_DAY_SNOW_FALL = 2;
 export const TILE_DAY_WET_SOIL = 4;
 /** Snow lying on ground (carried). */
 export const TILE_DAY_SNOW_GROUND = 8;
+
+export const SNOW_GROUND_DEPTH_VISIBLE_THRESHOLD = 0.28;
+export const SEASONAL_SNOW_COVER_VISIBLE_THRESHOLD = 0.24;
+
+export function snowGroundShouldBeVisible(
+  snowDepth: number,
+  seasonalSnowCover: number,
+  frozen: boolean,
+): boolean {
+  if (!Number.isFinite(snowDepth) || snowDepth < 0 || snowDepth > 1) {
+    throw new Error(`Invalid discrete snow depth: ${snowDepth}`);
+  }
+  if (!Number.isFinite(seasonalSnowCover) || seasonalSnowCover < 0 || seasonalSnowCover > 1) {
+    throw new Error(`Invalid seasonal snow cover: ${seasonalSnowCover}`);
+  }
+  return snowDepth > SNOW_GROUND_DEPTH_VISIBLE_THRESHOLD ||
+    (frozen && seasonalSnowCover >= SEASONAL_SNOW_COVER_VISIBLE_THRESHOLD);
+}
 
 export interface DiscreteWeatherYearBake {
   readonly tileIds: readonly number[];
@@ -156,6 +175,7 @@ function simulateDiscreteYearIntoPacked(
         cal,
       );
       const frozen = temp < freezeTh;
+      const seasonalSnowCover = climateSurfaceSnowVisualFromTemperature(latDeg, temp);
 
       let w = wet[i]!;
       let s = snowG[i]!;
@@ -183,7 +203,9 @@ function simulateDiscreteYearIntoPacked(
       }
 
       if (w > 0.32) flags |= TILE_DAY_WET_SOIL;
-      if (s > 0.28) flags |= TILE_DAY_SNOW_GROUND;
+      if (snowGroundShouldBeVisible(s, seasonalSnowCover, frozen)) {
+        flags |= TILE_DAY_SNOW_GROUND;
+      }
 
       wet[i] = w < 0.02 ? 0 : w;
       snowG[i] = s < 0.02 ? 0 : s;

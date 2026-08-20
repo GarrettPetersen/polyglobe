@@ -2925,8 +2925,7 @@ function applyTraversalVisualRepair({
   const faultX = Number.isFinite(fault?.x) ? fault.x : TRAVERSAL_SCREEN_W / 2;
   const faultY = Number.isFinite(fault?.y) ? fault.y : TRAVERSAL_SCREEN_H / 2;
   const partialRadiusPx = Math.max(56, Math.min(96, (fault?.sizePx || 0) + 30));
-  const candidatePositions = kind === "full-cloud" || kind === "closing-fog" ||
-      kind === "heat-haze"
+  const candidatePositions = kind === "closing-fog" || kind === "heat-haze"
     ? positions
     : visiblePositions;
   for (const [id, position] of candidatePositions) {
@@ -2944,7 +2943,7 @@ function applyTraversalVisualRepair({
       ? distanceFromFault <= partialRadiusPx
       : kind === "closing-fog"
       ? distanceFromPlayer >= 48
-      : kind === "full-cloud" || kind === "heat-haze";
+      : kind === "heat-haze";
     if (eligible) repairTileIds.add(id);
   }
   if (repairTileIds.size === 0) return new Set();

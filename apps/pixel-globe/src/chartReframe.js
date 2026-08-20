@@ -109,6 +109,7 @@ export function planChartSettlementTowardTargets({
   positions,
   targetsById,
   tileIds,
+  appliedTileIds = tileIds,
   maximumStepPx = 1,
   maximumStepPxById = null,
   referencePositions,
@@ -119,8 +120,14 @@ export function planChartSettlementTowardTargets({
   incrementalRepair = false
 }) {
   if (!(positions instanceof Map) || !(targetsById instanceof Map) ||
-      !(tileIds instanceof Set) || !(referencePositions instanceof Map)) {
+      !(tileIds instanceof Set) || !(appliedTileIds instanceof Set) ||
+      !(referencePositions instanceof Map)) {
     throw new Error("Unified chart settlement requires position, target, and reference maps");
+  }
+  for (const id of appliedTileIds) {
+    if (!tileIds.has(id)) {
+      throw new Error(`Unified chart settlement cannot apply unsupported tile ${id}`);
+    }
   }
   if (maximumStepPx !== Number.POSITIVE_INFINITY &&
       (!Number.isInteger(maximumStepPx) || maximumStepPx <= 0)) {
@@ -246,6 +253,7 @@ export function planChartSettlementTowardTargets({
 
   const settledPositions = new Map();
   for (const id of movableIds) {
+    if (!appliedTileIds.has(id)) continue;
     const original = originalPositions.get(id);
     const point = working.get(id);
     const settled = { x: Math.round(point.x), y: Math.round(point.y) };

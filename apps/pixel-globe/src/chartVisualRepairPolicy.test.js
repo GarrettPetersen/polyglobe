@@ -44,12 +44,12 @@ test("elastic open ocean leaves correction to the swell", () => {
   }), "none");
 });
 
-test("frame-wide rotation uses frame-wide weather when swell repair is unavailable", () => {
+test("frame-wide rotation uses closing fog when swell repair is unavailable", () => {
   assert.equal(repairKind({
     drift: { ...calm, rotationDeg: 20, maxDistortionPx: 40 },
     terrainTear: { extraPx: 40, surface: "water", screenX: 430, screenY: 20 },
     distortionSurface: "water"
-  }), "full-cloud");
+  }), "closing-fog");
 });
 
 test("existing polar fog takes priority over a new general weather effect", () => {
@@ -61,12 +61,23 @@ test("existing polar fog takes priority over a new general weather effect", () =
   }), "polar-fog");
 });
 
-test("large sustained-looking land rotation targets a sparse cloud repair group", () => {
+test("large sustained-looking land rotation closes fog around the moving player", () => {
   assert.equal(repairKind({
     drift: { ...calm, rotationDeg: 13 },
     terrainTear: attachedTerrain,
     distortionSurface: "land"
-  }), "full-cloud");
+  }), "closing-fog");
+});
+
+test("moderate broad rotation tries a sparse repair before closing fog", () => {
+  const candidate = repairCandidate({
+    drift: { ...calm, rotationDeg: 5, rmsDistortionPx: 7, maxDistortionPx: 16 },
+    terrainTear: attachedTerrain,
+    distortionSurface: "land"
+  });
+  assert.equal(candidate.kind, "partial-cloud");
+  assert.equal(candidate.frameWide, false);
+  assert.equal(candidate.broadFault, true);
 });
 
 test("hot dry rotation uses ambient heat haze before summoning clouds", () => {
@@ -188,7 +199,7 @@ test("catastrophic structural faults start repair immediately", () => {
   assert.equal(result.repair, candidate);
 });
 
-test("benchmark-breaking frame distortion bypasses weather cooldown", () => {
+test("benchmark-breaking but local-repairable distortion bypasses weather cooldown", () => {
   const candidate = repairCandidate({
     drift: { ...calm, rotationDeg: -5.21, rmsDistortionPx: 13.69, maxDistortionPx: 21.81 },
     terrainTear: {
@@ -205,12 +216,14 @@ test("benchmark-breaking frame distortion bypasses weather cooldown", () => {
     nowMs: 100
   });
 
-  assert.equal(candidate.kind, "full-cloud");
+  assert.equal(candidate.kind, "partial-cloud");
+  assert.equal(candidate.frameWide, false);
+  assert.equal(candidate.broadFault, true);
   assert.equal(candidate.confirmationMs, 0);
   assert.equal(result.repair, candidate);
 });
 
-test("broad rms distortion receives a frame-wide repair below the rotation threshold", () => {
+test("broad rms distortion begins with a sparse local repair", () => {
   const candidate = repairCandidate({
     drift: { ...calm, rotationDeg: 3.5, rmsDistortionPx: 15.99, maxDistortionPx: 22.45 },
     terrainTear: {
@@ -222,12 +235,13 @@ test("broad rms distortion receives a frame-wide repair below the rotation thres
     distortionSurface: "coast"
   });
 
-  assert.equal(candidate.kind, "full-cloud");
-  assert.equal(candidate.frameWide, true);
+  assert.equal(candidate.kind, "partial-cloud");
+  assert.equal(candidate.frameWide, false);
+  assert.equal(candidate.broadFault, true);
   assert.equal(candidate.confirmationMs, 0);
 });
 
-test("broad distortion remains frame-wide when it also has a local tear", () => {
+test("broad distortion with a local tear starts with the least intrusive repair", () => {
   const candidate = repairCandidate({
     drift: { ...calm, rotationDeg: 2, rmsDistortionPx: 13, maxDistortionPx: 20 },
     terrainTear: {
@@ -239,8 +253,9 @@ test("broad distortion remains frame-wide when it also has a local tear", () => 
     distortionSurface: "land"
   });
 
-  assert.equal(candidate.kind, "full-cloud");
-  assert.equal(candidate.frameWide, true);
+  assert.equal(candidate.kind, "partial-cloud");
+  assert.equal(candidate.frameWide, false);
+  assert.equal(candidate.broadFault, true);
 });
 
 test("broad distortion keeps one confirmation window when its worst point moves", () => {
@@ -263,7 +278,7 @@ test("broad distortion keeps one confirmation window when its worst point moves"
     candidate: movedCandidate,
     nowMs: CHART_SEVERE_REPAIR_CONFIRMATION_MS
   });
-  assert.equal(firstCandidate.frameWide, true);
+  assert.equal(firstCandidate.broadFault, true);
   assert.equal(confirmed.repair, movedCandidate);
 });
 

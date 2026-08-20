@@ -11,6 +11,7 @@ const CHART_REBUILD_REASON_KEYS = Object.freeze([
 export function planChartLayoutTransaction({
   positions,
   tileIds,
+  appliedTileIds = tileIds,
   neighborsById,
   surfaceMaskById,
   referencePositionsForIds,
@@ -23,7 +24,8 @@ export function planChartLayoutTransaction({
   waterSlackPx = 6,
   incrementalRepair = false
 }) {
-  if (!(positions instanceof Map) || !(tileIds instanceof Set)) {
+  if (!(positions instanceof Map) || !(tileIds instanceof Set) ||
+      !(appliedTileIds instanceof Set)) {
     throw new Error("Chart layout transaction requires positions and tile ids");
   }
   if (!Array.isArray(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
@@ -77,6 +79,7 @@ export function planChartLayoutTransaction({
     positions,
     targetsById,
     tileIds,
+    appliedTileIds,
     maximumStepPx,
     maximumStepPxById,
     referencePositions,

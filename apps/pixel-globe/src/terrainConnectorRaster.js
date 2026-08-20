@@ -1,5 +1,15 @@
 const CONNECTOR_EDGE_NOISE_PX = 1;
 
+export function terrainConnectorLengthIsRenderable(lengthPx, maximumLengthPx) {
+  if (!Number.isFinite(lengthPx) || lengthPx < 0) {
+    throw new Error(`Terrain connector length must be finite and non-negative: ${lengthPx}`);
+  }
+  if (!Number.isFinite(maximumLengthPx) || maximumLengthPx <= 0) {
+    throw new Error(`Terrain connector maximum length must be positive: ${maximumLengthPx}`);
+  }
+  return lengthPx <= maximumLengthPx;
+}
+
 export function terrainConnectorRasterSpans(points, seed) {
   assertPolygon(points);
   if (!Number.isInteger(seed)) throw new Error(`Terrain connector raster requires an integer seed: ${seed}`);

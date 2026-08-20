@@ -541,6 +541,10 @@ import {
   validateNaturalistReportDialogueCatalog
 } from "./naturalistAnimalDialogue.js";
 import { openNextPortArrivalFollowup } from "./portArrivalQueue.js";
+import {
+  nextCharacterHomecoming,
+  recordCharacterHomecoming
+} from "./characterHomecoming.js";
 import { recoveringPortBlocksArrival } from "./portEntryFlow.js";
 import {
   QUEST_CARGO_PROMPT_CHEF,
@@ -669,6 +673,10 @@ import {
   selectPixelInteractionCandidate
 } from "./pixelInteraction.js";
 import { whaleTargetRect } from "./whaleTargeting.js";
+import {
+  whaleKillingBlowIndicatorHitRect,
+  whaleKillingBlowIndicatorRect
+} from "./whaleKillingBlowIndicator.js";
 import {
   createVisualPresentation,
   resetVisualPresentation,
@@ -1094,7 +1102,10 @@ import {
   politicsCardGridLayout,
   politicsRelationTextColor
 } from "./politicsCardLayout.js";
-import { buildPixelIconOutlinePixels } from "./pixelIconContrast.js";
+import {
+  buildPixelIconMonochromePixels,
+  buildPixelIconOutlinePixels
+} from "./pixelIconContrast.js";
 import { oceanSwellLiftPx, oceanSwellOffset, oceanSwellState } from "./oceanSwell.js";
 import {
   createStormWaveState,
@@ -1321,7 +1332,10 @@ import {
   windVGeometry,
   windVOpacity
 } from "./windIndicator.js";
-import { loadImageWithRetry } from "./assetImageLoader.js";
+import {
+  STREAMED_IMAGE_RETRY_DELAYS_MS,
+  loadImageWithRetry
+} from "./assetImageLoader.js";
 import { loadFontFaceAsset } from "./fontAssetLoader.js";
 import { DEFAULT_GAME_TIME_SCALE, advanceGameClockMinutes } from "./gamePacing.js";
 import {
@@ -2004,7 +2018,10 @@ import {
 import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
 import { fetchStaticAsset, isTransientStaticAssetError } from "./staticAssetFetch.js";
 import { createOnDemandAssetStore } from "./onDemandAssetStore.js";
-import { terrainConnectorRasterSpans } from "./terrainConnectorRaster.js";
+import {
+  terrainConnectorLengthIsRenderable,
+  terrainConnectorRasterSpans
+} from "./terrainConnectorRaster.js";
 import {
   createTerrainOcclusionIndex,
   eraseTerrainOccludersFromShipLayer,
@@ -2277,6 +2294,7 @@ const UNDERWATER_WORLD_REFRACTION_PADDING_PX = 1;
 const UNDERWATER_WORLD_SPRITE_WIDTH = TILE_ART_SIZE + UNDERWATER_WORLD_REFRACTION_PADDING_PX * 2;
 const FACE_HALF_WIDTH = 9;
 const COAST_FACE_ENDPOINT_OVERLAP_PX = 2;
+const TERRAIN_CONNECTOR_MAX_RENDER_LENGTH_PX = TILE_ART_SIZE * 2;
 const BEACH_SPECKLE_COUNT = 5;
 const BEACH_LIGHT_SPECKLE_COLOR = "rgba(255, 236, 151, 0.46)";
 const BEACH_DARK_SPECKLE_COLOR = "rgba(218, 184, 92, 0.26)";
@@ -2522,6 +2540,7 @@ const CHART_CONTINUITY_CORRECTION_LIMITS_BY_CLASS = new Map([
 const CLOUD_VIEWPORT_MARGIN_PX =
   CLOUD_SPRITE_FRAME_SIZE + CLOUD_DRIFT_PX + CLOUD_ANCHOR_JITTER_PX;
 const TERRAIN_ASSET_VERSION = "grassy-hills-1";
+const DISCRETE_WEATHER_ASSET_VERSION = "seasonal-snow-cover-1";
 const WORLD_DISCOVERY_ASSET_VERSION = "world-wonders-3";
 const VEHICLE_ASSET_VERSION = "jong-holk-1";
 const SHIP_WAKE_ANCHORS_URL = `assets/vehicles/unity-ships/wake-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
@@ -2600,7 +2619,8 @@ const WORLD_INTERACTION_VISUAL_PRIORITY = Object.freeze({
   whale: 30,
   raisedPort: 40,
   portLabel: 50,
-  ship: 60
+  ship: 60,
+  whaleAction: 70
 });
 const INTERACTION_BUTTON_W = 156;
 const INTERACTION_BUTTON_H = 28;
@@ -3318,6 +3338,9 @@ const WATER_FOREGROUND_LAYER_MARGIN_PX = 160;
 const pixelTextRasterCache = new Map();
 const pixelTextFontLayoutCache = new Map();
 const pixelTextWidthCache = new Map();
+let pixelTextScratchCanvas = null;
+let pixelTextScratchContext = null;
+let settledDialogueOverlayCache = null;
 let captureRenderedTextRecords = new Map();
 let captureLocalizedTextOutputs = new Set();
 const cityLabelRasterCache = new Map();
@@ -3410,6 +3433,7 @@ const shipInfoImages = new Map();
 const shipInfoImagePromises = new Map();
 let gameIconAtlasImage;
 let gameIconOutlineAtlasImage;
+let gameIconWhiteAtlasImage;
 let worldDiscoveryImages;
 let cityImages;
 let factionFlagImages;
@@ -4011,7 +4035,10 @@ async function main() {
     fetchJson(PORT_SAILING_DISTANCE_URL, "port sailing distances"),
     fetchJson(LAND_ROAD_URL, "land roads"),
     fetchEarthCache(),
-    fetchBinary("shared/discrete-weather-bake-7.bin", "discrete weather bake"),
+    fetchBinary(
+      `shared/discrete-weather-bake-7.bin?v=${DISCRETE_WEATHER_ASSET_VERSION}`,
+      "discrete weather bake"
+    ),
     fetchBinary("shared/globe-runtime-bake-7.bin", "globe runtime bake")
   ]);
   const initializationReady = Promise.all([shellReady, startupAssets]);
@@ -4056,6 +4083,7 @@ async function main() {
   shipLighting = null;
   gameIconAtlasImage = loadedGameIconAtlas;
   gameIconOutlineAtlasImage = createGameIconOutlineAtlas(loadedGameIconAtlas);
+  gameIconWhiteAtlasImage = createGameIconWhiteAtlas(loadedGameIconAtlas);
   cloudSpriteSheet = loadedCloudSpriteSheet;
   cloudAssemblyFrames = createCloudAssemblyFrames(loadedCloudSpriteSheet);
   worldDiscoveryImages = loadedWorldDiscoveryImages;
@@ -5354,30 +5382,55 @@ async function loadGameIconAtlas() {
 
 function createGameIconOutlineAtlas(image) {
   const dimensions = gameIconAtlasDimensions();
+  const source = readGameIconAtlasPixels(image, dimensions);
+  return createGameIconDerivedAtlas(
+    buildPixelIconOutlinePixels({
+      sourcePixels: source.data,
+      width: dimensions.width,
+      height: dimensions.height,
+      cells: gameIconIds().map(gameIconAtlasRect)
+    }),
+    dimensions,
+    "outline"
+  );
+}
+
+function createGameIconWhiteAtlas(image) {
+  const dimensions = gameIconAtlasDimensions();
+  const source = readGameIconAtlasPixels(image, dimensions);
+  return createGameIconDerivedAtlas(
+    buildPixelIconMonochromePixels({
+      sourcePixels: source.data,
+      width: dimensions.width,
+      height: dimensions.height,
+      color: { r: 255, g: 255, b: 255, a: 255 }
+    }),
+    dimensions,
+    "white"
+  );
+}
+
+function readGameIconAtlasPixels(image, dimensions) {
   const sourceCanvas = document.createElement("canvas");
   sourceCanvas.width = dimensions.width;
   sourceCanvas.height = dimensions.height;
   const sourceCtx = sourceCanvas.getContext("2d", { willReadFrequently: true });
-  if (!sourceCtx) throw new Error("Could not create game icon outline source canvas");
+  if (!sourceCtx) throw new Error("Could not create game icon source canvas");
   sourceCtx.imageSmoothingEnabled = false;
   sourceCtx.drawImage(image, 0, 0);
-  const source = sourceCtx.getImageData(0, 0, dimensions.width, dimensions.height);
-  const outlinePixels = buildPixelIconOutlinePixels({
-    sourcePixels: source.data,
-    width: dimensions.width,
-    height: dimensions.height,
-    cells: gameIconIds().map(gameIconAtlasRect)
-  });
+  return sourceCtx.getImageData(0, 0, dimensions.width, dimensions.height);
+}
 
-  const outlineCanvas = document.createElement("canvas");
-  outlineCanvas.width = dimensions.width;
-  outlineCanvas.height = dimensions.height;
-  const outlineCtx = outlineCanvas.getContext("2d");
-  if (!outlineCtx) throw new Error("Could not create game icon outline canvas");
-  const outline = outlineCtx.createImageData(dimensions.width, dimensions.height);
-  outline.data.set(outlinePixels);
-  outlineCtx.putImageData(outline, 0, 0);
-  return outlineCanvas;
+function createGameIconDerivedAtlas(pixels, dimensions, label) {
+  const canvas = document.createElement("canvas");
+  canvas.width = dimensions.width;
+  canvas.height = dimensions.height;
+  const derivedCtx = canvas.getContext("2d");
+  if (!derivedCtx) throw new Error(`Could not create game icon ${label} canvas`);
+  const imageData = derivedCtx.createImageData(dimensions.width, dimensions.height);
+  imageData.data.set(pixels);
+  derivedCtx.putImageData(imageData, 0, 0);
+  return canvas;
 }
 
 async function loadAlwaysVisibleAnimalImages() {
@@ -5708,11 +5761,12 @@ async function loadFactionFlagImages() {
   return new Map(entries);
 }
 
-function loadAssetImage(src, label) {
+function loadAssetImage(src, label, { retryDelaysMs } = {}) {
   return loadImageWithRetry({
     src,
     label,
     createImage: () => new Image(),
+    ...(retryDelaysMs ? { retryDelaysMs } : {}),
     beforeRetry: waitForVisiblePage
   });
 }
@@ -16870,6 +16924,7 @@ function activatePointerWorldInteraction(event, target) {
   if (target.kind === "port") openPortDialogue(target.call);
   else if (target.kind === "ship") openShipDialogue(target.call);
   else if (target.kind === "whale") startWhaleHarpoon(target.call);
+  else if (target.kind === "whale-finish") landWhaleKillingBlow();
   else if (target.kind === "fish") catchFishAtFishery(target.call);
   else throw new Error(`Unknown pointer interaction target kind: ${target.kind}`);
 }
@@ -18415,8 +18470,47 @@ function continuePortArrivalDialogues() {
       `port:${cityCall.tileId}`,
       cityCall.character
     ),
-    () => openPendingDiscoveryPortDialogue()
+    () => openPendingDiscoveryPortDialogue(),
+    () => maybeOpenCharacterHomecoming(cityCall)
   ]);
+}
+
+function maybeOpenCharacterHomecoming(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId)) return false;
+  const historianHomePort = portCities.find(isVikingLongshipQuestPort);
+  if (!historianHomePort) {
+    throw new Error("Character homecoming cannot resolve the Viking historian's home port");
+  }
+  const currentMinute = Math.floor(weatherClockMinutes);
+  const homecoming = nextCharacterHomecoming({
+    decisions: gameState.memory.decisions,
+    roster: currentAboardRoster(),
+    cityTileId: cityCall.tileId,
+    cityName: cityLabelText(cityCall),
+    currentMinute,
+    historianHomePortTileId: historianHomePort.tileId,
+    variantSeed: spriteKeyHash(
+      `${gameState.voyageSeed}|${cityCall.tileId}|${currentMinute}|crew-homecoming`
+    )
+  });
+  if (!homecoming) return false;
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: homecoming.character,
+      speakerCharacter: homecoming.character,
+      expressionId: homecoming.expressionId,
+      message: renderedUiText(homecoming.message)
+    })
+  ]);
+  if (!opened) return false;
+  recordCharacterHomecoming(
+    gameState.memory.decisions,
+    homecoming.character.id,
+    currentMinute
+  );
+  saveVoyageNow("crewmate greeted their home port");
+  return true;
 }
 
 function maybeOpenShipyardInvestmentOfferDialogue(cityCall) {
@@ -23185,7 +23279,10 @@ function activeInteractionTargets() {
   if (hunt) {
     const whale = whaleById(gameState.memory.whales, hunt.whaleId);
     if (whale.phase === WHALE_PHASE_TETHERED) return [{ kind: "whale-cut", call: whaleInteractionCall(whale) }];
-    if (whale.phase === WHALE_PHASE_EXHAUSTED) return [{ kind: "whale-finish", call: whaleInteractionCall(whale) }];
+    if (whale.phase === WHALE_PHASE_EXHAUSTED) {
+      const target = activeExhaustedWhaleFinishTarget();
+      return target ? [target] : [];
+    }
   }
   const targets = activePortCalls().map((call) => ({ kind: "port", call }));
   targets.push(...harpoonableWhaleCalls()
@@ -23195,6 +23292,15 @@ function activeInteractionTargets() {
   if (fishCall) targets.push({ kind: "fish", call: fishCall });
   targets.push(...activeNpcShipCalls().map((call) => ({ kind: "ship", call })));
   return targets;
+}
+
+function activeExhaustedWhaleFinishTarget() {
+  const hunt = gameState?.memory?.whales?.activeHunt;
+  if (!hunt) return null;
+  const whale = whaleById(gameState.memory.whales, hunt.whaleId);
+  if (whale.phase !== WHALE_PHASE_EXHAUSTED) return null;
+  const call = whaleInteractionCall(whale);
+  return call ? { kind: "whale-finish", call } : null;
 }
 
 function interactionTargetKey(target) {
@@ -23825,6 +23931,24 @@ function worldInteractionTargetAtPoint(point) {
       order: order++
     });
   };
+
+  const whaleFinishTarget = activeExhaustedWhaleFinishTarget();
+  if (whaleFinishTarget) {
+    const call = whaleFinishTarget.call;
+    const whaleRect = whaleTargetRect(call, SHIP_SHEET_FRAME_SIZE);
+    const iconRect = whaleKillingBlowIndicatorHitRect(call, SHIP_SHEET_FRAME_SIZE, lastFrameMs);
+    const iconHit = pointInRect(point, iconRect);
+    if (iconHit || pointInRect(point, whaleRect)) {
+      addCandidate(
+        whaleFinishTarget,
+        iconHit || pointHitsRenderedWhalePixel(point, call, lastFrameMs),
+        WORLD_INTERACTION_VISUAL_PRIORITY.whaleAction,
+        call.x,
+        call.y,
+        iconHit
+      );
+    }
+  }
 
   for (const call of chart.cityCalls || []) {
     if (call.hiddenSettlement || !portCallInInteractionRange(call)) continue;
@@ -24832,21 +24956,13 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     CHART_REPAIR_CLOUD_MIN_SPEED_PX_PER_SECOND,
     windDrivenCloudSpeedPxPerSecond * CHART_REPAIR_CLOUD_SPEED_SCALE
   ));
-  const frameWideRepair = repair.frameWide === true;
-  const localRepair = repair.kind === "partial-cloud" && !frameWideRepair;
-  if (repair.kind === "full-cloud" && !frameWideRepair) {
-    throw new Error("Full chart cloud repair requires a frame-wide fault");
+  if (repair.kind !== "partial-cloud" || repair.frameWide === true) {
+    throw new Error(`Chart cloud repair cannot handle ${repair.kind} frameWide=${repair.frameWide}`);
   }
   const localFault = repair.fault || { x: SCREEN_W / 2, y: SCREEN_H / 2, sizePx: 0 };
-  const repairTarget = frameWideRepair
-    ? { x: SCREEN_W / 2, y: SCREEN_H / 2 }
-    : nearestChartRepairTarget(localFault);
-  const repairWidth = frameWideRepair
-    ? SCREEN_W
-    : Math.max(56, Math.min(96, localFault.sizePx + TILE_ART_SIZE));
-  const repairHeight = frameWideRepair
-    ? SCREEN_H
-    : repairWidth;
+  const repairTarget = nearestChartRepairTarget(localFault);
+  const repairWidth = Math.max(56, Math.min(96, localFault.sizePx + TILE_ART_SIZE));
+  const repairHeight = repairWidth;
   const animation = createChartRepairCloudBank({
     nowMs,
     viewportWidth: SCREEN_W,
@@ -24865,14 +24981,14 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   const repairPlan = planConcealedChartTileRepairs(plannedTileIds);
   chartRepairCloudBank = {
     animation,
-    mode: localRepair ? "local" : "full",
+    mode: "local",
     nextTileRepairAtMs: nowMs,
     repairedTileIds: new Set(),
     repairedCount: 0,
     repairPlan
   };
   chartVisualRepairStats.cloudBanksStarted++;
-  if (localRepair) chartVisualRepairStats.partialCloudBanksStarted++;
+  chartVisualRepairStats.partialCloudBanksStarted++;
   chartVisualRepairStats.cloudBankSecondsScheduled += animation.durationMs / 1000;
   chartVisualRepairStats.cloudTargetViewportEquivalents +=
     animation.targetWidth * animation.targetHeight / (SCREEN_W * SCREEN_H);
@@ -24925,7 +25041,7 @@ function updateChartVisualRepair(nowMs) {
       const cloudOffset = layoutOffsetPixels();
       const repairedCount = repairCloudCoveredChartTiles(
         frame,
-        state.mode === "local" ? "local cloud bank" : "cloud bank",
+        "local cloud bank",
         state.repairedTileIds,
         state.repairPlan,
         severeCloudDistortion ? 4 : 1,
@@ -24947,8 +25063,7 @@ function updateChartVisualRepair(nowMs) {
     }
     if (frame.finished) {
       if (state.repairedCount > 0) {
-        if (state.mode === "local") chartVisualRepairStats.partialCloudRedrawsCompleted++;
-        else chartVisualRepairStats.cloudReframesCompleted++;
+        chartVisualRepairStats.partialCloudRedrawsCompleted++;
       }
       chartRepairCloudBank = null;
       const pendingTileRepairs = coveredChartRepairQueue.size > 0;
@@ -25233,6 +25348,7 @@ function repairCloudCoveredChartTiles(
     ),
     shouldRepairTile: (id) => repairPlan.has(id),
     repairPlan,
+    settlementSupportTileIds: new Set(repairPlan.keys()),
     maximumStepPx,
     maximumStepPxForTile
   });
@@ -25246,6 +25362,7 @@ function repairCoveredChartTiles({
   fullyCoversCircle,
   shouldRepairTile = () => true,
   repairPlan = null,
+  settlementSupportTileIds = null,
   maximumStepPx = 1,
   maximumStepPxForTile = null
 }) {
@@ -25266,6 +25383,9 @@ function repairCoveredChartTiles({
   }
   if (repairPlan !== null && !(repairPlan instanceof Map)) {
     throw new Error(`Covered chart repair ${reason} requires a position plan as a map`);
+  }
+  if (settlementSupportTileIds !== null && !(settlementSupportTileIds instanceof Set)) {
+    throw new Error(`Covered chart repair ${reason} requires settlement support as a set`);
   }
   if (!Number.isInteger(maximumStepPx) || maximumStepPx <= 0) {
     throw new Error(`Covered chart repair ${reason} requires a positive pixel step`);
@@ -25303,6 +25423,12 @@ function repairCoveredChartTiles({
   const repairableIds = removedIds.filter((id) => repairPlan === null || repairPlan.has(id));
   if (repairableIds.length === 0) return { movedTileIds: [], completedTileIds: [] };
   const repairableTileIds = new Set(repairableIds);
+  const settlementTileIds = settlementSupportTileIds === null
+    ? repairableTileIds
+    : new Set([...settlementSupportTileIds].filter((id) => (
+        localLayout.positions.has(id) && repairPlan?.has(id)
+      )));
+  for (const id of repairableTileIds) settlementTileIds.add(id);
   const maximumStepPxById = maximumStepPxForTile === null
     ? null
     : new Map(repairableIds.map((id) => [id, maximumStepPxForTile(id)]));
@@ -25311,7 +25437,8 @@ function repairCoveredChartTiles({
     completedTileIds,
     targetsById: effectiveRepairPlan
   } = planNorthUpChartSettlement({
-    tileIds: repairableTileIds,
+    tileIds: settlementTileIds,
+    appliedTileIds: repairableTileIds,
     maximumStepPx,
     maximumStepPxById,
     incrementalRepair: true
@@ -25419,12 +25546,16 @@ function planConcealedChartTileRepairs(tileIds) {
 
 function planNorthUpChartSettlement({
   tileIds,
+  appliedTileIds = tileIds,
   maximumStepPx,
   maximumStepPxById = null,
   incrementalRepair
 }) {
   if (!(tileIds instanceof Set)) {
     throw new Error("North-up chart settlement requires tile ids as a set");
+  }
+  if (!(appliedTileIds instanceof Set)) {
+    throw new Error("North-up chart settlement requires applied tile ids as a set");
   }
   if (typeof incrementalRepair !== "boolean") {
     throw new Error("North-up chart settlement requires an explicit repair mode");
@@ -25439,6 +25570,7 @@ function planNorthUpChartSettlement({
   return planChartLayoutTransaction({
     positions: localLayout.positions,
     tileIds,
+    appliedTileIds,
     neighborsById: graph.neighbors,
     surfaceMaskById: chartSurfaceContinuityMask,
     referencePositionsForIds: (ids) => exactNorthUpLayoutTargets(ids),
@@ -35814,6 +35946,9 @@ function fitCanvasToDisplay() {
 
 function applyResponsiveViewport(width, height) {
   if (width === SCREEN_W && height === SCREEN_H) return;
+  // A captured source frame has the old viewport dimensions and cannot be
+  // composited into a resized modal transition.
+  cancelChartModalReframeTransition();
   SCREEN_W = width;
   SCREEN_H = height;
   worldFramePresented = false;
@@ -36875,46 +37010,50 @@ function render(nowMs) {
 }
 
 function drawWorldInterface(nowMs) {
-  drawOverboardCrewLabels(nowMs);
-  drawCombatBroadsideControls();
-  drawSelectableInteractionOutlines(nowMs);
-  drawWindIndicator(nowMs);
-  if (minimapShouldBeVisible()) drawMinimap(nowMs);
-  drawSurvivalMeters();
-  drawStatusPersonParticles(nowMs);
-  drawStormStatus(nowMs);
-  drawCombatNotice(nowMs);
-  drawFishCatchNotice(nowMs);
-  drawSurvivalNotice(nowMs);
-  if (portWaitState) {
-    drawPortWaitControls(nowMs);
-  } else {
-    drawAnchorButton(nowMs);
-    drawScavengeButton();
-    drawInteractionButton();
-  }
-  beginWaypointArrowFrame();
-  drawQuestDestinationArrow(nowMs);
-  drawQuestShipArrows(nowMs);
-  drawRescuedTravelerDestinationArrows(nowMs);
-  drawFetchQuestDestinationArrows(nowMs);
-  drawColonizationDestinationArrow(nowMs);
-  drawCampaignGoalDestinationArrow(nowMs);
-  drawNaturalistDestinationArrow(nowMs);
-  drawPapalCommissionDestinationArrow(nowMs);
-  drawHospitallerMaltaDestinationArrow(nowMs);
-  drawPortNavigationHeadingArrow(nowMs);
-  drawWaypointArrowTooltip();
-  drawSurvivalHudTooltip();
-  drawDiscoveryNotice(nowMs);
-  if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
-  if (dialogueOverlayIsVisible({
+  const dialogueVisible = dialogueOverlayIsVisible({
     dialogueActive: Boolean(dialogueState),
     characterAlertActive: Boolean(captainAlertModal)
-  })) {
+  });
+  if (!dialogueVisible) {
+    drawWhaleKillingBlowIndicator(nowMs);
+    drawOverboardCrewLabels(nowMs);
+    drawCombatBroadsideControls();
+    drawSelectableInteractionOutlines(nowMs);
+    drawWindIndicator(nowMs);
+    if (minimapShouldBeVisible()) drawMinimap(nowMs);
+    drawSurvivalMeters();
+    drawStatusPersonParticles(nowMs);
+    drawStormStatus(nowMs);
+    drawCombatNotice(nowMs);
+    drawFishCatchNotice(nowMs);
+    drawSurvivalNotice(nowMs);
+    if (portWaitState) {
+      drawPortWaitControls(nowMs);
+    } else {
+      drawAnchorButton(nowMs);
+      drawScavengeButton();
+      drawInteractionButton();
+    }
+    beginWaypointArrowFrame();
+    drawQuestDestinationArrow(nowMs);
+    drawQuestShipArrows(nowMs);
+    drawRescuedTravelerDestinationArrows(nowMs);
+    drawFetchQuestDestinationArrows(nowMs);
+    drawColonizationDestinationArrow(nowMs);
+    drawCampaignGoalDestinationArrow(nowMs);
+    drawNaturalistDestinationArrow(nowMs);
+    drawPapalCommissionDestinationArrow(nowMs);
+    drawHospitallerMaltaDestinationArrow(nowMs);
+    drawPortNavigationHeadingArrow(nowMs);
+    drawWaypointArrowTooltip();
+    drawSurvivalHudTooltip();
+    drawDiscoveryNotice(nowMs);
+    if (DEBUG_STATUS_ENABLED) drawTinyStatus(nowMs);
+  }
+  if (dialogueVisible) {
     measurePerformanceBenchmarkStage("render.dialogue", () => drawDialogueOverlay(nowMs));
   }
-  drawCaptainMenuButton();
+  if (!dialogueVisible) drawCaptainMenuButton();
   if (discoveriesMenu.isOpen) {
     measurePerformanceBenchmarkStage("render.discoveries", drawDiscoveriesMenu);
   }
@@ -40013,12 +40152,14 @@ function drawCaptainMenuItemIcon(index, x, y, active) {
 function drawGameIcon(iconId, x, y, options = {}) {
   if (!gameIconAtlasImage) throw new Error("Game icon atlas is not loaded");
   if (!gameIconOutlineAtlasImage) throw new Error("Game icon outline atlas is not initialized");
+  if (!gameIconWhiteAtlasImage) throw new Error("Game icon white atlas is not initialized");
   if (!options || typeof options !== "object" || Array.isArray(options)) {
     throw new Error("Game icon options must be an object");
   }
-  const { alpha = 1, contrastOutline = false } = options;
+  const { alpha = 1, contrastOutline = false, white = false } = options;
   if (!Number.isFinite(alpha) || alpha < 0 || alpha > 1) throw new Error(`Invalid game icon alpha: ${alpha}`);
   if (typeof contrastOutline !== "boolean") throw new Error(`Invalid game icon outline mode: ${contrastOutline}`);
+  if (typeof white !== "boolean") throw new Error(`Invalid game icon white mode: ${white}`);
   const source = gameIconAtlasRect(iconId);
   const destination = gameIconDrawRect(x, y);
   ctx.save();
@@ -40038,7 +40179,7 @@ function drawGameIcon(iconId, x, y, options = {}) {
     );
   }
   ctx.drawImage(
-    gameIconAtlasImage,
+    white ? gameIconWhiteAtlasImage : gameIconAtlasImage,
     source.x,
     source.y,
     source.w,
@@ -47103,11 +47244,11 @@ function pixelTextRaster(text, font, color, measuredWidth) {
 
   const width = Math.max(1, measuredWidth);
   const layout = pixelTextFontLayout(font);
-  const scratch = document.createElement("canvas");
-  scratch.width = width + layout.padding * 2;
-  scratch.height = layout.scratchHeight;
-  const scratchCtx = scratch.getContext("2d", { willReadFrequently: true });
-  if (!scratchCtx) throw new Error(`Could not create pixel text scratch raster for: ${text}`);
+  const scratchCtx = reusablePixelScratchSurface(
+    width + layout.padding * 2,
+    layout.scratchHeight
+  );
+  scratchCtx.clearRect(0, 0, pixelTextScratchCanvas.width, pixelTextScratchCanvas.height);
   scratchCtx.imageSmoothingEnabled = false;
   scratchCtx.font = font;
   scratchCtx.textAlign = "left";
@@ -47135,6 +47276,27 @@ function pixelTextRaster(text, font, color, measuredWidth) {
   }
   pixelTextRasterCache.set(key, raster);
   return raster;
+}
+
+function reusablePixelScratchSurface(requiredWidth, requiredHeight) {
+  if (!Number.isInteger(requiredWidth) || requiredWidth <= 0 ||
+      !Number.isInteger(requiredHeight) || requiredHeight <= 0) {
+    throw new Error(`Pixel text scratch raster has invalid dimensions: ${requiredWidth}x${requiredHeight}`);
+  }
+  if (!pixelTextScratchCanvas) {
+    pixelTextScratchCanvas = document.createElement("canvas");
+    pixelTextScratchContext = pixelTextScratchCanvas.getContext("2d", { willReadFrequently: true });
+    if (!pixelTextScratchContext) throw new Error("Could not create reusable pixel text scratch raster");
+  }
+  const width = Math.max(pixelTextScratchCanvas.width, nextPowerOfTwo(requiredWidth));
+  const height = Math.max(pixelTextScratchCanvas.height, nextPowerOfTwo(requiredHeight));
+  if (pixelTextScratchCanvas.width !== width) pixelTextScratchCanvas.width = width;
+  if (pixelTextScratchCanvas.height !== height) pixelTextScratchCanvas.height = height;
+  return pixelTextScratchContext;
+}
+
+function nextPowerOfTwo(value) {
+  return 2 ** Math.ceil(Math.log2(value));
 }
 
 function pixelTextFontLayout(font) {
@@ -47736,6 +47898,13 @@ function terrainConnectorGeometry(call, activeChart) {
   const dy = sourceBy - sourceAy;
   const len = Math.hypot(dx, dy);
   if (len < TILE_RADIUS_PX * 1.7) return null;
+  // Connectors bridge ordinary elastic spacing between neighboring tiles. A
+  // longer span is a chart-integrity fault, not shoreline art; rasterizing it
+  // creates a huge animated atlas precisely when the chart is already under
+  // repair pressure.
+  if (!terrainConnectorLengthIsRenderable(len, TERRAIN_CONNECTOR_MAX_RENDER_LENGTH_PX)) {
+    return null;
+  }
 
   const ux = dx / len;
   const uy = dy / len;
@@ -54506,6 +54675,14 @@ function discoveryNoticePanelHeight(nowMs) {
   return discoveryNoticeTextLayout(discoveryNotice.discovery).height;
 }
 
+function drawWhaleKillingBlowIndicator(nowMs) {
+  if (dialogueState || menusAreOpen() || gameOverReason) return;
+  const target = activeExhaustedWhaleFinishTarget();
+  if (!target) return;
+  const rect = whaleKillingBlowIndicatorRect(target.call, SHIP_SHEET_FRAME_SIZE, nowMs);
+  drawGameIcon("action:harpoon", rect.x, rect.y, { white: true });
+}
+
 function drawInteractionButton() {
   interactionButtonRect = null;
   interactionButtonTarget = null;
@@ -56457,6 +56634,32 @@ function drawDialogueOverlay(nowMs) {
     drawVesselDecisionDialogueOverlay(view);
     return;
   }
+  const cacheBase = settledDialogueOverlayCacheBase(view, subject);
+  if (!lakeBattleMode && settledDialogueOverlayCacheBaseMatches(
+    settledDialogueOverlayCache?.key,
+    cacheBase
+  )) {
+    ctx.drawImage(settledDialogueOverlayCache.canvas, 0, 0);
+    return;
+  }
+  const portraitStage = synchronizeCurrentDialoguePortraitStage(nowMs, view);
+  if (!lakeBattleMode && !portraitStage.animating) {
+    const cacheKey = settledDialogueOverlayCacheKey(cacheBase, portraitStage);
+    if (settledDialogueOverlayCacheKeyMatches(settledDialogueOverlayCache?.key, cacheKey)) {
+      ctx.drawImage(settledDialogueOverlayCache.canvas, 0, 0);
+      return;
+    }
+    const overlayCanvas = rasterizeSettledDialogueOverlay(() => {
+      drawDialogueOverlayContent(nowMs, subject, view, portraitStage);
+    });
+    settledDialogueOverlayCache = { key: cacheKey, canvas: overlayCanvas };
+    ctx.drawImage(overlayCanvas, 0, 0);
+    return;
+  }
+  drawDialogueOverlayContent(nowMs, subject, view, portraitStage);
+}
+
+function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   const dialogueFont = PIXEL_FONT_DIALOGUE_8;
   const dialogueLineHeight = localizedLineHeight(12);
   const portFaction = dialogueState.kind === "port" ? factionById(subject.factionId) : null;
@@ -56528,7 +56731,6 @@ function drawDialogueOverlay(nowMs) {
       : [];
   }
 
-  const portraitStage = synchronizeCurrentDialoguePortraitStage(nowMs, view);
   const stagedPortraits = [...portraitStage.frames].sort((a, b) => (
     Number(a.characterId === subject.character.id) - Number(b.characterId === subject.character.id)
   ));
@@ -56588,6 +56790,69 @@ function drawDialogueOverlay(nowMs) {
 
   const optionX = textX;
   drawDialogueOptions(view, optionX, safeOptions.y, optionW, optionBottom, dialogueFont);
+}
+
+function settledDialogueOverlayCacheBase(view, subject) {
+  if (!view || !subject?.character?.id) {
+    throw new Error("Settled dialogue overlay cache requires a dialogue view and subject");
+  }
+  return {
+    view,
+    characterId: subject.character.id,
+    selectedIndex: dialogueState.selectedIndex,
+    scrollOffset: dialogueLayout.scrollOffset,
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H
+  };
+}
+
+function rasterizeSettledDialogueOverlay(drawContent) {
+  if (typeof drawContent !== "function") {
+    throw new Error("Settled dialogue overlay raster requires drawing work");
+  }
+  const canvas = settledDialogueOverlayCache?.canvas || document.createElement("canvas");
+  canvas.width = SCREEN_W;
+  canvas.height = SCREEN_H;
+  const overlayCtx = canvas.getContext("2d");
+  if (!overlayCtx) throw new Error("Could not create settled dialogue overlay cache");
+  overlayCtx.imageSmoothingEnabled = false;
+  const previousCtx = ctx;
+  ctx = overlayCtx;
+  try {
+    drawContent();
+  } finally {
+    ctx = previousCtx;
+  }
+  return canvas;
+}
+
+function settledDialogueOverlayCacheKey(base, portraitStage) {
+  if (!base || !portraitStage?.frames) {
+    throw new Error("Settled dialogue overlay cache requires a complete dialogue frame");
+  }
+  const portraits = portraitStage.frames.map((frame) => (
+    `${frame.characterId}:${frame.expressionId}:${frame.side}:${frame.tone}:${frame.offsetY}`
+  )).join("|");
+  return {
+    ...base,
+    portraits
+  };
+}
+
+function settledDialogueOverlayCacheBaseMatches(a, b) {
+  return Boolean(
+    a && b &&
+    a.view === b.view &&
+    a.characterId === b.characterId &&
+    a.selectedIndex === b.selectedIndex &&
+    a.scrollOffset === b.scrollOffset &&
+    a.screenWidth === b.screenWidth &&
+    a.screenHeight === b.screenHeight
+  );
+}
+
+function settledDialogueOverlayCacheKeyMatches(a, b) {
+  return settledDialogueOverlayCacheBaseMatches(a, b) && a.portraits === b.portraits;
 }
 
 function dialogueTextToneColor(tone, fallback) {
@@ -57641,7 +57906,9 @@ function loadPortraitExpressionImage(expression, label) {
   const sourceUrl = `${expression.src}?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
   let sourcePromise = portraitSourcePromiseCache.get(sourceUrl);
   if (!sourcePromise) {
-    sourcePromise = loadAssetImage(sourceUrl, label).catch((error) => {
+    sourcePromise = loadAssetImage(sourceUrl, label, {
+      retryDelaysMs: STREAMED_IMAGE_RETRY_DELAYS_MS
+    }).catch((error) => {
       portraitSourcePromiseCache.delete(sourceUrl);
       throw error;
     });

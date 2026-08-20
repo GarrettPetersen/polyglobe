@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -58,4 +59,17 @@ test("modal reframe waves reject malformed viewports and tile positions", () => 
     oldPosition: null,
     newPosition: { x: 2, y: 3 }
   }), /old position or fallback offset/);
+});
+
+test("viewport resizing cancels a captured modal reframe before changing dimensions", async () => {
+  const source = await readFile(new URL("./main.js", import.meta.url), "utf8");
+  const resizeBody = source.match(
+    /function applyResponsiveViewport\(width, height\) \{[\s\S]*?\n\}/
+  )?.[0];
+  assert.ok(resizeBody, "responsive viewport function is missing");
+  assert.ok(
+    resizeBody.indexOf("cancelChartModalReframeTransition();") <
+      resizeBody.indexOf("SCREEN_W = width;"),
+    "viewport dimensions changed before the stale modal source was released"
+  );
 });
