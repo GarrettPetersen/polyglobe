@@ -54,7 +54,7 @@ const allCases = [
     tiltDeg: 3.5,
     distortionScale: 1.07,
     speedRatio: 0.35,
-    durationSeconds: 48,
+    durationSeconds: 96,
     deterministicTravelPx: 90,
     passiveOnly: false,
     allowDialogue: false,
@@ -66,7 +66,7 @@ const allCases = [
     maximumObservedVisibleTiltDeg: 6,
     maximumObservedUnobscuredTearPx: 10,
     maximumObservedUnobscuredWaterTearPx: 18,
-    requireCloudCoveredTileMovement: true
+    requireFogCoveredTileMovement: true
   },
   {
     id: "scandinavian-coast-preventive",

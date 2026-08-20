@@ -2,6 +2,8 @@ import { fogLayerRgba } from "./stormPresentation.js";
 import { PERMANENT_POLAR_CAP_LATITUDE_DEG } from "./polarChartPresentation.js";
 
 export const CHART_FOG_REDRAW_CONCEALMENT = 0.82;
+export const CHART_FOG_REPAIR_BEGIN_CONCEALMENT = 0.18;
+export const CHART_FOG_INCREMENTAL_REPAIR_DENSITY = 0.2;
 export const CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY = 0.72;
 const POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG = 54;
 const POLAR_REPAIR_FOG_CLEAR_LATITUDE_DEG = 42;
@@ -93,7 +95,7 @@ export function chartRepairFogFrame(fog, nowMs, release = null) {
     fadeBandPx: fog.fadeBandPx,
     raggednessPx: 13,
     denseFogRadius: clearRadius + fog.fadeBandPx + 13,
-    repairReady: edgeOpacity >= CHART_FOG_REDRAW_CONCEALMENT && !finished,
+    repairReady: edgeOpacity >= CHART_FOG_REPAIR_BEGIN_CONCEALMENT && !finished,
     finished
   });
 }
@@ -319,15 +321,11 @@ export function chartFogConcealsCircleForRepair(frame, x, y, radius = 0) {
   ) {
     throw new Error("Chart fog repair coverage requires valid fog geometry");
   }
-  // Full-opacity fog can replace a tile immediately. The visible, ragged fog
-  // band can still conceal a one-pixel interpolation step, so it should not
-  // wait for the whole fade band to become dense before repairing the chart.
-  // The tile may remain partially legible at this boundary, which is why the
-  // caller must interpolate rather than replace it. Requiring its full visual
-  // radius to enter the band made polar fog incapable of repairing landscape
-  // viewports: a 42px tile could not fit between the clear center and screen.
-  return Math.hypot(x - frame.focusX, y - frame.focusY) >=
-    frame.clearRadius + frame.raggednessPx;
+  // A visible ragged fog layer can conceal a one-pixel interpolation step, so
+  // use the density actually drawn at this tile rather than the most distant
+  // possible fringe. Dense fog still permits the caller's larger hidden step.
+  return chartFogPixelDensityUnchecked(frame, x, y) >=
+    CHART_FOG_INCREMENTAL_REPAIR_DENSITY;
 }
 
 export function chartFogPixelDensity(frame, x, y) {

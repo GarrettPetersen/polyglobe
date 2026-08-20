@@ -15,6 +15,22 @@ export const CHART_IMMEDIATE_REPAIR_MAX_DISTORTION_PX = 24;
 export const CHART_CLOSING_FOG_ROTATION_DEG = 6;
 export const CHART_CLOSING_FOG_RMS_PX = 20;
 export const CHART_CLOSING_FOG_MAX_DISTORTION_PX = 36;
+export const CHART_PARTIAL_CLOUD_ESCALATION_MS = 3_000;
+
+export function activePartialCloudRepairNeedsEscalation({
+  drift,
+  terrainTear,
+  elapsedMs
+}) {
+  if (!drift || !terrainTear || !Number.isFinite(elapsedMs) || elapsedMs < 0) {
+    throw new Error("Active chart cloud escalation requires drift, tear, and elapsed time");
+  }
+  if (elapsedMs < CHART_PARTIAL_CLOUD_ESCALATION_MS) return false;
+  return Math.abs(drift.rotationDeg) >= CHART_IMMEDIATE_REPAIR_ROTATION_DEG ||
+    drift.rmsDistortionPx >= CHART_IMMEDIATE_REPAIR_RMS_PX ||
+    drift.maxDistortionPx >= CHART_IMMEDIATE_REPAIR_MAX_DISTORTION_PX ||
+    terrainTear.extraPx >= CHART_IMMEDIATE_REPAIR_FAULT_PX;
+}
 
 export function chartVisualRepairMayEnterCooldown({ pendingTileRepairs, faultRemains }) {
   if (typeof pendingTileRepairs !== "boolean" || typeof faultRemains !== "boolean") {
@@ -32,7 +48,8 @@ export function chooseChartVisualRepair({
   swellRepairAvailable,
   distortionSurface,
   polarFogCoversFault = false,
-  heatHazeAvailable = false
+  heatHazeAvailable = false,
+  partialCloudFailed = false
 }) {
   if (!drift || !terrainTear || !distortionPoint) {
     throw new Error("Chart visual repair policy requires drift, tear, and distortion metrics");
@@ -52,6 +69,9 @@ export function chooseChartVisualRepair({
   }
   if (typeof heatHazeAvailable !== "boolean") {
     throw new Error("Chart visual repair policy requires an explicit heat-haze state");
+  }
+  if (typeof partialCloudFailed !== "boolean") {
+    throw new Error("Chart visual repair policy requires an explicit partial-cloud state");
   }
   if (![null, "water", "land", "coast"].includes(distortionSurface)) {
     throw new Error(`Chart visual repair policy has invalid distortion surface: ${distortionSurface}`);
@@ -112,7 +132,7 @@ export function chooseChartVisualRepair({
         confirmationMs
       });
     }
-    const closingFogRequired = Math.abs(drift.rotationDeg) >=
+    const closingFogRequired = partialCloudFailed || Math.abs(drift.rotationDeg) >=
         CHART_CLOSING_FOG_ROTATION_DEG ||
       drift.rmsDistortionPx >= CHART_CLOSING_FOG_RMS_PX ||
       drift.maxDistortionPx >= CHART_CLOSING_FOG_MAX_DISTORTION_PX;

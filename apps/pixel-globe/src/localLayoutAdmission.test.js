@@ -1344,6 +1344,14 @@ test("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geogr
     `No-stop world circuit exceeded its emergency tilt bound at ` +
       `${result.maxRotationDeg.toFixed(2)} degrees`
   );
+  assert.ok(
+    result.maxRmsDistortionPx <= 16,
+    `No-stop world circuit reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxDistortionPx <= 32,
+    `No-stop world circuit reached ${result.maxDistortionPx.toFixed(2)}px peak distortion`
+  );
   assert.equal(
     result.missingVisibleLandNeighbors,
     0,
@@ -1430,6 +1438,44 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
       )).join("/")})`
   );
   assertTraversalRepairBurden(result, "Mediterranean crossing", 25);
+});
+
+test("a northeast Asia coastal passage keeps distortion below telemetry limits", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [49.55, 118.0],
+        [52.0, 126.0],
+        [54.5, 136.0],
+        [56.5, 145.0],
+        [58.81, 152.29],
+        [61.43, 162.65]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("northeast-asia", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRotationDeg <= 6,
+    `Northeast Asia chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
+  );
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `Northeast Asia chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeGapPx <= 10,
+    `Northeast Asia chart opened a ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
+  );
+  assertLandTraversalIsContinuous(result, "Northeast Asia coastal passage");
 });
 
 test("a Cape-to-Portugal Atlantic loop reaches Madeira with an intact coast", () => {

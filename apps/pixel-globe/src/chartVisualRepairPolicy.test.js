@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   CHART_SEVERE_REPAIR_CONFIRMATION_MS,
   CHART_WEATHER_REPAIR_CONFIRMATION_MS,
+  activePartialCloudRepairNeedsEscalation,
   advanceChartWeatherRepairConfirmation,
   chartVisualRepairMayEnterCooldown,
   chooseChartVisualRepair
@@ -78,6 +79,26 @@ test("moderate broad rotation tries a sparse repair before closing fog", () => {
   assert.equal(candidate.kind, "partial-cloud");
   assert.equal(candidate.frameWide, false);
   assert.equal(candidate.broadFault, true);
+});
+
+test("a slow local cloud yields when severe frame distortion persists", () => {
+  const drift = { ...calm, rotationDeg: 3.7, rmsDistortionPx: 12.6, maxDistortionPx: 15.1 };
+  assert.equal(activePartialCloudRepairNeedsEscalation({
+    drift,
+    terrainTear: attachedTerrain,
+    elapsedMs: 2_999
+  }), false);
+  assert.equal(activePartialCloudRepairNeedsEscalation({
+    drift,
+    terrainTear: attachedTerrain,
+    elapsedMs: 3_000
+  }), true);
+  assert.equal(repairKind({
+    drift,
+    terrainTear: attachedTerrain,
+    distortionSurface: "land",
+    partialCloudFailed: true
+  }), "closing-fog");
 });
 
 test("hot dry rotation uses ambient heat haze before summoning clouds", () => {
@@ -315,7 +336,8 @@ function repairKind({
   polarFogCoversFault = false,
   swellRepairAvailable = false,
   distortionSurface = "land",
-  heatHazeAvailable = false
+  heatHazeAvailable = false,
+  partialCloudFailed = false
 }) {
   return repairCandidate({
     drift,
@@ -323,7 +345,8 @@ function repairKind({
     polarFogCoversFault,
     swellRepairAvailable,
     distortionSurface,
-    heatHazeAvailable
+    heatHazeAvailable,
+    partialCloudFailed
   }).kind;
 }
 
@@ -333,7 +356,8 @@ function repairCandidate({
   polarFogCoversFault = false,
   swellRepairAvailable = false,
   distortionSurface = "land",
-  heatHazeAvailable = false
+  heatHazeAvailable = false,
+  partialCloudFailed = false
 }) {
   return chooseChartVisualRepair({
     ...viewport,
@@ -343,6 +367,7 @@ function repairCandidate({
     swellRepairAvailable,
     distortionSurface,
     polarFogCoversFault,
-    heatHazeAvailable
+    heatHazeAvailable,
+    partialCloudFailed
   });
 }

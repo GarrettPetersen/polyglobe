@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   CHART_FOG_REDRAW_CONCEALMENT,
+  CHART_FOG_INCREMENTAL_REPAIR_DENSITY,
+  CHART_FOG_REPAIR_BEGIN_CONCEALMENT,
   CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY,
   chartFogConcealsCircleForRepair,
   chartFogObscuresCircle,
@@ -27,6 +29,7 @@ test("repair fog progressively hides distant geography before clearing", () => {
   });
   const open = chartRepairFogFrame(fog, 100);
   const rim = chartRepairFogFrame(fog, 100 + fog.formationDurationMs / 2);
+  const firstRepair = chartRepairFogFrame(fog, 100 + fog.formationDurationMs * 0.3);
   const nearlyClosed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs * 0.999);
   const redrawReady = chartRepairFogFrame(fog, 100 + fog.formationDurationMs * 0.75);
   const closed = chartRepairFogFrame(fog, 100 + fog.formationDurationMs);
@@ -37,6 +40,8 @@ test("repair fog progressively hides distant geography before clearing", () => {
   assert.ok(fog.durationMs > 220_000);
   assert.equal(open.edgeOpacity, 0);
   assert.ok(open.clearRadius > 290);
+  assert.ok(firstRepair.edgeOpacity >= CHART_FOG_REPAIR_BEGIN_CONCEALMENT);
+  assert.equal(firstRepair.repairReady, true);
   assert.equal(chartFogObscuresCircle(rim, 227, 128, 12), false);
   assert.equal(chartFogObscuresCircle(rim, 4, 4, 4), false);
   assert.ok(redrawReady.edgeOpacity >= CHART_FOG_REDRAW_CONCEALMENT);
@@ -365,4 +370,6 @@ test("fog permits gradual repair in its visible band before full concealment", (
 
   assert.equal(chartFogConcealsCircleForRepair(fog, repairBandX, fog.focusY, 12), true);
   assert.equal(chartFogObscuresCircle(fog, repairBandX, fog.focusY, 12), false);
+  assert.ok(chartFogPixelDensity(fog, repairBandX, fog.focusY) >=
+    CHART_FOG_INCREMENTAL_REPAIR_DENSITY);
 });

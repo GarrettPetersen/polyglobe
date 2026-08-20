@@ -34,7 +34,8 @@ export function collectCapturePageErrors(page, errors) {
   });
   page.on("pageerror", (error) => errors.push(error.message));
   page.on("response", (response) => {
-    if (response.status() >= 400 && !response.url().endsWith(".chunks.json")) {
+    const responsePath = new URL(response.url()).pathname;
+    if (response.status() >= 400 && !responsePath.endsWith(".chunks.json")) {
       errors.push(`HTTP ${response.status()} ${response.url()}`);
     }
   });

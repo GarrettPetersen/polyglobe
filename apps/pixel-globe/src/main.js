@@ -1978,6 +1978,7 @@ import {
   observeChartIntegrityTelemetry
 } from "./chartIntegrityTelemetry.js";
 import {
+  activePartialCloudRepairNeedsEscalation,
   advanceChartWeatherRepairConfirmation,
   chartVisualRepairMayEnterCooldown,
   chooseChartVisualRepair
@@ -24512,9 +24513,9 @@ function sampleChartIntegrityTelemetry(nowMs) {
 }
 
 function currentChartIntegrityRepairKind(nowMs) {
-  if (chartRepairCloudBank) return "cloud-bank";
   if (chartRepairFog) return "closing-fog";
   if (chartRepairHeatHaze) return "heat-haze";
+  if (chartRepairCloudBank) return "cloud-bank";
   if (currentPolarChartFogFrame()) return "polar-fog";
   if (nowMs < chartRepairSwellUntilMs) return "ocean-swell";
   if (chartRepairPendingConfirmation) return "pending";
@@ -24931,7 +24932,14 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     return true;
   }
   const polarFog = currentPolarChartFogFrame();
-  if (chartRepairCloudBank || chartRepairFog || chartRepairHeatHaze) return false;
+  const partialCloudFailed = Boolean(
+    chartRepairCloudBank &&
+    activePartialCloudRepairNeedsEscalation({
+      drift,
+      terrainTear,
+      elapsedMs: nowMs - chartRepairCloudBank.startedAtMs
+    })
+  );
   if (polarFog && chartFaultNeedsCloudRepair({ drift, terrainTear })) {
     // Tighten and use the already-present polar bank. Summoning a second
     // atmospheric cover over it is visually noisy and cannot expose any
@@ -24939,6 +24947,11 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     chartRepairPendingConfirmation = null;
     return false;
   }
+  if (
+    (chartRepairCloudBank && !partialCloudFailed) ||
+    chartRepairFog ||
+    chartRepairHeatHaze
+  ) return false;
 
   let candidate = chooseChartVisualRepair({
     drift,
@@ -24947,7 +24960,8 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
     swellRepairAvailable,
-    distortionSurface
+    distortionSurface,
+    partialCloudFailed
   });
   const heatHazeAvailable = Boolean(
     candidate.fault && chartRepairHeatHazeIsPlausibleAt(candidate.fault)
@@ -24961,7 +24975,8 @@ function maybeStartChartVisualRepair(nowMs, drift) {
       viewportHeight: SCREEN_H,
       swellRepairAvailable,
       distortionSurface,
-      heatHazeAvailable: true
+      heatHazeAvailable: true,
+      partialCloudFailed
     });
   }
   if (
@@ -24982,7 +24997,8 @@ function maybeStartChartVisualRepair(nowMs, drift) {
       swellRepairAvailable,
       distortionSurface,
       polarFogCoversFault: true,
-      heatHazeAvailable
+      heatHazeAvailable,
+      partialCloudFailed
     });
   }
   const immediateRepair = candidate.confirmationMs === 0;
@@ -25078,6 +25094,7 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   chartRepairCloudBank = {
     animation,
     mode: "local",
+    startedAtMs: nowMs,
     nextTileRepairAtMs: nowMs,
     repairedTileIds: new Set(),
     repairedCount: 0,
