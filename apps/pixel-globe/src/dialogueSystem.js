@@ -4377,7 +4377,10 @@ function chefQuestView(session, city, gameState) {
   if (!quest) throw new Error("Chef dialogue opened outside its origin port");
   const speaker = `${characterName(city.character)}, cook`;
   const back = session.chefQuestArrival
-    ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+    ? option(
+        quest.stage === CHEF_QUEST_STAGE_RECRUITED ? "Continue" : "Not now",
+        { type: "node", nodeId: session.nextPortNodeId || "greeting" }
+      )
     : option("Back", { type: "node", nodeId: "root" });
   if (quest.stage === CHEF_QUEST_STAGE_GATHERING) {
     const list = quest.ingredients.map((ingredient) => ingredient.label).join(", ");

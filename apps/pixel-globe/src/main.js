@@ -829,6 +829,7 @@ import {
   CORAL_REEF_SPRITE_KEYS,
   GREAT_BARRIER_REEF_FIELD_ID,
   buildCoralReefFields,
+  coralReefGeometryCacheKey,
   coralReefWaterMaskSpans
 } from "./coralReefs.js";
 import {
@@ -3331,9 +3332,10 @@ const floatingShipFrameAtlasCache = new WeakMap();
 const FLOATING_SHIP_FRAME_CACHE_LIMIT = 48;
 const FLOATING_SHIP_FRAME_ATLAS_COLUMNS = 8;
 const selectableOutlineCache = new WeakMap();
-const coralReefWaterMaskCache = new WeakMap();
-const coralReefBeachPixelCache = new WeakMap();
-const coralReefMaskedSpriteCache = new WeakMap();
+const coralReefWaterMaskCache = new Map();
+const coralReefBeachPixelCache = new Map();
+const coralReefMaskedSpriteCache = new Map();
+const coralReefNearbyTileIdsCache = new Map();
 const surfaceDetailLayerCache = new WeakMap();
 const SURFACE_DETAIL_LAYER_MARGIN_PX = 96;
 const TERRAIN_CONNECTOR_LAYER_MARGIN_PX = 128;
@@ -3501,6 +3503,7 @@ const pendingDistantWorldEvents = [];
 let distantWorldApplyState = null;
 const worldSpatialIndex = createSpatialHash({ cellSize: 32 });
 let worldSpatialChart = null;
+let worldSpatialFastEntriesDirty = true;
 let worldSpatialWildlifeChart = null;
 let responsiveWhaleIds = new Set();
 let lastPlatformActivityUpdateMs = -Infinity;
@@ -7801,7 +7804,7 @@ function removeTeaRaceShip(shipId) {
   if (!npcSeaRoutes?.shipById.has(shipId)) return false;
   sinkNpcShip(npcSeaRoutes, shipId, Math.floor(weatherClockMinutes));
   clearCombatForShip(shipId);
-  npcVisualShips.delete(shipId);
+  deleteNpcVisualShipState(shipId);
   shipCombatEntryCollisionGrace.delete(shipId);
   npcCombatProjectiles = npcCombatProjectiles.filter(
     (ball) => ball.ownerId !== shipId && ball.targetId !== shipId
@@ -8111,7 +8114,7 @@ function removeTreasurePirateShip(shipId) {
   if (!npcSeaRoutes.shipById.has(shipId)) return false;
   sinkNpcShip(npcSeaRoutes, shipId, Math.floor(weatherClockMinutes));
   clearCombatForShip(shipId);
-  npcVisualShips.delete(shipId);
+  deleteNpcVisualShipState(shipId);
   shipCombatEntryCollisionGrace.delete(shipId);
   npcCombatProjectiles = npcCombatProjectiles.filter(
     (ball) => ball.ownerId !== shipId && ball.targetId !== shipId
@@ -8212,7 +8215,7 @@ function ensureColonizationDefenseEncounter({
         maxDistancePx: COLONIZATION_DEFENSE_MAX_SPAWN_DISTANCE_PX + 8
       })) continue;
       sinkNpcShip(npcSeaRoutes, shipId, Math.floor(weatherClockMinutes));
-      npcVisualShips.delete(shipId);
+      deleteNpcVisualShipState(shipId);
       clearCombatForShip(shipId);
       shipCombatEntryCollisionGrace.delete(shipId);
       npcCombatProjectiles = npcCombatProjectiles.filter(
@@ -14884,7 +14887,7 @@ async function restoreSavedVoyage(payload) {
   achievementNoticeQueue.length = 0;
   gameOverReason = null;
   gameOverState = null;
-  npcVisualShips.clear();
+  clearNpcVisualShipStates();
   npcVisualSnapshotCache.reset();
   resetColonizationDefenseVisibilityWatch();
   shoreBatteryStates.clear();
@@ -22576,7 +22579,7 @@ async function captureSurrenderedShip(npcShipId) {
     const abandonedCargoQuantity = Object.values(deferredLoot.remainingCargo)
       .reduce((sum, quantity) => sum + quantity, 0);
     captureSurrenderedNpcShip(npcSeaRoutes, npcShipId, Math.floor(weatherClockMinutes));
-    npcVisualShips.delete(npcShipId);
+    deleteNpcVisualShipState(npcShipId);
     shipCombatEntryCollisionGrace.delete(npcShipId);
     syncShipCargoFromGameState();
     showSurvivalNotice(
@@ -29182,7 +29185,9 @@ function updateNavalWeapons(dt) {
 }
 
 function resolvePlayerCannonPathHit(ball, previousAge) {
-  if (worldSpatialChart !== chart) refreshWorldSpatialFastEntries();
+  if (worldSpatialChart !== chart || worldSpatialFastEntriesDirty) {
+    refreshWorldSpatialFastEntries();
+  }
   const previousPoint = navalProjectilePoint(ball, previousAge);
   const currentPoint = navalProjectilePoint(ball);
   const margin = SHIP_SHEET_FRAME_SIZE / 2;
@@ -31021,6 +31026,7 @@ function refreshWorldSpatialFastEntries() {
   if (!chart || !localLayout) {
     worldSpatialIndex.clear();
     worldSpatialChart = null;
+    worldSpatialFastEntriesDirty = false;
     worldSpatialWildlifeChart = null;
     responsiveWhaleIds = new Set();
     return;
@@ -31056,6 +31062,24 @@ function refreshWorldSpatialFastEntries() {
     });
   }
   worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.SHORE_BATTERY, batteryEntries);
+  worldSpatialFastEntriesDirty = false;
+}
+
+function setNpcVisualShipState(id, state) {
+  npcVisualShips.set(id, state);
+  worldSpatialFastEntriesDirty = true;
+}
+
+function deleteNpcVisualShipState(id) {
+  const deleted = npcVisualShips.delete(id);
+  if (deleted) worldSpatialFastEntriesDirty = true;
+  return deleted;
+}
+
+function clearNpcVisualShipStates() {
+  if (npcVisualShips.size === 0) return;
+  npcVisualShips.clear();
+  worldSpatialFastEntriesDirty = true;
 }
 
 function refreshWorldSpatialStaticEntries() {
@@ -31139,7 +31163,9 @@ function refreshWorldSpatialWildlifeEntries(nowMs) {
 
 function worldSpatialMatches(x, y, radius, kinds) {
   if (!chart || !localLayout) return [];
-  if (worldSpatialChart !== chart) refreshWorldSpatialFastEntries();
+  if (worldSpatialChart !== chart || worldSpatialFastEntriesDirty) {
+    refreshWorldSpatialFastEntries();
+  }
   const needsWildlife = kinds.some((kind) => (
     kind === WORLD_SPATIAL_KIND.FISH_SCHOOL || kind === WORLD_SPATIAL_KIND.WHALE
       || kind === WORLD_SPATIAL_KIND.ICEBERG
@@ -31463,7 +31489,7 @@ function updateNpcVisualShips(dt) {
       if (!pointNearScreen(routeScreen, NPC_VISUAL_SIMULATION_MARGIN_PX)) continue;
       state = createNpcVisualState(snapshot, routePoint);
       if (!state) continue;
-      npcVisualShips.set(snapshot.id, state);
+      setNpcVisualShipState(snapshot.id, state);
       changed = true;
     }
 
@@ -33119,7 +33145,9 @@ function updateNpcCombatProjectiles(dt) {
 }
 
 function resolveNpcCannonPathHit(ball, previousAge) {
-  if (worldSpatialChart !== chart) refreshWorldSpatialFastEntries();
+  if (worldSpatialChart !== chart || worldSpatialFastEntriesDirty) {
+    refreshWorldSpatialFastEntries();
+  }
   const previousPoint = navalProjectilePoint(ball, previousAge);
   const currentPoint = navalProjectilePoint(ball);
   const margin = SHIP_SHEET_FRAME_SIZE / 2;
@@ -33633,7 +33661,7 @@ function handleNpcSinking(loserId, winnerId, {
     accidentalCollisionRecorded = result.delta !== 0;
   }
   clearCombatForShip(loserId);
-  npcVisualShips.delete(loserId);
+  deleteNpcVisualShipState(loserId);
   shipCombatEntryCollisionGrace.delete(loserId);
   npcCombatProjectiles = npcCombatProjectiles.filter((ball) => ball.ownerId !== loserId && ball.targetId !== loserId);
   combatNotice = {
@@ -33993,7 +34021,7 @@ function resolveColonizationDefenseAttacker(loserId, noticeText) {
   }).target.city;
   sinkNpcShip(npcSeaRoutes, loserId, Math.floor(weatherClockMinutes));
   clearCombatForShip(loserId);
-  npcVisualShips.delete(loserId);
+  deleteNpcVisualShipState(loserId);
   npcShipCaptains?.delete(loserId);
   if (dialogueState?.kind === "ship" && dialogueState.npcShipId === loserId) {
     dialogueState = null;
@@ -35553,7 +35581,7 @@ function discardNpcVisualState(state) {
   npcCombatProjectiles = npcCombatProjectiles.filter(
     (ball) => ball.ownerId !== state.id && ball.targetId !== state.id
   );
-  npcVisualShips.delete(state.id);
+  deleteNpcVisualShipState(state.id);
 }
 
 function releaseNpcVisualStatesWithoutStrategicState() {
@@ -37730,13 +37758,9 @@ function drawCoralReefsWebGL(activeChart, offset) {
 }
 
 function coralReefMaskedSprite(activeChart, coral, call, image) {
-  let sprites = coralReefMaskedSpriteCache.get(activeChart);
-  if (!sprites) {
-    sprites = new Map();
-    coralReefMaskedSpriteCache.set(activeChart, sprites);
-  }
-  const cached = sprites.get(coral.tileId);
-  if (cached) return cached;
+  const geometryKey = coralReefChartGeometryKey(activeChart, coral.tileId);
+  const cached = coralReefMaskedSpriteCache.get(coral.tileId);
+  if (cached?.geometryKey === geometryKey) return cached.source;
   const canvas = document.createElement("canvas");
   canvas.width = UNDERWATER_WORLD_SPRITE_WIDTH;
   canvas.height = TILE_ART_SIZE;
@@ -37745,25 +37769,20 @@ function coralReefMaskedSprite(activeChart, coral, call, image) {
   targetCtx.imageSmoothingEnabled = false;
   targetCtx.drawImage(image, UNDERWATER_WORLD_REFRACTION_PADDING_PX, 0);
   targetCtx.globalCompositeOperation = "destination-in";
-  targetCtx.drawImage(coralReefWaterMask(activeChart, coral.tileId, call), 0, 0);
+  targetCtx.drawImage(coralReefWaterMask(activeChart, coral.tileId, call, geometryKey), 0, 0);
   targetCtx.globalCompositeOperation = "source-over";
-  sprites.set(coral.tileId, canvas);
+  coralReefMaskedSpriteCache.set(coral.tileId, { geometryKey, source: canvas });
   return canvas;
 }
 
-function coralReefWaterMask(activeChart, tileId, call) {
-  let chartMasks = coralReefWaterMaskCache.get(activeChart);
-  if (!chartMasks) {
-    chartMasks = new Map();
-    coralReefWaterMaskCache.set(activeChart, chartMasks);
-  }
-  const cached = chartMasks.get(tileId);
-  if (cached) return cached;
+function coralReefWaterMask(activeChart, tileId, call, geometryKey) {
+  const cached = coralReefWaterMaskCache.get(tileId);
+  if (cached?.geometryKey === geometryKey) return cached.mask;
 
   const spriteX = Math.round(call.drawSurfaceX - TILE_ART_HALF);
   const spriteY = Math.round(call.drawSurfaceY - TILE_ART_HALF);
   const originX = spriteX - UNDERWATER_WORLD_REFRACTION_PADDING_PX;
-  const beachPixels = coralReefBeachPixels(activeChart, tileId);
+  const beachPixels = coralReefBeachPixels(activeChart, tileId, geometryKey);
   const spans = coralReefWaterMaskSpans({
     originX,
     originY: spriteY,
@@ -37779,18 +37798,13 @@ function coralReefWaterMask(activeChart, tileId, call) {
   if (!maskCtx) throw new Error(`Could not create coral reef water mask for tile ${tileId}`);
   maskCtx.fillStyle = "#ffffff";
   for (const span of spans) maskCtx.fillRect(span.x, span.y, span.width, 1);
-  chartMasks.set(tileId, mask);
+  coralReefWaterMaskCache.set(tileId, { geometryKey, mask });
   return mask;
 }
 
-function coralReefBeachPixels(activeChart, tileId) {
-  let chartCache = coralReefBeachPixelCache.get(activeChart);
-  if (!chartCache) {
-    chartCache = new Map();
-    coralReefBeachPixelCache.set(activeChart, chartCache);
-  }
-  const cached = chartCache.get(tileId);
-  if (cached) return cached;
+function coralReefBeachPixels(activeChart, tileId, geometryKey) {
+  const cached = coralReefBeachPixelCache.get(tileId);
+  if (cached?.geometryKey === geometryKey) return cached.pixels;
   const tileCall = activeChart.tileById.get(tileId);
   if (!tileCall) throw new Error(`Coral reef ${tileId} is missing from its active chart`);
 
@@ -37813,8 +37827,31 @@ function coralReefBeachPixels(activeChart, tileId) {
       }
     }
   }
-  chartCache.set(tileId, pixels);
+  coralReefBeachPixelCache.set(tileId, { geometryKey, pixels });
   return pixels;
+}
+
+function coralReefChartGeometryKey(activeChart, tileId) {
+  return coralReefGeometryCacheKey({
+    tileId,
+    nearbyTileIds: coralReefNearbyTileIds(tileId),
+    positionForTile: (id) => {
+      const call = activeChart.tileById.get(id);
+      return call ? { x: call.drawSurfaceX, y: call.drawSurfaceY } : null;
+    }
+  });
+}
+
+function coralReefNearbyTileIds(tileId) {
+  const cached = coralReefNearbyTileIdsCache.get(tileId);
+  if (cached) return cached;
+  const ids = new Set([tileId, ...(graph.neighbors[tileId] || [])]);
+  for (const neighborId of [...ids]) {
+    for (const secondRingId of graph.neighbors[neighborId] || []) ids.add(secondRingId);
+  }
+  const nearby = Object.freeze([...ids].sort((a, b) => a - b));
+  coralReefNearbyTileIdsCache.set(tileId, nearby);
+  return nearby;
 }
 
 function drawSelectableInteractionOutlines(nowMs) {

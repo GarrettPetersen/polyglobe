@@ -132,7 +132,8 @@ import {
 import {
   CHEF_QUEST_REWARD,
   completeChefBanquet,
-  maybeSpawnChefQuest
+  maybeSpawnChefQuest,
+  recruitChef
 } from "./chefQuest.js";
 import {
   NAMED_CREW_ROLE_CHEF,
@@ -3002,6 +3003,12 @@ test("the banquet chef accepts ingredients across separate visits", () => {
     completedView.feedback.includes(completed.chefBanquetCompleted.event.successText),
     false
   );
+
+  session.chefQuestArrival = true;
+  session.nextPortNodeId = "root";
+  recruitChef(gameState, city);
+  const recruitedView = portDialogueView(session, city, gameState, economy, [city]);
+  assert.deepEqual(recruitedView.options.map((entry) => entry.label), ["Continue"]);
 });
 
 test("enemy port guards bar resupply and offer one risky disguise route", () => {

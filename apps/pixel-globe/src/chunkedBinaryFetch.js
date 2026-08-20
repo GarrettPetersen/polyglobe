@@ -34,7 +34,7 @@ export async function fetchChunkedBinary(path, label, {
     throw new Error(`Chunked binary fetch requires sleep support: ${label}`);
   }
 
-  const manifestPath = `${path}.chunks.json`;
+  const manifestPath = appendResourcePathSuffix(path, ".chunks.json");
   const manifestRes = await fetchAsset(manifestPath, {
     label: `${label} chunk manifest`
   });
@@ -89,10 +89,12 @@ export async function fetchChunkedBinary(path, label, {
     throw new Error(`Chunked binary fetch requires a base URL: ${label}`);
   }
 
+  const assetUrl = new URL(path, baseUrl);
   const manifestUrl = new URL(manifestPath, baseUrl);
   const out = new Uint8Array(manifest.byteLength);
   await mapWithConcurrency(chunks, chunkConcurrency, async (chunkSpec) => {
     const chunkUrl = new URL(chunkSpec.path, manifestUrl);
+    inheritSearchParams(chunkUrl, assetUrl);
     const bytes = await fetchValidatedChunk(chunkUrl, chunkSpec, label, {
       fetchAsset,
       chunkAttempts,
@@ -102,6 +104,22 @@ export async function fetchChunkedBinary(path, label, {
     out.set(bytes, chunkSpec.offset);
   });
   return out.buffer;
+}
+
+function appendResourcePathSuffix(resource, suffix) {
+  const queryIndex = resource.indexOf("?");
+  const fragmentIndex = resource.indexOf("#");
+  const suffixIndex = Math.min(
+    queryIndex < 0 ? resource.length : queryIndex,
+    fragmentIndex < 0 ? resource.length : fragmentIndex
+  );
+  return `${resource.slice(0, suffixIndex)}${suffix}${resource.slice(suffixIndex)}`;
+}
+
+function inheritSearchParams(target, source) {
+  for (const [key, value] of source.searchParams) {
+    if (!target.searchParams.has(key)) target.searchParams.append(key, value);
+  }
 }
 
 async function fetchValidatedChunk(chunkUrl, chunkSpec, label, {

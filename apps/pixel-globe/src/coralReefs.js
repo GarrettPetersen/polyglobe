@@ -226,6 +226,37 @@ export function coralReefWaterMaskSpans({
   return spans;
 }
 
+export function coralReefGeometryCacheKey({
+  tileId,
+  nearbyTileIds,
+  positionForTile
+}) {
+  if (!Number.isInteger(tileId) || tileId < 0) {
+    throw new Error(`Coral reef geometry key requires a tile id: ${tileId}`);
+  }
+  if (!Array.isArray(nearbyTileIds) || typeof positionForTile !== "function") {
+    throw new Error("Coral reef geometry key requires nearby tiles and a position resolver");
+  }
+  const anchor = positionForTile(tileId);
+  if (!anchor || !Number.isFinite(anchor.x) || !Number.isFinite(anchor.y)) {
+    throw new Error(`Coral reef geometry key cannot place tile ${tileId}`);
+  }
+  return [...new Set([tileId, ...nearbyTileIds])]
+    .sort((a, b) => a - b)
+    .map((id) => {
+      if (!Number.isInteger(id) || id < 0) {
+        throw new Error(`Coral reef geometry key contains an invalid nearby tile: ${id}`);
+      }
+      const position = positionForTile(id);
+      if (position === null || position === undefined) return `${id}:missing`;
+      if (!Number.isFinite(position.x) || !Number.isFinite(position.y)) {
+        throw new Error(`Coral reef geometry key cannot place nearby tile ${id}`);
+      }
+      return `${id}:${Math.round(position.x - anchor.x)},${Math.round(position.y - anchor.y)}`;
+    })
+    .join("|");
+}
+
 function reefField({
   id,
   bounds,

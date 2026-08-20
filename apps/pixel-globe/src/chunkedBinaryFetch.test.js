@@ -42,6 +42,31 @@ test("chunked binary fetch starts every chunk concurrently and assembles manifes
   assert.deepEqual([...result], [1, 2, 3, 4, 5, 6]);
 });
 
+test("chunked binary fetch inserts the manifest suffix before a version query", async () => {
+  const requests = [];
+  const fetchAsset = async (resource) => {
+    requests.push(resource);
+    if (resource === "shared/weather.bin.chunks.json?v=snow-1") {
+      return jsonResponse({
+        byteLength: 2,
+        chunks: [{ path: "weather.bin.part000", byteLength: 2 }]
+      });
+    }
+    return binaryResponse([7, 8]);
+  };
+
+  const result = await fetchChunkedBinary("shared/weather.bin?v=snow-1", "weather", {
+    fetchAsset,
+    baseUrl: "https://example.test/game/"
+  });
+
+  assert.deepEqual([...new Uint8Array(result)], [7, 8]);
+  assert.deepEqual(requests, [
+    "shared/weather.bin.chunks.json?v=snow-1",
+    "https://example.test/game/shared/weather.bin.part000?v=snow-1"
+  ]);
+});
+
 test("chunked binary fetch bounds concurrent downloads", async () => {
   const pendingChunks = [];
   let active = 0;

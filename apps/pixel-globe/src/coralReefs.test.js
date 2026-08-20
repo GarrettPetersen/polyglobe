@@ -16,6 +16,7 @@ import {
   COSMETIC_CORAL_REEF_FIELD_IDS,
   GREAT_BARRIER_REEF_FIELD_ID,
   buildCoralReefFields,
+  coralReefGeometryCacheKey,
   coralReefWaterMaskSpans,
   distanceToCoralReefFieldKm
 } from "./coralReefs.js";
@@ -152,6 +153,28 @@ test("reef sprite masks reject incomplete geometry and predicates", () => {
     }),
     /water and beach predicates/
   );
+});
+
+test("reef geometry cache keys survive chart translation and change with local deformation", () => {
+  const nearbyTileIds = [5, 7];
+  const original = new Map([
+    [5, { x: 10, y: 10 }],
+    [6, { x: 20, y: 20 }],
+    [7, { x: 30, y: 10 }]
+  ]);
+  const translated = new Map(
+    [...original].map(([id, point]) => [id, { x: point.x + 100, y: point.y - 40 }])
+  );
+  const deformed = new Map(original);
+  deformed.set(7, { x: 31, y: 10 });
+  const keyFor = (positions) => coralReefGeometryCacheKey({
+    tileId: 6,
+    nearbyTileIds,
+    positionForTile: (id) => positions.get(id) || null
+  });
+
+  assert.equal(keyFor(translated), keyFor(original));
+  assert.notEqual(keyFor(deformed), keyFor(original));
 });
 
 function countBy(values, keyForValue) {
