@@ -3,8 +3,10 @@ import test from "node:test";
 import { createCanvas } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
 import {
+  createRiverWaterOcclusionMask,
   createTerrainOcclusionIndex,
   eraseTerrainOccludersFromShipLayer,
+  maskRiverTerrainForegroundPixels,
   RIVER_BANK_LOWER,
   RIVER_BANK_NONE,
   RIVER_BANK_UPPER,
@@ -85,6 +87,44 @@ test("river terrain bank splits extend the river slope to sprite edges", () => {
   assert.equal(split.banks[0], RIVER_BANK_LOWER);
   assert.equal(split.banks[0 + 1 * width], RIVER_BANK_LOWER);
   assert.equal(split.banks[6 + 5 * width], RIVER_BANK_UPPER);
+});
+
+test("terrain foreground stays cut out beneath river connectors from neighboring tiles", () => {
+  const bounds = { x: 10, y: 20, width: 4, height: 4 };
+  const ownRiver = new Int32Array([10, 21, 11, 21]);
+  const connector = new Int32Array([12, 22, 13, 22, 30, 30]);
+  const waterMask = createRiverWaterOcclusionMask([ownRiver, connector], bounds);
+  const rgba = new Uint8ClampedArray(bounds.width * bounds.height * 4).fill(255);
+
+  maskRiverTerrainForegroundPixels(rgba, waterMask);
+
+  assert.equal(rgba[(0 + 1 * bounds.width) * 4 + 3], 0, "own river pixel");
+  assert.equal(rgba[(2 + 2 * bounds.width) * 4 + 3], 0, "connector river pixel");
+  assert.equal(rgba[(3 + 3 * bounds.width) * 4 + 3], 255, "dry terrain pixel");
+});
+
+test("river terrain foreground combines its bank split with the complete water cutout", () => {
+  const width = 3;
+  const height = 3;
+  const banks = new Uint8Array([
+    RIVER_BANK_UPPER, RIVER_BANK_UPPER, RIVER_BANK_UPPER,
+    RIVER_BANK_UPPER, RIVER_BANK_NONE, RIVER_BANK_LOWER,
+    RIVER_BANK_LOWER, RIVER_BANK_LOWER, RIVER_BANK_LOWER
+  ]);
+  const rgba = new Uint8ClampedArray(width * height * 4).fill(255);
+  const waterMask = new Uint8Array(width * height);
+  waterMask[2 + width] = 1;
+
+  maskRiverTerrainForegroundPixels(
+    rgba,
+    waterMask,
+    { width, height, banks },
+    RIVER_BANK_LOWER
+  );
+
+  assert.equal(rgba[(0 + 0 * width) * 4 + 3], 0, "far bank removed");
+  assert.equal(rgba[(2 + 1 * width) * 4 + 3], 0, "river connector removed");
+  assert.equal(rgba[(1 + 2 * width) * 4 + 3], 255, "near bank retained");
 });
 
 test("terrain occlusion index returns only nearby masks with the current screen offset", () => {

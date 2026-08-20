@@ -2025,8 +2025,11 @@ import {
   terrainConnectorRasterSpans
 } from "./terrainConnectorRaster.js";
 import {
+  createRiverWaterOcclusionMask,
   createTerrainOcclusionIndex,
   eraseTerrainOccludersFromShipLayer,
+  maskRiverTerrainForegroundPixels,
+  RIVER_BANK_NONE,
   RIVER_BANK_LOWER,
   RIVER_BANK_UPPER,
   shipOcclusionDepthY,
@@ -39372,6 +39375,7 @@ function buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, activeCh
   const riverPaths = new Map();
   const riverConnectorWaterPoints = new Map();
   const riverTileWaterPoints = new Map();
+  const terrainForegroundRiverWaterMasks = new Map();
   measurePerformanceBenchmarkStage("chart.waterIndex.tiles", () => {
     for (const [drawOrder, call] of tileCalls.entries()) {
       addWakeWaterIndexEntry(buckets, call.drawSurfaceX, call.drawSurfaceY, {
@@ -39458,7 +39462,8 @@ function buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, activeCh
     tileRows,
     riverPaths,
     riverConnectorWaterPoints,
-    riverTileWaterPoints
+    riverTileWaterPoints,
+    terrainForegroundRiverWaterMasks
   };
 }
 
@@ -50866,6 +50871,31 @@ function wakeWaterCandidatesForPoint(x, y, waterIndex) {
   return candidates;
 }
 
+function wakeWaterCandidatesForBounds(bounds, waterIndex, tileCenterMargin = 0) {
+  if (!bounds || !Number.isFinite(bounds.minX) || !Number.isFinite(bounds.minY) ||
+      !Number.isFinite(bounds.maxX) || !Number.isFinite(bounds.maxY) ||
+      bounds.maxX < bounds.minX || bounds.maxY < bounds.minY ||
+      !Number.isFinite(tileCenterMargin) || tileCenterMargin < 0) {
+    throw new Error("Water candidate bounds require finite ordered coordinates");
+  }
+  const minBx = Math.floor((bounds.minX - tileCenterMargin) / WAKE_WATER_BUCKET_PX);
+  const maxBx = Math.floor((bounds.maxX + tileCenterMargin) / WAKE_WATER_BUCKET_PX);
+  const minBy = Math.floor((bounds.minY - tileCenterMargin) / WAKE_WATER_BUCKET_PX);
+  const maxBy = Math.floor((bounds.maxY + tileCenterMargin) / WAKE_WATER_BUCKET_PX);
+  const candidates = [];
+  const seen = new Set();
+  for (let by = minBy; by <= maxBy; by++) {
+    for (let bx = minBx; bx <= maxBx; bx++) {
+      for (const entry of waterIndex.buckets.get(wakeWaterBucketKey(bx, by)) || []) {
+        if (seen.has(entry)) continue;
+        seen.add(entry);
+        candidates.push(entry);
+      }
+    }
+  }
+  return candidates;
+}
+
 function wakePointIsOnAnyRiverTile(x, y, candidates, activeChart) {
   for (const entry of candidates) {
     if (entry.kind !== "tile") continue;
@@ -52480,7 +52510,7 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
   const width = image.naturalWidth || image.width;
   const height = image.naturalHeight || image.height;
   const riverMask = riverMasks?.[call.id] || 0;
-  if (riverMask === 0) {
+  if (riverMask === 0 && !terrainForegroundMayOverlapRiver(call, activeChart, width, height)) {
     return [{
       x,
       y,
@@ -52488,6 +52518,23 @@ function terrainForegroundDrawLayers(call, image, activeChart) {
       width,
       height,
       drawLayer: { image }
+    }];
+  }
+
+  if (riverMask === 0) {
+    return [{
+      x,
+      y,
+      depthY: call.sortY,
+      width,
+      height,
+      drawLayer: terrainForegroundRiverBankDrawLayer(
+        call,
+        image,
+        RIVER_BANK_NONE,
+        activeChart,
+        riverMask
+      )
     }];
   }
 
@@ -52561,28 +52608,31 @@ function terrainForegroundRiverBankImage(
   activeChart,
   riverMask
 ) {
-  if (bank !== RIVER_BANK_UPPER && bank !== RIVER_BANK_LOWER) {
+  if (bank !== RIVER_BANK_NONE && bank !== RIVER_BANK_UPPER && bank !== RIVER_BANK_LOWER) {
     throw new Error(`Unknown river bank layer: ${bank}`);
   }
-  const shapeKey = riverTileWaterShapeKey(call, activeChart, riverMask);
-  let imageLayers = shipTerrainRiverBankLayerCache.get(image);
+  let layersByImage = shipTerrainRiverBankLayerCache.get(activeChart.waterIndex);
+  if (!layersByImage) {
+    layersByImage = new WeakMap();
+    shipTerrainRiverBankLayerCache.set(activeChart.waterIndex, layersByImage);
+  }
+  let imageLayers = layersByImage.get(image);
   if (!imageLayers) {
     imageLayers = new Map();
-    shipTerrainRiverBankLayerCache.set(image, imageLayers);
+    layersByImage.set(image, imageLayers);
   }
-  const cacheKey = `${shapeKey}:${bank}`;
+  const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
+  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
+  const cacheKey = `${call.id}:${x},${y}:${bank}`;
   const cached = imageLayers.get(cacheKey);
   if (cached) return cached;
-  const bankSplit = terrainRiverBankSplit(call, activeChart, riverMask);
   const imageWidth = image.naturalWidth || image.width;
   const imageHeight = image.naturalHeight || image.height;
-  if (bankSplit.width !== imageWidth || bankSplit.height !== imageHeight) {
+  const bankSplit = bank === RIVER_BANK_NONE
+    ? null
+    : terrainRiverBankSplit(call, activeChart, riverMask);
+  if (bankSplit && (bankSplit.width !== imageWidth || bankSplit.height !== imageHeight)) {
     throw new Error(`River bank and terrain sprite dimensions disagree on tile ${call.id}`);
-  }
-  cachedRiverTileWaterPoints(call, activeChart, riverMask);
-  const localWaterPoints = riverTileLocalWaterPointCache.get(shapeKey);
-  if (!localWaterPoints) {
-    throw new Error(`River tile ${call.id} did not produce local water points`);
   }
   const canvas = document.createElement("canvas");
   canvas.width = imageWidth;
@@ -52592,26 +52642,76 @@ function terrainForegroundRiverBankImage(
   layerCtx.imageSmoothingEnabled = false;
   layerCtx.drawImage(image, 0, 0);
   const imageData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
-  const waterMask = new Uint8Array(canvas.width * canvas.height);
-  for (let index = 0; index < localWaterPoints.length; index += 2) {
-    const px = localWaterPoints[index];
-    const py = localWaterPoints[index + 1];
-    if (px < 0 || py < 0 || px >= canvas.width || py >= canvas.height) continue;
-    waterMask[px + py * canvas.width] = 1;
-  }
-  for (let py = 0; py < canvas.height; py++) {
-    for (let px = 0; px < canvas.width; px++) {
-      const pixelIndex = py * canvas.width + px;
-      const dataIndex = pixelIndex * 4;
-      const keep = bankSplit.banks[pixelIndex] === bank && imageData.data[dataIndex + 3] !== 0 &&
-        waterMask[pixelIndex] === 0;
-      if (!keep) imageData.data[dataIndex + 3] = 0;
-    }
-  }
+  const waterMask = terrainForegroundRiverWaterMask(
+    call,
+    activeChart,
+    imageWidth,
+    imageHeight
+  );
+  maskRiverTerrainForegroundPixels(imageData.data, waterMask, bankSplit, bank);
   layerCtx.clearRect(0, 0, canvas.width, canvas.height);
   layerCtx.putImageData(imageData, 0, 0);
   imageLayers.set(cacheKey, canvas);
   return canvas;
+}
+
+function terrainForegroundMayOverlapRiver(call, activeChart, width, height) {
+  const bounds = terrainForegroundBounds(call, width, height);
+  return terrainForegroundRiverCandidates(activeChart, bounds).some((entry) => (
+    entry.kind === "riverConnector" ||
+    entry.kind === "tile" &&
+      !isWaterSurfaceRow(entry.call.row) &&
+      (riverMasks?.[entry.call.id] || 0) !== 0
+  ));
+}
+
+function terrainForegroundRiverWaterMask(call, activeChart, width, height) {
+  const bounds = terrainForegroundBounds(call, width, height);
+  const cache = activeChart.waterIndex.terrainForegroundRiverWaterMasks;
+  if (!(cache instanceof Map)) {
+    throw new Error("Ship terrain foreground requires its river water mask cache");
+  }
+  const cacheKey = `${call.id}:${bounds.x},${bounds.y}:${width}x${height}`;
+  const cached = cache.get(cacheKey);
+  if (cached) return cached;
+  const pointGroups = [];
+  for (const entry of terrainForegroundRiverCandidates(activeChart, bounds)) {
+    if (entry.kind === "riverConnector") {
+      const points = activeChart.waterIndex.riverConnectorWaterPoints.get(
+        riverConnectorRasterKey(entry.call)
+      );
+      if (!points) {
+        throw new Error(`Ship terrain foreground is missing river connector ${entry.call.a}:${entry.call.b}`);
+      }
+      pointGroups.push(points);
+      continue;
+    }
+    if (entry.kind !== "tile" || isWaterSurfaceRow(entry.call.row)) continue;
+    const mask = riverMasks?.[entry.call.id] || 0;
+    if (mask === 0) continue;
+    pointGroups.push(cachedRiverTileWaterPoints(entry.call, activeChart, mask));
+  }
+  const result = createRiverWaterOcclusionMask(pointGroups, bounds);
+  cache.set(cacheKey, result);
+  return result;
+}
+
+function terrainForegroundBounds(call, width, height) {
+  return {
+    x: Math.round(call.drawSurfaceX - TILE_ART_HALF),
+    y: Math.round(call.drawSurfaceY - TILE_ART_HALF),
+    width,
+    height
+  };
+}
+
+function terrainForegroundRiverCandidates(activeChart, bounds) {
+  return wakeWaterCandidatesForBounds({
+    minX: bounds.x,
+    minY: bounds.y,
+    maxX: bounds.x + bounds.width - 1,
+    maxY: bounds.y + bounds.height - 1
+  }, activeChart.waterIndex, TILE_ART_HALF);
 }
 
 function drawWhalesWebGL(nowMs) {

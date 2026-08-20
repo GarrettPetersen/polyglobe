@@ -11,6 +11,56 @@ export function terrainRiverBankDepthY(tileDepthY, tileHalfSize, bank) {
   throw new Error(`Unknown river terrain bank: ${bank}`);
 }
 
+export function createRiverWaterOcclusionMask(pointGroups, bounds) {
+  if (!Array.isArray(pointGroups)) {
+    throw new Error("River terrain water mask requires packed point groups");
+  }
+  if (!bounds || !Number.isInteger(bounds.x) || !Number.isInteger(bounds.y) ||
+    !Number.isInteger(bounds.width) || !Number.isInteger(bounds.height) ||
+    bounds.width <= 0 || bounds.height <= 0) {
+    throw new Error("River terrain water mask requires positive integer bounds");
+  }
+  const mask = new Uint8Array(bounds.width * bounds.height);
+  for (const points of pointGroups) {
+    if (!(points instanceof Int32Array) || points.length % 2 !== 0) {
+      throw new Error("River terrain water mask requires packed Int32 points");
+    }
+    for (let index = 0; index < points.length; index += 2) {
+      const px = points[index] - bounds.x;
+      const py = points[index + 1] - bounds.y;
+      if (px < 0 || py < 0 || px >= bounds.width || py >= bounds.height) continue;
+      mask[px + py * bounds.width] = 1;
+    }
+  }
+  return mask;
+}
+
+export function maskRiverTerrainForegroundPixels(
+  rgba,
+  riverWaterMask,
+  bankSplit = null,
+  bank = RIVER_BANK_NONE
+) {
+  if (!(rgba instanceof Uint8ClampedArray) || rgba.length !== riverWaterMask?.length * 4) {
+    throw new Error("River terrain foreground requires matching RGBA and water masks");
+  }
+  if (bank !== RIVER_BANK_NONE && bank !== RIVER_BANK_UPPER && bank !== RIVER_BANK_LOWER) {
+    throw new Error(`Unknown river terrain foreground bank: ${bank}`);
+  }
+  if (bank === RIVER_BANK_NONE && bankSplit !== null) {
+    throw new Error("Unsplit river terrain foreground cannot receive a bank split");
+  }
+  if (bank !== RIVER_BANK_NONE &&
+      (!(bankSplit?.banks instanceof Uint8Array) || bankSplit.banks.length !== riverWaterMask.length)) {
+    throw new Error("River terrain foreground requires a matching bank split");
+  }
+  for (let pixelIndex = 0; pixelIndex < riverWaterMask.length; pixelIndex++) {
+    const keepBank = bank === RIVER_BANK_NONE || bankSplit.banks[pixelIndex] === bank;
+    if (!keepBank || riverWaterMask[pixelIndex] !== 0) rgba[pixelIndex * 4 + 3] = 0;
+  }
+  return rgba;
+}
+
 export function splitRiverTerrainBanks(riverAlpha, width, height) {
   if (!(riverAlpha instanceof Uint8Array) || !Number.isInteger(width) || !Number.isInteger(height) ||
     width <= 0 || height <= 0 || riverAlpha.length !== width * height) {
