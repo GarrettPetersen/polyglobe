@@ -1700,6 +1700,8 @@ export function selectPortDialogueOption(
   if (action.type === "node") {
     if (session.nodeId === "greeting") {
       session.rumorText = null;
+      session.rulerRumor = null;
+      session.historicalGossip = null;
       session.nextPortNodeId = null;
     }
     if (action.nodeId === "buy") {

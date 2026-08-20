@@ -4133,6 +4133,46 @@ test("no-work Back returns to the city menu after an arrival continuation", () =
   assert.equal(session.nodeId, "root");
 });
 
+test("arrival news cannot replay after its greeting is acknowledged", () => {
+  const city = {
+    tileId: 26,
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    routeRegion: "mediterranean",
+    factionId: "spain",
+    population: 45000,
+    lat: 36.53,
+    lon: -6.29,
+    character: { name: "Ines de Vargas", personalityId: "austere" }
+  };
+  const ports = [city];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const historicalGossip = {
+    id: "tidore-court-news",
+    place: "Tidore",
+    report: "the sultan has received a Castilian embassy"
+  };
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "greeting",
+    historicalGossip,
+    admittedToPort: true
+  });
+  const context = () => ({ historicalGossip: session.historicalGossip });
+
+  const firstGreeting = portDialogueView(session, city, gameState, economy, ports, context());
+  assert.match(firstGreeting.text, /News from Tidore/);
+  selectPortDialogueOption(session, city, gameState, economy, ports, 0, context());
+  assert.equal(session.nodeId, "root");
+  assert.equal(session.historicalGossip, null);
+
+  session.nodeId = "greeting";
+  const repeatedGreeting = portDialogueView(session, city, gameState, economy, ports, context());
+  assert.doesNotMatch(repeatedGreeting.text, /News from Tidore/);
+});
+
 test("shipyards show a full vessel presentation and enforce the asking price", () => {
   const city = {
     tileId: 10,
