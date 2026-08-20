@@ -18,9 +18,21 @@ export function dialoguePortraitPreloadEntries(characters) {
   return [...entriesByKey.values()];
 }
 
-export function portDialoguePortraitPreloadCharacters(playerCharacter, portCharacter) {
+export function portDialoguePortraitPreloadCharacters({
+  playerCharacter,
+  portCharacter,
+  dockable
+}) {
+  if (typeof dockable !== "boolean") {
+    throw new Error("Port dialogue portrait preload requires dockability");
+  }
   validateCharacter(playerCharacter);
-  if (portCharacter == null) return [playerCharacter];
+  if (!dockable) {
+    if (portCharacter != null) {
+      throw new Error("Non-dockable settlement unexpectedly has a port character");
+    }
+    return [];
+  }
   validateCharacter(portCharacter);
   return [playerCharacter, portCharacter];
 }

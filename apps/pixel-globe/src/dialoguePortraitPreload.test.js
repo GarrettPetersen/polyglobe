@@ -37,17 +37,46 @@ test("port portrait preloading fails loudly for a portraitless dialogue characte
   );
 });
 
-test("port portrait preloading permits a visible settlement without a factor portrait", () => {
+test("port portrait preloading skips a visible inland settlement", () => {
   const player = character("player");
 
-  assert.deepEqual(portDialoguePortraitPreloadCharacters(player, null), [player]);
-  assert.deepEqual(portDialoguePortraitPreloadCharacters(player, undefined), [player]);
+  assert.deepEqual(portDialoguePortraitPreloadCharacters({
+    playerCharacter: player,
+    portCharacter: null,
+    dockable: false
+  }), []);
 });
 
-test("port portrait preloading still rejects a malformed port character", () => {
+test("port portrait preloading includes the player and factor for a dockable port", () => {
+  const player = character("player");
+  const factor = character("factor");
+
+  assert.deepEqual(portDialoguePortraitPreloadCharacters({
+    playerCharacter: player,
+    portCharacter: factor,
+    dockable: true
+  }), [player, factor]);
+});
+
+test("port portrait preloading rejects a dockable port without a factor", () => {
   assert.throws(
-    () => portDialoguePortraitPreloadCharacters(character("player"), "factor"),
+    () => portDialoguePortraitPreloadCharacters({
+      playerCharacter: character("player"),
+      portCharacter: null,
+      dockable: true
+    }),
     /must be a character object/
+  );
+});
+
+test("port portrait preloading rejects a factor assigned to an inland settlement", () => {
+  assert.throws(
+    () => portDialoguePortraitPreloadCharacters({
+      playerCharacter: character("player"),
+      portCharacter: character("factor"),
+      dockable: false
+    }),
+    /Non-dockable settlement unexpectedly has a port character/
   );
 });
 

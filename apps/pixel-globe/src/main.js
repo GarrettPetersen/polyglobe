@@ -58333,10 +58333,12 @@ function preloadDialogueCharacters(characters) {
 }
 
 function portDialoguePortraitCharacters(cityCall) {
-  const characters = portDialoguePortraitPreloadCharacters(
-    gameState.playerCharacter,
-    cityCall.character
-  );
+  const characters = portDialoguePortraitPreloadCharacters({
+    playerCharacter: gameState.playerCharacter,
+    portCharacter: cityCall.character,
+    dockable: cityCall.isPirateHideout === true || portCitiesByTileId.has(cityCall.tileId)
+  });
+  if (characters.length === 0) return characters;
   const add = (character) => {
     if (character) characters.push(character);
   };
