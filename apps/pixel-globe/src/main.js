@@ -670,6 +670,12 @@ import {
   itemAcquisitionEffectFrame
 } from "./itemAcquisitionEffect.js";
 import {
+  LANDMARK_DISCOVERY_ICON_ID,
+  createLandmarkDiscoveryCollectionEffect,
+  discoveryHasLandmarkIndicator,
+  landmarkDiscoveryIndicatorRect
+} from "./landmarkDiscoveryIndicator.js";
+import {
   pointHitsOpaqueSpritePixel,
   selectPixelInteractionCandidate
 } from "./pixelInteraction.js";
@@ -3384,6 +3390,7 @@ const reducedMotionPreferred = window.matchMedia?.("(prefers-reduced-motion: red
 const ITEM_ACQUISITION_EFFECT_LIMIT = 12;
 const ITEM_ARRIVAL_SOUND_COIN_CLINK = "coin-clink";
 const ITEM_ARRIVAL_SOUND_QUEST_DELIVERY = "quest-delivery";
+const ITEM_ARRIVAL_SOUND_DISCOVERY_SUCCESS = "discovery-success";
 
 const steamPlatformBridge = platformServicesAdapter(window);
 const platformActivityPublisher = createPlatformActivityPublisher(steamPlatformBridge);
@@ -22255,6 +22262,7 @@ function updateItemAcquisitionEffects(nowMs) {
     changed = true;
     if (effect.arrivalSoundId === ITEM_ARRIVAL_SOUND_COIN_CLINK) playCoinClinkSound();
     else if (effect.arrivalSoundId === ITEM_ARRIVAL_SOUND_QUEST_DELIVERY) playCollectionDingSound();
+    else if (effect.arrivalSoundId === ITEM_ARRIVAL_SOUND_DISCOVERY_SUCCESS) playDiscoverySuccessSound();
     else if (effect.arrivalSoundId !== null) {
       throw new Error(`Unknown item acquisition arrival sound: ${effect.arrivalSoundId}`);
     }
@@ -37135,6 +37143,7 @@ function drawWorldInterface(nowMs) {
     characterAlertActive: Boolean(captainAlertModal)
   });
   if (!dialogueVisible) {
+    drawLandmarkDiscoveryIndicators(nowMs);
     drawWhaleKillingBlowIndicator(nowMs);
     drawOverboardCrewLabels(nowMs);
     drawCombatBroadsideControls();
@@ -37223,6 +37232,36 @@ function drawWorldInterface(nowMs) {
     screenCtx.drawImage(worldRenderer.captureFrameCanvas(), 0, 0);
     screenCtx.restore();
   }
+}
+
+function drawLandmarkDiscoveryIndicators(nowMs) {
+  if (!gameState || !chart) return;
+  for (const discovery of discoveryCatalog) {
+    if (!discoveryHasLandmarkIndicator(discovery) || gameStateHasDiscovery(gameState, discovery.id)) {
+      continue;
+    }
+    const rect = landmarkDiscoveryScreenRect(discovery, chart, nowMs);
+    if (!rect || rect.x + rect.w <= 0 || rect.y + rect.h <= 0 ||
+        rect.x >= SCREEN_W || rect.y >= SCREEN_H) continue;
+    drawGameIcon(LANDMARK_DISCOVERY_ICON_ID, rect.x, rect.y, {
+      white: true,
+      contrastOutline: true
+    });
+  }
+}
+
+function landmarkDiscoveryScreenRect(discovery, activeChart, nowMs) {
+  const point = worldDiscoveryLocalPoint(discovery, activeChart);
+  if (!point) return null;
+  const offset = chartOffsetPixels(activeChart);
+  return landmarkDiscoveryIndicatorRect({
+    discoveryId: discovery.id,
+    centerX: point.x + offset.x,
+    centerY: point.y + offset.y,
+    landmarkHalfSize: TILE_ART_HALF,
+    nowMs,
+    reducedMotion: reducedMotionPreferred
+  });
 }
 
 function drawGpuWorldUnderlay() {
@@ -38240,11 +38279,12 @@ function latitudeDegForDirection(direction) {
 
 function queueDiscovery(discovery, nowMs) {
   if (!recordDiscovery(gameState, discovery)) return false;
+  const collectionEffectStarted = startLandmarkDiscoveryCollectionEffect(discovery, nowMs);
   const cargoReward = applyDiscoveryCargoReward(discovery);
   if (!startElDoradoTreasureSequence(discovery, cargoReward, nowMs)) {
     openDiscoveryCaptainDialogue(discovery, cargoReward);
   }
-  playDiscoverySuccessSound();
+  if (!collectionEffectStarted) playDiscoverySuccessSound();
   emitCaptureEvent("discovery", {
     id: discovery.id,
     name: discovery.displayName || discovery.name || discovery.id,
@@ -38263,6 +38303,27 @@ function queueDiscovery(discovery, nowMs) {
   discoveryNoticeQueue.push(discovery);
   updateDiscoveryNotice(nowMs);
   saveVoyageNow("discovery");
+  return true;
+}
+
+function startLandmarkDiscoveryCollectionEffect(discovery, nowMs) {
+  if (!discoveryHasLandmarkIndicator(discovery) || !chart) return false;
+  const rect = landmarkDiscoveryScreenRect(discovery, chart, nowMs);
+  if (!rect) return false;
+  const startRect = {
+    ...rect,
+    x: clamp(rect.x, 1, Math.max(1, SCREEN_W - rect.w - 1)),
+    y: clamp(rect.y, 1, Math.max(1, SCREEN_H - rect.h - 1))
+  };
+  itemAcquisitionEffects.push(createLandmarkDiscoveryCollectionEffect({
+    startRect,
+    startedAtMs: nowMs,
+    targetX: SURVIVAL_PANEL_X + 1,
+    targetY: SURVIVAL_PANEL_Y + 1,
+    arrivalSoundId: ITEM_ARRIVAL_SOUND_DISCOVERY_SUCCESS
+  }));
+  trimItemAcquisitionEffects();
+  dirty = true;
   return true;
 }
 

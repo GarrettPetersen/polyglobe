@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-47";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-48";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -221,6 +221,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:choose-ships": nikoichu("Travel_Ship_Sailing_Boat.png", ICON_COLOR.sea),
   "action:start-menu": nikoichu("Map_Markers_Building_Home_House.png", ICON_COLOR.warm),
   "action:navigation": nikoichu("Map_Markers_Compass_Rose_1.png", ICON_COLOR.navigation),
+  "action:discover": nikoichu("Tools_Crafting_Binoculars_Telescope.png", ICON_COLOR.navigation),
 
   "input:xbox:a": nikoichu("Controller_Button_A.png", ICON_COLOR.success),
   "input:xbox:b": nikoichu("Controller_Button_B.png", ICON_COLOR.danger),
