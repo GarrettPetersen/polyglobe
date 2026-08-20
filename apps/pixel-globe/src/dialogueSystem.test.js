@@ -2386,6 +2386,108 @@ test("market buy controls subtly mark goods still needed for quests", () => {
     .every((entry) => entry.emphasis === undefined));
 });
 
+test("quest cargo sale controls are red and warn once per port visit", () => {
+  const city = {
+    tileId: 606,
+    city: "London",
+    country: "England",
+    factionId: "neutral",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000,
+    character: { name: "Thomas More" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    shipStats: stats,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "concerned"]
+    }
+  });
+  maybeSpawnVikingLongshipQuest(state, {
+    tileId: 607,
+    city: VIKING_LONGSHIP_PORT_CITY,
+    country: "Iceland"
+  }, { spawnChance: 1, simMinute: 0 });
+  state.cargo.wool = 8;
+
+  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  let view = portDialogueView(session, city, state, economy, [city]);
+  const woolControls = view.options.filter((entry) => entry.action.goodId === "wool");
+  assert.equal(woolControls.length, 2);
+  assert.ok(woolControls.every((entry) => entry.emphasis === "quest-cargo-danger"));
+
+  const sellOneIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell" && entry.action.goodId === "wool"
+  ));
+  selectPortDialogueOption(session, city, state, economy, [city], sellOneIndex);
+  assert.equal(session.nodeId, "quest-cargo-sale-warning");
+  assert.equal(state.cargo.wool, 8);
+  view = portDialogueView(session, city, state, economy, [city]);
+  assert.match(view.text, /need our wool for a commission/i);
+
+  const confirmIndex = view.options.findIndex((entry) => (
+    entry.action.type === "confirm-quest-cargo-sale"
+  ));
+  selectPortDialogueOption(session, city, state, economy, [city], confirmIndex);
+  assert.equal(session.nodeId, "sell");
+  assert.equal(state.cargo.wool, 7);
+
+  view = portDialogueView(session, city, state, economy, [city]);
+  const secondSaleIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell" && entry.action.goodId === "wool"
+  ));
+  selectPortDialogueOption(session, city, state, economy, [city], secondSaleIndex);
+  assert.equal(session.nodeId, "sell");
+  assert.equal(state.cargo.wool, 6);
+});
+
+test("trade advice never recommends reselling cargo bought for a quest", () => {
+  const origin = {
+    tileId: 608,
+    city: "London",
+    country: "England",
+    factionId: "neutral",
+    cityType: "northern-european",
+    lat: 51.51,
+    lon: -0.13,
+    population: 70000
+  };
+  const destination = {
+    tileId: 609,
+    city: "Bordeaux",
+    country: "France",
+    factionId: "neutral",
+    cityType: "northern-european",
+    lat: 44.84,
+    lon: -0.58,
+    population: 50000
+  };
+  const economy = createWorldEconomy({ ports: [origin, destination], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  maybeSpawnVikingLongshipQuest(state, {
+    tileId: 610,
+    city: VIKING_LONGSHIP_PORT_CITY,
+    country: "Iceland"
+  }, { spawnChance: 1, simMinute: 0 });
+  state.cargo.wool = 1;
+
+  assert.equal(bestPurchasedTradeRoute({
+    purchases: { wool: { goodId: "wool", quantity: 1, cost: 1 } },
+    originCity: origin,
+    gameState: state,
+    economy,
+    portCities: [origin, destination],
+    sailingDistanceKm: () => 800
+  }), null);
+});
+
 test("leaving the sell screen without a sale recommends a market for held trade goods", () => {
   const ternate = {
     tileId: 105,
@@ -4749,6 +4851,11 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   gameState.ship.crew = 36;
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const context = { portCities: ports, simMinute: 100 };
+  const proactiveArrival = createPortArrivalDialogueSession(panama, {
+    conquistadorApproach: true
+  });
+  assert.equal(proactiveArrival.nodeId, "conquistador");
+  assert.equal(proactiveArrival.conquistadorArrival, true);
   const session = createPortDialogueSession(panama, { initialNodeId: "root" });
 
   let view = portDialogueView(session, panama, gameState, economy, ports, context);

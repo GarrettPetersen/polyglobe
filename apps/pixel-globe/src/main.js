@@ -1477,9 +1477,11 @@ import {
   conquistadorFetchRequirementId,
   isConquistadorCompanyReplenishmentPort,
   conquistadorQuestDestination,
+  conquistadorQuestOfferShouldApproach,
   conquistadorQuestShouldAppearAtCity,
   conquistadorQuestView,
   isConquistadorQuestOrigin,
+  markConquistadorOfferSeen,
   recordConquistadorAssaultFailure,
   recordConquistadorTargetCapture
 } from "./conquistadorQuest.js";
@@ -2622,6 +2624,7 @@ const CITY_LABEL_PAD_Y = 1;
 const CITY_LABEL_GAP_PX = 2;
 const PORT_INTERACTION_RADIUS_PX = 34;
 const PORT_DIALOGUE_TRAFFIC_RADIUS_PX = 120;
+const PORT_PORTRAIT_PRELOAD_RADIUS_PX = 180;
 const FISH_INTERACTION_RADIUS_PX = 22;
 const FISH_CLICK_PAD_PX = 5;
 const PORT_CITY_CLICK_PAD_PX = 3;
@@ -2809,6 +2812,7 @@ const PIRATE_MENU_CHART_LINE = "#547e64";
 const PIRATE_MENU_PAPER_INSET = "#d6bd8f";
 const PIRATE_MENU_PAPER_INSET_ALT = "#c9aa78";
 const PIRATE_MENU_QUEST_CARGO = "#c7bf88";
+const PIRATE_MENU_QUEST_CARGO_DANGER = "#d6a095";
 const PIRATE_MENU_DANGER = "#9e3e36";
 const PIRATE_MENU_SUCCESS = "#547e64";
 const CUSTOM_LOADOUT_FIELD_ICONS = Object.freeze({
@@ -6424,6 +6428,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
+    preloadNearbyPortPortraits();
     const chartRepairCheckIsDue = nowMs - chartDriftMeasuredAtMs >=
       CHART_DRIFT_MEASURE_INTERVAL_MS;
     const chartDrift = measurePerformanceBenchmarkStage(
@@ -18542,6 +18547,7 @@ function continuePortArrivalDialogues() {
   return openNextPortArrivalFollowup([
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
+    () => maybeOpenConquistadorOfferDialogue(cityCall),
     () => maybeOpenShipyardDividendDialogue(cityCall),
     () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
     () => maybeOpenShipyardInvestmentOfferDialogue(cityCall),
@@ -18683,6 +18689,27 @@ function maybeOpenConquistadorReplenishmentDialogue(cityCall) {
   if (!isConquistadorCompanyReplenishmentPort(memory, cityCall, portCities)) return false;
   ensureConquistadorQuestGiver(gameState);
   dialogueState.conquistadorReplenishmentApproached = true;
+  dialogueState.conquistadorArrival = true;
+  dialogueState.nextPortNodeId = dialogueState.nodeId;
+  dialogueState.nodeId = "conquistador";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
+}
+
+function maybeOpenConquistadorOfferDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.rumorText !== null ||
+      dialogueState.conquistadorOfferApproached === true) {
+    return false;
+  }
+  const memory = gameState.memory.quests.conquistador;
+  if (!conquistadorQuestOfferShouldApproach(memory, cityCall, portCities)) return false;
+  ensureConquistadorQuestGiver(gameState);
+  markConquistadorOfferSeen(memory);
+  dialogueState.conquistadorOfferApproached = true;
   dialogueState.conquistadorArrival = true;
   dialogueState.nextPortNodeId = dialogueState.nodeId;
   dialogueState.nodeId = "conquistador";
@@ -19009,6 +19036,18 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       arrivedDrunk,
       drunkVariant,
       chefQuestApproach: true
+    });
+  }
+  const conquistadorMemory = gameState.memory.quests.conquistador;
+  if (conquistadorQuestOfferShouldApproach(conquistadorMemory, cityCall, portCities) &&
+      !openDeliveryMission) {
+    ensureConquistadorQuestGiver(gameState);
+    markConquistadorOfferSeen(conquistadorMemory);
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      conquistadorApproach: true
     });
   }
   const letterOfMarqueFactorOffer = !openDeliveryMission
@@ -22802,6 +22841,15 @@ function currentDialogueCity() {
   if (dialogueState.kind === "port") {
     const portCall = chartPortCallById(dialogueState.portId);
     if (portCall) {
+      if (["drunk-captain", "quest-cargo-sale-warning"].includes(dialogueState.nodeId)) {
+        const character = gameState.playerCharacter;
+        if (!character) throw new Error("Captain-led port dialogue has no player captain");
+        return {
+          ...portCall,
+          character,
+          portrait: characterExpression(character)
+        };
+      }
       if (dialogueState.nodeId === "japanese-matchlocks") {
         const character = ensureJapaneseMatchlockGunsmith(gameState);
         return {
@@ -22835,14 +22883,7 @@ function currentDialogueCity() {
         };
       }
       if (dialogueState.nodeId !== "colonization") {
-        if (dialogueState.nodeId !== "drunk-captain") return portCall;
-        const character = gameState.playerCharacter;
-        if (!character) throw new Error("Drunk port dialogue has no player captain");
-        return {
-          ...portCall,
-          character,
-          portrait: characterExpression(character)
-        };
+        return portCall;
       }
       const character = currentColonizationDialogueCharacter(portCall);
       if (!character) throw new Error("Colonization dialogue has no character");
@@ -22857,6 +22898,8 @@ function currentDialogueCity() {
   if (!city) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
   const questCharacter = dialogueState.kind !== "port"
     ? null
+    : ["drunk-captain", "quest-cargo-sale-warning"].includes(dialogueState.nodeId)
+      ? gameState.playerCharacter
     : dialogueState.nodeId === "japanese-matchlocks"
       ? ensureJapaneseMatchlockGunsmith(gameState)
       : dialogueState.nodeId === "caribbean-ginger"
@@ -58013,7 +58056,11 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
   else drawPiratePaperInset(
     rect,
     selected && !option.disabled,
-    option.emphasis === "quest-cargo" ? PIRATE_MENU_QUEST_CARGO : PIRATE_MENU_PAPER_INSET
+    option.emphasis === "quest-cargo"
+      ? PIRATE_MENU_QUEST_CARGO
+      : option.emphasis === "quest-cargo-danger"
+        ? PIRATE_MENU_QUEST_CARGO_DANGER
+        : PIRATE_MENU_PAPER_INSET
   );
   if (selected) {
     ctx.fillStyle = option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
@@ -58171,6 +58218,33 @@ function ensureDialoguePortraitLoaded() {
   for (const frame of stage.frames) {
     const expression = characterExpression(frame.character, frame.expressionId);
     dialoguePortraitImage(frame.character, expression);
+  }
+}
+
+function preloadNearbyPortPortraits() {
+  if (!chart || !localLayout || !gameState) return;
+  const radiusSquared = PORT_PORTRAIT_PRELOAD_RADIUS_PX * PORT_PORTRAIT_PRELOAD_RADIUS_PX;
+  for (const cityCall of chart.cityCalls || []) {
+    if (cityCall.hiddenSettlement) continue;
+    const x = Number.isFinite(cityCall.interactionX) ? cityCall.interactionX : cityCall.x;
+    const y = Number.isFinite(cityCall.interactionY) ? cityCall.interactionY : cityCall.y;
+    if (distance2(localLayout.viewX, localLayout.viewY, x, y) > radiusSquared) continue;
+    preloadDialogueCharacterExpressions(cityCall.character, ["neutral", "attentive"]);
+    const conquistador = gameState.memory?.quests?.conquistador;
+    if (conquistador && conquistadorQuestShouldAppearAtCity(conquistador, cityCall, portCities)) {
+      preloadDialogueCharacterExpressions(ensureConquistadorQuestGiver(gameState), ["attentive"]);
+    }
+  }
+}
+
+function preloadDialogueCharacterExpressions(character, expressionIds) {
+  if (!character?.id) return;
+  for (const expressionId of expressionIds) {
+    const expression = characterExpression(character, expressionId);
+    if (!expression) continue;
+    const key = `${character.id}|${expression.id}`;
+    if (portraitFrameStore.has(key) || portraitPromiseCache.has(key)) continue;
+    dialoguePortraitImage(character, expression);
   }
 }
 

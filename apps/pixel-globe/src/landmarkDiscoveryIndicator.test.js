@@ -10,14 +10,14 @@ import {
 } from "./landmarkDiscoveryIndicator.js";
 import { itemAcquisitionEffectFrame } from "./itemAcquisitionEffect.js";
 
-test("physical discoveries receive telescope indicators but voyage feats do not", () => {
+test("physical discoveries receive eye indicators but voyage feats do not", () => {
   assert.equal(discoveryHasLandmarkIndicator({ kind: "mountain" }), true);
   assert.equal(discoveryHasLandmarkIndicator({ kind: "landmark" }), true);
   assert.equal(discoveryHasLandmarkIndicator({ kind: "legend" }), true);
   assert.equal(discoveryHasLandmarkIndicator({ kind: "achievement" }), false);
 });
 
-test("landmark telescope stays on the pixel grid while gently bobbing above its tile", () => {
+test("landmark eye stays on the pixel grid while gently bobbing above its tile", () => {
   const start = landmarkDiscoveryIndicatorRect({
     discoveryId: "landmark-stonehenge",
     centerX: 100,
@@ -40,7 +40,7 @@ test("landmark telescope stays on the pixel grid while gently bobbing above its 
   assert.ok(Math.abs(later.y - start.y) <= 3);
 });
 
-test("reduced motion keeps the telescope fixed", () => {
+test("reduced motion keeps the eye fixed", () => {
   const rectAt = (nowMs) => landmarkDiscoveryIndicatorRect({
     discoveryId: "landmark-petra",
     centerX: 50,
@@ -52,7 +52,7 @@ test("reduced motion keeps the telescope fixed", () => {
   assert.deepEqual(rectAt(0), rectAt(LANDMARK_DISCOVERY_BOB_PERIOD_MS / 3));
 });
 
-test("discovery collection flies the telescope to the requested HUD target", () => {
+test("discovery collection flies the eye to the requested HUD target", () => {
   const effect = createLandmarkDiscoveryCollectionEffect({
     startRect: { x: 90, y: 20, w: 16, h: 16 },
     startedAtMs: 1000,

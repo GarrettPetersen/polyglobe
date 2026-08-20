@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-48",
+  "version": "resurrect-icons-49",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 224,
@@ -747,7 +747,7 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#676633"
+      "lightMonotone": "#484a77"
     },
     {
       "id": "achievement:magellan",

@@ -124,6 +124,54 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "We need our {0} for a commission. Sell it anyway?": Object.freeze({
+    "zh-Hans": "我们需要这批{0}来完成委托。仍要出售吗？",
+    ru: "Этот груз {0} нужен нам для поручения. Всё равно продать?",
+    es: "Necesitamos esta carga de {0} para un encargo. ¿Venderla de todos modos?",
+    "pt-BR": "Precisamos desta carga de {0} para uma missão. Vender mesmo assim?",
+    ja: "この{0}は依頼に必要だ。それでも売るか？",
+    de: "Wir brauchen diese Ladung {0} für einen Auftrag. Trotzdem verkaufen?",
+    fr: "Nous avons besoin de cette cargaison de {0} pour une mission. La vendre quand même ?",
+    pl: "Ten ładunek {0} jest nam potrzebny do zlecenia. Mimo to sprzedać?",
+    "zh-Hant": "我們需要這批{0}來完成委託。仍要出售嗎？",
+    ko: "이 {0} 화물은 의뢰에 필요하다. 그래도 팔까?"
+  }),
+  "Sell it anyway": Object.freeze({
+    "zh-Hans": "仍然出售",
+    ru: "Всё равно продать",
+    es: "Venderla de todos modos",
+    "pt-BR": "Vender mesmo assim",
+    ja: "それでも売る",
+    de: "Trotzdem verkaufen",
+    fr: "La vendre quand même",
+    pl: "Mimo to sprzedać",
+    "zh-Hant": "仍然出售",
+    ko: "그래도 판다"
+  }),
+  "Keep it aboard": Object.freeze({
+    "zh-Hans": "留在船上",
+    ru: "Оставить на борту",
+    es: "Dejarla a bordo",
+    "pt-BR": "Manter a bordo",
+    ja: "船に残す",
+    de: "An Bord behalten",
+    fr: "La garder à bord",
+    pl: "Zostawić na pokładzie",
+    "zh-Hant": "留在船上",
+    ko: "배에 둔다"
+  }),
+  "The quest cargo remains aboard.": Object.freeze({
+    "zh-Hans": "任务货物仍留在船上。",
+    ru: "Груз для поручения остался на борту.",
+    es: "La carga del encargo permanece a bordo.",
+    "pt-BR": "A carga da missão continua a bordo.",
+    ja: "依頼の積荷は船に残した。",
+    de: "Die Ladung für den Auftrag bleibt an Bord.",
+    fr: "La cargaison de la mission reste à bord.",
+    pl: "Ładunek potrzebny do zlecenia pozostał na pokładzie.",
+    "zh-Hant": "任務貨物仍留在船上。",
+    ko: "의뢰 화물은 배에 남겨 두었다."
+  }),
   "Peace may hold between our flags, but your name is cursed in {0}. Keep away, or we will defend ourselves!": Object.freeze({
     "zh-Hans": "我们的旗帜之间或许已经停战，但你的名字在{0}仍受唾骂。离远些，否则我们就自卫！",
     ru: "Между нашими флагами может быть мир, но в {0} ваше имя проклято. Держитесь подальше, иначе мы будем защищаться!",

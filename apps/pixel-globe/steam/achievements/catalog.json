@@ -63,7 +63,7 @@
       "gameId": "conqueror",
       "apiName": "CONQUEROR",
       "displayName": "Conqueror",
-      "description": "Destroy an empire by taking its capital.",
+      "description": "Force an empire to terms by taking its capital.",
       "hidden": false,
       "setBy": "Client",
       "achievedIcon": "achieved/CONQUEROR.jpg",

@@ -8,6 +8,7 @@ import {
   QUEST_CARGO_PROMPT_VIKING,
   activeQuestCargoRequirements,
   activeQuestCargoReservedQuantities,
+  activeQuestCargoSaleStatus,
   questCargoDeliveryPromptsAtPort
 } from "./activeQuestCargo.js";
 import { maybeSpawnChefQuest } from "./chefQuest.js";
@@ -96,6 +97,21 @@ test("active cargo quests reserve their outstanding goods across quest systems",
   state.cargo.wool = 3;
   deliverVikingLongshipQuestCargo(state, HAFNARFJORDUR, "wool-sail");
   assert.equal(activeQuestCargoReservedQuantities(state).wool, 5);
+});
+
+test("quest cargo sales consume free stock before reserved cargo", () => {
+  const state = game();
+  maybeSpawnVikingLongshipQuest(state, HAFNARFJORDUR, { spawnChance: 1, simMinute: 0 });
+  state.cargo.wool = 10;
+
+  assert.equal(activeQuestCargoSaleStatus(state, "wool", 2), null);
+  assert.deepEqual(activeQuestCargoSaleStatus(state, "wool", 3), {
+    goodId: "wool",
+    heldQuantity: 10,
+    reservedQuantity: 8,
+    saleQuantity: 3,
+    questQuantitySold: 1
+  });
 });
 
 test("ports identify every quest giver who can accept cargo aboard", () => {

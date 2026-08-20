@@ -23,6 +23,7 @@ import {
   conquistadorFetchRequirementId,
   conquistadorQuestAvailable,
   conquistadorQuestDestination,
+  conquistadorQuestOfferShouldApproach,
   createConquistadorQuestMemory,
   isConquistadorCompanyReplenishmentPort,
   migrateConquistadorQuestMemory,
@@ -48,6 +49,15 @@ const DAY = 24 * 60;
 
 test("a dormant conquistador quest has no destination and does not scan the port catalog", () => {
   assert.equal(conquistadorQuestDestination(createConquistadorQuestMemory(), [], 0), null);
+});
+
+test("the unseen Panama conquistador offer approaches the captain once", () => {
+  const ports = questPorts();
+  const memory = createConquistadorQuestMemory();
+  assert.equal(conquistadorQuestOfferShouldApproach(memory, ports[0], ports), true);
+  assert.equal(conquistadorQuestOfferShouldApproach(memory, ports[1], ports), false);
+  memory.offerSeen = true;
+  assert.equal(conquistadorQuestOfferShouldApproach(memory, ports[0], ports), false);
 });
 
 test("the Spanish expedition gathers partially delivered supplies before commissioning Chan Chan", () => {

@@ -201,6 +201,30 @@ export function activeQuestCargoReservedQuantities(state, options = {}) {
   return Object.freeze(quantities);
 }
 
+export function activeQuestCargoSaleStatus(state, goodId, quantity, options = {}) {
+  if (typeof goodId !== "string" || goodId === "") {
+    throw new Error("Quest cargo sale status requires a trade good id");
+  }
+  if (!Number.isInteger(quantity) || quantity <= 0) {
+    throw new Error(`Quest cargo sale status requires a positive quantity: ${quantity}`);
+  }
+  const heldQuantity = state.cargo?.[goodId] || 0;
+  if (!Number.isFinite(heldQuantity) || heldQuantity < quantity) {
+    throw new Error(`Quest cargo sale exceeds the hold: ${goodId} ${quantity}/${heldQuantity}`);
+  }
+  const reservedQuantity = activeQuestCargoReservedQuantities(state, options)[goodId] || 0;
+  const unreservedQuantity = Math.max(0, heldQuantity - reservedQuantity);
+  const questQuantitySold = Math.max(0, quantity - unreservedQuantity);
+  if (questQuantitySold === 0) return null;
+  return Object.freeze({
+    goodId,
+    heldQuantity,
+    reservedQuantity,
+    saleQuantity: quantity,
+    questQuantitySold
+  });
+}
+
 export function questCargoDeliveryPromptsAtPort(state, city, { currentMinute = 0 } = {}) {
   if (!city || !Number.isInteger(city.tileId)) {
     throw new Error("Quest cargo delivery prompts require a placed port");

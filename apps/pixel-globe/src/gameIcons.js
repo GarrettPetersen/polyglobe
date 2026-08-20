@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-48";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-49";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -104,7 +104,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "good:beeswax": glionox(678),
   "good:naval-stores": glionox(680),
   "good:sulfur": glionox(721),
-  "good:arms": pirate(5),
+  "good:arms": pirate(6),
   "good:linen-cloth": paperOutlined(glionox(785)),
   "good:wool-cloth": glionox(581),
   "good:cotton-cloth": glionox(582),
@@ -144,7 +144,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "menu:captain": nikoichu("Travel_Person_Player_Character_Single.png", ICON_COLOR.warm),
   "menu:ship": nikoichu("Travel_Ship_Sailing_Boat.png", ICON_COLOR.sea),
   "menu:politics": nikoichu("Map_Markers_Flagpole_Triangle_Minesweeper.png", ICON_COLOR.gold),
-  "menu:discoveries": nikoichu("Map_Markers_Building_Bank_Greek_Temple.png", ICON_COLOR.parchment),
+  "menu:discoveries": nikoichu("Media_Eyeball_Vision_Shown.png", ICON_COLOR.navigation),
 
   "achievement:magellan": nikoichu("Software_Planet_Geography_Localization_Global_Language_Translation_2.png", ICON_COLOR.sea),
   "achievement:founder": nikoichu("Map_Markers_Building_Home_House.png", ICON_COLOR.warm),
@@ -221,7 +221,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:choose-ships": nikoichu("Travel_Ship_Sailing_Boat.png", ICON_COLOR.sea),
   "action:start-menu": nikoichu("Map_Markers_Building_Home_House.png", ICON_COLOR.warm),
   "action:navigation": nikoichu("Map_Markers_Compass_Rose_1.png", ICON_COLOR.navigation),
-  "action:discover": nikoichu("Tools_Crafting_Binoculars_Telescope.png", ICON_COLOR.navigation),
+  "action:discover": nikoichu("Media_Eyeball_Vision_Shown.png", ICON_COLOR.navigation),
 
   "input:xbox:a": nikoichu("Controller_Button_A.png", ICON_COLOR.success),
   "input:xbox:b": nikoichu("Controller_Button_B.png", ICON_COLOR.danger),
@@ -452,6 +452,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "decline-quest-cargo-tip": "action:back",
   "confirm-tribute-theft": "action:sell",
   "cancel-tribute-theft": "action:back",
+  "confirm-quest-cargo-sale": "action:sell",
+  "cancel-quest-cargo-sale": "action:back",
   buy: "action:buy",
   "accept-quest": "action:quest",
   "accept-passenger": "action:passenger",

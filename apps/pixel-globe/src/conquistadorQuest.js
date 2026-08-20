@@ -472,6 +472,13 @@ export function conquistadorQuestShouldAppearAtCity(memory, city, portCities) {
   return false;
 }
 
+export function conquistadorQuestOfferShouldApproach(memory, city, portCities) {
+  validateConquistadorQuestMemory(memory);
+  return memory.stage === CONQUISTADOR_STAGE_DORMANT &&
+    !memory.offerSeen &&
+    conquistadorQuestShouldAppearAtCity(memory, city, portCities);
+}
+
 export function conquistadorQuestDestination(memory, portCities, currentMinute) {
   validateConquistadorQuestMemory(memory);
   assertMinute(currentMinute, "conquistador destination");

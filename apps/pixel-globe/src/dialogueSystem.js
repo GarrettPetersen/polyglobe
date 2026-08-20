@@ -159,7 +159,10 @@ import {
   equipmentFactorPitchItem,
   validateEquipmentFactorPitch
 } from "./equipmentFactorOffers.js";
-import { activeQuestCargoReservedQuantities } from "./activeQuestCargo.js";
+import {
+  activeQuestCargoReservedQuantities,
+  activeQuestCargoSaleStatus
+} from "./activeQuestCargo.js";
 import { usesPluralAgreement } from "./grammaticalNumber.js";
 import {
   CUSTOM_LOADOUT_FIELDS,
@@ -399,6 +402,8 @@ export function createPortDialogueSession(city, options = {}) {
     marketUndoSnapshot: null,
     marketUndoIllicitTradeVisit: null,
     pendingTributeTheft: null,
+    pendingQuestCargoSale: null,
+    questCargoSaleWarningShown: false,
     tradeTip: null,
     questCargoTip: null,
     shipHandover: null,
@@ -414,6 +419,10 @@ export function createPortDialogueSession(city, options = {}) {
     historicalGossip: options.historicalGossip || null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
+    conquistadorArrival: options.conquistadorArrival === true,
+    conquistadorOfferApproached: false,
+    conquistadorReplenishmentApproached: false,
+    conquistadorRewardApproached: false,
     japaneseMatchlockArrival: options.japaneseMatchlockArrival === true,
     caribbeanGingerArrival: options.caribbeanGingerArrival === true,
     chefQuestArrival: options.chefQuestArrival === true,
@@ -515,6 +524,17 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       postDrunkNodeId: arrivedDrunk ? "colonization" : null,
       drunkVariant,
       colonizationArrival: true,
+      admittedToPort: true
+    });
+  }
+  if (options.conquistadorApproach === true) {
+    const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
+    return createPortDialogueSession(city, {
+      initialNodeId: arrivedDrunk ? "drunk-captain" : "conquistador",
+      nextPortNodeId,
+      postDrunkNodeId: arrivedDrunk ? "conquistador" : null,
+      drunkVariant,
+      conquistadorArrival: true,
       admittedToPort: true
     });
   }
@@ -1546,6 +1566,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy, context);
   if (session.nodeId === "tribute-theft-warning") {
     return tributeTheftWarningView(session, city, gameState);
+  }
+  if (session.nodeId === "quest-cargo-sale-warning") {
+    return questCargoSaleWarningView(session, gameState);
   }
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
@@ -2684,6 +2707,17 @@ export function selectPortDialogueOption(
       session.feedback = null;
       return { closed: false };
     }
+    const questCargoSale = activeQuestCargoSaleStatus(gameState, action.goodId, quantity, {
+      currentMinute: context.simMinute ?? 0
+    });
+    if (questCargoSale && !session.questCargoSaleWarningShown) {
+      session.questCargoSaleWarningShown = true;
+      session.pendingQuestCargoSale = { action: { ...action, quantity }, questCargoSale };
+      session.nodeId = "quest-cargo-sale-warning";
+      session.selectedIndex = 0;
+      session.feedback = null;
+      return { closed: false };
+    }
     return executeMarketSale(
       session,
       city,
@@ -2730,6 +2764,33 @@ export function selectPortDialogueOption(
     session.feedback = pending.theft.kind === "tea-race"
       ? "The new tea remains sealed for London."
       : "The sealed tribute remains aboard.";
+    return { closed: false };
+  }
+  if (action.type === "confirm-quest-cargo-sale") {
+    const pending = session.pendingQuestCargoSale;
+    if (!pending) throw new Error("No quest cargo sale is awaiting confirmation");
+    const result = executeMarketSale(
+      session,
+      city,
+      gameState,
+      economy,
+      pending.action.goodId,
+      pending.action.quantity,
+      context,
+      pending.action.type === "sell-all"
+    );
+    session.pendingQuestCargoSale = null;
+    session.nodeId = "sell";
+    return result;
+  }
+  if (action.type === "cancel-quest-cargo-sale") {
+    if (!session.pendingQuestCargoSale) {
+      throw new Error("No quest cargo sale is awaiting cancellation");
+    }
+    session.pendingQuestCargoSale = null;
+    session.nodeId = "sell";
+    session.selectedIndex = 0;
+    session.feedback = "The quest cargo remains aboard.";
     return { closed: false };
   }
   if (action.type === "undo-market") {
@@ -5785,6 +5846,9 @@ export function bestPurchasedTradeRoute({
     throw new Error(`Trade-route local-market flag must be boolean: ${includeLocalMarket}`);
   }
 
+  const requiredQuestCargo = activeQuestCargoReservedQuantities(gameState, {
+    currentMinute: simMinute
+  });
   let best = null;
   for (const purchase of Object.values(purchases)) {
     if (!purchase || !Number.isInteger(purchase.quantity) || purchase.quantity <= 0) {
@@ -5794,6 +5858,7 @@ export function bestPurchasedTradeRoute({
       throw new Error("Trade-route purchase cost must be non-negative");
     }
     const good = tradeGoodById(purchase.goodId);
+    if ((requiredQuestCargo[good.id] || 0) > 0) continue;
     const heldBasis = cargoCostBasis(gameState, good.id);
     const heldQuantity = gameState.cargo[good.id] || 0;
     const expectedCost = heldBasis.known && heldQuantity >= purchase.quantity
@@ -5861,8 +5926,12 @@ function bestHeldCargoTradeRoute({
   sailingDistanceKm
 }) {
   const purchases = {};
+  const requiredQuestCargo = activeQuestCargoReservedQuantities(gameState, {
+    currentMinute: simMinute
+  });
   for (const row of cargoRows(gameState)) {
     if (row.good.sellable === false) continue;
+    if ((requiredQuestCargo[row.good.id] || 0) > 0) continue;
     const quantity = marketTradeLotCount(row.quantity);
     if (quantity <= 0) continue;
     const basis = cargoCostBasis(gameState, row.good.id);
@@ -6165,6 +6234,9 @@ function loadoutRemovalSummary(removed) {
 function sellView(session, city, gameState, economy, context) {
   const hold = cargoHoldStatus(gameState);
   const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
+  const requiredQuestCargo = activeQuestCargoReservedQuantities(gameState, {
+    currentMinute: context.simMinute ?? 0
+  });
   const rows = marketSaleGoodIds(session, gameState).flatMap((goodId) => {
     const good = tradeGoodById(goodId);
     const quantity = gameState.cargo[goodId] || 0;
@@ -6207,6 +6279,7 @@ function sellView(session, city, gameState, economy, context) {
           ? "The market is out of specie."
           : null;
     const rowId = `market-${goodId}`;
+    const questCargoNeeded = (requiredQuestCargo[goodId] || 0) > 0;
     return [
       option(`Sell 1 ${good.label}  ${price} db`, {
         type: "sell",
@@ -6215,7 +6288,8 @@ function sellView(session, city, gameState, economy, context) {
         detail: `${tradeTermsDetail(terms, "sell")}  ${worldPriceIndicator(comparison)}  ${marketProfitIndicator(pnlLabel)}  ${marketHeldIndicator(heldLots)}`,
         rowId,
         disabled: cartazBlocked || soldOut || marketOutOfSpecie,
-        disabledReason
+        disabledReason,
+        emphasis: questCargoNeeded ? "quest-cargo-danger" : null
       }),
       option(`Sell all x${heldLots}  ${fullSalePrice} db`, {
         type: "sell-all",
@@ -6225,7 +6299,8 @@ function sellView(session, city, gameState, economy, context) {
         detail: `TOTAL P/L ${fullPnl}  HELD ${heldLots}`,
         rowId,
         disabled: cartazBlocked || !marketCanBuyAll,
-        disabledReason: disabledReason || "The market cannot afford the whole lot."
+        disabledReason: disabledReason || "The market cannot afford the whole lot.",
+        emphasis: questCargoNeeded ? "quest-cargo-danger" : null
       })
     ];
   });
@@ -6294,6 +6369,23 @@ function tributeTheftWarningView(session, city, gameState) {
     options: [
       option(`Sell the sealed ${good.label.toLowerCase()}`, { type: "confirm-tribute-theft" }),
       option("Keep the tribute aboard", { type: "cancel-tribute-theft" })
+    ]
+  };
+}
+
+function questCargoSaleWarningView(session, gameState) {
+  const pending = session.pendingQuestCargoSale;
+  if (!pending) throw new Error("Quest cargo sale warning has no pending sale");
+  const good = tradeGoodById(pending.questCargoSale.goodId);
+  return {
+    speaker: characterName(gameState.playerCharacter),
+    expressionId: "concerned",
+    text: `We need our ${good.label.toLowerCase()} for a commission. Sell it anyway?`,
+    bodyTone: "danger",
+    feedback: session.feedback,
+    options: [
+      option("Sell it anyway", { type: "confirm-quest-cargo-sale" }),
+      option("Keep it aboard", { type: "cancel-quest-cargo-sale" })
     ]
   };
 }
@@ -6799,7 +6891,7 @@ function option(label, action, details = {}) {
   };
   if (details.detailTone !== undefined) entry.detailTone = details.detailTone;
   if (details.emphasis !== undefined && details.emphasis !== null) {
-    if (details.emphasis !== "quest-cargo") {
+    if (!["quest-cargo", "quest-cargo-danger"].includes(details.emphasis)) {
       throw new Error(`Unknown dialogue option emphasis: ${details.emphasis}`);
     }
     entry.emphasis = details.emphasis;

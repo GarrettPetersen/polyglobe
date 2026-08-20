@@ -155,7 +155,7 @@ test("generic fish cargo uses the native-size herring art", () => {
 test("pikes and blades use a melee weapon rather than a firearm icon", () => {
   assert.deepEqual(GAME_ICON_SOURCES["good:arms"], {
     packId: "pirate",
-    entry: "PNG/Transperent/Icon5.png",
+    entry: "PNG/Transperent/Icon6.png",
     crop: null
   });
 });
@@ -304,7 +304,7 @@ test("ship and ledger has native 16x16 artwork for every roster vessel", async (
   assert.throws(() => shipMenuIconId("missing-ship"), /Ship has no menu icon/);
 });
 
-test("ship, politics, and wonders menus use consistent one-bit icons", () => {
+test("ship, politics, and discovery menus use consistent one-bit icons", () => {
   const ship = GAME_ICON_SOURCES["menu:ship"];
   assert.equal(ship.packId, "nikoichu");
   assert.equal(ship.entry, "Sprites/Travel_Ship_Sailing_Boat.png");
@@ -312,8 +312,9 @@ test("ship, politics, and wonders menus use consistent one-bit icons", () => {
 
   const wonders = GAME_ICON_SOURCES["menu:discoveries"];
   assert.equal(wonders.packId, "nikoichu");
-  assert.equal(wonders.entry, "Sprites/Map_Markers_Building_Bank_Greek_Temple.png");
-  assert.equal(wonders.lightMonotone, "#676633");
+  assert.equal(wonders.entry, "Sprites/Media_Eyeball_Vision_Shown.png");
+  assert.equal(wonders.lightMonotone, "#484a77");
+  assert.deepEqual(GAME_ICON_SOURCES["action:discover"], wonders);
 
   const politics = GAME_ICON_SOURCES["menu:politics"];
   assert.equal(politics.packId, "nikoichu");
