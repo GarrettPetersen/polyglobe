@@ -4558,6 +4558,8 @@ test("a returning shipyard investor receives an itemized sale-share greeting", (
   });
   assert.equal(view.presentation.kind, "player-shipyard-ledger");
   assert.equal(view.presentation.tab, "books");
+  assert.equal(view.presentation.ledgerJournal.total, view.presentation.ledger.accounts.entries.length);
+  assert.ok(!view.options.some((entry) => entry.action.type === "shipyard-ledger-page"));
   assert.match(view.text, /sold a Galleon/);
   assert.match(view.text, /22000 doubloons has been paid/);
   assert.equal(view.options.at(-1).action.nodeId, "greeting");

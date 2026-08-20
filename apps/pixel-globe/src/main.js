@@ -18053,6 +18053,9 @@ function createDialogueLayoutState() {
     scrollOffset: 0,
     previousRect: null,
     nextRect: null,
+    shipyardLedgerScrollUpRect: null,
+    shipyardLedgerScrollDownRect: null,
+    shipyardLedgerVisibleRows: 0,
     customLoadoutSliderRects: [],
     activeCustomLoadoutSliderKey: null,
     portraitStage: createDialoguePortraitStageState()
@@ -18063,6 +18066,9 @@ function invalidateDialogueOptionGeometry() {
   dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
+  dialogueLayout.shipyardLedgerScrollUpRect = null;
+  dialogueLayout.shipyardLedgerScrollDownRect = null;
+  dialogueLayout.shipyardLedgerVisibleRows = 0;
   dialogueLayout.customLoadoutSliderRects = [];
 }
 
@@ -18077,7 +18083,15 @@ function handleDialogueKeyDown(event) {
     navigateBackFromDialogue();
     return;
   }
+  if (dialogueIsPlayerShipyardBooks() && (event.key === "PageUp" || event.key === "PageDown")) {
+    scrollPlayerShipyardJournal(event.key === "PageDown" ? 1 : -1);
+    return;
+  }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+    if (dialogueIsPlayerShipyardBooks() && dialogueState.selectedIndex === 1 &&
+        scrollPlayerShipyardJournal(event.key === "ArrowDown" ? 1 : -1)) {
+      return;
+    }
     stepDialogueSelection(event.key === "ArrowDown" ? 1 : -1);
     return;
   }
@@ -18115,6 +18129,14 @@ function handleDialoguePointerDown(point) {
       return;
     }
   }
+  if (pointInRect(point, dialogueLayout.shipyardLedgerScrollUpRect)) {
+    scrollPlayerShipyardJournal(-1);
+    return;
+  }
+  if (pointInRect(point, dialogueLayout.shipyardLedgerScrollDownRect)) {
+    scrollPlayerShipyardJournal(1);
+    return;
+  }
   if (pointInRect(point, dialogueLayout.previousRect)) {
     stepDialogueSelection(-1);
     return;
@@ -18129,6 +18151,40 @@ function handleDialoguePointerDown(point) {
     chooseDialogueOption(entry.index);
     return;
   }
+}
+
+function dialogueIsPlayerShipyardBooks() {
+  return dialogueState?.kind === "port" &&
+    dialogueState.nodeId === "shipyard" &&
+    dialogueState.shipyardLedgerTab === "books";
+}
+
+function scrollPlayerShipyardJournal(direction) {
+  if (!dialogueIsPlayerShipyardBooks()) return false;
+  if (!Number.isInteger(direction) || direction === 0) {
+    throw new Error(`Invalid shipyard journal scroll direction: ${direction}`);
+  }
+  const view = currentDialogueView();
+  const journal = view.presentation?.kind === "player-shipyard-ledger"
+    ? view.presentation.ledgerJournal
+    : null;
+  if (!journal || !Array.isArray(journal.entries)) {
+    throw new Error("Shipyard journal scroll requires the account ledger");
+  }
+  const maxOffset = Math.max(
+    0,
+    journal.total - Math.max(1, dialogueLayout.shipyardLedgerVisibleRows)
+  );
+  const nextOffset = clamp(
+    dialogueState.shipyardLedgerScrollOffset + Math.sign(direction),
+    0,
+    maxOffset
+  );
+  if (nextOffset === dialogueState.shipyardLedgerScrollOffset) return false;
+  dialogueState.shipyardLedgerScrollOffset = nextOffset;
+  invalidateDialogueView();
+  dirty = true;
+  return true;
 }
 
 function dialogueIsCustomLoadoutEditor() {
@@ -18292,6 +18348,10 @@ function handleCanvasWheel(event) {
   }
   if (owner !== INTERACTION_INPUT.DIALOGUE) return;
   event.preventDefault();
+  if (dialogueIsPlayerShipyardBooks()) {
+    scrollPlayerShipyardJournal(event.deltaY > 0 ? 1 : -1);
+    return;
+  }
   stepDialogueSelection(event.deltaY > 0 ? 1 : -1);
 }
 
@@ -18709,7 +18769,7 @@ function maybeOpenShipyardDividendDialogue(cityCall, { allowShipyardNode = false
     ? "root"
     : dialogueState.nodeId;
   dialogueState.shipyardLedgerTab = "books";
-  dialogueState.shipyardLedgerPage = 0;
+  dialogueState.shipyardLedgerScrollOffset = 0;
   dialogueState.nodeId = "shipyard";
   dialogueState.selectedIndex = 1;
   dialogueState.feedback = null;
@@ -22490,7 +22550,7 @@ async function purchaseShipyardShip(action) {
         salesSummary: `This sale paid your owner's share of ${ownerPayout.amount} doubloons at once.`
       };
       session.shipyardLedgerTab = "books";
-      session.shipyardLedgerPage = 0;
+      session.shipyardLedgerScrollOffset = 0;
       session.shipyardLedgerReturnNodeId = "root";
     }
     if (returnedHistorian) {
@@ -57621,12 +57681,15 @@ function drawCustomLoadoutHoldBar(rect, plan) {
 
 function drawPlayerShipyardLedgerOverlay(dialogueView) {
   const presentation = dialogueView.presentation;
-  const { ledger, ledgerPage, tab } = presentation;
+  const { ledger, ledgerJournal, tab } = presentation;
   if (!ledger?.currentBuild || !ledger?.accounts || !["yard", "books"].includes(tab)) {
     throw new Error("Player shipyard ledger presentation is incomplete");
   }
   ensureShipyardSideViewLoaded(ledger.currentBuild.shipSlug);
   if (presentation.listing) ensureShipyardSideViewLoaded(presentation.listing.shipSlug);
+  dialogueLayout.shipyardLedgerScrollUpRect = null;
+  dialogueLayout.shipyardLedgerScrollDownRect = null;
+  dialogueLayout.shipyardLedgerVisibleRows = 0;
 
   const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
   const optionWidth = panel.w - 18;
@@ -57663,7 +57726,7 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
   ctx.rect(content.x, content.y, content.w, content.h);
   ctx.clip();
   if (tab === "yard") drawPlayerShipyardYardTab(content, presentation);
-  else drawPlayerShipyardBooksTab(content, presentation, ledgerPage);
+  else drawPlayerShipyardBooksTab(content, presentation, ledgerJournal);
   ctx.restore();
 
   drawDialogueOptions(
@@ -57849,9 +57912,9 @@ function createShipyardConstructionArt(image, progress) {
   return sample;
 }
 
-function drawPlayerShipyardBooksTab(content, presentation, ledgerPage) {
-  if (!ledgerPage || !Array.isArray(ledgerPage.entries)) {
-    throw new Error("Player shipyard books require a journal page");
+function drawPlayerShipyardBooksTab(content, presentation, ledgerJournal) {
+  if (!ledgerJournal || !Array.isArray(ledgerJournal.entries)) {
+    throw new Error("Player shipyard books require a journal");
   }
   const accounts = presentation.ledger.accounts;
   let y = content.y;
@@ -57896,16 +57959,55 @@ function drawPlayerShipyardBooksTab(content, presentation, ledgerPage) {
   ctx.fillStyle = PIRATE_MENU_CHART_LINE;
   ctx.fillRect(content.x, y, content.w, 1);
   y += 5;
-  const journalRange = ledgerPage.total === 0
+  const rowHeight = 13;
+  const journalRowsY = y + 12;
+  const visibleRows = Math.max(0, Math.floor((content.y + content.h - journalRowsY) / rowHeight));
+  const maxScrollOffset = Math.max(0, ledgerJournal.total - Math.max(1, visibleRows));
+  const scrollOffset = clamp(ledgerJournal.scrollOffset, 0, maxScrollOffset);
+  if (dialogueState.shipyardLedgerScrollOffset !== scrollOffset) {
+    dialogueState.shipyardLedgerScrollOffset = scrollOffset;
+  }
+  dialogueLayout.shipyardLedgerVisibleRows = visibleRows;
+  const journalEnd = Math.min(ledgerJournal.total, scrollOffset + visibleRows);
+  const journalRange = ledgerJournal.total === 0
     ? "0/0"
-    : `${ledgerPage.start}-${ledgerPage.end}/${ledgerPage.total}`;
+    : `${scrollOffset + 1}-${journalEnd}/${ledgerJournal.total}`;
   drawOptionsText(`ENTRIES  ${journalRange}`, content.x, y, {
     color: PIRATE_MENU_INK_MUTED
   });
-  y += 12;
-  const rowHeight = 13;
-  const visibleRows = Math.max(0, Math.floor((content.y + content.h - y) / rowHeight));
-  for (const [index, entry] of ledgerPage.entries.slice(0, visibleRows).entries()) {
+  y = journalRowsY;
+  const canScroll = maxScrollOffset > 0;
+  const journalRight = content.x + content.w - (canScroll ? 10 : 0);
+  dialogueLayout.shipyardLedgerScrollUpRect = scrollOffset > 0
+    ? { x: journalRight + 1, y: y - 12, w: 9, h: 9 }
+    : null;
+  dialogueLayout.shipyardLedgerScrollDownRect = scrollOffset < maxScrollOffset
+    ? { x: journalRight + 1, y: content.y + content.h - 9, w: 9, h: 9 }
+    : null;
+  if (dialogueLayout.shipyardLedgerScrollUpRect) {
+    drawMenuScrollTriangle(journalRight + 5, y - 10, "up");
+  }
+  if (dialogueLayout.shipyardLedgerScrollDownRect) {
+    drawMenuScrollTriangle(journalRight + 5, content.y + content.h - 7, "down");
+  }
+  const visibleEntries = ledgerJournal.entries.slice(scrollOffset, journalEnd);
+  const dateColumnWidth = Math.max(
+    0,
+    ...visibleEntries.map((entry) => measurePixelTextWidth(
+      shipLedgerDateLabel(entry.simMinute),
+      PIXEL_FONT_SMALL_8
+    ))
+  );
+  const amountColumnWidth = Math.max(
+    0,
+    ...visibleEntries.map((entry) => measurePixelTextWidth(
+      formatSignedLedgerMoney(entry.amount),
+      PIXEL_FONT_SMALL_8
+    ))
+  );
+  const labelX = content.x + 2 + dateColumnWidth + 10;
+  const labelWidth = Math.max(24, journalRight - amountColumnWidth - 8 - labelX);
+  for (const [index, entry] of visibleEntries.entries()) {
     const rowY = y + index * rowHeight;
     if (index % 2 === 0) {
       ctx.fillStyle = "rgba(113, 80, 51, 0.1)";
@@ -57915,12 +58017,12 @@ function drawPlayerShipyardBooksTab(content, presentation, ledgerPage) {
       color: PIRATE_MENU_INK_MUTED
     });
     drawOptionsText(
-      fitPixelText(shipyardAccountEntryLabel(entry), PIXEL_FONT_SMALL_8, Math.max(36, content.w - 126)),
-      content.x + 64,
+      fitPixelText(shipyardAccountEntryLabel(entry), PIXEL_FONT_SMALL_8, labelWidth),
+      labelX,
       rowY,
       { color: PIRATE_MENU_INK }
     );
-    drawOptionsText(formatSignedLedgerMoney(entry.amount), content.x + content.w - 2, rowY, {
+    drawOptionsText(formatSignedLedgerMoney(entry.amount), journalRight - 2, rowY, {
       align: "right",
       color: entry.amount < 0 ? "#b65050" : "#4f7d43"
     });
@@ -57930,9 +58032,17 @@ function drawPlayerShipyardBooksTab(content, presentation, ledgerPage) {
 function shipyardAccountEntryLabel(entry) {
   if (entry.kind === "capital") return "OWNER CAPITAL";
   if (entry.kind === "construction") return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} BUILT`;
+  if (entry.kind === "construction-progress") {
+    return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} IN PROGRESS`;
+  }
   if (entry.kind === "sale") return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} SOLD`;
   if (entry.kind === "payout") return "DIVIDEND PAID";
-  if (entry.kind === "legacy") return "EARLIER ACCOUNTS";
+  if (entry.kind === "legacy") {
+    if (entry.legacyAccount === "sales") return "EARLIER SHIP SALES";
+    if (entry.legacyAccount === "construction") return "EARLIER SHIPBUILDING COSTS";
+    if (entry.legacyAccount === "payouts") return "EARLIER DIVIDENDS";
+    return "EARLIER ACCOUNTS";
+  }
   throw new Error(`Unknown shipyard account entry kind: ${entry.kind}`);
 }
 

@@ -11,7 +11,7 @@ import {
 import { JAPANESE_POLITY_FACTION_IDS } from "./factions.js";
 
 const MINUTES_PER_DAY = 24 * 60;
-const SHIPYARD_SNAPSHOT_VERSION = 5;
+const SHIPYARD_SNAPSHOT_VERSION = 6;
 const LEGACY_BUILD_TIME_SCALE = 0.75;
 const NORMAL_BUILD_INTERVAL_DAYS = 1200;
 const FAMOUS_BUILD_INTERVAL_DAYS = 480;
@@ -201,7 +201,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
   validateOptionalSeedKey(seedKey, "restored shipyard");
   if (
     !snapshot ||
-    ![1, 2, 3, 4, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
+    ![1, 2, 3, 4, 5, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
     !Array.isArray(snapshot.yards) ||
     (snapshot.version >= 3 && !Array.isArray(snapshot.npcSales))
   ) {
@@ -259,7 +259,11 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
       ? saved.buildStartedMinute
       : inferredShipyardBuildStartedMinute(yard);
     yard.playerAccounts = snapshot.version >= 5 && saved.playerAccounts
-      ? restorePlayerShipyardAccounts(saved.playerAccounts, yard)
+      ? migrateVersionFivePlayerShipyardAccounts(
+          restorePlayerShipyardAccounts(saved.playerAccounts, yard),
+          yard,
+          snapshot.version
+        )
       : migratePlayerShipyardAccounts(yard);
   }
   system.lastMinute = snapshot.lastMinute;
@@ -431,8 +435,23 @@ export function playerShipyardLedger(yard, simMinute) {
   const buildDuration = Math.max(1, yard.nextBuildMinute - yard.buildStartedMinute);
   const progress = clamp((simMinute - yard.buildStartedMinute) / buildDuration, 0, 1);
   const accounts = yard.playerAccounts;
+  const constructionCost = playerBackedConstructionCost(plannedListing);
+  const workInProgressExpenses = Math.round(constructionCost * progress);
+  const constructionExpenses = accounts.constructionExpenses + workInProgressExpenses;
   const cashBalance = accounts.capitalContributions + accounts.salesRevenue -
-    accounts.constructionExpenses - accounts.playerPayouts;
+    constructionExpenses - accounts.playerPayouts;
+  const journalEntries = accounts.entries.map((entry) => Object.freeze({ ...entry }));
+  if (workInProgressExpenses > 0) {
+    journalEntries.push(Object.freeze({
+      id: `yard-account-work-in-progress-${yard.buildNumber + 1}`,
+      kind: "construction-progress",
+      simMinute,
+      amount: -workInProgressExpenses,
+      description: `${plannedListing.shipLabel} construction in progress`,
+      shipSlug: plannedListing.shipSlug,
+      progress
+    }));
+  }
   return Object.freeze({
     portId: yard.portId,
     portName: yard.portName,
@@ -444,6 +463,8 @@ export function playerShipyardLedger(yard, simMinute) {
       startedMinute: yard.buildStartedMinute,
       completeMinute: yard.nextBuildMinute,
       progress,
+      constructionCost,
+      accruedConstructionCost: workInProgressExpenses,
       daysRemaining: Math.max(0, Math.ceil((yard.nextBuildMinute - simMinute) / MINUTES_PER_DAY)),
       materialDelayDays: yard.materialDelayDays
     }),
@@ -454,12 +475,14 @@ export function playerShipyardLedger(yard, simMinute) {
     accounts: Object.freeze({
       capitalContributions: accounts.capitalContributions,
       salesRevenue: accounts.salesRevenue,
-      constructionExpenses: accounts.constructionExpenses,
+      constructionExpenses,
+      postedConstructionExpenses: accounts.constructionExpenses,
+      workInProgressExpenses,
       playerSharesEarned: yard.lifetimePlayerDividends,
       playerPayouts: accounts.playerPayouts,
       outstandingPlayerShare: yard.playerDividendBalance,
       cashBalance,
-      entries: Object.freeze(accounts.entries.map((entry) => Object.freeze({ ...entry })))
+      entries: Object.freeze(journalEntries)
     })
   });
 }
@@ -792,7 +815,7 @@ function createPlayerShipyardAccounts(backing) {
 
 function recordPlayerShipyardConstruction(yard, listing, simMinute) {
   const accounts = requiredPlayerShipyardAccounts(yard);
-  const cost = roundToHundred(listing.price * PLAYER_BACKED_CONSTRUCTION_COST_RATE);
+  const cost = playerBackedConstructionCost(listing);
   accounts.constructionExpenses += cost;
   appendPlayerShipyardAccountEntry(accounts, {
     kind: "construction",
@@ -802,6 +825,13 @@ function recordPlayerShipyardConstruction(yard, listing, simMinute) {
     shipSlug: listing.shipSlug,
     materials: shipbuildingMaterialRequirements(listing.shipSlug)
   });
+}
+
+function playerBackedConstructionCost(listing) {
+  if (!listing || !Number.isInteger(listing.price) || listing.price <= 0) {
+    throw new Error(`Invalid player-backed ship construction price: ${listing?.price}`);
+  }
+  return roundToHundred(listing.price * PLAYER_BACKED_CONSTRUCTION_COST_RATE);
 }
 
 function recordPlayerShipyardSale(yard, listing, buyer, dividend, simMinute) {
@@ -900,6 +930,10 @@ function restorePlayerShipyardAccountEntry(entry, portId) {
       typeof entry.description !== "string" || entry.description === "") {
     throw new Error(`Invalid saved shipyard account entry: ${portId}`);
   }
+  if (entry.legacyAccount !== undefined &&
+      !["sales", "construction", "payouts"].includes(entry.legacyAccount)) {
+    throw new Error(`Invalid saved shipyard legacy account: ${portId}`);
+  }
   if (entry.shipSlug) shipStatsForSlug(entry.shipSlug);
   return Object.freeze(copyPlayerShipyardAccountEntry(entry));
 }
@@ -909,17 +943,92 @@ function migratePlayerShipyardAccounts(yard) {
   const accounts = createPlayerShipyardAccounts(yard.playerBacking);
   const pendingRevenue = yard.playerPendingSales.reduce((sum, sale) => sum + sale.price, 0);
   const paidShares = yard.lifetimePlayerDividends - yard.playerDividendBalance;
-  if (pendingRevenue > 0) accounts.salesRevenue = pendingRevenue;
+  const inferredRevenue = inferredSalesRevenueForPlayerShare(yard.lifetimePlayerDividends);
+  const historicalRevenue = Math.max(pendingRevenue, inferredRevenue);
+  const historicalConstruction = roundToHundred(
+    historicalRevenue * PLAYER_BACKED_CONSTRUCTION_COST_RATE
+  );
+  if (historicalRevenue > 0) accounts.salesRevenue = historicalRevenue;
+  if (historicalConstruction > 0) accounts.constructionExpenses = historicalConstruction;
   if (paidShares > 0) accounts.playerPayouts = paidShares;
-  if (pendingRevenue > 0 || paidShares > 0) {
+  appendMigratedPlayerShipyardEntries(accounts, yard.playerBacking.investedMinute, {
+    revenue: historicalRevenue,
+    construction: historicalConstruction,
+    payouts: paidShares
+  });
+  return accounts;
+}
+
+function migrateVersionFivePlayerShipyardAccounts(accounts, yard, snapshotVersion) {
+  if (snapshotVersion !== 5) return accounts;
+  const retainedEntries = accounts.entries.filter((entry) => (
+    entry.kind !== "legacy" || entry.description !== "Earlier shipyard accounts"
+  ));
+  const explicitRevenue = retainedEntries.reduce((sum, entry) => (
+    sum + (entry.kind === "sale" ? entry.amount : 0)
+  ), 0);
+  const explicitConstruction = retainedEntries.reduce((sum, entry) => (
+    sum + (entry.kind === "construction" ? -entry.amount : 0)
+  ), 0);
+  const explicitPayouts = retainedEntries.reduce((sum, entry) => (
+    sum + (entry.kind === "payout" ? -entry.amount : 0)
+  ), 0);
+  const explicitPlayerShares = retainedEntries.reduce((sum, entry) => (
+    sum + (entry.kind === "sale" ? entry.playerShare || 0 : 0)
+  ), 0);
+  const historicalShares = Math.max(0, yard.lifetimePlayerDividends - explicitPlayerShares);
+  const recordedHistoricalRevenue = Math.max(0, accounts.salesRevenue - explicitRevenue);
+  const historicalRevenue = Math.max(
+    recordedHistoricalRevenue,
+    inferredSalesRevenueForPlayerShare(historicalShares)
+  );
+  const recordedHistoricalConstruction = Math.max(
+    0,
+    accounts.constructionExpenses - explicitConstruction
+  );
+  const historicalConstruction = Math.max(
+    recordedHistoricalConstruction,
+    roundToHundred(historicalRevenue * PLAYER_BACKED_CONSTRUCTION_COST_RATE)
+  );
+  const historicalPayouts = Math.max(0, accounts.playerPayouts - explicitPayouts);
+  accounts.salesRevenue = explicitRevenue + historicalRevenue;
+  accounts.constructionExpenses = explicitConstruction + historicalConstruction;
+  accounts.playerPayouts = explicitPayouts + historicalPayouts;
+  accounts.entries = retainedEntries;
+  appendMigratedPlayerShipyardEntries(accounts, yard.playerBacking.investedMinute, {
+    revenue: historicalRevenue,
+    construction: historicalConstruction,
+    payouts: historicalPayouts
+  });
+  accounts.entries.sort((a, b) => a.simMinute - b.simMinute);
+  return accounts;
+}
+
+function inferredSalesRevenueForPlayerShare(playerShare) {
+  if (!Number.isInteger(playerShare) || playerShare < 0) {
+    throw new Error(`Invalid historical shipyard player share: ${playerShare}`);
+  }
+  return playerShare === 0
+    ? 0
+    : roundToHundred(playerShare / PLAYER_BACKED_DIVIDEND_RATE);
+}
+
+function appendMigratedPlayerShipyardEntries(accounts, simMinute, amounts) {
+  const entries = [
+    ["sales", amounts.revenue, "Earlier ship sales (estimated)"],
+    ["construction", -amounts.construction, "Earlier shipbuilding costs (estimated)"],
+    ["payouts", -amounts.payouts, "Earlier owner dividends"]
+  ];
+  for (const [legacyAccount, amount, description] of entries) {
+    if (amount === 0) continue;
     appendPlayerShipyardAccountEntry(accounts, {
       kind: "legacy",
-      simMinute: yard.playerBacking.investedMinute,
-      amount: pendingRevenue - paidShares,
-      description: "Earlier shipyard accounts"
+      legacyAccount,
+      simMinute,
+      amount,
+      description
     });
   }
-  return accounts;
 }
 
 function inferredShipyardBuildStartedMinute(yard) {

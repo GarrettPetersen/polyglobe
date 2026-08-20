@@ -450,7 +450,7 @@ test("player-backed yards favor major hulls and return a sale share", () => {
   const afterPayout = playerShipyardLedger(restoredYard, restored.lastMinute);
   assert.equal(afterPayout.accounts.outstandingPlayerShare, 0);
   assert.equal(afterPayout.accounts.playerPayouts, payout.amount);
-  assert.equal(afterPayout.accounts.entries.at(-1).kind, "payout");
+  assert.ok(afterPayout.accounts.entries.some((entry) => entry.kind === "payout"));
 });
 
 test("player-backed yards expose deterministic build progress and persist complete books", () => {
@@ -466,8 +466,21 @@ test("player-backed yards expose deterministic build progress and persist comple
 
   const halfway = playerShipyardLedger(yard, 60);
   assert.equal(halfway.currentBuild.progress, 0.5);
+  assert.equal(
+    halfway.currentBuild.accruedConstructionCost,
+    Math.round(halfway.currentBuild.constructionCost * 0.5)
+  );
+  assert.equal(
+    halfway.accounts.constructionExpenses,
+    halfway.currentBuild.accruedConstructionCost
+  );
+  assert.equal(
+    halfway.accounts.workInProgressExpenses,
+    halfway.currentBuild.accruedConstructionCost
+  );
   assert.equal(halfway.accounts.capitalContributions, 100000);
   assert.equal(halfway.accounts.entries[0].kind, "capital");
+  assert.equal(halfway.accounts.entries.at(-1).kind, "construction-progress");
 
   advanceWorldShipyards(system, 111);
   const completed = playerShipyardLedger(yard, 111);
@@ -512,8 +525,62 @@ test("version four player-backed yards migrate into readable accounts", () => {
 
   const migrated = playerShipyardLedger(yard, 100);
   assert.equal(migrated.accounts.salesRevenue, 100000);
+  assert.equal(migrated.accounts.postedConstructionExpenses, 64000);
+  assert.ok(migrated.accounts.constructionExpenses >= 64000);
   assert.equal(migrated.accounts.outstandingPlayerShare, 22000);
   assert.ok(migrated.accounts.entries.some((entry) => entry.kind === "legacy"));
+});
+
+test("version five books reconstruct paid sales and costs that predate the journal", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "paid-legacy-ledger" });
+  const yard = fundPlayerShipyard(system, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  yard.lifetimePlayerDividends = 6400;
+  const snapshot = snapshotWorldShipyards(system);
+  snapshot.version = 5;
+  const saved = snapshot.yards[0];
+  saved.playerDividendBalance = 0;
+  saved.lifetimePlayerDividends = 6400;
+  saved.playerPendingSales = [];
+  saved.playerAccounts = {
+    capitalContributions: 100000,
+    salesRevenue: 0,
+    constructionExpenses: 0,
+    playerPayouts: 6400,
+    nextEntryNumber: 3,
+    entries: [
+      {
+        id: "yard-account-1",
+        kind: "capital",
+        simMinute: 0,
+        amount: 100000,
+        description: "Owner's seed capital",
+        materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+      },
+      {
+        id: "yard-account-2",
+        kind: "legacy",
+        simMinute: 0,
+        amount: -6400,
+        description: "Earlier shipyard accounts"
+      }
+    ]
+  };
+
+  restoreWorldShipyards(system, snapshot);
+
+  const migrated = playerShipyardLedger(yard, 0);
+  assert.equal(migrated.accounts.salesRevenue, 29100);
+  assert.equal(migrated.accounts.postedConstructionExpenses, 18600);
+  assert.ok(migrated.accounts.constructionExpenses >= 18600);
+  assert.equal(migrated.accounts.playerPayouts, 6400);
+  assert.ok(migrated.accounts.entries.some((entry) => entry.legacyAccount === "sales"));
+  assert.ok(migrated.accounts.entries.some((entry) => entry.legacyAccount === "construction"));
+  assert.ok(migrated.accounts.entries.some((entry) => entry.legacyAccount === "payouts"));
+  assert.ok(!migrated.accounts.entries.some((entry) => entry.description === "Earlier shipyard accounts"));
 });
 
 test("restoring a voyage applies the current ship prices and construction cadence", () => {

@@ -413,7 +413,7 @@ export function createPortDialogueSession(city, options = {}) {
     shipHandover: null,
     shipyardDividendArrival: null,
     shipyardLedgerTab: options.shipyardLedgerTab || "yard",
-    shipyardLedgerPage: 0,
+    shipyardLedgerScrollOffset: 0,
     shipyardLedgerReturnNodeId: null,
     shipyardInvestmentArrival: options.shipyardInvestmentArrival === true,
     shipyardInvestmentOfferApproached: false,
@@ -1804,17 +1804,8 @@ export function selectPortDialogueOption(
       throw new Error(`Invalid shipyard ledger tab action: ${action.tab}`);
     }
     session.shipyardLedgerTab = action.tab;
-    session.shipyardLedgerPage = 0;
+    session.shipyardLedgerScrollOffset = 0;
     session.selectedIndex = action.tab === "yard" ? 0 : 1;
-    session.feedback = null;
-    return { closed: false };
-  }
-  if (action.type === "shipyard-ledger-page") {
-    if (session.nodeId !== "shipyard" || !Number.isInteger(action.page) || action.page < 0) {
-      throw new Error(`Invalid shipyard ledger page action: ${action.page}`);
-    }
-    session.shipyardLedgerPage = action.page;
-    session.selectedIndex = 2;
     session.feedback = null;
     return { closed: false };
   }
@@ -5459,21 +5450,14 @@ function playerShipyardLedgerView(session, city, gameState, context, yard) {
   const tab = session.shipyardLedgerTab;
   if (!["yard", "books"].includes(tab)) throw new Error(`Unknown shipyard ledger tab: ${tab}`);
   const ledger = playerShipyardLedger(yard, context.simMinute ?? 0);
-  const ledgerPageSize = 5;
   const newestEntries = [...ledger.accounts.entries].reverse();
-  // Slide one entry at a time so even exceptionally short screens can reach every journal row.
-  const ledgerPageCount = Math.max(1, newestEntries.length);
-  const ledgerPageIndex = Math.min(session.shipyardLedgerPage, ledgerPageCount - 1);
-  const ledgerPage = Object.freeze({
-    index: ledgerPageIndex,
-    count: ledgerPageCount,
-    start: newestEntries.length === 0 ? 0 : ledgerPageIndex + 1,
-    end: Math.min(newestEntries.length, ledgerPageIndex + ledgerPageSize),
+  const ledgerJournal = Object.freeze({
+    scrollOffset: Math.min(
+      session.shipyardLedgerScrollOffset,
+      Math.max(0, newestEntries.length - 1)
+    ),
     total: newestEntries.length,
-    entries: Object.freeze(newestEntries.slice(
-      ledgerPageIndex,
-      ledgerPageIndex + ledgerPageSize
-    ))
+    entries: Object.freeze(newestEntries)
   });
   const listing = yard.listing || null;
   const purchase = listing ? shipyardPurchaseOffer(listing, gameState, context) : null;
@@ -5492,7 +5476,7 @@ function playerShipyardLedgerView(session, city, gameState, context, yard) {
       kind: "player-shipyard-ledger",
       tab,
       ledger,
-      ledgerPage,
+      ledgerJournal,
       listing,
       currentShipSlug: purchase?.currentShipSlug || context.shipStats?.slug || null,
       purchaseTerms: purchase?.purchaseTerms || null,
@@ -5515,21 +5499,6 @@ function playerShipyardLedgerView(session, city, gameState, context, yard) {
         disabled: Boolean(purchase.disabledReason),
         disabledReason: purchase.disabledReason
       })] : []),
-      ...(tab === "books" && ledgerPage.count > 1 ? [
-        option("Newer entries", { type: "shipyard-ledger-page", page: Math.max(0, ledgerPage.index - 1) }, {
-          rowId: "shipyard-ledger-pages",
-          disabled: ledgerPage.index === 0,
-          disabledReason: "Already showing the newest entries."
-        }),
-        option("Earlier entries", {
-          type: "shipyard-ledger-page",
-          page: Math.min(ledgerPage.count - 1, ledgerPage.index + 1)
-        }, {
-          rowId: "shipyard-ledger-pages",
-          disabled: ledgerPage.index >= ledgerPage.count - 1,
-          disabledReason: "Already showing the earliest entries."
-        })
-      ] : []),
       option(payout ? "Continue" : "Back", { type: "node", nodeId: returnNodeId }, {
         placement: "port-exit"
       })
