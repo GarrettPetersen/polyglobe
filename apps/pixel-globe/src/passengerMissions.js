@@ -99,6 +99,7 @@ export const PASSENGER_SCENARIOS = Object.freeze([
 ]);
 
 export function passengerOfferForCity(state, city, portCities, context = {}) {
+  if (city?.isPirateHideout === true) return null;
   const quests = questMemory(state);
   if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
   const treatyPlan = quests.active
@@ -195,6 +196,7 @@ export function passengerOfferForCity(state, city, portCities, context = {}) {
 }
 
 export function septemberTestamentOfferForCity(state, city, portCities, context = {}) {
+  if (city?.isPirateHideout === true) return null;
   const quests = questMemory(state);
   if (quests.passengerActive || (quests.active && quests.active.kind !== "delivery")) return null;
   const existing = pendingPassengerOffersForCity(state, city)
@@ -249,9 +251,36 @@ export function travelMissionOfferForCity(state, city, portCities, context = {})
 }
 
 export function travelMissionOffersForCity(state, city, portCities, context = {}) {
+  if (city?.isPirateHideout === true) return [];
   septemberTestamentOfferForCity(state, city, portCities, context);
   travelMissionOfferForCity(state, city, portCities, context);
   return pendingPassengerOffersForCity(state, city);
+}
+
+export function previewTravelMissionOffersForCities(state, cities, portCities, context = {}) {
+  if (!Array.isArray(cities)) throw new Error("Travel mission preview requires an origin city array");
+  const quests = questMemory(state);
+  const offersByTileId = new Map();
+  for (const city of cities) {
+    if (!Number.isInteger(city?.tileId)) {
+      throw new Error("Travel mission preview origin has no tile id");
+    }
+    if (offersByTileId.has(city.tileId)) {
+      throw new Error(`Travel mission preview has duplicate origin tile ${city.tileId}`);
+    }
+    const previewState = {
+      ...state,
+      memory: {
+        ...state.memory,
+        quests: structuredClone(quests)
+      }
+    };
+    offersByTileId.set(
+      city.tileId,
+      travelMissionOffersForCity(previewState, city, portCities, context)
+    );
+  }
+  return offersByTileId;
 }
 
 export function envoyOfferForCapital(state, city, portCities, context = {}) {

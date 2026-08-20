@@ -1854,12 +1854,14 @@ import {
 } from "./waypointArrowUi.js";
 import {
   HAJJ_PASSENGER_SCENARIO_ID,
+  PASSENGER_ROLL_PERIOD_MINUTES,
   activeNamedTravelMission,
   activeTravelMissionQuest,
   markPassengerOfferSeen,
   passengerOfferForCity,
   passengerQuestById,
   pendingPassengerOffersForCity,
+  previewTravelMissionOffersForCities,
   travelMissionOffersForCity
 } from "./passengerMissions.js";
 import {
@@ -3554,6 +3556,7 @@ let caribbeanGingerPlanter;
 let banquetChef;
 let naturalistCharacter;
 let lastPortPortraitPreloadAtMs = -Infinity;
+const portTravelMissionPortraitPreviews = new Map();
 const papalNuncioPreviewCharacters = new Map();
 const hospitallerNuncioPreviewCharacters = new Map();
 let queuedCharacterAlertSteps = [];
@@ -8464,6 +8467,7 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   banquetChef = null;
   naturalistCharacter = null;
   lastPortPortraitPreloadAtMs = -Infinity;
+  portTravelMissionPortraitPreviews.clear();
   papalNuncioPreviewCharacters.clear();
   hospitallerNuncioPreviewCharacters.clear();
   usedCharacterNames = new Set([playerCharacter.name]);
@@ -23135,14 +23139,26 @@ function passengerDialogueQuestsForCity(city, { createOffers = false } = {}) {
     return questHasDestination(activeMission, city) ? [activeMission] : [];
   }
   if (!createOffers) return pendingPassengerOffersForCity(gameState, city);
-  return travelMissionOffersForCity(gameState, city, playerAccessiblePortCities(), {
+  return travelMissionOffersForCity(
+    gameState,
+    city,
+    playerAccessiblePortCities(),
+    travelMissionOfferContext(createPassengerCharacterForQuest)
+  );
+}
+
+function travelMissionOfferContext(createCharacter) {
+  if (typeof createCharacter !== "function") {
+    throw new Error("Travel mission offer context requires a character factory");
+  }
+  return {
     simMinute: Math.floor(weatherClockMinutes),
     historicalWorldState: historicalGossipWorldState(),
     relationBetween: currentDiplomacyBetween,
     sailingDistanceKm: sailingDistanceBetweenPorts,
     portFactorReligionId: (port) => portCityCharacters.get(port.tileId)?.religionId || null,
-    createCharacter: createPassengerCharacterForQuest
-  });
+    createCharacter
+  };
 }
 
 function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
@@ -23159,6 +23175,20 @@ function shouldAutoOpenPassengerDialogue(city, quest) {
 }
 
 function createPassengerCharacterForQuest({ quest, origin, destination, scenario }) {
+  return generatePassengerQuestCharacter(
+    { quest, origin, destination, scenario },
+    usedCharacterNames
+  );
+}
+
+function createPassengerPortraitPreviewForQuest({ quest, origin, destination, scenario }) {
+  return generatePassengerQuestCharacter(
+    { quest, origin, destination, scenario },
+    new Set(usedCharacterNames)
+  );
+}
+
+function generatePassengerQuestCharacter({ quest, origin, destination, scenario }, names) {
   return generatePassengerCharacter({
     identityKey: quest.id,
     originPort: origin,
@@ -23169,7 +23199,7 @@ function createPassengerCharacterForQuest({ quest, origin, destination, scenario
     preferClergy: scenario.preferClergy === true,
     excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
     manifest: characterPortraitManifest,
-    usedNames: usedCharacterNames
+    usedNames: names
   });
 }
 
@@ -58316,13 +58346,59 @@ function preloadNearbyPortPortraits(nowMs) {
   if (nowMs - lastPortPortraitPreloadAtMs < PORT_PORTRAIT_PRELOAD_INTERVAL_MS) return;
   lastPortPortraitPreloadAtMs = nowMs;
   const radiusSquared = PORT_PORTRAIT_PRELOAD_RADIUS_PX * PORT_PORTRAIT_PRELOAD_RADIUS_PX;
+  const nearbyPortCalls = [];
   for (const cityCall of chart.cityCalls || []) {
     if (cityCall.hiddenSettlement) continue;
     const x = Number.isFinite(cityCall.interactionX) ? cityCall.interactionX : cityCall.x;
     const y = Number.isFinite(cityCall.interactionY) ? cityCall.interactionY : cityCall.y;
     if (distance2(localLayout.viewX, localLayout.viewY, x, y) > radiusSquared) continue;
-    preloadDialogueCharacters(portDialoguePortraitCharacters(cityCall));
+    const dockable = cityCall.isPirateHideout === true || portCitiesByTileId.has(cityCall.tileId);
+    if (!dockable) {
+      portDialoguePortraitPreloadCharacters({
+        playerCharacter: gameState.playerCharacter,
+        portCharacter: cityCall.character,
+        dockable: false
+      });
+      continue;
+    }
+    nearbyPortCalls.push(cityCall);
   }
+  const offerOrigins = nearbyPortCalls.filter((cityCall) => cityCall.isPirateHideout !== true);
+  const previewKey = travelMissionPortraitPreviewKey();
+  const uncachedOrigins = offerOrigins.filter((cityCall) => (
+    portTravelMissionPortraitPreviews.get(cityCall.tileId)?.key !== previewKey
+  ));
+  if (uncachedOrigins.length > 0) {
+    const previews = previewTravelMissionOffersForCities(
+      gameState,
+      uncachedOrigins,
+      playerAccessiblePortCities(),
+      travelMissionOfferContext(createPassengerPortraitPreviewForQuest)
+    );
+    for (const cityCall of uncachedOrigins) {
+      portTravelMissionPortraitPreviews.set(cityCall.tileId, {
+        key: previewKey,
+        offers: previews.get(cityCall.tileId) || []
+      });
+    }
+  }
+  for (const cityCall of nearbyPortCalls) {
+    preloadDialogueCharacters(portDialoguePortraitCharacters(
+      cityCall,
+      cityCall.isPirateHideout === true
+        ? []
+        : portTravelMissionPortraitPreviews.get(cityCall.tileId)?.offers || []
+    ));
+  }
+}
+
+function travelMissionPortraitPreviewKey() {
+  const quests = gameState.memory.quests;
+  return [
+    Math.floor(weatherClockMinutes / PASSENGER_ROLL_PERIOD_MINUTES),
+    quests.active?.id || "none",
+    quests.passengerActive?.id || "none"
+  ].join("|");
 }
 
 function preloadDialogueCharacters(characters) {
@@ -58332,7 +58408,10 @@ function preloadDialogueCharacters(characters) {
   }
 }
 
-function portDialoguePortraitCharacters(cityCall) {
+function portDialoguePortraitCharacters(cityCall, previewTravelMissions = []) {
+  if (!Array.isArray(previewTravelMissions)) {
+    throw new Error("Port dialogue portrait preload requires a travel mission preview array");
+  }
   const characters = portDialoguePortraitPreloadCharacters({
     playerCharacter: gameState.playerCharacter,
     portCharacter: cityCall.character,
@@ -58342,11 +58421,16 @@ function portDialoguePortraitCharacters(cityCall) {
   const add = (character) => {
     if (character) characters.push(character);
   };
-  const simMinute = Math.floor(weatherClockMinutes);
-  const entryAllowed = portEntryStatus(gameState, cityCall, simMinute).allowed;
 
   for (const character of namedCrewMembers(gameState)) add(character);
-  for (const quest of passengerDialogueQuestsForCity(cityCall, { createOffers: entryAllowed })) {
+  const activeTravelMission = activeTravelMissionQuest(gameState);
+  const passengerQuests = [
+    ...(activeTravelMission && questHasDestination(activeTravelMission, cityCall)
+      ? [activeTravelMission]
+      : []),
+    ...previewTravelMissions
+  ].filter((quest, index, quests) => quests.findIndex((entry) => entry.id === quest.id) === index);
+  for (const quest of passengerQuests) {
     add(quest.passenger);
     if (
       quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
@@ -58377,19 +58461,6 @@ function portDialoguePortraitCharacters(cityCall) {
   }
   for (const companionId of aboardAnimalCompanionIds(gameState.memory.animalCompanions)) {
     add(animalCompanionCharacter(companionId));
-  }
-
-  if (entryAllowed) {
-    const accessiblePorts = playerAccessiblePortCities();
-    add(prepareColonizationOrganizerOffer(cityCall, accessiblePorts, simMinute)?.organizer);
-    maybeSpawnVikingLongshipQuest(gameState, cityCall, { simMinute });
-    if (prepareJapaneseMatchlockOffer(cityCall, simMinute)) {
-      add(ensureJapaneseMatchlockGunsmith(gameState));
-    }
-    if (prepareCaribbeanGingerOffer(cityCall, simMinute)) {
-      add(ensureCaribbeanGingerPlanter(gameState));
-    }
-    if (prepareChefQuestOffer(cityCall, simMinute)) add(ensureBanquetChef(gameState, cityCall));
   }
 
   const colonization = colonizationQuestView(gameState, { currentMinute: Math.max(0, weatherClockMinutes) });

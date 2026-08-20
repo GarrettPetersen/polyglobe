@@ -29,7 +29,8 @@ import {
   envoyOfferForCapital,
   markPassengerOfferSeen,
   passengerOfferForCity,
-  pendingPassengerOfferForCity
+  pendingPassengerOfferForCity,
+  previewTravelMissionOffersForCities
 } from "./passengerMissions.js";
 import {
   JOSEON_TRADE_POLICY_ID,
@@ -194,6 +195,71 @@ test("Hajj passage requires both a Muslim origin community and accessible Jeddah
     scenarioId: HAJJ_PASSENGER_SCENARIO_ID,
     simMinute: 0,
     sailingDistanceKm: () => 5000
+  }), null);
+});
+
+test("nearby portrait previews do not persist passenger offers or consume their rolls", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const questsBefore = structuredClone(state.memory.quests);
+  const previews = previewTravelMissionOffersForCities(state, [ACEH], [ACEH, JEDDAH], {
+    spawnChance: 1,
+    hajjScenarioChance: 1,
+    simMinute: 0,
+    sailingDistanceKm: () => 8600,
+    createCharacter: () => ({ name: "Nur Aisyah", religionId: "sunni-islam" })
+  });
+
+  assert.equal(previews.get(ACEH.tileId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
+  assert.deepEqual(state.memory.quests, questsBefore);
+
+  const committed = passengerOfferForCity(state, ACEH, [ACEH, JEDDAH], {
+    spawnChance: 1,
+    hajjScenarioChance: 1,
+    simMinute: 0,
+    sailingDistanceKm: () => 8600
+  });
+  assert.equal(committed?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
+});
+
+test("previewing one nearby port does not block another port's passenger preview", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const previews = previewTravelMissionOffersForCities(
+    state,
+    [ACEH, BAGHDAD],
+    [ACEH, BAGHDAD, JEDDAH],
+    {
+      spawnChance: 1,
+      hajjScenarioChance: 1,
+      simMinute: 0,
+      sailingDistanceKm: () => 5000
+    }
+  );
+
+  assert.equal(previews.get(ACEH.tileId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
+  assert.equal(previews.get(BAGHDAD.tileId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
+  assert.deepEqual(state.memory.quests.passengerOffers, {});
+});
+
+test("pirate hideouts never generate ordinary travel missions", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const hideout = { ...ACEH, isPirateHideout: true };
+  let sampledDistance = false;
+  const previews = previewTravelMissionOffersForCities(state, [hideout], [ACEH, JEDDAH], {
+    spawnChance: 1,
+    hajjScenarioChance: 1,
+    simMinute: 0,
+    sailingDistanceKm: () => {
+      sampledDistance = true;
+      return 8600;
+    }
+  });
+
+  assert.deepEqual(previews.get(hideout.tileId), []);
+  assert.equal(sampledDistance, false);
+  assert.equal(passengerOfferForCity(state, hideout, [ACEH, JEDDAH], {
+    spawnChance: 1,
+    hajjScenarioChance: 1,
+    simMinute: 0
   }), null);
 });
 
