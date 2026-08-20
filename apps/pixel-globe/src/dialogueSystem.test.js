@@ -4691,7 +4691,7 @@ test("a Kyoto gunsmith establishes domestic matchlock production after Nagasaki 
   assert.equal(arrival.nodeId, "japanese-matchlocks");
   assert.match(portDialogueView(arrival, city, gameState, economy, [city]).text, /Nagasaki/);
 
-  const session = createPortDialogueSession(city, { initialNodeId: "japanese-matchlocks" });
+  const session = arrival;
   gameState.cargo = Object.fromEntries(JAPANESE_MATCHLOCK_FETCH_STAGES.map((stage) => [
     stage.goodId,
     stage.quantity
@@ -4773,7 +4773,7 @@ test("a Caribbean planter pays for ginger roots and establishes local production
   assert.match(arrivalView.text, /Southeast Asia/);
   assert.ok(arrivalView.text.length <= 150);
 
-  const session = createPortDialogueSession(city, { initialNodeId: "caribbean-ginger" });
+  const session = arrival;
   gameState.cargo[GINGER_GOOD_ID] = 2;
   gameState.accounts.cargoCostBasis[GINGER_GOOD_ID] = 60;
   let view = portDialogueView(session, city, gameState, economy, [city]);

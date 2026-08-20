@@ -4503,7 +4503,10 @@ function japaneseMatchlockView(session, city, gameState) {
   if (!quest) throw new Error("Japanese matchlock dialogue opened before its offer spawned");
   const speaker = `${characterName(city.character)}, gunsmith`;
   const back = session.japaneseMatchlockArrival
-    ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+    ? option(quest.completed ? "Continue" : "Not now", {
+        type: "node",
+        nodeId: session.nextPortNodeId || "greeting"
+      })
     : option("Back", { type: "node", nodeId: "root" });
   if (quest.completed) {
     return {
@@ -4549,7 +4552,10 @@ function caribbeanGingerView(session, city, gameState) {
   if (!quest) throw new Error("Caribbean ginger dialogue opened before its offer spawned");
   const speaker = `${characterName(city.character)}, planter`;
   const back = session.caribbeanGingerArrival
-    ? option("Not now", { type: "node", nodeId: session.nextPortNodeId || "greeting" })
+    ? option(quest.completed ? "Continue" : "Not now", {
+        type: "node",
+        nodeId: session.nextPortNodeId || "greeting"
+      })
     : option("Back", { type: "node", nodeId: "root" });
   if (quest.completed) {
     return {
