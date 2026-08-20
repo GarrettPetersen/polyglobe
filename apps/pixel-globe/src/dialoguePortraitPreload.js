@@ -18,6 +18,13 @@ export function dialoguePortraitPreloadEntries(characters) {
   return [...entriesByKey.values()];
 }
 
+export function portDialoguePortraitPreloadCharacters(playerCharacter, portCharacter) {
+  validateCharacter(playerCharacter);
+  if (portCharacter == null) return [playerCharacter];
+  validateCharacter(portCharacter);
+  return [playerCharacter, portCharacter];
+}
+
 function samePortraitFrame(left, right) {
   return left.src === right.src &&
     (left.atlasX ?? null) === (right.atlasX ?? null) &&

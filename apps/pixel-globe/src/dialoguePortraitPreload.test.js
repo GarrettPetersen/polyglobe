@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { dialoguePortraitPreloadEntries } from "./dialoguePortraitPreload.js";
+import {
+  dialoguePortraitPreloadEntries,
+  portDialoguePortraitPreloadCharacters
+} from "./dialoguePortraitPreload.js";
 
 function character(id, expressions = ["neutral", "happy"]) {
   return {
@@ -31,6 +34,20 @@ test("port portrait preloading fails loudly for a portraitless dialogue characte
   assert.throws(
     () => dialoguePortraitPreloadEntries([{ id: "missing", expressions: [] }]),
     /missing has no expressions/
+  );
+});
+
+test("port portrait preloading permits a visible settlement without a factor portrait", () => {
+  const player = character("player");
+
+  assert.deepEqual(portDialoguePortraitPreloadCharacters(player, null), [player]);
+  assert.deepEqual(portDialoguePortraitPreloadCharacters(player, undefined), [player]);
+});
+
+test("port portrait preloading still rejects a malformed port character", () => {
+  assert.throws(
+    () => portDialoguePortraitPreloadCharacters(character("player"), "factor"),
+    /must be a character object/
   );
 });
 

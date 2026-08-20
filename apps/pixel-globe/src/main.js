@@ -303,7 +303,10 @@ import {
 } from "./characterPortraits.js";
 import { reconcileRegionalCharacterNameForms } from "./characterNames.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
-import { dialoguePortraitPreloadEntries } from "./dialoguePortraitPreload.js";
+import {
+  dialoguePortraitPreloadEntries,
+  portDialoguePortraitPreloadCharacters
+} from "./dialoguePortraitPreload.js";
 import { portraitBottomTransparentRows } from "./portraitFrameAlignment.js";
 import {
   CLOUD_ASSEMBLY_STAGE_COUNT,
@@ -58330,7 +58333,10 @@ function preloadDialogueCharacters(characters) {
 }
 
 function portDialoguePortraitCharacters(cityCall) {
-  const characters = [gameState.playerCharacter, cityCall.character];
+  const characters = portDialoguePortraitPreloadCharacters(
+    gameState.playerCharacter,
+    cityCall.character
+  );
   const add = (character) => {
     if (character) characters.push(character);
   };
