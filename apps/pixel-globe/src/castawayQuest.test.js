@@ -7,13 +7,21 @@ import {
   acceptCastawayQuest,
   castawayDialogueView,
   castawayRescueAppears,
+  completeCastawayQuest,
   createCastawayDialogueSession,
   createCastawayQuest,
   createCastawayQuestMemory,
   markCastawayEmergencyAidReceived,
+  migrateCastawayQuestMemory,
+  prepareCastawayHomecoming,
   validateCastawayQuestMemory
 } from "./castawayQuest.js";
-import { selectRescuedTravelerDialogueOption } from "./rescuedTravelerQuest.js";
+import {
+  formerRescuedTravelerCharactersAtPort,
+  nextRescuedTravelerPortReunion,
+  recordRescuedTravelerPortReunion,
+  selectRescuedTravelerDialogueOption
+} from "./rescuedTravelerQuest.js";
 
 const homePort = Object.freeze({
   tileId: 72,
@@ -44,12 +52,82 @@ function character(id, givenName, familyName) {
 const castaway = character("castaway", "Brites", "Pereira");
 const familyMember = character("castaway-family", "Joana", "Pereira");
 
-test("castaway rescues begin very rare and become rarer after each completion", () => {
-  assert.equal(castawayRescueAppears(0, 0), true);
-  assert.equal(castawayRescueAppears(1 / CASTAWAY_FIRST_RESCUE_DENOMINATOR, 0), false);
-  assert.equal(castawayRescueAppears(1 / 3000 - Number.EPSILON, 1), true);
-  assert.equal(castawayRescueAppears(1 / 3000, 1), false);
-  assert.equal(castawayRescueAppears(1 / 6750, 2), false);
+test("castaway rescue odds return to their baseline after every completed rescue", () => {
+  assert.equal(castawayRescueAppears(0), true);
+  assert.equal(castawayRescueAppears(1 / CASTAWAY_FIRST_RESCUE_DENOMINATOR - Number.EPSILON), true);
+  assert.equal(castawayRescueAppears(1 / CASTAWAY_FIRST_RESCUE_DENOMINATOR), false);
+});
+
+test("rescued castaways remember their captain on later visits home", () => {
+  const memory = createCastawayQuestMemory();
+  const quest = createCastawayQuest(memory, {
+    shoreId: "shore-reunion",
+    homePort,
+    character: castaway,
+    familyMember,
+    distanceKm: 1800,
+    familySurvivedRoll: 0.2
+  });
+  acceptCastawayQuest(memory, quest.id);
+  prepareCastawayHomecoming(memory, quest.id, null);
+  completeCastawayQuest(memory, quest.id, { settledAtHomeMinute: 100 });
+  assert.deepEqual(
+    formerRescuedTravelerCharactersAtPort([memory], homePort.tileId).map((entry) => entry.id),
+    [castaway.id]
+  );
+
+  const captain = {
+    ...quest.character,
+    id: "captain",
+    name: "Rui Costa",
+    givenName: "Rui",
+    familyName: "Costa",
+    sex: "male"
+  };
+  const firstEligibleMinute = 100 + 30 * 24 * 60;
+  assert.equal(nextRescuedTravelerPortReunion([memory], {
+    cityTileId: homePort.tileId,
+    currentMinute: firstEligibleMinute - 1,
+    roll: 0,
+    captain,
+    variantSeed: 0
+  }), null);
+  const reunion = nextRescuedTravelerPortReunion([memory], {
+    cityTileId: homePort.tileId,
+    currentMinute: firstEligibleMinute,
+    roll: 0.99,
+    captain,
+    variantSeed: 4
+  });
+  assert.equal(reunion.character.id, castaway.id);
+  assert.match(reunion.message, /supper was not my only reason/i);
+  recordRescuedTravelerPortReunion(memory, reunion.entryId, firstEligibleMinute);
+  assert.equal(nextRescuedTravelerPortReunion([memory], {
+    cityTileId: homePort.tileId,
+    currentMinute: firstEligibleMinute + 60 * 24 * 60 - 1,
+    roll: 0,
+    captain,
+    variantSeed: 0
+  }), null);
+  assert.equal(nextRescuedTravelerPortReunion([memory], {
+    cityTileId: homePort.tileId,
+    currentMinute: firstEligibleMinute + 60 * 24 * 60,
+    roll: 0.35,
+    captain,
+    variantSeed: 0
+  }), null);
+});
+
+test("older rescue memories migrate without inventing former travelers", () => {
+  const migrated = migrateCastawayQuestMemory({
+    version: 1,
+    active: null,
+    completedCount: 3,
+    declinedCount: 1
+  });
+  assert.equal(migrated.version, 2);
+  assert.deepEqual(migrated.formerTravelers, []);
+  assert.equal(castawayRescueAppears(0), true);
 });
 
 test("a castaway recounts the storm and offers emergency shore supplies", () => {

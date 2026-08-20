@@ -33,15 +33,11 @@ export function migrateCastawayQuestMemory(memory) {
   return migrateRescuedTravelerQuestMemory(memory, RESCUED_TRAVELER_TYPE_CASTAWAY);
 }
 
-export function castawayRescueAppears(roll, completedCount = 0) {
+export function castawayRescueAppears(roll) {
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
     throw new Error(`Invalid castaway rescue roll: ${roll}`);
   }
-  if (!Number.isInteger(completedCount) || completedCount < 0) {
-    throw new Error(`Invalid completed castaway quest count: ${completedCount}`);
-  }
-  const completedScale = (completedCount + 1) ** 2;
-  return roll < 1 / (CASTAWAY_FIRST_RESCUE_DENOMINATOR * completedScale);
+  return roll < 1 / CASTAWAY_FIRST_RESCUE_DENOMINATOR;
 }
 
 export function createCastawayQuest(memory, {

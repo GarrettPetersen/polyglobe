@@ -1,4 +1,8 @@
-import { characterWithBiography, validateCharacterBiography } from "./characterBiography.js";
+import {
+  characterAgeAtMinute,
+  characterWithBiography,
+  validateCharacterBiography
+} from "./characterBiography.js";
 import { charactersShareFamilyName } from "./characterNames.js";
 import { characterPronouns } from "./characterPronouns.js";
 import { validateCharacterSkillIds } from "./characterSkills.js";
@@ -21,12 +25,19 @@ const RESCUED_TRAVELER_TYPES = new Set([
   RESCUED_TRAVELER_TYPE_CASTAWAY
 ]);
 
+const MINUTES_PER_DAY = 24 * 60;
+const RESCUED_TRAVELER_REUNION_FIRST_DELAY_MINUTES = 30 * MINUTES_PER_DAY;
+const RESCUED_TRAVELER_REUNION_COOLDOWN_MINUTES = 60 * MINUTES_PER_DAY;
+const RESCUED_TRAVELER_REUNION_REPEAT_CHANCE = 0.35;
+const RESCUED_TRAVELER_REUNION_ADULT_AGE = 19;
+
 export function createRescuedTravelerQuestMemory() {
   return {
-    version: 1,
+    version: 2,
     active: null,
     completedCount: 0,
-    declinedCount: 0
+    declinedCount: 0,
+    formerTravelers: []
   };
 }
 
@@ -104,24 +115,31 @@ export function createRescuedTravelerQuest(memory, {
 
 export function migrateRescuedTravelerQuestMemory(memory, expectedType = null) {
   if (!memory) return createRescuedTravelerQuestMemory();
-  if (!memory.active) return validateRescuedTravelerQuestMemory(memory, expectedType);
-  const active = memory.active;
-  const homePort = {
-    tileId: active.homePortTileId,
-    city: active.homePortName,
-    displayCity: active.homePortName,
-    country: active.homePortCountry
-  };
+  if (memory.version !== 1 && memory.version !== 2) {
+    throw new Error(`Unsupported rescued traveler quest version: ${memory.version}`);
+  }
   const migrated = {
     ...memory,
-    active: {
+    version: 2,
+    formerTravelers: (memory.formerTravelers || []).map((entry) => {
+      const homePort = rescuedTravelerHomePort(entry);
+      return {
+        ...entry,
+        character: rescuedTravelerWithBiography(entry.character, homePort)
+      };
+    })
+  };
+  if (memory.active) {
+    const active = memory.active;
+    const homePort = rescuedTravelerHomePort(active);
+    migrated.active = {
       ...active,
       character: rescuedTravelerWithBiography(active.character, homePort),
       familyMember: active.familyMember
         ? rescuedTravelerWithBiography(active.familyMember, homePort)
         : null
-    }
-  };
+    };
+  }
   return validateRescuedTravelerQuestMemory(migrated, expectedType);
 }
 
@@ -178,14 +196,98 @@ export function prepareRescuedTravelerHomecoming(memory, questId, rewardItem) {
   return quest;
 }
 
-export function completeRescuedTravelerQuest(memory, questId) {
+export function completeRescuedTravelerQuest(memory, questId, {
+  settledAtHomeMinute = null
+} = {}) {
   const quest = requiredActiveQuest(memory, questId);
   if (quest.stage !== RESCUED_TRAVELER_STAGE_HOMECOMING) {
     throw new Error(`Cannot complete rescued traveler quest from stage ${quest.stage}`);
   }
+  if (settledAtHomeMinute !== null) {
+    if (!quest.familySurvived) {
+      throw new Error("A rescued traveler cannot settle at home without surviving family");
+    }
+    assertMinute(settledAtHomeMinute, "rescued traveler homecoming");
+    if (memory.formerTravelers.some((entry) => entry.id === quest.id)) {
+      throw new Error(`Rescued traveler was already recorded at home: ${quest.id}`);
+    }
+    memory.formerTravelers.push({
+      id: quest.id,
+      rescueType: quest.rescueType,
+      character: quest.character,
+      homePortTileId: quest.homePortTileId,
+      homePortName: quest.homePortName,
+      homePortCountry: quest.homePortCountry,
+      settledAtMinute: settledAtHomeMinute,
+      greetingCount: 0,
+      lastGreetingMinute: null
+    });
+  }
   memory.active = null;
   memory.completedCount += 1;
+  validateRescuedTravelerQuestMemory(memory);
   return quest;
+}
+
+export function formerRescuedTravelerCharactersAtPort(memories, cityTileId) {
+  validateFormerTravelerSearch(memories, cityTileId);
+  return memories.flatMap((memory) => memory.formerTravelers)
+    .filter((entry) => entry.homePortTileId === cityTileId)
+    .map((entry) => entry.character);
+}
+
+export function nextRescuedTravelerPortReunion(memories, {
+  cityTileId,
+  currentMinute,
+  roll,
+  captain,
+  variantSeed = 0
+}) {
+  validateFormerTravelerSearch(memories, cityTileId);
+  assertMinute(currentMinute, "rescued traveler reunion");
+  assertUnitRoll(roll, "rescued traveler reunion");
+  assertCharacter(captain, "Captain");
+  if (!Number.isInteger(variantSeed)) {
+    throw new Error(`Invalid rescued traveler reunion variant: ${variantSeed}`);
+  }
+  const candidates = memories.flatMap((memory) => memory.formerTravelers)
+    .filter((entry) => entry.homePortTileId === cityTileId)
+    .filter((entry) => rescuedTravelerReunionIsReady(entry, currentMinute))
+    .sort((a, b) => (
+      a.greetingCount - b.greetingCount ||
+      (a.lastGreetingMinute ?? -1) - (b.lastGreetingMinute ?? -1) ||
+      a.id.localeCompare(b.id)
+    ));
+  const entry = candidates[0] || null;
+  if (!entry || (entry.greetingCount > 0 && roll >= RESCUED_TRAVELER_REUNION_REPEAT_CHANCE)) {
+    return null;
+  }
+  const flirtatious = entry.character.sex !== captain.sex &&
+    characterAgeAtMinute(entry.character, currentMinute) >= RESCUED_TRAVELER_REUNION_ADULT_AGE &&
+    characterAgeAtMinute(captain, currentMinute) >= RESCUED_TRAVELER_REUNION_ADULT_AGE;
+  const variants = rescuedTravelerReunionDialogues(entry.rescueType, flirtatious);
+  const variantIndex = Math.abs(variantSeed) % variants.length;
+  return Object.freeze({
+    entryId: entry.id,
+    rescueType: entry.rescueType,
+    character: entry.character,
+    expressionId: variantIndex % 2 === 0 ? "happy" : "pleased",
+    message: variants[variantIndex]
+  });
+}
+
+export function recordRescuedTravelerPortReunion(memory, entryId, currentMinute) {
+  validateRescuedTravelerQuestMemory(memory);
+  assertMinute(currentMinute, "rescued traveler reunion");
+  const entry = memory.formerTravelers.find((candidate) => candidate.id === entryId);
+  if (!entry) throw new Error(`Unknown former rescued traveler: ${entryId}`);
+  if (!rescuedTravelerReunionIsReady(entry, currentMinute)) {
+    throw new Error(`Rescued traveler reunion is still on cooldown: ${entryId}`);
+  }
+  entry.greetingCount += 1;
+  entry.lastGreetingMinute = currentMinute;
+  validateRescuedTravelerQuestMemory(memory);
+  return entry;
 }
 
 export function createRescuedTravelerDialogueSession(quest, {
@@ -280,7 +382,7 @@ export function validateRescuedTravelerQuestMemory(memory, expectedType = null) 
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     throw new Error("Rescued traveler quest memory must be an object");
   }
-  if (memory.version !== 1) throw new Error(`Unsupported rescued traveler quest version: ${memory.version}`);
+  if (memory.version !== 2) throw new Error(`Unsupported rescued traveler quest version: ${memory.version}`);
   if (!Number.isInteger(memory.completedCount) || memory.completedCount < 0) {
     throw new Error(`Invalid completed rescued traveler quest count: ${memory.completedCount}`);
   }
@@ -292,6 +394,15 @@ export function validateRescuedTravelerQuestMemory(memory, expectedType = null) 
     if (expectedType !== null && memory.active.rescueType !== expectedType) {
       throw new Error(`Expected ${expectedType} quest memory, got ${memory.active.rescueType}`);
     }
+  }
+  if (!Array.isArray(memory.formerTravelers)) {
+    throw new Error("Rescued traveler quest memory requires former travelers");
+  }
+  const ids = new Set();
+  for (const entry of memory.formerTravelers) {
+    validateFormerRescuedTraveler(entry, expectedType);
+    if (ids.has(entry.id)) throw new Error(`Duplicate former rescued traveler: ${entry.id}`);
+    ids.add(entry.id);
   }
   return memory;
 }
@@ -517,6 +628,102 @@ function rescuedTravelerWithBiography(character, homePort) {
     identityKey: character?.id || character?.name,
     homePort
   });
+}
+
+function rescuedTravelerHomePort(entry) {
+  return {
+    tileId: entry.homePortTileId,
+    city: entry.homePortName,
+    displayCity: entry.homePortName,
+    country: entry.homePortCountry
+  };
+}
+
+function validateFormerTravelerSearch(memories, cityTileId) {
+  if (!Array.isArray(memories) || memories.length === 0) {
+    throw new Error("Former rescued traveler search requires quest memories");
+  }
+  for (const memory of memories) validateRescuedTravelerQuestMemory(memory);
+  if (!Number.isInteger(cityTileId) || cityTileId < 0) {
+    throw new Error(`Invalid former rescued traveler port tile: ${cityTileId}`);
+  }
+}
+
+function validateFormerRescuedTraveler(entry, expectedType) {
+  if (!entry || typeof entry !== "object" || Array.isArray(entry)) {
+    throw new Error("Former rescued traveler must be an object");
+  }
+  if (typeof entry.id !== "string" || entry.id.trim() === "") {
+    throw new Error("Former rescued traveler requires an id");
+  }
+  assertRescueType(entry.rescueType);
+  if (expectedType !== null && entry.rescueType !== expectedType) {
+    throw new Error(`Expected ${expectedType} former traveler, got ${entry.rescueType}`);
+  }
+  assertCharacter(entry.character, "Former rescued traveler");
+  if (!Number.isInteger(entry.homePortTileId) || entry.homePortTileId < 0) {
+    throw new Error(`Invalid former rescued traveler home port: ${entry.homePortTileId}`);
+  }
+  for (const [label, value] of [
+    ["home port name", entry.homePortName],
+    ["home port country", entry.homePortCountry]
+  ]) {
+    if (typeof value !== "string" || value.trim() === "") {
+      throw new Error(`Former rescued traveler requires a ${label}`);
+    }
+  }
+  assertMinute(entry.settledAtMinute, "former rescued traveler settlement");
+  if (!Number.isInteger(entry.greetingCount) || entry.greetingCount < 0) {
+    throw new Error(`Invalid former rescued traveler greeting count: ${entry.greetingCount}`);
+  }
+  if (entry.lastGreetingMinute !== null) {
+    assertMinute(entry.lastGreetingMinute, "former rescued traveler greeting");
+    if (entry.lastGreetingMinute < entry.settledAtMinute || entry.greetingCount === 0) {
+      throw new Error(`Invalid former rescued traveler greeting history: ${entry.id}`);
+    }
+  } else if (entry.greetingCount !== 0) {
+    throw new Error(`Former rescued traveler has greetings without a date: ${entry.id}`);
+  }
+}
+
+function rescuedTravelerReunionIsReady(entry, currentMinute) {
+  const previousMinute = entry.lastGreetingMinute ?? entry.settledAtMinute;
+  const cooldown = entry.lastGreetingMinute === null
+    ? RESCUED_TRAVELER_REUNION_FIRST_DELAY_MINUTES
+    : RESCUED_TRAVELER_REUNION_COOLDOWN_MINUTES;
+  return currentMinute - previousMinute >= cooldown;
+}
+
+function rescuedTravelerReunionDialogues(rescueType, flirtatious) {
+  const variants = rescueType === RESCUED_TRAVELER_TYPE_CASTAWAY
+    ? [
+        "Captain! My family marks the day you found me on that lonely shore every year. Come to supper.",
+        "Whenever a storm rattles the shutters, someone tells the story of the captain who brought me home. Tonight you may correct them over dinner.",
+        "You pulled me from the world's loneliest scrap of coast. My family insists that earns you supper whenever you make port.",
+        "I have become terrible at telling my rescue story, captain. Each version gives your ship another mast. Come hear the latest over supper."
+      ]
+    : [
+        "Captain! My family still drinks to the ship that carried me out of pirate hands. Tonight, the rescued traveler is buying supper.",
+        "The neighbors ask what it was like to be locked below a pirate deck. I tell them the better story begins when your sail appeared. Come to dinner.",
+        "You brought me home from a pirate deck and asked for nothing but a fair wind. My family means to overpay you in food.",
+        "I still wake grateful that the next footsteps above my cell were yours. Let us improve the memory with a loud supper."
+      ];
+  if (!flirtatious) return variants;
+  return [
+    ...variants,
+    "My family has invited you to supper again. Perhaps they needed little encouragement; supper was not my only reason.",
+    "You should dine with us tonight, captain. Afterward, perhaps I can thank you somewhere my family cannot interrupt."
+  ];
+}
+
+function assertMinute(value, label) {
+  if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label} minute: ${value}`);
+}
+
+function assertUnitRoll(value, label) {
+  if (!Number.isFinite(value) || value < 0 || value >= 1) {
+    throw new Error(`Invalid ${label} roll: ${value}`);
+  }
 }
 
 function assertPort(port, label) {

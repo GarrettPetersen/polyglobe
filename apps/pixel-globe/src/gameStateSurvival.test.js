@@ -145,10 +145,11 @@ test("version 30 saves gain persistent castaway rescue memory", () => {
   const migrated = migrateGameState(state);
 
   assert.deepEqual(migrated.memory.quests.castaway, {
-    version: 1,
+    version: 2,
     active: null,
     completedCount: 0,
-    declinedCount: 0
+    declinedCount: 0,
+    formerTravelers: []
   });
   assert.equal(validateGameState(migrated), migrated);
 });

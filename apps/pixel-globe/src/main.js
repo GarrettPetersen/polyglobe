@@ -636,7 +636,10 @@ import {
   RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE,
   completeRescuedTravelerQuest,
   createRescuedTravelerDialogueSession,
+  formerRescuedTravelerCharactersAtPort,
+  nextRescuedTravelerPortReunion,
   prepareRescuedTravelerHomecoming,
+  recordRescuedTravelerPortReunion,
   rescuedTravelerDialogueCharacter,
   rescuedTravelerDialogueView,
   rescuedTravelerLabel,
@@ -18583,8 +18586,45 @@ function continuePortArrivalDialogues() {
       cityCall.character
     ),
     () => openPendingDiscoveryPortDialogue(),
+    () => maybeOpenFormerRescuedTravelerReunion(cityCall),
     () => maybeOpenCharacterHomecoming(cityCall)
   ]);
+}
+
+function maybeOpenFormerRescuedTravelerReunion(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) ||
+      dialogueState.rescuedTravelerReunionChecked === true) {
+    return false;
+  }
+  dialogueState.rescuedTravelerReunionChecked = true;
+  const currentMinute = Math.floor(weatherClockMinutes);
+  const reunion = nextRescuedTravelerPortReunion(rescuedTravelerQuestMemories(), {
+    cityTileId: cityCall.tileId,
+    currentMinute,
+    roll: Math.random(),
+    captain: gameState.playerCharacter,
+    variantSeed: spriteKeyHash(
+      `${gameState.voyageSeed}|${cityCall.tileId}|${currentMinute}|rescued-traveler-reunion`
+    )
+  });
+  if (!reunion) return false;
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: reunion.character,
+      speakerCharacter: reunion.character,
+      expressionId: reunion.expressionId,
+      message: renderedUiText(reunion.message)
+    })
+  ]);
+  if (!opened) return false;
+  recordRescuedTravelerPortReunion(
+    rescuedTravelerMemoryForType(reunion.rescueType),
+    reunion.entryId,
+    currentMinute
+  );
+  saveVoyageNow("visited a former rescued traveler");
+  return true;
 }
 
 function maybeOpenCharacterHomecoming(cityCall) {
@@ -22133,13 +22173,16 @@ function applyDialogueOption(optionIndex) {
       saveVoyageNow(`declined ${rescuedTravelerLabel(quest).toLowerCase()} rescue`);
     } else if (result.action?.type === "complete-rescued-traveler-reunion") {
       const city = currentDialogueCity();
+      const completedMinute = Math.floor(weatherClockMinutes);
       const reward = receiveRescuedTravelerReunionReward(gameState, city, {
         missionId: quest.id,
         rewardDoubloons: quest.rewardDoubloons,
         itemId: quest.rewardItemId,
-        context: { simMinute: Math.floor(weatherClockMinutes) }
+        context: { simMinute: completedMinute }
       });
-      completeRescuedTravelerQuest(memory, quest.id);
+      completeRescuedTravelerQuest(memory, quest.id, {
+        settledAtHomeMinute: completedMinute
+      });
       syncShipCargoFromGameState();
       playCoinClinkSound();
       if (reward.item) presentMissionItemGift({ item: reward.item }, null, null);
@@ -34068,7 +34111,7 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
   if (memory.active) return false;
   const reservedBerths = futurePermanentCrewFloor(gameState) - permanentCrewFloor(gameState);
   if (!hasPermanentCrewBerth(gameState, reservedBerths)) return false;
-  if (!pirateCaptiveRescueAppears(Math.random(), memory.completedCount)) return false;
+  if (!pirateCaptiveRescueAppears(Math.random())) return false;
   if (dialogueState && dialogueState.kind !== "ship") {
     throw new Error(`Cannot open pirate captive dialogue while ${dialogueState.kind} dialogue is active`);
   }
@@ -34134,7 +34177,7 @@ function maybeOpenCastawayQuest(shoreCall) {
     settlementTileIds: cityByTileId.keys(),
     shoreTileId: shoreCall.id
   })) return false;
-  if (!castawayRescueAppears(Math.random(), memory.completedCount)) return false;
+  if (!castawayRescueAppears(Math.random())) return false;
 
   const encounterId = `shore-${shoreCall.id}-${memory.completedCount + memory.declinedCount}`;
   const homePort = rescuedTravelerHomePort(encounterId);
@@ -34248,6 +34291,13 @@ function rescuedTravelerMemoryForType(rescueType) {
     return gameState.memory.quests.castaway;
   }
   throw new Error(`Unknown rescued traveler memory type: ${rescueType}`);
+}
+
+function rescuedTravelerQuestMemories() {
+  return [
+    gameState.memory.quests.pirateCaptive,
+    gameState.memory.quests.castaway
+  ];
 }
 
 function activeRescuedTravelerForType(rescueType) {
@@ -58812,6 +58862,10 @@ function portDialoguePortraitCharacters(cityCall, previewTravelMissions = []) {
     add(rescuedTraveler.character);
     add(rescuedTraveler.familyMember);
   }
+  for (const character of formerRescuedTravelerCharactersAtPort(
+    rescuedTravelerQuestMemories(),
+    cityCall.tileId
+  )) add(character);
 
   const campaignGoal = gameState.memory.campaignGoal;
   if (campaignGoal?.homePortTileId === cityCall.tileId) add(campaignGoalContactCharacter());

@@ -71,13 +71,11 @@ function character(id, givenName, familyName) {
 const captive = character("captive", "Brites", "Pereira");
 const familyMember = character("family", "Joana", "Pereira");
 
-test("pirate victories use a one-in-three first rescue and one-in-fifty thereafter", () => {
+test("pirate victories use one-in-three rescue odds whenever no captive quest is active", () => {
   assert.equal(pirateCaptiveRescueAppears(0), true);
   assert.equal(pirateCaptiveRescueAppears(1 / 3 - Number.EPSILON), true);
   assert.equal(pirateCaptiveRescueAppears(1 / 3), false);
   assert.equal(pirateCaptiveRescueAppears(0.99), false);
-  assert.equal(pirateCaptiveRescueAppears(1 / 50 - Number.EPSILON, 1), true);
-  assert.equal(pirateCaptiveRescueAppears(1 / 50, 1), false);
 });
 
 function createQuest(memory, familySurvivedRoll, captiveKindRoll = 0.9) {

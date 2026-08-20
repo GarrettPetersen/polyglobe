@@ -102,12 +102,9 @@ export function migratePirateCaptiveQuestMemory(memory) {
   return rescuedMemory;
 }
 
-export function pirateCaptiveRescueAppears(roll, completedCount = 0) {
+export function pirateCaptiveRescueAppears(roll) {
   assertUnitRoll(roll, "pirate captive rescue");
-  if (!Number.isInteger(completedCount) || completedCount < 0) {
-    throw new Error(`Invalid completed pirate captive quest count: ${completedCount}`);
-  }
-  return roll < (completedCount === 0 ? 1 / 3 : 1 / 50);
+  return roll < 1 / 3;
 }
 
 export function pirateCaptiveKindForRoll(roll) {
