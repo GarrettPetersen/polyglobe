@@ -34,6 +34,7 @@ import {
   HARDTACK_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
   createWorldEconomy,
+  fundWorldEconomyShipyard,
   portMarket,
   quotePortPurchase
 } from "./economy.js";
@@ -80,6 +81,7 @@ import {
 import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
+import { generateShipyardListing } from "./shipyards.js";
 import { QUEST_ITINERARY_ORDERED, createQuestItinerary } from "./questItinerary.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
@@ -4531,8 +4533,14 @@ test("a returning shipyard investor receives an itemized sale-share greeting", (
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  fundWorldEconomyShipyard(economy, city, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
   const session = createPortDialogueSession(city, {
-    initialNodeId: "shipyard-dividend-arrival",
+    initialNodeId: "shipyard",
+    shipyardLedgerTab: "books",
     admittedToPort: true
   });
   session.shipyardDividendArrival = {
@@ -4541,14 +4549,56 @@ test("a returning shipyard investor receives an itemized sale-share greeting", (
     salesSummary: "Since your last visit, we sold a Galleon.",
     lifetimeTotal: 54000
   };
+  session.shipyardLedgerReturnNodeId = "greeting";
   const view = portDialogueView(session, city, gameState, economy, [city], {
     shipStats: stats,
     shipyard: economy.shipyards.yards.get(city.tileId),
     simMinute: 100
   });
+  assert.equal(view.presentation.kind, "player-shipyard-ledger");
+  assert.equal(view.presentation.tab, "books");
   assert.match(view.text, /sold a Galleon/);
-  assert.match(view.text, /share comes to 22000 doubloons/);
-  assert.match(view.text, /earned you 54000/);
+  assert.match(view.text, /22000 doubloons has been paid/);
+  assert.equal(view.options.at(-1).action.nodeId, "greeting");
+});
+
+test("a player-backed yard replaces the ordinary shipyard and keeps its finished hull purchasable", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    settlementType: "city",
+    population: 100000,
+    factionId: "portugal",
+    character: { name: "Fernao da Cunha" }
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.doubloons = 200000;
+  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const yard = fundWorldEconomyShipyard(economy, city, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  yard.buildStartedMinute = 0;
+  yard.nextBuildMinute = 90 * 1440;
+  yard.listing = generateShipyardListing(yard, 12, 0);
+  const session = createPortDialogueSession(city, { initialNodeId: "shipyard", admittedToPort: true });
+  const view = portDialogueView(session, city, gameState, economy, [city], {
+    shipStats: stats,
+    shipyard: yard,
+    simMinute: 30 * 1440
+  });
+
+  assert.equal(view.presentation.kind, "player-shipyard-ledger");
+  assert.equal(view.presentation.ledger.currentBuild.daysRemaining, 60);
+  assert.equal(view.presentation.ledger.finishedShip.id, yard.listing.id);
+  assert.ok(view.options.some((entry) => entry.action.type === "purchase-ship"));
+  assert.equal(view.options.filter((entry) => entry.label.includes("shipyard")).length, 0);
 });
 
 test("a completed ship sale gets a named historical handover before returning to port", () => {

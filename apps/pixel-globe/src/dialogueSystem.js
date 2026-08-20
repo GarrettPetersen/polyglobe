@@ -183,6 +183,7 @@ import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import { portArrivalPresentation } from "./portArrivalFlavor.js";
 import {
+  playerShipyardLedger,
   shipReplacementTermsWithoutTradeIn,
   shipyardPurchaseTerms
 } from "./shipyards.js";
@@ -379,6 +380,9 @@ export function createPortDialogueSession(city, options = {}) {
        options.questCargoDeliveryPromptIds.some((id) => typeof id !== "string" || id === ""))) {
     throw new Error("Port quest cargo delivery prompts must be string ids");
   }
+  if (options.shipyardLedgerTab !== undefined && !["yard", "books"].includes(options.shipyardLedgerTab)) {
+    throw new Error(`Unknown shipyard ledger tab: ${options.shipyardLedgerTab}`);
+  }
   return {
     kind: "port",
     cityTileId: city.tileId,
@@ -408,6 +412,9 @@ export function createPortDialogueSession(city, options = {}) {
     questCargoTip: null,
     shipHandover: null,
     shipyardDividendArrival: null,
+    shipyardLedgerTab: options.shipyardLedgerTab || "yard",
+    shipyardLedgerPage: 0,
+    shipyardLedgerReturnNodeId: null,
     shipyardInvestmentArrival: options.shipyardInvestmentArrival === true,
     shipyardInvestmentOfferApproached: false,
     specialEquipmentOffer: null,
@@ -1507,7 +1514,12 @@ export function dialogueBackOptionIndex(view) {
   return view.options.findIndex((entry) => entry?.placement === "port-exit");
 }
 
-export function beginShipHandoverDialogue(session, { shipSlug, transactionText, sellerTitle }) {
+export function beginShipHandoverDialogue(session, {
+  shipSlug,
+  transactionText,
+  sellerTitle,
+  returnNodeId = "root"
+}) {
   if (!session || session.kind !== "port") throw new Error("Ship handover requires a port dialogue session");
   shipStatsForSlug(shipSlug);
   if (typeof transactionText !== "string" || transactionText.trim() === "") {
@@ -1516,7 +1528,15 @@ export function beginShipHandoverDialogue(session, { shipSlug, transactionText, 
   if (typeof sellerTitle !== "string" || sellerTitle.trim() === "") {
     throw new Error("Ship handover requires a seller title");
   }
-  session.shipHandover = { shipSlug, transactionText: transactionText.trim(), sellerTitle: sellerTitle.trim() };
+  if (typeof returnNodeId !== "string" || returnNodeId === "") {
+    throw new Error("Ship handover requires a return dialogue node");
+  }
+  session.shipHandover = {
+    shipSlug,
+    transactionText: transactionText.trim(),
+    sellerTitle: sellerTitle.trim(),
+    returnNodeId
+  };
   session.nodeId = "ship-handover";
   session.selectedIndex = 0;
   session.feedback = null;
@@ -1583,9 +1603,6 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   }
   if (session.nodeId === "shipyard-investment") {
     return shipyardInvestmentView(session, city, gameState, context);
-  }
-  if (session.nodeId === "shipyard-dividend-arrival") {
-    return shipyardDividendArrivalView(session, city);
   }
   if (session.nodeId === "viking-longship") return vikingLongshipView(session, city, gameState, context);
   if (session.nodeId === "japanese-matchlocks") {
@@ -1753,6 +1770,10 @@ export function selectPortDialogueOption(
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "quest-cargo-tip") session.questCargoTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
+    if (session.nodeId === "shipyard" && action.nodeId !== "shipyard") {
+      session.shipyardDividendArrival = null;
+      session.shipyardLedgerReturnNodeId = null;
+    }
     if (session.nodeId === "marque" && action.nodeId !== "marque") {
       session.marqueGrantedFactionId = null;
     }
@@ -1775,6 +1796,25 @@ export function selectPortDialogueOption(
     }
     session.nodeId = action.nodeId;
     session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "shipyard-ledger-tab") {
+    if (session.nodeId !== "shipyard" || !["yard", "books"].includes(action.tab)) {
+      throw new Error(`Invalid shipyard ledger tab action: ${action.tab}`);
+    }
+    session.shipyardLedgerTab = action.tab;
+    session.shipyardLedgerPage = 0;
+    session.selectedIndex = action.tab === "yard" ? 0 : 1;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "shipyard-ledger-page") {
+    if (session.nodeId !== "shipyard" || !Number.isInteger(action.page) || action.page < 0) {
+      throw new Error(`Invalid shipyard ledger page action: ${action.page}`);
+    }
+    session.shipyardLedgerPage = action.page;
+    session.selectedIndex = 2;
     session.feedback = null;
     return { closed: false };
   }
@@ -1998,6 +2038,8 @@ export function selectPortDialogueOption(
     session.selectedIndex = 0;
     session.feedback = "The new yard is open, and your share is entered in the books.";
     session.nodeId = "shipyard";
+    session.shipyardLedgerTab = "yard";
+    session.shipyardLedgerReturnNodeId = "root";
     return { closed: false, action: { type: "fund-player-shipyard", investment } };
   }
   if (action.type === "purchase-viking-longship") {
@@ -3894,7 +3936,6 @@ function rootView(session, city, gameState, economy, context) {
     context.shipyard,
     context.simMinute ?? 0
   );
-  const playerBackedShipyard = playerBackedShipyardAtPort(gameState, city);
   const options = [
     ...(tradeAccess.allowed
       ? [option(pirateHideout ? "Buy doubtful goods" : illicitMarket ? "Buy illicit goods" : "Buy goods", {
@@ -3920,13 +3961,11 @@ function rootView(session, city, gameState, economy, context) {
         nodeId: "shipyard"
       })]
       : []),
-    ...(tradeAccess.allowed && (shipyardProject || shipyardProjectOffer || playerBackedShipyard)
+    ...(tradeAccess.allowed && (shipyardProject || shipyardProjectOffer)
       ? [option(
-        playerBackedShipyard ? "Review my shipyard" : "Meet the shipyard syndicate",
+        "Meet the shipyard syndicate",
         shipyardProject
           ? { type: "node", nodeId: "shipyard-investment" }
-          : playerBackedShipyard
-            ? { type: "node", nodeId: "shipyard-investment" }
           : { type: "node", nodeId: "shipyard-investment-offer" }
       )]
       : []),
@@ -5345,6 +5384,9 @@ function whaleHarpoonView(session, city, gameState, economy) {
 
 function shipyardView(session, city, gameState, context) {
   const yard = context.shipyard || null;
+  if (yard && playerBackedShipyardAtPort(gameState, city)) {
+    return playerShipyardLedgerView(session, city, gameState, context, yard);
+  }
   const listing = yard?.listing || null;
   const investmentOptions = shipyardInvestmentOptions(city, gameState, yard, context.simMinute ?? 0);
   if (!listing) {
@@ -5380,6 +5422,116 @@ function shipyardView(session, city, gameState, context) {
       ]
     };
   }
+  const purchase = shipyardPurchaseOffer(listing, gameState, context);
+  return {
+    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
+    expressionId: "attentive",
+    text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons. Your ${purchase.currentShipLabel} is worth ${purchase.purchaseTerms.tradeInValue} in trade.`,
+    feedback: session.feedback,
+    presentation: {
+      kind: "shipyard",
+      listing,
+      currentShipSlug: purchase.currentShipSlug,
+      purchaseTerms: purchase.purchaseTerms
+    },
+    options: [
+      option(purchase.purchaseLabel, {
+        type: "purchase-ship",
+        listingId: listing.id,
+        shipSlug: listing.shipSlug
+      }, {
+        disabled: Boolean(purchase.disabledReason),
+        disabledReason: purchase.disabledReason
+      }),
+      ...investmentOptions,
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function playerShipyardLedgerView(session, city, gameState, context, yard) {
+  const tab = session.shipyardLedgerTab;
+  if (!["yard", "books"].includes(tab)) throw new Error(`Unknown shipyard ledger tab: ${tab}`);
+  const ledger = playerShipyardLedger(yard, context.simMinute ?? 0);
+  const ledgerPageSize = 5;
+  const newestEntries = [...ledger.accounts.entries].reverse();
+  // Slide one entry at a time so even exceptionally short screens can reach every journal row.
+  const ledgerPageCount = Math.max(1, newestEntries.length);
+  const ledgerPageIndex = Math.min(session.shipyardLedgerPage, ledgerPageCount - 1);
+  const ledgerPage = Object.freeze({
+    index: ledgerPageIndex,
+    count: ledgerPageCount,
+    start: newestEntries.length === 0 ? 0 : ledgerPageIndex + 1,
+    end: Math.min(newestEntries.length, ledgerPageIndex + ledgerPageSize),
+    total: newestEntries.length,
+    entries: Object.freeze(newestEntries.slice(
+      ledgerPageIndex,
+      ledgerPageIndex + ledgerPageSize
+    ))
+  });
+  const listing = yard.listing || null;
+  const purchase = listing ? shipyardPurchaseOffer(listing, gameState, context) : null;
+  const payout = session.shipyardDividendArrival;
+  const payoutText = payout
+    ? `${payout.salesSummary} Your share of ${payout.amount} doubloons has been paid into your purse.`
+    : "The shipyard's accounts and building schedule are open for your inspection.";
+  const returnNodeId = session.shipyardLedgerReturnNodeId || "root";
+  return {
+    speaker: `${cityLabel(city)} master shipwright`,
+    expressionId: payout ? "pleased" : "attentive",
+    text: payoutText,
+    feedback: session.feedback,
+    optionColumns: 2,
+    presentation: {
+      kind: "player-shipyard-ledger",
+      tab,
+      ledger,
+      ledgerPage,
+      listing,
+      currentShipSlug: purchase?.currentShipSlug || context.shipStats?.slug || null,
+      purchaseTerms: purchase?.purchaseTerms || null,
+      payout: payout ? { ...payout } : null
+    },
+    options: [
+      option("Ships", { type: "shipyard-ledger-tab", tab: "yard" }, {
+        rowId: "shipyard-ledger-tabs",
+        iconId: "action:shipyard"
+      }),
+      option("Accounts", { type: "shipyard-ledger-tab", tab: "books" }, {
+        rowId: "shipyard-ledger-tabs",
+        iconId: "action:letter"
+      }),
+      ...(tab === "yard" && listing ? [option(purchase.purchaseLabel, {
+        type: "purchase-ship",
+        listingId: listing.id,
+        shipSlug: listing.shipSlug
+      }, {
+        disabled: Boolean(purchase.disabledReason),
+        disabledReason: purchase.disabledReason
+      })] : []),
+      ...(tab === "books" && ledgerPage.count > 1 ? [
+        option("Newer entries", { type: "shipyard-ledger-page", page: Math.max(0, ledgerPage.index - 1) }, {
+          rowId: "shipyard-ledger-pages",
+          disabled: ledgerPage.index === 0,
+          disabledReason: "Already showing the newest entries."
+        }),
+        option("Earlier entries", {
+          type: "shipyard-ledger-page",
+          page: Math.min(ledgerPage.count - 1, ledgerPage.index + 1)
+        }, {
+          rowId: "shipyard-ledger-pages",
+          disabled: ledgerPage.index >= ledgerPage.count - 1,
+          disabledReason: "Already showing the earliest entries."
+        })
+      ] : []),
+      option(payout ? "Continue" : "Back", { type: "node", nodeId: returnNodeId }, {
+        placement: "port-exit"
+      })
+    ]
+  };
+}
+
+function shipyardPurchaseOffer(listing, gameState, context) {
   const stats = shipStatsForSlug(listing.shipSlug);
   const currentShipSlug = context.shipStats?.slug;
   if (!currentShipSlug) throw new Error("Shipyard purchase requires the current ship type");
@@ -5406,29 +5558,15 @@ function shipyardView(session, city, gameState, context) {
       : cannotAfford
         ? `You need ${purchaseTerms.netPrice - gameState.doubloons} more doubloons.`
         : null;
-  const currentShipLabel = shipLabelForSlug(currentShipSlug);
-  const purchaseLabel = purchaseTerms.netPrice >= 0
-    ? `Buy ${listing.shipLabel}  ${purchaseTerms.netPrice} db`
-    : `Trade for ${listing.shipLabel}  +${-purchaseTerms.netPrice} db`;
-  return {
-    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
-    expressionId: "attentive",
-    text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons. Your ${currentShipLabel} is worth ${purchaseTerms.tradeInValue} in trade.`,
-    feedback: session.feedback,
-    presentation: { kind: "shipyard", listing, currentShipSlug, purchaseTerms },
-    options: [
-      option(purchaseLabel, {
-        type: "purchase-ship",
-        listingId: listing.id,
-        shipSlug: listing.shipSlug
-      }, {
-        disabled: Boolean(disabledReason),
-        disabledReason
-      }),
-      ...investmentOptions,
-      option("Back", { type: "node", nodeId: "root" })
-    ]
-  };
+  return Object.freeze({
+    currentShipSlug,
+    currentShipLabel: shipLabelForSlug(currentShipSlug),
+    purchaseTerms,
+    purchaseLabel: purchaseTerms.netPrice >= 0
+      ? `Buy ${listing.shipLabel}  ${purchaseTerms.netPrice} db`
+      : `Trade for ${listing.shipLabel}  +${-purchaseTerms.netPrice} db`,
+    disabledReason
+  });
 }
 
 function shipyardInvestmentOptions(city, gameState, yard, simMinute) {
@@ -5436,9 +5574,6 @@ function shipyardInvestmentOptions(city, gameState, yard, simMinute) {
   const project = shipyardInvestmentAtPort(gameState, city);
   if (project) {
     return [option("Fund the new shipyard", { type: "node", nodeId: "shipyard-investment" })];
-  }
-  if (playerBackedShipyardAtPort(gameState, city)) {
-    return [option("Review my shipyard", { type: "node", nodeId: "shipyard-investment" })];
   }
   return shipyardInvestmentOfferAvailable(gameState, city, yard, simMinute)
     ? [option("Back a great shipyard", { type: "node", nodeId: "shipyard-investment-offer" })]
@@ -5469,17 +5604,6 @@ function shipyardInvestmentView(session, city, gameState, context) {
   const yard = context.shipyard;
   const project = shipyardInvestmentAtPort(gameState, city);
   if (!yard) throw new Error("Shipyard investment dialogue requires the local yard");
-  if (!project && playerBackedShipyardAtPort(gameState, city)) {
-    return {
-      speaker: `${cityLabel(city)} master shipwright`,
-      expressionId: "attentive",
-      text: `A stout hull is on the stocks. We will hold your share from every sale until you next enter port. The books show ${yard.lifetimePlayerDividends} doubloons earned so far.`,
-      feedback: session.feedback,
-      options: [
-        option("Back", { type: "node", nodeId: "shipyard" })
-      ]
-    };
-  }
   if (!project) throw new Error("Shipyard investment dialogue requires the local project");
 
   const rows = [];
@@ -5522,26 +5646,6 @@ function shipyardInvestmentView(session, city, gameState, context) {
   };
 }
 
-function shipyardDividendArrivalView(session, city) {
-  const payout = session.shipyardDividendArrival;
-  if (!payout || !Number.isInteger(payout.amount) || payout.amount <= 0 ||
-      !Array.isArray(payout.sales) || typeof payout.salesSummary !== "string" ||
-      payout.salesSummary === "") {
-    throw new Error("Shipyard dividend arrival requires an itemized payout");
-  }
-  return {
-    speaker: `${cityLabel(city)} master shipwright`,
-    expressionId: "pleased",
-    text: `${payout.salesSummary} Your share comes to ${payout.amount} doubloons. ` +
-      `Altogether, this yard has earned you ${payout.lifetimeTotal}.`,
-    feedback: null,
-    options: [option("Enter the payment in my ledger", {
-      type: "node",
-      nodeId: session.nextPortNodeId || "greeting"
-    })]
-  };
-}
-
 function shipHandoverView(session, city) {
   const handover = session.shipHandover;
   if (!handover) throw new Error("Ship handover dialogue has no vessel");
@@ -5550,7 +5654,7 @@ function shipHandoverView(session, city) {
     expressionId: "pleased",
     text: `${handover.transactionText} ${shipHandoverHistoryForSlug(handover.shipSlug)}`,
     feedback: null,
-    options: [option("Continue", { type: "node", nodeId: "root" })]
+    options: [option("Continue", { type: "node", nodeId: handover.returnNodeId })]
   };
 }
 

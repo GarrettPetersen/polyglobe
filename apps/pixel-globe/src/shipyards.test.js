@@ -12,6 +12,7 @@ import {
   generateShipyardListing,
   fundPlayerShipyard,
   nearestShipyardListingForPort,
+  playerShipyardLedger,
   restoreWorldShipyards,
   shipConstructionPrice,
   shipReplacementTermsWithoutTradeIn,
@@ -432,6 +433,10 @@ test("player-backed yards favor major hulls and return a sale share", () => {
   const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "backed-yard" });
   restoreWorldShipyards(restored, snapshotWorldShipyards(system));
   const restoredYard = shipyardAtPort(restored, LISBON);
+  const beforePayout = playerShipyardLedger(restoredYard, restored.lastMinute);
+  assert.ok(beforePayout.accounts.salesRevenue >= listing.price);
+  assert.equal(beforePayout.accounts.outstandingPlayerShare, restoredYard.playerDividendBalance);
+  assert.ok(beforePayout.accounts.entries.some((entry) => entry.kind === "sale"));
   const payout = claimPlayerShipyardPayout(restored, LISBON);
   assert.equal(payout.amount, restoredYard.lifetimePlayerDividends);
   assert.ok(payout.sales.some((sale) => sale.shipSlug === listing.shipSlug));
@@ -442,6 +447,73 @@ test("player-backed yards favor major hulls and return a sale share", () => {
   assert.equal(restoredYard.playerDividendBalance, 0);
   assert.deepEqual(availablePlayerShipyardPayouts(restored), []);
   assert.deepEqual(restoredYard.playerPendingSales, []);
+  const afterPayout = playerShipyardLedger(restoredYard, restored.lastMinute);
+  assert.equal(afterPayout.accounts.outstandingPlayerShare, 0);
+  assert.equal(afterPayout.accounts.playerPayouts, payout.amount);
+  assert.equal(afterPayout.accounts.entries.at(-1).kind, "payout");
+});
+
+test("player-backed yards expose deterministic build progress and persist complete books", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "ledger-progress" });
+  const yard = fundPlayerShipyard(system, LISBON, {
+    investedMinute: 10,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  yard.listing = null;
+  yard.buildStartedMinute = 10;
+  yard.nextBuildMinute = 110;
+
+  const halfway = playerShipyardLedger(yard, 60);
+  assert.equal(halfway.currentBuild.progress, 0.5);
+  assert.equal(halfway.accounts.capitalContributions, 100000);
+  assert.equal(halfway.accounts.entries[0].kind, "capital");
+
+  advanceWorldShipyards(system, 111);
+  const completed = playerShipyardLedger(yard, 111);
+  assert.ok(completed.finishedShip);
+  assert.ok(completed.accounts.constructionExpenses > 0);
+  assert.ok(completed.accounts.entries.some((entry) => entry.kind === "construction"));
+
+  const snapshot = snapshotWorldShipyards(system);
+  const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "ledger-progress" });
+  restoreWorldShipyards(restored, snapshot);
+  assert.deepEqual(
+    playerShipyardLedger(shipyardAtPort(restored, LISBON), 111).accounts,
+    completed.accounts
+  );
+});
+
+test("version four player-backed yards migrate into readable accounts", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "legacy-ledger" });
+  const yard = fundPlayerShipyard(system, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  yard.lifetimePlayerDividends = 22000;
+  yard.playerDividendBalance = 22000;
+  yard.playerPendingSales = [{
+    id: "legacy-sale",
+    shipSlug: "galleon",
+    price: 100000,
+    dividend: 22000,
+    buyer: "npc",
+    soldMinute: 100
+  }];
+  const snapshot = snapshotWorldShipyards(system);
+  snapshot.version = 4;
+  for (const saved of snapshot.yards) {
+    delete saved.buildStartedMinute;
+    delete saved.playerAccounts;
+  }
+
+  restoreWorldShipyards(system, snapshot);
+
+  const migrated = playerShipyardLedger(yard, 100);
+  assert.equal(migrated.accounts.salesRevenue, 100000);
+  assert.equal(migrated.accounts.outstandingPlayerShare, 22000);
+  assert.ok(migrated.accounts.entries.some((entry) => entry.kind === "legacy"));
 });
 
 test("restoring a voyage applies the current ship prices and construction cadence", () => {

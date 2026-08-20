@@ -3470,6 +3470,7 @@ let icebergFootprintsBySlug;
 let shipLighting;
 const shipInfoImages = new Map();
 const shipInfoImagePromises = new Map();
+const shipyardConstructionArtCache = new Map();
 let gameIconAtlasImage;
 let gameIconOutlineAtlasImage;
 let gameIconWhiteAtlasImage;
@@ -18664,9 +18665,13 @@ function maybeOpenShipyardDividendDialogue(cityCall, { allowShipyardNode = false
     ...payout,
     salesSummary: shipyardPayoutSalesSummary(payout.sales)
   };
-  dialogueState.nextPortNodeId = dialogueState.nodeId;
-  dialogueState.nodeId = "shipyard-dividend-arrival";
-  dialogueState.selectedIndex = 0;
+  dialogueState.shipyardLedgerReturnNodeId = dialogueState.nodeId === "shipyard"
+    ? "root"
+    : dialogueState.nodeId;
+  dialogueState.shipyardLedgerTab = "books";
+  dialogueState.shipyardLedgerPage = 0;
+  dialogueState.nodeId = "shipyard";
+  dialogueState.selectedIndex = 1;
   dialogueState.feedback = null;
   invalidateDialogueOptionGeometry();
   ensureDialoguePortraitLoaded();
@@ -22424,6 +22429,11 @@ async function purchaseShipyardShip(action) {
       placeVikingLongshipEnthusiastAtPort(returnedHistorian);
     }
     claimShipyardListing(worldEconomy.shipyards, city, listing.id);
+    const ownerPayout = yard.playerBacking
+      ? collectPlayerShipyardDividends(gameState, worldEconomy.shipyards, city, {
+          simMinute: Math.floor(weatherClockMinutes)
+        })
+      : null;
     applyPlayerShipType(listing.shipSlug, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     playCoinClinkSound();
@@ -22431,6 +22441,15 @@ async function purchaseShipyardShip(action) {
     const transactionText = purchaseTerms.netPrice >= 0
       ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
       : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`;
+    if (ownerPayout) {
+      session.shipyardDividendArrival = {
+        ...ownerPayout,
+        salesSummary: `This sale paid your owner's share of ${ownerPayout.amount} doubloons at once.`
+      };
+      session.shipyardLedgerTab = "books";
+      session.shipyardLedgerPage = 0;
+      session.shipyardLedgerReturnNodeId = "root";
+    }
     if (returnedHistorian) {
       session.nodeId = "root";
       session.selectedIndex = 0;
@@ -22450,13 +22469,20 @@ async function purchaseShipyardShip(action) {
           expressionId: "pleased",
           message: `${transactionText} ${shipHandoverHistoryForSlug(listing.shipSlug)}`
         })
-      ]);
+      ], ownerPayout ? () => {
+        if (dialogueState !== session) return;
+        session.nodeId = "shipyard";
+        session.selectedIndex = 1;
+        invalidateDialogueView();
+        dirty = true;
+      } : null);
       if (!opened) throw new Error("Could not open the Viking longship trade-in farewell");
     } else {
       beginShipHandoverDialogue(session, {
         shipSlug: listing.shipSlug,
         transactionText,
-        sellerTitle: city.isPirateHideout ? "hidden-yard broker" : "shipwright"
+        sellerTitle: city.isPirateHideout ? "hidden-yard broker" : "shipwright",
+        returnNodeId: ownerPayout ? "shipyard" : "root"
       });
     }
     dialogueLayout.scrollOffset = 0;
@@ -57110,6 +57136,10 @@ function drawDialogueOverlay(nowMs) {
     drawCustomLoadoutDialogueOverlay(view);
     return;
   }
+  if (view.presentation?.kind === "player-shipyard-ledger") {
+    drawPlayerShipyardLedgerOverlay(view);
+    return;
+  }
   if (view.presentation?.kind === "shipyard" || view.presentation?.kind === "ship-capture") {
     drawVesselDecisionDialogueOverlay(view);
     return;
@@ -57534,6 +57564,323 @@ function drawCustomLoadoutHoldBar(rect, plan) {
   }
   ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+}
+
+function drawPlayerShipyardLedgerOverlay(dialogueView) {
+  const presentation = dialogueView.presentation;
+  const { ledger, ledgerPage, tab } = presentation;
+  if (!ledger?.currentBuild || !ledger?.accounts || !["yard", "books"].includes(tab)) {
+    throw new Error("Player shipyard ledger presentation is incomplete");
+  }
+  ensureShipyardSideViewLoaded(ledger.currentBuild.shipSlug);
+  if (presentation.listing) ensureShipyardSideViewLoaded(presentation.listing.shipSlug);
+
+  const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
+  const optionWidth = panel.w - 18;
+  const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_SMALL_8, optionWidth);
+  const optionGroups = dialogueOptionGroups(dialogueView.options);
+  const optionRows = dialogueRegularOptionRows(dialogueView, optionGroups.regular).length +
+    (optionGroups.exits.length > 0 ? 1 : 0);
+  const optionY = panel.y + panel.h - optionRows * optionHeight -
+    (optionGroups.exits.length > 0 && optionGroups.regular.length > 0 ? 4 : 0) - 7;
+  const content = {
+    x: panel.x + 10,
+    y: panel.y + 34,
+    w: panel.w - 20,
+    h: Math.max(34, optionY - panel.y - 39)
+  };
+
+  drawPiratePaperModal(panel, 0.9);
+  drawOptionsText(
+    fitPixelText(`${ledger.portName.toUpperCase()} SHIPYARD`, PIXEL_FONT_DIALOGUE_8, panel.w - 28),
+    panel.x + panel.w / 2,
+    panel.y + 9,
+    { font: PIXEL_FONT_DIALOGUE_8, align: "center", color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(tab === "yard" ? "SHIPS" : "ACCOUNTS", panel.x + panel.w / 2, panel.y + 22, {
+    font: PIXEL_FONT_SMALL_8,
+    align: "center",
+    color: PIRATE_MENU_CHART_LINE
+  });
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(panel.x + 10, panel.y + 31, panel.w - 20, 1);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(content.x, content.y, content.w, content.h);
+  ctx.clip();
+  if (tab === "yard") drawPlayerShipyardYardTab(content, presentation);
+  else drawPlayerShipyardBooksTab(content, presentation, ledgerPage);
+  ctx.restore();
+
+  drawDialogueOptions(
+    dialogueView,
+    panel.x + 9,
+    optionY,
+    optionWidth,
+    panel.y + panel.h - 6,
+    PIXEL_FONT_SMALL_8
+  );
+}
+
+function drawPlayerShipyardYardTab(content, presentation) {
+  const build = presentation.ledger.currentBuild;
+  const landscape = content.h < 150;
+  const artSize = landscape
+    ? (() => {
+        const h = Math.max(18, Math.min(78, content.h - 15));
+        return {
+          w: Math.min(144, Math.floor(content.w * 0.44), Math.round(h * 24 / 13)),
+          h
+        };
+      })()
+    : { w: Math.min(160, content.w), h: 87 };
+  const artX = landscape ? content.x : content.x + Math.floor((content.w - artSize.w) / 2);
+  const artY = content.y + 13;
+  drawOptionsText("UNDER CONSTRUCTION", content.x, content.y, {
+    color: PIRATE_MENU_INK_MUTED
+  });
+  drawShipyardConstructionArt(build.shipSlug, build.progress, artX, artY, artSize.w, artSize.h);
+
+  const detailX = landscape ? artX + artSize.w + 10 : content.x;
+  let detailY = landscape ? artY + 2 : artY + artSize.h + 5;
+  const detailW = landscape ? content.x + content.w - detailX : content.w;
+  drawOptionsText(
+    fitPixelText(build.shipLabel.toUpperCase(), PIXEL_FONT_DIALOGUE_8, detailW),
+    detailX,
+    detailY,
+    { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
+  );
+  detailY += 14;
+  const percent = Math.round(build.progress * 100);
+  drawOptionsText(`${percent}% BUILT`, detailX, detailY, { color: PIRATE_MENU_CHART_LINE });
+  drawOptionsText(
+    build.daysRemaining === 0 ? "READY FOR LAUNCH" : `${build.daysRemaining} DAYS TO LAUNCH`,
+    detailX + detailW,
+    detailY,
+    { align: "right", color: PIRATE_MENU_INK_MUTED }
+  );
+  drawShipyardProgressBar({ x: detailX, y: detailY + 11, w: detailW, h: 6 }, build.progress);
+  detailY += 23;
+  if (build.materialDelayDays > 0) {
+    drawOptionsText(`WAITING FOR MATERIALS  ${build.materialDelayDays} DAYS`, detailX, detailY, {
+      color: "#b65050"
+    });
+    detailY += 12;
+  }
+
+  if (landscape) {
+    drawPlayerShipyardFinishedListing(
+      presentation.ledger.finishedShip,
+      detailX,
+      Math.min(content.y + content.h - 9, detailY),
+      detailW,
+      true
+    );
+    return;
+  }
+  const finishedY = detailY;
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(content.x, finishedY, content.w, 1);
+  drawPlayerShipyardFinishedListing(
+    presentation.ledger.finishedShip,
+    content.x,
+    finishedY + 5,
+    content.w,
+    false
+  );
+}
+
+function drawPlayerShipyardFinishedListing(listing, x, y, width, compact) {
+  if (listing) {
+    if (!compact) drawOptionsText("FINISHED SHIP FOR SALE", x, y, {
+      color: PIRATE_MENU_INK_MUTED
+    });
+    drawOptionsText(
+      fitPixelText(listing.shipLabel.toUpperCase(), PIXEL_FONT_SMALL_8, Math.max(42, width - 105)),
+      x,
+      compact ? y : y + 12,
+      { color: PIRATE_MENU_INK }
+    );
+    drawOptionsText(`${listing.price} DB`, x + width, y, {
+      align: "right",
+      color: "#9b7b24"
+    });
+    if (!compact) drawOptionsText(`${listing.daysRemaining} DAYS LEFT`, x + width, y + 12, {
+      align: "right",
+      color: PIRATE_MENU_INK_MUTED
+    });
+  } else {
+    drawOptionsText(
+      compact ? "NO SHIP FOR SALE" : "NO FINISHED SHIP FOR SALE",
+      x,
+      y,
+      {
+      color: PIRATE_MENU_INK_MUTED
+      }
+    );
+  }
+}
+
+function drawShipyardProgressBar(rect, progress) {
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(rect.x + 1, rect.y + 1, Math.round((rect.w - 2) * progress), rect.h - 2);
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+}
+
+function drawShipyardConstructionArt(slug, progress, x, y, width, height) {
+  const image = shipInfoImages.get(slug);
+  if (!image) {
+    drawOptionsText("LOADING SHIP...", x + width / 2, y + Math.floor(height / 2) - 4, {
+      align: "center",
+      color: PIRATE_MENU_INK_MUTED
+    });
+    return;
+  }
+  const bucket = Math.round(clamp(progress, 0, 1) * 100);
+  const key = `${slug}:${bucket}`;
+  let art = shipyardConstructionArtCache.get(key);
+  if (!art) {
+    art = createShipyardConstructionArt(image, bucket / 100);
+    shipyardConstructionArtCache.set(key, art);
+  }
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(art, Math.round(x), Math.round(y), Math.round(width), Math.round(height));
+}
+
+function createShipyardConstructionArt(image, progress) {
+  const sample = document.createElement("canvas");
+  sample.width = SHIP_INFO_SIDE_VIEW_W;
+  sample.height = SHIP_INFO_SIDE_VIEW_H;
+  const sampleContext = sample.getContext("2d", { willReadFrequently: true });
+  if (!sampleContext) throw new Error("Could not inspect shipyard side-view art");
+  sampleContext.imageSmoothingEnabled = false;
+  sampleContext.drawImage(image, 0, 0);
+  const source = sampleContext.getImageData(0, 0, sample.width, sample.height);
+  const output = sampleContext.createImageData(sample.width, sample.height);
+  const alphaAt = (x, y) => (
+    x >= 0 && x < sample.width && y >= 0 && y < sample.height
+      ? source.data[(y * sample.width + x) * 4 + 3]
+      : 0
+  );
+  let minY = sample.height;
+  let maxY = -1;
+  for (let y = 0; y < sample.height; y++) {
+    for (let x = 0; x < sample.width; x++) {
+      if (alphaAt(x, y) === 0) continue;
+      minY = Math.min(minY, y);
+      maxY = Math.max(maxY, y);
+    }
+  }
+  if (maxY < minY) throw new Error("Shipyard side-view art has no opaque hull pixels");
+  const fillY = maxY - Math.round((maxY - minY + 1) * progress) + 1;
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = 0; x < sample.width; x++) {
+      if (alphaAt(x, y) === 0) continue;
+      const edge = alphaAt(x - 1, y) === 0 || alphaAt(x + 1, y) === 0 ||
+        alphaAt(x, y - 1) === 0 || alphaAt(x, y + 1) === 0;
+      if (!edge && y < fillY) continue;
+      const offset = (y * sample.width + x) * 4;
+      const color = edge ? [62, 48, 34] : [117, 82, 50];
+      output.data[offset] = color[0];
+      output.data[offset + 1] = color[1];
+      output.data[offset + 2] = color[2];
+      output.data[offset + 3] = 255;
+    }
+  }
+  sampleContext.clearRect(0, 0, sample.width, sample.height);
+  sampleContext.putImageData(output, 0, 0);
+  return sample;
+}
+
+function drawPlayerShipyardBooksTab(content, presentation, ledgerPage) {
+  if (!ledgerPage || !Array.isArray(ledgerPage.entries)) {
+    throw new Error("Player shipyard books require a journal page");
+  }
+  const accounts = presentation.ledger.accounts;
+  let y = content.y;
+  if (presentation.payout) {
+    const payoutLines = wrapPixelText(
+      `${presentation.payout.salesSummary} PAID ${presentation.payout.amount} DB.`,
+      PIXEL_FONT_SMALL_8,
+      content.w,
+      2
+    );
+    for (const line of payoutLines) {
+      drawOptionsText(line, content.x, y, { color: "#4f7d43" });
+      y += localizedLineHeight(10);
+    }
+    y += 2;
+  }
+  const compactSummary = content.h < 120;
+  const summary = [
+    [compactSummary ? "CAPITAL" : "OWNER CAPITAL", accounts.capitalContributions],
+    [compactSummary ? "SALES" : "SHIP SALES", accounts.salesRevenue],
+    [compactSummary ? "COSTS" : "SHIPBUILDING COSTS", -accounts.constructionExpenses],
+    [compactSummary ? "PAID" : "DIVIDENDS PAID", -accounts.playerPayouts],
+    [compactSummary ? "OWED" : "UNPAID DIVIDENDS", accounts.outstandingPlayerShare],
+    [compactSummary ? "CASH" : "SHIPYARD CASH", accounts.cashBalance]
+  ];
+  const summaryColumns = content.w >= 330 || compactSummary ? 2 : 1;
+  const summaryRows = Math.ceil(summary.length / summaryColumns);
+  const summaryColumnW = Math.floor(content.w / summaryColumns);
+  summary.forEach(([label, amount], index) => {
+    const column = index % summaryColumns;
+    const row = Math.floor(index / summaryColumns);
+    const x = content.x + column * summaryColumnW;
+    const right = x + summaryColumnW - (column === 0 && summaryColumns > 1 ? 8 : 0);
+    const rowY = y + row * 12;
+    drawOptionsText(label, x, rowY, { color: PIRATE_MENU_INK_MUTED });
+    drawOptionsText(formatSignedLedgerMoney(amount), right, rowY, {
+      align: "right",
+      color: amount < 0 ? "#b65050" : "#4f7d43"
+    });
+  });
+  y += summaryRows * 12 + 3;
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(content.x, y, content.w, 1);
+  y += 5;
+  const journalRange = ledgerPage.total === 0
+    ? "0/0"
+    : `${ledgerPage.start}-${ledgerPage.end}/${ledgerPage.total}`;
+  drawOptionsText(`ENTRIES  ${journalRange}`, content.x, y, {
+    color: PIRATE_MENU_INK_MUTED
+  });
+  y += 12;
+  const rowHeight = 13;
+  const visibleRows = Math.max(0, Math.floor((content.y + content.h - y) / rowHeight));
+  for (const [index, entry] of ledgerPage.entries.slice(0, visibleRows).entries()) {
+    const rowY = y + index * rowHeight;
+    if (index % 2 === 0) {
+      ctx.fillStyle = "rgba(113, 80, 51, 0.1)";
+      ctx.fillRect(content.x, rowY - 2, content.w, rowHeight - 1);
+    }
+    drawOptionsText(shipLedgerDateLabel(entry.simMinute), content.x + 2, rowY, {
+      color: PIRATE_MENU_INK_MUTED
+    });
+    drawOptionsText(
+      fitPixelText(shipyardAccountEntryLabel(entry), PIXEL_FONT_SMALL_8, Math.max(36, content.w - 126)),
+      content.x + 64,
+      rowY,
+      { color: PIRATE_MENU_INK }
+    );
+    drawOptionsText(formatSignedLedgerMoney(entry.amount), content.x + content.w - 2, rowY, {
+      align: "right",
+      color: entry.amount < 0 ? "#b65050" : "#4f7d43"
+    });
+  }
+}
+
+function shipyardAccountEntryLabel(entry) {
+  if (entry.kind === "capital") return "OWNER CAPITAL";
+  if (entry.kind === "construction") return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} BUILT`;
+  if (entry.kind === "sale") return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} SOLD`;
+  if (entry.kind === "payout") return "DIVIDEND PAID";
+  if (entry.kind === "legacy") return "EARLIER ACCOUNTS";
+  throw new Error(`Unknown shipyard account entry kind: ${entry.kind}`);
 }
 
 function drawVesselDecisionDialogueOverlay(dialogueView) {
@@ -58185,10 +58532,12 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
   const { index, option } = entry;
   dialogueLayout.optionRects.push({ index, rect });
   const selected = index === dialogueState.selectedIndex;
+  const activeLedgerTab = view.presentation?.kind === "player-shipyard-ledger" &&
+    option.action.type === "shipyard-ledger-tab" && option.action.tab === view.presentation.tab;
   if (isExit && !option.disabled) drawPirateHudButton(rect, selected);
   else drawPiratePaperInset(
     rect,
-    selected && !option.disabled,
+    (selected || activeLedgerTab) && !option.disabled,
     option.emphasis === "quest-cargo"
       ? PIRATE_MENU_QUEST_CARGO
       : option.emphasis === "quest-cargo-danger"
