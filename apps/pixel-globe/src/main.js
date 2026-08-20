@@ -215,6 +215,7 @@ import {
   SURFACE_ICE_TRANSITION_STAGE_COUNT,
   createSurfaceIceTransition,
   surfaceIceStateForTile,
+  surfaceIceTransitionCueForTiles,
   surfaceIceTransitionEntrapsTile,
   surfaceIceTransitionIsComplete,
   surfaceIceTransitionPixel,
@@ -2901,7 +2902,7 @@ const NAVIGATION_MENU_ROW_H = 38;
 const NAVIGATION_MENU_PAGE_SIZE = 4;
 const SHIP_INFO_ASSET_VERSION = "jong-holk-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "whale-kill-1";
+const SFX_ASSET_VERSION = "physical-actions-1";
 const ANIMAL_ASSET_VERSION = "whale-species-1";
 const STORM_SHIP_STRIKE_ASSET_VERSION = "infected-tribe-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
@@ -3001,6 +3002,10 @@ const STORM_SHIP_STRIKE_URL = "assets/misc/lightning.png";
 const SFX_SAIL_FLAP_URL = "assets/sfx/freesound_community-flag-6367.ogg";
 const SFX_UNDERWAY_URL = "assets/sfx/freesound_community-sailboat-underway-48728.ogg";
 const SFX_SAIL_DEPLOY_URL = "assets/sfx/freesound_community-saildeploy-99393.ogg";
+const SFX_ANCHOR_HANDLING_URL = "assets/sfx/three-kingdoms-stratagem-anchor-handling.ogg";
+const SFX_ICE_CRACK_URL = "assets/sfx/three-kingdoms-stratagem-ice-crack.ogg";
+const SFX_ICE_BREAK_URL = "assets/sfx/three-kingdoms-stratagem-ice-break.ogg";
+const SFX_SHIP_REPAIR_URL = "assets/sfx/three-kingdoms-stratagem-shipwright-hammer.ogg";
 const SFX_DISCOVERY_SUCCESS_URL = "assets/sfx/freesound_community-short-success-sound-glockenspiel-treasure-video-game-6346.mp3";
 const SFX_COIN_CLINK_URL = "assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3";
 const SFX_FISHING_URL = "assets/sfx/alex_jauk-water-splash-147014.mp3";
@@ -3026,6 +3031,9 @@ const SFX_ARROW_HIT_POOL_SIZE = 6;
 const SFX_IMPACT_POOL_SIZE = 6;
 const SFX_ARMOR_GLANCE_POOL_SIZE = 6;
 const SFX_SAIL_DEPLOY_POOL_SIZE = 2;
+const SFX_ANCHOR_HANDLING_POOL_SIZE = 2;
+const SFX_ICE_POOL_SIZE = 2;
+const SFX_SHIP_REPAIR_POOL_SIZE = 2;
 const SFX_DISCOVERY_SUCCESS_POOL_SIZE = 3;
 const SFX_COIN_CLINK_POOL_SIZE = 8;
 const SFX_FISHING_POOL_SIZE = 3;
@@ -3049,6 +3057,10 @@ const SFX_ARROW_HIT_VOLUME = 0.54;
 const SFX_IMPACT_VOLUME = 0.64;
 const SFX_ARMOR_GLANCE_VOLUME = 0.72;
 const SFX_SAIL_DEPLOY_VOLUME = 0.22;
+const SFX_ANCHOR_HANDLING_VOLUME = 0.42;
+const SFX_ICE_CRACK_VOLUME = 0.38;
+const SFX_ICE_BREAK_VOLUME = 0.5;
+const SFX_SHIP_REPAIR_VOLUME = 0.34;
 const SFX_DISCOVERY_SUCCESS_VOLUME = 0.72;
 const SFX_COIN_CLINK_VOLUME = 0.58;
 const SFX_FISHING_VOLUME = 0.42;
@@ -8907,6 +8919,18 @@ function setupSoundEffects() {
       "armor glance"
     ),
     sailDeploy: createSoundPool(SFX_SAIL_DEPLOY_URL, SFX_SAIL_DEPLOY_POOL_SIZE, "sail deployment"),
+    anchorHandling: createSoundPool(
+      SFX_ANCHOR_HANDLING_URL,
+      SFX_ANCHOR_HANDLING_POOL_SIZE,
+      "anchor handling"
+    ),
+    iceCrack: createSoundPool(SFX_ICE_CRACK_URL, SFX_ICE_POOL_SIZE, "surface ice cracking"),
+    iceBreak: createSoundPool(SFX_ICE_BREAK_URL, SFX_ICE_POOL_SIZE, "surface ice breaking"),
+    shipRepair: createSoundPool(
+      SFX_SHIP_REPAIR_URL,
+      SFX_SHIP_REPAIR_POOL_SIZE,
+      "shipwright repair"
+    ),
     discoverySuccess: createSoundPool(SFX_DISCOVERY_SUCCESS_URL, SFX_DISCOVERY_SUCCESS_POOL_SIZE, "discovery success"),
     coinClink: createSoundPool(SFX_COIN_CLINK_URL, SFX_COIN_CLINK_POOL_SIZE, "coin clink"),
     fishing: createSoundPool(SFX_FISHING_URL, SFX_FISHING_POOL_SIZE, "fishing splash"),
@@ -9178,6 +9202,10 @@ function applyThemeAudioSettings() {
       ...soundEffects.impact,
       ...soundEffects.armorGlance,
       ...soundEffects.sailDeploy,
+      ...soundEffects.anchorHandling,
+      ...soundEffects.iceCrack,
+      ...soundEffects.iceBreak,
+      ...soundEffects.shipRepair,
       ...soundEffects.discoverySuccess,
       ...soundEffects.coinClink,
       ...soundEffects.fishing,
@@ -9378,7 +9406,40 @@ function playArmorGlanceSound(distancePx = 0) {
 }
 
 function playIceDigOutSound() {
-  playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * 0.82, 1.18);
+  playSoundEffect(soundEffects?.iceBreak, SFX_ICE_BREAK_VOLUME, 1.04);
+}
+
+function playSurfaceIceTransitionSound(kind) {
+  if (kind === "freezing") {
+    playSoundEffect(soundEffects?.iceCrack, SFX_ICE_CRACK_VOLUME, 0.96);
+    return;
+  }
+  if (kind === "thawing") {
+    playSoundEffect(soundEffects?.iceBreak, SFX_ICE_BREAK_VOLUME * 0.76, 1.08);
+    return;
+  }
+  throw new Error(`Unknown surface ice transition sound: ${kind}`);
+}
+
+function playAnchorHandlingSound({ raising }) {
+  if (typeof raising !== "boolean") throw new Error("Anchor handling sound requires a direction");
+  playSoundEffect(
+    soundEffects?.anchorHandling,
+    SFX_ANCHOR_HANDLING_VOLUME,
+    raising ? 1.08 : 0.9
+  );
+}
+
+function playShipRepairSound() {
+  playSoundEffect(soundEffects?.shipRepair, SFX_SHIP_REPAIR_VOLUME, 1.12);
+}
+
+function playShipHandoverSound() {
+  playSoundEffect(soundEffects?.sailDeploy, SFX_SAIL_DEPLOY_VOLUME * 1.28, 1.04);
+}
+
+function playStruckColorsSound() {
+  playSoundEffect(soundEffects?.sailDeploy, SFX_SAIL_DEPLOY_VOLUME * 0.82, 0.86);
 }
 
 function playSailDeploySound() {
@@ -20595,6 +20656,7 @@ function repairPlayerShipAtPort() {
   if (!Number.isFinite(maxHull) || maxHull <= 0 || ship.hitPoints >= maxHull) return 0;
   const repaired = Math.max(0, Math.round(maxHull - ship.hitPoints));
   ship.hitPoints = maxHull;
+  playShipRepairSound();
   return repaired;
 }
 
@@ -20980,7 +21042,7 @@ function toggleAnchor({ findCastaway = true } = {}) {
     departureControlFeedback = null;
     keys.clear();
     clearPointerSteering();
-    playSailDeploySound();
+    playAnchorHandlingSound({ raising: true });
     if (!findCastaway || !departureShore || !maybeOpenCastawayQuest(departureShore)) {
       saveVoyageNow("weighed anchor");
     }
@@ -20991,6 +21053,7 @@ function toggleAnchor({ findCastaway = true } = {}) {
   anchored = true;
   initialAnimalEncounterRollPending = true;
   stopShipMotion();
+  playAnchorHandlingSound({ raising: false });
   if (!maybeRecoverCampaignTreasureAtAnchor()) saveVoyageNow("dropped anchor");
   dirty = true;
   return true;
@@ -21021,6 +21084,7 @@ function maybeAutoAnchorAtNonPortQuestSite() {
   anchored = true;
   initialAnimalEncounterRollPending = false;
   stopShipMotion();
+  playAnchorHandlingSound({ raising: false });
   openPortDialogue(arrival.call);
   if (!dialogueState) {
     throw new Error("Automatic quest-site arrival did not open a dialogue");
@@ -21661,7 +21725,9 @@ function closeDialogue() {
       Math.floor(weatherClockMinutes)
     );
   }
-  if (dialogueState?.releaseAutomaticQuestSiteAnchorOnClose === true) {
+  const releasedAutomaticQuestSiteAnchor =
+    dialogueState?.releaseAutomaticQuestSiteAnchorOnClose === true;
+  if (releasedAutomaticQuestSiteAnchor) {
     releaseAutomaticQuestSiteAnchor();
   }
   dialogueState = null;
@@ -21670,7 +21736,7 @@ function closeDialogue() {
   if (wasPortDialogue) {
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack("ship", { force: true });
-    playSailDeploySound();
+    if (!releasedAutomaticQuestSiteAnchor) playSailDeploySound();
     if (departureCity) maybeOpenCampaignGoalDepartureReminder(departureCity);
     saveVoyageNow("left port dialogue");
   }
@@ -21688,6 +21754,7 @@ function releaseAutomaticQuestSiteAnchor() {
   departureControlFeedback = null;
   keys.clear();
   clearPointerSteering();
+  playAnchorHandlingSound({ raising: true });
 }
 
 function chooseDialogueOption(optionIndex) {
@@ -21935,6 +22002,7 @@ function applyDialogueOption(optionIndex) {
           playScavengeSuccessSound();
         }
       }
+      if (aidLabels.length === 0) playCollectionDingSound();
       showSurvivalNotice(
         `${quest.character.name.toUpperCase()} ABOARD${aidLabels.length > 0 ? `  ${aidLabels.join("  ")}` : ""}`,
         "good"
@@ -22242,6 +22310,7 @@ async function purchaseShipyardShip(action) {
     applyPlayerShipType(listing.shipSlug, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     playCoinClinkSound();
+    playShipHandoverSound();
     const transactionText = purchaseTerms.netPrice >= 0
       ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
       : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`;
@@ -22355,6 +22424,7 @@ async function acquireVikingLongship(action) {
     applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     if (purchasing) playCoinClinkSound();
+    playShipHandoverSound();
     const longshipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
     beginShipHandoverDialogue(session, {
       shipSlug: VIKING_LONGSHIP_SLUG,
@@ -22440,6 +22510,7 @@ function applyShipDialogueAction(npcShipId, action) {
     dialogueState.aidMessage = `Take these stores with our compliments. Food +${granted.food}, water +${granted.water}.`;
     syncShipCargoFromGameState();
     resetSurvivalDamageTimers();
+    playScavengeSuccessSound();
     showSurvivalNotice(`SHIP AID: FOOD +${granted.food}  WATER +${granted.water}`, "good");
     saveVoyageNow("received emergency provisions at sea");
     return;
@@ -22582,6 +22653,7 @@ async function captureSurrenderedShip(npcShipId) {
     deleteNpcVisualShipState(npcShipId);
     shipCombatEntryCollisionGrace.delete(npcShipId);
     syncShipCargoFromGameState();
+    playShipHandoverSound();
     showSurvivalNotice(
       `CAPTURED ${shipLabelForSlug(candidateSlug).toUpperCase()}` +
         (recoveredCargoQuantity > 0 ? `  +${recoveredCargoQuantity} CARGO` : "") +
@@ -33493,6 +33565,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
   clearCombatForShip(loserId);
   const state = npcVisualShips.get(loserId);
   if (state) {
+    playStruckColorsSound();
     const strategic = npcSeaRoutes.shipById.get(loserId);
     state.hitPoints = strategic.hitPoints;
     state.combatGrace = true;
@@ -35839,6 +35912,12 @@ function advancePendingWeatherMaskRefresh(nowMs) {
     toSeaMask: seaIceMask,
     toFreshwaterMask: freshwaterIceMask
   });
+  const iceCue = surfaceIceTransitionCueForTiles({
+    transition: surfaceIceTransition,
+    tileIds: chart?.visibleSet || [],
+    focusTileId: ship?.tileId ?? null
+  });
+  if (iceCue) playSurfaceIceTransitionSound(iceCue);
   surfaceIceTransitionDrawStage = 0;
   return true;
 }

@@ -79,6 +79,7 @@
 - Dominik Braun - "Failure Sound" from "107 Free Retro Game Sounds" (CC BY 4.0)
 - Three Kingdoms Stratagem - fire crackle loop
 - Three Kingdoms Stratagem - sword unsheathing cue
+- Three Kingdoms Stratagem - anchor handling, surface ice, and shipwright impact cues
 - Universfield - "Dramatic Death Collapse" (Pixabay 352720, Pixabay Content License; via Three Kingdoms Stratagem)
 - Universfield - "Wet Squelch Impact" (Pixabay 352302, Pixabay Content License)
 - H. Lentfer / National Park Service - "Humpbacks and Murrelets" surface blow excerpt (public domain; cleaned)

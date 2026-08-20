@@ -103,6 +103,33 @@ export function surfaceIceTransitionEntrapsTile(transition, tileId) {
   );
 }
 
+export function surfaceIceTransitionCueForTiles({
+  transition,
+  tileIds,
+  focusTileId = null
+}) {
+  assertTransition(transition);
+  if (!tileIds || typeof tileIds[Symbol.iterator] !== "function") {
+    throw new Error("Surface ice transition cue requires iterable tile ids");
+  }
+  if (focusTileId !== null) {
+    assertTileId(focusTileId, transition.tileCount);
+    const focusKind = surfaceIceTransitionKindForTile(transition, focusTileId);
+    if (focusKind) return focusKind;
+  }
+
+  let freezingCount = 0;
+  let thawingCount = 0;
+  for (const tileId of tileIds) {
+    assertTileId(tileId, transition.tileCount);
+    const kind = surfaceIceTransitionKindForTile(transition, tileId);
+    if (kind === "freezing") freezingCount++;
+    else if (kind === "thawing") thawingCount++;
+  }
+  if (freezingCount === 0 && thawingCount === 0) return null;
+  return freezingCount >= thawingCount ? "freezing" : "thawing";
+}
+
 export function surfaceIceTransitionPixel({
   variant,
   x,
@@ -147,6 +174,21 @@ export function surfaceIceTransitionPixel({
 
 function maskHasIce(seaMask, freshwaterMask, tileId) {
   return Boolean(seaMask[tileId] || freshwaterMask[tileId]);
+}
+
+function surfaceIceTransitionKindForTile(transition, tileId) {
+  const fromIce = maskHasIce(
+    transition.fromSeaMask,
+    transition.fromFreshwaterMask,
+    tileId
+  );
+  const toIce = maskHasIce(
+    transition.toSeaMask,
+    transition.toFreshwaterMask,
+    tileId
+  );
+  if (fromIce === toIce) return null;
+  return toIce ? "freezing" : "thawing";
 }
 
 function assertTransition(transition) {

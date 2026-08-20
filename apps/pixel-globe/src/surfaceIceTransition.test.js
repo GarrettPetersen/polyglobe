@@ -5,6 +5,7 @@ import {
   SURFACE_ICE_TRANSITION_STAGE_COUNT,
   createSurfaceIceTransition,
   surfaceIceStateForTile,
+  surfaceIceTransitionCueForTiles,
   surfaceIceTransitionEntrapsTile,
   surfaceIceTransitionIsComplete,
   surfaceIceTransitionPixel,
@@ -67,6 +68,23 @@ test("only a newly frozen tile can entrap the ship", () => {
   assert.equal(surfaceIceTransitionEntrapsTile(active, 2), false);
   assert.equal(surfaceIceTransitionIsComplete(active, 1899), false);
   assert.equal(surfaceIceTransitionIsComplete(active, 1900), true);
+});
+
+test("surface ice audio follows changes visible around the ship", () => {
+  const active = transition();
+  assert.equal(surfaceIceTransitionCueForTiles({
+    transition: active,
+    tileIds: new Set([0, 2])
+  }), "freezing");
+  assert.equal(surfaceIceTransitionCueForTiles({
+    transition: active,
+    tileIds: [0, 1],
+    focusTileId: 1
+  }), "thawing");
+  assert.equal(surfaceIceTransitionCueForTiles({
+    transition: active,
+    tileIds: [2]
+  }), null);
 });
 
 test("hard-pixel ice stages advance monotonically and finish fully settled", () => {
