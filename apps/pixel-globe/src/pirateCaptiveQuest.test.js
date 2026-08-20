@@ -25,6 +25,7 @@ import {
   pirateCaptiveRevengeSpawnIsDue,
   pirateCaptiveDialogueView,
   pirateCaptiveRescueAppears,
+  pirateCaptiveWarningMessage,
   preparePirateCaptiveHomecoming,
   recapturePirateCaptive,
   recordPirateCaptiveEscape,
@@ -76,6 +77,17 @@ test("pirate victories use one-in-three rescue odds whenever no captive quest is
   assert.equal(pirateCaptiveRescueAppears(1 / 3 - Number.EPSILON), true);
   assert.equal(pirateCaptiveRescueAppears(1 / 3), false);
   assert.equal(pirateCaptiveRescueAppears(0.99), false);
+});
+
+test("the warning identifies a deceptive captive with known pronouns", () => {
+  assert.equal(
+    pirateCaptiveWarningMessage(captive),
+    "Captain, Brites knows a pirate's habits too well. I do not think she was ever a captive."
+  );
+  assert.equal(
+    pirateCaptiveWarningMessage({ ...captive, givenName: "Nils", sex: "male" }),
+    "Captain, Nils knows a pirate's habits too well. I do not think he was ever a captive."
+  );
 });
 
 function createQuest(memory, familySurvivedRoll, captiveKindRoll = 0.9) {

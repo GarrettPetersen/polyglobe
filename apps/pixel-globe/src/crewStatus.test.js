@@ -35,7 +35,8 @@ test("travelers follow the crew with their semantic kind", () => {
     crewCount: 2,
     travelerGroups: [
       { kind: "envoy", count: 1 },
-      { kind: "settler", count: 2 }
+      { kind: "settler", count: 2 },
+      { kind: "captive", count: 1 }
     ],
     x: 0,
     y: 0,
@@ -43,9 +44,9 @@ test("travelers follow the crew with their semantic kind", () => {
   });
 
   assert.deepEqual(layout.entries.map((entry) => entry.kind), [
-    "crew", "crew", "envoy", "settler", "settler"
+    "crew", "crew", "envoy", "settler", "settler", "captive"
   ]);
-  assert.equal(layout.count, 5);
+  assert.equal(layout.count, 6);
 });
 
 test("very large crews share integer columns without leaving the row", () => {

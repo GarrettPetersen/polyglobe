@@ -16,6 +16,7 @@ import {
   validateRescuedTravelerQuestMemory
 } from "./rescuedTravelerQuest.js";
 import { questJourneyHalfwayReached } from "./questJourneyDialogue.js";
+import { characterPronouns } from "./characterPronouns.js";
 
 export const PIRATE_CAPTIVE_STAGE_ABOARD = RESCUED_TRAVELER_STAGE_ABOARD;
 export const PIRATE_CAPTIVE_STAGE_HOMECOMING = RESCUED_TRAVELER_STAGE_HOMECOMING;
@@ -41,6 +42,20 @@ export const PIRATE_CAPTIVE_REVENGE_CHALLENGE =
 export const PIRATE_CAPTIVE_REVENGE_DELAY_MINUTES = 2 * 24 * 60;
 export const PIRATE_CAPTIVE_ESCAPE_CHECK_INTERVAL_MINUTES = 24 * 60;
 export const PIRATE_CAPTIVE_ESCAPE_CHANCE_PER_CHECK = 0.006;
+
+export function pirateCaptiveWarningMessage(character) {
+  if (!character || typeof character.givenName !== "string" || character.givenName.trim() === "") {
+    throw new Error("Pirate captive warning requires a named character");
+  }
+  const { subject } = characterPronouns(character);
+  if (subject === "he") {
+    return `Captain, ${character.givenName} knows a pirate's habits too well. I do not think he was ever a captive.`;
+  }
+  if (subject === "she") {
+    return `Captain, ${character.givenName} knows a pirate's habits too well. I do not think she was ever a captive.`;
+  }
+  throw new Error(`Unsupported pirate captive pronoun: ${subject}`);
+}
 
 const PIRATE_CAPTIVE_KINDS = new Set([
   PIRATE_CAPTIVE_KIND_REAL,

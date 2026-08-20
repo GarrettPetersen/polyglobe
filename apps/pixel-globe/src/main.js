@@ -601,6 +601,7 @@ import {
   pirateCaptiveJourneyLegOriginTileId,
   pirateCaptiveRevengeSpawnIsDue,
   pirateCaptiveRescueAppears,
+  pirateCaptiveWarningMessage,
   preparePirateCaptiveAuthorityHandover,
   recapturePirateCaptive,
   recordPirateCaptiveEscape,
@@ -1260,6 +1261,7 @@ import {
   zoomedMinimapViewport
 } from "./minimapViewport.js";
 import {
+  characterAlertChoiceTextLayout,
   characterAlertGeometry,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
@@ -2594,7 +2596,8 @@ const STATUS_PERSON_COLORS = Object.freeze({
   crew: Object.freeze(["#2e222f", "#3e3546"]),
   passenger: Object.freeze(["#3b5dc9"]),
   envoy: Object.freeze(["#f9c22b"]),
-  settler: Object.freeze(["#38b764"])
+  settler: Object.freeze(["#38b764"]),
+  captive: Object.freeze(["#9e3e36"])
 });
 const STATUS_PERSON_PARTICLE_DURATION_MS = 900;
 const STATUS_PERSON_PARTICLE_GRAVITY_PX = 26;
@@ -6867,7 +6870,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
     buttonRect: captainAlertButtonRect(),
     choices: choices ? Object.freeze(choices.map((choice) => Object.freeze({ ...choice }))) : null,
     selectedChoiceIndex: 0,
-    choiceRects: choices ? captainAlertChoiceRects(choices.length) : null
+    choiceRects: choices ? captainAlertChoiceRects(choices) : null
   };
 }
 
@@ -6914,29 +6917,40 @@ function captainAlertButtonRect() {
   };
 }
 
-function captainAlertChoiceRects(choiceCount = 2) {
-  if (!Number.isInteger(choiceCount) || choiceCount < 2 || choiceCount > 3) {
-    throw new Error(`Character alert choices must number two or three: ${choiceCount}`);
-  }
-  const panel = captainAlertGeometry().panel;
+function captainAlertChoiceLayout(choices) {
+  return characterAlertChoiceTextLayout({
+    choices,
+    panelWidth: CAPTAIN_ALERT_PANEL_W,
+    measureText: (value) => measurePixelTextWidth(value, PIXEL_FONT_SMALL_8),
+    iconSize: GAME_ICON_SIZE,
+    minimumButtonHeight: CAPTAIN_ALERT_BUTTON_H,
+    lineHeight: localizedLineHeight(8)
+  });
+}
+
+function captainAlertChoiceRects(choices) {
+  const layout = captainAlertChoiceLayout(choices);
+  const panel = captainAlertGeometry({ kind: "choice", choices }).panel;
   const gap = 6;
   const padding = 11;
-  const width = Math.floor((panel.w - padding * 2 - gap * (choiceCount - 1)) / choiceCount);
-  const y = panel.y + panel.h - CAPTAIN_ALERT_BUTTON_H - 11;
-  return Object.freeze(Array.from({ length: choiceCount }, (_, index) => Object.freeze({
-    x: panel.x + padding + index * (width + gap),
+  const y = panel.y + panel.h - layout.buttonHeight - 11;
+  return Object.freeze(Array.from({ length: choices.length }, (_, index) => Object.freeze({
+    x: panel.x + padding + index * (layout.buttonWidth + gap),
     y,
-    w: width,
-    h: CAPTAIN_ALERT_BUTTON_H
+    w: layout.buttonWidth,
+    h: layout.buttonHeight
   })));
 }
 
-function captainAlertGeometry() {
+function captainAlertGeometry(modal = null) {
+  const panelHeight = modal?.kind === "choice"
+    ? CAPTAIN_ALERT_PANEL_H + captainAlertChoiceLayout(modal.choices).buttonHeight - CAPTAIN_ALERT_BUTTON_H
+    : CAPTAIN_ALERT_PANEL_H;
   return characterAlertGeometry({
     screenWidth: SCREEN_W,
     screenHeight: SCREEN_H,
     panelWidth: CAPTAIN_ALERT_PANEL_W,
-    panelHeight: CAPTAIN_ALERT_PANEL_H,
+    panelHeight,
     portraitSize: DIALOGUE_PORTRAIT_SIZE
   });
 }
@@ -7321,7 +7335,7 @@ function openPirateCaptiveWarning(quest, witness) {
   ]);
   const opened = openCharacterChoiceAlertModal(
     witness.character,
-    renderedUiText(`Captain, ${quest.character.givenName} knows a pirate's habits too well. I do not think they were ever a captive.`),
+    renderedUiText(pirateCaptiveWarningMessage(quest.character)),
     choices,
     "concerned",
     { leftCharacter: gameState.playerCharacter, rightCharacter: witness.character }
@@ -36433,7 +36447,7 @@ function applyResponsiveViewport(width, height) {
       ? sailingHelpButtonRect()
       : captainAlertButtonRect();
     if (captainAlertModal.kind === "choice") {
-      captainAlertModal.choiceRects = captainAlertChoiceRects(captainAlertModal.choices.length);
+      captainAlertModal.choiceRects = captainAlertChoiceRects(captainAlertModal.choices);
     }
   }
   rebuildChartForViewportResize();
@@ -56558,7 +56572,7 @@ function drawCaptainAlertModal(nowMs) {
     drawSailingHelpModal(modal);
     return;
   }
-  const geometry = captainAlertGeometry();
+  const geometry = captainAlertGeometry(modal);
   const panel = geometry.panel;
 
   drawModalDimmingVeil(0.72);
@@ -56614,6 +56628,7 @@ function drawCaptainAlertModal(nowMs) {
 
   if (modal.kind === "choice") {
     if (pages.length !== 1) throw new Error("Character choice alert text must fit on one page");
+    const choiceLayout = captainAlertChoiceLayout(modal.choices);
     modal.choiceRects.forEach((rect, index) => {
       drawPiratePaperInset(rect, index === modal.selectedChoiceIndex);
       const choice = modal.choices[index];
@@ -56623,17 +56638,14 @@ function drawCaptainAlertModal(nowMs) {
       }
       ctx.fillStyle = PIRATE_MENU_INK;
       const labelX = rect.x + iconSize + 4 + (rect.w - iconSize - 4) / 2;
-      const labelLines = wrapPixelText(
-        choice.label.toUpperCase(),
-        PIXEL_FONT_SMALL_8,
-        rect.w - iconSize - 8,
-        2
-      );
-      const firstLineY = rect.y + Math.floor((rect.h - labelLines.length * 8) / 2) + 1;
+      const labelLines = choiceLayout.textLayouts[index].labelLines;
+      const firstLineY = rect.y + Math.floor(
+        (rect.h - labelLines.length * choiceLayout.lineHeight) / 2
+      ) + 1;
       labelLines.forEach((line, lineIndex) => drawPixelText(
         line,
         labelX,
-        firstLineY + lineIndex * 8,
+        firstLineY + lineIndex * choiceLayout.lineHeight,
         { font: PIXEL_FONT_SMALL_8, align: "center" }
       ));
     });

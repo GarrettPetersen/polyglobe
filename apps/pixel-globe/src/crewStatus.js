@@ -2,7 +2,7 @@ export const CREW_STATUS_ICON_WIDTH = 3;
 export const CREW_STATUS_ICON_HEIGHT = 6;
 
 const CREW_STATUS_NORMAL_PITCH = CREW_STATUS_ICON_WIDTH + 1;
-const TRAVELER_KINDS = new Set(["passenger", "envoy", "settler"]);
+const TRAVELER_KINDS = new Set(["passenger", "envoy", "settler", "captive"]);
 
 export function crewStatusCount({ crewCount, travelerGroups = [] }) {
   assertCount(crewCount, "crew");

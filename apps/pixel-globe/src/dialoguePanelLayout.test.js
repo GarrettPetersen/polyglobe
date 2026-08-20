@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  characterAlertChoiceTextLayout,
   characterAlertGeometry,
   dialogueExitFooterRects,
   dialogueFeedbackSlotCount,
@@ -78,6 +79,24 @@ test("character alerts reject viewports that cannot hold their composition", () 
     panelHeight: 88,
     portraitSize: 64
   }), /cannot fit/);
+});
+
+test("character alert choices grow to show every line beside their specific icon", () => {
+  const layout = characterAlertChoiceTextLayout({
+    choices: [
+      { label: "Confront them", iconId: null },
+      { label: "Confront with wheelock pistols", iconId: "item:wheelock-pistols" },
+      { label: "Let it lie", iconId: null }
+    ],
+    panelWidth: 286,
+    iconSize: 16,
+    measureText: (value) => value.length * 4
+  });
+
+  assert.ok(layout.textLayouts[1].labelLines.length > 2);
+  assert.ok(layout.buttonHeight > 28);
+  assert.equal(layout.textLayouts[1].iconReserve, 20);
+  assert.equal(layout.textLayouts[1].labelLines.join(" "), "CONFRONT WITH WHEELOCK PISTOLS");
 });
 
 test("reserved feedback slots keep action positions stable as messages appear", () => {

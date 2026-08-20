@@ -64,6 +64,70 @@ export function characterAlertGeometry({
   });
 }
 
+export function characterAlertChoiceTextLayout({
+  choices,
+  panelWidth,
+  measureText,
+  iconSize = 16,
+  gap = 6,
+  horizontalPadding = 11,
+  buttonTextPadding = 4,
+  minimumButtonHeight = 28,
+  lineHeight = 8
+}) {
+  if (!Array.isArray(choices) || choices.length < 2 || choices.length > 3) {
+    throw new Error(`Character alert choices must number two or three: ${choices?.length}`);
+  }
+  if (typeof measureText !== "function") {
+    throw new Error("Character alert choice layout requires a text measurement function");
+  }
+  for (const [label, value] of Object.entries({
+    panelWidth,
+    iconSize,
+    gap,
+    horizontalPadding,
+    buttonTextPadding,
+    minimumButtonHeight,
+    lineHeight
+  })) {
+    if (!Number.isFinite(value) || value < 0) {
+      throw new Error(`Invalid character alert choice ${label}: ${value}`);
+    }
+  }
+  if (panelWidth <= 0 || minimumButtonHeight <= 0 || lineHeight <= 0) {
+    throw new Error("Character alert choice dimensions must be positive");
+  }
+
+  const buttonWidth = Math.floor(
+    (panelWidth - horizontalPadding * 2 - gap * (choices.length - 1)) / choices.length
+  );
+  if (buttonWidth <= 0) throw new Error("Character alert choices do not fit the panel width");
+  const textLayouts = choices.map((choice, index) => {
+    if (!choice || typeof choice.label !== "string" || choice.label.trim() === "") {
+      throw new Error(`Character alert choice ${index} requires a label`);
+    }
+    const iconReserve = choice.iconId ? iconSize + buttonTextPadding : 0;
+    const textWidth = buttonWidth - buttonTextPadding * 2 - iconReserve;
+    if (textWidth <= 0) throw new Error(`Character alert choice ${index} has no room for text`);
+    const labelLines = wrapAllMeasuredText(choice.label.toUpperCase(), textWidth, measureText);
+    return Object.freeze({
+      labelLines: Object.freeze(labelLines),
+      textWidth,
+      iconReserve
+    });
+  });
+  const requiredButtonHeight = Math.max(
+    minimumButtonHeight,
+    ...textLayouts.map(({ labelLines }) => labelLines.length * lineHeight + 8)
+  );
+  return Object.freeze({
+    buttonWidth,
+    buttonHeight: Math.ceil(requiredButtonHeight / 2) * 2,
+    lineHeight,
+    textLayouts: Object.freeze(textLayouts)
+  });
+}
+
 export function dialoguePanelGeometry({
   screenWidth,
   screenHeight,
