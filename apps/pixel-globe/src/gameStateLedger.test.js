@@ -2,10 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  collectPlayerShipyardDividends,
+  createGameState,
   compactPlayerLedger,
   playerLedgerLifetimeMetrics,
   playerLedgerTotalEntryCount
 } from "./gameState.js";
+import { createWorldShipyards, fundPlayerShipyard, shipyardAtPort } from "./shipyards.js";
+import { shipStatsForSlug } from "./shipStats.js";
 import { grossDoubloonsEarned } from "./voyageHistory.js";
 
 test("ledger compaction retains recent rows and summarizes lifetime achievement metrics", () => {
@@ -76,6 +80,54 @@ test("repeated compaction merges an existing archive without losing prior totals
     acquiredShips: 1
   });
   assert.equal(playerLedgerTotalEntryCount(state), 8);
+});
+
+test("collecting shipyard dividends pays the purse and clears the yard balance together", () => {
+  const city = {
+    tileId: 91,
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    factionId: "spain",
+    routeRegion: "mediterranean",
+    cityType: "mediterranean",
+    settlementType: "city",
+    population: 45000,
+    lat: 36.53,
+    lon: -6.29
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  state.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  const system = createWorldShipyards({ ports: [city], startMinute: 0 });
+  const yard = fundPlayerShipyard(system, city, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  yard.playerDividendBalance = 22000;
+  yard.lifetimePlayerDividends = 54000;
+  yard.playerPendingSales = [{
+    id: "cadiz-galleon-sale",
+    shipSlug: "galleon",
+    price: 100000,
+    dividend: 22000,
+    buyer: "npc",
+    soldMinute: 100
+  }];
+  const purseBefore = state.doubloons;
+
+  const payout = collectPlayerShipyardDividends(state, system, city, { simMinute: 120 });
+
+  assert.equal(payout.amount, 22000);
+  assert.equal(payout.sales[0].shipSlug, "galleon");
+  assert.equal(payout.lifetimeTotal, 54000);
+  assert.equal(state.doubloons, purseBefore + 22000);
+  assert.equal(state.accounts.ledger.at(-1).kind, "shipyard");
+  assert.equal(state.accounts.ledger.at(-1).amount, 22000);
+  assert.equal(shipyardAtPort(system, city).playerDividendBalance, 0);
+  assert.deepEqual(shipyardAtPort(system, city).playerPendingSales, []);
+  assert.equal(collectPlayerShipyardDividends(state, system, city, { simMinute: 121 }), null);
 });
 
 function entry(id, kind, overrides = {}) {

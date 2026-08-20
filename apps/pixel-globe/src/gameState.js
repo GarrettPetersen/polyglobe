@@ -94,6 +94,7 @@ import {
   shipLoadoutPlan
 } from "./shipLoadouts.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
+import { claimPlayerShipyardPayout, shipyardAtPort } from "./shipyards.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import {
@@ -4959,6 +4960,20 @@ export function receivePlayerShipyardDividends(state, city, amount, context = {}
     pnl: amount
   });
   return amount;
+}
+
+export function collectPlayerShipyardDividends(state, shipyardSystem, city, context = {}) {
+  assertGameState(state);
+  const yard = shipyardAtPort(shipyardSystem, city);
+  if (!yard.playerBacking || yard.playerDividendBalance === 0) return null;
+  if (!playerBackedShipyardAtPort(state, city)) {
+    throw new Error("World shipyard backing is missing from the player's investment ledger");
+  }
+  const lifetimeTotal = yard.lifetimePlayerDividends;
+  const payout = claimPlayerShipyardPayout(shipyardSystem, city);
+  if (payout.amount <= 0) throw new Error("Player-backed shipyard payout is empty");
+  receivePlayerShipyardDividends(state, city, payout.amount, context);
+  return Object.freeze({ ...payout, lifetimeTotal });
 }
 
 function requiredFundingShipyardProject(state, city) {

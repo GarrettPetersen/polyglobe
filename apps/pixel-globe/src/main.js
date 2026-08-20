@@ -431,12 +431,12 @@ import {
   receiveWhaleBlubber,
   receivePortConquestPrize,
   receivePortRaidPrize,
-  receivePlayerShipyardDividends,
   receiveCastawayShoreAid,
   receiveRescuedTravelerReunionReward,
   receiveSurrenderedLoot,
   stealNonQuestShipPossession,
   compactPlayerLedger,
+  collectPlayerShipyardDividends,
   playerLedgerLifetimeMetrics,
   playerLedgerTotalEntryCount,
   reconcileQuestWorldAssumptions,
@@ -1667,7 +1667,6 @@ import {
 } from "./shipInfo.js";
 import {
   availablePlayerShipyardPayouts,
-  claimPlayerShipyardPayout,
   claimShipyardListing,
   nearestShipyardListingForPort,
   shipReplacementTermsWithoutTradeIn,
@@ -18566,10 +18565,10 @@ function continuePortArrivalDialogues() {
   }
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
+    () => maybeOpenShipyardDividendDialogue(cityCall),
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
     () => maybeOpenConquistadorOfferDialogue(cityCall),
-    () => maybeOpenShipyardDividendDialogue(cityCall),
     () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
     () => maybeOpenShipyardInvestmentOfferDialogue(cityCall),
     () => maybeOpenColonizationAftermathPortDialogue(cityCall),
@@ -18651,22 +18650,19 @@ function maybeOpenShipyardInvestmentOfferDialogue(cityCall) {
   return true;
 }
 
-function maybeOpenShipyardDividendDialogue(cityCall) {
-  if (!["greeting", "root"].includes(dialogueState.nodeId) ||
+function maybeOpenShipyardDividendDialogue(cityCall, { allowShipyardNode = false } = {}) {
+  const allowedNodeIds = allowShipyardNode ? ["greeting", "root", "shipyard"] : ["greeting", "root"];
+  if (!allowedNodeIds.includes(dialogueState.nodeId) ||
       dialogueState.shipyardDividendArrival !== null) {
     return false;
   }
-  const yard = worldEconomy?.shipyards.yards.get(cityCall.tileId) || null;
-  if (!yard?.playerBacking || yard.playerDividendBalance <= 0) return false;
-  const payout = claimPlayerShipyardPayout(worldEconomy.shipyards, cityCall);
-  if (payout.amount <= 0) throw new Error("Player-backed shipyard payout is empty");
-  receivePlayerShipyardDividends(gameState, cityCall, payout.amount, {
+  const payout = collectPlayerShipyardDividends(gameState, worldEconomy.shipyards, cityCall, {
     simMinute: Math.floor(weatherClockMinutes)
   });
+  if (!payout) return false;
   dialogueState.shipyardDividendArrival = {
     ...payout,
-    salesSummary: shipyardPayoutSalesSummary(payout.sales),
-    lifetimeTotal: yard.lifetimePlayerDividends
+    salesSummary: shipyardPayoutSalesSummary(payout.sales)
   };
   dialogueState.nextPortNodeId = dialogueState.nodeId;
   dialogueState.nodeId = "shipyard-dividend-arrival";
@@ -21994,6 +21990,10 @@ function applyDialogueOption(optionIndex) {
     if (result.action?.type === "set-port-heading") {
       addPortNavigationWaypoint(gameState, result.action);
       saveVoyageNow("set port navigation heading");
+    }
+    if (dialogueState.nodeId === "shipyard" && previousNodeId !== "shipyard" &&
+        maybeOpenShipyardDividendDialogue(currentDialogueCity(), { allowShipyardNode: true })) {
+      return;
     }
   } else if (dialogueState.kind === "passenger") {
     missionGiftCharacter = currentDialoguePassenger().character;
