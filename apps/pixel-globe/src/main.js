@@ -302,6 +302,7 @@ import {
 } from "./characterPortraits.js";
 import { reconcileRegionalCharacterNameForms } from "./characterNames.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
+import { dialoguePortraitPreloadEntries } from "./dialoguePortraitPreload.js";
 import { portraitBottomTransparentRows } from "./portraitFrameAlignment.js";
 import {
   CLOUD_ASSEMBLY_STAGE_COUNT,
@@ -1853,7 +1854,6 @@ import {
   markPassengerOfferSeen,
   passengerOfferForCity,
   passengerQuestById,
-  pendingPassengerOfferForCity,
   pendingPassengerOffersForCity,
   travelMissionOffersForCity
 } from "./passengerMissions.js";
@@ -2625,6 +2625,7 @@ const CITY_LABEL_GAP_PX = 2;
 const PORT_INTERACTION_RADIUS_PX = 34;
 const PORT_DIALOGUE_TRAFFIC_RADIUS_PX = 120;
 const PORT_PORTRAIT_PRELOAD_RADIUS_PX = 180;
+const PORT_PORTRAIT_PRELOAD_INTERVAL_MS = 750;
 const FISH_INTERACTION_RADIUS_PX = 22;
 const FISH_CLICK_PAD_PX = 5;
 const PORT_CITY_CLICK_PAD_PX = 3;
@@ -3547,6 +3548,9 @@ let japaneseMatchlockGunsmith;
 let caribbeanGingerPlanter;
 let banquetChef;
 let naturalistCharacter;
+let lastPortPortraitPreloadAtMs = -Infinity;
+const papalNuncioPreviewCharacters = new Map();
+const hospitallerNuncioPreviewCharacters = new Map();
 let queuedCharacterAlertSteps = [];
 let characterAlertSequenceCompletion = null;
 let animalNoiseAudioContext = null;
@@ -6428,7 +6432,10 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
-    preloadNearbyPortPortraits();
+    measurePerformanceBenchmarkStage(
+      "portraits.preload",
+      () => preloadNearbyPortPortraits(nowMs)
+    );
     const chartRepairCheckIsDue = nowMs - chartDriftMeasuredAtMs >=
       CHART_DRIFT_MEASURE_INTERVAL_MS;
     const chartDrift = measurePerformanceBenchmarkStage(
@@ -8449,6 +8456,9 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   caribbeanGingerPlanter = null;
   banquetChef = null;
   naturalistCharacter = null;
+  lastPortPortraitPreloadAtMs = -Infinity;
+  papalNuncioPreviewCharacters.clear();
+  hospitallerNuncioPreviewCharacters.clear();
   usedCharacterNames = new Set([playerCharacter.name]);
   portCityCharacters = assignPortCityCharacters(
     portCities,
@@ -18913,6 +18923,46 @@ function rescuedTravelerAtHome(cityCall) {
   )) || null;
 }
 
+function prepareColonizationOrganizerOffer(cityCall, accessiblePorts, simMinute) {
+  if (mediterraneanDemoVoyageIsActive()) return null;
+  const offer = colonizationOfferForCity(
+    gameState,
+    cityCall,
+    accessiblePorts,
+    colonizationTargetPlacements,
+    { simMinute }
+  );
+  if (!offer) return null;
+  const binding = bindColonizationQuestSelection(gameState);
+  return {
+    offer,
+    organizer: ensureColonizationOrganizer(gameState, binding.origin)
+  };
+}
+
+function prepareJapaneseMatchlockOffer(cityCall, simMinute) {
+  const offer = maybeSpawnJapaneseMatchlockQuest(gameState, cityCall, { simMinute });
+  if (offer) ensureJapaneseMatchlockGunsmith(gameState);
+  return offer;
+}
+
+function prepareCaribbeanGingerOffer(cityCall, simMinute) {
+  const offer = maybeSpawnCaribbeanGingerQuest(gameState, cityCall, { simMinute });
+  if (offer) ensureCaribbeanGingerPlanter(gameState);
+  return offer;
+}
+
+function prepareChefQuestOffer(cityCall, simMinute) {
+  const offer = maybeSpawnChefQuest(gameState, cityCall, {
+    simMinute,
+    availableIngredientGoodIds: mediterraneanDemoVoyageIsActive()
+      ? demoAvailableChefIngredientGoodIds()
+      : undefined
+  });
+  if (offer) ensureBanquetChef(gameState, cityCall);
+  return offer;
+}
+
 function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk = false) {
   recordTeaRaceArrivalAtPort(cityCall);
   const accessiblePorts = playerAccessiblePortCities();
@@ -18950,19 +19000,11 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       colonizationApproach: true
     });
   }
-  const colonizationOffer = mediterraneanDemoVoyageIsActive()
-    ? null
-    : colonizationOfferForCity(
-      gameState,
-      cityCall,
-      accessiblePorts,
-      colonizationTargetPlacements,
-      { simMinute: Math.floor(weatherClockMinutes) }
-    );
-  if (colonizationOffer) {
-    const binding = bindColonizationQuestSelection(gameState);
-    ensureColonizationOrganizer(gameState, binding.origin);
-  }
+  const colonizationOffer = prepareColonizationOrganizerOffer(
+    cityCall,
+    accessiblePorts,
+    simMinute
+  )?.offer || null;
   if (colonizationOffer && colonizationOrganizerShouldApproach(gameState, cityCall)) {
     markColonizationOrganizerApproached(gameState);
     return createPortArrivalDialogueSession(cityCall, {
@@ -18988,15 +19030,10 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       vikingLongshipApproach: true
     });
   }
-  const japaneseMatchlockOffer = maybeSpawnJapaneseMatchlockQuest(
-    gameState,
-    cityCall,
-    { simMinute }
-  );
+  const japaneseMatchlockOffer = prepareJapaneseMatchlockOffer(cityCall, simMinute);
   if (japaneseMatchlockOffer &&
       japaneseMatchlockOfferShouldApproach(gameState, cityCall) &&
       !openDeliveryMission) {
-    ensureJapaneseMatchlockGunsmith(gameState);
     markJapaneseMatchlockOfferSeen(gameState);
     return createPortArrivalDialogueSession(cityCall, {
       needsLoadout,
@@ -19005,15 +19042,10 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       japaneseMatchlockApproach: true
     });
   }
-  const caribbeanGingerOffer = maybeSpawnCaribbeanGingerQuest(
-    gameState,
-    cityCall,
-    { simMinute }
-  );
+  const caribbeanGingerOffer = prepareCaribbeanGingerOffer(cityCall, simMinute);
   if (caribbeanGingerOffer &&
       caribbeanGingerOfferShouldApproach(gameState, cityCall) &&
       !openDeliveryMission) {
-    ensureCaribbeanGingerPlanter(gameState);
     markCaribbeanGingerOfferSeen(gameState);
     return createPortArrivalDialogueSession(cityCall, {
       needsLoadout,
@@ -19022,14 +19054,8 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       caribbeanGingerApproach: true
     });
   }
-  const chefOffer = maybeSpawnChefQuest(gameState, cityCall, {
-    simMinute,
-    availableIngredientGoodIds: mediterraneanDemoVoyageIsActive()
-      ? demoAvailableChefIngredientGoodIds()
-      : undefined
-  });
+  const chefOffer = prepareChefQuestOffer(cityCall, simMinute);
   if (chefOffer && chefQuestOfferShouldApproach(gameState, cityCall) && !openDeliveryMission) {
-    ensureBanquetChef(gameState, cityCall);
     markChefQuestOfferSeen(gameState);
     return createPortArrivalDialogueSession(cityCall, {
       needsLoadout,
@@ -19163,10 +19189,13 @@ function hospitallerMaltaGrantorCapital() {
 
 function generateHospitallerMaltaNuncio(memory, rome) {
   if (memory.envoy) return memory.envoy;
+  const identityKey = `hospitaller-malta-nuncio|${gameState.voyageSeed}|${rome.tileId}`;
+  const cached = hospitallerNuncioPreviewCharacters.get(identityKey);
+  if (cached) return cached;
   const factor = portCityCharacters.get(rome.tileId);
   if (!factor) throw new Error("Rome has no factor for the Malta petition");
-  return generateSpecialPortCharacter({
-    identityKey: `hospitaller-malta-nuncio|${gameState.voyageSeed}|${rome.tileId}`,
+  const nuncio = generateSpecialPortCharacter({
+    identityKey,
     port: rome,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
     role: "papal-nuncio",
@@ -19174,6 +19203,8 @@ function generateHospitallerMaltaNuncio(memory, rome) {
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
+  hospitallerNuncioPreviewCharacters.set(identityKey, nuncio);
+  return nuncio;
 }
 
 function openHospitallerMaltaPetitionOffer(rome, memory) {
@@ -19431,10 +19462,15 @@ function papalPlayerEligibilityContext() {
 }
 
 function generatePapalNuncio(matter, rome, { portraitSourceId = null } = {}) {
+  if (matter.commission?.nuncio) return matter.commission.nuncio;
+  const identityKey = `papal-nuncio|${matter.id}|${rome.tileId}`;
+  const cacheKey = `${identityKey}|${portraitSourceId || "automatic"}`;
+  const cached = papalNuncioPreviewCharacters.get(cacheKey);
+  if (cached) return cached;
   const factor = portCityCharacters.get(rome.tileId);
   if (!factor) throw new Error("Rome has no factor for the Papal commission");
-  return generateSpecialPortCharacter({
-    identityKey: `papal-nuncio|${matter.id}|${rome.tileId}`,
+  const nuncio = generateSpecialPortCharacter({
+    identityKey,
     port: rome,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
     portraitSourceId,
@@ -19443,6 +19479,8 @@ function generatePapalNuncio(matter, rome, { portraitSourceId = null } = {}) {
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
+  papalNuncioPreviewCharacters.set(cacheKey, nuncio);
+  return nuncio;
 }
 
 function papalCommissionItinerary(matter) {
@@ -23081,13 +23119,13 @@ function portPoliticalRivalTerms(city) {
   });
 }
 
-function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
+function passengerDialogueQuestsForCity(city, { createOffers = false } = {}) {
   const activeMission = activeTravelMissionQuest(gameState);
   if (activeMission) {
-    return questHasDestination(activeMission, city) ? activeMission : null;
+    return questHasDestination(activeMission, city) ? [activeMission] : [];
   }
-  if (!createOffer) return pendingPassengerOfferForCity(gameState, city);
-  const offers = travelMissionOffersForCity(gameState, city, playerAccessiblePortCities(), {
+  if (!createOffers) return pendingPassengerOffersForCity(gameState, city);
+  return travelMissionOffersForCity(gameState, city, playerAccessiblePortCities(), {
     simMinute: Math.floor(weatherClockMinutes),
     historicalWorldState: historicalGossipWorldState(),
     relationBetween: currentDiplomacyBetween,
@@ -23095,7 +23133,11 @@ function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
     portFactorReligionId: (port) => portCityCharacters.get(port.tileId)?.religionId || null,
     createCharacter: createPassengerCharacterForQuest
   });
-  return offers.find((offer) => offer.seen !== true) || offers[0] || null;
+}
+
+function passengerDialogueQuestForCity(city, { createOffer = false } = {}) {
+  const quests = passengerDialogueQuestsForCity(city, { createOffers: createOffer });
+  return quests.find((quest) => quest.seen !== true) || quests[0] || null;
 }
 
 function shouldAutoOpenPassengerDialogue(city, quest) {
@@ -58221,31 +58263,133 @@ function ensureDialoguePortraitLoaded() {
   }
 }
 
-function preloadNearbyPortPortraits() {
+function preloadNearbyPortPortraits(nowMs) {
+  if (!Number.isFinite(nowMs)) throw new Error(`Invalid portrait preload time: ${nowMs}`);
   if (!chart || !localLayout || !gameState) return;
+  if (nowMs - lastPortPortraitPreloadAtMs < PORT_PORTRAIT_PRELOAD_INTERVAL_MS) return;
+  lastPortPortraitPreloadAtMs = nowMs;
   const radiusSquared = PORT_PORTRAIT_PRELOAD_RADIUS_PX * PORT_PORTRAIT_PRELOAD_RADIUS_PX;
   for (const cityCall of chart.cityCalls || []) {
     if (cityCall.hiddenSettlement) continue;
     const x = Number.isFinite(cityCall.interactionX) ? cityCall.interactionX : cityCall.x;
     const y = Number.isFinite(cityCall.interactionY) ? cityCall.interactionY : cityCall.y;
     if (distance2(localLayout.viewX, localLayout.viewY, x, y) > radiusSquared) continue;
-    preloadDialogueCharacterExpressions(cityCall.character, ["neutral", "attentive"]);
-    const conquistador = gameState.memory?.quests?.conquistador;
-    if (conquistador && conquistadorQuestShouldAppearAtCity(conquistador, cityCall, portCities)) {
-      preloadDialogueCharacterExpressions(ensureConquistadorQuestGiver(gameState), ["attentive"]);
-    }
+    preloadDialogueCharacters(portDialoguePortraitCharacters(cityCall));
   }
 }
 
-function preloadDialogueCharacterExpressions(character, expressionIds) {
-  if (!character?.id) return;
-  for (const expressionId of expressionIds) {
-    const expression = characterExpression(character, expressionId);
-    if (!expression) continue;
-    const key = `${character.id}|${expression.id}`;
+function preloadDialogueCharacters(characters) {
+  for (const { key, character, expression } of dialoguePortraitPreloadEntries(characters)) {
     if (portraitFrameStore.has(key) || portraitPromiseCache.has(key)) continue;
     dialoguePortraitImage(character, expression);
   }
+}
+
+function portDialoguePortraitCharacters(cityCall) {
+  const characters = [gameState.playerCharacter, cityCall.character];
+  const add = (character) => {
+    if (character) characters.push(character);
+  };
+  const simMinute = Math.floor(weatherClockMinutes);
+  const entryAllowed = portEntryStatus(gameState, cityCall, simMinute).allowed;
+
+  for (const character of namedCrewMembers(gameState)) add(character);
+  for (const quest of passengerDialogueQuestsForCity(cityCall, { createOffers: entryAllowed })) {
+    add(quest.passenger);
+    if (
+      quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
+      quest.destinationTileId === cityCall.tileId &&
+      gameState.memory.quests.passengerActive?.id === quest.id
+    ) {
+      add(ensureNpcShipCaptain(ningboRivalDelegationShip(quest, "courier").id));
+    }
+  }
+
+  const rescuedTraveler = rescuedTravelerAtHome(cityCall);
+  if (rescuedTraveler) {
+    add(rescuedTraveler.character);
+    add(rescuedTraveler.familyMember);
+  }
+
+  const campaignGoal = gameState.memory.campaignGoal;
+  if (campaignGoal?.homePortTileId === cityCall.tileId) add(campaignGoalContactCharacter());
+
+  const naturalistMemory = gameState.memory.quests.naturalist;
+  if (naturalistMemory?.portTileId === cityCall.tileId) {
+    add(ensureNaturalistCharacter(gameState));
+    const naturalistAnimalIds = new Set([
+      ...availableAnimalNaturalistOfferIds(gameState.memory.animalCompanions),
+      ...animalNaturalistGreetingIds(gameState.memory.animalCompanions, { includeSeen: true })
+    ]);
+    for (const companionId of naturalistAnimalIds) add(animalCompanionCharacter(companionId));
+  }
+  for (const companionId of aboardAnimalCompanionIds(gameState.memory.animalCompanions)) {
+    add(animalCompanionCharacter(companionId));
+  }
+
+  if (entryAllowed) {
+    const accessiblePorts = playerAccessiblePortCities();
+    add(prepareColonizationOrganizerOffer(cityCall, accessiblePorts, simMinute)?.organizer);
+    maybeSpawnVikingLongshipQuest(gameState, cityCall, { simMinute });
+    if (prepareJapaneseMatchlockOffer(cityCall, simMinute)) {
+      add(ensureJapaneseMatchlockGunsmith(gameState));
+    }
+    if (prepareCaribbeanGingerOffer(cityCall, simMinute)) {
+      add(ensureCaribbeanGingerPlanter(gameState));
+    }
+    if (prepareChefQuestOffer(cityCall, simMinute)) add(ensureBanquetChef(gameState, cityCall));
+  }
+
+  const colonization = colonizationQuestView(gameState, { currentMinute: Math.max(0, weatherClockMinutes) });
+  if (colonization.target && [
+    colonization.origin?.tileId,
+    colonization.approval?.tileId,
+    colonization.target?.tileId
+  ].includes(cityCall.tileId)) {
+    const binding = bindColonizationQuestSelection(gameState);
+    add(ensureColonizationOrganizer(gameState, binding.origin));
+  }
+  if (japaneseMatchlockQuestState(gameState, cityCall)) add(ensureJapaneseMatchlockGunsmith(gameState));
+  if (caribbeanGingerQuestState(gameState, cityCall)) add(ensureCaribbeanGingerPlanter(gameState));
+  if (chefQuestState(gameState, cityCall)) add(ensureBanquetChef(gameState, cityCall));
+
+  const conquistador = gameState.memory.quests.conquistador;
+  if (conquistador && conquistadorQuestShouldAppearAtCity(conquistador, cityCall, portCities)) {
+    add(ensureConquistadorQuestGiver(gameState));
+  }
+
+  for (const character of papalPortDialogueCharacters(cityCall)) add(character);
+  for (const character of hospitallerPortDialogueCharacters(cityCall)) add(character);
+  return characters;
+}
+
+function papalPortDialogueCharacters(cityCall) {
+  const matter = papalPendingMatter(gameState.relations.papacy);
+  if (!matter) return [];
+  if (matter.status === PAPAL_MATTER_COMMISSIONED) {
+    const objective = papalCommissionObjective(gameState.relations.papacy);
+    return objective?.destination?.tileId === cityCall.tileId
+      ? [matter.commission.nuncio]
+      : [];
+  }
+  const offersAtRome = cityCall.factionId === "papal-states" &&
+    portMatchesCanonicalReference(cityCall, CANONICAL_PORTS.ROME) &&
+    matter.playerOfferStatus === null &&
+    papalCommissionItinerary(matter);
+  return offersAtRome ? [generatePapalNuncio(matter, cityCall)] : [];
+}
+
+function hospitallerPortDialogueCharacters(cityCall) {
+  refreshHospitallerMaltaQuestState();
+  const memory = gameState.memory.quests.hospitallerMalta;
+  if ([HOSPITALLER_MALTA_STAGE_LOCKED, HOSPITALLER_MALTA_STAGE_COMPLETED].includes(memory.stage)) {
+    return [];
+  }
+  const objective = hospitallerMaltaQuestObjective(memory);
+  if (objective?.destination?.tileId !== cityCall.tileId) return [];
+  return memory.stage === HOSPITALLER_MALTA_STAGE_SEEK_ROME
+    ? [generateHospitallerMaltaNuncio(memory, cityCall)]
+    : memory.envoy ? [memory.envoy] : [];
 }
 
 async function ensureCharacterPortraitLoaded(character, expression) {
