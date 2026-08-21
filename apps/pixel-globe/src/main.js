@@ -116,6 +116,7 @@ import {
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
   aboardCharacterHomePortTileId,
+  aboardRoleSkillsAreActive,
   aboardRoster
 } from "./aboardRoster.js";
 import { stepAboardGridIndex } from "./aboardGridSelection.js";
@@ -126,6 +127,7 @@ import {
 import {
   captainCharacterGoal,
   colonyLeaderCharacterGoal,
+  detainedCaptiveCharacterGoal,
   namedCrewCharacterGoal,
   travelerCharacterGoal
 } from "./characterGoals.js";
@@ -43610,11 +43612,6 @@ function currentAboardRoster() {
   const namedTravelMission = activeNamedTravelMission(gameState);
   const activeQuest = namedTravelMission?.quest || null;
   const rescuedTravelers = activeRescuedTravelers();
-  const aboardRescuedTravelers = rescuedTravelers.map((traveler) => (
-    traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
-      ? { ...traveler, destinationTileId: pirateCaptiveDestination(traveler).tileId }
-      : traveler
-  ));
   const namedTravelers = [];
   if (namedTravelMission) {
     namedTravelers.push({
@@ -43678,7 +43675,7 @@ function currentAboardRoster() {
     goal: aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers),
     homePortName: aboardCharacterHomePortName(entry, {
       activeQuest,
-      rescuedTravelers: aboardRescuedTravelers,
+      rescuedTravelers,
       historianHomePortTileId: historianHomePort.tileId
     })
   }));
@@ -43742,9 +43739,14 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
       entry.character.id === traveler.character?.id
     ));
     if (rescuedTraveler) {
-      const destinationName = rescuedTraveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
-        ? pirateCaptiveDestination(rescuedTraveler).name
-        : rescuedTraveler.homePortName;
+      if (rescuedTraveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE &&
+          pirateCaptiveIsDetained(rescuedTraveler)) {
+        return detainedCaptiveCharacterGoal(
+          rescuedTraveler.id,
+          pirateCaptiveDestination(rescuedTraveler).name
+        );
+      }
+      const destinationName = rescuedTraveler.homePortName;
       return travelerCharacterGoal({ id: rescuedTraveler.id, destinationName });
     }
     return travelerCharacterGoal(activeQuest);
@@ -43927,18 +43929,19 @@ function aboardRosterLayout(roster, width) {
 
 function aboardNamedEntryTextLayout(entry, width) {
   const lineHeight = localizedLineHeight(8);
+  const skillLabels = aboardCharacterSkills(entry)
+    .map((skill) => skill.label)
+    .join(" / ")
+    .toUpperCase();
+  const sections = [
+    { id: "name", text: renderedUiText(entry.character.name.toUpperCase()) },
+    { id: "role", text: renderedUiText(aboardRoleLabel(entry.role)), gapBefore: 1 }
+  ];
+  if (skillLabels) {
+    sections.push({ id: "skills", text: renderedUiText(skillLabels), gapBefore: 2 });
+  }
   const layout = contentSizedTextStackLayout({
-    sections: [
-      { id: "name", text: renderedUiText(entry.character.name.toUpperCase()) },
-      { id: "role", text: renderedUiText(aboardRoleLabel(entry.role)), gapBefore: 1 },
-      {
-        id: "skills",
-        text: renderedUiText(
-          characterSkills(entry.character).map((skill) => skill.label).join(" / ").toUpperCase()
-        ),
-        gapBefore: 2
-      }
-    ],
+    sections,
     width: Math.max(1, Math.floor(width) - 6),
     measureText: (text) => measureRenderedPixelTextWidth(text, PIXEL_FONT_SMALL_8),
     lineHeight,
@@ -43946,7 +43949,9 @@ function aboardNamedEntryTextLayout(entry, width) {
     bottomPadding: 11,
     minimumHeight: ABOARD_NAMED_TILE_MIN_H - 2
   });
-  const [name, role, skills] = layout.sections;
+  const name = layout.sections.find((section) => section.id === "name");
+  const role = layout.sections.find((section) => section.id === "role");
+  const skills = layout.sections.find((section) => section.id === "skills") || null;
   return Object.freeze({
     name,
     role,
@@ -44003,7 +44008,9 @@ function drawAboardNamedEntry(entry, x, y, selected) {
   const textSections = [
     [entry.textLayout.name, PIRATE_MENU_INK],
     [entry.textLayout.role, color],
-    [entry.textLayout.skills, PIRATE_MENU_INK_MUTED]
+    ...(entry.textLayout.skills
+      ? [[entry.textLayout.skills, PIRATE_MENU_INK_MUTED]]
+      : [])
   ];
   for (const [section, textColor] of textSections) {
     section.lines.forEach((line, index) => drawOptionsText(
@@ -44138,46 +44145,53 @@ function drawAboardCharacterDetail(roster, panel) {
     { color: PIRATE_MENU_INK }
   ));
 
-  const skills = characterSkills(character).map((skill) => characterSkillSummary(skill.id));
-  const skillsY = goalBoxY + goalBoxH + 7;
-  drawOptionsText(skills.length === 1 ? "SKILL" : "SKILLS", panel.x + 14, skillsY, {
-    color: PIRATE_MENU_INK_MUTED
-  });
-  let skillY = skillsY + 12;
-  const skillW = panel.w - 28;
-  for (const skill of skills) {
-    const labelLines = wrapPixelTextAll(
-      skill.label.toUpperCase(),
-      PIXEL_FONT_SMALL_8,
-      skillW - 8
-    );
-    const effectText = skill.effectLabels.join(" / ").toUpperCase();
-    const effectLines = wrapPixelTextAll(effectText, PIXEL_FONT_SMALL_8, skillW - 8);
-    const detailLines = compact
-      ? []
-      : wrapPixelTextAll(skill.detail.toUpperCase(), PIXEL_FONT_SMALL_8, skillW - 8).slice(0, 2);
-    const rowH = 8 + (labelLines.length + effectLines.length + detailLines.length) * localizedLineHeight(9);
-    if (skillY + rowH > panel.y + panel.h - 8) break;
-    ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
-    ctx.fillRect(panel.x + 14, skillY, skillW, rowH);
-    ctx.fillStyle = aboardRoleColor(entry.role);
-    ctx.fillRect(panel.x + 14, skillY, 2, rowH);
-    let textY = skillY + 4;
-    for (const line of labelLines) {
-      drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_INK });
-      textY += localizedLineHeight(9);
+  const skills = aboardCharacterSkills(entry).map((skill) => characterSkillSummary(skill.id));
+  if (skills.length > 0) {
+    const skillsY = goalBoxY + goalBoxH + 7;
+    drawOptionsText(skills.length === 1 ? "SKILL" : "SKILLS", panel.x + 14, skillsY, {
+      color: PIRATE_MENU_INK_MUTED
+    });
+    let skillY = skillsY + 12;
+    const skillW = panel.w - 28;
+    for (const skill of skills) {
+      const labelLines = wrapPixelTextAll(
+        skill.label.toUpperCase(),
+        PIXEL_FONT_SMALL_8,
+        skillW - 8
+      );
+      const effectText = skill.effectLabels.join(" / ").toUpperCase();
+      const effectLines = wrapPixelTextAll(effectText, PIXEL_FONT_SMALL_8, skillW - 8);
+      const detailLines = compact
+        ? []
+        : wrapPixelTextAll(skill.detail.toUpperCase(), PIXEL_FONT_SMALL_8, skillW - 8).slice(0, 2);
+      const rowH = 8 +
+        (labelLines.length + effectLines.length + detailLines.length) * localizedLineHeight(9);
+      if (skillY + rowH > panel.y + panel.h - 8) break;
+      ctx.fillStyle = PIRATE_MENU_PAPER_INSET;
+      ctx.fillRect(panel.x + 14, skillY, skillW, rowH);
+      ctx.fillStyle = aboardRoleColor(entry.role);
+      ctx.fillRect(panel.x + 14, skillY, 2, rowH);
+      let textY = skillY + 4;
+      for (const line of labelLines) {
+        drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_INK });
+        textY += localizedLineHeight(9);
+      }
+      for (const line of effectLines) {
+        drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_SUCCESS });
+        textY += localizedLineHeight(9);
+      }
+      for (const line of detailLines) {
+        drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_INK_MUTED });
+        textY += localizedLineHeight(9);
+      }
+      skillY += rowH + 5;
     }
-    for (const line of effectLines) {
-      drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_SUCCESS });
-      textY += localizedLineHeight(9);
-    }
-    for (const line of detailLines) {
-      drawOptionsText(line, panel.x + 20, textY, { color: PIRATE_MENU_INK_MUTED });
-      textY += localizedLineHeight(9);
-    }
-    skillY += rowH + 5;
   }
   ctx.restore();
+}
+
+function aboardCharacterSkills(entry) {
+  return aboardRoleSkillsAreActive(entry.role) ? characterSkills(entry.character) : [];
 }
 
 function drawAboardWrappedDetailRow({ label, value, iconId, x, y, width }) {

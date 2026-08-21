@@ -10,6 +10,7 @@ import {
 import {
   captainCharacterGoal,
   colonyLeaderCharacterGoal,
+  detainedCaptiveCharacterGoal,
   namedCrewCharacterGoal,
   travelerCharacterGoal
 } from "./characterGoals.js";
@@ -51,6 +52,17 @@ test("traveler and colony goals identify their current destination", () => {
       id: "colony:New Bordeaux Colony",
       text: "Found New Bordeaux Colony",
       destinationName: "New Bordeaux Colony"
+    }
+  );
+});
+
+test("a detained captive wants to escape rather than reach the authorities", () => {
+  assert.deepEqual(
+    detainedCaptiveCharacterGoal("false-captive-1", "Azemmour"),
+    {
+      id: "captive:false-captive-1",
+      text: "Escape before reaching Azemmour",
+      destinationName: "Azemmour"
     }
   );
 });

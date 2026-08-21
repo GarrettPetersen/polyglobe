@@ -23,6 +23,25 @@ export function travelerCharacterGoal(quest) {
   );
 }
 
+export function detainedCaptiveCharacterGoal(captiveId, destinationName) {
+  if (typeof captiveId !== "string" || captiveId.trim() === "") {
+    throw new Error("Detained captive goal requires a captive id");
+  }
+  if (typeof destinationName !== "string" || destinationName.trim() === "") {
+    throw new Error("Detained captive goal requires an authority destination");
+  }
+  const destination = destinationName.trim();
+  return characterGoal(
+    captiveGoalId(captiveId.trim()),
+    `Escape before reaching ${destination}`,
+    { destinationName: destination }
+  );
+}
+
+function captiveGoalId(captiveId) {
+  return `captive:${captiveId}`;
+}
+
 export function colonyLeaderCharacterGoal(colonyName) {
   if (typeof colonyName !== "string" || colonyName.trim() === "") {
     throw new Error("Colony leader goal requires a colony name");

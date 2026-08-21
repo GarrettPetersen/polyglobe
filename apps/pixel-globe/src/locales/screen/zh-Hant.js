@@ -1266,6 +1266,7 @@ export default Object.freeze({
   "Equipment": "裝置",
   "equipment factor item {0}": "設備連接埠商人物品{0}",
   "ESC": "電子穩定控制系統",
+  "Escape before reaching {0}": "在抵達{0}前逃脫",
   "Ethiopia": "衣索比亞",
   "Ethiopian": "衣索比亞人",
   "Ethiopian Empire": "埃塞俄比亞帝國",

@@ -24,7 +24,8 @@ export {
   ABOARD_ROLE_COLONY_LEADER,
   ABOARD_ROLE_CREWMATE,
   ABOARD_ROLE_EMISSARY,
-  ABOARD_ROLE_PASSENGER
+  ABOARD_ROLE_PASSENGER,
+  aboardRoleSkillsAreActive
 } from "./aboardRoles.js";
 
 export function aboardRoster({
@@ -124,8 +125,8 @@ export function aboardCharacterHomePortTileId(entry, {
   ));
   if (rescuedTraveler) {
     return requiredTileId(
-      rescuedTraveler.destinationTileId ?? rescuedTraveler.homePortTileId,
-      `${character.name} rescued traveler destination`
+      rescuedTraveler.homePortTileId,
+      `${character.name} rescued traveler home port`
     );
   }
 

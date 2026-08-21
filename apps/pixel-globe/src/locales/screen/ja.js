@@ -1266,6 +1266,7 @@ export default Object.freeze({
   "Equipment": "設備",
   "equipment factor item {0}": "機器ポートの販売者アイテム {0}",
   "ESC": "ESC",
+  "Escape before reaching {0}": "{0}に着く前に逃げる",
   "Ethiopia": "エチオピア",
   "Ethiopian": "エチオピア人",
   "Ethiopian Empire": "エチオピア帝国",

@@ -2,6 +2,7 @@ import { characterSkillById, validateCharacterSkillIds } from "./characterSkills
 import { perkItemById } from "./perkItems.js";
 import { aggregatePerkSources, effectiveShipStats } from "./perkSystem.js";
 import { namedCrewMembers } from "./namedCrew.js";
+import { PIRATE_CAPTIVE_STATE_DETAINED } from "./pirateCaptiveQuest.js";
 
 export function gameStatePerkTotals(state, { additionalCharacters = [] } = {}) {
   if (!state || typeof state !== "object") throw new Error("Player perks require game state");
@@ -14,12 +15,18 @@ export function gameStatePerkTotals(state, { additionalCharacters = [] } = {}) {
   characters.push(...travelers);
   characters.push(...additionalCharacters);
 
+  const pirateCaptive = state.memory?.quests?.pirateCaptive?.active || null;
+  const detainedCaptiveId = pirateCaptive?.deception?.state === PIRATE_CAPTIVE_STATE_DETAINED
+    ? pirateCaptive.character.id
+    : null;
+
   const sources = [];
   const characterIds = new Set();
   for (const character of characters.filter(Boolean)) {
     const identity = character.id || character.name;
     if (!identity || characterIds.has(identity)) continue;
     characterIds.add(identity);
+    if (identity === detainedCaptiveId) continue;
     validateCharacterSkillIds(character.skillIds);
     for (const skillId of character.skillIds) {
       const skill = characterSkillById(skillId);

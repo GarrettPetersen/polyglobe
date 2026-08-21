@@ -11,6 +11,7 @@ import {
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
   aboardCharacterHomePortTileId,
+  aboardRoleSkillsAreActive,
   aboardRoster
 } from "./aboardRoster.js";
 
@@ -103,7 +104,7 @@ test("ordinary missions and a rescued pirate captive can travel together", () =>
   assert.equal(roster.count, 5);
 });
 
-test("a detained pirate is marked as a captive and resolves the authority destination", () => {
+test("a detained pirate retains their real home while bound for the authorities", () => {
   const captive = Object.freeze({ id: "captive", name: "Brites Pereira" });
   const roster = aboardRoster({
     captain,
@@ -115,7 +116,12 @@ test("a detained pirate is marked as a captive and resolves the authority destin
   assert.equal(captiveEntry.role, ABOARD_ROLE_CAPTIVE);
   assert.equal(aboardCharacterHomePortTileId(captiveEntry, {
     rescuedTravelers: [{ character: captive, homePortTileId: 21, destinationTileId: 34 }]
-  }), 34);
+  }), 21);
+});
+
+test("a captive's skills remain inactive until they cease to be a captive", () => {
+  assert.equal(aboardRoleSkillsAreActive(ABOARD_ROLE_CAPTIVE), false);
+  assert.equal(aboardRoleSkillsAreActive(ABOARD_ROLE_PASSENGER), true);
 });
 
 test("aboard characters resolve home ports according to their role", () => {

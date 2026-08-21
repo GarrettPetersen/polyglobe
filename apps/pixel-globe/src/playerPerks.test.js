@@ -53,6 +53,23 @@ test("permanent named crew contribute their skills to ship work", () => {
   assert.equal(gameStatePerkTotals(state).foodDurationMultiplier, 1.92);
 });
 
+test("a detained captive never contributes their character skill", () => {
+  const state = perkState();
+  const captive = {
+    id: "detained-captive",
+    name: "Nils Andersen",
+    skillIds: ["master-chef"]
+  };
+  state.memory.quests.pirateCaptive.active = {
+    character: captive,
+    deception: { state: "detained" }
+  };
+
+  assert.equal(gameStatePerkTotals(state, {
+    additionalCharacters: [captive]
+  }).foodDurationMultiplier, 1.2);
+});
+
 test("hull sheathing and a named shipwright share the resistance perk total", () => {
   const state = perkState();
   state.ship.crew = 2;
