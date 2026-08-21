@@ -2062,6 +2062,7 @@ import {
   terrainConnectorLengthIsRenderable,
   terrainConnectorRasterSpans
 } from "./terrainConnectorRaster.js";
+import { shipyardConstructionPixels } from "./shipyardConstructionArt.js";
 import {
   createRiverWaterOcclusionMask,
   createTerrainOcclusionIndex,
@@ -58020,36 +58021,7 @@ function createShipyardConstructionArt(image, progress) {
   sampleContext.drawImage(image, 0, 0);
   const source = sampleContext.getImageData(0, 0, sample.width, sample.height);
   const output = sampleContext.createImageData(sample.width, sample.height);
-  const alphaAt = (x, y) => (
-    x >= 0 && x < sample.width && y >= 0 && y < sample.height
-      ? source.data[(y * sample.width + x) * 4 + 3]
-      : 0
-  );
-  let minY = sample.height;
-  let maxY = -1;
-  for (let y = 0; y < sample.height; y++) {
-    for (let x = 0; x < sample.width; x++) {
-      if (alphaAt(x, y) === 0) continue;
-      minY = Math.min(minY, y);
-      maxY = Math.max(maxY, y);
-    }
-  }
-  if (maxY < minY) throw new Error("Shipyard side-view art has no opaque hull pixels");
-  const fillY = maxY - Math.round((maxY - minY + 1) * progress) + 1;
-  for (let y = minY; y <= maxY; y++) {
-    for (let x = 0; x < sample.width; x++) {
-      if (alphaAt(x, y) === 0) continue;
-      const edge = alphaAt(x - 1, y) === 0 || alphaAt(x + 1, y) === 0 ||
-        alphaAt(x, y - 1) === 0 || alphaAt(x, y + 1) === 0;
-      if (!edge && y < fillY) continue;
-      const offset = (y * sample.width + x) * 4;
-      const color = edge ? [62, 48, 34] : [117, 82, 50];
-      output.data[offset] = color[0];
-      output.data[offset + 1] = color[1];
-      output.data[offset + 2] = color[2];
-      output.data[offset + 3] = 255;
-    }
-  }
+  output.data.set(shipyardConstructionPixels(source.data, sample.width, sample.height, progress));
   sampleContext.clearRect(0, 0, sample.width, sample.height);
   sampleContext.putImageData(output, 0, 0);
   return sample;
