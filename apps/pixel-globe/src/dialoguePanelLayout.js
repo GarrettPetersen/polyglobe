@@ -98,16 +98,31 @@ export function characterAlertChoiceTextLayout({
     throw new Error("Character alert choice dimensions must be positive");
   }
 
-  const buttonWidth = Math.floor(
-    (panelWidth - horizontalPadding * 2 - gap * (choices.length - 1)) / choices.length
+  const availableWidth = Math.floor(
+    panelWidth - horizontalPadding * 2 - gap * (choices.length - 1)
   );
-  if (buttonWidth <= 0) throw new Error("Character alert choices do not fit the panel width");
-  const textLayouts = choices.map((choice, index) => {
+  const minimumButtonWidth = 36;
+  if (availableWidth < minimumButtonWidth * choices.length) {
+    throw new Error("Character alert choices do not fit the panel width");
+  }
+  const desiredWidths = choices.map((choice, index) => {
     if (!choice || typeof choice.label !== "string" || choice.label.trim() === "") {
       throw new Error(`Character alert choice ${index} requires a label`);
     }
     const iconReserve = choice.iconId ? iconSize + buttonTextPadding : 0;
-    const textWidth = buttonWidth - buttonTextPadding * 2 - iconReserve;
+    return Math.max(
+      minimumButtonWidth,
+      Math.ceil(measureText(choice.label.toUpperCase())) + buttonTextPadding * 2 + iconReserve
+    );
+  });
+  const buttonWidths = distributeChoiceWidths({
+    desiredWidths,
+    availableWidth,
+    minimumWidth: minimumButtonWidth
+  });
+  const textLayouts = choices.map((choice, index) => {
+    const iconReserve = choice.iconId ? iconSize + buttonTextPadding : 0;
+    const textWidth = buttonWidths[index] - buttonTextPadding * 2 - iconReserve;
     if (textWidth <= 0) throw new Error(`Character alert choice ${index} has no room for text`);
     const labelLines = wrapAllMeasuredText(choice.label.toUpperCase(), textWidth, measureText);
     return Object.freeze({
@@ -121,11 +136,40 @@ export function characterAlertChoiceTextLayout({
     ...textLayouts.map(({ labelLines }) => labelLines.length * lineHeight + 8)
   );
   return Object.freeze({
-    buttonWidth,
+    buttonWidths: Object.freeze(buttonWidths),
     buttonHeight: Math.ceil(requiredButtonHeight / 2) * 2,
     lineHeight,
     textLayouts: Object.freeze(textLayouts)
   });
+}
+
+function distributeChoiceWidths({ desiredWidths, availableWidth, minimumWidth }) {
+  const widths = desiredWidths.map(() => minimumWidth);
+  let remaining = availableWidth - minimumWidth * desiredWidths.length;
+  const desiredExtras = desiredWidths.map((width) => Math.max(0, width - minimumWidth));
+  const totalDesiredExtra = desiredExtras.reduce((sum, width) => sum + width, 0);
+  if (totalDesiredExtra > 0 && remaining > 0) {
+    const distributable = Math.min(remaining, totalDesiredExtra);
+    const exactShares = desiredExtras.map((extra) => distributable * extra / totalDesiredExtra);
+    const allocated = exactShares.map(Math.floor);
+    let roundingRemainder = distributable - allocated.reduce((sum, width) => sum + width, 0);
+    const fractionalOrder = exactShares
+      .map((share, index) => ({ index, fraction: share - Math.floor(share) }))
+      .sort((a, b) => b.fraction - a.fraction || a.index - b.index);
+    for (let index = 0; index < roundingRemainder; index += 1) {
+      allocated[fractionalOrder[index].index] += 1;
+    }
+    allocated.forEach((width, index) => { widths[index] += width; });
+    remaining -= distributable;
+  }
+  for (let index = 0; remaining > 0; index = (index + 1) % widths.length) {
+    widths[index] += 1;
+    remaining -= 1;
+  }
+  if (widths.reduce((sum, width) => sum + width, 0) !== availableWidth) {
+    throw new Error("Character alert choice widths do not fill their row");
+  }
+  return widths;
 }
 
 export function dialoguePanelGeometry({

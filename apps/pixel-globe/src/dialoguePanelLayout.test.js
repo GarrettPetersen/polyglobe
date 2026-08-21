@@ -81,11 +81,11 @@ test("character alerts reject viewports that cannot hold their composition", () 
   }), /cannot fit/);
 });
 
-test("character alert choices grow to show every line beside their specific icon", () => {
+test("character alert choices give longer weapon actions more room", () => {
   const layout = characterAlertChoiceTextLayout({
     choices: [
-      { label: "Confront them", iconId: null },
-      { label: "Confront with wheelock pistols", iconId: "item:wheelock-pistols" },
+      { label: "Confront him", iconId: null },
+      { label: "Confront with matchlock arquebuses", iconId: "item:matchlock-arquebuses" },
       { label: "Let it lie", iconId: null }
     ],
     panelWidth: 286,
@@ -93,10 +93,12 @@ test("character alert choices grow to show every line beside their specific icon
     measureText: (value) => value.length * 4
   });
 
-  assert.ok(layout.textLayouts[1].labelLines.length > 2);
-  assert.ok(layout.buttonHeight > 28);
+  assert.ok(layout.buttonWidths[1] > layout.buttonWidths[0]);
+  assert.ok(layout.buttonWidths[1] > layout.buttonWidths[2]);
+  assert.equal(layout.buttonWidths.reduce((sum, width) => sum + width, 0), 252);
+  assert.ok(layout.textLayouts[1].labelLines.length <= 3);
   assert.equal(layout.textLayouts[1].iconReserve, 20);
-  assert.equal(layout.textLayouts[1].labelLines.join(" "), "CONFRONT WITH WHEELOCK PISTOLS");
+  assert.equal(layout.textLayouts[1].labelLines.join(" "), "CONFRONT WITH MATCHLOCK ARQUEBUSES");
 });
 
 test("reserved feedback slots keep action positions stable as messages appear", () => {

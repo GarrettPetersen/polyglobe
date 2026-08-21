@@ -607,10 +607,12 @@ import {
   pirateCaptiveDialogueCharacter,
   pirateCaptiveDialogueView,
   pirateCaptiveEscapeCheckIsDue,
+  pirateCaptiveGenderedText,
   pirateCaptiveIsAboard,
   pirateCaptiveIsDetained,
   pirateCaptiveJourneyLegOriginTileId,
   pirateCaptiveRevengeSpawnIsDue,
+  pirateCaptiveRecaptureLine,
   pirateCaptiveRescueAppears,
   pirateCaptiveWarningMessage,
   preparePirateCaptiveAuthorityHandover,
@@ -6952,12 +6954,12 @@ function captainAlertChoiceRects(choices) {
   const gap = 6;
   const padding = 11;
   const y = panel.y + panel.h - layout.buttonHeight - 11;
-  return Object.freeze(Array.from({ length: choices.length }, (_, index) => Object.freeze({
-    x: panel.x + padding + index * (layout.buttonWidth + gap),
-    y,
-    w: layout.buttonWidth,
-    h: layout.buttonHeight
-  })));
+  let x = panel.x + padding;
+  return Object.freeze(layout.buttonWidths.map((buttonWidth) => {
+    const rect = Object.freeze({ x, y, w: buttonWidth, h: layout.buttonHeight });
+    x += buttonWidth + gap;
+    return rect;
+  }));
 }
 
 function captainAlertGeometry(modal = null) {
@@ -7335,7 +7337,7 @@ function openPirateCaptiveWarning(quest, witness) {
   const weapon = pirateCaptiveConfrontationWeapon();
   const choices = availableDialogueOptions([
     dialogueOption({
-      label: renderedUiText("Confront them"),
+      label: renderedUiText(pirateCaptiveGenderedText(quest.character, "confront")),
       onSelect: () => resolvePirateCaptiveConfrontation(quest, null)
     }),
     conditionalDialogueOption(Boolean(weapon), {
@@ -7386,7 +7388,11 @@ function resolvePirateCaptiveConfrontation(quest, weapon) {
       },
       {
         character: gameState.playerCharacter,
-        message: renderedUiText(`Bind their hands. The authorities in ${destination.name} have a warrant waiting.`),
+        message: renderedUiText(pirateCaptiveGenderedText(
+          quest.character,
+          "bind-hands",
+          destination.name
+        )),
         expressionId: "stern",
         leftCharacter: gameState.playerCharacter,
         rightCharacter: quest.character
@@ -7408,7 +7414,7 @@ function openReformedPirateCaptiveChoice(quest) {
     renderedUiText(`I was a pirate, captain. I lied because I want out. Take me home to ${quest.homePortName}, and I will trouble no ship again.`),
     [
       dialogueOption({
-        label: renderedUiText("Take them home"),
+        label: renderedUiText(pirateCaptiveGenderedText(quest.character, "take-home")),
         onSelect: () => {
           resolveReformedPirateCaptive(quest, {
             detain: false,
@@ -7418,7 +7424,7 @@ function openReformedPirateCaptiveChoice(quest) {
         }
       }),
       dialogueOption({
-        label: renderedUiText("Turn them in"),
+        label: renderedUiText(pirateCaptiveGenderedText(quest.character, "turn-in")),
         onSelect: () => {
           resolveReformedPirateCaptive(quest, {
             detain: true,
@@ -7589,14 +7595,18 @@ function resolveEscapedPirateCaptiveDefeat(npcShipId, { sunk, lootSummary = null
   startCharacterAlertSequence([
     {
       character: quest.character,
-      message: renderedUiText("Twice caught by the same captain. I shall deny this under oath."),
+      message: renderedUiText(pirateCaptiveRecaptureLine(quest)),
       expressionId: "angry",
       leftCharacter: gameState.playerCharacter,
       rightCharacter: quest.character
     },
     {
       character: gameState.playerCharacter,
-      message: renderedUiText(`Tie them properly this time. We sail for the authorities in ${destination.name}.`),
+      message: renderedUiText(pirateCaptiveGenderedText(
+        quest.character,
+        "tie-hands",
+        destination.name
+      )),
       expressionId: "stern",
       leftCharacter: gameState.playerCharacter,
       rightCharacter: quest.character

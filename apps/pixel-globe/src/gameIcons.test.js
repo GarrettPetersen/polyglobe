@@ -374,6 +374,14 @@ test("frequently confused controls use distinct readable source art", () => {
   }
 });
 
+test("the matchlock equipment uses a recognizable long-gun icon", () => {
+  assert.equal(GAME_ICON_SOURCES["item:matchlock-arquebuses"].generatedId, "matchlock-arquebus");
+  assert.notDeepEqual(
+    GAME_ICON_SOURCES["item:matchlock-arquebuses"],
+    GAME_ICON_SOURCES["item:wheellock-pistol"]
+  );
+});
+
 test("runtime icons always draw at the native atlas size", () => {
   assert.deepEqual(gameIconDrawRect(10.4, 20.6), {
     x: 10,

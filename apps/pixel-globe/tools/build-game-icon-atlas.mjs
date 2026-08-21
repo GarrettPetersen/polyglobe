@@ -199,9 +199,29 @@ function generateIcon(generatedId) {
   if (generatedId === "play-arrow") return generatePlayArrow();
   if (generatedId === "restart-arrow") return generateRestartArrow();
   if (generatedId === "surrender-flag") return generateSurrenderFlag();
+  if (generatedId === "matchlock-arquebus") return generateMatchlockArquebus();
   if (generatedId === "nintendo-zl") return generateNintendoTrigger("L");
   if (generatedId === "nintendo-zr") return generateNintendoTrigger("R");
   throw new Error(`Unknown generated game icon: ${generatedId}`);
+}
+
+function generateMatchlockArquebus() {
+  const { canvas, ctx } = generatedIconCanvas();
+  const stock = [
+    [1, 11], [2, 10], [2, 11], [3, 9], [3, 10], [4, 8], [4, 9],
+    [5, 8], [6, 7], [7, 7], [8, 6]
+  ];
+  const barrel = [
+    [7, 5], [8, 5], [9, 5], [10, 5], [11, 5], [12, 5], [13, 5], [14, 5],
+    [13, 4], [14, 4]
+  ];
+  const lock = [[7, 6], [8, 7], [8, 8], [9, 7]];
+  drawOutlinedPixels(ctx, [...stock, ...barrel, ...lock], "#d9a066");
+  ctx.fillStyle = "#8f563b";
+  for (const [x, y] of stock) ctx.fillRect(x, y, 1, 1);
+  ctx.fillStyle = "#625565";
+  for (const [x, y] of [...barrel, ...lock]) ctx.fillRect(x, y, 1, 1);
+  return canvas;
 }
 
 function generateNintendoTrigger(side) {

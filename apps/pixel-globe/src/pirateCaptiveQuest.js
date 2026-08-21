@@ -57,6 +57,49 @@ export function pirateCaptiveWarningMessage(character) {
   throw new Error(`Unsupported pirate captive pronoun: ${subject}`);
 }
 
+export function pirateCaptiveGenderedText(character, textId, destinationName = null) {
+  const { subject } = characterPronouns(character);
+  const male = subject === "he";
+  if (!male && subject !== "she") throw new Error(`Unsupported pirate captive pronoun: ${subject}`);
+  if (["bind-hands", "tie-hands"].includes(textId) && (
+    typeof destinationName !== "string" || destinationName.trim() === ""
+  )) {
+    throw new Error(`Pirate captive ${textId} text requires a destination`);
+  }
+  switch (textId) {
+    case "confront": return male ? "Confront him" : "Confront her";
+    case "take-home": return male ? "Take him home" : "Take her home";
+    case "turn-in": return male ? "Turn him in" : "Turn her in";
+    case "bind-hands": return male
+      ? `Bind his hands. The authorities in ${destinationName} have a warrant waiting.`
+      : `Bind her hands. The authorities in ${destinationName} have a warrant waiting.`;
+    case "tie-hands": return male
+      ? `Tie him properly this time. We sail for the authorities in ${destinationName}.`
+      : `Tie her properly this time. We sail for the authorities in ${destinationName}.`;
+    default: throw new Error(`Unknown pirate captive gendered text: ${textId}`);
+  }
+}
+
+export function pirateCaptiveRecaptureLine(quest) {
+  validatePirateCaptiveQuest(quest);
+  if (quest.captiveKind !== PIRATE_CAPTIVE_KIND_FAKE_EVIL || quest.deception.escapeCount < 1) {
+    throw new Error("Pirate captive recapture line requires an escaped evil captive");
+  }
+  return quest.deception.escapeCount === 1
+    ? "You again, captain? I should have stolen a faster rowboat."
+    : "Again? I am beginning to take this personally.";
+}
+
+export function pirateCaptiveAuthorityDefianceLine(quest) {
+  validatePirateCaptiveQuest(quest);
+  if (quest.captiveKind !== PIRATE_CAPTIVE_KIND_FAKE_EVIL) {
+    throw new Error("Pirate captive defiance line requires an evil captive");
+  }
+  return quest.deception.escapeCount === 0
+    ? "A warrant is only paper. I shall deny every word on it."
+    : "You caught me; the rest is hearsay. I shall deny it under oath.";
+}
+
 const PIRATE_CAPTIVE_KINDS = new Set([
   PIRATE_CAPTIVE_KIND_REAL,
   PIRATE_CAPTIVE_KIND_FAKE_REFORMED,
@@ -613,7 +656,7 @@ function authorityHandoverView(session, quest) {
       quest.captiveKind === PIRATE_CAPTIVE_KIND_FAKE_REFORMED ? "sad" : "angry",
       quest.captiveKind === PIRATE_CAPTIVE_KIND_FAKE_REFORMED
         ? "I wanted a quiet shore. I should have tried honesty before the rope."
-        : "Twice caught by the same captain. I shall deny this under oath.",
+        : pirateCaptiveAuthorityDefianceLine(quest),
       "Hand over the captive",
       { type: "complete-pirate-captive-handover" }
     );

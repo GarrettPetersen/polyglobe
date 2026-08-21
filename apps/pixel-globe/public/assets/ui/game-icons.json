@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-49",
+  "version": "resurrect-icons-50",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 224,
@@ -2464,9 +2464,8 @@
         "w": 16,
         "h": 16
       },
-      "packId": "nikoichu",
-      "assetPath": null,
-      "lightMonotone": "#6e2727"
+      "packId": null,
+      "assetPath": null
     },
     {
       "id": "item:swivel-gun",

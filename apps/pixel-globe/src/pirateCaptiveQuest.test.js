@@ -21,8 +21,11 @@ import {
   ignorePirateCaptiveWarning,
   advancePirateCaptiveJourneyMilestone,
   pirateCaptiveDestination,
+  pirateCaptiveAuthorityDefianceLine,
+  pirateCaptiveGenderedText,
   pirateCaptiveKindForRoll,
   pirateCaptiveRevengeSpawnIsDue,
+  pirateCaptiveRecaptureLine,
   pirateCaptiveDialogueView,
   pirateCaptiveRescueAppears,
   pirateCaptiveWarningMessage,
@@ -88,6 +91,23 @@ test("the warning identifies a deceptive captive with known pronouns", () => {
     pirateCaptiveWarningMessage({ ...captive, givenName: "Nils", sex: "male" }),
     "Captain, Nils knows a pirate's habits too well. I do not think he was ever a captive."
   );
+});
+
+test("captive actions use the known person's sex", () => {
+  const maleCaptive = { ...captive, givenName: "Nils", sex: "male" };
+  assert.equal(pirateCaptiveGenderedText(maleCaptive, "confront"), "Confront him");
+  assert.equal(pirateCaptiveGenderedText(captive, "confront"), "Confront her");
+  assert.equal(pirateCaptiveGenderedText(maleCaptive, "take-home"), "Take him home");
+  assert.equal(pirateCaptiveGenderedText(captive, "turn-in"), "Turn her in");
+  assert.equal(
+    pirateCaptiveGenderedText(maleCaptive, "bind-hands", "Azemmour"),
+    "Bind his hands. The authorities in Azemmour have a warrant waiting."
+  );
+  assert.equal(
+    pirateCaptiveGenderedText(captive, "tie-hands", "Lisbon"),
+    "Tie her properly this time. We sail for the authorities in Lisbon."
+  );
+  assert.throws(() => pirateCaptiveGenderedText(captive, "bind-hands"), /requires a destination/);
 });
 
 function createQuest(memory, familySurvivedRoll, captiveKindRoll = 0.9) {
@@ -321,6 +341,10 @@ test("an armed confrontation detains an evil impostor for a preselected capital"
   });
   assert.equal(result.outcome, "evil-detained");
   assert.equal(quest.deception.state, PIRATE_CAPTIVE_STATE_DETAINED);
+  assert.equal(
+    pirateCaptiveAuthorityDefianceLine(quest),
+    "A warrant is only paper. I shall deny every word on it."
+  );
   assert.deepEqual(pirateCaptiveDestination(quest), {
     tileId: wantedPort.tileId,
     name: wantedPort.city,
@@ -358,6 +382,14 @@ test("an escaped evil impostor returns later and can be recaptured", () => {
   recapturePirateCaptive(quest, 9000);
   assert.equal(quest.deception.state, PIRATE_CAPTIVE_STATE_DETAINED);
   assert.equal(quest.deception.revengeDefeated, true);
+  assert.equal(
+    pirateCaptiveRecaptureLine(quest),
+    "You again, captain? I should have stolen a faster rowboat."
+  );
+  assert.equal(
+    pirateCaptiveAuthorityDefianceLine(quest),
+    "You caught me; the rest is hearsay. I shall deny it under oath."
+  );
 });
 
 test("an evil impostor receives a fresh powerful return after every escape", () => {
@@ -381,4 +413,7 @@ test("an evil impostor receives a fresh powerful return after every escape", () 
   assert.equal(quest.deception.revengeSpawned, false);
   assert.equal(quest.deception.revengeDefeated, false);
   assert.equal(pirateCaptiveRevengeSpawnIsDue(quest, 11000 + 2 * 24 * 60), true);
+  quest.deception.revengeSpawned = true;
+  recapturePirateCaptive(quest, 15000);
+  assert.equal(pirateCaptiveRecaptureLine(quest), "Again? I am beginning to take this personally.");
 });
