@@ -58519,6 +58519,7 @@ function drawPlayerShipyardBooksTab(content, presentation, ledgerJournal) {
     [compactSummary ? "SALES" : "SHIP SALES", accounts.salesRevenue],
     [compactSummary ? "STOCK" : "USED SHIP PURCHASES", -accounts.inventoryPurchases],
     [compactSummary ? "COSTS" : "SHIPBUILDING COSTS", -accounts.constructionExpenses],
+    [compactSummary ? "UPKEEP" : "MANAGEMENT & UPKEEP", -accounts.operatingExpenses],
     [compactSummary ? "PAID" : "DIVIDENDS PAID", -accounts.playerPayouts],
     [compactSummary ? "OWED" : "UNPAID DIVIDENDS", accounts.outstandingPlayerShare],
     [compactSummary ? "CASH" : "SHIPYARD CASH", accounts.cashBalance]
@@ -58626,6 +58627,7 @@ function shipyardAccountEntryLabel(entry) {
   if (entry.kind === "trade-in-purchase") {
     return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} BOUGHT USED`;
   }
+  if (entry.kind === "operating-overhead") return "MANAGEMENT & UPKEEP";
   if (entry.kind === "sale") {
     const prefix = entry.source === "trade-in" ? "USED " : "";
     return `${prefix}${shipLabelForSlug(entry.shipSlug).toUpperCase()} SOLD`;

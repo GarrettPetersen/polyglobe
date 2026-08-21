@@ -13,7 +13,7 @@ import {
 import { JAPANESE_POLITY_FACTION_IDS } from "./factions.js";
 
 const MINUTES_PER_DAY = 24 * 60;
-const SHIPYARD_SNAPSHOT_VERSION = 9;
+const SHIPYARD_SNAPSHOT_VERSION = 10;
 const LEGACY_BUILD_TIME_SCALE = 0.75;
 const NORMAL_BUILD_INTERVAL_DAYS = 1200;
 const FAMOUS_BUILD_INTERVAL_DAYS = 360;
@@ -22,8 +22,11 @@ const FAMOUS_LISTING_DAYS = 240;
 const MATERIAL_RETRY_DAYS = 30;
 const MAX_MATERIAL_DELAY_DAYS = 180;
 const PLAYER_BACKED_BUILD_INTERVAL_MULTIPLIER = 0.62;
-const PLAYER_BACKED_DIVIDEND_RATE = 0.22;
+const LEGACY_PLAYER_BACKED_DIVIDEND_RATE = 0.22;
 const PLAYER_BACKED_CONSTRUCTION_COST_RATE = 0.64;
+const PLAYER_BACKED_OPERATING_EXPENSE_RATE = 0.09;
+const PLAYER_BACKED_CAPITAL_RECOVERY_RATE = 0.4;
+const PLAYER_BACKED_MATURE_DIVIDEND_RATE = 0.12;
 const MAX_PLAYER_ACCOUNT_ENTRIES = 256;
 const PLAYER_SHIPYARD_STOCKPILE_DAYS = 3 * 365;
 const MAX_STOCKPILE_PLANNED_BUILDS = 64;
@@ -226,7 +229,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
   validateOptionalSeedKey(seedKey, "restored shipyard");
   if (
     !snapshot ||
-    ![1, 2, 3, 4, 5, 6, 7, 8, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
+    ![1, 2, 3, 4, 5, 6, 7, 8, 9, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
     !Array.isArray(snapshot.yards) ||
     (snapshot.version >= 3 && !Array.isArray(snapshot.npcSales))
   ) {
@@ -301,7 +304,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
       : inferredConsumedBuildMaterials(yard, snapshot.lastMinute);
     yard.playerAccounts = snapshot.version >= 5 && saved.playerAccounts
       ? migrateVersionFivePlayerShipyardAccounts(
-          restorePlayerShipyardAccounts(saved.playerAccounts, yard),
+          restorePlayerShipyardAccounts(saved.playerAccounts, yard, snapshot.version),
           yard,
           snapshot.version
         )
@@ -591,7 +594,8 @@ export function playerShipyardLedger(yard, simMinute) {
   const workInProgressExpenses = Math.round(constructionCost * progress);
   const constructionExpenses = accounts.constructionExpenses + workInProgressExpenses;
   const cashBalance = accounts.capitalContributions + accounts.salesRevenue -
-    accounts.inventoryPurchases - constructionExpenses - accounts.playerPayouts;
+    accounts.inventoryPurchases - constructionExpenses - accounts.operatingExpenses -
+    accounts.playerPayouts - yard.playerDividendBalance;
   const journalEntries = accounts.entries.map((entry) => Object.freeze({ ...entry }));
   if (workInProgressExpenses > 0) {
     journalEntries.push(...shipyardConstructionProgressEntries({
@@ -638,6 +642,7 @@ export function playerShipyardLedger(yard, simMinute) {
       inventoryPurchases: accounts.inventoryPurchases,
       constructionExpenses,
       postedConstructionExpenses: accounts.constructionExpenses,
+      operatingExpenses: accounts.operatingExpenses,
       workInProgressExpenses,
       playerSharesEarned: yard.lifetimePlayerDividends,
       playerPayouts: accounts.playerPayouts,
@@ -1061,27 +1066,37 @@ function consumeShipbuildingMaterials(yard, listing, progress, materialMarket) {
 function completeShipyardSale(system, yard, listing, buyer, soldMinute = listing.expiresMinute) {
   if (buyer !== "player" && buyer !== "npc") throw new Error(`Unknown shipyard buyer: ${buyer}`);
   if (yard.playerBacking) {
-    const dividendBase = listing.source === "trade-in"
-      ? Math.max(0, listing.price - listing.acquisitionCost)
-      : listing.price;
-    const dividend = dividendBase > 0
-      ? Math.max(100, Math.round(dividendBase * PLAYER_BACKED_DIVIDEND_RATE / 100) * 100)
-      : 0;
-    yard.playerDividendBalance += dividend;
-    yard.lifetimePlayerDividends += dividend;
-    yard.playerPendingSales.push(Object.freeze({
-      id: `${listing.id}:${buyer}-player-share`,
-      shipSlug: listing.shipSlug,
-      price: listing.price,
-      margin: dividendBase,
-      dividend,
-      buyer,
-      soldMinute
-    }));
-    if (yard.playerPendingSales.length > 64) {
-      yard.playerPendingSales.splice(0, yard.playerPendingSales.length - 64);
+    const economics = playerShipyardSaleEconomics(yard, listing);
+    const accounts = requiredPlayerShipyardAccounts(yard);
+    const postedCashAfterSale = playerShipyardPostedCash(accounts) +
+      listing.price - economics.operatingExpense;
+    const cashAvailableAboveReserve = Math.max(
+      0,
+      postedCashAfterSale - yard.playerBacking.seedCapital - yard.playerDividendBalance
+    );
+    const dividend = Math.min(
+      economics.targetDividend,
+      Math.floor(cashAvailableAboveReserve / 100) * 100
+    );
+    recordPlayerShipyardSale(yard, listing, buyer, { ...economics, dividend }, soldMinute);
+    if (dividend > 0) {
+      yard.playerDividendBalance += dividend;
+      yard.lifetimePlayerDividends += dividend;
+      yard.playerPendingSales.push(Object.freeze({
+        id: `${listing.id}:${buyer}-player-share`,
+        shipSlug: listing.shipSlug,
+        price: listing.price,
+        grossMargin: economics.grossMargin,
+        operatingExpense: economics.operatingExpense,
+        margin: economics.netProfit,
+        dividend,
+        buyer,
+        soldMinute
+      }));
+      if (yard.playerPendingSales.length > 64) {
+        yard.playerPendingSales.splice(0, yard.playerPendingSales.length - 64);
+      }
     }
-    recordPlayerShipyardSale(yard, listing, buyer, dividend, soldMinute);
   }
   if (buyer === "npc") {
     system.npcSales.push(Object.freeze({
@@ -1102,6 +1117,7 @@ function createPlayerShipyardAccounts(backing) {
     salesRevenue: 0,
     inventoryPurchases: 0,
     constructionExpenses: 0,
+    operatingExpenses: 0,
     playerPayouts: 0,
     nextEntryNumber: 1,
     entries: []
@@ -1159,6 +1175,42 @@ function playerBackedConstructionCost(listing) {
     throw new Error(`Invalid player-backed ship construction price: ${listing?.price}`);
   }
   return roundToHundred(listing.price * PLAYER_BACKED_CONSTRUCTION_COST_RATE);
+}
+
+function playerShipyardSaleEconomics(yard, listing) {
+  if (!yard?.playerBacking) throw new Error("Shipyard sale economics require player backing");
+  const costOfShip = listing.source === "trade-in"
+    ? listing.acquisitionCost
+    : playerBackedConstructionCost(listing);
+  if (!Number.isInteger(costOfShip) || costOfShip < 0) {
+    throw new Error(`Invalid player-backed ship sale cost: ${listing.id}`);
+  }
+  const operatingExpense = Math.max(
+    100,
+    roundToHundred(listing.price * PLAYER_BACKED_OPERATING_EXPENSE_RATE)
+  );
+  const grossMargin = listing.price - costOfShip;
+  const netProfit = Math.max(0, grossMargin - operatingExpense);
+  const capitalRecoveryRemaining = Math.max(
+    0,
+    yard.playerBacking.seedCapital - yard.lifetimePlayerDividends
+  );
+  const recoveryProfit = Math.min(
+    netProfit,
+    capitalRecoveryRemaining / PLAYER_BACKED_CAPITAL_RECOVERY_RATE
+  );
+  const matureProfit = netProfit - recoveryProfit;
+  const targetDividend = roundToHundred(
+    recoveryProfit * PLAYER_BACKED_CAPITAL_RECOVERY_RATE +
+      matureProfit * PLAYER_BACKED_MATURE_DIVIDEND_RATE
+  );
+  return Object.freeze({
+    costOfShip,
+    operatingExpense,
+    grossMargin,
+    netProfit,
+    targetDividend
+  });
 }
 
 export function shipyardConstructionCostBreakdown(shipSlug, constructionCost) {
@@ -1241,7 +1293,7 @@ function shipyardConstructionProgressEntries({
   }).filter((entry) => entry.amount !== 0);
 }
 
-function recordPlayerShipyardSale(yard, listing, buyer, dividend, simMinute) {
+function recordPlayerShipyardSale(yard, listing, buyer, economics, simMinute) {
   const accounts = requiredPlayerShipyardAccounts(yard);
   accounts.salesRevenue += listing.price;
   appendPlayerShipyardAccountEntry(accounts, {
@@ -1253,11 +1305,25 @@ function recordPlayerShipyardSale(yard, listing, buyer, dividend, simMinute) {
     buyer,
     source: listing.source,
     acquisitionCost: listing.acquisitionCost,
-    margin: listing.source === "trade-in"
-      ? listing.price - listing.acquisitionCost
-      : listing.price,
-    playerShare: dividend
+    grossMargin: economics.grossMargin,
+    operatingExpense: economics.operatingExpense,
+    margin: economics.netProfit,
+    playerShare: economics.dividend
   });
+  accounts.operatingExpenses += economics.operatingExpense;
+  appendPlayerShipyardAccountEntry(accounts, {
+    kind: "operating-overhead",
+    simMinute,
+    amount: -economics.operatingExpense,
+    description: `${listing.shipLabel} management and upkeep`,
+    shipSlug: listing.shipSlug
+  });
+}
+
+function playerShipyardPostedCash(accounts) {
+  return accounts.capitalContributions + accounts.salesRevenue -
+    accounts.inventoryPurchases - accounts.constructionExpenses -
+    accounts.operatingExpenses - accounts.playerPayouts;
 }
 
 function recordPlayerShipyardPayout(yard, amount, simMinute) {
@@ -1291,6 +1357,7 @@ function snapshotPlayerShipyardAccounts(accounts) {
     salesRevenue: accounts.salesRevenue,
     inventoryPurchases: accounts.inventoryPurchases,
     constructionExpenses: accounts.constructionExpenses,
+    operatingExpenses: accounts.operatingExpenses,
     playerPayouts: accounts.playerPayouts,
     nextEntryNumber: accounts.nextEntryNumber,
     entries: accounts.entries.map(copyPlayerShipyardAccountEntry)
@@ -1314,7 +1381,7 @@ function copyPlayerShipyardAccountEntry(entry) {
   };
 }
 
-function restorePlayerShipyardAccounts(saved, yard) {
+function restorePlayerShipyardAccounts(saved, yard, snapshotVersion) {
   for (const key of ["capitalContributions", "salesRevenue", "constructionExpenses", "playerPayouts"]) {
     if (!Number.isInteger(saved[key]) || saved[key] < 0) {
       throw new Error(`Invalid saved shipyard account ${key}: ${yard.portId}`);
@@ -1324,6 +1391,10 @@ function restorePlayerShipyardAccounts(saved, yard) {
       (!Number.isInteger(saved.inventoryPurchases) || saved.inventoryPurchases < 0)) {
     throw new Error(`Invalid saved shipyard account inventoryPurchases: ${yard.portId}`);
   }
+  if (snapshotVersion >= 10 &&
+      (!Number.isInteger(saved.operatingExpenses) || saved.operatingExpenses < 0)) {
+    throw new Error(`Invalid saved shipyard account operatingExpenses: ${yard.portId}`);
+  }
   if (!Number.isInteger(saved.nextEntryNumber) || saved.nextEntryNumber < 1 || !Array.isArray(saved.entries)) {
     throw new Error(`Invalid saved shipyard account journal: ${yard.portId}`);
   }
@@ -1332,6 +1403,7 @@ function restorePlayerShipyardAccounts(saved, yard) {
     salesRevenue: saved.salesRevenue,
     inventoryPurchases: saved.inventoryPurchases ?? 0,
     constructionExpenses: saved.constructionExpenses,
+    operatingExpenses: saved.operatingExpenses ?? 0,
     playerPayouts: saved.playerPayouts,
     nextEntryNumber: saved.nextEntryNumber,
     entries: saved.entries.map((entry) => restorePlayerShipyardAccountEntry(entry, yard.portId))
@@ -1348,6 +1420,7 @@ function restorePlayerShipyardAccountEntry(entry, portId) {
     "construction",
     "construction-material",
     "construction-labor",
+    "operating-overhead",
     "trade-in-purchase",
     "sale",
     "payout",
@@ -1444,7 +1517,7 @@ function inferredSalesRevenueForPlayerShare(playerShare) {
   }
   return playerShare === 0
     ? 0
-    : roundToHundred(playerShare / PLAYER_BACKED_DIVIDEND_RATE);
+    : roundToHundred(playerShare / LEGACY_PLAYER_BACKED_DIVIDEND_RATE);
 }
 
 function appendMigratedPlayerShipyardEntries(accounts, simMinute, amounts) {

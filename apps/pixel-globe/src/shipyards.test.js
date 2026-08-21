@@ -503,7 +503,7 @@ test("large sailing ships require more material and take longer than small craft
   );
 });
 
-test("player-backed yards favor major hulls and return a sale share", () => {
+test("player-backed yards favor major hulls and return profit after upkeep", () => {
   const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "backed-yard" });
   const yard = fundPlayerShipyard(system, LISBON, {
     investedMinute: 0,
@@ -518,7 +518,14 @@ test("player-backed yards favor major hulls and return a sale share", () => {
   yard.listing = generateShipyardListing(yard, 40, 0);
   const listing = yard.listing;
   advanceWorldShipyards(system, listing.expiresMinute + 1);
-  assert.ok(yard.playerDividendBalance >= listing.price * 0.2);
+  const sale = yard.playerPendingSales.find((entry) => entry.shipSlug === listing.shipSlug);
+  const operatingExpense = Math.max(100, roundHundred(listing.price * 0.09));
+  const constructionCost = roundHundred(listing.price * 0.64);
+  const netProfit = listing.price - constructionCost - operatingExpense;
+  assert.equal(sale.operatingExpense, operatingExpense);
+  assert.equal(sale.margin, netProfit);
+  assert.equal(sale.dividend, roundHundred(netProfit * 0.4));
+  assert.ok(sale.dividend < listing.price * 0.12);
   assert.deepEqual(availablePlayerShipyardPayouts(system), [{
     portId: LISBON.tileId,
     portName: LISBON.city,
@@ -581,13 +588,59 @@ test("player-backed yards account for trade-ins, resale margin, and dividends ac
   ));
   assert.equal(sale.source, "trade-in");
   assert.equal(sale.acquisitionCost, used.acquisitionCost);
-  assert.equal(sale.margin, used.price - used.acquisitionCost);
+  const operatingExpense = Math.max(100, roundHundred(used.price * 0.09));
+  const netProfit = used.price - used.acquisitionCost - operatingExpense;
+  assert.equal(sale.grossMargin, used.price - used.acquisitionCost);
+  assert.equal(sale.operatingExpense, operatingExpense);
+  assert.equal(sale.margin, netProfit);
   assert.equal(restoredYard.playerPendingSales[0].margin, sale.margin);
   assert.equal(
     restoredYard.playerPendingSales[0].dividend,
-    Math.max(100, Math.round(sale.margin * 0.22 / 100) * 100)
+    roundHundred(netProfit * 0.4)
   );
+  assert.equal(ledger.accounts.operatingExpenses, operatingExpense);
+  assert.ok(ledger.accounts.entries.some((entry) => entry.kind === "operating-overhead"));
   assert.equal(restored.npcSales.some((entry) => entry.shipSlug === "small-cog"), true);
+});
+
+test("player-backed yards retain seed capital and taper dividends after it is recovered", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-reserve" });
+  const yard = fundPlayerShipyard(system, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  yard.listing = generateShipyardListing(yard, 40, 0);
+  const listing = yard.listing;
+  const operatingExpense = Math.max(100, roundHundred(listing.price * 0.09));
+  const constructionCost = roundHundred(listing.price * 0.64);
+  const netProfit = listing.price - constructionCost - operatingExpense;
+
+  yard.lifetimePlayerDividends = 100000;
+  yard.playerAccounts.salesRevenue = 100000;
+  yard.playerAccounts.playerPayouts = 100000;
+  claimShipyardListing(system, LISBON, listing.id);
+
+  assert.equal(yard.playerDividendBalance, roundHundred(netProfit * 0.12));
+  assert.ok(yard.playerDividendBalance < roundHundred(netProfit * 0.4));
+
+  const constrained = createWorldShipyards({
+    ports: [LISBON],
+    startMinute: 0,
+    seedKey: "yard-reserve-constrained"
+  });
+  const constrainedYard = fundPlayerShipyard(constrained, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  constrainedYard.listing = generateShipyardListing(constrainedYard, 40, 0);
+  const constrainedListing = constrainedYard.listing;
+  constrainedYard.playerAccounts.constructionExpenses = constrainedListing.price;
+  claimShipyardListing(constrained, LISBON, constrainedListing.id);
+
+  assert.equal(constrainedYard.playerDividendBalance, 0);
+  assert.deepEqual(constrainedYard.playerPendingSales, []);
 });
 
 test("player-backed yards expose deterministic build progress and persist complete books", () => {
@@ -732,6 +785,23 @@ test("version five books reconstruct paid sales and costs that predate the journ
   assert.ok(!migrated.accounts.entries.some((entry) => entry.description === "Earlier shipyard accounts"));
 });
 
+test("version nine shipyard books migrate without inventing historical upkeep", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "v9-upkeep" });
+  fundPlayerShipyard(system, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  const snapshot = snapshotWorldShipyards(system);
+  snapshot.version = 9;
+  delete snapshot.yards[0].playerAccounts.operatingExpenses;
+
+  restoreWorldShipyards(system, snapshot);
+
+  const ledger = playerShipyardLedger(shipyardAtPort(system, LISBON), 0);
+  assert.equal(ledger.accounts.operatingExpenses, 0);
+});
+
 test("restoring a voyage applies the current ship prices and construction cadence", () => {
   const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0 });
   const yard = shipyardAtPort(system, SMALL_PORT);
@@ -853,6 +923,10 @@ function port(tileId, city, cityType, population, lat, lon, factionId = "neutral
 
 function average(values) {
   return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function roundHundred(value) {
+  return Math.round(value / 100) * 100;
 }
 
 function generatedHulls(yard, count) {
