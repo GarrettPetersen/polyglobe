@@ -2057,6 +2057,8 @@ import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
 import { fetchStaticAsset, isTransientStaticAssetError } from "./staticAssetFetch.js";
 import { createOnDemandAssetStore } from "./onDemandAssetStore.js";
 import {
+  terrainConnectorCallSequenceKey,
+  terrainConnectorEdgeKey,
   terrainConnectorLengthIsRenderable,
   terrainConnectorRasterSpans
 } from "./terrainConnectorRaster.js";
@@ -48104,12 +48106,15 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls =
   const cacheKey = worldChartRenderCacheKey(activeChart);
   const beachWaveTick = Math.floor(waterAnimationClockMs / BEACH_WAVE_REDRAW_MS);
   const frameIndex = beachWaveTick % BEACH_WAVE_FRAME_COUNT;
+  const visibleFaceCallsKey = visibleFaceCalls === null
+    ? null
+    : terrainConnectorCallSequenceKey(visibleFaceCalls);
   let cached = terrainConnectorDynamicLayerCache.get(cacheKey);
-  if (cached?.baseLayer !== baseLayer || cached.visibleFaceCalls !== visibleFaceCalls) {
+  if (cached?.baseLayer !== baseLayer || cached.visibleFaceCallsKey !== visibleFaceCallsKey) {
     const entries = terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls);
     cached = {
       baseLayer,
-      visibleFaceCalls,
+      visibleFaceCallsKey,
       entries,
       bounds: terrainConnectorDynamicBounds(entries),
       revision: nextTerrainConnectorDynamicRevision++,
@@ -48193,7 +48198,7 @@ function terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls) {
   if (visibleFaceCalls === null) return baseLayer.entries.filter((entry) => isCoastFace(entry.call));
   const entries = [];
   for (const call of visibleFaceCalls) {
-    const entry = baseLayer.entryByCall.get(call);
+    const entry = baseLayer.entryByEdgeKey.get(terrainConnectorEdgeKey(call));
     if (entry && isCoastFace(entry.call)) entries.push(entry);
   }
   return entries;
@@ -48473,6 +48478,7 @@ function completeTerrainConnectorLayerBuild(build) {
     faceCalls: build.faceCalls,
     entries: build.entries,
     entryByCall: new Map(build.entries.map((entry) => [entry.call, entry])),
+    entryByEdgeKey: new Map(build.entries.map((entry) => [terrainConnectorEdgeKey(entry.call), entry])),
     canvas: build.canvas,
     x: build.minX,
     y: build.minY

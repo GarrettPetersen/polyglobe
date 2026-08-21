@@ -10,6 +10,18 @@ export function terrainConnectorLengthIsRenderable(lengthPx, maximumLengthPx) {
   return lengthPx <= maximumLengthPx;
 }
 
+export function terrainConnectorEdgeKey(call) {
+  if (!call || !Number.isInteger(call.a) || !Number.isInteger(call.b) || call.a === call.b) {
+    throw new Error("Terrain connector edge key requires two distinct integer tile ids");
+  }
+  return call.a < call.b ? `${call.a}:${call.b}` : `${call.b}:${call.a}`;
+}
+
+export function terrainConnectorCallSequenceKey(calls) {
+  if (!Array.isArray(calls)) throw new Error("Terrain connector call sequence key requires an array");
+  return calls.map(terrainConnectorEdgeKey).join("|");
+}
+
 export function terrainConnectorRasterSpans(points, seed) {
   assertPolygon(points);
   if (!Number.isInteger(seed)) throw new Error(`Terrain connector raster requires an integer seed: ${seed}`);

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  terrainConnectorCallSequenceKey,
+  terrainConnectorEdgeKey,
   terrainConnectorLengthIsRenderable,
   terrainConnectorRasterSpans
 } from "./terrainConnectorRaster.js";
@@ -59,4 +61,16 @@ test("terrain connector rendering rejects pathological chart stretches", () => {
     () => terrainConnectorLengthIsRenderable(36, 0),
     /maximum length must be positive/
   );
+});
+
+test("equivalent visible connector arrays share one beach-wave cache key", () => {
+  const first = [{ a: 12, b: 4 }, { a: 12, b: 19 }];
+  const recreated = [{ a: 4, b: 12 }, { a: 12, b: 19 }];
+  assert.equal(terrainConnectorCallSequenceKey(first), terrainConnectorCallSequenceKey(recreated));
+  assert.notEqual(
+    terrainConnectorCallSequenceKey(first),
+    terrainConnectorCallSequenceKey([{ a: 12, b: 4 }, { a: 12, b: 20 }])
+  );
+  assert.equal(terrainConnectorEdgeKey({ a: 7, b: 2 }), "2:7");
+  assert.throws(() => terrainConnectorCallSequenceKey([{ a: 3, b: 3 }]), /distinct integer tile ids/);
 });
