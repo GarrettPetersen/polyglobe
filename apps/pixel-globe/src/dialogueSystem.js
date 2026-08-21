@@ -447,6 +447,24 @@ export function createPortDialogueSession(city, options = {}) {
   };
 }
 
+export function restorePortDialogueCityIdentity(session, city) {
+  if (session?.kind !== "port") throw new Error("Port city identity requires a port dialogue session");
+  if (!Number.isInteger(city?.tileId)) throw new Error("Port city identity requires a city tile");
+  if (city.tileId !== session.cityTileId) {
+    throw new Error(`Port dialogue city changed from tile ${session.cityTileId} to ${city.tileId}`);
+  }
+  if (typeof session.portId !== "string" || session.portId === "") {
+    throw new Error("Port dialogue session has no stable port id");
+  }
+  if (city.portId && city.portId !== session.portId) {
+    throw new Error(`Port dialogue city ${city.tileId} changed identity from ${session.portId} to ${city.portId}`);
+  }
+  return {
+    ...city,
+    portId: session.portId
+  };
+}
+
 export function createPortArrivalDialogueSession(city, options = {}) {
   const needsLoadout = options.needsLoadout === true;
   const arrivedDrunk = options.arrivedDrunk === true;

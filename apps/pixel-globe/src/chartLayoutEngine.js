@@ -3,6 +3,7 @@ import { planChartSettlementTowardTargets } from "./chartReframe.js";
 const CHART_REBUILD_REASON_KEYS = Object.freeze([
   "missingChart",
   "concealedRepair",
+  "swellRepair",
   "viewportCoverage",
   "missingCenter",
   "projectionTravel"

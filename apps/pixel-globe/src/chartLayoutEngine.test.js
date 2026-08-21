@@ -141,6 +141,7 @@ test("chart rebuild requests and counters use one canonical reason roster", () =
   const request = chartRebuildRequest({
     missingChart: false,
     concealedRepair: true,
+    swellRepair: true,
     viewportCoverage: true,
     missingCenter: false,
     projectionTravel: false
@@ -150,6 +151,7 @@ test("chart rebuild requests and counters use one canonical reason roster", () =
   assert.deepEqual(tracker.snapshot(), {
     missingChart: 0,
     concealedRepair: 1,
+    swellRepair: 1,
     viewportCoverage: 1,
     missingCenter: 0,
     projectionTravel: 0

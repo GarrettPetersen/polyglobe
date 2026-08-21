@@ -867,6 +867,7 @@ import {
   prepareDamageSurrenderDialogue,
   preparePassengerDialogueArrival,
   prepareSurrenderPrizeDialogue,
+  restorePortDialogueCityIdentity,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
   selectPortDialogueOption,
@@ -3833,12 +3834,15 @@ let chartModalReframeSourceTilePositions = null;
 let chartModalReframeWave = null;
 let chartDriftMeasuredAtMs = -Infinity;
 const CHART_DRIFT_MEASURE_INTERVAL_MS = 500;
+const CHART_SWELL_REPAIR_REBUILD_INTERVAL_MS = 1_000;
 let chartViewportCoverageRepairPending = false;
 const chartRebuildTracker = createChartRebuildTracker();
 let chartRepairCloudBank = null;
 let chartRepairFog = null;
 let chartRepairHeatHaze = null;
 let chartRepairSwellUntilMs = -Infinity;
+let chartRepairSwellRebuildPending = false;
+let chartRepairSwellNextRebuildAtMs = -Infinity;
 let polarChartRepairPressure = 0;
 let polarChartRepairPressureUpdatedAtMs = null;
 let chartRepairCooldownUntilMs = -Infinity;
@@ -10466,6 +10470,8 @@ function injectChartRecoveryDiagnosticDistortion(tiltDeg, distortionScale) {
   chartRepairFog = null;
   chartRepairHeatHaze = null;
   chartRepairSwellUntilMs = -Infinity;
+  chartRepairSwellRebuildPending = false;
+  chartRepairSwellNextRebuildAtMs = -Infinity;
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = -Infinity;
   coveredChartRepairQueue.clear();
@@ -23110,8 +23116,11 @@ function currentDialogueCity() {
       };
     }
   }
-  const city = cityByTileId.get(dialogueState.cityTileId);
-  if (!city) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
+  const placedCity = cityByTileId.get(dialogueState.cityTileId);
+  if (!placedCity) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
+  const city = dialogueState.kind === "port"
+    ? restorePortDialogueCityIdentity(dialogueState, placedCity)
+    : placedCity;
   const questCharacter = dialogueState.kind !== "port"
     ? null
     : ["drunk-captain", "quest-cargo-sale-warning"].includes(dialogueState.nodeId)
@@ -25217,6 +25226,11 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     chartFaultNeedsCloudRepair({ drift, terrainTear })
   ) {
     chartRepairSwellUntilMs = Math.max(chartRepairSwellUntilMs, nowMs + 12_000);
+    if (nowMs >= chartRepairSwellNextRebuildAtMs) {
+      chartRepairSwellRebuildPending = true;
+      chartRepairSwellNextRebuildAtMs = nowMs + CHART_SWELL_REPAIR_REBUILD_INTERVAL_MS;
+      chartVisualRepairStats.swellRebuildsRequested++;
+    }
     chartRepairPendingConfirmation = null;
     return true;
   }
@@ -25404,7 +25418,6 @@ function updateChartVisualRepair(nowMs) {
   if (
     polarFog &&
     !chartRepairCloudBank &&
-    !chartRepairFog &&
     !chartRepairHeatHaze &&
     nowMs >= polarFogNextTileRepairAtMs
   ) {
@@ -26068,6 +26081,12 @@ function chartFaultHasLocalElasticWaterTarget(terrainTear) {
 
 function createChartVisualRepairStats() {
   return {
+    swellRebuildsRequested: 0,
+    swellSettlementAttempts: 0,
+    swellFrameChanges: 0,
+    swellEligibleTiles: 0,
+    swellOffsetChanges: 0,
+    swellCandidateTiles: 0,
     swellRepairPasses: 0,
     swellTilesSettled: 0,
     cloudBanksStarted: 0,
@@ -26358,6 +26377,8 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   chartRepairFog = null;
   chartRepairHeatHaze = null;
   chartRepairSwellUntilMs = -Infinity;
+  chartRepairSwellRebuildPending = false;
+  chartRepairSwellNextRebuildAtMs = -Infinity;
   // Keep the displayed polar bank continuous through the hidden reframe. Its
   // pressure can relax naturally after the rebuilt chart is already north-up.
   polarChartRepairPressureUpdatedAtMs = lastFrameMs;
@@ -37105,7 +37126,7 @@ function currentOceanSwellPresentation() {
   const wind = playerWindState ? windForShip() : { directionRad: 0 };
   const stormStart = STORM_ACTIVE_INTENSITY * 0.45;
   const naturalStormStrength = smoothstep(stormStart, 1, playerStormIntensity());
-  const repairStrength = lastFrameMs < chartRepairSwellUntilMs ? 0.05 : 0;
+  const repairStrength = lastFrameMs < chartRepairSwellUntilMs ? 1 : 0;
   const stormStrength = Math.max(naturalStormStrength, repairStrength);
   return oceanSwellState({
     nowMs: waterAnimationClockMs,
@@ -38471,17 +38492,20 @@ function ensureChart() {
     chart && chartProjectionOffsetPixels(chart).magnitude > CHART_REBUILD_RADIUS_PX
   );
   const shouldRebuild = !chart || concealedRepairIsPending ||
-    chartViewportCoverageRepairPending || missingCenter || projectionTravelled;
+    chartRepairSwellRebuildPending || chartViewportCoverageRepairPending ||
+    missingCenter || projectionTravelled;
   if (shouldRebuild) {
     const rebuildRequest = chartRebuildRequest({
       missingChart: !chart,
       concealedRepair: concealedRepairIsPending,
+      swellRepair: chartRepairSwellRebuildPending,
       viewportCoverage: chartViewportCoverageRepairPending,
       missingCenter,
       projectionTravel: projectionTravelled
     });
     chartRebuildTracker.record(rebuildRequest);
     const coverageRepairWasPending = chartViewportCoverageRepairPending;
+    chartRepairSwellRebuildPending = false;
     chartViewportCoverageRepairPending = false;
     chart = buildChart(camera);
     if (coverageRepairWasPending) recoverPersistentlyUncoveredViewport();
@@ -38808,6 +38832,7 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
     previousPresentation.surfaceIceRevision === surfaceIceSettledRevision
   ) {
     const currentSwell = currentOceanSwellPresentation();
+    const swellFrameChanged = previousPresentation.swell.cacheKey !== currentSwell.cacheKey;
     const movableTileIds = new Set();
     const previousOffsetsById = new Map();
     const currentOffsetsById = new Map();
@@ -38848,6 +38873,17 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
         viewY: localLayout.viewY,
         maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX
       });
+    if (lastFrameMs < chartRepairSwellUntilMs) {
+      chartVisualRepairStats.swellSettlementAttempts++;
+      if (swellFrameChanged) chartVisualRepairStats.swellFrameChanges++;
+      chartVisualRepairStats.swellEligibleTiles += movableTileIds.size;
+      chartVisualRepairStats.swellOffsetChanges += [...movableTileIds].filter((id) => {
+        const previous = previousOffsetsById.get(id);
+        const current = currentOffsetsById.get(id);
+        return previous.x !== current.x || previous.y !== current.y;
+      }).length;
+      chartVisualRepairStats.swellCandidateTiles += proposedPositions.size;
+    }
     const { settledPositions: settlement } = planNorthUpChartSettlement({
       tileIds: new Set(proposedPositions.keys()),
       maximumStepPx: MAX_PROTECTED_ADMISSION_SLACK_PX,

@@ -209,7 +209,7 @@ export function planChartSettlementTowardTargets({
       edges,
       maximumStepPx,
       maximumStepPxById,
-      maximumIterations: 16
+      maximumIterations: 20
     });
   } else {
     // Let the concealed group distribute its small north-up step before

@@ -18,6 +18,7 @@ import {
   portDialogueView,
   prepareDamageSurrenderDialogue,
   prepareSurrenderPrizeDialogue,
+  restorePortDialogueCityIdentity,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
   selectPortDialogueOption,
@@ -142,6 +143,17 @@ import {
   NAMED_CREW_ROLE_HISTORIAN,
   addNamedCrewMember
 } from "./namedCrew.js";
+
+test("a port dialogue fallback retains the admitted port's visit memory identity", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const admittedPort = { tileId: 17, portId: "dock-17", city: "Cordoba" };
+  visitPort(state, admittedPort, 0);
+  const session = createPortDialogueSession(admittedPort, { admittedToPort: true });
+  const fallbackCity = restorePortDialogueCityIdentity(session, { tileId: 17, city: "Cordoba" });
+
+  assert.equal(fallbackCity.portId, admittedPort.portId);
+  assert.equal(portMemory(state, fallbackCity).visits, 1);
+});
 
 test("hailing an NPC ship identifies the captain by name", () => {
   const ship = { id: "mediterranean-4", label: "Xebec", character: { name: "Marco Doria" } };

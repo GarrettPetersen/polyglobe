@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CHART_INTEGRITY_ACTIVE_REPAIR_CONFIRMATION_MS,
   CHART_INTEGRITY_CATASTROPHIC_CONFIRMATION_MS,
   CHART_INTEGRITY_SEVERE_CONFIRMATION_MS,
   chartIntegrityIncidentError,
@@ -55,6 +56,21 @@ test("persistent severe tilt produces one incident per unhealthy episode", () =>
   assert.equal(chartIntegrityIncidentError(incident).name, "ChartIntegrityTilt");
 });
 
+test("an active repair gets time to settle a severe fault without masking a failure", () => {
+  const monitor = createChartIntegrityTelemetryMonitor();
+  const fault = { rmsDistortionPx: 13, repairKind: "ocean-swell" };
+  assert.equal(observeChartIntegrityTelemetry(monitor, sample(0, fault)), null);
+  assert.equal(observeChartIntegrityTelemetry(
+    monitor,
+    sample(CHART_INTEGRITY_SEVERE_CONFIRMATION_MS, fault)
+  ), null);
+  const incident = observeChartIntegrityTelemetry(
+    monitor,
+    sample(CHART_INTEGRITY_ACTIVE_REPAIR_CONFIRMATION_MS, fault)
+  );
+  assert.equal(incident.category, "rms-distortion");
+});
+
 test("catastrophic coast compression reports quickly with tile context", () => {
   const monitor = createChartIntegrityTelemetryMonitor();
   const fault = { tearPx: 40, signedTearPx: -40, surface: "coast" };
@@ -70,7 +86,7 @@ test("catastrophic coast compression reports quickly with tile context", () => {
 
 test("persistent viewport voids are distinguished from geometric tears", () => {
   const monitor = createChartIntegrityTelemetryMonitor();
-  const fault = { viewportInteriorGapPx: 130 };
+  const fault = { viewportInteriorGapPx: 130, repairKind: "closing-fog" };
   observeChartIntegrityTelemetry(monitor, sample(0, fault));
   const incident = observeChartIntegrityTelemetry(
     monitor,
@@ -112,7 +128,8 @@ function sample(nowMs, {
   viewportEdgeGapPx = 0,
   viewportInteriorGapPx = 20,
   waterTearPx = 0,
-  signedWaterTearPx = waterTearPx
+  signedWaterTearPx = waterTearPx,
+  repairKind = "none"
 } = {}) {
   return {
     nowMs,
@@ -142,6 +159,6 @@ function sample(nowMs, {
       },
       viewportTileCount: 120
     },
-    repairKind: "closing-fog"
+    repairKind
   };
 }

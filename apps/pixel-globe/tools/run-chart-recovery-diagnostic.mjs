@@ -49,6 +49,29 @@ const allCases = [
     forbidAtmosphericRepairs: true
   },
   {
+    id: "open-ocean-swell-repair",
+    scenarioId: "diagnostic-chart-recovery-ocean",
+    tiltDeg: 0,
+    distortionScale: 1.06,
+    speedRatio: 0.5,
+    durationSeconds: 18,
+    deterministicTravelPx: 260,
+    passiveOnly: false,
+    allowDialogue: false,
+    maximumFinalTiltDeg: 4,
+    maximumFinalRmsDistortionPx: 10,
+    minimumRmsImprovementRatio: 0.2,
+    maximumFinalTearPx: 8,
+    maximumFinalWaterTearPx: 18,
+    maximumObservedTiltDeg: 8,
+    maximumObservedVisibleTiltDeg: 8,
+    maximumObservedUnobscuredTearPx: 10,
+    maximumObservedUnobscuredWaterTearPx: 18,
+    maximumIntegrityIncidents: 0,
+    requireSwellRepair: true,
+    forbidAtmosphericRepairs: true
+  },
+  {
     id: "north-sea-broad-distortion-repair",
     scenarioId: "diagnostic-chart-recovery-north-sea",
     tiltDeg: 3.5,
@@ -215,9 +238,18 @@ async function runDiagnosticCase(browser, baseUrl, diagnosticCase) {
         const sample = await page.evaluate(({ distancePx, elapsedMs }) => {
           const diagnostic = window.__PIXEL_GLOBE_CHART_RECOVERY_TEST__;
           if (diagnostic.snapshot().dialogueActive) diagnostic.advanceDialogue();
-          return distancePx > 0
-            ? diagnostic.advanceTravel(distancePx, elapsedMs)
-            : diagnostic.snapshot();
+          if (distancePx <= 0) return diagnostic.snapshot();
+          let remainingPx = distancePx;
+          let snapshot = null;
+          while (remainingPx > 0) {
+            const chunkPx = Math.min(320, remainingPx);
+            snapshot = diagnostic.advanceTravel(
+              chunkPx,
+              elapsedMs * chunkPx / distancePx
+            );
+            remainingPx -= chunkPx;
+          }
+          return snapshot;
         }, {
           distancePx: travelThisSamplePx,
           elapsedMs: travelThisSamplePx / initial.speedPxPerSecond * 1000
@@ -384,6 +416,15 @@ function validateCase(diagnosticCase, samples) {
   if (final.integrityTelemetry.samplesObserved < 2) {
     failures.push("chart integrity telemetry did not observe the moving diagnostic");
   }
+  if (
+    Number.isInteger(diagnosticCase.maximumIntegrityIncidents) &&
+    final.integrityTelemetry.incidentsDetected > diagnosticCase.maximumIntegrityIncidents
+  ) {
+    failures.push(
+      `reported ${final.integrityTelemetry.incidentsDetected} integrity incidents; ` +
+        `limit ${diagnosticCase.maximumIntegrityIncidents}`
+    );
+  }
   const oversizedMoves = final.coveredTileMoves.filter((move) => (
     Math.abs(move.toX - move.fromX) > move.maximumStepPx ||
       Math.abs(move.toY - move.fromY) > move.maximumStepPx
@@ -419,6 +460,9 @@ function validateCase(diagnosticCase, samples) {
     if (assistedRepairs !== 0) {
       failures.push(`ordinary-admission case used ${assistedRepairs} assisted repairs`);
     }
+  }
+  if (diagnosticCase.requireSwellRepair && final.repairs.swellRepairPasses === 0) {
+    failures.push("summoned swell repair moved no ocean tiles");
   }
   if (diagnosticCase.forbidAtmosphericRepairs) {
     const repairs = final.repairs;
