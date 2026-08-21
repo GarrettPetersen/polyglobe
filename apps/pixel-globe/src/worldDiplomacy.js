@@ -119,7 +119,7 @@ export function validateWorldDiplomacy(state) {
 }
 
 export function migrateWorldDiplomacy(state, {
-  inactiveFactionIds = [],
+  inactiveFactionIds = /** @type {string[] | Set<string>} */ ([]),
   neutralizeIntroducedFactions = state?.version < WORLD_DIPLOMACY_VERSION
 } = {}) {
   if (!state || typeof state !== "object") {

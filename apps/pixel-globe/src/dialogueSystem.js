@@ -1579,7 +1579,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
     return portugueseCartazMarketOfferView(session, city, gameState, economy, context);
   }
   if (session.nodeId === "portuguese-cartaz-market-declined") {
-    return portugueseCartazMarketDeclinedView(session, city, gameState, economy, context);
+    return portugueseCartazMarketDeclinedView(session, city, gameState, economy);
   }
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
   if (session.nodeId === "trade-tip") return tradeTipView(session, city);
@@ -3751,7 +3751,7 @@ function greetingView(session, city, gameState, context) {
   }
   if (city.isPirateHideout) return pirateHideoutGreetingView(city, memory, context);
   if (city.playerFoundedColony || city.playerDevelopedPort) {
-    const discountPercent = founderPurchaseDiscountPercent(city);
+    const discountPercent = founderPurchaseDiscountPercent();
     const developedPortText = memory.visits > 1
       ? `Welcome back, captain. Nagasaki's factors still honor your ${discountPercent}% trading discount.`
       : `The China ship has made Nagasaki a city. For opening its harbor, you receive ${discountPercent}% off goods you buy here.`;

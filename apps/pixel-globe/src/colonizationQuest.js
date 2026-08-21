@@ -898,7 +898,7 @@ export function completeColonizationDefense(memory, currentMinute) {
 export function advanceColonizationAftermaths(
   memory,
   currentMinute,
-  { isTileVisible = () => false } = {}
+  { isTileVisible = (_tileId) => false } = {}
 ) {
   validateColonizationQuestMemory(memory);
   assertMinute(currentMinute);

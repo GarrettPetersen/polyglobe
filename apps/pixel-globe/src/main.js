@@ -337,6 +337,7 @@ import {
   resolvePlayerCharacterIdentityKey
 } from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
+import { combatMusicTrackForThreat } from "./combatMusic.js";
 import { randomizedSfxPlaybackRate } from "./sfxPitch.js";
 import {
   advanceSmoothedWindState,
@@ -2981,10 +2982,6 @@ const MUSIC_TRACK_SPECS = Object.freeze({
   cityAndean: {
     intro: "assets/music/city-andean-intro.ogg",
     loop: "assets/music/city-andean-loop.ogg"
-  },
-  combat: {
-    intro: "assets/music/combat-theme-intro.ogg",
-    loop: "assets/music/combat-theme-loop.ogg"
   },
   combatSmall: {
     intro: "assets/music/combat-small-intro.ogg",
@@ -9141,8 +9138,8 @@ function musicTrackForCity(city) {
   return CITY_TYPE_MUSIC_TRACK_KEYS[city?.cityType] || "ship";
 }
 
-function startCombatMusicForThreat() {
-  const trackKey = "combat";
+function startCombatMusicForThreat(threat) {
+  const trackKey = combatMusicTrackForThreat(threat);
   combatMusicUntilMs = Math.max(combatMusicUntilMs, lastFrameMs + COMBAT_MUSIC_HOLD_MS);
   playMusicTrack(trackKey, { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS });
 }
@@ -9156,7 +9153,7 @@ function combatMusicIsActive(nowMs) {
 }
 
 function isCombatMusicTrack(trackKey) {
-  return trackKey === "combat" || trackKey === "combatSmall" || trackKey === "combatBig";
+  return trackKey === "combatSmall" || trackKey === "combatBig";
 }
 
 function updateMusicContext(nowMs) {
@@ -25804,7 +25801,7 @@ function repairCloudCoveredChartTiles(
 function repairCoveredChartTiles({
   reason,
   fullyCoversCircle,
-  shouldRepairTile = () => true,
+  shouldRepairTile = (_tileId) => true,
   repairPlan = null,
   settlementSupportTileIds = null,
   maximumStepPx = 1,

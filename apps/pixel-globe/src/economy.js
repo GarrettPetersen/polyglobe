@@ -1429,8 +1429,8 @@ export function planNpcTrade(
   {
     cargoCapacity,
     specie,
-    purchasePriceMultiplier = () => 1,
-    salePriceMultiplier = () => 1
+    purchasePriceMultiplier = (_goodId) => 1,
+    salePriceMultiplier = (_goodId) => 1
   }
 ) {
   assertCargoCapacity(cargoCapacity);
@@ -1550,7 +1550,7 @@ export function planNpcTrade(
   };
 }
 
-export function cargoSaleValue(economy, city, cargo, salePriceMultiplier = () => 1) {
+export function cargoSaleValue(economy, city, cargo, salePriceMultiplier = (_goodId) => 1) {
   const port = requiredPortState(economy, city);
   let value = 0;
   for (const [goodId, quantity] of Object.entries(cargo || {})) {

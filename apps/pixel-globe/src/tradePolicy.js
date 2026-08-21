@@ -114,7 +114,7 @@ export function evaluateTradeAccess({
   relationToFaction = null,
   foreignSettlementExpulsions = null,
   simMinute = 0,
-  tradeAccessGranted = () => false,
+  tradeAccessGranted = (_policyId, _factionId) => false,
   suzeraintyPrivilege = null,
   illicitAccessPolicyId = null,
   disguisedEntry = false

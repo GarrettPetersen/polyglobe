@@ -10,7 +10,7 @@ export function createBattleSpatialGrid(cellSize = 96) {
   };
 }
 
-export function rebuildBattleSpatialGrid(grid, items, active = (item) => item.active !== false) {
+export function rebuildBattleSpatialGrid(grid, items, active = (item, _index) => item.active !== false) {
   assertGrid(grid);
   if (!Array.isArray(items)) throw new Error("Battle spatial grid requires an item array");
   if (typeof active !== "function") throw new Error("Battle spatial grid requires an activity predicate");

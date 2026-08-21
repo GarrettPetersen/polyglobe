@@ -193,8 +193,12 @@ export function illicitCargoAvailable(incident, cargo) {
     throw new Error("Illicit cargo inspection requires a cargo manifest");
   }
   return Object.fromEntries(Object.entries(incident.purchasedCargo)
-    .map(([goodId, quantity]) => [goodId, Math.min(quantity, cargo[goodId] || 0)])
-    .filter(([, quantity]) => quantity > 0));
+    .map(([goodId, quantity]) => ({
+      goodId,
+      quantity: Math.min(Number(quantity), cargo[goodId] || 0)
+    }))
+    .filter((entry) => entry.quantity > 0)
+    .map((entry) => [entry.goodId, entry.quantity]));
 }
 
 function requiredIncident(memory, incidentId) {

@@ -60,6 +60,7 @@ export function nearestStaticPoint(index, x, y) {
     Math.abs(centerCellY - index.minCellY),
     Math.abs(centerCellY - index.maxCellY)
   );
+  /** @type {{ entry: any, x: number, y: number } | null} */
   let nearest = null;
   let nearestDistanceSquared = Number.POSITIVE_INFINITY;
   for (let ring = 0; ring <= maximumRing; ring++) {

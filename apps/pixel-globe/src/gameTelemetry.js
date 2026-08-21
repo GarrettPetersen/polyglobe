@@ -26,6 +26,7 @@ const TELEMETRY_REQUEST_TIMEOUT_MS = 2500;
 const TELEMETRY_QUEUE_LIMIT = 12;
 const TELEMETRY_BATCH_LIMIT = 8;
 const BROWSER_EXTENSION_URL_PATTERN = /(?:chrome|moz|safari-web|ms-browser)-extension:\/\//i;
+/** @type {ReadonlyArray<readonly [string, (state: any, decisions: any) => boolean]>} */
 const TELEMETRY_FEATURES = Object.freeze([
   ["trade", (state, decisions) => hasDecisionPrefix(decisions, "trade.buy.") ||
     hasDecisionPrefix(decisions, "trade.sell.")],

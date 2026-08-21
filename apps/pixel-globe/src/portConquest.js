@@ -357,18 +357,18 @@ export function chooseCapitalPeaceSettlement(memory, ports, captureEvent, roll =
       (1 - options.occupationRatio) * 2
     : 0;
   const weightedTerms = [
-    [CAPITAL_PEACE_TERM_ANNEXATION, annexationWeight],
-    [CAPITAL_PEACE_TERM_VASSALAGE, vassalageWeight],
-    [CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE, autonomousVassalageWeight],
-    [CAPITAL_PEACE_TERM_TRIBUTARY, tributaryWeight],
-    [CAPITAL_PEACE_TERM_CONCESSIONS, concessionsWeight]
-  ].filter(([, weight]) => weight > 0);
-  const totalWeight = weightedTerms.reduce((sum, [, weight]) => sum + weight, 0);
+    { term: CAPITAL_PEACE_TERM_ANNEXATION, weight: annexationWeight },
+    { term: CAPITAL_PEACE_TERM_VASSALAGE, weight: vassalageWeight },
+    { term: CAPITAL_PEACE_TERM_AUTONOMOUS_VASSALAGE, weight: autonomousVassalageWeight },
+    { term: CAPITAL_PEACE_TERM_TRIBUTARY, weight: tributaryWeight },
+    { term: CAPITAL_PEACE_TERM_CONCESSIONS, weight: concessionsWeight }
+  ].filter((entry) => entry.weight > 0);
+  const totalWeight = weightedTerms.reduce((sum, entry) => sum + entry.weight, 0);
   if (!(totalWeight > 0)) throw new Error("Capital peace settlement has no available sovereign terms");
   let cursor = roll * totalWeight;
-  let selectedTerm = weightedTerms[weightedTerms.length - 1][0];
+  let selectedTerm = weightedTerms[weightedTerms.length - 1].term;
   let selectedTermRoll = 1;
-  for (const [term, weight] of weightedTerms) {
+  for (const { term, weight } of weightedTerms) {
     if (cursor < weight) {
       selectedTerm = term;
       selectedTermRoll = cursor / weight;

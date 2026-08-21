@@ -13,7 +13,7 @@ export function buildChartTileProtection({
   terrainClassForTile,
   featureTileIds = [],
   protectionRings = 2,
-  pentagonNeedsProtection = () => true
+  pentagonNeedsProtection = (_tileId) => true
 }) {
   validateInputs(graph, terrainClassForTile, protectionRings, pentagonNeedsProtection);
   const terrainClasses = Array.from(

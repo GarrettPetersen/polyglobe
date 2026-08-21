@@ -287,7 +287,7 @@ export function findNpcVisualPlacement({
   radialStepPx,
   angleCount,
   evaluate,
-  accept = () => true,
+  accept = (_candidate) => true,
   includeOrigin = true
 }) {
   validatePoint(origin, "origin");

@@ -12,7 +12,7 @@ export async function loadImageWithRetry({
   label,
   createImage,
   retryDelaysMs = DEFAULT_RETRY_DELAYS_MS,
-  beforeRetry = async () => {},
+  beforeRetry = async (_retry) => {},
   sleep = defaultSleep
 }) {
   if (typeof src !== "string" || src.length === 0) throw new Error("Image source is required");
