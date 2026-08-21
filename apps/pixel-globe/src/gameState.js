@@ -95,6 +95,13 @@ import {
 } from "./shipLoadouts.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { claimPlayerShipyardPayout, shipyardAtPort } from "./shipyards.js";
+import {
+  TRAVELER_KIND_CAPTIVE,
+  TRAVELER_KIND_ENVOY,
+  TRAVELER_KIND_PASSENGER,
+  TRAVELER_KIND_SETTLER,
+  createTravelerGroup
+} from "./travelerKinds.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import {
@@ -2859,26 +2866,26 @@ function shipTravelerManifestForValidatedState(state) {
   const passengerGroup = activeQuestTravelerGroup(state.memory.quests?.passengerActive || null);
   if (passengerGroup) groups.push(passengerGroup);
   if (state.relations.papacy.pendingMatter?.status === PAPAL_MATTER_COMMISSIONED) {
-    groups.push(Object.freeze({ kind: "envoy", count: 1 }));
+    groups.push(createTravelerGroup(TRAVELER_KIND_ENVOY, 1));
   }
   const maltaQuest = state.memory.quests?.hospitallerMalta;
   if (maltaQuest?.stage === HOSPITALLER_MALTA_STAGE_PETITION ||
       maltaQuest?.stage === HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME) {
-    groups.push(Object.freeze({ kind: "envoy", count: 1 }));
+    groups.push(createTravelerGroup(TRAVELER_KIND_ENVOY, 1));
   }
   const pirateCaptive = state.memory.quests?.pirateCaptive?.active || null;
   if (pirateCaptive && pirateCaptiveIsAboard(pirateCaptive)) {
-    groups.push(Object.freeze({
-      kind: pirateCaptiveIsDetained(pirateCaptive) ? "captive" : "passenger",
-      count: 1
-    }));
+    groups.push(createTravelerGroup(
+      pirateCaptiveIsDetained(pirateCaptive) ? TRAVELER_KIND_CAPTIVE : TRAVELER_KIND_PASSENGER,
+      1
+    ));
   }
   const castaway = state.memory.quests?.castaway?.active || null;
   if (castaway && castaway.stage === "aboard") {
-    groups.push(Object.freeze({ kind: "passenger", count: 1 }));
+    groups.push(createTravelerGroup(TRAVELER_KIND_PASSENGER, 1));
   }
   if (state.memory.colonization.stage === COLONIZATION_STAGE_OUTBOUND) {
-    groups.push(Object.freeze({ kind: "settler", count: COLONIZATION_SETTLER_COUNT }));
+    groups.push(createTravelerGroup(TRAVELER_KIND_SETTLER, COLONIZATION_SETTLER_COUNT));
   }
   return Object.freeze(groups);
 }
@@ -2905,19 +2912,19 @@ function travelerManifestCount(groups) {
 
 function activeQuestTravelerGroup(quest) {
   if (!quest) return null;
-  if (quest.kind === "passenger") return Object.freeze({ kind: "passenger", count: 1 });
+  if (quest.kind === "passenger") return createTravelerGroup(TRAVELER_KIND_PASSENGER, 1);
   if (isEnvoyQuest(quest)) {
     const count = quest.envoyCount ?? 1;
     if (!Number.isInteger(count) || count <= 0) {
       throw new Error(`Invalid envoy count: ${count}`);
     }
-    return Object.freeze({ kind: "envoy", count });
+    return createTravelerGroup(TRAVELER_KIND_ENVOY, count);
   }
   const count = quest.passengerCount ?? quest.passengers?.length ?? 0;
   if (!Number.isInteger(count) || count < 0) {
     throw new Error(`Invalid quest passenger count: ${count}`);
   }
-  return count > 0 ? Object.freeze({ kind: "passenger", count }) : null;
+  return count > 0 ? createTravelerGroup(TRAVELER_KIND_PASSENGER, count) : null;
 }
 
 export function initializeShipProvisions(state, rationCount = STARTING_HARDTACK_RATIONS) {

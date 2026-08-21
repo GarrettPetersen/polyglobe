@@ -1,18 +1,31 @@
-export const ABOARD_ROLE_CAPTAIN = "captain";
-export const ABOARD_ROLE_PASSENGER = "passenger";
-export const ABOARD_ROLE_EMISSARY = "emissary";
-export const ABOARD_ROLE_CAPTIVE = "captive";
-export const ABOARD_ROLE_COLONY_LEADER = "colony-leader";
-export const ABOARD_ROLE_CREWMATE = "crewmate";
-export const ABOARD_ROLE_COLONIST = "colonist";
-export const ABOARD_ROLE_ANIMAL = "animal";
+import {
+  TRAVELER_KINDS,
+  TRAVELER_KIND_SETTLER,
+  assertNamedTravelerKind,
+  assertTravelerGroup
+} from "./travelerKinds.js";
+import {
+  ABOARD_ROLE_ANIMAL,
+  ABOARD_ROLE_CAPTAIN,
+  ABOARD_ROLE_CAPTIVE,
+  ABOARD_ROLE_COLONIST,
+  ABOARD_ROLE_COLONY_LEADER,
+  ABOARD_ROLE_CREWMATE,
+  ABOARD_ROLE_EMISSARY,
+  ABOARD_ROLE_PASSENGER,
+  ABOARD_TRAVELER_ROLE
+} from "./aboardRoles.js";
 
-const TRAVELER_ROLE = Object.freeze({
-  passenger: ABOARD_ROLE_PASSENGER,
-  envoy: ABOARD_ROLE_EMISSARY,
-  captive: ABOARD_ROLE_CAPTIVE,
-  settler: ABOARD_ROLE_COLONIST
-});
+export {
+  ABOARD_ROLE_ANIMAL,
+  ABOARD_ROLE_CAPTAIN,
+  ABOARD_ROLE_CAPTIVE,
+  ABOARD_ROLE_COLONIST,
+  ABOARD_ROLE_COLONY_LEADER,
+  ABOARD_ROLE_CREWMATE,
+  ABOARD_ROLE_EMISSARY,
+  ABOARD_ROLE_PASSENGER
+} from "./aboardRoles.js";
 
 export function aboardRoster({
   captain,
@@ -34,10 +47,7 @@ export function aboardRoster({
 
   const remainingTravelers = new Map();
   for (const group of travelerGroups) {
-    if (!group || !TRAVELER_ROLE[group.kind]) {
-      throw new Error(`Unknown aboard traveler kind: ${group?.kind}`);
-    }
-    assertCount(group.count, `${group.kind} travelers`);
+    assertTravelerGroup(group, "Aboard traveler");
     remainingTravelers.set(
       group.kind,
       (remainingTravelers.get(group.kind) || 0) + group.count
@@ -56,17 +66,15 @@ export function aboardRoster({
     if (!character || typeof character !== "object" || !character.name) {
       throw new Error("Named aboard traveler requires a character");
     }
-    if (kind !== "passenger" && kind !== "envoy" && kind !== "captive") {
-      throw new Error(`Named aboard traveler has invalid kind: ${kind}`);
-    }
+    assertNamedTravelerKind(kind, "Named aboard traveler");
     consumeTraveler(remainingTravelers, kind);
-    named.push(namedEntry(`traveler:${kind}:${character.id}`, character, TRAVELER_ROLE[kind]));
+    named.push(namedEntry(`traveler:${kind}:${character.id}`, character, ABOARD_TRAVELER_ROLE[kind]));
   }
   if (colonyLeader) {
     if (typeof colonyLeader !== "object" || !colonyLeader.name) {
       throw new Error("Aboard colony leader requires a character");
     }
-    consumeTraveler(remainingTravelers, "settler");
+    consumeTraveler(remainingTravelers, TRAVELER_KIND_SETTLER);
     named.push(namedEntry("colony-leader", colonyLeader, ABOARD_ROLE_COLONY_LEADER));
   }
   for (const character of animalCompanions) {
@@ -84,10 +92,10 @@ export function aboardRoster({
   for (let index = 0; index < Math.max(0, genericCrewCount); index++) {
     generic.push(genericEntry(`crew:${index}`, ABOARD_ROLE_CREWMATE));
   }
-  for (const kind of ["passenger", "envoy", "captive", "settler"]) {
+  for (const kind of TRAVELER_KINDS) {
     const count = remainingTravelers.get(kind) || 0;
     for (let index = 0; index < count; index++) {
-      generic.push(genericEntry(`${kind}:${index}`, TRAVELER_ROLE[kind]));
+      generic.push(genericEntry(`${kind}:${index}`, ABOARD_TRAVELER_ROLE[kind]));
     }
   }
 

@@ -1,13 +1,14 @@
+import { assertTravelerGroup } from "./travelerKinds.js";
+
 export const CREW_STATUS_ICON_WIDTH = 3;
 export const CREW_STATUS_ICON_HEIGHT = 6;
 
 const CREW_STATUS_NORMAL_PITCH = CREW_STATUS_ICON_WIDTH + 1;
-const TRAVELER_KINDS = new Set(["passenger", "envoy", "settler", "captive"]);
 
 export function crewStatusCount({ crewCount, travelerGroups = [] }) {
   assertCount(crewCount, "crew");
   if (!Array.isArray(travelerGroups)) throw new Error("Crew status travelers must be an array");
-  for (const group of travelerGroups) validateTravelerGroup(group);
+  for (const group of travelerGroups) assertTravelerGroup(group, "Crew status traveler");
   return crewCount + travelerGroups.reduce((sum, group) => sum + group.count, 0);
 }
 
@@ -48,13 +49,6 @@ function personEntry(kind, kindIndex, rowIndex, x, y, pitch, variant) {
     x: x + Math.round(rowIndex * pitch),
     y
   });
-}
-
-function validateTravelerGroup(group) {
-  if (!group || typeof group !== "object" || !TRAVELER_KINDS.has(group.kind)) {
-    throw new Error(`Invalid crew status traveler kind: ${group?.kind}`);
-  }
-  assertCount(group.count, `${group.kind} traveler`);
 }
 
 function assertCount(value, label) {

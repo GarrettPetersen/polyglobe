@@ -98,6 +98,14 @@ import {
   crewStatusCount,
   crewStatusLayout
 } from "./crewStatus.js";
+import { STATUS_PERSON_COLORS } from "./crewStatusColors.js";
+import {
+  TRAVELER_KIND_CAPTIVE,
+  TRAVELER_KIND_ENVOY,
+  TRAVELER_KIND_PASSENGER,
+  TRAVELER_KIND_SETTLER,
+  assertNamedTravelerKind
+} from "./travelerKinds.js";
 import {
   ABOARD_ROLE_ANIMAL,
   ABOARD_ROLE_CAPTAIN,
@@ -2593,13 +2601,6 @@ const STATUS_HUD_FORAGED_FOOD_URL = "assets/misc/meat.png";
 const STATUS_HUD_FISH_URL = "assets/misc/fish.png";
 const STATUS_HUD_WINE_URL = "assets/misc/wine.png";
 const STATUS_HUD_CRATE_SHEET_URL = "assets/misc/crate-Sheet.png";
-const STATUS_PERSON_COLORS = Object.freeze({
-  crew: Object.freeze(["#2e222f", "#3e3546"]),
-  passenger: Object.freeze(["#3b5dc9"]),
-  envoy: Object.freeze(["#f9c22b"]),
-  settler: Object.freeze(["#38b764"]),
-  captive: Object.freeze(["#9e3e36"])
-});
 const STATUS_PERSON_PARTICLE_DURATION_MS = 900;
 const STATUS_PERSON_PARTICLE_GRAVITY_PX = 26;
 const STATUS_PERSON_PARTICLE_LIMIT = 320;
@@ -43617,14 +43618,14 @@ function currentAboardRoster() {
   const namedTravelers = [];
   if (namedTravelMission) {
     namedTravelers.push({
-      kind: namedTravelMission.kind,
+      kind: assertNamedTravelerKind(namedTravelMission.kind, "Active named travel mission"),
       character: namedTravelMission.character
     });
   }
   const papalMatter = papalPendingMatter(gameState.relations.papacy);
   if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
     namedTravelers.push({
-      kind: "envoy",
+      kind: TRAVELER_KIND_ENVOY,
       character: papalMatter.commission.nuncio
     });
   }
@@ -43632,21 +43633,25 @@ function currentAboardRoster() {
   if ([HOSPITALLER_MALTA_STAGE_PETITION, HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME].includes(
     maltaQuest.stage
   )) {
-    namedTravelers.push({ kind: "envoy", character: maltaQuest.envoy });
+    namedTravelers.push({ kind: TRAVELER_KIND_ENVOY, character: maltaQuest.envoy });
   }
   for (const traveler of rescuedTravelers) {
     if (traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE) {
       if (pirateCaptiveIsAboard(traveler)) {
         namedTravelers.push({
-          kind: pirateCaptiveIsDetained(traveler) ? "captive" : "passenger",
+          kind: pirateCaptiveIsDetained(traveler)
+            ? TRAVELER_KIND_CAPTIVE
+            : TRAVELER_KIND_PASSENGER,
           character: traveler.character
         });
       }
     } else if (traveler.stage === RESCUED_TRAVELER_STAGE_ABOARD) {
-      namedTravelers.push({ kind: "passenger", character: traveler.character });
+      namedTravelers.push({ kind: TRAVELER_KIND_PASSENGER, character: traveler.character });
     }
   }
-  const hasColonists = travelerGroups.some((group) => group.kind === "settler" && group.count > 0);
+  const hasColonists = travelerGroups.some((group) => (
+    group.kind === TRAVELER_KIND_SETTLER && group.count > 0
+  ));
   const colonyLeader = hasColonists ? ensureColonizationOrganizer(gameState) : null;
   const colonization = hasColonists
     ? colonizationQuestView(gameState, { currentMinute: Math.max(0, weatherClockMinutes) })

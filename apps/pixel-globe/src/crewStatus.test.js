@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { crewStatusCount, crewStatusLayout } from "./crewStatus.js";
+import { TRAVELER_KINDS } from "./travelerKinds.js";
 
 test("crew status count treats the captain as crew and adds visible travelers", () => {
   assert.equal(crewStatusCount({
@@ -47,6 +48,18 @@ test("travelers follow the crew with their semantic kind", () => {
     "crew", "crew", "envoy", "settler", "settler", "captive"
   ]);
   assert.equal(layout.count, 6);
+});
+
+test("the crew HUD accepts every canonical traveler kind", () => {
+  const layout = crewStatusLayout({
+    crewCount: 1,
+    travelerGroups: TRAVELER_KINDS.map((kind) => ({ kind, count: 1 })),
+    x: 0,
+    y: 0,
+    width: 30
+  });
+
+  assert.deepEqual(layout.entries.slice(1).map((entry) => entry.kind), TRAVELER_KINDS);
 });
 
 test("very large crews share integer columns without leaving the row", () => {
