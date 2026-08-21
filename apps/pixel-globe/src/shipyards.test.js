@@ -17,8 +17,10 @@ import {
   shipConstructionPrice,
   shipReplacementTermsWithoutTradeIn,
   shipbuildingMaterialRequirements,
+  shipyardBuildDurationDays,
   shipTradeInValue,
   shipyardAtPort,
+  shipyardMaterialStatus,
   shipyardPurchaseTerms,
   shipyardQualityBudget,
   shipyardRumorForPort,
@@ -291,6 +293,7 @@ test("ship prices put major hulls far beyond casual fishing income", () => {
 test("nearby factors can gossip about an active shipyard listing", () => {
   const system = createWorldShipyards({ ports: [LISBON, PORTO], startMinute: 0 });
   const lisbonYard = shipyardAtPort(system, LISBON);
+  shipyardAtPort(system, PORTO).listing = null;
   lisbonYard.listing = generateShipyardListing(lisbonYard, 99, 0);
   const rumor = shipyardRumorForPort(system, PORTO, testSailingDistanceKm);
 
@@ -393,20 +396,42 @@ test("an unsold shipyard listing becomes an NPC hull purchase", () => {
   assert.equal(system.npcSales.length, 0);
 });
 
-test("completed hulls consume timber, iron, and naval stores from the port economy", () => {
+test("completed hulls stockpile and consume their full bill of materials", () => {
   const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0, seedKey: "materials" });
   const yard = shipyardAtPort(system, SMALL_PORT);
   yard.listing = null;
   yard.nextBuildMinute = 1;
-  const stocks = { timber: 100, iron: 100, "naval-stores": 100 };
+  const stocks = { timber: 100, iron: 100, "naval-stores": 100, "linen-cloth": 100 };
   advanceWorldShipyards(system, 2, {
     available: (_portId, goodId) => stocks[goodId],
     consume: (_portId, goodId, quantity) => { stocks[goodId] -= quantity; }
   });
   const requirements = shipbuildingMaterialRequirements(yard.listing.shipSlug);
   for (const [goodId, quantity] of Object.entries(requirements)) {
-    assert.equal(stocks[goodId], 100 - quantity, goodId);
+    assert.equal(
+      100 - stocks[goodId],
+      quantity + yard.materialInventory[goodId],
+      goodId
+    );
   }
+});
+
+test("large sailing ships require more material and take longer than small craft", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "hull-work" });
+  const yard = shipyardAtPort(system, LISBON);
+  const barque = shipbuildingMaterialRequirements("fishing-lugger");
+  const galleon = shipbuildingMaterialRequirements("galleon");
+  const canoe = shipbuildingMaterialRequirements("mesoamerican-dugout-canoe");
+
+  assert.ok(galleon.timber > barque.timber);
+  assert.ok(galleon.iron > barque.iron);
+  assert.ok(galleon["naval-stores"] > barque["naval-stores"]);
+  assert.ok(galleon["linen-cloth"] > barque["linen-cloth"]);
+  assert.equal(canoe["linen-cloth"], 0);
+  assert.ok(
+    shipyardBuildDurationDays(yard, "galleon", 7) >
+    shipyardBuildDurationDays(yard, "fishing-lugger", 7)
+  );
 });
 
 test("player-backed yards favor major hulls and return a sale share", () => {
@@ -621,6 +646,26 @@ test("shipyard snapshots restore listings and construction clocks", () => {
   assert.equal(lisbon.buildNumber, 14);
   assert.equal(lisbon.listing.id, snapshot.yards.find((yard) => yard.portId === LISBON.tileId).listing.id);
   assert.equal(lisbon.nextBuildMinute, 123456);
+});
+
+test("shipyard stores persist while version-six saves migrate to empty valid stores", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
+  const yard = shipyardAtPort(system, LISBON);
+  yard.materialInventory.timber = 7.5;
+  yard.materialInventory.iron = 3;
+  const snapshot = snapshotWorldShipyards(system);
+  const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
+  restoreWorldShipyards(restored, snapshot);
+  assert.deepEqual(shipyardAtPort(restored, LISBON).materialInventory, yard.materialInventory);
+
+  const legacySnapshot = structuredClone(snapshot);
+  legacySnapshot.version = 6;
+  for (const saved of legacySnapshot.yards) delete saved.materialInventory;
+  const migrated = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
+  restoreWorldShipyards(migrated, legacySnapshot);
+  assert.ok(shipyardMaterialStatus(shipyardAtPort(migrated, LISBON)).every(
+    (material) => material.stocked === 0
+  ));
 });
 
 function port(tileId, city, cityType, population, lat, lon, factionId = "neutral") {

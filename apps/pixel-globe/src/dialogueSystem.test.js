@@ -83,6 +83,7 @@ import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
 import { generateShipyardListing } from "./shipyards.js";
+import { beginShipyardInvestment } from "./shipyardInvestment.js";
 import { QUEST_ITINERARY_ORDERED, createQuestItinerary } from "./questItinerary.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
@@ -4586,6 +4587,75 @@ test("a returning shipyard investor receives an itemized sale-share greeting", (
   assert.match(view.text, /sold a Galleon/);
   assert.match(view.text, /22000 doubloons has been paid/);
   assert.equal(view.options.at(-1).action.nodeId, "greeting");
+});
+
+test("an owned shipyard buys uncommitted construction cargo through its stores tab", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    settlementType: "city",
+    population: 100000,
+    factionId: "portugal",
+    character: { name: "Fernao da Cunha" }
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  gameState.cargo.timber = 5;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const yard = fundWorldEconomyShipyard(economy, city, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  for (const goodId of ["timber", "iron", "naval-stores", "linen-cloth"]) {
+    yard.materialInventory[goodId] = 0;
+    economy.portStates.get(city.tileId).goods.get(goodId).stock = 0;
+  }
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "shipyard",
+    shipyardLedgerTab: "materials",
+    admittedToPort: true
+  });
+  const context = { shipStats: stats, shipyard: yard, simMinute: 100 };
+  const view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.optionColumns, 3);
+  const saleIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell-shipyard-material" && entry.action.goodId === "timber"
+  ));
+  assert.ok(saleIndex >= 0);
+  const result = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    saleIndex,
+    context
+  );
+
+  assert.equal(result.marketSale.good.id, "timber");
+  assert.equal(gameState.cargo.timber, undefined);
+  assert.equal(yard.materialInventory.timber, 5);
+  assert.equal(economy.portStates.get(city.tileId).goods.get("timber").stock, 0);
+  assert.match(session.feedback, /moved straight to the yard stores/);
+
+  yard.materialInventory.timber = 0;
+  gameState.cargo.timber = 5;
+  gameState.doubloons = 100000;
+  beginShipyardInvestment(gameState, {
+    tileId: 11,
+    city: "Porto",
+    displayCity: "Porto",
+    settlementType: "city"
+  }, { famous: true, playerBacking: null }, 100);
+  const reservedView = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(reservedView.options.some((entry) => (
+    entry.action.type === "sell-shipyard-material" && entry.action.goodId === "timber"
+  )), false);
 });
 
 test("a player-backed yard replaces the ordinary shipyard and keeps its finished hull purchasable", () => {

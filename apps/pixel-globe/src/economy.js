@@ -4,6 +4,7 @@ import {
   advanceWorldShipyards,
   createWorldShipyards,
   fundPlayerShipyard,
+  procureShipyardMaterials,
   replaceWorldShipyardPort,
   restoreWorldShipyards,
   shipyardDailyMaterialDemand,
@@ -1131,7 +1132,21 @@ export function advanceWorldEconomy(economy, clockMinute) {
     for (const port of economy.portStates.values()) advancePortEconomy(port, ECONOMY_STEP_DAYS);
   }
   economy.lastMinute += steps * ECONOMY_STEP_MINUTES;
-  advanceWorldShipyards(economy.shipyards, economy.lastMinute, {
+  advanceWorldShipyards(economy.shipyards, economy.lastMinute, shipyardMaterialMarket(economy));
+  invalidateWorldMarketMedianCache(economy);
+  return true;
+}
+
+export function procureWorldEconomyShipyardMaterials(economy, port) {
+  assertEconomy(economy);
+  const yard = shipyardAtPort(economy.shipyards, port);
+  const result = procureShipyardMaterials(yard, shipyardMaterialMarket(economy));
+  invalidateWorldMarketMedianCache(economy);
+  return result;
+}
+
+function shipyardMaterialMarket(economy) {
+  return {
     available: (portId, goodId) => economy.portStates.get(portId)?.goods.get(goodId)?.stock ?? 0,
     consume: (portId, goodId, quantity) => {
       const port = economy.portStates.get(portId);
@@ -1143,9 +1158,7 @@ export function advanceWorldEconomy(economy, clockMinute) {
         `shipyard material stock for ${port.name}: ${goodId}`
       );
     }
-  });
-  invalidateWorldMarketMedianCache(economy);
-  return true;
+  };
 }
 
 export function nextWorldEconomyEventMinute(economy) {
@@ -1156,6 +1169,11 @@ export function nextWorldEconomyEventMinute(economy) {
 export function portMarket(economy, city) {
   const port = requiredPortState(economy, city);
   return TRADE_GOODS.map((good) => marketRow(port, good));
+}
+
+export function portMarketGood(economy, city, goodId) {
+  const port = requiredPortState(economy, city);
+  return marketRow(port, tradeGoodById(goodId));
 }
 
 export function portEconomySummary(economy, city) {

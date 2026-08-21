@@ -276,6 +276,22 @@ test("paired footer actions measure text against their actual button widths", ()
   assert.doesNotMatch(layout.labelLines.join(" "), /\.\.\./);
 });
 
+test("three-tab rows measure each tab without narrowing later full-width actions", () => {
+  const widths = dialogueOptionMeasurementWidths({
+    options: [
+      { label: "Ships", rowId: "tabs" },
+      { label: "Stores", rowId: "tabs" },
+      { label: "Accounts", rowId: "tabs" },
+      { label: "Sell Timber x5" }
+    ],
+    width: 220,
+    optionColumns: 3,
+    regularWidthReserve: 29
+  });
+
+  assert.deepEqual(widths, [61, 61, 61, 191]);
+});
+
 test("one-row dialogue paging keeps previous and next touch targets separate", () => {
   const navigation = dialogueOptionNavigationLayout({
     x: 15,

@@ -49,6 +49,7 @@ import {
   planNpcTrade,
   portEconomySummary,
   portMarket,
+  procureWorldEconomyShipyardMaterials,
   quotePortPurchase,
   quotePortSale,
   replaceWorldEconomyPort,
@@ -1336,6 +1337,7 @@ test("a player-backed yard increases ordinary shipbuilding-material demand", () 
   const timberBefore = before.get("timber").consumptionPerDay;
   const ironBefore = before.get("iron").consumptionPerDay;
   const storesBefore = before.get(NAVAL_STORES_GOOD_ID).consumptionPerDay;
+  const clothBefore = before.get("linen-cloth").consumptionPerDay;
 
   fundWorldEconomyShipyard(economy, LONDON, {
     investedMinute: 10,
@@ -1347,6 +1349,29 @@ test("a player-backed yard increases ordinary shipbuilding-material demand", () 
   assert.ok(after.get("timber").consumptionPerDay > timberBefore);
   assert.ok(after.get("iron").consumptionPerDay > ironBefore);
   assert.ok(after.get(NAVAL_STORES_GOOD_ID).consumptionPerDay > storesBefore);
+  assert.ok(after.get("linen-cloth").consumptionPerDay > clothBefore);
+});
+
+test("a shipyard buys its next hull materials from the ordinary port market", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const yard = fundWorldEconomyShipyard(economy, LONDON, {
+    investedMinute: 10,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  const port = economy.portStates.get(LONDON.tileId);
+  for (const goodId of ["timber", "iron", NAVAL_STORES_GOOD_ID, "linen-cloth"]) {
+    yard.materialInventory[goodId] = 0;
+    port.goods.get(goodId).stock = 50;
+  }
+
+  const result = procureWorldEconomyShipyardMaterials(economy, LONDON);
+
+  assert.ok(result.materials.every((material) => material.missing === 0));
+  for (const material of result.materials) {
+    assert.equal(yard.materialInventory[material.goodId], material.required);
+    assert.equal(port.goods.get(material.goodId).stock, 50 - material.required);
+  }
 });
 
 test("restore reconciliation repairs a missing player shipyard exactly once", () => {

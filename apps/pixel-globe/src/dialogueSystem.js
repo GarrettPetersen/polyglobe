@@ -92,6 +92,8 @@ import {
   maximumPortPurchaseQuantity,
   portEconomySummary,
   portMarket,
+  portMarketGood,
+  procureWorldEconomyShipyardMaterials,
   quotePortPurchase,
   quoteRepeatedPortPurchase,
   quotePortSale,
@@ -380,7 +382,8 @@ export function createPortDialogueSession(city, options = {}) {
        options.questCargoDeliveryPromptIds.some((id) => typeof id !== "string" || id === ""))) {
     throw new Error("Port quest cargo delivery prompts must be string ids");
   }
-  if (options.shipyardLedgerTab !== undefined && !["yard", "books"].includes(options.shipyardLedgerTab)) {
+  if (options.shipyardLedgerTab !== undefined &&
+      !["yard", "materials", "books"].includes(options.shipyardLedgerTab)) {
     throw new Error(`Unknown shipyard ledger tab: ${options.shipyardLedgerTab}`);
   }
   return {
@@ -412,6 +415,8 @@ export function createPortDialogueSession(city, options = {}) {
     questCargoTip: null,
     shipHandover: null,
     shipyardDividendArrival: null,
+    shipyardMaterialArrival: false,
+    shipyardMaterialArrivalChecked: false,
     shipyardLedgerTab: options.shipyardLedgerTab || "yard",
     shipyardLedgerScrollOffset: 0,
     shipyardLedgerReturnNodeId: null,
@@ -1617,7 +1622,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
   if (session.nodeId === "custom-loadout") return customLoadoutView(session, city, gameState, context);
   if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
-  if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, context);
+  if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, economy, context);
   if (session.nodeId === "shipyard-purchase") {
     return shipyardPurchaseView(session, city, gameState, context);
   }
@@ -1798,6 +1803,7 @@ export function selectPortDialogueOption(
     if (session.nodeId === "ship-handover") session.shipHandover = null;
     if (session.nodeId === "shipyard" && action.nodeId !== "shipyard") {
       session.shipyardDividendArrival = null;
+      session.shipyardMaterialArrival = false;
       session.shipyardLedgerReturnNodeId = null;
     }
     if (session.nodeId === "shipyard-purchase") {
@@ -1825,19 +1831,52 @@ export function selectPortDialogueOption(
       }
     }
     session.nodeId = action.nodeId;
-    session.selectedIndex = 0;
+    session.selectedIndex = action.nodeId === "shipyard"
+      ? session.shipyardLedgerTab === "yard"
+        ? 0
+        : session.shipyardLedgerTab === "materials"
+          ? 1
+          : 2
+      : 0;
     session.feedback = null;
     return { closed: false };
   }
   if (action.type === "shipyard-ledger-tab") {
-    if (session.nodeId !== "shipyard" || !["yard", "books"].includes(action.tab)) {
+    if (session.nodeId !== "shipyard" || !["yard", "materials", "books"].includes(action.tab)) {
       throw new Error(`Invalid shipyard ledger tab action: ${action.tab}`);
     }
     session.shipyardLedgerTab = action.tab;
     session.shipyardLedgerScrollOffset = 0;
-    session.selectedIndex = action.tab === "yard" ? 0 : 1;
+    session.selectedIndex = action.tab === "yard" ? 0 : action.tab === "materials" ? 1 : 2;
     session.feedback = null;
     return { closed: false };
+  }
+  if (action.type === "sell-shipyard-material") {
+    if (session.nodeId !== "shipyard" || session.shipyardLedgerTab !== "materials") {
+      throw new Error(`Shipyard material sale requires the stores tab: ${session.nodeId}`);
+    }
+    const sale = shipyardMaterialSaleOffer(
+      city,
+      gameState,
+      economy,
+      context,
+      action.goodId
+    );
+    if (!sale || sale.quantity !== action.quantity) {
+      throw new Error(`Shipyard material sale is no longer available: ${action.goodId}`);
+    }
+    const marketSale = sellAllGood(
+      gameState,
+      economy,
+      city,
+      action.goodId,
+      action.quantity,
+      tradeContext(session, context)
+    );
+    procureWorldEconomyShipyardMaterials(economy, city);
+    session.feedback = `${marketSale.good.label} x${marketSale.quantity} moved straight to the yard stores.`;
+    session.selectedIndex = 1;
+    return { closed: false, marketSale, shipyardMaterialSale: marketSale };
   }
   if (action.type === "inspect-shipyard-listing") {
     if (session.nodeId !== "shipyard") {
@@ -5453,10 +5492,10 @@ function whaleHarpoonView(session, city, gameState, economy) {
   };
 }
 
-function shipyardView(session, city, gameState, context) {
+function shipyardView(session, city, gameState, economy, context) {
   const yard = context.shipyard || null;
   if (yard && playerBackedShipyardAtPort(gameState, city)) {
-    return playerShipyardLedgerView(session, city, gameState, context, yard);
+    return playerShipyardLedgerView(session, city, gameState, economy, context, yard);
   }
   const listing = yard?.listing || null;
   const investmentOptions = shipyardInvestmentOptions(city, gameState, yard, context.simMinute ?? 0);
@@ -5576,9 +5615,11 @@ function requireShipyardListingAction(action, context) {
   return listing;
 }
 
-function playerShipyardLedgerView(session, city, gameState, context, yard) {
+function playerShipyardLedgerView(session, city, gameState, economy, context, yard) {
   const tab = session.shipyardLedgerTab;
-  if (!["yard", "books"].includes(tab)) throw new Error(`Unknown shipyard ledger tab: ${tab}`);
+  if (!["yard", "materials", "books"].includes(tab)) {
+    throw new Error(`Unknown shipyard ledger tab: ${tab}`);
+  }
   const ledger = playerShipyardLedger(yard, context.simMinute ?? 0);
   const newestEntries = [...ledger.accounts.entries].reverse();
   const ledgerJournal = Object.freeze({
@@ -5591,17 +5632,35 @@ function playerShipyardLedgerView(session, city, gameState, context, yard) {
   });
   const listing = yard.listing || null;
   const purchase = listing ? shipyardPurchaseOffer(listing, gameState, context) : null;
+  const materialSources = shipyardMaterialSourceHints({
+    originCity: city,
+    gameState,
+    economy,
+    portCities: context.portCities,
+    simMinute: context.simMinute ?? 0,
+    sailingDistanceKm: context.sailingDistanceKm,
+    materials: ledger.currentBuild.materials
+  });
   const payout = session.shipyardDividendArrival;
   const payoutText = payout
     ? `${payout.salesSummary} Your share of ${payout.amount} doubloons has been paid into your purse.`
-    : "The shipyard's accounts and building schedule are open for your inspection.";
+    : shipyardLedgerText(session, ledger, materialSources);
+  const materialSales = ledger.currentBuild.materials
+    .map(({ goodId }) => shipyardMaterialSaleOffer(
+      city,
+      gameState,
+      economy,
+      context,
+      goodId
+    ))
+    .filter(Boolean);
   const returnNodeId = session.shipyardLedgerReturnNodeId || "root";
   return {
     speaker: `${cityLabel(city)} master shipwright`,
     expressionId: payout ? "pleased" : "attentive",
     text: payoutText,
     feedback: session.feedback,
-    optionColumns: 2,
+    optionColumns: 3,
     presentation: {
       kind: "player-shipyard-ledger",
       tab,
@@ -5610,17 +5669,30 @@ function playerShipyardLedgerView(session, city, gameState, context, yard) {
       listing,
       currentShipSlug: purchase?.currentShipSlug || context.shipStats?.slug || null,
       purchaseTerms: purchase?.purchaseTerms || null,
-      payout: payout ? { ...payout } : null
+      payout: payout ? { ...payout } : null,
+      materialSources
     },
     options: [
       option("Ships", { type: "shipyard-ledger-tab", tab: "yard" }, {
         rowId: "shipyard-ledger-tabs",
         iconId: "action:shipyard"
       }),
+      option("Stores", { type: "shipyard-ledger-tab", tab: "materials" }, {
+        rowId: "shipyard-ledger-tabs",
+        iconId: "good:timber"
+      }),
       option("Accounts", { type: "shipyard-ledger-tab", tab: "books" }, {
         rowId: "shipyard-ledger-tabs",
         iconId: "action:letter"
       }),
+      ...(tab === "materials" ? materialSales.map((sale) => option(
+        `Sell ${sale.goodLabel} x${sale.quantity}  ${sale.price} db`,
+        {
+          type: "sell-shipyard-material",
+          goodId: sale.goodId,
+          quantity: sale.quantity
+        }
+      )) : []),
       ...(tab === "yard" && listing ? [option(`Inspect ${listing.shipLabel}`, {
         type: "inspect-shipyard-listing",
         listingId: listing.id,
@@ -5631,6 +5703,98 @@ function playerShipyardLedgerView(session, city, gameState, context, yard) {
       })
     ]
   };
+}
+
+function shipyardLedgerText(session, ledger, materialSources) {
+  const missing = ledger.currentBuild.materials.filter((material) => material.missing > 0);
+  if (missing.length === 0) {
+    return "The shipyard's accounts, building schedule, and stores are open for your inspection.";
+  }
+  const labels = missing.map(({ goodId }) => tradeGoodById(goodId).label.toLowerCase());
+  const shortage = labels.length === 1
+    ? labels[0]
+    : `${labels.slice(0, -1).join(", ")} and ${labels.at(-1)}`;
+  const prefix = session.shipyardMaterialArrival
+    ? "I am glad you came. "
+    : "";
+  const nearest = materialSources[0];
+  const hint = nearest
+    ? ` The nearest known ${nearest.goodLabel.toLowerCase()} supply is at ${nearest.destinationName}.`
+    : "";
+  return `${prefix}The yard is short of ${shortage}. Our buyers work through the port market, and I will buy any cargo not pledged elsewhere at the same price.${hint}`;
+}
+
+function shipyardMaterialSaleOffer(city, gameState, economy, context, goodId) {
+  const yard = context.shipyard;
+  if (!yard?.playerBacking) return null;
+  const material = playerShipyardLedger(yard, context.simMinute ?? 0).currentBuild.materials
+    .find((entry) => entry.goodId === goodId);
+  if (!material || material.missing <= 0) return null;
+  const held = Math.floor(gameState.cargo[goodId] || 0);
+  const reserved = activeQuestCargoReservedQuantities(gameState, {
+    currentMinute: context.simMinute ?? 0
+  })[goodId] || 0;
+  const uncommitted = Math.max(0, held - reserved);
+  if (uncommitted <= 0) return null;
+  const requested = Math.min(uncommitted, Math.ceil(material.missing));
+  const quantity = maximumRepeatedPortPurchaseQuantity(
+    economy,
+    city,
+    goodId,
+    requested
+  );
+  if (quantity <= 0) return null;
+  return Object.freeze({
+    goodId,
+    goodLabel: tradeGoodById(goodId).label,
+    quantity,
+    price: quoteRepeatedPortPurchase(economy, city, goodId, quantity)
+  });
+}
+
+function shipyardMaterialSourceHints({
+  originCity,
+  gameState,
+  economy,
+  portCities,
+  simMinute,
+  sailingDistanceKm,
+  materials
+}) {
+  if (!Array.isArray(portCities) || typeof sailingDistanceKm !== "function") return Object.freeze([]);
+  const hints = [];
+  for (const material of materials) {
+    if (material.missing <= 0) continue;
+    const sources = [];
+    for (const destination of portCities) {
+      if (destination.tileId === originCity.tileId ||
+          !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
+      const row = portMarketGood(economy, destination, material.goodId);
+      if (!row?.listedForSale || row.stock < 1) continue;
+      const distanceKm = sailingDistanceKm(originCity, destination);
+      if (distanceKm === null) continue;
+      if (!Number.isInteger(distanceKm) || distanceKm < 0) {
+        throw new Error(`Shipyard supply sailing distance is invalid: ${distanceKm}`);
+      }
+      sources.push({ destination, distanceKm, stock: row.stock, productionPerDay: row.productionPerDay });
+    }
+    sources.sort((left, right) => (
+      left.distanceKm - right.distanceKm ||
+      Number(right.productionPerDay > 0) - Number(left.productionPerDay > 0) ||
+      right.stock - left.stock ||
+      left.destination.tileId - right.destination.tileId
+    ));
+    const source = sources[0];
+    if (!source) continue;
+    hints.push(Object.freeze({
+      goodId: material.goodId,
+      goodLabel: tradeGoodById(material.goodId).label,
+      destinationTileId: source.destination.tileId,
+      destinationName: cityLabel(source.destination),
+      distanceKm: source.distanceKm
+    }));
+  }
+  return Object.freeze(hints);
 }
 
 function shipyardPurchaseOffer(listing, gameState, context) {

@@ -1610,6 +1610,7 @@ import {
   fundWorldEconomyShipyard,
   nextWorldEconomyEventMinute,
   portMarket,
+  procureWorldEconomyShipyardMaterials,
   replaceWorldEconomyPort,
   restoreWorldEconomy,
   snapshotWorldEconomy,
@@ -1689,16 +1690,19 @@ import {
   nearestShipyardListingForPort,
   shipReplacementTermsWithoutTradeIn,
   shipyardAtPort,
+  shipyardMaterialStatus,
   shipyardPurchaseTerms,
   shipyardRumorForPort
 } from "./shipyards.js";
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
+  playerBackedShipyardAtPort,
   reconcilePlayerShipyardInvestmentWorld,
   shipyardInvestmentAtPort,
   shipyardInvestmentMaterialProgress,
   shipyardInvestmentOfferAvailable
 } from "./shipyardInvestment.js";
+import { formatDisplayQuantity } from "./displayNumber.js";
 import {
   LOCAL_SAVE_MODE_FULL,
   clearLocalSave,
@@ -18129,7 +18133,7 @@ function handleDialogueKeyDown(event) {
     return;
   }
   if (event.key === "ArrowUp" || event.key === "ArrowDown") {
-    if (dialogueIsPlayerShipyardBooks() && dialogueState.selectedIndex === 1 &&
+    if (dialogueIsPlayerShipyardBooks() && dialogueState.selectedIndex === 2 &&
         scrollPlayerShipyardJournal(event.key === "ArrowDown" ? 1 : -1)) {
       return;
     }
@@ -18296,7 +18300,7 @@ function updateDialogueSelectionFromPoint(point) {
 
 function stepDialogueSelection(direction) {
   const view = currentDialogueView();
-  if (view.optionColumns === 2) {
+  if ((view.optionColumns || 1) > 1) {
     const rows = dialogueSelectableOptionRows(view);
     const currentRowIndex = rows.findIndex((row) => (
       row.some((entry) => entry.index === dialogueState.selectedIndex)
@@ -18320,7 +18324,7 @@ function stepDialogueSelection(direction) {
 
 function stepDialogueSelectionColumn(direction) {
   const view = currentDialogueView();
-  if (view.optionColumns !== 2) return false;
+  if ((view.optionColumns || 1) <= 1) return false;
   const row = dialogueSelectableOptionRows(view).find((entries) => (
     entries.some((entry) => entry.index === dialogueState.selectedIndex)
   ));
@@ -18671,6 +18675,7 @@ function continuePortArrivalDialogues() {
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
     () => maybeOpenShipyardDividendDialogue(cityCall),
+    () => maybeOpenShipyardMaterialDialogue(cityCall),
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
     () => maybeOpenConquistadorOfferDialogue(cityCall),
@@ -18690,6 +18695,37 @@ function continuePortArrivalDialogues() {
     () => maybeOpenFormerRescuedTravelerReunion(cityCall),
     () => maybeOpenCharacterHomecoming(cityCall)
   ]);
+}
+
+function maybeOpenShipyardMaterialDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) ||
+      dialogueState.shipyardMaterialArrivalChecked === true) {
+    return false;
+  }
+  dialogueState.shipyardMaterialArrivalChecked = true;
+  if (!playerBackedShipyardAtPort(gameState, cityCall)) return false;
+  const yard = shipyardAtPort(worldEconomy.shipyards, cityCall);
+  procureWorldEconomyShipyardMaterials(worldEconomy, cityCall);
+  const missing = shipyardMaterialStatus(yard).filter((material) => material.missing > 0);
+  if (missing.length === 0) return false;
+  const reserved = activeQuestCargoReservedQuantities(gameState, {
+    currentMinute: Math.floor(weatherClockMinutes)
+  });
+  const hasUncommittedMaterial = missing.some(({ goodId }) => (
+    (gameState.cargo[goodId] || 0) > (reserved[goodId] || 0)
+  ));
+  if (yard.materialDelayDays === 0 && !hasUncommittedMaterial) return false;
+  dialogueState.shipyardMaterialArrival = true;
+  dialogueState.shipyardLedgerReturnNodeId = dialogueState.nodeId;
+  dialogueState.shipyardLedgerTab = "materials";
+  dialogueState.shipyardLedgerScrollOffset = 0;
+  dialogueState.nodeId = "shipyard";
+  dialogueState.selectedIndex = 1;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
 }
 
 function maybeOpenFormerRescuedTravelerReunion(cityCall) {
@@ -22628,7 +22664,7 @@ async function purchaseShipyardShip(action) {
       ], ownerPayout ? () => {
         if (dialogueState !== session) return;
         session.nodeId = "shipyard";
-        session.selectedIndex = 1;
+        session.selectedIndex = 2;
         invalidateDialogueView();
         dirty = true;
       } : null);
@@ -57813,7 +57849,8 @@ function drawCustomLoadoutHoldBar(rect, plan) {
 function drawPlayerShipyardLedgerOverlay(dialogueView) {
   const presentation = dialogueView.presentation;
   const { ledger, ledgerJournal, tab } = presentation;
-  if (!ledger?.currentBuild || !ledger?.accounts || !["yard", "books"].includes(tab)) {
+  if (!ledger?.currentBuild || !ledger?.accounts ||
+      !["yard", "materials", "books"].includes(tab)) {
     throw new Error("Player shipyard ledger presentation is incomplete");
   }
   ensureShipyardSideViewLoaded(ledger.currentBuild.shipSlug);
@@ -57844,7 +57881,8 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
     panel.y + 9,
     { font: PIXEL_FONT_DIALOGUE_8, align: "center", color: PIRATE_MENU_INK }
   );
-  drawOptionsText(tab === "yard" ? "SHIPS" : "ACCOUNTS", panel.x + panel.w / 2, panel.y + 22, {
+  const tabTitle = tab === "yard" ? "SHIPS" : tab === "materials" ? "STORES" : "ACCOUNTS";
+  drawOptionsText(tabTitle, panel.x + panel.w / 2, panel.y + 22, {
     font: PIXEL_FONT_SMALL_8,
     align: "center",
     color: PIRATE_MENU_CHART_LINE
@@ -57857,6 +57895,7 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
   ctx.rect(content.x, content.y, content.w, content.h);
   ctx.clip();
   if (tab === "yard") drawPlayerShipyardYardTab(content, presentation);
+  else if (tab === "materials") drawPlayerShipyardMaterialsTab(content, presentation);
   else drawPlayerShipyardBooksTab(content, presentation, ledgerJournal);
   ctx.restore();
 
@@ -57901,12 +57940,14 @@ function drawPlayerShipyardYardTab(content, presentation) {
   detailY += 14;
   const percent = Math.round(build.progress * 100);
   drawOptionsText(`${percent}% BUILT`, detailX, detailY, { color: PIRATE_MENU_CHART_LINE });
-  drawOptionsText(
-    build.daysRemaining === 0 ? "READY FOR LAUNCH" : `${build.daysRemaining} DAYS TO LAUNCH`,
-    detailX + detailW,
-    detailY,
-    { align: "right", color: PIRATE_MENU_INK_MUTED }
-  );
+  if (build.materialDelayDays === 0) {
+    drawOptionsText(
+      build.daysRemaining === 0 ? "READY FOR LAUNCH" : `${build.daysRemaining} DAYS TO LAUNCH`,
+      detailX + detailW,
+      detailY,
+      { align: "right", color: PIRATE_MENU_INK_MUTED }
+    );
+  }
   drawShipyardProgressBar({ x: detailX, y: detailY + 11, w: detailW, h: 6 }, build.progress);
   detailY += 23;
   if (build.materialDelayDays > 0) {
@@ -57967,6 +58008,70 @@ function drawPlayerShipyardFinishedListing(listing, x, y, width, compact) {
       }
     );
   }
+}
+
+function drawPlayerShipyardMaterialsTab(content, presentation) {
+  const materials = presentation.ledger.currentBuild.materials;
+  if (!Array.isArray(materials) || materials.length === 0) {
+    throw new Error("Player shipyard stores require construction materials");
+  }
+  const sourceByGoodId = new Map(
+    (presentation.materialSources || []).map((source) => [source.goodId, source])
+  );
+  const compact = content.h < 125;
+  const rowHeight = Math.max(20, Math.min(27, Math.floor(content.h / materials.length)));
+  let y = content.y;
+  for (const material of materials) {
+    const good = tradeGoodById(material.goodId);
+    drawGameIcon(tradeGoodIconId(material.goodId), content.x, y - 4);
+    drawOptionsText(good.label.toUpperCase(), content.x + 20, y, {
+      color: PIRATE_MENU_INK
+    });
+    drawOptionsText(
+      `${formatDisplayQuantity(material.stocked)}/${material.required}`,
+      content.x + content.w,
+      y,
+      {
+        align: "right",
+        color: shipyardMaterialBarColor(material.ratio)
+      }
+    );
+    const barY = y + 11;
+    drawShipyardMaterialBar(
+      { x: content.x + 20, y: barY, w: content.w - 20, h: 6 },
+      material.ratio
+    );
+    const source = sourceByGoodId.get(material.goodId);
+    if (!compact && material.missing > 0) {
+      drawOptionsText(
+        source
+          ? `NEAREST SUPPLY  ${source.destinationName.toUpperCase()}  ${source.distanceKm} KM`
+          : "NO KNOWN SUPPLY PORT",
+        content.x + 20,
+        y + 20,
+        { color: PIRATE_MENU_INK_MUTED }
+      );
+    }
+    y += rowHeight;
+  }
+}
+
+function drawShipyardMaterialBar(rect, ratio) {
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
+  ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+  ctx.fillStyle = shipyardMaterialBarColor(ratio);
+  ctx.fillRect(rect.x + 1, rect.y + 1, Math.round((rect.w - 2) * ratio), rect.h - 2);
+  ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
+  ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+}
+
+function shipyardMaterialBarColor(ratio) {
+  if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
+    throw new Error(`Invalid shipyard material ratio: ${ratio}`);
+  }
+  if (ratio <= 0.2) return "#b65050";
+  if (ratio <= 0.5) return "#b58a37";
+  return "#4f7d43";
 }
 
 function drawShipyardProgressBar(rect, progress) {
@@ -58879,7 +58984,7 @@ function dialogueRegularOptionRows(view, entries) {
   if (view.optionColumns === undefined || view.optionColumns === 1) {
     return entries.map((entry) => [entry]);
   }
-  if (view.optionColumns !== 2) {
+  if (!Number.isInteger(view.optionColumns) || view.optionColumns < 2 || view.optionColumns > 3) {
     throw new Error(`Unsupported dialogue option column count: ${view.optionColumns}`);
   }
   const rows = [];
@@ -58887,7 +58992,9 @@ function dialogueRegularOptionRows(view, entries) {
     const rowId = entry.option.rowId;
     const previous = rows.at(-1);
     if (rowId && previous?.[0]?.option.rowId === rowId) {
-      if (previous.length >= 2) throw new Error(`Dialogue option row has more than two columns: ${rowId}`);
+      if (previous.length >= view.optionColumns) {
+        throw new Error(`Dialogue option row exceeds its column count: ${rowId}`);
+      }
       previous.push(entry);
     } else {
       rows.push([entry]);
@@ -58906,12 +59013,20 @@ function dialogueSelectableOptionRows(view) {
 
 function dialogueRegularOptionRowRects({ x, y, width, optionHeight, count, gap = 4 }) {
   if (count === 1) return [{ x, y, w: width, h: optionHeight - 2 }];
-  if (count !== 2) throw new Error(`Dialogue option row requires one or two entries, received ${count}`);
-  const leftWidth = Math.floor((width - gap) / 2);
-  return [
-    { x, y, w: leftWidth, h: optionHeight - 2 },
-    { x: x + leftWidth + gap, y, w: width - leftWidth - gap, h: optionHeight - 2 }
-  ];
+  if (!Number.isInteger(count) || count < 2 || count > 3) {
+    throw new Error(`Dialogue option row requires one to three entries, received ${count}`);
+  }
+  const availableWidth = width - gap * (count - 1);
+  const columnWidth = Math.floor(availableWidth / count);
+  let cursorX = x;
+  return Array.from({ length: count }, (_value, index) => {
+    const rowWidth = index === count - 1
+      ? x + width - cursorX
+      : columnWidth;
+    const rect = { x: cursorX, y, w: rowWidth, h: optionHeight - 2 };
+    cursorX += rowWidth + gap;
+    return rect;
+  });
 }
 
 function dialogueOptionTextMetrics(option, font, width, minimumHeight) {

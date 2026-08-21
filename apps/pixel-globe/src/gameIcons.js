@@ -354,6 +354,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "undo-market": "action:back",
   "buy-max": "action:buy",
   "sell-all": "action:sell",
+  "sell-shipyard-material": "action:sell",
   "set-port-heading": "action:navigation",
   "open-port": "action:dock",
   "open-passenger": "action:passenger",

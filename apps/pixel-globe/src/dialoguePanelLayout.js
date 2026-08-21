@@ -223,7 +223,7 @@ export function dialogueOptionMeasurementWidths({
     if (!Number.isFinite(value)) throw new Error(`Invalid dialogue option measurement ${label}`);
   }
   if (width <= 0) throw new Error("Dialogue option measurement width must be positive");
-  if (!Number.isInteger(optionColumns) || optionColumns < 1 || optionColumns > 2) {
+  if (!Number.isInteger(optionColumns) || optionColumns < 1 || optionColumns > 3) {
     throw new Error(`Unsupported dialogue option measurement column count: ${optionColumns}`);
   }
   if (regularWidthReserve < 0 || regularWidthReserve >= width) {
@@ -234,10 +234,18 @@ export function dialogueOptionMeasurementWidths({
   const groups = dialogueOptionGroups(options);
   const widths = Array(options.length).fill(null);
   const regularWidth = width - regularWidthReserve;
-  const pairedRegularWidth = Math.floor((regularWidth - gap) / 2);
+  const rowCounts = new Map();
   for (const entry of groups.regular) {
-    widths[entry.index] = optionColumns === 2 && entry.option.rowId
-      ? pairedRegularWidth
+    if (!entry.option.rowId) continue;
+    rowCounts.set(entry.option.rowId, (rowCounts.get(entry.option.rowId) || 0) + 1);
+  }
+  for (const entry of groups.regular) {
+    const columnCount = entry.option.rowId ? rowCounts.get(entry.option.rowId) : 1;
+    if (columnCount > optionColumns) {
+      throw new Error(`Dialogue option row exceeds its column count: ${entry.option.rowId}`);
+    }
+    widths[entry.index] = columnCount > 1
+      ? Math.floor((regularWidth - gap * (columnCount - 1)) / columnCount)
       : regularWidth;
   }
   const exitWidth = groups.exits.length === 2
