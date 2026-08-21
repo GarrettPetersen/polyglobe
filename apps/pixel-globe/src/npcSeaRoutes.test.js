@@ -455,15 +455,108 @@ test("saved Niger routes aimed beyond Timbuktu are replanned on restore", (t) =>
   assert.match(messages[0][0], /Replanned 1 saved NPC routes/);
 });
 
-test("a founded American port becomes an NPC sea-lane destination", () => {
+test("a founded American colony joins a Spanish ocean-going circuit", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
-  const colony = port(99, "Port Royal", "Canada", "northern-european", 44.74, -65.52, 2400, "france");
+  const colony = {
+    ...port(99, "Veracruz", "Mexico", "mesoamerican", 19.17, -96.13, 2400, "spain"),
+    settlementType: "city",
+    npcInterregionalTradeExcluded: true
+  };
   const added = addNpcSeaRoutePort(routes, colony);
+  const circuitShip = routes.ships.find((ship) => (
+    ship.nationalCircuitFactionId === "spain" &&
+    ship.nationalCircuitPortIds.includes(colony.tileId)
+  ));
 
   assert.equal(added.routeRegion, "americas");
   assert.ok(added.routeAnchors.length > 0);
+  assert.ok(circuitShip, "a Spanish ocean-going ship should call at the new colony");
+  assert.equal(circuitShip.factionId, "spain");
+  assert.equal(circuitShip.mode, "interregional");
+  assert.equal(circuitShip.role, NPC_ROLE_MERCHANT);
+  assert.ok(circuitShip.nationalCircuitPortIds.includes(2), "the circuit should return to Seville");
+  assert.notEqual(circuitShip.slug, "mesoamerican-dugout-canoe");
   assert.throws(() => addNpcSeaRoutePort(routes, colony), /already exists/);
+});
+
+test("national circuits cover every overseas port and survive save restore", () => {
+  const spanishPorts = [
+    ...PORTS,
+    port(97, "Havana", "Cuba", "mediterranean", 23.11, -82.37, 18000, "spain"),
+    port(98, "Veracruz", "Mexico", "mesoamerican", 19.17, -96.13, 14000, "spain"),
+    port(99, "Nombre de Dios", "Panama", "mediterranean", 9.58, -79.47, 6000, "spain")
+  ];
+  const economy = createWorldEconomy({ ports: spanishPorts, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: spanishPorts, startMinute: 0, economy });
+  const spanishCircuitShips = routes.ships.filter((ship) => ship.nationalCircuitFactionId === "spain");
+  const coveredPortIds = new Set(spanishCircuitShips.flatMap((ship) => ship.nationalCircuitPortIds));
+
+  assert.ok(spanishCircuitShips.length > 0);
+  assert.ok([2, 97, 98, 99].every((portId) => coveredPortIds.has(portId)));
+  assert.ok(spanishCircuitShips.every((ship) => ship.nationalCircuitPortIds.length <= 6));
+
+  const circuitShip = spanishCircuitShips[0];
+  const visitedCircuitPorts = new Set();
+  for (let leg = 0; leg < 12 && visitedCircuitPorts.size < circuitShip.nationalCircuitPortIds.length; leg++) {
+    const arrivalMinute = circuitShip.plan.endMinute - circuitShip.clockOffsetMinutes;
+    advanceWorldEconomy(economy, arrivalMinute);
+    updateNpcSeaRouteEvents(routes, arrivalMinute, [circuitShip.id]);
+    if (circuitShip.nationalCircuitPortIds.includes(circuitShip.currentPort.tileId)) {
+      visitedCircuitPorts.add(circuitShip.currentPort.tileId);
+    }
+  }
+  assert.deepEqual(
+    [...visitedCircuitPorts].sort((a, b) => a - b),
+    circuitShip.nationalCircuitPortIds.slice().sort((a, b) => a - b)
+  );
+
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+  const restoredCircuitShips = routes.ships.filter((ship) => ship.nationalCircuitFactionId === "spain");
+  assert.deepEqual(
+    restoredCircuitShips.map((ship) => [ship.id, ship.nationalCircuitId, ship.nationalCircuitPortIds]),
+    spanishCircuitShips.map((ship) => [ship.id, ship.nationalCircuitId, ship.nationalCircuitPortIds])
+  );
+
+  const legacySnapshot = snapshotNpcSeaRouteSystem(routes);
+  for (const ship of legacySnapshot.ships) {
+    delete ship.nationalCircuitId;
+    delete ship.nationalCircuitFactionId;
+    delete ship.nationalCircuitPortIds;
+  }
+  restoreNpcSeaRouteSystem(routes, legacySnapshot, { economy });
+  const migratedCoverage = new Set(routes.ships
+    .filter((ship) => ship.nationalCircuitFactionId === "spain")
+    .flatMap((ship) => ship.nationalCircuitPortIds));
+  assert.ok([2, 97, 98, 99].every((portId) => migratedCoverage.has(portId)));
+});
+
+test("a sunk national circuit ship keeps its route reserved while a replacement is built", () => {
+  const spanishPorts = [
+    ...PORTS,
+    port(99, "Veracruz", "Mexico", "mesoamerican", 19.17, -96.13, 14000, "spain")
+  ];
+  const economy = createWorldEconomy({ ports: spanishPorts, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: spanishPorts, startMinute: 0, economy });
+  const circuitShip = routes.ships.find((ship) => ship.nationalCircuitFactionId === "spain");
+  assert.ok(circuitShip);
+  const circuitId = circuitShip.nationalCircuitId;
+  const circuitPortIds = circuitShip.nationalCircuitPortIds.slice();
+
+  sinkNpcShip(routes, circuitShip.id, 1000);
+  const replacement = routes.replacementQueue.find((entry) => entry.shipId === circuitShip.id);
+  assert.ok(replacement);
+  assert.equal(replacement.nationalCircuitId, circuitId);
+  assert.deepEqual(replacement.nationalCircuitPortIds, circuitPortIds);
+
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+  assert.equal(routes.ships.some((ship) => ship.nationalCircuitId === circuitId), false);
+  assert.equal(
+    routes.replacementQueue.filter((entry) => entry.nationalCircuitId === circuitId).length,
+    1
+  );
 });
 
 test("a developed village becomes a city in NPC sea routes", () => {
