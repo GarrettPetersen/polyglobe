@@ -38,7 +38,7 @@ export function placeCityCatalogOnWorld(options) {
         throw new Error(`Could not place required port city on an unoccupied land tile: ${city.city}, ${city.country}`);
       }
     }
-    placed.set(tileId, { ...city, tileId });
+    placed.set(tileId, placedSettlement(city, tileId, options.earthRows));
   }
   return placed;
 }
@@ -88,7 +88,7 @@ export function placeColonizationTargetsOnWorld({
       if (settlement.settlementType !== "village") {
         throw new Error(`Existing colony target is not a village: ${target.city}, ${target.country}`);
       }
-      placed.push(Object.freeze({ ...target, tileId: settlement.tileId }));
+      placed.push(Object.freeze(placedSettlement(target, settlement.tileId, options.earthRows)));
       continue;
     }
     const startId = findNearestTileId(
@@ -105,7 +105,7 @@ export function placeColonizationTargetsOnWorld({
       throw new Error(`Could not place water-accessible colony on an empty port tile: ${target.city}, ${target.country}`);
     }
     occupied.add(tileId);
-    placed.push(Object.freeze({ ...target, tileId }));
+    placed.push(Object.freeze(placedSettlement(target, tileId, options.earthRows)));
   }
   return Object.freeze(placed);
 }
@@ -191,6 +191,14 @@ function portAccessOptions(options, tileId) {
 
 function isCityDrawableTile(earthRows, tileId) {
   return !isWaterSurfaceRow(earthRows[tileId]);
+}
+
+function placedSettlement(settlement, tileId, earthRows) {
+  const landmassId = earthRows?.[tileId]?.m;
+  if (!Number.isInteger(landmassId) || landmassId < 0) {
+    throw new Error(`Placed settlement has no landmass id: ${settlement?.city || "unknown"} at ${tileId}`);
+  }
+  return { ...settlement, tileId, landmassId };
 }
 
 function validateCoordinates(record, label) {

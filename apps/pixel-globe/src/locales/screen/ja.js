@@ -1638,6 +1638,7 @@ export default Object.freeze({
   "I came home by a crooked road. I intend to walk straight from here.": "曲がりくねった道を通って帰宅しました。ここからはまっすぐ歩いて行こうと思います。",
   "I can hold a straight course. Perfectly straight. The horizon's the one wobbling.": "真っすぐなコースをキープできます。完璧に真っ直ぐ。地平線が揺れているんだ。",
   "I carry papers for a patron in {0}, and the roads are closed to me. Passage by sea is safer. Take me there for {1} db.": "{0} の常連客のために書類を運んでいるのですが、道路が通行止めになっています。海を渡る方が安全です。 {1} DB に連れて行ってください。",
+  "I carry papers for a patron in {0}, but no ship here sails there. Take me across the sea for {1} db.": "{0}の後援者へ届ける書類がありますが、ここからそこへ向かう船がありません。{1} DBで海を渡って連れていってください。",
   "I carry the answer home to {0}.": "私はその答えを {0} に持ち帰ります。",
   "I come under {0}'s seal to present our terms before this court.": "私は、{0} の印章を受けて、この法廷で条件を提示することになりました。",
   "I counted every star twice. That's... very thorough navigation.": "私はすべての星を二度数えました。それは...非常に徹底したナビゲーションです。",

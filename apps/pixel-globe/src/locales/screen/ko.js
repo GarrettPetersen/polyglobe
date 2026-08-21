@@ -1638,6 +1638,7 @@ export default Object.freeze({
   "I came home by a crooked road. I intend to walk straight from here.": "나는 굽은 길을 타고 집에 왔다. 여기서부터는 곧장 걸어갈 생각이다.",
   "I can hold a straight course. Perfectly straight. The horizon's the one wobbling.": "나는 직선적인 코스를 가질 수 있다. 완벽하게 직선입니다. 지평선이 흔들리는 것입니다.",
   "I carry papers for a patron in {0}, and the roads are closed to me. Passage by sea is safer. Take me there for {1} db.": "{0}에 있는 후원자를 위해 서류를 들고 있는데 도로가 폐쇄되어 있습니다. 바다로의 통행이 더 안전합니다. {1} DB를 위해 그곳으로 이동해 주세요.",
+  "I carry papers for a patron in {0}, but no ship here sails there. Take me across the sea for {1} db.": "{0}의 후원자에게 전할 서류가 있지만, 이곳에서 그곳으로 가는 배가 없습니다. {1} DB를 드릴 테니 바다 건너 데려다주십시오.",
   "I carry the answer home to {0}.": "그 답변을 집에 {0} 가지고 갑니다.",
   "I come under {0}'s seal to present our terms before this court.": "나는 이 법원에 우리의 조건을 제시하기 위해 {0}의 인장을 받았습니다.",
   "I counted every star twice. That's... very thorough navigation.": "나는 모든 별을 두 번 세었습니다. 그것은... 매우 철저한 탐색입니다.",

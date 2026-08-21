@@ -1011,8 +1011,12 @@ function passengerDialogueText(scenarioId, origin, destination, reward, religiou
       arrival: `${destinationName} at last. My family will hear your name kindly. Here is the ${reward} db I owe.`
     };
   }
+  const sameLandmass = Number.isInteger(origin.landmassId) &&
+    origin.landmassId === destination.landmassId;
   return {
-    offer: `I carry papers for a patron in ${destinationName}, and the roads are closed to me. Passage by sea is safer. Take me there for ${reward} db.`,
+    offer: sameLandmass
+      ? `I carry papers for a patron in ${destinationName}, and the roads are closed to me. Passage by sea is safer. Take me there for ${reward} db.`
+      : `I carry papers for a patron in ${destinationName}, but no ship here sails there. Take me across the sea for ${reward} db.`,
     underway: `The papers are still dry, and ${destinationName} is still ahead. That is enough fortune for now.`,
     arrival: `This is the quay I needed. My patron can settle the rest, but your ${reward} db is ready now.`
   };

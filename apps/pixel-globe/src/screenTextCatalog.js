@@ -1638,6 +1638,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "I came home by a crooked road. I intend to walk straight from here.",
   "I can hold a straight course. Perfectly straight. The horizon's the one wobbling.",
   "I carry papers for a patron in {0}, and the roads are closed to me. Passage by sea is safer. Take me there for {1} db.",
+  "I carry papers for a patron in {0}, but no ship here sails there. Take me across the sea for {1} db.",
   "I carry the answer home to {0}.",
   "I come under {0}'s seal to present our terms before this court.",
   "I counted every star twice. That's... very thorough navigation.",

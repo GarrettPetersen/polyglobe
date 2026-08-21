@@ -113,6 +113,14 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
     targets: COLONIZATION_TARGETS,
     occupiedCities: cityByTileId.values()
   });
+  assert.ok(
+    portCities.every((port) => Number.isInteger(port.landmassId)),
+    "every placed port should retain its terrain landmass"
+  );
+  assert.ok(
+    colonyTargets.every((target) => Number.isInteger(target.landmassId)),
+    "every colony site should retain its terrain landmass"
+  );
   const nagasakiVillage = portCities.find((port) => port.city === "Nagasaki" && port.country === "Japan");
   const hakata = portCities.find((port) => port.city === "Fukuoka" && port.country === "Japan");
   const ningbo = requireCanonicalPort(portCities, CANONICAL_PORTS.NINGBO, "Production port test");

@@ -153,6 +153,40 @@ test("Baghdad participates in ordinary city work", () => {
   assert.equal(offer.destinationName, "Istanbul");
 });
 
+test("patron passengers mention closed roads only on the same landmass", () => {
+  const sameLandmassState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const lisbon = { ...LISBON, landmassId: 101 };
+  const istanbul = { ...ISTANBUL, landmassId: 101 };
+  const overlandOffer = passengerOfferForCity(
+    sameLandmassState,
+    lisbon,
+    [lisbon, istanbul],
+    {
+      spawnChance: 1,
+      simMinute: 0,
+      destinationTileId: istanbul.tileId,
+      scenarioId: "patron-papers"
+    }
+  );
+  assert.match(overlandOffer.dialogue.offer, /roads are closed to me/i);
+
+  const separateLandmassState = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const london = { ...LONDON, landmassId: 202 };
+  const seaOffer = passengerOfferForCity(
+    separateLandmassState,
+    lisbon,
+    [lisbon, london],
+    {
+      spawnChance: 1,
+      simMinute: 0,
+      destinationTileId: london.tileId,
+      scenarioId: "patron-papers"
+    }
+  );
+  assert.doesNotMatch(seaOffer.dialogue.offer, /roads/i);
+  assert.match(seaOffer.dialogue.offer, /across the sea/i);
+});
+
 test("Muslim ports can offer long-distance Hajj passage to Jeddah", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   let characterRequest = null;

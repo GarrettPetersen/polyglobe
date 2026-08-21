@@ -1638,6 +1638,7 @@ export default Object.freeze({
   "I came home by a crooked road. I intend to walk straight from here.": "我沿着一条弯曲的路回到家。我打算从这里直接步行。",
   "I can hold a straight course. Perfectly straight. The horizon's the one wobbling.": "我可以保持直线路线。笔直。地平线正在摇晃。",
   "I carry papers for a patron in {0}, and the roads are closed to me. Passage by sea is safer. Take me there for {1} db.": "我为 {0} 的一位顾客携带证件，但道路对我关闭。走海路比较安全。带我去 {1} DB。",
+  "I carry papers for a patron in {0}, but no ship here sails there. Take me across the sea for {1} db.": "我替{0}的一位主顾携带文书，但这里没有船去那里。带我渡海过去，我付你{1} DB。",
   "I carry the answer home to {0}.": "我把答案带回家给 {0}。",
   "I come under {0}'s seal to present our terms before this court.": "我受 {0} 盖章，向法庭陈述我们的条款。",
   "I counted every star twice. That's... very thorough navigation.": "每一颗星星我都数了两遍。那是...非常彻底的导航。",

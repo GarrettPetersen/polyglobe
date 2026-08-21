@@ -1638,6 +1638,7 @@ export default Object.freeze({
   "I came home by a crooked road. I intend to walk straight from here.": "Я пришел домой по кривой дороге. Я собираюсь идти прямо отсюда.",
   "I can hold a straight course. Perfectly straight. The horizon's the one wobbling.": "Я могу держать прямой курс. Идеально прямо. Горизонт колеблется.",
   "I carry papers for a patron in {0}, and the roads are closed to me. Passage by sea is safer. Take me there for {1} db.": "Несу документы патрону в {0}, и дороги мне закрыты. Переход по морю безопаснее. Отвезите меня туда для {1} DB.",
+  "I carry papers for a patron in {0}, but no ship here sails there. Take me across the sea for {1} db.": "Я везу бумаги для покровителя в {0}, но отсюда туда не ходят корабли. Доставьте меня морем за {1} DB.",
   "I carry the answer home to {0}.": "Я отношу ответ домой {0}.",
   "I come under {0}'s seal to present our terms before this court.": "Я пришел под печатью {0}, чтобы представить наши условия суду.",
   "I counted every star twice. That's... very thorough navigation.": "Я пересчитал каждую звезду дважды. Это... очень тщательная навигация.",

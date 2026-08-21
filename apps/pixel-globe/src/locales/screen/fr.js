@@ -1638,6 +1638,7 @@ export default Object.freeze({
   "I came home by a crooked road. I intend to walk straight from here.": "Je suis rentré chez moi par une route tortueuse. J'ai l'intention de marcher directement à partir d'ici.",
   "I can hold a straight course. Perfectly straight. The horizon's the one wobbling.": "Je peux suivre un cours droit. Parfaitement droit. C'est l'horizon qui vacille.",
   "I carry papers for a patron in {0}, and the roads are closed to me. Passage by sea is safer. Take me there for {1} db.": "J'ai les papiers d'un client à {0} et les routes me sont fermées. Le passage par la mer est plus sûr. Emmenez-moi là-bas pour {1} DB.",
+  "I carry papers for a patron in {0}, but no ship here sails there. Take me across the sea for {1} db.": "J'ai des papiers pour un mécène à {0}, mais aucun navire d'ici ne s'y rend. Emmenez-moi par mer pour {1} DB.",
   "I carry the answer home to {0}.": "J'apporte la réponse à la maison à {0}.",
   "I come under {0}'s seal to present our terms before this court.": "Je viens sous le sceau de {0} pour présenter nos conditions devant ce tribunal.",
   "I counted every star twice. That's... very thorough navigation.": "J'ai compté chaque étoile deux fois. C'est... une navigation très approfondie.",
