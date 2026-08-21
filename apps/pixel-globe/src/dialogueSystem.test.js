@@ -4627,6 +4627,7 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
     entry.action.type === "sell-shipyard-material" && entry.action.goodId === "timber"
   ));
   assert.ok(saleIndex >= 0);
+  assert.equal(view.options[saleIndex].rowId, "shipyard-material-timber");
   const result = selectPortDialogueOption(
     session,
     city,
@@ -4729,6 +4730,7 @@ test("owned shipyard supply hints are cached and can become named waypoints", ()
   ));
   assert.equal(timberHeading.action.destinationName, "Exeter");
   assert.match(timberHeading.label, /Exeter \(Timber\)/);
+  assert.equal(timberHeading.rowId, "shipyard-material-timber");
 });
 
 test("a player-backed yard replaces the ordinary shipyard and keeps its finished hull purchasable", () => {

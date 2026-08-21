@@ -5687,6 +5687,40 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
   const materialByGoodId = new Map(
     ledger.currentBuild.materials.map((material) => [material.goodId, material])
   );
+  const materialSaleByGoodId = new Map(materialSales.map((sale) => [sale.goodId, sale]));
+  const materialSourceByGoodId = new Map(materialSources
+    .filter((source) => (materialByGoodId.get(source.goodId)?.stockpileMissing || 0) > 0)
+    .map((source) => [source.goodId, source]));
+  const materialActionOptions = tab === "materials"
+    ? ledger.currentBuild.materials.flatMap((material) => {
+        const rowId = shipyardMaterialRowId(material.goodId);
+        const sale = materialSaleByGoodId.get(material.goodId);
+        const source = materialSourceByGoodId.get(material.goodId);
+        return [
+          ...(sale ? [option(
+            `Sell ${sale.goodLabel} x${sale.quantity}  ${sale.price} db`,
+            {
+              type: "sell-shipyard-material",
+              goodId: sale.goodId,
+              quantity: sale.quantity
+            },
+            { rowId }
+          )] : []),
+          ...(source ? [option(
+            `Set heading: ${source.destinationName} (${source.goodLabel})`,
+            {
+              type: "set-port-heading",
+              destinationTileId: source.destinationTileId,
+              destinationName: source.destinationName,
+              reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
+              shipyardMaterialGoodId: source.goodId,
+              nextNodeId: "shipyard"
+            },
+            { rowId }
+          )] : [])
+        ];
+      })
+    : [];
   return {
     speaker: `${cityLabel(city)} master shipwright`,
     expressionId: payout ? "pleased" : "attentive",
@@ -5717,27 +5751,7 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
         rowId: "shipyard-ledger-tabs",
         iconId: "action:letter"
       }),
-      ...(tab === "materials" ? materialSales.map((sale) => option(
-        `Sell ${sale.goodLabel} x${sale.quantity}  ${sale.price} db`,
-        {
-          type: "sell-shipyard-material",
-          goodId: sale.goodId,
-          quantity: sale.quantity
-        }
-      )) : []),
-      ...(tab === "materials" ? materialSources
-        .filter((source) => (materialByGoodId.get(source.goodId)?.stockpileMissing || 0) > 0)
-        .map((source) => option(
-          `Set heading: ${source.destinationName} (${source.goodLabel})`,
-          {
-            type: "set-port-heading",
-            destinationTileId: source.destinationTileId,
-            destinationName: source.destinationName,
-            reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
-            shipyardMaterialGoodId: source.goodId,
-            nextNodeId: "shipyard"
-          }
-        )) : []),
+      ...materialActionOptions,
       ...(tab === "yard" && listing ? [option(`Inspect ${listing.shipLabel}`, {
         type: "inspect-shipyard-listing",
         listingId: listing.id,
@@ -5748,6 +5762,10 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
       })
     ]
   };
+}
+
+function shipyardMaterialRowId(goodId) {
+  return "shipyard-material-" + goodId;
 }
 
 function shipyardLedgerText(session, ledger, materialSources) {

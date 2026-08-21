@@ -13,6 +13,7 @@ test("display quantities use readable decimals without scientific notation", () 
 
 test("display quantity precision is explicit and validated", () => {
   assert.equal(formatDisplayQuantity(1 / 12, { maximumFractionDigits: 3 }), "0.083");
+  assert.equal(formatDisplayQuantity(17.349999999, { maximumFractionDigits: 0 }), "17");
   assert.equal(formatDisplayQuantity(1e-9, { maximumFractionDigits: 3 }), "<0.001");
   assert.throws(() => formatDisplayQuantity(-1), /finite non-negative/);
   assert.throws(() => formatDisplayQuantity(Number.NaN), /finite non-negative/);

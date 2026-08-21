@@ -57937,15 +57937,39 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
   dialogueLayout.shipyardLedgerScrollUpRect = null;
   dialogueLayout.shipyardLedgerScrollDownRect = null;
   dialogueLayout.shipyardLedgerVisibleRows = 0;
+  dialogueLayout.optionRects = [];
+  dialogueLayout.previousRect = null;
+  dialogueLayout.nextRect = null;
 
   const panel = { x: 6, y: 6, w: SCREEN_W - 12, h: SCREEN_H - 12 };
+  const allOptionGroups = dialogueOptionGroups(dialogueView.options);
+  const tabEntries = allOptionGroups.regular.filter((entry) => (
+    entry.option.action.type === "shipyard-ledger-tab"
+  ));
+  const materialActionEntries = allOptionGroups.regular.filter((entry) => (
+    ["sell-shipyard-material", "set-port-heading"].includes(entry.option.action.type)
+  ));
+  const bodyOptionGroups = {
+    regular: allOptionGroups.regular.filter((entry) => (
+      !tabEntries.includes(entry) && !materialActionEntries.includes(entry)
+    )),
+    exits: allOptionGroups.exits
+  };
+  if (tabEntries.length !== 3) {
+    throw new Error(`Player shipyard requires three ledger tabs, received ${tabEntries.length}`);
+  }
   const optionWidth = panel.w - 18;
-  const optionHeight = dialogueOptionsHeight(dialogueView, PIXEL_FONT_SMALL_8, optionWidth);
-  const optionGroups = dialogueOptionGroups(dialogueView.options);
-  const optionRows = dialogueRegularOptionRows(dialogueView, optionGroups.regular).length +
-    (optionGroups.exits.length > 0 ? 1 : 0);
+  const bodyOptionEntries = [...bodyOptionGroups.regular, ...bodyOptionGroups.exits];
+  const optionHeight = dialogueOptionEntriesHeight(
+    dialogueView,
+    PIXEL_FONT_SMALL_8,
+    optionWidth,
+    bodyOptionEntries
+  );
+  const optionRows = dialogueRegularOptionRows(dialogueView, bodyOptionGroups.regular).length +
+    (bodyOptionGroups.exits.length > 0 ? 1 : 0);
   const optionY = panel.y + panel.h - optionRows * optionHeight -
-    (optionGroups.exits.length > 0 && optionGroups.regular.length > 0 ? 4 : 0) - 7;
+    (bodyOptionGroups.exits.length > 0 && bodyOptionGroups.regular.length > 0 ? 4 : 0) - 7;
   const content = {
     x: panel.x + 10,
     y: panel.y + 34,
@@ -57954,28 +57978,27 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
   };
 
   drawPiratePaperModal(panel, 0.9);
-  drawOptionsText(
-    fitPixelText(`${ledger.portName.toUpperCase()} SHIPYARD`, PIXEL_FONT_DIALOGUE_8, panel.w - 28),
-    panel.x + panel.w / 2,
-    panel.y + 9,
-    { font: PIXEL_FONT_DIALOGUE_8, align: "center", color: PIRATE_MENU_INK }
-  );
-  const tabTitle = tab === "yard" ? "SHIPS" : tab === "materials" ? "STORES" : "ACCOUNTS";
-  drawOptionsText(tabTitle, panel.x + panel.w / 2, panel.y + 22, {
-    font: PIXEL_FONT_SMALL_8,
-    align: "center",
-    color: PIRATE_MENU_CHART_LINE
-  });
+  drawPlayerShipyardHeader(panel, ledger.portName, tab, tabEntries);
   ctx.fillStyle = PIRATE_MENU_CHART_LINE;
   ctx.fillRect(panel.x + 10, panel.y + 31, panel.w - 20, 1);
+
+  const materialActionEntriesByGoodId = new Map();
+  for (const entry of materialActionEntries) {
+    const goodId = entry.option.action.goodId || entry.option.action.shipyardMaterialGoodId;
+    if (!goodId) throw new Error(`Shipyard material action has no material: ${entry.option.action.type}`);
+    const entries = materialActionEntriesByGoodId.get(goodId) || [];
+    entries.push(entry);
+    materialActionEntriesByGoodId.set(goodId, entries);
+  }
 
   ctx.save();
   ctx.beginPath();
   ctx.rect(content.x, content.y, content.w, content.h);
   ctx.clip();
   if (tab === "yard") drawPlayerShipyardYardTab(content, presentation);
-  else if (tab === "materials") drawPlayerShipyardMaterialsTab(content, presentation);
-  else drawPlayerShipyardBooksTab(content, presentation, ledgerJournal);
+  else if (tab === "materials") {
+    drawPlayerShipyardMaterialsTab(content, presentation, materialActionEntriesByGoodId);
+  } else drawPlayerShipyardBooksTab(content, presentation, ledgerJournal);
   ctx.restore();
 
   drawDialogueOptions(
@@ -57984,8 +58007,83 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
     optionY,
     optionWidth,
     panel.y + panel.h - 6,
-    PIXEL_FONT_SMALL_8
+    PIXEL_FONT_SMALL_8,
+    { groups: bodyOptionGroups, preserveOptionRects: true }
   );
+}
+
+function drawPlayerShipyardHeader(panel, portName, activeTab, tabEntries) {
+  const left = panel.x + 10;
+  const right = panel.x + panel.w - 10;
+  const gap = 2;
+  const tabY = panel.y + 6;
+  const tabHeight = 22;
+  const labelledWidths = tabEntries.map((entry) => Math.max(
+    48,
+    GAME_ICON_SIZE + 9 + measurePixelTextWidth(
+      renderedUiText(entry.option.label).toUpperCase(),
+      PIXEL_FONT_SMALL_8
+    )
+  ));
+  const labelledTotal = labelledWidths.reduce((sum, width) => sum + width, 0) +
+    gap * (tabEntries.length - 1);
+  const iconOnlyWidth = 22;
+  const iconOnlyTotal = iconOnlyWidth * tabEntries.length + gap * (tabEntries.length - 1);
+  const minimumTitleWidth = Math.min(132, Math.max(76, Math.floor(panel.w * 0.34)));
+  const showLabels = labelledTotal + minimumTitleWidth + 8 <= panel.w - 20;
+  const tabWidths = showLabels ? labelledWidths : tabEntries.map(() => iconOnlyWidth);
+  const tabTotal = showLabels ? labelledTotal : iconOnlyTotal;
+  const tabStartX = right - tabTotal;
+  const titleWidth = Math.max(24, tabStartX - left - 6);
+  drawOptionsText(
+    fitPixelText(`${portName.toUpperCase()} SHIPYARD`, PIXEL_FONT_DIALOGUE_8, titleWidth),
+    left,
+    panel.y + 12,
+    { font: PIXEL_FONT_DIALOGUE_8, color: PIRATE_MENU_INK }
+  );
+  let x = tabStartX;
+  tabEntries.forEach((entry, index) => {
+    const tabLabel = renderedUiText(playerShipyardTabLabel(entry.option.action.tab));
+    const rect = { x, y: tabY, w: tabWidths[index], h: tabHeight };
+    const selected = entry.index === dialogueState.selectedIndex;
+    const active = entry.option.action.tab === activeTab;
+    drawPiratePaperInset(rect, (selected || active) && !entry.option.disabled);
+    const iconX = showLabels ? rect.x + 3 : rect.x + Math.floor((rect.w - GAME_ICON_SIZE) / 2);
+    drawGameIcon(
+      dialogueOptionIconId(entry.option),
+      iconX,
+      rect.y + Math.floor((rect.h - GAME_ICON_SIZE) / 2),
+      { alpha: entry.option.disabled ? 0.38 : 1 }
+    );
+    if (showLabels) {
+      drawOptionsText(
+        fitPixelText(
+          tabLabel,
+          PIXEL_FONT_SMALL_8,
+          rect.w - GAME_ICON_SIZE - 8
+        ),
+        rect.x + GAME_ICON_SIZE + 5,
+        rect.y + 7,
+        {
+          font: PIXEL_FONT_SMALL_8,
+          color: entry.option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK
+        }
+      );
+    }
+    if (active) {
+      ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+      ctx.fillRect(rect.x + 2, rect.y + rect.h - 3, rect.w - 4, 2);
+    }
+    dialogueLayout.optionRects.push({ index: entry.index, rect });
+    x += rect.w + gap;
+  });
+}
+
+function playerShipyardTabLabel(tab) {
+  if (tab === "yard") return "SHIPS";
+  if (tab === "materials") return "STORES";
+  if (tab === "books") return "ACCOUNTS";
+  throw new Error(`Unknown player shipyard tab: ${tab}`);
 }
 
 function drawPlayerShipyardYardTab(content, presentation) {
@@ -58089,15 +58187,18 @@ function drawPlayerShipyardFinishedListing(listing, x, y, width, compact) {
   }
 }
 
-function drawPlayerShipyardMaterialsTab(content, presentation) {
+function drawPlayerShipyardMaterialsTab(content, presentation, actionEntriesByGoodId) {
   const materials = presentation.ledger.currentBuild.materials;
   if (!Array.isArray(materials) || materials.length === 0) {
     throw new Error("Player shipyard stores require construction materials");
   }
-  const sourceByGoodId = new Map(
-    (presentation.materialSources || []).map((source) => [source.goodId, source])
-  );
-  const columns = content.w >= 330 ? 2 : 1;
+  if (!(actionEntriesByGoodId instanceof Map)) {
+    throw new Error("Player shipyard stores require material action entries");
+  }
+  let columns = content.w >= 330 ? 2 : 1;
+  if (columns === 1 && content.h / materials.length < 36 && content.w >= 200) {
+    columns = 2;
+  }
   const rows = Math.ceil(materials.length / columns);
   const columnGap = columns > 1 ? 12 : 0;
   const columnWidth = Math.floor((content.w - columnGap * (columns - 1)) / columns);
@@ -58109,8 +58210,16 @@ function drawPlayerShipyardMaterialsTab(content, presentation) {
     const y = content.y + row * rowHeight;
     const good = tradeGoodById(material.goodId);
     drawGameIcon(tradeGoodIconId(material.goodId), x, y + 2);
+    const amountLabel = `${formatDisplayQuantity(material.stocked, {
+      maximumFractionDigits: 0
+    })}/${formatDisplayQuantity(material.stockTarget, { maximumFractionDigits: 0 })}`;
+    const amountWidth = measurePixelTextWidth(amountLabel, PIXEL_FONT_SMALL_8);
     drawOptionsText(
-      fitPixelText(good.label.toUpperCase(), PIXEL_FONT_SMALL_8, columnWidth - 80),
+      fitPixelText(
+        good.label.toUpperCase(),
+        PIXEL_FONT_SMALL_8,
+        Math.max(12, columnWidth - 28 - amountWidth)
+      ),
       x + 20,
       y + 4,
       {
@@ -58118,7 +58227,7 @@ function drawPlayerShipyardMaterialsTab(content, presentation) {
       }
     );
     drawOptionsText(
-      `${formatDisplayQuantity(material.stocked)}/${material.stockTarget}`,
+      amountLabel,
       x + columnWidth,
       y + 4,
       {
@@ -58126,27 +58235,115 @@ function drawPlayerShipyardMaterialsTab(content, presentation) {
         color: shipyardMaterialBarColor(material)
       }
     );
-    const barY = y + 16;
-    drawShipyardMaterialBar(
-      { x: x + 20, y: barY, w: columnWidth - 20, h: 6 },
-      material
-    );
-    const source = sourceByGoodId.get(material.goodId);
-    if (rowHeight >= 36 && material.stockpileMissing > 0) {
-      drawOptionsText(
-        fitPixelText(source
-          ? `NEAREST: ${source.destinationName.toUpperCase()}  ${source.distanceKm} KM`
-          : "NO KNOWN SUPPLY PORT", PIXEL_FONT_SMALL_8, columnWidth - 20),
-        x + 20,
-        y + 26,
-        { color: PIRATE_MENU_INK_MUTED }
-      );
-    }
+    const actionEntries = actionEntriesByGoodId.get(material.goodId) || [];
+    const actionLayout = shipyardMaterialActionLayout({
+      x: x + 20,
+      y: y + 15,
+      width: columnWidth - 20,
+      rowHeight,
+      entries: actionEntries
+    });
+    drawShipyardMaterialBar(actionLayout.barRect, material);
+    for (const action of actionLayout.actions) drawShipyardMaterialActionButton(action);
     if (row < rows - 1) {
       ctx.fillStyle = "rgba(113, 80, 51, 0.18)";
       ctx.fillRect(x, y + rowHeight - 3, columnWidth, 1);
     }
   }
+}
+
+function shipyardMaterialActionLayout({ x, y, width, rowHeight, entries }) {
+  if (!Array.isArray(entries) || entries.length > 2) {
+    throw new Error(`Shipyard material row supports at most two actions, received ${entries?.length}`);
+  }
+  if (!Number.isFinite(rowHeight) || rowHeight <= 0) {
+    throw new Error(`Invalid shipyard material row height: ${rowHeight}`);
+  }
+  if (entries.length === 0) {
+    return {
+      barRect: { x, y: y + 6, w: width, h: 6 },
+      actions: []
+    };
+  }
+  const gap = 3;
+  if (width < 130) {
+    const actionY = y + Math.min(13, Math.max(10, rowHeight - 24));
+    const buttonWidth = Math.floor((width - gap * (entries.length - 1)) / entries.length);
+    let cursorX = x;
+    return {
+      barRect: { x, y: y + 1, w: width, h: 6 },
+      actions: entries.map((entry, index) => {
+        const actionWidth = index === entries.length - 1
+          ? x + width - cursorX
+          : buttonWidth;
+        const rect = { x: cursorX, y: actionY, w: actionWidth, h: 18 };
+        cursorX += rect.w + gap;
+        return { entry, rect };
+      })
+    };
+  }
+  const minimumBarWidth = 26;
+  const available = Math.max(0, width - minimumBarWidth - gap);
+  const desiredWidths = entries.map((entry) => Math.max(
+    42,
+    GAME_ICON_SIZE + 8 + measurePixelTextWidth(
+      renderedUiText(entry.option.label).toUpperCase(),
+      PIXEL_FONT_SMALL_8
+    )
+  ));
+  let widths;
+  if (entries.length === 1) {
+    widths = [Math.min(112, desiredWidths[0], available)];
+  } else {
+    const innerAvailable = Math.max(0, available - gap);
+    const firstTarget = entries[0].option.action.type === "sell-shipyard-material"
+      ? Math.min(64, desiredWidths[0])
+      : Math.ceil(innerAvailable / 2);
+    const firstWidth = clamp(firstTarget, 36, Math.max(36, innerAvailable - 42));
+    widths = [firstWidth, Math.max(42, innerAvailable - firstWidth)];
+  }
+  const totalWidth = widths.reduce((sum, value) => sum + value, 0) + gap * (widths.length - 1);
+  let cursorX = x + width - totalWidth;
+  return {
+    barRect: { x, y: y + 6, w: Math.max(18, cursorX - x - gap), h: 6 },
+    actions: entries.map((entry, index) => {
+      const rect = { x: cursorX, y, w: widths[index], h: 18 };
+      cursorX += rect.w + gap;
+      return { entry, rect };
+    })
+  };
+}
+
+function drawShipyardMaterialActionButton({ entry, rect }) {
+  const selected = entry.index === dialogueState.selectedIndex;
+  const caption = entry.option.action.type === "sell-shipyard-material"
+    ? `SELL ${entry.option.action.quantity}`
+    : entry.option.action.destinationName.toUpperCase();
+  drawPiratePaperInset(rect, selected && !entry.option.disabled);
+  if (selected) {
+    ctx.fillStyle = entry.option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_CHART_LINE;
+    ctx.fillRect(rect.x + 2, rect.y + 3, 2, rect.h - 6);
+  }
+  drawGameIcon(
+    dialogueOptionIconId(entry.option),
+    rect.x + 2,
+    rect.y + 1,
+    { alpha: entry.option.disabled ? 0.38 : 1 }
+  );
+  drawOptionsText(
+    fitPixelText(
+      caption,
+      PIXEL_FONT_SMALL_8,
+      Math.max(1, rect.w - GAME_ICON_SIZE - 7)
+    ),
+    rect.x + GAME_ICON_SIZE + 4,
+    rect.y + 5,
+    {
+      font: PIXEL_FONT_SMALL_8,
+      color: entry.option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK
+    }
+  );
+  dialogueLayout.optionRects.push({ index: entry.index, rect });
 }
 
 function drawShipyardMaterialBar(rect, material) {
@@ -58888,12 +59085,24 @@ function bottomAlignedPortraitFrame(source) {
   return aligned;
 }
 
-function drawDialogueOptions(view, x, y, width, bottom, font = PIXEL_FONT_SMALL_8) {
-  dialogueLayout.optionRects = [];
+function drawDialogueOptions(
+  view,
+  x,
+  y,
+  width,
+  bottom,
+  font = PIXEL_FONT_SMALL_8,
+  { groups = dialogueOptionGroups(view.options), preserveOptionRects = false } = {}
+) {
+  if (!preserveOptionRects) dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
-  const optionHeight = dialogueOptionsHeight(view, font, width);
-  const groups = dialogueOptionGroups(view.options);
+  const optionHeight = dialogueOptionEntriesHeight(
+    view,
+    font,
+    width,
+    [...groups.regular, ...groups.exits]
+  );
   const regularRows = dialogueRegularOptionRows(view, groups.regular);
   const stack = dialogueOptionStackLayout({
     desiredY: y,
@@ -59069,17 +59278,30 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
 }
 
 function dialogueOptionsHeight(view, font, width) {
+  const groups = dialogueOptionGroups(view.options);
+  return dialogueOptionEntriesHeight(
+    view,
+    font,
+    width,
+    [...groups.regular, ...groups.exits]
+  );
+}
+
+function dialogueOptionEntriesHeight(view, font, width, entries) {
+  if (!Array.isArray(entries) || entries.length === 0) {
+    throw new Error("Dialogue option height requires at least one entry");
+  }
   const minimumHeight = view.optionHeight || DIALOGUE_OPTION_H;
   const measurementWidths = dialogueOptionMeasurementWidths({
-    options: view.options,
+    options: entries.map((entry) => entry.option),
     width,
     optionColumns: view.optionColumns || 1,
     regularWidthReserve: UI_PAGER_BUTTON_W + 5
   });
-  return view.options.reduce((height, option, index) => Math.max(
+  return entries.reduce((height, entry, index) => Math.max(
     height,
     dialogueOptionTextMetrics(
-      option,
+      entry.option,
       font,
       measurementWidths[index],
       minimumHeight
