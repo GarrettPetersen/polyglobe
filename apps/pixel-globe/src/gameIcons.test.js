@@ -21,7 +21,8 @@ import {
   menuLabelIconId,
   shipMenuIconId,
   startMenuIconId,
-  tradeGoodIconId
+  tradeGoodIconId,
+  validateGameIconAtlasManifest
 } from "./gameIcons.js";
 import { SHIP_STATS } from "./shipStats.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
@@ -394,6 +395,7 @@ test("runtime icons always draw at the native atlas size", () => {
 
 test("the game icon atlas exactly matches the registry and Resurrect 64", async () => {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  assert.equal(validateGameIconAtlasManifest(manifest), true);
   const dimensions = gameIconAtlasDimensions();
   assert.equal(manifest.version, GAME_ICON_ASSET_VERSION);
   assert.equal(manifest.palette, "Resurrect 64");
@@ -424,6 +426,29 @@ test("the game icon atlas exactly matches the registry and Resurrect 64", async 
     }
     assert.ok(opaquePixels >= 3, `${iconId} is blank`);
   }
+});
+
+test("the icon atlas contract rejects registry offsets before a build can deploy them", async () => {
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const shifted = structuredClone(manifest);
+  [shifted.icons[120], shifted.icons[121]] = [shifted.icons[121], shifted.icons[120]];
+  assert.throws(
+    () => validateGameIconAtlasManifest(shifted),
+    /atlas order mismatch/
+  );
+
+  const offsetRect = structuredClone(manifest);
+  offsetRect.icons[120].rect.x += GAME_ICON_SIZE;
+  assert.throws(
+    () => validateGameIconAtlasManifest(offsetRect),
+    /atlas rectangle mismatch/
+  );
+
+  const staleVersion = { ...manifest, version: "stale-icons" };
+  assert.throws(
+    () => validateGameIconAtlasManifest(staleVersion),
+    /atlas version mismatch/
+  );
 });
 
 function escapeRegExp(value) {

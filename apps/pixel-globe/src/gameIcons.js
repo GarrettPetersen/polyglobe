@@ -209,7 +209,6 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:wait": nikoichu("Software_Clock_Time_Wait_1.png", ICON_COLOR.steel),
   "action:attack": nikoichu("Warfare_Medieval_Siege_Engine_Cannon_Gunpowder.png", ICON_COLOR.danger),
   "action:loadout": nikoichu("Software_Clipboard_Todo_Tasks_Done_Checkmark.png", ICON_COLOR.navigation),
-  "action:confirmed": nikoichu("Software_Clipboard_Todo_Tasks_Done_Checkmark.png", ICON_COLOR.success),
   "action:shipyard": nikoichu("Travel_Ship_Medieval_Galleon.png", ICON_COLOR.sea),
   "action:letter": nikoichu("Tools_Crafting_Writing_Parchment_Scroll_Document_Sealed.png", ICON_COLOR.parchment),
   "action:disguise": nikoichu("Hats_Domino_Mask_Incognito_Private_Privacy.png", ICON_COLOR.purple),
@@ -498,6 +497,62 @@ export function gameIconAtlasRect(iconId) {
     w: GAME_ICON_SIZE,
     h: GAME_ICON_SIZE
   };
+}
+
+export function validateGameIconAtlasManifest(manifest) {
+  if (!manifest || typeof manifest !== "object" || Array.isArray(manifest)) {
+    throw new Error("Game icon atlas manifest must be an object");
+  }
+  const dimensions = gameIconAtlasDimensions();
+  if (manifest.version !== GAME_ICON_ASSET_VERSION) {
+    throw new Error(
+      `Game icon atlas version mismatch: ${manifest.version} != ${GAME_ICON_ASSET_VERSION}`
+    );
+  }
+  if (manifest.palette !== "Resurrect 64") {
+    throw new Error(`Game icon atlas palette mismatch: ${manifest.palette}`);
+  }
+  if (manifest.width !== dimensions.width || manifest.height !== dimensions.height ||
+      manifest.iconSize !== GAME_ICON_SIZE) {
+    throw new Error(
+      `Game icon atlas dimensions mismatch: ${manifest.width}x${manifest.height} ` +
+      `at ${manifest.iconSize}px, expected ${dimensions.width}x${dimensions.height} ` +
+      `at ${GAME_ICON_SIZE}px`
+    );
+  }
+  if (!Array.isArray(manifest.icons) || manifest.icons.length !== GAME_ICON_IDS.length) {
+    throw new Error(
+      `Game icon atlas icon count mismatch: ${manifest.icons?.length ?? "missing"} ` +
+      `!= ${GAME_ICON_IDS.length}`
+    );
+  }
+  for (let index = 0; index < GAME_ICON_IDS.length; index++) {
+    const iconId = GAME_ICON_IDS[index];
+    const entry = manifest.icons[index];
+    if (!entry || entry.id !== iconId) {
+      throw new Error(
+        `Game icon atlas order mismatch at ${index}: ${entry?.id ?? "missing"} != ${iconId}`
+      );
+    }
+    const expectedRect = gameIconAtlasRect(iconId);
+    if (!sameIconRect(entry.rect, expectedRect)) {
+      throw new Error(
+        `Game icon atlas rectangle mismatch for ${iconId}: ` +
+        `${JSON.stringify(entry.rect)} != ${JSON.stringify(expectedRect)}`
+      );
+    }
+  }
+  return true;
+}
+
+function sameIconRect(actual, expected) {
+  return Boolean(
+    actual &&
+    actual.x === expected.x &&
+    actual.y === expected.y &&
+    actual.w === expected.w &&
+    actual.h === expected.h
+  );
 }
 
 export function gameIconDrawRect(x, y) {

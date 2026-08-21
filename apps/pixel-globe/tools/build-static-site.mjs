@@ -7,6 +7,7 @@ import { build } from "esbuild";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
 import { FACTIONS, factionHasFlag } from "../src/factions.js";
+import { validateGameIconAtlasManifest } from "../src/gameIcons.js";
 import { SHIP_ROWING_ANIMATION_SPECS } from "../src/shipRowingAnimation.js";
 import {
   SHIP_SPRITE_SHEET_HEIGHT,
@@ -122,6 +123,7 @@ const buildCharacterManifest = edition === BUILD_EDITION_DEMO
   ? createDemoCharacterManifest(fullCharacterManifest)
   : structuredClone(fullCharacterManifest);
 const buildRevision = await resolveBuildRevision();
+const gameIconManifestPath = join(publicRoot, "assets/ui/game-icons.json");
 
 async function mustExist(path) {
   try {
@@ -514,6 +516,8 @@ async function assertStandaloneDemoWorkers() {
     }
   }
 }
+
+validateGameIconAtlasManifest(JSON.parse(await readFile(gameIconManifestPath, "utf8")));
 
 await rm(distRoot, { recursive: true, force: true });
 await mkdir(distRoot, { recursive: true });

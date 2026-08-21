@@ -5752,7 +5752,7 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
             {
               rowId,
               disabled: waypointSet,
-              iconId: waypointSet ? "action:confirmed" : undefined
+              iconId: waypointSet ? "action:loadout" : undefined
             }
           )] : [])
         ];
