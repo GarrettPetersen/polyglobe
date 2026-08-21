@@ -2068,6 +2068,10 @@ import {
   terrainConnectorLengthIsRenderable,
   terrainConnectorRasterSpans
 } from "./terrainConnectorRaster.js";
+import {
+  createIncrementalRasterFrameCache,
+  requestIncrementalRasterFrame
+} from "./incrementalRasterFrames.js";
 import { shipyardConstructionPixels } from "./shipyardConstructionArt.js";
 import {
   createRiverWaterOcclusionMask,
@@ -6438,16 +6442,25 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (updatePlayerWind(dt)) dirty = true;
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
-    } else if (!anchored && !portWaitState && updateSailing(dt)) dirty = true;
+    } else if (!anchored && !portWaitState && measurePerformanceBenchmarkStage(
+      "sailing",
+      () => updateSailing(dt)
+    )) dirty = true;
     if (maybeAutoAnchorAtNonPortQuestSite()) dirty = true;
     if (measurePerformanceBenchmarkStage("quests.journey", () => {
       const captiveChanged = maybeAdvancePirateCaptiveJourneyAtSea();
       const dialogueChanged = maybeOpenQuestJourneyDialogueAtSea();
       return captiveChanged || dialogueChanged;
     })) dirty = true;
-    if (updateNavalWeapons(dt)) dirty = true;
-    if (updateWaterAnimation(nowMs)) dirty = true;
-    if (updateFishAnimation(nowMs)) dirty = true;
+    if (measurePerformanceBenchmarkStage("navalWeapons", () => updateNavalWeapons(dt))) {
+      dirty = true;
+    }
+    if (measurePerformanceBenchmarkStage("waterAnimation", () => updateWaterAnimation(nowMs))) {
+      dirty = true;
+    }
+    if (measurePerformanceBenchmarkStage("fishAnimation", () => updateFishAnimation(nowMs))) {
+      dirty = true;
+    }
     if (measurePerformanceBenchmarkStage(
       "weather.masks",
       () => advancePendingWeatherMaskRefresh(nowMs)
@@ -6486,7 +6499,9 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (chartRepairCheckIsDue && maybeOpenChartReframeDialogue(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage("icebergs", () => updateIcebergs(dt))) dirty = true;
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
-    if (updateDiscoveries(nowMs)) dirty = true;
+    if (measurePerformanceBenchmarkStage("discoveries", () => updateDiscoveries(nowMs))) {
+      dirty = true;
+    }
     if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
     if (updateSeagulls(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
@@ -6498,15 +6513,18 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     })) dirty = true;
     recordCapturePosition(nowMs);
   }
-  if (updateChartVisualRepair(nowMs)) dirty = true;
+  if (measurePerformanceBenchmarkStage(
+    "chart.visualRepair",
+    () => updateChartVisualRepair(nowMs)
+  )) dirty = true;
   if (updateStormFogPresentation(dt)) dirty = true;
   if (updateStormShipStrike(stormShipStrikeState, nowMs)) dirty = true;
   if (updateWorldShipSinkEffects(nowMs)) dirty = true;
   if (updateStatusPersonParticles(nowMs)) dirty = true;
   if (updateItemAcquisitionEffects(nowMs)) dirty = true;
   if (updateDepartureControlFeedback(nowMs)) dirty = true;
-  updateAmbientAudio(dt);
-  updateMusicContext(nowMs);
+  measurePerformanceBenchmarkStage("audio.ambient", () => updateAmbientAudio(dt));
+  measurePerformanceBenchmarkStage("audio.music", () => updateMusicContext(nowMs));
   if (!CAPTURE_SCENARIO && hasStartedVoyage && !surfaceIceEntrapmentActive &&
       nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
     schedulePeriodicAutosave(nowMs);
@@ -48098,6 +48116,7 @@ const terrainConnectorDynamicLayerCache = new WeakMap();
 const terrainConnectorEntryCache = new WeakMap();
 const TERRAIN_CONNECTOR_WAVE_ATLAS_MAX_WIDTH = 512;
 const TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING = 1;
+const TERRAIN_CONNECTOR_WAVE_BUILD_BUDGET_MS = 2;
 let nextTerrainConnectorDynamicRevision = 1;
 
 function drawTerrainConnectorFaces(faceCalls, activeChart, options = {}) {
@@ -48155,6 +48174,9 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls =
     : terrainConnectorCallSequenceKey(visibleFaceCalls);
   let cached = terrainConnectorDynamicLayerCache.get(cacheKey);
   if (cached?.baseLayer !== baseLayer || cached.visibleFaceCallsKey !== visibleFaceCallsKey) {
+    const compatibleFallback = cached?.baseLayer === baseLayer
+      ? cached.frameCache.frames.get(frameIndex) || cached.frameCache.frames.values().next().value
+      : null;
     const entries = terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls);
     cached = {
       baseLayer,
@@ -48162,43 +48184,81 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls =
       entries,
       bounds: terrainConnectorDynamicBounds(entries),
       revision: nextTerrainConnectorDynamicRevision++,
-      frames: new Map()
+      frameCache: createIncrementalRasterFrameCache({
+        frameCount: BEACH_WAVE_FRAME_COUNT,
+        emptyFrame: compatibleFallback || emptyTerrainConnectorDynamicLayer()
+      })
     };
     terrainConnectorDynamicLayerCache.set(cacheKey, cached);
   }
-  const existing = cached.frames.get(frameIndex);
-  if (existing) return existing;
+  return requestIncrementalRasterFrame(cached.frameCache, frameIndex, {
+    budgetMs: TERRAIN_CONNECTOR_WAVE_BUILD_BUDGET_MS,
+    createBuild: (buildFrameIndex) => createTerrainConnectorDynamicFrameBuild(
+      cached,
+      buildFrameIndex
+    ),
+    advanceBuild: advanceTerrainConnectorDynamicFrameBuild,
+    completeBuild: completeTerrainConnectorDynamicFrameBuild
+  });
+}
 
-  const { entries, bounds } = cached;
-  const atlas = terrainConnectorDynamicAtlasLayout(entries);
+function emptyTerrainConnectorDynamicLayer() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1;
+  canvas.height = 1;
+  return Object.freeze({
+    canvas,
+    x: 0,
+    y: 0,
+    frameIndex: 0,
+    revision: 0,
+    sprites: Object.freeze([])
+  });
+}
+
+function createTerrainConnectorDynamicFrameBuild(cached, frameIndex) {
+  const atlas = terrainConnectorDynamicAtlasLayout(cached.entries);
   const canvas = document.createElement("canvas");
   canvas.width = atlas.width;
   canvas.height = atlas.height;
   const layerCtx = canvas.getContext("2d");
   if (!layerCtx) throw new Error("Could not create terrain connector wave layer");
   layerCtx.imageSmoothingEnabled = false;
-  for (const sprite of atlas.sprites) {
-    drawTerrainConnectorDynamicDetails(
-      layerCtx,
-      sprite.entry,
-      frameIndex / BEACH_WAVE_FRAME_COUNT * BEACH_WAVE_PERIOD_MS,
-      sprite.sourceRect.x - sprite.destinationRect.x,
-      sprite.sourceRect.y - sprite.destinationRect.y
-    );
-  }
-  const layer = Object.freeze({
-    canvas,
-    x: bounds.x,
-    y: bounds.y,
+  return {
+    cached,
     frameIndex,
-    revision: cached.revision,
-    sprites: Object.freeze(atlas.sprites.map(({ sourceRect, destinationRect }) => Object.freeze({
+    atlas,
+    canvas,
+    layerCtx,
+    nextSpriteIndex: 0
+  };
+}
+
+function advanceTerrainConnectorDynamicFrameBuild(build) {
+  if (build.nextSpriteIndex >= build.atlas.sprites.length) return true;
+  const sprite = build.atlas.sprites[build.nextSpriteIndex++];
+  drawTerrainConnectorDynamicDetails(
+    build.layerCtx,
+    sprite.entry,
+    build.frameIndex / BEACH_WAVE_FRAME_COUNT * BEACH_WAVE_PERIOD_MS,
+    sprite.sourceRect.x - sprite.destinationRect.x,
+    sprite.sourceRect.y - sprite.destinationRect.y
+  );
+  return build.nextSpriteIndex >= build.atlas.sprites.length;
+}
+
+function completeTerrainConnectorDynamicFrameBuild(build) {
+  return Object.freeze({
+    canvas: build.canvas,
+    x: build.cached.bounds.x,
+    y: build.cached.bounds.y,
+    frameIndex: build.frameIndex,
+    revision: build.cached.revision,
+    sprites: Object.freeze(build.atlas.sprites.map(({ sourceRect, destinationRect }) => Object.freeze({
       sourceRect: Object.freeze(sourceRect),
       destinationRect: Object.freeze(destinationRect)
     })))
   });
-  cached.frames.set(frameIndex, layer);
-  return layer;
 }
 
 function terrainConnectorDynamicAtlasLayout(entries) {
