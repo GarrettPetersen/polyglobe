@@ -261,6 +261,7 @@ import {
   SHIP_SPRITE_SHEET_COLS
 } from "./shipSpriteLayout.js";
 import { validateShipWakeAnchors } from "./shipWakeAnchors.js";
+import { shipBowWavePixels, shipBowWaveStyle } from "./shipBowWave.js";
 import {
   SHIP_ROWING_ANIMATION_SPECS,
   SHIP_ROWING_FRAME_COUNT,
@@ -286,6 +287,7 @@ import {
   shipDirectionalTranslationAllowed,
   shipDragFactor,
   shipHasWindDeadZone,
+  shipPoweredAccelerationRad,
   shipPropulsionPerformance,
   shipVelocityLimitAfterPropulsion
 } from "./shipPropulsion.js";
@@ -1684,14 +1686,17 @@ import {
   shipLedgerRowsPerPageForPanel,
   shipPapersPage,
   shipPapersRowsPerPageForPanel,
+  shipRatingCellCount,
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import {
   availablePlayerShipyardPayouts,
   claimShipyardListing,
   nearestShipyardListingForPort,
+  registerShipyardTradeIn,
   shipReplacementTermsWithoutTradeIn,
   shipyardAtPort,
+  shipyardListingById,
   shipyardMaterialStatus,
   shipyardPurchaseTerms,
   shipyardRumorForPort
@@ -2000,6 +2005,7 @@ import {
 } from "./chartReframeDialogue.js";
 import {
   CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX,
+  chartDriftNeedsCloudRepair,
   chartFaultCanRelyOnSwell,
   chartFaultNeedsCloudRepair,
   measureVisibleTerrainTear,
@@ -4016,12 +4022,12 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
+  if (dispatchWorldOverlayKey(event)) return;
   if (keyAction === KEY_ACTION.CAPTAIN_MENU && captainMenuButtonIsAvailable()) {
     event.preventDefault();
     openCaptainMenu();
     return;
   }
-  if (dispatchWorldOverlayKey(event)) return;
   if (keyAction === KEY_ACTION.CAPTAIN_MENU) {
     event.preventDefault();
     openCaptainMenu();
@@ -12949,7 +12955,9 @@ function openShipInfoMenu() {
   closeAchievementsMenu();
   closePoliticsMenu();
   closeNavigationMenu();
-  capturePausedView(shipInfoMenu.viewCache, gameState, () => createShipInfoView(ship, gameState));
+  capturePausedView(shipInfoMenu.viewCache, gameState, () => createShipInfoView(ship, gameState, {
+    ownedShipyards: [...worldEconomy.shipyards.yards.values()].filter((yard) => yard.playerBacking)
+  }));
   shipInfoMenu.isOpen = true;
   shipInfoMenu.view = "vessel";
   shipInfoMenu.cargoPage = 0;
@@ -22622,7 +22630,7 @@ async function purchaseShipyardShip(action) {
   }
   const city = currentDialogueCity();
   const yard = shipyardAtPort(worldEconomy.shipyards, city);
-  const listing = yard.listing;
+  const listing = shipyardListingById(yard, action.listingId);
   if (!listing || listing.id !== action.listingId || listing.shipSlug !== action.shipSlug) {
     session.feedback = "That vessel is no longer available.";
     invalidateDialogueView();
@@ -22639,6 +22647,7 @@ async function purchaseShipyardShip(action) {
     if (dialogueState !== session || session.nodeId !== "shipyard-purchase-confirm" ||
         session.shipyardPurchaseListingId !== listing.id) return;
     const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
+    const tradedShipSlug = ship.typeSlug;
     const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
     const purchase = purchasePlayerShip(gameState, city, stats, purchaseTerms, {
       simMinute: Math.floor(weatherClockMinutes),
@@ -22655,6 +22664,11 @@ async function purchaseShipyardShip(action) {
       placeVikingLongshipEnthusiastAtPort(returnedHistorian);
     }
     claimShipyardListing(worldEconomy.shipyards, city, listing.id);
+    registerShipyardTradeIn(worldEconomy.shipyards, city, {
+      shipSlug: tradedShipSlug,
+      seller: "player",
+      acquiredMinute: Math.floor(weatherClockMinutes)
+    });
     const ownerPayout = yard.playerBacking
       ? collectPlayerShipyardDividends(gameState, worldEconomy.shipyards, city, {
           simMinute: Math.floor(weatherClockMinutes)
@@ -25303,7 +25317,9 @@ function maybeStartChartVisualRepair(nowMs, drift) {
     !ship || !camera || !chart || !localLayout || lakeBattleMode || opaqueCover
   ) return false;
 
-  const terrainTear = measureCurrentVisibleTerrainTear();
+  const measuredTear = measureCurrentVisibleTerrainTear();
+  const terrainTear = measuredTear.nonWater;
+  const waterTear = measuredTear.water;
   // Fog may conceal the worst geometry before it has repaired it, while the
   // clear center can remain worse than the hidden margin. Keep pressure tied
   // to whichever view is farther from north-up until both have settled.
@@ -25317,11 +25333,11 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   const swellRepairAvailable = chartFaultCanRelyOnSwell({
     drift,
     waterOnlyViewport,
-    localWaterFault: chartFaultHasLocalElasticWaterTarget(terrainTear)
-  });
+    localWaterFault: chartFaultHasLocalElasticWaterTarget(waterTear)
+  }) && !terrainTearNeedsRepair(terrainTear);
   if (
     swellRepairAvailable &&
-    chartFaultNeedsCloudRepair({ drift, terrainTear })
+    (chartDriftNeedsCloudRepair(drift) || terrainTearNeedsRepair(waterTear))
   ) {
     chartRepairSwellUntilMs = Math.max(chartRepairSwellUntilMs, nowMs + 12_000);
     if (nowMs >= chartRepairSwellNextRebuildAtMs) {
@@ -26128,19 +26144,23 @@ function chartViewportIsWaterOnlyForSwell() {
 
 function currentChartVisualFaultNeedsRepair() {
   chartNorthUpDrift = measureCurrentChartNorthUpDrift();
-  const terrainTear = measureCurrentVisibleTerrainTear();
+  const measuredTear = measureCurrentVisibleTerrainTear();
+  const terrainTear = measuredTear.nonWater;
+  const waterTear = measuredTear.water;
   const waterOnlyViewport = chartViewportIsWaterOnlyForSwell();
+  const swellRepairAvailable = chartFaultCanRelyOnSwell({
+    drift: chartNorthUpDrift,
+    waterOnlyViewport,
+    localWaterFault: chartFaultHasLocalElasticWaterTarget(waterTear)
+  }) && !terrainTearNeedsRepair(terrainTear);
+  if (swellRepairAvailable && terrainTearNeedsRepair(waterTear)) return true;
   return chooseChartVisualRepair({
     drift: chartNorthUpDrift,
     terrainTear,
     distortionPoint: chartWorstDistortionPoint,
     viewportWidth: SCREEN_W,
     viewportHeight: SCREEN_H,
-    swellRepairAvailable: chartFaultCanRelyOnSwell({
-      drift: chartNorthUpDrift,
-      waterOnlyViewport,
-      localWaterFault: chartFaultHasLocalElasticWaterTarget(terrainTear)
-    }),
+    swellRepairAvailable,
     distortionSurface: chartSurfaceAtScreenPoint(chartWorstDistortionPoint)
   }).kind !== "none";
 }
@@ -26154,11 +26174,19 @@ function chartFaultHasLocalElasticWaterTarget(terrainTear) {
   const faultPoint = terrainTearNeedsRepair(terrainTear) && terrainTear.surface === "water"
     ? { x: terrainTear.screenX, y: terrainTear.screenY }
     : chartWorstDistortionPoint;
+  const visibleElasticWater = [];
   let nearest = null;
   let nearestDistance = Infinity;
   for (const call of chart.tileCalls) {
     const screenX = call.drawSurfaceX + offset.x;
     const screenY = call.drawSurfaceY + offset.y;
+    if (
+      chartTileCallNearViewport(call, offset, TILE_ART_HALF) &&
+      isWaterSurfaceRow(call.row) &&
+      !tileHasSurfaceIce(call.id) &&
+      chartTileProtection[call.id] === 0 &&
+      chartElasticCorrectionMask[call.id] !== 0
+    ) visibleElasticWater.push(call);
     const distance = Math.hypot(
       screenX - faultPoint.x,
       screenY - faultPoint.y
@@ -26166,6 +26194,9 @@ function chartFaultHasLocalElasticWaterTarget(terrainTear) {
     if (distance >= nearestDistance) continue;
     nearest = call;
     nearestDistance = distance;
+  }
+  if (!terrainTearNeedsRepair(terrainTear)) {
+    return visibleElasticWater.length >= 3;
   }
   return Boolean(
     nearest &&
@@ -26278,7 +26309,6 @@ function createChartModalReframeWave(sourcePositions) {
 function cancelChartModalReframeTransition() {
   chartModalReframeSourceTilePositions = null;
   chartModalReframeWave = null;
-  worldRenderer.releaseModalReframeSource();
 }
 
 function finishChartModalReframeTransition() {
@@ -26286,7 +26316,6 @@ function finishChartModalReframeTransition() {
     throw new Error("Cannot finish an inactive modal reframe transition");
   }
   chartModalReframeWave = null;
-  worldRenderer.releaseModalReframeSource();
   dirty = true;
 }
 
@@ -26311,7 +26340,6 @@ function prepareNorthUpWorldBehindCover() {
     chartWorldRenderPendingBehindCover = false;
     chartWorldRenderPreparationBehindCover = null;
     chartModalReframeSourceTilePositions = null;
-    if (!chartModalReframeWave) worldRenderer.releaseModalReframeSource();
   } else if (coverOpened) {
     chartReframePendingBehindCover = false;
     chartWorldRenderPendingBehindCover = false;
@@ -26330,9 +26358,6 @@ function prepareNorthUpWorldBehindCover() {
       // north-up reset.
       cancelChartModalReframeTransition();
       chartModalReframeSourceTilePositions = captureModalReframeTilePositions();
-      if (chartModalReframeSourceTilePositions) {
-        worldRenderer.captureModalReframeSource();
-      }
       chartReframePendingBehindCover = true;
       chartWorldFramePreparedBehindCover = false;
       dirty = true;
@@ -26344,7 +26369,6 @@ function prepareNorthUpWorldBehindCover() {
       ? createChartModalReframeWave(chartModalReframeSourceTilePositions)
       : null;
     chartModalReframeSourceTilePositions = null;
-    if (!chartModalReframeWave) worldRenderer.releaseModalReframeSource();
     chartWorldRenderPendingBehindCover = reframed;
     chartWorldFramePreparedBehindCover = !reframed && worldFramePresented;
     chartWorldRenderPreparationBehindCover = null;
@@ -27974,8 +27998,12 @@ function applyWindAcceleration(
     propulsion.rowing ? normalizedRowingMode : SHIP_ROWING_MODE_IDLE
   );
   ship.rowing = shipRowingModeIsActive(ship.rowingMode);
-  const propulsionAccel = effectiveStats.accelerationRad * propulsion.accelerationFactor;
   const propulsionDirection = propulsion.propulsionDirection;
+  const propulsionAccel = shipPoweredAccelerationRad({
+    baseAccelerationRad: effectiveStats.accelerationRad * propulsion.accelerationFactor,
+    speedTowardThrustRad: dot3(ship.velocity, scaleVector(ship.heading, propulsionDirection)),
+    poweredSpeedLimitRad: propulsion.maxSpeedRad
+  });
 
   ship.velocity = [
     ship.velocity[0] + ship.heading[0] * propulsionAccel * propulsionDirection * dt,
@@ -37746,7 +37774,7 @@ function drawGpuDynamicUnderlay(dynamicWorld) {
   });
   measurePerformanceBenchmarkStage(
     "render.vessels.composite",
-    () => drawGpuShipCommands()
+    () => drawGpuWorldObjects(activeChart, offset, nowMs)
   );
   measurePerformanceBenchmarkStage(
     "render.stormWaves",
@@ -37758,7 +37786,6 @@ function drawGpuDynamicWorld(dynamicWorld) {
   if (!dynamicWorld) throw new Error("GPU dynamic world requires a frame description");
   const { activeChart, nowMs, offset, shipLight, cloudCalls, renderTileIds } = dynamicWorld;
   measurePerformanceBenchmarkStage("render.worldEffects", () => {
-    drawCitySpritesWebGL(activeChart, offset, nowMs);
     const painter = createBatchedGpuWorldPrimitivePainter(offset);
     drawHullSplinterBursts(hullSplinterBursts, painter);
     drawCannonSmokeBursts(cannonSmokeBursts, painter, CANNON_SMOKE_LAYER_FRONT);
@@ -42678,10 +42705,11 @@ function drawResponsiveShipRating(label, rating, x, valueX, y, {
   preferredPitch,
   preferredCellWidth
 }) {
+  const cellCount = shipRatingCellCount(rating);
   const value = String(rating);
   const valueWidth = measurePixelTextWidth(value, PIXEL_FONT_SMALL_8);
   const availableWidth = valueX - x;
-  const maximumLabelWidth = Math.max(20, availableWidth - valueWidth - 10 * 2 - 8);
+  const maximumLabelWidth = Math.max(20, availableWidth - valueWidth - cellCount * 2 - 8);
   const measuredLabelWidth = measurePixelTextWidth(label, PIXEL_FONT_SMALL_8);
   const labelColumnWidth = Math.min(
     Math.max(preferredLabelWidth, measuredLabelWidth),
@@ -42690,7 +42718,7 @@ function drawResponsiveShipRating(label, rating, x, valueX, y, {
   const meterX = x + labelColumnWidth + 4;
   const meterRight = valueX - valueWidth - 4;
   const meterWidth = Math.max(10, meterRight - meterX);
-  const pitch = Math.max(1, Math.min(preferredPitch, Math.floor(meterWidth / 10)));
+  const pitch = Math.max(1, Math.min(preferredPitch, Math.floor(meterWidth / cellCount)));
   const cellWidth = Math.max(1, Math.min(preferredCellWidth, pitch - 1));
   drawOptionsText(
     fitPixelText(label, PIXEL_FONT_SMALL_8, labelColumnWidth),
@@ -42698,7 +42726,7 @@ function drawResponsiveShipRating(label, rating, x, valueX, y, {
     y,
     { color: PIRATE_MENU_INK }
   );
-  for (let index = 0; index < 10; index++) {
+  for (let index = 0; index < cellCount; index++) {
     ctx.fillStyle = index < rating ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_PAPER_INSET_ALT;
     ctx.fillRect(meterX + index * pitch, y + 2, cellWidth, 5);
   }
@@ -51115,9 +51143,9 @@ function spriteKeyHash(key) {
 }
 
 function shipWakeDrawCalls() {
-  if (!ship?.wakeParticles?.length) return [];
+  if (!ship) return [];
   const calls = [];
-  for (const particle of ship.wakeParticles) {
+  for (const particle of ship.wakeParticles || []) {
     const life = clamp(particle.age / particle.ttl, 0, 1);
     const alphaBase = wakeParticleAlphaBase(particle.kind);
     const alpha = Number((alphaBase * Math.pow(1 - life, 1.35)).toFixed(3));
@@ -51134,6 +51162,22 @@ function shipWakeDrawCalls() {
     const uy = particle.vy / len;
     const markLength = clamp(Math.round(2 + life * 4), 2, 5);
     appendWakeFoamMark(calls, particle, ux, uy, markLength, alpha, life);
+  }
+  const speedPx = vectorLength(ship.velocity) * PIXELS_PER_RADIAN;
+  const style = shipBowWaveStyle({
+    speedPx,
+    minimumWakeSpeedPx: SHIP_WAKE_MIN_SPEED_PX,
+    elapsedSeconds: lastFrameMs / 1000
+  });
+  if (style) {
+    const source = shipWakeSourcePoint();
+    const side = { x: -source.heading.y, y: source.heading.x };
+    calls.push(...shipBowWavePixels({
+      port: source.positiveShoulder,
+      starboard: source.negativeShoulder,
+      side,
+      style
+    }));
   }
   return calls;
 }
@@ -52620,51 +52664,88 @@ function createGpuShipDrawPlan(drawCalls, nowMs, terrainForeground) {
   return preparedById;
 }
 
-function drawGpuShipCommands() {
+function drawGpuWorldObjects(activeChart, offset, nowMs) {
+  const commands = [
+    ...gpuShipDrawCommands.map((command) => ({
+      kind: "vessel",
+      id: command.kind === "ship" ? command.drawCall.id : command.drawCall?.id || command.entry.effect.id,
+      sortY: gpuShipCommandSortY(command),
+      command
+    })),
+    ...activeChart.cityCalls
+      .filter((call) => !call.hiddenSettlement)
+      .map((call) => ({
+        kind: "city",
+        id: call.portId,
+        sortY: call.sortY + offset.y,
+        call
+      }))
+  ];
+  commands.sort(compareShipDrawCalls);
+  for (const entry of commands) {
+    if (entry.kind === "city") drawCitySpriteWebGL(entry.call, offset, nowMs);
+    else drawGpuShipCommand(entry.command);
+  }
+}
+
+function gpuShipCommandSortY(command) {
+  if (command.kind === "ship") {
+    return shipOcclusionDepthY(command.drawCall.y, command.layers.bottomOpaqueY, 0);
+  }
+  if (command.kind === "iceberg") return command.drawCall.sortY;
+  if (command.kind === "sinking") {
+    const offset = command.entry.space === "chart"
+      ? chartOffsetPixels(command.activeChart)
+      : { x: 0, y: 0 };
+    return command.entry.effect.waterlineY + offset.y;
+  }
+  throw new Error(`Unknown GPU ship command kind: ${command.kind}`);
+}
+
+function drawGpuShipCommand(command) {
   const painter = createGpuWorldPrimitivePainter({ x: 0, y: 0 });
-  for (const command of gpuShipDrawCommands) {
-    if (command.kind === "sinking") {
-      drawWorldShipSinkEffect(
-        command.entry,
-        command.activeChart,
-        command.nowMs,
-        painter
-      );
-      continue;
-    }
-    if (command.kind === "iceberg") {
-      drawGpuIceberg(command.drawCall, command.nowMs);
-      continue;
-    }
-    const { drawCall, layers, foreground, nowMs } = command;
-    if (layers.submergedMaxY >= layers.submergedMinY) {
-      worldRenderer.drawAtlasSprite({
-        source: layers.submergedSource,
-        sourceRect: layers.submergedSourceRect,
-        destinationRect: {
-          x: drawCall.x,
-          y: drawCall.y,
-          width: SHIP_SHEET_FRAME_SIZE,
-          height: SHIP_SHEET_FRAME_SIZE
-        },
-        alpha: SHIP_SUBMERGED_ALPHA,
-        refractionPx: 1
-      });
-    }
+  if (command.kind === "sinking") {
+    drawWorldShipSinkEffect(
+      command.entry,
+      command.activeChart,
+      command.nowMs,
+      painter
+    );
+    return;
+  }
+  if (command.kind === "iceberg") {
+    drawGpuIceberg(command.drawCall, command.nowMs);
+    return;
+  }
+  if (command.kind !== "ship") throw new Error(`Unknown GPU ship command kind: ${command.kind}`);
+  const { drawCall, layers, foreground, nowMs } = command;
+  if (layers.submergedMaxY >= layers.submergedMinY) {
     worldRenderer.drawAtlasSprite({
-      source: layers.aboveSource,
-      sourceRect: layers.aboveSourceRect,
+      source: layers.submergedSource,
+      sourceRect: layers.submergedSourceRect,
       destinationRect: {
         x: drawCall.x,
         y: drawCall.y,
         width: SHIP_SHEET_FRAME_SIZE,
         height: SHIP_SHEET_FRAME_SIZE
-      }
+      },
+      alpha: SHIP_SUBMERGED_ALPHA,
+      refractionPx: 1
     });
-    if (drawCall.kind === "player") drawGpuPlayerShipDecorations(drawCall, layers);
-    if (drawCall.kind === "npc") drawGpuNpcShipDecorations(drawCall, nowMs);
-    drawGpuShipTerrainForeground(foreground, drawCall, layers);
   }
+  worldRenderer.drawAtlasSprite({
+    source: layers.aboveSource,
+    sourceRect: layers.aboveSourceRect,
+    destinationRect: {
+      x: drawCall.x,
+      y: drawCall.y,
+      width: SHIP_SHEET_FRAME_SIZE,
+      height: SHIP_SHEET_FRAME_SIZE
+    }
+  });
+  if (drawCall.kind === "player") drawGpuPlayerShipDecorations(drawCall, layers);
+  if (drawCall.kind === "npc") drawGpuNpcShipDecorations(drawCall, nowMs);
+  drawGpuShipTerrainForeground(foreground, drawCall, layers);
 }
 
 function drawStormWaveEffectsWebGL(activeChart, nowMs, chartOffset) {
@@ -54904,11 +54985,6 @@ function cityShadowSpriteForCity(city) {
   shadowCtx.fillRect(0, 0, canvas.width, canvas.height);
   cityShadowSpriteCache.set(cacheKey, canvas);
   return canvas;
-}
-
-function drawCitySpritesWebGL(activeChart, offset, nowMs) {
-  if (!activeChart.cityCalls || activeChart.cityCalls.length === 0) return;
-  for (const call of activeChart.cityCalls) drawCitySpriteWebGL(call, offset, nowMs);
 }
 
 function drawCitySpriteWebGL(call, offset, nowMs) {
@@ -58441,6 +58517,7 @@ function drawPlayerShipyardBooksTab(content, presentation, ledgerJournal) {
   const summary = [
     [compactSummary ? "CAPITAL" : "OWNER CAPITAL", accounts.capitalContributions],
     [compactSummary ? "SALES" : "SHIP SALES", accounts.salesRevenue],
+    [compactSummary ? "STOCK" : "USED SHIP PURCHASES", -accounts.inventoryPurchases],
     [compactSummary ? "COSTS" : "SHIPBUILDING COSTS", -accounts.constructionExpenses],
     [compactSummary ? "PAID" : "DIVIDENDS PAID", -accounts.playerPayouts],
     [compactSummary ? "OWED" : "UNPAID DIVIDENDS", accounts.outstandingPlayerShare],
@@ -58546,7 +58623,13 @@ function shipyardAccountEntryLabel(entry) {
   if (["construction-labor", "construction-labor-progress"].includes(entry.kind)) {
     return entry.kind.endsWith("-progress") ? "LABOR (WIP)" : "LABOR";
   }
-  if (entry.kind === "sale") return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} SOLD`;
+  if (entry.kind === "trade-in-purchase") {
+    return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} BOUGHT USED`;
+  }
+  if (entry.kind === "sale") {
+    const prefix = entry.source === "trade-in" ? "USED " : "";
+    return `${prefix}${shipLabelForSlug(entry.shipSlug).toUpperCase()} SOLD`;
+  }
   if (entry.kind === "payout") return "DIVIDEND PAID";
   if (entry.kind === "legacy") {
     if (entry.legacyAccount === "sales") return "EARLIER SHIP SALES";

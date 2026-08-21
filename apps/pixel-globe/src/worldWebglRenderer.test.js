@@ -67,13 +67,9 @@ test("modal reframes move each complete terrain quad through one diagonal GPU ba
   assert.doesNotMatch(WORLD_SCENE_VERTEX_SHADER, /reframeCrest|crestAmplitude/);
 });
 
-test("modal reframes retain the complete old world until the crestless band reaches it", () => {
-  assert.match(PRESENT_FRAGMENT_SHADER, /uniform sampler2D u_modalReframeSource/);
-  assert.match(
-    PRESENT_FRAGMENT_SHADER,
-    /\(u_modalReframeFront - screenX - screenY\) \/ u_modalReframeBandWidth/
-  );
-  assert.match(PRESENT_FRAGMENT_SHADER, /source = mix\(previous, source, settled\)/);
+test("modal reframes do not place a screen-space wipe over whole-hex motion", () => {
+  assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /u_modalReframeSource/);
+  assert.doesNotMatch(PRESENT_FRAGMENT_SHADER, /source = mix\(previous, source, settled\)/);
 });
 
 test("repair clouds blur only their alpha silhouettes on the logical pixel grid", () => {

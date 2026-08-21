@@ -13,6 +13,7 @@ import {
   fundPlayerShipyard,
   nearestShipyardListingForPort,
   playerShipyardLedger,
+  registerShipyardTradeIn,
   restoreWorldShipyards,
   SHIPBUILDING_MATERIAL_GOOD_IDS,
   shipConstructionPrice,
@@ -23,6 +24,7 @@ import {
   shipyardMaterialStockTargets,
   shipTradeInValue,
   shipyardAtPort,
+  shipyardListings,
   shipyardMaterialStatus,
   shipyardPurchaseTerms,
   shipyardQualityBudget,
@@ -543,6 +545,49 @@ test("player-backed yards favor major hulls and return a sale share", () => {
   assert.equal(afterPayout.accounts.outstandingPlayerShare, 0);
   assert.equal(afterPayout.accounts.playerPayouts, payout.amount);
   assert.ok(afterPayout.accounts.entries.some((entry) => entry.kind === "payout"));
+});
+
+test("player-backed yards account for trade-ins, resale margin, and dividends across saves", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "used-ships" });
+  const yard = fundPlayerShipyard(system, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  yard.listing = null;
+  yard.nextBuildMinute = 1000000000;
+  const used = registerShipyardTradeIn(system, LISBON, {
+    shipSlug: "small-cog",
+    seller: "Captain Test",
+    acquiredMinute: 100
+  });
+
+  assert.equal(shipyardListings(yard)[0].id, used.id);
+  let ledger = playerShipyardLedger(yard, 100);
+  assert.equal(ledger.accounts.inventoryPurchases, used.acquisitionCost);
+  assert.ok(ledger.accounts.entries.some((entry) => (
+    entry.kind === "trade-in-purchase" && entry.shipSlug === "small-cog"
+  )));
+
+  const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "used-ships" });
+  restoreWorldShipyards(restored, snapshotWorldShipyards(system));
+  const restoredYard = shipyardAtPort(restored, LISBON);
+  assert.equal(shipyardListings(restoredYard)[0].id, used.id);
+  advanceWorldShipyards(restored, used.expiresMinute + 1);
+
+  ledger = playerShipyardLedger(restoredYard, restored.lastMinute);
+  const sale = ledger.accounts.entries.find((entry) => (
+    entry.kind === "sale" && entry.shipSlug === "small-cog"
+  ));
+  assert.equal(sale.source, "trade-in");
+  assert.equal(sale.acquisitionCost, used.acquisitionCost);
+  assert.equal(sale.margin, used.price - used.acquisitionCost);
+  assert.equal(restoredYard.playerPendingSales[0].margin, sale.margin);
+  assert.equal(
+    restoredYard.playerPendingSales[0].dividend,
+    Math.max(100, Math.round(sale.margin * 0.22 / 100) * 100)
+  );
+  assert.equal(restored.npcSales.some((entry) => entry.shipSlug === "small-cog"), true);
 });
 
 test("player-backed yards expose deterministic build progress and persist complete books", () => {

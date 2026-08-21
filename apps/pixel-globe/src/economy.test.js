@@ -100,6 +100,15 @@ const PORT_SAILING_DISTANCES = parsePortSailingDistances(JSON.parse(readFileSync
   "utf8"
 )));
 
+test("old-world markets regularly stock basic pikes and blades", () => {
+  for (const city of [LONDON, GOA, GUANGZHOU, MALACCA]) {
+    const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+    const arms = portMarket(economy, city).find((row) => row.good.id === "arms");
+    assert.ok(arms.stock >= 3, `${city.city} should stock basic arms`);
+    assert.equal(arms.listedForSale, true, `${city.city} should sell basic arms`);
+  }
+});
+
 test("city catalog presents period city names without changing stable source identities", () => {
   const expectedNames = [
     ["Augsberg", "Germany", "Augsburg"],

@@ -24,7 +24,10 @@ export const WHALE_PHASE_EXHAUSTED = "exhausted";
 export const WHALE_PHASE_DEAD = "dead";
 
 export { WHALE_POPULATION_TARGET } from "./whaleSpecies.js";
-export const NPC_WHALING_MIN_LIVING_POPULATION = 280;
+export const NPC_WHALING_EQUILIBRIUM_RATIO = 0.72;
+export const NPC_WHALING_MIN_LIVING_POPULATION = Math.ceil(
+  (WHALE_POPULATION_TARGET - 1) * NPC_WHALING_EQUILIBRIUM_RATIO
+);
 
 const MINUTES_PER_DAY = 24 * 60;
 const WHALE_RISING_SECONDS = 1.35;
@@ -465,7 +468,8 @@ export function killExhaustedWhale(memory) {
 
 export function harvestWhaleForNpc(memory, position, {
   maxDistanceRad,
-  minimumLivingPopulation = NPC_WHALING_MIN_LIVING_POPULATION
+  minimumLivingPopulation = NPC_WHALING_MIN_LIVING_POPULATION,
+  protectSpeciesEquilibrium = false
 }) {
   validateWhaleMemory(memory);
   validateVector(position, "NPC whaling position");
@@ -485,10 +489,16 @@ export function harvestWhaleForNpc(memory, position, {
   const dependentMotherIds = new Set(living
     .filter((whale) => whale.lifeStage === WHALE_LIFE_STAGE_CALF && whale.motherId !== null)
     .map((whale) => whale.motherId));
+  const livingBySpecies = protectSpeciesEquilibrium
+    ? whaleLivingPopulationBySpecies(living)
+    : null;
   const candidates = living
     .filter((whale) => whale.id !== activeWhaleId && whale.id !== WHITE_WHALE_ID)
     .filter((whale) => whale.lifeStage !== WHALE_LIFE_STAGE_CALF && !dependentMotherIds.has(whale.id))
     .filter((whale) => whale.phase !== WHALE_PHASE_TETHERED && whale.phase !== WHALE_PHASE_EXHAUSTED)
+    .filter((whale) => !protectSpeciesEquilibrium || (
+      livingBySpecies.get(whale.speciesId) > npcWhalingSpeciesFloor(whale.speciesId)
+    ))
     .map((whale) => ({
       whale,
       distanceRad: angularDistance(position, whale.position)
@@ -502,6 +512,36 @@ export function harvestWhaleForNpc(memory, position, {
   const whale = candidates[0].whale;
   killWhale(memory, whale);
   return Object.freeze({ outcome: "caught", whale, livingPopulation: living.length - 1 });
+}
+
+export function npcWhalingCooldownMinutes(memory) {
+  validateWhaleMemory(memory);
+  const ordinaryLiving = memory.individuals.filter((whale) => (
+    whale.id !== WHITE_WHALE_ID && whale.phase !== WHALE_PHASE_DEAD
+  )).length;
+  const target = WHALE_POPULATION_TARGET - 1;
+  const ratio = ordinaryLiving / target;
+  if (ratio <= NPC_WHALING_EQUILIBRIUM_RATIO) return Number.POSITIVE_INFINITY;
+  const pressure = clamp(
+    (ratio - NPC_WHALING_EQUILIBRIUM_RATIO) / (1 - NPC_WHALING_EQUILIBRIUM_RATIO),
+    0,
+    1
+  );
+  const days = 95 - pressure * 71;
+  return Math.round(days * MINUTES_PER_DAY);
+}
+
+function whaleLivingPopulationBySpecies(living) {
+  const counts = new Map(WHALE_SPECIES.map((species) => [species.id, 0]));
+  for (const whale of living) {
+    if (whale.id === WHITE_WHALE_ID) continue;
+    counts.set(whale.speciesId, (counts.get(whale.speciesId) || 0) + 1);
+  }
+  return counts;
+}
+
+function npcWhalingSpeciesFloor(speciesId) {
+  return Math.ceil(whaleSpeciesById(speciesId).population * NPC_WHALING_EQUILIBRIUM_RATIO);
 }
 
 export function whaleById(memory, whaleId) {

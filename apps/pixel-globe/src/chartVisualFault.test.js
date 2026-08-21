@@ -130,7 +130,7 @@ test("large tilt, distortion, or visible tear requests cloud repair", () => {
   assert.equal(terrainTearNeedsRepair({ extraPx: CHART_CLOUD_REPAIR_TERRAIN_TEAR_PX }), true);
 });
 
-test("a local water swell cannot claim broad archipelago distortion", () => {
+test("a local elastic water fault is repaired by swell before atmospheric cover", () => {
   const aleutianDistortion = {
     rotationDeg: 0.39,
     rmsDistortionPx: 24.42,
@@ -140,7 +140,7 @@ test("a local water swell cannot claim broad archipelago distortion", () => {
     drift: aleutianDistortion,
     waterOnlyViewport: false,
     localWaterFault: true
-  }), false);
+  }), true);
   assert.equal(chartFaultCanRelyOnSwell({
     drift: aleutianDistortion,
     waterOnlyViewport: true,

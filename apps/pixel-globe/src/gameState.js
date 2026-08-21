@@ -1238,9 +1238,16 @@ export function addPortNavigationWaypoint(state, {
   if (tradeGoodId !== null) waypoint.tradeGoodId = tradeGoodId;
   assertOptionalNavigationWaypoint(waypoint);
   const waypoints = state.memory.navigation.optionalWaypoints;
-  const existingIndex = waypoints.findIndex((entry) => entry.id === waypoint.id);
-  if (existingIndex >= 0) waypoints[existingIndex] = waypoint;
-  else waypoints.push(waypoint);
+  if (reason === PORT_NAVIGATION_REASON_QUEST_CARGO) {
+    state.memory.navigation.optionalWaypoints = waypoints.filter((entry) => !(
+      entry.reason === PORT_NAVIGATION_REASON_QUEST_CARGO &&
+      entry.questCargoGoodId === questCargoGoodId
+    ));
+  }
+  const currentWaypoints = state.memory.navigation.optionalWaypoints;
+  const existingIndex = currentWaypoints.findIndex((entry) => entry.id === waypoint.id);
+  if (existingIndex >= 0) currentWaypoints[existingIndex] = waypoint;
+  else currentWaypoints.push(waypoint);
   return waypoint;
 }
 

@@ -2364,6 +2364,59 @@ test("an outstanding quest cargo waypoint does not suppress hints for another go
   assert.equal(hint.destinationTileId, source.tileId);
 });
 
+test("a sold-out quest cargo waypoint is replaced by a fresh source", () => {
+  const origin = {
+    tileId: 611, city: "Ternate", country: "Ternate", factionId: "neutral",
+    cityType: "southeast-asian", lat: 0.79, lon: 127.38, population: 25000
+  };
+  const stale = {
+    tileId: 612, city: "Malacca", country: "Malacca", factionId: "neutral",
+    cityType: "southeast-asian", lat: 2.19, lon: 102.25, population: 60000
+  };
+  const fresh = {
+    tileId: 613, city: "Sakai", country: "Japan", factionId: "neutral",
+    cityType: "east-asian", lat: 34.57, lon: 135.48, population: 50000
+  };
+  const economy = createWorldEconomy({ ports: [origin, stale, fresh], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  maybeSpawnVikingLongshipQuest(state, {
+    tileId: 614, city: VIKING_LONGSHIP_PORT_CITY, country: "Iceland"
+  }, { spawnChance: 1, simMinute: 0 });
+  economy.portStates.get(origin.tileId).goods.get("wool").stock = 0;
+  economy.portStates.get(stale.tileId).goods.get("wool").stock = 0;
+  economy.portStates.get(fresh.tileId).goods.get("wool").stock = 10;
+  addPortNavigationWaypoint(state, {
+    destinationTileId: stale.tileId,
+    destinationName: stale.city,
+    reason: "QUEST CARGO SOURCE",
+    questCargoGoodId: "wool"
+  });
+
+  const hint = bestQuestCargoSource({
+    originCity: origin,
+    gameState: state,
+    economy,
+    portCities: [origin, stale, fresh],
+    simMinute: 100,
+    sailingDistanceKm: testSailingDistances([[origin, stale, 1000], [origin, fresh, 2200]]),
+    random: () => 0
+  });
+  assert.equal(hint.destinationTileId, fresh.tileId);
+  addPortNavigationWaypoint(state, {
+    destinationTileId: fresh.tileId,
+    destinationName: fresh.city,
+    reason: "QUEST CARGO SOURCE",
+    questCargoGoodId: "wool"
+  });
+  assert.deepEqual(
+    state.memory.navigation.optionalWaypoints
+      .filter((waypoint) => waypoint.questCargoGoodId === "wool")
+      .map((waypoint) => waypoint.destinationTileId),
+    [fresh.tileId]
+  );
+});
+
 test("market buy controls subtly mark goods still needed for quests", () => {
   const city = {
     tileId: 604,

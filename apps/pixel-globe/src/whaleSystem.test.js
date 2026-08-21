@@ -16,6 +16,7 @@ import {
   harvestWhaleForNpc,
   killExhaustedWhale,
   livingWhaleCountForSpecies,
+  npcWhalingCooldownMinutes,
   seedWhalePopulation,
   tetherWhale,
   underwaterWhaleSongPresence,
@@ -340,6 +341,31 @@ test("NPC whaling protects an active hunt and stops at its population floor", ()
   });
   assert.equal(protectedResult.outcome, "protected-population");
   assert.equal(protectedResult.livingPopulation, 3);
+});
+
+test("NPC whaling eases off as the world population approaches equilibrium", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(1200), 320);
+  const fullCooldown = npcWhalingCooldownMinutes(memory);
+  let caught = 0;
+  for (let attempt = 0; attempt < 36; attempt++) {
+    const result = harvestWhaleForNpc(memory, memory.individuals[0].position, {
+      maxDistanceRad: Math.PI,
+      minimumLivingPopulation: 0,
+      protectSpeciesEquilibrium: true
+    });
+    if (result.outcome !== "caught") break;
+    caught++;
+  }
+
+  assert.ok(caught > 0);
+  assert.ok(npcWhalingCooldownMinutes(memory) > fullCooldown);
+  for (const species of WHALE_SPECIES) {
+    assert.ok(
+      livingWhaleCountForSpecies(memory, species.id) >= Math.ceil(species.population * 0.72),
+      species.id
+    );
+  }
 });
 
 test("the production population includes every species, young families, and one distant white whale", () => {

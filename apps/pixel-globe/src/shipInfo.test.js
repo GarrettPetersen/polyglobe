@@ -29,8 +29,16 @@ import {
   shipPapersPage,
   shipPerformanceRating,
   shipPapersRowsPerPageForPanel,
+  shipRatingCellCount,
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
+
+test("ship rating meters grow to show equipment bonuses beyond ten", () => {
+  assert.equal(shipRatingCellCount(0), 10);
+  assert.equal(shipRatingCellCount(10), 10);
+  assert.equal(shipRatingCellCount(10.01), 11);
+  assert.equal(shipRatingCellCount(11), 11);
+});
 import { shipStatsForSlug } from "./shipStats.js";
 import { SPANISH_INDIES_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 
@@ -254,6 +262,27 @@ test("ship papers include active deliveries and letters of marque", () => {
   assert.equal(view.papers[3].title, "English letter of marque");
   assert.equal(view.papers[3].simMinute, 1440);
   assert.equal(shipPapersPage(view, 0).rows.length, 4);
+});
+
+test("ship papers list each player-owned shipyard partnership", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const view = createShipInfoView({
+    typeSlug: "brigantine",
+    hitPoints: stats.hitPoints,
+    maxHitPoints: stats.hitPoints
+  }, gameState, {
+    ownedShipyards: [{
+      portName: "Cadiz",
+      playerBacking: { investedMinute: 1440 }
+    }]
+  });
+
+  const paper = view.papers.find((entry) => entry.kind === "shipyard-ownership");
+  assert.equal(paper.title, "Cadiz shipyard partnership");
+  assert.equal(paper.issuer, "Cadiz master shipwrights");
+  assert.match(paper.detail, /dividends payable at the yard/);
+  assert.equal(paper.simMinute, 1440);
 });
 
 test("special item details expose the same canonical perk effect shown when acquired", () => {

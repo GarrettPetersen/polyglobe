@@ -43,6 +43,7 @@ import {
 import {
   NPC_WHALING_MIN_LIVING_POPULATION,
   harvestWhaleForNpc,
+  npcWhalingCooldownMinutes,
   validateWhaleMemory,
   whaleBlubberYield
 } from "./whaleSystem.js";
@@ -59,7 +60,9 @@ import { defaultSovereignTradeGrantedToFaction } from "./sovereignTradeAccess.js
 import {
   claimNpcShipyardSale,
   claimNpcShipyardSaleById,
-  npcShipyardSales
+  npcShipyardSales,
+  registerShipyardTradeIn,
+  shipConstructionPrice
 } from "./shipyards.js";
 import {
   PORTUGUESE_CARTAZ_DURATION_DAYS,
@@ -124,7 +127,6 @@ const FISHING_GROUND_MIN_EXPECTED_CATCH = 1;
 const FISHING_GROUND_TRAVEL_COST_PER_KM = 0.035;
 const FISHING_GROUND_LONG_RANGE_COST_PER_KM = 0.018;
 const FISHING_GROUND_CATCH_RATIO = 0.72;
-const NPC_WHALING_COOLDOWN_MINUTES = 60 * WEATHER_MINUTES_PER_DAY;
 const NPC_WHALING_RANGE_RAD = 1200 / EARTH_RADIUS_KM;
 const routeSegmentVectorCache = new WeakMap();
 
@@ -2504,14 +2506,31 @@ function spawnDueNpcReplacements(system, clockMinutes) {
 
 function purchaseNpcShipyardFleetGrowth(system, clockMinutes) {
   const activeAndQueued = system.ships.length + system.replacementQueue.length;
-  if (activeAndQueued >= system.shipyardFleetGrowthLimit) return false;
+  const fleetCanGrow = activeAndQueued < system.shipyardFleetGrowthLimit;
   let changed = false;
   let purchases = 0;
   for (const sale of npcShipyardSales(system.economy.shipyards)) {
     if (purchases >= NPC_SHIPYARD_PURCHASES_PER_MAINTENANCE) break;
-    if (system.ships.length + system.replacementQueue.length >= system.shipyardFleetGrowthLimit) break;
     const origin = system.ports.find((port) => port.tileId === sale.portId);
     if (!origin) continue;
+    const upgradingShip = npcShipyardUpgradeCandidate(system, origin, sale);
+    if (upgradingShip) {
+      claimNpcShipyardSaleById(system.economy.shipyards, sale.id);
+      const tradedShipSlug = upgradingShip.slug;
+      upgradeNpcShipHull(upgradingShip, sale.shipSlug);
+      registerShipyardTradeIn(system.economy.shipyards, origin, {
+        shipSlug: tradedShipSlug,
+        seller: `npc:${upgradingShip.id}`,
+        acquiredMinute: Math.max(clockMinutes, sale.soldMinute)
+      });
+      purchases++;
+      changed = true;
+      continue;
+    }
+    if (!fleetCanGrow ||
+        system.ships.length + system.replacementQueue.length >= system.shipyardFleetGrowthLimit) {
+      continue;
+    }
     const purchaser = npcShipyardPurchaserForSale(system, origin, sale);
     if (!purchaser) continue;
     claimNpcShipyardSaleById(system.economy.shipyards, sale.id);
@@ -2538,6 +2557,34 @@ function purchaseNpcShipyardFleetGrowth(system, clockMinutes) {
     changed = true;
   }
   return changed;
+}
+
+function npcShipyardUpgradeCandidate(system, origin, sale) {
+  const salePrice = shipConstructionPrice(sale.shipSlug);
+  const candidates = system.ships.filter((ship) => {
+    if (ship.factionId !== sale.factionId || ship.currentPort?.tileId !== origin.tileId ||
+        ship.visualNavigation || ship.plan || ship.encounter) return false;
+    const profileSpec = fleetProfileForId(ship.profileId);
+    return profileSlugsForRole(profileSpec, ship.role, ship.factionId).includes(sale.shipSlug) &&
+      npcShipSupportsFleetMode(sale.shipSlug, profileSpec.mode) &&
+      salePrice > shipConstructionPrice(ship.slug);
+  });
+  return candidates.sort((a, b) => (
+    shipConstructionPrice(a.slug) - shipConstructionPrice(b.slug) || a.id.localeCompare(b.id)
+  ))[0] || null;
+}
+
+function upgradeNpcShipHull(ship, shipSlug) {
+  const stats = shipStatsForSlug(shipSlug);
+  const hullRatio = clamp(ship.hitPoints / ship.maxHitPoints, 0, 1);
+  ship.slug = shipSlug;
+  ship.maxHitPoints = stats.hitPoints;
+  ship.hitPoints = Math.max(1, Math.round(stats.hitPoints * hullRatio));
+  ship.cargoCapacity = stats.cargoCapacity;
+  if (ship.role === NPC_ROLE_FISHERMAN) {
+    ship.fishingNetId = npcFishingNetForSeed(ship.seed, stats.cargoCapacity).id;
+  }
+  reconcileNpcCargoCapacity(ship, `shipyard upgrade to ${shipSlug}`);
 }
 
 function npcShipyardPurchaserForSale(system, origin, sale) {
@@ -3225,7 +3272,8 @@ function harvestNpcWhalingGround(system, ship, ground, clockMinutes) {
     if (!Number.isFinite(ship.lastWhaleHuntMinute)) {
       throw new Error(`NPC whaler ${ship.id} has an invalid hunt time: ${ship.lastWhaleHuntMinute}`);
     }
-    if (clockMinutes - ship.lastWhaleHuntMinute < NPC_WHALING_COOLDOWN_MINUTES) {
+    const cooldownMinutes = npcWhalingCooldownMinutes(system.whaleMemory);
+    if (clockMinutes - ship.lastWhaleHuntMinute < cooldownMinutes) {
       return Object.freeze({ outcome: "cooldown", whale: null });
     }
   }
@@ -3234,7 +3282,8 @@ function harvestNpcWhalingGround(system, ship, ground, clockMinutes) {
 
   const result = harvestWhaleForNpc(system.whaleMemory, latLonToVector(ground.lat, ground.lon), {
     maxDistanceRad: NPC_WHALING_RANGE_RAD,
-    minimumLivingPopulation: NPC_WHALING_MIN_LIVING_POPULATION
+    minimumLivingPopulation: NPC_WHALING_MIN_LIVING_POPULATION,
+    protectSpeciesEquilibrium: true
   });
   if (result.outcome !== "caught") return result;
   const harvestedQuantity = Math.min(availableQuantity, whaleBlubberYield(result.whale));

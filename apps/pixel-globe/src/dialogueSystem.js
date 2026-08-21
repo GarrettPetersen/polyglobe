@@ -188,6 +188,8 @@ import { portArrivalPresentation } from "./portArrivalFlavor.js";
 import {
   playerShipyardLedger,
   shipReplacementTermsWithoutTradeIn,
+  shipyardListingById,
+  shipyardListings,
   shipyardPurchaseTerms
 } from "./shipyards.js";
 import {
@@ -5513,9 +5515,9 @@ function shipyardView(session, city, gameState, economy, context) {
   if (yard && playerBackedShipyardAtPort(gameState, city)) {
     return playerShipyardLedgerView(session, city, gameState, economy, context, yard);
   }
-  const listing = yard?.listing || null;
+  const listings = yard ? shipyardListings(yard) : [];
   const investmentOptions = shipyardInvestmentOptions(city, gameState, yard, context.simMinute ?? 0);
-  if (!listing) {
+  if (listings.length === 0) {
     const nearestListing = context.nearestShipyardListing || null;
     if (nearestListing && !Number.isInteger(nearestListing.portId)) {
       throw new Error(`Nearest shipyard listing requires a port tile id: ${nearestListing.portId}`);
@@ -5548,7 +5550,27 @@ function shipyardView(session, city, gameState, economy, context) {
       ]
     };
   }
-  return shipyardListingView(session, city, gameState, context, listing, "root");
+  if (listings.length === 1) {
+    return shipyardListingView(session, city, gameState, context, listings[0], "root");
+  }
+  return {
+    speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
+    expressionId: "attentive",
+    text: `${listings.length} vessels are ready for inspection.`,
+    feedback: session.feedback,
+    options: [
+      ...listings.map((listing) => option(
+        `${listing.source === "trade-in" ? "Pre-owned" : "New"} ${listing.shipLabel}  ${listing.price} db`,
+        {
+          type: "inspect-shipyard-listing",
+          listingId: listing.id,
+          shipSlug: listing.shipSlug
+        }
+      )),
+      ...investmentOptions,
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
 }
 
 function shipyardPurchaseView(session, city, gameState, context) {
@@ -5561,10 +5583,11 @@ function shipyardPurchaseView(session, city, gameState, context) {
 
 function shipyardListingView(session, city, gameState, context, listing, backNodeId) {
   const purchase = shipyardPurchaseOffer(listing, gameState, context);
+  const condition = listing.source === "trade-in" ? "A pre-owned" : "A newly built";
   return {
     speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
-    text: `A newly built ${listing.shipLabel} is offered for ${listing.price} doubloons. Your ${purchase.currentShipLabel} is worth ${purchase.purchaseTerms.tradeInValue} in trade.`,
+    text: `${condition} ${listing.shipLabel} is offered for ${listing.price} doubloons. Your ${purchase.currentShipLabel} is worth ${purchase.purchaseTerms.tradeInValue} in trade.`,
     feedback: session.feedback,
     presentation: {
       kind: "shipyard",
@@ -5616,7 +5639,9 @@ function shipyardPurchaseConfirmationView(session, city, gameState, context) {
 }
 
 function requireShipyardPurchaseListing(session, context) {
-  const listing = context.shipyard?.listing || null;
+  const listing = context.shipyard
+    ? shipyardListingById(context.shipyard, session.shipyardPurchaseListingId)
+    : null;
   if (!listing || listing.id !== session.shipyardPurchaseListingId) {
     throw new Error(`Shipyard purchase listing is no longer available: ${session.shipyardPurchaseListingId}`);
   }
@@ -5624,7 +5649,9 @@ function requireShipyardPurchaseListing(session, context) {
 }
 
 function requireShipyardListingAction(action, context) {
-  const listing = context.shipyard?.listing || null;
+  const listing = context.shipyard
+    ? shipyardListingById(context.shipyard, action.listingId)
+    : null;
   if (!listing || listing.id !== action.listingId || listing.shipSlug !== action.shipSlug) {
     throw new Error(`Shipyard action does not match the current listing: ${action.listingId}`);
   }
@@ -5646,7 +5673,8 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
     total: newestEntries.length,
     entries: Object.freeze(newestEntries)
   });
-  const listing = yard.listing || null;
+  const listings = shipyardListings(yard);
+  const listing = listings[0] || null;
   const purchase = listing ? shipyardPurchaseOffer(listing, gameState, context) : null;
   const materialSources = tab === "materials"
     ? session.shipyardMaterialSourceHints || (session.shipyardMaterialSourceHints =
@@ -5696,6 +5724,11 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
         const rowId = shipyardMaterialRowId(material.goodId);
         const sale = materialSaleByGoodId.get(material.goodId);
         const source = materialSourceByGoodId.get(material.goodId);
+        const waypointSet = source && gameState.memory.navigation.optionalWaypoints.some((waypoint) => (
+          waypoint.reason === PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY &&
+          waypoint.shipyardMaterialGoodId === source.goodId &&
+          waypoint.destinationTileId === source.destinationTileId
+        ));
         return [
           ...(sale ? [option(
             `Sell ${sale.goodLabel} x${sale.quantity}  ${sale.price} db`,
@@ -5707,7 +5740,7 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
             { rowId }
           )] : []),
           ...(source ? [option(
-            `Set heading: ${source.destinationName} (${source.goodLabel})`,
+            waypointSet ? source.destinationName : `Set heading: ${source.destinationName} (${source.goodLabel})`,
             {
               type: "set-port-heading",
               destinationTileId: source.destinationTileId,
@@ -5716,7 +5749,11 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
               shipyardMaterialGoodId: source.goodId,
               nextNodeId: "shipyard"
             },
-            { rowId }
+            {
+              rowId,
+              disabled: waypointSet,
+              iconId: waypointSet ? "action:confirmed" : undefined
+            }
           )] : [])
         ];
       })
@@ -5752,11 +5789,14 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
         iconId: "action:letter"
       }),
       ...materialActionOptions,
-      ...(tab === "yard" && listing ? [option(`Inspect ${listing.shipLabel}`, {
-        type: "inspect-shipyard-listing",
-        listingId: listing.id,
-        shipSlug: listing.shipSlug
-      })] : []),
+      ...(tab === "yard" ? listings.map((readyListing) => option(
+        `Inspect ${readyListing.source === "trade-in" ? "pre-owned " : ""}${readyListing.shipLabel}`,
+        {
+          type: "inspect-shipyard-listing",
+          listingId: readyListing.id,
+          shipSlug: readyListing.shipSlug
+        }
+      )) : []),
       option(payout ? "Continue" : "Back", { type: "node", nodeId: returnNodeId }, {
         placement: "port-exit"
       })
@@ -6200,12 +6240,18 @@ export function bestQuestCargoSource({
   }
   if (typeof random !== "function") throw new Error("Quest cargo advice requires a random source");
 
-  const waypointGoodIds = new Set(
-    gameState.memory.navigation.optionalWaypoints
-      .filter((waypoint) => waypoint.reason === PORT_NAVIGATION_REASON_QUEST_CARGO)
-      .map((waypoint) => waypoint.questCargoGoodId)
-      .filter(Boolean)
-  );
+  const portByTileId = new Map(portCities.map((port) => [port.tileId, port]));
+  const waypointGoodIds = new Set();
+  for (const waypoint of gameState.memory.navigation.optionalWaypoints) {
+    if (waypoint.reason !== PORT_NAVIGATION_REASON_QUEST_CARGO || !waypoint.questCargoGoodId) {
+      continue;
+    }
+    const destination = portByTileId.get(waypoint.destinationTileId);
+    if (!destination || !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
+    const row = portMarket(economy, destination)
+      .find((entry) => entry.good.id === waypoint.questCargoGoodId);
+    if (row?.listedForSale && row.stock >= 1) waypointGoodIds.add(waypoint.questCargoGoodId);
+  }
   const currentMarket = portMarket(economy, originCity);
   const hints = [];
   for (const goodId of neededGoodIds) {

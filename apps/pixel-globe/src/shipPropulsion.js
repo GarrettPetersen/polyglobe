@@ -60,6 +60,28 @@ export function shipDragFactor(stalled, dt) {
   return Math.exp(-drag * dt);
 }
 
+export function shipPoweredAccelerationRad({
+  baseAccelerationRad,
+  speedTowardThrustRad,
+  poweredSpeedLimitRad
+}) {
+  if (!Number.isFinite(baseAccelerationRad) || baseAccelerationRad < 0) {
+    throw new Error(`Invalid powered ship acceleration: ${baseAccelerationRad}`);
+  }
+  if (!Number.isFinite(speedTowardThrustRad)) {
+    throw new Error(`Invalid ship speed toward thrust: ${speedTowardThrustRad}`);
+  }
+  if (!(Number.isFinite(poweredSpeedLimitRad) || poweredSpeedLimitRad === Infinity) ||
+      poweredSpeedLimitRad < 0) {
+    throw new Error(`Invalid powered ship speed limit: ${poweredSpeedLimitRad}`);
+  }
+  if (baseAccelerationRad === 0 || poweredSpeedLimitRad === 0 || poweredSpeedLimitRad === Infinity) {
+    return baseAccelerationRad;
+  }
+  const forwardSpeed = Math.min(poweredSpeedLimitRad, Math.max(0, speedTowardThrustRad));
+  return baseAccelerationRad + forwardSpeed * SHIP_DRAG_PER_SECOND;
+}
+
 export function shipVelocityLimitAfterPropulsion({
   poweredSpeedLimitRad,
   priorSpeedRad,

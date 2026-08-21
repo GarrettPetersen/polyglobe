@@ -20,9 +20,26 @@ import {
   shipDirectionalTranslationAllowed,
   shipDragFactor,
   shipHasWindDeadZone,
+  shipPoweredAccelerationRad,
   shipPropulsionPerformance,
   shipVelocityLimitAfterPropulsion
 } from "./shipPropulsion.js";
+
+test("powered thrust compensates ordinary drag so low-acceleration hulls reach hull speed", () => {
+  const carrack = shipStatsForSlug("ship-of-the-line");
+  const targetSpeed = carrack.topSpeedRad;
+  const dt = 1 / 60;
+  let speed = 0;
+  for (let frame = 0; frame < 60 * 30; frame++) {
+    const acceleration = shipPoweredAccelerationRad({
+      baseAccelerationRad: carrack.accelerationRad,
+      speedTowardThrustRad: speed,
+      poweredSpeedLimitRad: targetSpeed
+    });
+    speed = Math.min(targetSpeed, (speed + acceleration * dt) * shipDragFactor(false, dt));
+  }
+  assert.ok(speed >= targetSpeed * 0.99, `${speed} should approach ${targetSpeed}`);
+});
 
 test("wind-driven speed approaches hull speed without exceeding it", () => {
   assert.equal(sailWindSpeedFactor(0), 0.28);

@@ -130,7 +130,14 @@ const RATING_RANGES = Object.freeze(Object.fromEntries(
   })
 ));
 
-export function createShipInfoView(ship, gameState) {
+export function shipRatingCellCount(rating) {
+  if (!Number.isFinite(rating) || rating < 0) {
+    throw new Error(`Ship rating requires a non-negative finite value: ${rating}`);
+  }
+  return Math.max(10, Math.ceil(rating));
+}
+
+export function createShipInfoView(ship, gameState, { ownedShipyards = [] } = {}) {
   if (!ship || typeof ship !== "object") throw new Error("Ship information requires the player ship");
   if (!gameState || typeof gameState !== "object") throw new Error("Ship information requires game state");
   const baseStats = shipStatsForSlug(ship.typeSlug);
@@ -198,7 +205,7 @@ export function createShipInfoView(ship, gameState) {
       windward: shipPerformanceRating(stats, "windward")
     }),
     cargo: manifest,
-    papers: shipPapers(gameState)
+    papers: shipPapers(gameState, ownedShipyards)
   };
 }
 
@@ -404,7 +411,8 @@ function positiveModulo(value, modulus) {
   return ((value % modulus) + modulus) % modulus;
 }
 
-function shipPapers(gameState) {
+function shipPapers(gameState, ownedShipyards) {
+  if (!Array.isArray(ownedShipyards)) throw new Error("Owned shipyards must be an array");
   const papers = [];
   const activeQuest = gameState.memory.quests.active;
   if (activeQuest) papers.push(activeQuestPaper(activeQuest));
@@ -413,6 +421,22 @@ function shipPapers(gameState) {
   papers.push(...shipItemPapers(shipItemRows(gameState)));
   papers.push(...personalTradePassPapers(gameState.relations.personalTradePasses));
   papers.push(...letterOfMarquePapers(gameState.relations.lettersOfMarque));
+  papers.push(...ownedShipyards
+    .map((yard) => {
+      if (!yard?.playerBacking || typeof yard.portName !== "string" || yard.portName === "") {
+        throw new Error("Shipyard ownership papers require a player-backed named yard");
+      }
+      return {
+        kind: "shipyard-ownership",
+        title: `${yard.portName} shipyard partnership`,
+        issuer: `${yard.portName} master shipwrights`,
+        route: "Ownership",
+        detail: "Partnership indenture; dividends payable at the yard.",
+        effect: null,
+        simMinute: yard.playerBacking.investedMinute
+      };
+    })
+    .sort((a, b) => a.title.localeCompare(b.title)));
   return papers;
 }
 

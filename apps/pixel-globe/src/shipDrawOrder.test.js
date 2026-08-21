@@ -24,3 +24,14 @@ test("equal-depth ship ordering is deterministic without privileging the player"
   calls.sort(compareShipDrawCalls);
   assert.deepEqual(calls.map(({ id }) => id), ["merchant-1", "merchant-2", "player"]);
 });
+
+test("cities and ships share painter order instead of cities always covering ships", () => {
+  const calls = [
+    { id: "city-behind", kind: "city", sortY: 104 },
+    { id: "player", kind: "vessel", sortY: 128 },
+    { id: "city-in-front", kind: "city", sortY: 151 }
+  ];
+
+  calls.sort(compareShipDrawCalls);
+  assert.deepEqual(calls.map(({ id }) => id), ["city-behind", "player", "city-in-front"]);
+});

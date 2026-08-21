@@ -209,6 +209,7 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "action:wait": nikoichu("Software_Clock_Time_Wait_1.png", ICON_COLOR.steel),
   "action:attack": nikoichu("Warfare_Medieval_Siege_Engine_Cannon_Gunpowder.png", ICON_COLOR.danger),
   "action:loadout": nikoichu("Software_Clipboard_Todo_Tasks_Done_Checkmark.png", ICON_COLOR.navigation),
+  "action:confirmed": nikoichu("Software_Clipboard_Todo_Tasks_Done_Checkmark.png", ICON_COLOR.success),
   "action:shipyard": nikoichu("Travel_Ship_Medieval_Galleon.png", ICON_COLOR.sea),
   "action:letter": nikoichu("Tools_Crafting_Writing_Parchment_Scroll_Document_Sealed.png", ICON_COLOR.parchment),
   "action:disguise": nikoichu("Hats_Domino_Mask_Incognito_Private_Privacy.png", ICON_COLOR.purple),

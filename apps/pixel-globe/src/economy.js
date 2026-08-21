@@ -122,7 +122,10 @@ export const TRADE_GOODS = Object.freeze([
   }),
   good(SULFUR_GOOD_ID, "Sulfur", 30, "material", { unitSize: 2, initialImportStockRatio: 0.08 }),
   // Keep the stable id for saves and route bakes; the good is non-firearm weaponry.
-  good("arms", "Pikes & Blades", 65, "manufactured", { unitSize: 2 }),
+  good("arms", "Pikes & Blades", 65, "manufactured", {
+    unitSize: 2,
+    initialImportStockRatio: 1
+  }),
   good(GUNPOWDER_GOOD_ID, "Gunpowder", 44, "manufactured", {
     unitSize: 2,
     initialImportStockRatio: 0.08,
@@ -267,10 +270,10 @@ const REGION_PRODUCTION = Object.freeze({
 });
 
 const REGION_DEMAND = Object.freeze({
-  "northern-european": rates({ wine: 0.65, "olive-oil": 0.5, "beaver-pelts": 0.6, hides: 0.4, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, ginger: 0.38, indigo: 0.34, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
-  mediterranean: rates({ timber: 0.55, iron: 0.35, "beaver-pelts": 0.38, hides: 0.32, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, ginger: 0.24, indigo: 0.2, silk: 0.3, ivory: 0.18 }),
-  "islamic-desert": rates({ timber: 0.65, iron: 0.3, wool: 0.25, "beaver-pelts": 0.18, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, ginger: 0.08, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
-  "east-asian": rates({ "beaver-pelts": 0.3, pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2, gunpowder: 0.12, matchlocks: 0.42 }),
+  "northern-european": rates({ arms: 0.12, wine: 0.65, "olive-oil": 0.5, "beaver-pelts": 0.6, hides: 0.4, pepper: 0.55, cinnamon: 0.5, cloves: 0.65, nutmeg: 0.7, ginger: 0.38, indigo: 0.34, tea: 0.45, porcelain: 0.4, silk: 0.35 }),
+  mediterranean: rates({ arms: 0.12, timber: 0.55, iron: 0.35, "beaver-pelts": 0.38, hides: 0.32, pepper: 0.35, cinnamon: 0.3, cloves: 0.4, nutmeg: 0.42, ginger: 0.24, indigo: 0.2, silk: 0.3, ivory: 0.18 }),
+  "islamic-desert": rates({ arms: 0.12, timber: 0.65, iron: 0.3, wool: 0.25, "beaver-pelts": 0.18, pepper: 0.12, cinnamon: 0.12, cloves: 0.14, nutmeg: 0.16, ginger: 0.08, tea: 0.2, porcelain: 0.22, ivory: 0.15 }),
+  "east-asian": rates({ arms: 0.12, "beaver-pelts": 0.3, pepper: 0.25, cinnamon: 0.12, cloves: 0.22, nutmeg: 0.18, silver: 0.55, glassware: 0.25, wool: 0.2, gunpowder: 0.12, matchlocks: 0.42 }),
   "south-asian": rates({ cloves: 0.12, nutmeg: 0.12, silver: 0.4, gold: 0.15, porcelain: 0.2, silk: 0.2, arms: 0.18, gunpowder: 0.1, matchlocks: 0.18 }),
   "southeast-asian": rates({ pepper: 0.12, cinnamon: 0.16, cotton: 0.35, "cotton-cloth": 0.3, silver: 0.4, porcelain: 0.2, arms: 0.16, gunpowder: 0.12, matchlocks: 0.22 }),
   polynesian: rates({ iron: 0.65, arms: 0.45, matchlocks: 0.4, gunpowder: 0.35, "cotton-cloth": 0.45, glassware: 0.35, salt: 0.25 }),

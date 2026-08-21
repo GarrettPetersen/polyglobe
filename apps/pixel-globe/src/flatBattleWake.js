@@ -15,6 +15,7 @@ export function updateFlatBattleShipWake(ship, dt, wakeAnchors = null) {
     throw new Error("Flat battle wake requires a ship with a wake array");
   }
   if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid flat battle wake time: ${dt}`);
+  ship.wakeClockSeconds = (ship.wakeClockSeconds || 0) + dt;
   for (const particle of ship.wake) {
     particle.age += dt;
     particle.x += particle.vx * dt;
@@ -55,6 +56,22 @@ export function flatBattleWakeDrawCalls(ships, isWater) {
   const calls = [];
   for (const ship of ships) {
     for (const particle of ship.wake || []) appendParticleCalls(calls, particle, isWater);
+    if (!ship.wakeAnchors) continue;
+    const style = shipBowWaveStyle({
+      speedPx: ship.speedPx,
+      minimumWakeSpeedPx: WAKE_MINIMUM_SPEED_PX,
+      elapsedSeconds: ship.wakeClockSeconds || 0
+    });
+    if (!style) continue;
+    const source = bakedWakeSourcePoint(ship, ship.wakeAnchors);
+    for (const pixel of shipBowWavePixels({
+      port: source.port,
+      starboard: source.starboard,
+      side: source.side,
+      style
+    })) {
+      if (isWater(pixel.x, pixel.y)) calls.push({ ...pixel, seed: ship.seed || 0 });
+    }
   }
   return calls;
 }
@@ -236,3 +253,4 @@ function frameScreenHeading(frame, headingCount) {
   const angle = frame / headingCount * Math.PI * 2;
   return { x: Math.cos(angle), y: -Math.sin(angle) };
 }
+import { shipBowWavePixels, shipBowWaveStyle } from "./shipBowWave.js";

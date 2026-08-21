@@ -13,7 +13,7 @@ import {
 import { JAPANESE_POLITY_FACTION_IDS } from "./factions.js";
 
 const MINUTES_PER_DAY = 24 * 60;
-const SHIPYARD_SNAPSHOT_VERSION = 8;
+const SHIPYARD_SNAPSHOT_VERSION = 9;
 const LEGACY_BUILD_TIME_SCALE = 0.75;
 const NORMAL_BUILD_INTERVAL_DAYS = 1200;
 const FAMOUS_BUILD_INTERVAL_DAYS = 360;
@@ -173,6 +173,8 @@ export function replaceWorldShipyardPort(system, port, startMinute = system?.las
   const replacement = createShipyard(port, startMinute, system.seedKey);
   replacement.buildNumber = previous.buildNumber;
   replacement.listing = previous.listing;
+  replacement.usedListings = previous.usedListings.slice();
+  replacement.nextTradeInNumber = previous.nextTradeInNumber;
   replacement.nextBuildMinute = Math.min(previous.nextBuildMinute, replacement.nextBuildMinute);
   replacement.buildStartedMinute = Math.min(
     previous.buildStartedMinute,
@@ -203,6 +205,8 @@ export function snapshotWorldShipyards(system) {
       portId: yard.portId,
       buildNumber: yard.buildNumber,
       listing: yard.listing ? { ...yard.listing } : null,
+      usedListings: yard.usedListings.map((listing) => ({ ...listing })),
+      nextTradeInNumber: yard.nextTradeInNumber,
       nextBuildMinute: yard.nextBuildMinute,
       buildStartedMinute: yard.buildStartedMinute,
       materialDelayDays: yard.materialDelayDays,
@@ -222,7 +226,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
   validateOptionalSeedKey(seedKey, "restored shipyard");
   if (
     !snapshot ||
-    ![1, 2, 3, 4, 5, 6, 7, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
+    ![1, 2, 3, 4, 5, 6, 7, 8, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
     !Array.isArray(snapshot.yards) ||
     (snapshot.version >= 3 && !Array.isArray(snapshot.npcSales))
   ) {
@@ -254,7 +258,11 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
         Boolean(saved.playerBacking) !== Boolean(saved.playerAccounts)
       )) ||
       (snapshot.version >= 7 && !validMaterialInventory(saved.materialInventory)) ||
-      (snapshot.version >= 8 && !validMaterialInventory(saved.materialConsumedForBuild))
+      (snapshot.version >= 8 && !validMaterialInventory(saved.materialConsumedForBuild)) ||
+      (snapshot.version >= 9 && (
+        !Array.isArray(saved.usedListings) ||
+        !Number.isInteger(saved.nextTradeInNumber) || saved.nextTradeInNumber < 1
+      ))
     )) {
       throw new Error(`Invalid saved shipyard accounts: ${saved.portId}`);
     }
@@ -263,6 +271,10 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
     const yard = system.yards.get(saved.portId);
     yard.buildNumber = saved.buildNumber;
     yard.listing = restoreShipyardListing(yard, saved);
+    yard.usedListings = snapshot.version >= 9
+      ? saved.usedListings.map((listing) => restoreUsedShipyardListing(yard, listing))
+      : [];
+    yard.nextTradeInNumber = snapshot.version >= 9 ? saved.nextTradeInNumber : 1;
     yard.nextBuildMinute = snapshot.version === 1 && saved.nextBuildMinute > snapshot.lastMinute
       ? Math.round(
           snapshot.lastMinute +
@@ -308,11 +320,27 @@ function restoreShipyardListing(yard, saved) {
   }
   return {
     ...saved.listing,
+    source: "new-build",
+    acquisitionCost: 0,
     price: shipyardListingPrice(
       saved.listing.shipSlug,
       shipyardListingSeed(yard, saved.buildNumber)
     )
   };
+}
+
+function restoreUsedShipyardListing(yard, listing) {
+  if (!listing || listing.portId !== yard.portId || listing.source !== "trade-in" ||
+      typeof listing.id !== "string" || typeof listing.shipSlug !== "string" ||
+      typeof listing.shipLabel !== "string" || !Number.isInteger(listing.price) ||
+      listing.price <= 0 || !Number.isInteger(listing.acquisitionCost) ||
+      listing.acquisitionCost <= 0 || !Number.isFinite(listing.builtMinute) ||
+      !Number.isFinite(listing.expiresMinute) || listing.expiresMinute <= listing.builtMinute ||
+      typeof listing.seller !== "string" || listing.seller === "") {
+    throw new Error(`Invalid used shipyard listing at ${yard.portId}`);
+  }
+  shipStatsForSlug(listing.shipSlug);
+  return Object.freeze({ ...listing, masterwork: false });
 }
 
 export function advanceWorldShipyards(system, simMinute, materialMarket = null) {
@@ -325,6 +353,11 @@ export function advanceWorldShipyards(system, simMinute, materialMarket = null) 
     if (yard.listing && simMinute >= yard.listing.expiresMinute) {
       completeShipyardSale(system, yard, yard.listing, "npc");
       yard.listing = null;
+      changed = true;
+    }
+    for (const listing of yard.usedListings.filter((entry) => simMinute >= entry.expiresMinute)) {
+      completeShipyardSale(system, yard, listing, "npc", listing.expiresMinute);
+      yard.usedListings.splice(yard.usedListings.indexOf(listing), 1);
       changed = true;
     }
     while (simMinute >= yard.nextBuildMinute) {
@@ -390,12 +423,67 @@ export function shipyardAtPort(system, port) {
 
 export function claimShipyardListing(system, port, listingId) {
   const yard = shipyardAtPort(system, port);
-  if (!yard.listing || yard.listing.id !== listingId) {
+  const listing = shipyardListingById(yard, listingId);
+  if (!listing) {
     throw new Error(`Shipyard listing is no longer available: ${listingId}`);
   }
-  const listing = yard.listing;
   completeShipyardSale(system, yard, listing, "player", system.lastMinute);
-  yard.listing = null;
+  if (yard.listing?.id === listingId) yard.listing = null;
+  else yard.usedListings.splice(yard.usedListings.findIndex((entry) => entry.id === listingId), 1);
+  return listing;
+}
+
+export function shipyardListings(yard) {
+  if (!yard) throw new Error("Shipyard listings require a valid yard");
+  const usedListings = yard.usedListings ?? [];
+  if (!Array.isArray(usedListings)) throw new Error("Shipyard used listings must be an array");
+  return Object.freeze([
+    ...(yard.listing ? [yard.listing] : []),
+    ...usedListings
+  ].sort((a, b) => a.builtMinute - b.builtMinute || a.id.localeCompare(b.id)));
+}
+
+export function shipyardListingById(yard, listingId) {
+  if (typeof listingId !== "string" || listingId === "") {
+    throw new Error("Shipyard listing lookup requires an id");
+  }
+  return shipyardListings(yard).find((listing) => listing.id === listingId) || null;
+}
+
+export function registerShipyardTradeIn(system, port, {
+  shipSlug,
+  seller,
+  acquiredMinute = system?.lastMinute
+}) {
+  const yard = shipyardAtPort(system, port);
+  shipStatsForSlug(shipSlug);
+  if (typeof seller !== "string" || seller === "") {
+    throw new Error("Shipyard trade-in requires a seller");
+  }
+  if (!Number.isFinite(acquiredMinute)) {
+    throw new Error(`Invalid shipyard trade-in minute: ${acquiredMinute}`);
+  }
+  const acquisitionCost = shipTradeInValue(shipSlug);
+  const price = Math.max(
+    acquisitionCost + 200,
+    roundToHundred(shipConstructionPrice(shipSlug) * 0.72)
+  );
+  const listing = Object.freeze({
+    id: `shipyard-${yard.portId}-used-${yard.nextTradeInNumber++}`,
+    portId: yard.portId,
+    portName: yard.portName,
+    shipSlug,
+    shipLabel: shipLabelForSlug(shipSlug),
+    price,
+    builtMinute: acquiredMinute,
+    expiresMinute: acquiredMinute + NORMAL_LISTING_DAYS * MINUTES_PER_DAY,
+    masterwork: false,
+    source: "trade-in",
+    acquisitionCost,
+    seller
+  });
+  yard.usedListings.push(listing);
+  if (yard.playerBacking) recordPlayerShipyardTradeInPurchase(yard, listing, acquiredMinute);
   return listing;
 }
 
@@ -503,7 +591,7 @@ export function playerShipyardLedger(yard, simMinute) {
   const workInProgressExpenses = Math.round(constructionCost * progress);
   const constructionExpenses = accounts.constructionExpenses + workInProgressExpenses;
   const cashBalance = accounts.capitalContributions + accounts.salesRevenue -
-    constructionExpenses - accounts.playerPayouts;
+    accounts.inventoryPurchases - constructionExpenses - accounts.playerPayouts;
   const journalEntries = accounts.entries.map((entry) => Object.freeze({ ...entry }));
   if (workInProgressExpenses > 0) {
     journalEntries.push(...shipyardConstructionProgressEntries({
@@ -540,9 +628,14 @@ export function playerShipyardLedger(yard, simMinute) {
       ...yard.listing,
       daysRemaining: Math.max(0, Math.ceil((yard.listing.expiresMinute - simMinute) / MINUTES_PER_DAY))
     }) : null,
+    finishedShips: Object.freeze(shipyardListings(yard).map((listing) => Object.freeze({
+      ...listing,
+      daysRemaining: Math.max(0, Math.ceil((listing.expiresMinute - simMinute) / MINUTES_PER_DAY))
+    }))),
     accounts: Object.freeze({
       capitalContributions: accounts.capitalContributions,
       salesRevenue: accounts.salesRevenue,
+      inventoryPurchases: accounts.inventoryPurchases,
       constructionExpenses,
       postedConstructionExpenses: accounts.constructionExpenses,
       workInProgressExpenses,
@@ -673,8 +766,9 @@ export function shipyardRumorForPort(
     throw new Error(`Invalid shipyard gossip radius: ${maxDistanceKm}`);
   }
   const localYard = shipyardAtPort(system, port);
-  if (localYard.listing && (!eligiblePortIds || eligiblePortIds.has(localYard.portId))) {
-    return shipyardListingNotice(localYard, localYard.listing, 0, true);
+  const localListing = shipyardListings(localYard)[0] || null;
+  if (localListing && (!eligiblePortIds || eligiblePortIds.has(localYard.portId))) {
+    return shipyardListingNotice(localYard, localListing, 0, true);
   }
   const nearest = nearestShipyardListingForPort(system, port, sailingDistanceKm, eligiblePortIds);
   if (!nearest || nearest.distanceKm > maxDistanceKm) return null;
@@ -692,16 +786,21 @@ export function nearestShipyardListingForPort(
   const portId = requiredPortId(port);
   const candidates = [];
   for (const yard of system.yards.values()) {
-    if (!yard.listing || yard.portId === portId) continue;
+    if (yard.portId === portId) continue;
     if (eligiblePortIds && !eligiblePortIds.has(yard.portId)) continue;
     const distanceKm = sailingDistanceKm(portId, yard.portId);
     if (distanceKm === null) continue;
     if (!Number.isInteger(distanceKm) || distanceKm < 0) {
       throw new Error(`Shipyard sailing distance is invalid: ${distanceKm}`);
     }
-    candidates.push({ yard, listing: yard.listing, distanceKm });
+    for (const listing of shipyardListings(yard)) candidates.push({ yard, listing, distanceKm });
   }
-  candidates.sort((a, b) => a.distanceKm - b.distanceKm || a.yard.portId - b.yard.portId);
+  candidates.sort((a, b) => (
+    a.distanceKm - b.distanceKm ||
+    a.yard.portId - b.yard.portId ||
+    a.listing.price - b.listing.price ||
+    a.listing.id.localeCompare(b.listing.id)
+  ));
   const nearest = candidates[0];
   if (!nearest) return null;
   return shipyardListingNotice(nearest.yard, nearest.listing, nearest.distanceKm, false);
@@ -758,7 +857,9 @@ export function generateShipyardListing(yard, buildNumber, builtMinute) {
     price,
     builtMinute,
     expiresMinute: builtMinute + listingDays * MINUTES_PER_DAY,
-    masterwork
+    masterwork,
+    source: "new-build",
+    acquisitionCost: 0
   });
 }
 
@@ -849,6 +950,8 @@ function createShipyard(port, startMinute, seedKey) {
     famous,
     buildNumber: 0,
     listing: null,
+    usedListings: [],
+    nextTradeInNumber: 1,
     nextBuildMinute: startMinute,
     buildStartedMinute: startMinute,
     materialDelayDays: 0,
@@ -958,13 +1061,19 @@ function consumeShipbuildingMaterials(yard, listing, progress, materialMarket) {
 function completeShipyardSale(system, yard, listing, buyer, soldMinute = listing.expiresMinute) {
   if (buyer !== "player" && buyer !== "npc") throw new Error(`Unknown shipyard buyer: ${buyer}`);
   if (yard.playerBacking) {
-    const dividend = Math.max(100, Math.round(listing.price * PLAYER_BACKED_DIVIDEND_RATE / 100) * 100);
+    const dividendBase = listing.source === "trade-in"
+      ? Math.max(0, listing.price - listing.acquisitionCost)
+      : listing.price;
+    const dividend = dividendBase > 0
+      ? Math.max(100, Math.round(dividendBase * PLAYER_BACKED_DIVIDEND_RATE / 100) * 100)
+      : 0;
     yard.playerDividendBalance += dividend;
     yard.lifetimePlayerDividends += dividend;
     yard.playerPendingSales.push(Object.freeze({
       id: `${listing.id}:${buyer}-player-share`,
       shipSlug: listing.shipSlug,
       price: listing.price,
+      margin: dividendBase,
       dividend,
       buyer,
       soldMinute
@@ -991,6 +1100,7 @@ function createPlayerShipyardAccounts(backing) {
   const accounts = {
     capitalContributions: backing.seedCapital,
     salesRevenue: 0,
+    inventoryPurchases: 0,
     constructionExpenses: 0,
     playerPayouts: 0,
     nextEntryNumber: 1,
@@ -1004,6 +1114,19 @@ function createPlayerShipyardAccounts(backing) {
     materialContributions: backing.materialContributions
   });
   return accounts;
+}
+
+function recordPlayerShipyardTradeInPurchase(yard, listing, simMinute) {
+  const accounts = requiredPlayerShipyardAccounts(yard);
+  accounts.inventoryPurchases += listing.acquisitionCost;
+  appendPlayerShipyardAccountEntry(accounts, {
+    kind: "trade-in-purchase",
+    simMinute,
+    amount: -listing.acquisitionCost,
+    description: `${listing.shipLabel} bought for resale`,
+    shipSlug: listing.shipSlug,
+    seller: listing.seller
+  });
 }
 
 function recordPlayerShipyardConstruction(yard, listing, simMinute) {
@@ -1128,6 +1251,11 @@ function recordPlayerShipyardSale(yard, listing, buyer, dividend, simMinute) {
     description: `${listing.shipLabel} sold`,
     shipSlug: listing.shipSlug,
     buyer,
+    source: listing.source,
+    acquisitionCost: listing.acquisitionCost,
+    margin: listing.source === "trade-in"
+      ? listing.price - listing.acquisitionCost
+      : listing.price,
     playerShare: dividend
   });
 }
@@ -1161,6 +1289,7 @@ function snapshotPlayerShipyardAccounts(accounts) {
   return {
     capitalContributions: accounts.capitalContributions,
     salesRevenue: accounts.salesRevenue,
+    inventoryPurchases: accounts.inventoryPurchases,
     constructionExpenses: accounts.constructionExpenses,
     playerPayouts: accounts.playerPayouts,
     nextEntryNumber: accounts.nextEntryNumber,
@@ -1191,12 +1320,17 @@ function restorePlayerShipyardAccounts(saved, yard) {
       throw new Error(`Invalid saved shipyard account ${key}: ${yard.portId}`);
     }
   }
+  if (saved.inventoryPurchases !== undefined &&
+      (!Number.isInteger(saved.inventoryPurchases) || saved.inventoryPurchases < 0)) {
+    throw new Error(`Invalid saved shipyard account inventoryPurchases: ${yard.portId}`);
+  }
   if (!Number.isInteger(saved.nextEntryNumber) || saved.nextEntryNumber < 1 || !Array.isArray(saved.entries)) {
     throw new Error(`Invalid saved shipyard account journal: ${yard.portId}`);
   }
   const accounts = {
     capitalContributions: saved.capitalContributions,
     salesRevenue: saved.salesRevenue,
+    inventoryPurchases: saved.inventoryPurchases ?? 0,
     constructionExpenses: saved.constructionExpenses,
     playerPayouts: saved.playerPayouts,
     nextEntryNumber: saved.nextEntryNumber,
@@ -1214,6 +1348,7 @@ function restorePlayerShipyardAccountEntry(entry, portId) {
     "construction",
     "construction-material",
     "construction-labor",
+    "trade-in-purchase",
     "sale",
     "payout",
     "legacy"

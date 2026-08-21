@@ -144,7 +144,7 @@ export function chartFaultCanRelyOnSwell({
     throw new Error("Chart swell repair policy requires drift and explicit water states");
   }
   if (waterOnlyViewport) return true;
-  return localWaterFault && !chartDriftNeedsCloudRepair(drift);
+  return localWaterFault;
 }
 
 export function chartDriftNeedsCloudRepair(drift) {
