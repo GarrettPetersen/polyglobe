@@ -1,5 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyRemoteModuleGraph } from "./moduleGraphVerifier.mjs";
@@ -15,6 +15,16 @@ if (!existsSync(wranglerPath)) {
 }
 if (!existsSync(path.join(distPath, "index.html"))) {
   throw new Error("Game build is missing. Run npm run build first.");
+}
+const buildEditionSource = readFileSync(path.join(distPath, "src/buildEdition.js"), "utf8");
+const revisionMatch = buildEditionSource.match(/BUILD_REVISION\s*=\s*"([^"]+)"/);
+if (!revisionMatch) throw new Error("Game build is missing its revision marker");
+const expectedRevision = localSourceRevision();
+if (revisionMatch[1] !== expectedRevision) {
+  throw new Error(
+    `Game build revision ${revisionMatch[1]} does not match source revision ${expectedRevision}; ` +
+    "run npm run build before deploying"
+  );
 }
 
 const fileCredentials = existsSync(envPath)
@@ -55,9 +65,6 @@ if (deployment.status !== 0) {
   throw new Error("Cloudflare Pages deployment exited with code " + deployment.status);
 }
 
-const buildEditionSource = readFileSync(path.join(distPath, "src/buildEdition.js"), "utf8");
-const revisionMatch = buildEditionSource.match(/BUILD_REVISION\s*=\s*"([^"]+)"/);
-if (!revisionMatch) throw new Error("Game build is missing its revision marker");
 await verifyRemoteModuleGraph({
   baseUrl: "https://pirates-of-the-pixel-globe.pages.dev/",
   entryPaths: ["src/bootstrap.js"],
@@ -66,6 +73,15 @@ await verifyRemoteModuleGraph({
   retryDelayMs: 1_000
 });
 process.stdout.write(`Verified deployed JavaScript module graph for ${revisionMatch[1]}\n`);
+
+function localSourceRevision() {
+  const configured = process.env.BUILD_REVISION?.trim();
+  if (configured) return configured.slice(0, 64);
+  return execFileSync("git", ["rev-parse", "--short=12", "HEAD"], {
+    cwd: repoRoot,
+    encoding: "utf8"
+  }).trim();
+}
 
 function parseEnv(contents) {
   const values = {};
