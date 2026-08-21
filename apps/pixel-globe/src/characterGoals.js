@@ -33,7 +33,7 @@ export function detainedCaptiveCharacterGoal(captiveId, destinationName) {
   const destination = destinationName.trim();
   return characterGoal(
     captiveGoalId(captiveId.trim()),
-    `Escape before reaching ${destination}`,
+    `Escape custody before reaching ${destination}`,
     { destinationName: destination }
   );
 }

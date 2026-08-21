@@ -1266,7 +1266,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Equipment",
   "equipment factor item {0}",
   "ESC",
-  "Escape before reaching {0}",
+  "Escape custody before reaching {0}",
   "Ethiopia",
   "Ethiopian",
   "Ethiopian Empire",

@@ -56,12 +56,12 @@ test("traveler and colony goals identify their current destination", () => {
   );
 });
 
-test("a detained captive wants to escape rather than reach the authorities", () => {
+test("a detained captive wants to escape custody before the handover", () => {
   assert.deepEqual(
     detainedCaptiveCharacterGoal("false-captive-1", "Azemmour"),
     {
       id: "captive:false-captive-1",
-      text: "Escape before reaching Azemmour",
+      text: "Escape custody before reaching Azemmour",
       destinationName: "Azemmour"
     }
   );

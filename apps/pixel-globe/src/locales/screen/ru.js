@@ -1266,7 +1266,7 @@ export default Object.freeze({
   "Equipment": "Оборудование",
   "equipment factor item {0}": "предмет торговца в порту оборудования {0}",
   "ESC": "ЭКУ",
-  "Escape before reaching {0}": "Сбежать до прибытия в {0}",
+  "Escape custody before reaching {0}": "Сбежать из-под стражи до прибытия в {0}",
   "Ethiopia": "Эфиопия",
   "Ethiopian": "Эфиопский",
   "Ethiopian Empire": "Эфиопская империя",
