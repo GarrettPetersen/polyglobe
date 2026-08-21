@@ -9,6 +9,7 @@ import {
   completeShipyardInvestment,
   createShipyardInvestmentMemory,
   migrateShipyardInvestmentMemory,
+  reconcilePlayerShipyardInvestmentWorld,
   shipyardInvestmentComplete,
   shipyardInvestmentOfferAvailable,
   validateShipyardInvestmentMemory
@@ -20,12 +21,21 @@ import {
   payPlayerShipyardInvestment,
   startPlayerShipyardInvestment
 } from "./gameState.js";
+import { createWorldEconomy } from "./economy.js";
+import { shipyardAtPort } from "./shipyards.js";
 
 const LISBON = Object.freeze({
   tileId: 1,
   city: "Lisbon",
+  displayCity: "Lisbon",
+  country: "Kingdom of Portugal",
+  cityType: "northern-european",
+  population: 60000,
   settlementType: "city",
-  isPirateHideout: false
+  isPirateHideout: false,
+  marketGoods: null,
+  lat: 38.72,
+  lon: -9.14
 });
 
 test("shipyard investment opportunities can recur after sixty in-game days", () => {
@@ -155,4 +165,38 @@ test("legacy operating projects migrate into the backed-yard portfolio", () => {
   });
   assert.equal(memory.project, null);
   assert.deepEqual(memory.backedPortTileIds, [LISBON.tileId]);
+});
+
+test("restoring a save repairs every player-backed shipyard in the world economy", () => {
+  const port = LISBON;
+  const memory = {
+    ...createShipyardInvestmentMemory(),
+    backedPortTileIds: [port.tileId],
+    lastCompletedMinute: 100
+  };
+  const economy = createWorldEconomy({ ports: [port], startMinute: 200 });
+  const citiesByTileId = new Map([[port.tileId, port]]);
+
+  assert.deepEqual(
+    reconcilePlayerShipyardInvestmentWorld(memory, economy, citiesByTileId, 200),
+    ["Lisbon"]
+  );
+  assert.equal(shipyardAtPort(economy.shipyards, port).playerBacking.seedCapital, 100000);
+  assert.deepEqual(
+    reconcilePlayerShipyardInvestmentWorld(memory, economy, citiesByTileId, 200),
+    []
+  );
+});
+
+test("restoring a player-backed shipyard fails clearly when its city is missing", () => {
+  const memory = {
+    ...createShipyardInvestmentMemory(),
+    backedPortTileIds: [999],
+    lastCompletedMinute: 100
+  };
+  const economy = createWorldEconomy({ ports: [LISBON], startMinute: 200 });
+  assert.throws(
+    () => reconcilePlayerShipyardInvestmentWorld(memory, economy, new Map(), 200),
+    /missing from the city catalog: 999/
+  );
 });

@@ -1,3 +1,5 @@
+import { ensureWorldEconomyPlayerShipyardBacking } from "./economy.js";
+
 export const SHIPYARD_INVESTMENT_MINIMUM_PURSE = 75000;
 export const SHIPYARD_INVESTMENT_CAPITAL = 100000;
 export const SHIPYARD_INVESTMENT_MATERIALS = Object.freeze({
@@ -149,6 +151,42 @@ export function completeShipyardInvestment(memory, project, simMinute) {
 export function playerBackedShipyardAtPort(state, city) {
   validateShipyardInvestmentMemory(state.memory.shipyardInvestment);
   return state.memory.shipyardInvestment.backedPortTileIds.includes(city?.tileId);
+}
+
+export function reconcilePlayerShipyardInvestmentWorld(
+  memory,
+  economy,
+  citiesByTileId,
+  simulationMinute
+) {
+  validateShipyardInvestmentMemory(memory);
+  if (!(citiesByTileId instanceof Map)) {
+    throw new Error("Player shipyard reconciliation requires a city catalog map");
+  }
+  if (!Number.isFinite(simulationMinute)) {
+    throw new Error(`Invalid player shipyard reconciliation minute: ${simulationMinute}`);
+  }
+
+  const investedMinute = Math.min(memory.lastCompletedMinute ?? simulationMinute, simulationMinute);
+  const repairedPorts = [];
+  for (const portTileId of memory.backedPortTileIds) {
+    const city = citiesByTileId.get(portTileId);
+    if (!city) {
+      throw new Error(`Player-backed shipyard port is missing from the city catalog: ${portTileId}`);
+    }
+    const result = ensureWorldEconomyPlayerShipyardBacking(economy, city, {
+      investedMinute,
+      seedCapital: SHIPYARD_INVESTMENT_CAPITAL,
+      materialContributions: SHIPYARD_INVESTMENT_MATERIALS
+    });
+    if (!result.repaired) continue;
+    const portName = city.portAlias || city.displayCity || city.city;
+    if (typeof portName !== "string" || portName.trim() === "") {
+      throw new Error(`Player-backed shipyard has no port name: ${portTileId}`);
+    }
+    repairedPorts.push(portName);
+  }
+  return Object.freeze(repairedPorts);
 }
 
 function validateLegacyShipyardInvestmentMemory(memory) {

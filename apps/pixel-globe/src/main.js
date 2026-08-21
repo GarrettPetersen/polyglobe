@@ -1605,7 +1605,6 @@ import {
   createWorldEconomyRestorePlan,
   createWorldEconomy,
   destroyPortGoodStock,
-  ensureWorldEconomyPlayerShipyardBacking,
   establishPortIndustry,
   fundWorldEconomyShipyard,
   nextWorldEconomyEventMinute,
@@ -1694,7 +1693,7 @@ import {
 } from "./shipyards.js";
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
-  SHIPYARD_INVESTMENT_MATERIALS,
+  reconcilePlayerShipyardInvestmentWorld,
   shipyardInvestmentAtPort,
   shipyardInvestmentMaterialProgress,
   shipyardInvestmentOfferAvailable
@@ -15108,7 +15107,17 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
   });
   worldEconomy = economyResult.value;
   recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
-  reconcileRestoredPlayerShipyards(restoredGameState, simulationMinute);
+  const repairedShipyardPorts = reconcilePlayerShipyardInvestmentWorld(
+    restoredGameState.memory.shipyardInvestment,
+    worldEconomy,
+    cityByTileId,
+    simulationMinute
+  );
+  if (repairedShipyardPorts.length > 0) {
+    console.warn(
+      `[pixel-globe] restored missing player shipyard backing at ${repairedShipyardPorts.join(", ")}`
+    );
+  }
   syncJapaneseMatchlockIndustry(restoredGameState);
   syncCaribbeanGingerIndustry(restoredGameState);
 
@@ -15177,29 +15186,6 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     npcSeaRoutes = createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
   }
   return Object.freeze(recovered);
-}
-
-function reconcileRestoredPlayerShipyards(restoredGameState, simulationMinute) {
-  const memory = restoredGameState.memory.shipyardInvestment;
-  const investedMinute = Math.min(memory.lastCompletedMinute ?? simulationMinute, simulationMinute);
-  const repairedPorts = [];
-  for (const portTileId of memory.backedPortTileIds) {
-    const city = cityByTileId.get(portTileId);
-    if (!city) {
-      throw new Error(`Player-backed shipyard port is missing from the city catalog: ${portTileId}`);
-    }
-    const result = ensureWorldEconomyPlayerShipyardBacking(worldEconomy, city, {
-      investedMinute,
-      seedCapital: SHIPYARD_INVESTMENT_CAPITAL,
-      materialContributions: SHIPYARD_INVESTMENT_MATERIALS
-    });
-    if (result.repaired) repairedPorts.push(cityLabel(city));
-  }
-  if (repairedPorts.length > 0) {
-    console.warn(
-      `[pixel-globe] restored missing player shipyard backing at ${repairedPorts.join(", ")}`
-    );
-  }
 }
 
 function createSavedVoyageEconomy(simulationMinute, seedKey) {
@@ -19795,7 +19781,7 @@ function maybeDeliverPapalCommissionCargo(cityCall, matter, destination, before)
         entry.requirement.id,
         portDialogueContext()
       );
-      addPortGoodStock(economy, cityCall, delivery.good.id, delivery.quantity);
+      addPortGoodStock(worldEconomy, cityCall, delivery.good.id, delivery.quantity);
       return delivery;
     });
   if (deliveries.length > 0) {
@@ -19925,7 +19911,12 @@ function openPapalCommissionAudience(cityCall, matter, destination) {
   const opened = startCharacterAlertSequence(steps, () => {
     const choices = papalCommissionRecommendationChoices(matter).map((choice) => ({
       label: choice.label,
-      onSelect: () => finishPapalCommissionAudience(cityCall, matter, choice.recommendation)
+      onSelect: () => finishPapalCommissionAudience(
+        cityCall,
+        matter,
+        destination,
+        choice.recommendation
+      )
     }));
     const choiceOpened = openCharacterChoiceAlertModal(
       gameState.playerCharacter,
@@ -19941,7 +19932,7 @@ function openPapalCommissionAudience(cityCall, matter, destination) {
   return true;
 }
 
-function finishPapalCommissionAudience(cityCall, matter, recommendation) {
+function finishPapalCommissionAudience(cityCall, matter, destination, recommendation) {
   advancePapalCommissionAtPort(gameState.relations.papacy, {
     tileId: cityCall.tileId,
     simMinute: Math.floor(weatherClockMinutes),
@@ -56528,7 +56519,6 @@ function drawPlayerIntroModal(nowMs) {
 
   const button = modal.buttonRect;
   if (modal.kind === "choice") {
-    if (pages.length !== 1) throw new Error("Character choice alert text must fit on one page");
     modal.choiceRects.forEach((rect, index) => {
       drawPiratePaperInset(rect, index === modal.selectedChoiceIndex);
       ctx.fillStyle = PIRATE_MENU_INK;
