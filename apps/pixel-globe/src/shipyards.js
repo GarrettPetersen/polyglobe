@@ -13,7 +13,7 @@ import {
 import { JAPANESE_POLITY_FACTION_IDS } from "./factions.js";
 
 const MINUTES_PER_DAY = 24 * 60;
-const SHIPYARD_SNAPSHOT_VERSION = 7;
+const SHIPYARD_SNAPSHOT_VERSION = 8;
 const LEGACY_BUILD_TIME_SCALE = 0.75;
 const NORMAL_BUILD_INTERVAL_DAYS = 1200;
 const FAMOUS_BUILD_INTERVAL_DAYS = 360;
@@ -24,7 +24,16 @@ const MAX_MATERIAL_DELAY_DAYS = 180;
 const PLAYER_BACKED_BUILD_INTERVAL_MULTIPLIER = 0.62;
 const PLAYER_BACKED_DIVIDEND_RATE = 0.22;
 const PLAYER_BACKED_CONSTRUCTION_COST_RATE = 0.64;
-const MAX_PLAYER_ACCOUNT_ENTRIES = 96;
+const MAX_PLAYER_ACCOUNT_ENTRIES = 256;
+const PLAYER_SHIPYARD_STOCKPILE_DAYS = 3 * 365;
+const MAX_STOCKPILE_PLANNED_BUILDS = 64;
+const SHIPBUILDING_MATERIAL_COST_WEIGHTS = Object.freeze({
+  timber: 4,
+  iron: 7,
+  "naval-stores": 5,
+  "linen-cloth": 6
+});
+const SHIPBUILDING_MATERIAL_COST_SHARE = 0.58;
 const GOSSIP_RADIUS_KM = 1800;
 const JOSEON_TURTLE_SHIP_SLUG = "joseon-turtle-ship";
 const JOSEON_PANOKSEON_SLUG = "joseon-panokseon";
@@ -172,6 +181,7 @@ export function replaceWorldShipyardPort(system, port, startMinute = system?.las
   );
   replacement.materialDelayDays = previous.materialDelayDays;
   replacement.materialInventory = { ...previous.materialInventory };
+  replacement.materialConsumedForBuild = { ...previous.materialConsumedForBuild };
   replacement.playerBacking = previous.playerBacking ? { ...previous.playerBacking } : null;
   replacement.playerDividendBalance = previous.playerDividendBalance;
   replacement.lifetimePlayerDividends = previous.lifetimePlayerDividends;
@@ -197,6 +207,7 @@ export function snapshotWorldShipyards(system) {
       buildStartedMinute: yard.buildStartedMinute,
       materialDelayDays: yard.materialDelayDays,
       materialInventory: { ...yard.materialInventory },
+      materialConsumedForBuild: { ...yard.materialConsumedForBuild },
       playerBacking: yard.playerBacking ? { ...yard.playerBacking } : null,
       playerDividendBalance: yard.playerDividendBalance,
       lifetimePlayerDividends: yard.lifetimePlayerDividends,
@@ -211,7 +222,7 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
   validateOptionalSeedKey(seedKey, "restored shipyard");
   if (
     !snapshot ||
-    ![1, 2, 3, 4, 5, 6, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
+    ![1, 2, 3, 4, 5, 6, 7, SHIPYARD_SNAPSHOT_VERSION].includes(snapshot.version) ||
     !Array.isArray(snapshot.yards) ||
     (snapshot.version >= 3 && !Array.isArray(snapshot.npcSales))
   ) {
@@ -242,7 +253,8 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
         saved.buildStartedMinute > saved.nextBuildMinute ||
         Boolean(saved.playerBacking) !== Boolean(saved.playerAccounts)
       )) ||
-      (snapshot.version >= 7 && !validMaterialInventory(saved.materialInventory))
+      (snapshot.version >= 7 && !validMaterialInventory(saved.materialInventory)) ||
+      (snapshot.version >= 8 && !validMaterialInventory(saved.materialConsumedForBuild))
     )) {
       throw new Error(`Invalid saved shipyard accounts: ${saved.portId}`);
     }
@@ -258,12 +270,12 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
         )
       : saved.nextBuildMinute;
     yard.materialDelayDays = snapshot.version >= 3 ? saved.materialDelayDays : 0;
-    yard.materialInventory = snapshot.version >= 7
-      ? copyMaterialInventory(saved.materialInventory)
-      : emptyMaterialInventory();
     yard.playerBacking = snapshot.version >= 3 && saved.playerBacking
       ? restorePlayerBacking(saved.playerBacking, yard.portId)
       : null;
+    yard.materialInventory = snapshot.version >= 7
+      ? copyMaterialInventory(saved.materialInventory)
+      : legacyMaterialInventory(yard.playerBacking);
     yard.playerDividendBalance = snapshot.version >= 3 ? saved.playerDividendBalance : 0;
     yard.lifetimePlayerDividends = snapshot.version >= 3 ? saved.lifetimePlayerDividends : 0;
     yard.playerPendingSales = snapshot.version >= 4
@@ -272,6 +284,9 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
     yard.buildStartedMinute = snapshot.version >= 5
       ? saved.buildStartedMinute
       : inferredShipyardBuildStartedMinute(yard);
+    yard.materialConsumedForBuild = snapshot.version >= 8
+      ? copyMaterialInventory(saved.materialConsumedForBuild)
+      : inferredConsumedBuildMaterials(yard, snapshot.lastMinute);
     yard.playerAccounts = snapshot.version >= 5 && saved.playerAccounts
       ? migrateVersionFivePlayerShipyardAccounts(
           restorePlayerShipyardAccounts(saved.playerAccounts, yard),
@@ -315,7 +330,12 @@ export function advanceWorldShipyards(system, simMinute, materialMarket = null) 
     while (simMinute >= yard.nextBuildMinute) {
       const buildMinute = yard.nextBuildMinute;
       const plannedListing = generateShipyardListing(yard, yard.buildNumber + 1, buildMinute);
-      const materialResult = consumeShipbuildingMaterials(yard, plannedListing, materialMarket);
+      const materialResult = consumeShipbuildingMaterials(
+        yard,
+        plannedListing,
+        1,
+        materialMarket
+      );
       if (!materialResult.ready) {
         yard.materialDelayDays += MATERIAL_RETRY_DAYS;
         yard.nextBuildMinute += MATERIAL_RETRY_DAYS * MINUTES_PER_DAY;
@@ -328,11 +348,28 @@ export function advanceWorldShipyards(system, simMinute, materialMarket = null) 
       yard.materialDelayDays = 0;
       if (yard.playerBacking) recordPlayerShipyardConstruction(yard, plannedListing, buildMinute);
       yard.buildStartedMinute = buildMinute;
+      yard.materialConsumedForBuild = emptyMaterialInventory();
       const nextBuild = generateShipyardListing(yard, yard.buildNumber + 1, buildMinute);
       yard.nextBuildMinute = buildMinute +
         shipyardBuildDurationDays(yard, nextBuild.shipSlug, yard.buildNumber + 1) * MINUTES_PER_DAY;
       procureShipyardMaterials(yard, materialMarket);
       changed = true;
+    }
+    if (materialMarket) {
+      const plannedListing = generateShipyardListing(
+        yard,
+        yard.buildNumber + 1,
+        yard.nextBuildMinute
+      );
+      const scheduledCompleteMinute = yard.nextBuildMinute -
+        yard.materialDelayDays * MINUTES_PER_DAY;
+      const buildDuration = Math.max(1, scheduledCompleteMinute - yard.buildStartedMinute);
+      const buildProgress = clamp(
+        (simMinute - yard.buildStartedMinute) / buildDuration,
+        0,
+        1
+      );
+      consumeShipbuildingMaterials(yard, plannedListing, buildProgress, materialMarket);
     }
     if (yard.listing && simMinute >= yard.listing.expiresMinute) {
       completeShipyardSale(system, yard, yard.listing, "npc");
@@ -428,6 +465,7 @@ export function fundPlayerShipyard(system, port, {
   if (acceleratedBuildMinute < yard.nextBuildMinute) {
     yard.buildStartedMinute = investedMinute;
     yard.nextBuildMinute = acceleratedBuildMinute;
+    yard.materialConsumedForBuild = emptyMaterialInventory();
   }
   return yard;
 }
@@ -458,20 +496,24 @@ export function playerShipyardLedger(yard, simMinute) {
   const progress = clamp((simMinute - yard.buildStartedMinute) / buildDuration, 0, 1);
   const accounts = yard.playerAccounts;
   const constructionCost = playerBackedConstructionCost(plannedListing);
+  const costBreakdown = shipyardConstructionCostBreakdown(
+    plannedListing.shipSlug,
+    constructionCost
+  );
   const workInProgressExpenses = Math.round(constructionCost * progress);
   const constructionExpenses = accounts.constructionExpenses + workInProgressExpenses;
   const cashBalance = accounts.capitalContributions + accounts.salesRevenue -
     constructionExpenses - accounts.playerPayouts;
   const journalEntries = accounts.entries.map((entry) => Object.freeze({ ...entry }));
   if (workInProgressExpenses > 0) {
-    journalEntries.push(Object.freeze({
-      id: `yard-account-work-in-progress-${yard.buildNumber + 1}`,
-      kind: "construction-progress",
-      simMinute,
-      amount: -workInProgressExpenses,
-      description: `${plannedListing.shipLabel} construction in progress`,
+    journalEntries.push(...shipyardConstructionProgressEntries({
+      buildNumber: yard.buildNumber + 1,
       shipSlug: plannedListing.shipSlug,
-      progress
+      shipLabel: plannedListing.shipLabel,
+      simMinute,
+      progress,
+      accruedCost: workInProgressExpenses,
+      costBreakdown
     }));
   }
   return Object.freeze({
@@ -486,6 +528,7 @@ export function playerShipyardLedger(yard, simMinute) {
       completeMinute: yard.nextBuildMinute,
       progress,
       constructionCost,
+      costBreakdown,
       accruedConstructionCost: workInProgressExpenses,
       daysRemaining: yard.materialDelayDays > 0
         ? 0
@@ -545,7 +588,8 @@ export function shipbuildingMaterialRequirements(shipSlug) {
 }
 
 export function shipyardMaterialStatus(yard, shipSlug = null) {
-  if (!yard || !validMaterialInventory(yard.materialInventory)) {
+  if (!yard || !validMaterialInventory(yard.materialInventory) ||
+      !validMaterialInventory(yard.materialConsumedForBuild)) {
     throw new Error("Shipyard material status requires a yard inventory");
   }
   const plannedSlug = shipSlug || generateShipyardListing(
@@ -554,19 +598,53 @@ export function shipyardMaterialStatus(yard, shipSlug = null) {
     yard.nextBuildMinute
   ).shipSlug;
   const requirements = shipbuildingMaterialRequirements(plannedSlug);
+  const stockTargets = shipyardMaterialStockTargets(yard);
   return Object.freeze(SHIPBUILDING_MATERIAL_GOOD_IDS
-    .filter((goodId) => requirements[goodId] > 0)
+    .filter((goodId) => stockTargets[goodId] > 0)
     .map((goodId) => {
-      const required = requirements[goodId];
+      const required = Math.max(0, requirements[goodId] - yard.materialConsumedForBuild[goodId]);
+      const stockTarget = stockTargets[goodId];
       const stocked = yard.materialInventory[goodId];
       return Object.freeze({
         goodId,
         required,
+        stockTarget,
         stocked,
         missing: Math.max(0, required - stocked),
-        ratio: clamp(stocked / required, 0, 1)
+        stockpileMissing: Math.max(0, stockTarget - stocked),
+        ratio: clamp(stocked / stockTarget, 0, 1)
       });
     }));
+}
+
+export function shipyardMaterialStockTargets(yard) {
+  if (!yard || !Number.isInteger(yard.buildNumber) || !Number.isFinite(yard.nextBuildMinute)) {
+    throw new Error("Shipyard material targets require a valid yard");
+  }
+  const targets = emptyMaterialInventory();
+  const horizonDays = yard.playerBacking ? PLAYER_SHIPYARD_STOCKPILE_DAYS : 0;
+  let plannedDays = 0;
+  let buildOffset = 1;
+  let buildMinute = yard.nextBuildMinute;
+  do {
+    if (buildOffset > MAX_STOCKPILE_PLANNED_BUILDS) {
+      throw new Error(`Shipyard stockpile plan exceeded ${MAX_STOCKPILE_PLANNED_BUILDS} builds`);
+    }
+    const buildNumber = yard.buildNumber + buildOffset;
+    const listing = generateShipyardListing(yard, buildNumber, buildMinute);
+    const requirements = shipbuildingMaterialRequirements(listing.shipSlug);
+    for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+      targets[goodId] += requirements[goodId];
+    }
+    const durationDays = shipyardBuildDurationDays(yard, listing.shipSlug, buildNumber);
+    plannedDays += durationDays;
+    buildMinute += durationDays * MINUTES_PER_DAY;
+    buildOffset += 1;
+  } while (plannedDays < horizonDays);
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    targets[goodId] = Math.max(0, targets[goodId] - yard.materialConsumedForBuild[goodId]);
+  }
+  return Object.freeze(targets);
 }
 
 export function shipyardDailyMaterialDemand(yard) {
@@ -775,6 +853,7 @@ function createShipyard(port, startMinute, seedKey) {
     buildStartedMinute: startMinute,
     materialDelayDays: 0,
     materialInventory: emptyMaterialInventory(),
+    materialConsumedForBuild: emptyMaterialInventory(),
     playerBacking: null,
     playerDividendBalance: 0,
     lifetimePlayerDividends: 0,
@@ -789,6 +868,10 @@ function createShipyard(port, startMinute, seedKey) {
   if (ageDays < listingDays) yard.listing = generateShipyardListing(yard, 0, previousBuildMinute);
   yard.buildStartedMinute = previousBuildMinute;
   yard.nextBuildMinute = previousBuildMinute + intervalDays * MINUTES_PER_DAY;
+  yard.materialConsumedForBuild = scaledBuildMaterials(
+    plannedBuild.shipSlug,
+    clamp(ageDays / intervalDays, 0, 1)
+  );
   return yard;
 }
 
@@ -820,14 +903,15 @@ export function procureShipyardMaterials(yard, materialMarket) {
   if (typeof materialMarket.available !== "function" || typeof materialMarket.consume !== "function") {
     throw new Error("Shipyard material market requires available and consume functions");
   }
-  if (!validMaterialInventory(yard.materialInventory)) {
+  if (!validMaterialInventory(yard.materialInventory) ||
+      !validMaterialInventory(yard.materialConsumedForBuild)) {
     throw new Error(`Shipyard has invalid material inventory: ${yard.portId}`);
   }
   const plannedListing = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
-  const requirements = shipbuildingMaterialRequirements(plannedListing.shipSlug);
+  const stockTargets = shipyardMaterialStockTargets(yard);
   const transferred = emptyMaterialInventory();
   for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
-    const shortage = Math.max(0, requirements[goodId] - yard.materialInventory[goodId]);
+    const shortage = Math.max(0, stockTargets[goodId] - yard.materialInventory[goodId]);
     const marketAvailable = materialMarket.available(yard.portId, goodId);
     if (!Number.isFinite(marketAvailable) || marketAvailable < 0) {
       throw new Error(`Invalid shipyard market stock at ${yard.portId}: ${goodId}=${marketAvailable}`);
@@ -846,20 +930,29 @@ export function procureShipyardMaterials(yard, materialMarket) {
   });
 }
 
-function consumeShipbuildingMaterials(yard, listing, materialMarket) {
+function consumeShipbuildingMaterials(yard, listing, progress, materialMarket) {
   if (!materialMarket) return { ready: true, emergencyProcurement: false };
+  if (!Number.isFinite(progress) || progress < 0 || progress > 1) {
+    throw new Error(`Invalid shipyard material consumption progress: ${progress}`);
+  }
   const requirements = shipbuildingMaterialRequirements(listing.shipSlug);
-  const missing = SHIPBUILDING_MATERIAL_GOOD_IDS.filter((goodId) => (
-    yard.materialInventory[goodId] + 1e-9 < requirements[goodId]
-  ));
-  if (missing.length > 0 && yard.materialDelayDays < MAX_MATERIAL_DELAY_DAYS) {
-    return { ready: false, missing };
-  }
   for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
-    const quantity = Math.min(requirements[goodId], yard.materialInventory[goodId]);
+    const targetConsumed = requirements[goodId] * progress;
+    const remaining = Math.max(0, targetConsumed - yard.materialConsumedForBuild[goodId]);
+    const quantity = Math.min(remaining, yard.materialInventory[goodId]);
     yard.materialInventory[goodId] -= quantity;
+    yard.materialConsumedForBuild[goodId] += quantity;
   }
-  return { ready: true, emergencyProcurement: missing.length > 0 };
+  const missing = SHIPBUILDING_MATERIAL_GOOD_IDS.filter((goodId) => (
+    yard.materialConsumedForBuild[goodId] + 1e-9 < requirements[goodId] * progress
+  ));
+  const ready = progress < 1 || missing.length === 0 ||
+    yard.materialDelayDays >= MAX_MATERIAL_DELAY_DAYS;
+  return {
+    ready,
+    missing,
+    emergencyProcurement: progress >= 1 && missing.length > 0 && ready
+  };
 }
 
 function completeShipyardSale(system, yard, listing, buyer, soldMinute = listing.expiresMinute) {
@@ -916,14 +1009,25 @@ function createPlayerShipyardAccounts(backing) {
 function recordPlayerShipyardConstruction(yard, listing, simMinute) {
   const accounts = requiredPlayerShipyardAccounts(yard);
   const cost = playerBackedConstructionCost(listing);
+  const breakdown = shipyardConstructionCostBreakdown(listing.shipSlug, cost);
   accounts.constructionExpenses += cost;
+  for (const material of breakdown.materials) {
+    appendPlayerShipyardAccountEntry(accounts, {
+      kind: "construction-material",
+      simMinute,
+      amount: -material.cost,
+      description: `${listing.shipLabel} ${material.goodId}`,
+      shipSlug: listing.shipSlug,
+      goodId: material.goodId,
+      quantity: material.quantity
+    });
+  }
   appendPlayerShipyardAccountEntry(accounts, {
-    kind: "construction",
+    kind: "construction-labor",
     simMinute,
-    amount: -cost,
-    description: `${listing.shipLabel} construction`,
-    shipSlug: listing.shipSlug,
-    materials: shipbuildingMaterialRequirements(listing.shipSlug)
+    amount: -breakdown.laborCost,
+    description: `${listing.shipLabel} labor`,
+    shipSlug: listing.shipSlug
   });
 }
 
@@ -932,6 +1036,86 @@ function playerBackedConstructionCost(listing) {
     throw new Error(`Invalid player-backed ship construction price: ${listing?.price}`);
   }
   return roundToHundred(listing.price * PLAYER_BACKED_CONSTRUCTION_COST_RATE);
+}
+
+export function shipyardConstructionCostBreakdown(shipSlug, constructionCost) {
+  shipStatsForSlug(shipSlug);
+  if (!Number.isInteger(constructionCost) || constructionCost <= 0) {
+    throw new Error(`Invalid shipyard construction cost: ${constructionCost}`);
+  }
+  const requirements = shipbuildingMaterialRequirements(shipSlug);
+  const weightedMaterials = SHIPBUILDING_MATERIAL_GOOD_IDS
+    .filter((goodId) => requirements[goodId] > 0)
+    .map((goodId) => ({
+      goodId,
+      quantity: requirements[goodId],
+      weight: requirements[goodId] * SHIPBUILDING_MATERIAL_COST_WEIGHTS[goodId]
+    }));
+  const totalWeight = weightedMaterials.reduce((sum, material) => sum + material.weight, 0);
+  if (totalWeight <= 0) throw new Error(`Shipyard hull has no material cost weight: ${shipSlug}`);
+  const materialBudget = Math.min(
+    constructionCost,
+    roundToHundred(constructionCost * SHIPBUILDING_MATERIAL_COST_SHARE)
+  );
+  let allocated = 0;
+  const materials = weightedMaterials.map((material, index) => {
+    const cost = index === weightedMaterials.length - 1
+      ? materialBudget - allocated
+      : Math.floor(materialBudget * material.weight / totalWeight / 100) * 100;
+    allocated += cost;
+    return Object.freeze({
+      goodId: material.goodId,
+      quantity: material.quantity,
+      cost
+    });
+  });
+  return Object.freeze({
+    materials: Object.freeze(materials),
+    laborCost: constructionCost - materialBudget,
+    totalCost: constructionCost
+  });
+}
+
+function shipyardConstructionProgressEntries({
+  buildNumber,
+  shipSlug,
+  shipLabel,
+  simMinute,
+  progress,
+  accruedCost,
+  costBreakdown
+}) {
+  const parts = [
+    ...costBreakdown.materials.map((material) => ({
+      kind: "construction-material-progress",
+      description: `${shipLabel} ${material.goodId} in progress`,
+      cost: material.cost,
+      goodId: material.goodId,
+      quantity: material.quantity
+    })),
+    {
+      kind: "construction-labor-progress",
+      description: `${shipLabel} labor in progress`,
+      cost: costBreakdown.laborCost
+    }
+  ];
+  let allocated = 0;
+  return parts.map((part, index) => {
+    const cost = index === parts.length - 1
+      ? accruedCost - allocated
+      : Math.floor(part.cost * progress);
+    allocated += cost;
+    return Object.freeze({
+      id: `yard-account-work-in-progress-${buildNumber}-${index}`,
+      kind: part.kind,
+      simMinute,
+      amount: -cost,
+      description: part.description,
+      shipSlug,
+      progress,
+      ...(part.goodId ? { goodId: part.goodId, quantity: part.quantity } : {})
+    });
+  }).filter((entry) => entry.amount !== 0);
 }
 
 function recordPlayerShipyardSale(yard, listing, buyer, dividend, simMinute) {
@@ -1025,7 +1209,15 @@ function restorePlayerShipyardAccounts(saved, yard) {
 }
 
 function restorePlayerShipyardAccountEntry(entry, portId) {
-  if (!entry || typeof entry.id !== "string" || !["capital", "construction", "sale", "payout", "legacy"].includes(entry.kind) ||
+  if (!entry || typeof entry.id !== "string" || ![
+    "capital",
+    "construction",
+    "construction-material",
+    "construction-labor",
+    "sale",
+    "payout",
+    "legacy"
+  ].includes(entry.kind) ||
       !Number.isFinite(entry.simMinute) || !Number.isInteger(entry.amount) ||
       typeof entry.description !== "string" || entry.description === "") {
     throw new Error(`Invalid saved shipyard account entry: ${portId}`);
@@ -1033,6 +1225,13 @@ function restorePlayerShipyardAccountEntry(entry, portId) {
   if (entry.legacyAccount !== undefined &&
       !["sales", "construction", "payouts"].includes(entry.legacyAccount)) {
     throw new Error(`Invalid saved shipyard legacy account: ${portId}`);
+  }
+  if (entry.kind === "construction-material" && (
+    !SHIPBUILDING_MATERIAL_GOOD_IDS.includes(entry.goodId) ||
+    !Number.isFinite(entry.quantity) ||
+    entry.quantity <= 0
+  )) {
+    throw new Error(`Invalid saved shipyard material account: ${portId}`);
   }
   if (entry.shipSlug) shipStatsForSlug(entry.shipSlug);
   return Object.freeze(copyPlayerShipyardAccountEntry(entry));
@@ -1196,6 +1395,34 @@ function normalizeName(value) {
 
 function emptyMaterialInventory() {
   return Object.fromEntries(SHIPBUILDING_MATERIAL_GOOD_IDS.map((goodId) => [goodId, 0]));
+}
+
+function legacyMaterialInventory(playerBacking) {
+  const inventory = emptyMaterialInventory();
+  if (!playerBacking) return inventory;
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    inventory[goodId] = playerBacking.materialContributions[goodId] || 0;
+  }
+  return inventory;
+}
+
+function inferredConsumedBuildMaterials(yard, simMinute) {
+  const planned = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
+  const scheduledCompleteMinute = yard.nextBuildMinute - yard.materialDelayDays * MINUTES_PER_DAY;
+  const duration = Math.max(1, scheduledCompleteMinute - yard.buildStartedMinute);
+  const progress = clamp((simMinute - yard.buildStartedMinute) / duration, 0, 1);
+  return scaledBuildMaterials(planned.shipSlug, progress);
+}
+
+function scaledBuildMaterials(shipSlug, progress) {
+  if (!Number.isFinite(progress) || progress < 0 || progress > 1) {
+    throw new Error(`Invalid scaled shipyard material progress: ${progress}`);
+  }
+  const requirements = shipbuildingMaterialRequirements(shipSlug);
+  return Object.fromEntries(SHIPBUILDING_MATERIAL_GOOD_IDS.map((goodId) => [
+    goodId,
+    requirements[goodId] * progress
+  ]));
 }
 
 function copyMaterialInventory(inventory) {

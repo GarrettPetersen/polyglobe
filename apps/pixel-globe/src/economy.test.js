@@ -1352,7 +1352,7 @@ test("a player-backed yard increases ordinary shipbuilding-material demand", () 
   assert.ok(after.get("linen-cloth").consumptionPerDay > clothBefore);
 });
 
-test("a shipyard buys its next hull materials from the ordinary port market", () => {
+test("a player shipyard can stock several years of hull materials from the port market", () => {
   const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
   const yard = fundWorldEconomyShipyard(economy, LONDON, {
     investedMinute: 10,
@@ -1369,8 +1369,9 @@ test("a shipyard buys its next hull materials from the ordinary port market", ()
 
   assert.ok(result.materials.every((material) => material.missing === 0));
   for (const material of result.materials) {
-    assert.equal(yard.materialInventory[material.goodId], material.required);
-    assert.equal(port.goods.get(material.goodId).stock, 50 - material.required);
+    const stocked = Math.min(50, material.stockTarget);
+    assert.equal(yard.materialInventory[material.goodId], stocked);
+    assert.equal(port.goods.get(material.goodId).stock, 50 - stocked);
   }
 });
 

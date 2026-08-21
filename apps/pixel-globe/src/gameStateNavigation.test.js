@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   GAME_STATE_VERSION,
   PORT_NAVIGATION_REASON_QUEST_CARGO,
+  PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
   addPortNavigationWaypoint,
   clearPortNavigationWaypointsAt,
   createGameState,
@@ -93,6 +94,27 @@ test("trade price waypoints remain distinct and name their goods", () => {
     destinationTileId: 81,
     destinationName: "London",
     reason: "TRADE PRICE TIP"
+  }), /require a trade good id/);
+});
+
+test("shipyard supply waypoints stay distinct and name their construction material", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  const waypoint = addPortNavigationWaypoint(state, {
+    destinationTileId: 81,
+    destinationName: "Exeter",
+    reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
+    shipyardMaterialGoodId: "timber"
+  });
+
+  assert.equal(waypoint.id, "port:81:shipyard-supply:timber");
+  assert.equal(
+    portNavigationReasonLabel(waypoint.reason, waypoint.shipyardMaterialGoodId),
+    "Shipyard supply: Timber"
+  );
+  assert.throws(() => addPortNavigationWaypoint(state, {
+    destinationTileId: 81,
+    destinationName: "Exeter",
+    reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY
   }), /require a trade good id/);
 });
 

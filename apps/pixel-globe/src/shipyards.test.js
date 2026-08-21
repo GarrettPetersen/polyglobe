@@ -14,10 +14,13 @@ import {
   nearestShipyardListingForPort,
   playerShipyardLedger,
   restoreWorldShipyards,
+  SHIPBUILDING_MATERIAL_GOOD_IDS,
   shipConstructionPrice,
   shipReplacementTermsWithoutTradeIn,
   shipbuildingMaterialRequirements,
   shipyardBuildDurationDays,
+  shipyardConstructionCostBreakdown,
+  shipyardMaterialStockTargets,
   shipTradeInValue,
   shipyardAtPort,
   shipyardMaterialStatus,
@@ -400,7 +403,14 @@ test("completed hulls stockpile and consume their full bill of materials", () =>
   const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0, seedKey: "materials" });
   const yard = shipyardAtPort(system, SMALL_PORT);
   yard.listing = null;
+  yard.buildStartedMinute = 0;
   yard.nextBuildMinute = 1;
+  yard.materialConsumedForBuild = {
+    timber: 0,
+    iron: 0,
+    "naval-stores": 0,
+    "linen-cloth": 0
+  };
   const stocks = { timber: 100, iron: 100, "naval-stores": 100, "linen-cloth": 100 };
   advanceWorldShipyards(system, 2, {
     available: (_portId, goodId) => stocks[goodId],
@@ -410,9 +420,66 @@ test("completed hulls stockpile and consume their full bill of materials", () =>
   for (const [goodId, quantity] of Object.entries(requirements)) {
     assert.equal(
       100 - stocks[goodId],
-      quantity + yard.materialInventory[goodId],
+      quantity + yard.materialInventory[goodId] + yard.materialConsumedForBuild[goodId],
       goodId
     );
+  }
+});
+
+test("shipbuilding materials are consumed with construction progress instead of on arrival", () => {
+  const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0, seedKey: "progressive-materials" });
+  const yard = shipyardAtPort(system, SMALL_PORT);
+  yard.listing = null;
+  yard.buildStartedMinute = 0;
+  yard.nextBuildMinute = 1000;
+  yard.materialInventory = {
+    timber: 100,
+    iron: 100,
+    "naval-stores": 100,
+    "linen-cloth": 100
+  };
+  yard.materialConsumedForBuild = {
+    timber: 0,
+    iron: 0,
+    "naval-stores": 0,
+    "linen-cloth": 0
+  };
+  const noMarketStock = {
+    available: () => 0,
+    consume: () => { throw new Error("No market stock should be consumed"); }
+  };
+  const requirements = shipbuildingMaterialRequirements(
+    playerShipyardLedger(fundPlayerShipyard(system, SMALL_PORT, {
+      investedMinute: 0,
+      seedCapital: 100000,
+      materialContributions: { timber: 1, iron: 1, "naval-stores": 1 }
+    }), 0).currentBuild.shipSlug
+  );
+  yard.buildStartedMinute = 0;
+  yard.nextBuildMinute = 1000;
+  yard.materialInventory = {
+    timber: 100,
+    iron: 100,
+    "naval-stores": 100,
+    "linen-cloth": 100
+  };
+  yard.materialConsumedForBuild = {
+    timber: 0,
+    iron: 0,
+    "naval-stores": 0,
+    "linen-cloth": 0
+  };
+
+  advanceWorldShipyards(system, 250, noMarketStock);
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    assert.ok(Math.abs(yard.materialConsumedForBuild[goodId] - requirements[goodId] * 0.25) < 1e-9);
+    assert.ok(Math.abs(yard.materialInventory[goodId] - (100 - requirements[goodId] * 0.25)) < 1e-9);
+  }
+
+  advanceWorldShipyards(system, 500, noMarketStock);
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    assert.ok(Math.abs(yard.materialConsumedForBuild[goodId] - requirements[goodId] * 0.5) < 1e-9);
+    assert.ok(Math.abs(yard.materialInventory[goodId] - (100 - requirements[goodId] * 0.5)) < 1e-9);
   }
 });
 
@@ -505,13 +572,25 @@ test("player-backed yards expose deterministic build progress and persist comple
   );
   assert.equal(halfway.accounts.capitalContributions, 100000);
   assert.equal(halfway.accounts.entries[0].kind, "capital");
-  assert.equal(halfway.accounts.entries.at(-1).kind, "construction-progress");
+  assert.equal(halfway.accounts.entries.at(-1).kind, "construction-labor-progress");
+  assert.equal(
+    halfway.currentBuild.costBreakdown.materials.reduce((sum, material) => sum + material.cost, 0) +
+      halfway.currentBuild.costBreakdown.laborCost,
+    halfway.currentBuild.constructionCost
+  );
 
   advanceWorldShipyards(system, 111);
   const completed = playerShipyardLedger(yard, 111);
   assert.ok(completed.finishedShip);
   assert.ok(completed.accounts.constructionExpenses > 0);
-  assert.ok(completed.accounts.entries.some((entry) => entry.kind === "construction"));
+  assert.ok(completed.accounts.entries.some((entry) => entry.kind === "construction-material"));
+  assert.ok(completed.accounts.entries.some((entry) => entry.kind === "construction-labor"));
+  assert.equal(
+    completed.accounts.entries
+      .filter((entry) => ["construction-material", "construction-labor"].includes(entry.kind))
+      .reduce((sum, entry) => sum - entry.amount, 0),
+    completed.accounts.postedConstructionExpenses
+  );
 
   const snapshot = snapshotWorldShipyards(system);
   const restored = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "ledger-progress" });
@@ -648,9 +727,13 @@ test("shipyard snapshots restore listings and construction clocks", () => {
   assert.equal(lisbon.nextBuildMinute, 123456);
 });
 
-test("shipyard stores persist while version-six saves migrate to empty valid stores", () => {
+test("shipyard stores persist while old player yards regain their founding deliveries", () => {
   const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
-  const yard = shipyardAtPort(system, LISBON);
+  const yard = fundPlayerShipyard(system, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
   yard.materialInventory.timber = 7.5;
   yard.materialInventory.iron = 3;
   const snapshot = snapshotWorldShipyards(system);
@@ -663,9 +746,60 @@ test("shipyard stores persist while version-six saves migrate to empty valid sto
   for (const saved of legacySnapshot.yards) delete saved.materialInventory;
   const migrated = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
   restoreWorldShipyards(migrated, legacySnapshot);
-  assert.ok(shipyardMaterialStatus(shipyardAtPort(migrated, LISBON)).every(
-    (material) => material.stocked === 0
-  ));
+  assert.deepEqual(shipyardAtPort(migrated, LISBON).materialInventory, {
+    timber: 20,
+    iron: 12,
+    "naval-stores": 10,
+    "linen-cloth": 0
+  });
+
+  const versionSevenSnapshot = structuredClone(snapshot);
+  versionSevenSnapshot.version = 7;
+  for (const saved of versionSevenSnapshot.yards) delete saved.materialConsumedForBuild;
+  const versionSeven = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-stores" });
+  restoreWorldShipyards(versionSeven, versionSevenSnapshot);
+  const restoredYard = shipyardAtPort(versionSeven, LISBON);
+  const timberBeforeAdvance = restoredYard.materialInventory.timber;
+  advanceWorldShipyards(versionSeven, versionSevenSnapshot.lastMinute + 1, {
+    available: () => 0,
+    consume: () => { throw new Error("Old-save migration should not procure unavailable cargo"); }
+  });
+  assert.ok(
+    timberBeforeAdvance - restoredYard.materialInventory.timber < 0.01,
+    `old-save stores fell from ${timberBeforeAdvance} to ${restoredYard.materialInventory.timber}`
+  );
+});
+
+test("player shipyards plan enough stores for several years of deterministic builds", () => {
+  const system = createWorldShipyards({ ports: [LISBON], startMinute: 0, seedKey: "yard-reserve" });
+  const yard = fundPlayerShipyard(system, LISBON, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  const nextHull = generateShipyardListing(yard, yard.buildNumber + 1, yard.nextBuildMinute);
+  const nextRequirements = shipbuildingMaterialRequirements(nextHull.shipSlug);
+  const targets = shipyardMaterialStockTargets(yard);
+
+  assert.ok(targets.timber > nextRequirements.timber);
+  assert.ok(targets.iron > nextRequirements.iron);
+  assert.ok(targets["naval-stores"] > nextRequirements["naval-stores"]);
+  assert.ok(Object.values(targets).reduce((sum, quantity) => sum + quantity, 0) >
+    Object.values(nextRequirements).reduce((sum, quantity) => sum + quantity, 0) * 2);
+});
+
+test("ship construction books split every material from labor without changing total cost", () => {
+  const breakdown = shipyardConstructionCostBreakdown("galleon", 64000);
+  assert.deepEqual(
+    breakdown.materials.map((material) => material.goodId),
+    ["timber", "iron", "naval-stores", "linen-cloth"]
+  );
+  assert.ok(breakdown.materials.every((material) => material.quantity > 0 && material.cost > 0));
+  assert.ok(breakdown.laborCost > 0);
+  assert.equal(
+    breakdown.materials.reduce((sum, material) => sum + material.cost, 0) + breakdown.laborCost,
+    breakdown.totalCost
+  );
 });
 
 function port(tileId, city, cityType, population, lat, lon, factionId = "neutral") {

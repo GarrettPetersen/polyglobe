@@ -436,6 +436,7 @@ const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
 export const PORT_NAVIGATION_REASON_QUEST_CARGO = "QUEST CARGO SOURCE";
+export const PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY = "SHIPYARD SUPPLY";
 export const PORT_NAVIGATION_REASON_TRADE_PRICE = "TRADE PRICE TIP";
 export const REPUTATION_MIN = -100;
 export const REPUTATION_MAX = 100;
@@ -1183,6 +1184,7 @@ export function addPortNavigationWaypoint(state, {
   destinationName,
   reason,
   questCargoGoodId = null,
+  shipyardMaterialGoodId = null,
   tradeGoodId = null
 }) {
   assertGameState(state);
@@ -1206,15 +1208,33 @@ export function addPortNavigationWaypoint(state, {
   if (reason === PORT_NAVIGATION_REASON_TRADE_PRICE && tradeGoodId === null) {
     throw new Error("Trade-price waypoints require a trade good id");
   }
+  if (shipyardMaterialGoodId !== null && (
+    reason !== PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY ||
+    typeof shipyardMaterialGoodId !== "string" ||
+    shipyardMaterialGoodId === ""
+  )) {
+    throw new Error("Shipyard material waypoint goods require a shipyard-supply navigation reason");
+  }
+  if (reason === PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY && shipyardMaterialGoodId === null) {
+    throw new Error("Shipyard-supply waypoints require a trade good id");
+  }
   if (questCargoGoodId !== null) tradeGoodById(questCargoGoodId);
+  if (shipyardMaterialGoodId !== null) tradeGoodById(shipyardMaterialGoodId);
   if (tradeGoodId !== null) tradeGoodById(tradeGoodId);
   const waypoint = {
-    id: portNavigationWaypointId({ destinationTileId, reason, questCargoGoodId, tradeGoodId }),
+    id: portNavigationWaypointId({
+      destinationTileId,
+      reason,
+      questCargoGoodId,
+      shipyardMaterialGoodId,
+      tradeGoodId
+    }),
     destinationTileId,
     destinationName,
     reason
   };
   if (questCargoGoodId !== null) waypoint.questCargoGoodId = questCargoGoodId;
+  if (shipyardMaterialGoodId !== null) waypoint.shipyardMaterialGoodId = shipyardMaterialGoodId;
   if (tradeGoodId !== null) waypoint.tradeGoodId = tradeGoodId;
   assertOptionalNavigationWaypoint(waypoint);
   const waypoints = state.memory.navigation.optionalWaypoints;
@@ -1228,6 +1248,7 @@ function portNavigationWaypointId({
   destinationTileId,
   reason,
   questCargoGoodId = null,
+  shipyardMaterialGoodId = null,
   tradeGoodId = null
 }) {
   if (reason === PORT_NAVIGATION_REASON_QUEST_CARGO && questCargoGoodId) {
@@ -1235,6 +1256,9 @@ function portNavigationWaypointId({
   }
   if (reason === PORT_NAVIGATION_REASON_TRADE_PRICE && tradeGoodId) {
     return `port:${destinationTileId}:trade-price:${tradeGoodId}`;
+  }
+  if (reason === PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY && shipyardMaterialGoodId) {
+    return `port:${destinationTileId}:shipyard-supply:${shipyardMaterialGoodId}`;
   }
   return `port:${destinationTileId}`;
 }
@@ -1248,6 +1272,9 @@ export function portNavigationReasonLabel(reason, goodId = null) {
   }
   if (reason === PORT_NAVIGATION_REASON_TRADE_PRICE && goodId) {
     return `Price tip: ${tradeGoodById(goodId).label}`;
+  }
+  if (reason === PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY) {
+    return goodId ? `Shipyard supply: ${tradeGoodById(goodId).label}` : "Shipyard supply";
   }
   return reason;
 }
@@ -8129,7 +8156,21 @@ function assertOptionalNavigationWaypoint(waypoint) {
   )) {
     throw new Error("Optional trade-price waypoint requires a trade good id");
   }
+  if (waypoint.shipyardMaterialGoodId !== undefined && (
+    waypoint.reason !== PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY ||
+    typeof waypoint.shipyardMaterialGoodId !== "string" ||
+    waypoint.shipyardMaterialGoodId === ""
+  )) {
+    throw new Error("Optional shipyard-supply waypoint requires a trade good id");
+  }
+  if (waypoint.reason === PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY &&
+      waypoint.shipyardMaterialGoodId === undefined) {
+    throw new Error("Optional shipyard-supply waypoint is missing its trade good id");
+  }
   if (waypoint.questCargoGoodId !== undefined) tradeGoodById(waypoint.questCargoGoodId);
+  if (waypoint.shipyardMaterialGoodId !== undefined) {
+    tradeGoodById(waypoint.shipyardMaterialGoodId);
+  }
   if (waypoint.tradeGoodId !== undefined) tradeGoodById(waypoint.tradeGoodId);
 }
 

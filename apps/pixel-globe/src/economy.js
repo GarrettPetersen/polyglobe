@@ -1176,6 +1176,17 @@ export function portMarketGood(economy, city, goodId) {
   return marketRow(port, tradeGoodById(goodId));
 }
 
+export function portGoodSupply(economy, city, goodId) {
+  const port = requiredPortState(economy, city);
+  const good = tradeGoodById(goodId);
+  const state = port.goods.get(good.id);
+  return Object.freeze({
+    stock: good.alwaysAvailable ? 999 : Math.max(0, Math.floor(state.stock)),
+    productionPerDay: state.productionPerDay,
+    listedForSale: portGoodIsListedForSale(port, good, state)
+  });
+}
+
 export function portEconomySummary(economy, city) {
   const port = requiredPortState(economy, city);
   return {
@@ -1781,12 +1792,16 @@ function marketRow(port, good) {
     stock: good.alwaysAvailable ? 999 : Math.max(0, Math.floor(state.stock)),
     productionPerDay: state.productionPerDay,
     consumptionPerDay: state.consumptionPerDay,
-    listedForSale: good.alwaysAvailable || (portOffersGood(port, good) && (
-      state.productionPerDay > 0 || state.stock >= Math.max(3, state.targetStock * 0.16)
-    )),
+    listedForSale: portGoodIsListedForSale(port, good, state),
     sellable: good.sellable !== false,
     portSpecie: Math.max(0, Math.floor(port.specie))
   };
+}
+
+function portGoodIsListedForSale(port, good, state) {
+  return good.alwaysAvailable || (portOffersGood(port, good) && (
+    state.productionPerDay > 0 || state.stock >= Math.max(3, state.targetStock * 0.16)
+  ));
 }
 
 function marketPrice(port, good, stock, specieMultiplier = speciePriceMultiplier(port)) {

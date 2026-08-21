@@ -18705,18 +18705,28 @@ function maybeOpenShipyardMaterialDialogue(cityCall) {
   dialogueState.shipyardMaterialArrivalChecked = true;
   if (!playerBackedShipyardAtPort(gameState, cityCall)) return false;
   const yard = shipyardAtPort(worldEconomy.shipyards, cityCall);
-  procureWorldEconomyShipyardMaterials(worldEconomy, cityCall);
-  const missing = shipyardMaterialStatus(yard).filter((material) => material.missing > 0);
-  if (missing.length === 0) return false;
   const reserved = activeQuestCargoReservedQuantities(gameState, {
     currentMinute: Math.floor(weatherClockMinutes)
   });
-  const hasUncommittedMaterial = missing.some(({ goodId }) => (
+  let needed = shipyardMaterialStatus(yard).filter(
+    (material) => material.stockpileMissing > 0
+  );
+  let hasUncommittedMaterial = needed.some(({ goodId }) => (
     (gameState.cargo[goodId] || 0) > (reserved[goodId] || 0)
   ));
+  if (!hasUncommittedMaterial) {
+    procureWorldEconomyShipyardMaterials(worldEconomy, cityCall);
+    needed = shipyardMaterialStatus(yard).filter(
+      (material) => material.stockpileMissing > 0
+    );
+    if (needed.length === 0) return false;
+    hasUncommittedMaterial = needed.some(({ goodId }) => (
+      (gameState.cargo[goodId] || 0) > (reserved[goodId] || 0)
+    ));
+  }
   if (yard.materialDelayDays === 0 && !hasUncommittedMaterial) return false;
   dialogueState.shipyardMaterialArrival = true;
-  dialogueState.shipyardLedgerReturnNodeId = dialogueState.nodeId;
+  dialogueState.shipyardLedgerReturnNodeId = "root";
   dialogueState.shipyardLedgerTab = "materials";
   dialogueState.shipyardLedgerScrollOffset = 0;
   dialogueState.nodeId = "shipyard";
@@ -18842,9 +18852,7 @@ function maybeOpenShipyardDividendDialogue(cityCall, { allowShipyardNode = false
     ...payout,
     salesSummary: shipyardPayoutSalesSummary(payout.sales)
   };
-  dialogueState.shipyardLedgerReturnNodeId = dialogueState.nodeId === "shipyard"
-    ? "root"
-    : dialogueState.nodeId;
+  dialogueState.shipyardLedgerReturnNodeId = "root";
   dialogueState.shipyardLedgerTab = "books";
   dialogueState.shipyardLedgerScrollOffset = 0;
   dialogueState.nodeId = "shipyard";
@@ -41843,7 +41851,8 @@ function navigationMenuEntries() {
       destinationName: waypoint.destinationName,
       reason: portNavigationReasonLabel(
         waypoint.reason,
-        waypoint.questCargoGoodId || waypoint.tradeGoodId || null
+        waypoint.questCargoGoodId || waypoint.tradeGoodId ||
+          waypoint.shipyardMaterialGoodId || null
       ),
       style: OPTIONAL_NAVIGATION_STYLE,
       targetVector: placedCityTargetVector(destination),
@@ -58018,59 +58027,82 @@ function drawPlayerShipyardMaterialsTab(content, presentation) {
   const sourceByGoodId = new Map(
     (presentation.materialSources || []).map((source) => [source.goodId, source])
   );
-  const compact = content.h < 125;
-  const rowHeight = Math.max(20, Math.min(27, Math.floor(content.h / materials.length)));
-  let y = content.y;
-  for (const material of materials) {
+  const columns = content.w >= 330 ? 2 : 1;
+  const rows = Math.ceil(materials.length / columns);
+  const columnGap = columns > 1 ? 12 : 0;
+  const columnWidth = Math.floor((content.w - columnGap * (columns - 1)) / columns);
+  const rowHeight = Math.floor(content.h / rows);
+  for (const [index, material] of materials.entries()) {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const x = content.x + column * (columnWidth + columnGap);
+    const y = content.y + row * rowHeight;
     const good = tradeGoodById(material.goodId);
-    drawGameIcon(tradeGoodIconId(material.goodId), content.x, y - 4);
-    drawOptionsText(good.label.toUpperCase(), content.x + 20, y, {
-      color: PIRATE_MENU_INK
-    });
+    drawGameIcon(tradeGoodIconId(material.goodId), x, y + 2);
     drawOptionsText(
-      `${formatDisplayQuantity(material.stocked)}/${material.required}`,
-      content.x + content.w,
-      y,
+      fitPixelText(good.label.toUpperCase(), PIXEL_FONT_SMALL_8, columnWidth - 80),
+      x + 20,
+      y + 4,
       {
-        align: "right",
-        color: shipyardMaterialBarColor(material.ratio)
+      color: PIRATE_MENU_INK
       }
     );
-    const barY = y + 11;
+    drawOptionsText(
+      `${formatDisplayQuantity(material.stocked)}/${material.stockTarget}`,
+      x + columnWidth,
+      y + 4,
+      {
+        align: "right",
+        color: shipyardMaterialBarColor(material)
+      }
+    );
+    const barY = y + 16;
     drawShipyardMaterialBar(
-      { x: content.x + 20, y: barY, w: content.w - 20, h: 6 },
-      material.ratio
+      { x: x + 20, y: barY, w: columnWidth - 20, h: 6 },
+      material
     );
     const source = sourceByGoodId.get(material.goodId);
-    if (!compact && material.missing > 0) {
+    if (rowHeight >= 36 && material.stockpileMissing > 0) {
       drawOptionsText(
-        source
-          ? `NEAREST SUPPLY  ${source.destinationName.toUpperCase()}  ${source.distanceKm} KM`
-          : "NO KNOWN SUPPLY PORT",
-        content.x + 20,
-        y + 20,
+        fitPixelText(source
+          ? `NEAREST: ${source.destinationName.toUpperCase()}  ${source.distanceKm} KM`
+          : "NO KNOWN SUPPLY PORT", PIXEL_FONT_SMALL_8, columnWidth - 20),
+        x + 20,
+        y + 26,
         { color: PIRATE_MENU_INK_MUTED }
       );
     }
-    y += rowHeight;
+    if (row < rows - 1) {
+      ctx.fillStyle = "rgba(113, 80, 51, 0.18)";
+      ctx.fillRect(x, y + rowHeight - 3, columnWidth, 1);
+    }
   }
 }
 
-function drawShipyardMaterialBar(rect, ratio) {
+function drawShipyardMaterialBar(rect, material) {
   ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
   ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
-  ctx.fillStyle = shipyardMaterialBarColor(ratio);
-  ctx.fillRect(rect.x + 1, rect.y + 1, Math.round((rect.w - 2) * ratio), rect.h - 2);
+  ctx.fillStyle = shipyardMaterialBarColor(material);
+  ctx.fillRect(
+    rect.x + 1,
+    rect.y + 1,
+    Math.round((rect.w - 2) * material.ratio),
+    rect.h - 2
+  );
+  const currentHullMarker = clamp(material.required / material.stockTarget, 0, 1);
+  const markerX = rect.x + 1 + Math.round((rect.w - 2) * currentHullMarker);
+  ctx.fillStyle = PIRATE_MENU_INK;
+  ctx.fillRect(markerX, rect.y, 1, rect.h);
   ctx.strokeStyle = PIRATE_MENU_INK_MUTED;
   ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
 }
 
-function shipyardMaterialBarColor(ratio) {
-  if (!Number.isFinite(ratio) || ratio < 0 || ratio > 1) {
-    throw new Error(`Invalid shipyard material ratio: ${ratio}`);
+function shipyardMaterialBarColor(material) {
+  if (!material || !Number.isFinite(material.ratio) || material.ratio < 0 || material.ratio > 1) {
+    throw new Error(`Invalid shipyard material ratio: ${material?.ratio}`);
   }
-  if (ratio <= 0.2) return "#b65050";
-  if (ratio <= 0.5) return "#b58a37";
+  if (material.missing > 0) return "#b65050";
+  if (material.stockpileMissing > 0) return "#b58a37";
   return "#4f7d43";
 }
 
@@ -58239,8 +58271,13 @@ function drawPlayerShipyardBooksTab(content, presentation, ledgerJournal) {
 function shipyardAccountEntryLabel(entry) {
   if (entry.kind === "capital") return "OWNER CAPITAL";
   if (entry.kind === "construction") return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} BUILT`;
-  if (entry.kind === "construction-progress") {
-    return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} IN PROGRESS`;
+  if (["construction-material", "construction-material-progress"].includes(entry.kind)) {
+    const material = tradeGoodById(entry.goodId).label.toUpperCase();
+    const suffix = entry.kind.endsWith("-progress") ? " (WIP)" : "";
+    return `${material} X${formatDisplayQuantity(entry.quantity)}${suffix}`;
+  }
+  if (["construction-labor", "construction-labor-progress"].includes(entry.kind)) {
+    return entry.kind.endsWith("-progress") ? "LABOR (WIP)" : "LABOR";
   }
   if (entry.kind === "sale") return `${shipLabelForSlug(entry.shipSlug).toUpperCase()} SOLD`;
   if (entry.kind === "payout") return "DIVIDEND PAID";
