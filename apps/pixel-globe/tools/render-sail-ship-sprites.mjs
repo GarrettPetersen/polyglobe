@@ -7,10 +7,12 @@ import * as THREE from "../../../examples/globe-demo/node_modules/three/build/th
 import { FBXLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/FBXLoader.js";
 import { GLTFLoader } from "../../../examples/globe-demo/node_modules/three/examples/jsm/loaders/GLTFLoader.js";
 import {
+  BACTRIAN_CAMEL_MODEL_CREDIT,
   BLUE_WHALE_MODEL_CREDIT,
   BOROBUDUR_SHIP_MODEL_CREDIT,
   CARTOON_HORSE_MODEL_CREDIT,
   CYC3W_SAILING_SHIP_MODEL_CREDIT,
+  DROMEDARY_CAMEL_MODEL_CREDIT,
   GOGIART_DHOW_MODEL_CREDIT,
   HUMPBACK_WHALE_MODEL_CREDIT,
   ICEBERG_MODEL_CREDIT,
@@ -134,6 +136,8 @@ const spermWhaleSourceRoot = join(shipSourceRoot, "sketchfab/sperm-whale");
 const cartoonHorseSourceRoot = join(shipSourceRoot, "sketchfab/cartoon-horse-with-animations");
 const woodenCartSourceRoot = join(shipSourceRoot, "sketchfab/wooden-cart");
 const lowpolyLlamaSourceRoot = join(shipSourceRoot, "sketchfab/lowpoly-llama-romulogan");
+const dromedaryCamelSourceRoot = join(shipSourceRoot, "sketchfab/dromedary-camel-walk");
+const bactrianCamelSourceRoot = join(shipSourceRoot, "sketchfab/bactrian-camel-low-poly");
 const icebergSourceRoot = join(shipSourceRoot, "poly-pizza/iceberg-1");
 const kelulusSourceRoot = join(shipSourceRoot, "procedural/kelulus");
 const proceduralShipSourceRoot = join(shipSourceRoot, "procedural");
@@ -142,6 +146,8 @@ const animalOutputRoot = join(appRoot, "public/assets/animals");
 const icebergOutputRoot = join(appRoot, "public/assets/icebergs");
 const horseCartOutputRoot = join(outputRoot, "horse-cart");
 const llamaCaravanOutputRoot = join(outputRoot, "llama-caravan");
+const dromedaryCaravanOutputRoot = join(outputRoot, "dromedary-caravan");
+const bactrianCaravanOutputRoot = join(outputRoot, "bactrian-caravan");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
@@ -181,13 +187,16 @@ const flagAnchorMaxSnapDistancePx = 4;
 const shipEdgeShadeScale = 0.76;
 const waterlineReviewColor = "#4d9be6";
 const oarPivotReviewColor = "#e83b3b";
-const horseCartWalkFrameCount = 6;
+const groundVehicleWalkFrameCount = 6;
 const horseCartMaxDrawPixels = 31;
 const horseCartColorExposure = 2.2;
 const horseCartColorLift = 6;
 const loadedLlamaMaxDrawPixels = 13;
 const llamaCaravanColorExposure = 1.9;
 const llamaCaravanColorLift = 8;
+const loadedCamelMaxDrawPixels = 17;
+const camelCaravanColorExposure = 1.8;
+const camelCaravanColorLift = 7;
 const orientationReviewScale = 6;
 const japaneseKuribunePresentationYawRad = Math.atan2(
   0.7818722388292283,
@@ -2738,8 +2747,8 @@ async function renderHorseCart() {
   updateAnimatedScene(horseGltf.scene);
   const horseOrientation = horseForwardQuaternion(horseGltf.scene);
   const horseFrames = [];
-  for (let frameIndex = 0; frameIndex < horseCartWalkFrameCount; frameIndex++) {
-    mixer.setTime(walkClip.duration * frameIndex / horseCartWalkFrameCount);
+  for (let frameIndex = 0; frameIndex < groundVehicleWalkFrameCount; frameIndex++) {
+    mixer.setTime(walkClip.duration * frameIndex / groundVehicleWalkFrameCount);
     updateAnimatedScene(horseGltf.scene);
     horseFrames.push(collectTriangles(horseGltf.scene, {
       targetMaxDim: null,
@@ -2799,8 +2808,8 @@ async function renderLlamaCaravan() {
   updateAnimatedScene(llamaGltf.scene);
   const llamaOrientation = llamaForwardQuaternion(llamaGltf.scene);
   const llamaFrames = [];
-  for (let frameIndex = 0; frameIndex < horseCartWalkFrameCount; frameIndex++) {
-    mixer.setTime(walkClip.duration * frameIndex / horseCartWalkFrameCount);
+  for (let frameIndex = 0; frameIndex < groundVehicleWalkFrameCount; frameIndex++) {
+    mixer.setTime(walkClip.duration * frameIndex / groundVehicleWalkFrameCount);
     updateAnimatedScene(llamaGltf.scene);
     llamaFrames.push(collectTriangles(llamaGltf.scene, {
       targetMaxDim: null,
@@ -2844,6 +2853,198 @@ async function renderLlamaCaravan() {
   });
 }
 
+async function renderDromedaryCaravan() {
+  mkdirSync(dromedaryCaravanOutputRoot, { recursive: true });
+  const modelPath = join(dromedaryCamelSourceRoot, "scene.gltf");
+  const [gltf, materials] = await Promise.all([
+    loadGltf(modelPath),
+    loadGltfMaterialTextureSamplers(modelPath)
+  ]);
+  const walkClip = requiredSingleWalkClip(gltf.animations, "Dromedary camel");
+  const mixer = new THREE.AnimationMixer(gltf.scene);
+  mixer.clipAction(walkClip).setLoop(THREE.LoopRepeat, Infinity).play();
+  mixer.setTime(0);
+  updateAnimatedScene(gltf.scene);
+  const orientation = groundAnimalForwardQuaternion(gltf.scene, {
+    label: "Dromedary camel",
+    headNode: "head0_0",
+    rearNodes: ["leg_hind_left_top0_22", "leg_hind_right_top0_27"]
+  });
+  const frames = animatedGroundAnimalFrames({
+    scene: gltf.scene,
+    mixer,
+    clip: walkClip,
+    orientation,
+    materialTextureSamplers: materials
+  });
+  return writeLoadedCamelBake({
+    frames,
+    outputDir: dromedaryCaravanOutputRoot,
+    outputPrefix: "dromedary-caravan",
+    generatedBy: "tools/render-sail-ship-sprites.mjs --dromedary-caravan",
+    creditKey: "dromedary",
+    credit: DROMEDARY_CAMEL_MODEL_CREDIT,
+    modelPath,
+    animation: walkClip.name,
+    durationSeconds: walkClip.duration,
+    animationMethod: "authored walk clip"
+  });
+}
+
+async function renderBactrianCaravan() {
+  mkdirSync(bactrianCaravanOutputRoot, { recursive: true });
+  const modelPath = join(bactrianCamelSourceRoot, "scene.gltf");
+  const [gltf, materials] = await Promise.all([
+    loadGltf(modelPath),
+    loadGltfMaterialTextureSamplers(modelPath)
+  ]);
+  const idleClip = requiredSingleWalkClip(gltf.animations, "Bactrian camel");
+  if (!/idle/i.test(idleClip.name)) {
+    throw new Error(`Bactrian camel source animation changed; expected idle clip, got ${idleClip.name}`);
+  }
+  const mixer = new THREE.AnimationMixer(gltf.scene);
+  mixer.clipAction(idleClip).setLoop(THREE.LoopRepeat, Infinity).play();
+  mixer.setTime(0);
+  updateAnimatedScene(gltf.scene);
+  const orientation = groundAnimalForwardQuaternion(gltf.scene, {
+    label: "Bactrian camel",
+    headNode: "Head_M_19_23",
+    rearNodes: ["Tail0_M_56_57"]
+  });
+  const frames = animatedGroundAnimalFrames({
+    scene: gltf.scene,
+    mixer,
+    clip: idleClip,
+    orientation,
+    materialTextureSamplers: materials,
+    poseFrame: (frameIndex) => applyBactrianWalkPose(gltf.scene, frameIndex)
+  });
+  return writeLoadedCamelBake({
+    frames,
+    outputDir: bactrianCaravanOutputRoot,
+    outputPrefix: "bactrian-caravan",
+    generatedBy: "tools/render-sail-ship-sprites.mjs --bactrian-caravan",
+    creditKey: "bactrian",
+    credit: BACTRIAN_CAMEL_MODEL_CREDIT,
+    modelPath,
+    animation: idleClip.name,
+    durationSeconds: idleClip.duration,
+    animationMethod: "authored idle motion with procedural lateral walk cycle"
+  });
+}
+
+function animatedGroundAnimalFrames({
+  scene,
+  mixer,
+  clip,
+  orientation,
+  materialTextureSamplers,
+  poseFrame = null
+}) {
+  const frames = [];
+  for (let frameIndex = 0; frameIndex < groundVehicleWalkFrameCount; frameIndex++) {
+    mixer.setTime(clip.duration * frameIndex / groundVehicleWalkFrameCount);
+    if (poseFrame) poseFrame(frameIndex);
+    updateAnimatedScene(scene);
+    frames.push(collectTriangles(scene, {
+      targetMaxDim: null,
+      materialTextureSamplers,
+      transformPoint: (point) => point.clone().applyQuaternion(orientation)
+    }).triangles);
+  }
+  return frames;
+}
+
+function groundAnimalForwardQuaternion(scene, { label, headNode, rearNodes }) {
+  const head = scene.getObjectByName(headNode);
+  const rear = rearNodes.map((name) => scene.getObjectByName(name));
+  if (!head || rear.some((node) => !node)) {
+    throw new Error(`${label} rig is missing its head or rear landmark bones`);
+  }
+  const headPosition = head.getWorldPosition(new THREE.Vector3());
+  const rearPosition = rear.reduce((sum, node) => (
+    sum.add(node.getWorldPosition(new THREE.Vector3()))
+  ), new THREE.Vector3()).multiplyScalar(1 / rear.length);
+  const forward = headPosition.sub(rearPosition);
+  forward.y = 0;
+  if (forward.lengthSq() <= 1e-8) throw new Error(`${label} rig cannot resolve a forward direction`);
+  return new THREE.Quaternion().setFromUnitVectors(
+    forward.normalize(),
+    new THREE.Vector3(0, 0, 1)
+  );
+}
+
+function applyBactrianWalkPose(scene, frameIndex) {
+  const phase = frameIndex * Math.PI * 2 / groundVehicleWalkFrameCount;
+  const lateralSwing = Math.sin(phase) * 0.2;
+  const kneeBend = Math.max(0, Math.sin(phase + Math.PI / 3)) * 0.13;
+  const oppositeKneeBend = Math.max(0, Math.sin(phase + Math.PI + Math.PI / 3)) * 0.13;
+  rotateRigNode(scene, "Shoulder_L_31_35", lateralSwing);
+  rotateRigNode(scene, "Hip_L_49_50", lateralSwing);
+  rotateRigNode(scene, "Shoulder_R_39_43", -lateralSwing);
+  rotateRigNode(scene, "Hip_R_8_9", -lateralSwing);
+  rotateRigNode(scene, "Elbow_L_30_36", -kneeBend);
+  rotateRigNode(scene, "Knee_L_48_51", -kneeBend);
+  rotateRigNode(scene, "Elbow_R_38_44", oppositeKneeBend);
+  rotateRigNode(scene, "Knee_R_7_10", oppositeKneeBend);
+}
+
+function rotateRigNode(scene, nodeName, angle) {
+  const node = scene.getObjectByName(nodeName);
+  if (!node) throw new Error(`Bactrian camel rig is missing ${nodeName}`);
+  node.quaternion.multiply(new THREE.Quaternion().setFromAxisAngle(
+    new THREE.Vector3(0, 0, 1),
+    angle
+  ));
+}
+
+function writeLoadedCamelBake({
+  frames,
+  outputDir,
+  outputPrefix,
+  generatedBy,
+  creditKey,
+  credit,
+  modelPath,
+  animation,
+  durationSeconds,
+  animationMethod
+}) {
+  const normalizedFrames = normalizeAnimatedGroundModel(frames, 1.0);
+  const combinedFrames = composeLoadedAnimalFrames(normalizedFrames, camelPackSackTriangles());
+  return writeGroundVehicleBake({
+    combinedFrames,
+    outputDir,
+    outputPrefix,
+    generatedBy,
+    contactSheetPath: join(appRoot, "docs/ship-reference", `${outputPrefix}-walk-frames.png`),
+    orientationReviewPath: join(
+      appRoot,
+      "docs/ship-reference",
+      `${outputPrefix}-orientation-review.png`
+    ),
+    maxDrawPixels: loadedCamelMaxDrawPixels,
+    exposure: camelCaravanColorExposure,
+    lift: camelCaravanColorLift,
+    manifestDetails: {
+      [creditKey]: {
+        ...credit,
+        sourceModel: portablePath(modelPath),
+        animation,
+        durationSeconds,
+        animationMethod,
+        runtimeCaravanCount: 3,
+        gameOrientation: "Y-up; travel toward +Z"
+      },
+      load: {
+        description: "paired procedural pack sacks on each camel",
+        sacksPerCamel: 2,
+        runtimeSackPairs: 3
+      }
+    }
+  });
+}
+
 function writeGroundVehicleBake({
   combinedFrames,
   outputDir,
@@ -2856,8 +3057,8 @@ function writeGroundVehicleBake({
   lift,
   manifestDetails
 }) {
-  if (!Array.isArray(combinedFrames) || combinedFrames.length !== horseCartWalkFrameCount) {
-    throw new Error(`${outputPrefix} requires ${horseCartWalkFrameCount} animation frames`);
+  if (!Array.isArray(combinedFrames) || combinedFrames.length !== groundVehicleWalkFrameCount) {
+    throw new Error(`${outputPrefix} requires ${groundVehicleWalkFrameCount} animation frames`);
   }
   const camera = makeCamera();
   const renderOptions = { collectCasters: true };
@@ -2881,7 +3082,7 @@ function writeGroundVehicleBake({
   const sheets = [];
   const files = [];
   const reviewFiles = [];
-  for (let frameIndex = 0; frameIndex < horseCartWalkFrameCount; frameIndex++) {
+  for (let frameIndex = 0; frameIndex < groundVehicleWalkFrameCount; frameIndex++) {
     const frames = framesByAnimation[frameIndex];
     const sheet = createCanvas(frameSize * sheetCols, frameSize * Math.ceil(headings / sheetCols));
     const sheetCtx = sheet.getContext("2d");
@@ -2934,7 +3135,7 @@ function writeGroundVehicleBake({
     frameSize,
     headings,
     sheetCols,
-    animationFrames: horseCartWalkFrameCount,
+    animationFrames: groundVehicleWalkFrameCount,
     maxDrawPixels,
     frameScale: Number(frameScale.toFixed(4)),
     colorGrade: {
@@ -3009,8 +3210,8 @@ function llamaForwardQuaternion(scene) {
 }
 
 function normalizeAnimatedGroundModel(frames, targetMaxDim) {
-  if (!Array.isArray(frames) || frames.length !== horseCartWalkFrameCount) {
-    throw new Error(`Horse walk requires ${horseCartWalkFrameCount} geometry frames`);
+  if (!Array.isArray(frames) || frames.length !== groundVehicleWalkFrameCount) {
+    throw new Error(`Ground-vehicle walk requires ${groundVehicleWalkFrameCount} geometry frames`);
   }
   const allPoints = frames.flatMap((triangles) => triangles.flatMap((triangle) => triangle.points));
   const bounds = boundsForPoints(allPoints);
@@ -3054,9 +3255,12 @@ function composeHorseAndCart(horseFrames, cartTriangles) {
 }
 
 function composeLoadedLlamaFrames(llamaFrames) {
-  const sacks = llamaPackSackTriangles();
-  return llamaFrames.map((llamaTriangles) => {
-    const combined = [...llamaTriangles, ...sacks];
+  return composeLoadedAnimalFrames(llamaFrames, llamaPackSackTriangles());
+}
+
+function composeLoadedAnimalFrames(animalFrames, loadTriangles) {
+  return animalFrames.map((animalTriangles) => {
+    const combined = [...animalTriangles, ...loadTriangles];
     const bounds = boundsForPoints(combined.flatMap((triangle) => triangle.points));
     return translatedTriangles(combined, -bounds.center.x, -bounds.box.min.y, -bounds.center.z);
   });
@@ -3069,6 +3273,16 @@ function llamaPackSackTriangles() {
     ...cuboidTriangles(-0.13, 0.49, -0.02, 0.17, 0.18, 0.22, sackColor),
     ...cuboidTriangles(0.13, 0.49, -0.02, 0.17, 0.18, 0.22, sackColor),
     ...cuboidTriangles(0, 0.55, -0.02, 0.31, 0.035, 0.08, tieColor)
+  ];
+}
+
+function camelPackSackTriangles() {
+  const sackColor = { r: 187, g: 132, b: 82 };
+  const tieColor = { r: 95, g: 70, b: 50 };
+  return [
+    ...cuboidTriangles(-0.14, 0.49, -0.015, 0.18, 0.18, 0.24, sackColor),
+    ...cuboidTriangles(0.14, 0.49, -0.015, 0.18, 0.18, 0.24, sackColor),
+    ...cuboidTriangles(0, 0.57, -0.015, 0.33, 0.035, 0.09, tieColor)
   ];
 }
 
@@ -6103,6 +6317,14 @@ async function main() {
   }
   if (args.has("--llama-caravan")) {
     await renderLlamaCaravan();
+    return;
+  }
+  if (args.has("--dromedary-caravan")) {
+    await renderDromedaryCaravan();
+    return;
+  }
+  if (args.has("--bactrian-caravan")) {
+    await renderBactrianCaravan();
     return;
   }
   if (args.has("--whales") || args.has("--north-atlantic-right-whale")) {

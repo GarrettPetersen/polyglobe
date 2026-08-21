@@ -1605,6 +1605,7 @@ import {
   createWorldEconomyRestorePlan,
   createWorldEconomy,
   destroyPortGoodStock,
+  ensureWorldEconomyPlayerShipyardBacking,
   establishPortIndustry,
   fundWorldEconomyShipyard,
   nextWorldEconomyEventMinute,
@@ -1627,6 +1628,7 @@ import {
   resolveQuestSiteAnchorOnDialogueClose
 } from "./questSiteArrival.js";
 import {
+  WATER_LATITUDE_MAX_BAND,
   darkerResurrect64Hex,
   waterDepthIndexForSpriteKey,
   waterLatitudeBand,
@@ -1692,6 +1694,7 @@ import {
 } from "./shipyards.js";
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
+  SHIPYARD_INVESTMENT_MATERIALS,
   shipyardInvestmentAtPort,
   shipyardInvestmentMaterialProgress,
   shipyardInvestmentOfferAvailable
@@ -1793,6 +1796,8 @@ import {
 import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import {
   LAND_CART_WALK_FRAME_COUNT,
+  LAND_VEHICLE_BACTRIAN_CARAVAN,
+  LAND_VEHICLE_DROMEDARY_CARAVAN,
   LAND_VEHICLE_HORSE_CART,
   LAND_VEHICLE_LLAMA_CARAVAN,
   createLandTradeSystem,
@@ -2621,10 +2626,12 @@ const DIALOGUE_FACTION_BLOCK_W = 128;
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
 const PORT_SAILING_DISTANCE_URL = "assets/data/port-sailing-distances.json";
 const LAND_ROAD_URL = "assets/data/land-roads.json";
-const LAND_VEHICLE_ASSET_VERSION = "land-vehicle-1";
+const LAND_VEHICLE_ASSET_VERSION = "land-vehicle-2";
 const LAND_VEHICLE_ASSET_TYPES = new Set([
   LAND_VEHICLE_HORSE_CART,
-  LAND_VEHICLE_LLAMA_CARAVAN
+  LAND_VEHICLE_LLAMA_CARAVAN,
+  LAND_VEHICLE_DROMEDARY_CARAVAN,
+  LAND_VEHICLE_BACTRIAN_CARAVAN
 ]);
 const CITY_SPRITE_W = TILE_ART_SIZE;
 const CITY_SPRITE_H = TILE_ART_SIZE;
@@ -4243,6 +4250,7 @@ async function main() {
   snowyTerrainImages = new Map();
   snowySpriteColors = new Map();
   riverColors = buildRiverColors(images);
+  primeTerrainAtlasSources();
   const navigationTopology = buildWorldNavigationTopology({
     graph,
     earthRows,
@@ -4977,7 +4985,7 @@ function initializeWorldAssetStores() {
     load: loadIcebergAssetsForSlug
   });
   landVehicleAssetStore = createOnDemandAssetStore({
-    label: "horse-cart animation",
+    label: "land-vehicle animation",
     load: loadLandVehicleAssets
   });
   worldAnimationAssetStore = createOnDemandAssetStore({
@@ -15097,6 +15105,7 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
   });
   worldEconomy = economyResult.value;
   recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
+  reconcileRestoredPlayerShipyards(restoredGameState, simulationMinute);
   syncJapaneseMatchlockIndustry(restoredGameState);
   syncCaribbeanGingerIndustry(restoredGameState);
 
@@ -15165,6 +15174,29 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     npcSeaRoutes = createSavedVoyageNpcRoutes(simulationMinute, restoredGameState);
   }
   return Object.freeze(recovered);
+}
+
+function reconcileRestoredPlayerShipyards(restoredGameState, simulationMinute) {
+  const memory = restoredGameState.memory.shipyardInvestment;
+  const investedMinute = Math.min(memory.lastCompletedMinute ?? simulationMinute, simulationMinute);
+  const repairedPorts = [];
+  for (const portTileId of memory.backedPortTileIds) {
+    const city = cityByTileId.get(portTileId);
+    if (!city) {
+      throw new Error(`Player-backed shipyard port is missing from the city catalog: ${portTileId}`);
+    }
+    const result = ensureWorldEconomyPlayerShipyardBacking(worldEconomy, city, {
+      investedMinute,
+      seedCapital: SHIPYARD_INVESTMENT_CAPITAL,
+      materialContributions: SHIPYARD_INVESTMENT_MATERIALS
+    });
+    if (result.repaired) repairedPorts.push(cityLabel(city));
+  }
+  if (repairedPorts.length > 0) {
+    console.warn(
+      `[pixel-globe] restored missing player shipyard backing at ${repairedPorts.join(", ")}`
+    );
+  }
 }
 
 function createSavedVoyageEconomy(simulationMinute, seedKey) {
@@ -50765,6 +50797,10 @@ function tileHasSurfaceIce(tileId) {
 
 function waterLatitudeTerrainImage(key, id, row = null) {
   const latitudeBand = waterLatitudeBandForTile(id, row);
+  return waterLatitudeTerrainImageForBand(key, latitudeBand);
+}
+
+function waterLatitudeTerrainImageForBand(key, latitudeBand) {
   const cacheKey = `${key}|${latitudeBand}`;
   const cached = waterLatitudeImages?.get(cacheKey);
   if (cached) return cached;
@@ -50799,6 +50835,33 @@ function waterLatitudeTerrainImage(key, id, row = null) {
   waterLatitudeSpriteColors.set(cacheKey, waterLatitudePixelHex(baseHex, latitudeBand, depthIndex));
   waterLatitudeImages.set(cacheKey, spriteCanvas);
   return spriteCanvas;
+}
+
+function primeTerrainAtlasSources() {
+  if (!images || !waterLatitudeImages || !snowyTerrainImages) {
+    throw new Error("Terrain atlas priming requires initialized terrain caches");
+  }
+  const sources = new Set(images.values());
+  for (const key of terrainAssets) {
+    if (key.startsWith("water_")) {
+      for (let band = 0; band <= WATER_LATITUDE_MAX_BAND; band++) {
+        sources.add(waterLatitudeTerrainImageForBand(key, band));
+      }
+      continue;
+    }
+    sources.add(snowCoveredTerrainImage(key));
+  }
+  const primed = worldRenderer.primeAtlasSources([...sources]);
+  if (primed.pageIndices.length !== 1) {
+    throw new Error(
+      `Terrain atlas sources span ${primed.pageIndices.length} texture pages: ` +
+        primed.pageIndices.join(", ")
+    );
+  }
+  console.info(
+    `[pixel-globe] terrain GPU atlas primed with ${primed.sourceCount} sources on page ` +
+      primed.pageIndices[0]
+  );
 }
 
 function waterLatitudeTerrainColor(key, id, row = null) {

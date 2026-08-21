@@ -62,6 +62,8 @@
 - Jungle Jim - "Cartoon Horse with animations" (CC BY 4.0)
 - Filip - "Wooden Cart" (CC BY 4.0)
 - Romulogan - "LowPoly Llama" (CC BY 4.0)
+- rezashams3d - "Camel_walk" (CC BY 4.0; Sketchfab 3eafc21d7095402ea8edf025934011ee)
+- mgddeldeen9020 - "Bactrian_camel_low_poly" (CC BY 4.0; Sketchfab d0f3f2383be841209946becf0cd24e50)
 - S. Paul Michael - "Iceberg 1" (CC BY 3.0)
 
 ## Sound Effects

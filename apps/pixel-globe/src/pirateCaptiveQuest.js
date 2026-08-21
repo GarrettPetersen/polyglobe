@@ -566,31 +566,31 @@ function reformedHomecomingView(session, quest) {
       "concerned",
       `Before we go ashore: pirates did not lock me below. I was one of them. I lied because I wanted out. I mean to earn an honest retirement in ${quest.homePortName}.`,
       "Continue",
-      "continue-rescued-traveler-homecoming"
+      { type: "continue-rescued-traveler-homecoming" }
     );
   }
   if (quest.familySurvived) {
     if (session.stepIndex === confessionOffset) {
-      return view(quest.familyMember, "overjoyed", `${quest.character.givenName}, we thought we'd never see you again!`, "Continue", "continue-rescued-traveler-homecoming");
+      return view(quest.familyMember, "overjoyed", `${quest.character.givenName}, we thought we'd never see you again!`, "Continue", { type: "continue-rescued-traveler-homecoming" });
     }
     if (session.stepIndex === confessionOffset + 1) {
-      return view(quest.character, "overjoyed", "I came home by a crooked road. I intend to walk straight from here.", "Continue", "continue-rescued-traveler-homecoming");
+      return view(quest.character, "overjoyed", "I came home by a crooked road. I intend to walk straight from here.", "Continue", { type: "continue-rescued-traveler-homecoming" });
     }
     if (session.stepIndex === confessionOffset + 2) {
       const text = quest.rewardItemLabel
         ? `Captain, you brought our prodigal home. Please accept ${quest.rewardDoubloons} doubloons and ${quest.rewardItemLabel}.`
         : `Captain, you brought our prodigal home. Please accept ${quest.rewardDoubloons} doubloons.`;
-      return view(quest.familyMember, "happy", text, "Continue", "continue-rescued-traveler-homecoming");
+      return view(quest.familyMember, "happy", text, "Continue", { type: "continue-rescued-traveler-homecoming" });
     }
     if (session.stepIndex === confessionOffset + 3) {
-      return view(quest.character, "happy", "Farewell, captain. I am retiring from piracy before it ruins my retirement.", "Farewell", "complete-rescued-traveler-reunion");
+      return view(quest.character, "happy", "Farewell, captain. I am retiring from piracy before it ruins my retirement.", "Farewell", { type: "complete-rescued-traveler-reunion" });
     }
   } else {
     if (session.stepIndex === confessionOffset) {
-      return view(quest.character, "crying", `No family waits in ${quest.homePortName}. It seems the sea collected my old life before I could leave it.`, "Continue", "continue-rescued-traveler-homecoming");
+      return view(quest.character, "crying", `No family waits in ${quest.homePortName}. It seems the sea collected my old life before I could leave it.`, "Continue", { type: "continue-rescued-traveler-homecoming" });
     }
     if (session.stepIndex === confessionOffset + 1) {
-      return view(quest.character, "concerned", "Perhaps I can still retire from piracy aboard your ship. Captain, will you have me?", "Welcome aboard", "recruit-rescued-traveler");
+      return view(quest.character, "concerned", "Perhaps I can still retire from piracy aboard your ship. Captain, will you have me?", "Welcome aboard", { type: "recruit-rescued-traveler" });
     }
   }
   throw new Error(`Invalid reformed pirate captive homecoming step: ${session.stepIndex}`);
@@ -604,7 +604,7 @@ function authorityHandoverView(session, quest) {
       "stern",
       `That is ${quest.character.name}. We have warrants enough to paper a cabin. The reward is ${quest.rewardDoubloons} doubloons.`,
       "Continue",
-      "continue-rescued-traveler-homecoming"
+      { type: "continue-rescued-traveler-homecoming" }
     );
   }
   if (session.stepIndex === 1) {
@@ -615,13 +615,16 @@ function authorityHandoverView(session, quest) {
         ? "I wanted a quiet shore. I should have tried honesty before the rope."
         : "Twice caught by the same captain. I shall deny this under oath.",
       "Hand over the captive",
-      "complete-pirate-captive-handover"
+      { type: "complete-pirate-captive-handover" }
     );
   }
   throw new Error(`Invalid pirate captive authority handover step: ${session.stepIndex}`);
 }
 
-function view(character, expressionId, text, label, actionType) {
+function view(character, expressionId, text, label, action) {
+  if (!action || typeof action.type !== "string" || action.type.length === 0) {
+    throw new Error("Pirate captive dialogue requires an explicit action");
+  }
   return {
     speaker: character.name,
     character,
@@ -629,7 +632,7 @@ function view(character, expressionId, text, label, actionType) {
     text,
     options: [Object.freeze({
       label,
-      action: Object.freeze({ type: actionType })
+      action: Object.freeze({ ...action })
     })]
   };
 }

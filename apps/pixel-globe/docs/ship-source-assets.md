@@ -134,6 +134,7 @@ npm run render:ottoman-coastal-trader
 npm run render:whales
 npm run render:horse-cart
 npm run render:llama-caravan
+npm run render:camel-caravans
 node --test src/shipInfoAssets.test.js
 ```
 
@@ -165,3 +166,13 @@ procedural sacks. One loaded llama's six-frame, 32-heading bake is written under
 `public/assets/vehicles/llama-caravan/`; runtime repeats it along the curved road
 so each animal turns when it reaches a bend. The labeled cardinal review verifies
 that the rig's head-to-tail axis points in the same direction as travel.
+
+North African, Arabian, and northwestern Indian roads use three independently
+positioned pack dromedaries; Central Asian roads use Bactrian camels. The
+dromedary bake samples the source walk animation. The Bactrian source contains
+only an idle/chewing clip, so its bake preserves that motion while applying a
+small procedural lateral walk cycle to the rig. Both use procedural pack sacks
+and the same per-animal curved-road placement as llama caravans. Their private
+sources and CC BY license files live under
+`source-models/sketchfab/dromedary-camel-walk/` and
+`source-models/sketchfab/bactrian-camel-low-poly/`.

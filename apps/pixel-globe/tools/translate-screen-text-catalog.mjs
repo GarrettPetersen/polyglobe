@@ -124,6 +124,19 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Camel_walk": Object.freeze({
+    "zh-Hans": "单峰骆驼行走", ru: "Шагающий дромадер", es: "Dromedario caminando",
+    "pt-BR": "Dromedário caminhando", ja: "歩くヒトコブラクダ", de: "Gehendes Dromedar",
+    fr: "Dromadaire en marche", pl: "Idący dromader", "zh-Hant": "單峰駱駝行走",
+    ko: "걷는 단봉낙타"
+  }),
+  "Bactrian_camel_low_poly": Object.freeze({
+    "zh-Hans": "低多边形双峰骆驼", ru: "Низкополигональный бактриан",
+    es: "Camello bactriano de baja poligonización", "pt-BR": "Camelo-bactriano low poly",
+    ja: "ローポリのフタコブラクダ", de: "Low-Poly-Trampeltier",
+    fr: "Chameau de Bactriane low poly", pl: "Niskopoligonowy wielbłąd dwugarbny",
+    "zh-Hant": "低多邊形雙峰駱駝", ko: "로우 폴리 쌍봉낙타"
+  }),
   "We need our {0} for a commission. Sell it anyway?": Object.freeze({
     "zh-Hans": "我们需要这批{0}来完成委托。仍要出售吗？",
     ru: "Этот груз {0} нужен нам для поручения. Всё равно продать?",

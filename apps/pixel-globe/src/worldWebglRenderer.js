@@ -1228,6 +1228,22 @@ export function createWorldWebGL2Renderer({
     return entry;
   }
 
+  function primeAtlasSources(sources) {
+    if (!Array.isArray(sources) || sources.length === 0) {
+      throw new Error("World atlas priming requires a non-empty source array");
+    }
+    flushBatches();
+    const pageIndices = new Set();
+    for (const source of sources) {
+      pageIndices.add(registerAtlasSource(source).pageIndex);
+    }
+    activeAtlasPageIndex = null;
+    return Object.freeze({
+      sourceCount: sources.length,
+      pageIndices: Object.freeze([...pageIndices].sort((a, b) => a - b))
+    });
+  }
+
   function atlasPage(pageIndex) {
     if (!Number.isInteger(pageIndex) || pageIndex < 0 || pageIndex > atlasPages.length) {
       throw new Error(`Invalid world atlas page: ${pageIndex}`);
@@ -1965,6 +1981,7 @@ export function createWorldWebGL2Renderer({
     beginFrame,
     drawChunk,
     drawChunkSprites,
+    primeAtlasSources,
     drawAtlasSprite,
     drawAtlasSpriteThroughAlphaMask,
     drawBitMaskSprite,

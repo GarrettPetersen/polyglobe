@@ -1,0 +1,73 @@
+{
+  "generatedBy": "tools/render-sail-ship-sprites.mjs --dromedary-caravan",
+  "frameSize": 47,
+  "headings": 32,
+  "sheetCols": 8,
+  "animationFrames": 6,
+  "maxDrawPixels": 17,
+  "frameScale": 0.5313,
+  "colorGrade": {
+    "exposure": 1.8,
+    "lift": 7
+  },
+  "lighting": {
+    "azimuthBins": 16,
+    "elevationBins": 2,
+    "shadowFrameSize": 95,
+    "selfShadowed": true,
+    "groundY": 0
+  },
+  "dromedary": {
+    "creator": "rezashams3d",
+    "sourceTitle": "Camel_walk",
+    "sourceId": "Sketchfab 3eafc21d7095402ea8edf025934011ee",
+    "sourceUrl": "https://sketchfab.com/3d-models/camel-walk-3eafc21d7095402ea8edf025934011ee",
+    "license": "CC BY 4.0",
+    "sourceModel": "apps/pixel-globe/source-models/sketchfab/dromedary-camel-walk/scene.gltf",
+    "animation": "rig|rig|walk",
+    "durationSeconds": 1.7000000476837158,
+    "animationMethod": "authored walk clip",
+    "runtimeCaravanCount": 3,
+    "gameOrientation": "Y-up; travel toward +Z"
+  },
+  "load": {
+    "description": "paired procedural pack sacks on each camel",
+    "sacksPerCamel": 2,
+    "runtimeSackPairs": 3
+  },
+  "files": [
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-0-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-0-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-0-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-0-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-1-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-1-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-1-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-1-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-2-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-2-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-2-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-2-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-3-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-3-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-3-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-3-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-4-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-4-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-4-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-4-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-5-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-5-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-5-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/dromedary-caravan/dromedary-caravan-walk-5-32-headings-shadow.png"
+  ],
+  "reviewFiles": [
+    "apps/pixel-globe/docs/ship-reference/dromedary-caravan-walk-0-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/dromedary-caravan-walk-1-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/dromedary-caravan-walk-2-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/dromedary-caravan-walk-3-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/dromedary-caravan-walk-4-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/dromedary-caravan-walk-5-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/dromedary-caravan-orientation-review.png"
+  ]
+}

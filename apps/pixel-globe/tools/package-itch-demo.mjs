@@ -53,6 +53,14 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/vehicles/llama-caravan/llama-caravan-walk-atlas-32-headings-light.png",
   "assets/vehicles/llama-caravan/llama-caravan-walk-atlas-32-headings-shade.png",
   "assets/vehicles/llama-caravan/llama-caravan-walk-atlas-32-headings-shadow.png",
+  "assets/vehicles/dromedary-caravan/dromedary-caravan-walk-atlas-32-headings.png",
+  "assets/vehicles/dromedary-caravan/dromedary-caravan-walk-atlas-32-headings-light.png",
+  "assets/vehicles/dromedary-caravan/dromedary-caravan-walk-atlas-32-headings-shade.png",
+  "assets/vehicles/dromedary-caravan/dromedary-caravan-walk-atlas-32-headings-shadow.png",
+  "assets/vehicles/bactrian-caravan/bactrian-caravan-walk-atlas-32-headings.png",
+  "assets/vehicles/bactrian-caravan/bactrian-caravan-walk-atlas-32-headings-light.png",
+  "assets/vehicles/bactrian-caravan/bactrian-caravan-walk-atlas-32-headings-shade.png",
+  "assets/vehicles/bactrian-caravan/bactrian-caravan-walk-atlas-32-headings-shadow.png",
   "assets/vehicles/ship-render-layers/manifest.json",
   "assets/vehicles/ship-render-layers/ship-render-layers-0.bin",
   "shared/earth-globe-cache-7.json",
@@ -97,7 +105,7 @@ async function assertDemoBuild(files) {
     throw new Error(`Itch package contains an unpacked rowing frame: ${unpackedRowingFrame.relativePath}`);
   }
   const unpackedLandVehicleFrame = files.find((file) => (
-    /assets\/vehicles\/(?:horse-cart|llama-caravan)\/.*-walk-\d+-32-headings(?:-(?:light|shade|shadow))?\.png$/.test(
+    /assets\/vehicles\/(?:horse-cart|llama-caravan|dromedary-caravan|bactrian-caravan)\/.*-walk-\d+-32-headings(?:-(?:light|shade|shadow))?\.png$/.test(
       file.relativePath
     )
   ));

@@ -927,6 +927,16 @@ export function fundWorldEconomyShipyard(economy, port, backing) {
   return yard;
 }
 
+export function ensureWorldEconomyPlayerShipyardBacking(economy, port, backing) {
+  assertEconomy(economy);
+  const yard = shipyardAtPort(economy.shipyards, port);
+  if (yard.playerBacking) return Object.freeze({ yard, repaired: false });
+  return Object.freeze({
+    yard: fundWorldEconomyShipyard(economy, port, backing),
+    repaired: true
+  });
+}
+
 export function worldEconomyPortSettlementType(economy, port) {
   assertEconomy(economy);
   return requiredPortState(economy, port).settlementType;

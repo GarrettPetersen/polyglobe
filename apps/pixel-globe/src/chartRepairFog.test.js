@@ -39,7 +39,7 @@ test("repair fog progressively hides distant geography before clearing", () => {
   assert.ok(fog.clearingDurationMs >= 120_000);
   assert.ok(fog.durationMs > 220_000);
   assert.equal(open.edgeOpacity, 0);
-  assert.ok(open.clearRadius > 290);
+  assert.ok(open.clearRadius > Math.hypot(227, 128));
   assert.ok(firstRepair.edgeOpacity >= CHART_FOG_REPAIR_BEGIN_CONCEALMENT);
   assert.equal(firstRepair.repairReady, true);
   assert.equal(chartFogObscuresCircle(rim, 227, 128, 12), false);
@@ -51,6 +51,37 @@ test("repair fog progressively hides distant geography before clearing", () => {
   assert.ok(Math.abs(closed.clearRadius - fog.minimumClearRadius) < 1e-9);
   assert.equal(closed.repairReady, true);
   assert.equal(cleared.finished, true);
+});
+
+test("slow repair fog begins settling its visible edge before distortion telemetry fires", () => {
+  const fog = createChartRepairFog({
+    nowMs: 0,
+    viewportWidth: 476,
+    viewportHeight: 256,
+    focusX: 238,
+    focusY: 128
+  });
+  const frame = chartRepairFogFrame(fog, 20_000);
+  const edgeSamples = [];
+  for (let x = 0; x <= 476; x += 14) {
+    edgeSamples.push([x, 0], [x, 256]);
+  }
+  for (let y = 0; y <= 256; y += 14) {
+    edgeSamples.push([0, y], [476, y]);
+  }
+
+  assert.equal(frame.repairReady, true);
+  assert.ok(
+    edgeSamples.some(([x, y]) => (
+      chartFogPixelDensity(frame, x, y) >= CHART_FOG_INCREMENTAL_REPAIR_DENSITY
+    )),
+    "fog must visibly cover and release at least one edge tile for repair within 20 seconds"
+  );
+  assert.equal(
+    chartFogPixelDensity(frame, frame.focusX, frame.focusY),
+    0,
+    "early repair fog must leave the player neighborhood clear"
+  );
 });
 
 test("repair fog has a stable ragged pixel edge rather than a perfect circle", () => {

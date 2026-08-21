@@ -190,14 +190,9 @@ export function selectHistoricalBattleDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, action: null };
   }
-  return {
-    closed: true,
-    action: {
-      type: session.phase === HISTORICAL_BATTLE_DIALOGUE_OPENING
-        ? "begin-historical-battle"
-        : "show-historical-battle-result"
-    }
-  };
+  return session.phase === HISTORICAL_BATTLE_DIALOGUE_OPENING
+    ? { closed: true, action: { type: "begin-historical-battle" } }
+    : { closed: true, action: { type: "show-historical-battle-result" } };
 }
 
 export function historicalBattleDialogueLocalizationKeys() {

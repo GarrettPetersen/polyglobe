@@ -2,7 +2,7 @@ import { fogLayerRgba } from "./stormPresentation.js";
 import { PERMANENT_POLAR_CAP_LATITUDE_DEG } from "./polarChartPresentation.js";
 
 export const CHART_FOG_REDRAW_CONCEALMENT = 0.82;
-export const CHART_FOG_REPAIR_BEGIN_CONCEALMENT = 0.18;
+export const CHART_FOG_REPAIR_BEGIN_CONCEALMENT = 0.01;
 export const CHART_FOG_INCREMENTAL_REPAIR_DENSITY = 0.2;
 export const CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY = 0.72;
 const POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG = 54;
@@ -28,12 +28,13 @@ export function createChartRepairFog({
     throw new Error("Chart repair fog requires a non-empty viewport");
   }
   const fadeBandPx = 42;
+  const initialClearMarginPx = 12;
   const maximumClearRadius = Math.max(
     Math.hypot(focusX, focusY),
     Math.hypot(viewportWidth - focusX, focusY),
     Math.hypot(focusX, viewportHeight - focusY),
     Math.hypot(viewportWidth - focusX, viewportHeight - focusY)
-  ) + fadeBandPx;
+  ) + initialClearMarginPx;
   const formationDurationMs = 100_000;
   const holdDurationMs = 8_000;
   const clearingDurationMs = 120_000;

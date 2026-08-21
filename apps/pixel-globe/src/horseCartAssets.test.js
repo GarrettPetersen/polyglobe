@@ -25,6 +25,20 @@ const VEHICLES = Object.freeze([
     creditKey: "llama",
     creator: "Romulogan",
     maxDrawPixels: 13
+  }),
+  Object.freeze({
+    slug: "dromedary-caravan",
+    colorGrade: { exposure: 1.8, lift: 7 },
+    creditKey: "dromedary",
+    creator: "rezashams3d",
+    maxDrawPixels: 17
+  }),
+  Object.freeze({
+    slug: "bactrian-caravan",
+    colorGrade: { exposure: 1.8, lift: 7 },
+    creditKey: "bactrian",
+    creator: "mgddeldeen9020",
+    maxDrawPixels: 17
   })
 ]);
 

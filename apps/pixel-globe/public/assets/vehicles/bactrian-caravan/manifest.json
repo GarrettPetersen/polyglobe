@@ -1,0 +1,73 @@
+{
+  "generatedBy": "tools/render-sail-ship-sprites.mjs --bactrian-caravan",
+  "frameSize": 47,
+  "headings": 32,
+  "sheetCols": 8,
+  "animationFrames": 6,
+  "maxDrawPixels": 17,
+  "frameScale": 0.5152,
+  "colorGrade": {
+    "exposure": 1.8,
+    "lift": 7
+  },
+  "lighting": {
+    "azimuthBins": 16,
+    "elevationBins": 2,
+    "shadowFrameSize": 95,
+    "selfShadowed": true,
+    "groundY": 0
+  },
+  "bactrian": {
+    "creator": "mgddeldeen9020",
+    "sourceTitle": "Bactrian_camel_low_poly",
+    "sourceId": "Sketchfab d0f3f2383be841209946becf0cd24e50",
+    "sourceUrl": "https://sketchfab.com/3d-models/bactrian-camel-low-poly-d0f3f2383be841209946becf0cd24e50",
+    "license": "CC BY 4.0",
+    "sourceModel": "apps/pixel-globe/source-models/sketchfab/bactrian-camel-low-poly/scene.gltf",
+    "animation": "Bactrian_Camel_Idle",
+    "durationSeconds": 8.916666984558105,
+    "animationMethod": "authored idle motion with procedural lateral walk cycle",
+    "runtimeCaravanCount": 3,
+    "gameOrientation": "Y-up; travel toward +Z"
+  },
+  "load": {
+    "description": "paired procedural pack sacks on each camel",
+    "sacksPerCamel": 2,
+    "runtimeSackPairs": 3
+  },
+  "files": [
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-0-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-0-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-0-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-0-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-1-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-1-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-1-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-1-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-2-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-2-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-2-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-2-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-3-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-3-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-3-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-3-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-4-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-4-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-4-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-4-32-headings-shadow.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-5-32-headings.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-5-32-headings-light.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-5-32-headings-shade.png",
+    "apps/pixel-globe/public/assets/vehicles/bactrian-caravan/bactrian-caravan-walk-5-32-headings-shadow.png"
+  ],
+  "reviewFiles": [
+    "apps/pixel-globe/docs/ship-reference/bactrian-caravan-walk-0-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/bactrian-caravan-walk-1-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/bactrian-caravan-walk-2-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/bactrian-caravan-walk-3-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/bactrian-caravan-walk-4-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/bactrian-caravan-walk-5-32-headings-lighting-preview.png",
+    "apps/pixel-globe/docs/ship-reference/bactrian-caravan-orientation-review.png"
+  ]
+}

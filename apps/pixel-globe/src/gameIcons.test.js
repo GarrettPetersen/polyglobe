@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -64,8 +64,27 @@ test("every current dialogue and start-menu action resolves to an icon", async (
   }
   assert.ok(GAME_ICON_SOURCES[menuLabelIconId("CHOOSE BATTLE")]);
 
-  const dialogueSource = await readFile(join(appRoot, "src/dialogueSystem.js"), "utf8");
-  const actionTypes = new Set([...dialogueSource.matchAll(/type: "([^"]+)"/g)].map((match) => match[1]));
+  const dialogueSources = (await Promise.all(
+    (await sourceJavaScriptFiles(join(appRoot, "src")))
+      .filter((filePath) => !filePath.endsWith(".test.js"))
+      .filter((filePath) => !filePath.endsWith("/main.js"))
+      .map(async (filePath) => ({
+        fileName: filePath.slice(join(appRoot, "src").length + 1),
+        source: await readFile(filePath, "utf8")
+      }))
+  )).filter(({ source }) => /\boptions\s*:/.test(source) && /\bspeaker\s*:/.test(source));
+  assert.ok(dialogueSources.length >= 5, "dialogue authoring modules must be discovered automatically");
+  for (const { fileName, source } of dialogueSources) {
+    assert.doesNotMatch(
+      source,
+      /action:\s*(?:Object\.freeze\()?\s*\{\s*type:\s*[A-Za-z_$]/,
+      `${fileName} constructs a dialogue action from an untestable dynamic type`
+    );
+  }
+  const dialogueSource = dialogueSources.map(({ source }) => source).join("\n");
+  const actionTypes = new Set([
+    ...dialogueSource.matchAll(/type:\s*"([^"]+)"/g)
+  ].map((match) => match[1]));
   const nodeIds = new Set(
     [...dialogueSource.matchAll(/(?:nodeId|returnNodeId): "([^"]+)"/g)]
       .map((match) => match[1])
@@ -83,7 +102,21 @@ test("every current dialogue and start-menu action resolves to an icon", async (
   })]);
   assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "campaign-retire" } })]);
   assert.ok(GAME_ICON_SOURCES[dialogueOptionIconId({ action: { type: "campaign-keep-sailing" } })]);
+  assert.throws(
+    () => dialogueOptionIconId({ action: { type: "unregistered-dialogue-action" } }),
+    /Dialogue action has no icon/
+  );
 });
+
+async function sourceJavaScriptFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const files = await Promise.all(entries.map(async (entry) => {
+    const path = join(directory, entry.name);
+    if (entry.isDirectory()) return sourceJavaScriptFiles(path);
+    return entry.isFile() && entry.name.endsWith(".js") ? [path] : [];
+  }));
+  return files.flat();
+}
 
 test("dialogue options can override their action icon with the demo padlock", () => {
   assert.equal(

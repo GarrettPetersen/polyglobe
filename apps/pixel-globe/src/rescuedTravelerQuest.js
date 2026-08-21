@@ -421,8 +421,8 @@ function rescuedTravelerOfferView(session, quest) {
       expressionId: "crying",
       text: rescueOfferText(quest),
       options: [
-        option(`Take ${pronouns.object} aboard`, "accept-rescued-traveler"),
-        option(`Leave ${pronouns.object} at the nearest safe shore`, "decline-rescued-traveler")
+        option(`Take ${pronouns.object} aboard`, { type: "accept-rescued-traveler" }),
+        option(`Leave ${pronouns.object} at the nearest safe shore`, { type: "decline-rescued-traveler" })
       ]
     };
   }
@@ -432,7 +432,7 @@ function rescuedTravelerOfferView(session, quest) {
       character: quest.character,
       expressionId: "overjoyed",
       text: rescueAcceptedText(quest),
-      options: [option("Continue", "finish-rescued-traveler-offer")]
+      options: [option("Continue", { type: "finish-rescued-traveler-offer" })]
     };
   }
   throw new Error(`Invalid rescued traveler offer dialogue step: ${session.stepIndex}`);
@@ -470,7 +470,7 @@ function rescuedTravelerReunionView(session, quest) {
       character: quest.familyMember,
       expressionId: "overjoyed",
       text: `${quest.character.givenName}, we thought we'd never see you again!`,
-      options: [option("Continue", "continue-rescued-traveler-homecoming")]
+      options: [option("Continue", { type: "continue-rescued-traveler-homecoming" })]
     };
   }
   if (session.stepIndex === 1) {
@@ -479,7 +479,7 @@ function rescuedTravelerReunionView(session, quest) {
       character: quest.character,
       expressionId: "overjoyed",
       text: "I searched every face on the quay in my dreams. You are alive. You are truly alive!",
-      options: [option("Continue", "continue-rescued-traveler-homecoming")]
+      options: [option("Continue", { type: "continue-rescued-traveler-homecoming" })]
     };
   }
   if (session.stepIndex === 2) {
@@ -490,7 +490,7 @@ function rescuedTravelerReunionView(session, quest) {
       text: quest.rewardItemLabel
         ? `Captain, you restored our family. Please accept ${quest.rewardDoubloons} doubloons and ${quest.rewardItemLabel} with our everlasting gratitude.`
         : `Captain, you restored our family. Please accept ${quest.rewardDoubloons} doubloons with our everlasting gratitude.`,
-      options: [option("Continue", "continue-rescued-traveler-homecoming")]
+      options: [option("Continue", { type: "continue-rescued-traveler-homecoming" })]
     };
   }
   if (session.stepIndex === 3) {
@@ -499,7 +499,7 @@ function rescuedTravelerReunionView(session, quest) {
       character: quest.character,
       expressionId: "overjoyed",
       text: "Goodbye, captain. Whatever seas lie ahead, I will never forget the ship that carried me home.",
-      options: [option("Farewell", "complete-rescued-traveler-reunion")]
+      options: [option("Farewell", { type: "complete-rescued-traveler-reunion" })]
     };
   }
   throw new Error(`Invalid rescued traveler reunion dialogue step: ${session.stepIndex}`);
@@ -512,7 +512,7 @@ function rescuedTravelerLostFamilyView(session, quest) {
       character: quest.character,
       expressionId: "crying",
       text: `I asked at every quay and chapel in ${quest.homePortName}. Their ship never arrived. They were lost at sea.`,
-      options: [option("Continue", "continue-rescued-traveler-homecoming")]
+      options: [option("Continue", { type: "continue-rescued-traveler-homecoming" })]
     };
   }
   if (session.stepIndex === 1) {
@@ -521,7 +521,7 @@ function rescuedTravelerLostFamilyView(session, quest) {
       character: quest.character,
       expressionId: "crying",
       text: "There is nothing for me here now. Captain... may I stay aboard? Your crew is the only family I have left.",
-      options: [option("Welcome aboard", "recruit-rescued-traveler")]
+      options: [option("Welcome aboard", { type: "recruit-rescued-traveler" })]
     };
   }
   throw new Error(`Invalid rescued traveler lost-family dialogue step: ${session.stepIndex}`);
@@ -757,6 +757,9 @@ function roundedReward(distanceKm) {
   return Math.round(raw / 50) * 50;
 }
 
-function option(label, type) {
-  return Object.freeze({ label, action: Object.freeze({ type }) });
+function option(label, action) {
+  if (!action || typeof action.type !== "string" || action.type.length === 0) {
+    throw new Error("Rescued traveler dialogue requires an explicit action");
+  }
+  return Object.freeze({ label, action: Object.freeze({ ...action }) });
 }

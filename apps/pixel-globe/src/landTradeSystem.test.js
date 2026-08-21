@@ -7,7 +7,9 @@ import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import {
   LAND_CART_CARGO_CAPACITY,
   LAND_CART_SPEED_KM_PER_DAY,
-  LAND_LLAMA_CARAVAN_SIZE,
+  LAND_ANIMAL_CARAVAN_SIZE,
+  LAND_VEHICLE_BACTRIAN_CARAVAN,
+  LAND_VEHICLE_DROMEDARY_CARAVAN,
   LAND_VEHICLE_HORSE_CART,
   LAND_VEHICLE_LLAMA_CARAVAN,
   MAX_VISIBLE_LAND_CARTS_PER_SEGMENT,
@@ -314,12 +316,12 @@ test("Inca roads use llama caravans until colonial horses arrive", () => {
   )));
   const spacedSnapshot = { ...llamaSnapshots[0], pathPosition: 1.2, forward: true };
   const members = landVehicleMemberSnapshots(system, spacedSnapshot);
-  assert.equal(members.length, LAND_LLAMA_CARAVAN_SIZE);
+  assert.equal(members.length, LAND_ANIMAL_CARAVAN_SIZE);
   assert.deepEqual(
     members.map((member) => Number(member.pathPosition.toFixed(2))),
     [1.2, 0.78, 0.36]
   );
-  assert.equal(new Set(members.map((member) => member.id)).size, LAND_LLAMA_CARAVAN_SIZE);
+  assert.equal(new Set(members.map((member) => member.id)).size, LAND_ANIMAL_CARAVAN_SIZE);
 
   nativeB.factionId = "spain";
   assert.equal(landRouteVehicleType(system, roads.routes[0]), LAND_VEHICLE_HORSE_CART);
@@ -330,6 +332,62 @@ test("Inca roads use llama caravans until colonial horses arrive", () => {
   assert.equal(landRouteVehicleType(system, roads.routes[0]), null);
   assert.deepEqual(visibleLandCartSnapshots(system, 10, new Set([21, 23, 22])), []);
 });
+
+test("camel caravans replace carts only within their historical road regions", () => {
+  const cairo = { ...city(31, "Cairo", "islamic-desert", 180000), lat: 30.04, lon: 31.24 };
+  const damascus = { ...city(32, "Damascus", "islamic-desert", 90000), lat: 33.51, lon: 36.29 };
+  const samarkand = { ...city(33, "Samarkand", "islamic-desert", 70000), lat: 39.65, lon: 66.96 };
+  const kashgar = { ...city(34, "Kashgar", "east-asian", 50000), lat: 39.47, lon: 75.99 };
+  const vienna = { ...city(35, "Vienna", "northern-european", 50000), lat: 48.21, lon: 16.37 };
+  const roads = parseLandRoadNetwork({
+    format: "pixel-globe-land-roads",
+    version: 1,
+    subdivisions: 7,
+    earthCacheVersion: "test",
+    cities: [cairo, damascus, samarkand, kashgar, vienna].map((entry) => ({
+      tileId: entry.tileId,
+      name: entry.city
+    })),
+    routes: [
+      route(31, 32),
+      route(33, 34),
+      route(32, 33),
+      route(35, 31)
+    ]
+  }, { subdivisions: 7, earthCacheVersion: "test" });
+  const system = createLandTradeSystem({
+    roads,
+    economy: createWorldEconomy({ ports: [cairo, damascus, samarkand, kashgar, vienna], startMinute: 0 }),
+    cities: [cairo, damascus, samarkand, kashgar, vienna],
+    startMinute: 0
+  });
+
+  assert.equal(landRouteVehicleType(system, roads.routes[0]), LAND_VEHICLE_DROMEDARY_CARAVAN);
+  assert.equal(landRouteVehicleType(system, roads.routes[1]), LAND_VEHICLE_BACTRIAN_CARAVAN);
+  assert.equal(landRouteVehicleType(system, roads.routes[2]), LAND_VEHICLE_HORSE_CART);
+  assert.equal(landRouteVehicleType(system, roads.routes[3]), LAND_VEHICLE_HORSE_CART);
+  const camelSnapshot = {
+    id: "test-dromedary-caravan",
+    routeId: roads.routes[0].id,
+    vehicleType: LAND_VEHICLE_DROMEDARY_CARAVAN,
+    pathPosition: 1.2,
+    forward: true
+  };
+  const members = landVehicleMemberSnapshots(system, camelSnapshot);
+  assert.equal(members.length, LAND_ANIMAL_CARAVAN_SIZE);
+  assert.ok(members.every((member) => member.id.includes("dromedary")));
+});
+
+function route(fromTileId, toTileId) {
+  return {
+    id: `road-${fromTileId}-${toTileId}`,
+    fromTileId,
+    toTileId,
+    distanceKm: 100,
+    weightedCost: 100,
+    tileIds: [fromTileId, toTileId]
+  };
+}
 
 function syntheticRoads() {
   return parseLandRoadNetwork({

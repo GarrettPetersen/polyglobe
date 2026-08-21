@@ -1809,6 +1809,46 @@ test("a western Patagonia fjord traversal repairs broad distortion without stall
   assertTraversalRepairBurden(result, "Western Patagonia crossing", 35);
 });
 
+test("a subantarctic passage east of New Zealand stays below integrity telemetry limits", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [-43.8, 151.0],
+        [-46.0, 156.0],
+        [-49.09, 162.93],
+        [-50.7, 166.0],
+        [-48.0, 170.0],
+        [-44.0, 173.0]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("subantarctic-new-zealand", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRotationDeg <= 6,
+    `Subantarctic chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
+  );
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `Subantarctic chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeCompressionPx <= 12,
+    `Subantarctic chart compressed a visible land edge by ` +
+      `${result.maxTerrainEdgeCompressionPx.toFixed(2)}px`
+  );
+  assertLandTraversalIsContinuous(result, "Subantarctic New Zealand passage");
+  assertTraversalRepairBurden(result, "Subantarctic New Zealand passage", 20);
+});
+
 test("a moving river voyage to Smolensk cannot tear visible land", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,

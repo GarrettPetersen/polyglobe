@@ -172,6 +172,22 @@ export const LOWPOLY_LLAMA_MODEL_CREDIT = Object.freeze({
   license: "CC BY 4.0"
 });
 
+export const DROMEDARY_CAMEL_MODEL_CREDIT = Object.freeze({
+  creator: "rezashams3d",
+  sourceTitle: "Camel_walk",
+  sourceId: "Sketchfab 3eafc21d7095402ea8edf025934011ee",
+  sourceUrl: "https://sketchfab.com/3d-models/camel-walk-3eafc21d7095402ea8edf025934011ee",
+  license: "CC BY 4.0"
+});
+
+export const BACTRIAN_CAMEL_MODEL_CREDIT = Object.freeze({
+  creator: "mgddeldeen9020",
+  sourceTitle: "Bactrian_camel_low_poly",
+  sourceId: "Sketchfab d0f3f2383be841209946becf0cd24e50",
+  sourceUrl: "https://sketchfab.com/3d-models/bactrian-camel-low-poly-d0f3f2383be841209946becf0cd24e50",
+  license: "CC BY 4.0"
+});
+
 export const ICEBERG_MODEL_CREDIT = Object.freeze({
   creator: "S. Paul Michael",
   sourceTitle: "Iceberg 1",
@@ -208,9 +224,12 @@ export const MODEL_CREDITS = Object.freeze([
   CARTOON_HORSE_MODEL_CREDIT,
   WOODEN_CART_MODEL_CREDIT,
   LOWPOLY_LLAMA_MODEL_CREDIT,
+  DROMEDARY_CAMEL_MODEL_CREDIT,
+  BACTRIAN_CAMEL_MODEL_CREDIT,
   ICEBERG_MODEL_CREDIT
 ]);
 
-export function modelCreditMarkdownLine({ creator, sourceTitle, license }) {
-  return `- ${creator} - "${sourceTitle}" (${license})`;
+export function modelCreditMarkdownLine({ creator, sourceTitle, sourceId, license }) {
+  const source = sourceId ? `; ${sourceId}` : "";
+  return `- ${creator} - "${sourceTitle}" (${license}${source})`;
 }

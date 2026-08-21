@@ -22,8 +22,15 @@ export const LAND_CART_SPEED_KM_PER_DAY = 120;
 export const LAND_CART_WALK_FRAME_COUNT = 6;
 export const LAND_VEHICLE_HORSE_CART = "horse-cart";
 export const LAND_VEHICLE_LLAMA_CARAVAN = "llama-caravan";
-export const LAND_LLAMA_CARAVAN_SIZE = 3;
-const LAND_LLAMA_SPACING_SEGMENTS = 0.42;
+export const LAND_VEHICLE_DROMEDARY_CARAVAN = "dromedary-caravan";
+export const LAND_VEHICLE_BACTRIAN_CARAVAN = "bactrian-caravan";
+export const LAND_ANIMAL_CARAVAN_SIZE = 3;
+const LAND_ANIMAL_SPACING_SEGMENTS = 0.42;
+const LAND_ANIMAL_CARAVAN_TYPES = new Set([
+  LAND_VEHICLE_LLAMA_CARAVAN,
+  LAND_VEHICLE_DROMEDARY_CARAVAN,
+  LAND_VEHICLE_BACTRIAN_CARAVAN
+]);
 export const MAX_VISIBLE_LAND_CARTS = 14;
 export const MAX_VISIBLE_LAND_CARTS_PER_SEGMENT = 2;
 const MAX_CARTS = 192;
@@ -179,19 +186,20 @@ export function landVehicleMemberSnapshots(system, snapshot) {
     throw new Error("Land-vehicle members require a cart snapshot");
   }
   if (snapshot.vehicleType === LAND_VEHICLE_HORSE_CART) return Object.freeze([snapshot]);
-  if (snapshot.vehicleType !== LAND_VEHICLE_LLAMA_CARAVAN) {
+  if (!LAND_ANIMAL_CARAVAN_TYPES.has(snapshot.vehicleType)) {
     throw new Error(`Cannot place members for land-vehicle type: ${snapshot.vehicleType}`);
   }
   const route = requiredCartRoute(system, snapshot.routeId);
-  return Object.freeze(Array.from({ length: LAND_LLAMA_CARAVAN_SIZE }, (_, memberIndex) => {
+  const memberSlug = snapshot.vehicleType.replace(/-caravan$/, "");
+  return Object.freeze(Array.from({ length: LAND_ANIMAL_CARAVAN_SIZE }, (_, memberIndex) => {
     const pathPosition = Math.max(
       0,
-      snapshot.pathPosition - memberIndex * LAND_LLAMA_SPACING_SEGMENTS
+      snapshot.pathPosition - memberIndex * LAND_ANIMAL_SPACING_SEGMENTS
     );
     return Object.freeze({
       ...snapshot,
       ...landRoutePositionSnapshot(route, snapshot.forward, pathPosition),
-      id: `${snapshot.id}-llama-${memberIndex}`,
+      id: `${snapshot.id}-${memberSlug}-${memberIndex}`,
       memberIndex
     });
   }));
@@ -209,10 +217,28 @@ function routeVehicleType(cityByTileId, route) {
   const whollyPreContact = endpoints.every((city) => (
     isPreGunpowderCulture(city.cityType) && ["inca", "neutral"].includes(city.factionId || "neutral")
   ));
-  if (!whollyPreContact) return LAND_VEHICLE_HORSE_CART;
-  return endpoints.every((city) => city.cityType === "andean")
-    ? LAND_VEHICLE_LLAMA_CARAVAN
-    : null;
+  if (whollyPreContact) {
+    return endpoints.every((city) => city.cityType === "andean")
+      ? LAND_VEHICLE_LLAMA_CARAVAN
+      : null;
+  }
+  const camelRegions = endpoints.map(camelRegionForCity);
+  if (camelRegions.every((region) => region === "bactrian")) {
+    return LAND_VEHICLE_BACTRIAN_CARAVAN;
+  }
+  if (camelRegions.every((region) => region === "dromedary")) {
+    return LAND_VEHICLE_DROMEDARY_CARAVAN;
+  }
+  return LAND_VEHICLE_HORSE_CART;
+}
+
+function camelRegionForCity(city) {
+  if (!Number.isFinite(city.lat) || !Number.isFinite(city.lon)) return null;
+  const { lat, lon } = city;
+  if (lat >= 33 && lat <= 52 && lon >= 52 && lon <= 112) return "bactrian";
+  const northAfricaOrArabia = lat >= 10 && lat <= 37 && lon >= -18 && lon <= 60;
+  const northwesternIndia = lat >= 20 && lat <= 34 && lon > 60 && lon <= 78;
+  return northAfricaOrArabia || northwesternIndia ? "dromedary" : null;
 }
 
 function landCartSnapshot(system, cart, simMinute) {

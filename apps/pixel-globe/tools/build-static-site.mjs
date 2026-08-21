@@ -39,7 +39,12 @@ const DEMO_ROWING_ANIMATION_STEMS = Object.freeze([
   "pivot-port",
   "pivot-starboard"
 ]);
-const DEMO_LAND_VEHICLE_TYPES = Object.freeze(["horse-cart", "llama-caravan"]);
+const DEMO_LAND_VEHICLE_TYPES = Object.freeze([
+  "horse-cart",
+  "llama-caravan",
+  "dromedary-caravan",
+  "bactrian-caravan"
+]);
 const DEMO_LAND_VEHICLE_FRAME_COUNT = 6;
 const DEMO_LAND_VEHICLE_LAYERS = Object.freeze(["color", "light", "shade", "shadow"]);
 const DEMO_PREBUILT_ICON_SOURCES = new Set([
@@ -234,7 +239,7 @@ function shouldCopyPublicPath(path) {
     return false;
   }
   if (
-    /^assets\/vehicles\/(?:horse-cart|llama-caravan)\/[^/]+-walk-\d+-32-headings(?:-(?:light|shade|shadow))?\.png$/.test(
+    /^assets\/vehicles\/(?:horse-cart|llama-caravan|dromedary-caravan|bactrian-caravan)\/[^/]+-walk-\d+-32-headings(?:-(?:light|shade|shadow))?\.png$/.test(
       normalized
     )
   ) {

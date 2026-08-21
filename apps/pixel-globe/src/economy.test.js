@@ -40,6 +40,7 @@ import {
   createWorldEconomy,
   destroyPortGoodStock,
   establishPortIndustry,
+  ensureWorldEconomyPlayerShipyardBacking,
   executePortPurchase,
   executePortSale,
   fundWorldEconomyShipyard,
@@ -1346,6 +1347,29 @@ test("a player-backed yard increases ordinary shipbuilding-material demand", () 
   assert.ok(after.get("timber").consumptionPerDay > timberBefore);
   assert.ok(after.get("iron").consumptionPerDay > ironBefore);
   assert.ok(after.get(NAVAL_STORES_GOOD_ID).consumptionPerDay > storesBefore);
+});
+
+test("restore reconciliation repairs a missing player shipyard exactly once", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
+  const backing = {
+    investedMinute: 10,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  };
+
+  const repaired = ensureWorldEconomyPlayerShipyardBacking(economy, LONDON, backing);
+  const demandAfterRepair = marketByGood(economy, LONDON).get("timber").consumptionPerDay;
+  assert.equal(repaired.repaired, true);
+  assert.equal(repaired.yard.playerBacking.investedMinute, 10);
+  assert.ok(repaired.yard.playerAccounts);
+
+  const alreadyPresent = ensureWorldEconomyPlayerShipyardBacking(economy, LONDON, backing);
+  assert.equal(alreadyPresent.repaired, false);
+  assert.equal(alreadyPresent.yard, repaired.yard);
+  assert.equal(
+    marketByGood(economy, LONDON).get("timber").consumptionPerDay,
+    demandAfterRepair
+  );
 });
 
 test("economy snapshots restore stocks, specie, clocks, and shipyards", () => {

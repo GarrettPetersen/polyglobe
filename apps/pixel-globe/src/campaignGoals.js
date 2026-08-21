@@ -928,12 +928,9 @@ export function selectCampaignDialogueOption(session, optionIndex = session.sele
     if (optionIndex !== 0 && optionIndex !== 1) {
       throw new Error(`Invalid campaign retirement option index: ${optionIndex}`);
     }
-    return {
-      closed: true,
-      action: {
-        type: optionIndex === 0 ? "campaign-retire" : "campaign-keep-sailing"
-      }
-    };
+    return optionIndex === 0
+      ? { closed: true, action: { type: "campaign-retire" } }
+      : { closed: true, action: { type: "campaign-keep-sailing" } };
   }
   if (session.retirementBlockedOnClose) {
     if (optionIndex !== 0) {

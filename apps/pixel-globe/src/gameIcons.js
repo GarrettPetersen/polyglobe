@@ -442,7 +442,11 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "finish-envoy-negotiation": "action:letter",
   "acknowledge-quest-journey-dialogue": "action:talk",
   "continue-campaign": "action:talk",
+  "campaign-intro-complete": "action:talk",
+  "campaign-victory": "action:quest",
   "continue-historical-battle-dialogue": "action:talk",
+  "begin-historical-battle": "action:attack",
+  "show-historical-battle-result": "action:quest",
   "campaign-retire": "action:leave",
   "campaign-keep-sailing": "action:resume",
   "buy-net": "action:fish",
@@ -468,7 +472,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "finish-rescued-traveler-offer": "action:quest",
   "continue-rescued-traveler-homecoming": "action:talk",
   "complete-rescued-traveler-reunion": "action:passenger",
-  "recruit-rescued-traveler": "action:passenger"
+  "recruit-rescued-traveler": "action:passenger",
+  "complete-pirate-captive-handover": "action:surrender"
 });
 
 export function gameIconIds() {
