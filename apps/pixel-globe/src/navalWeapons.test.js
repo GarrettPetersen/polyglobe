@@ -6,12 +6,21 @@ import {
   NAVAL_WEAPON_CANNON,
   accurateBroadsideShotIndex,
   advanceCannonReload,
+  broadsideCannonCount,
   cannonReloadWorkRate,
   isPreGunpowderCulture,
   navalWeaponForShip,
   navalWeaponUsesBroadside,
   navalWeaponSpec
 } from "./navalWeapons.js";
+
+test("a broadside uses half of a ship's installed cannon deck", () => {
+  assert.equal(broadsideCannonCount(0), 0);
+  assert.equal(broadsideCannonCount(1), 1);
+  assert.equal(broadsideCannonCount(4), 2);
+  assert.equal(broadsideCannonCount(32), 16);
+  assert.throws(() => broadsideCannonCount(-1), /installed cannon count/);
+});
 
 test("every cannon broadside designates exactly one true shot", () => {
   for (let count = 1; count <= 20; count++) {

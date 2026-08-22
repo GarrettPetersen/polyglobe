@@ -1393,6 +1393,7 @@ import {
   playerCombatAllegiance,
   updateShipCombatState
 } from "./shipCombat.js";
+import { npcBroadsideNavigation } from "./npcCombatTactics.js";
 import {
   FRIENDLY_FIRE_DIRECT,
   FRIENDLY_FIRE_FORGIVEN,
@@ -2138,6 +2139,7 @@ import {
   NAVAL_CANNON_SPEED_PX as CANNON_SPEED_PX,
   NAVAL_WEAPON_ARROW,
   NAVAL_WEAPON_CANNON,
+  broadsideCannonCount,
   isPreGunpowderCulture,
   navalWeaponForShip,
   navalWeaponUsesBroadside
@@ -2507,7 +2509,6 @@ const SHORE_BATTERY_UPDATE_INTERVAL_SECONDS = 0.5;
 const NPC_COMBAT_RESPONSE_SPEED_PX = 8;
 const NPC_COMBAT_NAV_TARGET_PX = 110;
 const NPC_MAJOR_PORT_AVOID_RADIUS_PX = 132;
-const NPC_COMBAT_ORBIT_RANGE_PX = 38;
 const NPC_COMBAT_PROJECTILE_HIT_RADIUS_PX = 7;
 const NPC_COMBAT_MAX_PROJECTILES = 180;
 const SHIP_COLLISION_DAMAGE_COOLDOWN_SECONDS = 0.72;
@@ -29274,7 +29275,7 @@ function fireBroadside(sideName) {
   if (!playerHasCombatEngagement()) return false;
   const weapon = playerNavalWeapon();
   if (!navalWeaponUsesBroadside(weapon)) return false;
-  const broadsideCount = shipBroadsideCannonCount();
+  const broadsideCount = broadsideCannonCount(gameState?.ship?.cannons || 0);
   if (ship.cannonCooldowns[sideName] > 0) return false;
 
   ship.cannonCooldowns[sideName] = weapon.reloadSeconds;
@@ -29636,10 +29637,6 @@ function navalArcHasEnemy(arc) {
     }
   }
   return false;
-}
-
-function shipBroadsideCannonCount() {
-  return Math.ceil((gameState?.ship?.cannons || 0) / 2);
 }
 
 function playerNavalWeapon() {
@@ -32237,7 +32234,7 @@ function createNpcVisualState(snapshot, routePoint) {
     crew: profile.stats.crewCapacity,
     woundedCrew: 0,
     portableWeaponCooldowns: {},
-    weaponCooldown: 0,
+    broadsideCooldowns: { port: 0, starboard: 0 },
     weaponSequence: 0,
     collisionVelocityX: 0,
     collisionVelocityY: 0,
@@ -32288,6 +32285,7 @@ function syncNpcVisualStateFromSnapshot(state, snapshot) {
     state.crew = profile.stats.crewCapacity;
     state.woundedCrew = 0;
     state.portableWeaponCooldowns = {};
+    state.broadsideCooldowns = { port: 0, starboard: 0 };
     state.cannons = profile.navalWeapon?.kind === NAVAL_WEAPON_CANNON
       ? profile.stats.cannons
       : 0;
@@ -32518,15 +32516,16 @@ function updateNpcCombat(dt) {
   for (const state of npcVisualShips.values()) {
     const stats = state.stats;
     const weapon = npcNavalWeapon(state);
-    if (state.weaponCooldown > 0) {
-      state.weaponCooldown = weapon && navalWeaponUsesBroadside(weapon)
-        ? advanceCannonReload(
-            state.weaponCooldown,
-            dt,
-            activeCombatCrew(state.crew, state.woundedCrew),
-            stats.cannons
-          )
-        : Math.max(0, state.weaponCooldown - dt);
+    if (weapon && navalWeaponUsesBroadside(weapon)) {
+      const activeCrew = activeCombatCrew(state.crew, state.woundedCrew);
+      for (const sideName of ["port", "starboard"]) {
+        state.broadsideCooldowns[sideName] = advanceCannonReload(
+          state.broadsideCooldowns[sideName],
+          dt,
+          activeCrew,
+          stats.cannons
+        );
+      }
     }
     for (const itemId of Object.keys(state.portableWeaponCooldowns)) {
       const cooldown = Math.max(0, state.portableWeaponCooldowns[itemId] - dt);
@@ -33515,27 +33514,19 @@ function npcCombatNavigation(state) {
   const distance = Math.hypot(dx, dy);
   if (distance <= 1e-6) return null;
   const weapon = npcNavalWeapon(state);
-  const orbitRange = NPC_COMBAT_ORBIT_RANGE_PX * (weapon?.rangeScale || 1);
-  if (distance > orbitRange * 1.35) return { routePoint: target };
-
-  const direct = { x: dx / distance, y: dy / distance };
-  const orbitSide = (hashInt(state.id.length * 0x45d9f3b) & 1) === 0 ? -1 : 1;
-  const radialCorrection = clamp((distance - orbitRange) / Math.max(8, 16 * (weapon?.rangeScale || 1)), -0.8, 0.8);
-  const orbit = {
-    x: -direct.y * orbitSide + direct.x * radialCorrection,
-    y: direct.x * orbitSide + direct.y * radialCorrection
-  };
-  const orbitLength = Math.hypot(orbit.x, orbit.y) || 1;
-  return {
-    routePoint: {
-      x: state.x + orbit.x / orbitLength * NPC_COMBAT_NAV_TARGET_PX,
-      y: state.y + orbit.y / orbitLength * NPC_COMBAT_NAV_TARGET_PX
-    }
-  };
+  if (!weapon || !navalWeaponUsesBroadside(weapon)) return { routePoint: target };
+  return npcBroadsideNavigation({
+    identity: state.id,
+    origin: state,
+    target,
+    heading: tangentToScreenDirection(state.heading),
+    weaponRangePx: CANNON_RANGE_PX * weapon.rangeScale,
+    routeDistancePx: NPC_COMBAT_NAV_TARGET_PX
+  });
 }
 
 function fireNpcWeaponAtTarget(state, targetId) {
-  if (state.weaponCooldown > 0 || state.combatGrace) return false;
+  if (state.combatGrace) return false;
   const target = combatEntityAimPoint(targetId);
   if (!target) return false;
   const stats = state.stats;
@@ -33549,22 +33540,25 @@ function fireNpcWeaponAtTarget(state, targetId) {
   if (!heading) return false;
   const sideName = navalBroadsideSideForTarget(heading, state, target);
   if (!sideName) return false;
+  if (state.broadsideCooldowns[sideName] > 0) return false;
 
-  const volleyCount = Math.min(4, Math.max(1, Math.ceil(stats.cannons / 10)));
+  const volleyCount = broadsideCannonCount(stats.cannons);
   emitCaptureEvent("weapon-fired", {
     ownerId: state.id,
     targetId,
     weapon: weapon.kind,
     count: volleyCount
   });
-  state.weaponCooldown = weapon.reloadSeconds;
+  state.broadsideCooldowns[sideName] = weapon.reloadSeconds;
   state.weaponSequence += 1;
   playNavalAttackSound(
     weapon,
-    Math.max(1, Math.ceil(stats.cannons / 2)),
+    volleyCount,
     distanceFromPlayerPoint(state)
   );
-  startCombatMusicForThreat(stats.cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
+  startCombatMusicForThreat(
+    volleyCount >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small"
+  );
   const shotSeed = (index) => cannonSeed(
     state.weaponSequence,
     index,
