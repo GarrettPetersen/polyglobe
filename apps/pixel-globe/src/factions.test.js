@@ -171,6 +171,26 @@ test("representative 1522 cities receive their governing faction", () => {
   }
 });
 
+test("represented Imperial cities retain their researched 1522 sovereigns", () => {
+  const assignments = [
+    ["Brugge", "Belgium", "habsburg"], ["Gent", "Belgium", "habsburg"],
+    ["Vienna", "Austria", "habsburg"], ["Prague", "Austria", "bohemia"],
+    ["Wroclaw", "Germany", "bohemia"], ["Cologne", "Germany", "cologne"],
+    ["Augsberg", "Germany", "augsburg"], ["Nurnberg", "Germany", "nuremberg"],
+    ["Lubeck", "Germany", "lubeck"], ["Liege", "Belgium", "liege"],
+    ["Mainz", "Germany", "mainz"], ["Hamburg", "Germany", "hamburg"],
+    ["Magdeburg", "Germany", "magdeburg"], ["Erfurt", "Germany", "mainz"],
+    ["Bremen", "Germany", "bremen"], ["Soest", "Germany", "cleves-mark"],
+    ["Hannover", "Germany", "calenberg"], ["Speyer", "Germany", "speyer"],
+    ["Utrecht", "Netherlands", "utrecht"], ["Regensburg", "Germany", "regensburg"],
+    ["Trier", "Germany", "trier"], ["Leipzig", "Germany", "ducal-saxony"],
+    ["Worms", "Germany", "worms"]
+  ];
+  for (const [city, country, factionId] of assignments) {
+    assert.equal(factionIdForCity1522({ city, country }), factionId, `${city}, ${country}`);
+  }
+});
+
 test("overseas possessions and uncertain small powers are handled explicitly", () => {
   assert.equal(factionIdForCity1522({ city: "Goa", country: "India" }), "portugal");
   assert.equal(factionIdForCity1522({ city: "Hormuz", country: "Iran" }), "hormuz");
@@ -222,7 +242,14 @@ test("every sovereign faction has one declared water-accessible capital", () => 
 test("required capital port records cover factions missing a suitable catalog city", () => {
   assert.deepEqual(
     factionCapitalCityRecords1522().map((capital) => `${capital.factionId}:${capital.city}`).sort(),
-    ["ethiopia:Massawa", "muscovy:Kholmogory"]
+    [
+      "brandenburg:Berlin",
+      "cologne-electorate:Bonn",
+      "electoral-saxony:Wittenberg",
+      "ethiopia:Massawa",
+      "muscovy:Kholmogory",
+      "palatinate:Heidelberg"
+    ]
   );
 });
 

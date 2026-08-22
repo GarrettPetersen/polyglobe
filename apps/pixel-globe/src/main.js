@@ -44594,12 +44594,7 @@ function drawPoliticsMenu() {
   politicsMenu.newsDetailDownRect = null;
   const pagination = politicsCardPagination(view, panel);
   politicsMenu.page = pagination.page.page;
-  drawOptionsText(
-    fitPixelText(uiText("politics.legendTrade"), PIXEL_FONT_SMALL_8, panel.w - 32),
-    panel.x + panel.w / 2,
-    panel.y + 25,
-    { align: "center", color: PIRATE_MENU_INK_MUTED }
-  );
+  drawPoliticsImperialSummary(view, panel);
 
   pagination.page.entries.forEach((entry) => {
     drawPoliticsCountryCard(entry, view, {
@@ -44640,6 +44635,30 @@ function drawPoliticsMenu() {
   );
   drawPoliticsLatestNews(view, panel, pagerY);
   ctx.restore();
+}
+
+function drawPoliticsImperialSummary(view, panel) {
+  const imperial = view.imperial;
+  if (!imperial || !imperial.emperorRuler) {
+    throw new Error("Politics view is missing the Imperial office");
+  }
+  const religious = imperial.religiousBalance;
+  const text = [
+    `${uiText("politics.emperor")} ${imperial.emperorRuler.name.toUpperCase()}`,
+    `${uiText("politics.imperialAuthorityShort")} ${imperial.authority}`,
+    `${uiText("politics.electors")} ${imperial.electors.length}`,
+    `${uiText("politics.catholicShort")} ${religious.catholic}`,
+    `${uiText("politics.reformShort")} ${religious["reform-sympathetic"] + religious.mixed}`,
+    `${uiText("politics.lutheranShort")} ${religious.lutheran}`,
+    `${uiText("politics.resolutions")} ${imperial.activeResolutions.length}`,
+    `${uiText("politics.bans")} ${imperial.activeBans.length}`
+  ].join("  ");
+  drawOptionsText(
+    fitPixelText(text, PIXEL_FONT_SMALL_8, panel.w - 32),
+    panel.x + panel.w / 2,
+    panel.y + 25,
+    { align: "center", color: PIRATE_MENU_CHART_LINE }
+  );
 }
 
 function politicsCardPagination(view, panel = captainNotebookPagePanel({
@@ -44846,10 +44865,17 @@ function drawPoliticsCountryCard(entry, view, rect, layout) {
   const status = `${uiText("politics.you")} ${card.player.scoreLabel} ${politicsTradeCode(card.player.trade)}`;
   const statusWidth = Math.min(76, Math.floor(rect.w * 0.39));
   const marqueMarker = politicsMarqueMarker(card.player);
+  const imperialMarker = card.imperialMembership?.badge || "";
+  const imperialWidth = imperialMarker ? 9 : 0;
   const marqueWidth = marqueMarker ? 9 : 0;
-  const titleX = rect.x + 28 + marqueWidth;
+  const titleX = rect.x + 28 + imperialWidth + marqueWidth;
+  if (imperialMarker) {
+    drawOptionsText(imperialMarker, rect.x + 28, headerY, {
+      color: card.imperialMembership.isEmperor ? PIRATE_MENU_CHART_LINE : PIRATE_MENU_INK_MUTED
+    });
+  }
   if (marqueMarker) {
-    drawOptionsText(marqueMarker, rect.x + 28, headerY, {
+    drawOptionsText(marqueMarker, rect.x + 28 + imperialWidth, headerY, {
       color: PIRATE_MENU_INK
     });
   }
@@ -44857,7 +44883,7 @@ function drawPoliticsCountryCard(entry, view, rect, layout) {
     fitPixelText(
       card.faction.shortName.toUpperCase(),
       PIXEL_FONT_SMALL_8,
-      rect.w - 32 - statusWidth - marqueWidth
+      rect.w - 32 - statusWidth - marqueWidth - imperialWidth
     ),
     titleX,
     headerY,

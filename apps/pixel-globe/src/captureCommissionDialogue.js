@@ -14,6 +14,12 @@ const CAPITAL_TARGET_STAKES = Object.freeze({
   hormuz: "The Hormuzi court still controls the customs and pilots of the narrow sea.",
   habsburg: "The Habsburg court still joins its scattered crowns, armies, and imperial credit.",
   hungary: "The Hungarian court still rallies the Danube fortresses and the kingdom's remaining levies.",
+  ...Object.fromEntries([
+    "bohemia", "mainz", "cologne-electorate", "trier", "palatinate",
+    "electoral-saxony", "brandenburg", "ducal-saxony", "liege", "magdeburg",
+    "utrecht", "cleves-mark", "calenberg", "augsburg", "cologne", "nuremberg",
+    "lubeck", "hamburg", "bremen", "speyer", "regensburg", "worms"
+  ].map((factionId) => [factionId, imperialCapitalTargetStakes(factionId)])),
   ottoman: "The Ottoman court still commands the Bosporus, the imperial arsenal, and armies on three frontiers.",
   venice: "The Venetian councils still command the Arsenal, the lagoon, and a web of island strongholds.",
   genoa: "The Genoese councils still draw ships, bankers, and western Mediterranean ports into the struggle.",
@@ -55,6 +61,12 @@ const CAPITAL_TARGET_STAKES = Object.freeze({
   ryukyu: "The Ryukyuan court at Shuri still binds the island lords and the kingdom's maritime trade together.",
   ainu: "The kotan elders still command the coastal hunting grounds and the loyalty of their trading households."
 });
+
+function imperialCapitalTargetStakes(factionId) {
+  const faction = FACTIONS.find((entry) => entry.id === factionId);
+  if (!faction) throw new Error(`Unknown Imperial capital target: ${factionId}`);
+  return `${faction.shortName}'s own ruler and Estates still command its treasury, levies, diplomacy, and Imperial vote.`;
+}
 
 const PAIR_GRIEVANCES = Object.freeze({
   "england>france": "France shelters Scotland behind the Auld Alliance and contests England's old claims across the Channel.",

@@ -135,6 +135,14 @@ import {
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
 import {
+  createImperialConstitution,
+  imperialTargetIsAuthorized,
+  migrateImperialConstitution,
+  recordImperialReformationOutcome,
+  validateImperialConstitution
+} from "./imperialConstitution.js";
+import { imperialEstateForCityId } from "./imperialEstates.js";
+import {
   advanceHistoricalSovereignty,
   nextHistoricalSovereigntyMinute
 } from "./historicalSovereignty.js";
@@ -431,7 +439,7 @@ import {
 } from "./shipyardInvestment.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 81;
+export const GAME_STATE_VERSION = 82;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -654,6 +662,7 @@ export function createGameState({
         startMinute,
         seedKey: resolvedVoyageSeed
       }),
+      imperial: createImperialConstitution({ startMinute }),
       papacy: createPapalPolitics({
         startMinute,
         seedKey: resolvedVoyageSeed
@@ -745,7 +754,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -797,6 +806,9 @@ export function migrateGameState(state, shipStats) {
   const migratedAuthority = migrateSovereignAuthority(state.relations.authority, {
     startMinute: savedGameStartMinute(state),
     seedKey: migrationVoyageSeed
+  });
+  const migratedImperial = migrateImperialConstitution(state.relations.imperial, {
+    startMinute: savedGameStartMinute(state)
   });
   const legacyPortHeading = state.memory?.navigation?.portHeading || null;
   const { portHeading: _removedPortHeading, ...legacyNavigation } = state.memory?.navigation || {};
@@ -869,6 +881,7 @@ export function migrateGameState(state, shipStats) {
         state.relations.foreignSettlementExpulsions
       ),
       diplomacy: migratedDiplomacy,
+      imperial: migratedImperial,
       papacy: migratedPapacy,
       courts: migratedCourts,
       authority: migratedAuthority
@@ -1502,6 +1515,15 @@ export function deliverReligiousMissionLeg(state, city, context = {}) {
     simMinute,
     `${religiousMissionTitle(quest)}: ${stop.name}`
   );
+  const imperialReformation = typeof city.cityId === "string" &&
+      imperialEstateForCityId(city.cityId)
+    ? recordImperialReformationOutcome(state.relations.imperial, {
+        cityId: city.cityId,
+        religionId: "lutheran",
+        simMinute,
+        source: quest.id
+      })
+    : null;
   const convertedFactors = Array.isArray(state.memory.flags.lutheranFactorPortTileIds)
     ? state.memory.flags.lutheranFactorPortTileIds
     : [];
@@ -1515,6 +1537,7 @@ export function deliverReligiousMissionLeg(state, city, context = {}) {
     destinationName: stop.name,
     convertedFactorTileId: city.tileId,
     authorityEvents,
+    imperialReformation,
     final: delivery.final,
     nextDestinationName: delivery.remainingStops[0]?.name || null
   });
@@ -2074,7 +2097,8 @@ function playerWorldDiplomacyInfluence(state) {
     homeFactionInGoodStanding,
     reputation: state.relations.factionReputation,
     decisions: state.memory.decisions,
-    lockedPairKeys
+    lockedPairKeys,
+    imperialConstitution: state.relations.imperial
   };
 }
 
@@ -4731,7 +4755,10 @@ export function privateeringAuthorityIssuerIdsAgainst(state, targetFactionId) {
   const issuerIds = [];
   for (const issuerId of Object.keys(state.relations.lettersOfMarque)) {
     assertFactionId(issuerId);
-    if (worldDiplomacyBetween(state.relations.diplomacy, issuerId, targetId) === DIPLOMACY_WAR) {
+    if (worldDiplomacyBetween(state.relations.diplomacy, issuerId, targetId) === DIPLOMACY_WAR || (
+      issuerId === state.relations.imperial.emperorFactionId &&
+      imperialTargetIsAuthorized(state.relations.imperial, targetId, state.survival.lastMinute)
+    )) {
       issuerIds.push(issuerId);
     }
   }
@@ -8628,6 +8655,8 @@ function assertWorldDiplomacyState(state) {
   }
   if (!state.relations.diplomacy) throw new Error("Game state requires world diplomacy");
   validateWorldDiplomacy(state.relations.diplomacy);
+  if (!state.relations.imperial) throw new Error("Game state requires Imperial constitutional politics");
+  validateImperialConstitution(state.relations.imperial);
   if (!state.relations.papacy) throw new Error("Game state requires papal politics");
   validatePapalPolitics(state.relations.papacy);
   if (!state.relations.courts) throw new Error("Game state requires court politics");

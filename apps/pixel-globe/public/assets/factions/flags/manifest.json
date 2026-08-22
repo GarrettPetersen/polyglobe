@@ -137,13 +137,13 @@
       "width": 32,
       "height": 20,
       "file": "habsburg.png",
-      "evidence": "period-banner",
-      "representation": "Imperial banner of Charles V",
-      "accuracyNote": "The black double-headed imperial eagle on gold, with a small Habsburg breast shield.",
+      "evidence": "period-heraldry",
+      "representation": "Habsburg red-white-red arms",
+      "accuracyNote": "The dynastic red-white-red arms identify the Habsburg hereditary monarchy without reusing the Emperor's double-headed eagle or implying that the Empire is Habsburg sovereign territory.",
       "sources": [
         {
-          "label": "The Eagle of the Holy Roman Empire",
-          "url": "https://www.flagheritagefoundation.org/web/wp-content/uploads/2018/08/DoubleEagle-Final-PDF-150dpi.pdf"
+          "label": "The Habsburg coat of arms",
+          "url": "https://www.habsburger.net/en/chapter/coat-arms-symbol-habsburg-monarchy"
         }
       ]
     },
@@ -160,6 +160,358 @@
         {
           "label": "Historical flags of Europe",
           "url": "https://commons.wikimedia.org/wiki/Historical_flags_of_Europe"
+        }
+      ]
+    },
+    {
+      "id": "bohemia",
+      "factionName": "Kingdom of Bohemia",
+      "width": 32,
+      "height": 20,
+      "file": "bohemia.png",
+      "evidence": "reconstruction",
+      "representation": "Bohemian lion",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "mainz",
+      "factionName": "Electorate of Mainz",
+      "width": 32,
+      "height": 20,
+      "file": "mainz.png",
+      "evidence": "reconstruction",
+      "representation": "Wheel of Mainz",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "cologne-electorate",
+      "factionName": "Electorate of Cologne",
+      "width": 32,
+      "height": 20,
+      "file": "cologne-electorate.png",
+      "evidence": "reconstruction",
+      "representation": "Electoral Cologne cross",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "trier",
+      "factionName": "Electorate of Trier",
+      "width": 32,
+      "height": 20,
+      "file": "trier.png",
+      "evidence": "reconstruction",
+      "representation": "Trier cross",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "palatinate",
+      "factionName": "Electoral Palatinate",
+      "width": 32,
+      "height": 20,
+      "file": "palatinate.png",
+      "evidence": "reconstruction",
+      "representation": "Palatine lion",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "electoral-saxony",
+      "factionName": "Electorate of Saxony",
+      "width": 32,
+      "height": 20,
+      "file": "electoral-saxony.png",
+      "evidence": "reconstruction",
+      "representation": "Electoral Saxon arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "brandenburg",
+      "factionName": "Margraviate of Brandenburg",
+      "width": 32,
+      "height": 20,
+      "file": "brandenburg.png",
+      "evidence": "reconstruction",
+      "representation": "Brandenburg eagle",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "ducal-saxony",
+      "factionName": "Albertine Duchy of Saxony",
+      "width": 32,
+      "height": 20,
+      "file": "ducal-saxony.png",
+      "evidence": "reconstruction",
+      "representation": "Albertine Saxon arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "liege",
+      "factionName": "Prince-Bishopric of Liege",
+      "width": 32,
+      "height": 20,
+      "file": "liege.png",
+      "evidence": "reconstruction",
+      "representation": "Liege civic and episcopal arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "magdeburg",
+      "factionName": "Prince-Archbishopric of Magdeburg",
+      "width": 32,
+      "height": 20,
+      "file": "magdeburg.png",
+      "evidence": "reconstruction",
+      "representation": "Magdeburg arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "utrecht",
+      "factionName": "Prince-Bishopric of Utrecht",
+      "width": 32,
+      "height": 20,
+      "file": "utrecht.png",
+      "evidence": "reconstruction",
+      "representation": "Utrecht episcopal arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "cleves-mark",
+      "factionName": "United Duchies of Julich-Cleves-Berg",
+      "width": 32,
+      "height": 20,
+      "file": "cleves-mark.png",
+      "evidence": "reconstruction",
+      "representation": "Julich-Cleves-Berg arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "calenberg",
+      "factionName": "Principality of Calenberg",
+      "width": 32,
+      "height": 20,
+      "file": "calenberg.png",
+      "evidence": "reconstruction",
+      "representation": "Calenberg-Welf arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "augsburg",
+      "factionName": "Free Imperial City of Augsburg",
+      "width": 32,
+      "height": 20,
+      "file": "augsburg.png",
+      "evidence": "reconstruction",
+      "representation": "Augsburg civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "cologne",
+      "factionName": "Free Imperial City of Cologne",
+      "width": 32,
+      "height": 20,
+      "file": "cologne.png",
+      "evidence": "reconstruction",
+      "representation": "Cologne civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "nuremberg",
+      "factionName": "Free Imperial City of Nuremberg",
+      "width": 32,
+      "height": 20,
+      "file": "nuremberg.png",
+      "evidence": "reconstruction",
+      "representation": "Nuremberg civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "lubeck",
+      "factionName": "Free Imperial City of Lubeck",
+      "width": 32,
+      "height": 20,
+      "file": "lubeck.png",
+      "evidence": "reconstruction",
+      "representation": "Lubeck civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "hamburg",
+      "factionName": "Free Imperial City of Hamburg",
+      "width": 32,
+      "height": 20,
+      "file": "hamburg.png",
+      "evidence": "reconstruction",
+      "representation": "Hamburg civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "bremen",
+      "factionName": "Free Imperial City of Bremen",
+      "width": 32,
+      "height": 20,
+      "file": "bremen.png",
+      "evidence": "reconstruction",
+      "representation": "Bremen civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "speyer",
+      "factionName": "Free Imperial City of Speyer",
+      "width": 32,
+      "height": 20,
+      "file": "speyer.png",
+      "evidence": "reconstruction",
+      "representation": "Speyer civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "regensburg",
+      "factionName": "Free Imperial City of Regensburg",
+      "width": 32,
+      "height": 20,
+      "file": "regensburg.png",
+      "evidence": "reconstruction",
+      "representation": "Regensburg civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
+      "id": "worms",
+      "factionName": "Free Imperial City of Worms",
+      "width": 32,
+      "height": 20,
+      "file": "worms.png",
+      "evidence": "reconstruction",
+      "representation": "Worms civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
         }
       ]
     },
@@ -629,7 +981,7 @@
     },
     {
       "id": "japan",
-      "factionName": "Ashikaga Japan",
+      "factionName": "Ashikaga Shogunate",
       "width": 32,
       "height": 20,
       "file": "japan.png",

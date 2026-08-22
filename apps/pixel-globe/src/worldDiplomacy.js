@@ -29,8 +29,9 @@ import {
   validateSuzeraintyMemory
 } from "./suzerainty.js";
 import { factionDiplomaticAggressionMultiplier } from "./factionExpansion.js";
+import { imperialDefensePartners } from "./imperialConstitution.js";
 
-export const WORLD_DIPLOMACY_VERSION = 7;
+export const WORLD_DIPLOMACY_VERSION = 8;
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
 export const DIPLOMACY_MAX_EVENT_DAYS = 150;
 export const DIPLOMACY_PAIR_COOLDOWN_DAYS = 120;
@@ -66,7 +67,29 @@ const DIPLOMACY_INTRODUCED_FACTION_IDS = Object.freeze([
   "nagao",
   "ando",
   "kakizaki",
-  "mughal"
+  "mughal",
+  "bohemia",
+  "mainz",
+  "cologne-electorate",
+  "trier",
+  "palatinate",
+  "electoral-saxony",
+  "brandenburg",
+  "ducal-saxony",
+  "liege",
+  "magdeburg",
+  "utrecht",
+  "cleves-mark",
+  "calenberg",
+  "augsburg",
+  "cologne",
+  "nuremberg",
+  "lubeck",
+  "hamburg",
+  "bremen",
+  "speyer",
+  "regensburg",
+  "worms"
 ]);
 
 export function createWorldDiplomacy({ startMinute = 0, seedKey = "world" } = {}) {
@@ -137,7 +160,7 @@ export function migrateWorldDiplomacy(state, {
   if (state.version === WORLD_DIPLOMACY_VERSION && !hasContextualMigration) {
     return validateWorldDiplomacy(state);
   }
-  if (![1, 2, 3, 4, 5, 6, WORLD_DIPLOMACY_VERSION].includes(state.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, WORLD_DIPLOMACY_VERSION].includes(state.version)) {
     throw new Error(`Unsupported world diplomacy version: ${state.version ?? "missing"}`);
   }
   const migratedOverrides = removeRetiredFactionPairs(state.overrides);
@@ -344,7 +367,20 @@ export function declareDiplomaticWar(state, attackerId, defenderId, simMinute, i
     ...offensivePartnersOf(state.suzerainties, attackerId)
       .map((allyId) => ({ allyId, enemyId: defenderId, chance: 1, reason: "war-obligation" })),
     ...alliesOf(state, defenderId).map((allyId) => ({ allyId, enemyId: attackerId, chance: 0.72 })),
-    ...alliesOf(state, attackerId).map((allyId) => ({ allyId, enemyId: defenderId, chance: 0.58 }))
+    ...alliesOf(state, attackerId).map((allyId) => ({ allyId, enemyId: defenderId, chance: 0.58 })),
+    ...(influence.imperialConstitution
+      ? imperialDefensePartners(
+          influence.imperialConstitution,
+          defenderId,
+          attackerId,
+          simMinute
+        ).map((allyId) => ({
+          allyId,
+          enemyId: attackerId,
+          chance: 1,
+          reason: "imperial-defence"
+        }))
+      : [])
   ];
   const calledPairs = new Set();
   for (let index = 0; index < calls.length; index++) {

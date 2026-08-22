@@ -58,6 +58,7 @@ const SUZERAINTY_TERMS = Object.freeze({
 
 export const INITIAL_SUZERAINTIES_1522 = Object.freeze([
   initialSuzerainty("spain", "habsburg", SUZERAINTY_KIND_PERSONAL_UNION),
+  initialSuzerainty("bohemia", "hungary", SUZERAINTY_KIND_PERSONAL_UNION),
   initialSuzerainty("hormuz", "portugal", SUZERAINTY_KIND_VASSAL),
   initialSuzerainty("crimea", "ottoman", SUZERAINTY_KIND_AUTONOMOUS_VASSAL, {
     tribute: false,

@@ -1186,6 +1186,28 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "Belgrade fell. Your quartermaster fled. My claim remained.",
     "We mortgaged the estate to provision the fortress. The receipts vanished with the man who signed them."
   ),
+  bohemia: imperialDebtOrigin("Bohemia"),
+  mainz: imperialDebtOrigin("Mainz"),
+  "cologne-electorate": imperialDebtOrigin("the Cologne Electorate"),
+  trier: imperialDebtOrigin("Trier"),
+  palatinate: imperialDebtOrigin("the Palatinate"),
+  "electoral-saxony": imperialDebtOrigin("Electoral Saxony"),
+  brandenburg: imperialDebtOrigin("Brandenburg"),
+  "ducal-saxony": imperialDebtOrigin("Ducal Saxony"),
+  liege: imperialDebtOrigin("Liege"),
+  magdeburg: imperialDebtOrigin("Magdeburg"),
+  utrecht: imperialDebtOrigin("Utrecht"),
+  "cleves-mark": imperialDebtOrigin("Cleves-Mark"),
+  calenberg: imperialDebtOrigin("Calenberg"),
+  augsburg: imperialDebtOrigin("Augsburg"),
+  cologne: imperialDebtOrigin("Cologne"),
+  nuremberg: imperialDebtOrigin("Nuremberg"),
+  lubeck: imperialDebtOrigin("Lubeck"),
+  hamburg: imperialDebtOrigin("Hamburg"),
+  bremen: imperialDebtOrigin("Bremen"),
+  speyer: imperialDebtOrigin("Speyer"),
+  regensburg: imperialDebtOrigin("Regensburg"),
+  worms: imperialDebtOrigin("Worms"),
   ottoman: debtOrigin(
     "Your family chose a prince poorly. I chose collateral better.",
     "We backed him before the old Sultan yielded the throne. The victor spared our lives, but not our property."
@@ -1357,6 +1379,28 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   hormuz: "Portuguese cannon commands our strait, but Hormuzi merchants still know every Gulf harbor worth naming. I want their knowledge carried beyond another empire's fortress.",
   habsburg: "The Emperor's realms now face oceans no single court understands. A private atlas may tell the truth ceremony conceals.",
   hungary: "Belgrade's fall has narrowed every gaze to the frontier. That is precisely when someone must remember the world is larger.",
+  bohemia: imperialExplorerOutlook("Bohemia"),
+  mainz: imperialExplorerOutlook("Mainz"),
+  "cologne-electorate": imperialExplorerOutlook("the Cologne Electorate"),
+  trier: imperialExplorerOutlook("Trier"),
+  palatinate: imperialExplorerOutlook("the Palatinate"),
+  "electoral-saxony": imperialExplorerOutlook("Electoral Saxony"),
+  brandenburg: imperialExplorerOutlook("Brandenburg"),
+  "ducal-saxony": imperialExplorerOutlook("Ducal Saxony"),
+  liege: imperialExplorerOutlook("Liege"),
+  magdeburg: imperialExplorerOutlook("Magdeburg"),
+  utrecht: imperialExplorerOutlook("Utrecht"),
+  "cleves-mark": imperialExplorerOutlook("Cleves-Mark"),
+  calenberg: imperialExplorerOutlook("Calenberg"),
+  augsburg: imperialExplorerOutlook("Augsburg"),
+  cologne: imperialExplorerOutlook("Cologne"),
+  nuremberg: imperialExplorerOutlook("Nuremberg"),
+  lubeck: imperialExplorerOutlook("Lubeck"),
+  hamburg: imperialExplorerOutlook("Hamburg"),
+  bremen: imperialExplorerOutlook("Bremen"),
+  speyer: imperialExplorerOutlook("Speyer"),
+  regensburg: imperialExplorerOutlook("Regensburg"),
+  worms: imperialExplorerOutlook("Worms"),
   ottoman: "Piri Reis set western discoveries beside eastern charts. His map proves no court owns all useful knowledge.",
   venice: "The Portuguese ocean road drains spice from our galleys. I would learn the routes reshaping Venice before they finish doing so.",
   genoa: "A Genoese sailor crossed the western ocean beneath Castile's flag. The next great account should not leave our harbor under another name.",
@@ -1422,6 +1466,17 @@ function debtOrigin(creditor, player) {
     throw new Error("Family debt origin requires player dialogue");
   }
   return Object.freeze({ creditor, player });
+}
+
+function imperialDebtOrigin(polityName) {
+  return debtOrigin(
+    `The Diet may debate ${polityName}'s obligations. This sealed note is less patient.`,
+    `Our family furnished an Estate levy in ${polityName}. The matricular account was disputed, but the lender's claim was not.`
+  );
+}
+
+function imperialExplorerOutlook(polityName) {
+  return `${polityName} hears ocean news through merchants and Imperial envoys. I want a captain's measured chart, not another court rumor.`;
 }
 
 function assertExactKeys(label, actualKeys, expectedKeys) {

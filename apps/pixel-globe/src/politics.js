@@ -49,6 +49,8 @@ import {
 } from "./suzerainty.js";
 import { diplomacyEventNotice } from "./worldDiplomacy.js";
 import { sovereignAuthorityHeadlineNotice } from "./sovereignAuthority.js";
+import { imperialPoliticsView } from "./imperialConstitution.js";
+import { imperialEstateForFaction } from "./imperialEstates.js";
 import { foreignSettlementExpulsionNotice } from "./foreignSettlements.js";
 import {
   CONQUISTADOR_STAGE_COMPLETE,
@@ -99,6 +101,8 @@ export function createPoliticsView(
   );
   const pendingPapalMatter = papalPendingMatter(gameState.relations.papacy);
   const pendingCourtMatter = courtPendingMatter(gameState.relations.courts);
+  const imperial = imperialPoliticsView(gameState.relations.imperial, simMinute);
+  const emperorRuler = rulerAtMinute(imperial.emperorFactionId, simMinute);
   const newsHistory = recentPoliticsNews({
     recentEvents,
     recentPapalActions,
@@ -117,6 +121,13 @@ export function createPoliticsView(
     recentScriptedEvents,
     pendingPapalMatter,
     pendingCourtMatter,
+    imperial: Object.freeze({
+      ...imperial,
+      emperorRuler: emperorRuler === null ? null : Object.freeze({
+        ...emperorRuler,
+        imperialDisplayName: `Emperor ${emperorRuler.name}`
+      })
+    }),
     newsHistory,
     latestNews: newsHistory[0] || null,
     cards: orderPoliticsCards(cards, playerFactionId)
@@ -313,6 +324,7 @@ function standing(reputation, label) {
 
 function politicsCard(gameState, faction, powers, powerById, capitalByFactionId, simMinute) {
   const ruler = rulerAtMinute(faction.id, simMinute);
+  const imperialEstate = imperialEstateForFaction(faction.id);
   const dependencies = politicsDependencies(faction, powerById);
   const dependencyFactionIds = new Set(dependencies.map((dependency) => dependency.factionId));
   const relationships = [
@@ -330,6 +342,11 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
   })).filter((group) => group.factionIds.length > 0);
   return Object.freeze({
     faction,
+    imperialMembership: imperialEstate === null ? null : Object.freeze({
+      ...imperialEstate,
+      badge: imperialEstate.electorId === null ? "I" : "E",
+      isEmperor: gameState.relations.imperial.emperorFactionId === faction.id
+    }),
     capital: capitalByFactionId.get(faction.id) || null,
     authority: faction.id === PIRATE_FACTION_ID
       ? null
@@ -493,23 +510,41 @@ function playerTradeStanding(gameState, faction, simMinute) {
   });
 }
 
+const POLITICS_CODE_OVERRIDES = Object.freeze({
+  "poland-lithuania": "PL", "denmark-norway": "DN", "papal-states": "PA",
+  pirate: "PX", habsburg: "HB", ottoman: "OT", hormuz: "HZ", hospitallers: "KH",
+  hosokawa: "HS", songhai: "SG", shimazu: "SZ", shoni: "SN", wallachia: "WL",
+  moldavia: "MD", ragusa: "RG", hejaz: "HJ", mughal: "MG", muscovy: "MU"
+});
+
+const POLITICS_CODES_BY_FACTION_ID = buildPoliticsCodes();
+
 function factionCode(faction) {
-  if (faction.id === "poland-lithuania") return "PL";
-  if (faction.id === "denmark-norway") return "DN";
-  if (faction.id === "papal-states") return "PA";
-  if (faction.id === "pirate") return "PX";
-  if (faction.id === "habsburg") return "HB";
-  if (faction.id === "ottoman") return "OT";
-  if (faction.id === "hormuz") return "HZ";
-  if (faction.id === "hospitallers") return "KH";
-  if (faction.id === "hosokawa") return "HS";
-  if (faction.id === "songhai") return "SG";
-  if (faction.id === "shimazu") return "SZ";
-  if (faction.id === "shoni") return "SN";
-  if (faction.id === "wallachia") return "WL";
-  if (faction.id === "moldavia") return "MD";
-  if (faction.id === "ragusa") return "RG";
-  if (faction.id === "hejaz") return "HJ";
-  if (faction.id === "mughal") return "MG";
-  return faction.id.slice(0, 2).toUpperCase();
+  const code = POLITICS_CODES_BY_FACTION_ID.get(faction.id);
+  if (!code) throw new Error(`Politics has no compact code for ${faction.id}`);
+  return code;
+}
+
+function buildPoliticsCodes() {
+  const codes = new Map();
+  const used = new Set();
+  for (const [factionId, code] of Object.entries(POLITICS_CODE_OVERRIDES)) {
+    if (used.has(code)) throw new Error(`Duplicate politics code override: ${code}`);
+    codes.set(factionId, code);
+    used.add(code);
+  }
+  for (const faction of FACTIONS) {
+    if (codes.has(faction.id)) continue;
+    const compact = faction.id.toUpperCase().replace(/[^A-Z]/g, "");
+    const candidates = [
+      compact.slice(0, 2),
+      ...[...compact.slice(1)].map((letter) => `${compact[0]}${letter}`),
+      ...[..."ABCDEFGHIJKLMNOPQRSTUVWXYZ"].map((letter) => `${compact[0]}${letter}`)
+    ];
+    const code = candidates.find((candidate) => candidate.length === 2 && !used.has(candidate));
+    if (!code) throw new Error(`No two-letter politics code remains for ${faction.id}`);
+    codes.set(faction.id, code);
+    used.add(code);
+  }
+  return codes;
 }

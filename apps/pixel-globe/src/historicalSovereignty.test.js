@@ -3,6 +3,8 @@ import test from "node:test";
 
 import { FACTIONS } from "./factions.js";
 import {
+  BOHEMIAN_SUCCESSION_MINUTE,
+  BOHEMIAN_SUCCESSION_FLAG,
   FIRST_BATTLE_OF_PANIPAT_MINUTE,
   MUGHAL_SUCCESSION_FLAG,
   advanceHistoricalSovereignty,
@@ -21,6 +23,12 @@ import {
   diplomaticContactBetween,
   rawWorldDiplomacyBetween
 } from "./worldDiplomacy.js";
+import {
+  SUZERAINTY_KIND_PERSONAL_UNION,
+  establishSuzerainty,
+  releaseVassal,
+  suzeraintyForVassal
+} from "./suzerainty.js";
 
 test("Panipat replaces the surviving Lodi state with the Mughal Empire", () => {
   const state = historicalState("delhi");
@@ -46,7 +54,7 @@ test("Panipat replaces the surviving Lodi state with the Mughal Empire", () => {
   assert.equal(transition.playerFactionChanged, true);
   assert.equal(state.playerCharacter.nationalityId, "mughal");
   assert.equal(state.memory.flags[MUGHAL_SUCCESSION_FLAG], "completed");
-  assert.equal(nextHistoricalSovereigntyMinute(state), Infinity);
+  assert.equal(nextHistoricalSovereigntyMinute(state), BOHEMIAN_SUCCESSION_MINUTE);
   assert.ok(state.memory.conquest.collapsedFactionIds.includes("delhi"));
   assert.ok(!state.memory.conquest.collapsedFactionIds.includes("mughal"));
   assert.equal(state.memory.conquest.factionSuccessors.delhi, "mughal");
@@ -78,6 +86,45 @@ test("Panipat does not overwrite a divergent campaign where Agra already fell", 
   assert.equal(state.memory.flags[MUGHAL_SUCCESSION_FLAG], "averted");
   assert.ok(state.memory.conquest.collapsedFactionIds.includes("mughal"));
   assert.ok(!state.memory.conquest.collapsedFactionIds.includes("delhi"));
+});
+
+test("Louis II's death transfers Bohemia's dynastic union without annexing its sovereignty", () => {
+  const state = historicalState("bohemia");
+  state.memory.flags[MUGHAL_SUCCESSION_FLAG] = "averted";
+  const ports = historicalPorts();
+  const [transition] = advanceHistoricalSovereignty(
+    state,
+    BOHEMIAN_SUCCESSION_MINUTE,
+    { portCities: ports }
+  );
+  assert.equal(transition.id, "bohemian-succession");
+  assert.equal(state.memory.flags[BOHEMIAN_SUCCESSION_FLAG], "completed");
+  const union = suzeraintyForVassal(state.relations.diplomacy.suzerainties, "bohemia");
+  assert.equal(union.suzerainFactionId, "habsburg");
+  assert.equal(union.kind, SUZERAINTY_KIND_PERSONAL_UNION);
+  assert.equal(state.playerCharacter.nationalityId, "bohemia");
+  assert.ok(!state.memory.conquest.collapsedFactionIds.includes("bohemia"));
+});
+
+test("the 1526 succession preserves a player-created divergent Bohemian union", () => {
+  const state = historicalState("bohemia");
+  state.memory.flags[MUGHAL_SUCCESSION_FLAG] = "averted";
+  const suzerainties = state.relations.diplomacy.suzerainties;
+  releaseVassal(suzerainties, { vassalFactionId: "bohemia", simMinute: 10, source: "player" });
+  establishSuzerainty(suzerainties, {
+    vassalFactionId: "bohemia",
+    suzerainFactionId: "france",
+    kind: SUZERAINTY_KIND_PERSONAL_UNION,
+    simMinute: 11,
+    source: "player"
+  });
+  assert.deepEqual(advanceHistoricalSovereignty(
+    state,
+    BOHEMIAN_SUCCESSION_MINUTE,
+    { portCities: historicalPorts() }
+  ), []);
+  assert.equal(state.memory.flags[BOHEMIAN_SUCCESSION_FLAG], "averted");
+  assert.equal(suzeraintyForVassal(suzerainties, "bohemia").suzerainFactionId, "france");
 });
 
 function historicalState(playerFactionId) {

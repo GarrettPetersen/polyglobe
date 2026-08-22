@@ -59,9 +59,28 @@ const RESEARCH = Object.freeze([
   research("hormuz", "reconstruction", "Hormuzi royal maritime standard", "No secure rectangular state flag survives from 1522. This red-and-gold maritime standard is a restrained reconstruction using the island kingdom's Islamic court and Persian Gulf setting rather than Portuguese arms.", [
     source("Kingdom of Hormuz", "https://www.iranicaonline.org/articles/hormuz-ii")
   ]),
-  research("habsburg", "period-banner", "Imperial banner of Charles V", "The black double-headed imperial eagle on gold, with a small Habsburg breast shield.", [
-    source("The Eagle of the Holy Roman Empire", "https://www.flagheritagefoundation.org/web/wp-content/uploads/2018/08/DoubleEagle-Final-PDF-150dpi.pdf")
+  research("habsburg", "period-heraldry", "Habsburg red-white-red arms", "The dynastic red-white-red arms identify the Habsburg hereditary monarchy without reusing the Emperor's double-headed eagle or implying that the Empire is Habsburg sovereign territory.", [
+    source("The Habsburg coat of arms", "https://www.habsburger.net/en/chapter/coat-arms-symbol-habsburg-monarchy")
   ]),
+  ...[
+    ["bohemia", "Bohemian lion"], ["mainz", "Wheel of Mainz"],
+    ["cologne-electorate", "Electoral Cologne cross"], ["trier", "Trier cross"],
+    ["palatinate", "Palatine lion"], ["electoral-saxony", "Electoral Saxon arms"],
+    ["brandenburg", "Brandenburg eagle"], ["ducal-saxony", "Albertine Saxon arms"],
+    ["liege", "Liege civic and episcopal arms"], ["magdeburg", "Magdeburg arms"],
+    ["utrecht", "Utrecht episcopal arms"], ["cleves-mark", "Julich-Cleves-Berg arms"],
+    ["calenberg", "Calenberg-Welf arms"], ["augsburg", "Augsburg civic arms"],
+    ["cologne", "Cologne civic arms"], ["nuremberg", "Nuremberg civic arms"],
+    ["lubeck", "Lubeck civic arms"], ["hamburg", "Hamburg civic arms"],
+    ["bremen", "Bremen civic arms"], ["speyer", "Speyer civic arms"],
+    ["regensburg", "Regensburg civic arms"], ["worms", "Worms civic arms"]
+  ].map(([id, representation]) => research(
+    id,
+    "reconstruction",
+    representation,
+    "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+    [source("Cities of the Holy Roman Empire c. 1500", "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500")]
+  )),
   research("hungary", "period-heraldry", "Arpad stripes", "The red and silver Arpad stripes were long-established Hungarian royal arms and are less speculative than a modern national flag.", [
     source("Historical flags of Europe", "https://commons.wikimedia.org/wiki/Historical_flags_of_Europe")
   ]),
@@ -375,12 +394,32 @@ const DRAWERS = Object.freeze({
     return s;
   },
   habsburg: () => {
-    const s = base(C.gold);
-    doubleEagle(s, C.black);
-    s.rect(14, 8, 4, 5, C.red);
-    s.rect(14, 10, 4, 1, C.white);
+    const s = base(C.red);
+    s.rect(0, 7, FLAG_W, 6, C.white);
     return s;
   },
+  bohemia: () => imperialEstateBanner("bohemia"),
+  mainz: () => imperialEstateBanner("mainz"),
+  "cologne-electorate": () => imperialEstateBanner("cologne-electorate"),
+  trier: () => imperialEstateBanner("trier"),
+  palatinate: () => imperialEstateBanner("palatinate"),
+  "electoral-saxony": () => imperialEstateBanner("electoral-saxony"),
+  brandenburg: () => imperialEstateBanner("brandenburg"),
+  "ducal-saxony": () => imperialEstateBanner("ducal-saxony"),
+  liege: () => imperialEstateBanner("liege"),
+  magdeburg: () => imperialEstateBanner("magdeburg"),
+  utrecht: () => imperialEstateBanner("utrecht"),
+  "cleves-mark": () => imperialEstateBanner("cleves-mark"),
+  calenberg: () => imperialEstateBanner("calenberg"),
+  augsburg: () => imperialEstateBanner("augsburg"),
+  cologne: () => imperialEstateBanner("cologne"),
+  nuremberg: () => imperialEstateBanner("nuremberg"),
+  lubeck: () => imperialEstateBanner("lubeck"),
+  hamburg: () => imperialEstateBanner("hamburg"),
+  bremen: () => imperialEstateBanner("bremen"),
+  speyer: () => imperialEstateBanner("speyer"),
+  regensburg: () => imperialEstateBanner("regensburg"),
+  worms: () => imperialEstateBanner("worms"),
   hungary: () => {
     const s = base(C.cream);
     for (let y = 0; y < FLAG_H; y += 5) s.rect(0, y, FLAG_W, 3, C.red);
@@ -682,6 +721,91 @@ const DRAWERS = Object.freeze({
     return s;
   }
 });
+
+const IMPERIAL_FLAG_SPECS = Object.freeze({
+  bohemia: [C.red, C.cream, "lion"],
+  mainz: [C.red, C.cream, "wheel"],
+  "cologne-electorate": [C.white, C.black, "cross"],
+  trier: [C.white, C.red, "cross"],
+  palatinate: [C.black, C.gold, "lion"],
+  "electoral-saxony": [C.gold, C.black, "bend"],
+  brandenburg: [C.white, C.red, "eagle"],
+  "ducal-saxony": [C.black, C.gold, "stripes"],
+  liege: [C.red, C.gold, "column"],
+  magdeburg: [C.white, C.red, "quartered"],
+  utrecht: [C.red, C.white, "cross"],
+  "cleves-mark": [C.red, C.cream, "shield"],
+  calenberg: [C.red, C.gold, "lion"],
+  augsburg: [C.white, C.green, "pinecone"],
+  cologne: [C.white, C.red, "crowns"],
+  nuremberg: [C.red, C.gold, "eagle"],
+  lubeck: [C.white, C.red, "halves"],
+  hamburg: [C.red, C.white, "castle"],
+  bremen: [C.red, C.white, "key"],
+  speyer: [C.blue, C.cream, "cross"],
+  regensburg: [C.red, C.white, "keys"],
+  worms: [C.red, C.cream, "key"]
+});
+
+function imperialEstateBanner(id) {
+  const spec = IMPERIAL_FLAG_SPECS[id];
+  if (!spec) throw new Error(`Missing Imperial flag specification: ${id}`);
+  const [field, charge, device] = spec;
+  const s = base(field);
+  if (device === "cross") {
+    s.rect(13, 0, 6, FLAG_H, charge);
+    s.rect(0, 7, FLAG_W, 6, charge);
+  } else if (device === "lion") {
+    lion(s, 16, 11, charge, 1);
+  } else if (device === "eagle") {
+    eagle(s, 16, 10, charge);
+  } else if (device === "wheel") {
+    s.circle(16, 10, 7, charge);
+    s.circle(16, 10, 4, field);
+    for (const [x, y] of [[16, 3], [16, 17], [9, 10], [23, 10], [11, 5], [21, 5], [11, 15], [21, 15]]) {
+      s.line(16, 10, x, y, charge);
+    }
+  } else if (device === "bend") {
+    for (let y = 0; y < FLAG_H; y += 5) s.rect(0, y, FLAG_W, 2, charge);
+    s.line(5, FLAG_H - 1, 25, 0, C.green, 3);
+  } else if (device === "stripes") {
+    for (let y = 0; y < FLAG_H; y += 5) s.rect(0, y, FLAG_W, 2, charge);
+    s.line(5, FLAG_H - 1, 25, 0, C.green, 3);
+  } else if (device === "column") {
+    s.rect(14, 3, 4, 14, charge);
+    s.rect(10, 2, 12, 3, charge);
+    s.rect(9, 16, 14, 2, charge);
+  } else if (device === "quartered") {
+    s.rect(16, 0, 16, 10, charge);
+    s.rect(0, 10, 16, 10, charge);
+  } else if (device === "shield") {
+    shield(s, 16, 10, charge, field);
+    s.line(12, 13, 20, 6, charge, 2);
+  } else if (device === "pinecone") {
+    s.polygon([[16, 3], [22, 9], [19, 16], [13, 16], [10, 9]], charge);
+    for (const [x, y] of [[14, 7], [18, 7], [12, 10], [16, 10], [20, 10], [14, 13], [18, 13]]) {
+      s.pixel(x, y, field);
+    }
+  } else if (device === "crowns") {
+    smallCrown(s, 9, 6, charge);
+    smallCrown(s, 23, 6, charge);
+    smallCrown(s, 16, 15, charge);
+  } else if (device === "halves") {
+    s.rect(0, 10, FLAG_W, 10, charge);
+  } else if (device === "castle") {
+    s.rect(8, 8, 16, 9, charge);
+    for (const x of [8, 14, 20]) s.rect(x, 4, 4, 6, charge);
+    s.rect(14, 12, 4, 5, field);
+  } else if (device === "key") {
+    key(s, 8, 15, 24, 4, charge);
+  } else if (device === "keys") {
+    key(s, 8, 15, 24, 4, charge);
+    key(s, 24, 15, 8, 4, charge);
+  } else {
+    throw new Error(`Unknown Imperial flag device: ${device}`);
+  }
+  return s;
+}
 
 function clanMon(field, draw) {
   const s = base(field);
