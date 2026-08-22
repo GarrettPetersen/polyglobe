@@ -3197,7 +3197,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
         `I come under ${quest.originRulerName || "my ruler"}'s seal to present our terms before this court.`,
       feedback: session.feedback,
       options: [
-        option("Begin negotiations", { type: "negotiate-envoy" }),
+        option("Present the envoy to court", { type: "negotiate-envoy" }),
         option("Not yet", { type: "close" })
       ]
     };
@@ -7322,7 +7322,8 @@ function captureCapitalQuestView(session, questState, returnNodeId) {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "stern",
       text: `The war against ${quest.targetFactionNoun} is nearly won. ${politicalContext} Take ` +
-        `${quest.targetName} in ${quest.originRulerName}'s name and force peace. Keep the spoils; ` +
+        `${quest.targetName} in ${quest.originRulerName}'s name and hold its court for the commissioners ` +
+        `who will press the terms. Keep the spoils; ` +
         `return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
       feedback: session.feedback,
       options: [
@@ -7343,8 +7344,8 @@ function captureCapitalQuestView(session, questState, returnNodeId) {
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "pleased",
-      text: `${quest.targetName} has fallen. Its court has accepted concessions and made peace with ` +
-        `every power still fighting it. You brought the war to its end; the treasury will now honor ` +
+      text: `${quest.targetName} has fallen. The commissioners brought its court to terms, and the ` +
+        `princes and envoys sealed peace. The treasury will honor ` +
         `${quest.originRulerName}'s extraordinary commission.`,
       feedback: session.feedback,
       options: [
@@ -7360,7 +7361,7 @@ function captureCapitalQuestView(session, questState, returnNodeId) {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "stern",
       text: `This is the final stroke. Break ${quest.targetName}'s batteries, land your marines, and ` +
-        `take the enemy court. Its remaining wars can end only when the capital submits.`,
+        `hold the enemy court for our commissioners. They—not your company—will present the terms.`,
       feedback: session.feedback,
       options: [back]
     };
@@ -7371,8 +7372,8 @@ function captureCapitalQuestView(session, questState, returnNodeId) {
     text: quest.stage === "return"
       ? quest.captureCommissionResolution
         ? `The final commission for ${quest.targetName} has been recalled. Return to ${quest.originName} to close the account.`
-        : `${quest.targetName} has submitted and peace is signed. Carry the final dispatches to ${quest.originName}.`
-      : `The enemy is nearly spent. Your final commission is to take ${quest.targetName} and end the war.`,
+        : `${quest.targetName} has submitted to the commissioners and the rulers have sealed peace. Carry the final dispatches to ${quest.originName}.`
+      : `The enemy is nearly spent. Your final commission is to take ${quest.targetName} and hold its court until the commissioners arrive.`,
     feedback: session.feedback,
     options: [back]
   };

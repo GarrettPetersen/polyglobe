@@ -86,6 +86,7 @@ import { generateShipyardListing } from "./shipyards.js";
 import { beginShipyardInvestment } from "./shipyardInvestment.js";
 import { QUEST_ITINERARY_ORDERED, createQuestItinerary } from "./questItinerary.js";
 import { gameMinuteForDate } from "./rulers.js";
+import { IMPERIAL_CITY_REFERENCES } from "./imperialEstates.js";
 import { MING_TRADE_POLICY_ID } from "./sovereignTradeAccess.js";
 import {
   PORTUGUESE_CROWN_SPICE_POLICY_ID,
@@ -5811,7 +5812,13 @@ test("a Catholic captain chooses whether the September Testament changes their f
 test("three Testament deliveries convert factors before any captain may convert", () => {
   const simMinute = gameMinuteForDate(1535, 1, 1);
   const cities = [
-    { tileId: 302, city: "Bremen", country: "Germany", factionId: "denmark-norway" },
+    {
+      tileId: 302,
+      cityId: IMPERIAL_CITY_REFERENCES.BREMEN.id,
+      city: "Bremen",
+      country: "Germany",
+      factionId: "bremen"
+    },
     { tileId: 303, city: "Amsterdam", country: "Netherlands", factionId: "habsburg" },
     { tileId: 304, city: "London", country: "United Kingdom", factionId: "england" }
   ].map((city) => ({ ...city, displayCity: city.city }));
@@ -5865,6 +5872,14 @@ test("three Testament deliveries convert factors before any captain may convert"
       simMinute: simMinute + index
     });
     assert.equal(delivery.religiousLegDelivery.legNumber, index + 1);
+    if (index === 0) {
+      assert.equal(delivery.religiousLegDelivery.imperialReligiousCirculation.religionId, "mixed");
+      assert.equal(
+        state.relations.imperial.cityReligions[IMPERIAL_CITY_REFERENCES.BREMEN.id],
+        "mixed"
+      );
+      assert.equal(state.relations.imperial.religiousBlocByFactionId.bremen, "mixed");
+    }
     assert.equal(papalAuthorityForState(state), papalBefore - (index + 1) * 0.8);
     assert.equal(
       reconcileCharacterForPapalAuthority(
@@ -5950,7 +5965,7 @@ test("Catholic Bible inspections can pass cleanly, show sympathy, or seize the b
   );
 });
 
-test("envoy dialogue advances from negotiations to a paid return voyage", () => {
+test("envoy dialogue lets courts negotiate while the captain carries the answer", () => {
   const origin = { tileId: 1, city: "Lisbon", country: "Portugal", factionId: "portugal" };
   const target = {
     tileId: 2,
@@ -6009,7 +6024,10 @@ test("envoy dialogue advances from negotiations to a paid return voyage", () => 
   const active = gameState.memory.quests.active;
   const negotiationSession = createPassengerDialogueSession(target, active);
   const negotiation = passengerDialogueView(negotiationSession, target, active, gameState);
-  assert.equal(negotiation.options[0].label, "Begin negotiations");
+  assert.deepEqual(negotiation.options.map(({ label }) => label), [
+    "Present the envoy to court",
+    "Not yet"
+  ]);
   assert.equal(negotiation.text, "I bring our court's proposal for the English council.");
   const result = selectPassengerDialogueOption(
     negotiationSession,
@@ -6524,7 +6542,8 @@ test("a final capital commission explains the war's grievance and general peace"
 
   assert.equal(offer.kind, "capture-capital");
   assert.match(view.text, /old claims across the Channel/i);
-  assert.match(view.text, /force peace/i);
+  assert.match(view.text, /hold its court for the commissioners.*press the terms/i);
+  assert.doesNotMatch(view.text, /captain.*terms|you.*negotiate|force peace/i);
   assert.match(view.text, new RegExp(`${offer.reward.toLocaleString("en-US")} doubloons`));
   assert.ok(view.options.some((entry) => (
     entry.action.type === "accept-quest" && /final commission/i.test(entry.label)

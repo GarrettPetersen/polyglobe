@@ -1470,13 +1470,13 @@ function debtOrigin(creditor, player) {
 
 function imperialDebtOrigin(polityName) {
   return debtOrigin(
-    `The Diet may debate ${polityName}'s obligations. This sealed note is less patient.`,
-    `Our family furnished an Estate levy in ${polityName}. The matricular account was disputed, but the lender's claim was not.`
+    `Assessors may quarrel over ${polityName}'s levy until Candlemas. Your bond fell due at Michaelmas.`,
+    `My house furnished wagons and pay for ${polityName}'s levy. Their reckoning stalled; the lender's tally did not.`
   );
 }
 
 function imperialExplorerOutlook(polityName) {
-  return `${polityName} hears ocean news through merchants and Imperial envoys. I want a captain's measured chart, not another court rumor.`;
+  return `${polityName}'s merchants bring me one coast in ink and three in boasts. Bring me soundings, bearings, and shores set down by your own hand.`;
 }
 
 function assertExactKeys(label, actualKeys, expectedKeys) {

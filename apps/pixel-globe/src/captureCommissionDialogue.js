@@ -2,8 +2,14 @@ import {
   FACTIONS,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
-  assertFactionId
+  assertFactionId,
+  factionById
 } from "./factions.js";
+import {
+  IMPERIAL_ESTATE_TYPE_ECCLESIASTICAL,
+  IMPERIAL_ESTATE_TYPE_FREE_CITY,
+  imperialEstateForFaction
+} from "./imperialEstates.js";
 
 const CAPITAL_TARGET_STAKES = Object.freeze({
   england: "The English court still commands the Channel fleet and the realm's purse.",
@@ -63,9 +69,16 @@ const CAPITAL_TARGET_STAKES = Object.freeze({
 });
 
 function imperialCapitalTargetStakes(factionId) {
-  const faction = FACTIONS.find((entry) => entry.id === factionId);
-  if (!faction) throw new Error(`Unknown Imperial capital target: ${factionId}`);
-  return `${faction.shortName}'s own ruler and Estates still command its treasury, levies, diplomacy, and Imperial vote.`;
+  const faction = factionById(factionId);
+  const estate = imperialEstateForFaction(factionId);
+  if (!estate) throw new Error(`Unknown Imperial capital target: ${factionId}`);
+  if (estate.estateType === IMPERIAL_ESTATE_TYPE_FREE_CITY) {
+    return `${faction.shortName}'s council still keeps the city keys, pays its own garrison, and speaks for itself before Emperor and Diet.`;
+  }
+  if (estate.estateType === IMPERIAL_ESTATE_TYPE_ECCLESIASTICAL) {
+    return `${faction.shortName}'s prince and cathedral chapter still keep their own seals, levy, and voice before Emperor and Diet.`;
+  }
+  return `${faction.shortName}'s ruler still calls the Estate's levy, keeps its seal, and answers for its quarrels before Emperor and Diet.`;
 }
 
 const PAIR_GRIEVANCES = Object.freeze({

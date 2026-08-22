@@ -342,13 +342,15 @@ export function recordImperialReformationOutcome(memory, {
   memory.authority = clamp(memory.authority + authorityDelta, IMPERIAL_AUTHORITY_MIN, IMPERIAL_AUTHORITY_MAX);
   if (memory.electors[estate.factionId]) {
     const elector = memory.electors[estate.factionId];
+    const habsburgSupportDelta = religionId === "lutheran" ? -18 : religionId === "mixed" ? -6 : 6;
+    const reformSupportDelta = religionId === "lutheran" ? 18 : religionId === "mixed" ? 6 : -4;
     elector.supportByCandidateId.habsburg = clamp(
-      electorSupport(elector, "habsburg") + (religionId === "lutheran" ? -18 : 6),
+      electorSupport(elector, "habsburg") + habsburgSupportDelta,
       0,
       100
     );
     elector.supportByCandidateId["electoral-saxony"] = clamp(
-      electorSupport(elector, "electoral-saxony") + (religionId === "lutheran" ? 18 : -4),
+      electorSupport(elector, "electoral-saxony") + reformSupportDelta,
       0,
       100
     );
@@ -366,6 +368,23 @@ export function recordImperialReformationOutcome(memory, {
   });
   recordHistory(memory, event);
   return event;
+}
+
+export function recordImperialReligiousCirculation(memory, {
+  cityId,
+  simMinute,
+  source = "religious-circulation"
+}) {
+  validateImperialConstitution(memory);
+  const estate = imperialEstateForCityId(cityId);
+  if (!estate) throw new Error(`Religious circulation requires an Imperial city: ${cityId}`);
+  if (memory.cityReligions[cityId] !== "roman-catholic") return null;
+  return recordImperialReformationOutcome(memory, {
+    cityId,
+    religionId: "mixed",
+    simMinute,
+    source
+  });
 }
 
 export function activeImperialResolutions(memory, simMinute = memory?.lastUpdateMinute ?? 0) {

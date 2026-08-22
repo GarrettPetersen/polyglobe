@@ -441,6 +441,7 @@ test("family debt origins use faction-specific recent history", () => {
     ["scotland", /Flodden/i, /crossed the Tweed/i],
     ["spain", /Villalar/i, /account book/i],
     ["habsburg", /Imperial crowns/i, /electors were paid/i],
+    ["augsburg", /Candlemas.*Michaelmas/i, /wagons.*lender's tally/i],
     ["papal-states", /treasury forgot its wagons/i, /Urbino/i],
     ["ming", /rebels' roll/i, /Prince of Ning/i],
     ["safavid", /Chaldiran/i, /Tabriz/i],
@@ -497,12 +498,14 @@ test("explorer patrons frame discovery through faction-specific recent history",
     ["spain", /Columbus.*Balboa/i],
     ["ottoman", /Piri Reis/i],
     ["ethiopia", /Envoys from Portugal/i],
-    ["ayutthaya", /Portuguese.*Malacca/i]
+    ["ayutthaya", /Portuguese.*Malacca/i],
+    ["mainz", /coast in ink.*soundings.*bearings/i]
   ];
   for (const [nationalityId, expected] of cases) {
     const outlook = explorerPatronOutlook({ ...CHARACTER, nationalityId });
     assert.match(outlook, expected);
     assert.ok(outlook.length < 170, `${nationalityId} explorer patron outlook is too long`);
+    assert.doesNotMatch(outlook, /modern|nation-state|will become|in later years/i);
   }
   assert.throws(
     () => explorerPatronOutlook({ ...CHARACTER, nationalityId: "neutral" }),

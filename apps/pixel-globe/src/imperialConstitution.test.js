@@ -9,6 +9,7 @@ import {
   imperialDefensePartners,
   imperialPoliticsView,
   imperialTargetIsAuthorized,
+  recordImperialReligiousCirculation,
   recordImperialReformationOutcome
 } from "./imperialConstitution.js";
 import {
@@ -18,7 +19,10 @@ import {
   imperialEstateForFaction,
   isImperialMemberFaction
 } from "./imperialEstates.js";
-import { IMPERIAL_MISSION_KINDS } from "./imperialMissions.js";
+import {
+  IMPERIAL_CAPTAIN_AUTHORITY_LIMITS,
+  IMPERIAL_MISSION_KINDS
+} from "./imperialMissions.js";
 import {
   createWorldDiplomacy,
   declareDiplomaticWar
@@ -121,6 +125,26 @@ test("Reformation outcomes change city faith, elector support, blocs, and Imperi
   assert.equal(imperialPoliticsView(imperial).religiousBalance.lutheran, 1);
 });
 
+test("a captain carrying reform texts creates local dispute but cannot convert an Imperial city", () => {
+  const imperial = createImperialConstitution();
+  const supportBefore = imperial.electors.mainz.supportByCandidateId.habsburg;
+  const event = recordImperialReligiousCirculation(imperial, {
+    cityId: IMPERIAL_CITY_REFERENCES.MAINZ.id,
+    simMinute: 40,
+    source: "september-testament-circuit"
+  });
+
+  assert.equal(event.religionId, "mixed");
+  assert.equal(imperial.cityReligions[IMPERIAL_CITY_REFERENCES.MAINZ.id], "mixed");
+  assert.equal(imperial.religiousBlocByFactionId.mainz, "mixed");
+  assert.equal(imperial.authority, 45);
+  assert.equal(imperial.electors.mainz.supportByCandidateId.habsburg, supportBefore - 6);
+  assert.equal(recordImperialReligiousCirculation(imperial, {
+    cityId: IMPERIAL_CITY_REFERENCES.MAINZ.id,
+    simMinute: 41
+  }), null);
+});
+
 test("Imperial captain missions cover Diets, decrees, elections, contributions, disputes, defence, and bans", () => {
   assert.deepEqual(
     IMPERIAL_MISSION_KINDS.map((item) => item.kind),
@@ -129,5 +153,22 @@ test("Imperial captain missions cover Diets, decrees, elections, contributions, 
       "troop-delivery", "tax-delivery", "imperial-defence", "religious-dispute",
       "ban-enforcement"
     ]
+  );
+  for (const mission of IMPERIAL_MISSION_KINDS) {
+    assert.equal(mission.captainAuthority, IMPERIAL_CAPTAIN_AUTHORITY_LIMITS);
+    assert.deepEqual(mission.captainAuthority, {
+      mayDeterminePolicy: false,
+      mayCastEstateVote: false,
+      mayIssueImperialAct: false,
+      mayNegotiateForPrincipal: false
+    });
+    assert.doesNotMatch(mission.decisionAuthority, /captain|player/i);
+    assert.doesNotMatch(mission.title, /in later years|will become|modern|nation-state/i);
+  }
+  assert.deepEqual(
+    IMPERIAL_MISSION_KINDS
+      .filter((mission) => mission.carriesEmissaries)
+      .map((mission) => mission.kind),
+    ["mediation", "religious-dispute"]
   );
 });

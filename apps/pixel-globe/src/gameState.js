@@ -138,7 +138,7 @@ import {
   createImperialConstitution,
   imperialTargetIsAuthorized,
   migrateImperialConstitution,
-  recordImperialReformationOutcome,
+  recordImperialReligiousCirculation,
   validateImperialConstitution
 } from "./imperialConstitution.js";
 import { imperialEstateForCityId } from "./imperialEstates.js";
@@ -155,6 +155,7 @@ import {
   isReligiousPassengerQuest,
   religiousMissionChallengesPapalAuthority,
   religiousMissionIsCatholicContraband,
+  religiousMissionOffersLutheranConversion,
   religiousMissionTitle,
   SEPTEMBER_TESTAMENT_MISSION_ID
 } from "./religiousMissions.js";
@@ -1501,6 +1502,9 @@ export function deliverReligiousMissionLeg(state, city, context = {}) {
       !quest.itinerary || quest.itinerary.stops.length < 2) {
     throw new Error("Religious itinerary delivery requires an active multi-port mission");
   }
+  if (!religiousMissionOffersLutheranConversion(quest)) {
+    throw new Error("Religious itinerary delivery requires a Testament circulation mission");
+  }
   const simMinute = context.simMinute ?? state.survival.lastMinute;
   assertSimulationMinute(simMinute);
   if (!questHasDestination(quest, city)) {
@@ -1515,11 +1519,10 @@ export function deliverReligiousMissionLeg(state, city, context = {}) {
     simMinute,
     `${religiousMissionTitle(quest)}: ${stop.name}`
   );
-  const imperialReformation = typeof city.cityId === "string" &&
+  const imperialReligiousCirculation = typeof city.cityId === "string" &&
       imperialEstateForCityId(city.cityId)
-    ? recordImperialReformationOutcome(state.relations.imperial, {
+    ? recordImperialReligiousCirculation(state.relations.imperial, {
         cityId: city.cityId,
-        religionId: "lutheran",
         simMinute,
         source: quest.id
       })
@@ -1537,7 +1540,7 @@ export function deliverReligiousMissionLeg(state, city, context = {}) {
     destinationName: stop.name,
     convertedFactorTileId: city.tileId,
     authorityEvents,
-    imperialReformation,
+    imperialReligiousCirculation,
     final: delivery.final,
     nextDestinationName: delivery.remainingStops[0]?.name || null
   });
