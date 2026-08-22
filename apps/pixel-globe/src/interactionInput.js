@@ -59,21 +59,18 @@ export function interactionInputOwner(state) {
 export function captainMenuShortcutAvailable({
   blockingMenu,
   blockingModal,
-  dialogueActive,
-  admittedToPort
+  dialogueActive
 }) {
   for (const [label, value] of Object.entries({
     blockingMenu,
     blockingModal,
-    dialogueActive,
-    admittedToPort
+    dialogueActive
   })) {
     if (typeof value !== "boolean") {
       throw new Error(`Captain menu shortcut state ${label} must be boolean`);
     }
   }
-  if (blockingMenu || blockingModal) return false;
-  return !dialogueActive || admittedToPort;
+  return !blockingMenu && !blockingModal && !dialogueActive;
 }
 
 export function worldPointerAction({

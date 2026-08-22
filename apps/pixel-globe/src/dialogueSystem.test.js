@@ -822,7 +822,11 @@ test("a surrendered prize cannot replace the player with a hold that is too smal
 
   assert.equal(view.options[0].disabled, true);
   assert.match(view.options[0].disabledReason, /11 units of cargo/);
-  assert.throws(() => selectShipDialogueOption(session, ship, 0), /11 units of cargo/);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0), {
+    closed: false,
+    action: null
+  });
+  assert.match(session.feedback, /11 units of cargo/);
 });
 
 test("a surrender prize accepts fractional cargo use from daily provisions", () => {
@@ -4595,7 +4599,7 @@ test("a proactive shipyard offer can be declined back into the arrival queue", (
   assert.equal(gameState.memory.shipyardInvestment.project, null);
 });
 
-test("a returning shipyard investor receives an itemized sale-share greeting", () => {
+test("a returning shipyard investor receives ordinary dialogue before opening the accounts", () => {
   const city = {
     tileId: 10,
     city: "Lisbon",
@@ -4617,7 +4621,7 @@ test("a returning shipyard investor receives an itemized sale-share greeting", (
     materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
   });
   const session = createPortDialogueSession(city, {
-    initialNodeId: "shipyard",
+    initialNodeId: "shipyard-arrival",
     shipyardLedgerTab: "books",
     admittedToPort: true
   });
@@ -4633,13 +4637,34 @@ test("a returning shipyard investor receives an itemized sale-share greeting", (
     shipyard: economy.shipyards.yards.get(city.tileId),
     simMinute: 100
   });
-  assert.equal(view.presentation.kind, "player-shipyard-ledger");
-  assert.equal(view.presentation.tab, "books");
-  assert.equal(view.presentation.ledgerJournal.total, view.presentation.ledger.accounts.entries.length);
-  assert.ok(!view.options.some((entry) => entry.action.type === "shipyard-ledger-page"));
+  assert.equal(view.presentation, undefined);
   assert.match(view.text, /sold a Galleon/);
-  assert.match(view.text, /22000 doubloons has been paid/);
+  assert.match(view.text, /22000 doubloons is already in your purse/);
+  assert.equal(view.options.at(-2).label, "Review the accounts");
+  assert.equal(view.options.at(-2).action.nodeId, "shipyard");
+  assert.equal(view.options.at(-1).label, "Continue into port");
   assert.equal(view.options.at(-1).action.nodeId, "root");
+
+  selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    view.options.length - 2,
+    {
+      shipStats: stats,
+      shipyard: economy.shipyards.yards.get(city.tileId),
+      simMinute: 100
+    }
+  );
+  const accounts = portDialogueView(session, city, gameState, economy, [city], {
+    shipStats: stats,
+    shipyard: economy.shipyards.yards.get(city.tileId),
+    simMinute: 100
+  });
+  assert.equal(accounts.presentation.kind, "player-shipyard-ledger");
+  assert.equal(accounts.presentation.tab, "books");
 });
 
 test("an owned shipyard buys uncommitted construction cargo through its stores tab", () => {
@@ -4668,12 +4693,44 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
     yard.materialInventory[goodId] = 0;
     economy.portStates.get(city.tileId).goods.get(goodId).stock = 0;
   }
+  const context = { shipStats: stats, shipyard: yard, simMinute: 100 };
+  const arrivalSession = createPortDialogueSession(city, {
+    initialNodeId: "shipyard-arrival",
+    admittedToPort: true
+  });
+  arrivalSession.shipyardMaterialArrival = true;
+  const arrivalView = portDialogueView(
+    arrivalSession,
+    city,
+    gameState,
+    economy,
+    [city],
+    context
+  );
+  assert.equal(arrivalView.presentation, undefined);
+  assert.match(arrivalView.text, /short of timber/);
+  const arrivalSaleIndex = arrivalView.options.findIndex((entry) => (
+    entry.action.type === "sell-shipyard-material" && entry.action.goodId === "timber"
+  ));
+  assert.ok(arrivalSaleIndex >= 0);
+  const arrivalSale = selectPortDialogueOption(
+    arrivalSession,
+    city,
+    gameState,
+    economy,
+    [city],
+    arrivalSaleIndex,
+    context
+  );
+  assert.equal(arrivalSale.marketSale.good.id, "timber");
+
+  yard.materialInventory.timber = 0;
+  gameState.cargo.timber = 5;
   const session = createPortDialogueSession(city, {
     initialNodeId: "shipyard",
     shipyardLedgerTab: "materials",
     admittedToPort: true
   });
-  const context = { shipStats: stats, shipyard: yard, simMinute: 100 };
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(view.optionColumns, 3);
   const saleIndex = view.options.findIndex((entry) => (

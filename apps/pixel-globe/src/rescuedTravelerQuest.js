@@ -47,6 +47,15 @@ export function activeRescuedTravelerQuest(state, memoryKey) {
   return memory.active;
 }
 
+export function rescuedTravelerQuestIdentity(memory, rescueType, sourceId) {
+  validateRescuedTravelerQuestMemory(memory);
+  assertRescueType(rescueType);
+  if (typeof sourceId !== "string" || sourceId.trim() === "") {
+    throw new Error("Rescued traveler identity requires a source id");
+  }
+  return `${rescueType}:${sourceId}:${memory.completedCount + memory.declinedCount}`;
+}
+
 export function createRescuedTravelerQuest(memory, {
   rescueType,
   sourceId,
@@ -89,7 +98,7 @@ export function createRescuedTravelerQuest(memory, {
   if (rescueType !== RESCUED_TRAVELER_TYPE_CASTAWAY && normalizedAid !== null) {
     throw new Error(`${rescueType} cannot provide castaway shore aid`);
   }
-  const id = `${rescueType}:${sourceId}:${memory.completedCount + memory.declinedCount}`;
+  const id = rescuedTravelerQuestIdentity(memory, rescueType, sourceId);
   const active = {
     id,
     rescueType,

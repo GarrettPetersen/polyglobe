@@ -37,6 +37,10 @@ import {
   warnPirateCaptive,
   validatePirateCaptiveQuestMemory
 } from "./pirateCaptiveQuest.js";
+import {
+  RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE,
+  rescuedTravelerQuestIdentity
+} from "./rescuedTravelerQuest.js";
 
 const homePort = Object.freeze({
   tileId: 41,
@@ -229,6 +233,10 @@ test("a captive whose family was lost asks to remain as permanent crew", () => {
 
 test("a later rare pirate captive quest can begin after one is completed", () => {
   const memory = createPirateCaptiveQuestMemory();
+  assert.equal(
+    rescuedTravelerQuestIdentity(memory, RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE, "pirate-17"),
+    "pirate-captive:pirate-17:0"
+  );
   const quest = createQuest(memory, 0.1);
   acceptPirateCaptiveQuest(memory, quest.id);
   preparePirateCaptiveHomecoming(memory, quest.id, {
@@ -236,8 +244,12 @@ test("a later rare pirate captive quest can begin after one is completed", () =>
     label: "Lead Hull Sheathing"
   });
   completePirateCaptiveQuest(memory, quest.id);
+  assert.equal(
+    rescuedTravelerQuestIdentity(memory, RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE, "pirate-17"),
+    "pirate-captive:pirate-17:1"
+  );
   const second = createPirateCaptiveQuest(memory, {
-    pirateShipId: "pirate-18",
+    pirateShipId: "pirate-17",
     sourceTileId: 18,
     homePort,
     character: captive,
@@ -245,7 +257,7 @@ test("a later rare pirate captive quest can begin after one is completed", () =>
     distanceKm: 1800,
     familySurvivedRoll: 0.1
   });
-  assert.equal(second.id, "pirate-captive:pirate-18:1");
+  assert.equal(second.id, "pirate-captive:pirate-17:1");
   validatePirateCaptiveQuestMemory(memory);
 });
 

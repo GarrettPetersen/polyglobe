@@ -419,7 +419,7 @@ export function createPortDialogueSession(city, options = {}) {
     shipHandover: null,
     shipyardDividendArrival: null,
     shipyardMaterialArrival: false,
-    shipyardMaterialArrivalChecked: false,
+    shipyardArrivalChecked: false,
     shipyardLedgerTab: options.shipyardLedgerTab || "yard",
     shipyardLedgerScrollOffset: 0,
     shipyardLedgerReturnNodeId: null,
@@ -1394,7 +1394,10 @@ export function selectShipDialogueOption(session, ship, optionIndex = session.se
   const view = shipDialogueView(session, ship);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid ship dialogue option index: ${optionIndex}`);
-  if (selected.disabled) throw new Error(selected.disabledReason || "Ship dialogue option is unavailable");
+  if (selected.disabled) {
+    session.feedback = selected.disabledReason || "That is not available.";
+    return { closed: false, action: null };
+  }
   const action = selected.action;
   if (action.type === "close") return { closed: true, action: null };
   if (action.type === "confirm-piracy") {
@@ -1626,6 +1629,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
   if (session.nodeId === "custom-loadout") return customLoadoutView(session, city, gameState, context);
   if (session.nodeId === "ship-handover") return shipHandoverView(session, city);
+  if (session.nodeId === "shipyard-arrival") {
+    return playerShipyardArrivalView(session, city, gameState, economy, context);
+  }
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, economy, context);
   if (session.nodeId === "shipyard-purchase") {
     return shipyardPurchaseView(session, city, gameState, context);
@@ -1805,7 +1811,8 @@ export function selectPortDialogueOption(
     if (session.nodeId === "trade-tip") session.tradeTip = null;
     if (session.nodeId === "quest-cargo-tip") session.questCargoTip = null;
     if (session.nodeId === "ship-handover") session.shipHandover = null;
-    if (session.nodeId === "shipyard" && action.nodeId !== "shipyard") {
+    if (["shipyard", "shipyard-arrival"].includes(session.nodeId) &&
+        !["shipyard", "shipyard-arrival"].includes(action.nodeId)) {
       session.shipyardDividendArrival = null;
       session.shipyardMaterialArrival = false;
       session.shipyardLedgerReturnNodeId = null;
@@ -1857,7 +1864,9 @@ export function selectPortDialogueOption(
     return { closed: false };
   }
   if (action.type === "sell-shipyard-material") {
-    if (session.nodeId !== "shipyard" || session.shipyardLedgerTab !== "materials") {
+    const fromArrival = session.nodeId === "shipyard-arrival";
+    if ((!fromArrival && session.nodeId !== "shipyard") ||
+        (!fromArrival && session.shipyardLedgerTab !== "materials")) {
       throw new Error(`Shipyard material sale requires the stores tab: ${session.nodeId}`);
     }
     const ledger = playerShipyardLedger(context.shipyard, context.simMinute ?? 0);
@@ -1885,7 +1894,7 @@ export function selectPortDialogueOption(
     );
     procureWorldEconomyShipyardMaterials(economy, city);
     session.feedback = `${marketSale.good.label} x${marketSale.quantity} moved straight to the yard stores.`;
-    session.selectedIndex = 1;
+    session.selectedIndex = 0;
     return { closed: false, marketSale, shipyardMaterialSale: marketSale };
   }
   if (action.type === "inspect-shipyard-listing") {
@@ -5656,6 +5665,70 @@ function requireShipyardListingAction(action, context) {
     throw new Error(`Shipyard action does not match the current listing: ${action.listingId}`);
   }
   return listing;
+}
+
+function playerShipyardArrivalView(session, city, gameState, economy, context) {
+  const yard = context.shipyard;
+  if (!yard || !playerBackedShipyardAtPort(gameState, city)) {
+    throw new Error(`Shipyard arrival dialogue requires the player's yard at ${cityLabel(city)}`);
+  }
+  const ledger = playerShipyardLedger(yard, context.simMinute ?? 0);
+  const reservedQuantities = activeQuestCargoReservedQuantities(gameState, {
+    currentMinute: context.simMinute ?? 0
+  });
+  const materialSales = session.shipyardMaterialArrival
+    ? ledger.currentBuild.materials
+      .map((material) => shipyardMaterialSaleOffer(
+        city,
+        gameState,
+        economy,
+        context,
+        material,
+        reservedQuantities
+      ))
+      .filter(Boolean)
+    : [];
+  const payout = session.shipyardDividendArrival;
+  if (!payout && !session.shipyardMaterialArrival) {
+    throw new Error(`Shipyard arrival dialogue at ${cityLabel(city)} has no business for the captain`);
+  }
+  const payoutText = payout
+    ? `${payout.salesSummary} Your share of ${payout.amount} doubloons is already in your purse.`
+    : null;
+  const materialLabels = materialSales.map((sale) => sale.goodLabel.toLowerCase());
+  const materialList = materialLabels.length === 1
+    ? materialLabels[0]
+    : materialLabels.length > 1
+      ? `${materialLabels.slice(0, -1).join(", ")} and ${materialLabels.at(-1)}`
+      : null;
+  const materialText = materialList
+    ? `The yard is short of ${materialList}. I can buy the unpledged cargo in your hold at the port price.`
+    : session.shipyardMaterialArrival
+      ? "That cargo has gone straight into the yard stores."
+      : null;
+  const reviewLabel = payout && session.shipyardMaterialArrival
+    ? "Review the shipyard"
+    : payout ? "Review the accounts" : "Review the stores";
+  return {
+    speaker: `${cityLabel(city)} master shipwright`,
+    expressionId: payout ? "pleased" : "attentive",
+    text: [payoutText, materialText].filter(Boolean).join(" "),
+    feedback: session.feedback,
+    options: [
+      ...materialSales.map((sale) => option(
+        `Sell ${sale.goodLabel} x${sale.quantity}  ${sale.price} db`,
+        {
+          type: "sell-shipyard-material",
+          goodId: sale.goodId,
+          quantity: sale.quantity
+        }
+      )),
+      option(reviewLabel, { type: "node", nodeId: "shipyard" }),
+      option("Continue into port", { type: "node", nodeId: "root" }, {
+        placement: "port-exit"
+      })
+    ]
+  };
 }
 
 function playerShipyardLedgerView(session, city, gameState, economy, context, yard) {

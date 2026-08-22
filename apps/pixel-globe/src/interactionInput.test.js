@@ -73,24 +73,26 @@ test("world input is restored when no overlay or action owns it", () => {
   assert.equal(ownerFor({}), INTERACTION_INPUT.WORLD);
 });
 
-test("the Captain Menu remains available while admitted to port", () => {
+test("the Captain Menu shortcut never creates a hidden hit target over dialogue", () => {
   assert.equal(captainMenuShortcutAvailable({
     blockingMenu: false,
     blockingModal: false,
-    dialogueActive: true,
-    admittedToPort: true
+    dialogueActive: true
+  }), false);
+  assert.equal(captainMenuShortcutAvailable({
+    blockingMenu: false,
+    blockingModal: false,
+    dialogueActive: false
   }), true);
   assert.equal(captainMenuShortcutAvailable({
     blockingMenu: false,
-    blockingModal: false,
-    dialogueActive: true,
-    admittedToPort: false
+    blockingModal: true,
+    dialogueActive: false
   }), false);
   assert.equal(captainMenuShortcutAvailable({
     blockingMenu: true,
     blockingModal: false,
-    dialogueActive: false,
-    admittedToPort: false
+    dialogueActive: false
   }), false);
 });
 

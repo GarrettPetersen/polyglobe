@@ -13,6 +13,25 @@ export function createBirthdayMemory() {
   };
 }
 
+export function birthdayCharactersForAboardEntries(entries) {
+  if (!Array.isArray(entries)) throw new Error("Birthday participants require aboard entries");
+  const identities = new Set();
+  return entries.map((entry) => {
+    if (!entry || typeof entry.id !== "string" || entry.id === "" || !entry.character) {
+      throw new Error("Birthday participant requires a named aboard entry");
+    }
+    validateCharacterBiography(entry.character);
+    const birthDate = entry.character.birthDate;
+    const birthdayIdentity = `${entry.id}|${entry.character.name}|` +
+      `${birthDate.year}-${birthDate.month}-${birthDate.day}`;
+    if (identities.has(birthdayIdentity)) {
+      throw new Error(`Duplicate aboard birthday person: ${birthdayIdentity}`);
+    }
+    identities.add(birthdayIdentity);
+    return Object.freeze({ ...entry.character, birthdayIdentity });
+  });
+}
+
 export function observeAboardBirthdays(memory, characters, date) {
   validateBirthdayMemory(memory);
   assertDate(date);
@@ -26,7 +45,7 @@ export function observeAboardBirthdays(memory, characters, date) {
     character.birthDate.month === date.month && character.birthDate.day === date.day
   ));
   if (celebrants.length === 0) return true;
-  const eventId = `${dateKey}|${celebrants.map((character) => character.id).sort().join("+")}`;
+  const eventId = `${dateKey}|${celebrants.map(birthdayCharacterIdentity).sort().join("+")}`;
   if (memory.celebratedEventIds.includes(eventId) || memory.pendingEvents.some((event) => event.id === eventId)) {
     return true;
   }
@@ -43,7 +62,7 @@ export function birthdayObservationNeeded(memory, date) {
 export function pendingBirthdayDialogueLine(memory, characters) {
   validateBirthdayMemory(memory);
   validateAboardCharacters(characters);
-  const charactersById = new Map(characters.map((character) => [character.id, character]));
+  const charactersById = new Map(characters.map((character) => [birthdayCharacterIdentity(character), character]));
   while (memory.pendingEvents.length > 0) {
     const event = memory.pendingEvents[0];
     const remainingCelebrants = event.celebrantIds.filter((id) => charactersById.has(id));
@@ -99,8 +118,8 @@ export function validateBirthdayMemory(memory) {
 }
 
 function createBirthdayEvent(id, dateKey, aboard, celebrants, date) {
-  const celebrantIds = celebrants.map((character) => character.id);
-  const nonCelebrants = aboard.filter((character) => !celebrantIds.includes(character.id));
+  const celebrantIds = celebrants.map(birthdayCharacterIdentity);
+  const nonCelebrants = aboard.filter((character) => !celebrantIds.includes(birthdayCharacterIdentity(character)));
   const lines = celebrants.length === 1
     ? singleBirthdayLines(id, celebrants[0], chooseCharacter(nonCelebrants, `${id}|wisher`), date)
     : sharedBirthdayLines(id, celebrants, nonCelebrants);
@@ -147,8 +166,8 @@ function singleBirthdayLines(eventId, celebrant, wisher, date) {
   });
   if (religiousWish) pair[0] = religiousWish;
   return [
-    dialogueLine(wisher.id, pair[0], "happy"),
-    dialogueLine(celebrant.id, pair[1], "happy")
+    dialogueLine(birthdayCharacterIdentity(wisher), pair[0], "happy"),
+    dialogueLine(birthdayCharacterIdentity(celebrant), pair[1], "happy")
   ];
 }
 
@@ -158,7 +177,7 @@ function sharedBirthdayLines(eventId, celebrants, nonCelebrants) {
   const wisher = chooseCharacter(nonCelebrants, `${eventId}|shared-wisher`);
   if (wisher) {
     lines.push(dialogueLine(
-      wisher.id,
+      birthdayCharacterIdentity(wisher),
       `By the ship's log, ${names} all share a birthday. What are the odds? Happy birthday to every one of you.`,
       "happy"
     ));
@@ -172,7 +191,7 @@ function sharedBirthdayLines(eventId, celebrants, nonCelebrants) {
   for (let index = 0; index < celebrants.length; index++) {
     const character = celebrants[index];
     lines.push(dialogueLine(
-      character.id,
+      birthdayCharacterIdentity(character),
       comments[(hashString32(`${eventId}|comment`) + index) % comments.length],
       "happy"
     ));
@@ -197,14 +216,14 @@ function birthdayDialogueParticipants(event, line, charactersById) {
     .filter(Boolean);
   const wisher = event.lines
     .map((entry) => charactersById.get(entry.speakerId))
-    .find((character) => character && !event.celebrantIds.includes(character.id)) || null;
-  const counterpart = event.celebrantIds.includes(speaker.id)
+    .find((character) => character && !event.celebrantIds.includes(birthdayCharacterIdentity(character))) || null;
+  const counterpart = event.celebrantIds.includes(line.speakerId)
     ? wisher ||
-      livingCelebrants.find((character) => character.id !== speaker.id) ||
-      [...charactersById.values()].find((character) => character.id !== speaker.id) ||
+      livingCelebrants.find((character) => birthdayCharacterIdentity(character) !== line.speakerId) ||
+      [...charactersById.values()].find((character) => birthdayCharacterIdentity(character) !== line.speakerId) ||
       null
     : livingCelebrants[0] ||
-      [...charactersById.values()].find((character) => character.id !== speaker.id) ||
+      [...charactersById.values()].find((character) => birthdayCharacterIdentity(character) !== line.speakerId) ||
       null;
   if (!counterpart) {
     return { leftCharacter: speaker, rightCharacter: null };
@@ -213,11 +232,12 @@ function birthdayDialogueParticipants(event, line, charactersById) {
     ? wisher
     : event.celebrantIds
       .map((id) => charactersById.get(id))
-      .find((character) => character && [speaker.id, counterpart.id].includes(character.id));
+      .find((character) => character && [line.speakerId, birthdayCharacterIdentity(counterpart)]
+        .includes(birthdayCharacterIdentity(character)));
   if (!leftCharacter) throw new Error(`Birthday event cannot stage its speakers: ${event.id}`);
   return {
     leftCharacter,
-    rightCharacter: leftCharacter.id === speaker.id ? counterpart : speaker
+    rightCharacter: birthdayCharacterIdentity(leftCharacter) === line.speakerId ? counterpart : speaker
   };
 }
 
@@ -250,9 +270,14 @@ function validateAboardCharacters(characters) {
     if (typeof character.id !== "string" || character.id === "") {
       throw new Error("Birthday character requires an id");
     }
-    if (ids.has(character.id)) throw new Error(`Duplicate birthday character: ${character.id}`);
-    ids.add(character.id);
+    const identity = birthdayCharacterIdentity(character);
+    if (ids.has(identity)) throw new Error(`Duplicate birthday character: ${identity}`);
+    ids.add(identity);
   }
+}
+
+function birthdayCharacterIdentity(character) {
+  return character.birthdayIdentity || character.id;
 }
 
 function assertDate(date) {

@@ -1198,6 +1198,12 @@ export function colonizationNavigationObjective(
   if (quest.stage === COLONIZATION_STAGE_FETCH && quest.canDeliverFetch) {
     return { tileId: quest.origin.tileId, kind: "deliver-colony-materials" };
   }
+  if (quest.stage === COLONIZATION_STAGE_READY) {
+    if (!Number.isInteger(quest.origin?.tileId)) {
+      throw new Error("Ready colonization expedition has no sponsor port");
+    }
+    return { tileId: quest.origin.tileId, kind: "embark-colonists" };
+  }
   return null;
 }
 

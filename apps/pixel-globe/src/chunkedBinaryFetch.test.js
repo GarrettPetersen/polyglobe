@@ -136,6 +136,42 @@ test("chunked binary fetch retries a truncated successful response", async () =>
   ]);
 });
 
+test("chunked binary fetch retries a response whose body stream cannot be read", async () => {
+  const requests = [];
+  const fetchAsset = async (resource) => {
+    requests.push(resource);
+    if (resource === "asset.bin.chunks.json") {
+      return jsonResponse({
+        byteLength: 3,
+        chunks: [{ path: "asset.part-0.bin", byteLength: 3 }]
+      });
+    }
+    if (requests.length < 4) {
+      return {
+        ok: true,
+        status: 200,
+        arrayBuffer: async () => { throw new TypeError("network stream closed"); }
+      };
+    }
+    return binaryResponse([1, 2, 3]);
+  };
+
+  const result = await fetchChunkedBinary("asset.bin", "asset", {
+    fetchAsset,
+    baseUrl: "https://example.test/",
+    chunkRetryDelayMs: 0,
+    sleep: async () => {}
+  });
+
+  assert.deepEqual([...new Uint8Array(result)], [1, 2, 3]);
+  assert.deepEqual(requests, [
+    "asset.bin.chunks.json",
+    "https://example.test/asset.part-0.bin",
+    "https://example.test/asset.part-0.bin?chunk_retry=1",
+    "https://example.test/asset.part-0.bin?chunk_retry=2"
+  ]);
+});
+
 test("chunked binary fetch reports persistent truncation after bounded retries", async () => {
   const fetchAsset = async (resource) => {
     if (resource === "asset.bin.chunks.json") {

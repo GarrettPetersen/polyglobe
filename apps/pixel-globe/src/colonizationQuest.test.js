@@ -127,6 +127,10 @@ test("a colonization expedition requires three ordered paid material stages", ()
 
   assert.equal(memory.stage, COLONIZATION_STAGE_READY);
   assert.equal(memory.fetchStageIndex, COLONIZATION_FETCH_STAGES.length);
+  assert.deepEqual(colonizationNavigationObjective(questViewState(memory)), {
+    tileId: BORDEAUX.tileId,
+    kind: "embark-colonists"
+  });
   assert.equal(validateColonizationQuestMemory(memory), memory);
 });
 

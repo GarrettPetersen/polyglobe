@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  birthdayCharactersForAboardEntries,
   birthdayObservationNeeded,
   consumeBirthdayDialogueLine,
   createBirthdayMemory,
@@ -81,6 +82,42 @@ test("shared birthdays create one event in which every celebrant comments", () =
     { speaker: "mate", left: "chef", right: "mate" }
   ]);
   assert.equal(memory.celebratedEventIds.length, 1);
+});
+
+test("any number of same-day birthdays gives every celebrant a line", () => {
+  const memory = createBirthdayMemory();
+  const aboard = [
+    character("captain", "Ana Costa", 7, 10),
+    character("mate", "Leif North", 7, 10),
+    character("chef", "Marta Bell", 7, 10),
+    character("gunner", "Hugo Reed", 7, 10),
+    character("pilot", "Tomas Vale", 7, 10)
+  ];
+  observeAboardBirthdays(memory, aboard, { year: 1522, month: 7, day: 10 });
+  const speakers = [];
+  for (let line = pendingBirthdayDialogueLine(memory, aboard); line; line = pendingBirthdayDialogueLine(memory, aboard)) {
+    speakers.push(line.character.id);
+    consumeBirthdayDialogueLine(memory);
+  }
+  assert.deepEqual(new Set(speakers), new Set(aboard.map(({ id }) => id)));
+  assert.equal(speakers.length, aboard.length);
+});
+
+test("birthday identity follows the person aboard rather than reused portrait art", () => {
+  const first = character("shared-portrait", "Anna Voss", 7, 10);
+  const second = character("shared-portrait", "Beatriz Mora", 7, 10);
+  const aboard = birthdayCharactersForAboardEntries([
+    { id: "crew:shared-portrait", character: first },
+    { id: "traveler:captive:shared-portrait", character: second }
+  ]);
+  const memory = createBirthdayMemory();
+
+  assert.doesNotThrow(() => observeAboardBirthdays(
+    memory,
+    aboard,
+    { year: 1522, month: 7, day: 10 }
+  ));
+  assert.equal(memory.pendingEvents[0].celebrantIds.length, 2);
 });
 
 test("a shared birthday without a separate wisher still stages two celebrants face to face", () => {

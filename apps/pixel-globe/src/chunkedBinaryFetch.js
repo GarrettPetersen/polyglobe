@@ -1,6 +1,6 @@
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
-const DEFAULT_CHUNK_ATTEMPTS = 3;
+const DEFAULT_CHUNK_ATTEMPTS = 5;
 const DEFAULT_CHUNK_CONCURRENCY = 3;
 const DEFAULT_CHUNK_RETRY_DELAY_MS = 250;
 

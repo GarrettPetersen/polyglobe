@@ -70,7 +70,7 @@ const distRoot = join(appRoot, edition === BUILD_EDITION_DEMO ? "dist-demo" : "d
 const maxHostedFileBytes = edition === BUILD_EDITION_DEMO
   ? 200 * 1024 * 1024
   : 24 * 1024 * 1024;
-const largeFileChunkBytes = 10 * 1024 * 1024;
+const largeFileChunkBytes = 4 * 1024 * 1024;
 
 const appEntries = edition === BUILD_EDITION_DEMO
   ? [

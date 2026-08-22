@@ -588,16 +588,11 @@ test("the final homecoming dialogue lets the captain retire or keep sailing", ()
   });
 });
 
-test("a completed voyage points home for retirement unless travelers still depend on the captain", () => {
+test("a completed voyage does not create a passive retirement waypoint", () => {
   const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
   goal.status = CAMPAIGN_GOAL_COMPLETE;
 
-  assert.deepEqual(campaignGoalDestination(goal), {
-    kind: CAMPAIGN_DESTINATION_HOME,
-    homePortTileId: CHARACTER.homePortTileId,
-    reason: "retire"
-  });
-  assert.equal(campaignGoalDestination(goal, { retirementBlocked: true }), null);
+  assert.equal(campaignGoalDestination(goal), null);
 });
 
 test("blocked retirement names the traveler and destination the captain actually owes", () => {

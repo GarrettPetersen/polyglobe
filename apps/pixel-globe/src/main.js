@@ -142,6 +142,7 @@ import {
 import { characterReligionProfile } from "./characterReligion.js";
 import {
   birthdayObservationNeeded,
+  birthdayCharactersForAboardEntries,
   consumeBirthdayDialogueLine,
   observeAboardBirthdays,
   pendingBirthdayDialogueLine
@@ -658,6 +659,7 @@ import {
   recordRescuedTravelerPortReunion,
   rescuedTravelerDialogueCharacter,
   rescuedTravelerDialogueView,
+  rescuedTravelerQuestIdentity,
   rescuedTravelerLabel,
   selectRescuedTravelerDialogueOption
 } from "./rescuedTravelerQuest.js";
@@ -7225,9 +7227,7 @@ function activeCampaignGoalDestinations() {
   return campaignGoalDestinations(goal, {
     discoveredIds: new Set(gameState.memory.discoveryOrder),
     currentMinute: weatherClockMinutes,
-    doubloons: gameState.doubloons,
-    retirementBlocked: goal.status === CAMPAIGN_GOAL_COMPLETE &&
-      Boolean(currentCampaignRetirementObligation())
+    doubloons: gameState.doubloons
   });
 }
 
@@ -18710,8 +18710,7 @@ function continuePortArrivalDialogues() {
   }
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
-    () => maybeOpenShipyardDividendDialogue(cityCall),
-    () => maybeOpenShipyardMaterialDialogue(cityCall),
+    () => maybeOpenShipyardArrivalDialogue(cityCall),
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
     () => maybeOpenConquistadorOfferDialogue(cityCall),
@@ -18733,13 +18732,16 @@ function continuePortArrivalDialogues() {
   ]);
 }
 
-function maybeOpenShipyardMaterialDialogue(cityCall) {
-  if (!["greeting", "root"].includes(dialogueState.nodeId) ||
-      dialogueState.shipyardMaterialArrivalChecked === true) {
+function maybeOpenShipyardArrivalDialogue(cityCall, { allowShipyardNode = false } = {}) {
+  const allowedNodeIds = allowShipyardNode ? ["greeting", "root", "shipyard"] : ["greeting", "root"];
+  if (!allowedNodeIds.includes(dialogueState.nodeId) || dialogueState.shipyardArrivalChecked === true) {
     return false;
   }
-  dialogueState.shipyardMaterialArrivalChecked = true;
+  dialogueState.shipyardArrivalChecked = true;
   if (!playerBackedShipyardAtPort(gameState, cityCall)) return false;
+  const payout = collectPlayerShipyardDividends(gameState, worldEconomy.shipyards, cityCall, {
+    simMinute: Math.floor(weatherClockMinutes)
+  });
   const yard = shipyardAtPort(worldEconomy.shipyards, cityCall);
   const reserved = activeQuestCargoReservedQuantities(gameState, {
     currentMinute: Math.floor(weatherClockMinutes)
@@ -18760,16 +18762,23 @@ function maybeOpenShipyardMaterialDialogue(cityCall) {
       (gameState.cargo[goodId] || 0) > (reserved[goodId] || 0)
     ));
   }
-  if (yard.materialDelayDays === 0 && !hasUncommittedMaterial) return false;
-  dialogueState.shipyardMaterialArrival = true;
+  if (!payout && !hasUncommittedMaterial) return false;
+  dialogueState.shipyardDividendArrival = payout
+    ? { ...payout, salesSummary: shipyardPayoutSalesSummary(payout.sales) }
+    : null;
+  dialogueState.shipyardMaterialArrival = hasUncommittedMaterial;
   dialogueState.shipyardLedgerReturnNodeId = "root";
-  dialogueState.shipyardLedgerTab = "materials";
+  dialogueState.shipyardLedgerTab = hasUncommittedMaterial ? "materials" : "books";
   dialogueState.shipyardLedgerScrollOffset = 0;
-  dialogueState.nodeId = "shipyard";
-  dialogueState.selectedIndex = 1;
+  dialogueState.nodeId = "shipyard-arrival";
+  dialogueState.selectedIndex = 0;
   dialogueState.feedback = null;
   invalidateDialogueOptionGeometry();
   ensureDialoguePortraitLoaded();
+  if (payout) {
+    playCoinClinkSound();
+    saveVoyageNow("received shipyard sale shares");
+  }
   dirty = true;
   return true;
 }
@@ -18870,34 +18879,6 @@ function maybeOpenShipyardInvestmentOfferDialogue(cityCall) {
   dialogueState.feedback = null;
   invalidateDialogueOptionGeometry();
   ensureDialoguePortraitLoaded();
-  dirty = true;
-  return true;
-}
-
-function maybeOpenShipyardDividendDialogue(cityCall, { allowShipyardNode = false } = {}) {
-  const allowedNodeIds = allowShipyardNode ? ["greeting", "root", "shipyard"] : ["greeting", "root"];
-  if (!allowedNodeIds.includes(dialogueState.nodeId) ||
-      dialogueState.shipyardDividendArrival !== null) {
-    return false;
-  }
-  const payout = collectPlayerShipyardDividends(gameState, worldEconomy.shipyards, cityCall, {
-    simMinute: Math.floor(weatherClockMinutes)
-  });
-  if (!payout) return false;
-  dialogueState.shipyardDividendArrival = {
-    ...payout,
-    salesSummary: shipyardPayoutSalesSummary(payout.sales)
-  };
-  dialogueState.shipyardLedgerReturnNodeId = "root";
-  dialogueState.shipyardLedgerTab = "books";
-  dialogueState.shipyardLedgerScrollOffset = 0;
-  dialogueState.nodeId = "shipyard";
-  dialogueState.selectedIndex = 1;
-  dialogueState.feedback = null;
-  invalidateDialogueOptionGeometry();
-  ensureDialoguePortraitLoaded();
-  playCoinClinkSound();
-  saveVoyageNow("received shipyard sale shares");
   dirty = true;
   return true;
 }
@@ -22223,7 +22204,7 @@ function applyDialogueOption(optionIndex) {
       saveVoyageNow("set port navigation heading");
     }
     if (dialogueState.nodeId === "shipyard" && previousNodeId !== "shipyard" &&
-        maybeOpenShipyardDividendDialogue(currentDialogueCity(), { allowShipyardNode: true })) {
+        maybeOpenShipyardArrivalDialogue(currentDialogueCity(), { allowShipyardNode: true })) {
       return;
     }
   } else if (dialogueState.kind === "passenger") {
@@ -30432,18 +30413,18 @@ function updateAboardBirthdayEvents() {
   if (!gameState?.memory?.birthdays || !ship || !Number.isInteger(ship.tileId)) return false;
   const localDate = gameCalendarDateAtMinute(weatherClockMinutes, graph.lonDeg[ship.tileId]);
   if (!birthdayObservationNeeded(gameState.memory.birthdays, localDate)) return false;
-  const characters = currentAboardRoster().named
-    .filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
-    .map((entry) => entry.character);
+  const characters = birthdayCharactersForAboardEntries(
+    currentAboardRoster().named.filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
+  );
   return observeAboardBirthdays(gameState.memory.birthdays, characters, localDate);
 }
 
 function presentPendingBirthdayDialogue() {
   if (!birthdayDialogueOpportunity()) return false;
   if (gameState.memory.birthdays.pendingEvents.length === 0) return false;
-  const characters = currentAboardRoster().named
-    .filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
-    .map((entry) => entry.character);
+  const characters = birthdayCharactersForAboardEntries(
+    currentAboardRoster().named.filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
+  );
   const line = pendingBirthdayDialogueLine(gameState.memory.birthdays, characters);
   if (!line) return false;
   return openCharacterAlertModal(line.character, line.message, line.expressionId, {
@@ -34348,8 +34329,13 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
   const sourceTileId = findNearestTileId(graph, directionIndex, ship.position);
   const distanceKm = EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(homePort.tileId));
   const familySurvivedRoll = Math.random();
+  const identityKey = rescuedTravelerQuestIdentity(
+    memory,
+    RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE,
+    pirateShipId
+  );
   const captive = generatePirateCaptiveCharacter({
-    identityKey: pirateShipId,
+    identityKey,
     homePort,
     excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
     manifest: characterPortraitManifest,
@@ -34357,7 +34343,7 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
   });
   const familyMember = familySurvivedRoll < 0.5
     ? generatePirateCaptiveFamilyMember({
-        identityKey: pirateShipId,
+        identityKey,
         captive,
         homePort,
         excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
@@ -40655,8 +40641,7 @@ function captainMenuButtonIsAvailable() {
   return captainMenuShortcutAvailable({
     blockingMenu: menusAreOpen(),
     blockingModal: Boolean(startMenu || gameOverReason || playerIntroModal || captainAlertModal),
-    dialogueActive: Boolean(dialogueState),
-    admittedToPort: dialogueState?.admittedToPort === true
+    dialogueActive: Boolean(dialogueState)
   });
 }
 
@@ -41969,10 +41954,10 @@ function colonizationObjectiveDestination(state, objective) {
     if (!port) throw new Error("Lost colony report has no English destination port");
     return port;
   }
-  if (objective.kind === "deliver-colony-materials") {
+  if (["deliver-colony-materials", "embark-colonists"].includes(objective.kind)) {
     const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
     if (!quest.origin || quest.origin.tileId !== objective.tileId) {
-      throw new Error("Colonization material objective has no sponsor port");
+      throw new Error("Colonization sponsor-port objective has no sponsor port");
     }
     return portCitiesByTileId.get(objective.tileId) || quest.origin;
   }
@@ -41997,6 +41982,7 @@ function colonizationNavigationReason(objective) {
   if (objective.kind === "investigate-lost-colony") return "SEARCH THE LOST COLONY";
   if (objective.kind === "report-lost-colony") return "DELIVER THE ROANOKE CLUES";
   if (objective.kind === "deliver-colony-materials") return uiText("navigation.deliverColonyMaterials");
+  if (objective.kind === "embark-colonists") return "TAKE THE COLONISTS ABOARD";
   if (objective.kind === "negotiate-colony") return uiText("navigation.securePermission");
   if (objective.kind === "develop-port") return uiText("navigation.openTradingPort");
   if (objective.kind === "found-colony") return uiText("navigation.foundColony");
