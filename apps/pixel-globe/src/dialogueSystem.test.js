@@ -1425,6 +1425,45 @@ test("buying the final unit disables its stable market row instead of moving lat
   assert.equal(after.options[followingIndex].action.goodId, followingGoodId);
 });
 
+test("scrolling a port market exposes every stocked trade good that cargo hints can recommend", () => {
+  const rouen = {
+    tileId: 110,
+    city: "Rouen",
+    displayCity: "Rouen",
+    country: "France",
+    cityType: "northern-european",
+    population: 40000,
+    character: { name: "Claude Le Roux", personalityId: "vigilant" }
+  };
+  const economy = createWorldEconomy({ ports: [rouen], startMinute: 0 });
+  const marketState = economy.portStates.get(rouen.tileId).goods;
+  marketState.get("sugar").stock = 20;
+  marketState.get("wool-cloth").stock = 20;
+  const gameState = createGameState({ cargoCapacity: 200 });
+  gameState.doubloons = 1000000;
+  const session = createPortDialogueSession(rouen, { initialNodeId: "buy" });
+
+  const expectedGoodIds = portMarket(economy, rouen)
+    .filter((row) => (
+      row.listedForSale &&
+      row.stock > 0 &&
+      ![FRESH_WATER_GOOD_ID, HARDTACK_GOOD_ID].includes(row.good.id)
+    ))
+    .map((row) => row.good.id)
+    .sort();
+  assert.ok(expectedGoodIds.length > 5, "Rouen should exercise the former five-good display cap");
+
+  const view = portDialogueView(session, rouen, gameState, economy, [rouen]);
+  const displayedGoodIds = view.options
+    .filter((entry) => entry.action.type === "buy")
+    .map((entry) => entry.action.goodId)
+    .sort();
+
+  assert.deepEqual(displayedGoodIds, expectedGoodIds);
+  assert.ok(displayedGoodIds.includes("sugar"));
+  assert.ok(displayedGoodIds.includes("wool-cloth"));
+});
+
 test("Ming markets visibly offer domestic gunpowder but not scarce imported matchlocks", () => {
   const city = {
     tileId: 110,

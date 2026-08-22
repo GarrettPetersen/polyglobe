@@ -6238,7 +6238,7 @@ function marketBuyGoodIds(session, market) {
     .filter((row) => row.listedForSale && row.stock > 0 && !supplyIds.has(row.good.id))
     .sort((a, b) => b.productionPerDay - a.productionPerDay || a.good.id.localeCompare(b.good.id))
     .map((row) => row.good.id);
-  return stableMarketGoodIds(session, "marketBuyGoodIds", availableGoodIds, 5);
+  return stableMarketGoodIds(session, "marketBuyGoodIds", availableGoodIds);
 }
 
 function tradeTipView(session, city) {
@@ -6995,18 +6995,14 @@ function marketSaleGoodIds(session, gameState) {
   return stableMarketGoodIds(session, "marketSaleGoodIds", saleGoodIds);
 }
 
-function stableMarketGoodIds(session, rosterKey, candidateGoodIds, limit = Number.POSITIVE_INFINITY) {
+function stableMarketGoodIds(session, rosterKey, candidateGoodIds) {
   const roster = session[rosterKey];
   if (!Array.isArray(roster)) throw new Error(`Port dialogue session has no stable market roster: ${rosterKey}`);
   if (!Array.isArray(candidateGoodIds)) throw new Error(`Market roster candidates must be an array: ${rosterKey}`);
-  if (limit !== Number.POSITIVE_INFINITY && (!Number.isInteger(limit) || limit <= 0)) {
-    throw new Error(`Market roster limit must be a positive integer: ${limit}`);
-  }
   const knownIds = new Set(roster);
   for (const goodId of candidateGoodIds) {
     if (typeof goodId !== "string" || goodId === "") throw new Error(`Invalid market roster good: ${goodId}`);
     if (knownIds.has(goodId)) continue;
-    if (roster.length >= limit) break;
     roster.push(goodId);
     knownIds.add(goodId);
   }
