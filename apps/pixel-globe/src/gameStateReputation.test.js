@@ -672,6 +672,11 @@ test("piracy hurts the victim, its partners, and the captain's crown without glo
   assert.equal(factionReputation(state, "spain"), spanishBefore);
   assert.equal(factionReputation(state, "ming"), mingBefore);
   assert.equal(factionReputation(state, "pirate"), pirateBefore + PIRATE_REPUTATION_GAIN_PER_PIRACY);
+  assert.equal(PIRACY_HOME_ENEMY_REPUTATION_PENALTY, -12);
+  assert.ok(
+    factionReputation(state, "england") < 0,
+    "one uncommissioned prize against a national enemy should make the captain cold at home"
+  );
 
   const pirateAfterPiracy = factionReputation(state, "pirate");
   recordPiracyAgainstFaction(state, "pirate");
@@ -687,6 +692,11 @@ test("a captain's own sovereign objects strongly to piracy against an unrelated 
   assert.equal(
     factionReputation(state, "england"),
     englishBefore + PIRACY_HOME_REPUTATION_PENALTY
+  );
+  assert.equal(PIRACY_HOME_REPUTATION_PENALTY, -18);
+  assert.ok(
+    PIRACY_HOME_REPUTATION_PENALTY < PIRACY_HOME_ENEMY_REPUTATION_PENALTY,
+    "attacking a neutral power should remain graver than an uncommissioned enemy prize"
   );
 });
 

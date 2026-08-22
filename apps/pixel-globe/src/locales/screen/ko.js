@@ -2419,6 +2419,7 @@ export default Object.freeze({
   "Pilots carried copies of the captain's charts from Lisbon to every Portuguese factory.": "조종사들은 리스본에서 모든 포르투갈 공장으로 선장 해도의 사본을 가지고 다녔습니다.",
   "Pilots, brokers, and sailors from several seas fill the roadstead; no cargo remains a secret for long.": "여러 바다에서 온 조종사, 중개인, 선원들이 도로를 가득 채웁니다. 오랫동안 비밀로 남아 있는 화물은 없습니다.",
   "Piracy": "해적 행위",
+  "PIRACY: {0} STANDING {1}": "해적 행위: {0} 평판 {1}",
   "Piranha": "피라냐",
   "Pirate": "해적",
   "PIRATE CAPTIVE": "해적 포로",

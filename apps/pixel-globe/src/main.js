@@ -23141,8 +23141,22 @@ function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
   if (lawfulWartimeAction) return;
   if (!state?.playerPiracyRecorded) {
     const hideoutsWereVisible = pirateHideoutsVisibleToPlayer(gameState);
-    recordPiracyAgainstFaction(gameState, factionId, { includeVictim: false });
+    const reputationChanges = recordPiracyAgainstFaction(
+      gameState,
+      factionId,
+      { includeVictim: false }
+    );
     if (state) state.playerPiracyRecorded = true;
+    const homeFactionId = gameState.playerCharacter?.nationalityId || null;
+    const homeChange = homeFactionId ? reputationChanges[homeFactionId] : null;
+    if (homeChange) {
+      showSurvivalNotice(
+        `PIRACY: ${factionById(homeFactionId).name.toUpperCase()} STANDING ` +
+          formatSignedReputation(homeChange.after - homeChange.before),
+        "warn"
+      );
+      dirty = true;
+    }
     if (!hideoutsWereVisible && pirateHideoutsVisibleToPlayer(gameState)) {
       chart = null;
       showSurvivalNotice("PIRATE HIDEOUTS REVEALED", "good");

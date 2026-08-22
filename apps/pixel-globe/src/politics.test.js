@@ -139,7 +139,7 @@ test("politics cards report meaningful diplomacy and player standing", () => {
   const pirate = politicsCard(view, "pirate");
 
   assert.ok(relationshipFactionIds(england, "war").includes("france"));
-  assert.equal(england.player.label, "Warm");
+  assert.equal(england.player.label, "Cold");
   assert.equal(france.player.label, "Hostile");
   assert.equal(pirate.player.label, "Hostile");
 });

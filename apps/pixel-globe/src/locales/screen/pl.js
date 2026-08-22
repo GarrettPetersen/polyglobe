@@ -2419,6 +2419,7 @@ export default Object.freeze({
   "Pilots carried copies of the captain's charts from Lisbon to every Portuguese factory.": "Piloci przewozili kopie map kapitańskich z Lizbony do każdej portugalskiej fabryki.",
   "Pilots, brokers, and sailors from several seas fill the roadstead; no cargo remains a secret for long.": "Piloci, brokerzy i marynarze z kilku mórz wypełniają redę; żaden ładunek nie pozostaje długo tajemnicą.",
   "Piracy": "Piractwo",
+  "PIRACY: {0} STANDING {1}": "PIRACTWO: {0} REPUTACJA {1}",
   "Piranha": "Pirania",
   "Pirate": "Pirat",
   "PIRATE CAPTIVE": "PIRAT W NIEWOLI",

@@ -2419,6 +2419,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Pilots carried copies of the captain's charts from Lisbon to every Portuguese factory.",
   "Pilots, brokers, and sailors from several seas fill the roadstead; no cargo remains a secret for long.",
   "Piracy",
+  "PIRACY: {0} STANDING {1}",
   "Piranha",
   "Pirate",
   "PIRATE CAPTIVE",
