@@ -10,6 +10,8 @@ import {
   ONBOARDING_DELIVERY_SCENARIOS,
   acceptQuest,
   advanceCapturePortMissionAfterConquest,
+  captureCommissionAutomaticOfferChance,
+  captureCommissionPetitionOptionsForCity,
   capturePortMissionEligibility,
   capturePortMissionOfferForCity,
   commissionedPortCaptureFactionId,
@@ -20,6 +22,7 @@ import {
   factionReputation,
   grantGuaranteedMissionPerkItem,
   isCaptureCapitalQuest,
+  petitionCaptureCommission,
   prepareHighValueMissionPerkItem,
   questStateForCity,
   receiveRescuedTravelerReunionReward,
@@ -27,6 +30,12 @@ import {
   reconcileQuestPortTiles,
   reconcileQuestWorldAssumptions
 } from "./gameState.js";
+import {
+  CAPTURE_COMMISSION_PRIORITY_HISTORICAL_ATTEMPT,
+  CAPTURE_COMMISSION_PRIORITY_HISTORICAL_CONQUEST,
+  CAPTURE_COMMISSION_PRIORITY_RETAKE,
+  CAPTURE_COMMISSION_PRIORITY_STRATEGIC
+} from "./captureCommissionPriorities.js";
 import { PERK_ITEMS } from "./perkItems.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { gameMinuteForDate } from "./rulers.js";
@@ -622,7 +631,7 @@ test("an active colonization expedition does not suppress a capital capture comm
   assert.equal(state.memory.colonization.stage, "fetch");
 });
 
-test("capture commissions require guns, a full landing company, and a letter of marque", () => {
+test("capture warrants require a letter of marque but may be issued before the ship is prepared", () => {
   const stats = shipStatsForSlug("large-junk");
   const state = createGameState({
     cargoCapacity: stats.cargoCapacity,
@@ -642,12 +651,231 @@ test("capture commissions require guns, a full landing company, and a letter of 
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   state.ship.cannons = 7;
   assert.equal(capturePortMissionEligibility(state).eligible, false);
-  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), null);
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context);
+  assert.equal(offer.targetTileId, CALAIS.tileId);
 
   state.ship.cannons = 8;
   state.ship.crew = 35;
   assert.equal(capturePortMissionEligibility(state).eligible, false);
-  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), null);
+  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), offer);
+});
+
+test("unsolicited capture warrants are much more likely when a home port must be retaken", () => {
+  const strategicChance = captureCommissionAutomaticOfferChance(
+    "england",
+    CAPTURE_COMMISSION_PRIORITY_STRATEGIC,
+    "capture-port"
+  );
+  const retakeChance = captureCommissionAutomaticOfferChance(
+    "england",
+    CAPTURE_COMMISSION_PRIORITY_RETAKE,
+    "capture-port"
+  );
+
+  assert.equal(strategicChance, 0.35);
+  assert.equal(retakeChance, 0.8);
+});
+
+test("capture commissions retake lost home ports before choosing new conquests", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const lostDover = {
+    ...DOVER,
+    factionId: "france",
+    foundingFactionId: "england"
+  };
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS, lostDover], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === lostDover.tileId ? 1200 : 100
+  });
+
+  assert.equal(offer.targetTileId, lostDover.tileId);
+  assert.equal(offer.priorityKind, CAPTURE_COMMISSION_PRIORITY_RETAKE);
+});
+
+test("historical conquests outrank attempted conquests and ordinary enemy ports", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  state.relations.diplomacy.overrides["hospitallers|ottoman"] = "war";
+  state.relations.diplomacy.overrides["ottoman|venice"] = "war";
+  const istanbul = {
+    ...port(40, "Istanbul", "Turkey", "islamic-desert", "ottoman", 41.01, 28.97),
+    isFactionCapital: true,
+    capitalOfFactionId: "ottoman"
+  };
+  const rhodes = {
+    ...port(41, "Rhodes", "Greece", "mediterranean", "hospitallers", 36.43, 28.22),
+    isFactionCapital: true,
+    capitalOfFactionId: "hospitallers"
+  };
+  const kerkira = port(42, "Kerkira", "Greece", "mediterranean", "venice", 39.62, 19.92);
+  const offer = capturePortMissionOfferForCity(state, istanbul, [istanbul, rhodes, kerkira], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === rhodes.tileId ? 900 : 300
+  });
+
+  assert.equal(offer.targetTileId, rhodes.tileId);
+  assert.equal(offer.priorityKind, CAPTURE_COMMISSION_PRIORITY_HISTORICAL_CONQUEST);
+});
+
+test("a failed historical objective outranks an otherwise sensible enemy harbor", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.spain = { factionId: "spain", simMinute: 0 };
+  state.relations.diplomacy.overrides["habsburg|ottoman"] = "war";
+  state.relations.diplomacy.overrides["france|spain"] = "war";
+  const madrid = {
+    ...port(43, "Madrid", "Spain", "mediterranean", "spain", 40.42, -3.7),
+    isFactionCapital: true,
+    capitalOfFactionId: "spain"
+  };
+  const algiers = port(44, "Algiers", "Algeria", "islamic-desert", "ottoman", 36.75, 3.06);
+  const offer = capturePortMissionOfferForCity(state, madrid, [madrid, algiers, CALAIS], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === algiers.tileId ? 900 : 200
+  });
+
+  assert.equal(offer.targetTileId, algiers.tileId);
+  assert.equal(offer.priorityKind, CAPTURE_COMMISSION_PRIORITY_HISTORICAL_ATTEMPT);
+});
+
+test("a rich distant colony can outweigh a poor nearby target within one priority tier", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const brest = {
+    ...port(45, "Brest", "France", "northern-european", "france", 48.39, -4.49),
+    population: 1000
+  };
+  const richColony = {
+    ...port(46, "Cayenne", "French Guiana", "caribbean", "france", 4.92, -52.31),
+    population: 2_000_000,
+    foundingFactionId: "france",
+    colonialFoundingType: "chartered",
+    colonizationQuestSite: true,
+    colonizationQuestStage: "established",
+    playerFoundedColony: true
+  };
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, brest, richColony], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === richColony.tileId ? 6500 : 200
+  });
+
+  assert.equal(offer.targetTileId, richColony.tileId);
+  assert.equal(offer.priorityKind, CAPTURE_COMMISSION_PRIORITY_STRATEGIC);
+});
+
+test("France may commission the capture of an established player-founded English colony", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.france = { factionId: "france", simMinute: 0 };
+  const jamestown = {
+    ...port(47, "Jamestown", "United States of America", "caribbean", "england", 37.21, -76.78),
+    population: 2400,
+    foundingFactionId: "england",
+    colonialFoundingType: "chartered",
+    colonizationQuestSite: true,
+    colonizationQuestStage: "established",
+    playerFoundedColony: true
+  };
+  const offer = capturePortMissionOfferForCity(state, PARIS, [PARIS, jamestown], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 6100
+  });
+
+  assert.equal(offer.targetTileId, jamestown.tileId);
+});
+
+test("a captain petitions against a power while the court chooses the target", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  state.relations.factionReputation.england = 70;
+  const lostDover = {
+    ...DOVER,
+    factionId: "france",
+    foundingFactionId: "england"
+  };
+  const context = {
+    simMinute: 0,
+    random: () => 0,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === lostDover.tileId ? 900 : 100
+  };
+  const options = captureCommissionPetitionOptionsForCity(
+    state,
+    LONDON,
+    [LONDON, CALAIS, lostDover],
+    context
+  );
+  assert.equal(options.length, 1);
+  assert.equal(options[0].targetFactionId, "france");
+
+  const result = petitionCaptureCommission(
+    state,
+    LONDON,
+    [LONDON, CALAIS, lostDover],
+    "france",
+    context
+  );
+  assert.equal(result.granted, true);
+  assert.equal(result.offer.petitioned, true);
+  assert.equal(result.offer.targetTileId, lostDover.tileId);
+  assert.equal(result.offer.priorityKind, CAPTURE_COMMISSION_PRIORITY_RETAKE);
+});
+
+test("capture-petition odds rise with court standing and the urgency of a lost home port", () => {
+  const lowStanding = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const highStanding = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  for (const state of [lowStanding, highStanding]) {
+    state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  }
+  lowStanding.relations.factionReputation.england = 15;
+  highStanding.relations.factionReputation.england = 80;
+  const strategicContext = { simMinute: 0, sailingDistanceKm: () => 180 };
+  const lowChance = captureCommissionPetitionOptionsForCity(
+    lowStanding,
+    LONDON,
+    [LONDON, CALAIS],
+    strategicContext
+  )[0].chance;
+  const highChance = captureCommissionPetitionOptionsForCity(
+    highStanding,
+    LONDON,
+    [LONDON, CALAIS],
+    strategicContext
+  )[0].chance;
+  const lostDover = { ...DOVER, factionId: "france", foundingFactionId: "england" };
+  const urgentChance = captureCommissionPetitionOptionsForCity(
+    lowStanding,
+    LONDON,
+    [LONDON, CALAIS, lostDover],
+    strategicContext
+  )[0].chance;
+
+  assert.ok(highChance > lowChance);
+  assert.ok(urgentChance > lowChance);
+});
+
+test("a refused capture petition remains closed until the political answer cools", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const ports = [LONDON, CALAIS];
+  const context = {
+    simMinute: 0,
+    random: () => 0.999,
+    sailingDistanceKm: () => 180
+  };
+  const result = petitionCaptureCommission(state, LONDON, ports, "france", context);
+  assert.equal(result.granted, false);
+  assert.equal(state.memory.quests.capturePortOffers[`${LONDON.city}|${LONDON.country}|${LONDON.tileId}`], undefined);
+
+  const options = captureCommissionPetitionOptionsForCity(state, LONDON, ports, {
+    ...context,
+    simMinute: 1
+  });
+  assert.equal(options[0].available, false);
+  assert.ok(options[0].cooldownRemainingMinutes > 0);
 });
 
 test("ordinary passenger work improves standing with the commissioning port", () => {

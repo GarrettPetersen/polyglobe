@@ -18,6 +18,7 @@ import {
   cargoRows,
   cargoSpaceLabel,
   cargoUsed,
+  captureCommissionPetitionOptionsForCity,
   capturePortMissionEligibility,
   changePlayerReligion,
   cityLabel,
@@ -29,6 +30,7 @@ import {
   deliverReligiousMissionLeg,
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
+  factionReputation,
   futurePermanentCrewFloor,
   grantGuaranteedMissionPerkItem,
   grantLetterOfMarque,
@@ -78,6 +80,7 @@ import {
   sellGood,
   questCargoSaleTheftStatus,
   payPlayerShipyardInvestment,
+  petitionCaptureCommission,
   startPlayerShipyardInvestment
 } from "./gameState.js";
 import { isTeaRaceQuest } from "./teaRaceQuest.js";
@@ -450,6 +453,7 @@ export function createPortDialogueSession(city, options = {}) {
     marqueGrantedFactionId: null,
     tradePassPolicyId: null,
     tradePassGrantedPolicyId: null,
+    captureCommissionPetitionResult: null,
     customsNoticeKey: null,
     selectedIndex: 0,
     feedback: null
@@ -1582,7 +1586,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "barred") return barredPortView(city, gameState, context);
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
   if (session.nodeId === "disguise-failed") return disguiseFailureView(city, context);
-  if (session.nodeId === "root") return rootView(session, city, gameState, economy, context);
+  if (session.nodeId === "root") {
+    return rootView(session, city, gameState, economy, portCities, context);
+  }
   if (session.nodeId === "city-attack") return cityAttackView(session, city, gameState, context);
   if (session.nodeId === "portuguese-cartaz") {
     return portugueseCartazView(session, city, gameState, context);
@@ -1624,6 +1630,12 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   }
   if (session.nodeId === "cargo") return cargoView(session, city, gameState);
   if (session.nodeId === "quest") return questView(session, city, gameState, portCities);
+  if (session.nodeId === "capture-petition") {
+    return captureCommissionPetitionView(session, city, gameState, portCities, context);
+  }
+  if (session.nodeId === "capture-petition-result") {
+    return captureCommissionPetitionResultView(session, city, gameState);
+  }
   if (session.nodeId === "marque") return marqueView(session, city, gameState, context);
   if (session.nodeId === "trade-pass") return tradePassView(session, city, gameState, context);
   if (session.nodeId === "loadout") return loadoutView(session, city, gameState, context);
@@ -1831,6 +1843,10 @@ export function selectPortDialogueOption(
     if (session.nodeId === "trade-pass" && action.nodeId !== "trade-pass") {
       session.tradePassPolicyId = null;
       session.tradePassGrantedPolicyId = null;
+    }
+    if (["capture-petition", "capture-petition-result"].includes(session.nodeId) &&
+        !["capture-petition", "capture-petition-result"].includes(action.nodeId)) {
+      session.captureCommissionPetitionResult = null;
     }
     if (action.nodeId === "equipment" && session.nodeId === "root") {
       const offer = enterSpecialEquipmentStore(gameState, economy, city);
@@ -3013,6 +3029,23 @@ export function selectPortDialogueOption(
     session.selectedIndex = 0;
     return { closed: false, acceptedQuest };
   }
+  if (action.type === "petition-capture-commission") {
+    if (session.nodeId !== "capture-petition") {
+      throw new Error(`Capture-commission petition requires the war secretary: ${session.nodeId}`);
+    }
+    const result = petitionCaptureCommission(
+      gameState,
+      city,
+      portCities,
+      action.targetFactionId,
+      context
+    );
+    session.captureCommissionPetitionResult = result;
+    session.nodeId = "capture-petition-result";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false, captureCommissionPetition: result };
+  }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, context);
     const nextDeliveryOffer = quest.kind === "delivery"
@@ -4060,7 +4093,7 @@ function disguiseFailureView(city, context) {
   };
 }
 
-function rootView(session, city, gameState, economy, context) {
+function rootView(session, city, gameState, economy, portCities, context) {
   const market = portEconomySummary(economy, city);
   const pirateHideout = city.isPirateHideout === true;
   const tradeAccess = playerPortTradeAccess(session, city, gameState, context);
@@ -4075,6 +4108,12 @@ function rootView(session, city, gameState, economy, context) {
     city,
     context.shipyard,
     context.simMinute ?? 0
+  );
+  const capturePetitions = captureCommissionPetitionOptionsForCity(
+    gameState,
+    city,
+    portCities,
+    context
   );
   const options = [
     ...(tradeAccess.allowed
@@ -4120,6 +4159,12 @@ function rootView(session, city, gameState, economy, context) {
         type: "node",
         nodeId: "quest"
       })]
+      : []),
+    ...(capturePetitions.length > 0 && !session.disguisedEntry
+      ? [option("Petition for a capture warrant", {
+          type: "node",
+          nodeId: "capture-petition"
+        })]
       : [])
   ];
   if (vikingLongshipEnthusiastAtPort(gameState, city) && !session.disguisedEntry) {
@@ -7217,6 +7262,79 @@ function captureCommissionQuestView(session, questState, returnNodeId) {
   return isCaptureCapitalQuest(questState.quest)
     ? captureCapitalQuestView(session, questState, returnNodeId)
     : capturePortQuestView(session, questState, returnNodeId);
+}
+
+function captureCommissionPetitionView(session, city, gameState, portCities, context) {
+  const simMinute = context.simMinute ?? 0;
+  const ruler = rulerAtMinute(city.factionId, simMinute);
+  if (!ruler) throw new Error(`Capture-commission petition has no ruler for ${city.factionId}`);
+  const petitions = captureCommissionPetitionOptionsForCity(
+    gameState,
+    city,
+    portCities,
+    context
+  );
+  return {
+    speaker: `${ruler.displayName}'s war secretary`,
+    expressionId: "stern",
+    text: "A letter of marque licenses prizes at sea; it does not grant its bearer the choice of a harbor. Name the enemy. The council will judge the war's need; any warrant granted will name the port.",
+    feedback: session.feedback,
+    options: [
+      ...petitions.map((petition) => option(
+        `Petition against ${petition.targetFactionNoun}`,
+        {
+          type: "petition-capture-commission",
+          targetFactionId: petition.targetFactionId
+        },
+        petition.available
+          ? { detail: "The court will weigh your service and the needs of the war." }
+          : {
+              disabled: true,
+              disabledReason: `The council has answered this petition. Return in ` +
+                `${Math.ceil(petition.cooldownRemainingMinutes / (24 * 60))} days.`
+            }
+      )),
+      option("Back", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function captureCommissionPetitionResultView(session, city, gameState) {
+  const result = session.captureCommissionPetitionResult;
+  if (!result) throw new Error("Capture-commission petition result is missing");
+  const ruler = rulerAtMinute(result.issuerFactionId, result.simMinute);
+  if (!ruler) {
+    throw new Error(`Capture-commission petition has no ruler for ${result.issuerFactionId}`);
+  }
+  const enemy = factionById(result.targetFactionId);
+  if (result.granted) {
+    const quest = result.offer;
+    return {
+      speaker: `${ruler.displayName}'s war secretary`,
+      expressionId: "stern",
+      text: `The council has heard your petition against ${factionNounPhrase(enemy.id)}. ${ruler.displayName} grants a warrant, but its object is fixed under seal: take ${quest.targetName}, raise ${quest.originFactionAdjective} colors, and return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
+      feedback: session.feedback,
+      options: [
+        option(`Accept the warrant: capture ${quest.targetName}`, {
+          type: "accept-quest",
+          quest
+        }, {
+          detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
+        }),
+        option("Back", { type: "node", nodeId: "root" })
+      ]
+    };
+  }
+  const reputation = factionReputation(gameState, result.issuerFactionId);
+  return {
+    speaker: `${ruler.displayName}'s war secretary`,
+    expressionId: reputation >= 50 ? "attentive" : "stern",
+    text: reputation >= 50
+      ? `Your service is well spoken of, but the council will issue no warrant against ${factionNounPhrase(enemy.id)} at present. Return when the campaign has altered.`
+      : `No warrant shall issue against ${factionNounPhrase(enemy.id)}. A captain may offer service, but the court conducts the war. Return when your credit or the campaign has altered.`,
+    feedback: session.feedback,
+    options: [option("Return to the quay", { type: "node", nodeId: "root" })]
+  };
 }
 
 function capturePortQuestView(session, questState, returnNodeId) {

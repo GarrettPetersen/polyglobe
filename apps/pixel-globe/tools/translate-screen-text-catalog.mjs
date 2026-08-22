@@ -124,6 +124,104 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Petition for a capture warrant": Object.freeze({
+    "zh-Hans": "请求颁发港口占领敕令",
+    ru: "Просить грамоту на захват порта",
+    es: "Solicitar una comisión de conquista",
+    "pt-BR": "Pedir uma comissão de conquista",
+    ja: "港湾攻略の勅許を願い出る",
+    de: "Um einen Eroberungsauftrag ersuchen",
+    fr: "Solliciter une commission de conquête",
+    pl: "Prosić o zlecenie zdobycia portu",
+    "zh-Hant": "請求頒發港口佔領敕令",
+    ko: "항구 점령 위임장을 청원한다"
+  }),
+  "A letter of marque licenses prizes at sea; it does not grant its bearer the choice of a harbor. Name the enemy. The council will judge the war's need; any warrant granted will name the port.": Object.freeze({
+    "zh-Hans": "私掠许可证准许在海上夺取战利船，却不把港口的选择交给持证人。说出你请求与之交战的敌国。议政会将裁定夺港是否有利于战事；若准所请，敕令自会写明目标港口。",
+    ru: "Каперская грамота дозволяет брать призы в море, но не отдаёт её держателю выбор гавани. Назовите державу, против которой ходатайствуете. Военный совет решит, послужит ли захват ходу войны; если просьба будет удовлетворена, в грамоте будет назван порт.",
+    es: "Una patente de corso autoriza a tomar presas en el mar; no entrega a su titular la elección de un puerto. Nombrad a la potencia contra la que suplicáis. El consejo decidirá si una conquista conviene a la guerra y, si concede la comisión, señalará el puerto.",
+    "pt-BR": "Uma carta de corso autoriza a tomar presas no mar; não entrega ao portador a escolha de um porto. Nomeai a potência contra a qual fazeis a petição. O conselho decidirá se a conquista serve à guerra e, se conceder a comissão, nomeará o porto.",
+    ja: "私掠免許状は海上で敵船を拿捕する権利を与えるが、どの港を攻めるかまで持ち主に委ねるものではない。請願の相手となる敵国を申せ。評議会がその攻略が戦の利となるかを裁き、許されれば勅許状に港の名を記す。",
+    de: "Ein Kaperbrief erlaubt, auf See Prisen zu nehmen; die Wahl eines Hafens überlässt er seinem Träger nicht. Nennt die Macht, gegen die Ihr Bittschrift einreicht. Der Kriegsrat entscheidet, ob eine Eroberung dem Krieg dient, und nennt im Auftrag den Hafen, falls er ihn gewährt.",
+    fr: "Une lettre de marque autorise les prises en mer ; elle ne remet pas à son porteur le choix d'un port. Nommez la puissance contre laquelle vous présentez requête. Le conseil décidera si une conquête sert la guerre et, s'il accorde la commission, celle-ci désignera le port.",
+    pl: "List kaperski pozwala brać pryzy na morzu, lecz nie oddaje jego posiadaczowi wyboru portu. Wskażcie państwo, przeciw któremu prosicie o zlecenie. Rada rozstrzygnie, czy zdobycie służy wojnie, a jeśli przychyli się do prośby, w dokumencie wskaże port.",
+    "zh-Hant": "私掠許可證准許在海上奪取戰利船，卻不把港口的選擇交給持證人。說出你請求與之交戰的敵國。議政會將裁定奪港是否有利於戰事；若准所請，敕令自會寫明目標港口。",
+    ko: "사략 허가장은 바다에서 적선을 나포할 권한을 줄 뿐, 어느 항구를 칠지까지 소지자에게 맡기지는 않는다. 청원하려는 적국을 말하라. 조정의 회의가 그 점령이 전쟁에 이로운지 판단하고, 허락한다면 위임장에 목표 항구를 적을 것이다."
+  }),
+  "Petition against {0}": Object.freeze({
+    "zh-Hans": "请求出兵攻取{0}", ru: "Ходатайствовать против {0}",
+    es: "Suplicar una comisión contra {0}", "pt-BR": "Pedir comissão contra {0}",
+    ja: "{0}に対する攻略を願い出る", de: "Um einen Auftrag gegen {0} ersuchen",
+    fr: "Solliciter une commission contre {0}", pl: "Prosić o zlecenie przeciw {0}",
+    "zh-Hant": "請求出兵攻取{0}", ko: "{0}을 상대로 청원한다"
+  }),
+  "The court will weigh your service and the needs of the war.": Object.freeze({
+    "zh-Hans": "朝廷会衡量你的功劳与战事所需。", ru: "Двор взвесит ваши заслуги и нужды войны.",
+    es: "La corte sopesará vuestros servicios y las necesidades de la guerra.",
+    "pt-BR": "A corte pesará vossos serviços e as necessidades da guerra.",
+    ja: "宮廷はそなたの功績と戦の要を量る。", de: "Der Hof wird Eure Dienste und die Erfordernisse des Krieges abwägen.",
+    fr: "La cour pèsera vos services et les nécessités de la guerre.",
+    pl: "Dwór rozważy wasze zasługi i potrzeby wojny.",
+    "zh-Hant": "朝廷會衡量你的功勞與戰事所需。", ko: "조정은 그대의 공적과 전쟁의 형편을 함께 헤아릴 것이다."
+  }),
+  "The council has answered this petition. Return in {0} days.": Object.freeze({
+    "zh-Hans": "议政会已对此作出答复。{0}日后再来。", ru: "Совет уже ответил на это ходатайство. Возвращайтесь через {0} дней.",
+    es: "El consejo ya ha respondido a esta súplica. Volved dentro de {0} días.",
+    "pt-BR": "O conselho já respondeu a esta petição. Voltai em {0} dias.",
+    ja: "評議会はすでにこの請願へ返答した。{0}日後に戻れ。", de: "Der Rat hat diese Bittschrift bereits beschieden. Kehrt in {0} Tagen zurück.",
+    fr: "Le conseil a déjà répondu à cette requête. Revenez dans {0} jours.",
+    pl: "Rada już odpowiedziała na tę prośbę. Wróćcie za {0} dni.",
+    "zh-Hant": "議政會已對此作出答覆。{0}日後再來。", ko: "회의는 이미 이 청원에 답했다. {0}일 뒤에 다시 오라."
+  }),
+  "The council has heard your petition against {0}. {1} grants a warrant, but its object is fixed under seal: take {2}, raise {3} colors, and return for {4} doubloons.": Object.freeze({
+    "zh-Hans": "议政会已审理你针对{0}的请求。{1}准发敕令，但目标已封缄写定：夺取{2}，升起{3}旗帜，返航后领赏{4}达布隆。",
+    ru: "Военный совет рассмотрел ваше ходатайство против {0}. {1} жалует грамоту, но цель в ней скреплена печатью: возьмите {2}, поднимите {3} знамя и возвращайтесь за {4} дублонами.",
+    es: "El consejo ha oído vuestra súplica contra {0}. {1} concede la comisión, pero su objetivo queda fijado bajo sello: tomad {2}, izad los colores {3} y regresad por {4} doblones.",
+    "pt-BR": "O conselho ouviu vossa petição contra {0}. {1} concede a comissão, mas o alvo fica fixado sob selo: tomai {2}, hasteai as cores {3} e voltai por {4} dobrões.",
+    ja: "{0}に対するそなたの請願を評議会は聞き届けた。{1}は勅許を与えるが、目標は封印の下に定められている。{2}を攻略し、{3}の旗を掲げ、帰還すれば{4}ダブロンを与える。",
+    de: "Der Kriegsrat hat Eure Bittschrift gegen {0} gehört. {1} gewährt den Auftrag, doch sein Ziel ist unter Siegel festgelegt: Nehmt {2}, hisst die {3} Flagge und kehrt für {4} Dublonen zurück.",
+    fr: "Le conseil a entendu votre requête contre {0}. {1} accorde la commission, mais son objectif est fixé sous le sceau : prenez {2}, hissez les couleurs {3} et revenez toucher {4} doublons.",
+    pl: "Rada wysłuchała waszej prośby przeciw {0}. {1} udziela zlecenia, lecz jego cel zapisano pod pieczęcią: zdobądźcie {2}, wznieście {3} barwy i wróćcie po {4} dublonów.",
+    "zh-Hant": "議政會已審理你針對{0}的請求。{1}准發敕令，但目標已封緘寫定：奪取{2}，升起{3}旗幟，返航後領賞{4}達布隆。",
+    ko: "회의는 {0}을 상대로 한 그대의 청원을 들었다. {1}께서 위임장을 내리시되, 목표는 봉인 아래 정해져 있다. {2}을 점령하고 {3} 깃발을 올린 뒤 돌아오면 {4}더블룬을 받을 것이다."
+  }),
+  "Accept the warrant: capture {0}": Object.freeze({
+    "zh-Hans": "接领敕令：夺取{0}", ru: "Принять грамоту: захватить {0}",
+    es: "Aceptar la comisión: tomar {0}", "pt-BR": "Aceitar a comissão: tomar {0}",
+    ja: "勅許を受ける：{0}を攻略する", de: "Auftrag annehmen: {0} erobern",
+    fr: "Accepter la commission : prendre {0}", pl: "Przyjąć zlecenie: zdobyć {0}",
+    "zh-Hant": "接領敕令：奪取{0}", ko: "위임장을 받는다: {0} 점령"
+  }),
+  "Your service is well spoken of, but the council will issue no warrant against {0} at present. Return when the campaign has altered.": Object.freeze({
+    "zh-Hans": "众人都称道你的功劳，但议政会眼下不会颁发攻取{0}的敕令。待战局有变再来。",
+    ru: "О вашей службе говорят с похвалой, но ныне совет не выдаст грамоты против {0}. Возвращайтесь, когда ход кампании изменится.",
+    es: "Vuestros servicios reciben elogios, pero el consejo no expedirá ahora comisión contra {0}. Volved cuando cambie la campaña.",
+    "pt-BR": "Vossos serviços são louvados, mas o conselho não emitirá agora comissão contra {0}. Voltai quando a campanha mudar.",
+    ja: "そなたの功績は高く評されている。だが今、評議会は{0}に対する勅許を出さぬ。戦況が変われば戻れ。",
+    de: "Eure Dienste werden gerühmt, doch der Rat wird gegenwärtig keinen Auftrag gegen {0} erteilen. Kehrt zurück, wenn sich der Feldzug gewandelt hat.",
+    fr: "Vos services sont tenus en haute estime, mais le conseil ne délivrera pour l'heure aucune commission contre {0}. Revenez lorsque la campagne aura changé.",
+    pl: "Wasza służba cieszy się dobrą opinią, lecz rada nie wyda teraz zlecenia przeciw {0}. Wróćcie, gdy kampania przybierze inny obrót.",
+    "zh-Hant": "眾人都稱道你的功勞，但議政會眼下不會頒發攻取{0}的敕令。待戰局有變再來。",
+    ko: "그대의 공적은 높이 평가받고 있다. 그러나 지금 회의는 {0}을 상대로 한 위임장을 내리지 않을 것이다. 전황이 달라지면 다시 오라."
+  }),
+  "No warrant shall issue against {0}. A captain may offer service, but the court conducts the war. Return when your credit or the campaign has altered.": Object.freeze({
+    "zh-Hans": "议政会已听取你针对{0}的请求。敕令不予颁发。船长可以请命效力，但用兵之权在朝廷。待你的声望更高，或战局有变，再来。",
+    ru: "Совет рассмотрел ваше ходатайство против {0}. Грамота выдана не будет. Капитан вправе предложить службу, но войной распоряжается двор. Возвращайтесь, когда ваш вес при дворе возрастёт или ход кампании изменится.",
+    es: "El consejo ha oído vuestra súplica contra {0}. No se expedirá comisión. Un capitán puede ofrecer sus servicios, pero la dirección de la guerra corresponde a la corte. Volved cuando vuestro crédito sea mayor o cambie la campaña.",
+    "pt-BR": "O conselho ouviu vossa petição contra {0}. Não será emitida comissão. Um capitão pode oferecer serviço, mas a condução da guerra pertence à corte. Voltai quando vosso crédito for maior ou a campanha mudar.",
+    ja: "評議会は{0}に対するそなたの請願を聞いた。勅許は出さぬ。船長が奉仕を申し出ることはできるが、戦を指図するのは宮廷である。宮廷での信用が増すか、戦況が変われば戻れ。",
+    de: "Der Rat hat Eure Bittschrift gegen {0} gehört. Ein Auftrag wird nicht erteilt. Ein Kapitän mag seinen Dienst anbieten, doch die Führung des Krieges liegt beim Hof. Kehrt zurück, wenn Euer Ansehen größer ist oder sich der Feldzug gewandelt hat.",
+    fr: "Le conseil a entendu votre requête contre {0}. Aucune commission ne sera délivrée. Un capitaine peut offrir ses services, mais la conduite de la guerre appartient à la cour. Revenez lorsque votre crédit sera plus grand ou que la campagne aura changé.",
+    pl: "Rada wysłuchała waszej prośby przeciw {0}. Zlecenie nie zostanie wydane. Kapitan może zaoferować służbę, lecz prowadzenie wojny należy do dworu. Wróćcie, gdy wasze znaczenie wzrośnie albo kampania przybierze inny obrót.",
+    "zh-Hant": "議政會已聽取你針對{0}的請求。敕令不予頒發。船長可以請命效力，但用兵之權在朝廷。待你的聲望更高，或戰局有變，再來。",
+    ko: "회의는 {0}을 상대로 한 그대의 청원을 들었다. 위임장은 내리지 않는다. 선장은 봉사를 청할 수 있으나 전쟁을 이끄는 권한은 조정에 있다. 조정에서의 신망이 더 높아지거나 전황이 달라지면 돌아오라."
+  }),
+  "Return to the quay": Object.freeze({
+    "zh-Hans": "返回码头", ru: "Вернуться на пристань", es: "Volver al muelle",
+    "pt-BR": "Voltar ao cais", ja: "波止場へ戻る", de: "Zum Kai zurückkehren",
+    fr: "Retourner au quai", pl: "Wrócić na nabrzeże", "zh-Hant": "返回碼頭",
+    ko: "부두로 돌아간다"
+  }),
   "The flag you serve is at war with {0}. You may batter the harbor and carry off lawful spoil, but only a ruler's express commission can bring {1} under another obedience.": Object.freeze({
     "zh-Hans": "你所效忠的旗帜正与{0}交战。你可以轰击港口，夺取合法战利品；但只有君主的明令委任，方能使{1}改奉他主。",
     ru: "Держава, под чьим флагом вы служите, воюет с {0}. Вы вправе обстрелять гавань и взять законную добычу, но лишь прямая грамота государя может привести {1} под иную власть.",

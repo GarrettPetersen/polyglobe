@@ -6552,6 +6552,80 @@ test("a crown capture commission names the enemy port, spoils, and return reward
   assert.ok(view.options.some((entry) => entry.action.type === "accept-quest"));
 });
 
+test("capital petition dialogue lets the captain name an enemy while the court fixes the objective", () => {
+  const london = {
+    tileId: 803,
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    population: 90000,
+    factionId: "england",
+    isFactionCapital: true,
+    capitalOfFactionId: "england",
+    character: { name: "Thomas Cromwell" }
+  };
+  const calais = {
+    tileId: 804,
+    city: "Calais",
+    displayCity: "Calais",
+    country: "France",
+    cityType: "northern-european",
+    population: 18000,
+    factionId: "france",
+    character: { name: "Guillaume Morel" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  gameState.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const ports = [london, calais];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const context = {
+    simMinute: 0,
+    random: () => 0,
+    sailingDistanceKm: () => 180
+  };
+  const session = createPortDialogueSession(london, { initialNodeId: "root" });
+  const root = portDialogueView(session, london, gameState, economy, ports, context);
+  const openIndex = root.options.findIndex((entry) => entry.action.nodeId === "capture-petition");
+  assert.ok(openIndex >= 0);
+
+  selectPortDialogueOption(session, london, gameState, economy, ports, openIndex, context);
+  const petition = portDialogueView(session, london, gameState, economy, ports, context);
+  assert.match(petition.speaker, /war secretary/i);
+  assert.match(petition.text, /does not grant its bearer the choice of a harbor/i);
+  assert.match(petition.text, /council will judge the war's need/i);
+  const franceIndex = petition.options.findIndex((entry) => (
+    entry.action.type === "petition-capture-commission" &&
+    entry.action.targetFactionId === "france"
+  ));
+  assert.ok(franceIndex >= 0);
+
+  const decision = selectPortDialogueOption(
+    session,
+    london,
+    gameState,
+    economy,
+    ports,
+    franceIndex,
+    context
+  );
+  assert.equal(decision.captureCommissionPetition.granted, true);
+  const answer = portDialogueView(session, london, gameState, economy, ports, context);
+  assert.match(answer.text, /object is fixed under seal/i);
+  assert.match(answer.text, /take Calais/i);
+  assert.doesNotMatch(answer.text, /you choose|your choice|name the port/i);
+  assert.ok(answer.options.some((entry) => (
+    entry.action.type === "accept-quest" && /capture Calais/i.test(entry.label)
+  )));
+});
+
 test("a final capital commission explains the war's grievance and general peace", () => {
   const london = {
     tileId: 811,
