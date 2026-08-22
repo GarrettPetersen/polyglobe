@@ -4002,8 +4002,8 @@ function cityAttackView(session, city, gameState, context) {
     ? `Without wartime authority, attacking ${cityLabel(city)} is piracy. The harbor batteries will open fire. If you prevail, you may plunder the city, but no crown will recognize a conquest.`
     : attack.commissioned
     ? `Your commission authorizes war against ${target.name}. Attack the harbor batteries, land your marines, and take ${cityLabel(city)} for ${factionById(attack.captureFactionId).name}.`
-    : attack.mode === "conquest"
-    ? `${target.name} is at war with the flag you serve. Attack the harbor batteries, land your marines, and the city can be taken for ${factionById(attack.captureFactionId).name}.`
+    : attack.ownNationAtWar
+    ? `The flag you serve is at war with ${target.name}. You may batter the harbor and carry off lawful spoil, but only a ruler's express commission can bring ${cityLabel(city)} under another obedience.`
     : attack.privateeringAuthority
     ? `Your letter of marque permits an attack on ${target.name}, but it is not a conquest commission. You may plunder ${cityLabel(city)}, not annex it.`
     : `No sovereign will object to an attack on this pirate harbor. You may plunder it, but not annex it.`;

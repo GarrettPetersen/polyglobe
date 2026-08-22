@@ -3342,6 +3342,37 @@ test("a friendly foreign port warns before a piratical city attack", () => {
   );
 });
 
+test("formal war permits a lawful port raid but grants no right of conquest", () => {
+  const city = {
+    tileId: 130,
+    city: "Calais",
+    displayCity: "Calais",
+    country: "France",
+    cityType: "northern-european",
+    factionId: "france",
+    population: 18000,
+    character: { name: "Etienne Moreau" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] }
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const context = { portAttackStatus: playerPortAttackStatus(gameState, city) };
+  const root = portDialogueView(session, city, gameState, economy, [city], context);
+  const attackIndex = root.options.findIndex((entry) => entry.label === "Attack city");
+  assert.ok(attackIndex >= 0);
+  assert.equal(root.options[attackIndex].detail, "Legal attack");
+  selectPortDialogueOption(session, city, gameState, economy, [city], attackIndex, context);
+  const warning = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(warning.text, /flag you serve is at war with (?:the )?Kingdom of France/i);
+  assert.match(warning.text, /carry off lawful spoil/i);
+  assert.match(warning.text, /ruler's express commission/i);
+  assert.doesNotMatch(warning.text, /taken for England/i);
+  assert.deepEqual(warning.options.map((entry) => entry.label), ["Attack city", "Back"]);
+});
+
 test("a port attack button identifies the letter of marque that makes it legal", () => {
   const city = {
     tileId: 131,

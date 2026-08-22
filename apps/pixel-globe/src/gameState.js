@@ -5861,7 +5861,9 @@ export function playerPortAttackStatus(state, city) {
     diplomacyBetweenForState(state, playerFactionId, targetFactionId) === DIPLOMACY_WAR;
   const privateeringAuthority = hasPrivateeringAuthorityAgainst(state, targetFactionId);
   const targetIsPirate = targetFactionId === PIRATE_FACTION_ID;
-  const captureFactionId = commissionedFactionId || (ownNationAtWar ? playerFactionId : null);
+  // War licenses battle and prize-taking; it does not empower a sea captain to
+  // transfer sovereignty. Annexation requires a ruler's express commission.
+  const captureFactionId = commissionedFactionId;
   const piracy = ownPort || (
     !commissionedFactionId && !ownNationAtWar && !privateeringAuthority && !targetIsPirate
   );

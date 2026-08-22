@@ -103,12 +103,12 @@ test("player reputation starts from nationality, wars, and pirates", () => {
   assert.equal(factionReputation(state, "pirate"), PIRATE_START_REPUTATION);
 });
 
-test("port attacks distinguish conquest commissions, wartime capture, privateering, and piracy", () => {
+test("port attacks distinguish capture commissions, wartime raids, privateering, and piracy", () => {
   const wartime = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
   assert.deepEqual(
     pickAttackStatus(playerPortAttackStatus(wartime, CALAIS)),
     { commissioned: false, ownNationAtWar: true, privateeringAuthority: false, piracy: false,
-      mode: "conquest", captureFactionId: "england" }
+      mode: "raid", captureFactionId: null }
   );
 
   const friendly = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
@@ -117,6 +117,13 @@ test("port attacks distinguish conquest commissions, wartime capture, privateeri
     pickAttackStatus(playerPortAttackStatus(friendly, lisbon)),
     { commissioned: false, ownNationAtWar: false, privateeringAuthority: false, piracy: true,
       mode: "raid", captureFactionId: null }
+  );
+  recordSelfDefenseAgainstFaction(friendly, "portugal");
+  assert.deepEqual(
+    pickAttackStatus(playerPortAttackStatus(friendly, lisbon)),
+    { commissioned: false, ownNationAtWar: false, privateeringAuthority: false, piracy: true,
+      mode: "raid", captureFactionId: null },
+    "surviving Portuguese fire does not confer authority to plunder or annex Lisbon"
   );
 
   const commissioned = createGameState({

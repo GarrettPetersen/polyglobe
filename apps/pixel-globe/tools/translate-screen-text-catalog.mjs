@@ -124,6 +124,18 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "The flag you serve is at war with {0}. You may batter the harbor and carry off lawful spoil, but only a ruler's express commission can bring {1} under another obedience.": Object.freeze({
+    "zh-Hans": "你所效忠的旗帜正与{0}交战。你可以轰击港口，夺取合法战利品；但只有君主的明令委任，方能使{1}改奉他主。",
+    ru: "Держава, под чьим флагом вы служите, воюет с {0}. Вы вправе обстрелять гавань и взять законную добычу, но лишь прямая грамота государя может привести {1} под иную власть.",
+    es: "La bandera a la que servís está en guerra con {0}. Podéis batir el puerto y tomar presa legítima, pero solo una comisión expresa de un soberano puede poner a {1} bajo otra obediencia.",
+    "pt-BR": "A bandeira a que servis está em guerra com {0}. Podeis bombardear o porto e tomar presa legítima, mas somente uma comissão expressa de um soberano pode pôr {1} sob outra obediência.",
+    ja: "あなたが仕える旗は{0}と戦争中です。港を砲撃し、正当な戦利品を持ち帰ることはできますが、{1}を別の主君に服させるには、君主の明確な委任状が要ります。",
+    de: "Die Flagge, der Ihr dient, steht mit {0} im Krieg. Ihr dürft den Hafen beschießen und rechtmäßige Beute nehmen, doch nur der ausdrückliche Auftrag eines Herrschers kann {1} unter einen anderen Gehorsam bringen.",
+    fr: "La bannière que vous servez est en guerre contre {0}. Vous pouvez battre le port et emporter une prise légitime, mais seule la commission expresse d'un souverain peut placer {1} sous une autre obédience.",
+    pl: "Bandera, której służycie, prowadzi wojnę z {0}. Możecie ostrzelać port i zabrać prawowity łup, lecz tylko wyraźne zlecenie władcy może oddać {1} pod inne posłuszeństwo.",
+    "zh-Hant": "你所效忠的旗幟正與{0}交戰。你可以轟擊港口，奪取合法戰利品；但只有君主的明令委任，方能使{1}改奉他主。",
+    ko: "그대가 섬기는 깃발은 {0}와 전쟁 중이오. 항구를 포격하고 정당한 전리품을 거둘 수는 있으나, {1}을 다른 군주의 지배 아래 들이려면 통치자의 명시적인 위임장이 있어야 하오."
+  }),
   "Camel_walk": Object.freeze({
     "zh-Hans": "单峰骆驼行走", ru: "Шагающий дромадер", es: "Dromedario caminando",
     "pt-BR": "Dromedário caminhando", ja: "歩くヒトコブラクダ", de: "Gehendes Dromedar",

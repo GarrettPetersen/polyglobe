@@ -9,6 +9,8 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
+  NPC_PORT_RESPONSE_BURNING,
+  NPC_PORT_RESPONSE_LOST,
   NPC_PACIFIC_FLEET_TARGET,
   NPC_SEA_ROUTE_SNAPSHOT_VERSION,
   NPC_WHALER_FLEET_TARGET,
@@ -27,6 +29,8 @@ import {
   npcCargoAvailableQuantity,
   npcFleetOriginWeightsForPorts,
   npcPortHasMajorProtection,
+  npcCapitalNavalReserveStatus,
+  orderNpcPortResponse,
   npcSeaRoutePortSettlementType,
   reconcileNpcCargoCapacity,
   reconcileNpcRouteEncounterIdentity,
@@ -661,6 +665,128 @@ test("Mughal succession launches a persistent regional war flotilla", () => {
   );
 });
 
+test("capital naval reserves are finite and scale with the realm's current port power", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+
+  const portugal = npcCapitalNavalReserveStatus(routes, "portugal");
+  const ming = npcCapitalNavalReserveStatus(routes, "ming");
+  const vijayanagara = npcCapitalNavalReserveStatus(routes, "vijayanagara");
+
+  assert.equal(portugal.targetCount, 2);
+  assert.equal(ming.targetCount, 3);
+  assert.equal(vijayanagara.targetCount, 1);
+  for (const status of [portugal, ming, vijayanagara]) {
+    assert.equal(status.stockedCount, status.targetCount);
+    assert.equal(status.activeCount, 0);
+    assert.equal(status.vacantCount, 0);
+  }
+});
+
+test("a burning port activates one reserve sortie and the same port loss escalates that order", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const before = npcCapitalNavalReserveStatus(routes, "portugal");
+
+  const burning = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 5,
+    reason: NPC_PORT_RESPONSE_BURNING,
+    clockMinutes: 1000,
+    threatUntilMinute: 4000
+  });
+  assert.equal(burning.outcome, "reserve-activated");
+  const active = routes.shipById.get(burning.shipId);
+  assert.ok(active);
+  assert.equal(active.role, NPC_ROLE_WARSHIP);
+  assert.equal(active.portResponse.targetPortId, 5);
+  assert.equal(active.portResponse.reason, NPC_PORT_RESPONSE_BURNING);
+  assert.equal(active.plan.destination.tileId, 5);
+  const during = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.equal(during.stockedCount, before.stockedCount - 1);
+  assert.equal(during.deployedCount, 1);
+
+  const lost = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 5,
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 1100
+  });
+  assert.equal(lost.outcome, "already-responding");
+  assert.equal(lost.shipId, burning.shipId);
+  assert.equal(active.portResponse.reason, NPC_PORT_RESPONSE_LOST);
+  assert.equal(active.portResponse.threatUntilMinute, null);
+  assert.equal(npcCapitalNavalReserveStatus(routes, "portugal").activeCount, 1);
+});
+
+test("a resolved port threat sends its reserve ship home and restocks the same finite slot", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const before = npcCapitalNavalReserveStatus(routes, "portugal");
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 1,
+    reason: NPC_PORT_RESPONSE_BURNING,
+    clockMinutes: 1000,
+    threatUntilMinute: 1001
+  });
+  const ship = routes.shipById.get(response.shipId);
+
+  updateNpcSeaRouteSystem(routes, 1001);
+  assert.equal(ship.portResponse.phase, "returning");
+  updateNpcSeaRouteSystem(routes, ship.plan.endMinute + 1);
+  assert.ok(routes.shipById.has(ship.id));
+  updateNpcSeaRouteSystem(routes, ship.plan.endMinute + 1);
+
+  assert.equal(routes.shipById.has(ship.id), false);
+  const returned = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.equal(returned.stockedCount, before.stockedCount);
+  assert.equal(returned.activeCount, 0);
+  assert.equal(returned.vacantCount, 0);
+});
+
+test("an empty reserve slot buys a suitable hull elsewhere and sails it to the capital", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 5,
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 1000
+  });
+  const reserveShip = routes.shipById.get(response.shipId);
+  damageNpcShip(routes, reserveShip.id, reserveShip.maxHitPoints);
+  const sinking = sinkNpcShip(routes, reserveShip.id, 1001);
+  assert.equal(sinking.replacement, null);
+  assert.equal(npcCapitalNavalReserveStatus(routes, "portugal").vacantCount, 1);
+  economy.shipyards.npcSales.push(Object.freeze({
+    id: "goa-reserve-galleon:npc-sale",
+    portId: 5,
+    factionId: "portugal",
+    shipSlug: "galleon",
+    price: 60000,
+    soldMinute: 1002
+  }));
+
+  updateNpcSeaRouteSystem(routes, 1002);
+  const inTransit = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.equal(inTransit.vacantCount, 0);
+  assert.equal(inTransit.stockedCount, inTransit.targetCount - 1);
+  assert.equal(inTransit.inTransitCount, 1);
+  const transitSlot = inTransit.slots.find((slot) => slot.activeShipId !== null);
+  const transitShip = routes.shipById.get(transitSlot.activeShipId);
+  assert.equal(transitShip.currentPort.tileId, 5);
+  assert.equal(transitShip.capitalNavalReserveDestinationPortId, 1);
+  assert.equal(transitShip.plan.destination.tileId, 1);
+
+  updateNpcSeaRouteSystem(routes, transitShip.plan.endMinute + 1);
+  const restocked = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.equal(restocked.stockedCount, restocked.targetCount);
+  assert.equal(restocked.inTransitCount, 0);
+  assert.equal(restocked.vacantCount, 0);
+  assert.equal(routes.shipById.has(transitShip.id), false);
+});
+
 test("NPC merchants carry finite cargo and realize profits over repeated port calls", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
@@ -1201,6 +1327,32 @@ test("NPC route snapshots restore ships, plans, and replacement queues without c
   assert.equal(routes.pirateHideoutDangerUntil.get(PORTS[0].tileId), 5555);
   assert.equal(routes.routeCache.size, 0);
   assert.equal(routes.shipById.size, routes.ships.length);
+});
+
+test("version 2 NPC route saves gain stocked capital reserves without replacing established traffic", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  const establishedShipIds = snapshot.ships.map((ship) => ship.id).sort();
+  snapshot.version = 2;
+  delete snapshot.capitalNavalReserveSlots;
+  for (const ship of snapshot.ships) {
+    delete ship.capitalNavalReserveSlotId;
+    delete ship.capitalNavalReserveDestinationPortId;
+    delete ship.capitalNavalReserveDocked;
+    delete ship.portResponse;
+  }
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  assert.deepEqual(routes.ships.map((ship) => ship.id).sort(), establishedShipIds);
+  const portugal = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.equal(portugal.targetCount, 2);
+  assert.equal(portugal.stockedCount, portugal.targetCount);
+  assert.equal(portugal.activeCount, 0);
+  assert.ok(routes.ships.every((ship) => (
+    ship.capitalNavalReserveSlotId === null && ship.portResponse === null
+  )));
 });
 
 test("visual navigation cleanup tolerates a ship sunk earlier in the same frame", () => {

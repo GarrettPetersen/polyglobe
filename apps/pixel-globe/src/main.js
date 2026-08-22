@@ -907,6 +907,8 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
+  NPC_PORT_RESPONSE_BURNING,
+  NPC_PORT_RESPONSE_LOST,
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
   applyNpcSeaRouteSimulationSnapshot,
@@ -922,6 +924,7 @@ import {
   npcCargoAvailableQuantity,
   npcFleetOriginWeightsForPorts,
   npcPortHasMajorProtection,
+  orderNpcPortResponse,
   npcRoleLabel,
   npcSeaRouteHasPort,
   npcSeaRoutePortSettlementType,
@@ -15836,6 +15839,21 @@ function applyCurrentPortConquestOwnership({
   return new Map(allCities.map((city) => [city.tileId, city.factionId]));
 }
 
+function orderPortNavalResponse(city, factionId, reason, threatUntilMinute = null) {
+  if (!npcSeaRoutes) throw new Error("Port naval response requires NPC sea routes");
+  const result = orderNpcPortResponse(npcSeaRoutes, {
+    factionId,
+    targetPortId: city.tileId,
+    reason,
+    clockMinutes: Math.floor(weatherClockMinutes),
+    threatUntilMinute
+  });
+  npcVisualSnapshotCache.reset();
+  distantWorldApplyState = null;
+  resetDistantWorldWorkerSchedule();
+  return result;
+}
+
 function factionSyncCity(city, canonicalCity) {
   city.foundingFactionId = city.foundingFactionId || city.factionId;
   city.factionId = canonicalCity.factionId;
@@ -20742,6 +20760,11 @@ function completePlayerPortConquest(
   npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
   const capturedCity = chartPortCallById(event.portId) || portCitiesByTileId.get(event.cityTileId);
   if (!capturedCity) throw new Error(`Captured port disappeared: ${event.portId}`);
+  if (capturedCity.factionId !== event.previousFactionId &&
+      event.previousFactionId !== NEUTRAL_FACTION_ID &&
+      event.previousFactionId !== PIRATE_FACTION_ID) {
+    orderPortNavalResponse(capturedCity, event.previousFactionId, NPC_PORT_RESPONSE_LOST);
+  }
   const playerRetainsPort = !conquistadorCapture && capturedCity.factionId === ship.factionId;
   if (playerRetainsPort) {
     const needsLoadout = admitPlayerToPort(capturedCity);
@@ -29907,10 +29930,18 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     return;
   }
   destroyShoreBatteryGunpowderStore(battery);
+  const disabledCity = chartPortCallById(battery.portId);
+  if (!disabledCity) throw new Error(`Disabled shore battery has no port: ${battery.portId}`);
   if (hitByPlayer && !accidentalFriendlyFire) {
-    const city = chartPortCallById(battery.portId);
-    if (!city) throw new Error(`Disabled player target has no port: ${battery.portId}`);
-    markPlayerPortAssault(gameState.memory.flags, city, battery.disabledUntilMinute);
+    markPlayerPortAssault(gameState.memory.flags, disabledCity, battery.disabledUntilMinute);
+  }
+  if (battery.factionId !== NEUTRAL_FACTION_ID && battery.factionId !== PIRATE_FACTION_ID) {
+    orderPortNavalResponse(
+      disabledCity,
+      battery.factionId,
+      NPC_PORT_RESPONSE_BURNING,
+      battery.disabledUntilMinute
+    );
   }
   if (!hitByPlayer) attemptNpcPortConquest(battery, ball.ownerId);
   npcCombatProjectiles = npcCombatProjectiles.filter((shot) => (
@@ -29970,6 +30001,13 @@ function attemptNpcPortConquest(battery, npcShipId) {
   clearPlayerPortRaid(gameState.memory.flags, city);
   const conqueringFaction = factionById(strategic.factionId);
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
+  const capturedCity = chartPortCallById(event.portId) || portCitiesByTileId.get(event.cityTileId);
+  if (!capturedCity) throw new Error(`NPC-captured port disappeared: ${event.portId}`);
+  if (capturedCity.factionId !== event.previousFactionId &&
+      event.previousFactionId !== NEUTRAL_FACTION_ID &&
+      event.previousFactionId !== PIRATE_FACTION_ID) {
+    orderPortNavalResponse(capturedCity, event.previousFactionId, NPC_PORT_RESPONSE_LOST);
+  }
   const treatyText = treaty ? `; ${capitalPeaceTreatyDescription(treaty).toUpperCase()}` : "";
   showSurvivalNotice(
     `${event.cityName.toUpperCase()} TAKEN BY ${conqueringFaction.adjective.toUpperCase()} FORCES${treatyText}`,
