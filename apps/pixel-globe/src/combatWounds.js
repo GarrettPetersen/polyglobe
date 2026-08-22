@@ -49,6 +49,60 @@ export function applyCrewWounds({
   });
 }
 
+export function applyCrewCasualties({
+  totalCrew,
+  woundedCrew = 0,
+  crewDamage,
+  hitChance,
+  fatalityChance,
+  crewProtection,
+  crewProtectionPenetration = 0,
+  preserveFinalCrew = false,
+  random = Math.random
+}) {
+  const activeBefore = activeCombatCrew(totalCrew, woundedCrew);
+  requireCrewCount(crewDamage, "crew damage");
+  if (crewDamage <= 0) throw new Error(`Crew damage must be positive: ${crewDamage}`);
+  requireUnitInterval(fatalityChance, "crew fatality chance");
+  const effectiveChance = effectiveCrewHitChance(
+    hitChance,
+    crewProtection,
+    crewProtectionPenetration
+  );
+  if (typeof preserveFinalCrew !== "boolean") {
+    throw new Error(`Invalid final-crew protection: ${preserveFinalCrew}`);
+  }
+  if (typeof random !== "function") throw new Error("Crew casualties require a random source");
+
+  const maximumNewCasualties = Math.max(0, activeBefore - Number(preserveFinalCrew));
+  let newWounds = 0;
+  let newDeaths = 0;
+  for (
+    let index = 0;
+    index < crewDamage && newWounds + newDeaths < maximumNewCasualties;
+    index++
+  ) {
+    const hitRoll = random();
+    requireUnitInterval(hitRoll, "crew casualty hit roll", { upperExclusive: true });
+    if (hitRoll >= effectiveChance) continue;
+    const fatalityRoll = random();
+    requireUnitInterval(fatalityRoll, "crew casualty fatality roll", { upperExclusive: true });
+    if (fatalityRoll < fatalityChance) newDeaths += 1;
+    else newWounds += 1;
+  }
+  const remainingCrew = totalCrew - newDeaths;
+  const wounded = woundedCrew + newWounds;
+  return Object.freeze({
+    totalCrew: remainingCrew,
+    woundedCrew: wounded,
+    newWounds,
+    newDeaths,
+    activeCrew: remainingCrew - wounded,
+    effectiveChance,
+    protected: effectiveChance === 0
+  });
+}
+
 export function effectiveCrewHitChance(hitChance, crewProtection, crewProtectionPenetration = 0) {
   requireUnitInterval(hitChance, "crew hit chance");
   if (!Number.isInteger(crewProtection) || crewProtection < 0 || crewProtection > 100) {

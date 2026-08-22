@@ -21,6 +21,7 @@ test("portable projectile mechanics are identical before mode-specific ownership
   assert.equal(projectile.damage, weapon.hullDamage);
   assert.equal(projectile.crewDamage, weapon.crewDamage);
   assert.equal(projectile.crewHitChance, weapon.crewHitChance);
+  assert.equal(projectile.crewFatalityChance, weapon.crewFatalityChance);
   assert.equal(projectile.crewProtectionPenetration, weapon.crewProtectionPenetration);
   assert.equal(projectile.launchDelaySeconds, 0.2);
 });

@@ -1162,6 +1162,14 @@ import {
   updateStormWaveState
 } from "./stormWave.js";
 import {
+  CREW_DEATH_SURFACE_LAND,
+  CREW_DEATH_SURFACE_SEA,
+  advanceCrewDeathEffects,
+  createCrewDeathEffect,
+  crewDeathEffectFrame,
+  crewDeathLandBurstPixels
+} from "./crewDeathEffects.js";
+import {
   FISH_SCHOOL_ANIMATION_FRAME_COUNT,
   FISH_SCHOOL_MOTION_FRAME_COUNT,
   FISH_SCHOOL_MAX_FISH,
@@ -2167,7 +2175,7 @@ import {
 } from "./portableWeapons.js";
 import {
   activeCombatCrew,
-  applyCrewWounds,
+  applyCrewCasualties,
   clearCombatWounds,
   crewWoundsForceSurrender
 } from "./combatWounds.js";
@@ -2587,6 +2595,9 @@ const OVERBOARD_EJECTION_MAX_PX = 30;
 const OVERBOARD_LATERAL_SPREAD_PX = 14;
 const OVERBOARD_MAX_ACTIVE_CREW = 12;
 const OVERBOARD_SPLASH_DURATION_SECONDS = 1.2;
+const CREW_DEATH_MAX_ACTIVE_EFFECTS = 72;
+const CREW_DEATH_EJECTION_MIN_PX = 12;
+const CREW_DEATH_EJECTION_MAX_PX = 22;
 const STORM_WASH_MASK_STAGES = 8;
 const CLOUD_LIFESPAN_MINUTES = 14 * 60;
 const CLOUD_DRIFT_PX = 30;
@@ -3681,6 +3692,8 @@ const stormPassageState = createStormPassageState();
 const stormFogStrengthEnvelope = createFogStrengthEnvelope();
 const stormWaveState = createStormWaveState();
 let overboardCrew = [];
+let crewDeathEffects = [];
+let crewDeathEffectSerial = 0;
 let riverSpriteCache = new Map();
 let waterDepthBands;
 let weatherBake;
@@ -14812,6 +14825,8 @@ function startNewVoyage() {
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
   overboardCrew = [];
+  crewDeathEffects = [];
+  crewDeathEffectSerial = 0;
   playerBoundaryAssistContact = null;
   playerBoundaryProbeCache = null;
   playerNavigationRecoveryState = createPlayerShipRecoveryState();
@@ -15043,6 +15058,8 @@ async function restoreSavedVoyage(payload) {
   ship.navalProjectiles = [];
   ship.cannonSplashes = [];
   overboardCrew = restoreOverboardCrew(savedShip.overboardCrew);
+  crewDeathEffects = [];
+  crewDeathEffectSerial = 0;
   cannonSmokeBursts = [];
   hullSplinterBursts = [];
 
@@ -29889,6 +29906,8 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
   const simMinute = Math.floor(weatherClockMinutes);
   const attackerLabel = shoreBatteryAttackerShipLabel(ball.ownerId);
   let result;
+  let crewWounds = 0;
+  let crewDeaths = 0;
   if (ball.portable) {
     const impact = shoreBatteryPortableImpact(ball);
     result = damageShoreBatteryCrew(
@@ -29897,12 +29916,22 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
       {
         crewDamage: impact.crewDamage,
         crewHitChance: impact.crewHitChance,
+        crewFatalityChance: impact.crewFatalityChance,
         crewProtectionPenetration: impact.crewProtectionPenetration
       },
       simMinute,
       attackerLabel,
       Math.random
     );
+    crewWounds = result.newWounds;
+    crewDeaths = result.newDeaths;
+    spawnCrewDeathEffects({
+      count: crewDeaths,
+      targetId: battery.id,
+      cause: ball.kind === PORTABLE_PROJECTILE_ARROW ? "arrow" : "small-arms",
+      projectile: ball,
+      impactPoint: point
+    });
     const rolledHullDamage = projectileHullDamage({
       damage: impact.hullDamage,
       hullHitChance: impact.hullHitChance
@@ -29932,6 +29961,8 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
     targetId: battery.id,
     weapon: ball.kind || ball.weaponId,
     damage: ball.portable ? 0 : ball.damage,
+    crewWounds,
+    crewDeaths,
     remainingHitPoints: battery.hitPoints
   });
   if (hitByPlayer && disposition === FRIENDLY_FIRE_WARNING) {
@@ -30125,16 +30156,26 @@ function applyPlayerNavalHit(ball, target, point) {
 
 function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
   if (npcShipHasCombatGrace(npcSeaRoutes, target.id)) return;
-  const woundResult = applyCrewWounds({
-    totalCrew: target.stats.crewCapacity,
+  const casualtyResult = applyCrewCasualties({
+    totalCrew: target.crew,
     woundedCrew: target.woundedCrew,
     crewDamage: ball.crewDamage,
     hitChance: ball.crewHitChance,
+    fatalityChance: ball.crewFatalityChance,
     crewProtection: target.stats.crewProtection,
     crewProtectionPenetration: ball.crewProtectionPenetration,
+    preserveFinalCrew: true,
     random: Math.random
   });
-  target.woundedCrew = woundResult.woundedCrew;
+  target.crew = casualtyResult.totalCrew;
+  target.woundedCrew = casualtyResult.woundedCrew;
+  spawnCrewDeathEffects({
+    count: casualtyResult.newDeaths,
+    targetId: target.id,
+    cause: ball.kind === PORTABLE_PROJECTILE_ARROW ? "arrow" : "small-arms",
+    projectile: ball,
+    impactPoint: point
+  });
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   let appliedHullDamage = 0;
   const rolledHullDamage = projectileHullDamage({
@@ -30147,34 +30188,53 @@ function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
     appliedHullDamage = damage.damage;
     target.hitPoints = damage.hitPoints;
     if (damage.sunk) {
-      emitPortableWeaponHitCapture(ball, target, woundResult.newWounds, appliedHullDamage);
+      emitPortableWeaponHitCapture(
+        ball,
+        target,
+        casualtyResult.newWounds,
+        casualtyResult.newDeaths,
+        appliedHullDamage
+      );
       handleNpcSinking(target.id, winnerId);
       return;
     }
     addHullSplinterBurst(ball, point);
     if (damage.shouldSurrender) {
-      emitPortableWeaponHitCapture(ball, target, woundResult.newWounds, appliedHullDamage);
+      emitPortableWeaponHitCapture(
+        ball,
+        target,
+        casualtyResult.newWounds,
+        casualtyResult.newDeaths,
+        appliedHullDamage
+      );
       handleNpcSurrender(target.id, winnerId, {
         damageInduced: winnerId === PLAYER_COMBAT_ID
       });
       return;
     }
   }
-  emitPortableWeaponHitCapture(ball, target, woundResult.newWounds, appliedHullDamage);
-  if (crewWoundsForceSurrender(target.stats.crewCapacity, target.woundedCrew)) {
+  emitPortableWeaponHitCapture(
+    ball,
+    target,
+    casualtyResult.newWounds,
+    casualtyResult.newDeaths,
+    appliedHullDamage
+  );
+  if (crewWoundsForceSurrender(target.crew, target.woundedCrew)) {
     handleNpcSurrender(target.id, winnerId, {
       damageInduced: winnerId === PLAYER_COMBAT_ID
     });
   }
 }
 
-function emitPortableWeaponHitCapture(ball, target, crewWounds, damage) {
+function emitPortableWeaponHitCapture(ball, target, crewWounds, crewDeaths, damage) {
   emitCaptureEvent("projectile-hit", {
     ownerId: ball.ownerId,
     targetId: target.id,
     weapon: ball.weaponId,
     damage,
     crewWounds,
+    crewDeaths,
     remainingHitPoints: target.hitPoints
   });
 }
@@ -30922,6 +30982,7 @@ function updateStormWaveHazard(dt) {
   });
   if (transition.impact) resolveStormWaveImpact(transition.impact);
   const swimmersChanged = updateOverboardCrew(dt);
+  const casualtiesChanged = updateCrewDeathEffects(dt);
   if (DEBUG_STORM_WAVE_ENABLED) {
     window.__PIXEL_GLOBE_STORM_WAVE_DEBUG__ = Object.freeze({
       eligible,
@@ -30932,7 +30993,7 @@ function updateStormWaveHazard(dt) {
       overboardCrew: overboardCrew.length
     });
   }
-  return transition.changed || swimmersChanged;
+  return transition.changed || swimmersChanged || casualtiesChanged;
 }
 
 function resolveStormWaveImpact(impact) {
@@ -31031,6 +31092,129 @@ function stormWaveEjectionPosition(flow, seed, index, count) {
     ship.position[1] + forward[1] * OVERBOARD_EJECTION_MIN_PX / PIXELS_PER_RADIAN,
     ship.position[2] + forward[2] * OVERBOARD_EJECTION_MIN_PX / PIXELS_PER_RADIAN
   ]);
+}
+
+function spawnCrewDeathEffects({
+  count,
+  targetId,
+  cause,
+  projectile = null,
+  impactPoint = null,
+  sourcePoint = null,
+  playSound = true
+}) {
+  if (!Number.isInteger(count) || count < 0) throw new Error(`Invalid visible crew death count: ${count}`);
+  if (count === 0) return false;
+  if (typeof targetId !== "string" || targetId === "") {
+    throw new Error(`Invalid crew death target: ${targetId}`);
+  }
+  if (typeof cause !== "string" || cause === "") throw new Error("Visible crew deaths require a cause");
+  if (typeof playSound !== "boolean") throw new Error(`Invalid crew death sound state: ${playSound}`);
+  const targetPoint = impactPoint || combatEntityAimPoint(targetId);
+  if (!targetPoint) throw new Error(`Crew death target has no visible point: ${targetId}`);
+  const tileId = crewDeathTargetTileId(targetId);
+  const startPosition = globePositionForLocalPoint(tileId, targetPoint.x, targetPoint.y);
+  const baseIncoming = crewDeathIncomingDirection({ projectile, sourcePoint, targetPoint, targetId });
+  const fallbackHeading = crewDeathTargetHeading(targetId);
+  const arrowEmbedded = projectile?.kind === PORTABLE_PROJECTILE_ARROW;
+
+  for (let index = 0; index < count; index++) {
+    crewDeathEffectSerial += 1;
+    const seed = hashInt(
+      Math.floor(weatherClockMinutes * 1000) ^
+      Math.imul(crewDeathEffectSerial, 0x9e3779b1) ^
+      Math.imul(index + 1, 0x85ebca6b)
+    );
+    const spread = (((seed >>> 4) & 0xffff) / 0xffff - 0.5) * 0.34;
+    const cosine = Math.cos(spread);
+    const sine = Math.sin(spread);
+    const incomingDirection = {
+      x: baseIncoming.x * cosine - baseIncoming.y * sine,
+      y: baseIncoming.x * sine + baseIncoming.y * cosine
+    };
+    const tangent = screenDirectionToTangent(incomingDirection, startPosition, fallbackHeading);
+    const distancePx = CREW_DEATH_EJECTION_MIN_PX +
+      ((seed >>> 20) & 0xff) / 255 *
+      (CREW_DEATH_EJECTION_MAX_PX - CREW_DEATH_EJECTION_MIN_PX);
+    const position = normalize3([
+      startPosition[0] + tangent[0] * distancePx / PIXELS_PER_RADIAN,
+      startPosition[1] + tangent[1] * distancePx / PIXELS_PER_RADIAN,
+      startPosition[2] + tangent[2] * distancePx / PIXELS_PER_RADIAN
+    ]);
+    const landingPoint = localPointForGlobeVector(position);
+    const landingSurface = landingPoint
+      ? wakeMapPointIsWater(landingPoint.x, landingPoint.y, chart)
+        ? CREW_DEATH_SURFACE_SEA
+        : CREW_DEATH_SURFACE_LAND
+      : isShipOceanTile(findNearestTileId(graph, directionIndex, position))
+        ? CREW_DEATH_SURFACE_SEA
+        : CREW_DEATH_SURFACE_LAND;
+    crewDeathEffects.push(createCrewDeathEffect({
+      id: `crew-death-${crewDeathEffectSerial}`,
+      startPosition,
+      position,
+      flightSeconds: overboardFlightDurationSeconds(
+        () => 0.18 + ((seed >>> 8) & 0xff) / 255 * 0.64
+      ),
+      landingSurface,
+      cause,
+      arrowEmbedded,
+      incomingDirection,
+      seed: seed >>> 0,
+      variant: seed & 1
+    }));
+  }
+  if (crewDeathEffects.length > CREW_DEATH_MAX_ACTIVE_EFFECTS) {
+    crewDeathEffects.splice(0, crewDeathEffects.length - CREW_DEATH_MAX_ACTIVE_EFFECTS);
+  }
+  if (playSound) playCrewDeathSound();
+  dirty = true;
+  return true;
+}
+
+function crewDeathTargetTileId(targetId) {
+  if (targetId === PLAYER_COMBAT_ID) {
+    if (!ship) throw new Error("Player crew death requires an active ship");
+    return ship.tileId;
+  }
+  const battery = shoreBatteryStates.get(targetId);
+  if (battery) return battery.cityTileId;
+  const target = npcVisualShips.get(targetId);
+  if (!target) throw new Error(`Crew death target has no visual state: ${targetId}`);
+  return target.tileId;
+}
+
+function crewDeathTargetHeading(targetId) {
+  if (targetId === PLAYER_COMBAT_ID) {
+    if (!ship) throw new Error("Player crew death requires an active ship");
+    return ship.heading;
+  }
+  const target = npcVisualShips.get(targetId);
+  return target?.heading || WORLD_NORTH;
+}
+
+function crewDeathIncomingDirection({ projectile, sourcePoint, targetPoint, targetId }) {
+  const source = projectile
+    ? { x: projectile.startX, y: projectile.startY }
+    : sourcePoint;
+  if (source) {
+    const dx = targetPoint.x - source.x;
+    const dy = targetPoint.y - source.y;
+    const length = Math.hypot(dx, dy);
+    if (length > 1e-6) return { x: dx / length, y: dy / length };
+  }
+  const seed = hashInt(
+    targetId.split("").reduce((hash, character) => Math.imul(hash ^ character.charCodeAt(0), 16777619), 2166136261) ^
+    Math.floor(weatherClockMinutes * 10)
+  );
+  const angle = (seed & 0xffff) / 0xffff * Math.PI * 2;
+  return { x: Math.cos(angle), y: Math.sin(angle) };
+}
+
+function updateCrewDeathEffects(dt) {
+  if (crewDeathEffects.length === 0) return false;
+  crewDeathEffects = advanceCrewDeathEffects(crewDeathEffects, dt);
+  return true;
 }
 
 function updateOverboardCrew(dt) {
@@ -31144,6 +31328,18 @@ function updateSurvivalDeprivationLosses(status, currentMinute) {
     })
     : NO_SURVIVAL_DEPRIVATION;
   presentCrewLoss(deprivation.crewLost);
+  spawnCrewDeathEffects({
+    count: deprivation.dehydrationCrewLost,
+    targetId: PLAYER_COMBAT_ID,
+    cause: "dehydration",
+    playSound: false
+  });
+  spawnCrewDeathEffects({
+    count: deprivation.starvationCrewLost,
+    targetId: PLAYER_COMBAT_ID,
+    cause: "starvation",
+    playSound: false
+  });
   presentPendingNamedCrewDeathNotice();
   if (deprivation.crewLost > 0) syncShipCargoFromGameState();
   if (deprivation.crewLost <= 0) {
@@ -31236,7 +31432,7 @@ function updateStormDamage(previousMinute, currentMinute) {
     intensity: strongestIntensity,
     remainingHitPoints: ship.hitPoints
   });
-  applyCrewCasualtiesFromHullDamage(totalDamage);
+  applyCrewCasualtiesFromHullDamage(totalDamage, { cause: "lightning" });
   stormDamageNotice = {
     damage: totalDamage,
     intensity: strongestIntensity,
@@ -33421,7 +33617,6 @@ function npcCombatEntity(state) {
   const weapon = npcNavalWeapon(state);
   const encounter = npcSeaRoutes?.shipById?.get(state.id)?.encounter;
   state.cannons = weapon?.kind === NAVAL_WEAPON_CANNON ? stats.cannons : 0;
-  state.crew = stats.crewCapacity;
   state.topSpeedRad = stats.topSpeedRad;
   state.npcAttackProtected = false;
   state.forceAttack = encounter?.forceAttack === true;
@@ -33892,7 +34087,11 @@ function applyNpcCombatHit(ball, targetId, point) {
       resisted: false,
       remainingHitPoints: ship.hitPoints
     });
-    applyCrewCasualtiesFromHullDamage(damage);
+    applyCrewCasualtiesFromHullDamage(damage, {
+      cause: ball.kind === NAVAL_WEAPON_ARROW ? "arrow" : "cannon",
+      projectile: ball,
+      impactPoint: point
+    });
     const lossOutcome = resolvePlayerDamageLoss({
       sinkingReason: "Your ship was sunk in battle.",
       crewLossReason: "The last of the crew fell in battle.",
@@ -33935,21 +34134,41 @@ function applyNpcCombatHit(ball, targetId, point) {
 
 function applyPortableWeaponHitToPlayer(ball, point) {
   if (playerShipIsInvulnerable()) return;
-  const woundResult = applyCrewWounds({
+  const casualtyResult = applyCrewCasualties({
     totalCrew: gameState.ship.crew,
     woundedCrew: ship.woundedCrew,
     crewDamage: ball.crewDamage,
     hitChance: ball.crewHitChance,
+    fatalityChance: ball.crewFatalityChance,
     crewProtection: ship.stats.crewProtection,
     crewProtectionPenetration: ball.crewProtectionPenetration,
     preserveFinalCrew: true,
     random: Math.random
   });
-  ship.woundedCrew = woundResult.woundedCrew;
+  if (casualtyResult.newDeaths > 0) {
+    const lost = loseCrew(gameState, casualtyResult.newDeaths);
+    if (lost !== casualtyResult.newDeaths) {
+      throw new Error(`Portable weapon casualty mismatch: ${lost}/${casualtyResult.newDeaths}`);
+    }
+    presentCrewLoss(lost);
+    presentPendingNamedCrewDeathNotice();
+    syncShipCargoFromGameState();
+    spawnCrewDeathEffects({
+      count: lost,
+      targetId: PLAYER_COMBAT_ID,
+      cause: ball.kind === PORTABLE_PROJECTILE_ARROW ? "arrow" : "small-arms",
+      projectile: ball,
+      impactPoint: point,
+      playSound: false
+    });
+  }
+  ship.woundedCrew = casualtyResult.woundedCrew;
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
-  if (woundResult.newWounds > 0) {
+  if (casualtyResult.newWounds > 0) {
     combatNotice = {
-      text: woundResult.newWounds === 1 ? "1 CREW WOUNDED" : `${woundResult.newWounds} CREW WOUNDED`,
+      text: casualtyResult.newWounds === 1
+        ? "1 CREW WOUNDED"
+        : `${casualtyResult.newWounds} CREW WOUNDED`,
       expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
     };
   }
@@ -33978,7 +34197,8 @@ function applyPortableWeaponHitToPlayer(ball, point) {
     targetId: PLAYER_COMBAT_ID,
     weapon: ball.weaponId,
     damage: appliedHullDamage,
-    crewWounds: woundResult.newWounds,
+    crewWounds: casualtyResult.newWounds,
+    crewDeaths: casualtyResult.newDeaths,
     remainingHitPoints: ship.hitPoints
   });
 }
@@ -34962,7 +35182,10 @@ function applyCombatCollisionDamage(id, amount, otherId) {
     if (playerHullDamageWasResisted("COLLISION")) return;
     const damage = amount;
     ship.hitPoints = Math.max(0, ship.hitPoints - damage);
-    applyCrewCasualtiesFromHullDamage(damage);
+    applyCrewCasualtiesFromHullDamage(damage, {
+      cause: "collision",
+      sourcePoint: combatEntityAimPoint(otherId)
+    });
     combatNotice = {
       text: `COLLISION  -${formatCombatDamage(damage)} HULL`,
       expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
@@ -35028,8 +35251,16 @@ function formatCombatDamage(damage) {
   return Number.isInteger(damage) ? String(damage) : damage.toFixed(1);
 }
 
-function applyCrewCasualtiesFromHullDamage(damage) {
+function applyCrewCasualtiesFromHullDamage(damage, {
+  cause,
+  projectile = null,
+  impactPoint = null,
+  sourcePoint = null
+}) {
   if (!gameState || damage <= 0 || playerShipIsInvulnerable()) return 0;
+  if (typeof cause !== "string" || cause === "") {
+    throw new Error("Hull-damage crew casualties require a cause");
+  }
   if (Math.random() < currentPlayerPerkTotals().crewCasualtyResistanceChance) {
     showSurvivalNotice("CREW PROTECTED", "good");
     return 0;
@@ -35037,6 +35268,15 @@ function applyCrewCasualtiesFromHullDamage(damage) {
   const lost = rollCrewCasualtiesForDamage(gameState, damage);
   if (lost <= 0) return 0;
   presentCrewLoss(lost);
+  spawnCrewDeathEffects({
+    count: lost,
+    targetId: PLAYER_COMBAT_ID,
+    cause,
+    projectile,
+    impactPoint,
+    sourcePoint,
+    playSound: false
+  });
   presentPendingNamedCrewDeathNotice();
   syncShipCargoFromGameState();
   showSurvivalNotice(`${lost} CREW LOST`, "warn");
@@ -52872,6 +53112,7 @@ function drawStormWaveEffectsWebGL(activeChart, nowMs, chartOffset) {
     }
   }
   drawOverboardCrewWebGL(nowMs, painter);
+  drawCrewDeathEffectsWebGL(nowMs, painter);
 }
 
 function drawStormWaveShipWash(frame) {
@@ -52970,6 +53211,114 @@ function drawOverboardCrewWebGL(nowMs, painter) {
       });
     }
     drawOverboardSplash(entry, point, painter, nowMs);
+  }
+}
+
+function drawCrewDeathEffectsWebGL(nowMs, painter) {
+  void nowMs;
+  for (const effect of crewDeathEffects) {
+    const frame = crewDeathEffectFrame(effect);
+    if (frame.phase === "done") continue;
+    const point = crewDeathEffectScreenPoint(effect, frame);
+    if (!point || !pointNearScreen(point, CREW_STATUS_ICON_WIDTH + 10)) continue;
+    if (frame.phase === "burst") {
+      drawCrewDeathLandBurst(effect, point, frame.resolutionProgress, painter);
+      continue;
+    }
+    const image = statusPersonImages?.get("crew")?.[effect.variant];
+    if (!image) throw new Error(`Missing dead crew sprite variant ${effect.variant}`);
+    const sinkOffset = frame.phase === "sink"
+      ? Math.round(frame.resolutionProgress * 4)
+      : 0;
+    const x = Math.round(point.x - image.width / 2);
+    const y = Math.round(point.y - image.height / 2 + sinkOffset);
+    worldRenderer.drawAtlasSprite({
+      source: image,
+      destinationRect: { x, y, width: image.width, height: image.height },
+      alpha: frame.phase === "sink"
+        ? Math.max(0.08, 1 - frame.resolutionProgress)
+        : 1,
+      refractionPx: frame.phase === "sink" ? 1 : 0
+    });
+    if (effect.arrowEmbedded) {
+      drawEmbeddedCrewArrow(effect, { x: point.x, y: point.y + sinkOffset }, painter);
+    }
+    if (frame.phase === "sink") {
+      drawCrewDeathWaterSplash(effect, point, frame.resolutionProgress, painter);
+    }
+  }
+}
+
+function crewDeathEffectScreenPoint(effect, frame) {
+  const position = frame.flightProgress >= 1
+    ? effect.position
+    : normalize3([
+      effect.startPosition[0] +
+        (effect.position[0] - effect.startPosition[0]) * frame.flightProgress,
+      effect.startPosition[1] +
+        (effect.position[1] - effect.startPosition[1]) * frame.flightProgress,
+      effect.startPosition[2] +
+        (effect.position[2] - effect.startPosition[2]) * frame.flightProgress
+    ]);
+  const localPoint = localPointForGlobeVector(position);
+  if (!localPoint) return null;
+  const offset = chartOffsetPixels(chart);
+  return {
+    x: localPoint.x + offset.x,
+    y: localPoint.y + offset.y + frame.liftPx
+  };
+}
+
+function drawEmbeddedCrewArrow(effect, point, painter) {
+  const direction = effect.incomingDirection;
+  const tailX = Math.round(point.x - direction.x * 5);
+  const tailY = Math.round(point.y - direction.y * 5);
+  const tipX = Math.round(point.x + direction.x);
+  const tipY = Math.round(point.y + direction.y);
+  painter.line(tailX, tailY, tipX, tipY, "rgba(250, 248, 226, 0.98)");
+  painter.rect(
+    Math.round(tailX - direction.y),
+    Math.round(tailY + direction.x),
+    1,
+    1,
+    "rgba(250, 248, 226, 0.98)"
+  );
+}
+
+function drawCrewDeathWaterSplash(effect, point, progress, painter) {
+  if (progress > 0.72) return;
+  const splashProgress = progress / 0.72;
+  const alpha = 1 - splashProgress;
+  for (let index = 0; index < 8; index++) {
+    const hash = hashInt(effect.seed ^ Math.imul(index + 1, 0x85ebca6b));
+    const angle = index / 8 * Math.PI * 2 + (hash & 0xff) / 255 * 0.4;
+    const distance = 1 + splashProgress * (2 + ((hash >>> 8) & 3));
+    painter.rect(
+      Math.round(point.x + Math.cos(angle) * distance),
+      Math.round(point.y + Math.sin(angle) * distance * 0.55),
+      1,
+      1,
+      `rgba(214, 242, 232, ${(alpha * 0.82).toFixed(3)})`
+    );
+  }
+}
+
+function drawCrewDeathLandBurst(effect, point, progress, painter) {
+  const colors = [
+    [46, 34, 47],
+    [158, 62, 54],
+    [234, 216, 178]
+  ];
+  const alpha = Math.max(0, 1 - progress);
+  for (const pixel of crewDeathLandBurstPixels(effect)) {
+    const color = colors[pixel.colorIndex];
+    painter.rect(
+      Math.round(point.x + pixel.x * progress),
+      Math.round(point.y + pixel.y * progress + progress * progress * 3),
+      1,
+      1,
+      `rgba(${color[0]}, ${color[1]}, ${color[2]}, ${alpha.toFixed(3)})`
+    );
   }
 }
 

@@ -35,6 +35,11 @@ const PORTABLE_WEAPON_AIM_JITTER_PX = Object.freeze({
 const PORTABLE_WEAPON_TARGET_EXTENT_JITTER_SCALE = 0.35;
 const PORTABLE_WEAPON_VOLLEY_INTERVAL_SECONDS = 0.11;
 const PORTABLE_WEAPON_VOLLEY_MAX_SPAN_SECONDS = 1.25;
+const PORTABLE_CREW_FATALITY_CHANCE = Object.freeze({
+  [PORTABLE_PROJECTILE_ARROW]: 0.35,
+  [PORTABLE_PROJECTILE_BULLET]: 0.55,
+  [PORTABLE_PROJECTILE_CANNON]: 0.65
+});
 
 const EUROPEAN_FACTIONS = new Set([
   "england", "scotland", "france", "spain", "portugal", "burgundian-netherlands", "habsburg", "hungary",
@@ -101,6 +106,7 @@ function weaponSpec(itemId, {
   hullHitChance = 1,
   crewDamage,
   crewHitChance,
+  crewFatalityChance = PORTABLE_CREW_FATALITY_CHANCE[animationKind],
   rangeScale,
   speedScale,
   arcHeightScale,
@@ -119,6 +125,7 @@ function weaponSpec(itemId, {
     hullHitChance,
     crewDamage,
     crewHitChance,
+    crewFatalityChance,
     rangeScale,
     speedScale,
     arcHeightScale,
@@ -660,12 +667,13 @@ function validatePortableWeaponSpec(spec) {
   if (![PORTABLE_PROJECTILE_ARROW, PORTABLE_PROJECTILE_BULLET, PORTABLE_PROJECTILE_CANNON].includes(spec.animationKind)) {
     throw new Error(`Invalid portable weapon animation: ${spec.itemId}`);
   }
-  for (const key of ["hullDamage", "hullHitChance", "crewDamage", "crewHitChance", "rangeScale", "speedScale", "arcHeightScale", "reloadSeconds", "crewProtectionPenetration", "smokeScale"]) {
+  for (const key of ["hullDamage", "hullHitChance", "crewDamage", "crewHitChance", "crewFatalityChance", "rangeScale", "speedScale", "arcHeightScale", "reloadSeconds", "crewProtectionPenetration", "smokeScale"]) {
     if (!Number.isFinite(spec[key]) || spec[key] < 0) throw new Error(`Invalid portable weapon ${key}: ${spec.itemId}`);
   }
   if (!Number.isInteger(spec.crewDamage) || spec.crewDamage <= 0 ||
       !Number.isInteger(spec.projectileSize) || spec.projectileSize <= 0 ||
-      spec.hullHitChance > 1 || spec.crewHitChance > 1 || spec.crewProtectionPenetration > 1 ||
+      spec.hullHitChance > 1 || spec.crewHitChance > 1 || spec.crewFatalityChance > 1 ||
+      spec.crewProtectionPenetration > 1 ||
       spec.rangeScale <= 0 || spec.speedScale <= 0 || spec.reloadSeconds <= 0) {
     throw new Error(`Invalid portable weapon combat values: ${spec.itemId}`);
   }

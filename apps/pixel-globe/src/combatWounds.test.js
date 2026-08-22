@@ -2,10 +2,56 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   activeCombatCrew,
+  applyCrewCasualties,
   applyCrewWounds,
   clearCombatWounds,
   crewWoundsForceSurrender
 } from "./combatWounds.js";
+
+test("successful small-arms hits split into lasting deaths and temporary wounds", () => {
+  const rolls = [0.1, 0.2, 0.1, 0.8, 0.9];
+  const result = applyCrewCasualties({
+    totalCrew: 8,
+    woundedCrew: 1,
+    crewDamage: 3,
+    hitChance: 0.5,
+    fatalityChance: 0.5,
+    crewProtection: 0,
+    random: () => rolls.shift()
+  });
+
+  assert.equal(result.newDeaths, 1);
+  assert.equal(result.newWounds, 1);
+  assert.equal(result.totalCrew, 7);
+  assert.equal(result.woundedCrew, 2);
+  assert.equal(result.activeCrew, 5);
+});
+
+test("crew casualties preserve the final active defender when requested", () => {
+  const result = applyCrewCasualties({
+    totalCrew: 3,
+    crewDamage: 20,
+    hitChance: 1,
+    fatalityChance: 1,
+    crewProtection: 0,
+    preserveFinalCrew: true,
+    random: () => 0
+  });
+
+  assert.equal(result.newDeaths, 2);
+  assert.equal(result.totalCrew, 1);
+  assert.equal(result.activeCrew, 1);
+});
+
+test("crew casualty probabilities fail loudly when malformed", () => {
+  assert.throws(() => applyCrewCasualties({
+    totalCrew: 3,
+    crewDamage: 1,
+    hitChance: 1,
+    fatalityChance: 1.1,
+    crewProtection: 0
+  }), /fatality chance/);
+});
 
 test("crew protection and accuracy jointly determine temporary wounds", () => {
   const exposed = applyCrewWounds({

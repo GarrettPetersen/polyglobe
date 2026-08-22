@@ -138,15 +138,33 @@ test("shore garrisons surrender to heavy wounds and recover lesser wounds after 
   assert.equal(battery.hitPoints, 0);
 });
 
+test("shore garrison deaths reduce its defenders and do not recover after combat", () => {
+  const battery = createShoreBatteryState(city, {}, 0);
+  const result = damageShoreBatteryCrew(
+    battery,
+    {},
+    { crewDamage: 2, crewHitChance: 1, crewFatalityChance: 1 },
+    0,
+    "your Brigantine",
+    () => 0
+  );
+  assert.equal(result.newDeaths, 2);
+  assert.equal(battery.garrisonCrew, battery.maxGarrison - 2);
+  assert.equal(clearShoreBatteryCombatWounds(battery), false);
+  assert.equal(battery.garrisonCrew, battery.maxGarrison - 2);
+});
+
 test("fortifications protect their garrisons while retaining portable hull hit chances", () => {
   const fireArrow = shoreBatteryPortableImpact({
     crewDamage: 1,
     crewHitChance: 0.4,
+    crewFatalityChance: 0.35,
     crewProtectionPenetration: 0.1,
     hullDamage: 0.25,
     hullHitChance: 0.2
   });
   assert.equal(fireArrow.crewHitChance, 0.4 * SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE);
+  assert.equal(fireArrow.crewFatalityChance, 0.35);
   assert.equal(fireArrow.hullDamage, 0.25);
   assert.equal(fireArrow.hullHitChance, 0.2);
 

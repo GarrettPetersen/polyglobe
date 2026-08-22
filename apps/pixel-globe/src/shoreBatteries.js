@@ -1,4 +1,4 @@
-import { applyCrewWounds, crewWoundsForceSurrender } from "./combatWounds.js";
+import { applyCrewCasualties, crewWoundsForceSurrender } from "./combatWounds.js";
 
 export const SHORE_BATTERY_DISABLE_DAYS = 3;
 export const SHORE_BATTERY_DISABLE_MINUTES = SHORE_BATTERY_DISABLE_DAYS * 24 * 60;
@@ -112,6 +112,7 @@ export function createShoreBatteryState(city, flags, simMinute) {
     gunCount,
     maxHitPoints,
     maxGarrison,
+    garrisonCrew: maxGarrison,
     woundedGarrison: 0,
     hitPoints: disabled ? 0 : maxHitPoints,
     disabledUntilMinute: disabled ? disabledUntilMinute : null,
@@ -137,6 +138,7 @@ export function updateShoreBatteryState(state, flags, simMinute, dt) {
   state.disabledUntilMinute = null;
   state.disabledByShipLabel = null;
   state.hitPoints = state.maxHitPoints;
+  state.garrisonCrew = state.maxGarrison;
   state.woundedGarrison = 0;
   state.engagedTargetIds.clear();
   state.playerHailed = false;
@@ -163,7 +165,7 @@ export function damageShoreBattery(state, flags, damage, simMinute, attackerShip
 export function damageShoreBatteryCrew(
   state,
   flags,
-  { crewDamage, crewHitChance, crewProtectionPenetration = 0 },
+  { crewDamage, crewHitChance, crewFatalityChance = 0, crewProtectionPenetration = 0 },
   simMinute,
   attackerShipLabel,
   random = Math.random
@@ -173,19 +175,29 @@ export function damageShoreBatteryCrew(
   assertMinute(simMinute);
   assertAttackerShipLabel(attackerShipLabel);
   if (shoreBatteryIsDisabled(state, simMinute)) {
-    return { woundedGarrison: state.woundedGarrison, newWounds: 0, disabled: true, newlyDisabled: false };
+    return {
+      totalCrew: state.garrisonCrew,
+      woundedGarrison: state.woundedGarrison,
+      newWounds: 0,
+      newDeaths: 0,
+      disabled: true,
+      newlyDisabled: false
+    };
   }
-  const result = applyCrewWounds({
-    totalCrew: state.maxGarrison,
+  const result = applyCrewCasualties({
+    totalCrew: state.garrisonCrew,
     woundedCrew: state.woundedGarrison,
     crewDamage,
     hitChance: crewHitChance,
+    fatalityChance: crewFatalityChance,
     crewProtection: SHORE_BATTERY_CREW_PROTECTION,
     crewProtectionPenetration,
+    preserveFinalCrew: true,
     random
   });
+  state.garrisonCrew = result.totalCrew;
   state.woundedGarrison = result.woundedCrew;
-  const surrendered = crewWoundsForceSurrender(state.maxGarrison, state.woundedGarrison);
+  const surrendered = crewWoundsForceSurrender(state.garrisonCrew, state.woundedGarrison);
   if (!surrendered) {
     return { ...result, disabled: false, newlyDisabled: false };
   }
@@ -197,6 +209,7 @@ export function damageShoreBatteryCrew(
 export function shoreBatteryPortableImpact({
   crewDamage,
   crewHitChance,
+  crewFatalityChance = 0,
   crewProtectionPenetration = 0,
   hullDamage,
   hullHitChance = 1
@@ -206,6 +219,7 @@ export function shoreBatteryPortableImpact({
   }
   for (const [label, value] of [
     ["hit chance", crewHitChance],
+    ["fatality chance", crewFatalityChance],
     ["protection penetration", crewProtectionPenetration]
   ]) {
     if (!Number.isFinite(value) || value < 0 || value > 1) {
@@ -221,6 +235,7 @@ export function shoreBatteryPortableImpact({
   return Object.freeze({
     crewDamage,
     crewHitChance: crewHitChance * SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE,
+    crewFatalityChance,
     crewProtectionPenetration,
     hullDamage,
     hullHitChance
@@ -254,7 +269,7 @@ export function shoreBatteryIsDisabled(state, simMinute) {
 
 export function shoreBatteryCanFire(state, simMinute) {
   return !shoreBatteryIsDisabled(state, simMinute) &&
-    state.maxGarrison - state.woundedGarrison > 0 && state.cooldownSeconds <= 0;
+    state.garrisonCrew - state.woundedGarrison > 0 && state.cooldownSeconds <= 0;
 }
 
 export function clearShoreBatteryCombatWounds(state) {
@@ -428,9 +443,13 @@ function assertState(state) {
     throw new Error(`Invalid shore battery player attack state: ${state.playerAttackActive}`);
   }
   if (!Number.isInteger(state.maxGarrison) || state.maxGarrison <= 0 ||
+      !Number.isInteger(state.garrisonCrew) || state.garrisonCrew <= 0 ||
+      state.garrisonCrew > state.maxGarrison ||
       !Number.isInteger(state.woundedGarrison) || state.woundedGarrison < 0 ||
-      state.woundedGarrison >= state.maxGarrison) {
-    throw new Error(`Invalid shore battery garrison: ${state?.woundedGarrison}/${state?.maxGarrison}`);
+      state.woundedGarrison >= state.garrisonCrew) {
+    throw new Error(
+      `Invalid shore battery garrison: ${state?.garrisonCrew} crew, ${state?.woundedGarrison} wounded, ${state?.maxGarrison} maximum`
+    );
   }
 }
 

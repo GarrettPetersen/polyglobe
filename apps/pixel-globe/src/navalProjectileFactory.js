@@ -48,6 +48,7 @@ export function createPortableNavalProjectile({
     hullDamageAttempts,
     crewDamage: weapon.crewDamage * crewDamageScale,
     crewHitChance: weapon.crewHitChance,
+    crewFatalityChance: weapon.crewFatalityChance,
     crewProtectionPenetration: weapon.crewProtectionPenetration,
     projectileSize: weapon.projectileSize,
     smokeScale: weapon.smokeScale,
@@ -64,6 +65,10 @@ function validatePortableProjectileInput(values) {
   if (!values.weapon || typeof values.weapon !== "object" ||
       typeof values.weapon.itemId !== "string" || values.weapon.itemId === "") {
     throw new Error("Portable naval projectile requires a weapon");
+  }
+  if (!Number.isFinite(values.weapon.crewFatalityChance) ||
+      values.weapon.crewFatalityChance < 0 || values.weapon.crewFatalityChance > 1) {
+    throw new Error(`Portable naval projectile has invalid crew fatality chance: ${values.weapon.crewFatalityChance}`);
   }
   for (const key of [
     "startX", "startY", "targetX", "targetY", "arcHeightUnit",
