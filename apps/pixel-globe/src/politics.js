@@ -582,7 +582,7 @@ function playerTradeStanding(gameState, faction, simMinute) {
 
 const POLITICS_CODE_OVERRIDES = Object.freeze({
   "poland-lithuania": "PL", "denmark-norway": "DN", "papal-states": "PA",
-  pirate: "PX", habsburg: "HB", ottoman: "OT", hormuz: "HZ", hospitallers: "KH",
+  pirate: "PX", "burgundian-netherlands": "BN", habsburg: "AT", ottoman: "OT", hormuz: "HZ", hospitallers: "KH",
   hosokawa: "HS", songhai: "SG", shimazu: "SZ", shoni: "SN", wallachia: "WL",
   moldavia: "MD", ragusa: "RG", hejaz: "HJ", mughal: "MG", muscovy: "MU"
 });

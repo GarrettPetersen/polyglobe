@@ -585,6 +585,7 @@ const FACTION_CULTURES = new Map([
   ["france", "french"],
   ["spain", "spanish"],
   ["portugal", "portuguese"],
+  ["burgundian-netherlands", "germanic"],
   ["habsburg", "germanic"],
   ["hungary", "hungarian"],
   ["ottoman", "ottoman"],

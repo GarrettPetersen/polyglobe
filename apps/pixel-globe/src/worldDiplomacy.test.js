@@ -92,17 +92,18 @@ test("Crimea answers an Ottoman offensive obligation without surrendering its fo
   )), true);
 });
 
-test("Charles V's crowns remain separate inside a shared dynastic foreign policy", () => {
+test("Charles V's Spanish and Burgundian crowns share policy while Austria remains separate", () => {
   const state = createWorldDiplomacy({ startMinute: 0, seedKey: "habsburg-union" });
-  assert.equal(worldDiplomacyBetween(state, "spain", "habsburg"), DIPLOMACY_ALLY);
+  assert.equal(worldDiplomacyBetween(state, "spain", "burgundian-netherlands"), DIPLOMACY_ALLY);
+  assert.equal(state.suzerainties.byVassalId.habsburg, undefined);
   assert.equal(worldDiplomacyBetween(state, "spain", "hungary"), DIPLOMACY_ALLY);
-  assert.equal(worldDiplomacyBetween(state, "habsburg", "portugal"), DIPLOMACY_FRIENDLY);
-  assert.equal(recordDiplomaticPortCall(state, "spain", "habsburg", 20), null);
+  assert.equal(worldDiplomacyBetween(state, "burgundian-netherlands", "portugal"), DIPLOMACY_FRIENDLY);
+  assert.equal(recordDiplomaticPortCall(state, "spain", "burgundian-netherlands", 20), null);
 
-  const events = declareDiplomaticWar(state, "spain", "habsburg", 200 * DAY);
+  const events = declareDiplomaticWar(state, "spain", "burgundian-netherlands", 200 * DAY);
   assert.equal(events.some((event) => event.kind === "union-dissolved"), true);
-  assert.equal(state.suzerainties.byVassalId.spain, undefined);
-  assert.equal(worldDiplomacyBetween(state, "spain", "habsburg"), DIPLOMACY_WAR);
+  assert.equal(state.suzerainties.byVassalId["burgundian-netherlands"], undefined);
+  assert.equal(worldDiplomacyBetween(state, "spain", "burgundian-netherlands"), DIPLOMACY_WAR);
 });
 
 test("a hostile vassal can rebel and regain an independent foreign policy", () => {
@@ -158,7 +159,10 @@ test("legacy diplomacy omits dependencies attached to collapsed powers", () => {
   }
   assert.equal(migrated.suzerainties.byVassalId.ryukyu, undefined);
   assert.equal(migrated.suzerainties.byVassalId.wallachia, undefined);
-  assert.equal(migrated.suzerainties.byVassalId.spain.suzerainFactionId, "habsburg");
+  assert.equal(
+    migrated.suzerainties.byVassalId["burgundian-netherlands"].suzerainFactionId,
+    "spain"
+  );
 });
 
 test("version 2 diplomacy gains an empty contact ledger", () => {

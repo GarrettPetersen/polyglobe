@@ -37,7 +37,7 @@ const PORTABLE_WEAPON_VOLLEY_INTERVAL_SECONDS = 0.11;
 const PORTABLE_WEAPON_VOLLEY_MAX_SPAN_SECONDS = 1.25;
 
 const EUROPEAN_FACTIONS = new Set([
-  "england", "scotland", "france", "spain", "portugal", "habsburg", "hungary",
+  "england", "scotland", "france", "spain", "portugal", "burgundian-netherlands", "habsburg", "hungary",
   "venice", "genoa", "papal-states", "hospitallers", "muscovy", "poland-lithuania",
   "sweden", "denmark-norway"
 ]);

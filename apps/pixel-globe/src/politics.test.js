@@ -156,21 +156,22 @@ test("politics keeps vassal status visibly separate from diplomatic stance", () 
   assert.equal(relationshipFactionIds(hormuz, "friendly").includes("portugal"), false);
 });
 
-test("the Habsburg personal union is not presented as Spanish vassalage", () => {
+test("the Burgundian personal union is not presented as Spanish vassalage", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
   const spain = politicsCard(view, "spain");
-  const habsburg = politicsCard(view, "habsburg");
+  const burgundian = politicsCard(view, "burgundian-netherlands");
   assert.deepEqual(dependencySummaries(spain), [{
     kind: "personal-union",
     role: "member",
-    factionId: "habsburg"
+    factionId: "burgundian-netherlands"
   }]);
-  assert.deepEqual(dependencySummaries(habsburg), [{
+  assert.deepEqual(dependencySummaries(burgundian), [{
     kind: "personal-union",
     role: "member",
     factionId: "spain"
   }]);
+  assert.deepEqual(dependencySummaries(politicsCard(view, "habsburg")), []);
 });
 
 test("Imperial Estates show a constitutional connection to the elected Emperor", () => {
@@ -180,9 +181,9 @@ test("Imperial Estates show a constitutional connection to the elected Emperor",
   assert.deepEqual(politicsCard(view, "augsburg").constitutionalConnections, [{
     kind: "imperial-constitution",
     role: "estate",
-    factionId: "habsburg"
+    factionId: "burgundian-netherlands"
   }]);
-  assert.ok(politicsCard(view, "habsburg").constitutionalConnections.some((connection) => (
+  assert.ok(politicsCard(view, "burgundian-netherlands").constitutionalConnections.some((connection) => (
     connection.role === "emperor" && connection.factionId === "augsburg"
   )));
   assert.equal(politicsCard(view, "augsburg").dependencies.length, 0);

@@ -18,7 +18,8 @@ const CAPITAL_TARGET_STAKES = Object.freeze({
   spain: "The Spanish court still directs the Mediterranean fleet and the wealth of its Atlantic dominions.",
   portugal: "The Portuguese court still commands an ocean empire through its royal trading houses.",
   hormuz: "The Hormuzi court still controls the customs and pilots of the narrow sea.",
-  habsburg: "The Habsburg court still joins its scattered crowns, armies, and imperial credit.",
+  "burgundian-netherlands": "The Burgundian court still commands the great towns, their purses, and the harbors binding Charles's northern inheritance together.",
+  habsburg: "Ferdinand's Austrian court still commands the Danube lands, their levies, and the roads through the eastern Alps.",
   hungary: "The Hungarian court still rallies the Danube fortresses and the kingdom's remaining levies.",
   ...Object.fromEntries([
     "bohemia", "mainz", "cologne-electorate", "trier", "palatinate",
@@ -84,9 +85,11 @@ function imperialCapitalTargetStakes(factionId) {
 const PAIR_GRIEVANCES = Object.freeze({
   "england>france": "France shelters Scotland behind the Auld Alliance and contests England's old claims across the Channel.",
   "france>england": "England has revived its claims in France and joined the Habsburg design to encircle the crown.",
-  "france>habsburg": "Habsburg power hems France between imperial lands and contests the duchy of Milan.",
+  "france>burgundian-netherlands": "Charles's Burgundian inheritance hems France upon its northern march and supplies his war with rich towns and credit.",
+  "burgundian-netherlands>france": "France threatens the Emperor's Burgundian inheritance and contests his rights in Italy.",
+  "france>habsburg": "Ferdinand's Austrian power strengthens the Habsburg league and its claims in Italy.",
   "france>spain": "Spain joins the Habsburg encirclement and carries the Italian war from Milan to the Pyrenees.",
-  "habsburg>france": "France contests imperial authority in Italy and threatens the Emperor's Burgundian inheritance.",
+  "habsburg>france": "France contests Habsburg rights in Italy and lends strength to every enemy of Ferdinand's house.",
   "spain>france": "France contests Milan and breaks the peace of Italy against the crowns of Charles V.",
   "ottoman>hungary": "Hungary's Danube fortresses bar the road beyond Belgrade and shelter raids across the frontier.",
   "hungary>ottoman": "The Sultan has taken Belgrade and opened the Danube frontier to deeper invasion.",
@@ -113,7 +116,9 @@ const PAIR_GRIEVANCES = Object.freeze({
   "ottoman>safavid": "Safavid power contests eastern Anatolia and divides the frontier by dynasty and confession.",
   "safavid>ottoman": "Ottoman armies press the western marches and deny Safavid claims across eastern Anatolia.",
   "habsburg>venice": "Venice holds mainland and Adriatic possessions claimed within the Emperor's Italian sphere.",
-  "venice>habsburg": "Habsburg armies threaten the Republic's mainland ports and the balance of northern Italy."
+  "venice>habsburg": "Habsburg armies threaten the Republic's mainland ports and the balance of northern Italy.",
+  "burgundian-netherlands>venice": "Venice aids France and contests Charles's settlement of Italy.",
+  "venice>burgundian-netherlands": "Charles draws the wealth of the Low Countries into his design upon Italy."
 });
 
 for (const faction of FACTIONS) {

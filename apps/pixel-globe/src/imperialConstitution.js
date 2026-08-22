@@ -16,7 +16,7 @@ import {
 } from "./imperialEstates.js";
 import { gameMinuteForDate, rulerAtMinute, rulerChangesBetween } from "./rulers.js";
 
-export const IMPERIAL_CONSTITUTION_VERSION = 2;
+export const IMPERIAL_CONSTITUTION_VERSION = 3;
 export const IMPERIAL_HISTORY_LIMIT = 40;
 export const IMPERIAL_AUTHORITY_MIN = 0;
 export const IMPERIAL_AUTHORITY_MAX = 100;
@@ -88,7 +88,7 @@ const ELECTOR_FACTION_IDS = Object.freeze(IMPERIAL_ESTATES_1522
   .filter((estate) => estate.electorId !== null)
   .map((estate) => estate.factionId));
 
-const INITIAL_HABSBURG_SUPPORT = Object.freeze({
+const INITIAL_CHARLES_SUPPORT = Object.freeze({
   mainz: 74,
   "cologne-electorate": 68,
   trier: 64,
@@ -127,8 +127,8 @@ export function createImperialConstitution({ startMinute = 0 } = {}) {
     version: IMPERIAL_CONSTITUTION_VERSION,
     startMinute,
     lastUpdateMinute: startMinute,
-    emperorFactionId: "habsburg",
-    emperorRulerName: rulerAtMinute("habsburg", startMinute).name,
+    emperorFactionId: "burgundian-netherlands",
+    emperorRulerName: rulerAtMinute("burgundian-netherlands", startMinute).name,
     emperorOfficeVacant: false,
     kingOfRomans: null,
     pendingElection: null,
@@ -139,11 +139,12 @@ export function createImperialConstitution({ startMinute = 0 } = {}) {
       factionId,
       {
         factionId,
-        voteFactionId: "habsburg",
+        voteFactionId: "burgundian-netherlands",
         supportByCandidateId: {
-          habsburg: INITIAL_HABSBURG_SUPPORT[factionId],
+          "burgundian-netherlands": INITIAL_CHARLES_SUPPORT[factionId],
+          habsburg: INITIAL_FERDINAND_SUPPORT[factionId],
           bohemia: INITIAL_FERDINAND_SUPPORT[factionId],
-          france: Math.max(8, 100 - INITIAL_HABSBURG_SUPPORT[factionId] - 18),
+          france: Math.max(8, 100 - INITIAL_CHARLES_SUPPORT[factionId] - 18),
           "electoral-saxony": INITIAL_SAXON_SUPPORT[factionId],
           palatinate: factionId === "palatinate" ? 86 : 34,
           brandenburg: factionId === "brandenburg" ? 88 : 31
@@ -166,16 +167,24 @@ export function migrateImperialConstitution(memory, { startMinute = 0 } = {}) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     throw new Error("Imperial constitution migration requires an object");
   }
-  if (![1, IMPERIAL_CONSTITUTION_VERSION].includes(memory.version)) {
+  if (![1, 2, IMPERIAL_CONSTITUTION_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported Imperial constitution version: ${memory.version ?? "missing"}`);
   }
   const initial = createImperialConstitution({ startMinute });
   const migratedFromV1 = memory.version === 1;
-  const emperorRuler = rulerAtMinute(memory.emperorFactionId, memory.lastUpdateMinute);
+  const migratedFromCombinedHabsburg = memory.version < 3;
+  const charlesHeldOffice = migratedFromCombinedHabsburg &&
+    memory.emperorFactionId === "habsburg" &&
+    (memory.emperorRulerName === undefined || memory.emperorRulerName === "Charles V");
+  const emperorFactionId = charlesHeldOffice
+    ? "burgundian-netherlands"
+    : memory.emperorFactionId;
+  const emperorRuler = rulerAtMinute(emperorFactionId, memory.lastUpdateMinute);
   return validateImperialConstitution({
     ...initial,
     ...memory,
     version: IMPERIAL_CONSTITUTION_VERSION,
+    emperorFactionId,
     emperorRulerName: migratedFromV1
       ? emperorRuler.name
       : memory.emperorRulerName,
@@ -183,16 +192,28 @@ export function migrateImperialConstitution(memory, { startMinute = 0 } = {}) {
     kingOfRomans: migratedFromV1 ? null : memory.kingOfRomans,
     pendingElection: migratedFromV1 ? null : memory.pendingElection,
     foundationalElectionResolved: migratedFromV1
-      ? memory.electionSequence > 0 || memory.emperorFactionId !== "habsburg"
+      ? memory.electionSequence > 0 || !charlesHeldOffice
       : memory.foundationalElectionResolved,
     electors: Object.fromEntries(ELECTOR_FACTION_IDS.map((factionId) => [
       factionId,
       {
         ...initial.electors[factionId],
         ...(memory.electors?.[factionId] || {}),
+        voteFactionId: migratedFromCombinedHabsburg &&
+          memory.electionSequence === 0 &&
+          memory.electors?.[factionId]?.voteFactionId === "habsburg"
+          ? "burgundian-netherlands"
+          : memory.electors?.[factionId]?.voteFactionId || initial.electors[factionId].voteFactionId,
         supportByCandidateId: {
           ...initial.electors[factionId].supportByCandidateId,
-          ...(memory.electors?.[factionId]?.supportByCandidateId || {})
+          ...(memory.electors?.[factionId]?.supportByCandidateId || {}),
+          ...(migratedFromCombinedHabsburg &&
+            memory.electors?.[factionId]?.supportByCandidateId?.habsburg !== undefined
+            ? {
+                "burgundian-netherlands": memory.electors[factionId].supportByCandidateId.habsburg,
+                habsburg: INITIAL_FERDINAND_SUPPORT[factionId]
+              }
+            : {})
         }
       }
     ])),
@@ -509,7 +530,7 @@ function handleTrackedRulerChange(memory, change) {
   }
   if (change.factionId !== memory.emperorFactionId ||
       change.previousRuler.name !== memory.emperorRulerName) return null;
-  if (memory.kingOfRomans?.rulerName === change.name) {
+  if (memory.kingOfRomans !== null) {
     const previousEmperorFactionId = memory.emperorFactionId;
     const successor = memory.kingOfRomans;
     memory.emperorFactionId = successor.factionId;
@@ -701,10 +722,10 @@ export function recordImperialReformationOutcome(memory, {
   memory.authority = clamp(memory.authority + authorityDelta, IMPERIAL_AUTHORITY_MIN, IMPERIAL_AUTHORITY_MAX);
   if (memory.electors[estate.factionId]) {
     const elector = memory.electors[estate.factionId];
-    const habsburgSupportDelta = religionId === "lutheran" ? -18 : religionId === "mixed" ? -6 : 6;
+    const incumbentSupportDelta = religionId === "lutheran" ? -18 : religionId === "mixed" ? -6 : 6;
     const reformSupportDelta = religionId === "lutheran" ? 18 : religionId === "mixed" ? 6 : -4;
-    elector.supportByCandidateId.habsburg = clamp(
-      electorSupport(elector, "habsburg") + habsburgSupportDelta,
+    elector.supportByCandidateId[memory.emperorFactionId] = clamp(
+      electorSupport(elector, memory.emperorFactionId) + incumbentSupportDelta,
       0,
       100
     );

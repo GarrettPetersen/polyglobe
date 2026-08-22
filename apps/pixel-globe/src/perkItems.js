@@ -15,7 +15,7 @@ import {
 } from "./grammaticalNumber.js";
 
 const EUROPEAN_FACTIONS = new Set([
-  "england", "scotland", "france", "spain", "portugal", "habsburg", "hungary",
+  "england", "scotland", "france", "spain", "portugal", "burgundian-netherlands", "habsburg", "hungary",
   "venice", "genoa", "papal-states", "muscovy", "poland-lithuania", "sweden",
   "denmark-norway"
 ]);

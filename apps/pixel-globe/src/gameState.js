@@ -454,7 +454,7 @@ import {
 } from "./shipyardInvestment.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 83;
+export const GAME_STATE_VERSION = 84;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -772,7 +772,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -801,7 +801,8 @@ export function migrateGameState(state, shipStats) {
     ? state.voyageSeed
     : worldDiplomacySeedKey(state.playerCharacter, savedGameStartMinute(state));
   const migratedConquest = migrateConquestFactionReferences(
-    state.memory?.conquest || createPortConquestMemory()
+    state.memory?.conquest || createPortConquestMemory(),
+    { splitCombinedHabsburg: state.version <= 83 }
   );
   const diplomacyMigrationContext = {
     inactiveFactionIds: migratedConquest.collapsedFactionIds,
@@ -823,7 +824,8 @@ export function migrateGameState(state, shipStats) {
   });
   const migratedAuthority = migrateSovereignAuthority(state.relations.authority, {
     startMinute: savedGameStartMinute(state),
-    seedKey: migrationVoyageSeed
+    seedKey: migrationVoyageSeed,
+    splitCombinedHabsburg: state.version <= 83
   });
   const migratedImperial = migrateImperialConstitution(state.relations.imperial, {
     startMinute: savedGameStartMinute(state)
@@ -878,14 +880,21 @@ export function migrateGameState(state, shipStats) {
       ...migratedRelationBase,
       factionReputation: migrateLawfulWartimeAttackReputation(
         state,
-        migrateFactionReputationTable(state.relations.factionReputation)
+        migrateFactionReputationTable(state.relations.factionReputation, {
+          splitCombinedHabsburg: state.version <= 83
+        })
       ),
-      lettersOfMarque: removeRetiredFactionKeys(state.relations.lettersOfMarque),
+      lettersOfMarque: migrateCombinedHabsburgFactionTable(state.relations.lettersOfMarque, {
+        splitCombinedHabsburg: state.version <= 83
+      }),
       safePassageUntilMinute: state.version === 8
         ? {}
-        : migrateSafePassageTable(state.relations.safePassageUntilMinute),
+        : migrateSafePassageTable(state.relations.safePassageUntilMinute, {
+            splitCombinedHabsburg: state.version <= 83
+          }),
       safePassageRefusalUntilMinute: migrateSafePassageTable(
-        state.relations.safePassageRefusalUntilMinute || {}
+        state.relations.safePassageRefusalUntilMinute || {},
+        { splitCombinedHabsburg: state.version <= 83 }
       ),
       tradeAccessGrants: migrateSovereignTradeGrantMemory(
         state.relations.tradeAccessGrants,
@@ -1012,9 +1021,14 @@ function reconcileLoadedShipLoadout(state, shipStats) {
   return plan;
 }
 
-function migrateFactionReputationTable(reputation) {
+function migrateFactionReputationTable(reputation, { splitCombinedHabsburg = false } = {}) {
   if (!reputation || typeof reputation !== "object" || Array.isArray(reputation)) return reputation;
-  return Object.fromEntries(FACTIONS.map((faction) => [faction.id, reputation[faction.id] ?? 0]));
+  return Object.fromEntries(FACTIONS.map((faction) => [
+    faction.id,
+    faction.id === "burgundian-netherlands" && splitCombinedHabsburg
+      ? reputation[faction.id] ?? reputation.habsburg ?? 0
+      : reputation[faction.id] ?? 0
+  ]));
 }
 
 function removeRetiredFactionKeys(table) {
@@ -1022,9 +1036,20 @@ function removeRetiredFactionKeys(table) {
   return Object.fromEntries(Object.entries(table).filter(([factionId]) => factionId !== "aztec"));
 }
 
-function migrateSafePassageTable(table) {
-  if (!table || typeof table !== "object" || Array.isArray(table)) return table;
+function migrateCombinedHabsburgFactionTable(table, { splitCombinedHabsburg = false } = {}) {
   const migrated = removeRetiredFactionKeys(table);
+  if (splitCombinedHabsburg && migrated && migrated["burgundian-netherlands"] === undefined &&
+      migrated.habsburg !== undefined) {
+    migrated["burgundian-netherlands"] = migrated.habsburg?.factionId === "habsburg"
+      ? { ...migrated.habsburg, factionId: "burgundian-netherlands" }
+      : migrated.habsburg;
+  }
+  return migrated;
+}
+
+function migrateSafePassageTable(table, options = {}) {
+  if (!table || typeof table !== "object" || Array.isArray(table)) return table;
+  const migrated = migrateCombinedHabsburgFactionTable(table, options);
   if (Number.isFinite(table.aztec)) {
     migrated.spain = Math.max(migrated.spain || 0, table.aztec);
   }
@@ -1162,7 +1187,7 @@ function migrateQuestItineraries(quests) {
   };
 }
 
-function migrateConquestFactionReferences(memory) {
+function migrateConquestFactionReferences(memory, { splitCombinedHabsburg = false } = {}) {
   const source = {
     ...createPortConquestMemory(),
     ...memory
@@ -1170,6 +1195,14 @@ function migrateConquestFactionReferences(memory) {
   const migrated = migrateRetiredFactionReferences(source);
   migrated.factionSuccessors = migrateRetiredFactionReferences(source.factionSuccessors || {});
   migrated.collapsedFactionIds = source.collapsedFactionIds.filter((factionId) => factionId !== "aztec");
+  if (splitCombinedHabsburg && migrated.collapsedFactionIds.includes("habsburg") &&
+      !migrated.collapsedFactionIds.includes("burgundian-netherlands")) {
+    migrated.collapsedFactionIds.push("burgundian-netherlands");
+  }
+  if (splitCombinedHabsburg && migrated.factionSuccessors.habsburg &&
+      !migrated.factionSuccessors["burgundian-netherlands"]) {
+    migrated.factionSuccessors["burgundian-netherlands"] = migrated.factionSuccessors.habsburg;
+  }
   if (!migrated.factionSuccessors.delhi && !migrated.collapsedFactionIds.includes("mughal")) {
     migrated.collapsedFactionIds.push("mughal");
   }

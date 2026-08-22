@@ -78,6 +78,11 @@ test("default permissions preserve tribute and licensed regional traffic", () =>
   assert.equal(sovereignTradeGrantedToFaction(grants, JOSEON_TRADE_POLICY_ID, "japan"), true);
   assert.equal(sovereignTradeGrantedToFaction(grants, JOSEON_TRADE_POLICY_ID, "england"), false);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "spain"), true);
+  assert.equal(sovereignTradeGrantedToFaction(
+    grants,
+    SPANISH_INDIES_TRADE_POLICY_ID,
+    "burgundian-netherlands"
+  ), false);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "habsburg"), false);
   assert.equal(sovereignTradeGrantedToFaction(grants, SPANISH_INDIES_TRADE_POLICY_ID, "portugal"), false);
 });
@@ -97,7 +102,7 @@ test("Charles V's dynastic union does not open the Castilian Indies monopoly", (
     cargoCapacity: 20,
     playerCharacter: {
       name: "Nikolaus Adler",
-      nationalityId: "habsburg",
+      nationalityId: "burgundian-netherlands",
       expressions: ["neutral", "happy"]
     }
   });
@@ -110,7 +115,7 @@ test("Charles V's dynastic union does not open the Castilian Indies monopoly", (
   assert.equal(openSovereignTradeToFaction(
     state,
     SPANISH_INDIES_TRADE_POLICY_ID,
-    "habsburg"
+    "burgundian-netherlands"
   ), true);
   assert.equal(playerTradeAccess(state, HAVANA, { simMinute: 0 }).allowed, true);
 });

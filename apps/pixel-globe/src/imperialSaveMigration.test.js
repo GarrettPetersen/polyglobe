@@ -16,14 +16,14 @@ test("a new voyage starts with independent Imperial constitutional state", () =>
   const state = createGameState({ cargoCapacity: 20 });
   validateGameState(state);
   assert.equal(state.version, GAME_STATE_VERSION);
-  assert.equal(state.relations.imperial.emperorFactionId, "habsburg");
+  assert.equal(state.relations.imperial.emperorFactionId, "burgundian-netherlands");
   assert.equal(Object.keys(state.relations.imperial.electors).length, 7);
   assert.equal(state.relations.factionReputation.augsburg, 0);
   assert.equal(imperialEstateForFaction("augsburg").factionId, "augsburg");
   assert.equal(createPoliticsView(state).imperial.authority, 46);
 });
 
-test("version 81 voyages gain the Empire without inheriting Habsburg player history", () => {
+test("version 81 voyages gain the Empire and preserve formerly combined player standing", () => {
   const fixture = JSON.parse(readFileSync(
     new URL("./test-fixtures/save-schemas/canonical-states-v81.json", import.meta.url),
     "utf8"
@@ -34,10 +34,41 @@ test("version 81 voyages gain the Empire without inheriting Habsburg player hist
   validateGameState(migrated);
   assert.equal(migrated.version, GAME_STATE_VERSION);
   assert.equal(migrated.relations.factionReputation.habsburg, 37);
+  assert.equal(migrated.relations.factionReputation["burgundian-netherlands"], 37);
   assert.equal(migrated.relations.factionReputation.augsburg, 0);
-  assert.equal(migrated.relations.imperial.emperorFactionId, "habsburg");
+  assert.equal(migrated.relations.imperial.emperorFactionId, "burgundian-netherlands");
   assert.equal(migrated.relations.imperial.authority, 46);
   assert.equal(createPoliticsView(migrated).cards.find(
     (card) => card.faction.id === "augsburg"
   ).imperialMembership.badge, "I");
+});
+
+test("version 83 voyages split composite standing, warrants, authority, and dynastic policy", () => {
+  const fixture = JSON.parse(readFileSync(
+    new URL("./test-fixtures/save-schemas/canonical-states-v83.json", import.meta.url),
+    "utf8"
+  ));
+  const saved = structuredClone(fixture.states[0].state);
+  saved.relations.factionReputation.habsburg = 41;
+  saved.relations.lettersOfMarque.habsburg = { factionId: "habsburg", simMinute: 20 };
+  saved.relations.safePassageUntilMinute.habsburg = 500;
+  saved.relations.authority.scores.habsburg = 67;
+
+  const migrated = migrateGameState(saved, shipStatsForSlug(saved.ship.slug));
+
+  assert.equal(migrated.relations.factionReputation.habsburg, 41);
+  assert.equal(migrated.relations.factionReputation["burgundian-netherlands"], 41);
+  assert.deepEqual(migrated.relations.lettersOfMarque["burgundian-netherlands"], {
+    factionId: "burgundian-netherlands",
+    simMinute: 20
+  });
+  assert.equal(migrated.relations.safePassageUntilMinute["burgundian-netherlands"], 500);
+  assert.equal(migrated.relations.authority.scores["burgundian-netherlands"], 67);
+  assert.equal(migrated.relations.imperial.emperorFactionId, "burgundian-netherlands");
+  assert.equal(migrated.relations.diplomacy.suzerainties.byVassalId.spain, undefined);
+  assert.equal(
+    migrated.relations.diplomacy.suzerainties.byVassalId["burgundian-netherlands"]
+      .suzerainFactionId,
+    "spain"
+  );
 });

@@ -88,7 +88,11 @@ export function removeSiblingTreatyOfMadridOffers(quests, acceptedQuest) {
 export function treatyOfMadridOfferStillValid(state, quest) {
   if (!isTreatyOfMadridQuest(quest)) return true;
   if (treatyMissionAlreadyResolved(state.memory.quests)) return false;
-  return worldDiplomacyBetween(state.relations.diplomacy, "france", "habsburg") === DIPLOMACY_WAR;
+  return worldDiplomacyBetween(
+    state.relations.diplomacy,
+    "france",
+    "burgundian-netherlands"
+  ) === DIPLOMACY_WAR;
 }
 
 export function treatyOfMadridJournalTitle(quest) {
@@ -115,7 +119,7 @@ export function completeTreatyOfMadridMission(state, quest, simMinute) {
     ...makeDiplomaticPeace(
       state.relations.diplomacy,
       "france",
-      "habsburg",
+      "burgundian-netherlands",
       simMinute,
       { reason: "Treaty of Madrid" }
     ),
@@ -128,7 +132,7 @@ export function completeTreatyOfMadridMission(state, quest, simMinute) {
     )
   ];
   const authorityEvents = [
-    adjustSovereignAuthority(state.relations.authority, "habsburg", 1.2, {
+    adjustSovereignAuthority(state.relations.authority, "burgundian-netherlands", 1.2, {
       simMinute,
       source: "treaty-of-madrid",
       detail: "Francis I accepts Charles V's release terms"
@@ -156,7 +160,8 @@ function treatyOfferSide(city) {
   if (city.factionId === "france" && matchesAny(city, FRENCH_ORIGIN_REFS)) {
     return TREATY_OF_MADRID_FRENCH_SIDE;
   }
-  if (["spain", "habsburg"].includes(city.factionId) && matchesAny(city, IMPERIAL_ORIGIN_REFS)) {
+  if (["spain", "burgundian-netherlands"].includes(city.factionId) &&
+      matchesAny(city, IMPERIAL_ORIGIN_REFS)) {
     return TREATY_OF_MADRID_IMPERIAL_SIDE;
   }
   return null;
@@ -167,7 +172,7 @@ function preferredTreatyTarget(side, portCities) {
     ? FRENCH_TARGET_REFS
     : IMPERIAL_TARGET_REFS;
   const factionIds = side === TREATY_OF_MADRID_FRENCH_SIDE
-    ? new Set(["spain", "habsburg"])
+    ? new Set(["spain", "burgundian-netherlands"])
     : new Set(["france"]);
   for (const reference of references) {
     const port = findCanonicalPort(portCities, reference, "Treaty of Madrid mission");

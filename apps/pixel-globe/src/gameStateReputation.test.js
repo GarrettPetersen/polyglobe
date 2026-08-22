@@ -297,8 +297,8 @@ test("version 8 game states retain version 1 diplomacy history during migration"
   const restored = migrateGameState(saved, stats);
 
   assert.equal(restored.relations.diplomacy.version, WORLD_DIPLOMACY_VERSION);
-  const { contacts, overrides, ...withoutContacts } = restored.relations.diplomacy;
-  assert.deepEqual(overrides, {
+  const { contacts, overrides, suzerainties, ...withoutContacts } = restored.relations.diplomacy;
+  const expectedIntroducedOverrides = {
     "ainu|japan": "neutral",
     "ainu|kakizaki": "neutral",
     "ando|japan": "neutral",
@@ -318,8 +318,21 @@ test("version 8 game states retain version 1 diplomacy history during migration"
     "ottoman|ragusa": "neutral",
     "ottoman|wallachia": "neutral",
     "ouchi|shoni": "neutral"
-  });
-  const { overrides: _legacyOverrides, ...beforeWithoutOverrides } = before;
+  };
+  for (const [pair, relation] of Object.entries(expectedIntroducedOverrides)) {
+    assert.equal(overrides[pair], relation, pair);
+  }
+  assert.equal(overrides["burgundian-netherlands|france"], "neutral");
+  assert.equal(overrides["burgundian-netherlands|spain"], undefined);
+  assert.equal(
+    suzerainties.byVassalId["burgundian-netherlands"].suzerainFactionId,
+    "spain"
+  );
+  const {
+    overrides: _legacyOverrides,
+    suzerainties: _legacySuzerainties,
+    ...beforeWithoutOverrides
+  } = before;
   assert.deepEqual({ ...withoutContacts, version: 1 }, beforeWithoutOverrides);
 });
 

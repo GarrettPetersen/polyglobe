@@ -40,6 +40,7 @@ const AUTHORITY_HEADLINE_NOTICES = Object.freeze({
   "english-reformation": "ENGLAND BREAKS WITH ROME"
 });
 const LUTHERAN_RECEPTIVE_FACTIONS = new Set([
+  "burgundian-netherlands",
   "habsburg",
   "hungary",
   "poland-lithuania",
@@ -76,14 +77,17 @@ export function createSovereignAuthority({ startMinute = 0, seedKey = "authority
 
 export function migrateSovereignAuthority(memory, {
   startMinute = 0,
-  seedKey = "authority"
+  seedKey = "authority",
+  splitCombinedHabsburg = false
 } = {}) {
   if (memory === undefined || memory === null) {
     return createSovereignAuthority({ startMinute, seedKey });
   }
   const scores = Object.fromEntries(SOVEREIGN_FACTIONS.map(({ id }) => [
     id,
-    memory.scores?.[id] ?? rulerAtMinute(id, startMinute).authority
+    id === "burgundian-netherlands" && splitCombinedHabsburg
+      ? memory.scores?.[id] ?? memory.scores?.habsburg ?? rulerAtMinute(id, startMinute).authority
+      : memory.scores?.[id] ?? rulerAtMinute(id, startMinute).authority
   ]));
   return validateSovereignAuthority({ ...memory, scores });
 }

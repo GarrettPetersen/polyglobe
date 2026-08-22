@@ -37,7 +37,7 @@ test("the 1530 canvass produces a live 1531 runoff and elects Ferdinand as King 
   assert.equal(election.winnerFactionId, "bohemia");
   assert.equal(election.winnerRulerName, "Ferdinand I");
   assert.equal(election.office, "king-of-romans");
-  assert.equal(imperial.emperorFactionId, "habsburg");
+  assert.equal(imperial.emperorFactionId, "burgundian-netherlands");
   assert.equal(imperial.emperorRulerName, "Charles V");
   assert.equal(imperial.kingOfRomans.rulerName, "Ferdinand I");
 });
@@ -104,7 +104,7 @@ test("an election creates an elector's transport commission without granting the
     assert.doesNotMatch(line, /in later years|will become|modern|historically|player/i);
   }
 
-  const emperorStanding = factionReputation(state, "habsburg");
+  const emperorStanding = factionReputation(state, "burgundian-netherlands");
   const electorStanding = factionReputation(state, "bohemia");
   acceptQuest(state, offer);
   const negotiation = negotiateEnvoyQuest(state, COLOGNE, {
@@ -115,7 +115,7 @@ test("an election creates an elector's transport commission without granting the
   assert.equal(state.relations.imperial.kingOfRomans, null);
   completeQuest(state, PRAGUE, { simMinute: IMPERIAL_ELECTION_CONVENED_MINUTE + 120 });
   assert.equal(factionReputation(state, "bohemia"), electorStanding + 8);
-  assert.equal(factionReputation(state, "habsburg"), emperorStanding + 5);
+  assert.equal(factionReputation(state, "burgundian-netherlands"), emperorStanding + 5);
   assert.equal(state.relations.imperial.kingOfRomans, null);
 });
 
@@ -124,7 +124,10 @@ test("politics exposes the successor, pending election, and the captain's standi
   advanceImperialConstitution(state.relations.imperial, IMPERIAL_ELECTION_CONVENED_MINUTE);
   let view = createPoliticsView(state, IMPERIAL_ELECTION_CONVENED_MINUTE);
   assert.equal(view.imperial.pendingElection.office, "king-of-romans");
-  assert.equal(view.imperial.imperialFavor, factionReputation(state, "habsburg"));
+  assert.equal(
+    view.imperial.imperialFavor,
+    factionReputation(state, "burgundian-netherlands")
+  );
 
   advanceImperialConstitution(state.relations.imperial, IMPERIAL_KING_OF_ROMANS_ELECTION_MINUTE);
   view = createPoliticsView(state, IMPERIAL_KING_OF_ROMANS_ELECTION_MINUTE);

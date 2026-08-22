@@ -33,7 +33,7 @@ const MARSEILLE = port(162253, "Marseille", "France", "france", 43.3, 5.37);
 const BARCELONA = port(162341, "Barcelona", "Spain", "spain", 41.39, 2.17);
 const VALENCIA = port(162340, "Valencia", "Spain", "spain", 39.47, -0.38);
 const SEVILLE = port(161342, "Seville", "Spain", "spain", 37.39, -5.99);
-const GENT = port(161189, "Gent", "Belgium", "habsburg", 51.05, 3.72);
+const GENT = port(161189, "Gent", "Belgium", "burgundian-netherlands", 51.05, 3.72);
 const MILAN = Object.freeze({
   tileId: 99,
   city: "Milan",
@@ -135,8 +135,12 @@ test("the Treaty delegation negotiates, returns, frees Francis, and ends both wa
   });
   assert.equal(completed.treatyOfMadridResolution.francisReleased, true);
   assert.equal(state.memory.quests.completed[TREATY_OF_MADRID_MISSION_ID], true);
-  assert.equal(worldDiplomacyBetween(state.relations.diplomacy, "france", "habsburg"), "hostile");
+  assert.equal(
+    worldDiplomacyBetween(state.relations.diplomacy, "france", "burgundian-netherlands"),
+    "hostile"
+  );
   assert.equal(worldDiplomacyBetween(state.relations.diplomacy, "france", "spain"), "hostile");
+  assert.equal(worldDiplomacyBetween(state.relations.diplomacy, "france", "habsburg"), "war");
   assert.equal(completed.treatyOfMadridResolution.diplomacyEvents.length >= 1, true);
 });
 
@@ -158,7 +162,10 @@ test("the Imperial delegation can complete the same treaty from the opposite sid
   });
   assert.equal(completed.treatyOfMadridResolution.francisReleased, true);
   assert.equal(state.memory.quests.completed[TREATY_OF_MADRID_MISSION_ID], true);
-  assert.equal(worldDiplomacyBetween(state.relations.diplomacy, "france", "habsburg"), "hostile");
+  assert.equal(
+    worldDiplomacyBetween(state.relations.diplomacy, "france", "burgundian-netherlands"),
+    "hostile"
+  );
 });
 
 test("Treaty offers do not appear before Pavia or when Milan is not Imperial", () => {

@@ -784,7 +784,7 @@ function createPapalMatter(memory, diplomacy, proposal, simMinute) {
   if (reformCandidate) {
     commissionKind = PAPAL_COMMISSION_REFORM;
     actionKind = PAPAL_ACTION_FAVOUR;
-    targetFactionId = "habsburg";
+    targetFactionId = "burgundian-netherlands";
   } else if (proposal.kind === PAPAL_ACTION_CRUSADE) {
     commissionKind = PAPAL_COMMISSION_RELIEF;
     beneficiaryFactionId = catholicEnemyOf(diplomacy, proposal.targetFactionId, simMinute);

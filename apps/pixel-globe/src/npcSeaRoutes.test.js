@@ -121,6 +121,19 @@ const MESOAMERICAN_PORTS = Object.freeze([
   nativeVillage(port(34, "Coroa Vermelha Village", "Brazil", "mesoamerican", -16.33, -39.01, 1600, "neutral"))
 ]);
 
+const INCA_PORTS = Object.freeze([
+  ...PORTS,
+  Object.freeze({
+    ...port(35, "Cuzco", "Peru", "andean", -13.53, -71.97, 90000, "inca"),
+    isFactionCapital: true,
+    capitalOfFactionId: "inca"
+  }),
+  Object.freeze({
+    ...port(36, "Chanchan", "Peru", "andean", -8.11, -79.07, 25000, "inca"),
+    manualRegion: "inca-coast"
+  })
+]);
+
 const NORTHWEST_COAST_PORTS = Object.freeze([
   Object.freeze({
     ...port(44, "Yuquot Village", "Nuu-chah-nulth", "mesoamerican", 49.59, -126.62, 1500, "neutral"),
@@ -681,6 +694,18 @@ test("capital naval reserves are finite and scale with the realm's current port 
     assert.equal(status.activeCount, 0);
     assert.equal(status.vacantCount, 0);
   }
+});
+
+test("an inland capital mobilizes its finite naval reserve from an explicit coastal port", () => {
+  const economy = createWorldEconomy({ ports: INCA_PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: INCA_PORTS, startMinute: 0, economy });
+  const inca = npcCapitalNavalReserveStatus(routes, "inca");
+
+  assert.equal(inca.targetCount, 1);
+  assert.equal(inca.stockedCount, 1);
+  assert.ok(inca.slots.every((slot) => slot.originPortId === 36));
+  assert.ok(inca.slots.every((slot) => slot.profileId === "andean-coast"));
+  assert.ok(inca.slots.every((slot) => slot.shipSlug === "mesoamerican-dugout-canoe"));
 });
 
 test("a burning port activates one reserve sortie and the same port loss escalates that order", () => {

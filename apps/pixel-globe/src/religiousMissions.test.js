@@ -218,7 +218,7 @@ test("Christian missionary voyages use their documented 1522 routes", () => {
   const cases = [
     {
       missionId: "franciscan-bound-west",
-      origin: port(301, "Gent", "Belgium", "habsburg", "northern-european"),
+      origin: port(301, "Gent", "Belgium", "burgundian-netherlands", "northern-european"),
       destination: port(302, "Veracruz", "Mexico", "spain"),
       title: "The Friar Bound West",
       role: "Franciscan friar",

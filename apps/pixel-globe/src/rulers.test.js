@@ -70,6 +70,23 @@ test("ruler succession happens at its queued date", () => {
   assert.equal(rulerAtMinute("sweden", gameMinuteForDate(1527, 6, 18)).religionId, "lutheran");
 });
 
+test("Austria and the Burgundian Netherlands have separate rulers before Philip succeeds in 1555", () => {
+  assert.equal(rulerAtMinute("habsburg", 0).name, "Ferdinand I");
+  assert.equal(rulerAtMinute("burgundian-netherlands", 0).name, "Charles V");
+  assert.equal(rulerAtMinute("spain", 0).name, "Charles I");
+
+  const netherlandsSuccession = gameMinuteForDate(1555, 10, 25);
+  assert.equal(
+    rulerAtMinute("burgundian-netherlands", netherlandsSuccession - 1).name,
+    "Charles V"
+  );
+  assert.equal(
+    rulerAtMinute("burgundian-netherlands", netherlandsSuccession).name,
+    "Philip II"
+  );
+  assert.equal(rulerAtMinute("habsburg", netherlandsSuccession).name, "Ferdinand I");
+});
+
 test("ruler change queue is chronological and excludes its starting boundary", () => {
   const start = gameMinuteForDate(1523, 1, 1);
   const end = gameMinuteForDate(1525, 1, 1);

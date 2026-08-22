@@ -440,7 +440,8 @@ test("family debt origins use faction-specific recent history", () => {
   const cases = [
     ["scotland", /Flodden/i, /crossed the Tweed/i],
     ["spain", /Villalar/i, /account book/i],
-    ["habsburg", /Imperial crowns/i, /electors were paid/i],
+    ["burgundian-netherlands", /Emperor's purse/i, /Emperor's seal/i],
+    ["habsburg", /Austrian obligations/i, /Austrian government/i],
     ["augsburg", /Candlemas.*Michaelmas/i, /wagons.*lender's tally/i],
     ["papal-states", /treasury forgot its wagons/i, /Urbino/i],
     ["ming", /rebels' roll/i, /Prince of Ning/i],

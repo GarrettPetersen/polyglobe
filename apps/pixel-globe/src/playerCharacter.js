@@ -55,6 +55,7 @@ const EUROPEAN_FACTIONS = new Set([
   "france",
   "spain",
   "portugal",
+  "burgundian-netherlands",
   "habsburg",
   "hungary",
   "wallachia",

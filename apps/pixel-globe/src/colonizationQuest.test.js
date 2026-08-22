@@ -98,7 +98,7 @@ const LONDON = Object.freeze({
 const SPONSOR_COUNTRY_BY_FACTION = Object.freeze({
   england: "United Kingdom",
   france: "France",
-  habsburg: "Netherlands",
+  "burgundian-netherlands": "Netherlands",
   portugal: "Portugal",
   spain: "Spain"
 });
@@ -425,7 +425,7 @@ test("Dutch West India Company expeditions originate in the Netherlands, not Lub
     tileId: 22,
     city: "Utrecht",
     country: "Netherlands",
-    factionId: "habsburg",
+    factionId: "burgundian-netherlands",
     lat: 52.09,
     lon: 5.12
   };
@@ -433,7 +433,7 @@ test("Dutch West India Company expeditions originate in the Netherlands, not Lub
     tileId: 23,
     city: "Lubeck",
     country: "Germany",
-    factionId: "habsburg",
+    factionId: "burgundian-netherlands",
     lat: 53.87,
     lon: 10.69
   };

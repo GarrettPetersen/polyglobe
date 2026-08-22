@@ -1178,9 +1178,13 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "The Portuguese fortress remained after your island's revolt. So did every note your family signed to provision it.",
     "We backed the men who tried to cast the Portuguese from Hormuz. Their rising failed, and the cost of surviving it became this debt."
   ),
+  "burgundian-netherlands": debtOrigin(
+    "The Emperor's purse drew upon Antwerp and Augsburg alike. Your father's bond was drawn upon the nearer countinghouse.",
+    "He advanced silver upon the Emperor's seal. Great lords kept their promises to one another; our house kept the debt."
+  ),
   habsburg: debtOrigin(
-    "Imperial crowns are costly. Your father should have remembered that guarantors do not wear them.",
-    "He guaranteed loans gathered to win that crown. The electors were paid; smaller guarantors were forgotten."
+    "Ferdinand's new household required old Austrian obligations to be reckoned anew. Yours was reckoned in full.",
+    "We furnished horses and plate when the archduke took up the Austrian government. The court changed hands; the lender's seal did not."
   ),
   hungary: debtOrigin(
     "Belgrade fell. Your quartermaster fled. My claim remained.",
@@ -1377,7 +1381,8 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   spain: "Columbus found a western world, and Balboa another ocean beyond it. Court boasts are plentiful; reliable accounts are not.",
   portugal: "Our pilots have rounded Africa and reached India and Malacca, yet the Crown keeps each chart close. I want the world considered as one.",
   hormuz: "Portuguese cannon commands our strait, but Hormuzi merchants still know every Gulf harbor worth naming. I want their knowledge carried beyond another empire's fortress.",
-  habsburg: "The Emperor's realms now face oceans no single court understands. A private atlas may tell the truth ceremony conceals.",
+  "burgundian-netherlands": "Bruges and Gent hear sailors speak of western coasts and southern passages. I would have their reckonings gathered before another court locks them away.",
+  habsburg: "Ferdinand's court looks east along the Danube, yet the merchants of Vienna hear news from every sea. I would see their scattered reports made into one true chart.",
   hungary: "Belgrade's fall has narrowed every gaze to the frontier. That is precisely when someone must remember the world is larger.",
   bohemia: imperialExplorerOutlook("Bohemia"),
   mainz: imperialExplorerOutlook("Mainz"),

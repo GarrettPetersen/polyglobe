@@ -10,6 +10,7 @@ import {
 } from "./politicsCardLayout.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 import { createGameState } from "./gameState.js";
+import { IMPERIAL_ESTATES_1522 } from "./imperialEstates.js";
 import { createPoliticsView } from "./politics.js";
 
 test("politics cards form a two-by-two desktop grid without crowding the footer", () => {
@@ -87,10 +88,15 @@ test("the elected Emperor's Estate connections fit the live politics layouts", (
       relationLineCapacities: layout.relationLineCapacities,
       powerCount: view.powers.length
     });
-    const emperor = entries.find((entry) => entry.card.faction.id === "habsburg");
+    const emperor = entries.find((entry) => (
+      entry.card.faction.id === "burgundian-netherlands"
+    ));
 
     assert.ok(emperor);
-    assert.equal(emperor.card.constitutionalConnections.length, 22);
+    assert.equal(
+      emperor.card.constitutionalConnections.length,
+      IMPERIAL_ESTATES_1522.length - 1
+    );
     assert.ok(emperor.rowSpan <= layout.rows);
     assert.ok(emperor.columnSpan <= layout.columns);
   }

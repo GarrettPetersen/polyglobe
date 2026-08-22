@@ -173,7 +173,8 @@ test("representative 1522 cities receive their governing faction", () => {
 
 test("represented Imperial cities retain their researched 1522 sovereigns", () => {
   const assignments = [
-    ["Brugge", "Belgium", "habsburg"], ["Gent", "Belgium", "habsburg"],
+    ["Brugge", "Belgium", "burgundian-netherlands"],
+    ["Gent", "Belgium", "burgundian-netherlands"],
     ["Vienna", "Austria", "habsburg"], ["Prague", "Austria", "bohemia"],
     ["Wroclaw", "Germany", "bohemia"], ["Cologne", "Germany", "cologne"],
     ["Augsberg", "Germany", "augsburg"], ["Nurnberg", "Germany", "nuremberg"],

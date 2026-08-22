@@ -14,7 +14,7 @@ import { createPoliticsView } from "./politics.js";
 
 const SUPPORTERS = ["mainz", "cologne-electorate", "trier", "palatinate", "bohemia", "electoral-saxony"];
 
-test("a Habsburg marque does not authorize attacks on an Imperial Estate without public law", () => {
+test("an Austrian marque is not Imperial authority and the Emperor still requires public law", () => {
   const state = createGameState({ cargoCapacity: 20 });
   state.relations.lettersOfMarque.habsburg = {
     factionId: "habsburg",
@@ -30,13 +30,21 @@ test("a Habsburg marque does not authorize attacks on an Imperial Estate without
     simMinute: 1
   });
   state.survival.lastMinute = 1;
-  assert.deepEqual(privateeringAuthorityIssuerIdsAgainst(state, "augsburg"), ["habsburg"]);
+  assert.deepEqual(privateeringAuthorityIssuerIdsAgainst(state, "augsburg"), []);
+  state.relations.lettersOfMarque["burgundian-netherlands"] = {
+    factionId: "burgundian-netherlands",
+    simMinute: 1
+  };
+  assert.deepEqual(
+    privateeringAuthorityIssuerIdsAgainst(state, "augsburg"),
+    ["burgundian-netherlands"]
+  );
 });
 
 test("politics exposes the Emperor, electors, balance, resolutions, and Estate badges", () => {
   const state = createGameState({ cargoCapacity: 20 });
   const view = createPoliticsView(state);
-  assert.equal(view.imperial.emperorFactionId, "habsburg");
+  assert.equal(view.imperial.emperorFactionId, "burgundian-netherlands");
   assert.equal(view.imperial.emperorRuler.imperialDisplayName, "Emperor Charles V");
   assert.equal(view.imperial.electors.length, 7);
   assert.equal(view.imperial.activeBans.length, 0);
@@ -47,17 +55,17 @@ test("politics exposes the Emperor, electors, balance, resolutions, and Estate b
 
 test("breaking the Public Peace against an Estate damages standing with the Emperor", () => {
   const state = createGameState({ cargoCapacity: 20 });
-  const before = factionReputation(state, "habsburg");
+  const before = factionReputation(state, "burgundian-netherlands");
   recordAttackAgainstFaction(state, "augsburg");
   assert.equal(
-    factionReputation(state, "habsburg"),
+    factionReputation(state, "burgundian-netherlands"),
     before + IMPERIAL_PUBLIC_PEACE_REPUTATION_PENALTY
   );
 
   const lawful = createGameState({ cargoCapacity: 20 });
-  const lawfulBefore = factionReputation(lawful, "habsburg");
+  const lawfulBefore = factionReputation(lawful, "burgundian-netherlands");
   recordAttackAgainstFaction(lawful, "augsburg", { lawfulWartimeAction: true });
-  assert.equal(factionReputation(lawful, "habsburg"), lawfulBefore);
+  assert.equal(factionReputation(lawful, "burgundian-netherlands"), lawfulBefore);
 });
 
 test("Imperial war-secretary dialogue speaks from the present constitutional order", () => {

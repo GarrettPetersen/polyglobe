@@ -37,6 +37,7 @@ test("Imperial membership is independent of sovereignty, suzerainty, and city di
   assert.equal(estate.factionId, "augsburg");
   assert.equal(estate.estateType, "free-imperial-city");
   assert.equal(isImperialMemberFaction("habsburg"), true);
+  assert.equal(isImperialMemberFaction("burgundian-netherlands"), true);
   assert.equal(isImperialMemberFaction("france"), false);
   assert.equal(
     imperialEstateForCity({ cityId: IMPERIAL_CITY_REFERENCES.AUGSBURG.id }).factionId,
@@ -98,19 +99,23 @@ test("the Emperor's personal war does not call the Empire without a Diet defence
     supportingFactionIds: DIET_SUPPORTERS,
     simMinute: 2
   });
-  assert.deepEqual(imperialDefensePartners(imperial, "augsburg", "morocco", 2), ["habsburg"]);
+  assert.deepEqual(
+    imperialDefensePartners(imperial, "augsburg", "morocco", 2),
+    ["burgundian-netherlands"]
+  );
   const authorized = createWorldDiplomacy({ seedKey: "authorized-imperial-defence" });
   const authorizedEvents = declareDiplomaticWar(authorized, "morocco", "augsburg", 2, {
     imperialConstitution: imperial
   });
   assert.ok(authorizedEvents.some((event) => (
-    event.reason === "imperial-defence" && event.factionAId === "habsburg"
+    event.reason === "imperial-defence" && event.factionAId === "burgundian-netherlands"
   )));
 });
 
 test("Reformation outcomes change city faith, elector support, blocs, and Imperial authority", () => {
   const imperial = createImperialConstitution();
-  const supportBefore = imperial.electors["electoral-saxony"].supportByCandidateId.habsburg;
+  const supportBefore = imperial.electors["electoral-saxony"]
+    .supportByCandidateId["burgundian-netherlands"];
   const event = recordImperialReformationOutcome(imperial, {
     cityId: IMPERIAL_CITY_REFERENCES.WITTENBERG.id,
     religionId: "lutheran",
@@ -121,13 +126,16 @@ test("Reformation outcomes change city faith, elector support, blocs, and Imperi
   assert.equal(imperial.cityReligions[IMPERIAL_CITY_REFERENCES.WITTENBERG.id], "lutheran");
   assert.equal(imperial.religiousBlocByFactionId["electoral-saxony"], "lutheran");
   assert.equal(imperial.authority, 43);
-  assert.ok(imperial.electors["electoral-saxony"].supportByCandidateId.habsburg < supportBefore);
+  assert.ok(
+    imperial.electors["electoral-saxony"].supportByCandidateId["burgundian-netherlands"] <
+      supportBefore
+  );
   assert.equal(imperialPoliticsView(imperial).religiousBalance.lutheran, 1);
 });
 
 test("a captain carrying reform texts creates local dispute but cannot convert an Imperial city", () => {
   const imperial = createImperialConstitution();
-  const supportBefore = imperial.electors.mainz.supportByCandidateId.habsburg;
+  const supportBefore = imperial.electors.mainz.supportByCandidateId["burgundian-netherlands"];
   const event = recordImperialReligiousCirculation(imperial, {
     cityId: IMPERIAL_CITY_REFERENCES.MAINZ.id,
     simMinute: 40,
@@ -138,7 +146,10 @@ test("a captain carrying reform texts creates local dispute but cannot convert a
   assert.equal(imperial.cityReligions[IMPERIAL_CITY_REFERENCES.MAINZ.id], "mixed");
   assert.equal(imperial.religiousBlocByFactionId.mainz, "mixed");
   assert.equal(imperial.authority, 45);
-  assert.equal(imperial.electors.mainz.supportByCandidateId.habsburg, supportBefore - 6);
+  assert.equal(
+    imperial.electors.mainz.supportByCandidateId["burgundian-netherlands"],
+    supportBefore - 6
+  );
   assert.equal(recordImperialReligiousCirculation(imperial, {
     cityId: IMPERIAL_CITY_REFERENCES.MAINZ.id,
     simMinute: 41

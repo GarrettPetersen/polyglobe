@@ -31,7 +31,7 @@ import {
 import { factionDiplomaticAggressionMultiplier } from "./factionExpansion.js";
 import { imperialDefensePartners } from "./imperialConstitution.js";
 
-export const WORLD_DIPLOMACY_VERSION = 8;
+export const WORLD_DIPLOMACY_VERSION = 9;
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
 export const DIPLOMACY_MAX_EVENT_DAYS = 150;
 export const DIPLOMACY_PAIR_COOLDOWN_DAYS = 120;
@@ -53,6 +53,7 @@ const SOVEREIGN_FACTIONS = FACTIONS.filter((faction) => (
 ));
 const FACTIONS_BY_ID = new Map(FACTIONS.map((faction) => [faction.id, faction]));
 const DIPLOMACY_INTRODUCED_FACTION_IDS = Object.freeze([
+  "burgundian-netherlands",
   "wallachia",
   "moldavia",
   "ragusa",
@@ -160,28 +161,34 @@ export function migrateWorldDiplomacy(state, {
   if (state.version === WORLD_DIPLOMACY_VERSION && !hasContextualMigration) {
     return validateWorldDiplomacy(state);
   }
-  if (![1, 2, 3, 4, 5, 6, 7, WORLD_DIPLOMACY_VERSION].includes(state.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, WORLD_DIPLOMACY_VERSION].includes(state.version)) {
     throw new Error(`Unsupported world diplomacy version: ${state.version ?? "missing"}`);
   }
   const migratedOverrides = removeRetiredFactionPairs(state.overrides);
-  if (neutralizeIntroducedFactions) neutralizeNewFactionDefaults(migratedOverrides);
+  const migratedSuzerainties = migrateSuzeraintyMemory(state.suzerainties, state.startMinute, {
+    inactiveFactionIds
+  });
+  if (neutralizeIntroducedFactions) {
+    neutralizeNewFactionDefaults(migratedOverrides, migratedSuzerainties);
+  }
   return validateWorldDiplomacy({
     ...state,
     version: WORLD_DIPLOMACY_VERSION,
     overrides: migratedOverrides,
     pairLastChangedMinute: removeRetiredFactionPairs(state.pairLastChangedMinute),
     contacts: state.version < 3 ? {} : removeRetiredFactionPairs(state.contacts),
-    suzerainties: migrateSuzeraintyMemory(state.suzerainties, state.startMinute, {
-      inactiveFactionIds
-    }),
+    suzerainties: migratedSuzerainties,
     history: state.history.filter((event) => !diplomacyEventUsesRetiredFaction(event))
   });
 }
 
-function neutralizeNewFactionDefaults(overrides) {
+function neutralizeNewFactionDefaults(overrides, suzerainties) {
   for (const factionId of DIPLOMACY_INTRODUCED_FACTION_IDS) {
     for (const other of SOVEREIGN_FACTIONS) {
-      if (other.id === factionId || diplomacyBetween(factionId, other.id) === DIPLOMACY_NEUTRAL) continue;
+      const preservesBurgundianUnion = factionId === "burgundian-netherlands" &&
+        other.id === "spain" && directSuzeraintyBetween(suzerainties, factionId, other.id);
+      if (other.id === factionId || diplomacyBetween(factionId, other.id) === DIPLOMACY_NEUTRAL ||
+          preservesBurgundianUnion) continue;
       overrides[diplomacyPairKey(factionId, other.id)] = DIPLOMACY_NEUTRAL;
     }
   }

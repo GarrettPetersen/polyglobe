@@ -363,7 +363,7 @@ export const COLONIZATION_TARGETS = Object.freeze([
     datasetFirstYear: null,
     datasetSource: "manual-colonization-target"
   }),
-  colonizationTarget("Fort Orange", "United States of America", 42.652578, -73.756233, COLONIAL_FOUNDING_NEGOTIATED, 1624, "habsburg", {
+  colonizationTarget("Fort Orange", "United States of America", 42.652578, -73.756233, COLONIAL_FOUNDING_NEGOTIATED, 1624, "burgundian-netherlands", {
     label: "Dutch negotiated trade post",
     historicalPower: "Dutch/Low Countries",
     originCountry: "Netherlands",
@@ -382,7 +382,7 @@ export const COLONIZATION_TARGETS = Object.freeze([
     datasetFirstYear: null,
     datasetSource: "manual-colonization-target"
   }),
-  colonizationTarget("New Amsterdam", "United States of America", 40.714353, -74.005972, COLONIAL_FOUNDING_SETTLER, 1624, "habsburg", {
+  colonizationTarget("New Amsterdam", "United States of America", 40.714353, -74.005972, COLONIAL_FOUNDING_SETTLER, 1624, "burgundian-netherlands", {
     label: "Dutch settler colony",
     historicalPower: "Dutch/Low Countries",
     originCountry: "Netherlands",
@@ -652,7 +652,9 @@ function colonizationCityType(type, factionId, country) {
   if (country === "Mexico") return "mesoamerican";
   if (type === COLONIAL_FOUNDING_CONQUERED) return localCityTypeForCountry(country);
   if (factionId === "spain" || factionId === "portugal") return "mediterranean";
-  if (factionId === "france" || factionId === "england" || factionId === "habsburg") return "northern-european";
+  if (["france", "england", "burgundian-netherlands", "habsburg"].includes(factionId)) {
+    return "northern-european";
+  }
   return localCityTypeForCountry(country);
 }
 

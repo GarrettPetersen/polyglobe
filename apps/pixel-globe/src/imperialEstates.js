@@ -51,8 +51,10 @@ export const IMPERIAL_CITY_REFERENCES = Object.freeze({
 const C = IMPERIAL_CITY_REFERENCES;
 
 export const IMPERIAL_ESTATES_1522 = Object.freeze([
-  estate("habsburg", "Habsburg hereditary and Burgundian lands", IMPERIAL_ESTATE_TYPE_HEREDITARY_LANDS,
-    ["austrian", "burgundian"], [C.VIENNA, C.BRUGGE, C.GENT]),
+  estate("burgundian-netherlands", "Burgundian Netherlands", IMPERIAL_ESTATE_TYPE_HEREDITARY_LANDS,
+    ["burgundian"], [C.BRUGGE, C.GENT]),
+  estate("habsburg", "Austrian hereditary lands", IMPERIAL_ESTATE_TYPE_HEREDITARY_LANDS,
+    ["austrian"], [C.VIENNA]),
   estate("bohemia", "Crown of Bohemia", IMPERIAL_ESTATE_TYPE_PRINCE, [], [C.PRAGUE, C.BRESLAU], { electorId: "bohemia" }),
   estate("mainz", "Electorate of Mainz", IMPERIAL_ESTATE_TYPE_ECCLESIASTICAL,
     ["electoral-rhenish"], [C.MAINZ, C.ERFURT], { electorId: "mainz", autonomousCityIds: [C.ERFURT.id] }),

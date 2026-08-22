@@ -132,8 +132,24 @@
       ]
     },
     {
+      "id": "burgundian-netherlands",
+      "factionName": "Burgundian Netherlands",
+      "width": 32,
+      "height": 20,
+      "file": "burgundian-netherlands.png",
+      "evidence": "period-banner",
+      "representation": "Cross of Burgundy",
+      "accuracyNote": "The ragged red Cross of Burgundy identifies Charles V's Burgundian inheritance and its forces without treating the Low Countries as Austrian or Spanish sovereign territory.",
+      "sources": [
+        {
+          "label": "Cross of Burgundy",
+          "url": "https://en.wikipedia.org/wiki/Cross_of_Burgundy"
+        }
+      ]
+    },
+    {
       "id": "habsburg",
-      "factionName": "Habsburg Monarchy",
+      "factionName": "Austrian Habsburg Lands",
       "width": 32,
       "height": 20,
       "file": "habsburg.png",

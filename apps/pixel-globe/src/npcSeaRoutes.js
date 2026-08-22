@@ -405,6 +405,11 @@ const FLEET_PROFILES = Object.freeze([
     merchants: ["mesoamerican-dugout-canoe"],
     warships: ["mesoamerican-dugout-canoe"]
   }, isMesoamericanVillagePort, "regional", mesoamericanVillageRoleWeights()),
+  profile("andean-coast", 1, {
+    fishers: ["mesoamerican-dugout-canoe"],
+    merchants: ["mesoamerican-dugout-canoe"],
+    warships: ["mesoamerican-dugout-canoe"]
+  }, isAndeanCoastalPort, "regional", nativeCoastalRoleWeights()),
   profile("east-asia", 34, {
     fishers: ["sampan", "small-junk"],
     merchants: ["sampan", "small-junk", "medium-junk", "large-junk"],
@@ -1748,16 +1753,19 @@ function capitalNavalReserveTargetCount(ports) {
   return 1;
 }
 
-function capitalNavalReservePort(ports, factionId) {
+function capitalNavalReservePort(ports, factionId, profileId = null) {
   if (!Array.isArray(ports) || ports.length === 0) {
     throw new Error(`Capital naval reserve has no controlled port for ${factionId}`);
   }
-  const maritimePorts = ports.filter((port) => capitalNavalReserveProfileOrNull(port));
-  if (maritimePorts.length === 0) {
-    throw new Error(`Capital naval reserve has no maritime port for ${factionId}`);
+  const requiredProfile = profileId === null ? null : fleetProfileForId(profileId);
+  const eligiblePorts = ports.filter((port) => (
+    requiredProfile ? requiredProfile.portPredicate(port) : capitalNavalReserveProfileOrNull(port)
+  ));
+  if (eligiblePorts.length === 0) {
+    throw new Error(`Capital naval reserve has no naval mobilization port for ${factionId}`);
   }
-  const capitals = maritimePorts.filter((port) => port.capitalOfFactionId === factionId);
-  const candidates = capitals.length > 0 ? capitals : maritimePorts;
+  const capitals = eligiblePorts.filter((port) => port.capitalOfFactionId === factionId);
+  const candidates = capitals.length > 0 ? capitals : eligiblePorts;
   return [...candidates].sort((a, b) => (
     Number(b.isFactionCapital === true) - Number(a.isFactionCapital === true) ||
     Number(b.population || 0) - Number(a.population || 0) ||
@@ -1772,10 +1780,9 @@ function capitalNavalReserveProfile(origin) {
 }
 
 function capitalNavalReserveProfileOrNull(origin) {
-  const profileSpec = FLEET_PROFILES.find((profile) => (
+  return FLEET_PROFILES.find((profile) => (
     profile.mode === "regional" && profile.portPredicate(origin)
   )) || FLEET_PROFILES.find((profile) => profile.portPredicate(origin));
-  return profileSpec || null;
 }
 
 function capitalNavalReserveSlugs(profileSpec, factionId) {
@@ -1834,13 +1841,15 @@ function activateCapitalNavalReserveSlot(system, slot, target, {
 
 function activeCapitalNavalReservePort(system, slot) {
   const storedCapital = system.ports.find((port) => port.tileId === slot.originPortId);
-  if (storedCapital?.factionId === slot.factionId && npcRoutePortAcceptsTraffic(storedCapital)) {
+  const profileSpec = fleetProfileForId(slot.profileId);
+  if (storedCapital?.factionId === slot.factionId && npcRoutePortAcceptsTraffic(storedCapital) &&
+      profileSpec.portPredicate(storedCapital)) {
     return storedCapital;
   }
   const controlledPorts = system.ports.filter((port) => (
     port.factionId === slot.factionId && npcRoutePortAcceptsTraffic(port)
   ));
-  const replacement = capitalNavalReservePort(controlledPorts, slot.factionId);
+  const replacement = capitalNavalReservePort(controlledPorts, slot.factionId, slot.profileId);
   slot.originPortId = replacement.tileId;
   return replacement;
 }
@@ -4994,6 +5003,10 @@ function isMesoamericanVillagePort(port) {
   return port.cityType === "mesoamerican" &&
     port.settlementType === "village" &&
     port.manualRegion !== "northwest-coast";
+}
+
+function isAndeanCoastalPort(port) {
+  return port.cityType === "andean" && port.manualRegion === "inca-coast";
 }
 
 function isMediterraneanPort(port) {

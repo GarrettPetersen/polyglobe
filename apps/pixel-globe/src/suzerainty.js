@@ -57,7 +57,7 @@ const SUZERAINTY_TERMS = Object.freeze({
 });
 
 export const INITIAL_SUZERAINTIES_1522 = Object.freeze([
-  initialSuzerainty("spain", "habsburg", SUZERAINTY_KIND_PERSONAL_UNION),
+  initialSuzerainty("burgundian-netherlands", "spain", SUZERAINTY_KIND_PERSONAL_UNION),
   initialSuzerainty("bohemia", "hungary", SUZERAINTY_KIND_PERSONAL_UNION),
   initialSuzerainty("hormuz", "portugal", SUZERAINTY_KIND_VASSAL),
   initialSuzerainty("crimea", "ottoman", SUZERAINTY_KIND_AUTONOMOUS_VASSAL, {
@@ -117,7 +117,17 @@ export function migrateSuzeraintyMemory(memory, startMinute = 0, { inactiveFacti
       ))),
     history: source.history || []
   };
+  const formerCombinedUnion = migrated.byVassalId.spain;
+  if (formerCombinedUnion?.source === "historical-1522" &&
+      formerCombinedUnion.suzerainFactionId === "habsburg" &&
+      formerCombinedUnion.kind === SUZERAINTY_KIND_PERSONAL_UNION) {
+    delete migrated.byVassalId.spain;
+  }
   const historicallyChanged = new Set(migrated.history.map((event) => event.vassalFactionId));
+  const formerCombinedUnionDiverged = !migrated.byVassalId["burgundian-netherlands"] && (
+    migrated.byVassalId.spain !== undefined || historicallyChanged.has("spain")
+  );
+  if (formerCombinedUnionDiverged) historicallyChanged.add("burgundian-netherlands");
   for (const initial of INITIAL_SUZERAINTIES_1522) {
     if (inactive.has(initial.vassalFactionId) || inactive.has(initial.suzerainFactionId)) continue;
     const existing = migrated.byVassalId[initial.vassalFactionId];

@@ -59,6 +59,9 @@ const RESEARCH = Object.freeze([
   research("hormuz", "reconstruction", "Hormuzi royal maritime standard", "No secure rectangular state flag survives from 1522. This red-and-gold maritime standard is a restrained reconstruction using the island kingdom's Islamic court and Persian Gulf setting rather than Portuguese arms.", [
     source("Kingdom of Hormuz", "https://www.iranicaonline.org/articles/hormuz-ii")
   ]),
+  research("burgundian-netherlands", "period-banner", "Cross of Burgundy", "The ragged red Cross of Burgundy identifies Charles V's Burgundian inheritance and its forces without treating the Low Countries as Austrian or Spanish sovereign territory.", [
+    source("Cross of Burgundy", "https://en.wikipedia.org/wiki/Cross_of_Burgundy")
+  ]),
   research("habsburg", "period-heraldry", "Habsburg red-white-red arms", "The dynastic red-white-red arms identify the Habsburg hereditary monarchy without reusing the Emperor's double-headed eagle or implying that the Empire is Habsburg sovereign territory.", [
     source("The Habsburg coat of arms", "https://www.habsburger.net/en/chapter/coat-arms-symbol-habsburg-monarchy")
   ]),
@@ -391,6 +394,11 @@ const DRAWERS = Object.freeze({
     s.rect(0, FLAG_H - 2, FLAG_W, 2, C.gold);
     crescent(s, 16, 10, C.gold, C.darkRed, 6);
     s.pixel(23, 10, C.cream);
+    return s;
+  },
+  "burgundian-netherlands": () => {
+    const s = base(C.cream);
+    raggedSaltire(s, C.red);
     return s;
   },
   habsburg: () => {

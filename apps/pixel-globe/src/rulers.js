@@ -27,9 +27,12 @@ const RAW_RULER_TIMELINES = Object.freeze({
   spain: [ruler(1522, 1, 1, "Charles I", "King"), ruler(1556, 1, 16, "Philip II", "King")],
   portugal: [ruler(1522, 1, 1, "John III", "King"), ruler(1557, 6, 11, "Sebastian I", "King")],
   hormuz: [ruler(1522, 1, 1, "Turanshah IV", "King")],
+  "burgundian-netherlands": [
+    ruler(1522, 1, 1, "Charles V", "Duke of Burgundy"),
+    ruler(1555, 10, 25, "Philip II", "Duke of Burgundy")
+  ],
   habsburg: [
-    ruler(1522, 1, 1, "Charles V", "Archduke"),
-    ruler(1556, 8, 27, "Ferdinand I", "Archduke"),
+    ruler(1522, 1, 1, "Ferdinand I", "Archduke"),
     ruler(1564, 7, 25, "Maximilian II", "Archduke")
   ],
   hungary: [
@@ -228,6 +231,7 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
   spain: faith("roman-catholic", 0.94),
   portugal: faith("roman-catholic", 0.91),
   hormuz: faith("sunni-islam", 0.66),
+  "burgundian-netherlands": faith("roman-catholic", 0.92),
   habsburg: faith("roman-catholic", 0.92),
   hungary: faith("roman-catholic", 0.82),
   bohemia: faith("roman-catholic", 0.79),
@@ -312,7 +316,8 @@ const RULER_AUTHORITY_DEFAULTS = Object.freeze({
   spain: 82,
   portugal: 76,
   hormuz: 38,
-  habsburg: 80,
+  "burgundian-netherlands": 80,
+  habsburg: 72,
   hungary: 48,
   bohemia: 52,
   mainz: 58,
@@ -385,7 +390,6 @@ const RULER_AUTHORITY_OVERRIDES = Object.freeze({
   "france|Henry II|1547-3-31": 78,
   "spain|Philip II|1556-1-16": 86,
   "portugal|Sebastian I|1557-6-11": 45,
-  "habsburg|Ferdinand I|1556-8-27": 72,
   "habsburg|Maximilian II|1564-7-25": 74,
   "hungary|Ferdinand I|1526-8-29": 56,
   "hungary|Maximilian II|1564-7-25": 68,
@@ -428,10 +432,10 @@ const RULER_AUTHORITY_OVERRIDES = Object.freeze({
 });
 
 const REGIONAL_GROUPS = Object.freeze([
-  ["england", "scotland", "france", "spain", "portugal", "habsburg", "sweden", "denmark-norway"],
-  ["habsburg", "hungary", "venice", "genoa", "papal-states", "hospitallers", "ottoman", "poland-lithuania", "wallachia", "moldavia", "ragusa"],
+  ["england", "scotland", "france", "spain", "portugal", "burgundian-netherlands", "habsburg", "sweden", "denmark-norway"],
+  ["burgundian-netherlands", "habsburg", "hungary", "venice", "genoa", "papal-states", "hospitallers", "ottoman", "poland-lithuania", "wallachia", "moldavia", "ragusa"],
   ["ottoman", "venice", "genoa", "papal-states", "hospitallers", "morocco", "safavid", "hormuz", "hejaz", "ragusa"],
-  ["muscovy", "crimea", "poland-lithuania", "sweden", "denmark-norway", "habsburg", "hungary", "ottoman"],
+  ["muscovy", "crimea", "poland-lithuania", "sweden", "denmark-norway", "burgundian-netherlands", "habsburg", "hungary", "ottoman"],
   ["songhai", "morocco", "portugal"],
   ["ethiopia", "ottoman", "portugal", "safavid"],
   ["vijayanagara", "gujarat", "bengal", "delhi", "mughal", "portugal", "safavid"],
@@ -442,7 +446,7 @@ const REGIONAL_GROUPS = Object.freeze([
   ],
   ["inca", "spain", "portugal"],
   [
-    "habsburg", "bohemia", "mainz", "cologne-electorate", "trier", "palatinate",
+    "burgundian-netherlands", "habsburg", "bohemia", "mainz", "cologne-electorate", "trier", "palatinate",
     "electoral-saxony", "brandenburg", "ducal-saxony", "liege", "magdeburg",
     "utrecht", "cleves-mark", "calenberg", "augsburg", "cologne", "nuremberg",
     "lubeck", "hamburg", "bremen", "speyer", "regensburg", "worms"

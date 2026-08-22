@@ -723,7 +723,7 @@ test("historical conquests outrank attempted conquests and ordinary enemy ports"
 test("a failed historical objective outranks an otherwise sensible enemy harbor", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.relations.lettersOfMarque.spain = { factionId: "spain", simMinute: 0 };
-  state.relations.diplomacy.overrides["habsburg|ottoman"] = "war";
+  state.relations.diplomacy.overrides["ottoman|spain"] = "war";
   state.relations.diplomacy.overrides["france|spain"] = "war";
   const madrid = {
     ...port(43, "Madrid", "Spain", "mediterranean", "spain", 40.42, -3.7),
