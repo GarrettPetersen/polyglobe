@@ -1591,7 +1591,8 @@ export function orderNpcPortResponse(system, {
   const target = system.ports.find((port) => port.tileId === targetPortId);
   if (!target) throw new Error(`Port-response target is missing: ${targetPortId}`);
   const controlledPorts = system.ports.filter((port) => (
-    port.factionId === factionId && npcRoutePortAcceptsTraffic(port)
+    port.factionId === factionId && npcRoutePortAcceptsTraffic(port) &&
+    capitalNavalReserveProfileOrNull(port)
   ));
   if (controlledPorts.length === 0) {
     return Object.freeze({ outcome: "no-controlled-port", factionId, targetPortId, shipId: null });
@@ -1699,6 +1700,7 @@ function createInitialCapitalNavalReserveSlots(system, startMinute) {
   const portsByFactionId = new Map();
   for (const port of system.ports) {
     if (!npcRoutePortAcceptsTraffic(port) ||
+        !capitalNavalReserveProfileOrNull(port) ||
         port.factionId === NEUTRAL_FACTION_ID || port.factionId === PIRATE_FACTION_ID) {
       continue;
     }
@@ -1750,8 +1752,12 @@ function capitalNavalReservePort(ports, factionId) {
   if (!Array.isArray(ports) || ports.length === 0) {
     throw new Error(`Capital naval reserve has no controlled port for ${factionId}`);
   }
-  const capitals = ports.filter((port) => port.capitalOfFactionId === factionId);
-  const candidates = capitals.length > 0 ? capitals : ports;
+  const maritimePorts = ports.filter((port) => capitalNavalReserveProfileOrNull(port));
+  if (maritimePorts.length === 0) {
+    throw new Error(`Capital naval reserve has no maritime port for ${factionId}`);
+  }
+  const capitals = maritimePorts.filter((port) => port.capitalOfFactionId === factionId);
+  const candidates = capitals.length > 0 ? capitals : maritimePorts;
   return [...candidates].sort((a, b) => (
     Number(b.isFactionCapital === true) - Number(a.isFactionCapital === true) ||
     Number(b.population || 0) - Number(a.population || 0) ||
@@ -1760,11 +1766,16 @@ function capitalNavalReservePort(ports, factionId) {
 }
 
 function capitalNavalReserveProfile(origin) {
+  const profileSpec = capitalNavalReserveProfileOrNull(origin);
+  if (!profileSpec) throw new Error(`No capital naval reserve profile for ${portName(origin)}`);
+  return profileSpec;
+}
+
+function capitalNavalReserveProfileOrNull(origin) {
   const profileSpec = FLEET_PROFILES.find((profile) => (
     profile.mode === "regional" && profile.portPredicate(origin)
   )) || FLEET_PROFILES.find((profile) => profile.portPredicate(origin));
-  if (!profileSpec) throw new Error(`No capital naval reserve profile for ${portName(origin)}`);
-  return profileSpec;
+  return profileSpec || null;
 }
 
 function capitalNavalReserveSlugs(profileSpec, factionId) {

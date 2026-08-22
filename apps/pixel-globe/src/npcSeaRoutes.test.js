@@ -787,6 +787,30 @@ test("an empty reserve slot buys a suitable hull elsewhere and sails it to the c
   assert.equal(routes.shipById.has(transitShip.id), false);
 });
 
+test("a non-naval capital creates no sea reserve and cannot dispatch one", () => {
+  const cuzco = {
+    ...port(82, "Cuzco", "Peru", "andean", -13.5319, -71.9675, 90000, "inca"),
+    capitalOfFactionId: "inca",
+    isFactionCapital: true
+  };
+  const ports = Object.freeze([...PORTS, Object.freeze(cuzco)]);
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+
+  assert.equal(npcCapitalNavalReserveStatus(routes, "inca").targetCount, 0);
+  assert.deepEqual(orderNpcPortResponse(routes, {
+    factionId: "inca",
+    targetPortId: cuzco.tileId,
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 1000
+  }), {
+    outcome: "no-controlled-port",
+    factionId: "inca",
+    targetPortId: cuzco.tileId,
+    shipId: null
+  });
+});
+
 test("NPC merchants carry finite cargo and realize profits over repeated port calls", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
