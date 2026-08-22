@@ -49,7 +49,11 @@ import {
 } from "./suzerainty.js";
 import { diplomacyEventNotice } from "./worldDiplomacy.js";
 import { sovereignAuthorityHeadlineNotice } from "./sovereignAuthority.js";
-import { imperialPoliticsView } from "./imperialConstitution.js";
+import {
+  imperialEventNotice,
+  imperialPoliticsView,
+  recentImperialEvents
+} from "./imperialConstitution.js";
 import { imperialEstateForFaction } from "./imperialEstates.js";
 import { foreignSettlementExpulsionNotice } from "./foreignSettlements.js";
 import {
@@ -95,6 +99,10 @@ export function createPoliticsView(
     gameState,
     POLITICS_NEWS_HISTORY_LIMIT
   );
+  const recentImperialActions = recentImperialEvents(
+    gameState.relations.imperial,
+    POLITICS_NEWS_HISTORY_LIMIT
+  );
   const recentScriptedEvents = recentScriptedPoliticsEvents(
     gameState,
     POLITICS_NEWS_HISTORY_LIMIT
@@ -102,12 +110,25 @@ export function createPoliticsView(
   const pendingPapalMatter = papalPendingMatter(gameState.relations.papacy);
   const pendingCourtMatter = courtPendingMatter(gameState.relations.courts);
   const imperial = imperialPoliticsView(gameState.relations.imperial, simMinute);
-  const emperorRuler = rulerAtMinute(imperial.emperorFactionId, simMinute);
+  const currentEmperorFactionRuler = rulerAtMinute(imperial.emperorFactionId, simMinute);
+  const emperorRuler = currentEmperorFactionRuler === null ? null : {
+    ...currentEmperorFactionRuler,
+    name: imperial.emperorRulerName,
+    displayName: imperial.emperorRulerName
+  };
+  const kingOfRomansRuler = imperial.kingOfRomans === null
+    ? null
+    : {
+        ...rulerAtMinute(imperial.kingOfRomans.factionId, simMinute),
+        name: imperial.kingOfRomans.rulerName,
+        displayName: imperial.kingOfRomans.rulerName
+      };
   const newsHistory = recentPoliticsNews({
     recentEvents,
     recentPapalActions,
     recentCourtActions,
     recentAuthorityHeadlines,
+    recentImperialActions,
     recentScriptedEvents,
     pendingPapalMatter,
     pendingCourtMatter
@@ -118,15 +139,18 @@ export function createPoliticsView(
     recentPapalActions,
     recentCourtActions,
     recentAuthorityHeadlines,
+    recentImperialActions,
     recentScriptedEvents,
     pendingPapalMatter,
     pendingCourtMatter,
     imperial: Object.freeze({
       ...imperial,
+      imperialFavor: factionReputation(gameState, imperial.emperorFactionId),
       emperorRuler: emperorRuler === null ? null : Object.freeze({
         ...emperorRuler,
         imperialDisplayName: `Emperor ${emperorRuler.name}`
-      })
+      }),
+      kingOfRomansRuler: kingOfRomansRuler === null ? null : Object.freeze(kingOfRomansRuler)
     }),
     newsHistory,
     latestNews: newsHistory[0] || null,
@@ -175,9 +199,18 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
       text: sovereignAuthorityHeadlineNotice(event),
       tiePriority: 4
     })),
+    ...(view.recentImperialActions || []).map((event) => ({
+      source: "imperial",
+      simMinute: event.simMinute,
+      tone: event.kind === "imperial-vacancy" || event.kind === "king-of-romans-vacancy"
+        ? "warn"
+        : "good",
+      text: imperialEventNotice(event),
+      tiePriority: 5
+    })),
     ...(view.recentScriptedEvents || []).map((event) => ({
       ...event,
-      tiePriority: 5
+      tiePriority: 6
     }))
   ];
   const matter = view.pendingPapalMatter || null;
@@ -354,7 +387,8 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
     imperialMembership: imperialEstate === null ? null : Object.freeze({
       ...imperialEstate,
       badge: imperialEstate.electorId === null ? "I" : "E",
-      isEmperor: gameState.relations.imperial.emperorFactionId === faction.id
+      isEmperor: gameState.relations.imperial.emperorOfficeVacant !== true &&
+        gameState.relations.imperial.emperorFactionId === faction.id
     }),
     constitutionalConnections: Object.freeze(constitutionalConnections),
     capital: capitalByFactionId.get(faction.id) || null,
@@ -383,6 +417,7 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
 
 function politicsConstitutionalConnections(gameState, faction, powers, powerById) {
   const emperorFactionId = gameState.relations.imperial.emperorFactionId;
+  if (gameState.relations.imperial.emperorOfficeVacant === true) return [];
   const isEstate = imperialEstateForFaction(faction.id) !== null;
   const isEmperor = faction.id === emperorFactionId;
   if (!isEstate && !isEmperor) return [];

@@ -127,6 +127,7 @@ import {
   createWorldDiplomacy,
   diplomacyPairKey,
   establishDiplomaticSuzerainty,
+  rawWorldDiplomacyBetween,
   recordDiplomaticPortCall,
   releaseDiplomaticVassal,
   migrateWorldDiplomacy,
@@ -135,13 +136,15 @@ import {
   worldDiplomacyBetween
 } from "./worldDiplomacy.js";
 import {
+  advanceImperialConstitution,
   createImperialConstitution,
   imperialTargetIsAuthorized,
   migrateImperialConstitution,
+  nextImperialPoliticsMinute,
   recordImperialReligiousCirculation,
   validateImperialConstitution
 } from "./imperialConstitution.js";
-import { imperialEstateForCityId } from "./imperialEstates.js";
+import { imperialEstateForCityId, imperialEstateForFaction } from "./imperialEstates.js";
 import {
   advanceHistoricalSovereignty,
   nextHistoricalSovereigntyMinute
@@ -243,6 +246,10 @@ import {
   removeSiblingTreatyOfMadridOffers,
   treatyOfMadridOfferStillValid
 } from "./treatyOfMadridMission.js";
+import {
+  IMPERIAL_ELECTION_ENVOY_QUEST_KIND,
+  isImperialElectionEnvoyQuest
+} from "./imperialElectionMissions.js";
 import { upgradeShoreBattery } from "./shoreBatteries.js";
 import {
   QUEST_ITINERARY_OPEN,
@@ -440,7 +447,7 @@ import {
 } from "./shipyardInvestment.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 82;
+export const GAME_STATE_VERSION = 83;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -533,6 +540,7 @@ export const ENVOY_SAFE_PASSAGE_DAYS = 7;
 export const ENVOY_TARGET_FRIENDLY_REPUTATION = 5;
 export const ENVOY_TARGET_HOSTILE_REPUTATION = -8;
 export const ENVOY_HOME_REPUTATION = 8;
+export const IMPERIAL_PUBLIC_PEACE_REPUTATION_PENALTY = -6;
 
 const MINUTES_PER_DAY = 24 * 60;
 const WINE_EMERGENCY_RECOVERY_WATER_UNITS = 1;
@@ -547,7 +555,8 @@ const ENVOY_QUEST_KINDS = new Set([
   "hostile-envoy",
   TRIBUTE_ENVOY_QUEST_KIND,
   COURT_ENVOY_QUEST_KIND,
-  STATUS_ENVOY_QUEST_KIND
+  STATUS_ENVOY_QUEST_KIND,
+  IMPERIAL_ELECTION_ENVOY_QUEST_KIND
 ]);
 const FRESH_WATER_USE_PER_DAY = FRESH_WATER_CAPACITY / FRESH_WATER_DAYS;
 
@@ -755,7 +764,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1351,13 +1360,14 @@ export function advanceGameDiplomacy(state, currentMinute) {
 
 export function nextGamePoliticsMinute(state) {
   if (!state?.relations?.diplomacy || !state?.relations?.papacy ||
-      !state?.relations?.courts || !state?.relations?.authority) {
+      !state?.relations?.courts || !state?.relations?.authority || !state?.relations?.imperial) {
     throw new Error("Game state has no scheduled politics");
   }
   return Math.min(
     state.relations.diplomacy.nextEventMinute,
     nextPapalPoliticsMinute(state.relations.papacy),
     nextCourtPoliticsMinute(state.relations.courts),
+    nextImperialPoliticsMinute(state.relations.imperial),
     nextSovereignAuthorityMinute(state.relations.authority),
     nextHistoricalSovereigntyMinute(state),
     nextConquistadorQuestMinute(state.memory.quests.conquistador)
@@ -1392,6 +1402,21 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     state.relations.diplomacy,
     currentMinute,
     playerWorldDiplomacyInfluence(state)
+  );
+  const imperialEvents = advanceImperialConstitution(
+    state.relations.imperial,
+    currentMinute,
+    {
+      authorityForCandidate: (factionId) => sovereignAuthorityScore(
+        state.relations.authority,
+        factionId
+      ),
+      relationBetween: (electorFactionId, candidateFactionId) => rawWorldDiplomacyBetween(
+        state.relations.diplomacy,
+        electorFactionId,
+        candidateFactionId
+      )
+    }
   );
   const conquistador = advanceConquistadorCampaign(
     state.memory.quests.conquistador,
@@ -1435,6 +1460,7 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     papalCommissionRevoked: papal.commissionRevoked,
     courtActions: courts.actions,
     courtMattersOpened: courts.mattersOpened,
+    imperialEvents,
     authorityEvents: Object.freeze([
       ...authority.authorityEvents,
       ...englishReformationAuthorityEvents
@@ -4039,6 +4065,8 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
   let tributeCargo = null;
   if (isTreatyOfMadridQuest(active)) {
     events = [];
+  } else if (isImperialElectionEnvoyQuest(active)) {
+    events = [];
   } else if (isTributeEnvoyQuest(active)) {
     if (!tributeCargoHeld(state, active)) {
       throw new Error(`Sealed tribute cargo is missing for ${active.id}`);
@@ -4115,6 +4143,8 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
     ? ENVOY_TARGET_FRIENDLY_REPUTATION
     : active.kind === "hostile-envoy"
       ? ENVOY_TARGET_HOSTILE_REPUTATION
+      : isImperialElectionEnvoyQuest(active)
+        ? 2
       : isStatusEnvoyQuest(active)
         ? statusResolution.accepted ? 5 : -2
         : 4;
@@ -4612,6 +4642,20 @@ export function recordAttackAgainstFaction(state, factionId, options = {}) {
   const before = factionReputation(state, id);
   const after = applyAttackReputationPenalty(state, id);
   if (after !== before) recordDecision(state, `reputation.attack.${id}`, 1);
+  const emperorFactionId = state.relations.imperial.emperorFactionId;
+  if (imperialEstateForFaction(id) &&
+      state.relations.imperial.emperorOfficeVacant !== true &&
+      emperorFactionId !== id) {
+    const emperorBefore = factionReputation(state, emperorFactionId);
+    const emperorAfter = adjustFactionReputation(
+      state,
+      emperorFactionId,
+      IMPERIAL_PUBLIC_PEACE_REPUTATION_PENALTY
+    );
+    if (emperorAfter !== emperorBefore) {
+      recordDecision(state, `reputation.imperial-public-peace.${emperorFactionId}`, 1);
+    }
+  }
   return after;
 }
 
@@ -4763,6 +4807,7 @@ export function privateeringAuthorityIssuerIdsAgainst(state, targetFactionId) {
   for (const issuerId of Object.keys(state.relations.lettersOfMarque)) {
     assertFactionId(issuerId);
     if (worldDiplomacyBetween(state.relations.diplomacy, issuerId, targetId) === DIPLOMACY_WAR || (
+      state.relations.imperial.emperorOfficeVacant !== true &&
       issuerId === state.relations.imperial.emperorFactionId &&
       imperialTargetIsAuthorized(state.relations.imperial, targetId, state.survival.lastMinute)
     )) {
@@ -6880,6 +6925,14 @@ export function completeQuest(state, city, context = {}) {
   if (isEnvoyQuest(active)) {
     adjustFactionReputation(state, active.originFactionId, ENVOY_HOME_REPUTATION);
     recordDecision(state, `reputation.envoy.${active.originFactionId}`, 1);
+    if (isImperialElectionEnvoyQuest(active) &&
+        state.relations.imperial.emperorOfficeVacant !== true) {
+      const emperorFactionId = state.relations.imperial.emperorFactionId;
+      if (emperorFactionId !== active.originFactionId) {
+        adjustFactionReputation(state, emperorFactionId, 5);
+        recordDecision(state, `reputation.imperial-service.${emperorFactionId}`, 1);
+      }
+    }
   }
   if (isCaptureCommissionQuest(active)) {
     if (!active.captureCommissionResolution) {
@@ -8577,6 +8630,7 @@ function assertDiplomaticQuestMemory(quests) {
     isTributeEnvoyQuest(quest)
     || isCourtEnvoyQuest(quest)
     || isStatusEnvoyQuest(quest)
+    || isImperialElectionEnvoyQuest(quest)
     || isWokouHuntQuest(quest)
   ));
   for (const quest of diplomaticQuests) {
@@ -8605,6 +8659,13 @@ function assertDiplomaticQuestMemory(quests) {
       ))
     )) {
       throw new Error(`Court envoy has an incomplete scheduled matter: ${quest.id}`);
+    }
+    if (isImperialElectionEnvoyQuest(quest) && (
+      typeof quest.imperialElectionId !== "string" ||
+      !Number.isFinite(quest.imperialElectionMinute) ||
+      quest.imperialElectorFactionId !== quest.originFactionId
+    )) {
+      throw new Error(`Imperial election envoy has incomplete instructions: ${quest.id}`);
     }
     if (isWokouHuntQuest(quest) && (
       typeof quest.targetShipId !== "string" || !Number.isInteger(quest.patrolTileId)

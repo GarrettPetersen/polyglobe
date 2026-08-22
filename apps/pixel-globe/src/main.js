@@ -1669,6 +1669,7 @@ import {
   createWorldWebGL2Renderer,
   isWorldWebGLContextLostError
 } from "./worldWebglRenderer.js";
+import { formatSignedReputation } from "./reputationDisplay.js";
 import {
   navalProjectileSeed as cannonSeed,
   navalProjectileUnit as cannonUnit
@@ -44657,9 +44658,21 @@ function drawPoliticsImperialSummary(view, panel) {
     throw new Error("Politics view is missing the Imperial office");
   }
   const religious = imperial.religiousBalance;
-  const text = [
-    `${uiText("politics.emperor")} ${imperial.emperorRuler.name.toUpperCase()}`,
+  const officeText = imperial.emperorOfficeVacant
+    ? `${uiText("politics.emperor")} ${uiText("politics.vacant")}`
+    : `${uiText("politics.emperor")} ${imperial.emperorRuler.name.toUpperCase()}`;
+  const constitutionalText = [
+    officeText,
+    imperial.kingOfRomansRuler
+      ? `${uiText("politics.kingOfRomans")} ${imperial.kingOfRomansRuler.name.toUpperCase()}`
+      : null,
+    imperial.pendingElection
+      ? `${uiText("politics.imperialElection")} ${shipLedgerDateLabel(imperial.pendingElection.electionMinute)}`
+      : null
+  ].filter(Boolean).join("  ");
+  const balanceText = [
     `${uiText("politics.imperialAuthorityShort")} ${imperial.authority}`,
+    `${uiText("politics.imperialFavorShort")} ${formatSignedReputation(imperial.imperialFavor)}`,
     `${uiText("politics.electors")} ${imperial.electors.length}`,
     `${uiText("politics.catholicShort")} ${religious.catholic}`,
     `${uiText("politics.reformShort")} ${religious["reform-sympathetic"] + religious.mixed}`,
@@ -44668,9 +44681,15 @@ function drawPoliticsImperialSummary(view, panel) {
     `${uiText("politics.bans")} ${imperial.activeBans.length}`
   ].join("  ");
   drawOptionsText(
-    fitPixelText(text, PIXEL_FONT_SMALL_8, panel.w - 32),
+    fitPixelText(constitutionalText, PIXEL_FONT_SMALL_8, panel.w - 32),
     panel.x + panel.w / 2,
-    panel.y + 25,
+    panel.y + 19,
+    { align: "center", color: PIRATE_MENU_CHART_LINE }
+  );
+  drawOptionsText(
+    fitPixelText(balanceText, PIXEL_FONT_SMALL_8, panel.w - 32),
+    panel.x + panel.w / 2,
+    panel.y + 29,
     { align: "center", color: PIRATE_MENU_CHART_LINE }
   );
 }

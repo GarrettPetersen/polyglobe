@@ -27,9 +27,21 @@ const RAW_RULER_TIMELINES = Object.freeze({
   spain: [ruler(1522, 1, 1, "Charles I", "King"), ruler(1556, 1, 16, "Philip II", "King")],
   portugal: [ruler(1522, 1, 1, "John III", "King"), ruler(1557, 6, 11, "Sebastian I", "King")],
   hormuz: [ruler(1522, 1, 1, "Turanshah IV", "King")],
-  habsburg: [ruler(1522, 1, 1, "Charles V", "Archduke"), ruler(1556, 8, 27, "Ferdinand I", "Archduke")],
-  hungary: [ruler(1522, 1, 1, "Louis II", "King"), ruler(1526, 8, 29, "Ferdinand I", "King")],
-  bohemia: [ruler(1522, 1, 1, "Louis II", "King"), ruler(1526, 8, 29, "Ferdinand I", "King")],
+  habsburg: [
+    ruler(1522, 1, 1, "Charles V", "Archduke"),
+    ruler(1556, 8, 27, "Ferdinand I", "Archduke"),
+    ruler(1564, 7, 25, "Maximilian II", "Archduke")
+  ],
+  hungary: [
+    ruler(1522, 1, 1, "Louis II", "King"),
+    ruler(1526, 8, 29, "Ferdinand I", "King"),
+    ruler(1564, 7, 25, "Maximilian II", "King")
+  ],
+  bohemia: [
+    ruler(1522, 1, 1, "Louis II", "King"),
+    ruler(1526, 8, 29, "Ferdinand I", "King"),
+    ruler(1564, 7, 25, "Maximilian II", "King")
+  ],
   mainz: [ruler(1522, 1, 1, "Albert of Brandenburg", "Archbishop-Elector"), ruler(1545, 9, 24, "Sebastian of Heusenstamm", "Archbishop-Elector")],
   "cologne-electorate": [ruler(1522, 1, 1, "Hermann of Wied", "Archbishop-Elector"), ruler(1547, 2, 25, "Adolf III of Schaumburg", "Archbishop-Elector")],
   trier: [ruler(1522, 1, 1, "Richard von Greiffenklau", "Archbishop-Elector"), ruler(1531, 3, 13, "Johann III von Metzenhausen", "Archbishop-Elector")],
@@ -374,7 +386,11 @@ const RULER_AUTHORITY_OVERRIDES = Object.freeze({
   "spain|Philip II|1556-1-16": 86,
   "portugal|Sebastian I|1557-6-11": 45,
   "habsburg|Ferdinand I|1556-8-27": 72,
+  "habsburg|Maximilian II|1564-7-25": 74,
   "hungary|Ferdinand I|1526-8-29": 56,
+  "hungary|Maximilian II|1564-7-25": 68,
+  "bohemia|Ferdinand I|1526-8-29": 68,
+  "bohemia|Maximilian II|1564-7-25": 72,
   "ottoman|Selim II|1566-9-7": 66,
   "venice|Andrea Gritti|1523-5-20": 82,
   "venice|Pietro Lando|1538-12-28": 70,

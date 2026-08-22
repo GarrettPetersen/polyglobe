@@ -3,7 +3,13 @@ import test from "node:test";
 
 import { adoptDietResolution } from "./imperialConstitution.js";
 import { captureCapitalPoliticalContext } from "./captureCommissionDialogue.js";
-import { createGameState, privateeringAuthorityIssuerIdsAgainst } from "./gameState.js";
+import {
+  IMPERIAL_PUBLIC_PEACE_REPUTATION_PENALTY,
+  createGameState,
+  factionReputation,
+  privateeringAuthorityIssuerIdsAgainst,
+  recordAttackAgainstFaction
+} from "./gameState.js";
 import { createPoliticsView } from "./politics.js";
 
 const SUPPORTERS = ["mainz", "cologne-electorate", "trier", "palatinate", "bohemia", "electoral-saxony"];
@@ -37,6 +43,21 @@ test("politics exposes the Emperor, electors, balance, resolutions, and Estate b
   assert.equal(view.cards.find((card) => card.faction.id === "mainz").imperialMembership.badge, "E");
   assert.equal(view.cards.find((card) => card.faction.id === "augsburg").imperialMembership.badge, "I");
   assert.equal(view.cards.find((card) => card.faction.id === "france").imperialMembership, null);
+});
+
+test("breaking the Public Peace against an Estate damages standing with the Emperor", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const before = factionReputation(state, "habsburg");
+  recordAttackAgainstFaction(state, "augsburg");
+  assert.equal(
+    factionReputation(state, "habsburg"),
+    before + IMPERIAL_PUBLIC_PEACE_REPUTATION_PENALTY
+  );
+
+  const lawful = createGameState({ cargoCapacity: 20 });
+  const lawfulBefore = factionReputation(lawful, "habsburg");
+  recordAttackAgainstFaction(lawful, "augsburg", { lawfulWartimeAction: true });
+  assert.equal(factionReputation(lawful, "habsburg"), lawfulBefore);
 });
 
 test("Imperial war-secretary dialogue speaks from the present constitutional order", () => {

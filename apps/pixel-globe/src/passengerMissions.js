@@ -64,6 +64,13 @@ import {
   treatyOfMadridMissionPlanForCity,
   treatyOfMadridOfferStillValid
 } from "./treatyOfMadridMission.js";
+import {
+  IMPERIAL_ELECTION_ENVOY_QUEST_KIND,
+  imperialElectionMissionDialogue,
+  imperialElectionMissionPlanForCity,
+  imperialElectionMissionStillValid,
+  isImperialElectionEnvoyQuest
+} from "./imperialElectionMissions.js";
 
 export const PASSENGER_SPAWN_CHANCE = 0.12;
 export const PASSENGER_MIN_DISTANCE_KM = 900;
@@ -252,9 +259,50 @@ export function travelMissionOfferForCity(state, city, portCities, context = {})
 
 export function travelMissionOffersForCity(state, city, portCities, context = {}) {
   if (city?.isPirateHideout === true) return [];
+  imperialElectionOfferForCity(state, city, portCities, context);
   septemberTestamentOfferForCity(state, city, portCities, context);
   travelMissionOfferForCity(state, city, portCities, context);
   return pendingPassengerOffersForCity(state, city);
+}
+
+export function imperialElectionOfferForCity(state, city, portCities, context = {}) {
+  const quests = questMemory(state);
+  if (quests.active || quests.passengerActive) return null;
+  const existing = pendingPassengerOffersForCity(state, city)
+    .find(isImperialElectionEnvoyQuest);
+  if (existing) return existing;
+  const plan = imperialElectionMissionPlanForCity(
+    state.relations?.imperial,
+    city,
+    portCities,
+    context.simMinute ?? 0
+  );
+  if (!plan) return null;
+  const period = passengerRollPeriod(context.simMinute);
+  const distanceKm = greatCircleDistanceKm(city, plan.destination);
+  const reward = 320 + Math.round(distanceKm / 20);
+  const quest = buildEnvoyQuest(
+    city,
+    plan.destination,
+    IMPERIAL_ELECTION_ENVOY_QUEST_KIND,
+    distanceKm,
+    period,
+    context.simMinute ?? 0,
+    {
+      id: plan.id,
+      reward,
+      dialogue: imperialElectionMissionDialogue(plan, reward)
+    }
+  );
+  quest.imperialElectionId = plan.electionId;
+  quest.imperialElectionOffice = plan.office;
+  quest.imperialElectionMinute = plan.electionMinute;
+  quest.imperialElectorFactionId = plan.electorFactionId;
+  quest.passengerRoleLabel = "electoral envoy";
+  attachEnvoyCharacter(quest, city, plan.destination, context);
+  if (passengerOfferWasDeclinedThisPeriod(quests, quest, context.simMinute)) return null;
+  quests.passengerOffers[passengerOfferStorageKey(quest)] = quest;
+  return quest;
 }
 
 export function previewTravelMissionOffersForCities(state, cities, portCities, context = {}) {
@@ -456,6 +504,7 @@ function pendingOrdinaryPassengerOfferForCity(state, city) {
 function passengerOfferIsPending(state, quests, offer) {
   if (!offer || quests.completed[offer.id] || quests.failed?.[offer.id]) return false;
   if (!treatyOfMadridOfferStillValid(state, offer)) return false;
+  if (!imperialElectionMissionStillValid(state.relations?.imperial, offer)) return false;
   if (offer.tradeAccessPolicyId && sovereignTradeOpenToFaction(
     state,
     offer.tradeAccessPolicyId,
@@ -828,6 +877,7 @@ export function isHajjReturnPassengerQuest(quest) {
 export function passengerRoleLabel(quest) {
   if (isEastAsianMissionQuest(quest)) return quest.passengerRoleLabel;
   if (isTreatyOfMadridQuest(quest)) return quest.passengerRoleLabel;
+  if (isImperialElectionEnvoyQuest(quest)) return quest.passengerRoleLabel;
   if (isEnvoyQuest(quest)) return "envoy";
   if (isHajjPassengerQuest(quest)) return "pilgrim";
   return religiousMissionRoleLabel(quest) || "passenger";
@@ -959,6 +1009,9 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period, 
 }
 
 function passengerOfferStorageKey(offer) {
+  if (isImperialElectionEnvoyQuest(offer)) {
+    return `${offer.originKey}|imperial-election|${offer.imperialElectionId}`;
+  }
   if (isScriptedPassengerOffer(offer)) {
     return `${offer.originKey}|${SCRIPTED_RELIGIOUS_PASSENGER_OFFER_CHANNEL}|${offer.religiousMissionId}`;
   }
@@ -966,7 +1019,8 @@ function passengerOfferStorageKey(offer) {
 }
 
 function isScriptedPassengerOffer(offer) {
-  return offer?.religiousMissionId === SEPTEMBER_TESTAMENT_MISSION_ID;
+  return offer?.religiousMissionId === SEPTEMBER_TESTAMENT_MISSION_ID ||
+    isImperialElectionEnvoyQuest(offer);
 }
 
 function passengerDialogueText(scenarioId, origin, destination, reward, religiousMissionId = null) {
