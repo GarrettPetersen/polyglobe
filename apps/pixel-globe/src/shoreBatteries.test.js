@@ -38,8 +38,9 @@ const city = {
   population: 80000
 };
 
-test("capitals mount four shore guns while other important cities mount two", () => {
+test("cities have doubled fortification durability while capitals mount more guns", () => {
   const battery = createShoreBatteryState(city, {}, 0);
+  assert.equal(SHORE_BATTERY_HIT_POINTS_PER_GUN, 16);
   assert.equal(shoreBatteryGunCount(city), 2);
   assert.equal(battery.maxHitPoints, 2 * SHORE_BATTERY_HIT_POINTS_PER_GUN);
   assert.equal(shoreBatteryGunCount({ ...city, isFactionCapital: true }), 4);
