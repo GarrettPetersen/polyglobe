@@ -22,6 +22,7 @@ export function beginMainThreadFreezeFrame(monitor, nowMs, { eligible = true } =
   }
   if (monitor.previousFrameAtMs === null) {
     monitor.previousFrameAtMs = nowMs;
+    monitor.recentWork = null;
     return null;
   }
   if (nowMs < monitor.previousFrameAtMs) {
@@ -30,7 +31,9 @@ export function beginMainThreadFreezeFrame(monitor, nowMs, { eligible = true } =
 
   const previousFrameAtMs = monitor.previousFrameAtMs;
   const gapMs = nowMs - previousFrameAtMs;
+  const recordedWork = monitor.recentWork;
   monitor.previousFrameAtMs = nowMs;
+  monitor.recentWork = null;
   if (gapMs < MAIN_THREAD_FREEZE_THRESHOLD_MS) return null;
   if (gapMs > MAIN_THREAD_FREEZE_MAX_GAP_MS) {
     monitor.previousFrameCpuMs = 0;
@@ -39,7 +42,7 @@ export function beginMainThreadFreezeFrame(monitor, nowMs, { eligible = true } =
   }
 
   const previousFrameCpuMs = Math.min(gapMs, monitor.previousFrameCpuMs);
-  const recentWork = workInsideGap(monitor.recentWork, previousFrameAtMs, nowMs);
+  const recentWork = workInsideGap(recordedWork, previousFrameAtMs, nowMs);
   const attributedWork = recentWork && recentWork.durationMs >= Math.max(
     MIN_ATTRIBUTABLE_WORK_MS,
     gapMs * 0.2
@@ -75,7 +78,10 @@ export function recordMainThreadWork(monitor, name, durationMs, completedAtMs) {
       !Number.isFinite(completedAtMs) || completedAtMs < 0) {
     throw new Error("Main-thread freeze work requires a bounded name, duration, and completion time");
   }
-  monitor.recentWork = { name, durationMs, completedAtMs };
+  const current = monitor.recentWork;
+  if (current === null || durationMs > current.durationMs) {
+    monitor.recentWork = { name, durationMs, completedAtMs };
+  }
 }
 
 export function suspendMainThreadFreezeMonitor(monitor) {

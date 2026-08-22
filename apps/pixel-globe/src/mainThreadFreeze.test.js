@@ -42,6 +42,18 @@ test("named synchronous work attributes a freeze outside the animation callback"
   assert.equal(report.schedulerDelayMs, 1_192);
 });
 
+test("freeze attribution retains the largest named task completed in one frame", () => {
+  const monitor = createMainThreadFreezeMonitor();
+  beginMainThreadFreezeFrame(monitor, 1000);
+  recordMainThreadWork(monitor, "chart", 900, 1900);
+  recordMainThreadWork(monitor, "portraits.preload", 120, 1950);
+  finishMainThreadFreezeFrame(monitor, 1020);
+
+  const report = beginMainThreadFreezeFrame(monitor, 2050);
+  assert.equal(report.cause, "chart");
+  assert.equal(report.recentWorkMs, 900);
+});
+
 test("visibility suspension and machine sleep do not impersonate freezes", () => {
   const monitor = createMainThreadFreezeMonitor();
   beginMainThreadFreezeFrame(monitor, 100);

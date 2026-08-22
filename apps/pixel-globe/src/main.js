@@ -900,7 +900,7 @@ import {
   resumeDialogueShipMotion,
   worldSimulationIsPaused
 } from "./dialogueMotion.js";
-import { shouldRenderFrame } from "./frameRenderPolicy.js";
+import { adaptiveRenderCooldownMs, shouldRenderFrame } from "./frameRenderPolicy.js";
 import {
   NPC_ROLE_FISHERMAN,
   NPC_ROLE_MERCHANT,
@@ -3913,6 +3913,7 @@ let performanceBenchmarkState = null;
 let worldRenderCount = 0;
 let worldFramePresented = false;
 let lastStatusMs = 0;
+let lastWorldRenderCompletedAtMs = 0;
 let lastOverlayMs = 0;
 let worldSpriteAnimationTick = -1;
 let waterAnimationClockMs = 0;
@@ -6554,6 +6555,8 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     continuousAnimation: Boolean(startMenu),
     simulationPaused,
     nowMs,
+    lastRenderCompletedAtMs: lastWorldRenderCompletedAtMs,
+    renderCooldownMs: adaptiveRenderCooldownMs(adaptiveVisualDensity),
     lastStatusMs,
     statusIntervalMs: 1000
   });
@@ -6564,6 +6567,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   )) {
     dirty = false;
     measurePerformanceBenchmarkStage("render", () => render(nowMs));
+    lastWorldRenderCompletedAtMs = performance.now();
     lastStatusMs = nowMs;
     lastOverlayMs = nowMs;
   } else if (!renderDue && !simulationPaused && !startMenu && !creditsMenu.isOpen && !playerIntroModal &&
