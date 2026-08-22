@@ -9,6 +9,8 @@ import {
   politicsRelationTextColor
 } from "./politicsCardLayout.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
+import { createGameState } from "./gameState.js";
+import { createPoliticsView } from "./politics.js";
 
 test("politics cards form a two-by-two desktop grid without crowding the footer", () => {
   const layout = politicsCardGridLayout({
@@ -57,6 +59,41 @@ test("politics cards become a single compact column and respect taller localized
   assert.equal(localized.maxRelationLines, 8);
   assert.deepEqual(localized.relationLineCapacities, [8]);
   assert.equal(localized.cardHeight, 148);
+});
+
+test("the elected Emperor's Estate connections fit the live politics layouts", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  const view = createPoliticsView(state);
+
+  for (const lineHeight of [11, 14]) {
+    const layout = politicsCardGridLayout({
+      panelWidth: 464,
+      panelHeight: 254,
+      lineHeight,
+      pagerHeight: 24,
+      newsHeight: 12
+    });
+    const entries = politicsCardEntries(view.cards, {
+      tokensPerLine: layout.tokensPerLine,
+      fullWidthTokensPerLine: layout.fullWidthTokensPerLine,
+      maxColumnSpan: layout.columns,
+      relationLineCapacities: layout.relationLineCapacities,
+      powerCount: view.powers.length
+    });
+    const emperor = entries.find((entry) => entry.card.faction.id === "habsburg");
+
+    assert.ok(emperor);
+    assert.equal(emperor.card.constitutionalConnections.length, 22);
+    assert.ok(emperor.rowSpan <= layout.rows);
+    assert.ok(emperor.columnSpan <= layout.columns);
+  }
 });
 
 test("politics card entries preserve every relationship and compress universal pirate wars", () => {
@@ -227,7 +264,7 @@ test("politics relationship labels use distinct dark Resurrect inks", () => {
 });
 
 function card({ dependencies = [], relationships = [] }) {
-  return { dependencies, relationships };
+  return { dependencies, constitutionalConnections: [], relationships };
 }
 
 function relationship(relation, factionIds) {

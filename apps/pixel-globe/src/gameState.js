@@ -3067,7 +3067,7 @@ export function autoProvisionFreshWaterAtPort(state, city, context = {}) {
 }
 
 export function updateSurvival(state, previousMinute, currentMinute, options = {}) {
-  assertGameState(state);
+  assertSurvivalUpdateState(state);
   assertSimulationMinute(previousMinute);
   assertSimulationMinute(currentMinute);
   const rainfall = options.rainfall ?? 0;
@@ -3129,7 +3129,7 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
   }
 
   const elapsedDays = elapsedMinutes / MINUTES_PER_DAY;
-  const consumption = shipConsumption(state);
+  const consumption = shipConsumptionForValidatedState(state);
   if (!options.freshwater) {
     const wineEmergencyRecovered = state.survival.freshWater >= WINE_EMERGENCY_RECOVERY_WATER_UNITS;
     const waterUse = state.ship
@@ -3192,6 +3192,10 @@ export function updateSurvival(state, previousMinute, currentMinute, options = {
 
 export function cargoCostBasis(state, goodId) {
   assertGameState(state);
+  return cargoCostBasisForValidatedState(state, goodId);
+}
+
+function cargoCostBasisForValidatedState(state, goodId) {
   goodById(goodId);
   const quantity = state.cargo[goodId] || 0;
   const known = Object.prototype.hasOwnProperty.call(state.accounts.cargoCostBasis, goodId);
@@ -4967,7 +4971,7 @@ function sellGoodWithPricing(state, economy, city, goodId, quantity, context, pr
   if (pricing.maximum(economy, city, goodId, quantity, terms.saleMultiplier) < quantity) {
     throw new Error(`${cityLabel(city)} market lacks specie for ${row.good.label}`);
   }
-  const basis = cargoCostBasis(state, row.good.id);
+  const basis = cargoCostBasisForValidatedState(state, row.good.id);
   const soldCost = basis.known ? basis.total * quantity / held : 0;
   const pnl = basis.known ? total - soldCost : null;
   pricing.execute(economy, city, goodId, quantity, terms.saleMultiplier);
@@ -7172,7 +7176,7 @@ function trimCargoQuantity(state, goodId, maximumQuantity) {
   const held = state.cargo[goodId] || 0;
   if (held <= maximumQuantity) return 0;
   const removed = held - maximumQuantity;
-  const basis = cargoCostBasis(state, goodId);
+  const basis = cargoCostBasisForValidatedState(state, goodId);
   if (maximumQuantity > 0) {
     state.cargo[goodId] = maximumQuantity;
     if (basis.known) {
@@ -7463,7 +7467,7 @@ function consumeFoodRationByGoodId(
 
 function consumeFoodRationFromRow(state, row) {
   const held = state.cargo[row.good.id] || 0;
-  const basis = cargoCostBasis(state, row.good.id);
+  const basis = cargoCostBasisForValidatedState(state, row.good.id);
   const rationQuantity = 1 / FOOD_RATIONS_PER_HOLD_UNIT;
   const consumedCost = basis.known && held > 0 ? basis.total * rationQuantity / held : 0;
   const remaining = normalizeFoodCargoQuantity(held - rationQuantity);
@@ -7606,7 +7610,7 @@ function consumeDrinkQuantity(state, goodId, quantity) {
   }
   const held = state.cargo[goodId] || 0;
   if (quantity > held + 1e-8) throw new Error(`Cannot drink ${quantity} ${goodId}; hold has ${held}`);
-  const basis = cargoCostBasis(state, goodId);
+  const basis = cargoCostBasisForValidatedState(state, goodId);
   const consumedCost = basis.known ? basis.total * quantity / held : 0;
   const remaining = Math.max(0, held - quantity);
   if (remaining > 1e-8) {
@@ -7652,7 +7656,7 @@ function resetWineOnlySurvivalState(state) {
 function consumeCargoUnit(state, goodId) {
   const held = state.cargo[goodId] || 0;
   if (held <= 0) return null;
-  const basis = cargoCostBasis(state, goodId);
+  const basis = cargoCostBasisForValidatedState(state, goodId);
   const consumedCost = basis.known ? basis.total / held : 0;
   const remaining = held - 1;
   if (remaining > 0) {
@@ -8235,6 +8239,20 @@ function assertShipResourceState(state) {
   }
   if (!state.relations?.papacy || typeof state.relations.papacy !== "object") {
     throw new Error("Game state ship resources require Papal relations");
+  }
+}
+
+function assertSurvivalUpdateState(state) {
+  assertShipResourceState(state);
+  if (!state.accounts || typeof state.accounts !== "object" ||
+      !state.accounts.cargoCostBasis ||
+      typeof state.accounts.cargoCostBasis !== "object" ||
+      Array.isArray(state.accounts.cargoCostBasis)) {
+    throw new Error("Game state survival requires cargo cost-basis accounts");
+  }
+  if (!state.memory.decisions || typeof state.memory.decisions !== "object" ||
+      Array.isArray(state.memory.decisions)) {
+    throw new Error("Game state survival requires decision memory");
   }
 }
 

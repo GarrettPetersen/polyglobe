@@ -343,6 +343,7 @@ export default {
   "politics.authorityShort": "권위",
   "politics.papalAuthorityShort": "교황",
   "politics.emperor": "황제",
+  "politics.imperialEstates": "제국 제후단",
   "politics.imperialAuthorityShort": "제국권",
   "politics.electors": "선제후",
   "politics.catholicShort": "가톨릭",

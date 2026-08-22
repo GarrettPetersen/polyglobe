@@ -357,6 +357,22 @@ test("survival consumes edible cargo by base replacement value", () => {
   assert.ok(state.survival.freshWater < FRESH_WATER_CAPACITY);
 });
 
+test("survival fails fast when its account or decision state is malformed", () => {
+  const missingAccounts = createGameState({ cargoCapacity: 10 });
+  delete missingAccounts.accounts.cargoCostBasis;
+  assert.throws(
+    () => updateSurvival(missingAccounts, 0, 60),
+    /requires cargo cost-basis accounts/
+  );
+
+  const missingDecisions = createGameState({ cargoCapacity: 10 });
+  delete missingDecisions.memory.decisions;
+  assert.throws(
+    () => updateSurvival(missingDecisions, 0, 60),
+    /requires decision memory/
+  );
+});
+
 test("rice supplies twelve edible rations per cargo unit", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.cargo[RICE_GOOD_ID] = 1;

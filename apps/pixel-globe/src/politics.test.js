@@ -28,6 +28,7 @@ import {
 } from "./papalPolitics.js";
 import { makeDiplomaticPeace } from "./worldDiplomacy.js";
 import { recordEnglishReformationAuthority } from "./sovereignAuthority.js";
+import { holdImperialElection } from "./imperialConstitution.js";
 import {
   expelHostileForeignSettlements,
   withForeignSettlements1522
@@ -123,6 +124,7 @@ test("collapsed empires leave the active politics cards", () => {
   assert.equal(view.cards.some((card) => card.faction.id === "france"), false);
   assert.ok(view.cards.every((card) =>
     card.dependencies.every((dependency) => dependency.factionId !== "france") &&
+    card.constitutionalConnections.every((connection) => connection.factionId !== "france") &&
     card.relationships.every((group) => !group.factionIds.includes("france"))
   ));
 });
@@ -168,6 +170,45 @@ test("the Habsburg personal union is not presented as Spanish vassalage", () => 
     kind: "personal-union",
     role: "member",
     factionId: "spain"
+  }]);
+});
+
+test("Imperial Estates show a constitutional connection to the elected Emperor", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  let view = createPoliticsView(state);
+
+  assert.deepEqual(politicsCard(view, "augsburg").constitutionalConnections, [{
+    kind: "imperial-constitution",
+    role: "estate",
+    factionId: "habsburg"
+  }]);
+  assert.ok(politicsCard(view, "habsburg").constitutionalConnections.some((connection) => (
+    connection.role === "emperor" && connection.factionId === "augsburg"
+  )));
+  assert.equal(politicsCard(view, "augsburg").dependencies.length, 0);
+
+  for (const elector of Object.values(state.relations.imperial.electors)) {
+    elector.supportByCandidateId.france = 100;
+  }
+  holdImperialElection(state.relations.imperial, {
+    candidateFactionIds: ["habsburg", "france"],
+    simMinute: 10,
+    source: "test"
+  });
+  view = createPoliticsView(state, 10);
+
+  assert.deepEqual(politicsCard(view, "augsburg").constitutionalConnections, [{
+    kind: "imperial-constitution",
+    role: "estate",
+    factionId: "france"
+  }]);
+  assert.ok(politicsCard(view, "france").constitutionalConnections.some((connection) => (
+    connection.role === "emperor" && connection.factionId === "augsburg"
+  )));
+  assert.deepEqual(politicsCard(view, "habsburg").constitutionalConnections, [{
+    kind: "imperial-constitution",
+    role: "estate",
+    factionId: "france"
   }]);
 });
 

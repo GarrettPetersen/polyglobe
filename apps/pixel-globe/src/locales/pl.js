@@ -343,6 +343,7 @@ export default {
   "politics.authorityShort": "AUT",
   "politics.papalAuthorityShort": "PAPIEŻ",
   "politics.emperor": "CESARZ",
+  "politics.imperialEstates": "STANY RZESZY",
   "politics.imperialAuthorityShort": "RZESZA",
   "politics.electors": "ELEKTORZY",
   "politics.catholicShort": "KAT",

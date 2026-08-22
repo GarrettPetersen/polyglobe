@@ -343,6 +343,7 @@ export default {
   "politics.authorityShort": "權威",
   "politics.papalAuthorityShort": "教廷",
   "politics.emperor": "皇帝",
+  "politics.imperialEstates": "帝國諸邦",
   "politics.imperialAuthorityShort": "帝權",
   "politics.electors": "選侯",
   "politics.catholicShort": "公教",

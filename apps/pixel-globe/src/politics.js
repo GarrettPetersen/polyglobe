@@ -326,7 +326,16 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
   const ruler = rulerAtMinute(faction.id, simMinute);
   const imperialEstate = imperialEstateForFaction(faction.id);
   const dependencies = politicsDependencies(faction, powerById);
-  const dependencyFactionIds = new Set(dependencies.map((dependency) => dependency.factionId));
+  const constitutionalConnections = politicsConstitutionalConnections(
+    gameState,
+    faction,
+    powers,
+    powerById
+  );
+  const separatelyDisplayedFactionIds = new Set([
+    ...dependencies,
+    ...constitutionalConnections
+  ].map((connection) => connection.factionId));
   const relationships = [
     DIPLOMACY_WAR,
     DIPLOMACY_HOSTILE,
@@ -336,7 +345,7 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
     relation,
     label: POLITICS_RELATION_LABELS[relation],
     factionIds: powers
-      .filter((other) => other.id !== faction.id && !dependencyFactionIds.has(other.id))
+      .filter((other) => other.id !== faction.id && !separatelyDisplayedFactionIds.has(other.id))
       .filter((other) => diplomacyBetweenForState(gameState, faction.id, other.id) === relation)
       .map((other) => other.id)
   })).filter((group) => group.factionIds.length > 0);
@@ -347,6 +356,7 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
       badge: imperialEstate.electorId === null ? "I" : "E",
       isEmperor: gameState.relations.imperial.emperorFactionId === faction.id
     }),
+    constitutionalConnections: Object.freeze(constitutionalConnections),
     capital: capitalByFactionId.get(faction.id) || null,
     authority: faction.id === PIRATE_FACTION_ID
       ? null
@@ -369,6 +379,31 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
     dependencies: Object.freeze(dependencies),
     relationships: Object.freeze(relationships)
   });
+}
+
+function politicsConstitutionalConnections(gameState, faction, powers, powerById) {
+  const emperorFactionId = gameState.relations.imperial.emperorFactionId;
+  const isEstate = imperialEstateForFaction(faction.id) !== null;
+  const isEmperor = faction.id === emperorFactionId;
+  if (!isEstate && !isEmperor) return [];
+  if (!powerById.has(emperorFactionId)) {
+    throw new Error(`Politics view is missing Emperor faction ${emperorFactionId}`);
+  }
+  if (isEstate && !isEmperor) {
+    return [Object.freeze({
+      kind: "imperial-constitution",
+      role: "estate",
+      factionId: emperorFactionId
+    })];
+  }
+  if (!isEmperor) return [];
+  return powers
+    .filter((power) => power.id !== faction.id && imperialEstateForFaction(power.id) !== null)
+    .map((power) => Object.freeze({
+      kind: "imperial-constitution",
+      role: "emperor",
+      factionId: power.id
+    }));
 }
 
 function politicsCapitals(gameState, powers, cities) {

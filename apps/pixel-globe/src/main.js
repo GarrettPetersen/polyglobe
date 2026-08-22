@@ -51,6 +51,7 @@ import {
   forEachStaticPointInRadius
 } from "./staticPointIndex.js";
 import { createFixedRateScheduler } from "./fixedRateScheduler.js";
+import { createExactByteMaskCache } from "./exactByteMaskCache.js";
 import {
   activeSessionFrameSeconds,
   createSessionActivityState,
@@ -2474,6 +2475,7 @@ const NPC_VISUAL_STUCK_MIN_PROGRESS_PX = 6;
 const NPC_VISUAL_STUCK_MIN_DETOUR_PX = 6;
 const NPC_VISUAL_STUCK_MAX_DETOUR_PX = 36;
 const NPC_VISUAL_UPDATE_HZ = 24;
+const NPC_VISUAL_ADMISSION_LIMIT_PER_UPDATE = 1;
 const NPC_ROUTE_SNAPSHOT_BUCKET_COUNT = 6;
 const COLONIZATION_DEFENSE_VISIBILITY_CHECK_INTERVAL_MS = 1000;
 const COLONIZATION_DEFENSE_VISIBILITY_GRACE_MS = 6000;
@@ -2742,6 +2744,12 @@ const SURVIVAL_CRATE_SIZE = 6;
 const ACHIEVEMENT_NOTICE_BATCH_THRESHOLD = 4;
 const SURVIVAL_DEHYDRATION_CREW_LOSS = 1;
 const SURVIVAL_STARVATION_CREW_LOSS = 1;
+const NO_SURVIVAL_DEPRIVATION = Object.freeze({
+  crewLost: 0,
+  dehydrationCrewLost: 0,
+  starvationCrewLost: 0,
+  crewDepleted: false
+});
 const DISCOVERIES_BUTTON_SIZE = 24;
 let DISCOVERIES_PANEL_W = 300;
 let DISCOVERIES_PANEL_H = 220;
@@ -3611,6 +3619,7 @@ const shipTerrainOcclusionIndexCache = new WeakMap();
 const stormWaveWashMaskCache = new WeakMap();
 const shipTerrainRiverBankCache = new Map();
 const shipTerrainRiverBankLayerCache = new WeakMap();
+const SHIP_TERRAIN_RIVER_BANK_LAYER_CACHE_ENTRIES = 48;
 const riverTileLocalWaterPointCache = new Map();
 const riverConnectorSpriteCache = new Map();
 const riverConnectorWaterRasterCache = new Map();
@@ -31074,10 +31083,12 @@ function updateSurvivalDeprivationLosses(status, currentMinute) {
     crewLossPerTick: SURVIVAL_STARVATION_CREW_LOSS,
     alert: () => showSurvivalNotice("NO FOOD LEFT", "warn")
   });
-  const deprivation = applySurvivalDeprivation(gameState, {
-    dehydration: waterLoss.crewLoss,
-    starvation: foodLoss.crewLoss
-  });
+  const deprivation = waterLoss.crewLoss + foodLoss.crewLoss > 0
+    ? applySurvivalDeprivation(gameState, {
+      dehydration: waterLoss.crewLoss,
+      starvation: foodLoss.crewLoss
+    })
+    : NO_SURVIVAL_DEPRIVATION;
   presentCrewLoss(deprivation.crewLost);
   presentPendingNamedCrewDeathNotice();
   if (deprivation.crewLost > 0) syncShipCargoFromGameState();
@@ -31943,6 +31954,7 @@ function updateNpcVisualShips(dt) {
   const activeSnapshots = [];
   const offset = chartOffsetPixels(chart);
   let changed = false;
+  let admittedStateCount = 0;
   for (const snapshot of snapshots) {
     if (!npcSeaRoutes.shipById.has(snapshot.id)) {
       const staleState = npcVisualShips.get(snapshot.id);
@@ -32004,9 +32016,11 @@ function updateNpcVisualShips(dt) {
     }
     if (!state) {
       if (!pointNearScreen(routeScreen, NPC_VISUAL_SIMULATION_MARGIN_PX)) continue;
+      if (admittedStateCount >= NPC_VISUAL_ADMISSION_LIMIT_PER_UPDATE) continue;
       state = createNpcVisualState(snapshot, routePoint);
       if (!state) continue;
       setNpcVisualShipState(snapshot.id, state);
+      admittedStateCount += 1;
       changed = true;
     }
 
@@ -44997,6 +45011,12 @@ function politicsCardLineLabel(line) {
     if (!key) throw new Error(`Unknown politics card relation: ${line.relation}`);
     return uiText(key);
   }
+  if (line.type === "constitutional") {
+    if (line.kind !== "imperial-constitution") {
+      throw new Error(`Unknown politics constitutional connection: ${line.kind}`);
+    }
+    return uiText(line.role === "estate" ? "politics.emperor" : "politics.imperialEstates");
+  }
   if (line.type !== "dependency") throw new Error(`Unknown politics card line type: ${line.type}`);
   if (line.kind === "personal-union") return uiText("politics.unionWith");
   if (line.kind === "tributary") {
@@ -53330,21 +53350,13 @@ function terrainForegroundRiverBankImage(
   if (bank !== RIVER_BANK_NONE && bank !== RIVER_BANK_UPPER && bank !== RIVER_BANK_LOWER) {
     throw new Error(`Unknown river bank layer: ${bank}`);
   }
-  let layersByImage = shipTerrainRiverBankLayerCache.get(activeChart.waterIndex);
-  if (!layersByImage) {
-    layersByImage = new WeakMap();
-    shipTerrainRiverBankLayerCache.set(activeChart.waterIndex, layersByImage);
-  }
-  let imageLayers = layersByImage.get(image);
+  let imageLayers = shipTerrainRiverBankLayerCache.get(image);
   if (!imageLayers) {
-    imageLayers = new Map();
-    layersByImage.set(image, imageLayers);
+    imageLayers = createExactByteMaskCache({
+      maximumEntries: SHIP_TERRAIN_RIVER_BANK_LAYER_CACHE_ENTRIES
+    });
+    shipTerrainRiverBankLayerCache.set(image, imageLayers);
   }
-  const x = Math.round(call.drawSurfaceX - TILE_ART_HALF);
-  const y = Math.round(call.drawSurfaceY - TILE_ART_HALF);
-  const cacheKey = `${call.id}:${x},${y}:${bank}`;
-  const cached = imageLayers.get(cacheKey);
-  if (cached) return cached;
   const imageWidth = image.naturalWidth || image.width;
   const imageHeight = image.naturalHeight || image.height;
   const bankSplit = bank === RIVER_BANK_NONE
@@ -53353,6 +53365,18 @@ function terrainForegroundRiverBankImage(
   if (bankSplit && (bankSplit.width !== imageWidth || bankSplit.height !== imageHeight)) {
     throw new Error(`River bank and terrain sprite dimensions disagree on tile ${call.id}`);
   }
+  const waterMask = terrainForegroundRiverWaterMask(
+    call,
+    activeChart,
+    imageWidth,
+    imageHeight
+  );
+  const bankShapeKey = bank === RIVER_BANK_NONE
+    ? "unsplit"
+    : riverTileWaterShapeKey(call, activeChart, riverMask);
+  const cacheKey = `${bank}:${bankShapeKey}`;
+  const cached = imageLayers.get(cacheKey, waterMask);
+  if (cached) return cached;
   const canvas = document.createElement("canvas");
   canvas.width = imageWidth;
   canvas.height = imageHeight;
@@ -53361,16 +53385,10 @@ function terrainForegroundRiverBankImage(
   layerCtx.imageSmoothingEnabled = false;
   layerCtx.drawImage(image, 0, 0);
   const imageData = layerCtx.getImageData(0, 0, canvas.width, canvas.height);
-  const waterMask = terrainForegroundRiverWaterMask(
-    call,
-    activeChart,
-    imageWidth,
-    imageHeight
-  );
   maskRiverTerrainForegroundPixels(imageData.data, waterMask, bankSplit, bank);
   layerCtx.clearRect(0, 0, canvas.width, canvas.height);
   layerCtx.putImageData(imageData, 0, 0);
-  imageLayers.set(cacheKey, canvas);
+  imageLayers.set(cacheKey, waterMask, canvas);
   return canvas;
 }
 

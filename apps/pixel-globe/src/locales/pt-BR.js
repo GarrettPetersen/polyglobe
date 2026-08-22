@@ -343,6 +343,7 @@ export default {
   "politics.authorityShort": "AUT",
   "politics.papalAuthorityShort": "PAPA",
   "politics.emperor": "IMPERADOR",
+  "politics.imperialEstates": "EST. IMP.",
   "politics.imperialAuthorityShort": "IMP",
   "politics.electors": "ELEITORES",
   "politics.catholicShort": "CAT",
