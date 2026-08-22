@@ -328,6 +328,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   "equipment-harpoons": "action:harpoon",
   loadout: "action:loadout",
   shipyard: "action:shipyard",
+  "shipyard-arrival-review": "action:shipyard",
   "shipyard-investment-offer": "action:shipyard",
   "shipyard-investment": "action:shipyard",
   "shipyard-dividend-arrival": "action:shipyard",

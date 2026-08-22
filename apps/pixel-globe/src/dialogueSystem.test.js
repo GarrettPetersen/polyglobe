@@ -4599,7 +4599,7 @@ test("a proactive shipyard offer can be declined back into the arrival queue", (
   assert.equal(gameState.memory.shipyardInvestment.project, null);
 });
 
-test("a returning shipyard investor receives ordinary dialogue before opening the accounts", () => {
+test("a returning shipyard investor is invited to inspect the yard after receiving ordinary dialogue", () => {
   const city = {
     tileId: 10,
     city: "Lisbon",
@@ -4640,10 +4640,8 @@ test("a returning shipyard investor receives ordinary dialogue before opening th
   assert.equal(view.presentation, undefined);
   assert.match(view.text, /sold a Galleon/);
   assert.match(view.text, /22000 doubloons is already in your purse/);
-  assert.equal(view.options.at(-2).label, "Review the accounts");
-  assert.equal(view.options.at(-2).action.nodeId, "shipyard");
-  assert.equal(view.options.at(-1).label, "Continue into port");
-  assert.equal(view.options.at(-1).action.nodeId, "root");
+  assert.deepEqual(view.options.map(({ label }) => label), ["Continue"]);
+  assert.equal(view.options[0].action.nodeId, "shipyard-arrival-review");
 
   selectPortDialogueOption(
     session,
@@ -4651,7 +4649,30 @@ test("a returning shipyard investor receives ordinary dialogue before opening th
     gameState,
     economy,
     [city],
-    view.options.length - 2,
+    0,
+    {
+      shipStats: stats,
+      shipyard: economy.shipyards.yards.get(city.tileId),
+      simMinute: 100
+    }
+  );
+  const review = portDialogueView(session, city, gameState, economy, [city], {
+    shipStats: stats,
+    shipyard: economy.shipyards.yards.get(city.tileId),
+    simMinute: 100
+  });
+  assert.match(review.text, /inspect the yard/);
+  assert.deepEqual(review.options.map(({ label }) => label), ["Inspect the shipyard", "Not now"]);
+  assert.equal(review.options[0].action.nodeId, "shipyard");
+  assert.equal(review.options[1].action.nodeId, "root");
+
+  selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    0,
     {
       shipStats: stats,
       shipyard: economy.shipyards.yards.get(city.tileId),
@@ -4723,6 +4744,16 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
     context
   );
   assert.equal(arrivalSale.marketSale.good.id, "timber");
+  const materialFollowup = portDialogueView(
+    arrivalSession,
+    city,
+    gameState,
+    economy,
+    [city],
+    context
+  );
+  assert.equal(materialFollowup.options.at(-1).label, "Continue");
+  assert.equal(materialFollowup.options.at(-1).action.nodeId, "shipyard-arrival-review");
 
   yard.materialInventory.timber = 0;
   gameState.cargo.timber = 5;

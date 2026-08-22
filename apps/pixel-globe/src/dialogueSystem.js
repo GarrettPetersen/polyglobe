@@ -1632,6 +1632,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "shipyard-arrival") {
     return playerShipyardArrivalView(session, city, gameState, economy, context);
   }
+  if (session.nodeId === "shipyard-arrival-review") {
+    return playerShipyardArrivalReviewView(city, gameState, context);
+  }
   if (session.nodeId === "shipyard") return shipyardView(session, city, gameState, economy, context);
   if (session.nodeId === "shipyard-purchase") {
     return shipyardPurchaseView(session, city, gameState, context);
@@ -5706,9 +5709,6 @@ function playerShipyardArrivalView(session, city, gameState, economy, context) {
     : session.shipyardMaterialArrival
       ? "That cargo has gone straight into the yard stores."
       : null;
-  const reviewLabel = payout && session.shipyardMaterialArrival
-    ? "Review the shipyard"
-    : payout ? "Review the accounts" : "Review the stores";
   return {
     speaker: `${cityLabel(city)} master shipwright`,
     expressionId: payout ? "pleased" : "attentive",
@@ -5723,10 +5723,23 @@ function playerShipyardArrivalView(session, city, gameState, economy, context) {
           quantity: sale.quantity
         }
       )),
-      option(reviewLabel, { type: "node", nodeId: "shipyard" }),
-      option("Continue into port", { type: "node", nodeId: "root" }, {
-        placement: "port-exit"
-      })
+      option("Continue", { type: "node", nodeId: "shipyard-arrival-review" })
+    ]
+  };
+}
+
+function playerShipyardArrivalReviewView(city, gameState, context) {
+  if (!context.shipyard || !playerBackedShipyardAtPort(gameState, city)) {
+    throw new Error(`Shipyard review offer requires the player's yard at ${cityLabel(city)}`);
+  }
+  return {
+    speaker: `${cityLabel(city)} master shipwright`,
+    expressionId: "attentive",
+    text: "The building slips, stores and books are ready if you wish to inspect the yard.",
+    feedback: null,
+    options: [
+      option("Inspect the shipyard", { type: "node", nodeId: "shipyard" }),
+      option("Not now", { type: "node", nodeId: "root" }, { placement: "port-exit" })
     ]
   };
 }
