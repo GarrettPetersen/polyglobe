@@ -24,10 +24,8 @@ test("the galleon port-assault bake is a production-ready pixel sprite", async (
   assert.equal(manifest.ship.view.bowScreenDirection, asset.bowScreenDirection);
   assert.equal(manifest.ship.view.dockFacingSide, asset.dockFacingSide);
   assert.equal(manifest.ship.view.projection, "orthographic");
-  assert.ok(manifest.ship.view.broadsideOffsetDegrees >= 25);
-  assert.ok(manifest.ship.view.broadsideOffsetDegrees <= 30);
-  assert.ok(manifest.ship.view.cameraElevationDegrees >= 10);
-  assert.ok(manifest.ship.view.cameraElevationDegrees <= 15);
+  assert.equal(manifest.ship.view.broadsideOffsetDegrees, asset.broadsideOffsetDegrees);
+  assert.equal(manifest.ship.view.cameraElevationDegrees, asset.cameraElevationDegrees);
 
   assert.equal(manifest.ship.foregroundFile.endsWith(asset.foregroundSrc), true);
   assert.equal(manifest.ship.depthFile.endsWith(asset.depthSrc), true);

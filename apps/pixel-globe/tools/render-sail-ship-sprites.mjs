@@ -3506,15 +3506,15 @@ const PORT_ASSAULT_SHIP_WIDTH = 320;
 const PORT_ASSAULT_SHIP_HEIGHT = 160;
 const PORT_ASSAULT_RENDER_SCALE = 3;
 const PORT_ASSAULT_VARIANTS = Object.freeze([
-  Object.freeze({ id: "restrained", broadsideOffsetDegrees: 15, cameraElevationDegrees: 10 }),
-  Object.freeze({ id: "shallow", broadsideOffsetDegrees: 22.5, cameraElevationDegrees: 12.5 }),
+  Object.freeze({ id: "restrained", broadsideOffsetDegrees: 55, cameraElevationDegrees: 20 }),
+  Object.freeze({ id: "moderate", broadsideOffsetDegrees: 65, cameraElevationDegrees: 25 }),
   Object.freeze({
     id: "production",
-    broadsideOffsetDegrees: 27.5,
-    cameraElevationDegrees: 12.5,
+    broadsideOffsetDegrees: 72.5,
+    cameraElevationDegrees: 30,
     selected: true
   }),
-  Object.freeze({ id: "open", broadsideOffsetDegrees: 35, cameraElevationDegrees: 15 })
+  Object.freeze({ id: "steep", broadsideOffsetDegrees: 75, cameraElevationDegrees: 32.5 })
 ]);
 
 function makePortAssaultCamera(elevationDegrees) {
@@ -3542,9 +3542,9 @@ function portAssaultModelYaw(broadsideOffsetDegrees) {
     throw new Error(`Invalid port-assault broadside offset: ${broadsideOffsetDegrees}`);
   }
   const angle = broadsideOffsetDegrees * Math.PI / 180;
-  // Pure broadside with the bow to screen-left is -90 degrees. Rotate the
-  // bow away from the elevated camera to expose the starboard deck edge.
-  return -Math.PI / 2 - angle;
+  // Pure broadside with the bow to screen-right is +90 degrees. Rotate the
+  // bow away from the elevated camera to expose the port deck edge.
+  return Math.PI / 2 + angle;
 }
 
 function fitPortAssaultRaster(rendered) {
@@ -3697,8 +3697,8 @@ function portAssaultDeckCompositing(loaded, selected) {
   const deckY = loaded.waterlineY + bounds.size.y * 0.14;
   const centerX = bounds.center.x;
   const centerZ = bounds.center.z;
-  const farX = centerX - bounds.size.x * 0.12;
-  const nearX = centerX + bounds.size.x * 0.24;
+  const farX = centerX + bounds.size.x * 0.12;
+  const nearX = centerX - bounds.size.x * 0.24;
   const forwardZ = centerZ + bounds.size.z * 0.2;
   const aftZ = centerZ - bounds.size.z * 0.28;
   const modelDeckPolygon = [
@@ -3718,9 +3718,9 @@ function portAssaultDeckCompositing(loaded, selected) {
   });
   const deckEntry = portAssaultFramePoint(
     new THREE.Vector3(
-      centerX + bounds.size.x * 0.18,
+      centerX - bounds.size.x * 0.18,
       deckY,
-      centerZ - bounds.size.z * 0.18
+      centerZ + bounds.size.z * 0.18
     ),
     selected.camera,
     selected.modelYaw,
@@ -3728,9 +3728,9 @@ function portAssaultDeckCompositing(loaded, selected) {
   );
   const jumpPoint = portAssaultFramePoint(
     new THREE.Vector3(
-      centerX + bounds.size.x * 0.38,
+      centerX - bounds.size.x * 0.38,
       deckY - bounds.size.y * 0.05,
-      centerZ - bounds.size.z * 0.3
+      centerZ + bounds.size.z * 0.3
     ),
     selected.camera,
     selected.modelYaw,
@@ -3917,8 +3917,8 @@ async function renderGalleonPortAssaultShip() {
         projection: "orthographic",
         broadsideOffsetDegrees: selected.variant.broadsideOffsetDegrees,
         cameraElevationDegrees: selected.variant.cameraElevationDegrees,
-        bowScreenDirection: "up-left",
-        dockFacingSide: "starboard"
+        bowScreenDirection: "up-right",
+        dockFacingSide: "port"
       },
       opaqueBounds: selected.bounds,
       deckPolygon: deck.deckPolygon,

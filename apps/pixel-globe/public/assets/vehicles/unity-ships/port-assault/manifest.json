@@ -13,42 +13,42 @@
     "license": "CC BY 4.0",
     "view": {
       "projection": "orthographic",
-      "broadsideOffsetDegrees": 27.5,
-      "cameraElevationDegrees": 12.5,
-      "bowScreenDirection": "up-left",
-      "dockFacingSide": "starboard"
+      "broadsideOffsetDegrees": 72.5,
+      "cameraElevationDegrees": 30,
+      "bowScreenDirection": "up-right",
+      "dockFacingSide": "port"
     },
     "opaqueBounds": {
-      "minX": 59,
+      "minX": 121,
       "minY": 4,
-      "width": 202,
+      "width": 77,
       "height": 151
     },
     "deckPolygon": [
       {
-        "x": 123,
-        "y": 113
+        "x": 170,
+        "y": 75
       },
       {
-        "x": 217,
-        "y": 123
+        "x": 141,
+        "y": 120
       },
       {
-        "x": 204,
-        "y": 129
+        "x": 165,
+        "y": 124
       },
       {
-        "x": 110,
-        "y": 118
+        "x": 194,
+        "y": 78
       }
     ],
     "deckEntryAnchor": {
-      "x": 187,
-      "y": 126
+      "x": 189,
+      "y": 80
     },
     "sailorSpawnAnchor": {
-      "x": 203,
-      "y": 139
+      "x": 209,
+      "y": 76
     },
     "depthEncoding": {
       "transparentAlpha": 0,
@@ -56,7 +56,7 @@
       "nearValue": 255,
       "comparison": "asset-local orthographic view depth"
     },
-    "foregroundOpaquePixels": 5011
+    "foregroundOpaquePixels": 6912
   },
   "reviewFile": "apps/pixel-globe/docs/ship-reference/port-assault/galleon-dockside-contact-sheet.png",
   "compositingReviewFile": "apps/pixel-globe/docs/ship-reference/port-assault/galleon-dockside-compositing-review.png"

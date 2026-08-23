@@ -2,9 +2,10 @@
 
 The port-assault Galleon is a dedicated 320×160 orthographic sprite for a
 side-running assault scene with 16-pixel sailors. It does not replace the
-47-pixel sailing sprite. The selected view is 27.5 degrees off a true
-broadside at 12.5 degrees of camera elevation, with the bow pointing up-left
-and the starboard side facing the dock.
+47-pixel sailing sprite. The selected stern-quarter view is 72.5 degrees off a
+true broadside at 30 degrees of camera elevation. Its bow points away toward
+roughly one o'clock on screen. The port side faces the dock and fighting lane;
+the camera is near the stern, looking along the dock toward the bow.
 
 ## Runtime files
 
@@ -30,7 +31,7 @@ At native resolution:
 1. Draw `galleon-dockside.png`.
 2. Put each sailor's feet at `deckEntryAnchor` or another point inside
    `deckPolygon`, and draw sailors back-to-front along the polygon's near axis.
-3. Draw `galleon-dockside-foreground.png` over the sailors. The starboard rail,
+3. Draw `galleon-dockside-foreground.png` over the sailors. The port rail,
    near hull, and other camera-near fittings then cover the appropriate parts
    of their bodies while far geometry remains behind them.
 4. Move a departing sailor toward `sailorSpawnAnchor`, then begin the jump to
