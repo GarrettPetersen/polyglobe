@@ -154,6 +154,7 @@ const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
 const portAssaultShipOutputRoot = join(unityFleetOutputRoot, "port-assault");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
 const portAssaultShipReferenceOutputRoot = join(appRoot, "docs/ship-reference/port-assault");
+const portAssaultShipGeometryOutputPath = join(appRoot, "src/portAssaultShipGeometry.js");
 const waterlineReviewOutputRoot = join(appRoot, "docs/ship-reference/waterlines");
 const kelulusReferenceOutputRoot = join(appRoot, "docs/ship-reference/kelulus");
 const icebergReferenceOutputRoot = join(appRoot, "docs/iceberg-reference");
@@ -3481,6 +3482,7 @@ async function renderShipSideViewCanvas(config, { camera, waterlineY, modelYaw }
 async function loadConfiguredShipTriangles(config, {
   targetMaxDim,
   waterlineY,
+  includeAnimation = true,
   gltfTextureSamplerOptions = config.gltfTextureSamplerOptions
 } = {}) {
   const scene = await loadScene(config.modelPath);
@@ -3496,7 +3498,7 @@ async function loadConfiguredShipTriangles(config, {
   });
   const resolvedWaterlineY = waterlineY ?? estimateWaterlineForConfig(model.triangles, config).y;
   const staticTriangles = staticTrianglesForConfig(model.triangles, resolvedWaterlineY, config);
-  const triangles = config.animationTrianglesForFrame
+  const triangles = includeAnimation && config.animationTrianglesForFrame
     ? config.animationTrianglesForFrame(staticTriangles, 0, resolvedWaterlineY)
     : staticTriangles;
   return { triangles, textureSampler, waterlineY: resolvedWaterlineY };
@@ -3505,6 +3507,7 @@ async function loadConfiguredShipTriangles(config, {
 const PORT_ASSAULT_SHIP_WIDTH = 320;
 const PORT_ASSAULT_SHIP_HEIGHT = 160;
 const PORT_ASSAULT_RENDER_SCALE = 3;
+const PORT_ASSAULT_FLEET_SCALE_SAFETY = 0.75;
 const PORT_ASSAULT_VARIANTS = Object.freeze([
   Object.freeze({ id: "restrained", broadsideOffsetDegrees: 55, cameraElevationDegrees: 20 }),
   Object.freeze({ id: "moderate", broadsideOffsetDegrees: 65, cameraElevationDegrees: 25 }),
@@ -3547,13 +3550,21 @@ function portAssaultModelYaw(broadsideOffsetDegrees) {
   return Math.PI / 2 + angle;
 }
 
-function fitPortAssaultRaster(rendered) {
+function portAssaultRasterScale(rendered) {
   const sourceBounds = alphaBounds(rendered.canvas);
   const padding = { x: 6, top: 4, bottom: 5 };
-  const scale = Math.min(
+  return Math.min(
     (PORT_ASSAULT_SHIP_WIDTH - padding.x * 2) / sourceBounds.width,
     (PORT_ASSAULT_SHIP_HEIGHT - padding.top - padding.bottom) / sourceBounds.height
   );
+}
+
+function fitPortAssaultRaster(rendered, scale = portAssaultRasterScale(rendered)) {
+  if (!Number.isFinite(scale) || scale <= 0) {
+    throw new Error(`Invalid port-assault raster scale: ${scale}`);
+  }
+  const sourceBounds = alphaBounds(rendered.canvas);
+  const padding = { x: 6, top: 4, bottom: 5 };
   const drawWidth = Math.max(1, Math.round(sourceBounds.width * scale));
   const drawHeight = Math.max(1, Math.round(sourceBounds.height * scale));
   const drawX = Math.floor((PORT_ASSAULT_SHIP_WIDTH - drawWidth) / 2);
@@ -3736,12 +3747,27 @@ function portAssaultDeckCompositing(loaded, selected) {
     selected.modelYaw,
     selected
   );
+  const visibleDepths = [];
+  for (let index = 0; index < selected.depth.length; index++) {
+    if (selected.alpha[index]) visibleDepths.push(selected.depth[index]);
+  }
+  if (visibleDepths.length === 0) throw new Error("Port-assault deck has no visible ship depth");
+  visibleDepths.sort((a, b) => a - b);
+  const depthAtQuantile = (quantile) => visibleDepths[Math.min(
+    visibleDepths.length - 1,
+    Math.floor(visibleDepths.length * quantile)
+  )];
+  const sailorDepth = clamp(
+    deckEntry.depth,
+    depthAtQuantile(0.15),
+    depthAtQuantile(0.85)
+  );
   return {
     deckY,
     deckPolygon,
     deckEntryAnchor: { x: deckEntry.x, y: deckEntry.y },
     sailorSpawnAnchor: { x: jumpPoint.x, y: jumpPoint.y },
-    sailorDepth: deckEntry.depth
+    sailorDepth
   };
 }
 
@@ -3844,43 +3870,156 @@ function makePortAssaultContactSheet(renderedVariants) {
   return sheet;
 }
 
-async function renderGalleonPortAssaultShip() {
-  const config = cyc3wGalleonConfig();
-  const loaded = await loadConfiguredShipTriangles(config, {
-    targetMaxDim: config.targetModelMaxDim,
+function makePortAssaultFleetContactSheet(renderedShips) {
+  if (!Array.isArray(renderedShips) || renderedShips.length === 0) {
+    throw new Error("Port-assault fleet contact sheet requires ships");
+  }
+  const columns = 4;
+  const labelHeight = 28;
+  const rows = Math.ceil(renderedShips.length / columns);
+  const sheet = createCanvas(
+    columns * PORT_ASSAULT_SHIP_WIDTH,
+    rows * (PORT_ASSAULT_SHIP_HEIGHT + labelHeight)
+  );
+  const ctx = sheet.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#172038";
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  ctx.font = "bold 14px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  renderedShips.forEach(({ slug, canvas }, index) => {
+    const x = index % columns * PORT_ASSAULT_SHIP_WIDTH;
+    const y = Math.floor(index / columns) * (PORT_ASSAULT_SHIP_HEIGHT + labelHeight);
+    ctx.strokeStyle = "#566c86";
+    ctx.strokeRect(
+      x + 0.5,
+      y + 0.5,
+      PORT_ASSAULT_SHIP_WIDTH - 1,
+      PORT_ASSAULT_SHIP_HEIGHT + labelHeight - 1
+    );
+    ctx.fillStyle = "#f4f4f4";
+    ctx.fillText(slug, x + PORT_ASSAULT_SHIP_WIDTH / 2, y + labelHeight / 2);
+    ctx.drawImage(canvas, x, y + labelHeight);
+  });
+  return sheet;
+}
+
+function portAssaultTargetModelMaxDim(productionEntry, galleonProductionEntry) {
+  for (const [label, value] of Object.entries({
+    targetModelMaxDim: productionEntry?.targetModelMaxDim,
+    frameScale: productionEntry?.frameScale,
+    galleonFrameScale: galleonProductionEntry?.frameScale
+  })) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`Invalid port-assault production ${label}: ${value}`);
+    }
+  }
+  return productionEntry.targetModelMaxDim *
+    productionEntry.frameScale / galleonProductionEntry.frameScale;
+}
+
+async function loadPortAssaultShip(config, targetModelMaxDim) {
+  return loadConfiguredShipTriangles(config, {
+    targetMaxDim: targetModelMaxDim,
+    includeAnimation: false,
     gltfTextureSamplerOptions: {
       ...config.gltfTextureSamplerOptions,
       maxDimension: 64
     }
   });
+}
+
+function renderPortAssaultVariant(loaded, config, variant) {
   const renderViewport = {
     width: PORT_ASSAULT_SHIP_WIDTH * PORT_ASSAULT_RENDER_SCALE,
     height: PORT_ASSAULT_SHIP_HEIGHT * PORT_ASSAULT_RENDER_SCALE
   };
-  const renderedVariants = PORT_ASSAULT_VARIANTS.map((variant) => {
-    const camera = makePortAssaultCamera(variant.cameraElevationDegrees);
-    const modelYaw = portAssaultModelYaw(variant.broadsideOffsetDegrees);
-    const rendered = renderHeading(loaded.triangles, 0, camera, {
-      textureSampler: loaded.textureSampler,
-      colorTransform: config.colorTransform,
-      waterlineY: loaded.waterlineY,
-      modelYaw,
-      collectCasters: false
-    }, renderViewport);
-    return { variant, camera, modelYaw, ...fitPortAssaultRaster(rendered) };
-  });
-  const selected = renderedVariants.find(({ variant }) => variant.selected);
-  if (!selected) throw new Error("Port-assault ship bake has no selected production view");
-  const deck = portAssaultDeckCompositing(loaded, selected);
-  const depthMap = makePortAssaultDepthMap(selected);
-  const foreground = makePortAssaultForeground(selected, deck.sailorDepth);
+  const camera = makePortAssaultCamera(variant.cameraElevationDegrees);
+  const modelYaw = portAssaultModelYaw(variant.broadsideOffsetDegrees);
+  const rendered = renderHeading(loaded.triangles, 0, camera, {
+    textureSampler: loaded.textureSampler,
+    colorTransform: config.colorTransform,
+    waterlineY: loaded.waterlineY,
+    modelYaw,
+    collectCasters: false
+  }, renderViewport);
+  return { variant, camera, modelYaw, rendered };
+}
 
+function resetPortAssaultShipOutput() {
+  const relativeOutput = portablePath(portAssaultShipOutputRoot);
+  if (relativeOutput !== "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault") {
+    throw new Error(`Refusing to clear unexpected port-assault output: ${portAssaultShipOutputRoot}`);
+  }
+  rmSync(portAssaultShipOutputRoot, { recursive: true, force: true });
   mkdirSync(portAssaultShipOutputRoot, { recursive: true });
   mkdirSync(portAssaultShipReferenceOutputRoot, { recursive: true });
-  const spritePath = join(portAssaultShipOutputRoot, "galleon-dockside.png");
-  const foregroundPath = join(portAssaultShipOutputRoot, "galleon-dockside-foreground.png");
-  const depthPath = join(portAssaultShipOutputRoot, "galleon-dockside-depth.png");
-  const contactSheetPath = join(
+  for (const fileName of [
+    "galleon-dockside-contact-sheet.png",
+    "galleon-dockside-compositing-review.png",
+    "fleet-dockside-contact-sheet.png"
+  ]) {
+    rmSync(join(portAssaultShipReferenceOutputRoot, fileName), { force: true });
+  }
+}
+
+function writePortAssaultGeometryModule(ships) {
+  const geometry = Object.fromEntries(ships.map((ship) => [ship.slug, {
+    deckPolygon: ship.deckPolygon,
+    deckEntryAnchor: ship.deckEntryAnchor,
+    sailorSpawnAnchor: ship.sailorSpawnAnchor
+  }]));
+  writeFileSync(
+    portAssaultShipGeometryOutputPath,
+    `// Generated by tools/render-sail-ship-sprites.mjs --port-assault-ships.\n` +
+      "// Regenerate the fleet bake instead of editing these coordinates.\n" +
+      `export const PORT_ASSAULT_SHIP_GEOMETRY = ${JSON.stringify(geometry, null, 2)};\n`
+  );
+}
+
+async function renderPortAssaultShips() {
+  const configs = productionShipRenderConfigs();
+  const productionManifest = JSON.parse(
+    readFileSync(join(unityFleetOutputRoot, "manifest.json"), "utf8")
+  );
+  const productionBySlug = uniqueShipEntriesBySlug(
+    productionManifest.ships,
+    "production ship manifest"
+  );
+  const rosterSlugs = SHIP_STATS.map((entry) => entry.slug);
+  if (
+    JSON.stringify([...productionBySlug.keys()].sort()) !==
+      JSON.stringify([...rosterSlugs].sort()) ||
+    JSON.stringify([...configs.keys()].sort()) !== JSON.stringify([...rosterSlugs].sort())
+  ) {
+    throw new Error("Port-assault fleet must exactly match the production ship roster");
+  }
+  const productionVariant = PORT_ASSAULT_VARIANTS.find((variant) => variant.selected);
+  if (!productionVariant) throw new Error("Port-assault fleet has no selected production view");
+  const galleonConfig = configs.get("galleon");
+  const galleonProduction = productionBySlug.get("galleon");
+  const galleonTargetModelMaxDim = portAssaultTargetModelMaxDim(
+    galleonProduction,
+    galleonProduction
+  );
+  const galleonLoaded = await loadPortAssaultShip(galleonConfig, galleonTargetModelMaxDim);
+  const galleonRawVariants = PORT_ASSAULT_VARIANTS.map((variant) => (
+    renderPortAssaultVariant(galleonLoaded, galleonConfig, variant)
+  ));
+  const galleonSelectedRaw = galleonRawVariants.find(({ variant }) => variant.selected);
+  if (!galleonSelectedRaw) throw new Error("Galleon camera review has no production view");
+  const fleetRasterScale = portAssaultRasterScale(galleonSelectedRaw.rendered) *
+    PORT_ASSAULT_FLEET_SCALE_SAFETY;
+  const galleonReviewVariants = galleonRawVariants.map((entry) => ({
+    variant: entry.variant,
+    camera: entry.camera,
+    modelYaw: entry.modelYaw,
+    ...fitPortAssaultRaster(entry.rendered)
+  }));
+
+  resetPortAssaultShipOutput();
+  const cameraReviewPath = join(
     portAssaultShipReferenceOutputRoot,
     "galleon-dockside-contact-sheet.png"
   );
@@ -3889,56 +4028,120 @@ async function renderGalleonPortAssaultShip() {
     portAssaultShipReferenceOutputRoot,
     "galleon-dockside-compositing-review.png"
   );
-  writeFileSync(spritePath, selected.canvas.toBuffer("image/png"));
-  writeFileSync(foregroundPath, foreground.canvas.toBuffer("image/png"));
-  writeFileSync(depthPath, depthMap.canvas.toBuffer("image/png"));
   writeFileSync(
-    contactSheetPath,
-    makePortAssaultContactSheet(renderedVariants).toBuffer("image/png")
+    cameraReviewPath,
+    makePortAssaultContactSheet(galleonReviewVariants).toBuffer("image/png")
   );
-  writeFileSync(
-    compositingReviewPath,
-    makePortAssaultCompositingReview({ selected, foreground, depthMap, deck }).toBuffer("image/png")
-  );
-  writeFileSync(manifestPath, `${JSON.stringify({
-    generatedBy: "tools/render-sail-ship-sprites.mjs --galleon-port-assault",
-    palette: "Resurrect 64",
-    width: PORT_ASSAULT_SHIP_WIDTH,
-    height: PORT_ASSAULT_SHIP_HEIGHT,
-    ship: {
-      slug: config.slug,
+
+  const ships = [];
+  const renderedShips = [];
+  let galleonCompositing = null;
+  for (const slug of rosterSlugs) {
+    console.log(`port assault ${slug}`);
+    const config = configs.get(slug);
+    const productionEntry = productionBySlug.get(slug);
+    const targetModelMaxDim = portAssaultTargetModelMaxDim(
+      productionEntry,
+      galleonProduction
+    );
+    const loaded = slug === "galleon"
+      ? galleonLoaded
+      : await loadPortAssaultShip(config, targetModelMaxDim);
+    const raw = slug === "galleon"
+      ? galleonSelectedRaw
+      : renderPortAssaultVariant(loaded, config, productionVariant);
+    const maximumRasterScale = portAssaultRasterScale(raw.rendered);
+    if (fleetRasterScale > maximumRasterScale) {
+      throw new Error(
+        `${slug} port-assault projection requires raster scale ${maximumRasterScale.toFixed(4)}, ` +
+          `below the fleet scale ${fleetRasterScale.toFixed(4)}`
+      );
+    }
+    const selected = {
+      variant: raw.variant,
+      camera: raw.camera,
+      modelYaw: raw.modelYaw,
+      ...fitPortAssaultRaster(raw.rendered, fleetRasterScale)
+    };
+    const deck = portAssaultDeckCompositing(loaded, selected);
+    const depthMap = makePortAssaultDepthMap(selected);
+    const foreground = makePortAssaultForeground(selected, deck.sailorDepth);
+    const spritePath = join(portAssaultShipOutputRoot, `${slug}-dockside.png`);
+    const foregroundPath = join(portAssaultShipOutputRoot, `${slug}-dockside-foreground.png`);
+    const depthPath = join(portAssaultShipOutputRoot, `${slug}-dockside-depth.png`);
+    writeFileSync(spritePath, selected.canvas.toBuffer("image/png"));
+    writeFileSync(foregroundPath, foreground.canvas.toBuffer("image/png"));
+    writeFileSync(depthPath, depthMap.canvas.toBuffer("image/png"));
+    const opaquePixels = selected.alpha.reduce((sum, value) => sum + value, 0);
+    const entry = {
+      slug,
       file: portablePath(spritePath),
       foregroundFile: portablePath(foregroundPath),
       depthFile: portablePath(depthPath),
       sourceTitle: config.sourceTitle,
       creator: config.creator,
       license: config.license,
-      view: {
-        projection: "orthographic",
-        broadsideOffsetDegrees: selected.variant.broadsideOffsetDegrees,
-        cameraElevationDegrees: selected.variant.cameraElevationDegrees,
-        bowScreenDirection: "up-right",
-        dockFacingSide: "port"
-      },
+      targetModelMaxDim: Number(targetModelMaxDim.toFixed(4)),
       opaqueBounds: selected.bounds,
+      opaquePixels,
       deckPolygon: deck.deckPolygon,
       deckEntryAnchor: deck.deckEntryAnchor,
       sailorSpawnAnchor: deck.sailorSpawnAnchor,
-      depthEncoding: {
-        transparentAlpha: 0,
-        farValue: 1,
-        nearValue: 255,
-        comparison: "asset-local orthographic view depth"
-      },
       foregroundOpaquePixels: foreground.opaquePixels
-    },
-    reviewFile: portablePath(contactSheetPath),
+    };
+    ships.push(entry);
+    renderedShips.push({ slug, canvas: selected.canvas });
+    if (slug === "galleon") {
+      galleonCompositing = { selected, foreground, depthMap, deck };
+    }
+  }
+  if (!galleonCompositing) throw new Error("Port-assault fleet omitted the Galleon review");
+  writeFileSync(
+    compositingReviewPath,
+    makePortAssaultCompositingReview(galleonCompositing).toBuffer("image/png")
+  );
+  const fleetContactSheetPath = join(
+    portAssaultShipReferenceOutputRoot,
+    "fleet-dockside-contact-sheet.png"
+  );
+  writeFileSync(
+    fleetContactSheetPath,
+    makePortAssaultFleetContactSheet(renderedShips).toBuffer("image/png")
+  );
+  const view = {
+    projection: "orthographic",
+    broadsideOffsetDegrees: productionVariant.broadsideOffsetDegrees,
+    cameraElevationDegrees: productionVariant.cameraElevationDegrees,
+    bowScreenDirection: "up-right",
+    dockFacingSide: "port"
+  };
+  const depthEncoding = {
+    transparentAlpha: 0,
+    farValue: 1,
+    nearValue: 255,
+    comparison: "asset-local orthographic view depth"
+  };
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --port-assault-ships",
+    palette: "Resurrect 64",
+    width: PORT_ASSAULT_SHIP_WIDTH,
+    height: PORT_ASSAULT_SHIP_HEIGHT,
+    scaleMode: "production-roster-relative",
+    scaleNotes: "Target dimensions and frame scales follow the 47px production fleet; every hull shares one dockside raster scale.",
+    fleetRasterScale: Number(fleetRasterScale.toFixed(6)),
+    view,
+    depthEncoding,
+    ships,
+    reviewFile: portablePath(fleetContactSheetPath),
+    cameraReviewFile: portablePath(cameraReviewPath),
     compositingReviewFile: portablePath(compositingReviewPath)
   }, null, 2)}\n`);
-  console.log(spritePath);
-  console.log(contactSheetPath);
+  writePortAssaultGeometryModule(ships);
+  console.log(fleetContactSheetPath);
+  console.log(cameraReviewPath);
   console.log(compositingReviewPath);
   console.log(manifestPath);
+  console.log(portAssaultShipGeometryOutputPath);
 }
 
 async function renderShipWaterlineReview(targetSlug = null) {
@@ -6650,7 +6853,8 @@ async function renderAllProductionShips() {
     "--kelulus",
     "--malay-warships",
     "--ottoman-coastal-trader",
-    "--viking-longship"
+    "--viking-longship",
+    "--port-assault-ships"
   ];
   for (const stage of stages) {
     console.log(`production fleet stage ${stage}`);
@@ -6909,8 +7113,8 @@ async function main() {
     await renderCyc3wGalleon();
     return;
   }
-  if (args.has("--galleon-port-assault")) {
-    await renderGalleonPortAssaultShip();
+  if (args.has("--port-assault-ships")) {
+    await renderPortAssaultShips();
     return;
   }
   if (args.has("--nusantaran-outrigger")) {

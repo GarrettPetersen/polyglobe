@@ -6,93 +6,109 @@ import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { PORT_ASSAULT_SHIP_ASSETS, portAssaultShipAsset } from "./portAssaultShipAssets.js";
+import { SHIP_STATS } from "./shipStats.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const assetRoot = join(appRoot, "public/assets/vehicles/unity-ships/port-assault");
 
-test("the galleon port-assault bake is a production-ready pixel sprite", async () => {
+test("every production hull has matching port-assault geometry and manifest metadata", async () => {
   const manifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
-  const asset = portAssaultShipAsset("galleon");
-  assert.equal(manifest.generatedBy, "tools/render-sail-ship-sprites.mjs --galleon-port-assault");
+  const rosterSlugs = SHIP_STATS.map((entry) => entry.slug);
+  assert.equal(manifest.generatedBy, "tools/render-sail-ship-sprites.mjs --port-assault-ships");
   assert.equal(manifest.palette, "Resurrect 64");
-  assert.equal(manifest.width, asset.width);
-  assert.equal(manifest.height, asset.height);
-  assert.deepEqual(manifest.ship.deckPolygon, asset.deckPolygon);
-  assert.deepEqual(manifest.ship.deckEntryAnchor, asset.deckEntryAnchor);
-  assert.deepEqual(manifest.ship.sailorSpawnAnchor, asset.sailorSpawnAnchor);
-  assert.equal(manifest.ship.view.bowScreenDirection, asset.bowScreenDirection);
-  assert.equal(manifest.ship.view.dockFacingSide, asset.dockFacingSide);
-  assert.equal(manifest.ship.view.projection, "orthographic");
-  assert.equal(manifest.ship.view.broadsideOffsetDegrees, asset.broadsideOffsetDegrees);
-  assert.equal(manifest.ship.view.cameraElevationDegrees, asset.cameraElevationDegrees);
-
-  assert.equal(manifest.ship.foregroundFile.endsWith(asset.foregroundSrc), true);
-  assert.equal(manifest.ship.depthFile.endsWith(asset.depthSrc), true);
-  assert.deepEqual(manifest.ship.depthEncoding, {
+  assert.equal(manifest.scaleMode, "production-roster-relative");
+  assert.deepEqual(manifest.depthEncoding, {
     transparentAlpha: 0,
     farValue: 1,
     nearValue: 255,
     comparison: "asset-local orthographic view depth"
   });
-
-  const image = await loadImage(join(appRoot, `public${asset.src}`));
-  assert.equal(image.width, asset.width);
-  assert.equal(image.height, asset.height);
-  const canvas = createCanvas(image.width, image.height);
-  const ctx = canvas.getContext("2d");
-  ctx.drawImage(image, 0, 0);
-  const pixels = ctx.getImageData(0, 0, image.width, image.height).data;
-  const palette = new Set(RESURRECT_64_HEX);
-  let opaquePixels = 0;
-  for (let offset = 0; offset < pixels.length; offset += 4) {
-    const alpha = pixels[offset + 3];
-    assert.ok(alpha === 0 || alpha === 255, `partial alpha at pixel ${offset / 4}`);
-    if (alpha === 0) continue;
-    const hex = [pixels[offset], pixels[offset + 1], pixels[offset + 2]]
-      .map((value) => value.toString(16).padStart(2, "0"))
-      .join("");
-    assert.ok(palette.has(hex), `non-Resurrect color #${hex}`);
-    opaquePixels++;
+  assert.equal(manifest.view.projection, "orthographic");
+  assert.deepEqual(manifest.ships.map((entry) => entry.slug), rosterSlugs);
+  assert.deepEqual(Object.keys(PORT_ASSAULT_SHIP_ASSETS), rosterSlugs);
+  const manifestBySlug = new Map(manifest.ships.map((entry) => [entry.slug, entry]));
+  assert.ok(
+    manifestBySlug.get("galleon").opaquePixels >
+      manifestBySlug.get("fishing-lugger").opaquePixels * 4,
+    "the shared bake keeps a fishing lugger materially smaller than a Galleon"
+  );
+  for (const entry of manifest.ships) {
+    const asset = portAssaultShipAsset(entry.slug);
+    assert.equal(manifest.width, asset.width);
+    assert.equal(manifest.height, asset.height);
+    assert.deepEqual(entry.deckPolygon, asset.deckPolygon);
+    assert.deepEqual(entry.deckEntryAnchor, asset.deckEntryAnchor);
+    assert.deepEqual(entry.sailorSpawnAnchor, asset.sailorSpawnAnchor);
+    assert.equal(manifest.view.bowScreenDirection, asset.bowScreenDirection);
+    assert.equal(manifest.view.dockFacingSide, asset.dockFacingSide);
+    assert.equal(manifest.view.broadsideOffsetDegrees, asset.broadsideOffsetDegrees);
+    assert.equal(manifest.view.cameraElevationDegrees, asset.cameraElevationDegrees);
+    assert.equal(entry.file.endsWith(asset.src), true);
+    assert.equal(entry.foregroundFile.endsWith(asset.foregroundSrc), true);
+    assert.equal(entry.depthFile.endsWith(asset.depthSrc), true);
+    assert.ok(entry.opaquePixels > 100, `${entry.slug} retains a readable silhouette`);
+    const geometryPoints = [
+      ...entry.deckPolygon,
+      entry.deckEntryAnchor,
+      entry.sailorSpawnAnchor
+    ];
+    assert.ok(geometryPoints.every(({ x, y }) => (
+      x >= 0 && x < asset.width && y >= 0 && y < asset.height
+    )), `${entry.slug} deck geometry stays inside its native frame`);
   }
-  assert.ok(opaquePixels > 3000, "the assault ship retains a readable large silhouette");
 });
 
-test("the galleon compositing layers match the base sprite", async () => {
-  const asset = portAssaultShipAsset("galleon");
-  const [foreground, depth] = await Promise.all([
-    loadImage(join(appRoot, `public${asset.foregroundSrc}`)),
-    loadImage(join(appRoot, `public${asset.depthSrc}`))
-  ]);
-  for (const image of [foreground, depth]) {
-    assert.equal(image.width, asset.width);
-    assert.equal(image.height, asset.height);
+test("every port-assault hull is hard-edged Resurrect pixel art with complete compositing layers", async () => {
+  const palette = new Set(RESURRECT_64_HEX);
+  for (const slug of Object.keys(PORT_ASSAULT_SHIP_ASSETS)) {
+    const asset = portAssaultShipAsset(slug);
+    const [base, foreground, depth] = await Promise.all([
+      loadImage(join(appRoot, `public${asset.src}`)),
+      loadImage(join(appRoot, `public${asset.foregroundSrc}`)),
+      loadImage(join(appRoot, `public${asset.depthSrc}`))
+    ]);
+    for (const image of [base, foreground, depth]) {
+      assert.equal(image.width, asset.width);
+      assert.equal(image.height, asset.height);
+    }
+    const basePixels = imagePixels(base);
+    const foregroundPixels = imagePixels(foreground);
+    const depthPixels = imagePixels(depth);
+    let baseOpaque = 0;
+    let foregroundOpaque = 0;
+    let depthOpaque = 0;
+    let minDepth = 255;
+    let maxDepth = 0;
+    for (let offset = 0; offset < basePixels.length; offset += 4) {
+      const alpha = basePixels[offset + 3];
+      assert.ok(alpha === 0 || alpha === 255, `${slug} partial alpha at ${offset / 4}`);
+      if (alpha > 0) {
+        const hex = [basePixels[offset], basePixels[offset + 1], basePixels[offset + 2]]
+          .map((value) => value.toString(16).padStart(2, "0"))
+          .join("");
+        assert.ok(palette.has(hex), `${slug} has non-Resurrect color #${hex}`);
+        baseOpaque++;
+      }
+      if (foregroundPixels[offset + 3] > 0) foregroundOpaque++;
+      if (depthPixels[offset + 3] === 0) continue;
+      assert.equal(depthPixels[offset + 3], 255);
+      assert.equal(depthPixels[offset], depthPixels[offset + 1]);
+      assert.equal(depthPixels[offset], depthPixels[offset + 2]);
+      minDepth = Math.min(minDepth, depthPixels[offset]);
+      maxDepth = Math.max(maxDepth, depthPixels[offset]);
+      depthOpaque++;
+    }
+    assert.ok(foregroundOpaque > 0, `${slug} has useful foreground occluders`);
+    assert.ok(foregroundOpaque < baseOpaque, `${slug} foreground remains a partial layer`);
+    assert.equal(depthOpaque, baseOpaque, `${slug} depth map covers the complete ship`);
+    assert.equal(minDepth, 1, `${slug} depth map reaches its far value`);
+    assert.equal(maxDepth, 255, `${slug} depth map reaches its near value`);
   }
-  const foregroundPixels = imagePixels(foreground);
-  const depthPixels = imagePixels(depth);
-  let foregroundOpaque = 0;
-  let depthOpaque = 0;
-  let minDepth = 255;
-  let maxDepth = 0;
-  for (let offset = 0; offset < foregroundPixels.length; offset += 4) {
-    if (foregroundPixels[offset + 3] > 0) foregroundOpaque++;
-    if (depthPixels[offset + 3] === 0) continue;
-    assert.equal(depthPixels[offset + 3], 255);
-    assert.equal(depthPixels[offset], depthPixels[offset + 1]);
-    assert.equal(depthPixels[offset], depthPixels[offset + 2]);
-    minDepth = Math.min(minDepth, depthPixels[offset]);
-    maxDepth = Math.max(maxDepth, depthPixels[offset]);
-    depthOpaque++;
-  }
-  assert.ok(foregroundOpaque > 1000, "foreground layer has useful occluders");
-  assert.ok(depthOpaque > foregroundOpaque, "depth map covers the whole ship");
-  assert.equal(minDepth, 1);
-  assert.equal(maxDepth, 255);
 });
 
 test("port-assault ship lookup fails loudly for an unbaked hull", () => {
-  assert.deepEqual(Object.keys(PORT_ASSAULT_SHIP_ASSETS), ["galleon"]);
-  assert.throws(() => portAssaultShipAsset("pinnace"), /No port-assault ship asset/);
+  assert.throws(() => portAssaultShipAsset("unregistered-hull"), /No port-assault ship asset/);
 });
 
 function imagePixels(image) {
