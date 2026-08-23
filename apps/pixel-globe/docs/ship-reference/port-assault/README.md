@@ -15,6 +15,23 @@ Galleons and ships of the line instead of filling the frame independently.
 Oared ships use their static docked geometry rather than a rowing animation
 phase.
 
+Docked ships do not carry deployed canvas. The bake separates sail triangles
+in model space before rendering. Where a source exposes a coherent cloth
+surface, it replaces that surface with a narrow segmented prism along the
+supporting yard so the result reads as a furled sail at pixel scale. Sources
+whose cloth is split into many disconnected strips, or whose battens would be
+left floating after the cloth is hidden, instead use an explicit stowed rig:
+the deployed cloth and its sail-only hardware are removed while the mast and
+permanent standing rig remain. The Kobaya and Mesoamerican dugout are explicit
+no-sail exceptions.
+
+Every hull has an explicit selector keyed by source material, source mesh, or
+an audited topology component. Selectors record exact triangle counts and the
+bake fails if a source mesh is renamed or its selected geometry changes. Do
+not replace these selectors with color sampling or raster erasure: dock rig,
+depth, foreground occlusion, and deck placement must all be derived from the
+same final model-space geometry.
+
 ## Runtime files
 
 - `<ship-slug>-dockside.png` is the complete color sprite and first draw layer.
@@ -60,6 +77,9 @@ canonical model so sails, lighting, deck depth, and occlusion remain coherent.
 
 - `fleet-dockside-contact-sheet.png` shows every hull at the same scale and
   camera angle.
+- `fleet-dock-rig-review.png` shows open, selected, bare, and final docked
+  geometry for every hull. Selected cloth and sail-only hardware are magenta;
+  this is the visual gate for incomplete selectors and floating battens.
 - `galleon-dockside-contact-sheet.png` records the four camera candidates and
   marks the common production view.
 - `galleon-dockside-compositing-review.png` shows the deck polygon and anchors,
@@ -72,6 +92,13 @@ Regenerate the complete fleet bake with:
 
 ```sh
 npm run render:port-assault-ships
+```
+
+For a source-level topology audit, print component indices, triangle counts,
+bounds, source mesh/material names, and sampled colors without changing assets:
+
+```sh
+node tools/render-sail-ship-sprites.mjs --port-assault-components <ship-slug>
 ```
 
 `npm run render:all-ships` also rebuilds this fleet after all production hulls

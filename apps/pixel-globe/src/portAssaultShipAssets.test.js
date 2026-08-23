@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -17,7 +17,10 @@ test("every production hull has matching port-assault geometry and manifest meta
   const rosterSlugs = SHIP_STATS.map((entry) => entry.slug);
   assert.equal(manifest.generatedBy, "tools/render-sail-ship-sprites.mjs --port-assault-ships");
   assert.equal(manifest.palette, "Resurrect 64");
+  assert.equal(manifest.rigState, "furled-at-dock");
   assert.equal(manifest.scaleMode, "production-roster-relative");
+  assert.match(manifest.rigReviewFile, /fleet-dock-rig-review\.png$/);
+  await access(join(appRoot, "..", "..", manifest.rigReviewFile));
   assert.deepEqual(manifest.depthEncoding, {
     transparentAlpha: 0,
     farValue: 1,
@@ -28,6 +31,17 @@ test("every production hull has matching port-assault geometry and manifest meta
   assert.deepEqual(manifest.ships.map((entry) => entry.slug), rosterSlugs);
   assert.deepEqual(Object.keys(PORT_ASSAULT_SHIP_ASSETS), rosterSlugs);
   const manifestBySlug = new Map(manifest.ships.map((entry) => [entry.slug, entry]));
+  const noSailSlugs = new Set([
+    "japanese-kobaya",
+    "mesoamerican-dugout-canoe"
+  ]);
+  const stowedSailSlugs = new Set([
+    "joseon-turtle-ship",
+    "joseon-hyeopseon",
+    "joseon-panokseon",
+    "portuguese-carrack",
+    "nusantaran-outrigger"
+  ]);
   assert.ok(
     manifestBySlug.get("galleon").opaquePixels >
       manifestBySlug.get("fishing-lugger").opaquePixels * 4,
@@ -48,6 +62,25 @@ test("every production hull has matching port-assault geometry and manifest meta
     assert.equal(entry.foregroundFile.endsWith(asset.foregroundSrc), true);
     assert.equal(entry.depthFile.endsWith(asset.depthSrc), true);
     assert.ok(entry.opaquePixels > 100, `${entry.slug} retains a readable silhouette`);
+    assert.ok(Number.isInteger(entry.dockRig.removedOpenSailTriangles));
+    assert.ok(Number.isInteger(entry.dockRig.removedDeployedRigTriangles));
+    if (noSailSlugs.has(entry.slug)) {
+      assert.equal(entry.dockRig.state, "no-sail");
+      assert.equal(entry.dockRig.removedOpenSailTriangles, 0);
+      assert.equal(entry.dockRig.furledBundles, 0);
+    } else if (stowedSailSlugs.has(entry.slug)) {
+      assert.equal(entry.dockRig.state, "stowed");
+      assert.equal(entry.dockRig.bundleMode, "remove");
+      assert.ok(entry.dockRig.removedOpenSailTriangles > 0);
+      assert.equal(entry.dockRig.furledBundles, 0);
+      assert.equal(entry.dockRig.generatedFurledTriangles, 0);
+    } else {
+      assert.equal(entry.dockRig.state, "furled");
+      assert.equal(entry.dockRig.bundleMode, "furled");
+      assert.ok(entry.dockRig.removedOpenSailTriangles > 0);
+      assert.ok(entry.dockRig.furledBundles > 0);
+      assert.ok(entry.dockRig.generatedFurledTriangles > 0);
+    }
     const geometryPoints = [
       ...entry.deckPolygon,
       entry.deckEntryAnchor,

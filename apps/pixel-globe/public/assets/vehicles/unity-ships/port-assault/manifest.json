@@ -3,8 +3,9 @@
   "palette": "Resurrect 64",
   "width": 320,
   "height": 160,
+  "rigState": "furled-at-dock",
   "scaleMode": "production-roster-relative",
-  "scaleNotes": "Target dimensions and frame scales follow the 47px production fleet; every hull shares one dockside raster scale.",
+  "scaleNotes": "Target dimensions and frame scales follow the 47px production fleet; every hull shares one dockside raster scale and open sail surfaces are replaced in model space before rasterization.",
   "fleetRasterScale": 0.428977,
   "view": {
     "projection": "orthographic",
@@ -35,10 +36,10 @@
         "width": 27,
         "height": 37
       },
-      "opaquePixels": 593,
+      "opaquePixels": 416,
       "deckPolygon": [
         {
-          "x": 162,
+          "x": 163,
           "y": 138
         },
         {
@@ -62,7 +63,18 @@
         "x": 171,
         "y": 138
       },
-      "foregroundOpaquePixels": 452
+      "foregroundOpaquePixels": 275,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 44,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "small-cog",
@@ -79,7 +91,7 @@
         "width": 51,
         "height": 72
       },
-      "opaquePixels": 2149,
+      "opaquePixels": 1259,
       "deckPolygon": [
         {
           "x": 156,
@@ -106,7 +118,18 @@
         "x": 184,
         "y": 125
       },
-      "foregroundOpaquePixels": 1821
+      "foregroundOpaquePixels": 820,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 88,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "holk",
@@ -123,11 +146,11 @@
         "width": 51,
         "height": 74
       },
-      "opaquePixels": 2161,
+      "opaquePixels": 1411,
       "deckPolygon": [
         {
-          "x": 160,
-          "y": 115
+          "x": 159,
+          "y": 116
         },
         {
           "x": 145,
@@ -138,19 +161,30 @@
           "y": 141
         },
         {
-          "x": 177,
-          "y": 118
+          "x": 176,
+          "y": 119
         }
       ],
       "deckEntryAnchor": {
         "x": 173,
-        "y": 118
+        "y": 120
       },
       "sailorSpawnAnchor": {
-        "x": 186,
-        "y": 117
+        "x": 185,
+        "y": 119
       },
-      "foregroundOpaquePixels": 1836
+      "foregroundOpaquePixels": 1196,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 276,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 5,
+        "furledBundles": 4,
+        "generatedFurledTriangles": 480
+      }
     },
     {
       "slug": "dhow",
@@ -164,37 +198,48 @@
       "opaqueBounds": {
         "minX": 149,
         "minY": 107,
-        "width": 22,
+        "width": 21,
         "height": 48
       },
-      "opaquePixels": 470,
+      "opaquePixels": 463,
       "deckPolygon": [
         {
-          "x": 164,
-          "y": 128
+          "x": 162,
+          "y": 127
         },
         {
-          "x": 156,
+          "x": 154,
           "y": 140
         },
         {
-          "x": 163,
+          "x": 161,
           "y": 141
         },
         {
-          "x": 171,
-          "y": 129
+          "x": 169,
+          "y": 128
         }
       ],
       "deckEntryAnchor": {
-        "x": 170,
+        "x": 167,
         "y": 129
       },
       "sailorSpawnAnchor": {
-        "x": 176,
-        "y": 129
+        "x": 173,
+        "y": 128
       },
-      "foregroundOpaquePixels": 356
+      "foregroundOpaquePixels": 365,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 512,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "ocean-dhow",
@@ -211,7 +256,7 @@
         "width": 48,
         "height": 109
       },
-      "opaquePixels": 2237,
+      "opaquePixels": 1954,
       "deckPolygon": [
         {
           "x": 168,
@@ -238,7 +283,18 @@
         "x": 186,
         "y": 110
       },
-      "foregroundOpaquePixels": 1899
+      "foregroundOpaquePixels": 1550,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 784,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 2,
+        "furledBundles": 2,
+        "generatedFurledTriangles": 240
+      }
     },
     {
       "slug": "sampan",
@@ -255,7 +311,7 @@
         "width": 25,
         "height": 65
       },
-      "opaquePixels": 716,
+      "opaquePixels": 638,
       "deckPolygon": [
         {
           "x": 162,
@@ -282,7 +338,18 @@
         "x": 172,
         "y": 131
       },
-      "foregroundOpaquePixels": 588
+      "foregroundOpaquePixels": 487,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 44,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "large-junk",
@@ -299,7 +366,7 @@
         "width": 46,
         "height": 108
       },
-      "opaquePixels": 2462,
+      "opaquePixels": 2063,
       "deckPolygon": [
         {
           "x": 166,
@@ -326,7 +393,18 @@
         "x": 181,
         "y": 106
       },
-      "foregroundOpaquePixels": 1816
+      "foregroundOpaquePixels": 1429,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 116,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 3,
+        "furledBundles": 3,
+        "generatedFurledTriangles": 360
+      }
     },
     {
       "slug": "javanese-jong",
@@ -338,39 +416,50 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.1847,
       "opaqueBounds": {
-        "minX": 135,
+        "minX": 137,
         "minY": 46,
-        "width": 50,
+        "width": 45,
         "height": 109
       },
-      "opaquePixels": 2534,
+      "opaquePixels": 1939,
       "deckPolygon": [
         {
           "x": 166,
           "y": 101
         },
         {
-          "x": 145,
+          "x": 146,
           "y": 133
         },
         {
-          "x": 156,
+          "x": 155,
           "y": 135
         },
         {
-          "x": 177,
-          "y": 103
+          "x": 175,
+          "y": 102
         }
       ],
       "deckEntryAnchor": {
-        "x": 174,
-        "y": 104
+        "x": 173,
+        "y": 103
       },
       "sailorSpawnAnchor": {
-        "x": 185,
+        "x": 183,
         "y": 101
       },
-      "foregroundOpaquePixels": 2146
+      "foregroundOpaquePixels": 1408,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 88,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 2,
+        "furledBundles": 2,
+        "generatedFurledTriangles": 240
+      }
     },
     {
       "slug": "pirate-brig",
@@ -387,7 +476,7 @@
         "width": 63,
         "height": 111
       },
-      "opaquePixels": 3872,
+      "opaquePixels": 2652,
       "deckPolygon": [
         {
           "x": 161,
@@ -414,7 +503,18 @@
         "x": 191,
         "y": 115
       },
-      "foregroundOpaquePixels": 3273
+      "foregroundOpaquePixels": 2083,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 228,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 3,
+        "furledBundles": 3,
+        "generatedFurledTriangles": 360
+      }
     },
     {
       "slug": "galleon",
@@ -431,7 +531,7 @@
         "width": 57,
         "height": 113
       },
-      "opaquePixels": 3920,
+      "opaquePixels": 2607,
       "deckPolygon": [
         {
           "x": 167,
@@ -458,7 +558,18 @@
         "x": 196,
         "y": 96
       },
-      "foregroundOpaquePixels": 3328
+      "foregroundOpaquePixels": 2214,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 1249,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 12,
+        "furledBundles": 10,
+        "generatedFurledTriangles": 1200
+      }
     },
     {
       "slug": "fluyt",
@@ -475,7 +586,7 @@
         "width": 51,
         "height": 100
       },
-      "opaquePixels": 3132,
+      "opaquePixels": 2171,
       "deckPolygon": [
         {
           "x": 166,
@@ -502,7 +613,18 @@
         "x": 192,
         "y": 101
       },
-      "foregroundOpaquePixels": 2661
+      "foregroundOpaquePixels": 1839,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 520,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 8,
+        "furledBundles": 8,
+        "generatedFurledTriangles": 960
+      }
     },
     {
       "slug": "carrack",
@@ -519,7 +641,7 @@
         "width": 54,
         "height": 108
       },
-      "opaquePixels": 3178,
+      "opaquePixels": 2312,
       "deckPolygon": [
         {
           "x": 162,
@@ -546,7 +668,18 @@
         "x": 185,
         "y": 101
       },
-      "foregroundOpaquePixels": 2700
+      "foregroundOpaquePixels": 1964,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 680,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 15,
+        "furledBundles": 15,
+        "generatedFurledTriangles": 1800
+      }
     },
     {
       "slug": "ship-of-the-line",
@@ -563,7 +696,7 @@
         "width": 52,
         "height": 108
       },
-      "opaquePixels": 3340,
+      "opaquePixels": 2257,
       "deckPolygon": [
         {
           "x": 166,
@@ -590,7 +723,18 @@
         "x": 190,
         "y": 103
       },
-      "foregroundOpaquePixels": 2834
+      "foregroundOpaquePixels": 1898,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 748,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 20,
+        "furledBundles": 20,
+        "generatedFurledTriangles": 2400
+      }
     },
     {
       "slug": "medium-junk",
@@ -607,7 +751,7 @@
         "width": 41,
         "height": 103
       },
-      "opaquePixels": 2321,
+      "opaquePixels": 1980,
       "deckPolygon": [
         {
           "x": 164,
@@ -634,7 +778,18 @@
         "x": 179,
         "y": 109
       },
-      "foregroundOpaquePixels": 1816
+      "foregroundOpaquePixels": 1471,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 116,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 3,
+        "furledBundles": 3,
+        "generatedFurledTriangles": 360
+      }
     },
     {
       "slug": "xebec",
@@ -651,7 +806,7 @@
         "width": 46,
         "height": 98
       },
-      "opaquePixels": 2204,
+      "opaquePixels": 1656,
       "deckPolygon": [
         {
           "x": 167,
@@ -678,7 +833,18 @@
         "x": 186,
         "y": 104
       },
-      "foregroundOpaquePixels": 1866
+      "foregroundOpaquePixels": 1407,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 328,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 9,
+        "furledBundles": 9,
+        "generatedFurledTriangles": 1080
+      }
     },
     {
       "slug": "caravel",
@@ -695,7 +861,7 @@
         "width": 45,
         "height": 106
       },
-      "opaquePixels": 2368,
+      "opaquePixels": 1651,
       "deckPolygon": [
         {
           "x": 168,
@@ -722,7 +888,18 @@
         "x": 183,
         "y": 108
       },
-      "foregroundOpaquePixels": 1997
+      "foregroundOpaquePixels": 1402,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 296,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 4,
+        "furledBundles": 4,
+        "generatedFurledTriangles": 480
+      }
     },
     {
       "slug": "square-rigged-caravel",
@@ -739,7 +916,7 @@
         "width": 69,
         "height": 101
       },
-      "opaquePixels": 3863,
+      "opaquePixels": 2162,
       "deckPolygon": [
         {
           "x": 157,
@@ -766,7 +943,18 @@
         "x": 195,
         "y": 116
       },
-      "foregroundOpaquePixels": 3274
+      "foregroundOpaquePixels": 1717,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 196,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "brigantine",
@@ -783,7 +971,7 @@
         "width": 63,
         "height": 98
       },
-      "opaquePixels": 3567,
+      "opaquePixels": 2272,
       "deckPolygon": [
         {
           "x": 162,
@@ -810,7 +998,18 @@
         "x": 196,
         "y": 110
       },
-      "foregroundOpaquePixels": 3021
+      "foregroundOpaquePixels": 1928,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 232,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 2,
+        "furledBundles": 2,
+        "generatedFurledTriangles": 240
+      }
     },
     {
       "slug": "small-junk",
@@ -827,7 +1026,7 @@
         "width": 37,
         "height": 86
       },
-      "opaquePixels": 1799,
+      "opaquePixels": 1448,
       "deckPolygon": [
         {
           "x": 164,
@@ -854,7 +1053,18 @@
         "x": 177,
         "y": 117
       },
-      "foregroundOpaquePixels": 1388
+      "foregroundOpaquePixels": 1034,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 80,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 2,
+        "furledBundles": 2,
+        "generatedFurledTriangles": 240
+      }
     },
     {
       "slug": "felucca",
@@ -866,39 +1076,50 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 0.971,
       "opaqueBounds": {
-        "minX": 139,
-        "minY": 79,
-        "width": 41,
-        "height": 76
+        "minX": 142,
+        "minY": 80,
+        "width": 36,
+        "height": 75
       },
-      "opaquePixels": 1232,
+      "opaquePixels": 665,
       "deckPolygon": [
         {
-          "x": 154,
-          "y": 126
+          "x": 155,
+          "y": 127
         },
         {
-          "x": 145,
-          "y": 140
+          "x": 147,
+          "y": 141
         },
         {
-          "x": 164,
+          "x": 165,
           "y": 143
         },
         {
           "x": 173,
-          "y": 129
+          "y": 130
         }
       ],
       "deckEntryAnchor": {
-        "x": 169,
-        "y": 129
+        "x": 170,
+        "y": 130
       },
       "sailorSpawnAnchor": {
-        "x": 182,
-        "y": 129
+        "x": 181,
+        "y": 131
       },
-      "foregroundOpaquePixels": 880
+      "foregroundOpaquePixels": 504,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 188,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 2,
+        "furledBundles": 2,
+        "generatedFurledTriangles": 240
+      }
     },
     {
       "slug": "cutter",
@@ -911,38 +1132,49 @@
       "targetModelMaxDim": 1.189,
       "opaqueBounds": {
         "minX": 127,
-        "minY": 90,
-        "width": 66,
-        "height": 65
+        "minY": 91,
+        "width": 65,
+        "height": 64
       },
-      "opaquePixels": 1837,
+      "opaquePixels": 801,
       "deckPolygon": [
         {
           "x": 158,
-          "y": 121
+          "y": 122
         },
         {
           "x": 147,
           "y": 139
         },
         {
-          "x": 171,
+          "x": 170,
           "y": 143
         },
         {
-          "x": 182,
+          "x": 181,
           "y": 125
         }
       ],
       "deckEntryAnchor": {
         "x": 177,
-        "y": 125
-      },
-      "sailorSpawnAnchor": {
-        "x": 193,
         "y": 126
       },
-      "foregroundOpaquePixels": 1548
+      "sailorSpawnAnchor": {
+        "x": 192,
+        "y": 126
+      },
+      "foregroundOpaquePixels": 675,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 288,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 4,
+        "furledBundles": 4,
+        "generatedFurledTriangles": 480
+      }
     },
     {
       "slug": "ketch",
@@ -959,7 +1191,7 @@
         "width": 38,
         "height": 81
       },
-      "opaquePixels": 1527,
+      "opaquePixels": 1095,
       "deckPolygon": [
         {
           "x": 167,
@@ -974,7 +1206,7 @@
           "y": 133
         },
         {
-          "x": 172,
+          "x": 173,
           "y": 108
         }
       ],
@@ -986,7 +1218,18 @@
         "x": 178,
         "y": 106
       },
-      "foregroundOpaquePixels": 1295
+      "foregroundOpaquePixels": 928,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 224,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 3,
+        "furledBundles": 3,
+        "generatedFurledTriangles": 360
+      }
     },
     {
       "slug": "mediterranean-galley",
@@ -1003,7 +1246,7 @@
         "width": 49,
         "height": 97
       },
-      "opaquePixels": 1930,
+      "opaquePixels": 1686,
       "deckPolygon": [
         {
           "x": 166,
@@ -1030,7 +1273,18 @@
         "x": 182,
         "y": 98
       },
-      "foregroundOpaquePixels": 1637
+      "foregroundOpaquePixels": 1277,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 999,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 2,
+        "furledBundles": 2,
+        "generatedFurledTriangles": 240
+      }
     },
     {
       "slug": "galleass",
@@ -1047,7 +1301,7 @@
         "width": 59,
         "height": 115
       },
-      "opaquePixels": 2823,
+      "opaquePixels": 2411,
       "deckPolygon": [
         {
           "x": 167,
@@ -1074,7 +1328,18 @@
         "x": 187,
         "y": 88
       },
-      "foregroundOpaquePixels": 2399
+      "foregroundOpaquePixels": 1830,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 1498,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 3,
+        "furledBundles": 3,
+        "generatedFurledTriangles": 360
+      }
     },
     {
       "slug": "fusta",
@@ -1091,7 +1356,7 @@
         "width": 39,
         "height": 77
       },
-      "opaquePixels": 1119,
+      "opaquePixels": 1050,
       "deckPolygon": [
         {
           "x": 164,
@@ -1118,7 +1383,18 @@
         "x": 178,
         "y": 105
       },
-      "foregroundOpaquePixels": 909
+      "foregroundOpaquePixels": 757,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 499,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "joseon-turtle-ship",
@@ -1135,7 +1411,7 @@
         "width": 82,
         "height": 102
       },
-      "opaquePixels": 4787,
+      "opaquePixels": 4183,
       "deckPolygon": [
         {
           "x": 160,
@@ -1162,7 +1438,18 @@
         "x": 190,
         "y": 109
       },
-      "foregroundOpaquePixels": 4060
+      "foregroundOpaquePixels": 3355,
+      "dockRig": {
+        "state": "stowed",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": "source-meshes",
+        "bundleMode": "remove",
+        "removedOpenSailTriangles": 204,
+        "removedDeployedRigTriangles": 2968,
+        "sourceSailComponents": 2,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0
+      }
     },
     {
       "slug": "joseon-hyeopseon",
@@ -1175,26 +1462,26 @@
       "targetModelMaxDim": 1.72,
       "opaqueBounds": {
         "minX": 133,
-        "minY": 39,
+        "minY": 40,
         "width": 53,
-        "height": 116
+        "height": 115
       },
-      "opaquePixels": 3476,
+      "opaquePixels": 2120,
       "deckPolygon": [
         {
-          "x": 160,
+          "x": 161,
           "y": 105
         },
         {
-          "x": 144,
+          "x": 145,
           "y": 130
         },
         {
-          "x": 157,
+          "x": 156,
           "y": 132
         },
         {
-          "x": 173,
+          "x": 172,
           "y": 107
         }
       ],
@@ -1203,10 +1490,21 @@
         "y": 108
       },
       "sailorSpawnAnchor": {
-        "x": 181,
+        "x": 180,
         "y": 106
       },
-      "foregroundOpaquePixels": 2843
+      "foregroundOpaquePixels": 1621,
+      "dockRig": {
+        "state": "stowed",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": "source-meshes",
+        "bundleMode": "remove",
+        "removedOpenSailTriangles": 684,
+        "removedDeployedRigTriangles": 280,
+        "sourceSailComponents": 1,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0
+      }
     },
     {
       "slug": "joseon-panokseon",
@@ -1219,26 +1517,26 @@
       "targetModelMaxDim": 2.1516,
       "opaqueBounds": {
         "minX": 127,
-        "minY": 10,
+        "minY": 11,
         "width": 66,
-        "height": 145
+        "height": 144
       },
-      "opaquePixels": 6128,
+      "opaquePixels": 3338,
       "deckPolygon": [
         {
-          "x": 161,
+          "x": 162,
           "y": 94
         },
         {
-          "x": 141,
+          "x": 142,
           "y": 125
         },
         {
-          "x": 157,
+          "x": 156,
           "y": 128
         },
         {
-          "x": 177,
+          "x": 176,
           "y": 96
         }
       ],
@@ -1247,10 +1545,21 @@
         "y": 97
       },
       "sailorSpawnAnchor": {
-        "x": 187,
+        "x": 186,
         "y": 95
       },
-      "foregroundOpaquePixels": 5199
+      "foregroundOpaquePixels": 2616,
+      "dockRig": {
+        "state": "stowed",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": "source-meshes",
+        "bundleMode": "remove",
+        "removedOpenSailTriangles": 1368,
+        "removedDeployedRigTriangles": 560,
+        "sourceSailComponents": 2,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0
+      }
     },
     {
       "slug": "japanese-kuribune",
@@ -1267,7 +1576,7 @@
         "width": 37,
         "height": 62
       },
-      "opaquePixels": 930,
+      "opaquePixels": 722,
       "deckPolygon": [
         {
           "x": 163,
@@ -1294,7 +1603,18 @@
         "x": 175,
         "y": 113
       },
-      "foregroundOpaquePixels": 786
+      "foregroundOpaquePixels": 504,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-meshes",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 70,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "japanese-kobaya",
@@ -1338,7 +1658,16 @@
         "x": 179,
         "y": 112
       },
-      "foregroundOpaquePixels": 800
+      "foregroundOpaquePixels": 800,
+      "dockRig": {
+        "state": "no-sail",
+        "reason": "The oared Kobaya source has no working sail",
+        "removedOpenSailTriangles": 0,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 0,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0
+      }
     },
     {
       "slug": "japanese-sekibune",
@@ -1351,11 +1680,11 @@
       "targetModelMaxDim": 1.9185,
       "opaqueBounds": {
         "minX": 133,
-        "minY": 71,
+        "minY": 72,
         "width": 54,
-        "height": 84
+        "height": 83
       },
-      "opaquePixels": 2722,
+      "opaquePixels": 2215,
       "deckPolygon": [
         {
           "x": 166,
@@ -1382,7 +1711,18 @@
         "x": 188,
         "y": 99
       },
-      "foregroundOpaquePixels": 2301
+      "foregroundOpaquePixels": 1876,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-meshes",
+        "removedRigSelectorType": "source-meshes",
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 128,
+        "removedDeployedRigTriangles": 124,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "japanese-atakebune",
@@ -1399,7 +1739,7 @@
         "width": 78,
         "height": 128
       },
-      "opaquePixels": 4479,
+      "opaquePixels": 3621,
       "deckPolygon": [
         {
           "x": 159,
@@ -1414,19 +1754,30 @@
           "y": 128
         },
         {
-          "x": 179,
+          "x": 178,
           "y": 96
         }
       ],
       "deckEntryAnchor": {
         "x": 174,
-        "y": 96
+        "y": 97
       },
       "sailorSpawnAnchor": {
         "x": 190,
-        "y": 93
+        "y": 94
       },
-      "foregroundOpaquePixels": 3066
+      "foregroundOpaquePixels": 3052,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 1120,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "spanish-nao",
@@ -1443,7 +1794,7 @@
         "width": 56,
         "height": 111
       },
-      "opaquePixels": 3749,
+      "opaquePixels": 2708,
       "deckPolygon": [
         {
           "x": 162,
@@ -1470,7 +1821,18 @@
         "x": 188,
         "y": 95
       },
-      "foregroundOpaquePixels": 3166
+      "foregroundOpaquePixels": 2292,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-meshes",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 1289,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 6,
+        "furledBundles": 6,
+        "generatedFurledTriangles": 720
+      }
     },
     {
       "slug": "portuguese-carrack",
@@ -1482,19 +1844,19 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.2789,
       "opaqueBounds": {
-        "minX": 115,
+        "minX": 116,
         "minY": 15,
-        "width": 89,
+        "width": 87,
         "height": 140
       },
-      "opaquePixels": 6063,
+      "opaquePixels": 3917,
       "deckPolygon": [
         {
-          "x": 160,
+          "x": 161,
           "y": 87
         },
         {
-          "x": 139,
+          "x": 140,
           "y": 121
         },
         {
@@ -1514,7 +1876,18 @@
         "x": 202,
         "y": 91
       },
-      "foregroundOpaquePixels": 5151
+      "foregroundOpaquePixels": 3323,
+      "dockRig": {
+        "state": "stowed",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "remove",
+        "removedOpenSailTriangles": 14336,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 7,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0
+      }
     },
     {
       "slug": "viking-longship",
@@ -1531,7 +1904,7 @@
         "width": 74,
         "height": 97
       },
-      "opaquePixels": 3646,
+      "opaquePixels": 2099,
       "deckPolygon": [
         {
           "x": 161,
@@ -1558,7 +1931,18 @@
         "x": 202,
         "y": 103
       },
-      "foregroundOpaquePixels": 3084
+      "foregroundOpaquePixels": 1501,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "topology-components",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 156,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "polynesian-voyaging-canoe",
@@ -1575,7 +1959,7 @@
         "width": 75,
         "height": 146
       },
-      "opaquePixels": 3742,
+      "opaquePixels": 3401,
       "deckPolygon": [
         {
           "x": 164,
@@ -1602,7 +1986,18 @@
         "x": 188,
         "y": 89
       },
-      "foregroundOpaquePixels": 2874
+      "foregroundOpaquePixels": 2419,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 1120,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 2,
+        "furledBundles": 2,
+        "generatedFurledTriangles": 240
+      }
     },
     {
       "slug": "mesoamerican-dugout-canoe",
@@ -1646,7 +2041,16 @@
         "x": 183,
         "y": 110
       },
-      "foregroundOpaquePixels": 870
+      "foregroundOpaquePixels": 870,
+      "dockRig": {
+        "state": "no-sail",
+        "reason": "The paddled dugout source has no sail",
+        "removedOpenSailTriangles": 0,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 0,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0
+      }
     },
     {
       "slug": "nusantaran-outrigger",
@@ -1663,7 +2067,7 @@
         "width": 80,
         "height": 101
       },
-      "opaquePixels": 4054,
+      "opaquePixels": 3512,
       "deckPolygon": [
         {
           "x": 156,
@@ -1690,7 +2094,18 @@
         "x": 205,
         "y": 117
       },
-      "foregroundOpaquePixels": 3305
+      "foregroundOpaquePixels": 2443,
+      "dockRig": {
+        "state": "stowed",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": "source-materials",
+        "bundleMode": "remove",
+        "removedOpenSailTriangles": 80,
+        "removedDeployedRigTriangles": 6144,
+        "sourceSailComponents": 2,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0
+      }
     },
     {
       "slug": "kelulus",
@@ -1707,7 +2122,7 @@
         "width": 45,
         "height": 91
       },
-      "opaquePixels": 1947,
+      "opaquePixels": 1685,
       "deckPolygon": [
         {
           "x": 164,
@@ -1734,7 +2149,18 @@
         "x": 179,
         "y": 105
       },
-      "foregroundOpaquePixels": 1582
+      "foregroundOpaquePixels": 1311,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 144,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "penjajap",
@@ -1751,7 +2177,7 @@
         "width": 51,
         "height": 87
       },
-      "opaquePixels": 1455,
+      "opaquePixels": 1096,
       "deckPolygon": [
         {
           "x": 170,
@@ -1778,7 +2204,18 @@
         "x": 184,
         "y": 98
       },
-      "foregroundOpaquePixels": 1204
+      "foregroundOpaquePixels": 846,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 144,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 1,
+        "furledBundles": 1,
+        "generatedFurledTriangles": 120
+      }
     },
     {
       "slug": "lancaran",
@@ -1795,7 +2232,7 @@
         "width": 51,
         "height": 88
       },
-      "opaquePixels": 1611,
+      "opaquePixels": 1243,
       "deckPolygon": [
         {
           "x": 170,
@@ -1822,7 +2259,18 @@
         "x": 185,
         "y": 95
       },
-      "foregroundOpaquePixels": 1326
+      "foregroundOpaquePixels": 971,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 288,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 2,
+        "furledBundles": 2,
+        "generatedFurledTriangles": 240
+      }
     },
     {
       "slug": "royal-lancaran",
@@ -1839,7 +2287,7 @@
         "width": 51,
         "height": 85
       },
-      "opaquePixels": 1775,
+      "opaquePixels": 1427,
       "deckPolygon": [
         {
           "x": 170,
@@ -1866,7 +2314,18 @@
         "x": 185,
         "y": 96
       },
-      "foregroundOpaquePixels": 1425
+      "foregroundOpaquePixels": 1114,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 432,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 3,
+        "furledBundles": 3,
+        "generatedFurledTriangles": 360
+      }
     },
     {
       "slug": "ottoman-coastal-trader",
@@ -1883,7 +2342,7 @@
         "width": 52,
         "height": 123
       },
-      "opaquePixels": 3999,
+      "opaquePixels": 2324,
       "deckPolygon": [
         {
           "x": 162,
@@ -1910,10 +2369,22 @@
         "x": 192,
         "y": 99
       },
-      "foregroundOpaquePixels": 3388
+      "foregroundOpaquePixels": 1968,
+      "dockRig": {
+        "state": "furled",
+        "selectorType": "source-materials",
+        "removedRigSelectorType": null,
+        "bundleMode": "furled",
+        "removedOpenSailTriangles": 646,
+        "removedDeployedRigTriangles": 0,
+        "sourceSailComponents": 6,
+        "furledBundles": 6,
+        "generatedFurledTriangles": 720
+      }
     }
   ],
   "reviewFile": "apps/pixel-globe/docs/ship-reference/port-assault/fleet-dockside-contact-sheet.png",
+  "rigReviewFile": "apps/pixel-globe/docs/ship-reference/port-assault/fleet-dock-rig-review.png",
   "cameraReviewFile": "apps/pixel-globe/docs/ship-reference/port-assault/galleon-dockside-contact-sheet.png",
   "compositingReviewFile": "apps/pixel-globe/docs/ship-reference/port-assault/galleon-dockside-compositing-review.png"
 }

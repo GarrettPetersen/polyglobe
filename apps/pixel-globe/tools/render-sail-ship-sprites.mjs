@@ -523,6 +523,11 @@ function preparedGltfJson(path) {
   }
   for (let index = 0; index < (document.materials || []).length; index++) {
     const material = document.materials[index];
+    material.extras = {
+      ...(material.extras || {}),
+      pixelGlobeSourceMaterialName: material.name || null,
+      pixelGlobeSourceMaterialIndex: index
+    };
     material.name = gltfMaterialKey(index);
     if (material.pbrMetallicRoughness) {
       delete material.pbrMetallicRoughness.baseColorTexture;
@@ -726,7 +731,11 @@ function collectTriangles(scene, options = {}) {
         color: options.meshColors?.get(node.name) || materialColor(material),
         textureSampler: options.meshTextureSamplers?.get(node.name) ||
           options.materialTextureSamplers?.get(material?.name) || null,
-        sourceMeshName: node.name
+        sourceMeshName: node.name,
+        sourceMaterialName:
+          material?.userData?.pixelGlobeSourceMaterialName || material?.name || null,
+        sourceMaterialIndex:
+          material?.userData?.pixelGlobeSourceMaterialIndex ?? null
       });
     }
   });
@@ -3508,6 +3517,243 @@ const PORT_ASSAULT_SHIP_WIDTH = 320;
 const PORT_ASSAULT_SHIP_HEIGHT = 160;
 const PORT_ASSAULT_RENDER_SCALE = 3;
 const PORT_ASSAULT_FLEET_SCALE_SAFETY = 0.75;
+const PORT_ASSAULT_FURLED_SAIL_SEGMENTS = 5;
+
+function topologyComponentSelector(componentTriangleCounts) {
+  return Object.freeze({
+    type: "topology-components",
+    components: Object.freeze(Object.entries(componentTriangleCounts).map(
+      ([index, triangleCount]) => Object.freeze({ index: Number(index), triangleCount })
+    ))
+  });
+}
+
+function requiredPortAssaultSelectorTriangleCount(expectedTriangleCount, label) {
+  if (!Number.isInteger(expectedTriangleCount) || expectedTriangleCount <= 0) {
+    throw new Error(`${label} requires a positive expected triangle count`);
+  }
+  return expectedTriangleCount;
+}
+
+function sourceMaterialSelector(sourceMaterialNames, { expectedTriangleCount } = {}) {
+  return Object.freeze({
+    type: "source-materials",
+    sourceMaterialNames: Object.freeze([...sourceMaterialNames]),
+    expectedTriangleCount: requiredPortAssaultSelectorTriangleCount(
+      expectedTriangleCount,
+      `Port-assault material selector ${sourceMaterialNames.join(", ")}`
+    )
+  });
+}
+
+function sourceMeshSelector({
+  sourceMeshNames = [],
+  sourceMeshPrefixes = [],
+  expectedTriangleCount
+}) {
+  return Object.freeze({
+    type: "source-meshes",
+    sourceMeshNames: Object.freeze([...sourceMeshNames]),
+    sourceMeshPrefixes: Object.freeze([...sourceMeshPrefixes]),
+    expectedTriangleCount: requiredPortAssaultSelectorTriangleCount(
+      expectedTriangleCount,
+      `Port-assault mesh selector ${[
+        ...sourceMeshNames,
+        ...sourceMeshPrefixes.map((prefix) => `${prefix}*`)
+      ].join(", ")}`
+    )
+  });
+}
+
+function dockRig(selector, { removedRigSelector = null, bundleMode = "furled" } = {}) {
+  if (bundleMode !== "furled" && bundleMode !== "remove") {
+    throw new Error(`Unsupported port-assault dock-rig bundle mode: ${bundleMode}`);
+  }
+  return Object.freeze({
+    selector,
+    removedRigSelector,
+    bundleMode
+  });
+}
+
+function unityDockRig(componentTriangleCounts, options) {
+  return dockRig(topologyComponentSelector(componentTriangleCounts), options);
+}
+
+function materialDockRig(sourceMaterialNames, { expectedTriangleCount, ...options } = {}) {
+  return dockRig(
+    sourceMaterialSelector(sourceMaterialNames, { expectedTriangleCount }),
+    options
+  );
+}
+
+function meshDockRig(meshSelector, options) {
+  return dockRig(sourceMeshSelector(meshSelector), options);
+}
+
+function noSailDockRig(reason) {
+  return Object.freeze({ state: "no-sail", reason });
+}
+
+const PORT_ASSAULT_DOCK_RIGS = new Map([
+  ["fishing-lugger", unityDockRig({ 13: 44 })],
+  ["small-cog", unityDockRig({ 4: 88 })],
+  ["holk", unityDockRig({ 24: 24, 62: 92, 63: 76, 64: 60, 65: 24 })],
+  ["dhow", materialDockRig(["acmat_7"], { expectedTriangleCount: 512 })],
+  ["ocean-dhow", materialDockRig(["layar_dhow"], { expectedTriangleCount: 784 })],
+  ["sampan", unityDockRig({ 18: 44 })],
+  ["large-junk", unityDockRig({ 44: 44, 53: 36, 66: 36 })],
+  ["javanese-jong", unityDockRig({ 27: 48, 28: 40 })],
+  ["pirate-brig", unityDockRig({ 5: 76, 6: 76, 41: 76 })],
+  ["galleon", materialDockRig(["3d66-Standardmaterial-15910671-003"], {
+    expectedTriangleCount: 1249
+  })],
+  ["fluyt", unityDockRig({
+    132: 12,
+    133: 70,
+    134: 70,
+    135: 88,
+    136: 70,
+    137: 70,
+    138: 70,
+    139: 70
+  })],
+  ["carrack", unityDockRig({
+    3: 12,
+    4: 12,
+    12: 8,
+    13: 96,
+    14: 96,
+    15: 96,
+    16: 96,
+    17: 96,
+    18: 96,
+    115: 12,
+    116: 12,
+    120: 12,
+    121: 12,
+    122: 12,
+    123: 12
+  })],
+  ["ship-of-the-line", unityDockRig({
+    67: 76,
+    68: 12,
+    69: 12,
+    70: 76,
+    71: 76,
+    72: 76,
+    73: 76,
+    74: 76,
+    75: 76,
+    76: 76,
+    77: 12,
+    78: 8,
+    166: 12,
+    171: 12,
+    172: 12,
+    173: 12,
+    174: 12,
+    175: 12,
+    176: 12,
+    177: 12
+  })],
+  ["medium-junk", unityDockRig({ 15: 36, 35: 44, 44: 36 })],
+  ["xebec", unityDockRig({
+    1: 96,
+    2: 36,
+    3: 24,
+    4: 16,
+    5: 36,
+    40: 84,
+    41: 12,
+    47: 12,
+    48: 12
+  })],
+  ["caravel", unityDockRig({ 20: 32, 27: 96, 34: 96, 75: 72 })],
+  ["square-rigged-caravel", unityDockRig({ 46: 196 })],
+  ["brigantine", unityDockRig({ 7: 116, 15: 116 })],
+  ["small-junk", unityDockRig({ 15: 44, 24: 36 })],
+  ["felucca", unityDockRig({ 0: 72, 4: 116 })],
+  ["cutter", unityDockRig({ 22: 80, 24: 20, 27: 72, 31: 116 })],
+  ["ketch", unityDockRig({ 42: 64, 46: 80, 47: 80 })],
+  ["mediterranean-galley", materialDockRig(["M_Ship03_Sail"], {
+    expectedTriangleCount: 999
+  })],
+  ["galleass", materialDockRig(["M_Ship03_Sail"], { expectedTriangleCount: 1498 })],
+  ["fusta", materialDockRig(["M_Ship03_Sail"], { expectedTriangleCount: 499 })],
+  ["joseon-turtle-ship", materialDockRig(["Vela"], {
+    expectedTriangleCount: 204,
+    removedRigSelector: sourceMeshSelector({
+      sourceMeshNames: ["Object_28", "Object_32", "Object_34", "Object_56", "Object_62", "Object_64"],
+      expectedTriangleCount: 2968
+    }),
+    bundleMode: "remove"
+  })],
+  ["joseon-hyeopseon", materialDockRig(["sail"], {
+    expectedTriangleCount: 684,
+    removedRigSelector: sourceMeshSelector({
+      sourceMeshNames: ["Object_87"],
+      expectedTriangleCount: 280
+    }),
+    bundleMode: "remove"
+  })],
+  ["joseon-panokseon", materialDockRig(["sail"], {
+    expectedTriangleCount: 1368,
+    removedRigSelector: sourceMeshSelector({
+      sourceMeshNames: ["Object_84", "Object_87"],
+      expectedTriangleCount: 560
+    }),
+    bundleMode: "remove"
+  })],
+  ["japanese-kuribune", meshDockRig({
+    sourceMeshNames: ["SailCloth_Material__55_0"],
+    expectedTriangleCount: 70
+  })],
+  ["japanese-kobaya", noSailDockRig("The oared Kobaya source has no working sail")],
+  ["japanese-sekibune", meshDockRig(
+    { sourceMeshNames: ["帆"], expectedTriangleCount: 128 },
+    { removedRigSelector: sourceMeshSelector({
+      sourceMeshNames: ["帆桁"],
+      expectedTriangleCount: 124
+    }) }
+  )],
+  ["japanese-atakebune", materialDockRig(["Sail"], { expectedTriangleCount: 1120 })],
+  ["spanish-nao", meshDockRig({
+    sourceMeshPrefixes: ["Vela", "Gavia"],
+    expectedTriangleCount: 1289
+  })],
+  ["portuguese-carrack", materialDockRig(["acmat_17"], {
+    expectedTriangleCount: 14336,
+    bundleMode: "remove"
+  })],
+  ["viking-longship", unityDockRig({ 30: 156 })],
+  ["polynesian-voyaging-canoe", materialDockRig(["Sails"], {
+    expectedTriangleCount: 1120
+  })],
+  ["mesoamerican-dugout-canoe", noSailDockRig("The paddled dugout source has no sail")],
+  ["nusantaran-outrigger", materialDockRig(["Layar_cadik"], {
+    expectedTriangleCount: 80,
+    removedRigSelector: sourceMaterialSelector(
+      ["Kayu_gantung_Layar_cadik"],
+      { expectedTriangleCount: 6144 }
+    ),
+    bundleMode: "remove"
+  })],
+  ["kelulus", materialDockRig(["Woven tanja sail light", "Woven tanja sail shade"], {
+    expectedTriangleCount: 144
+  })],
+  ["penjajap", materialDockRig(["Woven tanja sail", "Woven tanja sail shade"], {
+    expectedTriangleCount: 144
+  })],
+  ["lancaran", materialDockRig(["Woven tanja sail", "Woven tanja sail shade"], {
+    expectedTriangleCount: 288
+  })],
+  ["royal-lancaran", materialDockRig(["Dyed royal sail", "Dyed royal sail shade"], {
+    expectedTriangleCount: 432
+  })],
+  ["ottoman-coastal-trader", materialDockRig(["Sail"], { expectedTriangleCount: 646 })]
+]);
+
 const PORT_ASSAULT_VARIANTS = Object.freeze([
   Object.freeze({ id: "restrained", broadsideOffsetDegrees: 55, cameraElevationDegrees: 20 }),
   Object.freeze({ id: "moderate", broadsideOffsetDegrees: 65, cameraElevationDegrees: 25 }),
@@ -3519,6 +3765,415 @@ const PORT_ASSAULT_VARIANTS = Object.freeze([
   }),
   Object.freeze({ id: "steep", broadsideOffsetDegrees: 75, cameraElevationDegrees: 32.5 })
 ]);
+
+function portAssaultTopologyKey(point) {
+  return `${point.x},${point.y},${point.z}`;
+}
+
+function portAssaultTopologyComponents(triangles) {
+  const triangleIndexesByPoint = new Map();
+  triangles.forEach((triangle, triangleIndex) => {
+    for (const point of triangle.points) {
+      const key = portAssaultTopologyKey(point);
+      const indexes = triangleIndexesByPoint.get(key) || [];
+      indexes.push(triangleIndex);
+      triangleIndexesByPoint.set(key, indexes);
+    }
+  });
+  const neighbors = Array.from({ length: triangles.length }, () => new Set());
+  for (const indexes of triangleIndexesByPoint.values()) {
+    for (const triangleIndex of indexes) {
+      for (const neighborIndex of indexes) {
+        if (triangleIndex !== neighborIndex) neighbors[triangleIndex].add(neighborIndex);
+      }
+    }
+  }
+  const visited = new Uint8Array(triangles.length);
+  const components = [];
+  for (let triangleIndex = 0; triangleIndex < triangles.length; triangleIndex++) {
+    if (visited[triangleIndex]) continue;
+    const pending = [triangleIndex];
+    const componentIndexes = [];
+    visited[triangleIndex] = 1;
+    while (pending.length > 0) {
+      const current = pending.pop();
+      componentIndexes.push(current);
+      for (const neighbor of neighbors[current]) {
+        if (visited[neighbor]) continue;
+        visited[neighbor] = 1;
+        pending.push(neighbor);
+      }
+    }
+    components.push({
+      index: components.length,
+      triangleIndexes: componentIndexes,
+      triangles: componentIndexes.map((index) => triangles[index])
+    });
+  }
+  return components;
+}
+
+function portAssaultSelectorTriangleIndexes(slug, triangles, selector, purpose) {
+  const selectedIndexes = new Set();
+  if (selector.type === "topology-components") {
+    const components = portAssaultTopologyComponents(triangles);
+    for (const expected of selector.components) {
+      const component = components[expected.index];
+      if (!component) {
+        throw new Error(
+          `${slug} dock-rig ${purpose} component ${expected.index} is absent; ` +
+          `source now has ${components.length} components`
+        );
+      }
+      if (component.triangles.length !== expected.triangleCount) {
+        throw new Error(
+          `${slug} dock-rig ${purpose} component ${expected.index} changed: expected ` +
+          `${expected.triangleCount} triangles, found ${component.triangles.length}`
+        );
+      }
+      for (const index of component.triangleIndexes) selectedIndexes.add(index);
+    }
+  } else if (selector.type === "source-materials") {
+    const expectedNames = new Set(selector.sourceMaterialNames);
+    const matchedNames = new Set();
+    triangles.forEach((triangle, index) => {
+      if (!expectedNames.has(triangle.sourceMaterialName)) return;
+      matchedNames.add(triangle.sourceMaterialName);
+      selectedIndexes.add(index);
+    });
+    const missingNames = [...expectedNames].filter((name) => !matchedNames.has(name));
+    if (missingNames.length > 0) {
+      const available = [...new Set(triangles.map((triangle) => triangle.sourceMaterialName))]
+        .filter(Boolean)
+        .sort();
+      throw new Error(
+        `${slug} dock-rig ${purpose} materials are absent: ${missingNames.join(", ")}; ` +
+        `available materials: ${available.join(", ") || "none"}`
+      );
+    }
+  } else if (selector.type === "source-meshes") {
+    const expectedNames = new Set(selector.sourceMeshNames);
+    const matchedNames = new Set();
+    const matchedPrefixes = new Set();
+    triangles.forEach((triangle, index) => {
+      const name = triangle.sourceMeshName || "";
+      const exactMatch = expectedNames.has(name);
+      const prefix = selector.sourceMeshPrefixes.find((candidate) => name.startsWith(candidate));
+      if (!exactMatch && !prefix) return;
+      if (exactMatch) matchedNames.add(name);
+      if (prefix) matchedPrefixes.add(prefix);
+      selectedIndexes.add(index);
+    });
+    const missingNames = [...expectedNames].filter((name) => !matchedNames.has(name));
+    const missingPrefixes = selector.sourceMeshPrefixes.filter(
+      (prefix) => !matchedPrefixes.has(prefix)
+    );
+    if (missingNames.length > 0 || missingPrefixes.length > 0) {
+      const available = [...new Set(triangles.map((triangle) => triangle.sourceMeshName))]
+        .filter(Boolean)
+        .sort();
+      throw new Error(
+        `${slug} dock-rig ${purpose} meshes are absent: ` +
+        `${[...missingNames, ...missingPrefixes.map((prefix) => `${prefix}*`)].join(", ")}; ` +
+        `available meshes: ${available.join(", ") || "none"}`
+      );
+    }
+  } else {
+    throw new Error(`${slug} has an unsupported dock-rig selector: ${selector.type}`);
+  }
+  if (selectedIndexes.size === 0) {
+    throw new Error(`${slug} dock-rig ${purpose} selector removed no triangles`);
+  }
+  if (
+    selector.expectedTriangleCount !== undefined &&
+    selectedIndexes.size !== selector.expectedTriangleCount
+  ) {
+    throw new Error(
+      `${slug} dock-rig ${purpose} geometry changed: expected ` +
+      `${selector.expectedTriangleCount} triangles, found ${selectedIndexes.size}`
+    );
+  }
+  return selectedIndexes;
+}
+
+function selectedPortAssaultSailGeometry(slug, triangles) {
+  const dockRig = PORT_ASSAULT_DOCK_RIGS.get(slug);
+  if (!dockRig) throw new Error(`${slug} has no explicit port-assault dock rig`);
+  if (dockRig.state === "no-sail") {
+    return {
+      state: dockRig.state,
+      reason: dockRig.reason,
+      hullTriangles: triangles,
+      selectedTriangles: [],
+      sailComponents: [],
+      removedTriangleCount: 0,
+      removedRigTriangleCount: 0,
+      bundleMode: "none"
+    };
+  }
+  const selectedIndexes = portAssaultSelectorTriangleIndexes(
+    slug,
+    triangles,
+    dockRig.selector,
+    "open sail"
+  );
+  const removedRigIndexes = dockRig.removedRigSelector
+    ? portAssaultSelectorTriangleIndexes(
+      slug,
+      triangles,
+      dockRig.removedRigSelector,
+      "deployed sail hardware"
+    )
+    : new Set();
+  for (const index of removedRigIndexes) {
+    if (selectedIndexes.has(index)) {
+      throw new Error(`${slug} dock-rig sail and hardware selectors overlap at triangle ${index}`);
+    }
+  }
+  const removedIndexes = new Set([...selectedIndexes, ...removedRigIndexes]);
+  const selectedTriangles = triangles.filter((_triangle, index) => selectedIndexes.has(index));
+  const removedRigTriangles = triangles.filter((_triangle, index) => removedRigIndexes.has(index));
+  const hullTriangles = triangles.filter((_triangle, index) => !removedIndexes.has(index));
+  const sailComponents = portAssaultTopologyComponents(selectedTriangles);
+  if (sailComponents.length === 0 || hullTriangles.length === 0) {
+    throw new Error(`${slug} dock-rig selector produced invalid separated geometry`);
+  }
+  return {
+    state: "furled",
+    selectorType: dockRig.selector.type,
+    removedRigSelectorType: dockRig.removedRigSelector?.type || null,
+    bundleMode: dockRig.bundleMode,
+    hullTriangles,
+    selectedTriangles: [...selectedTriangles, ...removedRigTriangles],
+    sailComponents,
+    removedTriangleCount: removedIndexes.size,
+    removedRigTriangleCount: removedRigIndexes.size
+  };
+}
+
+function uniquePortAssaultComponentPoints(component) {
+  const points = new Map();
+  for (const triangle of component.triangles) {
+    for (const point of triangle.points) points.set(portAssaultTopologyKey(point), point);
+  }
+  return [...points.values()];
+}
+
+function portAssaultSailColor(component, fallbackTextureSampler) {
+  let red = 0;
+  let green = 0;
+  let blue = 0;
+  let samples = 0;
+  for (const triangle of component.triangles) {
+    const sampler = triangle.textureSampler || fallbackTextureSampler;
+    let color = triangle.color;
+    if (sampler && triangle.uvs) {
+      const u = triangle.uvs.reduce((sum, uv) => sum + uv.x, 0) / triangle.uvs.length;
+      const v = triangle.uvs.reduce((sum, uv) => sum + uv.y, 0) / triangle.uvs.length;
+      color = sampler.sample(u, v);
+    }
+    if (!color) continue;
+    red += color.r;
+    green += color.g;
+    blue += color.b;
+    samples++;
+  }
+  if (samples === 0) throw new Error("Furled sail component has no color samples");
+  return {
+    r: Math.round(red / samples),
+    g: Math.round(green / samples),
+    b: Math.round(blue / samples)
+  };
+}
+
+function portAssaultFurlSupport(component) {
+  const points = uniquePortAssaultComponentPoints(component);
+  if (points.length < 3) throw new Error("Furled sail component has fewer than three points");
+  const bounds = boundsForPoints(points);
+  const meanX = points.reduce((sum, point) => sum + point.x, 0) / points.length;
+  const meanZ = points.reduce((sum, point) => sum + point.z, 0) / points.length;
+  let covarianceXX = 0;
+  let covarianceXZ = 0;
+  let covarianceZZ = 0;
+  for (const point of points) {
+    const x = point.x - meanX;
+    const z = point.z - meanZ;
+    covarianceXX += x * x;
+    covarianceXZ += x * z;
+    covarianceZZ += z * z;
+  }
+  const angle = 0.5 * Math.atan2(2 * covarianceXZ, covarianceXX - covarianceZZ);
+  const axis = new THREE.Vector3(Math.cos(angle), 0, Math.sin(angle)).normalize();
+  const perpendicular = new THREE.Vector3(-axis.z, 0, axis.x);
+  const fullProjections = points.map((point) => point.dot(axis));
+  const fullSpan = Math.max(...fullProjections) - Math.min(...fullProjections);
+  const topBand = points.filter((point) => (
+    point.y >= bounds.box.max.y - bounds.size.y * 0.18
+  ));
+  const topProjections = topBand.map((point) => point.dot(axis));
+  const topSpan = topProjections.length > 1
+    ? Math.max(...topProjections) - Math.min(...topProjections)
+    : 0;
+  let start;
+  let end;
+  if (topSpan >= fullSpan * 0.35) {
+    const perpendicularOffset = topBand.reduce(
+      (sum, point) => sum + point.dot(perpendicular),
+      0
+    ) / topBand.length;
+    const y = topBand.reduce((sum, point) => sum + point.y, 0) / topBand.length;
+    const low = Math.min(...topProjections);
+    const high = Math.max(...topProjections);
+    start = axis.clone().multiplyScalar(low)
+      .addScaledVector(perpendicular, perpendicularOffset)
+      .setY(y);
+    end = axis.clone().multiplyScalar(high)
+      .addScaledVector(perpendicular, perpendicularOffset)
+      .setY(y);
+  } else {
+    const highBand = points.filter((point) => (
+      point.y >= bounds.box.max.y - bounds.size.y * 0.06
+    ));
+    const highPoint = highBand.reduce(
+      (sum, point) => sum.add(point),
+      new THREE.Vector3()
+    ).multiplyScalar(1 / highBand.length);
+    const farPoint = points.reduce((best, point) => (
+      point.distanceToSquared(highPoint) > best.distanceToSquared(highPoint) ? point : best
+    ), points[0]);
+    start = highPoint;
+    end = farPoint.clone();
+  }
+  const untrimmedLength = start.distanceTo(end);
+  if (!Number.isFinite(untrimmedLength) || untrimmedLength <= 0) {
+    throw new Error("Furled sail component has no usable support span");
+  }
+  const trim = end.clone().sub(start).multiplyScalar(0.035);
+  start.add(trim);
+  end.sub(trim);
+  const length = start.distanceTo(end);
+  const radius = clamp(
+    Math.min(bounds.size.y, Math.max(fullSpan, length)) * 0.025,
+    0.006,
+    0.02
+  );
+  return { start, end, length, radius };
+}
+
+function portAssaultSupportsCoincide(left, right) {
+  const leftCenter = left.start.clone().add(left.end).multiplyScalar(0.5);
+  const rightCenter = right.start.clone().add(right.end).multiplyScalar(0.5);
+  const centerTolerance = Math.max(left.radius, right.radius) * 2.5;
+  if (leftCenter.distanceTo(rightCenter) > centerTolerance) return false;
+  const lengthRatio = left.length / right.length;
+  if (lengthRatio < 0.78 || lengthRatio > 1.28) return false;
+  const leftAxis = left.end.clone().sub(left.start).normalize();
+  const rightAxis = right.end.clone().sub(right.start).normalize();
+  return Math.abs(leftAxis.dot(rightAxis)) >= 0.94;
+}
+
+function scaledPortAssaultColor(color, scale) {
+  return {
+    r: clamp(Math.round(color.r * scale), 0, 255),
+    g: clamp(Math.round(color.g * scale), 0, 255),
+    b: clamp(Math.round(color.b * scale), 0, 255)
+  };
+}
+
+function furledPortAssaultRig(slug, loaded) {
+  const selected = selectedPortAssaultSailGeometry(slug, loaded.triangles);
+  if (selected.state === "no-sail") {
+    return {
+      loaded,
+      selected,
+      metadata: {
+        state: selected.state,
+        reason: selected.reason,
+        removedOpenSailTriangles: 0,
+        removedDeployedRigTriangles: 0,
+        sourceSailComponents: 0,
+        furledBundles: 0,
+        generatedFurledTriangles: 0
+      }
+    };
+  }
+  if (selected.bundleMode === "remove") {
+    return {
+      loaded: {
+        ...loaded,
+        triangles: selected.hullTriangles
+      },
+      selected,
+      metadata: {
+        state: "stowed",
+        selectorType: selected.selectorType,
+        removedRigSelectorType: selected.removedRigSelectorType,
+        bundleMode: selected.bundleMode,
+        removedOpenSailTriangles:
+          selected.removedTriangleCount - selected.removedRigTriangleCount,
+        removedDeployedRigTriangles: selected.removedRigTriangleCount,
+        sourceSailComponents: selected.sailComponents.length,
+        furledBundles: 0,
+        generatedFurledTriangles: 0
+      }
+    };
+  }
+  const supports = [];
+  for (const component of selected.sailComponents) {
+    const support = portAssaultFurlSupport(component);
+    if (supports.some((entry) => portAssaultSupportsCoincide(entry.support, support))) continue;
+    supports.push({
+      support,
+      color: portAssaultSailColor(component, loaded.textureSampler)
+    });
+  }
+  if (supports.length === 0) throw new Error(`${slug} generated no furled sail bundles`);
+  const furledTriangles = [];
+  supports.forEach(({ support, color }, supportIndex) => {
+    for (let segmentIndex = 0; segmentIndex < PORT_ASSAULT_FURLED_SAIL_SEGMENTS; segmentIndex++) {
+      const startT = segmentIndex / PORT_ASSAULT_FURLED_SAIL_SEGMENTS;
+      const endT = (segmentIndex + 1) / PORT_ASSAULT_FURLED_SAIL_SEGMENTS;
+      const segmentStart = support.start.clone().lerp(support.end, startT);
+      const segmentEnd = support.start.clone().lerp(support.end, endT);
+      const segmentColor = scaledPortAssaultColor(
+        color,
+        segmentIndex % 2 === 0 ? 0.88 : 1.03
+      );
+      const triangles = makePrismTriangles(
+        segmentStart,
+        segmentEnd,
+        support.radius * (segmentIndex % 2 === 0 ? 1 : 0.88),
+        segmentColor,
+        6,
+        `furled-sail:${supportIndex}:${segmentIndex}`
+      );
+      for (const triangle of triangles) {
+        triangle.sourceMeshName = "procedural-furled-sail";
+        triangle.sourceMaterialName = "procedural-furled-sail-cloth";
+      }
+      furledTriangles.push(...triangles);
+    }
+  });
+  return {
+    loaded: {
+      ...loaded,
+      triangles: [...selected.hullTriangles, ...furledTriangles]
+    },
+    selected,
+    metadata: {
+      state: selected.state,
+      selectorType: selected.selectorType,
+      removedRigSelectorType: selected.removedRigSelectorType,
+      bundleMode: selected.bundleMode,
+      removedOpenSailTriangles:
+        selected.removedTriangleCount - selected.removedRigTriangleCount,
+      removedDeployedRigTriangles: selected.removedRigTriangleCount,
+      sourceSailComponents: selected.sailComponents.length,
+      furledBundles: supports.length,
+      generatedFurledTriangles: furledTriangles.length
+    }
+  };
+}
 
 function makePortAssaultCamera(elevationDegrees) {
   if (!Number.isFinite(elevationDegrees) || elevationDegrees <= 0 || elevationDegrees >= 45) {
@@ -3905,6 +4560,72 @@ function makePortAssaultFleetContactSheet(renderedShips) {
   return sheet;
 }
 
+function makePortAssaultRigReviewContactSheet(reviewShips) {
+  if (!Array.isArray(reviewShips) || reviewShips.length === 0) {
+    throw new Error("Port-assault rig review requires ships");
+  }
+  const stages = ["open", "selected sail geometry", "bare rig", "furled at dock"];
+  const labelHeight = 28;
+  const headingHeight = 34;
+  const shipLabelWidth = 220;
+  const sheet = createCanvas(
+    shipLabelWidth + stages.length * PORT_ASSAULT_SHIP_WIDTH,
+    headingHeight + reviewShips.length * (PORT_ASSAULT_SHIP_HEIGHT + labelHeight)
+  );
+  const ctx = sheet.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#172038";
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  ctx.font = "bold 14px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  stages.forEach((stage, index) => {
+    ctx.fillStyle = "#f4f4f4";
+    ctx.fillText(
+      stage,
+      shipLabelWidth + index * PORT_ASSAULT_SHIP_WIDTH + PORT_ASSAULT_SHIP_WIDTH / 2,
+      headingHeight / 2
+    );
+  });
+  reviewShips.forEach(({ slug, canvases }, row) => {
+    if (!Array.isArray(canvases) || canvases.length !== stages.length) {
+      throw new Error(`${slug} rig review must provide ${stages.length} stages`);
+    }
+    const y = headingHeight + row * (PORT_ASSAULT_SHIP_HEIGHT + labelHeight);
+    ctx.strokeStyle = "#566c86";
+    ctx.strokeRect(
+      0.5,
+      y + 0.5,
+      sheet.width - 1,
+      PORT_ASSAULT_SHIP_HEIGHT + labelHeight - 1
+    );
+    ctx.fillStyle = "#f4f4f4";
+    ctx.fillText(slug, shipLabelWidth / 2, y + labelHeight / 2);
+    canvases.forEach((canvas, column) => {
+      const x = shipLabelWidth + column * PORT_ASSAULT_SHIP_WIDTH;
+      ctx.drawImage(canvas, x, y + labelHeight);
+    });
+  });
+  return sheet;
+}
+
+function highlightedPortAssaultSailTriangles(selected) {
+  if (selected.state === "no-sail") return selected.hullTriangles;
+  const hullTriangles = selected.hullTriangles.map((triangle) => ({
+    ...triangle,
+    color: scaledPortAssaultColor(triangle.color || { r: 128, g: 128, b: 128 }, 0.34),
+    textureSampler: null,
+    uvs: null
+  }));
+  const sailTriangles = selected.selectedTriangles.map((triangle) => ({
+    ...triangle,
+    color: { r: 255, g: 53, b: 184 },
+    textureSampler: null,
+    uvs: null
+  }));
+  return [...hullTriangles, ...sailTriangles];
+}
+
 function portAssaultTargetModelMaxDim(productionEntry, galleonProductionEntry) {
   for (const [label, value] of Object.entries({
     targetModelMaxDim: productionEntry?.targetModelMaxDim,
@@ -3958,7 +4679,8 @@ function resetPortAssaultShipOutput() {
   for (const fileName of [
     "galleon-dockside-contact-sheet.png",
     "galleon-dockside-compositing-review.png",
-    "fleet-dockside-contact-sheet.png"
+    "fleet-dockside-contact-sheet.png",
+    "fleet-dock-rig-review.png"
   ]) {
     rmSync(join(portAssaultShipReferenceOutputRoot, fileName), { force: true });
   }
@@ -3991,9 +4713,11 @@ async function renderPortAssaultShips() {
   if (
     JSON.stringify([...productionBySlug.keys()].sort()) !==
       JSON.stringify([...rosterSlugs].sort()) ||
-    JSON.stringify([...configs.keys()].sort()) !== JSON.stringify([...rosterSlugs].sort())
+    JSON.stringify([...configs.keys()].sort()) !== JSON.stringify([...rosterSlugs].sort()) ||
+    JSON.stringify([...PORT_ASSAULT_DOCK_RIGS.keys()].sort()) !==
+      JSON.stringify([...rosterSlugs].sort())
   ) {
-    throw new Error("Port-assault fleet must exactly match the production ship roster");
+    throw new Error("Port-assault configs, dock rigs, and production fleet must match the roster");
   }
   const productionVariant = PORT_ASSAULT_VARIANTS.find((variant) => variant.selected);
   if (!productionVariant) throw new Error("Port-assault fleet has no selected production view");
@@ -4003,15 +4727,28 @@ async function renderPortAssaultShips() {
     galleonProduction,
     galleonProduction
   );
-  const galleonLoaded = await loadPortAssaultShip(galleonConfig, galleonTargetModelMaxDim);
-  const galleonRawVariants = PORT_ASSAULT_VARIANTS.map((variant) => (
-    renderPortAssaultVariant(galleonLoaded, galleonConfig, variant)
+  const galleonOpenLoaded = await loadPortAssaultShip(
+    galleonConfig,
+    galleonTargetModelMaxDim
+  );
+  const galleonOpenRawVariants = PORT_ASSAULT_VARIANTS.map((variant) => (
+    renderPortAssaultVariant(galleonOpenLoaded, galleonConfig, variant)
   ));
-  const galleonSelectedRaw = galleonRawVariants.find(({ variant }) => variant.selected);
-  if (!galleonSelectedRaw) throw new Error("Galleon camera review has no production view");
-  const fleetRasterScale = portAssaultRasterScale(galleonSelectedRaw.rendered) *
+  const galleonOpenSelectedRaw = galleonOpenRawVariants.find(
+    ({ variant }) => variant.selected
+  );
+  if (!galleonOpenSelectedRaw) throw new Error("Galleon scale reference has no production view");
+  const fleetRasterScale = portAssaultRasterScale(galleonOpenSelectedRaw.rendered) *
     PORT_ASSAULT_FLEET_SCALE_SAFETY;
-  const galleonReviewVariants = galleonRawVariants.map((entry) => ({
+  const galleonDockRig = furledPortAssaultRig("galleon", galleonOpenLoaded);
+  const galleonDockRawVariants = PORT_ASSAULT_VARIANTS.map((variant) => (
+    renderPortAssaultVariant(galleonDockRig.loaded, galleonConfig, variant)
+  ));
+  const galleonDockSelectedRaw = galleonDockRawVariants.find(
+    ({ variant }) => variant.selected
+  );
+  if (!galleonDockSelectedRaw) throw new Error("Galleon dock rig has no production view");
+  const galleonReviewVariants = galleonDockRawVariants.map((entry) => ({
     variant: entry.variant,
     camera: entry.camera,
     modelYaw: entry.modelYaw,
@@ -4035,6 +4772,7 @@ async function renderPortAssaultShips() {
 
   const ships = [];
   const renderedShips = [];
+  const rigReviewShips = [];
   let galleonCompositing = null;
   for (const slug of rosterSlugs) {
     console.log(`port assault ${slug}`);
@@ -4044,11 +4782,15 @@ async function renderPortAssaultShips() {
       productionEntry,
       galleonProduction
     );
-    const loaded = slug === "galleon"
-      ? galleonLoaded
+    const openLoaded = slug === "galleon"
+      ? galleonOpenLoaded
       : await loadPortAssaultShip(config, targetModelMaxDim);
+    const dockRig = slug === "galleon"
+      ? galleonDockRig
+      : furledPortAssaultRig(slug, openLoaded);
+    const loaded = dockRig.loaded;
     const raw = slug === "galleon"
-      ? galleonSelectedRaw
+      ? galleonDockSelectedRaw
       : renderPortAssaultVariant(loaded, config, productionVariant);
     const maximumRasterScale = portAssaultRasterScale(raw.rendered);
     if (fleetRasterScale > maximumRasterScale) {
@@ -4063,6 +4805,22 @@ async function renderPortAssaultShips() {
       modelYaw: raw.modelYaw,
       ...fitPortAssaultRaster(raw.rendered, fleetRasterScale)
     };
+    const reviewLoads = [
+      openLoaded,
+      {
+        ...openLoaded,
+        triangles: highlightedPortAssaultSailTriangles(dockRig.selected)
+      },
+      {
+        ...openLoaded,
+        triangles: dockRig.selected.hullTriangles
+      },
+      loaded
+    ];
+    const reviewCanvases = reviewLoads.map((reviewLoaded) => fitPortAssaultRaster(
+      renderPortAssaultVariant(reviewLoaded, config, productionVariant).rendered,
+      fleetRasterScale
+    ).canvas);
     const deck = portAssaultDeckCompositing(loaded, selected);
     const depthMap = makePortAssaultDepthMap(selected);
     const foreground = makePortAssaultForeground(selected, deck.sailorDepth);
@@ -4087,10 +4845,12 @@ async function renderPortAssaultShips() {
       deckPolygon: deck.deckPolygon,
       deckEntryAnchor: deck.deckEntryAnchor,
       sailorSpawnAnchor: deck.sailorSpawnAnchor,
-      foregroundOpaquePixels: foreground.opaquePixels
+      foregroundOpaquePixels: foreground.opaquePixels,
+      dockRig: dockRig.metadata
     };
     ships.push(entry);
     renderedShips.push({ slug, canvas: selected.canvas });
+    rigReviewShips.push({ slug, canvases: reviewCanvases });
     if (slug === "galleon") {
       galleonCompositing = { selected, foreground, depthMap, deck };
     }
@@ -4107,6 +4867,14 @@ async function renderPortAssaultShips() {
   writeFileSync(
     fleetContactSheetPath,
     makePortAssaultFleetContactSheet(renderedShips).toBuffer("image/png")
+  );
+  const rigReviewPath = join(
+    portAssaultShipReferenceOutputRoot,
+    "fleet-dock-rig-review.png"
+  );
+  writeFileSync(
+    rigReviewPath,
+    makePortAssaultRigReviewContactSheet(rigReviewShips).toBuffer("image/png")
   );
   const view = {
     projection: "orthographic",
@@ -4126,22 +4894,75 @@ async function renderPortAssaultShips() {
     palette: "Resurrect 64",
     width: PORT_ASSAULT_SHIP_WIDTH,
     height: PORT_ASSAULT_SHIP_HEIGHT,
+    rigState: "furled-at-dock",
     scaleMode: "production-roster-relative",
-    scaleNotes: "Target dimensions and frame scales follow the 47px production fleet; every hull shares one dockside raster scale.",
+    scaleNotes: "Target dimensions and frame scales follow the 47px production fleet; every hull shares one dockside raster scale and open sail surfaces are replaced in model space before rasterization.",
     fleetRasterScale: Number(fleetRasterScale.toFixed(6)),
     view,
     depthEncoding,
     ships,
     reviewFile: portablePath(fleetContactSheetPath),
+    rigReviewFile: portablePath(rigReviewPath),
     cameraReviewFile: portablePath(cameraReviewPath),
     compositingReviewFile: portablePath(compositingReviewPath)
   }, null, 2)}\n`);
   writePortAssaultGeometryModule(ships);
   console.log(fleetContactSheetPath);
+  console.log(rigReviewPath);
   console.log(cameraReviewPath);
   console.log(compositingReviewPath);
   console.log(manifestPath);
   console.log(portAssaultShipGeometryOutputPath);
+}
+
+async function reportPortAssaultTopologyComponents(slug) {
+  const configs = productionShipRenderConfigs();
+  const config = configs.get(slug);
+  if (!config) throw new Error(`Unknown port-assault topology-review ship: ${slug}`);
+  const productionManifest = JSON.parse(
+    readFileSync(join(unityFleetOutputRoot, "manifest.json"), "utf8")
+  );
+  const productionBySlug = uniqueShipEntriesBySlug(
+    productionManifest.ships,
+    "production ship manifest"
+  );
+  const productionEntry = productionBySlug.get(slug);
+  const galleonProduction = productionBySlug.get("galleon");
+  const targetModelMaxDim = portAssaultTargetModelMaxDim(
+    productionEntry,
+    galleonProduction
+  );
+  const loaded = await loadPortAssaultShip(config, targetModelMaxDim);
+  const dockRig = PORT_ASSAULT_DOCK_RIGS.get(slug);
+  const selectedComponentIndexes = new Set(
+    dockRig?.selector?.type === "topology-components"
+      ? dockRig.selector.components.map((entry) => entry.index)
+      : []
+  );
+  const components = portAssaultTopologyComponents(loaded.triangles).map((component) => {
+    const bounds = boundsForPoints(uniquePortAssaultComponentPoints(component));
+    const dimensions = [bounds.size.x, bounds.size.y, bounds.size.z].sort((a, b) => a - b);
+    return {
+      index: component.index,
+      triangleCount: component.triangles.length,
+      selected: selectedComponentIndexes.has(component.index),
+      sourceMeshNames: [...new Set(component.triangles.map(
+        (triangle) => triangle.sourceMeshName
+      ))].filter(Boolean).sort(),
+      sourceMaterialNames: [...new Set(component.triangles.map(
+        (triangle) => triangle.sourceMaterialName
+      ))].filter(Boolean).sort(),
+      center: [bounds.center.x, bounds.center.y, bounds.center.z].map(
+        (value) => Number(value.toFixed(5))
+      ),
+      size: [bounds.size.x, bounds.size.y, bounds.size.z].map(
+        (value) => Number(value.toFixed(5))
+      ),
+      thinness: Number((dimensions[0] / Math.max(dimensions[2], 1e-9)).toFixed(5)),
+      color: portAssaultSailColor(component, loaded.textureSampler)
+    };
+  });
+  console.log(JSON.stringify({ slug, targetModelMaxDim, components }, null, 2));
 }
 
 async function renderShipWaterlineReview(targetSlug = null) {
@@ -7111,6 +7932,10 @@ async function main() {
   }
   if (args.has("--cyc3w-galleon")) {
     await renderCyc3wGalleon();
+    return;
+  }
+  if (args.has("--port-assault-components")) {
+    await reportPortAssaultTopologyComponents(args.value("--port-assault-components"));
     return;
   }
   if (args.has("--port-assault-ships")) {
