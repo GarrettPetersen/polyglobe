@@ -1628,6 +1628,8 @@ import {
   establishPortIndustry,
   fundWorldEconomyShipyard,
   nextWorldEconomyEventMinute,
+  plunderPortSpecie,
+  portEconomySummary,
   portMarket,
   procureWorldEconomyShipyardMaterials,
   replaceWorldEconomyPort,
@@ -20704,7 +20706,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     if (!Number.isFinite(battery.disabledUntilMinute)) {
       throw new Error(`Successful raid has no disabled-battery expiry: ${battery.id}`);
     }
-    const prize = receivePortRaidPrize(gameState, cityCall, portRaidPrize(cityCall), { simMinute });
+    const prize = receivePlayerPortAssaultSpoils(cityCall, "raid", simMinute);
     markPlayerPortRaided(gameState.memory.flags, cityCall, battery.disabledUntilMinute);
     clearCombatForShip(PLAYER_COMBAT_ID);
     npcCombatProjectiles = npcCombatProjectiles.filter((shot) => shot.targetId !== PLAYER_COMBAT_ID);
@@ -20724,7 +20726,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     return true;
   }
   if (!status.captureFactionId) throw new Error("Conquest assault has no receiving faction");
-  const prize = receivePortConquestPrize(gameState, cityCall, portConquestPrize(cityCall), { simMinute });
+  const prize = receivePlayerPortAssaultSpoils(cityCall, "conquest", simMinute);
   const event = recordPortCapture(
     gameState.memory.conquest,
     cityCall,
@@ -20760,6 +20762,20 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
   }
   completePlayerPortConquest(cityCall, event, prize, null, captureMission, conquistadorCapture);
   return true;
+}
+
+function receivePlayerPortAssaultSpoils(city, kind, simMinute) {
+  const availableSpecie = portEconomySummary(worldEconomy, city).specie;
+  const amount = kind === "conquest"
+    ? portConquestPrize(city, availableSpecie)
+    : kind === "raid"
+      ? portRaidPrize(city, availableSpecie)
+      : null;
+  if (amount === null) throw new Error(`Invalid player port assault spoils kind: ${kind}`);
+  const plunder = plunderPortSpecie(worldEconomy, city, amount);
+  return kind === "conquest"
+    ? receivePortConquestPrize(gameState, city, plunder.amount, { simMinute })
+    : receivePortRaidPrize(gameState, city, plunder.amount, { simMinute });
 }
 
 function completePlayerPortConquest(

@@ -7,7 +7,6 @@ export const PORT_CONQUEST_MIN_CREW = 36;
 export const PORT_CONQUEST_NPC_LANDING_RANGE_PX = 28;
 export const PORT_CONQUEST_NPC_CHANCE = 0.28;
 export const PORT_CONQUEST_NPC_CAPITAL_CHANCE = 0.08;
-export const PORT_CONQUEST_CAPITAL_TREASURY_BONUS = 2500;
 export const CAPITAL_PEACE_ANNEXATION_CITY_LIMIT = 3;
 export const CAPITAL_PEACE_TERM_ANNEXATION = "annexation";
 export const CAPITAL_PEACE_TERM_VASSALAGE = "vassalage";
@@ -30,6 +29,12 @@ const CAPITAL_PEACE_TERMS = new Set([
 ]);
 const PLAYER_ASSAULT_FLAG_PREFIX = "playerPortAssaultUntil:";
 const PLAYER_RAID_FLAG_PREFIX = "playerPortRaidedUntil:";
+const PORT_CONQUEST_SPECIE_SHARE = 0.4;
+const PORT_CONQUEST_CAPITAL_SPECIE_SHARE = 0.55;
+const PORT_CONQUEST_TARGET_FLOOR = 5000;
+const PORT_RAID_SPECIE_SHARE = 0.25;
+const PORT_RAID_TARGET_FLOOR = 1000;
+const PORT_ASSAULT_PRIZE_ROUNDING = 50;
 
 export function createPortConquestMemory() {
   return {
@@ -189,17 +194,32 @@ export function npcPortConquestChance(city) {
   return city.isFactionCapital ? PORT_CONQUEST_NPC_CAPITAL_CHANCE : PORT_CONQUEST_NPC_CHANCE;
 }
 
-export function portConquestPrize(city) {
+export function portConquestPrize(city, availableSpecie) {
   assertCity(city);
-  const population = Math.max(0, Number(city.population || 0));
-  if (!Number.isFinite(population)) throw new Error(`Invalid conquest port population: ${city.population}`);
-  const portWealth = Math.min(1400, population / 75);
-  const capitalTreasury = city.isFactionCapital ? PORT_CONQUEST_CAPITAL_TREASURY_BONUS : 0;
-  return Math.round((600 + portWealth + capitalTreasury) / 50) * 50;
+  return portAssaultPrizeFromSpecie(
+    availableSpecie,
+    city.isFactionCapital ? PORT_CONQUEST_CAPITAL_SPECIE_SHARE : PORT_CONQUEST_SPECIE_SHARE,
+    PORT_CONQUEST_TARGET_FLOOR
+  );
 }
 
-export function portRaidPrize(city) {
-  return Math.max(100, Math.round((portConquestPrize(city) * 0.65) / 50) * 50);
+export function portRaidPrize(city, availableSpecie) {
+  assertCity(city);
+  return portAssaultPrizeFromSpecie(
+    availableSpecie,
+    PORT_RAID_SPECIE_SHARE,
+    PORT_RAID_TARGET_FLOOR
+  );
+}
+
+function portAssaultPrizeFromSpecie(availableSpecie, share, targetFloor) {
+  if (!Number.isInteger(availableSpecie) || availableSpecie < 0) {
+    throw new Error(`Invalid port specie available for plunder: ${availableSpecie}`);
+  }
+  const scaledPrize = Math.floor(
+    availableSpecie * share / PORT_ASSAULT_PRIZE_ROUNDING
+  ) * PORT_ASSAULT_PRIZE_ROUNDING;
+  return Math.min(availableSpecie, Math.max(targetFloor, scaledPrize));
 }
 
 export function recordPortCapture(memory, city, newFactionId, simMinute, source = "player") {

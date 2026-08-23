@@ -2461,7 +2461,7 @@ function receivePortAssaultPrize(state, city, amount, kind, context) {
   assertGameState(state);
   if (kind !== "conquest" && kind !== "raid") throw new Error(`Invalid port assault kind: ${kind}`);
   if (!city || !Number.isInteger(city.tileId)) throw new Error(`Port ${kind} prize requires a city`);
-  if (!Number.isInteger(amount) || amount <= 0) throw new Error(`Invalid port ${kind} prize: ${amount}`);
+  if (!Number.isInteger(amount) || amount < 0) throw new Error(`Invalid port ${kind} prize: ${amount}`);
   state.doubloons += amount;
   recordLedgerEntry(state, city, context, {
     kind,

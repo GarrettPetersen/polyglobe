@@ -124,13 +124,14 @@ test("assault success falls logarithmically with population but keeps a viable f
   assert.equal(statusForPopulation(100000000, true).successChance, 0.15);
 });
 
-test("conquest pays a large population-scaled prize with a capital treasury bonus", () => {
-  const villagePrize = portConquestPrize(city({ population: 3000 }));
-  const richPortPrize = portConquestPrize(city({ population: 90000 }));
-  const capitalPrize = portConquestPrize(city({ population: 90000, isFactionCapital: true }));
-  assert.equal(villagePrize, 650);
-  assert.equal(richPortPrize, 1800);
-  assert.equal(capitalPrize, 4300);
+test("conquest takes a major share of finite port specie and capitals yield more", () => {
+  const ordinaryPrize = portConquestPrize(city(), 60000);
+  const capitalPrize = portConquestPrize(city({ isFactionCapital: true }), 60000);
+  assert.equal(ordinaryPrize, 24000);
+  assert.equal(capitalPrize, 33000);
+  assert.equal(portConquestPrize(city(), 4000), 4000);
+  assert.equal(portConquestPrize(city(), 0), 0);
+  assert.throws(() => portConquestPrize(city(), 60000.5), /Invalid port specie/);
 });
 
 test("capturing a small-state capital permits annexation through a peace treaty", () => {
@@ -538,7 +539,8 @@ test("a disabled harbor remembers the player assault until defenses recover or o
 test("a port raid pays reduced spoils and cannot repeat before the battery recovers", () => {
   const flags = {};
   const target = city();
-  assert.equal(portRaidPrize(target), Math.round((portConquestPrize(target) * 0.65) / 50) * 50);
+  assert.equal(portRaidPrize(target, 60000), 15000);
+  assert.equal(portRaidPrize(target, 750), 750);
   markPlayerPortRaided(flags, target, 500);
   assert.equal(playerPortRaidIsActive(flags, target, 499), true);
   assert.equal(playerPortRaidIsActive(flags, target, 500), false);

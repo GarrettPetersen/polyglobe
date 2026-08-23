@@ -47,6 +47,7 @@ import {
   maximumPortPurchaseQuantity,
   maximumPortSaleQuantity,
   planNpcTrade,
+  plunderPortSpecie,
   portEconomySummary,
   portMarket,
   procureWorldEconomyShipyardMaterials,
@@ -1242,6 +1243,23 @@ test("player trades transfer finite stock and specie between the player and port
     ["sell", "Goa"]
   ]);
   assert.ok(portEconomySummary(economy, GOA).specie <= goaSpecieBefore - sale.price + 1);
+});
+
+test("port plunder removes finite specie from the captured market", () => {
+  const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0, seedKey: "plunder-test" });
+  const before = portEconomySummary(economy, LONDON).specie;
+  const seized = plunderPortSpecie(economy, LONDON, 12000);
+
+  assert.deepEqual(seized, {
+    amount: 12000,
+    availableSpecie: before,
+    remainingSpecie: before - 12000
+  });
+  assert.equal(portEconomySummary(economy, LONDON).specie, before - 12000);
+  assert.throws(
+    () => plunderPortSpecie(economy, LONDON, before),
+    /has only .* specie available/
+  );
 });
 
 test("bulk trading moves prices and cannot exceed market inventory or specie", () => {

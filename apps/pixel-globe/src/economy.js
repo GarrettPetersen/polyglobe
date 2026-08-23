@@ -1200,6 +1200,26 @@ export function portEconomySummary(economy, city) {
   };
 }
 
+export function plunderPortSpecie(economy, city, amount) {
+  const port = requiredPortState(economy, city);
+  if (!Number.isInteger(amount) || amount < 0) {
+    throw new Error(`Invalid specie plunder for ${port.name}: ${amount}`);
+  }
+  const availableSpecie = Math.floor(port.specie);
+  if (amount > availableSpecie) {
+    throw new Error(
+      `${port.name} has only ${availableSpecie} specie available for ${amount} in plunder`
+    );
+  }
+  port.specie -= amount;
+  invalidateWorldMarketMedianCache(economy);
+  return Object.freeze({
+    amount,
+    availableSpecie,
+    remainingSpecie: Math.floor(port.specie)
+  });
+}
+
 export function snapshotPortTradeState(economy, city) {
   const port = requiredPortState(economy, city);
   return Object.freeze({
