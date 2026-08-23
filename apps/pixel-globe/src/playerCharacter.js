@@ -63,6 +63,7 @@ const EUROPEAN_FACTIONS = new Set([
   "ragusa",
   "venice",
   "genoa",
+  "florence",
   "papal-states",
   "hospitallers",
   "muscovy",
@@ -83,7 +84,7 @@ const INDIAN_FACTIONS = new Set([
   "delhi"
 ]);
 const SOUTHEAST_ASIAN_FACTIONS = new Set(["ayutthaya", "ternate", "tidore"]);
-const ISLAMIC_MEDITERRANEAN_FACTIONS = new Set(["ottoman", "morocco", "crimea", "hejaz"]);
+const ISLAMIC_MEDITERRANEAN_FACTIONS = new Set(["ottoman", "morocco", "crimea", "kazan", "hejaz"]);
 const ISLAMIC_MEDITERRANEAN_MAX_LONGITUDE = 40;
 const PLAYER_HOME_EXCLUDED_CITY_TYPES = new Set(["mesoamerican", "andean", "sub-saharan"]);
 

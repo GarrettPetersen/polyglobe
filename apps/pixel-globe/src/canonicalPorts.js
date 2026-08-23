@@ -10,9 +10,11 @@ function canonicalPort(id, city, country) {
 }
 
 export const CANONICAL_PORTS = Object.freeze({
+  ADEN: canonicalPort("aden", "Aden", "Yemen"),
   AGRA: canonicalPort("agra", "Agra", "India"),
   ALGIERS: canonicalPort("algiers", "Algiers", "Algeria"),
   BAGHDAD: canonicalPort("baghdad", "Baghdad", "Iraq"),
+  BANDA_VILLAGE: canonicalPort("banda-village", "Banda Village", "Indonesia"),
   BARCELONA: canonicalPort("barcelona", "Barcelona", "Spain"),
   BEIJING: canonicalPort("beijing", "Beijing", "China"),
   BIRGU: canonicalPort("birgu", "Birgu", "Malta"),
@@ -34,6 +36,7 @@ export const CANONICAL_PORTS = Object.freeze({
   JINJIANG: canonicalPort("jinjiang", "Tsinkiang", "China"),
   KAGOSHIMA: canonicalPort("kagoshima", "Kagoshima", "Japan"),
   KERKIRA: canonicalPort("kerkira", "Kerkira", "Greece"),
+  KAZAN: canonicalPort("kazan", "Kazan", "Russian Federation"),
   KYOTO: canonicalPort("kyoto", "Kyoto", "Japan"),
   LISBON: canonicalPort("lisbon", "Lisbon", "Portugal"),
   LONDON: canonicalPort("london", "London", "United Kingdom"),
@@ -51,6 +54,7 @@ export const CANONICAL_PORTS = Object.freeze({
   SANTO_DOMINGO: canonicalPort("santo-domingo", "Santo Domingo", "Dominican Republic"),
   SEVILLE: canonicalPort("seville", "Seville", "Spain"),
   TRIPOLI: canonicalPort("tripoli", "Tripoli", "Libya"),
+  TUNIS: canonicalPort("tunis", "Tunis", "Tunisia"),
   TSUSHIMA_FUCHU: canonicalPort("tsushima-fuchu", "Tsushima Fuchu", "Japan"),
   VALENCIA: canonicalPort("valencia", "Valencia", "Spain"),
   VERACRUZ: canonicalPort("veracruz", "Veracruz", "Mexico"),

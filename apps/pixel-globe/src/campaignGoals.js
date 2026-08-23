@@ -1212,6 +1212,7 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
   speyer: imperialDebtOrigin("Speyer"),
   regensburg: imperialDebtOrigin("Regensburg"),
   worms: imperialDebtOrigin("Worms"),
+  metz: imperialDebtOrigin("Metz"),
   ottoman: debtOrigin(
     "Your family chose a prince poorly. I chose collateral better.",
     "We backed him before the old Sultan yielded the throne. The victor spared our lives, but not our property."
@@ -1223,6 +1224,10 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
   genoa: debtOrigin(
     "Genoa may change masters again. This deed will not.",
     "Our warehouse was pledged under one lord and seized when the next banner rose. The ink never had time to dry."
+  ),
+  florence: debtOrigin(
+    "Florence may debate liberty and the Medici in every hall. This bond admits no faction.",
+    "Our house advanced silver while Cardinal Giulio's men reordered the government. The magistrates changed; the seal remained."
   ),
   "papal-states": debtOrigin(
     "His Holiness's treasury forgot its wagons. Mine remembers every creditor.",
@@ -1247,6 +1252,10 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
   muscovy: debtOrigin(
     "Smolensk changed hands. This deed did not.",
     "We fitted wagons and horses for the long siege. The court's promise of payment proved less durable than the fortress."
+  ),
+  kazan: debtOrigin(
+    "The khan rode against Moscow and returned with glory. Your family's account returned unpaid.",
+    "We supplied horses and grain for Sahib Giray's campaign. The spoils passed to greater hands before our wagons came home."
   ),
   crimea: debtOrigin(
     "The khan returned from Moscow with captives and glory. Your family's wagons returned empty.",
@@ -1406,15 +1415,18 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   speyer: imperialExplorerOutlook("Speyer"),
   regensburg: imperialExplorerOutlook("Regensburg"),
   worms: imperialExplorerOutlook("Worms"),
+  metz: imperialExplorerOutlook("Metz"),
   ottoman: "Piri Reis set western discoveries beside eastern charts. His map proves no court owns all useful knowledge.",
   venice: "The Portuguese ocean road drains spice from our galleys. I would learn the routes reshaping Venice before they finish doing so.",
   genoa: "A Genoese sailor crossed the western ocean beneath Castile's flag. The next great account should not leave our harbor under another name.",
+  florence: "Florentine presses multiply every doubtful voyage into ten confident accounts. Bring me observations fit to survive the argument.",
   "papal-states": "Reports from lands beyond the Atlantic reach Rome mixed with conversion, gold, and boasting. I want an account concerned first with truth.",
   hospitallers: "Rhodes hears every rumor passing between Christendom and the Levant. I want the Order to possess knowledge no siege can consume.",
   ming: "The court lets Admiral Zheng's sea roads fade because no treasure fleet now follows them. I do not share that lack of curiosity.",
   inca: "The Sapa Inca's roads bind mountains beyond counting, yet every official map stops at the sea. Mine need not.",
   safavid: "Ottoman armies close one road and Portuguese cannon command another at Hormuz. Knowledge may reveal a third.",
   muscovy: "Novgorod's merchants know the Baltic by price and rumor. I want bearings that reach beyond their counting houses.",
+  kazan: "The Volga brings merchants from Muscovy, Persia, and the steppe, each with a different world in his telling. Set their roads upon one chart.",
   crimea: "Ottoman galleys hold the southern coast while our riders know the northern steppe. I want a Crimean chart of the seas between and beyond them.",
   wallachia: "The Danube carries Ottoman, Hungarian, and Black Sea news past our shore. I want to know the waters beyond their quarrels.",
   moldavia: "Merchants reach us from the Black Sea and Poland with maps that agree on very little. Bring me a captain's evidence.",

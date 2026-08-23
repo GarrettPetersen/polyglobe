@@ -49,15 +49,18 @@ export const FACTIONS = Object.freeze([
   faction("speyer", "Free Imperial City of Speyer", "Speyer", "Speyer", "free-imperial-city"),
   faction("regensburg", "Free Imperial City of Regensburg", "Regensburg", "Regensburg", "free-imperial-city"),
   faction("worms", "Free Imperial City of Worms", "Worms", "Worms", "free-imperial-city"),
+  faction("metz", "Free Imperial City of Metz", "Metz", "Metz", "free-imperial-city"),
   faction("ottoman", "Ottoman Empire", "Ottoman Empire", "Ottoman", "empire", "the"),
   faction("venice", "Republic of Venice", "Venice", "Venetian", "republic"),
   faction("genoa", "Republic of Genoa", "Genoa", "Genoese", "republic"),
+  faction("florence", "Republic of Florence", "Florence", "Florentine", "republic"),
   faction("papal-states", "Papal States", "Papal States", "Papal", "state", "the"),
   faction("hospitallers", "Knights Hospitaller", "Knights Hospitaller", "Hospitaller", "order", "the"),
   faction("ming", "Ming Empire", "Ming China", "Ming", "empire"),
   faction("inca", "Inca Empire", "Tawantinsuyu", "Inca", "empire"),
   faction("safavid", "Safavid Empire", "Safavid Persia", "Safavid", "empire"),
   faction("muscovy", "Grand Duchy of Muscovy", "Muscovy", "Muscovite", "duchy"),
+  faction("kazan", "Kazan Khanate", "Kazan", "Kazan Tatar", "khanate", "the"),
   faction("crimea", "Crimean Khanate", "Crimea", "Crimean", "khanate"),
   faction("wallachia", "Principality of Wallachia", "Wallachia", "Wallachian", "principality"),
   faction("moldavia", "Principality of Moldavia", "Moldavia", "Moldavian", "principality"),
@@ -150,9 +153,11 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("speyer", "Speyer", "Germany"),
   capital("regensburg", "Regensburg", "Germany"),
   capital("worms", "Worms", "Germany"),
+  capital("metz", "Metz", "France"),
   capital("ottoman", "Istanbul", "Turkey"),
   capital("venice", "Venice", "Italy"),
   capital("genoa", "Genova", "Italy"),
+  capital("florence", "Florence", "Italy"),
   capital("papal-states", "Rome", "Italy"),
   capital("hospitallers", "Rhodes", "Greece"),
   capital("ming", "Beijing", "China"),
@@ -163,6 +168,7 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
     lon: 41.65,
     population: 7000
   }),
+  capital("kazan", "Kazan", "Russian Federation"),
   capital("crimea", "Bakhchiserai", "Ukraine"),
   capital("wallachia", "Braila", "Romania", { seatCity: "Targoviste" }),
   capital("moldavia", "Galati", "Romania", { seatCity: "Suceava" }),
@@ -220,6 +226,7 @@ const ALLIANCES_1522 = Object.freeze([
   ["habsburg", "papal-states"],
   ["burgundian-netherlands", "papal-states"],
   ["spain", "papal-states"],
+  ["kazan", "crimea"],
   ["ming", "joseon"]
 ]);
 
@@ -230,6 +237,8 @@ const FRIENDSHIPS_1522 = Object.freeze([
   ["habsburg", "portugal"],
   ["portugal", "hormuz"],
   ["france", "genoa"],
+  ["florence", "papal-states"],
+  ["florence", "spain"],
   ["burgundian-netherlands", "denmark-norway"],
   ["habsburg", "denmark-norway"],
   ["spain", "denmark-norway"],
@@ -316,6 +325,7 @@ const WARS_1522 = Object.freeze([
   ["portugal", "gujarat"],
   ["portugal", "morocco"],
   ["muscovy", "poland-lithuania"],
+  ["muscovy", "kazan"],
   ["sweden", "denmark-norway"]
 ]);
 
@@ -329,8 +339,8 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Dublin", "Ireland", "england"),
   cityRule("Edinburgh", "United Kingdom", "scotland"),
   cityRule("Glasgow", "United Kingdom", "scotland"),
-  cityRule("Avignon", "France", NEUTRAL_FACTION_ID),
-  cityRule("Metz", "France", NEUTRAL_FACTION_ID),
+  cityRule("Avignon", "France", "papal-states"),
+  cityRule("Metz", "France", "metz"),
 
   // The Empire is constitutional membership, not Habsburg sovereignty. These
   // rules use source-catalog identities; display aliases such as Augsburg and
@@ -366,6 +376,8 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Venice", "Italy", "venice"),
   cityRule("Verona", "Italy", "venice"),
   cityRule("Genova", "Italy", "genoa"),
+  cityRule("Florence", "Italy", "florence"),
+  cityRule("Pisa", "Italy", "florence"),
   cityRule("Rome", "Italy", "papal-states"),
   cityRule("Bologna", "Italy", "papal-states"),
   cityRule("Milan", "Italy", "habsburg"),
@@ -380,6 +392,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Olbia", "Italy", "spain"),
   cityRule("Cagliari", "Italy", "spain"),
   cityRule("Syracuse", "Italy", "spain"),
+  cityRule("Salerno", "Italy", "spain"),
   cityRule("Bastia", "Italy", "genoa"),
 
   cityRule("Ceuta", "Morocco", "portugal"),
@@ -420,6 +433,9 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Mecca", "Saudi Arabia", "hejaz"),
   cityRule("Braila", "Romania", "wallachia"),
   cityRule("Galati", "Romania", "moldavia"),
+  cityRule("Targoviste", "Romania", "wallachia"),
+  cityRule("Suceava", "Romania", "moldavia"),
+  cityRule("Kiev", "Ukraine", "poland-lithuania"),
 
   cityRule("Naha", "Japan", "ryukyu"),
   cityRule("Akkeshi Kotan", "Japan", "ainu"),
@@ -435,7 +451,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
 
   cityRule("Sarai", "Russian Federation", NEUTRAL_FACTION_ID),
   cityRule("Astrakhan", "Russian Federation", NEUTRAL_FACTION_ID),
-  cityRule("Kazan", "Russian Federation", NEUTRAL_FACTION_ID),
+  cityRule("Kazan", "Russian Federation", "kazan"),
   cityRule("Feodosia", "Russian Federation", "ottoman"),
   cityRule("Sudak", "Russian Federation", "ottoman"),
   cityRule("Bakhchiserai", "Ukraine", "crimea"),

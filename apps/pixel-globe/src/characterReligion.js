@@ -91,8 +91,10 @@ const CATHOLIC_FACTIONS = new Set([
   "speyer",
   "regensburg",
   "worms",
+  "metz",
   "venice",
   "genoa",
+  "florence",
   "papal-states",
   "hospitallers",
   "poland-lithuania",
@@ -356,7 +358,7 @@ export function religionCandidatesForHome(homePort) {
     }
     return choices(["shia-islam", 6], ["sunni-islam", 2], ["zoroastrianism", 1]);
   }
-  if (factionId === "crimea") {
+  if (factionId === "crimea" || factionId === "kazan") {
     return choices(["sunni-islam", 4], ["eastern-orthodox", 1]);
   }
   if (cityType === "islamic-desert") {

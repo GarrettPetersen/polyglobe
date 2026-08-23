@@ -16,7 +16,7 @@ import {
 
 const EUROPEAN_FACTIONS = new Set([
   "england", "scotland", "france", "spain", "portugal", "burgundian-netherlands", "habsburg", "hungary",
-  "venice", "genoa", "papal-states", "muscovy", "poland-lithuania", "sweden",
+  "venice", "genoa", "florence", "papal-states", "muscovy", "poland-lithuania", "sweden",
   "denmark-norway"
 ]);
 const SOUTH_ASIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi", "mughal"]);
@@ -207,7 +207,7 @@ function portHasRegion(city, region) {
   if (region === "europe") return EUROPEAN_FACTIONS.has(city.factionId);
   if (region === "england") return city.factionId === "england" || city.factionId === "scotland";
   if (region === "islamic") {
-    return ["ottoman", "crimea", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"]
+    return ["ottoman", "crimea", "kazan", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"]
       .includes(city.factionId) || city.cityType === "islamic-desert";
   }
   if (region === "east-asia") {

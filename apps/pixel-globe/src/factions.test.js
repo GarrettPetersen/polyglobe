@@ -111,6 +111,9 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("ottoman", "ragusa"), DIPLOMACY_FRIENDLY);
   assert.equal(diplomacyBetween("ming", "ryukyu"), DIPLOMACY_FRIENDLY);
   assert.equal(diplomacyBetween("japan", "ainu"), DIPLOMACY_HOSTILE);
+  assert.equal(diplomacyBetween("florence", "papal-states"), DIPLOMACY_FRIENDLY);
+  assert.equal(diplomacyBetween("kazan", "crimea"), DIPLOMACY_ALLY);
+  assert.equal(diplomacyBetween("kazan", "muscovy"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("inca", "muscovy"), DIPLOMACY_NEUTRAL);
   for (const faction of FACTIONS) {
     if (faction.id !== PIRATE_FACTION_ID) {
@@ -185,7 +188,7 @@ test("represented Imperial cities retain their researched 1522 sovereigns", () =
     ["Hannover", "Germany", "calenberg"], ["Speyer", "Germany", "speyer"],
     ["Utrecht", "Netherlands", "utrecht"], ["Regensburg", "Germany", "regensburg"],
     ["Trier", "Germany", "trier"], ["Leipzig", "Germany", "ducal-saxony"],
-    ["Worms", "Germany", "worms"]
+    ["Worms", "Germany", "worms"], ["Metz", "France", "metz"]
   ];
   for (const [city, country, factionId] of assignments) {
     assert.equal(factionIdForCity1522({ city, country }), factionId, `${city}, ${country}`);
@@ -197,7 +200,14 @@ test("overseas possessions and uncertain small powers are handled explicitly", (
   assert.equal(factionIdForCity1522({ city: "Hormuz", country: "Iran" }), "hormuz");
   assert.equal(factionIdForCity1522({ city: "Muscat", country: "Oman" }), "hormuz");
   assert.equal(factionIdForCity1522({ city: "Bakhchiserai", country: "Ukraine" }), "crimea");
-  assert.equal(factionIdForCity1522({ city: "Avignon", country: "France" }), NEUTRAL_FACTION_ID);
+  assert.equal(factionIdForCity1522({ city: "Avignon", country: "France" }), "papal-states");
+  assert.equal(factionIdForCity1522({ city: "Salerno", country: "Italy" }), "spain");
+  assert.equal(factionIdForCity1522({ city: "Suceava", country: "Romania" }), "moldavia");
+  assert.equal(factionIdForCity1522({ city: "Targoviste", country: "Romania" }), "wallachia");
+  assert.equal(factionIdForCity1522({ city: "Kiev", country: "Ukraine" }), "poland-lithuania");
+  assert.equal(factionIdForCity1522({ city: "Florence", country: "Italy" }), "florence");
+  assert.equal(factionIdForCity1522({ city: "Pisa", country: "Italy" }), "florence");
+  assert.equal(factionIdForCity1522({ city: "Kazan", country: "Russian Federation" }), "kazan");
   assert.equal(factionIdForCity1522({ city: "Chiang Mai", country: "Thailand" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ city: "Banda Village", country: "Indonesia" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ city: "Unknown", country: "Unknown" }), NEUTRAL_FACTION_ID);

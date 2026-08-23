@@ -76,7 +76,8 @@ const RESEARCH = Object.freeze([
     ["cologne", "Cologne civic arms"], ["nuremberg", "Nuremberg civic arms"],
     ["lubeck", "Lubeck civic arms"], ["hamburg", "Hamburg civic arms"],
     ["bremen", "Bremen civic arms"], ["speyer", "Speyer civic arms"],
-    ["regensburg", "Regensburg civic arms"], ["worms", "Worms civic arms"]
+    ["regensburg", "Regensburg civic arms"], ["worms", "Worms civic arms"],
+    ["metz", "Metz civic arms"]
   ].map(([id, representation]) => research(
     id,
     "reconstruction",
@@ -96,6 +97,9 @@ const RESEARCH = Object.freeze([
   research("genoa", "period-banner", "Cross of Saint George", "The red Saint George cross on white is directly visible among Genoese naval standards in early-modern battle imagery.", [
     source("Battle of Lepanto, 1571", "https://commons.wikimedia.org/wiki/File:Battle_of_Lepanto_1571.jpg")
   ]),
+  research("florence", "period-heraldry", "Florentine red lily", "The red Florentine lily on white was the established civic device. It is rendered as a compact state banner rather than a claim of a standardized naval ensign.", [
+    source("Florentine lily at Palazzo Vecchio", "https://www.feelflorence.it/en/points-interest/dantes-plaque-palazzo-vecchio-courtyard")
+  ]),
   research("papal-states", "near-period-heraldry", "Crossed Keys of Saint Peter", "The crossed gold and silver keys are period papal heraldry; the dark red field is a game-facing banner reconstruction rather than the later yellow-white state flag.", [
     source("Papal States in the 16th century", "https://commons.wikimedia.org/wiki/Category:Papal_States_in_the_16th_century")
   ]),
@@ -113,6 +117,10 @@ const RESEARCH = Object.freeze([
   ]),
   research("muscovy", "period-emblem", "Seal of Ivan III", "The double-headed eagle entered Muscovite state seals under Ivan III; the banner field is a reconstruction around that contemporary emblem.", [
     source("Russian treaty seals", "https://www.athensjournals.gr/history/2024-5981-AJHIS-ART-Ning-02.pdf")
+  ]),
+  research("kazan", "reconstruction", "Kazan Zilant banner tradition", "A yellow banner with a black winged dragon is traditionally attributed to the khanate, but secure surviving images are later. This is explicitly a game-facing reconstruction, not a modern Kazan flag.", [
+    source("Kazan city library: history of the Kazan banner", "https://kitaphane.tatarstan.ru/eng/state_symbols/flag_kazan.htm"),
+    source("Heraldic Council account of the Zilant tradition", "https://realnoevremya.com/articles/598")
   ]),
   research("crimea", "period-emblem", "Giray tamga", "The Giray dynasty's tarak tamga is the strongest period identifier for the Crimean Khanate. The blue field is a game-facing banner reconstruction.", [
     source("Crimean Tatar tamga", "https://en.wikipedia.org/wiki/Taraq_Tamga")
@@ -428,6 +436,7 @@ const DRAWERS = Object.freeze({
   speyer: () => imperialEstateBanner("speyer"),
   regensburg: () => imperialEstateBanner("regensburg"),
   worms: () => imperialEstateBanner("worms"),
+  metz: () => imperialEstateBanner("metz"),
   hungary: () => {
     const s = base(C.cream);
     for (let y = 0; y < FLAG_H; y += 5) s.rect(0, y, FLAG_W, 3, C.red);
@@ -452,6 +461,11 @@ const DRAWERS = Object.freeze({
     const s = base(C.white);
     s.rect(13, 0, 6, FLAG_H, C.red);
     s.rect(0, 7, FLAG_W, 6, C.red);
+    return s;
+  },
+  florence: () => {
+    const s = base(C.white);
+    fleur(s, 16, 5, C.red, 2);
     return s;
   },
   "papal-states": () => {
@@ -493,6 +507,11 @@ const DRAWERS = Object.freeze({
     doubleEagle(s, C.gold);
     s.rect(14, 8, 4, 5, C.blue);
     s.line(14, 12, 18, 8, C.cream);
+    return s;
+  },
+  kazan: () => {
+    const s = base(C.gold);
+    zilant(s, C.black);
     return s;
   },
   crimea: () => {
@@ -752,7 +771,8 @@ const IMPERIAL_FLAG_SPECS = Object.freeze({
   bremen: [C.red, C.white, "key"],
   speyer: [C.blue, C.cream, "cross"],
   regensburg: [C.red, C.white, "keys"],
-  worms: [C.red, C.cream, "key"]
+  worms: [C.red, C.cream, "key"],
+  metz: [C.white, C.black, "vertical-halves"]
 });
 
 function imperialEstateBanner(id) {
@@ -800,6 +820,8 @@ function imperialEstateBanner(id) {
     smallCrown(s, 16, 15, charge);
   } else if (device === "halves") {
     s.rect(0, 10, FLAG_W, 10, charge);
+  } else if (device === "vertical-halves") {
+    s.rect(16, 0, 16, FLAG_H, charge);
   } else if (device === "castle") {
     s.rect(8, 8, 16, 9, charge);
     for (const x of [8, 14, 20]) s.rect(x, 4, 4, 6, charge);
@@ -819,6 +841,18 @@ function clanMon(field, draw) {
   const s = base(field);
   draw(s);
   return s;
+}
+
+function zilant(s, color) {
+  s.polygon([[8, 10], [13, 5], [16, 9], [19, 4], [23, 9], [20, 12], [12, 12]], color);
+  s.rect(11, 10, 11, 4, color);
+  s.line(11, 12, 6, 16, color, 2);
+  s.line(21, 12, 26, 16, color, 2);
+  s.line(14, 14, 11, 18, color, 2);
+  s.line(20, 14, 23, 18, color, 2);
+  s.line(22, 10, 27, 7, color, 2);
+  s.pixel(27, 6, color);
+  s.pixel(28, 7, color);
 }
 
 function swallowtail(s, field) {

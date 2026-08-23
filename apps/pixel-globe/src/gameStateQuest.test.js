@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN,
+  CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID,
   DELIVERY_ROLL_PERIOD_MINUTES,
   DELIVERY_REPUTATION_GAIN,
   CAPTURE_PORT_MISSION_REPUTATION_GAIN,
@@ -23,6 +24,7 @@ import {
   grantGuaranteedMissionPerkItem,
   isCaptureCapitalQuest,
   petitionCaptureCommission,
+  playerPortAttackStatus,
   prepareHighValueMissionPerkItem,
   questStateForCity,
   receiveRescuedTravelerReunionReward,
@@ -39,6 +41,7 @@ import {
 import { PERK_ITEMS } from "./perkItems.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { gameMinuteForDate } from "./rulers.js";
+import { NEUTRAL_FACTION_ID } from "./factions.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -718,6 +721,133 @@ test("historical conquests outrank attempted conquests and ordinary enemy ports"
 
   assert.equal(offer.targetTileId, rhodes.tileId);
   assert.equal(offer.priorityKind, CAPTURE_COMMISSION_PRIORITY_HISTORICAL_CONQUEST);
+});
+
+test("a historical independent port commission creates no fictional neutral war", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  const istanbul = {
+    ...port(140, "Istanbul", "Turkey", "islamic-desert", "ottoman", 41.01, 28.97),
+    isFactionCapital: true,
+    capitalOfFactionId: "ottoman"
+  };
+  const aden = port(141, "Aden", "Yemen", "islamic-desert", NEUTRAL_FACTION_ID, 12.8, 45.03);
+  const suq = port(142, "Suq", "Yemen", "islamic-desert", NEUTRAL_FACTION_ID, 12.5, 53.9);
+  const ports = [istanbul, aden, suq];
+  const offer = capturePortMissionOfferForCity(state, istanbul, ports, {
+    simMinute: 12,
+    spawnChance: 1,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === aden.tileId ? 2500 : 800
+  });
+
+  assert.equal(offer.targetTileId, aden.tileId);
+  assert.equal(offer.priorityKind, CAPTURE_COMMISSION_PRIORITY_HISTORICAL_CONQUEST);
+  assert.equal(offer.independentTarget, true);
+  assert.equal(offer.targetFactionId, NEUTRAL_FACTION_ID);
+  assert.equal(offer.targetSovereignFactionId, null);
+  assert.equal(offer.targetFactionNoun, null);
+
+  reconcileQuestWorldAssumptions(state, ports);
+  assert.equal(questStateForCity(state, istanbul, ports).quest.id, offer.id);
+  const diplomacyBefore = structuredClone(state.relations.diplomacy);
+
+  acceptQuest(state, offer, { simMinute: 15 });
+  assert.deepEqual(state.relations.diplomacy, diplomacyBefore);
+  assert.equal(commissionedPortCaptureFactionId(state, aden), "ottoman");
+  assert.deepEqual(
+    {
+      commissioned: playerPortAttackStatus(state, aden).commissioned,
+      piracy: playerPortAttackStatus(state, aden).piracy,
+      captureFactionId: playerPortAttackStatus(state, aden).captureFactionId,
+      independentTarget: playerPortAttackStatus(state, aden).independentTarget
+    },
+    {
+      commissioned: true,
+      piracy: false,
+      captureFactionId: "ottoman",
+      independentTarget: true
+    }
+  );
+});
+
+test("a captain may ask about independent harbors while the court chooses the port", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  state.relations.factionReputation.ottoman = 80;
+  const istanbul = {
+    ...port(143, "Istanbul", "Turkey", "islamic-desert", "ottoman", 41.01, 28.97),
+    isFactionCapital: true,
+    capitalOfFactionId: "ottoman"
+  };
+  const aden = port(144, "Aden", "Yemen", "islamic-desert", NEUTRAL_FACTION_ID, 12.8, 45.03);
+  const suq = port(145, "Suq", "Yemen", "islamic-desert", NEUTRAL_FACTION_ID, 12.5, 53.9);
+  const ports = [istanbul, aden, suq];
+  const context = {
+    simMinute: 12,
+    random: () => 0,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === aden.tileId ? 2500 : 800
+  };
+  const petitions = captureCommissionPetitionOptionsForCity(
+    state,
+    istanbul,
+    ports,
+    context
+  );
+  assert.equal(petitions.length, 1);
+  assert.equal(petitions[0].petitionTargetId, CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID);
+  assert.equal(petitions[0].targetFactionId, null);
+  assert.equal(petitions[0].targetName, "Aden");
+
+  const result = petitionCaptureCommission(
+    state,
+    istanbul,
+    ports,
+    CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID,
+    context
+  );
+  assert.equal(result.granted, true);
+  assert.equal(result.independentTarget, true);
+  assert.equal(result.targetFactionId, null);
+  assert.equal(result.offer.targetTileId, aden.tileId);
+  assert.equal(result.offer.petitioned, true);
+});
+
+test("Metz is petitioned against as a sovereign Imperial city, never an independent harbor", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.lettersOfMarque.france = { factionId: "france", simMinute: 0 };
+  const metz = port(
+    146,
+    "Metz",
+    "France",
+    "northern-european",
+    "metz",
+    49.12,
+    6.18
+  );
+
+  assert.deepEqual(captureCommissionPetitionOptionsForCity(
+    state,
+    PARIS,
+    [PARIS, metz],
+    { simMinute: 12 }
+  ), []);
+  assert.equal(capturePortMissionOfferForCity(state, PARIS, [PARIS, metz], {
+    simMinute: 12,
+    spawnChance: 1,
+    sailingDistanceKm: () => 330
+  }), null);
+
+  state.relations.diplomacy.overrides["france|metz"] = "war";
+  const petitions = captureCommissionPetitionOptionsForCity(
+    state,
+    PARIS,
+    [PARIS, metz],
+    { simMinute: 13, sailingDistanceKm: () => 330 }
+  );
+  assert.equal(petitions.length, 1);
+  assert.equal(petitions[0].petitionTargetId, "metz");
+  assert.equal(petitions[0].targetFactionId, "metz");
+  assert.equal(petitions[0].independentTarget, false);
 });
 
 test("a failed historical objective outranks an otherwise sensible enemy harbor", () => {

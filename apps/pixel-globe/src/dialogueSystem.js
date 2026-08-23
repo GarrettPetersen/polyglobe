@@ -3015,9 +3015,11 @@ export function selectPortDialogueOption(
   if (action.type === "accept-quest") {
     const acceptedQuest = acceptQuest(gameState, action.quest, context);
     session.feedback = isCaptureCommissionQuest(action.quest)
-      ? isCaptureCapitalQuest(action.quest)
-        ? `Final commission accepted. Capture ${action.quest.targetName} and compel a general peace.`
-        : `Commission accepted. Capture ${action.quest.targetName} for ${action.quest.originFactionName}.`
+      ? action.quest.independentTarget
+        ? `Warrant accepted. Capture the independent harbor of ${action.quest.targetName} for ${action.quest.originFactionName}.`
+        : isCaptureCapitalQuest(action.quest)
+          ? `Final commission accepted. Capture ${action.quest.targetName} and compel a general peace.`
+          : `Commission accepted. Capture ${action.quest.targetName} for ${action.quest.originFactionName}.`
       : isWokouHuntQuest(action.quest)
         ? `Commission accepted. Hunt the wokou near ${action.quest.patrolName}.`
       : isTeaRaceQuest(action.quest)
@@ -3037,7 +3039,7 @@ export function selectPortDialogueOption(
       gameState,
       city,
       portCities,
-      action.targetFactionId,
+      action.petitionTargetId,
       context
     );
     session.captureCommissionPetitionResult = result;
@@ -3970,9 +3972,13 @@ function barredPortView(city, gameState, context) {
   if (!status?.hostile && !conquest?.canAttempt && !conquest?.playerAssaultActive && !attack?.commissioned) {
     throw new Error("Barred port dialogue requires hostility or an exposed foreign port");
   }
-  const faction = factionById(status.factionId);
-  const ruler = rulerAtMinute(status.factionId, context.simMinute ?? 0);
-  if (!ruler) throw new Error(`Barred port faction has no ruler: ${status.factionId}`);
+  const independentTarget = status.factionId === NEUTRAL_FACTION_ID &&
+    attack?.independentTarget === true;
+  const faction = independentTarget ? null : factionById(status.factionId);
+  const ruler = independentTarget ? null : rulerAtMinute(status.factionId, context.simMinute ?? 0);
+  if (!independentTarget && !ruler) {
+    throw new Error(`Barred port faction has no ruler: ${status.factionId}`);
+  }
   if (status.locked && !conquest?.canAttempt) {
     return {
       speaker: `${cityLabel(city)} harbor guard`,
@@ -4021,7 +4027,9 @@ function barredPortView(city, gameState, context) {
       ? "Your adelantado's soldiers are spent. Find replacements under the Spanish flag before you waste the survivors against our walls."
       : batteryDisabled || conquest?.playerAssaultActive
       ? `You think to take ${cityLabel(city)} with that handful? Bring fewer than ${conquest.minimumCrew} fighting hands ashore, and we will drive every one of you into the sea.`
-      : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
+      : independentTarget
+        ? `${cityLabel(city)} answers to its own rulers. Turn about. No supplies will be sold to you.`
+        : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
     feedback: null,
     options
   };
@@ -4030,9 +4038,11 @@ function barredPortView(city, gameState, context) {
 function cityAttackView(session, city, gameState, context) {
   const attack = context.portAttackStatus || playerPortAttackStatus(gameState, city);
   if (!attack.available) throw new Error(attack.reason || `Cannot attack ${cityLabel(city)}`);
-  const target = factionById(attack.targetFactionId);
+  const target = attack.independentTarget ? null : factionById(attack.targetFactionId);
   const text = attack.piracy
     ? `Without wartime authority, attacking ${cityLabel(city)} is piracy. The harbor batteries will open fire. If you prevail, you may plunder the city, but no crown will recognize a conquest.`
+    : attack.commissioned && attack.independentTarget
+    ? `The sealed warrant names ${cityLabel(city)}. It authorizes this conquest for ${factionById(attack.captureFactionId).name}, but declares no war against a foreign sovereign. Attack the batteries, land your marines, and raise the colors named in the warrant.`
     : attack.commissioned
     ? `Your commission authorizes war against ${target.name}. Attack the harbor batteries, land your marines, and take ${cityLabel(city)} for ${factionById(attack.captureFactionId).name}.`
     : attack.ownNationAtWar
@@ -7277,21 +7287,23 @@ function captureCommissionPetitionView(session, city, gameState, portCities, con
   return {
     speaker: `${ruler.displayName}'s war secretary`,
     expressionId: "stern",
-    text: "A letter of marque licenses prizes at sea; it does not grant its bearer the choice of a harbor. Name the enemy. The council will judge the war's need; any warrant granted will name the port.",
+    text: "A letter of marque licenses prizes at sea; it does not grant the choice of a harbor. Name an enemy, or ask after an independent port. The council will judge the realm's need and name any target.",
     feedback: session.feedback,
     options: [
       ...petitions.map((petition) => option(
-        `Petition against ${petition.targetFactionNoun}`,
+        petition.independentTarget
+          ? "Ask after an independent harbor"
+          : `Petition against ${petition.targetFactionNoun}`,
         {
           type: "petition-capture-commission",
+          petitionTargetId: petition.petitionTargetId,
           targetFactionId: petition.targetFactionId
         },
         petition.available
-          ? { detail: "The court will weigh your service and the needs of the war." }
+          ? { detail: "The court will weigh your service, its claims, and the realm's need." }
           : {
               disabled: true,
-              disabledReason: `The council has answered this petition. Return in ` +
-                `${Math.ceil(petition.cooldownRemainingMinutes / (24 * 60))} days.`
+              disabledReason: `The council has answered this petition. Return in ${Math.ceil(petition.cooldownRemainingMinutes / (24 * 60))} days.`
             }
       )),
       option("Back", { type: "node", nodeId: "root" })
@@ -7306,13 +7318,15 @@ function captureCommissionPetitionResultView(session, city, gameState) {
   if (!ruler) {
     throw new Error(`Capture-commission petition has no ruler for ${result.issuerFactionId}`);
   }
-  const enemy = factionById(result.targetFactionId);
+  const enemy = result.independentTarget ? null : factionById(result.targetFactionId);
   if (result.granted) {
     const quest = result.offer;
     return {
       speaker: `${ruler.displayName}'s war secretary`,
       expressionId: "stern",
-      text: `The council has heard your petition against ${factionNounPhrase(enemy.id)}. ${ruler.displayName} grants a warrant, but its object is fixed under seal: take ${quest.targetName}, raise ${quest.originFactionAdjective} colors, and return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
+      text: result.independentTarget
+        ? `The council—not your company—has chosen ${quest.targetName}. No foreign sovereign is named and no war is proclaimed. ${ruler.displayName} grants a sealed warrant: take ${quest.targetName}, raise ${quest.originFactionAdjective} colors, and return for ${quest.reward.toLocaleString("en-US")} doubloons.`
+        : `The council has heard your petition against ${factionNounPhrase(enemy.id)}. ${ruler.displayName} grants a warrant, but its object is fixed under seal: take ${quest.targetName}, raise ${quest.originFactionAdjective} colors, and return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
       feedback: session.feedback,
       options: [
         option(`Accept the warrant: capture ${quest.targetName}`, {
@@ -7326,12 +7340,15 @@ function captureCommissionPetitionResultView(session, city, gameState) {
     };
   }
   const reputation = factionReputation(gameState, result.issuerFactionId);
+  const proposedTarget = result.independentTarget
+    ? "any independent harbor"
+    : factionNounPhrase(enemy.id);
   return {
     speaker: `${ruler.displayName}'s war secretary`,
     expressionId: reputation >= 50 ? "attentive" : "stern",
     text: reputation >= 50
-      ? `Your service is well spoken of, but the council will issue no warrant against ${factionNounPhrase(enemy.id)} at present. Return when the campaign has altered.`
-      : `No warrant shall issue against ${factionNounPhrase(enemy.id)}. A captain may offer service, but the court conducts the war. Return when your credit or the campaign has altered.`,
+      ? `Your service is well spoken of, but the council will issue no warrant concerning ${proposedTarget} at present. Return when the campaign has altered.`
+      : `No warrant shall issue concerning ${proposedTarget}. A captain may offer service, but the court chooses its objects. Return when your credit or the campaign has altered.`,
     feedback: session.feedback,
     options: [option("Return to the quay", { type: "node", nodeId: "root" })]
   };
@@ -7344,10 +7361,9 @@ function capturePortQuestView(session, questState, returnNodeId) {
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "stern",
-      text: `By ${quest.originRulerName}'s warrant: capture ${quest.targetName} from ` +
-        `${quest.targetFactionNoun}. Silence its batteries, land your company, and raise ` +
-        `${quest.originFactionAdjective} colors. Keep the spoils; return for ` +
-        `${quest.reward.toLocaleString("en-US")} doubloons.`,
+      text: quest.independentTarget
+        ? `The council has chosen the independent harbor of ${quest.targetName}; no foreign sovereign is named. By ${quest.originRulerName}'s sealed warrant, silence its batteries, take ${quest.targetName}, raise ${quest.originFactionAdjective} colors, and return for ${quest.reward.toLocaleString("en-US")} doubloons.`
+        : `By ${quest.originRulerName}'s warrant: capture ${quest.targetName} from ${quest.targetFactionNoun}. Silence its batteries, land your company, and raise ${quest.originFactionAdjective} colors. Keep the spoils; return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
       feedback: session.feedback,
       options: [
         option(`Accept commission: capture ${quest.targetName}`, {
@@ -7382,9 +7398,11 @@ function capturePortQuestView(session, questState, returnNodeId) {
     return {
       speaker: `${quest.originRulerName}'s war secretary`,
       expressionId: "stern",
-      text: `The commission stands. Break the harbor batteries at ${quest.targetName}, land no fewer ` +
-        `than a full company of marines, and leave the ${quest.originFactionAdjective} colors above the quay. ` +
-        `Return only when the port is secured.`,
+      text: quest.independentTarget
+        ? `The sealed warrant names ${quest.targetName}. The council chose the harbor; your charge is to break its batteries and take it, not to alter the terms.`
+        : `The commission stands. Break the harbor batteries at ${quest.targetName}, land no fewer ` +
+          `than a full company of marines, and leave the ${quest.originFactionAdjective} colors above the quay. ` +
+          `Return only when the port is secured.`,
       feedback: session.feedback,
       options: [back]
     };
@@ -7396,7 +7414,9 @@ function capturePortQuestView(session, questState, returnNodeId) {
       ? quest.captureCommissionResolution
         ? `The commission for ${quest.targetName} has been recalled. Return to ${quest.originName} to close the account.`
         : `${quest.targetName} is taken. Carry the victory dispatches back to ${quest.originName}; the crown's debt must be settled there.`
-      : `Your commission is to seize ${quest.targetName} from ${quest.targetFactionNoun}. Other business must wait upon that service.`,
+      : quest.independentTarget
+        ? `The sealed warrant names ${quest.targetName}. The council chose the harbor; your charge is to take it, not to alter the terms.`
+        : `Your commission is to seize ${quest.targetName} from ${quest.targetFactionNoun}. Other business must wait upon that service.`,
     feedback: session.feedback,
     options: [back]
   };

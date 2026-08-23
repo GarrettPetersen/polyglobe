@@ -36,6 +36,7 @@ export const IMPERIAL_CITY_REFERENCES = Object.freeze({
   LUBECK: city("lubeck|germany", "Lubeck", "Germany"),
   MAGDEBURG: city("magdeburg|germany", "Magdeburg", "Germany"),
   MAINZ: city("mainz|germany", "Mainz", "Germany"),
+  METZ: city("metz|france", "Metz", "France"),
   NUREMBERG: city("nurnberg|germany", "Nurnberg", "Germany", "Nuremberg"),
   PRAGUE: city("prague|austria", "Prague", "Austria"),
   REGENSBURG: city("regensburg|germany", "Regensburg", "Germany"),
@@ -88,7 +89,8 @@ export const IMPERIAL_ESTATES_1522 = Object.freeze([
   freeCity("bremen", C.BREMEN, "lower-saxon"),
   freeCity("speyer", C.SPEYER, "upper-rhenish"),
   freeCity("regensburg", C.REGENSBURG, "bavarian"),
-  freeCity("worms", C.WORMS, "upper-rhenish")
+  freeCity("worms", C.WORMS, "upper-rhenish"),
+  freeCity("metz", C.METZ, "upper-rhenish")
 ]);
 
 const ESTATES_BY_FACTION_ID = new Map(IMPERIAL_ESTATES_1522.map((item) => [item.factionId, item]));

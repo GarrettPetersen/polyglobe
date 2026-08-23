@@ -74,6 +74,7 @@ const RAW_RULER_TIMELINES = Object.freeze({
   speyer: [ruler(1522, 1, 1, "Speyer Council", "Council")],
   regensburg: [ruler(1522, 1, 1, "Regensburg Council", "Council")],
   worms: [ruler(1522, 1, 1, "Worms Council", "Council")],
+  metz: [ruler(1522, 1, 1, "Metz Council", "Council")],
   ottoman: [ruler(1522, 1, 1, "Suleiman I", "Sultan"), ruler(1566, 9, 7, "Selim II", "Sultan")],
   venice: [
     ruler(1522, 1, 1, "Antonio Grimani", "Doge"),
@@ -84,6 +85,14 @@ const RAW_RULER_TIMELINES = Object.freeze({
   genoa: [
     ruler(1522, 1, 1, "Ottaviano Fregoso", "Governor"),
     ruler(1522, 5, 31, "Antoniotto II Adorno", "Doge")
+  ],
+  florence: [
+    ruler(1522, 1, 1, "Giulio de' Medici", "Cardinal-Governor"),
+    ruler(1524, 5, 1, "Silvio Passerini", "Cardinal-Regent"),
+    ruler(1527, 5, 16, "Florentine Signoria", "Signoria"),
+    ruler(1530, 8, 12, "Alessandro de' Medici", "Lord"),
+    ruler(1532, 5, 1, "Alessandro de' Medici", "Duke"),
+    ruler(1537, 1, 6, "Cosimo I de' Medici", "Duke")
   ],
   "papal-states": [
     ruler(1522, 1, 1, "Adrian VI", "Pope"),
@@ -103,6 +112,15 @@ const RAW_RULER_TIMELINES = Object.freeze({
   ],
   safavid: [ruler(1522, 1, 1, "Ismail I", "Shah"), ruler(1524, 5, 23, "Tahmasp I", "Shah")],
   muscovy: [ruler(1522, 1, 1, "Vasili III", "Grand Prince"), ruler(1533, 12, 3, "Ivan IV", "Grand Prince")],
+  kazan: [
+    ruler(1522, 1, 1, "Sahib I Giray", "Khan"),
+    yearRuler(1524, "Safa Giray", "Khan"),
+    yearRuler(1532, "Jan Ali", "Khan"),
+    yearRuler(1535, "Safa Giray", "Khan"),
+    yearRuler(1549, "Soyembika", "Regent"),
+    yearRuler(1551, "Shah Ali", "Khan"),
+    yearRuler(1552, "Yadegar Mokhammad", "Khan")
+  ],
   crimea: [
     ruler(1522, 1, 1, "Mehmed I Giray", "Khan"),
     ruler(1523, 1, 1, "Ghazi I Giray", "Khan"),
@@ -256,15 +274,18 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
   speyer: faith("roman-catholic", 0.68),
   regensburg: faith("roman-catholic", 0.7),
   worms: faith("roman-catholic", 0.66),
+  metz: faith("roman-catholic", 0.7),
   ottoman: faith("sunni-islam", 0.9),
   venice: faith("roman-catholic", 0.67),
   genoa: faith("roman-catholic", 0.62),
+  florence: faith("roman-catholic", 0.82),
   "papal-states": faith("roman-catholic", 1),
   hospitallers: faith("roman-catholic", 0.98),
   ming: faith("chinese-traditional", 0.74),
   inca: faith("andean-traditional", 0.94),
   safavid: faith("shia-islam", 1),
   muscovy: faith("eastern-orthodox", 0.94),
+  kazan: faith("sunni-islam", 0.9),
   crimea: faith("sunni-islam", 0.78),
   wallachia: faith("eastern-orthodox", 0.9),
   moldavia: faith("eastern-orthodox", 0.91),
@@ -341,15 +362,18 @@ const RULER_AUTHORITY_DEFAULTS = Object.freeze({
   speyer: 66,
   regensburg: 68,
   worms: 66,
+  metz: 68,
   ottoman: 88,
   venice: 74,
   genoa: 48,
+  florence: 70,
   "papal-states": 62,
   hospitallers: 76,
   ming: 68,
   inca: 84,
   safavid: 76,
   muscovy: 78,
+  kazan: 64,
   crimea: 60,
   wallachia: 44,
   moldavia: 50,
@@ -433,9 +457,9 @@ const RULER_AUTHORITY_OVERRIDES = Object.freeze({
 
 const REGIONAL_GROUPS = Object.freeze([
   ["england", "scotland", "france", "spain", "portugal", "burgundian-netherlands", "habsburg", "sweden", "denmark-norway"],
-  ["burgundian-netherlands", "habsburg", "hungary", "venice", "genoa", "papal-states", "hospitallers", "ottoman", "poland-lithuania", "wallachia", "moldavia", "ragusa"],
-  ["ottoman", "venice", "genoa", "papal-states", "hospitallers", "morocco", "safavid", "hormuz", "hejaz", "ragusa"],
-  ["muscovy", "crimea", "poland-lithuania", "sweden", "denmark-norway", "burgundian-netherlands", "habsburg", "hungary", "ottoman"],
+  ["burgundian-netherlands", "habsburg", "hungary", "venice", "genoa", "florence", "papal-states", "hospitallers", "ottoman", "poland-lithuania", "wallachia", "moldavia", "ragusa"],
+  ["ottoman", "venice", "genoa", "florence", "papal-states", "hospitallers", "morocco", "safavid", "hormuz", "hejaz", "ragusa"],
+  ["muscovy", "kazan", "crimea", "poland-lithuania", "sweden", "denmark-norway", "burgundian-netherlands", "habsburg", "hungary", "ottoman"],
   ["songhai", "morocco", "portugal"],
   ["ethiopia", "ottoman", "portugal", "safavid"],
   ["vijayanagara", "gujarat", "bengal", "delhi", "mughal", "portugal", "safavid"],
@@ -449,7 +473,7 @@ const REGIONAL_GROUPS = Object.freeze([
     "burgundian-netherlands", "habsburg", "bohemia", "mainz", "cologne-electorate", "trier", "palatinate",
     "electoral-saxony", "brandenburg", "ducal-saxony", "liege", "magdeburg",
     "utrecht", "cleves-mark", "calenberg", "augsburg", "cologne", "nuremberg",
-    "lubeck", "hamburg", "bremen", "speyer", "regensburg", "worms"
+    "lubeck", "hamburg", "bremen", "speyer", "regensburg", "worms", "metz"
   ]
 ]);
 

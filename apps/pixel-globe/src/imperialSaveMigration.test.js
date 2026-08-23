@@ -19,8 +19,38 @@ test("a new voyage starts with independent Imperial constitutional state", () =>
   assert.equal(state.relations.imperial.emperorFactionId, "burgundian-netherlands");
   assert.equal(Object.keys(state.relations.imperial.electors).length, 7);
   assert.equal(state.relations.factionReputation.augsburg, 0);
+  assert.equal(state.relations.factionReputation.metz, 0);
   assert.equal(imperialEstateForFaction("augsburg").factionId, "augsburg");
+  assert.equal(imperialEstateForFaction("metz").circleIds[0], "upper-rhenish");
   assert.equal(createPoliticsView(state).imperial.authority, 46);
+});
+
+test("version 84 voyages gain Metz, Florence, and Kazan without rewriting existing history", () => {
+  const fixture = JSON.parse(readFileSync(
+    new URL("./test-fixtures/save-schemas/canonical-states-v84.json", import.meta.url),
+    "utf8"
+  ));
+  const saved = structuredClone(fixture.states[0].state);
+  saved.relations.imperial.authority = 31;
+  saved.relations.imperial.religiousBlocByFactionId.worms = "lutheran";
+  saved.relations.diplomacy.overrides["france|worms"] = "hostile";
+
+  const migrated = migrateGameState(saved, shipStatsForSlug(saved.ship.slug));
+
+  validateGameState(migrated);
+  assert.equal(migrated.version, GAME_STATE_VERSION);
+  assert.equal(migrated.relations.factionReputation.metz, 0);
+  assert.equal(migrated.relations.factionReputation.florence, 0);
+  assert.equal(migrated.relations.factionReputation.kazan, 0);
+  assert.equal(migrated.relations.imperial.authority, 31);
+  assert.equal(migrated.relations.imperial.religiousBlocByFactionId.worms, "lutheran");
+  assert.equal(migrated.relations.imperial.religiousBlocByFactionId.metz, "catholic");
+  assert.equal(migrated.relations.imperial.cityReligions["metz|france"], "roman-catholic");
+  assert.equal(migrated.relations.diplomacy.overrides["france|worms"], "hostile");
+  assert.equal(migrated.relations.diplomacy.overrides["france|metz"], undefined);
+  assert.equal(migrated.relations.diplomacy.overrides["florence|papal-states"], "neutral");
+  assert.equal(migrated.relations.diplomacy.overrides["crimea|kazan"], "neutral");
+  assert.equal(migrated.relations.diplomacy.overrides["kazan|muscovy"], "neutral");
 });
 
 test("version 81 voyages gain the Empire and preserve formerly combined player standing", () => {

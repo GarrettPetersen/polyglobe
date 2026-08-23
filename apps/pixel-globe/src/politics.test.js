@@ -213,6 +213,25 @@ test("Imperial Estates show a constitutional connection to the elected Emperor",
   }]);
 });
 
+test("Metz, Florence, and Kazan expose their constitutional and diplomatic ties", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const view = createPoliticsView(state);
+  const metz = politicsCard(view, "metz");
+  const florence = politicsCard(view, "florence");
+  const kazan = politicsCard(view, "kazan");
+
+  assert.deepEqual(metz.constitutionalConnections, [{
+    kind: "imperial-constitution",
+    role: "estate",
+    factionId: "burgundian-netherlands"
+  }]);
+  assert.equal(metz.dependencies.length, 0);
+  assert.ok(relationshipFactionIds(florence, "friendly").includes("papal-states"));
+  assert.ok(relationshipFactionIds(florence, "friendly").includes("spain"));
+  assert.ok(relationshipFactionIds(kazan, "ally").includes("crimea"));
+  assert.ok(relationshipFactionIds(kazan, "war").includes("muscovy"));
+});
+
 test("the politics cards distinguish tributaries from vassals and unions", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);

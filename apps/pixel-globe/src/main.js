@@ -30087,7 +30087,7 @@ function beginPlayerInitiatedShoreCombat(battery) {
   }
   battery.playerAttackActive = true;
   if (battery.playerAttackRecorded) return;
-  if (battery.factionId !== PIRATE_FACTION_ID) {
+  if (battery.factionId !== NEUTRAL_FACTION_ID && battery.factionId !== PIRATE_FACTION_ID) {
     recordAttackAgainstFaction(gameState, battery.factionId, {
       lawfulWartimeAction: attackStatus.piracy === false
     });

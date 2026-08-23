@@ -454,7 +454,7 @@ import {
 } from "./shipyardInvestment.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 84;
+export const GAME_STATE_VERSION = 85;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -474,6 +474,7 @@ export const DELIVERY_SPAWN_CHANCE = 0.32;
 export const DELIVERY_ROLL_PERIOD_MINUTES = 7 * 24 * 60;
 export const CAPTURE_PORT_MISSION_KIND = "capture-port";
 export const CAPTURE_CAPITAL_MISSION_KIND = "capture-capital";
+export const CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID = "independent-harbors";
 export const CAPTURE_PORT_MISSION_MIN_CANNONS = 8;
 export const CAPTURE_PORT_MISSION_REPUTATION_GAIN = 10;
 export const CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN = 30;
@@ -772,7 +773,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -5832,19 +5833,19 @@ export function captureCommissionPetitionOptionsForCity(
   }
   const enemyFactionIds = [...new Set(portCities
     .filter((port) => (
-      port.factionId !== issuerFactionId &&
-      port.factionId !== NEUTRAL_FACTION_ID &&
-      port.factionId !== PIRATE_FACTION_ID &&
-      diplomacyBetweenForState(state, issuerFactionId, port.factionId) === DIPLOMACY_WAR
+      captureCommissionTargetOwnershipEligible(state, city, issuerFactionId, port) &&
+      port.factionId !== NEUTRAL_FACTION_ID
     ))
     .map((port) => port.factionId))]
     .sort((a, b) => factionById(a).name.localeCompare(factionById(b).name));
-  if (enemyFactionIds.length === 0) return [];
+  if (!portCities.some((port) => (
+    captureCommissionTargetOwnershipEligible(state, city, issuerFactionId, port)
+  ))) return [];
   if (typeof context.sailingDistanceKm !== "function") {
     throw new Error("Capture-commission petitions require sailing distances");
   }
   const offerPeriod = Math.floor(simMinute / CAPTURE_PORT_MISSION_ROLL_PERIOD_MINUTES);
-  return enemyFactionIds.map((targetFactionId) => {
+  const factionOptions = enemyFactionIds.map((targetFactionId) => {
     const candidate = capturePortMissionTarget(
       state,
       city,
@@ -5875,6 +5876,8 @@ export function captureCommissionPetitionOptionsForCity(
         );
     const faction = factionById(targetFactionId);
     return Object.freeze({
+      petitionTargetId: targetFactionId,
+      independentTarget: false,
       targetFactionId,
       targetFactionName: faction.name,
       targetFactionNoun: factionNounPhrase(targetFactionId),
@@ -5885,16 +5888,58 @@ export function captureCommissionPetitionOptionsForCity(
       cooldownRemainingMinutes
     });
   }).filter(Boolean);
+  const independentCandidate = capturePortMissionTarget(
+    state,
+    city,
+    portCities,
+    context.sailingDistanceKm,
+    issuerFactionId,
+    simMinute,
+    captureCommissionSelectionSeed(
+      state,
+      city,
+      issuerFactionId,
+      offerPeriod,
+      `petition-${CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID}`
+    ),
+    NEUTRAL_FACTION_ID
+  );
+  if (!independentCandidate) return factionOptions;
+  const independentRefusedAtMinute = captureCommissionPetitionRefusedAtMinute(
+    state,
+    issuerFactionId,
+    CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID
+  );
+  const independentCooldownRemainingMinutes = independentRefusedAtMinute === null
+    ? 0
+    : Math.max(
+        0,
+        CAPTURE_COMMISSION_PETITION_COOLDOWN_MINUTES -
+          (simMinute - independentRefusedAtMinute)
+      );
+  return [...factionOptions, Object.freeze({
+    petitionTargetId: CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID,
+    independentTarget: true,
+    targetFactionId: null,
+    targetFactionName: null,
+    targetFactionNoun: null,
+    targetName: cityLabel(independentCandidate.port),
+    priorityKind: independentCandidate.priorityKind,
+    chance: captureCommissionPetitionChance(state, issuerFactionId, independentCandidate),
+    available: independentCooldownRemainingMinutes === 0,
+    cooldownRemainingMinutes: independentCooldownRemainingMinutes
+  })];
 }
 
 export function petitionCaptureCommission(
   state,
   city,
   portCities,
-  targetFactionId,
+  petitionTargetId,
   context = {}
 ) {
-  const enemyId = assertFactionId(targetFactionId);
+  const independentTarget = petitionTargetId === CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID;
+  const enemyId = independentTarget ? null : assertFactionId(petitionTargetId);
   if (typeof context.random !== "function") {
     throw new Error("Capture-commission petitions require a random source");
   }
@@ -5905,24 +5950,26 @@ export function petitionCaptureCommission(
     throw new Error("Capture-commission petitions may be heard only at a sovereign capital");
   }
   const petition = captureCommissionPetitionOptionsForCity(state, city, portCities, context)
-    .find((option) => option.targetFactionId === enemyId);
+    .find((option) => option.petitionTargetId === petitionTargetId);
   if (!petition) {
-    throw new Error(`${factionById(enemyId).name} is not a valid capture-commission petition`);
+    throw new Error(`${petitionTargetId} is not a valid capture-commission petition`);
   }
   if (!petition.available) {
-    throw new Error(`The court has already refused a recent petition against ${factionById(enemyId).name}`);
+    throw new Error(`The court has already refused a recent petition concerning ${petitionTargetId}`);
   }
   const roll = context.random();
   if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
     throw new Error(`Invalid capture-commission petition roll: ${roll}`);
   }
   if (roll >= petition.chance) {
-    state.memory.decisions[captureCommissionPetitionDecisionKey(issuerFactionId, enemyId)] =
+    state.memory.decisions[captureCommissionPetitionDecisionKey(issuerFactionId, petitionTargetId)] =
       simMinute + 1;
     return Object.freeze({
       granted: false,
       issuerFactionId,
       targetFactionId: enemyId,
+      petitionTargetId,
+      independentTarget,
       simMinute,
       chance: petition.chance,
       roll,
@@ -5943,12 +5990,12 @@ export function petitionCaptureCommission(
       city,
       issuerFactionId,
       offerPeriod,
-      `petition-${enemyId}`
+      `petition-${petitionTargetId}`
     ),
-    enemyId
+    independentTarget ? NEUTRAL_FACTION_ID : enemyId
   );
   if (!candidate) {
-    throw new Error(`The court has no lawful capture target belonging to ${factionById(enemyId).name}`);
+    throw new Error(`The court has no lawful capture target for ${petitionTargetId}`);
   }
   const offer = createCapturePortMissionOffer(
     state,
@@ -5963,6 +6010,8 @@ export function petitionCaptureCommission(
     granted: true,
     issuerFactionId,
     targetFactionId: enemyId,
+    petitionTargetId,
+    independentTarget,
     simMinute,
     chance: petition.chance,
     roll,
@@ -5982,7 +6031,8 @@ function createCapturePortMissionOffer(
   const quests = questMemory(state);
 
   const issuer = factionById(issuerFactionId);
-  const enemy = factionById(candidate.port.factionId);
+  const independentTarget = candidate.port.factionId === NEUTRAL_FACTION_ID;
+  const enemy = independentTarget ? null : factionById(candidate.port.factionId);
   const ruler = rulerAtMinute(issuerFactionId, simMinute);
   if (!ruler) throw new Error(`Capture-port commission has no ruler for ${issuerFactionId}`);
   const reward = capturePortMissionReward(candidate.port, candidate.distanceKm, candidate.kind);
@@ -6004,9 +6054,11 @@ function createCapturePortMissionOffer(
     targetName: cityLabel(candidate.port),
     targetCountry: candidate.port.country || "",
     targetFactionId: candidate.port.factionId,
-    targetFactionName: enemy.name,
-    targetFactionAdjective: enemy.adjective,
-    targetFactionNoun: factionNounPhrase(enemy.id),
+    targetSovereignFactionId: enemy?.id || null,
+    targetFactionName: enemy?.name || null,
+    targetFactionAdjective: enemy?.adjective || null,
+    targetFactionNoun: enemy ? factionNounPhrase(enemy.id) : null,
+    independentTarget,
     destinationKey: cityKey(candidate.port),
     destinationTileId: candidate.port.tileId,
     destinationName: cityLabel(candidate.port),
@@ -6062,10 +6114,30 @@ export function playerPortAttackStatus(state, city) {
   const playerFactionId = assertFactionId(
     state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID
   );
+  const commissionedIssuerId = commissionedPortCaptureFactionId(state, city);
   if (targetFactionId === NEUTRAL_FACTION_ID) {
+    if (commissionedIssuerId) {
+      return Object.freeze({
+        available: true,
+        reason: null,
+        playerFactionId,
+        targetFactionId,
+        ownPort: false,
+        commissioned: true,
+        commissionedFactionId: commissionedIssuerId,
+        ownNationAtWar: false,
+        privateeringAuthority: false,
+        targetIsPirate: false,
+        piracy: false,
+        mode: "conquest",
+        captureFactionId: commissionedIssuerId,
+        assaultFactionId: commissionedIssuerId,
+        independentTarget: true
+      });
+    }
     return Object.freeze({
       available: false,
-      reason: "Neutral settlements have no sovereign harbor defenses to attack.",
+      reason: "This independent settlement is not a lawful conquest target without a sovereign warrant.",
       playerFactionId,
       targetFactionId,
       commissioned: false,
@@ -6079,7 +6151,6 @@ export function playerPortAttackStatus(state, city) {
   }
 
   const ownPort = targetFactionId === playerFactionId;
-  const commissionedIssuerId = commissionedPortCaptureFactionId(state, city);
   const commissionedFactionId = ownPort || commissionedIssuerId === targetFactionId
     ? null
     : commissionedIssuerId;
@@ -6152,14 +6223,12 @@ function capturePortMissionTarget(
   }
   if (requestedTargetFactionId !== null) assertFactionId(requestedTargetFactionId);
   const eligiblePorts = portCities
-    .filter((port) => (
-      port.tileId !== origin.tileId &&
-      captureCommissionSettlementEligible(port) &&
-      port.factionId !== NEUTRAL_FACTION_ID &&
-      port.factionId !== PIRATE_FACTION_ID &&
-      port.factionId !== issuerFactionId &&
-      (requestedTargetFactionId === null || port.factionId === requestedTargetFactionId) &&
-      diplomacyBetweenForState(state, issuerFactionId, port.factionId) === DIPLOMACY_WAR
+    .filter((port) => captureCommissionTargetOwnershipEligible(
+      state,
+      origin,
+      issuerFactionId,
+      port,
+      requestedTargetFactionId
     ))
     .map((port) => {
       const distanceKm = sailingDistanceKm(origin, port);
@@ -6209,6 +6278,22 @@ function capturePortMissionTarget(
       a.distanceKm - b.distanceKm ||
       cityKey(a.port).localeCompare(cityKey(b.port))
     ))[0] || null;
+}
+
+function captureCommissionTargetOwnershipEligible(
+  state,
+  origin,
+  issuerFactionId,
+  port,
+  requestedTargetFactionId = null
+) {
+  return port.tileId !== origin.tileId &&
+    captureCommissionSettlementEligible(port) &&
+    port.factionId !== PIRATE_FACTION_ID &&
+    port.factionId !== issuerFactionId &&
+    (requestedTargetFactionId === null || port.factionId === requestedTargetFactionId) &&
+    (port.factionId === NEUTRAL_FACTION_ID ||
+      diplomacyBetweenForState(state, issuerFactionId, port.factionId) === DIPLOMACY_WAR);
 }
 
 function captureCapitalDefeatStatus(portCities, factionId) {
@@ -8219,7 +8304,13 @@ function removeInvalidatedQuestOffers(state, portCities, events) {
     const target = portsByTileId.get(offer?.targetTileId);
     return isCaptureCommissionQuest(offer) && origin?.factionId === offer.originFactionId &&
       target?.factionId === offer.targetFactionId &&
-      diplomacyBetweenForState(state, offer.originFactionId, offer.targetFactionId) === DIPLOMACY_WAR;
+      (offer.independentTarget === true
+        ? offer.targetFactionId === NEUTRAL_FACTION_ID
+        : diplomacyBetweenForState(
+            state,
+            offer.originFactionId,
+            offer.targetFactionId
+          ) === DIPLOMACY_WAR);
   }, "capture-offer-invalidated", events);
   pruneOfferMap(quests.courtMissionOffers, (offer) => {
     const origin = portsByTileId.get(offer?.originTileId);
@@ -8264,9 +8355,11 @@ function reconcileActiveCaptureCommission(state, quest, portCities, events) {
   const target = portCities.find((port) => port.tileId === quest.targetTileId) || null;
   const issuingCourtSurvives = portCities.some((port) => port.factionId === quest.originFactionId);
   const targetStillEnemy = target?.factionId === quest.targetFactionId;
-  const warContinues = targetStillEnemy &&
-    diplomacyBetweenForState(state, quest.originFactionId, quest.targetFactionId) === DIPLOMACY_WAR;
-  if (warContinues && issuingCourtSurvives) return;
+  const authorityContinues = targetStillEnemy && (
+    quest.independentTarget === true ||
+    diplomacyBetweenForState(state, quest.originFactionId, quest.targetFactionId) === DIPLOMACY_WAR
+  );
+  if (authorityContinues && issuingCourtSurvives) return;
 
   const originalReward = quest.originalReward ?? quest.reward;
   quest.originalReward = originalReward;
@@ -8275,7 +8368,9 @@ function reconcileActiveCaptureCommission(state, quest, portCities, events) {
     ? "issuer-fallen"
     : target?.factionId === quest.originFactionId
       ? "secured-by-allies"
-      : targetStillEnemy ? "peace-signed" : "target-changed-hands";
+      : targetStillEnemy && quest.independentTarget !== true
+        ? "peace-signed"
+        : "target-changed-hands";
   quest.stage = "return";
   quest.destinationKey = quest.originKey;
   quest.destinationTileId = quest.originTileId;

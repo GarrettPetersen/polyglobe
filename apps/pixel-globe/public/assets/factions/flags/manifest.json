@@ -532,6 +532,22 @@
       ]
     },
     {
+      "id": "metz",
+      "factionName": "Free Imperial City of Metz",
+      "width": 32,
+      "height": 20,
+      "file": "metz.png",
+      "evidence": "reconstruction",
+      "representation": "Metz civic arms",
+      "accuracyNote": "A compact banner reconstructed from the Estate's period heraldry. It is an in-game identifier, not a claim that early-sixteenth-century Estates used standardized national flags.",
+      "sources": [
+        {
+          "label": "Cities of the Holy Roman Empire c. 1500",
+          "url": "https://germanhistorydocs.org/en/from-the-reformations-to-the-thirty-years-war-1500-1648/cities-of-the-holy-roman-empire-c-1500"
+        }
+      ]
+    },
+    {
       "id": "ottoman",
       "factionName": "Ottoman Empire",
       "width": 32,
@@ -576,6 +592,22 @@
         {
           "label": "Battle of Lepanto, 1571",
           "url": "https://commons.wikimedia.org/wiki/File:Battle_of_Lepanto_1571.jpg"
+        }
+      ]
+    },
+    {
+      "id": "florence",
+      "factionName": "Republic of Florence",
+      "width": 32,
+      "height": 20,
+      "file": "florence.png",
+      "evidence": "period-heraldry",
+      "representation": "Florentine red lily",
+      "accuracyNote": "The red Florentine lily on white was the established civic device. It is rendered as a compact state banner rather than a claim of a standardized naval ensign.",
+      "sources": [
+        {
+          "label": "Florentine lily at Palazzo Vecchio",
+          "url": "https://www.feelflorence.it/en/points-interest/dantes-plaque-palazzo-vecchio-courtyard"
         }
       ]
     },
@@ -672,6 +704,26 @@
         {
           "label": "Russian treaty seals",
           "url": "https://www.athensjournals.gr/history/2024-5981-AJHIS-ART-Ning-02.pdf"
+        }
+      ]
+    },
+    {
+      "id": "kazan",
+      "factionName": "Kazan Khanate",
+      "width": 32,
+      "height": 20,
+      "file": "kazan.png",
+      "evidence": "reconstruction",
+      "representation": "Kazan Zilant banner tradition",
+      "accuracyNote": "A yellow banner with a black winged dragon is traditionally attributed to the khanate, but secure surviving images are later. This is explicitly a game-facing reconstruction, not a modern Kazan flag.",
+      "sources": [
+        {
+          "label": "Kazan city library: history of the Kazan banner",
+          "url": "https://kitaphane.tatarstan.ru/eng/state_symbols/flag_kazan.htm"
+        },
+        {
+          "label": "Heraldic Council account of the Zilant tradition",
+          "url": "https://realnoevremya.com/articles/598"
         }
       ]
     },

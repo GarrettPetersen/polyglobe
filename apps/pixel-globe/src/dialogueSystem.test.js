@@ -42,6 +42,7 @@ import {
 import { dialogueOptionIconId } from "./gameIcons.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID, perkItemById } from "./perkItems.js";
 import {
+  CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID,
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   TRADE_PASS_REPUTATION_REQUIRED,
@@ -56,6 +57,7 @@ import {
   createGameState,
   deliverQuestCargoRequirement,
   deliveryOfferForCity,
+  diplomacyBetweenForState,
   factionReputation,
   hasLetterOfMarqueFrom,
   hasPersonalTradePass,
@@ -3436,6 +3438,57 @@ test("a friendly capture-commission target closes its harbor and engages", () =>
   assert.equal(view.options[0].detailTone, "success");
 });
 
+test("an independent-port commission bars entry without naming a neutral sovereign", () => {
+  const city = {
+    tileId: 141,
+    city: "Aden",
+    displayCity: "Aden",
+    country: "Yemen",
+    cityType: "islamic-desert",
+    factionId: "neutral",
+    population: 18000,
+    character: { name: "Ali ibn Dawud" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { name: "Hasan", nationalityId: "tidore", expressions: ["neutral"] }
+  });
+  gameState.memory.quests.active = {
+    id: "capture-aden",
+    kind: "capture-port",
+    stage: "capture",
+    targetTileId: city.tileId,
+    targetFactionId: "neutral",
+    independentTarget: true,
+    originFactionId: "ottoman"
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const attack = playerPortAttackStatus(gameState, city);
+  const context = {
+    simMinute: 100,
+    portEntryStatus: portEntryStatus(gameState, city, 100),
+    portAttackStatus: attack,
+    portConquestStatus: { canAttempt: false, playerAssaultActive: false, minimumCrew: 36 }
+  };
+  const barredSession = createPortDialogueSession(city, { initialNodeId: "barred" });
+  const barred = portDialogueView(barredSession, city, gameState, economy, [city], context);
+  assert.match(barred.text, /commission is known/i);
+  assert.doesNotMatch(barred.text, /Neutral|neutral nation|neutral power/);
+
+  const attackSession = createPortDialogueSession(city, { initialNodeId: "city-attack" });
+  const confirmation = portDialogueView(
+    attackSession,
+    city,
+    gameState,
+    economy,
+    [city],
+    context
+  );
+  assert.match(confirmation.text, /sealed warrant names Aden/i);
+  assert.match(confirmation.text, /declares no war against a foreign sovereign/i);
+  assert.doesNotMatch(confirmation.text, /authorizes war against Neutral/i);
+});
+
 test("an unauthorized marine landing pillages instead of annexing", () => {
   const city = {
     tileId: 15,
@@ -6599,8 +6652,8 @@ test("capital petition dialogue lets the captain name an enemy while the court f
   selectPortDialogueOption(session, london, gameState, economy, ports, openIndex, context);
   const petition = portDialogueView(session, london, gameState, economy, ports, context);
   assert.match(petition.speaker, /war secretary/i);
-  assert.match(petition.text, /does not grant its bearer the choice of a harbor/i);
-  assert.match(petition.text, /council will judge the war's need/i);
+  assert.match(petition.text, /does not grant the choice of a harbor/i);
+  assert.match(petition.text, /council will judge the realm's need/i);
   const franceIndex = petition.options.findIndex((entry) => (
     entry.action.type === "petition-capture-commission" &&
     entry.action.targetFactionId === "france"
@@ -6624,6 +6677,141 @@ test("capital petition dialogue lets the captain name an enemy while the court f
   assert.ok(answer.options.some((entry) => (
     entry.action.type === "accept-quest" && /capture Calais/i.test(entry.label)
   )));
+});
+
+test("a captain may ask whether the council has designs upon an independent harbor", () => {
+  const istanbul = {
+    tileId: 807,
+    city: "Istanbul",
+    displayCity: "Istanbul",
+    country: "Turkey",
+    cityType: "islamic-desert",
+    population: 400000,
+    factionId: "ottoman",
+    isFactionCapital: true,
+    capitalOfFactionId: "ottoman",
+    character: { name: "Piri Reis" }
+  };
+  const aden = {
+    tileId: 808,
+    city: "Aden",
+    displayCity: "Aden",
+    country: "Yemen",
+    cityType: "islamic-desert",
+    population: 18000,
+    factionId: "neutral",
+    character: { name: "Ali ibn Dawud" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  gameState.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  gameState.relations.factionReputation.ottoman = 80;
+  const ports = [istanbul, aden];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const context = {
+    simMinute: 20,
+    random: () => 0,
+    sailingDistanceKm: () => 2500
+  };
+  const session = createPortDialogueSession(istanbul, { initialNodeId: "capture-petition" });
+  const petition = portDialogueView(session, istanbul, gameState, economy, ports, context);
+  const independentIndex = petition.options.findIndex((entry) => (
+    entry.action.type === "petition-capture-commission" &&
+    entry.action.petitionTargetId === CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID
+  ));
+
+  assert.ok(independentIndex >= 0);
+  assert.match(petition.text, /ask after an independent port/i);
+  assert.match(petition.options[independentIndex].label, /ask after an independent harbor/i);
+  assert.doesNotMatch(petition.text, /neutral nation|neutral power/i);
+
+  selectPortDialogueOption(
+    session,
+    istanbul,
+    gameState,
+    economy,
+    ports,
+    independentIndex,
+    context
+  );
+  const answer = portDialogueView(session, istanbul, gameState, economy, ports, context);
+  assert.match(answer.text, /council—not your company—has chosen Aden/i);
+  assert.match(answer.text, /no war is proclaimed/i);
+  assert.match(answer.text, /grants a sealed warrant/i);
+});
+
+test("an independent-port warrant fixes the objective without inventing a neutral sovereign", () => {
+  const istanbul = {
+    tileId: 805,
+    city: "Istanbul",
+    displayCity: "Istanbul",
+    country: "Turkey",
+    cityType: "islamic-desert",
+    population: 400000,
+    factionId: "ottoman",
+    isFactionCapital: true,
+    capitalOfFactionId: "ottoman",
+    character: { name: "Piri Reis" }
+  };
+  const aden = {
+    tileId: 806,
+    city: "Aden",
+    displayCity: "Aden",
+    country: "Yemen",
+    cityType: "islamic-desert",
+    population: 18000,
+    factionId: "neutral",
+    character: { name: "Ali ibn Dawud" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  gameState.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  const ports = [istanbul, aden];
+  const context = {
+    simMinute: 20,
+    spawnChance: 1,
+    sailingDistanceKm: () => 650
+  };
+  const offer = capturePortMissionOfferForCity(gameState, istanbul, ports, context);
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const session = createPortDialogueSession(istanbul, { initialNodeId: "quest" });
+  const view = portDialogueView(session, istanbul, gameState, economy, ports, context);
+
+  assert.equal(offer.independentTarget, true);
+  assert.match(view.text, /independent harbor of Aden/i);
+  assert.match(view.text, /sealed warrant/i);
+  assert.match(view.text, /No foreign sovereign is named/i);
+  assert.doesNotMatch(view.text, /neutral nation|neutral power|heralds.*war/i);
+
+  const acceptIndex = view.options.findIndex((entry) => entry.action.type === "accept-quest");
+  const result = selectPortDialogueOption(
+    session,
+    istanbul,
+    gameState,
+    economy,
+    ports,
+    acceptIndex,
+    context
+  );
+  assert.equal(result.acceptedQuest.independentTarget, true);
+  assert.equal(playerPortAttackStatus(gameState, aden).commissioned, true);
+  assert.equal(playerPortAttackStatus(gameState, aden).piracy, false);
+
+  const underway = portDialogueView(session, istanbul, gameState, economy, ports, context);
+  assert.match(underway.text, /council chose the harbor/i);
+  assert.match(underway.text, /your charge is .*take it, not to alter the terms/i);
 });
 
 test("a final capital commission explains the war's grievance and general peace", () => {

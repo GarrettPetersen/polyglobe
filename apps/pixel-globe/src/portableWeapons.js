@@ -43,11 +43,11 @@ const PORTABLE_CREW_FATALITY_CHANCE = Object.freeze({
 
 const EUROPEAN_FACTIONS = new Set([
   "england", "scotland", "france", "spain", "portugal", "burgundian-netherlands", "habsburg", "hungary",
-  "venice", "genoa", "papal-states", "hospitallers", "muscovy", "poland-lithuania",
+  "venice", "genoa", "florence", "papal-states", "hospitallers", "muscovy", "poland-lithuania",
   "sweden", "denmark-norway"
 ]);
 const ISLAMIC_BOW_FACTIONS = new Set([
-  "ottoman", "crimea", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"
+  "ottoman", "crimea", "kazan", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"
 ]);
 const SOUTH_ASIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi", "mughal"]);
 const EAST_ASIAN_CROSSBOW_FACTIONS = new Set(["ming", "joseon"]);

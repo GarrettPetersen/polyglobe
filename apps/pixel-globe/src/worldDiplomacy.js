@@ -90,7 +90,10 @@ const DIPLOMACY_INTRODUCED_FACTION_IDS = Object.freeze([
   "bremen",
   "speyer",
   "regensburg",
-  "worms"
+  "worms",
+  "metz",
+  "florence",
+  "kazan"
 ]);
 
 export function createWorldDiplomacy({ startMinute = 0, seedKey = "world" } = {}) {

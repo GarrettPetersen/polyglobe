@@ -20,14 +20,20 @@ const PRIORITY_TIERS = Object.freeze({
 // These are ambitions a contemporary court could plausibly pursue. The labels
 // are simulation metadata only; no character speaks with knowledge of the future.
 const HISTORICAL_CONQUEST_TARGETS = historicalTargets([
+  ["ottoman", CANONICAL_PORTS.ADEN, 2],
+  ["ottoman", CANONICAL_PORTS.TUNIS, 2.5],
   ["ottoman", CANONICAL_PORTS.RHODES, 4],
   ["ottoman", CANONICAL_PORTS.BUDAPEST, 2.5],
   ["ottoman", CANONICAL_PORTS.BAGHDAD, 2],
   ["ottoman", CANONICAL_PORTS.TRIPOLI, 1.5],
-  ["mughal", CANONICAL_PORTS.DELHI, 3]
+  ["mughal", CANONICAL_PORTS.DELHI, 3],
+  ["muscovy", CANONICAL_PORTS.KAZAN, 3],
+  ["spain", CANONICAL_PORTS.TUNIS, 2]
 ]);
 
 const HISTORICAL_ATTEMPT_TARGETS = historicalTargets([
+  // Garcia Henriques landed troops in 1529, but Bandanese resistance stopped the fort.
+  ["portugal", CANONICAL_PORTS.BANDA_VILLAGE, 1.75],
   ["ottoman", CANONICAL_PORTS.VIENNA, 2],
   ["ottoman", CANONICAL_PORTS.KERKIRA, 1.75],
   ["ottoman", CANONICAL_PORTS.BIRGU, 1.5],
