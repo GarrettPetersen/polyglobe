@@ -71,6 +71,7 @@ import {
 import { estimateShipWaterlineY } from "../src/shipWaterlineSlice.js";
 import {
   createShipModelBasisOrientation,
+  orientCyc3wGalleonToCanonical,
   orientNegativeXForwardYUpToZForward,
   orientPositiveXForwardToZForward,
   orientPositiveXForwardZUpToZForward,
@@ -150,7 +151,9 @@ const dromedaryCaravanOutputRoot = join(outputRoot, "dromedary-caravan");
 const bactrianCaravanOutputRoot = join(outputRoot, "bactrian-caravan");
 const unityFleetOutputRoot = join(outputRoot, "unity-ships");
 const unityFleetSideViewOutputRoot = join(unityFleetOutputRoot, "side-views");
+const portAssaultShipOutputRoot = join(unityFleetOutputRoot, "port-assault");
 const unityFleetReferenceOutputRoot = join(appRoot, "docs/ship-reference/high-res");
+const portAssaultShipReferenceOutputRoot = join(appRoot, "docs/ship-reference/port-assault");
 const waterlineReviewOutputRoot = join(appRoot, "docs/ship-reference/waterlines");
 const kelulusReferenceOutputRoot = join(appRoot, "docs/ship-reference/kelulus");
 const icebergReferenceOutputRoot = join(appRoot, "docs/iceberg-reference");
@@ -1007,11 +1010,17 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
   }
 
   ctx.putImageData(image, 0, 0);
-  return { canvas, normals, positions, features, casters: casters || [] };
+  return { canvas, depth, normals, positions, features, casters: casters || [] };
 }
 
 function modelYawForScreenHeading(headingIndex, camera) {
-  const desired = frameScreenHeading(headingIndex);
+  return modelYawForScreenDirection(frameScreenHeading(headingIndex), camera);
+}
+
+function modelYawForScreenDirection(desired, camera) {
+  if (!desired || ![desired.x, desired.y].every(Number.isFinite)) {
+    throw new Error("Ship screen heading requires finite coordinates");
+  }
   const elements = camera.matrixWorld.elements;
   const cameraRight = new THREE.Vector3(elements[0], 0, elements[2]);
   const cameraUp = new THREE.Vector3(elements[4], 0, elements[6]);
@@ -3434,22 +3443,11 @@ async function renderShipSideView(config) {
 
 async function renderShipSideViewCanvas(config, { camera, waterlineY, modelYaw } = {}) {
   if (!camera) throw new Error(`Ship side view requires a camera: ${config.slug}`);
-  const scene = await loadScene(config.modelPath);
-  const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
-  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(
-    config.modelPath,
-    config.gltfTextureSamplerOptions
-  );
-  const model = collectTriangles(scene, {
+  const loaded = await loadConfiguredShipTriangles(config, {
     targetMaxDim: config.sideViewTargetModelMaxDim ?? config.targetModelMaxDim,
-    materialTextureSamplers,
-    ...config.collectOptions
+    waterlineY
   });
-  const resolvedWaterlineY = waterlineY ?? estimateWaterlineForConfig(model.triangles, config).y;
-  const staticTriangles = staticTrianglesForConfig(model.triangles, resolvedWaterlineY, config);
-  const triangles = config.animationTrianglesForFrame
-    ? config.animationTrianglesForFrame(staticTriangles, 0, resolvedWaterlineY)
-    : staticTriangles;
+  const { triangles, textureSampler, waterlineY: resolvedWaterlineY } = loaded;
   const renderViewport = {
     width: sideViewWidth * sideViewRenderScale,
     height: sideViewHeight * sideViewRenderScale
@@ -3478,6 +3476,469 @@ async function renderShipSideViewCanvas(config, { camera, waterlineY, modelYaw }
     throw new Error(`Ship side view clips its ${sideViewWidth}x${sideViewHeight} frame: ${config.slug}`);
   }
   return { canvas: sideView, waterlineY: resolvedWaterlineY };
+}
+
+async function loadConfiguredShipTriangles(config, {
+  targetMaxDim,
+  waterlineY,
+  gltfTextureSamplerOptions = config.gltfTextureSamplerOptions
+} = {}) {
+  const scene = await loadScene(config.modelPath);
+  const textureSampler = config.texturePath ? await loadTextureSampler(config.texturePath) : null;
+  const materialTextureSamplers = await loadGltfMaterialTextureSamplers(
+    config.modelPath,
+    gltfTextureSamplerOptions
+  );
+  const model = collectTriangles(scene, {
+    targetMaxDim: targetMaxDim ?? config.targetModelMaxDim,
+    materialTextureSamplers,
+    ...config.collectOptions
+  });
+  const resolvedWaterlineY = waterlineY ?? estimateWaterlineForConfig(model.triangles, config).y;
+  const staticTriangles = staticTrianglesForConfig(model.triangles, resolvedWaterlineY, config);
+  const triangles = config.animationTrianglesForFrame
+    ? config.animationTrianglesForFrame(staticTriangles, 0, resolvedWaterlineY)
+    : staticTriangles;
+  return { triangles, textureSampler, waterlineY: resolvedWaterlineY };
+}
+
+const PORT_ASSAULT_SHIP_WIDTH = 320;
+const PORT_ASSAULT_SHIP_HEIGHT = 160;
+const PORT_ASSAULT_RENDER_SCALE = 3;
+const PORT_ASSAULT_VARIANTS = Object.freeze([
+  Object.freeze({ id: "restrained", broadsideOffsetDegrees: 15, cameraElevationDegrees: 10 }),
+  Object.freeze({ id: "shallow", broadsideOffsetDegrees: 22.5, cameraElevationDegrees: 12.5 }),
+  Object.freeze({
+    id: "production",
+    broadsideOffsetDegrees: 27.5,
+    cameraElevationDegrees: 12.5,
+    selected: true
+  }),
+  Object.freeze({ id: "open", broadsideOffsetDegrees: 35, cameraElevationDegrees: 15 })
+]);
+
+function makePortAssaultCamera(elevationDegrees) {
+  if (!Number.isFinite(elevationDegrees) || elevationDegrees <= 0 || elevationDegrees >= 45) {
+    throw new Error(`Invalid port-assault camera elevation: ${elevationDegrees}`);
+  }
+  const extentY = 1.6;
+  const extentX = extentY * PORT_ASSAULT_SHIP_WIDTH / PORT_ASSAULT_SHIP_HEIGHT;
+  const camera = new THREE.OrthographicCamera(-extentX, extentX, extentY, -extentY, 0.01, 30);
+  const angle = elevationDegrees * Math.PI / 180;
+  const distance = 8;
+  camera.position.set(0, Math.sin(angle) * distance, Math.cos(angle) * distance);
+  camera.lookAt(0, 0, 0);
+  camera.updateMatrixWorld();
+  camera.updateProjectionMatrix();
+  return camera;
+}
+
+function portAssaultModelYaw(broadsideOffsetDegrees) {
+  if (
+    !Number.isFinite(broadsideOffsetDegrees) ||
+    broadsideOffsetDegrees < 0 ||
+    broadsideOffsetDegrees >= 90
+  ) {
+    throw new Error(`Invalid port-assault broadside offset: ${broadsideOffsetDegrees}`);
+  }
+  const angle = broadsideOffsetDegrees * Math.PI / 180;
+  // Pure broadside with the bow to screen-left is -90 degrees. Rotate the
+  // bow away from the elevated camera to expose the starboard deck edge.
+  return -Math.PI / 2 - angle;
+}
+
+function fitPortAssaultRaster(rendered) {
+  const sourceBounds = alphaBounds(rendered.canvas);
+  const padding = { x: 6, top: 4, bottom: 5 };
+  const scale = Math.min(
+    (PORT_ASSAULT_SHIP_WIDTH - padding.x * 2) / sourceBounds.width,
+    (PORT_ASSAULT_SHIP_HEIGHT - padding.top - padding.bottom) / sourceBounds.height
+  );
+  const drawWidth = Math.max(1, Math.round(sourceBounds.width * scale));
+  const drawHeight = Math.max(1, Math.round(sourceBounds.height * scale));
+  const drawX = Math.floor((PORT_ASSAULT_SHIP_WIDTH - drawWidth) / 2);
+  const drawY = PORT_ASSAULT_SHIP_HEIGHT - padding.bottom - drawHeight;
+  const canvas = createCanvas(PORT_ASSAULT_SHIP_WIDTH, PORT_ASSAULT_SHIP_HEIGHT);
+  const ctx = canvas.getContext("2d");
+  const sourceCtx = rendered.canvas.getContext("2d");
+  const sourceImage = sourceCtx.getImageData(0, 0, rendered.canvas.width, rendered.canvas.height);
+  const image = ctx.createImageData(canvas.width, canvas.height);
+  const depth = new Float32Array(canvas.width * canvas.height);
+  const positions = new Float32Array(canvas.width * canvas.height * 3);
+  const alpha = new Uint8Array(canvas.width * canvas.height);
+  depth.fill(-Infinity);
+  const sourceSamples = hardEdgeSampleMap({
+    rgba: sourceImage.data,
+    sourceWidth: rendered.canvas.width,
+    sourceHeight: rendered.canvas.height,
+    sourceFeatures: rendered.features,
+    bounds: sourceBounds,
+    targetWidth: drawWidth,
+    targetHeight: drawHeight
+  });
+  for (let dy = 0; dy < drawHeight; dy++) {
+    for (let dx = 0; dx < drawWidth; dx++) {
+      const sourceIndex = sourceSamples[dx + dy * drawWidth];
+      if (sourceIndex < 0) continue;
+      const targetX = drawX + dx;
+      const targetY = drawY + dy;
+      const targetIndex = targetX + targetY * canvas.width;
+      const sourceOffset = sourceIndex * 4;
+      const targetOffset = targetIndex * 4;
+      image.data[targetOffset] = sourceImage.data[sourceOffset];
+      image.data[targetOffset + 1] = sourceImage.data[sourceOffset + 1];
+      image.data[targetOffset + 2] = sourceImage.data[sourceOffset + 2];
+      image.data[targetOffset + 3] = 255;
+      depth[targetIndex] = rendered.depth[sourceIndex];
+      alpha[targetIndex] = 1;
+      const sourcePositionOffset = sourceIndex * 3;
+      const targetPositionOffset = targetIndex * 3;
+      positions[targetPositionOffset] = rendered.positions[sourcePositionOffset];
+      positions[targetPositionOffset + 1] = rendered.positions[sourcePositionOffset + 1];
+      positions[targetPositionOffset + 2] = rendered.positions[sourcePositionOffset + 2];
+    }
+  }
+  ctx.putImageData(image, 0, 0);
+  shadeEdgesAndQuantizeToResurrect(canvas);
+  const bounds = alphaBounds(canvas);
+  if (
+    bounds.minX <= 0 ||
+    bounds.minY <= 0 ||
+    bounds.minX + bounds.width >= canvas.width ||
+    bounds.minY + bounds.height >= canvas.height
+  ) {
+    throw new Error("Port-assault ship raster clips its production frame");
+  }
+  return {
+    canvas,
+    bounds,
+    depth,
+    positions,
+    alpha,
+    sourceBounds,
+    drawX,
+    drawY,
+    drawWidth,
+    drawHeight
+  };
+}
+
+function portAssaultFramePoint(modelPoint, camera, modelYaw, frame) {
+  const rotation = new THREE.Matrix4().makeRotationY(modelYaw);
+  const worldPoint = modelPoint.clone().applyMatrix4(rotation);
+  const projected = projectedPoint(worldPoint, camera, {
+    width: PORT_ASSAULT_SHIP_WIDTH * PORT_ASSAULT_RENDER_SCALE,
+    height: PORT_ASSAULT_SHIP_HEIGHT * PORT_ASSAULT_RENDER_SCALE
+  });
+  return {
+    x: Math.round(frame.drawX + (
+      (projected.x - frame.sourceBounds.minX) / frame.sourceBounds.width * frame.drawWidth
+    )),
+    y: Math.round(frame.drawY + (
+      (projected.y - frame.sourceBounds.minY) / frame.sourceBounds.height * frame.drawHeight
+    )),
+    depth: projected.z
+  };
+}
+
+function makePortAssaultDepthMap(frame) {
+  const opaqueDepths = [];
+  for (let index = 0; index < frame.depth.length; index++) {
+    if (frame.alpha[index]) opaqueDepths.push(frame.depth[index]);
+  }
+  if (opaqueDepths.length === 0) throw new Error("Port-assault depth map requires opaque pixels");
+  const farDepth = Math.min(...opaqueDepths);
+  const nearDepth = Math.max(...opaqueDepths);
+  const range = nearDepth - farDepth;
+  if (!Number.isFinite(range) || range <= 0) {
+    throw new Error("Port-assault depth map has no usable view-depth range");
+  }
+  const canvas = createCanvas(PORT_ASSAULT_SHIP_WIDTH, PORT_ASSAULT_SHIP_HEIGHT);
+  const ctx = canvas.getContext("2d");
+  const image = ctx.createImageData(canvas.width, canvas.height);
+  for (let index = 0; index < frame.depth.length; index++) {
+    if (!frame.alpha[index]) continue;
+    const value = 1 + Math.round((frame.depth[index] - farDepth) / range * 254);
+    const offset = index * 4;
+    image.data[offset] = value;
+    image.data[offset + 1] = value;
+    image.data[offset + 2] = value;
+    image.data[offset + 3] = 255;
+  }
+  ctx.putImageData(image, 0, 0);
+  return { canvas, farDepth, nearDepth };
+}
+
+function makePortAssaultForeground(frame, sailorDepth) {
+  if (!Number.isFinite(sailorDepth)) throw new Error("Port-assault sailor depth must be finite");
+  const sourceCtx = frame.canvas.getContext("2d");
+  const source = sourceCtx.getImageData(0, 0, frame.canvas.width, frame.canvas.height);
+  const canvas = createCanvas(frame.canvas.width, frame.canvas.height);
+  const ctx = canvas.getContext("2d");
+  const image = ctx.createImageData(canvas.width, canvas.height);
+  let opaquePixels = 0;
+  for (let index = 0; index < frame.depth.length; index++) {
+    if (!frame.alpha[index] || frame.depth[index] <= sailorDepth + 0.002) continue;
+    const offset = index * 4;
+    image.data[offset] = source.data[offset];
+    image.data[offset + 1] = source.data[offset + 1];
+    image.data[offset + 2] = source.data[offset + 2];
+    image.data[offset + 3] = 255;
+    opaquePixels++;
+  }
+  if (opaquePixels === 0) throw new Error("Port-assault foreground occlusion layer is blank");
+  ctx.putImageData(image, 0, 0);
+  return { canvas, opaquePixels };
+}
+
+function portAssaultDeckCompositing(loaded, selected) {
+  const points = loaded.triangles.flatMap((triangle) => triangle.points);
+  const bounds = boundsForPoints(points);
+  const deckY = loaded.waterlineY + bounds.size.y * 0.14;
+  const centerX = bounds.center.x;
+  const centerZ = bounds.center.z;
+  const farX = centerX - bounds.size.x * 0.12;
+  const nearX = centerX + bounds.size.x * 0.24;
+  const forwardZ = centerZ + bounds.size.z * 0.2;
+  const aftZ = centerZ - bounds.size.z * 0.28;
+  const modelDeckPolygon = [
+    new THREE.Vector3(farX, deckY, forwardZ),
+    new THREE.Vector3(farX, deckY, aftZ),
+    new THREE.Vector3(nearX, deckY, aftZ),
+    new THREE.Vector3(nearX, deckY, forwardZ)
+  ];
+  const deckPolygon = modelDeckPolygon.map((point) => {
+    const projected = portAssaultFramePoint(
+      point,
+      selected.camera,
+      selected.modelYaw,
+      selected
+    );
+    return { x: projected.x, y: projected.y };
+  });
+  const deckEntry = portAssaultFramePoint(
+    new THREE.Vector3(
+      centerX + bounds.size.x * 0.18,
+      deckY,
+      centerZ - bounds.size.z * 0.18
+    ),
+    selected.camera,
+    selected.modelYaw,
+    selected
+  );
+  const jumpPoint = portAssaultFramePoint(
+    new THREE.Vector3(
+      centerX + bounds.size.x * 0.38,
+      deckY - bounds.size.y * 0.05,
+      centerZ - bounds.size.z * 0.3
+    ),
+    selected.camera,
+    selected.modelYaw,
+    selected
+  );
+  return {
+    deckY,
+    deckPolygon,
+    deckEntryAnchor: { x: deckEntry.x, y: deckEntry.y },
+    sailorSpawnAnchor: { x: jumpPoint.x, y: jumpPoint.y },
+    sailorDepth: deckEntry.depth
+  };
+}
+
+function makePortAssaultCompositingReview({ selected, foreground, depthMap, deck }) {
+  const displayScale = 2;
+  const labelHeight = 42;
+  const cellWidth = PORT_ASSAULT_SHIP_WIDTH * displayScale;
+  const cellHeight = PORT_ASSAULT_SHIP_HEIGHT * displayScale + labelHeight;
+  const sheet = createCanvas(cellWidth * 3, cellHeight);
+  const ctx = sheet.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#172038";
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  ctx.font = "bold 18px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const panels = [
+    { label: "DECK + ANCHORS", canvas: selected.canvas },
+    { label: "FOREGROUND OCCLUSION", canvas: foreground.canvas },
+    { label: "DEPTH  FAR (DARK) -> NEAR (LIGHT)", canvas: depthMap.canvas }
+  ];
+  panels.forEach((panel, index) => {
+    const x = index * cellWidth;
+    ctx.strokeStyle = "#566c86";
+    ctx.strokeRect(x + 0.5, 0.5, cellWidth - 1, cellHeight - 1);
+    ctx.fillStyle = "#f4f4f4";
+    ctx.fillText(panel.label, x + cellWidth / 2, labelHeight / 2);
+    ctx.drawImage(
+      panel.canvas,
+      x,
+      labelHeight,
+      PORT_ASSAULT_SHIP_WIDTH * displayScale,
+      PORT_ASSAULT_SHIP_HEIGHT * displayScale
+    );
+  });
+  ctx.save();
+  ctx.translate(0, labelHeight);
+  ctx.scale(displayScale, displayScale);
+  ctx.strokeStyle = "#f7d038";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  deck.deckPolygon.forEach((point, index) => {
+    if (index === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.closePath();
+  ctx.stroke();
+  for (const [point, color] of [
+    [deck.deckEntryAnchor, "#73eff7"],
+    [deck.sailorSpawnAnchor, "#e83b3b"]
+  ]) {
+    ctx.fillStyle = color;
+    ctx.fillRect(point.x - 2, point.y - 2, 5, 5);
+  }
+  ctx.restore();
+  return sheet;
+}
+
+function makePortAssaultContactSheet(renderedVariants) {
+  const displayScale = 2;
+  const labelHeight = 46;
+  const cellWidth = PORT_ASSAULT_SHIP_WIDTH * displayScale;
+  const cellHeight = PORT_ASSAULT_SHIP_HEIGHT * displayScale + labelHeight;
+  const sheet = createCanvas(cellWidth * 2, cellHeight * 2);
+  const ctx = sheet.getContext("2d");
+  ctx.imageSmoothingEnabled = false;
+  ctx.fillStyle = "#172038";
+  ctx.fillRect(0, 0, sheet.width, sheet.height);
+  ctx.font = "bold 19px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+
+  renderedVariants.forEach(({ variant, canvas }, index) => {
+    const col = index % 2;
+    const row = Math.floor(index / 2);
+    const x = col * cellWidth;
+    const y = row * cellHeight;
+    ctx.strokeStyle = variant.selected ? "#f7d038" : "#566c86";
+    ctx.lineWidth = variant.selected ? 4 : 1;
+    ctx.strokeRect(x + 2, y + 2, cellWidth - 4, cellHeight - 4);
+    ctx.fillStyle = variant.selected ? "#f7d038" : "#f4f4f4";
+    const suffix = variant.selected ? "  SELECTED" : "";
+    ctx.fillText(
+      `${variant.broadsideOffsetDegrees}deg broadside / ${variant.cameraElevationDegrees}deg high${suffix}`,
+      x + cellWidth / 2,
+      y + labelHeight / 2
+    );
+    ctx.drawImage(
+      canvas,
+      0,
+      0,
+      PORT_ASSAULT_SHIP_WIDTH,
+      PORT_ASSAULT_SHIP_HEIGHT,
+      x,
+      y + labelHeight,
+      PORT_ASSAULT_SHIP_WIDTH * displayScale,
+      PORT_ASSAULT_SHIP_HEIGHT * displayScale
+    );
+  });
+  return sheet;
+}
+
+async function renderGalleonPortAssaultShip() {
+  const config = cyc3wGalleonConfig();
+  const loaded = await loadConfiguredShipTriangles(config, {
+    targetMaxDim: config.targetModelMaxDim,
+    gltfTextureSamplerOptions: {
+      ...config.gltfTextureSamplerOptions,
+      maxDimension: 64
+    }
+  });
+  const renderViewport = {
+    width: PORT_ASSAULT_SHIP_WIDTH * PORT_ASSAULT_RENDER_SCALE,
+    height: PORT_ASSAULT_SHIP_HEIGHT * PORT_ASSAULT_RENDER_SCALE
+  };
+  const renderedVariants = PORT_ASSAULT_VARIANTS.map((variant) => {
+    const camera = makePortAssaultCamera(variant.cameraElevationDegrees);
+    const modelYaw = portAssaultModelYaw(variant.broadsideOffsetDegrees);
+    const rendered = renderHeading(loaded.triangles, 0, camera, {
+      textureSampler: loaded.textureSampler,
+      colorTransform: config.colorTransform,
+      waterlineY: loaded.waterlineY,
+      modelYaw,
+      collectCasters: false
+    }, renderViewport);
+    return { variant, camera, modelYaw, ...fitPortAssaultRaster(rendered) };
+  });
+  const selected = renderedVariants.find(({ variant }) => variant.selected);
+  if (!selected) throw new Error("Port-assault ship bake has no selected production view");
+  const deck = portAssaultDeckCompositing(loaded, selected);
+  const depthMap = makePortAssaultDepthMap(selected);
+  const foreground = makePortAssaultForeground(selected, deck.sailorDepth);
+
+  mkdirSync(portAssaultShipOutputRoot, { recursive: true });
+  mkdirSync(portAssaultShipReferenceOutputRoot, { recursive: true });
+  const spritePath = join(portAssaultShipOutputRoot, "galleon-dockside.png");
+  const foregroundPath = join(portAssaultShipOutputRoot, "galleon-dockside-foreground.png");
+  const depthPath = join(portAssaultShipOutputRoot, "galleon-dockside-depth.png");
+  const contactSheetPath = join(
+    portAssaultShipReferenceOutputRoot,
+    "galleon-dockside-contact-sheet.png"
+  );
+  const manifestPath = join(portAssaultShipOutputRoot, "manifest.json");
+  const compositingReviewPath = join(
+    portAssaultShipReferenceOutputRoot,
+    "galleon-dockside-compositing-review.png"
+  );
+  writeFileSync(spritePath, selected.canvas.toBuffer("image/png"));
+  writeFileSync(foregroundPath, foreground.canvas.toBuffer("image/png"));
+  writeFileSync(depthPath, depthMap.canvas.toBuffer("image/png"));
+  writeFileSync(
+    contactSheetPath,
+    makePortAssaultContactSheet(renderedVariants).toBuffer("image/png")
+  );
+  writeFileSync(
+    compositingReviewPath,
+    makePortAssaultCompositingReview({ selected, foreground, depthMap, deck }).toBuffer("image/png")
+  );
+  writeFileSync(manifestPath, `${JSON.stringify({
+    generatedBy: "tools/render-sail-ship-sprites.mjs --galleon-port-assault",
+    palette: "Resurrect 64",
+    width: PORT_ASSAULT_SHIP_WIDTH,
+    height: PORT_ASSAULT_SHIP_HEIGHT,
+    ship: {
+      slug: config.slug,
+      file: portablePath(spritePath),
+      foregroundFile: portablePath(foregroundPath),
+      depthFile: portablePath(depthPath),
+      sourceTitle: config.sourceTitle,
+      creator: config.creator,
+      license: config.license,
+      view: {
+        projection: "orthographic",
+        broadsideOffsetDegrees: selected.variant.broadsideOffsetDegrees,
+        cameraElevationDegrees: selected.variant.cameraElevationDegrees,
+        bowScreenDirection: "up-left",
+        dockFacingSide: "starboard"
+      },
+      opaqueBounds: selected.bounds,
+      deckPolygon: deck.deckPolygon,
+      deckEntryAnchor: deck.deckEntryAnchor,
+      sailorSpawnAnchor: deck.sailorSpawnAnchor,
+      depthEncoding: {
+        transparentAlpha: 0,
+        farValue: 1,
+        nearValue: 255,
+        comparison: "asset-local orthographic view depth"
+      },
+      foregroundOpaquePixels: foreground.opaquePixels
+    },
+    reviewFile: portablePath(contactSheetPath),
+    compositingReviewFile: portablePath(compositingReviewPath)
+  }, null, 2)}\n`);
+  console.log(spritePath);
+  console.log(contactSheetPath);
+  console.log(compositingReviewPath);
+  console.log(manifestPath);
 }
 
 async function renderShipWaterlineReview(targetSlug = null) {
@@ -4439,6 +4900,20 @@ function cyc3wGalleonConfig() {
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     wakeWaterlineBand: 0.2,
+    sourceOrientation: {
+      rawUpAxis: "+Y",
+      rawForwardAxis: "20 degrees from -X toward +Z",
+      importedSceneForward: [
+        -Math.cos(Math.PI / 9),
+        0,
+        Math.sin(Math.PI / 9)
+      ],
+      evidence: "bowsprit and forecastle extend along the measured imported scene vector"
+    },
+    orientationReviewPath: join(
+      appRoot,
+      "docs/ship-reference/galleon-orientation-review.png"
+    ),
     collectOptions: {
       transformPoint: orientCyc3wSailingShipPoint
     }
@@ -4736,8 +5211,7 @@ function orientAncientDhowPoint(point) {
 }
 
 function orientCyc3wSailingShipPoint(point) {
-  const oriented = orientNegativeXForwardYUpToZForward(point);
-  return vectorFromCoordinates(rotateY(oriented, -Math.PI / 9));
+  return vectorFromCoordinates(orientCyc3wGalleonToCanonical(point));
 }
 
 function orientBorobudurShipPoint(point) {
@@ -6433,6 +6907,10 @@ async function main() {
   }
   if (args.has("--cyc3w-galleon")) {
     await renderCyc3wGalleon();
+    return;
+  }
+  if (args.has("--galleon-port-assault")) {
+    await renderGalleonPortAssaultShip();
     return;
   }
   if (args.has("--nusantaran-outrigger")) {

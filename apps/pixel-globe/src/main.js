@@ -59958,14 +59958,7 @@ function preloadNearbyPortPortraits(nowMs) {
     const y = Number.isFinite(cityCall.interactionY) ? cityCall.interactionY : cityCall.y;
     if (distance2(localLayout.viewX, localLayout.viewY, x, y) > radiusSquared) continue;
     const dockable = cityCall.isPirateHideout === true || portCitiesByTileId.has(cityCall.tileId);
-    if (!dockable) {
-      portDialoguePortraitPreloadCharacters({
-        playerCharacter: gameState.playerCharacter,
-        portCharacter: cityCall.character,
-        dockable: false
-      });
-      continue;
-    }
+    if (!dockable) continue;
     nearbyPortCalls.push(cityCall);
   }
   const offerOrigins = nearbyPortCalls.filter((cityCall) => cityCall.isPirateHideout !== true);

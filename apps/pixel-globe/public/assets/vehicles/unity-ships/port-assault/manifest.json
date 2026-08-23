@@ -1,0 +1,63 @@
+{
+  "generatedBy": "tools/render-sail-ship-sprites.mjs --galleon-port-assault",
+  "palette": "Resurrect 64",
+  "width": 320,
+  "height": 160,
+  "ship": {
+    "slug": "galleon",
+    "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-dockside.png",
+    "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-dockside-foreground.png",
+    "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-dockside-depth.png",
+    "sourceTitle": "Sailing ship",
+    "creator": "cyc3w",
+    "license": "CC BY 4.0",
+    "view": {
+      "projection": "orthographic",
+      "broadsideOffsetDegrees": 27.5,
+      "cameraElevationDegrees": 12.5,
+      "bowScreenDirection": "up-left",
+      "dockFacingSide": "starboard"
+    },
+    "opaqueBounds": {
+      "minX": 59,
+      "minY": 4,
+      "width": 202,
+      "height": 151
+    },
+    "deckPolygon": [
+      {
+        "x": 123,
+        "y": 113
+      },
+      {
+        "x": 217,
+        "y": 123
+      },
+      {
+        "x": 204,
+        "y": 129
+      },
+      {
+        "x": 110,
+        "y": 118
+      }
+    ],
+    "deckEntryAnchor": {
+      "x": 187,
+      "y": 126
+    },
+    "sailorSpawnAnchor": {
+      "x": 203,
+      "y": 139
+    },
+    "depthEncoding": {
+      "transparentAlpha": 0,
+      "farValue": 1,
+      "nearValue": 255,
+      "comparison": "asset-local orthographic view depth"
+    },
+    "foregroundOpaquePixels": 5011
+  },
+  "reviewFile": "apps/pixel-globe/docs/ship-reference/port-assault/galleon-dockside-contact-sheet.png",
+  "compositingReviewFile": "apps/pixel-globe/docs/ship-reference/port-assault/galleon-dockside-compositing-review.png"
+}

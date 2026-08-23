@@ -3563,6 +3563,16 @@
       "creator": "cyc3w",
       "license": "CC BY 4.0",
       "sourceTitle": "Sailing ship",
+      "sourceOrientation": {
+        "rawUpAxis": "+Y",
+        "rawForwardAxis": "20 degrees from -X toward +Z",
+        "importedSceneForward": [
+          -0.9396926207859084,
+          0,
+          0.3420201433256687
+        ],
+        "evidence": "bowsprit and forecastle extend along the measured imported scene vector"
+      },
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/cyc3w-sailing-ship/scene.gltf",
       "sourceTexture": null,
       "sourceMaxDim": 1.8555,

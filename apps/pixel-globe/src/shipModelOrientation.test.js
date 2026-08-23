@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createShipModelBasisOrientation,
+  orientCyc3wGalleonToCanonical,
   orientNegativeXForwardYUpToZForward,
   orientPositiveXForwardToZForward,
   orientPositiveXForwardZUpToZForward,
@@ -46,6 +47,29 @@ test("source presentation yaw can be removed without changing height", () => {
     () => rotateY({ x: 0, y: 0, z: 1 }, Number.NaN),
     /finite coordinates and angle/
   );
+});
+
+test("the imported galleon bow, deck, and starboard axes map canonically", () => {
+  const yaw = Math.PI / 9;
+  const forward = orientCyc3wGalleonToCanonical({
+    x: -Math.cos(yaw),
+    y: 0,
+    z: Math.sin(yaw)
+  });
+  const right = orientCyc3wGalleonToCanonical({
+    x: Math.sin(yaw),
+    y: 0,
+    z: Math.cos(yaw)
+  });
+  const up = orientCyc3wGalleonToCanonical({ x: 0, y: 1, z: 0 });
+
+  assert.ok(Math.abs(forward.x) < 1e-12);
+  assert.ok(Math.abs(forward.y) < 1e-12);
+  assert.ok(Math.abs(forward.z - 1) < 1e-12);
+  assert.ok(Math.abs(right.x - 1) < 1e-12);
+  assert.ok(Math.abs(right.y) < 1e-12);
+  assert.ok(Math.abs(right.z) < 1e-12);
+  assert.deepEqual(up, { x: 0, y: 1, z: 0 });
 });
 
 test("a measured source basis maps its bow, deck, and starboard axes canonically", () => {

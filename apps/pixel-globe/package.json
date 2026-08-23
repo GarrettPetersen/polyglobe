@@ -81,6 +81,7 @@
     "render:dhow": "node tools/render-sail-ship-sprites.mjs --gogiart-dhow",
     "render:ocean-dhow": "node tools/render-sail-ship-sprites.mjs --ocean-dhow",
     "render:galleon": "node tools/render-sail-ship-sprites.mjs --cyc3w-galleon",
+    "render:galleon-port-assault": "node tools/render-sail-ship-sprites.mjs --galleon-port-assault",
     "render:nusantaran-outrigger": "node tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
     "render:kelulus": "node tools/render-sail-ship-sprites.mjs --kelulus",
     "render:malay-warships:source": "node source-models/procedural/malay-warships/build-malay-warships.mjs",

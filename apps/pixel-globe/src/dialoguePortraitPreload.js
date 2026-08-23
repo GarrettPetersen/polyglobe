@@ -27,12 +27,9 @@ export function portDialoguePortraitPreloadCharacters({
     throw new Error("Port dialogue portrait preload requires dockability");
   }
   validateCharacter(playerCharacter);
-  if (!dockable) {
-    if (portCharacter != null) {
-      throw new Error("Non-dockable settlement unexpectedly has a port character");
-    }
-    return [];
-  }
+  // A visible quest site, inland market, or port whose access has changed may
+  // retain a resident character without currently offering port dialogue.
+  if (!dockable) return [];
   validateCharacter(portCharacter);
   return [playerCharacter, portCharacter];
 }

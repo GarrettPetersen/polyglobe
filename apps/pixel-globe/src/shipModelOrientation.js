@@ -27,6 +27,27 @@ export function rotateY({ x, y, z }, angleRad) {
   };
 }
 
+const CYC3W_GALLEON_PRESENTATION_YAW_RAD = Math.PI / 9;
+const CYC3W_GALLEON_SOURCE_ORIENTATION = createShipModelBasisOrientation({
+  // Measured after the glTF scene transforms are applied. The source is
+  // Y-up, but its bow is presented 20 degrees off raw -X.
+  right: {
+    x: Math.sin(CYC3W_GALLEON_PRESENTATION_YAW_RAD),
+    y: 0,
+    z: Math.cos(CYC3W_GALLEON_PRESENTATION_YAW_RAD)
+  },
+  up: { x: 0, y: 1, z: 0 },
+  forward: {
+    x: -Math.cos(CYC3W_GALLEON_PRESENTATION_YAW_RAD),
+    y: 0,
+    z: Math.sin(CYC3W_GALLEON_PRESENTATION_YAW_RAD)
+  }
+}, "cyc3w galleon");
+
+export function orientCyc3wGalleonToCanonical(point) {
+  return CYC3W_GALLEON_SOURCE_ORIENTATION(point);
+}
+
 export function createShipModelBasisOrientation({ right, up, forward }, label = "ship model") {
   const basis = {
     right: requiredUnitVector(right, `${label} right axis`),

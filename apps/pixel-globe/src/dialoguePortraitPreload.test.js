@@ -69,15 +69,12 @@ test("port portrait preloading rejects a dockable port without a factor", () => 
   );
 });
 
-test("port portrait preloading rejects a factor assigned to an inland settlement", () => {
-  assert.throws(
-    () => portDialoguePortraitPreloadCharacters({
-      playerCharacter: character("player"),
-      portCharacter: character("factor"),
-      dockable: false
-    }),
-    /Non-dockable settlement unexpectedly has a port character/
-  );
+test("port portrait preloading skips a resident at a currently non-dockable settlement", () => {
+  assert.deepEqual(portDialoguePortraitPreloadCharacters({
+    playerCharacter: character("player"),
+    portCharacter: character("resident"),
+    dockable: false
+  }), []);
 });
 
 test("port portrait preloading rejects conflicting frames for one character expression", () => {

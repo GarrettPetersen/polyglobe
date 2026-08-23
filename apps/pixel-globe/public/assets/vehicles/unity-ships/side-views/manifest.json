@@ -471,7 +471,7 @@
       "slug": "galleon",
       "label": "Galleon",
       "sourceModel": "apps/pixel-globe/source-models/sketchfab/cyc3w-sailing-ship/scene.gltf",
-      "sourceMaxDim": 1.7144,
+      "sourceMaxDim": 1.8555,
       "targetModelMaxDim": 2.1,
       "width": 192,
       "height": 104,
@@ -614,5 +614,6 @@
   "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass",
   "joseonHyeopseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-hyeopseon",
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
-  "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus"
+  "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
+  "cyc3wGalleonGenerator": "tools/render-sail-ship-sprites.mjs --cyc3w-galleon"
 }
