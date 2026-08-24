@@ -281,6 +281,7 @@ export function conquistadorCompanyAssaultStatus(memory, city) {
     ready: memory.companyStrength > 0 && !memory.companyNeedsReplenishment,
     failedAssaults: memory.failedAssaults,
     attemptNumber: memory.failedAssaults + 1,
+    guaranteedSuccess: memory.failedAssaults >= 2,
     assaultChanceBonus
   });
 }

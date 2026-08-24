@@ -1478,6 +1478,39 @@ test("a northeast Asia coastal passage keeps distortion below telemetry limits",
   assertLandTraversalIsContinuous(result, "Northeast Asia coastal passage");
 });
 
+test("the western approaches off Ireland stay below integrity telemetry limits", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [50.4, -5.0],
+        [50.1, -6.8],
+        [49.79, -9.39],
+        [49.5, -11.2],
+        [50.0, -13.0]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("western-approaches", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `Western Approaches chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeGapPx <= 10,
+    `Western Approaches chart opened a ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
+  );
+  assertLandTraversalIsContinuous(result, "Western Approaches passage");
+});
+
 test("a Cape-to-Portugal Atlantic loop reaches Madeira with an intact coast", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,

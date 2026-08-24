@@ -151,6 +151,13 @@ test("NPC progress watchdog waits for sustained failure to move", () => {
     windowSeconds: 6,
     minimumProgressPx: 3
   }), false);
+  assert.equal(npcProgressWatchShouldDetour({
+    elapsedSeconds: 6,
+    displacementPx: 12,
+    targetApproachPx: 0,
+    windowSeconds: 6,
+    minimumProgressPx: 3
+  }), true);
 });
 
 test("stuck NPC detours commit away from the failed direct route", () => {

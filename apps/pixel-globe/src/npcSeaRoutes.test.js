@@ -1592,6 +1592,31 @@ test("a preserved reserve ship detaches when its worker snapshot removes the slo
   assert.equal(restored.replaceOnSink, true);
 });
 
+test("a worker snapshot demobilizes any reserve ship whose faction slot was abolished", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 100
+  });
+  const reserveShip = routes.shipById.get(response.shipId);
+  const removedSlotId = reserveShip.capitalNavalReserveSlotId;
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  snapshot.capitalNavalReserveSlots = snapshot.capitalNavalReserveSlots.filter(
+    (slot) => slot.id !== removedSlotId
+  );
+
+  applyNpcSeaRouteSimulationSnapshot(routes, snapshot);
+
+  const restored = routes.shipById.get(reserveShip.id);
+  assert.equal(restored.capitalNavalReserveSlotId, null);
+  assert.equal(restored.capitalNavalReserveDestinationPortId, null);
+  assert.equal(restored.capitalNavalReserveDocked, false);
+  assert.equal(restored.replaceOnSink, true);
+});
+
 test("version 1 NPC routes transfer retired Aztec ships to Spain", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

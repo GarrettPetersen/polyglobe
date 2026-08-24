@@ -96,11 +96,12 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
   const palette = new Set(RESURRECT_64_HEX);
   for (const slug of Object.keys(PORT_ASSAULT_SHIP_ASSETS)) {
     const asset = portAssaultShipAsset(slug);
-    const [base, foreground, depth] = await Promise.all([
-      loadImage(join(appRoot, `public${asset.src}`)),
-      loadImage(join(appRoot, `public${asset.foregroundSrc}`)),
-      loadImage(join(appRoot, `public${asset.depthSrc}`))
-    ]);
+    // node-canvas can leave its native image worker alive when this entire fleet is
+    // decoded in overlapping triples. Serial decoding is just as useful for this
+    // asset audit and lets the supervised test process terminate cleanly.
+    const base = await loadImage(join(appRoot, `public${asset.src}`));
+    const foreground = await loadImage(join(appRoot, `public${asset.foregroundSrc}`));
+    const depth = await loadImage(join(appRoot, `public${asset.depthSrc}`));
     for (const image of [base, foreground, depth]) {
       assert.equal(image.width, asset.width);
       assert.equal(image.height, asset.height);

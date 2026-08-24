@@ -18,12 +18,14 @@ import {
   livingWhaleCountForSpecies,
   npcWhalingCooldownMinutes,
   seedWhalePopulation,
+  migrateWhaleMemory,
   tetherWhale,
   underwaterWhaleSongPresence,
   validateWhaleMemory,
   whaleCanBeHarpooned,
   whaleBlubberYield,
   whaleHarpoonBreakMultiplier,
+  whaleMayRamWhileTethered,
   whaleSurfaceExposure,
   whaleTetherLengthScale,
   whaleTowingSpeed
@@ -39,6 +41,7 @@ import {
   WHALE_SPECIES,
   WHALE_SPECIES_BLUE,
   WHALE_SPECIES_MINKE,
+  WHALE_SPECIES_SPERM,
   vectorLatLon,
   whaleDisplayLabel,
   whaleSpeciesById
@@ -196,6 +199,55 @@ test("a secured whale tows until exhausted, then can be killed or released", () 
   cutWhaleLoose(releasedMemory);
   assert.equal(releasedMemory.activeHunt, null);
   assert.equal(released.phase, "diving");
+});
+
+test("adult and adolescent sperm whales make one counter-charge without parting the tow", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 18);
+  const whale = memory.individuals.find((candidate) => (
+    candidate.speciesId === WHALE_SPECIES_SPERM && candidate.lifeStage !== WHALE_LIFE_STAGE_CALF
+  ));
+  assert.ok(whale);
+  whale.lifeStage = WHALE_LIFE_STAGE_ADULT;
+  whale.phase = WHALE_PHASE_RISING;
+  whale.phaseElapsedSeconds = 1;
+  whale.phaseDurationSeconds = 2;
+  tetherWhale(memory, whale.id, WHALE_HARPOONS[0]);
+  const hunt = memory.activeHunt;
+
+  advanceWhaleMemory(memory, hunt.initialSeconds * 0.3, () => whaleNavigation(2), 1);
+  const warning = advanceWhaleMemory(memory, 0, () => whaleNavigation(2), 1);
+  assert.ok(warning.some((event) => event.type === "ram-warning"));
+  const impact = advanceWhaleMemory(memory, 1.2, () => whaleNavigation(2), 1);
+  assert.ok(impact.some((event) => event.type === "ram-impact"));
+  assert.equal(memory.activeHunt, hunt);
+  assert.equal(whale.phase, WHALE_PHASE_TETHERED);
+
+  const repeated = advanceWhaleMemory(memory, 1.2, () => whaleNavigation(2), 1);
+  assert.equal(repeated.some((event) => event.type.startsWith("ram-")), false);
+});
+
+test("sperm whale calves cannot ram and version two hunts migrate safely", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 18);
+  const whale = memory.individuals.find((candidate) => candidate.speciesId === WHALE_SPECIES_SPERM);
+  whale.lifeStage = WHALE_LIFE_STAGE_CALF;
+  whale.phase = WHALE_PHASE_RISING;
+  whale.phaseElapsedSeconds = 1;
+  whale.phaseDurationSeconds = 2;
+  assert.equal(whaleMayRamWhileTethered(whale), false);
+  tetherWhale(memory, whale.id, WHALE_HARPOONS[0]);
+  assert.equal(memory.activeHunt.ramState, "ineligible");
+
+  const legacy = structuredClone(memory);
+  legacy.version = 2;
+  delete legacy.activeHunt.initialSeconds;
+  delete legacy.activeHunt.ramState;
+  delete legacy.activeHunt.ramCountdownSeconds;
+  const migrated = migrateWhaleMemory(legacy);
+  assert.equal(migrated.version, 3);
+  assert.equal(migrated.activeHunt.ramState, "ineligible");
+  assert.doesNotThrow(() => validateWhaleMemory(migrated));
 });
 
 test("killing the last living member makes a whale species extinct", () => {

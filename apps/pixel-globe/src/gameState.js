@@ -105,6 +105,7 @@ import {
   TRAVELER_KIND_CAPTIVE,
   TRAVELER_KIND_ENVOY,
   TRAVELER_KIND_PASSENGER,
+  TRAVELER_KIND_SOLDIER,
   TRAVELER_KIND_SETTLER,
   createTravelerGroup
 } from "./travelerKinds.js";
@@ -125,7 +126,7 @@ import {
   equipmentAvailableAtPort
 } from "./portEquipment.js";
 import { BASIC_WHALE_HARPOON_ID, whaleHarpoonById } from "./whaleHarpoons.js";
-import { createWhaleMemory, validateWhaleMemory } from "./whaleSystem.js";
+import { createWhaleMemory, migrateWhaleMemory, validateWhaleMemory } from "./whaleSystem.js";
 import { createIcebergMemory, validateIcebergMemory } from "./icebergSystem.js";
 import {
   adjustDiplomaticStance,
@@ -313,6 +314,7 @@ import {
 } from "./hospitallerMaltaQuest.js";
 import {
   advanceConquistadorCampaign,
+  CONQUISTADOR_STAGE_CAPTURE,
   conquistadorCommissionedCaptureFactionId,
   createConquistadorQuestMemory,
   migrateConquistadorQuestMemory,
@@ -475,7 +477,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 87;
+export const GAME_STATE_VERSION = 88;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -795,7 +797,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -998,7 +1000,7 @@ export function migrateGameState(state, shipStats) {
       colonization: migrateColonizationQuestMemory(state.memory?.colonization),
       conquest: migratedConquest,
       achievements: migrateVoyageAchievementProgress(state.memory?.achievements),
-      whales: state.memory?.whales?.version === 2 ? state.memory.whales : createWhaleMemory(),
+      whales: migrateWhaleMemory(state.memory?.whales),
       icebergs: state.memory?.icebergs?.version === 1 ? state.memory.icebergs : createIcebergMemory(),
       campaignGoal: state.memory?.campaignGoal || (playerCharacterSupportsCampaignGoal(migratedPlayerCharacter)
         ? createCampaignGoal({ playerCharacter: migratedPlayerCharacter, startMinute: savedGameStartMinute(state) })
@@ -3183,6 +3185,10 @@ function shipTravelerManifestForValidatedState(state) {
   }
   if (state.memory.colonization.stage === COLONIZATION_STAGE_OUTBOUND) {
     groups.push(createTravelerGroup(TRAVELER_KIND_SETTLER, COLONIZATION_SETTLER_COUNT));
+  }
+  const conquistador = state.memory.quests?.conquistador;
+  if (conquistador?.stage === CONQUISTADOR_STAGE_CAPTURE && conquistador.companyStrength > 0) {
+    groups.push(createTravelerGroup(TRAVELER_KIND_SOLDIER, conquistador.companyStrength));
   }
   return Object.freeze(groups);
 }

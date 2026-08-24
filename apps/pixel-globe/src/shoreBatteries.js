@@ -11,6 +11,23 @@ export const SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE = 0.25;
 export const SHORE_BATTERY_NOTICE_RADIUS_PX = 148;
 export const SHORE_BATTERY_MAX_LEVEL = 4;
 
+export function shoreBatteryPlayerEngagementRange({
+  batteryRangePx,
+  playerWeaponRangePx,
+  commissioned
+}) {
+  for (const [label, value] of [
+    ["battery range", batteryRangePx],
+    ["player weapon range", playerWeaponRangePx]
+  ]) {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}: ${value}`);
+  }
+  if (typeof commissioned !== "boolean") {
+    throw new Error(`Invalid commissioned attack state: ${commissioned}`);
+  }
+  return commissioned ? Math.max(batteryRangePx, playerWeaponRangePx) : batteryRangePx;
+}
+
 const SHORE_BATTERY_LEVELS = Object.freeze([
   null,
   Object.freeze({ level: 1, id: "outpost", label: "harbor watch", gunCount: 1 }),

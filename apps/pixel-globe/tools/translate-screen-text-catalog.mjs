@@ -125,6 +125,7 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedWarLoanOverrides(),
+  ...reviewedWhaleRamOverrides(),
   "Petition for a capture warrant": Object.freeze({
     "zh-Hans": "请求颁发港口占领敕令",
     ru: "Просить грамоту на захват порта",
@@ -1430,6 +1431,33 @@ function reviewedWarLoanOverrides() {
       LOCALES.map(() => "sovereign-war-loan:{0}:{1}")
     )]
   ]);
+}
+
+function reviewedWhaleRamOverrides() {
+  const entries = [
+    ["Keep the cargo aboard", [
+      "把货物留在船上", "Оставить груз на борту", "Dejar la carga a bordo",
+      "Manter a carga a bordo", "積荷を船に残す", "Die Ladung an Bord behalten",
+      "Garder la cargaison à bord", "Zostawić ładunek na pokładzie", "把貨物留在船上",
+      "화물을 배에 둔다"
+    ]],
+    ["SPERM WHALE RAM -{0} HULL", [
+      "抹香鲸撞击 -{0} 船体", "ТАРАН КАШАЛОТА: -{0} КОРПУСА", "EMBESTIDA DE CACHALOTE -{0} CASCO",
+      "ABALROAMENTO DE CACHALOTE -{0} CASCO", "マッコウクジラの体当たり 船体 -{0}", "POTTWAL-RAMMSTOSS: -{0} RUMPF",
+      "COUP DE BÉLIER DU CACHALOT : -{0} COQUE", "TARAN KASZALOTA: -{0} KADŁUBA", "抹香鯨撞擊 -{0} 船體",
+      "향유고래 충돌 -{0} 선체"
+    ]],
+    ["THE SPERM WHALE WHEELS TO RAM", [
+      "抹香鲸转身冲撞", "КАШАЛОТ РАЗВОРАЧИВАЕТСЯ ДЛЯ ТАРАНА", "EL CACHALOTE VIRA PARA EMBESTIR",
+      "O CACHALOTE VIRA PARA ABALROAR", "マッコウクジラが向きを変え突進してくる", "DER POTTWAL DREHT ZUM RAMMSTOSS EIN",
+      "LE CACHALOT VIRE POUR ÉPERONNER", "KASZALOT ZWRACA SIĘ DO TARANOWANIA", "抹香鯨轉身衝撞",
+      "향유고래가 방향을 틀어 들이받으려 한다"
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [
+    source,
+    reviewedLocaleOverrides(source, values)
+  ]));
 }
 
 await mkdir(OUTPUT_ROOT, { recursive: true });

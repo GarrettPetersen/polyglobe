@@ -1,12 +1,14 @@
 export const TRAVELER_KIND_PASSENGER = "passenger";
 export const TRAVELER_KIND_ENVOY = "envoy";
 export const TRAVELER_KIND_SETTLER = "settler";
+export const TRAVELER_KIND_SOLDIER = "soldier";
 export const TRAVELER_KIND_CAPTIVE = "captive";
 
 export const TRAVELER_KINDS = Object.freeze(/** @type {const} */ ([
   TRAVELER_KIND_PASSENGER,
   TRAVELER_KIND_ENVOY,
   TRAVELER_KIND_SETTLER,
+  TRAVELER_KIND_SOLDIER,
   TRAVELER_KIND_CAPTIVE
 ]));
 

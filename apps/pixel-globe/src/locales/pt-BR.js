@@ -221,6 +221,7 @@ export default {
   "aboard.colonyLeader": "LÍDER COLONIAL",
   "aboard.crewmate": "TRIPULANTE",
   "aboard.colonist": "COLONO",
+  "aboard.soldier": "SOLDADO",
   "aboard.animal": "ANIMAL",
   "aboard.goal": "OBJETIVO",
   "aboard.skill": "HABILIDADE",

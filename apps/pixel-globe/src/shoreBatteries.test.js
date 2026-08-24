@@ -21,6 +21,7 @@ import {
   shoreBatteryMayReceivePlayerPortableFire,
   shoreBatteryPortableImpact,
   shoreBatteryPlayerResponse,
+  shoreBatteryPlayerEngagementRange,
   shoreBatteryRecoveryStatus,
   shoreBatterySurrenderNotice,
   shoreBatteryWarWarningSeen,
@@ -46,6 +47,19 @@ test("cities have doubled fortification durability while capitals mount more gun
   assert.equal(shoreBatteryGunCount({ ...city, isFactionCapital: true }), 4);
   assert.equal(shoreBatteryGunCount({ ...city, population: 12000, settlementType: "village" }), 1);
   assert.equal(shoreBatteryGunCount({ ...city, population: 160000, isFactionCapital: true }), 6);
+});
+
+test("a commissioned captain can open a bombardment at the ship's weapon range", () => {
+  assert.equal(shoreBatteryPlayerEngagementRange({
+    batteryRangePx: 76,
+    playerWeaponRangePx: 112,
+    commissioned: true
+  }), 112);
+  assert.equal(shoreBatteryPlayerEngagementRange({
+    batteryRangePx: 76,
+    playerWeaponRangePx: 112,
+    commissioned: false
+  }), 76);
 });
 
 test("battery upgrades persist as additive fortification levels", () => {

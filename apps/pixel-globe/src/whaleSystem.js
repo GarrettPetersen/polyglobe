@@ -14,7 +14,7 @@ import {
 } from "./whaleSpecies.js";
 import { whaleHarpoonById } from "./whaleHarpoons.js";
 
-export const WHALE_MEMORY_VERSION = 2;
+export const WHALE_MEMORY_VERSION = 3;
 export const WHALE_PHASE_SUBMERGED = "submerged";
 export const WHALE_PHASE_RISING = "rising";
 export const WHALE_PHASE_SURFACED = "surfaced";
@@ -45,6 +45,8 @@ const WHITE_WHALE_MIGRATION_LATITUDE_MIN_DEG = 16;
 const WHITE_WHALE_MIGRATION_LATITUDE_SPREAD_DEG = 34;
 const WHALE_TETHER_HAUL_START_PROGRESS = 0.65;
 const WHALE_TETHER_FINAL_LENGTH_SCALE = 0.36;
+const WHALE_RAM_TRIGGER_PROGRESS = 0.28;
+const WHALE_RAM_WARNING_SECONDS = 1.2;
 const WHALE_ECOLOGY_INTERVAL_MINUTES = 6 * 60;
 const whaleAdvanceValidationCache = new WeakMap();
 const whaleIndexCache = new WeakMap();
@@ -66,6 +68,7 @@ const LIFE_STAGES = new Set([
   WHALE_LIFE_STAGE_ADOLESCENT,
   WHALE_LIFE_STAGE_ADULT
 ]);
+const WHALE_RAM_STATES = new Set(["ineligible", "waiting", "warned", "complete"]);
 const WHALE_HUNT_PROFILE_BY_LIFE_STAGE = Object.freeze({
   [WHALE_LIFE_STAGE_CALF]: Object.freeze({
     breakResistanceMultiplier: 0.35,
@@ -94,6 +97,32 @@ export function createWhaleMemory() {
     individuals: [],
     activeHunt: null,
     lastEcologyMinute: null
+  };
+}
+
+export function migrateWhaleMemory(memory) {
+  if (memory === undefined || memory === null) return createWhaleMemory();
+  if (!memory || typeof memory !== "object") throw new Error("Whale memory migration requires an object");
+  if (memory.version === WHALE_MEMORY_VERSION) return validateWhaleMemory(memory);
+  if (memory.version !== 2) throw new Error(`Unsupported whale memory version: ${memory.version ?? "missing"}`);
+  const migrated = {
+    ...memory,
+    version: WHALE_MEMORY_VERSION,
+    activeHunt: memory.activeHunt ? migrateActiveWhaleHunt(memory) : null
+  };
+  return validateWhaleMemory(migrated);
+}
+
+function migrateActiveWhaleHunt(memory) {
+  const hunt = memory.activeHunt;
+  const whale = memory.individuals?.find((candidate) => candidate.id === hunt.whaleId);
+  if (!whale) throw new Error("Active whale hunt references a missing individual during migration");
+  const initialSeconds = whaleHuntDurationSeconds(whale, whaleHarpoonById(hunt.harpoonId));
+  return {
+    ...hunt,
+    initialSeconds,
+    ramState: whaleMayRamWhileTethered(whale) ? "waiting" : "ineligible",
+    ramCountdownSeconds: null
   };
 }
 
@@ -163,6 +192,25 @@ export function validateWhaleMemory(memory) {
     if (typeof hunt.harpoonId !== "string" || hunt.harpoonId.length === 0) {
       throw new Error("Active whale hunt requires harpoon equipment");
     }
+    if (!Number.isFinite(hunt.initialSeconds) || hunt.initialSeconds <= 0 ||
+        hunt.remainingSeconds > hunt.initialSeconds + 1e-9) {
+      throw new Error(`Invalid initial whale hunt time: ${hunt.initialSeconds}`);
+    }
+    if (!WHALE_RAM_STATES.has(hunt.ramState)) {
+      throw new Error(`Invalid whale ram state: ${hunt.ramState}`);
+    }
+    const whale = individualsById.get(hunt.whaleId);
+    const eligible = whaleMayRamWhileTethered(whale);
+    if (eligible === (hunt.ramState === "ineligible")) {
+      throw new Error(`Whale ram eligibility does not match ${hunt.ramState}: ${hunt.whaleId}`);
+    }
+    if (hunt.ramState === "warned") {
+      if (!Number.isFinite(hunt.ramCountdownSeconds) || hunt.ramCountdownSeconds < 0) {
+        throw new Error(`Invalid whale ram countdown: ${hunt.ramCountdownSeconds}`);
+      }
+    } else if (hunt.ramCountdownSeconds !== null) {
+      throw new Error(`Whale ram countdown must be null while ${hunt.ramState}`);
+    }
   }
   return memory;
 }
@@ -226,6 +274,7 @@ export function advanceWhaleMemory(
   if (hunt) {
     const whale = whaleById(memory, hunt.whaleId);
     if (whale.phase === WHALE_PHASE_TETHERED) {
+      advanceTetheredWhaleRam(hunt, whale, dt, events);
       hunt.remainingSeconds = Math.max(0, hunt.remainingSeconds - dt);
       if (hunt.remainingSeconds === 0) {
         markWhaleExhausted(whale, hunt);
@@ -234,6 +283,24 @@ export function advanceWhaleMemory(
     }
   }
   return events;
+}
+
+function advanceTetheredWhaleRam(hunt, whale, dt, events) {
+  if (hunt.ramState === "ineligible" || hunt.ramState === "complete") return;
+  if (hunt.ramState === "waiting") {
+    const progress = 1 - hunt.remainingSeconds / hunt.initialSeconds;
+    if (progress < WHALE_RAM_TRIGGER_PROGRESS) return;
+    hunt.ramState = "warned";
+    hunt.ramCountdownSeconds = WHALE_RAM_WARNING_SECONDS;
+    events.push(Object.freeze({ type: "ram-warning", whaleId: whale.id }));
+    return;
+  }
+  if (hunt.ramState !== "warned") throw new Error(`Cannot advance whale ram state: ${hunt.ramState}`);
+  hunt.ramCountdownSeconds = Math.max(0, hunt.ramCountdownSeconds - dt);
+  if (hunt.ramCountdownSeconds > 0) return;
+  hunt.ramState = "complete";
+  hunt.ramCountdownSeconds = null;
+  events.push(Object.freeze({ type: "ram-impact", whaleId: whale.id }));
 }
 
 function validateWhaleMovementSchedule(schedule) {
@@ -387,12 +454,21 @@ export function tetherWhale(memory, whaleId, harpoon) {
   whale.phase = WHALE_PHASE_TETHERED;
   whale.phaseElapsedSeconds = 0;
   whale.phaseDurationSeconds = 0;
+  const initialSeconds = whaleHuntDurationSeconds(whale, harpoon);
   memory.activeHunt = {
     whaleId: whale.id,
     harpoonId: harpoon.id,
-    remainingSeconds: whaleHuntDurationSeconds(whale, harpoon)
+    remainingSeconds: initialSeconds,
+    initialSeconds,
+    ramState: whaleMayRamWhileTethered(whale) ? "waiting" : "ineligible",
+    ramCountdownSeconds: null
   };
   return whale;
+}
+
+export function whaleMayRamWhileTethered(whale) {
+  validateWhale(whale);
+  return whale.speciesId === WHALE_SPECIES_SPERM && whale.lifeStage !== WHALE_LIFE_STAGE_CALF;
 }
 
 export function whaleTetherLengthScale(whale, hunt) {

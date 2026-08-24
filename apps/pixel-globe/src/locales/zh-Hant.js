@@ -221,6 +221,7 @@ export default {
   "aboard.colonyLeader": "殖民領隊",
   "aboard.crewmate": "船員",
   "aboard.colonist": "殖民者",
+  "aboard.soldier": "士兵",
   "aboard.animal": "動物",
   "aboard.goal": "目標",
   "aboard.skill": "技能",

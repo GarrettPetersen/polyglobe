@@ -13,6 +13,7 @@ import {
   ABOARD_ROLE_CREWMATE,
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
+  ABOARD_ROLE_SOLDIER,
   ABOARD_TRAVELER_ROLE
 } from "./aboardRoles.js";
 
@@ -25,6 +26,7 @@ export {
   ABOARD_ROLE_CREWMATE,
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
+  ABOARD_ROLE_SOLDIER,
   aboardRoleSkillsAreActive
 } from "./aboardRoles.js";
 

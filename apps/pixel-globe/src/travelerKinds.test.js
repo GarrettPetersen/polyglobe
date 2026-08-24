@@ -9,7 +9,7 @@ import {
 } from "./travelerKinds.js";
 
 test("traveler kinds have one canonical roster", () => {
-  assert.deepEqual(TRAVELER_KINDS, ["passenger", "envoy", "settler", "captive"]);
+  assert.deepEqual(TRAVELER_KINDS, ["passenger", "envoy", "settler", "soldier", "captive"]);
   assert.deepEqual(NAMED_TRAVELER_KINDS, ["passenger", "envoy", "captive"]);
 });
 
@@ -26,15 +26,17 @@ test("traveler behavior records must handle every kind and no unknown kinds", ()
     passenger: "blue",
     envoy: "gold",
     settler: "green",
+    soldier: "orange",
     captive: "red"
   }, "Test colors"), {
     passenger: "blue",
     envoy: "gold",
     settler: "green",
+    soldier: "orange",
     captive: "red"
   });
   assert.throws(
-    () => completeTravelerKindRecord({ passenger: 1, envoy: 1, settler: 1 }, "Test roles"),
+    () => completeTravelerKindRecord({ passenger: 1, envoy: 1, settler: 1, soldier: 1 }, "Test roles"),
     /missing captive/
   );
   assert.throws(
@@ -42,6 +44,7 @@ test("traveler behavior records must handle every kind and no unknown kinds", ()
       passenger: 1,
       envoy: 1,
       settler: 1,
+      soldier: 1,
       captive: 1,
       stowaway: 1
     }, "Test roles"),

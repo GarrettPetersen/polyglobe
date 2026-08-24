@@ -104,6 +104,7 @@ import {
   TRAVELER_KIND_CAPTIVE,
   TRAVELER_KIND_ENVOY,
   TRAVELER_KIND_PASSENGER,
+  TRAVELER_KIND_SOLDIER,
   TRAVELER_KIND_SETTLER,
   assertNamedTravelerKind
 } from "./travelerKinds.js";
@@ -116,6 +117,7 @@ import {
   ABOARD_ROLE_CREWMATE,
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
+  ABOARD_ROLE_SOLDIER,
   aboardCharacterHomePortTileId,
   aboardRoleSkillsAreActive,
   aboardRoster
@@ -574,7 +576,10 @@ import {
   nextCharacterHomecoming,
   recordCharacterHomecoming
 } from "./characterHomecoming.js";
-import { recoveringPortBlocksArrival } from "./portEntryFlow.js";
+import {
+  recoveringPortBlocksArrival,
+  resolvePortDialogueContinuation
+} from "./portEntryFlow.js";
 import {
   QUEST_CARGO_PROMPT_CHEF,
   QUEST_CARGO_PROMPT_COLONIZATION,
@@ -1456,6 +1461,7 @@ import {
   shoreBatteryMayDemandToll,
   shoreBatteryMayReceivePlayerPortableFire,
   shoreBatteryPlayerResponse,
+  shoreBatteryPlayerEngagementRange,
   shoreBatteryPortableImpact,
   shoreBatteryRecoveryStatus,
   shoreBatterySurrenderNotice,
@@ -1477,6 +1483,7 @@ import {
   resolveShipCollision,
   separateTouchingShips
 } from "./shipCollision.js";
+import { resolveWhaleRamCollision, whaleRamAppliedDamage } from "./whaleRam.js";
 import {
   pointInShipFootprint,
   shipFootprintPolygonCenter,
@@ -1727,6 +1734,7 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipCargoRowsPerPageForPanel,
   shipComparisonArmamentRow,
   shipComparisonDifferenceLabel,
   shipLocalDateLabel,
@@ -6370,7 +6378,7 @@ function loop(nowMs) {
 
 function mainThreadFreezeTelemetryIsEligible() {
   return !CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK && regularGameLoopStarted &&
-    !displayedCrashReport && document.visibilityState === "visible" &&
+    !gameOverReason && !displayedCrashReport && document.visibilityState === "visible" &&
     (typeof document.hasFocus !== "function" || document.hasFocus());
 }
 
@@ -21044,11 +21052,14 @@ function playerPortConquestStatus(cityCall) {
     assaultChanceBonus,
     auxiliaryTroops: company?.ready ? company.strength : 0
   });
+  const resolvedConquest = company?.ready && company.guaranteedSuccess
+    ? { ...conquest, successChance: 1, successPercent: 100 }
+    : conquest;
   const playerRaidActive = playerPortRaidIsActive(gameState.memory.flags, cityCall, simMinute);
   return {
-    ...conquest,
+    ...resolvedConquest,
     ...attackStatus,
-    canAttempt: attackStatus.available && conquest.canAttempt && !playerRaidActive &&
+    canAttempt: attackStatus.available && resolvedConquest.canAttempt && !playerRaidActive &&
       (company === null || company.ready),
     conquistadorCompany: company,
     playerRaidActive,
@@ -21517,10 +21528,20 @@ function openPassengerDialogue(cityCall, quest) {
 
 function continuePortDialogueAfterQuestCharacter() {
   const city = currentDialogueCity();
-  const initialNodeId = dialogueState.nextPortNodeId || "greeting";
+  const requestedNodeId = dialogueState.nextPortNodeId || "greeting";
+  const admittedToPort = dialogueState.admittedToPort === true;
+  const context = portDialogueContext();
+  const initialNodeId = resolvePortDialogueContinuation({
+    requestedNodeId,
+    admittedToPort,
+    entryStatus: context.portEntryStatus,
+    recoveryStatus: context.portRecoveryStatus,
+    attackStatus: context.portAttackStatus,
+    conquestStatus: context.portConquestStatus
+  });
   dialogueState = createPortDialogueSession(city, {
     initialNodeId,
-    admittedToPort: dialogueState.admittedToPort === true,
+    admittedToPort,
     postDrunkNodeId: dialogueState.postDrunkNodeId,
     drunkVariant: dialogueState.drunkVariant
   });
@@ -24381,6 +24402,17 @@ function updateWhales(dt, nowMs) {
         saveVoyageNow("showed whale exhaustion tutorial");
       }
       changed = true;
+    } else if (event.type === "ram-warning") {
+      const whale = whaleById(gameState.memory.whales, event.whaleId);
+      const towardShip = normalizeOrNull(projectTangentVector(ship.position, whale.position));
+      if (!towardShip) throw new Error(`Sperm whale cannot turn toward the ship: ${whale.id}`);
+      whale.heading = towardShip;
+      showSurvivalNotice("THE SPERM WHALE WHEELS TO RAM", "warn");
+      playWhaleBlowSound();
+      changed = true;
+    } else if (event.type === "ram-impact") {
+      resolveActiveWhaleRamImpact(whaleById(gameState.memory.whales, event.whaleId));
+      changed = true;
     } else if (event.type === "ice-line-break") {
       showSurvivalNotice("SEA ICE PARTED THE HARPOON LINE", "warn");
       changed = true;
@@ -24409,6 +24441,36 @@ function updateWhales(dt, nowMs) {
     whaleBlowBursts.length !== previousBurstCount ||
     whaleKillEffects.length > 0 ||
     whaleKillEffects.length !== previousKillEffectCount;
+}
+
+function resolveActiveWhaleRamImpact(whale) {
+  if (!ship || !gameState?.ship || gameOverReason) return false;
+  const playerBody = combatCollisionBody(PLAYER_COMBAT_ID);
+  if (!playerBody) throw new Error("Whale ram requires the player collision body");
+  const heading = tangentToScreenDirection(whale.heading);
+  if (!heading) throw new Error(`Whale ram has no visible heading: ${whale.id}`);
+  const collision = resolveWhaleRamCollision(playerBody, heading, whale.lifeStage);
+  applyCombatCollisionVelocity(PLAYER_COMBAT_ID, collision.player.vx, collision.player.vy);
+  whale.heading = whale.heading.map((component) => -component);
+  playCannonImpactSound(0);
+  if (playerShipIsInvulnerable() || playerHullDamageWasResisted("WHALE RAM")) return true;
+  const damage = whaleRamAppliedDamage(ship.hitPoints, collision.player.damage);
+  ship.hitPoints = Math.max(0, ship.hitPoints - damage);
+  const source = whaleInteractionCall(whale);
+  applyCrewCasualtiesFromHullDamage(damage, {
+    cause: "collision",
+    sourcePoint: source ? { x: source.x, y: source.y } : null
+  });
+  combatNotice = {
+    text: `SPERM WHALE RAM  -${formatCombatDamage(damage)} HULL`,
+    expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
+  };
+  const loss = resolvePlayerDamageLoss({
+    sinkingReason: "A sperm whale stove in your hull.",
+    crewLossReason: "The last of the crew died when a sperm whale rammed the ship."
+  });
+  if (!loss) saveVoyageNow("struck by a tethered sperm whale");
+  return true;
 }
 
 function captureWhalePresentationStarts(whaleIds, nowMs) {
@@ -30018,7 +30080,6 @@ function traceBroadsideSector(arc, outerRadius) {
 function navalBroadsideArc(sideName, weapon = playerNavalWeapon()) {
   if (!weapon) throw new Error("Cannot draw a broadside arc without a naval weapon");
   const heading = shipScreenHeading();
-  const cannonLength = Math.min(CANNON_RANGE_PX, Math.max(46, Math.min(SCREEN_W, SCREEN_H) * 0.25));
   const projected = projectBroadsideFrameToScreen({
     origin: { x: localLayout.viewX, y: localLayout.viewY },
     hullFootprint: combatShipFootprint(PLAYER_COMBAT_ID),
@@ -30029,9 +30090,15 @@ function navalBroadsideArc(sideName, weapon = playerNavalWeapon()) {
     screenHeight: SCREEN_H,
     heading,
     sideName,
-    range: cannonLength * weapon.rangeScale,
+    range: playerNavalWeaponRangePx(weapon),
     ...projected
   });
+}
+
+function playerNavalWeaponRangePx(weapon = playerNavalWeapon()) {
+  if (!weapon) return 0;
+  const baseRange = Math.min(CANNON_RANGE_PX, Math.max(46, Math.min(SCREEN_W, SCREEN_H) * 0.25));
+  return baseRange * weapon.rangeScale;
 }
 
 function navalBroadsideSideAtPoint(point) {
@@ -32948,6 +33015,7 @@ function createNpcVisualState(snapshot, routePoint) {
     stuckWatchX: placement.x,
     stuckWatchY: placement.y,
     stuckWatchSeconds: 0,
+    stuckWatchTargetDistance: null,
     stuckDetourVector: null,
     stuckDetourTileId: null,
     stuckDetourAttempts: 0,
@@ -33738,9 +33806,10 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
       throw new Error(`Dockable shore battery port has no economy: ${city.tileId}`);
     }
     const point = { x: city.x, y: city.y - 2 };
+    const playerWeaponRange = playerNavalWeaponRangePx();
     if (!pointNearScreen(
       { x: point.x + chartOffset.x, y: point.y + chartOffset.y },
-      SHORE_BATTERY_RANGE_PX + NPC_VISUAL_AUTHORITY_MARGIN_PX
+      Math.max(SHORE_BATTERY_RANGE_PX, playerWeaponRange) + NPC_VISUAL_AUTHORITY_MARGIN_PX
     )) continue;
     const state = ensureShoreBatteryState(city);
     visibleIds.add(state.id);
@@ -33750,13 +33819,18 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
     const range = SHORE_BATTERY_RANGE_PX * weapon.rangeScale;
     const nextTargets = new Set();
     const playerDistance = Math.hypot(point.x - localLayout.viewX, point.y - localLayout.viewY);
-    if (playerDistance <= range) {
+    const attackStatus = playerPortAttackStatus(gameState, city);
+    const commissionedTarget = attackStatus.commissioned;
+    const playerEngagementRange = shoreBatteryPlayerEngagementRange({
+      batteryRangePx: range,
+      playerWeaponRangePx: playerWeaponRange,
+      commissioned: commissionedTarget
+    });
+    if (playerDistance <= playerEngagementRange) {
       const entryStatus = measurePerformanceBenchmarkStage(
         "npcShips.visual.combat.batteries.portStatus",
         () => portEntryStatus(gameState, city, simMinute, portEntryContext)
       );
-      const attackStatus = playerPortAttackStatus(gameState, city);
-      const commissionedTarget = attackStatus.commissioned;
       const playerHostile = commissionedTarget || (
         !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile
       );
@@ -33957,6 +34031,7 @@ function fireShoreBatteryAtNearestTarget(state) {
   }
   if (!target) return false;
   const weapon = shoreBatteryWeapon(state);
+  if (nearestDistance > SHORE_BATTERY_RANGE_PX * weapon.rangeScale) return false;
   consumeShoreBatteryGunpowder(state, weapon);
   emitCaptureEvent("weapon-fired", {
     ownerId: state.id,
@@ -36008,7 +36083,7 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     localNavigationActive
   });
   if (stepDistance <= 1e-4) {
-    clearNpcStuckRecovery(state);
+    updateNpcStuckRecovery(state, dt, direction, collisionHeading, startNav, distance, !tack?.tacking);
     return collisionChanged;
   }
   const movementDirection = localNavigationActive && startNav.kind !== "river"
@@ -36019,7 +36094,7 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
     () => moveNpcVisualShip(state, movementDirection, stepDistance, collisionHeading, dt, startNav)
   );
   if (!move) {
-    updateNpcStuckRecovery(state, dt, direction, collisionHeading, startNav);
+    updateNpcStuckRecovery(state, dt, direction, collisionHeading, startNav, distance, !tack?.tacking);
     return collisionChanged;
   }
 
@@ -36031,7 +36106,15 @@ function advanceNpcVisualState(state, snapshot, routePoint, dt, initialNavigatio
   if (tack?.tacking) {
     state.tackRemainingPx = Math.max(0, state.tackRemainingPx - stepDistance);
   }
-  updateNpcStuckRecovery(state, dt, direction, collisionHeading);
+  updateNpcStuckRecovery(
+    state,
+    dt,
+    direction,
+    collisionHeading,
+    null,
+    Math.hypot(navigationPoint.x - state.x, navigationPoint.y - state.y),
+    !tack?.tacking
+  );
   return true;
 }
 
@@ -36040,8 +36123,22 @@ function npcStuckDetourPoint(state) {
   return localPointForKnownTileVector(state.stuckDetourVector, state.stuckDetourTileId);
 }
 
-function updateNpcStuckRecovery(state, dt, desiredDirection, heading, startNav = null) {
+function updateNpcStuckRecovery(
+  state,
+  dt,
+  desiredDirection,
+  heading,
+  startNav = null,
+  targetDistance = null,
+  measureTargetApproach = true
+) {
   if (!Number.isFinite(dt) || dt <= 0) return;
+  if (targetDistance !== null && (!Number.isFinite(targetDistance) || targetDistance < 0)) {
+    throw new Error(`Invalid NPC stuck-watch target distance: ${targetDistance}`);
+  }
+  if (state.stuckWatchTargetDistance === null && targetDistance !== null) {
+    state.stuckWatchTargetDistance = targetDistance;
+  }
   state.stuckWatchSeconds += dt;
   const displacementPx = Math.hypot(
     state.x - state.stuckWatchX,
@@ -36051,12 +36148,17 @@ function updateNpcStuckRecovery(state, dt, desiredDirection, heading, startNav =
   const shouldDetour = npcProgressWatchShouldDetour({
     elapsedSeconds: state.stuckWatchSeconds,
     displacementPx,
+    targetApproachPx: measureTargetApproach && targetDistance !== null &&
+        state.stuckWatchTargetDistance !== null
+      ? state.stuckWatchTargetDistance - targetDistance
+      : null,
     windowSeconds: NPC_VISUAL_STUCK_WATCH_SECONDS,
     minimumProgressPx: NPC_VISUAL_STUCK_MIN_PROGRESS_PX
   });
   state.stuckWatchX = state.x;
   state.stuckWatchY = state.y;
   state.stuckWatchSeconds = 0;
+  state.stuckWatchTargetDistance = targetDistance;
   if (!shouldDetour) {
     if (!state.stuckDetourVector) state.stuckDetourAttempts = 0;
     return;
@@ -36105,6 +36207,7 @@ function clearNpcStuckRecovery(state, { clearDetour = false, resetAttempts = fal
   state.stuckWatchX = state.x;
   state.stuckWatchY = state.y;
   state.stuckWatchSeconds = 0;
+  state.stuckWatchTargetDistance = null;
   if (clearDetour) {
     state.stuckDetourVector = null;
     state.stuckDetourTileId = null;
@@ -43559,10 +43662,11 @@ function shipInfoCargoRowsPerPage(panel) {
   if (!panel || !Number.isFinite(panel.w) || !Number.isFinite(panel.h)) {
     throw new Error("Ship cargo manifest requires a finite panel");
   }
-  if (panel.w >= 400) return SHIP_INFO_CARGO_ROWS_PER_PAGE;
-  if (panel.h < 300) return 3;
-  const cargoRowsY = panel.y + 173 + localizedLineHeight(12) * 8;
-  return Math.max(1, Math.floor((panel.y + panel.h - 22 - cargoRowsY) / 17));
+  return Math.min(SHIP_INFO_CARGO_ROWS_PER_PAGE, shipCargoRowsPerPageForPanel({
+    width: panel.w,
+    height: panel.h,
+    pagerHeight: UI_PAGER_BUTTON_H
+  }));
 }
 
 function drawCompactShipRating(label, rating, x, valueX, y) {
@@ -45249,6 +45353,7 @@ function aboardRoleLabel(role) {
     [ABOARD_ROLE_COLONY_LEADER]: "aboard.colonyLeader",
     [ABOARD_ROLE_CREWMATE]: "aboard.crewmate",
     [ABOARD_ROLE_COLONIST]: "aboard.colonist",
+    [ABOARD_ROLE_SOLDIER]: "aboard.soldier",
     [ABOARD_ROLE_ANIMAL]: "aboard.animal"
   }[role];
   if (!key) throw new Error(`Unknown aboard role: ${role}`);
@@ -45263,6 +45368,7 @@ function aboardRoleColor(role) {
   if (role === ABOARD_ROLE_COLONY_LEADER || role === ABOARD_ROLE_COLONIST) {
     return STATUS_PERSON_COLORS.settler[0];
   }
+  if (role === ABOARD_ROLE_SOLDIER) return STATUS_PERSON_COLORS.soldier[0];
   if (role === ABOARD_ROLE_CREWMATE) return PIRATE_MENU_INK_MUTED;
   if (role === ABOARD_ROLE_ANIMAL) return PIRATE_MENU_SUCCESS;
   throw new Error(`Unknown aboard role color: ${role}`);

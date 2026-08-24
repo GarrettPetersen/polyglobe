@@ -10,6 +10,7 @@ import {
   ABOARD_ROLE_CREWMATE,
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
+  ABOARD_ROLE_SOLDIER,
   aboardCharacterHomePortTileId,
   aboardRoleSkillsAreActive,
   aboardRoster
@@ -65,6 +66,15 @@ test("the colony leader occupies one of the settler places aboard", () => {
   assert.equal(roster.count, 15);
   assert.equal(roster.named.at(-1).role, ABOARD_ROLE_COLONY_LEADER);
   assert.equal(roster.generic.filter((entry) => entry.role === ABOARD_ROLE_COLONIST).length, 11);
+});
+
+test("an expeditionary company appears among the people aboard", () => {
+  const roster = aboardRoster({
+    captain,
+    crewCount: 3,
+    travelerGroups: [{ kind: "soldier", count: 24 }]
+  });
+  assert.equal(roster.generic.filter((entry) => entry.role === ABOARD_ROLE_SOLDIER).length, 24);
 });
 
 test("an animal companion gets a named card without counting as a person or sailor", () => {

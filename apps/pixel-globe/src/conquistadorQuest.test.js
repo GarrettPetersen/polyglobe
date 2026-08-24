@@ -155,6 +155,7 @@ test("Pizarro's company starts favored, learns from defeats, and reforms at Span
   assert.equal(first.strength, CONQUISTADOR_COMPANY_MAX_STRENGTH);
   assert.equal(first.attemptNumber, 1);
   assert.equal(first.assaultChanceBonus, 0.3);
+  assert.equal(first.guaranteedSuccess, false);
   assert.equal(first.ready, true);
 
   const defeat = recordConquistadorAssaultFailure(memory, 18);
@@ -177,6 +178,7 @@ test("Pizarro's company starts favored, learns from defeats, and reforms at Span
   replenishConquistadorCompany(memory, panama, ports);
   const third = conquistadorCompanyAssaultStatus(memory, ports[1]);
   assert.equal(third.attemptNumber, 3);
+  assert.equal(third.guaranteedSuccess, true);
   assert.ok(Math.abs(third.assaultChanceBonus - 0.46) < 0.000001);
 });
 

@@ -221,6 +221,7 @@ export default {
   "aboard.colonyLeader": "식민단장",
   "aboard.crewmate": "선원",
   "aboard.colonist": "이주민",
+  "aboard.soldier": "병사",
   "aboard.animal": "동물",
   "aboard.goal": "목표",
   "aboard.skill": "기술",

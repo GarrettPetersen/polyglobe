@@ -1085,23 +1085,25 @@ export function applyNpcSeaRouteSimulationSnapshot(
   system.capitalNavalReserveSlots = snapshot.capitalNavalReserveSlots.map((slot) => (
     validateCapitalNavalReserveSlot({ ...slot })
   ));
-  reconcilePreservedCapitalNavalReserveShips(
+  reconcileCapitalNavalReserveShipsWithSnapshot(
     system.capitalNavalReserveSlots,
-    ships,
-    preservedIds
+    ships
   );
   validateCapitalNavalReserveAssignments(system);
   system.pirateHideoutDangerUntil = danger;
   return system;
 }
 
-function reconcilePreservedCapitalNavalReserveShips(slots, ships, preservedIds) {
+function reconcileCapitalNavalReserveShipsWithSnapshot(slots, ships) {
   const slotIds = new Set(slots.map((slot) => slot.id));
   for (const ship of ships) {
-    if (!preservedIds.has(ship.id) || ship.capitalNavalReserveSlotId === null ||
-        slotIds.has(ship.capitalNavalReserveSlotId)) {
+    if (ship.capitalNavalReserveSlotId === null || slotIds.has(ship.capitalNavalReserveSlotId)) {
       continue;
     }
+    // Reserve slots are authoritative in a worker snapshot. A conquest can abolish a
+    // faction's reserve while the corresponding ship is crossing the worker boundary.
+    // Demobilize that ship instead of restoring a reference to a constitutional owner
+    // which no longer exists.
     ship.capitalNavalReserveSlotId = null;
     ship.capitalNavalReserveDestinationPortId = null;
     ship.capitalNavalReserveDocked = false;

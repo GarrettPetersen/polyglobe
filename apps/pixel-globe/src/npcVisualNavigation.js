@@ -103,6 +103,7 @@ export function rankNpcObstacleAvoidanceDirections({
 export function npcProgressWatchShouldDetour({
   elapsedSeconds,
   displacementPx,
+  targetApproachPx = null,
   windowSeconds,
   minimumProgressPx
 }) {
@@ -112,13 +113,19 @@ export function npcProgressWatchShouldDetour({
   if (!Number.isFinite(displacementPx) || displacementPx < 0) {
     throw new Error(`Invalid NPC progress-watch displacement: ${displacementPx}`);
   }
+  if (targetApproachPx !== null && !Number.isFinite(targetApproachPx)) {
+    throw new Error(`Invalid NPC progress-watch target approach: ${targetApproachPx}`);
+  }
   if (!Number.isFinite(windowSeconds) || windowSeconds <= 0) {
     throw new Error(`Invalid NPC progress-watch window: ${windowSeconds}`);
   }
   if (!Number.isFinite(minimumProgressPx) || minimumProgressPx < 0) {
     throw new Error(`Invalid NPC progress-watch threshold: ${minimumProgressPx}`);
   }
-  return elapsedSeconds >= windowSeconds && displacementPx < minimumProgressPx;
+  return elapsedSeconds >= windowSeconds && (
+    displacementPx < minimumProgressPx ||
+    (targetApproachPx !== null && targetApproachPx < minimumProgressPx)
+  );
 }
 
 export function chooseNpcStuckDetourCandidate({

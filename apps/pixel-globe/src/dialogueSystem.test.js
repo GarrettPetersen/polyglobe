@@ -3267,7 +3267,15 @@ test("enemy port guards bar resupply and offer one risky disguise route", () => 
   context = { portEntryStatus: portEntryStatus(gameState, city, 101) };
   const failed = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(failed.text, /barely escape/);
-  assert.deepEqual(failed.options.map((entry) => entry.label), ["Make for open water"]);
+  assert.deepEqual(failed.options.map((entry) => entry.label), [
+    "Attack city",
+    "Make for open water"
+  ]);
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], 0, context),
+    { closed: false }
+  );
+  assert.equal(session.nodeId, "city-attack");
 });
 
 test("a disabled hostile harbor offers an eligible captain a marine landing", () => {
@@ -4854,6 +4862,8 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
   );
   assert.equal(arrivalView.presentation, undefined);
   assert.match(arrivalView.text, /short of timber/);
+  assert.equal(arrivalView.options[0].label, "Keep the cargo aboard");
+  assert.equal(arrivalView.options[0].action.nodeId, "shipyard-arrival-review");
   const arrivalSaleIndex = arrivalView.options.findIndex((entry) => (
     entry.action.type === "sell-shipyard-material" && entry.action.goodId === "timber"
   ));

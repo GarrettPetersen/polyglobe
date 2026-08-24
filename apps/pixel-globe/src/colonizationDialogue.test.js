@@ -106,6 +106,7 @@ test("the colonial organizer approaches before first-port business", () => {
     shipStats
   });
   assert.match(view.text, /Captain, a word before you see the factor/);
+  assert.equal(view.options[0].label, "Not now");
   const notNowIndex = view.options.findIndex((option) => option.label === "Not now");
   assert.notEqual(notNowIndex, -1);
   selectPortDialogueOption(

@@ -20,6 +20,7 @@ import {
   createShipInfoView,
   createShipyardShipView,
   shipInfoCargoPage,
+  shipCargoRowsPerPageForPanel,
   shipComparisonArmamentRow,
   shipComparisonDifferenceLabel,
   shipLocalDateLabel,
@@ -123,6 +124,12 @@ test("ship inventory page size reserves room for its pager", () => {
     height: 220,
     tallMetrics: true
   }), 4);
+});
+
+test("cargo manifest rows end above the pager on the playtest viewport", () => {
+  assert.equal(shipCargoRowsPerPageForPanel({ width: 456, height: 240 }), 4);
+  assert.equal(shipCargoRowsPerPageForPanel({ width: 320, height: 240 }), 2);
+  assert.equal(shipCargoRowsPerPageForPanel({ width: 520, height: 400 }), 8);
 });
 
 test("ship ledger page size keeps its final text row above the pager", () => {

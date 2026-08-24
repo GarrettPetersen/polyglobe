@@ -1585,7 +1585,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "recovering") return recoveringPortView(city, context);
   if (session.nodeId === "barred") return barredPortView(city, gameState, context);
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
-  if (session.nodeId === "disguise-failed") return disguiseFailureView(city, context);
+  if (session.nodeId === "disguise-failed") return disguiseFailureView(city, gameState, context);
   if (session.nodeId === "root") {
     return rootView(session, city, gameState, economy, portCities, context);
   }
@@ -4092,14 +4092,24 @@ function disguiseSuccessView(session, city) {
   };
 }
 
-function disguiseFailureView(city, context) {
+function disguiseFailureView(city, gameState, context) {
   const days = context.portEntryStatus?.lockDaysRemaining || 1;
+  const attack = context.portAttackStatus || playerPortAttackStatus(gameState, city);
+  const options = [];
+  if (attack.available) {
+    options.push(portAttackOption(city, gameState, attack, {
+      type: "node",
+      nodeId: "city-attack",
+      returnNodeId: "disguise-failed"
+    }));
+  }
+  options.push(option("Make for open water", { type: "close" }));
   return {
     speaker: `${cityLabel(city)} harbor guard`,
     expressionId: "angry",
     text: `There they are! Sound the alarm! The watch recognizes your ship, and you barely escape. The port will remain alert for ${days} day${days === 1 ? "" : "s"}.`,
     feedback: null,
-    options: [option("Make for open water", { type: "close" })]
+    options
   };
 }
 
@@ -4931,6 +4941,7 @@ function colonizationView(session, city, gameState, context) {
           : ""}`,
       feedback: session.feedback,
       options: [
+        ...(session.colonizationArrival ? [back] : []),
         option(deliveryOptionLabel(stage.goodLabel, quest.fetchDeliverable), {
           type: "deliver-colonization-material",
           stageId: stage.id
@@ -4939,7 +4950,7 @@ function colonizationView(session, city, gameState, context) {
           disabledReason: `Still need ${quest.fetchRemaining} ${stage.goodLabel.toLowerCase()}; ` +
             `hold has ${quest.held}.`
         }),
-        back
+        ...(!session.colonizationArrival ? [back] : [])
       ]
     };
   }
@@ -5693,7 +5704,7 @@ function shipyardPurchaseConfirmationView(session, city, gameState, context) {
     expressionId: "attentive",
     text: `${tradeQuestion}? This cannot be undone.`,
     feedback: session.feedback,
-    feedbackTone: "warning",
+    feedbackTone: "danger",
     options: [
       option("Confirm exchange", {
         type: "purchase-ship",
@@ -5770,6 +5781,12 @@ function playerShipyardArrivalView(session, city, gameState, economy, context) {
     text: [payoutText, materialText].filter(Boolean).join(" "),
     feedback: session.feedback,
     options: [
+      ...(materialSales.length > 0
+        ? [option("Keep the cargo aboard", {
+            type: "node",
+            nodeId: "shipyard-arrival-review"
+          })]
+        : []),
       ...materialSales.map((sale) => option(
         `Sell ${sale.goodLabel} x${sale.quantity}  ${sale.price} db`,
         {
@@ -5778,7 +5795,9 @@ function playerShipyardArrivalView(session, city, gameState, economy, context) {
           quantity: sale.quantity
         }
       )),
-      option("Continue", { type: "node", nodeId: "shipyard-arrival-review" })
+      ...(materialSales.length === 0
+        ? [option("Continue", { type: "node", nodeId: "shipyard-arrival-review" })]
+        : [])
     ]
   };
 }
@@ -6140,7 +6159,11 @@ function shipyardInvestmentView(session, city, gameState, context) {
   if (!yard) throw new Error("Shipyard investment dialogue requires the local yard");
   if (!project) throw new Error("Shipyard investment dialogue requires the local project");
 
-  const rows = [];
+  const back = option(session.shipyardInvestmentArrival ? "Keep the cargo aboard" : "Back", {
+    type: "node",
+    nodeId: session.shipyardInvestmentArrival ? session.nextPortNodeId || "greeting" : "shipyard"
+  });
+  const rows = session.shipyardInvestmentArrival ? [back] : [];
   if (!project.capitalPaid) {
     rows.push(option(`Invest ${SHIPYARD_INVESTMENT_CAPITAL} doubloons`, {
       type: "pay-shipyard-investment"
@@ -6167,10 +6190,7 @@ function shipyardInvestmentView(session, city, gameState, context) {
   if (shipyardInvestmentComplete(project)) {
     rows.push(option("Open the shipyard", { type: "open-player-shipyard" }));
   }
-  rows.push(option("Back", {
-    type: "node",
-    nodeId: session.shipyardInvestmentArrival ? session.nextPortNodeId || "greeting" : "shipyard"
-  }));
+  if (!session.shipyardInvestmentArrival) rows.push(back);
   return {
     speaker: `${cityLabel(city)} master shipwright`,
     expressionId: "attentive",

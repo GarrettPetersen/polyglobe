@@ -28,6 +28,35 @@ export const SHIP_LEDGER_ROWS_PER_PAGE = 10;
 export const SHIP_PAPERS_ROWS_PER_PAGE = 7;
 export const SHIP_PAPER_ROW_CONTENT_INSET = 6;
 
+export function shipCargoRowsPerPageForPanel({
+  width,
+  height,
+  pagerHeight = 24
+}) {
+  for (const [label, value] of Object.entries({ width, height, pagerHeight })) {
+    if (!Number.isFinite(value) || value <= 0) {
+      throw new Error(`Ship cargo panel ${label} must be positive: ${value}`);
+    }
+  }
+  if (width >= 400) {
+    const firstRowTop = 174;
+    const rowHeight = 17;
+    const pagerTop = height - pagerHeight - 5;
+    const rowsPerColumn = Math.max(1, Math.min(4, Math.floor((pagerTop - firstRowTop) / rowHeight)));
+    return rowsPerColumn * 2;
+  }
+  if (height < 300) {
+    const firstRowTop = 175;
+    const rowHeight = 17;
+    const pagerTop = height - pagerHeight - 5;
+    return Math.max(1, Math.floor((pagerTop - firstRowTop) / rowHeight));
+  }
+  const firstRowTop = 299;
+  const rowHeight = 17;
+  const pagerTop = height - pagerHeight - 5;
+  return Math.max(1, Math.floor((pagerTop - firstRowTop) / rowHeight));
+}
+
 export function shipLedgerRowsPerPageForPanel({
   width,
   height,
