@@ -151,6 +151,11 @@ test("a local elastic water fault is repaired by swell before atmospheric cover"
     waterOnlyViewport: false,
     localWaterFault: true
   }), true);
+  assert.equal(chartFaultCanRelyOnSwell({
+    drift: { ...aleutianDistortion, rotationDeg: 4 },
+    waterOnlyViewport: false,
+    localWaterFault: true
+  }), false);
 });
 
 test("a water-only viewport always keeps repair in the water system", () => {

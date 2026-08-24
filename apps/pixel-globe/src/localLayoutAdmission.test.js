@@ -1483,6 +1483,10 @@ test("the western approaches off Ireland stay below integrity telemetry limits",
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
       routeWaypoints: [
+        [47.8, -5.4],
+        [47.3, -7.2],
+        [46.83, -9.12],
+        [47.2, -11.0],
         [50.4, -5.0],
         [50.1, -6.8],
         [49.79, -9.39],

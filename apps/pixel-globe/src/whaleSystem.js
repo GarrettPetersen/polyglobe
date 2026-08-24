@@ -14,7 +14,7 @@ import {
 } from "./whaleSpecies.js";
 import { whaleHarpoonById } from "./whaleHarpoons.js";
 
-export const WHALE_MEMORY_VERSION = 3;
+export const WHALE_MEMORY_VERSION = 4;
 export const WHALE_PHASE_SUBMERGED = "submerged";
 export const WHALE_PHASE_RISING = "rising";
 export const WHALE_PHASE_SURFACED = "surfaced";
@@ -104,13 +104,33 @@ export function migrateWhaleMemory(memory) {
   if (memory === undefined || memory === null) return createWhaleMemory();
   if (!memory || typeof memory !== "object") throw new Error("Whale memory migration requires an object");
   if (memory.version === WHALE_MEMORY_VERSION) return validateWhaleMemory(memory);
-  if (memory.version !== 2) throw new Error(`Unsupported whale memory version: ${memory.version ?? "missing"}`);
+  if (memory.version !== 2 && memory.version !== 3) {
+    throw new Error(`Unsupported whale memory version: ${memory.version ?? "missing"}`);
+  }
+  const individuals = compactMigratedWhaleIndividuals(memory.individuals);
   const migrated = {
     ...memory,
     version: WHALE_MEMORY_VERSION,
-    activeHunt: memory.activeHunt ? migrateActiveWhaleHunt(memory) : null
+    individuals,
+    activeHunt: memory.activeHunt
+      ? memory.version === 2 ? migrateActiveWhaleHunt(memory) : { ...memory.activeHunt }
+      : null
   };
   return validateWhaleMemory(migrated);
+}
+
+function compactMigratedWhaleIndividuals(individuals) {
+  if (!Array.isArray(individuals)) throw new Error("Migrated whale memory requires individuals");
+  const retained = individuals
+    .filter((whale) => whale?.phase !== WHALE_PHASE_DEAD)
+    .map((whale) => ({ ...whale }));
+  const retainedIds = new Set(retained.map((whale) => whale.id));
+  for (const whale of retained) {
+    if (whale.motherId !== null && !retainedIds.has(whale.motherId)) {
+      whale.motherId = null;
+    }
+  }
+  return retained;
 }
 
 function migrateActiveWhaleHunt(memory) {
@@ -387,6 +407,10 @@ function whaleSimulationClock(memory) {
     clock.individualCount !== memory.individuals.length ||
     clock.nextId !== memory.nextId
   ) {
+    const currentIds = new Set(memory.individuals.map((whale) => whale.id));
+    for (const whaleId of clock.lastMovementSeconds.keys()) {
+      if (!currentIds.has(whaleId)) clock.lastMovementSeconds.delete(whaleId);
+    }
     for (const whale of memory.individuals) {
       if (!clock.lastMovementSeconds.has(whale.id)) {
         clock.lastMovementSeconds.set(whale.id, clock.elapsedSeconds);
@@ -1137,6 +1161,9 @@ function killWhale(memory, whale) {
   for (const dependent of memory.individuals) {
     if (dependent.motherId === whale.id) dependent.motherId = null;
   }
+  const index = memory.individuals.indexOf(whale);
+  if (index < 0) throw new Error(`Killed whale is missing from memory: ${whale.id}`);
+  memory.individuals.splice(index, 1);
 }
 
 function submergedDuration(seed, cycle, speciesId) {

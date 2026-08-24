@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  WHALE_MEMORY_VERSION,
   WHALE_PHASE_DEAD,
   WHALE_PHASE_EXHAUSTED,
   WHALE_PHASE_RISING,
@@ -245,7 +246,7 @@ test("sperm whale calves cannot ram and version two hunts migrate safely", () =>
   delete legacy.activeHunt.ramState;
   delete legacy.activeHunt.ramCountdownSeconds;
   const migrated = migrateWhaleMemory(legacy);
-  assert.equal(migrated.version, 3);
+  assert.equal(migrated.version, WHALE_MEMORY_VERSION);
   assert.equal(migrated.activeHunt.ramState, "ineligible");
   assert.doesNotThrow(() => validateWhaleMemory(migrated));
 });
@@ -266,6 +267,25 @@ test("killing the last living member makes a whale species extinct", () => {
   assert.equal(livingWhaleCountForSpecies(memory, speciesId), 1);
   killExhaustedWhale(memory);
   assert.equal(livingWhaleCountForSpecies(memory, speciesId), 0);
+  assert.equal(memory.individuals.includes(whale), false);
+});
+
+test("version three whale saves discard accumulated carcasses during migration", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(), 6);
+  const deadMother = memory.individuals.find((whale) => whale.sex === "female");
+  const dependent = memory.individuals.find((whale) => whale !== deadMother);
+  deadMother.phase = WHALE_PHASE_DEAD;
+  dependent.motherId = deadMother.id;
+  memory.version = 3;
+
+  const migrated = migrateWhaleMemory(memory);
+
+  assert.equal(migrated.version, WHALE_MEMORY_VERSION);
+  assert.equal(migrated.individuals.length, 5);
+  assert.equal(migrated.individuals.some((whale) => whale.id === deadMother.id), false);
+  assert.equal(migrated.individuals.find((whale) => whale.id === dependent.id).motherId, null);
+  assert.doesNotThrow(() => validateWhaleMemory(migrated));
 });
 
 test("an authored hunt can use the same exhausted state transition as a completed tow", () => {

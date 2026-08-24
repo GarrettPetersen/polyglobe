@@ -1020,6 +1020,10 @@ function restoreLoadedGameState(state, shipStats = null) {
   if (state?.version !== GAME_STATE_VERSION) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
+  if (!state.memory || typeof state.memory !== "object") {
+    throw new Error("Loaded game state requires memory");
+  }
+  state.memory.whales = migrateWhaleMemory(state.memory.whales);
   assertGameState(state);
   reconcileLoadedShipLoadout(state, shipStats);
   const repair = repairPlayerCargoOverflow(state);
