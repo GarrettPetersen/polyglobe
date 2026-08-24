@@ -2,7 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ICEBERG_ADVANCE_INTERVAL_MINUTES,
+  advanceIcebergJob,
   advanceIcebergMemory,
+  beginIcebergAdvance,
   createIcebergMemory,
   icebergVariantById,
   seedIcebergPopulation,
@@ -49,6 +51,28 @@ test("icebergs drift with wind through open water", () => {
   assert.equal(result.changed, true);
   assert.notDeepEqual(memory.individuals[0].position, before);
   assert.ok(vectorDot(memory.individuals[0].heading, [0, 1, 0]) > 0.999999);
+});
+
+test("iceberg population advances can be staged without exposing partial state", () => {
+  const memory = createIcebergMemory();
+  seedIcebergPopulation(memory, CANDIDATES, { count: 3, seedKey: "staged", startMinute: 0 });
+  const before = structuredClone(memory);
+  const job = beginIcebergAdvance(memory, {
+    currentMinute: ICEBERG_ADVANCE_INTERVAL_MINUTES,
+    environmentAtPosition: fixedEnvironment({ windStrength: 1 }),
+    spawnCandidates: CANDIDATES,
+    seedKey: "staged",
+    targetCount: 3
+  });
+
+  const first = advanceIcebergJob(job, 1);
+  assert.equal(first.complete, false);
+  assert.deepEqual(memory, before, "an unfinished batch must not leak a partly advanced population");
+  assert.equal(advanceIcebergJob(job, 1).complete, false);
+  const finished = advanceIcebergJob(job, 1);
+  assert.equal(finished.complete, true);
+  assert.equal(finished.result.changed, true);
+  assert.notDeepEqual(memory, before);
 });
 
 test("iceberg translation transports its visual orientation instead of facing every drift", () => {
@@ -162,14 +186,17 @@ test("icebergs trapped by sea ice are ejected once into open water", () => {
   let ejectionCalls = 0;
   const result = advanceIcebergMemory(memory, {
     currentMinute: ICEBERG_ADVANCE_INTERVAL_MINUTES,
-    environmentAtPosition: (position) => ({
-      tileId: position === trappedPosition ? 2 : 8,
-      navigable: true,
-      frozen: position === trappedPosition,
-      windDirectionRad: 0,
-      windStrength: 0,
-      waterTemperatureC: -1
-    }),
+    environmentAtPosition: (position) => {
+      const trapped = position.every((value, index) => value === trappedPosition[index]);
+      return {
+        tileId: trapped ? 2 : 8,
+        navigable: true,
+        frozen: trapped,
+        windDirectionRad: 0,
+        windStrength: 0,
+        waterTemperatureC: -1
+      };
+    },
     ejectionCandidateForIceberg: () => {
       ejectionCalls += 1;
       return {

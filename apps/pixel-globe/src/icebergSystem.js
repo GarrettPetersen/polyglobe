@@ -7,6 +7,7 @@ const EARTH_RADIUS_KM = 6371;
 const ICEBERG_BASE_DRIFT_KM_PER_DAY = 11;
 const ICEBERG_RESPAWN_INTERVAL_MINUTES = 2 * MINUTES_PER_DAY;
 const ICEBERG_SEED = 0x49434542;
+const icebergAdvanceJobs = new WeakSet();
 
 export const ICEBERG_VARIANTS = Object.freeze([
   Object.freeze({
@@ -90,6 +91,26 @@ export function advanceIcebergMemory(memory, {
   seedKey = "icebergs",
   targetCount = ICEBERG_POPULATION_TARGET
 }) {
+  const job = beginIcebergAdvance(memory, {
+    currentMinute,
+    environmentAtPosition,
+    ejectionCandidateForIceberg,
+    spawnCandidates,
+    seedKey,
+    targetCount
+  });
+  if (!job) return unchangedIcebergAdvanceResult();
+  return advanceIcebergJob(job, Number.POSITIVE_INFINITY).result;
+}
+
+export function beginIcebergAdvance(memory, {
+  currentMinute,
+  environmentAtPosition,
+  ejectionCandidateForIceberg = null,
+  spawnCandidates,
+  seedKey = "icebergs",
+  targetCount = ICEBERG_POPULATION_TARGET
+}) {
   validateIcebergMemory(memory);
   assertMinute(currentMinute);
   if (typeof environmentAtPosition !== "function") {
@@ -110,86 +131,172 @@ export function advanceIcebergMemory(memory, {
     throw new Error(`Iceberg simulation cannot move backwards: ${currentMinute} < ${memory.lastAdvanceMinute}`);
   }
   const elapsedMinutes = currentMinute - memory.lastAdvanceMinute;
-  if (elapsedMinutes < ICEBERG_ADVANCE_INTERVAL_MINUTES) {
-    return Object.freeze({
-      changed: false,
-      meltedIds: Object.freeze([]),
-      ejectedIds: Object.freeze([]),
-      spawnedIds: Object.freeze([])
-    });
-  }
+  if (elapsedMinutes < ICEBERG_ADVANCE_INTERVAL_MINUTES) return null;
+  const job = {
+    memory,
+    currentMinute,
+    environmentAtPosition,
+    ejectionCandidateForIceberg,
+    spawnCandidates,
+    seedKey,
+    targetCount,
+    elapsedDays: elapsedMinutes / MINUTES_PER_DAY,
+    sourceIndividuals: memory.individuals.slice(),
+    workingIndividuals: memory.individuals.map(cloneIceberg),
+    survivors: [],
+    meltedIds: [],
+    ejectedIds: [],
+    cursor: 0,
+    changed: false,
+    complete: false,
+    result: null
+  };
+  icebergAdvanceJobs.add(job);
+  return job;
+}
 
-  const elapsedDays = elapsedMinutes / MINUTES_PER_DAY;
-  const survivors = [];
-  const meltedIds = [];
-  const ejectedIds = [];
-  let changed = false;
-  for (const iceberg of memory.individuals) {
-    let environment = validateEnvironment(environmentAtPosition(iceberg.position));
-    let wasEjected = false;
-    if ((!environment.navigable || environment.frozen) && ejectionCandidateForIceberg) {
-      const candidate = validateCandidate(ejectionCandidateForIceberg(iceberg));
-      const destination = validateEnvironment(environmentAtPosition(candidate.position));
-      if (!destination.navigable || destination.frozen) {
-        throw new Error(`Iceberg ejection candidate is not open water: ${iceberg.id}/${candidate.tileId}`);
-      }
-      iceberg.position = candidate.position.slice();
-      iceberg.tileId = destination.tileId;
-      if (candidate.heading) iceberg.heading = candidate.heading.slice();
-      environment = destination;
-      ejectedIds.push(iceberg.id);
-      wasEjected = true;
-      changed = true;
-    }
-    const variant = icebergVariantById(iceberg.variantId);
-    const warmDegrees = Math.max(0, environment.waterTemperatureC - 1.5);
-    const melted = warmDegrees * elapsedDays * variant.meltPerWarmDegreeDay;
-    if (melted > 0) {
-      iceberg.integrity = Math.max(0, iceberg.integrity - melted);
-      changed = true;
-    }
-    if (iceberg.integrity <= 0) {
-      meltedIds.push(iceberg.id);
-      changed = true;
-      continue;
-    }
-    const shrunkenVariantId = icebergVariantForIntegrity(iceberg.variantId, iceberg.integrity);
-    if (shrunkenVariantId !== iceberg.variantId) {
-      iceberg.variantId = shrunkenVariantId;
-      changed = true;
-    }
-
-    const moved = !wasEjected && driftIceberg(
-      iceberg,
-      icebergVariantById(iceberg.variantId),
-      environment,
-      elapsedDays,
-      environmentAtPosition
-    );
-    changed ||= moved;
-    survivors.push(iceberg);
+export function advanceIcebergJob(job, maximumIndividuals = 1) {
+  assertIcebergAdvanceJob(job);
+  if (job.complete) throw new Error("Completed iceberg advance job cannot run again");
+  if (maximumIndividuals !== Number.POSITIVE_INFINITY &&
+      (!Number.isInteger(maximumIndividuals) || maximumIndividuals < 1)) {
+    throw new Error(`Invalid iceberg advance batch size: ${maximumIndividuals}`);
   }
-  memory.individuals = survivors;
-  memory.lastAdvanceMinute = currentMinute;
+  const stop = maximumIndividuals === Number.POSITIVE_INFINITY
+    ? job.workingIndividuals.length
+    : Math.min(job.workingIndividuals.length, job.cursor + maximumIndividuals);
+  while (job.cursor < stop) {
+    const iceberg = job.workingIndividuals[job.cursor++];
+    advanceIcebergForJob(job, iceberg);
+  }
+  if (job.cursor < job.workingIndividuals.length) {
+    return Object.freeze({ complete: false, processed: job.cursor, result: null });
+  }
+  const result = finishIcebergAdvanceJob(job);
+  return Object.freeze({ complete: true, processed: job.cursor, result });
+}
+
+function advanceIcebergForJob(job, iceberg) {
+  let environment = validateEnvironment(job.environmentAtPosition(iceberg.position));
+  let wasEjected = false;
+  if ((!environment.navigable || environment.frozen) && job.ejectionCandidateForIceberg) {
+    const candidate = validateCandidate(job.ejectionCandidateForIceberg(iceberg));
+    const destination = validateEnvironment(job.environmentAtPosition(candidate.position));
+    if (!destination.navigable || destination.frozen) {
+      throw new Error(`Iceberg ejection candidate is not open water: ${iceberg.id}/${candidate.tileId}`);
+    }
+    iceberg.position = candidate.position.slice();
+    iceberg.tileId = destination.tileId;
+    if (candidate.heading) iceberg.heading = candidate.heading.slice();
+    environment = destination;
+    job.ejectedIds.push(iceberg.id);
+    wasEjected = true;
+    job.changed = true;
+  }
+  const variant = icebergVariantById(iceberg.variantId);
+  const warmDegrees = Math.max(0, environment.waterTemperatureC - 1.5);
+  const melted = warmDegrees * job.elapsedDays * variant.meltPerWarmDegreeDay;
+  if (melted > 0) {
+    iceberg.integrity = Math.max(0, iceberg.integrity - melted);
+    job.changed = true;
+  }
+  if (iceberg.integrity <= 0) {
+    job.meltedIds.push(iceberg.id);
+    job.changed = true;
+    return;
+  }
+  const shrunkenVariantId = icebergVariantForIntegrity(iceberg.variantId, iceberg.integrity);
+  if (shrunkenVariantId !== iceberg.variantId) {
+    iceberg.variantId = shrunkenVariantId;
+    job.changed = true;
+  }
+  const moved = !wasEjected && driftIceberg(
+    iceberg,
+    icebergVariantById(iceberg.variantId),
+    environment,
+    job.elapsedDays,
+    job.environmentAtPosition
+  );
+  job.changed ||= moved;
+  job.survivors.push(iceberg);
+}
+
+function finishIcebergAdvanceJob(job) {
+  if (job.memory.individuals.length !== job.sourceIndividuals.length ||
+      job.memory.individuals.some((iceberg, index) => iceberg !== job.sourceIndividuals[index])) {
+    throw new Error("Iceberg population changed during a staged advance");
+  }
+  const sourceById = new Map(job.sourceIndividuals.map((iceberg) => [iceberg.id, iceberg]));
+  job.memory.individuals = job.survivors.map((working) => {
+    const source = sourceById.get(working.id);
+    if (!source) throw new Error(`Staged iceberg disappeared: ${working.id}`);
+    copyIcebergState(source, working);
+    return source;
+  });
+  job.memory.lastAdvanceMinute = job.currentMinute;
 
   const spawnedIds = [];
-  const mayRespawn = memory.individuals.length < targetCount && spawnCandidates.length > 0 &&
-    (memory.lastSpawnMinute === null ||
-      currentMinute - memory.lastSpawnMinute >= ICEBERG_RESPAWN_INTERVAL_MINUTES);
+  const mayRespawn = job.memory.individuals.length < job.targetCount &&
+    job.spawnCandidates.length > 0 &&
+    (job.memory.lastSpawnMinute === null ||
+      job.currentMinute - job.memory.lastSpawnMinute >= ICEBERG_RESPAWN_INTERVAL_MINUTES);
   if (mayRespawn) {
-    const seed = hashString(seedKey) ^ ICEBERG_SEED ^ Math.floor(currentMinute);
-    const iceberg = spawnIceberg(memory, spawnCandidates, seed, memory.nextId);
-    memory.lastSpawnMinute = currentMinute;
+    const seed = hashString(job.seedKey) ^ ICEBERG_SEED ^ Math.floor(job.currentMinute);
+    const iceberg = spawnIceberg(
+      job.memory,
+      job.spawnCandidates,
+      seed,
+      job.memory.nextId
+    );
+    job.memory.lastSpawnMinute = job.currentMinute;
     spawnedIds.push(iceberg.id);
-    changed = true;
+    job.changed = true;
   }
-  validateIcebergMemory(memory);
-  return Object.freeze({
-    changed,
-    meltedIds: Object.freeze(meltedIds),
-    ejectedIds: Object.freeze(ejectedIds),
+  validateIcebergMemory(job.memory);
+  job.complete = true;
+  job.result = Object.freeze({
+    changed: job.changed,
+    meltedIds: Object.freeze(job.meltedIds.slice()),
+    ejectedIds: Object.freeze(job.ejectedIds.slice()),
     spawnedIds: Object.freeze(spawnedIds)
   });
+  return job.result;
+}
+
+function unchangedIcebergAdvanceResult() {
+  return Object.freeze({
+    changed: false,
+    meltedIds: Object.freeze([]),
+    ejectedIds: Object.freeze([]),
+    spawnedIds: Object.freeze([])
+  });
+}
+
+function assertIcebergAdvanceJob(job) {
+  if (!job || typeof job !== "object" || !icebergAdvanceJobs.has(job) ||
+      !Array.isArray(job.workingIndividuals) ||
+      !Array.isArray(job.sourceIndividuals) || !Array.isArray(job.survivors) ||
+      !Number.isInteger(job.cursor) || job.cursor < 0 || job.cursor > job.workingIndividuals.length) {
+    throw new Error("Invalid iceberg advance job");
+  }
+}
+
+function cloneIceberg(iceberg) {
+  return {
+    ...iceberg,
+    position: iceberg.position.slice(),
+    heading: iceberg.heading.slice()
+  };
+}
+
+function copyIcebergState(target, source) {
+  target.variantId = source.variantId;
+  target.sourceIceTileId = source.sourceIceTileId;
+  target.tileId = source.tileId;
+  target.position = source.position.slice();
+  target.heading = source.heading.slice();
+  target.integrity = source.integrity;
+  target.seed = source.seed;
 }
 
 function icebergVariantForIntegrity(variantId, integrity) {

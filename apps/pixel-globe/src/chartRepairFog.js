@@ -260,7 +260,7 @@ export function nextPolarChartRepairPressure({
     throw new Error(`Polar chart repair pressure elapsed time cannot be negative: ${elapsedSeconds}`);
   }
   const ratePerSecond = target > effectiveCurrentPressure
-    ? severeDistortion ? 0.045 : 0.014
+    ? severeDistortion ? 0.09 : 0.014
     : 0.01;
   const maximumStep = ratePerSecond * elapsedSeconds;
   return effectiveCurrentPressure + Math.max(

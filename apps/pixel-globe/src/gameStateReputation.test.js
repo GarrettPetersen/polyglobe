@@ -202,8 +202,17 @@ test("port entry evaluation context can be reused across an armed-port combat ti
     portEntryStatus(state, CALAIS, simMinute, context),
     portEntryStatus(state, CALAIS, simMinute)
   );
+  assert.deepEqual(
+    playerPortAttackStatus(state, CALAIS, context),
+    playerPortAttackStatus(state, CALAIS)
+  );
   assert.throws(
     () => portEntryStatus(state, CALAIS, simMinute + 1, context),
+    /does not match/
+  );
+  const laterContext = createPortEntryStatusContext(state, simMinute + 1);
+  assert.throws(
+    () => playerPortAttackStatus({ ...state }, CALAIS, laterContext),
     /does not match/
   );
 });

@@ -4566,13 +4566,21 @@ export function createPortEntryStatusContext(state, simMinute = 0) {
   });
 }
 
+function assertPortEntryStatusContext(state, simMinute, context) {
+  if (context?.state !== state || context.simMinute !== simMinute ||
+      !(context.diplomaticPassageFactionIds instanceof Set)) {
+    throw new Error("Port-entry context does not match the requested state and time");
+  }
+  return context;
+}
+
 export function portEntryStatus(state, city, simMinute = 0, context = null) {
   if (!context) assertGameState(state);
-  const evaluation = context || createPortEntryStatusContext(state, simMinute);
-  if (evaluation.state !== state || evaluation.simMinute !== simMinute ||
-      !(evaluation.diplomaticPassageFactionIds instanceof Set)) {
-    throw new Error("Port entry status context does not match the requested state and time");
-  }
+  const evaluation = assertPortEntryStatusContext(
+    state,
+    simMinute,
+    context || createPortEntryStatusContext(state, simMinute)
+  );
   const factionId = city?.factionId || null;
   if (!factionId || factionId === NEUTRAL_FACTION_ID) {
     return {
@@ -4741,11 +4749,11 @@ export function refuseFactionSafePassage(state, factionId, simMinute) {
 
 export function activeFactionSafePassageIds(state, simMinute, context = null) {
   if (!context) assertGameState(state);
-  const evaluation = context || createPortEntryStatusContext(state, simMinute);
-  if (evaluation.state !== state || evaluation.simMinute !== simMinute ||
-      !(evaluation.diplomaticPassageFactionIds instanceof Set)) {
-    throw new Error("Safe-passage context does not match the requested state and time");
-  }
+  const evaluation = assertPortEntryStatusContext(
+    state,
+    simMinute,
+    context || createPortEntryStatusContext(state, simMinute)
+  );
   const ids = new Set(evaluation.diplomaticPassageFactionIds);
   if (!evaluation.playerWarship) {
     for (const [factionId, untilMinute] of Object.entries(state.relations.safePassageUntilMinute)) {
@@ -5055,6 +5063,10 @@ export function hasLetterOfMarqueFrom(state, factionId) {
 export function privateeringAuthorityIssuerIdsAgainst(state, targetFactionId) {
   assertGameState(state);
   const targetId = assertFactionId(targetFactionId);
+  return privateeringAuthorityIssuerIdsAgainstValidState(state, targetId);
+}
+
+function privateeringAuthorityIssuerIdsAgainstValidState(state, targetId) {
   if (targetId === NEUTRAL_FACTION_ID || targetId === PIRATE_FACTION_ID) return [];
   const issuerIds = [];
   for (const issuerId of Object.keys(state.relations.lettersOfMarque)) {
@@ -6305,6 +6317,10 @@ export function commissionedPortCaptureFactionId(state, city) {
   if (!city || !Number.isInteger(city.tileId)) {
     throw new Error("Commissioned port capture requires a target city");
   }
+  return commissionedPortCaptureFactionIdForValidState(state, city);
+}
+
+function commissionedPortCaptureFactionIdForValidState(state, city) {
   const conquistadorFactionId = conquistadorCommissionedCaptureFactionId(
     questMemory(state).conquistador,
     city
@@ -6316,8 +6332,12 @@ export function commissionedPortCaptureFactionId(state, city) {
   return assertFactionId(quest.originFactionId);
 }
 
-export function playerPortAttackStatus(state, city) {
-  assertGameState(state);
+export function playerPortAttackStatus(state, city, context = null) {
+  if (context) {
+    assertPortEntryStatusContext(state, context.simMinute, context);
+  } else {
+    assertGameState(state);
+  }
   if (!city || !Number.isInteger(city.tileId) || !city.factionId) {
     throw new Error("Port attack status requires a faction city");
   }
@@ -6325,7 +6345,7 @@ export function playerPortAttackStatus(state, city) {
   const playerFactionId = assertFactionId(
     state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID
   );
-  const commissionedIssuerId = commissionedPortCaptureFactionId(state, city);
+  const commissionedIssuerId = commissionedPortCaptureFactionIdForValidState(state, city);
   if (targetFactionId === NEUTRAL_FACTION_ID) {
     if (commissionedIssuerId) {
       return Object.freeze({
@@ -6368,7 +6388,10 @@ export function playerPortAttackStatus(state, city) {
   const ownNationAtWar = !ownPort && playerFactionId !== NEUTRAL_FACTION_ID &&
     playerFactionId !== PIRATE_FACTION_ID &&
     diplomacyBetweenForState(state, playerFactionId, targetFactionId) === DIPLOMACY_WAR;
-  const privateeringAuthority = hasPrivateeringAuthorityAgainst(state, targetFactionId);
+  const privateeringAuthority = privateeringAuthorityIssuerIdsAgainstValidState(
+    state,
+    targetFactionId
+  ).length > 0;
   const targetIsPirate = targetFactionId === PIRATE_FACTION_ID;
   // War licenses battle and prize-taking; it does not empower a sea captain to
   // transfer sovereignty. Annexation requires a ruler's express commission.

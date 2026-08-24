@@ -46,6 +46,19 @@ test("global telemetry ignores failures raised by injected browser extensions", 
   ), true);
 });
 
+test("global telemetry ignores context-free browser network failures", () => {
+  const bareNetworkError = {
+    name: "TypeError",
+    message: "Failed to fetch",
+    stack: "TypeError: Failed to fetch"
+  };
+  assert.equal(shouldCaptureGlobalTelemetryError(bareNetworkError), false);
+  assert.equal(shouldCaptureGlobalTelemetryError({
+    ...bareNetworkError,
+    stack: "TypeError: Failed to fetch\n    at loadManifest (https://example.test/main.js:1:1)"
+  }), true);
+});
+
 test("telemetry remains completely inert before consent and after refusal", async () => {
   const storage = memoryStorage();
   const requests = [];

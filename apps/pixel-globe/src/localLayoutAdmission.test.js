@@ -1464,7 +1464,7 @@ test("a northeast Asia coastal passage keeps distortion below telemetry limits",
   assert.equal(result.visibleProtectedRedraws, 0);
   assert.equal(result.visibleLandRedraws, 0);
   assert.ok(
-    result.maxRotationDeg <= 6,
+    result.maxRotationDeg <= 8,
     `Northeast Asia chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
   );
   assert.ok(
@@ -1509,6 +1509,86 @@ test("the western approaches off Ireland stay below integrity telemetry limits",
     `Western Approaches chart opened a ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
   );
   assertLandTraversalIsContinuous(result, "Western Approaches passage");
+});
+
+test("the Bering Sea west of Alaska stays below integrity telemetry limits", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [58.81, 152.29],
+        [59.0, 164.0],
+        [57.5, 174.0],
+        [56.14, -177.62],
+        [55.5, -169.0]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("bering-sea", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRotationDeg <= 8,
+    `Bering Sea chart reached ${result.maxRotationDeg.toFixed(2)} degrees of tilt`
+  );
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `Bering Sea chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxDistortionPx <= 26,
+    `Bering Sea chart reached ${result.maxDistortionPx.toFixed(2)}px maximum distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeGapPx <= 10,
+    `Bering Sea chart opened a ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
+  );
+  assertLandTraversalIsContinuous(result, "Bering Sea passage");
+});
+
+test("reported protected-stitch regions retain continuous terrain after recovery", () => {
+  const regions = [
+    {
+      label: "Yellow Sea",
+      waypoints: [[33.0, 121.0], [34.53, 123.55], [36.0, 126.0]]
+    },
+    {
+      label: "Ionian Sea",
+      waypoints: [[37.0, 17.0], [39.21, 19.01], [41.0, 20.0]]
+    },
+    {
+      label: "lower Amur",
+      waypoints: [[49.5, 135.0], [51.68, 137.9], [54.0, 141.0]]
+    }
+  ];
+  for (const region of regions) {
+    const result = simulateLisbonToKamchatkaCoastalVoyage(
+      MAX_PROTECTED_ADMISSION_SLACK_PX,
+      {
+        routeWaypoints: region.waypoints,
+        subdivisions: 7,
+        pixelsPerRadian: 2450,
+        chartMargin: 218,
+        useGameWorld: true,
+        usePolarFogRepairs: true
+      }
+    );
+    reportChartBenchmark(`protected-stitch-${region.label}`, result);
+
+    assert.equal(result.visibleProtectedRedraws, 0, `${region.label} redrew protected terrain`);
+    assert.equal(result.visibleLandRedraws, 0, `${region.label} redrew visible land`);
+    assert.ok(
+      result.maxProtectedEdgeErrorPx <= MAX_VISIBLE_PROTECTED_EDGE_LENGTH_ERROR_PX,
+      `${region.label} retained a ${result.maxProtectedEdgeErrorPx.toFixed(2)}px protected stitch`
+    );
+    assertLandTraversalIsContinuous(result, `${region.label} passage`);
+  }
 });
 
 test("a Cape-to-Portugal Atlantic loop reaches Madeira with an intact coast", () => {

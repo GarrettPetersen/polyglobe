@@ -387,6 +387,18 @@ test("polar repair pressure reacts to distortion without a large rotation", () =
   const visible = { rotationDeg: 1, rmsDistortionPx: 14, maxDistortionPx: 18 };
   const complete = { rotationDeg: 3, rmsDistortionPx: 2, maxDistortionPx: 4 };
   assert.equal(chartRepairPressureDrift(visible, complete), visible);
+
+  const beringPressure = nextPolarChartRepairPressure({
+    currentPressure: 0.2,
+    latitudeDeg: 56.14,
+    elapsedSeconds: 1,
+    drift: { rotationDeg: 3, rmsDistortionPx: 24.97, maxDistortionPx: 43.69 },
+    terrainTear: { extraPx: 4, compressionPx: 3 }
+  });
+  assert.ok(
+    beringPressure > 0.2,
+    "severe Bering distortion should tighten inherited polar fog south of 58 degrees"
+  );
 });
 
 test("fog permits gradual repair in its visible band before full concealment", () => {

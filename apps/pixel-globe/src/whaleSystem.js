@@ -877,10 +877,22 @@ function advanceWhaleEcology(memory, currentMinute) {
   if (currentMinute < memory.lastEcologyMinute + WHALE_ECOLOGY_INTERVAL_MINUTES) return [];
   const events = [];
   updateLifeStages(memory, currentMinute);
-  const adults = memory.individuals.filter((whale) => (
-    whale.phase !== WHALE_PHASE_DEAD && whale.lifeStage === WHALE_LIFE_STAGE_ADULT
-  ));
-  for (const female of adults.filter((whale) => whale.sex === "female")) {
+  const adultFemales = [];
+  const adultMalesBySpecies = new Map();
+  for (const whale of memory.individuals) {
+    if (whale.phase === WHALE_PHASE_DEAD || whale.lifeStage !== WHALE_LIFE_STAGE_ADULT) continue;
+    if (whale.sex === "female") {
+      adultFemales.push(whale);
+      continue;
+    }
+    let males = adultMalesBySpecies.get(whale.speciesId);
+    if (!males) {
+      males = [];
+      adultMalesBySpecies.set(whale.speciesId, males);
+    }
+    males.push(whale);
+  }
+  for (const female of adultFemales) {
     const species = whaleSpeciesForIndividual(female);
     if (female.pregnancyDueMinute !== null && female.pregnancyDueMinute <= currentMinute) {
       const calf = giveBirth(memory, female, female.pregnancyDueMinute);
@@ -894,7 +906,7 @@ function advanceWhaleEcology(memory, currentMinute) {
     }
     if (female.pregnancyDueMinute !== null || female.nextMatingMinute === null ||
       female.nextMatingMinute > currentMinute) continue;
-    const mate = nearestMate(female, adults);
+    const mate = nearestMate(female, adultMalesBySpecies.get(female.speciesId) || []);
     if (!mate) {
       female.nextMatingMinute = currentMinute + 30 * MINUTES_PER_DAY;
       continue;
@@ -925,15 +937,14 @@ function updateLifeStages(memory, currentMinute) {
   }
 }
 
-function nearestMate(female, adults) {
+function nearestMate(female, malesOfSpecies) {
   let best = null;
-  let bestDistance = Infinity;
-  for (const candidate of adults) {
-    if (candidate.sex !== "male" || candidate.speciesId !== female.speciesId || candidate.id === female.id) continue;
-    const distance = angularDistance(female.position, candidate.position);
-    if (distance <= MATING_SEARCH_RADIUS_RAD && distance < bestDistance) {
+  let bestDot = Math.cos(MATING_SEARCH_RADIUS_RAD);
+  for (const candidate of malesOfSpecies) {
+    const positionDot = dot(female.position, candidate.position);
+    if (positionDot >= bestDot) {
       best = candidate;
-      bestDistance = distance;
+      bestDot = positionDot;
     }
   }
   return best;

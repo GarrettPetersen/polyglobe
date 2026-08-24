@@ -766,7 +766,8 @@ import {
   ICEBERG_ADVANCE_INTERVAL_MINUTES,
   ICEBERG_POPULATION_TARGET,
   ICEBERG_VARIANTS,
-  advanceIcebergMemory,
+  advanceIcebergJob,
+  beginIcebergAdvance,
   icebergVariantById,
   seedIcebergPopulation,
   transportIcebergHeading
@@ -3623,6 +3624,7 @@ const whaleVisualPresentations = new Map();
 let icebergSpawnCandidates = [];
 let activeIcebergSpawnCandidatesDay = -1;
 let activeIcebergSpawnCandidates = [];
+let icebergAdvanceJob = null;
 const icebergCollisionMomentum = new Map();
 let ambientAudioUpdateAccumulator = 0;
 let ambientAudioContextAccumulator = 0;
@@ -4597,6 +4599,7 @@ async function main() {
   icebergSpawnCandidates = buildIcebergSpawnCandidates();
   activeIcebergSpawnCandidatesDay = -1;
   activeIcebergSpawnCandidates = [];
+  icebergAdvanceJob = null;
   icebergCollisionMomentum.clear();
   minimap = buildMinimap();
   captainChartMinimapCache = new Map();
@@ -15029,6 +15032,7 @@ async function restoreSavedVoyage(payload) {
   refreshWeatherState(true);
   activeIcebergSpawnCandidatesDay = -1;
   activeIcebergSpawnCandidates = [];
+  icebergAdvanceJob = null;
   icebergCollisionMomentum.clear();
   ensureIcebergPopulation(gameState);
 
@@ -33796,6 +33800,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
   let hailOpened = false;
   const visibleIds = new Set();
   const hostilityByFactionPair = new Map();
+  const playerWeaponRange = playerNavalWeaponRangePx();
 
   for (const city of chart.cityCalls || []) {
     if (!city.character || !factionHasFlag(city.factionId)) continue;
@@ -33806,20 +33811,28 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
       throw new Error(`Dockable shore battery port has no economy: ${city.tileId}`);
     }
     const point = { x: city.x, y: city.y - 2 };
-    const playerWeaponRange = playerNavalWeaponRangePx();
     if (!pointNearScreen(
       { x: point.x + chartOffset.x, y: point.y + chartOffset.y },
       Math.max(SHORE_BATTERY_RANGE_PX, playerWeaponRange) + NPC_VISUAL_AUTHORITY_MARGIN_PX
     )) continue;
-    const state = ensureShoreBatteryState(city);
+    const state = measurePerformanceBenchmarkStage(
+      "npcShips.visual.combat.batteries.state",
+      () => ensureShoreBatteryState(city)
+    );
     visibleIds.add(state.id);
     if (updateShoreBatteryState(state, flags, simMinute, dt)) changed = true;
     if (shoreBatteryIsDisabled(state, simMinute)) continue;
-    const weapon = shoreBatteryWeapon(state);
+    const weapon = measurePerformanceBenchmarkStage(
+      "npcShips.visual.combat.batteries.weapon",
+      () => shoreBatteryWeapon(state)
+    );
     const range = SHORE_BATTERY_RANGE_PX * weapon.rangeScale;
     const nextTargets = new Set();
     const playerDistance = Math.hypot(point.x - localLayout.viewX, point.y - localLayout.viewY);
-    const attackStatus = playerPortAttackStatus(gameState, city);
+    const attackStatus = measurePerformanceBenchmarkStage(
+      "npcShips.visual.combat.batteries.attackStatus",
+      () => playerPortAttackStatus(gameState, city, portEntryContext)
+    );
     const commissionedTarget = attackStatus.commissioned;
     const playerEngagementRange = shoreBatteryPlayerEngagementRange({
       batteryRangePx: range,
@@ -37794,7 +37807,7 @@ function nearestIcebergEjectionCandidate(iceberg, memory) {
   const hiddenCandidates = icebergIsVisible ? offscreenIcebergSpawnCandidates() : [];
   const candidates = hiddenCandidates.length > 0 ? hiddenCandidates : allCandidates;
   const occupiedTileIds = new Set(memory.individuals
-    .filter((other) => other !== iceberg)
+    .filter((other) => other.id !== iceberg.id)
     .map((other) => other.tileId));
   let best = null;
   let bestDot = -Infinity;
@@ -37834,18 +37847,25 @@ function updateIcebergs(dt) {
   const memory = gameState?.memory?.icebergs;
   if (!memory) return false;
   const collisionChanged = advanceIcebergCollisionDrift(memory, dt);
-  if (memory.lastAdvanceMinute !== null &&
+  if (!icebergAdvanceJob && memory.lastAdvanceMinute !== null &&
       weatherClockMinutes - memory.lastAdvanceMinute < ICEBERG_ADVANCE_INTERVAL_MINUTES) {
     return collisionChanged;
   }
-  const result = advanceIcebergMemory(memory, {
-    currentMinute: weatherClockMinutes,
-    environmentAtPosition: icebergEnvironmentAtPosition,
-    ejectionCandidateForIceberg: (iceberg) => nearestIcebergEjectionCandidate(iceberg, memory),
-    spawnCandidates: offscreenIcebergSpawnCandidates(),
-    seedKey: gameState.voyageSeed,
-    targetCount: ICEBERG_POPULATION_TARGET
-  });
+  if (!icebergAdvanceJob) {
+    icebergAdvanceJob = beginIcebergAdvance(memory, {
+      currentMinute: weatherClockMinutes,
+      environmentAtPosition: icebergEnvironmentAtPosition,
+      ejectionCandidateForIceberg: (iceberg) => nearestIcebergEjectionCandidate(iceberg, memory),
+      spawnCandidates: offscreenIcebergSpawnCandidates(),
+      seedKey: gameState.voyageSeed,
+      targetCount: ICEBERG_POPULATION_TARGET
+    });
+  }
+  if (!icebergAdvanceJob) return collisionChanged;
+  const progress = advanceIcebergJob(icebergAdvanceJob, 1);
+  if (!progress.complete) return collisionChanged;
+  icebergAdvanceJob = null;
+  const result = progress.result;
   if (result.changed) worldSpatialWildlifeChart = null;
   if (icebergCollisionMomentum.size > 0) {
     const livingIcebergs = new Set(memory.individuals);

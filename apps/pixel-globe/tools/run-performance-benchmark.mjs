@@ -27,8 +27,9 @@ try {
   await waitForServer(baseUrl, server);
   const runtime = await launchBenchmarkRuntime(playwright, args);
   const { context, page } = runtime;
+  let cdp = null;
+  let cpuProfilerRunning = false;
   try {
-    let cdp = null;
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (message) => {
       if (message.type() === "error" && benchmarkBrowserErrorIsActionable(message.text())) {
@@ -40,6 +41,11 @@ try {
     }
     if (args.cpuThrottle > 1) {
       await cdp.send("Emulation.setCPUThrottlingRate", { rate: args.cpuThrottle });
+    }
+    if (args.cpuProfile) {
+      await cdp.send("Profiler.enable");
+      await cdp.send("Profiler.start");
+      cpuProfilerRunning = true;
     }
     const url = benchmarkUrl(baseUrl, args);
     const loadStartedAt = performance.now();
@@ -54,10 +60,6 @@ try {
     await page.bringToFront();
     const readyMs = performance.now() - loadStartedAt;
     process.stdout.write(`  Scene ready in ${Math.round(readyMs)} ms; collecting frames...\n`);
-    if (args.cpuProfile) {
-      await cdp.send("Profiler.enable");
-      await cdp.send("Profiler.start");
-    }
     await page.waitForFunction(
       () => window.__PIXEL_GLOBE_BENCHMARK_RESULT__ !== null || Boolean(window.__PIXEL_GLOBE_CAPTURE_ERROR__),
       null,
@@ -66,9 +68,8 @@ try {
     await throwPageError(page);
     const result = await page.evaluate(() => window.__PIXEL_GLOBE_BENCHMARK_RESULT__);
     if (args.cpuProfile) {
-      const { profile } = await cdp.send("Profiler.stop");
-      await mkdir(path.dirname(args.cpuProfile), { recursive: true });
-      await writeFile(args.cpuProfile, `${JSON.stringify(profile)}\n`);
+      await saveCpuProfile(cdp, args.cpuProfile);
+      cpuProfilerRunning = false;
     }
     if (errors.length > 0) throw new Error(`Browser errors:\n${errors.join("\n")}`);
     const report = {
@@ -94,10 +95,20 @@ try {
       throw new Error(`Benchmark FPS ${report.framesPerSecond} is below required ${args.minFps}`);
     }
   } finally {
+    if (cpuProfilerRunning) {
+      await saveCpuProfile(cdp, args.cpuProfile);
+      process.stdout.write(`  Startup CPU profile: ${args.cpuProfile}\n`);
+    }
     await runtime.close();
   }
 } finally {
   if (server) server.kill("SIGTERM");
+}
+
+async function saveCpuProfile(cdp, outputPath) {
+  const { profile } = await cdp.send("Profiler.stop");
+  await mkdir(path.dirname(outputPath), { recursive: true });
+  await writeFile(outputPath, `${JSON.stringify(profile)}\n`);
 }
 
 function benchmarkBrowserErrorIsActionable(message) {

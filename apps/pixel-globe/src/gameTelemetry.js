@@ -47,7 +47,11 @@ const TELEMETRY_FEATURES = Object.freeze([
 
 export function shouldCaptureGlobalTelemetryError(error, sourceUrl = "") {
   const stack = typeof error?.stack === "string" ? error.stack : "";
-  return !BROWSER_EXTENSION_URL_PATTERN.test(`${sourceUrl}\n${stack}`);
+  if (BROWSER_EXTENSION_URL_PATTERN.test(`${sourceUrl}\n${stack}`)) return false;
+  const bareBrowserNetworkFailure = error?.name === "TypeError" &&
+    error?.message === "Failed to fetch" &&
+    !/\n\s*at\s/.test(stack);
+  return !bareBrowserNetworkFailure;
 }
 
 export function createGameTelemetry({
