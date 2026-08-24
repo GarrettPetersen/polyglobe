@@ -86,6 +86,8 @@ Inspect the generated `final.edit.json` and rendered MP4. Use screenshots from t
 
 Every shot must preserve the real game's normal presentation. Dialogue, menus, HUD elements, and their backgrounds must look exactly as they do during ordinary play; never substitute capture-only or editor-created visuals. If a capture looks different from the real game, reject it and recapture through the normal rendering path.
 
+Treat modals atomically: either show a modal long enough for its appearance to be intentional and readable, or suppress/cut it completely. Never let a modal flash on screen for one frame or appear only momentarily at a cut. Inspect the frames immediately before and after every relevant edit boundary to catch these flashes.
+
 Show competent navigation. Never use footage where the player ship pushes into land or other impassable terrain; steer a clean course or replace the shot.
 
 Never reuse the same source clip or source interval within one video unless there is a strong, explicit editorial reason. Record that reason in the edit plan; otherwise capture more footage or use a different interval.
@@ -113,6 +115,7 @@ Require all of the following before calling the Short complete:
 - Duration matches the narration and contains no frozen tail.
 - Captions are legible, pixel-sharp, correctly timed, and inside mobile-safe margins.
 - Gameplay is never stretched, blurred, letterboxed, or obscured by capture controls.
+- Every modal appearance is intentional and readable; no modal flashes for one frame or momentarily at a cut boundary.
 - Narration is dominant; game SFX remain audible; music is absent.
 - The first seconds visually support the hook and the ending feels intentional.
 
