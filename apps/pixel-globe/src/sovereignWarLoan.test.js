@@ -27,6 +27,7 @@ import {
   SOVEREIGN_WAR_LOAN_REPAYMENT,
   SOVEREIGN_WAR_LOAN_REPAYMENT_READY,
   SOVEREIGN_WAR_LOAN_RESERVE_SLOTS,
+  SOVEREIGN_WAR_LOAN_SOLVENCY_RATIO,
   createSovereignWarLoanMemory,
   createSovereignWarLoanOffer,
   fundSovereignWarLoan,
@@ -103,7 +104,7 @@ test("the court fixes the named enemy before the captain funds the loan", () => 
   validateSovereignWarLoanMemory(memory);
 });
 
-test("a better peace earns repayment while peace without advantage forfeits the bond", () => {
+test("victory repays, defeat defaults, and an even peace turns on sovereign solvency", () => {
   const winning = fundedMemory();
   const gainedCadiz = [LISBON, PORTO, SEVILLE, { ...CADIZ, factionId: "portugal" }];
   const win = resolveSovereignWarLoan(winning, {
@@ -113,15 +114,44 @@ test("a better peace earns repayment while peace without advantage forfeits the 
   });
   assert.equal(win.status, SOVEREIGN_WAR_LOAN_REPAYMENT_READY);
   assert.equal(win.won, true);
+  assert.equal(win.outcome, "victory");
 
-  const losing = fundedMemory();
-  const loss = resolveSovereignWarLoan(losing, {
+  const defeated = fundedMemory();
+  const lostPorto = [{ ...LISBON }, { ...PORTO, factionId: "spain" }, SEVILLE, CADIZ];
+  const loss = resolveSovereignWarLoan(defeated, {
     relationBetween: () => DIPLOMACY_NEUTRAL,
-    ports: [LISBON, PORTO, SEVILLE, CADIZ],
+    ports: lostPorto,
     simMinute: 100
   });
   assert.equal(loss.status, SOVEREIGN_WAR_LOAN_DEFAULT_READY);
   assert.equal(loss.won, false);
+  assert.equal(loss.outcome, "defeat");
+
+  const solventPeace = resolveSovereignWarLoan(fundedMemory(), {
+    relationBetween: () => DIPLOMACY_NEUTRAL,
+    ports: [LISBON, PORTO, SEVILLE, CADIZ],
+    borrowerSolvencyRatio: SOVEREIGN_WAR_LOAN_SOLVENCY_RATIO,
+    simMinute: 100
+  });
+  assert.equal(solventPeace.status, SOVEREIGN_WAR_LOAN_REPAYMENT_READY);
+  assert.equal(solventPeace.won, false);
+  assert.equal(solventPeace.repaid, true);
+  assert.equal(solventPeace.outcome, "peace-solvent");
+
+  const insolventPeace = resolveSovereignWarLoan(fundedMemory(), {
+    relationBetween: () => DIPLOMACY_NEUTRAL,
+    ports: [LISBON, PORTO, SEVILLE, CADIZ],
+    borrowerSolvencyRatio: SOVEREIGN_WAR_LOAN_SOLVENCY_RATIO - 0.01,
+    simMinute: 100
+  });
+  assert.equal(insolventPeace.status, SOVEREIGN_WAR_LOAN_DEFAULT_READY);
+  assert.equal(insolventPeace.outcome, "peace-insolvent");
+
+  assert.throws(() => resolveSovereignWarLoan(fundedMemory(), {
+    relationBetween: () => DIPLOMACY_NEUTRAL,
+    ports: [LISBON, PORTO, SEVILLE, CADIZ],
+    simMinute: 100
+  }), /requires borrower solvency/);
 });
 
 test("a capital treaty decides the loan without hard-coding a historical winner", () => {

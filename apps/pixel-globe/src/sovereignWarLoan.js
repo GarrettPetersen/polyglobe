@@ -10,6 +10,7 @@ export const SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD = 900_000;
 export const SOVEREIGN_WAR_LOAN_PRINCIPAL = 1_000_000;
 export const SOVEREIGN_WAR_LOAN_REPAYMENT = 1_200_000;
 export const SOVEREIGN_WAR_LOAN_RESERVE_SLOTS = 2;
+export const SOVEREIGN_WAR_LOAN_SOLVENCY_RATIO = 0.6;
 export const SOVEREIGN_WAR_LOAN_CONTRACT_ITEM_ID = "sovereign-war-loan-contract";
 
 export const SOVEREIGN_WAR_LOAN_ACTIVE = "active";
@@ -222,6 +223,7 @@ export function resolveSovereignWarLoan(memory, {
   ports,
   treaties = [],
   collapsedFactionIds = [],
+  borrowerSolvencyRatio = null,
   simMinute
 }) {
   validateSovereignWarLoanMemory(memory);
@@ -243,16 +245,16 @@ export function resolveSovereignWarLoan(memory, {
     ))
     .sort((a, b) => b.simMinute - a.simMinute || String(a.id).localeCompare(String(b.id)))[0] || null;
   const collapsed = new Set(collapsedFactionIds);
-  let won;
+  let outcome;
   let basis;
   if (treaty) {
-    won = treaty.winnerFactionId === contract.borrowerFactionId;
+    outcome = treaty.winnerFactionId === contract.borrowerFactionId ? "victory" : "defeat";
     basis = `treaty:${treaty.id}`;
   } else if (collapsed.has(contract.borrowerFactionId)) {
-    won = false;
+    outcome = "defeat";
     basis = "borrower-collapsed";
   } else if (collapsed.has(contract.enemyFactionId)) {
-    won = true;
+    outcome = "victory";
     basis = "enemy-collapsed";
   } else {
     const currentFactionByPortId = new Map(ports.map((port) => [requiredPortId(port), port.factionId]));
@@ -262,10 +264,23 @@ export function resolveSovereignWarLoan(memory, {
     const losses = contract.startingBorrowerPortIds.filter(
       (portId) => currentFactionByPortId.get(portId) !== contract.borrowerFactionId
     ).length;
-    won = gains > losses;
-    basis = `ports:${gains}-${losses}`;
+    if (gains > losses) {
+      outcome = "victory";
+      basis = `ports:${gains}-${losses}`;
+    } else if (gains < losses) {
+      outcome = "defeat";
+      basis = `ports:${gains}-${losses}`;
+    } else {
+      if (!Number.isFinite(borrowerSolvencyRatio) || borrowerSolvencyRatio < 0) {
+        throw new Error("An inconclusive war-loan peace requires borrower solvency");
+      }
+      const solvent = borrowerSolvencyRatio >= SOVEREIGN_WAR_LOAN_SOLVENCY_RATIO;
+      outcome = solvent ? "peace-solvent" : "peace-insolvent";
+      basis = `ports:${gains}-${losses}:solvency:${borrowerSolvencyRatio.toFixed(4)}`;
+    }
   }
-  contract.status = won ? SOVEREIGN_WAR_LOAN_REPAYMENT_READY : SOVEREIGN_WAR_LOAN_DEFAULT_READY;
+  const repaid = outcome === "victory" || outcome === "peace-solvent";
+  contract.status = repaid ? SOVEREIGN_WAR_LOAN_REPAYMENT_READY : SOVEREIGN_WAR_LOAN_DEFAULT_READY;
   contract.settlementMinute = simMinute;
   validateSovereignWarLoanMemory(memory);
   return Object.freeze({
@@ -273,7 +288,9 @@ export function resolveSovereignWarLoan(memory, {
     borrowerFactionId: contract.borrowerFactionId,
     enemyFactionId: contract.enemyFactionId,
     status: contract.status,
-    won,
+    won: outcome === "victory",
+    repaid,
+    outcome,
     basis,
     offensiveShipIds: Object.freeze([...contract.offensiveShipIds])
   });

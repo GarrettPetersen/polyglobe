@@ -2550,7 +2550,12 @@ export function issueSovereignWarLoanForState(state, city, ports, context = {}) 
   return Object.freeze({ contract, balance: state.doubloons });
 }
 
-export function resolveSovereignWarLoanForState(state, ports, simMinute) {
+export function resolveSovereignWarLoanForState(
+  state,
+  ports,
+  simMinute,
+  { borrowerSolvencyRatio = null } = {}
+) {
   assertGameState(state);
   assertSimulationMinute(simMinute);
   return resolveSovereignWarLoan(state.memory.quests.sovereignWarLoan, {
@@ -2562,6 +2567,7 @@ export function resolveSovereignWarLoanForState(state, ports, simMinute) {
     ports,
     treaties: state.memory.conquest.treaties,
     collapsedFactionIds: state.memory.conquest.collapsedFactionIds,
+    borrowerSolvencyRatio,
     simMinute
   });
 }
@@ -3573,8 +3579,8 @@ export function shipItemRows(state) {
     const resultDetail = warLoan.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
       ? `The treasury owes ${SOVEREIGN_WAR_LOAN_REPAYMENT.toLocaleString("en-US")} doubloons.`
       : warLoan.status === SOVEREIGN_WAR_LOAN_DEFAULT_READY
-        ? "The named war ended without the advantage required for payment."
-        : `Payable at ${SOVEREIGN_WAR_LOAN_REPAYMENT.toLocaleString("en-US")} doubloons if the sovereign wins the named war.`;
+        ? "The named war ended with the sovereign's treasury unable to answer the bond."
+        : `Payable at ${SOVEREIGN_WAR_LOAN_REPAYMENT.toLocaleString("en-US")} doubloons upon victory, or upon an even peace if the sovereign's treasury remains answerable.`;
     rows.push({
       id: SOVEREIGN_WAR_LOAN_CONTRACT_ITEM_ID,
       label: `${borrower.adjective} War-loan Indenture`,

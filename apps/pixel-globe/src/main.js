@@ -18903,7 +18903,7 @@ function openSovereignWarLoanOfferDialogue(cityCall) {
       rightCharacter: official,
       speakerCharacter: official,
       expressionId: "stern",
-      message: `Advance one million doubloons under seal. If our arms obtain the better peace, the treasury shall return twelve hundred thousand. If they fail, the loss is yours.`
+      message: `Advance one million doubloons under seal. At victory—or at an even peace if the treasury remains answerable—it shall return twelve hundred thousand. If defeat breaks its credit, the loss is yours.`
     })
   ], () => openSovereignWarLoanChoice(cityCall, ruler.displayName));
   if (!opened) throw new Error("Sovereign war-loan request could not open");
@@ -19064,7 +19064,7 @@ function openSovereignWarLoanSettlementDialogue(cityCall, contract) {
         rightCharacter: official,
         speakerCharacter: official,
         expressionId: "pleased",
-        message: `By ${ruler.displayName}'s seal, our arms have won the better peace. Here are twelve hundred thousand doubloons, principal and premium, in full discharge of your indenture.`
+        message: `By ${ruler.displayName}'s seal, peace is made and the treasury stands answerable. Here are twelve hundred thousand doubloons, principal and premium, in full discharge of your indenture.`
       })
     ]);
     if (!opened) throw new Error("War-loan repayment dialogue could not open");
@@ -19080,7 +19080,7 @@ function openSovereignWarLoanSettlementDialogue(cityCall, contract) {
       rightCharacter: official,
       speakerCharacter: official,
       expressionId: "concerned",
-      message: `${ruler.displayName}'s treasury can answer neither principal nor premium. Our arms failed to gain the peace named in your indenture, and the bond is forfeit.`
+      message: `${ruler.displayName}'s treasury can answer neither principal nor premium. The war has exhausted its customs and credit, and the bond is forfeit.`
     })
   ]);
   if (!opened) throw new Error("War-loan default dialogue could not open");
@@ -30891,10 +30891,21 @@ function birthdayDialogueOpportunity() {
 function updateSovereignWarLoanOutcome() {
   const contract = gameState?.memory?.quests?.sovereignWarLoan?.contract;
   if (!contract || contract.status !== SOVEREIGN_WAR_LOAN_ACTIVE) return false;
+  const borrowerMarkets = portCities.filter((city) => city.factionId === contract.borrowerFactionId);
+  const borrowerFinances = borrowerMarkets.reduce((total, city) => {
+    const summary = portEconomySummary(worldEconomy, city);
+    total.specie += summary.specie;
+    total.targetSpecie += summary.targetSpecie;
+    return total;
+  }, { specie: 0, targetSpecie: 0 });
+  const borrowerSolvencyRatio = borrowerFinances.targetSpecie > 0
+    ? borrowerFinances.specie / borrowerFinances.targetSpecie
+    : 0;
   const result = resolveSovereignWarLoanForState(
     gameState,
     portCities,
-    Math.floor(weatherClockMinutes)
+    Math.floor(weatherClockMinutes),
+    { borrowerSolvencyRatio }
   );
   if (!result) return false;
   returnNpcWarLoanOffensiveShips(
@@ -30902,10 +30913,15 @@ function updateSovereignWarLoanOutcome() {
     result.offensiveShipIds,
     Math.floor(weatherClockMinutes)
   );
+  const outcomeNotice = result.outcome === "victory"
+    ? "WAR WON: 1,200,000 DB AWAITS AT COURT"
+    : result.outcome === "peace-solvent"
+      ? "PEACE CONCLUDED: 1,200,000 DB AWAITS AT COURT"
+      : result.outcome === "peace-insolvent"
+        ? "PEACE CONCLUDED: THE TREASURY CANNOT PAY"
+        : "WAR LOST: THE LOAN WILL NOT BE PAID";
   showSurvivalNotice(
-    result.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
-      ? "WAR WON: 1,200,000 DB AWAITS AT COURT"
-      : "WAR LOST: THE LOAN WILL NOT BE PAID",
+    outcomeNotice,
     result.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY ? "good" : "warning",
     "politics-news"
   );
@@ -41604,12 +41620,12 @@ function questJournalEntries() {
       : sovereignWarLoanCourtDestination(warLoan);
     entries.push({
       id: warLoan.id,
-      title: "SOVEREIGN WAR LOAN",
+      title: uiText("quest.sovereignWarLoan"),
       nextStep: warLoan.status === SOVEREIGN_WAR_LOAN_ACTIVE
-        ? `AWAIT THE ISSUE OF ${borrower.name.toUpperCase()}'S WAR WITH ${enemy.name.toUpperCase()}`
+        ? uiText("quest.warLoanAwait", { borrower: borrower.name, enemy: enemy.name })
         : warLoan.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
-          ? `CLAIM 1,200,000 DB AT ${cityLabelText(capital).toUpperCase()}`
-          : `HEAR THE TREASURY AT ${cityLabelText(capital).toUpperCase()}`,
+          ? uiText("quest.warLoanClaim", { city: cityLabelText(capital) })
+          : uiText("quest.warLoanDefault", { city: cityLabelText(capital) }),
       style: QUEST_NAVIGATION_STYLE
     });
   }
@@ -42435,7 +42451,7 @@ function navigationMenuEntries() {
     entries.push({
       id: warLoan.id,
       destinationName: cityLabelText(destination),
-      reason: "CLAIM WAR-LOAN REPAYMENT",
+      reason: uiText("navigation.claimWarLoanRepayment"),
       style: QUEST_NAVIGATION_STYLE,
       targetVector: placedCityTargetVector(destination),
       optionalWaypointId: null
@@ -54993,7 +55009,7 @@ function drawQuestDestinationArrow(nowMs) {
     const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
     drawWorldTargetArrow({
       id: warLoan.id,
-      label: `${cityLabelText(destination)} war-loan repayment`,
+      label: uiText("navigation.warLoanRepaymentAt", { city: cityLabelText(destination) }),
       targetVector,
       localPoint: visibleCity || localPointForGlobeVector(targetVector),
       localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
