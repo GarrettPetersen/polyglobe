@@ -11,17 +11,36 @@ export const SOVEREIGN_WAR_LOAN_PRINCIPAL = 1_000_000;
 export const SOVEREIGN_WAR_LOAN_REPAYMENT = 1_200_000;
 export const SOVEREIGN_WAR_LOAN_RESERVE_SLOTS = 2;
 export const SOVEREIGN_WAR_LOAN_SOLVENCY_RATIO = 0.6;
+export const SOVEREIGN_WAR_LOAN_CUSTOMS_TERM_DAYS = 540;
 export const SOVEREIGN_WAR_LOAN_CONTRACT_ITEM_ID = "sovereign-war-loan-contract";
 
 export const SOVEREIGN_WAR_LOAN_ACTIVE = "active";
+export const SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY = "renegotiation-ready";
+export const SOVEREIGN_WAR_LOAN_SECURED = "secured";
+export const SOVEREIGN_WAR_LOAN_ARREARS = "arrears";
 export const SOVEREIGN_WAR_LOAN_REPAYMENT_READY = "repayment-ready";
 export const SOVEREIGN_WAR_LOAN_DEFAULT_READY = "default-ready";
 
-const SOVEREIGN_WAR_LOAN_MEMORY_VERSION = 1;
+const SOVEREIGN_WAR_LOAN_MEMORY_VERSION = 2;
 const SOVEREIGN_WAR_LOAN_OFFER_COOLDOWN_MINUTES = 180 * WEATHER_MINUTES_PER_DAY;
 const SOVEREIGN_WAR_LOAN_HISTORY_LIMIT = 12;
+const SOVEREIGN_WAR_LOAN_CUSTOMS_DAILY_BASE = Math.ceil(
+  SOVEREIGN_WAR_LOAN_REPAYMENT / SOVEREIGN_WAR_LOAN_CUSTOMS_TERM_DAYS
+);
+const CUSTOMS_ASSIGNMENT_KIND = "customs-assignment";
+const SETTLEMENT_OUTCOMES = new Set([
+  "victory",
+  "defeat",
+  "peace-solvent",
+  "peace-insolvent",
+  "legacy-repaid",
+  "legacy-default"
+]);
 const CONTRACT_STATUSES = new Set([
   SOVEREIGN_WAR_LOAN_ACTIVE,
+  SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY,
+  SOVEREIGN_WAR_LOAN_SECURED,
+  SOVEREIGN_WAR_LOAN_ARREARS,
   SOVEREIGN_WAR_LOAN_REPAYMENT_READY,
   SOVEREIGN_WAR_LOAN_DEFAULT_READY
 ]);
@@ -39,6 +58,24 @@ export function createSovereignWarLoanMemory() {
 
 export function migrateSovereignWarLoanMemory(memory) {
   if (memory === undefined || memory === null) return createSovereignWarLoanMemory();
+  if (memory?.version === 1) {
+    const contract = memory.contract ? {
+      ...memory.contract,
+      settlementOutcome: memory.contract.status === SOVEREIGN_WAR_LOAN_ACTIVE
+        ? null
+        : memory.contract.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
+          ? "legacy-repaid"
+          : "legacy-default",
+      security: null
+    } : null;
+    const migrated = {
+      ...memory,
+      version: SOVEREIGN_WAR_LOAN_MEMORY_VERSION,
+      contract
+    };
+    validateSovereignWarLoanMemory(migrated);
+    return migrated;
+  }
   validateSovereignWarLoanMemory(memory);
   return memory;
 }
@@ -191,6 +228,8 @@ export function fundSovereignWarLoan(memory, {
     issuedMinute: simMinute,
     status: SOVEREIGN_WAR_LOAN_ACTIVE,
     settlementMinute: null,
+    settlementOutcome: null,
+    security: null,
     startingBorrowerPortIds: borrowerPortIds,
     startingEnemyPortIds: enemyPortIds,
     reserveSlotIds: [],
@@ -224,6 +263,7 @@ export function resolveSovereignWarLoan(memory, {
   treaties = [],
   collapsedFactionIds = [],
   borrowerSolvencyRatio = null,
+  renegotiationSecurity = null,
   simMinute
 }) {
   validateSovereignWarLoanMemory(memory);
@@ -280,8 +320,27 @@ export function resolveSovereignWarLoan(memory, {
     }
   }
   const repaid = outcome === "victory" || outcome === "peace-solvent";
-  contract.status = repaid ? SOVEREIGN_WAR_LOAN_REPAYMENT_READY : SOVEREIGN_WAR_LOAN_DEFAULT_READY;
+  if (outcome === "peace-insolvent") {
+    validateCustomsAssignment(renegotiationSecurity, {
+      expectedFactionId: contract.borrowerFactionId,
+      expectedOfferedMinute: simMinute,
+      accepted: false
+    });
+    const controlledSecurityPort = ports.some((port) => (
+      port?.factionId === contract.borrowerFactionId &&
+      cityMatchesPortReference(port, renegotiationSecurity.portId, renegotiationSecurity.tileId)
+    ));
+    if (!controlledSecurityPort) {
+      throw new Error("War-loan security must be a borrower-controlled customs port");
+    }
+    contract.status = SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY;
+    contract.security = { ...renegotiationSecurity };
+  } else {
+    contract.status = repaid ? SOVEREIGN_WAR_LOAN_REPAYMENT_READY : SOVEREIGN_WAR_LOAN_DEFAULT_READY;
+    contract.security = null;
+  }
   contract.settlementMinute = simMinute;
+  contract.settlementOutcome = outcome;
   validateSovereignWarLoanMemory(memory);
   return Object.freeze({
     contractId: contract.id,
@@ -294,6 +353,161 @@ export function resolveSovereignWarLoan(memory, {
     basis,
     offensiveShipIds: Object.freeze([...contract.offensiveShipIds])
   });
+}
+
+export function selectSovereignWarLoanCustomsSecurity(
+  ports,
+  borrowerFactionId,
+  marketSummaryForPort,
+  simMinute
+) {
+  if (!Array.isArray(ports)) throw new Error("War-loan security requires a port ledger");
+  assertSovereignFactionId(borrowerFactionId);
+  if (typeof marketSummaryForPort !== "function") {
+    throw new Error("War-loan security requires market accounts");
+  }
+  assertMinute(simMinute, "war-loan security offer");
+  const candidates = ports
+    .filter((port) => port?.factionId === borrowerFactionId)
+    .map((port) => {
+      const portId = requiredPortId(port);
+      if (!Number.isInteger(port.tileId) || port.tileId < 0) {
+        throw new Error(`War-loan security port has no tile: ${portId}`);
+      }
+      const summary = marketSummaryForPort(port);
+      if (!summary || !Number.isFinite(summary.specie) || summary.specie < 0 ||
+          !Number.isFinite(summary.targetSpecie) || summary.targetSpecie <= 0) {
+        throw new Error(`Invalid customs accounts for war-loan security: ${portId}`);
+      }
+      return { port, portId, summary };
+    })
+    .sort((a, b) => b.summary.targetSpecie - a.summary.targetSpecie ||
+      b.summary.specie - a.summary.specie || a.portId.localeCompare(b.portId));
+  const selected = candidates[0];
+  if (!selected) throw new Error(`No customs port can secure the ${borrowerFactionId} war loan`);
+  return Object.freeze({
+    kind: CUSTOMS_ASSIGNMENT_KIND,
+    factionId: borrowerFactionId,
+    portId: selected.portId,
+    tileId: selected.port.tileId,
+    portName: requiredPortName(selected.port),
+    offeredMinute: simMinute,
+    acceptedMinute: null,
+    lastAccrualMinute: null,
+    accruedAmount: 0,
+    suspended: false
+  });
+}
+
+export function acceptSovereignWarLoanRenegotiation(memory, simMinute) {
+  validateSovereignWarLoanMemory(memory);
+  const contract = memory.contract;
+  if (!contract || contract.status !== SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY || !contract.security) {
+    throw new Error("No secured war-loan renegotiation can be accepted");
+  }
+  assertMinute(simMinute, "war-loan security acceptance");
+  if (simMinute < contract.security.offeredMinute) {
+    throw new Error("War-loan security cannot be accepted before it is offered");
+  }
+  contract.status = SOVEREIGN_WAR_LOAN_SECURED;
+  contract.security.acceptedMinute = simMinute;
+  contract.security.lastAccrualMinute = simMinute;
+  validateSovereignWarLoanMemory(memory);
+  return contract;
+}
+
+export function holdSovereignWarLoanBond(memory, simMinute) {
+  validateSovereignWarLoanMemory(memory);
+  const contract = memory.contract;
+  if (!contract || contract.status !== SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY) {
+    throw new Error("No war-loan renegotiation can be refused");
+  }
+  assertMinute(simMinute, "war-loan arrears");
+  contract.status = SOVEREIGN_WAR_LOAN_ARREARS;
+  contract.security = null;
+  validateSovereignWarLoanMemory(memory);
+  return contract;
+}
+
+export function advanceSovereignWarLoanAfterPeace(memory, {
+  ports,
+  collapsedFactionIds = [],
+  borrowerSolvencyRatio = null,
+  securityPortLiquidityRatio = null,
+  simMinute
+}) {
+  validateSovereignWarLoanMemory(memory);
+  const contract = memory.contract;
+  if (!contract || ![SOVEREIGN_WAR_LOAN_SECURED, SOVEREIGN_WAR_LOAN_ARREARS].includes(contract.status)) {
+    return null;
+  }
+  if (!Array.isArray(ports) || !Array.isArray(collapsedFactionIds)) {
+    throw new Error("War-loan credit servicing requires ports and collapsed factions");
+  }
+  assertMinute(simMinute, "war-loan credit servicing");
+  if (simMinute < contract.settlementMinute) {
+    throw new Error("War-loan credit cannot be serviced before peace");
+  }
+  if (collapsedFactionIds.includes(contract.borrowerFactionId)) {
+    contract.status = SOVEREIGN_WAR_LOAN_DEFAULT_READY;
+    validateSovereignWarLoanMemory(memory);
+    return creditServiceResult(contract, "borrower-collapsed", 0, false);
+  }
+  if (contract.status === SOVEREIGN_WAR_LOAN_ARREARS) {
+    if (!Number.isFinite(borrowerSolvencyRatio) || borrowerSolvencyRatio < 0) {
+      throw new Error("War-loan arrears require borrower solvency");
+    }
+    if (borrowerSolvencyRatio < SOVEREIGN_WAR_LOAN_SOLVENCY_RATIO) return null;
+    contract.status = SOVEREIGN_WAR_LOAN_REPAYMENT_READY;
+    validateSovereignWarLoanMemory(memory);
+    return creditServiceResult(contract, "arrears-recovered", SOVEREIGN_WAR_LOAN_REPAYMENT, true);
+  }
+
+  const security = contract.security;
+  validateCustomsAssignment(security, {
+    expectedFactionId: contract.borrowerFactionId,
+    expectedOfferedMinute: contract.settlementMinute,
+    accepted: true
+  });
+  const assignedPort = ports.find((port) => (
+    cityMatchesPortReference(port, security.portId, security.tileId)
+  ));
+  if (!assignedPort) throw new Error(`Assigned customs port is missing: ${security.portId}`);
+  const controlled = assignedPort.factionId === contract.borrowerFactionId;
+  const suspensionChanged = security.suspended !== !controlled;
+  if (suspensionChanged) {
+    security.suspended = !controlled;
+    security.lastAccrualMinute = simMinute;
+    validateSovereignWarLoanMemory(memory);
+    return creditServiceResult(
+      contract,
+      security.suspended ? "customs-suspended" : "customs-resumed",
+      0,
+      false
+    );
+  }
+  const elapsedDays = Math.floor(
+    (simMinute - security.lastAccrualMinute) / WEATHER_MINUTES_PER_DAY
+  );
+  if (elapsedDays <= 0) return null;
+  security.lastAccrualMinute += elapsedDays * WEATHER_MINUTES_PER_DAY;
+  if (security.suspended) {
+    validateSovereignWarLoanMemory(memory);
+    return creditServiceResult(contract, "customs-suspended-time", 0, false);
+  }
+  if (!Number.isFinite(securityPortLiquidityRatio) || securityPortLiquidityRatio < 0) {
+    throw new Error("War-loan customs servicing requires port liquidity");
+  }
+  const liquidityMultiplier = clamp(securityPortLiquidityRatio, 0.25, 1.25);
+  const accruedAmount = Math.min(
+    SOVEREIGN_WAR_LOAN_REPAYMENT - security.accruedAmount,
+    Math.floor(elapsedDays * SOVEREIGN_WAR_LOAN_CUSTOMS_DAILY_BASE * liquidityMultiplier)
+  );
+  security.accruedAmount += accruedAmount;
+  const completed = security.accruedAmount === SOVEREIGN_WAR_LOAN_REPAYMENT;
+  if (completed) contract.status = SOVEREIGN_WAR_LOAN_REPAYMENT_READY;
+  validateSovereignWarLoanMemory(memory);
+  return creditServiceResult(contract, completed ? "customs-complete" : "customs-accrued", accruedAmount, completed);
 }
 
 export function completeSovereignWarLoanAudience(memory, expectedStatus, simMinute) {
@@ -358,6 +572,12 @@ function validateWarLoanContract(contract) {
   if ((contract.status === SOVEREIGN_WAR_LOAN_ACTIVE) !== (contract.settlementMinute === null)) {
     throw new Error(`War-loan settlement state does not match its status: ${contract.id}`);
   }
+  if ((contract.status === SOVEREIGN_WAR_LOAN_ACTIVE) !== (contract.settlementOutcome === null)) {
+    throw new Error(`War-loan settlement outcome does not match its status: ${contract.id}`);
+  }
+  if (contract.settlementOutcome !== null && !SETTLEMENT_OUTCOMES.has(contract.settlementOutcome)) {
+    throw new Error(`Invalid war-loan settlement outcome: ${contract.settlementOutcome}`);
+  }
   assertUniqueStringArray(contract.startingBorrowerPortIds, "borrower starting ports", true);
   assertUniqueStringArray(contract.startingEnemyPortIds, "enemy starting ports", true);
   assertUniqueStringArray(contract.reserveSlotIds, "war-loan reserve slots");
@@ -365,7 +585,71 @@ function validateWarLoanContract(contract) {
   if (![0, SOVEREIGN_WAR_LOAN_RESERVE_SLOTS].includes(contract.reserveSlotIds.length)) {
     throw new Error(`Invalid funded reserve count on ${contract.id}`);
   }
+  if (contract.status === SOVEREIGN_WAR_LOAN_ACTIVE && contract.security !== null) {
+    throw new Error(`An active war loan cannot carry settlement security: ${contract.id}`);
+  }
+  if ([SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY, SOVEREIGN_WAR_LOAN_SECURED].includes(contract.status)) {
+    validateCustomsAssignment(contract.security, {
+      expectedFactionId: contract.borrowerFactionId,
+      expectedOfferedMinute: contract.settlementMinute,
+      accepted: contract.status === SOVEREIGN_WAR_LOAN_SECURED
+    });
+  } else if (contract.status === SOVEREIGN_WAR_LOAN_ARREARS && contract.security !== null) {
+    throw new Error(`War-loan arrears cannot retain rejected security: ${contract.id}`);
+  } else if (contract.security !== null) {
+    validateCustomsAssignment(contract.security, {
+      expectedFactionId: contract.borrowerFactionId,
+      expectedOfferedMinute: contract.settlementMinute,
+      accepted: true
+    });
+    if (contract.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY &&
+        contract.security.accruedAmount !== SOVEREIGN_WAR_LOAN_REPAYMENT) {
+      throw new Error(`Secured war-loan repayment is not fully accrued: ${contract.id}`);
+    }
+  }
   return contract;
+}
+
+function validateCustomsAssignment(security, {
+  expectedFactionId,
+  expectedOfferedMinute,
+  accepted
+}) {
+  if (!security || security.kind !== CUSTOMS_ASSIGNMENT_KIND ||
+      security.factionId !== expectedFactionId ||
+      security.offeredMinute !== expectedOfferedMinute ||
+      typeof security.portName !== "string" || security.portName.trim() === "" ||
+      !Number.isInteger(security.accruedAmount) || security.accruedAmount < 0 ||
+      security.accruedAmount > SOVEREIGN_WAR_LOAN_REPAYMENT ||
+      typeof security.suspended !== "boolean") {
+    throw new Error("Invalid war-loan customs assignment");
+  }
+  assertPortReference(security.portId, security.tileId, "war-loan customs assignment");
+  if (accepted) {
+    assertMinute(security.acceptedMinute, "war-loan security acceptance");
+    assertMinute(security.lastAccrualMinute, "war-loan customs accrual");
+    if (security.acceptedMinute < security.offeredMinute ||
+        security.lastAccrualMinute < security.acceptedMinute) {
+      throw new Error("Invalid war-loan customs assignment chronology");
+    }
+  } else if (security.acceptedMinute !== null || security.lastAccrualMinute !== null ||
+      security.accruedAmount !== 0 || security.suspended) {
+    throw new Error("Unaccepted war-loan security cannot accrue customs");
+  }
+  return security;
+}
+
+function creditServiceResult(contract, outcome, accruedAmount, completed) {
+  return Object.freeze({
+    contractId: contract.id,
+    borrowerFactionId: contract.borrowerFactionId,
+    status: contract.status,
+    outcome,
+    accruedAmount,
+    completed,
+    securityPortId: contract.security?.portId || null,
+    securityTileId: contract.security?.tileId ?? null
+  });
 }
 
 function validateWarLoanHistoryEntry(entry) {
@@ -400,6 +684,14 @@ function requiredPortId(port) {
   return portId;
 }
 
+function requiredPortName(port) {
+  const name = port?.displayCity || port?.city;
+  if (typeof name !== "string" || name.trim() === "") {
+    throw new Error(`War-loan customs port has no name: ${port?.portId || "missing"}`);
+  }
+  return name;
+}
+
 function cityMatchesPortReference(city, portId, tileId) {
   return city?.portId === portId && city?.tileId === tileId;
 }
@@ -428,4 +720,8 @@ function assertUniqueStringArray(values, label, nonempty = false) {
 
 function assertMinute(value, label) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label} minute: ${value}`);
+}
+
+function clamp(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
 }

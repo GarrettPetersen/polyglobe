@@ -398,20 +398,26 @@ test("dynamic canvas templates localize in every target language", () => {
   }
 });
 
-test("war-loan journal and repayment navigation localize in every target language", () => {
+test("war-loan journal, secured renegotiation, and repayment navigation localize in every target language", () => {
   const cases = [
     ["quest.sovereignWarLoan", {}],
     ["quest.warLoanAwait", { borrower: "Portugal", enemy: "Spain" }],
     ["quest.warLoanClaim", { city: "Lisbon" }],
     ["quest.warLoanDefault", { city: "Lisbon" }],
+    ["quest.warLoanRenegotiate", { city: "Lisbon" }],
+    ["quest.warLoanArrears", { borrower: "Portugal" }],
+    ["quest.warLoanCustomsPaused", { city: "Lisbon" }],
+    ["quest.warLoanCustoms", { accrued: "600,000", total: "1,200,000", city: "Lisbon" }],
     ["navigation.claimWarLoanRepayment", {}],
-    ["navigation.warLoanRepaymentAt", { city: "Lisbon" }]
+    ["navigation.warLoanRepaymentAt", { city: "Lisbon" }],
+    ["navigation.hearWarLoanRenegotiation", {}],
+    ["navigation.warLoanRenegotiationAt", { city: "Lisbon" }]
   ];
   for (const { id } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     for (const [key, replacements] of cases) {
       const localized = translate(id, key, replacements);
       assert.notEqual(localized, translate(LANGUAGE_ENGLISH, key, replacements), `${id}: ${key}`);
-      assert.doesNotMatch(localized, /\{(?:borrower|enemy|city)\}/, `${id}: ${key}`);
+      assert.doesNotMatch(localized, /\{(?:borrower|enemy|city|accrued|total)\}/, `${id}: ${key}`);
     }
   }
 });

@@ -454,14 +454,20 @@ import {
 } from "./shipyardInvestment.js";
 import {
   SOVEREIGN_WAR_LOAN_ACTIVE,
+  SOVEREIGN_WAR_LOAN_ARREARS,
   SOVEREIGN_WAR_LOAN_CONTRACT_ITEM_ID,
   SOVEREIGN_WAR_LOAN_DEFAULT_READY,
   SOVEREIGN_WAR_LOAN_PRINCIPAL,
+  SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY,
   SOVEREIGN_WAR_LOAN_REPAYMENT,
   SOVEREIGN_WAR_LOAN_REPAYMENT_READY,
+  SOVEREIGN_WAR_LOAN_SECURED,
+  acceptSovereignWarLoanRenegotiation,
+  advanceSovereignWarLoanAfterPeace,
   completeSovereignWarLoanAudience,
   createSovereignWarLoanMemory,
   fundSovereignWarLoan,
+  holdSovereignWarLoanBond,
   migrateSovereignWarLoanMemory,
   resolveSovereignWarLoan,
   sovereignWarLoanContractIsCarried,
@@ -469,7 +475,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 86;
+export const GAME_STATE_VERSION = 87;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -789,7 +795,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -2554,7 +2560,7 @@ export function resolveSovereignWarLoanForState(
   state,
   ports,
   simMinute,
-  { borrowerSolvencyRatio = null } = {}
+  { borrowerSolvencyRatio = null, renegotiationSecurity = null } = {}
 ) {
   assertGameState(state);
   assertSimulationMinute(simMinute);
@@ -2568,6 +2574,44 @@ export function resolveSovereignWarLoanForState(
     treaties: state.memory.conquest.treaties,
     collapsedFactionIds: state.memory.conquest.collapsedFactionIds,
     borrowerSolvencyRatio,
+    renegotiationSecurity,
+    simMinute
+  });
+}
+
+export function acceptSovereignWarLoanSecurityForState(state, city, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  requiredWarLoanAudienceAtCapital(state, city, SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY);
+  return acceptSovereignWarLoanRenegotiation(
+    state.memory.quests.sovereignWarLoan,
+    simMinute
+  );
+}
+
+export function holdSovereignWarLoanBondForState(state, city, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  requiredWarLoanAudienceAtCapital(state, city, SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY);
+  return holdSovereignWarLoanBond(
+    state.memory.quests.sovereignWarLoan,
+    simMinute
+  );
+}
+
+export function advanceSovereignWarLoanCreditForState(
+  state,
+  ports,
+  simMinute,
+  { borrowerSolvencyRatio = null, securityPortLiquidityRatio = null } = {}
+) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  return advanceSovereignWarLoanAfterPeace(state.memory.quests.sovereignWarLoan, {
+    ports,
+    collapsedFactionIds: state.memory.conquest.collapsedFactionIds,
+    borrowerSolvencyRatio,
+    securityPortLiquidityRatio,
     simMinute
   });
 }
@@ -3576,20 +3620,33 @@ export function shipItemRows(state) {
   if (warLoan) {
     const borrower = factionById(warLoan.borrowerFactionId);
     const enemy = factionById(warLoan.enemyFactionId);
+    const security = warLoan.security;
+    const carriesAcceptedCustomsAssignment = security?.acceptedMinute !== null &&
+      security?.acceptedMinute !== undefined;
     const resultDetail = warLoan.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
       ? `The treasury owes ${SOVEREIGN_WAR_LOAN_REPAYMENT.toLocaleString("en-US")} doubloons.`
       : warLoan.status === SOVEREIGN_WAR_LOAN_DEFAULT_READY
         ? "The named war ended with the sovereign's treasury unable to answer the bond."
+        : warLoan.status === SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY
+          ? `The court offers the customs of ${security.portName} in security for the debt.`
+          : warLoan.status === SOVEREIGN_WAR_LOAN_SECURED
+            ? `${security.portName} customs have gathered ${security.accruedAmount.toLocaleString("en-US")} of ${SOVEREIGN_WAR_LOAN_REPAYMENT.toLocaleString("en-US")} doubloons.`
+            : warLoan.status === SOVEREIGN_WAR_LOAN_ARREARS
+              ? "The original bond stands in arrears until the treasury recovers."
         : `Payable at ${SOVEREIGN_WAR_LOAN_REPAYMENT.toLocaleString("en-US")} doubloons upon victory, or upon an even peace if the sovereign's treasury remains answerable.`;
     rows.push({
       id: SOVEREIGN_WAR_LOAN_CONTRACT_ITEM_ID,
-      label: `${borrower.adjective} War-loan Indenture`,
+      label: carriesAcceptedCustomsAssignment
+        ? `${borrower.adjective} Customs Assignment`
+        : `${borrower.adjective} War-loan Indenture`,
       detail: `A sealed advance of ${SOVEREIGN_WAR_LOAN_PRINCIPAL.toLocaleString("en-US")} doubloons for the war with ${enemy.name}. ${resultDetail}`,
       quantity: 1,
       questItem: true,
       discardable: false,
       issuer: warLoan.borrowerRulerName,
-      route: `War with ${enemy.name}`,
+      route: carriesAcceptedCustomsAssignment
+        ? `Customs of ${security.portName}`
+        : `War with ${enemy.name}`,
       simMinute: warLoan.issuedMinute
     });
   }

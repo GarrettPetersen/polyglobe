@@ -1334,8 +1334,8 @@ function reviewedWarLoanOverrides() {
     ["PEACE CONCLUDED: 1,200,000 DB AWAITS AT COURT", [
       "议和告成：宫廷备有1,200,000 DB", "МИР ЗАКЛЮЧЁН: 1 200 000 ДБ ЖДУТ ПРИ ДВОРЕ", "PAZ SELLADA: 1.200.000 DB AGUARDAN EN LA CORTE", "PAZ FIRMADA: 1.200.000 DB AGUARDAM NA CORTE", "講和成立：宮廷に1,200,000 DBあり", "FRIEDEN GESCHLOSSEN: 1.200.000 DB WARTEN AM HOF", "PAIX CONCLUE : 1 200 000 DB VOUS ATTENDENT À LA COUR", "POKÓJ ZAWARTY: 1 200 000 DB CZEKA NA DWORZE", "議和告成：宮廷備有1,200,000 DB", "강화 성립: 궁정에 1,200,000 DB가 기다린다"
     ]],
-    ["PEACE CONCLUDED: THE TREASURY CANNOT PAY", [
-      "议和告成：国库无力偿还", "МИР ЗАКЛЮЧЁН: КАЗНА НЕ МОЖЕТ ЗАПЛАТИТЬ", "PAZ SELLADA: EL TESORO NO PUEDE PAGAR", "PAZ FIRMADA: O TESOURO NÃO PODE PAGAR", "講和成立：国庫は返済できない", "FRIEDEN GESCHLOSSEN: DIE SCHATZKAMMER KANN NICHT ZAHLEN", "PAIX CONCLUE : LE TRÉSOR NE PEUT PAYER", "POKÓJ ZAWARTY: SKARB NIE MOŻE ZAPŁACIĆ", "議和告成：國庫無力償還", "강화 성립: 국고가 갚을 수 없다"
+    ["PEACE CONCLUDED: COURT OFFERS CUSTOMS SECURITY", [
+      "议和告成：宫廷提出关税担保", "МИР ЗАКЛЮЧЁН: ДВОР ПРЕДЛАГАЕТ В ЗАЛОГ ТАМОЖЕННЫЕ СБОРЫ", "PAZ SELLADA: LA CORTE OFRECE LAS ADUANAS EN GARANTÍA", "PAZ FIRMADA: A CORTE OFERECE AS ALFÂNDEGAS EM GARANTIA", "講和成立：宮廷が関税を担保に供する", "FRIEDEN GESCHLOSSEN: DER HOF BIETET ZÖLLE ALS SICHERHEIT", "PAIX CONCLUE : LA COUR OFFRE LES DOUANES EN GARANTIE", "POKÓJ ZAWARTY: DWÓR OFERUJE CŁA JAKO ZABEZPIECZENIE", "議和告成：宮廷提出關稅擔保", "강화 성립: 궁정이 관세를 담보로 내놓는다"
     ]],
     ["War with {0}", [
       "与{0}之战", "Война с державой {0}", "Guerra con {0}", "Guerra com {0}", "{0}との戦", "Krieg mit {0}", "Guerre avec {0}", "Wojna z państwem {0}", "與{0}之戰", "{0}과의 전쟁"
@@ -1345,6 +1345,69 @@ function reviewedWarLoanOverrides() {
     ]],
     ["WITHHOLD THE MONEY", [
       "不予出资", "НЕ ДАВАТЬ ДЕНЕГ", "RETENER EL DINERO", "RETER O DINHEIRO", "金を出さない", "DAS GELD VERWEIGERN", "REFUSER L'ARGENT", "WSTRZYMAĆ PIENIĄDZE", "不予出資", "돈을 내놓지 않는다"
+    ]],
+    ["{0} Customs Assignment", [
+      "{0}关税让渡契据", "Уступка таможенных сборов: {0}", "Cesión de aduanas de {0}", "Cessão das alfândegas de {0}", "{0}関税譲渡証書", "{0} Zollabtretung", "Cession des douanes de {0}", "Cesja ceł: {0}", "{0}關稅讓渡契據", "{0} 관세 양도 증서"
+    ]],
+    ["{0} customs have gathered {1} of {2} doubloons.", [
+      "{0}关税已收得{2}达布隆中的{1}。", "Таможня в {0} собрала {1} из {2} дублонов.", "Las aduanas de {0} han reunido {1} de {2} doblones.", "As alfândegas de {0} arrecadaram {1} de {2} dobrões.", "{0}の関税から{2}ダブロン中{1}が集まった。", "Die Zölle von {0} haben {1} von {2} Dublonen eingebracht.", "Les douanes de {0} ont produit {1} des {2} doublons.", "Cła w {0} przyniosły {1} z {2} dublonów.", "{0}關稅已收得{2}達布隆中的{1}。", "{0} 관세에서 {2}더블룬 중 {1}을 거두었다."
+    ]],
+    ["{0}'s treasury cannot discharge your bond in ready coin. The war has left its chests bare, though the realm yet stands.", [
+      "{0}的国库无现银清偿你的契据。战事虽未倾覆邦国，却已耗空府库。", "Казна {0} не может погасить ваше обязательство звонкой монетой. Война опустошила сундуки, хотя держава ещё стоит.", "El tesoro de {0} no puede descargar vuestro título en moneda contante. La guerra ha dejado vacíos sus cofres, aunque el reino aún se sostiene.", "O tesouro de {0} não pode quitar vosso título em moeda corrente. A guerra deixou vazios os cofres, embora o reino ainda permaneça.", "{0}の国庫には、そなたの証文を現金で償う余裕がない。国はなお立つが、戦で金庫は空となった。", "{0}s Schatzkammer kann Eure Schuldverschreibung nicht in barem Geld ablösen. Der Krieg hat ihre Truhen geleert, obgleich das Reich noch besteht.", "Le trésor de {0} ne peut acquitter votre obligation en monnaie sonnante. La guerre a vidé ses coffres, quoique le royaume demeure debout.", "Skarb państwa {0} nie zdoła wykupić waszego obligu gotową monetą. Wojna opróżniła skrzynie, choć państwo wciąż stoi.", "{0}的國庫無現銀清償你的契據。戰事雖未傾覆邦國，卻已耗空府庫。", "{0}의 국고는 그대의 채권을 현금으로 갚을 수 없소. 나라는 아직 서 있으나 전쟁으로 궤가 비었소."
+    ]],
+    ["ACCEPT THE CUSTOMS ASSIGNMENT", [
+      "接纳关税让渡", "ПРИНЯТЬ УСТУПКУ ТАМОЖЕННЫХ СБОРОВ", "ACEPTAR LA CESIÓN DE ADUANAS", "ACEITAR A CESSÃO DAS ALFÂNDEGAS", "関税譲渡を受ける", "DIE ZOLLABTRETUNG ANNEHMEN", "ACCEPTER LA CESSION DES DOUANES", "PRZYJĄĆ CESJĘ CEŁ", "接納關稅讓渡", "관세 양도를 받는다"
+    ]],
+    ["By the sovereign's seal, the customs of {0} are offered until twelve hundred thousand doubloons have answered your indenture.", [
+      "奉君主封印，今以{0}关税相抵，直至一百二十万达布隆足数清偿你的契据。", "Государевой печатью вам уступаются сборы таможни {0}, пока по вашему договору не будет уплачено миллион двести тысяч дублонов.", "Por el sello del soberano, se os ofrecen las aduanas de {0} hasta que un millón doscientos mil doblones hayan satisfecho vuestra escritura.", "Pelo selo do soberano, são-vos oferecidas as alfândegas de {0} até que um milhão e duzentos mil dobrões satisfaçam vossa escritura.", "君主の印により、百二十万ダブロンがそなたの証書に応じるまで、{0}の関税を差し出す。", "Unter dem Siegel des Herrschers werden Euch die Zölle von {0} abgetreten, bis eine Million zweihunderttausend Dublonen Eure Urkunde erfüllt haben.", "Sous le sceau du souverain, les douanes de {0} vous sont offertes jusqu'à ce qu'un million deux cent mille doublons aient satisfait votre acte.", "Pod pieczęcią władcy ustępuje się wam cła z {0}, aż milion dwieście tysięcy dublonów zaspokoi wasz indenter.", "奉君主封印，今以{0}關稅相抵，直至一百二十萬達布隆足數清償你的契據。", "군주의 인장 아래, 백이십만 더블룬이 그대의 증서를 모두 갚을 때까지 {0}의 관세를 내놓겠소."
+    ]],
+    ["CROWN FALLEN: THE WAR LOAN CANNOT BE PAID", [
+      "王权倾覆：战款无法偿还", "КОРОНА ПАЛА: ВОЕННАЯ ССУДА НЕ МОЖЕТ БЫТЬ ВОЗВРАЩЕНА", "CORONA CAÍDA: EL PRÉSTAMO DE GUERRA NO PUEDE PAGARSE", "COROA CAÍDA: O EMPRÉSTIMO DE GUERRA NÃO PODE SER PAGO", "王権崩壊：戦費借款は返済不能", "KRONE GEFALLEN: DER KRIEGSKREDIT KANN NICHT GETILGT WERDEN", "COURONNE TOMBÉE : LE PRÊT DE GUERRE NE PEUT ÊTRE REMBOURSÉ", "KORONA UPADŁA: POŻYCZKA WOJENNA NIE MOŻE ZOSTAĆ SPŁACONA", "王權傾覆：戰款無法償還", "왕권 붕괴: 전쟁 차관을 갚을 수 없다"
+    ]],
+    ["CUSTOMS ASSIGNMENT COMPLETE: 1,200,000 DB AWAITS AT COURT", [
+      "关税让渡足额：宫廷备有1,200,000 DB", "УСТУПКА СБОРОВ ИСПОЛНЕНА: 1 200 000 ДБ ЖДУТ ПРИ ДВОРЕ", "CESIÓN DE ADUANAS CUMPLIDA: 1.200.000 DB AGUARDAN EN LA CORTE", "CESSÃO DAS ALFÂNDEGAS CUMPRIDA: 1.200.000 DB AGUARDAM NA CORTE", "関税譲渡完済：宮廷に1,200,000 DBあり", "ZOLLABTRETUNG ERFÜLLT: 1.200.000 DB WARTEN AM HOF", "CESSION DES DOUANES ACQUITTÉE : 1 200 000 DB VOUS ATTENDENT À LA COUR", "CESJA CEŁ WYKONANA: 1 200 000 DB CZEKA NA DWORZE", "關稅讓渡足額：宮廷備有1,200,000 DB", "관세 양도 완납: 궁정에 1,200,000 DB가 기다린다"
+    ]],
+    ["CUSTOMS ASSIGNMENT RESUMED AT {0}", [
+      "{0}关税让渡恢复", "УСТУПКА ТАМОЖЕННЫХ СБОРОВ В {0} ВОЗОБНОВЛЕНА", "CESIÓN DE ADUANAS REANUDADA EN {0}", "CESSÃO DAS ALFÂNDEGAS RETOMADA EM {0}", "{0}の関税譲渡が再開", "ZOLLABTRETUNG IN {0} WIEDERAUFGENOMMEN", "CESSION DES DOUANES REPRISE À {0}", "CESJA CEŁ W {0} WZNOWIONA", "{0}關稅讓渡恢復", "{0} 관세 양도 재개"
+    ]],
+    ["CUSTOMS ASSIGNMENT SEALED", [
+      "关税让渡已封印", "УСТУПКА ТАМОЖЕННЫХ СБОРОВ СКРЕПЛЕНА ПЕЧАТЬЮ", "CESIÓN DE ADUANAS SELLADA", "CESSÃO DAS ALFÂNDEGAS SELADA", "関税譲渡を封印", "ZOLLABTRETUNG BESIEGELT", "CESSION DES DOUANES SCELLÉE", "CESJA CEŁ OPIECZĘTOWANA", "關稅讓渡已封印", "관세 양도 봉인"
+    ]],
+    ["CUSTOMS ASSIGNMENT SUSPENDED: {0} LOST", [
+      "关税让渡中止：{0}失守", "УСТУПКА СБОРОВ ПРИОСТАНОВЛЕНА: {0} ПОТЕРЯН", "CESIÓN DE ADUANAS SUSPENDIDA: {0} PERDIDA", "CESSÃO DAS ALFÂNDEGAS SUSPENSA: {0} PERDIDA", "関税譲渡中断：{0}陥落", "ZOLLABTRETUNG AUSGESETZT: {0} VERLOREN", "CESSION DES DOUANES SUSPENDUE : {0} PERDUE", "CESJA CEŁ WSTRZYMANA: UTRACONO {0}", "關稅讓渡中止：{0}失守", "관세 양도 중단: {0} 상실"
+    ]],
+    ["Customs of {0}", [
+      "{0}关税", "Таможенные сборы {0}", "Aduanas de {0}", "Alfândegas de {0}", "{0}の関税", "Zölle von {0}", "Douanes de {0}", "Cła z {0}", "{0}關稅", "{0} 관세"
+    ]],
+    ["HOLD TO THE SEALED BOND", [
+      "坚持原封契据", "ДЕРЖАТЬСЯ СКРЕПЛЁННОГО ПЕЧАТЬЮ ОБЯЗАТЕЛЬСТВА", "MANTENER EL TÍTULO SELLADO", "MANTER O TÍTULO SELADO", "封印ある証文を保つ", "AN DER BESIEGELTEN SCHULDVERSCHREIBUNG FESTHALTEN", "S'EN TENIR À L'OBLIGATION SCELLÉE", "POZOSTAĆ PRZY OPIECZĘTOWANYM OBLIGU", "堅持原封契據", "봉인된 채권을 그대로 둔다"
+    ]],
+    ["I will hold the Crown to the bond as it was sealed.", [
+      "我要王室依原封契据履约。", "Я потребую от Короны исполнить обязательство таким, каким оно было скреплено печатью.", "Exigiré a la Corona el título tal como fue sellado.", "Exigirei da Coroa o título tal como foi selado.", "王冠には、封印されたままの証文を守らせる。", "Ich halte die Krone an die Schuldverschreibung, wie sie besiegelt ward.", "Je tiendrai la Couronne à l'obligation telle qu'elle fut scellée.", "Będę trzymać Koronę przy obligu takim, jak go opieczętowano.", "我要王室依原封契據履約。", "왕실은 봉인한 그대로 채권을 이행해야 하오."
+    ]],
+    ["I will receive the assignment under the sovereign's seal.", [
+      "我愿接纳君主封印的让渡契据。", "Я приму уступку под государевой печатью.", "Recibiré la cesión bajo el sello del soberano.", "Receberei a cessão sob o selo do soberano.", "君主の印ある譲渡を受けよう。", "Ich nehme die Abtretung unter dem Siegel des Herrschers an.", "Je recevrai la cession sous le sceau du souverain.", "Przyjmę cesję pod pieczęcią władcy.", "我願接納君主封印的讓渡契據。", "군주의 인장 아래 그 양도를 받겠소."
+    ]],
+    ["The court offers the customs of {0} in security for the debt.", [
+      "宫廷提出以{0}关税为债务担保。", "Двор предлагает таможенные сборы {0} в обеспечение долга.", "La corte ofrece las aduanas de {0} en garantía de la deuda.", "A corte oferece as alfândegas de {0} em garantia da dívida.", "宮廷は債の担保として{0}の関税を差し出している。", "Der Hof bietet die Zölle von {0} als Sicherheit für die Schuld.", "La cour offre les douanes de {0} en garantie de la dette.", "Dwór oferuje cła z {0} jako zabezpieczenie długu.", "宮廷提出以{0}關稅為債務擔保。", "궁정이 빚의 담보로 {0}의 관세를 내놓았다."
+    ]],
+    ["The original bond stands in arrears until the treasury recovers.", [
+      "原契据暂列逾期，静候国库复元。", "Первоначальное обязательство остаётся в просрочке, пока казна не оправится.", "El título original queda en mora hasta que el tesoro se reponga.", "O título original fica em atraso até que o tesouro se recupere.", "元の証文は国庫が立ち直るまで延滞となる。", "Die ursprüngliche Schuldverschreibung bleibt rückständig, bis sich die Schatzkammer erholt.", "L'obligation première demeure en souffrance jusqu'au rétablissement du trésor.", "Pierwotny oblig pozostaje zaległy, dopóki skarb się nie podźwignie.", "原契據暫列逾期，靜候國庫復元。", "원채권은 국고가 회복될 때까지 연체로 남는다."
+    ]],
+    ["Then it shall stand in arrears until the treasury can answer it.", [
+      "那么，便暂列逾期，待国库有力清偿。", "Тогда оно останется в просрочке, пока казна не сможет по нему ответить.", "Entonces quedará en mora hasta que el tesoro pueda responder de él.", "Então ficará em atraso até que o tesouro possa responder por ele.", "ならば、国庫が応じうるまで延滞として残そう。", "Dann bleibt sie rückständig, bis die Schatzkammer für sie einstehen kann.", "Alors elle demeurera en souffrance jusqu'à ce que le trésor puisse en répondre.", "Zatem pozostanie zaległy, aż skarb zdoła zań odpowiedzieć.", "那麼，便暫列逾期，待國庫有力清償。", "그러면 국고가 감당할 수 있을 때까지 연체로 남겨 두겠소."
+    ]],
+    ["Then the collectors at {0} shall set apart the customs until your principal and premium are discharged.", [
+      "那么，{0}税吏将把关税另行留存，直至你的本金与酬金尽数清偿。", "Тогда сборщики в {0} будут откладывать таможенные доходы, пока не погасят ваш капитал и прибыль.", "Entonces los recaudadores de {0} apartarán las aduanas hasta que vuestro principal y premio queden satisfechos.", "Então os coletores de {0} separarão as alfândegas até que vosso principal e prêmio sejam quitados.", "ならば{0}の徴税吏が、そなたの元金と利を償い終えるまで関税を取り分ける。", "Dann sollen die Einnehmer in {0} die Zölle beiseitelegen, bis Euer Kapital und Aufgeld getilgt sind.", "Alors les receveurs de {0} mettront les douanes à part jusqu'à l'acquittement de votre principal et de votre prime.", "Zatem poborcy w {0} będą odkładać cła, aż wasz kapitał i premia zostaną spłacone.", "那麼，{0}稅吏將把關稅另行留存，直至你的本金與酬金盡數清償。", "그러면 {0}의 징세관들이 그대의 원금과 이문을 모두 갚을 때까지 관세를 따로 떼어 둘 것이오."
+    ]],
+    ["TREASURY RECOVERED: 1,200,000 DB AWAITS AT COURT", [
+      "国库复元：宫廷备有1,200,000 DB", "КАЗНА ОПРАВИЛАСЬ: 1 200 000 ДБ ЖДУТ ПРИ ДВОРЕ", "TESORO RESTABLECIDO: 1.200.000 DB AGUARDAN EN LA CORTE", "TESOURO RECUPERADO: 1.200.000 DB AGUARDAM NA CORTE", "国庫回復：宮廷に1,200,000 DBあり", "SCHATZKAMMER ERHOLT: 1.200.000 DB WARTEN AM HOF", "TRÉSOR RÉTABLI : 1 200 000 DB VOUS ATTENDENT À LA COUR", "SKARB ODBUDOWANY: 1 200 000 DB CZEKA NA DWORZE", "國庫復元：宮廷備有1,200,000 DB", "국고 회복: 궁정에 1,200,000 DB가 기다린다"
+    ]],
+    ["WAR LOAN HELD IN ARREARS", [
+      "战款契据列入逾期", "ВОЕННАЯ ССУДА ОСТАВЛЕНА В ПРОСРОЧКЕ", "PRÉSTAMO DE GUERRA MANTENIDO EN MORA", "EMPRÉSTIMO DE GUERRA MANTIDO EM ATRASO", "戦費借款を延滞として保持", "KRIEGSKREDIT RÜCKSTÄNDIG GEHALTEN", "PRÊT DE GUERRE MAINTENU EN SOUFFRANCE", "POŻYCZKA WOJENNA POZOSTAJE ZALEGŁA", "戰款契據列入逾期", "전쟁 차관을 연체로 유지"
+    ]],
+    ["Will you receive the customs of {0} in security, or hold the treasury to its first bond?", [
+      "你愿接纳{0}关税为担保，还是仍令国库依原契据清偿？", "Примете ли вы таможенные сборы {0} в обеспечение или потребуете от казны исполнить первое обязательство?", "¿Recibiréis las aduanas de {0} en garantía, o mantendréis al tesoro sujeto a su primer título?", "Recebereis as alfândegas de {0} em garantia, ou mantereis o tesouro preso ao primeiro título?", "{0}の関税を担保として受けるか、それとも国庫に元の証文を守らせるか？", "Nehmt Ihr die Zölle von {0} als Sicherheit an, oder haltet Ihr die Schatzkammer an ihre erste Schuldverschreibung?", "Recevrez-vous les douanes de {0} en garantie, ou tiendrez-vous le trésor à sa première obligation ?", "Przyjmiecie cła z {0} jako zabezpieczenie czy pozostawicie skarb przy pierwotnym obligu?", "你願接納{0}關稅為擔保，還是仍令國庫依原契據清償？", "{0}의 관세를 담보로 받겠소, 아니면 국고에 원채권을 그대로 이행하게 하겠소?"
     ]],
     ["Your purse lacks the whole million. Shall I keep the indenture ready?", [
       "你的钱袋尚不足一百万。可要我将契据留待你归来？", "В вашем кошеле нет полного миллиона. Держать ли договор наготове?", "Vuestra bolsa no alcanza el millón entero. ¿Debo guardar dispuesta la escritura?", "Vossa bolsa não contém o milhão inteiro. Devo conservar a escritura pronta?", "そなたの財布には百万の全額がない。証書を用意したまま待つか？", "Euer Beutel enthält nicht die ganze Million. Soll ich die Urkunde bereithalten?", "Votre bourse ne contient point le million entier. Dois-je garder l'acte prêt ?", "W waszej sakwie brak całego miliona. Mam zachować indenter w gotowości?", "你的錢袋尚不足一百萬。可要我將契據留待你歸來？", "그대의 돈주머니에는 백만 전액이 없소. 증서를 준비해 두겠소?"
