@@ -366,6 +366,7 @@ import {
   advanceGamePolitics,
   advanceActivePlayTime,
   adjustFactionReputation,
+  acknowledgeSovereignWarLoanDefault,
   applySurvivalDeprivation,
   attemptPortDisguise,
   awardPlayerShip,
@@ -380,6 +381,7 @@ import {
   consumeNamedCrewDeathNotice,
   consumePendingDiscoveryPortDialogue,
   advanceCapturePortMissionAfterConquest,
+  capturePortMissionMatchesConquest,
   capturePortMissionOfferForCity,
   createPortEntryStatusContext,
   createGameState,
@@ -395,6 +397,7 @@ import {
   grantGuaranteedMissionPerkItem,
   hasShipItem,
   hasPrivateeringAuthorityAgainst,
+  issueSovereignWarLoanForState,
   privateeringAuthorityIssuerIdsAgainst,
   initializeProvisionalShipLoadout,
   sovereignTradeOpenToFaction,
@@ -442,6 +445,7 @@ import {
   receiveFishCatch,
   deliverQuestCargoRequirement,
   receiveQuestPayment,
+  receiveSovereignWarLoanRepayment,
   receiveScavengedTradeGood,
   receiveWhaleBlubber,
   receivePortConquestPrize,
@@ -469,6 +473,7 @@ import {
   recordTeaRaceRivalArrival,
   recordWokouHuntVictory,
   reconcileFactionReputationAfterPlayerVassalage,
+  resolveSovereignWarLoanForState,
   recordPiracyAgainstFaction,
   beginIllicitTradeEnforcementCombat,
   releaseCargoSpace,
@@ -909,6 +914,7 @@ import {
   NPC_ROLE_WARSHIP,
   NPC_PORT_RESPONSE_BURNING,
   NPC_PORT_RESPONSE_LOST,
+  NPC_PORT_RESPONSE_WAR_LOAN,
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
   applyNpcSeaRouteSimulationSnapshot,
@@ -921,8 +927,10 @@ import {
   createNpcShipSnapshotCache,
   createNpcSeaRouteSystem,
   damageNpcShip,
+  expandNpcCapitalNavalReserve,
   npcCargoAvailableQuantity,
   npcFleetOriginWeightsForPorts,
+  npcFactionCanMaintainCapitalNavalReserve,
   npcPortHasMajorProtection,
   orderNpcPortResponse,
   npcRoleLabel,
@@ -935,6 +943,7 @@ import {
   reconcileNpcRouteEncounterIdentity,
   replaceNpcSeaRoutePort,
   releaseNpcShipVisualNavigation,
+  returnNpcWarLoanOffensiveShips,
   restoreNpcSurrenderContinuity,
   restoreNpcSeaRouteSystem,
   setNpcShipVisualNavigation,
@@ -947,6 +956,21 @@ import {
   surrenderNpcShip,
   npcSeaRouteEventSchedule
 } from "./npcSeaRoutes.js";
+import {
+  SOVEREIGN_WAR_LOAN_ACTIVE,
+  SOVEREIGN_WAR_LOAN_DEFAULT_READY,
+  SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD,
+  SOVEREIGN_WAR_LOAN_PRINCIPAL,
+  SOVEREIGN_WAR_LOAN_REPAYMENT,
+  SOVEREIGN_WAR_LOAN_REPAYMENT_READY,
+  SOVEREIGN_WAR_LOAN_RESERVE_SLOTS,
+  cancelStaleSovereignWarLoanOffer,
+  createSovereignWarLoanOffer,
+  declineSovereignWarLoanOffer,
+  markSovereignWarLoanOfferPresented,
+  recordSovereignWarLoanMobilization,
+  sovereignWarLoanOfferNeedsPresentation
+} from "./sovereignWarLoan.js";
 import {
   TREASURE_MAP_PIECE_COUNT,
   TREASURE_PIRATE_ENCOUNTER_KIND,
@@ -18762,6 +18786,7 @@ function continuePortArrivalDialogues() {
   }
   const cityCall = currentDialogueCity();
   return openNextPortArrivalFollowup([
+    () => maybeOpenSovereignWarLoanDialogue(cityCall),
     () => maybeOpenShipyardArrivalDialogue(cityCall),
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
@@ -18782,6 +18807,286 @@ function continuePortArrivalDialogues() {
     () => maybeOpenFormerRescuedTravelerReunion(cityCall),
     () => maybeOpenCharacterHomecoming(cityCall)
   ]);
+}
+
+function maybeOpenSovereignWarLoanDialogue(cityCall) {
+  const memory = gameState.memory.quests.sovereignWarLoan;
+  const simMinute = Math.floor(weatherClockMinutes);
+  const contract = memory.contract;
+  if (contract &&
+      [SOVEREIGN_WAR_LOAN_REPAYMENT_READY, SOVEREIGN_WAR_LOAN_DEFAULT_READY].includes(contract.status) &&
+      sovereignWarLoanAudienceIsAt(cityCall, contract)) {
+    return openSovereignWarLoanSettlementDialogue(cityCall, contract);
+  }
+  if (contract) return false;
+
+  if (memory.offer) {
+    const offerCapital = portCitiesByTileId.get(memory.offer.capitalTileId) ||
+      cityByTileId.get(memory.offer.capitalTileId) || null;
+    cancelStaleSovereignWarLoanOffer(memory, {
+      relationBetween: currentDiplomacyBetween,
+      capitalFactionId: sovereignCapitalFactionId(offerCapital),
+      simMinute
+    });
+  }
+  const capitalFactionId = sovereignCapitalFactionId(cityCall);
+  if (!memory.offer && gameState.doubloons >= SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD &&
+      capitalFactionId && npcFactionCanMaintainCapitalNavalReserve(npcSeaRoutes, capitalFactionId)) {
+    const enemyFactionId = sovereignWarLoanEnemyForCapital(cityCall, capitalFactionId);
+    if (enemyFactionId) {
+      createSovereignWarLoanOffer(memory, {
+        borrowerFactionId: capitalFactionId,
+        enemyFactionId,
+        capital: cityCall,
+        simMinute,
+        doubloons: gameState.doubloons
+      });
+    }
+  }
+  if (!sovereignWarLoanOfferNeedsPresentation(memory, cityCall, gameState.doubloons)) return false;
+  return openSovereignWarLoanOfferDialogue(cityCall);
+}
+
+function sovereignCapitalFactionId(city) {
+  if (!city || city.isFactionCapital !== true || !city.factionId ||
+      city.capitalOfFactionId !== city.factionId ||
+      [NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(city.factionId)) {
+    return null;
+  }
+  return city.factionId;
+}
+
+function sovereignWarLoanAudienceIsAt(city, contract) {
+  if (sovereignCapitalFactionId(city) === contract.borrowerFactionId) return true;
+  return contract.status === SOVEREIGN_WAR_LOAN_DEFAULT_READY &&
+    city?.portId === contract.capitalPortId && city?.tileId === contract.capitalTileId;
+}
+
+function sovereignWarLoanEnemyForCapital(capital, borrowerFactionId) {
+  const collapsed = new Set(gameState.memory.conquest.collapsedFactionIds);
+  const candidates = FACTIONS
+    .filter((faction) => faction.id !== borrowerFactionId &&
+      ![NEUTRAL_FACTION_ID, PIRATE_FACTION_ID].includes(faction.id) &&
+      !collapsed.has(faction.id) &&
+      currentDiplomacyBetween(borrowerFactionId, faction.id) === DIPLOMACY_WAR)
+    .map((faction) => {
+      const targets = portCities.filter((port) => port.factionId === faction.id);
+      const distance = targets.reduce((nearest, port) => {
+        const value = sailingDistanceBetweenPorts(capital, port);
+        return Number.isFinite(value) ? Math.min(nearest, value) : nearest;
+      }, Number.POSITIVE_INFINITY);
+      return { factionId: faction.id, targets, distance };
+    })
+    .filter((entry) => entry.targets.length > 0 && Number.isFinite(entry.distance))
+    .sort((a, b) => a.distance - b.distance || b.targets.length - a.targets.length ||
+      a.factionId.localeCompare(b.factionId));
+  return candidates[0]?.factionId || null;
+}
+
+function openSovereignWarLoanOfferDialogue(cityCall) {
+  const memory = gameState.memory.quests.sovereignWarLoan;
+  const offer = markSovereignWarLoanOfferPresented(memory, gameState.doubloons);
+  const ruler = rulerAtMinute(offer.borrowerFactionId, Math.floor(weatherClockMinutes));
+  if (!ruler) throw new Error(`War-loan offer has no sovereign: ${offer.borrowerFactionId}`);
+  const official = cityCall.character;
+  const enemy = factionById(offer.enemyFactionId);
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: official,
+      speakerCharacter: official,
+      expressionId: "attentive",
+      message: `${ruler.displayName} commands me to lay a grave request before you. The war with ${enemy.name} has pressed the treasury sorely.`
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: official,
+      speakerCharacter: official,
+      expressionId: "stern",
+      message: `Advance one million doubloons under seal. If our arms obtain the better peace, the treasury shall return twelve hundred thousand. If they fail, the loss is yours.`
+    })
+  ], () => openSovereignWarLoanChoice(cityCall, ruler.displayName));
+  if (!opened) throw new Error("Sovereign war-loan request could not open");
+  return true;
+}
+
+function openSovereignWarLoanChoice(cityCall, rulerName) {
+  const canFund = gameState.doubloons >= SOVEREIGN_WAR_LOAN_PRINCIPAL;
+  const official = cityCall.character;
+  const choices = canFund
+    ? [
+        {
+          label: "ADVANCE 1,000,000 DB",
+          onSelect: () => acceptSovereignWarLoan(cityCall)
+        },
+        {
+          label: "WITHHOLD THE MONEY",
+          onSelect: () => refuseSovereignWarLoan(cityCall)
+        }
+      ]
+    : [
+        {
+          label: "RETURN WITH THE FULL SUM",
+          onSelect: () => deferSovereignWarLoan(cityCall)
+        },
+        {
+          label: "REFUSE THE LOAN",
+          onSelect: () => refuseSovereignWarLoan(cityCall)
+        }
+      ];
+  const opened = openCharacterChoiceAlertModal(
+    official,
+    canFund
+      ? `${rulerName} awaits your answer. Will you furnish the million?`
+      : `Your purse lacks the whole million. Shall I keep the indenture ready?`,
+    choices,
+    "attentive",
+    { leftCharacter: gameState.playerCharacter, rightCharacter: official }
+  );
+  if (!opened) throw new Error("Sovereign war-loan choice could not open");
+}
+
+function deferSovereignWarLoan(cityCall) {
+  const official = cityCall.character;
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: official,
+      speakerCharacter: gameState.playerCharacter,
+      expressionId: "thoughtful",
+      message: "I cannot furnish the whole million today. Keep the writing ready until I return."
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: official,
+      speakerCharacter: official,
+      expressionId: "neutral",
+      message: "It shall remain in my coffer while the war endures."
+    })
+  ]);
+  if (!opened) throw new Error("Deferred war-loan dialogue could not open");
+  saveVoyageNow("deferred a sovereign war-loan request");
+}
+
+function refuseSovereignWarLoan(cityCall) {
+  const offer = declineSovereignWarLoanOffer(
+    gameState.memory.quests.sovereignWarLoan,
+    Math.floor(weatherClockMinutes)
+  );
+  const official = cityCall.character;
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: official,
+      speakerCharacter: gameState.playerCharacter,
+      expressionId: "stern",
+      message: "I will not hazard my fortune upon this war."
+    }),
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: official,
+      speakerCharacter: official,
+      expressionId: "neutral",
+      message: "Then I shall return the unsigned indenture to the treasury."
+    })
+  ]);
+  if (!opened) throw new Error("Refused war-loan dialogue could not open");
+  saveVoyageNow(`refused ${offer.borrowerFactionId} war loan`);
+}
+
+function acceptSovereignWarLoan(cityCall) {
+  const simMinute = Math.floor(weatherClockMinutes);
+  const issuance = issueSovereignWarLoanForState(gameState, cityCall, portCities, { simMinute });
+  const contract = issuance.contract;
+  const reserveSlotIds = expandNpcCapitalNavalReserve(npcSeaRoutes, {
+    factionId: contract.borrowerFactionId,
+    slotCount: SOVEREIGN_WAR_LOAN_RESERVE_SLOTS,
+    contractId: contract.id
+  });
+  const targets = sovereignWarLoanOffensiveTargets(cityCall, contract.enemyFactionId);
+  const offensiveShipIds = [];
+  for (let index = 0; index < SOVEREIGN_WAR_LOAN_RESERVE_SLOTS; index++) {
+    const target = targets[index % targets.length];
+    const order = orderNpcPortResponse(npcSeaRoutes, {
+      factionId: contract.borrowerFactionId,
+      targetPortId: target.tileId,
+      reason: NPC_PORT_RESPONSE_WAR_LOAN,
+      clockMinutes: simMinute,
+      allowReinforcement: true
+    });
+    if (order.shipId && !offensiveShipIds.includes(order.shipId)) offensiveShipIds.push(order.shipId);
+  }
+  recordSovereignWarLoanMobilization(gameState.memory.quests.sovereignWarLoan, {
+    reserveSlotIds,
+    offensiveShipIds
+  });
+  const official = cityCall.character;
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: official,
+      speakerCharacter: official,
+      expressionId: "pleased",
+      message: `The treasury has counted your million and sealed the indenture. Hulls shall be bought where our shipwrights offer them, and the ready squadron sails against the enemy.`
+    })
+  ]);
+  if (!opened) throw new Error("Funded war-loan dialogue could not open");
+  playCoinClinkSound();
+  showSurvivalNotice("WAR LOAN ADVANCED: 1,000,000 DB", "good");
+  saveVoyageNow(`funded ${contract.borrowerFactionId} war loan`);
+}
+
+function sovereignWarLoanOffensiveTargets(capital, enemyFactionId) {
+  const targets = portCities
+    .filter((port) => port.factionId === enemyFactionId)
+    .map((port) => ({
+      port,
+      distance: sailingDistanceBetweenPorts(capital, port),
+      value: Math.max(0, Number(port.population || 0))
+    }))
+    .filter((entry) => Number.isFinite(entry.distance))
+    .sort((a, b) => a.distance - b.distance || b.value - a.value || a.port.tileId - b.port.tileId)
+    .map((entry) => entry.port);
+  if (targets.length === 0) throw new Error(`War loan has no reachable ${enemyFactionId} port`);
+  return targets;
+}
+
+function openSovereignWarLoanSettlementDialogue(cityCall, contract) {
+  const simMinute = Math.floor(weatherClockMinutes);
+  const ruler = rulerAtMinute(contract.borrowerFactionId, simMinute);
+  if (!ruler) throw new Error(`War-loan settlement has no sovereign: ${contract.borrowerFactionId}`);
+  const official = cityCall.character;
+  if (contract.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY) {
+    receiveSovereignWarLoanRepayment(gameState, cityCall, { simMinute });
+    const opened = startCharacterAlertSequence([
+      pairedCharacterAlertStep({
+        leftCharacter: gameState.playerCharacter,
+        rightCharacter: official,
+        speakerCharacter: official,
+        expressionId: "pleased",
+        message: `By ${ruler.displayName}'s seal, our arms have won the better peace. Here are twelve hundred thousand doubloons, principal and premium, in full discharge of your indenture.`
+      })
+    ]);
+    if (!opened) throw new Error("War-loan repayment dialogue could not open");
+    playCoinClinkSound();
+    showSurvivalNotice("WAR LOAN REPAID: 1,200,000 DB", "good");
+    saveVoyageNow(`collected ${contract.borrowerFactionId} war-loan repayment`);
+    return true;
+  }
+  acknowledgeSovereignWarLoanDefault(gameState, cityCall, { simMinute });
+  const opened = startCharacterAlertSequence([
+    pairedCharacterAlertStep({
+      leftCharacter: gameState.playerCharacter,
+      rightCharacter: official,
+      speakerCharacter: official,
+      expressionId: "concerned",
+      message: `${ruler.displayName}'s treasury can answer neither principal nor premium. Our arms failed to gain the peace named in your indenture, and the bond is forfeit.`
+    })
+  ]);
+  if (!opened) throw new Error("War-loan default dialogue could not open");
+  showSurvivalNotice("WAR LOAN FORFEIT", "warning");
+  saveVoyageNow(`${contract.borrowerFactionId} war loan defaulted`);
+  return true;
 }
 
 function maybeOpenShipyardArrivalDialogue(cityCall, { allowShipyardNode = false } = {}) {
@@ -20741,7 +21046,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     simMinute,
     capital: Boolean(event.capitalCapturedFactionId)
   });
-  const captureMission = status.commissioned
+  const captureMission = capturePortMissionMatchesConquest(gameState, cityCall, event)
     ? advanceCapturePortMissionAfterConquest(gameState, cityCall, event, simMinute)
     : null;
   const conquistadorCapture = gameState.memory.quests.conquistador.stage === CONQUISTADOR_STAGE_CAPTURE &&
@@ -30545,7 +30850,7 @@ function advanceWorldClockFrameSlice(nowMs) {
   if (slice === 4) {
     return updateAboardBirthdayEvents() || presentPendingBirthdayDialogue();
   }
-  return updateWorldDiplomacy();
+  return updateSovereignWarLoanOutcome() || updateWorldDiplomacy();
 }
 
 function updateAboardBirthdayEvents() {
@@ -30581,6 +30886,36 @@ function birthdayDialogueOpportunity() {
   if (shipCombatState.engagements.size > 0 || playerStormIntensity() >= STORM_ACTIVE_INTENSITY) return false;
   if (gameState.memory.whales.activeHunt || whaleHarpoonProjectile) return false;
   return localDayNightLight().sunAltitude > 0.08;
+}
+
+function updateSovereignWarLoanOutcome() {
+  const contract = gameState?.memory?.quests?.sovereignWarLoan?.contract;
+  if (!contract || contract.status !== SOVEREIGN_WAR_LOAN_ACTIVE) return false;
+  const result = resolveSovereignWarLoanForState(
+    gameState,
+    portCities,
+    Math.floor(weatherClockMinutes)
+  );
+  if (!result) return false;
+  returnNpcWarLoanOffensiveShips(
+    npcSeaRoutes,
+    result.offensiveShipIds,
+    Math.floor(weatherClockMinutes)
+  );
+  showSurvivalNotice(
+    result.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
+      ? "WAR WON: 1,200,000 DB AWAITS AT COURT"
+      : "WAR LOST: THE LOAN WILL NOT BE PAID",
+    result.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY ? "good" : "warning",
+    "politics-news"
+  );
+  saveVoyageNow(
+    result.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
+      ? "sovereign war-loan repayment became available"
+      : "sovereign war loan fell into default"
+  );
+  dirty = true;
+  return true;
 }
 
 function updateWorldDiplomacy() {
@@ -41260,6 +41595,24 @@ function currentReadyFetchQuestDestinations() {
 function questJournalEntries() {
   if (!gameState) return [];
   const entries = [];
+  const warLoan = gameState.memory.quests.sovereignWarLoan.contract;
+  if (warLoan) {
+    const borrower = factionById(warLoan.borrowerFactionId);
+    const enemy = factionById(warLoan.enemyFactionId);
+    const capital = warLoan.status === SOVEREIGN_WAR_LOAN_ACTIVE
+      ? null
+      : sovereignWarLoanCourtDestination(warLoan);
+    entries.push({
+      id: warLoan.id,
+      title: "SOVEREIGN WAR LOAN",
+      nextStep: warLoan.status === SOVEREIGN_WAR_LOAN_ACTIVE
+        ? `AWAIT THE ISSUE OF ${borrower.name.toUpperCase()}'S WAR WITH ${enemy.name.toUpperCase()}`
+        : warLoan.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
+          ? `CLAIM 1,200,000 DB AT ${cityLabelText(capital).toUpperCase()}`
+          : `HEAR THE TREASURY AT ${cityLabelText(capital).toUpperCase()}`,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
   const shipyardProject = gameState.memory.shipyardInvestment.project;
   if (shipyardProject) {
     const remainingMaterials = shipyardInvestmentMaterialProgress(shipyardProject)
@@ -42076,6 +42429,18 @@ function drawCaptainChartMinimapPreview(targetRaster, targetViewport) {
 function navigationMenuEntries() {
   if (!gameState) throw new Error("Navigation menu requires an active game state");
   const entries = [];
+  const warLoan = gameState.memory.quests.sovereignWarLoan.contract;
+  if (warLoan?.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY) {
+    const destination = sovereignWarLoanCourtDestination(warLoan);
+    entries.push({
+      id: warLoan.id,
+      destinationName: cityLabelText(destination),
+      reason: "CLAIM WAR-LOAN REPAYMENT",
+      style: QUEST_NAVIGATION_STYLE,
+      targetVector: placedCityTargetVector(destination),
+      optionalWaypointId: null
+    });
+  }
   const shipyardProject = gameState.memory.shipyardInvestment.project;
   if (shipyardProject) {
     const destination = portCitiesByTileId.get(shipyardProject.portTileId) ||
@@ -54621,6 +54986,21 @@ function drawQuestDestinationArrow(nowMs) {
       style: QUEST_NAVIGATION_STYLE
     });
   }
+  const warLoan = gameState?.memory?.quests?.sovereignWarLoan?.contract;
+  if (warLoan?.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY) {
+    const destination = sovereignWarLoanCourtDestination(warLoan);
+    const targetVector = placedCityTargetVector(destination);
+    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    drawWorldTargetArrow({
+      id: warLoan.id,
+      label: `${cityLabelText(destination)} war-loan repayment`,
+      targetVector,
+      localPoint: visibleCity || localPointForGlobeVector(targetVector),
+      localYOffset: QUEST_ARROW_CITY_Y_OFFSET,
+      nowMs,
+      style: QUEST_NAVIGATION_STYLE
+    });
+  }
   const conquistadorDestination = activeConquistadorDestination();
   if (conquistadorDestination) {
     const targetVector = placedCityTargetVector(conquistadorDestination);
@@ -54635,6 +55015,25 @@ function drawQuestDestinationArrow(nowMs) {
       style: QUEST_NAVIGATION_STYLE
     });
   }
+}
+
+function sovereignWarLoanCourtDestination(contract) {
+  if (!contract || typeof contract.borrowerFactionId !== "string") {
+    throw new Error("War-loan court destination requires a contract");
+  }
+  const capital = portCities.find((port) => (
+    sovereignCapitalFactionId(port) === contract.borrowerFactionId
+  ));
+  if (capital) return capital;
+  if (contract.status !== SOVEREIGN_WAR_LOAN_DEFAULT_READY) {
+    throw new Error(`War-loan borrower has no current capital: ${contract.borrowerFactionId}`);
+  }
+  const issueCapital = portCitiesByTileId.get(contract.capitalTileId) ||
+    cityByTileId.get(contract.capitalTileId) || null;
+  if (!issueCapital || issueCapital.portId !== contract.capitalPortId) {
+    throw new Error(`War-loan issue capital is missing: ${contract.capitalPortId}`);
+  }
+  return issueCapital;
 }
 
 function drawQuestShipArrows(nowMs) {

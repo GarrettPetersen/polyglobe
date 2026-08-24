@@ -11,6 +11,7 @@ import {
   NPC_ROLE_WARSHIP,
   NPC_PORT_RESPONSE_BURNING,
   NPC_PORT_RESPONSE_LOST,
+  NPC_PORT_RESPONSE_WAR_LOAN,
   NPC_PACIFIC_FLEET_TARGET,
   NPC_SEA_ROUTE_SNAPSHOT_VERSION,
   NPC_WHALER_FLEET_TARGET,
@@ -26,6 +27,7 @@ import {
   createNpcShipSnapshotCache,
   createNpcSeaRouteSystem,
   damageNpcShip,
+  expandNpcCapitalNavalReserve,
   npcCargoAvailableQuantity,
   npcFleetOriginWeightsForPorts,
   npcPortHasMajorProtection,
@@ -41,6 +43,7 @@ import {
   npcShipSnapshotForId,
   npcShipSnapshots,
   releaseNpcShipVisualNavigation,
+  returnNpcWarLoanOffensiveShips,
   replaceNpcSeaRoutePort,
   restoreNpcSurrenderContinuity,
   restoreNpcSeaRouteSystem,
@@ -694,6 +697,60 @@ test("capital naval reserves are finite and scale with the realm's current port 
     assert.equal(status.activeCount, 0);
     assert.equal(status.vacantCount, 0);
   }
+});
+
+test("a war loan permanently raises the reserve target, buys shipyard hulls, and launches a finite squadron", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const before = npcCapitalNavalReserveStatus(routes, "portugal");
+  const slotIds = expandNpcCapitalNavalReserve(routes, {
+    factionId: "portugal",
+    slotCount: 2,
+    contractId: "loan-test"
+  });
+  const expanded = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.equal(slotIds.length, 2);
+  assert.equal(expanded.targetCount, before.targetCount + 2);
+  assert.equal(expanded.vacantCount, 2);
+
+  economy.shipyards.npcSales.push(Object.freeze({
+    id: "goa-war-loan-galleon:npc-sale",
+    portId: 5,
+    factionId: "portugal",
+    shipSlug: "galleon",
+    price: 60000,
+    soldMinute: 100
+  }));
+  updateNpcSeaRouteSystem(routes, 100);
+  const buying = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.equal(buying.targetCount, before.targetCount + 2);
+  assert.equal(buying.inTransitCount, 1);
+  assert.equal(buying.vacantCount, 1);
+
+  const first = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_WAR_LOAN,
+    clockMinutes: 101,
+    allowReinforcement: true
+  });
+  const second = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_WAR_LOAN,
+    clockMinutes: 101,
+    allowReinforcement: true
+  });
+  assert.ok(first.shipId);
+  assert.ok(second.shipId);
+  assert.notEqual(first.shipId, second.shipId);
+  assert.equal(routes.shipById.get(first.shipId).portResponse.reason, NPC_PORT_RESPONSE_WAR_LOAN);
+  assert.equal(routes.shipById.get(second.shipId).portResponse.reason, NPC_PORT_RESPONSE_WAR_LOAN);
+
+  assert.equal(returnNpcWarLoanOffensiveShips(routes, [first.shipId, second.shipId], 200), 2);
+  assert.equal(routes.shipById.get(first.shipId).portResponse.phase, "returning");
+  assert.equal(routes.shipById.get(second.shipId).portResponse.phase, "returning");
+  assert.equal(npcCapitalNavalReserveStatus(routes, "portugal").targetCount, before.targetCount + 2);
 });
 
 test("an inland capital mobilizes its finite naval reserve from an explicit coastal port", () => {
@@ -1504,6 +1561,35 @@ test("worker simulation cannot overwrite a scripted encounter added after its sn
   assert.strictEqual(routes.shipById.get(encounter.id), encounter);
   assert.ok(protectedIds.includes(encounter.id));
   assert.equal(new Set(protectedIds).size, protectedIds.length);
+});
+
+test("a preserved reserve ship detaches when its worker snapshot removes the slot", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 100
+  });
+  assert.ok(response.shipId);
+  const protectedShip = routes.shipById.get(response.shipId);
+  const removedSlotId = protectedShip.capitalNavalReserveSlotId;
+  assert.ok(removedSlotId);
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  snapshot.capitalNavalReserveSlots = snapshot.capitalNavalReserveSlots.filter(
+    (slot) => slot.id !== removedSlotId
+  );
+
+  applyNpcSeaRouteSimulationSnapshot(routes, snapshot, {
+    preserveShipIds: [protectedShip.id]
+  });
+
+  const restored = routes.shipById.get(protectedShip.id);
+  assert.equal(restored.capitalNavalReserveSlotId, null);
+  assert.equal(restored.capitalNavalReserveDestinationPortId, null);
+  assert.equal(restored.capitalNavalReserveDocked, false);
+  assert.equal(restored.replaceOnSink, true);
 });
 
 test("version 1 NPC routes transfer retired Aztec ships to Spain", () => {

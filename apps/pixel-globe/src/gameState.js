@@ -452,9 +452,24 @@ import {
   shipyardInvestmentAtPort,
   validateShipyardInvestmentMemory
 } from "./shipyardInvestment.js";
+import {
+  SOVEREIGN_WAR_LOAN_ACTIVE,
+  SOVEREIGN_WAR_LOAN_CONTRACT_ITEM_ID,
+  SOVEREIGN_WAR_LOAN_DEFAULT_READY,
+  SOVEREIGN_WAR_LOAN_PRINCIPAL,
+  SOVEREIGN_WAR_LOAN_REPAYMENT,
+  SOVEREIGN_WAR_LOAN_REPAYMENT_READY,
+  completeSovereignWarLoanAudience,
+  createSovereignWarLoanMemory,
+  fundSovereignWarLoan,
+  migrateSovereignWarLoanMemory,
+  resolveSovereignWarLoan,
+  sovereignWarLoanContractIsCarried,
+  validateSovereignWarLoanMemory
+} from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 85;
+export const GAME_STATE_VERSION = 86;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -740,7 +755,8 @@ export function createGameState({
         castaway: createCastawayQuestMemory(),
         naturalist: createNaturalistQuestMemory(),
         hospitallerMalta: createHospitallerMaltaQuestMemory(),
-        conquistador: createConquistadorQuestMemory()
+        conquistador: createConquistadorQuestMemory(),
+        sovereignWarLoan: createSovereignWarLoanMemory()
       },
       cargoReservations: {},
       missionItemGifts: {},
@@ -773,7 +789,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -955,7 +971,10 @@ export function migrateGameState(state, shipStats) {
         hospitallerMalta: migrateHospitallerMaltaQuestMemory(
           state.memory?.quests?.hospitallerMalta
         ),
-        conquistador: migrateConquistadorQuestMemory(state.memory?.quests?.conquistador)
+        conquistador: migrateConquistadorQuestMemory(state.memory?.quests?.conquistador),
+        sovereignWarLoan: migrateSovereignWarLoanMemory(
+          state.memory?.quests?.sovereignWarLoan
+        )
       },
       navigation: {
         ...legacyNavigation,
@@ -2497,6 +2516,105 @@ export function receiveQuestPayment(state, city, amount, description, context = 
   return { amount, balance: state.doubloons };
 }
 
+export function issueSovereignWarLoanForState(state, city, ports, context = {}) {
+  assertGameState(state);
+  const simMinute = context.simMinute ?? null;
+  assertSimulationMinute(simMinute);
+  const offer = state.memory.quests.sovereignWarLoan.offer;
+  if (!offer || city?.portId !== offer.capitalPortId || city?.tileId !== offer.capitalTileId) {
+    throw new Error("A sovereign war loan must be issued at the offering capital");
+  }
+  const ruler = rulerAtMinute(offer.borrowerFactionId, simMinute);
+  if (!ruler) throw new Error(`War-loan borrower has no ruler: ${offer.borrowerFactionId}`);
+  const contract = fundSovereignWarLoan(state.memory.quests.sovereignWarLoan, {
+    ports,
+    borrowerRulerName: ruler.displayName,
+    simMinute,
+    doubloons: state.doubloons,
+    relationBetween: (factionAId, factionBId) => worldDiplomacyBetween(
+      state.relations.diplomacy,
+      factionAId,
+      factionBId
+    )
+  });
+  state.doubloons -= SOVEREIGN_WAR_LOAN_PRINCIPAL;
+  recordLedgerEntry(state, city, context, {
+    kind: "quest",
+    description: `${factionById(contract.borrowerFactionId).name} war-loan advance`,
+    goodId: null,
+    quantity: 0,
+    amount: -SOVEREIGN_WAR_LOAN_PRINCIPAL,
+    costBasis: SOVEREIGN_WAR_LOAN_PRINCIPAL,
+    pnl: null
+  });
+  return Object.freeze({ contract, balance: state.doubloons });
+}
+
+export function resolveSovereignWarLoanForState(state, ports, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  return resolveSovereignWarLoan(state.memory.quests.sovereignWarLoan, {
+    relationBetween: (factionAId, factionBId) => worldDiplomacyBetween(
+      state.relations.diplomacy,
+      factionAId,
+      factionBId
+    ),
+    ports,
+    treaties: state.memory.conquest.treaties,
+    collapsedFactionIds: state.memory.conquest.collapsedFactionIds,
+    simMinute
+  });
+}
+
+export function receiveSovereignWarLoanRepayment(state, city, context = {}) {
+  assertGameState(state);
+  const simMinute = context.simMinute ?? null;
+  assertSimulationMinute(simMinute);
+  const contract = requiredWarLoanAudienceAtCapital(state, city, SOVEREIGN_WAR_LOAN_REPAYMENT_READY);
+  state.doubloons += SOVEREIGN_WAR_LOAN_REPAYMENT;
+  recordLedgerEntry(state, city, context, {
+    kind: "quest",
+    description: `${factionById(contract.borrowerFactionId).name} war-loan repayment`,
+    goodId: null,
+    quantity: 0,
+    amount: SOVEREIGN_WAR_LOAN_REPAYMENT,
+    costBasis: 0,
+    pnl: SOVEREIGN_WAR_LOAN_REPAYMENT - SOVEREIGN_WAR_LOAN_PRINCIPAL
+  });
+  const history = completeSovereignWarLoanAudience(
+    state.memory.quests.sovereignWarLoan,
+    SOVEREIGN_WAR_LOAN_REPAYMENT_READY,
+    simMinute
+  );
+  return Object.freeze({ contract, history, amount: SOVEREIGN_WAR_LOAN_REPAYMENT, balance: state.doubloons });
+}
+
+export function acknowledgeSovereignWarLoanDefault(state, city, context = {}) {
+  assertGameState(state);
+  const simMinute = context.simMinute ?? null;
+  assertSimulationMinute(simMinute);
+  const contract = requiredWarLoanAudienceAtCapital(state, city, SOVEREIGN_WAR_LOAN_DEFAULT_READY);
+  const history = completeSovereignWarLoanAudience(
+    state.memory.quests.sovereignWarLoan,
+    SOVEREIGN_WAR_LOAN_DEFAULT_READY,
+    simMinute
+  );
+  return Object.freeze({ contract, history, amount: 0, balance: state.doubloons });
+}
+
+function requiredWarLoanAudienceAtCapital(state, city, status) {
+  const contract = state.memory.quests.sovereignWarLoan.contract;
+  if (!contract || contract.status !== status) throw new Error(`No ${status} war-loan audience is ready`);
+  const currentBorrowerCapital = city?.factionId === contract.borrowerFactionId &&
+    city?.isFactionCapital === true && city?.capitalOfFactionId === contract.borrowerFactionId;
+  const fallenIssueCapital = status === SOVEREIGN_WAR_LOAN_DEFAULT_READY &&
+    city?.portId === contract.capitalPortId && city?.tileId === contract.capitalTileId;
+  if (!currentBorrowerCapital && !fallenIssueCapital) {
+    throw new Error(`War-loan audience requires the ${contract.borrowerFactionId} capital`);
+  }
+  return contract;
+}
+
 export function cargoFreeTicks(state) {
   assertShipResourceState(state);
   return cargoFreeTicksForValidatedState(state);
@@ -3448,11 +3566,35 @@ export function shipItemRows(state) {
       discardable: false
     });
   }
+  const warLoan = state.memory.quests.sovereignWarLoan.contract;
+  if (warLoan) {
+    const borrower = factionById(warLoan.borrowerFactionId);
+    const enemy = factionById(warLoan.enemyFactionId);
+    const resultDetail = warLoan.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
+      ? `The treasury owes ${SOVEREIGN_WAR_LOAN_REPAYMENT.toLocaleString("en-US")} doubloons.`
+      : warLoan.status === SOVEREIGN_WAR_LOAN_DEFAULT_READY
+        ? "The named war ended without the advantage required for payment."
+        : `Payable at ${SOVEREIGN_WAR_LOAN_REPAYMENT.toLocaleString("en-US")} doubloons if the sovereign wins the named war.`;
+    rows.push({
+      id: SOVEREIGN_WAR_LOAN_CONTRACT_ITEM_ID,
+      label: `${borrower.adjective} War-loan Indenture`,
+      detail: `A sealed advance of ${SOVEREIGN_WAR_LOAN_PRINCIPAL.toLocaleString("en-US")} doubloons for the war with ${enemy.name}. ${resultDetail}`,
+      quantity: 1,
+      questItem: true,
+      discardable: false,
+      issuer: warLoan.borrowerRulerName,
+      route: `War with ${enemy.name}`,
+      simMinute: warLoan.issuedMinute
+    });
+  }
   return rows;
 }
 
 export function hasShipItem(state, itemId) {
   if (typeof itemId !== "string" || itemId.trim() === "") throw new Error(`Invalid ship item id: ${itemId}`);
+  if (itemId === SOVEREIGN_WAR_LOAN_CONTRACT_ITEM_ID) {
+    return sovereignWarLoanContractIsCarried(state.memory.quests.sovereignWarLoan);
+  }
   const inventory = shipEquipmentInventory(state);
   if (itemId === SHIP_ITEM_FISHING_NET) {
     fishingNetById(inventory.fishingNetId);
@@ -6208,6 +6350,25 @@ export function advanceCapturePortMissionAfterConquest(state, city, event, simMi
   return quest;
 }
 
+export function capturePortMissionMatchesConquest(state, city, event) {
+  assertGameState(state);
+  if (!city || !Number.isInteger(city.tileId)) {
+    throw new Error("Capture-port mission matching requires a city");
+  }
+  if (!event || !Number.isInteger(event.cityTileId) || !event.newFactionId) {
+    throw new Error("Capture-port mission matching requires a conquest event");
+  }
+  const quest = questMemory(state).active;
+  return Boolean(
+    isCaptureCommissionQuest(quest) &&
+    quest.stage === "capture" &&
+    quest.targetTileId === city.tileId &&
+    event.cityTileId === city.tileId &&
+    event.newFactionId === quest.originFactionId &&
+    event.source === "player"
+  );
+}
+
 function capturePortMissionTarget(
   state,
   origin,
@@ -8827,6 +8988,7 @@ function assertGameState(state) {
   validateNaturalistQuestMemory(state.memory.quests?.naturalist);
   validateHospitallerMaltaQuestMemory(state.memory.quests?.hospitallerMalta);
   validateConquistadorQuestMemory(state.memory.quests?.conquistador);
+  validateSovereignWarLoanMemory(state.memory.quests?.sovereignWarLoan);
   validateColonizationQuestMemory(state.memory.colonization);
   validatePortConquestMemory(state.memory.conquest);
   validateVoyageAchievementProgress(state.memory.achievements);

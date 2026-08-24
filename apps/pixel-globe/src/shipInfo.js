@@ -444,11 +444,11 @@ function shipItemPapers(items) {
   return items.map((item) => ({
     kind: "item",
     title: item.label,
-    issuer: "Ship stores",
-    route: "Equipment",
+    issuer: item.issuer || "Ship stores",
+    route: item.route || "Equipment",
     detail: item.quantity > 1 ? `${item.detail} x${item.quantity}` : item.detail,
     effect: item.effect || null,
-    simMinute: null
+    simMinute: item.simMinute ?? null
   }));
 }
 

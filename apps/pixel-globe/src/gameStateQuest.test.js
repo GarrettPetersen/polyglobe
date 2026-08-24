@@ -11,6 +11,7 @@ import {
   ONBOARDING_DELIVERY_SCENARIOS,
   acceptQuest,
   advanceCapturePortMissionAfterConquest,
+  capturePortMissionMatchesConquest,
   captureCommissionAutomaticOfferChance,
   captureCommissionPetitionOptionsForCity,
   capturePortMissionEligibility,
@@ -444,6 +445,15 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
     newFactionId: "england",
     source: "player"
   };
+  const unrelatedConquest = {
+    portId: "paris",
+    cityTileId: PARIS.tileId,
+    newFactionId: "england",
+    source: "player"
+  };
+  assert.equal(capturePortMissionMatchesConquest(state, PARIS, unrelatedConquest), false);
+  assert.equal(state.memory.quests.active.stage, "capture");
+  assert.equal(capturePortMissionMatchesConquest(state, CALAIS, event), true);
   advanceCapturePortMissionAfterConquest(state, CALAIS, event, 600);
   assert.equal(state.memory.quests.active.stage, "return");
   assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);

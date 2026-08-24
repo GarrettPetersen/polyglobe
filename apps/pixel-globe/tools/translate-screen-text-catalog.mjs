@@ -124,6 +124,7 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  ...reviewedWarLoanOverrides(),
   "Petition for a capture warrant": Object.freeze({
     "zh-Hans": "请求颁发港口占领敕令",
     ru: "Просить грамоту на захват порта",
@@ -1251,6 +1252,115 @@ function reviewedLocaleOverrides(source, values) {
     throw new Error(`Reviewed locale translations are incomplete: ${source}`);
   }
   return Object.freeze(Object.fromEntries(LOCALES.map(({ id }, index) => [id, values[index]])));
+}
+
+function reviewedWarLoanOverrides() {
+  const entries = [
+    ["{0} awaits your answer. Will you furnish the million?", [
+      "{0}静候答复。你可愿筹足这一百万？", "{0} ожидает вашего ответа. Дадите ли вы миллион?", "{0} aguarda vuestra respuesta. ¿Entregaréis el millón?", "{0} aguarda vossa resposta. Entregareis o milhão?", "{0}はそなたの返答を待っている。百万を用立てるか？", "{0} erwartet Eure Antwort. Werdet Ihr die Million aufbringen?", "{0} attend votre réponse. Fournirez-vous le million ?", "{0} czeka na waszą odpowiedź. Wyłożycie milion?", "{0}靜候答覆。你可願籌足這一百萬？", "{0}께서 그대의 답을 기다리신다. 백만을 내놓겠는가?"
+    ]],
+    ["{0} commands me to lay a grave request before you. The war with {1} has pressed the treasury sorely.", [
+      "{0}命我向你陈一桩要事。与{1}的战事已使国库不堪重负。", "{0} велит мне изложить вам важную просьбу. Война с державой {1} тяжко истощила казну.", "{0} me manda presentaros una petición de peso. La guerra con {1} ha apurado gravemente el tesoro.", "{0} manda-me apresentar-vos um grave pedido. A guerra com {1} afligiu duramente o tesouro.", "{0}より、そなたに大事の願いを申し渡すよう命を受けた。{1}との戦で国庫はひどく窮している。", "{0} befiehlt mir, Euch ein schwerwiegendes Ersuchen vorzutragen. Der Krieg mit {1} hat die Schatzkammer hart bedrängt.", "{0} m'ordonne de vous soumettre une grave requête. La guerre avec {1} a fort éprouvé le trésor.", "{0} każe mi przedłożyć wam ważką prośbę. Wojna z państwem {1} wielce nadwyrężyła skarb.", "{0}命我向你陳一樁要事。與{1}的戰事已使國庫不堪重負。", "{0}께서 중한 청을 그대 앞에 아뢰라 명하셨다. {1}과의 전쟁으로 국고가 몹시 궁해졌다."
+    ]],
+    ["{0} war-loan advance", [
+      "向{0}垫付战款", "Военная ссуда державе {0}", "Anticipo de guerra a {0}", "Adiantamento de guerra a {0}", "{0}への戦費貸付", "Kriegskredit an {0}", "Avance de guerre à {0}", "Pożyczka wojenna dla państwa {0}", "向{0}墊付戰款", "{0} 전쟁 자금 선대"
+    ]],
+    ["{0} War-loan Indenture", [
+      "{0}战款契据", "Договор военной ссуды державе {0}", "Escritura de préstamo de guerra de {0}", "Escritura de empréstimo de guerra de {0}", "{0}戦費借款証書", "Kriegskredit-Urkunde von {0}", "Acte de prêt de guerre de {0}", "Indenter pożyczki wojennej państwa {0}", "{0}戰款契據", "{0} 전쟁 차관 증서"
+    ]],
+    ["{0} war-loan repayment", [
+      "{0}偿还战款", "Возврат военной ссуды державой {0}", "Reembolso del préstamo de guerra de {0}", "Pagamento do empréstimo de guerra de {0}", "{0}戦費借款返済", "Rückzahlung des Kriegskredits durch {0}", "Remboursement du prêt de guerre par {0}", "Spłata pożyczki wojennej przez państwo {0}", "{0}償還戰款", "{0} 전쟁 차관 상환"
+    ]],
+    ["{0}'s treasury can answer neither principal nor premium. Our arms failed to gain the peace named in your indenture, and the bond is forfeit.", [
+      "{0}的国库无力清偿本利。我军未能赢得契据所载的胜局，此券就此作废。", "Казна {0} не может уплатить ни основную сумму, ни прибыль. Наше оружие не добилось мира, названного в вашем договоре, и обязательство утратило силу.", "El tesoro de {0} no puede responder ni del principal ni del premio. Nuestras armas no lograron la paz estipulada en vuestra escritura, y el título queda perdido.", "O tesouro de {0} não pode responder pelo principal nem pelo prêmio. Nossas armas não alcançaram a paz nomeada em vossa escritura, e o título fica perdido.", "{0}の国庫は元金も利も支払えぬ。我らの軍は証書に定めた講和を得られず、この証文は失効した。", "{0}s Schatzkammer kann weder Kapital noch Aufgeld begleichen. Unsere Waffen errangen nicht den in Eurer Urkunde genannten Frieden; die Schuldverschreibung ist verfallen.", "Le trésor de {0} ne peut répondre ni du principal ni de la prime. Nos armes n'ont point obtenu la paix stipulée dans votre acte, et l'obligation est perdue.", "Skarb państwa {0} nie może uiścić ani kapitału, ani premii. Nasze wojska nie uzyskały pokoju zapisanego w waszym indenterze, przeto oblig przepada.", "{0}的國庫無力清償本利。我軍未能贏得契據所載的勝局，此券就此作廢。", "{0}의 국고는 원금도 이문도 갚을 수 없다. 우리 군대가 증서에 적힌 유리한 화평을 얻지 못했으니 채권은 몰수된다."
+    ]],
+    ["A sealed advance of {0} doubloons for the war with {1}. {2}", [
+      "为对{1}之战封印垫付{0}达布隆。{2}", "Скреплённая печатью ссуда в {0} дублонов на войну с державой {1}. {2}", "Un anticipo sellado de {0} doblones para la guerra con {1}. {2}", "Um adiantamento selado de {0} dobrões para a guerra com {1}. {2}", "{1}との戦のため、封印のもと{0}ダブロンを貸し付けた。{2}", "Ein besiegelter Vorschuss von {0} Dublonen für den Krieg mit {1}. {2}", "Une avance scellée de {0} doublons pour la guerre avec {1}. {2}", "Opieczętowana pożyczka {0} dublonów na wojnę z państwem {1}. {2}", "為對{1}之戰封印墊付{0}達布隆。{2}", "{1}과의 전쟁을 위해 봉인 아래 {0}더블룬을 선대했다. {2}"
+    ]],
+    ["ADVANCE 1,000,000 DB", [
+      "垫付 1,000,000 DB", "ДАТЬ 1 000 000 ДБ", "ENTREGAR 1.000.000 DB", "ADIANTAR 1.000.000 DB", "1,000,000 DBを用立てる", "1.000.000 DB VORSCHIESSEN", "AVANCER 1 000 000 DB", "WYŁOŻYĆ 1 000 000 DB", "墊付 1,000,000 DB", "1,000,000 DB를 선대한다"
+    ]],
+    ["Advance one million doubloons under seal. If our arms obtain the better peace, the treasury shall return twelve hundred thousand. If they fail, the loss is yours.", [
+      "请在封印契据下垫付一百万达布隆。若我军赢得有利和约，国库将归还一百二十万；若战事失利，亏损由你承担。", "Дайте под печать миллион дублонов. Если наше оружие добьётся выгодного мира, казна возвратит миллион двести тысяч. Если нас постигнет неудача, убыток будет вашим.", "Adelantad un millón de doblones bajo sello. Si nuestras armas obtienen una paz ventajosa, el tesoro devolverá un millón doscientos mil. Si fracasan, la pérdida será vuestra.", "Adiantai um milhão de dobrões sob selo. Se nossas armas obtiverem uma paz vantajosa, o tesouro devolverá um milhão e duzentos mil. Se falharem, a perda será vossa.", "封印のもと百万ダブロンを用立てよ。我らの軍が有利な講和を得れば、国庫は百二十万を返す。敗れれば損はそなたが負う。", "Streckt unter Siegel eine Million Dublonen vor. Erringen unsere Waffen einen vorteilhaften Frieden, zahlt die Schatzkammer eine Million zweihunderttausend zurück. Scheitern sie, tragt Ihr den Verlust.", "Avancez sous sceau un million de doublons. Si nos armes obtiennent une paix avantageuse, le trésor en rendra un million deux cent mille. Si elles échouent, la perte sera vôtre.", "Wyłóżcie pod pieczęcią milion dublonów. Jeśli nasze wojska uzyskają korzystny pokój, skarb zwróci milion dwieście tysięcy. Jeśli zawiodą, strata będzie wasza.", "請在封印契據下墊付一百萬達布隆。若我軍贏得有利和約，國庫將歸還一百二十萬；若戰事失利，虧損由你承擔。", "봉인 아래 백만 더블룬을 선대하라. 우리 군대가 유리한 화평을 얻으면 국고가 백이십만을 돌려주겠다. 실패하면 손실은 그대의 몫이다."
+    ]],
+    ["By {0}'s seal, our arms have won the better peace. Here are twelve hundred thousand doubloons, principal and premium, in full discharge of your indenture.", [
+      "奉{0}之印，我军已赢得有利和约。现付一百二十万达布隆，本利俱清，以全数解除契据。", "Печатью {0} удостоверено: наше оружие добилось выгодного мира. Вот миллион двести тысяч дублонов — основная сумма и прибыль — в полное погашение вашего договора.", "Por el sello de {0}, nuestras armas han obtenido la paz ventajosa. He aquí un millón doscientos mil doblones, principal y premio, en entero descargo de vuestra escritura.", "Pelo selo de {0}, nossas armas obtiveram a paz vantajosa. Eis um milhão e duzentos mil dobrões, principal e prêmio, para plena quitação de vossa escritura.", "{0}の印により告げる。我らの軍は有利な講和を得た。元金と利を合わせた百二十万ダブロンをもって、そなたの証書を全て償還する。", "Unter {0}s Siegel: Unsere Waffen haben den vorteilhaften Frieden errungen. Hier sind eine Million zweihunderttausend Dublonen, Kapital und Aufgeld, zur vollständigen Ablösung Eurer Urkunde.", "Sous le sceau de {0}, nos armes ont obtenu la paix avantageuse. Voici un million deux cent mille doublons, principal et prime, en plein acquit de votre acte.", "Pod pieczęcią {0}: nasze wojska uzyskały korzystny pokój. Oto milion dwieście tysięcy dublonów, kapitał i premia, na zupełne umorzenie waszego indenteru.", "奉{0}之印，我軍已贏得有利和約。現付一百二十萬達布隆，本利俱清，以全數解除契據。", "{0}의 인장으로 알린다. 우리 군대가 유리한 화평을 얻었다. 원금과 이문을 합한 백이십만 더블룬으로 그대의 증서를 모두 갚는다."
+    ]],
+    ["I cannot furnish the whole million today. Keep the writing ready until I return.", [
+      "今日我筹不齐一百万。请将契据留好，待我归来。", "Сегодня я не могу собрать весь миллион. Держите договор наготове до моего возвращения.", "Hoy no puedo reunir el millón entero. Guardad dispuesta la escritura hasta mi regreso.", "Hoje não posso reunir o milhão inteiro. Conservai a escritura pronta até meu regresso.", "今日は百万を全て用立てられぬ。戻るまで証書を整えておけ。", "Heute kann ich die ganze Million nicht aufbringen. Haltet die Urkunde bis zu meiner Rückkehr bereit.", "Je ne puis fournir le million entier aujourd'hui. Gardez l'acte prêt jusqu'à mon retour.", "Nie zdołam dziś wyłożyć całego miliona. Zachowajcie pismo gotowe do mego powrotu.", "今日我籌不齊一百萬。請將契據留好，待我歸來。", "오늘은 백만을 온전히 마련할 수 없소. 내가 돌아올 때까지 문서를 준비해 두시오."
+    ]],
+    ["I will not hazard my fortune upon this war.", [
+      "我不愿拿家财赌这场战争。", "Я не стану рисковать состоянием ради этой войны.", "No arriesgaré mi fortuna en esta guerra.", "Não arriscarei minha fortuna nesta guerra.", "この戦に我が財を賭けるつもりはない。", "Ich werde mein Vermögen nicht an diesen Krieg wagen.", "Je ne hasarderai point ma fortune sur cette guerre.", "Nie narażę fortuny na tę wojnę.", "我不願拿家財賭這場戰爭。", "이 전쟁에 내 재산을 걸지는 않겠소."
+    ]],
+    ["It shall remain in my coffer while the war endures.", [
+      "只要战事未休，契据便留在我的匣中。", "Договор останется в моём ларце, пока длится война.", "Permanecerá en mi cofre mientras dure la guerra.", "Permanecerá em meu cofre enquanto durar a guerra.", "戦が続く限り、証書はこの箱に納めておこう。", "Solange der Krieg währt, bleibt sie in meiner Truhe.", "Il demeurera dans mon coffre tant que durera la guerre.", "Pozostanie w mojej skrzyni, póki trwa wojna.", "只要戰事未休，契據便留在我的匣中。", "전쟁이 계속되는 동안 내 궤에 보관하겠소."
+    ]],
+    ["Payable at {0} doubloons if the sovereign wins the named war.", [
+      "若君主赢得契据所载之战，应付{0}达布隆。", "Подлежит выплате в размере {0} дублонов, если государь победит в названной войне.", "Pagadero a {0} doblones si el soberano vence en la guerra nombrada.", "Pagável em {0} dobrões se o soberano vencer a guerra nomeada.", "君主が記載の戦に勝てば{0}ダブロンを支払う。", "Zahlbar mit {0} Dublonen, falls der Herrscher den genannten Krieg gewinnt.", "Payable à hauteur de {0} doublons si le souverain remporte la guerre désignée.", "Płatne w kwocie {0} dublonów, jeśli władca zwycięży w wymienionej wojnie.", "若君主贏得契據所載之戰，應付{0}達布隆。", "군주가 명시된 전쟁에서 이기면 {0}더블룬을 지급한다."
+    ]],
+    ["REFUSE THE LOAN", [
+      "拒绝借款", "ОТКАЗАТЬ В ССУДЕ", "REHUSAR EL PRÉSTAMO", "RECUSAR O EMPRÉSTIMO", "借款を断る", "DEN KREDIT VERWEIGERN", "REFUSER LE PRÊT", "ODMÓWIĆ POŻYCZKI", "拒絕借款", "차관을 거절한다"
+    ]],
+    ["RETURN WITH THE FULL SUM", [
+      "筹齐全款再来", "ВЕРНУТЬСЯ СО ВСЕЙ СУММОЙ", "VOLVER CON LA SUMA ENTERA", "VOLTAR COM A SOMA INTEIRA", "全額を携えて戻る", "MIT DER GANZEN SUMME ZURÜCKKEHREN", "REVENIR AVEC LA SOMME ENTIÈRE", "WRÓCIĆ Z PEŁNĄ SUMĄ", "籌齊全款再來", "전액을 마련해 돌아온다"
+    ]],
+    ["SOVEREIGN WAR LOAN", [
+      "君主战款", "ГОСУДАРЕВА ВОЕННАЯ ССУДА", "PRÉSTAMO DE GUERRA SOBERANO", "EMPRÉSTIMO DE GUERRA SOBERANO", "君主戦費借款", "HERRSCHERLICHER KRIEGSKREDIT", "PRÊT DE GUERRE SOUVERAIN", "POŻYCZKA WOJENNA WŁADCY", "君主戰款", "군주 전쟁 차관"
+    ]],
+    ["The named war ended without the advantage required for payment.", [
+      "契据所载之战结束，却未取得付款所需的胜势。", "Названная война окончилась без преимущества, необходимого для выплаты.", "La guerra nombrada terminó sin la ventaja exigida para el pago.", "A guerra nomeada terminou sem a vantagem exigida para o pagamento.", "記載の戦は、支払いに要る勝利を得ぬまま終わった。", "Der genannte Krieg endete ohne den zur Zahlung erforderlichen Vorteil.", "La guerre désignée s'est achevée sans l'avantage requis pour le paiement.", "Wymieniona wojna dobiegła końca bez przewagi wymaganej do zapłaty.", "契據所載之戰結束，卻未取得付款所需的勝勢。", "명시된 전쟁이 끝났으나 지급에 필요한 우세를 얻지 못했다."
+    ]],
+    ["The treasury has counted your million and sealed the indenture. Hulls shall be bought where our shipwrights offer them, and the ready squadron sails against the enemy.", [
+      "国库已点清你的一百万，并封印契据。我国船匠何处有船壳可售，便从何处购取；现有舰队即刻驶向敌境。", "Казна пересчитала ваш миллион и скрепила договор печатью. Корпуса будут куплены там, где их предложат наши корабелы, а готовая эскадра уже идёт на врага.", "El tesoro ha contado vuestro millón y sellado la escritura. Se comprarán cascos allí donde los ofrezcan nuestros constructores, y la escuadra dispuesta zarpa contra el enemigo.", "O tesouro contou vosso milhão e selou a escritura. Cascos serão comprados onde nossos mestres os oferecerem, e a esquadra pronta navega contra o inimigo.", "国庫はそなたの百万を数え、証書に印を押した。船殻は我らの造船所で売りに出された所から買い入れ、出撃できる艦隊は敵へ向かう。", "Die Schatzkammer hat Eure Million gezählt und die Urkunde besiegelt. Rümpfe werden gekauft, wo unsere Schiffbauer sie anbieten, und das bereite Geschwader segelt gegen den Feind.", "Le trésor a compté votre million et scellé l'acte. Des coques seront achetées là où nos charpentiers les offriront, et l'escadre prête fait voile contre l'ennemi.", "Skarb przeliczył wasz milion i opieczętował indenter. Kadłuby będą kupowane tam, gdzie wystawią je nasi szkutnicy, a gotowa eskadra rusza przeciw nieprzyjacielowi.", "國庫已點清你的一百萬，並封印契據。我國船匠何處有船殼可售，便從何處購取；現有艦隊即刻駛向敵境。", "국고가 그대의 백만을 세고 증서에 인장을 찍었다. 우리 조선공이 선체를 내놓는 곳에서 사들이고, 준비된 함대는 적을 향해 출항할 것이다."
+    ]],
+    ["The treasury owes {0} doubloons.", [
+      "国库应付{0}达布隆。", "Казна должна {0} дублонов.", "El tesoro debe {0} doblones.", "O tesouro deve {0} dobrões.", "国庫は{0}ダブロンを支払う義務がある。", "Die Schatzkammer schuldet {0} Dublonen.", "Le trésor doit {0} doublons.", "Skarb winien jest {0} dublonów.", "國庫應付{0}達布隆。", "국고가 {0}더블룬을 빚지고 있다."
+    ]],
+    ["Then I shall return the unsigned indenture to the treasury.", [
+      "那么，我便将未签的契据交还国库。", "Тогда я верну неподписанный договор в казну.", "Entonces devolveré al tesoro la escritura sin firmar.", "Então devolverei ao tesouro a escritura sem assinatura.", "では、署名のない証書を国庫へ戻そう。", "Dann werde ich die ununterzeichnete Urkunde der Schatzkammer zurückgeben.", "Alors je rendrai au trésor l'acte non signé.", "Zatem zwrócę skarbowi niepodpisany indenter.", "那麼，我便將未簽的契據交還國庫。", "그러면 서명하지 않은 증서를 국고에 돌려놓겠소."
+    ]],
+    ["WAR LOAN ADVANCED: 1,000,000 DB", [
+      "已垫付战款：1,000,000 DB", "ВОЕННАЯ ССУДА ВЫДАНА: 1 000 000 ДБ", "PRÉSTAMO DE GUERRA ENTREGADO: 1.000.000 DB", "EMPRÉSTIMO DE GUERRA ENTREGUE: 1.000.000 DB", "戦費借款：1,000,000 DB", "KRIEGSKREDIT GEWÄHRT: 1.000.000 DB", "PRÊT DE GUERRE AVANCÉ : 1 000 000 DB", "UDZIELONO POŻYCZKI WOJENNEJ: 1 000 000 DB", "已墊付戰款：1,000,000 DB", "전쟁 차관 선대: 1,000,000 DB"
+    ]],
+    ["WAR LOAN FORFEIT", [
+      "战款契据作废", "ВОЕННАЯ ССУДА УТРАЧЕНА", "PRÉSTAMO DE GUERRA PERDIDO", "EMPRÉSTIMO DE GUERRA PERDIDO", "戦費借款は失効", "KRIEGSKREDIT VERFALLEN", "PRÊT DE GUERRE PERDU", "POŻYCZKA WOJENNA PRZEPADŁA", "戰款契據作廢", "전쟁 차관 몰수"
+    ]],
+    ["WAR LOAN REPAID: 1,200,000 DB", [
+      "战款已偿还：1,200,000 DB", "ВОЕННАЯ ССУДА ВОЗВРАЩЕНА: 1 200 000 ДБ", "PRÉSTAMO DE GUERRA PAGADO: 1.200.000 DB", "EMPRÉSTIMO DE GUERRA PAGO: 1.200.000 DB", "戦費借款返済：1,200,000 DB", "KRIEGSKREDIT GETILGT: 1.200.000 DB", "PRÊT DE GUERRE REMBOURSÉ : 1 200 000 DB", "SPŁACONO POŻYCZKĘ WOJENNĄ: 1 200 000 DB", "戰款已償還：1,200,000 DB", "전쟁 차관 상환: 1,200,000 DB"
+    ]],
+    ["WAR LOST: THE LOAN WILL NOT BE PAID", [
+      "战败：借款不予偿还", "ВОЙНА ПРОИГРАНА: ССУДА НЕ БУДЕТ ВОЗВРАЩЕНА", "GUERRA PERDIDA: EL PRÉSTAMO NO SERÁ PAGADO", "GUERRA PERDIDA: O EMPRÉSTIMO NÃO SERÁ PAGO", "敗戦：借款は返済されない", "KRIEG VERLOREN: DER KREDIT WIRD NICHT GETILGT", "GUERRE PERDUE : LE PRÊT NE SERA PAS REMBOURSÉ", "WOJNA PRZEGRANA: POŻYCZKA NIE ZOSTANIE SPŁACONA", "戰敗：借款不予償還", "패전: 차관은 갚지 않는다"
+    ]],
+    ["War with {0}", [
+      "与{0}之战", "Война с державой {0}", "Guerra con {0}", "Guerra com {0}", "{0}との戦", "Krieg mit {0}", "Guerre avec {0}", "Wojna z państwem {0}", "與{0}之戰", "{0}과의 전쟁"
+    ]],
+    ["WAR WON: 1,200,000 DB AWAITS AT COURT", [
+      "战胜：1,200,000 DB 已在宫廷备妥", "ВОЙНА ВЫИГРАНА: 1 200 000 ДБ ЖДУТ ПРИ ДВОРЕ", "GUERRA GANADA: 1.200.000 DB AGUARDAN EN LA CORTE", "GUERRA VENCIDA: 1.200.000 DB AGUARDAM NA CORTE", "勝戦：宮廷に1,200,000 DBあり", "KRIEG GEWONNEN: 1.200.000 DB WARTEN AM HOF", "GUERRE GAGNÉE : 1 200 000 DB VOUS ATTENDENT À LA COUR", "WOJNA WYGRANA: 1 200 000 DB CZEKA NA DWORZE", "戰勝：1,200,000 DB 已在宮廷備妥", "승전: 궁정에 1,200,000 DB가 기다린다"
+    ]],
+    ["WITHHOLD THE MONEY", [
+      "不予出资", "НЕ ДАВАТЬ ДЕНЕГ", "RETENER EL DINERO", "RETER O DINHEIRO", "金を出さない", "DAS GELD VERWEIGERN", "REFUSER L'ARGENT", "WSTRZYMAĆ PIENIĄDZE", "不予出資", "돈을 내놓지 않는다"
+    ]],
+    ["Your purse lacks the whole million. Shall I keep the indenture ready?", [
+      "你的钱袋尚不足一百万。可要我将契据留待你归来？", "В вашем кошеле нет полного миллиона. Держать ли договор наготове?", "Vuestra bolsa no alcanza el millón entero. ¿Debo guardar dispuesta la escritura?", "Vossa bolsa não contém o milhão inteiro. Devo conservar a escritura pronta?", "そなたの財布には百万の全額がない。証書を用意したまま待つか？", "Euer Beutel enthält nicht die ganze Million. Soll ich die Urkunde bereithalten?", "Votre bourse ne contient point le million entier. Dois-je garder l'acte prêt ?", "W waszej sakwie brak całego miliona. Mam zachować indenter w gotowości?", "你的錢袋尚不足一百萬。可要我將契據留待你歸來？", "그대의 돈주머니에는 백만 전액이 없소. 증서를 준비해 두겠소?"
+    ]]
+  ];
+  const technicalEntries = [
+    ["{0} war loan defaulted", ["{0}战款违约", "Дефолт по военной ссуде державы {0}", "Impago del préstamo de guerra de {0}", "Inadimplência do empréstimo de guerra de {0}", "{0}戦費借款不履行", "Ausfall des Kriegskredits von {0}", "Défaut du prêt de guerre de {0}", "Niespłacona pożyczka wojenna państwa {0}", "{0}戰款違約", "{0} 전쟁 차관 불이행"]],
+    ["collected {0} war-loan repayment", ["收取{0}战款还款", "Получен возврат военной ссуды державы {0}", "Cobrado el préstamo de guerra de {0}", "Recebido o pagamento do empréstimo de guerra de {0}", "{0}戦費借款返済を受領", "Rückzahlung des Kriegskredits von {0} eingezogen", "Remboursement du prêt de guerre de {0} reçu", "Odebrano spłatę pożyczki wojennej państwa {0}", "收取{0}戰款還款", "{0} 전쟁 차관 상환금 수령"]],
+    ["war-loan capital", ["战款首都", "Столица военной ссуды", "Capital del préstamo de guerra", "Capital do empréstimo de guerra", "戦費借款の首都", "Kriegskredit-Hauptstadt", "Capitale du prêt de guerre", "Stolica pożyczki wojennej", "戰款首都", "전쟁 차관 수도"]],
+    ["war-loan offer", ["战款提议", "Предложение военной ссуды", "Oferta de préstamo de guerra", "Oferta de empréstimo de guerra", "戦費借款の申し出", "Kriegskredit-Angebot", "Offre de prêt de guerre", "Oferta pożyczki wojennej", "戰款提議", "전쟁 차관 제안"]],
+    ["war-loan offer capital", ["战款提议首都", "Столица предложения военной ссуды", "Capital de la oferta de préstamo de guerra", "Capital da oferta de empréstimo de guerra", "戦費借款を申し出た首都", "Hauptstadt des Kriegskredit-Angebots", "Capitale de l'offre de prêt de guerre", "Stolica oferty pożyczki wojennej", "戰款提議首都", "전쟁 차관 제안 수도"]],
+    ["war-loan offer reconciliation", ["核验战款提议", "Сверка предложения военной ссуды", "Revisión de la oferta de préstamo de guerra", "Revisão da oferta de empréstimo de guerra", "戦費借款申し出の照合", "Abgleich des Kriegskredit-Angebots", "Révision de l'offre de prêt de guerre", "Rozliczenie oferty pożyczki wojennej", "核驗戰款提議", "전쟁 차관 제안 조정"]],
+    ["war-loan refusal", ["拒绝战款", "Отказ от военной ссуды", "Rechazo del préstamo de guerra", "Recusa do empréstimo de guerra", "戦費借款の拒否", "Ablehnung des Kriegskredits", "Refus du prêt de guerre", "Odmowa pożyczki wojennej", "拒絕戰款", "전쟁 차관 거절"]]
+  ];
+  return Object.fromEntries([
+    ...entries.map(([source, values]) => [source, reviewedLocaleOverrides(source, values)]),
+    ...technicalEntries.map(([source, values]) => [source, reviewedLocaleOverrides(source, values)]),
+    ["sovereign-war-loan:{0}:{1}", reviewedLocaleOverrides(
+      "sovereign-war-loan:{0}:{1}",
+      LOCALES.map(() => "sovereign-war-loan:{0}:{1}")
+    )]
+  ]);
 }
 
 await mkdir(OUTPUT_ROOT, { recursive: true });
