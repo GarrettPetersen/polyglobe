@@ -26,6 +26,7 @@ UNITS = (
 CELL_SIZE = 32
 PROMO_SIZE = 64
 ITCH_COVER_SIZE = (315, 250)
+COVER_SPRITE_SIZE = CELL_SIZE * 3
 BACKGROUND = (128, 128, 153, 255)
 MIN_ACTION_PREVIEW_MS = 1_100
 
@@ -287,18 +288,21 @@ def create_itch_cover(
         "MiniHorseSamurai": ("idle", 0),
     }
     positions = {
-        "MiniSamurai": (12, 94),
-        "MiniRonin": (89, 94),
-        "MiniNinja": (166, 94),
-        "MiniYariAshigaru": (239, 94),
-        "MiniTeppoAshigaru": (50, 163),
-        "MiniYumiSamurai": (126, 163),
-        "MiniHorseSamurai": (203, 163),
+        "MiniSamurai": (-4, 78),
+        "MiniRonin": (73, 78),
+        "MiniNinja": (150, 78),
+        "MiniYariAshigaru": (223, 78),
+        "MiniTeppoAshigaru": (34, 145),
+        "MiniYumiSamurai": (110, 145),
+        "MiniHorseSamurai": (187, 145),
     }
     for unit in UNITS:
         tag_name, offset = poses[unit]
         index = tag_frame_index(metadata_by_unit[unit], tag_name, offset)
-        sprite = frame_image(strips[unit], index).resize((64, 64), Image.Resampling.NEAREST)
+        sprite = frame_image(strips[unit], index).resize(
+            (COVER_SPRITE_SIZE, COVER_SPRITE_SIZE),
+            Image.Resampling.NEAREST,
+        )
         cover.alpha_composite(sprite, positions[unit])
 
     cover.save(path, optimize=True)
