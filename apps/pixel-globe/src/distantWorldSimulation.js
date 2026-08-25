@@ -181,6 +181,84 @@ export function distantWorldValuesEqual(a, b) {
   return JSON.stringify(a) === JSON.stringify(b);
 }
 
+const DISTANT_WORLD_PART_ARRAY_KEYS = Object.freeze({
+  economy: "ports",
+  landTrade: "carts",
+  npcRoutes: "ships"
+});
+
+export function createDistantWorldPartComparisonPlan(
+  key,
+  current,
+  baseline,
+  { ignoredNpcShipIds = [] } = {}
+) {
+  const arrayKey = DISTANT_WORLD_PART_ARRAY_KEYS[key];
+  if (!arrayKey || !current || !baseline ||
+      !Array.isArray(current[arrayKey]) || !Array.isArray(baseline[arrayKey])) {
+    throw new Error(`Cannot compare malformed distant-world part: ${key}`);
+  }
+  if (!Array.isArray(ignoredNpcShipIds) ||
+      ignoredNpcShipIds.some((id) => typeof id !== "string" || id === "")) {
+    throw new Error("Distant-world comparison requires valid ignored NPC ship ids");
+  }
+  if (key !== "npcRoutes" && ignoredNpcShipIds.length > 0) {
+    throw new Error(`Cannot ignore NPC ships while comparing ${key}`);
+  }
+  const ignoredIds = new Set(ignoredNpcShipIds);
+  const filterEntries = (entries) => key === "npcRoutes"
+    ? entries.filter((entry) => !ignoredIds.has(entry.id))
+    : entries;
+  const currentEntries = filterEntries(current[arrayKey]);
+  const baselineEntries = filterEntries(baseline[arrayKey]);
+  const currentHeader = { ...current, [arrayKey]: [] };
+  const baselineHeader = { ...baseline, [arrayKey]: [] };
+  return {
+    version: 1,
+    key,
+    currentEntries,
+    baselineEntries,
+    entryIndex: 0,
+    equal: currentEntries.length === baselineEntries.length &&
+      distantWorldValuesEqual(currentHeader, baselineHeader),
+    complete: false
+  };
+}
+
+export function advanceDistantWorldPartComparisonPlan(plan, { maxEntries = 24 } = {}) {
+  assertDistantWorldPartComparisonPlan(plan);
+  if (!Number.isInteger(maxEntries) || maxEntries <= 0) {
+    throw new Error(`Invalid distant-world comparison batch size: ${maxEntries}`);
+  }
+  if (plan.complete) return Object.freeze({ complete: true, equal: plan.equal });
+  if (!plan.equal) {
+    plan.complete = true;
+    return Object.freeze({ complete: true, equal: false });
+  }
+  const end = Math.min(plan.currentEntries.length, plan.entryIndex + maxEntries);
+  for (; plan.entryIndex < end; plan.entryIndex++) {
+    if (!distantWorldValuesEqual(
+      plan.currentEntries[plan.entryIndex],
+      plan.baselineEntries[plan.entryIndex]
+    )) {
+      plan.equal = false;
+      plan.complete = true;
+      return Object.freeze({ complete: true, equal: false });
+    }
+  }
+  plan.complete = plan.entryIndex === plan.currentEntries.length;
+  return Object.freeze({ complete: plan.complete, equal: plan.equal });
+}
+
+function assertDistantWorldPartComparisonPlan(plan) {
+  if (!plan || plan.version !== 1 || !DISTANT_WORLD_PART_ARRAY_KEYS[plan.key] ||
+      !Array.isArray(plan.currentEntries) || !Array.isArray(plan.baselineEntries) ||
+      !Number.isInteger(plan.entryIndex) || plan.entryIndex < 0 ||
+      typeof plan.equal !== "boolean" || typeof plan.complete !== "boolean") {
+    throw new Error("Invalid distant-world comparison plan");
+  }
+}
+
 export function relationKey(a, b) {
   if (typeof a !== "string" || a.length === 0 || typeof b !== "string" || b.length === 0) {
     throw new Error("Distant diplomacy requires two faction ids");

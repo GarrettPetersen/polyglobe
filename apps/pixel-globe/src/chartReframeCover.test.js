@@ -21,18 +21,26 @@ test("blocking dialogue and full notebook pages can hide a correction", () => {
   assert.equal(chartReframeCoverIsOpaque({ blockingDialogue: true }), true);
 });
 
-test("opening opaque cover always heals the hidden chart once", () => {
+test("opaque cover only hides a costly chart rebuild when repair is severe", () => {
   assert.equal(chartShouldReframeOnCoverOpen({
     coverIsActive: true,
-    coverWasActive: false
+    coverWasActive: false,
+    repairRequired: true
   }), true);
   assert.equal(chartShouldReframeOnCoverOpen({
     coverIsActive: true,
-    coverWasActive: true
+    coverWasActive: true,
+    repairRequired: true
   }), false);
   assert.equal(chartShouldReframeOnCoverOpen({
     coverIsActive: false,
-    coverWasActive: false
+    coverWasActive: false,
+    repairRequired: true
+  }), false);
+  assert.equal(chartShouldReframeOnCoverOpen({
+    coverIsActive: true,
+    coverWasActive: false,
+    repairRequired: false
   }), false);
 });
 

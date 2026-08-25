@@ -995,11 +995,38 @@ export function worldEconomyHasPort(economy, port) {
 }
 
 export function snapshotWorldEconomy(economy) {
+  const plan = createWorldEconomySnapshotPlan(economy);
+  while (!advanceWorldEconomySnapshotPlan(plan, { maxPorts: Number.MAX_SAFE_INTEGER })) {
+    // Explicit synchronous callers require a complete economy snapshot.
+  }
+  return plan.snapshot;
+}
+
+export function createWorldEconomySnapshotPlan(economy) {
   assertEconomy(economy);
   return {
     version: 1,
-    lastMinute: economy.lastMinute,
-    ports: [...economy.portStates.values()].map((port) => ({
+    economy,
+    ports: [...economy.portStates.values()],
+    portIndex: 0,
+    snapshot: {
+      version: 1,
+      lastMinute: economy.lastMinute,
+      ports: [],
+      shipyards: snapshotWorldShipyards(economy.shipyards)
+    }
+  };
+}
+
+export function advanceWorldEconomySnapshotPlan(plan, { maxPorts = 12 } = {}) {
+  assertWorldEconomySnapshotPlan(plan);
+  if (!Number.isInteger(maxPorts) || maxPorts <= 0) {
+    throw new Error(`Invalid world economy snapshot batch size: ${maxPorts}`);
+  }
+  const end = Math.min(plan.ports.length, plan.portIndex + maxPorts);
+  for (; plan.portIndex < end; plan.portIndex++) {
+    const port = plan.ports[plan.portIndex];
+    plan.snapshot.ports.push({
       id: port.id,
       specie: port.specie,
       targetSpecie: port.targetSpecie,
@@ -1007,9 +1034,17 @@ export function snapshotWorldEconomy(economy) {
         .filter(([, state]) => state.industryProductionPerDay > 0)
         .map(([goodId, state]) => [goodId, state.industryProductionPerDay]),
       stocks: [...port.goods.entries()].map(([goodId, state]) => [goodId, state.stock])
-    })),
-    shipyards: snapshotWorldShipyards(economy.shipyards)
-  };
+    });
+  }
+  return plan.portIndex === plan.ports.length;
+}
+
+function assertWorldEconomySnapshotPlan(plan) {
+  if (!plan || plan.version !== 1 || !plan.economy || !Array.isArray(plan.ports) ||
+      !Number.isInteger(plan.portIndex) || plan.portIndex < 0 || !plan.snapshot ||
+      !Array.isArray(plan.snapshot.ports)) {
+    throw new Error("Invalid world economy snapshot plan");
+  }
 }
 
 export function restoreWorldEconomy(economy, snapshot, { seedKey = economy?.seedKey } = {}) {

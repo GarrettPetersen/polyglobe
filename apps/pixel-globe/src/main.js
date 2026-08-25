@@ -67,7 +67,8 @@ import {
 } from "./pausedViewCache.js";
 import { createDistantWorldWorkerClient } from "./distantWorldWorkerClient.js";
 import {
-  distantWorldValuesEqual,
+  advanceDistantWorldPartComparisonPlan,
+  createDistantWorldPartComparisonPlan,
   portableDistantWorldSystems,
   relationKey
 } from "./distantWorldSimulation.js";
@@ -928,7 +929,8 @@ import {
   NPC_PORT_RESPONSE_WAR_LOAN,
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
-  applyNpcSeaRouteSimulationSnapshot,
+  advanceNpcSeaRouteSimulationRestorePlan,
+  advanceNpcSeaRouteStrategicSnapshotPlan,
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
   claimSurrenderedNpcShipLoot,
@@ -936,7 +938,9 @@ import {
   configureNpcEncounter,
   configureNpcRouteEncounter,
   createNpcShipSnapshotCache,
+  createNpcSeaRouteSimulationRestorePlan,
   createNpcSeaRouteSystem,
+  createNpcSeaRouteStrategicSnapshotPlan,
   damageNpcShip,
   expandNpcCapitalNavalReserve,
   npcCargoAvailableQuantity,
@@ -961,7 +965,6 @@ import {
   sinkNpcShip,
   stageNpcRouteEncounterAtDestination,
   snapshotNpcSeaRouteSystem,
-  snapshotNpcSeaRouteStrategicSystem,
   snapshotNpcSurrenderContinuity,
   storeNpcCargo,
   surrenderNpcShip,
@@ -1661,9 +1664,11 @@ import {
   addPortGoodStock,
   addWorldEconomyPort,
   addWorldEconomyShipyardPort,
+  advanceWorldEconomySnapshotPlan,
   advanceWorldEconomyRestorePlan,
   connectNearbyPortMarkets,
   consumePortGoodStock,
+  createWorldEconomySnapshotPlan,
   createWorldEconomyRestorePlan,
   createWorldEconomy,
   destroyPortGoodStock,
@@ -26982,7 +26987,8 @@ function prepareNorthUpWorldBehindCover() {
       !(CHART_RECOVERY_TEST_ENABLED && !chartRecoveryDiagnosticDialogueEnabled) &&
       chartShouldReframeOnCoverOpen({
         coverIsActive,
-        coverWasActive: chartReframeCoverWasActive
+        coverWasActive: chartReframeCoverWasActive,
+        repairRequired: currentChartRepairIsSevere()
       })
     ) {
       // Paint the newly opened screen before doing the hidden world rebuild.
@@ -32722,9 +32728,9 @@ function createDistantWorldApplyState(event) {
     phase: "snapshot",
     partIndex: 0,
     current: {},
-    comparableCurrent: {},
-    comparableBefore: {},
     staleParts: [],
+    partSnapshotPlan: null,
+    partComparisonPlan: null,
     partRestorePlan: null,
     visualFleetChanged: false
   };
@@ -32739,35 +32745,27 @@ function advanceDistantWorldSimulationApply() {
   if (!key) throw new Error(`Distant-world apply lost part ${state.partIndex}`);
 
   if (state.phase === "snapshot") {
-    state.current[key] = measurePerformanceBenchmarkStage(
+    const complete = measurePerformanceBenchmarkStage(
       `npcShips.workerApply.snapshot.${key}`,
-      () => snapshotCurrentDistantWorldPart(key)
+      () => advanceCurrentDistantWorldPartSnapshot(key, state)
     );
+    if (!complete) return false;
     state.phase = "compare";
     return false;
   }
   if (state.phase === "compare") {
-    measurePerformanceBenchmarkStage(`npcShips.workerApply.compare.${key}`, () => {
-      const protectedNpcShipIds = new Set(
-        currentDistantWorldProtectedNpcShipIds(
-          result.protectedNpcShipIds,
-          key === "npcRoutes" ? result.before.npcRoutes : null
-        )
-      );
-      state.comparableCurrent[key] = distantWorldPartWithoutNpcShips(
+    const comparison = measurePerformanceBenchmarkStage(
+      `npcShips.workerApply.compare.${key}`,
+      () => advanceCurrentDistantWorldPartComparison(
         key,
         state.current[key],
-        protectedNpcShipIds
-      );
-      state.comparableBefore[key] = distantWorldPartWithoutNpcShips(
-        key,
         result.before[key],
-        protectedNpcShipIds
-      );
-      if (!distantWorldValuesEqual(state.comparableCurrent[key], state.comparableBefore[key])) {
-        state.staleParts.push(key);
-      }
-    });
+        result,
+        state
+      )
+    );
+    if (!comparison.complete) return false;
+    if (!comparison.equal) state.staleParts.push(key);
     state.partIndex++;
     if (state.partIndex < result.changedParts.length) {
       state.phase = "snapshot";
@@ -32807,20 +32805,50 @@ function advanceDistantWorldSimulationApply() {
   return finishDistantWorldSimulationApply(state);
 }
 
-function snapshotCurrentDistantWorldPart(key) {
-  if (key === "economy") return snapshotWorldEconomy(worldEconomy);
-  if (key === "landTrade") return snapshotLandTradeSystem(landTradeSystem);
-  if (key === "npcRoutes") return snapshotNpcSeaRouteStrategicSystem(npcSeaRoutes);
-  throw new Error(`Cannot snapshot unknown distant-world part: ${key}`);
+function advanceCurrentDistantWorldPartSnapshot(key, state) {
+  if (key === "economy") {
+    if (!state.partSnapshotPlan) {
+      state.partSnapshotPlan = createWorldEconomySnapshotPlan(worldEconomy);
+    }
+    const complete = advanceWorldEconomySnapshotPlan(state.partSnapshotPlan);
+    if (!complete) return false;
+    state.current[key] = state.partSnapshotPlan.snapshot;
+    state.partSnapshotPlan = null;
+    return true;
+  }
+  if (key === "landTrade") {
+    state.current[key] = snapshotLandTradeSystem(landTradeSystem);
+    return true;
+  }
+  if (key !== "npcRoutes") throw new Error(`Cannot snapshot unknown distant-world part: ${key}`);
+  if (!state.partSnapshotPlan) {
+    state.partSnapshotPlan = createNpcSeaRouteStrategicSnapshotPlan(npcSeaRoutes);
+  }
+  const complete = advanceNpcSeaRouteStrategicSnapshotPlan(state.partSnapshotPlan);
+  if (!complete) return false;
+  state.current[key] = state.partSnapshotPlan.snapshot;
+  state.partSnapshotPlan = null;
+  return true;
 }
 
-function distantWorldPartWithoutNpcShips(key, snapshot, shipIds) {
-  if (key !== "npcRoutes") return snapshot;
-  if (!snapshot) throw new Error("Distant-world NPC comparison requires a route snapshot");
-  return {
-    ...snapshot,
-    ships: snapshot.ships.filter((entry) => !shipIds.has(entry.id))
-  };
+function advanceCurrentDistantWorldPartComparison(key, current, baseline, result, state) {
+  if (!state.partComparisonPlan) {
+    const ignoredNpcShipIds = key === "npcRoutes"
+      ? currentDistantWorldProtectedNpcShipIds(
+          result.protectedNpcShipIds,
+          result.before.npcRoutes
+        )
+      : [];
+    state.partComparisonPlan = createDistantWorldPartComparisonPlan(
+      key,
+      current,
+      baseline,
+      { ignoredNpcShipIds }
+    );
+  }
+  const progress = advanceDistantWorldPartComparisonPlan(state.partComparisonPlan);
+  if (progress.complete) state.partComparisonPlan = null;
+  return progress;
 }
 
 function advanceDistantWorldPartRestore(key, snapshot, protectedNpcShipIds, state) {
@@ -32847,9 +32875,16 @@ function advanceDistantWorldPartRestore(key, snapshot, protectedNpcShipIds, stat
     return true;
   }
   if (key === "npcRoutes") {
-    applyNpcSeaRouteSimulationSnapshot(npcSeaRoutes, snapshot, {
-      preserveShipIds: protectedNpcShipIds
-    });
+    if (!state.partRestorePlan) {
+      state.partRestorePlan = createNpcSeaRouteSimulationRestorePlan(
+        npcSeaRoutes,
+        snapshot,
+        { preserveShipIds: protectedNpcShipIds }
+      );
+    }
+    const complete = advanceNpcSeaRouteSimulationRestorePlan(state.partRestorePlan);
+    if (!complete) return false;
+    state.partRestorePlan = null;
     state.visualFleetChanged = releaseNpcVisualStatesWithoutStrategicState();
     return true;
   }

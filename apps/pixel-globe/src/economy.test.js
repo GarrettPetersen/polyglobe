@@ -32,10 +32,12 @@ import {
   addPortGoodStock,
   addWorldEconomyPort,
   addWorldEconomyShipyardPort,
+  advanceWorldEconomySnapshotPlan,
   advanceWorldEconomyRestorePlan,
   advanceWorldEconomy,
   connectNearbyPortMarkets,
   consumePortGoodStock,
+  createWorldEconomySnapshotPlan,
   createWorldEconomyRestorePlan,
   createWorldEconomy,
   destroyPortGoodStock,
@@ -631,6 +633,17 @@ test("batched economy restoration validates before applying and matches synchron
   }
 
   assert.deepEqual(snapshotWorldEconomy(restored), saved);
+});
+
+test("world economy snapshots serialize ports in bounded batches", () => {
+  const economy = createWorldEconomy({ ports: [KYOTO, LONDON], startMinute: 0 });
+  const plan = createWorldEconomySnapshotPlan(economy);
+
+  assert.equal(advanceWorldEconomySnapshotPlan(plan, { maxPorts: 1 }), false);
+  assert.equal(plan.snapshot.ports.length, 1);
+  assert.equal(advanceWorldEconomySnapshotPlan(plan, { maxPorts: 1 }), true);
+  assert.equal(plan.snapshot.ports.length, 2);
+  assert.deepEqual(plan.snapshot, snapshotWorldEconomy(economy));
 });
 
 test("batched economy restoration rejects a late invalid port before mutating live state", () => {

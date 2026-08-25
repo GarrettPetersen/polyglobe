@@ -18,6 +18,8 @@ import {
   NPC_SHIP_SLUGS,
   PIRATE_SHIP_SLUGS,
   addNpcSeaRoutePort,
+  advanceNpcSeaRouteSimulationRestorePlan,
+  advanceNpcSeaRouteStrategicSnapshotPlan,
   applyNpcSeaRouteSimulationSnapshot,
   applyNpcConquestOwnership,
   captureSurrenderedNpcShip,
@@ -25,7 +27,9 @@ import {
   configureNpcEncounter,
   configureNpcRouteEncounter,
   createNpcShipSnapshotCache,
+  createNpcSeaRouteSimulationRestorePlan,
   createNpcSeaRouteSystem,
+  createNpcSeaRouteStrategicSnapshotPlan,
   damageNpcShip,
   expandNpcCapitalNavalReserve,
   npcCargoAvailableQuantity,
@@ -1704,6 +1708,48 @@ test("worker simulation updates distant ships while preserving visible ships", (
   assert.equal(routes.shipById.get(protectedShip.id).hitPoints, protectedShip.hitPoints);
   assert.deepEqual(routes.shipById.get(protectedShip.id).visualNavigation.vector, [1, 0, 0]);
   assert.equal(routes.shipById.get(distantShip.id).specie, simulatedDistantShip.specie);
+});
+
+test("strategic NPC snapshots serialize worldwide traffic in bounded batches", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  assert.ok(routes.ships.length > 2);
+  const plan = createNpcSeaRouteStrategicSnapshotPlan(routes);
+
+  assert.equal(advanceNpcSeaRouteStrategicSnapshotPlan(plan, { maxItems: 2 }), false);
+  assert.equal(plan.snapshot.ships.length, 2);
+  assert.ok(plan.snapshot.ships.every((ship) => ship.visualNavigation === null));
+
+  let calls = 1;
+  while (!advanceNpcSeaRouteStrategicSnapshotPlan(plan, { maxItems: 2 })) calls++;
+  assert.ok(calls > 1);
+  assert.deepEqual(plan.snapshot, snapshotNpcSeaRouteStrategicSystem(routes));
+});
+
+test("worker NPC restore stages a bounded fleet before one atomic commit", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  assert.ok(routes.ships.length > 2);
+  const originalShips = routes.ships;
+  const targetId = routes.ships[1].id;
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  snapshot.ships.find((ship) => ship.id === targetId).specie += 99;
+  const plan = createNpcSeaRouteSimulationRestorePlan(routes, snapshot);
+
+  assert.equal(advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 }), false);
+  assert.strictEqual(routes.ships, originalShips);
+  assert.equal(plan.ships.length, 1);
+
+  let calls = 1;
+  while (!advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 })) {
+    assert.strictEqual(routes.ships, originalShips);
+    calls++;
+  }
+  assert.ok(calls > routes.ships.length);
+  assert.notStrictEqual(routes.ships, originalShips);
+  assert.equal(routes.shipById.get(targetId).specie, snapshot.ships.find(
+    (ship) => ship.id === targetId
+  ).specie);
 });
 
 test("worker simulation cannot overwrite a scripted encounter added after its snapshot", () => {

@@ -52,12 +52,14 @@ export function gameOverReframeCoverIsOpaque({
 
 export function chartShouldReframeOnCoverOpen({
   coverIsActive,
-  coverWasActive
+  coverWasActive,
+  repairRequired
 }) {
-  if (typeof coverIsActive !== "boolean" || typeof coverWasActive !== "boolean") {
+  if (typeof coverIsActive !== "boolean" || typeof coverWasActive !== "boolean" ||
+      typeof repairRequired !== "boolean") {
     throw new Error("Chart cover reframe policy requires boolean cover state");
   }
-  return coverIsActive && !coverWasActive;
+  return coverIsActive && !coverWasActive && repairRequired;
 }
 
 export function coldCoveredWorldDefersFullRender({

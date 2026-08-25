@@ -928,9 +928,88 @@ export function snapshotNpcSeaRouteSystem(system) {
 }
 
 export function snapshotNpcSeaRouteStrategicSystem(system) {
-  const snapshot = snapshotNpcSeaRouteSystem(system);
-  for (const ship of snapshot.ships) ship.visualNavigation = null;
-  return snapshot;
+  const plan = createNpcSeaRouteStrategicSnapshotPlan(system);
+  while (!advanceNpcSeaRouteStrategicSnapshotPlan(plan, {
+    maxItems: Number.MAX_SAFE_INTEGER
+  })) {
+    // Worker transfer and explicit synchronous callers require a complete snapshot.
+  }
+  return plan.snapshot;
+}
+
+export function createNpcSeaRouteStrategicSnapshotPlan(system) {
+  assertSaveableNpcRouteSystem(system);
+  return {
+    version: 1,
+    system,
+    phase: "ships",
+    itemIndex: 0,
+    snapshot: {
+      version: NPC_SEA_ROUTE_SNAPSHOT_VERSION,
+      ships: [],
+      replacementQueue: [],
+      capitalNavalReserveSlots: [],
+      pirateHideoutDangerUntil: []
+    }
+  };
+}
+
+export function advanceNpcSeaRouteStrategicSnapshotPlan(plan, { maxItems = 12 } = {}) {
+  assertNpcSeaRouteStrategicSnapshotPlan(plan);
+  if (!Number.isInteger(maxItems) || maxItems <= 0) {
+    throw new Error(`Invalid NPC strategic snapshot batch size: ${maxItems}`);
+  }
+  if (plan.phase === "complete") return true;
+  const { system, snapshot } = plan;
+  let remaining = maxItems;
+  while (remaining > 0 && plan.phase !== "complete") {
+    let source;
+    let target;
+    if (plan.phase === "ships") {
+      source = system.ships;
+      target = snapshot.ships;
+    } else if (plan.phase === "replacement-queue") {
+      source = system.replacementQueue;
+      target = snapshot.replacementQueue;
+    } else if (plan.phase === "reserve-slots") {
+      source = system.capitalNavalReserveSlots;
+      target = snapshot.capitalNavalReserveSlots;
+    } else if (plan.phase === "hideout-danger") {
+      source = [...system.pirateHideoutDangerUntil.entries()];
+      target = snapshot.pirateHideoutDangerUntil;
+    } else {
+      throw new Error(`Unknown NPC strategic snapshot phase: ${plan.phase}`);
+    }
+    const end = Math.min(source.length, plan.itemIndex + remaining);
+    for (; plan.itemIndex < end; plan.itemIndex++) {
+      if (plan.phase === "ships") {
+        const ship = source[plan.itemIndex];
+        reconcileNpcCargoCapacity(ship, "route snapshot");
+        target.push({ ...cloneJsonData(ship), visualNavigation: null });
+      } else {
+        target.push(cloneJsonData(source[plan.itemIndex]));
+      }
+      remaining--;
+    }
+    if (plan.itemIndex < source.length) return false;
+    plan.itemIndex = 0;
+    plan.phase = plan.phase === "ships"
+      ? "replacement-queue"
+      : plan.phase === "replacement-queue"
+        ? "reserve-slots"
+        : plan.phase === "reserve-slots"
+          ? "hideout-danger"
+          : "complete";
+  }
+  return plan.phase === "complete";
+}
+
+function assertNpcSeaRouteStrategicSnapshotPlan(plan) {
+  if (!plan || plan.version !== 1 || !plan.system || !plan.snapshot ||
+      !Number.isInteger(plan.itemIndex) || plan.itemIndex < 0 ||
+      typeof plan.phase !== "string") {
+    throw new Error("Invalid NPC strategic snapshot plan");
+  }
 }
 
 export function snapshotNpcSurrenderContinuity(system) {
@@ -1019,6 +1098,20 @@ export function applyNpcSeaRouteSimulationSnapshot(
   snapshot,
   { preserveShipIds = [] } = {}
 ) {
+  const plan = createNpcSeaRouteSimulationRestorePlan(system, snapshot, { preserveShipIds });
+  while (!advanceNpcSeaRouteSimulationRestorePlan(plan, {
+    maxItems: Number.MAX_SAFE_INTEGER
+  })) {
+    // Explicit synchronous callers require the complete strategic state.
+  }
+  return system;
+}
+
+export function createNpcSeaRouteSimulationRestorePlan(
+  system,
+  snapshot,
+  { preserveShipIds = [] } = {}
+) {
   assertSaveableNpcRouteSystem(system);
   if (!snapshot || snapshot.version !== NPC_SEA_ROUTE_SNAPSHOT_VERSION ||
       !Array.isArray(snapshot.ships) || !Array.isArray(snapshot.replacementQueue) ||
@@ -1026,11 +1119,17 @@ export function applyNpcSeaRouteSimulationSnapshot(
       !Array.isArray(snapshot.pirateHideoutDangerUntil)) {
     throw new Error("Unsupported NPC route simulation data");
   }
-  const existingVisualNavigation = new Map(system.ships
-    .filter((ship) => ship.visualNavigation)
-    .map((ship) => [ship.id, ship.visualNavigation]));
+  if (!Array.isArray(preserveShipIds) ||
+      preserveShipIds.some((id) => typeof id !== "string" || id === "")) {
+    throw new Error("NPC simulation restore requires valid preserved ship ids");
+  }
+  const existingVisualNavigation = new Map();
+  const currentShipById = new Map();
+  for (const ship of system.ships) {
+    currentShipById.set(ship.id, ship);
+    if (ship.visualNavigation) existingVisualNavigation.set(ship.id, ship.visualNavigation);
+  }
   const preservedIds = new Set(preserveShipIds);
-  const currentShipById = new Map(system.ships.map((ship) => [ship.id, ship]));
   const currentReserveSlotsById = new Map(system.capitalNavalReserveSlots.map((slot) => [slot.id, slot]));
   const protectedReserveSlotIds = new Set();
   for (const slot of system.capitalNavalReserveSlots) {
@@ -1047,71 +1146,175 @@ export function applyNpcSeaRouteSimulationSnapshot(
     const slotId = currentShipById.get(shipId)?.capitalNavalReserveSlotId || null;
     if (slotId !== null) protectedReserveSlotIds.add(slotId);
   }
-  const ships = [];
-  const includedIds = new Set();
-  for (const simulatedShip of snapshot.ships) {
-    const ship = preservedIds.has(simulatedShip.id)
-      ? currentShipById.get(simulatedShip.id)
-      : {
-          ...simulatedShip,
-          cargo: { ...simulatedShip.cargo },
-          cargoCost: { ...simulatedShip.cargoCost },
-          visualNavigation: existingVisualNavigation.get(simulatedShip.id) || null
-        };
-    if (!ship) continue;
-    ships.push(ship);
-    includedIds.add(ship.id);
+  return {
+    version: 1,
+    system,
+    snapshot,
+    preservedIds,
+    existingVisualNavigation,
+    currentShipById,
+    currentReserveSlotsById,
+    protectedReserveSlotIds,
+    phase: "snapshot-ships",
+    itemIndex: 0,
+    ships: [],
+    includedIds: new Set(),
+    shipById: new Map(),
+    danger: new Map(),
+    reserveSlots: []
+  };
+}
+
+export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } = {}) {
+  assertNpcSeaRouteSimulationRestorePlan(plan);
+  if (!Number.isInteger(maxItems) || maxItems <= 0) {
+    throw new Error(`Invalid NPC simulation restore batch size: ${maxItems}`);
   }
-  for (const currentShip of system.ships) {
-    if (preservedIds.has(currentShip.id) && !includedIds.has(currentShip.id)) {
-      ships.push(currentShip);
+  if (plan.phase === "complete") return true;
+  let remaining = maxItems;
+  while (remaining > 0 && plan.phase !== "complete") {
+    if (plan.phase === "snapshot-ships") {
+      const end = Math.min(plan.snapshot.ships.length, plan.itemIndex + remaining);
+      for (; plan.itemIndex < end; plan.itemIndex++) {
+        const simulatedShip = plan.snapshot.ships[plan.itemIndex];
+        const ship = plan.preservedIds.has(simulatedShip.id)
+          ? plan.currentShipById.get(simulatedShip.id)
+          : {
+              ...simulatedShip,
+              cargo: { ...simulatedShip.cargo },
+              cargoCost: { ...simulatedShip.cargoCost },
+              visualNavigation: plan.existingVisualNavigation.get(simulatedShip.id) || null
+            };
+        if (ship) {
+          plan.ships.push(ship);
+          plan.includedIds.add(ship.id);
+        }
+        remaining--;
+      }
+      if (plan.itemIndex < plan.snapshot.ships.length) return false;
+      plan.phase = "preserved-ships";
+      plan.itemIndex = 0;
+      continue;
     }
+    if (plan.phase === "preserved-ships") {
+      const currentShips = plan.system.ships;
+      const end = Math.min(currentShips.length, plan.itemIndex + remaining);
+      for (; plan.itemIndex < end; plan.itemIndex++) {
+        const ship = currentShips[plan.itemIndex];
+        if (plan.preservedIds.has(ship.id) && !plan.includedIds.has(ship.id)) {
+          plan.ships.push(ship);
+          plan.includedIds.add(ship.id);
+        }
+        remaining--;
+      }
+      if (plan.itemIndex < currentShips.length) return false;
+      plan.phase = "validate-ships";
+      plan.itemIndex = 0;
+      continue;
+    }
+    if (plan.phase === "validate-ships") {
+      const end = Math.min(plan.ships.length, plan.itemIndex + remaining);
+      for (; plan.itemIndex < end; plan.itemIndex++) {
+        const ship = plan.ships[plan.itemIndex];
+        if (!ship || typeof ship.id !== "string" || ship.id === "" || plan.shipById.has(ship.id)) {
+          throw new Error(`Invalid simulated NPC ship id: ${ship?.id}`);
+        }
+        if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
+            !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
+          throw new Error(`Invalid simulated NPC hull: ${ship.id}`);
+        }
+        assertFactionId(ship.factionId);
+        reconcileNpcNationalCircuitFields(ship, `simulated ship ${ship.id}`);
+        reconcileNpcPortResponseFields(ship, `simulated ship ${ship.id}`);
+        reconcileNpcCargoCapacity(ship, "worker simulation");
+        if (plan.preservedIds.has(ship.id)) {
+          ship.visualNavigation = plan.existingVisualNavigation.get(ship.id) || null;
+        }
+        plan.shipById.set(ship.id, ship);
+        remaining--;
+      }
+      if (plan.itemIndex < plan.ships.length) return false;
+      plan.phase = "hideout-danger";
+      plan.itemIndex = 0;
+      continue;
+    }
+    if (plan.phase === "hideout-danger") {
+      const entries = plan.snapshot.pirateHideoutDangerUntil;
+      const end = Math.min(entries.length, plan.itemIndex + remaining);
+      for (; plan.itemIndex < end; plan.itemIndex++) {
+        const entry = entries[plan.itemIndex];
+        if (!Array.isArray(entry) || !Number.isInteger(entry[0]) || !Number.isFinite(entry[1])) {
+          throw new Error("Invalid simulated pirate hideout danger state");
+        }
+        plan.danger.set(entry[0], entry[1]);
+        remaining--;
+      }
+      if (plan.itemIndex < entries.length) return false;
+      plan.phase = "replacement-queue";
+      plan.itemIndex = 0;
+      continue;
+    }
+    if (plan.phase === "replacement-queue") {
+      const replacements = plan.snapshot.replacementQueue;
+      const end = Math.min(replacements.length, plan.itemIndex + remaining);
+      for (; plan.itemIndex < end; plan.itemIndex++) {
+        const replacement = replacements[plan.itemIndex];
+        reconcileNpcNationalCircuitFields(replacement, `simulated replacement ${replacement.shipId}`);
+        remaining--;
+      }
+      if (plan.itemIndex < replacements.length) return false;
+      plan.phase = "reserve-slots";
+      plan.itemIndex = 0;
+      continue;
+    }
+    if (plan.phase === "reserve-slots") {
+      const slots = plan.snapshot.capitalNavalReserveSlots;
+      const end = Math.min(slots.length, plan.itemIndex + remaining);
+      for (; plan.itemIndex < end; plan.itemIndex++) {
+        const slot = slots[plan.itemIndex];
+        if (!plan.protectedReserveSlotIds.has(slot.id) ||
+            plan.currentReserveSlotsById.has(slot.id)) {
+          plan.reserveSlots.push(validateCapitalNavalReserveSlot({
+            ...(plan.protectedReserveSlotIds.has(slot.id)
+              ? plan.currentReserveSlotsById.get(slot.id)
+              : slot)
+          }));
+        }
+        remaining--;
+      }
+      if (plan.itemIndex < slots.length) return false;
+      plan.phase = "commit";
+      plan.itemIndex = 0;
+      continue;
+    }
+    if (plan.phase === "commit") {
+      const { system } = plan;
+      system.ships = plan.ships;
+      system.shipById = plan.shipById;
+      system.replacementQueue = plan.snapshot.replacementQueue;
+      system.capitalNavalReserveSlots = plan.reserveSlots;
+      reconcileCapitalNavalReserveShipsWithSnapshot(system, plan.ships);
+      reconcileCapitalNavalReservePortsAfterOwnershipChange(system, new Set());
+      validateCapitalNavalReserveAssignments(system);
+      system.pirateHideoutDangerUntil = plan.danger;
+      plan.phase = "complete";
+      return true;
+    }
+    throw new Error(`Unknown NPC simulation restore phase: ${plan.phase}`);
   }
-  const shipById = new Map();
-  for (const ship of ships) {
-    if (!ship || typeof ship.id !== "string" || ship.id === "" || shipById.has(ship.id)) {
-      throw new Error(`Invalid simulated NPC ship id: ${ship?.id}`);
-    }
-    if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
-        !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
-      throw new Error(`Invalid simulated NPC hull: ${ship.id}`);
-    }
-    assertFactionId(ship.factionId);
-    reconcileNpcNationalCircuitFields(ship, `simulated ship ${ship.id}`);
-    reconcileNpcPortResponseFields(ship, `simulated ship ${ship.id}`);
-    reconcileNpcCargoCapacity(ship, "worker simulation");
-    if (preservedIds.has(ship.id)) {
-      ship.visualNavigation = existingVisualNavigation.get(ship.id) || null;
-    }
-    shipById.set(ship.id, ship);
+  return plan.phase === "complete";
+}
+
+function assertNpcSeaRouteSimulationRestorePlan(plan) {
+  if (!plan || plan.version !== 1 || !plan.system || !plan.snapshot ||
+      !(plan.preservedIds instanceof Set) || !(plan.existingVisualNavigation instanceof Map) ||
+      !(plan.currentShipById instanceof Map) || !(plan.currentReserveSlotsById instanceof Map) ||
+      !(plan.protectedReserveSlotIds instanceof Set) || !Array.isArray(plan.ships) ||
+      !(plan.includedIds instanceof Set) || !(plan.shipById instanceof Map) ||
+      !(plan.danger instanceof Map) || !Array.isArray(plan.reserveSlots) ||
+      !Number.isInteger(plan.itemIndex) || plan.itemIndex < 0 || typeof plan.phase !== "string") {
+    throw new Error("Invalid NPC simulation restore plan");
   }
-  const danger = new Map();
-  for (const entry of snapshot.pirateHideoutDangerUntil) {
-    if (!Array.isArray(entry) || !Number.isInteger(entry[0]) || !Number.isFinite(entry[1])) {
-      throw new Error("Invalid simulated pirate hideout danger state");
-    }
-    danger.set(entry[0], entry[1]);
-  }
-  system.ships = ships;
-  system.shipById = shipById;
-  for (const replacement of snapshot.replacementQueue) {
-    reconcileNpcNationalCircuitFields(replacement, `simulated replacement ${replacement.shipId}`);
-  }
-  system.replacementQueue = snapshot.replacementQueue;
-  system.capitalNavalReserveSlots = snapshot.capitalNavalReserveSlots
-    .filter((slot) => (
-      !protectedReserveSlotIds.has(slot.id) || currentReserveSlotsById.has(slot.id)
-    ))
-    .map((slot) => validateCapitalNavalReserveSlot({
-      ...(protectedReserveSlotIds.has(slot.id)
-        ? currentReserveSlotsById.get(slot.id)
-        : slot)
-    }));
-  reconcileCapitalNavalReserveShipsWithSnapshot(system, ships);
-  reconcileCapitalNavalReservePortsAfterOwnershipChange(system, new Set());
-  validateCapitalNavalReserveAssignments(system);
-  system.pirateHideoutDangerUntil = danger;
-  return system;
 }
 
 function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {

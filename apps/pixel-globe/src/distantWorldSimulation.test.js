@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  advanceDistantWorldPartComparisonPlan,
+  createDistantWorldPartComparisonPlan,
   distantWorldChangedSnapshotParts,
   distantWorldSnapshotsEqual,
   portableDistantWorldSystems,
@@ -55,4 +57,68 @@ test("distant snapshot equality notices live state conflicts", () => {
   changed.npcRoutes.ships[0].hitPoints = 1;
   assert.equal(distantWorldSnapshotsEqual(a, changed), false);
   assert.deepEqual(distantWorldChangedSnapshotParts(a, changed), ["npcRoutes"]);
+});
+
+test("main-thread distant comparisons advance through bounded entry batches", () => {
+  const current = {
+    version: 1,
+    lastMinute: 40,
+    ports: Array.from({ length: 53 }, (_, index) => ({
+      id: index,
+      specie: 1000 + index,
+      stocks: [["salt", index]]
+    }))
+  };
+  const plan = createDistantWorldPartComparisonPlan(
+    "economy",
+    current,
+    structuredClone(current)
+  );
+  let calls = 0;
+  while (true) {
+    const before = plan.entryIndex;
+    const progress = advanceDistantWorldPartComparisonPlan(plan, { maxEntries: 7 });
+    assert.ok(plan.entryIndex - before <= 7);
+    calls++;
+    if (progress.complete) {
+      assert.equal(progress.equal, true);
+      break;
+    }
+  }
+  assert.equal(calls, 8);
+});
+
+test("distant NPC comparison ignores protected ships but catches strategic changes", () => {
+  const baseline = {
+    version: 1,
+    replacementQueue: [],
+    ships: [
+      { id: "visible", hitPoints: 8 },
+      { id: "distant", hitPoints: 8 }
+    ]
+  };
+  const current = structuredClone(baseline);
+  current.ships[0].hitPoints = 2;
+  const protectedPlan = createDistantWorldPartComparisonPlan(
+    "npcRoutes",
+    current,
+    baseline,
+    { ignoredNpcShipIds: ["visible"] }
+  );
+  assert.deepEqual(
+    advanceDistantWorldPartComparisonPlan(protectedPlan),
+    { complete: true, equal: true }
+  );
+
+  current.ships[1].hitPoints = 3;
+  const changedPlan = createDistantWorldPartComparisonPlan(
+    "npcRoutes",
+    current,
+    baseline,
+    { ignoredNpcShipIds: ["visible"] }
+  );
+  assert.deepEqual(
+    advanceDistantWorldPartComparisonPlan(changedPlan),
+    { complete: true, equal: false }
+  );
 });
