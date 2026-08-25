@@ -4593,6 +4593,7 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
       factionId,
       hostileByWar: false,
       hostileByStance: false,
+      hostileStanceWaivedByStanding: false,
       hostileByStanding: false,
       catholicContraband: false,
       safePassage: false,
@@ -4644,6 +4645,9 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
   const hostileByStance = factionId !== PIRATE_FACTION_ID &&
     relation === DIPLOMACY_HOSTILE &&
     !suzerainProtectsEntry;
+  const trustedPersonalStanding = state.relations.factionReputation[factionId] >=
+    TRADE_PASS_REPUTATION_REQUIRED;
+  const hostileStanceWaivedByStanding = hostileByStance && trustedPersonalStanding;
   const diplomaticPassage = evaluation.diplomaticPassageFactionIds.has(factionId);
   const safePassage = !catholicContraband && (diplomaticPassage || (
     !evaluation.playerWarship && state.relations.safePassageUntilMinute[factionId] > simMinute
@@ -4655,9 +4659,10 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
   const canPurchaseSafePassage = !catholicContraband && !evaluation.playerWarship &&
     !safePassage &&
     !hostileByStanding &&
-    (hostileByWar || hostileByStance);
+    (hostileByWar || (hostileByStance && !hostileStanceWaivedByStanding));
   const hostile = catholicContraband ||
-    ((hostileByWar || hostileByStance || hostileByStanding) && !safePassage);
+    ((hostileByWar || (hostileByStance && !hostileStanceWaivedByStanding) || hostileByStanding) &&
+      !safePassage);
   const memory = requiredPortMemory(state, city);
   const storedLock = Number.isFinite(memory.disguiseLockUntilMinute)
     ? memory.disguiseLockUntilMinute
@@ -4669,6 +4674,7 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
     factionId,
     hostileByWar,
     hostileByStance,
+    hostileStanceWaivedByStanding,
     hostileByStanding,
     catholicContraband,
     hostileLocalStanding,

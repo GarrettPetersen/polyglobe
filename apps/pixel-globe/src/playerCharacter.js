@@ -6,6 +6,7 @@ import {
   factionById,
   isJapanesePolityFaction
 } from "./factions.js";
+import { imperialEstateForFaction } from "./imperialEstates.js";
 import {
   FUSTA_SLUG,
   JAPANESE_ATAKEBUNE_SLUG,
@@ -94,6 +95,7 @@ export function playerStartRegionForFaction(factionId) {
   if (EAST_ASIAN_FACTIONS.has(factionId)) return "east-asia";
   if (INDIAN_FACTIONS.has(factionId)) return "india";
   if (SOUTHEAST_ASIAN_FACTIONS.has(factionId)) return "southeast-asia";
+  if (imperialEstateForFaction(factionId)) return "europe";
   if (EUROPEAN_FACTIONS.has(factionId)) return "europe";
   throw new Error(`Faction cannot provide a player starter ship: ${factionId}`);
 }

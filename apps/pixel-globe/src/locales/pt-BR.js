@@ -473,7 +473,7 @@ export default {
   "good.arms": "Piques e lâminas",
   "good.gunpowder": "Pólvora",
   "good.matchlocks": "Arcabuzes",
-  "good.linenCloth": "Tecido de linho",
+  "good.linenCloth": "Lona de vela",
   "good.woolCloth": "Tecido de lã",
   "good.cottonCloth": "Tecido de algodão",
   "good.paper": "Papel",

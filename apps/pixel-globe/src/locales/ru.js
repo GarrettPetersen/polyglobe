@@ -473,7 +473,7 @@ export default {
   "good.arms": "Пики и клинки",
   "good.gunpowder": "Порох",
   "good.matchlocks": "Аркебузы",
-  "good.linenCloth": "Льняная ткань",
+  "good.linenCloth": "Парусина",
   "good.woolCloth": "Шерстяная ткань",
   "good.cottonCloth": "Хлопковая ткань",
   "good.paper": "Бумага",

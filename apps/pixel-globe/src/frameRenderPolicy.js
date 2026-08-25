@@ -17,7 +17,7 @@ export function shouldRenderFrame({
     .every(Number.isFinite) || renderCooldownMs < 0 || statusIntervalMs <= 0) {
     throw new Error("Frame render policy requires finite timing values");
   }
-  if (forceRender || (simulationPaused && (dirty || continuousAnimation))) return true;
+  if (forceRender) return true;
   const renderRequested = dirty || continuousAnimation ||
     (!simulationPaused && nowMs - lastStatusMs > statusIntervalMs);
   return renderRequested && nowMs - lastRenderCompletedAtMs >= renderCooldownMs;

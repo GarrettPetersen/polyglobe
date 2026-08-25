@@ -18,6 +18,7 @@ import {
   killExhaustedWhale,
   livingWhaleCountForSpecies,
   npcWhalingCooldownMinutes,
+  reconcileWhalePresentationIds,
   seedWhalePopulation,
   migrateWhaleMemory,
   tetherWhale,
@@ -122,6 +123,20 @@ test("background whale movement is staggered while active whales remain responsi
     activeWhaleIds: [whale.id]
   });
   assert.equal(whale.lifeSeconds, initialLifeSeconds + 0.75);
+});
+
+test("presentation reconciliation discards whales harvested by the distant simulation", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(40), 8);
+  const existingId = memory.individuals[0].id;
+  const reconciliation = reconcileWhalePresentationIds(memory, [
+    existingId,
+    "whale-harvested-offscreen",
+    existingId
+  ]);
+
+  assert.deepEqual(reconciliation.ids, [existingId]);
+  assert.deepEqual(reconciliation.staleIds, ["whale-harvested-offscreen"]);
 });
 
 test("submerged whales swim beneath ice and wait for open water before rising", () => {

@@ -5900,7 +5900,11 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
             { rowId }
           )] : []),
           ...(source ? [option(
-            waypointSet ? source.destinationName : `Set heading: ${source.destinationName} (${source.goodLabel})`,
+            waypointSet
+              ? source.destinationName
+              : source.accessible
+                ? `Set heading: ${source.destinationName} (${source.goodLabel})`
+                : `Set heading: ${source.destinationName} (${source.goodLabel}; harbor barred)`,
             {
               type: "set-port-heading",
               destinationTileId: source.destinationTileId,
@@ -5986,7 +5990,9 @@ function shipyardLedgerText(session, ledger, materialSources) {
     : "";
   const nearest = materialSources[0];
   const hint = nearest
-    ? ` The nearest known ${nearest.goodLabel.toLowerCase()} supply is at ${nearest.destinationName}.`
+    ? nearest.accessible
+      ? ` The nearest known ${nearest.goodLabel.toLowerCase()} supply is at ${nearest.destinationName}.`
+      : ` The nearest known ${nearest.goodLabel.toLowerCase()} supply is at ${nearest.destinationName}, though its harbor is barred to us.`
     : "";
   const status = missing.length > 0
     ? `The yard is short of ${shortage}.`
@@ -6039,8 +6045,8 @@ function shipyardMaterialSourceHints({
   const needed = materials.filter((material) => material.stockpileMissing > 0);
   const bestByGoodId = new Map();
   for (const destination of portCities) {
-    if (destination.tileId === originCity.tileId ||
-        !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
+    if (destination.tileId === originCity.tileId) continue;
+    const accessible = destinationAcceptsPlayerTrade(destination, gameState, simMinute);
     const available = needed
       .map((material) => ({
         material,
@@ -6054,7 +6060,7 @@ function shipyardMaterialSourceHints({
       throw new Error(`Shipyard supply sailing distance is invalid: ${distanceKm}`);
     }
     for (const { material, supply } of available) {
-      const candidate = { destination, distanceKm, ...supply };
+      const candidate = { destination, distanceKm, accessible, ...supply };
       const current = bestByGoodId.get(material.goodId);
       if (!current || shipyardSupplySourceComesFirst(candidate, current)) {
         bestByGoodId.set(material.goodId, candidate);
@@ -6068,20 +6074,23 @@ function shipyardMaterialSourceHints({
       goodLabel: tradeGoodById(material.goodId).label,
       destinationTileId: source.destination.tileId,
       destinationName: cityLabel(source.destination),
-      distanceKm: source.distanceKm
+      distanceKm: source.distanceKm,
+      accessible: source.accessible
     })] : [];
   }));
 }
 
 function shipyardSupplySourceComesFirst(candidate, current) {
-  return candidate.distanceKm < current.distanceKm ||
-    (candidate.distanceKm === current.distanceKm && (
+  return Number(candidate.accessible) > Number(current.accessible) ||
+    (candidate.accessible === current.accessible && (
+      candidate.distanceKm < current.distanceKm ||
+      (candidate.distanceKm === current.distanceKm && (
       Number(candidate.productionPerDay > 0) > Number(current.productionPerDay > 0) ||
       (Number(candidate.productionPerDay > 0) === Number(current.productionPerDay > 0) && (
         candidate.stock > current.stock ||
         (candidate.stock === current.stock && candidate.destination.tileId < current.destination.tileId)
       ))
-    ));
+    ))));
 }
 
 function shipyardPurchaseOffer(listing, gameState, context) {

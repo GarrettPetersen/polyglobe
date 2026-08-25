@@ -16,6 +16,7 @@ import {
   shoreBatteryCanFire,
   shoreBatteryDisabledNotice,
   shoreBatteryGunCount,
+  shoreBatteryHostileToFaction,
   shoreBatteryLevel,
   shoreBatteryMayDemandToll,
   shoreBatteryMayReceivePlayerPortableFire,
@@ -82,6 +83,18 @@ test("only fortified ports demand empire-wide passage tolls", () => {
   assert.equal(shoreBatteryMayDemandToll(city), true);
   assert.equal(shoreBatteryMayDemandToll({ ...city, population: 12000 }), false);
   assert.equal(shoreBatteryMayDemandToll({ ...city, population: 12000, isFactionCapital: true }), true);
+});
+
+test("a shore battery never targets a ship flying its own faction's flag", () => {
+  let diplomacyQueries = 0;
+  const relationBetween = () => {
+    diplomacyQueries += 1;
+    return "war";
+  };
+  assert.equal(shoreBatteryHostileToFaction(city, "ottoman", relationBetween), false);
+  assert.equal(diplomacyQueries, 0);
+  assert.equal(shoreBatteryHostileToFaction(city, "spanish", relationBetween), true);
+  assert.equal(diplomacyQueries, 1);
 });
 
 test("disabled shore batteries recover after three in-game days", () => {

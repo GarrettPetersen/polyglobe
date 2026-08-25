@@ -1890,6 +1890,7 @@ test("a western Patagonia fjord traversal repairs broad distortion without stall
         [-35.0, -95.0],
         [-42.0, -84.0],
         [-49.0, -78.0],
+        [-52.57, -76.71],
         [-53.5, -75.5],
         [-55.0, -70.0],
         [-52.2, -74.33],
@@ -1924,6 +1925,42 @@ test("a western Patagonia fjord traversal repairs broad distortion without stall
   );
   assertLandTraversalIsContinuous(result, "Western Patagonia crossing");
   assertTraversalRepairBurden(result, "Western Patagonia crossing", 35);
+});
+
+test("an English Channel passage stays below integrity telemetry limits", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [38.72, -9.14],
+        [43.0, -10.0],
+        [47.5, -5.5],
+        [49.06, -2.77],
+        [50.2, -1.0],
+        [50.95, 1.25],
+        [51.4, 2.5]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("english-channel", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `English Channel chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeGapPx <= 10,
+    `English Channel chart opened a ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
+  );
+  assertLandTraversalIsContinuous(result, "English Channel passage");
+  assertTraversalRepairBurden(result, "English Channel passage", 20);
 });
 
 test("a subantarctic passage east of New Zealand stays below integrity telemetry limits", () => {

@@ -8,6 +8,7 @@ import {
   hasPermanentCrewBerth,
   permanentCrewFloor,
   permanentCrewBerthsRemaining,
+  reconcileNamedCrewMember,
   removeNamedCrewMember,
   validateNamedCrew
 } from "./namedCrew.js";
@@ -92,6 +93,22 @@ test("named crew cannot be duplicated or silently removed", () => {
   assert.throws(() => addNamedCrewMember(value, character()), /already a named crewmate/);
   assert.equal(removeNamedCrewMember(value, "astrid").name, "Astrid");
   assert.deepEqual(validateNamedCrew(value.namedCrew), []);
+});
+
+test("quest recruitment can reconcile the same already-aboard crewmate without adding a berth", () => {
+  const value = state(3, 3);
+  const recruit = character();
+  addNamedCrewMember(value, recruit, undefined, { replaceGenericWhenFull: true });
+  const crewBefore = value.ship.crew;
+
+  const reconciled = reconcileNamedCrewMember(value, recruit, undefined, {
+    replaceGenericWhenFull: true
+  });
+
+  assert.equal(reconciled.added, false);
+  assert.equal(reconciled.member.id, recruit.id);
+  assert.equal(value.namedCrew.length, 1);
+  assert.equal(value.ship.crew, crewBefore);
 });
 
 test("casualties take unnamed crew, then named crew, then the captain", () => {

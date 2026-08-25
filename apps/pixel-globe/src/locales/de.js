@@ -473,7 +473,7 @@ export default {
   "good.arms": "Piken und Klingen",
   "good.gunpowder": "Schießpulver",
   "good.matchlocks": "Luntengewehre",
-  "good.linenCloth": "Leinentuch",
+  "good.linenCloth": "Segeltuch",
   "good.woolCloth": "Wolltuch",
   "good.cottonCloth": "Baumwolltuch",
   "good.paper": "Papier",

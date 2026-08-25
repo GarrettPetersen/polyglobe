@@ -999,6 +999,26 @@ test("war and deeply hostile standing bar entry while other ports remain open", 
   assert.equal(outlawAtHome.hostileByStanding, true);
 });
 
+test("trusted personal standing waives a hostile stance but never an actual war", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  adjustFactionReputation(
+    state,
+    "france",
+    TRADE_PASS_REPUTATION_REQUIRED - factionReputation(state, "france")
+  );
+
+  const wartime = portEntryStatus(state, CALAIS, 100);
+  assert.equal(wartime.hostileByWar, true);
+  assert.equal(wartime.allowed, false);
+
+  makeDiplomaticPeace(state.relations.diplomacy, "england", "france", 200);
+  const trusted = portEntryStatus(state, CALAIS, 200);
+  assert.equal(trusted.hostileByStance, true);
+  assert.equal(trusted.hostileStanceWaivedByStanding, true);
+  assert.equal(trusted.hostile, false);
+  assert.equal(trusted.allowed, true);
+});
+
 test("a vassal begrudgingly admits captains protected by its suzerain", () => {
   const state = createGameState({
     cargoCapacity: 10,

@@ -55,14 +55,14 @@ test("live world animation leaves a recovery interval after an expensive render"
   })), true);
 });
 
-test("paused UI changes and forced captures bypass the live-world recovery interval", () => {
+test("paused animation respects recovery while forced captures remain immediate", () => {
   assert.equal(shouldRenderFrame(frameState({
     simulationPaused: true,
     dirty: true,
     nowMs: 2000,
     lastRenderCompletedAtMs: 1999,
     renderCooldownMs: 30
-  })), true);
+  })), false);
   assert.equal(shouldRenderFrame(frameState({
     forceRender: true,
     nowMs: 2000,

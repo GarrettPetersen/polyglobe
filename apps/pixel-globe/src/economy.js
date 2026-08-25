@@ -13,6 +13,7 @@ import {
   worldShipyardHasPort
 } from "./shipyards.js";
 import { beaverSettlementProductionRate } from "./beaverEcology.js";
+import { cityCatalogId } from "./cityCatalogData.js";
 import { economyRegionForCity } from "./economyRegions.js";
 
 const MINUTES_PER_DAY = 24 * 60;
@@ -69,6 +70,10 @@ export const AMBER_GOOD_ID = "amber";
 export const FURS_GOOD_ID = "furs";
 export const BEESWAX_GOOD_ID = "beeswax";
 export const NAVAL_STORES_GOOD_ID = "naval-stores";
+// This stable save key predates the broader shipbuilding abstraction. Player-facing
+// text calls it sailcloth so flax canvas, Indian cotton, and Asian bast cloth can
+// supply the same yard requirement without rewriting existing cargo and yard saves.
+export const SAILCLOTH_GOOD_ID = "linen-cloth";
 export const PAPER_GOOD_ID = "paper";
 export const LACQUERWARE_GOOD_ID = "lacquerware";
 export const GINSENG_GOOD_ID = "ginseng";
@@ -135,7 +140,7 @@ export const TRADE_GOODS = Object.freeze([
     unitSize: 2,
     initialImportStockRatio: 0.08
   }),
-  good("linen-cloth", "Linen Cloth", 34, "textile", { unitSize: 2 }),
+  good(SAILCLOTH_GOOD_ID, "Sailcloth", 34, "textile", { unitSize: 2 }),
   good("wool-cloth", "Wool Cloth", 38, "textile", { unitSize: 2 }),
   good("cotton-cloth", "Cotton Cloth", 40, "textile", { unitSize: 2 }),
   good(PAPER_GOOD_ID, "Paper", 28, "manufactured", { unitSize: 2, initialImportStockRatio: 0.08 }),
@@ -676,6 +681,24 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("Florence", ["wool-cloth", "artwork"]),
   specialty("Seville", ["olive-oil", "wine"])
 ], "city specialties");
+
+const SHIPBUILDING_CITY_SPECIALTIES = uniqueMap([
+  canonicalSpecialty("Gent", "Belgium", [SAILCLOTH_GOOD_ID]),
+  canonicalSpecialty("Rouen", "France", [SAILCLOTH_GOOD_ID]),
+  canonicalSpecialty("Riga", "Russian Federation", [SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Venice", "Italy", [SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Lisbon", "Portugal", ["timber", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Bristol", "United Kingdom", ["timber", "iron"]),
+  canonicalSpecialty("Alexandria", "Egypt", [SAILCLOTH_GOOD_ID]),
+  canonicalSpecialty("Cambay", "India", ["timber", "iron", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Cochin", "India", ["timber", NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Calicut", "India", ["timber", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Kilwa", "Tanzania", ["timber", NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Nanjing", "China", ["timber", "iron", SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Fuzhou", "China", ["timber", NAVAL_STORES_GOOD_ID]),
+  canonicalSpecialty("Yamaguchi", "Japan", ["iron"]),
+  canonicalSpecialty("Malacca", "Malaysia", [SAILCLOTH_GOOD_ID, NAVAL_STORES_GOOD_ID])
+], "canonical shipbuilding city specialties");
 
 const CITY_DEMANDS = uniqueMap([
   // Urban fuel, salt boiling, brewing, and other heat-intensive trades—not later coke smelting.
@@ -1636,7 +1659,11 @@ function createPortState(port, seedKey) {
   if (!productionProfile || !demandProfile) {
     throw new Error(`No economy profile for region: ${economyRegion}`);
   }
-  const specialties = CITY_SPECIALTIES.get(normalizeName(port.city)) || [];
+  const canonicalCityId = port.cityId || cityCatalogId(port.city, port.country);
+  const specialties = [...new Set([
+    ...(CITY_SPECIALTIES.get(normalizeName(port.city)) || []),
+    ...(SHIPBUILDING_CITY_SPECIALTIES.get(canonicalCityId) || [])
+  ])];
   const cityDemandProfile = CITY_DEMANDS.get(normalizeName(port.city)) || {};
   const localSpiceSourceIds = new Set(TRADE_GOODS
     .filter((good) => good.category === "spice" && (
@@ -2370,6 +2397,13 @@ function rates(values) {
 function specialty(city, goodIds) {
   for (const goodId of goodIds) tradeGoodById(goodId);
   return [normalizeName(city), Object.freeze(goodIds.slice())];
+}
+
+function canonicalSpecialty(city, country, goodIds) {
+  if (!Array.isArray(goodIds) || goodIds.length === 0) {
+    throw new Error(`Canonical city specialty requires goods: ${city}, ${country}`);
+  }
+  return [cityCatalogId(city, country), Object.freeze([...goodIds])];
 }
 
 function cityRates(city, values) {

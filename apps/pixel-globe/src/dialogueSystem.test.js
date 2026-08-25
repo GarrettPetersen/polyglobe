@@ -5008,6 +5008,106 @@ test("owned shipyard supply hints are cached and can become named waypoints", ()
   assert.equal(timberHeading.rowId, "shipyard-material-timber");
 });
 
+test("shipyard hints prefer an open supplier but still name a barred last source", () => {
+  const city = {
+    tileId: 20,
+    city: "London",
+    displayCity: "London",
+    country: "United Kingdom",
+    cityType: "northern-european",
+    settlementType: "city",
+    population: 100000,
+    factionId: "england",
+    character: { name: "William Harcourt" }
+  };
+  const barredSource = {
+    ...city,
+    tileId: 21,
+    city: "Rouen",
+    displayCity: "Rouen",
+    country: "France",
+    population: 50000,
+    factionId: "france"
+  };
+  const openSource = {
+    ...city,
+    tileId: 22,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    factionId: "portugal"
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    shipStats: stats,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral"]
+    }
+  });
+  gameState.relations.diplomacy.overrides[diplomacyPairKey("england", "france")] =
+    DIPLOMACY_HOSTILE;
+  gameState.relations.factionReputation.france = 0;
+  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  const ports = [city, barredSource, openSource];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const yard = fundWorldEconomyShipyard(economy, city, {
+    investedMinute: 0,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  yard.materialInventory.timber = 100;
+  yard.materialInventory.iron = 100;
+  yard.materialInventory["naval-stores"] = 100;
+  yard.materialInventory["linen-cloth"] = 0;
+  economy.portStates.get(city.tileId).goods.get("linen-cloth").stock = 0;
+  for (const source of [barredSource, openSource]) {
+    const linen = economy.portStates.get(source.tileId).goods.get("linen-cloth");
+    linen.stock = 20;
+    linen.productionPerDay = 1;
+  }
+  const context = {
+    shipStats: stats,
+    shipyard: yard,
+    simMinute: 100,
+    portCities: ports,
+    sailingDistanceKm: (_origin, destination) => destination.tileId === barredSource.tileId ? 100 : 500
+  };
+  const openSession = createPortDialogueSession(city, {
+    initialNodeId: "shipyard",
+    shipyardLedgerTab: "materials",
+    admittedToPort: true
+  });
+  const openView = portDialogueView(openSession, city, gameState, economy, ports, context);
+  const preferred = openView.presentation.materialSources.find((source) => (
+    source.goodId === "linen-cloth"
+  ));
+  assert.equal(preferred.destinationName, "Lisbon");
+  assert.equal(preferred.accessible, true);
+
+  economy.portStates.get(openSource.tileId).goods.get("linen-cloth").stock = 0;
+  const barredSession = createPortDialogueSession(city, {
+    initialNodeId: "shipyard",
+    shipyardLedgerTab: "materials",
+    admittedToPort: true
+  });
+  const barredView = portDialogueView(barredSession, city, gameState, economy, ports, context);
+  const fallback = barredView.presentation.materialSources.find((source) => (
+    source.goodId === "linen-cloth"
+  ));
+  assert.equal(fallback.destinationName, "Rouen");
+  assert.equal(fallback.accessible, false);
+  const heading = barredView.options.find((entry) => (
+    entry.action.type === "set-port-heading" &&
+    entry.action.shipyardMaterialGoodId === "linen-cloth"
+  ));
+  assert.match(heading.label, /Rouen \(Sailcloth; harbor barred\)/);
+});
+
 test("a player-backed yard replaces the ordinary shipyard and keeps its finished hull purchasable", () => {
   const city = {
     tileId: 10,

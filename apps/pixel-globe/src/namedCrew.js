@@ -99,6 +99,28 @@ export function addNamedCrewMember(
   return entry;
 }
 
+export function reconcileNamedCrewMember(
+  state,
+  character,
+  role = NAMED_CREW_ROLE_CREWMATE,
+  options = {}
+) {
+  validateNamedCrewCharacter(character);
+  validateNamedCrewRole(role);
+  const existing = namedCrewMembers(state).find((member) => member.id === character.id) || null;
+  if (!existing) {
+    return Object.freeze({
+      member: addNamedCrewMember(state, character, role, options),
+      added: true
+    });
+  }
+  if (existing.name !== character.name || existing.sourceId !== character.sourceId ||
+      existing.role !== role) {
+    throw new Error(`Named crewmate reconciliation conflicts with ${character.id}`);
+  }
+  return Object.freeze({ member: existing, added: false });
+}
+
 export function removeNamedCrewMember(state, memberId) {
   const members = namedCrewMembers(state);
   const index = members.findIndex((member) => member.id === memberId);

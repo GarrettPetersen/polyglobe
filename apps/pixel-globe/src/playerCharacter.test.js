@@ -7,10 +7,12 @@ import {
   generatePlayerStartingProfile,
   playerStarterShipForFaction,
   playerStartAreaForPort,
+  playerStartRegionForFaction,
   playerHomePortPools,
   resolvePlayerCharacterIdentityKey,
   selectPlayerHomePort
 } from "./playerCharacter.js";
+import { IMPERIAL_ESTATES_1522 } from "./imperialEstates.js";
 import { npcFleetOriginWeightsForPorts } from "./npcSeaRoutes.js";
 import { JAPANESE_SHIP_SLUGS, shipStatsForSlug } from "./shipStats.js";
 
@@ -127,6 +129,13 @@ test("Japanese captains use local hulls for every campaign start", () => {
   assert.ok(kobaya.cargoCapacity >= shipStatsForSlug("japanese-kuribune").cargoCapacity);
   assert.equal(kobaya.cannons, 0);
   assert.ok(shipStatsForSlug("japanese-atakebune").cannons > 0);
+});
+
+test("every Imperial Estate can start a European voyage", () => {
+  for (const estate of IMPERIAL_ESTATES_1522) {
+    assert.equal(playerStartRegionForFaction(estate.factionId), "europe", estate.factionId);
+    assert.equal(playerStarterShipForFaction(estate.factionId), "fishing-lugger", estate.factionId);
+  }
 });
 
 test("a Hospitaller captain receives the European regional starter roster", () => {

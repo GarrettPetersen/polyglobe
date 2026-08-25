@@ -473,7 +473,7 @@ export default {
   "good.arms": "창과 도검",
   "good.gunpowder": "화약",
   "good.matchlocks": "조총",
-  "good.linenCloth": "아마포",
+  "good.linenCloth": "돛천",
   "good.woolCloth": "모직물",
   "good.cottonCloth": "면직물",
   "good.paper": "종이",

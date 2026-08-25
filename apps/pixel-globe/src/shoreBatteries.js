@@ -1,4 +1,5 @@
 import { applyCrewCasualties, crewWoundsForceSurrender } from "./combatWounds.js";
+import { DIPLOMACY_WAR } from "./factions.js";
 
 export const SHORE_BATTERY_DISABLE_DAYS = 3;
 export const SHORE_BATTERY_DISABLE_MINUTES = SHORE_BATTERY_DISABLE_DAYS * 24 * 60;
@@ -10,6 +11,23 @@ export const SHORE_BATTERY_CREW_PROTECTION = 65;
 export const SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE = 0.25;
 export const SHORE_BATTERY_NOTICE_RADIUS_PX = 148;
 export const SHORE_BATTERY_MAX_LEVEL = 4;
+
+export function shoreBatteryHostileToFaction(city, targetFactionId, relationBetween, cache = null) {
+  assertCity(city);
+  assertFactionId(targetFactionId);
+  if (typeof relationBetween !== "function") {
+    throw new Error("Shore battery hostility requires a diplomacy resolver");
+  }
+  if (cache !== null && !(cache instanceof Map)) {
+    throw new Error("Shore battery hostility cache must be a map");
+  }
+  if (city.factionId === targetFactionId) return false;
+  const key = `${city.factionId}|${targetFactionId}`;
+  if (cache?.has(key)) return cache.get(key);
+  const hostile = relationBetween(city.factionId, targetFactionId) === DIPLOMACY_WAR;
+  cache?.set(key, hostile);
+  return hostile;
+}
 
 export function shoreBatteryPlayerEngagementRange({
   batteryRangePx,

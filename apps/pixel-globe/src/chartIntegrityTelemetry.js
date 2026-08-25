@@ -1,6 +1,7 @@
 export const CHART_INTEGRITY_SEVERE_CONFIRMATION_MS = 10_000;
 export const CHART_INTEGRITY_ACTIVE_REPAIR_CONFIRMATION_MS = 20_000;
 export const CHART_INTEGRITY_CATASTROPHIC_CONFIRMATION_MS = 3_000;
+export const CHART_INTEGRITY_CATASTROPHIC_REPAIR_CONFIRMATION_MS = 10_000;
 
 const SEVERE = Object.freeze({
   rotationDeg: 8,
@@ -85,10 +86,12 @@ export function observeChartIntegrityTelemetry(monitor, sample) {
     monitor.worstFault = fault;
   }
   const activeRepair = !["none", "pending"].includes(normalized.repairKind);
-  const confirmationMs = fault.severity === "catastrophic"
-    ? CHART_INTEGRITY_CATASTROPHIC_CONFIRMATION_MS
-    : activeRepair
-      ? CHART_INTEGRITY_ACTIVE_REPAIR_CONFIRMATION_MS
+  const confirmationMs = activeRepair
+    ? fault.severity === "catastrophic"
+      ? CHART_INTEGRITY_CATASTROPHIC_REPAIR_CONFIRMATION_MS
+      : CHART_INTEGRITY_ACTIVE_REPAIR_CONFIRMATION_MS
+    : fault.severity === "catastrophic"
+      ? CHART_INTEGRITY_CATASTROPHIC_CONFIRMATION_MS
       : CHART_INTEGRITY_SEVERE_CONFIRMATION_MS;
   const durationMs = normalized.nowMs - monitor.unhealthySinceMs;
   if (durationMs < confirmationMs || severityRank(fault.severity) <= severityRank(monitor.reportedSeverity)) {

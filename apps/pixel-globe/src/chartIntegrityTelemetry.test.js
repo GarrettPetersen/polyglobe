@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CHART_INTEGRITY_ACTIVE_REPAIR_CONFIRMATION_MS,
   CHART_INTEGRITY_CATASTROPHIC_CONFIRMATION_MS,
+  CHART_INTEGRITY_CATASTROPHIC_REPAIR_CONFIRMATION_MS,
   CHART_INTEGRITY_SEVERE_CONFIRMATION_MS,
   chartIntegrityIncidentError,
   chartIntegrityTelemetryStats,
@@ -84,13 +85,29 @@ test("catastrophic coast compression reports quickly with tile context", () => {
   assert.match(chartIntegrityIncidentError(incident).message, /tear -40\.00px coast \[12:13\]/);
 });
 
+test("an emergency repair gets a short grace period but cannot mask a catastrophic fault", () => {
+  const monitor = createChartIntegrityTelemetryMonitor();
+  const fault = { rmsDistortionPx: 25, repairKind: "closing-fog" };
+  assert.equal(observeChartIntegrityTelemetry(monitor, sample(0, fault)), null);
+  assert.equal(observeChartIntegrityTelemetry(
+    monitor,
+    sample(CHART_INTEGRITY_CATASTROPHIC_CONFIRMATION_MS, fault)
+  ), null);
+  const incident = observeChartIntegrityTelemetry(
+    monitor,
+    sample(CHART_INTEGRITY_CATASTROPHIC_REPAIR_CONFIRMATION_MS, fault)
+  );
+  assert.equal(incident.category, "rms-distortion");
+  assert.equal(incident.severity, "catastrophic");
+});
+
 test("persistent viewport voids are distinguished from geometric tears", () => {
   const monitor = createChartIntegrityTelemetryMonitor();
   const fault = { viewportInteriorGapPx: 130, repairKind: "closing-fog" };
   observeChartIntegrityTelemetry(monitor, sample(0, fault));
   const incident = observeChartIntegrityTelemetry(
     monitor,
-    sample(CHART_INTEGRITY_CATASTROPHIC_CONFIRMATION_MS, fault)
+    sample(CHART_INTEGRITY_CATASTROPHIC_REPAIR_CONFIRMATION_MS, fault)
   );
   assert.equal(incident.category, "viewport-interior-void");
   assert.equal(incident.repairKind, "closing-fog");

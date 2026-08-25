@@ -473,7 +473,7 @@ export default {
   "good.arms": "Piki i klingi",
   "good.gunpowder": "Proch",
   "good.matchlocks": "Arkebuzy",
-  "good.linenCloth": "Płótno lniane",
+  "good.linenCloth": "Płótno żaglowe",
   "good.woolCloth": "Sukno wełniane",
   "good.cottonCloth": "Tkanina bawełniana",
   "good.paper": "Papier",

@@ -124,6 +124,30 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Set heading: {0} ({1}; harbor barred)": Object.freeze({
+    "zh-Hans": "设定航向：{0}（{1}；港口禁止入内）",
+    ru: "Проложить курс: {0} ({1}; вход в гавань запрещён)",
+    es: "Trazar rumbo: {0} ({1}; acceso al puerto prohibido)",
+    "pt-BR": "Traçar rumo: {0} ({1}; entrada no porto proibida)",
+    ja: "針路を設定：{0}（{1}、入港禁止）",
+    de: "Kurs setzen: {0} ({1}; Hafeneinfahrt verwehrt)",
+    fr: "Mettre le cap : {0} ({1} ; accès au port interdit)",
+    pl: "Wyznacz kurs: {0} ({1}; wstęp do portu wzbroniony)",
+    "zh-Hant": "設定航向：{0}（{1}；港口禁止入內）",
+    ko: "침로 설정: {0} ({1}, 입항 금지)"
+  }),
+  "The nearest known {0} supply is at {1}, though its harbor is barred to us.": Object.freeze({
+    "zh-Hans": "已知最近的{0}货源在{1}，但该港不准我们入内。",
+    ru: "Ближайший известный запас {0} находится в {1}, но вход в эту гавань нам запрещён.",
+    es: "El suministro conocido de {0} más cercano está en {1}, aunque se nos prohíbe entrar en su puerto.",
+    "pt-BR": "O suprimento conhecido de {0} mais próximo fica em {1}, embora a entrada naquele porto nos seja proibida.",
+    ja: "最も近い既知の{0}の供給地は{1}ですが、その港への入港は禁じられています。",
+    de: "Der nächste bekannte Vorrat an {0} liegt in {1}, doch die Hafeneinfahrt ist uns verwehrt.",
+    fr: "La source connue de {0} la plus proche se trouve à {1}, mais l'entrée de ce port nous est interdite.",
+    pl: "Najbliższy znany zapas {0} znajduje się w {1}, lecz wstęp do tamtejszego portu jest nam wzbroniony.",
+    "zh-Hant": "已知最近的{0}貨源在{1}，但該港不准我們入內。",
+    ko: "가장 가까운 {0} 공급지는 {1}이지만, 그 항구에는 들어갈 수 없습니다."
+  }),
   ...reviewedWarLoanOverrides(),
   ...reviewedWhaleRamOverrides(),
   "Petition for a capture warrant": Object.freeze({

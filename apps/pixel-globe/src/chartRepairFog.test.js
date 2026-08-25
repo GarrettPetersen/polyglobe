@@ -5,6 +5,8 @@ import {
   CHART_FOG_INCREMENTAL_REPAIR_DENSITY,
   CHART_FOG_REPAIR_BEGIN_CONCEALMENT,
   CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY,
+  CHART_REPAIR_FOG_URGENT_CLEARING_MS,
+  CHART_REPAIR_FOG_URGENT_FORMATION_MS,
   chartFogConcealsCircleForRepair,
   chartFogObscuresCircle,
   chartFogPixelDensity,
@@ -82,6 +84,27 @@ test("slow repair fog begins settling its visible edge before distortion telemet
     0,
     "early repair fog must leave the player neighborhood clear"
   );
+});
+
+test("urgent repair fog covers faulty edge tiles on the catastrophic telemetry clock", () => {
+  const fog = createChartRepairFog({
+    nowMs: 0,
+    viewportWidth: 504,
+    viewportHeight: 256,
+    focusX: 252,
+    focusY: 128,
+    urgent: true
+  });
+  const frame = chartRepairFogFrame(fog, 3_000);
+  const edgeSamples = [];
+  for (let x = 0; x <= 504; x += 14) edgeSamples.push([x, 0], [x, 256]);
+  for (let y = 0; y <= 256; y += 14) edgeSamples.push([0, y], [504, y]);
+
+  assert.equal(fog.formationDurationMs, CHART_REPAIR_FOG_URGENT_FORMATION_MS);
+  assert.equal(fog.clearingDurationMs, CHART_REPAIR_FOG_URGENT_CLEARING_MS);
+  assert.equal(frame.repairReady, true);
+  assert.ok(edgeSamples.some(([x, y]) => chartFogConcealsCircleForRepair(frame, x, y, 0)));
+  assert.equal(chartFogPixelDensity(frame, frame.focusX, frame.focusY), 0);
 });
 
 test("repair fog has a stable ragged pixel edge rather than a perfect circle", () => {

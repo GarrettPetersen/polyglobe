@@ -173,6 +173,40 @@ test("Baghdad is a Safavid Mesopotamian entrepot with a full market", () => {
   }
 });
 
+test("shipbuilding materials have historically grounded sources beyond Europe", () => {
+  const expectedProduction = new Map([
+    ["Alexandria|Egypt", ["linen-cloth"]],
+    ["Cambay|India", ["timber", "iron", "linen-cloth", NAVAL_STORES_GOOD_ID]],
+    ["Cochin|India", ["timber", NAVAL_STORES_GOOD_ID]],
+    ["Calicut|India", ["timber", "linen-cloth", NAVAL_STORES_GOOD_ID]],
+    ["Kilwa|Tanzania", ["timber", NAVAL_STORES_GOOD_ID]],
+    ["Nanjing|China", ["timber", "iron", "linen-cloth", NAVAL_STORES_GOOD_ID]],
+    ["Fuzhou|China", ["timber", NAVAL_STORES_GOOD_ID]],
+    ["Yamaguchi|Japan", ["iron"]],
+    ["Malacca|Malaysia", ["linen-cloth", NAVAL_STORES_GOOD_ID]]
+  ]);
+  const ports = [...expectedProduction.keys()].map((key, index) => {
+    const [cityName, country] = key.split("|");
+    const city = CITY_CATALOG.find((candidate) => (
+      candidate.city === cityName && candidate.country === country
+    ));
+    assert.ok(city, `${key} should remain in the city catalog`);
+    return { ...city, tileId: 2000 + index };
+  });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+
+  for (const [key, goodIds] of expectedProduction) {
+    const [cityName, country] = key.split("|");
+    const city = ports.find((candidate) => (
+      candidate.city === cityName && candidate.country === country
+    ));
+    const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
+    for (const goodId of goodIds) {
+      assert.ok(market.get(goodId).productionPerDay > 0, `${key} should produce ${goodId}`);
+    }
+  }
+});
+
 test("voyage seeds vary initial markets while remaining deterministic", () => {
   const first = createWorldEconomy({
     ports: [LONDON, GOA, TERNATE],

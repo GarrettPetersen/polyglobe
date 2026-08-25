@@ -608,6 +608,7 @@ import {
   hasPermanentCrewBerth,
   namedCrewMembers,
   permanentCrewFloor,
+  reconcileNamedCrewMember,
   removeNamedCrewMember
 } from "./namedCrew.js";
 import {
@@ -750,6 +751,7 @@ import {
   exhaustTetheredWhale,
   killExhaustedWhale,
   livingWhaleCountForSpecies,
+  reconcileWhalePresentationIds,
   seedWhalePopulation,
   tetherWhale,
   underwaterWhaleSongPresence,
@@ -1457,6 +1459,7 @@ import {
   clearShoreBatteryCombatWounds,
   shoreBatteryCanFire,
   shoreBatteryDisabledNotice,
+  shoreBatteryHostileToFaction,
   shoreBatteryId,
   shoreBatteryIsDisabled,
   shoreBatteryMayDemandToll,
@@ -1943,14 +1946,12 @@ import {
 } from "./waypointArrowUi.js";
 import {
   HAJJ_PASSENGER_SCENARIO_ID,
-  PASSENGER_ROLL_PERIOD_MINUTES,
   activeNamedTravelMission,
   activeTravelMissionQuest,
   markPassengerOfferSeen,
   passengerOfferForCity,
   passengerQuestById,
   pendingPassengerOffersForCity,
-  previewTravelMissionOffersForCities,
   travelMissionOffersForCity
 } from "./passengerMissions.js";
 import {
@@ -3657,7 +3658,6 @@ let caribbeanGingerPlanter;
 let banquetChef;
 let naturalistCharacter;
 let lastPortPortraitPreloadAtMs = -Infinity;
-const portTravelMissionPortraitPreviews = new Map();
 const preloadedPortPortraitKeyByTileId = new Map();
 const papalNuncioPreviewCharacters = new Map();
 const hospitallerNuncioPreviewCharacters = new Map();
@@ -6651,7 +6651,7 @@ function updateAdaptiveVisualDensity(elapsedSeconds) {
   if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
     throw new Error(`Adaptive visual density received invalid elapsed time: ${elapsedSeconds}`);
   }
-  if (document.visibilityState === "hidden" || elapsedSeconds === 0 || elapsedSeconds > 1) return;
+  if (document.visibilityState === "hidden" || elapsedSeconds === 0) return;
   const frameMs = elapsedSeconds * 1000;
   const target = frameMs <= ADAPTIVE_VISUAL_DENSITY_FULL_FRAME_MS
     ? 1
@@ -8593,16 +8593,28 @@ function campaignGoalContactCharacter() {
   return campaignGoalContact;
 }
 
-function playerPortraitSourceExclusions(playerCharacter) {
+function playerPortraitSourceExclusions(playerCharacter, otherCharacters = []) {
   if (typeof playerCharacter?.sourceId !== "string" || playerCharacter.sourceId === "") {
     throw new Error("Player character has no portrait source to reserve");
   }
-  return [playerCharacter.sourceId];
+  if (!Array.isArray(otherCharacters)) throw new Error("Portrait exclusions require characters");
+  const sourceIds = [playerCharacter.sourceId];
+  for (const character of otherCharacters) {
+    if (typeof character?.sourceId !== "string" || character.sourceId === "") {
+      throw new Error("Aboard character has no portrait source to reserve");
+    }
+    sourceIds.push(character.sourceId);
+  }
+  return [...new Set(sourceIds)];
+}
+
+function aboardPortraitSourceExclusions(state) {
+  return playerPortraitSourceExclusions(state.playerCharacter, namedCrewMembers(state));
 }
 
 function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = []) {
   if (!Array.isArray(permanentNamedCrew)) throw new Error("Port character assignment requires named crew");
-  const playerSourceIds = playerPortraitSourceExclusions(playerCharacter);
+  const playerSourceIds = playerPortraitSourceExclusions(playerCharacter, permanentNamedCrew);
   colonizationOrganizer = null;
   colonizationOrganizerQuestKey = null;
   conquistadorQuestGiver = null;
@@ -8612,7 +8624,6 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   banquetChef = null;
   naturalistCharacter = null;
   lastPortPortraitPreloadAtMs = -Infinity;
-  portTravelMissionPortraitPreviews.clear();
   preloadedPortPortraitKeyByTileId.clear();
   papalNuncioPreviewCharacters.clear();
   hospitallerNuncioPreviewCharacters.clear();
@@ -12839,7 +12850,7 @@ function stageCaptureCompanions(sequence) {
   const captive = generatePirateCaptiveCharacter({
     identityKey: sourceId,
     homePort: home,
-    excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+    excludedSourceIds: aboardPortraitSourceExclusions(gameState),
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
@@ -15548,6 +15559,18 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
   if (typeof includeWorldTraffic !== "boolean") {
     throw new Error("Save voyage world-traffic option must be boolean");
   }
+  // An event can request another save while the previous payload is still being
+  // serialized. Rebuilding and cloning the whole voyage on the main thread made
+  // these harmless bursts look like multi-second freezes on two-core browsers.
+  // Coalesce ordinary saves and materialize the newest live state when the active
+  // write completes. Full traffic saves retain their explicit frozen snapshot.
+  if (localSaveWriteActive && !includeWorldTraffic) {
+    if (pendingLocalSaveWrite?.includeWorldTraffic !== true) {
+      pendingLocalSaveWrite = { payload: null, reason, includeWorldTraffic: false };
+    }
+    lastAutosaveMs = performance.now();
+    return true;
+  }
   const saveStartedAtMs = performance.now();
   try {
     repairLivePlayerCargoOverflow(`before save: ${reason}`);
@@ -15630,6 +15653,9 @@ function queueLocalSaveWrite(
     snapshotErrors
   };
   if (localSaveWriteActive) {
+    if (!includeWorldTraffic) {
+      throw new Error("Ordinary save reached the write queue instead of being coalesced");
+    }
     pendingLocalSaveWrite = {
       ...request,
       payload: structuredClone(payload)
@@ -15658,7 +15684,11 @@ function startLocalSaveWrite(request) {
     if (!pendingLocalSaveWrite) return;
     const next = pendingLocalSaveWrite;
     pendingLocalSaveWrite = null;
-    startLocalSaveWrite(next);
+    if (next.payload) {
+      startLocalSaveWrite(next);
+    } else {
+      saveVoyageNow(next.reason, { includeWorldTraffic: next.includeWorldTraffic });
+    }
   });
 }
 
@@ -22927,7 +22957,7 @@ function applyDialogueOption(optionIndex) {
         ...quest.character,
         goal: "Build a new life with this crew"
       };
-      addNamedCrewMember(gameState, recruitedCharacter, undefined, {
+      reconcileNamedCrewMember(gameState, recruitedCharacter, undefined, {
         replaceGenericWhenFull: true
       });
       completeRescuedTravelerQuest(memory, quest.id);
@@ -24028,13 +24058,6 @@ function createPassengerCharacterForQuest({ quest, origin, destination, scenario
   );
 }
 
-function createPassengerPortraitPreviewForQuest({ quest, origin, destination, scenario }) {
-  return generatePassengerQuestCharacter(
-    { quest, origin, destination, scenario },
-    new Set(usedCharacterNames)
-  );
-}
-
 function generatePassengerQuestCharacter({ quest, origin, destination, scenario }, names) {
   return generatePassengerCharacter({
     identityKey: quest.id,
@@ -24582,10 +24605,15 @@ function activeWhalePresentationExists(nowMs) {
 }
 
 function responsiveWhaleMovementIds() {
-  const ids = new Set(responsiveWhaleIds);
-  const activeWhaleId = gameState?.memory?.whales?.activeHunt?.whaleId;
-  if (activeWhaleId) ids.add(activeWhaleId);
-  return [...ids];
+  const reconciliation = reconcileWhalePresentationIds(
+    gameState.memory.whales,
+    [...responsiveWhaleIds]
+  );
+  for (const whaleId of reconciliation.staleIds) {
+    responsiveWhaleIds.delete(whaleId);
+    whaleVisualPresentations.delete(whaleId);
+  }
+  return [...reconciliation.ids];
 }
 
 function takeWhaleSimulationElapsed() {
@@ -26049,7 +26077,8 @@ function maybeStartChartVisualRepair(nowMs, drift) {
       viewportWidth: SCREEN_W,
       viewportHeight: SCREEN_H,
       focusX: SCREEN_W / 2,
-      focusY: SCREEN_H / 2
+      focusY: SCREEN_H / 2,
+      urgent: repair.confirmationMs === 0
     });
     chartRepairFog = {
       animation,
@@ -33951,7 +33980,12 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
         if (match.distanceSquared > range * range) continue;
         const npc = match.entry.value;
         if (npc.combatGrace || npc.hitPoints <= 0) continue;
-        if (shoreBatteryHostileToFaction(city, npc.factionId, hostilityByFactionPair)) {
+        if (shoreBatteryHostileToFaction(
+          city,
+          npc.factionId,
+          currentDiplomacyBetween,
+          hostilityByFactionPair
+        )) {
           nextTargets.add(npc.id);
         }
       }
@@ -33983,15 +34017,6 @@ function ensureShoreBatteryState(city) {
     shoreBatteryStates.set(id, state);
   }
   return state;
-}
-
-function shoreBatteryHostileToFaction(city, factionId, cache = null) {
-  if (!factionId || city.factionId === factionId) return false;
-  const key = `${city.factionId}|${factionId}`;
-  if (cache?.has(key)) return cache.get(key);
-  const hostile = currentDiplomacyBetween(city.factionId, factionId) === DIPLOMACY_WAR;
-  if (cache) cache.set(key, hostile);
-  return hostile;
 }
 
 function openShoreBatteryCombatHail(city, state, entryStatus) {
@@ -35293,7 +35318,7 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
   const captive = generatePirateCaptiveCharacter({
     identityKey,
     homePort,
-    excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+    excludedSourceIds: aboardPortraitSourceExclusions(gameState),
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
@@ -35302,7 +35327,7 @@ function maybeOpenPirateCaptiveQuest(pirateShipId, surrenderPrize = null) {
         identityKey,
         captive,
         homePort,
-        excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+        excludedSourceIds: aboardPortraitSourceExclusions(gameState),
         manifest: characterPortraitManifest,
         usedNames: usedCharacterNames
       })
@@ -35356,7 +35381,7 @@ function maybeOpenCastawayQuest(shoreCall) {
   const castaway = generateCastawayCharacter({
     identityKey: encounterId,
     homePort,
-    excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+    excludedSourceIds: aboardPortraitSourceExclusions(gameState),
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
   });
@@ -35365,7 +35390,7 @@ function maybeOpenCastawayQuest(shoreCall) {
         identityKey: encounterId,
         castaway,
         homePort,
-        excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+        excludedSourceIds: aboardPortraitSourceExclusions(gameState),
         manifest: characterPortraitManifest,
         usedNames: usedCharacterNames
       })
@@ -60758,40 +60783,18 @@ function preloadNearbyPortPortraits(nowMs) {
     if (!dockable) continue;
     nearbyPortCalls.push(cityCall);
   }
-  const previewKey = travelMissionPortraitPreviewKey();
   const cityCall = nearbyPortCalls.find((candidate) => (
-    preloadedPortPortraitKeyByTileId.get(candidate.tileId) !== previewKey
+    preloadedPortPortraitKeyByTileId.get(candidate.tileId) !==
+      `${gameState.playerCharacter.id}|${candidate.character?.id || "missing"}`
   ));
   if (!cityCall) return;
-  if (cityCall.isPirateHideout !== true &&
-      portTravelMissionPortraitPreviews.get(cityCall.tileId)?.key !== previewKey) {
-    const previews = previewTravelMissionOffersForCities(
-      gameState,
-      [cityCall],
-      playerAccessiblePortCities(),
-      travelMissionOfferContext(createPassengerPortraitPreviewForQuest)
-    );
-    portTravelMissionPortraitPreviews.set(cityCall.tileId, {
-      key: previewKey,
-      offers: previews.get(cityCall.tileId) || []
-    });
-  }
-  preloadDialogueCharacters(portDialoguePortraitCharacters(
-    cityCall,
-    cityCall.isPirateHideout === true
-      ? []
-      : portTravelMissionPortraitPreviews.get(cityCall.tileId)?.offers || []
-  ));
-  preloadedPortPortraitKeyByTileId.set(cityCall.tileId, previewKey);
-}
-
-function travelMissionPortraitPreviewKey() {
-  const quests = gameState.memory.quests;
-  return [
-    Math.floor(weatherClockMinutes / PASSENGER_ROLL_PERIOD_MINUTES),
-    quests.active?.id || "none",
-    quests.passengerActive?.id || "none"
-  ].join("|");
+  const preloadKey = `${gameState.playerCharacter.id}|${cityCall.character?.id || "missing"}`;
+  preloadDialogueCharacters(portDialoguePortraitPreloadCharacters({
+    playerCharacter: gameState.playerCharacter,
+    portCharacter: cityCall.character,
+    dockable: true
+  }));
+  preloadedPortPortraitKeyByTileId.set(cityCall.tileId, preloadKey);
 }
 
 function preloadDialogueCharacters(characters) {
@@ -60799,117 +60802,6 @@ function preloadDialogueCharacters(characters) {
     if (portraitFrameStore.has(key) || portraitPromiseCache.has(key)) continue;
     dialoguePortraitImage(character, expression);
   }
-}
-
-function portDialoguePortraitCharacters(cityCall, previewTravelMissions = []) {
-  if (!Array.isArray(previewTravelMissions)) {
-    throw new Error("Port dialogue portrait preload requires a travel mission preview array");
-  }
-  const characters = portDialoguePortraitPreloadCharacters({
-    playerCharacter: gameState.playerCharacter,
-    portCharacter: cityCall.character,
-    dockable: cityCall.isPirateHideout === true || portCitiesByTileId.has(cityCall.tileId)
-  });
-  if (characters.length === 0) return characters;
-  const add = (character) => {
-    if (character) characters.push(character);
-  };
-
-  for (const character of namedCrewMembers(gameState)) add(character);
-  const activeTravelMission = activeTravelMissionQuest(gameState);
-  const passengerQuests = [
-    ...(activeTravelMission && questHasDestination(activeTravelMission, cityCall)
-      ? [activeTravelMission]
-      : []),
-    ...previewTravelMissions
-  ].filter((quest, index, quests) => quests.findIndex((entry) => entry.id === quest.id) === index);
-  for (const quest of passengerQuests) {
-    add(quest.passenger);
-    if (
-      quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
-      quest.destinationTileId === cityCall.tileId &&
-      gameState.memory.quests.passengerActive?.id === quest.id
-    ) {
-      add(ensureNpcShipCaptain(ningboRivalDelegationShip(quest, "courier").id));
-    }
-  }
-
-  const rescuedTraveler = rescuedTravelerAtHome(cityCall);
-  if (rescuedTraveler) {
-    add(rescuedTraveler.character);
-    add(rescuedTraveler.familyMember);
-  }
-  for (const character of formerRescuedTravelerCharactersAtPort(
-    rescuedTravelerQuestMemories(),
-    cityCall.tileId
-  )) add(character);
-
-  const campaignGoal = gameState.memory.campaignGoal;
-  if (campaignGoal?.homePortTileId === cityCall.tileId) add(campaignGoalContactCharacter());
-
-  const naturalistMemory = gameState.memory.quests.naturalist;
-  if (naturalistMemory?.portTileId === cityCall.tileId) {
-    add(ensureNaturalistCharacter(gameState));
-    const naturalistAnimalIds = new Set([
-      ...availableAnimalNaturalistOfferIds(gameState.memory.animalCompanions),
-      ...animalNaturalistGreetingIds(gameState.memory.animalCompanions, { includeSeen: true })
-    ]);
-    for (const companionId of naturalistAnimalIds) add(animalCompanionCharacter(companionId));
-  }
-  for (const companionId of aboardAnimalCompanionIds(gameState.memory.animalCompanions)) {
-    add(animalCompanionCharacter(companionId));
-  }
-
-  const colonization = colonizationQuestView(gameState, { currentMinute: Math.max(0, weatherClockMinutes) });
-  if (colonization.target && [
-    colonization.origin?.tileId,
-    colonization.approval?.tileId,
-    colonization.target?.tileId
-  ].includes(cityCall.tileId)) {
-    const binding = bindColonizationQuestSelection(gameState);
-    add(ensureColonizationOrganizer(gameState, binding.origin));
-  }
-  if (japaneseMatchlockQuestState(gameState, cityCall)) add(ensureJapaneseMatchlockGunsmith(gameState));
-  if (caribbeanGingerQuestState(gameState, cityCall)) add(ensureCaribbeanGingerPlanter(gameState));
-  if (chefQuestState(gameState, cityCall)) add(ensureBanquetChef(gameState, cityCall));
-
-  const conquistador = gameState.memory.quests.conquistador;
-  if (conquistador && conquistadorQuestShouldAppearAtCity(conquistador, cityCall, portCities)) {
-    add(ensureConquistadorQuestGiver(gameState));
-  }
-
-  for (const character of papalPortDialogueCharacters(cityCall)) add(character);
-  for (const character of hospitallerPortDialogueCharacters(cityCall)) add(character);
-  return characters;
-}
-
-function papalPortDialogueCharacters(cityCall) {
-  const matter = papalPendingMatter(gameState.relations.papacy);
-  if (!matter) return [];
-  if (matter.status === PAPAL_MATTER_COMMISSIONED) {
-    const objective = papalCommissionObjective(gameState.relations.papacy);
-    return objective?.destination?.tileId === cityCall.tileId
-      ? [matter.commission.nuncio]
-      : [];
-  }
-  const offersAtRome = cityCall.factionId === "papal-states" &&
-    portMatchesCanonicalReference(cityCall, CANONICAL_PORTS.ROME) &&
-    matter.playerOfferStatus === null &&
-    papalCommissionItinerary(matter);
-  return offersAtRome ? [generatePapalNuncio(matter, cityCall)] : [];
-}
-
-function hospitallerPortDialogueCharacters(cityCall) {
-  refreshHospitallerMaltaQuestState();
-  const memory = gameState.memory.quests.hospitallerMalta;
-  if ([HOSPITALLER_MALTA_STAGE_LOCKED, HOSPITALLER_MALTA_STAGE_COMPLETED].includes(memory.stage)) {
-    return [];
-  }
-  const objective = hospitallerMaltaQuestObjective(memory);
-  if (objective?.destination?.tileId !== cityCall.tileId) return [];
-  return memory.stage === HOSPITALLER_MALTA_STAGE_SEEK_ROME
-    ? [generateHospitallerMaltaNuncio(memory, cityCall)]
-    : memory.envoy ? [memory.envoy] : [];
 }
 
 async function ensureCharacterPortraitLoaded(character, expression) {

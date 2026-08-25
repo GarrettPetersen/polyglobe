@@ -473,7 +473,7 @@ export default {
   "good.arms": "長矛與刀劍",
   "good.gunpowder": "火藥",
   "good.matchlocks": "火繩槍",
-  "good.linenCloth": "亞麻布",
+  "good.linenCloth": "帆布",
   "good.woolCloth": "呢絨",
   "good.cottonCloth": "棉布",
   "good.paper": "紙張",

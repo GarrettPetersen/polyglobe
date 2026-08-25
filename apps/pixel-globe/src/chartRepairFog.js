@@ -5,6 +5,8 @@ export const CHART_FOG_REDRAW_CONCEALMENT = 0.82;
 export const CHART_FOG_REPAIR_BEGIN_CONCEALMENT = 0.01;
 export const CHART_FOG_INCREMENTAL_REPAIR_DENSITY = 0.2;
 export const CHART_REPAIR_FOG_MAX_OVERLAY_OPACITY = 0.72;
+export const CHART_REPAIR_FOG_URGENT_FORMATION_MS = 20_000;
+export const CHART_REPAIR_FOG_URGENT_CLEARING_MS = 45_000;
 const POLAR_REPAIR_FOG_RELEASE_LATITUDE_DEG = 54;
 const POLAR_REPAIR_FOG_CLEAR_LATITUDE_DEG = 42;
 
@@ -13,7 +15,8 @@ export function createChartRepairFog({
   viewportWidth,
   viewportHeight,
   focusX,
-  focusY
+  focusY,
+  urgent = false
 }) {
   for (const [label, value] of Object.entries({
     nowMs,
@@ -27,6 +30,7 @@ export function createChartRepairFog({
   if (viewportWidth <= 0 || viewportHeight <= 0) {
     throw new Error("Chart repair fog requires a non-empty viewport");
   }
+  if (typeof urgent !== "boolean") throw new Error("Chart repair fog urgency must be boolean");
   const fadeBandPx = 42;
   const initialClearMarginPx = 12;
   const maximumClearRadius = Math.max(
@@ -35,9 +39,9 @@ export function createChartRepairFog({
     Math.hypot(focusX, viewportHeight - focusY),
     Math.hypot(viewportWidth - focusX, viewportHeight - focusY)
   ) + initialClearMarginPx;
-  const formationDurationMs = 100_000;
+  const formationDurationMs = urgent ? CHART_REPAIR_FOG_URGENT_FORMATION_MS : 100_000;
   const holdDurationMs = 8_000;
-  const clearingDurationMs = 120_000;
+  const clearingDurationMs = urgent ? CHART_REPAIR_FOG_URGENT_CLEARING_MS : 120_000;
   return Object.freeze({
     startedAtMs: nowMs,
     durationMs: formationDurationMs + holdDurationMs + clearingDurationMs,

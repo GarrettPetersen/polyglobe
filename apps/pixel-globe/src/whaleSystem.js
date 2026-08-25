@@ -650,6 +650,29 @@ export function whaleById(memory, whaleId) {
   return whale;
 }
 
+export function reconcileWhalePresentationIds(memory, whaleIds) {
+  validateWhaleMemory(memory);
+  if (!Array.isArray(whaleIds) || whaleIds.some((id) => typeof id !== "string" || id === "")) {
+    throw new Error("Whale presentation reconciliation requires whale ids");
+  }
+  const index = whaleIndex(memory);
+  const ids = [];
+  const staleIds = [];
+  for (const whaleId of new Set(whaleIds)) {
+    if (index.has(whaleId)) ids.push(whaleId);
+    else staleIds.push(whaleId);
+  }
+  const activeWhaleId = memory.activeHunt?.whaleId || null;
+  if (activeWhaleId !== null && !index.has(activeWhaleId)) {
+    throw new Error(`Active whale hunt references a missing whale: ${activeWhaleId}`);
+  }
+  if (activeWhaleId !== null && !ids.includes(activeWhaleId)) ids.push(activeWhaleId);
+  return Object.freeze({
+    ids: Object.freeze(ids),
+    staleIds: Object.freeze(staleIds)
+  });
+}
+
 export function livingWhaleCountForSpecies(memory, speciesId) {
   validateWhaleMemory(memory);
   whaleSpeciesById(speciesId);
