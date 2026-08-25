@@ -1085,17 +1085,15 @@ export function applyNpcSeaRouteSimulationSnapshot(
   system.capitalNavalReserveSlots = snapshot.capitalNavalReserveSlots.map((slot) => (
     validateCapitalNavalReserveSlot({ ...slot })
   ));
-  reconcileCapitalNavalReserveShipsWithSnapshot(
-    system.capitalNavalReserveSlots,
-    ships
-  );
+  reconcileCapitalNavalReserveShipsWithSnapshot(system, ships);
+  reconcileCapitalNavalReservePortsAfterOwnershipChange(system, new Set());
   validateCapitalNavalReserveAssignments(system);
   system.pirateHideoutDangerUntil = danger;
   return system;
 }
 
-function reconcileCapitalNavalReserveShipsWithSnapshot(slots, ships) {
-  const slotIds = new Set(slots.map((slot) => slot.id));
+function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {
+  const slotIds = new Set(system.capitalNavalReserveSlots.map((slot) => slot.id));
   for (const ship of ships) {
     if (ship.capitalNavalReserveSlotId === null || slotIds.has(ship.capitalNavalReserveSlotId)) {
       continue;
@@ -1107,7 +1105,11 @@ function reconcileCapitalNavalReserveShipsWithSnapshot(slots, ships) {
     ship.capitalNavalReserveSlotId = null;
     ship.capitalNavalReserveDestinationPortId = null;
     ship.capitalNavalReserveDocked = false;
-    ship.replaceOnSink = true;
+    ship.replaceOnSink = Boolean(npcControlledNavalBaseForShipOrNull(
+      system,
+      ship,
+      ship.portResponse?.returnPortId ?? null
+    ));
   }
 }
 
@@ -1549,18 +1551,7 @@ export function applyNpcConquestOwnership(
   for (const slot of system.capitalNavalReserveSlots) {
     slot.factionId = factionSuccessors.get(slot.factionId) || slot.factionId;
   }
-  const removedSlotIds = new Set(system.capitalNavalReserveSlots
-    .filter((slot) => collapsedFactionIds.has(slot.factionId))
-    .map((slot) => slot.id));
-  system.capitalNavalReserveSlots = system.capitalNavalReserveSlots.filter((slot) => (
-    !removedSlotIds.has(slot.id)
-  ));
-  for (const ship of system.ships) {
-    if (removedSlotIds.has(ship.capitalNavalReserveSlotId)) {
-      ship.capitalNavalReserveSlotId = null;
-      ship.replaceOnSink = true;
-    }
-  }
+  reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsedFactionIds);
   reconcileNpcPortResponseThreats(system, system.economy.lastMinute);
   validateCapitalNavalReserveAssignments(system);
   synchronizeExpansionistWarshipFleets(system, system.economy.lastMinute, collapsedFactionIds);
@@ -1866,13 +1857,20 @@ function capitalNavalReservePort(ports, factionId, profileId = null) {
   if (!Array.isArray(ports) || ports.length === 0) {
     throw new Error(`Capital naval reserve has no controlled port for ${factionId}`);
   }
+  const selected = capitalNavalReservePortOrNull(ports, factionId, profileId);
+  if (!selected) {
+    throw new Error(`Capital naval reserve has no naval mobilization port for ${factionId}`);
+  }
+  return selected;
+}
+
+function capitalNavalReservePortOrNull(ports, factionId, profileId = null) {
+  if (!Array.isArray(ports)) throw new Error(`Invalid capital naval reserve ports for ${factionId}`);
   const requiredProfile = profileId === null ? null : fleetProfileForId(profileId);
   const eligiblePorts = ports.filter((port) => (
     requiredProfile ? requiredProfile.portPredicate(port) : capitalNavalReserveProfileOrNull(port)
   ));
-  if (eligiblePorts.length === 0) {
-    throw new Error(`Capital naval reserve has no naval mobilization port for ${factionId}`);
-  }
+  if (eligiblePorts.length === 0) return null;
   const capitals = eligiblePorts.filter((port) => port.capitalOfFactionId === factionId);
   const candidates = capitals.length > 0 ? capitals : eligiblePorts;
   return [...candidates].sort((a, b) => (
@@ -1880,6 +1878,72 @@ function capitalNavalReservePort(ports, factionId, profileId = null) {
     Number(b.population || 0) - Number(a.population || 0) ||
     a.tileId - b.tileId
   ))[0];
+}
+
+function reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsedFactionIds) {
+  const removedSlotIds = new Set();
+  const retiredShipIds = new Set();
+  for (const slot of system.capitalNavalReserveSlots) {
+    const profileSpec = fleetProfileForId(slot.profileId);
+    const storedOrigin = system.ports.find((port) => port.tileId === slot.originPortId);
+    const originRemainsUsable = !collapsedFactionIds.has(slot.factionId) &&
+      storedOrigin?.factionId === slot.factionId && npcRoutePortAcceptsTraffic(storedOrigin) &&
+      profileSpec.portPredicate(storedOrigin);
+    if (originRemainsUsable) continue;
+
+    const controlledPorts = system.ports.filter((port) => (
+      port.factionId === slot.factionId && npcRoutePortAcceptsTraffic(port)
+    ));
+    const replacement = collapsedFactionIds.has(slot.factionId)
+      ? null
+      : capitalNavalReservePortOrNull(controlledPorts, slot.factionId, slot.profileId);
+    if (!replacement) {
+      removedSlotIds.add(slot.id);
+      continue;
+    }
+
+    slot.originPortId = replacement.tileId;
+    if (slot.shipSlug !== null) {
+      slot.shipSlug = null;
+      slot.stockedMinute = null;
+      slot.sourceSaleId = null;
+    }
+    if (slot.activeShipId === null) continue;
+    const ship = system.shipById.get(slot.activeShipId);
+    if (!ship || ship.capitalNavalReserveSlotId !== slot.id) {
+      throw new Error(`Capital naval reserve lost its active ship while rebasing: ${slot.id}`);
+    }
+    if (ship.capitalNavalReserveDocked) {
+      slot.activeShipId = null;
+      ship.capitalNavalReserveSlotId = null;
+      ship.capitalNavalReserveDestinationPortId = null;
+      ship.capitalNavalReserveDocked = false;
+      retiredShipIds.add(ship.id);
+      continue;
+    }
+    if (ship.portResponse) ship.portResponse.returnPortId = replacement.tileId;
+    if (ship.capitalNavalReserveDestinationPortId !== null) {
+      ship.capitalNavalReserveDestinationPortId = replacement.tileId;
+      ship.finalDestination = replacement;
+    }
+  }
+
+  for (const ship of system.ships) {
+    if (!removedSlotIds.has(ship.capitalNavalReserveSlotId)) continue;
+    ship.capitalNavalReserveSlotId = null;
+    ship.capitalNavalReserveDestinationPortId = null;
+    ship.capitalNavalReserveDocked = false;
+    ship.replaceOnSink = false;
+    if (!ship.portResponse || ship.portResponse.phase === "returning") {
+      retiredShipIds.add(ship.id);
+    }
+  }
+  if (removedSlotIds.size > 0) {
+    system.capitalNavalReserveSlots = system.capitalNavalReserveSlots.filter((slot) => (
+      !removedSlotIds.has(slot.id)
+    ));
+  }
+  retireNpcShipsWithoutReplacement(system, retiredShipIds);
 }
 
 function capitalNavalReserveProfile(origin) {
@@ -2340,21 +2404,59 @@ function reconcileNpcPortResponseThreats(system, clockMinutes) {
 function orderNpcPortResponseReturn(system, ship) {
   const response = ship.portResponse;
   if (!response || response.phase !== "responding") return false;
-  const controlledPorts = system.ports.filter((port) => (
-    port.factionId === ship.factionId && npcRoutePortAcceptsTraffic(port)
-  ));
-  if (controlledPorts.length === 0) return false;
   let returnPort;
   if (ship.capitalNavalReserveSlotId) {
     const slot = requiredCapitalNavalReserveSlot(system, ship.capitalNavalReserveSlotId);
     returnPort = activeCapitalNavalReservePort(system, slot);
     ship.capitalNavalReserveDestinationPortId = returnPort.tileId;
   } else {
-    returnPort = capitalNavalReservePort(controlledPorts, ship.factionId);
+    returnPort = npcPortResponseReturnPortOrNull(system, ship);
+    if (!returnPort) {
+      retireNpcShipsWithoutReplacement(system, new Set([ship.id]));
+      return true;
+    }
   }
   response.phase = "returning";
   response.returnPortId = returnPort.tileId;
   ship.finalDestination = returnPort;
+  return true;
+}
+
+function npcPortResponseReturnPortOrNull(system, ship) {
+  const response = ship.portResponse;
+  if (!response) throw new Error(`NPC response ship has no response order: ${ship.id}`);
+  return npcControlledNavalBaseForShipOrNull(system, ship, response.returnPortId);
+}
+
+function npcControlledNavalBaseForShipOrNull(system, ship, preferredPortId = null) {
+  if (preferredPortId !== null && !Number.isInteger(preferredPortId)) {
+    throw new Error(`Invalid preferred NPC naval base for ${ship.id}: ${preferredPortId}`);
+  }
+  const profileSpec = fleetProfileForId(ship.profileId);
+  const controlledPorts = system.ports.filter((port) => (
+    port.factionId === ship.factionId && npcRoutePortAcceptsTraffic(port) &&
+    profileSpec.portPredicate(port)
+  ));
+  const orderedReturnPort = controlledPorts.find((port) => port.tileId === preferredPortId);
+  return orderedReturnPort || capitalNavalReservePortOrNull(
+    controlledPorts,
+    ship.factionId,
+    ship.profileId
+  );
+}
+
+function retireNpcShipsWithoutReplacement(system, shipIds) {
+  if (!(shipIds instanceof Set)) throw new Error("Retired NPC ships require an id set");
+  if (shipIds.size === 0) return false;
+  for (const shipId of shipIds) {
+    const ship = system.shipById.get(shipId);
+    if (!ship) throw new Error(`Retired NPC ship is missing: ${shipId}`);
+    if (ship.capitalNavalReserveSlotId !== null) {
+      throw new Error(`Retired NPC ship still occupies a reserve slot: ${shipId}`);
+    }
+    system.shipById.delete(shipId);
+  }
+  system.ships = system.ships.filter((ship) => !shipIds.has(ship.id));
   return true;
 }
 
@@ -3082,6 +3184,11 @@ function validateCapitalNavalReserveAssignments(system) {
     slotIds.add(slot.id);
     const origin = system.ports.find((port) => port.tileId === slot.originPortId);
     if (!origin) throw new Error(`Capital naval reserve port is missing: ${slot.id}`);
+    const profileSpec = fleetProfileForId(slot.profileId);
+    if (origin.factionId !== slot.factionId || !npcRoutePortAcceptsTraffic(origin) ||
+        !profileSpec.portPredicate(origin)) {
+      throw new Error(`Capital naval reserve port is unusable: ${slot.id}`);
+    }
     if (slot.activeShipId === null) continue;
     if (activeShipIds.has(slot.activeShipId)) {
       throw new Error(`Duplicate active capital reserve ship: ${slot.activeShipId}`);

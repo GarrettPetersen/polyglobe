@@ -765,6 +765,135 @@ test("an inland capital mobilizes its finite naval reserve from an explicit coas
   assert.ok(inca.slots.every((slot) => slot.shipSlug === "mesoamerican-dugout-canoe"));
 });
 
+test("a surviving inland realm retires a reserve response after losing its only naval base", () => {
+  const economy = createWorldEconomy({ ports: INCA_PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: INCA_PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, {
+    factionId: "inca",
+    targetPortId: 36,
+    reason: NPC_PORT_RESPONSE_BURNING,
+    clockMinutes: 0,
+    threatUntilMinute: 1
+  });
+  assert.ok(response.shipId);
+
+  applyNpcConquestOwnership(
+    routes,
+    new Map(INCA_PORTS.map((entry) => [
+      entry.tileId,
+      entry.tileId === 36 ? "spain" : entry.factionId
+    ])),
+    new Set()
+  );
+  assert.equal(npcCapitalNavalReserveStatus(routes, "inca").targetCount, 0);
+  const detached = routes.shipById.get(response.shipId);
+  assert.equal(detached.capitalNavalReserveSlotId, null);
+  assert.equal(detached.replaceOnSink, false);
+  assert.equal(detached.portResponse.phase, "responding");
+
+  const workerSnapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  applyNpcSeaRouteSimulationSnapshot(routes, workerSnapshot);
+  updateNpcSeaRouteSystem(routes, 1);
+
+  assert.equal(routes.shipById.has(response.shipId), false);
+  assert.equal(routes.ships.some((ship) => ship.portResponse?.factionId === "inca"), false);
+});
+
+test("a reserve rebases to another compatible naval port after its storehouse is captured", () => {
+  const porto = Object.freeze(port(
+    37,
+    "Porto",
+    "Portugal",
+    "mediterranean",
+    41.16,
+    -8.63,
+    40000,
+    "portugal"
+  ));
+  const ports = Object.freeze([...PORTS, porto]);
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+  const before = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.ok(before.slots.every((slot) => slot.originPortId === 1));
+
+  applyNpcConquestOwnership(
+    routes,
+    new Map(ports.map((entry) => [
+      entry.tileId,
+      entry.tileId === 1 ? "spain" : entry.factionId
+    ])),
+    new Set()
+  );
+
+  const rebased = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.equal(rebased.targetCount, before.targetCount);
+  assert.ok(rebased.slots.every((slot) => slot.originPortId === porto.tileId));
+  assert.equal(rebased.stockedCount, 0);
+  assert.equal(rebased.vacantCount, rebased.targetCount);
+});
+
+test("every initial reserve faction tolerates losing all naval bases while retaining inland rule", () => {
+  const templateEconomy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const templateRoutes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy: templateEconomy
+  });
+  const factionIds = [...new Set(templateRoutes.capitalNavalReserveSlots.map((slot) => slot.factionId))];
+  assert.ok(factionIds.length >= 5);
+
+  for (const [index, factionId] of factionIds.entries()) {
+    const inlandCapital = Object.freeze({
+      ...INCA_PORTS.find((entry) => entry.tileId === 35),
+      tileId: 1000 + index,
+      city: `${factionId} inland court`,
+      displayCity: `${factionId} inland court`,
+      population: 1,
+      factionId,
+      capitalOfFactionId: factionId
+    });
+    const ports = Object.freeze([...PORTS, inlandCapital]);
+    const economy = createWorldEconomy({ ports, startMinute: 0 });
+    const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+    const slot = routes.capitalNavalReserveSlots.find((candidate) => (
+      candidate.factionId === factionId
+    ));
+    assert.ok(slot, `${factionId} starts with a naval reserve`);
+    const response = orderNpcPortResponse(routes, {
+      factionId,
+      targetPortId: slot.originPortId,
+      reason: NPC_PORT_RESPONSE_BURNING,
+      clockMinutes: 0,
+      threatUntilMinute: 1
+    });
+
+    applyNpcConquestOwnership(
+      routes,
+      new Map(ports.map((entry) => [
+        entry.tileId,
+        entry.factionId === factionId && entry.tileId !== inlandCapital.tileId
+          ? "neutral"
+          : entry.factionId
+      ])),
+      new Set()
+    );
+    const workerSnapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+    applyNpcSeaRouteSimulationSnapshot(routes, workerSnapshot);
+    updateNpcSeaRouteSystem(routes, 1);
+
+    assert.equal(
+      npcCapitalNavalReserveStatus(routes, factionId).targetCount,
+      0,
+      `${factionId} has no reserve without a naval base`
+    );
+    assert.equal(
+      routes.shipById.has(response.shipId),
+      false,
+      `${factionId} retires the unsupported response ship`
+    );
+  }
+});
+
 test("a burning port activates one reserve sortie and the same port loss escalates that order", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

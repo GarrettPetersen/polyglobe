@@ -3658,6 +3658,7 @@ let banquetChef;
 let naturalistCharacter;
 let lastPortPortraitPreloadAtMs = -Infinity;
 const portTravelMissionPortraitPreviews = new Map();
+const preloadedPortPortraitKeyByTileId = new Map();
 const papalNuncioPreviewCharacters = new Map();
 const hospitallerNuncioPreviewCharacters = new Map();
 let queuedCharacterAlertSteps = [];
@@ -8612,6 +8613,7 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   naturalistCharacter = null;
   lastPortPortraitPreloadAtMs = -Infinity;
   portTravelMissionPortraitPreviews.clear();
+  preloadedPortPortraitKeyByTileId.clear();
   papalNuncioPreviewCharacters.clear();
   hospitallerNuncioPreviewCharacters.clear();
   usedCharacterNames = new Set([playerCharacter.name]);
@@ -9325,7 +9327,11 @@ function ensureAmbientLoopStarted(loop) {
   loop.startAttempting = true;
   loop.audio.currentTime = 0;
   loop.audio.playbackRate = randomizedSfxPlaybackRate();
-  applyThemeAudioSettings();
+  setAudioElementMuted(loop.audio, optionsMenu.muted);
+  setAudioElementVolume(
+    loop.audio,
+    optionsMenu.muted ? 0 : optionsMenu.sfxVolume * loop.currentVolume
+  );
   const playPromise = loop.audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise
@@ -9355,7 +9361,11 @@ function ensureAmbientPlaylistStarted(playlist, nowMs) {
   playlist.startAttempting = true;
   audio.currentTime = 0;
   audio.playbackRate = randomizedSfxPlaybackRate();
-  applyThemeAudioSettings();
+  setAudioElementMuted(audio, optionsMenu.muted);
+  setAudioElementVolume(
+    audio,
+    optionsMenu.muted ? 0 : optionsMenu.sfxVolume * playlist.currentVolume
+  );
   const playPromise = audio.play();
   if (playPromise && typeof playPromise.catch === "function") {
     playPromise
@@ -9684,6 +9694,10 @@ function playAchievementDingSound() {
 
 function updateAmbientAudio(dt) {
   if (!soundEffects) return;
+  if (startMenu) {
+    silenceAmbientAudioForStartMenu();
+    return;
+  }
   ambientAudioUpdateAccumulator = Math.min(
     AMBIENT_AUDIO_UPDATE_INTERVAL_SECONDS * 2,
     ambientAudioUpdateAccumulator + dt
@@ -9804,6 +9818,43 @@ function updateAmbientAudio(dt) {
   ) || changed;
   if (changed) applyAmbientAudioSettings();
   applyThemeMusicSettings();
+}
+
+function silenceAmbientAudioForStartMenu() {
+  const activeLoops = ambientSoundLoops().filter((loop) => (
+    loop.started || loop.currentVolume > 0 || loop.targetVolume > 0
+  ));
+  const activePlaylists = ambientSoundPlaylists().filter((playlist) => (
+    playlist.currentTrack || playlist.currentVolume > 0 || playlist.targetVolume > 0
+  ));
+  if (activeLoops.length === 0 && activePlaylists.length === 0 &&
+      ambientAudioContext === null && ambientAudioWildlife === null) {
+    return;
+  }
+  for (const loop of activeLoops) {
+    loop.audio.pause();
+    loop.started = false;
+    loop.currentVolume = 0;
+    loop.targetVolume = 0;
+  }
+  for (const playlist of activePlaylists) {
+    if (playlist.currentTrack) {
+      playlist.currentTrack.pause();
+      playlist.currentTrack.currentTime = 0;
+    }
+    playlist.currentTrack = null;
+    playlist.currentIndex = -1;
+    playlist.currentVolume = 0;
+    playlist.targetVolume = 0;
+    playlist.nextStartMs = lastFrameMs + SFX_WHALE_SONG_MIN_GAP_MS;
+  }
+  ambientAudioUpdateAccumulator = 0;
+  ambientAudioContextAccumulator = 0;
+  ambientAudioWildlifeAccumulator = 0;
+  ambientAudioContext = null;
+  ambientAudioWildlife = null;
+  advanceRowingCadence(rowingCadenceState, { active: false, dt: 0, periodSeconds: 1 });
+  applyAmbientAudioSettings();
 }
 
 function updateRowingStrokeAudio(dt, active) {
@@ -60707,33 +60758,31 @@ function preloadNearbyPortPortraits(nowMs) {
     if (!dockable) continue;
     nearbyPortCalls.push(cityCall);
   }
-  const offerOrigins = nearbyPortCalls.filter((cityCall) => cityCall.isPirateHideout !== true);
   const previewKey = travelMissionPortraitPreviewKey();
-  const uncachedOrigins = offerOrigins.filter((cityCall) => (
-    portTravelMissionPortraitPreviews.get(cityCall.tileId)?.key !== previewKey
+  const cityCall = nearbyPortCalls.find((candidate) => (
+    preloadedPortPortraitKeyByTileId.get(candidate.tileId) !== previewKey
   ));
-  if (uncachedOrigins.length > 0) {
+  if (!cityCall) return;
+  if (cityCall.isPirateHideout !== true &&
+      portTravelMissionPortraitPreviews.get(cityCall.tileId)?.key !== previewKey) {
     const previews = previewTravelMissionOffersForCities(
       gameState,
-      uncachedOrigins,
+      [cityCall],
       playerAccessiblePortCities(),
       travelMissionOfferContext(createPassengerPortraitPreviewForQuest)
     );
-    for (const cityCall of uncachedOrigins) {
-      portTravelMissionPortraitPreviews.set(cityCall.tileId, {
-        key: previewKey,
-        offers: previews.get(cityCall.tileId) || []
-      });
-    }
+    portTravelMissionPortraitPreviews.set(cityCall.tileId, {
+      key: previewKey,
+      offers: previews.get(cityCall.tileId) || []
+    });
   }
-  for (const cityCall of nearbyPortCalls) {
-    preloadDialogueCharacters(portDialoguePortraitCharacters(
-      cityCall,
-      cityCall.isPirateHideout === true
-        ? []
-        : portTravelMissionPortraitPreviews.get(cityCall.tileId)?.offers || []
-    ));
-  }
+  preloadDialogueCharacters(portDialoguePortraitCharacters(
+    cityCall,
+    cityCall.isPirateHideout === true
+      ? []
+      : portTravelMissionPortraitPreviews.get(cityCall.tileId)?.offers || []
+  ));
+  preloadedPortPortraitKeyByTileId.set(cityCall.tileId, previewKey);
 }
 
 function travelMissionPortraitPreviewKey() {
