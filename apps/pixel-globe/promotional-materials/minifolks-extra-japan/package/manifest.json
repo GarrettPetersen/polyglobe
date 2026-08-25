@@ -1,0 +1,283 @@
+{
+  "pack": "MiniFolks Extra: Japan",
+  "units": [
+    {
+      "name": "MiniSamurai",
+      "canvas": [
+        32,
+        32
+      ],
+      "animations": [
+        {
+          "name": "idle",
+          "row": 0,
+          "frames": 4
+        },
+        {
+          "name": "walk",
+          "row": 1,
+          "frames": 6
+        },
+        {
+          "name": "jump",
+          "row": 2,
+          "frames": 4
+        },
+        {
+          "name": "attack",
+          "row": 3,
+          "frames": 7
+        },
+        {
+          "name": "hit",
+          "row": 4,
+          "frames": 4
+        },
+        {
+          "name": "death",
+          "row": 5,
+          "frames": 5
+        }
+      ]
+    },
+    {
+      "name": "MiniRonin",
+      "canvas": [
+        32,
+        32
+      ],
+      "animations": [
+        {
+          "name": "idle",
+          "row": 0,
+          "frames": 4
+        },
+        {
+          "name": "walk",
+          "row": 1,
+          "frames": 6
+        },
+        {
+          "name": "jump",
+          "row": 2,
+          "frames": 4
+        },
+        {
+          "name": "attack",
+          "row": 3,
+          "frames": 7
+        },
+        {
+          "name": "hit",
+          "row": 4,
+          "frames": 4
+        },
+        {
+          "name": "death",
+          "row": 5,
+          "frames": 5
+        }
+      ]
+    },
+    {
+      "name": "MiniNinja",
+      "canvas": [
+        32,
+        32
+      ],
+      "animations": [
+        {
+          "name": "idle",
+          "row": 0,
+          "frames": 4
+        },
+        {
+          "name": "walk",
+          "row": 1,
+          "frames": 6
+        },
+        {
+          "name": "jump",
+          "row": 2,
+          "frames": 4
+        },
+        {
+          "name": "attack",
+          "row": 3,
+          "frames": 7
+        },
+        {
+          "name": "hit",
+          "row": 4,
+          "frames": 4
+        },
+        {
+          "name": "death",
+          "row": 5,
+          "frames": 5
+        }
+      ]
+    },
+    {
+      "name": "MiniYariAshigaru",
+      "canvas": [
+        32,
+        32
+      ],
+      "animations": [
+        {
+          "name": "idle",
+          "row": 0,
+          "frames": 4
+        },
+        {
+          "name": "walk",
+          "row": 1,
+          "frames": 6
+        },
+        {
+          "name": "jump",
+          "row": 2,
+          "frames": 4
+        },
+        {
+          "name": "attack",
+          "row": 3,
+          "frames": 8
+        },
+        {
+          "name": "hit",
+          "row": 4,
+          "frames": 4
+        },
+        {
+          "name": "death",
+          "row": 5,
+          "frames": 6
+        }
+      ]
+    },
+    {
+      "name": "MiniTeppoAshigaru",
+      "canvas": [
+        32,
+        32
+      ],
+      "animations": [
+        {
+          "name": "idle",
+          "row": 0,
+          "frames": 4
+        },
+        {
+          "name": "walk",
+          "row": 1,
+          "frames": 6
+        },
+        {
+          "name": "jump",
+          "row": 2,
+          "frames": 4
+        },
+        {
+          "name": "attack",
+          "row": 3,
+          "frames": 8
+        },
+        {
+          "name": "hit",
+          "row": 4,
+          "frames": 4
+        },
+        {
+          "name": "death",
+          "row": 5,
+          "frames": 6
+        }
+      ]
+    },
+    {
+      "name": "MiniYumiSamurai",
+      "canvas": [
+        32,
+        32
+      ],
+      "animations": [
+        {
+          "name": "idle",
+          "row": 0,
+          "frames": 4
+        },
+        {
+          "name": "walk",
+          "row": 1,
+          "frames": 6
+        },
+        {
+          "name": "jump",
+          "row": 2,
+          "frames": 4
+        },
+        {
+          "name": "attack",
+          "row": 3,
+          "frames": 9
+        },
+        {
+          "name": "hit",
+          "row": 4,
+          "frames": 4
+        },
+        {
+          "name": "death",
+          "row": 5,
+          "frames": 5
+        }
+      ]
+    },
+    {
+      "name": "MiniHorseSamurai",
+      "canvas": [
+        32,
+        32
+      ],
+      "animations": [
+        {
+          "name": "idle",
+          "row": 0,
+          "frames": 8
+        },
+        {
+          "name": "walk",
+          "row": 1,
+          "frames": 6
+        },
+        {
+          "name": "walk2",
+          "row": 2,
+          "frames": 6
+        },
+        {
+          "name": "jump",
+          "row": 3,
+          "frames": 4
+        },
+        {
+          "name": "attack",
+          "row": 4,
+          "frames": 8
+        },
+        {
+          "name": "damage",
+          "row": 5,
+          "frames": 3
+        },
+        {
+          "name": "death",
+          "row": 6,
+          "frames": 7
+        }
+      ]
+    }
+  ]
+}
