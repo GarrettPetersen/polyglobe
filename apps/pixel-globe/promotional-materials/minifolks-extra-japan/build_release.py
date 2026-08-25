@@ -278,13 +278,13 @@ def create_itch_cover(
     )
 
     poses = {
-        "MiniSamurai": ("attack", 2),
-        "MiniRonin": ("attack", 4),
-        "MiniNinja": ("jump", 1),
-        "MiniYariAshigaru": ("attack", 5),
-        "MiniTeppoAshigaru": ("attack", 4),
-        "MiniYumiSamurai": ("attack", 5),
-        "MiniHorseSamurai": ("walk2", 2),
+        "MiniSamurai": ("idle", 0),
+        "MiniRonin": ("idle", 0),
+        "MiniNinja": ("idle", 0),
+        "MiniYariAshigaru": ("idle", 0),
+        "MiniTeppoAshigaru": ("idle", 0),
+        "MiniYumiSamurai": ("idle", 0),
+        "MiniHorseSamurai": ("idle", 0),
     }
     positions = {
         "MiniSamurai": (12, 94),
