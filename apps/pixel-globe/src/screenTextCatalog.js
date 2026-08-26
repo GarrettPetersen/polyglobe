@@ -2318,7 +2318,6 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "one month",
   "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops",
   "One rail-mounted light gun can turn in any direction and rake an exposed deck.",
-  "Only one unit fits or is affordable; use Buy 1.",
   "Open the shipyard",
   "opened campaign goal",
   "opened to trade",

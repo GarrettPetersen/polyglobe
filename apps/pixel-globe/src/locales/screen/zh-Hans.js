@@ -2318,7 +2318,6 @@ export default Object.freeze({
   "one month": "一个月",
   "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops": "日本十六世纪末最伟大的军舰之一，为士兵和导弹部队携带城堡般的战斗设施",
   "One rail-mounted light gun can turn in any direction and rake an exposed deck.": "一把安装在轨道上的光枪可以向任何方向转动并扫掠暴露的甲板。",
-  "Only one unit fits or is affordable; use Buy 1.": "只有一套适合或负担得起；使用购买 1。",
   "Open the shipyard": "开造船厂",
   "opened campaign goal": "打开的活动目标",
   "opened to trade": "开放交易",

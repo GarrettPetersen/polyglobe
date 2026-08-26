@@ -17,6 +17,49 @@ const RELATION_TEXT_COLORS = Object.freeze({
 });
 
 export const POLITICS_DEPENDENCY_TEXT_COLOR = "#2e222f";
+export const POLITICS_PAGE_JUMP = 5;
+
+export function politicsPagerButtonLayout({
+  panelX,
+  panelWidth,
+  pagerY,
+  buttonWidth,
+  buttonHeight,
+  panelPadding = 12,
+  buttonGap = 2
+}) {
+  for (const [label, value] of Object.entries({
+    panelX,
+    panelWidth,
+    pagerY,
+    buttonWidth,
+    buttonHeight,
+    panelPadding,
+    buttonGap
+  })) {
+    if (!Number.isInteger(value) || value < 0) {
+      throw new Error(`Politics pager ${label} must be a non-negative integer: ${value}`);
+    }
+  }
+  if (panelWidth === 0 || buttonWidth === 0 || buttonHeight === 0) {
+    throw new Error("Politics pager dimensions must be positive");
+  }
+  const groupWidth = buttonWidth * 3 + buttonGap * 2;
+  if (panelWidth < panelPadding * 2 + groupWidth * 2) {
+    throw new Error(`Politics pager controls do not fit panel: ${panelWidth}`);
+  }
+  const leftX = panelX + panelPadding;
+  const rightX = panelX + panelWidth - panelPadding - groupWidth;
+  const rect = (x) => Object.freeze({ x, y: pagerY, w: buttonWidth, h: buttonHeight });
+  return Object.freeze({
+    first: rect(leftX),
+    previousJump: rect(leftX + buttonWidth + buttonGap),
+    previous: rect(leftX + (buttonWidth + buttonGap) * 2),
+    next: rect(rightX),
+    nextJump: rect(rightX + buttonWidth + buttonGap),
+    last: rect(rightX + (buttonWidth + buttonGap) * 2)
+  });
+}
 
 export function politicsRelationTextColor(relation) {
   const color = RELATION_TEXT_COLORS[relation];

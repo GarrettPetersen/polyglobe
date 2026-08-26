@@ -1418,7 +1418,24 @@ test("buying the final unit disables its stable market row instead of moving lat
   const followingGoodId = initial.options[followingIndex].action.goodId;
   economy.portStates.get(city.tileId).goods.get(goodId).stock = 1;
 
-  selectPortDialogueOption(session, city, gameState, economy, [city], purchaseIndex, { simMinute: 10 });
+  const singleUnitView = portDialogueView(session, city, gameState, economy, [city]);
+  const buyMaxIndex = singleUnitView.options.findIndex((entry) => (
+    entry.action.type === "buy-max" && entry.action.goodId === goodId
+  ));
+  assert.ok(buyMaxIndex >= 0);
+  assert.equal(singleUnitView.options[buyMaxIndex].action.quantity, 1);
+  assert.equal(singleUnitView.options[buyMaxIndex].disabled, false);
+
+  const purchase = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    buyMaxIndex,
+    { simMinute: 10 }
+  );
+  assert.equal(purchase.marketPurchase.quantity, 1);
   const after = portDialogueView(session, city, gameState, economy, [city]);
 
   assert.equal(after.options[purchaseIndex].action.goodId, goodId);

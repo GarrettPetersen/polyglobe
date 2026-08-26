@@ -1181,9 +1181,11 @@ import {
 } from "./captainChartMap.js";
 import {
   POLITICS_DEPENDENCY_TEXT_COLOR,
+  POLITICS_PAGE_JUMP,
   politicsCardEntries,
   politicsCardEntriesPage,
   politicsCardGridLayout,
+  politicsPagerButtonLayout,
   politicsRelationTextColor
 } from "./politicsCardLayout.js";
 import {
@@ -1230,6 +1232,7 @@ import {
   BINARY_CONFIRM_YES_INDEX,
   clampMenuIndex,
   createBinaryConfirmationState,
+  offsetMenuIndex,
   stepMenuIndex,
   toggleBinaryConfirmationIndex
 } from "./menuNavigation.js";
@@ -8987,8 +8990,12 @@ function createPoliticsMenuState() {
     newsDetailBackRect: null,
     newsDetailUpRect: null,
     newsDetailDownRect: null,
+    firstPageRect: null,
+    previousJumpPageRect: null,
     previousPageRect: null,
-    nextPageRect: null
+    nextPageRect: null,
+    nextJumpPageRect: null,
+    lastPageRect: null
   };
 }
 
@@ -16365,9 +16372,17 @@ function closePoliticsMenu() {
   politicsMenu.newsDetailBackRect = null;
   politicsMenu.newsDetailUpRect = null;
   politicsMenu.newsDetailDownRect = null;
+  clearPoliticsPagerRects();
+  dirty = true;
+}
+
+function clearPoliticsPagerRects() {
+  politicsMenu.firstPageRect = null;
+  politicsMenu.previousJumpPageRect = null;
   politicsMenu.previousPageRect = null;
   politicsMenu.nextPageRect = null;
-  dirty = true;
+  politicsMenu.nextJumpPageRect = null;
+  politicsMenu.lastPageRect = null;
 }
 
 function openNavigationMenu() {
@@ -16417,10 +16432,18 @@ function handlePoliticsKeyDown(event) {
     return;
   }
   if (["Enter", " "].includes(event.key) && openPoliticsNewsDetail()) return;
-  if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+  if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
     stepPoliticsPage(-1);
-  } else if (["ArrowRight", "ArrowDown", "PageDown"].includes(event.key)) {
+  } else if (["ArrowRight", "ArrowDown"].includes(event.key)) {
     stepPoliticsPage(1);
+  } else if (event.key === "PageUp") {
+    stepPoliticsPage(-POLITICS_PAGE_JUMP);
+  } else if (event.key === "PageDown") {
+    stepPoliticsPage(POLITICS_PAGE_JUMP);
+  } else if (event.key === "Home") {
+    jumpPoliticsPage("first");
+  } else if (event.key === "End") {
+    jumpPoliticsPage("last");
   }
 }
 
@@ -18122,11 +18145,27 @@ function handlePoliticsPointerDown(point) {
     openPoliticsNewsDetail();
     return;
   }
+  if (pointInRect(point, politicsMenu.firstPageRect)) {
+    jumpPoliticsPage("first");
+    return;
+  }
+  if (pointInRect(point, politicsMenu.previousJumpPageRect)) {
+    stepPoliticsPage(-POLITICS_PAGE_JUMP);
+    return;
+  }
   if (pointInRect(point, politicsMenu.previousPageRect)) {
     stepPoliticsPage(-1);
     return;
   }
-  if (pointInRect(point, politicsMenu.nextPageRect)) stepPoliticsPage(1);
+  if (pointInRect(point, politicsMenu.nextPageRect)) {
+    stepPoliticsPage(1);
+    return;
+  }
+  if (pointInRect(point, politicsMenu.nextJumpPageRect)) {
+    stepPoliticsPage(POLITICS_PAGE_JUMP);
+    return;
+  }
+  if (pointInRect(point, politicsMenu.lastPageRect)) jumpPoliticsPage("last");
 }
 
 function politicsPointerIsActionable(point) {
@@ -18137,8 +18176,12 @@ function politicsPointerIsActionable(point) {
     politicsMenu.newsDetailBackRect,
     politicsMenu.newsDetailUpRect,
     politicsMenu.newsDetailDownRect,
+    politicsMenu.firstPageRect,
+    politicsMenu.previousJumpPageRect,
     politicsMenu.previousPageRect,
-    politicsMenu.nextPageRect
+    politicsMenu.nextPageRect,
+    politicsMenu.nextJumpPageRect,
+    politicsMenu.lastPageRect
   ].some((rect) => pointInRect(point, rect));
 }
 
@@ -18389,12 +18432,36 @@ function scrollPoliticsNewsDetail(direction) {
   dirty = true;
 }
 
-function stepPoliticsPage(direction) {
-  const view = currentPoliticsView();
-  const pagination = politicsCardPagination(view);
-  politicsMenu.page = stepMenuIndex(politicsMenu.page, direction, pagination.page.pageCount);
+function setPoliticsPage(page, pageCount) {
+  const nextPage = clampMenuIndex(page, pageCount);
+  if (nextPage === politicsMenu.page) return;
+  politicsMenu.page = nextPage;
   politicsMenu.paginationCache = null;
   dirty = true;
+}
+
+function stepPoliticsPage(offset) {
+  if (!Number.isInteger(offset) || offset === 0) {
+    throw new Error(`Invalid politics page offset: ${offset}`);
+  }
+  const view = currentPoliticsView();
+  const pagination = politicsCardPagination(view);
+  setPoliticsPage(
+    offsetMenuIndex(politicsMenu.page, offset, pagination.page.pageCount),
+    pagination.page.pageCount
+  );
+}
+
+function jumpPoliticsPage(boundary) {
+  if (!["first", "last"].includes(boundary)) {
+    throw new Error(`Invalid politics page boundary: ${boundary}`);
+  }
+  const view = currentPoliticsView();
+  const pagination = politicsCardPagination(view);
+  setPoliticsPage(
+    boundary === "first" ? 0 : pagination.page.pageCount - 1,
+    pagination.page.pageCount
+  );
 }
 
 function updateOptionsSelectionFromPoint(point) {
@@ -45989,23 +46056,29 @@ function drawPoliticsMenu() {
   });
 
   const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
-  politicsMenu.previousPageRect = { x: panel.x + 12, y: pagerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H };
-  politicsMenu.nextPageRect = {
-    x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W,
-    y: pagerY,
-    w: UI_PAGER_BUTTON_W,
-    h: UI_PAGER_BUTTON_H
-  };
-  drawOptionsArrowButton(
-    politicsMenu.previousPageRect,
-    "<",
-    pointInRect(optionsMenu.hoverPoint, politicsMenu.previousPageRect)
-  );
-  drawOptionsArrowButton(
-    politicsMenu.nextPageRect,
-    ">",
-    pointInRect(optionsMenu.hoverPoint, politicsMenu.nextPageRect)
-  );
+  const pagerButtons = politicsPagerButtonLayout({
+    panelX: panel.x,
+    panelWidth: panel.w,
+    pagerY,
+    buttonWidth: panel.w < 300 ? UI_ICON_BUTTON_SIZE : UI_PAGER_BUTTON_W,
+    buttonHeight: UI_PAGER_BUTTON_H
+  });
+  politicsMenu.firstPageRect = pagerButtons.first;
+  politicsMenu.previousJumpPageRect = pagerButtons.previousJump;
+  politicsMenu.previousPageRect = pagerButtons.previous;
+  politicsMenu.nextPageRect = pagerButtons.next;
+  politicsMenu.nextJumpPageRect = pagerButtons.nextJump;
+  politicsMenu.lastPageRect = pagerButtons.last;
+  [
+    [politicsMenu.firstPageRect, "|<<"],
+    [politicsMenu.previousJumpPageRect, "<<"],
+    [politicsMenu.previousPageRect, "<"],
+    [politicsMenu.nextPageRect, ">"],
+    [politicsMenu.nextJumpPageRect, ">>"],
+    [politicsMenu.lastPageRect, ">>|"],
+  ].forEach(([rect, label]) => {
+    drawOptionsArrowButton(rect, label, pointInRect(optionsMenu.hoverPoint, rect));
+  });
   drawOptionsText(
     `${uiText("common.page")} ${pagination.page.page + 1}/${pagination.page.pageCount}`,
     panel.x + panel.w / 2,
@@ -46152,8 +46225,7 @@ function drawPoliticsNewsDetail(view, panel) {
     throw new Error("Politics news detail opened without a news history");
   }
   politicsMenu.newsRect = null;
-  politicsMenu.previousPageRect = null;
-  politicsMenu.nextPageRect = null;
+  clearPoliticsPagerRects();
 
   const left = panel.x + 13;
   const right = panel.x + panel.w - 13;

@@ -2318,7 +2318,6 @@ export default Object.freeze({
   "one month": "一ヶ月",
   "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops": "16 世紀後半の日本の偉大な軍艦の 1 つで、兵士とミサイル部隊のための城のような戦闘施設を搭載しました。",
   "One rail-mounted light gun can turn in any direction and rake an exposed deck.": "レールに取り付けられた 1 つのライトガンはあらゆる方向に回転し、露出した甲板をかき集めることができます。",
-  "Only one unit fits or is affordable; use Buy 1.": "適合するか、手頃な価格のユニットは 1 つだけです。購入 1 を使用します。",
   "Open the shipyard": "造船所を開く",
   "opened campaign goal": "キャンペーン目標をオープン",
   "opened to trade": "取引のために開かれた",

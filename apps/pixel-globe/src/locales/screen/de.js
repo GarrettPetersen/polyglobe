@@ -2318,7 +2318,6 @@ export default Object.freeze({
   "one month": "einen Monat",
   "one of the great late-sixteenth-century Japanese warships, carrying castle-like fighting works for soldiers and missile troops": "eines der großen japanischen Kriegsschiffe des späten 16. Jahrhunderts, das burgähnliche Kampfanlagen für Soldaten und Raketentruppen trug",
   "One rail-mounted light gun can turn in any direction and rake an exposed deck.": "Ein auf einer Schiene montiertes leichtes Geschütz kann sich in jede Richtung drehen und ein freiliegendes Deck harken.",
-  "Only one unit fits or is affordable; use Buy 1.": "Nur eine Einheit passt oder ist erschwinglich; Verwenden Sie „Kauf 1“.",
   "Open the shipyard": "Öffne die Werft",
   "opened campaign goal": "Kampagnenziel geöffnet",
   "opened to trade": "für den Handel geöffnet",

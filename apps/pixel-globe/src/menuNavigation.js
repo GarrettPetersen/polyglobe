@@ -11,6 +11,11 @@ export function stepMenuIndex(index, direction, itemCount) {
   return clampMenuIndex(index + Math.sign(direction), itemCount);
 }
 
+export function offsetMenuIndex(index, offset, itemCount) {
+  if (!Number.isInteger(offset)) throw new Error(`Invalid menu offset: ${offset}`);
+  return clampMenuIndex(index + offset, itemCount);
+}
+
 export const BINARY_CONFIRM_YES_INDEX = 0;
 export const BINARY_CONFIRM_NO_INDEX = 1;
 

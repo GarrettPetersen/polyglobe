@@ -6310,8 +6310,8 @@ function buyView(session, city, gameState, economy, context) {
         }, {
           detail: `${marketCargoSpaceIndicator(totalSize)}  ${marketStockIndicator(row.stock)}`,
           rowId,
-          disabled: cartazBlocked || maximumQuantity <= 1,
-          disabledReason: disabledReason || "Only one unit fits or is affordable; use Buy 1.",
+          disabled: cartazBlocked || maximumQuantity <= 0,
+          disabledReason,
           emphasis: questCargoNeeded ? "quest-cargo" : null
         })
       ];

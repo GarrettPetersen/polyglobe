@@ -6,6 +6,7 @@ import {
   BINARY_CONFIRM_YES_INDEX,
   clampMenuIndex,
   createBinaryConfirmationState,
+  offsetMenuIndex,
   stepMenuIndex,
   toggleBinaryConfirmationIndex
 } from "./menuNavigation.js";
@@ -20,6 +21,14 @@ test("menu selection stops at either end instead of looping", () => {
 test("out-of-range menu pages clamp to the nearest valid page", () => {
   assert.equal(clampMenuIndex(-20, 3), 0);
   assert.equal(clampMenuIndex(20, 3), 2);
+});
+
+test("menu pages can jump by a fixed offset and stop at either end", () => {
+  assert.equal(offsetMenuIndex(20, -5, 46), 15);
+  assert.equal(offsetMenuIndex(20, 5, 46), 25);
+  assert.equal(offsetMenuIndex(2, -5, 46), 0);
+  assert.equal(offsetMenuIndex(44, 5, 46), 45);
+  assert.throws(() => offsetMenuIndex(0, 1.5, 46), /Invalid menu offset/);
 });
 
 test("destructive confirmations default to no and toggle between both choices", () => {

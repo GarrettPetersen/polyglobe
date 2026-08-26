@@ -3,9 +3,11 @@ import test from "node:test";
 
 import {
   POLITICS_DEPENDENCY_TEXT_COLOR,
+  POLITICS_PAGE_JUMP,
   politicsCardEntries,
   politicsCardEntriesPage,
   politicsCardGridLayout,
+  politicsPagerButtonLayout,
   politicsRelationTextColor
 } from "./politicsCardLayout.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
@@ -60,6 +62,39 @@ test("politics cards become a single compact column and respect taller localized
   assert.equal(localized.maxRelationLines, 8);
   assert.deepEqual(localized.relationLineCapacities, [8]);
   assert.equal(localized.cardHeight, 148);
+});
+
+test("politics pager provides first, five-page, and single-page controls on compact panels", () => {
+  const layout = politicsPagerButtonLayout({
+    panelX: 10,
+    panelWidth: 340,
+    pagerY: 220,
+    buttonWidth: 30,
+    buttonHeight: 24
+  });
+
+  assert.equal(POLITICS_PAGE_JUMP, 5);
+  assert.deepEqual(
+    Object.values(layout).map((rect) => rect.x),
+    [22, 54, 86, 244, 276, 308]
+  );
+  assert.ok(layout.previous.x + layout.previous.w < layout.next.x);
+  assert.equal(layout.first.y, 220);
+  assert.equal(layout.last.w, 30);
+  assert.equal(layout.last.h, 24);
+
+  const narrow = politicsPagerButtonLayout({
+    panelX: 8,
+    panelWidth: 240,
+    pagerY: 420,
+    buttonWidth: 24,
+    buttonHeight: 24
+  });
+  assert.deepEqual(
+    Object.values(narrow).map((rect) => rect.x),
+    [20, 46, 72, 160, 186, 212]
+  );
+  assert.equal(narrow.next.x - (narrow.previous.x + narrow.previous.w), 64);
 });
 
 test("the elected Emperor's Estate connections fit the live politics layouts", () => {
