@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
 import math
 import shutil
@@ -31,7 +32,7 @@ FEATURED_SFX = {
     "cannon": "assets/sfx/universfield-cannon-shot-352459.ogg",
     "coin": "assets/sfx/floraphonic-coin-and-money-bag-3-185264.mp3",
     "fishingNet": "assets/sfx/alex_jauk-water-splash-147014.mp3",
-    "whaleHarpoon": "assets/sfx/arrow-hit.ogg",
+    "whaleHarpoon": "assets/sfx/bow-fire.ogg",
     "whaleKill": "assets/sfx/universfield-wet-squelch-impact-352302.ogg",
 }
 SFX_DURATION_CACHE = {}
@@ -55,7 +56,7 @@ def shadowed_image(image):
     return shadow
 
 
-def make_outro_sprite():
+def make_outro_sprite(subtitle):
     overlay = Image.new("RGBA", (WIDTH, HEIGHT), (0, 0, 0, 0))
     title = Image.open(TITLE_PATH).convert("RGBA")
     bounds = title.getchannel("A").getbbox()
@@ -67,7 +68,6 @@ def make_outro_sprite():
     title = title.resize((target_width, target_height), Image.Resampling.NEAREST)
 
     subtitle_font = ImageFont.truetype(str(FONT_PATH), 136)
-    subtitle = "Wishlist on Steam"
     probe = ImageDraw.Draw(overlay)
     subtitle_bounds = probe.textbbox((0, 0), subtitle, font=subtitle_font, anchor="lt")
     subtitle_height = subtitle_bounds[3] - subtitle_bounds[1]
@@ -125,9 +125,6 @@ def render_segment(
 def render_outro_motion(source, source_start, source_duration, duration, overlay, output):
     require_file(source)
     require_file(overlay)
-    playback_rate = source_duration / duration
-    if not 0.5 <= playback_rate <= 2:
-        raise RuntimeError(f"Outro playback rate is unsupported by FFmpeg atempo: {playback_rate}")
     video_stretch = duration / source_duration
     blur_mix = f"min(T/{OUTRO_BLUR_SECONDS},1)"
     blend_expression = f"A*(1-{blur_mix})+B*{blur_mix}"
@@ -152,9 +149,8 @@ def render_outro_motion(source, source_start, source_duration, duration, overlay
         "[base][overlay]overlay=x='(main_w-overlay_w)/2':y='(main_h-overlay_h)/2':"
         f"enable='gte(t,{OUTRO_TITLE_START_SECONDS})':shortest=1:format=auto,"
         "format=yuv420p[video];"
-        f"[0:a]atrim=start={source_start}:duration={source_duration},asetpts=PTS-STARTPTS,"
-        f"atempo={playback_rate},atrim=duration={duration},"
-        "volume=0,aformat=sample_fmts=s16:channel_layouts=stereo[audio]"
+        f"anullsrc=r=48000:cl=stereo,atrim=duration={duration},"
+        "asetpts=PTS-STARTPTS[audio]"
     )
     run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
@@ -565,9 +561,29 @@ def build_timeline(plan):
     return sections, cursor_frame, cut_frames
 
 
+def resolve_app_path(value):
+    path = Path(value)
+    return path if path.is_absolute() else (APP / path).resolve()
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Build a Marque & Reprisal Steam trailer")
+    parser.add_argument("--plan", default=str(PLAN_PATH))
+    parser.add_argument("--captures", default=str(CAPTURES))
+    parser.add_argument("--output", default=str(OUTPUT))
+    parser.add_argument("--subtitle", default="Wishlist on Steam")
+    return parser.parse_args()
+
+
 def main():
+    args = parse_args()
+    plan_path = resolve_app_path(args.plan)
+    captures = resolve_app_path(args.captures)
+    output = resolve_app_path(args.output)
+    if not args.subtitle.strip():
+        raise RuntimeError("Trailer outro subtitle cannot be empty")
     for required in (
-        PLAN_PATH,
+        plan_path,
         FONT_PATH,
         TITLE_PATH,
         SAILING_MUSIC_INTRO,
@@ -577,21 +593,41 @@ def main():
     ):
         require_file(required)
 
-    plan = json.loads(PLAN_PATH.read_text())
+    plan = json.loads(plan_path.read_text())
     chapters = plan.get("chapters")
-    if not isinstance(chapters, list) or len(chapters) != 8:
-        raise RuntimeError("Trailer plan must define exactly eight chapters")
+    validation = plan.get("validation")
+    if not isinstance(validation, dict):
+        raise RuntimeError("Trailer plan must define validation rules")
+    chapter_count = required_frame_count(
+        validation.get("chapterCount"),
+        "trailer chapter count",
+    )
+    if not isinstance(chapters, list) or len(chapters) != chapter_count:
+        raise RuntimeError(f"Trailer plan must define exactly {chapter_count} chapters")
     if any(len(chapter.get("clips", [])) < 2 for chapter in chapters):
         raise RuntimeError("Every trailer chapter requires at least two clips")
-    fight_indices = [index for index, chapter in enumerate(chapters) if chapter.get("heading") == "Fight"]
-    if len(fight_indices) != 1:
-        raise RuntimeError("Trailer plan must define exactly one Fight chapter")
-    fight_index = fight_indices[0]
-    if fight_index == 0 or chapters[fight_index - 1].get("heading") != "Colonize":
-        raise RuntimeError("Colonize must immediately precede Fight")
     music = plan.get("music")
     if not isinstance(music, dict):
         raise RuntimeError("Trailer plan must define music synchronization")
+    transition_heading = music.get("transitionHeading")
+    if not isinstance(transition_heading, str) or not transition_heading:
+        raise RuntimeError("Trailer music must name its transition chapter")
+    fight_indices = [
+        index for index, chapter in enumerate(chapters)
+        if chapter.get("heading") == transition_heading
+    ]
+    if len(fight_indices) != 1:
+        raise RuntimeError(
+            f"Trailer plan must define exactly one {transition_heading} transition chapter"
+        )
+    fight_index = fight_indices[0]
+    required_previous_heading = music.get("requiredPreviousHeading")
+    if not isinstance(required_previous_heading, str) or not required_previous_heading:
+        raise RuntimeError("Trailer music must name the chapter before its transition")
+    if fight_index == 0 or chapters[fight_index - 1].get("heading") != required_previous_heading:
+        raise RuntimeError(
+            f"{required_previous_heading} must immediately precede {transition_heading}"
+        )
     fight_start_frame = required_frame_count(music.get("fightStartFrame"), "fight start frame")
     crossfade_frames = required_frame_count(music.get("crossfadeFrames"), "crossfade frames")
     if crossfade_frames % 2 != 0:
@@ -599,7 +635,10 @@ def main():
     if music.get("combatSyncAttackFrame") != crossfade_frames // 2:
         raise RuntimeError("The combat sync attack must land at the crossfade midpoint")
     sections, gameplay_frames, cut_frames = build_timeline(plan)
-    fight_section = next(section for section in sections if section.get("heading") == "Fight")
+    fight_section = next(
+        section for section in sections
+        if section.get("heading") == transition_heading
+    )
     if fight_section["timelineStartFrame"] != fight_start_frame:
         raise RuntimeError(
             f"Fight begins at frame {fight_section['timelineStartFrame']}, expected {fight_start_frame}"
@@ -630,7 +669,7 @@ def main():
             "combatBpm": music["combatBpm"],
             "syncCutFrames": cut_frames,
         },
-        "output": str(OUTPUT),
+        "output": str(output),
     }
 
     segment_index = 0
@@ -660,7 +699,7 @@ def main():
                 "beatBoundariesFrames": section["beatBoundariesFrames"],
             })
         for clip in section["clips"]:
-            source = CAPTURES / clip["source"]
+            source = captures / clip["source"]
             start_frame = required_frame_count(clip.get("startFrame"), f"{source} start frame", minimum=0)
             duration_frames = clip["durationFrames"]
             start = start_frame / FPS
@@ -755,7 +794,7 @@ def main():
         outro_source_start,
         outro_source_duration,
         outro_seconds,
-        make_outro_sprite(),
+        make_outro_sprite(args.subtitle.strip()),
         outro_path,
     )
     segment_paths.append(outro_path)
@@ -769,6 +808,7 @@ def main():
         "titleAnimation": "two-rebound-pop",
         "titleSettlesAfterSeconds": OUTRO_TITLE_START_SECONDS + OUTRO_TITLE_SETTLE_SECONDS,
         "titleSource": str(TITLE_PATH),
+        "subtitle": args.subtitle.strip(),
     }
 
     concat_path = TEMP / "segments.txt"
@@ -839,19 +879,19 @@ def main():
         "-x264-params", "nal-hrd=cbr:force-cfr=1",
         "-pix_fmt", "yuv420p", "-r", str(FPS),
         "-c:a", "aac", "-b:a", "256k", "-ar", "48000", "-ac", "2",
-        "-movflags", "+faststart", "-t", str(expected_duration), OUTPUT,
+        "-movflags", "+faststart", "-t", str(expected_duration), output,
     ])
 
-    final_duration = probe_duration(OUTPUT)
+    final_duration = probe_duration(output)
     if not math.isclose(final_duration, expected_duration, abs_tol=0.08):
         raise RuntimeError(
             f"Final trailer is {final_duration:.3f}s; expected {expected_duration:.3f}s"
         )
     edit["durationSeconds"] = final_duration
-    OUTPUT.with_suffix(".edit.json").write_text(
+    output.with_suffix(".edit.json").write_text(
         json.dumps(edit, indent=2) + "\n"
     )
-    print(f"Rendered {OUTPUT} ({final_duration:.2f}s)")
+    print(f"Rendered {output} ({final_duration:.2f}s)")
 
 
 if __name__ == "__main__":

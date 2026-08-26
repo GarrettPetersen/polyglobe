@@ -53,6 +53,7 @@ await assertCaptureServerReady(args.baseUrl);
 
 const browser = await launchCaptureBrowser({ headless: args.headless });
 const manifest = new Array(scenarioIds.length);
+const failures = [];
 try {
   let nextScenarioIndex = 0;
   const workerCount = Math.min(args.jobs, scenarioIds.length);
@@ -62,7 +63,13 @@ try {
       nextScenarioIndex += 1;
       const scenarioId = scenarioIds[index];
       process.stdout.write(`[${index + 1}/${scenarioIds.length}] ${scenarioId}\n`);
-      manifest[index] = await recordScenario(browser, scenarioId);
+      try {
+        manifest[index] = await recordScenario(browser, scenarioId);
+      } catch (error) {
+        if (!args.continueOnError) throw error;
+        failures.push({ scenarioId, message: error.message });
+        process.stderr.write(`FAILED ${scenarioId}: ${error.message}\n`);
+      }
     }
   }));
 } finally {
@@ -71,7 +78,7 @@ try {
 
 const finalManifest = args.includeExisting
   ? await loadExistingTrailerManifest()
-  : manifest;
+  : manifest.filter(Boolean);
 const manifestPath = path.join(outputRoot, "manifest.json");
 await writeFile(manifestPath, `${JSON.stringify({
   version: 1,
@@ -88,6 +95,12 @@ await writeFile(manifestPath, `${JSON.stringify({
   clips: finalManifest
 }, null, 2)}\n`);
 process.stdout.write(`Trailer clips: ${outputRoot}\nManifest: ${manifestPath}\n`);
+if (failures.length > 0) {
+  throw new Error(
+    `Trailer capture rejected ${failures.length} scenario(s):\n` +
+    failures.map((failure) => `- ${failure.scenarioId}: ${failure.message}`).join("\n")
+  );
+}
 
 async function recordScenario(browser, scenarioId) {
   const category = scenarioId.split("-")[1];
@@ -277,9 +290,14 @@ async function recordFramePass(browser, scenarioId, categoryDir, frameDir) {
     return { sidecar, frameCount };
   } catch (error) {
     const screenshotPath = path.join(categoryDir, `${scenarioId}.frames.failure.png`);
-    await page.screenshot({ path: screenshotPath, fullPage: true });
+    let screenshotResult = `Screenshot: ${screenshotPath}`;
+    try {
+      await page.screenshot({ path: screenshotPath, fullPage: true, timeout: 5_000 });
+    } catch (screenshotError) {
+      screenshotResult = `Failure screenshot unavailable: ${screenshotError.message}`;
+    }
     const consoleText = consoleErrors.length > 0 ? `\nBrowser errors:\n${consoleErrors.join("\n")}` : "";
-    throw new Error(`${scenarioId} frame pass failed: ${error.message}${consoleText}\nScreenshot: ${screenshotPath}`);
+    throw new Error(`${scenarioId} frame pass failed: ${error.message}${consoleText}\n${screenshotResult}`);
   } finally {
     await context.close();
   }
@@ -756,6 +774,7 @@ function parseArgs(argv) {
     ids: [],
     headless: true,
     includeExisting: false,
+    continueOnError: false,
     jobs: 2,
     loadTimeoutMs: 120_000,
     captureTimeoutMs: 120_000
@@ -767,12 +786,23 @@ function parseArgs(argv) {
     else if (arg === "--ids") parsed.ids = requiredValue(argv, ++index, arg).split(",").filter(Boolean);
     else if (arg === "--format") parsed.format = requiredValue(argv, ++index, arg);
     else if (arg === "--jobs") parsed.jobs = Number(requiredValue(argv, ++index, arg));
+    else if (arg === "--load-timeout-ms") parsed.loadTimeoutMs = Number(requiredValue(argv, ++index, arg));
+    else if (arg === "--capture-timeout-ms") parsed.captureTimeoutMs = Number(requiredValue(argv, ++index, arg));
     else if (arg === "--include-existing") parsed.includeExisting = true;
+    else if (arg === "--continue-on-error") parsed.continueOnError = true;
     else if (arg === "--headed") parsed.headless = false;
     else throw new Error(`Unknown trailer capture argument: ${arg}`);
   }
   if (!Number.isInteger(parsed.jobs) || parsed.jobs < 1 || parsed.jobs > 4) {
     throw new Error(`--jobs must be an integer from 1 to 4, got ${parsed.jobs}`);
+  }
+  for (const [label, value] of [
+    ["--load-timeout-ms", parsed.loadTimeoutMs],
+    ["--capture-timeout-ms", parsed.captureTimeoutMs]
+  ]) {
+    if (!Number.isInteger(value) || value < 1_000) {
+      throw new Error(`${label} must be an integer of at least 1000, got ${value}`);
+    }
   }
   return parsed;
 }

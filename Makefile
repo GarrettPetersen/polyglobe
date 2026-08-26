@@ -6,7 +6,7 @@ PIXEL_GLOBE_PORT ?= 5184
 PIXEL_GLOBE_CAPTURE_SCENARIO ?= turtle-ship-war
 PIXEL_GLOBE_SHORTS_PYTHON := $(PIXEL_GLOBE_DIR)/.venv-shorts/bin/python
 
-.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-steam-inline-videos pixel-globe-steam-windows pixel-globe-steam-mac pixel-globe-steam-desktop pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-render-demo-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-dashboard-configure pixel-globe-telemetry-dashboard-verify pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
+.PHONY: help demo-dev demo-rivers demo-build demo-preview demo-download-data demo-setup-data demo-build-cache demo-clean railways-dev railways-join railways-server railways-build railways-preview pixel-globe-dev pixel-globe-demo-itch pixel-globe-capture pixel-globe-benchmark pixel-globe-trailer-clips pixel-globe-steam-trailer-clips pixel-globe-steam-trailer pixel-globe-demo-trailer-clips pixel-globe-demo-trailer pixel-globe-steam-inline-videos pixel-globe-steam-windows pixel-globe-steam-mac pixel-globe-steam-desktop pixel-globe-shorts-setup pixel-globe-transcribe pixel-globe-short pixel-globe-normalize-sfx pixel-globe-render-ship pixel-globe-render-unity-ships pixel-globe-render-capsules pixel-globe-render-demo-capsules pixel-globe-telemetry-check pixel-globe-telemetry-deploy pixel-globe-telemetry-dashboard-configure pixel-globe-telemetry-dashboard-verify pixel-globe-telemetry-verify pixel-globe-telemetry-report pixel-globe-telemetry-crashes
 
 help:
 	@echo "Targets:"
@@ -31,6 +31,8 @@ help:
 	@echo "  make pixel-globe-trailer-clips Record all scripted 9:16 trailer clips"
 	@echo "  make pixel-globe-steam-trailer-clips Record all scripted 16:9 Steam trailer clips"
 	@echo "  make pixel-globe-steam-trailer Build the 16:9 Steam trailer from captured clips"
+	@echo "  make pixel-globe-demo-trailer-clips Record the 16:9 Mediterranean demo trailer clips"
+	@echo "  make pixel-globe-demo-trailer Build the 16:9 Mediterranean demo trailer"
 	@echo "  make pixel-globe-steam-inline-videos Build About This Game feature videos"
 	@echo "  make pixel-globe-steam-windows Build Windows full-game and demo desktop packages"
 	@echo "  make pixel-globe-steam-mac     Build macOS full-game and demo desktop packages"
@@ -114,6 +116,12 @@ pixel-globe-steam-trailer-clips:
 
 pixel-globe-steam-trailer:
 	npm --prefix $(PIXEL_GLOBE_DIR) run build:steam-trailer
+
+pixel-globe-demo-trailer-clips:
+	npm --prefix $(PIXEL_GLOBE_DIR) run capture:trailer -- --base-url http://127.0.0.1:$(PIXEL_GLOBE_PORT) --format steam --output .captures/demo-trailer-clips --ids trailer-demo-explore-great-pyramid,trailer-demo-sail-nao,trailer-demo-trade-naples,trailer-demo-trade-alexandria,trailer-demo-fish-ionian,trailer-demo-fish-aegean,trailer-demo-whale-harpoon,trailer-demo-whale-finish,trailer-demo-sail-galleass,trailer-demo-sail-fusta,trailer-demo-sail-galley,trailer-demo-sail-dhow,trailer-demo-sail-xebec,trailer-demo-sail-carrack,trailer-demo-sail-felucca,trailer-demo-sail-coastal-trader,trailer-demo-fleet-approach-east,trailer-demo-fleet-approach-west,trailer-demo-fight-galleass-starboard,trailer-demo-fight-galleass-port,trailer-demo-pillage-alexandria,trailer-pillage-alexandria,trailer-demo-survive-sinking,trailer-demo-survive-lightning --jobs 4 --capture-timeout-ms 600000 --continue-on-error
+
+pixel-globe-demo-trailer:
+	npm --prefix $(PIXEL_GLOBE_DIR) run build:demo-trailer
 
 pixel-globe-steam-inline-videos:
 	npm --prefix $(PIXEL_GLOBE_DIR) run build:steam-inline-videos

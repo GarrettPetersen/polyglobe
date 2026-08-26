@@ -11283,6 +11283,9 @@ function updateCaptureFight(sequence) {
   if (captureDirector.elapsedSeconds >= 1.2) dismissCaptureOverlays();
   const target = npcVisualShips.get(sequence.encounterId);
   if (!target) return;
+  if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.4) {
+    aimCaptureBroadsideAt(target.vector, sequence.broadsideSide, sequence.encounterId);
+  }
   if (sequence.variant === "small-arms" && !captureDirector.smallArmsTargetStaged) {
     target.navalWeapon = null;
     target.cannons = 0;
@@ -11329,6 +11332,9 @@ function updateCapturePillage(sequence) {
   const cityCall = capturePortCallByName(sequence.cityName);
   const battery = ensureShoreBatteryState(cityCall);
   if (sequence.variant === "bombard") {
+    if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.0) {
+      aimCaptureBroadsideAt(tileCenterVector(cityCall.tileId), sequence.broadsideSide, sequence.cityName);
+    }
     battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
     if (captureCue("fire-on-port", 1.0)) {
       const geometry = captureBroadsideGeometry(tileCenterVector(cityCall.tileId), sequence.broadsideSide);
@@ -24807,6 +24813,7 @@ function startWhaleHarpoon(call) {
     elapsedSeconds: 0,
     durationSeconds: WHALE_HARPOON_PROJECTILE_SECONDS
   };
+  playBowFireSound();
   showSurvivalNotice("HARPOON AWAY", "good");
   dirty = true;
   return true;

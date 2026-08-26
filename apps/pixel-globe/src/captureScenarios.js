@@ -459,7 +459,8 @@ const CAPTURE_SCENARIOS = Object.freeze({
     sequence: trailerSequence("explore", "pyramid", {
       discoveryName: "The Pyramids of Meroe",
       riverStart: { lat: 17.82, lon: 33.63 },
-      sailingTarget: { lat: 15.6, lon: 32.55 }
+      sailingTarget: { lat: 15.6, lon: 32.55 },
+      requireOpenWaterCourse: true
     })
   }),
   "trailer-trade-ternate": trailerScenario({
@@ -1060,6 +1061,283 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("england", "brigantine", 49.0, -18.0, 70),
     world: captureWorld(285, 21, 10),
     sequence: trailerSequence("survive", "lightning")
+  }),
+  "trailer-demo-trade-naples": trailerScenario({
+    id: "trailer-demo-trade-naples",
+    debugCaption: "Buy Olive Oil in Naples",
+    seed: "trailer-demo-trade-naples-v1",
+    player: capturePlayer("spain", "brigantine", 40.85, 14.27, 180, {
+      characterPortraitSourceId: TRAILER_LISBON_CAPTAIN_SOURCE_ID,
+      homeCityName: "Venice"
+    }),
+    world: captureWorld(118, 13, 40),
+    sequence: trailerSequence("trade", "buy", {
+      cityName: captureNaplesCityId(),
+      goodId: "olive-oil",
+      transactionCount: 4,
+      factorPortraitSourceId: TRAILER_TERNATE_FACTOR_SOURCE_ID
+    })
+  }),
+  "trailer-demo-explore-great-pyramid": trailerScenario({
+    id: "trailer-demo-explore-great-pyramid",
+    debugCaption: "Discover the Great Pyramid",
+    seed: "trailer-demo-explore-great-pyramid-v1",
+    player: capturePlayer("ottoman", "felucca", 31.5, 29.0, 135),
+    world: captureWorld(68, 15, 30),
+    sequence: trailerSequence("explore", "great-pyramid", {
+      discoveryName: "The Great Pyramid",
+      sailingTarget: { lat: 32.4, lon: 28.5 },
+      requireOpenWaterCourse: true
+    })
+  }),
+  "trailer-demo-trade-alexandria": trailerScenario({
+    id: "trailer-demo-trade-alexandria",
+    debugCaption: "Sell Olive Oil in Alexandria",
+    seed: "trailer-demo-trade-alexandria-v1",
+    player: capturePlayer("venice", "brigantine", 31.2, 29.91, 180, {
+      characterPortraitSourceId: TRAILER_LISBON_CAPTAIN_SOURCE_ID,
+      homeCityName: "Venice"
+    }),
+    world: captureWorld(118, 15, 10),
+    sequence: trailerSequence("trade", "sell", {
+      cityName: "Alexandria",
+      goodId: "olive-oil",
+      transactionCount: 4,
+      factorPortraitSourceId: TRAILER_TERNATE_FACTOR_SOURCE_ID
+    })
+  }),
+  "trailer-demo-fish-ionian": trailerScenario({
+    id: "trailer-demo-fish-ionian",
+    debugCaption: "Fish the Ionian Sea",
+    seed: "trailer-demo-fish-ionian-v1",
+    player: capturePlayer("venice", "fusta", 37.4, 25.2, 90),
+    world: captureWorld(146, 10, 20),
+    sequence: trailerSequence("fish", "ionian", {
+      durationSeconds: 4.5,
+      requireOpenWaterCourse: true
+    })
+  }),
+  "trailer-demo-fish-aegean": trailerScenario({
+    id: "trailer-demo-fish-aegean",
+    debugCaption: "Fish the Aegean Sea",
+    seed: "trailer-demo-fish-aegean-v1",
+    player: capturePlayer("ottoman", "felucca", 37.0, 24.2, 270),
+    world: captureWorld(146, 10, 20),
+    sequence: trailerSequence("fish", "aegean", {
+      durationSeconds: 4.5,
+      requireOpenWaterCourse: true
+    })
+  }),
+  "trailer-demo-whale-harpoon": trailerScenario({
+    id: "trailer-demo-whale-harpoon",
+    debugCaption: "Harpoon a Mediterranean Sperm Whale",
+    seed: "trailer-demo-whale-harpoon-v1",
+    player: capturePlayer("venice", "brigantine", 36.0, 18.5, 90),
+    world: captureWorld(118, 11, 30),
+    sequence: trailerSequence("whale", "harpoon", {
+      durationSeconds: 3,
+      speciesId: "sperm-whale",
+      requireOpenWaterCourse: true
+    })
+  }),
+  "trailer-demo-whale-finish": trailerScenario({
+    id: "trailer-demo-whale-finish",
+    debugCaption: "Finish an Atlantic Sperm Whale Hunt",
+    seed: "trailer-whale-sperm-v1",
+    player: capturePlayer("venice", "brigantine", 35.7, -29.0, 105),
+    world: captureWorld(250, 17, 25),
+    sequence: trailerSequence("whale", "finish", {
+      speciesId: "sperm-whale",
+      requireOpenWaterCourse: true
+    })
+  }),
+  "trailer-demo-sail-galleass": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-galleass",
+    debugCaption: "Galleass in the Mediterranean",
+    seed: "trailer-demo-sail-galleass-v1",
+    factionId: "venice",
+    shipSlug: "galleass",
+    lat: 34.0,
+    lon: 22.0,
+    day: 118,
+    hour: 11,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "trailer-demo-sail-fusta": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-fusta",
+    debugCaption: "Fusta off Sicily",
+    seed: "trailer-demo-sail-fusta-v1",
+    factionId: "venice",
+    shipSlug: "fusta",
+    lat: 34.0,
+    lon: 22.0,
+    day: 156,
+    hour: 15,
+    minute: 10,
+    beamSide: "port"
+  }),
+  "trailer-demo-sail-galley": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-galley",
+    debugCaption: "Mediterranean Galley off Crete",
+    seed: "trailer-demo-sail-galley-v1",
+    factionId: "ottoman",
+    shipSlug: "mediterranean-galley",
+    lat: 37.0,
+    lon: 25.0,
+    day: 136,
+    hour: 13,
+    minute: 10,
+    beamSide: "starboard"
+  }),
+  "trailer-demo-sail-dhow": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-dhow",
+    debugCaption: "Dhow in the Levant",
+    seed: "trailer-demo-sail-dhow-v1",
+    factionId: "ottoman",
+    shipSlug: "dhow",
+    lat: 34.0,
+    lon: 24.0,
+    day: 220,
+    hour: 16,
+    minute: 0,
+    beamSide: "port"
+  }),
+  "trailer-demo-sail-xebec": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-xebec",
+    debugCaption: "Xebec in the Libyan Sea",
+    seed: "trailer-demo-sail-xebec-v1",
+    factionId: "ottoman",
+    shipSlug: "xebec",
+    lat: 32.8,
+    lon: 20.5,
+    day: 248,
+    hour: 12,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "trailer-demo-sail-carrack": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-carrack",
+    debugCaption: "Carrack in the Libyan Sea",
+    seed: "trailer-demo-sail-carrack-v1",
+    factionId: "spain",
+    shipSlug: "carrack",
+    lat: 32.8,
+    lon: 20.5,
+    day: 248,
+    hour: 12,
+    minute: 20,
+    beamSide: "starboard"
+  }),
+  "trailer-demo-sail-felucca": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-felucca",
+    debugCaption: "Felucca in the Nile Delta",
+    seed: "trailer-demo-sail-felucca-v1",
+    factionId: "ottoman",
+    shipSlug: "felucca",
+    lat: 33.0,
+    lon: 28.0,
+    day: 82,
+    hour: 9,
+    minute: 50,
+    beamSide: "starboard"
+  }),
+  "trailer-demo-sail-coastal-trader": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-coastal-trader",
+    debugCaption: "Ottoman Coastal Trader off Alexandria",
+    seed: "trailer-demo-sail-coastal-trader-v1",
+    factionId: "ottoman",
+    shipSlug: "ottoman-coastal-trader",
+    lat: 33.0,
+    lon: 28.0,
+    day: 106,
+    hour: 14,
+    minute: 30,
+    beamSide: "port"
+  }),
+  "trailer-demo-sail-nao": demoTrailerSailingScenario({
+    id: "trailer-demo-sail-nao",
+    debugCaption: "Spanish Nao in the Eastern Mediterranean",
+    seed: "trailer-demo-sail-nao-v1",
+    factionId: "spain",
+    shipSlug: "spanish-nao",
+    lat: 37.0,
+    lon: 25.0,
+    day: 136,
+    hour: 13,
+    minute: 10,
+    beamSide: "starboard"
+  }),
+  "trailer-demo-fleet-approach-east": demoTrailerGalleassFleetScenario({
+    id: "trailer-demo-fleet-approach-east",
+    debugCaption: "A Venetian Galleass Closes on an Ottoman Squadron",
+    seed: "trailer-demo-fleet-approach-east-v1",
+    lat: 35.5,
+    lon: 17.0,
+    side: "starboard",
+    variant: "approach"
+  }),
+  "trailer-demo-fleet-approach-west": demoTrailerGalleassFleetScenario({
+    id: "trailer-demo-fleet-approach-west",
+    debugCaption: "A Venetian Galleass Crosses an Ottoman Squadron",
+    seed: "trailer-demo-fleet-approach-west-v1",
+    lat: 32.0,
+    lon: 17.5,
+    side: "port",
+    variant: "approach"
+  }),
+  "trailer-demo-fight-galleass-starboard": demoTrailerGalleassFleetScenario({
+    id: "trailer-demo-fight-galleass-starboard",
+    debugCaption: "A Venetian Galleass Fires into an Ottoman Squadron",
+    seed: "trailer-demo-fight-galleass-starboard-v1",
+    lat: 35.5,
+    lon: 17.0,
+    side: "starboard",
+    variant: "fight"
+  }),
+  "trailer-demo-fight-galleass-port": demoTrailerGalleassFleetScenario({
+    id: "trailer-demo-fight-galleass-port",
+    debugCaption: "A Venetian Galleass Fires Its Port Broadside",
+    seed: "trailer-demo-fight-galleass-port-v1",
+    lat: 37.0,
+    lon: 17.5,
+    side: "port",
+    variant: "fight"
+  }),
+  "trailer-demo-pillage-alexandria": trailerScenario({
+    id: "trailer-demo-pillage-alexandria",
+    debugCaption: "Bombard Alexandria",
+    seed: "trailer-demo-pillage-alexandria-v1",
+    player: capturePlayer("venice", "galleass", 31.2, 29.91, 180),
+    world: captureWorld(92, 12, 10),
+    diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
+    sequence: trailerSequence("pillage", "bombard", {
+      cityName: "Alexandria",
+      broadsideSide: "starboard",
+      holdBroadsideAim: true
+    })
+  }),
+  "trailer-demo-survive-sinking": trailerScenario({
+    id: "trailer-demo-survive-sinking",
+    debugCaption: "A Mediterranean Storm Sinks a Fusta",
+    seed: "trailer-demo-survive-sinking-v1",
+    player: capturePlayer("venice", "fusta", 32.5, 20.0, 70),
+    world: captureWorld(285, 14, 10),
+    sequence: trailerSequence("survive", "lightning-sinking", {
+      durationSeconds: 3,
+      requireOpenWaterCourse: true
+    })
+  }),
+  "trailer-demo-survive-lightning": trailerScenario({
+    id: "trailer-demo-survive-lightning",
+    debugCaption: "Lightning Strikes in the Mediterranean",
+    seed: "trailer-demo-survive-lightning-v1",
+    player: capturePlayer("ottoman", "xebec", 32.5, 19.0, 70),
+    world: captureWorld(285, 20, 10),
+    sequence: trailerSequence("survive", "lightning", {
+      durationSeconds: 3,
+      requireOpenWaterCourse: true
+    })
   }),
   "short-storm-lightning-sinking": trailerScenario({
     id: "short-storm-lightning-sinking",
@@ -1827,6 +2105,9 @@ function validateCaptureSequence(value) {
   } else if (value.broadsideSide !== undefined) {
     throw new Error("Capture broadside side requires a fight, bombardment, or revenge sequence");
   }
+  if (value.holdBroadsideAim !== undefined && typeof value.holdBroadsideAim !== "boolean") {
+    throw new Error("Capture broadside aim hold must be boolean");
+  }
   if (value.kind === "sail") {
     if (!["beam-reach", "upwind-voyage", "row-upwind"].includes(value.variant)) {
       throw new Error(`Invalid sailing capture variant: ${value.variant}`);
@@ -1971,26 +2252,38 @@ function validateCaptureSequence(value) {
 }
 
 function trailerScenario(value) {
+  const { debugCaption, ...scenarioValue } = value;
+  if (debugCaption !== undefined && scenarioValue.title !== undefined) {
+    throw new Error("Capture scenario cannot define both title and debugCaption");
+  }
   return scenario({
-    ...value,
-    diplomacy: value.diplomacy || [],
-    encounters: value.encounters || []
+    ...scenarioValue,
+    title: debugCaption ?? scenarioValue.title,
+    diplomacy: scenarioValue.diplomacy || [],
+    encounters: scenarioValue.encounters || []
   });
 }
 
 function sailingTrailerScenario(value) {
+  const caption = value.debugCaption === undefined
+    ? { title: value.title }
+    : { debugCaption: value.debugCaption };
   return trailerScenario({
     id: value.id,
-    title: value.title,
+    ...caption,
     seed: value.seed,
     player: capturePlayer(value.factionId, value.shipSlug, value.lat, value.lon, 0),
     world: captureWorld(value.day, value.hour, value.minute, value.timeScale),
     sequence: trailerSequence("sail", "beam-reach", {
-      durationSeconds: 6,
+      durationSeconds: value.durationSeconds || 6,
       beamSide: value.beamSide,
       requireOpenWaterCourse: true
     })
   });
+}
+
+function demoTrailerSailingScenario(value) {
+  return sailingTrailerScenario({ ...value, durationSeconds: 3.5 });
 }
 
 function upwindSailingScenario(value) {
@@ -2024,6 +2317,10 @@ function captureWorld(day, hour, minute, timeScale = 180) {
   return { day, hour, minute, timeScale };
 }
 
+function captureNaplesCityId() {
+  return "Naples";
+}
+
 function trailerSequence(kind, variant, values = {}) {
   return {
     kind,
@@ -2042,6 +2339,56 @@ function captureFightEncounter(id, factionId, shipSlug, lat, lon, headingDeg) {
     ...captureEncounter(id, factionId, shipSlug, lat, lon, headingDeg),
     encounter: { kind: "capture-fight", forceAttack: true }
   };
+}
+
+function demoTrailerGalleassFleetScenario(value) {
+  const direction = value.side === "starboard" ? 1 : -1;
+  const targetId = `${value.id}-target`;
+  const targetLon = value.lon + direction * 0.85;
+  const encounters = [
+    value.variant === "fight"
+      ? captureFightEncounter(targetId, "ottoman", "mediterranean-galley", value.lat, targetLon, 0)
+      : captureEncounter(targetId, "ottoman", "mediterranean-galley", value.lat, targetLon, 0),
+    captureEncounter(
+      `${value.id}-xebec`,
+      "ottoman",
+      "xebec",
+      value.lat + 0.65,
+      value.lon + direction * 1.35,
+      210
+    ),
+    captureEncounter(
+      `${value.id}-trader`,
+      "ottoman",
+      "ottoman-coastal-trader",
+      value.lat - 0.65,
+      value.lon + direction * 1.3,
+      330
+    )
+  ];
+  const sequence = value.variant === "fight"
+    ? trailerSequence("fight", "broadside", {
+        durationSeconds: 5,
+        encounterId: targetId,
+        broadsideSide: value.side,
+        holdBroadsideAim: true,
+        requireOpenWaterCourse: true
+      })
+    : trailerSequence("sail", "beam-reach", {
+        durationSeconds: 3,
+        beamSide: value.side,
+        requireOpenWaterCourse: true
+      });
+  return trailerScenario({
+    id: value.id,
+    debugCaption: value.debugCaption,
+    seed: value.seed,
+    player: capturePlayer("venice", "galleass", value.lat, value.lon, 90),
+    world: captureWorld(184, 13, 10),
+    diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
+    encounters,
+    sequence
+  });
 }
 
 function busyWorldBenchmarkEncounters() {

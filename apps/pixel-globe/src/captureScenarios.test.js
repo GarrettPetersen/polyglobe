@@ -114,6 +114,7 @@ test("Patagonia benchmark reproduces the reported fjord-side chart scene", () =>
 test("the general trailer roster includes feature pairs and eight fast sailing shots", () => {
   const trailerIds = captureScenarioIds().filter((id) => (
     id.startsWith("trailer-") &&
+    !id.startsWith("trailer-demo-") &&
     !id.startsWith("trailer-papal-") &&
     !["panda", "papal"].includes(captureScenarioFromSearch(`?capture=${id}`).sequence.kind)
   ));
@@ -135,6 +136,31 @@ test("the general trailer roster includes feature pairs and eight fast sailing s
     colonize: 2,
     survive: 2
   });
+});
+
+test("the demo trailer roster replaces colonization with Mediterranean fleet combat", () => {
+  const trailerIds = captureScenarioIds().filter((id) => id.startsWith("trailer-demo-"));
+  assert.equal(trailerIds.length, 23);
+  const counts = new Map();
+  for (const id of trailerIds) {
+    const capture = captureScenarioFromSearch(`?capture=${id}`);
+    counts.set(capture.sequence.kind, (counts.get(capture.sequence.kind) || 0) + 1);
+    assert.ok(capture.sequence.durationSeconds <= 10);
+    if (["explore", "fish", "whale", "sail", "fight", "survive"].includes(capture.sequence.kind)) {
+      assert.equal(capture.sequence.requireOpenWaterCourse, true, id);
+    }
+  }
+  assert.deepEqual(Object.fromEntries(counts), {
+    trade: 2,
+    explore: 1,
+    fish: 2,
+    whale: 2,
+    sail: 11,
+    fight: 2,
+    pillage: 1,
+    survive: 2
+  });
+  assert.equal(counts.has("colonize"), false);
 });
 
 test("the boarding-duel Short stages three long distinct small-arms fights", () => {

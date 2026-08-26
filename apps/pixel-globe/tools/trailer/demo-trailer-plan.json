@@ -1,5 +1,5 @@
 {
-  "title": "Marque & Reprisal Gameplay Trailer",
+  "title": "Marque & Reprisal Demo Trailer",
   "outroFrames": 225,
   "validation": {
     "chapterCount": 8
@@ -11,7 +11,7 @@
     "crossfadeFrames": 54,
     "combatSyncAttackFrame": 27,
     "transitionHeading": "Fight",
-    "requiredPreviousHeading": "Colonize",
+    "requiredPreviousHeading": "Approach",
     "syncCutFrames": [
       67, 133, 217, 300, 350, 400, 433, 467,
       483, 500, 517, 533, 557, 581, 640, 723,
@@ -22,30 +22,30 @@
     {
       "heading": "Explore",
       "clips": [
-        { "source": "explore/trailer-explore-fuji.mp4", "startFrame": 75, "durationFrames": 67 },
-        { "source": "explore/trailer-explore-pyramid.mp4", "startFrame": 162, "durationFrames": 66 }
+        { "source": "demo/trailer-demo-explore-great-pyramid.mp4", "startFrame": 150, "durationFrames": 67 },
+        { "source": "demo/trailer-demo-sail-nao.mp4", "startFrame": 30, "durationFrames": 66 }
       ]
     },
     {
       "heading": "Trade",
       "clips": [
         {
-          "source": "trade/trailer-trade-ternate.mp4",
+          "source": "demo/trailer-demo-trade-naples.mp4",
           "startFrame": 39,
           "durationFrames": 84,
           "audioGain": 1.2,
           "requiredFactorPortraitSourceId": "women-black-hair-portrait-by-captainskolot-women-black-hair-portrait",
-          "requiredPlayerPortraitSourceId": "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait",
-          "requiredSfx": { "kind": "coin", "minimum": 6 }
+          "requiredPlayerPortraitSourceId": "merchant-portrait-pack-by-captainskolot-portrait-merchant",
+          "requiredSfx": { "kind": "coin", "minimum": 4 }
         },
         {
-          "source": "trade/trailer-trade-lisbon.mp4",
+          "source": "demo/trailer-demo-trade-alexandria.mp4",
           "startFrame": 39,
           "durationFrames": 83,
           "audioGain": 1.2,
-          "requiredFactorPortraitSourceId": "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women",
+          "requiredFactorPortraitSourceId": "women-black-hair-portrait-by-captainskolot-women-black-hair-portrait",
           "requiredPlayerPortraitSourceId": "merchant-portrait-pack-by-captainskolot-portrait-merchant",
-          "requiredSfx": { "kind": "coin", "minimum": 6 }
+          "requiredSfx": { "kind": "coin", "minimum": 4 }
         }
       ]
     },
@@ -53,7 +53,7 @@
       "heading": "Fish",
       "clips": [
         {
-          "source": "fish/trailer-fish-cod.mp4",
+          "source": "demo/trailer-demo-fish-ionian.mp4",
           "startFrame": 81,
           "durationFrames": 50,
           "audioGain": 1.45,
@@ -61,7 +61,7 @@
           "carrySfx": { "kind": "fishingNet" }
         },
         {
-          "source": "fish/trailer-fish-reef.mp4",
+          "source": "demo/trailer-demo-fish-aegean.mp4",
           "startFrame": 81,
           "durationFrames": 50,
           "audioGain": 1.45,
@@ -74,7 +74,7 @@
       "heading": "Whale",
       "clips": [
         {
-          "source": "whale/trailer-whale-right.mp4",
+          "source": "demo/trailer-demo-whale-harpoon.mp4",
           "startFrame": 24,
           "durationFrames": 33,
           "audioGain": 1.45,
@@ -82,7 +82,7 @@
           "carrySfx": { "kind": "whaleHarpoon" }
         },
         {
-          "source": "whale/trailer-whale-sperm.mp4",
+          "source": "demo/trailer-demo-whale-finish.mp4",
           "startFrame": 96,
           "durationFrames": 34,
           "audioGain": 1.15,
@@ -92,34 +92,34 @@
       ]
     },
     {
-      "heading": "Colonize",
+      "heading": "Approach",
       "clips": [
-        { "source": "colonize/trailer-colonize-found.mp4", "startFrame": 129, "durationFrames": 24 },
-        { "source": "colonize/trailer-colonize-establish.mp4", "startFrame": 129, "durationFrames": 24 }
+        { "source": "demo/trailer-demo-fleet-approach-east.mp4", "startFrame": 30, "durationFrames": 24 },
+        { "source": "demo/trailer-demo-fleet-approach-west.mp4", "startFrame": 30, "durationFrames": 24 }
       ]
     },
     {
       "heading": "Fight",
       "clips": [
         {
-          "source": "fight/trailer-fight-turtle.mp4",
+          "source": "demo/trailer-demo-fight-galleass-starboard.mp4",
           "startFrame": 30,
           "durationFrames": 59,
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
             "side": "starboard",
-            "targetId": "trailer-atakebune",
+            "targetId": "trailer-demo-fight-galleass-starboard-target",
             "minimumHits": 1
           }
         },
         {
-          "source": "fight/trailer-fight-atlantic.mp4",
+          "source": "demo/trailer-demo-fight-galleass-port.mp4",
           "startFrame": 30,
           "durationFrames": 83,
           "requiredSfx": { "kind": "cannon", "minimum": 1 },
           "requiredBroadside": {
-            "side": "starboard",
-            "targetId": "trailer-spanish-galleon",
+            "side": "port",
+            "targetId": "trailer-demo-fight-galleass-port-target",
             "minimumHits": 1
           }
         }
@@ -129,7 +129,7 @@
       "heading": "Pillage",
       "clips": [
         {
-          "source": "pillage/trailer-pillage-havana.mp4",
+          "source": "demo/trailer-demo-pillage-alexandria.mp4",
           "startFrame": 15,
           "durationFrames": 43,
           "audioGain": 1.1,
@@ -151,36 +151,36 @@
     {
       "heading": "Survive",
       "clips": [
-        { "source": "survive/trailer-survive-dehydration.mp4", "startFrame": 66, "durationFrames": 75 },
-        { "source": "survive/trailer-survive-lightning.mp4", "startFrame": 33, "durationFrames": 42 }
+        { "source": "demo/trailer-demo-survive-sinking.mp4", "startFrame": 0, "durationFrames": 75 },
+        { "source": "demo/trailer-demo-survive-lightning.mp4", "startFrame": 33, "durationFrames": 42 }
       ]
     }
   ],
   "montages": [
     {
-      "id": "early-beam-reaches",
+      "id": "early-mediterranean-sailing",
       "afterChapter": "Whale",
       "track": "ship",
       "subdivisionsPerBeat": 1,
       "startSubdivision": 28,
       "clips": [
-        { "source": "sail/trailer-sail-caravel.mp4", "startFrame": 30 },
-        { "source": "sail/trailer-sail-large-junk.mp4", "startFrame": 30 },
-        { "source": "sail/trailer-sail-xebec.mp4", "startFrame": 30 },
-        { "source": "sail/trailer-sail-brigantine.mp4", "startFrame": 30 }
+        { "source": "demo/trailer-demo-sail-galleass.mp4", "startFrame": 30 },
+        { "source": "demo/trailer-demo-sail-fusta.mp4", "startFrame": 30 },
+        { "source": "demo/trailer-demo-sail-galley.mp4", "startFrame": 30 },
+        { "source": "demo/trailer-demo-sail-dhow.mp4", "startFrame": 30 }
       ]
     },
     {
-      "id": "late-beam-reaches",
+      "id": "late-mediterranean-sailing",
       "afterChapter": "Pillage",
       "track": "combat",
       "subdivisionsPerBeat": 2,
       "startSubdivision": 24,
       "clips": [
-        { "source": "sail/trailer-sail-portuguese-carrack.mp4", "startFrame": 30 },
-        { "source": "sail/trailer-sail-dhow.mp4", "startFrame": 30 },
-        { "source": "sail/trailer-sail-galleon.mp4", "startFrame": 30 },
-        { "source": "sail/trailer-sail-felucca.mp4", "startFrame": 30 }
+        { "source": "demo/trailer-demo-sail-xebec.mp4", "startFrame": 30 },
+        { "source": "demo/trailer-demo-sail-carrack.mp4", "startFrame": 30 },
+        { "source": "demo/trailer-demo-sail-felucca.mp4", "startFrame": 30 },
+        { "source": "demo/trailer-demo-sail-coastal-trader.mp4", "startFrame": 30 }
       ]
     }
   ]
