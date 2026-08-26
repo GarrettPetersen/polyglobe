@@ -1787,6 +1787,78 @@ test("a staged worker restore does not resurrect a reserve sortie returned betwe
   assert.equal(restoredSlot.shipSlug, reserveShip.slug);
 });
 
+test("a staged worker restore keeps a reserve sortie launched between batches", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  const plan = createNpcSeaRouteSimulationRestorePlan(routes, snapshot);
+
+  assert.equal(advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 }), false);
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 100
+  });
+  const reserveShip = routes.shipById.get(response.shipId);
+  const slotId = reserveShip.capitalNavalReserveSlotId;
+  assert.equal(
+    routes.capitalNavalReserveSlots.find((slot) => slot.id === slotId).activeShipId,
+    reserveShip.id
+  );
+
+  while (!advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 })) {
+    // The ship and its finite reserve slot commit as one locally authoritative pair.
+  }
+  const restoredShip = routes.shipById.get(reserveShip.id);
+  const restoredSlot = routes.capitalNavalReserveSlots.find((slot) => slot.id === slotId);
+  assert.strictEqual(restoredShip, reserveShip);
+  assert.equal(restoredSlot.activeShipId, reserveShip.id);
+  assert.equal(restoredShip.capitalNavalReserveSlotId, restoredSlot.id);
+});
+
+test("a staged worker restore cannot revive a reserve sortie superseded between batches", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const firstResponse = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_BURNING,
+    clockMinutes: 100,
+    threatUntilMinute: 101
+  });
+  const firstShip = routes.shipById.get(firstResponse.shipId);
+  const slotId = firstShip.capitalNavalReserveSlotId;
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  const plan = createNpcSeaRouteSimulationRestorePlan(routes, snapshot);
+
+  while (plan.phase !== "validate-ships") {
+    assert.equal(advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 }), false);
+  }
+  updateNpcSeaRouteSystem(routes, 100_000);
+  assert.equal(routes.shipById.has(firstShip.id), false);
+
+  const secondResponse = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 100_001,
+    allowReinforcement: true
+  });
+  const secondShip = routes.shipById.get(secondResponse.shipId);
+  assert.equal(secondShip.capitalNavalReserveSlotId, slotId);
+  assert.notEqual(secondShip.id, firstShip.id);
+
+  while (!advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 })) {
+    // A stale worker ship cannot share the live sortie's reserve slot at commit.
+  }
+  const restoredSlot = routes.capitalNavalReserveSlots.find((slot) => slot.id === slotId);
+  assert.equal(routes.shipById.has(firstShip.id), false);
+  assert.strictEqual(routes.shipById.get(secondShip.id), secondShip);
+  assert.equal(restoredSlot.activeShipId, secondShip.id);
+  assert.equal(secondShip.capitalNavalReserveSlotId, restoredSlot.id);
+});
+
 test("a staged worker restore keeps an encounter created between batches", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

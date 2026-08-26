@@ -3,21 +3,21 @@ const NON_PORT_COLONIZATION_KINDS = new Set([
   "investigate-lost-colony"
 ]);
 
+export const COLONIZATION_SITE_ARRIVAL_RADIUS_PX = 48;
+
 export function questSiteArrivalCandidate({
   colonizationObjective = null,
   cityCalls = [],
-  portCallIsInRange,
+  playerInteractionPoint = null,
   treasureTileId = null,
   nearestShoreTileId = null
 }) {
   if (!Array.isArray(cityCalls)) throw new Error("Quest-site arrival requires city calls");
-  if (typeof portCallIsInRange !== "function") {
-    throw new Error("Quest-site arrival requires an interaction-range resolver");
-  }
 
   if (NON_PORT_COLONIZATION_KINDS.has(colonizationObjective?.kind)) {
     const siteCall = cityCalls.find((call) => call.tileId === colonizationObjective.tileId);
-    if (siteCall && siteCall.requiredTradePort !== true && portCallIsInRange(siteCall)) {
+    if (siteCall && siteCall.requiredTradePort !== true &&
+        colonizationSiteCallIsInArrivalRange(siteCall, playerInteractionPoint)) {
       return Object.freeze({
         kind: "colonization",
         call: siteCall,
@@ -30,6 +30,20 @@ export function questSiteArrivalCandidate({
     return Object.freeze({ kind: "treasure", tileId: treasureTileId });
   }
   return null;
+}
+
+export function colonizationSiteCallIsInArrivalRange(call, playerInteractionPoint) {
+  if (!call?.character) return false;
+  if (!Number.isFinite(call.interactionX) || !Number.isFinite(call.interactionY)) {
+    throw new Error(`Colonization-site interaction point is missing for ${call.portId || call.tileId}`);
+  }
+  if (!Number.isFinite(playerInteractionPoint?.x) || !Number.isFinite(playerInteractionPoint?.y)) {
+    throw new Error("Colonization-site arrival requires a finite player interaction point");
+  }
+  const dx = playerInteractionPoint.x - call.interactionX;
+  const dy = playerInteractionPoint.y - call.interactionY;
+  return dx * dx + dy * dy <=
+    COLONIZATION_SITE_ARRIVAL_RADIUS_PX * COLONIZATION_SITE_ARRIVAL_RADIUS_PX;
 }
 
 export function resolveQuestSiteAnchorOnDialogueClose({

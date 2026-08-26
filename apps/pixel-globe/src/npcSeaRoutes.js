@@ -1131,6 +1131,9 @@ export function createNpcSeaRouteSimulationRestorePlan(
   }
   const preservedIds = new Set(preserveShipIds);
   const currentReserveSlotsById = new Map(system.capitalNavalReserveSlots.map((slot) => [slot.id, slot]));
+  const initialReserveSlotStateById = new Map(system.capitalNavalReserveSlots.map((slot) => (
+    [slot.id, cloneJsonData(slot)]
+  )));
   const protectedReserveSlotIds = new Set();
   for (const slot of system.capitalNavalReserveSlots) {
     if (slot.activeShipId !== null && preservedIds.has(slot.activeShipId)) {
@@ -1156,6 +1159,7 @@ export function createNpcSeaRouteSimulationRestorePlan(
     existingVisualNavigation,
     currentShipById,
     currentReserveSlotsById,
+    initialReserveSlotStateById,
     protectedReserveSlotIds,
     phase: "snapshot-ships",
     itemIndex: 0,
@@ -1313,6 +1317,7 @@ function assertNpcSeaRouteSimulationRestorePlan(plan) {
       !(plan.preservedIds instanceof Set) || !(plan.existingVisualNavigation instanceof Map) ||
       !(plan.initialShipIds instanceof Set) || !(plan.initialReserveSlotIds instanceof Set) ||
       !(plan.currentShipById instanceof Map) || !(plan.currentReserveSlotsById instanceof Map) ||
+      !(plan.initialReserveSlotStateById instanceof Map) ||
       !(plan.protectedReserveSlotIds instanceof Set) || !Array.isArray(plan.ships) ||
       !(plan.includedIds instanceof Set) || !(plan.shipById instanceof Map) ||
       !(plan.danger instanceof Map) || !Array.isArray(plan.reserveSlots) ||
@@ -1322,10 +1327,31 @@ function assertNpcSeaRouteSimulationRestorePlan(plan) {
 }
 
 function refreshLocallyAuthoritativeNpcRestoreState(plan) {
+  const liveSlotsById = new Map(plan.system.capitalNavalReserveSlots.map((slot) => [slot.id, slot]));
+  const authoritativeSlotIds = new Set(plan.protectedReserveSlotIds);
+  for (const [slotId, initialSlot] of plan.initialReserveSlotStateById) {
+    const liveSlot = liveSlotsById.get(slotId);
+    if (!liveSlot || !capitalNavalReserveSlotStatesMatch(liveSlot, initialSlot)) {
+      authoritativeSlotIds.add(slotId);
+    }
+  }
+  for (const liveSlot of plan.system.capitalNavalReserveSlots) {
+    if (!plan.initialReserveSlotIds.has(liveSlot.id)) authoritativeSlotIds.add(liveSlot.id);
+  }
+
   const liveAddedShipIds = new Set(plan.system.ships
     .filter((ship) => !plan.initialShipIds.has(ship.id))
     .map((ship) => ship.id));
   const authoritativeShipIds = new Set([...plan.preservedIds, ...liveAddedShipIds]);
+  for (const ship of plan.system.ships) {
+    if (liveAddedShipIds.has(ship.id) && ship.capitalNavalReserveSlotId !== null) {
+      authoritativeSlotIds.add(ship.capitalNavalReserveSlotId);
+    }
+  }
+  for (const slotId of authoritativeSlotIds) {
+    const activeShipId = liveSlotsById.get(slotId)?.activeShipId ?? null;
+    if (activeShipId !== null) authoritativeShipIds.add(activeShipId);
+  }
   const liveShipById = plan.system.shipById;
   const mergedShips = [];
   const mergedShipIds = new Set();
@@ -1337,6 +1363,11 @@ function refreshLocallyAuthoritativeNpcRestoreState(plan) {
     mergedShipIds.add(ship.id);
   };
   for (const stagedShip of plan.ships) {
+    const slotId = stagedShip.capitalNavalReserveSlotId;
+    if (slotId !== null && authoritativeSlotIds.has(slotId) &&
+        liveSlotsById.get(slotId)?.activeShipId !== stagedShip.id) {
+      continue;
+    }
     if (!authoritativeShipIds.has(stagedShip.id)) {
       appendShip(stagedShip);
       continue;
@@ -1352,13 +1383,11 @@ function refreshLocallyAuthoritativeNpcRestoreState(plan) {
   plan.ships = mergedShips;
   plan.shipById = new Map(mergedShips.map((ship) => [ship.id, ship]));
 
-  const authoritativeSlotIds = new Set(plan.protectedReserveSlotIds);
   for (const ship of mergedShips) {
     if (authoritativeShipIds.has(ship.id) && ship.capitalNavalReserveSlotId !== null) {
       authoritativeSlotIds.add(ship.capitalNavalReserveSlotId);
     }
   }
-  const liveSlotsById = new Map(plan.system.capitalNavalReserveSlots.map((slot) => [slot.id, slot]));
   const mergedSlots = [];
   const mergedSlotIds = new Set();
   for (const stagedSlot of plan.reserveSlots) {
@@ -1378,6 +1407,20 @@ function refreshLocallyAuthoritativeNpcRestoreState(plan) {
     mergedSlotIds.add(liveSlot.id);
   }
   plan.reserveSlots = mergedSlots;
+}
+
+function capitalNavalReserveSlotStatesMatch(left, right) {
+  return left.id === right.id &&
+    left.factionId === right.factionId &&
+    left.originPortId === right.originPortId &&
+    left.profileId === right.profileId &&
+    left.shipSlug === right.shipSlug &&
+    left.stockedMinute === right.stockedMinute &&
+    left.sourceSaleId === right.sourceSaleId &&
+    left.activeShipId === right.activeShipId &&
+    left.activationCount === right.activationCount &&
+    left.allowedSlugs.length === right.allowedSlugs.length &&
+    left.allowedSlugs.every((slug, index) => slug === right.allowedSlugs[index]);
 }
 
 function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {

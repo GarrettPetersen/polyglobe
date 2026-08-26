@@ -22237,7 +22237,10 @@ function maybeAutoAnchorAtNonPortQuestSite() {
   const arrival = questSiteArrivalCandidate({
     colonizationObjective: activeColonizationObjective(),
     cityCalls: chart.cityCalls || [],
-    portCallIsInRange: portCallInInteractionRange,
+    playerInteractionPoint: {
+      x: localLayout.viewX,
+      y: localLayout.viewY
+    },
     treasureTileId,
     nearestShoreTileId: treasureTileId === null ? null : nearestScavengeShoreCall()?.id ?? null
   });
