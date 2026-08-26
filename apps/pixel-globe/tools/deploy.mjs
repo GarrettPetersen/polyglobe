@@ -69,6 +69,12 @@ await verifyRemoteModuleGraph({
   baseUrl: "https://pirates-of-the-pixel-globe.pages.dev/",
   entryPaths: ["src/bootstrap.js"],
   expectedRevision: revisionMatch[1],
+  exactModuleIds: [
+    "src/bootstrap.js",
+    "src/distantWorldWorker.js",
+    "src/loadingScreenWorker.js",
+    "src/localSaveCompressionWorker.js"
+  ],
   attempts: 90,
   retryDelayMs: 1_000
 });

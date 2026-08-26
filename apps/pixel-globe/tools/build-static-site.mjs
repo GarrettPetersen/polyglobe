@@ -13,7 +13,10 @@ import {
   SHIP_SPRITE_SHEET_HEIGHT,
   SHIP_SPRITE_SHEET_WIDTH
 } from "../src/shipSpriteLayout.js";
-import { verifyLocalModuleGraph } from "./moduleGraphVerifier.mjs";
+import {
+  assertExactModuleGraph,
+  verifyLocalModuleGraph
+} from "./moduleGraphVerifier.mjs";
 
 const BUILD_EDITION_FULL = "full";
 const BUILD_EDITION_DEMO = "demo";
@@ -72,23 +75,14 @@ const maxHostedFileBytes = edition === BUILD_EDITION_DEMO
   : 24 * 1024 * 1024;
 const largeFileChunkBytes = 4 * 1024 * 1024;
 
-const appEntries = edition === BUILD_EDITION_DEMO
-  ? [
-      ["index.html", "index.html"],
-      ["privacy.html", "privacy.html"],
-      ["src/styles.css", "src/styles.css"]
-    ]
-  : [
-      ["index.html", "index.html"],
-      ["privacy.html", "privacy.html"],
-      ["src", "src"]
-    ];
+const appEntries = [
+  ["index.html", "index.html"],
+  ["privacy.html", "privacy.html"],
+  ["src/styles.css", "src/styles.css"]
+];
 
 const runtimeDependencyEntries = [
-  ["node_modules/fflate/LICENSE", "vendor/fflate.LICENSE"],
-  ...(edition === BUILD_EDITION_FULL
-    ? [["node_modules/fflate/esm/browser.js", "vendor/fflate.js"]]
-    : [])
+  ["node_modules/fflate/LICENSE", "vendor/fflate.LICENSE"]
 ];
 
 const publicEntries = [
@@ -466,14 +460,24 @@ async function stripDemoSocialMetadata() {
   await writeFile(indexPath, html);
 }
 
-async function bundleDemoRuntime() {
-  await build({
-    entryPoints: {
-      bootstrap: join(appRoot, "src/bootstrap.js"),
-      loadingScreenWorker: join(appRoot, "src/loadingScreenWorker.js"),
-      distantWorldWorker: join(appRoot, "src/distantWorldWorker.js"),
-      localSaveCompressionWorker: join(appRoot, "src/localSaveCompressionWorker.js")
-    },
+function buildEditionPlugin() {
+  return {
+    name: "pixel-globe-build-edition",
+    setup(buildContext) {
+      buildContext.onResolve({ filter: /^\.\/buildEdition\.js$/ }, () => ({
+        path: "buildEdition.js",
+        namespace: "pixel-globe-build"
+      }));
+      buildContext.onLoad({ filter: /.*/, namespace: "pixel-globe-build" }, () => ({
+        contents: buildEditionModuleSource(),
+        loader: "js"
+      }));
+    }
+  };
+}
+
+function browserBundleOptions() {
+  return {
     outdir: join(distRoot, "src"),
     bundle: true,
     entryNames: "[name]",
@@ -481,40 +485,20 @@ async function bundleDemoRuntime() {
     platform: "browser",
     target: "es2022",
     legalComments: "none",
-    plugins: [{
-      name: "pixel-globe-build-edition",
-      setup(buildContext) {
-        buildContext.onResolve({ filter: /^\.\/buildEdition\.js$/ }, () => ({
-          path: "buildEdition.js",
-          namespace: "pixel-globe-build"
-        }));
-        buildContext.onLoad({ filter: /.*/, namespace: "pixel-globe-build" }, () => ({
-          contents: buildEditionModuleSource(),
-          loader: "js"
-        }));
-      }
-    }]
-  });
-  await assertStandaloneDemoWorkers();
+    plugins: [buildEditionPlugin()]
+  };
 }
 
-async function assertStandaloneDemoWorkers() {
-  for (const fileName of [
-    "loadingScreenWorker.js",
-    "distantWorldWorker.js",
-    "localSaveCompressionWorker.js"
-  ]) {
-    const workerPath = join(distRoot, "src", fileName);
-    const source = await readFile(workerPath, "utf8");
-    const relativeImports = [
-      ...source.matchAll(/\b(?:from|import)\s*(?:\(\s*)?["'](\.[^"']+)["']/g)
-    ].map((match) => match[1]);
-    if (relativeImports.length > 0) {
-      throw new Error(
-        `Demo ${fileName} contains unresolved relative imports: ${relativeImports.join(", ")}`
-      );
+async function bundleBrowserRuntime() {
+  await build({
+    ...browserBundleOptions(),
+    entryPoints: {
+      bootstrap: join(appRoot, "src/bootstrap.js"),
+      loadingScreenWorker: join(appRoot, "src/loadingScreenWorker.js"),
+      distantWorldWorker: join(appRoot, "src/distantWorldWorker.js"),
+      localSaveCompressionWorker: join(appRoot, "src/localSaveCompressionWorker.js")
     }
-  }
+  });
 }
 
 validateGameIconAtlasManifest(JSON.parse(await readFile(gameIconManifestPath, "utf8")));
@@ -534,15 +518,21 @@ if (edition === BUILD_EDITION_DEMO) await buildDemoLandVehicleAtlases();
 await writeFile(join(distRoot, "src/buildEdition.js"), buildEditionModuleSource());
 if (edition === BUILD_EDITION_DEMO) {
   await stripDemoSocialMetadata();
-  await bundleDemoRuntime();
 }
+await bundleBrowserRuntime();
 await writeFile(
   join(distRoot, CHARACTER_MANIFEST_PATH),
   `${JSON.stringify(buildCharacterManifest, null, 2)}\n`
 );
-await verifyLocalModuleGraph({
+const runtimeModuleGraph = await verifyLocalModuleGraph({
   rootDirectory: distRoot,
   entryPaths: ["src/bootstrap.js"]
 });
+assertExactModuleGraph(runtimeModuleGraph, [
+  "src/bootstrap.js",
+  "src/distantWorldWorker.js",
+  "src/loadingScreenWorker.js",
+  "src/localSaveCompressionWorker.js"
+]);
 
 console.log(`Built Marque & Reprisal ${edition} static site at ${distRoot}`);

@@ -24,6 +24,7 @@ export async function verifyRemoteModuleGraph({
   baseUrl,
   entryPaths,
   expectedRevision = null,
+  exactModuleIds = null,
   attempts = 1,
   retryDelayMs = 0
 }) {
@@ -38,13 +39,26 @@ export async function verifyRemoteModuleGraph({
   let lastError = null;
   for (let attempt = 1; attempt <= attempts; attempt++) {
     try {
-      if (expectedRevision !== null) await assertRemoteRevision(base, expectedRevision);
-      return await crawlModuleGraph({
+      const loadedSources = new Map();
+      const load = async (id) => {
+        if (loadedSources.has(id)) return loadedSources.get(id);
+        const source = await loadRemoteModule(new URL(id, base), base);
+        loadedSources.set(id, source);
+        return source;
+      };
+      if (expectedRevision !== null) {
+        await assertRemoteRevision(base, expectedRevision);
+        await assertRemoteEntryRevision(load, entries, expectedRevision);
+      }
+      const moduleGraph = await crawlModuleGraph({
         entryIds: entries,
-        load: (id) => loadRemoteModule(new URL(id, base), base),
+        load,
         resolve: (specifier, parentId) => resolveRemoteSpecifier(specifier, parentId, base),
         validateId: assertDeployableModuleId
       });
+      return exactModuleIds === null
+        ? moduleGraph
+        : assertExactModuleGraph(moduleGraph, exactModuleIds);
     } catch (error) {
       lastError = error;
       if (attempt < attempts) await delay(retryDelayMs);
@@ -63,12 +77,30 @@ export function moduleDependencySpecifiers(source) {
   const patterns = [
     /\b(?:import|export)\s+(?:[^"'()]*?\s+from\s+)?["']([^"']+)["']/g,
     /\bimport\s*\(\s*["']([^"']+)["']/g,
-    /\bnew\s+(?:Shared)?Worker\s*\(\s*new\s+URL\s*\(\s*["']([^"']+\.js)["']/g
+    /\bnew\s+URL\s*\(\s*["']([^"']+\.js)["']\s*,\s*import\.meta\.url\s*\)/g
   ];
   for (const pattern of patterns) {
     for (const match of source.matchAll(pattern)) dependencies.add(match[1]);
   }
   return Object.freeze([...dependencies]);
+}
+
+export function assertExactModuleGraph(moduleGraph, expectedModuleIds) {
+  if (!moduleGraph || !Array.isArray(moduleGraph.moduleIds)) {
+    throw new Error("Exact module graph assertion requires crawled module IDs");
+  }
+  const expected = normalizeEntryPaths(expectedModuleIds).sort();
+  const actual = [...moduleGraph.moduleIds].sort();
+  const missing = expected.filter((id) => !actual.includes(id));
+  const unexpected = actual.filter((id) => !expected.includes(id));
+  if (missing.length > 0 || unexpected.length > 0) {
+    throw new Error([
+      "Browser runtime module graph is not atomic.",
+      missing.length > 0 ? `Missing bundles: ${missing.join(", ")}.` : "",
+      unexpected.length > 0 ? `Unexpected modules: ${unexpected.join(", ")}.` : ""
+    ].filter(Boolean).join(" "));
+  }
+  return moduleGraph;
 }
 
 async function crawlModuleGraph({ entryIds, load, resolve, validateId }) {
@@ -85,7 +117,10 @@ async function crawlModuleGraph({ entryIds, load, resolve, validateId }) {
       if (!visited.has(dependencyId)) pending.push(dependencyId);
     }
   }
-  return Object.freeze({ modulesChecked: visited.size });
+  return Object.freeze({
+    modulesChecked: visited.size,
+    moduleIds: Object.freeze([...visited].sort())
+  });
 }
 
 function resolveLocalSpecifier(specifier, parentId) {
@@ -145,6 +180,15 @@ async function assertRemoteRevision(base, expectedRevision) {
   }
   if (!source.includes(`BUILD_REVISION = ${JSON.stringify(expected)}`)) {
     throw new Error(`Production build revision has not reached ${expected}`);
+  }
+}
+
+async function assertRemoteEntryRevision(load, entryIds, expectedRevision) {
+  for (const entryId of entryIds) {
+    const source = await load(entryId);
+    if (!source.includes(JSON.stringify(expectedRevision))) {
+      throw new Error(`Browser entry module ${entryId} does not contain revision ${expectedRevision}`);
+    }
   }
 }
 
