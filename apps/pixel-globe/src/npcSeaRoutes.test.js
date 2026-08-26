@@ -1752,6 +1752,69 @@ test("worker NPC restore stages a bounded fleet before one atomic commit", () =>
   ).specie);
 });
 
+test("a staged worker restore does not resurrect a reserve sortie returned between batches", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_BURNING,
+    clockMinutes: 100,
+    threatUntilMinute: 101
+  });
+  const reserveShip = routes.shipById.get(response.shipId);
+  const slotId = reserveShip.capitalNavalReserveSlotId;
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  const plan = createNpcSeaRouteSimulationRestorePlan(routes, snapshot, {
+    preserveShipIds: [reserveShip.id]
+  });
+
+  while (plan.phase !== "validate-ships") {
+    assert.equal(advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 }), false);
+  }
+  updateNpcSeaRouteSystem(routes, 100_000);
+  assert.equal(routes.shipById.has(reserveShip.id), false);
+  const returnedSlot = routes.capitalNavalReserveSlots.find((slot) => slot.id === slotId);
+  assert.equal(returnedSlot.activeShipId, null);
+  assert.equal(returnedSlot.shipSlug, reserveShip.slug);
+
+  while (!advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 })) {
+    // The live return remains authoritative while the worker result commits in batches.
+  }
+  const restoredSlot = routes.capitalNavalReserveSlots.find((slot) => slot.id === slotId);
+  assert.equal(routes.shipById.has(reserveShip.id), false);
+  assert.equal(restoredSlot.activeShipId, null);
+  assert.equal(restoredSlot.shipSlug, reserveShip.slug);
+});
+
+test("a staged worker restore keeps an encounter created between batches", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  const plan = createNpcSeaRouteSimulationRestorePlan(routes, snapshot);
+
+  assert.equal(advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 }), false);
+  const encounter = configureNpcEncounter(routes, {
+    id: "colony-defense:mid-restore",
+    factionId: "neutral",
+    role: NPC_ROLE_WARSHIP,
+    shipSlug: "mesoamerican-dugout-canoe",
+    lat: 45.5,
+    lon: -73.6,
+    headingDeg: 90,
+    cultureType: "mesoamerican",
+    routeRegion: "americas",
+    specie: 0,
+    replaceOnSink: false,
+    encounter: { kind: "colonization-defense", forceAttack: true }
+  }, 1000);
+
+  while (!advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 })) {
+    // New local entities are part of the authoritative side of the transaction.
+  }
+  assert.strictEqual(routes.shipById.get(encounter.id), encounter);
+});
+
 test("worker simulation cannot overwrite a scripted encounter added after its snapshot", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

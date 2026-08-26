@@ -1151,6 +1151,8 @@ export function createNpcSeaRouteSimulationRestorePlan(
     system,
     snapshot,
     preservedIds,
+    initialShipIds: new Set(system.ships.map((ship) => ship.id)),
+    initialReserveSlotIds: new Set(system.capitalNavalReserveSlots.map((slot) => slot.id)),
     existingVisualNavigation,
     currentShipById,
     currentReserveSlotsById,
@@ -1289,6 +1291,7 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
     }
     if (plan.phase === "commit") {
       const { system } = plan;
+      refreshLocallyAuthoritativeNpcRestoreState(plan);
       system.ships = plan.ships;
       system.shipById = plan.shipById;
       system.replacementQueue = plan.snapshot.replacementQueue;
@@ -1308,6 +1311,7 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
 function assertNpcSeaRouteSimulationRestorePlan(plan) {
   if (!plan || plan.version !== 1 || !plan.system || !plan.snapshot ||
       !(plan.preservedIds instanceof Set) || !(plan.existingVisualNavigation instanceof Map) ||
+      !(plan.initialShipIds instanceof Set) || !(plan.initialReserveSlotIds instanceof Set) ||
       !(plan.currentShipById instanceof Map) || !(plan.currentReserveSlotsById instanceof Map) ||
       !(plan.protectedReserveSlotIds instanceof Set) || !Array.isArray(plan.ships) ||
       !(plan.includedIds instanceof Set) || !(plan.shipById instanceof Map) ||
@@ -1315,6 +1319,65 @@ function assertNpcSeaRouteSimulationRestorePlan(plan) {
       !Number.isInteger(plan.itemIndex) || plan.itemIndex < 0 || typeof plan.phase !== "string") {
     throw new Error("Invalid NPC simulation restore plan");
   }
+}
+
+function refreshLocallyAuthoritativeNpcRestoreState(plan) {
+  const liveAddedShipIds = new Set(plan.system.ships
+    .filter((ship) => !plan.initialShipIds.has(ship.id))
+    .map((ship) => ship.id));
+  const authoritativeShipIds = new Set([...plan.preservedIds, ...liveAddedShipIds]);
+  const liveShipById = plan.system.shipById;
+  const mergedShips = [];
+  const mergedShipIds = new Set();
+  const appendShip = (ship) => {
+    if (!ship || typeof ship.id !== "string" || ship.id === "" || mergedShipIds.has(ship.id)) {
+      throw new Error(`Invalid locally authoritative NPC ship: ${ship?.id}`);
+    }
+    mergedShips.push(ship);
+    mergedShipIds.add(ship.id);
+  };
+  for (const stagedShip of plan.ships) {
+    if (!authoritativeShipIds.has(stagedShip.id)) {
+      appendShip(stagedShip);
+      continue;
+    }
+    const liveShip = liveShipById.get(stagedShip.id);
+    if (liveShip && !mergedShipIds.has(liveShip.id)) appendShip(liveShip);
+  }
+  for (const liveShip of plan.system.ships) {
+    if (authoritativeShipIds.has(liveShip.id) && !mergedShipIds.has(liveShip.id)) {
+      appendShip(liveShip);
+    }
+  }
+  plan.ships = mergedShips;
+  plan.shipById = new Map(mergedShips.map((ship) => [ship.id, ship]));
+
+  const authoritativeSlotIds = new Set(plan.protectedReserveSlotIds);
+  for (const ship of mergedShips) {
+    if (authoritativeShipIds.has(ship.id) && ship.capitalNavalReserveSlotId !== null) {
+      authoritativeSlotIds.add(ship.capitalNavalReserveSlotId);
+    }
+  }
+  const liveSlotsById = new Map(plan.system.capitalNavalReserveSlots.map((slot) => [slot.id, slot]));
+  const mergedSlots = [];
+  const mergedSlotIds = new Set();
+  for (const stagedSlot of plan.reserveSlots) {
+    if (!authoritativeSlotIds.has(stagedSlot.id)) {
+      mergedSlots.push(stagedSlot);
+      mergedSlotIds.add(stagedSlot.id);
+      continue;
+    }
+    const liveSlot = liveSlotsById.get(stagedSlot.id);
+    if (!liveSlot) continue;
+    mergedSlots.push(validateCapitalNavalReserveSlot({ ...liveSlot }));
+    mergedSlotIds.add(liveSlot.id);
+  }
+  for (const liveSlot of plan.system.capitalNavalReserveSlots) {
+    if (plan.initialReserveSlotIds.has(liveSlot.id) || mergedSlotIds.has(liveSlot.id)) continue;
+    mergedSlots.push(validateCapitalNavalReserveSlot({ ...liveSlot }));
+    mergedSlotIds.add(liveSlot.id);
+  }
+  plan.reserveSlots = mergedSlots;
 }
 
 function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {

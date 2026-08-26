@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  characterAlertChoicesAreVisible,
   characterAlertChoiceTextLayout,
   characterAlertGeometry,
   dialogueExitFooterRects,
@@ -15,7 +16,8 @@ import {
   dialogueOptionStackLayout,
   dialogueOptionTextLayout,
   dialogueOptionWindow,
-  dialoguePanelGeometry
+  dialoguePanelGeometry,
+  stepCharacterAlertChoicePage
 } from "./dialoguePanelLayout.js";
 
 test("character exchanges replace rather than overlap the underlying dialogue", () => {
@@ -99,6 +101,16 @@ test("character alert choices give longer weapon actions more room", () => {
   assert.ok(layout.textLayouts[1].labelLines.length <= 3);
   assert.equal(layout.textLayouts[1].iconReserve, 20);
   assert.equal(layout.textLayouts[1].labelLines.join(" "), "CONFRONT WITH MATCHLOCK ARQUEBUSES");
+});
+
+test("multi-page character alerts with choices reveal decisions only after the full message", () => {
+  assert.equal(characterAlertChoicesAreVisible(0, 2), false);
+  assert.equal(stepCharacterAlertChoicePage(0, 2, 1), 1);
+  assert.equal(characterAlertChoicesAreVisible(1, 2), true);
+  assert.equal(stepCharacterAlertChoicePage(1, 2, -1), 0);
+  assert.equal(stepCharacterAlertChoicePage(1, 2, 1), 1);
+  assert.throws(() => characterAlertChoicesAreVisible(2, 2), /Invalid character alert choice page/);
+  assert.throws(() => stepCharacterAlertChoicePage(0, 2, 0), /direction/);
 });
 
 test("reserved feedback slots keep action positions stable as messages appear", () => {

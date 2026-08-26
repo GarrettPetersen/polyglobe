@@ -1333,6 +1333,7 @@ import {
   zoomedMinimapViewport
 } from "./minimapViewport.js";
 import {
+  characterAlertChoicesAreVisible,
   characterAlertChoiceTextLayout,
   characterAlertGeometry,
   dialogueExitFooterRects,
@@ -1345,7 +1346,8 @@ import {
   dialogueOptionStackLayout,
   dialogueOptionTextLayout,
   dialogueOptionWindow,
-  dialoguePanelGeometry
+  dialoguePanelGeometry,
+  stepCharacterAlertChoicePage
 } from "./dialoguePanelLayout.js";
 import {
   DIALOGUE_PORTRAIT_TONE_ACTIVE,
@@ -6994,7 +6996,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
     buttonLabel,
     page: 0,
     hovered: false,
-    buttonRect: captainAlertButtonRect(),
+    buttonRect: captainAlertButtonRect(kind === "choice" ? { kind, choices } : null),
     choices: choices ? Object.freeze(choices.map((choice) => Object.freeze({ ...choice }))) : null,
     selectedChoiceIndex: 0,
     choiceRects: choices ? captainAlertChoiceRects(choices) : null
@@ -7034,8 +7036,8 @@ function sailingHelpButtonRect() {
   };
 }
 
-function captainAlertButtonRect() {
-  const panel = captainAlertGeometry().panel;
+function captainAlertButtonRect(modal = null) {
+  const panel = captainAlertGeometry(modal).panel;
   return {
     x: panel.x + panel.w - CAPTAIN_ALERT_BUTTON_W - 14,
     y: panel.y + panel.h - CAPTAIN_ALERT_BUTTON_H - 11,
@@ -7163,9 +7165,20 @@ function handleCaptainAlertKeyDown(event) {
     return;
   }
   if (captainAlertModal?.kind === "choice") {
-    if (["ArrowLeft", "ArrowUp"].includes(event.key)) selectCaptainAlertChoiceIndex(-1);
-    else if (["ArrowRight", "ArrowDown", "Tab"].includes(event.key)) selectCaptainAlertChoiceIndex(1);
-    else if (event.key === "Enter" || event.key === " ") activateCaptainAlertChoice();
+    const pages = captainAlertPages(captainAlertModal);
+    if (!characterAlertChoicesAreVisible(captainAlertModal.page, pages.length)) {
+      if (["Enter", " ", "ArrowRight", "ArrowDown", "PageDown", "Tab"].includes(event.key)) {
+        stepCaptainAlertChoiceMessagePage(1);
+      } else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) {
+        stepCaptainAlertChoiceMessagePage(-1);
+      }
+    } else if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
+      selectCaptainAlertChoiceIndex(-1);
+    } else if (["ArrowRight", "ArrowDown", "Tab"].includes(event.key)) {
+      selectCaptainAlertChoiceIndex(1);
+    } else if (event.key === "Enter" || event.key === " ") {
+      activateCaptainAlertChoice();
+    }
     return;
   }
   if (event.key === "Escape") closeCaptainAlertModal();
@@ -7183,6 +7196,11 @@ function handlePlayerIntroPointerDown(point) {
 
 function handleCaptainAlertPointerDown(point) {
   if (captainAlertModal?.kind === "choice") {
+    const pages = captainAlertPages(captainAlertModal);
+    if (!characterAlertChoicesAreVisible(captainAlertModal.page, pages.length)) {
+      if (pointInRect(point, captainAlertModal.buttonRect)) stepCaptainAlertChoiceMessagePage(1);
+      return;
+    }
     const index = captainAlertModal.choiceRects.findIndex((rect) => pointInRect(point, rect));
     if (index >= 0) {
       captainAlertModal.selectedChoiceIndex = index;
@@ -7193,6 +7211,15 @@ function handleCaptainAlertPointerDown(point) {
   if (!pointInRect(point, captainAlertModal?.buttonRect)) return;
   if (captainAlertModal.kind === "sailing-help") stepSailingHelpPage(1);
   else advanceCaptainAlertModal();
+}
+
+function stepCaptainAlertChoiceMessagePage(direction) {
+  const modal = captainAlertModal;
+  if (modal?.kind !== "choice") throw new Error("No character choice message is available to page");
+  const pageCount = captainAlertPages(modal).length;
+  modal.page = stepCharacterAlertChoicePage(modal.page, pageCount, direction);
+  modal.hovered = false;
+  dirty = true;
 }
 
 function advanceCaptainAlertModal() {
@@ -7213,6 +7240,9 @@ function advanceCaptainAlertModal() {
 function selectCaptainAlertChoiceIndex(direction) {
   const modal = captainAlertModal;
   if (modal?.kind !== "choice") throw new Error("No character choice is available to select");
+  if (!characterAlertChoicesAreVisible(modal.page, captainAlertPages(modal).length)) {
+    throw new Error("Character choices are unavailable before the final message page");
+  }
   modal.selectedChoiceIndex = (modal.selectedChoiceIndex + direction + modal.choices.length) % modal.choices.length;
   dirty = true;
 }
@@ -7220,6 +7250,9 @@ function selectCaptainAlertChoiceIndex(direction) {
 function activateCaptainAlertChoice() {
   const modal = captainAlertModal;
   if (modal?.kind !== "choice") throw new Error("No character choice is available to activate");
+  if (!characterAlertChoicesAreVisible(modal.page, captainAlertPages(modal).length)) {
+    throw new Error("Character choices are unavailable before the final message page");
+  }
   const choice = modal.choices[modal.selectedChoiceIndex];
   captainAlertModal = null;
   characterAlertPortraitStage = createDialoguePortraitStageState();
@@ -9048,8 +9081,13 @@ function dispatchWorldOverlayPointerMove(event, point) {
     else updateStartMenuSelectionFromPoint(point);
   } else if (owner === INTERACTION_INPUT.CAPTAIN_ALERT) {
     if (captainAlertModal.kind === "choice") {
-      const index = captainAlertModal.choiceRects.findIndex((rect) => pointInRect(point, rect));
-      if (index >= 0) captainAlertModal.selectedChoiceIndex = index;
+      const pages = captainAlertPages(captainAlertModal);
+      if (characterAlertChoicesAreVisible(captainAlertModal.page, pages.length)) {
+        const index = captainAlertModal.choiceRects.findIndex((rect) => pointInRect(point, rect));
+        if (index >= 0) captainAlertModal.selectedChoiceIndex = index;
+      } else {
+        captainAlertModal.hovered = pointInRect(point, captainAlertModal.buttonRect);
+      }
     } else {
       captainAlertModal.hovered = pointInRect(point, captainAlertModal.buttonRect);
     }
@@ -32648,15 +32686,18 @@ function updateNpcShips(dt) {
   if (!distantWorldWorkerClient) {
     throw new Error("NPC simulation requires the distant-world worker");
   }
-  if (!distantWorldApplyState && pendingDistantWorldEvents.length === 0) {
+  const workerApplyPending = Boolean(distantWorldApplyState) || pendingDistantWorldEvents.length > 0;
+  if (!workerApplyPending) {
     distantWorldWorkerClient.requestAdvance(weatherClockMinutes, distantWorldRuntimeState);
   }
-  const scheduled = measurePerformanceBenchmarkStage(
-    "npcShips.scheduled",
-    () => worldSimulationScheduler.advance(dt)
-  );
   let scheduledChanged = false;
-  for (const result of scheduled.values()) scheduledChanged ||= result.changed;
+  if (!workerApplyPending) {
+    const scheduled = measurePerformanceBenchmarkStage(
+      "npcShips.scheduled",
+      () => worldSimulationScheduler.advance(dt)
+    );
+    for (const result of scheduled.values()) scheduledChanged ||= result.changed;
+  }
   let distantChanged = false;
   if (!distantWorldApplyState && pendingDistantWorldEvents.length > 0) {
     distantWorldApplyState = createDistantWorldApplyState(pendingDistantWorldEvents.shift());
@@ -37642,7 +37683,7 @@ function applyResponsiveViewport(width, height) {
   if (captainAlertModal) {
     captainAlertModal.buttonRect = captainAlertModal.kind === "sailing-help"
       ? sailingHelpButtonRect()
-      : captainAlertButtonRect();
+      : captainAlertButtonRect(captainAlertModal);
     if (captainAlertModal.kind === "choice") {
       captainAlertModal.choiceRects = captainAlertChoiceRects(captainAlertModal.choices);
     }
@@ -58235,7 +58276,16 @@ function drawCaptainAlertModal(nowMs) {
   }
 
   if (modal.kind === "choice") {
-    if (pages.length !== 1) throw new Error("Character choice alert text must fit on one page");
+    if (!characterAlertChoicesAreVisible(modal.page, pages.length)) {
+      const button = modal.buttonRect;
+      drawPiratePaperInset(button, modal.hovered);
+      ctx.fillStyle = PIRATE_MENU_INK;
+      drawPixelText("NEXT", button.x + button.w / 2, controlTextY(button), {
+        font: PIXEL_FONT_DIALOGUE_8,
+        align: "center"
+      });
+      return;
+    }
     const choiceLayout = captainAlertChoiceLayout(modal.choices);
     modal.choiceRects.forEach((rect, index) => {
       drawPiratePaperInset(rect, index === modal.selectedChoiceIndex);
@@ -58270,9 +58320,14 @@ function drawCaptainAlertModal(nowMs) {
   });
 }
 
-function captainAlertPages(modal, textWidth = CAPTAIN_ALERT_PANEL_W - 24) {
+function captainAlertPages(modal, textWidth = null) {
   if (!modal || typeof modal.message !== "string") throw new Error("Character alert has no message");
-  const lines = wrapPixelTextAll(modal.message.toUpperCase(), PIXEL_FONT_SMALL_8, textWidth);
+  const resolvedTextWidth = textWidth ?? captainAlertGeometry(modal).panel.w - 24;
+  const lines = wrapPixelTextAll(
+    modal.message.toUpperCase(),
+    PIXEL_FONT_SMALL_8,
+    resolvedTextWidth
+  );
   const pages = [];
   const linesPerPage = languageUsesTallPixelMetrics(currentLanguage) ? 3 : 4;
   for (let index = 0; index < lines.length; index += linesPerPage) {

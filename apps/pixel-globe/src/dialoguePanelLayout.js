@@ -7,6 +7,26 @@ export function dialogueOverlayIsVisible({ dialogueActive, characterAlertActive 
   return dialogueActive && !characterAlertActive;
 }
 
+export function characterAlertChoicesAreVisible(page, pageCount) {
+  assertCharacterAlertChoicePage(page, pageCount);
+  return page === pageCount - 1;
+}
+
+export function stepCharacterAlertChoicePage(page, pageCount, direction) {
+  assertCharacterAlertChoicePage(page, pageCount);
+  if (![-1, 1].includes(direction)) {
+    throw new Error(`Character alert page direction must be -1 or 1: ${direction}`);
+  }
+  return Math.max(0, Math.min(pageCount - 1, page + direction));
+}
+
+function assertCharacterAlertChoicePage(page, pageCount) {
+  if (!Number.isInteger(pageCount) || pageCount <= 0 ||
+      !Number.isInteger(page) || page < 0 || page >= pageCount) {
+    throw new Error(`Invalid character alert choice page: ${page}/${pageCount}`);
+  }
+}
+
 export function characterAlertGeometry({
   screenWidth,
   screenHeight,
