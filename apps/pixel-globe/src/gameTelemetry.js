@@ -1,4 +1,5 @@
 import { validateVoyageStartProfile } from "./voyageStartProfile.js";
+import { globalTelemetryFailureIsActionable } from "./telemetryErrorClassification.js";
 
 export const TELEMETRY_CONSENT_STORAGE_KEY = "marque-and-reprisal.telemetry-consent";
 export const TELEMETRY_INSTALLATION_STORAGE_KEY = "marque-and-reprisal.telemetry-installation";
@@ -25,7 +26,6 @@ const TELEMETRY_CHECKPOINT_INTERVAL_MS = 15 * 60 * 1000;
 const TELEMETRY_REQUEST_TIMEOUT_MS = 2500;
 const TELEMETRY_QUEUE_LIMIT = 12;
 const TELEMETRY_BATCH_LIMIT = 8;
-const BROWSER_EXTENSION_URL_PATTERN = /(?:chrome|moz|safari-web|ms-browser)-extension:\/\//i;
 /** @type {ReadonlyArray<readonly [string, (state: any, decisions: any) => boolean]>} */
 const TELEMETRY_FEATURES = Object.freeze([
   ["trade", (state, decisions) => hasDecisionPrefix(decisions, "trade.buy.") ||
@@ -46,12 +46,12 @@ const TELEMETRY_FEATURES = Object.freeze([
 ]);
 
 export function shouldCaptureGlobalTelemetryError(error, sourceUrl = "") {
-  const stack = typeof error?.stack === "string" ? error.stack : "";
-  if (BROWSER_EXTENSION_URL_PATTERN.test(`${sourceUrl}\n${stack}`)) return false;
-  const bareBrowserNetworkFailure = error?.name === "TypeError" &&
-    error?.message === "Failed to fetch" &&
-    !/\n\s*at\s/.test(stack);
-  return !bareBrowserNetworkFailure;
+  return globalTelemetryFailureIsActionable({
+    errorName: error?.name,
+    message: error?.message,
+    stack: error?.stack,
+    sourceUrl
+  });
 }
 
 export function createGameTelemetry({

@@ -57,6 +57,10 @@ test("global telemetry ignores context-free browser network failures", () => {
     ...bareNetworkError,
     stack: "TypeError: Failed to fetch\n    at loadManifest (https://example.test/main.js:1:1)"
   }), true);
+  assert.equal(shouldCaptureGlobalTelemetryError({
+    ...bareNetworkError,
+    stack: "loadManifest@https://example.test/main.js:1:1"
+  }), true);
 });
 
 test("telemetry remains completely inert before consent and after refusal", async () => {

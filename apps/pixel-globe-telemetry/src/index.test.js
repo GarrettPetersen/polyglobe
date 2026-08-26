@@ -40,6 +40,43 @@ test("valid crash reports are hashed and written without network identity", asyn
   assert.equal(points[0].blobs[14], "Boom");
 });
 
+test("stale clients cannot submit context-free browser network failures", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("crash", {
+    samplingWeight: 1,
+    errorName: "TypeError",
+    message: "Failed to fetch",
+    stack: "TypeError: Failed to fetch",
+    screen: "sailing",
+    mainQuest: "none",
+    ship: "none"
+  })]), environment(points));
+
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 0);
+  assert.deepEqual(await response.json(), {
+    accepted: 0,
+    rejected: 1,
+    errors: [{ eventId: "event-1", error: "unactionable_crash" }]
+  });
+});
+
+test("network failures with a game stack remain actionable", async () => {
+  const points = [];
+  const response = await worker.fetch(requestFor([event("crash", {
+    samplingWeight: 1,
+    errorName: "TypeError",
+    message: "Failed to fetch",
+    stack: "loadManifest@https://example.test/src/main.js:1:1",
+    screen: "sailing",
+    mainQuest: "explorer",
+    ship: "caravel"
+  })]), environment(points));
+
+  assert.equal(response.status, 202);
+  assert.equal(points.length, 1);
+});
+
 test("nonfatal diagnostics are stored separately from crashes", async () => {
   const points = [];
   const response = await worker.fetch(new Request("https://telemetry.example/v1/events", {

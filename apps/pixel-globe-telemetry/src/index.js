@@ -2,6 +2,9 @@ import {
   handleDashboardRequest,
   isDashboardRequest
 } from "./dashboard.js";
+import {
+  globalTelemetryFailureIsActionable
+} from "../../pixel-globe/src/telemetryErrorClassification.js";
 
 const MAX_BODY_BYTES = 64 * 1024;
 const MAX_EVENTS_PER_REQUEST = 8;
@@ -191,7 +194,7 @@ function validatePayload(type, payload) {
     };
   }
   if (type === "crash" || type === "diagnostic") {
-    return {
+    const normalized = {
       samplingWeight,
       errorName: shortString(payload.errorName, 80),
       message: stringAtMost(payload.message, 500),
@@ -200,6 +203,10 @@ function validatePayload(type, payload) {
       mainQuest: shortString(payload.mainQuest, 80),
       ship: shortString(payload.ship, 80)
     };
+    if (type === "crash" && !globalTelemetryFailureIsActionable(normalized)) {
+      throw new TelemetryRequestError("unactionable_crash", 400);
+    }
+    return normalized;
   }
   if (type === "low_fps") return validateLowFrameRatePayload(payload, samplingWeight);
   if (type === "freeze") return validateFreezePayload(payload, samplingWeight);
