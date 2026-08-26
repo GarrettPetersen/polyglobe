@@ -117,6 +117,30 @@ test("urgent repair fog covers faulty edge tiles on the catastrophic telemetry c
   assert.equal(chartFogPixelDensity(frame, frame.focusX, frame.focusY), 0);
 });
 
+test("urgent repair fog can settle the first tile ring while preserving the ship", () => {
+  const fog = createChartRepairFog({
+    nowMs: 0,
+    viewportWidth: 482,
+    viewportHeight: 256,
+    focusX: 241,
+    focusY: 128,
+    urgent: true
+  });
+  const closed = chartRepairFogFrame(fog, fog.formationDurationMs);
+
+  assert.ok(fog.minimumClearRadius < 24);
+  assert.equal(
+    chartFogConcealsCircleForRepair(closed, closed.focusX, closed.focusY, 12),
+    false,
+    "urgent fog must leave the player's ship visible"
+  );
+  assert.equal(
+    chartFogConcealsCircleForRepair(closed, closed.focusX + 24, closed.focusY, 12),
+    true,
+    "urgent fog must release a rotated neighboring tile for settlement"
+  );
+});
+
 test("repair fog has a stable ragged pixel edge rather than a perfect circle", () => {
   const fog = createChartRepairFog({
     nowMs: 0,

@@ -42,6 +42,7 @@ export function createChartRepairFog({
   const formationDurationMs = urgent ? CHART_REPAIR_FOG_URGENT_FORMATION_MS : 100_000;
   const holdDurationMs = 8_000;
   const clearingDurationMs = urgent ? CHART_REPAIR_FOG_URGENT_CLEARING_MS : 120_000;
+  const minimumDimension = Math.min(viewportWidth, viewportHeight);
   return Object.freeze({
     startedAtMs: nowMs,
     durationMs: formationDurationMs + holdDurationMs + clearingDurationMs,
@@ -52,7 +53,9 @@ export function createChartRepairFog({
     viewportHeight,
     focusX,
     focusY,
-    minimumClearRadius: Math.max(42, Math.min(viewportWidth, viewportHeight) * 0.18),
+    minimumClearRadius: urgent
+      ? Math.max(10, minimumDimension * 0.04)
+      : Math.max(42, minimumDimension * 0.18),
     fadeBandPx,
     maximumClearRadius
   });

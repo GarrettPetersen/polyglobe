@@ -1791,6 +1791,46 @@ test("a Scandinavia traversal into the Baltic reaches Gotland without distortion
   assertLandTraversalIsContinuous(result, "Scandinavia-to-Baltic crossing");
 });
 
+test("an urgent closing fog settles a tilted Oresund approach before telemetry stalls", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [64.2, 41.7],
+        [68.0, 39.0],
+        [71.2, 26.0],
+        [71.5, 18.0],
+        [69.0, 8.5],
+        [63.0, 5.0],
+        [58.0, 2.0],
+        [56.0, 7.0],
+        [55.73, 13.13],
+        [56.0, 15.0],
+        [57.0, 18.0]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: false
+    }
+  );
+  reportChartBenchmark("oresund-closing-fog", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRotationDeg <= 8,
+    `Oresund closing fog left ${result.maxRotationDeg.toFixed(2)} degrees visible`
+  );
+  assert.ok(result.repairDemand.closingFogsStarted > 0, "Oresund route never exercised closing fog");
+  assert.ok(
+    result.maxProtectedEdgeErrorPx <= MAX_VISIBLE_PROTECTED_EDGE_LENGTH_ERROR_PX,
+    `Oresund protected edge opened by ${result.maxProtectedEdgeErrorPx.toFixed(2)}px`
+  );
+  assertLandTraversalIsContinuous(result, "Oresund closing-fog approach");
+});
+
 test("a northbound Scotland-to-Arctic-Norway voyage never outruns drawn terrain", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
@@ -3218,7 +3258,7 @@ function applyTraversalVisualRepair({
       : kind === "partial-cloud"
       ? distanceFromFault <= partialRadiusPx
       : kind === "closing-fog"
-      ? distanceFromPlayer >= 48
+      ? distanceFromPlayer >= 20
       : kind === "heat-haze";
     if (eligible) repairTileIds.add(id);
   }
