@@ -2,10 +2,18 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   chartRebuildRequest,
+  coveredChartRepairCanApply,
   createChartRebuildTracker,
   createCoveredChartRepairQueue,
   planChartLayoutTransaction
 } from "./chartLayoutEngine.js";
+
+test("covered chart repairs wait for an indexed chart before reprojecting visual state", () => {
+  const localLayout = { positions: new Map([[1, { x: 10, y: 10 }]]) };
+  assert.equal(coveredChartRepairCanApply({ localLayout, chart: null }), false);
+  assert.equal(coveredChartRepairCanApply({ localLayout, chart: {} }), false);
+  assert.equal(coveredChartRepairCanApply({ localLayout, chart: { waterIndex: {} } }), true);
+});
 
 test("one chart transaction settles a movable group against its complete topology", () => {
   const positions = new Map([

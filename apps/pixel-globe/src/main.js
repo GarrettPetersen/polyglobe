@@ -2041,6 +2041,7 @@ import {
 } from "./chartReframe.js";
 import {
   chartRebuildRequest,
+  coveredChartRepairCanApply,
   createChartRebuildTracker,
   createCoveredChartRepairQueue,
   planChartLayoutTransaction
@@ -4719,6 +4720,12 @@ async function main() {
   chart = buildChart(camera);
   reframeWorldNorthUp("new game setup", { allowUncovered: true });
   await loadInitialNearbyWorldAssets();
+  if (!CAPTURE_SCENARIO && !CAPTURE_FRAME_PASS) {
+    // Compile and cache the first complete world frame while the dedicated
+    // loading screen is still visible. The start menu must never absorb this
+    // one-time cost as a multi-second foreground freeze on slower devices.
+    render(performance.now(), { allowColdCoveredWorldRender: true });
+  }
   setupThemeMusic();
   setupSoundEffects();
   if (PERFORMANCE_BENCHMARK) setupPerformanceBenchmark();
@@ -37025,6 +37032,7 @@ function tileHasOffshoreHullClearance(tileId) {
 
 function nearestNpcNavigableVisualPoint(routePoint, heading, searchRadiusPx, slug) {
   if (!slug) throw new Error("NPC visual placement requires a ship slug");
+  if (!chart?.waterIndex) throw new Error("NPC visual placement requires an indexed chart");
   const direct = npcNavigableVisualPoint(routePoint.x, routePoint.y, heading, slug);
   if (direct) return direct;
 
@@ -38543,7 +38551,10 @@ function currentModalReframePresentation(nowMs) {
   };
 }
 
-function render(nowMs) {
+function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
+  if (typeof allowColdCoveredWorldRender !== "boolean") {
+    throw new Error("World render requires an explicit cold-cover policy");
+  }
   worldRenderCount++;
   gpuShipDrawCommands = [];
   gpuWorldUnderlay = null;
@@ -38563,10 +38574,9 @@ function render(nowMs) {
   const reframedBehindCover = prepareNorthUpWorldBehindCover();
   const coverIsActive = opaqueWorldCoverIsActive();
   const modalReframeWaveActive = Boolean(chartModalReframeWave);
-  if (coldCoveredWorldDefersFullRender({
+  if (!allowColdCoveredWorldRender && coldCoveredWorldDefersFullRender({
     worldFramePresented,
     coverIsActive,
-    reframePending: chartReframePendingBehindCover,
     gameOver: Boolean(gameOverReason)
   })) {
     drawChartRepairOcclusion(nowMs);
@@ -39314,7 +39324,7 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
     surfaceDetailLayerCoversViewport(cached, viewport, TILE_ART_SIZE) &&
     (
       cached.chart === activeChart ||
-      waterEffectForegroundGeometryMatches(cached, activeChart)
+      waterEffectForegroundGeometryMatches(cached, activeChart, viewport)
     )
   ) {
     cached.chart = activeChart;
@@ -39385,6 +39395,7 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
     ...bounds,
     canvas,
     chart: activeChart,
+    sourceChart: activeChart,
     surfaceLayer: staticSurface,
     tileCalls: calls.tileCalls,
     riverConnectorCalls: calls.riverConnectorCalls,
@@ -39397,16 +39408,33 @@ function waterEffectForegroundLayer(activeChart, offset, connectorLayer) {
   return result;
 }
 
-function waterEffectForegroundGeometryMatches(cached, activeChart) {
-  const currentCalls = surfaceDetailCallsForLayer({
-    tileCalls: activeChart.tileCalls,
-    riverConnectorCalls: activeChart.riverConnectorCalls,
-    layer: cached,
+function waterEffectForegroundGeometryMatches(cached, activeChart, viewport) {
+  const viewportLayer = {
+    x: viewport.minX,
+    y: viewport.minY,
+    width: viewport.maxX - viewport.minX,
+    height: viewport.maxY - viewport.minY
+  };
+  const cachedCalls = surfaceDetailCallsForLayer({
+    tileCalls: cached.tileCalls,
+    riverConnectorCalls: cached.riverConnectorCalls,
+    layer: viewportLayer,
     margin: TILE_ART_SIZE,
     tileCallFilter: waterForegroundTileCallAffectsLayer
   });
+  const currentCalls = surfaceDetailCallsForLayer({
+    tileCalls: activeChart.tileCalls,
+    riverConnectorCalls: activeChart.riverConnectorCalls,
+    layer: viewportLayer,
+    margin: TILE_ART_SIZE,
+    tileCallFilter: waterForegroundTileCallAffectsLayer
+  });
+  cachedCalls.riverGeometryKey = surfaceDetailRiverGeometryKey(
+    cached.sourceChart,
+    cachedCalls
+  );
   currentCalls.riverGeometryKey = surfaceDetailRiverGeometryKey(activeChart, currentCalls);
-  return surfaceDetailCallsHaveSameGeometry(cached, currentCalls);
+  return surfaceDetailCallsHaveSameGeometry(cachedCalls, currentCalls);
 }
 
 function staticSurfaceDetailTileCallAffectsLayer(call) {
@@ -40152,7 +40180,10 @@ function syncLocalLayout(projectedVisible, chartCenterTileId, positionLocks = nu
 }
 
 function collectApplicableCoveredChartRepairs() {
-  if (!localLayout) return new Map();
+  // Applying a repair also reprojects hidden NPCs. During a missing-chart rebuild,
+  // the old chart and its water index do not exist yet, so leave the transaction
+  // queued until the next frame can apply it against a complete navigation context.
+  if (!coveredChartRepairCanApply({ localLayout, chart })) return new Map();
   return coveredChartRepairQueue.collectApplicable({
     positions: localLayout.positions,
     remainsCovered: pendingChartRepairRemainsCovered,

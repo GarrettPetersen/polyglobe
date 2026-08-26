@@ -166,6 +166,10 @@ export function createCoveredChartRepairQueue() {
   });
 }
 
+export function coveredChartRepairCanApply({ localLayout, chart }) {
+  return Boolean(localLayout?.positions instanceof Map && chart?.waterIndex);
+}
+
 export function chartRebuildRequest(flags) {
   if (!flags || typeof flags !== "object") {
     throw new Error("Chart rebuild request requires reason flags");

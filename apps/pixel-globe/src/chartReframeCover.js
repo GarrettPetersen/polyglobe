@@ -65,16 +65,14 @@ export function chartShouldReframeOnCoverOpen({
 export function coldCoveredWorldDefersFullRender({
   worldFramePresented,
   coverIsActive,
-  reframePending,
   gameOver
 }) {
   assertCoveredWorldRenderFlags({
     worldFramePresented,
     coverIsActive,
-    reframePending,
     gameOver
   });
-  return !worldFramePresented && coverIsActive && reframePending && !gameOver;
+  return !worldFramePresented && coverIsActive && !gameOver;
 }
 
 export function coveredWorldPreparationIsRequired({

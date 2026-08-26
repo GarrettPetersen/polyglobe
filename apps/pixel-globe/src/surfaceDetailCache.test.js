@@ -224,3 +224,43 @@ test("surface detail cache ignores moving tiles that cannot affect its layer", (
   assert.deepEqual(cached.tileCalls, [land]);
   assert.equal(surfaceDetailCallsHaveSameGeometry(cached, moved), true);
 });
+
+test("a padded cache can compare only geometry that can affect the current viewport", () => {
+  const landRow = { t: "land", e: "grass" };
+  const visible = {
+    id: 1,
+    drawSurfaceX: 50,
+    drawSurfaceY: 50,
+    level: 0,
+    row: landRow
+  };
+  const padded = {
+    id: 2,
+    drawSurfaceX: 180,
+    drawSurfaceY: 50,
+    level: 0,
+    row: landRow
+  };
+  const viewport = { x: 0, y: 0, width: 100, height: 100 };
+  const cached = surfaceDetailCallsForLayer({
+    tileCalls: [visible, padded],
+    riverConnectorCalls: [],
+    layer: viewport,
+    margin: 100
+  });
+  const cachedViewport = surfaceDetailCallsForLayer({
+    tileCalls: cached.tileCalls,
+    riverConnectorCalls: cached.riverConnectorCalls,
+    layer: viewport,
+    margin: 20
+  });
+  const currentViewport = surfaceDetailCallsForLayer({
+    tileCalls: [visible, { ...padded, drawSurfaceX: 170 }],
+    riverConnectorCalls: [],
+    layer: viewport,
+    margin: 20
+  });
+
+  assert.deepEqual(cachedViewport.tileCalls, [visible]);
+  assert.equal(surfaceDetailCallsHaveSameGeometry(cachedViewport, currentViewport), true);
+});

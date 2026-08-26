@@ -1515,6 +1515,42 @@ test("the western approaches off Ireland stay below integrity telemetry limits",
   assertLandTraversalIsContinuous(result, "Western Approaches passage");
 });
 
+test("the New England approaches stay below integrity telemetry limits", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [38.72, -9.14],
+        [39.0, -25.0],
+        [40.0, -45.0],
+        [40.2, -60.0],
+        [40.81, -69.18],
+        [42.0, -70.0],
+        [39.0, -72.0],
+        [40.81, -69.18]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("new-england-approaches", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `New England approaches reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeGapPx <= 10,
+    `New England approaches opened a ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
+  );
+  assertLandTraversalIsContinuous(result, "New England approaches");
+});
+
 test("the Bering Sea west of Alaska stays below integrity telemetry limits", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,

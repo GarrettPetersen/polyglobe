@@ -593,9 +593,10 @@ function relaxProtectedComponentEdges({
     }
   }
   if (edgeConstraints.length === 0) return;
-  // Keep a little headroom for integer-pixel rounding and for components
-  // constrained by more than one retained coastline boundary.
-  const allowedError = Math.max(0, maximumEdgeErrorPx - 1);
+  // Rounding a two-dimensional point to the pixel grid can move it by sqrt(2)
+  // pixels. Reserve that full diagonal distance so a valid continuous solve
+  // cannot cross the post-rounding stitch limit by a fraction of a pixel.
+  const allowedError = Math.max(0, maximumEdgeErrorPx - Math.SQRT2);
   for (let iteration = 0; iteration < 96; iteration++) {
     let maximumViolation = 0;
     const reverse = iteration % 2 === 1;

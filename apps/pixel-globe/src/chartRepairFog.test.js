@@ -20,6 +20,16 @@ import {
   nextPolarChartRepairPressure,
   polarChartFogFrame
 } from "./chartRepairFog.js";
+import {
+  CHART_INTEGRITY_CATASTROPHIC_REPAIR_CONFIRMATION_MS
+} from "./chartIntegrityTelemetry.js";
+
+test("urgent closing fog reaches full repair cover before telemetry declares a stalled repair", () => {
+  assert.ok(
+    CHART_REPAIR_FOG_URGENT_FORMATION_MS <
+      CHART_INTEGRITY_CATASTROPHIC_REPAIR_CONFIRMATION_MS
+  );
+});
 
 test("repair fog progressively hides distant geography before clearing", () => {
   const fog = createChartRepairFog({

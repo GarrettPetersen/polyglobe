@@ -75,19 +75,21 @@ test("a cold opaque menu defers its first full world render", () => {
   assert.equal(coldCoveredWorldDefersFullRender({
     worldFramePresented: false,
     coverIsActive: true,
-    reframePending: true,
     gameOver: false
   }), true);
   assert.equal(coldCoveredWorldDefersFullRender({
+    worldFramePresented: false,
+    coverIsActive: true,
+    gameOver: true
+  }), false);
+  assert.equal(coldCoveredWorldDefersFullRender({
     worldFramePresented: true,
     coverIsActive: true,
-    reframePending: true,
     gameOver: false
   }), false);
   assert.equal(coldCoveredWorldDefersFullRender({
     worldFramePresented: false,
     coverIsActive: false,
-    reframePending: true,
     gameOver: false
   }), false);
 });
