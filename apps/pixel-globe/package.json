@@ -50,7 +50,7 @@
     "build:panda-trailer": "node tools/trailer/run-python-tool.mjs build-panda-trailer.py",
     "upload:panda-trailer": "node tools/trailer/upload-panda-trailer.mjs",
     "build:steam-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py",
-    "build:demo-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py --plan tools/trailer/demo-trailer-plan.json --captures .captures/demo-trailer-clips --output .captures/trailer/marque-and-reprisal-demo-trailer-v2.mp4 --subtitle 'Play the Free Demo'",
+    "build:demo-trailer": "node tools/trailer/run-python-tool.mjs build-steam-trailer.py --plan tools/trailer/demo-trailer-plan.json --captures .captures/demo-trailer-clips --output .captures/trailer/marque-and-reprisal-demo-trailer-v3.mp4 --subtitle 'Play the Free Demo'",
     "build:steam-page-teaser": "node tools/trailer/run-python-tool.mjs build-steam-page-teaser.py",
     "build:trailer-thumbnail": "node tools/trailer/run-python-tool.mjs build-youtube-thumbnail.py",
     "build:steam-inline-videos": "node tools/trailer/run-python-tool.mjs build-steam-inline-videos.py",

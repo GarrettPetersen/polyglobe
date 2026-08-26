@@ -2,7 +2,7 @@
   "title": "Marque & Reprisal Demo Trailer",
   "outroFrames": 225,
   "validation": {
-    "chapterCount": 9
+    "chapterCount": 8
   },
   "music": {
     "primary": {
@@ -17,14 +17,14 @@
       "loop": "public/assets/music/combat-big-loop.ogg",
       "bpm": 87.5
     },
-    "fightStartFrame": 927,
+    "fightStartFrame": 1002,
     "crossfadeFrames": 54,
     "combatSyncAttackFrame": 27,
     "transitionHeading": "Fight",
     "requiredPreviousHeading": "Approach",
     "syncCutFrames": [
-      90, 150, 240, 330, 390, 450, 555, 630,
-      705, 780, 855, 891, 927, 1002, 1092, 1158,
+      90, 165, 225, 315, 405, 465, 525, 630,
+      705, 780, 855, 930, 966, 1002, 1092, 1158,
       1233, 1323, 1383
     ]
   },
@@ -37,6 +37,18 @@
           "startFrame": 30,
           "durationFrames": 90,
           "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-fight-galleass-starboard.mp4",
+          "startFrame": 30,
+          "durationFrames": 75,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetId": "trailer-demo-fight-galleass-starboard-target",
+            "minimumHits": 1
+          }
         },
         {
           "source": "demo/trailer-demo-sail-spain-coast.mp4",
@@ -157,18 +169,6 @@
       "heading": "Fight",
       "clips": [
         {
-          "source": "demo/trailer-demo-fight-galleass-starboard.mp4",
-          "startFrame": 30,
-          "durationFrames": 75,
-          "requiredModalPolicy": "suppress",
-          "requiredSfx": { "kind": "cannon", "minimum": 1 },
-          "requiredBroadside": {
-            "side": "starboard",
-            "targetId": "trailer-demo-fight-galleass-starboard-target",
-            "minimumHits": 1
-          }
-        },
-        {
           "source": "demo/trailer-demo-fight-galleass-port.mp4",
           "startFrame": 30,
           "durationFrames": 90,
@@ -179,12 +179,7 @@
             "targetId": "trailer-demo-fight-galleass-port-target",
             "minimumHits": 1
           }
-        }
-      ]
-    },
-    {
-      "heading": "Pillage",
-      "clips": [
+        },
         {
           "source": "demo/trailer-demo-pillage-alexandria.mp4",
           "startFrame": 15,

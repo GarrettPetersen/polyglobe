@@ -589,11 +589,20 @@ function verifySailingCapture(sidecar, scenarioId) {
   ));
   if (sequence.variant === "beam-reach") {
     const beamReach = beat("beam-reach");
+    const firstPosition = sidecar.events.find((event) => event.type === "position")?.data;
+    const requestedStart = sidecar.scenario.player;
+    const latitudeDelta = firstPosition?.lat - requestedStart.lat;
+    const rawLongitudeDelta = Math.abs((firstPosition?.lon ?? NaN) - requestedStart.lon);
+    const longitudeDelta = Math.min(rawLongitudeDelta, 360 - rawLongitudeDelta);
+    const longitudeScale = Math.cos((requestedStart.lat * Math.PI) / 180);
+    const startDistanceDegrees = Math.hypot(latitudeDelta, longitudeDelta * longitudeScale);
     const minimumSpeedRatio = (sequence.speedRatio ?? 0.96) * 0.85;
     if (!beamReach || Math.abs(beamReach.data.angleFromWindDeg - 90) > 2 ||
-        beamReach.data.attainableSpeedRatio < minimumSpeedRatio) {
+        beamReach.data.attainableSpeedRatio < minimumSpeedRatio ||
+        !Number.isFinite(startDistanceDegrees) || startDistanceDegrees > 2.5) {
       throw new Error(
-        `${scenarioId} did not hold a fast beam reach: ${JSON.stringify(beamReach?.data || null)}`
+        `${scenarioId} did not hold a geographically valid beam reach: ` +
+        `${JSON.stringify({ beat: beamReach?.data || null, startDistanceDegrees })}`
       );
     }
     return;
