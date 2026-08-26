@@ -253,6 +253,7 @@ import {
   SHIP_STATS_BY_SLUG,
   reconcileShipHullForCurrentStats,
   shipHullResistsDamage,
+  shipLabelForProse,
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
@@ -1004,10 +1005,12 @@ import {
   recordTreasureAmbushDefeat,
   recordTreasurePirateRumor,
   recoverTreasure,
+  reachTreasurePirateHint,
   treasureAmbushComplete,
   treasureCampaignPhase,
   treasureCampaignPirate,
   treasureCampaignPirateForShip,
+  treasurePirateHints,
   unrevealedTreasurePirates
 } from "./treasureCampaign.js";
 import {
@@ -6575,6 +6578,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     )) dirty = true;
     if (updateCampaignGoalReturnReminder()) dirty = true;
     if (updateWhiteWhaleSightingObjective()) dirty = true;
+    if (updateTreasurePirateSearchObjective()) dirty = true;
     if (updateColonizationQuest()) dirty = true;
     if (maybeDiscoverMissingColonizationAftermath()) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
@@ -7858,6 +7862,31 @@ function updateWhiteWhaleSightingObjective() {
   if (!message) return false;
   openCaptainAlertModal(message, "stern");
   saveVoyageNow("reached white whale sighting");
+  return true;
+}
+
+function updateTreasurePirateSearchObjective() {
+  const goal = activeTreasureCampaignGoal();
+  if (!goal || treasureCampaignPhase(goal) !== "map-hunt" || PERFORMANCE_BENCHMARK ||
+      captainAlertModal || dialogueState) {
+    return false;
+  }
+  const hint = treasurePirateHints(goal).find((entry) => {
+    const target = latLonToDirection(entry.latitudeDeg, entry.longitudeDeg);
+    const distancePx = Math.acos(clamp(dot3(ship.position, target), -1, 1)) * PIXELS_PER_RADIAN;
+    return distancePx <= 28;
+  });
+  if (!hint) return false;
+  const arrival = reachTreasurePirateHint(
+    goal,
+    hint.pirateId,
+    Math.max(0, Math.floor(weatherClockMinutes))
+  );
+  if (!arrival) throw new Error(`Treasure pirate hint vanished on arrival: ${hint.pirateId}`);
+  if (!openCaptainAlertModal(arrival.text, "stern")) {
+    throw new Error(`Treasure pirate arrival dialogue could not open: ${hint.pirateId}`);
+  }
+  saveVoyageNow("reached treasure pirate's last reported position");
   return true;
 }
 
@@ -22035,6 +22064,7 @@ function maybeTreasurePirateRumor(interactionKey, { force = false, preferredPira
     referenceCityName: cityLabelText(referenceCity),
     referenceCityLatitudeDeg: referenceCity.lat,
     referenceCityLongitudeDeg: referenceCity.lon,
+    currentMinute: Math.max(0, Math.floor(weatherClockMinutes)),
     force
   });
   saveVoyageNow(rumor ? "heard treasure pirate rumor" : "checked treasure pirate rumor");
@@ -35497,14 +35527,14 @@ function resolveTreasurePiratePlayerDefeat(loserId, encounter, {
         { force: true }
       );
       if (rumor) {
+        const rumoredShipLabel = shipLabelForProse(rumor.pirate.shipSlug);
+        const message = sunk
+          ? `A note in the captain's log names Captain ${rumor.pirate.captainName}'s ${rumoredShipLabel}, flying the black flag and last heard of ${rumor.hint.direction} of ${rumor.hint.referenceCityName}. I have marked it.`
+          : `You want another? Captain ${rumor.pirate.captainName}'s ${rumoredShipLabel} was last heard of ${rumor.hint.direction} of ${rumor.hint.referenceCityName}, under the black flag. Mark it, and may you both sink.`;
         steps.push(dialogueStep(
           sunk ? player : defeatedCaptain,
           sunk ? "thoughtful" : "concerned",
-          sunk
-            ? `A note in the captain's log names Captain ${rumor.pirate.captainName}, last heard of ` +
-              `${rumor.hint.direction} of ${rumor.hint.referenceCityName}. I have marked it.`
-            : `You want another? Captain ${rumor.pirate.captainName} was last heard of ` +
-              `${rumor.hint.direction} of ${rumor.hint.referenceCityName}. Mark it, and may you both sink.`
+          message
         ));
       }
     }
@@ -43479,7 +43509,7 @@ function campaignNavigationMenuEntry(destination) {
   if (destination.kind === CAMPAIGN_DESTINATION_TREASURE_PIRATE) {
     return {
       id: `campaign:treasure-pirate:${destination.pirateId}`,
-      destinationName: `Captain ${destination.pirateName}`,
+      destinationName: `Captain ${destination.pirateName}'s ${destination.pirateShipLabel}`,
       reason: "TREASURE MAP PIECE",
       style: CAMPAIGN_NAVIGATION_STYLE,
       targetVector: latLonToDirection(destination.latitudeDeg, destination.longitudeDeg),
@@ -55907,7 +55937,7 @@ function drawOneCampaignGoalDestinationArrow(destination, nowMs) {
     const targetVector = latLonToDirection(destination.latitudeDeg, destination.longitudeDeg);
     drawWorldTargetArrow({
       id: `campaign:treasure-pirate:${destination.pirateId}`,
-      label: `Captain ${destination.pirateName}`,
+      label: `Captain ${destination.pirateName}'s ${destination.pirateShipLabel}`,
       targetVector,
       localPoint: localPointForGlobeVector(targetVector),
       localYOffset: -10,

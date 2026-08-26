@@ -11,12 +11,14 @@ import {
   recordTreasureAmbushDefeat,
   recordTreasurePirateRumor,
   recoverTreasure,
+  reachTreasurePirateHint,
   settleTreasureHomecoming,
   treasureAmbushComplete,
   treasureCampaignPhase,
   treasurePirateHints,
   validateTreasureCampaignFields
 } from "./treasureCampaign.js";
+import { shipLabelForProse } from "./shipStats.js";
 
 test("treasure campaign selects a distant one-hex island and twelve globally spread pirates", () => {
   const goal = initializedGoal();
@@ -45,9 +47,12 @@ test("rumors are capped at three and acquired pieces clear their waypoint", () =
       referenceCityName: "Port Test",
       referenceCityLatitudeDeg: 0,
       referenceCityLongitudeDeg: 0,
+      currentMinute: 20_000,
       force: true
     });
     assert.match(rumor.text, new RegExp(pirate.captainName));
+    assert.match(rumor.text, new RegExp(shipLabelForProse(pirate.shipSlug), "i"));
+    assert.match(rumor.text, /black flag/i);
   }
   assert.equal(treasurePirateHints(goal).length, TREASURE_PIRATE_HINT_LIMIT);
 
@@ -55,6 +60,102 @@ test("rumors are capped at three and acquired pieces clear their waypoint", () =
   const piece = acquireTreasureMapPiece(goal, hintedPirate.id, 100);
   assert.equal(piece.acquired, true);
   assert.equal(goal.pirateHints.some((hint) => hint.pirateId === hintedPirate.id), false);
+});
+
+test("reaching a pirate's last reported position identifies the ship and permits a fresh rumor", () => {
+  const goal = initializedGoal();
+  bindCaptains(goal);
+  const pirate = goal.mapPirates[0];
+  const firstRumor = recordTreasurePirateRumor(goal, {
+    interactionKey: "port:first-report",
+    pirateId: pirate.id,
+    pirateLatitudeDeg: 5,
+    pirateLongitudeDeg: 30,
+    reportedLatitudeDeg: 6,
+    reportedLongitudeDeg: 31,
+    referenceCityName: "Port Test",
+    referenceCityLatitudeDeg: 0,
+    referenceCityLongitudeDeg: 0,
+    currentMinute: 20_000,
+    force: true
+  });
+  assert.ok(firstRumor);
+  assert.deepEqual(treasurePirateHints(goal)[0], {
+    ...firstRumor.hint,
+    pirateName: pirate.captainName,
+    pirateShipSlug: pirate.shipSlug,
+    pirateShipLabel: shipLabelForProse(pirate.shipSlug)
+  });
+
+  const arrival = reachTreasurePirateHint(goal, pirate.id, 20_000 + 3 * 24 * 60);
+  assert.match(arrival.text, /was seen/i);
+  assert.match(arrival.text, new RegExp(shipLabelForProse(pirate.shipSlug), "i"));
+  assert.match(arrival.text, /black flag/i);
+  assert.equal(arrival.sightingAgeDays, firstRumor.hint.sightingAgeDays + 3);
+  assert.match(arrival.text, new RegExp(`${arrival.sightingAgeDays} days ago`, "i"));
+  assert.equal(treasurePirateHints(goal).length, 0);
+  assert.equal(reachTreasurePirateHint(goal, pirate.id, 25_000), null);
+
+  const freshRumor = recordTreasurePirateRumor(goal, {
+    interactionKey: "port:fresh-report",
+    pirateId: pirate.id,
+    pirateLatitudeDeg: 10,
+    pirateLongitudeDeg: 35,
+    reportedLatitudeDeg: 11,
+    reportedLongitudeDeg: 36,
+    referenceCityName: "Another Port",
+    referenceCityLatitudeDeg: 1,
+    referenceCityLongitudeDeg: 1,
+    currentMinute: 25_000,
+    force: true
+  });
+  assert.ok(freshRumor);
+  assert.equal(freshRumor.hint.pirateId, pirate.id);
+});
+
+test("an undated pirate hint from an older save remains searchable without inventing an age", () => {
+  const goal = initializedGoal();
+  bindCaptains(goal);
+  const pirate = goal.mapPirates[0];
+  goal.pirateHints.push({
+    pirateId: pirate.id,
+    latitudeDeg: 6,
+    longitudeDeg: 31,
+    referenceCityName: "Port Test",
+    direction: "east",
+    interactionKey: "legacy:port-report"
+  });
+
+  validateTreasureCampaignFields(goal);
+  const arrival = reachTreasurePirateHint(goal, pirate.id, 25_000);
+  assert.equal(arrival.sightingAgeDays, null);
+  assert.match(arrival.text, /no man can say how old the word is/i);
+  assert.equal(goal.pirateHints.length, 0);
+});
+
+test("a dated pirate report fails loudly if the restored voyage clock moves backward", () => {
+  const goal = initializedGoal();
+  bindCaptains(goal);
+  const pirate = goal.mapPirates[0];
+  recordTreasurePirateRumor(goal, {
+    interactionKey: "port:future-report",
+    pirateId: pirate.id,
+    pirateLatitudeDeg: 5,
+    pirateLongitudeDeg: 30,
+    reportedLatitudeDeg: 6,
+    reportedLongitudeDeg: 31,
+    referenceCityName: "Port Test",
+    referenceCityLatitudeDeg: 0,
+    referenceCityLongitudeDeg: 0,
+    currentMinute: 20_000,
+    force: true
+  });
+
+  assert.throws(
+    () => reachTreasurePirateHint(goal, pirate.id, 19_999),
+    /report is in the future/i
+  );
+  assert.equal(goal.pirateHints.length, 1);
 });
 
 test("all twelve map pieces unlock the treasure and all twelve ambushers gate homecoming", () => {

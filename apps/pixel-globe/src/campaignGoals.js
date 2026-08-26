@@ -282,6 +282,8 @@ export function campaignGoalDestinations(goal, {
         kind: CAMPAIGN_DESTINATION_TREASURE_PIRATE,
         pirateId: hint.pirateId,
         pirateName: hint.pirateName,
+        pirateShipSlug: hint.pirateShipSlug,
+        pirateShipLabel: hint.pirateShipLabel,
         latitudeDeg: hint.latitudeDeg,
         longitudeDeg: hint.longitudeDeg,
         reason: "treasure-map-pirate"

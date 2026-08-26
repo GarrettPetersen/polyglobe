@@ -125,6 +125,7 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedPortFactorRecognitionOverrides(),
+  ...reviewedTreasurePirateSearchOverrides(),
   "Set heading: {0} ({1}; harbor barred)": Object.freeze({
     "zh-Hans": "设定航向：{0}（{1}；港口禁止入内）",
     ru: "Проложить курс: {0} ({1}; вход в гавань запрещён)",
@@ -1477,6 +1478,115 @@ function reviewedWhaleRamOverrides() {
       "O CACHALOTE VIRA PARA ABALROAR", "マッコウクジラが向きを変え突進してくる", "DER POTTWAL DREHT ZUM RAMMSTOSS EIN",
       "LE CACHALOT VIRE POUR ÉPERONNER", "KASZALOT ZWRACA SIĘ DO TARANOWANIA", "抹香鯨轉身衝撞",
       "향유고래가 방향을 틀어 들이받으려 한다"
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [
+    source,
+    reviewedLocaleOverrides(source, values)
+  ]));
+}
+
+function reviewedTreasurePirateSearchOverrides() {
+  const entries = [
+    ["A {0} under the black flag, answering to Captain {1}, was seen {2} of {3} {4} days ago. The old crew still quarrels over Captain {5}'s map.", [
+      "一艘悬挂黑旗、听命于{1}船长的{0}，于{4}日前在{3}{2}方向被人看见。旧日船员仍为{5}船长的地图争执不休。",
+      "{4} дней назад к {2} от {3} видели {0} под чёрным флагом, подчинявшийся капитану {1}. Старая команда всё ещё спорит из-за карты капитана {5}.",
+      "Hace {4} días se vio {2} de {3} una nave {0} bajo bandera negra, al mando del capitán {1}. La vieja tripulación aún riñe por el mapa del capitán {5}.",
+      "Há {4} dias, avistaram {2} de {3} um navio {0} sob bandeira negra, às ordens do capitão {1}. A velha tripulação ainda disputa o mapa do capitão {5}.",
+      "{4}日前、{3}の{2}で、{1}船長に従う{0}が黒旗を掲げて目撃された。古参の乗組員はいまだに{5}船長の海図をめぐって争っている。",
+      "Vor {4} Tagen wurde {2} von {3} ein Schiff vom Typ {0} unter schwarzer Flagge gesichtet, das Kapitän {1} gehorcht. Die alte Mannschaft streitet noch immer um Kapitän {5}s Karte.",
+      "Il y a {4} jours, un navire {0} battant pavillon noir et obéissant au capitaine {1} a été vu {2} de {3}. L'ancien équipage se querelle encore pour la carte du capitaine {5}.",
+      "{4} dni temu na {2} od {3} widziano okręt {0} pod czarną banderą, słuchający kapitana {1}. Dawna załoga wciąż spiera się o mapę kapitana {5}.",
+      "一艘懸掛黑旗、聽命於{1}船長的{0}，於{4}日前在{3}{2}方向被人看見。舊日船員仍為{5}船長的地圖爭執不休。",
+      "{4}일 전 {3}의 {2}쪽에서 {1} 선장의 명을 받는 {0} 한 척이 검은 깃발을 달고 목격되었다. 옛 선원들은 아직도 {5} 선장의 지도를 두고 다툰다."
+    ]],
+    ["A note in the captain's log names Captain {0}'s {1}, flying the black flag and last heard of {2} of {3}. I have marked it.", [
+      "船长航海日志中的一则记载提到{0}船长的{1}：它悬挂黑旗，最后有人在{3}{2}方向听闻其踪迹。我已在图上标出。",
+      "Запись в капитанском журнале называет {1} капитана {0} под чёрным флагом; последние вести о нём пришли с {2} от {3}. Я отметил это место.",
+      "Una nota del diario de a bordo nombra el {1} del capitán {0}, bajo bandera negra y visto por última vez {2} de {3}. Lo he señalado.",
+      "Uma nota no diário de bordo menciona o {1} do capitão {0}, sob bandeira negra e visto pela última vez {2} de {3}. Marquei o lugar.",
+      "船長日誌の書き付けに、黒旗を掲げる{0}船長の{1}とある。最後の知らせは{3}の{2}からだ。印を付けておいた。",
+      "Ein Vermerk im Logbuch nennt Kapitän {0}s {1} unter schwarzer Flagge, zuletzt {2} von {3} gemeldet. Ich habe die Stelle markiert.",
+      "Une note du journal de bord nomme le {1} du capitaine {0}, battant pavillon noir et signalé pour la dernière fois {2} de {3}. J'ai marqué l'endroit.",
+      "W dzienniku kapitana zapisano {1} kapitana {0} pod czarną banderą, ostatnio widziany na {2} od {3}. Zaznaczono to miejsce.",
+      "船長航海日誌中的一則記載提到{0}船長的{1}：它懸掛黑旗，最後有人在{3}{2}方向聽聞其蹤跡。我已在圖上標出。",
+      "선장 일지의 기록에 {0} 선장의 {1}이 나온다. 검은 깃발을 달았으며 마지막 소식은 {3}의 {2}쪽이었다. 그곳을 표시해 두었다."
+    ]],
+    ["Captain {0}'s {1}", [
+      "{0}船长的{1}", "{1} капитана {0}", "{1} del capitán {0}", "{1} do capitão {0}", "{0}船長の{1}",
+      "Kapitän {0}s {1}", "{1} du capitaine {0}", "{1} kapitana {0}", "{0}船長的{1}", "{0} 선장의 {1}"
+    ]],
+    ["Captain {0}'s {1} was sighted {2} of {3} {4} days ago, flying the black flag. Dead men tell no tales, but frightened deckhands tell plenty.", [
+      "{4}日前，有人在{3}{2}方向看见{0}船长的{1}悬挂黑旗。死人不会说话，受惊的水手却会说个不停。",
+      "{4} дней назад {1} капитана {0} видели к {2} от {3} под чёрным флагом. Мертвецы сказок не рассказывают, зато перепуганные матросы весьма словоохотливы.",
+      "Hace {4} días se avistó {2} de {3} el {1} del capitán {0}, bajo bandera negra. Los muertos no cuentan historias, pero los marineros asustados cuentan muchas.",
+      "Há {4} dias, avistaram {2} de {3} o {1} do capitão {0}, sob bandeira negra. Mortos não contam histórias, mas marinheiros assustados contam muitas.",
+      "{4}日前、{3}の{2}で、{0}船長の{1}が黒旗を掲げて目撃された。死人は何も語らぬが、怯えた甲板員はよくしゃべる。",
+      "Vor {4} Tagen wurde Kapitän {0}s {1} {2} von {3} unter schwarzer Flagge gesichtet. Tote erzählen keine Geschichten, verängstigte Matrosen hingegen sehr viele.",
+      "Il y a {4} jours, le {1} du capitaine {0} a été aperçu {2} de {3}, battant pavillon noir. Les morts ne parlent point, mais les matelots effrayés parlent beaucoup.",
+      "{4} dni temu na {2} od {3} widziano {1} kapitana {0} pod czarną banderą. Umarli nie opowiadają historii, lecz wystraszeni majtkowie mówią aż nadto.",
+      "{4}日前，有人在{3}{2}方向看見{0}船長的{1}懸掛黑旗。死人不會說話，受驚的水手卻會說個不停。",
+      "{4}일 전 {3}의 {2}쪽에서 {0} 선장의 {1}이 검은 깃발을 달고 목격되었다. 죽은 자는 말이 없지만 겁먹은 갑판원은 말이 많다."
+    ]],
+    ["Put your bow {0} of {1} and watch for Captain {2}'s {3} under the black flag. She was seen there {4} days ago, carrying one scrap of a map worth twelve men's lives.", [
+      "把船头转向{1}{0}方向，留神{2}船长那艘悬挂黑旗的{3}。{4}日前有人在那里看见它，船上带着一张值十二条人命的地图残片。",
+      "Держите нос на {0} от {1} и высматривайте {3} капитана {2} под чёрным флагом. Его видели там {4} дней назад с клочком карты, стоившим жизни двенадцати людям.",
+      "Poned la proa {0} de {1} y buscad el {3} del capitán {2} bajo bandera negra. Lo vieron allí hace {4} días con un fragmento de mapa que ha costado doce vidas.",
+      "Ponde a proa {0} de {1} e vigiai o {3} do capitão {2} sob bandeira negra. Foi visto ali há {4} dias com um retalho de mapa que custou doze vidas.",
+      "船首を{1}の{0}へ向け、黒旗を掲げる{2}船長の{3}を探せ。{4}日前、十二人の命に値する海図の切れ端を積んで、そこで目撃された。",
+      "Haltet den Bug {0} von {1} und späht nach Kapitän {2}s {3} unter schwarzer Flagge. Vor {4} Tagen wurde es dort mit einem Kartenfetzen gesehen, der zwölf Männerleben wert ist.",
+      "Mettez le cap {0} de {1} et guettez le {3} du capitaine {2} sous pavillon noir. On l'y a vu il y a {4} jours, portant un lambeau de carte qui vaut la vie de douze hommes.",
+      "Skierujcie dziób na {0} od {1} i wypatrujcie {3} kapitana {2} pod czarną banderą. Widziano go tam {4} dni temu z kawałkiem mapy wartym życia dwunastu ludzi.",
+      "把船頭轉向{1}{0}方向，留神{2}船長那艘懸掛黑旗的{3}。{4}日前有人在那裡看見它，船上帶著一張值十二條人命的地圖殘片。",
+      "뱃머리를 {1}의 {0}쪽으로 돌리고 검은 깃발을 단 {2} 선장의 {3}을 찾아라. {4}일 전 그곳에서 열두 사람의 목숨값이나 되는 지도 조각을 싣고 있는 것이 목격되었다."
+    ]],
+    ["They say Captain {0} was last seen {1} of {2} {3} days ago, in a {4} flying the black flag. There is talk of a torn chart aboard, guarded closer than any purse.", [
+      "听说{3}日前，有人在{2}{1}方向最后看见{0}船长；他乘着一艘悬挂黑旗的{4}。传言船上有张撕破的海图，看守得比钱袋还严。",
+      "Говорят, капитана {0} в последний раз видели {3} дней назад к {1} от {2}, на {4} под чёрным флагом. Толкуют, будто на борту хранится разорванная карта, которую стерегут пуще всякого кошеля.",
+      "Dicen que al capitán {0} se le vio por última vez hace {3} días, {1} de {2}, en un {4} bajo bandera negra. Se habla de una carta rota a bordo, guardada mejor que cualquier bolsa.",
+      "Dizem que o capitão {0} foi visto pela última vez há {3} dias, {1} de {2}, num {4} sob bandeira negra. Fala-se de uma carta rasgada a bordo, guardada melhor que qualquer bolsa.",
+      "{0}船長が最後に目撃されたのは{3}日前、{2}の{1}で、黒旗を掲げる{4}に乗っていたという。船には破れた海図があり、どんな財布より厳重に守られているらしい。",
+      "Kapitän {0} wurde zuletzt vor {3} Tagen {1} von {2} auf einem {4} unter schwarzer Flagge gesehen. Man spricht von einer zerrissenen Karte an Bord, die sorgsamer als jeder Geldbeutel bewacht wird.",
+      "On dit que le capitaine {0} a été vu pour la dernière fois il y a {3} jours, {1} de {2}, à bord d'un {4} battant pavillon noir. On parle d'une carte déchirée à bord, gardée de plus près qu'aucune bourse.",
+      "Powiadają, że kapitana {0} widziano ostatnio {3} dni temu na {1} od {2}, na pokładzie {4} pod czarną banderą. Mówią o podartej mapie, strzeżonej pilniej niż najpełniejsza sakwa.",
+      "聽說{3}日前，有人在{2}{1}方向最後看見{0}船長；他乘著一艘懸掛黑旗的{4}。傳言船上有張撕破的海圖，看守得比錢袋還嚴。",
+      "{0} 선장은 {3}일 전 {2}의 {1}쪽에서 검은 깃발을 단 {4}에 탄 모습이 마지막으로 목격되었다고 한다. 배에는 어떤 돈주머니보다도 삼엄하게 지키는 찢어진 지도가 있다는 소문이다."
+    ]],
+    ["This is Captain {0}'s last reported position, though no man can say how old the word is. Keep every glass upon the water for a {1} flying the black flag. We search these waters until her sails show.", [
+      "这里就是{0}船长最后传出的方位，虽说没人讲得清这消息已传了多久。每副望远镜都盯紧海面，寻找悬挂黑旗的{1}。我们搜索这片水域，直到看见它的帆。",
+      "Это последнее известное место капитана {0}, хотя никто не скажет, насколько стары вести. Не спускайте подзорных труб с воды: ищите {1} под чёрным флагом. Прочешем эти воды, пока не покажутся его паруса.",
+      "Esta es la última posición conocida del capitán {0}, aunque nadie sabe cuánto ha envejecido la noticia. Que todos los catalejos busquen en el agua un {1} bajo bandera negra. Registraremos estas aguas hasta ver sus velas.",
+      "Esta é a última posição conhecida do capitão {0}, embora ninguém saiba quanto envelheceu a notícia. Que todas as lunetas procurem nas águas um {1} sob bandeira negra. Vasculharemos estas águas até surgirem suas velas.",
+      "ここが{0}船長の最後に伝えられた位置だが、その知らせがどれほど古いかは誰にも分からない。すべての望遠鏡で、黒旗を掲げる{1}を海上に探せ。帆が見えるまでこの海域を捜索する。",
+      "Dies ist Kapitän {0}s letzte gemeldete Position, doch niemand kann sagen, wie alt die Nachricht ist. Jedes Glas aufs Wasser: Sucht ein Schiff vom Typ {1} unter schwarzer Flagge. Wir durchsuchen diese Gewässer, bis seine Segel erscheinen.",
+      "Voici la dernière position signalée du capitaine {0}, bien que nul ne sache depuis combien de temps court la nouvelle. Que toutes les longues-vues cherchent sur l'eau un {1} battant pavillon noir. Nous fouillerons ces eaux jusqu'à voir ses voiles.",
+      "To ostatnia znana pozycja kapitana {0}, choć nikt nie wie, jak stara jest ta wieść. Wszystkie lunety na wodę: szukajcie {1} pod czarną banderą. Przeszukamy te wody, aż pokażą się jego żagle.",
+      "這裡就是{0}船長最後傳出的方位，雖說沒人講得清這消息已傳了多久。每副望遠鏡都盯緊海面，尋找懸掛黑旗的{1}。我們搜索這片水域，直到看見它的帆。",
+      "여기가 {0} 선장의 마지막 보고 위치다. 다만 그 소식이 얼마나 묵었는지는 아무도 모른다. 모든 망원경으로 검은 깃발을 단 {1}을 수면에서 찾아라. 돛이 보일 때까지 이 바다를 수색한다."
+    ]],
+    ["This is where Captain {0}'s {1} was seen {2} days ago, flying the black flag. Keep every glass upon the water. We search these waters until her sails show.", [
+      "{2}日前，{0}船长的{1}就在这里悬挂黑旗出现过。每副望远镜都盯紧海面。我们搜索这片水域，直到看见它的帆。",
+      "Здесь {2} дней назад видели {1} капитана {0} под чёрным флагом. Не спускайте подзорных труб с воды. Прочешем эти воды, пока не покажутся его паруса.",
+      "Aquí se vio hace {2} días el {1} del capitán {0}, bajo bandera negra. Que todos los catalejos vigilen el agua. Registraremos estas aguas hasta ver sus velas.",
+      "Aqui foi visto, há {2} dias, o {1} do capitão {0}, sob bandeira negra. Que todas as lunetas vigiem as águas. Vasculharemos esta região até surgirem suas velas.",
+      "ここで{2}日前、{0}船長の{1}が黒旗を掲げて目撃された。すべての望遠鏡を海上へ向けろ。帆が見えるまでこの海域を捜索する。",
+      "Hier wurde vor {2} Tagen Kapitän {0}s {1} unter schwarzer Flagge gesichtet. Jedes Glas aufs Wasser. Wir durchsuchen diese Gewässer, bis seine Segel erscheinen.",
+      "C'est ici que le {1} du capitaine {0} a été vu il y a {2} jours, battant pavillon noir. Que toutes les longues-vues restent sur l'eau. Nous fouillerons ces eaux jusqu'à voir ses voiles.",
+      "Tutaj {2} dni temu widziano {1} kapitana {0} pod czarną banderą. Wszystkie lunety na wodę. Przeszukamy te wody, aż pokażą się jego żagle.",
+      "{2}日前，{0}船長的{1}就在這裡懸掛黑旗出現過。每副望遠鏡都盯緊海面。我們搜索這片水域，直到看見它的帆。",
+      "이곳에서 {2}일 전 {0} 선장의 {1}이 검은 깃발을 달고 목격되었다. 모든 망원경을 수면으로 돌려라. 돛이 보일 때까지 이 바다를 수색한다."
+    ]],
+    ["You want another? Captain {0}'s {1} was last heard of {2} of {3}, under the black flag. Mark it, and may you both sink.", [
+      "你还想找另一个？最后有人在{3}{2}方向听到{0}船长那艘{1}的消息，它悬挂黑旗。记下吧，愿你们一道沉海。",
+      "Хотите ещё одного? Последние вести о {1} капитана {0} под чёрным флагом пришли с {2} от {3}. Отметьте место — и чтоб вы оба пошли ко дну.",
+      "¿Queréis otro? Las últimas noticias del {1} del capitán {0}, bajo bandera negra, llegaron de {2} de {3}. Marcadlo, y ojalá os hundáis los dos.",
+      "Quereis outro? As últimas notícias do {1} do capitão {0}, sob bandeira negra, vieram de {2} de {3}. Marcai o lugar, e que ambos afundeis.",
+      "もう一人欲しいか？ 黒旗を掲げる{0}船長の{1}は、最後に{3}の{2}から知らせがあった。印を付けろ。二隻とも沈めばいい。",
+      "Ihr wollt noch einen? Von Kapitän {0}s {1} unter schwarzer Flagge hörte man zuletzt {2} von {3}. Markiert die Stelle — und mögt Ihr beide sinken.",
+      "Vous en voulez un autre ? Les dernières nouvelles du {1} du capitaine {0}, sous pavillon noir, venaient de {2} de {3}. Marquez l'endroit, et puissiez-vous couler tous les deux.",
+      "Chcecie następnego? O {1} kapitana {0} pod czarną banderą ostatnio słyszano na {2} od {3}. Zaznaczcie to miejsce — i obyście obaj poszli na dno.",
+      "你還想找另一個？最後有人在{3}{2}方向聽到{0}船長那艘{1}的消息，它懸掛黑旗。記下吧，願你們一道沉海。",
+      "또 하나를 원하나? 검은 깃발을 단 {0} 선장의 {1}은 마지막으로 {3}의 {2}쪽에서 소식이 들렸다. 표시해라. 둘 다 가라앉기를 빌지."
     ]]
   ];
   return Object.fromEntries(entries.map(([source, values]) => [

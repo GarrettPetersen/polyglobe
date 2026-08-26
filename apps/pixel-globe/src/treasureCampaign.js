@@ -1,3 +1,5 @@
+import { shipLabelForProse } from "./shipStats.js";
+
 export const TREASURE_MAP_PIECE_COUNT = 12;
 export const TREASURE_PIRATE_HINT_LIMIT = 3;
 export const TREASURE_PIRATE_ENCOUNTER_KIND = "treasure-map-pirate";
@@ -6,6 +8,7 @@ export const TREASURE_PIRATE_STAGE_AMBUSH = "home-ambush";
 
 const MIN_TREASURE_DISTANCE_KM = 2400;
 const EARTH_RADIUS_KM = 6371;
+const MINUTES_PER_DAY = 24 * 60;
 const TREASURE_CAPTAIN_GIVEN_NAMES = Object.freeze([
   "Abel", "Bartholomew", "Calico", "Elias", "Flint", "Israel",
   "Jabez", "Job", "Ned", "Obadiah", "Silas", "Tom"
@@ -143,6 +146,7 @@ export function recordTreasurePirateRumor(goal, {
   referenceCityName,
   referenceCityLatitudeDeg,
   referenceCityLongitudeDeg,
+  currentMinute,
   force = false
 }) {
   validateTreasureCampaignFields(goal);
@@ -161,6 +165,7 @@ export function recordTreasurePirateRumor(goal, {
   assertCoordinates("reported pirate", reportedLatitudeDeg, reportedLongitudeDeg);
   assertCoordinates("reference city", referenceCityLatitudeDeg, referenceCityLongitudeDeg);
   assertNonEmptyString(referenceCityName, "Treasure pirate rumor reference city");
+  assertSimulationMinute(currentMinute);
   const direction = compassDirection(
     referenceCityLatitudeDeg,
     referenceCityLongitudeDeg,
@@ -173,18 +178,17 @@ export function recordTreasurePirateRumor(goal, {
     longitudeDeg: reportedLongitudeDeg,
     referenceCityName: referenceCityName.trim(),
     direction,
-    interactionKey
+    interactionKey,
+    reportedMinute: currentMinute,
+    sightingAgeDays: 2 + hashString32(`${interactionKey}|treasure-rumor-age`) % 5
   };
   goal.pirateHints.push(hint);
+  const shipLabel = shipLabelForProse(pirate.shipSlug);
   const variants = [
-    `They say Captain ${pirate.captainName} was last seen ${direction} of ${hint.referenceCityName}. ` +
-      "There is talk of a torn chart aboard, guarded closer than any purse.",
-    `A black sail answering to Captain ${pirate.captainName} has been working ${direction} of ` +
-      `${hint.referenceCityName}. The old crew still quarrels over Captain ${goal.treasureCaptainName}'s map.`,
-    `Captain ${pirate.captainName} was sighted ${direction} of ${hint.referenceCityName}. ` +
-      "Dead men tell no tales, but frightened deckhands tell plenty.",
-    `Put your bow ${direction} of ${hint.referenceCityName} and watch for Captain ${pirate.captainName}. ` +
-      "That rogue carries one scrap of a map worth twelve men's lives."
+    `They say Captain ${pirate.captainName} was last seen ${direction} of ${hint.referenceCityName} ${hint.sightingAgeDays} days ago, in a ${shipLabel} flying the black flag. There is talk of a torn chart aboard, guarded closer than any purse.`,
+    `A ${shipLabel} under the black flag, answering to Captain ${pirate.captainName}, was seen ${direction} of ${hint.referenceCityName} ${hint.sightingAgeDays} days ago. The old crew still quarrels over Captain ${goal.treasureCaptainName}'s map.`,
+    `Captain ${pirate.captainName}'s ${shipLabel} was sighted ${direction} of ${hint.referenceCityName} ${hint.sightingAgeDays} days ago, flying the black flag. Dead men tell no tales, but frightened deckhands tell plenty.`,
+    `Put your bow ${direction} of ${hint.referenceCityName} and watch for Captain ${pirate.captainName}'s ${shipLabel} under the black flag. She was seen there ${hint.sightingAgeDays} days ago, carrying one scrap of a map worth twelve men's lives.`
   ];
   return {
     text: variants[hashString32(`${interactionKey}|treasure-rumor-prose`) % variants.length],
@@ -228,8 +232,36 @@ export function treasurePirateHints(goal) {
   return goal.pirateHints.map((hint) => {
     const pirate = requiredMapPirate(goal, hint.pirateId);
     if (!pirate.captainName) throw new Error(`Treasure pirate ${pirate.id} has no captain name`);
-    return { ...hint, pirateName: pirate.captainName };
+    return {
+      ...hint,
+      pirateName: pirate.captainName,
+      pirateShipSlug: pirate.shipSlug,
+      pirateShipLabel: shipLabelForProse(pirate.shipSlug)
+    };
   });
+}
+
+export function reachTreasurePirateHint(goal, pirateId, currentMinute) {
+  validateTreasureCampaignFields(goal);
+  assertSimulationMinute(currentMinute);
+  if (treasureCampaignPhase(goal) !== "map-hunt") return null;
+  const pirate = requiredMapPirate(goal, pirateId);
+  if (!pirate.captainName) throw new Error(`Treasure pirate ${pirate.id} has no captain name`);
+  const hintIndex = goal.pirateHints.findIndex((hint) => hint.pirateId === pirate.id);
+  if (hintIndex < 0) return null;
+  const hint = goal.pirateHints[hintIndex];
+  const shipLabel = shipLabelForProse(pirate.shipSlug);
+  const sightingAgeDays = treasurePirateHintAgeDays(hint, currentMinute);
+  const text = sightingAgeDays === null
+    ? `This is Captain ${pirate.captainName}'s last reported position, though no man can say how old the word is. Keep every glass upon the water for a ${shipLabel} flying the black flag. We search these waters until her sails show.`
+    : `This is where Captain ${pirate.captainName}'s ${shipLabel} was seen ${sightingAgeDays} days ago, flying the black flag. Keep every glass upon the water. We search these waters until her sails show.`;
+  goal.pirateHints.splice(hintIndex, 1);
+  return {
+    pirate: { ...pirate },
+    hint: { ...hint },
+    sightingAgeDays,
+    text
+  };
 }
 
 export function recoverTreasure(goal, currentMinute) {
@@ -316,6 +348,17 @@ export function validateTreasureCampaignFields(goal) {
     assertNonEmptyString(hint.referenceCityName, "Treasure pirate hint city");
     assertNonEmptyString(hint.direction, "Treasure pirate hint direction");
     assertNonEmptyString(hint.interactionKey, "Treasure pirate hint interaction");
+    const hasReportedMinute = hint.reportedMinute !== undefined;
+    const hasSightingAge = hint.sightingAgeDays !== undefined;
+    if (hasReportedMinute !== hasSightingAge) {
+      throw new Error(`Treasure pirate hint has incomplete sighting time: ${hint.pirateId}`);
+    }
+    if (hasReportedMinute) {
+      assertSimulationMinute(hint.reportedMinute);
+      if (!Number.isInteger(hint.sightingAgeDays) || hint.sightingAgeDays < 1) {
+        throw new Error(`Treasure pirate hint has invalid sighting age: ${hint.pirateId}`);
+      }
+    }
     hintedIds.add(hint.pirateId);
   }
   if (!Array.isArray(goal.checkedTreasureInteractionIds) ||
@@ -441,6 +484,17 @@ function assertNonEmptyString(value, label) {
 
 function assertSimulationMinute(value) {
   if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid simulation minute: ${value}`);
+}
+
+function treasurePirateHintAgeDays(hint, currentMinute) {
+  if (hint.reportedMinute === undefined && hint.sightingAgeDays === undefined) return null;
+  if (currentMinute < hint.reportedMinute) {
+    throw new Error(
+      `Treasure pirate hint report is in the future: ${hint.reportedMinute} > ${currentMinute}`
+    );
+  }
+  const elapsedDays = Math.floor((currentMinute - hint.reportedMinute) / MINUTES_PER_DAY);
+  return hint.sightingAgeDays + elapsedDays;
 }
 
 function greatCircleDistanceKm(fromLat, fromLon, toLat, toLon) {
