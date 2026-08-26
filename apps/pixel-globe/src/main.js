@@ -6542,7 +6542,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && measurePerformanceBenchmarkStage(
       "sailing",
-      () => updateSailing(dt)
+      () => updateSailing(captureSailingSimulationSeconds(dt))
     )) dirty = true;
     if (maybeAutoAnchorAtNonPortQuestSite()) dirty = true;
     if (measurePerformanceBenchmarkStage("quests.journey", () => {
@@ -6628,6 +6628,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     schedulePeriodicAutosave(nowMs);
   }
   if (!simulationPaused && updateWorldSpriteAnimation(nowMs)) dirty = true;
+  enforceCaptureModalPolicy();
   const renderDue = shouldRenderFrame({
     forceRender: forceRender || PERFORMANCE_BENCHMARK?.forceRenderEveryFrame === true,
     dirty,
@@ -11089,6 +11090,13 @@ function updateCaptureDirectorFrame(nowMs) {
   }
 }
 
+function captureSailingSimulationSeconds(seconds) {
+  const sequence = captureDirector?.sequence;
+  return sequence?.kind === "sail" && sequence.sailingSimulationRate !== undefined
+    ? seconds * sequence.sailingSimulationRate
+    : seconds;
+}
+
 function updateCaptureExplore(sequence, nowMs) {
   if (captureCue("approach", 0.3)) {
     emitCaptureEvent("capture-beat", { action: "approach-discovery", name: sequence.discoveryName });
@@ -11177,6 +11185,14 @@ function updateCaptureSailing(sequence) {
   if (sequence.variant === "beam-reach") {
     if (!captureCue("beam-reach", 0.1)) return;
     emitCaptureSailingBeat("beam-reach", { beamSide: sequence.beamSide });
+    return;
+  }
+  if (sequence.variant === "river-cruise") {
+    if (!captureCue("river-cruise", 0.1)) return;
+    emitCaptureSailingBeat("river-cruise", {
+      riverStart: sequence.riverStart,
+      sailingTarget: sequence.sailingTarget
+    });
     return;
   }
   if (sequence.variant === "upwind-voyage") {
@@ -11361,6 +11377,17 @@ function dismissCaptureOverlays() {
   resumeShipAfterOverlayIfReady();
   dirty = true;
   return true;
+}
+
+function enforceCaptureModalPolicy() {
+  if (captureDirector?.sequence?.modalPolicy !== "suppress") return;
+  const suppressed = {
+    dialogue: Boolean(dialogueState),
+    captainAlert: Boolean(captainAlertModal)
+  };
+  if (!suppressed.dialogue && !suppressed.captainAlert) return;
+  dismissCaptureOverlays();
+  emitCaptureEvent("capture-modal-suppressed", suppressed);
 }
 
 function updateCapturePillage(sequence) {
@@ -12107,19 +12134,23 @@ function placeCapturePlayerNearTile(tileId) {
 }
 
 function placeCapturePlayerNearRiverCoordinates(coordinates) {
+  placeCapturePlayerOnTile(captureRiverTileNearCoordinates(coordinates, "start"));
+}
+
+function captureRiverTileNearCoordinates(coordinates, role) {
   const requested = latLonToDirection(coordinates.lat, coordinates.lon);
   const requestedTileId = findNearestTileId(graph, directionIndex, requested);
   const riverTileId = nearestTileMatching(requestedTileId, shipTileHasRiver);
   if (!Number.isInteger(riverTileId)) {
-    throw new Error(`Capture river start has no river tile near ${coordinates.lat}, ${coordinates.lon}`);
+    throw new Error(`Capture river ${role} has no river tile near ${coordinates.lat}, ${coordinates.lon}`);
   }
   const distancePx = vectorArcDistance(requested, tileCenterVector(riverTileId)) * PIXELS_PER_RADIAN;
   if (distancePx > 48) {
     throw new Error(
-      `Capture river start resolved ${distancePx.toFixed(1)}px from ${coordinates.lat}, ${coordinates.lon}`
+      `Capture river ${role} resolved ${distancePx.toFixed(1)}px from ${coordinates.lat}, ${coordinates.lon}`
     );
   }
-  placeCapturePlayerOnTile(riverTileId);
+  return riverTileId;
 }
 
 function placeCapturePlayerOnTile(navigableTileId) {
@@ -12175,6 +12206,9 @@ function stageCaptureWhale(sequence) {
 }
 
 function stageCaptureSailing(sequence) {
+  if (sequence.variant === "river-cruise") {
+    placeCapturePlayerNearRiverCoordinates(sequence.riverStart);
+  }
   if (sequence.variant === "upwind-voyage") {
     const city = captureCityByName(sequence.cityName);
     placeCapturePlayerForUpwindVoyage(city);
@@ -12197,13 +12231,27 @@ function stageCaptureSailing(sequence) {
   const windFlow = windFlowVectorAtShip(windForShip());
   let heading;
   let speedRatio;
+  let riverTarget = null;
   if (sequence.variant === "beam-reach") {
     const starboardBeam = normalizeOrNull(cross3(ship.position, windFlow));
     if (!starboardBeam) throw new Error("Capture beam reach could not resolve a sailing heading");
     heading = sequence.beamSide === "starboard"
       ? starboardBeam
       : scaleVector(starboardBeam, -1);
-    speedRatio = 0.96;
+    speedRatio = sequence.speedRatio ?? 0.96;
+  } else if (sequence.variant === "river-cruise") {
+    const targetTileId = captureRiverTileNearCoordinates(sequence.sailingTarget, "target");
+    if (targetTileId === ship.tileId) {
+      throw new Error("Capture river cruise resolved its start and target to the same tile");
+    }
+    riverTarget = tileCenterVector(targetTileId);
+    heading = normalizeOrNull(projectTangentVector([
+      riverTarget[0] - ship.position[0],
+      riverTarget[1] - ship.position[1],
+      riverTarget[2] - ship.position[2]
+    ], ship.position));
+    if (!heading) throw new Error("Capture river cruise could not resolve its sailing heading");
+    speedRatio = sequence.speedRatio ?? 0.25;
   } else if (sequence.variant === "upwind-voyage") {
     const city = captureCityByName(sequence.cityName);
     const towardCity = normalizeOrNull(projectTangentVector([
@@ -12241,7 +12289,9 @@ function stageCaptureSailing(sequence) {
   ship.velocity = sequence.variant === "upwind-voyage"
     ? [0, 0, 0]
     : scaleVector(heading, performance.attainableSpeedRad * speedRatio);
-  captureDirector.steeringTarget = captureSailingTarget(heading);
+  captureDirector.steeringTarget = sequence.variant === "river-cruise"
+    ? riverTarget
+    : captureSailingTarget(heading);
 }
 
 function placeCapturePlayerForUpwindVoyage(city) {
@@ -12634,11 +12684,17 @@ function stageCaptureSurvival(sequence) {
     return;
   }
   if (sequence.variant === "lightning" || sequence.variant === "lightning-sinking") {
-    captureDirector.steeringTarget = normalize3([
-      ship.position[0] + ship.heading[0] * 0.1,
-      ship.position[1] + ship.heading[1] * 0.1,
-      ship.position[2] + ship.heading[2] * 0.1
-    ]);
+    captureDirector.steeringTarget = sequence.stationary
+      ? null
+      : normalize3([
+          ship.position[0] + ship.heading[0] * 0.1,
+          ship.position[1] + ship.heading[1] * 0.1,
+          ship.position[2] + ship.heading[2] * 0.1
+        ]);
+    if (sequence.stationary) {
+      anchored = true;
+      ship.velocity = [0, 0, 0];
+    }
     if (sequence.variant === "lightning-sinking") ship.hitPoints = 1;
     return;
   }

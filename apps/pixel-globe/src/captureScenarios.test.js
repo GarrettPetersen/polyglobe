@@ -140,12 +140,13 @@ test("the general trailer roster includes feature pairs and eight fast sailing s
 
 test("the demo trailer roster replaces colonization with Mediterranean fleet combat", () => {
   const trailerIds = captureScenarioIds().filter((id) => id.startsWith("trailer-demo-"));
-  assert.equal(trailerIds.length, 23);
+  assert.equal(trailerIds.length, 19);
   const counts = new Map();
   for (const id of trailerIds) {
     const capture = captureScenarioFromSearch(`?capture=${id}`);
     counts.set(capture.sequence.kind, (counts.get(capture.sequence.kind) || 0) + 1);
     assert.ok(capture.sequence.durationSeconds <= 10);
+    assert.ok(["show", "suppress"].includes(capture.sequence.modalPolicy), id);
     if (["explore", "fish", "whale", "sail", "fight", "survive"].includes(capture.sequence.kind)) {
       assert.equal(capture.sequence.requireOpenWaterCourse, true, id);
     }
@@ -155,12 +156,25 @@ test("the demo trailer roster replaces colonization with Mediterranean fleet com
     explore: 1,
     fish: 2,
     whale: 2,
-    sail: 11,
+    sail: 6,
     fight: 2,
-    pillage: 1,
+    pillage: 2,
     survive: 2
   });
   assert.equal(counts.has("colonize"), false);
+  assert.deepEqual(
+    trailerIds
+      .map((id) => captureScenarioFromSearch(`?capture=${id}`))
+      .filter((capture) => capture.sequence.kind === "sail" &&
+        !capture.id?.includes("fleet-approach"))
+      .map((capture) => capture.title),
+    [
+      "Spanish Nao off Valencia",
+      "Ottoman Xebec in the Black Sea",
+      "Felucca on Lake Victoria",
+      "A Habsburg Galley Reaches Vienna"
+    ]
+  );
 });
 
 test("the boarding-duel Short stages three long distinct small-arms fights", () => {

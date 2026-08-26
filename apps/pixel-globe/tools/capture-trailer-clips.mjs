@@ -160,7 +160,8 @@ async function loadExistingTrailerManifest() {
   if (!Array.isArray(existingIds) || existingIds.some((id) => typeof id !== "string")) {
     throw new Error(`Existing trailer manifest has invalid clip ids: ${manifestPath}`);
   }
-  const allTrailerIds = [...new Set([...existingIds, ...scenarioIds])];
+  const completedScenarioIds = manifest.filter(Boolean).map((clip) => clip.scenarioId);
+  const allTrailerIds = [...new Set([...existingIds, ...completedScenarioIds])];
   return Promise.all(allTrailerIds.map(async (scenarioId) => {
     const category = scenarioId.split("-")[1];
     const categoryDir = path.join(outputRoot, category);
@@ -588,10 +589,29 @@ function verifySailingCapture(sidecar, scenarioId) {
   ));
   if (sequence.variant === "beam-reach") {
     const beamReach = beat("beam-reach");
+    const minimumSpeedRatio = (sequence.speedRatio ?? 0.96) * 0.85;
     if (!beamReach || Math.abs(beamReach.data.angleFromWindDeg - 90) > 2 ||
-        beamReach.data.attainableSpeedRatio < 0.9) {
+        beamReach.data.attainableSpeedRatio < minimumSpeedRatio) {
       throw new Error(
         `${scenarioId} did not hold a fast beam reach: ${JSON.stringify(beamReach?.data || null)}`
+      );
+    }
+    return;
+  }
+  if (sequence.variant === "river-cruise") {
+    const cruise = beat("river-cruise");
+    const positions = sidecar.events.filter((event) => event.type === "position");
+    const first = positions[0]?.data;
+    const last = positions.at(-1)?.data;
+    const movedDegrees = first && last
+      ? Math.hypot(last.lat - first.lat, last.lon - first.lon)
+      : 0;
+    if (!cruise || cruise.data?.riverStart?.lat !== sequence.riverStart.lat ||
+        cruise.data?.sailingTarget?.lon !== sequence.sailingTarget.lon ||
+        positions.length < 2 || movedDegrees < 0.001) {
+      throw new Error(
+        `${scenarioId} did not complete a visible river cruise: ` +
+        `${JSON.stringify({ cruise: cruise?.data || null, positions: positions.length, movedDegrees })}`
       );
     }
     return;

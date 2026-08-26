@@ -23,10 +23,6 @@ SEGMENTS = TEMP / "segments"
 OUTPUT = WORK / "marque-and-reprisal-steam-trailer-v9.mp4"
 FONT_PATH = TOOL / "assets" / "PirataOne-Regular.ttf"
 TITLE_PATH = APP / "capsule_art" / "generated" / "capsule_title_with_ship_english.png"
-SAILING_MUSIC_INTRO = APP / "public" / "assets" / "music" / "ship-theme-intro.ogg"
-SAILING_MUSIC_LOOP = APP / "public" / "assets" / "music" / "ship-theme-loop.ogg"
-COMBAT_MUSIC_INTRO = APP / "public" / "assets" / "music" / "combat-theme-intro.ogg"
-COMBAT_MUSIC_LOOP = APP / "public" / "assets" / "music" / "combat-theme-loop.ogg"
 SAIL_DEPLOY_SFX = "assets/sfx/isaac200000-sail-deploy-sfx.ogg"
 FEATURED_SFX = {
     "cannon": "assets/sfx/universfield-cannon-shot-352459.ogg",
@@ -268,6 +264,17 @@ def validate_clip_portraits(source, sidecar, clip):
             )
 
 
+def validate_clip_modal_policy(source, sidecar, clip):
+    expected = clip.get("requiredModalPolicy")
+    if expected is None:
+        return
+    if expected not in {"show", "suppress"}:
+        raise RuntimeError(f"Invalid required modal policy for {source}: {expected}")
+    actual = sidecar.get("scenario", {}).get("sequence", {}).get("modalPolicy")
+    if actual != expected:
+        raise RuntimeError(f"{source} modal policy is {actual}; expected {expected}")
+
+
 def validate_clip_broadside(source, sidecar, start, duration, required_broadside):
     if required_broadside is None:
         return
@@ -459,10 +466,9 @@ def render_timeline_sfx(cues, duration, output):
 
 def montage_boundary_frames(montage, music):
     track = montage.get("track")
-    bpm_key = "shipBpm" if track == "ship" else "combatBpm" if track == "combat" else None
-    if bpm_key is None:
+    if track not in {"primary", "secondary"}:
         raise RuntimeError(f"Unknown montage music track: {track}")
-    bpm = required_positive_number(music.get(bpm_key), bpm_key)
+    bpm = required_positive_number(music.get(track, {}).get("bpm"), f"{track} music BPM")
     subdivisions = required_frame_count(
         montage.get("subdivisionsPerBeat"),
         f"{montage.get('id', 'montage')} subdivisions per beat",
@@ -473,10 +479,10 @@ def montage_boundary_frames(montage, music):
         minimum=0,
     )
     clips = montage.get("clips")
-    if not isinstance(clips, list) or len(clips) != 4:
-        raise RuntimeError(f"{montage.get('id', 'montage')} must contain exactly four beat cuts")
+    if not isinstance(clips, list) or len(clips) < 2:
+        raise RuntimeError(f"{montage.get('id', 'montage')} must contain at least two beat cuts")
     origin_frame = 0
-    if track == "combat":
+    if track == "secondary":
         origin_frame = music["fightStartFrame"] - music["crossfadeFrames"] // 2
     frames_per_subdivision = FPS * 60 / bpm / subdivisions
     return [
@@ -488,9 +494,9 @@ def montage_boundary_frames(montage, music):
 def build_timeline(plan):
     chapters = plan["chapters"]
     music = plan["music"]
-    montages = plan.get("montages")
-    if not isinstance(montages, list) or len(montages) != 2:
-        raise RuntimeError("Trailer plan must define exactly two beat-cut montages")
+    montages = plan.get("montages", [])
+    if not isinstance(montages, list):
+        raise RuntimeError("Trailer plan montages must be an array")
     montages_by_chapter = {}
     for montage in montages:
         montage_id = montage.get("id")
@@ -566,6 +572,31 @@ def resolve_app_path(value):
     return path if path.is_absolute() else (APP / path).resolve()
 
 
+def resolve_music_track(music, role):
+    track = music.get(role)
+    if not isinstance(track, dict):
+        raise RuntimeError(f"Trailer music must define a {role} track")
+    name = track.get("name")
+    intro = track.get("intro")
+    loop = track.get("loop")
+    if not isinstance(name, str) or not name.strip():
+        raise RuntimeError(f"Trailer {role} music needs a name")
+    if not isinstance(intro, str) or not intro.strip():
+        raise RuntimeError(f"Trailer {role} music needs an intro path")
+    if not isinstance(loop, str) or not loop.strip():
+        raise RuntimeError(f"Trailer {role} music needs a loop path")
+    bpm = required_positive_number(track.get("bpm"), f"{role} music BPM")
+    resolved = {
+        "name": name,
+        "intro": resolve_app_path(intro),
+        "loop": resolve_app_path(loop),
+        "bpm": bpm,
+    }
+    require_file(resolved["intro"])
+    require_file(resolved["loop"])
+    return resolved
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Build a Marque & Reprisal Steam trailer")
     parser.add_argument("--plan", default=str(PLAN_PATH))
@@ -582,15 +613,7 @@ def main():
     output = resolve_app_path(args.output)
     if not args.subtitle.strip():
         raise RuntimeError("Trailer outro subtitle cannot be empty")
-    for required in (
-        plan_path,
-        FONT_PATH,
-        TITLE_PATH,
-        SAILING_MUSIC_INTRO,
-        SAILING_MUSIC_LOOP,
-        COMBAT_MUSIC_INTRO,
-        COMBAT_MUSIC_LOOP,
-    ):
+    for required in (plan_path, FONT_PATH, TITLE_PATH):
         require_file(required)
 
     plan = json.loads(plan_path.read_text())
@@ -609,6 +632,8 @@ def main():
     music = plan.get("music")
     if not isinstance(music, dict):
         raise RuntimeError("Trailer plan must define music synchronization")
+    primary_music = resolve_music_track(music, "primary")
+    secondary_music = resolve_music_track(music, "secondary")
     transition_heading = music.get("transitionHeading")
     if not isinstance(transition_heading, str) or not transition_heading:
         raise RuntimeError("Trailer music must name its transition chapter")
@@ -659,14 +684,14 @@ def main():
         "layeredSfx": [],
         "outro": {},
         "music": {
-            "beforeFight": "ship-theme",
-            "fromFight": "combat-theme",
+            "beforeFight": primary_music["name"],
+            "fromFight": secondary_music["name"],
             "crossfadeSeconds": crossfade_seconds,
             "fightStartSeconds": fight_start_seconds,
             "crossfadeStartFrame": fight_start_frame - crossfade_frames // 2,
             "combatSyncAttackFrame": music["combatSyncAttackFrame"],
-            "shipBpm": music["shipBpm"],
-            "combatBpm": music["combatBpm"],
+            "primaryBpm": primary_music["bpm"],
+            "secondaryBpm": secondary_music["bpm"],
             "syncCutFrames": cut_frames,
         },
         "output": str(output),
@@ -723,6 +748,7 @@ def main():
                 clip.get("requiredSfx"),
             )
             validate_clip_portraits(source, sidecar, clip)
+            validate_clip_modal_policy(source, sidecar, clip)
             validate_clip_broadside(
                 source,
                 sidecar,
@@ -849,10 +875,10 @@ def main():
     )
     run([
         "ffmpeg", "-hide_banner", "-loglevel", "error", "-y",
-        "-i", SAILING_MUSIC_INTRO,
-        "-stream_loop", "-1", "-i", SAILING_MUSIC_LOOP,
-        "-i", COMBAT_MUSIC_INTRO,
-        "-stream_loop", "-1", "-i", COMBAT_MUSIC_LOOP,
+        "-i", primary_music["intro"],
+        "-stream_loop", "-1", "-i", primary_music["loop"],
+        "-i", secondary_music["intro"],
+        "-stream_loop", "-1", "-i", secondary_music["loop"],
         "-filter_complex", music_filters,
         "-map", "[music]", "-t", str(expected_duration),
         "-c:a", "pcm_s16le", "-ar", "48000", "-ac", "2", music_path,

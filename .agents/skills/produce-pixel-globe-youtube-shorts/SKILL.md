@@ -67,6 +67,8 @@ Read the timestamped transcript and correct obvious proper-name errors in the JS
 
 Find the matching capture WebM and `.events.json`; do not pair files solely by recency when multiple takes exist. Check the scenario ID and duration in the event sidecar.
 
+Use current-build footage for every ordinary gameplay shot. Before editing, compare representative frames from each take with the current running build, especially the HUD, menus, dialogue, map rendering, portraits, and other visible UI. Reject a take if it predates a visible game change or its build provenance cannot be established; capture it again from the current checkout instead of reusing an older clip because it happens to fit. Older footage is allowed only when the narration intentionally discusses an earlier version, and it must be clearly presented as archival or as the older half of a before-and-after comparison.
+
 Build the automatic event-matched edit:
 
 ```sh
@@ -115,6 +117,7 @@ Require all of the following before calling the Short complete:
 - Duration matches the narration and contains no frozen tail.
 - Captions are legible, pixel-sharp, correctly timed, and inside mobile-safe margins.
 - Gameplay is never stretched, blurred, letterboxed, or obscured by capture controls.
+- Every non-archival gameplay shot matches the current build; no stale HUD, menus, dialogue, map rendering, portraits, or other visible UI.
 - Every modal appearance is intentional and readable; no modal flashes for one frame or momentarily at a cut boundary.
 - Narration is dominant; game SFX remain audible; music is absent.
 - The first seconds visually support the hook and the ending feels intentional.

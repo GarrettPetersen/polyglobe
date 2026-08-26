@@ -5,8 +5,18 @@
     "chapterCount": 8
   },
   "music": {
-    "shipBpm": 108,
-    "combatBpm": 85,
+    "primary": {
+      "name": "ship-theme",
+      "intro": "public/assets/music/ship-theme-intro.ogg",
+      "loop": "public/assets/music/ship-theme-loop.ogg",
+      "bpm": 108
+    },
+    "secondary": {
+      "name": "combat-theme",
+      "intro": "public/assets/music/combat-theme-intro.ogg",
+      "loop": "public/assets/music/combat-theme-loop.ogg",
+      "bpm": 85
+    },
     "fightStartFrame": 581,
     "crossfadeFrames": 54,
     "combatSyncAttackFrame": 27,
@@ -160,7 +170,7 @@
     {
       "id": "early-beam-reaches",
       "afterChapter": "Whale",
-      "track": "ship",
+      "track": "primary",
       "subdivisionsPerBeat": 1,
       "startSubdivision": 28,
       "clips": [
@@ -173,7 +183,7 @@
     {
       "id": "late-beam-reaches",
       "afterChapter": "Pillage",
-      "track": "combat",
+      "track": "secondary",
       "subdivisionsPerBeat": 2,
       "startSubdivision": 24,
       "clips": [
