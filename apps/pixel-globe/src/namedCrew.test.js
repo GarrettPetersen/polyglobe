@@ -95,6 +95,24 @@ test("named crew cannot be duplicated or silently removed", () => {
   assert.deepEqual(validateNamedCrew(value.namedCrew), []);
 });
 
+test("named crew reject a second identity with the same portrait or full name", () => {
+  const value = state(3, 6);
+  const first = { ...character(), sourceId: "portrait-one" };
+  addNamedCrewMember(value, first);
+
+  assert.throws(() => addNamedCrewMember(value, {
+    ...character("portrait-double"),
+    name: "Ines Costa",
+    sourceId: first.sourceId
+  }), /repeats .* portrait/);
+  assert.throws(() => addNamedCrewMember(value, {
+    ...character("name-double"),
+    name: `  ${first.name.toUpperCase()}  `,
+    sourceId: "portrait-two"
+  }), /repeats an existing .* name/);
+  assert.equal(value.namedCrew.length, 1);
+});
+
 test("quest recruitment can reconcile the same already-aboard crewmate without adding a berth", () => {
   const value = state(3, 3);
   const recruit = character();

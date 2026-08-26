@@ -205,6 +205,27 @@ export function prepareRescuedTravelerHomecoming(memory, questId, rewardItem) {
   return quest;
 }
 
+export function replaceActiveRescuedTravelerIdentity(memory, questId, {
+  character,
+  familyMember
+}) {
+  const quest = requiredActiveQuest(memory, questId);
+  const homePort = rescuedTravelerHomePort(quest);
+  const replacement = rescuedTravelerWithBiography(character, homePort);
+  const relative = quest.familySurvived
+    ? rescuedTravelerWithBiography(familyMember, homePort)
+    : null;
+  const candidate = {
+    ...quest,
+    character: replacement,
+    familyMember: relative
+  };
+  validateRescuedTravelerQuest(candidate);
+  quest.character = replacement;
+  quest.familyMember = relative;
+  return quest;
+}
+
 export function completeRescuedTravelerQuest(memory, questId, {
   settledAtHomeMinute = null
 } = {}) {

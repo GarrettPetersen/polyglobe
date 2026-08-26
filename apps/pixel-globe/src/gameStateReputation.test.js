@@ -60,6 +60,7 @@ import {
   refuseFactionSafePassage,
   recordAttackAgainstFaction,
   recordPiracyAgainstFaction,
+  recordPlayerNavalVictory,
   recordSelfDefenseAgainstFaction,
   recordShipMercyForFaction,
   validateGameState
@@ -101,6 +102,14 @@ test("player reputation starts from nationality, wars, and pirates", () => {
   assert.equal(factionReputation(state, "france"), ENEMY_FACTION_START_REPUTATION);
   assert.equal(factionReputation(state, "spain"), 0);
   assert.equal(factionReputation(state, "pirate"), PIRATE_START_REPUTATION);
+});
+
+test("naval victories distinguish pirate hunting from other combat", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+
+  assert.deepEqual(recordPlayerNavalVictory(state), { ships: 1, pirates: 0 });
+  assert.deepEqual(recordPlayerNavalVictory(state, { pirate: true }), { ships: 2, pirates: 1 });
+  assert.deepEqual(recordPlayerNavalVictory(state, { pirate: true }), { ships: 3, pirates: 2 });
 });
 
 test("port attacks distinguish capture commissions, wartime raids, privateering, and piracy", () => {

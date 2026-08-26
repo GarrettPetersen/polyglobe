@@ -319,6 +319,7 @@ import {
   reconcileCharacterPortraitMetadata
 } from "./characterPortraits.js";
 import { reconcileRegionalCharacterNameForms } from "./characterNames.js";
+import { conflictingCharacterIdentity } from "./characterIdentity.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
 import {
   dialoguePortraitPreloadEntries,
@@ -435,6 +436,7 @@ import {
   recordPapalMissionAuthorityForState,
   recordPeaceTreatyAuthorityForState,
   recordPortCaptureAuthorityForState,
+  recordPlayerNavalVictory,
   reconcileCharacterForPapalAuthority,
   resolveCatholicBibleInspection,
   payPortugueseCartazFine,
@@ -609,7 +611,6 @@ import {
   hasPermanentCrewBerth,
   namedCrewMembers,
   permanentCrewFloor,
-  reconcileNamedCrewMember,
   removeNamedCrewMember
 } from "./namedCrew.js";
 import {
@@ -673,12 +674,14 @@ import {
   nextRescuedTravelerPortReunion,
   prepareRescuedTravelerHomecoming,
   recordRescuedTravelerPortReunion,
+  replaceActiveRescuedTravelerIdentity,
   rescuedTravelerDialogueCharacter,
   rescuedTravelerDialogueView,
   rescuedTravelerQuestIdentity,
   rescuedTravelerLabel,
   selectRescuedTravelerDialogueOption
 } from "./rescuedTravelerQuest.js";
+import { recruitRescuedTravelerAsNamedCrew } from "./rescuedTravelerRecruitment.js";
 import { isRemoteCastawayShore } from "./remoteShore.js";
 import {
   BASIC_WHALE_HARPOON_ID,
@@ -8654,7 +8657,29 @@ function playerPortraitSourceExclusions(playerCharacter, otherCharacters = []) {
 }
 
 function aboardPortraitSourceExclusions(state) {
-  return playerPortraitSourceExclusions(state.playerCharacter, namedCrewMembers(state));
+  return playerPortraitSourceExclusions(state.playerCharacter, [
+    ...namedCrewMembers(state),
+    ...activeRescuedTravelerCharactersForState(state)
+  ]);
+}
+
+function activeRescuedTravelerCharactersForState(state, { excludeQuestId = null } = {}) {
+  if (excludeQuestId !== null && (typeof excludeQuestId !== "string" || excludeQuestId === "")) {
+    throw new Error("Rescued traveler identity exclusion requires a quest id");
+  }
+  const memories = [
+    state?.memory?.quests?.pirateCaptive,
+    state?.memory?.quests?.castaway
+  ];
+  const characters = [];
+  for (const memory of memories) {
+    const quest = memory?.active;
+    if (!quest || quest.id === excludeQuestId) continue;
+    if (!quest.character?.id) throw new Error("Active rescued traveler has no character identity");
+    characters.push(quest.character);
+    if (quest.familyMember) characters.push(quest.familyMember);
+  }
+  return characters;
 }
 
 function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = []) {
@@ -8672,7 +8697,10 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   preloadedPortPortraitKeyByTileId.clear();
   papalNuncioPreviewCharacters.clear();
   hospitallerNuncioPreviewCharacters.clear();
-  usedCharacterNames = new Set([playerCharacter.name]);
+  usedCharacterNames = new Set([
+    playerCharacter.name,
+    ...permanentNamedCrew.map((member) => member.name)
+  ]);
   portCityCharacters = assignPortCityCharacters(
     portCities,
     characterPortraitManifest,
@@ -15294,6 +15322,13 @@ async function restoreSavedVoyage(payload) {
   clearPointerSteering();
 
   assignPortCharactersForPlayer(gameState.playerCharacter, namedCrewMembers(gameState));
+  const repairedTravelerIdentities = repairActiveRescuedTravelerIdentityConflicts();
+  if (repairedTravelerIdentities > 0) {
+    recoveredDerivedSystems = addDerivedSaveRecoveryLabel(
+      recoveredDerivedSystems,
+      "rescued traveler identity"
+    );
+  }
   // Regenerating factors clears special quest characters. Rebind the colony
   // organizer before the restored chart creates its interactive city calls.
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
@@ -23009,14 +23044,14 @@ function applyDialogueOption(optionIndex) {
       showSurvivalNotice(`${rescuedTravelerLabel(quest)} FAMILY REUNITED  +${reward.rewardDoubloons} DB`, "good");
       saveVoyageNow(`reunited ${rescuedTravelerLabel(quest).toLowerCase()} with family`);
     } else if (result.action?.type === "recruit-rescued-traveler") {
+      repairActiveRescuedTravelerIdentityConflicts();
       const recruitedCharacter = {
         ...quest.character,
         goal: "Build a new life with this crew"
       };
-      reconcileNamedCrewMember(gameState, recruitedCharacter, undefined, {
+      recruitRescuedTravelerAsNamedCrew(gameState, memory, quest, recruitedCharacter, {
         replaceGenericWhenFull: true
       });
-      completeRescuedTravelerQuest(memory, quest.id);
       syncShipCargoFromGameState();
       playCollectionDingSound();
       showSurvivalNotice(`${quest.character.name.toUpperCase()} JOINED THE CREW`, "good");
@@ -35029,7 +35064,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
   const selfDefenseResult = surrenderCause === "self-defense"
     ? recordPlayerSelfDefenseConsequences(loserId, strategicBeforeSurrender.factionId)
     : null;
-  if (playerWon) recordPlayerShipVictory();
+  if (playerWon) recordPlayerShipVictory({ pirate: loserWasPirate });
   if (npcSeaRoutes.shipById.get(loserId)?.encounter?.kind === "colonization-defense") {
     surrenderNpcShip(npcSeaRoutes, loserId, null, { preserveHull: true });
     resolveColonizationDefenseAttacker(loserId, "CANOE DRIVEN OFF");
@@ -35219,7 +35254,7 @@ function handleNpcSinking(loserId, winnerId, {
     ? recordPlayerSelfDefenseConsequences(loserId, strategic.factionId)
     : null;
   let accidentalCollisionRecorded = false;
-  if (playerVictory) recordPlayerShipVictory();
+  if (playerVictory) recordPlayerShipVictory({ pirate: loserWasPirate });
   const visualState = npcVisualShips.get(loserId);
   if (visualState) spawnNpcShipSinkEffect(visualState, lastFrameMs);
   if (strategic.encounter?.kind === "colonization-defense") {
@@ -35585,6 +35620,90 @@ function rescuedTravelerQuestMemories() {
   ];
 }
 
+function repairActiveRescuedTravelerIdentityConflicts() {
+  if (!gameState || !characterPortraitManifest) {
+    throw new Error("Rescued traveler identity repair requires game state and portrait manifest");
+  }
+  let repaired = 0;
+  for (const memory of rescuedTravelerQuestMemories()) {
+    const quest = memory.active;
+    if (!quest) continue;
+    const reservedCharacters = [
+      gameState.playerCharacter,
+      ...namedCrewMembers(gameState),
+      ...activeRescuedTravelerCharactersForState(gameState, { excludeQuestId: quest.id })
+    ];
+    const travelerConflict = conflictingCharacterIdentity(quest.character, reservedCharacters);
+    const familyConflict = quest.familyMember
+      ? conflictingCharacterIdentity(quest.familyMember, [...reservedCharacters, quest.character])
+      : null;
+    if (!travelerConflict && !familyConflict) continue;
+
+    const homePort = cityByTileId.get(quest.homePortTileId) ||
+      portCitiesByTileId.get(quest.homePortTileId);
+    if (!homePort) {
+      throw new Error(`Duplicate rescued traveler has no canonical home port: ${quest.homePortTileId}`);
+    }
+    const identityKey = `${quest.id}|identity-repair-v1`;
+    const excludedSourceIds = playerPortraitSourceExclusions(
+      gameState.playerCharacter,
+      reservedCharacters.filter((character) => character !== gameState.playerCharacter)
+    );
+    const replacement = travelerConflict
+      ? quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+        ? generatePirateCaptiveCharacter({
+            identityKey,
+            homePort,
+            excludedSourceIds,
+            manifest: characterPortraitManifest,
+            usedNames: usedCharacterNames
+          })
+        : generateCastawayCharacter({
+            identityKey,
+            homePort,
+            excludedSourceIds,
+            manifest: characterPortraitManifest,
+            usedNames: usedCharacterNames
+          })
+      : quest.character;
+    const replacementFamily = quest.familySurvived
+      ? travelerConflict || familyConflict
+        ? quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
+          ? generatePirateCaptiveFamilyMember({
+              identityKey,
+              captive: replacement,
+              homePort,
+              excludedSourceIds,
+              manifest: characterPortraitManifest,
+              usedNames: usedCharacterNames
+            })
+          : generateCastawayFamilyMember({
+              identityKey,
+              castaway: replacement,
+              homePort,
+              excludedSourceIds,
+              manifest: characterPortraitManifest,
+              usedNames: usedCharacterNames
+            })
+        : quest.familyMember
+      : null;
+    replaceActiveRescuedTravelerIdentity(memory, quest.id, {
+      character: replacement,
+      familyMember: replacementFamily
+    });
+    usedCharacterNames.add(replacement.name);
+    if (replacementFamily) usedCharacterNames.add(replacementFamily.name);
+    console.warn("[pixel-globe] repaired duplicate rescued traveler identity", {
+      questId: quest.id,
+      conflict: travelerConflict?.reason || familyConflict?.reason,
+      reservedCharacterId: travelerConflict?.character.id || familyConflict?.character.id,
+      replacementCharacterId: replacement.id
+    });
+    repaired += 1;
+  }
+  return repaired;
+}
+
 function activeRescuedTravelerForType(rescueType) {
   const memory = rescuedTravelerMemoryForType(rescueType);
   const quest = memory.active;
@@ -35594,7 +35713,8 @@ function activeRescuedTravelerForType(rescueType) {
   return { memory, quest };
 }
 
-function recordPlayerShipVictory() {
+function recordPlayerShipVictory({ pirate = false } = {}) {
+  recordPlayerNavalVictory(gameState, { pirate });
   if (!gameState?.memory?.flags) throw new Error("Combat achievement requires voyage flags");
   const firstVictory = gameState.memory.flags.achievementDefeatedShip !== true;
   gameState.memory.flags.achievementDefeatedShip = true;

@@ -124,6 +124,7 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  ...reviewedPortFactorRecognitionOverrides(),
   "Set heading: {0} ({1}; harbor barred)": Object.freeze({
     "zh-Hans": "设定航向：{0}（{1}；港口禁止入内）",
     ru: "Проложить курс: {0} ({1}; вход в гавань запрещён)",
@@ -1476,6 +1477,183 @@ function reviewedWhaleRamOverrides() {
       "O CACHALOTE VIRA PARA ABALROAR", "マッコウクジラが向きを変え突進してくる", "DER POTTWAL DREHT ZUM RAMMSTOSS EIN",
       "LE CACHALOT VIRE POUR ÉPERONNER", "KASZALOT ZWRACA SIĘ DO TARANOWANIA", "抹香鯨轉身衝撞",
       "향유고래가 방향을 틀어 들이받으려 한다"
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [
+    source,
+    reviewedLocaleOverrides(source, values)
+  ]));
+}
+
+function reviewedPortFactorRecognitionOverrides() {
+  const entries = [
+    ["{0} captured ports stand in your wake. No factor mistakes you for an ordinary captain now.", [
+      "你身后已有{0}座港口易主。如今没有哪位港口商人还会把你当作寻常船长。",
+      "За вашей кормой осталось {0} взятых портов. Теперь ни один фактор не примет вас за обычного капитана.",
+      "Habéis dejado {0} puertos conquistados a vuestra estela. Ningún factor os toma ya por un capitán cualquiera.",
+      "Deixastes {0} portos conquistados em vossa esteira. Nenhum feitor vos toma agora por um capitão comum.",
+      "船長の航跡には、すでに{0}もの攻略された港が並んでおります。もはや貴殿を並の船長と思う商館主はおりません。",
+      "In Eurem Kielwasser liegen {0} eroberte Häfen. Kein Faktor hält Euch noch für einen gewöhnlichen Kapitän.",
+      "Vous laissez {0} ports conquis dans votre sillage. Plus aucun facteur ne vous prend pour un capitaine ordinaire.",
+      "W waszym kilwaterze zostało {0} zdobytych portów. Żaden faktor nie weźmie was już za zwykłego kapitana.",
+      "你身後已有{0}座港口易主。如今沒有哪位港口商人還會把你當作尋常船長。",
+      "선장의 항적에는 이미 점령한 항구가 {0}곳이나 남았습니다. 이제 어느 상관장도 선장을 평범한 선장으로 여기지 않습니다."
+    ]],
+    ["{0} discoveries are entered beside your name. Chartmakers quarrel over who may copy your bearings.", [
+      "已有{0}项发现记在你的名下。制图师们正争论谁有资格抄录你的航向。",
+      "Рядом с вашим именем записано {0} открытий. Картографы спорят, кому дозволено копировать ваши пеленги.",
+      "Hay {0} descubrimientos asentados junto a vuestro nombre. Los cartógrafos riñen por quién podrá copiar vuestros rumbos.",
+      "Há {0} descobertas lançadas junto de vosso nome. Os cartógrafos disputam quem poderá copiar vossos rumos.",
+      "貴殿の名の傍らには{0}もの発見が記されております。海図師たちは、誰がその針路を写すべきかで争う始末です。",
+      "Neben Eurem Namen stehen {0} Entdeckungen verzeichnet. Die Kartenmacher streiten, wer Eure Peilungen kopieren darf.",
+      "{0} découvertes sont inscrites auprès de votre nom. Les cartographes se querellent pour savoir qui copiera vos relèvements.",
+      "Przy waszym imieniu zapisano {0} odkryć. Kartografowie spierają się, komu wolno przepisać wasze namiary.",
+      "已有{0}項發現記在你的名下。製圖師們正爭論誰有資格抄錄你的航向。",
+      "선장 이름 곁에는 {0}건의 발견이 기록되어 있습니다. 지도 제작자들은 누가 선장의 방위를 베껴도 되는지를 두고 다툽니다."
+    ]],
+    ["{0} new harbors owe their first roofs and storehouses to your voyages. Few captains leave such marks upon the map.", [
+      "有{0}座新港因你的航行才有了最初的屋舍与仓房。少有船长能在地图上留下这般痕迹。",
+      "{0} новых гаваней обязаны вашим плаваниям первыми крышами и складами. Немногие капитаны оставляют такой след на карте.",
+      "{0} puertos nuevos deben a vuestros viajes sus primeros tejados y almacenes. Pocos capitanes dejan tal huella en el mapa.",
+      "{0} portos novos devem a vossas viagens seus primeiros telhados e armazéns. Poucos capitães deixam tal marca no mapa.",
+      "{0}の新港が、最初の屋根と倉を貴殿の航海に負うております。地図にこれほどの跡を残す船長は稀です。",
+      "{0} neue Häfen verdanken Euren Reisen ihre ersten Dächer und Speicher. Nur wenige Kapitäne hinterlassen solche Spuren auf der Karte.",
+      "{0} nouveaux havres doivent à vos voyages leurs premiers toits et entrepôts. Peu de capitaines laissent pareille marque sur la carte.",
+      "{0} nowych portów zawdzięcza waszym wyprawom pierwsze dachy i składy. Niewielu kapitanów zostawia taki ślad na mapie.",
+      "有{0}座新港因你的航行才有了最初的屋舍與倉房。少有船長能在地圖上留下這般痕跡。",
+      "새 항구 {0}곳이 첫 지붕과 창고를 선장의 항해에 빚지고 있습니다. 지도에 이런 자취를 남기는 선장은 드뭅니다."
+    ]],
+    ["Merchants bless the treaty you forced upon {0}. Open seas are better than brave speeches.", [
+      "商人们都为你迫使{0}签下的条约称颂不已。海路畅通，胜过十篇豪言。",
+      "Купцы благословляют мир, к которому вы принудили {0}. Открытое море лучше храбрых речей.",
+      "Los mercaderes bendicen el tratado que impusisteis a {0}. Más vale mar abierto que discurso valiente.",
+      "Os mercadores bendizem o tratado que impusestes a {0}. Mares abertos valem mais que discursos valentes.",
+      "商人たちは、貴殿が{0}に呑ませた盟約を祝しております。勇ましい口上より、開かれた海路が勝ります。",
+      "Die Kaufleute preisen den Vertrag, den Ihr {0} abgerungen habt. Offene See ist besser als kühne Reden.",
+      "Les marchands bénissent le traité que vous avez imposé à {0}. Mieux vaut une mer ouverte que de vaillants discours.",
+      "Kupcy błogosławią traktat, który wymogliście na {0}. Otwarte morze jest lepsze od dzielnych przemów.",
+      "商人們都為你迫使{0}簽下的條約稱頌不已。海路暢通，勝過十篇豪言。",
+      "상인들은 선장이 {0}에게 받아 낸 조약을 축복합니다. 호기로운 연설보다 열린 바다가 낫지요."
+    ]],
+    ["Pirates curse your name from here to the ocean sea. Honest masters drink to it.", [
+      "从此地直到大洋，海盗都在咒骂你的名字；守法的船主却为它举杯。",
+      "Пираты проклинают ваше имя отсюда до моря-океана. Честные шкиперы пьют за него.",
+      "Los piratas maldicen vuestro nombre desde aquí hasta el mar océano. Los maestres honrados brindan por él.",
+      "Os piratas amaldiçoam vosso nome daqui até o mar oceano. Os mestres honrados bebem em sua honra.",
+      "ここから大洋の果てまで、海賊どもは貴殿の名を呪い、堅気の船主たちはその名に杯を上げております。",
+      "Piraten verfluchen Euren Namen von hier bis zum Ozean. Ehrbare Schiffer trinken darauf.",
+      "Les pirates maudissent votre nom d'ici jusqu'à la mer océane. Les maîtres honnêtes boivent à sa santé.",
+      "Piraci przeklinają wasze imię stąd aż po ocean. Uczciwi szyprowie piją za nie.",
+      "從此地直到大洋，海盜都在咒罵你的名字；守法的船主卻為它舉杯。",
+      "여기서 대양 끝까지 해적들은 선장의 이름을 저주합니다. 정직한 선주들은 그 이름에 잔을 들지요."
+    ]],
+    ["The black flags have learned your sail, captain. They flee it sooner than the king's colors.", [
+      "船长，黑旗已经认得你的帆了。他们见你便逃，比见国王的旗号还快。",
+      "Чёрные флаги узнают ваши паруса, капитан. От них они бегут скорее, чем от королевских цветов.",
+      "Las banderas negras ya conocen vuestra vela, capitán. Huyen de ella antes que de los colores del rey.",
+      "As bandeiras negras já conhecem vossas velas, capitão. Fogem delas antes que das cores do rei.",
+      "船長、黒旗どもは貴殿の帆を覚えました。王旗を見た時より早く逃げ出しますぞ。",
+      "Die schwarzen Flaggen kennen Eure Segel, Kapitän. Vor ihnen fliehen sie eher als vor den Farben des Königs.",
+      "Les pavillons noirs connaissent votre voile, capitaine. Ils la fuient plus vite que les couleurs du roi.",
+      "Czarne bandery poznały wasze żagle, kapitanie. Uciekają przed nimi prędzej niż przed barwami króla.",
+      "船長，黑旗已經認得你的帆了。他們見你便逃，比見國王的旗號還快。",
+      "선장, 검은 깃발들이 선장의 돛을 알아봅니다. 왕의 깃발을 볼 때보다 먼저 달아납니다."
+    ]],
+    ["The counting houses speak of your credit in the same breath as Augsburg's great families. Your business shall have first hearing.", [
+      "各家账房谈起你的信用，已与奥格斯堡的名门巨室相提并论。你的生意自当先议。",
+      "В счётных домах о вашем кредите говорят рядом с великими семьями Аугсбурга. Ваше дело выслушают первым.",
+      "Las casas de cuentas hablan de vuestro crédito junto al de las grandes familias de Augsburgo. Vuestro negocio será oído primero.",
+      "As casas de contas falam de vosso crédito junto ao das grandes famílias de Augsburgo. Vossos negócios terão primeira audiência.",
+      "会計商館では、貴殿の信用をアウクスブルクの大商家と同じ息で語っております。御用件は何より先に承りましょう。",
+      "In den Kontoren nennt man Euren Kredit in einem Atemzug mit Augsburgs großen Familien. Euer Geschäft soll zuerst Gehör finden.",
+      "Les maisons de comptes citent votre crédit avec celui des grandes familles d'Augsbourg. Votre affaire sera entendue la première.",
+      "W kantorach wymieniają wasz kredyt jednym tchem z wielkimi rodami Augsburga. Wasza sprawa zostanie wysłuchana pierwsza.",
+      "各家帳房談起你的信用，已與奧格斯堡的名門巨室相提並論。你的生意自當先議。",
+      "회계 상관들은 선장의 신용을 아우크스부르크의 대가문들과 한데 입에 올립니다. 선장의 용무부터 듣겠습니다."
+    ]],
+    ["The peace you wrung from {0} has quieted more waters than ten admirals.", [
+      "你从{0}手中争得的和平，平定的海域胜过十位海军统帅。",
+      "Мир, который вы вырвали у {0}, успокоил больше морей, чем десять адмиралов.",
+      "La paz que arrancasteis a {0} ha aquietado más aguas que diez almirantes.",
+      "A paz que arrancastes de {0} aquietou mais águas que dez almirantes.",
+      "貴殿が{0}からもぎ取った和平は、十人の提督より多くの海を鎮めました。",
+      "Der Friede, den Ihr {0} abgerungen habt, hat mehr Gewässer beruhigt als zehn Admirale.",
+      "La paix que vous avez arrachée à {0} a calmé plus d'eaux que dix amiraux.",
+      "Pokój, który wydarliście {0}, uciszył więcej wód niż dziesięciu admirałów.",
+      "你從{0}手中爭得的和平，平定的海域勝過十位海軍統帥。",
+      "선장이 {0}에게서 받아 낸 평화는 제독 열 명보다 더 많은 바다를 잠재웠습니다."
+    ]],
+    ["They call you the Hero of {0}, captain. A berth is waiting for you.", [
+      "船长，人们都称你为“{0}的英雄”。泊位早已为你留好。",
+      "Вас зовут Героем {0}, капитан. Причал для вас уже готов.",
+      "Os llaman el Héroe de {0}, capitán. Os aguarda un atraque.",
+      "Chamam-vos Herói de {0}, capitão. Há um ancoradouro à vossa espera.",
+      "船長、皆は貴殿を『{0}の英雄』と呼んでおります。船席を空けておきました。",
+      "Man nennt Euch den Helden von {0}, Kapitän. Ein Liegeplatz wartet auf Euch.",
+      "On vous nomme le Héros de {0}, capitaine. Une place à quai vous attend.",
+      "Zwą was Bohaterem {0}, kapitanie. Miejsce przy nabrzeżu już czeka.",
+      "船長，人們都稱你為「{0}的英雄」。泊位早已為你留好。",
+      "선장, 사람들은 선장을 ‘{0}의 영웅’이라 부릅니다. 정박 자리를 비워 두었습니다."
+    ]],
+    ["Welcome, Hero of {0}. The tale reached our quay before your topsails.", [
+      "欢迎你，{0}的英雄。你的事迹比桅顶帆更早传到我们的码头。",
+      "Добро пожаловать, Герой {0}. Весть о вас пришла на нашу пристань прежде ваших марселей.",
+      "Bienvenido, Héroe de {0}. La historia llegó a nuestro muelle antes que vuestras gavias.",
+      "Bem-vindo, Herói de {0}. A história chegou ao nosso cais antes de vossas gáveas.",
+      "ようこそ、{0}の英雄。貴殿の武勲は、トップスルより先にこの岸壁へ届きました。",
+      "Willkommen, Held von {0}. Die Kunde erreichte unseren Kai vor Euren Marssegeln.",
+      "Bienvenue, Héros de {0}. Le récit a atteint notre quai avant vos huniers.",
+      "Witajcie, Bohaterze {0}. Opowieść dotarła na nasze nabrzeże przed waszymi marslami.",
+      "歡迎你，{0}的英雄。你的事蹟比桅頂帆更早傳到我們的碼頭。",
+      "어서 오십시오, {0}의 영웅이여. 선장의 무용담이 상단 돛보다 먼저 우리 부두에 닿았습니다."
+    ]],
+    ["Word comes from {0} settlements founded in your wake. Their factors already reckon by your name.", [
+      "消息从你航迹中建立的{0}处聚落传来。那里的港口商人已用你的名字作保。",
+      "Приходят вести из {0} поселений, основанных по вашему следу. Их факторы уже ведут счёт вашим именем.",
+      "Llegan noticias de {0} asentamientos fundados tras vuestra estela. Sus factores ya hacen cuentas con vuestro nombre.",
+      "Chegam notícias de {0} povoações fundadas em vossa esteira. Seus feitores já fazem contas por vosso nome.",
+      "貴殿の航跡に築かれた{0}の入植地から便りが届いております。かの地の商館主は、早くも貴殿の名で勘定しております。",
+      "Kunde kommt aus {0} Siedlungen, die in Eurem Kielwasser gegründet wurden. Ihre Faktoren rechnen bereits mit Eurem Namen.",
+      "Des nouvelles viennent de {0} établissements fondés dans votre sillage. Leurs facteurs comptent déjà sur votre nom.",
+      "Przychodzą wieści z {0} osad założonych w waszym kilwaterze. Ich faktorzy już rachują na wasze imię.",
+      "消息從你航跡中建立的{0}處聚落傳來。那裡的港口商人已用你的名字作保。",
+      "선장의 항적을 따라 세워진 정착지 {0}곳에서 소식이 옵니다. 그곳의 상관장들은 벌써 선장 이름으로 장부를 셈합니다."
+    ]],
+    ["You have opened {0} city gates by force. Even admirals count your victories carefully.", [
+      "你已用武力打开{0}座城门。就连海军统帅也细数你的胜绩。",
+      "Вы силой открыли ворота {0} городов. Даже адмиралы внимательно считают ваши победы.",
+      "Habéis abierto por la fuerza las puertas de {0} ciudades. Hasta los almirantes cuentan con cuidado vuestras victorias.",
+      "Abristes pela força os portões de {0} cidades. Até os almirantes contam vossas vitórias com cuidado.",
+      "貴殿は力ずくで{0}の城門を開きました。提督たちでさえ、その勝利を念入りに数えております。",
+      "Ihr habt {0} Stadttore mit Gewalt geöffnet. Selbst Admirale zählen Eure Siege mit Bedacht.",
+      "Vous avez ouvert de force les portes de {0} villes. Même les amiraux comptent vos victoires avec soin.",
+      "Siłą otworzyliście bramy {0} miast. Nawet admirałowie uważnie liczą wasze zwycięstwa.",
+      "你已用武力打開{0}座城門。就連海軍統帥也細數你的勝績。",
+      "선장은 무력으로 {0}곳의 성문을 열었습니다. 제독들조차 선장의 승리를 꼼꼼히 셉니다."
+    ]],
+    ["Your charts have made old maps look like children's guesses. Every pilot in port wants a sight of them.", [
+      "你的海图使旧地图看起来如同孩童猜画。港中每位领航员都想一睹为快。",
+      "Рядом с вашими картами старые выглядят детскими догадками. Каждый лоцман в порту желает на них взглянуть.",
+      "Vuestras cartas hacen que los mapas viejos parezcan conjeturas de niños. Todo piloto del puerto quiere verlas.",
+      "Vossas cartas fazem os mapas antigos parecerem palpites de crianças. Todo piloto do porto quer vê-las.",
+      "貴殿の海図に比べれば、古地図など童の当て推量に見えます。港中の水先案内人が一目見たがっております。",
+      "Eure Seekarten lassen alte Karten wie Kinderraten aussehen. Jeder Lotse im Hafen möchte sie sehen.",
+      "Vos cartes font paraître les anciens plans comme des conjectures d'enfants. Chaque pilote du port veut les voir.",
+      "Przy waszych mapach stare wyglądają jak dziecięce domysły. Każdy pilot w porcie pragnie je zobaczyć.",
+      "你的海圖使舊地圖看起來如同孩童猜畫。港中每位領航員都想一睹為快。",
+      "선장의 해도 앞에서는 옛 지도가 아이들의 짐작처럼 보입니다. 항구의 모든 도선사가 한 번 보기를 원합니다."
+    ]],
+    ["Your purse could fit out a royal squadron, captain. I shall not trouble you with a factor's small courtesies.", [
+      "船长，你的钱袋足以装备一支王家分舰队。我便不拿港口商人的小礼数来烦你了。",
+      "Ваш кошель мог бы снарядить королевскую эскадру, капитан. Не стану утруждать вас мелкими любезностями фактора.",
+      "Vuestra bolsa podría armar una escuadra real, capitán. No os importunaré con las pequeñas cortesías de un factor.",
+      "Vossa bolsa poderia armar uma esquadra real, capitão. Não vos importunarei com as pequenas cortesias de um feitor.",
+      "船長、貴殿の財布なら王家の一戦隊を艤装できましょう。商館主のささやかな挨拶でお手を煩わせますまい。",
+      "Euer Geldbeutel könnte ein königliches Geschwader ausrüsten, Kapitän. Ich will Euch nicht mit den kleinen Höflichkeiten eines Faktors bemühen.",
+      "Votre bourse pourrait armer une escadre royale, capitaine. Je ne vous importunerai pas des menues courtoisies d'un facteur.",
+      "Wasza sakwa mogłaby wyposażyć królewską eskadrę, kapitanie. Nie będę was trudził drobnymi grzecznościami faktora.",
+      "船長，你的錢袋足以裝備一支王家分艦隊。我便不拿港口商人的小禮數來煩你了。",
+      "선장, 선장의 돈주머니라면 왕실 전대를 꾸릴 수 있겠습니다. 상관장의 자잘한 인사치레로 번거롭게 하지 않겠습니다."
     ]]
   ];
   return Object.fromEntries(entries.map(([source, values]) => [

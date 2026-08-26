@@ -37,6 +37,7 @@ import {
   warnPirateCaptive,
   validatePirateCaptiveQuestMemory
 } from "./pirateCaptiveQuest.js";
+import { replaceActiveRescuedTravelerIdentity } from "./rescuedTravelerQuest.js";
 import {
   RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE,
   rescuedTravelerQuestIdentity
@@ -229,6 +230,39 @@ test("a captive whose family was lost asks to remain as permanent crew", () => {
   const request = pirateCaptiveDialogueView(session, quest);
   assert.match(request.text, /may I stay aboard/i);
   assert.equal(request.options[0].action.type, "recruit-rescued-traveler");
+});
+
+test("a duplicate active captive identity can be replaced without changing the journey", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.5);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  preparePirateCaptiveHomecoming(memory, quest.id, null);
+  const original = {
+    id: quest.id,
+    stage: quest.stage,
+    distanceKm: quest.distanceKm,
+    deception: structuredClone(quest.deception)
+  };
+  const replacement = {
+    ...captive,
+    id: "replacement-captive",
+    sourceId: "replacement-portrait",
+    name: "Ines Costa",
+    givenName: "Ines",
+    familyName: "Costa"
+  };
+
+  replaceActiveRescuedTravelerIdentity(memory, quest.id, {
+    character: replacement,
+    familyMember: null
+  });
+
+  assert.equal(quest.character.id, replacement.id);
+  assert.equal(quest.character.sourceId, replacement.sourceId);
+  assert.equal(quest.id, original.id);
+  assert.equal(quest.stage, original.stage);
+  assert.equal(quest.distanceKm, original.distanceKm);
+  assert.deepEqual(quest.deception, original.deception);
 });
 
 test("a later rare pirate captive quest can begin after one is completed", () => {

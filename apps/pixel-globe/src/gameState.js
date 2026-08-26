@@ -5029,6 +5029,19 @@ export function recordPiracyAgainstFaction(state, victimFactionId, options = {})
   return changes;
 }
 
+export function recordPlayerNavalVictory(state, { pirate = false } = {}) {
+  assertGameState(state);
+  if (typeof pirate !== "boolean") {
+    throw new Error("Player naval victory requires a pirate flag");
+  }
+  recordDecision(state, "combat.victory.ship", 1);
+  if (pirate) recordDecision(state, "combat.victory.pirate", 1);
+  return Object.freeze({
+    ships: state.memory.decisions["combat.victory.ship"],
+    pirates: positiveDecisionCount(state.memory.decisions["combat.victory.pirate"])
+  });
+}
+
 function piracyReputationPenalty(state, observerFactionId, victimFactionId) {
   if (observerFactionId === victimFactionId) return SHIP_ATTACK_REPUTATION_PENALTY;
 
@@ -8760,6 +8773,10 @@ function goodById(goodId) {
 
 function recordDecision(state, key, amount) {
   state.memory.decisions[key] = (state.memory.decisions[key] || 0) + amount;
+}
+
+function positiveDecisionCount(value) {
+  return Number.isFinite(value) && value > 0 ? Math.floor(value) : 0;
 }
 
 function emergencyShipAidKey(npcShipId) {

@@ -1,4 +1,5 @@
 import { validateCharacterSkillIds } from "./characterSkills.js";
+import { normalizedCharacterName } from "./characterIdentity.js";
 import { convertEnglishCatholicCharacter } from "./papalPolitics.js";
 
 export const NAMED_CREW_ROLE_CREWMATE = "crewmate";
@@ -84,6 +85,19 @@ export function addNamedCrewMember(
   const members = namedCrewMembers(state);
   if (members.some((member) => member.id === character.id)) {
     throw new Error(`${character.name} is already a named crewmate`);
+  }
+  const visualDouble = members.find((member) => (
+    typeof member.sourceId === "string" && member.sourceId !== "" &&
+    typeof character.sourceId === "string" && character.sourceId !== "" &&
+    member.sourceId === character.sourceId
+  ));
+  if (visualDouble) {
+    throw new Error(`${character.name} repeats ${visualDouble.name}'s named-crewmate portrait`);
+  }
+  const nameDouble = members.find((member) => normalizedCharacterName(member.name) ===
+    normalizedCharacterName(character.name));
+  if (nameDouble) {
+    throw new Error(`${character.name} repeats an existing named-crewmate name`);
   }
   const historicallyCurrentCharacter = state.relations?.papacy?.englishReformationApplied
     ? convertEnglishCatholicCharacter(character)

@@ -1078,6 +1078,17 @@ test("pirate captives use expressive portraits and reunite with the same family 
   assert.notEqual(familyMember.name, captive.name);
   assert.notEqual(familyMember.sourceId, captive.sourceId);
 
+  const replacementCaptive = generatePirateCaptiveCharacter({
+    identityKey: "pirate-19",
+    homePort,
+    excludedSourceIds: [captive.sourceId],
+    manifest: GENERATED_MANIFEST,
+    usedNames
+  });
+  assert.notEqual(replacementCaptive.id, captive.id);
+  assert.notEqual(replacementCaptive.sourceId, captive.sourceId);
+  assert.notEqual(replacementCaptive.name, captive.name);
+
   const castaway = generateCastawayCharacter({
     identityKey: "shore-91",
     homePort,

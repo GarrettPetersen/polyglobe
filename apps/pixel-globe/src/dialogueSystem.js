@@ -120,6 +120,7 @@ import {
 } from "./worldDiplomacy.js";
 import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
+import { portFactorRecognitionForCaptain } from "./portFactorRecognition.js";
 import {
   occasionalReligiousGreeting,
   protestantColonistReception
@@ -3892,14 +3893,32 @@ function greetingView(session, city, gameState, context) {
     speakerReligionId: city.character?.religionId || null,
     listenerReligionId: gameState.playerCharacter?.religionId || null
   });
-  const drunkMemoryRemark = rememberedDrunkFactorLine(session, memory);
+  const recognitionRemark = typeof city.factionId === "string"
+    ? portFactorRecognitionForCaptain({
+        gameState,
+        city,
+        cities: context.cities || [city],
+        personalityId,
+        visitCount: memory.visits,
+        dayIndex: context.dayIndex || 0,
+        simMinute: context.simMinute ?? 0
+      })
+    : null;
+  const drunkMemoryRemark = recognitionRemark ? null : rememberedDrunkFactorLine(session, memory);
   const settlementRemark = foreignSettlementFactorLine(city, gameState);
   const suzerainRemark = vassalPortEntryLine(context.portEntryStatus);
   const sovereigntyRemark = changedPortSovereigntyLine(city);
-  const remarks = [drunkMemoryRemark, settlementRemark, suzerainRemark, sovereigntyRemark, greeting.text].filter(Boolean);
+  const remarks = [
+    recognitionRemark?.text,
+    drunkMemoryRemark,
+    settlementRemark,
+    suzerainRemark,
+    sovereigntyRemark,
+    greeting.text
+  ].filter(Boolean);
   return {
     speaker: speakerName(city),
-    expressionId: greeting.expressionId,
+    expressionId: recognitionRemark?.expressionId || greeting.expressionId,
     text: remarks.join("  "),
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: "root" })]
@@ -3933,6 +3952,7 @@ function foreignSettlementFactorLine(city, gameState) {
 
 function rememberedDrunkFactorLine(session, memory) {
   if (memory.drunkArrivals <= 0 || memory.lastDrunkVisit === memory.visits) return null;
+  if ((session.drunkVariant + memory.visits + memory.drunkArrivals) % 4 !== 0) return null;
   const lines = memory.drunkArrivals > 1
     ? REMEMBERED_REPEAT_DRUNK_FACTOR_LINES
     : REMEMBERED_DRUNK_FACTOR_LINES;

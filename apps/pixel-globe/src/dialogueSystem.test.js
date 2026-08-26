@@ -6434,12 +6434,46 @@ test("a port factor remembers the captain's drunken arrivals on later visits", (
   const greeting = portDialogueView(soberReturn, city, gameState, economy, [city]);
   assert.match(greeting.text, /steadier step|correct door|horizon|steer my office/i);
 
+  const ordinaryReturn = createPortArrivalDialogueSession(city, { drunkVariant: 0 });
+  const ordinaryGreeting = portDialogueView(ordinaryReturn, city, gameState, economy, [city]);
+  assert.doesNotMatch(ordinaryGreeting.text, /steadier step|correct door|horizon|steer my office/i);
+
   visitPort(gameState, city, 300, { arrivedDrunk: true });
   const repeatArrival = createPortArrivalDialogueSession(city, { arrivedDrunk: true, drunkVariant: 2 });
   selectPortDialogueOption(repeatArrival, city, gameState, economy, [city], 0);
   const repeatFactor = portDialogueView(repeatArrival, city, gameState, economy, [city]);
   assert.match(repeatFactor.text, /again|last entrance|harbor still|seen you arrive/i);
   assert.equal(portMemory(gameState, city).drunkArrivals, 2);
+});
+
+test("a port factor receives a wealthy magnate according to her present station", () => {
+  const city = {
+    tileId: 83,
+    city: "Istanbul",
+    displayCity: "Istanbul",
+    country: "Türkiye",
+    factionId: "ottoman",
+    cityType: "mediterranean",
+    character: { name: "Kemal Reis", personalityId: "enterprising" }
+  };
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.doubloons = 1_100_000;
+  gameState.playerCharacter = {
+    name: "Ines Pereira",
+    expressions: ["neutral", "happy"],
+    skillIds: ["able-seaman"]
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  visitPort(gameState, city, 100);
+
+  const session = createPortDialogueSession(city, { initialNodeId: "greeting" });
+  const greeting = portDialogueView(session, city, gameState, economy, [city], {
+    cities: [city],
+    simMinute: 100,
+    dayIndex: 1,
+    localHour: 12
+  });
+  assert.match(greeting.text, /Augsburg's great families|royal squadron/i);
 });
 
 test("an active package mission opens its factor before the port menu", () => {
