@@ -52,3 +52,28 @@ test("completed incremental frames are returned without rebuilding them", () => 
   assert.equal(builds, 2, "the idle budget should warm the remaining animation frame");
   assert.equal(cache.frames.size, 2);
 });
+
+test("expensive shared frame setup is charged to the incremental budget", () => {
+  const emptyFrame = { frameIndex: -1 };
+  const cache = createIncrementalRasterFrameCache({ frameCount: 2, emptyFrame });
+  let clockMs = 0;
+  let advances = 0;
+  const options = {
+    budgetMs: 2,
+    createBuild: (index) => {
+      clockMs += 3;
+      return { index };
+    },
+    advanceBuild: () => {
+      advances += 1;
+      return true;
+    },
+    completeBuild: (build) => ({ frameIndex: build.index }),
+    now: () => clockMs
+  };
+
+  assert.equal(requestIncrementalRasterFrame(cache, 0, options), emptyFrame);
+  assert.equal(advances, 0, "setup exhausted the frame budget before raster work began");
+  assert.deepEqual(requestIncrementalRasterFrame(cache, 0, options), { frameIndex: 0 });
+  assert.equal(advances, 1);
+});

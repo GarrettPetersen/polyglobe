@@ -2146,7 +2146,6 @@ import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
 import { fetchStaticAsset, isTransientStaticAssetError } from "./staticAssetFetch.js";
 import { createOnDemandAssetStore } from "./onDemandAssetStore.js";
 import {
-  terrainConnectorCallSequenceKey,
   terrainConnectorEdgeKey,
   terrainConnectorLengthIsRenderable,
   terrainConnectorRasterSpans
@@ -49714,20 +49713,17 @@ function terrainConnectorDynamicLayer(baseLayer, activeChart, visibleFaceCalls =
   const cacheKey = worldChartRenderCacheKey(activeChart);
   const beachWaveTick = Math.floor(waterAnimationClockMs / BEACH_WAVE_REDRAW_MS);
   const frameIndex = beachWaveTick % BEACH_WAVE_FRAME_COUNT;
-  const visibleFaceCallsKey = visibleFaceCalls === null
-    ? null
-    : terrainConnectorCallSequenceKey(visibleFaceCalls);
   let cached = terrainConnectorDynamicLayerCache.get(cacheKey);
-  if (cached?.baseLayer !== baseLayer || cached.visibleFaceCallsKey !== visibleFaceCallsKey) {
+  if (cached?.baseLayer !== baseLayer || cached.visibleFaceCalls !== visibleFaceCalls) {
     const compatibleFallback = cached?.baseLayer === baseLayer
       ? cached.frameCache.frames.get(frameIndex) || cached.frameCache.frames.values().next().value
       : null;
     const entries = terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls);
+    const atlas = terrainConnectorDynamicAtlasLayout(entries);
     cached = {
       baseLayer,
-      visibleFaceCallsKey,
-      entries,
-      bounds: terrainConnectorDynamicBounds(entries),
+      visibleFaceCalls,
+      atlas,
       revision: nextTerrainConnectorDynamicRevision++,
       frameCache: createIncrementalRasterFrameCache({
         frameCount: BEACH_WAVE_FRAME_COUNT,
@@ -49762,17 +49758,15 @@ function emptyTerrainConnectorDynamicLayer() {
 }
 
 function createTerrainConnectorDynamicFrameBuild(cached, frameIndex) {
-  const atlas = terrainConnectorDynamicAtlasLayout(cached.entries);
   const canvas = document.createElement("canvas");
-  canvas.width = atlas.width;
-  canvas.height = atlas.height;
+  canvas.width = cached.atlas.width;
+  canvas.height = cached.atlas.height;
   const layerCtx = canvas.getContext("2d");
   if (!layerCtx) throw new Error("Could not create terrain connector wave layer");
   layerCtx.imageSmoothingEnabled = false;
   return {
     cached,
     frameIndex,
-    atlas,
     canvas,
     layerCtx,
     nextSpriteIndex: 0
@@ -49780,8 +49774,8 @@ function createTerrainConnectorDynamicFrameBuild(cached, frameIndex) {
 }
 
 function advanceTerrainConnectorDynamicFrameBuild(build) {
-  if (build.nextSpriteIndex >= build.atlas.sprites.length) return true;
-  const sprite = build.atlas.sprites[build.nextSpriteIndex++];
+  if (build.nextSpriteIndex >= build.cached.atlas.sprites.length) return true;
+  const sprite = build.cached.atlas.sprites[build.nextSpriteIndex++];
   drawTerrainConnectorDynamicDetails(
     build.layerCtx,
     sprite.entry,
@@ -49789,26 +49783,29 @@ function advanceTerrainConnectorDynamicFrameBuild(build) {
     sprite.sourceRect.x - sprite.destinationRect.x,
     sprite.sourceRect.y - sprite.destinationRect.y
   );
-  return build.nextSpriteIndex >= build.atlas.sprites.length;
+  return build.nextSpriteIndex >= build.cached.atlas.sprites.length;
 }
 
 function completeTerrainConnectorDynamicFrameBuild(build) {
   return Object.freeze({
     canvas: build.canvas,
-    x: build.cached.bounds.x,
-    y: build.cached.bounds.y,
+    x: build.cached.atlas.worldBounds.x,
+    y: build.cached.atlas.worldBounds.y,
     frameIndex: build.frameIndex,
     revision: build.cached.revision,
-    sprites: Object.freeze(build.atlas.sprites.map(({ sourceRect, destinationRect }) => Object.freeze({
-      sourceRect: Object.freeze(sourceRect),
-      destinationRect: Object.freeze(destinationRect)
-    })))
+    sprites: build.cached.atlas.drawSprites
   });
 }
 
 function terrainConnectorDynamicAtlasLayout(entries) {
   if (!Array.isArray(entries)) throw new Error("Terrain connector wave atlas requires entries");
-  if (entries.length === 0) return { width: 1, height: 1, sprites: [] };
+  if (entries.length === 0) return {
+    width: 1,
+    height: 1,
+    worldBounds: Object.freeze({ x: 0, y: 0, width: 1, height: 1 }),
+    sprites: Object.freeze([]),
+    drawSprites: Object.freeze([])
+  };
   const boundsByEntry = entries.map((entry) => ({
     entry,
     bounds: terrainConnectorDynamicBounds([entry])
@@ -49823,24 +49820,47 @@ function terrainConnectorDynamicAtlasLayout(entries) {
     TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING
   );
   const sprites = [];
+  let worldMinX = Infinity;
+  let worldMinY = Infinity;
+  let worldMaxX = -Infinity;
+  let worldMaxY = -Infinity;
   let usedWidth = 1;
   let usedHeight = 1;
   for (const { entry, bounds } of boundsByEntry) {
     const sourceRect = allocator.allocate(bounds.width, bounds.height);
     usedWidth = Math.max(usedWidth, sourceRect.x + sourceRect.width + TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING);
     usedHeight = Math.max(usedHeight, sourceRect.y + sourceRect.height + TERRAIN_CONNECTOR_WAVE_ATLAS_PADDING);
-    sprites.push({
+    worldMinX = Math.min(worldMinX, bounds.x);
+    worldMinY = Math.min(worldMinY, bounds.y);
+    worldMaxX = Math.max(worldMaxX, bounds.x + bounds.width);
+    worldMaxY = Math.max(worldMaxY, bounds.y + bounds.height);
+    sprites.push(Object.freeze({
       entry,
-      sourceRect,
-      destinationRect: {
+      sourceRect: Object.freeze(sourceRect),
+      destinationRect: Object.freeze({
         x: bounds.x,
         y: bounds.y,
         width: bounds.width,
         height: bounds.height
-      }
-    });
+      })
+    }));
   }
-  return { width: usedWidth, height: usedHeight, sprites };
+  const drawSprites = Object.freeze(sprites.map(({ sourceRect, destinationRect }) => Object.freeze({
+    sourceRect: Object.freeze(sourceRect),
+    destinationRect: Object.freeze(destinationRect)
+  })));
+  return {
+    width: usedWidth,
+    height: usedHeight,
+    worldBounds: Object.freeze({
+      x: worldMinX,
+      y: worldMinY,
+      width: worldMaxX - worldMinX,
+      height: worldMaxY - worldMinY
+    }),
+    sprites: Object.freeze(sprites),
+    drawSprites
+  };
 }
 
 function terrainConnectorDynamicEntries(baseLayer, visibleFaceCalls) {

@@ -18,6 +18,7 @@ export function requestIncrementalRasterFrame(cache, frameIndex, {
   now = () => performance.now()
 }) {
   validateRequest(cache, frameIndex, budgetMs, createBuild, advanceBuild, completeBuild, now);
+  const startedAtMs = now();
   if (!cache.pending && cache.frames.size < cache.frameCount) {
     const buildFrameIndex = cache.frames.has(frameIndex)
       ? firstMissingFrameIndex(cache, frameIndex)
@@ -28,8 +29,7 @@ export function requestIncrementalRasterFrame(cache, frameIndex, {
     };
   }
 
-  if (cache.pending) {
-    const startedAtMs = now();
+  if (cache.pending && now() - startedAtMs < budgetMs) {
     let complete = false;
     do {
       complete = advanceBuild(cache.pending.build);
