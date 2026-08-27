@@ -53,6 +53,10 @@ import {
 import { createFixedRateScheduler } from "./fixedRateScheduler.js";
 import { createExactByteMaskCache } from "./exactByteMaskCache.js";
 import {
+  advanceIncrementalUniqueMapping,
+  beginIncrementalUniqueMapping
+} from "./incrementalUniqueMapping.js";
+import {
   activeSessionFrameSeconds,
   createSessionActivityState,
   noteSessionActivity
@@ -750,7 +754,9 @@ import {
   WHALE_PHASE_DEAD,
   WHALE_PHASE_SURFACED,
   WHALE_PHASE_TETHERED,
-  advanceWhaleMemory,
+  advanceWhaleJob,
+  beginWhaleAdvance,
+  cancelWhaleAdvanceJob,
   constrainWhaleTether,
   cutWhaleLoose,
   exhaustTetheredWhale,
@@ -2089,6 +2095,7 @@ import {
   nearestChartSurfaceAtPoint,
   terrainTearNeedsRepair
 } from "./chartVisualFault.js";
+import { advanceChartSwellRepairProgress } from "./chartSwellRepairProgress.js";
 import {
   chartIntegrityIncidentError,
   chartIntegrityTelemetryStats,
@@ -2096,6 +2103,7 @@ import {
   observeChartIntegrityTelemetry
 } from "./chartIntegrityTelemetry.js";
 import {
+  CHART_IMMEDIATE_REPAIR_RMS_PX,
   activePartialCloudRepairNeedsEscalation,
   advanceChartWeatherRepairConfirmation,
   chartVisualRepairMayEnterCooldown,
@@ -2692,6 +2700,7 @@ const SHIP_RENDER_LAYERS_URL =
 const ICEBERG_ASSET_VERSION = "iceberg-1";
 const ICEBERG_MANIFEST_URL = `assets/icebergs/manifest.json?v=${ICEBERG_ASSET_VERSION}`;
 const ICEBERG_CLEAR_WATER_STEPS = 2;
+const ICEBERG_CALVING_CANDIDATES_PER_FRAME = 4;
 const ROWING_SHIP_ANIMATION_SPECS = SHIP_ROWING_ANIMATION_SPECS;
 const CITY_ASSET_VERSION = "city-types-3";
 const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
@@ -3265,6 +3274,7 @@ const WHALE_TETHER_MAX_DISTANCE_PX = 78;
 const WHALE_SIMULATION_INTERVAL_SECONDS = 0.25;
 const WHALE_HUNT_SIMULATION_INTERVAL_SECONDS = 1 / 30;
 const WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 32;
+const WHALE_MOVEMENTS_PER_FRAME = 4;
 const WHALE_RENDER_EXPOSURE_STEPS = 4;
 const PLATFORM_ACTIVITY_UPDATE_INTERVAL_MS = 250;
 const SEAGULL_FRAME_SIZE = 9;
@@ -3638,10 +3648,12 @@ let colonizationDefenseVisibilityWatch = null;
 let shoreBatteryUpdateAccumulator = 0;
 let whaleSimulationAccumulator = 0;
 let whaleBackgroundMovementBucket = 0;
+let whaleAdvanceJob = null;
 const whaleVisualPresentations = new Map();
 let icebergSpawnCandidates = [];
 let activeIcebergSpawnCandidatesDay = -1;
 let activeIcebergSpawnCandidates = [];
+let icebergSpawnCandidateRefreshJob = null;
 let icebergAdvanceJob = null;
 const icebergCollisionMomentum = new Map();
 let ambientAudioUpdateAccumulator = 0;
@@ -3958,6 +3970,7 @@ let chartRepairHeatHaze = null;
 let chartRepairSwellUntilMs = -Infinity;
 let chartRepairSwellRebuildPending = false;
 let chartRepairSwellNextRebuildAtMs = -Infinity;
+let chartRepairSwellProgress = null;
 let polarChartRepairPressure = 0;
 let polarChartRepairPressureUpdatedAtMs = null;
 let chartRepairCooldownUntilMs = -Infinity;
@@ -4615,8 +4628,7 @@ async function main() {
   };
   refreshWeatherState(true);
   icebergSpawnCandidates = buildIcebergSpawnCandidates();
-  activeIcebergSpawnCandidatesDay = -1;
-  activeIcebergSpawnCandidates = [];
+  invalidateIcebergSpawnCandidates();
   icebergAdvanceJob = null;
   icebergCollisionMomentum.clear();
   minimap = buildMinimap();
@@ -10772,6 +10784,7 @@ function injectChartRecoveryDiagnosticDistortion(tiltDeg, distortionScale) {
   chartRepairSwellUntilMs = -Infinity;
   chartRepairSwellRebuildPending = false;
   chartRepairSwellNextRebuildAtMs = -Infinity;
+  chartRepairSwellProgress = null;
   chartRepairPendingConfirmation = null;
   chartRepairCooldownUntilMs = -Infinity;
   coveredChartRepairQueue.clear();
@@ -11198,6 +11211,7 @@ function updateCaptureWhale(sequence) {
     return;
   }
   if (captureCue("exhaust-whale", 2.2)) {
+    cancelPendingWhaleAdvance();
     const whale = exhaustTetheredWhale(gameState.memory.whales);
     openCaptainAlertModal(whaleExhaustedMessage(), WHALE_EXHAUSTED_EXPRESSION_ID);
     emitCaptureEvent("capture-beat", { action: "exhaust-whale", speciesId: whale.speciesId });
@@ -12236,6 +12250,7 @@ function stageCaptureWhale(sequence) {
   captureDirector.steeringTarget = whale.position;
   if (sequence.variant === "finish") {
     const harpoon = playerWhaleHarpoon(gameState);
+    cancelPendingWhaleAdvance();
     tetherWhale(gameState.memory.whales, whale.id, harpoon);
     gameState.memory.whales.activeHunt.remainingSeconds = 8;
   }
@@ -15268,8 +15283,7 @@ async function restoreSavedVoyage(payload) {
   restoreNpcSurrenderContinuity(npcSeaRoutes, payload.npcSurrenders);
   refreshHospitallerMaltaQuestState();
   refreshWeatherState(true);
-  activeIcebergSpawnCandidatesDay = -1;
-  activeIcebergSpawnCandidates = [];
+  invalidateIcebergSpawnCandidates();
   icebergAdvanceJob = null;
   icebergCollisionMomentum.clear();
   ensureIcebergPopulation(gameState);
@@ -15384,6 +15398,7 @@ async function restoreSavedVoyage(payload) {
   shoreBatteryUpdateAccumulator = 0;
   whaleSimulationAccumulator = 0;
   whaleBackgroundMovementBucket = 0;
+  whaleAdvanceJob = null;
   whaleVisualPresentations.clear();
   ambientAudioUpdateAccumulator = 0;
   ambientAudioContextAccumulator = 0;
@@ -24681,25 +24696,43 @@ function updateWhales(dt, nowMs) {
     whaleSimulationAccumulator + dt
   );
   const simulationDue = whaleSimulationAccumulator >= simulationInterval;
-  let events = [];
-  if (simulationDue) {
+  if (simulationDue && !whaleAdvanceJob) {
     const responsiveIds = responsiveWhaleMovementIds();
     const presentationStarts = captureWhalePresentationStarts(responsiveIds, nowMs);
     const movementElapsed = takeWhaleSimulationElapsed();
-    events = advanceWhaleMemory(
-      gameState.memory.whales,
-      movementElapsed,
-      whaleNavigationAtPosition,
-      weatherClockMinutes,
-      {
-        bucket: whaleBackgroundMovementBucket,
-        bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
-        activeWhaleIds: responsiveIds
-      }
-    );
-    retargetWhalePresentations(presentationStarts, nowMs, movementElapsed);
+    whaleAdvanceJob = {
+      simulation: beginWhaleAdvance(
+        gameState.memory.whales,
+        movementElapsed,
+        whaleNavigationAtPosition,
+        weatherClockMinutes,
+        {
+          bucket: whaleBackgroundMovementBucket,
+          bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
+          activeWhaleIds: responsiveIds
+        }
+      ),
+      presentationStarts,
+      movementElapsed
+    };
     whaleBackgroundMovementBucket =
       (whaleBackgroundMovementBucket + 1) % WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT;
+  }
+  let events = [];
+  if (whaleAdvanceJob) {
+    const progress = advanceWhaleJob(
+      whaleAdvanceJob.simulation,
+      WHALE_MOVEMENTS_PER_FRAME
+    );
+    if (progress.complete) {
+      events = progress.events;
+      retargetWhalePresentations(
+        whaleAdvanceJob.presentationStarts,
+        nowMs,
+        whaleAdvanceJob.movementElapsed
+      );
+      whaleAdvanceJob = null;
+    }
   }
   let changed;
   try {
@@ -24875,10 +24908,20 @@ function takeWhaleSimulationElapsed() {
   return elapsed;
 }
 
+function cancelPendingWhaleAdvance() {
+  if (!whaleAdvanceJob) return false;
+  if (!cancelWhaleAdvanceJob(whaleAdvanceJob.simulation)) {
+    throw new Error("Pending whale advance could not be cancelled");
+  }
+  whaleAdvanceJob = null;
+  return true;
+}
+
 function snapFailedWhaleTether(error) {
   const hunt = gameState?.memory?.whales?.activeHunt;
   if (!hunt) throw error;
   console.error(`Whale tether failed for ${hunt.whaleId}; snapping the rope`, error);
+  cancelPendingWhaleAdvance();
   cutWhaleLoose(gameState.memory.whales);
   playWhaleLineBreakSound();
   showSurvivalNotice("THE ROPE SNAPPED - THE WHALE ESCAPED", "warn");
@@ -25049,6 +25092,7 @@ function resolveWhaleHarpoonProjectile() {
     showSurvivalNotice("THE ROPE SNAPPED", "warn");
   } else if (result.outcome === "tethered") {
     playArrowHitSound();
+    cancelPendingWhaleAdvance();
     tetherWhale(gameState.memory.whales, whale.id, harpoon);
     if (whale.id === WHITE_WHALE_ID) {
       openCaptainAlertModal(
@@ -25064,6 +25108,7 @@ function resolveWhaleHarpoonProjectile() {
 }
 
 function releaseActiveWhale() {
+  cancelPendingWhaleAdvance();
   const whale = cutWhaleLoose(gameState.memory.whales);
   playFishingSound();
   showSurvivalNotice(`${whaleDisplayLabel(whale).toUpperCase()} RELEASED`, "good");
@@ -25076,6 +25121,7 @@ function landWhaleKillingBlow() {
   if (!hunt) throw new Error("Cannot land a killing blow without an active whale hunt");
   const quarry = whaleById(gameState.memory.whales, hunt.whaleId);
   spawnWhaleKillEffect(quarry, lastFrameMs);
+  cancelPendingWhaleAdvance();
   const whale = killExhaustedWhale(gameState.memory.whales);
   if (whale !== quarry) throw new Error(`Whale hunt changed during the killing blow: ${hunt.whaleId}`);
   playWhaleKillSound();
@@ -26215,23 +26261,39 @@ function maybeStartChartVisualRepair(nowMs, drift) {
   );
   const distortionSurface = chartSurfaceAtScreenPoint(chartWorstDistortionPoint);
   const waterOnlyViewport = chartViewportIsWaterOnlyForSwell();
-  const swellRepairAvailable = chartFaultCanRelyOnSwell({
+  let swellRepairAvailable = chartFaultCanRelyOnSwell({
     drift,
     waterOnlyViewport,
     localWaterFault: chartFaultHasLocalElasticWaterTarget(waterTear)
-  }) && !terrainTearNeedsRepair(terrainTear);
+  }) && !terrainTearNeedsRepair(terrainTear) &&
+    drift.rmsDistortionPx < CHART_IMMEDIATE_REPAIR_RMS_PX &&
+    !chartRepairCloudBank && !chartRepairFog && !chartRepairHeatHaze;
   if (
     swellRepairAvailable &&
     (chartDriftNeedsCloudRepair(drift) || terrainTearNeedsRepair(waterTear))
   ) {
-    chartRepairSwellUntilMs = Math.max(chartRepairSwellUntilMs, nowMs + 12_000);
-    if (nowMs >= chartRepairSwellNextRebuildAtMs) {
-      chartRepairSwellRebuildPending = true;
-      chartRepairSwellNextRebuildAtMs = nowMs + CHART_SWELL_REPAIR_REBUILD_INTERVAL_MS;
-      chartVisualRepairStats.swellRebuildsRequested++;
+    const swellProgress = advanceChartSwellRepairProgress(chartRepairSwellProgress, {
+      nowMs,
+      rmsDistortionPx: drift.rmsDistortionPx
+    });
+    chartRepairSwellProgress = swellProgress.progress;
+    if (!swellProgress.stalled) {
+      chartRepairSwellUntilMs = Math.max(chartRepairSwellUntilMs, nowMs + 12_000);
+      if (nowMs >= chartRepairSwellNextRebuildAtMs) {
+        chartRepairSwellRebuildPending = true;
+        chartRepairSwellNextRebuildAtMs = nowMs + CHART_SWELL_REPAIR_REBUILD_INTERVAL_MS;
+        chartVisualRepairStats.swellRebuildsRequested++;
+      }
+      chartRepairPendingConfirmation = null;
+      return true;
     }
-    chartRepairPendingConfirmation = null;
-    return true;
+    chartRepairSwellUntilMs = nowMs;
+    chartRepairSwellRebuildPending = false;
+    chartRepairSwellNextRebuildAtMs = -Infinity;
+    chartRepairSwellProgress = null;
+    swellRepairAvailable = false;
+  } else {
+    chartRepairSwellProgress = null;
   }
   const polarFog = currentPolarChartFogFrame();
   const partialCloudFailed = Boolean(
@@ -27388,6 +27450,7 @@ function reframeWorldNorthUp(reason, { allowUncovered = false } = {}) {
   chartRepairSwellUntilMs = -Infinity;
   chartRepairSwellRebuildPending = false;
   chartRepairSwellNextRebuildAtMs = -Infinity;
+  chartRepairSwellProgress = null;
   // Keep the displayed polar bank continuous through the hidden reframe. Its
   // pressure can relax naturally after the rebuilt chart is already north-up.
   polarChartRepairPressureUpdatedAtMs = lastFrameMs;
@@ -31340,7 +31403,8 @@ function resetWorldClockFrameSlices() {
   worldClockProcessedMinutes = {
     stormDamage: weatherClockMinutes,
     survival: weatherClockMinutes,
-    stormCaptain: weatherClockMinutes
+    stormCaptain: weatherClockMinutes,
+    politicsCheck: null
   };
 }
 
@@ -31371,6 +31435,9 @@ function advanceWorldClockFrameSlice(nowMs) {
   if (slice === 4) {
     return updateAboardBirthdayEvents() || presentPendingBirthdayDialogue();
   }
+  const politicsCheckMinute = Math.floor(weatherClockMinutes);
+  if (worldClockProcessedMinutes.politicsCheck === politicsCheckMinute) return false;
+  worldClockProcessedMinutes.politicsCheck = politicsCheckMinute;
   return updateSovereignWarLoanOutcome() || updateWorldDiplomacy();
 }
 
@@ -37689,8 +37756,7 @@ function refreshWeatherState(force) {
   fillIceMaskForDay(runtimeWeather.seaIceCycle, weatherParts.dayIndex, seaIceMask);
   fillIceMaskForDay(runtimeWeather.freshwaterIceCycle, weatherParts.dayIndex, freshwaterIceMask);
   fillSnowGroundMaskForDay(weatherParts.dayIndex, snowGroundMask);
-  activeIcebergSpawnCandidatesDay = -1;
-  activeIcebergSpawnCandidates = [];
+  invalidateIcebergSpawnCandidates();
   surfaceIceTransition = null;
   surfaceIceTransitionDrawStage = SURFACE_ICE_TRANSITION_STAGE_COUNT;
   pendingSurfaceIceEntrapmentTileId = null;
@@ -37762,8 +37828,7 @@ function advancePendingWeatherMaskRefresh(nowMs) {
   [snowGroundMask, weatherMaskScratch.snow] = [weatherMaskScratch.snow, snowGroundMask];
   weatherMaskDayIndex = refresh.dayIndex;
   pendingWeatherMaskRefresh = null;
-  activeIcebergSpawnCandidatesDay = -1;
-  activeIcebergSpawnCandidates = [];
+  invalidateIcebergSpawnCandidates();
   surfaceIceTransition = createSurfaceIceTransition({
     startedAtMs: nowMs,
     fromSeaMask: previousSeaIceMask,
@@ -38176,9 +38241,22 @@ function buildIcebergSpawnCandidates() {
 }
 
 function currentIcebergSpawnCandidates() {
-  if (activeIcebergSpawnCandidatesDay === weatherParts.dayIndex) {
-    return activeIcebergSpawnCandidates;
+  if (activeIcebergSpawnCandidatesDay !== weatherParts.dayIndex) {
+    throw new Error(
+      `Iceberg calving waters are not ready for weather day ${weatherParts.dayIndex}`
+    );
   }
+  return activeIcebergSpawnCandidates;
+}
+
+function invalidateIcebergSpawnCandidates() {
+  activeIcebergSpawnCandidatesDay = -1;
+  activeIcebergSpawnCandidates = [];
+  icebergSpawnCandidateRefreshJob = null;
+}
+
+function beginIcebergSpawnCandidateRefresh() {
+  if (icebergSpawnCandidateRefreshJob) return;
   let boundaryCandidates = icebergSpawnCandidates.filter((candidate) => (
     seaIceMask[candidate.sourceIceTileId] && !seaIceMask[candidate.tileId]
   ));
@@ -38187,17 +38265,43 @@ function currentIcebergSpawnCandidates() {
       !seaIceMask[candidate.tileId]
     ));
   }
-  const candidatesByTarget = new Map();
-  for (const candidate of boundaryCandidates) {
-    const ejected = icebergClearWaterCandidate(candidate);
-    if (!candidatesByTarget.has(ejected.tileId)) candidatesByTarget.set(ejected.tileId, ejected);
+  icebergSpawnCandidateRefreshJob = {
+    dayIndex: weatherParts.dayIndex,
+    mapping: beginIncrementalUniqueMapping({
+      source: boundaryCandidates,
+      mapItem: icebergClearWaterCandidate,
+      keyForItem: (candidate) => candidate.tileId
+    })
+  };
+}
+
+function advanceIcebergSpawnCandidateRefresh(maxCandidates) {
+  if (!Number.isInteger(maxCandidates) || maxCandidates <= 0) {
+    throw new Error(`Iceberg calving refresh requires a positive candidate limit: ${maxCandidates}`);
   }
-  activeIcebergSpawnCandidates = Object.freeze([...candidatesByTarget.values()]);
-  activeIcebergSpawnCandidatesDay = weatherParts.dayIndex;
+  beginIcebergSpawnCandidateRefresh();
+  const job = icebergSpawnCandidateRefreshJob;
+  if (job.dayIndex !== weatherParts.dayIndex) {
+    throw new Error(
+      `Iceberg calving refresh crossed weather days ${job.dayIndex} and ${weatherParts.dayIndex}`
+    );
+  }
+  const progress = advanceIncrementalUniqueMapping(job.mapping, maxCandidates);
+  if (!progress.complete) return false;
+  activeIcebergSpawnCandidates = progress.items;
+  activeIcebergSpawnCandidatesDay = job.dayIndex;
+  icebergSpawnCandidateRefreshJob = null;
   if (activeIcebergSpawnCandidates.length === 0) {
     throw new Error(`Polar ice history exposes no open calving water on weather day ${weatherParts.dayIndex}`);
   }
-  return activeIcebergSpawnCandidates;
+  return true;
+}
+
+function refreshIcebergSpawnCandidatesSynchronously() {
+  while (activeIcebergSpawnCandidatesDay !== weatherParts.dayIndex) {
+    advanceIcebergSpawnCandidateRefresh(Number.MAX_SAFE_INTEGER);
+  }
+  return currentIcebergSpawnCandidates();
 }
 
 function icebergClearWaterCandidate(candidate) {
@@ -38241,8 +38345,7 @@ function icebergClearWaterCandidate(candidate) {
   });
 }
 
-function offscreenIcebergSpawnCandidates() {
-  const candidates = currentIcebergSpawnCandidates();
+function offscreenIcebergSpawnCandidates(candidates = currentIcebergSpawnCandidates()) {
   if (!chart) return candidates;
   return candidates.filter((candidate) => {
     if (chart.visibleSet.has(candidate.tileId)) return false;
@@ -38250,11 +38353,19 @@ function offscreenIcebergSpawnCandidates() {
   });
 }
 
-function nearestIcebergEjectionCandidate(iceberg, memory) {
-  const allCandidates = currentIcebergSpawnCandidates();
+function nearestIcebergEjectionCandidate(
+  iceberg,
+  memory,
+  allCandidates,
+  hiddenCandidates
+) {
+  if (!Array.isArray(allCandidates) || !Array.isArray(hiddenCandidates)) {
+    throw new Error("Iceberg ejection requires captured calving candidates");
+  }
   const icebergIsVisible = Boolean(chart?.visibleSet.has(iceberg.tileId));
-  const hiddenCandidates = icebergIsVisible ? offscreenIcebergSpawnCandidates() : [];
-  const candidates = hiddenCandidates.length > 0 ? hiddenCandidates : allCandidates;
+  const candidates = icebergIsVisible && hiddenCandidates.length > 0
+    ? hiddenCandidates
+    : allCandidates;
   const occupiedTileIds = new Set(memory.individuals
     .filter((other) => other.id !== iceberg.id)
     .map((other) => other.tileId));
@@ -38284,7 +38395,9 @@ function ensureIcebergPopulation(state) {
   const memory = state?.memory?.icebergs;
   if (!memory) throw new Error("Iceberg population requires voyage memory");
   if (memory.individuals.length > 0) return;
-  seedIcebergPopulation(memory, offscreenIcebergSpawnCandidates(), {
+  seedIcebergPopulation(memory, offscreenIcebergSpawnCandidates(
+    refreshIcebergSpawnCandidatesSynchronously()
+  ), {
     startMinute: weatherClockMinutes,
     seedKey: state.voyageSeed,
     count: ICEBERG_POPULATION_TARGET
@@ -38301,11 +38414,22 @@ function updateIcebergs(dt) {
     return collisionChanged;
   }
   if (!icebergAdvanceJob) {
+    if (activeIcebergSpawnCandidatesDay !== weatherParts.dayIndex) {
+      advanceIcebergSpawnCandidateRefresh(ICEBERG_CALVING_CANDIDATES_PER_FRAME);
+      return collisionChanged;
+    }
+    const allCandidates = currentIcebergSpawnCandidates();
+    const hiddenCandidates = offscreenIcebergSpawnCandidates(allCandidates);
     icebergAdvanceJob = beginIcebergAdvance(memory, {
       currentMinute: weatherClockMinutes,
       environmentAtPosition: icebergEnvironmentAtPosition,
-      ejectionCandidateForIceberg: (iceberg) => nearestIcebergEjectionCandidate(iceberg, memory),
-      spawnCandidates: offscreenIcebergSpawnCandidates(),
+      ejectionCandidateForIceberg: (iceberg) => nearestIcebergEjectionCandidate(
+        iceberg,
+        memory,
+        allCandidates,
+        hiddenCandidates
+      ),
+      spawnCandidates: hiddenCandidates,
       seedKey: gameState.voyageSeed,
       targetCount: ICEBERG_POPULATION_TARGET
     });

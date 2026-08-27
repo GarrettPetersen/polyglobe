@@ -1592,6 +1592,41 @@ test("the Bering Sea west of Alaska stays below integrity telemetry limits", () 
   assertLandTraversalIsContinuous(result, "Bering Sea passage");
 });
 
+test("the western Aleutian approaches stay below integrity telemetry limits", () => {
+  const result = simulateLisbonToKamchatkaCoastalVoyage(
+    MAX_PROTECTED_ADMISSION_SLACK_PX,
+    {
+      routeWaypoints: [
+        [52.0, 155.0],
+        [50.5, 162.0],
+        [49.57, 170.48],
+        [49.0, 176.0],
+        [48.8, -178.0],
+        [49.57, 170.48],
+        [51.0, 163.0]
+      ],
+      subdivisions: 7,
+      pixelsPerRadian: 2450,
+      chartMargin: 218,
+      useGameWorld: true,
+      usePolarFogRepairs: true
+    }
+  );
+  reportChartBenchmark("western-aleutians", result);
+
+  assert.equal(result.visibleProtectedRedraws, 0);
+  assert.equal(result.visibleLandRedraws, 0);
+  assert.ok(
+    result.maxRmsDistortionPx <= 12,
+    `Western Aleutian chart reached ${result.maxRmsDistortionPx.toFixed(2)}px RMS distortion`
+  );
+  assert.ok(
+    result.maxTerrainEdgeGapPx <= 10,
+    `Western Aleutian chart opened a ${result.maxTerrainEdgeGapPx.toFixed(2)}px terrain gap`
+  );
+  assertLandTraversalIsContinuous(result, "Western Aleutian passage");
+});
+
 test("reported protected-stitch regions retain continuous terrain after recovery", () => {
   const regions = [
     {

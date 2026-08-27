@@ -242,6 +242,27 @@ export function advanceWhaleMemory(
   currentMinute,
   movementSchedule = null
 ) {
+  const job = beginWhaleAdvance(
+    memory,
+    dt,
+    navigationAtPosition,
+    currentMinute,
+    movementSchedule
+  );
+  const progress = advanceWhaleJob(job, Number.MAX_SAFE_INTEGER);
+  if (!progress.complete) throw new Error("Synchronous whale advance did not complete");
+  return progress.events;
+}
+
+const activeWhaleAdvanceJobs = new WeakSet();
+
+export function beginWhaleAdvance(
+  memory,
+  dt,
+  navigationAtPosition,
+  currentMinute,
+  movementSchedule = null
+) {
   validateWhaleMemoryForAdvance(memory);
   if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid whale simulation step: ${dt}`);
   if (typeof navigationAtPosition !== "function") {
@@ -253,16 +274,62 @@ export function advanceWhaleMemory(
   const individualsById = whaleIndex(memory);
   const movementClock = whaleSimulationClock(memory);
   movementClock.elapsedSeconds += dt;
-  const dueWhales = new Map(
-    whaleMovementBucket(memory, schedule.bucketCount, schedule.bucket)
-      .map((whale) => [whale.id, whale])
-  );
+  const dueWhales = new Map();
+  // Player-facing whales go first so a staged background update cannot make a
+  // tether, surfacing cue, or nearby target feel unresponsive.
   for (const whaleId of schedule.activeWhaleIds) {
     const whale = individualsById.get(whaleId);
     if (!whale) throw new Error(`Active whale movement references missing individual: ${whaleId}`);
     dueWhales.set(whale.id, whale);
   }
-  for (const whale of dueWhales.values()) {
+  for (const whale of whaleMovementBucket(memory, schedule.bucketCount, schedule.bucket)) {
+    if (!dueWhales.has(whale.id)) dueWhales.set(whale.id, whale);
+  }
+  const job = {
+    memory,
+    individuals: memory.individuals,
+    nextId: memory.nextId,
+    activeHunt: memory.activeHunt,
+    dt,
+    currentMinute,
+    navigationAtPosition,
+    individualsById,
+    movementClock,
+    dueWhales: [...dueWhales.values()],
+    nextWhaleIndex: 0,
+    events
+  };
+  activeWhaleAdvanceJobs.add(job);
+  return job;
+}
+
+export function advanceWhaleJob(job, maxWhales = 1) {
+  if (!activeWhaleAdvanceJobs.has(job)) {
+    throw new Error("Whale advance job is missing or already complete");
+  }
+  if (!Number.isInteger(maxWhales) || maxWhales <= 0) {
+    throw new Error(`Whale advance job requires a positive whale limit: ${maxWhales}`);
+  }
+  const {
+    memory,
+    individuals,
+    nextId,
+    activeHunt,
+    dt,
+    currentMinute,
+    navigationAtPosition,
+    individualsById,
+    movementClock,
+    dueWhales,
+    events
+  } = job;
+  if (memory.individuals !== individuals || memory.nextId !== nextId ||
+      memory.activeHunt !== activeHunt) {
+    throw new Error("Whale population changed during a staged movement advance");
+  }
+  const stopIndex = Math.min(dueWhales.length, job.nextWhaleIndex + maxWhales);
+  while (job.nextWhaleIndex < stopIndex) {
+    const whale = dueWhales[job.nextWhaleIndex++];
     if (whale.phase === WHALE_PHASE_DEAD || whale.phase === WHALE_PHASE_EXHAUSTED) continue;
     const lastMovementSeconds = movementClock.lastMovementSeconds.get(whale.id);
     if (!Number.isFinite(lastMovementSeconds)) {
@@ -290,6 +357,10 @@ export function advanceWhaleMemory(
     advanceWhalePhase(whale, events, navigation.canSurface);
   }
 
+  if (job.nextWhaleIndex < dueWhales.length) {
+    return Object.freeze({ complete: false, events: Object.freeze([]) });
+  }
+
   const hunt = memory.activeHunt;
   if (hunt) {
     const whale = whaleById(memory, hunt.whaleId);
@@ -302,7 +373,14 @@ export function advanceWhaleMemory(
       }
     }
   }
-  return events;
+  activeWhaleAdvanceJobs.delete(job);
+  return Object.freeze({ complete: true, events: Object.freeze(events.slice()) });
+}
+
+export function cancelWhaleAdvanceJob(job) {
+  if (!activeWhaleAdvanceJobs.has(job)) return false;
+  activeWhaleAdvanceJobs.delete(job);
+  return true;
 }
 
 function advanceTetheredWhaleRam(hunt, whale, dt, events) {

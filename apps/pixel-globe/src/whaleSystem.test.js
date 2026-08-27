@@ -9,7 +9,10 @@ import {
   WHALE_PHASE_SUBMERGED,
   WHALE_PHASE_SURFACED,
   WHALE_PHASE_TETHERED,
+  advanceWhaleJob,
   advanceWhaleMemory,
+  beginWhaleAdvance,
+  cancelWhaleAdvanceJob,
   constrainWhaleTether,
   createWhaleMemory,
   cutWhaleLoose,
@@ -123,6 +126,59 @@ test("background whale movement is staggered while active whales remain responsi
     activeWhaleIds: [whale.id]
   });
   assert.equal(whale.lifeSeconds, initialLifeSeconds + 0.75);
+});
+
+test("staged whale movement bounds per-frame navigation work without changing the result", () => {
+  const synchronous = createWhaleMemory();
+  seedWhalePopulation(synchronous, candidates(100), 20);
+  const staged = structuredClone(synchronous);
+  const schedule = { bucket: 0, bucketCount: 1 };
+  const expectedEvents = advanceWhaleMemory(
+    synchronous,
+    0.25,
+    () => whaleNavigation(1),
+    1,
+    schedule
+  );
+  let navigationCalls = 0;
+  const job = beginWhaleAdvance(
+    staged,
+    0.25,
+    () => {
+      navigationCalls++;
+      return whaleNavigation(1);
+    },
+    1,
+    schedule
+  );
+  let progress;
+  do {
+    const before = navigationCalls;
+    progress = advanceWhaleJob(job, 3);
+    assert.ok(
+      navigationCalls - before <= 3,
+      `A staged whale frame performed ${navigationCalls - before} navigation lookups`
+    );
+    if (!progress.complete) assert.deepEqual(progress.events, []);
+  } while (!progress.complete);
+
+  assert.deepEqual(progress.events, expectedEvents);
+  assert.deepEqual(staged, synchronous);
+});
+
+test("a player-facing whale action can cancel a partial background advance", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(100), 20);
+  const job = beginWhaleAdvance(
+    memory,
+    0.25,
+    () => whaleNavigation(1),
+    1,
+    { bucket: 0, bucketCount: 1 }
+  );
+  assert.equal(advanceWhaleJob(job, 1).complete, false);
+  assert.equal(cancelWhaleAdvanceJob(job), true);
+  assert.throws(() => advanceWhaleJob(job, 1), /already complete/);
 });
 
 test("presentation reconciliation discards whales harvested by the distant simulation", () => {
