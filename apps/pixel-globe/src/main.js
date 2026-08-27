@@ -1445,6 +1445,8 @@ import {
 } from "./assetImageLoader.js";
 import { loadFontFaceAsset } from "./fontAssetLoader.js";
 import { DEFAULT_GAME_TIME_SCALE, advanceGameClockMinutes } from "./gamePacing.js";
+import { periodicGameHourPeriod } from "./worldClockSchedule.js";
+import { worldObjectiveScanIsDue } from "./worldObjectiveSchedule.js";
 import {
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
@@ -3663,6 +3665,7 @@ let ambientAudioContext = null;
 let ambientAudioWildlife = null;
 let worldClockFrameSlice = 0;
 let worldClockProcessedMinutes = null;
+let lastWorldObjectiveScanAtMs = null;
 let worldSimulationScheduler = createWorldSimulationScheduler();
 let distantWorldWorkerClient = null;
 const pendingDistantWorldEvents = [];
@@ -3901,6 +3904,7 @@ const survivalDeprivationTimers = {
 const pendingWineCaptainDialogues = [];
 const pendingFetchQuestCaptainDialogues = [];
 let fetchQuestReadiness = new Map();
+let readyFetchQuestNavigation = Object.freeze([]);
 const FETCH_QUEST_READY_FLAG_PREFIX = "fetchQuestReadyDelivered:";
 let creditsMarkdown = "";
 let playerIntroModal = null;
@@ -6588,11 +6592,21 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       "weather.breakingWave",
       () => updateStormWaveHazard(dt)
     )) dirty = true;
-    if (updateCampaignGoalReturnReminder()) dirty = true;
-    if (updateWhiteWhaleSightingObjective()) dirty = true;
-    if (updateTreasurePirateSearchObjective()) dirty = true;
-    if (updateColonizationQuest()) dirty = true;
-    if (maybeDiscoverMissingColonizationAftermath()) dirty = true;
+    const objectiveScanIsDue = worldObjectiveScanIsDue(lastWorldObjectiveScanAtMs, nowMs);
+    if (objectiveScanIsDue) lastWorldObjectiveScanAtMs = nowMs;
+    if (objectiveScanIsDue && measurePerformanceBenchmarkStage("objectives.world", () => {
+      let changed = updateCampaignGoalReturnReminder();
+      changed = updateWhiteWhaleSightingObjective() || changed;
+      changed = updateTreasurePirateSearchObjective() || changed;
+      changed = updateColonizationQuest() || changed;
+      changed = maybeDiscoverMissingColonizationAftermath() || changed;
+      changed = measurePerformanceBenchmarkStage(
+        "discoveries",
+        () => updateDiscoveryWorldProgress(nowMs)
+      ) || changed;
+      return changed;
+    })) dirty = true;
+    if (updateDiscoveryNotice(nowMs)) dirty = true;
     if (updateShoreScavenge(nowMs)) dirty = true;
     if (updateAnchoredAnimalEncounter()) dirty = true;
     chartRebuiltThisFrame = measurePerformanceBenchmarkStage("chart", () => ensureChart());
@@ -6616,9 +6630,6 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (chartRepairCheckIsDue && maybeOpenChartReframeDialogue(nowMs)) dirty = true;
     if (measurePerformanceBenchmarkStage("icebergs", () => updateIcebergs(dt))) dirty = true;
     if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
-    if (measurePerformanceBenchmarkStage("discoveries", () => updateDiscoveries(nowMs))) {
-      dirty = true;
-    }
     if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
     if (updateSeagulls(dt, nowMs)) dirty = true;
     if (updateWindIndicator(dt)) dirty = true;
@@ -31400,11 +31411,14 @@ function updateWeather(dt, nowMs) {
 
 function resetWorldClockFrameSlices() {
   worldClockFrameSlice = 0;
+  lastWorldObjectiveScanAtMs = null;
   worldClockProcessedMinutes = {
     stormDamage: weatherClockMinutes,
     survival: weatherClockMinutes,
     stormCaptain: weatherClockMinutes,
-    politicsCheck: null
+    fetchQuestPeriod: null,
+    birthdayPeriod: null,
+    politicsPeriod: null
   };
 }
 
@@ -31428,17 +31442,26 @@ function advanceWorldClockFrameSlice(nowMs) {
     return updateStormCaptainAlert(previousMinute, weatherClockMinutes, nowMs);
   }
   if (slice === 3) {
-    return updateFetchQuestReadinessAlerts() ||
+    return (worldClockPeriodIsDue("fetchQuestPeriod") && updateFetchQuestReadinessAlerts()) ||
       presentPendingFetchQuestCaptainDialogue() ||
       presentPendingWineCaptainDialogue();
   }
   if (slice === 4) {
-    return updateAboardBirthdayEvents() || presentPendingBirthdayDialogue();
+    return (worldClockPeriodIsDue("birthdayPeriod") && updateAboardBirthdayEvents()) ||
+      presentPendingBirthdayDialogue();
   }
-  const politicsCheckMinute = Math.floor(weatherClockMinutes);
-  if (worldClockProcessedMinutes.politicsCheck === politicsCheckMinute) return false;
-  worldClockProcessedMinutes.politicsCheck = politicsCheckMinute;
+  if (!worldClockPeriodIsDue("politicsPeriod")) return false;
   return updateSovereignWarLoanOutcome() || updateWorldDiplomacy();
+}
+
+function worldClockPeriodIsDue(key) {
+  if (!Object.hasOwn(worldClockProcessedMinutes, key)) {
+    throw new Error(`Unknown periodic world-clock check: ${key}`);
+  }
+  const previousPeriod = worldClockProcessedMinutes[key];
+  const period = periodicGameHourPeriod(previousPeriod, weatherClockMinutes);
+  worldClockProcessedMinutes[key] = period;
+  return previousPeriod !== period;
 }
 
 function updateAboardBirthdayEvents() {
@@ -31854,12 +31877,14 @@ function queueWineCaptainDialogue(dialogue) {
 
 function initializeFetchQuestReadiness() {
   pendingFetchQuestCaptainDialogues.length = 0;
+  const requirements = currentFetchQuestRequirements();
   fetchQuestReadiness = new Map(
-    currentFetchQuestRequirements().map((entry) => [
+    requirements.map((entry) => [
       entry.id,
       entry.ready && gameState.memory.flags[fetchQuestReadyFlag(entry.id)] === true
     ])
   );
+  readyFetchQuestNavigation = readyFetchQuestDestinations(requirements);
 }
 
 function updateFetchQuestReadinessAlerts() {
@@ -31870,6 +31895,7 @@ function updateFetchQuestReadinessAlerts() {
     requirements
   );
   fetchQuestReadiness = transition.next;
+  readyFetchQuestNavigation = readyFetchQuestDestinations(requirements);
   for (const entry of requirements) {
     if (!entry.ready) delete gameState.memory.flags[fetchQuestReadyFlag(entry.id)];
   }
@@ -32664,6 +32690,7 @@ function closeMenusForGameOver() {
   pendingWineCaptainDialogues.length = 0;
   pendingFetchQuestCaptainDialogues.length = 0;
   fetchQuestReadiness = new Map();
+  readyFetchQuestNavigation = Object.freeze([]);
 }
 
 function gameOverElapsedMs(nowMs) {
@@ -40214,9 +40241,9 @@ function gameStateHasDiscovery(state, discoveryId) {
   return Boolean(state.memory.discoveries[discoveryId]);
 }
 
-function updateDiscoveries(nowMs) {
+function updateDiscoveryWorldProgress(nowMs) {
   if (!gameState || !ship || !graph) return false;
-  let changed = updateDiscoveryNotice(nowMs);
+  let changed = false;
   if (updateCircumnavigationProgress(gameState, longitudeDegForDirection(ship.position))) {
     changed = queueDiscovery(CIRCUMNAVIGATION_DISCOVERY, nowMs) || changed;
   }
@@ -42479,7 +42506,7 @@ function currentFetchQuestRequirements() {
 }
 
 function currentReadyFetchQuestDestinations() {
-  return readyFetchQuestDestinations(currentFetchQuestRequirements());
+  return readyFetchQuestNavigation;
 }
 
 function questJournalEntries() {
