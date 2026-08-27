@@ -1,11 +1,31 @@
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
-export const DAY_NIGHT_DAY_ALTITUDE = 0.34;
-export const DAY_NIGHT_NIGHT_ALTITUDE = -0.34;
-export const DAY_NIGHT_SUNSET_START_ALTITUDE = -0.3;
-export const DAY_NIGHT_SUNSET_END_ALTITUDE = 0.3;
+export const DAY_NIGHT_FULL_DAY_ALTITUDE = 0.5;
+export const DAY_NIGHT_FULL_NIGHT_ALTITUDE = -0.5;
+export const DAY_NIGHT_WARM_START_ALTITUDE = -0.46;
+export const DAY_NIGHT_WARM_END_ALTITUDE = 0.46;
 export const FIRST_DAY_NIGHT_NOTICE_SUNSET = "sunset";
 export const FIRST_DAY_NIGHT_NOTICE_SUNRISE = "sunrise";
+const FIRST_DAY_NIGHT_NOTICE_SUNSET_ALTITUDE = 0.3;
+const FIRST_DAY_NIGHT_NOTICE_SUNRISE_ALTITUDE = -0.3;
+
+export function dayNightLightForSunAltitude(sunAltitude) {
+  assertSunAltitude(sunAltitude);
+  const day = smoothstep(
+    DAY_NIGHT_FULL_NIGHT_ALTITUDE * 0.65,
+    DAY_NIGHT_FULL_DAY_ALTITUDE,
+    sunAltitude
+  );
+  const night = 1 - smoothstep(DAY_NIGHT_FULL_NIGHT_ALTITUDE, 0.08, sunAltitude);
+  const twilight = clamp(1 - day - night, 0, 1);
+  const warm = smoothstep(DAY_NIGHT_WARM_START_ALTITUDE, 0.05, sunAltitude) *
+    (1 - smoothstep(0.06, DAY_NIGHT_WARM_END_ALTITUDE, sunAltitude));
+  return {
+    sunAltitude,
+    night: easeInOut(night),
+    sunset: easeInOut(Math.max(twilight * 0.85, warm))
+  };
+}
 
 export function createFirstDayNightNoticeState(initialSunAltitude, { completed = false } = {}) {
   assertSunAltitude(initialSunAltitude);
@@ -62,14 +82,14 @@ export function advanceFirstDayNightNoticeState(state, { sunAltitude, elapsedVoy
     return null;
   }
   if (!state.sunsetShown &&
-      previousSunAltitude >= DAY_NIGHT_SUNSET_END_ALTITUDE &&
-      sunAltitude < DAY_NIGHT_SUNSET_END_ALTITUDE) {
+      previousSunAltitude >= FIRST_DAY_NIGHT_NOTICE_SUNSET_ALTITUDE &&
+      sunAltitude < FIRST_DAY_NIGHT_NOTICE_SUNSET_ALTITUDE) {
     state.sunsetShown = true;
     return FIRST_DAY_NIGHT_NOTICE_SUNSET;
   }
   if (state.sunsetShown &&
-      previousSunAltitude <= DAY_NIGHT_SUNSET_START_ALTITUDE &&
-      sunAltitude > DAY_NIGHT_SUNSET_START_ALTITUDE) {
+      previousSunAltitude <= FIRST_DAY_NIGHT_NOTICE_SUNRISE_ALTITUDE &&
+      sunAltitude > FIRST_DAY_NIGHT_NOTICE_SUNRISE_ALTITUDE) {
     state.sunriseShown = true;
     return FIRST_DAY_NIGHT_NOTICE_SUNRISE;
   }
@@ -93,4 +113,17 @@ function assertSunAltitude(value) {
   if (!Number.isFinite(value) || value < -1 || value > 1) {
     throw new Error(`Sun altitude must be a finite unit value: ${value}`);
   }
+}
+
+function smoothstep(edge0, edge1, value) {
+  return easeInOut((value - edge0) / (edge1 - edge0));
+}
+
+function easeInOut(value) {
+  const x = clamp(value, 0, 1);
+  return x * x * (3 - 2 * x);
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
 }

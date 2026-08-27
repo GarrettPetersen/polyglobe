@@ -1,10 +1,12 @@
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
+import { dayNightLightForSunAltitude } from "./dayNightCycle.js";
 
-export const DAY_NIGHT_VARIANT_STEPS = 4;
+export const DAY_NIGHT_VARIANT_STEPS = 8;
 const COLOR_RAMP_STEPS = DAY_NIGHT_VARIANT_STEPS;
 const LITTLE_ENDIAN = new Uint8Array(new Uint32Array([0x01020304]).buffer)[0] === 0x04;
 const PALETTE_TEXTURE_WIDTH = 1024;
 const PALETTE_TEXTURE_HEIGHT = 32;
+const PREWARM_SUN_ALTITUDE_SAMPLES = 2048;
 
 export const NIGHT_GRADE_HEX = Object.freeze([
   "2e222f", "3e3546", "45293f", "323353", "484a77", "625565",
@@ -85,6 +87,10 @@ export function prepareDayNightPalette() {
   sourcePaletteLut = preparedSourcePaletteLut;
   nightRgbRamp = preparedNightRgbRamp;
   sunsetRgbRamp = preparedSunsetRgbRamp;
+  for (let index = 0; index <= PREWARM_SUN_ALTITUDE_SAMPLES; index++) {
+    const sunAltitude = -1 + index * 2 / PREWARM_SUN_ALTITUDE_SAMPLES;
+    cachedDayNightPaletteVariant(dayNightLightForSunAltitude(sunAltitude));
+  }
 }
 
 export function applyDayNightPaletteGrade(data, width, height, light) {
@@ -112,6 +118,11 @@ export function applyDayNightPaletteGrade(data, width, height, light) {
 }
 
 export function dayNightPaletteVariant(light) {
+  prepareDayNightPalette();
+  return cachedDayNightPaletteVariant(light);
+}
+
+function cachedDayNightPaletteVariant(light) {
   const sunsetStage = colorRampStage(light?.sunset);
   const nightStage = colorRampStage(light?.night);
   if (sunsetStage === 0 && nightStage === 0) return null;

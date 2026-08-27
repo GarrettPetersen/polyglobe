@@ -2,13 +2,49 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DAY_NIGHT_FULL_DAY_ALTITUDE,
+  DAY_NIGHT_FULL_NIGHT_ALTITUDE,
+  DAY_NIGHT_WARM_END_ALTITUDE,
+  DAY_NIGHT_WARM_START_ALTITUDE,
   FIRST_DAY_NIGHT_NOTICE_SUNRISE,
   FIRST_DAY_NIGHT_NOTICE_SUNSET,
   advanceFirstDayNightNoticeState,
   createFirstDayNightNoticeState,
+  dayNightLightForSunAltitude,
   restoreFirstDayNightNoticeState,
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
+
+test("stylized dawn and dusk each span four seconds of the default day", () => {
+  assert.equal(DAY_NIGHT_FULL_DAY_ALTITUDE, 0.5);
+  assert.equal(DAY_NIGHT_FULL_NIGHT_ALTITUDE, -0.5);
+  assert.equal(equatorialCycleSecondsBetween(
+    DAY_NIGHT_FULL_DAY_ALTITUDE,
+    DAY_NIGHT_FULL_NIGHT_ALTITUDE
+  ), 4);
+  const warmSeconds = equatorialCycleSecondsBetween(
+    DAY_NIGHT_WARM_END_ALTITUDE,
+    DAY_NIGHT_WARM_START_ALTITUDE
+  );
+  assert.ok(warmSeconds > 3.6 && warmSeconds < 3.7);
+});
+
+test("visual twilight eases through warm light without changing full day or night", () => {
+  assert.deepEqual(dayNightLightForSunAltitude(1), {
+    sunAltitude: 1,
+    night: 0,
+    sunset: 0
+  });
+  assert.deepEqual(dayNightLightForSunAltitude(-1), {
+    sunAltitude: -1,
+    night: 1,
+    sunset: 0
+  });
+  const horizon = dayNightLightForSunAltitude(0);
+  assert.ok(horizon.sunset > 0.9);
+  assert.ok(horizon.night < 0.1);
+  assert.throws(() => dayNightLightForSunAltitude(Number.NaN), /unit value/);
+});
 
 test("a new voyage labels its first sunset and following sunrise once", () => {
   const state = createFirstDayNightNoticeState(0.6);
@@ -59,4 +95,10 @@ test("day/night guidance rejects malformed saved and runtime state", () => {
 
 function advance(state, sunAltitude, elapsedVoyageMinutes) {
   return advanceFirstDayNightNoticeState(state, { sunAltitude, elapsedVoyageMinutes });
+}
+
+function equatorialCycleSecondsBetween(descendingStartAltitude, descendingEndAltitude) {
+  const startAngle = Math.acos(descendingStartAltitude);
+  const endAngle = Math.acos(descendingEndAltitude);
+  return (endAngle - startAngle) / (Math.PI * 2) * 24;
 }

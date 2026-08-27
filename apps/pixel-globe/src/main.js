@@ -1724,14 +1724,15 @@ import {
   prepareDayNightPalette
 } from "./dayNightPalette.js";
 import {
-  DAY_NIGHT_DAY_ALTITUDE,
-  DAY_NIGHT_NIGHT_ALTITUDE,
-  DAY_NIGHT_SUNSET_END_ALTITUDE,
-  DAY_NIGHT_SUNSET_START_ALTITUDE,
+  DIALOGUE_SELECTION_ALREADY_CLOSED,
+  dialogueSelectionCompletion
+} from "./dialogueSelectionLifecycle.js";
+import {
   FIRST_DAY_NIGHT_NOTICE_SUNRISE,
   FIRST_DAY_NIGHT_NOTICE_SUNSET,
   advanceFirstDayNightNoticeState,
   createFirstDayNightNoticeState,
+  dayNightLightForSunAltitude,
   restoreFirstDayNightNoticeState,
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
@@ -22935,6 +22936,8 @@ function chooseDialogueOption(optionIndex) {
 }
 
 function applyDialogueOption(optionIndex) {
+  const selectedDialogueState = dialogueState;
+  if (!selectedDialogueState) throw new Error("Dialogue option selected without an active session");
   let result;
   let dialogueNpcShipId = null;
   let missionGiftCharacter = null;
@@ -23260,8 +23263,15 @@ function applyDialogueOption(optionIndex) {
     closeHistoricalBattleDialogue(result.action.type);
     return;
   }
+  if (result.closed && dialogueNpcShipId) retireResolvedTreasurePirate(dialogueNpcShipId);
+  if (dialogueSelectionCompletion(
+    selectedDialogueState,
+    dialogueState,
+    result
+  ) === DIALOGUE_SELECTION_ALREADY_CLOSED) {
+    return;
+  }
   if (result.closed) {
-    if (dialogueNpcShipId) retireResolvedTreasurePirate(dialogueNpcShipId);
     if (dialogueState.kind === "rescued-traveler" && dialogueState.surrenderPrize) {
       const { npcShipId, lootSummary } = dialogueState.surrenderPrize;
       dialogueState = null;
@@ -38665,17 +38675,7 @@ function oceanSwellPositionForTile(call, activeChart) {
 
 function localDayNightLight() {
   const sunDirection = currentSunDirection();
-  const sunAltitude = dot3(ship.position, sunDirection);
-  const day = smoothstep(DAY_NIGHT_NIGHT_ALTITUDE * 0.65, DAY_NIGHT_DAY_ALTITUDE, sunAltitude);
-  const night = 1 - smoothstep(DAY_NIGHT_NIGHT_ALTITUDE, 0.08, sunAltitude);
-  const twilight = clamp(1 - day - night, 0, 1);
-  const sunset = smoothstep(DAY_NIGHT_SUNSET_START_ALTITUDE, 0.05, sunAltitude) *
-    (1 - smoothstep(0.06, DAY_NIGHT_SUNSET_END_ALTITUDE, sunAltitude));
-  return {
-    sunAltitude,
-    night: easeInOut(night),
-    sunset: easeInOut(Math.max(twilight * 0.85, sunset))
-  };
+  return dayNightLightForSunAltitude(dot3(ship.position, sunDirection));
 }
 
 function currentSunDirection() {

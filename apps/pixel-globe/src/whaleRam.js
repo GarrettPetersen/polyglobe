@@ -26,14 +26,9 @@ export function resolveWhaleRamCollision(playerBody, whaleHeading, lifeStage) {
   if (!Array.isArray(playerBody?.footprint) || playerBody.footprint.length < 3) {
     throw new Error("Whale ram requires a player hull footprint");
   }
-  const targetNearProjection = Math.min(...playerBody.footprint.map((point) => (
-    point.x * heading.x + point.y * heading.y
-  )));
-  const playerCenterProjection = playerBody.x * heading.x + playerBody.y * heading.y;
-  const centerProjection = targetNearProjection - profile.lengthPx / 2 + 2;
-  const offset = centerProjection - playerCenterProjection;
-  const x = playerBody.x + heading.x * offset;
-  const y = playerBody.y + heading.y * offset;
+  const contact = leadingHullContact(playerBody.footprint, heading);
+  const x = contact.x - heading.x * (profile.lengthPx / 2 - 2);
+  const y = contact.y - heading.y * (profile.lengthPx / 2 - 2);
   const whaleBody = {
     id: `ramming-whale:${lifeStage}`,
     x,
@@ -53,6 +48,21 @@ export function resolveWhaleRamCollision(playerBody, whaleHeading, lifeStage) {
     closingSpeed: collision.closingSpeed,
     whaleMass: profile.mass
   });
+}
+
+function leadingHullContact(footprint, heading) {
+  let targetProjection = Infinity;
+  for (const point of footprint) {
+    targetProjection = Math.min(targetProjection, point.x * heading.x + point.y * heading.y);
+  }
+  const contacts = footprint.filter((point) => (
+    Math.abs(point.x * heading.x + point.y * heading.y - targetProjection) <= 1e-6
+  ));
+  if (contacts.length === 0) throw new Error("Whale ram could not find the player hull edge");
+  return {
+    x: contacts.reduce((sum, point) => sum + point.x, 0) / contacts.length,
+    y: contacts.reduce((sum, point) => sum + point.y, 0) / contacts.length
+  };
 }
 
 export function whaleRamAppliedDamage(hitPoints, collisionDamage) {

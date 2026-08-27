@@ -51,3 +51,19 @@ test("a whale ram stops above zero unless the ship was already at one hull point
   assert.equal(whaleRamAppliedDamage(2, 4), 1);
   assert.equal(whaleRamAppliedDamage(1, 4), 4);
 });
+
+test("a whale ram strikes an asymmetric baked hull instead of its nominal center", () => {
+  const offsetBody = playerBody();
+  offsetBody.footprint = offsetBody.footprint.map((point) => ({
+    x: point.x,
+    y: point.y + 20
+  }));
+
+  const collision = resolveWhaleRamCollision(
+    offsetBody,
+    { x: 1, y: 0 },
+    WHALE_LIFE_STAGE_ADULT
+  );
+  assert.ok(collision.closingSpeed > 0);
+  assert.ok(collision.player.damage > 0);
+});

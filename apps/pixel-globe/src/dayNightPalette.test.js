@@ -141,13 +141,13 @@ test("palette grading leaves day pixels untouched and fully maps night pixels", 
   assert.equal(`#${rgbHex(day, 4)}`, `#${nightPaletteHexForSourceHex("f9c22b")}`);
 });
 
-test("day and night lighting use five cached palette variants", () => {
-  assert.equal(DAY_NIGHT_VARIANT_STEPS, 4);
+test("day and night lighting use nine grades per palette axis", () => {
+  assert.equal(DAY_NIGHT_VARIANT_STEPS, 8);
   assert.equal(dayNightPaletteVariant({ sunset: 0, night: 0 }), null);
   const first = dayNightPaletteVariant({ sunset: 0.51, night: 0 });
   const second = dayNightPaletteVariant({ sunset: 0.56, night: 0 });
   assert.equal(first, second);
-  assert.equal(first.key, "2:0");
+  assert.equal(first.key, "4:0");
   assert.equal(first.width, 1024);
   assert.equal(first.height, 32);
   assert.equal(first.pixels.length, 1024 * 32 * 4);
