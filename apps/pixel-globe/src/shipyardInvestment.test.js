@@ -5,6 +5,7 @@ import {
   SHIPYARD_INVESTMENT_CAPITAL,
   SHIPYARD_INVESTMENT_MATERIALS,
   SHIPYARD_INVESTMENT_REOFFER_MINUTES,
+  assertPlayerShipyardInvestmentWorldConsistency,
   beginShipyardInvestment,
   completeShipyardInvestment,
   createShipyardInvestmentMemory,
@@ -95,9 +96,11 @@ test("the player can fund the project with partial cargo deliveries", () => {
   deliverPlayerShipyardMaterials(state, LISBON, "timber");
   deliverPlayerShipyardMaterials(state, LISBON, "iron");
   deliverPlayerShipyardMaterials(state, LISBON, "naval-stores");
-  const completed = finishPlayerShipyardInvestment(state, LISBON, { simMinute: 100 });
+  const economy = createWorldEconomy({ ports: [LISBON], startMinute: 0 });
+  const completed = finishPlayerShipyardInvestment(state, economy, LISBON, { simMinute: 100 });
   assert.equal(completed.portTileId, LISBON.tileId);
   assert.equal(state.memory.shipyardInvestment.project, null);
+  assert.ok(shipyardAtPort(economy.shipyards, LISBON).playerAccounts);
 });
 
 test("another major-port yard can be backed after the investment cooldown", () => {
@@ -182,9 +185,31 @@ test("restoring a save repairs every player-backed shipyard in the world economy
     ["Lisbon"]
   );
   assert.equal(shipyardAtPort(economy.shipyards, port).playerBacking.seedCapital, 100000);
+  assert.equal(assertPlayerShipyardInvestmentWorldConsistency(
+    memory,
+    economy,
+    citiesByTileId
+  ), true);
   assert.deepEqual(
     reconcilePlayerShipyardInvestmentWorld(memory, economy, citiesByTileId, 200),
     []
+  );
+});
+
+test("save-time consistency rejects a portfolio whose simulated yard is not backed", () => {
+  const memory = {
+    ...createShipyardInvestmentMemory(),
+    backedPortTileIds: [LISBON.tileId],
+    lastCompletedMinute: 100
+  };
+  const economy = createWorldEconomy({ ports: [LISBON], startMinute: 200 });
+  assert.throws(
+    () => assertPlayerShipyardInvestmentWorldConsistency(
+      memory,
+      economy,
+      new Map([[LISBON.tileId, LISBON]])
+    ),
+    /world state is incomplete/
   );
 });
 

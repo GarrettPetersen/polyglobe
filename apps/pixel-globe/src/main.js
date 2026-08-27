@@ -1684,7 +1684,6 @@ import {
   createWorldEconomy,
   destroyPortGoodStock,
   establishPortIndustry,
-  fundWorldEconomyShipyard,
   nextWorldEconomyEventMinute,
   plunderPortSpecie,
   portEconomySummary,
@@ -1781,6 +1780,7 @@ import {
 } from "./shipyards.js";
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
+  assertPlayerShipyardInvestmentWorldConsistency,
   playerBackedShipyardAtPort,
   reconcilePlayerShipyardInvestmentWorld,
   shipyardInvestmentAtPort,
@@ -15481,6 +15481,11 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
       `[pixel-globe] restored missing player shipyard backing at ${repairedShipyardPorts.join(", ")}`
     );
   }
+  assertPlayerShipyardInvestmentWorldConsistency(
+    restoredGameState.memory.shipyardInvestment,
+    worldEconomy,
+    cityByTileId
+  );
   syncJapaneseMatchlockIndustry(restoredGameState);
   syncCaribbeanGingerIndustry(restoredGameState);
 
@@ -15764,6 +15769,11 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
     }
     syncCartographyToGameState();
     syncAchievementsFromGameState();
+    assertPlayerShipyardInvestmentWorldConsistency(
+      gameState.memory.shipyardInvestment,
+      worldEconomy,
+      cityByTileId
+    );
     const payload = {
       gameState,
       playerShip: snapshotPlayerShip(),
@@ -23000,19 +23010,6 @@ function applyDialogueOption(optionIndex) {
     if (result.action?.type === "purchase-ship") {
       void purchaseShipyardShip(result.action);
       return;
-    }
-    if (result.action?.type === "fund-player-shipyard") {
-      const city = currentDialogueCity();
-      const investment = result.action.investment;
-      if (!investment || investment.portTileId !== city.tileId) {
-        throw new Error("Completed shipyard investment is missing its funding record");
-      }
-      fundWorldEconomyShipyard(worldEconomy, city, {
-        investedMinute: investment.investedMinute,
-        seedCapital: investment.seedCapital,
-        materialContributions: investment.materialContributions
-      });
-      saveVoyageNow("funded player shipyard");
     }
     if (["purchase-viking-longship", "accept-viking-longship-reward"].includes(result.action?.type)) {
       void acquireVikingLongship(result.action);

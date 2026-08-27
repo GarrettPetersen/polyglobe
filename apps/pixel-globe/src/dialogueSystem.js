@@ -2189,7 +2189,7 @@ export function selectPortDialogueOption(
     };
   }
   if (action.type === "open-player-shipyard") {
-    const investment = finishPlayerShipyardInvestment(gameState, city, {
+    const investment = finishPlayerShipyardInvestment(gameState, economy, city, {
       simMinute: context.simMinute ?? 0
     });
     session.selectedIndex = 0;
@@ -2197,7 +2197,7 @@ export function selectPortDialogueOption(
     session.nodeId = "shipyard";
     session.shipyardLedgerTab = "yard";
     session.shipyardLedgerReturnNodeId = "root";
-    return { closed: false, action: { type: "fund-player-shipyard", investment } };
+    return { closed: false, playerShipyardFunded: investment };
   }
   if (action.type === "purchase-viking-longship") {
     return { closed: false, action };

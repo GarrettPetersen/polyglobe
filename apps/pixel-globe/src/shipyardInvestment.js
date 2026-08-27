@@ -1,4 +1,5 @@
 import { ensureWorldEconomyPlayerShipyardBacking } from "./economy.js";
+import { shipyardAtPort } from "./shipyards.js";
 
 export const SHIPYARD_INVESTMENT_MINIMUM_PURSE = 75000;
 export const SHIPYARD_INVESTMENT_CAPITAL = 100000;
@@ -187,6 +188,24 @@ export function reconcilePlayerShipyardInvestmentWorld(
     repairedPorts.push(portName);
   }
   return Object.freeze(repairedPorts);
+}
+
+export function assertPlayerShipyardInvestmentWorldConsistency(memory, economy, citiesByTileId) {
+  validateShipyardInvestmentMemory(memory);
+  if (!(citiesByTileId instanceof Map)) {
+    throw new Error("Player shipyard consistency requires a city catalog map");
+  }
+  for (const portTileId of memory.backedPortTileIds) {
+    const city = citiesByTileId.get(portTileId);
+    if (!city) {
+      throw new Error(`Player-backed shipyard port is missing from the city catalog: ${portTileId}`);
+    }
+    const yard = shipyardAtPort(economy.shipyards, city);
+    if (!yard.playerBacking || !yard.playerAccounts) {
+      throw new Error(`Player-backed shipyard world state is incomplete at ${portTileId}`);
+    }
+  }
+  return true;
 }
 
 function validateLegacyShipyardInvestmentMemory(memory) {

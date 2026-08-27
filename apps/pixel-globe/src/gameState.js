@@ -11,6 +11,7 @@ import {
   executePortPurchase,
   executeRepeatedPortPurchase,
   executePortSale,
+  fundWorldEconomyShipyard,
   maximumPortPurchaseQuantity,
   maximumRepeatedPortPurchaseQuantity,
   portMarket,
@@ -451,6 +452,7 @@ import {
   createShipyardInvestmentMemory,
   migrateShipyardInvestmentMemory,
   playerBackedShipyardAtPort,
+  shipyardInvestmentComplete,
   shipyardInvestmentAtPort,
   validateShipyardInvestmentMemory
 } from "./shipyardInvestment.js";
@@ -5372,14 +5374,32 @@ export function deliverPlayerShipyardMaterials(state, city, goodId) {
   return { project, goodId, delivered, remaining: remaining - delivered };
 }
 
-export function finishPlayerShipyardInvestment(state, city, context = {}) {
+export function finishPlayerShipyardInvestment(state, economy, city, context = {}) {
   assertGameState(state);
   const project = requiredFundingShipyardProject(state, city);
-  return completeShipyardInvestment(
+  const simMinute = context.simMinute ?? 0;
+  if (!Number.isFinite(simMinute)) {
+    throw new Error(`Invalid shipyard completion minute: ${simMinute}`);
+  }
+  if (!shipyardInvestmentComplete(project)) {
+    throw new Error("Shipyard investment cannot begin operating before it is fully funded");
+  }
+  const backing = {
+    investedMinute: simMinute,
+    seedCapital: SHIPYARD_INVESTMENT_CAPITAL,
+    materialContributions: { ...project.materialsDelivered }
+  };
+  fundWorldEconomyShipyard(economy, city, backing);
+  const completed = completeShipyardInvestment(
     state.memory.shipyardInvestment,
     project,
-    context.simMinute ?? 0
+    simMinute
   );
+  if (completed.investedMinute !== backing.investedMinute ||
+      completed.seedCapital !== backing.seedCapital) {
+    throw new Error("Player shipyard portfolio and world backing diverged during completion");
+  }
+  return completed;
 }
 
 export function receivePlayerShipyardDividends(state, city, amount, context = {}) {

@@ -84,8 +84,11 @@ import {
 import { diplomacyPairKey } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { createShipComparisonView } from "./shipInfo.js";
-import { generateShipyardListing } from "./shipyards.js";
-import { beginShipyardInvestment } from "./shipyardInvestment.js";
+import { generateShipyardListing, shipyardAtPort } from "./shipyards.js";
+import {
+  SHIPYARD_INVESTMENT_MATERIALS,
+  beginShipyardInvestment
+} from "./shipyardInvestment.js";
 import { QUEST_ITINERARY_ORDERED, createQuestItinerary } from "./questItinerary.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { IMPERIAL_CITY_REFERENCES } from "./imperialEstates.js";
@@ -4701,6 +4704,56 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
   const capital = project.options.find((entry) => entry.action.type === "pay-shipyard-investment");
   assert.equal(capital.disabled, true);
   assert.equal(capital.disabledReason, "Need 25000 more doubloons.");
+});
+
+test("opening a funded shipyard atomically creates its portfolio and readable world ledger", () => {
+  const city = {
+    tileId: 10,
+    city: "Lisbon",
+    displayCity: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    settlementType: "city",
+    population: 100000,
+    factionId: "portugal",
+    character: { name: "Fernao da Cunha" }
+  };
+  const stats = shipStatsForSlug("fishing-lugger");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  gameState.doubloons = 75000;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const yard = shipyardAtPort(economy.shipyards, city);
+  const project = beginShipyardInvestment(gameState, city, yard, 10);
+  project.capitalPaid = true;
+  project.materialsDelivered = { ...SHIPYARD_INVESTMENT_MATERIALS };
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "shipyard-investment",
+    admittedToPort: true
+  });
+  const context = { shipStats: stats, shipyard: yard, simMinute: 100 };
+  const projectView = portDialogueView(session, city, gameState, economy, [city], context);
+  const openIndex = projectView.options.findIndex((entry) => (
+    entry.action.type === "open-player-shipyard"
+  ));
+
+  const result = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    openIndex,
+    context
+  );
+
+  assert.equal(result.closed, false);
+  assert.equal(result.action, undefined);
+  assert.equal(result.playerShipyardFunded.portTileId, city.tileId);
+  assert.deepEqual(gameState.memory.shipyardInvestment.backedPortTileIds, [city.tileId]);
+  assert.ok(yard.playerBacking);
+  assert.ok(yard.playerAccounts);
+  const ledger = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(ledger.presentation.kind, "player-shipyard-ledger");
 });
 
 test("a proactive shipyard offer can be declined back into the arrival queue", () => {
