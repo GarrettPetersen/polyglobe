@@ -18,7 +18,8 @@ export function dialogueSelectionCompletion(selectedSession, currentSession, res
 }
 
 export function dialogueSelectionHandoff(selectedSession, currentSession, {
-  overlayOpened = false
+  overlayOpened = false,
+  inPlaceSessionAdvanced = false
 } = {}) {
   if (!selectedSession || typeof selectedSession.kind !== "string" || selectedSession.kind === "") {
     throw new Error("Dialogue handoff requires its original session");
@@ -26,8 +27,13 @@ export function dialogueSelectionHandoff(selectedSession, currentSession, {
   if (typeof overlayOpened !== "boolean") {
     throw new Error("Dialogue handoff overlay state must be boolean");
   }
-  if (currentSession !== selectedSession || overlayOpened) {
+  if (typeof inPlaceSessionAdvanced !== "boolean") {
+    throw new Error("Dialogue handoff in-place state must be boolean");
+  }
+  if (currentSession !== selectedSession || overlayOpened || inPlaceSessionAdvanced) {
     return DIALOGUE_SELECTION_HANDED_OFF;
   }
-  throw new Error("Dialogue handoff completed without a replacement session or overlay");
+  throw new Error(
+    "Dialogue handoff completed without a replacement session, advanced state, or overlay"
+  );
 }

@@ -1777,6 +1777,12 @@ import {
   dialogueSelectionHandoff
 } from "./dialogueSelectionLifecycle.js";
 import {
+  clearDamageSurrenderDecisions,
+  consumeDamageSurrenderDecision,
+  enqueueDamageSurrenderDecision,
+  pendingDamageSurrenderDecision
+} from "./damageSurrenderQueue.js";
+import {
   FIRST_DAY_NIGHT_NOTICE_SUNRISE,
   FIRST_DAY_NIGHT_NOTICE_SUNSET,
   advanceFirstDayNightNoticeState,
@@ -3696,6 +3702,7 @@ const playerFriendlyFirePenaltyFactionIds = new Set();
 const shipCollisionCooldowns = new Map();
 const shipCombatEntryCollisionGrace = new Map();
 let pendingNpcCombatHailId = null;
+const pendingDamageSurrenderDecisions = [];
 const shoreBatteryStates = new Map();
 let npcCombatProjectiles = [];
 let npcCombatSplashes = [];
@@ -6631,6 +6638,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     if (scheduleNextFrame) requestAnimationFrame(loop);
     return;
   }
+  if (presentPendingDamageSurrenderDecision()) dirty = true;
   const simulationPaused = worldSimulationIsPaused({
     capturePlaybackPaused: Boolean(capturePlaybackPaused),
     menusOpen: menusAreOpen(),
@@ -15569,6 +15577,7 @@ async function restoreSavedVoyage(payload) {
   npcCombatProjectiles = [];
   npcCombatSplashes = [];
   pendingNpcCombatHailId = null;
+  clearDamageSurrenderDecisions(pendingDamageSurrenderDecisions);
   shipCombatState.engagements.clear();
   clearFriendlyFireIncidents(playerFriendlyFireIncidents);
   playerFriendlyFirePenaltyFactionIds.clear();
@@ -23428,7 +23437,9 @@ function applyDialogueOption(optionIndex) {
     applyShipDialogueAction(dialogueNpcShipId, result.action);
     if (result.action.type === "accept-damage-surrender") {
       dialogueSelectionHandoff(selectedDialogueState, dialogueState, {
-        overlayOpened: captainAlertModal !== null
+        overlayOpened: captainAlertModal !== null,
+        inPlaceSessionAdvanced: dialogueState === selectedDialogueState &&
+          dialogueState.nodeId !== "surrender-resolving"
       });
       return;
     }
@@ -25101,7 +25112,7 @@ function retargetWhalePresentations(starts, nowMs, movementElapsed) {
   const durationMs = Math.max(1, movementElapsed * 1000);
   for (const [whaleId, from] of starts) {
     const whale = whaleById(gameState.memory.whales, whaleId);
-    if (whale.phase === WHALE_PHASE_DEAD) {
+    if (whale.phase === WHALE_PHASE_DEAD || whaleUsesAuthoritativePresentation(whale)) {
       whaleVisualPresentations.delete(whaleId);
       continue;
     }
@@ -25125,11 +25136,18 @@ function retargetWhalePresentations(starts, nowMs, movementElapsed) {
 }
 
 function presentedWhalePoint(whale, rawPoint, nowMs) {
+  const followAuthoritative = whaleUsesAuthoritativePresentation(whale);
+  if (followAuthoritative) whaleVisualPresentations.delete(whale.id);
   return whaleVisualPresentationPoint(whaleVisualPresentations.get(whale.id), {
     coordinateSpace: localLayout,
     rawPoint,
-    nowMs
+    nowMs,
+    followAuthoritative
   });
+}
+
+function whaleUsesAuthoritativePresentation(whale) {
+  return whale.phase === WHALE_PHASE_TETHERED || whale.phase === WHALE_PHASE_EXHAUSTED;
 }
 
 function activeWhalePresentationExists(nowMs) {
@@ -32800,6 +32818,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   dialogueShipMotionPause = null;
   dialogueLayout = createDialogueLayoutState();
   pendingNpcCombatHailId = null;
+  clearDamageSurrenderDecisions(pendingDamageSurrenderDecisions);
   closeMenusForGameOver();
   ship.velocity = [0, 0, 0];
   ship.wakeParticles = [];
@@ -35717,7 +35736,7 @@ function handleNpcSurrender(loserId, winnerId, options = {}) {
       : "ship struck its colors"
   );
   if (surrenderCause) {
-    openDamageSurrenderDecision(loserId, surrenderCause);
+    requestDamageSurrenderDecision(loserId, surrenderCause);
     return;
   }
   if (playerPrizeSummary) {
@@ -35782,13 +35801,31 @@ function retireProjectilesForSurrenderedShip(shipId) {
   );
 }
 
-function openDamageSurrenderDecision(npcShipId, cause) {
+function requestDamageSurrenderDecision(npcShipId, cause) {
   const existingSession = dialogueState?.kind === "ship" && dialogueState.npcShipId === npcShipId
     ? dialogueState
     : null;
-  if (dialogueState && !existingSession) {
-    throw new Error(`Cannot open damaged surrender while ${dialogueState.kind} dialogue is active`);
+  if (!existingSession && combatHailIsBlockedByOverlay()) {
+    enqueueDamageSurrenderDecision(pendingDamageSurrenderDecisions, { npcShipId, cause });
+    return false;
   }
+  openDamageSurrenderDecision(npcShipId, cause, existingSession);
+  return true;
+}
+
+function presentPendingDamageSurrenderDecision() {
+  const decision = pendingDamageSurrenderDecision(pendingDamageSurrenderDecisions);
+  if (!decision || combatHailIsBlockedByOverlay()) return false;
+  const strategic = npcSeaRoutes?.shipById?.get(decision.npcShipId);
+  if (!strategic || !npcShipHasCombatGrace(npcSeaRoutes, decision.npcShipId)) {
+    throw new Error(`Queued damaged surrender is no longer protected: ${decision.npcShipId}`);
+  }
+  consumeDamageSurrenderDecision(pendingDamageSurrenderDecisions, decision.npcShipId);
+  openDamageSurrenderDecision(decision.npcShipId, decision.cause, null);
+  return true;
+}
+
+function openDamageSurrenderDecision(npcShipId, cause, existingSession) {
   const surrenderedShip = dialogueShipForId(npcShipId);
   dialogueState = prepareDamageSurrenderDialogue(existingSession, surrenderedShip, { cause });
   dialogueLayout = createDialogueLayoutState();
@@ -39894,7 +39931,6 @@ function createStaticSurfaceDetailLayer(activeChart, viewport) {
   try {
     measurePerformanceBenchmarkStage("render.terrain.surface.weather", () => {
       for (const call of calls.tileCalls) {
-        drawTerrainPentagonMarker(call, layerCtx);
         drawIceSurface(call, layerCtx);
         drawWeatherSurface(call);
       }
@@ -40223,8 +40259,7 @@ function waterEffectForegroundGeometryMatches(cached, activeChart, viewport) {
 function staticSurfaceDetailTileCallAffectsLayer(call) {
   return !isWaterSurfaceRow(call.row) ||
     isPermanentSeaIceRow(call.row) ||
-    tileHasSurfaceIce(call.id) ||
-    graph.isPentagon[call.id] === 1;
+    tileHasSurfaceIce(call.id);
 }
 
 function waterForegroundTileCallAffectsLayer(call) {
@@ -51711,8 +51746,6 @@ function drawTile(targetCtx, call, activeChart, { surfaceIce = true } = {}) {
   for (const image of terrainDrawImagesForTile(call, lastFrameMs, { surfaceIce })) {
     targetCtx.drawImage(image, x, y);
   }
-
-  drawTerrainPentagonMarker(call, targetCtx);
 }
 
 function terrainDrawImagesForTile(call, nowMs, { surfaceIce = true } = {}) {
@@ -51829,17 +51862,6 @@ function terrainTransitionImagePixels(image) {
   };
   terrainImagePixelCache.set(image, pixels);
   return pixels;
-}
-
-function drawTerrainPentagonMarker(call, targetCtx) {
-  if (!graph.isPentagon[call.id]) return;
-  targetCtx.fillStyle = "rgba(31, 35, 26, 0.35)";
-  targetCtx.fillRect(
-    Math.round(call.drawSurfaceX) - 1,
-    Math.round(call.drawSurfaceY) - 1,
-    3,
-    3
-  );
 }
 
 function cityImageForType(cityType, settlementType = "city") {

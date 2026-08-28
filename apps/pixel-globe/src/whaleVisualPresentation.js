@@ -34,8 +34,13 @@ export function retargetWhaleVisualPresentation(state, {
 export function whaleVisualPresentationPoint(state, {
   coordinateSpace,
   rawPoint,
-  nowMs
+  nowMs,
+  followAuthoritative = false
 }) {
+  if (typeof followAuthoritative !== "boolean") {
+    throw new Error(`Whale authoritative presentation flag must be boolean: ${followAuthoritative}`);
+  }
+  if (followAuthoritative) return rawPoint;
   if (
     !state ||
     state.coordinateSpace !== coordinateSpace ||

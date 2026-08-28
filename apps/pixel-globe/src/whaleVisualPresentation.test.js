@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -6,6 +7,16 @@ import {
   whaleVisualPresentationIsActive,
   whaleVisualPresentationPoint
 } from "./whaleVisualPresentation.js";
+
+const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+
+function functionSource(name, nextName) {
+  const start = MAIN_SOURCE.indexOf(`function ${name}(`);
+  const end = MAIN_SOURCE.indexOf(`function ${nextName}(`, start + 1);
+  assert.ok(start >= 0, `${name} is missing`);
+  assert.ok(end > start, `${name} has no ${nextName} boundary`);
+  return MAIN_SOURCE.slice(start, end);
+}
 
 test("whale presentation survives chart rebuilds within one local layout", () => {
   const localLayout = {};
@@ -64,4 +75,47 @@ test("whale presentation rejects a replaced coordinate space and stale completed
     rawPoint,
     nowMs: 101
   }), rawPoint);
+});
+
+test("a rope-constrained whale ignores stale background interpolation", () => {
+  const localLayout = {};
+  const state = retargetWhaleVisualPresentation(null, {
+    whaleId: "whale-tethered",
+    coordinateSpace: localLayout,
+    from: { x: 10, y: 20 },
+    to: { x: 50, y: 20 },
+    nowMs: 100,
+    durationMs: 400
+  });
+  const constrainedPoint = { x: 42, y: 24, tileId: 7 };
+
+  assert.deepEqual(whaleVisualPresentationPoint(state, {
+    coordinateSpace: localLayout,
+    rawPoint: constrainedPoint,
+    nowMs: 300,
+    followAuthoritative: true
+  }), constrainedPoint);
+  assert.throws(() => whaleVisualPresentationPoint(state, {
+    coordinateSpace: localLayout,
+    rawPoint: constrainedPoint,
+    nowMs: 300,
+    followAuthoritative: "yes"
+  }), /authoritative presentation flag must be boolean/);
+});
+
+test("tethered and exhausted whales use the authoritative presentation path", () => {
+  assert.match(
+    functionSource("retargetWhalePresentations", "presentedWhalePoint"),
+    /whaleUsesAuthoritativePresentation\(whale\)/
+  );
+  assert.match(
+    functionSource("presentedWhalePoint", "whaleUsesAuthoritativePresentation"),
+    /followAuthoritative/
+  );
+  const phasePolicy = functionSource(
+    "whaleUsesAuthoritativePresentation",
+    "activeWhalePresentationExists"
+  );
+  assert.match(phasePolicy, /WHALE_PHASE_TETHERED/);
+  assert.match(phasePolicy, /WHALE_PHASE_EXHAUSTED/);
 });
