@@ -1766,7 +1766,8 @@ import {
 } from "./dayNightPalette.js";
 import {
   DIALOGUE_SELECTION_ALREADY_CLOSED,
-  dialogueSelectionCompletion
+  dialogueSelectionCompletion,
+  dialogueSelectionHandoff
 } from "./dialogueSelectionLifecycle.js";
 import {
   FIRST_DAY_NIGHT_NOTICE_SUNRISE,
@@ -23371,7 +23372,15 @@ function applyDialogueOption(optionIndex) {
       "good"
     );
   }
-  if (result.action && dialogueNpcShipId) applyShipDialogueAction(dialogueNpcShipId, result.action);
+  if (result.action && dialogueNpcShipId) {
+    applyShipDialogueAction(dialogueNpcShipId, result.action);
+    if (result.action.type === "accept-damage-surrender") {
+      dialogueSelectionHandoff(selectedDialogueState, dialogueState, {
+        overlayOpened: captainAlertModal !== null
+      });
+      return;
+    }
+  }
   if (result.action?.type === "campaign-intro-complete") {
     markCampaignGoalIntroSeen(gameState.memory.campaignGoal);
     saveVoyageNow("campaign goal introduced");
