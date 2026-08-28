@@ -1,4 +1,4 @@
-import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
+import { SHIP_ACCELERATION_SCALE, SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
 import { damageResistanceRollSucceeds } from "./perkSystem.js";
 import { WORLD_KINEMATIC_SCALE } from "./worldScale.js";
 
@@ -335,7 +335,7 @@ function stats(
   return Object.freeze({
     slug,
     cannons,
-    accelerationRad: accelerationRad * WORLD_KINEMATIC_SCALE,
+    accelerationRad: accelerationRad * SHIP_ACCELERATION_SCALE * WORLD_KINEMATIC_SCALE,
     topSpeedRad: topSpeedRad * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE,
     upwindStallAngleDeg: effectiveUpwindStallAngleDeg,
     upwindStallAngleRad: effectiveUpwindStallAngleDeg * DEG_TO_RAD,

@@ -15,6 +15,7 @@ import {
   sailingEfficiencyForAlignment,
   shipCanUseOars,
   shipDragFactor,
+  shipPoweredAccelerationRad,
   shipPropulsionPerformance
 } from "./shipPropulsion.js";
 import { oarPivotTurnRate, shipTurnRate } from "./shipTurning.js";
@@ -96,8 +97,14 @@ export function advanceFlatBattleShipKinematics({
     ? resolvedRowingMode
     : SHIP_ROWING_MODE_IDLE;
   ship.rowing = shipRowingModeIsActive(ship.rowingMode);
-  ship.speedPx += ship.stats.accelerationRad * FLAT_BATTLE_PIXELS_PER_RADIAN *
-    propulsion.accelerationFactor * propulsion.propulsionDirection * dt;
+  const poweredAccelerationRad = shipPoweredAccelerationRad({
+    baseAccelerationRad: ship.stats.accelerationRad * propulsion.accelerationFactor,
+    speedTowardThrustRad:
+      ship.speedPx / FLAT_BATTLE_PIXELS_PER_RADIAN * propulsion.propulsionDirection,
+    poweredSpeedLimitRad: propulsion.maxSpeedRad
+  });
+  ship.speedPx += poweredAccelerationRad * FLAT_BATTLE_PIXELS_PER_RADIAN *
+    propulsion.propulsionDirection * dt;
   ship.speedPx *= shipDragFactor(propulsion.stalled, dt);
   const propulsionMaxSpeedPx = propulsion.stalled
     ? 0

@@ -93,3 +93,25 @@ test("shared flat battle propulsion respects crew-scaled hull speed", () => {
   assert.ok(fullCrew.speedPx > shortCrew.speedPx);
   assert.ok(fullCrew.speedPx <= stats.topSpeedRad * FLAT_BATTLE_PIXELS_PER_RADIAN + 1e-9);
 });
+
+test("flat battle hulls share the world's gradual run-up to full speed", () => {
+  const ship = battleShip("galleon");
+  let elapsedSeconds = 0;
+  const speedAfter = (seconds) => {
+    while (elapsedSeconds < seconds) {
+      advanceFlatBattleShipKinematics({
+        ship,
+        dt: 0.05,
+        desiredHeadingRad: 0,
+        rowingMode: SHIP_ROWING_MODE_IDLE,
+        windDirectionRad: Math.PI / 2,
+        windStrength: 1
+      });
+      elapsedSeconds += 0.05;
+    }
+    return ship.speedPx / (ship.stats.topSpeedRad * FLAT_BATTLE_PIXELS_PER_RADIAN);
+  };
+
+  assert.ok(speedAfter(3) < 0.4);
+  assert.ok(speedAfter(12) > 0.99);
+});

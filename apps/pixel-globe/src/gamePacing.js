@@ -2,6 +2,7 @@ import { WORLD_GAME_TIME_SCALE, WORLD_KINEMATIC_SCALE } from "./worldScale.js";
 
 export const DEFAULT_GAME_TIME_SCALE = WORLD_GAME_TIME_SCALE;
 export const SHIP_TOP_SPEED_SCALE = 0.85;
+export const SHIP_ACCELERATION_SCALE = 0.25;
 
 export function advanceGameClockMinutes(currentMinute, elapsedSeconds, timeScale = DEFAULT_GAME_TIME_SCALE) {
   if (!Number.isFinite(currentMinute)) {

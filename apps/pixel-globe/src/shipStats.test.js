@@ -13,7 +13,7 @@ import {
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
-import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
+import { SHIP_ACCELERATION_SCALE, SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
 import { WORLD_KINEMATIC_SCALE } from "./worldScale.js";
 
 test("later asset silhouettes use period-appropriate game identities", () => {
@@ -88,6 +88,21 @@ test("all hulls share the gentler cruise-speed scale", () => {
     0.031 * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE
   );
   assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006 * WORLD_KINEMATIC_SCALE));
+});
+
+test("hulls keep their high cruise speeds but take time to gather way", () => {
+  const brigantine = shipStatsForSlug("brigantine");
+  const galleon = shipStatsForSlug("galleon");
+  const greatCarrack = shipStatsForSlug("ship-of-the-line");
+
+  assert.equal(SHIP_ACCELERATION_SCALE, 0.25);
+  assert.equal(
+    brigantine.accelerationRad,
+    0.021 * SHIP_ACCELERATION_SCALE * WORLD_KINEMATIC_SCALE
+  );
+  assert.ok(brigantine.topSpeedRad / brigantine.accelerationRad > 6);
+  assert.ok(galleon.topSpeedRad / galleon.accelerationRad > 9);
+  assert.ok(greatCarrack.topSpeedRad / greatCarrack.accelerationRad > 15);
 });
 
 test("native canoe hulls are small, cannonless, exposed, and regionally distinct", () => {
