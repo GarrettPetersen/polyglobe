@@ -8,6 +8,8 @@ import {
   ANIMAL_COMPANION_ENCOUNTER_WEIGHT,
   ANIMAL_CATALOG,
   ANIMAL_CATALOG_BY_ID,
+  animalLandmassWorldFraction,
+  buildAnimalLandmassWorldFractions,
   createAnimalEncounterMemory,
   eligibleAnimalEncounters,
   encounteredAnimalEntries,
@@ -33,6 +35,7 @@ function habitat(overrides = {}) {
     isRiver: false,
     isLake: false,
     isCoast: true,
+    landmassWorldFraction: 0.1,
     ...overrides
   };
 }
@@ -166,8 +169,60 @@ test("animals occur only in plausible native habitats", () => {
   assert.deepEqual(southernIce, ["penguin"]);
 });
 
+test("islands inside broad continental rectangles do not inherit mainland fauna", () => {
+  const candidates = (overrides) => eligibleAnimalEncounters(
+    createAnimalEncounterMemory(),
+    habitat({ landmassWorldFraction: 0.001, ...overrides })
+  ).map((entry) => entry.id);
+
+  const madagascar = candidates({
+    latitudeDeg: -19,
+    longitudeDeg: 47,
+    terrain: "grass"
+  });
+  for (const mainlandAfricanAnimal of [
+    "elephant", "rhinoceros", "giraffe", "lion", "wild-dog", "fox", "otter"
+  ]) {
+    assert.ok(!madagascar.includes(mainlandAfricanAnimal), mainlandAfricanAnimal);
+  }
+
+  const hawaii = candidates({
+    latitudeDeg: 20,
+    longitudeDeg: -156,
+    terrain: "jungle"
+  });
+  assert.deepEqual(hawaii, []);
+
+  const sriLanka = candidates({
+    latitudeDeg: 7.8,
+    longitudeDeg: 80.7,
+    terrain: "forest"
+  });
+  assert.ok(sriLanka.includes("elephant"));
+  for (const absentAnimal of ["tiger", "rhinoceros", "lion"]) {
+    assert.ok(!sriLanka.includes(absentAnimal), absentAnimal);
+  }
+
+  const sumatra = candidates({
+    latitudeDeg: 0,
+    longitudeDeg: 101,
+    terrain: "jungle"
+  });
+  for (const nativeAnimal of ["tiger", "elephant", "rhinoceros", "parrot", "eagle"]) {
+    assert.ok(sumatra.includes(nativeAnimal), nativeAnimal);
+  }
+
+  const tasmania = candidates({
+    latitudeDeg: -42,
+    longitudeDeg: 147,
+    terrain: "grass"
+  });
+  assert.ok(tasmania.includes("kangaroo"));
+  assert.ok(!tasmania.includes("fox"));
+});
+
 test("pandas are encounterable from the actual Chengdu and Xian river ports", () => {
-  const { graph, rows } = actualWorldHabitatFixture();
+  const { graph, rows, landmassWorldFractions } = actualWorldHabitatFixture();
   const panda = ANIMAL_CATALOG_BY_ID.get("panda");
 
   for (const [name, tileId] of [["Chengdu", 61297], ["Xian", 62627]]) {
@@ -175,13 +230,14 @@ test("pandas are encounterable from the actual Chengdu and Xian river ports", ()
       latitudeDeg: graph.latDeg[tileId],
       longitudeDeg: graph.lonDeg[tileId],
       terrain: rows[tileId].t,
-      isRiver: true
+      isRiver: true,
+      landmassWorldFraction: animalLandmassWorldFraction(rows[tileId], landmassWorldFractions)
     })), true, `${name} (${rows[tileId].t})`);
   }
 });
 
 test("every bestiary animal has an anchor-accessible habitat in the actual world bake", () => {
-  const { graph, rows, topology } = actualWorldHabitatFixture();
+  const { graph, rows, topology, landmassWorldFractions } = actualWorldHabitatFixture();
   for (const animal of ANIMAL_CATALOG) {
     let matchingTileId = null;
     for (let tileId = 0; tileId < graph.tileCount; tileId++) {
@@ -196,7 +252,8 @@ test("every bestiary animal has an anchor-accessible habitat in the actual world
         terrain: row.t,
         isSurfaceIce: row.t === "ice" || row.t === "ice_cap",
         isRiver: Boolean(topology.riverMasks[tileId]),
-        isLake: row.t === "lake"
+        isLake: row.t === "lake",
+        landmassWorldFraction: animalLandmassWorldFraction(row, landmassWorldFractions)
       }))) continue;
       matchingTileId = tileId;
       break;
@@ -368,6 +425,7 @@ function actualWorldHabitatFixture() {
     earthCache: earth,
     subdivisions: 7
   });
-  worldHabitatFixture = { graph, rows, topology };
+  const landmassWorldFractions = buildAnimalLandmassWorldFractions(rows);
+  worldHabitatFixture = { graph, rows, topology, landmassWorldFractions };
   return worldHabitatFixture;
 }

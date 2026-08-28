@@ -238,8 +238,12 @@ const inheritedLandOverrides = MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[7].map
     landmassId: sourceIsWater ? landmassIdByCoarseOverride.get(override.landmassId) : source.m
   };
 });
-const islandCities = MANUAL_CITY_RECORDS_1522.filter((record) => record.islandSettlement);
-const islandDirections = islandCities.map((city) => latLonToDirection(city.lat, city.lon));
+const northMalukuIslandCities = new Set(["Ternate", "Tidore", "Makian Village"]);
+const islandCities = MANUAL_CITY_RECORDS_1522.filter((record) => (
+  record.islandSettlement ||
+  (record.country === "Indonesia" && northMalukuIslandCities.has(record.city))
+));
+const islandDirections = islandCities.map(cityPlacementDirection);
 const mozambique = MANUAL_CITY_RECORDS_1522.find((record) => (
   record.city === "Mozambique" && record.country === "Mozambique"
 ));
@@ -259,7 +263,7 @@ for (const city of islandCities) {
   const tileId = findNearestTileId(
     fineGraph,
     fineDirectionIndex,
-    latLonToDirection(city.lat, city.lon)
+    cityPlacementDirection(city)
   );
   const source = earth.tiles[tileId];
   if (!isWaterSurface(source) || landOverrideByTileId.has(tileId)) continue;
@@ -469,6 +473,18 @@ function latLonToDirection(latDeg, lonDeg) {
   const lon = lonDeg * Math.PI / 180;
   const cosLat = Math.cos(lat);
   return [cosLat * Math.cos(lon), Math.sin(lat), -cosLat * Math.sin(lon)];
+}
+
+function cityPlacementDirection(city) {
+  const hasPlacementLat = city.placementLat !== undefined;
+  const hasPlacementLon = city.placementLon !== undefined;
+  if (hasPlacementLat !== hasPlacementLon) {
+    throw new Error(`Island placement requires both authored coordinates: ${city.city}`);
+  }
+  return latLonToDirection(
+    hasPlacementLat ? city.placementLat : city.lat,
+    hasPlacementLon ? city.placementLon : city.lon
+  );
 }
 
 function directionDot(tileId, direction) {

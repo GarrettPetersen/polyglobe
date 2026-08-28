@@ -43,6 +43,7 @@ import { PERK_ITEMS } from "./perkItems.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { NEUTRAL_FACTION_ID } from "./factions.js";
+import { PRE_NORTH_MALUKU_PORT_TILE_IDS } from "./portCatalogMigration.js";
 
 const PLAYER = {
   name: "Joan Alden",
@@ -280,6 +281,29 @@ test("saved jobs rebind through an explicit coastal-port migration", () => {
 
   completeQuest(state, PORTO, { simMinute: 100 });
   assert.equal(state.memory.quests.active, null);
+});
+
+test("a legacy port mapping wins when its old tile is now another canonical port", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const oldMakian = port(
+    366350, "Makian Village", "Indonesia", "southeast-asian", "portugal", 0.32, 127.37
+  );
+  const oldTernate = port(
+    23005, "Ternate", "Indonesia", "southeast-asian", "portugal", 0.79, 127.38
+  );
+  const currentTidore = port(
+    366350, "Tidore", "Indonesia", "southeast-asian", "portugal", 0.67, 127.45
+  );
+  const currentMakian = { ...oldMakian, tileId: 366359 };
+  const currentTernate = { ...oldTernate, tileId: 366292 };
+  acceptQuest(state, deliveryQuestForCity(oldTernate, [oldTernate, oldMakian]));
+
+  assert.equal(reconcileQuestPortTiles(state, [currentTernate, currentTidore, currentMakian], {
+    legacyPortTileIds: PRE_NORTH_MALUKU_PORT_TILE_IDS
+  }), 2);
+  assert.equal(state.memory.quests.active.originTileId, currentTernate.tileId);
+  assert.equal(state.memory.quests.active.destinationTileId, currentMakian.tileId);
+  assert.notEqual(state.memory.quests.active.destinationTileId, currentTidore.tileId);
 });
 
 test("saved port references never guess from a display name", () => {

@@ -90,19 +90,19 @@ test("all hulls share the gentler cruise-speed scale", () => {
   assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006 * WORLD_KINEMATIC_SCALE));
 });
 
-test("hulls keep their high cruise speeds but take time to gather way", () => {
+test("hulls glide up to a restrained cruise speed instead of leaping forward", () => {
   const brigantine = shipStatsForSlug("brigantine");
   const galleon = shipStatsForSlug("galleon");
   const greatCarrack = shipStatsForSlug("ship-of-the-line");
 
-  assert.equal(SHIP_ACCELERATION_SCALE, 0.25);
+  assert.equal(SHIP_ACCELERATION_SCALE, 0.24);
   assert.equal(
     brigantine.accelerationRad,
     0.021 * SHIP_ACCELERATION_SCALE * WORLD_KINEMATIC_SCALE
   );
   assert.ok(brigantine.topSpeedRad / brigantine.accelerationRad > 6);
   assert.ok(galleon.topSpeedRad / galleon.accelerationRad > 9);
-  assert.ok(greatCarrack.topSpeedRad / greatCarrack.accelerationRad > 15);
+  assert.ok(greatCarrack.topSpeedRad / greatCarrack.accelerationRad > 14);
 });
 
 test("native canoe hulls are small, cannonless, exposed, and regionally distinct", () => {

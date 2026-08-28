@@ -141,9 +141,9 @@ test("the demo naturalist roster contains only animals at accessible landfalls",
   const accessMask = Uint8Array.from([1, 0, 0, 0, 0]);
   const earthRows = [
     { t: "ocean" },
-    { t: "forest" },
-    { t: "forest" },
-    { t: "grass" },
+    { t: "forest", m: 1 },
+    { t: "forest", m: 1 },
+    { t: "grass", m: 2 },
     { t: "ocean" }
   ];
   const animalCatalog = [

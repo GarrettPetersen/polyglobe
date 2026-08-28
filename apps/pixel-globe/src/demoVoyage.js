@@ -1,3 +1,8 @@
+import {
+  animalLandmassWorldFraction,
+  buildAnimalLandmassWorldFractions
+} from "./animalEncounters.js";
+
 export const DEMO_GIBRALTAR_MESSAGE =
   "The full version has many adventures and riches to be found on the high seas.";
 export const DEMO_ESCAPE_GRACE_HEXES = 10;
@@ -93,6 +98,7 @@ export function demoNaturalistAnimalIdsForLandfalls({
       typeof isWaterSurfaceRow !== "function") {
     throw new Error("Demo naturalist roster requires animals and a water predicate");
   }
+  const landmassWorldFractions = buildAnimalLandmassWorldFractions(earthRows);
   const animalIds = new Set();
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
     const row = earthRows[tileId];
@@ -108,7 +114,8 @@ export function demoNaturalistAnimalIdsForLandfalls({
       isSurfaceIce: terrain === "ice_cap",
       isRiver: Boolean(riverMasks[tileId]),
       isLake: terrain === "lake",
-      isCoast: true
+      isCoast: true,
+      landmassWorldFraction: animalLandmassWorldFraction(row, landmassWorldFractions)
     };
     for (const animal of animalCatalog) {
       if (!animal || typeof animal.id !== "string" || typeof animal.matches !== "function") {

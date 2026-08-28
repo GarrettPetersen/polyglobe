@@ -33,7 +33,7 @@ test("calendar advancement rejects malformed timing", () => {
 });
 
 test("the larger globe makes voyages last substantially longer in game time", () => {
-  assert.equal(SHIP_TOP_SPEED_SCALE, 0.85);
-  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) > 1.83);
-  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) < 1.84);
+  assert.equal(SHIP_TOP_SPEED_SCALE, 0.78);
+  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) > 2);
+  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) < 2.01);
 });

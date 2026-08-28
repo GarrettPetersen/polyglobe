@@ -134,28 +134,28 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.025,
-      "landmassId": 3030
+      "landmassId": 3032
     },
     {
       "tileId": 21751,
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",
       "elevation": -0.03,
-      "landmassId": 3033
+      "landmassId": 3035
     },
     {
       "tileId": 22330,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.02,
-      "landmassId": 3034
+      "landmassId": 3036
     },
     {
       "tileId": 22966,
       "sourceTerrain": "lake",
       "terrainType": "tropical_rainforest",
       "elevation": -0.025,
-      "landmassId": 3029
+      "landmassId": 3031
     },
     {
       "tileId": 34387,
@@ -169,28 +169,28 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",
       "elevation": -0.042,
-      "landmassId": 3039
+      "landmassId": 3041
     },
     {
       "tileId": 39426,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.03,
-      "landmassId": 3013
+      "landmassId": 3015
     },
     {
       "tileId": 84770,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.042,
-      "landmassId": 3038
+      "landmassId": 3040
     },
     {
       "tileId": 86665,
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",
       "elevation": -0.03,
-      "landmassId": 3032
+      "landmassId": 3034
     },
     {
       "tileId": 89294,
@@ -218,14 +218,14 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",
       "elevation": -0.02,
-      "landmassId": 3025
+      "landmassId": 3027
     },
     {
       "tileId": 143707,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.02,
-      "landmassId": 3027
+      "landmassId": 3029
     },
     {
       "tileId": 144889,
@@ -246,133 +246,147 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.03,
-      "landmassId": 3012
+      "landmassId": 3014
     },
     {
       "tileId": 259517,
       "sourceTerrain": "lake",
       "terrainType": "humid_subtropical_hot",
       "elevation": -0.03,
-      "landmassId": 3016
+      "landmassId": 3018
     },
     {
       "tileId": 261221,
       "sourceTerrain": "lake",
       "terrainType": "humid_subtropical_hot",
       "elevation": -0.03,
-      "landmassId": 3015
+      "landmassId": 3017
     },
     {
       "tileId": 270430,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.042,
-      "landmassId": 3024
+      "landmassId": 3026
     },
     {
       "tileId": 271694,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.042,
-      "landmassId": 3031
+      "landmassId": 3033
     },
     {
       "tileId": 277347,
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.042,
-      "landmassId": 3020
+      "landmassId": 3022
     },
     {
       "tileId": 291080,
       "sourceTerrain": "beach",
       "terrainType": "mediterranean_warm",
       "elevation": -0.03,
-      "landmassId": 3009
+      "landmassId": 3011
     },
     {
       "tileId": 340714,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.02,
-      "landmassId": 3021
+      "landmassId": 3023
     },
     {
       "tileId": 352953,
       "sourceTerrain": "beach",
       "terrainType": "humid_subtropical",
       "elevation": -0.02,
-      "landmassId": 3026
+      "landmassId": 3028
     },
     {
       "tileId": 355983,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.02,
-      "landmassId": 3036
+      "landmassId": 3038
     },
     {
       "tileId": 356017,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.03,
-      "landmassId": 3035
+      "landmassId": 3037
     },
     {
       "tileId": 356127,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.042,
-      "landmassId": 3037
+      "landmassId": 3039
     },
     {
       "tileId": 358401,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.03,
-      "landmassId": 3022
+      "landmassId": 3024
     },
     {
       "tileId": 363767,
       "sourceTerrain": "beach",
       "terrainType": "tropical_monsoon",
       "elevation": -0.04,
-      "landmassId": 3040
+      "landmassId": 3042
     },
     {
       "tileId": 366120,
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.033,
-      "landmassId": 3018
+      "landmassId": 3020
+    },
+    {
+      "tileId": 366292,
+      "sourceTerrain": "beach",
+      "terrainType": "tropical_rainforest",
+      "elevation": -0.026,
+      "landmassId": 3006
     },
     {
       "tileId": 366350,
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.026,
-      "landmassId": 3019
+      "landmassId": 3007
+    },
+    {
+      "tileId": 366359,
+      "sourceTerrain": "beach",
+      "terrainType": "tropical_rainforest",
+      "elevation": -0.026,
+      "landmassId": 3021
     },
     {
       "tileId": 366615,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.036,
-      "landmassId": 3017
+      "landmassId": 3019
     },
     {
       "tileId": 394799,
       "sourceTerrain": "beach",
       "terrainType": "mediterranean_hot",
       "elevation": -0.03,
-      "landmassId": 3008
+      "landmassId": 3010
     },
     {
       "tileId": 497668,
       "sourceTerrain": "beach",
       "terrainType": "tropical_savanna",
       "elevation": -0.03,
-      "landmassId": 3014
+      "landmassId": 3016
     },
     {
       "tileId": 502402,
@@ -386,56 +400,56 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",
       "elevation": -0.024,
-      "landmassId": 3025
+      "landmassId": 3027
     },
     {
       "tileId": 570899,
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.015,
-      "landmassId": 3041
+      "landmassId": 3043
     },
     {
       "tileId": 573047,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.025,
-      "landmassId": 3028
+      "landmassId": 3030
     },
     {
       "tileId": 575023,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.042,
-      "landmassId": 3023
+      "landmassId": 3025
     },
     {
       "tileId": 636414,
       "sourceTerrain": "beach",
       "terrainType": "hot_desert",
       "elevation": -0.03,
-      "landmassId": 3011
+      "landmassId": 3013
     },
     {
       "tileId": 647524,
       "sourceTerrain": "lake",
       "terrainType": "mediterranean_hot",
       "elevation": -0.03,
-      "landmassId": 3007
+      "landmassId": 3009
     },
     {
       "tileId": 648650,
       "sourceTerrain": "lake",
       "terrainType": "mediterranean_hot",
       "elevation": -0.03,
-      "landmassId": 3006
+      "landmassId": 3008
     },
     {
       "tileId": 652728,
       "sourceTerrain": "beach",
       "terrainType": "cold_desert",
       "elevation": -0.03,
-      "landmassId": 3010
+      "landmassId": 3012
     }
   ],
   "cityRiverChains": {

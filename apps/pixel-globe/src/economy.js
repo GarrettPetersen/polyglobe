@@ -19,6 +19,17 @@ import { economyRegionForCity } from "./economyRegions.js";
 const MINUTES_PER_DAY = 24 * 60;
 const ECONOMY_STEP_MINUTES = 6 * 60;
 const ECONOMY_STEP_DAYS = ECONOMY_STEP_MINUTES / MINUTES_PER_DAY;
+export const IWAMI_SILVER_PRODUCTION_START_MINUTE = 4 * 365 * MINUTES_PER_DAY;
+export const IWAMI_SILVER_PRODUCTION_PER_DAY = 1.4;
+const HISTORICAL_PORT_INDUSTRIES = Object.freeze([
+  Object.freeze({
+    cityId: cityCatalogId("Tomogaura", "Japan"),
+    goodId: "silver",
+    startMinute: IWAMI_SILVER_PRODUCTION_START_MINUTE,
+    productionPerDay: IWAMI_SILVER_PRODUCTION_PER_DAY,
+    initialStock: 8
+  })
+]);
 const PORT_MARKUP = 1.08;
 const PORT_MARKDOWN = 0.9;
 const MIN_PRICE_MULTIPLIER = 0.38;
@@ -810,17 +821,20 @@ export function createWorldEconomy({ ports, shipyardPorts = ports, startMinute, 
     const portId = requiredPortId(shipyardPort);
     if (!portStates.has(portId)) throw new Error(`Shipyard city is missing from the economy: ${portId}`);
   }
-  const shipyards = createWorldShipyards({ ports: shipyardPorts, startMinute, seedKey });
-  for (const yard of shipyards.yards.values()) {
-    applyShipyardMaterialDemand(portStates.get(yard.portId), yard, { seedInitialStock: true });
-  }
-  return {
+  const economy = {
     version: 1,
     seedKey,
     lastMinute: startMinute,
     portStates,
-    shipyards
+    shipyards: null
   };
+  activateHistoricalPortIndustries(economy, startMinute);
+  const shipyards = createWorldShipyards({ ports: shipyardPorts, startMinute, seedKey });
+  economy.shipyards = shipyards;
+  for (const yard of shipyards.yards.values()) {
+    applyShipyardMaterialDemand(portStates.get(yard.portId), yard, { seedInitialStock: true });
+  }
+  return economy;
 }
 
 export function connectNearbyPortMarkets(economy, ports, sailingDistanceKm) {
@@ -900,6 +914,7 @@ export function addWorldEconomyPort(economy, port, startMinute = economy?.lastMi
   const yard = addWorldShipyardPort(economy.shipyards, port, startMinute);
   applyShipyardMaterialDemand(state, yard, { seedInitialStock: true });
   economy.portStates.set(portId, state);
+  activateHistoricalPortIndustries(economy, startMinute);
   invalidateWorldMarketMedianCache(economy);
   return { port: state, shipyard: yard };
 }
@@ -938,6 +953,7 @@ export function replaceWorldEconomyPort(economy, port, startMinute = economy?.la
   const yard = replaceWorldShipyardPort(economy.shipyards, port, startMinute);
   applyShipyardMaterialDemand(replacement, yard, { seedInitialStock: false });
   economy.portStates.set(portId, replacement);
+  activateHistoricalPortIndustries(economy, startMinute);
   invalidateWorldMarketMedianCache(economy);
   return replacement;
 }
@@ -1113,6 +1129,7 @@ export function advanceWorldEconomyRestorePlan(plan, { maxPorts = 24 } = {}) {
     }
     if (plan.portIndex < snapshot.ports.length) return false;
     economy.lastMinute = snapshot.lastMinute;
+    activateHistoricalPortIndustries(economy, snapshot.lastMinute);
     invalidateWorldMarketMedianCache(economy);
     plan.phase = "complete";
     return true;
@@ -1191,6 +1208,10 @@ export function advanceWorldEconomy(economy, clockMinute) {
   if (steps <= 0) return false;
   for (let step = 0; step < steps; step++) {
     for (const port of economy.portStates.values()) advancePortEconomy(port, ECONOMY_STEP_DAYS);
+    activateHistoricalPortIndustries(
+      economy,
+      economy.lastMinute + (step + 1) * ECONOMY_STEP_MINUTES
+    );
   }
   economy.lastMinute += steps * ECONOMY_STEP_MINUTES;
   advanceWorldShipyards(economy.shipyards, economy.lastMinute, shipyardMaterialMarket(economy));
@@ -1772,6 +1793,7 @@ function createPortState(port, seedKey) {
     : CITY_MARKET_PRICE_DEPTH_PER_POPULATION_SCALE);
   const portState = {
     id: requiredPortId(port),
+    cityId: canonicalCityId,
     name: port.displayCity || port.city,
     cityType: port.cityType,
     economyRegion,
@@ -2290,6 +2312,7 @@ function establishIndustryAtPort(port, goodId, productionPerDay, initialStock) {
   if (good.alwaysAvailable) throw new Error(`${port.name} cannot establish an industry for ${good.label}`);
   const state = port.goods.get(goodId);
   if (!state) throw new Error(`${port.name} has no economy state for ${good.label}`);
+  if (port.marketGoodIds) port.marketGoodIds.add(goodId);
   if (state.industryProductionPerDay > 0) {
     if (Math.abs(state.industryProductionPerDay - productionPerDay) > 1e-9) {
       throw new Error(
@@ -2322,6 +2345,29 @@ function establishIndustryAtPort(port, goodId, productionPerDay, initialStock) {
     productionPerDay,
     stock: Math.floor(state.stock)
   });
+}
+
+function activateHistoricalPortIndustries(economy, clockMinute) {
+  if (!Number.isFinite(clockMinute) || clockMinute < 0) {
+    throw new Error(`Invalid historical industry clock: ${clockMinute}`);
+  }
+  let changed = false;
+  for (const industry of HISTORICAL_PORT_INDUSTRIES) {
+    if (clockMinute < industry.startMinute) continue;
+    const ports = [...economy.portStates.values()].filter((port) => port.cityId === industry.cityId);
+    if (ports.length > 1) {
+      throw new Error(`Historical industry city is duplicated: ${industry.cityId}`);
+    }
+    if (ports.length === 0) continue;
+    const result = establishIndustryAtPort(
+      ports[0],
+      industry.goodId,
+      industry.productionPerDay,
+      industry.initialStock
+    );
+    changed ||= result.created;
+  }
+  return changed;
 }
 
 function applyShipyardMaterialDemand(port, yard, { seedInitialStock }) {

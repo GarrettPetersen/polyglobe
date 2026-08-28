@@ -23,6 +23,8 @@ import {
   NAVAL_STORES_GOOD_ID,
   NUTMEG_GOOD_ID,
   INDIGO_GOOD_ID,
+  IWAMI_SILVER_PRODUCTION_PER_DAY,
+  IWAMI_SILVER_PRODUCTION_START_MINUTE,
   PAPER_GOOD_ID,
   PRINTED_BOOKS_GOOD_ID,
   RICE_GOOD_ID,
@@ -51,6 +53,7 @@ import {
   planNpcTrade,
   plunderPortSpecie,
   portEconomySummary,
+  portGoodSupply,
   portMarket,
   procureWorldEconomyShipyardMaterials,
   quotePortPurchase,
@@ -160,6 +163,24 @@ test("city catalog presents historical Hakata without changing its stable source
   );
 });
 
+test("the production city catalog preserves authored North Maluku island centers", () => {
+  const expected = new Map([
+    ["Ternate", [0.7288705110549927, 127.42523193359375]],
+    ["Tidore", [0.4373382329940796, 127.42520141601562]],
+    ["Makian Village", [0.14578206837177277, 127.42520141601562]]
+  ]);
+  for (const [cityName, [placementLat, placementLon]] of expected) {
+    const city = CITY_CATALOG.find((candidate) => (
+      candidate.city === cityName && candidate.country === "Indonesia"
+    ));
+    assert.ok(city, `${cityName} should remain in the production catalog`);
+    assert.deepEqual(
+      { placementLat: city.placementLat, placementLon: city.placementLon },
+      { placementLat, placementLon }
+    );
+  }
+});
+
 test("Baghdad is a Safavid Mesopotamian entrepot with a full market", () => {
   const baghdad = CITY_CATALOG.find((city) => city.city === "Baghdad" && city.country === "Iraq");
   assert.ok(baghdad);
@@ -173,6 +194,53 @@ test("Baghdad is a Safavid Mesopotamian entrepot with a full market", () => {
   for (const goodId of ["grain", "cotton-cloth", "carpets"]) {
     assert.ok(market.get(goodId).productionPerDay > 0, `${goodId} should be produced in Baghdad`);
   }
+});
+
+test("Iwami begins selling locally mined silver when the 1526 discovery occurs", () => {
+  const source = CITY_CATALOG.find((city) => (
+    city.city === "Tomogaura" && city.country === "Japan"
+  ));
+  assert.ok(source, "the Iwami export harbor should remain in the city catalog");
+  assert.equal(source.displayCity, "Iwami");
+  assert.equal(source.factionId, "ouchi");
+  const iwami = { ...source, tileId: 12001 };
+  const economy = createWorldEconomy({
+    ports: [iwami],
+    startMinute: IWAMI_SILVER_PRODUCTION_START_MINUTE - 6 * 60
+  });
+
+  const before = portGoodSupply(economy, iwami, "silver");
+  assert.equal(before.productionPerDay, 0);
+  assert.equal(before.listedForSale, false);
+
+  advanceWorldEconomy(economy, IWAMI_SILVER_PRODUCTION_START_MINUTE);
+  const after = portGoodSupply(economy, iwami, "silver");
+  assert.equal(after.productionPerDay, IWAMI_SILVER_PRODUCTION_PER_DAY);
+  assert.equal(after.listedForSale, true);
+  assert.ok(after.stock >= 8);
+});
+
+test("an old post-1526 economy save gains the scheduled Iwami silver industry", () => {
+  const source = CITY_CATALOG.find((city) => (
+    city.city === "Tomogaura" && city.country === "Japan"
+  ));
+  assert.ok(source);
+  const iwami = { ...source, tileId: 12002 };
+  const legacyEconomy = createWorldEconomy({
+    ports: [iwami],
+    startMinute: IWAMI_SILVER_PRODUCTION_START_MINUTE - 6 * 60
+  });
+  const legacySnapshot = snapshotWorldEconomy(legacyEconomy);
+  legacySnapshot.lastMinute = IWAMI_SILVER_PRODUCTION_START_MINUTE;
+
+  const restored = createWorldEconomy({
+    ports: [iwami],
+    startMinute: IWAMI_SILVER_PRODUCTION_START_MINUTE
+  });
+  restoreWorldEconomy(restored, legacySnapshot);
+  const silver = portGoodSupply(restored, iwami, "silver");
+  assert.equal(silver.productionPerDay, IWAMI_SILVER_PRODUCTION_PER_DAY);
+  assert.equal(silver.listedForSale, true);
 });
 
 test("shipbuilding materials have historically grounded sources beyond Europe", () => {

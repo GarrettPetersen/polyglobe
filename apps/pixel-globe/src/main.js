@@ -568,7 +568,9 @@ import {
 import {
   ANIMAL_CATALOG,
   ANIMAL_CATALOG_BY_ID,
+  animalLandmassWorldFraction,
   animalDialogueCharacter,
+  buildAnimalLandmassWorldFractions,
   encounteredAnimalEntries,
   recordAnimalEncounter,
   rollAnchoredAnimalEncounter
@@ -918,6 +920,10 @@ import {
   mountainDiscovery,
   restrictMountainsToNavigableView
 } from "./discoveries.js";
+import {
+  reconcileSavedDiscoveryReferences,
+  validateDiscoveryCatalog
+} from "./discoveryCatalogReferences.js";
 import {
   CORAL_REEF_ALPHA,
   CORAL_REEF_SPRITE_KEYS,
@@ -1847,6 +1853,10 @@ import {
   subdivisionSevenPortMigrationForWorld,
   subdivisionSevenPortReferenceCatalog
 } from "./subdivisionSevenPortMigration.js";
+import {
+  PORT_CATALOG_VERSION,
+  sameTopologyPortMigrationForSavedVoyage
+} from "./portCatalogMigration.js";
 import {
   addDerivedSaveRecoveryLabel,
   restoreOrRecreateDerivedSaveState
@@ -3603,6 +3613,7 @@ let graph;
 let directionIndex;
 let earthRows;
 let earthById;
+let animalLandmassWorldFractions;
 let chartTileProtection;
 let chartDirectProtectionComponentByTileId;
 let chartSurfaceContinuityMask;
@@ -4398,6 +4409,7 @@ async function main() {
   }
   earthRows = applyManualTerrainOverrides(earth.tiles, earth.subdivisions);
   earth.tiles = earthRows;
+  animalLandmassWorldFractions = buildAnimalLandmassWorldFractions(earthRows);
 
   graph = decodeGeodesicGraphBake(geodesicGraphBuffer, SUBDIVISIONS);
   if (graph.tileCount !== earth.tileCount || graph.tileCount !== earthRows.length) {
@@ -4527,6 +4539,7 @@ async function main() {
     ...worldDiscoveries,
     CIRCUMNAVIGATION_DISCOVERY
   ];
+  validateDiscoveryCatalog(discoveryCatalog);
   validateExplorerReportDialogueCatalog(explorerWonderCatalog(discoveryCatalog));
   validateNaturalistReportDialogueCatalog(ANIMAL_CATALOG);
   discoveryCatalogById = new Map(discoveryCatalog.map((discovery) => [discovery.id, discovery]));
@@ -15338,8 +15351,16 @@ async function restoreSavedVoyage(payload) {
     console.info("[pixel-globe] corrected cultural name forms for saved characters:", correctedCharacterNameCount);
   }
   ensureWhalePopulation(restoredGameState);
-  const legacyPortTileIds = subdivisionSevenPortMigrationForWorld(savedWorldTopology);
-  const savedPortReferenceCatalog = legacyPortTileIds
+  const topologyPortTileIds = subdivisionSevenPortMigrationForWorld(savedWorldTopology);
+  const catalogPortTileIds = sameTopologyPortMigrationForSavedVoyage(
+    payload,
+    savedWorldTopology
+  );
+  if (topologyPortTileIds && catalogPortTileIds) {
+    throw new Error("Saved voyage selected conflicting port migrations");
+  }
+  const legacyPortTileIds = topologyPortTileIds || catalogPortTileIds;
+  const savedPortReferenceCatalog = topologyPortTileIds
     ? subdivisionSevenPortReferenceCatalog(portCities, colonizationTargetPlacements)
     : portCities;
   const migratedPortReferenceCount = reconcileQuestPortTiles(
@@ -15350,7 +15371,18 @@ async function restoreSavedVoyage(payload) {
   if (migratedPortReferenceCount > 0) {
     console.info(
       `[pixel-globe] migrated ${migratedPortReferenceCount} saved port references from ` +
-        `subdivision ${savedWorldTopology.savedSubdivisions}`
+        (topologyPortTileIds
+          ? `subdivision ${savedWorldTopology.savedSubdivisions}`
+          : "the previous port catalog")
+    );
+  }
+  const migratedDiscoveryReferenceCount = reconcileSavedDiscoveryReferences(
+    restoredGameState,
+    discoveryCatalog
+  );
+  if (migratedDiscoveryReferenceCount > 0) {
+    console.info(
+      `[pixel-globe] migrated ${migratedDiscoveryReferenceCount} saved discovery catalog references`
     );
   }
   gameState = restoredGameState;
@@ -15366,6 +15398,12 @@ async function restoreSavedVoyage(payload) {
     restoredGameState,
     savedWorldTopology
   );
+  if (migratedDiscoveryReferenceCount > 0) {
+    recoveredDerivedSystems = addDerivedSaveRecoveryLabel(
+      recoveredDerivedSystems,
+      "discovery references"
+    );
+  }
 
   ensureColonizationDefenseEncounter({ assignCaptains: false });
   ensureTreasureCampaignEncounters({ assignCaptains: false });
@@ -15923,6 +15961,7 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
         voyageStartMinute: voyageStartClockMinutes
       },
       worldSubdivisions: SUBDIVISIONS,
+      portCatalogVersion: PORT_CATALOG_VERSION,
       firstDayNightNotices: snapshotFirstDayNightNoticeState(firstDayNightNoticeState),
       anchored,
       survivalDamageTimers: { ...survivalDeprivationTimers },
@@ -22522,7 +22561,11 @@ function updateAnchoredAnimalEncounter() {
       isSurfaceIce: tileHasSurfaceIce(call.id) || isPermanentSeaIceRow(call.row) || terrain === "ice_cap",
       isRiver: Boolean(riverMasks?.[call.id]),
       isLake: terrain === "lake",
-      isCoast: true
+      isCoast: true,
+      landmassWorldFraction: animalLandmassWorldFraction(
+        call.row,
+        animalLandmassWorldFractions
+      )
     },
     weatherClockMinutes,
     Math.random,
@@ -24894,6 +24937,7 @@ function updateWhales(dt, nowMs) {
     whaleSimulationAccumulator + dt
   );
   const simulationDue = whaleSimulationAccumulator >= simulationInterval;
+  let completedPresentationUpdate = null;
   if (simulationDue && !whaleAdvanceJob) {
     const responsiveIds = responsiveWhaleMovementIds();
     const presentationStarts = captureWhalePresentationStarts(responsiveIds, nowMs);
@@ -24924,11 +24968,7 @@ function updateWhales(dt, nowMs) {
     );
     if (progress.complete) {
       events = progress.events;
-      retargetWhalePresentations(
-        whaleAdvanceJob.presentationStarts,
-        nowMs,
-        whaleAdvanceJob.movementElapsed
-      );
+      completedPresentationUpdate = whaleAdvanceJob;
       whaleAdvanceJob = null;
     }
   }
@@ -24937,6 +24977,17 @@ function updateWhales(dt, nowMs) {
     changed = constrainActiveWhaleTether();
   } catch (error) {
     changed = snapFailedWhaleTether(error);
+  }
+  if (completedPresentationUpdate) {
+    // A tethered whale may have swum beyond the line during its discrete
+    // simulation step. Interpolate only after the rope has constrained that
+    // movement, or the visible whale alternates between the unconstrained and
+    // constrained targets thirty times a second.
+    retargetWhalePresentations(
+      completedPresentationUpdate.presentationStarts,
+      nowMs,
+      completedPresentationUpdate.movementElapsed
+    );
   }
   for (const event of events) {
     if (event.type === "blow") {

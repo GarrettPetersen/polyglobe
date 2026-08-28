@@ -56,6 +56,12 @@ test("the reported Cempoala, Angra, and Ozette references have authored migratio
   assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(46523), 185827);
 });
 
+test("released North Maluku references target the separated subdivision-eight islands", () => {
+  assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(23005), 366292);
+  assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(91718), 366350);
+  assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(91735), 366359);
+});
+
 test("legacy tile collisions resolve by saved topology rather than current tile coincidence", () => {
   assert.equal(
     SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(74340),

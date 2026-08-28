@@ -442,6 +442,7 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("Sakai", "Japan", "hosokawa"),
   cityRule("Yamaguchi", "Japan", "ouchi"),
   cityRule("Fukuoka", "Japan", "ouchi"),
+  cityRule("Tomogaura", "Japan", "ouchi"),
   cityRule("Kagoshima", "Japan", "shimazu"),
   cityRule("Tsushima Fuchu", "Japan", "so"),
   cityRule("Nagasaki", "Japan", "shoni"),

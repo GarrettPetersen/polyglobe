@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { cityCatalogId, loadCityCatalogFromCsv } from "./cityCatalogData.js";
+import { IWAMI_SILVER_PRODUCTION_START_MINUTE } from "./economy.js";
 import { createForeignSettlementExpulsionMemory, withForeignSettlements1522 } from "./foreignSettlements.js";
 import {
   HISTORICAL_GOSSIP_EVENTS,
@@ -120,6 +121,12 @@ test("historical gossip registry is unique and chronological", () => {
     index === 0 || HISTORICAL_GOSSIP_EVENTS[index - 1].fromMinute <= event.fromMinute
   )));
   assert.ok(HISTORICAL_GOSSIP_EVENTS.every((event) => event.untilMinute > event.fromMinute));
+});
+
+test("the Iwami silver report and market production begin together", () => {
+  const event = HISTORICAL_GOSSIP_EVENTS.find(({ id }) => id === "iwami-silver");
+  assert.ok(event);
+  assert.equal(event.fromMinute, IWAMI_SILVER_PRODUCTION_START_MINUTE);
 });
 
 test("historical gossip city references resolve against stable production identities", () => {

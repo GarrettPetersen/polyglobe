@@ -5,6 +5,7 @@ export const ANIMAL_ENCOUNTER_ROLL_INTERVAL_MINUTES = 6 * 60;
 export const ANIMAL_ENCOUNTER_CHANCE = 0.035;
 export const ANIMAL_INITIAL_ANCHOR_ENCOUNTER_CHANCE = 0.12;
 export const ANIMAL_COMPANION_ENCOUNTER_WEIGHT = 3;
+export const ANIMAL_CONTINENTAL_LANDMASS_MIN_WORLD_FRACTION = 0.01;
 
 const PORTRAIT_ROOT = "assets/animals/portraits";
 
@@ -90,6 +91,40 @@ export const ANIMAL_CATALOG = Object.freeze([
 export const ANIMAL_CATALOG_BY_ID = new Map(ANIMAL_CATALOG.map((animalEntry) => [animalEntry.id, animalEntry]));
 if (ANIMAL_CATALOG_BY_ID.size !== ANIMAL_CATALOG.length) {
   throw new Error("Animal catalog contains duplicate ids");
+}
+
+export function buildAnimalLandmassWorldFractions(earthRows) {
+  if (!Array.isArray(earthRows) || earthRows.length === 0) {
+    throw new Error("Animal landmass fractions require complete Earth terrain rows");
+  }
+  const tileCountsByLandmassId = new Map();
+  for (const row of earthRows) {
+    if (!Number.isInteger(row?.m)) continue;
+    if (row.m < 0) throw new Error(`Animal landmass id cannot be negative: ${row.m}`);
+    tileCountsByLandmassId.set(row.m, (tileCountsByLandmassId.get(row.m) || 0) + 1);
+  }
+  if (tileCountsByLandmassId.size === 0) {
+    throw new Error("Animal habitat map contains no landmass ids");
+  }
+  return new Map([...tileCountsByLandmassId].map(([landmassId, tileCount]) => [
+    landmassId,
+    tileCount / earthRows.length
+  ]));
+}
+
+export function animalLandmassWorldFraction(row, landmassWorldFractions) {
+  if (row?.t === "ice" || row?.t === "ice_cap") return 0;
+  if (!Number.isInteger(row?.m)) {
+    throw new Error(`Animal habitat terrain has no landmass id: ${row?.m ?? "missing"}`);
+  }
+  if (!(landmassWorldFractions instanceof Map)) {
+    throw new Error("Animal habitat requires a landmass fraction map");
+  }
+  const fraction = landmassWorldFractions.get(row.m);
+  if (!Number.isFinite(fraction) || fraction <= 0 || fraction > 1) {
+    throw new Error(`Animal habitat has no valid fraction for landmass ${row.m}: ${fraction}`);
+  }
+  return fraction;
 }
 
 export function createAnimalEncounterMemory() {
@@ -330,6 +365,10 @@ function validateHabitat(habitat) {
       typeof habitat.isLake !== "boolean" || typeof habitat.isCoast !== "boolean") {
     throw new Error("Animal habitat requires explicit water and ice flags");
   }
+  if (!Number.isFinite(habitat.landmassWorldFraction) ||
+      habitat.landmassWorldFraction < 0 || habitat.landmassWorldFraction > 1) {
+    throw new Error(`Animal habitat requires a valid landmass fraction: ${habitat.landmassWorldFraction}`);
+  }
 }
 
 function checkedRandom(random, label) {
@@ -346,104 +385,127 @@ function longitudeIn(h, west, east) {
   return h.longitudeDeg >= west && h.longitudeDeg <= east;
 }
 
+function latitudeIn(h, south, north) {
+  return h.latitudeDeg >= south && h.latitudeDeg <= north;
+}
+
+function inRegion(h, south, north, west, east) {
+  return latitudeIn(h, south, north) && longitudeIn(h, west, east);
+}
+
+function onContinentalLandmass(h) {
+  return h.landmassWorldFraction >= ANIMAL_CONTINENTAL_LANDMASS_MIN_WORLD_FRACTION;
+}
+
 function tigerRange(h) {
-  const caspian = h.latitudeDeg >= 30 && h.latitudeDeg <= 48 && longitudeIn(h, 45, 75);
-  const mainland = h.latitudeDeg >= 5 && h.latitudeDeg <= 50 && longitudeIn(h, 65, 135) &&
-    !tigerlessEastAsianIsland(h);
-  const sumatra = h.latitudeDeg >= -6 && h.latitudeDeg <= 6 && longitudeIn(h, 95, 106);
-  const javaAndBali = h.latitudeDeg >= -9 && h.latitudeDeg <= -5 && longitudeIn(h, 105, 116);
+  const caspian = onContinentalLandmass(h) && inRegion(h, 30, 48, 45, 75);
+  const mainland = onContinentalLandmass(h) && inRegion(h, 5, 50, 65, 135);
+  const sumatra = sumatraIsland(h);
+  const javaAndBali = javaAndBaliIslands(h);
   return (caspian || mainland || sumatra || javaAndBali) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.WET);
 }
 
 function northernWilds(h) {
-  const holarctic = h.latitudeDeg >= 35 && h.latitudeDeg <= 72;
-  const southwestAsia = h.latitudeDeg >= 30 && h.latitudeDeg < 35 && longitudeIn(h, 25, 80);
-  const atlasMountains = h.latitudeDeg >= 28 && h.latitudeDeg <= 37 && longitudeIn(h, -13, 12) &&
+  const continental = onContinentalLandmass(h);
+  const holarctic = (continental || nativeBrownBearIsland(h)) && latitudeIn(h, 35, 72);
+  const southwestAsia = continental && inRegion(h, 30, 35, 25, 80);
+  const atlasMountains = continental && inRegion(h, 28, 37, -13, 12) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.MOUNTAIN);
   return (holarctic || southwestAsia || atlasMountains) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.ROCK, TERRAIN_TRAIT.TUNDRA, TERRAIN_TRAIT.GRASS);
 }
 
 function elephantRange(h) {
-  const africa = h.latitudeDeg >= -35 && h.latitudeDeg <= 20 && longitudeIn(h, -20, 55);
-  const indianSubcontinent = h.latitudeDeg >= 5 && h.latitudeDeg <= 32 && longitudeIn(h, 65, 100);
-  const southeastAsianMainland = h.latitudeDeg >= 0 && h.latitudeDeg <= 28 && longitudeIn(h, 95, 110);
-  const sunda = h.latitudeDeg >= -8 && h.latitudeDeg <= 8 && longitudeIn(h, 95, 119);
-  const asia = indianSubcontinent || southeastAsianMainland || sunda;
+  const africa = onContinentalLandmass(h) && inRegion(h, -35, 20, -20, 55);
+  const indianSubcontinent = onContinentalLandmass(h) && inRegion(h, 5, 32, 65, 100);
+  const southeastAsianMainland = onContinentalLandmass(h) && inRegion(h, 0, 28, 95, 110);
+  const asia = indianSubcontinent || southeastAsianMainland || nativeElephantIsland(h);
   return (africa || asia) && terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE);
 }
 
 function rhinoRange(h) {
-  const africa = h.latitudeDeg >= -35 && h.latitudeDeg <= 18 && longitudeIn(h, -15, 52);
-  const asia = h.latitudeDeg >= -8 && h.latitudeDeg <= 32 && longitudeIn(h, 68, 110);
+  const africa = onContinentalLandmass(h) && inRegion(h, -35, 18, -15, 52);
+  const asia = (onContinentalLandmass(h) && inRegion(h, 5, 32, 68, 110)) ||
+    nativeRhinoIsland(h);
   return (africa || asia) && terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE, TERRAIN_TRAIT.WET);
 }
 
 function wetTemperateHabitat(h) {
-  return h.latitudeDeg >= -55 && h.latitudeDeg <= 70 && (h.isRiver || h.isLake || h.isCoast) && !h.isSurfaceIce;
+  const nativeLandmass = onContinentalLandmass(h) || nativeOtterIsland(h);
+  const americas = nativeLandmass && inRegion(h, -55, 70, -170, -35);
+  const afroEurasia = nativeLandmass && inRegion(h, -35, 70, -20, 150) &&
+    !madagascarIsland(h) && !australasia(h);
+  return (americas || afroEurasia) && (h.isRiver || h.isLake || h.isCoast) && !h.isSurfaceIce;
 }
 
 function chipmunkRange(h) {
-  return h.latitudeDeg >= 20 && h.latitudeDeg <= 65 && longitudeIn(h, -170, -50) &&
+  return onContinentalLandmass(h) && inRegion(h, 20, 65, -170, -50) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.MOUNTAIN);
 }
 
 function giraffeRange(h) {
-  return h.latitudeDeg >= -35 && h.latitudeDeg <= 15 && longitudeIn(h, -20, 52) &&
+  return onContinentalLandmass(h) && inRegion(h, -35, 15, -20, 52) &&
     terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.SAVANNA, TERRAIN_TRAIT.DESERT);
 }
 
 function temperateOpenHabitat(h) {
-  return h.latitudeDeg >= -50 && h.latitudeDeg <= 68 && !h.isSurfaceIce &&
-    !australasia(h) &&
+  const nativeLandmass = onContinentalLandmass(h) || nativeFoxIsland(h);
+  return latitudeIn(h, -50, 68) && !h.isSurfaceIce && nativeLandmass && !australasia(h) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.TUNDRA, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.ROCK);
 }
 
 function australiaRange(h) {
-  return h.latitudeDeg >= -45 && h.latitudeDeg <= -10 && longitudeIn(h, 110, 155) &&
+  return inRegion(h, -45, -10, 110, 155) &&
+    (onContinentalLandmass(h) || tasmaniaIsland(h)) &&
     terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.DESERT, TERRAIN_TRAIT.ROCK);
 }
 
 function tropicalForest(h) {
-  return Math.abs(h.latitudeDeg) <= 28 && terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE);
+  const tropicalAmericas = longitudeIn(h, -120, -30);
+  const tropicalAfrica = longitudeIn(h, -20, 60);
+  const tropicalIndoPacific = longitudeIn(h, 65, 180);
+  return Math.abs(h.latitudeDeg) <= 28 &&
+    (tropicalAmericas || tropicalAfrica || tropicalIndoPacific) &&
+    terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE);
 }
 
 function lionRange(h) {
-  const africa = h.latitudeDeg >= -35 && h.latitudeDeg <= 22 && longitudeIn(h, -20, 52);
-  const southwestAsia = h.latitudeDeg >= 12 && h.latitudeDeg <= 38 && longitudeIn(h, 30, 82);
+  const africa = onContinentalLandmass(h) && inRegion(h, -35, 22, -20, 52);
+  const southwestAsia = onContinentalLandmass(h) && inRegion(h, 12, 38, 30, 82);
   return (africa || southwestAsia) && terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.SAVANNA, TERRAIN_TRAIT.DESERT, TERRAIN_TRAIT.FOREST);
 }
 
 function eagleRange(h) {
-  return !h.isSurfaceIce && terrainIncludes(h, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.ROCK, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.TUNDRA);
+  return !h.isSurfaceIce && (onContinentalLandmass(h) || nativeEagleIsland(h)) &&
+    terrainIncludes(h, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.ROCK, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.TUNDRA);
 }
 
 function farNorthForest(h) {
-  const northAmerica = h.latitudeDeg >= 45 && h.latitudeDeg <= 72 && longitudeIn(h, -170, -50);
-  const scandinavia = h.latitudeDeg >= 55 && h.latitudeDeg <= 72 && longitudeIn(h, 5, 32);
-  const easternEurasia = h.latitudeDeg >= 48 && h.latitudeDeg <= 72 && longitudeIn(h, 20, 180);
+  const northAmerica = onContinentalLandmass(h) && inRegion(h, 45, 72, -170, -50);
+  const scandinavia = onContinentalLandmass(h) && inRegion(h, 55, 72, 5, 32);
+  const easternEurasia = onContinentalLandmass(h) && inRegion(h, 48, 72, 20, 180);
   return (northAmerica || scandinavia || easternEurasia) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.TUNDRA, TERRAIN_TRAIT.WET, TERRAIN_TRAIT.GRASS);
 }
 
 function africanGrassland(h) {
-  return h.latitudeDeg >= -35 && h.latitudeDeg <= 15 && longitudeIn(h, -20, 52) &&
+  return onContinentalLandmass(h) && inRegion(h, -35, 15, -20, 52) &&
     terrainIncludes(h, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.SAVANNA);
 }
 
 function tropicalAmericaForest(h) {
-  return h.latitudeDeg >= -25 && h.latitudeDeg <= 20 && longitudeIn(h, -90, -35) &&
+  return onContinentalLandmass(h) && inRegion(h, -25, 20, -90, -35) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE);
 }
 
 function pandaRange(h) {
-  return h.latitudeDeg >= 24 && h.latitudeDeg <= 36 && longitudeIn(h, 95, 112) &&
+  return onContinentalLandmass(h) && inRegion(h, 24, 36, 95, 112) &&
     terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.GRASS);
 }
 
 function raccoonRange(h) {
-  return h.latitudeDeg >= 7 && h.latitudeDeg <= 58 && longitudeIn(h, -130, -50) &&
+  return onContinentalLandmass(h) && inRegion(h, 7, 58, -130, -50) &&
     (h.isRiver || h.isLake || terrainIncludes(h, TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.GRASS, TERRAIN_TRAIT.WET));
 }
 
@@ -460,12 +522,80 @@ function penguinRange(h) {
     southernAfrica || southernAustralasia(h);
 }
 
-function tigerlessEastAsianIsland(h) {
-  const borneo = h.latitudeDeg >= -7 && h.latitudeDeg <= 8 && longitudeIn(h, 108, 120);
-  const philippines = h.latitudeDeg >= 5 && h.latitudeDeg <= 21 && longitudeIn(h, 116, 127);
-  const taiwan = h.latitudeDeg >= 21 && h.latitudeDeg <= 26 && longitudeIn(h, 119, 123);
-  const japan = h.latitudeDeg >= 30 && h.latitudeDeg <= 46 && longitudeIn(h, 129, 146);
-  return borneo || philippines || taiwan || japan;
+function sumatraIsland(h) {
+  return inRegion(h, -6.5, 6.5, 95, 106.5) && !onContinentalLandmass(h);
+}
+
+function javaAndBaliIslands(h) {
+  return inRegion(h, -9.5, -5, 105, 116.5) && !onContinentalLandmass(h);
+}
+
+function borneoIsland(h) {
+  return inRegion(h, -7, 8, 108, 120) && !onContinentalLandmass(h);
+}
+
+function sriLankaIsland(h) {
+  return inRegion(h, 5, 10.5, 79, 82.5) && !onContinentalLandmass(h);
+}
+
+function madagascarIsland(h) {
+  return inRegion(h, -26.5, -11, 43, 51.5) && !onContinentalLandmass(h);
+}
+
+function tasmaniaIsland(h) {
+  return inRegion(h, -44.5, -39, 143, 149.5) && !onContinentalLandmass(h);
+}
+
+function japanIslands(h) {
+  return inRegion(h, 30, 46, 129, 146.5) && !onContinentalLandmass(h);
+}
+
+function hokkaidoIsland(h) {
+  return inRegion(h, 41, 46, 139, 146.5) && !onContinentalLandmass(h);
+}
+
+function britishAndIrishIslands(h) {
+  return inRegion(h, 49, 61, -11, 3) && !onContinentalLandmass(h);
+}
+
+function northPacificAmericanIslands(h) {
+  return inRegion(h, 50, 61, -180, -125) && !onContinentalLandmass(h);
+}
+
+function greenlandIsland(h) {
+  return inRegion(h, 59, 84, -74, -10) && !onContinentalLandmass(h);
+}
+
+function papuaIsland(h) {
+  return inRegion(h, -11, 1, 130, 151) && !onContinentalLandmass(h);
+}
+
+function nativeElephantIsland(h) {
+  return sriLankaIsland(h) || sumatraIsland(h) || borneoIsland(h) || javaAndBaliIslands(h);
+}
+
+function nativeRhinoIsland(h) {
+  return sumatraIsland(h) || borneoIsland(h) || javaAndBaliIslands(h);
+}
+
+function nativeBrownBearIsland(h) {
+  return hokkaidoIsland(h) || northPacificAmericanIslands(h);
+}
+
+function nativeOtterIsland(h) {
+  return britishAndIrishIslands(h) || japanIslands(h) || northPacificAmericanIslands(h) ||
+    sumatraIsland(h) || javaAndBaliIslands(h) || borneoIsland(h) || sriLankaIsland(h);
+}
+
+function nativeFoxIsland(h) {
+  return britishAndIrishIslands(h) || japanIslands(h) || greenlandIsland(h) ||
+    northPacificAmericanIslands(h) || inRegion(h, 35, 44, 7, 16);
+}
+
+function nativeEagleIsland(h) {
+  return britishAndIrishIslands(h) || japanIslands(h) || greenlandIsland(h) ||
+    northPacificAmericanIslands(h) || sumatraIsland(h) || javaAndBaliIslands(h) ||
+    borneoIsland(h) || sriLankaIsland(h) || madagascarIsland(h) || papuaIsland(h);
 }
 
 function australasia(h) {

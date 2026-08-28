@@ -80,6 +80,12 @@ export function buildMountainLandmarks(mountains, graph, directionIndex, cachePe
 
   const cachedPeakTileIds = validateCachePeaks(cachePeaks);
   const allCachedPeakTileIds = [...cachedPeakTileIds];
+  const displayNames = mountains.map(mountainDisplayName);
+  const displayNameSlugCounts = new Map();
+  for (const displayName of displayNames) {
+    const slug = slugify(displayName);
+    displayNameSlugCounts.set(slug, (displayNameSlugCounts.get(slug) || 0) + 1);
+  }
   const cachePeakIdsByElevation = new Map();
   for (const [tileId, elevationM] of cachePeaks) {
     let tileIds = cachePeakIdsByElevation.get(elevationM);
@@ -90,16 +96,16 @@ export function buildMountainLandmarks(mountains, graph, directionIndex, cachePe
     tileIds.push(tileId);
   }
 
-  const all = mountains.map((mountain) => {
+  const all = mountains.map((mountain, index) => {
     const direction = latLonToDirection(mountain.lat, mountain.lon);
     const directTileId = findNearestTileId(graph, directionIndex, direction);
     const tileId = cachedPeakTileIds.has(directTileId)
       ? directTileId
       : nearestCachePeakTileId(graph, direction, cachePeakIdsByElevation.get(mountain.elevationM) || allCachedPeakTileIds);
-    const displayName = mountainDisplayName(mountain);
+    const displayName = displayNames[index];
     return {
       ...mountain,
-      id: `mountain-${tileId}-${slugify(displayName)}`,
+      id: mountainLandmarkId(mountain, displayName, displayNameSlugCounts),
       tileId,
       displayName,
       famous: isFamousMountain(mountain)
@@ -116,6 +122,25 @@ export function buildMountainLandmarks(mountains, graph, directionIndex, cachePe
     famousByTileId,
     peakTileIds
   };
+}
+
+export function mountainLandmarkId(mountain, displayName, displayNameSlugCounts) {
+  if (!mountain || !Number.isFinite(mountain.lat) || !Number.isFinite(mountain.lon)) {
+    throw new Error(`Mountain landmark id requires coordinates: ${displayName || "unknown"}`);
+  }
+  if (typeof displayName !== "string" || displayName.trim() === "") {
+    throw new Error("Mountain landmark id requires a display name");
+  }
+  if (!(displayNameSlugCounts instanceof Map)) {
+    throw new Error("Mountain landmark id requires display-name counts");
+  }
+  const slug = slugify(displayName);
+  const count = displayNameSlugCounts.get(slug);
+  if (!Number.isInteger(count) || count <= 0) {
+    throw new Error(`Mountain landmark display name was not counted: ${displayName}`);
+  }
+  if (count === 1) return `mountain-${slug}`;
+  return `mountain-${slug}-${coordinateId(mountain.lat, "n", "s")}-${coordinateId(mountain.lon, "e", "w")}`;
 }
 
 function validateCachePeaks(cachePeaks) {
@@ -201,4 +226,9 @@ function slugify(value) {
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "") || "peak";
+}
+
+function coordinateId(value, positivePrefix, negativePrefix) {
+  const prefix = value < 0 ? negativePrefix : positivePrefix;
+  return `${prefix}${Math.abs(value).toFixed(5).replace(".", "p")}`;
 }

@@ -10,7 +10,7 @@ import {
   buildWorldDiscoveries,
   restrictMountainsToNavigableView
 } from "./discoveries.js";
-import { createDirectionIndex } from "./geodesic.js";
+import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { buildMountainLandmarks } from "./mountainLandmarks.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
@@ -93,11 +93,37 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
   const ports = portCitiesOnWorld(placedByTileId, placementOptions);
   assert.doesNotThrow(() => validateCanonicalPortCatalog(ports));
   const portKeys = new Set(ports.map((city) => `${city.city}|${city.country}`));
+  const northMalukuPorts = [
+    ["Ternate", 366292],
+    ["Tidore", 366350],
+    ["Makian Village", 366359]
+  ].map(([cityName, expectedTileId]) => {
+    const port = ports.find((candidate) => (
+      candidate.city === cityName && candidate.country === "Indonesia"
+    ));
+    assert.ok(port, `${cityName} must remain a dockable North Maluku island`);
+    assert.equal(port.tileId, expectedTileId, `${cityName} must occupy its authored island tile`);
+    return port;
+  });
+  assert.equal(
+    new Set(northMalukuPorts.map(({ landmassId }) => landmassId)).size,
+    northMalukuPorts.length,
+    "Ternate, Tidore, and Makian must be three distinct islands"
+  );
+  assert.ok(
+    graph.neighbors[northMalukuPorts[0].tileId].includes(northMalukuPorts[1].tileId),
+    "Ternate and Tidore should be adjacent across their narrow channel"
+  );
+  assert.ok(
+    graph.neighbors[northMalukuPorts[1].tileId].includes(northMalukuPorts[2].tileId),
+    "Tidore and Makian should form the next reach of the volcanic island chain"
+  );
   for (const city of cities.filter(cityRequiresPortAccess)) {
     assert.ok(portKeys.has(`${city.city}|${city.country}`), `${city.city} must remain water-accessible`);
   }
   assert.ok(!portKeys.has("Mecca|Saudi Arabia"), "Mecca must remain inland behind Jeddah");
   assert.ok(portKeys.has("Delhi|India"), "Delhi must retain its Yamuna approach");
+  assert.ok(portKeys.has("Tomogaura|Japan"), "Iwami must retain its historical Tomogaura export harbor");
   assert.ok(portKeys.has("Gao|Mali"), "Gao must retain its Niger approach");
   assert.ok(portKeys.has("Tombouctou|Mali"), "Timbuktu must retain its Kabara approach");
   for (const [city, country] of [
@@ -160,8 +186,14 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     "examples/globe-demo/public/mountains.json",
     repoRoot
   ), "utf8"));
+  const subdivisionEightMountainRegistry = buildMountainLandmarks(
+    namedMountains,
+    graph,
+    directionIndex,
+    earth.peaks
+  );
   const mountainRegistry = restrictMountainsToNavigableView(
-    buildMountainLandmarks(namedMountains, graph, directionIndex, earth.peaks),
+    subdivisionEightMountainRegistry,
     graph,
     navigation.reachableNavigationMask,
     MAX_MOUNTAIN_DISCOVERY_RADIUS_PX / WORLD_PIXELS_PER_RADIAN
@@ -170,6 +202,23 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     mountainRegistry.inaccessibleFamous.map((mountain) => mountain.displayName).sort(),
     ["Mount Kenya", "Muztag Feng", "Vinson Massif"],
     "the larger globe must not strand mountains that were discoverable on the old map"
+  );
+
+  const subdivisionSevenEarth = JSON.parse(await readFile(new URL(
+    "examples/globe-demo/public/earth-globe-cache-7.json",
+    repoRoot
+  ), "utf8"));
+  const subdivisionSevenGraph = buildGeodesicGraph(7);
+  const subdivisionSevenMountainRegistry = buildMountainLandmarks(
+    namedMountains,
+    subdivisionSevenGraph,
+    createDirectionIndex(subdivisionSevenGraph),
+    subdivisionSevenEarth.peaks
+  );
+  assert.deepEqual(
+    new Map(subdivisionEightMountainRegistry.famous.map(({ displayName, id }) => [displayName, id])),
+    new Map(subdivisionSevenMountainRegistry.famous.map(({ displayName, id }) => [displayName, id])),
+    "named discovery ids must remain stable when the globe topology changes"
   );
 });
 

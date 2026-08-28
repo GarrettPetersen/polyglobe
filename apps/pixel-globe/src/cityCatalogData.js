@@ -218,6 +218,12 @@ function ensureManualCityRecords(bestByCity, targetYear) {
       country: manualSpec.country,
       lat: manualSpec.lat,
       lon: manualSpec.lon,
+      ...(manualSpec.placementLat === undefined && manualSpec.placementLon === undefined
+        ? {}
+        : {
+            placementLat: manualSpec.placementLat,
+            placementLon: manualSpec.placementLon
+          }),
       cityType: manualSpec.cityType || cityTypeForCity(manualSpec.country, manualSpec.lat, manualSpec.lon),
       year: manualSpec.year,
       population: manualSpec.population,

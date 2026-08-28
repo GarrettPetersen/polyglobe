@@ -165,12 +165,28 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
   }),
   manualCity1522("Ternate", "Indonesia", 0.7893, 127.3844, 12000, {
     cityType: "southeast-asian",
-    manualRegion: "spice-islands"
+    manualRegion: "spice-islands",
+    // Ternate and Tidore are closer than one subdivision-eight tile. These
+    // authored centers preserve both as distinct volcanic islands while the
+    // historical coordinates above remain available to geography systems.
+    placementLat: 0.7288705110549927,
+    placementLon: 127.42523193359375
   }),
   manualCity1522("Tidore", "Indonesia", 0.6739, 127.4502, 10000, {
     cityType: "southeast-asian",
     manualRegion: "spice-islands",
+    placementLat: 0.4373382329940796,
+    placementLon: 127.42520141601562,
     marketGoods: ["cloves", "fish", "timber"]
+  }),
+  // Tomogaura was the seaward outlet used by the Iwami silver mine when its
+  // ore began moving through Ouchi trade in 1526. Present the province name to
+  // the player while retaining the historical harbor as the stable identity.
+  manualVillage1522("Tomogaura", "Japan", 35.101, 132.375, 1800, {
+    displayCity: "Iwami",
+    cityType: "east-asian",
+    manualRegion: "western-japan",
+    marketGoods: ["fish", "salt", "timber"]
   }),
   manualCity1522("Colombo", "Sri Lanka", 6.9344, 79.8428, 12000, {
     cityType: "south-asian",
@@ -381,6 +397,8 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "southeast-asian",
     manualRegion: "spice-islands",
     islandSettlement: true,
+    placementLat: 0.14578206837177277,
+    placementLon: 127.42520141601562,
     marketGoods: ["cloves", "fish", "timber"]
   }),
   manualVillage1522("Gane Village", "Indonesia", -0.1213, 127.9028, 2000, {
