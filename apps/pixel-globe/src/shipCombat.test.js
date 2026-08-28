@@ -283,18 +283,19 @@ test("waiting inside any port prevents and ends combat", () => {
 });
 
 test("warring warships fight but unescorted merchants do not initiate", () => {
+  const atWar = () => "war";
   const war = createShipCombatState();
   const warResult = updateShipCombatState(war, [
     ship("english", "warship", "england", 0, 0, 190, 18),
     ship("french", "warship", "france", 40, 0, 190, 18)
-  ]);
+  ], atWar);
   assert.equal(warResult.engagementCount, 1);
 
   const trade = createShipCombatState();
   const tradeResult = updateShipCombatState(trade, [
     ship("english", "merchant", "england", 0, 0, 110, 8),
     ship("french", "merchant", "france", 40, 0, 110, 8)
-  ]);
+  ], atWar);
   assert.equal(tradeResult.engagementCount, 0);
 });
 

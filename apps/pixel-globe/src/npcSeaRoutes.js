@@ -78,7 +78,12 @@ import {
   embargoOrderControlsGood,
   npcEmbargoInspectionOutcome,
   npcWillSmuggleEmbargoedCargo,
+  TRADE_EMBARGO_RESTRICTION_BLOCKADE,
+  TRADE_EMBARGO_RESTRICTION_EXPORTS,
+  TRADE_EMBARGO_RESTRICTION_IMPORTS,
   tradeEmbargoOrdersForPurchase,
+  tradeEmbargoOrdersForSale,
+  tradeEmbargoOrdersForShipping,
   validateTradeEmbargoMemory
 } from "./tradeEmbargoes.js";
 import { validateForeignSettlementExpulsionMemory } from "./foreignSettlements.js";
@@ -4776,11 +4781,25 @@ function buyNpcCargo(system, ship, origin, destination) {
       PORTUGUESE_CARTAZ_DURATION_DAYS * WEATHER_MINUTES_PER_DAY;
   }
   for (const line of plan.lines) {
-    const embargoOrders = tradeEmbargoOrdersForPurchase(system.tradeEmbargoes, {
-      sourceFactionId: origin.factionId,
-      goodId: line.goodId,
-      playerFactionId: ship.factionId
-    });
+    const embargoOrders = [
+      ...tradeEmbargoOrdersForPurchase(system.tradeEmbargoes, {
+        sourceFactionId: origin.factionId,
+        goodId: line.goodId,
+        playerFactionId: ship.factionId
+      }),
+      ...tradeEmbargoOrdersForSale(system.tradeEmbargoes, {
+        destinationFactionId: destination.factionId,
+        goodId: line.goodId,
+        playerFactionId: ship.factionId
+      }),
+      ...tradeEmbargoOrdersForShipping(system.tradeEmbargoes, {
+        shipFactionId: ship.factionId,
+        destinationFactionId: destination.factionId,
+        goodId: line.goodId
+      })
+    ].filter((order, index, orders) => (
+      orders.findIndex((candidate) => candidate.id === order.id) === index
+    ));
     if (embargoOrders.length > 0 && !npcWillSmuggleEmbargoedCargo({
       shipId: ship.id,
       seed: system.tradeEmbargoes.seed,
@@ -5175,6 +5194,8 @@ export function npcTradeEmbargoViolations(ship, embargoMemory, enforcingFactionI
     throw new Error("NPC trade embargo inspection requires enforcing factions");
   }
   const enforcers = new Set(enforcingFactionIds.map(assertFactionId));
+  const destinationFactionId = ship.plan?.destination?.factionId || ship.currentPort?.factionId || null;
+  if (destinationFactionId !== null) assertFactionId(destinationFactionId);
   const violations = [];
   for (const order of activeTradeEmbargoOrders(embargoMemory)) {
     const authorizedEnforcers = order.followerFactionIds.filter((factionId) => (
@@ -5182,12 +5203,22 @@ export function npcTradeEmbargoViolations(ship, embargoMemory, enforcingFactionI
     ));
     if (authorizedEnforcers.length === 0) continue;
     const cargo = {};
-    for (const [goodId, origins] of Object.entries(ship.cargoOrigins)) {
+    for (const [goodId, held] of Object.entries(ship.cargo)) {
       if (!embargoOrderControlsGood(order, goodId)) continue;
-      const quantity = origins
-        .filter((origin) => origin.sourceFactionId === order.targetFactionId)
-        .reduce((sum, origin) => sum + origin.quantity, 0);
-      if (quantity > 0) cargo[goodId] = Math.min(quantity, ship.cargo[goodId] || 0);
+      let quantity = 0;
+      if (order.restrictionKind === TRADE_EMBARGO_RESTRICTION_IMPORTS) {
+        quantity = (ship.cargoOrigins[goodId] || [])
+          .filter((origin) => origin.sourceFactionId === order.targetFactionId)
+          .reduce((sum, origin) => sum + origin.quantity, 0);
+      } else if (order.restrictionKind === TRADE_EMBARGO_RESTRICTION_EXPORTS) {
+        quantity = destinationFactionId === order.targetFactionId ? held : 0;
+      } else if (order.restrictionKind === TRADE_EMBARGO_RESTRICTION_BLOCKADE) {
+        quantity = ship.factionId === order.targetFactionId ||
+          destinationFactionId === order.targetFactionId ? held : 0;
+      } else {
+        throw new Error(`Unknown NPC trade restriction kind: ${order.restrictionKind}`);
+      }
+      if (quantity > 0) cargo[goodId] = Math.min(quantity, held);
     }
     const cargoQuantity = Object.values(cargo).reduce((sum, quantity) => sum + quantity, 0);
     if (cargoQuantity <= 0) continue;
@@ -5199,6 +5230,7 @@ export function npcTradeEmbargoViolations(ship, embargoMemory, enforcingFactionI
       issuerFactionId: order.issuerFactionId,
       targetFactionId: order.targetFactionId,
       scope: order.scope,
+      restrictionKind: order.restrictionKind,
       enforcingFactionId: authorizedEnforcers[0],
       cargo: Object.freeze(cargo),
       cargoQuantity

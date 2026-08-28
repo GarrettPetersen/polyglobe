@@ -1955,6 +1955,45 @@ test("sell all remains actionable when only one unit is held", () => {
   assert.equal(gameState.cargo.wool, undefined);
 });
 
+test("a factor warns before delivering Papally prohibited arms to Ottoman buyers", () => {
+  const city = {
+    tileId: 912,
+    city: "Istanbul",
+    displayCity: "Istanbul",
+    country: "Turkey",
+    cityType: "mediterranean",
+    population: 400000,
+    factionId: "ottoman",
+    character: { name: "Kemal Reis" }
+  };
+  const gameState = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] }
+  });
+  gameState.cargo.gunpowder = 1;
+  gameState.accounts.cargoCostBasis.gunpowder = 100;
+  const papalStanding = factionReputation(gameState, "papal-states");
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "sell",
+    admittedToPort: true
+  });
+  const context = { simMinute: 100 };
+  const sell = portDialogueView(session, city, gameState, economy, [city], context);
+  const saleIndex = sell.options.findIndex((entry) => (
+    entry.action.type === "sell" && entry.action.goodId === "gunpowder"
+  ));
+  assert.ok(saleIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], saleIndex, context);
+
+  const warning = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(warning.text, /Holy See forbid this cargo to the buyers here/i);
+  assert.match(warning.text, /customs books will bear your name/i);
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  assert.equal(result.marketSale.embargoOrders[0].restrictionKind, "strategic-exports");
+  assert.equal(factionReputation(gameState, "papal-states"), papalStanding - 5);
+});
+
 test("sell all matches the same sequence of rounded prices as individual sales", () => {
   const city = {
     tileId: 304,
@@ -3534,6 +3573,7 @@ test("formal war permits a lawful port raid but grants no right of conquest", ()
     cargoCapacity: 20,
     playerCharacter: { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] }
   });
+  gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
   const context = { portAttackStatus: playerPortAttackStatus(gameState, city) };
@@ -3566,6 +3606,7 @@ test("a port attack button identifies the letter of marque that makes it legal",
     playerCharacter: { name: "Li Wei", nationalityId: "ming", expressions: ["neutral"] }
   });
   gameState.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  gameState.relations.diplomacy.overrides["hospitallers|ottoman"] = DIPLOMACY_WAR;
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
   const context = { portAttackStatus: playerPortAttackStatus(gameState, city) };
@@ -3884,6 +3925,7 @@ test("captains admitted under safe passage can seek an illicit wartime market", 
   const shipStats = shipStatsForSlug("fishing-lugger");
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, playerCharacter, shipStats });
+  gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   gameState.relations.safePassageUntilMinute.france = 1000;
   assert.equal(portEntryStatus(gameState, city, 100).allowed, true);
   const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
@@ -4074,6 +4116,7 @@ test("a capital factor proactively offers a qualified captain a wartime letter o
       expressions: ["neutral", "happy"]
     }
   });
+  gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   adjustFactionReputation(gameState, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
   const factorOffer = prepareProactiveLetterOfMarque(
     gameState,
@@ -4130,6 +4173,7 @@ test("declining a proactive marque offer leaves the ordinary request available",
       expressions: ["neutral", "happy"]
     }
   });
+  gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   adjustFactionReputation(gameState, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
   const session = createPortArrivalDialogueSession(city, {
     letterOfMarqueFactorOffer: prepareProactiveLetterOfMarque(
@@ -6945,6 +6989,7 @@ test("a crown capture commission names the enemy port, spoils, and return reward
     },
     shipStats: stats
   });
+  gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   gameState.ship.crew = 36;
   gameState.ship.cannons = 8;
   gameState.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
@@ -6997,6 +7042,7 @@ test("capital petition dialogue lets the captain name an enemy while the court f
       expressions: ["neutral", "happy"]
     }
   });
+  gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   gameState.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   const ports = [london, calais];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
@@ -7220,6 +7266,7 @@ test("a final capital commission explains the war's grievance and general peace"
     },
     shipStats: stats
   });
+  gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   gameState.ship.crew = 36;
   gameState.ship.cannons = 8;
   gameState.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };

@@ -31,7 +31,7 @@ import {
 import { factionDiplomaticAggressionMultiplier } from "./factionExpansion.js";
 import { imperialDefensePartners } from "./imperialConstitution.js";
 
-export const WORLD_DIPLOMACY_VERSION = 9;
+export const WORLD_DIPLOMACY_VERSION = 10;
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
 export const DIPLOMACY_MAX_EVENT_DAYS = 150;
 export const DIPLOMACY_PAIR_COOLDOWN_DAYS = 120;
@@ -164,10 +164,11 @@ export function migrateWorldDiplomacy(state, {
   if (state.version === WORLD_DIPLOMACY_VERSION && !hasContextualMigration) {
     return validateWorldDiplomacy(state);
   }
-  if (![1, 2, 3, 4, 5, 6, 7, 8, WORLD_DIPLOMACY_VERSION].includes(state.version)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, 9, WORLD_DIPLOMACY_VERSION].includes(state.version)) {
     throw new Error(`Unsupported world diplomacy version: ${state.version ?? "missing"}`);
   }
   const migratedOverrides = removeRetiredFactionPairs(state.overrides);
+  preserveLegacyOpeningWars(state.version, migratedOverrides);
   const migratedSuzerainties = migrateSuzeraintyMemory(state.suzerainties, state.startMinute, {
     inactiveFactionIds
   });
@@ -183,6 +184,17 @@ export function migrateWorldDiplomacy(state, {
     suzerainties: migratedSuzerainties,
     history: state.history.filter((event) => !diplomacyEventUsesRetiredFaction(event))
   });
+}
+
+function preserveLegacyOpeningWars(savedVersion, overrides) {
+  if (savedVersion >= WORLD_DIPLOMACY_VERSION) return;
+  for (const [factionAId, factionBId] of [
+    ["england", "france"],
+    ["hospitallers", "ottoman"]
+  ]) {
+    const key = diplomacyPairKey(factionAId, factionBId);
+    if (overrides[key] === undefined) overrides[key] = DIPLOMACY_WAR;
+  }
 }
 
 function neutralizeNewFactionDefaults(overrides, suzerainties) {

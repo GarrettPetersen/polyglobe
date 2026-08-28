@@ -283,10 +283,12 @@ const FRIENDSHIPS_1522 = Object.freeze([
 ]);
 
 const HOSTILITIES_1522 = Object.freeze([
+  ["england", "france"],
   ["ottoman", "habsburg"],
   ["ottoman", "burgundian-netherlands"],
   ["ottoman", "spain"],
   ["ottoman", "papal-states"],
+  ["ottoman", "hospitallers"],
   ["ottoman", "wallachia"],
   ["venice", "genoa"],
   ["spain", "morocco"],
@@ -308,7 +310,6 @@ const HOSTILITIES_1522 = Object.freeze([
 ]);
 
 const WARS_1522 = Object.freeze([
-  ["england", "france"],
   ["spain", "france"],
   ["burgundian-netherlands", "france"],
   ["habsburg", "france"],
@@ -320,7 +321,6 @@ const WARS_1522 = Object.freeze([
   ["ottoman", "hungary"],
   ["ottoman", "safavid"],
   ["ottoman", "portugal"],
-  ["ottoman", "hospitallers"],
   ["portugal", "ming"],
   ["portugal", "gujarat"],
   ["portugal", "morocco"],

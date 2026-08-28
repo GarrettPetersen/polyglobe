@@ -85,7 +85,7 @@ test("1522 diplomacy matrix is complete and symmetric", () => {
 test("matrix captures clear 1522 alliances, wars, and neutral relationships", () => {
   assert.equal(diplomacyBetween("england", "spain"), DIPLOMACY_ALLY);
   assert.equal(diplomacyBetween("france", "scotland"), DIPLOMACY_ALLY);
-  assert.equal(diplomacyBetween("england", "france"), DIPLOMACY_WAR);
+  assert.equal(diplomacyBetween("england", "france"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("ottoman", "habsburg"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("england", "portugal"), DIPLOMACY_FRIENDLY);
   assert.equal(diplomacyBetween("portugal", "vijayanagara"), DIPLOMACY_FRIENDLY);
@@ -94,7 +94,7 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("portugal", "morocco"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("ming", "japan"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("portugal", "ming"), DIPLOMACY_WAR);
-  assert.equal(diplomacyBetween("ottoman", "hospitallers"), DIPLOMACY_WAR);
+  assert.equal(diplomacyBetween("ottoman", "hospitallers"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("sweden", "denmark-norway"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("sweden", "habsburg"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("papal-states", "hospitallers"), DIPLOMACY_FRIENDLY);

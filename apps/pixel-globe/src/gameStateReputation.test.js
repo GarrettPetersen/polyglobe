@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { createWorldEconomy } from "./economy.js";
 import { CANONICAL_PORTS } from "./canonicalPorts.js";
+import { DIPLOMACY_WAR } from "./factions.js";
 import {
   ENEMY_FACTION_START_REPUTATION,
   FACTION_SAFE_PASSAGE_DAYS,
@@ -99,7 +100,7 @@ test("player reputation starts from nationality, wars, and pirates", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
 
   assert.equal(factionReputation(state, "england"), HOME_FACTION_START_REPUTATION);
-  assert.equal(factionReputation(state, "france"), ENEMY_FACTION_START_REPUTATION);
+  assert.equal(factionReputation(state, "france"), -4);
   assert.equal(factionReputation(state, "spain"), 0);
   assert.equal(factionReputation(state, "pirate"), PIRATE_START_REPUTATION);
 });
@@ -114,6 +115,7 @@ test("naval victories distinguish pirate hunting from other combat", () => {
 
 test("port attacks distinguish capture commissions, wartime raids, privateering, and piracy", () => {
   const wartime = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  wartime.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   assert.deepEqual(
     pickAttackStatus(playerPortAttackStatus(wartime, CALAIS)),
     { commissioned: false, ownNationAtWar: true, privateeringAuthority: false, piracy: false,
@@ -158,6 +160,7 @@ test("port attacks distinguish capture commissions, wartime raids, privateering,
     playerCharacter: { ...PLAYER, nationalityId: "ming" }
   });
   privateer.relations.lettersOfMarque.ottoman = { factionId: "ottoman", simMinute: 0 };
+  privateer.relations.diplomacy.overrides["hospitallers|ottoman"] = DIPLOMACY_WAR;
   assert.deepEqual(
     pickAttackStatus(playerPortAttackStatus(privateer, rhodes)),
     { commissioned: false, ownNationAtWar: false, privateeringAuthority: true, piracy: false,
@@ -564,12 +567,13 @@ test("version 88 voyages gain trade embargo politics and enforcement ledgers", (
   const restored = migrateGameState(saved, null);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
-  assert.equal(restored.relations.tradeEmbargoes.version, 1);
+  assert.equal(restored.relations.tradeEmbargoes.version, 2);
   assert.ok(restored.relations.tradeEmbargoes.orders.some((order) => (
-    order.issuerFactionId === "hospitallers" && order.targetFactionId === "ottoman"
+    order.issuerFactionId === "papal-states" && order.targetFactionId === "ottoman" &&
+    order.restrictionKind === "strategic-exports"
   )));
   assert.deepEqual(restored.memory.tradeEmbargoEnforcement, {
-    version: 1,
+    version: 2,
     nextIncidentId: 1,
     incidents: []
   });
@@ -877,6 +881,7 @@ test("letters of marque require capital standing and ship strength", () => {
 
 test("a letter of marque authorizes privateering against the issuer's war enemies", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  state.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   adjustFactionReputation(state, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
   grantLetterOfMarque(state, LONDON_CAPITAL, LETTER_OF_MARQUE_POWER_REQUIRED);
 
@@ -892,6 +897,7 @@ test("a letter of marque authorizes privateering against the issuer's war enemie
 
 test("a qualified captain receives one proactive marque offer only while the issuer is at war", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  state.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   adjustFactionReputation(state, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
 
   const offer = prepareProactiveLetterOfMarque(
@@ -908,6 +914,7 @@ test("a qualified captain receives one proactive marque offer only while the iss
   );
 
   const ottoman = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  ottoman.relations.diplomacy.overrides["hospitallers|ottoman"] = DIPLOMACY_WAR;
   adjustFactionReputation(
     ottoman,
     "ottoman",
@@ -937,7 +944,7 @@ test("a qualified captain receives one proactive marque offer only while the iss
     LETTER_OF_MARQUE_POWER_REQUIRED
   );
   assert.equal(newConflictOffer.primaryEnemyFactionId, "morocco");
-  assert.ok(newConflictOffer.enemyFactionIds.includes("france"));
+  assert.equal(newConflictOffer.enemyFactionIds.includes("france"), false);
   assert.ok(newConflictOffer.enemyFactionIds.includes("morocco"));
 
   const peaceful = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
@@ -1011,6 +1018,7 @@ test("trusted captains can obtain a personal Indies licencia without opening nat
 
 test("war and deeply hostile standing bar entry while other ports remain open", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  state.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   const seville = port(3, "Seville", "Spain", "mediterranean", 70000, "spain");
 
   const enemyStatus = portEntryStatus(state, CALAIS, 100);
@@ -1031,6 +1039,7 @@ test("war and deeply hostile standing bar entry while other ports remain open", 
 
 test("trusted personal standing waives a hostile stance but never an actual war", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+  state.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
   adjustFactionReputation(
     state,
     "france",

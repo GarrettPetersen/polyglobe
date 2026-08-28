@@ -10,7 +10,7 @@ import {
   assertFactionId,
   factionById
 } from "./factions.js";
-import { rulerAtMinute } from "./rulers.js";
+import { gameMinuteForDate, rulerAtMinute } from "./rulers.js";
 import {
   isMuslimReligion,
   isRomanCatholicReligion
@@ -20,14 +20,17 @@ import {
   validateWorldDiplomacy
 } from "./worldDiplomacy.js";
 
-export const TRADE_EMBARGO_VERSION = 1;
+export const TRADE_EMBARGO_VERSION = 2;
 export const TRADE_EMBARGO_SCOPE_ALL_GOODS = "all-goods";
 export const TRADE_EMBARGO_SCOPE_WAR_MATERIEL = "war-materiel";
+export const TRADE_EMBARGO_RESTRICTION_IMPORTS = "enemy-imports";
+export const TRADE_EMBARGO_RESTRICTION_EXPORTS = "strategic-exports";
+export const TRADE_EMBARGO_RESTRICTION_BLOCKADE = "naval-blockade";
 export const TRADE_EMBARGO_AUTHORITY_NATIONAL = "national";
 export const TRADE_EMBARGO_AUTHORITY_PAPAL = "papal";
 export const TRADE_EMBARGO_HISTORY_LIMIT = 32;
 export const TRADE_EMBARGO_ORDER_LIMIT = 48;
-export const TRADE_EMBARGO_ENFORCEMENT_VERSION = 1;
+export const TRADE_EMBARGO_ENFORCEMENT_VERSION = 2;
 export const TRADE_EMBARGO_REPUTATION_PENALTY = 9;
 export const PAPAL_EMBARGO_REPUTATION_PENALTY = 5;
 
@@ -49,7 +52,13 @@ const EMBARGO_AUTHORITIES = new Set([
   TRADE_EMBARGO_AUTHORITY_NATIONAL,
   TRADE_EMBARGO_AUTHORITY_PAPAL
 ]);
+const EMBARGO_RESTRICTIONS = new Set([
+  TRADE_EMBARGO_RESTRICTION_IMPORTS,
+  TRADE_EMBARGO_RESTRICTION_EXPORTS,
+  TRADE_EMBARGO_RESTRICTION_BLOCKADE
+]);
 const EMBARGO_EVENT_KINDS = new Set(["imposed", "lifted", "followers-changed"]);
+const HISTORICAL_TRANSITION_STATES = new Set(["completed", "averted"]);
 
 export const TRADE_EMBARGO_WAR_MATERIEL_GOOD_IDS = Object.freeze([
   "timber",
@@ -65,11 +74,45 @@ export const TRADE_EMBARGO_WAR_MATERIEL_GOOD_IDS = Object.freeze([
 
 const WAR_MATERIEL_GOOD_ID_SET = new Set(TRADE_EMBARGO_WAR_MATERIEL_GOOD_IDS);
 
-const HISTORICAL_NATIONAL_EMBARGOES_1522 = Object.freeze([
-  historicalOrder("england", "france", TRADE_EMBARGO_SCOPE_ALL_GOODS),
+const HISTORICAL_NATIONAL_EMBARGOES_AT_START = Object.freeze([
+  historicalOrder("france", "england", TRADE_EMBARGO_SCOPE_ALL_GOODS),
   historicalOrder("spain", "france", TRADE_EMBARGO_SCOPE_ALL_GOODS),
   historicalOrder("burgundian-netherlands", "france", TRADE_EMBARGO_SCOPE_ALL_GOODS),
-  historicalOrder("hospitallers", "ottoman", TRADE_EMBARGO_SCOPE_ALL_GOODS)
+  historicalOrder("habsburg", "france", TRADE_EMBARGO_SCOPE_ALL_GOODS)
+]);
+
+export const ENGLISH_FRENCH_EMBARGO_MINUTE = gameMinuteForDate(1522, 5, 29);
+export const HOSPITALLER_OTTOMAN_BLOCKADE_MINUTE = gameMinuteForDate(1522, 6, 1);
+export const LUBECK_DANISH_BLOCKADE_MINUTE = gameMinuteForDate(1522, 6, 1);
+
+const HISTORICAL_TRADE_TRANSITIONS_1522 = Object.freeze([
+  Object.freeze({
+    id: "english-french-war-embargo",
+    minute: ENGLISH_FRENCH_EMBARGO_MINUTE,
+    issuerFactionId: "england",
+    targetFactionId: "france",
+    scope: TRADE_EMBARGO_SCOPE_ALL_GOODS,
+    restrictionKind: TRADE_EMBARGO_RESTRICTION_IMPORTS,
+    source: "english-declaration-29-may-1522"
+  }),
+  Object.freeze({
+    id: "hospitaller-ottoman-blockade",
+    minute: HOSPITALLER_OTTOMAN_BLOCKADE_MINUTE,
+    issuerFactionId: "hospitallers",
+    targetFactionId: "ottoman",
+    scope: TRADE_EMBARGO_SCOPE_ALL_GOODS,
+    restrictionKind: TRADE_EMBARGO_RESTRICTION_BLOCKADE,
+    source: "rhodes-campaign-1522"
+  }),
+  Object.freeze({
+    id: "lubeck-danish-blockade",
+    minute: LUBECK_DANISH_BLOCKADE_MINUTE,
+    issuerFactionId: "lubeck",
+    targetFactionId: "denmark-norway",
+    scope: TRADE_EMBARGO_SCOPE_ALL_GOODS,
+    restrictionKind: TRADE_EMBARGO_RESTRICTION_BLOCKADE,
+    source: "sound-blockade-1522"
+  })
 ]);
 
 const HISTORICAL_PAPAL_FOLLOWERS_1522 = Object.freeze([
@@ -94,15 +137,17 @@ export function createTradeEmbargoMemory({ startMinute = 0, seedKey = "embargoes
     startMinute,
     lastUpdateMinute: startMinute,
     nextReviewMinute: startMinute,
+    historicalTransitions: {},
     orders: [],
     history: []
   };
-  for (const order of HISTORICAL_NATIONAL_EMBARGOES_1522) {
+  for (const order of HISTORICAL_NATIONAL_EMBARGOES_AT_START) {
     imposeOrder(memory, {
       authorityKind: TRADE_EMBARGO_AUTHORITY_NATIONAL,
       issuerFactionId: order.issuerFactionId,
       targetFactionId: order.targetFactionId,
       scope: order.scope,
+      restrictionKind: TRADE_EMBARGO_RESTRICTION_IMPORTS,
       followerFactionIds: [order.issuerFactionId],
       simMinute: startMinute,
       source: "historical-1522"
@@ -113,10 +158,25 @@ export function createTradeEmbargoMemory({ startMinute = 0, seedKey = "embargoes
     issuerFactionId: "papal-states",
     targetFactionId: "ottoman",
     scope: TRADE_EMBARGO_SCOPE_WAR_MATERIEL,
+    restrictionKind: TRADE_EMBARGO_RESTRICTION_EXPORTS,
     followerFactionIds: HISTORICAL_PAPAL_FOLLOWERS_1522,
     simMinute: startMinute,
     source: "apostolic-prohibition-1522"
   });
+  for (const transition of HISTORICAL_TRADE_TRANSITIONS_1522) {
+    if (startMinute < transition.minute) continue;
+    imposeOrder(memory, {
+      authorityKind: TRADE_EMBARGO_AUTHORITY_NATIONAL,
+      issuerFactionId: transition.issuerFactionId,
+      targetFactionId: transition.targetFactionId,
+      scope: transition.scope,
+      restrictionKind: transition.restrictionKind,
+      followerFactionIds: [transition.issuerFactionId],
+      simMinute: startMinute,
+      source: transition.source
+    });
+    memory.historicalTransitions[transition.id] = "completed";
+  }
   memory.nextReviewMinute = startMinute + reviewIntervalMinutes(memory, 0);
   return validateTradeEmbargoMemory(memory);
 }
@@ -125,7 +185,45 @@ export function migrateTradeEmbargoMemory(memory, { startMinute = 0, seedKey = "
   if (memory === undefined || memory === null) {
     return createTradeEmbargoMemory({ startMinute, seedKey });
   }
-  return validateTradeEmbargoMemory(structuredClone(memory));
+  if (memory.version === TRADE_EMBARGO_VERSION) {
+    return validateTradeEmbargoMemory(structuredClone(memory));
+  }
+  if (memory.version !== 1) {
+    throw new Error(`Unsupported trade embargo version: ${memory.version ?? "missing"}`);
+  }
+  const migrated = structuredClone(memory);
+  migrated.version = TRADE_EMBARGO_VERSION;
+  migrated.orders = migrated.orders.map((order) => ({
+    ...order,
+    restrictionKind: order.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
+      ? TRADE_EMBARGO_RESTRICTION_EXPORTS
+      : TRADE_EMBARGO_RESTRICTION_IMPORTS
+  }));
+  migrated.history = migrated.history.map((event) => ({
+    ...event,
+    restrictionKind: event.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
+      ? TRADE_EMBARGO_RESTRICTION_EXPORTS
+      : TRADE_EMBARGO_RESTRICTION_IMPORTS
+  }));
+  migrated.historicalTransitions = Object.fromEntries(
+    HISTORICAL_TRADE_TRANSITIONS_1522
+      .map((transition) => ({
+        transition,
+        matchingOrder: migrated.orders.some((order) => (
+          order.authorityKind === TRADE_EMBARGO_AUTHORITY_NATIONAL &&
+          order.issuerFactionId === transition.issuerFactionId &&
+          order.targetFactionId === transition.targetFactionId
+        ))
+      }))
+      .filter(({ transition, matchingOrder }) => (
+        matchingOrder || transition.minute <= migrated.lastUpdateMinute
+      ))
+      .map((transition) => [
+        transition.transition.id,
+        transition.matchingOrder ? "completed" : "averted"
+      ])
+  );
+  return validateTradeEmbargoMemory(migrated);
 }
 
 export function validateTradeEmbargoMemory(memory) {
@@ -151,6 +249,16 @@ export function validateTradeEmbargoMemory(memory) {
   if (!Array.isArray(memory.history) || memory.history.length > TRADE_EMBARGO_HISTORY_LIMIT) {
     throw new Error("Trade embargo history must be a bounded array");
   }
+  if (!memory.historicalTransitions || typeof memory.historicalTransitions !== "object" ||
+      Array.isArray(memory.historicalTransitions)) {
+    throw new Error("Trade embargo historical transitions must be an object");
+  }
+  for (const [transitionId, status] of Object.entries(memory.historicalTransitions)) {
+    if (!HISTORICAL_TRADE_TRANSITIONS_1522.some(({ id }) => id === transitionId) ||
+        !HISTORICAL_TRANSITION_STATES.has(status)) {
+      throw new Error(`Invalid trade embargo historical transition: ${transitionId}=${status}`);
+    }
+  }
   const orderIds = new Set();
   for (const order of memory.orders) {
     validateEmbargoOrder(order);
@@ -163,7 +271,7 @@ export function validateTradeEmbargoMemory(memory) {
 
 export function nextTradeEmbargoPoliticsMinute(memory) {
   validateTradeEmbargoMemory(memory);
-  return memory.nextReviewMinute;
+  return Math.min(memory.nextReviewMinute, nextHistoricalTradeTransitionMinute(memory));
 }
 
 export function advanceTradeEmbargoPolitics(memory, diplomacy, currentMinute, {
@@ -185,7 +293,18 @@ export function advanceTradeEmbargoPolitics(memory, diplomacy, currentMinute, {
   for (const factionId of inactive) assertFactionId(factionId);
   const events = [];
   let guard = 0;
-  while (currentMinute >= memory.nextReviewMinute && guard < MAX_CATCH_UP_REVIEWS) {
+  while (guard < MAX_CATCH_UP_REVIEWS) {
+    const historicalMinute = nextHistoricalTradeTransitionMinute(memory);
+    if (currentMinute < Math.min(memory.nextReviewMinute, historicalMinute)) break;
+    if (historicalMinute <= memory.nextReviewMinute) {
+      events.push(...applyHistoricalTradeTransitions(
+        memory,
+        diplomacy,
+        historicalMinute,
+        inactive
+      ));
+      continue;
+    }
     const reviewMinute = memory.nextReviewMinute;
     events.push(...reviewTradeEmbargoes(memory, diplomacy, reviewMinute, {
       authorityForFaction,
@@ -243,9 +362,52 @@ export function tradeEmbargoOrdersForPurchase(memory, {
   }
   return Object.freeze(memory.orders.filter((order) => (
     order.liftedMinute === null &&
+    order.restrictionKind === TRADE_EMBARGO_RESTRICTION_IMPORTS &&
     order.targetFactionId === targetFactionId &&
     embargoOrderControlsGood(order, goodId) &&
     order.followerFactionIds.some((factionId) => factionId !== targetFactionId)
+  )).map((order) => Object.freeze(copyOrder(order))));
+}
+
+export function tradeEmbargoOrdersForSale(memory, {
+  destinationFactionId,
+  goodId,
+  playerFactionId = NEUTRAL_FACTION_ID
+}) {
+  validateTradeEmbargoMemory(memory);
+  const targetFactionId = assertFactionId(destinationFactionId);
+  assertFactionId(playerFactionId);
+  if (typeof goodId !== "string" || goodId === "") {
+    throw new Error("Trade embargo sale requires a good id");
+  }
+  if (targetFactionId === NEUTRAL_FACTION_ID || targetFactionId === PIRATE_FACTION_ID) {
+    return Object.freeze([]);
+  }
+  return Object.freeze(memory.orders.filter((order) => (
+    order.liftedMinute === null &&
+    order.restrictionKind === TRADE_EMBARGO_RESTRICTION_EXPORTS &&
+    order.targetFactionId === targetFactionId &&
+    embargoOrderControlsGood(order, goodId) &&
+    order.followerFactionIds.some((factionId) => factionId !== targetFactionId)
+  )).map((order) => Object.freeze(copyOrder(order))));
+}
+
+export function tradeEmbargoOrdersForShipping(memory, {
+  shipFactionId,
+  destinationFactionId,
+  goodId
+}) {
+  validateTradeEmbargoMemory(memory);
+  const carrierFactionId = assertFactionId(shipFactionId);
+  const destinationId = assertFactionId(destinationFactionId);
+  if (typeof goodId !== "string" || goodId === "") {
+    throw new Error("Trade blockade check requires a good id");
+  }
+  return Object.freeze(memory.orders.filter((order) => (
+    order.liftedMinute === null &&
+    order.restrictionKind === TRADE_EMBARGO_RESTRICTION_BLOCKADE &&
+    embargoOrderControlsGood(order, goodId) &&
+    (order.targetFactionId === carrierFactionId || order.targetFactionId === destinationId)
   )).map((order) => Object.freeze(copyOrder(order))));
 }
 
@@ -266,11 +428,16 @@ export function tradeEmbargoScopeLabel(scope) {
 export function tradeEmbargoRegimeLabel(order) {
   validateEmbargoOrder(order);
   const target = factionById(order.targetFactionId);
-  if (order.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL) {
-    return `the Holy See's prohibition on ${target.adjective} ${tradeEmbargoScopeLabel(order.scope)}`;
+  if (order.restrictionKind === TRADE_EMBARGO_RESTRICTION_EXPORTS) {
+    return order.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
+      ? `the Holy See's prohibition on furnishing ${tradeEmbargoScopeLabel(order.scope)} to ${target.shortName}`
+      : `${factionById(order.issuerFactionId).shortName}'s prohibition on furnishing ${tradeEmbargoScopeLabel(order.scope)} to ${target.shortName}`;
+  }
+  if (order.restrictionKind === TRADE_EMBARGO_RESTRICTION_BLOCKADE) {
+    return `${factionById(order.issuerFactionId).shortName}'s blockade of ${target.adjective} shipping`;
   }
   const issuer = factionById(order.issuerFactionId);
-  return `the ${issuer.adjective} embargo against ${target.adjective} trade`;
+  return `the ${issuer.adjective} ban on ${target.adjective} merchandise`;
 }
 
 export function tradeEmbargoEventNotice(event) {
@@ -278,14 +445,22 @@ export function tradeEmbargoEventNotice(event) {
   const issuer = factionById(event.issuerFactionId);
   const target = factionById(event.targetFactionId);
   if (event.kind === "imposed") {
-    return event.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
-      ? `THE HOLY SEE FORBIDS ${tradeEmbargoScopeLabel(event.scope).toUpperCase()} FOR ${target.shortName.toUpperCase()}`
-      : `${issuer.shortName.toUpperCase()} EMBARGOES ${target.shortName.toUpperCase()}`;
+    if (event.restrictionKind === TRADE_EMBARGO_RESTRICTION_EXPORTS) {
+      return event.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
+        ? `THE HOLY SEE FORBIDS ARMING ${target.shortName.toUpperCase()}`
+        : `${issuer.shortName.toUpperCase()} FORBIDS EXPORTS TO ${target.shortName.toUpperCase()}`;
+    }
+    return event.restrictionKind === TRADE_EMBARGO_RESTRICTION_BLOCKADE
+      ? `${issuer.shortName.toUpperCase()} BLOCKADES ${target.shortName.toUpperCase()}`
+      : `${issuer.shortName.toUpperCase()} BANS ${target.adjective.toUpperCase()} MERCHANDISE`;
   }
   if (event.kind === "lifted") {
+    if (event.restrictionKind === TRADE_EMBARGO_RESTRICTION_BLOCKADE) {
+      return `${issuer.shortName.toUpperCase()} RAISES THE BLOCKADE OF ${target.shortName.toUpperCase()}`;
+    }
     return event.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
       ? `THE HOLY SEE LIFTS ITS PROHIBITION AGAINST ${target.shortName.toUpperCase()}`
-      : `${issuer.shortName.toUpperCase()} LIFTS ITS EMBARGO ON ${target.shortName.toUpperCase()}`;
+      : `${issuer.shortName.toUpperCase()} LIFTS ITS BAN ON ${target.adjective.toUpperCase()} MERCHANDISE`;
   }
   if (event.kind === "followers-changed") {
     return `CATHOLIC POWERS RECONSIDER THE PAPAL PROHIBITION AGAINST ${target.shortName.toUpperCase()}`;
@@ -301,14 +476,27 @@ export function createTradeEmbargoEnforcementMemory() {
   };
 }
 
-export function migrateTradeEmbargoEnforcementMemory(memory) {
+export function migrateTradeEmbargoEnforcementMemory(memory, { embargoMemory = null } = {}) {
   if (memory === undefined || memory === null) return createTradeEmbargoEnforcementMemory();
-  validateTradeEmbargoEnforcementMemory(memory);
-  return {
+  if (memory.version !== 1 && memory.version !== TRADE_EMBARGO_ENFORCEMENT_VERSION) {
+    throw new Error(`Unsupported trade embargo enforcement version: ${memory.version ?? "missing"}`);
+  }
+  if (embargoMemory !== null) validateTradeEmbargoMemory(embargoMemory);
+  let incidents = memory.incidents.map((incident) => ({
+    ...copyIncident(incident),
+    restrictionKind: incident.restrictionKind || TRADE_EMBARGO_RESTRICTION_IMPORTS
+  }));
+  if (memory.version === 1 && embargoMemory !== null) {
+    incidents = incidents.filter((incident) => {
+      const order = embargoMemory.orders.find((entry) => entry.id === incident.orderId);
+      return order?.restrictionKind === incident.restrictionKind;
+    });
+  }
+  return validateTradeEmbargoEnforcementMemory({
     version: TRADE_EMBARGO_ENFORCEMENT_VERSION,
     nextIncidentId: memory.nextIncidentId,
-    incidents: memory.incidents.map(copyIncident)
-  };
+    incidents
+  });
 }
 
 export function validateTradeEmbargoEnforcementMemory(memory) {
@@ -361,6 +549,7 @@ export function recordTradeEmbargoPurchase(memory, orders, {
       incident = {
         id: `trade-embargo-${memory.nextIncidentId++}`,
         orderId: order.id,
+        restrictionKind: order.restrictionKind,
         targetFactionId: order.targetFactionId,
         originPortId: port.portId || `city-${port.tileId}`,
         originTileId: port.tileId,
@@ -403,21 +592,20 @@ export function consumeTrackedEmbargoCargo(memory, goodId, quantity) {
   if (typeof goodId !== "string" || goodId === "" || !Number.isFinite(quantity) || quantity < 0) {
     throw new Error(`Invalid tracked embargo cargo consumption: ${goodId}=${quantity}`);
   }
-  let remaining = quantity;
+  let consumed = 0;
   const incidents = [...memory.incidents]
     .filter((incident) => (incident.cargo[goodId] || 0) > 0)
     .sort((a, b) => a.startedMinute - b.startedMinute || a.id.localeCompare(b.id));
   for (const incident of incidents) {
-    if (remaining <= 0) break;
     const held = incident.cargo[goodId];
-    const removed = Math.min(held, remaining);
+    const removed = Math.min(held, quantity);
     const after = held - removed;
     if (after > 0) incident.cargo[goodId] = after;
     else delete incident.cargo[goodId];
-    remaining -= removed;
+    consumed = Math.max(consumed, removed);
   }
   pruneEmptyIncidents(memory);
-  return quantity - remaining;
+  return consumed;
 }
 
 export function tradeEmbargoIncidentForInspection(
@@ -435,7 +623,9 @@ export function tradeEmbargoIncidentForInspection(
   pruneInactiveOrEmptyIncidents(enforcementMemory, embargoMemory, cargo);
   return enforcementMemory.incidents.find((incident) => {
     const order = embargoMemory.orders.find((entry) => entry.id === incident.orderId);
-    return order && order.liftedMinute === null && order.followerFactionIds.includes(factionId) &&
+    return order && order.liftedMinute === null &&
+      order.restrictionKind === incident.restrictionKind &&
+      order.followerFactionIds.includes(factionId) &&
       incident.combatActive === false && embargoCargoAvailable(incident, cargo).quantity > 0 &&
       (incident.interceptingShipId === npcShipId || (
         incident.interceptingShipId === null && !incident.checkedShipIds.includes(npcShipId)
@@ -616,6 +806,7 @@ function reviewTradeEmbargoes(memory, diplomacy, simMinute, {
       issuerFactionId: "papal-states",
       targetFactionId: papalTarget,
       scope: TRADE_EMBARGO_SCOPE_WAR_MATERIEL,
+      restrictionKind: TRADE_EMBARGO_RESTRICTION_EXPORTS,
       followerFactionIds: []
     };
     const followers = papalFollowersForOrder(
@@ -647,12 +838,49 @@ function reviewTradeEmbargoes(memory, diplomacy, simMinute, {
       issuerFactionId: nationalCandidate.issuerFactionId,
       targetFactionId: nationalCandidate.targetFactionId,
       scope: TRADE_EMBARGO_SCOPE_ALL_GOODS,
+      restrictionKind: TRADE_EMBARGO_RESTRICTION_IMPORTS,
       followerFactionIds: [nationalCandidate.issuerFactionId],
       simMinute,
       source: "political-simulation"
     }));
   }
   return events;
+}
+
+function applyHistoricalTradeTransitions(memory, diplomacy, currentMinute, inactive) {
+  const events = [];
+  for (const transition of HISTORICAL_TRADE_TRANSITIONS_1522) {
+    if (memory.historicalTransitions[transition.id] !== undefined ||
+        currentMinute < transition.minute) continue;
+    const relation = rawWorldDiplomacyBetween(
+      diplomacy,
+      transition.issuerFactionId,
+      transition.targetFactionId
+    );
+    if (inactive.has(transition.issuerFactionId) || inactive.has(transition.targetFactionId) ||
+        relation !== DIPLOMACY_WAR) {
+      memory.historicalTransitions[transition.id] = "averted";
+      continue;
+    }
+    events.push(imposeOrder(memory, {
+      authorityKind: TRADE_EMBARGO_AUTHORITY_NATIONAL,
+      issuerFactionId: transition.issuerFactionId,
+      targetFactionId: transition.targetFactionId,
+      scope: transition.scope,
+      restrictionKind: transition.restrictionKind,
+      followerFactionIds: [transition.issuerFactionId],
+      simMinute: transition.minute,
+      source: transition.source
+    }));
+    memory.historicalTransitions[transition.id] = "completed";
+  }
+  return events;
+}
+
+function nextHistoricalTradeTransitionMinute(memory) {
+  return HISTORICAL_TRADE_TRANSITIONS_1522
+    .filter(({ id }) => memory.historicalTransitions[id] === undefined)
+    .reduce((minimum, transition) => Math.min(minimum, transition.minute), Infinity);
 }
 
 function nationalEmbargoCandidate(memory, diplomacy, simMinute, authorityForFaction, inactive) {
@@ -721,6 +949,7 @@ function imposeOrder(memory, {
   issuerFactionId,
   targetFactionId,
   scope,
+  restrictionKind,
   followerFactionIds,
   simMinute,
   source
@@ -728,8 +957,9 @@ function imposeOrder(memory, {
   assertFactionId(issuerFactionId);
   assertFactionId(targetFactionId);
   if (issuerFactionId === targetFactionId) throw new Error("A power cannot embargo itself");
-  if (!EMBARGO_AUTHORITIES.has(authorityKind) || !EMBARGO_SCOPES.has(scope)) {
-    throw new Error(`Invalid trade embargo order: ${authorityKind}/${scope}`);
+  if (!EMBARGO_AUTHORITIES.has(authorityKind) || !EMBARGO_SCOPES.has(scope) ||
+      !EMBARGO_RESTRICTIONS.has(restrictionKind)) {
+    throw new Error(`Invalid trade embargo order: ${authorityKind}/${scope}/${restrictionKind}`);
   }
   if (hasActiveOrder(memory, authorityKind, issuerFactionId, targetFactionId)) {
     throw new Error(`Duplicate active trade embargo: ${issuerFactionId}/${targetFactionId}`);
@@ -747,6 +977,7 @@ function imposeOrder(memory, {
     issuerFactionId,
     targetFactionId,
     scope,
+    restrictionKind,
     followerFactionIds: followers,
     imposedMinute: simMinute,
     liftedMinute: null,
@@ -781,6 +1012,7 @@ function embargoEvent(order, kind, simMinute, source) {
     issuerFactionId: order.issuerFactionId,
     targetFactionId: order.targetFactionId,
     scope: order.scope,
+    restrictionKind: order.restrictionKind,
     followerFactionIds: [...order.followerFactionIds],
     simMinute,
     source
@@ -816,7 +1048,8 @@ function validateEmbargoOrder(order) {
   if (!order || typeof order !== "object" || typeof order.id !== "string" || order.id === "") {
     throw new Error("Trade embargo order requires an id");
   }
-  if (!EMBARGO_AUTHORITIES.has(order.authorityKind) || !EMBARGO_SCOPES.has(order.scope)) {
+  if (!EMBARGO_AUTHORITIES.has(order.authorityKind) || !EMBARGO_SCOPES.has(order.scope) ||
+      !EMBARGO_RESTRICTIONS.has(order.restrictionKind)) {
     throw new Error(`Invalid trade embargo order ${order.id}`);
   }
   assertFactionId(order.issuerFactionId);
@@ -850,7 +1083,8 @@ function validateEmbargoEvent(event) {
       !EMBARGO_EVENT_KINDS.has(event.kind)) {
     throw new Error("Invalid trade embargo event");
   }
-  if (!EMBARGO_AUTHORITIES.has(event.authorityKind) || !EMBARGO_SCOPES.has(event.scope)) {
+  if (!EMBARGO_AUTHORITIES.has(event.authorityKind) || !EMBARGO_SCOPES.has(event.scope) ||
+      !EMBARGO_RESTRICTIONS.has(event.restrictionKind)) {
     throw new Error(`Invalid trade embargo event policy: ${event.id}`);
   }
   assertFactionId(event.issuerFactionId);
@@ -868,6 +1102,9 @@ function validateIncident(incident) {
     throw new Error("Invalid trade embargo incident");
   }
   assertFactionId(incident.targetFactionId);
+  if (!EMBARGO_RESTRICTIONS.has(incident.restrictionKind)) {
+    throw new Error(`Invalid trade embargo incident restriction: ${incident.id}`);
+  }
   if (typeof incident.originPortId !== "string" || incident.originPortId === "" ||
       !Number.isInteger(incident.originTileId) || incident.originTileId < 0 ||
       typeof incident.originName !== "string" || incident.originName === "") {
@@ -902,7 +1139,8 @@ function validateIncident(incident) {
 function pruneInactiveOrEmptyIncidents(enforcementMemory, embargoMemory, cargo) {
   enforcementMemory.incidents = enforcementMemory.incidents.filter((incident) => {
     const order = embargoMemory.orders.find((entry) => entry.id === incident.orderId);
-    if (!order || order.liftedMinute !== null) return false;
+    if (!order || order.liftedMinute !== null ||
+        order.restrictionKind !== incident.restrictionKind) return false;
     return incident.interceptingShipId !== null || embargoCargoAvailable(incident, cargo).quantity > 0;
   });
 }

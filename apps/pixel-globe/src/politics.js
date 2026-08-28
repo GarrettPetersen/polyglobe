@@ -473,7 +473,9 @@ function politicsEmbargoConnections(faction, activeEmbargoes, powerById) {
     connections.push(Object.freeze({
       kind: "trade-embargo",
       role,
-      factionId
+      factionId,
+      restrictionKind: order.restrictionKind,
+      scope: order.scope
     }));
   }
   return connections;

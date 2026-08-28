@@ -67,6 +67,11 @@ const PARIS = {
   capitalOfFactionId: "france"
 };
 
+function putEnglandAtWarWithFrance(state) {
+  state.relations.diplomacy.overrides["england|france"] = "war";
+  state.relations.diplomacy.pairLastChangedMinute["england|france"] = 0;
+}
+
 test("delivery quests stay inside the same faction and region", () => {
   const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO, GOA, CADIZ]);
 
@@ -295,6 +300,7 @@ test("an allied capture recalls an active commission instead of leaving an impos
   state.ship.crew = 36;
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS, PARIS], {
     simMinute: 0,
     spawnChance: 1,
@@ -326,6 +332,7 @@ test("a fallen issuing court recalls its capture order through the original offi
   state.ship.crew = 36;
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS, PARIS], {
     simMinute: 0,
     spawnChance: 1,
@@ -353,6 +360,7 @@ test("pending political offers disappear when conquest invalidates their premise
   state.ship.crew = 36;
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS, PARIS], {
     simMinute: 0,
     spawnChance: 1,
@@ -415,6 +423,7 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
   state.ship.crew = 36;
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const ports = [LONDON, CALAIS, PARIS];
   const sailingDistanceKm = (origin, destination) => {
     if (origin.tileId === LONDON.tileId && destination.tileId === CALAIS.tileId) return 180;
@@ -512,6 +521,7 @@ test("a mostly defeated enemy can trigger a distinct war-ending capital commissi
   state.ship.crew = 36;
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const rouen = {
     ...port(13, "Rouen", "France", "northern-european", "england", 49.44, 1.1),
     foundingFactionId: "france"
@@ -574,6 +584,7 @@ test("losing one port makes a two-port power eligible for a final capital commis
   state.ship.crew = 36;
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const capturedCalais = {
     ...CALAIS,
     factionId: "england",
@@ -601,6 +612,7 @@ test("a capital-only power can receive the only possible capture commission", ()
   state.ship.crew = 36;
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, PARIS], {
     simMinute: 0,
     spawnChance: 1,
@@ -623,6 +635,7 @@ test("an active colonization expedition does not suppress a capital capture comm
   state.ship.crew = 36;
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   state.memory.colonization.stage = "fetch";
   state.memory.colonization.targetTileId = 99;
   state.memory.colonization.targetCity = "Jamestown";
@@ -662,6 +675,7 @@ test("capture warrants require a letter of marque but may be issued before the s
   assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), null);
 
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   state.ship.cannons = 7;
   assert.equal(capturePortMissionEligibility(state).eligible, false);
   const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context);
@@ -692,6 +706,7 @@ test("unsolicited capture warrants are much more likely when a home port must be
 test("capture commissions retake lost home ports before choosing new conquests", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const lostDover = {
     ...DOVER,
     factionId: "france",
@@ -884,6 +899,7 @@ test("a failed historical objective outranks an otherwise sensible enemy harbor"
 test("a rich distant colony can outweigh a poor nearby target within one priority tier", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const brest = {
     ...port(45, "Brest", "France", "northern-european", "france", 48.39, -4.49),
     population: 1000
@@ -910,6 +926,7 @@ test("a rich distant colony can outweigh a poor nearby target within one priorit
 test("France may commission the capture of an established player-founded English colony", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.relations.lettersOfMarque.france = { factionId: "france", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const jamestown = {
     ...port(47, "Jamestown", "United States of America", "caribbean", "england", 37.21, -76.78),
     population: 2400,
@@ -931,6 +948,7 @@ test("France may commission the capture of an established player-founded English
 test("a captain petitions against a power while the court chooses the target", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   state.relations.factionReputation.england = 70;
   const lostDover = {
     ...DOVER,
@@ -969,6 +987,7 @@ test("capture-petition odds rise with court standing and the urgency of a lost h
   const highStanding = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   for (const state of [lowStanding, highStanding]) {
     state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+    putEnglandAtWarWithFrance(state);
   }
   lowStanding.relations.factionReputation.england = 15;
   highStanding.relations.factionReputation.england = 80;
@@ -1000,6 +1019,7 @@ test("capture-petition odds rise with court standing and the urgency of a lost h
 test("a refused capture petition remains closed until the political answer cools", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
   const ports = [LONDON, CALAIS];
   const context = {
     simMinute: 0,

@@ -405,6 +405,8 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "evade-trade-embargo-inspection": "action:attack",
   "confirm-trade-embargo-purchase": "action:buy",
   "decline-trade-embargo-purchase": "action:back",
+  "confirm-trade-embargo-sale": "action:sell",
+  "decline-trade-embargo-sale": "action:back",
   "refuse-safe-passage": "action:leave",
   "purchase-viking-longship": "action:viking",
   "accept-viking-longship-reward": "action:viking",

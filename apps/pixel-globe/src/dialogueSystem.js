@@ -59,6 +59,7 @@ import {
   playerWhaleHarpoon,
   playerTradeAccess,
   playerTradeEmbargoPurchaseWarnings,
+  playerTradeEmbargoSaleWarnings,
   playerTradeTerms,
   portugueseCartazStatus,
   purchasePortugueseCartaz,
@@ -86,6 +87,7 @@ import {
 } from "./gameState.js";
 import {
   TRADE_EMBARGO_AUTHORITY_PAPAL,
+  tradeEmbargoRegimeLabel,
   tradeEmbargoScopeLabel
 } from "./tradeEmbargoes.js";
 import { isTeaRaceQuest } from "./teaRaceQuest.js";
@@ -423,6 +425,7 @@ export function createPortDialogueSession(city, options = {}) {
     pendingMarketUndoNodeId: null,
     acknowledgedTradeEmbargoOrderIds: [],
     pendingTradeEmbargoPurchase: null,
+    pendingTradeEmbargoSale: null,
     pendingTributeTheft: null,
     pendingQuestCargoSale: null,
     questCargoSaleWarningShown: false,
@@ -1705,6 +1708,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
   if (session.nodeId === "trade-embargo-warning") {
     return tradeEmbargoWarningView(session);
+  }
+  if (session.nodeId === "trade-embargo-sale-warning") {
+    return tradeEmbargoSaleWarningView(session);
   }
   if (session.nodeId === "trade-tip") return tradeTipView(session, city);
   if (session.nodeId === "quest-cargo-tip") return questCargoTipView(session, city);
@@ -3041,36 +3047,25 @@ export function selectPortDialogueOption(
     return { closed: false };
   }
   if (action.type === "sell" || action.type === "sell-all") {
-    const quantity = action.type === "sell-all" ? action.quantity : 1;
-    const theft = questCargoSaleTheftStatus(gameState, action.goodId, quantity);
-    if (theft) {
-      session.pendingTributeTheft = { action: { ...action, quantity }, theft };
-      session.nodeId = "tribute-theft-warning";
-      session.selectedIndex = 0;
-      session.feedback = null;
-      return { closed: false };
-    }
-    const questCargoSale = activeQuestCargoSaleStatus(gameState, action.goodId, quantity, {
-      currentMinute: context.simMinute ?? 0
-    });
-    if (questCargoSale && !session.questCargoSaleWarningShown) {
-      session.questCargoSaleWarningShown = true;
-      session.pendingQuestCargoSale = { action: { ...action, quantity }, questCargoSale };
-      session.nodeId = "quest-cargo-sale-warning";
-      session.selectedIndex = 0;
-      session.feedback = null;
-      return { closed: false };
-    }
-    return executeMarketSale(
-      session,
-      city,
-      gameState,
-      economy,
-      action.goodId,
-      quantity,
-      context,
-      action.type === "sell-all"
-    );
+    return continueMarketSale(session, city, gameState, economy, action, context);
+  }
+  if (action.type === "confirm-trade-embargo-sale") {
+    const pending = requiredTradeEmbargoSale(session);
+    session.acknowledgedTradeEmbargoOrderIds = [...new Set([
+      ...session.acknowledgedTradeEmbargoOrderIds,
+      ...pending.orders.map((order) => order.id)
+    ])];
+    session.pendingTradeEmbargoSale = null;
+    session.nodeId = "sell";
+    return continueMarketSale(session, city, gameState, economy, pending.action, context);
+  }
+  if (action.type === "decline-trade-embargo-sale") {
+    requiredTradeEmbargoSale(session);
+    session.pendingTradeEmbargoSale = null;
+    session.nodeId = "sell";
+    session.selectedIndex = 0;
+    session.feedback = "The forbidden cargo remains aboard.";
+    return { closed: false };
   }
   if (action.type === "confirm-tribute-theft") {
     const pending = session.pendingTributeTheft;
@@ -6540,6 +6535,44 @@ function requiredTradeEmbargoPurchase(session) {
   return pending;
 }
 
+function tradeEmbargoSaleWarningView(session) {
+  const pending = requiredTradeEmbargoSale(session);
+  const good = tradeGoodById(pending.action.goodId);
+  const regimes = pending.orders.map(tradeEmbargoRegimeLabel);
+  const authorityNames = [...new Set(pending.orders.map((order) => (
+    order.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
+      ? "the Holy See"
+      : factionById(order.issuerFactionId).shortName
+  )))];
+  return {
+    speaker: "Port factor",
+    expressionId: "concerned",
+    text: `${authorityNames.join(" and ")} forbid this cargo to the buyers here, captain. ` +
+      `The customs books will bear your name, and their agents will learn of the bargain. ` +
+      `Will you still sell the ${good.label.toLowerCase()}?`,
+    bodyTone: "danger",
+    feedback: session.feedback,
+    options: [
+      option("Make the forbidden sale", { type: "confirm-trade-embargo-sale" }, {
+        detail: regimes.map((regime) => regime.toUpperCase()).join("  ")
+      }),
+      option("Keep it aboard", { type: "decline-trade-embargo-sale" })
+    ]
+  };
+}
+
+function requiredTradeEmbargoSale(session) {
+  const pending = session.pendingTradeEmbargoSale;
+  if (!pending || typeof pending !== "object" ||
+      !pending.action || !["sell", "sell-all"].includes(pending.action.type) ||
+      typeof pending.action.goodId !== "string" || pending.action.goodId === "" ||
+      !Number.isFinite(pending.action.quantity) || pending.action.quantity <= 0 ||
+      !Array.isArray(pending.orders) || pending.orders.length === 0) {
+    throw new Error("Trade embargo warning has no pending sale");
+  }
+  return pending;
+}
+
 function executePortMarketPurchase(session, gameState, economy, city, action, context) {
   ensureMarketUndoSession(session, "buy", gameState, economy, city);
   const result = buyGood(
@@ -6957,6 +6990,52 @@ function beginMarketUndoSession(session, nodeId, gameState, economy, city) {
 function ensureMarketUndoSession(session, nodeId, gameState, economy, city) {
   if (session.marketUndoNodeId === nodeId && session.marketUndoSnapshot) return;
   beginMarketUndoSession(session, nodeId, gameState, economy, city);
+}
+
+function continueMarketSale(session, city, gameState, economy, action, context) {
+  const quantity = action.type === "sell-all" ? action.quantity : 1;
+  const normalizedAction = { ...action, quantity };
+  const embargoOrders = playerTradeEmbargoSaleWarnings(gameState, city, action.goodId)
+    .filter((order) => !session.acknowledgedTradeEmbargoOrderIds.includes(order.id));
+  if (embargoOrders.length > 0) {
+    session.pendingTradeEmbargoSale = {
+      action: normalizedAction,
+      orders: embargoOrders.map((order) => ({ ...order }))
+    };
+    session.nodeId = "trade-embargo-sale-warning";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  const theft = questCargoSaleTheftStatus(gameState, action.goodId, quantity);
+  if (theft) {
+    session.pendingTributeTheft = { action: normalizedAction, theft };
+    session.nodeId = "tribute-theft-warning";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  const questCargoSale = activeQuestCargoSaleStatus(gameState, action.goodId, quantity, {
+    currentMinute: context.simMinute ?? 0
+  });
+  if (questCargoSale && !session.questCargoSaleWarningShown) {
+    session.questCargoSaleWarningShown = true;
+    session.pendingQuestCargoSale = { action: normalizedAction, questCargoSale };
+    session.nodeId = "quest-cargo-sale-warning";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  return executeMarketSale(
+    session,
+    city,
+    gameState,
+    economy,
+    action.goodId,
+    quantity,
+    context,
+    action.type === "sell-all"
+  );
 }
 
 function executeMarketSale(

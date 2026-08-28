@@ -38,7 +38,8 @@ const DAY = 24 * 60;
 test("world diplomacy begins from the historical 1522 matrix", () => {
   const state = createWorldDiplomacy({ startMinute: 100, seedKey: "voyage-a" });
 
-  assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_HOSTILE);
+  assert.equal(worldDiplomacyBetween(state, "hospitallers", "ottoman"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, "england", "spain"), DIPLOMACY_ALLY);
   assert.equal(worldDiplomacyBetween(state, "venice", "genoa"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, "ottoman", "habsburg"), DIPLOMACY_HOSTILE);
@@ -117,7 +118,7 @@ test("a hostile vassal can rebel and regain an independent foreign policy", () =
   assert.equal(worldDiplomacyBetween(state, "crimea", "ottoman"), DIPLOMACY_WAR);
 });
 
-test("version 1 diplomacy migrates without changing its simulation state", () => {
+test("legacy diplomacy preserves wars that used to live only in the opening matrix", () => {
   const saved = createWorldDiplomacy({ startMinute: 100, seedKey: "old-voyage" });
   saved.version = 1;
   delete saved.contacts;
@@ -127,8 +128,11 @@ test("version 1 diplomacy migrates without changing its simulation state", () =>
 
   assert.equal(migrated.version, WORLD_DIPLOMACY_VERSION);
   assert.deepEqual(migrated.contacts, {});
-  const { contacts, ...withoutContacts } = migrated;
-  assert.deepEqual({ ...withoutContacts, version: 1 }, before);
+  const { contacts, overrides, ...withoutContacts } = migrated;
+  const { overrides: _oldOverrides, ...beforeWithoutOverrides } = before;
+  assert.deepEqual({ ...withoutContacts, version: 1 }, beforeWithoutOverrides);
+  assert.equal(overrides["england|france"], DIPLOMACY_WAR);
+  assert.equal(overrides["hospitallers|ottoman"], DIPLOMACY_WAR);
   assert.throws(() => migrateWorldDiplomacy({ version: 0 }), /Unsupported world diplomacy version/);
 });
 
@@ -245,23 +249,23 @@ test("no port contact means no procedural diplomatic events", () => {
 
 test("a live envoy negotiation freezes only its constitutional relationship", () => {
   const state = createWorldDiplomacy({ startMinute: 0, seedKey: "sealed-negotiation" });
-  recordDiplomaticPortCall(state, "england", "france", 10);
+  recordDiplomaticPortCall(state, "spain", "france", 10);
 
   const events = advanceWorldDiplomacy(state, state.nextEventMinute, {
-    lockedPairKeys: [diplomacyPairKey("england", "france")]
+    lockedPairKeys: [diplomacyPairKey("spain", "france")]
   });
 
   assert.deepEqual(events, []);
-  assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "spain", "france"), DIPLOMACY_WAR);
 });
 
 test("wars can end in peace and later relation changes obey pair cooldowns", () => {
   const state = createWorldDiplomacy({ startMinute: 0, seedKey: "peace" });
-  const events = makeDiplomaticPeace(state, "england", "france", 200 * DAY);
+  const events = makeDiplomaticPeace(state, "spain", "france", 200 * DAY);
 
   assert.equal(events.length, 1);
   assert.equal(events[0].kind, "peace");
-  assert.equal(worldDiplomacyBetween(state, "england", "france"), DIPLOMACY_HOSTILE);
+  assert.equal(worldDiplomacyBetween(state, "spain", "france"), DIPLOMACY_HOSTILE);
   assert.match(diplomacyEventNotice(events[0]), /^PEACE:/);
   validateWorldDiplomacy(JSON.parse(JSON.stringify(state)));
 });
@@ -269,7 +273,7 @@ test("wars can end in peace and later relation changes obey pair cooldowns", () 
 test("a defeated capital settlement ends every war involving that power", () => {
   const state = createWorldDiplomacy({ startMinute: 0, seedKey: "general-peace" });
 
-  assert.equal(worldDiplomacyBetween(state, "france", "england"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "france", "england"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, "france", "spain"), DIPLOMACY_WAR);
   assert.equal(worldDiplomacyBetween(state, "france", "habsburg"), DIPLOMACY_WAR);
   assert.equal(worldDiplomacyBetween(state, "habsburg", "venice"), DIPLOMACY_WAR);
@@ -278,7 +282,7 @@ test("a defeated capital settlement ends every war involving that power", () => 
     eventReason: "capital-peace-treaty"
   });
 
-  assert.ok(events.length >= 3);
+  assert.ok(events.length >= 2);
   assert.equal(worldDiplomacyBetween(state, "france", "england"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, "france", "spain"), DIPLOMACY_HOSTILE);
   assert.equal(worldDiplomacyBetween(state, "france", "habsburg"), DIPLOMACY_HOSTILE);

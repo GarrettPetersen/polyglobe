@@ -139,7 +139,7 @@ test("politics cards report meaningful diplomacy and player standing", () => {
   const france = politicsCard(view, "france");
   const pirate = politicsCard(view, "pirate");
 
-  assert.ok(relationshipFactionIds(england, "war").includes("france"));
+  assert.ok(relationshipFactionIds(england, "hostile").includes("france"));
   assert.equal(england.player.label, "Cold");
   assert.equal(france.player.label, "Hostile");
   assert.equal(pirate.player.label, "Hostile");
@@ -241,15 +241,15 @@ test("politics cards show embargo issuers, targets, and Papal followers without 
   const spain = politicsCard(view, "spain");
 
   assert.ok(england.embargoConnections.some((connection) => (
-    connection.role === "issuer" && connection.factionId === "france"
+    connection.role === "target" && connection.factionId === "france"
   )));
   assert.ok(france.embargoConnections.some((connection) => (
-    connection.role === "target" && connection.factionId === "england"
+    connection.role === "issuer" && connection.factionId === "england"
   )));
   assert.ok(spain.embargoConnections.some((connection) => (
     connection.role === "follower" && connection.factionId === "ottoman"
   )));
-  assert.ok(relationshipFactionIds(england, "war").includes("france"));
+  assert.ok(relationshipFactionIds(england, "hostile").includes("france"));
 });
 
 test("the politics cards distinguish tributaries from vassals and unions", () => {
@@ -320,6 +320,7 @@ test("politics trade codes expose duties and protected-market access", () => {
 
 test("politics cards follow changing world diplomacy", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.relations.diplomacy.overrides["england|france"] = "war";
   makeDiplomaticPeace(state.relations.diplomacy, "england", "france", 200 * 24 * 60);
   const view = createPoliticsView(state);
   const england = politicsCard(view, "england");
