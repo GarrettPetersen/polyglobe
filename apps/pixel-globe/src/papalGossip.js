@@ -4,6 +4,7 @@ import {
   PAPAL_ACTION_CRUSADE,
   PAPAL_ACTION_EXCOMMUNICATION,
   PAPAL_ACTION_FAVOUR,
+  PAPAL_ACTION_REVOCATION,
   PAPAL_COMMISSION_ALMS,
   PAPAL_COMMISSION_RELIEF,
   validatePapalPolitics
@@ -71,6 +72,38 @@ function recentPapalGossip(memory, simMinute) {
 
 function papalGossipForAction(action) {
   const target = factionById(action.targetFactionId);
+  if (action.kind === PAPAL_ACTION_REVOCATION) {
+    if (action.revokedActionKind === PAPAL_ACTION_EXCOMMUNICATION) {
+      return gossip({
+        action,
+        report: `${action.popeName} has restored ${action.targetRulerName} to the communion of the Church`,
+        tradeImpact: "Envoys and lenders are waiting to see which courts renew their dealings.",
+        reflection: "Absolution opens a door, though old quarrels do not pass through it so quickly."
+      });
+    }
+    if (action.revokedActionKind === PAPAL_ACTION_CRUSADE) {
+      return gossip({
+        action,
+        report: `${action.popeName} has withdrawn the crusade proclaimed against ${target.name}`,
+        tradeImpact: "Shipowners expect levies and armed convoys to ease, though no peace is assured.",
+        reflection: "Rome may furl the cross without stilling every prince's guns."
+      });
+    }
+    if (action.revokedActionKind === PAPAL_ACTION_FAVOUR) {
+      return gossip({
+        action,
+        report: `${action.popeName} has withdrawn the bull issued in favour of ${target.name}`,
+        tradeImpact: "Courtiers and merchants are reckoning which privileges will survive.",
+        reflection: "What a seal grants, another seal may take away."
+      });
+    }
+    return gossip({
+      action,
+      report: `${action.popeName} has withdrawn the condemnation of ${target.name}`,
+      tradeImpact: "Printers and envoys are carrying the new judgment from court to court.",
+      reflection: "A withdrawn censure mends the law sooner than it mends men's regard."
+    });
+  }
   if (action.logistics?.kind === PAPAL_COMMISSION_RELIEF) {
     const recipient = factionById(action.logistics.recipientFactionId);
     const opponent = factionById(action.logistics.opponentFactionId);

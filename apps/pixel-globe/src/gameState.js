@@ -295,6 +295,31 @@ import {
   validateIllicitTradeEnforcementMemory
 } from "./illicitTradeEnforcement.js";
 import {
+  PAPAL_EMBARGO_REPUTATION_PENALTY,
+  TRADE_EMBARGO_AUTHORITY_PAPAL,
+  TRADE_EMBARGO_REPUTATION_PENALTY,
+  activeTradeEmbargoCombatFactionIds,
+  activeTradeEmbargoOrders,
+  advanceTradeEmbargoPolitics,
+  beginTradeEmbargoEnforcementCombat as markTradeEmbargoEnforcementCombat,
+  consumeTrackedEmbargoCargo,
+  createTradeEmbargoEnforcementMemory,
+  createTradeEmbargoMemory,
+  embargoCargoAvailable,
+  migrateTradeEmbargoEnforcementMemory,
+  migrateTradeEmbargoMemory,
+  nextTradeEmbargoPoliticsMinute,
+  recordTradeEmbargoPurchase,
+  recentTradeEmbargoEvents,
+  resolveTradeEmbargoIncident,
+  tradeEmbargoFine,
+  tradeEmbargoIncidentById,
+  tradeEmbargoOrderById,
+  tradeEmbargoOrdersForPurchase,
+  validateTradeEmbargoEnforcementMemory,
+  validateTradeEmbargoMemory
+} from "./tradeEmbargoes.js";
+import {
   VIKING_BOWS_ITEM_ID,
   isPortableWeaponItemId,
   ownedPortableWeaponItemIds,
@@ -479,7 +504,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 88;
+export const GAME_STATE_VERSION = 89;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -701,6 +726,10 @@ export function createGameState({
       tradeAccessGrants: createSovereignTradeGrantMemory(),
       personalTradePasses: createPersonalTradePassMemory(),
       portugueseCartaz: createPortugueseCartazMemory(),
+      tradeEmbargoes: createTradeEmbargoMemory({
+        startMinute,
+        seedKey: resolvedVoyageSeed
+      }),
       foreignSettlementExpulsions: createForeignSettlementExpulsionMemory(),
       diplomacy: createWorldDiplomacy({
         startMinute,
@@ -733,6 +762,7 @@ export function createGameState({
       birthdays: createBirthdayMemory(),
       specialEquipmentOffers: createSpecialEquipmentOfferMemory(),
       illicitTradeEnforcement: createIllicitTradeEnforcementMemory(),
+      tradeEmbargoEnforcement: createTradeEmbargoEnforcementMemory(),
       chartReframeDialogue: createChartReframeDialogueMemory(),
       shipyardInvestment: createShipyardInvestmentMemory(),
       navigation: {
@@ -799,7 +829,7 @@ export function validateGameState(state) {
 
 export function migrateGameState(state, shipStats) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -931,6 +961,10 @@ export function migrateGameState(state, shipStats) {
         state.relations.personalTradePasses
       ),
       portugueseCartaz: migratePortugueseCartazMemory(state.relations.portugueseCartaz),
+      tradeEmbargoes: migrateTradeEmbargoMemory(state.relations.tradeEmbargoes, {
+        startMinute: savedGameStartMinute(state),
+        seedKey: migrationVoyageSeed
+      }),
       foreignSettlementExpulsions: migrateForeignSettlementExpulsionMemory(
         state.relations.foreignSettlementExpulsions
       ),
@@ -948,6 +982,9 @@ export function migrateGameState(state, shipStats) {
       specialEquipmentOffers: state.memory?.specialEquipmentOffers || createSpecialEquipmentOfferMemory(),
       illicitTradeEnforcement: migrateIllicitTradeEnforcementMemory(
         state.memory?.illicitTradeEnforcement
+      ),
+      tradeEmbargoEnforcement: migrateTradeEmbargoEnforcementMemory(
+        state.memory?.tradeEmbargoEnforcement
       ),
       chartReframeDialogue: migrateChartReframeDialogueMemory(
         state.memory?.chartReframeDialogue
@@ -1435,7 +1472,8 @@ export function advanceGameDiplomacy(state, currentMinute) {
 
 export function nextGamePoliticsMinute(state) {
   if (!state?.relations?.diplomacy || !state?.relations?.papacy ||
-      !state?.relations?.courts || !state?.relations?.authority || !state?.relations?.imperial) {
+      !state?.relations?.courts || !state?.relations?.authority || !state?.relations?.imperial ||
+      !state?.relations?.tradeEmbargoes) {
     throw new Error("Game state has no scheduled politics");
   }
   return Math.min(
@@ -1443,6 +1481,7 @@ export function nextGamePoliticsMinute(state) {
     nextPapalPoliticsMinute(state.relations.papacy),
     nextCourtPoliticsMinute(state.relations.courts),
     nextImperialPoliticsMinute(state.relations.imperial),
+    nextTradeEmbargoPoliticsMinute(state.relations.tradeEmbargoes),
     nextSovereignAuthorityMinute(state.relations.authority),
     nextHistoricalSovereigntyMinute(state),
     nextConquistadorQuestMinute(state.memory.quests.conquistador)
@@ -1477,6 +1516,19 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     state.relations.diplomacy,
     currentMinute,
     playerWorldDiplomacyInfluence(state)
+  );
+  const embargoEvents = advanceTradeEmbargoPolitics(
+    state.relations.tradeEmbargoes,
+    state.relations.diplomacy,
+    currentMinute,
+    {
+      authorityForFaction: (factionId) => sovereignAuthorityScore(
+        state.relations.authority,
+        factionId
+      ),
+      papalAuthority: papalAuthorityScore(state.relations.authority),
+      inactiveFactionIds: state.memory.conquest.collapsedFactionIds
+    }
   );
   const imperialEvents = advanceImperialConstitution(
     state.relations.imperial,
@@ -1533,6 +1585,7 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     papalActions: papal.actions,
     papalMattersOpened: papal.mattersOpened,
     papalCommissionRevoked: papal.commissionRevoked,
+    embargoEvents,
     courtActions: courts.actions,
     courtMattersOpened: courts.mattersOpened,
     imperialEvents,
@@ -1559,6 +1612,16 @@ export function recentGamePapalActions(state, limit = 3) {
     throw new Error(`Invalid papal action history limit: ${limit}`);
   }
   return Object.freeze(state.relations.papacy.history.slice(0, limit));
+}
+
+export function activeGameTradeEmbargoes(state) {
+  assertGameState(state);
+  return activeTradeEmbargoOrders(state.relations.tradeEmbargoes);
+}
+
+export function recentGameTradeEmbargoEvents(state, limit = 3) {
+  assertGameState(state);
+  return recentTradeEmbargoEvents(state.relations.tradeEmbargoes, limit);
 }
 
 export function recentGameCourtActions(state, limit = 3) {
@@ -5211,6 +5274,7 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   assertPlayerTradeAccess(state, city, context);
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
+  const embargoOrders = playerTradeEmbargoPurchaseWarnings(state, city, goodId);
   if (row.stock < quantity) throw new Error(`${cityLabel(city)} has only ${row.stock} ${row.good.label}`);
   const terms = playerTradeTerms(state, city, goodId, context);
   if (!terms.allowed) {
@@ -5241,7 +5305,35 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
     pnl: null
   });
   if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
-  return { good: row.good, quantity, price: total, costBasis: total, tradeTerms: terms };
+  if (embargoOrders.length > 0) {
+    recordTradeEmbargoPurchase(state.memory.tradeEmbargoEnforcement, embargoOrders, {
+      port: city,
+      goodId: row.good.id,
+      quantity,
+      transactionValue: total,
+      simMinute: context.simMinute ?? state.survival.lastMinute
+    });
+  }
+  return {
+    good: row.good,
+    quantity,
+    price: total,
+    costBasis: total,
+    tradeTerms: terms,
+    embargoOrders
+  };
+}
+
+export function playerTradeEmbargoPurchaseWarnings(state, city, goodId) {
+  assertGameState(state);
+  if (!city || typeof city !== "object") throw new Error("Trade embargo warning requires a city");
+  const sourceFactionId = tradeReputationFactionId(city);
+  if (!sourceFactionId) return Object.freeze([]);
+  return tradeEmbargoOrdersForPurchase(state.relations.tradeEmbargoes, {
+    sourceFactionId,
+    goodId,
+    playerFactionId: state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID
+  });
 }
 
 function portPurchasePriceMultiplier(city) {
@@ -5331,6 +5423,7 @@ function sellGoodWithPricing(state, economy, city, goodId, quantity, context, pr
     pnl
   });
   if (tradeFactionId) recordTradeWithFaction(state, tradeFactionId);
+  consumeTrackedEmbargoCargo(state.memory.tradeEmbargoEnforcement, row.good.id, quantity);
   return { good: row.good, quantity, price: total, costBasis: soldCost, pnl, tradeTerms: terms };
 }
 
@@ -5454,6 +5547,9 @@ export function createMarketUndoSnapshot(state, economy, city) {
     ledger: Object.freeze(state.accounts.ledger.map(copyLedgerEntry)),
     decisions: Object.freeze({ ...state.memory.decisions }),
     factionReputation: Object.freeze({ ...state.relations.factionReputation }),
+    tradeEmbargoEnforcement: Object.freeze(structuredClone(
+      state.memory.tradeEmbargoEnforcement
+    )),
     port: snapshotPortTradeState(economy, city)
   });
 }
@@ -5461,7 +5557,7 @@ export function createMarketUndoSnapshot(state, economy, city) {
 export function restoreMarketUndoSnapshot(state, economy, city, snapshot) {
   if (!snapshot || !Number.isFinite(snapshot.doubloons) || snapshot.doubloons < 0 ||
       !snapshot.cargo || !snapshot.cargoCostBasis || !Array.isArray(snapshot.ledger) ||
-      !snapshot.decisions || !snapshot.factionReputation) {
+      !snapshot.decisions || !snapshot.factionReputation || !snapshot.tradeEmbargoEnforcement) {
     throw new Error("Invalid market undo snapshot");
   }
   state.doubloons = snapshot.doubloons;
@@ -5472,6 +5568,7 @@ export function restoreMarketUndoSnapshot(state, economy, city, snapshot) {
   state.accounts.ledger = snapshot.ledger.map(copyLedgerEntry);
   state.memory.decisions = { ...snapshot.decisions };
   state.relations.factionReputation = { ...snapshot.factionReputation };
+  state.memory.tradeEmbargoEnforcement = structuredClone(snapshot.tradeEmbargoEnforcement);
   restorePortTradeState(economy, city, snapshot.port);
   assertGameState(state);
   return {
@@ -5825,6 +5922,86 @@ export function beginIllicitTradeEnforcementCombat(state, incidentId) {
   const incident = markIllicitTradeEnforcementCombat(state.memory.illicitTradeEnforcement, incidentId);
   recordDecision(state, `trade.illicit.enforcement-fought.${incident.policyId}`, 1);
   return incident;
+}
+
+export function tradeEmbargoInspectionStatus(state, incidentId) {
+  assertGameState(state);
+  const incident = tradeEmbargoIncidentById(state.memory.tradeEmbargoEnforcement, incidentId);
+  const order = tradeEmbargoOrderById(state.relations.tradeEmbargoes, incident.orderId);
+  const cargo = embargoCargoAvailable(incident, state.cargo);
+  const fine = tradeEmbargoFine(incident);
+  return Object.freeze({
+    incident,
+    order,
+    cargo,
+    fine,
+    canAffordFine: state.doubloons >= fine
+  });
+}
+
+export function recordTradeEmbargoDetectionConsequences(state, incidentId) {
+  const status = tradeEmbargoInspectionStatus(state, incidentId);
+  const penalties = new Map([[
+    status.incident.enforcingFactionId,
+    TRADE_EMBARGO_REPUTATION_PENALTY
+  ]]);
+  if (status.order.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL) {
+    penalties.set(
+      "papal-states",
+      (penalties.get("papal-states") || 0) + PAPAL_EMBARGO_REPUTATION_PENALTY
+    );
+  }
+  const reputationChanges = [];
+  for (const [factionId, penalty] of penalties) {
+    const before = factionReputation(state, factionId);
+    const after = adjustFactionReputation(state, factionId, -penalty);
+    reputationChanges.push(Object.freeze({ factionId, before, after, delta: after - before }));
+  }
+  recordDecision(state, `trade.embargo.detected.${status.order.id}`, 1);
+  return Object.freeze({ ...status, reputationChanges: Object.freeze(reputationChanges) });
+}
+
+export function payTradeEmbargoFine(state, incidentId) {
+  const status = tradeEmbargoInspectionStatus(state, incidentId);
+  if (state.doubloons < status.fine) {
+    throw new Error(`Not enough doubloons to pay a ${status.fine} db embargo fine`);
+  }
+  state.doubloons -= status.fine;
+  resolveTradeEmbargoIncident(state.memory.tradeEmbargoEnforcement, incidentId);
+  recordDecision(state, `trade.embargo.fine.${status.order.id}`, 1);
+  return Object.freeze(status);
+}
+
+export function surrenderTradeEmbargoCargo(state, incidentId) {
+  const status = tradeEmbargoInspectionStatus(state, incidentId);
+  if (status.cargo.quantity <= 0) throw new Error("No embargoed cargo remains to surrender");
+  resolveTradeEmbargoIncident(state.memory.tradeEmbargoEnforcement, incidentId);
+  const removed = [];
+  for (const [goodId, quantity] of Object.entries(status.cargo.manifest)) {
+    trimCargoQuantity(state, goodId, Math.max(0, (state.cargo[goodId] || 0) - quantity));
+    removed.push(Object.freeze({ goodId, quantity }));
+  }
+  recordDecision(
+    state,
+    `trade.embargo.cargo-surrendered.${status.order.id}`,
+    removed.reduce((sum, row) => sum + row.quantity, 0)
+  );
+  return Object.freeze(removed);
+}
+
+export function beginTradeEmbargoEnforcementCombat(state, incidentId) {
+  assertGameState(state);
+  const incident = markTradeEmbargoEnforcementCombat(
+    state.memory.tradeEmbargoEnforcement,
+    incidentId
+  );
+  recordDecision(state, `trade.embargo.enforcement-fought.${incident.orderId}`, 1);
+  return incident;
+}
+
+export function activeTradeEmbargoEnforcementFactionIds(state) {
+  assertGameState(state);
+  return Object.freeze(activeTradeEmbargoCombatFactionIds(state.memory.tradeEmbargoEnforcement));
 }
 
 export function receiveFishCatch(state, catchResult, context = {}) {
@@ -7950,6 +8127,7 @@ function trimCargoQuantity(state, goodId, maximumQuantity) {
     delete state.cargo[goodId];
     delete state.accounts.cargoCostBasis[goodId];
   }
+  consumeTrackedEmbargoCargo(state.memory.tradeEmbargoEnforcement, goodId, removed);
   return removed;
 }
 
@@ -9100,6 +9278,7 @@ function assertGameState(state) {
   assertSafePassageTable(state.relations?.safePassageUntilMinute);
   assertSafePassageRefusalTable(state.relations?.safePassageRefusalUntilMinute);
   assertPortugueseCartazMemory(state.relations?.portugueseCartaz);
+  validateTradeEmbargoMemory(state.relations?.tradeEmbargoes);
   validateForeignSettlementExpulsionMemory(state.relations?.foreignSettlementExpulsions);
   assertWorldDiplomacyState(state);
   if (!Number.isFinite(state.accounts.realizedPnl)) throw new Error("Invalid realized trade P/L");
@@ -9113,6 +9292,7 @@ function assertGameState(state) {
   validateBirthdayMemory(state.memory.birthdays);
   validateSpecialEquipmentOfferMemory(state.memory.specialEquipmentOffers);
   validateIllicitTradeEnforcementMemory(state.memory.illicitTradeEnforcement);
+  validateTradeEmbargoEnforcementMemory(state.memory.tradeEmbargoEnforcement);
   validateChartReframeDialogueMemory(state.memory.chartReframeDialogue);
   validateShipyardInvestmentMemory(state.memory.shipyardInvestment);
   assertCargoReservations(state.memory.cargoReservations);

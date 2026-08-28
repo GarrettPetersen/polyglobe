@@ -274,7 +274,8 @@ function firstPoliticsCardSlot(occupancy, columns, rows, rowSpan, columnSpan) {
 
 function relationshipLines(card, tokensPerLine, powerCount) {
   if (!card || !Array.isArray(card.dependencies) ||
-      !Array.isArray(card.constitutionalConnections) || !Array.isArray(card.relationships)) {
+      !Array.isArray(card.constitutionalConnections) ||
+      !Array.isArray(card.embargoConnections) || !Array.isArray(card.relationships)) {
     throw new Error("Invalid politics country card");
   }
   const lines = [];
@@ -292,6 +293,22 @@ function relationshipLines(card, tokensPerLine, powerCount) {
     constitutionalGroups.get(key).factionIds.push(connection.factionId);
   }
   for (const group of constitutionalGroups.values()) {
+    pushFactionLines(lines, group, tokensPerLine);
+  }
+  const embargoGroups = new Map();
+  for (const connection of card.embargoConnections) {
+    const key = `${connection.kind}:${connection.role}`;
+    if (!embargoGroups.has(key)) {
+      embargoGroups.set(key, {
+        type: "embargo",
+        kind: connection.kind,
+        role: connection.role,
+        factionIds: []
+      });
+    }
+    embargoGroups.get(key).factionIds.push(connection.factionId);
+  }
+  for (const group of embargoGroups.values()) {
     pushFactionLines(lines, group, tokensPerLine);
   }
   const dependencyGroups = new Map();

@@ -365,6 +365,15 @@ import {
   resolveIllicitTradeInspection
 } from "./illicitTradeEnforcement.js";
 import {
+  activeTradeEmbargoCombatFactionIds,
+  resolveTradeEmbargoInspection,
+  tradeEmbargoIncidentForInspection,
+  tradeEmbargoEventNotice,
+  tradeEmbargoOrderById,
+  tradeEmbargoRegimeLabel,
+  tradeEmbargoScopeLabel
+} from "./tradeEmbargoes.js";
+import {
   FISH_CARGO_GOOD_ID,
   portNavigationReasonLabel,
   SHIP_ITEM_FISHING_NET,
@@ -405,6 +414,7 @@ import {
   futurePermanentCrewFloor,
   grantGuaranteedMissionPerkItem,
   hasShipItem,
+  hasLetterOfMarqueFrom,
   hasPrivateeringAuthorityAgainst,
   issueSovereignWarLoanForState,
   acceptSovereignWarLoanSecurityForState,
@@ -489,6 +499,11 @@ import {
   holdSovereignWarLoanBondForState,
   recordPiracyAgainstFaction,
   beginIllicitTradeEnforcementCombat,
+  beginTradeEmbargoEnforcementCombat,
+  payTradeEmbargoFine,
+  recordTradeEmbargoDetectionConsequences,
+  surrenderTradeEmbargoCargo,
+  tradeEmbargoInspectionStatus,
   releaseCargoSpace,
   reserveCargoSpace,
   refuseFactionSafePassage,
@@ -957,6 +972,7 @@ import {
   npcFleetOriginWeightsForPorts,
   npcFactionCanMaintainCapitalNavalReserve,
   npcPortHasMajorProtection,
+  npcTradeEmbargoViolations,
   orderNpcPortResponse,
   npcRoleLabel,
   npcSeaRouteHasPort,
@@ -4695,6 +4711,7 @@ async function main() {
       sovereignTradeOpenToFaction(gameState, policyId, factionId)
     ),
     suzeraintyMemory: gameState.relations.diplomacy.suzerainties,
+    tradeEmbargoes: gameState.relations.tradeEmbargoes,
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
   if (!CAPTURE_SCENARIO) {
@@ -15569,7 +15586,8 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
         sovereignTradeOpenToFaction: (policyId, factionId) => (
           sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
         ),
-        suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
+        suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties,
+        tradeEmbargoes: restoredGameState.relations.tradeEmbargoes
       })
     });
     npcSeaRoutes = npcRoutesResult.value;
@@ -15607,6 +15625,7 @@ function createSavedVoyageNpcRoutes(simulationMinute, restoredGameState) {
       sovereignTradeOpenToFaction(restoredGameState, policyId, factionId)
     ),
     suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties,
+    tradeEmbargoes: restoredGameState.relations.tradeEmbargoes,
     onForeignPortCall: recordNpcDiplomaticPortCall
   });
 }
@@ -21990,7 +22009,7 @@ function openShipDialogue(shipCall, options = {}) {
   }
   const enforcementDialogue = Boolean(
     options.attackReason || options.cartazInspection || options.illicitTradeInspection ||
-    options.bibleInspection || options.scriptedHail
+    options.tradeEmbargoInspection || options.bibleInspection || options.scriptedHail
   );
   const hostileHail = !enforcementDialogue && npcShipIsHostileToPlayer(visualShip);
   const treasureGoal = activeTreasureCampaignGoal();
@@ -23689,6 +23708,18 @@ async function acquireVikingLongship(action) {
 
 function applyShipDialogueAction(npcShipId, action) {
   const simMinute = Math.floor(weatherClockMinutes);
+  if (action.type === "begin-player-trade-enforcement") {
+    const visualState = npcVisualShips.get(npcShipId);
+    if (!visualState) throw new Error(`Trade enforcement ship is no longer visible: ${npcShipId}`);
+    const current = dialogueShipForId(npcShipId).tradeRestrictionViolation;
+    if (!current || current.id !== action.violation?.id) {
+      throw new Error(`Trade restriction is no longer enforceable against ${npcShipId}`);
+    }
+    visualState.playerTradeRestrictionEnforcementActive = true;
+    visualState.playerTradeRestrictionViolation = { ...current };
+    saveVoyageNow("served a trade embargo surrender demand");
+    return;
+  }
   if (action.type === "surrender-bible-contraband") {
     const questId = dialogueState?.bibleInspection?.questId;
     surrenderCatholicBibleContraband(gameState, questId, simMinute);
@@ -23723,6 +23754,30 @@ function applyShipDialogueAction(npcShipId, action) {
     beginIllicitTradeEnforcementCombat(gameState, incidentId);
     forceIllicitTradeEnforcementCombat(npcShipId);
     saveVoyageNow("evaded illicit trade inspection");
+    return;
+  }
+  if (action.type === "pay-trade-embargo-fine") {
+    const incidentId = dialogueState?.tradeEmbargoInspection?.incidentId;
+    const result = payTradeEmbargoFine(gameState, incidentId);
+    playCoinClinkSound();
+    showSurvivalNotice(`EMBARGO FINE  ${result.fine} DB`, "warning");
+    saveVoyageNow("paid trade embargo fine");
+    return;
+  }
+  if (action.type === "surrender-trade-embargo-cargo") {
+    const incidentId = dialogueState?.tradeEmbargoInspection?.incidentId;
+    const removed = surrenderTradeEmbargoCargo(gameState, incidentId);
+    syncShipCargoFromGameState();
+    const quantity = removed.reduce((sum, row) => sum + row.quantity, 0);
+    showSurvivalNotice(`EMBARGOED CARGO SURRENDERED  ${quantity}`, "warning");
+    saveVoyageNow("surrendered embargoed cargo");
+    return;
+  }
+  if (action.type === "evade-trade-embargo-inspection") {
+    const incidentId = dialogueState?.tradeEmbargoInspection?.incidentId;
+    beginTradeEmbargoEnforcementCombat(gameState, incidentId);
+    forceIllicitTradeEnforcementCombat(npcShipId);
+    saveVoyageNow("evaded trade embargo inspection");
     return;
   }
   if (action.type === "pay-cartaz-fine") {
@@ -23961,7 +24016,7 @@ function forceIllicitTradeEnforcementCombat(npcShipId) {
   shipCombatEntryCollisionGrace.set(npcShipId, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
   const cannons = state.stats.cannons;
   startCombatMusicForThreat(cannons >= COMBAT_BIG_BROADSIDE_MIN_CANNONS ? "big" : "small");
-  forceNearbyIllicitTradeEnforcementEngagements(Math.floor(weatherClockMinutes));
+  forceNearbyTradeEnforcementEngagements(Math.floor(weatherClockMinutes));
 }
 
 function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
@@ -23972,7 +24027,8 @@ function recordPlayerAttackConsequences(npcShipId, fallbackFactionId = null) {
   const state = npcVisualShips.get(npcShipId);
   const factionId = state?.factionId || npcSeaRoutes?.shipById?.get(npcShipId)?.factionId || fallbackFactionId;
   if (!factionId || factionId === PIRATE_FACTION_ID) return;
-  const lawfulWartimeAction = hasPrivateeringAuthorityAgainst(gameState, factionId);
+  const lawfulWartimeAction = hasPrivateeringAuthorityAgainst(gameState, factionId) ||
+    state?.playerTradeRestrictionEnforcementActive === true;
   if (!state?.playerAttackRecorded) {
     recordAttackAgainstFaction(gameState, factionId, { lawfulWartimeAction });
     if (state) state.playerAttackRecorded = true;
@@ -24378,11 +24434,35 @@ function dialogueShipForId(npcShipId) {
     allied: alliedToPlayer
   });
   const privateeringIssuerIds = privateeringAuthorityIssuerIdsAgainst(gameState, npcShip.factionId);
-  const privateeringIssuerAdjective = privateeringIssuerIds.length > 0
-    ? factionById(privateeringIssuerIds[0]).adjective
+  const playerCommissionFactionIds = Object.keys(gameState.relations.lettersOfMarque)
+    .filter((factionId) => hasLetterOfMarqueFrom(gameState, factionId));
+  const currentTradeRestrictionViolation = npcTradeEmbargoViolations(
+    npcShip,
+    gameState.relations.tradeEmbargoes,
+    playerCommissionFactionIds
+  )[0] || null;
+  const activeTradeRestrictionViolation = visualState.playerTradeRestrictionEnforcementActive
+    ? visualState.playerTradeRestrictionViolation
+    : null;
+  const tradeRestrictionViolation = activeTradeRestrictionViolation ||
+    (currentTradeRestrictionViolation ? (() => {
+      const order = tradeEmbargoOrderById(
+        gameState.relations.tradeEmbargoes,
+        currentTradeRestrictionViolation.orderId
+      );
+      return Object.freeze({
+        ...currentTradeRestrictionViolation,
+        regimeLabel: tradeEmbargoRegimeLabel(order),
+        issuerAdjective: factionById(currentTradeRestrictionViolation.enforcingFactionId).adjective
+      });
+    })() : null);
+  const effectivePrivateeringFactionId = activeTradeRestrictionViolation?.enforcingFactionId ||
+    privateeringIssuerIds[0] || null;
+  const privateeringIssuerAdjective = effectivePrivateeringFactionId
+    ? factionById(effectivePrivateeringFactionId).adjective
     : null;
   const playerAttackIsPiracy = !encounter && npcShip.factionId !== PIRATE_FACTION_ID &&
-    privateeringIssuerIds.length === 0;
+    privateeringIssuerIds.length === 0 && !activeTradeRestrictionViolation;
   const stormStatus = visualState?.stormMode === "anchored"
     ? "We are anchored until the storm passes."
     : visualState?.stormMode === "seeking"
@@ -24414,6 +24494,7 @@ function dialogueShipForId(npcShipId) {
     canOfferEmergencyAid: !enemy && emergencyAid.available,
     playerAttackIsPiracy,
     privateeringIssuerAdjective,
+    tradeRestrictionViolation,
     willOfferSurrender: npcShouldOfferSurrender(npcCombatEntity(visualState), playerCombatEntity()),
     character
   };
@@ -31690,6 +31771,15 @@ function updateWorldDiplomacy() {
     dirty = true;
     return true;
   }
+  if (result.embargoEvents.length > 0) {
+    showSurvivalNotice(
+      tradeEmbargoEventNotice(result.embargoEvents.at(-1)),
+      "warn",
+      "politics-news"
+    );
+    dirty = true;
+    return true;
+  }
   if (result.courtActions.length > 0) {
     showSurvivalNotice(
       courtActionNotice(result.courtActions.at(-1)),
@@ -33042,6 +33132,7 @@ function distantWorldRuntimeState() {
     protectedNpcShipIds: currentDistantWorldProtectedNpcShipIds(),
     foreignSettlementExpulsions: gameState.relations.foreignSettlementExpulsions,
     suzeraintyMemory: gameState.relations.diplomacy.suzerainties,
+    tradeEmbargoes: gameState.relations.tradeEmbargoes,
     player: {
       lat: latitudeDegForDirection(ship.position),
       lon: longitudeDegForDirection(ship.position)
@@ -33671,7 +33762,7 @@ function updateNpcCombat(dt) {
   );
   const playerWasInCombat = playerHasCombatEngagement();
   const colonizationDefenseInitiator = forceColonizationDefenseEngagements(playerWasInCombat);
-  const illicitTradeEnforcementChanged = forceNearbyIllicitTradeEnforcementEngagements(simMinute);
+  const tradeEnforcementChanged = forceNearbyTradeEnforcementEngagements(simMinute);
   const ningboBattleChanged = forceNingboMissionEngagements();
   const participantsBefore = combatParticipantIds();
   const entities = measurePerformanceBenchmarkStage(
@@ -33701,7 +33792,7 @@ function updateNpcCombat(dt) {
       shipCombatEntryCollisionGrace.set(id, SHIP_COMBAT_ENTRY_COLLISION_GRACE_SECONDS);
     }
   }
-  let changed = result.changed || illicitTradeEnforcementChanged || ningboBattleChanged;
+  let changed = result.changed || tradeEnforcementChanged || ningboBattleChanged;
   const firstPlayerEngagement = !playerWasInCombat
     ? result.startedEngagements.find((engagement) => (
         engagement.aId === PLAYER_COMBAT_ID || engagement.bId === PLAYER_COMBAT_ID
@@ -33746,8 +33837,13 @@ function updateNpcCombat(dt) {
       !bibleHailOpened && !suppressCaptureHails
     ? maybeOpenIllicitTradeInspection(simMinute)
     : false;
+  const tradeEmbargoHailOpened = !combatHailOpened && !combatHailPending &&
+      !bibleHailOpened && !illicitTradeHailOpened && !suppressCaptureHails
+    ? maybeOpenTradeEmbargoInspection(simMinute)
+    : false;
   const cartazHailOpened = !combatHailOpened && !combatHailPending &&
-      !illicitTradeHailOpened && !suppressCaptureHails
+      !bibleHailOpened && !illicitTradeHailOpened && !tradeEmbargoHailOpened &&
+      !suppressCaptureHails
     ? maybeOpenPortugueseCartazInspection(simMinute)
     : false;
   shoreBatteryUpdateAccumulator = Math.min(
@@ -33763,7 +33859,8 @@ function updateNpcCombat(dt) {
           return updateShoreBatteryCombat(
             elapsed,
             combatHailOpened || combatHailPending || bibleHailOpened || illicitTradeHailOpened ||
-              cartazHailOpened || suppressCaptureHails || overlayBlocksCombatHails,
+              tradeEmbargoHailOpened || cartazHailOpened || suppressCaptureHails ||
+              overlayBlocksCombatHails,
             portEntryContext,
             playerWasInCombat
           );
@@ -33806,7 +33903,8 @@ function updateNpcCombat(dt) {
     state.combatTargetId = nextTargetId;
     state.combatEnemyIds = nextEnemyIds;
     if (!nextMode) clearCombatWounds(state);
-    if (!combatHailOpened && !combatHailPending && !illicitTradeHailOpened &&
+    if (!combatHailOpened && !combatHailPending && !bibleHailOpened &&
+        !illicitTradeHailOpened && !tradeEmbargoHailOpened &&
         !cartazHailOpened && !batteryCombat.hailOpened &&
         intent?.mode === COMBAT_MODE_ATTACK) {
       if (fireNpcWeaponAtTarget(state, intent.targetId)) changed = true;
@@ -33984,6 +34082,73 @@ function maybeOpenIllicitTradeInspection(simMinute) {
   return false;
 }
 
+function maybeOpenTradeEmbargoInspection(simMinute) {
+  const enforcementMemory = gameState?.memory?.tradeEmbargoEnforcement;
+  const embargoMemory = gameState?.relations?.tradeEmbargoes;
+  if (
+    !enforcementMemory || !embargoMemory || enforcementMemory.incidents.length === 0 ||
+    gameState.activePlaySeconds < 60 || combatHailIsBlockedByOverlay() ||
+    playerHasCombatEngagement()
+  ) {
+    return false;
+  }
+  const inspectors = worldSpatialMatches(
+    localLayout.viewX,
+    localLayout.viewY,
+    NPC_HAIL_RADIUS_PX,
+    [WORLD_SPATIAL_KIND.NPC_SHIP]
+  )
+    .map((match) => ({ state: match.entry.value, distance: Math.sqrt(match.distanceSquared) }))
+    .filter(({ state, distance }) => (
+      state.role === NPC_ROLE_WARSHIP && !state.combatGrace && distance <= NPC_HAIL_RADIUS_PX
+    ))
+    .sort((left, right) => left.distance - right.distance || left.state.id.localeCompare(right.state.id));
+  let inspectionHistoryChanged = false;
+  for (const { state } of inspectors) {
+    const incident = tradeEmbargoIncidentForInspection(
+      enforcementMemory,
+      embargoMemory,
+      state.factionId,
+      state.id,
+      gameState.cargo
+    );
+    if (!incident) continue;
+    const result = resolveTradeEmbargoInspection(
+      enforcementMemory,
+      incident.id,
+      state.factionId,
+      state.id,
+      Math.random()
+    );
+    if (!result.detected) {
+      inspectionHistoryChanged = true;
+      continue;
+    }
+    if (result.newlyDetected) {
+      recordTradeEmbargoDetectionConsequences(gameState, incident.id);
+    }
+    const status = tradeEmbargoInspectionStatus(gameState, incident.id);
+    const character = ensureNpcShipCaptain(state.id);
+    openShipDialogue({ id: state.id, character }, {
+      tradeEmbargoInspection: {
+        incidentId: incident.id,
+        issuerName: status.order.authorityKind === "papal"
+          ? "the Holy See"
+          : factionNounPhrase(status.order.issuerFactionId),
+        targetName: factionNounPhrase(status.order.targetFactionId),
+        scopeLabel: tradeEmbargoScopeLabel(status.order.scope),
+        fine: status.fine,
+        cargoQuantity: status.cargo.quantity,
+        canAffordFine: status.canAffordFine
+      }
+    });
+    saveVoyageNow("caught in a trade embargo inspection");
+    return true;
+  }
+  if (inspectionHistoryChanged) saveVoyageNow("passed a trade embargo inspection");
+  return false;
+}
+
 function combatHailIsBlockedByOverlay() {
   return Boolean(
     gameOverReason || playerIntroModal || captainAlertModal || dialogueState || menusAreOpen()
@@ -34070,10 +34235,16 @@ function forceColonizationDefenseEngagements(playerWasInCombat) {
   return initiator;
 }
 
-function forceNearbyIllicitTradeEnforcementEngagements(simMinute) {
+function forceNearbyTradeEnforcementEngagements(simMinute) {
   const memory = gameState?.memory?.illicitTradeEnforcement;
-  if (!memory || memory.incidents.length === 0) return false;
-  const enforcingFactions = new Set(activeIllicitTradeCombatFactionIds(memory, simMinute));
+  const enforcingFactions = new Set(memory
+    ? activeIllicitTradeCombatFactionIds(memory, simMinute)
+    : []);
+  for (const factionId of activeTradeEmbargoCombatFactionIds(
+    gameState.memory.tradeEmbargoEnforcement
+  )) {
+    enforcingFactions.add(factionId);
+  }
   if (enforcingFactions.size === 0) return false;
   let changed = false;
   let largestBroadside = 0;
@@ -46651,6 +46822,18 @@ function politicsCardLineLabel(line) {
       throw new Error(`Unknown politics constitutional connection: ${line.kind}`);
     }
     return uiText(line.role === "estate" ? "politics.emperor" : "politics.imperialEstates");
+  }
+  if (line.type === "embargo") {
+    if (line.kind !== "trade-embargo") {
+      throw new Error(`Unknown politics embargo connection: ${line.kind}`);
+    }
+    const key = {
+      issuer: "politics.embargoes",
+      target: "politics.embargoedBy",
+      follower: "politics.enforcesBan"
+    }[line.role];
+    if (!key) throw new Error(`Unknown politics embargo role: ${line.role}`);
+    return uiText(key);
   }
   if (line.type !== "dependency") throw new Error(`Unknown politics card line type: ${line.type}`);
   if (line.kind === "personal-union") return uiText("politics.unionWith");

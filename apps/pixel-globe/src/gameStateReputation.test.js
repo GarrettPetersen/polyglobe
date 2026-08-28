@@ -199,7 +199,7 @@ test("version 45 voyages gain papal politics without recalculating established r
   delete saved.relations.papacy;
   const restored = migrateGameState(saved, null);
   assert.equal(restored.relations.factionReputation.france, 37);
-  assert.equal(restored.relations.papacy.version, 4);
+  assert.equal(restored.relations.papacy.version, 5);
 });
 
 test("port entry evaluation context can be reused across an armed-port combat tick", () => {
@@ -552,6 +552,27 @@ test("older voyages preserve conquest while introducing compatible politics", ()
   for (const factionId of ["wallachia", "moldavia", "ragusa", "hejaz", "ryukyu", "ainu"]) {
     assert.equal(restored.relations.factionReputation[factionId], 0);
   }
+  validateGameState(restored);
+});
+
+test("version 88 voyages gain trade embargo politics and enforcement ledgers", () => {
+  const saved = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  saved.version = 88;
+  delete saved.relations.tradeEmbargoes;
+  delete saved.memory.tradeEmbargoEnforcement;
+
+  const restored = migrateGameState(saved, null);
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.relations.tradeEmbargoes.version, 1);
+  assert.ok(restored.relations.tradeEmbargoes.orders.some((order) => (
+    order.issuerFactionId === "hospitallers" && order.targetFactionId === "ottoman"
+  )));
+  assert.deepEqual(restored.memory.tradeEmbargoEnforcement, {
+    version: 1,
+    nextIncidentId: 1,
+    incidents: []
+  });
   validateGameState(restored);
 });
 

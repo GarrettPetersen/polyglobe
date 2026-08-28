@@ -1,4 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { get } from "node:https";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -126,6 +127,11 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedPortFactorRecognitionOverrides(),
   ...reviewedTreasurePirateSearchOverrides(),
+  "EMBARGO FINE {0} DB": Object.freeze({
+    "pt-BR": "MULTA POR EMBARGO {0} DB",
+    ja: "禁輸違反金 {0} DB",
+    ko: "금수 조치 위반 벌금 {0} DB"
+  }),
   "Set heading: {0} ({1}; harbor barred)": Object.freeze({
     "zh-Hans": "设定航向：{0}（{1}；港口禁止入内）",
     ru: "Проложить курс: {0} ({1}; вход в гавань запрещён)",
@@ -1892,8 +1898,8 @@ async function fetchTranslationPayload(url, label) {
   let lastError = null;
   for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
     try {
-      const response = await fetch(url);
-      if (response.ok) return response.json();
+      const response = await translationHttpResponse(url);
+      if (response.status === 200) return JSON.parse(response.body);
       const error = new Error(`${label} failed: ${response.status}`);
       if (response.status < 500 && response.status !== 429) throw error;
       lastError = error;
@@ -1905,6 +1911,26 @@ async function fetchTranslationPayload(url, label) {
     }
   }
   throw new Error(`${label} failed after ${maximumAttempts} attempts`, { cause: lastError });
+}
+
+function translationHttpResponse(url) {
+  return new Promise((resolve, reject) => {
+    const request = get(url, (response) => {
+      response.setEncoding("utf8");
+      let body = "";
+      response.on("data", (chunk) => {
+        body += chunk;
+      });
+      response.on("end", () => resolve({
+        status: response.statusCode || 0,
+        body
+      }));
+    });
+    request.on("error", reject);
+    request.setTimeout(30_000, () => {
+      request.destroy(new Error("Translation request timed out"));
+    });
+  });
 }
 
 function placeholderSequence(value) {

@@ -6,9 +6,14 @@ import {
   PAPAL_COMMISSION_ALMS,
   PAPAL_COMMISSION_RELIEF,
   PAPAL_ACTION_EXCOMMUNICATION,
+  PAPAL_ACTION_CONDEMNATION,
+  PAPAL_ACTION_CRUSADE,
+  PAPAL_ACTION_FAVOUR,
+  PAPAL_ACTION_REVOCATION,
   PAPAL_MATTER_AVAILABLE,
   PAPAL_MATTER_COMMISSIONED,
   acceptPapalCommission,
+  activePapalDecrees,
   advancePapalCommissionAtPort,
   advancePapalPolitics,
   completePapalCommission,
@@ -19,7 +24,8 @@ import {
   papalCommissionEligibility,
   papalCommissionObjective,
   papalActionNotice,
-  papalMatterNotice
+  papalMatterNotice,
+  revokePapalAction
 } from "./papalPolitics.js";
 import { ENGLISH_REFORMATION_MINUTE } from "./rulers.js";
 import { advanceGamePolitics, createGameState } from "./gameState.js";
@@ -111,7 +117,7 @@ test("version 1 Papal memory migrates with no invented pending matter", () => {
   legacy.version = 1;
   delete legacy.pendingMatter;
   const migrated = migratePapalPolitics(legacy);
-  assert.equal(migrated.version, 4);
+  assert.equal(migrated.version, 5);
   assert.equal(migrated.pendingMatter, null);
 });
 
@@ -190,7 +196,7 @@ test("version 2 Papal transport matters gain cargo without losing their queue po
   delete legacy.pendingMatter.cargoRequirements;
 
   const migrated = migratePapalPolitics(legacy);
-  assert.equal(migrated.version, 4);
+  assert.equal(migrated.version, 5);
   assert.equal(migrated.pendingMatter.id, papacy.pendingMatter.id);
   assert.deepEqual(
     migrated.pendingMatter.cargoRequirements.map(({ goodId, quantity }) => [goodId, quantity]),
@@ -210,6 +216,39 @@ test("an excommunication changes papal relations and records the targeted ruler"
   assert.equal(result.action.targetFactionId, "england");
   assert.equal(papacy.excommunications.england.rulerName, "King Henry VIII");
   assert.equal(worldDiplomacyBetween(diplomacy, "papal-states", "england"), "hostile");
+});
+
+test("every durable Papal decree can be rescinded without erasing its history", () => {
+  const kindsAndTargets = [
+    [PAPAL_ACTION_FAVOUR, "spain"],
+    [PAPAL_ACTION_EXCOMMUNICATION, "england"],
+    [PAPAL_ACTION_CONDEMNATION, "electoral-saxony"],
+    [PAPAL_ACTION_CRUSADE, "ottoman"]
+  ];
+  for (const [index, [kind, targetFactionId]] of kindsAndTargets.entries()) {
+    const papacy = createPapalPolitics({ seedKey: `rescission-${kind}` });
+    const diplomacy = createWorldDiplomacy({ seedKey: `rescission-${kind}` });
+    const enacted = imposePapalAction(papacy, diplomacy, {
+      kind,
+      targetFactionId,
+      simMinute: 100 + index,
+      source: "test"
+    }).action;
+    assert.deepEqual(activePapalDecrees(papacy).map(({ id }) => id), [enacted.id]);
+    const revoked = revokePapalAction(papacy, {
+      actionId: enacted.id,
+      simMinute: 200 + index,
+      source: "test-rescission"
+    });
+    assert.equal(revoked.kind, PAPAL_ACTION_REVOCATION);
+    assert.equal(revoked.revokedActionKind, kind);
+    assert.equal(activePapalDecrees(papacy).length, 0);
+    assert.ok(papacy.history.some(({ id }) => id === enacted.id));
+    assert.ok(papacy.history.some(({ id }) => id === revoked.id));
+    if (kind === PAPAL_ACTION_EXCOMMUNICATION) {
+      assert.equal(papacy.excommunications[targetFactionId], undefined);
+    }
+  }
 });
 
 test("Papal authority multiplies pious rulers' response to a pronouncement", () => {

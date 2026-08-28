@@ -58,6 +58,7 @@ import {
   playerPortugueseCrownSpiceAccess,
   playerWhaleHarpoon,
   playerTradeAccess,
+  playerTradeEmbargoPurchaseWarnings,
   playerTradeTerms,
   portugueseCartazStatus,
   purchasePortugueseCartaz,
@@ -83,6 +84,10 @@ import {
   petitionCaptureCommission,
   startPlayerShipyardInvestment
 } from "./gameState.js";
+import {
+  TRADE_EMBARGO_AUTHORITY_PAPAL,
+  tradeEmbargoScopeLabel
+} from "./tradeEmbargoes.js";
 import { isTeaRaceQuest } from "./teaRaceQuest.js";
 import { captureCapitalPoliticalContext } from "./captureCommissionDialogue.js";
 import {
@@ -415,6 +420,9 @@ export function createPortDialogueSession(city, options = {}) {
     marketUndoNodeId: null,
     marketUndoSnapshot: null,
     marketUndoIllicitTradeVisit: null,
+    pendingMarketUndoNodeId: null,
+    acknowledgedTradeEmbargoOrderIds: [],
+    pendingTradeEmbargoPurchase: null,
     pendingTributeTheft: null,
     pendingQuestCargoSale: null,
     questCargoSaleWarningShown: false,
@@ -670,6 +678,7 @@ export function createShipDialogueSession(
     rumorText = null,
     cartazInspection = null,
     illicitTradeInspection = null,
+    tradeEmbargoInspection = null,
     bibleInspection = null,
     listenerReligionId = null,
     pirateTreasureName = null,
@@ -704,7 +713,25 @@ export function createShipDialogueSession(
   )) {
     throw new Error("Ship illicit trade inspection requires valid enforcement terms");
   }
-  if (cartazInspection && illicitTradeInspection) {
+  if (tradeEmbargoInspection !== null && (
+    typeof tradeEmbargoInspection !== "object" ||
+    typeof tradeEmbargoInspection.incidentId !== "string" ||
+    tradeEmbargoInspection.incidentId === "" ||
+    typeof tradeEmbargoInspection.issuerName !== "string" ||
+    tradeEmbargoInspection.issuerName === "" ||
+    typeof tradeEmbargoInspection.targetName !== "string" ||
+    tradeEmbargoInspection.targetName === "" ||
+    typeof tradeEmbargoInspection.scopeLabel !== "string" ||
+    tradeEmbargoInspection.scopeLabel === "" ||
+    !Number.isInteger(tradeEmbargoInspection.fine) ||
+    tradeEmbargoInspection.fine <= 0 ||
+    !Number.isFinite(tradeEmbargoInspection.cargoQuantity) ||
+    tradeEmbargoInspection.cargoQuantity < 0 ||
+    typeof tradeEmbargoInspection.canAffordFine !== "boolean"
+  )) {
+    throw new Error("Ship trade embargo inspection requires valid enforcement terms");
+  }
+  if ([cartazInspection, illicitTradeInspection, tradeEmbargoInspection].filter(Boolean).length > 1) {
     throw new Error("A ship cannot conduct two trade inspections at once");
   }
   if (bibleInspection !== null && (
@@ -714,7 +741,7 @@ export function createShipDialogueSession(
   )) {
     throw new Error("Ship Bible inspection requires a valid outcome");
   }
-  if (bibleInspection && (cartazInspection || illicitTradeInspection)) {
+  if (bibleInspection && (cartazInspection || illicitTradeInspection || tradeEmbargoInspection)) {
     throw new Error("A ship cannot conduct two trade inspections at once");
   }
   if (listenerReligionId !== null) religionById(listenerReligionId);
@@ -738,6 +765,8 @@ export function createShipDialogueSession(
       ? "cartaz-inspection"
       : illicitTradeInspection
         ? "illicit-trade-inspection"
+        : tradeEmbargoInspection
+          ? "trade-embargo-inspection"
         : bibleInspection
           ? "bible-inspection"
         : scriptedHail
@@ -747,9 +776,12 @@ export function createShipDialogueSession(
     attackReason,
     piracyWarningAccepted: false,
     pendingPiracyAction: null,
+    tradeRestrictionEnforcementActive: false,
+    tradeRestrictionViolation: null,
     rumorText,
     cartazInspection,
     illicitTradeInspection,
+    tradeEmbargoInspection,
     bibleInspection,
     listenerReligionId,
     pirateTreasureName,
@@ -952,6 +984,9 @@ function shipDialogueContentView(session, ship) {
   }
   if (session.nodeId === "illicit-trade-inspection") {
     return illicitTradeInspectionView(session, speaker);
+  }
+  if (session.nodeId === "trade-embargo-inspection") {
+    return tradeEmbargoInspectionView(session, speaker);
   }
   if (session.nodeId === "bible-inspection") {
     return bibleInspectionView(session, speaker);
@@ -1167,7 +1202,15 @@ function shipDialogueContentView(session, ship) {
       ...(ship.canOfferEmergencyAid
         ? [option("Ask for provisions", { type: "receive-aid" })]
         : []),
-      ...(!ship.combatGrace && !ship.inCombatWithPlayer
+      ...(ship.tradeRestrictionViolation && !ship.combatGrace && !ship.inCombatWithPlayer
+        ? [option(`You are in violation of ${ship.tradeRestrictionViolation.regimeLabel}`, {
+          type: "enforce-trade-restriction"
+        }, {
+          detail: "Legal surrender demand",
+          detailTone: "success"
+        })]
+        : []),
+      ...(!ship.tradeRestrictionViolation && !ship.combatGrace && !ship.inCombatWithPlayer
         ? [option("Demand surrender", { type: "threaten" })]
         : []),
       option("Leave", { type: "close" })
@@ -1209,6 +1252,14 @@ function attackLegalityNotice({ piracy, issuerAdjective, subjectId }) {
 }
 
 function shipPrizeLegalityNotice(session, ship) {
+  if (session.tradeRestrictionEnforcementActive) {
+    const violation = session.tradeRestrictionViolation;
+    if (!violation) throw new Error("Trade enforcement prize has no cited violation");
+    return {
+      text: `Your ${violation.issuerAdjective} commission makes this a lawful embargo prize.`,
+      tone: "success"
+    };
+  }
   if (session.surrenderCause === "self-defense") {
     return {
       text: "This vessel attacked you. Taking it as a prize is lawful.",
@@ -1300,6 +1351,27 @@ function illicitTradeInspectionView(session, speaker) {
         ? [option("Surrender illicit cargo", { type: "surrender-illicit-trade-cargo" })]
         : []),
       option("Run for it", { type: "evade-illicit-trade-inspection" })
+    ]
+  };
+}
+
+function tradeEmbargoInspectionView(session, speaker) {
+  const inspection = session.tradeEmbargoInspection;
+  if (!inspection) throw new Error("Trade embargo inspection dialogue has no enforcement terms");
+  return {
+    speaker,
+    expressionId: "stern",
+    text: `By order of ${inspection.issuerName}, heave to. You carry ${inspection.scopeLabel} from ${inspection.targetName}, contrary to the prohibition. Pay the fine, surrender the cargo, or answer to our guns.`,
+    feedback: null,
+    options: [
+      option(`Pay fine  ${inspection.fine} db`, { type: "pay-trade-embargo-fine" }, {
+        disabled: !inspection.canAffordFine,
+        disabledReason: "Not enough doubloons."
+      }),
+      ...(inspection.cargoQuantity > 0
+        ? [option("Surrender embargoed cargo", { type: "surrender-trade-embargo-cargo" })]
+        : []),
+      option("Run for it", { type: "evade-trade-embargo-inspection" })
     ]
   };
 }
@@ -1449,6 +1521,21 @@ function applyShipDialogueAction(session, ship, action) {
     return { closed: true, action };
   }
   if (
+    action.type === "pay-trade-embargo-fine" ||
+    action.type === "surrender-trade-embargo-cargo"
+  ) {
+    if (session.nodeId !== "trade-embargo-inspection") {
+      throw new Error(`Trade embargo enforcement action outside inspection: ${action.type}`);
+    }
+    return { closed: true, action };
+  }
+  if (action.type === "evade-trade-embargo-inspection") {
+    if (session.nodeId !== "trade-embargo-inspection") {
+      throw new Error("Trade embargo evasion outside inspection");
+    }
+    return { closed: true, action };
+  }
+  if (
     action.type === "pay-cartaz-fine" ||
     action.type === "surrender-cartaz-cargo"
   ) {
@@ -1462,6 +1549,20 @@ function applyShipDialogueAction(session, ship, action) {
       throw new Error("Cartaz evasion outside inspection");
     }
     return { closed: true, action: { type: "attack", cartazEvasion: true } };
+  }
+  if (action.type === "enforce-trade-restriction") {
+    const violation = ship.tradeRestrictionViolation;
+    if (!violation || typeof violation.id !== "string" || violation.id === "") {
+      throw new Error(`Ship has no enforceable trade restriction: ${ship.id}`);
+    }
+    session.tradeRestrictionEnforcementActive = true;
+    session.tradeRestrictionViolation = { ...violation };
+    session.nodeId = ship.willOfferSurrender ? "surrender-offer" : "defiance";
+    session.selectedIndex = 0;
+    return {
+      closed: false,
+      action: { type: "begin-player-trade-enforcement", violation: { ...violation } }
+    };
   }
   if (action.type === "receive-aid") {
     if (!ship.canOfferEmergencyAid) throw new Error(`Ship cannot offer emergency aid: ${ship.id}`);
@@ -1516,6 +1617,7 @@ function applyShipDialogueAction(session, ship, action) {
 }
 
 function shipHostileActionNeedsPiracyWarning(session, ship, action) {
+  if (session.tradeRestrictionEnforcementActive) return false;
   if (action.type === "accept-damage-surrender" && session.surrenderCause !== "accidental") return false;
   return isHostileShipAction(action.type) &&
     ship.playerAttackIsPiracy === true &&
@@ -1601,6 +1703,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
     return portugueseCartazMarketDeclinedView(session, city, gameState, economy);
   }
   if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
+  if (session.nodeId === "trade-embargo-warning") {
+    return tradeEmbargoWarningView(session);
+  }
   if (session.nodeId === "trade-tip") return tradeTipView(session, city);
   if (session.nodeId === "quest-cargo-tip") return questCargoTipView(session, city);
   if (session.nodeId === "equipment") return equipmentView(session, city, gameState, economy);
@@ -1623,6 +1728,9 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
     return letterOfMarqueFactorFollowupView(session, city, gameState, context);
   }
   if (session.nodeId === "sell") return sellView(session, city, gameState, economy, context);
+  if (session.nodeId === "market-undo-confirm") {
+    return marketUndoConfirmationView(session, city);
+  }
   if (session.nodeId === "tribute-theft-warning") {
     return tributeTheftWarningView(session, city, gameState);
   }
@@ -2852,15 +2960,49 @@ export function selectPortDialogueOption(
     return { closed: false };
   }
   if (action.type === "buy" || action.type === "buy-max") {
-    ensureMarketUndoSession(session, "buy", gameState, economy, city);
     const quantity = action.type === "buy-max" ? action.quantity : 1;
-    const result = buyGood(gameState, economy, city, action.goodId, quantity, tradeContext(session, context));
-    recordMarketPurchase(session, result);
-    recordIllicitMarketTransaction(session, result, "buy");
-    session.feedback = result.quantity === 1
-      ? `Bought ${result.good.label} for ${result.price} db.`
-      : `Bought ${result.good.label} x${result.quantity} for ${result.price} db.`;
-    return { closed: false, marketPurchase: result };
+    const warnings = playerTradeEmbargoPurchaseWarnings(gameState, city, action.goodId)
+      .filter((order) => !session.acknowledgedTradeEmbargoOrderIds.includes(order.id));
+    if (warnings.length > 0) {
+      session.pendingTradeEmbargoPurchase = {
+        purchase: { goodId: action.goodId, quantity },
+        returnNodeId: session.nodeId,
+        orders: warnings.map((order) => ({ ...order }))
+      };
+      session.nodeId = "trade-embargo-warning";
+      session.selectedIndex = 0;
+      session.feedback = null;
+      return { closed: false };
+    }
+    return executePortMarketPurchase(session, gameState, economy, city, {
+      goodId: action.goodId,
+      quantity
+    }, context);
+  }
+  if (action.type === "confirm-trade-embargo-purchase") {
+    const pending = requiredTradeEmbargoPurchase(session);
+    session.acknowledgedTradeEmbargoOrderIds = [...new Set([
+      ...session.acknowledgedTradeEmbargoOrderIds,
+      ...pending.orders.map((order) => order.id)
+    ])];
+    session.pendingTradeEmbargoPurchase = null;
+    session.nodeId = pending.returnNodeId;
+    return executePortMarketPurchase(
+      session,
+      gameState,
+      economy,
+      city,
+      pending.purchase,
+      context
+    );
+  }
+  if (action.type === "decline-trade-embargo-purchase") {
+    const pending = requiredTradeEmbargoPurchase(session);
+    session.pendingTradeEmbargoPurchase = null;
+    session.nodeId = pending.returnNodeId;
+    session.selectedIndex = 0;
+    session.feedback = "The cargo remains ashore.";
+    return { closed: false };
   }
   if (action.type === "buy-net") {
     const result = purchaseFishingNet(gameState, economy, city, action.netId, context);
@@ -2998,6 +3140,14 @@ export function selectPortDialogueOption(
     if (session.marketUndoNodeId !== session.nodeId || !session.marketUndoSnapshot) {
       throw new Error(`No ${session.nodeId} market actions are available to undo`);
     }
+    session.pendingMarketUndoNodeId = session.nodeId;
+    session.nodeId = "market-undo-confirm";
+    session.selectedIndex = 1;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "confirm-market-undo") {
+    const marketNodeId = requiredPendingMarketUndoNodeId(session);
     const restored = restoreMarketUndoSnapshot(
       gameState,
       economy,
@@ -3007,11 +3157,23 @@ export function selectPortDialogueOption(
     session.marketPurchases = {};
     session.marketSales = 0;
     session.illicitTradeVisit = copyIllicitTradeVisit(session.marketUndoIllicitTradeVisit);
+    session.pendingMarketUndoNodeId = null;
+    session.nodeId = marketNodeId;
     session.selectedIndex = 0;
-    session.feedback = session.nodeId === "buy"
+    session.feedback = marketNodeId === "buy"
       ? "All purchases on this page were undone."
       : "All sales on this page were undone.";
     return { closed: false, marketUndo: restored };
+  }
+  if (action.type === "cancel-market-undo") {
+    const marketNodeId = requiredPendingMarketUndoNodeId(session);
+    session.pendingMarketUndoNodeId = null;
+    session.nodeId = marketNodeId;
+    session.selectedIndex = 0;
+    session.feedback = marketNodeId === "buy"
+      ? "The purchases remain entered in the ledger."
+      : "The sales remain entered in the ledger.";
+    return { closed: false };
   }
   if (action.type === "accept-quest") {
     const acceptedQuest = acceptQuest(gameState, action.quest, context);
@@ -6319,8 +6481,7 @@ function buyView(session, city, gameState, economy, context) {
   if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));
   rows.push(option("Back", { type: "leave-buy", nodeId: "root" }));
   rows.push(option("Undo all purchases", { type: "undo-market" }, {
-    disabled: !marketUndoAvailable(session, "buy"),
-    placement: "port-exit"
+    disabled: !marketUndoAvailable(session, "buy")
   }));
   return {
     speaker: speakerName(city),
@@ -6334,6 +6495,67 @@ function buyView(session, city, gameState, economy, context) {
     optionColumns: 2,
     options: rows
   };
+}
+
+function tradeEmbargoWarningView(session) {
+  const pending = requiredTradeEmbargoPurchase(session);
+  const orders = pending.orders;
+  const good = tradeGoodById(pending.purchase.goodId);
+  const targetNames = [...new Set(orders.map((order) => factionById(order.targetFactionId).shortName))];
+  const authorityNames = [...new Set(orders.map((order) => (
+    order.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
+      ? "the Holy See"
+      : factionById(order.issuerFactionId).shortName
+  )))];
+  const prohibition = orders.length === 1
+    ? `${authorityNames[0]} has forbidden ${tradeEmbargoScopeLabel(orders[0].scope)} from ${targetNames[0]}`
+    : `${authorityNames.join(" and ")} have laid prohibitions upon merchandise from ${targetNames.join(" and ")}`;
+  const detail = orders.map((order) => (
+    `${order.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
+      ? "HOLY SEE"
+      : factionById(order.issuerFactionId).shortName.toUpperCase()} · ${tradeEmbargoScopeLabel(order.scope).toUpperCase()}`
+  )).join("  ");
+  return {
+    speaker: "Port factor",
+    expressionId: "concerned",
+    text: `I will sell you the ${good.label.toLowerCase()}, captain, but ${prohibition}. Their patrols may search your hold, seize the cargo, and levy a fine. Shall I have it loaded?`,
+    feedback: session.feedback,
+    options: [
+      option("Load it", { type: "confirm-trade-embargo-purchase" }, { detail }),
+      option("Leave it ashore", { type: "decline-trade-embargo-purchase" })
+    ]
+  };
+}
+
+function requiredTradeEmbargoPurchase(session) {
+  const pending = session.pendingTradeEmbargoPurchase;
+  if (!pending || typeof pending !== "object" ||
+      !pending.purchase || typeof pending.purchase.goodId !== "string" ||
+      pending.purchase.goodId === "" ||
+      !Number.isFinite(pending.purchase.quantity) || pending.purchase.quantity <= 0 ||
+      typeof pending.returnNodeId !== "string" || pending.returnNodeId === "" ||
+      !Array.isArray(pending.orders) || pending.orders.length === 0) {
+    throw new Error("Trade embargo warning has no pending purchase");
+  }
+  return pending;
+}
+
+function executePortMarketPurchase(session, gameState, economy, city, action, context) {
+  ensureMarketUndoSession(session, "buy", gameState, economy, city);
+  const result = buyGood(
+    gameState,
+    economy,
+    city,
+    action.goodId,
+    action.quantity,
+    tradeContext(session, context)
+  );
+  recordMarketPurchase(session, result);
+  recordIllicitMarketTransaction(session, result, "buy");
+  session.feedback = result.quantity === 1
+    ? `Bought ${result.good.label} for ${result.price} db.`
+    : `Bought ${result.good.label} x${result.quantity} for ${result.price} db.`;
+  return { closed: false, marketPurchase: result };
 }
 
 function marketBuyGoodIds(session, market) {
@@ -6763,6 +6985,16 @@ function clearMarketUndoSession(session) {
   session.marketUndoNodeId = null;
   session.marketUndoSnapshot = null;
   session.marketUndoIllicitTradeVisit = null;
+  session.pendingMarketUndoNodeId = null;
+}
+
+function requiredPendingMarketUndoNodeId(session) {
+  const nodeId = session.pendingMarketUndoNodeId;
+  if (!["buy", "sell"].includes(nodeId) || session.nodeId !== "market-undo-confirm" ||
+      session.marketUndoNodeId !== nodeId || !session.marketUndoSnapshot) {
+    throw new Error("Market undo confirmation has no matching ledger snapshot");
+  }
+  return nodeId;
 }
 
 function marketUndoAvailable(session, nodeId) {
@@ -7014,8 +7246,7 @@ function sellView(session, city, gameState, economy, context) {
   }
   rows.push(option("Back", { type: "leave-sell", nodeId: "root" }));
   rows.push(option("Undo all sales", { type: "undo-market" }, {
-    disabled: !marketUndoAvailable(session, "sell"),
-    placement: "port-exit"
+    disabled: !marketUndoAvailable(session, "sell")
   }));
   return {
     speaker: speakerName(city),
@@ -7028,6 +7259,28 @@ function sellView(session, city, gameState, economy, context) {
     optionHeight: 30,
     optionColumns: 2,
     options: rows
+  };
+}
+
+function marketUndoConfirmationView(session, city) {
+  const nodeId = requiredPendingMarketUndoNodeId(session);
+  const purchases = nodeId === "buy";
+  return {
+    speaker: speakerName(city),
+    expressionId: "attentive",
+    text: purchases
+      ? "Shall I strike every purchase made during this visit from the ledger, return the coin, and send the goods ashore?"
+      : "Shall I strike every sale made during this visit from the ledger, return the goods to your hold, and reclaim the coin?",
+    bodyTone: "danger",
+    feedback: null,
+    options: [
+      option(purchases ? "Undo the purchases" : "Undo the sales", {
+        type: "confirm-market-undo"
+      }),
+      option("Let the bargains stand", { type: "cancel-market-undo" }, {
+        placement: "port-exit"
+      })
+    ]
   };
 }
 

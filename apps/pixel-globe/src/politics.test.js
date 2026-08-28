@@ -125,6 +125,7 @@ test("collapsed empires leave the active politics cards", () => {
   assert.ok(view.cards.every((card) =>
     card.dependencies.every((dependency) => dependency.factionId !== "france") &&
     card.constitutionalConnections.every((connection) => connection.factionId !== "france") &&
+    card.embargoConnections.every((connection) => connection.factionId !== "france") &&
     card.relationships.every((group) => !group.factionIds.includes("france"))
   ));
 });
@@ -230,6 +231,25 @@ test("Metz, Florence, and Kazan expose their constitutional and diplomatic ties"
   assert.ok(relationshipFactionIds(florence, "friendly").includes("spain"));
   assert.ok(relationshipFactionIds(kazan, "ally").includes("crimea"));
   assert.ok(relationshipFactionIds(kazan, "war").includes("muscovy"));
+});
+
+test("politics cards show embargo issuers, targets, and Papal followers without hiding wars", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const view = createPoliticsView(state);
+  const england = politicsCard(view, "england");
+  const france = politicsCard(view, "france");
+  const spain = politicsCard(view, "spain");
+
+  assert.ok(england.embargoConnections.some((connection) => (
+    connection.role === "issuer" && connection.factionId === "france"
+  )));
+  assert.ok(france.embargoConnections.some((connection) => (
+    connection.role === "target" && connection.factionId === "england"
+  )));
+  assert.ok(spain.embargoConnections.some((connection) => (
+    connection.role === "follower" && connection.factionId === "ottoman"
+  )));
+  assert.ok(relationshipFactionIds(england, "war").includes("france"));
 });
 
 test("the politics cards distinguish tributaries from vassals and unions", () => {

@@ -11,6 +11,7 @@ import {
   factionExistsIn1522
 } from "./factions.js";
 import {
+  activeGameTradeEmbargoes,
   diplomacyBetweenForState,
   factionReputation,
   hasPersonalTradePass,
@@ -19,15 +20,18 @@ import {
   recentGameAuthorityHeadlines,
   recentGameCourtActions,
   recentGamePapalActions,
+  recentGameTradeEmbargoEvents,
   sovereignAuthorityForState,
   papalAuthorityForState,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
 import {
+  PAPAL_ACTION_REVOCATION,
   papalActionNotice,
   papalMatterNotice,
   papalPendingMatter
 } from "./papalPolitics.js";
+import { tradeEmbargoEventNotice } from "./tradeEmbargoes.js";
 import {
   courtActionNotice,
   courtMatterNotice,
@@ -83,17 +87,23 @@ export function createPoliticsView(
   const powers = politicalPowers(gameState);
   const powerById = new Map(powers.map((power) => [power.id, power]));
   const capitalByFactionId = politicsCapitals(gameState, powers, cities);
+  const activeEmbargoes = activeGameTradeEmbargoes(gameState);
   const cards = powers.map((faction) => politicsCard(
     gameState,
     faction,
     powers,
     powerById,
     capitalByFactionId,
-    simMinute
+    simMinute,
+    activeEmbargoes
   ));
   const playerFactionId = gameState.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const recentEvents = recentGameDiplomacyEvents(gameState, POLITICS_NEWS_HISTORY_LIMIT);
   const recentPapalActions = recentGamePapalActions(gameState, POLITICS_NEWS_HISTORY_LIMIT);
+  const recentEmbargoEvents = recentGameTradeEmbargoEvents(
+    gameState,
+    POLITICS_NEWS_HISTORY_LIMIT
+  );
   const recentCourtActions = recentGameCourtActions(gameState, POLITICS_NEWS_HISTORY_LIMIT);
   const recentAuthorityHeadlines = recentGameAuthorityHeadlines(
     gameState,
@@ -126,6 +136,7 @@ export function createPoliticsView(
   const newsHistory = recentPoliticsNews({
     recentEvents,
     recentPapalActions,
+    recentEmbargoEvents,
     recentCourtActions,
     recentAuthorityHeadlines,
     recentImperialActions,
@@ -135,8 +146,10 @@ export function createPoliticsView(
   });
   return {
     powers,
+    activeEmbargoes,
     recentEvents,
     recentPapalActions,
+    recentEmbargoEvents,
     recentCourtActions,
     recentAuthorityHeadlines,
     recentImperialActions,
@@ -164,7 +177,8 @@ export function latestPoliticsNews(view) {
 
 export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
   if (!view || !Array.isArray(view.recentEvents) || !Array.isArray(view.recentPapalActions) ||
-      (view.recentCourtActions !== undefined && !Array.isArray(view.recentCourtActions))) {
+      (view.recentCourtActions !== undefined && !Array.isArray(view.recentCourtActions)) ||
+      (view.recentEmbargoEvents !== undefined && !Array.isArray(view.recentEmbargoEvents))) {
     throw new Error("Politics news requires diplomacy and papal histories");
   }
   if (!Number.isInteger(limit) || limit <= 0) {
@@ -181,9 +195,16 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
     ...view.recentPapalActions.map((action) => ({
       source: "papal",
       simMinute: action.simMinute,
-      tone: "warn",
+      tone: action.kind === PAPAL_ACTION_REVOCATION ? "good" : "warn",
       text: papalActionNotice(action),
       tiePriority: 1
+    })),
+    ...(view.recentEmbargoEvents || []).map((event) => ({
+      source: "trade-embargo",
+      simMinute: event.simMinute,
+      tone: event.kind === "lifted" ? "good" : "warn",
+      text: tradeEmbargoEventNotice(event),
+      tiePriority: 2
     })),
     ...(view.recentCourtActions || []).map((action) => ({
       source: "court",
@@ -355,7 +376,15 @@ function standing(reputation, label) {
   };
 }
 
-function politicsCard(gameState, faction, powers, powerById, capitalByFactionId, simMinute) {
+function politicsCard(
+  gameState,
+  faction,
+  powers,
+  powerById,
+  capitalByFactionId,
+  simMinute,
+  activeEmbargoes
+) {
   const ruler = rulerAtMinute(faction.id, simMinute);
   const imperialEstate = imperialEstateForFaction(faction.id);
   const dependencies = politicsDependencies(faction, powerById);
@@ -365,6 +394,7 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
     powers,
     powerById
   );
+  const embargoConnections = politicsEmbargoConnections(faction, activeEmbargoes, powerById);
   const separatelyDisplayedFactionIds = new Set([
     ...dependencies,
     ...constitutionalConnections
@@ -391,6 +421,7 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
         gameState.relations.imperial.emperorFactionId === faction.id
     }),
     constitutionalConnections: Object.freeze(constitutionalConnections),
+    embargoConnections: Object.freeze(embargoConnections),
     capital: capitalByFactionId.get(faction.id) || null,
     authority: faction.id === PIRATE_FACTION_ID
       ? null
@@ -413,6 +444,39 @@ function politicsCard(gameState, faction, powers, powerById, capitalByFactionId,
     dependencies: Object.freeze(dependencies),
     relationships: Object.freeze(relationships)
   });
+}
+
+function politicsEmbargoConnections(faction, activeEmbargoes, powerById) {
+  if (!Array.isArray(activeEmbargoes)) throw new Error("Politics embargoes must be an array");
+  const connections = [];
+  for (const order of activeEmbargoes) {
+    let role = null;
+    let factionId = null;
+    if (order.issuerFactionId === faction.id) {
+      role = "issuer";
+      factionId = order.targetFactionId;
+    } else if (order.targetFactionId === faction.id) {
+      role = "target";
+      factionId = order.issuerFactionId;
+    } else if (order.followerFactionIds.includes(faction.id)) {
+      role = "follower";
+      factionId = order.targetFactionId;
+    }
+    if (!role) continue;
+    // A realm can collapse between the event that ended it and the next
+    // scheduled embargo review. Its retired order remains in the historical
+    // ledger, but there is no longer a living power to put on a politics card.
+    if (!powerById.has(factionId)) continue;
+    if (connections.some((connection) => (
+      connection.role === role && connection.factionId === factionId
+    ))) continue;
+    connections.push(Object.freeze({
+      kind: "trade-embargo",
+      role,
+      factionId
+    }));
+  }
+  return connections;
 }
 
 function politicsConstitutionalConnections(gameState, faction, powers, powerById) {

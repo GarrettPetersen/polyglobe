@@ -25,12 +25,13 @@ import {
   isRomanCatholicReligion
 } from "./religiousAttitudes.js";
 
-export const PAPAL_POLITICS_VERSION = 4;
+export const PAPAL_POLITICS_VERSION = 5;
 export const PAPAL_FACTION_ID = "papal-states";
 export const PAPAL_ACTION_FAVOUR = "papal-favour";
 export const PAPAL_ACTION_EXCOMMUNICATION = "papal-excommunication";
 export const PAPAL_ACTION_CONDEMNATION = "papal-condemnation";
 export const PAPAL_ACTION_CRUSADE = "papal-crusade";
+export const PAPAL_ACTION_REVOCATION = "papal-revocation";
 export const PAPAL_COMMISSION_ADMONITION = "admonition";
 export const PAPAL_COMMISSION_COMMENDATION = "commendation";
 export const PAPAL_COMMISSION_PEACE = "peace";
@@ -72,6 +73,10 @@ const PAPAL_ACTION_KINDS = new Set([
   PAPAL_ACTION_CONDEMNATION,
   PAPAL_ACTION_CRUSADE
 ]);
+const PAPAL_RECORDED_ACTION_KINDS = new Set([
+  ...PAPAL_ACTION_KINDS,
+  PAPAL_ACTION_REVOCATION
+]);
 const SOVEREIGN_FACTIONS = FACTIONS.filter(({ id }) => (
   id !== NEUTRAL_FACTION_ID && id !== PIRATE_FACTION_ID
 ));
@@ -90,6 +95,7 @@ export function createPapalPolitics({ startMinute = 0, seedKey = "papacy" } = {}
     nextActionMinute: startMinute,
     englishReformationApplied: false,
     excommunications: {},
+    activeDecrees: {},
     history: [],
     pendingMatter: null
   };
@@ -125,7 +131,7 @@ export function migratePapalPolitics(memory, { startMinute = 0, seedKey = "papac
     const revoked = migrated.pendingMatter?.playerOfferStatus === "revoked";
     migrated = {
       ...migrated,
-      version: PAPAL_POLITICS_VERSION,
+      version: 4,
       pendingMatter: migrated.pendingMatter ? {
         ...migrated.pendingMatter,
         revocation: revoked ? {
@@ -136,6 +142,34 @@ export function migratePapalPolitics(memory, { startMinute = 0, seedKey = "papac
           )
         } : null
       } : null
+    };
+  }
+  if (migrated?.version === 4) {
+    const history = migrated.history.map((action) => migratePapalAction(action));
+    const activeDecrees = {};
+    for (const action of history) {
+      const key = papalDecreeKey(action.kind, action.targetFactionId);
+      if (!Object.values(activeDecrees).some((entry) => (
+        papalDecreeKey(entry.kind, entry.targetFactionId) === key
+      ))) {
+        activeDecrees[action.id] = { ...action };
+      }
+    }
+    const excommunications = Object.fromEntries(Object.entries(migrated.excommunications)
+      .map(([factionId, entry]) => {
+        const action = Object.values(activeDecrees).find((candidate) => (
+          candidate.kind === PAPAL_ACTION_EXCOMMUNICATION &&
+          candidate.targetFactionId === factionId &&
+          candidate.targetRulerName === entry.rulerName
+        ));
+        return [factionId, { ...entry, actionId: action?.id || null }];
+      }));
+    migrated = {
+      ...migrated,
+      version: PAPAL_POLITICS_VERSION,
+      excommunications,
+      activeDecrees,
+      history
     };
   }
   return validatePapalPolitics(migrated);
@@ -169,7 +203,21 @@ export function validatePapalPolitics(memory) {
     if (!entry || typeof entry.rulerName !== "string" || entry.rulerName === "") {
       throw new Error(`Invalid papal excommunication for ${factionId}`);
     }
+    if (entry.actionId !== null &&
+        (typeof entry.actionId !== "string" || entry.actionId === "")) {
+      throw new Error(`Invalid papal excommunication decree for ${factionId}`);
+    }
     assertMinute(entry.simMinute, "papal excommunication");
+  }
+  if (!memory.activeDecrees || typeof memory.activeDecrees !== "object" ||
+      Array.isArray(memory.activeDecrees)) {
+    throw new Error("Active Papal decrees must be an object");
+  }
+  for (const [actionId, action] of Object.entries(memory.activeDecrees)) {
+    validatePapalAction(action);
+    if (action.kind === PAPAL_ACTION_REVOCATION || action.id !== actionId) {
+      throw new Error(`Invalid active Papal decree: ${actionId}`);
+    }
   }
   if (!Array.isArray(memory.history) || memory.history.length > PAPAL_HISTORY_LIMIT) {
     throw new Error("Invalid papal action history");
@@ -253,11 +301,16 @@ export function advancePapalPolitics(memory, diplomacy, currentMinute, {
     if (currentMinute < memory.nextActionMinute) break;
     const actionMinute = memory.nextActionMinute;
     if (papalStatesActive) {
-      const proposal = chooseScheduledPapalAction(memory, diplomacy, actionMinute);
-      if (proposal) {
-        const matter = createPapalMatter(memory, diplomacy, proposal, actionMinute);
-        memory.pendingMatter = matter;
-        mattersOpened.push(papalMatterView(matter));
+      const revocable = chooseRevocablePapalDecree(memory, diplomacy, actionMinute);
+      if (revocable) {
+        actions.push(revokePapalDecree(memory, revocable.id, actionMinute, "papal-policy"));
+      } else {
+        const proposal = chooseScheduledPapalAction(memory, diplomacy, actionMinute);
+        if (proposal) {
+          const matter = createPapalMatter(memory, diplomacy, proposal, actionMinute);
+          memory.pendingMatter = matter;
+          mattersOpened.push(papalMatterView(matter));
+        }
       }
     }
     memory.sequence += 1;
@@ -583,6 +636,29 @@ export function imposePapalAction(memory, diplomacy, {
   return Object.freeze({ ...result, interruptedCommission });
 }
 
+export function activePapalDecrees(memory) {
+  validatePapalPolitics(memory);
+  return Object.freeze(Object.values(memory.activeDecrees)
+    .sort((left, right) => right.simMinute - left.simMinute || left.id.localeCompare(right.id))
+    .map((action) => Object.freeze({ ...action })));
+}
+
+export function revokePapalAction(memory, {
+  actionId,
+  simMinute,
+  source = "apostolic-rescission"
+}) {
+  validatePapalPolitics(memory);
+  assertMinute(simMinute, "Papal decree revocation");
+  if (typeof actionId !== "string" || actionId === "") {
+    throw new Error("Papal decree revocation requires an action id");
+  }
+  if (typeof source !== "string" || source.trim() === "") {
+    throw new Error("Papal decree revocation requires a source");
+  }
+  return revokePapalDecree(memory, actionId, simMinute, source);
+}
+
 export function papalExcommunicationTargetCandidates(diplomacy, winnerFactionId, simMinute) {
   validateWorldDiplomacy(diplomacy);
   assertFactionId(winnerFactionId);
@@ -609,6 +685,18 @@ export function papalExcommunicationTargetCandidates(diplomacy, winnerFactionId,
 export function papalActionNotice(action) {
   validatePapalAction(action);
   const target = factionById(action.targetFactionId);
+  if (action.kind === PAPAL_ACTION_REVOCATION) {
+    if (action.revokedActionKind === PAPAL_ACTION_EXCOMMUNICATION) {
+      return `${action.popeName.toUpperCase()} RESTORES ${action.targetRulerName.toUpperCase()} TO COMMUNION`;
+    }
+    if (action.revokedActionKind === PAPAL_ACTION_CRUSADE) {
+      return `${action.popeName.toUpperCase()} WITHDRAWS THE CRUSADE AGAINST ${target.shortName.toUpperCase()}`;
+    }
+    if (action.revokedActionKind === PAPAL_ACTION_FAVOUR) {
+      return `${action.popeName.toUpperCase()} WITHDRAWS THE BULL IN FAVOUR OF ${target.shortName.toUpperCase()}`;
+    }
+    return `${action.popeName.toUpperCase()} WITHDRAWS THE CONDEMNATION OF ${target.shortName.toUpperCase()}`;
+  }
   if (action.logistics?.kind === PAPAL_COMMISSION_RELIEF) {
     const recipient = factionById(action.logistics.recipientFactionId);
     const opponent = factionById(action.logistics.opponentFactionId);
@@ -661,6 +749,11 @@ function enactPapalAction(memory, diplomacy, {
     throw new Error("Papal action requires a source");
   }
   if (logistics !== null) validatePapalLogistics(logistics);
+  if (Object.values(memory.activeDecrees).some((action) => (
+    action.kind === kind && action.targetFactionId === targetFactionId
+  ))) {
+    throw new Error(`Papal decree is already active: ${kind}/${targetFactionId}`);
+  }
   const pope = rulerAtMinute(PAPAL_FACTION_ID, simMinute);
   const targetRuler = rulerAtMinute(targetFactionId, simMinute);
   if (!pope || !targetRuler) throw new Error("Papal action requires current rulers");
@@ -716,9 +809,11 @@ function enactPapalAction(memory, diplomacy, {
   if (kind === PAPAL_ACTION_EXCOMMUNICATION) {
     memory.excommunications[targetFactionId] = {
       rulerName: targetRuler.displayName,
-      simMinute
+      simMinute,
+      actionId: action.id
     };
   }
+  memory.activeDecrees[action.id] = { ...action };
   memory.history.unshift(action);
   if (memory.history.length > PAPAL_HISTORY_LIMIT) memory.history.length = PAPAL_HISTORY_LIMIT;
   return Object.freeze({ action, diplomacyEvents });
@@ -751,12 +846,17 @@ function chooseScheduledPapalAction(memory, diplomacy, simMinute) {
       candidates.push({ kind: PAPAL_ACTION_CRUSADE, targetFactionId: faction.id, weight: 3 });
     }
   }
-  const filtered = candidates.filter(({ kind, targetFactionId }) => (
+  const inactiveCandidates = candidates.filter(({ kind, targetFactionId }) => (
+    !Object.values(memory.activeDecrees).some((action) => (
+      action.kind === kind && action.targetFactionId === targetFactionId
+    ))
+  ));
+  const filtered = inactiveCandidates.filter(({ kind, targetFactionId }) => (
     !memory.history.slice(0, 3).some((action) => (
       action.kind === kind && action.targetFactionId === targetFactionId
     ))
   ));
-  const pool = filtered.length > 0 ? filtered : candidates;
+  const pool = filtered.length > 0 ? filtered : inactiveCandidates;
   if (pool.length === 0) return null;
   const totalWeight = pool.reduce((sum, candidate) => sum + candidate.weight, 0);
   let roll = papalRandom(memory, memory.sequence, `action|${simMinute}`) * totalWeight;
@@ -767,6 +867,80 @@ function chooseScheduledPapalAction(memory, diplomacy, simMinute) {
     }
   }
   throw new Error("Papal action weighted selection failed");
+}
+
+function chooseRevocablePapalDecree(memory, diplomacy, simMinute) {
+  const candidates = Object.values(memory.activeDecrees)
+    .filter((action) => papalDecreeShouldEnd(action, diplomacy, simMinute))
+    .map((action) => ({
+      action,
+      weight: action.kind === PAPAL_ACTION_EXCOMMUNICATION ? 5
+        : action.kind === PAPAL_ACTION_CRUSADE ? 4
+          : action.kind === PAPAL_ACTION_CONDEMNATION ? 2.5 : 2
+    }));
+  if (candidates.length === 0) return null;
+  const totalWeight = candidates.reduce((sum, candidate) => sum + candidate.weight, 0);
+  let roll = papalRandom(memory, memory.sequence, `revocation|${simMinute}`) * totalWeight;
+  for (const candidate of candidates) {
+    roll -= candidate.weight;
+    if (roll < 0) return candidate.action;
+  }
+  throw new Error("Papal revocation weighted selection failed");
+}
+
+function papalDecreeShouldEnd(action, diplomacy, simMinute) {
+  const relation = worldDiplomacyBetween(diplomacy, PAPAL_FACTION_ID, action.targetFactionId);
+  const currentRuler = rulerAtMinute(action.targetFactionId, simMinute);
+  const rulerChanged = !currentRuler || currentRuler.displayName !== action.targetRulerName;
+  if (action.kind === PAPAL_ACTION_FAVOUR) {
+    return rulerChanged || relation === DIPLOMACY_HOSTILE || relation === DIPLOMACY_WAR;
+  }
+  if (action.kind === PAPAL_ACTION_EXCOMMUNICATION) {
+    return rulerChanged || relation === DIPLOMACY_NEUTRAL ||
+      relation === DIPLOMACY_FRIENDLY || relation === DIPLOMACY_ALLY;
+  }
+  if (action.kind === PAPAL_ACTION_CONDEMNATION) {
+    return rulerChanged || relation === DIPLOMACY_FRIENDLY || relation === DIPLOMACY_ALLY;
+  }
+  if (action.kind === PAPAL_ACTION_CRUSADE) {
+    return rulerChanged || !isAtWarWithCatholicPower(diplomacy, action.targetFactionId, simMinute);
+  }
+  throw new Error(`Cannot assess Papal decree: ${action.kind}`);
+}
+
+function revokePapalDecree(memory, actionId, simMinute, source) {
+  const decree = memory.activeDecrees[actionId];
+  if (!decree) throw new Error(`Papal decree is not active: ${actionId}`);
+  if (simMinute < decree.simMinute) {
+    throw new Error(`Papal decree cannot be revoked before it was enacted: ${actionId}`);
+  }
+  const pope = rulerAtMinute(PAPAL_FACTION_ID, simMinute);
+  if (!pope) throw new Error("Papal decree revocation requires a reigning Pope");
+  delete memory.activeDecrees[actionId];
+  if (decree.kind === PAPAL_ACTION_EXCOMMUNICATION) {
+    const entry = memory.excommunications[decree.targetFactionId];
+    if (entry && (entry.actionId === actionId ||
+        entry.actionId === null && entry.rulerName === decree.targetRulerName)) {
+      delete memory.excommunications[decree.targetFactionId];
+    }
+  }
+  const action = Object.freeze({
+    id: `${PAPAL_ACTION_REVOCATION}-${simMinute}-${actionId}`,
+    kind: PAPAL_ACTION_REVOCATION,
+    targetFactionId: decree.targetFactionId,
+    targetRulerName: decree.targetRulerName,
+    popeName: pope.displayName,
+    respondingFactionIds: Object.freeze([]),
+    simMinute,
+    source,
+    logistics: null,
+    revokedActionId: actionId,
+    revokedActionKind: decree.kind
+  });
+  validatePapalAction(action);
+  memory.history.unshift(action);
+  if (memory.history.length > PAPAL_HISTORY_LIMIT) memory.history.length = PAPAL_HISTORY_LIMIT;
+  return action;
 }
 
 function createPapalMatter(memory, diplomacy, proposal, simMinute) {
@@ -1155,7 +1329,7 @@ function validatePapalAction(action) {
   if (!action || typeof action !== "object" || typeof action.id !== "string" || action.id === "") {
     throw new Error("Invalid papal action");
   }
-  if (!PAPAL_ACTION_KINDS.has(action.kind)) {
+  if (!PAPAL_RECORDED_ACTION_KINDS.has(action.kind)) {
     throw new Error(`Invalid recorded papal action kind: ${action.kind}`);
   }
   assertFactionId(action.targetFactionId);
@@ -1172,6 +1346,27 @@ function validatePapalAction(action) {
     throw new Error("Papal action requires a source");
   }
   if (action.logistics !== null) validatePapalLogistics(action.logistics);
+  if (action.kind === PAPAL_ACTION_REVOCATION) {
+    if (typeof action.revokedActionId !== "string" || action.revokedActionId === "" ||
+        !PAPAL_ACTION_KINDS.has(action.revokedActionKind)) {
+      throw new Error("Papal revocation requires the decree it withdrew");
+    }
+  } else if (action.revokedActionId !== undefined || action.revokedActionKind !== undefined) {
+    throw new Error(`Papal decree retains revocation fields: ${action.id}`);
+  }
+}
+
+function migratePapalAction(action) {
+  return {
+    ...action,
+    logistics: action.logistics ?? null
+  };
+}
+
+function papalDecreeKey(kind, targetFactionId) {
+  if (!PAPAL_ACTION_KINDS.has(kind)) throw new Error(`Invalid Papal decree kind: ${kind}`);
+  assertFactionId(targetFactionId);
+  return `${kind}|${targetFactionId}`;
 }
 
 function papalCargoRequirements(matterId, commissionKind) {

@@ -14,6 +14,7 @@ import {
   updateNpcPirateHideoutPlayerThreat,
   updateNpcSeaRouteEvents
 } from "./npcSeaRoutes.js";
+import { validateTradeEmbargoMemory } from "./tradeEmbargoes.js";
 
 export function createDistantWorldSimulation({
   systems,
@@ -108,6 +109,7 @@ export function createDistantWorldSimulation({
     landTrade.suzeraintyMemory = runtime.suzeraintyMemory;
     npcRoutes.foreignSettlementExpulsions = runtime.foreignSettlementExpulsions;
     npcRoutes.suzeraintyMemory = runtime.suzeraintyMemory;
+    npcRoutes.tradeEmbargoes = runtime.tradeEmbargoes;
   }
 
   function snapshots() {
@@ -152,6 +154,7 @@ export function portableDistantWorldSystems({ economy, landTrade, npcRoutes, fis
       economy: null,
       relationBetween: null,
       sovereignTradeOpenToFaction: null,
+      tradeEmbargoes: null,
       onForeignPortCall: null,
       fishingGroundIsNavigable: null,
       fishState: {
@@ -289,9 +292,11 @@ function validateRuntime(runtime) {
       !Array.isArray(runtime.protectedNpcShipIds) ||
       !runtime.player || !Number.isFinite(runtime.player.lat) ||
       !Number.isFinite(runtime.player.lon) ||
-      !runtime.foreignSettlementExpulsions || !runtime.suzeraintyMemory) {
+      !runtime.foreignSettlementExpulsions || !runtime.suzeraintyMemory ||
+      !runtime.tradeEmbargoes) {
     throw new Error("Distant-world worker received malformed runtime policy state");
   }
+  validateTradeEmbargoMemory(runtime.tradeEmbargoes);
 }
 
 function validateDueEvent(due) {

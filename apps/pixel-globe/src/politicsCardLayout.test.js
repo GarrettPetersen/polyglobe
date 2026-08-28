@@ -304,8 +304,8 @@ test("politics relationship labels use distinct dark Resurrect inks", () => {
   }
 });
 
-function card({ dependencies = [], relationships = [] }) {
-  return { dependencies, constitutionalConnections: [], relationships };
+function card({ dependencies = [], embargoConnections = [], relationships = [] }) {
+  return { dependencies, constitutionalConnections: [], embargoConnections, relationships };
 }
 
 function relationship(relation, factionIds) {

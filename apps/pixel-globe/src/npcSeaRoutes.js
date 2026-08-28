@@ -72,6 +72,15 @@ import {
   portugueseCartazRequired,
   tradeTerms
 } from "./tradePolicy.js";
+import {
+  activeTradeEmbargoOrders,
+  createTradeEmbargoMemory,
+  embargoOrderControlsGood,
+  npcEmbargoInspectionOutcome,
+  npcWillSmuggleEmbargoedCargo,
+  tradeEmbargoOrdersForPurchase,
+  validateTradeEmbargoMemory
+} from "./tradeEmbargoes.js";
 import { validateForeignSettlementExpulsionMemory } from "./foreignSettlements.js";
 import {
   createSuzeraintyMemory,
@@ -494,6 +503,10 @@ export function createNpcSeaRouteSystem({
   foreignSettlementExpulsions = null,
   sovereignTradeOpenToFaction = defaultSovereignTradeOpenToFaction,
   suzeraintyMemory = createSuzeraintyMemory(startMinute),
+  tradeEmbargoes = createTradeEmbargoMemory({
+    startMinute,
+    seedKey: seedKey || "npc-sea-routes"
+  }),
   onForeignPortCall = null
 }) {
   if (!Number.isFinite(startMinute) || startMinute < 0) {
@@ -513,6 +526,7 @@ export function createNpcSeaRouteSystem({
     throw new Error("NPC sea routes require a sovereign trade-access resolver");
   }
   validateSuzeraintyMemory(suzeraintyMemory);
+  validateTradeEmbargoMemory(tradeEmbargoes);
   if (onForeignPortCall !== null && typeof onForeignPortCall !== "function") {
     throw new Error("NPC sea routes foreign port contact handler must be a function");
   }
@@ -543,6 +557,7 @@ export function createNpcSeaRouteSystem({
     foreignSettlementExpulsions,
     sovereignTradeOpenToFaction,
     suzeraintyMemory,
+    tradeEmbargoes,
     onForeignPortCall,
     contactStartMinute: startMinute,
     fishState,
@@ -678,6 +693,9 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
       : null,
     cargo: {},
     cargoCost: {},
+    cargoOrigins: {},
+    tradeEmbargoConvictions: 0,
+    lastTradeEmbargoEnforcement: null,
     specie: spec.specie === undefined
       ? npcStartingSpecieForRole(spec.role, stats)
       : Math.max(0, Math.floor(spec.specie)),
@@ -1082,6 +1100,15 @@ export function restoreNpcSurrenderContinuity(system, snapshot) {
     ship.specie = saved.specie;
     ship.cargo = cloneJsonData(saved.cargo);
     ship.cargoCost = cloneJsonData(saved.cargoCost);
+    ship.cargoOrigins = snapshot.version === 2
+      ? cloneJsonData(saved.ship.cargoOrigins || {})
+      : {};
+    ship.tradeEmbargoConvictions = snapshot.version === 2
+      ? saved.ship.tradeEmbargoConvictions ?? 0
+      : 0;
+    ship.lastTradeEmbargoEnforcement = snapshot.version === 2
+      ? cloneJsonData(saved.ship.lastTradeEmbargoEnforcement ?? null)
+      : null;
     ship.seekingHideout = saved.seekingHideout;
     ship.graceUntilPortVisit = Number.MAX_SAFE_INTEGER;
     reconcileNpcCargoCapacity(ship, "surrender continuity restore");
@@ -1456,7 +1483,8 @@ export function restoreNpcSeaRouteSystem(
     foreignSettlementExpulsions = system?.foreignSettlementExpulsions ?? null,
     sovereignTradeOpenToFaction = system?.sovereignTradeOpenToFaction ||
       defaultSovereignTradeOpenToFaction,
-    suzeraintyMemory = system?.suzeraintyMemory
+    suzeraintyMemory = system?.suzeraintyMemory,
+    tradeEmbargoes = system?.tradeEmbargoes
   } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
@@ -1498,10 +1526,12 @@ export function restoreNpcSeaRouteSystem(
     throw new Error("NPC sea routes require a sovereign trade-access resolver");
   }
   validateSuzeraintyMemory(suzeraintyMemory);
+  validateTradeEmbargoMemory(tradeEmbargoes);
   system.relationBetween = relationBetween;
   system.foreignSettlementExpulsions = foreignSettlementExpulsions;
   system.sovereignTradeOpenToFaction = sovereignTradeOpenToFaction;
   system.suzeraintyMemory = suzeraintyMemory;
+  system.tradeEmbargoes = tradeEmbargoes;
   // Saved routes may have been calculated against an older lane graph. Avoid
   // reusing those cached paths while repairing and replanning the snapshot.
   system.routeCache.clear();
@@ -1553,6 +1583,9 @@ function reconcileRestoredNpcShip(ship, context) {
   if (!Number.isFinite(ship.cartazUntilMinute) || ship.cartazUntilMinute < 0) {
     throw new Error(`Invalid restored NPC cartaz expiry: ${ship.id}`);
   }
+  ship.cargoOrigins = ship.cargoOrigins || {};
+  ship.tradeEmbargoConvictions = ship.tradeEmbargoConvictions ?? 0;
+  ship.lastTradeEmbargoEnforcement = ship.lastTradeEmbargoEnforcement ?? null;
   reconcileNpcNationalCircuitFields(ship, `${context} ship ${ship.id}`);
   reconcileNpcPortResponseFields(ship, `${context} ship ${ship.id}`);
   assertFactionId(ship.factionId);
@@ -3063,6 +3096,7 @@ export function surrenderNpcShip(system, loserId, winnerId = null, {
     loser.specie = 0;
     loser.cargo = {};
     loser.cargoCost = {};
+    loser.cargoOrigins = {};
   }
   loser.graceUntilPortVisit = Number.MAX_SAFE_INTEGER;
   if (loser.role === NPC_ROLE_PIRATE) loser.seekingHideout = true;
@@ -3080,6 +3114,7 @@ export function claimSurrenderedNpcShipLoot(system, shipId) {
   ship.specie = 0;
   ship.cargo = {};
   ship.cargoCost = {};
+  ship.cargoOrigins = {};
   return loot;
 }
 
@@ -3617,6 +3652,9 @@ function createNpcShipRecord({ id, factionId, role, profileSpec, slugs, slug, se
     lastWhaleHuntMinute: null,
     cargo: {},
     cargoCost: {},
+    cargoOrigins: {},
+    tradeEmbargoConvictions: 0,
+    lastTradeEmbargoEnforcement: null,
     specie: npcStartingSpecieForRole(role, stats),
     lifetimeProfit: 0,
     cartazUntilMinute: 0,
@@ -4738,6 +4776,19 @@ function buyNpcCargo(system, ship, origin, destination) {
       PORTUGUESE_CARTAZ_DURATION_DAYS * WEATHER_MINUTES_PER_DAY;
   }
   for (const line of plan.lines) {
+    const embargoOrders = tradeEmbargoOrdersForPurchase(system.tradeEmbargoes, {
+      sourceFactionId: origin.factionId,
+      goodId: line.goodId,
+      playerFactionId: ship.factionId
+    });
+    if (embargoOrders.length > 0 && !npcWillSmuggleEmbargoedCargo({
+      shipId: ship.id,
+      seed: system.tradeEmbargoes.seed,
+      expectedProfit: line.expectedProfit,
+      cargoValue: Math.max(1, tradeGoodById(line.goodId).basePrice * line.quantity)
+    })) {
+      continue;
+    }
     const holdQuantity = npcCargoAvailableQuantity(ship, line.goodId);
     if (holdQuantity <= 0) break;
     const quantity = maximumPortSaleQuantity(
@@ -4761,6 +4812,7 @@ function buyNpcCargo(system, ship, origin, destination) {
     if (stored !== quantity) {
       throw new Error(`NPC port purchase exceeded available hold: ${ship.id} stored ${stored}/${quantity}`);
     }
+    recordNpcCargoOrigin(ship, line.goodId, stored, origin, system.economy.lastMinute);
   }
 }
 
@@ -4768,6 +4820,7 @@ function sellNpcCargo(system, ship, port) {
   if (npcNeedsFriendlyTradePort(ship) && !npcMerchantCanTradeAtPort(system, ship, port)) {
     throw new Error(`NPC ${ship.role} ${ship.id} cannot trade at hostile port ${portName(port)}`);
   }
+  enforceNpcTradeEmbargoAtPort(system, ship, port);
   for (const [goodId, held] of Object.entries(ship.cargo)) {
     tradeGoodById(goodId);
     if (!Number.isInteger(held) || held <= 0) throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo: ${held}`);
@@ -4787,7 +4840,103 @@ function sellNpcCargo(system, ship, port) {
       delete ship.cargo[goodId];
       delete ship.cargoCost[goodId];
     }
+    consumeNpcCargoOrigins(ship, goodId, quantity);
   }
+}
+
+function enforceNpcTradeEmbargoAtPort(system, ship, port) {
+  if (ship.role !== NPC_ROLE_MERCHANT || Object.keys(ship.cargoOrigins).length === 0) return null;
+  const enforcerShips = system.ships.filter((candidate) => (
+    candidate.id !== ship.id && candidate.role === NPC_ROLE_WARSHIP &&
+    !shipHasCombatGrace(candidate) && candidate.currentPort && samePort(candidate.currentPort, port)
+  ));
+  if (enforcerShips.length === 0) return null;
+  const enforcerFactionIds = [...new Set(enforcerShips.map((candidate) => candidate.factionId))];
+  const violation = npcTradeEmbargoViolations(
+    ship,
+    system.tradeEmbargoes,
+    enforcerFactionIds
+  )[0] || null;
+  if (!violation) return null;
+  const cargoValue = Object.entries(violation.cargo).reduce((sum, [goodId, quantity]) => {
+    const held = ship.cargo[goodId] || 0;
+    return sum + (held > 0 ? npcCargoCost(ship, goodId) * quantity / held : 0);
+  }, 0);
+  const outcome = npcEmbargoInspectionOutcome({
+    shipId: ship.id,
+    enforcerFactionId: violation.enforcingFactionId,
+    simMinute: system.economy.lastMinute,
+    cargoValue: Math.max(1, cargoValue)
+  });
+  if (!outcome.caught) return Object.freeze({ caught: false, violation });
+  const confiscated = {};
+  for (const [goodId, requested] of Object.entries(violation.cargo)) {
+    const held = ship.cargo[goodId] || 0;
+    const quantity = Math.min(held, requested);
+    if (quantity <= 0) continue;
+    const remaining = held - quantity;
+    const totalCost = npcCargoCost(ship, goodId);
+    if (remaining > 0) {
+      ship.cargo[goodId] = remaining;
+      ship.cargoCost[goodId] = totalCost * (remaining / held);
+    } else {
+      delete ship.cargo[goodId];
+      delete ship.cargoCost[goodId];
+    }
+    consumeNpcCargoOrigins(ship, goodId, quantity);
+    confiscated[goodId] = quantity;
+  }
+  ship.specie = Math.max(0, ship.specie - outcome.fine);
+  ship.tradeEmbargoConvictions += 1;
+  ship.lastTradeEmbargoEnforcement = {
+    orderId: violation.orderId,
+    enforcingFactionId: violation.enforcingFactionId,
+    simMinute: system.economy.lastMinute,
+    fine: outcome.fine,
+    confiscated
+  };
+  return Object.freeze({ caught: true, violation, fine: outcome.fine, confiscated });
+}
+
+function recordNpcCargoOrigin(ship, goodId, quantity, port, simMinute) {
+  if (!Number.isInteger(quantity) || quantity <= 0 ||
+      !Number.isInteger(port?.tileId) || port.tileId < 0 ||
+      !Number.isFinite(simMinute) || simMinute < 0) {
+    throw new Error(`NPC cargo provenance is invalid for ${ship.id}/${goodId}`);
+  }
+  assertFactionId(port.factionId);
+  const origins = ship.cargoOrigins[goodId] || [];
+  const previous = origins.at(-1);
+  if (previous && previous.sourceTileId === port.tileId &&
+      previous.sourceFactionId === port.factionId) {
+    previous.quantity += quantity;
+  } else {
+    origins.push({
+      sourceFactionId: port.factionId,
+      sourceTileId: port.tileId,
+      quantity,
+      purchasedMinute: simMinute
+    });
+  }
+  ship.cargoOrigins[goodId] = origins;
+}
+
+function consumeNpcCargoOrigins(ship, goodId, quantity) {
+  if (!Number.isInteger(quantity) || quantity < 0) {
+    throw new Error(`NPC cargo provenance consumption is invalid: ${goodId}=${quantity}`);
+  }
+  let remaining = quantity;
+  const origins = ship.cargoOrigins[goodId] || [];
+  while (remaining > 0 && origins.length > 0) {
+    const origin = origins[0];
+    const removed = Math.min(origin.quantity, remaining);
+    origin.quantity -= removed;
+    remaining -= removed;
+    if (origin.quantity === 0) origins.shift();
+  }
+  if (origins.length > 0) ship.cargoOrigins[goodId] = origins;
+  else delete ship.cargoOrigins[goodId];
+  return quantity - remaining;
 }
 
 function npcPurchaseMultiplier(system, ship, port) {
@@ -4842,6 +4991,7 @@ export function reconcileNpcCargoCapacity(ship, source) {
   if (typeof source !== "string" || source.trim() === "") {
     throw new Error("NPC cargo reconciliation requires a source");
   }
+  reconcileNpcCargoOriginsToManifest(ship);
   const beforeUnits = inspectNpcCargo(ship);
   if (beforeUnits <= ship.cargoCapacity) return null;
 
@@ -4880,6 +5030,7 @@ export function reconcileNpcCargoCapacity(ship, source) {
       delete ship.cargoCost[candidate.goodId];
       candidates.splice(candidateIndex, 1);
     }
+    consumeNpcCargoOrigins(ship, candidate.goodId, quantity);
   }
 
   const afterUnits = npcCargoUnits(ship);
@@ -4924,10 +5075,17 @@ function npcCargoUnits(ship) {
 }
 
 function inspectNpcCargo(ship) {
+  if (ship && typeof ship === "object") {
+    ship.cargoOrigins ??= {};
+    ship.tradeEmbargoConvictions ??= 0;
+    ship.lastTradeEmbargoEnforcement ??= null;
+  }
   if (!ship || typeof ship.id !== "string" || ship.id === "" ||
       !Number.isInteger(ship.cargoCapacity) || ship.cargoCapacity < 0 ||
       !ship.cargo || typeof ship.cargo !== "object" || Array.isArray(ship.cargo) ||
-      !ship.cargoCost || typeof ship.cargoCost !== "object" || Array.isArray(ship.cargoCost)) {
+      !ship.cargoCost || typeof ship.cargoCost !== "object" || Array.isArray(ship.cargoCost) ||
+      !ship.cargoOrigins || typeof ship.cargoOrigins !== "object" || Array.isArray(ship.cargoOrigins) ||
+      !Number.isInteger(ship.tradeEmbargoConvictions) || ship.tradeEmbargoConvictions < 0) {
     throw new Error(`Invalid NPC cargo state: ${ship?.id}`);
   }
   let units = 0;
@@ -4937,7 +5095,53 @@ function inspectNpcCargo(ship) {
     npcCargoCost(ship, goodId);
     units += quantity * good.unitSize;
   }
+  for (const [goodId, origins] of Object.entries(ship.cargoOrigins)) {
+    tradeGoodById(goodId);
+    if (!Array.isArray(origins) || origins.length === 0) {
+      throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo origins`);
+    }
+    let recordedQuantity = 0;
+    for (const origin of origins) {
+      if (!origin || typeof origin !== "object" || Array.isArray(origin) ||
+          !Number.isInteger(origin.sourceTileId) || origin.sourceTileId < 0 ||
+          !Number.isInteger(origin.quantity) || origin.quantity <= 0 ||
+          !Number.isFinite(origin.purchasedMinute) || origin.purchasedMinute < 0) {
+        throw new Error(`NPC ship ${ship.id} has invalid ${goodId} cargo provenance`);
+      }
+      assertFactionId(origin.sourceFactionId);
+      recordedQuantity += origin.quantity;
+    }
+    if (recordedQuantity > (ship.cargo[goodId] || 0)) {
+      throw new Error(`NPC ship ${ship.id} has more ${goodId} provenance than cargo`);
+    }
+  }
+  if (ship.lastTradeEmbargoEnforcement !== null && (
+    !ship.lastTradeEmbargoEnforcement ||
+    typeof ship.lastTradeEmbargoEnforcement !== "object" ||
+    typeof ship.lastTradeEmbargoEnforcement.orderId !== "string" ||
+    !Number.isFinite(ship.lastTradeEmbargoEnforcement.simMinute)
+  )) {
+    throw new Error(`NPC ship ${ship.id} has invalid trade embargo enforcement history`);
+  }
   return units;
+}
+
+function reconcileNpcCargoOriginsToManifest(ship) {
+  if (!ship || typeof ship !== "object") return;
+  ship.cargoOrigins ??= {};
+  for (const [goodId, origins] of Object.entries(ship.cargoOrigins)) {
+    if (!Array.isArray(origins)) continue;
+    let excess = origins.reduce((sum, origin) => sum + (Number(origin?.quantity) || 0), 0) -
+      (Number(ship.cargo?.[goodId]) || 0);
+    while (excess > 0 && origins.length > 0) {
+      const origin = origins.at(-1);
+      const removed = Math.min(excess, Number(origin?.quantity) || 0);
+      origin.quantity -= removed;
+      excess -= removed;
+      if (origin.quantity <= 0) origins.pop();
+    }
+    if (origins.length === 0) delete ship.cargoOrigins[goodId];
+  }
 }
 
 function npcCargoCost(ship, goodId) {
@@ -4962,6 +5166,45 @@ export function npcCargoAvailableQuantity(ship, goodId) {
   }
   const good = tradeGoodById(goodId);
   return Math.floor((ship.cargoCapacity - npcCargoUnits(ship)) / good.unitSize);
+}
+
+export function npcTradeEmbargoViolations(ship, embargoMemory, enforcingFactionIds) {
+  inspectNpcCargo(ship);
+  validateTradeEmbargoMemory(embargoMemory);
+  if (!Array.isArray(enforcingFactionIds)) {
+    throw new Error("NPC trade embargo inspection requires enforcing factions");
+  }
+  const enforcers = new Set(enforcingFactionIds.map(assertFactionId));
+  const violations = [];
+  for (const order of activeTradeEmbargoOrders(embargoMemory)) {
+    const authorizedEnforcers = order.followerFactionIds.filter((factionId) => (
+      enforcers.has(factionId)
+    ));
+    if (authorizedEnforcers.length === 0) continue;
+    const cargo = {};
+    for (const [goodId, origins] of Object.entries(ship.cargoOrigins)) {
+      if (!embargoOrderControlsGood(order, goodId)) continue;
+      const quantity = origins
+        .filter((origin) => origin.sourceFactionId === order.targetFactionId)
+        .reduce((sum, origin) => sum + origin.quantity, 0);
+      if (quantity > 0) cargo[goodId] = Math.min(quantity, ship.cargo[goodId] || 0);
+    }
+    const cargoQuantity = Object.values(cargo).reduce((sum, quantity) => sum + quantity, 0);
+    if (cargoQuantity <= 0) continue;
+    violations.push(Object.freeze({
+      id: `trade-embargo:${order.id}`,
+      regimeKind: "trade-embargo",
+      orderId: order.id,
+      authorityKind: order.authorityKind,
+      issuerFactionId: order.issuerFactionId,
+      targetFactionId: order.targetFactionId,
+      scope: order.scope,
+      enforcingFactionId: authorizedEnforcers[0],
+      cargo: Object.freeze(cargo),
+      cargoQuantity
+    }));
+  }
+  return Object.freeze(violations);
 }
 
 function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute) {
@@ -6040,13 +6283,15 @@ function assertSaveableNpcRouteSystem(system) {
       (system.fishState !== null && typeof system.fishingGroundIsNavigable !== "function") ||
       (system.seedKey !== null && (typeof system.seedKey !== "string" || system.seedKey.trim() === "")) ||
       typeof system.relationBetween !== "function" ||
-      typeof system.sovereignTradeOpenToFaction !== "function") {
+      typeof system.sovereignTradeOpenToFaction !== "function" ||
+      !system.tradeEmbargoes) {
     throw new Error("Invalid NPC route system");
   }
   if (system.foreignSettlementExpulsions !== null) {
     validateForeignSettlementExpulsionMemory(system.foreignSettlementExpulsions);
   }
   validateSuzeraintyMemory(system.suzeraintyMemory);
+  validateTradeEmbargoMemory(system.tradeEmbargoes);
 }
 
 function npcSeedKey(system, value) {

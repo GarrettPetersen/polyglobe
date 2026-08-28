@@ -199,6 +199,48 @@ test("ship hails preview whether an attack is legal under a letter of marque", (
   assert.equal(unlicensed.feedbackTone, "danger");
 });
 
+test("a commissioned captain can cite an NPC ship's exact trade violation as a lawful demand", () => {
+  const violation = {
+    id: "trade-embargo:embargo-4",
+    regimeKind: "trade-embargo",
+    orderId: "embargo-4",
+    authorityKind: "national",
+    issuerFactionId: "hospitallers",
+    targetFactionId: "ottoman",
+    enforcingFactionId: "hospitallers",
+    regimeLabel: "the Hospitaller embargo against Ottoman trade",
+    issuerAdjective: "Hospitaller",
+    cargo: { carpets: 3 },
+    cargoQuantity: 3
+  };
+  const ship = {
+    id: "ottoman-smuggler",
+    label: "Dhow",
+    roleLabel: "Merchant",
+    faction: { adjective: "Ottoman" },
+    character: { name: "Kemal Celebi" },
+    playerAttackIsPiracy: true,
+    privateeringIssuerAdjective: null,
+    tradeRestrictionViolation: violation,
+    willOfferSurrender: true
+  };
+  const session = createShipDialogueSession(ship);
+  const view = shipDialogueView(session, ship);
+
+  assert.equal(
+    view.options[0].label,
+    "You are in violation of the Hospitaller embargo against Ottoman trade"
+  );
+  assert.equal(view.options[0].detail, "Legal surrender demand");
+  assert.equal(view.options.some((entry) => entry.label === "Demand surrender"), false);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 0), {
+    closed: false,
+    action: { type: "begin-player-trade-enforcement", violation }
+  });
+  assert.equal(session.tradeRestrictionEnforcementActive, true);
+  assert.equal(session.nodeId, "surrender-offer");
+});
+
 test("hailing a hostile pirate offers combat without friendly gossip", () => {
   const ship = {
     id: "pirate-felucca",
@@ -332,6 +374,40 @@ test("government patrols can enforce illicit trade restrictions at sea", () => {
   assert.deepEqual(selectShipDialogueOption(session, ship, 2), {
     closed: true,
     action: { type: "evade-illicit-trade-inspection" }
+  });
+});
+
+test("embargo patrols name the sovereign order and offer seizure, fine, or flight", () => {
+  const ship = {
+    id: "hospitaller-patrol-2",
+    label: "Galley",
+    roleLabel: "Warship",
+    faction: { adjective: "Hospitaller" },
+    character: { name: "Fra Marco de Villiers" }
+  };
+  const session = createShipDialogueSession(ship, {
+    tradeEmbargoInspection: {
+      incidentId: "trade-embargo-1",
+      issuerName: "the Order of Saint John",
+      targetName: "the Ottoman domains",
+      scopeLabel: "all merchandise",
+      fine: 310,
+      cargoQuantity: 2,
+      canAffordFine: true
+    }
+  });
+  const view = shipDialogueView(session, ship);
+
+  assert.match(view.text, /By order of the Order of Saint John/);
+  assert.match(view.text, /all merchandise from the Ottoman domains/);
+  assert.deepEqual(view.options.map((entry) => entry.label), [
+    "Pay fine  310 db",
+    "Surrender embargoed cargo",
+    "Run for it"
+  ]);
+  assert.deepEqual(selectShipDialogueOption(session, ship, 2), {
+    closed: true,
+    action: { type: "evade-trade-embargo-inspection" }
   });
 });
 
@@ -1045,11 +1121,11 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.equal(sell.feedbackLineReserve, 2);
   assert.equal(sell.optionHeight, 30);
-  assert.equal(sell.options.at(-2).label, "Back");
-  assert.equal(sell.options.at(-2).placement, "port-exit");
-  assert.equal(sell.options.at(-1).label, "Undo all sales");
+  assert.equal(sell.options.at(-2).label, "Undo all sales");
+  assert.equal(sell.options.at(-2).placement, undefined);
+  assert.equal(sell.options.at(-2).disabled, true);
+  assert.equal(sell.options.at(-1).label, "Back");
   assert.equal(sell.options.at(-1).placement, "port-exit");
-  assert.equal(sell.options.at(-1).disabled, true);
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.detail || "")));
   assert.ok(sell.options.some((option) => /WORLD/.test(option.detail || "")));
 
@@ -1064,8 +1140,8 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   );
   assert.deepEqual(provisionsOnlySell.options.map((option) => option.label), [
     "No cargo to sell",
-    "Back",
-    "Undo all sales"
+    "Undo all sales",
+    "Back"
   ]);
 });
 
@@ -1666,8 +1742,8 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
     entry.action.type === "buy" || entry.action.type === "buy-max"
   )));
   assert.deepEqual(buy.options.slice(-2).map((entry) => entry.label), [
-    "Back",
-    "Undo all purchases"
+    "Undo all purchases",
+    "Back"
   ]);
   assert.equal(buy.optionColumns, 2);
 
@@ -1703,7 +1779,7 @@ test("market rows put unit and bulk actions together and undo every purchase on 
   const initialUndoIndex = initial.options.findIndex((entry) => entry.action.type === "undo-market");
   assert.ok(initialUndoIndex >= 0);
   assert.equal(initial.options[initialUndoIndex].disabled, true);
-  assert.equal(initial.options[initialUndoIndex].placement, "port-exit");
+  assert.equal(initial.options[initialUndoIndex].placement, undefined);
   const port = economy.portStates.get(city.tileId);
   const before = {
     doubloons: gameState.doubloons,
@@ -1732,7 +1808,16 @@ test("market rows put unit and bulk actions together and undo every purchase on 
   const undoIndex = changed.options.findIndex((entry) => entry.action.type === "undo-market");
   assert.equal(undoIndex, initialUndoIndex);
   assert.equal(changed.options[undoIndex].disabled, false);
-  const undo = selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex);
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex),
+    { closed: false }
+  );
+  assert.equal(session.nodeId, "market-undo-confirm");
+  const confirmation = portDialogueView(session, city, gameState, economy, [city]);
+  const confirmIndex = confirmation.options.findIndex((entry) => (
+    entry.action.type === "confirm-market-undo"
+  ));
+  const undo = selectPortDialogueOption(session, city, gameState, economy, [city], confirmIndex);
 
   assert.ok(undo.marketUndo);
   assert.deepEqual({
@@ -1786,7 +1871,7 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
   const initialUndoIndex = initial.options.findIndex((entry) => entry.action.type === "undo-market");
   assert.ok(initialUndoIndex >= 0);
   assert.equal(initial.options[initialUndoIndex].disabled, true);
-  assert.equal(initial.options[initialUndoIndex].placement, "port-exit");
+  assert.equal(initial.options[initialUndoIndex].placement, undefined);
   const sale = selectPortDialogueOption(
     session,
     city,
@@ -1803,6 +1888,23 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
   assert.equal(undoIndex, initialUndoIndex);
   assert.equal(changed.options[undoIndex].disabled, false);
   selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex);
+  assert.equal(session.nodeId, "market-undo-confirm");
+  assert.equal(session.selectedIndex, 1);
+  let confirmation = portDialogueView(session, city, gameState, economy, [city]);
+  const cancelIndex = confirmation.options.findIndex((entry) => (
+    entry.action.type === "cancel-market-undo"
+  ));
+  selectPortDialogueOption(session, city, gameState, economy, [city], cancelIndex);
+  assert.equal(session.nodeId, "sell");
+  assert.equal(gameState.cargo.wool, undefined);
+  const saleView = portDialogueView(session, city, gameState, economy, [city]);
+  const repeatedUndoIndex = saleView.options.findIndex((entry) => entry.action.type === "undo-market");
+  selectPortDialogueOption(session, city, gameState, economy, [city], repeatedUndoIndex);
+  confirmation = portDialogueView(session, city, gameState, economy, [city]);
+  const confirmIndex = confirmation.options.findIndex((entry) => (
+    entry.action.type === "confirm-market-undo"
+  ));
+  selectPortDialogueOption(session, city, gameState, economy, [city], confirmIndex);
 
   assert.deepEqual({
     doubloons: gameState.doubloons,
@@ -3001,6 +3103,51 @@ test("leaving the sell screen after a completed sale does not offer trade advice
   );
   assert.equal(session.nodeId, "root");
   assert.equal(session.tradeTip, null);
+  assert.equal(gameState.cargo.cloves, 1);
+  assert.equal(session.marketUndoSnapshot, null);
+});
+
+test("selling all cloves and leaving the market cannot restore the departed cargo", () => {
+  const city = {
+    tileId: 109,
+    city: "Malaga",
+    country: "Spain",
+    cityType: "mediterranean",
+    factionId: "spain",
+    population: 55000,
+    character: { name: "Beatriz de Mendoza" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.cargo.cloves = 6;
+  gameState.accounts.cargoCostBasis.cloves = 120;
+  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  let view = portDialogueView(session, city, gameState, economy, [city]);
+  const sellAllIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell-all" && entry.action.goodId === "cloves"
+  ));
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], sellAllIndex);
+  assert.equal(gameState.cargo.cloves, undefined);
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  const backIndex = view.options.findIndex((entry) => entry.action.type === "leave-sell");
+  selectPortDialogueOption(session, city, gameState, economy, [city], backIndex);
+
+  assert.equal(session.nodeId, "root");
+  assert.equal(session.marketUndoSnapshot, null);
+  assert.equal(gameState.cargo.cloves, undefined);
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  const leavePortIndex = view.options.findIndex((entry) => entry.action.type === "close");
+  const departure = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    leavePortIndex
+  );
+  assert.equal(departure.closed, true);
+  assert.equal(gameState.cargo.cloves, undefined);
 });
 
 test("the first port requires a chunky loadout choice and provisions the ship", () => {
