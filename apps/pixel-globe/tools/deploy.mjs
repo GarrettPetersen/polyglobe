@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyRemoteModuleGraph } from "./moduleGraphVerifier.mjs";
+import { verifyRemoteStartupAssets } from "./startupAssetVerifier.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(appRoot, "../..");
@@ -78,7 +79,12 @@ await verifyRemoteModuleGraph({
   attempts: 90,
   retryDelayMs: 1_000
 });
+const startupAssets = await verifyRemoteStartupAssets({
+  baseUrl: "https://pirates-of-the-pixel-globe.pages.dev/",
+  subdivisions: 8
+});
 process.stdout.write(`Verified deployed JavaScript module graph for ${revisionMatch[1]}\n`);
+process.stdout.write(`Verified deployed startup Earth cache (${startupAssets.earthTileCount} tiles)\n`);
 
 function localSourceRevision() {
   const configured = process.env.BUILD_REVISION?.trim();

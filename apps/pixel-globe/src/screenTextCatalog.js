@@ -1294,7 +1294,6 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Earn 1,000,000 doubloons in a single voyage.",
   "Earn 10,000 doubloons in one voyage.",
   "Earn 100,000 doubloons in one voyage.",
-  "Earth cache",
   "Eastern Mediterranean Combat Performance Benchmark",
   "Eastern Orthodox",
   "Eastern Woodlands",

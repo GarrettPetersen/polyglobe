@@ -1294,7 +1294,6 @@ export default Object.freeze({
   "Earn 1,000,000 doubloons in a single voyage.": "Ganhe 1.000.000 de dobrões em uma única viagem.",
   "Earn 10,000 doubloons in one voyage.": "Ganhe 10.000 dobrões em uma viagem.",
   "Earn 100,000 doubloons in one voyage.": "Ganhe 100.000 dobrões em uma viagem.",
-  "Earth cache": "Cache da Terra",
   "Eastern Mediterranean Combat Performance Benchmark": "Referência de desempenho em combate no Mediterrâneo Oriental",
   "Eastern Orthodox": "Ortodoxa Oriental",
   "Eastern Woodlands": "Florestas Orientais",

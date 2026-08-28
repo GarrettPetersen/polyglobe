@@ -2185,7 +2185,7 @@ import {
   advanceIncrementalRowJob,
   createIncrementalRowJob
 } from "./incrementalRowJob.js";
-import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
+import { fetchChunkedBinary, fetchChunkedJson } from "./chunkedBinaryFetch.js";
 import { fetchStaticAsset, isTransientStaticAssetError } from "./staticAssetFetch.js";
 import { createOnDemandAssetStore } from "./onDemandAssetStore.js";
 import {
@@ -4898,11 +4898,10 @@ async function loadInitialNearbyWorldAssets() {
 }
 
 async function fetchEarthCache() {
-  const res = await fetchStaticAsset(`shared/earth-globe-cache-${SUBDIVISIONS}.json`, {
-    label: "Earth cache"
-  });
-  if (!res.ok) throw new Error(`Failed to load Earth cache: HTTP ${res.status}`);
-  return res.json();
+  const path = `shared/earth-globe-cache-${SUBDIVISIONS}.json`;
+  const chunked = await fetchChunkedJson(path, "Earth cache");
+  if (chunked !== null) return chunked;
+  return fetchJson(path, "Earth cache");
 }
 
 async function fetchJson(path, label) {

@@ -106,6 +106,28 @@ export async function fetchChunkedBinary(path, label, {
   return out.buffer;
 }
 
+export async function fetchChunkedJson(path, label, options = {}) {
+  const buffer = await fetchChunkedBinary(path, label, options);
+  if (buffer === null) return null;
+  let text;
+  try {
+    text = new TextDecoder("utf-8", { fatal: true }).decode(buffer);
+  } catch (error) {
+    throw new Error(
+      `Malformed ${label} chunked UTF-8: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error instanceof Error ? error : undefined }
+    );
+  }
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    throw new Error(
+      `Malformed ${label} chunked JSON: ${error instanceof Error ? error.message : String(error)}`,
+      { cause: error instanceof Error ? error : undefined }
+    );
+  }
+}
+
 function appendResourcePathSuffix(resource, suffix) {
   const queryIndex = resource.indexOf("?");
   const fragmentIndex = resource.indexOf("#");

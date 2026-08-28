@@ -1294,7 +1294,6 @@ export default Object.freeze({
   "Earn 1,000,000 doubloons in a single voyage.": "1 回の航海で 1,000,000 ダブロンを獲得します。",
   "Earn 10,000 doubloons in one voyage.": "1 回の航海で 10,000 ダブロンを獲得します。",
   "Earn 100,000 doubloons in one voyage.": "1 回の航海で 100,000 ダブロンを獲得します。",
-  "Earth cache": "アースキャッシュ",
   "Eastern Mediterranean Combat Performance Benchmark": "東地中海戦闘パフォーマンスベンチマーク",
   "Eastern Orthodox": "東方正教",
   "Eastern Woodlands": "東部森林地帯",

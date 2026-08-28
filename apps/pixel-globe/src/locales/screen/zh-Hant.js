@@ -1294,7 +1294,6 @@ export default Object.freeze({
   "Earn 1,000,000 doubloons in a single voyage.": "在單次航行中賺取 1,000,000 達布隆。",
   "Earn 10,000 doubloons in one voyage.": "在一次航程中賺取 10,000 達布隆。",
   "Earn 100,000 doubloons in one voyage.": "在一次航程中賺取 100,000 達布隆。",
-  "Earth cache": "地球緩存",
   "Eastern Mediterranean Combat Performance Benchmark": "東地中海作戰性能基準",
   "Eastern Orthodox": "東正教",
   "Eastern Woodlands": "東部兀蘭",

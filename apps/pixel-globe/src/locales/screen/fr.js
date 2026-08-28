@@ -1294,7 +1294,6 @@ export default Object.freeze({
   "Earn 1,000,000 doubloons in a single voyage.": "Gagnez 1 000 000 de doublons en un seul voyage.",
   "Earn 10,000 doubloons in one voyage.": "Gagnez 10 000 doublons en un seul voyage.",
   "Earn 100,000 doubloons in one voyage.": "Gagnez 100 000 doublons en un seul voyage.",
-  "Earth cache": "Cache terrestre",
   "Eastern Mediterranean Combat Performance Benchmark": "Référence de performance au combat en Méditerranée orientale",
   "Eastern Orthodox": "Orthodoxe orientale",
   "Eastern Woodlands": "Forêts de l’Est",

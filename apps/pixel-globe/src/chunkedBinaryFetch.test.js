@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { fetchChunkedBinary } from "./chunkedBinaryFetch.js";
+import { fetchChunkedBinary, fetchChunkedJson } from "./chunkedBinaryFetch.js";
 
 test("chunked binary fetch starts every chunk concurrently and assembles manifest order", async () => {
   const requests = [];
@@ -233,6 +233,44 @@ test("chunked binary fetch returns null when no JSON manifest is deployed", asyn
     baseUrl: "https://example.test/"
   });
   assert.equal(htmlFallback, null);
+});
+
+test("chunked JSON fetch reconstructs and parses a UTF-8 asset", async () => {
+  const encoded = new TextEncoder().encode(JSON.stringify({ subdivisions: 8, sea: "Océano" }));
+  const split = 21;
+  const fetchAsset = async (resource) => {
+    if (resource === "shared/earth.json.chunks.json") {
+      return jsonResponse({
+        byteLength: encoded.byteLength,
+        chunks: [
+          { path: "earth.json.part000", byteLength: split },
+          { path: "earth.json.part001", byteLength: encoded.byteLength - split }
+        ]
+      });
+    }
+    if (resource.endsWith("earth.json.part000")) return binaryResponse(encoded.subarray(0, split));
+    if (resource.endsWith("earth.json.part001")) return binaryResponse(encoded.subarray(split));
+    throw new Error(`Unexpected chunked JSON request: ${resource}`);
+  };
+
+  const value = await fetchChunkedJson("shared/earth.json", "Earth cache", {
+    fetchAsset,
+    baseUrl: "https://example.test/game/"
+  });
+
+  assert.deepEqual(value, { subdivisions: 8, sea: "Océano" });
+});
+
+test("chunked JSON fetch reports invalid reconstructed JSON with its asset label", async () => {
+  await assert.rejects(
+    fetchChunkedJson("shared/earth.json", "Earth cache", {
+      fetchAsset: async (resource) => resource.endsWith(".chunks.json")
+        ? jsonResponse({ byteLength: 6, chunks: [{ path: "earth.part000", byteLength: 6 }] })
+        : binaryResponse(new TextEncoder().encode("<html>")),
+      baseUrl: "https://example.test/game/"
+    }),
+    /Malformed Earth cache chunked JSON/
+  );
 });
 
 function jsonResponse(value) {

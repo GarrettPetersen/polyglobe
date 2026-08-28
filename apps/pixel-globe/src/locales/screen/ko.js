@@ -1294,7 +1294,6 @@ export default Object.freeze({
   "Earn 1,000,000 doubloons in a single voyage.": "한 번의 항해로 1,000,000금화를 획득하세요.",
   "Earn 10,000 doubloons in one voyage.": "한 번의 항해에서 10,000금화를 획득하세요.",
   "Earn 100,000 doubloons in one voyage.": "한 번의 항해에서 100,000금화를 획득하세요.",
-  "Earth cache": "어스 캐시",
   "Eastern Mediterranean Combat Performance Benchmark": "동부 지중해 전투 성능 벤치마크",
   "Eastern Orthodox": "동방 정교회",
   "Eastern Woodlands": "동부 삼림지대",

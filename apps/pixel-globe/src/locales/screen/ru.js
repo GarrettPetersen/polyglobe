@@ -1294,7 +1294,6 @@ export default Object.freeze({
   "Earn 1,000,000 doubloons in a single voyage.": "Заработайте 1 000 000 дублонов за одно путешествие.",
   "Earn 10,000 doubloons in one voyage.": "Заработайте 10 000 дублонов за одно путешествие.",
   "Earn 100,000 doubloons in one voyage.": "Заработайте 100 000 дублонов за одно путешествие.",
-  "Earth cache": "Тайник Земли",
   "Eastern Mediterranean Combat Performance Benchmark": "Эталон боевых качеств Восточного Средиземноморья",
   "Eastern Orthodox": "Восточно-православный",
   "Eastern Woodlands": "Восточные леса",
