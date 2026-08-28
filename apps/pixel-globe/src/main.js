@@ -16,6 +16,7 @@ import {
   buildFineToCoarseTileMapping,
   geodesicTileCount
 } from "./worldScale.js";
+import { reconcileCartographyTileMask } from "./cartographyMigration.js";
 import {
   coarseMaskHasWorldTile,
   coarseTileIdForWorldTile,
@@ -15365,7 +15366,7 @@ async function restoreSavedVoyage(payload) {
   initializeFetchQuestReadiness();
   consumedLandedSeagullIds.clear();
   familyDebtReturnReminderDelivered = false;
-  restoreCartographyFromGameState();
+  restoreCartographyFromGameState(savedWorldTopology);
   applyCurrentPortConquestOwnership({ refreshMaltaQuest: false });
   if (!gameState.memory.flags || typeof gameState.memory.flags !== "object") {
     gameState.memory.flags = {};
@@ -42400,8 +42401,11 @@ function syncCartographyToGameState() {
   );
 }
 
-function restoreCartographyFromGameState() {
+function restoreCartographyFromGameState(savedWorldTopology) {
   if (!gameState || !minimap) throw new Error("Cannot restore cartography before game state and minimap exist");
+  if (!savedWorldTopology || typeof savedWorldTopology.changed !== "boolean") {
+    throw new Error("Cannot restore cartography without saved world topology");
+  }
   const memory = gameState.memory.cartography;
   minimap.seenTiles.fill(0);
   minimap.packedSeenTiles.fill(0);
@@ -42424,19 +42428,33 @@ function restoreCartographyFromGameState() {
     if (memory.seenTileCount !== 0) throw new Error("Cartography count has no saved tile mask");
     return;
   }
-  const packed = base64ToBytes(memory.seenTilesBase64);
-  const expectedBytes = Math.ceil(graph.tileCount / 8);
-  if (packed.length !== expectedBytes) {
-    throw new Error(`Cartography tile mask has ${packed.length} bytes; expected ${expectedBytes}`);
+  const reconciliation = reconcileCartographyTileMask(
+    base64ToBytes(memory.seenTilesBase64),
+    memory.seenTileCount,
+    graph,
+    savedWorldTopology
+  );
+  const packed = reconciliation.packedMask;
+  const savedSeenTileCount = reconciliation.seenTileCount;
+  const packedBase64 = reconciliation.migrated
+    ? bytesToBase64(packed)
+    : memory.seenTilesBase64;
+  if (reconciliation.migrated) {
+    updateCartographyMemory(gameState, packedBase64, savedSeenTileCount);
+    console.info(
+      `[pixel-globe] migrated captain chart from subdivision ` +
+        `${savedWorldTopology.savedSubdivisions}: ` +
+        `${memory.seenTileCount} -> ${savedSeenTileCount} mapped tiles`
+    );
   }
   minimap.packedSeenTiles.set(packed);
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
     if ((packed[tileId >> 3] & (1 << (tileId & 7))) !== 0) revealMinimapTile(tileId);
   }
-  if (minimap.seenTileCount !== memory.seenTileCount) {
-    throw new Error(`Cartography count mismatch: mask=${minimap.seenTileCount} state=${memory.seenTileCount}`);
+  if (minimap.seenTileCount !== savedSeenTileCount) {
+    throw new Error(`Cartography count mismatch: mask=${minimap.seenTileCount} state=${savedSeenTileCount}`);
   }
-  minimap.packedSeenTilesBase64 = memory.seenTilesBase64;
+  minimap.packedSeenTilesBase64 = packedBase64;
   minimap.packedSeenTileCount = minimap.seenTileCount;
   refreshMinimapViewport();
 }
