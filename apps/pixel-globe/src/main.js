@@ -496,6 +496,7 @@ import {
   collectPlayerShipyardDividends,
   playerLedgerLifetimeMetrics,
   playerLedgerTotalEntryCount,
+  reconcileQuestPortTiles,
   reconcileQuestWorldAssumptions,
   recordAttackAgainstFaction,
   recordDiscovery,
@@ -965,6 +966,7 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
+  NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL,
   NPC_PORT_RESPONSE_BURNING,
   NPC_PORT_RESPONSE_LOST,
   NPC_PORT_RESPONSE_WAR_LOAN,
@@ -1839,6 +1841,7 @@ import {
   recoverSavedVoyageWorldClock,
   savedVoyageWorldTopology
 } from "./saveCompatibility.js";
+import { subdivisionSevenPortMigrationForWorld } from "./subdivisionSevenPortMigration.js";
 import {
   addDerivedSaveRecoveryLabel,
   restoreOrRecreateDerivedSaveState
@@ -8439,7 +8442,8 @@ function ensureTreasureCampaignEncounters({
         encounter: {
           kind: TREASURE_PIRATE_ENCOUNTER_KIND,
           pirateId: pirate.id,
-          stage: TREASURE_PIRATE_STAGE_HUNT
+          stage: TREASURE_PIRATE_STAGE_HUNT,
+          routePolicy: NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL
         }
       }, weatherClockMinutes));
     }
@@ -15329,6 +15333,16 @@ async function restoreSavedVoyage(payload) {
     console.info("[pixel-globe] corrected cultural name forms for saved characters:", correctedCharacterNameCount);
   }
   ensureWhalePopulation(restoredGameState);
+  const legacyPortTileIds = subdivisionSevenPortMigrationForWorld(savedWorldTopology);
+  const migratedPortReferenceCount = reconcileQuestPortTiles(restoredGameState, portCities, {
+    legacyPortTileIds
+  });
+  if (migratedPortReferenceCount > 0) {
+    console.info(
+      `[pixel-globe] migrated ${migratedPortReferenceCount} saved port references from ` +
+        `subdivision ${savedWorldTopology.savedSubdivisions}`
+    );
+  }
   gameState = restoredGameState;
   syncColonizationWorldState(restoredGameState, {
     startMinute: Number.isFinite(payload.economy?.lastMinute)

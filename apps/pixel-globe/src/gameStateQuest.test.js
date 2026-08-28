@@ -260,14 +260,19 @@ test("an interrupted reunion still pays cash when its promised item is now owned
   assert.equal(state.inventory.items[promised.id], 1);
 });
 
-test("saved jobs rebind to corrected coastal port tiles", () => {
+test("saved jobs rebind through an explicit coastal-port migration", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const oldLisbon = { ...LISBON, tileId: 101 };
   const oldPorto = { ...PORTO, tileId: 202 };
   const quest = deliveryQuestForCity(oldLisbon, [oldLisbon, oldPorto]);
   acceptQuest(state, quest);
 
-  assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO]), 2);
+  assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO], {
+    legacyPortTileIds: new Map([
+      [oldLisbon.tileId, LISBON.tileId],
+      [oldPorto.tileId, PORTO.tileId]
+    ])
+  }), 2);
   assert.equal(state.memory.quests.active.originTileId, LISBON.tileId);
   assert.equal(state.memory.quests.active.destinationTileId, PORTO.tileId);
   assert.equal(state.memory.quests.active.originKey, `Lisbon|Portugal|${LISBON.tileId}`);
@@ -275,6 +280,17 @@ test("saved jobs rebind to corrected coastal port tiles", () => {
 
   completeQuest(state, PORTO, { simMinute: 100 });
   assert.equal(state.memory.quests.active, null);
+});
+
+test("saved port references never guess from a display name", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const oldLisbon = { ...LISBON, tileId: 101 };
+  const oldPorto = { ...PORTO, tileId: 202 };
+  acceptQuest(state, deliveryQuestForCity(oldLisbon, [oldLisbon, oldPorto]));
+
+  assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO]), 0);
+  assert.equal(state.memory.quests.active.originTileId, oldLisbon.tileId);
+  assert.equal(state.memory.quests.active.destinationTileId, oldPorto.tileId);
 });
 
 test("stable destination tiles absorb city renames without stranding active work", () => {

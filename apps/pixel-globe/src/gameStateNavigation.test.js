@@ -13,6 +13,7 @@ import {
   reconcileQuestPortTiles,
   removeOptionalNavigationWaypoint
 } from "./gameState.js";
+import { SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS } from "./subdivisionSevenPortMigration.js";
 
 test("quest cargo waypoints remain distinct per required good", () => {
   const state = createGameState({ cargoCapacity: 10 });
@@ -127,16 +128,16 @@ test("saved optional waypoints follow a port moved onto its real island", () => 
   });
 
   const updates = reconcileQuestPortTiles(state, [{
-    tileId: 67709,
+    tileId: 270430,
     city: "Tarawa Village",
     displayCity: "Tarawa Village",
     country: "Kiribati"
-  }]);
+  }], { legacyPortTileIds: SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS });
 
   assert.equal(updates, 1);
   assert.deepEqual(state.memory.navigation.optionalWaypoints, [{
-    id: "port:67709",
-    destinationTileId: 67709,
+    id: "port:270430",
+    destinationTileId: 270430,
     destinationName: "Tarawa Village",
     reason: "NEW SHIP FOR SALE"
   }]);

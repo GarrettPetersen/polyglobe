@@ -7149,20 +7149,29 @@ export function teaRaceOfferForCity(state, city, portCities, context = {}) {
   return offer;
 }
 
-export function reconcileQuestPortTiles(state, portCities) {
+export function reconcileQuestPortTiles(state, portCities, {
+  legacyPortTileIds = null
+} = {}) {
   assertGameState(state);
   if (!Array.isArray(portCities)) throw new Error("Quest port reconciliation requires a port list");
+  assertLegacyPortTileIds(legacyPortTileIds);
   const quests = questMemory(state);
   let updates = 0;
 
   const reconcile = (quest) => {
     if (!quest || typeof quest !== "object") return;
-    updates += reconcileQuestEndpoint(quest, "origin", portCities);
-    updates += reconcileQuestEndpoint(quest, "destination", portCities);
-    updates += reconcileQuestItinerary(quest, portCities);
-    if (isEnvoyQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
-    if (isCaptureCommissionQuest(quest)) updates += reconcileQuestEndpoint(quest, "target", portCities);
-    if (isWokouHuntQuest(quest)) updates += reconcileQuestEndpoint(quest, "patrol", portCities);
+    updates += reconcileQuestEndpoint(quest, "origin", portCities, legacyPortTileIds);
+    updates += reconcileQuestEndpoint(quest, "destination", portCities, legacyPortTileIds);
+    updates += reconcileQuestItinerary(quest, portCities, legacyPortTileIds);
+    if (isEnvoyQuest(quest)) {
+      updates += reconcileQuestEndpoint(quest, "target", portCities, legacyPortTileIds);
+    }
+    if (isCaptureCommissionQuest(quest)) {
+      updates += reconcileQuestEndpoint(quest, "target", portCities, legacyPortTileIds);
+    }
+    if (isWokouHuntQuest(quest)) {
+      updates += reconcileQuestEndpoint(quest, "patrol", portCities, legacyPortTileIds);
+    }
   };
 
   reconcile(quests.active);
@@ -7196,12 +7205,14 @@ export function reconcileQuestPortTiles(state, portCities) {
   }
   quests.capturePortOffers = captureOffers;
 
+  updates += reconcileNestedHomePortReferences(state, portCities, legacyPortTileIds);
+
   const reconciledWaypoints = [];
   for (const waypoint of state.memory.navigation.optionalWaypoints) {
     const destination = reconciledPortReference(portCities, {
       tileId: waypoint.destinationTileId,
       name: waypoint.destinationName
-    });
+    }, legacyPortTileIds);
     if (destination && (
       destination.tileId !== waypoint.destinationTileId ||
       cityLabel(destination) !== waypoint.destinationName
@@ -7226,7 +7237,7 @@ export function reconcileQuestPortTiles(state, portCities) {
     tileId: state.playerCharacter?.homePortTileId,
     name: state.playerCharacter?.homePortName,
     country: state.playerCharacter?.homePortCountry
-  });
+  }, legacyPortTileIds);
   if (playerHome && (
     playerHome.tileId !== state.playerCharacter.homePortTileId ||
     cityLabel(playerHome) !== state.playerCharacter.homePortName ||
@@ -7245,7 +7256,7 @@ export function reconcileQuestPortTiles(state, portCities) {
       tileId: traveler?.homePortTileId,
       name: traveler?.homePortName,
       country: traveler?.homePortCountry
-    });
+    }, legacyPortTileIds);
     if (home && (
       home.tileId !== traveler.homePortTileId ||
       cityLabel(home) !== traveler.homePortName ||
@@ -7263,7 +7274,7 @@ export function reconcileQuestPortTiles(state, portCities) {
     tileId: chef?.portTileId,
     name: chef?.portCity,
     country: chef?.portCountry
-  });
+  }, legacyPortTileIds);
   if (chefPort && (
     chefPort.tileId !== chef.portTileId ||
     cityLabel(chefPort) !== chef.portCity ||
@@ -7281,7 +7292,7 @@ export function reconcileQuestPortTiles(state, portCities) {
       tileId: colonization?.[`${endpoint}TileId`],
       name: colonization?.[`${endpoint}City`],
       country: colonization?.[`${endpoint}Country`]
-    });
+    }, legacyPortTileIds);
     if (port && (
       port.tileId !== colonization[`${endpoint}TileId`] ||
       cityLabel(port) !== colonization[`${endpoint}City`] ||
@@ -7293,13 +7304,32 @@ export function reconcileQuestPortTiles(state, portCities) {
       updates += 1;
     }
   }
+  for (const settlement of colonization?.pastSettlements || []) {
+    for (const endpoint of ["origin", "approval"]) {
+      updates += reconcileNamedPortFields(settlement, {
+        tileField: `${endpoint}TileId`,
+        nameField: `${endpoint}City`,
+        countryField: `${endpoint}Country`
+      }, portCities, legacyPortTileIds);
+    }
+    updates += reconcileNamedPortFields(settlement?.aftermath, {
+      tileField: "reportTileId",
+      nameField: "reportCity",
+      countryField: "reportCountry"
+    }, portCities, legacyPortTileIds);
+  }
+  updates += reconcileNamedPortFields(colonization?.aftermath, {
+    tileField: "reportTileId",
+    nameField: "reportCity",
+    countryField: "reportCountry"
+  }, portCities, legacyPortTileIds);
 
   const ginger = quests.caribbeanGinger;
   const gingerPort = reconciledPortReference(portCities, {
     tileId: ginger?.cultivationTileId,
     name: ginger?.cultivationCity,
     country: ginger?.cultivationCountry
-  });
+  }, legacyPortTileIds);
   if (gingerPort && (
     gingerPort.tileId !== ginger.cultivationTileId ||
     cityLabel(gingerPort) !== ginger.cultivationCity ||
@@ -7312,21 +7342,117 @@ export function reconcileQuestPortTiles(state, portCities) {
   }
 
   const naturalist = quests.naturalist;
-  if (Number.isInteger(naturalist?.portTileId) &&
-      !portCities.some((port) => port.tileId === naturalist.portTileId)) {
+  const naturalistPort = reconciledPortReference(portCities, {
+    tileId: naturalist?.portTileId
+  }, legacyPortTileIds);
+  if (naturalistPort && naturalistPort.tileId !== naturalist.portTileId) {
+    naturalist.portTileId = naturalistPort.tileId;
+    if (naturalist.character) {
+      naturalist.character.homePortTileId = naturalistPort.tileId;
+      naturalist.character.homePortName = cityLabel(naturalistPort);
+      naturalist.character.homePortCountry = naturalistPort.country || "";
+    }
+    updates += 1;
+  } else if (Number.isInteger(naturalist?.portTileId) && !naturalistPort) {
     naturalist.portTileId = null;
     setNaturalistQuestCharacter(naturalist, null);
     updates += 1;
+  }
+
+  const matchlocks = quests.japaneseMatchlocks;
+  updates += reconcileBarePortField(
+    matchlocks,
+    "workshopTileId",
+    portCities,
+    legacyPortTileIds
+  );
+
+  const conquistador = quests.conquistador;
+  for (const field of ["originTileId", "targetTileId"]) {
+    updates += reconcileBarePortField(conquistador, field, portCities, legacyPortTileIds);
+  }
+  if (Array.isArray(conquistador?.transferSchedule)) {
+    const movedTransfers = new Map();
+    for (const transfer of conquistador.transferSchedule) {
+      const previousTileId = transfer.tileId;
+      const port = reconciledPortReference(portCities, { tileId: previousTileId }, legacyPortTileIds);
+      if (!port || port.tileId === previousTileId) continue;
+      transfer.tileId = port.tileId;
+      movedTransfers.set(previousTileId, port.tileId);
+      updates += 1;
+    }
+    conquistador.transferredTileIds = conquistador.transferredTileIds.map(
+      (tileId) => movedTransfers.get(tileId) ?? tileId
+    );
+  }
+
+  const treasureGoal = state.memory.campaignGoal;
+  for (const pirate of treasureGoal?.mapPirates || []) {
+    updates += reconcileBarePortField(pirate, "hideoutTileId", portCities, legacyPortTileIds);
+  }
+
+  const shipyardInvestment = state.memory.shipyardInvestment;
+  if (Array.isArray(shipyardInvestment?.backedPortTileIds)) {
+    const migratedBackedPorts = shipyardInvestment.backedPortTileIds.map((tileId) => (
+      reconciledPortReference(portCities, { tileId }, legacyPortTileIds)?.tileId ?? tileId
+    ));
+    const uniqueBackedPorts = [...new Set(migratedBackedPorts)];
+    updates += uniqueBackedPorts.filter(
+      (tileId, index) => tileId !== shipyardInvestment.backedPortTileIds[index]
+    ).length;
+    shipyardInvestment.backedPortTileIds = uniqueBackedPorts;
+  }
+  updates += reconcileNamedPortFields(shipyardInvestment?.project, {
+    tileField: "portTileId",
+    nameField: "portName"
+  }, portCities, legacyPortTileIds);
+
+  const warLoan = quests.sovereignWarLoan;
+  for (const record of [warLoan?.offer, warLoan?.contract]) {
+    updates += reconcilePortIdentityFields(record, {
+      tileField: "capitalTileId",
+      portIdField: "capitalPortId"
+    }, portCities, legacyPortTileIds);
+  }
+  updates += reconcilePortIdentityFields(warLoan?.contract?.security, {
+    tileField: "tileId",
+    portIdField: "portId",
+    nameField: "portName"
+  }, portCities, legacyPortTileIds);
+
+  const chartReframe = state.memory.chartReframeDialogue;
+  if (Array.isArray(chartReframe?.recentPortTileIds)) {
+    const migratedRecentPorts = chartReframe.recentPortTileIds.map((tileId) => (
+      reconciledPortReference(portCities, { tileId }, legacyPortTileIds)?.tileId ?? tileId
+    ));
+    const uniqueRecentPorts = [...new Set(migratedRecentPorts)];
+    if (uniqueRecentPorts.some((tileId, index) => tileId !== chartReframe.recentPortTileIds[index]) ||
+        uniqueRecentPorts.length !== chartReframe.recentPortTileIds.length) {
+      chartReframe.recentPortTileIds = uniqueRecentPorts;
+      updates += 1;
+    }
+  }
+
+  const convertedFactorTileIds = state.memory.flags?.lutheranFactorPortTileIds;
+  if (Array.isArray(convertedFactorTileIds)) {
+    const migrated = [...new Set(convertedFactorTileIds.map((tileId) => (
+      reconciledPortReference(portCities, { tileId }, legacyPortTileIds)?.tileId ?? tileId
+    )))];
+    if (migrated.some((tileId, index) => tileId !== convertedFactorTileIds[index]) ||
+        migrated.length !== convertedFactorTileIds.length) {
+      state.memory.flags.lutheranFactorPortTileIds = migrated;
+      updates += 1;
+    }
   }
 
   assertGameState(state);
   return updates;
 }
 
-export function reconcileQuestWorldAssumptions(state, portCities) {
+export function reconcileQuestWorldAssumptions(state, portCities, options = {}) {
   assertGameState(state);
   if (!Array.isArray(portCities)) throw new Error("Quest world reconciliation requires a port list");
-  const endpointUpdates = reconcileQuestPortTiles(state, portCities);
+  const endpointUpdates = reconcileQuestPortTiles(state, portCities, options);
   const quests = questMemory(state);
   const events = [];
 
@@ -8743,7 +8869,7 @@ function deliveryFactionId(city) {
   return factionId;
 }
 
-function reconcileQuestEndpoint(quest, endpoint, portCities) {
+function reconcileQuestEndpoint(quest, endpoint, portCities, legacyPortTileIds) {
   const tileField = `${endpoint}TileId`;
   const nameField = `${endpoint}Name`;
   const countryField = `${endpoint}Country`;
@@ -8751,7 +8877,11 @@ function reconcileQuestEndpoint(quest, endpoint, portCities) {
   const name = quest[nameField];
   if (typeof name !== "string" || name === "") return 0;
 
-  const current = portCities.find((port) => port.tileId === quest[tileField]);
+  const current = reconciledPortReference(portCities, {
+    tileId: quest[tileField],
+    name: quest[nameField],
+    country: quest[countryField]
+  }, legacyPortTileIds);
   if (current) {
     const changed = quest[nameField] !== cityLabel(current) ||
       quest[countryField] !== (current.country || "") ||
@@ -8760,22 +8890,10 @@ function reconcileQuestEndpoint(quest, endpoint, portCities) {
     return Number(changed);
   }
 
-  const keyCountry = quest[keyField]?.split("|")[1] || "";
-  const country = quest[countryField] || keyCountry;
-  let candidates = portCities.filter((port) => cityLabel(port) === name);
-  if (country) candidates = candidates.filter((port) => port.country === country);
-  if (quest.kind === "delivery" && quest.factionId) {
-    candidates = candidates.filter((port) => port.factionId === quest.factionId);
-  }
-  if (quest.kind === "delivery" && quest.regionKey) {
-    candidates = candidates.filter((port) => deliveryRegionKey(port) === quest.regionKey);
-  }
-  if (candidates.length !== 1) return 0;
-  updateQuestEndpointIdentity(quest, endpoint, candidates[0]);
-  return 1;
+  return 0;
 }
 
-function reconcileQuestItinerary(quest, portCities) {
+function reconcileQuestItinerary(quest, portCities, legacyPortTileIds) {
   if (!quest.itinerary) return 0;
   let updates = 0;
   const movedTileIds = new Map();
@@ -8785,7 +8903,7 @@ function reconcileQuestItinerary(quest, portCities) {
       tileId: stop?.tileId,
       name: stop?.name,
       country: stop?.country
-    });
+    }, legacyPortTileIds);
     if (!port) continue;
     const changed = port.tileId !== stop.tileId || stop.name !== cityLabel(port) ||
       stop.country !== (port.country || "") || stop.factionId !== (port.factionId || null) ||
@@ -8810,13 +8928,95 @@ function reconcileQuestItinerary(quest, portCities) {
   return updates;
 }
 
-function reconciledPortReference(portCities, { tileId, name, country = "" }) {
-  if (typeof name !== "string" || name.trim() === "") return null;
-  const current = portCities.find((port) => port.tileId === tileId);
-  if (current) return current;
-  let candidates = portCities.filter((port) => cityLabel(port) === name);
-  if (country) candidates = candidates.filter((port) => port.country === country);
-  return candidates.length === 1 ? candidates[0] : null;
+function reconciledPortReference(portCities, { tileId }, legacyPortTileIds) {
+  if (!Number.isInteger(tileId)) return null;
+  const migratedTileId = legacyPortTileIds?.get(tileId);
+  const resolvedTileId = migratedTileId ?? tileId;
+  const current = portCities.find((port) => port.tileId === resolvedTileId);
+  if (migratedTileId !== undefined && !current) {
+    throw new Error(
+      `Saved port tile ${tileId} migrates to missing current port ${migratedTileId}`
+    );
+  }
+  return current || null;
+}
+
+function reconcileBarePortField(record, field, portCities, legacyPortTileIds) {
+  if (!record || !Number.isInteger(record[field])) return 0;
+  const port = reconciledPortReference(portCities, { tileId: record[field] }, legacyPortTileIds);
+  if (!port || port.tileId === record[field]) return 0;
+  record[field] = port.tileId;
+  return 1;
+}
+
+function reconcileNamedPortFields(record, {
+  tileField,
+  nameField = null,
+  countryField = null
+}, portCities, legacyPortTileIds) {
+  if (!record || !Number.isInteger(record[tileField])) return 0;
+  const port = reconciledPortReference(portCities, { tileId: record[tileField] }, legacyPortTileIds);
+  if (!port) return 0;
+  const changed = record[tileField] !== port.tileId ||
+    (nameField !== null && record[nameField] !== cityLabel(port)) ||
+    (countryField !== null && record[countryField] !== (port.country || ""));
+  if (!changed) return 0;
+  record[tileField] = port.tileId;
+  if (nameField !== null) record[nameField] = cityLabel(port);
+  if (countryField !== null) record[countryField] = port.country || "";
+  return 1;
+}
+
+function reconcilePortIdentityFields(record, {
+  tileField,
+  portIdField,
+  nameField = null
+}, portCities, legacyPortTileIds) {
+  if (!record || !Number.isInteger(record[tileField])) return 0;
+  const port = reconciledPortReference(portCities, { tileId: record[tileField] }, legacyPortTileIds);
+  if (!port) return 0;
+  if (typeof port.portId !== "string" || port.portId.trim() === "") {
+    throw new Error(`Migrated port ${port.tileId} has no canonical port id`);
+  }
+  const changed = record[tileField] !== port.tileId || record[portIdField] !== port.portId ||
+    (nameField !== null && record[nameField] !== cityLabel(port));
+  if (!changed) return 0;
+  record[tileField] = port.tileId;
+  record[portIdField] = port.portId;
+  if (nameField !== null) record[nameField] = cityLabel(port);
+  return 1;
+}
+
+function reconcileNestedHomePortReferences(value, portCities, legacyPortTileIds, seen = new WeakSet()) {
+  if (value === null || typeof value !== "object") return 0;
+  if (seen.has(value)) return 0;
+  seen.add(value);
+  let updates = 0;
+  if (Number.isInteger(value.homePortTileId)) {
+    updates += reconcileNamedPortFields(value, {
+      tileField: "homePortTileId",
+      nameField: Object.prototype.hasOwnProperty.call(value, "homePortName") ? "homePortName" : null,
+      countryField: Object.prototype.hasOwnProperty.call(value, "homePortCountry")
+        ? "homePortCountry"
+        : null
+    }, portCities, legacyPortTileIds);
+  }
+  for (const child of Object.values(value)) {
+    updates += reconcileNestedHomePortReferences(child, portCities, legacyPortTileIds, seen);
+  }
+  return updates;
+}
+
+function assertLegacyPortTileIds(legacyPortTileIds) {
+  if (legacyPortTileIds === null) return;
+  if (!(legacyPortTileIds instanceof Map)) {
+    throw new Error("Legacy quest port migration must be a Map");
+  }
+  for (const [savedTileId, currentTileId] of legacyPortTileIds) {
+    if (!Number.isInteger(savedTileId) || !Number.isInteger(currentTileId)) {
+      throw new Error(`Invalid legacy quest port migration: ${savedTileId}/${currentTileId}`);
+    }
+  }
 }
 
 function updateQuestEndpointIdentity(quest, endpoint, port) {

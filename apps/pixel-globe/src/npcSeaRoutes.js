@@ -137,6 +137,7 @@ const NPC_SHIPYARD_PURCHASES_PER_MAINTENANCE = 2;
 export const NPC_PORT_RESPONSE_BURNING = "burning-port";
 export const NPC_PORT_RESPONSE_LOST = "lost-port";
 export const NPC_PORT_RESPONSE_WAR_LOAN = "war-loan-offensive";
+export const NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL = "connected-patrol";
 export const NPC_CAPITAL_NAVAL_RESERVE_MAX = 3;
 const NPC_PORT_RESPONSE_REASONS = new Set([
   NPC_PORT_RESPONSE_BURNING,
@@ -762,6 +763,10 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
   if (!NPC_ROLE_SET.has(spec.role)) throw new Error(`Unknown NPC route encounter role: ${spec.role}`);
   if (spec.encounter !== undefined && (!spec.encounter || typeof spec.encounter !== "object")) {
     throw new Error(`Invalid NPC route encounter metadata: ${spec.id}`);
+  }
+  if (spec.encounter?.routePolicy !== undefined &&
+      spec.encounter.routePolicy !== NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL) {
+    throw new Error(`Invalid NPC route encounter policy: ${spec.encounter.routePolicy}`);
   }
   if (spec.hiddenAtOrigin !== undefined && typeof spec.hiddenAtOrigin !== "boolean") {
     throw new Error(`Invalid NPC route encounter hideout state: ${spec.id}`);
@@ -4351,6 +4356,9 @@ function chooseNpcDestination(system, ship, origin) {
     return destination;
   }
   if (ship.portResponse) return chooseNpcPortResponseDestination(system, ship, origin);
+  if (ship.encounter?.routePolicy === NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL) {
+    return chooseConnectedEncounterPatrolDestination(system, ship, origin);
+  }
   if (ship.role === NPC_ROLE_FISHERMAN) return chooseFishermanDestination(system, ship, origin);
   if (ship.role === NPC_ROLE_WHALER) return chooseWhalerDestination(system, ship, origin);
   if (ship.nationalCircuitId !== null) {
@@ -4382,6 +4390,23 @@ function chooseNpcDestination(system, ship, origin) {
     throw new Error(`No NPC destination candidates for ${ship.id} from ${portName(origin)}`);
   }
   return candidates[0].port;
+}
+
+function chooseConnectedEncounterPatrolDestination(system, ship, origin) {
+  const seed = hashString32(`${ship.seed}|${origin.tileId}|encounter-patrol`);
+  const candidates = system.ports
+    .filter(npcRoutePortAcceptsTraffic)
+    .filter((port) => !samePort(port, origin))
+    .filter((port) => npcPortsShareRouteNetwork(system, origin, port))
+    .filter((port) => ship.role !== NPC_ROLE_PIRATE || !npcPortHasMajorProtection(port))
+    .sort((a, b) => (
+      distanceKm(origin, a) - distanceKm(origin, b) ||
+      destinationRank(origin, a, seed) - destinationRank(origin, b, seed)
+    ));
+  if (candidates.length === 0) {
+    throw new Error(`No connected encounter patrol for ${ship.id} from ${portName(origin)}`);
+  }
+  return candidates[0];
 }
 
 function chooseNpcPortResponseDestination(system, ship, origin) {

@@ -9,6 +9,7 @@ import {
   NPC_ROLE_PIRATE,
   NPC_ROLE_WHALER,
   NPC_ROLE_WARSHIP,
+  NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL,
   NPC_PORT_RESPONSE_BURNING,
   NPC_PORT_RESPONSE_LOST,
   NPC_PORT_RESPONSE_WAR_LOAN,
@@ -2758,6 +2759,39 @@ test("routed quest pirates can respawn concealed at their hideout", () => {
       factionId: PIRATE_FACTION_ID
     }
   );
+});
+
+test("treasure pirates can patrol from an interregional-excluded Northwest Coast hideout", () => {
+  const ports = [...PORTS, ...NORTHWEST_COAST_PORTS];
+  const economy = createWorldEconomy({
+    ports,
+    startMinute: 0,
+    seedKey: "ozette-treasure-patrol"
+  });
+  const routes = createNpcSeaRouteSystem({
+    ports,
+    startMinute: 0,
+    economy,
+    seedKey: "ozette-treasure-patrol"
+  });
+  const ozette = routes.ports.find((port) => port.city === "Ozette Village");
+  const yuquot = routes.ports.find((port) => port.city === "Yuquot Village");
+  const encounter = configureNpcRouteEncounter(routes, {
+    id: "treasure-map-pirate-ozette",
+    originPortId: ozette.tileId,
+    factionId: PIRATE_FACTION_ID,
+    role: NPC_ROLE_PIRATE,
+    shipSlug: "pirate-brig",
+    replaceOnSink: false,
+    encounter: {
+      kind: "treasure-map-pirate",
+      pirateId: "ozette",
+      routePolicy: NPC_ENCOUNTER_ROUTE_POLICY_CONNECTED_PATROL
+    }
+  }, 1000);
+
+  assert.equal(encounter.plan.origin.tileId, ozette.tileId);
+  assert.equal(encounter.plan.destination.tileId, yuquot.tileId);
 });
 
 test("routed delegation encounters depart for and wait at their specified destination", () => {
