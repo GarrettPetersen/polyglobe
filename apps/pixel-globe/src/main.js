@@ -1843,7 +1843,10 @@ import {
   recoverSavedVoyageWorldClock,
   savedVoyageWorldTopology
 } from "./saveCompatibility.js";
-import { subdivisionSevenPortMigrationForWorld } from "./subdivisionSevenPortMigration.js";
+import {
+  subdivisionSevenPortMigrationForWorld,
+  subdivisionSevenPortReferenceCatalog
+} from "./subdivisionSevenPortMigration.js";
 import {
   addDerivedSaveRecoveryLabel,
   restoreOrRecreateDerivedSaveState
@@ -15336,9 +15339,14 @@ async function restoreSavedVoyage(payload) {
   }
   ensureWhalePopulation(restoredGameState);
   const legacyPortTileIds = subdivisionSevenPortMigrationForWorld(savedWorldTopology);
-  const migratedPortReferenceCount = reconcileQuestPortTiles(restoredGameState, portCities, {
-    legacyPortTileIds
-  });
+  const savedPortReferenceCatalog = legacyPortTileIds
+    ? subdivisionSevenPortReferenceCatalog(portCities, colonizationTargetPlacements)
+    : portCities;
+  const migratedPortReferenceCount = reconcileQuestPortTiles(
+    restoredGameState,
+    savedPortReferenceCatalog,
+    { legacyPortTileIds }
+  );
   if (migratedPortReferenceCount > 0) {
     console.info(
       `[pixel-globe] migrated ${migratedPortReferenceCount} saved port references from ` +

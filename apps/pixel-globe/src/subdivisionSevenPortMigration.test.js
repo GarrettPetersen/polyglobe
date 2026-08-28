@@ -5,7 +5,8 @@ import test from "node:test";
 import {
   SUBDIVISION_SEVEN_PORT_MIGRATION_COUNT,
   SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS,
-  subdivisionSevenPortMigrationForWorld
+  subdivisionSevenPortMigrationForWorld,
+  subdivisionSevenPortReferenceCatalog
 } from "./subdivisionSevenPortMigration.js";
 
 const currentPortBake = JSON.parse(readFileSync(
@@ -13,7 +14,7 @@ const currentPortBake = JSON.parse(readFileSync(
   "utf8"
 ));
 
-test("every released subdivision-seven port reference resolves to a current dockable port", () => {
+test("every released subdivision-seven port reference resolves to a current port or colony site", () => {
   const currentPortTileIds = new Set(currentPortBake.endpoints.map((endpoint) => endpoint.tileId));
 
   assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.size, 310);
@@ -29,6 +30,24 @@ test("every released subdivision-seven port reference resolves to a current dock
       `saved port ${savedTileId} targets missing current port ${currentTileId}`
     );
   }
+});
+
+test("restore migration admits colony sites before founded colonies rejoin the dockable roster", () => {
+  const portCities = currentPortBake.endpoints.filter((endpoint) => endpoint.kind !== "colony");
+  const colonySites = currentPortBake.endpoints.filter((endpoint) => endpoint.kind === "colony");
+  const references = subdivisionSevenPortReferenceCatalog(portCities, colonySites);
+  const referencesByTileId = new Map(references.map((reference) => [reference.tileId, reference]));
+
+  assert.equal(portCities.some((port) => port.tileId === 294413), false);
+  assert.equal(referencesByTileId.get(294413)?.name, "St. Augustine");
+  assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(18401), 294413);
+  assert.throws(
+    () => subdivisionSevenPortReferenceCatalog(
+      portCities,
+      colonySites.filter((site) => site.tileId !== 294413)
+    ),
+    /Saved port tile 18401 targets missing current port or colony site 294413/
+  );
 });
 
 test("the reported Cempoala, Angra, and Ozette references have authored migrations", () => {

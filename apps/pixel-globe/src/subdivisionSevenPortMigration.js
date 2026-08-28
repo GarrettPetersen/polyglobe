@@ -42,3 +42,32 @@ export function subdivisionSevenPortMigrationForWorld({
   }
   return SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS;
 }
+
+export function subdivisionSevenPortReferenceCatalog(portCities, colonySites) {
+  if (!Array.isArray(portCities) || !Array.isArray(colonySites)) {
+    throw new Error("Subdivision-seven port migration requires port and colony-site catalogs");
+  }
+  const referencesByTileId = new Map();
+  for (const reference of [...portCities, ...colonySites]) {
+    if (!Number.isInteger(reference?.tileId)) {
+      throw new Error(`Invalid current port reference tile: ${reference?.tileId ?? "missing"}`);
+    }
+    if (referencesByTileId.has(reference.tileId)) {
+      const existing = referencesByTileId.get(reference.tileId);
+      if (reference.preexistingSettlement !== true ||
+          existing.city !== reference.city || existing.country !== reference.country) {
+        throw new Error(`Conflicting current port reference tile: ${reference.tileId}`);
+      }
+      continue;
+    }
+    referencesByTileId.set(reference.tileId, reference);
+  }
+  for (const [savedTileId, currentTileId] of SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS) {
+    if (!referencesByTileId.has(currentTileId)) {
+      throw new Error(
+        `Saved port tile ${savedTileId} targets missing current port or colony site ${currentTileId}`
+      );
+    }
+  }
+  return Object.freeze([...referencesByTileId.values()]);
+}

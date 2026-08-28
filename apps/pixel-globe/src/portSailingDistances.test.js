@@ -27,6 +27,7 @@ import {
   portAccessTileIds,
   portCitiesOnWorld
 } from "./worldPortPlacement.js";
+import { subdivisionSevenPortReferenceCatalog } from "./subdivisionSevenPortMigration.js";
 
 const appRoot = new URL("../", import.meta.url);
 const repoRoot = new URL("../../../", import.meta.url);
@@ -118,6 +119,17 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
     targets: COLONIZATION_TARGETS,
     occupiedCities: cityByTileId.values()
   });
+  const restorePortReferences = subdivisionSevenPortReferenceCatalog(portCities, colonyTargets);
+  assert.equal(
+    portCities.some((port) => port.tileId === 294413),
+    false,
+    "unfounded St. Augustine must not begin as a dockable port"
+  );
+  assert.equal(
+    restorePortReferences.find((reference) => reference.tileId === 294413)?.city,
+    "St. Augustine",
+    "save migration must still resolve a quest pointing at founded St. Augustine"
+  );
   assert.ok(
     portCities.every((port) => Number.isInteger(port.landmassId)),
     "every placed port should retain its terrain landmass"
