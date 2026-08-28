@@ -461,7 +461,7 @@ function validateUniquePirateIds(values, rosterIds, label) {
 }
 
 function validateWorldInputs(graph, earthRows, navigationMask) {
-  if (!Number.isInteger(graph?.tileCount) || !Array.isArray(graph.neighbors) ||
+  if (!Number.isInteger(graph?.tileCount) || !isGraphRowCollection(graph.neighbors) ||
       graph.latDeg?.length !== graph.tileCount || graph.lonDeg?.length !== graph.tileCount) {
     throw new Error("Treasure campaign requires a geodesic graph");
   }
@@ -538,3 +538,4 @@ function hashString32(value) {
   hash ^= hash >>> 16;
   return hash >>> 0;
 }
+import { isGraphRowCollection } from "./geodesicBake.js";

@@ -1,5 +1,8 @@
 import { findNearestTileId } from "./geodesic.js";
-import { cityRequiresPortAccess } from "./cityCatalogSelection.js";
+import {
+  cityMustRemainInland,
+  cityRequiresPortAccess
+} from "./cityCatalogSelection.js";
 import {
   CITY_PORT_ACCESS_RING_DISTANCE,
   cityHasPortAccess,
@@ -120,7 +123,9 @@ function settlementKey(record) {
 
 export function portCitiesOnWorld(cityByTileId, options) {
   if (!(cityByTileId instanceof Map)) throw new Error("Port city selection requires a placed city map");
-  const ports = [...cityByTileId.values()].filter((city) => cityHasPortAccess(portAccessOptions(options, city.tileId)));
+  const ports = [...cityByTileId.values()].filter((city) => (
+    !cityMustRemainInland(city) && cityHasPortAccess(portAccessOptions(options, city.tileId))
+  ));
   if (ports.length === 0) throw new Error("No water-accessible ports were placed on the world");
   return ports;
 }

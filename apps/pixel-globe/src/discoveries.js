@@ -16,8 +16,8 @@ export const EL_DORADO_DISCOVERY_LON = -73.2516;
 export const EL_DORADO_DISCOVERY_RADIUS_PX = 54;
 export const CIRCUMNAVIGATION_DISCOVERY_ID = "achievement-circumnavigation";
 export const MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY = "mountain_snowy_01";
-export const DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX = 120;
-export const MOUNT_SHASTA_DISCOVERY_RADIUS_PX = 140;
+export const DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX = 220;
+export const MOUNT_SHASTA_DISCOVERY_RADIUS_PX = 220;
 export const MAX_MOUNTAIN_DISCOVERY_RADIUS_PX = Math.max(
   DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX,
   MOUNT_SHASTA_DISCOVERY_RADIUS_PX
@@ -138,7 +138,7 @@ export const WORLD_DISCOVERY_SPECS = Object.freeze([
     region: "africa",
     captainDialogue: "Smoke that thunders indeed! The whole river vanishes into mist."
   }),
-  waterFeature("lake-titicaca", "Lake Titicaca", "The sacred lake of the Andes", -15.8000, -69.4000, 180, {
+  waterFeature("lake-titicaca", "Lake Titicaca", "The sacred lake of the Andes", -15.8000, -69.4000, 220, {
     region: "americas",
     captainDialogue: "A vast lake beneath the Andes, higher than any sea I know."
   }),

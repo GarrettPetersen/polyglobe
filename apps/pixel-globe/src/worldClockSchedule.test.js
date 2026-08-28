@@ -14,7 +14,7 @@ test("periodic politics polling runs once per in-game hour", () => {
   assert.equal(periodicGameHourPeriod(first, 60), 1);
 });
 
-test("normal-speed frame slicing polls politics about once per real second", () => {
+test("normal-speed frame slicing follows the longer world's hourly political cadence", () => {
   const renderHz = 60;
   let currentMinute = 0;
   let previousPeriod = null;
@@ -30,7 +30,13 @@ test("normal-speed frame slicing polls politics about once per real second", () 
     if (period !== previousPeriod) checks += 1;
     previousPeriod = period;
   }
-  assert.equal(checks, 4, "initial polling plus one check at each of three hour boundaries");
+  const elapsedGameMinutes = 3 * DEFAULT_GAME_TIME_SCALE / 60;
+  const expectedChecks = 1 + Math.floor(elapsedGameMinutes / PERIODIC_WORLD_CHECK_INTERVAL_MINUTES);
+  assert.equal(checks, expectedChecks, "initial polling plus each crossed game-hour boundary");
+  assert.ok(
+    PERIODIC_WORLD_CHECK_INTERVAL_MINUTES * 60 / DEFAULT_GAME_TIME_SCALE > 1,
+    "the longer day should keep political polling slower than once per real second"
+  );
 });
 
 test("periodic politics polling rejects malformed clock state", () => {

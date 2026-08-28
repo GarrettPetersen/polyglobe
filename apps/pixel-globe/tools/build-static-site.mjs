@@ -90,9 +90,10 @@ const publicEntries = [
 ];
 
 const sharedEntries = [
-  ["earth-globe-cache-7.json", "shared/earth-globe-cache-7.json"],
+  ["earth-globe-cache-8.json", "shared/earth-globe-cache-8.json"],
+  ["geodesic-graph-8.bin", "shared/geodesic-graph-8.bin"],
   ["mountains.json", "shared/mountains.json"],
-  ["discrete-weather-bake-7.bin", "shared/discrete-weather-bake-7.bin"],
+  ["discrete-weather-bake-6.bin", "shared/discrete-weather-bake-6.bin"],
   ["globe-runtime-bake-7.bin", "shared/globe-runtime-bake-7.bin"],
   edition === BUILD_EDITION_DEMO
     ? [

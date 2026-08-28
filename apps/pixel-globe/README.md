@@ -4,12 +4,12 @@ Standalone Canvas 2D prototype for **Marque & Reprisal**, a pixel-art sailing, t
 
 It deliberately does not render the 3D globe. The app:
 
-- builds the geodesic tile graph in plain JavaScript,
-- loads the shared `examples/globe-demo/public/earth-globe-cache-7.json`,
+- decodes a prebuilt subdivision-8 geodesic graph instead of constructing it at startup,
+- loads the shared `examples/globe-demo/public/earth-globe-cache-8.json`,
 - stamps copied Three Kingdoms terrain sprites as detached tile blobs,
 - animates water with staggered two-frame Three Kingdoms shallow/deep sprites,
 - blends generated intermediate water sprites across coast-distance bands for smoother dropoff,
-- loads the shared annual weather/runtime bakes for clouds, rain, snow, sea ice, freshwater ice, and selected-hex wind,
+- maps subdivision-6 annual weather and subdivision-7 runtime weather onto the finer terrain for clouds, rain, snow, sea ice, freshwater ice, and selected-hex wind,
 - generates between-tile face polygons at runtime, including pentagon neighborhoods,
 - moves a local tangent-plane camera over the spherical tile graph,
 - renders a rolling local unwrap where tile pixel positions are fixed when they enter the viewport,

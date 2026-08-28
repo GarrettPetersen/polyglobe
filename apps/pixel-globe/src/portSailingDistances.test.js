@@ -10,7 +10,8 @@ import {
   validateCanonicalPortCatalog
 } from "./canonicalPorts.js";
 import { COLONIZATION_TARGETS } from "./colonialCities.js";
-import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
+import { createDirectionIndex } from "./geodesic.js";
+import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
   PORT_SAILING_DISTANCE_FORMAT,
@@ -74,9 +75,10 @@ test("port sailing distance bakes are strict, symmetric, and support unreachable
 });
 
 test("the checked-in bake covers colony sites and uses navigable sailing distances", async () => {
-  const [distanceSource, earthSource, cityCsv] = await Promise.all([
+  const [distanceSource, earthSource, graphSource, cityCsv] = await Promise.all([
     readFile(new URL("public/assets/data/port-sailing-distances.json", appRoot), "utf8"),
-    readFile(new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot), "utf8"),
+    readFile(new URL("examples/globe-demo/public/earth-globe-cache-8.json", repoRoot), "utf8"),
+    readFile(new URL("examples/globe-demo/public/geodesic-graph-8.bin", repoRoot)),
     readFile(new URL(
       "examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
       repoRoot
@@ -87,7 +89,10 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
     subdivisions: earth.subdivisions,
     earthCacheVersion: String(earth.version)
   });
-  const graph = buildGeodesicGraph(earth.subdivisions);
+  const graph = decodeGeodesicGraphBake(
+    graphSource.buffer.slice(graphSource.byteOffset, graphSource.byteOffset + graphSource.byteLength),
+    earth.subdivisions
+  );
   const directionIndex = createDirectionIndex(graph);
   const earthRows = applyManualTerrainOverrides(earth.tiles, earth.subdivisions);
   const navigation = buildWorldNavigationTopology({

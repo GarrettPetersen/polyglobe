@@ -5,7 +5,7 @@ export function buildFreshWaterSurfaceMask({
   earthRows,
   saltwaterPassageTileIds = []
 }) {
-  if (!graph || !Number.isInteger(graph.tileCount) || !Array.isArray(graph.neighbors)) {
+  if (!graph || !Number.isInteger(graph.tileCount) || !isGraphRowCollection(graph.neighbors)) {
     throw new Error("Fresh-water classification requires a geodesic graph");
   }
   if (!Array.isArray(earthRows) || earthRows.length !== graph.tileCount) {
@@ -78,3 +78,4 @@ export function shipCanRefillFreshWater({
   if (navigationKind === "lake") return freshwaterSurface === true;
   return !saltwaterPassageTileIds.includes(waterTileId);
 }
+import { isGraphRowCollection } from "./geodesicBake.js";

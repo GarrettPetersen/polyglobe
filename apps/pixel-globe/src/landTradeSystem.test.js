@@ -25,6 +25,10 @@ import {
 } from "./landTradeSystem.js";
 import { SHIP_STATS } from "./shipStats.js";
 import { EARTH_RADIUS_KM } from "./worldDistance.js";
+import {
+  WORLD_BASE_PIXELS_PER_RADIAN,
+  WORLD_PIXELS_PER_RADIAN
+} from "./worldScale.js";
 
 const LONDON = city(1, "London", "northern-european", 80000);
 const ANTIOCH = city(2, "Antioch", "mediterranean", 45000);
@@ -44,8 +48,10 @@ test("inland city markets participate in trade without receiving shipyards", () 
 test("carts move visibly while remaining slower than every player ship", () => {
   assert.equal(LAND_CART_SPEED_KM_PER_DAY, 120);
   const cartKmPerSecond = LAND_CART_SPEED_KM_PER_DAY / realSecondsPerGameDay();
+  const cartScreenPixelsPerSecond = cartKmPerSecond / EARTH_RADIUS_KM * WORLD_PIXELS_PER_RADIAN;
+  const oldMinimumScreenPixelsPerSecond = 5 / EARTH_RADIUS_KM * WORLD_BASE_PIXELS_PER_RADIAN;
   const slowestShipKmPerSecond = Math.min(...SHIP_STATS.map((ship) => ship.topSpeedRad)) * EARTH_RADIUS_KM;
-  assert.ok(cartKmPerSecond >= 5);
+  assert.ok(cartScreenPixelsPerSecond >= oldMinimumScreenPixelsPerSecond);
   assert.ok(cartKmPerSecond < slowestShipKmPerSecond);
 });
 

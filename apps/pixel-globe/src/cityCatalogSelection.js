@@ -739,6 +739,28 @@ export function cityRequiresPortAccess(city) {
   );
 }
 
+const EXPLICITLY_INLAND_CITY_REFS_1522 = new Set([
+  canonicalCityRef("Aleppo", "Syria"),
+  canonicalCityRef("Bursa", "Turkey"),
+  canonicalCityRef("Chillicothe", "United States of America"),
+  canonicalCityRef("Dienne", "Senegal"),
+  canonicalCityRef("Granada", "Spain"),
+  canonicalCityRef("Jerusalem", "Israel"),
+  canonicalCityRef("Mecca", "Saudi Arabia"),
+  canonicalCityRef("Nimes", "France"),
+  canonicalCityRef("Tiho", "Mexico")
+]);
+
+export function cityMustRemainInland(city) {
+  return EXPLICITLY_INLAND_CITY_REFS_1522.has(canonicalCityRef(city?.city, city?.country));
+}
+
+function canonicalCityRef(city, country) {
+  if (typeof city !== "string" || city.trim() === "" ||
+      typeof country !== "string" || country.trim() === "") return "";
+  return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
+}
+
 function cityLabelText(city) {
   return city.displayCity || city.city || "";
 }

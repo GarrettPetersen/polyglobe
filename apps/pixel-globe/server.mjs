@@ -34,19 +34,10 @@ function resolveStaticPath(urlPath) {
     return join(appRoot, "node_modules/fflate/LICENSE");
   }
   if (urlPath.startsWith("/assets/")) return join(publicRoot, urlPath.slice(1));
-  if (urlPath === "/earth-globe-cache-7.json" || urlPath === "/shared/earth-globe-cache-7.json") {
+  if (urlPath === "/earth-globe-cache-7.json") {
     return join(sharedDataRoot, "earth-globe-cache-7.json");
   }
-  if (urlPath === "/shared/mountains.json") {
-    return join(sharedDataRoot, "mountains.json");
-  }
-  if (urlPath === "/shared/discrete-weather-bake-7.bin") {
-    return join(sharedDataRoot, "discrete-weather-bake-7.bin");
-  }
-  if (urlPath === "/shared/globe-runtime-bake-7.bin") {
-    return join(sharedDataRoot, "globe-runtime-bake-7.bin");
-  }
-  if (urlPath.startsWith("/shared/datasets/")) {
+  if (urlPath.startsWith("/shared/")) {
     return join(sharedDataRoot, urlPath.slice("/shared/".length));
   }
   return null;

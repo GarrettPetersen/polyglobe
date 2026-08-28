@@ -3,7 +3,8 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CITY_DATA_YEAR, cityLabelText, loadCityCatalogFromCsv } from "../src/cityCatalogData.js";
 import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
-import { buildGeodesicGraph, createDirectionIndex } from "../src/geodesic.js";
+import { createDirectionIndex } from "../src/geodesic.js";
+import { decodeGeodesicGraphBake } from "../src/geodesicBake.js";
 import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
 import {
   PORT_SAILING_DISTANCE_FORMAT,
@@ -26,8 +27,15 @@ import {
   fillIceMaskForDay
 } from "../src/weather.js";
 import { graphEdgeDistanceKm, MinDistanceHeap } from "../src/weightedGraphSearch.js";
+import {
+  WORLD_GLOBE_SUBDIVISIONS,
+  WORLD_RUNTIME_WEATHER_SUBDIVISIONS,
+  buildFineToCoarseTileMapping,
+  expandCoarseTileMask,
+  geodesicTileCount
+} from "../src/worldScale.js";
 
-const SUBDIVISIONS = 7;
+const SUBDIVISIONS = WORLD_GLOBE_SUBDIVISIONS;
 // August 4 in the fixed 365-day weather cycle: northern shipping lanes are near
 // their annual maximum extent without combining incompatible ice states.
 const REFERENCE_WEATHER_DAY = 215;
@@ -37,15 +45,20 @@ const appRoot = resolve(toolRoot, "..");
 const repoRoot = resolve(appRoot, "../..");
 const sharedRoot = resolve(repoRoot, "examples/globe-demo/public");
 const earthPath = resolve(sharedRoot, `earth-globe-cache-${SUBDIVISIONS}.json`);
-const runtimeWeatherPath = resolve(sharedRoot, `globe-runtime-bake-${SUBDIVISIONS}.bin`);
+const graphPath = resolve(sharedRoot, `geodesic-graph-${SUBDIVISIONS}.bin`);
+const runtimeWeatherPath = resolve(
+  sharedRoot,
+  `globe-runtime-bake-${WORLD_RUNTIME_WEATHER_SUBDIVISIONS}.bin`
+);
 const cityPath = resolve(
   sharedRoot,
   "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
 );
 const outputPath = resolve(appRoot, "public/assets/data/port-sailing-distances.json");
 
-const [earthSource, runtimeWeatherSource, cityCsv] = await Promise.all([
+const [earthSource, graphSource, runtimeWeatherSource, cityCsv] = await Promise.all([
   readFile(earthPath, "utf8"),
+  readFile(graphPath),
   readFile(runtimeWeatherPath),
   readFile(cityPath, "utf8")
 ]);
@@ -54,7 +67,10 @@ if (earthCache.subdivisions !== SUBDIVISIONS) {
   throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earthCache.subdivisions}`);
 }
 const earthRows = applyManualTerrainOverrides(earthCache.tiles, SUBDIVISIONS);
-const graph = buildGeodesicGraph(SUBDIVISIONS);
+const graph = decodeGeodesicGraphBake(
+  graphSource.buffer.slice(graphSource.byteOffset, graphSource.byteOffset + graphSource.byteLength),
+  SUBDIVISIONS
+);
 if (graph.tileCount !== earthCache.tileCount || graph.tileCount !== earthRows.length) {
   throw new Error(`Port route world mismatch: graph ${graph.tileCount}, cache ${earthCache.tileCount}, rows ${earthRows.length}`);
 }
@@ -64,12 +80,25 @@ const runtimeWeather = decodePixelRuntimeWeatherBakeFile(
     runtimeWeatherSource.byteOffset + runtimeWeatherSource.byteLength
   ),
   earthCache.version,
-  SUBDIVISIONS,
-  earthCache.tileCount
+  WORLD_RUNTIME_WEATHER_SUBDIVISIONS,
+  geodesicTileCount(WORLD_RUNTIME_WEATHER_SUBDIVISIONS)
+);
+const fineToCoarseWeatherTileId = buildFineToCoarseTileMapping(
+  graph,
+  WORLD_RUNTIME_WEATHER_SUBDIVISIONS
 );
 const iceMask = new Uint8Array(graph.tileCount);
-fillIceMaskForDay(runtimeWeather.seaIceCycle, REFERENCE_WEATHER_DAY, iceMask);
-const annualIceFractions = buildAnnualIceFractions(runtimeWeather.seaIceCycle, graph.tileCount);
+const coarseIceMask = new Uint8Array(runtimeWeather.seaIceCycle.tileCount);
+fillIceMaskForDay(runtimeWeather.seaIceCycle, REFERENCE_WEATHER_DAY, coarseIceMask);
+expandCoarseTileMask(coarseIceMask, fineToCoarseWeatherTileId, iceMask);
+const coarseAnnualIceFractions = buildAnnualIceFractions(
+  runtimeWeather.seaIceCycle,
+  runtimeWeather.seaIceCycle.tileCount
+);
+const annualIceFractions = Float32Array.from(
+  fineToCoarseWeatherTileId,
+  (tileId) => coarseAnnualIceFractions[tileId]
+);
 const directionIndex = createDirectionIndex(graph);
 const navigation = buildWorldNavigationTopology({
   graph,

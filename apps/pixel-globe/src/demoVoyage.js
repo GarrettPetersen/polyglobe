@@ -214,9 +214,10 @@ function validateNavigationGraph(graph) {
   if (
     !graph ||
     !Number.isInteger(graph.tileCount) ||
-    !Array.isArray(graph.neighbors) ||
+    !isGraphRowCollection(graph.neighbors) ||
     graph.neighbors.length !== graph.tileCount
   ) {
     throw new Error("Mediterranean demo access requires a complete navigation graph");
   }
 }
+import { isGraphRowCollection } from "./geodesicBake.js";

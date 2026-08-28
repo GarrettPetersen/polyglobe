@@ -89,7 +89,7 @@ export function buildDirectChartProtectionComponents({ graph, protection }) {
   if (
     !graph ||
     !Number.isInteger(graph.tileCount) ||
-    !Array.isArray(graph.neighbors) ||
+    !isGraphRowCollection(graph.neighbors) ||
     graph.neighbors.length !== graph.tileCount
   ) {
     throw new Error("Direct chart components require a complete geodesic graph");
@@ -132,7 +132,7 @@ function validateInputs(graph, terrainClassForTile, protectionRings, pentagonNee
     !graph ||
     !Number.isInteger(graph.tileCount) ||
     graph.tileCount <= 0 ||
-    !Array.isArray(graph.neighbors) ||
+    !isGraphRowCollection(graph.neighbors) ||
     graph.neighbors.length !== graph.tileCount ||
     !graph.isPentagon ||
     graph.isPentagon.length !== graph.tileCount
@@ -149,3 +149,4 @@ function validateInputs(graph, terrainClassForTile, protectionRings, pentagonNee
     throw new Error(`Chart protection rings must be between zero and two: ${protectionRings}`);
   }
 }
+import { isGraphRowCollection } from "./geodesicBake.js";

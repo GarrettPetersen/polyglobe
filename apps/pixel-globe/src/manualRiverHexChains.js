@@ -1,4 +1,6 @@
 import { isWaterSurfaceRow } from "./terrainSurface.js";
+import { isGraphRowCollection } from "./geodesicBake.js";
+import { SUBDIVISION_EIGHT_MAP_DATA } from "./subdivisionEightMapData.js";
 
 const DARDANELLES_HEX_CHAIN = Object.freeze([98820, 98676, 98678, 24757]);
 const BOSPORUS_HEX_CHAIN = Object.freeze([98682, 6233, 98694, 98704]);
@@ -55,6 +57,7 @@ export const MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = Object.freeze({
       93399, 93401, 93272, 93271, 93279,
     ]),
   }),
+  8: SUBDIVISION_EIGHT_MAP_DATA.cityRiverChains
 });
 
 export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
@@ -128,6 +131,7 @@ export const MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = {
     // Historically navigable city corridors added for the 1522 port roster.
     ...Object.values(MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]),
   ],
+  8: SUBDIVISION_EIGHT_MAP_DATA.riverChains
 };
 
 // The coarse river bake incorrectly joins the Lancang/Mekong to the
@@ -136,6 +140,7 @@ export const MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze([
     Object.freeze([92179, 92180]),
   ]),
+  8: SUBDIVISION_EIGHT_MAP_DATA.blockedRiverEdges
 });
 
 // The coarse river bake runs the Lena headwaters into Lake Baikal. Baikal
@@ -146,10 +151,12 @@ export const MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = Object.freeze({
     Object.freeze({ tile: 57229, edge: 2 }),
     Object.freeze({ tile: 57229, edge: 3 }),
   ]),
+  8: SUBDIVISION_EIGHT_MAP_DATA.blockedRiverMouths
 });
 
 export const MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS = {
-  7: Object.freeze([...DARDANELLES_HEX_CHAIN, ...BOSPORUS_HEX_CHAIN])
+  7: Object.freeze([...DARDANELLES_HEX_CHAIN, ...BOSPORUS_HEX_CHAIN]),
+  8: SUBDIVISION_EIGHT_MAP_DATA.saltwaterPassageTileIds
 };
 
 export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
@@ -172,6 +179,7 @@ export const MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS = {
     // Whanganui River opens onto New Zealand's west coast.
     { tile: 88758, edge: 0 },
   ],
+  8: SUBDIVISION_EIGHT_MAP_DATA.riverMouths
 };
 
 export function removeBlockedRiverMouthEdgesFromMasks(
@@ -181,7 +189,7 @@ export function removeBlockedRiverMouthEdgesFromMasks(
   toWaterMasks,
   blockedMouths
 ) {
-  if (!graph || !Array.isArray(graph.edgeNeighbors)) {
+  if (!graph || !isGraphRowCollection(graph.edgeNeighbors)) {
     throw new Error("Blocked river mouth removal requires a geodesic graph");
   }
   if (!Array.isArray(earthRows) || earthRows.length !== graph.tileCount) {
@@ -225,7 +233,7 @@ export function removeBlockedRiverMouthEdgesFromMasks(
 }
 
 export function removeBlockedRiverEdgesFromMasks(graph, masks, blockedEdges) {
-  if (!graph || !Array.isArray(graph.edgeNeighbors)) {
+  if (!graph || !isGraphRowCollection(graph.edgeNeighbors)) {
     throw new Error("Blocked river edge removal requires a geodesic graph");
   }
   if (!(masks instanceof Uint8Array) || masks.length !== graph.tileCount) {

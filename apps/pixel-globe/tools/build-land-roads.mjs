@@ -2,7 +2,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CITY_DATA_YEAR, cityLabelText, loadCityCatalogFromCsv } from "../src/cityCatalogData.js";
-import { buildGeodesicGraph, createDirectionIndex } from "../src/geodesic.js";
+import { createDirectionIndex } from "../src/geodesic.js";
+import { decodeGeodesicGraphBake } from "../src/geodesicBake.js";
 import { LAND_ROAD_FORMAT, LAND_ROAD_VERSION, parseLandRoadNetwork } from "../src/landRoadNetwork.js";
 import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
 import { roadTerrainPenalty, roadTileIsPassable } from "../src/roadTerrain.js";
@@ -10,8 +11,9 @@ import { terrainRowsNeedLandmassChannel } from "../src/terrainSurface.js";
 import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
 import { placeCityCatalogOnWorld } from "../src/worldPortPlacement.js";
 import { graphEdgeDistanceKm, MinDistanceHeap } from "../src/weightedGraphSearch.js";
+import { WORLD_GLOBE_SUBDIVISIONS } from "../src/worldScale.js";
 
-const SUBDIVISIONS = 7;
+const SUBDIVISIONS = WORLD_GLOBE_SUBDIVISIONS;
 const NEARBY_CANDIDATE_COUNT = 10;
 const ROUTES_PER_CITY = 2;
 const MAX_CANDIDATE_DISTANCE_KM = 1200;
@@ -21,14 +23,16 @@ const appRoot = resolve(toolRoot, "..");
 const repoRoot = resolve(appRoot, "../..");
 const sharedRoot = resolve(repoRoot, "examples/globe-demo/public");
 const earthPath = resolve(sharedRoot, `earth-globe-cache-${SUBDIVISIONS}.json`);
+const graphPath = resolve(sharedRoot, `geodesic-graph-${SUBDIVISIONS}.bin`);
 const cityPath = resolve(
   sharedRoot,
   "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
 );
 const outputPath = resolve(appRoot, "public/assets/data/land-roads.json");
 
-const [earthSource, cityCsv] = await Promise.all([
+const [earthSource, graphSource, cityCsv] = await Promise.all([
   readFile(earthPath, "utf8"),
+  readFile(graphPath),
   readFile(cityPath, "utf8")
 ]);
 const earthCache = JSON.parse(earthSource);
@@ -36,7 +40,10 @@ if (earthCache.subdivisions !== SUBDIVISIONS) {
   throw new Error(`Expected Earth cache subdivision ${SUBDIVISIONS}, got ${earthCache.subdivisions}`);
 }
 const earthRows = applyManualTerrainOverrides(earthCache.tiles, SUBDIVISIONS);
-const graph = buildGeodesicGraph(SUBDIVISIONS);
+const graph = decodeGeodesicGraphBake(
+  graphSource.buffer.slice(graphSource.byteOffset, graphSource.byteOffset + graphSource.byteLength),
+  SUBDIVISIONS
+);
 const directionIndex = createDirectionIndex(graph);
 const navigation = buildWorldNavigationTopology({
   graph,

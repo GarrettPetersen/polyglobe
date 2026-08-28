@@ -139,7 +139,7 @@ export function planChartSettlementTowardTargets({
   if (typeof incrementalRepair !== "boolean") {
     throw new Error("Unified chart settlement incremental-repair flag must be boolean");
   }
-  if (!Array.isArray(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
+  if (!isGraphRowCollection(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
     throw new Error("Unified chart settlement requires chart topology");
   }
   const movableIds = [...tileIds].filter((id) => (
@@ -547,7 +547,7 @@ export function constrainChartRepairToTopology({
       !(referencePositions instanceof Map)) {
     throw new Error("Topology-constrained chart repair requires position maps");
   }
-  if (!Array.isArray(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
+  if (!isGraphRowCollection(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
     throw new Error("Topology-constrained chart repair requires chart topology");
   }
   for (const [label, value] of Object.entries({ landSlackPx, waterSlackPx })) {
@@ -616,7 +616,7 @@ function chartRepairTopologyViolations({
   const violations = new Set();
   for (const id of candidate.keys()) {
     const reference = referencePositions.get(id);
-    if (!reference || !Array.isArray(neighborsById[id])) continue;
+    if (!reference || !isGraphNeighborRow(neighborsById[id])) continue;
     for (const neighborId of neighborsById[id]) {
       if (neighborId < id && candidate.has(neighborId)) continue;
       const current = positions.get(id);
@@ -906,3 +906,4 @@ function validatedUnitVector(value, label) {
 function normalizeAngle(angle) {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
 }
+import { isGraphNeighborRow, isGraphRowCollection } from "./geodesicBake.js";

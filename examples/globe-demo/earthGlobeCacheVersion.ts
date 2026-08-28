@@ -17,7 +17,7 @@
  * Cache files are per subdivision: `public/earth-globe-cache-{n}.json` (and legacy `earth-globe-cache.json` for n=6).
  */
 /** Highest subdivision the demo UI and cache builder support (geodesic tile count grows as ~4^n). */
-export const MAX_EARTH_GLOBE_SUBDIVISIONS = 7;
+export const MAX_EARTH_GLOBE_SUBDIVISIONS = 8;
 
 /**
  * Strait tiles forced to water in `resolveLandWaterByRegions` — **only valid at geodesic subdivisions === 6**.

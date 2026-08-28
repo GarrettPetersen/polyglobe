@@ -21,7 +21,7 @@ All data is loaded from **`public/`** (same-origin). Run `npm run download-data`
 
 ### Earth globe cache (per subdivision)
 
-The demo loads **`public/earth-globe-cache-{n}.json`** for the current scale (`n` = subdivisions 1–7). For **subdivisions = 6** it also tries legacy **`earth-globe-cache.json`**. Version must match **`earthGlobeCacheVersion.ts`** (`EARTH_GLOBE_CACHE_VERSION`, with optional legacy `6-v17` for old 6-only files).
+The demo loads **`public/earth-globe-cache-{n}.json`** for the current scale (`n` = subdivisions 1–8). For **subdivisions = 6** it also tries legacy **`earth-globe-cache.json`**. Version must match **`earthGlobeCacheVersion.ts`** (`EARTH_GLOBE_CACHE_VERSION`, with optional legacy `6-v17` for old 6-only files).
 
 - **Regenerate** (default: subdivision 6 only, also writes `earth-globe-cache.json`):  
   `npm run build-earth-globe-cache`
@@ -30,6 +30,9 @@ The demo loads **`public/earth-globe-cache-{n}.json`** for the current scale (`n
 - **Several sizes** (6 and 7):  
   `npm run build-earth-globe-cache-all` or `npm run build-earth-globe-cache -- 6 7`  
   Subdivision 7 is much larger (~160k tiles) and slow to build.
+- **Terrain-only subdivision-8 prototype**:
+  `NODE_OPTIONS=--max-old-space-size=12288 npm run build-earth-globe-cache -- 8 --skip-weather --skip-runtime`
+  The pixel game deliberately reuses coarser weather/runtime climatology at this scale.
 - **Strait tile IDs** in the terrain resolver are **only applied at subdivision 6** (tile IDs change at other scales).
 - **Force full in-browser recompute**: add **`?noEarthCache=1`** to the URL.
 - **Performance (subdivision 7, ~163k tiles)**: the demo auto-tiers **device pixel ratio** (cap **0.85**), **512² shadow maps** with **BasicShadowMap**, **no lensflare**, **smaller coast masks / foam grid / inner sphere**, **tighter vegetation** (fewer plants per hex, ~900 max instances per type, update every 8 frames, aggressive hemisphere cull), and **half-rate water & foam updates** plus **quarter-rate cloud depth sort**. Subdivision 6 keeps higher quality settings. **EffectComposer / bloom** is not used (direct `renderer.render` only).

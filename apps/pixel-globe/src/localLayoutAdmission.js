@@ -847,7 +847,7 @@ export function admitProjectedTiles({
 }) {
   if (!(positions instanceof Map)) throw new Error("Local layout admission requires a positions map");
   if (!(projectedById instanceof Map)) throw new Error("Local layout admission requires a projected-position map");
-  if (!Array.isArray(neighborsById) || neighborsById.length === 0) {
+  if (!isGraphRowCollection(neighborsById) || neighborsById.length === 0) {
     throw new Error("Local layout admission requires tile neighbors");
   }
   if (!(protectionById instanceof Uint8Array) || protectionById.length !== neighborsById.length) {
@@ -1012,7 +1012,7 @@ export function admitProjectedTiles({
   let admitted = 0;
   for (const id of pending) {
     if (positions.has(id)) throw new Error(`Pending local layout tile ${id} already has a position`);
-    if (!Array.isArray(neighborsById[id])) {
+    if (!isGraphNeighborRow(neighborsById[id])) {
       throw new Error(`Local layout admission is missing neighbors for tile ${id}`);
     }
     const projected = projectedById.get(id);
@@ -1597,3 +1597,4 @@ function projectedTileOverlapsViewport(tile, viewportWidth, viewportHeight, tile
     tile.y - tileVisualRadius > viewportHeight
   );
 }
+import { isGraphNeighborRow, isGraphRowCollection } from "./geodesicBake.js";

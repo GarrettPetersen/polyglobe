@@ -14,6 +14,7 @@ import {
   shipStatsForSlug
 } from "./shipStats.js";
 import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
+import { WORLD_KINEMATIC_SCALE } from "./worldScale.js";
 
 test("later asset silhouettes use period-appropriate game identities", () => {
   const periodIdentities = {
@@ -78,9 +79,15 @@ test("hull points count one-point cannonball hits while mass preserves ship scal
 });
 
 test("all hulls share the gentler cruise-speed scale", () => {
-  assert.equal(shipStatsForSlug("brigantine").topSpeedRad, 0.040 * SHIP_TOP_SPEED_SCALE);
-  assert.equal(shipStatsForSlug("felucca").topSpeedRad, 0.031 * SHIP_TOP_SPEED_SCALE);
-  assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006));
+  assert.equal(
+    shipStatsForSlug("brigantine").topSpeedRad,
+    0.040 * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE
+  );
+  assert.equal(
+    shipStatsForSlug("felucca").topSpeedRad,
+    0.031 * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE
+  );
+  assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006 * WORLD_KINEMATIC_SCALE));
 });
 
 test("native canoe hulls are small, cannonless, exposed, and regionally distinct", () => {
@@ -104,7 +111,10 @@ test("native canoe hulls are small, cannonless, exposed, and regionally distinct
   assert.equal(SHIP_UPWIND_FORGIVENESS_DEG, 8);
   assert.equal(shipStatsForSlug("sampan").upwindStallAngleDeg, 37);
   const fishingBarque = shipStatsForSlug("fishing-lugger");
-  assert.equal(mesoamerican.topSpeedRad, 0.010 * SHIP_TOP_SPEED_SCALE);
+  assert.equal(
+    mesoamerican.topSpeedRad,
+    0.010 * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE
+  );
   assert.ok(mesoamerican.topSpeedRad < fishingBarque.topSpeedRad * 0.4);
   assert.ok(mesoamerican.accelerationRad < fishingBarque.accelerationRad);
 });

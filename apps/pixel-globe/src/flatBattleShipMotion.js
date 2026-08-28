@@ -18,8 +18,9 @@ import {
   shipPropulsionPerformance
 } from "./shipPropulsion.js";
 import { oarPivotTurnRate, shipTurnRate } from "./shipTurning.js";
+import { WORLD_PIXELS_PER_RADIAN } from "./worldScale.js";
 
-export const FLAT_BATTLE_PIXELS_PER_RADIAN = 2450;
+export const FLAT_BATTLE_PIXELS_PER_RADIAN = WORLD_PIXELS_PER_RADIAN;
 
 const AUTO_PIVOT_MINIMUM_TURN_RAD = 20 * Math.PI / 180;
 const AUTO_PIVOT_REVERSE_CONE_RAD = 35 * Math.PI / 180;

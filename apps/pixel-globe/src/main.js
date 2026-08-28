@@ -1,5 +1,4 @@
 import {
-  buildGeodesicGraph,
   clamp,
   createDirectionIndex,
   cross3,
@@ -8,6 +7,22 @@ import {
   graphCenter,
   normalize3
 } from "./geodesic.js";
+import { decodeGeodesicGraphBake } from "./geodesicBake.js";
+import {
+  WORLD_DISCRETE_WEATHER_SUBDIVISIONS,
+  WORLD_GLOBE_SUBDIVISIONS,
+  WORLD_PIXELS_PER_RADIAN,
+  WORLD_RUNTIME_WEATHER_SUBDIVISIONS,
+  buildFineToCoarseTileMapping,
+  geodesicTileCount
+} from "./worldScale.js";
+import {
+  coarseMaskHasWorldTile,
+  coarseTileIdForWorldTile,
+  fillDiscreteWeatherFlagMask
+} from "./coarseWorldMask.js";
+import { worldTilesWithinArcRadius } from "./worldTileNeighborhood.js";
+import { fineTilesBorderingCoarseTile } from "./climateTileBoundary.js";
 import {
   MAX_PROTECTED_ADMISSION_SLACK_PX,
   ProtectedChartStitchError,
@@ -203,6 +218,7 @@ import {
 import {
   MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS
 } from "./manualRiverHexChains.js";
+import { requiredSubdivisionMapData } from "./mapCorrectionData.js";
 import {
   applyManualTerrainOverrides,
   assertManualShallowWaterReachesOcean
@@ -1820,7 +1836,8 @@ import {
 } from "./localSave.js";
 import {
   migrateSavedVoyageCore,
-  recoverSavedVoyageWorldClock
+  recoverSavedVoyageWorldClock,
+  savedVoyageWorldTopology
 } from "./saveCompatibility.js";
 import {
   addDerivedSaveRecoveryLabel,
@@ -2446,9 +2463,13 @@ const BASE_SCREEN_W = 455;
 const BASE_SCREEN_H = 256;
 let SCREEN_W = BASE_SCREEN_W;
 let SCREEN_H = BASE_SCREEN_H;
-const SUBDIVISIONS = 7;
-const SALTWATER_PASSAGE_TILE_IDS = MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS[SUBDIVISIONS] || [];
-const PIXELS_PER_RADIAN = 2450;
+const SUBDIVISIONS = WORLD_GLOBE_SUBDIVISIONS;
+const SALTWATER_PASSAGE_TILE_IDS = requiredSubdivisionMapData(
+  MANUAL_SALTWATER_PASSAGE_HEX_IDS_BY_SUBDIVISIONS,
+  SUBDIVISIONS,
+  "manual saltwater-passage corrections"
+);
+const PIXELS_PER_RADIAN = WORLD_PIXELS_PER_RADIAN;
 const TILE_RADIUS_PX = 10;
 const TILE_ART_SIZE = 36;
 const TILE_ART_HALF = TILE_ART_SIZE / 2;
@@ -3790,6 +3811,8 @@ let riverSpriteCache = new Map();
 let waterDepthBands;
 let weatherBake;
 let runtimeWeather;
+let fineToCoarseWeatherTileId;
+let fineToCoarseRuntimeWeatherTileId;
 let seaIceMask;
 let freshwaterIceMask;
 let snowGroundMask;
@@ -4209,6 +4232,9 @@ window.addEventListener("pointercancel", handlePointerUp);
 requestAnimationFrame(pollControllerDuringStartup);
 main().catch((err) => {
   console.error(err);
+  if (CAPTURE_SCENARIO || PERFORMANCE_BENCHMARK) {
+    window.__PIXEL_GLOBE_CAPTURE_ERROR__ = err instanceof Error ? err.message : String(err);
+  }
   gameTelemetry.captureCrash(err, telemetryCrashContext("startup"));
   capsuleLoadingScreen.fail(err);
   drawFatalError(err);
@@ -4240,10 +4266,17 @@ async function main() {
     fetchJson(LAND_ROAD_URL, "land roads"),
     fetchEarthCache(),
     fetchBinary(
-      `shared/discrete-weather-bake-7.bin?v=${DISCRETE_WEATHER_ASSET_VERSION}`,
+      `shared/geodesic-graph-${SUBDIVISIONS}.bin`,
+      "geodesic graph"
+    ),
+    fetchBinary(
+      `shared/discrete-weather-bake-${WORLD_DISCRETE_WEATHER_SUBDIVISIONS}.bin?v=${DISCRETE_WEATHER_ASSET_VERSION}`,
       "discrete weather bake"
     ),
-    fetchBinary("shared/globe-runtime-bake-7.bin", "globe runtime bake")
+    fetchBinary(
+      `shared/globe-runtime-bake-${WORLD_RUNTIME_WEATHER_SUBDIVISIONS}.bin`,
+      "globe runtime bake"
+    )
   ]);
   const initializationReady = Promise.all([shellReady, startupAssets]);
   await shellReady;
@@ -4271,6 +4304,7 @@ async function main() {
     loadedPortSailingDistanceData,
     loadedLandRoadData,
     earth,
+    geodesicGraphBuffer,
     discreteWeatherBuffer,
     runtimeWeatherBuffer
   ] = loadedStartupAssets;
@@ -4357,22 +4391,35 @@ async function main() {
   earthRows = applyManualTerrainOverrides(earth.tiles, earth.subdivisions);
   earth.tiles = earthRows;
 
-  graph = buildGeodesicGraph(SUBDIVISIONS);
+  graph = decodeGeodesicGraphBake(geodesicGraphBuffer, SUBDIVISIONS);
   if (graph.tileCount !== earth.tileCount || graph.tileCount !== earthRows.length) {
     throw new Error(`Tile count mismatch: graph=${graph.tileCount}, cache=${earth.tileCount}, rows=${earthRows.length}`);
   }
-  const globeTileIds = earthRows.map((row) => row.id);
+  fineToCoarseWeatherTileId = buildFineToCoarseTileMapping(
+    graph,
+    WORLD_DISCRETE_WEATHER_SUBDIVISIONS
+  );
+  fineToCoarseRuntimeWeatherTileId =
+    WORLD_RUNTIME_WEATHER_SUBDIVISIONS === WORLD_DISCRETE_WEATHER_SUBDIVISIONS
+      ? fineToCoarseWeatherTileId
+      : buildFineToCoarseTileMapping(graph, WORLD_RUNTIME_WEATHER_SUBDIVISIONS);
+  const discreteWeatherTileCount = geodesicTileCount(WORLD_DISCRETE_WEATHER_SUBDIVISIONS);
+  const discreteWeatherTileIds = Uint32Array.from(
+    { length: discreteWeatherTileCount },
+    (_, tileId) => tileId
+  );
   weatherBake = decodeDiscreteWeatherYearBakeFile(
     discreteWeatherBuffer,
-    globeTileIds,
+    discreteWeatherTileIds,
     earth.version,
-    SUBDIVISIONS
+    WORLD_DISCRETE_WEATHER_SUBDIVISIONS
   );
+  const runtimeWeatherTileCount = geodesicTileCount(WORLD_RUNTIME_WEATHER_SUBDIVISIONS);
   runtimeWeather = decodePixelRuntimeWeatherBakeFile(
     runtimeWeatherBuffer,
     earth.version,
-    SUBDIVISIONS,
-    graph.tileCount
+    WORLD_RUNTIME_WEATHER_SUBDIVISIONS,
+    runtimeWeatherTileCount
   );
   directionIndex = createDirectionIndex(graph);
   earthById = earthRows;
@@ -4638,13 +4685,20 @@ async function main() {
     `home port ${playerCharacter.homePortName}, starter ${shipLabelForSlug(playerShipSlug)}`
   );
   console.info(`[pixel-globe] faction capitals: ${factionCapitalPorts.size} water-accessible capitals`);
-  seaIceMask = new Uint8Array(graph.tileCount);
-  freshwaterIceMask = new Uint8Array(graph.tileCount);
-  snowGroundMask = new Uint8Array(graph.tileCount);
+  const climateIceTileCount = runtimeWeather.seaIceCycle.tileCount;
+  if (runtimeWeather.freshwaterIceCycle.tileCount !== climateIceTileCount) {
+    throw new Error(
+      `Sea and freshwater ice bakes disagree on climate resolution: ` +
+        `${climateIceTileCount}/${runtimeWeather.freshwaterIceCycle.tileCount}`
+    );
+  }
+  seaIceMask = new Uint8Array(climateIceTileCount);
+  freshwaterIceMask = new Uint8Array(climateIceTileCount);
+  snowGroundMask = new Uint8Array(weatherBake.tileCount);
   weatherMaskScratch = {
-    sea: new Uint8Array(graph.tileCount),
-    freshwater: new Uint8Array(graph.tileCount),
-    snow: new Uint8Array(graph.tileCount)
+    sea: new Uint8Array(climateIceTileCount),
+    freshwater: new Uint8Array(climateIceTileCount),
+    snow: new Uint8Array(weatherBake.tileCount)
   };
   refreshWeatherState(true);
   icebergSpawnCandidates = buildIcebergSpawnCandidates();
@@ -4844,7 +4898,7 @@ async function loadInitialNearbyWorldAssets() {
 }
 
 async function fetchEarthCache() {
-  const res = await fetchStaticAsset("shared/earth-globe-cache-7.json", {
+  const res = await fetchStaticAsset(`shared/earth-globe-cache-${SUBDIVISIONS}.json`, {
     label: "Earth cache"
   });
   if (!res.ok) throw new Error(`Failed to load Earth cache: HTTP ${res.status}`);
@@ -8449,10 +8503,14 @@ function retireResolvedTreasurePirate(shipId) {
 function treasureAmbushSpawnPoints(count) {
   const home = campaignGoalHomeCity();
   const candidates = [];
-  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+  const nearbyTiles = worldTilesWithinArcRadius({
+    graph,
+    originTileId: home.tileId,
+    maxDistanceRad: 340 / EARTH_RADIUS_KM
+  });
+  for (const { tileId, distanceRad } of nearbyTiles) {
     if (oceanReachableNavigationMask[tileId] !== 1) continue;
-    const distanceKm = EARTH_RADIUS_KM *
-      vectorArcDistance(tileCenterVector(home.tileId), tileCenterVector(tileId));
+    const distanceKm = EARTH_RADIUS_KM * distanceRad;
     if (distanceKm < 90 || distanceKm > 340) continue;
     candidates.push(tileId);
   }
@@ -10191,7 +10249,7 @@ function sailingAmbientTargets(dt, nearestLand) {
 function sailingWindContext(nearestLand) {
   const tileId = ship.tileId;
   const flags = weatherFlagsForTile(tileId);
-  if (seaIceMask?.[tileId] || freshwaterIceMask?.[tileId] || (flags & TILE_DAY_SNOW_FALL) !== 0) {
+  if (tileHasSurfaceIce(tileId) || (flags & TILE_DAY_SNOW_FALL) !== 0) {
     return SAILING_WIND_CONTEXT_WINTER;
   }
 
@@ -10201,7 +10259,7 @@ function sailingWindContext(nearestLand) {
     : null;
   if (nearbyLand) {
     const terrain = nearbyLand.row.t || "";
-    if (snowGroundMask?.[nearbyLand.id] || terrainHasTrait(terrain, TERRAIN_TRAIT.WINTER_WIND)) {
+    if (tileHasSnowGround(nearbyLand.id) || terrainHasTrait(terrain, TERRAIN_TRAIT.WINTER_WIND)) {
       return SAILING_WIND_CONTEXT_WINTER;
     }
     if (terrainHasAnyTrait(terrain, [TERRAIN_TRAIT.DESERT, TERRAIN_TRAIT.STEPPE])) {
@@ -15243,6 +15301,7 @@ async function restoreSavedVoyage(payload) {
     shipStats: stats,
     gameState: restoredGameState
   } = migrateSavedVoyageCore(payload);
+  const savedWorldTopology = savedVoyageWorldTopology(payload, SUBDIVISIONS);
   const restoredDemoVoyageScope = demoVoyageScopeForSavedGame({
     buildEditionId: BUILD_EDITION_ID,
     savedScope: payload.demoVoyageScope,
@@ -15279,7 +15338,11 @@ async function restoreSavedVoyage(payload) {
   });
   applyCurrentPortConquestOwnership({ refreshMaltaQuest: false });
   const assets = await loadShipAssetSet(savedShip.typeSlug);
-  let recoveredDerivedSystems = restoreSavedDerivedWorld(payload, restoredGameState);
+  let recoveredDerivedSystems = restoreSavedDerivedWorld(
+    payload,
+    restoredGameState,
+    savedWorldTopology
+  );
 
   ensureColonizationDefenseEncounter({ assignCaptains: false });
   ensureTreasureCampaignEncounters({ assignCaptains: false });
@@ -15318,11 +15381,12 @@ async function restoreSavedVoyage(payload) {
 
   const savedPosition = normalize3(savedShip.position.slice());
   const positionTileId = findNearestTileId(graph, directionIndex, savedPosition);
-  const savedTileExists = Number.isInteger(savedShip.tileId) &&
-    savedShip.tileId >= 0 &&
-    savedShip.tileId < graph.tileCount;
-  const savedTileNavigable = savedTileExists && isShipBaseNavigableTile(savedShip.tileId);
-  const recoverySearchTileId = savedTileExists ? savedShip.tileId : positionTileId;
+  const preferredSavedTileId = savedWorldTopology.changed ? positionTileId : savedShip.tileId;
+  const savedTileExists = Number.isInteger(preferredSavedTileId) &&
+    preferredSavedTileId >= 0 &&
+    preferredSavedTileId < graph.tileCount;
+  const savedTileNavigable = savedTileExists && isShipBaseNavigableTile(preferredSavedTileId);
+  const recoverySearchTileId = savedTileExists ? preferredSavedTileId : positionTileId;
   const nearestNavigableTileId = savedTileNavigable
     ? undefined
     : (
@@ -15333,12 +15397,12 @@ async function restoreSavedVoyage(payload) {
           (tileId) => isShipBaseNavigableTile(tileId) && !isShipBlockedByIceTile(tileId)
         )
     );
-  const frozenSavedTile = savedTileNavigable && isShipBlockedByIceTile(savedShip.tileId);
+  const frozenSavedTile = savedTileNavigable && isShipBlockedByIceTile(preferredSavedTileId);
   const nearestOpenWaterTileId = frozenSavedTile
-    ? nearestTileMatching(savedShip.tileId, isShipOpenWaterTile)
+    ? nearestTileMatching(preferredSavedTileId, isShipOpenWaterTile)
     : undefined;
   const restorePlacement = restoredShipPlacementPlan({
-    savedTileId: savedTileExists ? savedShip.tileId : positionTileId,
+    savedTileId: savedTileExists ? preferredSavedTileId : positionTileId,
     positionTileId,
     savedTileNavigable,
     nearestNavigableTileId,
@@ -15497,8 +15561,11 @@ async function restoreSavedVoyage(payload) {
   return { recoveredDerivedSystems, grandfatheredWorldwideDemo };
 }
 
-function restoreSavedDerivedWorld(payload, restoredGameState) {
+function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology) {
   const recovered = [];
+  if (!savedWorldTopology || typeof savedWorldTopology.changed !== "boolean") {
+    throw new Error("Saved derived-world restore requires world-topology migration state");
+  }
   const simulationMinute = Number.isFinite(payload.economy?.lastMinute)
     ? payload.economy.lastMinute
     : payload.worldClock.currentMinute;
@@ -15508,7 +15575,14 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     label: "world economy",
     current: worldEconomy,
     recreate: () => createSavedVoyageEconomy(simulationMinute, seedKey),
-    restore: (candidate) => restoreWorldEconomy(candidate, payload.economy, { seedKey })
+    restore: (candidate) => {
+      if (savedWorldTopology.changed) {
+        throw new Error(
+          `World economy snapshot belongs to subdivision ${savedWorldTopology.savedSubdivisions}`
+        );
+      }
+      return restoreWorldEconomy(candidate, payload.economy, { seedKey });
+    }
   });
   worldEconomy = economyResult.value;
   recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
@@ -15545,7 +15619,7 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     suzeraintyMemory: restoredGameState.relations.diplomacy.suzerainties
   });
   landTradeSystem.economy = worldEconomy;
-  if (payload.landTrade) {
+  if (payload.landTrade && !savedWorldTopology.changed) {
     const landTradeResult = restoreOrRecreateDerivedSaveState({
       label: "land trade",
       current: landTradeSystem,
@@ -15567,7 +15641,7 @@ function restoreSavedDerivedWorld(payload, restoredGameState) {
     landTradeSystem = createLandTrade();
   }
 
-  if (payload.npcRoutes) {
+  if (payload.npcRoutes && !savedWorldTopology.changed) {
     const economyBeforeNpcRestore = snapshotWorldEconomy(worldEconomy);
     const npcRoutesResult = restoreOrRecreateDerivedSaveState({
       label: "NPC sea routes",
@@ -15825,6 +15899,7 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
         currentMinute: weatherClockMinutes,
         voyageStartMinute: voyageStartClockMinutes
       },
+      worldSubdivisions: SUBDIVISIONS,
       firstDayNightNotices: snapshotFirstDayNightNoticeState(firstDayNightNoticeState),
       anchored,
       survivalDamageTimers: { ...survivalDeprivationTimers },
@@ -22379,7 +22454,7 @@ function currentShoreScavengeSite() {
   const context = shoreScavengeContextForTerrain(
     shoreCall.row,
     graph.latDeg[shoreCall.id],
-    Boolean(snowGroundMask?.[shoreCall.id]),
+    tileHasSnowGround(shoreCall.id),
     tileHasSurfaceIce(shoreCall.id)
   );
   const navigation = shipNavigabilityAtLocalPoint(
@@ -29100,7 +29175,7 @@ function shipIsInFreshWater() {
   return shipCanRefillFreshWater({
     navigationKind: navigation.kind,
     waterTileId,
-    frozen: Boolean(freshwaterIceMask?.[waterTileId]),
+    frozen: freshwaterIceAtWorldTile(waterTileId),
     freshwaterSurface: Boolean(freshWaterSurfaceMask?.[waterTileId]),
     saltwaterPassageTileIds: SALTWATER_PASSAGE_TILE_IDS
   });
@@ -37968,19 +38043,11 @@ function scheduleWeatherMaskRefresh(dayIndex) {
     throw new Error(`Cannot schedule weather masks for invalid day: ${dayIndex}`);
   }
   if (dayIndex === weatherMaskDayIndex || pendingWeatherMaskRefresh?.dayIndex === dayIndex) return;
-  const tileCount = weatherBake?.tileCount;
-  if (!Number.isInteger(tileCount) || tileCount <= 0) {
-    throw new Error(`Cannot schedule weather masks for invalid tile count: ${tileCount}`);
-  }
   if (!weatherMaskScratch ||
-      weatherMaskScratch.sea.length !== tileCount ||
-      weatherMaskScratch.freshwater.length !== tileCount ||
-      weatherMaskScratch.snow.length !== tileCount) {
-    weatherMaskScratch = {
-      sea: new Uint8Array(tileCount),
-      freshwater: new Uint8Array(tileCount),
-      snow: new Uint8Array(tileCount)
-    };
+      weatherMaskScratch.sea.length !== runtimeWeather.seaIceCycle.tileCount ||
+      weatherMaskScratch.freshwater.length !== runtimeWeather.freshwaterIceCycle.tileCount ||
+      weatherMaskScratch.snow.length !== weatherBake.tileCount) {
+    throw new Error("Weather mask scratch buffers do not match their climate bakes");
   }
   pendingWeatherMaskRefresh = { dayIndex, stage: 0 };
 }
@@ -38034,10 +38101,14 @@ function advancePendingWeatherMaskRefresh(nowMs) {
     toSeaMask: seaIceMask,
     toFreshwaterMask: freshwaterIceMask
   });
+  const visibleClimateTileIds = new Set();
+  for (const tileId of chart?.visibleSet || []) {
+    visibleClimateTileIds.add(runtimeWeatherTileIdForWorldTile(tileId));
+  }
   const iceCue = surfaceIceTransitionCueForTiles({
     transition: surfaceIceTransition,
-    tileIds: chart?.visibleSet || [],
-    focusTileId: ship?.tileId ?? null
+    tileIds: visibleClimateTileIds,
+    focusTileId: ship ? runtimeWeatherTileIdForWorldTile(ship.tileId) : null
   });
   if (iceCue) playSurfaceIceTransitionSound(iceCue);
   surfaceIceTransitionDrawStage = 0;
@@ -38055,7 +38126,10 @@ function updateSurfaceIceTransition(nowMs) {
   if (
     ship &&
     isWaterSurfaceRow(earthById[ship.tileId]) &&
-    surfaceIceTransitionEntrapsTile(transition, ship.tileId)
+    surfaceIceTransitionEntrapsTile(
+      transition,
+      runtimeWeatherTileIdForWorldTile(ship.tileId)
+    )
   ) {
     pendingSurfaceIceEntrapmentTileId = ship.tileId;
     ship.velocity = [0, 0, 0];
@@ -38136,21 +38210,15 @@ function digPlayerOutOfSurfaceIce(trappedTileId) {
 }
 
 function fillSnowGroundMaskForDay(dayIndex, outMask) {
-  if (!weatherBake) throw new Error("Cannot build snow ground mask before discrete weather bake is loaded");
-  if (outMask.length < weatherBake.tileCount) {
-    throw new Error(`Snow ground mask length ${outMask.length} is smaller than tile count ${weatherBake.tileCount}`);
+  if (!weatherBake) {
+    throw new Error("Cannot build snow ground mask before discrete weather bake is loaded");
   }
-
-  const day = ((dayIndex % WEATHER_DAYS) + WEATHER_DAYS) % WEATHER_DAYS;
-  const dayOffset = day * weatherBake.tileCount;
-  for (let tileId = 0; tileId < weatherBake.tileCount; tileId++) {
-    const ord = weatherBake.ordinalByTileId[tileId];
-    if (ord == null || ord < 0) {
-      outMask[tileId] = 0;
-      continue;
-    }
-    outMask[tileId] = (weatherBake.packed[dayOffset + ord] & TILE_DAY_SNOW_GROUND) !== 0 ? 1 : 0;
-  }
+  return fillDiscreteWeatherFlagMask(
+    weatherBake,
+    dayIndex,
+    TILE_DAY_SNOW_GROUND,
+    outMask
+  );
 }
 
 function fitCanvasToDisplay() {
@@ -38392,8 +38460,17 @@ function ensureWhalePopulation(state) {
   const memory = state?.memory?.whales;
   if (!memory) throw new Error("Whale population requires voyage memory");
   if (memory.individuals.length > 0) return;
+  const ecologyTileCount = geodesicTileCount(WORLD_DISCRETE_WEATHER_SUBDIVISIONS);
+  if (weatherBake?.tileCount !== ecologyTileCount || ecologyTileCount > graph.tileCount) {
+    throw new Error(
+      `Whale ecology resolution does not match the world: ` +
+        `${weatherBake?.tileCount ?? "missing"}/${ecologyTileCount}/${graph.tileCount}`
+    );
+  }
   const candidates = [];
-  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
+  // Population seeding needs ocean-scale distribution, not coastline-scale sampling.
+  // Whales move on the full-resolution globe once the finite population exists.
+  for (let tileId = 0; tileId < ecologyTileCount; tileId++) {
     if (earthById[tileId]?.t !== "water" || oceanReachableNavigationMask[tileId] !== 1) continue;
     candidates.push({
       tileId,
@@ -38421,8 +38498,7 @@ function buildIcebergSpawnCandidates() {
   ]);
   const candidatesByTarget = new Map();
   for (const sourceIceTileId of sourceTileIds) {
-    for (const tileId of graph.neighbors[sourceIceTileId] || []) {
-      if (earthById[tileId]?.t !== "water" || oceanReachableNavigationMask[tileId] !== 1) continue;
+    for (const tileId of fineWaterTilesBorderingClimateTile(sourceIceTileId)) {
       if (!candidatesByTarget.has(tileId)) {
         candidatesByTarget.set(tileId, Object.freeze({
           sourceIceTileId,
@@ -38438,6 +38514,20 @@ function buildIcebergSpawnCandidates() {
   return candidates;
 }
 
+function fineWaterTilesBorderingClimateTile(climateTileId) {
+  if (!Number.isInteger(climateTileId) || climateTileId < 0 || climateTileId >= seaIceMask.length) {
+    throw new Error(`Invalid iceberg source climate tile: ${climateTileId}`);
+  }
+  return fineTilesBorderingCoarseTile({
+    graph,
+    coarseTileId: climateTileId,
+    coarseTileIdForFineTile: runtimeWeatherTileIdForWorldTile,
+    acceptsBoundaryTile: (tileId) => (
+      earthById[tileId]?.t === "water" && oceanReachableNavigationMask[tileId] === 1
+    )
+  });
+}
+
 function currentIcebergSpawnCandidates() {
   if (activeIcebergSpawnCandidatesDay !== weatherParts.dayIndex) {
     throw new Error(
@@ -38451,16 +38541,20 @@ function invalidateIcebergSpawnCandidates() {
   activeIcebergSpawnCandidatesDay = -1;
   activeIcebergSpawnCandidates = [];
   icebergSpawnCandidateRefreshJob = null;
+  // A staged advance captures the current day's open-water candidates. Discard
+  // its private working copy when the ice mask changes rather than committing
+  // a destination that froze while the batch was in progress.
+  icebergAdvanceJob = null;
 }
 
 function beginIcebergSpawnCandidateRefresh() {
   if (icebergSpawnCandidateRefreshJob) return;
   let boundaryCandidates = icebergSpawnCandidates.filter((candidate) => (
-    seaIceMask[candidate.sourceIceTileId] && !seaIceMask[candidate.tileId]
+    seaIceMask[candidate.sourceIceTileId] && !seaIceAtWorldTile(candidate.tileId)
   ));
   if (boundaryCandidates.length === 0) {
     boundaryCandidates = icebergSpawnCandidates.filter((candidate) => (
-      !seaIceMask[candidate.tileId]
+      !seaIceAtWorldTile(candidate.tileId)
     ));
   }
   icebergSpawnCandidateRefreshJob = {
@@ -38512,7 +38606,7 @@ function icebergClearWaterCandidate(candidate) {
     let bestSourceDot = dot3(sourcePosition, position);
     for (const neighborId of graph.neighbors[tileId] || []) {
       if (earthById[neighborId]?.t !== "water" || oceanReachableNavigationMask[neighborId] !== 1 ||
-          seaIceMask[neighborId]) continue;
+          seaIceAtWorldTile(neighborId)) continue;
       const neighborPosition = tileCenterVector(neighborId);
       const sourceDot = dot3(sourcePosition, neighborPosition);
       if (sourceDot < bestSourceDot - 1e-10 ||
@@ -38564,12 +38658,16 @@ function nearestIcebergEjectionCandidate(
   const candidates = icebergIsVisible && hiddenCandidates.length > 0
     ? hiddenCandidates
     : allCandidates;
+  const openCandidates = candidates.filter(icebergCandidateIsCurrentOpenWater);
+  if (openCandidates.length === 0) {
+    throw new Error(`Iceberg ${iceberg.id} has no currently open ejection candidate`);
+  }
   const occupiedTileIds = new Set(memory.individuals
     .filter((other) => other.id !== iceberg.id)
     .map((other) => other.tileId));
   let best = null;
   let bestDot = -Infinity;
-  for (const candidate of candidates) {
+  for (const candidate of openCandidates) {
     if (occupiedTileIds.has(candidate.tileId)) continue;
     const positionDot = dot3(iceberg.position, candidate.position);
     if (positionDot > bestDot) {
@@ -38578,7 +38676,7 @@ function nearestIcebergEjectionCandidate(
     }
   }
   if (best) return best;
-  for (const candidate of candidates) {
+  for (const candidate of openCandidates) {
     const positionDot = dot3(iceberg.position, candidate.position);
     if (positionDot > bestDot) {
       best = candidate;
@@ -38587,6 +38685,12 @@ function nearestIcebergEjectionCandidate(
   }
   if (!best) throw new Error(`Iceberg ${iceberg.id} has no open-water ejection candidate`);
   return best;
+}
+
+function icebergCandidateIsCurrentOpenWater(candidate) {
+  return earthById[candidate.tileId]?.t === "water" &&
+    oceanReachableNavigationMask[candidate.tileId] === 1 &&
+    !seaIceAtWorldTile(candidate.tileId);
 }
 
 function ensureIcebergPopulation(state) {
@@ -38702,7 +38806,7 @@ function icebergEnvironmentAtPosition(position) {
   return {
     tileId,
     navigable: earthById[tileId]?.t === "water" && oceanReachableNavigationMask[tileId] === 1,
-    frozen: Boolean(seaIceMask[tileId]),
+    frozen: seaIceAtWorldTile(tileId),
     windDirectionRad: wind.directionRad,
     windStrength: wind.strength,
     waterTemperatureC: estimatedSeaSurfaceTemperatureC(latitudeDeg, weatherParts.dayIndex)
@@ -51536,7 +51640,7 @@ function terrainSurfaceIceState(call, nowMs) {
     transition: surfaceIceTransition,
     seaMask: seaIceMask,
     freshwaterMask: freshwaterIceMask,
-    tileId: call.id,
+    tileId: runtimeWeatherTileIdForWorldTile(call.id),
     nowMs
   });
 }
@@ -52205,7 +52309,7 @@ function snowfallPresentationStrengthForTile(tileId, row, cloudOpacity, stormInt
   return snowfallPresentationStrength({
     snowDay,
     coldWater,
-    snowCoveredGround: snowGroundMask?.[tileId] === 1,
+    snowCoveredGround: tileHasSnowGround(tileId),
     cloudOpacity: clamp(cloudOpacity, 0, 1),
     stormIntensity: clamp(stormIntensity, 0, 1)
   });
@@ -52795,13 +52899,48 @@ function terrainColorForTile(row, id) {
 
 function tileHasSurfaceIce(tileId) {
   if (!Number.isInteger(tileId) || tileId < 0) throw new Error(`Invalid surface ice tile: ${tileId}`);
+  const climateTileId = runtimeWeatherTileIdForWorldTile(tileId);
   if (surfaceIceTransition) {
     return Boolean(
-      surfaceIceTransition.fromSeaMask[tileId] ||
-      surfaceIceTransition.fromFreshwaterMask[tileId]
+      surfaceIceTransition.fromSeaMask[climateTileId] ||
+      surfaceIceTransition.fromFreshwaterMask[climateTileId]
     );
   }
-  return Boolean(seaIceMask?.[tileId] || freshwaterIceMask?.[tileId]);
+  return Boolean(seaIceMask[climateTileId] || freshwaterIceMask[climateTileId]);
+}
+
+function runtimeWeatherTileIdForWorldTile(tileId) {
+  if (!(seaIceMask instanceof Uint8Array)) {
+    throw new Error("Runtime weather masks are not initialized");
+  }
+  return coarseTileIdForWorldTile(
+    fineToCoarseRuntimeWeatherTileId,
+    tileId,
+    seaIceMask.length
+  );
+}
+
+function discreteWeatherTileIdForWorldTile(tileId) {
+  if (!(snowGroundMask instanceof Uint8Array)) {
+    throw new Error("Discrete weather masks are not initialized");
+  }
+  return coarseTileIdForWorldTile(
+    fineToCoarseWeatherTileId,
+    tileId,
+    snowGroundMask.length
+  );
+}
+
+function seaIceAtWorldTile(tileId) {
+  return coarseMaskHasWorldTile(seaIceMask, fineToCoarseRuntimeWeatherTileId, tileId);
+}
+
+function freshwaterIceAtWorldTile(tileId) {
+  return coarseMaskHasWorldTile(freshwaterIceMask, fineToCoarseRuntimeWeatherTileId, tileId);
+}
+
+function tileHasSnowGround(tileId) {
+  return snowGroundMask[discreteWeatherTileIdForWorldTile(tileId)] === 1;
 }
 
 function waterLatitudeTerrainImage(key, id, row = null) {
@@ -52915,7 +53054,7 @@ function terrainSpriteColor(key) {
 function tileHasSeasonalSnowTerrain(row, id) {
   if (!row || isWaterSurfaceRow(row)) return false;
   if (!snowGroundMask) throw new Error("Snow ground mask is not initialized");
-  return snowGroundMask[id] === 1;
+  return tileHasSnowGround(id);
 }
 
 function snowCoveredTerrainImage(key) {
@@ -53847,7 +53986,7 @@ function fisheryForTileCall(tileCall) {
 }
 
 function fishHabitatForTileCall(tileCall) {
-  if (!tileCall || seaIceMask?.[tileCall.id] || freshwaterIceMask?.[tileCall.id]) return null;
+  if (!tileCall || tileHasSurfaceIce(tileCall.id)) return null;
   if (fishHabitatCache.has(tileCall.id)) return fishHabitatCache.get(tileCall.id);
   const isRiver = shipTileHasRiver(tileCall.id) && !isWaterSurfaceRow(tileCall.row);
   const isRiverMouth = shipTileHasRiver(tileCall.id) && isWaterSurfaceRow(tileCall.row);
@@ -61684,7 +61823,7 @@ function drawTinyStatus(nowMs) {
   const flags = weatherFlagsForTile(centerTileId);
   const wind = windForShip();
   const flowDir = wind.directionRad + Math.PI;
-  const iced = Boolean(seaIceMask?.[centerTileId] || freshwaterIceMask?.[centerTileId]);
+  const iced = tileHasSurfaceIce(centerTileId);
   const shipSpeed = ship ? vectorLength(ship.velocity) * PIXELS_PER_RADIAN : 0;
   const nearestNpc = nearestNpcVisualOffset();
   const npcStatus = nearestNpc
@@ -61723,7 +61862,14 @@ function nearestNpcVisualOffset() {
 }
 
 function weatherFlagsForTile(tileId) {
-  return discreteWeatherFlagsForTile(weatherBake, tileId, weatherParts.dayIndex);
+  if (!Number.isInteger(tileId) || tileId < 0 || tileId >= graph.tileCount) {
+    throw new Error(`Cannot sample weather for invalid world tile ${tileId}`);
+  }
+  return discreteWeatherFlagsForTile(
+    weatherBake,
+    fineToCoarseWeatherTileId[tileId],
+    weatherParts.dayIndex
+  );
 }
 
 function terrainStatusLabel(row) {

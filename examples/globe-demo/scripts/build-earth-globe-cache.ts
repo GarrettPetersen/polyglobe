@@ -490,13 +490,19 @@ function parseSubdivisionArgs(): number[] {
   return subs.length > 0 ? subs : [7];
 }
 
+const SKIP_DISCRETE_WEATHER = process.argv.includes("--skip-weather");
+const SKIP_RUNTIME_BAKE = process.argv.includes("--skip-runtime");
+
 async function buildCacheForSubdivisions(
   subdivisions: number,
   loaded: NonNullable<ReturnType<typeof loadEarthBinRasterForCache>>,
 ): Promise<void> {
   const { raster, getRegionScores, getRasterWindow } = loaded;
   console.log(`\n=== Earth globe cache: subdivisions=${subdivisions} ===`);
-  const globe = new Globe({ radius: 1, subdivisions });
+  // This command needs geographic cells, not the demo's duplicate display mesh.
+  // Omitting it is essential at subdivision eight, where the mesh is much larger
+  // than the already substantial terrain-classification working set.
+  const globe = new Globe({ radius: 1, subdivisions, buildMesh: false });
   const cityAnchors = buildCityAnchorConstraintsByLandmass(
     globe,
     getRegionScores,
@@ -654,7 +660,7 @@ async function buildCacheForSubdivisions(
     console.log("Added", addedHills, "hills from mountains dataset");
   }
 
-  try {
+  if (!SKIP_DISCRETE_WEATHER) try {
     const tpath = join(PUBLIC, "tavg_monthly.bin");
     const traw = readFileSync(tpath);
     const tab = traw.buffer.slice(
@@ -675,7 +681,7 @@ async function buildCacheForSubdivisions(
     // Optional; bake still runs without monthly stack
   }
 
-  try {
+  if (!SKIP_DISCRETE_WEATHER) try {
     const moisture = buildMoistureByTileFromTerrain(tileTerrain);
     const getSub = (utcMin: number) =>
       dateToSubsolarPoint(new Date(utcMin * 60000)).latDeg;
@@ -722,7 +728,7 @@ async function buildCacheForSubdivisions(
     console.warn("discrete-weather-bake write failed:", e);
   }
 
-  try {
+  if (!SKIP_RUNTIME_BAKE) try {
     const { w: cw, h: ch } = globeRuntimeBakeCoastResolution(globe.tileCount);
     const riverEdgesByTile = new Map<number, Set<number>>();
     for (const [k, arr] of Object.entries(riverEdges)) {

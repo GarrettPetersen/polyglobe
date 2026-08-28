@@ -8,9 +8,9 @@ import {
   voyageDurationMultiplier
 } from "./gamePacing.js";
 
-test("the default day-night cycle completes in twenty-four real seconds", () => {
-  assert.equal(DEFAULT_GAME_TIME_SCALE, 3600);
-  assert.equal(realSecondsPerGameDay(), 24);
+test("the default day-night cycle completes in thirty-two real seconds", () => {
+  assert.equal(DEFAULT_GAME_TIME_SCALE, 2700);
+  assert.equal(realSecondsPerGameDay(), 32);
 });
 
 test("calendar advancement is independent of render cadence", () => {
@@ -23,7 +23,7 @@ test("calendar advancement is independent of render cadence", () => {
   };
   assert.ok(Math.abs(advanceAtHz(30) - advanceAtHz(60)) < 1e-8);
   assert.ok(Math.abs(advanceAtHz(60) - advanceAtHz(120)) < 1e-8);
-  assert.ok(Math.abs(advanceAtHz(60) - 720) < 1e-8);
+  assert.ok(Math.abs(advanceAtHz(60) - 570) < 1e-8);
 });
 
 test("calendar advancement rejects malformed timing", () => {
@@ -32,8 +32,8 @@ test("calendar advancement rejects malformed timing", () => {
   assert.throws(() => advanceGameClockMinutes(0, 1, -1), /game time scale/);
 });
 
-test("cruise changes make voyages last a little longer in game time", () => {
+test("the larger globe makes voyages last substantially longer in game time", () => {
   assert.equal(SHIP_TOP_SPEED_SCALE, 0.85);
-  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) > 1.17);
-  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) < 1.18);
+  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) > 1.83);
+  assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) < 1.84);
 });

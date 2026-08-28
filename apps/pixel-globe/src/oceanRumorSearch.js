@@ -36,9 +36,6 @@ export function approximateOceanRumorTileId({
   });
   const north = tangentDirection(WORLD_NORTH, originPosition, FALLBACK_EAST);
   const east = tangentDirection(cross3(north, originPosition), originPosition, FALLBACK_EAST);
-  const visits = new Uint32Array(graph.tileCount);
-  const queue = new Int32Array(graph.tileCount);
-  let visitStamp = 0;
   let best = null;
 
   for (let index = 0; index < RUMOR_CANDIDATE_COUNT; index++) {
@@ -57,15 +54,11 @@ export function approximateOceanRumorTileId({
       originPosition[2] * Math.cos(distanceRad) + tangent[2] * Math.sin(distanceRad)
     ]);
     const requestedTileId = findNearestTileId(graph, directionIndex, candidate);
-    visitStamp++;
     const tileId = nearestNavigableWaterTile(
       graph,
       earthRows,
       navigationMask,
-      requestedTileId,
-      visits,
-      visitStamp,
-      queue
+      requestedTileId
     );
     const tilePosition = graphCenter(graph, tileId);
     const offsetKm = Math.acos(clamp(dot3(originPosition, tilePosition), -1, 1)) * earthRadiusKm;
@@ -96,23 +89,17 @@ function nearestNavigableWaterTile(
   graph,
   earthRows,
   navigationMask,
-  startTileId,
-  visits,
-  visitStamp,
-  queue
+  startTileId
 ) {
-  let readIndex = 0;
-  let writeIndex = 0;
-  queue[writeIndex++] = startTileId;
-  visits[startTileId] = visitStamp;
-
-  while (readIndex < writeIndex) {
-    const tileId = queue[readIndex++];
+  const visited = new Set([startTileId]);
+  const queue = [startTileId];
+  for (let readIndex = 0; readIndex < queue.length; readIndex++) {
+    const tileId = queue[readIndex];
     if (oceanRumorTileIsNavigable(earthRows, navigationMask, tileId)) return tileId;
     for (const neighborId of graph.neighbors[tileId]) {
-      if (visits[neighborId] === visitStamp) continue;
-      visits[neighborId] = visitStamp;
-      queue[writeIndex++] = neighborId;
+      if (visited.has(neighborId)) continue;
+      visited.add(neighborId);
+      queue.push(neighborId);
     }
   }
   throw new Error("Ocean rumor world contains no navigable water");

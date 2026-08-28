@@ -5,7 +5,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
-import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
+import { createDirectionIndex } from "./geodesic.js";
+import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { parseLandRoadNetwork } from "./landRoadNetwork.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import { roadTileIsPassable } from "./roadTerrain.js";
@@ -17,21 +18,26 @@ const srcRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = join(srcRoot, "..");
 const repoRoot = join(srcRoot, "../../..");
 const roadPath = join(appRoot, "public/assets/data/land-roads.json");
-const earthPath = join(repoRoot, "examples/globe-demo/public/earth-globe-cache-7.json");
+const earthPath = join(repoRoot, "examples/globe-demo/public/earth-globe-cache-8.json");
+const graphPath = join(repoRoot, "examples/globe-demo/public/geodesic-graph-8.bin");
 const cityPath = join(
   repoRoot,
   "examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
 );
 
 test("baked land roads use adjacent, passable land tiles and connect Aleppo westward", async () => {
-  const [roadSource, earthSource, cityCsv] = await Promise.all([
+  const [roadSource, earthSource, graphSource, cityCsv] = await Promise.all([
     readFile(roadPath, "utf8"),
     readFile(earthPath, "utf8"),
+    readFile(graphPath),
     readFile(cityPath, "utf8")
   ]);
   const roadData = JSON.parse(roadSource);
   const earth = JSON.parse(earthSource);
-  const graph = buildGeodesicGraph(earth.subdivisions);
+  const graph = decodeGeodesicGraphBake(
+    graphSource.buffer.slice(graphSource.byteOffset, graphSource.byteOffset + graphSource.byteLength),
+    earth.subdivisions
+  );
   const earthRows = applyManualTerrainOverrides(earth.tiles, earth.subdivisions);
   const navigation = buildWorldNavigationTopology({
     graph,

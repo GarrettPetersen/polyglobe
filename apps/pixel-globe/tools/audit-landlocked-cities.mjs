@@ -8,27 +8,34 @@ import {
   loadCityCatalogFromCsv
 } from "../src/cityCatalogData.js";
 import { cityHasPortAccess } from "../src/cityPortAccess.js";
-import { buildGeodesicGraph, createDirectionIndex } from "../src/geodesic.js";
+import { createDirectionIndex } from "../src/geodesic.js";
+import { decodeGeodesicGraphBake } from "../src/geodesicBake.js";
 import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
 import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
 import { placeCityCatalogOnWorld } from "../src/worldPortPlacement.js";
+import { WORLD_GLOBE_SUBDIVISIONS } from "../src/worldScale.js";
 
-const SUBDIVISIONS = 7;
+const SUBDIVISIONS = WORLD_GLOBE_SUBDIVISIONS;
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const sharedRoot = resolve(appRoot, "../../examples/globe-demo/public");
 const earthPath = resolve(sharedRoot, `earth-globe-cache-${SUBDIVISIONS}.json`);
+const graphPath = resolve(sharedRoot, `geodesic-graph-${SUBDIVISIONS}.bin`);
 const cityPath = resolve(
   sharedRoot,
   "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
 );
 
-const [earthSource, cityCsv] = await Promise.all([
+const [earthSource, graphSource, cityCsv] = await Promise.all([
   readFile(earthPath, "utf8"),
+  readFile(graphPath),
   readFile(cityPath, "utf8")
 ]);
 const earthCache = JSON.parse(earthSource);
 const earthRows = applyManualTerrainOverrides(earthCache.tiles, SUBDIVISIONS);
-const graph = buildGeodesicGraph(SUBDIVISIONS);
+const graph = decodeGeodesicGraphBake(
+  graphSource.buffer.slice(graphSource.byteOffset, graphSource.byteOffset + graphSource.byteLength),
+  SUBDIVISIONS
+);
 const directionIndex = createDirectionIndex(graph);
 const navigation = buildWorldNavigationTopology({
   graph,

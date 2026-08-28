@@ -12,6 +12,8 @@ import {
 
 export interface GlobeOptions extends GeodesicMeshOptions {
   subdivisions?: number;
+  /** Cache builders can omit the very large display mesh while retaining geographic tiles. */
+  buildMesh?: boolean;
 }
 
 const DIR_GRID_LON = 72;
@@ -45,7 +47,7 @@ export class Globe {
   private directionGrid: number[][];
 
   constructor(options: GlobeOptions = {}) {
-    const { radius = 1, subdivisions = 3 } = options;
+    const { radius = 1, subdivisions = 3, buildMesh = true } = options;
     this.radius = radius;
     this.subdivisions = subdivisions;
     this.tiles = buildGeodesicTiles(subdivisions);
@@ -61,7 +63,9 @@ export class Globe {
     }
     this.directionGrid = this.buildDirectionGrid();
 
-    const geometry = createGeodesicGeometry(this.tiles, { radius, subdivisions });
+    const geometry = buildMesh
+      ? createGeodesicGeometry(this.tiles, { radius, subdivisions })
+      : new THREE.BufferGeometry();
     this.mesh = new THREE.Mesh(geometry);
     this.mesh.name = "Polyglobe";
     this.mesh.userData = { globe: this };

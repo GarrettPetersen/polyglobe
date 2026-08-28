@@ -1,4 +1,6 @@
-export const DEFAULT_GAME_TIME_SCALE = 3600;
+import { WORLD_GAME_TIME_SCALE, WORLD_KINEMATIC_SCALE } from "./worldScale.js";
+
+export const DEFAULT_GAME_TIME_SCALE = WORLD_GAME_TIME_SCALE;
 export const SHIP_TOP_SPEED_SCALE = 0.85;
 
 export function advanceGameClockMinutes(currentMinute, elapsedSeconds, timeScale = DEFAULT_GAME_TIME_SCALE) {
@@ -22,7 +24,7 @@ export function realSecondsPerGameDay(timeScale = DEFAULT_GAME_TIME_SCALE) {
 export function voyageDurationMultiplier({
   previousTimeScale,
   nextTimeScale = DEFAULT_GAME_TIME_SCALE,
-  shipSpeedScale = SHIP_TOP_SPEED_SCALE
+  shipSpeedScale = SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE
 }) {
   if (!Number.isFinite(previousTimeScale) || previousTimeScale <= 0) {
     throw new Error(`Invalid previous game time scale: ${previousTimeScale}`);

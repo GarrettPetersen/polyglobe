@@ -23,7 +23,8 @@ const NAMED_RIVER_BASINS = Object.freeze([
     id: RIVER_BASIN_ID.MEKONG,
     name: "Mekong",
     anchorTileBySubdivisions: Object.freeze({
-      7: 93216
+      7: 93216,
+      8: 93216
     })
   }),
   basin(RIVER_BASIN_ID.AMAZON, "Amazon", 138275),
@@ -48,13 +49,14 @@ function basin(id, name, subdivisionSevenAnchorTileId) {
     id,
     name,
     anchorTileBySubdivisions: Object.freeze({
-      7: subdivisionSevenAnchorTileId
+      7: subdivisionSevenAnchorTileId,
+      8: subdivisionSevenAnchorTileId
     })
   });
 }
 
 export function buildNamedRiverBasinIds({ graph, riverMasks, subdivisions }) {
-  if (!graph || !Number.isInteger(graph.tileCount) || !Array.isArray(graph.edgeNeighbors)) {
+  if (!graph || !Number.isInteger(graph.tileCount) || !isGraphRowCollection(graph.edgeNeighbors)) {
     throw new Error("Named river basins require a geodesic graph");
   }
   if (!(riverMasks instanceof Uint8Array) || riverMasks.length !== graph.tileCount) {
@@ -110,3 +112,4 @@ function edgeIndexTowardNeighbor(graph, tileId, neighborId) {
 function riverEdgeSet(masks, tileId, edge) {
   return Number.isInteger(edge) && (masks[tileId] & (1 << edge)) !== 0;
 }
+import { isGraphRowCollection } from "./geodesicBake.js";

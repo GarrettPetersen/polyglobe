@@ -1,5 +1,6 @@
 import { SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
 import { damageResistanceRollSucceeds } from "./perkSystem.js";
+import { WORLD_KINEMATIC_SCALE } from "./worldScale.js";
 
 export const DEFAULT_PLAYER_SHIP_SLUG = "brigantine";
 export const SHIP_PROPULSION_SAIL = "sail";
@@ -334,8 +335,8 @@ function stats(
   return Object.freeze({
     slug,
     cannons,
-    accelerationRad,
-    topSpeedRad: topSpeedRad * SHIP_TOP_SPEED_SCALE,
+    accelerationRad: accelerationRad * WORLD_KINEMATIC_SCALE,
+    topSpeedRad: topSpeedRad * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE,
     upwindStallAngleDeg: effectiveUpwindStallAngleDeg,
     upwindStallAngleRad: effectiveUpwindStallAngleDeg * DEG_TO_RAD,
     turnRateRad,

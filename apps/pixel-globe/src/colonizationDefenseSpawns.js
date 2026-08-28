@@ -1,4 +1,5 @@
 import { findNearestTileId } from "./geodesic.js";
+import { worldTilesWithinArcRadius } from "./worldTileNeighborhood.js";
 
 export const COLONIZATION_DEFENSE_MIN_SPAWN_DISTANCE_PX = 18;
 export const COLONIZATION_DEFENSE_MAX_SPAWN_DISTANCE_PX = 48;
@@ -35,10 +36,15 @@ export function colonizationDefenseSpawnTileIds({
   const north = tangentNorth(target);
   const east = normalize(cross(north, target));
   const candidates = [];
-  for (let tileId = 0; tileId < graph.tileCount; tileId += 1) {
+  const nearbyTiles = worldTilesWithinArcRadius({
+    graph,
+    originTileId: targetTileId,
+    maxDistanceRad: maxDistancePx / pixelsPerRadian
+  });
+  for (const { tileId, distanceRad } of nearbyTiles) {
     if (navigationMask[tileId] !== 1) continue;
     const vector = centerVector(graph, tileId);
-    const distancePx = Math.acos(clamp(dot(target, vector), -1, 1)) * pixelsPerRadian;
+    const distancePx = distanceRad * pixelsPerRadian;
     if (distancePx < minDistancePx || distancePx > maxDistancePx) continue;
     const tangent = normalizeOrNull([
       vector[0] - target[0] * dot(target, vector),

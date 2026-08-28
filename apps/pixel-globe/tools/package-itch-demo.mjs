@@ -63,8 +63,9 @@ const REQUIRED_RUNTIME_FILES = Object.freeze([
   "assets/vehicles/bactrian-caravan/bactrian-caravan-walk-atlas-32-headings-shadow.png",
   "assets/vehicles/ship-render-layers/manifest.json",
   "assets/vehicles/ship-render-layers/ship-render-layers-0.bin",
-  "shared/earth-globe-cache-7.json",
-  "shared/discrete-weather-bake-7.bin",
+  "shared/earth-globe-cache-8.json",
+  "shared/geodesic-graph-8.bin",
+  "shared/discrete-weather-bake-6.bin",
   "shared/globe-runtime-bake-7.bin"
 ]);
 

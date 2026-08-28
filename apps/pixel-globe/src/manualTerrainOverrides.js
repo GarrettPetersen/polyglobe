@@ -1,3 +1,6 @@
+import { SUBDIVISION_EIGHT_MAP_DATA } from "./subdivisionEightMapData.js";
+import { requiredSubdivisionMapData } from "./mapCorrectionData.js";
+
 const SHALLOW_WATER_ELEVATION = -0.20500000000000002;
 const LAKE_MALAWI_ELEVATION = -0.0369949146978479;
 
@@ -12,7 +15,8 @@ export const MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
     31618, // Mozambique's southwest island channel.
     125890, // Mozambique's northwest island channel.
     125896 // Mozambique's northeast island channel.
-  ])
+  ]),
+  8: SUBDIVISION_EIGHT_MAP_DATA.shallowWaterTileIds
 });
 
 // Lake Malawi is narrower than a subdivision-seven hex in places. The base
@@ -23,7 +27,8 @@ export const MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
     Object.freeze({ tileId: 124778, sourceTerrain: "humid_subtropical" }),
     Object.freeze({ tileId: 7886, sourceTerrain: "humid_subtropical" }),
     Object.freeze({ tileId: 31571, sourceTerrain: "subtropical_highland" })
-  ])
+  ]),
+  8: SUBDIVISION_EIGHT_MAP_DATA.lakeOverrides
 });
 
 // Restore small, historically recognizable landforms that disappear at the
@@ -464,14 +469,27 @@ export const MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
       elevation: -0.042,
       landmassId: 1313
     })
-  ])
+  ]),
+  8: SUBDIVISION_EIGHT_MAP_DATA.landOverrides
 });
 
 export function applyManualTerrainOverrides(earthRows, subdivisions) {
   if (!Array.isArray(earthRows)) throw new Error("Manual terrain overrides require Earth tile rows");
-  const shallowWaterTileIds = MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS[subdivisions] || [];
-  const lakeOverrides = MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS[subdivisions] || [];
-  const landOverrides = MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[subdivisions] || [];
+  const shallowWaterTileIds = requiredSubdivisionMapData(
+    MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS,
+    subdivisions,
+    "manual shallow-water corrections"
+  );
+  const lakeOverrides = requiredSubdivisionMapData(
+    MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS,
+    subdivisions,
+    "manual lake corrections"
+  );
+  const landOverrides = requiredSubdivisionMapData(
+    MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS,
+    subdivisions,
+    "manual land corrections"
+  );
   if (
     shallowWaterTileIds.length === 0 &&
     lakeOverrides.length === 0 &&
@@ -534,9 +552,11 @@ export function assertManualShallowWaterReachesOcean(reachableNavigationMask, su
   if (!reachableNavigationMask || typeof reachableNavigationMask.length !== "number") {
     throw new Error("Manual shallow-water validation requires a navigation mask");
   }
-  const tileIds = [
-    ...(MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS[subdivisions] || [])
-  ];
+  const tileIds = requiredSubdivisionMapData(
+    MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS,
+    subdivisions,
+    "manual shallow-water corrections"
+  );
   for (const tileId of tileIds) {
     if (reachableNavigationMask[tileId] !== 1) {
       throw new Error(`Manual shallow-water tile ${tileId} is isolated from the ocean`);

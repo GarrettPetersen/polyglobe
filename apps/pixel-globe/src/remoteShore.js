@@ -33,7 +33,7 @@ export function isRemoteCastawayShore({
 }
 
 function validateInputs({ graph, earthRows, settlementTileIds, shoreTileId, minimumDistance }) {
-  if (!graph || !Array.isArray(graph.neighbors) || !Number.isInteger(graph.tileCount)) {
+  if (!graph || !isGraphRowCollection(graph.neighbors) || !Number.isInteger(graph.tileCount)) {
     throw new Error("Remote shore search requires a geodesic graph");
   }
   if (!Array.isArray(earthRows) || earthRows.length !== graph.tileCount ||
@@ -50,3 +50,4 @@ function validateInputs({ graph, earthRows, settlementTileIds, shoreTileId, mini
     throw new Error(`Invalid castaway remote distance: ${minimumDistance}`);
   }
 }
+import { isGraphRowCollection } from "./geodesicBake.js";

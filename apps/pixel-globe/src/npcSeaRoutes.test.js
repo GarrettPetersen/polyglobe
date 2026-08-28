@@ -1710,6 +1710,22 @@ test("worker simulation updates distant ships while preserving visible ships", (
   assert.equal(routes.shipById.get(distantShip.id).specie, simulatedDistantShip.specie);
 });
 
+test("worker restore reconciles an obsolete NPC maximum hull before validation", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const target = routes.ships[1];
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  const simulated = snapshot.ships.find((ship) => ship.id === target.id);
+  simulated.maxHitPoints = target.maxHitPoints / 2;
+  assert.ok(simulated.hitPoints > simulated.maxHitPoints);
+
+  applyNpcSeaRouteSimulationSnapshot(routes, snapshot);
+
+  const restored = routes.shipById.get(target.id);
+  assert.equal(restored.maxHitPoints, shipStatsForSlug(restored.slug).hitPoints);
+  assert.equal(restored.hitPoints, restored.maxHitPoints);
+});
+
 test("strategic NPC snapshots serialize worldwide traffic in bounded batches", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

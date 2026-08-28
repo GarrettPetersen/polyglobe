@@ -9,7 +9,8 @@ import {
 } from "./localSave.js";
 import {
   migrateSavedVoyageCore,
-  recoverSavedVoyageWorldClock
+  recoverSavedVoyageWorldClock,
+  savedVoyageWorldTopology
 } from "./saveCompatibility.js";
 
 const FIXTURE_DIRECTORY = new URL("./test-fixtures/saves/", import.meta.url);
@@ -91,6 +92,26 @@ test("ordinary saves retain their exact world clock", () => {
     voyageStartMinute: 1000,
     recoveredDebtClockMinutes: 0
   });
+});
+
+test("released saves migrate from the subdivision-seven world without mutation", () => {
+  const payload = { gameState: { divergentHistory: true } };
+  const original = structuredClone(payload);
+  assert.deepEqual(savedVoyageWorldTopology(payload, 8), {
+    savedSubdivisions: 7,
+    currentSubdivisions: 8,
+    changed: true
+  });
+  assert.deepEqual(payload, original);
+  assert.deepEqual(savedVoyageWorldTopology({ ...payload, worldSubdivisions: 8 }, 8), {
+    savedSubdivisions: 8,
+    currentSubdivisions: 8,
+    changed: false
+  });
+  assert.throws(
+    () => savedVoyageWorldTopology({ worldSubdivisions: 9 }, 8),
+    /cannot load/
+  );
 });
 
 function compatibilityFacts(payload) {

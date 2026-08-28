@@ -6,6 +6,8 @@ import {
   removeBlockedRiverEdgesFromMasks,
   removeBlockedRiverMouthEdgesFromMasks
 } from "./manualRiverHexChains.js";
+import { isGraphRowCollection } from "./geodesicBake.js";
+import { requiredSubdivisionMapData } from "./mapCorrectionData.js";
 import { buildNamedRiverBasinIds } from "./riverBasins.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 
@@ -95,7 +97,9 @@ export function riverEdgeSet(masks, tileId, edge) {
 
 function buildRiverMasks({ graph, earthRows, earthCache, subdivisions }) {
   if (!earthCache.riverEdges || typeof earthCache.riverEdges !== "object") {
-    throw new Error("Earth cache is missing riverEdges; rebuild examples/globe-demo/public/earth-globe-cache-7.json");
+    throw new Error(
+      `Earth cache is missing riverEdges for subdivision ${subdivisions}; rebuild the Earth cache`
+    );
   }
   const riverMasks = new Uint8Array(graph.tileCount);
   const riverToWaterMasks = new Uint8Array(graph.tileCount);
@@ -110,14 +114,22 @@ function buildRiverMasks({ graph, earthRows, earthCache, subdivisions }) {
   const removedBlockedHalfEdges = removeBlockedRiverEdgesFromMasks(
     graph,
     riverMasks,
-    MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[subdivisions] || []
+    requiredSubdivisionMapData(
+      MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS,
+      subdivisions,
+      "blocked river-edge corrections"
+    )
   );
   const removedBlockedMouthHalfEdges = removeBlockedRiverMouthEdgesFromMasks(
     graph,
     earthRows,
     riverMasks,
     riverToWaterMasks,
-    MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[subdivisions] || []
+    requiredSubdivisionMapData(
+      MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
+      subdivisions,
+      "blocked river-mouth corrections"
+    )
   );
   const manualHalfEdges = mergeManualRiverChains(graph, riverMasks, subdivisions);
   const manualMouthHalfEdges = mergeManualRiverMouthEdges(
@@ -156,7 +168,11 @@ function addCacheRiverEdges(graph, masks, source, label) {
 }
 
 function mergeManualRiverChains(graph, masks, subdivisions) {
-  const chains = MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[subdivisions] || [];
+  const chains = requiredSubdivisionMapData(
+    MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
+    subdivisions,
+    "manual river-chain corrections"
+  );
   let added = 0;
   for (const chain of chains) {
     for (let index = 0; index < chain.length - 1; index++) {
@@ -167,7 +183,11 @@ function mergeManualRiverChains(graph, masks, subdivisions) {
 }
 
 function mergeManualRiverMouthEdges(graph, earthRows, masks, toWaterMasks, subdivisions) {
-  const mouths = MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[subdivisions] || [];
+  const mouths = requiredSubdivisionMapData(
+    MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
+    subdivisions,
+    "manual river-mouth corrections"
+  );
   let added = 0;
   for (const { tile, edge } of mouths) {
     const neighborId = graph.edgeNeighbors[tile]?.[edge];
@@ -245,7 +265,7 @@ function buildOceanReachableNavigationMask({ graph, earthRows, riverMasks, river
 }
 
 function validateWorldInputs(graph, earthRows, subdivisions) {
-  if (!graph || !Number.isInteger(graph.tileCount) || !Array.isArray(graph.neighbors)) {
+  if (!graph || !Number.isInteger(graph.tileCount) || !isGraphRowCollection(graph.neighbors)) {
     throw new Error("World navigation requires a geodesic graph");
   }
   if (!Array.isArray(earthRows) || earthRows.length !== graph.tileCount) {

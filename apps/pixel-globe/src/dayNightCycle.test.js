@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { realSecondsPerGameDay } from "./gamePacing.js";
 
 import {
   DAY_NIGHT_FULL_DAY_ALTITUDE,
@@ -15,18 +16,18 @@ import {
   snapshotFirstDayNightNoticeState
 } from "./dayNightCycle.js";
 
-test("stylized dawn and dusk each span four seconds of the default day", () => {
+test("stylized dawn and dusk each span more than five seconds of the longer day", () => {
   assert.equal(DAY_NIGHT_FULL_DAY_ALTITUDE, 0.5);
   assert.equal(DAY_NIGHT_FULL_NIGHT_ALTITUDE, -0.5);
-  assert.equal(equatorialCycleSecondsBetween(
+  assert.ok(Math.abs(equatorialCycleSecondsBetween(
     DAY_NIGHT_FULL_DAY_ALTITUDE,
     DAY_NIGHT_FULL_NIGHT_ALTITUDE
-  ), 4);
+  ) - 16 / 3) < 1e-9);
   const warmSeconds = equatorialCycleSecondsBetween(
     DAY_NIGHT_WARM_END_ALTITUDE,
     DAY_NIGHT_WARM_START_ALTITUDE
   );
-  assert.ok(warmSeconds > 3.6 && warmSeconds < 3.7);
+  assert.ok(warmSeconds > 4.8 && warmSeconds < 5);
 });
 
 test("visual twilight eases through warm light without changing full day or night", () => {
@@ -100,5 +101,5 @@ function advance(state, sunAltitude, elapsedVoyageMinutes) {
 function equatorialCycleSecondsBetween(descendingStartAltitude, descendingEndAltitude) {
   const startAngle = Math.acos(descendingStartAltitude);
   const endAngle = Math.acos(descendingEndAltitude);
-  return (endAngle - startAngle) / (Math.PI * 2) * 24;
+  return (endAngle - startAngle) / (Math.PI * 2) * realSecondsPerGameDay();
 }

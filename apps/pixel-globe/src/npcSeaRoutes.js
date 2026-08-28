@@ -1257,14 +1257,7 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
         if (!ship || typeof ship.id !== "string" || ship.id === "" || plan.shipById.has(ship.id)) {
           throw new Error(`Invalid simulated NPC ship id: ${ship?.id}`);
         }
-        if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
-            !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
-          throw new Error(`Invalid simulated NPC hull: ${ship.id}`);
-        }
-        assertFactionId(ship.factionId);
-        reconcileNpcNationalCircuitFields(ship, `simulated ship ${ship.id}`);
-        reconcileNpcPortResponseFields(ship, `simulated ship ${ship.id}`);
-        reconcileNpcCargoCapacity(ship, "worker simulation");
+        reconcileRestoredNpcShip(ship, "worker simulation");
         if (plan.preservedIds.has(ship.id)) {
           ship.visualNavigation = plan.existingVisualNavigation.get(ship.id) || null;
         }
@@ -1580,7 +1573,7 @@ function reconcileRestoredNpcShip(ship, context) {
     throw new Error(`Invalid restored NPC ship id: ${ship?.id}`);
   }
   if (!Number.isFinite(ship.hitPoints) || ship.hitPoints <= 0 ||
-      !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints < ship.hitPoints) {
+      !Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints <= 0) {
     throw new Error(`Invalid restored NPC hull: ${ship.id}`);
   }
   ship.cultureType = ship.cultureType || ship.currentPort?.cityType || null;

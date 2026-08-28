@@ -1,4 +1,5 @@
 import { planChartSettlementTowardTargets } from "./chartReframe.js";
+import { isGraphNeighborRow, isGraphRowCollection } from "./geodesicBake.js";
 
 const CHART_REBUILD_REASON_KEYS = Object.freeze([
   "missingChart",
@@ -29,7 +30,7 @@ export function planChartLayoutTransaction({
       !(appliedTileIds instanceof Set)) {
     throw new Error("Chart layout transaction requires positions and tile ids");
   }
-  if (!Array.isArray(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
+  if (!isGraphRowCollection(neighborsById) || !(surfaceMaskById instanceof Uint8Array)) {
     throw new Error("Chart layout transaction requires topology and surface classes");
   }
   if (typeof referencePositionsForIds !== "function") {
@@ -48,7 +49,7 @@ export function planChartLayoutTransaction({
   const topologyIds = new Set(tileIds);
   for (const id of tileIds) {
     const neighbors = neighborsById[id];
-    if (!Array.isArray(neighbors)) {
+    if (!isGraphNeighborRow(neighbors)) {
       throw new Error(`Chart layout transaction is missing neighbors for tile ${id}`);
     }
     for (const neighborId of neighbors) {

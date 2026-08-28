@@ -41,6 +41,27 @@ export function migrateSavedVoyageCore(payload) {
   return { savedShip, shipStats, gameState };
 }
 
+export function savedVoyageWorldTopology(payload, currentSubdivisions) {
+  if (!payload || typeof payload !== "object") throw new Error("Saved voyage payload is missing");
+  if (!Number.isInteger(currentSubdivisions) || currentSubdivisions < 0) {
+    throw new Error(`Current world subdivision is invalid: ${currentSubdivisions}`);
+  }
+  const savedSubdivisions = payload.worldSubdivisions === undefined
+    ? 7
+    : payload.worldSubdivisions;
+  if (!Number.isInteger(savedSubdivisions) || savedSubdivisions < 0 ||
+      savedSubdivisions > currentSubdivisions) {
+    throw new Error(
+      `Saved voyage world subdivision ${savedSubdivisions} cannot load into ${currentSubdivisions}`
+    );
+  }
+  return Object.freeze({
+    savedSubdivisions,
+    currentSubdivisions,
+    changed: savedSubdivisions !== currentSubdivisions
+  });
+}
+
 export function recoverSavedVoyageWorldClock(payload, gameState) {
   if (!payload?.worldClock || !Number.isFinite(payload.worldClock.currentMinute) ||
       !Number.isFinite(payload.worldClock.voyageStartMinute)) {

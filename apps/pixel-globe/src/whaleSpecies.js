@@ -1,3 +1,5 @@
+import { WORLD_KINEMATIC_SCALE } from "./worldScale.js";
+
 export const WHALE_SPECIES_RIGHT = "north-atlantic-right-whale";
 export const WHALE_SPECIES_BLUE = "blue-whale";
 export const WHALE_SPECIES_HUMPBACK = "humpback-whale";
@@ -214,7 +216,8 @@ function species(config) {
   if (typeof config.range !== "function") throw new Error(`Whale species ${config.id} has no range`);
   return Object.freeze({
     ...config,
-    cruiseSpeedRad: config.cruiseSpeedRad * WHALE_CRUISE_SPEED_SCALE
+    cruiseSpeedRad: config.cruiseSpeedRad * WHALE_CRUISE_SPEED_SCALE * WORLD_KINEMATIC_SCALE,
+    towingSpeedRad: config.towingSpeedRad * WORLD_KINEMATIC_SCALE
   });
 }
 
