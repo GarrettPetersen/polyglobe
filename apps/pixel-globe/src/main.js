@@ -3698,7 +3698,7 @@ let whaleBackgroundMovementBucket = 0;
 let whaleAdvanceJob = null;
 const whaleVisualPresentations = new Map();
 let icebergSpawnCandidates = [];
-let activeIcebergSpawnCandidatesDay = -1;
+let activeIcebergSpawnCandidatesMaskDay = -1;
 let activeIcebergSpawnCandidates = [];
 let icebergSpawnCandidateRefreshJob = null;
 let icebergAdvanceJob = null;
@@ -38560,16 +38560,16 @@ function fineWaterTilesBorderingClimateTile(climateTileId) {
 }
 
 function currentIcebergSpawnCandidates() {
-  if (activeIcebergSpawnCandidatesDay !== weatherParts.dayIndex) {
+  if (activeIcebergSpawnCandidatesMaskDay !== weatherMaskDayIndex) {
     throw new Error(
-      `Iceberg calving waters are not ready for weather day ${weatherParts.dayIndex}`
+      `Iceberg calving waters are not ready for committed ice day ${weatherMaskDayIndex}`
     );
   }
   return activeIcebergSpawnCandidates;
 }
 
 function invalidateIcebergSpawnCandidates() {
-  activeIcebergSpawnCandidatesDay = -1;
+  activeIcebergSpawnCandidatesMaskDay = -1;
   activeIcebergSpawnCandidates = [];
   icebergSpawnCandidateRefreshJob = null;
   // A staged advance captures the current day's open-water candidates. Discard
@@ -38589,7 +38589,7 @@ function beginIcebergSpawnCandidateRefresh() {
     ));
   }
   icebergSpawnCandidateRefreshJob = {
-    dayIndex: weatherParts.dayIndex,
+    maskDayIndex: weatherMaskDayIndex,
     mapping: beginIncrementalUniqueMapping({
       source: boundaryCandidates,
       mapItem: icebergClearWaterCandidate,
@@ -38604,24 +38604,27 @@ function advanceIcebergSpawnCandidateRefresh(maxCandidates) {
   }
   beginIcebergSpawnCandidateRefresh();
   const job = icebergSpawnCandidateRefreshJob;
-  if (job.dayIndex !== weatherParts.dayIndex) {
+  if (job.maskDayIndex !== weatherMaskDayIndex) {
     throw new Error(
-      `Iceberg calving refresh crossed weather days ${job.dayIndex} and ${weatherParts.dayIndex}`
+      `Iceberg calving refresh crossed committed ice days ` +
+        `${job.maskDayIndex} and ${weatherMaskDayIndex}`
     );
   }
   const progress = advanceIncrementalUniqueMapping(job.mapping, maxCandidates);
   if (!progress.complete) return false;
   activeIcebergSpawnCandidates = progress.items;
-  activeIcebergSpawnCandidatesDay = job.dayIndex;
+  activeIcebergSpawnCandidatesMaskDay = job.maskDayIndex;
   icebergSpawnCandidateRefreshJob = null;
   if (activeIcebergSpawnCandidates.length === 0) {
-    throw new Error(`Polar ice history exposes no open calving water on weather day ${weatherParts.dayIndex}`);
+    throw new Error(
+      `Polar ice history exposes no open calving water on committed ice day ${weatherMaskDayIndex}`
+    );
   }
   return true;
 }
 
 function refreshIcebergSpawnCandidatesSynchronously() {
-  while (activeIcebergSpawnCandidatesDay !== weatherParts.dayIndex) {
+  while (activeIcebergSpawnCandidatesMaskDay !== weatherMaskDayIndex) {
     advanceIcebergSpawnCandidateRefresh(Number.MAX_SAFE_INTEGER);
   }
   return currentIcebergSpawnCandidates();
@@ -38747,7 +38750,7 @@ function updateIcebergs(dt) {
     return collisionChanged;
   }
   if (!icebergAdvanceJob) {
-    if (activeIcebergSpawnCandidatesDay !== weatherParts.dayIndex) {
+    if (activeIcebergSpawnCandidatesMaskDay !== weatherMaskDayIndex) {
       advanceIcebergSpawnCandidateRefresh(ICEBERG_CALVING_CANDIDATES_PER_FRAME);
       return collisionChanged;
     }

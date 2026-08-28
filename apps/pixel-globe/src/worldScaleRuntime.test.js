@@ -57,6 +57,17 @@ test("a weather-day change cancels staged iceberg work that captured the old ice
   assert.match(invalidate, /icebergAdvanceJob = null/);
 });
 
+test("incremental calving work follows the committed ice mask across midnight", () => {
+  const lifecycle = functionSource(
+    "currentIcebergSpawnCandidates",
+    "icebergClearWaterCandidate"
+  );
+  assert.doesNotMatch(lifecycle, /weatherParts\.dayIndex/);
+  assert.match(lifecycle, /maskDayIndex: weatherMaskDayIndex/);
+  assert.match(lifecycle, /job\.maskDayIndex !== weatherMaskDayIndex/);
+  assert.match(lifecycle, /activeIcebergSpawnCandidatesMaskDay !== weatherMaskDayIndex/);
+});
+
 test("world-to-climate maps are reused whenever weather resolutions match", () => {
   const mappingStart = source.indexOf("fineToCoarseWeatherTileId = buildFineToCoarseTileMapping");
   const mappingEnd = source.indexOf("const discreteWeatherTileCount", mappingStart);
