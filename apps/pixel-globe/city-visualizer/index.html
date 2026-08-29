@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#111711">
+    <title>Marque &amp; Reprisal — City Visualizer</title>
+    <link rel="stylesheet" href="./styles.css">
+  </head>
+  <body>
+    <main class="visualizer" aria-label="Marque and Reprisal city visualizer">
+      <section id="stage" class="stage" aria-label="Port scene">
+        <canvas id="scene" width="455" height="256" aria-label="Loading city view"></canvas>
+        <p id="loading" class="loading" role="status">Preparing the harbour…</p>
+      </section>
+
+      <details id="drawer" class="drawer">
+        <summary>Scene</summary>
+        <form class="drawer__body" autocomplete="off">
+          <label class="field field--wide">
+            <span>Water-accessible city</span>
+            <select id="city-select" aria-label="Water-accessible city"></select>
+          </label>
+          <label class="field">
+            <span>Logical viewport</span>
+            <select id="viewport-select">
+              <option value="auto">Auto — game rule</option>
+              <option value="canonical">455 × 256</option>
+              <option value="wide">910 × 256</option>
+              <option value="portrait">256 × 455</option>
+              <option value="tall">256 × 910</option>
+            </select>
+          </label>
+          <label class="field">
+            <span>Dockside ship</span>
+            <select id="ship-select"></select>
+          </label>
+
+          <fieldset>
+            <legend>Art overrides</legend>
+            <label class="field"><span>Water</span><select id="approach-override"></select></label>
+            <label class="field"><span>Dock</span><select id="dock-override"></select></label>
+            <label class="field"><span>Fortifications</span><select id="fort-override"></select></label>
+            <label class="field"><span>Mountains</span><select id="mountain-override"></select></label>
+            <label class="field"><span>Left terrain</span><select id="left-terrain-override"></select></label>
+            <label class="field"><span>Right terrain</span><select id="right-terrain-override"></select></label>
+          </fieldset>
+
+          <button id="reset-overrides" class="reset" type="button">Return to geography</button>
+          <dl id="rule-ledger" class="rule-ledger"></dl>
+          <p class="fallback-note">Northern European architecture is the current fallback for every art region.</p>
+        </form>
+      </details>
+    </main>
+
+    <dialog id="destination-dialog" class="destination-dialog">
+      <form method="dialog">
+        <p class="destination-dialog__eyebrow">City destination</p>
+        <h2 id="destination-title">Inn</h2>
+        <p id="destination-copy"></p>
+        <button value="close">Return to the quay</button>
+      </form>
+    </dialog>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>

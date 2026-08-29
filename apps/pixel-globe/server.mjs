@@ -26,6 +26,12 @@ const contentTypes = new Map([
 
 function resolveStaticPath(urlPath) {
   if (urlPath === "/") return join(appRoot, "index.html");
+  if (urlPath === "/city-visualizer" || urlPath === "/city-visualizer/") {
+    return join(appRoot, "city-visualizer/index.html");
+  }
+  if (urlPath.startsWith("/city-visualizer/")) {
+    return join(appRoot, urlPath.slice(1));
+  }
   if (urlPath.startsWith("/src/")) return join(appRoot, urlPath.slice(1));
   if (urlPath === "/vendor/fflate.js") {
     return join(appRoot, "node_modules/fflate/esm/browser.js");
@@ -85,4 +91,5 @@ const server = createServer((req, res) => {
 
 server.listen(port, "127.0.0.1", () => {
   console.log(`Marque & Reprisal prototype: http://127.0.0.1:${port}/`);
+  console.log(`City visualizer: http://127.0.0.1:${port}/city-visualizer/`);
 });

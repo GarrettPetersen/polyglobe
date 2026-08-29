@@ -1,0 +1,457 @@
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import {
+  CITY_DATA_YEAR,
+  cityLabelText,
+  loadCityCatalogFromCsv
+} from "../src/cityCatalogData.js";
+import {
+  buildGeodesicGraph,
+  createDirectionIndex,
+  cross3,
+  findNearestTileId,
+  graphCenter,
+  normalize3
+} from "../src/geodesic.js";
+import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
+import {
+  TERRAIN_TRAIT,
+  terrainHasAnyTrait,
+  terrainHasTrait
+} from "../src/terrainMetadata.js";
+import { isWaterSurfaceRow } from "../src/terrainSurface.js";
+import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
+
+const GEOGRAPHY_SUBDIVISIONS = 7;
+const NEIGHBORHOOD_RINGS = 5;
+const MAX_APPROACH_SEARCH_RINGS = 18;
+const EARTH_RADIUS_KM = 6371;
+const CITY_VISUALIZER_FORMAT = "marque-city-visualizer-catalog";
+const CITY_VISUALIZER_VERSION = 1;
+
+const toolRoot = dirname(fileURLToPath(import.meta.url));
+const appRoot = resolve(toolRoot, "..");
+const repoRoot = resolve(appRoot, "../..");
+const sharedRoot = resolve(repoRoot, "examples/globe-demo/public");
+const outputPath = resolve(appRoot, "city-visualizer/data/cities.json");
+
+const [earthText, cityCsv, mountainText, sailingText] = await Promise.all([
+  readFile(resolve(sharedRoot, `earth-globe-cache-${GEOGRAPHY_SUBDIVISIONS}.json`), "utf8"),
+  readFile(
+    resolve(sharedRoot, "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"),
+    "utf8"
+  ),
+  readFile(resolve(sharedRoot, "mountains.json"), "utf8"),
+  readFile(resolve(appRoot, "public/assets/data/port-sailing-distances.json"), "utf8")
+]);
+
+const earthCache = JSON.parse(earthText);
+if (earthCache.subdivisions !== GEOGRAPHY_SUBDIVISIONS) {
+  throw new Error(
+    `Expected geography subdivision ${GEOGRAPHY_SUBDIVISIONS}, got ${earthCache.subdivisions}`
+  );
+}
+const earthRows = applyManualTerrainOverrides(earthCache.tiles, GEOGRAPHY_SUBDIVISIONS);
+const graph = buildGeodesicGraph(GEOGRAPHY_SUBDIVISIONS);
+if (graph.tileCount !== earthRows.length) {
+  throw new Error(`City visualizer world mismatch: graph ${graph.tileCount}, terrain ${earthRows.length}`);
+}
+const directionIndex = createDirectionIndex(graph);
+const navigation = buildWorldNavigationTopology({
+  graph,
+  earthRows,
+  earthCache,
+  subdivisions: GEOGRAPHY_SUBDIVISIONS
+});
+const mountains = JSON.parse(mountainText);
+const sailing = JSON.parse(sailingText);
+const cityCatalog = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
+const currentPorts = sailing.endpoints.filter((endpoint) => endpoint.kind === "port");
+const cityByEndpointKey = indexCityCatalog(cityCatalog);
+
+const cities = currentPorts.map((endpoint) => {
+  const city = cityByEndpointKey.get(endpointKey(endpoint.name, endpoint.country));
+  if (!city) throw new Error(`No city record for current port ${endpoint.name}, ${endpoint.country}`);
+  return visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows, navigation, mountains });
+}).sort((a, b) => a.label.localeCompare(b.label) || a.country.localeCompare(b.country));
+
+const output = Object.freeze({
+  format: CITY_VISUALIZER_FORMAT,
+  version: CITY_VISUALIZER_VERSION,
+  year: CITY_DATA_YEAR,
+  geography: Object.freeze({
+    source: "production Earth terrain, peak, river, and navigation data",
+    subdivisions: GEOGRAPHY_SUBDIVISIONS,
+    earthCacheVersion: String(earthCache.version),
+    neighborhoodRings: NEIGHBORHOOD_RINGS,
+    mountainVisibility: "elevation-weighted horizon from named mountains and production peak heights"
+  }),
+  cityCount: cities.length,
+  cities
+});
+
+await mkdir(dirname(outputPath), { recursive: true });
+await writeFile(outputPath, `${JSON.stringify(output)}\n`);
+console.log(
+  `[pixel-globe] baked ${cities.length} water-accessible city scenes to ${outputPath} ` +
+  `(terrain subdivision ${GEOGRAPHY_SUBDIVISIONS}, source ports subdivision ${sailing.subdivisions})`
+);
+
+function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows, navigation, mountains }) {
+  const coordinates = city.placementLat === undefined
+    ? { lat: city.lat, lon: city.lon }
+    : { lat: city.placementLat, lon: city.placementLon };
+  const nearestTileId = findNearestTileId(graph, directionIndex, latLonToDirection(coordinates.lat, coordinates.lon));
+  const cityTileId = nearestTileMatching(graph, nearestTileId, (tileId) => !isWaterSurfaceRow(earthRows[tileId]));
+  if (cityTileId === undefined) throw new Error(`No land terrain near ${cityLabelText(city)}`);
+  const access = nearestAccessTile({ graph, earthRows, navigation, cityTileId });
+  if (!access) throw new Error(`No water approach near ${cityLabelText(city)}`);
+  const approach = approachKind(access.tileId, earthRows, navigation);
+  const shorelineAxis = shorelineTangent(graph, cityTileId, access.tileId);
+  const neighborhood = terrainNeighborhood({
+    graph,
+    earthRows,
+    cityTileId,
+    shorelineAxis
+  });
+  // Production peaks supply coverage between named landmarks. Their real
+  // elevation still has to clear the same horizon test, so a low nearby hill
+  // cannot turn into a mountain backdrop merely because it is a local maximum.
+  const peakSides = visiblePeakTileSides({
+    graph,
+    cityTileId,
+    shorelineAxis,
+    peakEntries: earthCache.peaks || []
+  });
+  const mountainVisibility = visibleMountainSides({
+    city,
+    mountains,
+    graph,
+    cityTileId,
+    shorelineAxis,
+    nearbyPeakSides: peakSides
+  });
+  const dock = dockStyle(city, approach);
+  const fortification = fortificationEstimate(city);
+  return Object.freeze({
+    id: city.cityId,
+    tileId: endpoint.tileId,
+    geographyTileId: cityTileId,
+    label: cityLabelText(city),
+    city: city.city,
+    country: city.country,
+    lat: city.lat,
+    lon: city.lon,
+    population: Math.round(city.population),
+    cityType: city.cityType,
+    settlementType: city.settlementType || "city",
+    factionId: city.factionId,
+    capital: Boolean(city.declaredCapitalFactionId),
+    approach,
+    dock,
+    fortified: fortification.fortified,
+    fortificationConfidence: fortification.confidence,
+    mountains: Object.freeze({
+      left: mountainVisibility.left,
+      right: mountainVisibility.right,
+      nearest: mountainVisibility.nearest
+    }),
+    terrain: Object.freeze(neighborhood),
+    defaultShip: defaultShipForCityType(city.cityType),
+    rules: Object.freeze({
+      approach: approachRule(access, approach),
+      dock: dockRule(city, dock, approach),
+      fortification: fortification.reason,
+      mountains: mountainVisibility.reason,
+      terrain: `dominant land cover within ${NEIGHBORHOOD_RINGS} game-tile rings, split across the approach axis`
+    })
+  });
+}
+
+function indexCityCatalog(cities) {
+  const result = new Map();
+  for (const city of cities) {
+    for (const name of new Set([city.city, city.displayCity, city.portAlias, cityLabelText(city)].filter(Boolean))) {
+      result.set(endpointKey(name, city.country), city);
+    }
+  }
+  return result;
+}
+
+function endpointKey(name, country) {
+  return `${String(name).trim().toLowerCase()}|${String(country).trim().toLowerCase()}`;
+}
+
+function nearestAccessTile({ graph, earthRows, navigation, cityTileId }) {
+  const reachableRiver = searchAccessTile(graph, cityTileId, (tileId) => (
+    navigation.reachableNavigationMask[tileId] && Boolean(navigation.riverMasks[tileId])
+  ));
+  const reachableOcean = searchAccessTile(graph, cityTileId, (tileId) => (
+    navigation.reachableNavigationMask[tileId] &&
+    (earthRows[tileId]?.t === "water" || earthRows[tileId]?.t === "beach")
+  ));
+  const reachableLake = searchAccessTile(graph, cityTileId, (tileId) => (
+    navigation.reachableNavigationMask[tileId] && earthRows[tileId]?.t === "lake"
+  ));
+  const surface = nearestCandidate(reachableOcean, reachableLake);
+  if (surface && (!reachableRiver || surface.distance <= reachableRiver.distance)) return surface;
+  if (reachableRiver) return reachableRiver;
+  if (surface) return surface;
+  const coarseRiver = searchAccessTile(
+    graph,
+    cityTileId,
+    (tileId) => Boolean(navigation.riverMasks[tileId])
+  );
+  if (coarseRiver) return { ...coarseRiver, coarseFallback: true };
+  const coarseWater = searchAccessTile(graph, cityTileId, (tileId) => isWaterSurfaceRow(earthRows[tileId]));
+  return coarseWater ? { ...coarseWater, coarseFallback: true } : null;
+}
+
+function nearestCandidate(...candidates) {
+  return candidates.filter(Boolean).sort((a, b) => a.distance - b.distance)[0] || null;
+}
+
+function searchAccessTile(graph, cityTileId, predicate) {
+  const visited = new Set([cityTileId]);
+  const queue = [{ tileId: cityTileId, distance: 0 }];
+  for (let head = 0; head < queue.length; head++) {
+    const current = queue[head];
+    if (predicate(current.tileId)) return current;
+    if (current.distance >= MAX_APPROACH_SEARCH_RINGS) continue;
+    for (const neighborId of graph.neighbors[current.tileId]) {
+      if (visited.has(neighborId)) continue;
+      visited.add(neighborId);
+      queue.push({ tileId: neighborId, distance: current.distance + 1 });
+    }
+  }
+  return null;
+}
+
+function approachKind(tileId, earthRows, navigation) {
+  if (earthRows[tileId]?.t === "lake") return "lake";
+  if (earthRows[tileId]?.t === "water" || earthRows[tileId]?.t === "beach") return "ocean";
+  if (navigation.riverMasks[tileId]) return "river";
+  return "ocean";
+}
+
+function terrainNeighborhood({ graph, earthRows, cityTileId, shorelineAxis }) {
+  const scores = {
+    left: newTerrainScore(),
+    right: newTerrainScore(),
+    leftDistant: newTerrainScore(),
+    rightDistant: newTerrainScore()
+  };
+  const cityDirection = graphCenter(graph, cityTileId);
+  const visited = new Set([cityTileId]);
+  const queue = [{ tileId: cityTileId, ring: 0 }];
+  for (let head = 0; head < queue.length; head++) {
+    const current = queue[head];
+    const row = earthRows[current.tileId];
+    if (!isWaterSurfaceRow(row)) {
+      const direction = graphCenter(graph, current.tileId);
+      const side = signedSide(cityDirection, direction, shorelineAxis) < 0 ? "left" : "right";
+      const distanceWeight = 1 / (1 + current.ring * 0.7);
+      scores[side][terrainFamily(row)] += distanceWeight;
+      if (current.ring >= 2) scores[`${side}Distant`][terrainFamily(row)] += distanceWeight;
+    }
+    if (current.ring >= NEIGHBORHOOD_RINGS) continue;
+    for (const neighborId of graph.neighbors[current.tileId]) {
+      if (visited.has(neighborId)) continue;
+      visited.add(neighborId);
+      queue.push({ tileId: neighborId, ring: current.ring + 1 });
+    }
+  }
+  return {
+    left: dominantTerrain(scores.left),
+    right: dominantTerrain(scores.right),
+    leftDistant: dominantTerrain(scores.leftDistant),
+    rightDistant: dominantTerrain(scores.rightDistant)
+  };
+}
+
+function visiblePeakTileSides({ graph, cityTileId, shorelineAxis, peakEntries }) {
+  const result = { left: false, right: false };
+  const cityDirection = graphCenter(graph, cityTileId);
+  for (const [tileId, elevationM] of peakEntries) {
+    if (!Number.isFinite(elevationM) || elevationM <= 0) continue;
+    const peakDirection = graphCenter(graph, tileId);
+    const dot = clamp3Dot(
+      cityDirection[0] * peakDirection[0] +
+      cityDirection[1] * peakDirection[1] +
+      cityDirection[2] * peakDirection[2]
+    );
+    const distanceKm = Math.acos(dot) * EARTH_RADIUS_KM;
+    if (distanceKm > mountainVisibilityRadiusKm(elevationM)) continue;
+    const side = signedSide(cityDirection, peakDirection, shorelineAxis) < 0 ? "left" : "right";
+    result[side] = true;
+  }
+  return result;
+}
+
+function visibleMountainSides({ city, mountains, graph, cityTileId, shorelineAxis, nearbyPeakSides }) {
+  const cityDirection = graphCenter(graph, cityTileId);
+  const visible = [];
+  for (const mountain of mountains) {
+    if (!Number.isFinite(mountain.elevationM) || mountain.elevationM <= 0) continue;
+    const distanceKm = greatCircleDistanceKm(city.lat, city.lon, mountain.lat, mountain.lon);
+    const visibilityKm = mountainVisibilityRadiusKm(mountain.elevationM);
+    if (distanceKm > visibilityKm) continue;
+    const direction = latLonToDirection(mountain.lat, mountain.lon);
+    const side = signedSide(cityDirection, direction, shorelineAxis) < 0 ? "left" : "right";
+    visible.push({
+      name: mountain.nameAlt || mountain.name,
+      elevationM: Math.round(mountain.elevationM),
+      distanceKm: Math.round(distanceKm),
+      side
+    });
+  }
+  visible.sort((a, b) => a.distanceKm - b.distanceKm || b.elevationM - a.elevationM);
+  const left = nearbyPeakSides.left || visible.some((mountain) => mountain.side === "left");
+  const right = nearbyPeakSides.right || visible.some((mountain) => mountain.side === "right");
+  const nearest = visible[0] || null;
+  return {
+    left,
+    right,
+    nearest,
+    reason: nearest
+      ? `${nearest.name}, ${nearest.distanceKm} km away; visibility radius scales with its ${nearest.elevationM} m elevation`
+      : (left || right
+          ? "unnamed production peak clears the elevation-weighted sightline"
+          : "no production peak clears the elevation-weighted sightline")
+  };
+}
+
+function mountainVisibilityRadiusKm(elevationM) {
+  const heightKm = elevationM / 1000;
+  return Math.min(280, 25 + Math.sqrt(2 * EARTH_RADIUS_KM * heightKm));
+}
+
+function clamp3Dot(value) {
+  return Math.max(-1, Math.min(1, value));
+}
+
+function shorelineTangent(graph, cityTileId, accessTileId) {
+  const city = graphCenter(graph, cityTileId);
+  const water = graphCenter(graph, accessTileId);
+  const dot = city[0] * water[0] + city[1] * water[1] + city[2] * water[2];
+  const approach = normalize3([
+    water[0] - city[0] * dot,
+    water[1] - city[1] * dot,
+    water[2] - city[2] * dot
+  ]);
+  return normalize3(cross3(city, approach));
+}
+
+function signedSide(origin, target, axis) {
+  const dot = origin[0] * target[0] + origin[1] * target[1] + origin[2] * target[2];
+  return (target[0] - origin[0] * dot) * axis[0] +
+    (target[1] - origin[1] * dot) * axis[1] +
+    (target[2] - origin[2] * dot) * axis[2];
+}
+
+function terrainFamily(row) {
+  const kind = row?.t || "land";
+  if (terrainHasTrait(kind, TERRAIN_TRAIT.DESERT)) return "desert";
+  if (terrainHasAnyTrait(kind, [TERRAIN_TRAIT.MOUNTAIN, TERRAIN_TRAIT.HIGHLAND, TERRAIN_TRAIT.ROCK])) {
+    return "rocky";
+  }
+  if (terrainHasAnyTrait(kind, [TERRAIN_TRAIT.FOREST, TERRAIN_TRAIT.JUNGLE])) return "forest";
+  return "grass";
+}
+
+function newTerrainScore() {
+  return { grass: 0, forest: 0, desert: 0, rocky: 0 };
+}
+
+function dominantTerrain(scores) {
+  return Object.entries(scores).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0][0];
+}
+
+function dockStyle(city, approach) {
+  if (city.settlementType === "village" || city.population < 3500) return "none";
+  if (approach === "river") return city.population >= 80000 ? "stone" : "wood";
+  if (city.requiredTradePort || city.declaredCapitalFactionId || city.population >= 25000) return "stone";
+  return "wood";
+}
+
+function dockRule(city, dock, approach) {
+  if (dock === "none") return "beach landing for a village or very small settlement";
+  if (approach === "river" && dock === "wood") return "river landing uses the lighter timber structure";
+  if (dock === "stone") {
+    return city.requiredTradePort
+      ? "major 1522 trade port receives the durable stone quay"
+      : "capital or population scale supports a masonry quay";
+  }
+  return "water-accessible town receives the timber dock";
+}
+
+function fortificationEstimate(city) {
+  if (city.settlementType === "village") {
+    return { fortified: false, confidence: "high", reason: "1522 village catalog: no urban gatehouse" };
+  }
+  if (city.declaredCapitalFactionId) {
+    return { fortified: true, confidence: "medium", reason: "1522 faction seat: defensive enclosure expected" };
+  }
+  if (city.requiredTradePort) {
+    return { fortified: true, confidence: "medium", reason: "strategic 1522 trade-port record" };
+  }
+  if (city.population >= 25000) {
+    return { fortified: true, confidence: "provisional", reason: "provisional 1522 large-city wall estimate" };
+  }
+  return { fortified: false, confidence: "provisional", reason: "provisional 1522 small-town open-settlement estimate" };
+}
+
+function approachRule(access, approach) {
+  const rings = access.distance === 0 ? "on the city tile" : `${access.distance} tile ring${access.distance === 1 ? "" : "s"} away`;
+  const source = access.coarseFallback ? "coarse geography fallback" : "ocean-reachable topology";
+  if (approach === "river") return `${source} river channel ${rings}`;
+  if (approach === "lake") return `${source} freshwater surface ${rings}`;
+  return `${source} coastal water ${rings}`;
+}
+
+function defaultShipForCityType(cityType) {
+  return ({
+    "northern-european": "small-cog",
+    mediterranean: "xebec",
+    "islamic-desert": "dhow",
+    "east-asian": "small-junk",
+    "south-asian": "ocean-dhow",
+    "southeast-asian": "javanese-jong",
+    polynesian: "polynesian-voyaging-canoe",
+    mesoamerican: "mesoamerican-dugout-canoe",
+    andean: "mesoamerican-dugout-canoe",
+    "sub-saharan": "dhow"
+  })[cityType] || "small-cog";
+}
+
+function nearestTileMatching(graph, startId, predicate) {
+  const seen = new Set([startId]);
+  const queue = [startId];
+  for (let head = 0; head < queue.length; head++) {
+    const tileId = queue[head];
+    if (predicate(tileId)) return tileId;
+    for (const neighborId of graph.neighbors[tileId]) {
+      if (seen.has(neighborId)) continue;
+      seen.add(neighborId);
+      queue.push(neighborId);
+    }
+  }
+  return undefined;
+}
+
+function latLonToDirection(latDeg, lonDeg) {
+  const lat = latDeg * Math.PI / 180;
+  const lon = lonDeg * Math.PI / 180;
+  const cosLat = Math.cos(lat);
+  return [cosLat * Math.cos(lon), Math.sin(lat), -cosLat * Math.sin(lon)];
+}
+
+function greatCircleDistanceKm(latA, lonA, latB, lonB) {
+  const directionA = latLonToDirection(latA, lonA);
+  const directionB = latLonToDirection(latB, lonB);
+  const dot = Math.max(-1, Math.min(1,
+    directionA[0] * directionB[0] + directionA[1] * directionB[1] + directionA[2] * directionB[2]
+  ));
+  return Math.acos(dot) * EARTH_RADIUS_KM;
+}
