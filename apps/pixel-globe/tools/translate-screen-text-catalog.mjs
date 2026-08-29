@@ -127,6 +127,30 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 const REVIEWED_OVERRIDES = Object.freeze({
   ...reviewedPortFactorRecognitionOverrides(),
   ...reviewedTreasurePirateSearchOverrides(),
+  "The hoard is ours: {0} units of gold and Captain {1}'s treasure. Every pirate afloat will hunt us. Set course for {2}; I marked it on the chart. The old crew bars the way.": Object.freeze({
+    "zh-Hans": "宝藏归我们了：{0}份黄金，还有{1}船长的宝物。海上的每个海盗都会来追杀我们。转舵驶向{2}；我已在海图上标出航路。那帮旧船员会挡道。",
+    ru: "Клад наш: {0} мер золота и сокровище капитана {1}. Теперь за нами погонится всякий пират на море. Держать курс на {2}; я отметил путь на карте. Старая команда преградит дорогу.",
+    es: "El botín es nuestro: {0} unidades de oro y el tesoro del capitán {1}. Todo pirata en el mar nos dará caza. Poned rumbo a {2}; lo he trazado en la carta. La antigua tripulación nos cerrará el paso.",
+    "pt-BR": "O tesouro é nosso: {0} unidades de ouro e o tesouro do capitão {1}. Todo pirata no mar nos dará caça. Ponde o rumo para {2}; marquei-o na carta. A antiga tripulação nos barrará o caminho.",
+    ja: "財宝は我らのものだ。金{0}単位と{1}船長の宝だ。海に浮かぶ海賊どもが我らを追うだろう。{2}へ針路を取れ。海図に印を付けた。古い船員どもが行く手を塞ぐ。",
+    de: "Der Hort ist unser: {0} Einheiten Gold und Kapitän {1}s Schatz. Jeder Pirat auf See wird Jagd auf uns machen. Kurs auf {2}; ich habe ihn in der Karte vermerkt. Die alte Mannschaft versperrt uns den Weg.",
+    fr: "Le butin est à nous : {0} unités d'or et le trésor du capitaine {1}. Tous les pirates en mer nous donneront la chasse. Cap sur {2} ; je l'ai tracé sur la carte. L'ancien équipage nous barrera la route.",
+    pl: "Łup jest nasz: {0} jednostek złota i skarb kapitana {1}. Każdy pirat na morzu ruszy za nami. Kurs na {2}; zaznaczyłem go na mapie. Dawna załoga zagrodzi nam drogę.",
+    "zh-Hant": "寶藏歸我們了：{0}份黃金，還有{1}船長的寶物。海上的每個海盜都會來追殺我們。轉舵駛向{2}；我已在海圖上標出航路。那幫舊船員會擋道。",
+    ko: "보물은 우리 것이다. 금 {0}단위와 {1} 선장의 보물이다. 바다의 해적이라면 모조리 우리를 쫓을 것이다. {2}으로 침로를 잡아라. 해도에 표시해 두었다. 옛 선원들이 길을 막을 것이다."
+  }),
+  "The hold cannot take another coin, but Captain {0}'s treasure is ours. Every pirate afloat will hunt us. Set course for {1}; I marked it on the chart. The old crew bars the way.": Object.freeze({
+    "zh-Hans": "货舱连一枚金币也装不下了，但{0}船长的宝物已归我们。海上的每个海盗都会来追杀我们。转舵驶向{1}；我已在海图上标出航路。那帮旧船员会挡道。",
+    ru: "Трюм не примет больше ни монеты, но сокровище капитана {0} у нас. Всякий пират на море будет за нами охотиться. Держать курс на {1}; я отметил путь на карте. Старая команда преградит дорогу.",
+    es: "La bodega no admite una moneda más, pero el tesoro del capitán {0} es nuestro. Todo pirata en el mar nos dará caza. Poned rumbo a {1}; lo he trazado en la carta. La antigua tripulación nos cerrará el paso.",
+    "pt-BR": "O porão não recebe mais uma moeda, mas o tesouro do capitão {0} é nosso. Todo pirata no mar nos dará caça. Ponde o rumo para {1}; marquei-o na carta. A antiga tripulação nos barrará o caminho.",
+    ja: "船倉にはもう一枚の金貨も入らぬが、{0}船長の宝は我らのものだ。海に浮かぶ海賊どもが我らを追うだろう。{1}へ針路を取れ。海図に印を付けた。古い船員どもが行く手を塞ぐ。",
+    de: "Der Laderaum fasst keine Münze mehr, doch Kapitän {0}s Schatz ist unser. Jeder Pirat auf See wird Jagd auf uns machen. Kurs auf {1}; ich habe ihn in der Karte vermerkt. Die alte Mannschaft versperrt uns den Weg.",
+    fr: "La cale ne peut prendre une pièce de plus, mais le trésor du capitaine {0} est à nous. Tous les pirates en mer nous donneront la chasse. Cap sur {1} ; je l'ai tracé sur la carte. L'ancien équipage nous barrera la route.",
+    pl: "Ładownia nie przyjmie już ani monety, lecz skarb kapitana {0} jest nasz. Każdy pirat na morzu ruszy za nami. Kurs na {1}; zaznaczyłem go na mapie. Dawna załoga zagrodzi nam drogę.",
+    "zh-Hant": "貨艙連一枚金幣也裝不下了，但{0}船長的寶物已歸我們。海上的每個海盜都會來追殺我們。轉舵駛向{1}；我已在海圖上標出航路。那幫舊船員會擋道。",
+    ko: "화물창에는 동전 한 닢도 더 들지 않지만 {0} 선장의 보물은 우리 것이다. 바다의 해적이라면 모조리 우리를 쫓을 것이다. {1}으로 침로를 잡아라. 해도에 표시해 두었다. 옛 선원들이 길을 막을 것이다."
+  }),
   "EMBARGO FINE {0} DB": Object.freeze({
     "pt-BR": "MULTA POR EMBARGO {0} DB",
     ja: "禁輸違反金 {0} DB",

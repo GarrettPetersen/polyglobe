@@ -15,9 +15,11 @@ import {
   settleTreasureHomecoming,
   treasureAmbushComplete,
   treasureCampaignPhase,
+  treasureRecoveryCaptainMessage,
   treasurePirateHints,
   validateTreasureCampaignFields
 } from "./treasureCampaign.js";
+import { campaignGoalDestination } from "./campaignGoals.js";
 import { shipLabelForProse } from "./shipStats.js";
 
 test("treasure campaign selects a distant one-hex island and twelve globally spread pirates", () => {
@@ -178,6 +180,11 @@ test("all twelve map pieces unlock the treasure and all twelve ambushers gate ho
     assert.equal(recordTreasureAmbushDefeat(goal, pirate.id), false);
   }
   assert.equal(treasureAmbushComplete(goal), true);
+  assert.deepEqual(campaignGoalDestination(goal), {
+    kind: "home",
+    homePortTileId: 0,
+    reason: "return-with-treasure"
+  });
   assert.deepEqual(settleTreasureHomecoming(goal), {
     type: "pirate-treasure",
     completed: true
@@ -185,12 +192,44 @@ test("all twelve map pieces unlock the treasure and all twelve ambushers gate ho
   assert.equal(goal.status, "complete");
 });
 
+test("recovering the treasure names home and marks the return course before the blockade", () => {
+  const goal = initializedGoal();
+  bindCaptains(goal);
+  for (const pirate of goal.mapPirates) acquireTreasureMapPiece(goal, pirate.id, 100);
+  recoverTreasure(goal, 500);
+
+  const ladenMessage = treasureRecoveryCaptainMessage(goal, {
+    homePortName: "Nanjing",
+    goldQuantity: 17
+  });
+  assert.match(ladenMessage, /17 units of gold/i);
+  assert.match(ladenMessage, /set course for Nanjing/i);
+  assert.match(ladenMessage, /marked it on the chart/i);
+  assert.match(ladenMessage, /old crew bars the way/i);
+  assert.deepEqual(campaignGoalDestination(goal), {
+    kind: "home",
+    homePortTileId: 0,
+    reason: "treasure-home-ambush"
+  });
+
+  const fullHoldMessage = treasureRecoveryCaptainMessage(goal, {
+    homePortName: "Nanjing",
+    goldQuantity: 0
+  });
+  assert.match(fullHoldMessage, /hold cannot take another coin/i);
+  assert.match(fullHoldMessage, /set course for Nanjing/i);
+});
+
 function initializedGoal() {
   const graph = testGraph();
   const goal = {
     ...createTreasureCampaignFields("voyage-test"),
+    version: 1,
     type: "pirate-treasure",
-    homePortTileId: 0
+    status: "active",
+    homePortTileId: 0,
+    introSeen: true,
+    endingVariant: 0
   };
   initializeTreasureCampaign(goal, {
     graph,

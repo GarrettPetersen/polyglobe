@@ -136,6 +136,27 @@ export function treasureCampaignObjective(goal) {
   return "Return home with the treasure";
 }
 
+export function treasureRecoveryCaptainMessage(goal, {
+  homePortName,
+  goldQuantity
+}) {
+  validateTreasureRecoveryGuidance(goal, homePortName, goldQuantity);
+  return goldQuantity > 0
+    ? `The hoard is ours: ${goldQuantity} units of gold and Captain ${goal.treasureCaptainName}'s treasure. Every pirate afloat will hunt us. Set course for ${homePortName}; I marked it on the chart. The old crew bars the way.`
+    : `The hold cannot take another coin, but Captain ${goal.treasureCaptainName}'s treasure is ours. Every pirate afloat will hunt us. Set course for ${homePortName}; I marked it on the chart. The old crew bars the way.`;
+}
+
+function validateTreasureRecoveryGuidance(goal, homePortName, goldQuantity) {
+  validateTreasureCampaignFields(goal);
+  if (!goal.treasureRecovered) {
+    throw new Error("Treasure recovery guidance requires recovered treasure");
+  }
+  assertNonEmptyString(homePortName, "Treasure campaign home port name");
+  if (!Number.isInteger(goldQuantity) || goldQuantity < 0) {
+    throw new Error(`Invalid treasure cargo quantity: ${goldQuantity}`);
+  }
+}
+
 export function recordTreasurePirateRumor(goal, {
   interactionKey,
   pirateId,

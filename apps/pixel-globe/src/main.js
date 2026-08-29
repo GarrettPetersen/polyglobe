@@ -1057,6 +1057,7 @@ import {
   treasureCampaignPhase,
   treasureCampaignPirate,
   treasureCampaignPirateForShip,
+  treasureRecoveryCaptainMessage,
   treasurePirateHints,
   unrevealedTreasurePirates
 } from "./treasureCampaign.js";
@@ -22498,11 +22499,10 @@ function maybeRecoverCampaignTreasureAtAnchor() {
   syncShipCargoFromGameState();
   ensureTreasureCampaignEncounters();
   const chartOffset = chartOffsetPixels(chart);
-  const captainMessage = cargoReward.quantity > 0
-    ? `The twelve scraps were true. Captain ${goal.treasureCaptainName}'s hoard is ours: ` +
-      `${cargoReward.quantity} units of gold, and the old treasure itself. Now every pirate afloat will smell it on the wind. Home lies beyond their guns.`
-    : `The twelve scraps were true, but our hold cannot take another coin. We still have Captain ` +
-      `${goal.treasureCaptainName}'s treasure, and every pirate afloat will come hunting it. Home lies beyond their guns.`;
+  const captainMessage = treasureRecoveryCaptainMessage(goal, {
+    homePortName: cityLabelText(campaignGoalHomeCity()),
+    goldQuantity: cargoReward.quantity
+  });
   startGoldTreasureSequence({
     sourcePoint: {
       x: shoreCall.x + chartOffset.x,
