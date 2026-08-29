@@ -19,9 +19,23 @@ Run `npm run city-visualizer:dev` from `apps/pixel-globe`, then open
 
 The vertical crop stays bottom-anchored. Extra portrait height reveals sky
 above the master scene rather than making important click targets drift below
-the canonical view. Horizontal parallax consumes the unused portion of the
-910-pixel safe span; at a 910-pixel logical width there is no travel left and
-parallax becomes zero.
+the canonical view. Coastal scenes pan within the authored 910-pixel safe span,
+so a 910-pixel coastal viewport has no horizontal travel. River scenes can pan
+across the entire 1365-pixel master even at that width so both banks remain
+reachable. Pointer input sets a camera target and the view eases toward it with
+a speed cap instead of snapping to the cursor position.
+
+Every authored layer occurrence and synthetic entity has explicit scene `z`
+and parallax-depth metadata. The renderer sorts static art, animated layers,
+the ship, and NPCs together. This lets the gatehouse back and gate sit behind
+walkers while its front wall shares the inn's foreground row. Duplicate layer
+names, such as the two market rows, can have different values by occurrence.
+
+The ocean is divided into horizon, distant, midground, and foreground bands at
+render time and uses the loading screen's sine-wave pixel-row displacement.
+Beach variants use the matching distant, midground, and foreground boundaries,
+so the source Aseprite layers remain intact while their near and far portions
+move with the surrounding land and water.
 
 ## Generated data and art
 
