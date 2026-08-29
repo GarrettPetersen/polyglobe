@@ -5,7 +5,7 @@ const PORT_ASSAULT_ASSET_ROOT = "/assets/vehicles/unity-ships/port-assault";
 const PORT_ASSAULT_SHIP_WIDTH = 320;
 const PORT_ASSAULT_SHIP_HEIGHT = 160;
 const PORT_ASSAULT_BROADSIDE_OFFSET_DEGREES = 72.5;
-const PORT_ASSAULT_CAMERA_ELEVATION_DEGREES = 30;
+const PORT_ASSAULT_CAMERA_ELEVATION_DEGREES = 20;
 
 const rosterSlugs = SHIP_STATS.map((entry) => entry.slug);
 const geometrySlugs = Object.keys(PORT_ASSAULT_SHIP_GEOMETRY);

@@ -6,11 +6,11 @@
   "rigState": "furled-at-dock",
   "scaleMode": "production-roster-relative",
   "scaleNotes": "Target dimensions and frame scales follow the 47px production fleet; every hull shares one dockside raster scale and open sail surfaces are replaced in model space before rasterization.",
-  "fleetRasterScale": 0.428977,
+  "fleetRasterScale": 0.440661,
   "view": {
     "projection": "orthographic",
     "broadsideOffsetDegrees": 72.5,
-    "cameraElevationDegrees": 30,
+    "cameraElevationDegrees": 20,
     "bowScreenDirection": "up-right",
     "dockFacingSide": "port"
   },
@@ -34,43 +34,43 @@
       "targetModelMaxDim": 0.9278,
       "opaqueBounds": {
         "minX": 146,
-        "minY": 117,
-        "width": 27,
-        "height": 38
+        "minY": 115,
+        "width": 28,
+        "height": 40
       },
-      "opaquePixels": 401,
+      "opaquePixels": 352,
       "deckPolygon": [
         {
           "x": 163,
-          "y": 138
+          "y": 141
         },
         {
           "x": 154,
-          "y": 151
+          "y": 150
         },
         {
           "x": 159,
-          "y": 152
+          "y": 151
         },
         {
-          "x": 167,
-          "y": 138
+          "x": 168,
+          "y": 141
         }
       ],
       "deckEntryAnchor": {
-        "x": 166,
-        "y": 139
+        "x": 167,
+        "y": 142
       },
       "sailorSpawnAnchor": {
-        "x": 171,
-        "y": 138
+        "x": 172,
+        "y": 142
       },
-      "foregroundOpaquePixels": 250,
-      "sinkHeightMin": -0.311663,
-      "sinkHeightMax": 0.33121,
-      "encodedWaterlineY": -0.306601,
+      "foregroundOpaquePixels": 238,
+      "sinkHeightMin": -0.312209,
+      "sinkHeightMax": 0.332687,
+      "encodedWaterlineY": -0.307131,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 0,
+      "submergedPixels": 1,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -87,57 +87,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 368,
-              "minY": 401,
-              "width": 144,
-              "height": 79
+              "minX": 364,
+              "minY": 419,
+              "width": 150,
+              "height": 57
             },
-            "opaquePixels": 1519,
-            "clippedProjectedPixels": 4,
-            "shadowWaterlineY": -0.326403
+            "opaquePixels": 2287,
+            "clippedProjectedPixels": 0,
+            "shadowWaterlineY": -0.325788
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 369,
-              "minY": 401,
-              "width": 144,
-              "height": 79
+              "minX": 364,
+              "minY": 419,
+              "width": 151,
+              "height": 57
             },
-            "opaquePixels": 1511,
-            "clippedProjectedPixels": 6,
+            "opaquePixels": 2283,
+            "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.320408
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 369,
-              "minY": 401,
-              "width": 145,
-              "height": 79
+              "minX": 365,
+              "minY": 419,
+              "width": 150,
+              "height": 57
             },
-            "opaquePixels": 1497,
-            "clippedProjectedPixels": 6,
-            "shadowWaterlineY": -0.314413
+            "opaquePixels": 2283,
+            "clippedProjectedPixels": 0,
+            "shadowWaterlineY": -0.315028
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00599491,
+        "waterShadowModelHeightPerPixel": 0.00538001,
         "opaqueBounds": {
-          "minX": 439,
-          "minY": 352,
-          "width": 82,
-          "height": 113
+          "minX": 437,
+          "minY": 345,
+          "width": 85,
+          "height": 120
         },
-        "opaquePixels": 3360,
+        "opaquePixels": 3051,
         "deckEntryAnchor": {
-          "x": 500,
-          "y": 417
+          "x": 501,
+          "y": 425
         },
         "sailorSpawnAnchor": {
           "x": 515,
-          "y": 413
+          "y": 425
         },
-        "submergedPixels": 9,
+        "submergedPixels": 13,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -170,44 +170,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.326,
       "opaqueBounds": {
-        "minX": 133,
-        "minY": 81,
-        "width": 53,
-        "height": 74
+        "minX": 132,
+        "minY": 82,
+        "width": 55,
+        "height": 73
       },
-      "opaquePixels": 1341,
+      "opaquePixels": 1181,
       "deckPolygon": [
         {
           "x": 156,
-          "y": 121
+          "y": 129
         },
         {
-          "x": 144,
-          "y": 141
+          "x": 143,
+          "y": 142
         },
         {
           "x": 163,
-          "y": 144
+          "y": 145
         },
         {
-          "x": 175,
-          "y": 124
+          "x": 176,
+          "y": 131
         }
       ],
       "deckEntryAnchor": {
         "x": 172,
-        "y": 124
+        "y": 131
       },
       "sailorSpawnAnchor": {
-        "x": 185,
-        "y": 124
+        "x": 186,
+        "y": 132
       },
-      "foregroundOpaquePixels": 879,
-      "sinkHeightMin": -0.448785,
-      "sinkHeightMax": 0.49445,
-      "encodedWaterlineY": -0.441358,
+      "foregroundOpaquePixels": 814,
+      "sinkHeightMin": -0.451731,
+      "sinkHeightMax": 0.489856,
+      "encodedWaterlineY": -0.444317,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
+      "submergedPixels": 5,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -224,57 +224,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 304,
-              "minY": 346,
-              "width": 212,
-              "height": 125
+              "minX": 300,
+              "minY": 383,
+              "width": 217,
+              "height": 88
             },
-            "opaquePixels": 4910,
+            "opaquePixels": 7381,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.478027
+            "shadowWaterlineY": -0.477414
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 305,
-              "minY": 346,
-              "width": 212,
-              "height": 125
+              "minX": 301,
+              "minY": 383,
+              "width": 217,
+              "height": 88
             },
-            "opaquePixels": 4892,
+            "opaquePixels": 7388,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.472036
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 306,
-              "minY": 346,
-              "width": 212,
-              "height": 126
+              "minX": 301,
+              "minY": 383,
+              "width": 218,
+              "height": 88
             },
-            "opaquePixels": 4888,
+            "opaquePixels": 7389,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.466045
+            "shadowWaterlineY": -0.466658
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00599121,
+        "waterShadowModelHeightPerPixel": 0.00537758,
         "opaqueBounds": {
-          "minX": 400,
-          "minY": 244,
-          "width": 160,
-          "height": 221
+          "minX": 398,
+          "minY": 246,
+          "width": 164,
+          "height": 219
         },
-        "opaquePixels": 11735,
+        "opaquePixels": 10355,
         "deckEntryAnchor": {
-          "x": 516,
-          "y": 373
+          "x": 517,
+          "y": 393
         },
         "sailorSpawnAnchor": {
-          "x": 558,
-          "y": 372
+          "x": 560,
+          "y": 396
         },
-        "submergedPixels": 23,
+        "submergedPixels": 36,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -307,44 +307,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.632,
       "opaqueBounds": {
-        "minX": 134,
-        "minY": 79,
-        "width": 52,
-        "height": 76
+        "minX": 133,
+        "minY": 74,
+        "width": 53,
+        "height": 81
       },
-      "opaquePixels": 1445,
+      "opaquePixels": 1479,
       "deckPolygon": [
         {
-          "x": 160,
-          "y": 116
+          "x": 159,
+          "y": 121
         },
         {
-          "x": 145,
-          "y": 138
+          "x": 144,
+          "y": 137
         },
         {
           "x": 162,
-          "y": 141
+          "y": 139
         },
         {
-          "x": 177,
-          "y": 118
+          "x": 176,
+          "y": 123
         }
       ],
       "deckEntryAnchor": {
         "x": 173,
-        "y": 119
+        "y": 123
       },
       "sailorSpawnAnchor": {
         "x": 186,
-        "y": 118
+        "y": 124
       },
-      "foregroundOpaquePixels": 1224,
-      "sinkHeightMin": -0.575032,
-      "sinkHeightMax": 0.587539,
+      "foregroundOpaquePixels": 1248,
+      "sinkHeightMin": -0.578797,
+      "sinkHeightMax": 0.58517,
       "encodedWaterlineY": -0.484014,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 2,
+      "submergedPixels": 9,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -361,57 +361,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 322,
-              "minY": 317,
-              "width": 193,
-              "height": 146
+              "minX": 318,
+              "minY": 352,
+              "width": 198,
+              "height": 103
             },
-            "opaquePixels": 5091,
+            "opaquePixels": 7638,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.48999
+            "shadowWaterlineY": -0.489379
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 323,
-              "minY": 318,
-              "width": 193,
-              "height": 145
+              "minX": 318,
+              "minY": 352,
+              "width": 198,
+              "height": 104
             },
-            "opaquePixels": 5071,
+            "opaquePixels": 7650,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.484014
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 324,
-              "minY": 318,
-              "width": 192,
-              "height": 146
+              "minX": 319,
+              "minY": 352,
+              "width": 198,
+              "height": 104
             },
-            "opaquePixels": 5065,
+            "opaquePixels": 7663,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.478038
+            "shadowWaterlineY": -0.478649
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597608,
+        "waterShadowModelHeightPerPixel": 0.00536486,
         "opaqueBounds": {
-          "minX": 402,
-          "minY": 237,
-          "width": 156,
-          "height": 228
+          "minX": 400,
+          "minY": 223,
+          "width": 160,
+          "height": 242
         },
-        "opaquePixels": 12406,
+        "opaquePixels": 12611,
         "deckEntryAnchor": {
-          "x": 520,
-          "y": 356
+          "x": 521,
+          "y": 369
         },
         "sailorSpawnAnchor": {
-          "x": 559,
-          "y": 353
+          "x": 561,
+          "y": 371
         },
-        "submergedPixels": 13,
+        "submergedPixels": 83,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -445,15 +445,15 @@
       "targetModelMaxDim": 0.8581,
       "opaqueBounds": {
         "minX": 149,
-        "minY": 107,
+        "minY": 104,
         "width": 21,
-        "height": 48
+        "height": 51
       },
-      "opaquePixels": 463,
+      "opaquePixels": 441,
       "deckPolygon": [
         {
           "x": 162,
-          "y": 127
+          "y": 131
         },
         {
           "x": 154,
@@ -461,27 +461,27 @@
         },
         {
           "x": 161,
-          "y": 141
+          "y": 140
         },
         {
           "x": 169,
-          "y": 128
+          "y": 132
         }
       ],
       "deckEntryAnchor": {
         "x": 167,
-        "y": 129
+        "y": 132
       },
       "sailorSpawnAnchor": {
         "x": 173,
-        "y": 128
+        "y": 133
       },
-      "foregroundOpaquePixels": 367,
-      "sinkHeightMin": -0.392949,
-      "sinkHeightMax": 0.365858,
+      "foregroundOpaquePixels": 348,
+      "sinkHeightMin": -0.388141,
+      "sinkHeightMax": 0.41236,
       "encodedWaterlineY": -0.318249,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 14,
+      "submergedPixels": 13,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -498,57 +498,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 405,
-              "minY": 369,
-              "width": 95,
-              "height": 84
+              "minX": 403,
+              "minY": 391,
+              "width": 97,
+              "height": 59
             },
-            "opaquePixels": 1732,
+            "opaquePixels": 2748,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.324236
+            "shadowWaterlineY": -0.323628
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 406,
-              "minY": 369,
-              "width": 94,
-              "height": 84
+              "minX": 403,
+              "minY": 391,
+              "width": 98,
+              "height": 59
             },
-            "opaquePixels": 1734,
+            "opaquePixels": 2724,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.318249
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 406,
-              "minY": 369,
-              "width": 95,
-              "height": 84
+              "minX": 404,
+              "minY": 391,
+              "width": 97,
+              "height": 59
             },
-            "opaquePixels": 1739,
+            "opaquePixels": 2737,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.312262
+            "shadowWaterlineY": -0.31287
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598734,
+        "waterShadowModelHeightPerPixel": 0.00537885,
         "opaqueBounds": {
-          "minX": 449,
-          "minY": 321,
-          "width": 62,
-          "height": 144
+          "minX": 448,
+          "minY": 312,
+          "width": 63,
+          "height": 153
         },
-        "opaquePixels": 3970,
+        "opaquePixels": 3848,
         "deckEntryAnchor": {
           "x": 503,
-          "y": 386
+          "y": 396
         },
         "sailorSpawnAnchor": {
           "x": 520,
-          "y": 385
+          "y": 398
         },
-        "submergedPixels": 88,
+        "submergedPixels": 120,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -581,44 +581,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 1.9,
       "opaqueBounds": {
-        "minX": 136,
-        "minY": 46,
-        "width": 48,
-        "height": 109
+        "minX": 135,
+        "minY": 35,
+        "width": 49,
+        "height": 120
       },
-      "opaquePixels": 1954,
+      "opaquePixels": 1895,
       "deckPolygon": [
         {
-          "x": 168,
-          "y": 107
+          "x": 167,
+          "y": 113
         },
         {
-          "x": 153,
-          "y": 130
+          "x": 152,
+          "y": 129
         },
         {
           "x": 164,
-          "y": 132
+          "y": 130
         },
         {
-          "x": 179,
-          "y": 109
+          "x": 178,
+          "y": 114
         }
       ],
       "deckEntryAnchor": {
         "x": 176,
-        "y": 109
+        "y": 115
       },
       "sailorSpawnAnchor": {
         "x": 186,
-        "y": 110
+        "y": 117
       },
-      "foregroundOpaquePixels": 1546,
-      "sinkHeightMin": -0.928948,
-      "sinkHeightMax": 0.944261,
+      "foregroundOpaquePixels": 1547,
+      "sinkHeightMin": -0.938103,
+      "sinkHeightMax": 0.939895,
       "encodedWaterlineY": -0.838672,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 12,
+      "submergedPixels": 14,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -635,57 +635,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 257,
-              "minY": 316,
-              "width": 288,
-              "height": 148
+              "minX": 250,
+              "minY": 353,
+              "width": 296,
+              "height": 103
             },
-            "opaquePixels": 7253,
+            "opaquePixels": 11659,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.844646
+            "shadowWaterlineY": -0.844032
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 258,
-              "minY": 316,
-              "width": 288,
-              "height": 148
+              "minX": 251,
+              "minY": 353,
+              "width": 296,
+              "height": 103
             },
-            "opaquePixels": 7269,
+            "opaquePixels": 11663,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.838672
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 259,
-              "minY": 317,
-              "width": 285,
-              "height": 147
+              "minX": 252,
+              "minY": 353,
+              "width": 295,
+              "height": 103
             },
-            "opaquePixels": 7251,
+            "opaquePixels": 11629,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.832698
+            "shadowWaterlineY": -0.833312
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597422,
+        "waterShadowModelHeightPerPixel": 0.0053603,
         "opaqueBounds": {
-          "minX": 408,
-          "minY": 139,
-          "width": 144,
-          "height": 326
+          "minX": 406,
+          "minY": 105,
+          "width": 148,
+          "height": 360
         },
-        "opaquePixels": 17029,
+        "opaquePixels": 16411,
         "deckEntryAnchor": {
-          "x": 528,
-          "y": 329
+          "x": 530,
+          "y": 344
         },
         "sailorSpawnAnchor": {
-          "x": 558,
-          "y": 330
+          "x": 560,
+          "y": 351
         },
-        "submergedPixels": 71,
+        "submergedPixels": 97,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -718,44 +718,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 0.9427,
       "opaqueBounds": {
-        "minX": 147,
-        "minY": 88,
-        "width": 26,
-        "height": 67
+        "minX": 146,
+        "minY": 86,
+        "width": 27,
+        "height": 69
       },
-      "opaquePixels": 703,
+      "opaquePixels": 640,
       "deckPolygon": [
         {
-          "x": 163,
-          "y": 129
+          "x": 162,
+          "y": 133
         },
         {
-          "x": 155,
+          "x": 154,
           "y": 141
         },
         {
-          "x": 161,
+          "x": 160,
           "y": 142
         },
         {
           "x": 169,
-          "y": 130
+          "y": 133
         }
       ],
       "deckEntryAnchor": {
         "x": 167,
-        "y": 130
+        "y": 133
       },
       "sailorSpawnAnchor": {
         "x": 173,
-        "y": 130
+        "y": 135
       },
-      "foregroundOpaquePixels": 537,
-      "sinkHeightMin": -0.452186,
-      "sinkHeightMax": 0.464508,
+      "foregroundOpaquePixels": 499,
+      "sinkHeightMin": -0.454482,
+      "sinkHeightMax": 0.466662,
       "encodedWaterlineY": -0.415201,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 0,
+      "submergedPixels": 3,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -772,57 +772,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 378,
-              "minY": 376,
-              "width": 135,
-              "height": 89
+              "minX": 376,
+              "minY": 399,
+              "width": 139,
+              "height": 63
             },
-            "opaquePixels": 2664,
+            "opaquePixels": 3737,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.421184
+            "shadowWaterlineY": -0.420573
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 379,
-              "minY": 376,
-              "width": 134,
-              "height": 90
+              "minX": 376,
+              "minY": 399,
+              "width": 139,
+              "height": 63
             },
-            "opaquePixels": 2650,
+            "opaquePixels": 3734,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.415201
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 379,
-              "minY": 376,
-              "width": 135,
-              "height": 90
+              "minX": 377,
+              "minY": 399,
+              "width": 139,
+              "height": 63
             },
-            "opaquePixels": 2647,
+            "opaquePixels": 3724,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.409218
+            "shadowWaterlineY": -0.409828
           }
         },
-        "waterShadowModelHeightPerPixel": 0.0059831,
+        "waterShadowModelHeightPerPixel": 0.00537255,
         "opaqueBounds": {
-          "minX": 440,
-          "minY": 263,
-          "width": 79,
-          "height": 202
+          "minX": 439,
+          "minY": 259,
+          "width": 81,
+          "height": 206
         },
-        "opaquePixels": 5985,
+        "opaquePixels": 5452,
         "deckEntryAnchor": {
           "x": 502,
-          "y": 390
+          "y": 401
         },
         "sailorSpawnAnchor": {
-          "x": 518,
-          "y": 390
+          "x": 519,
+          "y": 404
         },
-        "submergedPixels": 0,
+        "submergedPixels": 16,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -855,44 +855,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.8354,
       "opaqueBounds": {
-        "minX": 136,
+        "minX": 135,
         "minY": 44,
-        "width": 48,
+        "width": 49,
         "height": 111
       },
-      "opaquePixels": 1960,
+      "opaquePixels": 1816,
       "deckPolygon": [
         {
           "x": 166,
-          "y": 104
+          "y": 112
         },
         {
-          "x": 149,
+          "x": 148,
           "y": 131
         },
         {
-          "x": 158,
-          "y": 133
+          "x": 157,
+          "y": 132
         },
         {
           "x": 175,
-          "y": 106
+          "y": 113
         }
       ],
       "deckEntryAnchor": {
         "x": 173,
-        "y": 107
+        "y": 114
       },
       "sailorSpawnAnchor": {
         "x": 182,
-        "y": 105
+        "y": 114
       },
-      "foregroundOpaquePixels": 1254,
-      "sinkHeightMin": -0.731749,
-      "sinkHeightMax": 0.728738,
+      "foregroundOpaquePixels": 1240,
+      "sinkHeightMin": -0.730438,
+      "sinkHeightMax": 0.729496,
       "encodedWaterlineY": -0.623679,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 19,
+      "submergedPixels": 34,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -909,57 +909,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 332,
-              "minY": 274,
-              "width": 211,
-              "height": 181
+              "minX": 328,
+              "minY": 323,
+              "width": 217,
+              "height": 127
             },
-            "opaquePixels": 6925,
+            "opaquePixels": 10855,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.629661
+            "shadowWaterlineY": -0.629048
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 333,
-              "minY": 275,
-              "width": 211,
-              "height": 181
+              "minX": 329,
+              "minY": 323,
+              "width": 216,
+              "height": 128
             },
-            "opaquePixels": 6918,
+            "opaquePixels": 10849,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.623679
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 334,
-              "minY": 275,
-              "width": 210,
-              "height": 181
+              "minX": 330,
+              "minY": 324,
+              "width": 216,
+              "height": 127
             },
-            "opaquePixels": 6931,
+            "opaquePixels": 10840,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.617697
+            "shadowWaterlineY": -0.61831
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598218,
+        "waterShadowModelHeightPerPixel": 0.00536882,
         "opaqueBounds": {
-          "minX": 408,
-          "minY": 133,
-          "width": 143,
-          "height": 332
+          "minX": 406,
+          "minY": 132,
+          "width": 147,
+          "height": 333
         },
-        "opaquePixels": 16987,
+        "opaquePixels": 15722,
         "deckEntryAnchor": {
-          "x": 518,
-          "y": 320
+          "x": 519,
+          "y": 342
         },
         "sailorSpawnAnchor": {
-          "x": 546,
-          "y": 314
+          "x": 548,
+          "y": 343
         },
-        "submergedPixels": 173,
+        "submergedPixels": 275,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -992,44 +992,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.1847,
       "opaqueBounds": {
-        "minX": 137,
-        "minY": 46,
-        "width": 45,
-        "height": 109
+        "minX": 136,
+        "minY": 48,
+        "width": 47,
+        "height": 107
       },
-      "opaquePixels": 1939,
+      "opaquePixels": 1943,
       "deckPolygon": [
         {
           "x": 166,
-          "y": 101
+          "y": 110
         },
         {
-          "x": 146,
-          "y": 133
+          "x": 145,
+          "y": 132
         },
         {
           "x": 155,
-          "y": 135
+          "y": 133
         },
         {
-          "x": 175,
-          "y": 102
+          "x": 176,
+          "y": 111
         }
       ],
       "deckEntryAnchor": {
         "x": 173,
-        "y": 103
+        "y": 112
       },
       "sailorSpawnAnchor": {
-        "x": 183,
-        "y": 101
+        "x": 184,
+        "y": 112
       },
-      "foregroundOpaquePixels": 1407,
-      "sinkHeightMin": -0.784687,
-      "sinkHeightMax": 0.792391,
+      "foregroundOpaquePixels": 1458,
+      "sinkHeightMin": -0.795431,
+      "sinkHeightMax": 0.782626,
       "encodedWaterlineY": -0.677732,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 56,
+      "submergedPixels": 61,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -1046,57 +1046,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 274,
-              "minY": 274,
-              "width": 264,
-              "height": 179
+              "minX": 267,
+              "minY": 323,
+              "width": 275,
+              "height": 127
             },
-            "opaquePixels": 7538,
+            "opaquePixels": 12453,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.683706
+            "shadowWaterlineY": -0.683103
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 274,
-              "minY": 274,
-              "width": 265,
-              "height": 175
+              "minX": 268,
+              "minY": 324,
+              "width": 274,
+              "height": 123
             },
-            "opaquePixels": 7486,
+            "opaquePixels": 12437,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.677732
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 275,
-              "minY": 275,
-              "width": 264,
-              "height": 174
+              "minX": 269,
+              "minY": 324,
+              "width": 274,
+              "height": 123
             },
-            "opaquePixels": 7491,
+            "opaquePixels": 12389,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.671758
+            "shadowWaterlineY": -0.672361
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597422,
+        "waterShadowModelHeightPerPixel": 0.00537062,
         "opaqueBounds": {
-          "minX": 412,
-          "minY": 139,
-          "width": 136,
-          "height": 326
+          "minX": 410,
+          "minY": 144,
+          "width": 140,
+          "height": 321
         },
-        "opaquePixels": 16931,
+        "opaquePixels": 16695,
         "deckEntryAnchor": {
-          "x": 520,
-          "y": 310
+          "x": 521,
+          "y": 335
         },
         "sailorSpawnAnchor": {
-          "x": 551,
-          "y": 302
+          "x": 553,
+          "y": 335
         },
-        "submergedPixels": 439,
+        "submergedPixels": 458,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1129,44 +1129,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.8303,
       "opaqueBounds": {
-        "minX": 127,
-        "minY": 40,
-        "width": 65,
-        "height": 115
+        "minX": 126,
+        "minY": 36,
+        "width": 67,
+        "height": 119
       },
-      "opaquePixels": 2875,
+      "opaquePixels": 2805,
       "deckPolygon": [
         {
           "x": 161,
-          "y": 110
+          "y": 117
         },
         {
           "x": 144,
-          "y": 137
+          "y": 136
         },
         {
           "x": 164,
-          "y": 141
+          "y": 138
         },
         {
-          "x": 181,
-          "y": 113
+          "x": 182,
+          "y": 119
         }
       ],
       "deckEntryAnchor": {
-        "x": 177,
-        "y": 114
+        "x": 178,
+        "y": 120
       },
       "sailorSpawnAnchor": {
-        "x": 192,
-        "y": 114
+        "x": 193,
+        "y": 121
       },
-      "foregroundOpaquePixels": 2265,
-      "sinkHeightMin": -0.793465,
-      "sinkHeightMax": 0.861242,
+      "foregroundOpaquePixels": 2301,
+      "sinkHeightMin": -0.82395,
+      "sinkHeightMax": 0.858364,
       "encodedWaterlineY": -0.764601,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 2,
+      "submergedPixels": 11,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -1183,57 +1183,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 242,
-              "minY": 310,
-              "width": 299,
-              "height": 170
+              "minX": 235,
+              "minY": 352,
+              "width": 309,
+              "height": 122
             },
-            "opaquePixels": 10338,
-            "clippedProjectedPixels": 455,
-            "shadowWaterlineY": -0.770576
+            "opaquePixels": 15709,
+            "clippedProjectedPixels": 0,
+            "shadowWaterlineY": -0.769962
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 242,
-              "minY": 311,
-              "width": 300,
-              "height": 169
+              "minX": 235,
+              "minY": 352,
+              "width": 309,
+              "height": 122
             },
-            "opaquePixels": 10362,
-            "clippedProjectedPixels": 484,
+            "opaquePixels": 15718,
+            "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.764601
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 243,
-              "minY": 311,
-              "width": 300,
-              "height": 169
+              "minX": 236,
+              "minY": 352,
+              "width": 309,
+              "height": 122
             },
-            "opaquePixels": 10332,
-            "clippedProjectedPixels": 515,
-            "shadowWaterlineY": -0.758626
+            "opaquePixels": 15718,
+            "clippedProjectedPixels": 0,
+            "shadowWaterlineY": -0.75924
           }
         },
-        "waterShadowModelHeightPerPixel": 0.0059749,
+        "waterShadowModelHeightPerPixel": 0.00536075,
         "opaqueBounds": {
-          "minX": 382,
-          "minY": 121,
-          "width": 196,
-          "height": 344
+          "minX": 379,
+          "minY": 109,
+          "width": 201,
+          "height": 356
         },
-        "opaquePixels": 24775,
+        "opaquePixels": 23991,
         "deckEntryAnchor": {
-          "x": 533,
-          "y": 342
+          "x": 534,
+          "y": 359
         },
         "sailorSpawnAnchor": {
-          "x": 579,
-          "y": 342
+          "x": 581,
+          "y": 365
         },
-        "submergedPixels": 26,
+        "submergedPixels": 83,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1266,44 +1266,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.3,
       "opaqueBounds": {
-        "minX": 131,
+        "minX": 130,
         "minY": 42,
-        "width": 57,
+        "width": 59,
         "height": 113
       },
-      "opaquePixels": 2607,
+      "opaquePixels": 2657,
       "deckPolygon": [
         {
           "x": 167,
-          "y": 95
+          "y": 106
         },
         {
-          "x": 146,
-          "y": 129
+          "x": 145,
+          "y": 130
         },
         {
           "x": 164,
           "y": 132
         },
         {
-          "x": 185,
-          "y": 98
+          "x": 186,
+          "y": 108
         }
       ],
       "deckEntryAnchor": {
-        "x": 181,
-        "y": 99
+        "x": 182,
+        "y": 109
       },
       "sailorSpawnAnchor": {
-        "x": 196,
-        "y": 96
+        "x": 198,
+        "y": 109
       },
-      "foregroundOpaquePixels": 2213,
-      "sinkHeightMin": -0.772096,
-      "sinkHeightMax": 0.773106,
+      "foregroundOpaquePixels": 2255,
+      "sinkHeightMin": -0.768226,
+      "sinkHeightMax": 0.761552,
       "encodedWaterlineY": -0.706667,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 21,
+      "submergedPixels": 26,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -1314,8 +1314,8 @@
         "minimumRegionPixels": 2,
         "requestedPasses": 2,
         "completedPasses": 2,
-        "recoloredRegions": 233,
-        "recoloredPixels": 233
+        "recoloredRegions": 191,
+        "recoloredPixels": 191
       },
       "cityDockside": {
         "nativeScale": 3,
@@ -1327,57 +1327,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 256,
-              "minY": 241,
-              "width": 269,
-              "height": 216
+              "minX": 249,
+              "minY": 302,
+              "width": 276,
+              "height": 152
             },
-            "opaquePixels": 8640,
+            "opaquePixels": 12686,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.712644
+            "shadowWaterlineY": -0.712029
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 257,
-              "minY": 241,
-              "width": 268,
-              "height": 216
+              "minX": 250,
+              "minY": 303,
+              "width": 276,
+              "height": 151
             },
-            "opaquePixels": 8609,
+            "opaquePixels": 12655,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.706667
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 258,
-              "minY": 241,
-              "width": 268,
-              "height": 216
+              "minX": 251,
+              "minY": 303,
+              "width": 276,
+              "height": 151
             },
-            "opaquePixels": 8670,
+            "opaquePixels": 12662,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.70069
+            "shadowWaterlineY": -0.701304
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597727,
+        "waterShadowModelHeightPerPixel": 0.00536262,
         "opaqueBounds": {
-          "minX": 394,
+          "minX": 391,
           "minY": 125,
-          "width": 172,
+          "width": 177,
           "height": 340
         },
-        "opaquePixels": 22082,
+        "opaquePixels": 21902,
         "deckEntryAnchor": {
-          "x": 545,
-          "y": 295
+          "x": 546,
+          "y": 326
         },
         "sailorSpawnAnchor": {
-          "x": 591,
-          "y": 288
+          "x": 594,
+          "y": 326
         },
-        "submergedPixels": 170,
+        "submergedPixels": 227,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1388,8 +1388,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 1809,
-          "recoloredPixels": 5803
+          "recoloredRegions": 1658,
+          "recoloredPixels": 5633
         }
       },
       "dockRig": {
@@ -1418,43 +1418,43 @@
       "targetModelMaxDim": 2.3068,
       "opaqueBounds": {
         "minX": 133,
-        "minY": 52,
-        "width": 53,
-        "height": 103
+        "minY": 51,
+        "width": 54,
+        "height": 104
       },
-      "opaquePixels": 2334,
+      "opaquePixels": 2328,
       "deckPolygon": [
         {
           "x": 167,
-          "y": 99
+          "y": 110
         },
         {
           "x": 145,
-          "y": 133
+          "y": 134
         },
         {
-          "x": 161,
-          "y": 136
+          "x": 162,
+          "y": 135
         },
         {
-          "x": 183,
-          "y": 102
+          "x": 184,
+          "y": 111
         }
       ],
       "deckEntryAnchor": {
-        "x": 179,
-        "y": 103
+        "x": 180,
+        "y": 112
       },
       "sailorSpawnAnchor": {
-        "x": 194,
-        "y": 100
+        "x": 195,
+        "y": 112
       },
-      "foregroundOpaquePixels": 1966,
-      "sinkHeightMin": -0.693828,
-      "sinkHeightMax": 0.725014,
+      "foregroundOpaquePixels": 1978,
+      "sinkHeightMin": -0.69583,
+      "sinkHeightMax": 0.726114,
       "encodedWaterlineY": -0.653657,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 1,
+      "submergedPixels": 3,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -1471,57 +1471,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 274,
-              "minY": 257,
-              "width": 249,
-              "height": 214
+              "minX": 267,
+              "minY": 315,
+              "width": 256,
+              "height": 150
             },
-            "opaquePixels": 8288,
+            "opaquePixels": 12885,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.659636
+            "shadowWaterlineY": -0.659018
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 274,
-              "minY": 258,
-              "width": 249,
-              "height": 214
+              "minX": 267,
+              "minY": 316,
+              "width": 257,
+              "height": 150
             },
-            "opaquePixels": 8290,
+            "opaquePixels": 12853,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.653657
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 275,
-              "minY": 258,
-              "width": 249,
-              "height": 214
+              "minX": 268,
+              "minY": 316,
+              "width": 256,
+              "height": 150
             },
-            "opaquePixels": 8287,
+            "opaquePixels": 12842,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.647678
+            "shadowWaterlineY": -0.648296
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597903,
+        "waterShadowModelHeightPerPixel": 0.00536081,
         "opaqueBounds": {
-          "minX": 401,
-          "minY": 156,
-          "width": 158,
-          "height": 309
+          "minX": 398,
+          "minY": 154,
+          "width": 163,
+          "height": 311
         },
-        "opaquePixels": 19750,
+        "opaquePixels": 19986,
         "deckEntryAnchor": {
-          "x": 539,
-          "y": 308
+          "x": 541,
+          "y": 337
         },
         "sailorSpawnAnchor": {
-          "x": 582,
-          "y": 299
+          "x": 585,
+          "y": 335
         },
-        "submergedPixels": 11,
+        "submergedPixels": 43,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1554,44 +1554,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.1166,
       "opaqueBounds": {
-        "minX": 132,
+        "minX": 131,
         "minY": 44,
-        "width": 56,
+        "width": 58,
         "height": 111
       },
-      "opaquePixels": 2477,
+      "opaquePixels": 2522,
       "deckPolygon": [
         {
-          "x": 162,
-          "y": 99
+          "x": 163,
+          "y": 110
         },
         {
-          "x": 143,
-          "y": 130
+          "x": 142,
+          "y": 131
         },
         {
           "x": 157,
-          "y": 132
+          "y": 133
         },
         {
-          "x": 176,
-          "y": 101
+          "x": 177,
+          "y": 111
         }
       ],
       "deckEntryAnchor": {
-        "x": 173,
-        "y": 102
+        "x": 174,
+        "y": 112
       },
       "sailorSpawnAnchor": {
-        "x": 186,
-        "y": 100
+        "x": 187,
+        "y": 112
       },
-      "foregroundOpaquePixels": 2103,
-      "sinkHeightMin": -0.697769,
-      "sinkHeightMax": 0.741477,
+      "foregroundOpaquePixels": 2143,
+      "sinkHeightMin": -0.722632,
+      "sinkHeightMax": 0.740068,
       "encodedWaterlineY": -0.646269,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 4,
+      "submergedPixels": 9,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -1608,57 +1608,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 267,
-              "minY": 259,
-              "width": 268,
-              "height": 204
+              "minX": 262,
+              "minY": 316,
+              "width": 274,
+              "height": 142
             },
-            "opaquePixels": 8764,
+            "opaquePixels": 12067,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.652252
+            "shadowWaterlineY": -0.651638
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 268,
-              "minY": 260,
-              "width": 268,
-              "height": 203
+              "minX": 263,
+              "minY": 316,
+              "width": 274,
+              "height": 142
             },
-            "opaquePixels": 8751,
+            "opaquePixels": 12038,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.646269
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 269,
-              "minY": 260,
-              "width": 268,
-              "height": 203
+              "minX": 264,
+              "minY": 316,
+              "width": 273,
+              "height": 143
             },
-            "opaquePixels": 8714,
+            "opaquePixels": 12029,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.640287
+            "shadowWaterlineY": -0.640901
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598218,
+        "waterShadowModelHeightPerPixel": 0.00536882,
         "opaqueBounds": {
-          "minX": 395,
-          "minY": 133,
-          "width": 169,
-          "height": 332
+          "minX": 393,
+          "minY": 132,
+          "width": 173,
+          "height": 333
         },
-        "opaquePixels": 20990,
+        "opaquePixels": 20996,
         "deckEntryAnchor": {
-          "x": 519,
-          "y": 307
+          "x": 520,
+          "y": 335
         },
         "sailorSpawnAnchor": {
-          "x": 557,
-          "y": 300
+          "x": 559,
+          "y": 335
         },
-        "submergedPixels": 20,
+        "submergedPixels": 62,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1691,44 +1691,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.346,
       "opaqueBounds": {
-        "minX": 133,
-        "minY": 44,
-        "width": 53,
-        "height": 111
+        "minX": 132,
+        "minY": 46,
+        "width": 55,
+        "height": 109
       },
-      "opaquePixels": 2380,
+      "opaquePixels": 2507,
       "deckPolygon": [
         {
           "x": 166,
-          "y": 102
+          "y": 112
         },
         {
           "x": 144,
-          "y": 137
+          "y": 136
         },
         {
           "x": 158,
-          "y": 139
+          "y": 138
         },
         {
-          "x": 180,
-          "y": 104
+          "x": 181,
+          "y": 114
         }
       ],
       "deckEntryAnchor": {
         "x": 177,
-        "y": 105
+        "y": 114
       },
       "sailorSpawnAnchor": {
-        "x": 190,
-        "y": 102
+        "x": 191,
+        "y": 114
       },
-      "foregroundOpaquePixels": 2009,
-      "sinkHeightMin": -0.694397,
-      "sinkHeightMax": 0.73403,
+      "foregroundOpaquePixels": 2128,
+      "sinkHeightMin": -0.698362,
+      "sinkHeightMax": 0.733049,
       "encodedWaterlineY": -0.650282,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 5,
+      "submergedPixels": 9,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -1745,57 +1745,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 277,
-              "minY": 262,
-              "width": 252,
-              "height": 218
+              "minX": 272,
+              "minY": 319,
+              "width": 261,
+              "height": 155
             },
-            "opaquePixels": 8264,
-            "clippedProjectedPixels": 16,
-            "shadowWaterlineY": -0.656269
+            "opaquePixels": 12274,
+            "clippedProjectedPixels": 0,
+            "shadowWaterlineY": -0.655646
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 278,
-              "minY": 262,
-              "width": 252,
-              "height": 218
+              "minX": 273,
+              "minY": 319,
+              "width": 260,
+              "height": 155
             },
-            "opaquePixels": 8275,
-            "clippedProjectedPixels": 18,
+            "opaquePixels": 12242,
+            "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.650282
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 278,
-              "minY": 262,
-              "width": 253,
-              "height": 218
+              "minX": 273,
+              "minY": 319,
+              "width": 261,
+              "height": 155
             },
-            "opaquePixels": 8255,
-            "clippedProjectedPixels": 18,
-            "shadowWaterlineY": -0.644295
+            "opaquePixels": 12234,
+            "clippedProjectedPixels": 0,
+            "shadowWaterlineY": -0.644918
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598734,
+        "waterShadowModelHeightPerPixel": 0.00536415,
         "opaqueBounds": {
-          "minX": 400,
-          "minY": 132,
-          "width": 160,
-          "height": 333
+          "minX": 398,
+          "minY": 137,
+          "width": 164,
+          "height": 328
         },
-        "opaquePixels": 20106,
+        "opaquePixels": 20580,
         "deckEntryAnchor": {
-          "x": 532,
-          "y": 316
+          "x": 534,
+          "y": 343
         },
         "sailorSpawnAnchor": {
-          "x": 572,
-          "y": 306
+          "x": 575,
+          "y": 341
         },
-        "submergedPixels": 31,
+        "submergedPixels": 90,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1828,44 +1828,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.7244,
       "opaqueBounds": {
-        "minX": 139,
-        "minY": 49,
-        "width": 42,
-        "height": 106
+        "minX": 138,
+        "minY": 47,
+        "width": 43,
+        "height": 108
       },
-      "opaquePixels": 1803,
+      "opaquePixels": 1765,
       "deckPolygon": [
         {
-          "x": 165,
-          "y": 107
+          "x": 164,
+          "y": 114
         },
         {
-          "x": 149,
+          "x": 148,
           "y": 132
         },
         {
-          "x": 158,
-          "y": 134
+          "x": 157,
+          "y": 133
         },
         {
-          "x": 174,
-          "y": 109
+          "x": 173,
+          "y": 115
         }
       ],
       "deckEntryAnchor": {
         "x": 171,
-        "y": 109
+        "y": 116
       },
       "sailorSpawnAnchor": {
         "x": 180,
-        "y": 108
+        "y": 116
       },
-      "foregroundOpaquePixels": 1285,
-      "sinkHeightMin": -0.721632,
-      "sinkHeightMax": 0.738126,
+      "foregroundOpaquePixels": 1253,
+      "sinkHeightMin": -0.71819,
+      "sinkHeightMax": 0.735917,
       "encodedWaterlineY": -0.618396,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 2,
+      "submergedPixels": 9,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -1882,57 +1882,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 326,
-              "minY": 293,
-              "width": 211,
-              "height": 167
+              "minX": 321,
+              "minY": 336,
+              "width": 218,
+              "height": 118
             },
-            "opaquePixels": 7309,
+            "opaquePixels": 10713,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.62438
+            "shadowWaterlineY": -0.623766
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 327,
-              "minY": 293,
-              "width": 211,
-              "height": 168
+              "minX": 321,
+              "minY": 336,
+              "width": 219,
+              "height": 118
             },
-            "opaquePixels": 7294,
+            "opaquePixels": 10718,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.618396
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 327,
-              "minY": 293,
-              "width": 212,
-              "height": 168
+              "minX": 322,
+              "minY": 336,
+              "width": 218,
+              "height": 118
             },
-            "opaquePixels": 7282,
+            "opaquePixels": 10720,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.612411
+            "shadowWaterlineY": -0.613026
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598465,
+        "waterShadowModelHeightPerPixel": 0.00537,
         "opaqueBounds": {
-          "minX": 417,
-          "minY": 146,
-          "width": 126,
-          "height": 319
+          "minX": 415,
+          "minY": 140,
+          "width": 130,
+          "height": 325
         },
-        "opaquePixels": 16082,
+        "opaquePixels": 15367,
         "deckEntryAnchor": {
-          "x": 514,
-          "y": 328
+          "x": 515,
+          "y": 347
         },
         "sailorSpawnAnchor": {
-          "x": 541,
-          "y": 324
+          "x": 543,
+          "y": 349
         },
-        "submergedPixels": 16,
+        "submergedPixels": 70,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1965,41 +1965,41 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.024,
       "opaqueBounds": {
-        "minX": 136,
-        "minY": 54,
-        "width": 48,
-        "height": 101
+        "minX": 135,
+        "minY": 52,
+        "width": 49,
+        "height": 103
       },
-      "opaquePixels": 1802,
+      "opaquePixels": 1777,
       "deckPolygon": [
         {
           "x": 168,
-          "y": 102
+          "y": 112
         },
         {
-          "x": 149,
-          "y": 132
+          "x": 148,
+          "y": 133
         },
         {
-          "x": 160,
+          "x": 159,
           "y": 134
         },
         {
           "x": 179,
-          "y": 104
+          "y": 113
         }
       ],
       "deckEntryAnchor": {
         "x": 176,
-        "y": 105
+        "y": 113
       },
       "sailorSpawnAnchor": {
         "x": 187,
-        "y": 103
+        "y": 114
       },
-      "foregroundOpaquePixels": 1526,
-      "sinkHeightMin": -0.734309,
-      "sinkHeightMax": 0.784276,
+      "foregroundOpaquePixels": 1502,
+      "sinkHeightMin": -0.767394,
+      "sinkHeightMax": 0.778944,
       "encodedWaterlineY": -0.70696,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 3,
@@ -2019,57 +2019,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 275,
-              "minY": 278,
-              "width": 243,
-              "height": 191
+              "minX": 269,
+              "minY": 330,
+              "width": 254,
+              "height": 134
             },
-            "opaquePixels": 6534,
+            "opaquePixels": 9972,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.712936
+            "shadowWaterlineY": -0.712327
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 276,
-              "minY": 278,
-              "width": 242,
-              "height": 191
+              "minX": 270,
+              "minY": 330,
+              "width": 253,
+              "height": 134
             },
-            "opaquePixels": 6510,
+            "opaquePixels": 9921,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.70696
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 276,
-              "minY": 278,
-              "width": 243,
-              "height": 191
+              "minX": 270,
+              "minY": 331,
+              "width": 253,
+              "height": 133
             },
-            "opaquePixels": 6507,
+            "opaquePixels": 9879,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.700984
+            "shadowWaterlineY": -0.701593
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597608,
+        "waterShadowModelHeightPerPixel": 0.00536696,
         "opaqueBounds": {
-          "minX": 408,
-          "minY": 161,
-          "width": 143,
-          "height": 304
+          "minX": 406,
+          "minY": 157,
+          "width": 147,
+          "height": 308
         },
-        "opaquePixels": 15208,
+        "opaquePixels": 15257,
         "deckEntryAnchor": {
-          "x": 528,
-          "y": 314
+          "x": 529,
+          "y": 341
         },
         "sailorSpawnAnchor": {
-          "x": 560,
-          "y": 308
+          "x": 562,
+          "y": 342
         },
-        "submergedPixels": 26,
+        "submergedPixels": 76,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2102,44 +2102,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.9368,
       "opaqueBounds": {
-        "minX": 137,
-        "minY": 46,
-        "width": 46,
-        "height": 109
+        "minX": 136,
+        "minY": 44,
+        "width": 47,
+        "height": 111
       },
-      "opaquePixels": 1555,
+      "opaquePixels": 1533,
       "deckPolygon": [
         {
           "x": 168,
-          "y": 106
+          "y": 114
         },
         {
           "x": 150,
           "y": 135
         },
         {
-          "x": 159,
+          "x": 158,
           "y": 136
         },
         {
           "x": 177,
-          "y": 108
+          "y": 115
         }
       ],
       "deckEntryAnchor": {
-        "x": 175,
-        "y": 108
+        "x": 174,
+        "y": 116
       },
       "sailorSpawnAnchor": {
         "x": 184,
-        "y": 106
+        "y": 116
       },
-      "foregroundOpaquePixels": 1321,
-      "sinkHeightMin": -0.694124,
-      "sinkHeightMax": 0.739633,
+      "foregroundOpaquePixels": 1303,
+      "sinkHeightMin": -0.712754,
+      "sinkHeightMax": 0.742713,
       "encodedWaterlineY": -0.670802,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 6,
+      "submergedPixels": 4,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -2156,57 +2156,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 289,
-              "minY": 289,
-              "width": 232,
-              "height": 182
+              "minX": 285,
+              "minY": 337,
+              "width": 237,
+              "height": 128
             },
-            "opaquePixels": 5773,
+            "opaquePixels": 9026,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.676782
+            "shadowWaterlineY": -0.676166
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 290,
-              "minY": 290,
-              "width": 231,
-              "height": 181
+              "minX": 285,
+              "minY": 337,
+              "width": 238,
+              "height": 128
             },
-            "opaquePixels": 5807,
+            "opaquePixels": 9026,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.670802
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 291,
-              "minY": 290,
-              "width": 231,
-              "height": 181
+              "minX": 286,
+              "minY": 338,
+              "width": 237,
+              "height": 127
             },
-            "opaquePixels": 5750,
+            "opaquePixels": 9006,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.664823
+            "shadowWaterlineY": -0.665438
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597949,
+        "waterShadowModelHeightPerPixel": 0.00536363,
         "opaqueBounds": {
-          "minX": 411,
-          "minY": 138,
-          "width": 138,
-          "height": 327
+          "minX": 409,
+          "minY": 133,
+          "width": 141,
+          "height": 332
         },
-        "opaquePixels": 13419,
+        "opaquePixels": 13091,
         "deckEntryAnchor": {
           "x": 524,
-          "y": 325
+          "y": 349
         },
         "sailorSpawnAnchor": {
-          "x": 552,
-          "y": 319
+          "x": 553,
+          "y": 349
         },
-        "submergedPixels": 43,
+        "submergedPixels": 42,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2239,44 +2239,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.6475,
       "opaqueBounds": {
-        "minX": 124,
-        "minY": 51,
-        "width": 71,
-        "height": 104
+        "minX": 123,
+        "minY": 44,
+        "width": 73,
+        "height": 111
       },
-      "opaquePixels": 2297,
+      "opaquePixels": 2231,
       "deckPolygon": [
         {
           "x": 157,
-          "y": 110
+          "y": 115
         },
         {
           "x": 142,
-          "y": 134
+          "y": 132
         },
         {
           "x": 168,
-          "y": 138
+          "y": 134
         },
         {
           "x": 183,
-          "y": 114
+          "y": 118
         }
       ],
       "deckEntryAnchor": {
         "x": 178,
-        "y": 115
+        "y": 118
       },
       "sailorSpawnAnchor": {
-        "x": 196,
-        "y": 115
+        "x": 197,
+        "y": 121
       },
-      "foregroundOpaquePixels": 1846,
-      "sinkHeightMin": -0.741289,
-      "sinkHeightMax": 0.817299,
+      "foregroundOpaquePixels": 1812,
+      "sinkHeightMin": -0.79939,
+      "sinkHeightMax": 0.815971,
       "encodedWaterlineY": -0.688605,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
+      "submergedPixels": 8,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -2293,57 +2293,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 226,
-              "minY": 315,
-              "width": 299,
-              "height": 151
+              "minX": 220,
+              "minY": 350,
+              "width": 308,
+              "height": 106
             },
-            "opaquePixels": 7926,
+            "opaquePixels": 12661,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.694595
+            "shadowWaterlineY": -0.693969
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 227,
-              "minY": 316,
-              "width": 299,
-              "height": 151
+              "minX": 220,
+              "minY": 351,
+              "width": 309,
+              "height": 105
             },
-            "opaquePixels": 7881,
+            "opaquePixels": 12637,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.688605
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 227,
-              "minY": 316,
-              "width": 300,
-              "height": 151
+              "minX": 221,
+              "minY": 351,
+              "width": 308,
+              "height": 106
             },
-            "opaquePixels": 7848,
+            "opaquePixels": 12622,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.682615
+            "shadowWaterlineY": -0.683242
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00599009,
+        "waterShadowModelHeightPerPixel": 0.00536363,
         "opaqueBounds": {
-          "minX": 373,
-          "minY": 154,
-          "width": 214,
-          "height": 311
+          "minX": 370,
+          "minY": 133,
+          "width": 219,
+          "height": 332
         },
-        "opaquePixels": 20116,
+        "opaquePixels": 19464,
         "deckEntryAnchor": {
-          "x": 535,
-          "y": 344
+          "x": 536,
+          "y": 355
         },
         "sailorSpawnAnchor": {
-          "x": 589,
-          "y": 347
+          "x": 591,
+          "y": 363
         },
-        "submergedPixels": 56,
+        "submergedPixels": 77,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2376,44 +2376,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.8058,
       "opaqueBounds": {
-        "minX": 127,
-        "minY": 55,
-        "width": 65,
-        "height": 100
+        "minX": 126,
+        "minY": 50,
+        "width": 67,
+        "height": 105
       },
-      "opaquePixels": 2372,
+      "opaquePixels": 2451,
       "deckPolygon": [
         {
-          "x": 161,
-          "y": 105
+          "x": 162,
+          "y": 113
         },
         {
-          "x": 145,
-          "y": 131
+          "x": 144,
+          "y": 132
         },
         {
           "x": 168,
-          "y": 135
+          "y": 134
         },
         {
-          "x": 185,
-          "y": 109
+          "x": 186,
+          "y": 116
         }
       ],
       "deckEntryAnchor": {
-        "x": 180,
-        "y": 109
+        "x": 181,
+        "y": 116
       },
       "sailorSpawnAnchor": {
-        "x": 198,
-        "y": 109
+        "x": 199,
+        "y": 117
       },
-      "foregroundOpaquePixels": 2010,
-      "sinkHeightMin": -0.726361,
-      "sinkHeightMax": 0.737375,
+      "foregroundOpaquePixels": 2076,
+      "sinkHeightMin": -0.739419,
+      "sinkHeightMax": 0.735236,
       "encodedWaterlineY": -0.682448,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
+      "submergedPixels": 11,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -2430,57 +2430,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 244,
-              "minY": 286,
-              "width": 278,
-              "height": 178
+              "minX": 236,
+              "minY": 331,
+              "width": 289,
+              "height": 128
             },
-            "opaquePixels": 8000,
+            "opaquePixels": 12680,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.688432
+            "shadowWaterlineY": -0.687808
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 244,
-              "minY": 286,
-              "width": 279,
-              "height": 179
+              "minX": 237,
+              "minY": 331,
+              "width": 289,
+              "height": 128
             },
-            "opaquePixels": 8003,
+            "opaquePixels": 12660,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.682448
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 245,
-              "minY": 287,
-              "width": 278,
-              "height": 178
+              "minX": 237,
+              "minY": 332,
+              "width": 289,
+              "height": 127
             },
-            "opaquePixels": 8015,
+            "opaquePixels": 12630,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.676463
+            "shadowWaterlineY": -0.677087
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598449,
+        "waterShadowModelHeightPerPixel": 0.0053603,
         "opaqueBounds": {
-          "minX": 383,
-          "minY": 164,
-          "width": 194,
-          "height": 301
+          "minX": 380,
+          "minY": 150,
+          "width": 200,
+          "height": 315
         },
-        "opaquePixels": 20777,
+        "opaquePixels": 21156,
         "deckEntryAnchor": {
-          "x": 542,
-          "y": 327
+          "x": 544,
+          "y": 348
         },
         "sailorSpawnAnchor": {
-          "x": 594,
-          "y": 325
+          "x": 597,
+          "y": 352
         },
-        "submergedPixels": 14,
+        "submergedPixels": 60,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2514,18 +2514,18 @@
       "targetModelMaxDim": 1.4602,
       "opaqueBounds": {
         "minX": 140,
-        "minY": 67,
-        "width": 39,
-        "height": 88
+        "minY": 62,
+        "width": 40,
+        "height": 93
       },
-      "opaquePixels": 1357,
+      "opaquePixels": 1255,
       "deckPolygon": [
         {
-          "x": 164,
-          "y": 116
+          "x": 165,
+          "y": 122
         },
         {
-          "x": 150,
+          "x": 151,
           "y": 137
         },
         {
@@ -2533,24 +2533,24 @@
           "y": 138
         },
         {
-          "x": 172,
-          "y": 117
+          "x": 173,
+          "y": 122
         }
       ],
       "deckEntryAnchor": {
-        "x": 170,
-        "y": 118
+        "x": 171,
+        "y": 123
       },
       "sailorSpawnAnchor": {
-        "x": 178,
-        "y": 117
+        "x": 179,
+        "y": 124
       },
-      "foregroundOpaquePixels": 892,
-      "sinkHeightMin": -0.658933,
-      "sinkHeightMax": 0.659274,
+      "foregroundOpaquePixels": 817,
+      "sinkHeightMin": -0.660807,
+      "sinkHeightMax": 0.657008,
       "encodedWaterlineY": -0.614414,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 7,
+      "submergedPixels": 9,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -2567,57 +2567,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 322,
-              "minY": 319,
-              "width": 204,
-              "height": 142
+              "minX": 318,
+              "minY": 358,
+              "width": 210,
+              "height": 100
             },
-            "opaquePixels": 5205,
+            "opaquePixels": 7292,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.620398
+            "shadowWaterlineY": -0.619773
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 323,
-              "minY": 319,
-              "width": 204,
-              "height": 142
+              "minX": 319,
+              "minY": 358,
+              "width": 209,
+              "height": 100
             },
-            "opaquePixels": 5203,
+            "opaquePixels": 7290,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.614414
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 323,
-              "minY": 320,
-              "width": 205,
-              "height": 141
+              "minX": 319,
+              "minY": 358,
+              "width": 210,
+              "height": 100
             },
-            "opaquePixels": 5195,
+            "opaquePixels": 7293,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.60843
+            "shadowWaterlineY": -0.609055
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598411,
+        "waterShadowModelHeightPerPixel": 0.00535917,
         "opaqueBounds": {
-          "minX": 421,
-          "minY": 200,
-          "width": 117,
-          "height": 265
+          "minX": 420,
+          "minY": 187,
+          "width": 120,
+          "height": 278
         },
-        "opaquePixels": 11987,
+        "opaquePixels": 10881,
         "deckEntryAnchor": {
-          "x": 511,
-          "y": 352
+          "x": 513,
+          "y": 369
         },
         "sailorSpawnAnchor": {
-          "x": 535,
-          "y": 349
+          "x": 537,
+          "y": 372
         },
-        "submergedPixels": 52,
+        "submergedPixels": 79,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2650,41 +2650,41 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 0.9996,
       "opaqueBounds": {
-        "minX": 142,
-        "minY": 78,
-        "width": 36,
-        "height": 77
+        "minX": 141,
+        "minY": 80,
+        "width": 37,
+        "height": 75
       },
-      "opaquePixels": 685,
+      "opaquePixels": 624,
       "deckPolygon": [
         {
           "x": 155,
-          "y": 126
+          "y": 130
         },
         {
-          "x": 147,
-          "y": 140
+          "x": 146,
+          "y": 139
         },
         {
-          "x": 165,
-          "y": 143
+          "x": 164,
+          "y": 141
         },
         {
           "x": 173,
-          "y": 129
+          "y": 132
         }
       ],
       "deckEntryAnchor": {
         "x": 170,
-        "y": 129
+        "y": 132
       },
       "sailorSpawnAnchor": {
         "x": 182,
-        "y": 130
+        "y": 133
       },
-      "foregroundOpaquePixels": 501,
-      "sinkHeightMin": -0.421058,
-      "sinkHeightMax": 0.451859,
+      "foregroundOpaquePixels": 472,
+      "sinkHeightMin": -0.448049,
+      "sinkHeightMax": 0.450496,
       "encodedWaterlineY": -0.35557,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 3,
@@ -2704,57 +2704,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 330,
-              "minY": 335,
-              "width": 193,
-              "height": 127
+              "minX": 326,
+              "minY": 366,
+              "width": 197,
+              "height": 90
             },
-            "opaquePixels": 2619,
+            "opaquePixels": 3690,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.361543
+            "shadowWaterlineY": -0.360931
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 331,
-              "minY": 335,
-              "width": 192,
-              "height": 127
+              "minX": 327,
+              "minY": 367,
+              "width": 197,
+              "height": 89
             },
-            "opaquePixels": 2583,
+            "opaquePixels": 3653,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.35557
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 331,
-              "minY": 335,
-              "width": 193,
-              "height": 128
+              "minX": 327,
+              "minY": 367,
+              "width": 199,
+              "height": 89
             },
-            "opaquePixels": 2590,
+            "opaquePixels": 3630,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.349598
+            "shadowWaterlineY": -0.35021
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597259,
+        "waterShadowModelHeightPerPixel": 0.0053603,
         "opaqueBounds": {
-          "minX": 425,
-          "minY": 233,
-          "width": 109,
-          "height": 232
+          "minX": 424,
+          "minY": 240,
+          "width": 112,
+          "height": 225
         },
-        "opaquePixels": 5914,
+        "opaquePixels": 5455,
         "deckEntryAnchor": {
-          "x": 509,
-          "y": 387
+          "x": 510,
+          "y": 395
         },
         "sailorSpawnAnchor": {
-          "x": 545,
-          "y": 389
+          "x": 547,
+          "y": 399
         },
-        "submergedPixels": 28,
+        "submergedPixels": 47,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2787,44 +2787,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.224,
       "opaqueBounds": {
-        "minX": 126,
-        "minY": 89,
-        "width": 67,
-        "height": 66
+        "minX": 125,
+        "minY": 86,
+        "width": 69,
+        "height": 69
       },
-      "opaquePixels": 846,
+      "opaquePixels": 840,
       "deckPolygon": [
         {
           "x": 158,
-          "y": 121
+          "y": 127
         },
         {
           "x": 146,
-          "y": 139
+          "y": 140
         },
         {
-          "x": 170,
+          "x": 171,
           "y": 142
         },
         {
           "x": 182,
-          "y": 125
+          "y": 130
         }
       ],
       "deckEntryAnchor": {
-        "x": 177,
-        "y": 125
+        "x": 178,
+        "y": 130
       },
       "sailorSpawnAnchor": {
-        "x": 193,
-        "y": 125
+        "x": 194,
+        "y": 131
       },
-      "foregroundOpaquePixels": 719,
-      "sinkHeightMin": -0.473148,
-      "sinkHeightMax": 0.483994,
+      "foregroundOpaquePixels": 707,
+      "sinkHeightMin": -0.473314,
+      "sinkHeightMax": 0.48381,
       "encodedWaterlineY": -0.444663,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 0,
+      "submergedPixels": 3,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -2841,57 +2841,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 282,
-              "minY": 350,
-              "width": 267,
-              "height": 117
+              "minX": 277,
+              "minY": 382,
+              "width": 273,
+              "height": 82
             },
-            "opaquePixels": 3211,
+            "opaquePixels": 4606,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.450659
+            "shadowWaterlineY": -0.450036
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 283,
-              "minY": 351,
-              "width": 266,
-              "height": 116
+              "minX": 278,
+              "minY": 382,
+              "width": 273,
+              "height": 82
             },
-            "opaquePixels": 3233,
+            "opaquePixels": 4598,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.444663
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 284,
-              "minY": 351,
-              "width": 266,
-              "height": 117
+              "minX": 279,
+              "minY": 382,
+              "width": 273,
+              "height": 82
             },
-            "opaquePixels": 3191,
+            "opaquePixels": 4588,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.438667
+            "shadowWaterlineY": -0.439291
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00599593,
+        "waterShadowModelHeightPerPixel": 0.00537255,
         "opaqueBounds": {
-          "minX": 379,
-          "minY": 266,
-          "width": 201,
-          "height": 199
+          "minX": 377,
+          "minY": 259,
+          "width": 206,
+          "height": 206
         },
-        "opaquePixels": 7216,
+        "opaquePixels": 6833,
         "deckEntryAnchor": {
-          "x": 532,
-          "y": 374
+          "x": 534,
+          "y": 389
         },
         "sailorSpawnAnchor": {
-          "x": 581,
-          "y": 374
+          "x": 584,
+          "y": 393
         },
-        "submergedPixels": 2,
+        "submergedPixels": 11,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2925,40 +2925,40 @@
       "targetModelMaxDim": 1.7542,
       "opaqueBounds": {
         "minX": 140,
-        "minY": 72,
-        "width": 39,
-        "height": 83
+        "minY": 70,
+        "width": 40,
+        "height": 85
       },
-      "opaquePixels": 1138,
+      "opaquePixels": 1100,
       "deckPolygon": [
         {
-          "x": 166,
-          "y": 106
+          "x": 167,
+          "y": 115
         },
         {
           "x": 150,
-          "y": 132
-        },
-        {
-          "x": 156,
           "y": 133
         },
         {
-          "x": 172,
-          "y": 107
+          "x": 157,
+          "y": 134
+        },
+        {
+          "x": 173,
+          "y": 116
         }
       ],
       "deckEntryAnchor": {
-        "x": 171,
-        "y": 108
+        "x": 172,
+        "y": 116
       },
       "sailorSpawnAnchor": {
-        "x": 178,
-        "y": 105
+        "x": 179,
+        "y": 116
       },
-      "foregroundOpaquePixels": 966,
-      "sinkHeightMin": -0.590339,
-      "sinkHeightMax": 0.587246,
+      "foregroundOpaquePixels": 934,
+      "sinkHeightMin": -0.588874,
+      "sinkHeightMax": 0.585952,
       "encodedWaterlineY": -0.521733,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 13,
@@ -2978,57 +2978,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 328,
-              "minY": 287,
-              "width": 185,
-              "height": 168
+              "minX": 325,
+              "minY": 335,
+              "width": 192,
+              "height": 118
             },
-            "opaquePixels": 4093,
+            "opaquePixels": 6494,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.527707
+            "shadowWaterlineY": -0.527096
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 329,
-              "minY": 287,
-              "width": 184,
-              "height": 169
+              "minX": 326,
+              "minY": 335,
+              "width": 191,
+              "height": 118
             },
-            "opaquePixels": 4092,
+            "opaquePixels": 6492,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.521733
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 330,
-              "minY": 287,
-              "width": 184,
-              "height": 169
+              "minX": 326,
+              "minY": 335,
+              "width": 192,
+              "height": 118
             },
-            "opaquePixels": 4094,
+            "opaquePixels": 6460,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.515759
+            "shadowWaterlineY": -0.51637
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597365,
+        "waterShadowModelHeightPerPixel": 0.00536279,
         "opaqueBounds": {
-          "minX": 421,
-          "minY": 215,
-          "width": 117,
-          "height": 250
+          "minX": 420,
+          "minY": 211,
+          "width": 120,
+          "height": 254
         },
-        "opaquePixels": 9619,
+        "opaquePixels": 9530,
         "deckEntryAnchor": {
-          "x": 513,
-          "y": 323
+          "x": 515,
+          "y": 349
         },
         "sailorSpawnAnchor": {
-          "x": 535,
-          "y": 315
+          "x": 537,
+          "y": 348
         },
-        "submergedPixels": 96,
+        "submergedPixels": 128,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3062,43 +3062,43 @@
       "targetModelMaxDim": 2.0291,
       "opaqueBounds": {
         "minX": 135,
-        "minY": 58,
-        "width": 49,
-        "height": 97
+        "minY": 65,
+        "width": 50,
+        "height": 90
       },
-      "opaquePixels": 1686,
+      "opaquePixels": 1491,
       "deckPolygon": [
         {
           "x": 166,
-          "y": 99
+          "y": 110
         },
         {
           "x": 147,
-          "y": 129
-        },
-        {
-          "x": 156,
           "y": 131
         },
         {
-          "x": 175,
-          "y": 101
+          "x": 156,
+          "y": 132
+        },
+        {
+          "x": 176,
+          "y": 111
         }
       ],
       "deckEntryAnchor": {
-        "x": 172,
-        "y": 102
+        "x": 173,
+        "y": 112
       },
       "sailorSpawnAnchor": {
-        "x": 182,
-        "y": 98
+        "x": 183,
+        "y": 111
       },
-      "foregroundOpaquePixels": 1277,
-      "sinkHeightMin": -0.587521,
-      "sinkHeightMax": 0.582285,
+      "foregroundOpaquePixels": 1137,
+      "sinkHeightMin": -0.590197,
+      "sinkHeightMax": 0.59164,
       "encodedWaterlineY": -0.495666,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 24,
+      "submergedPixels": 16,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -3115,57 +3115,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 322,
-              "minY": 268,
-              "width": 222,
-              "height": 183
+              "minX": 317,
+              "minY": 320,
+              "width": 229,
+              "height": 128
             },
-            "opaquePixels": 6386,
+            "opaquePixels": 9736,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.501639
+            "shadowWaterlineY": -0.501033
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 322,
-              "minY": 268,
-              "width": 223,
-              "height": 183
+              "minX": 318,
+              "minY": 320,
+              "width": 229,
+              "height": 128
             },
-            "opaquePixels": 6363,
+            "opaquePixels": 9718,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.495666
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 323,
-              "minY": 268,
-              "width": 222,
-              "height": 183
+              "minX": 319,
+              "minY": 320,
+              "width": 228,
+              "height": 128
             },
-            "opaquePixels": 6343,
+            "opaquePixels": 9722,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.489693
+            "shadowWaterlineY": -0.490299
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597259,
+        "waterShadowModelHeightPerPixel": 0.0053667,
         "opaqueBounds": {
-          "minX": 406,
-          "minY": 175,
-          "width": 147,
-          "height": 290
+          "minX": 404,
+          "minY": 194,
+          "width": 151,
+          "height": 271
         },
-        "opaquePixels": 14628,
+        "opaquePixels": 12975,
         "deckEntryAnchor": {
-          "x": 518,
-          "y": 306
+          "x": 519,
+          "y": 335
         },
         "sailorSpawnAnchor": {
-          "x": 548,
-          "y": 295
+          "x": 550,
+          "y": 332
         },
-        "submergedPixels": 179,
+        "submergedPixels": 150,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3199,47 +3199,47 @@
       "targetModelMaxDim": 2.4289,
       "opaqueBounds": {
         "minX": 130,
-        "minY": 40,
-        "width": 59,
-        "height": 115
+        "minY": 47,
+        "width": 60,
+        "height": 108
       },
-      "opaquePixels": 2409,
+      "opaquePixels": 2214,
       "deckPolygon": [
         {
           "x": 167,
-          "y": 89
+          "y": 101
         },
         {
           "x": 144,
-          "y": 125
+          "y": 126
         },
         {
-          "x": 155,
-          "y": 127
+          "x": 156,
+          "y": 128
         },
         {
-          "x": 178,
-          "y": 91
+          "x": 179,
+          "y": 103
         }
       ],
       "deckEntryAnchor": {
-        "x": 175,
-        "y": 92
+        "x": 176,
+        "y": 103
       },
       "sailorSpawnAnchor": {
-        "x": 187,
-        "y": 88
+        "x": 188,
+        "y": 102
       },
-      "foregroundOpaquePixels": 1837,
-      "sinkHeightMin": -0.700696,
-      "sinkHeightMax": 0.684331,
+      "foregroundOpaquePixels": 1698,
+      "sinkHeightMin": -0.703906,
+      "sinkHeightMax": 0.666472,
       "encodedWaterlineY": -0.594452,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 28,
+      "submergedPixels": 25,
       "rasterCleanup": {
         "minimumComponentPixels": 2,
-        "removedComponents": 2,
-        "removedPixels": 2
+        "removedComponents": 3,
+        "removedPixels": 3
       },
       "colorCleanup": null,
       "cityDockside": {
@@ -3252,61 +3252,61 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 293,
-              "minY": 231,
-              "width": 264,
-              "height": 219
+              "minX": 287,
+              "minY": 292,
+              "width": 272,
+              "height": 153
             },
-            "opaquePixels": 8804,
+            "opaquePixels": 14086,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.600437
+            "shadowWaterlineY": -0.599822
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 294,
-              "minY": 231,
-              "width": 264,
-              "height": 219
+              "minX": 288,
+              "minY": 292,
+              "width": 271,
+              "height": 153
             },
-            "opaquePixels": 8786,
+            "opaquePixels": 14042,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.594452
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 294,
-              "minY": 231,
-              "width": 265,
-              "height": 218
+              "minX": 287,
+              "minY": 292,
+              "width": 273,
+              "height": 153
             },
-            "opaquePixels": 8768,
+            "opaquePixels": 14000,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.588467
+            "shadowWaterlineY": -0.589082
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598486,
+        "waterShadowModelHeightPerPixel": 0.00537,
         "opaqueBounds": {
-          "minX": 392,
-          "minY": 119,
-          "width": 176,
-          "height": 346
+          "minX": 389,
+          "minY": 140,
+          "width": 181,
+          "height": 325
         },
-        "opaquePixels": 20948,
+        "opaquePixels": 18712,
         "deckEntryAnchor": {
-          "x": 526,
-          "y": 276
+          "x": 527,
+          "y": 310
         },
         "sailorSpawnAnchor": {
-          "x": 562,
-          "y": 264
+          "x": 563,
+          "y": 306
         },
-        "submergedPixels": 222,
+        "submergedPixels": 209,
         "rasterCleanup": {
           "minimumComponentPixels": 12,
-          "removedComponents": 3,
-          "removedPixels": 19
+          "removedComponents": 8,
+          "removedPixels": 49
         },
         "colorCleanup": null
       },
@@ -3336,43 +3336,43 @@
       "targetModelMaxDim": 1.6233,
       "opaqueBounds": {
         "minX": 140,
-        "minY": 78,
-        "width": 39,
-        "height": 77
+        "minY": 83,
+        "width": 40,
+        "height": 72
       },
-      "opaquePixels": 1050,
+      "opaquePixels": 913,
       "deckPolygon": [
         {
-          "x": 164,
-          "y": 106
+          "x": 165,
+          "y": 114
         },
         {
-          "x": 149,
-          "y": 130
+          "x": 150,
+          "y": 131
         },
         {
           "x": 157,
           "y": 131
         },
         {
-          "x": 172,
-          "y": 107
+          "x": 173,
+          "y": 115
         }
       ],
       "deckEntryAnchor": {
-        "x": 170,
-        "y": 108
+        "x": 171,
+        "y": 115
       },
       "sailorSpawnAnchor": {
-        "x": 178,
-        "y": 105
+        "x": 179,
+        "y": 114
       },
-      "foregroundOpaquePixels": 753,
-      "sinkHeightMin": -0.46371,
-      "sinkHeightMax": 0.454904,
+      "foregroundOpaquePixels": 681,
+      "sinkHeightMin": -0.470111,
+      "sinkHeightMax": 0.432218,
       "encodedWaterlineY": -0.308837,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 427,
+      "submergedPixels": 376,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -3389,57 +3389,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 367,
-              "minY": 297,
-              "width": 171,
-              "height": 144
+              "minX": 363,
+              "minY": 335,
+              "width": 176,
+              "height": 101
             },
-            "opaquePixels": 1645,
+            "opaquePixels": 2404,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.31481
+            "shadowWaterlineY": -0.314199
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 367,
-              "minY": 297,
-              "width": 169,
-              "height": 144
+              "minX": 364,
+              "minY": 343,
+              "width": 174,
+              "height": 93
             },
-            "opaquePixels": 1570,
+            "opaquePixels": 2248,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.308837
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 368,
-              "minY": 308,
-              "width": 168,
-              "height": 134
+              "minX": 365,
+              "minY": 343,
+              "width": 172,
+              "height": 94
             },
-            "opaquePixels": 1472,
+            "opaquePixels": 2059,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.302864
+            "shadowWaterlineY": -0.303475
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597259,
+        "waterShadowModelHeightPerPixel": 0.00536176,
         "opaqueBounds": {
-          "minX": 421,
-          "minY": 233,
-          "width": 117,
-          "height": 232
+          "minX": 420,
+          "minY": 248,
+          "width": 120,
+          "height": 217
         },
-        "opaquePixels": 8887,
+        "opaquePixels": 7839,
         "deckEntryAnchor": {
-          "x": 511,
-          "y": 323
+          "x": 512,
+          "y": 345
         },
         "sailorSpawnAnchor": {
-          "x": 534,
-          "y": 315
+          "x": 536,
+          "y": 343
         },
-        "submergedPixels": 3655,
+        "submergedPixels": 3514,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3472,44 +3472,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.0274,
       "opaqueBounds": {
-        "minX": 119,
-        "minY": 53,
-        "width": 82,
-        "height": 102
+        "minX": 118,
+        "minY": 54,
+        "width": 84,
+        "height": 101
       },
-      "opaquePixels": 4183,
+      "opaquePixels": 3676,
       "deckPolygon": [
         {
           "x": 160,
-          "y": 106
+          "y": 120
         },
         {
-          "x": 141,
-          "y": 136
+          "x": 140,
+          "y": 141
         },
         {
           "x": 160,
-          "y": 139
+          "y": 143
         },
         {
           "x": 179,
-          "y": 109
+          "y": 122
         }
       ],
       "deckEntryAnchor": {
         "x": 175,
-        "y": 110
+        "y": 122
       },
       "sailorSpawnAnchor": {
-        "x": 190,
-        "y": 109
+        "x": 191,
+        "y": 123
       },
-      "foregroundOpaquePixels": 3353,
-      "sinkHeightMin": -0.737505,
-      "sinkHeightMax": 0.73031,
+      "foregroundOpaquePixels": 2952,
+      "sinkHeightMin": -0.737418,
+      "sinkHeightMax": 0.731967,
       "encodedWaterlineY": -0.70418,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 8,
+      "submergedPixels": 3,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -3526,57 +3526,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 263,
-              "minY": 277,
-              "width": 318,
-              "height": 203
+              "minX": 257,
+              "minY": 342,
+              "width": 327,
+              "height": 138
             },
-            "opaquePixels": 14887,
-            "clippedProjectedPixels": 341,
-            "shadowWaterlineY": -0.710162
+            "opaquePixels": 20596,
+            "clippedProjectedPixels": 528,
+            "shadowWaterlineY": -0.709547
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 263,
-              "minY": 277,
-              "width": 319,
-              "height": 203
+              "minX": 258,
+              "minY": 342,
+              "width": 327,
+              "height": 138
             },
-            "opaquePixels": 14874,
-            "clippedProjectedPixels": 356,
+            "opaquePixels": 20576,
+            "clippedProjectedPixels": 540,
             "shadowWaterlineY": -0.70418
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 264,
-              "minY": 277,
-              "width": 319,
-              "height": 203
+              "minX": 258,
+              "minY": 343,
+              "width": 328,
+              "height": 137
             },
-            "opaquePixels": 14848,
-            "clippedProjectedPixels": 368,
-            "shadowWaterlineY": -0.698198
+            "opaquePixels": 20566,
+            "clippedProjectedPixels": 552,
+            "shadowWaterlineY": -0.698812
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598173,
+        "waterShadowModelHeightPerPixel": 0.00536756,
         "opaqueBounds": {
-          "minX": 356,
-          "minY": 160,
-          "width": 247,
-          "height": 305
+          "minX": 354,
+          "minY": 161,
+          "width": 252,
+          "height": 304
         },
-        "opaquePixels": 37154,
+        "opaquePixels": 32646,
         "deckEntryAnchor": {
-          "x": 524,
-          "y": 331
+          "x": 525,
+          "y": 367
         },
         "sailorSpawnAnchor": {
-          "x": 570,
-          "y": 326
+          "x": 572,
+          "y": 368
         },
-        "submergedPixels": 68,
+        "submergedPixels": 25,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3609,44 +3609,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 1.72,
       "opaqueBounds": {
-        "minX": 133,
-        "minY": 40,
-        "width": 53,
-        "height": 115
+        "minX": 132,
+        "minY": 43,
+        "width": 55,
+        "height": 112
       },
-      "opaquePixels": 2120,
+      "opaquePixels": 1949,
       "deckPolygon": [
         {
           "x": 161,
-          "y": 105
+          "y": 114
         },
         {
-          "x": 145,
-          "y": 130
-        },
-        {
-          "x": 156,
+          "x": 144,
           "y": 132
         },
         {
-          "x": 172,
-          "y": 107
+          "x": 156,
+          "y": 133
+        },
+        {
+          "x": 173,
+          "y": 115
         }
       ],
       "deckEntryAnchor": {
         "x": 170,
-        "y": 108
+        "y": 116
       },
       "sailorSpawnAnchor": {
-        "x": 180,
-        "y": 106
+        "x": 181,
+        "y": 116
       },
-      "foregroundOpaquePixels": 1620,
-      "sinkHeightMin": -0.673646,
-      "sinkHeightMax": 0.682044,
+      "foregroundOpaquePixels": 1506,
+      "sinkHeightMin": -0.679582,
+      "sinkHeightMax": 0.675546,
       "encodedWaterlineY": -0.607386,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 22,
+      "submergedPixels": 28,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -3663,57 +3663,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 345,
-              "minY": 284,
-              "width": 202,
-              "height": 175
+              "minX": 341,
+              "minY": 333,
+              "width": 207,
+              "height": 123
             },
-            "opaquePixels": 8725,
+            "opaquePixels": 12167,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.613371
+            "shadowWaterlineY": -0.612749
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 345,
-              "minY": 284,
-              "width": 203,
-              "height": 176
+              "minX": 342,
+              "minY": 333,
+              "width": 207,
+              "height": 123
             },
-            "opaquePixels": 8718,
+            "opaquePixels": 12166,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.607386
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 346,
-              "minY": 284,
-              "width": 203,
-              "height": 176
+              "minX": 343,
+              "minY": 333,
+              "width": 207,
+              "height": 124
             },
-            "opaquePixels": 8678,
+            "opaquePixels": 12155,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.601401
+            "shadowWaterlineY": -0.602023
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598486,
+        "waterShadowModelHeightPerPixel": 0.00536312,
         "opaqueBounds": {
-          "minX": 400,
-          "minY": 119,
-          "width": 160,
-          "height": 346
+          "minX": 398,
+          "minY": 129,
+          "width": 164,
+          "height": 336
         },
-        "opaquePixels": 18846,
+        "opaquePixels": 16940,
         "deckEntryAnchor": {
-          "x": 511,
-          "y": 322
+          "x": 512,
+          "y": 347
         },
         "sailorSpawnAnchor": {
-          "x": 543,
-          "y": 318
+          "x": 544,
+          "y": 349
         },
-        "submergedPixels": 236,
+        "submergedPixels": 261,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3746,44 +3746,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.1516,
       "opaqueBounds": {
-        "minX": 127,
-        "minY": 11,
-        "width": 66,
-        "height": 144
+        "minX": 126,
+        "minY": 15,
+        "width": 68,
+        "height": 140
       },
-      "opaquePixels": 3338,
+      "opaquePixels": 3075,
       "deckPolygon": [
         {
           "x": 162,
-          "y": 94
+          "y": 105
         },
         {
-          "x": 142,
-          "y": 125
+          "x": 141,
+          "y": 127
         },
         {
           "x": 156,
-          "y": 128
+          "y": 129
         },
         {
-          "x": 176,
-          "y": 96
+          "x": 177,
+          "y": 107
         }
       ],
       "deckEntryAnchor": {
         "x": 173,
-        "y": 97
+        "y": 107
       },
       "sailorSpawnAnchor": {
-        "x": 186,
-        "y": 95
+        "x": 187,
+        "y": 108
       },
-      "foregroundOpaquePixels": 2613,
-      "sinkHeightMin": -0.849788,
+      "foregroundOpaquePixels": 2451,
+      "sinkHeightMin": -0.850269,
       "sinkHeightMax": 0.853194,
       "encodedWaterlineY": -0.782303,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 27,
+      "submergedPixels": 39,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -3800,57 +3800,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 286,
-              "minY": 242,
-              "width": 276,
-              "height": 219
+              "minX": 280,
+              "minY": 303,
+              "width": 283,
+              "height": 154
             },
-            "opaquePixels": 13616,
+            "opaquePixels": 19257,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.788291
+            "shadowWaterlineY": -0.787675
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 287,
-              "minY": 242,
-              "width": 275,
-              "height": 219
+              "minX": 281,
+              "minY": 303,
+              "width": 283,
+              "height": 154
             },
-            "opaquePixels": 13598,
+            "opaquePixels": 19249,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.782303
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 287,
-              "minY": 242,
-              "width": 276,
-              "height": 220
+              "minX": 281,
+              "minY": 304,
+              "width": 284,
+              "height": 154
             },
-            "opaquePixels": 13600,
+            "opaquePixels": 19239,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.776316
+            "shadowWaterlineY": -0.776932
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598734,
+        "waterShadowModelHeightPerPixel": 0.00537156,
         "opaqueBounds": {
-          "minX": 380,
-          "minY": 33,
-          "width": 199,
-          "height": 432
+          "minX": 377,
+          "minY": 45,
+          "width": 205,
+          "height": 420
         },
-        "opaquePixels": 29585,
+        "opaquePixels": 27382,
         "deckEntryAnchor": {
-          "x": 519,
-          "y": 291
+          "x": 520,
+          "y": 322
         },
         "sailorSpawnAnchor": {
-          "x": 558,
-          "y": 285
+          "x": 561,
+          "y": 324
         },
-        "submergedPixels": 252,
+        "submergedPixels": 315,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3884,43 +3884,43 @@
       "targetModelMaxDim": 1.5039,
       "opaqueBounds": {
         "minX": 141,
-        "minY": 93,
-        "width": 37,
-        "height": 62
+        "minY": 97,
+        "width": 38,
+        "height": 58
       },
-      "opaquePixels": 722,
+      "opaquePixels": 632,
       "deckPolygon": [
         {
-          "x": 163,
-          "y": 114
+          "x": 164,
+          "y": 123
         },
         {
-          "x": 149,
-          "y": 136
+          "x": 150,
+          "y": 139
         },
         {
-          "x": 156,
-          "y": 137
+          "x": 157,
+          "y": 140
         },
         {
-          "x": 170,
-          "y": 115
+          "x": 171,
+          "y": 124
         }
       ],
       "deckEntryAnchor": {
-        "x": 168,
-        "y": 116
+        "x": 169,
+        "y": 125
       },
       "sailorSpawnAnchor": {
-        "x": 175,
-        "y": 113
+        "x": 176,
+        "y": 123
       },
-      "foregroundOpaquePixels": 502,
-      "sinkHeightMin": -0.315259,
-      "sinkHeightMax": 0.316329,
+      "foregroundOpaquePixels": 464,
+      "sinkHeightMin": -0.311801,
+      "sinkHeightMax": 0.31001,
       "encodedWaterlineY": -0.268498,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 7,
+      "submergedPixels": 8,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -3937,57 +3937,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 392,
-              "minY": 311,
+              "minX": 389,
+              "minY": 353,
               "width": 133,
-              "height": 143
+              "height": 101
             },
-            "opaquePixels": 2684,
+            "opaquePixels": 4126,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.274489
+            "shadowWaterlineY": -0.273849
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 393,
-              "minY": 311,
-              "width": 132,
-              "height": 143
+              "minX": 389,
+              "minY": 353,
+              "width": 134,
+              "height": 100
             },
-            "opaquePixels": 2687,
+            "opaquePixels": 4113,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.268498
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 393,
-              "minY": 311,
+              "minX": 390,
+              "minY": 353,
               "width": 133,
-              "height": 143
+              "height": 100
             },
-            "opaquePixels": 2688,
+            "opaquePixels": 4105,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.262506
+            "shadowWaterlineY": -0.263146
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00599196,
+        "waterShadowModelHeightPerPixel": 0.00535129,
         "opaqueBounds": {
-          "minX": 424,
-          "minY": 280,
-          "width": 112,
-          "height": 185
+          "minX": 422,
+          "minY": 290,
+          "width": 115,
+          "height": 175
         },
-        "opaquePixels": 6040,
+        "opaquePixels": 5306,
         "deckEntryAnchor": {
           "x": 507,
-          "y": 348
+          "y": 373
         },
         "sailorSpawnAnchor": {
-          "x": 528,
-          "y": 339
+          "x": 529,
+          "y": 369
         },
-        "submergedPixels": 40,
+        "submergedPixels": 79,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4021,43 +4021,43 @@
       "targetModelMaxDim": 1.68,
       "opaqueBounds": {
         "minX": 141,
-        "minY": 91,
-        "width": 37,
-        "height": 64
+        "minY": 99,
+        "width": 38,
+        "height": 56
       },
-      "opaquePixels": 989,
+      "opaquePixels": 895,
       "deckPolygon": [
         {
-          "x": 165,
-          "y": 114
+          "x": 166,
+          "y": 123
         },
         {
           "x": 150,
-          "y": 138
+          "y": 141
         },
         {
-          "x": 157,
-          "y": 140
+          "x": 158,
+          "y": 142
         },
         {
-          "x": 173,
-          "y": 115
+          "x": 174,
+          "y": 124
         }
       ],
       "deckEntryAnchor": {
-        "x": 171,
-        "y": 116
+        "x": 172,
+        "y": 125
       },
       "sailorSpawnAnchor": {
-        "x": 179,
-        "y": 112
+        "x": 180,
+        "y": 123
       },
-      "foregroundOpaquePixels": 806,
-      "sinkHeightMin": -0.206596,
-      "sinkHeightMax": 0.268409,
+      "foregroundOpaquePixels": 722,
+      "sinkHeightMin": -0.233656,
+      "sinkHeightMax": 0.268612,
       "encodedWaterlineY": -0.156335,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 17,
+      "submergedPixels": 24,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -4074,57 +4074,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 391,
-              "minY": 302,
-              "width": 133,
-              "height": 162
+              "minX": 388,
+              "minY": 347,
+              "width": 137,
+              "height": 115
             },
-            "opaquePixels": 4276,
+            "opaquePixels": 6131,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.162318
+            "shadowWaterlineY": -0.161698
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 392,
-              "minY": 302,
-              "width": 133,
-              "height": 163
+              "minX": 390,
+              "minY": 348,
+              "width": 136,
+              "height": 114
             },
-            "opaquePixels": 4262,
+            "opaquePixels": 6113,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.156335
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 393,
-              "minY": 302,
-              "width": 133,
-              "height": 162
+              "minX": 390,
+              "minY": 348,
+              "width": 136,
+              "height": 114
             },
-            "opaquePixels": 4234,
+            "opaquePixels": 6082,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.150352
+            "shadowWaterlineY": -0.150972
           }
         },
-        "waterShadowModelHeightPerPixel": 0.0059829,
+        "waterShadowModelHeightPerPixel": 0.00536312,
         "opaqueBounds": {
-          "minX": 424,
-          "minY": 272,
-          "width": 112,
-          "height": 193
+          "minX": 422,
+          "minY": 297,
+          "width": 115,
+          "height": 168
         },
-        "opaquePixels": 8749,
+        "opaquePixels": 7837,
         "deckEntryAnchor": {
-          "x": 514,
-          "y": 347
+          "x": 515,
+          "y": 374
         },
         "sailorSpawnAnchor": {
-          "x": 538,
-          "y": 335
+          "x": 540,
+          "y": 368
         },
-        "submergedPixels": 105,
+        "submergedPixels": 194,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4155,44 +4155,44 @@
       "license": "BOOTH commercial-use license",
       "targetModelMaxDim": 1.9185,
       "opaqueBounds": {
-        "minX": 133,
-        "minY": 73,
-        "width": 54,
-        "height": 82
+        "minX": 132,
+        "minY": 71,
+        "width": 56,
+        "height": 84
       },
-      "opaquePixels": 2146,
+      "opaquePixels": 1941,
       "deckPolygon": [
         {
           "x": 166,
-          "y": 99
+          "y": 109
         },
         {
           "x": 148,
-          "y": 127
-        },
-        {
-          "x": 161,
           "y": 129
         },
         {
-          "x": 179,
-          "y": 101
+          "x": 161,
+          "y": 131
+        },
+        {
+          "x": 180,
+          "y": 111
         }
       ],
       "deckEntryAnchor": {
-        "x": 176,
-        "y": 102
+        "x": 177,
+        "y": 111
       },
       "sailorSpawnAnchor": {
-        "x": 188,
-        "y": 99
+        "x": 189,
+        "y": 111
       },
-      "foregroundOpaquePixels": 1819,
-      "sinkHeightMin": -0.550697,
-      "sinkHeightMax": 0.568443,
+      "foregroundOpaquePixels": 1643,
+      "sinkHeightMin": -0.55981,
+      "sinkHeightMax": 0.567593,
       "encodedWaterlineY": -0.448547,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 9,
+      "submergedPixels": 29,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -4209,57 +4209,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 326,
-              "minY": 265,
-              "width": 225,
-              "height": 182
+              "minX": 321,
+              "minY": 317,
+              "width": 231,
+              "height": 127
             },
-            "opaquePixels": 8552,
+            "opaquePixels": 13653,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.454531
+            "shadowWaterlineY": -0.453918
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 327,
-              "minY": 265,
-              "width": 224,
-              "height": 182
+              "minX": 320,
+              "minY": 317,
+              "width": 233,
+              "height": 127
             },
-            "opaquePixels": 8531,
+            "opaquePixels": 13644,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.448547
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 328,
-              "minY": 265,
-              "width": 224,
-              "height": 182
+              "minX": 321,
+              "minY": 317,
+              "width": 233,
+              "height": 127
             },
-            "opaquePixels": 8531,
+            "opaquePixels": 13650,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.442564
+            "shadowWaterlineY": -0.443177
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598387,
+        "waterShadowModelHeightPerPixel": 0.00537035,
         "opaqueBounds": {
-          "minX": 399,
-          "minY": 218,
-          "width": 162,
-          "height": 247
+          "minX": 396,
+          "minY": 214,
+          "width": 167,
+          "height": 251
         },
-        "opaquePixels": 19116,
+        "opaquePixels": 16927,
         "deckEntryAnchor": {
-          "x": 528,
-          "y": 306
+          "x": 529,
+          "y": 335
         },
         "sailorSpawnAnchor": {
-          "x": 563,
-          "y": 298
+          "x": 565,
+          "y": 333
         },
-        "submergedPixels": 81,
+        "submergedPixels": 217,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4292,44 +4292,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.2258,
       "opaqueBounds": {
-        "minX": 121,
-        "minY": 27,
-        "width": 78,
-        "height": 128
+        "minX": 120,
+        "minY": 40,
+        "width": 80,
+        "height": 115
       },
-      "opaquePixels": 3621,
+      "opaquePixels": 3339,
       "deckPolygon": [
         {
           "x": 159,
-          "y": 93
+          "y": 105
         },
         {
           "x": 138,
-          "y": 125
-        },
-        {
-          "x": 158,
           "y": 128
         },
         {
-          "x": 178,
-          "y": 96
+          "x": 158,
+          "y": 130
+        },
+        {
+          "x": 179,
+          "y": 108
         }
       ],
       "deckEntryAnchor": {
-        "x": 174,
-        "y": 97
+        "x": 175,
+        "y": 108
       },
       "sailorSpawnAnchor": {
-        "x": 190,
-        "y": 94
+        "x": 191,
+        "y": 107
       },
-      "foregroundOpaquePixels": 3050,
-      "sinkHeightMin": -0.545715,
-      "sinkHeightMax": 0.571268,
+      "foregroundOpaquePixels": 2833,
+      "sinkHeightMin": -0.566977,
+      "sinkHeightMax": 0.564506,
       "encodedWaterlineY": -0.425962,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 121,
+      "submergedPixels": 147,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -4346,57 +4346,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 315,
-              "minY": 208,
-              "width": 243,
-              "height": 239
+              "minX": 309,
+              "minY": 277,
+              "width": 251,
+              "height": 168
             },
-            "opaquePixels": 13452,
+            "opaquePixels": 21617,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.43194
+            "shadowWaterlineY": -0.431329
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 316,
-              "minY": 208,
-              "width": 242,
-              "height": 239
+              "minX": 312,
+              "minY": 277,
+              "width": 245,
+              "height": 168
             },
-            "opaquePixels": 13396,
+            "opaquePixels": 21600,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.425962
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 317,
-              "minY": 208,
-              "width": 240,
-              "height": 238
+              "minX": 312,
+              "minY": 278,
+              "width": 245,
+              "height": 167
             },
-            "opaquePixels": 13382,
+            "opaquePixels": 21594,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.419984
+            "shadowWaterlineY": -0.420595
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597845,
+        "waterShadowModelHeightPerPixel": 0.00536716,
         "opaqueBounds": {
-          "minX": 363,
-          "minY": 80,
-          "width": 234,
-          "height": 385
+          "minX": 359,
+          "minY": 120,
+          "width": 241,
+          "height": 345
         },
-        "opaquePixels": 32182,
+        "opaquePixels": 29762,
         "deckEntryAnchor": {
-          "x": 523,
-          "y": 290
+          "x": 524,
+          "y": 324
         },
         "sailorSpawnAnchor": {
-          "x": 570,
-          "y": 280
+          "x": 573,
+          "y": 322
         },
-        "submergedPixels": 1003,
+        "submergedPixels": 1263,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4429,44 +4429,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.0032,
       "opaqueBounds": {
-        "minX": 132,
-        "minY": 44,
-        "width": 56,
-        "height": 111
+        "minX": 131,
+        "minY": 43,
+        "width": 57,
+        "height": 112
       },
-      "opaquePixels": 2708,
+      "opaquePixels": 2686,
       "deckPolygon": [
         {
-          "x": 162,
-          "y": 93
+          "x": 161,
+          "y": 103
         },
         {
-          "x": 143,
-          "y": 123
+          "x": 142,
+          "y": 124
         },
         {
-          "x": 159,
-          "y": 125
+          "x": 158,
+          "y": 126
         },
         {
-          "x": 178,
-          "y": 96
+          "x": 177,
+          "y": 105
         }
       ],
       "deckEntryAnchor": {
         "x": 174,
-        "y": 96
+        "y": 106
       },
       "sailorSpawnAnchor": {
         "x": 188,
-        "y": 95
+        "y": 106
       },
-      "foregroundOpaquePixels": 2287,
-      "sinkHeightMin": -0.765728,
-      "sinkHeightMax": 0.747862,
+      "foregroundOpaquePixels": 2273,
+      "sinkHeightMin": -0.762564,
+      "sinkHeightMax": 0.749058,
       "encodedWaterlineY": -0.605868,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 63,
+      "submergedPixels": 80,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -4477,8 +4477,8 @@
         "minimumRegionPixels": 2,
         "requestedPasses": 2,
         "completedPasses": 2,
-        "recoloredRegions": 236,
-        "recoloredPixels": 236
+        "recoloredRegions": 229,
+        "recoloredPixels": 229
       },
       "cityDockside": {
         "nativeScale": 3,
@@ -4490,57 +4490,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 285,
-              "minY": 236,
-              "width": 235,
-              "height": 210
+              "minX": 279,
+              "minY": 294,
+              "width": 242,
+              "height": 147
             },
-            "opaquePixels": 9094,
+            "opaquePixels": 14112,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.611851
+            "shadowWaterlineY": -0.611232
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 285,
-              "minY": 236,
-              "width": 235,
-              "height": 210
+              "minX": 280,
+              "minY": 294,
+              "width": 241,
+              "height": 147
             },
-            "opaquePixels": 9059,
+            "opaquePixels": 14071,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.605868
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 286,
-              "minY": 237,
-              "width": 235,
-              "height": 209
+              "minX": 282,
+              "minY": 294,
+              "width": 240,
+              "height": 147
             },
-            "opaquePixels": 9031,
+            "opaquePixels": 14022,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.599886
+            "shadowWaterlineY": -0.600505
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598218,
+        "waterShadowModelHeightPerPixel": 0.00536312,
         "opaqueBounds": {
-          "minX": 396,
-          "minY": 133,
-          "width": 167,
-          "height": 332
+          "minX": 394,
+          "minY": 129,
+          "width": 172,
+          "height": 336
         },
-        "opaquePixels": 22979,
+        "opaquePixels": 23043,
         "deckEntryAnchor": {
-          "x": 522,
-          "y": 290
+          "x": 524,
+          "y": 318
         },
         "sailorSpawnAnchor": {
-          "x": 562,
-          "y": 285
+          "x": 565,
+          "y": 319
         },
-        "submergedPixels": 532,
+        "submergedPixels": 703,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4551,8 +4551,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 1686,
-          "recoloredPixels": 5220
+          "recoloredRegions": 1640,
+          "recoloredPixels": 5415
         }
       },
       "dockRig": {
@@ -4580,16 +4580,16 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.2789,
       "opaqueBounds": {
-        "minX": 116,
-        "minY": 15,
-        "width": 87,
-        "height": 140
+        "minX": 115,
+        "minY": 22,
+        "width": 89,
+        "height": 133
       },
-      "opaquePixels": 3917,
+      "opaquePixels": 4022,
       "deckPolygon": [
         {
           "x": 161,
-          "y": 87
+          "y": 98
         },
         {
           "x": 140,
@@ -4597,27 +4597,27 @@
         },
         {
           "x": 166,
-          "y": 125
+          "y": 124
         },
         {
-          "x": 187,
-          "y": 91
+          "x": 188,
+          "y": 100
         }
       ],
       "deckEntryAnchor": {
-        "x": 182,
-        "y": 92
+        "x": 183,
+        "y": 101
       },
       "sailorSpawnAnchor": {
-        "x": 202,
-        "y": 91
+        "x": 203,
+        "y": 102
       },
-      "foregroundOpaquePixels": 3320,
-      "sinkHeightMin": -0.840819,
-      "sinkHeightMax": 0.837303,
+      "foregroundOpaquePixels": 3408,
+      "sinkHeightMin": -0.838094,
+      "sinkHeightMax": 0.838235,
       "encodedWaterlineY": -0.644179,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 132,
+      "submergedPixels": 193,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -4628,8 +4628,8 @@
         "minimumRegionPixels": 2,
         "requestedPasses": 2,
         "completedPasses": 2,
-        "recoloredRegions": 216,
-        "recoloredPixels": 216
+        "recoloredRegions": 220,
+        "recoloredPixels": 220
       },
       "cityDockside": {
         "nativeScale": 3,
@@ -4641,57 +4641,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 255,
-              "minY": 201,
-              "width": 309,
-              "height": 237
+              "minX": 250,
+              "minY": 266,
+              "width": 316,
+              "height": 166
             },
-            "opaquePixels": 12345,
+            "opaquePixels": 20028,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.650156
+            "shadowWaterlineY": -0.649543
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 256,
-              "minY": 201,
-              "width": 308,
-              "height": 237
+              "minX": 250,
+              "minY": 266,
+              "width": 317,
+              "height": 166
             },
-            "opaquePixels": 12348,
+            "opaquePixels": 19968,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.644179
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 257,
-              "minY": 201,
-              "width": 308,
-              "height": 237
+              "minX": 251,
+              "minY": 266,
+              "width": 317,
+              "height": 167
             },
-            "opaquePixels": 12336,
+            "opaquePixels": 19936,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.638202
+            "shadowWaterlineY": -0.638815
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597748,
+        "waterShadowModelHeightPerPixel": 0.00536415,
         "opaqueBounds": {
-          "minX": 349,
-          "minY": 31,
-          "width": 261,
-          "height": 434
+          "minX": 346,
+          "minY": 55,
+          "width": 268,
+          "height": 410
         },
-        "opaquePixels": 34228,
+        "opaquePixels": 34890,
         "deckEntryAnchor": {
-          "x": 547,
-          "y": 276
+          "x": 550,
+          "y": 303
         },
         "sailorSpawnAnchor": {
-          "x": 607,
-          "y": 272
+          "x": 610,
+          "y": 306
         },
-        "submergedPixels": 1144,
+        "submergedPixels": 1657,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4702,8 +4702,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 1489,
-          "recoloredPixels": 4351
+          "recoloredRegions": 1310,
+          "recoloredPixels": 3930
         }
       },
       "dockRig": {
@@ -4731,44 +4731,44 @@
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.1542,
       "opaqueBounds": {
-        "minX": 123,
-        "minY": 58,
-        "width": 74,
-        "height": 97
+        "minX": 122,
+        "minY": 57,
+        "width": 76,
+        "height": 98
       },
-      "opaquePixels": 2099,
+      "opaquePixels": 1997,
       "deckPolygon": [
         {
           "x": 161,
-          "y": 100
+          "y": 111
         },
         {
-          "x": 141,
-          "y": 132
+          "x": 140,
+          "y": 133
         },
         {
           "x": 167,
           "y": 136
         },
         {
-          "x": 187,
-          "y": 104
+          "x": 188,
+          "y": 114
         }
       ],
       "deckEntryAnchor": {
-        "x": 182,
-        "y": 105
+        "x": 183,
+        "y": 114
       },
       "sailorSpawnAnchor": {
-        "x": 202,
-        "y": 103
+        "x": 203,
+        "y": 115
       },
-      "foregroundOpaquePixels": 1503,
-      "sinkHeightMin": -0.624821,
-      "sinkHeightMax": 0.664006,
+      "foregroundOpaquePixels": 1451,
+      "sinkHeightMin": -0.659741,
+      "sinkHeightMax": 0.668248,
       "encodedWaterlineY": -0.584066,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
+      "submergedPixels": 11,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -4785,57 +4785,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 238,
-              "minY": 254,
-              "width": 296,
-              "height": 215
+              "minX": 231,
+              "minY": 314,
+              "width": 306,
+              "height": 151
             },
-            "opaquePixels": 8003,
+            "opaquePixels": 12293,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.590045
+            "shadowWaterlineY": -0.589442
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 239,
-              "minY": 255,
-              "width": 296,
-              "height": 214
+              "minX": 232,
+              "minY": 314,
+              "width": 306,
+              "height": 151
             },
-            "opaquePixels": 8043,
+            "opaquePixels": 12261,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.584066
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 239,
-              "minY": 255,
-              "width": 296,
-              "height": 215
+              "minX": 232,
+              "minY": 314,
+              "width": 306,
+              "height": 151
             },
-            "opaquePixels": 8007,
+            "opaquePixels": 12239,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.578088
+            "shadowWaterlineY": -0.578691
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597852,
+        "waterShadowModelHeightPerPixel": 0.00537537,
         "opaqueBounds": {
-          "minX": 369,
-          "minY": 174,
-          "width": 221,
-          "height": 291
+          "minX": 366,
+          "minY": 172,
+          "width": 227,
+          "height": 293
         },
-        "opaquePixels": 18214,
+        "opaquePixels": 17232,
         "deckEntryAnchor": {
-          "x": 545,
-          "y": 314
+          "x": 547,
+          "y": 344
         },
         "sailorSpawnAnchor": {
-          "x": 604,
-          "y": 308
+          "x": 608,
+          "y": 344
         },
-        "submergedPixels": 28,
+        "submergedPixels": 68,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4869,43 +4869,43 @@
       "targetModelMaxDim": 2.295,
       "opaqueBounds": {
         "minX": 122,
-        "minY": 9,
-        "width": 75,
-        "height": 146
+        "minY": 13,
+        "width": 76,
+        "height": 142
       },
-      "opaquePixels": 3401,
+      "opaquePixels": 3070,
       "deckPolygon": [
         {
           "x": 164,
-          "y": 88
+          "y": 99
         },
         {
           "x": 142,
-          "y": 121
+          "y": 122
         },
         {
           "x": 157,
           "y": 124
         },
         {
-          "x": 178,
-          "y": 90
+          "x": 179,
+          "y": 100
         }
       ],
       "deckEntryAnchor": {
         "x": 175,
-        "y": 91
+        "y": 101
       },
       "sailorSpawnAnchor": {
-        "x": 188,
-        "y": 89
+        "x": 189,
+        "y": 101
       },
-      "foregroundOpaquePixels": 2423,
-      "sinkHeightMin": -0.845155,
-      "sinkHeightMax": 0.844506,
+      "foregroundOpaquePixels": 2239,
+      "sinkHeightMin": -0.847297,
+      "sinkHeightMax": 0.838397,
       "encodedWaterlineY": -0.707006,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 167,
+      "submergedPixels": 149,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -4922,57 +4922,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 306,
-              "minY": 226,
-              "width": 283,
-              "height": 226
+              "minX": 299,
+              "minY": 286,
+              "width": 293,
+              "height": 159
             },
-            "opaquePixels": 13182,
+            "opaquePixels": 19676,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.712981
+            "shadowWaterlineY": -0.712368
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 307,
-              "minY": 226,
-              "width": 283,
-              "height": 226
+              "minX": 299,
+              "minY": 286,
+              "width": 294,
+              "height": 159
             },
-            "opaquePixels": 13091,
+            "opaquePixels": 19577,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.707006
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 308,
-              "minY": 226,
-              "width": 283,
-              "height": 226
+              "minX": 302,
+              "minY": 286,
+              "width": 291,
+              "height": 159
             },
-            "opaquePixels": 13010,
+            "opaquePixels": 19442,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.70103
+            "shadowWaterlineY": -0.701643
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597562,
+        "waterShadowModelHeightPerPixel": 0.00536252,
         "opaqueBounds": {
-          "minX": 368,
-          "minY": 27,
-          "width": 224,
-          "height": 438
+          "minX": 365,
+          "minY": 39,
+          "width": 229,
+          "height": 426
         },
-        "opaquePixels": 29677,
+        "opaquePixels": 26981,
         "deckEntryAnchor": {
           "x": 526,
-          "y": 273
+          "y": 303
         },
         "sailorSpawnAnchor": {
-          "x": 566,
-          "y": 266
+          "x": 567,
+          "y": 304
         },
-        "submergedPixels": 1254,
+        "submergedPixels": 1352,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5005,44 +5005,44 @@
       "license": "Sketchfab Free Standard",
       "targetModelMaxDim": 1.915,
       "opaqueBounds": {
-        "minX": 141,
-        "minY": 89,
-        "width": 38,
-        "height": 66
+        "minX": 140,
+        "minY": 104,
+        "width": 39,
+        "height": 51
       },
-      "opaquePixels": 1157,
+      "opaquePixels": 949,
       "deckPolygon": [
         {
-          "x": 163,
-          "y": 113
+          "x": 162,
+          "y": 124
         },
         {
-          "x": 145,
-          "y": 141
+          "x": 144,
+          "y": 144
         },
         {
           "x": 157,
-          "y": 143
+          "y": 145
         },
         {
           "x": 175,
-          "y": 115
+          "y": 125
         }
       ],
       "deckEntryAnchor": {
         "x": 172,
-        "y": 116
+        "y": 126
       },
       "sailorSpawnAnchor": {
         "x": 183,
-        "y": 110
+        "y": 122
       },
-      "foregroundOpaquePixels": 869,
-      "sinkHeightMin": -0.101138,
-      "sinkHeightMax": 0.120934,
+      "foregroundOpaquePixels": 692,
+      "sinkHeightMin": -0.104162,
+      "sinkHeightMax": 0.123466,
       "encodedWaterlineY": -0.086187,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 10,
+      "submergedPixels": 11,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -5059,57 +5059,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 405,
-              "minY": 289,
-              "width": 127,
-              "height": 178
+              "minX": 402,
+              "minY": 338,
+              "width": 134,
+              "height": 125
             },
-            "opaquePixels": 5299,
+            "opaquePixels": 7390,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.092165
+            "shadowWaterlineY": -0.091566
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 405,
-              "minY": 290,
-              "width": 127,
-              "height": 178
+              "minX": 403,
+              "minY": 339,
+              "width": 133,
+              "height": 124
             },
-            "opaquePixels": 5151,
+            "opaquePixels": 7213,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.086187
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 406,
-              "minY": 290,
-              "width": 127,
-              "height": 178
+              "minX": 404,
+              "minY": 338,
+              "width": 133,
+              "height": 125
             },
-            "opaquePixels": 4896,
+            "opaquePixels": 6873,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.080208
+            "shadowWaterlineY": -0.080808
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597865,
+        "waterShadowModelHeightPerPixel": 0.00537885,
         "opaqueBounds": {
-          "minX": 422,
-          "minY": 268,
-          "width": 115,
-          "height": 197
+          "minX": 421,
+          "minY": 312,
+          "width": 118,
+          "height": 153
         },
-        "opaquePixels": 10307,
+        "opaquePixels": 8464,
         "deckEntryAnchor": {
-          "x": 516,
-          "y": 348
+          "x": 518,
+          "y": 378
         },
         "sailorSpawnAnchor": {
-          "x": 550,
-          "y": 332
+          "x": 552,
+          "y": 367
         },
-        "submergedPixels": 120,
+        "submergedPixels": 82,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5140,44 +5140,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 1.8387,
       "opaqueBounds": {
-        "minX": 120,
-        "minY": 54,
-        "width": 80,
-        "height": 101
+        "minX": 119,
+        "minY": 53,
+        "width": 82,
+        "height": 102
       },
-      "opaquePixels": 3512,
+      "opaquePixels": 3138,
       "deckPolygon": [
         {
-          "x": 156,
-          "y": 111
+          "x": 155,
+          "y": 119
         },
         {
-          "x": 139,
+          "x": 138,
           "y": 138
         },
         {
-          "x": 171,
-          "y": 143
+          "x": 172,
+          "y": 141
         },
         {
-          "x": 188,
-          "y": 116
+          "x": 189,
+          "y": 122
         }
       ],
       "deckEntryAnchor": {
-        "x": 182,
-        "y": 117
+        "x": 183,
+        "y": 122
       },
       "sailorSpawnAnchor": {
-        "x": 205,
-        "y": 117
+        "x": 206,
+        "y": 124
       },
-      "foregroundOpaquePixels": 2432,
-      "sinkHeightMin": -0.605361,
-      "sinkHeightMax": 0.710445,
+      "foregroundOpaquePixels": 2184,
+      "sinkHeightMin": -0.663153,
+      "sinkHeightMax": 0.711603,
       "encodedWaterlineY": -0.586155,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 154,
+      "submergedPixels": 106,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -5194,57 +5194,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 315,
-              "minY": 281,
-              "width": 285,
-              "height": 199
+              "minX": 311,
+              "minY": 332,
+              "width": 292,
+              "height": 144
             },
-            "opaquePixels": 11681,
-            "clippedProjectedPixels": 637,
-            "shadowWaterlineY": -0.592131
+            "opaquePixels": 18844,
+            "clippedProjectedPixels": 0,
+            "shadowWaterlineY": -0.591528
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 316,
-              "minY": 281,
-              "width": 284,
-              "height": 199
+              "minX": 312,
+              "minY": 332,
+              "width": 291,
+              "height": 144
             },
-            "opaquePixels": 11571,
-            "clippedProjectedPixels": 669,
+            "opaquePixels": 18720,
+            "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.586155
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 317,
-              "minY": 281,
-              "width": 279,
-              "height": 199
+              "minX": 313,
+              "minY": 333,
+              "width": 286,
+              "height": 143
             },
-            "opaquePixels": 11502,
-            "clippedProjectedPixels": 689,
-            "shadowWaterlineY": -0.580179
+            "opaquePixels": 18570,
+            "clippedProjectedPixels": 0,
+            "shadowWaterlineY": -0.580781
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597608,
+        "waterShadowModelHeightPerPixel": 0.00537323,
         "opaqueBounds": {
-          "minX": 359,
-          "minY": 161,
-          "width": 241,
-          "height": 304
+          "minX": 356,
+          "minY": 160,
+          "width": 247,
+          "height": 305
         },
-        "opaquePixels": 30672,
+        "opaquePixels": 27359,
         "deckEntryAnchor": {
-          "x": 546,
-          "y": 350
+          "x": 548,
+          "y": 368
         },
         "sailorSpawnAnchor": {
-          "x": 614,
-          "y": 350
+          "x": 617,
+          "y": 373
         },
-        "submergedPixels": 1368,
+        "submergedPixels": 917,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5277,40 +5277,40 @@
       "license": "Original project asset",
       "targetModelMaxDim": 1.8429,
       "opaqueBounds": {
-        "minX": 137,
-        "minY": 64,
-        "width": 45,
-        "height": 91
+        "minX": 136,
+        "minY": 65,
+        "width": 47,
+        "height": 90
       },
-      "opaquePixels": 1685,
+      "opaquePixels": 1628,
       "deckPolygon": [
         {
           "x": 164,
-          "y": 106
+          "y": 115
         },
         {
-          "x": 147,
-          "y": 133
-        },
-        {
-          "x": 155,
+          "x": 146,
           "y": 134
         },
         {
+          "x": 155,
+          "y": 135
+        },
+        {
           "x": 172,
-          "y": 107
+          "y": 116
         }
       ],
       "deckEntryAnchor": {
         "x": 170,
-        "y": 108
+        "y": 117
       },
       "sailorSpawnAnchor": {
         "x": 179,
-        "y": 105
+        "y": 116
       },
-      "foregroundOpaquePixels": 1311,
-      "sinkHeightMin": -0.517141,
+      "foregroundOpaquePixels": 1300,
+      "sinkHeightMin": -0.558104,
       "sinkHeightMax": 0.596399,
       "encodedWaterlineY": -0.45548,
       "sinkWaterlineLevel": 0.501961,
@@ -5331,57 +5331,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 327,
-              "minY": 285,
-              "width": 201,
-              "height": 177
+              "minX": 323,
+              "minY": 333,
+              "width": 208,
+              "height": 125
             },
-            "opaquePixels": 7026,
+            "opaquePixels": 10321,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.461464
+            "shadowWaterlineY": -0.460846
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 327,
-              "minY": 285,
-              "width": 202,
-              "height": 178
+              "minX": 323,
+              "minY": 333,
+              "width": 209,
+              "height": 125
             },
-            "opaquePixels": 7008,
+            "opaquePixels": 10305,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.45548
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 328,
-              "minY": 285,
-              "width": 201,
-              "height": 178
+              "minX": 324,
+              "minY": 333,
+              "width": 208,
+              "height": 125
             },
-            "opaquePixels": 6945,
+            "opaquePixels": 10246,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.449495
+            "shadowWaterlineY": -0.450113
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598421,
+        "waterShadowModelHeightPerPixel": 0.0053667,
         "opaqueBounds": {
-          "minX": 412,
-          "minY": 191,
-          "width": 136,
-          "height": 274
+          "minX": 410,
+          "minY": 194,
+          "width": 140,
+          "height": 271
         },
-        "opaquePixels": 14668,
+        "opaquePixels": 13892,
         "deckEntryAnchor": {
-          "x": 511,
-          "y": 324
+          "x": 512,
+          "y": 349
         },
         "sailorSpawnAnchor": {
-          "x": 538,
-          "y": 315
+          "x": 539,
+          "y": 347
         },
-        "submergedPixels": 31,
+        "submergedPixels": 52,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5415,43 +5415,43 @@
       "targetModelMaxDim": 2.059,
       "opaqueBounds": {
         "minX": 134,
-        "minY": 68,
-        "width": 51,
-        "height": 87
+        "minY": 76,
+        "width": 52,
+        "height": 79
       },
-      "opaquePixels": 1096,
+      "opaquePixels": 943,
       "deckPolygon": [
         {
-          "x": 170,
-          "y": 100
+          "x": 171,
+          "y": 113
         },
         {
           "x": 151,
-          "y": 130
+          "y": 134
         },
         {
-          "x": 158,
-          "y": 131
+          "x": 159,
+          "y": 135
         },
         {
           "x": 178,
-          "y": 101
+          "y": 114
         }
       ],
       "deckEntryAnchor": {
-        "x": 175,
-        "y": 102
+        "x": 176,
+        "y": 114
       },
       "sailorSpawnAnchor": {
-        "x": 184,
-        "y": 98
+        "x": 185,
+        "y": 112
       },
-      "foregroundOpaquePixels": 845,
-      "sinkHeightMin": -0.444306,
-      "sinkHeightMax": 0.451947,
+      "foregroundOpaquePixels": 738,
+      "sinkHeightMin": -0.445521,
+      "sinkHeightMax": 0.451715,
       "encodedWaterlineY": -0.413017,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 9,
+      "submergedPixels": 6,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -5468,57 +5468,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 359,
-              "minY": 253,
-              "width": 178,
-              "height": 201
+              "minX": 357,
+              "minY": 314,
+              "width": 181,
+              "height": 141
             },
-            "opaquePixels": 4609,
+            "opaquePixels": 6377,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.419004
+            "shadowWaterlineY": -0.418382
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 360,
-              "minY": 253,
-              "width": 178,
-              "height": 200
+              "minX": 358,
+              "minY": 314,
+              "width": 181,
+              "height": 140
             },
-            "opaquePixels": 4600,
+            "opaquePixels": 6351,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.413017
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 361,
-              "minY": 254,
-              "width": 177,
-              "height": 197
+              "minX": 358,
+              "minY": 314,
+              "width": 181,
+              "height": 139
             },
-            "opaquePixels": 4587,
+            "opaquePixels": 6355,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.407029
+            "shadowWaterlineY": -0.407651
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598734,
+        "waterShadowModelHeightPerPixel": 0.0053656,
         "opaqueBounds": {
-          "minX": 403,
-          "minY": 204,
-          "width": 153,
-          "height": 261
+          "minX": 401,
+          "minY": 227,
+          "width": 157,
+          "height": 238
         },
-        "opaquePixels": 9297,
+        "opaquePixels": 8052,
         "deckEntryAnchor": {
-          "x": 527,
-          "y": 306
+          "x": 529,
+          "y": 342
         },
         "sailorSpawnAnchor": {
-          "x": 554,
-          "y": 293
+          "x": 556,
+          "y": 336
         },
-        "submergedPixels": 50,
+        "submergedPixels": 42,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5551,44 +5551,44 @@
       "license": "Original project asset",
       "targetModelMaxDim": 2.0806,
       "opaqueBounds": {
-        "minX": 134,
-        "minY": 67,
-        "width": 51,
-        "height": 88
+        "minX": 133,
+        "minY": 75,
+        "width": 53,
+        "height": 80
       },
-      "opaquePixels": 1243,
+      "opaquePixels": 1098,
       "deckPolygon": [
         {
           "x": 170,
-          "y": 97
+          "y": 110
         },
         {
           "x": 151,
-          "y": 128
+          "y": 131
         },
         {
           "x": 159,
-          "y": 129
+          "y": 132
         },
         {
           "x": 178,
-          "y": 99
+          "y": 111
         }
       ],
       "deckEntryAnchor": {
         "x": 176,
-        "y": 100
+        "y": 112
       },
       "sailorSpawnAnchor": {
-        "x": 185,
-        "y": 95
+        "x": 186,
+        "y": 109
       },
-      "foregroundOpaquePixels": 971,
-      "sinkHeightMin": -0.416543,
-      "sinkHeightMax": 0.435532,
+      "foregroundOpaquePixels": 868,
+      "sinkHeightMin": -0.420847,
+      "sinkHeightMax": 0.428435,
       "encodedWaterlineY": -0.345732,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 321,
+      "submergedPixels": 213,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -5605,57 +5605,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 376,
-              "minY": 247,
-              "width": 169,
-              "height": 198
+              "minX": 371,
+              "minY": 306,
+              "width": 176,
+              "height": 139
             },
-            "opaquePixels": 4291,
+            "opaquePixels": 5437,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.351716
+            "shadowWaterlineY": -0.35109
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 376,
-              "minY": 248,
-              "width": 170,
-              "height": 197
+              "minX": 372,
+              "minY": 306,
+              "width": 175,
+              "height": 139
             },
-            "opaquePixels": 3725,
+            "opaquePixels": 4838,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.345732
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 377,
-              "minY": 248,
-              "width": 169,
-              "height": 197
+              "minX": 372,
+              "minY": 306,
+              "width": 176,
+              "height": 139
             },
-            "opaquePixels": 3445,
+            "opaquePixels": 4506,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.339748
+            "shadowWaterlineY": -0.340374
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00598411,
+        "waterShadowModelHeightPerPixel": 0.00535769,
         "opaqueBounds": {
-          "minX": 403,
-          "minY": 200,
-          "width": 154,
-          "height": 265
+          "minX": 400,
+          "minY": 224,
+          "width": 159,
+          "height": 241
         },
-        "opaquePixels": 10681,
+        "opaquePixels": 9450,
         "deckEntryAnchor": {
-          "x": 529,
-          "y": 299
+          "x": 530,
+          "y": 334
         },
         "sailorSpawnAnchor": {
-          "x": 556,
-          "y": 285
+          "x": 558,
+          "y": 328
         },
-        "submergedPixels": 2858,
+        "submergedPixels": 1969,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5689,43 +5689,43 @@
       "targetModelMaxDim": 2.098,
       "opaqueBounds": {
         "minX": 134,
-        "minY": 70,
-        "width": 51,
-        "height": 85
+        "minY": 79,
+        "width": 52,
+        "height": 76
       },
-      "opaquePixels": 1427,
+      "opaquePixels": 1256,
       "deckPolygon": [
         {
-          "x": 170,
-          "y": 98
+          "x": 171,
+          "y": 111
         },
         {
-          "x": 150,
-          "y": 129
+          "x": 151,
+          "y": 133
         },
         {
-          "x": 158,
-          "y": 131
+          "x": 159,
+          "y": 134
         },
         {
-          "x": 178,
-          "y": 100
+          "x": 179,
+          "y": 112
         }
       ],
       "deckEntryAnchor": {
         "x": 176,
-        "y": 101
+        "y": 113
       },
       "sailorSpawnAnchor": {
-        "x": 185,
-        "y": 96
+        "x": 186,
+        "y": 111
       },
-      "foregroundOpaquePixels": 1113,
-      "sinkHeightMin": -0.394835,
+      "foregroundOpaquePixels": 995,
+      "sinkHeightMin": -0.398716,
       "sinkHeightMax": 0.4308,
       "encodedWaterlineY": -0.341411,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 258,
+      "submergedPixels": 157,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -5742,57 +5742,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 369,
-              "minY": 251,
-              "width": 178,
-              "height": 199
+              "minX": 367,
+              "minY": 310,
+              "width": 181,
+              "height": 140
             },
-            "opaquePixels": 6018,
+            "opaquePixels": 8430,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.347382
+            "shadowWaterlineY": -0.346771
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 370,
-              "minY": 251,
-              "width": 178,
-              "height": 199
+              "minX": 367,
+              "minY": 310,
+              "width": 182,
+              "height": 140
             },
-            "opaquePixels": 5055,
+            "opaquePixels": 6707,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.341411
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 371,
-              "minY": 252,
-              "width": 177,
-              "height": 199
+              "minX": 368,
+              "minY": 310,
+              "width": 182,
+              "height": 140
             },
-            "opaquePixels": 4264,
+            "opaquePixels": 5434,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.335441
+            "shadowWaterlineY": -0.336052
           }
         },
-        "waterShadowModelHeightPerPixel": 0.0059705,
+        "waterShadowModelHeightPerPixel": 0.00535961,
         "opaqueBounds": {
-          "minX": 403,
-          "minY": 211,
-          "width": 153,
-          "height": 254
+          "minX": 401,
+          "minY": 236,
+          "width": 157,
+          "height": 229
         },
-        "opaquePixels": 12260,
+        "opaquePixels": 10692,
         "deckEntryAnchor": {
-          "x": 528,
-          "y": 303
+          "x": 529,
+          "y": 339
         },
         "sailorSpawnAnchor": {
-          "x": 555,
-          "y": 289
+          "x": 557,
+          "y": 332
         },
-        "submergedPixels": 2230,
+        "submergedPixels": 1406,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5825,44 +5825,44 @@
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.0323,
       "opaqueBounds": {
-        "minX": 134,
-        "minY": 32,
-        "width": 52,
-        "height": 123
+        "minX": 133,
+        "minY": 28,
+        "width": 54,
+        "height": 127
       },
-      "opaquePixels": 2324,
+      "opaquePixels": 2320,
       "deckPolygon": [
         {
-          "x": 162,
-          "y": 96
+          "x": 163,
+          "y": 106
         },
         {
-          "x": 144,
-          "y": 126
+          "x": 143,
+          "y": 127
         },
         {
           "x": 162,
           "y": 129
         },
         {
-          "x": 181,
-          "y": 99
+          "x": 182,
+          "y": 108
         }
       ],
       "deckEntryAnchor": {
-        "x": 177,
-        "y": 99
+        "x": 178,
+        "y": 109
       },
       "sailorSpawnAnchor": {
-        "x": 192,
-        "y": 99
+        "x": 194,
+        "y": 110
       },
-      "foregroundOpaquePixels": 1960,
-      "sinkHeightMin": -0.854063,
-      "sinkHeightMax": 0.859951,
+      "foregroundOpaquePixels": 1966,
+      "sinkHeightMin": -0.859977,
+      "sinkHeightMax": 0.880285,
       "encodedWaterlineY": -0.792824,
       "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 20,
+      "submergedPixels": 31,
       "rasterCleanup": {
         "minimumComponentPixels": 1,
         "removedComponents": 0,
@@ -5879,57 +5879,57 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 262,
-              "minY": 251,
-              "width": 262,
-              "height": 210
+              "minX": 258,
+              "minY": 310,
+              "width": 267,
+              "height": 147
             },
-            "opaquePixels": 8629,
+            "opaquePixels": 11975,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.7988
+            "shadowWaterlineY": -0.798187
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 262,
-              "minY": 251,
-              "width": 263,
-              "height": 210
+              "minX": 257,
+              "minY": 310,
+              "width": 269,
+              "height": 147
             },
-            "opaquePixels": 8603,
+            "opaquePixels": 11960,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.792824
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 263,
-              "minY": 251,
-              "width": 263,
-              "height": 210
+              "minX": 257,
+              "minY": 310,
+              "width": 269,
+              "height": 147
             },
-            "opaquePixels": 8572,
+            "opaquePixels": 11912,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.786849
+            "shadowWaterlineY": -0.787462
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00597581,
+        "waterShadowModelHeightPerPixel": 0.00536279,
         "opaqueBounds": {
-          "minX": 401,
-          "minY": 94,
-          "width": 157,
-          "height": 371
+          "minX": 399,
+          "minY": 84,
+          "width": 161,
+          "height": 381
         },
-        "opaquePixels": 19691,
+        "opaquePixels": 19224,
         "deckEntryAnchor": {
-          "x": 532,
-          "y": 299
+          "x": 533,
+          "y": 326
         },
         "sailorSpawnAnchor": {
-          "x": 577,
-          "y": 296
+          "x": 580,
+          "y": 331
         },
-        "submergedPixels": 235,
+        "submergedPixels": 261,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,

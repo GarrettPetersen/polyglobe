@@ -3,10 +3,11 @@
 Every production hull has a dedicated 320×160 orthographic sprite for a
 side-running assault scene with 16-pixel sailors. These do not replace the
 47-pixel sailing sprites. All 43 ships share the selected stern-quarter view:
-72.5 degrees off a true broadside at 30 degrees of camera elevation. Their bows
+72.5 degrees off a true broadside at 20 degrees of camera elevation. Their bows
 point away toward roughly one o'clock on screen. The port side faces the dock
 and fighting lane; the camera is near the stern, looking along the dock toward
-the bow.
+the bow. The lower camera pitch is shared by the city visualizer and keeps the
+large dockside rasters consistent with its low forest horizon.
 
 The bake preserves production-fleet scale. It combines each hull's established
 `targetModelMaxDim` and `frameScale`, then applies one shared dockside raster
@@ -66,9 +67,10 @@ promoted to a sunlit timber plane color so decks remain legible against vertical
 All ship bake lighting comes from high over the viewer's right shoulder, matching the
 direction used by the surrounding hand-authored pixel art.
 Each native city-dock bake also provides `up`, `level`, and `down` water-shadow masks.
-They use the production sailing shadow projection against the model water plane; the city
-water renderer selects the matching mask as the hull bobs, so the shadow length changes
-without moving the shadow off the water surface.
+They project the complete clipped model triangles against the water plane instead of
+reprojecting scattered visible raster samples, so solid hulls cast contiguous shadows.
+The city water renderer selects the matching mask as the hull bobs, so the shadow length
+changes without moving the shadow off the water surface.
 The depth map deliberately uses grayscale rather than the art
 palette: transparent pixels have alpha 0; opaque ship pixels range from 1 at
 the farthest visible surface to 255 at the nearest. Depth values are normalized

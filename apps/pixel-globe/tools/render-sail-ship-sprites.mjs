@@ -3798,9 +3798,10 @@ const PORT_ASSAULT_VARIANTS = Object.freeze([
   Object.freeze({
     id: "production",
     broadsideOffsetDegrees: 72.5,
-    cameraElevationDegrees: 30,
+    cameraElevationDegrees: 20,
     selected: true
   }),
+  Object.freeze({ id: "former-production", broadsideOffsetDegrees: 72.5, cameraElevationDegrees: 30 }),
   Object.freeze({ id: "steep", broadsideOffsetDegrees: 75, cameraElevationDegrees: 32.5 })
 ]);
 
@@ -4697,9 +4698,19 @@ function makePortAssaultSinkDepthMap(frame, waterlineY) {
   };
 }
 
-function makePortAssaultWaterShadow(frame, camera, waterlineY, bobY) {
+function makePortAssaultWaterShadow(
+  frame,
+  camera,
+  modelYaw,
+  triangles,
+  waterlineY,
+  bobY
+) {
   if (!Number.isInteger(bobY) || bobY < -1 || bobY > 1) {
     throw new Error(`Port-assault water shadow requires a -1, 0, or 1 pixel bob: ${bobY}`);
+  }
+  if (!Array.isArray(triangles) || triangles.length === 0) {
+    throw new Error("Port-assault water shadow requires source triangles");
   }
   const baseAnchor = portAssaultProjectedWorldPoint(
     new THREE.Vector3(0, waterlineY, 0),
@@ -4736,29 +4747,44 @@ function makePortAssaultWaterShadow(frame, camera, waterlineY, bobY) {
   const canvas = createCanvas(frame.canvas.width, frame.canvas.height);
   const context = canvas.getContext("2d");
   const image = context.createImageData(canvas.width, canvas.height);
-  let opaquePixels = 0;
+  const mask = new Uint8Array(canvas.width * canvas.height);
+  const rotation = new THREE.Matrix4().makeRotationY(modelYaw);
   let clippedProjectedPixels = 0;
-  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
-    if (!frame.alpha[pixel]) continue;
-    const positionOffset = pixel * 3;
-    const source = new THREE.Vector3(
-      frame.positions[positionOffset],
-      frame.positions[positionOffset + 1],
-      frame.positions[positionOffset + 2]
+  for (const triangle of triangles) {
+    const clipped = clipPortAssaultShadowPolygon(
+      triangle.points.map((point) => point.clone().applyMatrix4(rotation)),
+      shadowWaterlineY + 0.002
     );
-    const heightAboveWater = source.y - shadowWaterlineY;
-    if (heightAboveWater <= 0.002) continue;
-    const rayT = heightAboveWater / light.y;
-    const shadowPoint = source.clone().addScaledVector(light, -rayT);
-    const projected = portAssaultProjectedWorldPoint(shadowPoint, camera, frame);
-    const x = Math.round(projected.x + anchorCorrection.x);
-    const y = Math.round(projected.y + anchorCorrection.y);
-    if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
-      clippedProjectedPixels++;
-      continue;
+    if (clipped.length < 3) continue;
+    const projected = clipped.map((source) => {
+      const rayT = (source.y - shadowWaterlineY) / light.y;
+      const shadowPoint = source.clone().addScaledVector(light, -rayT);
+      const point = portAssaultProjectedWorldPoint(shadowPoint, camera, frame);
+      point.x += anchorCorrection.x;
+      point.y += anchorCorrection.y;
+      if (
+        point.x < 0 || point.x >= canvas.width ||
+        point.y < 0 || point.y >= canvas.height
+      ) clippedProjectedPixels++;
+      return point;
+    });
+    for (let index = 1; index < projected.length - 1; index++) {
+      rasterizePortAssaultShadowTriangle(
+        mask,
+        canvas.width,
+        canvas.height,
+        projected[0],
+        projected[index],
+        projected[index + 1]
+      );
     }
-    const offset = (x + y * canvas.width) * 4;
-    if (image.data[offset + 3] === 0) opaquePixels++;
+  }
+  fillPortAssaultShadowPinholes(mask, canvas.width, canvas.height);
+  let opaquePixels = 0;
+  for (let pixel = 0; pixel < mask.length; pixel++) {
+    if (!mask[pixel]) continue;
+    opaquePixels++;
+    const offset = pixel * 4;
     image.data[offset] = 255;
     image.data[offset + 1] = 255;
     image.data[offset + 2] = 255;
@@ -4774,6 +4800,72 @@ function makePortAssaultWaterShadow(frame, camera, waterlineY, bobY) {
     shadowWaterlineY,
     modelHeightPerPixel
   };
+}
+
+function clipPortAssaultShadowPolygon(points, minimumY) {
+  const output = [];
+  for (let index = 0; index < points.length; index++) {
+    const previous = points[(index + points.length - 1) % points.length];
+    const current = points[index];
+    const previousInside = previous.y >= minimumY;
+    const currentInside = current.y >= minimumY;
+    if (previousInside !== currentInside) {
+      const heightDelta = current.y - previous.y;
+      if (Math.abs(heightDelta) > 1e-9) {
+        output.push(previous.clone().lerp(current, (minimumY - previous.y) / heightDelta));
+      }
+    }
+    if (currentInside) output.push(current);
+  }
+  return output;
+}
+
+function rasterizePortAssaultShadowTriangle(mask, width, height, a, b, c) {
+  const area = portAssaultShadowEdge(a, b, c.x, c.y);
+  if (!Number.isFinite(area) || Math.abs(area) <= 1e-6) return;
+  const minimumX = Math.max(0, Math.floor(Math.min(a.x, b.x, c.x)));
+  const maximumX = Math.min(width - 1, Math.ceil(Math.max(a.x, b.x, c.x)));
+  const minimumY = Math.max(0, Math.floor(Math.min(a.y, b.y, c.y)));
+  const maximumY = Math.min(height - 1, Math.ceil(Math.max(a.y, b.y, c.y)));
+  const sign = Math.sign(area);
+  for (let y = minimumY; y <= maximumY; y++) {
+    for (let x = minimumX; x <= maximumX; x++) {
+      const sampleX = x + 0.5;
+      const sampleY = y + 0.5;
+      if (
+        portAssaultShadowEdge(a, b, sampleX, sampleY) * sign < -1e-6 ||
+        portAssaultShadowEdge(b, c, sampleX, sampleY) * sign < -1e-6 ||
+        portAssaultShadowEdge(c, a, sampleX, sampleY) * sign < -1e-6
+      ) continue;
+      mask[x + y * width] = 1;
+    }
+  }
+}
+
+function portAssaultShadowEdge(a, b, x, y) {
+  return (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
+}
+
+function fillPortAssaultShadowPinholes(mask, width, height) {
+  const pinholes = [];
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const pixel = x + y * width;
+      if (mask[pixel]) continue;
+      let enclosed = true;
+      for (let offsetY = -1; offsetY <= 1 && enclosed; offsetY++) {
+        for (let offsetX = -1; offsetX <= 1; offsetX++) {
+          if (offsetX === 0 && offsetY === 0) continue;
+          if (!mask[pixel + offsetX + offsetY * width]) {
+            enclosed = false;
+            break;
+          }
+        }
+      }
+      if (enclosed) pinholes.push(pixel);
+    }
+  }
+  for (const pixel of pinholes) mask[pixel] = 1;
 }
 
 function portAssaultProjectedWorldPoint(worldPoint, camera, frame) {
@@ -5293,9 +5385,30 @@ async function renderPortAssaultShips() {
     const sinkDepth = makePortAssaultSinkDepthMap(selected, loaded.waterlineY);
     const citySinkDepth = makePortAssaultSinkDepthMap(citySelected, loaded.waterlineY);
     const cityWaterShadows = Object.freeze({
-      up: makePortAssaultWaterShadow(citySelected, raw.camera, loaded.waterlineY, -1),
-      level: makePortAssaultWaterShadow(citySelected, raw.camera, loaded.waterlineY, 0),
-      down: makePortAssaultWaterShadow(citySelected, raw.camera, loaded.waterlineY, 1)
+      up: makePortAssaultWaterShadow(
+        citySelected,
+        raw.camera,
+        raw.modelYaw,
+        loaded.triangles,
+        loaded.waterlineY,
+        -1
+      ),
+      level: makePortAssaultWaterShadow(
+        citySelected,
+        raw.camera,
+        raw.modelYaw,
+        loaded.triangles,
+        loaded.waterlineY,
+        0
+      ),
+      down: makePortAssaultWaterShadow(
+        citySelected,
+        raw.camera,
+        raw.modelYaw,
+        loaded.triangles,
+        loaded.waterlineY,
+        1
+      )
     });
     const foreground = makePortAssaultForeground(selected, deck.sailorDepth);
     const spritePath = join(portAssaultShipOutputRoot, `${slug}-dockside.png`);

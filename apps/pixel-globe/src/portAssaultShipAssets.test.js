@@ -29,6 +29,8 @@ test("every production hull has matching port-assault geometry and manifest meta
     comparison: "asset-local orthographic view depth"
   });
   assert.equal(manifest.view.projection, "orthographic");
+  assert.equal(manifest.view.broadsideOffsetDegrees, 72.5);
+  assert.equal(manifest.view.cameraElevationDegrees, 20);
   assert.deepEqual(manifest.ships.map((entry) => entry.slug), rosterSlugs);
   assert.deepEqual(Object.keys(PORT_ASSAULT_SHIP_ASSETS), rosterSlugs);
   const manifestBySlug = new Map(manifest.ships.map((entry) => [entry.slug, entry]));
@@ -123,13 +125,13 @@ test("every production hull has matching port-assault geometry and manifest meta
     if (entry.slug === "galleass") {
       assert.deepEqual(entry.rasterCleanup, {
         minimumComponentPixels: 2,
-        removedComponents: 2,
-        removedPixels: 2
+        removedComponents: 3,
+        removedPixels: 3
       });
       assert.deepEqual(entry.cityDockside.rasterCleanup, {
         minimumComponentPixels: 12,
-        removedComponents: 3,
-        removedPixels: 19
+        removedComponents: 8,
+        removedPixels: 49
       });
     } else {
       assert.equal(entry.rasterCleanup.removedPixels, 0);
@@ -310,6 +312,11 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
         assert.equal(shadowPixels[offset + 2], 255, `${slug} ${bobState} shadow blue`);
         shadowOpaque++;
       }
+      assert.equal(
+        enclosedTransparentPixelCount(shadowPixels, cityBase.width, cityBase.height),
+        0,
+        `${slug} ${bobState} shadow has no one-pixel pinholes`
+      );
       assert.equal(shadowOpaque, entry.cityDockside.waterShadows[bobState].opaquePixels);
     }
     assert.equal(
@@ -368,4 +375,26 @@ function opaqueComponentSizes(pixels, width, height) {
     sizes.push(component.length);
   }
   return sizes.sort((a, b) => b - a);
+}
+
+function enclosedTransparentPixelCount(pixels, width, height) {
+  let count = 0;
+  for (let y = 1; y < height - 1; y++) {
+    for (let x = 1; x < width - 1; x++) {
+      const pixel = x + y * width;
+      if (pixels[pixel * 4 + 3] > 0) continue;
+      let enclosed = true;
+      for (let offsetY = -1; offsetY <= 1 && enclosed; offsetY++) {
+        for (let offsetX = -1; offsetX <= 1; offsetX++) {
+          if (offsetX === 0 && offsetY === 0) continue;
+          if (pixels[(pixel + offsetX + offsetY * width) * 4 + 3] === 0) {
+            enclosed = false;
+            break;
+          }
+        }
+      }
+      if (enclosed) count++;
+    }
+  }
+  return count;
 }
