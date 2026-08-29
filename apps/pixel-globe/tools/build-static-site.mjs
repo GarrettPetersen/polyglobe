@@ -3,6 +3,7 @@ import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { gunzip } from "node:zlib";
 import { build } from "esbuild";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 
@@ -66,6 +67,7 @@ const toolsRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolsRoot, "..");
 const repoRoot = resolve(appRoot, "../..");
 const execFileAsync = promisify(execFile);
+const gunzipAsync = promisify(gunzip);
 const publicRoot = join(appRoot, "public");
 const sharedDataRoot = join(repoRoot, "examples/globe-demo/public");
 const edition = buildEditionFromArgs(process.argv.slice(2));
@@ -113,6 +115,10 @@ const sharedEntries = [
       ]
 ];
 
+const compressedSharedFallbacks = new Map([
+  ["earth-globe-cache-8.json", "earth-globe-cache-8.json.gz"]
+]);
+
 const fullCharacterManifest = JSON.parse(
   await readFile(join(publicRoot, CHARACTER_MANIFEST_PATH), "utf8")
 );
@@ -155,6 +161,10 @@ async function copyLargeFileAsChunks(source, target, byteLength) {
   if (bytes.byteLength !== byteLength) {
     throw new Error(`Large file changed while reading: ${source}`);
   }
+  await writeLargeBytesAsChunks(bytes, target);
+}
+
+async function writeLargeBytesAsChunks(bytes, target) {
   const chunks = [];
   for (let offset = 0; offset < bytes.byteLength; offset += largeFileChunkBytes) {
     const index = chunks.length;
@@ -171,6 +181,36 @@ async function copyLargeFileAsChunks(source, target, byteLength) {
     `${target}.chunks.json`,
     JSON.stringify({ byteLength: bytes.byteLength, chunks }, null, 2)
   );
+}
+
+async function copySharedEntry(entry) {
+  const [from, to] = entry;
+  const source = join(sharedDataRoot, from);
+  try {
+    await stat(source);
+    await copyEntry(sharedDataRoot, entry);
+    return;
+  } catch (error) {
+    if (error?.code !== "ENOENT") throw error;
+  }
+
+  const compressedFallback = compressedSharedFallbacks.get(from);
+  if (!compressedFallback) {
+    throw new Error(`Missing required Pixel Globe static build input: ${source}`);
+  }
+  const compressedSource = join(sharedDataRoot, compressedFallback);
+  const compressedStat = await mustExist(compressedSource);
+  if (!compressedStat.isFile()) {
+    throw new Error(`Compressed static build input is not a file: ${compressedSource}`);
+  }
+  const bytes = await gunzipAsync(await readFile(compressedSource));
+  const target = join(distRoot, to);
+  await mkdir(dirname(target), { recursive: true });
+  if (bytes.byteLength > maxHostedFileBytes) {
+    await writeLargeBytesAsChunks(bytes, target);
+  } else {
+    await writeFile(target, bytes);
+  }
 }
 
 function buildEditionFromArgs(args) {
@@ -530,7 +570,7 @@ for (const entry of appEntries) await copyEntry(appRoot, entry, shouldCopyAppPat
 for (const entry of cityVisualizerEntries) await copyEntry(appRoot, entry);
 for (const entry of runtimeDependencyEntries) await copyEntry(appRoot, entry);
 for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopyPublicPath);
-for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
+for (const entry of sharedEntries) await copySharedEntry(entry);
 if (edition === BUILD_EDITION_DEMO) await buildDemoFactionFlagAtlas();
 await buildCharacterPortraitAtlas(buildCharacterManifest);
 if (edition === BUILD_EDITION_DEMO) await buildDemoRowingAtlases();

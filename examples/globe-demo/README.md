@@ -33,6 +33,10 @@ The demo loads **`public/earth-globe-cache-{n}.json`** for the current scale (`n
 - **Terrain-only subdivision-8 prototype**:
   `NODE_OPTIONS=--max-old-space-size=12288 npm run build-earth-globe-cache -- 8 --skip-weather --skip-runtime`
   The pixel game deliberately reuses coarser weather/runtime climatology at this scale.
+- **Production deployment fallback**: the raw subdivision-8 JSON remains gitignored,
+  while `public/earth-globe-cache-8.json.gz` is checked in for clean CI builds.
+  After regenerating the raw cache, refresh the fallback with
+  `gzip -9 -k -f public/earth-globe-cache-8.json`.
 - **Strait tile IDs** in the terrain resolver are **only applied at subdivision 6** (tile IDs change at other scales).
 - **Force full in-browser recompute**: add **`?noEarthCache=1`** to the URL.
 - **Performance (subdivision 7, ~163k tiles)**: the demo auto-tiers **device pixel ratio** (cap **0.85**), **512² shadow maps** with **BasicShadowMap**, **no lensflare**, **smaller coast masks / foam grid / inner sphere**, **tighter vegetation** (fewer plants per hex, ~900 max instances per type, update every 8 frames, aggressive hemisphere cull), and **half-rate water & foam updates** plus **quarter-rate cloud depth sort**. Subdivision 6 keeps higher quality settings. **EffectComposer / bloom** is not used (direct `renderer.render` only).
