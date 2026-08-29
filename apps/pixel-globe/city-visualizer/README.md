@@ -22,20 +22,32 @@ above the master scene rather than making important click targets drift below
 the canonical view. Coastal scenes pan within the authored 910-pixel safe span,
 so a 910-pixel coastal viewport has no horizontal travel. River scenes can pan
 across the entire 1365-pixel master even at that width so both banks remain
-reachable. Pointer input sets a camera target and the view eases toward it with
-a speed cap instead of snapping to the cursor position.
+reachable. The camera uses RTS-style edge scrolling: the center is a dead zone,
+speed increases toward either edge, and leaving the canvas stops motion without
+changing the current view. River scenes stop at their useful left-bank framing
+instead of continuing into an all-land view; their full rightward range remains
+available for inspecting the town and fortifications.
 
 Every authored layer occurrence and synthetic entity has explicit scene `z`
 and parallax-depth metadata. The renderer sorts static art, animated layers,
 the ship, and NPCs together. This lets the gatehouse back and gate sit behind
-walkers while its front wall shares the inn's foreground row. Duplicate layer
-names, such as the two market rows, can have different values by occurrence.
+walkers while its front wall shares the inn's foreground row. The three castle
+sections retain a slight depth difference, capped so their relative horizontal
+positions stay within three logical pixels. Duplicate layer names, such as the
+two market rows, can have different values by occurrence.
 
 The ocean is divided into horizon, distant, midground, and foreground bands at
 render time and uses the loading screen's sine-wave pixel-row displacement.
-Beach variants use the matching distant, midground, and foreground boundaries,
-so the source Aseprite layers remain intact while their near and far portions
-move with the surrounding land and water.
+Beach variants remain rigid, unsliced layers because their authored shapes
+already contain perspective. In river scenes, the intact left-bank assembly is
+inset toward the city bank to produce a much narrower visible river channel.
+The right-bank beach, its dock shadow, the ship, every dock component, the
+road, walkers, gate opening, near gate face, waves, and surf share one parallax
+level. They form a continuous walkable lane and shoreline whose authored joints
+cannot separate. The dock shadow repeats each row's leftmost shadow pixel for
+the 66-pixel portion of the dock that projects beyond the beach frame. Wave
+underpaint is clipped to the beach's opaque pixels, so it never paints into an
+area where no beach was authored.
 
 ## Generated data and art
 

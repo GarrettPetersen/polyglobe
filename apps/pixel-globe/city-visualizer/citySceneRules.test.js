@@ -3,15 +3,20 @@ import test from "node:test";
 import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
 import {
   PORT_SCENE_MASTER,
-  PORT_SCENE_BEACH_SLICES,
+  PORT_SCENE_DOCK,
   PORT_SCENE_ENTITY_META,
   PORT_SCENE_OCEAN_SLICES,
+  PORT_SCENE_RIVER,
   activePortSceneLayers,
   advanceSceneParallax,
   layerParallaxDepth,
+  layerSceneOffsetX,
   layerSceneZ,
   logicalSceneWindow,
-  resolveCitySceneFeatures
+  resolveCitySceneFeatures,
+  sceneCameraDefaultParallax,
+  sceneCameraParallaxBounds,
+  sceneEdgeScrollVelocity
 } from "./citySceneRules.js";
 
 const CITY = Object.freeze({
@@ -63,15 +68,21 @@ test("coastal views use the safe span while river views can pan across the autho
   assert.equal(riverCanonicalLeft.x, PORT_SCENE_MASTER.leftBankX);
 });
 
-test("camera parallax approaches an edge without snapping there on pointer entry", () => {
-  const firstFrame = advanceSceneParallax({ current: -0.35, target: 1, elapsedMs: 16 });
+test("RTS camera scrolls only at the edges and stops in place when input ceases", () => {
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 227.5, width: 455 }), 0);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 0, width: 455 }), -0.45);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455, width: 455 }), 0.45);
+  const firstFrame = advanceSceneParallax({
+    current: -0.35,
+    velocity: sceneEdgeScrollVelocity({ pointerX: 450, width: 455 }),
+    elapsedMs: 16
+  });
   assert.ok(firstFrame > -0.35);
   assert.ok(firstFrame < 1);
-  let settled = firstFrame;
-  for (let frame = 0; frame < 240; frame++) {
-    settled = advanceSceneParallax({ current: settled, target: 1, elapsedMs: 16 });
-  }
-  assert.equal(settled, 1);
+  assert.equal(advanceSceneParallax({ current: firstFrame, velocity: 0, elapsedMs: 1000 }), firstFrame);
+  assert.deepEqual(sceneCameraParallaxBounds("river"), { minimum: -0.12, maximum: 1 });
+  assert.equal(sceneCameraDefaultParallax("river"), -0.12);
+  assert.deepEqual(sceneCameraParallaxBounds("ocean"), { minimum: -1, maximum: 1 });
 });
 
 test("ocean depth slices cover the authored water without gaps", () => {
@@ -83,15 +94,32 @@ test("ocean depth slices cover the authored water without gaps", () => {
   }
 });
 
-test("beach variants cross the same distant, midground, and foreground boundaries", () => {
-  assert.deepEqual(
-    PORT_SCENE_BEACH_SLICES.map(({ top, bottom }) => [top, bottom]),
-    [[478, 522], [522, 557], [557, PORT_SCENE_MASTER.height]]
-  );
-  assert.deepEqual(
-    PORT_SCENE_BEACH_SLICES.map(({ depth }) => depth),
-    [PORT_SCENE_OCEAN_SLICES[1].depth, PORT_SCENE_OCEAN_SLICES[2].depth, PORT_SCENE_OCEAN_SLICES[3].depth]
-  );
+test("river scenes inset intact left-bank artwork without moving coastal layers", () => {
+  assert.equal(layerSceneOffsetX("Distant Forest Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankDistantInsetX);
+  assert.equal(layerSceneOffsetX("Left Bank Sand Beach", 0, "river"), PORT_SCENE_RIVER.leftBankForegroundInsetX);
+  assert.equal(layerSceneOffsetX("Foreground Grass Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankForegroundInsetX);
+  assert.equal(layerSceneOffsetX("Sand Beach", 0, "river"), 0);
+  assert.equal(layerSceneOffsetX("Left Bank Sand Beach", 0, "ocean"), 0);
+});
+
+test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () => {
+  const assembly = [
+    "Sand Beach",
+    "Sand Beach Dock Shadow",
+    "Road",
+    "Dock Background",
+    "Dock",
+    "Stone Dock",
+    "Dock Foreground",
+    "Waves",
+    "Surf",
+    "Gate",
+    "Near Castle"
+  ];
+  assert.deepEqual(new Set(assembly.map((layer) => layerParallaxDepth(layer))), new Set([1]));
+  assert.equal(PORT_SCENE_ENTITY_META.ship.depth, 1);
+  assert.equal(PORT_SCENE_ENTITY_META.npcs.depth, 1);
+  assert.equal(PORT_SCENE_DOCK.beachStartX - PORT_SCENE_DOCK.startX, PORT_SCENE_DOCK.shadowWaterExtension);
 });
 
 test("explicit scene z places walkers and the inn between gatehouse sections", () => {
@@ -100,8 +128,16 @@ test("explicit scene z places walkers and the inn between gatehouse sections", (
   assert.ok(PORT_SCENE_ENTITY_META.npcs.z < layerSceneZ("Inn"));
   assert.equal(layerSceneZ("Near Castle"), layerSceneZ("Inn"));
   assert.ok(layerParallaxDepth("Far Castle") < layerParallaxDepth("Gate"));
-  assert.ok(layerParallaxDepth("Gate") < layerParallaxDepth("Near Castle"));
+  assert.equal(layerParallaxDepth("Gate"), layerParallaxDepth("Near Castle"));
   assert.equal(layerParallaxDepth("Near Castle"), layerParallaxDepth("Inn"));
+
+  for (const width of [256, 455, 910]) {
+    for (const parallax of [-1, 1]) {
+      const far = logicalSceneWindow({ width, height: 256, parallax, depth: layerParallaxDepth("Far Castle"), approach: "river" });
+      const near = logicalSceneWindow({ width, height: 256, parallax, depth: layerParallaxDepth("Near Castle"), approach: "river" });
+      assert.ok(Math.abs(far.x - near.x) <= 3);
+    }
+  }
 });
 
 test("duplicate market layers can occupy distinct authored rows", () => {

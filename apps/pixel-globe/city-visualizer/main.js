@@ -6,14 +6,19 @@ import {
 } from "../src/loadingScreenMotion.js";
 import {
   PORT_SCENE_ENTITY_META,
-  PORT_SCENE_BEACH_SLICES,
+  PORT_SCENE_DOCK,
+  PORT_SCENE_CAMERA,
   PORT_SCENE_OCEAN_SLICES,
   activePortSceneLayers,
   advanceSceneParallax,
   layerParallaxDepth,
+  layerSceneOffsetX,
   layerSceneZ,
   logicalSceneWindow,
   resolveCitySceneFeatures,
+  sceneCameraDefaultParallax,
+  sceneCameraParallaxBounds,
+  sceneEdgeScrollVelocity,
   sceneReasonRows
 } from "./citySceneRules.js";
 
@@ -37,15 +42,12 @@ const destinationTitle = document.querySelector("#destination-title");
 const destinationCopy = document.querySelector("#destination-copy");
 
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
-const DEFAULT_PARALLAX = -0.35;
 const imageCache = new Map();
 const frameCanvasCache = new Map();
 const alphaCache = new Map();
-const SLICED_BEACH_LAYERS = new Set([
-  "Sand Beach",
-  "Sand Beach Dock Shadow",
-  "Left Bank Sand Beach"
-]);
+const animatedRowEdgeCache = new WeakMap();
+let dockShadowExtensionRows = null;
+let beachOpaqueRowRuns = null;
 const state = {
   ready: false,
   catalog: null,
@@ -60,8 +62,7 @@ const state = {
   shipSlug: null,
   city: null,
   features: null,
-  parallax: DEFAULT_PARALLAX,
-  parallaxTarget: DEFAULT_PARALLAX,
+  parallax: PORT_SCENE_CAMERA.defaultParallax,
   lastRenderTimeMs: null,
   pointer: null,
   hoveredDestination: null,
@@ -125,6 +126,7 @@ async function initialize() {
     await Promise.all(minifolkManifest.characters.map(async (character) => {
       state.minifolkAtlases.set(character.id, await loadImage(`./assets/minifolks/${character.sheet}`));
     }));
+    prepareScenePixelCaches();
     prepareControls();
     selectInitialCity();
     resizeLogicalCanvas();
@@ -134,6 +136,16 @@ async function initialize() {
   } catch (error) {
     console.error(error);
     loading.textContent = error instanceof Error ? error.message : String(error);
+  }
+}
+
+function prepareScenePixelCaches() {
+  const beach = state.portManifest.staticFrames.find((frame) => frame.layer === "Sand Beach");
+  if (!beach) throw new Error("Port scene is missing its beach frame");
+  beachOpaqueRuns(beach);
+  dockShadowRows();
+  for (const frame of state.portManifest.animated.Waves.frames) {
+    animatedOpaqueLeftEdges(state.waveAtlas, frame);
   }
 }
 
@@ -195,6 +207,7 @@ function selectCity(cityId) {
     rightTerrainOverride
   ]) control.value = "auto";
   applyFeatureOverrides();
+  state.parallax = sceneCameraDefaultParallax(state.features.approach);
   selectShip(city.defaultShip);
   const url = new URL(location.href);
   url.searchParams.set("city", city.id);
@@ -213,6 +226,8 @@ function applyFeatureOverrides() {
     rightTerrain: autoValue(rightTerrainOverride.value)
   };
   state.features = resolveCitySceneFeatures(state.city, overrides);
+  const cameraBounds = sceneCameraParallaxBounds(state.features.approach);
+  state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
   updateRuleLedger();
   updateHover();
 }
@@ -265,13 +280,11 @@ new ResizeObserver(() => {
 
 canvas.addEventListener("pointermove", (event) => {
   state.pointer = canvasPoint(event);
-  state.parallaxTarget = clamp(state.pointer.x / canvas.width * 2 - 1, -1, 1);
   updateHover();
 });
 
 canvas.addEventListener("pointerleave", () => {
   state.pointer = null;
-  state.parallaxTarget = DEFAULT_PARALLAX;
   state.hoveredDestination = null;
   canvas.classList.remove("is-actionable");
 });
@@ -292,27 +305,27 @@ function advanceCamera(timeMs) {
   const elapsedMs = Math.min(50, Math.max(0, timeMs - state.lastRenderTimeMs));
   state.lastRenderTimeMs = timeMs;
   const previous = state.parallax;
-  if (prefersReducedMotion.matches) {
-    state.parallax = DEFAULT_PARALLAX;
-    state.parallaxTarget = DEFAULT_PARALLAX;
-  } else {
-    state.parallax = advanceSceneParallax({
+  if (!prefersReducedMotion.matches && state.pointer) {
+    const next = advanceSceneParallax({
       current: state.parallax,
-      target: state.parallaxTarget,
+      velocity: sceneEdgeScrollVelocity({ pointerX: state.pointer.x, width: canvas.width }),
       elapsedMs
     });
+    const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
+    state.parallax = clamp(next, cameraBounds.minimum, cameraBounds.maximum);
   }
   if (state.pointer && state.parallax !== previous) updateHover();
 }
 
-function sceneWindow(depth) {
-  return logicalSceneWindow({
+function sceneWindow(depth, offsetX = 0) {
+  const window = logicalSceneWindow({
     width: canvas.width,
     height: canvas.height,
     parallax: state.parallax,
     depth,
     approach: state.features?.approach || "ocean"
   });
+  return offsetX === 0 ? window : Object.freeze({ ...window, x: window.x - offsetX });
 }
 
 function render(timeMs) {
@@ -323,8 +336,8 @@ function render(timeMs) {
   context.fillRect(0, 0, canvas.width, canvas.height);
   for (const entry of sceneRenderEntries()) {
     if (entry.kind === "static") drawStaticFrame(entry.frame, entry.layerName, entry.occurrence);
-    else if (entry.kind === "sliced-static") drawStaticSlice(entry.frame, entry.slice);
     else if (entry.kind === "animated") drawAnimatedLayer(entry.layerName, timeMs, entry.occurrence);
+    else if (entry.kind === "dock-shadow-extension") drawDockShadowExtension();
     else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
     else if (entry.kind === "ship") drawDocksideShip();
     else if (entry.kind === "npcs") drawNpcs(timeMs);
@@ -361,16 +374,6 @@ function sceneRenderEntries() {
       for (const [sliceIndex, slice] of PORT_SCENE_OCEAN_SLICES.entries()) {
         entries.push({ kind: "ocean", frame, slice, z: slice.z, authoredOrder: authoredOrder + sliceIndex / 10 });
       }
-    } else if (SLICED_BEACH_LAYERS.has(layerName)) {
-      for (const [sliceIndex, slice] of PORT_SCENE_BEACH_SLICES.entries()) {
-        entries.push({
-          kind: "sliced-static",
-          frame,
-          slice,
-          z: layerSceneZ(layerName, occurrence),
-          authoredOrder: authoredOrder + sliceIndex / 10
-        });
-      }
     } else {
       entries.push({
         kind: "static",
@@ -384,40 +387,173 @@ function sceneRenderEntries() {
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
   entries.push({ kind: "npcs", ...PORT_SCENE_ENTITY_META.npcs, authoredOrder: 37.5 });
+  if (state.features.dock !== "none") {
+    entries.push({ kind: "dock-shadow-extension", z: 55, authoredOrder: 16.5 });
+  }
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
 }
 
 function drawStaticFrame(frame, layerName, occurrence) {
-  const window = sceneWindow(layerParallaxDepth(layerName, occurrence));
-  if (state.hoveredDestination?.layers.includes(layerName)) drawFrameOutline(frame, window);
-  drawAtlasFrame(state.staticAtlas, frame, window);
-}
-
-function drawStaticSlice(frame, slice) {
-  const window = sceneWindow(slice.depth);
-  const top = Math.max(slice.top, frame.spriteSourceSize.y);
-  const bottom = Math.min(slice.bottom, frame.spriteSourceSize.y + frame.spriteSourceSize.h);
-  if (bottom <= top) return;
-  const sourceY = frame.frame.y + top - frame.spriteSourceSize.y;
-  const height = bottom - top;
-  context.drawImage(
-    state.staticAtlas,
-    frame.frame.x,
-    sourceY,
-    frame.frame.w,
-    height,
-    Math.round(frame.spriteSourceSize.x - window.x),
-    Math.round(top - window.y),
-    frame.frame.w,
-    height
+  const offsetX = layerSceneOffsetX(layerName, occurrence, state.features?.approach || "ocean");
+  const window = sceneWindow(
+    layerParallaxDepth(layerName, occurrence),
+    offsetX
   );
+  if (state.hoveredDestination?.layers.includes(layerName)) drawFrameOutline(frame, window);
+  drawAtlasFrame(state.staticAtlas, frame, window, offsetX > 0);
 }
 
 function drawAnimatedLayer(layerName, timeMs, occurrence) {
   const animation = state.portManifest.animated[layerName];
   const frame = animationFrame(animation.frames, prefersReducedMotion.matches ? 0 : timeMs);
   const window = sceneWindow(layerParallaxDepth(layerName, occurrence));
-  drawAtlasFrame(layerName === "Waves" ? state.waveAtlas : state.surfAtlas, frame, window);
+  const atlas = layerName === "Waves" ? state.waveAtlas : state.surfAtlas;
+  if (layerName === "Waves") drawWaterToWaveEdges(atlas, frame, window);
+  drawAtlasFrame(atlas, frame, window);
+}
+
+function drawWaterToWaveEdges(atlas, frame, window) {
+  const edges = animatedOpaqueLeftEdges(atlas, frame);
+  const beach = state.portManifest.staticFrames.find((candidate) => candidate.layer === "Sand Beach");
+  if (!beach) return;
+  const beachRuns = beachOpaqueRuns(beach);
+  context.fillStyle = "#4d65b4";
+  for (let y = 0; y < edges.length; y++) {
+    if (edges[y] < 0) continue;
+    const masterY = frame.spriteSourceSize.y + y;
+    const beachY = masterY - beach.spriteSourceSize.y;
+    if (beachY < 0 || beachY >= beachRuns.length) continue;
+    const wavefrontX = frame.spriteSourceSize.x + edges[y];
+    for (const [runStart, runEnd] of beachRuns[beachY]) {
+      const masterStart = beach.spriteSourceSize.x + runStart;
+      const masterEnd = Math.min(beach.spriteSourceSize.x + runEnd, wavefrontX);
+      if (masterEnd <= masterStart) continue;
+      context.fillRect(
+        Math.round(masterStart - window.x),
+        Math.round(masterY - window.y),
+        Math.max(1, Math.round(masterEnd - masterStart)),
+        1
+      );
+    }
+  }
+}
+
+function beachOpaqueRuns(frame) {
+  if (beachOpaqueRowRuns) return beachOpaqueRowRuns;
+  const alpha = frameAlpha(frame);
+  beachOpaqueRowRuns = Array.from({ length: frame.frame.h }, (_, y) => {
+    const runs = [];
+    let start = -1;
+    for (let x = 0; x <= frame.frame.w; x++) {
+      const opaque = x < frame.frame.w && alpha[y * frame.frame.w + x] > 16;
+      if (opaque && start < 0) start = x;
+      if (!opaque && start >= 0) {
+        runs.push([start, x]);
+        start = -1;
+      }
+    }
+    return runs;
+  });
+  return beachOpaqueRowRuns;
+}
+
+function animatedOpaqueLeftEdges(atlas, frame) {
+  if (animatedRowEdgeCache.has(frame)) return animatedRowEdgeCache.get(frame);
+  const buffer = document.createElement("canvas");
+  buffer.width = frame.frame.w;
+  buffer.height = frame.frame.h;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  bufferContext.drawImage(
+    atlas,
+    frame.frame.x,
+    frame.frame.y,
+    frame.frame.w,
+    frame.frame.h,
+    0,
+    0,
+    frame.frame.w,
+    frame.frame.h
+  );
+  const pixels = bufferContext.getImageData(0, 0, buffer.width, buffer.height).data;
+  const edges = new Int16Array(buffer.height).fill(-1);
+  for (let y = 0; y < buffer.height; y++) {
+    for (let x = 0; x < buffer.width; x++) {
+      if (pixels[(y * buffer.width + x) * 4 + 3] <= 16) continue;
+      edges[y] = x;
+      break;
+    }
+  }
+  animatedRowEdgeCache.set(frame, edges);
+  return edges;
+}
+
+function drawDockShadowExtension() {
+  const frame = state.portManifest.staticFrames.find((candidate) => candidate.layer === "Sand Beach Dock Shadow");
+  if (!frame) return;
+  const window = sceneWindow(layerParallaxDepth("Sand Beach Dock Shadow"));
+  for (const row of dockShadowRows()) {
+    const right = Math.round(frame.spriteSourceSize.x + row.x - window.x);
+    const y = Math.round(frame.spriteSourceSize.y + row.y - window.y);
+    context.fillStyle = row.color;
+    context.fillRect(right - PORT_SCENE_DOCK.shadowWaterExtension, y, PORT_SCENE_DOCK.shadowWaterExtension, 1);
+  }
+}
+
+function dockShadowRows() {
+  if (dockShadowExtensionRows) return dockShadowExtensionRows;
+  const plain = state.portManifest.staticFrames.find((frame) => frame.layer === "Sand Beach");
+  const shadow = state.portManifest.staticFrames.find((frame) => frame.layer === "Sand Beach Dock Shadow");
+  if (!plain || !shadow || plain.frame.w !== shadow.frame.w || plain.frame.h !== shadow.frame.h) {
+    throw new Error("Dock shadow requires matching beach frames");
+  }
+  const comparison = document.createElement("canvas");
+  comparison.width = plain.frame.w;
+  comparison.height = plain.frame.h;
+  const comparisonContext = comparison.getContext("2d", { willReadFrequently: true });
+  comparisonContext.drawImage(
+    state.staticAtlas,
+    plain.frame.x,
+    plain.frame.y,
+    plain.frame.w,
+    plain.frame.h,
+    0,
+    0,
+    plain.frame.w,
+    plain.frame.h
+  );
+  const plainPixels = comparisonContext.getImageData(0, 0, plain.frame.w, plain.frame.h).data;
+  comparisonContext.clearRect(0, 0, plain.frame.w, plain.frame.h);
+  comparisonContext.drawImage(
+    state.staticAtlas,
+    shadow.frame.x,
+    shadow.frame.y,
+    shadow.frame.w,
+    shadow.frame.h,
+    0,
+    0,
+    shadow.frame.w,
+    shadow.frame.h
+  );
+  const shadowPixels = comparisonContext.getImageData(0, 0, shadow.frame.w, shadow.frame.h).data;
+  dockShadowExtensionRows = [];
+  for (let y = 0; y < shadow.frame.h; y++) {
+    for (let x = 0; x < shadow.frame.w; x++) {
+      const index = (y * shadow.frame.w + x) * 4;
+      const changed =
+        shadowPixels[index] !== plainPixels[index] ||
+        shadowPixels[index + 1] !== plainPixels[index + 1] ||
+        shadowPixels[index + 2] !== plainPixels[index + 2] ||
+        shadowPixels[index + 3] !== plainPixels[index + 3];
+      if (!changed || shadowPixels[index + 3] === 0) continue;
+      dockShadowExtensionRows.push({
+        x,
+        y,
+        color: `rgba(${shadowPixels[index]}, ${shadowPixels[index + 1]}, ${shadowPixels[index + 2]}, ${shadowPixels[index + 3] / 255})`
+      });
+      break;
+    }
+  }
+  return dockShadowExtensionRows;
 }
 
 function drawOceanSlice(frame, slice, timeMs) {
@@ -478,15 +614,35 @@ function drawWrappedOceanBand(frame, window, masterY, height, offset) {
   }
 }
 
-function drawAtlasFrame(atlas, frame, window) {
+function drawAtlasFrame(atlas, frame, window, extendLeft = false) {
+  const destinationX = Math.round(frame.spriteSourceSize.x - window.x);
+  const destinationY = Math.round(frame.spriteSourceSize.y - window.y);
+  if (extendLeft && destinationX > 0) {
+    const extensionWidth = Math.min(destinationX, frame.frame.w);
+    context.save();
+    context.translate(destinationX, 0);
+    context.scale(-1, 1);
+    context.drawImage(
+      atlas,
+      frame.frame.x,
+      frame.frame.y,
+      extensionWidth,
+      frame.frame.h,
+      0,
+      destinationY,
+      extensionWidth,
+      frame.frame.h
+    );
+    context.restore();
+  }
   context.drawImage(
     atlas,
     frame.frame.x,
     frame.frame.y,
     frame.frame.w,
     frame.frame.h,
-    Math.round(frame.spriteSourceSize.x - window.x),
-    Math.round(frame.spriteSourceSize.y - window.y),
+    destinationX,
+    destinationY,
     frame.frame.w,
     frame.frame.h
   );
@@ -607,7 +763,10 @@ function updateHover() {
     return state.portManifest.staticFrames
       .filter((frame) => frame.layer === layerName)
       .some((frame, occurrence) => {
-        const window = sceneWindow(layerParallaxDepth(layerName, occurrence));
+        const window = sceneWindow(
+          layerParallaxDepth(layerName, occurrence),
+          layerSceneOffsetX(layerName, occurrence, state.features?.approach || "ocean")
+        );
         const masterX = state.pointer.x + window.x;
         const masterY = state.pointer.y + window.y;
         return frameContainsOpaquePixel(frame, masterX, masterY);

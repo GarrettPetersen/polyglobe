@@ -23,11 +23,25 @@ export const PORT_SCENE_OCEAN_SLICES = Object.freeze([
   Object.freeze({ top: 557, bottom: 910, z: 30, depth: PORT_SCENE_DEPTH.foreground })
 ]);
 
-export const PORT_SCENE_BEACH_SLICES = Object.freeze([
-  Object.freeze({ top: 478, bottom: 522, depth: PORT_SCENE_DEPTH.distant }),
-  Object.freeze({ top: 522, bottom: 557, depth: PORT_SCENE_DEPTH.midground }),
-  Object.freeze({ top: 557, bottom: 910, depth: PORT_SCENE_DEPTH.foreground })
-]);
+export const PORT_SCENE_RIVER = Object.freeze({
+  leftBankDistantInsetX: 320,
+  leftBankForegroundInsetX: 400
+});
+
+export const PORT_SCENE_CAMERA = Object.freeze({
+  edgeFraction: 0.2,
+  maximumEdgeWidth: 72,
+  maximumSpeed: 0.45,
+  defaultParallax: -0.35,
+  riverDefaultParallax: -0.12,
+  riverMinimumParallax: -0.12
+});
+
+export const PORT_SCENE_DOCK = Object.freeze({
+  startX: 676,
+  beachStartX: 742,
+  shadowWaterExtension: 66
+});
 
 export const PORT_SCENE_ENTITY_META = Object.freeze({
   ship: Object.freeze({ z: 55, depth: PORT_SCENE_DEPTH.foreground }),
@@ -109,27 +123,27 @@ const LAYER_META = new Map([
   ["Sky", layerMeta(0, PORT_SCENE_DEPTH.sky)],
   ["Ocean", layerMeta(1, PORT_SCENE_DEPTH.horizon)],
   ["Horizon Mountains", layerMeta(5, PORT_SCENE_DEPTH.horizon)],
-  ["Horizon Mountains Left Bank", layerMeta(5, PORT_SCENE_DEPTH.horizon)],
+  ["Horizon Mountains Left Bank", layerMeta(5, PORT_SCENE_DEPTH.horizon, PORT_SCENE_RIVER.leftBankDistantInsetX)],
   ["Distant Hills", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Distant Hills Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant)],
+  ["Distant Hills Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX)],
   ["Rocky Hills", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Rocky Hills Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant)],
+  ["Rocky Hills Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX)],
   ["Distant Forest", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Distant Forest Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant)],
+  ["Distant Forest Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX)],
   ["Distant Desert", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Distant Desert Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant)],
+  ["Distant Desert Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX)],
   ["Distant Plains", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Distant Plains Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant)],
+  ["Distant Plains Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX)],
   ["Shipyard", layerMeta(25, PORT_SCENE_DEPTH.midground)],
-  ["Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.buildings)],
-  ["Sand Beach Dock Shadow", layerMeta(36, PORT_SCENE_DEPTH.buildings)],
-  ["Left Bank Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.buildings)],
+  ["Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.foreground)],
+  ["Sand Beach Dock Shadow", layerMeta(36, PORT_SCENE_DEPTH.foreground)],
+  ["Left Bank Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.buildings, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
   ["Desert Behind Buildings", layerMeta(38, PORT_SCENE_DEPTH.midground)],
   ["Rocks Behind Buildings", layerMeta(38, PORT_SCENE_DEPTH.midground)],
   ["Grass Behind Buildings", layerMeta(38, PORT_SCENE_DEPTH.midground)],
   ["Home 2", layerMeta(40, PORT_SCENE_DEPTH.midground)],
   ["Home", layerMeta(40, PORT_SCENE_DEPTH.midground)],
-  ["Far Castle", layerMeta(41, 0.9)],
+  ["Far Castle", layerMeta(41, 0.9946)],
   ["Smith", layerMeta(45, PORT_SCENE_DEPTH.buildings)],
   ["Market Stall Copy", layerMeta(46, PORT_SCENE_DEPTH.buildings)],
   ["Market Stall Copy Copy", layerMeta(46, PORT_SCENE_DEPTH.buildings)],
@@ -137,22 +151,22 @@ const LAYER_META = new Map([
   ["Midground Grass", layerMeta(50, PORT_SCENE_DEPTH.midground)],
   ["Midground Desert", layerMeta(50, PORT_SCENE_DEPTH.midground)],
   ["Midground Rocky", layerMeta(50, PORT_SCENE_DEPTH.midground)],
-  ["Road", layerMeta(52, PORT_SCENE_DEPTH.buildings)],
+  ["Road", layerMeta(52, PORT_SCENE_DEPTH.foreground)],
   ["Castle Shadow", layerMeta(53, 0.8)],
-  ["Waves", layerMeta(54, 0.8)],
-  ["Surf", layerMeta(54, 0.85)],
-  ["Dock Background", layerMeta(56, 0.95)],
+  ["Waves", layerMeta(54, PORT_SCENE_DEPTH.foreground)],
+  ["Surf", layerMeta(54, PORT_SCENE_DEPTH.foreground)],
+  ["Dock Background", layerMeta(56, PORT_SCENE_DEPTH.foreground)],
   ["Dock", layerMeta(57, PORT_SCENE_DEPTH.foreground)],
   ["Stone Dock", layerMeta(57, PORT_SCENE_DEPTH.foreground)],
   ["Dock Foreground", layerMeta(58, PORT_SCENE_DEPTH.foreground)],
-  ["Gate", layerMeta(60, 0.95)],
+  ["Gate", layerMeta(60, PORT_SCENE_DEPTH.foreground)],
   ["Inn", layerMeta(65, PORT_SCENE_DEPTH.foreground)],
   ["Near Castle", layerMeta(65, PORT_SCENE_DEPTH.foreground)],
   ["Foreground Grass", layerMeta(70, PORT_SCENE_DEPTH.foreground)],
   ["Foreground Grass Castle Shadow", layerMeta(71, PORT_SCENE_DEPTH.foreground)],
-  ["Foreground Grass Left Bank", layerMeta(70, PORT_SCENE_DEPTH.foreground)],
-  ["Foreground Desert Left Bank", layerMeta(70, PORT_SCENE_DEPTH.foreground)],
-  ["Foreground Rocky Left Bank", layerMeta(70, PORT_SCENE_DEPTH.foreground)],
+  ["Foreground Grass Left Bank", layerMeta(70, PORT_SCENE_DEPTH.foreground, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
+  ["Foreground Desert Left Bank", layerMeta(70, PORT_SCENE_DEPTH.foreground, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
+  ["Foreground Rocky Left Bank", layerMeta(70, PORT_SCENE_DEPTH.foreground, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
   ["Foreground Desert", layerMeta(70, PORT_SCENE_DEPTH.foreground)],
   ["Foreground Desert Castle Shadow", layerMeta(71, PORT_SCENE_DEPTH.foreground)],
   ["Foreground Rocky", layerMeta(70, PORT_SCENE_DEPTH.foreground)],
@@ -187,8 +201,37 @@ export function logicalSceneWindow({ width, height, parallax = 0, depth = 1, app
   });
 }
 
-export function advanceSceneParallax({ current, target, elapsedMs }) {
-  for (const [label, value] of [["current", current], ["target", target]]) {
+export function sceneEdgeScrollVelocity({ pointerX, width }) {
+  requireLogicalDimension(width, "camera width");
+  if (!Number.isFinite(pointerX) || pointerX < 0 || pointerX > width) {
+    throw new Error(`Invalid scene camera pointer x: ${pointerX}`);
+  }
+  const edgeWidth = Math.min(PORT_SCENE_CAMERA.maximumEdgeWidth, width * PORT_SCENE_CAMERA.edgeFraction);
+  if (pointerX < edgeWidth) {
+    const intensity = (edgeWidth - pointerX) / edgeWidth;
+    return -PORT_SCENE_CAMERA.maximumSpeed * intensity * intensity;
+  }
+  if (pointerX > width - edgeWidth) {
+    const intensity = (pointerX - (width - edgeWidth)) / edgeWidth;
+    return PORT_SCENE_CAMERA.maximumSpeed * intensity * intensity;
+  }
+  return 0;
+}
+
+export function sceneCameraParallaxBounds(approach) {
+  if (!["ocean", "river", "lake"].includes(approach)) throw new Error(`Invalid port scene approach: ${approach}`);
+  return approach === "river"
+    ? Object.freeze({ minimum: PORT_SCENE_CAMERA.riverMinimumParallax, maximum: 1 })
+    : Object.freeze({ minimum: -1, maximum: 1 });
+}
+
+export function sceneCameraDefaultParallax(approach) {
+  sceneCameraParallaxBounds(approach);
+  return approach === "river" ? PORT_SCENE_CAMERA.riverDefaultParallax : PORT_SCENE_CAMERA.defaultParallax;
+}
+
+export function advanceSceneParallax({ current, velocity, elapsedMs }) {
+  for (const [label, value] of [["current", current], ["velocity", velocity]]) {
     if (!Number.isFinite(value) || value < -1 || value > 1) {
       throw new Error(`Invalid scene parallax ${label}: ${value}`);
     }
@@ -196,13 +239,8 @@ export function advanceSceneParallax({ current, target, elapsedMs }) {
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
     throw new Error(`Invalid scene parallax elapsed time: ${elapsedMs}`);
   }
-  if (elapsedMs === 0 || current === target) return current;
-  const blend = 1 - Math.exp(-elapsedMs / 320);
-  const desiredStep = (target - current) * blend;
-  const maximumStep = 0.9 * elapsedMs / 1000;
-  const step = Math.max(-maximumStep, Math.min(maximumStep, desiredStep));
-  const next = Math.max(-1, Math.min(1, current + step));
-  return Math.abs(target - next) < 0.0005 ? target : next;
+  if (elapsedMs === 0 || velocity === 0) return current;
+  return Math.max(-1, Math.min(1, current + velocity * elapsedMs / 1000));
 }
 
 export function layerParallaxDepth(layerName, occurrence = 0) {
@@ -211,6 +249,11 @@ export function layerParallaxDepth(layerName, occurrence = 0) {
 
 export function layerSceneZ(layerName, occurrence = 0) {
   return resolvedLayerMeta(layerName, occurrence).z;
+}
+
+export function layerSceneOffsetX(layerName, occurrence = 0, approach = "ocean") {
+  if (!["ocean", "river", "lake"].includes(approach)) throw new Error(`Invalid port scene approach: ${approach}`);
+  return approach === "river" ? resolvedLayerMeta(layerName, occurrence).riverOffsetX : 0;
 }
 
 function resolvedLayerMeta(layerName, occurrence) {
@@ -309,11 +352,11 @@ function definedOverrides(overrides) {
   return Object.fromEntries(Object.entries(overrides).filter(([, value]) => value !== undefined));
 }
 
-function layerMeta(z, depth) {
-  if (!Number.isFinite(z) || !Number.isFinite(depth) || depth < 0 || depth > 1) {
-    throw new Error(`Invalid port scene layer metadata: z=${z}, depth=${depth}`);
+function layerMeta(z, depth, riverOffsetX = 0) {
+  if (!Number.isFinite(z) || !Number.isFinite(depth) || depth < 0 || depth > 1 || !Number.isFinite(riverOffsetX)) {
+    throw new Error(`Invalid port scene layer metadata: z=${z}, depth=${depth}, riverOffsetX=${riverOffsetX}`);
   }
-  return Object.freeze({ z, depth });
+  return Object.freeze({ z, depth, riverOffsetX });
 }
 
 function requireTerrain(terrain) {
