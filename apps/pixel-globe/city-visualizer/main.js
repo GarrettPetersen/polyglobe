@@ -15,6 +15,7 @@ import {
   PORT_SCENE_OCEAN_SLICES,
   activePortSceneLayers,
   advanceSceneParallax,
+  docksideShipSideAnchor,
   layerParallaxAnchor,
   layerParallaxDepth,
   layerSceneOffsetX,
@@ -25,6 +26,7 @@ import {
   sceneCameraDefaultParallax,
   sceneCameraParallaxBounds,
   sceneEdgeScrollVelocity,
+  scenePanParallaxDelta,
   sceneReasonRows
 } from "./citySceneRules.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
@@ -85,6 +87,8 @@ const state = {
   parallax: PORT_SCENE_CAMERA.defaultParallax,
   lastRenderTimeMs: null,
   pointer: null,
+  cameraGesture: null,
+  suppressClick: false,
   hoveredDestination: null,
   npcAgents: []
 };
@@ -330,8 +334,49 @@ window.visualViewport?.addEventListener("resize", resizeLogicalCanvas);
 
 canvas.addEventListener("pointermove", (event) => {
   state.pointer = canvasPoint(event);
+  const gesture = state.cameraGesture;
+  if (gesture?.pointerId === event.pointerId) {
+    const movementX = event.clientX - gesture.lastClientX;
+    gesture.lastClientX = event.clientX;
+    gesture.totalX = event.clientX - gesture.startClientX;
+    if (!gesture.moved && Math.abs(gesture.totalX) >= 4) {
+      gesture.moved = true;
+      canvas.classList.add("is-panning");
+      panCameraByScreenPixels(-gesture.totalX);
+    } else if (gesture.moved && movementX !== 0) {
+      panCameraByScreenPixels(-movementX);
+    }
+  }
   updateHover();
 });
+
+canvas.addEventListener("pointerdown", (event) => {
+  if (!event.isPrimary || event.button !== 0 || state.cameraGesture) return;
+  state.suppressClick = false;
+  state.cameraGesture = {
+    pointerId: event.pointerId,
+    pointerType: event.pointerType,
+    startClientX: event.clientX,
+    lastClientX: event.clientX,
+    totalX: 0,
+    moved: false
+  };
+  canvas.setPointerCapture(event.pointerId);
+});
+
+canvas.addEventListener("pointerup", finishCameraGesture);
+canvas.addEventListener("pointercancel", cancelCameraGesture);
+
+canvas.addEventListener("wheel", (event) => {
+  let screenDeltaX = event.deltaX;
+  if (screenDeltaX === 0 && event.shiftKey) screenDeltaX = event.deltaY;
+  if (screenDeltaX === 0 || (!event.shiftKey && Math.abs(screenDeltaX) < Math.abs(event.deltaY))) return;
+  if (event.deltaMode === 1) screenDeltaX *= 16;
+  else if (event.deltaMode === 2) screenDeltaX *= canvas.clientWidth;
+  event.preventDefault();
+  const maximumDelta = canvas.clientWidth * 0.25;
+  panCameraByScreenPixels(clamp(screenDeltaX, -maximumDelta, maximumDelta));
+}, { passive: false });
 
 canvas.addEventListener("pointerleave", () => {
   state.pointer = null;
@@ -340,12 +385,53 @@ canvas.addEventListener("pointerleave", () => {
 });
 
 canvas.addEventListener("click", () => {
+  if (state.suppressClick) {
+    state.suppressClick = false;
+    return;
+  }
   const destination = state.hoveredDestination;
   if (!destination) return;
   destinationTitle.textContent = destination.label;
   destinationCopy.textContent = destination.copy;
   destinationDialog.showModal();
 });
+
+function finishCameraGesture(event) {
+  const gesture = state.cameraGesture;
+  if (!gesture || gesture.pointerId !== event.pointerId) return;
+  state.suppressClick = gesture.moved;
+  state.cameraGesture = null;
+  canvas.classList.remove("is-panning");
+  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  state.pointer = gesture.pointerType === "mouse" ? canvasPoint(event) : null;
+  updateHover();
+}
+
+function cancelCameraGesture(event) {
+  if (state.cameraGesture?.pointerId !== event.pointerId) return;
+  state.cameraGesture = null;
+  state.suppressClick = false;
+  canvas.classList.remove("is-panning");
+  state.pointer = null;
+  updateHover();
+}
+
+function panCameraByScreenPixels(screenDeltaX) {
+  const delta = scenePanParallaxDelta({
+    screenDeltaX,
+    displayWidth: canvas.clientWidth,
+    logicalWidth: canvas.width,
+    approach: state.features?.approach || "ocean"
+  });
+  if (delta === 0) return;
+  const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
+  state.parallax = clamp(
+    state.parallax + delta,
+    cameraBounds.minimum,
+    cameraBounds.maximum
+  );
+  updateHover();
+}
 
 function advanceCamera(timeMs) {
   if (state.lastRenderTimeMs === null) {
@@ -355,7 +441,7 @@ function advanceCamera(timeMs) {
   const elapsedMs = Math.min(50, Math.max(0, timeMs - state.lastRenderTimeMs));
   state.lastRenderTimeMs = timeMs;
   const previous = state.parallax;
-  if (!prefersReducedMotion.matches && state.pointer) {
+  if (!prefersReducedMotion.matches && state.pointer && !state.cameraGesture) {
     const next = advanceSceneParallax({
       current: state.parallax,
       velocity: sceneEdgeScrollVelocity({ pointerX: state.pointer.x, width: canvas.width }),
@@ -796,18 +882,19 @@ function drawDocksideShip(timeMs) {
   const ship = state.shipManifest.ships.find((candidate) => candidate.slug === state.shipSlug);
   if (!ship?.cityDockside) return;
   const dockside = ship.cityDockside;
+  const sideAnchor = docksideShipSideAnchor(ship);
   const window = sceneWindow(PORT_SCENE_ENTITY_META.ship.depth);
   const scale = PORT_SCENE_ENTITY_META.ship.scale;
   const berth = state.features.dock === "none"
     ? { x: 802, y: 528 }
     : { x: PORT_SCENE_DOCK.shipAccessX, y: PORT_SCENE_DOCK.shipAccessY };
   const waterlineY = berth.y +
-    (state.shipWaterlineLayers.submergedMinY - dockside.deckEntryAnchor.y) * scale;
+    (state.shipWaterlineLayers.submergedMinY - sideAnchor.y) * scale;
   const bobY = clamp(oceanRowOffset(waterlineY, timeMs), -1, 1);
   drawDocksideShipWaterlineLayers(
     state.shipWaterlineLayers,
-    Math.round(berth.x - dockside.deckEntryAnchor.x * scale - window.x),
-    Math.round(berth.y - dockside.deckEntryAnchor.y * scale - window.y + bobY),
+    Math.round(berth.x - sideAnchor.x * scale - window.x),
+    Math.round(berth.y - sideAnchor.y * scale - window.y + bobY),
     scale,
     timeMs,
     hashString(ship.slug)

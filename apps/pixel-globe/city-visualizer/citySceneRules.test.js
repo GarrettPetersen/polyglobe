@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { canvasDisplayLayout } from "../src/displayScaling.js";
 import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
@@ -12,6 +13,7 @@ import {
   PORT_SCENE_RIVER,
   activePortSceneLayers,
   advanceSceneParallax,
+  docksideShipSideAnchor,
   layerParallaxAnchor,
   layerParallaxDepth,
   layerSceneOffsetX,
@@ -21,8 +23,14 @@ import {
   resolveCitySceneFeatures,
   sceneCameraDefaultParallax,
   sceneCameraParallaxBounds,
-  sceneEdgeScrollVelocity
+  sceneEdgeScrollVelocity,
+  scenePanParallaxDelta
 } from "./citySceneRules.js";
+
+const SHIP_MANIFEST = JSON.parse(readFileSync(new URL(
+  "../public/assets/vehicles/unity-ships/port-assault/manifest.json",
+  import.meta.url
+), "utf8"));
 
 const CITY = Object.freeze({
   approach: "river",
@@ -114,6 +122,27 @@ test("RTS camera scrolls only at the edges and stops in place when input ceases"
   assert.deepEqual(sceneCameraParallaxBounds("ocean"), { minimum: -1, maximum: 1 });
 });
 
+test("wheel and swipe distances pan the camera through the authored scene", () => {
+  assert.equal(scenePanParallaxDelta({
+    screenDeltaX: 455,
+    displayWidth: 910,
+    logicalWidth: 455,
+    approach: "ocean"
+  }), 1);
+  assert.equal(scenePanParallaxDelta({
+    screenDeltaX: -455,
+    displayWidth: 910,
+    logicalWidth: 455,
+    approach: "river"
+  }), -0.5);
+  assert.equal(scenePanParallaxDelta({
+    screenDeltaX: 200,
+    displayWidth: 910,
+    logicalWidth: 910,
+    approach: "ocean"
+  }), 0);
+});
+
 test("ocean depth slices cover the authored water without gaps", () => {
   assert.equal(PORT_SCENE_OCEAN_SLICES[0].top, 446);
   assert.equal(PORT_SCENE_OCEAN_SLICES.at(-1).bottom, PORT_SCENE_MASTER.height);
@@ -193,6 +222,32 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   assert.equal(PORT_SCENE_DOCK.beachStartX - PORT_SCENE_DOCK.startX, PORT_SCENE_DOCK.shadowWaterExtension);
   assert.ok(PORT_SCENE_DOCK.shipAccessX >= PORT_SCENE_DOCK.startX);
   assert.equal(PORT_SCENE_DOCK.shipAccessY, PORT_SCENE_DOCK.topY);
+});
+
+test("dockside ships berth at the middle of their side rather than their bow anchor", () => {
+  for (const ship of SHIP_MANIFEST.ships) {
+    const dockside = ship.cityDockside;
+    const nearRail = ship.deckPolygon.slice(2);
+    const sideMidpoint = {
+      x: (nearRail[0].x + nearRail[1].x) / 2,
+      y: (nearRail[0].y + nearRail[1].y) / 2
+    };
+    const anchor = docksideShipSideAnchor(ship);
+    assert.equal(
+      anchor.x,
+      dockside.deckEntryAnchor.x +
+        (sideMidpoint.x - ship.deckEntryAnchor.x) * dockside.nativeScale,
+      ship.slug
+    );
+    assert.equal(
+      anchor.y,
+      dockside.deckEntryAnchor.y +
+        (sideMidpoint.y - ship.deckEntryAnchor.y) * dockside.nativeScale,
+      ship.slug
+    );
+    assert.ok(anchor.x < dockside.deckEntryAnchor.x, ship.slug);
+    assert.ok(anchor.y > dockside.deckEntryAnchor.y, ship.slug);
+  }
 });
 
 test("ship menus display canonical vessel names rather than internal IDs", () => {

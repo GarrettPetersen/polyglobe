@@ -268,6 +268,60 @@ export function advanceSceneParallax({ current, velocity, elapsedMs }) {
   return Math.max(-1, Math.min(1, current + velocity * elapsedMs / 1000));
 }
 
+export function scenePanParallaxDelta({
+  screenDeltaX,
+  displayWidth,
+  logicalWidth,
+  approach
+}) {
+  if (!Number.isFinite(screenDeltaX)) {
+    throw new Error(`Invalid scene pan delta x: ${screenDeltaX}`);
+  }
+  requireLogicalDimension(displayWidth, "scene display width");
+  requireLogicalDimension(logicalWidth, "scene logical width");
+  const bounds = sceneCameraParallaxBounds(approach);
+  const spanWidth = approach === "river" ? PORT_SCENE_MASTER.width : PORT_SCENE_MASTER.safeWidth;
+  const travel = spanWidth - logicalWidth;
+  if (travel <= 0 || screenDeltaX === 0) return 0;
+  const logicalDeltaX = screenDeltaX / displayWidth * logicalWidth;
+  return Math.max(bounds.minimum - bounds.maximum, Math.min(
+    bounds.maximum - bounds.minimum,
+    logicalDeltaX * 2 / travel
+  ));
+}
+
+export function docksideShipSideAnchor(ship) {
+  const deckPolygon = ship?.deckPolygon;
+  const deckEntry = ship?.deckEntryAnchor;
+  const cityDockside = ship?.cityDockside;
+  const cityDeckEntry = cityDockside?.deckEntryAnchor;
+  const nativeScale = cityDockside?.nativeScale;
+  if (
+    !Array.isArray(deckPolygon) ||
+    deckPolygon.length !== 4 ||
+    !deckPolygon.every(({ x, y }) => Number.isFinite(x) && Number.isFinite(y)) ||
+    !deckEntry ||
+    !Number.isFinite(deckEntry.x) ||
+    !Number.isFinite(deckEntry.y) ||
+    !cityDeckEntry ||
+    !Number.isFinite(cityDeckEntry.x) ||
+    !Number.isFinite(cityDeckEntry.y) ||
+    !Number.isInteger(nativeScale) ||
+    nativeScale <= 0
+  ) {
+    throw new Error("Invalid city dockside ship berth geometry");
+  }
+  const nearRail = deckPolygon.slice(2);
+  const sideMidpoint = {
+    x: (nearRail[0].x + nearRail[1].x) / 2,
+    y: (nearRail[0].y + nearRail[1].y) / 2
+  };
+  return Object.freeze({
+    x: cityDeckEntry.x + (sideMidpoint.x - deckEntry.x) * nativeScale,
+    y: cityDeckEntry.y + (sideMidpoint.y - deckEntry.y) * nativeScale
+  });
+}
+
 export function layerParallaxDepth(layerName, occurrence = 0) {
   return resolvedLayerMeta(layerName, occurrence).depth;
 }
