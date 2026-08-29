@@ -365,7 +365,7 @@ function render(timeMs) {
     else if (entry.kind === "animated") drawAnimatedLayer(entry.layerName, timeMs, entry.occurrence);
     else if (entry.kind === "dock-shadow-extension") drawDockShadowExtension();
     else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
-    else if (entry.kind === "ship") drawDocksideShip();
+    else if (entry.kind === "ship") drawDocksideShip(timeMs);
     else if (entry.kind === "npcs") drawNpcs(timeMs);
   }
   drawSceneLabels();
@@ -727,16 +727,19 @@ function tintedFrameCanvas(frame) {
   return mask;
 }
 
-function drawDocksideShip() {
+function drawDocksideShip(timeMs) {
   if (!state.shipImage || !state.shipManifest || !state.features) return;
   const ship = state.shipManifest.ships.find((candidate) => candidate.slug === state.shipSlug);
   if (!ship) return;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.ship.depth);
   const berth = state.features.dock === "none" ? { x: 802, y: 528 } : { x: 690, y: 514 };
+  const waterlineY = berth.y +
+    ship.opaqueBounds.minY + ship.opaqueBounds.height - 1 - ship.deckEntryAnchor.y;
+  const bobY = clamp(oceanRowOffset(waterlineY, timeMs), -1, 1);
   context.drawImage(
     state.shipImage,
     Math.round(berth.x - ship.deckEntryAnchor.x - window.x),
-    Math.round(berth.y - ship.deckEntryAnchor.y - window.y)
+    Math.round(berth.y - ship.deckEntryAnchor.y - window.y + bobY)
   );
 }
 
