@@ -24,10 +24,29 @@ test("detailed sail ship texture simplification preserves broad material familie
   });
 });
 
+test("detailed ship decks separate from vertical timber through their plane lighting", () => {
+  const sourceColor = { r: 88, g: 54, b: 29 };
+  assert.deepEqual(
+    simplifyDetailedSailShipTextureColor(sourceColor, { normal: { y: 0 } }),
+    { r: 126, g: 80, b: 45 }
+  );
+  assert.deepEqual(
+    simplifyDetailedSailShipTextureColor(sourceColor, { normal: { y: 0.8 } }),
+    { r: 200, g: 160, b: 110 }
+  );
+});
+
 test("detailed sail ship texture simplification fails loudly for malformed colors", () => {
   assert.throws(
     () => simplifyDetailedSailShipTextureColor({ r: 20, g: Number.NaN, b: 10 }),
     /finite RGB color/
+  );
+  assert.throws(
+    () => simplifyDetailedSailShipTextureColor(
+      { r: 88, g: 54, b: 29 },
+      { normal: { y: Number.NaN } }
+    ),
+    /finite surface normal/
   );
 });
 

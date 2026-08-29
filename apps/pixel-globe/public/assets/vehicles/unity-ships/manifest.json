@@ -5,7 +5,7 @@
   "scaleNotes": "Imported FBX source sizes are preserved through a compressed readability curve so boats stay smaller without becoming illegible at 47px.",
   "targetMaxDimForLargestShip": 2.3,
   "fleetScaleExponent": 0.5,
-  "sharedFrameScale": 0.6143,
+  "sharedFrameScale": 0.6324,
   "skipped": [
     "Models/boats/boat 2.fbx (superseded by the credited one-person Dhow model)",
     "Models/boats/boat 4.fbx (superseded by the credited gogiart Dhow model)",
@@ -40,10 +40,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 831.0967,
       "targetModelMaxDim": 0.9096,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.1516
+        "y": 27.259
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.31413747736668796,
@@ -55,10 +55,10 @@
         "hullIntervalMinY": -0.324522,
         "hullIntervalMaxY": -0.29856
       },
-      "encodedWaterlineY": -0.300435,
+      "encodedWaterlineY": -0.300988,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.305434,
-      "sinkHeightMax": 0.329473,
+      "sinkHeightMin": -0.305975,
+      "sinkHeightMax": 0.327331,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -75,8 +75,8 @@
       "stats": {
         "slug": "fishing-lugger",
         "cannons": 0,
-        "accelerationRad": 0.021,
-        "topSpeedRad": 0.023799999999999998,
+        "accelerationRad": 0.0024192,
+        "topSpeedRad": 0.0104832,
         "upwindStallAngleDeg": 40,
         "upwindStallAngleRad": 0.6981317007977318,
         "turnRateRad": 2.9,
@@ -114,10 +114,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 645.6119,
       "targetModelMaxDim": 1.3,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.4891
+        "y": 27.6064
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.4627803946263036,
@@ -129,9 +129,9 @@
         "hullIntervalMinY": -0.478079,
         "hullIntervalMaxY": -0.432183
       },
-      "encodedWaterlineY": -0.435527,
+      "encodedWaterlineY": -0.434059,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.442851,
+      "sinkHeightMin": -0.441371,
       "sinkHeightMax": 0.48727,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -149,8 +149,8 @@
       "stats": {
         "slug": "small-cog",
         "cannons": 2,
-        "accelerationRad": 0.016,
-        "topSpeedRad": 0.022099999999999998,
+        "accelerationRad": 0.0018432,
+        "topSpeedRad": 0.009734399999999999,
         "upwindStallAngleDeg": 50,
         "upwindStallAngleRad": 0.8726646259971648,
         "turnRateRad": 2,
@@ -188,10 +188,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 857.9191,
       "targetModelMaxDim": 0.9242,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.3955
+        "y": 27.5101
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.4066075800641935,
@@ -223,8 +223,8 @@
       "stats": {
         "slug": "sampan",
         "cannons": 0,
-        "accelerationRad": 0.026,
-        "topSpeedRad": 0.022099999999999998,
+        "accelerationRad": 0.0029952,
+        "topSpeedRad": 0.009734399999999999,
         "upwindStallAngleDeg": 37,
         "upwindStallAngleRad": 0.6457718232379019,
         "turnRateRad": 3.4,
@@ -262,10 +262,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3252.2148,
       "targetModelMaxDim": 1.7994,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 28.7484
+        "y": 28.9028
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6114549926396833,
@@ -279,7 +279,7 @@
       },
       "encodedWaterlineY": -0.611455,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.716323,
+      "sinkHeightMin": -0.717542,
       "sinkHeightMax": 0.71326,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -297,8 +297,8 @@
       "stats": {
         "slug": "large-junk",
         "cannons": 24,
-        "accelerationRad": 0.015,
-        "topSpeedRad": 0.032299999999999995,
+        "accelerationRad": 0.001728,
+        "topSpeedRad": 0.014227199999999999,
         "upwindStallAngleDeg": 42,
         "upwindStallAngleRad": 0.7330382858376184,
         "turnRateRad": 1.75,
@@ -336,10 +336,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3234.0896,
       "targetModelMaxDim": 1.7944,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 33.8679
+        "y": 34.1729
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.7496062855636385,
@@ -354,7 +354,7 @@
       "encodedWaterlineY": -0.749606,
       "sinkHeightBins": 256,
       "sinkHeightMin": -0.837111,
-      "sinkHeightMax": 0.844024,
+      "sinkHeightMax": 0.844976,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -371,8 +371,8 @@
       "stats": {
         "slug": "pirate-brig",
         "cannons": 18,
-        "accelerationRad": 0.02,
-        "topSpeedRad": 0.03485,
+        "accelerationRad": 0.0023039999999999996,
+        "topSpeedRad": 0.0153504,
         "upwindStallAngleDeg": 34,
         "upwindStallAngleRad": 0.5934119456780721,
         "turnRateRad": 2.35,
@@ -410,10 +410,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 5137.2568,
       "targetModelMaxDim": 2.2616,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.7328
+        "y": 29.9162
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6408279004097618,
@@ -428,7 +428,7 @@
       "encodedWaterlineY": -0.640828,
       "sinkHeightBins": 256,
       "sinkHeightMin": -0.711521,
-      "sinkHeightMax": 0.71257,
+      "sinkHeightMax": 0.711681,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -445,8 +445,8 @@
       "stats": {
         "slug": "fluyt",
         "cannons": 12,
-        "accelerationRad": 0.012,
-        "topSpeedRad": 0.030599999999999995,
+        "accelerationRad": 0.0013823999999999998,
+        "topSpeedRad": 0.013478399999999998,
         "upwindStallAngleDeg": 50,
         "upwindStallAngleRad": 0.8726646259971648,
         "turnRateRad": 1.45,
@@ -484,10 +484,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 4324.8892,
       "targetModelMaxDim": 2.0751,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 28.7201
+        "y": 28.8736
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6335832014325332,
@@ -501,7 +501,7 @@
       },
       "encodedWaterlineY": -0.633583,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.712462,
+      "sinkHeightMin": -0.730291,
       "sinkHeightMax": 0.728635,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -519,8 +519,8 @@
       "stats": {
         "slug": "carrack",
         "cannons": 26,
-        "accelerationRad": 0.012,
-        "topSpeedRad": 0.028900000000000002,
+        "accelerationRad": 0.0013823999999999998,
+        "topSpeedRad": 0.0127296,
         "upwindStallAngleDeg": 52,
         "upwindStallAngleRad": 0.9075712110370514,
         "turnRateRad": 1.35,
@@ -558,10 +558,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 5313.3955,
       "targetModelMaxDim": 2.3,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.6913
+        "y": 29.8734
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6375315248193973,
@@ -575,7 +575,7 @@
       },
       "encodedWaterlineY": -0.637532,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.704218,
+      "sinkHeightMin": -0.721045,
       "sinkHeightMax": 0.719604,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -593,8 +593,8 @@
       "stats": {
         "slug": "ship-of-the-line",
         "cannons": 50,
-        "accelerationRad": 0.01,
-        "topSpeedRad": 0.03825,
+        "accelerationRad": 0.0011519999999999998,
+        "topSpeedRad": 0.016848,
         "upwindStallAngleDeg": 50,
         "upwindStallAngleRad": 0.8726646259971648,
         "turnRateRad": 1.15,
@@ -632,10 +632,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 2870.6094,
       "targetModelMaxDim": 1.6906,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 28.3757
+        "y": 28.5191
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.606253297214245,
@@ -649,8 +649,8 @@
       },
       "encodedWaterlineY": -0.606253,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.715353,
-      "sinkHeightMax": 0.722622,
+      "sinkHeightMin": -0.720518,
+      "sinkHeightMax": 0.724294,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -667,8 +667,8 @@
       "stats": {
         "slug": "medium-junk",
         "cannons": 12,
-        "accelerationRad": 0.018,
-        "topSpeedRad": 0.030599999999999995,
+        "accelerationRad": 0.0020735999999999997,
+        "topSpeedRad": 0.013478399999999998,
         "upwindStallAngleDeg": 40,
         "upwindStallAngleRad": 0.6981317007977318,
         "turnRateRad": 2.1,
@@ -706,10 +706,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3954.8806,
       "targetModelMaxDim": 1.9843,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 30.6987
+        "y": 30.9104
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6930998858395693,
@@ -723,8 +723,8 @@
       },
       "encodedWaterlineY": -0.6931,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.76141,
-      "sinkHeightMax": 0.768453,
+      "sinkHeightMin": -0.759397,
+      "sinkHeightMax": 0.768811,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -741,8 +741,8 @@
       "stats": {
         "slug": "xebec",
         "cannons": 16,
-        "accelerationRad": 0.024,
-        "topSpeedRad": 0.03655,
+        "accelerationRad": 0.0027647999999999995,
+        "topSpeedRad": 0.0160992,
         "upwindStallAngleDeg": 26,
         "upwindStallAngleRad": 0.4537856055185257,
         "turnRateRad": 2.8,
@@ -780,10 +780,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3621.5095,
       "targetModelMaxDim": 1.8988,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 30.5706
+        "y": 30.7786
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6585613902860337,
@@ -815,8 +815,8 @@
       "stats": {
         "slug": "caravel",
         "cannons": 8,
-        "accelerationRad": 0.019,
-        "topSpeedRad": 0.030599999999999995,
+        "accelerationRad": 0.0021888,
+        "topSpeedRad": 0.013478399999999998,
         "upwindStallAngleDeg": 36,
         "upwindStallAngleRad": 0.6283185307179586,
         "turnRateRad": 2.35,
@@ -854,10 +854,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3190.7581,
       "targetModelMaxDim": 1.6,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 30.4014
+        "y": 30.6043
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.4745232593905815,
@@ -872,7 +872,7 @@
       "encodedWaterlineY": -0.474523,
       "sinkHeightBins": 256,
       "sinkHeightMin": -0.562822,
-      "sinkHeightMax": 0.573205,
+      "sinkHeightMax": 0.574372,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -889,8 +889,8 @@
       "stats": {
         "slug": "holk",
         "cannons": 4,
-        "accelerationRad": 0.015,
-        "topSpeedRad": 0.02635,
+        "accelerationRad": 0.001728,
+        "topSpeedRad": 0.0116064,
         "upwindStallAngleDeg": 50,
         "upwindStallAngleRad": 0.8726646259971648,
         "turnRateRad": 1.75,
@@ -928,10 +928,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 2620.5049,
       "targetModelMaxDim": 1.6152,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 30.7792
+        "y": 30.9933
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6751154748377313,
@@ -945,8 +945,8 @@
       },
       "encodedWaterlineY": -0.675115,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.797548,
-      "sinkHeightMax": 0.776172,
+      "sinkHeightMin": -0.7933,
+      "sinkHeightMax": 0.80219,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -963,8 +963,8 @@
       "stats": {
         "slug": "square-rigged-caravel",
         "cannons": 4,
-        "accelerationRad": 0.02,
-        "topSpeedRad": 0.028900000000000002,
+        "accelerationRad": 0.0023039999999999996,
+        "topSpeedRad": 0.0127296,
         "upwindStallAngleDeg": 44,
         "upwindStallAngleRad": 0.767944870877505,
         "turnRateRad": 2.3,
@@ -1002,10 +1002,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 3148.0386,
       "targetModelMaxDim": 1.7704,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 28.8599
+        "y": 29.0176
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6690514625851667,
@@ -1020,7 +1020,7 @@
       "encodedWaterlineY": -0.669051,
       "sinkHeightBins": 256,
       "sinkHeightMin": -0.68519,
-      "sinkHeightMax": 0.729141,
+      "sinkHeightMax": 0.729408,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1037,8 +1037,8 @@
       "stats": {
         "slug": "brigantine",
         "cannons": 14,
-        "accelerationRad": 0.021,
-        "topSpeedRad": 0.034,
+        "accelerationRad": 0.0024192,
+        "topSpeedRad": 0.014976,
         "upwindStallAngleDeg": 32,
         "upwindStallAngleRad": 0.5585053606381855,
         "turnRateRad": 2.45,
@@ -1076,10 +1076,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 2058.6396,
       "targetModelMaxDim": 1.4316,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.5555
+        "y": 29.7336
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.6023806016218708,
@@ -1091,10 +1091,10 @@
         "hullIntervalMinY": -0.612505,
         "hullIntervalMaxY": -0.582133
       },
-      "encodedWaterlineY": -0.601528,
+      "encodedWaterlineY": -0.602381,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.611419,
-      "sinkHeightMax": 0.644756,
+      "sinkHeightMin": -0.61678,
+      "sinkHeightMax": 0.644932,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1111,8 +1111,8 @@
       "stats": {
         "slug": "small-junk",
         "cannons": 4,
-        "accelerationRad": 0.023,
-        "topSpeedRad": 0.0272,
+        "accelerationRad": 0.0026496,
+        "topSpeedRad": 0.011980800000000002,
         "upwindStallAngleDeg": 35,
         "upwindStallAngleRad": 0.6108652381980153,
         "turnRateRad": 2.7,
@@ -1150,10 +1150,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 1609.0532,
       "targetModelMaxDim": 0.98,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 29.2086
+        "y": 29.3765
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.35550026463023854,
@@ -1185,8 +1185,8 @@
       "stats": {
         "slug": "felucca",
         "cannons": 0,
-        "accelerationRad": 0.029,
-        "topSpeedRad": 0.02635,
+        "accelerationRad": 0.0033408,
+        "topSpeedRad": 0.0116064,
         "upwindStallAngleDeg": 22,
         "upwindStallAngleRad": 0.3839724354387525,
         "turnRateRad": 3.35,
@@ -1224,10 +1224,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 1941.4077,
       "targetModelMaxDim": 1.2,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 28.3795
+        "y": 28.523
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.435944446360453,
@@ -1239,9 +1239,9 @@
         "hullIntervalMinY": -0.465753,
         "hullIntervalMaxY": -0.38378
       },
-      "encodedWaterlineY": -0.42603,
+      "encodedWaterlineY": -0.425479,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.433186,
+      "sinkHeightMin": -0.432631,
       "sinkHeightMax": 0.475662,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -1259,8 +1259,8 @@
       "stats": {
         "slug": "cutter",
         "cannons": 4,
-        "accelerationRad": 0.028,
-        "topSpeedRad": 0.029750000000000002,
+        "accelerationRad": 0.0032256,
+        "topSpeedRad": 0.013104000000000001,
         "upwindStallAngleDeg": 24,
         "upwindStallAngleRad": 0.4188790204786391,
         "turnRateRad": 3.25,
@@ -1298,10 +1298,10 @@
       "sourceTexture": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Textures/texture main.png",
       "sourceMaxDim": 2970.9222,
       "targetModelMaxDim": 1.7198,
-      "frameScale": 0.6143,
+      "frameScale": 0.6324,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 27.4889
+        "y": 27.6063
       },
       "scaleMode": "source-relative-fleet",
       "waterlineY": -0.5115140875905757,
@@ -1315,7 +1315,7 @@
       },
       "encodedWaterlineY": -0.511514,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.575462,
+      "sinkHeightMin": -0.577286,
       "sinkHeightMax": 0.578963,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -1333,8 +1333,8 @@
       "stats": {
         "slug": "ketch",
         "cannons": 4,
-        "accelerationRad": 0.024,
-        "topSpeedRad": 0.029750000000000002,
+        "accelerationRad": 0.0027647999999999995,
+        "topSpeedRad": 0.013104000000000001,
         "upwindStallAngleDeg": 26,
         "upwindStallAngleRad": 0.4537856055185257,
         "turnRateRad": 2.85,
@@ -1407,8 +1407,8 @@
       "stats": {
         "slug": "javanese-jong",
         "cannons": 8,
-        "accelerationRad": 0.011,
-        "topSpeedRad": 0.028900000000000002,
+        "accelerationRad": 0.0012671999999999998,
+        "topSpeedRad": 0.0127296,
         "upwindStallAngleDeg": 48,
         "upwindStallAngleRad": 0.8377580409572782,
         "turnRateRad": 1.25,
@@ -1481,8 +1481,8 @@
       "stats": {
         "slug": "viking-longship",
         "cannons": 0,
-        "accelerationRad": 0.03,
-        "topSpeedRad": 0.03655,
+        "accelerationRad": 0.003456,
+        "topSpeedRad": 0.0160992,
         "upwindStallAngleDeg": 47,
         "upwindStallAngleRad": 0.8203047484373349,
         "turnRateRad": 2.75,
@@ -1585,8 +1585,8 @@
       },
       "encodedWaterlineY": -0.712653,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.826831,
-      "sinkHeightMax": 0.836209,
+      "sinkHeightMin": -0.826009,
+      "sinkHeightMax": 0.827483,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1603,8 +1603,8 @@
       "stats": {
         "slug": "polynesian-voyaging-canoe",
         "cannons": 0,
-        "accelerationRad": 0.031,
-        "topSpeedRad": 0.032299999999999995,
+        "accelerationRad": 0.0035711999999999996,
+        "topSpeedRad": 0.014227199999999999,
         "upwindStallAngleDeg": 20,
         "upwindStallAngleRad": 0.3490658503988659,
         "turnRateRad": 3.15,
@@ -1677,8 +1677,8 @@
       "stats": {
         "slug": "mesoamerican-dugout-canoe",
         "cannons": 0,
-        "accelerationRad": 0.014,
-        "topSpeedRad": 0.0085,
+        "accelerationRad": 0.0016128,
+        "topSpeedRad": 0.003744,
         "upwindStallAngleDeg": 0,
         "upwindStallAngleRad": 0,
         "turnRateRad": 3.8,
@@ -1797,8 +1797,8 @@
       },
       "encodedWaterlineY": -0.469877,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.542627,
-      "sinkHeightMax": 0.543932,
+      "sinkHeightMin": -0.543888,
+      "sinkHeightMax": 0.542068,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -1815,8 +1815,8 @@
       "stats": {
         "slug": "mediterranean-galley",
         "cannons": 12,
-        "accelerationRad": 0.026,
-        "topSpeedRad": 0.034,
+        "accelerationRad": 0.0029952,
+        "topSpeedRad": 0.014976,
         "upwindStallAngleDeg": 30,
         "upwindStallAngleRad": 0.5235987755982988,
         "turnRateRad": 2.55,
@@ -1888,6 +1888,144 @@
       }
     },
     {
+      "slug": "fusta",
+      "label": "Fusta",
+      "category": "light Mediterranean war galley",
+      "assetLabel": "Russian 22-bank Baltic galley",
+      "identifiedType": "sixteenth-century one-masted fusta",
+      "identificationConfidence": "high",
+      "identificationNotes": "The source galley is reduced to its central lateen rig and rendered on a smaller hull scale; three animated representative oars per side preserve a clean light-galley silhouette.",
+      "removedSourceComponents": [
+        {
+          "nodeName": "Object_13",
+          "positionCount": 770,
+          "firstVertex": 34,
+          "lastVertex": 535,
+          "description": "fore and mizzen masts and spars"
+        },
+        {
+          "nodeName": "Object_20",
+          "positionCount": 831,
+          "firstVertex": 271,
+          "lastVertex": 830,
+          "description": "fore and mizzen sails"
+        }
+      ],
+      "creator": "Museovirasto Museiverket Finnish Heritage Agency",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Russian 22-bank Baltic galley",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
+      "sourceTexture": null,
+      "sourceMaxDim": 4604.1799,
+      "targetModelMaxDim": 1.5096,
+      "frameScale": 0.6667,
+      "turntableAnchor": {
+        "x": 23.5,
+        "y": 25.3227
+      },
+      "scaleMode": "light-galley-pixel-derivative",
+      "waterlineY": -0.30387512345727413,
+      "waterlineOffsetY": -0.238,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 1,
+        "dominantLengthRatio": 1,
+        "hullIntervalMinY": -0.072809,
+        "hullIntervalMaxY": -0.045072
+      },
+      "encodedWaterlineY": -0.303875,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.437249,
+      "sinkHeightMax": 0.432157,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": -0.014752,
+        "y": 0.44379,
+        "z": -0.419865
+      },
+      "stats": {
+        "slug": "fusta",
+        "cannons": 2,
+        "accelerationRad": 0.0035711999999999996,
+        "topSpeedRad": 0.0153504,
+        "upwindStallAngleDeg": 27,
+        "upwindStallAngleRad": 0.47123889803846897,
+        "turnRateRad": 3.2,
+        "mass": 90,
+        "crewCapacity": 12,
+        "hitPoints": 9,
+        "cargoCapacity": 42,
+        "seaworthiness": 4,
+        "armor": 0,
+        "crewProtection": 12,
+        "propulsion": "oar-sail"
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-lighting-preview.png",
+        "rowingAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-5-32-headings.png"
+        ],
+        "rowingSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-5-32-headings-sink-depth.png"
+        ],
+        "pivotPortAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-5-32-headings.png"
+        ],
+        "pivotPortSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-5-32-headings-sink-depth.png"
+        ],
+        "pivotStarboardAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-5-32-headings.png"
+        ],
+        "pivotStarboardSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-5-32-headings-sink-depth.png"
+        ]
+      }
+    },
+    {
       "slug": "galleass",
       "label": "Galleass",
       "category": "heavy Mediterranean warship",
@@ -1937,8 +2075,8 @@
       "stats": {
         "slug": "galleass",
         "cannons": 36,
-        "accelerationRad": 0.017,
-        "topSpeedRad": 0.028900000000000002,
+        "accelerationRad": 0.0019584,
+        "topSpeedRad": 0.0127296,
         "upwindStallAngleDeg": 34,
         "upwindStallAngleRad": 0.5934119456780721,
         "turnRateRad": 1.65,
@@ -2059,8 +2197,8 @@
       "stats": {
         "slug": "joseon-turtle-ship",
         "cannons": 30,
-        "accelerationRad": 0.017,
-        "topSpeedRad": 0.028900000000000002,
+        "accelerationRad": 0.0019584,
+        "topSpeedRad": 0.0127296,
         "upwindStallAngleDeg": 42,
         "upwindStallAngleRad": 0.7330382858376184,
         "turnRateRad": 1.85,
@@ -2132,6 +2270,150 @@
       }
     },
     {
+      "slug": "joseon-hyeopseon",
+      "label": "Hyeopseon",
+      "category": "light Joseon warship",
+      "assetLabel": "Panok ship derivative",
+      "identifiedType": "light Joseon fleet companion and scout",
+      "identificationConfidence": "medium",
+      "identificationNotes": "The documented medium Hyeopseon is represented conservatively with the credited Panokseon source model at a smaller scale, its aft mast removed, a lighter timber palette, and four representative animated oars per side.",
+      "removedSourceMeshes": [
+        {
+          "nodeName": "Object_9",
+          "parentName": "Object_4",
+          "positionCount": 2544
+        },
+        {
+          "nodeName": "Object_13",
+          "parentName": "Object_4",
+          "positionCount": 48
+        },
+        {
+          "nodeName": "Object_84",
+          "parentName": "Object_4",
+          "positionCount": 480
+        },
+        {
+          "nodeName": "Object_85",
+          "parentName": "Object_4",
+          "positionCount": 340
+        }
+      ],
+      "creator": "Heat Of Fusion, with JJakgwi",
+      "license": "CC BY 4.0",
+      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
+      "sourceModel": "apps/pixel-globe/source-models/sketchfab/joseon-panokseon/scene.gltf",
+      "sourceTexture": null,
+      "sourceMaxDim": 23.1451,
+      "targetModelMaxDim": 1.72,
+      "frameScale": 0.62,
+      "turntableAnchor": {
+        "x": 23.5,
+        "y": 29.9855
+      },
+      "scaleMode": "light-joseon-panokseon-derivative",
+      "waterlineY": -0.6073859051565584,
+      "waterlineOffsetY": -0.265,
+      "waterlineSlice": {
+        "expectedHullCount": 1,
+        "componentCount": 1,
+        "dominantLengthRatio": 1,
+        "hullIntervalMinY": -0.682044,
+        "hullIntervalMaxY": 0.682044
+      },
+      "encodedWaterlineY": -0.607386,
+      "sinkHeightBins": 256,
+      "sinkHeightMin": -0.675223,
+      "sinkHeightMax": 0.682044,
+      "sinkWaterlineLevel": 0.501961,
+      "frameSize": 47,
+      "shadowFrameSize": 95,
+      "headings": 32,
+      "sheetCols": 8,
+      "lightAzimuthBins": 16,
+      "lightElevationBins": 2,
+      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
+      "flagAnchorModelPoint": {
+        "x": -0.003748,
+        "y": 0.682044,
+        "z": 0.471495
+      },
+      "stats": {
+        "slug": "joseon-hyeopseon",
+        "cannons": 4,
+        "accelerationRad": 0.0029952,
+        "topSpeedRad": 0.014976,
+        "upwindStallAngleDeg": 40,
+        "upwindStallAngleRad": 0.6981317007977318,
+        "turnRateRad": 2.95,
+        "mass": 120,
+        "crewCapacity": 18,
+        "hitPoints": 12,
+        "cargoCapacity": 65,
+        "seaworthiness": 6,
+        "armor": 0,
+        "crewProtection": 30,
+        "propulsion": "oar-sail"
+      },
+      "files": {
+        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings.png",
+        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-sink-depth.png",
+        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-light.png",
+        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-shade.png",
+        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-shadow.png",
+        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-preview.png",
+        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-lighting-preview.png",
+        "rowingAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-5-32-headings.png"
+        ],
+        "rowingSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-5-32-headings-sink-depth.png"
+        ],
+        "pivotPortAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-5-32-headings.png"
+        ],
+        "pivotPortSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-5-32-headings-sink-depth.png"
+        ],
+        "pivotStarboardAnimation": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-0-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-1-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-2-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-3-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-4-32-headings.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-5-32-headings.png"
+        ],
+        "pivotStarboardSinkDepth": [
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-0-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-1-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-2-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-3-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-4-32-headings-sink-depth.png",
+          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-5-32-headings-sink-depth.png"
+        ]
+      }
+    },
+    {
       "slug": "joseon-panokseon",
       "label": "Panokseon",
       "category": "Joseon warship",
@@ -2170,7 +2452,7 @@
       },
       "encodedWaterlineY": -0.811842,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.903743,
+      "sinkHeightMin": -0.903011,
       "sinkHeightMax": 0.912035,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -2188,8 +2470,8 @@
       "stats": {
         "slug": "joseon-panokseon",
         "cannons": 20,
-        "accelerationRad": 0.02,
-        "topSpeedRad": 0.029750000000000002,
+        "accelerationRad": 0.0023039999999999996,
+        "topSpeedRad": 0.013104000000000001,
         "upwindStallAngleDeg": 44,
         "upwindStallAngleRad": 0.767944870877505,
         "turnRateRad": 2.2,
@@ -2364,8 +2646,8 @@
       "stats": {
         "slug": "japanese-kuribune",
         "cannons": 0,
-        "accelerationRad": 0.028,
-        "topSpeedRad": 0.028900000000000002,
+        "accelerationRad": 0.0032256,
+        "topSpeedRad": 0.0127296,
         "upwindStallAngleDeg": 34,
         "upwindStallAngleRad": 0.5934119456780721,
         "turnRateRad": 3.3,
@@ -2594,10 +2876,10 @@
       "stats": {
         "slug": "japanese-kobaya",
         "cannons": 0,
-        "accelerationRad": 0.027,
-        "topSpeedRad": 0.032299999999999995,
-        "upwindStallAngleDeg": 34,
-        "upwindStallAngleRad": 0.5934119456780721,
+        "accelerationRad": 0.0031103999999999997,
+        "topSpeedRad": 0.014227199999999999,
+        "upwindStallAngleDeg": 0,
+        "upwindStallAngleRad": 0,
         "turnRateRad": 3.15,
         "mass": 90,
         "crewCapacity": 8,
@@ -2605,8 +2887,8 @@
         "cargoCapacity": 65,
         "seaworthiness": 6,
         "armor": 0,
-        "crewProtection": 20,
-        "propulsion": "oar-sail"
+        "crewProtection": 35,
+        "propulsion": "oar"
       },
       "files": {
         "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/japanese-kobaya-32-headings.png",
@@ -3026,7 +3308,7 @@
       },
       "encodedWaterlineY": -0.455901,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.559991,
+      "sinkHeightMin": -0.560747,
       "sinkHeightMax": 0.577772,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -3044,8 +3326,8 @@
       "stats": {
         "slug": "japanese-sekibune",
         "cannons": 0,
-        "accelerationRad": 0.023,
-        "topSpeedRad": 0.032299999999999995,
+        "accelerationRad": 0.0026496,
+        "topSpeedRad": 0.014227199999999999,
         "upwindStallAngleDeg": 38,
         "upwindStallAngleRad": 0.6632251157578453,
         "turnRateRad": 2.55,
@@ -3173,8 +3455,8 @@
       "stats": {
         "slug": "japanese-atakebune",
         "cannons": 6,
-        "accelerationRad": 0.015,
-        "topSpeedRad": 0.0272,
+        "accelerationRad": 0.001728,
+        "topSpeedRad": 0.011980800000000002,
         "upwindStallAngleDeg": 46,
         "upwindStallAngleRad": 0.8028514559173916,
         "turnRateRad": 1.7,
@@ -3295,8 +3577,8 @@
       "stats": {
         "slug": "spanish-nao",
         "cannons": 8,
-        "accelerationRad": 0.017,
-        "topSpeedRad": 0.028900000000000002,
+        "accelerationRad": 0.0019584,
+        "topSpeedRad": 0.0127296,
         "upwindStallAngleDeg": 46,
         "upwindStallAngleRad": 0.8028514559173916,
         "turnRateRad": 1.9,
@@ -3351,8 +3633,8 @@
       },
       "encodedWaterlineY": -0.650834,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.843471,
-      "sinkHeightMax": 0.845885,
+      "sinkHeightMin": -0.849554,
+      "sinkHeightMax": 0.843035,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -3369,8 +3651,8 @@
       "stats": {
         "slug": "portuguese-carrack",
         "cannons": 22,
-        "accelerationRad": 0.013,
-        "topSpeedRad": 0.030599999999999995,
+        "accelerationRad": 0.0014976,
+        "topSpeedRad": 0.013478399999999998,
         "upwindStallAngleDeg": 50,
         "upwindStallAngleRad": 0.8726646259971648,
         "turnRateRad": 1.45,
@@ -3443,8 +3725,8 @@
       "stats": {
         "slug": "dhow",
         "cannons": 0,
-        "accelerationRad": 0.03,
-        "topSpeedRad": 0.024650000000000002,
+        "accelerationRad": 0.003456,
+        "topSpeedRad": 0.0108576,
         "upwindStallAngleDeg": 30,
         "upwindStallAngleRad": 0.5235987755982988,
         "turnRateRad": 3.5,
@@ -3528,8 +3810,8 @@
       "stats": {
         "slug": "ocean-dhow",
         "cannons": 2,
-        "accelerationRad": 0.022,
-        "topSpeedRad": 0.028900000000000002,
+        "accelerationRad": 0.0025343999999999996,
+        "topSpeedRad": 0.0127296,
         "upwindStallAngleDeg": 32,
         "upwindStallAngleRad": 0.5585053606381855,
         "turnRateRad": 2.55,
@@ -3594,8 +3876,8 @@
       },
       "encodedWaterlineY": -0.706667,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.771173,
-      "sinkHeightMax": 0.743377,
+      "sinkHeightMin": -0.766217,
+      "sinkHeightMax": 0.740833,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -3612,8 +3894,8 @@
       "stats": {
         "slug": "galleon",
         "cannons": 32,
-        "accelerationRad": 0.013,
-        "topSpeedRad": 0.03145,
+        "accelerationRad": 0.0014976,
+        "topSpeedRad": 0.0138528,
         "upwindStallAngleDeg": 47,
         "upwindStallAngleRad": 0.8203047484373349,
         "turnRateRad": 1.55,
@@ -3669,7 +3951,7 @@
       "encodedWaterlineY": -0.605293,
       "sinkHeightBins": 256,
       "sinkHeightMin": -0.684526,
-      "sinkHeightMax": 0.736255,
+      "sinkHeightMax": 0.733672,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,
@@ -3686,8 +3968,8 @@
       "stats": {
         "slug": "nusantaran-outrigger",
         "cannons": 0,
-        "accelerationRad": 0.022,
-        "topSpeedRad": 0.029750000000000002,
+        "accelerationRad": 0.0025343999999999996,
+        "topSpeedRad": 0.013104000000000001,
         "upwindStallAngleDeg": 40,
         "upwindStallAngleRad": 0.6981317007977318,
         "turnRateRad": 2.5,
@@ -3742,7 +4024,7 @@
       },
       "encodedWaterlineY": -0.45952,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.510288,
+      "sinkHeightMin": -0.52467,
       "sinkHeightMax": 0.601932,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
@@ -3760,8 +4042,8 @@
       "stats": {
         "slug": "kelulus",
         "cannons": 0,
-        "accelerationRad": 0.027,
-        "topSpeedRad": 0.03315,
+        "accelerationRad": 0.0031103999999999997,
+        "topSpeedRad": 0.014601600000000001,
         "upwindStallAngleDeg": 38,
         "upwindStallAngleRad": 0.6632251157578453,
         "turnRateRad": 2.9,
@@ -3882,8 +4164,8 @@
       "stats": {
         "slug": "penjajap",
         "cannons": 2,
-        "accelerationRad": 0.028,
-        "topSpeedRad": 0.0357,
+        "accelerationRad": 0.0032256,
+        "topSpeedRad": 0.0157248,
         "upwindStallAngleDeg": 36,
         "upwindStallAngleRad": 0.6283185307179586,
         "turnRateRad": 3.05,
@@ -4004,8 +4286,8 @@
       "stats": {
         "slug": "lancaran",
         "cannons": 6,
-        "accelerationRad": 0.024,
-        "topSpeedRad": 0.03485,
+        "accelerationRad": 0.0027647999999999995,
+        "topSpeedRad": 0.0153504,
         "upwindStallAngleDeg": 40,
         "upwindStallAngleRad": 0.6981317007977318,
         "turnRateRad": 2.6,
@@ -4126,8 +4408,8 @@
       "stats": {
         "slug": "royal-lancaran",
         "cannons": 10,
-        "accelerationRad": 0.019,
-        "topSpeedRad": 0.034,
+        "accelerationRad": 0.0021888,
+        "topSpeedRad": 0.014976,
         "upwindStallAngleDeg": 42,
         "upwindStallAngleRad": 0.7330382858376184,
         "turnRateRad": 2.2,
@@ -4248,8 +4530,8 @@
       "stats": {
         "slug": "ottoman-coastal-trader",
         "cannons": 8,
-        "accelerationRad": 0.017,
-        "topSpeedRad": 0.029750000000000002,
+        "accelerationRad": 0.0019584,
+        "topSpeedRad": 0.013104000000000001,
         "upwindStallAngleDeg": 47,
         "upwindStallAngleRad": 0.8203047484373349,
         "turnRateRad": 1.9,
@@ -4271,294 +4553,14 @@
         "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ottoman-coastal-trader-32-headings-preview.png",
         "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/ottoman-coastal-trader-32-headings-lighting-preview.png"
       }
-    },
-    {
-      "slug": "fusta",
-      "label": "Fusta",
-      "category": "light Mediterranean war galley",
-      "assetLabel": "Russian 22-bank Baltic galley",
-      "identifiedType": "sixteenth-century one-masted fusta",
-      "identificationConfidence": "high",
-      "identificationNotes": "The source galley is reduced to its central lateen rig and rendered on a smaller hull scale; three animated representative oars per side preserve a clean light-galley silhouette.",
-      "removedSourceComponents": [
-        {
-          "nodeName": "Object_13",
-          "positionCount": 770,
-          "firstVertex": 34,
-          "lastVertex": 535,
-          "description": "fore and mizzen masts and spars"
-        },
-        {
-          "nodeName": "Object_20",
-          "positionCount": 831,
-          "firstVertex": 271,
-          "lastVertex": 830,
-          "description": "fore and mizzen sails"
-        }
-      ],
-      "creator": "Museovirasto Museiverket Finnish Heritage Agency",
-      "license": "CC BY 4.0",
-      "sourceTitle": "Russian 22-bank Baltic galley",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
-      "sourceTexture": null,
-      "sourceMaxDim": 4604.1799,
-      "targetModelMaxDim": 1.5096,
-      "frameScale": 0.6667,
-      "turntableAnchor": {
-        "x": 23.5,
-        "y": 25.3227
-      },
-      "scaleMode": "light-galley-pixel-derivative",
-      "waterlineY": -0.30387512345727413,
-      "waterlineOffsetY": -0.238,
-      "waterlineSlice": {
-        "expectedHullCount": 1,
-        "componentCount": 1,
-        "dominantLengthRatio": 1,
-        "hullIntervalMinY": -0.072809,
-        "hullIntervalMaxY": -0.045072
-      },
-      "encodedWaterlineY": -0.303875,
-      "sinkHeightBins": 256,
-      "sinkHeightMin": -0.438516,
-      "sinkHeightMax": 0.432157,
-      "sinkWaterlineLevel": 0.501961,
-      "frameSize": 47,
-      "shadowFrameSize": 95,
-      "headings": 32,
-      "sheetCols": 8,
-      "lightAzimuthBins": 16,
-      "lightElevationBins": 2,
-      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
-      "flagAnchorModelPoint": {
-        "x": -0.014752,
-        "y": 0.44379,
-        "z": -0.419865
-      },
-      "stats": {
-        "slug": "fusta",
-        "cannons": 2,
-        "accelerationRad": 0.031,
-        "topSpeedRad": 0.03485,
-        "upwindStallAngleDeg": 27,
-        "upwindStallAngleRad": 0.47123889803846897,
-        "turnRateRad": 3.2,
-        "mass": 90,
-        "crewCapacity": 12,
-        "hitPoints": 9,
-        "cargoCapacity": 42,
-        "seaworthiness": 4,
-        "armor": 0,
-        "crewProtection": 12,
-        "propulsion": "oar-sail"
-      },
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings.png",
-        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-sink-depth.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-32-headings-lighting-preview.png",
-        "rowingAnimation": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-0-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-1-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-2-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-3-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-4-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-5-32-headings.png"
-        ],
-        "rowingSinkDepth": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-0-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-1-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-2-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-3-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-4-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-rowing-5-32-headings-sink-depth.png"
-        ],
-        "pivotPortAnimation": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-0-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-1-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-2-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-3-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-4-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-5-32-headings.png"
-        ],
-        "pivotPortSinkDepth": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-0-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-1-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-2-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-3-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-4-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-port-5-32-headings-sink-depth.png"
-        ],
-        "pivotStarboardAnimation": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-0-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-1-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-2-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-3-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-4-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-5-32-headings.png"
-        ],
-        "pivotStarboardSinkDepth": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-0-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-1-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-2-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-3-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-4-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/fusta-pivot-starboard-5-32-headings-sink-depth.png"
-        ]
-      }
-    },
-    {
-      "slug": "joseon-hyeopseon",
-      "label": "Hyeopseon",
-      "category": "light Joseon warship",
-      "assetLabel": "Panok ship derivative",
-      "identifiedType": "light Joseon fleet companion and scout",
-      "identificationConfidence": "medium",
-      "identificationNotes": "The documented medium Hyeopseon is represented conservatively with the credited Panokseon source model at a smaller scale, its aft mast removed, a lighter timber palette, and four representative animated oars per side.",
-      "removedSourceMeshes": [
-        {
-          "nodeName": "Object_9",
-          "parentName": "Object_4",
-          "positionCount": 2544
-        },
-        {
-          "nodeName": "Object_13",
-          "parentName": "Object_4",
-          "positionCount": 48
-        },
-        {
-          "nodeName": "Object_84",
-          "parentName": "Object_4",
-          "positionCount": 480
-        },
-        {
-          "nodeName": "Object_85",
-          "parentName": "Object_4",
-          "positionCount": 340
-        }
-      ],
-      "creator": "Heat Of Fusion, with JJakgwi",
-      "license": "CC BY 4.0",
-      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/joseon-panokseon/scene.gltf",
-      "sourceTexture": null,
-      "sourceMaxDim": 23.1451,
-      "targetModelMaxDim": 1.72,
-      "frameScale": 0.62,
-      "turntableAnchor": {
-        "x": 23.5,
-        "y": 29.9855
-      },
-      "scaleMode": "light-joseon-panokseon-derivative",
-      "waterlineY": -0.6073859051565584,
-      "waterlineOffsetY": -0.265,
-      "waterlineSlice": {
-        "expectedHullCount": 1,
-        "componentCount": 1,
-        "dominantLengthRatio": 1,
-        "hullIntervalMinY": -0.682044,
-        "hullIntervalMaxY": 0.682044
-      },
-      "encodedWaterlineY": -0.607386,
-      "sinkHeightBins": 256,
-      "sinkHeightMin": -0.675223,
-      "sinkHeightMax": 0.682044,
-      "sinkWaterlineLevel": 0.501961,
-      "frameSize": 47,
-      "shadowFrameSize": 95,
-      "headings": 32,
-      "sheetCols": 8,
-      "lightAzimuthBins": 16,
-      "lightElevationBins": 2,
-      "flagAnchorSelection": "upper-centerline-model-point-aftmost-tiebreak",
-      "flagAnchorModelPoint": {
-        "x": -0.003748,
-        "y": 0.682044,
-        "z": 0.471495
-      },
-      "stats": {
-        "slug": "joseon-hyeopseon",
-        "cannons": 4,
-        "accelerationRad": 0.026,
-        "topSpeedRad": 0.034,
-        "upwindStallAngleDeg": 40,
-        "upwindStallAngleRad": 0.6981317007977318,
-        "turnRateRad": 2.95,
-        "mass": 120,
-        "crewCapacity": 18,
-        "hitPoints": 12,
-        "cargoCapacity": 65,
-        "seaworthiness": 6,
-        "armor": 0,
-        "crewProtection": 30,
-        "propulsion": "oar-sail"
-      },
-      "files": {
-        "sheet": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings.png",
-        "sinkDepth": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-sink-depth.png",
-        "light": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-light.png",
-        "shade": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-shade.png",
-        "shadow": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-shadow.png",
-        "preview": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-preview.png",
-        "lightingPreview": "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-32-headings-lighting-preview.png",
-        "rowingAnimation": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-0-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-1-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-2-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-3-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-4-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-5-32-headings.png"
-        ],
-        "rowingSinkDepth": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-0-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-1-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-2-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-3-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-4-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-rowing-5-32-headings-sink-depth.png"
-        ],
-        "pivotPortAnimation": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-0-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-1-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-2-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-3-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-4-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-5-32-headings.png"
-        ],
-        "pivotPortSinkDepth": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-0-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-1-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-2-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-3-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-4-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-port-5-32-headings-sink-depth.png"
-        ],
-        "pivotStarboardAnimation": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-0-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-1-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-2-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-3-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-4-32-headings.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-5-32-headings.png"
-        ],
-        "pivotStarboardSinkDepth": [
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-0-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-1-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-2-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-3-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-4-32-headings-sink-depth.png",
-          "apps/pixel-globe/public/assets/vehicles/unity-ships/joseon-hyeopseon-pivot-starboard-5-32-headings-sink-depth.png"
-        ]
-      }
     }
   ],
   "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
   "mediterraneanGalleyGenerator": "tools/render-sail-ship-sprites.mjs --mediterranean-galley",
+  "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta",
   "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass",
   "joseonTurtleShipGenerator": "tools/render-sail-ship-sprites.mjs --joseon-turtle-ship",
+  "joseonHyeopseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-hyeopseon",
   "joseonPanokseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-panokseon",
   "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune",
   "japaneseKobayaGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kobaya",
@@ -4573,8 +4575,5 @@
   "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
   "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
   "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
-  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship",
-  "unitySingleShipGenerator": "tools/render-sail-ship-sprites.mjs --unity-ship javanese-jong",
-  "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta",
-  "joseonHyeopseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-hyeopseon"
+  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship"
 }

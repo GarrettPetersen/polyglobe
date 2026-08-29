@@ -41,6 +41,10 @@ import {
   liveShipRefractionOffset,
   shipMaxRasterWaterlineDepth
 } from "../src/shipWaterline.js";
+import {
+  SHIP_SURFACE_LIGHTING_BLEND,
+  shipLightingCssColor
+} from "../src/shipLighting.js";
 
 const canvas = document.querySelector("#scene");
 const context = canvas.getContext("2d", { alpha: false });
@@ -81,6 +85,7 @@ const state = {
   shipImage: null,
   shipSinkDepthImage: null,
   shipWaterlineLayers: null,
+  shipWaterShadowImages: null,
   shipSlug: null,
   city: null,
   features: null,
@@ -261,19 +266,50 @@ function applyFeatureOverrides() {
 async function selectShip(slug) {
   const ship = state.shipManifest.ships.find((candidate) => candidate.slug === slug) || state.shipManifest.ships[0];
   if (!ship.cityDockside) throw new Error(`Missing native city dockside raster: ${ship.slug}`);
+  const waterShadowEntries = ship.cityDockside.waterShadows;
+  if (
+    !waterShadowEntries ||
+    JSON.stringify(Object.keys(waterShadowEntries).sort()) !== JSON.stringify(["down", "level", "up"])
+  ) {
+    throw new Error(`Missing dockside water-shadow bakes: ${ship.slug}`);
+  }
   state.shipSlug = ship.slug;
   shipSelect.value = ship.slug;
   state.shipImage = null;
   state.shipSinkDepthImage = null;
   state.shipWaterlineLayers = null;
-  const [shipImage, shipSinkDepthImage] = await Promise.all([
-    loadImage(`/assets/vehicles/unity-ships/port-assault/${ship.slug}-city-dockside.png`),
-    loadImage(`/assets/vehicles/unity-ships/port-assault/${ship.slug}-city-dockside-sink-depth.png`)
+  state.shipWaterShadowImages = null;
+  const shadowStates = ["up", "level", "down"];
+  const [shipImage, shipSinkDepthImage, ...waterShadowMasks] = await Promise.all([
+    loadImage(publicAssetUrl(ship.cityDockside.file)),
+    loadImage(publicAssetUrl(ship.cityDockside.sinkDepthFile)),
+    ...shadowStates.map((bobState) => (
+      loadImage(publicAssetUrl(waterShadowEntries[bobState].file))
+    ))
   ]);
   if (state.shipSlug !== ship.slug) return;
+  for (const mask of waterShadowMasks) {
+    if (mask.width !== shipImage.width || mask.height !== shipImage.height) {
+      throw new Error(`Dockside water-shadow bake has mismatched dimensions: ${ship.slug}`);
+    }
+  }
   state.shipImage = shipImage;
   state.shipSinkDepthImage = shipSinkDepthImage;
   state.shipWaterlineLayers = docksideShipWaterlineLayers(shipImage, shipSinkDepthImage, ship.slug);
+  state.shipWaterShadowImages = Object.freeze(Object.fromEntries(
+    shadowStates.map((bobState, index) => [
+      bobState,
+      tintedDocksideWaterShadow(waterShadowMasks[index])
+    ])
+  ));
+}
+
+function publicAssetUrl(file) {
+  const prefix = "apps/pixel-globe/public";
+  if (typeof file !== "string" || !file.startsWith(`${prefix}/`)) {
+    throw new Error(`City visualizer requires a public asset path: ${file}`);
+  }
+  return file.slice(prefix.length);
 }
 
 function updateRuleLedger() {
@@ -768,6 +804,7 @@ function drawOceanSlice(frame, slice, timeMs) {
     bandTop = masterY;
     bandOffset = offset;
   }
+  drawDocksideShipWaterShadow(slice, timeMs, top, bottom);
 }
 
 function oceanRowOffset(masterY, timeMs) {
@@ -878,27 +915,74 @@ function tintedFrameCanvas(frame) {
 }
 
 function drawDocksideShip(timeMs) {
-  if (!state.shipImage || !state.shipWaterlineLayers || !state.shipManifest || !state.features) return;
+  if (!state.shipImage) return;
+  const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
+  if (!placement) return;
+  drawDocksideShipWaterlineLayers(
+    state.shipWaterlineLayers,
+    placement.x,
+    placement.y + placement.bobY,
+    placement.scale,
+    timeMs,
+    hashString(placement.ship.slug)
+  );
+}
+
+function drawDocksideShipWaterShadow(slice, timeMs, top, bottom) {
+  if (!state.shipWaterShadowImages) return;
+  const placement = docksideShipPlacement(timeMs, slice.depth);
+  if (!placement) return;
+  const bobState = placement.bobY < 0 ? "up" : placement.bobY > 0 ? "down" : "level";
+  const shadow = state.shipWaterShadowImages[bobState];
+  if (!shadow) throw new Error(`Missing ${bobState} dockside water shadow: ${placement.ship.slug}`);
+  const window = sceneWindow(slice.depth);
+  context.save();
+  context.beginPath();
+  context.rect(0, Math.round(top - window.y), canvas.width, bottom - top);
+  context.clip();
+  context.globalCompositeOperation = SHIP_SURFACE_LIGHTING_BLEND;
+  context.drawImage(
+    shadow,
+    placement.x,
+    placement.y,
+    shadow.width * placement.scale,
+    shadow.height * placement.scale
+  );
+  context.restore();
+}
+
+function docksideShipPlacement(timeMs, depth) {
+  if (!state.shipWaterlineLayers || !state.shipManifest || !state.features) return null;
   const ship = state.shipManifest.ships.find((candidate) => candidate.slug === state.shipSlug);
-  if (!ship?.cityDockside) return;
-  const dockside = ship.cityDockside;
+  if (!ship?.cityDockside) return null;
   const sideAnchor = docksideShipSideAnchor(ship);
-  const window = sceneWindow(PORT_SCENE_ENTITY_META.ship.depth);
+  const window = sceneWindow(depth);
   const scale = PORT_SCENE_ENTITY_META.ship.scale;
   const berth = state.features.dock === "none"
     ? { x: 802, y: 528 }
     : { x: PORT_SCENE_DOCK.shipAccessX, y: PORT_SCENE_DOCK.shipAccessY };
   const waterlineY = berth.y +
     (state.shipWaterlineLayers.submergedMinY - sideAnchor.y) * scale;
-  const bobY = clamp(oceanRowOffset(waterlineY, timeMs), -1, 1);
-  drawDocksideShipWaterlineLayers(
-    state.shipWaterlineLayers,
-    Math.round(berth.x - sideAnchor.x * scale - window.x),
-    Math.round(berth.y - sideAnchor.y * scale - window.y + bobY),
+  return {
+    ship,
     scale,
-    timeMs,
-    hashString(ship.slug)
-  );
+    bobY: clamp(oceanRowOffset(waterlineY, timeMs), -1, 1),
+    x: Math.round(berth.x - sideAnchor.x * scale - window.x),
+    y: Math.round(berth.y - sideAnchor.y * scale - window.y)
+  };
+}
+
+function tintedDocksideWaterShadow(mask) {
+  const canvas = document.createElement("canvas");
+  canvas.width = mask.width;
+  canvas.height = mask.height;
+  const shadowContext = canvas.getContext("2d");
+  shadowContext.imageSmoothingEnabled = false;
+  shadowContext.drawImage(mask, 0, 0);
+  shadowContext.globalCompositeOperation = "source-in";
+  shadowContext.fillStyle = shipLightingCssColor("shadow");
+  shadowContext.fillRect(0, 0, canvas.width, canvas.height);
+  return canvas;
 }
 
 function drawDocksideShipWaterlineLayers(layers, x, y, scale, timeMs, seed) {

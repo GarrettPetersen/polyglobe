@@ -17,7 +17,7 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
       },
       {
         "x": 167,
-        "y": 139
+        "y": 138
       }
     ],
     "deckEntryAnchor": {
@@ -33,7 +33,7 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
     "deckPolygon": [
       {
         "x": 156,
-        "y": 122
+        "y": 121
       },
       {
         "x": 144,
@@ -45,44 +45,44 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
       },
       {
         "x": 175,
-        "y": 125
+        "y": 124
       }
     ],
     "deckEntryAnchor": {
-      "x": 171,
-      "y": 125
+      "x": 172,
+      "y": 124
     },
     "sailorSpawnAnchor": {
-      "x": 184,
-      "y": 125
+      "x": 185,
+      "y": 124
     }
   },
   "holk": {
     "deckPolygon": [
       {
-        "x": 159,
+        "x": 160,
         "y": 116
       },
       {
         "x": 145,
-        "y": 139
+        "y": 138
       },
       {
         "x": 162,
         "y": 141
       },
       {
-        "x": 176,
-        "y": 119
+        "x": 177,
+        "y": 118
       }
     ],
     "deckEntryAnchor": {
       "x": 173,
-      "y": 120
+      "y": 119
     },
     "sailorSpawnAnchor": {
-      "x": 185,
-      "y": 119
+      "x": 186,
+      "y": 118
     }
   },
   "dhow": {
@@ -144,57 +144,57 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
   "sampan": {
     "deckPolygon": [
       {
-        "x": 162,
-        "y": 130
+        "x": 163,
+        "y": 129
       },
       {
         "x": 155,
+        "y": 141
+      },
+      {
+        "x": 161,
         "y": 142
       },
       {
-        "x": 160,
-        "y": 143
-      },
-      {
-        "x": 168,
-        "y": 131
+        "x": 169,
+        "y": 130
       }
     ],
     "deckEntryAnchor": {
       "x": 167,
-      "y": 131
+      "y": 130
     },
     "sailorSpawnAnchor": {
-      "x": 172,
-      "y": 131
+      "x": 173,
+      "y": 130
     }
   },
   "large-junk": {
     "deckPolygon": [
       {
         "x": 166,
-        "y": 106
+        "y": 104
       },
       {
         "x": 149,
-        "y": 132
+        "y": 131
       },
       {
         "x": 158,
         "y": 133
       },
       {
-        "x": 174,
-        "y": 107
+        "x": 175,
+        "y": 106
       }
     ],
     "deckEntryAnchor": {
-      "x": 172,
-      "y": 108
+      "x": 173,
+      "y": 107
     },
     "sailorSpawnAnchor": {
-      "x": 181,
-      "y": 106
+      "x": 182,
+      "y": 105
     }
   },
   "javanese-jong": {
@@ -229,28 +229,28 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
     "deckPolygon": [
       {
         "x": 161,
-        "y": 112
+        "y": 110
       },
       {
-        "x": 145,
-        "y": 138
+        "x": 144,
+        "y": 137
       },
       {
         "x": 164,
         "y": 141
       },
       {
-        "x": 180,
-        "y": 115
+        "x": 181,
+        "y": 113
       }
     ],
     "deckEntryAnchor": {
-      "x": 176,
-      "y": 115
+      "x": 177,
+      "y": 114
     },
     "sailorSpawnAnchor": {
-      "x": 191,
-      "y": 115
+      "x": 192,
+      "y": 114
     }
   },
   "galleon": {
@@ -284,179 +284,179 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
   "fluyt": {
     "deckPolygon": [
       {
-        "x": 166,
-        "y": 101
+        "x": 167,
+        "y": 99
       },
       {
-        "x": 146,
-        "y": 134
+        "x": 145,
+        "y": 133
       },
       {
         "x": 161,
         "y": 136
       },
       {
-        "x": 182,
-        "y": 103
+        "x": 183,
+        "y": 102
       }
     ],
     "deckEntryAnchor": {
-      "x": 178,
-      "y": 104
+      "x": 179,
+      "y": 103
     },
     "sailorSpawnAnchor": {
-      "x": 192,
-      "y": 101
+      "x": 194,
+      "y": 100
     }
   },
   "carrack": {
     "deckPolygon": [
       {
         "x": 162,
-        "y": 100
+        "y": 99
       },
       {
         "x": 143,
-        "y": 131
+        "y": 130
       },
       {
         "x": 157,
-        "y": 133
+        "y": 132
       },
       {
         "x": 176,
-        "y": 103
+        "y": 101
       }
     ],
     "deckEntryAnchor": {
       "x": 173,
-      "y": 103
+      "y": 102
     },
     "sailorSpawnAnchor": {
-      "x": 185,
-      "y": 101
+      "x": 186,
+      "y": 100
     }
   },
   "ship-of-the-line": {
     "deckPolygon": [
       {
         "x": 166,
-        "y": 103
+        "y": 102
       },
       {
-        "x": 145,
+        "x": 144,
         "y": 137
       },
       {
-        "x": 159,
+        "x": 158,
         "y": 139
       },
       {
         "x": 180,
-        "y": 105
+        "y": 104
       }
     ],
     "deckEntryAnchor": {
       "x": 177,
-      "y": 106
+      "y": 105
     },
     "sailorSpawnAnchor": {
       "x": 190,
-      "y": 103
+      "y": 102
     }
   },
   "medium-junk": {
     "deckPolygon": [
       {
-        "x": 164,
+        "x": 165,
+        "y": 107
+      },
+      {
+        "x": 149,
+        "y": 132
+      },
+      {
+        "x": 158,
+        "y": 134
+      },
+      {
+        "x": 174,
         "y": 109
-      },
-      {
-        "x": 148,
-        "y": 133
-      },
-      {
-        "x": 157,
-        "y": 135
-      },
-      {
-        "x": 173,
-        "y": 110
       }
     ],
     "deckEntryAnchor": {
       "x": 171,
-      "y": 111
+      "y": 109
     },
     "sailorSpawnAnchor": {
-      "x": 179,
-      "y": 109
+      "x": 180,
+      "y": 108
     }
   },
   "xebec": {
     "deckPolygon": [
       {
-        "x": 167,
-        "y": 104
+        "x": 168,
+        "y": 102
       },
       {
         "x": 149,
-        "y": 133
+        "y": 132
       },
       {
         "x": 160,
-        "y": 135
+        "y": 134
       },
       {
-        "x": 178,
-        "y": 106
+        "x": 179,
+        "y": 104
       }
     ],
     "deckEntryAnchor": {
-      "x": 175,
-      "y": 106
+      "x": 176,
+      "y": 105
     },
     "sailorSpawnAnchor": {
-      "x": 186,
-      "y": 104
+      "x": 187,
+      "y": 103
     }
   },
   "caravel": {
     "deckPolygon": [
       {
         "x": 168,
-        "y": 108
+        "y": 106
       },
       {
         "x": 150,
         "y": 135
       },
       {
-        "x": 158,
-        "y": 137
+        "x": 159,
+        "y": 136
       },
       {
-        "x": 176,
-        "y": 109
+        "x": 177,
+        "y": 108
       }
     ],
     "deckEntryAnchor": {
-      "x": 174,
-      "y": 110
+      "x": 175,
+      "y": 108
     },
     "sailorSpawnAnchor": {
-      "x": 183,
-      "y": 108
+      "x": 184,
+      "y": 106
     }
   },
   "square-rigged-caravel": {
     "deckPolygon": [
       {
         "x": 157,
-        "y": 111
+        "y": 110
       },
       {
-        "x": 143,
+        "x": 142,
         "y": 134
       },
       {
@@ -464,45 +464,45 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
         "y": 138
       },
       {
-        "x": 182,
-        "y": 115
+        "x": 183,
+        "y": 114
       }
     ],
     "deckEntryAnchor": {
-      "x": 177,
+      "x": 178,
       "y": 115
     },
     "sailorSpawnAnchor": {
-      "x": 195,
-      "y": 116
+      "x": 196,
+      "y": 115
     }
   },
   "brigantine": {
     "deckPolygon": [
       {
-        "x": 162,
-        "y": 106
+        "x": 161,
+        "y": 105
       },
       {
         "x": 145,
-        "y": 132
+        "y": 131
       },
       {
         "x": 168,
         "y": 135
       },
       {
-        "x": 184,
-        "y": 110
+        "x": 185,
+        "y": 109
       }
     ],
     "deckEntryAnchor": {
       "x": 180,
-      "y": 110
+      "y": 109
     },
     "sailorSpawnAnchor": {
-      "x": 196,
-      "y": 110
+      "x": 198,
+      "y": 109
     }
   },
   "small-junk": {
@@ -512,16 +512,16 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
         "y": 116
       },
       {
-        "x": 151,
+        "x": 150,
         "y": 137
       },
       {
         "x": 159,
-        "y": 139
+        "y": 138
       },
       {
         "x": 172,
-        "y": 118
+        "y": 117
       }
     ],
     "deckEntryAnchor": {
@@ -529,7 +529,7 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
       "y": 118
     },
     "sailorSpawnAnchor": {
-      "x": 177,
+      "x": 178,
       "y": 117
     }
   },
@@ -537,11 +537,11 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
     "deckPolygon": [
       {
         "x": 155,
-        "y": 127
+        "y": 126
       },
       {
         "x": 147,
-        "y": 141
+        "y": 140
       },
       {
         "x": 165,
@@ -549,72 +549,72 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
       },
       {
         "x": 173,
-        "y": 130
+        "y": 129
       }
     ],
     "deckEntryAnchor": {
       "x": 170,
-      "y": 130
+      "y": 129
     },
     "sailorSpawnAnchor": {
-      "x": 181,
-      "y": 131
+      "x": 182,
+      "y": 130
     }
   },
   "cutter": {
     "deckPolygon": [
       {
         "x": 158,
-        "y": 122
+        "y": 121
       },
       {
-        "x": 147,
+        "x": 146,
         "y": 139
       },
       {
         "x": 170,
-        "y": 143
+        "y": 142
       },
       {
-        "x": 181,
+        "x": 182,
         "y": 125
       }
     ],
     "deckEntryAnchor": {
       "x": 177,
-      "y": 126
+      "y": 125
     },
     "sailorSpawnAnchor": {
-      "x": 192,
-      "y": 126
+      "x": 193,
+      "y": 125
     }
   },
   "ketch": {
     "deckPolygon": [
       {
-        "x": 167,
-        "y": 107
+        "x": 166,
+        "y": 106
       },
       {
-        "x": 151,
+        "x": 150,
         "y": 132
       },
       {
-        "x": 157,
+        "x": 156,
         "y": 133
       },
       {
-        "x": 173,
-        "y": 108
+        "x": 172,
+        "y": 107
       }
     ],
     "deckEntryAnchor": {
       "x": 171,
-      "y": 109
+      "y": 108
     },
     "sailorSpawnAnchor": {
       "x": 178,
-      "y": 106
+      "y": 105
     }
   },
   "mediterranean-galley": {

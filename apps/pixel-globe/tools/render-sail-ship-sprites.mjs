@@ -1,4 +1,12 @@
-import { mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  writeFileSync
+} from "node:fs";
 import { basename, dirname, extname, join, relative, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -55,6 +63,16 @@ import {
 } from "../src/shipFootprint.js";
 import { simplifySpanishNaoTextureColor } from "../src/spanishNaoTexture.js";
 import {
+  simplifyDetailedSailShipTextureColor
+} from "../src/shipTextureSimplification.js";
+import { coalesceShipPixelArtColors } from "../src/shipPixelArtCleanup.js";
+import { simplifyGalleonTextureColor } from "../src/galleonTexture.js";
+import { flattenShipTriangleTextures } from "../src/shipTextureFlattening.js";
+import {
+  mergeGeneratedRosterEntries,
+  mergeGeneratedRosterMap
+} from "../src/generatedRosterBake.js";
+import {
   fustaHullColor,
   galleassHullColor,
   mediterraneanGalleyHullColor
@@ -104,7 +122,11 @@ const ROWING_RENDER_MODES = Object.freeze([
   Object.freeze({ id: "pivot-starboard", rowingMode: SHIP_ROWING_MODE_PIVOT_STARBOARD })
 ]);
 import { selectShipFlagAnchorPoint } from "../src/shipFlagAnchors.js";
-import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
+import { nearestShipResurrectColor } from "../src/shipResurrectPalette.js";
+import {
+  SHIP_BAKE_LIGHT_DIRECTION,
+  shipBakeLightScale
+} from "../src/shipBakeLighting.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = resolve(appRoot, "../..");
@@ -475,7 +497,8 @@ const unityShipRoster = new Map([
     identifiedType: "small pinnace",
     confidence: "medium",
     notes: "Small European fore-and-aft silhouette used as a coastal pinnace.",
-    targetModelMaxDim: 1.2
+    targetModelMaxDim: 1.2,
+    flagAnchorMaxSnapDistancePx: 5
   }],
   ["ships small/ship small 5.fbx", {
     label: "Lateen Barque",
@@ -938,9 +961,7 @@ function makeCamera() {
 }
 
 function baseColor(color, normal) {
-  const top = Math.max(0, normal.y);
-  const face = Math.max(0, normal.z);
-  const light = 0.66 + top * 0.18 + face * 0.06;
+  const light = shipBakeLightScale(normal);
   return {
     r: clamp255(color.r * light),
     g: clamp255(color.g * light),
@@ -1012,6 +1033,7 @@ function renderHeading(baseTriangles, headingIndex, camera, renderOptions, viewp
       textureSampler: tri.textureSampler || renderOptions?.textureSampler,
       colorTransform: renderOptions?.colorTransform,
       sourceMeshName: tri.sourceMeshName,
+      sourceMaterialName: tri.sourceMaterialName,
       featureId
     }, {
       x: screenNormal.x,
@@ -2032,7 +2054,9 @@ async function renderShipSpriteSet(config) {
     materialTextureSamplers,
     ...config.collectOptions
   });
-  const hullTriangles = model.triangles;
+  const hullTriangles = config.flattenTexturePerTriangle
+    ? flattenShipTriangleTextures(model.triangles, textureSampler)
+    : model.triangles;
   const flagAnchorTriangles = config.flagAnchorMeshName
     ? hullTriangles.filter((triangle) => triangle.sourceMeshName === config.flagAnchorMeshName)
     : hullTriangles;
@@ -2506,12 +2530,11 @@ function fleetTargetModelMaxDim(sourceMaxDim, largestSourceMaxDim) {
   return defaultTargetModelMaxDim * Math.pow(ratio, unityFleetScaleExponent);
 }
 
-function resetUnityFleetOutput() {
+function prepareUnityFleetOutput() {
   const relativeOutput = portablePath(unityFleetOutputRoot);
   if (relativeOutput !== "apps/pixel-globe/public/assets/vehicles/unity-ships") {
-    throw new Error(`Refusing to clear unexpected Unity fleet output path: ${unityFleetOutputRoot}`);
+    throw new Error(`Refusing to prepare unexpected Unity fleet output path: ${unityFleetOutputRoot}`);
   }
-  rmSync(unityFleetOutputRoot, { recursive: true, force: true });
   mkdirSync(unityFleetOutputRoot, { recursive: true });
 }
 
@@ -2524,12 +2547,11 @@ function resetUnityFleetReferenceOutput() {
   mkdirSync(unityFleetReferenceOutputRoot, { recursive: true });
 }
 
-function resetUnityFleetSideViewOutput() {
+function prepareUnityFleetSideViewOutput() {
   const relativeOutput = portablePath(unityFleetSideViewOutputRoot);
   if (relativeOutput !== "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views") {
-    throw new Error(`Refusing to clear unexpected Unity fleet side-view path: ${unityFleetSideViewOutputRoot}`);
+    throw new Error(`Refusing to prepare unexpected Unity fleet side-view path: ${unityFleetSideViewOutputRoot}`);
   }
-  rmSync(unityFleetSideViewOutputRoot, { recursive: true, force: true });
   mkdirSync(unityFleetSideViewOutputRoot, { recursive: true });
 }
 
@@ -2589,8 +2611,11 @@ async function renderShipReferenceSet(config) {
     materialTextureSamplers,
     ...config.collectOptions
   });
-  const waterlineY = estimateWaterlineForConfig(model.triangles, config).y;
-  const staticTriangles = staticTrianglesForConfig(model.triangles, waterlineY, config);
+  const hullTriangles = config.flattenTexturePerTriangle
+    ? flattenShipTriangleTextures(model.triangles, textureSampler)
+    : model.triangles;
+  const waterlineY = estimateWaterlineForConfig(hullTriangles, config).y;
+  const staticTriangles = staticTrianglesForConfig(hullTriangles, waterlineY, config);
   const triangles = config.animationTrianglesForFrame
     ? config.animationTrianglesForFrame(staticTriangles, 0, waterlineY)
     : staticTriangles;
@@ -2680,34 +2705,6 @@ function makeLevelSideViewCamera() {
   return camera;
 }
 
-function resurrectPalette() {
-  return RESURRECT_64_HEX.map((hex) => ({
-    hex,
-    r: Number.parseInt(hex.slice(0, 2), 16),
-    g: Number.parseInt(hex.slice(2, 4), 16),
-    b: Number.parseInt(hex.slice(4, 6), 16)
-  }));
-}
-
-const RESURRECT_64_COLORS = resurrectPalette();
-
-function nearestResurrectColor(r, g, b) {
-  let best = null;
-  let bestDistance = Infinity;
-  for (const color of RESURRECT_64_COLORS) {
-    const dr = r - color.r;
-    const dg = g - color.g;
-    const db = b - color.b;
-    const distance = dr * dr * 0.3 + dg * dg * 0.59 + db * db * 0.11;
-    if (distance < bestDistance) {
-      best = color;
-      bestDistance = distance;
-    }
-  }
-  if (!best) throw new Error("Resurrect palette is empty");
-  return best;
-}
-
 function shadeEdgesAndQuantizeToResurrect(canvas, {
   shadeEdges = true,
   exposure = 1,
@@ -2733,7 +2730,7 @@ function shadeEdgesAndQuantizeToResurrect(canvas, {
       const edgeScale = shadeEdges && pixelTouchesTransparency(source, x, y, canvas.width, canvas.height)
         ? shipEdgeShadeScale
         : 1;
-      const color = nearestResurrectColor(
+      const color = nearestShipResurrectColor(
         (source[offset] * exposure + lift) * edgeScale,
         (source[offset + 1] * exposure + lift) * edgeScale,
         (source[offset + 2] * exposure + lift) * edgeScale
@@ -3506,8 +3503,11 @@ async function loadConfiguredShipTriangles(config, {
     materialTextureSamplers,
     ...config.collectOptions
   });
-  const resolvedWaterlineY = waterlineY ?? estimateWaterlineForConfig(model.triangles, config).y;
-  const staticTriangles = staticTrianglesForConfig(model.triangles, resolvedWaterlineY, config);
+  const hullTriangles = config.flattenTexturePerTriangle
+    ? flattenShipTriangleTextures(model.triangles, textureSampler)
+    : model.triangles;
+  const resolvedWaterlineY = waterlineY ?? estimateWaterlineForConfig(hullTriangles, config).y;
+  const staticTriangles = staticTrianglesForConfig(hullTriangles, resolvedWaterlineY, config);
   const triangles = includeAnimation && config.animationTrianglesForFrame
     ? config.animationTrianglesForFrame(staticTriangles, 0, resolvedWaterlineY)
     : staticTriangles;
@@ -3520,6 +3520,7 @@ const PORT_ASSAULT_RENDER_SCALE = 3;
 const PORT_ASSAULT_CITY_NATIVE_SCALE = 3;
 const PORT_ASSAULT_FLEET_SCALE_SAFETY = 0.75;
 const PORT_ASSAULT_FURLED_SAIL_SEGMENTS = 5;
+const PORT_ASSAULT_JUNK_STACKED_BATTENS = 5;
 const PORT_ASSAULT_MIN_COMPONENT_PIXELS_AT_CITY_SCALE = new Map([
   ["galleass", 12]
 ]);
@@ -3571,7 +3572,7 @@ function sourceMeshSelector({
 }
 
 function dockRig(selector, { removedRigSelector = null, bundleMode = "furled" } = {}) {
-  if (bundleMode !== "furled" && bundleMode !== "remove") {
+  if (!["furled", "junk-lowered", "remove"].includes(bundleMode)) {
     throw new Error(`Unsupported port-assault dock-rig bundle mode: ${bundleMode}`);
   }
   return Object.freeze({
@@ -3601,13 +3602,23 @@ function noSailDockRig(reason) {
 }
 
 const PORT_ASSAULT_DOCK_RIGS = new Map([
-  ["fishing-lugger", unityDockRig({ 13: 44 })],
+  ["fishing-lugger", unityDockRig({ 13: 44 }, { bundleMode: "remove" })],
   ["small-cog", unityDockRig({ 4: 88 })],
   ["holk", unityDockRig({ 24: 24, 62: 92, 63: 76, 64: 60, 65: 24 })],
   ["dhow", materialDockRig(["acmat_7"], { expectedTriangleCount: 512 })],
   ["ocean-dhow", materialDockRig(["layar_dhow"], { expectedTriangleCount: 784 })],
   ["sampan", unityDockRig({ 18: 44 })],
-  ["large-junk", unityDockRig({ 44: 44, 53: 36, 66: 36 })],
+  ["large-junk", unityDockRig(
+    { 44: 44, 53: 36, 66: 36 },
+    {
+      removedRigSelector: topologyComponentSelector({
+        40: 10, 41: 10, 42: 10, 43: 10, 45: 34,
+        54: 10, 55: 10, 56: 10, 57: 10, 58: 10,
+        67: 10, 68: 10, 69: 10, 70: 10, 71: 10
+      }),
+      bundleMode: "junk-lowered"
+    }
+  )],
   ["javanese-jong", unityDockRig({ 27: 48, 28: 40 })],
   ["pirate-brig", unityDockRig({ 5: 76, 6: 76, 41: 76 })],
   ["galleon", materialDockRig(["3d66-Standardmaterial-15910671-003"], {
@@ -3662,7 +3673,17 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
     176: 12,
     177: 12
   })],
-  ["medium-junk", unityDockRig({ 15: 36, 35: 44, 44: 36 })],
+  ["medium-junk", unityDockRig(
+    { 15: 36, 35: 44, 44: 36 },
+    {
+      removedRigSelector: topologyComponentSelector({
+        16: 10, 17: 10, 18: 10, 19: 10, 20: 10,
+        29: 10, 30: 10, 31: 10, 32: 10, 33: 10, 34: 10, 36: 34,
+        45: 10, 46: 10, 47: 10, 48: 10, 49: 10
+      }),
+      bundleMode: "junk-lowered"
+    }
+  )],
   ["xebec", unityDockRig({
     1: 96,
     2: 36,
@@ -3674,10 +3695,22 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
     47: 12,
     48: 12
   })],
-  ["caravel", unityDockRig({ 20: 32, 27: 96, 34: 96, 75: 72 })],
+  ["caravel", unityDockRig(
+    { 19: 32, 20: 32, 27: 96, 34: 96, 75: 72 },
+    { bundleMode: "remove" }
+  )],
   ["square-rigged-caravel", unityDockRig({ 46: 196 })],
   ["brigantine", unityDockRig({ 7: 116, 15: 116 })],
-  ["small-junk", unityDockRig({ 15: 44, 24: 36 })],
+  ["small-junk", unityDockRig(
+    { 15: 44, 24: 36 },
+    {
+      removedRigSelector: topologyComponentSelector({
+        10: 10, 11: 10, 12: 10, 13: 10, 14: 10, 16: 34,
+        25: 10, 26: 10, 27: 10, 28: 10, 29: 10
+      }),
+      bundleMode: "junk-lowered"
+    }
+  )],
   ["felucca", unityDockRig({ 0: 72, 4: 116 })],
   ["cutter", unityDockRig({ 22: 80, 24: 20, 27: 72, 31: 116 })],
   ["ketch", unityDockRig({ 42: 64, 46: 80, 47: 80 })],
@@ -3720,7 +3753,7 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
     { removedRigSelector: sourceMeshSelector({
       sourceMeshNames: ["帆桁"],
       expectedTriangleCount: 124
-    }) }
+    }), bundleMode: "remove" }
   )],
   ["japanese-atakebune", materialDockRig(["Sail"], { expectedTriangleCount: 1120 })],
   ["spanish-nao", meshDockRig({
@@ -3910,6 +3943,7 @@ function selectedPortAssaultSailGeometry(slug, triangles) {
       reason: dockRig.reason,
       hullTriangles: triangles,
       selectedTriangles: [],
+      removedRigTriangles: [],
       sailComponents: [],
       removedTriangleCount: 0,
       removedRigTriangleCount: 0,
@@ -3950,6 +3984,7 @@ function selectedPortAssaultSailGeometry(slug, triangles) {
     bundleMode: dockRig.bundleMode,
     hullTriangles,
     selectedTriangles: [...selectedTriangles, ...removedRigTriangles],
+    removedRigTriangles,
     sailComponents,
     removedTriangleCount: removedIndexes.size,
     removedRigTriangleCount: removedRigIndexes.size
@@ -3991,7 +4026,7 @@ function portAssaultSailColor(component, fallbackTextureSampler) {
   };
 }
 
-function portAssaultFurlSupport(component) {
+function portAssaultHorizontalSailSpan(component) {
   const points = uniquePortAssaultComponentPoints(component);
   if (points.length < 3) throw new Error("Furled sail component has fewer than three points");
   const bounds = boundsForPoints(points);
@@ -4012,6 +4047,34 @@ function portAssaultFurlSupport(component) {
   const perpendicular = new THREE.Vector3(-axis.z, 0, axis.x);
   const fullProjections = points.map((point) => point.dot(axis));
   const fullSpan = Math.max(...fullProjections) - Math.min(...fullProjections);
+  return { points, bounds, axis, perpendicular, fullSpan };
+}
+
+function trimmedPortAssaultFurlSupport(start, end, bounds, fullSpan) {
+  const untrimmedLength = start.distanceTo(end);
+  if (!Number.isFinite(untrimmedLength) || untrimmedLength <= 0) {
+    throw new Error("Furled sail component has no usable support span");
+  }
+  const trim = end.clone().sub(start).multiplyScalar(0.035);
+  start.add(trim);
+  end.sub(trim);
+  const length = start.distanceTo(end);
+  const radius = clamp(
+    Math.min(bounds.size.y, Math.max(fullSpan, length)) * 0.025,
+    0.006,
+    0.02
+  );
+  return { start, end, length, radius };
+}
+
+function portAssaultFurlSupport(component) {
+  const {
+    points,
+    bounds,
+    axis,
+    perpendicular,
+    fullSpan
+  } = portAssaultHorizontalSailSpan(component);
   const topBand = points.filter((point) => (
     point.y >= bounds.box.max.y - bounds.size.y * 0.18
   ));
@@ -4049,20 +4112,47 @@ function portAssaultFurlSupport(component) {
     start = highPoint;
     end = farPoint.clone();
   }
-  const untrimmedLength = start.distanceTo(end);
-  if (!Number.isFinite(untrimmedLength) || untrimmedLength <= 0) {
-    throw new Error("Furled sail component has no usable support span");
+  return trimmedPortAssaultFurlSupport(start, end, bounds, fullSpan);
+}
+
+function portAssaultLoweredJunkSailSupport(component) {
+  const {
+    points,
+    bounds,
+    axis,
+    perpendicular,
+    fullSpan
+  } = portAssaultHorizontalSailSpan(component);
+  const footBand = points.filter((point) => (
+    point.y <= bounds.box.min.y + bounds.size.y * 0.2
+  ));
+  const footProjections = footBand.map((point) => point.dot(axis));
+  const footSpan = footProjections.length > 1
+    ? Math.max(...footProjections) - Math.min(...footProjections)
+    : 0;
+  if (footSpan < fullSpan * 0.35) {
+    throw new Error(
+      `Junk sail foot spans only ${footSpan.toFixed(4)} of ${fullSpan.toFixed(4)} model units`
+    );
   }
-  const trim = end.clone().sub(start).multiplyScalar(0.035);
-  start.add(trim);
-  end.sub(trim);
-  const length = start.distanceTo(end);
-  const radius = clamp(
-    Math.min(bounds.size.y, Math.max(fullSpan, length)) * 0.025,
-    0.006,
-    0.02
-  );
-  return { start, end, length, radius };
+  const perpendicularOffset = footBand.reduce(
+    (sum, point) => sum + point.dot(perpendicular),
+    0
+  ) / footBand.length;
+  const y = footBand.reduce((sum, point) => sum + point.y, 0) / footBand.length;
+  const low = Math.min(...footProjections);
+  const high = Math.max(...footProjections);
+  const start = axis.clone().multiplyScalar(low)
+    .addScaledVector(perpendicular, perpendicularOffset)
+    .setY(y);
+  const end = axis.clone().multiplyScalar(high)
+    .addScaledVector(perpendicular, perpendicularOffset)
+    .setY(y);
+  const support = trimmedPortAssaultFurlSupport(start, end, bounds, fullSpan);
+  // A junk's battened sail is lowered in folds onto its boom rather than
+  // rolled tightly around the upper yard. Keep the bundle visibly fuller.
+  support.radius = clamp(support.radius * 1.45, 0.009, 0.026);
+  return support;
 }
 
 function portAssaultSupportsCoincide(left, right) {
@@ -4085,6 +4175,33 @@ function scaledPortAssaultColor(color, scale) {
   };
 }
 
+function stackedPortAssaultJunkBattenTriangles(supports, color) {
+  const triangles = [];
+  supports.forEach(({ support }, supportIndex) => {
+    for (let battenIndex = 0; battenIndex < PORT_ASSAULT_JUNK_STACKED_BATTENS; battenIndex++) {
+      const stackOffset = (
+        battenIndex - (PORT_ASSAULT_JUNK_STACKED_BATTENS - 1) / 2
+      ) * support.radius * 0.55;
+      const start = support.start.clone().add(new THREE.Vector3(0, stackOffset, 0));
+      const end = support.end.clone().add(new THREE.Vector3(0, stackOffset, 0));
+      const battenTriangles = makePrismTriangles(
+        start,
+        end,
+        support.radius * 0.18,
+        scaledPortAssaultColor(color, battenIndex % 2 === 0 ? 0.88 : 1.04),
+        6,
+        `lowered-junk-batten:${supportIndex}:${battenIndex}`
+      );
+      for (const triangle of battenTriangles) {
+        triangle.sourceMeshName = "procedural-lowered-junk-batten";
+        triangle.sourceMaterialName = "procedural-lowered-junk-batten-wood";
+      }
+      triangles.push(...battenTriangles);
+    }
+  });
+  return triangles;
+}
+
 function furledPortAssaultRig(slug, loaded) {
   const selected = selectedPortAssaultSailGeometry(slug, loaded.triangles);
   if (selected.state === "no-sail") {
@@ -4098,7 +4215,8 @@ function furledPortAssaultRig(slug, loaded) {
         removedDeployedRigTriangles: 0,
         sourceSailComponents: 0,
         furledBundles: 0,
-        generatedFurledTriangles: 0
+        generatedFurledTriangles: 0,
+        generatedStackedBattenTriangles: 0
       }
     };
   }
@@ -4119,13 +4237,16 @@ function furledPortAssaultRig(slug, loaded) {
         removedDeployedRigTriangles: selected.removedRigTriangleCount,
         sourceSailComponents: selected.sailComponents.length,
         furledBundles: 0,
-        generatedFurledTriangles: 0
+        generatedFurledTriangles: 0,
+        generatedStackedBattenTriangles: 0
       }
     };
   }
   const supports = [];
   for (const component of selected.sailComponents) {
-    const support = portAssaultFurlSupport(component);
+    const support = selected.bundleMode === "junk-lowered"
+      ? portAssaultLoweredJunkSailSupport(component)
+      : portAssaultFurlSupport(component);
     if (supports.some((entry) => portAssaultSupportsCoincide(entry.support, support))) continue;
     supports.push({
       support,
@@ -4159,14 +4280,27 @@ function furledPortAssaultRig(slug, loaded) {
       furledTriangles.push(...triangles);
     }
   });
+  const stackedBattenTriangles = selected.bundleMode === "junk-lowered"
+    ? stackedPortAssaultJunkBattenTriangles(
+        supports,
+        portAssaultSailColor(
+          { triangles: selected.removedRigTriangles },
+          loaded.textureSampler
+        )
+      )
+    : [];
   return {
     loaded: {
       ...loaded,
-      triangles: [...selected.hullTriangles, ...furledTriangles]
+      triangles: [
+        ...selected.hullTriangles,
+        ...furledTriangles,
+        ...stackedBattenTriangles
+      ]
     },
     selected,
     metadata: {
-      state: selected.state,
+      state: selected.bundleMode === "junk-lowered" ? "lowered" : selected.state,
       selectorType: selected.selectorType,
       removedRigSelectorType: selected.removedRigSelectorType,
       bundleMode: selected.bundleMode,
@@ -4175,7 +4309,8 @@ function furledPortAssaultRig(slug, loaded) {
       removedDeployedRigTriangles: selected.removedRigTriangleCount,
       sourceSailComponents: selected.sailComponents.length,
       furledBundles: supports.length,
-      generatedFurledTriangles: furledTriangles.length
+      generatedFurledTriangles: furledTriangles.length,
+      generatedStackedBattenTriangles: stackedBattenTriangles.length
     }
   };
 }
@@ -4324,6 +4459,52 @@ function fitCleanPortAssaultRaster(slug, rendered, scale, nativeScale = 1) {
     ? 1
     : Math.max(2, Math.ceil(cityMinimum / relativeAreaScale));
   return removeDetachedPortAssaultRasterNoise(frame, minimumComponentPixels);
+}
+
+function cleanDetailedPortAssaultRasterColors(frame, cleanup, nativeScale) {
+  if (!cleanup) return { ...frame, colorCleanup: null };
+  const { minimumRegionPixelsAtCityScale, passes } = cleanup;
+  if (!Number.isInteger(minimumRegionPixelsAtCityScale) || minimumRegionPixelsAtCityScale <= 1) {
+    throw new Error(
+      `Invalid detailed dockside color-region threshold: ${minimumRegionPixelsAtCityScale}`
+    );
+  }
+  const relativeAreaScale = (PORT_ASSAULT_CITY_NATIVE_SCALE / nativeScale) ** 2;
+  const minimumRegionPixels = Math.max(
+    2,
+    Math.ceil(minimumRegionPixelsAtCityScale / relativeAreaScale)
+  );
+  const context = frame.canvas.getContext("2d");
+  const image = context.getImageData(0, 0, frame.canvas.width, frame.canvas.height);
+  const cleaned = coalesceShipPixelArtColors(
+    image.data,
+    frame.canvas.width,
+    frame.canvas.height,
+    { minimumRegionPixels, passes }
+  );
+  image.data.set(cleaned.rgba);
+  context.putImageData(image, 0, 0);
+  return {
+    ...frame,
+    colorCleanup: Object.freeze({
+      minimumRegionPixelsAtCityScale,
+      ...cleaned.metadata
+    })
+  };
+}
+
+function fitArtDirectedPortAssaultRaster(
+  slug,
+  rendered,
+  scale,
+  nativeScale,
+  colorCleanup
+) {
+  return cleanDetailedPortAssaultRasterColors(
+    fitCleanPortAssaultRaster(slug, rendered, scale, nativeScale),
+    colorCleanup,
+    nativeScale
+  );
 }
 
 function removeDetachedPortAssaultRasterNoise(frame, minimumComponentPixels) {
@@ -4513,6 +4694,100 @@ function makePortAssaultSinkDepthMap(frame, waterlineY) {
     waterlineLevel: SHIP_WATERLINE_LEVEL,
     submergedPixels,
     abovePixels
+  };
+}
+
+function makePortAssaultWaterShadow(frame, camera, waterlineY, bobY) {
+  if (!Number.isInteger(bobY) || bobY < -1 || bobY > 1) {
+    throw new Error(`Port-assault water shadow requires a -1, 0, or 1 pixel bob: ${bobY}`);
+  }
+  const baseAnchor = portAssaultProjectedWorldPoint(
+    new THREE.Vector3(0, waterlineY, 0),
+    camera,
+    frame
+  );
+  const unitHeightAnchor = portAssaultProjectedWorldPoint(
+    new THREE.Vector3(0, waterlineY + 1, 0),
+    camera,
+    frame
+  );
+  const verticalPixelsPerModelUnit = Math.abs(unitHeightAnchor.y - baseAnchor.y);
+  if (!Number.isFinite(verticalPixelsPerModelUnit) || verticalPixelsPerModelUnit <= 1e-6) {
+    throw new Error("Port-assault water shadow cannot resolve model height in raster pixels");
+  }
+  const modelHeightPerPixel = 1 / verticalPixelsPerModelUnit;
+  const shadowWaterlineY = waterlineY + bobY * modelHeightPerPixel;
+  const shadowPlaneAnchor = portAssaultProjectedWorldPoint(
+    new THREE.Vector3(0, shadowWaterlineY, 0),
+    camera,
+    frame
+  );
+  const anchorCorrection = {
+    x: baseAnchor.x - shadowPlaneAnchor.x,
+    y: baseAnchor.y - shadowPlaneAnchor.y
+  };
+  const light = new THREE.Vector3(
+    SHIP_BAKE_LIGHT_DIRECTION.x,
+    SHIP_BAKE_LIGHT_DIRECTION.y,
+    SHIP_BAKE_LIGHT_DIRECTION.z
+  ).normalize();
+  if (light.y <= 0.01) throw new Error("Port-assault water-shadow light must be above the water");
+
+  const canvas = createCanvas(frame.canvas.width, frame.canvas.height);
+  const context = canvas.getContext("2d");
+  const image = context.createImageData(canvas.width, canvas.height);
+  let opaquePixels = 0;
+  let clippedProjectedPixels = 0;
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    const positionOffset = pixel * 3;
+    const source = new THREE.Vector3(
+      frame.positions[positionOffset],
+      frame.positions[positionOffset + 1],
+      frame.positions[positionOffset + 2]
+    );
+    const heightAboveWater = source.y - shadowWaterlineY;
+    if (heightAboveWater <= 0.002) continue;
+    const rayT = heightAboveWater / light.y;
+    const shadowPoint = source.clone().addScaledVector(light, -rayT);
+    const projected = portAssaultProjectedWorldPoint(shadowPoint, camera, frame);
+    const x = Math.round(projected.x + anchorCorrection.x);
+    const y = Math.round(projected.y + anchorCorrection.y);
+    if (x < 0 || x >= canvas.width || y < 0 || y >= canvas.height) {
+      clippedProjectedPixels++;
+      continue;
+    }
+    const offset = (x + y * canvas.width) * 4;
+    if (image.data[offset + 3] === 0) opaquePixels++;
+    image.data[offset] = 255;
+    image.data[offset + 1] = 255;
+    image.data[offset + 2] = 255;
+    image.data[offset + 3] = 255;
+  }
+  if (opaquePixels === 0) throw new Error("Port-assault water shadow rendered no pixels");
+  context.putImageData(image, 0, 0);
+  return {
+    canvas,
+    bounds: alphaBounds(canvas),
+    opaquePixels,
+    clippedProjectedPixels,
+    shadowWaterlineY,
+    modelHeightPerPixel
+  };
+}
+
+function portAssaultProjectedWorldPoint(worldPoint, camera, frame) {
+  const projected = projectedPoint(worldPoint, camera, {
+    width: PORT_ASSAULT_SHIP_WIDTH * PORT_ASSAULT_RENDER_SCALE,
+    height: PORT_ASSAULT_SHIP_HEIGHT * PORT_ASSAULT_RENDER_SCALE
+  });
+  return {
+    x: frame.drawX + (
+      (projected.x - frame.sourceBounds.minX) / frame.sourceBounds.width * frame.drawWidth
+    ),
+    y: frame.drawY + (
+      (projected.y - frame.sourceBounds.minY) / frame.sourceBounds.height * frame.drawHeight
+    )
   };
 }
 
@@ -4849,22 +5124,13 @@ function renderPortAssaultVariant(loaded, config, variant) {
   return { variant, camera, modelYaw, rendered };
 }
 
-function resetPortAssaultShipOutput() {
+function preparePortAssaultShipOutput() {
   const relativeOutput = portablePath(portAssaultShipOutputRoot);
   if (relativeOutput !== "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault") {
-    throw new Error(`Refusing to clear unexpected port-assault output: ${portAssaultShipOutputRoot}`);
+    throw new Error(`Refusing to prepare unexpected port-assault output: ${portAssaultShipOutputRoot}`);
   }
-  rmSync(portAssaultShipOutputRoot, { recursive: true, force: true });
   mkdirSync(portAssaultShipOutputRoot, { recursive: true });
   mkdirSync(portAssaultShipReferenceOutputRoot, { recursive: true });
-  for (const fileName of [
-    "galleon-dockside-contact-sheet.png",
-    "galleon-dockside-compositing-review.png",
-    "fleet-dockside-contact-sheet.png",
-    "fleet-dock-rig-review.png"
-  ]) {
-    rmSync(join(portAssaultShipReferenceOutputRoot, fileName), { force: true });
-  }
 }
 
 function writePortAssaultGeometryModule(ships) {
@@ -4936,7 +5202,7 @@ async function renderPortAssaultShips() {
     ...fitPortAssaultRaster(entry.rendered)
   }));
 
-  resetPortAssaultShipOutput();
+  preparePortAssaultShipOutput();
   const cameraReviewPath = join(
     portAssaultShipReferenceOutputRoot,
     "galleon-dockside-contact-sheet.png"
@@ -4984,17 +5250,24 @@ async function renderPortAssaultShips() {
       variant: raw.variant,
       camera: raw.camera,
       modelYaw: raw.modelYaw,
-      ...fitCleanPortAssaultRaster(slug, raw.rendered, fleetRasterScale)
+      ...fitArtDirectedPortAssaultRaster(
+        slug,
+        raw.rendered,
+        fleetRasterScale,
+        1,
+        config.portAssaultColorCleanup
+      )
     };
     const citySelected = {
       variant: raw.variant,
       camera: raw.camera,
       modelYaw: raw.modelYaw,
-      ...fitCleanPortAssaultRaster(
+      ...fitArtDirectedPortAssaultRaster(
         slug,
         raw.rendered,
         fleetRasterScale * PORT_ASSAULT_CITY_NATIVE_SCALE,
-        PORT_ASSAULT_CITY_NATIVE_SCALE
+        PORT_ASSAULT_CITY_NATIVE_SCALE,
+        config.portAssaultColorCleanup
       )
     };
     const reviewLoads = [
@@ -5019,6 +5292,11 @@ async function renderPortAssaultShips() {
     const depthMap = makePortAssaultDepthMap(selected);
     const sinkDepth = makePortAssaultSinkDepthMap(selected, loaded.waterlineY);
     const citySinkDepth = makePortAssaultSinkDepthMap(citySelected, loaded.waterlineY);
+    const cityWaterShadows = Object.freeze({
+      up: makePortAssaultWaterShadow(citySelected, raw.camera, loaded.waterlineY, -1),
+      level: makePortAssaultWaterShadow(citySelected, raw.camera, loaded.waterlineY, 0),
+      down: makePortAssaultWaterShadow(citySelected, raw.camera, loaded.waterlineY, 1)
+    });
     const foreground = makePortAssaultForeground(selected, deck.sailorDepth);
     const spritePath = join(portAssaultShipOutputRoot, `${slug}-dockside.png`);
     const foregroundPath = join(portAssaultShipOutputRoot, `${slug}-dockside-foreground.png`);
@@ -5029,12 +5307,24 @@ async function renderPortAssaultShips() {
       portAssaultShipOutputRoot,
       `${slug}-city-dockside-sink-depth.png`
     );
+    const cityWaterShadowPaths = Object.freeze(Object.fromEntries(
+      Object.keys(cityWaterShadows).map((bobState) => [
+        bobState,
+        join(
+          portAssaultShipOutputRoot,
+          `${slug}-city-dockside-water-shadow-${bobState}.png`
+        )
+      ])
+    ));
     writeFileSync(spritePath, selected.canvas.toBuffer("image/png"));
     writeFileSync(foregroundPath, foreground.canvas.toBuffer("image/png"));
     writeFileSync(depthPath, depthMap.canvas.toBuffer("image/png"));
     writeFileSync(sinkDepthPath, sinkDepth.canvas.toBuffer("image/png"));
     writeFileSync(citySpritePath, citySelected.canvas.toBuffer("image/png"));
     writeFileSync(citySinkDepthPath, citySinkDepth.canvas.toBuffer("image/png"));
+    for (const [bobState, waterShadow] of Object.entries(cityWaterShadows)) {
+      writeFileSync(cityWaterShadowPaths[bobState], waterShadow.canvas.toBuffer("image/png"));
+    }
     const opaquePixels = selected.alpha.reduce((sum, value) => sum + value, 0);
     const entry = {
       slug,
@@ -5059,18 +5349,35 @@ async function renderPortAssaultShips() {
       sinkWaterlineLevel: Number(sinkDepth.waterlineLevel.toFixed(6)),
       submergedPixels: sinkDepth.submergedPixels,
       rasterCleanup: selected.rasterCleanup,
+      colorCleanup: selected.colorCleanup,
       cityDockside: {
         nativeScale: PORT_ASSAULT_CITY_NATIVE_SCALE,
         width: citySelected.canvas.width,
         height: citySelected.canvas.height,
         file: portablePath(citySpritePath),
         sinkDepthFile: portablePath(citySinkDepthPath),
+        waterShadows: Object.freeze(Object.fromEntries(
+          Object.entries(cityWaterShadows).map(([bobState, waterShadow]) => [
+            bobState,
+            Object.freeze({
+              file: portablePath(cityWaterShadowPaths[bobState]),
+              opaqueBounds: waterShadow.bounds,
+              opaquePixels: waterShadow.opaquePixels,
+              clippedProjectedPixels: waterShadow.clippedProjectedPixels,
+              shadowWaterlineY: Number(waterShadow.shadowWaterlineY.toFixed(6))
+            })
+          ])
+        )),
+        waterShadowModelHeightPerPixel: Number(
+          cityWaterShadows.level.modelHeightPerPixel.toFixed(8)
+        ),
         opaqueBounds: citySelected.bounds,
         opaquePixels: citySelected.alpha.reduce((sum, value) => sum + value, 0),
         deckEntryAnchor: cityDeck.deckEntryAnchor,
         sailorSpawnAnchor: cityDeck.sailorSpawnAnchor,
         submergedPixels: citySinkDepth.submergedPixels,
-        rasterCleanup: citySelected.rasterCleanup
+        rasterCleanup: citySelected.rasterCleanup,
+        colorCleanup: citySelected.colorCleanup
       },
       dockRig: dockRig.metadata
     };
@@ -6014,6 +6321,11 @@ function spanishNaoConfig() {
     frameScale: 0.54,
     sideViewTargetModelMaxDim: 2.0,
     colorTransform: simplifySpanishNaoTextureColor,
+    flattenTexturePerTriangle: true,
+    portAssaultColorCleanup: {
+      minimumRegionPixelsAtCityScale: 12,
+      passes: 2
+    },
     gltfTextureSamplerOptions: {
       maxDimension: 96,
       smoothing: true
@@ -6043,6 +6355,12 @@ function portugueseCarrackConfig() {
     targetModelMaxDim: 2.3,
     frameScale: 0.62,
     sideViewTargetModelMaxDim: 2.1,
+    colorTransform: simplifyDetailedSailShipTextureColor,
+    flattenTexturePerTriangle: true,
+    portAssaultColorCleanup: {
+      minimumRegionPixelsAtCityScale: 12,
+      passes: 2
+    },
     gltfTextureSamplerOptions: {
       maxDimension: 96,
       smoothing: true
@@ -6142,6 +6460,12 @@ function cyc3wGalleonConfig() {
     targetModelMaxDim: 2.3,
     frameScale: 0.62,
     sideViewTargetModelMaxDim: 2.1,
+    colorTransform: simplifyGalleonTextureColor,
+    flattenTexturePerTriangle: true,
+    portAssaultColorCleanup: {
+      minimumRegionPixelsAtCityScale: 12,
+      passes: 2
+    },
     gltfTextureSamplerOptions: {
       maxDimension: 96,
       smoothing: true
@@ -7743,6 +8067,15 @@ function upsertShipEntries(existing, replacements) {
   return [...result, ...replacementBySlug.values()];
 }
 
+function optionalGeneratedJson(path, label) {
+  if (!existsSync(path)) return null;
+  const parsed = JSON.parse(readFileSync(path, "utf8"));
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error(`${label} must contain a JSON object`);
+  }
+  return parsed;
+}
+
 function upsertShipFrameBake(fileName, label, entries, generatorKey, generatorFlag) {
   const path = join(unityFleetOutputRoot, fileName);
   const bake = JSON.parse(readFileSync(path, "utf8"));
@@ -7755,7 +8088,7 @@ function upsertShipFrameBake(fileName, label, entries, generatorKey, generatorFl
 }
 
 async function renderUnityFleetSideViews() {
-  resetUnityFleetSideViewOutput();
+  prepareUnityFleetSideViewOutput();
   const configs = [...productionShipRenderConfigs().values()];
   const fleetScaledConfigs = configs.filter((config) => config.scaleMode === "source-relative-fleet");
   if (fleetScaledConfigs.length === 0) {
@@ -7790,7 +8123,7 @@ async function renderUnityFleetSideViews() {
 }
 
 async function renderUnityFleet() {
-  resetUnityFleetOutput();
+  prepareUnityFleetOutput();
   const models = unityShipModels();
   if (models.length === 0) {
     throw new Error(`No Unity ship FBX files found in ${unityShipModelRoot}`);
@@ -7835,7 +8168,15 @@ async function renderUnityFleet() {
   const wakeAnchorsPath = join(unityFleetOutputRoot, "wake-anchors.json");
   const hullFootprintsPath = join(unityFleetOutputRoot, "hull-footprints.json");
   const flagAnchorsPath = join(unityFleetOutputRoot, "flag-anchors.json");
+  const previousManifest = optionalGeneratedJson(manifestPath, "Production ship manifest");
+  const previousWakeAnchors = optionalGeneratedJson(wakeAnchorsPath, "Ship wake-anchor bake");
+  const previousHullFootprints = optionalGeneratedJson(
+    hullFootprintsPath,
+    "Ship hull-footprint bake"
+  );
+  const previousFlagAnchors = optionalGeneratedJson(flagAnchorsPath, "Ship flag-anchor bake");
   writeFileSync(manifestPath, `${JSON.stringify({
+    ...previousManifest,
     generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
     sourceRoot: portablePath(unityShipSourceRoot),
     scaleMode: "source-relative-fleet",
@@ -7844,25 +8185,48 @@ async function renderUnityFleet() {
     fleetScaleExponent: unityFleetScaleExponent,
     sharedFrameScale: Number(sharedFrameScale.toFixed(4)),
     skipped: unityFleetSkippedModels,
-    ships: manifestForDisk
+    ships: mergeGeneratedRosterEntries(
+      previousManifest,
+      manifestForDisk,
+      SHIP_STATS.map((entry) => entry.slug),
+      "Production ship manifest"
+    )
   }, null, 2)}\n`);
   writeFileSync(wakeAnchorsPath, `${JSON.stringify({
+    ...previousWakeAnchors,
     generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
     frameSize,
     headings,
-    ships: Object.fromEntries(manifest.map((entry) => [entry.slug, entry.wakeAnchors]))
+    ships: mergeGeneratedRosterMap(
+      previousWakeAnchors,
+      manifest.map((entry) => [entry.slug, entry.wakeAnchors]),
+      SHIP_STATS.map((entry) => entry.slug),
+      "Ship wake-anchor bake"
+    )
   })}\n`);
   writeFileSync(hullFootprintsPath, `${JSON.stringify({
+    ...previousHullFootprints,
     generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
     frameSize,
     headings,
-    ships: Object.fromEntries(manifest.map((entry) => [entry.slug, entry.hullFootprints]))
+    ships: mergeGeneratedRosterMap(
+      previousHullFootprints,
+      manifest.map((entry) => [entry.slug, entry.hullFootprints]),
+      SHIP_STATS.map((entry) => entry.slug),
+      "Ship hull-footprint bake"
+    )
   })}\n`);
   writeFileSync(flagAnchorsPath, `${JSON.stringify({
+    ...previousFlagAnchors,
     generatedBy: "tools/render-sail-ship-sprites.mjs --unity-fleet",
     frameSize,
     headings,
-    ships: Object.fromEntries(manifest.map((entry) => [entry.slug, entry.flagAnchors]))
+    ships: mergeGeneratedRosterMap(
+      previousFlagAnchors,
+      manifest.map((entry) => [entry.slug, entry.flagAnchors]),
+      SHIP_STATS.map((entry) => entry.slug),
+      "Ship flag-anchor bake"
+    )
   })}\n`);
 
   const contactSheet = makeFleetContactSheet(manifest);

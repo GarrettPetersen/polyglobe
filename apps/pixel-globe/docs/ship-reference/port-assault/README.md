@@ -18,12 +18,14 @@ phase.
 Docked ships do not carry deployed canvas. The bake separates sail triangles
 in model space before rendering. Where a source exposes a coherent cloth
 surface, it replaces that surface with a narrow segmented prism along the
-supporting yard so the result reads as a furled sail at pixel scale. Sources
-whose cloth is split into many disconnected strips, or whose battens would be
-left floating after the cloth is hidden, instead use an explicit stowed rig:
-the deployed cloth and its sail-only hardware are removed while the mast and
-permanent standing rig remain. The Kobaya and Mesoamerican dugout are explicit
-no-sail exceptions.
+supporting yard so the result reads as a furled sail at pixel scale. Junk sails
+are handled separately: their deployed cloth, yards, and battens descend to the
+foot of the sail, where the cloth concertinas and the rigid battens form a
+visible stack. Sources whose cloth is split into many disconnected strips, or
+whose surviving source spars provide no valid support for a procedural bundle,
+instead use an explicit stowed rig: the deployed cloth and its sail-only
+hardware are removed while the mast and permanent standing rig remain. The
+Kobaya and Mesoamerican dugout are explicit no-sail exceptions.
 
 Every hull has an explicit selector keyed by source material, source mesh, or
 an audited topology component. Selectors record exact triangle counts and the
@@ -50,11 +52,27 @@ same final model-space geometry.
   `src/portAssaultShipAssets.js` combines it with deterministic runtime paths
   and fails loudly if the bake and production roster differ.
 
-All color pixels use Resurrect 64 and binary alpha. The depth map deliberately
-uses grayscale rather than the art palette: transparent pixels have alpha 0;
-opaque ship pixels range from 1 at the farthest visible surface to 255 at the
-nearest. Depth values are normalized within this asset and must not be compared
-with another asset's depth values.
+All color pixels use Resurrect 64 and binary alpha. Warm source colors use a
+restricted warm subset during quantization so brown timber cannot drift into
+Resurrect 64's olive ramp. Two muted mauves remain normally available to the
+nearest-palette match so directional lighting can separate decks from hull sides;
+genuinely green paint still has access to the green entries. Detailed textured hulls are
+reduced to one sampled color per source
+triangle before rasterization, and conservative connected-region cleanup
+removes only tiny enclosed color flecks in the large dock art. Triangle color
+reduction and hue-constrained quantization are also used by normal sailing and side-view
+bakes. On the detailed Nao, galleon, and Portuguese carrack, upward-facing timber is
+promoted to a sunlit timber plane color so decks remain legible against vertical hulls.
+All ship bake lighting comes from high over the viewer's right shoulder, matching the
+direction used by the surrounding hand-authored pixel art.
+Each native city-dock bake also provides `up`, `level`, and `down` water-shadow masks.
+They use the production sailing shadow projection against the model water plane; the city
+water renderer selects the matching mask as the hull bobs, so the shadow length changes
+without moving the shadow off the water surface.
+The depth map deliberately uses grayscale rather than the art
+palette: transparent pixels have alpha 0; opaque ship pixels range from 1 at
+the farthest visible surface to 255 at the nearest. Depth values are normalized
+within this asset and must not be compared with another asset's depth values.
 
 ## Sailor draw order
 

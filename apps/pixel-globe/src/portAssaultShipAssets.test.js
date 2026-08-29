@@ -37,11 +37,41 @@ test("every production hull has matching port-assault geometry and manifest meta
     "mesoamerican-dugout-canoe"
   ]);
   const stowedSailSlugs = new Set([
+    "caravel",
+    "fishing-lugger",
+    "japanese-sekibune",
     "joseon-turtle-ship",
     "joseon-hyeopseon",
     "joseon-panokseon",
     "portuguese-carrack",
     "nusantaran-outrigger"
+  ]);
+  const stowedSailExpectations = new Map([
+    ["caravel", {
+      sourceSailComponents: 5,
+      removedOpenSailTriangles: 328,
+      removedDeployedRigTriangles: 0
+    }],
+    ["fishing-lugger", {
+      sourceSailComponents: 1,
+      removedOpenSailTriangles: 44,
+      removedDeployedRigTriangles: 0
+    }],
+    ["japanese-sekibune", {
+      sourceSailComponents: 1,
+      removedOpenSailTriangles: 128,
+      removedDeployedRigTriangles: 124
+    }]
+  ]);
+  const loweredJunkSailSlugs = new Set([
+    "small-junk",
+    "medium-junk",
+    "large-junk"
+  ]);
+  const artDirectedDetailedSlugs = new Set([
+    "galleon",
+    "spanish-nao",
+    "portuguese-carrack"
   ]);
   assert.ok(
     manifestBySlug.get("galleon").opaquePixels >
@@ -73,6 +103,18 @@ test("every production hull has matching port-assault geometry and manifest meta
       entry.cityDockside.sinkDepthFile,
       new RegExp(`${entry.slug}-city-dockside-sink-depth\\.png$`)
     );
+    assert.deepEqual(Object.keys(entry.cityDockside.waterShadows).sort(), ["down", "level", "up"]);
+    assert.ok(entry.cityDockside.waterShadowModelHeightPerPixel > 0);
+    for (const [bobState, waterShadow] of Object.entries(entry.cityDockside.waterShadows)) {
+      assert.match(
+        waterShadow.file,
+        new RegExp(`${entry.slug}-city-dockside-water-shadow-${bobState}\\.png$`)
+      );
+      assert.ok(waterShadow.opaquePixels > 0, `${entry.slug} ${bobState} water shadow`);
+      assert.ok(Number.isInteger(waterShadow.clippedProjectedPixels));
+      assert.ok(Number.isFinite(waterShadow.shadowWaterlineY));
+      await access(join(appRoot, "..", "..", waterShadow.file));
+    }
     for (const cleanup of [entry.rasterCleanup, entry.cityDockside.rasterCleanup]) {
       assert.ok(Number.isInteger(cleanup.minimumComponentPixels));
       assert.ok(Number.isInteger(cleanup.removedComponents));
@@ -93,27 +135,58 @@ test("every production hull has matching port-assault geometry and manifest meta
       assert.equal(entry.rasterCleanup.removedPixels, 0);
       assert.equal(entry.cityDockside.rasterCleanup.removedPixels, 0);
     }
+    for (const colorCleanup of [entry.colorCleanup, entry.cityDockside.colorCleanup]) {
+      if (artDirectedDetailedSlugs.has(entry.slug)) {
+        assert.ok(colorCleanup);
+        assert.equal(colorCleanup.minimumRegionPixelsAtCityScale, 12);
+        assert.ok(colorCleanup.minimumRegionPixels >= 2);
+        assert.ok(colorCleanup.completedPasses >= 1);
+        assert.ok(colorCleanup.completedPasses <= colorCleanup.requestedPasses);
+        assert.ok(colorCleanup.recoloredRegions >= 0);
+        assert.ok(colorCleanup.recoloredPixels >= 0);
+      } else {
+        assert.equal(colorCleanup, null);
+      }
+    }
     await access(join(appRoot, "..", "..", entry.cityDockside.file));
     await access(join(appRoot, "..", "..", entry.cityDockside.sinkDepthFile));
     assert.ok(entry.opaquePixels > 100, `${entry.slug} retains a readable silhouette`);
     assert.ok(Number.isInteger(entry.dockRig.removedOpenSailTriangles));
     assert.ok(Number.isInteger(entry.dockRig.removedDeployedRigTriangles));
+    assert.ok(Number.isInteger(entry.dockRig.generatedStackedBattenTriangles));
     if (noSailSlugs.has(entry.slug)) {
       assert.equal(entry.dockRig.state, "no-sail");
       assert.equal(entry.dockRig.removedOpenSailTriangles, 0);
       assert.equal(entry.dockRig.furledBundles, 0);
+      assert.equal(entry.dockRig.generatedStackedBattenTriangles, 0);
     } else if (stowedSailSlugs.has(entry.slug)) {
       assert.equal(entry.dockRig.state, "stowed");
       assert.equal(entry.dockRig.bundleMode, "remove");
       assert.ok(entry.dockRig.removedOpenSailTriangles > 0);
       assert.equal(entry.dockRig.furledBundles, 0);
       assert.equal(entry.dockRig.generatedFurledTriangles, 0);
+      assert.equal(entry.dockRig.generatedStackedBattenTriangles, 0);
+      const expectedStowage = stowedSailExpectations.get(entry.slug);
+      if (expectedStowage) {
+        for (const [field, expectedValue] of Object.entries(expectedStowage)) {
+          assert.equal(entry.dockRig[field], expectedValue, `${entry.slug} ${field}`);
+        }
+      }
+    } else if (loweredJunkSailSlugs.has(entry.slug)) {
+      assert.equal(entry.dockRig.state, "lowered");
+      assert.equal(entry.dockRig.bundleMode, "junk-lowered");
+      assert.ok(entry.dockRig.removedOpenSailTriangles > 0);
+      assert.ok(entry.dockRig.furledBundles > 0);
+      assert.ok(entry.dockRig.generatedFurledTriangles > 0);
+      assert.ok(entry.dockRig.removedDeployedRigTriangles > 0);
+      assert.ok(entry.dockRig.generatedStackedBattenTriangles > 0);
     } else {
       assert.equal(entry.dockRig.state, "furled");
       assert.equal(entry.dockRig.bundleMode, "furled");
       assert.ok(entry.dockRig.removedOpenSailTriangles > 0);
       assert.ok(entry.dockRig.furledBundles > 0);
       assert.ok(entry.dockRig.generatedFurledTriangles > 0);
+      assert.equal(entry.dockRig.generatedStackedBattenTriangles, 0);
     }
     const geometryPoints = [
       ...entry.deckPolygon,
@@ -191,10 +264,20 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
     const citySinkDepth = await loadImage(
       join(appRoot, "..", "..", entry.cityDockside.sinkDepthFile)
     );
+    const cityWaterShadows = Object.fromEntries(await Promise.all(
+      Object.entries(entry.cityDockside.waterShadows).map(async ([bobState, waterShadow]) => [
+        bobState,
+        await loadImage(join(appRoot, "..", "..", waterShadow.file))
+      ])
+    ));
     assert.equal(cityBase.width, entry.cityDockside.width);
     assert.equal(cityBase.height, entry.cityDockside.height);
     assert.equal(citySinkDepth.width, entry.cityDockside.width);
     assert.equal(citySinkDepth.height, entry.cityDockside.height);
+    for (const shadow of Object.values(cityWaterShadows)) {
+      assert.equal(shadow.width, entry.cityDockside.width);
+      assert.equal(shadow.height, entry.cityDockside.height);
+    }
     const cityPixels = imagePixels(cityBase);
     const citySinkPixels = imagePixels(citySinkDepth);
     let cityOpaque = 0;
@@ -213,6 +296,27 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
     }
     assert.equal(cityOpaque, entry.cityDockside.opaquePixels);
     assert.ok(cityOpaque > baseOpaque * 5, `${slug} city raster preserves native 3x detail`);
+    const shadowPixelsByBob = Object.fromEntries(Object.entries(cityWaterShadows).map(
+      ([bobState, shadow]) => [bobState, imagePixels(shadow)]
+    ));
+    for (const [bobState, shadowPixels] of Object.entries(shadowPixelsByBob)) {
+      let shadowOpaque = 0;
+      for (let offset = 0; offset < shadowPixels.length; offset += 4) {
+        const alpha = shadowPixels[offset + 3];
+        assert.ok(alpha === 0 || alpha === 255, `${slug} ${bobState} shadow partial alpha`);
+        if (alpha === 0) continue;
+        assert.equal(shadowPixels[offset], 255, `${slug} ${bobState} shadow red`);
+        assert.equal(shadowPixels[offset + 1], 255, `${slug} ${bobState} shadow green`);
+        assert.equal(shadowPixels[offset + 2], 255, `${slug} ${bobState} shadow blue`);
+        shadowOpaque++;
+      }
+      assert.equal(shadowOpaque, entry.cityDockside.waterShadows[bobState].opaquePixels);
+    }
+    assert.equal(
+      Buffer.from(shadowPixelsByBob.up).equals(Buffer.from(shadowPixelsByBob.down)),
+      false,
+      `${slug} water shadow responds to its one-pixel bob`
+    );
     if (slug === "galleass") {
       assert.deepEqual(opaqueComponentSizes(basePixels, base.width, base.height), [baseOpaque]);
       assert.deepEqual(

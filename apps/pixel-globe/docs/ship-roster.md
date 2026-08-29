@@ -4,6 +4,15 @@ The Unity asset pack labels the vessels generically, so this roster assigns 16th
 
 Generated fleet sprites live in `apps/pixel-globe/public/assets/vehicles/unity-ships/` and use filenames like `{filename slug}-32-headings.png`, with matching `-light`, `-shade`, `-shadow`, `-preview`, and `-lighting-preview` sheets.
 
+Use a ship-specific render command for a model, material, scale, or orientation
+change (for example, `npm run render:spanish-nao`) and then regenerate the
+packed lighting layers with `npm run render:ship-layers`. Use
+`npm run render:port-assault-ships` for shared dock-view camera, rig, depth, or
+water-shadow changes. Reserve `npm run render:all-ships` for changes to shared
+production rasterization, palette, or lighting. Fleet stages update the existing
+roster manifests instead of clearing them first, so an interrupted long bake
+does not leave a partial ship roster.
+
 Large side-view sprites for the ship information screen live in `apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/`. They preserve the same source-relative fleet scale and are quantized to the Resurrect 64 palette. Regenerate all roster side views with `npm run render:unity-ship-side-views` from `apps/pixel-globe/`.
 
 High-resolution review rasters live in `apps/pixel-globe/docs/ship-reference/high-res/`. Regenerate them with `PIXEL_GLOBE_SHIP_FRAME_SIZE=160 PIXEL_GLOBE_SHIP_RENDER_SIZE=320 PIXEL_GLOBE_SHIP_SHADOW_FRAME_SIZE=320 PIXEL_GLOBE_SHIP_PREVIEW_SCALE=1 node tools/render-sail-ship-sprites.mjs --unity-fleet-reference` from `apps/pixel-globe/`.

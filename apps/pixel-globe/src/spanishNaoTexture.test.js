@@ -29,7 +29,7 @@ test("Spanish Nao timber remains in the hull palette", () => {
   assert.deepEqual(
     simplifySpanishNaoTextureColor(
       { r: 24, g: 15, b: 10 },
-      { sourceMeshName: "Palo mayor_Material_0" }
+      { sourceMeshName: "Palo mayor_Material_0", normal: { y: 0 } }
     ),
     { r: 52, g: 34, b: 24 }
   );

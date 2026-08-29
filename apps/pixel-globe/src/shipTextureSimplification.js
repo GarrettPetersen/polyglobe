@@ -5,10 +5,11 @@ const DETAILED_SAIL_SHIP_TEXTURE_PALETTE = Object.freeze({
   darkWood: Object.freeze({ r: 52, g: 34, b: 24 }),
   deepWood: Object.freeze({ r: 82, g: 51, b: 31 }),
   midWood: Object.freeze({ r: 126, g: 80, b: 45 }),
-  lightWood: Object.freeze({ r: 170, g: 126, b: 76 })
+  lightWood: Object.freeze({ r: 170, g: 126, b: 76 }),
+  sunlitWood: Object.freeze({ r: 200, g: 160, b: 110 })
 });
 
-export function simplifyDetailedSailShipTextureColor(color) {
+export function simplifyDetailedSailShipTextureColor(color, surface = null) {
   assertTextureColor(color);
   const lifted = {
     r: clamp255(color.r * 1.55 + 18),
@@ -36,10 +37,25 @@ export function simplifyDetailedSailShipTextureColor(color) {
   ) {
     return DETAILED_SAIL_SHIP_TEXTURE_PALETTE.coolTrim;
   }
-  if (luminance < 55) return DETAILED_SAIL_SHIP_TEXTURE_PALETTE.darkWood;
-  if (luminance < 88) return DETAILED_SAIL_SHIP_TEXTURE_PALETTE.deepWood;
-  if (luminance < 132) return DETAILED_SAIL_SHIP_TEXTURE_PALETTE.midWood;
-  return DETAILED_SAIL_SHIP_TEXTURE_PALETTE.lightWood;
+  const timber = luminance < 55
+    ? DETAILED_SAIL_SHIP_TEXTURE_PALETTE.darkWood
+    : luminance < 88
+      ? DETAILED_SAIL_SHIP_TEXTURE_PALETTE.deepWood
+      : luminance < 132
+        ? DETAILED_SAIL_SHIP_TEXTURE_PALETTE.midWood
+        : DETAILED_SAIL_SHIP_TEXTURE_PALETTE.lightWood;
+  return detailedShipTimberPlaneColor(timber, surface);
+}
+
+function detailedShipTimberPlaneColor(timber, surface) {
+  if (surface == null) return timber;
+  const normalY = surface.normal?.y;
+  if (!Number.isFinite(normalY)) {
+    throw new Error("Detailed ship plane lighting requires a finite surface normal");
+  }
+  return normalY >= 0.45
+    ? DETAILED_SAIL_SHIP_TEXTURE_PALETTE.sunlitWood
+    : timber;
 }
 
 export function simplifyDetailedSailShipSailColor(color) {

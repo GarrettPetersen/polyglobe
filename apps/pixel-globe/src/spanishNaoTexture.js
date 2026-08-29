@@ -7,7 +7,7 @@ export function simplifySpanishNaoTextureColor(color, surface) {
   if (isSpanishNaoSailMesh(surface?.sourceMeshName)) {
     return simplifyDetailedSailShipSailColor(color);
   }
-  return simplifyDetailedSailShipTextureColor(color);
+  return simplifyDetailedSailShipTextureColor(color, surface);
 }
 
 export function isSpanishNaoSailMesh(sourceMeshName) {
