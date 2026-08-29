@@ -83,8 +83,78 @@ const startupAssets = await verifyRemoteStartupAssets({
   baseUrl: "https://pirates-of-the-pixel-globe.pages.dev/",
   subdivisions: 8
 });
+const cityVisualizer = await verifyRemoteCityVisualizer({
+  baseUrl: "https://pirates-of-the-pixel-globe.pages.dev/",
+  attempts: 90,
+  retryDelayMs: 1_000
+});
 process.stdout.write(`Verified deployed JavaScript module graph for ${revisionMatch[1]}\n`);
 process.stdout.write(`Verified deployed startup Earth cache (${startupAssets.earthTileCount} tiles)\n`);
+process.stdout.write(`Verified deployed city visualizer (${cityVisualizer.cityCount} cities)\n`);
+
+async function verifyRemoteCityVisualizer({ baseUrl, attempts, retryDelayMs }) {
+  let lastError = null;
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    const cacheBust = `deployment_check=${Date.now()}-${attempt}`;
+    try {
+      const indexUrl = new URL("city-visualizer/", baseUrl);
+      indexUrl.search = cacheBust;
+      const indexResponse = await fetch(indexUrl, { cache: "no-store" });
+      if (!indexResponse.ok) {
+        throw new Error(`city visualizer index returned HTTP ${indexResponse.status}`);
+      }
+      const html = await indexResponse.text();
+      if (
+        !html.includes("Marque &amp; Reprisal — City Visualizer") ||
+        !html.includes('src="./main.js"')
+      ) {
+        throw new Error("city visualizer route returned the wrong HTML shell");
+      }
+
+      const scriptUrl = new URL("city-visualizer/main.js", baseUrl);
+      scriptUrl.search = cacheBust;
+      const catalogUrl = new URL("city-visualizer/data/cities.json", baseUrl);
+      catalogUrl.search = cacheBust;
+      const atlasUrl = new URL("city-visualizer/assets/port-parallax/static.png", baseUrl);
+      atlasUrl.search = cacheBust;
+      const [scriptResponse, catalogResponse, atlasResponse] = await Promise.all([
+        fetch(scriptUrl, { cache: "no-store" }),
+        fetch(catalogUrl, { cache: "no-store" }),
+        fetch(atlasUrl, { cache: "no-store", method: "HEAD" })
+      ]);
+      if (!scriptResponse.ok) {
+        throw new Error(`city visualizer bundle returned HTTP ${scriptResponse.status}`);
+      }
+      if ((await scriptResponse.text()).length < 10_000) {
+        throw new Error("city visualizer bundle is unexpectedly small");
+      }
+      if (!catalogResponse.ok) {
+        throw new Error(`city visualizer catalog returned HTTP ${catalogResponse.status}`);
+      }
+      const catalog = await catalogResponse.json();
+      if (
+        catalog?.format !== "marque-city-visualizer-catalog" ||
+        !Array.isArray(catalog.cities) ||
+        catalog.cities.length === 0
+      ) {
+        throw new Error("city visualizer catalog is malformed");
+      }
+      if (!atlasResponse.ok) {
+        throw new Error(`city visualizer atlas returned HTTP ${atlasResponse.status}`);
+      }
+      return { cityCount: catalog.cities.length };
+    } catch (error) {
+      lastError = error;
+      if (attempt + 1 < attempts) {
+        await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+      }
+    }
+  }
+  throw new Error(
+    `City visualizer did not become available after ${attempts} attempts`,
+    { cause: lastError }
+  );
+}
 
 function localSourceRevision() {
   const configured = process.env.BUILD_REVISION?.trim();

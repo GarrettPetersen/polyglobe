@@ -2,7 +2,9 @@
 
 This is a standalone staging tool for the future in-game port view. It uses the
 same responsive logical viewport function as the game, but it is not linked from
-or bundled into the player-facing menus yet.
+the player-facing menus yet.
+
+Production: `https://pirates-of-the-pixel-globe.pages.dev/city-visualizer/`
 
 Run `npm run city-visualizer:dev` from `apps/pixel-globe`, then open
 `http://127.0.0.1:5177/city-visualizer/`.

@@ -81,6 +81,13 @@ const appEntries = [
   ["src/styles.css", "src/styles.css"]
 ];
 
+const cityVisualizerEntries = [
+  ["city-visualizer/index.html", "city-visualizer/index.html"],
+  ["city-visualizer/styles.css", "city-visualizer/styles.css"],
+  ["city-visualizer/assets", "city-visualizer/assets"],
+  ["city-visualizer/data", "city-visualizer/data"]
+];
+
 const runtimeDependencyEntries = [
   ["node_modules/fflate/LICENSE", "vendor/fflate.LICENSE"]
 ];
@@ -502,12 +509,25 @@ async function bundleBrowserRuntime() {
   });
 }
 
+async function bundleCityVisualizer() {
+  await build({
+    bundle: true,
+    entryPoints: [join(appRoot, "city-visualizer/main.js")],
+    outfile: join(distRoot, "city-visualizer/main.js"),
+    format: "esm",
+    platform: "browser",
+    target: "es2022",
+    legalComments: "none"
+  });
+}
+
 validateGameIconAtlasManifest(JSON.parse(await readFile(gameIconManifestPath, "utf8")));
 
 await rm(distRoot, { recursive: true, force: true });
 await mkdir(distRoot, { recursive: true });
 
 for (const entry of appEntries) await copyEntry(appRoot, entry, shouldCopyAppPath);
+for (const entry of cityVisualizerEntries) await copyEntry(appRoot, entry);
 for (const entry of runtimeDependencyEntries) await copyEntry(appRoot, entry);
 for (const entry of publicEntries) await copyEntry(publicRoot, entry, shouldCopyPublicPath);
 for (const entry of sharedEntries) await copyEntry(sharedDataRoot, entry);
@@ -521,6 +541,7 @@ if (edition === BUILD_EDITION_DEMO) {
   await stripDemoSocialMetadata();
 }
 await bundleBrowserRuntime();
+await bundleCityVisualizer();
 await writeFile(
   join(distRoot, CHARACTER_MANIFEST_PATH),
   `${JSON.stringify(buildCharacterManifest, null, 2)}\n`
