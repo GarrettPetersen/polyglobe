@@ -21,13 +21,13 @@ export const PORT_SCENE_DEPTH = Object.freeze({
 
 export const PORT_SCENE_OCEAN_SLICES = Object.freeze([
   Object.freeze({ top: 446, bottom: 478, z: 1, depth: PORT_SCENE_DEPTH.horizon }),
-  Object.freeze({ top: 478, bottom: 522, z: 10, depth: PORT_SCENE_DEPTH.distant }),
-  Object.freeze({ top: 522, bottom: 557, z: 20, depth: PORT_SCENE_DEPTH.midground }),
+  Object.freeze({ top: 478, bottom: 522, z: 10, depth: PORT_SCENE_DEPTH.shoreline }),
+  Object.freeze({ top: 522, bottom: 557, z: 20, depth: PORT_SCENE_DEPTH.foreground }),
   Object.freeze({ top: 557, bottom: 910, z: 30, depth: PORT_SCENE_DEPTH.foreground })
 ]);
 
 export const PORT_SCENE_RIVER = Object.freeze({
-  leftBankDistantInsetX: 320,
+  leftBankDistantInsetX: 296,
   leftBankForegroundInsetX: 400,
   leftBankDistantOffsetY: 6
 });

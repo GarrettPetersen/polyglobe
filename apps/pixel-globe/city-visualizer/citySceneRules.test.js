@@ -92,8 +92,12 @@ test("ocean depth slices cover the authored water without gaps", () => {
   assert.equal(PORT_SCENE_OCEAN_SLICES.at(-1).bottom, PORT_SCENE_MASTER.height);
   for (let index = 1; index < PORT_SCENE_OCEAN_SLICES.length; index++) {
     assert.equal(PORT_SCENE_OCEAN_SLICES[index - 1].bottom, PORT_SCENE_OCEAN_SLICES[index].top);
-    assert.ok(PORT_SCENE_OCEAN_SLICES[index - 1].depth < PORT_SCENE_OCEAN_SLICES[index].depth);
+    assert.ok(PORT_SCENE_OCEAN_SLICES[index - 1].depth <= PORT_SCENE_OCEAN_SLICES[index].depth);
   }
+  assert.equal(PORT_SCENE_OCEAN_SLICES[1].depth, layerParallaxDepth("Distant Plains"));
+  assert.equal(PORT_SCENE_OCEAN_SLICES[1].depth, layerParallaxDepth("Distant Forest"));
+  assert.equal(PORT_SCENE_OCEAN_SLICES[2].depth, layerParallaxDepth("Midground Grass"));
+  assert.equal(PORT_SCENE_OCEAN_SLICES[2].depth, layerParallaxDepth("Sand Beach"));
   assert.ok(layerSceneZ("Distant Plains") < PORT_SCENE_OCEAN_SLICES[2].z);
   assert.ok(layerSceneZ("Distant Plains") < PORT_SCENE_OCEAN_SLICES[3].z);
 });
@@ -110,6 +114,28 @@ test("river scenes inset intact left-bank artwork without moving coastal layers"
   assert.equal(layerParallaxAnchor("Distant Forest Left Bank"), sceneCameraDefaultParallax("river"));
   assert.ok(layerParallaxDepth("Distant Forest") < layerParallaxDepth("Midground Grass"));
   assert.equal(layerParallaxDepth("Distant Forest"), layerParallaxDepth("Distant Hills"));
+
+  const width = 455;
+  const parallax = sceneCameraDefaultParallax("river");
+  const leftWindow = logicalSceneWindow({
+    width,
+    height: 256,
+    parallax,
+    depth: layerParallaxDepth("Distant Forest Left Bank"),
+    parallaxAnchor: layerParallaxAnchor("Distant Forest Left Bank"),
+    approach: "river"
+  });
+  const rightWindow = logicalSceneWindow({
+    width,
+    height: 256,
+    parallax,
+    depth: layerParallaxDepth("Distant Forest"),
+    parallaxAnchor: layerParallaxAnchor("Distant Forest"),
+    approach: "river"
+  });
+  const leftForestRightEdge = 371 - (leftWindow.x - PORT_SCENE_RIVER.leftBankDistantInsetX);
+  const rightForestLeftEdge = 714 - rightWindow.x;
+  assert.ok(rightForestLeftEdge - leftForestRightEdge >= 16);
 });
 
 test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () => {
