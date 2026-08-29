@@ -73,6 +73,26 @@ test("every production hull has matching port-assault geometry and manifest meta
       entry.cityDockside.sinkDepthFile,
       new RegExp(`${entry.slug}-city-dockside-sink-depth\\.png$`)
     );
+    for (const cleanup of [entry.rasterCleanup, entry.cityDockside.rasterCleanup]) {
+      assert.ok(Number.isInteger(cleanup.minimumComponentPixels));
+      assert.ok(Number.isInteger(cleanup.removedComponents));
+      assert.ok(Number.isInteger(cleanup.removedPixels));
+    }
+    if (entry.slug === "galleass") {
+      assert.deepEqual(entry.rasterCleanup, {
+        minimumComponentPixels: 2,
+        removedComponents: 2,
+        removedPixels: 2
+      });
+      assert.deepEqual(entry.cityDockside.rasterCleanup, {
+        minimumComponentPixels: 12,
+        removedComponents: 3,
+        removedPixels: 19
+      });
+    } else {
+      assert.equal(entry.rasterCleanup.removedPixels, 0);
+      assert.equal(entry.cityDockside.rasterCleanup.removedPixels, 0);
+    }
     await access(join(appRoot, "..", "..", entry.cityDockside.file));
     await access(join(appRoot, "..", "..", entry.cityDockside.sinkDepthFile));
     assert.ok(entry.opaquePixels > 100, `${entry.slug} retains a readable silhouette`);
@@ -193,6 +213,13 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
     }
     assert.equal(cityOpaque, entry.cityDockside.opaquePixels);
     assert.ok(cityOpaque > baseOpaque * 5, `${slug} city raster preserves native 3x detail`);
+    if (slug === "galleass") {
+      assert.deepEqual(opaqueComponentSizes(basePixels, base.width, base.height), [baseOpaque]);
+      assert.deepEqual(
+        opaqueComponentSizes(cityPixels, cityBase.width, cityBase.height),
+        [cityOpaque]
+      );
+    }
   }
 });
 
@@ -205,4 +232,36 @@ function imagePixels(image) {
   const ctx = canvas.getContext("2d");
   ctx.drawImage(image, 0, 0);
   return ctx.getImageData(0, 0, image.width, image.height).data;
+}
+
+function opaqueComponentSizes(pixels, width, height) {
+  const visited = new Uint8Array(width * height);
+  const sizes = [];
+  for (let start = 0; start < visited.length; start++) {
+    if (visited[start] || pixels[start * 4 + 3] === 0) continue;
+    const component = [start];
+    visited[start] = 1;
+    for (let cursor = 0; cursor < component.length; cursor++) {
+      const pixel = component[cursor];
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      for (let offsetY = -1; offsetY <= 1; offsetY++) {
+        for (let offsetX = -1; offsetX <= 1; offsetX++) {
+          if (offsetX === 0 && offsetY === 0) continue;
+          const neighborX = x + offsetX;
+          const neighborY = y + offsetY;
+          if (
+            neighborX < 0 || neighborX >= width ||
+            neighborY < 0 || neighborY >= height
+          ) continue;
+          const neighbor = neighborY * width + neighborX;
+          if (visited[neighbor] || pixels[neighbor * 4 + 3] === 0) continue;
+          visited[neighbor] = 1;
+          component.push(neighbor);
+        }
+      }
+    }
+    sizes.push(component.length);
+  }
+  return sizes.sort((a, b) => b - a);
 }

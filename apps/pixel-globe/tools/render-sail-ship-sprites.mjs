@@ -3520,6 +3520,9 @@ const PORT_ASSAULT_RENDER_SCALE = 3;
 const PORT_ASSAULT_CITY_NATIVE_SCALE = 3;
 const PORT_ASSAULT_FLEET_SCALE_SAFETY = 0.75;
 const PORT_ASSAULT_FURLED_SAIL_SEGMENTS = 5;
+const PORT_ASSAULT_MIN_COMPONENT_PIXELS_AT_CITY_SCALE = new Map([
+  ["galleass", 12]
+]);
 
 function topologyComponentSelector(componentTriangleCounts) {
   return Object.freeze({
@@ -4313,6 +4316,85 @@ function fitPortAssaultRaster(
   };
 }
 
+function fitCleanPortAssaultRaster(slug, rendered, scale, nativeScale = 1) {
+  const frame = fitPortAssaultRaster(rendered, scale, nativeScale);
+  const cityMinimum = PORT_ASSAULT_MIN_COMPONENT_PIXELS_AT_CITY_SCALE.get(slug) || 1;
+  const relativeAreaScale = (PORT_ASSAULT_CITY_NATIVE_SCALE / nativeScale) ** 2;
+  const minimumComponentPixels = cityMinimum <= 1
+    ? 1
+    : Math.max(2, Math.ceil(cityMinimum / relativeAreaScale));
+  return removeDetachedPortAssaultRasterNoise(frame, minimumComponentPixels);
+}
+
+function removeDetachedPortAssaultRasterNoise(frame, minimumComponentPixels) {
+  if (!Number.isInteger(minimumComponentPixels) || minimumComponentPixels <= 0) {
+    throw new Error(`Invalid port-assault component threshold: ${minimumComponentPixels}`);
+  }
+  const visited = new Uint8Array(frame.alpha.length);
+  const removedPixelIndexes = [];
+  let removedComponents = 0;
+  const width = frame.canvas.width;
+  const height = frame.canvas.height;
+  for (let start = 0; start < frame.alpha.length; start++) {
+    if (visited[start] || !frame.alpha[start]) continue;
+    const component = [start];
+    visited[start] = 1;
+    for (let cursor = 0; cursor < component.length; cursor++) {
+      const pixel = component[cursor];
+      const x = pixel % width;
+      const y = Math.floor(pixel / width);
+      for (let offsetY = -1; offsetY <= 1; offsetY++) {
+        for (let offsetX = -1; offsetX <= 1; offsetX++) {
+          if (offsetX === 0 && offsetY === 0) continue;
+          const neighborX = x + offsetX;
+          const neighborY = y + offsetY;
+          if (
+            neighborX < 0 ||
+            neighborX >= width ||
+            neighborY < 0 ||
+            neighborY >= height
+          ) continue;
+          const neighbor = neighborY * width + neighborX;
+          if (visited[neighbor] || !frame.alpha[neighbor]) continue;
+          visited[neighbor] = 1;
+          component.push(neighbor);
+        }
+      }
+    }
+    if (component.length >= minimumComponentPixels) continue;
+    removedComponents++;
+    removedPixelIndexes.push(...component);
+  }
+  if (removedPixelIndexes.length > 0) {
+    const context = frame.canvas.getContext("2d");
+    const image = context.getImageData(0, 0, width, height);
+    for (const pixel of removedPixelIndexes) {
+      const colorOffset = pixel * 4;
+      image.data[colorOffset] = 0;
+      image.data[colorOffset + 1] = 0;
+      image.data[colorOffset + 2] = 0;
+      image.data[colorOffset + 3] = 0;
+      frame.alpha[pixel] = 0;
+      frame.depth[pixel] = -Infinity;
+      const vectorOffset = pixel * 3;
+      for (let channel = 0; channel < 3; channel++) {
+        frame.normals[vectorOffset + channel] = 0;
+        frame.positions[vectorOffset + channel] = 0;
+      }
+    }
+    context.putImageData(image, 0, 0);
+  }
+  return {
+    ...frame,
+    bounds: alphaBounds(frame.canvas),
+    rasterCleanup: Object.freeze({
+      minimumComponentPixels,
+      removedComponents,
+      removedPixels: removedPixelIndexes.length
+    })
+  };
+}
+
 function portAssaultFramePoint(modelPoint, camera, modelYaw, frame) {
   const rotation = new THREE.Matrix4().makeRotationY(modelYaw);
   const worldPoint = modelPoint.clone().applyMatrix4(rotation);
@@ -4902,13 +4984,14 @@ async function renderPortAssaultShips() {
       variant: raw.variant,
       camera: raw.camera,
       modelYaw: raw.modelYaw,
-      ...fitPortAssaultRaster(raw.rendered, fleetRasterScale)
+      ...fitCleanPortAssaultRaster(slug, raw.rendered, fleetRasterScale)
     };
     const citySelected = {
       variant: raw.variant,
       camera: raw.camera,
       modelYaw: raw.modelYaw,
-      ...fitPortAssaultRaster(
+      ...fitCleanPortAssaultRaster(
+        slug,
         raw.rendered,
         fleetRasterScale * PORT_ASSAULT_CITY_NATIVE_SCALE,
         PORT_ASSAULT_CITY_NATIVE_SCALE
@@ -4926,7 +5009,8 @@ async function renderPortAssaultShips() {
       },
       loaded
     ];
-    const reviewCanvases = reviewLoads.map((reviewLoaded) => fitPortAssaultRaster(
+    const reviewCanvases = reviewLoads.map((reviewLoaded) => fitCleanPortAssaultRaster(
+      slug,
       renderPortAssaultVariant(reviewLoaded, config, productionVariant).rendered,
       fleetRasterScale
     ).canvas);
@@ -4974,6 +5058,7 @@ async function renderPortAssaultShips() {
       encodedWaterlineY: Number(sinkDepth.encodedWaterlineY.toFixed(6)),
       sinkWaterlineLevel: Number(sinkDepth.waterlineLevel.toFixed(6)),
       submergedPixels: sinkDepth.submergedPixels,
+      rasterCleanup: selected.rasterCleanup,
       cityDockside: {
         nativeScale: PORT_ASSAULT_CITY_NATIVE_SCALE,
         width: citySelected.canvas.width,
@@ -4984,7 +5069,8 @@ async function renderPortAssaultShips() {
         opaquePixels: citySelected.alpha.reduce((sum, value) => sum + value, 0),
         deckEntryAnchor: cityDeck.deckEntryAnchor,
         sailorSpawnAnchor: cityDeck.sailorSpawnAnchor,
-        submergedPixels: citySinkDepth.submergedPixels
+        submergedPixels: citySinkDepth.submergedPixels,
+        rasterCleanup: citySelected.rasterCleanup
       },
       dockRig: dockRig.metadata
     };

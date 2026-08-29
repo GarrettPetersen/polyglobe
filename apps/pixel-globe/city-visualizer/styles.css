@@ -92,7 +92,7 @@ body {
   position: fixed;
   z-index: 5;
   right: max(8px, env(safe-area-inset-right));
-  bottom: max(8px, env(safe-area-inset-bottom));
+  top: max(8px, env(safe-area-inset-top));
   width: min(390px, calc(100vw - 16px));
   max-height: calc(100dvh - 16px);
   overflow: auto;
@@ -103,6 +103,11 @@ body {
   font-size: 8px;
 }
 
+.drawer:not([open]) {
+  width: auto;
+  overflow: visible;
+}
+
 .drawer > summary {
   cursor: pointer;
   list-style: none;
@@ -110,6 +115,7 @@ body {
   color: #f3c969;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
 .drawer > summary::-webkit-details-marker {

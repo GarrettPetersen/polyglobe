@@ -71,6 +71,11 @@
       "encodedWaterlineY": -0.296115,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 43,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -92,7 +97,12 @@
           "x": 514,
           "y": 414
         },
-        "submergedPixels": 5
+        "submergedPixels": 5,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -156,6 +166,11 @@
       "encodedWaterlineY": -0.428351,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 2,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -177,7 +192,12 @@
           "x": 555,
           "y": 375
         },
-        "submergedPixels": 10
+        "submergedPixels": 10,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -241,6 +261,11 @@
       "encodedWaterlineY": -0.470161,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 1,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -262,7 +287,12 @@
           "x": 557,
           "y": 357
         },
-        "submergedPixels": 12
+        "submergedPixels": 12,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -326,6 +356,11 @@
       "encodedWaterlineY": -0.318249,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 16,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -347,7 +382,12 @@
           "x": 520,
           "y": 385
         },
-        "submergedPixels": 87
+        "submergedPixels": 87,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -411,6 +451,11 @@
       "encodedWaterlineY": -0.838672,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 12,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -432,7 +477,12 @@
           "x": 558,
           "y": 330
         },
-        "submergedPixels": 71
+        "submergedPixels": 71,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -496,6 +546,11 @@
       "encodedWaterlineY": -0.402659,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 0,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -517,7 +572,12 @@
           "x": 517,
           "y": 393
         },
-        "submergedPixels": 6
+        "submergedPixels": 6,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -581,6 +641,11 @@
       "encodedWaterlineY": -0.605828,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 20,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -602,7 +667,12 @@
           "x": 543,
           "y": 319
         },
-        "submergedPixels": 170
+        "submergedPixels": 170,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -666,6 +736,11 @@
       "encodedWaterlineY": -0.677732,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 56,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -687,7 +762,12 @@
           "x": 551,
           "y": 302
         },
-        "submergedPixels": 438
+        "submergedPixels": 438,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -751,6 +831,11 @@
       "encodedWaterlineY": -0.742717,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 3,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -772,7 +857,12 @@
           "x": 576,
           "y": 346
         },
-        "submergedPixels": 17
+        "submergedPixels": 17,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -836,6 +926,11 @@
       "encodedWaterlineY": -0.706667,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 17,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -857,7 +952,12 @@
           "x": 591,
           "y": 288
         },
-        "submergedPixels": 173
+        "submergedPixels": 173,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -921,6 +1021,11 @@
       "encodedWaterlineY": -0.634949,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 3,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -942,7 +1047,12 @@
           "x": 579,
           "y": 303
         },
-        "submergedPixels": 29
+        "submergedPixels": 29,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1006,6 +1116,11 @@
       "encodedWaterlineY": -0.627772,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 7,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1027,7 +1142,12 @@
           "x": 554,
           "y": 304
         },
-        "submergedPixels": 40
+        "submergedPixels": 40,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1091,6 +1211,11 @@
       "encodedWaterlineY": -0.63167,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 4,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1112,7 +1237,12 @@
           "x": 569,
           "y": 310
         },
-        "submergedPixels": 26
+        "submergedPixels": 26,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1176,6 +1306,11 @@
       "encodedWaterlineY": -0.600696,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 1,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1197,7 +1332,12 @@
           "x": 540,
           "y": 328
         },
-        "submergedPixels": 22
+        "submergedPixels": 22,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1261,6 +1401,11 @@
       "encodedWaterlineY": -0.686726,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 1,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1282,7 +1427,12 @@
           "x": 557,
           "y": 314
         },
-        "submergedPixels": 23
+        "submergedPixels": 23,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1346,6 +1496,11 @@
       "encodedWaterlineY": -0.652919,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 8,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1367,7 +1522,12 @@
           "x": 549,
           "y": 323
         },
-        "submergedPixels": 45
+        "submergedPixels": 45,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1431,6 +1591,11 @@
       "encodedWaterlineY": -0.668897,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 6,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1452,7 +1617,12 @@
           "x": 586,
           "y": 349
         },
-        "submergedPixels": 49
+        "submergedPixels": 49,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1516,6 +1686,11 @@
       "encodedWaterlineY": -0.662915,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 2,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1537,7 +1712,12 @@
           "x": 590,
           "y": 329
         },
-        "submergedPixels": 11
+        "submergedPixels": 11,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1601,6 +1781,11 @@
       "encodedWaterlineY": -0.596829,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 6,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1622,7 +1807,12 @@
           "x": 534,
           "y": 352
         },
-        "submergedPixels": 55
+        "submergedPixels": 55,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1686,6 +1876,11 @@
       "encodedWaterlineY": -0.355468,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 0,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1707,7 +1902,12 @@
           "x": 543,
           "y": 393
         },
-        "submergedPixels": 12
+        "submergedPixels": 12,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1771,6 +1971,11 @@
       "encodedWaterlineY": -0.431937,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 0,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1792,7 +1997,12 @@
           "x": 579,
           "y": 377
         },
-        "submergedPixels": 4
+        "submergedPixels": 4,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1856,6 +2066,11 @@
       "encodedWaterlineY": -0.5068,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 11,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1877,7 +2092,12 @@
           "x": 534,
           "y": 320
         },
-        "submergedPixels": 85
+        "submergedPixels": 85,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1941,6 +2161,11 @@
       "encodedWaterlineY": -0.495666,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 24,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -1962,7 +2187,12 @@
           "x": 548,
           "y": 295
         },
-        "submergedPixels": 171
+        "submergedPixels": 171,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1993,7 +2223,7 @@
         "width": 59,
         "height": 115
       },
-      "opaquePixels": 2411,
+      "opaquePixels": 2409,
       "deckPolygon": [
         {
           "x": 167,
@@ -2020,12 +2250,17 @@
         "x": 187,
         "y": 88
       },
-      "foregroundOpaquePixels": 1830,
+      "foregroundOpaquePixels": 1828,
       "sinkHeightMin": -0.700696,
       "sinkHeightMax": 0.684331,
       "encodedWaterlineY": -0.594452,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 26,
+      "rasterCleanup": {
+        "minimumComponentPixels": 2,
+        "removedComponents": 2,
+        "removedPixels": 2
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2038,7 +2273,7 @@
           "width": 176,
           "height": 346
         },
-        "opaquePixels": 20967,
+        "opaquePixels": 20948,
         "deckEntryAnchor": {
           "x": 526,
           "y": 276
@@ -2047,7 +2282,12 @@
           "x": 562,
           "y": 264
         },
-        "submergedPixels": 220
+        "submergedPixels": 220,
+        "rasterCleanup": {
+          "minimumComponentPixels": 12,
+          "removedComponents": 3,
+          "removedPixels": 19
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2111,6 +2351,11 @@
       "encodedWaterlineY": -0.308837,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 388,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2132,7 +2377,12 @@
           "x": 534,
           "y": 315
         },
-        "submergedPixels": 3591
+        "submergedPixels": 3591,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2196,6 +2446,11 @@
       "encodedWaterlineY": -0.70418,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 8,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2217,7 +2472,12 @@
           "x": 570,
           "y": 326
         },
-        "submergedPixels": 69
+        "submergedPixels": 69,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "stowed",
@@ -2281,6 +2541,11 @@
       "encodedWaterlineY": -0.607386,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 25,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2302,7 +2567,12 @@
           "x": 543,
           "y": 318
         },
-        "submergedPixels": 237
+        "submergedPixels": 237,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "stowed",
@@ -2366,6 +2636,11 @@
       "encodedWaterlineY": -0.782303,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 31,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2387,7 +2662,12 @@
           "x": 558,
           "y": 285
         },
-        "submergedPixels": 255
+        "submergedPixels": 255,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "stowed",
@@ -2451,6 +2731,11 @@
       "encodedWaterlineY": -0.268498,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 7,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2472,7 +2757,12 @@
           "x": 528,
           "y": 339
         },
-        "submergedPixels": 41
+        "submergedPixels": 41,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2536,6 +2826,11 @@
       "encodedWaterlineY": -0.156335,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 17,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2557,7 +2852,12 @@
           "x": 538,
           "y": 335
         },
-        "submergedPixels": 102
+        "submergedPixels": 102,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "no-sail",
@@ -2619,6 +2919,11 @@
       "encodedWaterlineY": -0.448547,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 9,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2640,7 +2945,12 @@
           "x": 563,
           "y": 297
         },
-        "submergedPixels": 79
+        "submergedPixels": 79,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2704,6 +3014,11 @@
       "encodedWaterlineY": -0.425962,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 126,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2725,7 +3040,12 @@
           "x": 570,
           "y": 280
         },
-        "submergedPixels": 1006
+        "submergedPixels": 1006,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2789,6 +3109,11 @@
       "encodedWaterlineY": -0.605868,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 62,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2810,7 +3135,12 @@
           "x": 562,
           "y": 285
         },
-        "submergedPixels": 532
+        "submergedPixels": 532,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2874,6 +3204,11 @@
       "encodedWaterlineY": -0.644179,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 134,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2895,7 +3230,12 @@
           "x": 607,
           "y": 272
         },
-        "submergedPixels": 1136
+        "submergedPixels": 1136,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "stowed",
@@ -2959,6 +3299,11 @@
       "encodedWaterlineY": -0.584066,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 3,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -2980,7 +3325,12 @@
           "x": 604,
           "y": 308
         },
-        "submergedPixels": 27
+        "submergedPixels": 27,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -3044,6 +3394,11 @@
       "encodedWaterlineY": -0.707006,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 161,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -3065,7 +3420,12 @@
           "x": 566,
           "y": 266
         },
-        "submergedPixels": 1263
+        "submergedPixels": 1263,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -3129,6 +3489,11 @@
       "encodedWaterlineY": -0.086187,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 12,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -3150,7 +3515,12 @@
           "x": 550,
           "y": 332
         },
-        "submergedPixels": 126
+        "submergedPixels": 126,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "no-sail",
@@ -3212,6 +3582,11 @@
       "encodedWaterlineY": -0.586155,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 158,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -3233,7 +3608,12 @@
           "x": 614,
           "y": 350
         },
-        "submergedPixels": 1375
+        "submergedPixels": 1375,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "stowed",
@@ -3297,6 +3677,11 @@
       "encodedWaterlineY": -0.45548,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 6,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -3318,7 +3703,12 @@
           "x": 538,
           "y": 315
         },
-        "submergedPixels": 31
+        "submergedPixels": 31,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -3382,6 +3772,11 @@
       "encodedWaterlineY": -0.413017,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 9,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -3403,7 +3798,12 @@
           "x": 554,
           "y": 293
         },
-        "submergedPixels": 50
+        "submergedPixels": 50,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -3467,6 +3867,11 @@
       "encodedWaterlineY": -0.345732,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 316,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -3488,7 +3893,12 @@
           "x": 556,
           "y": 285
         },
-        "submergedPixels": 2856
+        "submergedPixels": 2856,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -3552,6 +3962,11 @@
       "encodedWaterlineY": -0.341411,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 260,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -3573,7 +3988,12 @@
           "x": 555,
           "y": 289
         },
-        "submergedPixels": 2231
+        "submergedPixels": 2231,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -3637,6 +4057,11 @@
       "encodedWaterlineY": -0.792824,
       "sinkWaterlineLevel": 0.501961,
       "submergedPixels": 24,
+      "rasterCleanup": {
+        "minimumComponentPixels": 1,
+        "removedComponents": 0,
+        "removedPixels": 0
+      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
@@ -3658,7 +4083,12 @@
           "x": 577,
           "y": 296
         },
-        "submergedPixels": 226
+        "submergedPixels": 226,
+        "rasterCleanup": {
+          "minimumComponentPixels": 1,
+          "removedComponents": 0,
+          "removedPixels": 0
+        }
       },
       "dockRig": {
         "state": "furled",
