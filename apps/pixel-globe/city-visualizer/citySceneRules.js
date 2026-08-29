@@ -48,7 +48,7 @@ export const PORT_SCENE_DOCK = Object.freeze({
   beachStartX: 742,
   shadowWaterExtension: 66,
   shipAccessX: 680,
-  shipAccessY: 505
+  shipAccessY: 514
 });
 
 export const PORT_SCENE_ENTITY_META = Object.freeze({

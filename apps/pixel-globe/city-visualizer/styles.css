@@ -1,18 +1,28 @@
 @font-face {
   font-family: "Silkscreen";
   src: url("/assets/fonts/Silkscreen-Regular.ttf") format("truetype");
-  font-display: swap;
+  font-display: block;
 }
 
 @font-face {
   font-family: "Dogica";
   src: url("/assets/fonts/dogicapixel.ttf") format("truetype");
-  font-display: swap;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Pixel Pirate";
+  src:
+    url("/assets/fonts/pixel_pirate.woff2?v=r-kern-2") format("woff2"),
+    url("/assets/fonts/pixel_pirate.ttf?v=r-kern-2") format("truetype");
+  font-display: block;
 }
 
 :root {
   color-scheme: dark;
   font-family: "Silkscreen", monospace;
+  font-size: 8px;
+  font-synthesis: none;
   background: #111711;
   color: #ead8a6;
 }
@@ -85,7 +95,7 @@ body {
   color: #ead8a6;
   font: 8px/1.4 "Dogica", monospace;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
 .loading[hidden] {
@@ -118,7 +128,7 @@ body {
   padding: 8px 10px;
   color: #f3c969;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 1px;
   white-space: nowrap;
 }
 
@@ -161,7 +171,7 @@ fieldset,
 legend {
   color: #bfae83;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0;
 }
 
 select,
@@ -216,7 +226,7 @@ legend {
   margin: 2px 0 0;
   padding-top: 9px;
   border-top: 1px solid #42513c;
-  font: 7px/1.45 "Dogica", monospace;
+  font: 8px/1.5 "Dogica", monospace;
 }
 
 .rule-ledger dt {
@@ -232,7 +242,7 @@ legend {
 .fallback-note {
   margin: 0;
   color: #8fa184;
-  font: 7px/1.5 "Dogica", monospace;
+  font: 8px/1.5 "Dogica", monospace;
 }
 
 .destination-dialog {
@@ -263,14 +273,14 @@ legend {
 .destination-dialog h2 {
   margin: 0 0 12px;
   color: #fff1bc;
-  font-size: 17px;
+  font: 8px/1.5 "Pixel Pirate", monospace;
   font-weight: normal;
 }
 
 .destination-dialog p:not(.destination-dialog__eyebrow) {
   margin: 0 0 18px;
   color: #c9bc98;
-  font: 9px/1.65 "Dogica", monospace;
+  font: 8px/1.5 "Dogica", monospace;
 }
 
 .destination-dialog button {

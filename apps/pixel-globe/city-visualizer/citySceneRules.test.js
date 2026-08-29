@@ -4,6 +4,11 @@ import test from "node:test";
 import { canvasDisplayLayout } from "../src/displayScaling.js";
 import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
 import { SHIP_STATS } from "../src/shipStats.js";
+import { pixelFontSizePx } from "../src/pixelText.js";
+import {
+  CITY_PIXEL_FONT_SMALL_8,
+  CITY_PIXEL_FONT_TITLE_8
+} from "./cityPixelText.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import {
   PORT_SCENE_MASTER,
@@ -31,6 +36,8 @@ const SHIP_MANIFEST = JSON.parse(readFileSync(new URL(
   "../public/assets/vehicles/unity-ships/port-assault/manifest.json",
   import.meta.url
 ), "utf8"));
+const VISUALIZER_MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+const VISUALIZER_STYLES_SOURCE = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
 const CITY = Object.freeze({
   approach: "river",
@@ -81,6 +88,16 @@ test("the visualizer uses the game's continuous fullscreen display scaling", () 
     assert.ok(horizontalGap < 2 || verticalGap < 2, `${viewportWidth}×${viewportHeight} did not fill either axis`);
     assert.ok(layout.left >= 0 && layout.top >= 0);
   }
+});
+
+test("city labels and controls stay on the game's native pixel font grid", () => {
+  assert.equal(pixelFontSizePx(CITY_PIXEL_FONT_SMALL_8), 8);
+  assert.equal(pixelFontSizePx(CITY_PIXEL_FONT_TITLE_8), 8);
+  assert.doesNotMatch(VISUALIZER_MAIN_SOURCE, /context\.fillText/);
+  assert.doesNotMatch(
+    VISUALIZER_STYLES_SOURCE,
+    /font(?:-size)?\s*:\s*(?:7|9|10|17)px/
+  );
 });
 
 test("coastal views use the safe span while river views can pan across the authored left bank", () => {
@@ -221,7 +238,7 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   assert.equal(PORT_SCENE_ENTITY_META.npcs.depth, 1);
   assert.equal(PORT_SCENE_DOCK.beachStartX - PORT_SCENE_DOCK.startX, PORT_SCENE_DOCK.shadowWaterExtension);
   assert.ok(PORT_SCENE_DOCK.shipAccessX >= PORT_SCENE_DOCK.startX);
-  assert.equal(PORT_SCENE_DOCK.shipAccessY, PORT_SCENE_DOCK.topY);
+  assert.equal(PORT_SCENE_DOCK.shipAccessY - PORT_SCENE_DOCK.topY, 9);
 });
 
 test("dockside ships berth at the middle of their side rather than their bow anchor", () => {

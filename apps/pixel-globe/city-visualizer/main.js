@@ -31,6 +31,11 @@ import {
 } from "./citySceneRules.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import {
+  CITY_PIXEL_FONT_SMALL_8,
+  CITY_PIXEL_FONT_TITLE_8,
+  createCityPixelTextRenderer
+} from "./cityPixelText.js";
+import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
   cityChimneySmokeParticles
 } from "./cityChimneySmoke.js";
@@ -48,6 +53,7 @@ import {
 
 const canvas = document.querySelector("#scene");
 const context = canvas.getContext("2d", { alpha: false });
+const pixelText = createCityPixelTextRenderer(context, () => document.createElement("canvas"));
 const stage = document.querySelector("#stage");
 const loading = document.querySelector("#loading");
 const citySelect = document.querySelector("#city-select");
@@ -141,7 +147,8 @@ async function initialize() {
       fetchJson("./assets/port-parallax/manifest.json"),
       fetchJson("./assets/minifolks/manifest.json"),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),
-      document.fonts?.load?.('10px "Silkscreen"') || Promise.resolve()
+      document.fonts?.load?.(CITY_PIXEL_FONT_SMALL_8) || Promise.resolve(),
+      document.fonts?.load?.(CITY_PIXEL_FONT_TITLE_8) || Promise.resolve()
     ]);
     state.catalog = catalog;
     state.portManifest = portManifest;
@@ -1119,26 +1126,25 @@ function drawNpcs(timeMs) {
 }
 
 function drawSceneLabels() {
-  context.save();
-  context.textBaseline = "top";
-  context.font = '10px "Silkscreen", monospace';
-  const cityLabel = state.city.label;
-  const cityWidth = Math.ceil(context.measureText(cityLabel).width);
+  const cityLabel = state.city.label.toUpperCase();
+  const cityWidth = pixelText.measure(cityLabel, CITY_PIXEL_FONT_TITLE_8);
   drawLabelPlate(7, 7, cityWidth + 8, 15);
-  context.fillStyle = "#fff2bc";
-  context.fillText(cityLabel, 11, 9);
+  pixelText.draw(cityLabel, 11, 9, {
+    color: "#fff2bc",
+    font: CITY_PIXEL_FONT_TITLE_8
+  });
 
   if (state.hoveredDestination) {
-    context.font = '9px "Silkscreen", monospace';
-    const label = state.hoveredDestination.label;
-    const width = Math.ceil(context.measureText(label).width) + 10;
+    const label = state.hoveredDestination.label.toUpperCase();
+    const width = pixelText.measure(label, CITY_PIXEL_FONT_SMALL_8) + 10;
     const x = Math.round((canvas.width - width) / 2);
     const y = canvas.height - 22;
     drawLabelPlate(x, y, width, 15);
-    context.fillStyle = "#ffe55c";
-    context.fillText(label, x + 5, y + 2);
+    pixelText.draw(label, x + 5, y + 2, {
+      color: "#ffe55c",
+      font: CITY_PIXEL_FONT_SMALL_8
+    });
   }
-  context.restore();
 }
 
 function drawLabelPlate(x, y, width, height) {
