@@ -13,6 +13,9 @@ export const PORT_SCENE_DEPTH = Object.freeze({
   distant: 0.32,
   midground: 0.58,
   buildings: 0.72,
+  shoreline: 0.94,
+  rearBuildings: 0.96,
+  businesses: 0.98,
   foreground: 1
 });
 
@@ -125,33 +128,33 @@ const LAYER_META = new Map([
   ["Ocean", layerMeta(1, PORT_SCENE_DEPTH.horizon)],
   ["Horizon Mountains", layerMeta(5, PORT_SCENE_DEPTH.horizon)],
   ["Horizon Mountains Left Bank", layerMeta(5, PORT_SCENE_DEPTH.horizon, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Distant Hills", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Distant Hills Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Rocky Hills", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Rocky Hills Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Distant Forest", layerMeta(15, PORT_SCENE_DEPTH.midground)],
-  ["Distant Forest Left Bank", layerMeta(15, PORT_SCENE_DEPTH.midground, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Distant Desert", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Distant Desert Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Distant Plains", layerMeta(15, PORT_SCENE_DEPTH.distant)],
-  ["Distant Plains Left Bank", layerMeta(15, PORT_SCENE_DEPTH.distant, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Shipyard", anchoredLayerMeta(25, PORT_SCENE_DEPTH.midground)],
+  ["Distant Hills", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Distant Hills Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
+  ["Rocky Hills", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Rocky Hills Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
+  ["Distant Forest", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Distant Forest Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
+  ["Distant Desert", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Distant Desert Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
+  ["Distant Plains", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Distant Plains Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
+  ["Shipyard", anchoredLayerMeta(25, PORT_SCENE_DEPTH.businesses)],
   ["Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.foreground)],
   ["Sand Beach Dock Shadow", layerMeta(36, PORT_SCENE_DEPTH.foreground)],
-  ["Left Bank Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.buildings, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
-  ["Desert Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.midground)],
-  ["Rocks Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.midground)],
-  ["Grass Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.midground)],
-  ["Home 2", anchoredLayerMeta(40, PORT_SCENE_DEPTH.midground)],
-  ["Home", anchoredLayerMeta(40, PORT_SCENE_DEPTH.midground)],
+  ["Left Bank Sand Beach", leftBankLayerMeta(35, PORT_SCENE_DEPTH.businesses, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
+  ["Desert Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
+  ["Rocks Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
+  ["Grass Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
+  ["Home 2", anchoredLayerMeta(40, PORT_SCENE_DEPTH.rearBuildings)],
+  ["Home", anchoredLayerMeta(40, PORT_SCENE_DEPTH.rearBuildings)],
   ["Far Castle", anchoredLayerMeta(59, 0.9952)],
-  ["Smith", anchoredLayerMeta(45, PORT_SCENE_DEPTH.buildings)],
-  ["Market Stall Copy", anchoredLayerMeta(46, PORT_SCENE_DEPTH.buildings)],
-  ["Market Stall Copy Copy", anchoredLayerMeta(46, PORT_SCENE_DEPTH.buildings)],
-  ["Market Stall", anchoredLayerMeta(46, PORT_SCENE_DEPTH.buildings)],
-  ["Midground Grass", anchoredLayerMeta(50, PORT_SCENE_DEPTH.midground)],
-  ["Midground Desert", anchoredLayerMeta(50, PORT_SCENE_DEPTH.midground)],
-  ["Midground Rocky", anchoredLayerMeta(50, PORT_SCENE_DEPTH.midground)],
+  ["Smith", anchoredLayerMeta(45, PORT_SCENE_DEPTH.businesses)],
+  ["Market Stall Copy", anchoredLayerMeta(46, PORT_SCENE_DEPTH.businesses)],
+  ["Market Stall Copy Copy", anchoredLayerMeta(46, PORT_SCENE_DEPTH.businesses)],
+  ["Market Stall", anchoredLayerMeta(46, PORT_SCENE_DEPTH.businesses)],
+  ["Midground Grass", layerMeta(50, PORT_SCENE_DEPTH.foreground)],
+  ["Midground Desert", layerMeta(50, PORT_SCENE_DEPTH.foreground)],
+  ["Midground Rocky", layerMeta(50, PORT_SCENE_DEPTH.foreground)],
   ["Road", layerMeta(52, PORT_SCENE_DEPTH.foreground)],
   ["Castle Shadow", layerMeta(53, PORT_SCENE_DEPTH.foreground)],
   ["Waves", layerMeta(54, PORT_SCENE_DEPTH.foreground)],
@@ -374,6 +377,10 @@ function definedOverrides(overrides) {
 
 function anchoredLayerMeta(z, depth) {
   return layerMeta(z, depth, 0, 0, 1);
+}
+
+function leftBankLayerMeta(z, depth, riverOffsetX, riverOffsetY = 0) {
+  return layerMeta(z, depth, riverOffsetX, riverOffsetY, PORT_SCENE_CAMERA.riverDefaultParallax);
 }
 
 function layerMeta(z, depth, riverOffsetX = 0, riverOffsetY = 0, parallaxAnchor = 0) {

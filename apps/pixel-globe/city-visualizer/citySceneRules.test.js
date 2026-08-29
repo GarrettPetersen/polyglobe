@@ -94,6 +94,8 @@ test("ocean depth slices cover the authored water without gaps", () => {
     assert.equal(PORT_SCENE_OCEAN_SLICES[index - 1].bottom, PORT_SCENE_OCEAN_SLICES[index].top);
     assert.ok(PORT_SCENE_OCEAN_SLICES[index - 1].depth < PORT_SCENE_OCEAN_SLICES[index].depth);
   }
+  assert.ok(layerSceneZ("Distant Plains") < PORT_SCENE_OCEAN_SLICES[2].z);
+  assert.ok(layerSceneZ("Distant Plains") < PORT_SCENE_OCEAN_SLICES[3].z);
 });
 
 test("river scenes inset intact left-bank artwork without moving coastal layers", () => {
@@ -105,14 +107,18 @@ test("river scenes inset intact left-bank artwork without moving coastal layers"
   assert.equal(layerSceneOffsetX("Sand Beach", 0, "river"), 0);
   assert.equal(layerSceneOffsetX("Left Bank Sand Beach", 0, "ocean"), 0);
   assert.equal(layerSceneOffsetY("Distant Forest Left Bank", 0, "ocean"), 0);
-  assert.equal(layerParallaxDepth("Distant Forest"), layerParallaxDepth("Midground Grass"));
-  assert.ok(layerParallaxDepth("Distant Forest") > layerParallaxDepth("Distant Hills"));
+  assert.equal(layerParallaxAnchor("Distant Forest Left Bank"), sceneCameraDefaultParallax("river"));
+  assert.ok(layerParallaxDepth("Distant Forest") < layerParallaxDepth("Midground Grass"));
+  assert.equal(layerParallaxDepth("Distant Forest"), layerParallaxDepth("Distant Hills"));
 });
 
 test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () => {
   const assembly = [
     "Sand Beach",
     "Sand Beach Dock Shadow",
+    "Midground Grass",
+    "Midground Desert",
+    "Midground Rocky",
     "Road",
     "Dock Background",
     "Dock",
@@ -130,7 +136,7 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   assert.equal(PORT_SCENE_DOCK.beachStartX - PORT_SCENE_DOCK.startX, PORT_SCENE_DOCK.shadowWaterExtension);
 });
 
-test("the behind-road business row has depth but returns to authored alignment at town focus", () => {
+test("shore and town layers retain small parallax but stay attached to the authored composition", () => {
   const behindRoad = [
     "Shipyard",
     "Desert Behind Buildings",
@@ -144,6 +150,7 @@ test("the behind-road business row has depth but returns to authored alignment a
     "Market Stall Copy Copy"
   ];
   assert.ok(behindRoad.every((layer) => layerParallaxDepth(layer) < 1));
+  assert.ok(behindRoad.every((layer) => layerParallaxDepth(layer) >= 0.96));
   assert.ok(behindRoad.every((layer) => layerParallaxAnchor(layer) === 1));
   const upperAtFocus = logicalSceneWindow({
     width: 455,
@@ -165,6 +172,22 @@ test("the behind-road business row has depth but returns to authored alignment a
   });
   const lowerAway = logicalSceneWindow({ width: 455, height: 256, parallax: 0, depth: 1, approach: "river" });
   assert.notEqual(upperAway.x, lowerAway.x);
+
+  for (const width of [256, 455, 910]) {
+    const minimum = sceneCameraParallaxBounds("river").minimum;
+    const foreground = logicalSceneWindow({ width, height: 256, parallax: minimum, depth: 1, approach: "river" });
+    for (const layer of ["Distant Plains", "Shipyard", ...behindRoad]) {
+      const layerWindow = logicalSceneWindow({
+        width,
+        height: 256,
+        parallax: minimum,
+        depth: layerParallaxDepth(layer),
+        parallaxAnchor: layerParallaxAnchor(layer),
+        approach: "river"
+      });
+      assert.ok(Math.abs(layerWindow.x - foreground.x) <= 38, `${layer} detached by ${layerWindow.x - foreground.x}px`);
+    }
+  }
 });
 
 test("explicit scene z places walkers and the inn between gatehouse sections", () => {
