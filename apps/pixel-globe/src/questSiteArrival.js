@@ -4,6 +4,12 @@ const NON_PORT_COLONIZATION_KINDS = new Set([
 ]);
 
 export const COLONIZATION_SITE_ARRIVAL_RADIUS_PX = 48;
+export const QUEST_SITE_OVERLAY_CHARACTER_ALERT = "character-alert";
+export const QUEST_SITE_OVERLAY_DIALOGUE = "dialogue";
+const QUEST_SITE_OVERLAY_KINDS = new Set([
+  QUEST_SITE_OVERLAY_CHARACTER_ALERT,
+  QUEST_SITE_OVERLAY_DIALOGUE
+]);
 
 export function questSiteArrivalCandidate({
   colonizationObjective = null,
@@ -21,7 +27,7 @@ export function questSiteArrivalCandidate({
       return Object.freeze({
         kind: "colonization",
         call: siteCall,
-        releaseAnchorOnDialogueClose: true
+        releaseAnchorOnOverlayClose: true
       });
     }
   }
@@ -46,18 +52,35 @@ export function colonizationSiteCallIsInArrivalRange(call, playerInteractionPoin
     COLONIZATION_SITE_ARRIVAL_RADIUS_PX * COLONIZATION_SITE_ARRIVAL_RADIUS_PX;
 }
 
-export function resolveQuestSiteAnchorOnDialogueClose({
-  anchored,
-  releaseAnchorOnDialogueClose
+export function questSiteArrivalOverlayKind({
+  dialogueOpen,
+  characterAlertOpen
 }) {
-  if (typeof anchored !== "boolean" || typeof releaseAnchorOnDialogueClose !== "boolean") {
-    throw new Error("Quest-site anchor closure requires explicit boolean state");
+  if (typeof dialogueOpen !== "boolean" || typeof characterAlertOpen !== "boolean") {
+    throw new Error("Quest-site arrival overlay state must be explicit booleans");
   }
-  if (!releaseAnchorOnDialogueClose) {
+  if (dialogueOpen) return QUEST_SITE_OVERLAY_DIALOGUE;
+  if (characterAlertOpen) return QUEST_SITE_OVERLAY_CHARACTER_ALERT;
+  throw new Error("Automatic quest-site arrival did not open a supported overlay");
+}
+
+export function resolveAutomaticQuestSiteAnchorClosure({
+  anchored,
+  trackedOverlayKind,
+  closingOverlayKind
+}) {
+  if (typeof anchored !== "boolean") {
+    throw new Error("Quest-site anchor closure requires explicit anchor state");
+  }
+  if (!QUEST_SITE_OVERLAY_KINDS.has(trackedOverlayKind) ||
+      !QUEST_SITE_OVERLAY_KINDS.has(closingOverlayKind)) {
+    throw new Error(`Unknown quest-site overlay closure: ${trackedOverlayKind}/${closingOverlayKind}`);
+  }
+  if (trackedOverlayKind !== closingOverlayKind) {
     return Object.freeze({ anchored, released: false });
   }
   if (!anchored) {
-    throw new Error("Automatic quest-site dialogue closed without its anchor down");
+    throw new Error("Automatic quest-site overlay closed without its anchor down");
   }
   return Object.freeze({ anchored: false, released: true });
 }

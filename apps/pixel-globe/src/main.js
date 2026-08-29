@@ -1753,8 +1753,11 @@ import {
   questCargoTransfersFromDeliveries
 } from "./questCargoDeliveries.js";
 import {
+  QUEST_SITE_OVERLAY_CHARACTER_ALERT,
+  QUEST_SITE_OVERLAY_DIALOGUE,
   questSiteArrivalCandidate,
-  resolveQuestSiteAnchorOnDialogueClose
+  questSiteArrivalOverlayKind,
+  resolveAutomaticQuestSiteAnchorClosure
 } from "./questSiteArrival.js";
 import {
   WATER_LATITUDE_MAX_BAND,
@@ -3982,6 +3985,7 @@ let anchorButtonRect = null;
 let scavengeButtonRect = null;
 let shoreScavengeAction = null;
 let anchored = false;
+let automaticQuestSiteAnchorOverlayKind = null;
 let initialAnimalEncounterRollPending = false;
 let portWaitState = null;
 let portWaitButtonRect = null;
@@ -7401,6 +7405,9 @@ function activateCaptainAlertChoice() {
   keys.clear();
   clearPointerSteering();
   choice.onSelect();
+  if (continueAutomaticQuestSiteAnchorAfterCharacterAlert()) {
+    saveVoyageNow("left automatic quest site");
+  }
   if (continuePortArrivalDialogues()) return;
   resumeShipAfterOverlayIfReady();
   dirty = true;
@@ -8994,6 +9001,9 @@ function closeCaptainAlertModal() {
   } else {
     characterAlertPortraitStage = createDialoguePortraitStageState();
   }
+  if (continueAutomaticQuestSiteAnchorAfterCharacterAlert()) {
+    saveVoyageNow("left automatic quest site");
+  }
   if (presentPendingNamedCrewDeathNotice()) return;
   if (presentPendingBirthdayDialogue()) return;
   if (continuePortArrivalDialogues()) return;
@@ -9010,6 +9020,18 @@ function startCharacterAlertSequence(steps, onComplete = null) {
   characterAlertPortraitStage = createDialoguePortraitStageState();
   characterAlertSequenceCompletion = onComplete;
   return presentNextCharacterAlertSequenceStep();
+}
+
+function continueAutomaticQuestSiteAnchorAfterCharacterAlert() {
+  if (automaticQuestSiteAnchorOverlayKind !== QUEST_SITE_OVERLAY_CHARACTER_ALERT) return false;
+  if (dialogueState) {
+    automaticQuestSiteAnchorOverlayKind = QUEST_SITE_OVERLAY_DIALOGUE;
+    return false;
+  }
+  if (captainAlertModal || queuedCharacterAlertSteps.length > 0 || characterAlertSequenceCompletion) {
+    return false;
+  }
+  return closeAutomaticQuestSiteAnchorOverlay(QUEST_SITE_OVERLAY_CHARACTER_ALERT);
 }
 
 function presentNextCharacterAlertSequenceStep() {
@@ -10569,6 +10591,7 @@ function setupPerformanceBenchmark() {
   playerIntroModal = null;
   captainAlertModal = null;
   dialogueState = null;
+  automaticQuestSiteAnchorOverlayKind = null;
   dialogueShipMotionPause = null;
   gameState.memory.flags.oarTutorialShown = true;
   gameState.memory.flags.sailingBasicsTutorialShown = true;
@@ -15524,6 +15547,7 @@ async function restoreSavedVoyage(payload) {
   hullSplinterBursts = [];
 
   anchored = payload.anchored;
+  automaticQuestSiteAnchorOverlayKind = null;
   initialAnimalEncounterRollPending = false;
   survivalDeprivationTimers.waterNextMinute = finiteMinuteOrNull(payload.survivalDamageTimers?.waterNextMinute);
   survivalDeprivationTimers.foodNextMinute = finiteMinuteOrNull(payload.survivalDamageTimers?.foodNextMinute);
@@ -22468,18 +22492,21 @@ function maybeAutoAnchorAtNonPortQuestSite() {
   });
   if (!arrival) return false;
   if (arrival.kind === "treasure") return toggleAnchor();
-  if (arrival.kind !== "colonization" || arrival.releaseAnchorOnDialogueClose !== true) {
+  if (arrival.kind !== "colonization" || arrival.releaseAnchorOnOverlayClose !== true) {
     throw new Error(`Unknown automatic quest-site arrival policy: ${arrival.kind}`);
+  }
+  if (automaticQuestSiteAnchorOverlayKind !== null) {
+    throw new Error(`Automatic quest-site anchor already belongs to ${automaticQuestSiteAnchorOverlayKind}`);
   }
   anchored = true;
   initialAnimalEncounterRollPending = false;
   stopShipMotion();
   playAnchorHandlingSound({ raising: false });
   openPortDialogue(arrival.call);
-  if (!dialogueState) {
-    throw new Error("Automatic quest-site arrival did not open a dialogue");
-  }
-  dialogueState.releaseAutomaticQuestSiteAnchorOnClose = true;
+  automaticQuestSiteAnchorOverlayKind = questSiteArrivalOverlayKind({
+    dialogueOpen: Boolean(dialogueState),
+    characterAlertOpen: Boolean(captainAlertModal)
+  });
   return true;
 }
 
@@ -23119,10 +23146,7 @@ function closeDialogue() {
     );
   }
   const releasedAutomaticQuestSiteAnchor =
-    dialogueState?.releaseAutomaticQuestSiteAnchorOnClose === true;
-  if (releasedAutomaticQuestSiteAnchor) {
-    releaseAutomaticQuestSiteAnchor();
-  }
+    closeAutomaticQuestSiteAnchorOverlay(QUEST_SITE_OVERLAY_DIALOGUE);
   dialogueState = null;
   clearPausedView(dialogueViewCache);
   dialogueLayout = createDialogueLayoutState();
@@ -23137,17 +23161,22 @@ function closeDialogue() {
   dirty = true;
 }
 
-function releaseAutomaticQuestSiteAnchor() {
-  const closure = resolveQuestSiteAnchorOnDialogueClose({
+function closeAutomaticQuestSiteAnchorOverlay(closingOverlayKind) {
+  if (automaticQuestSiteAnchorOverlayKind === null) return false;
+  const closure = resolveAutomaticQuestSiteAnchorClosure({
     anchored,
-    releaseAnchorOnDialogueClose: true
+    trackedOverlayKind: automaticQuestSiteAnchorOverlayKind,
+    closingOverlayKind
   });
+  if (!closure.released) return false;
+  automaticQuestSiteAnchorOverlayKind = null;
   anchored = closure.anchored;
   initialAnimalEncounterRollPending = false;
   departureControlFeedback = null;
   keys.clear();
   clearPointerSteering();
   playAnchorHandlingSound({ raising: true });
+  return true;
 }
 
 function chooseDialogueOption(optionIndex) {
@@ -32831,6 +32860,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   storePastVoyage(voyageRecord);
   gameTelemetry.recordVoyage(voyageRecord, gameState);
   anchored = false;
+  automaticQuestSiteAnchorOverlayKind = null;
   initialAnimalEncounterRollPending = false;
   fishingAction = null;
   shoreScavengeAction = null;

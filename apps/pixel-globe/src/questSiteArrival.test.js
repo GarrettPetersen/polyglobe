@@ -3,9 +3,12 @@ import test from "node:test";
 
 import {
   COLONIZATION_SITE_ARRIVAL_RADIUS_PX,
+  QUEST_SITE_OVERLAY_CHARACTER_ALERT,
+  QUEST_SITE_OVERLAY_DIALOGUE,
   colonizationSiteCallIsInArrivalRange,
+  questSiteArrivalOverlayKind,
   questSiteArrivalCandidate,
-  resolveQuestSiteAnchorOnDialogueClose
+  resolveAutomaticQuestSiteAnchorClosure
 } from "./questSiteArrival.js";
 
 const SITE = Object.freeze({
@@ -26,7 +29,7 @@ test("colony and lost-colony shore objectives automatically arrive inside intera
     });
     assert.equal(arrival.kind, "colonization");
     assert.equal(arrival.call, SITE);
-    assert.equal(arrival.releaseAnchorOnDialogueClose, true);
+    assert.equal(arrival.releaseAnchorOnOverlayClose, true);
   }
 });
 
@@ -80,17 +83,41 @@ test("a completed pirate map automatically arrives only at its exact shore tile"
   }), null);
 });
 
-test("closing an automatically anchored quest-site dialogue raises only its own anchor", () => {
-  assert.deepEqual(resolveQuestSiteAnchorOnDialogueClose({
+test("automatic quest-site arrivals accept every supported overlay family", () => {
+  assert.equal(questSiteArrivalOverlayKind({
+    dialogueOpen: true,
+    characterAlertOpen: false
+  }), QUEST_SITE_OVERLAY_DIALOGUE);
+  assert.equal(questSiteArrivalOverlayKind({
+    dialogueOpen: false,
+    characterAlertOpen: true
+  }), QUEST_SITE_OVERLAY_CHARACTER_ALERT);
+  assert.equal(questSiteArrivalOverlayKind({
+    dialogueOpen: true,
+    characterAlertOpen: true
+  }), QUEST_SITE_OVERLAY_DIALOGUE);
+  assert.throws(() => questSiteArrivalOverlayKind({
+    dialogueOpen: false,
+    characterAlertOpen: false
+  }), /did not open a supported overlay/);
+});
+
+test("closing an automatically anchored quest-site overlay raises only its own anchor", () => {
+  for (const overlayKind of [QUEST_SITE_OVERLAY_DIALOGUE, QUEST_SITE_OVERLAY_CHARACTER_ALERT]) {
+    assert.deepEqual(resolveAutomaticQuestSiteAnchorClosure({
+      anchored: true,
+      trackedOverlayKind: overlayKind,
+      closingOverlayKind: overlayKind
+    }), { anchored: false, released: true });
+  }
+  assert.deepEqual(resolveAutomaticQuestSiteAnchorClosure({
     anchored: true,
-    releaseAnchorOnDialogueClose: true
-  }), { anchored: false, released: true });
-  assert.deepEqual(resolveQuestSiteAnchorOnDialogueClose({
-    anchored: true,
-    releaseAnchorOnDialogueClose: false
+    trackedOverlayKind: QUEST_SITE_OVERLAY_DIALOGUE,
+    closingOverlayKind: QUEST_SITE_OVERLAY_CHARACTER_ALERT
   }), { anchored: true, released: false });
-  assert.throws(() => resolveQuestSiteAnchorOnDialogueClose({
+  assert.throws(() => resolveAutomaticQuestSiteAnchorClosure({
     anchored: false,
-    releaseAnchorOnDialogueClose: true
+    trackedOverlayKind: QUEST_SITE_OVERLAY_CHARACTER_ALERT,
+    closingOverlayKind: QUEST_SITE_OVERLAY_CHARACTER_ALERT
   }), /without its anchor down/);
 });
