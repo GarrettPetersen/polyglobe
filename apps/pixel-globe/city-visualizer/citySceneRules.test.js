@@ -192,6 +192,7 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   assert.equal(PORT_SCENE_ENTITY_META.npcs.depth, 1);
   assert.equal(PORT_SCENE_DOCK.beachStartX - PORT_SCENE_DOCK.startX, PORT_SCENE_DOCK.shadowWaterExtension);
   assert.ok(PORT_SCENE_DOCK.shipAccessX >= PORT_SCENE_DOCK.startX);
+  assert.equal(PORT_SCENE_DOCK.shipAccessY, PORT_SCENE_DOCK.topY);
 });
 
 test("ship menus display canonical vessel names rather than internal IDs", () => {
