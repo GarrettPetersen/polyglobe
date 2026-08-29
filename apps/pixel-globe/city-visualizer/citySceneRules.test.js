@@ -176,7 +176,9 @@ test("shore and town layers retain small parallax but stay attached to the autho
     "Market Stall Copy Copy"
   ];
   assert.ok(behindRoad.every((layer) => layerParallaxDepth(layer) < 1));
-  assert.ok(behindRoad.every((layer) => layerParallaxDepth(layer) >= 0.96));
+  assert.ok(behindRoad.every((layer) => layerParallaxDepth(layer) >= 0.94));
+  assert.ok(layerParallaxDepth("Home") < layerParallaxDepth("Smith"));
+  assert.ok(layerParallaxDepth("Home 2") < layerParallaxDepth("Smith"));
   assert.ok(behindRoad.every((layer) => layerParallaxAnchor(layer) === 1));
   const upperAtFocus = logicalSceneWindow({
     width: 455,
@@ -222,7 +224,9 @@ test("explicit scene z places walkers and the inn between gatehouse sections", (
   assert.ok(layerSceneZ("Road") < layerSceneZ("Castle Shadow"));
   assert.ok(layerSceneZ("Gate") < PORT_SCENE_ENTITY_META.npcs.z);
   assert.ok(PORT_SCENE_ENTITY_META.npcs.z < layerSceneZ("Inn"));
-  assert.equal(layerSceneZ("Near Castle"), layerSceneZ("Inn"));
+  assert.ok(layerSceneZ("Foreground Grass") < layerSceneZ("Near Castle"));
+  assert.ok(layerSceneZ("Foreground Grass Castle Shadow") < layerSceneZ("Near Castle"));
+  assert.ok(layerSceneZ("Near Castle") < layerSceneZ("Barrel"));
   assert.ok(layerParallaxDepth("Far Castle") < layerParallaxDepth("Gate"));
   assert.equal(layerParallaxDepth("Gate"), layerParallaxDepth("Near Castle"));
   assert.equal(layerParallaxDepth("Near Castle"), layerParallaxDepth("Inn"));

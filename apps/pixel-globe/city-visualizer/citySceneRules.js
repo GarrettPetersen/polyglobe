@@ -14,7 +14,7 @@ export const PORT_SCENE_DEPTH = Object.freeze({
   midground: 0.58,
   buildings: 0.72,
   shoreline: 0.94,
-  rearBuildings: 0.96,
+  rearBuildings: 0.94,
   businesses: 0.98,
   foreground: 1
 });
@@ -165,7 +165,7 @@ const LAYER_META = new Map([
   ["Dock Foreground", layerMeta(58, PORT_SCENE_DEPTH.foreground)],
   ["Gate", layerMeta(60, PORT_SCENE_DEPTH.foreground)],
   ["Inn", layerMeta(65, PORT_SCENE_DEPTH.foreground)],
-  ["Near Castle", layerMeta(65, PORT_SCENE_DEPTH.foreground)],
+  ["Near Castle", layerMeta(72, PORT_SCENE_DEPTH.foreground)],
   ["Foreground Grass", layerMeta(70, PORT_SCENE_DEPTH.foreground)],
   ["Foreground Grass Castle Shadow", layerMeta(71, PORT_SCENE_DEPTH.foreground)],
   ["Foreground Grass Left Bank", layerMeta(70, PORT_SCENE_DEPTH.foreground, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
