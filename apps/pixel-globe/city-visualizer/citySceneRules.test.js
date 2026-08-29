@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { canvasDisplayLayout } from "../src/displayScaling.js";
 import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
+import { SHIP_STATS } from "../src/shipStats.js";
+import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import {
   PORT_SCENE_MASTER,
   PORT_SCENE_DOCK,
@@ -183,8 +185,22 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   ];
   assert.deepEqual(new Set(assembly.map((layer) => layerParallaxDepth(layer))), new Set([1]));
   assert.equal(PORT_SCENE_ENTITY_META.ship.depth, 1);
+  assert.equal(PORT_SCENE_ENTITY_META.ship.scale, 1);
+  assert.equal(PORT_SCENE_ENTITY_META.ship.nativeRasterScale, 3);
+  assert.ok(layerSceneZ("Left Bank Sand Beach") > PORT_SCENE_ENTITY_META.ship.z);
+  assert.ok(layerSceneZ("Foreground Grass Left Bank") > PORT_SCENE_ENTITY_META.ship.z);
   assert.equal(PORT_SCENE_ENTITY_META.npcs.depth, 1);
   assert.equal(PORT_SCENE_DOCK.beachStartX - PORT_SCENE_DOCK.startX, PORT_SCENE_DOCK.shadowWaterExtension);
+  assert.ok(PORT_SCENE_DOCK.shipAccessX >= PORT_SCENE_DOCK.startX);
+});
+
+test("ship menus display canonical vessel names rather than internal IDs", () => {
+  const options = cityVisualizerShipOptions(SHIP_STATS);
+  assert.equal(options.length, SHIP_STATS.length);
+  assert.ok(options.every(({ value, label }) => label !== value));
+  assert.equal(options.find(({ value }) => value === "fishing-lugger").label, "Fishing Barque");
+  assert.equal(options.find(({ value }) => value === "pirate-brig").label, "Heavy Caravel");
+  assert.equal(options.find(({ value }) => value === "ottoman-coastal-trader").label, "Kancabash");
 });
 
 test("shore and town layers retain small parallax but stay attached to the authored composition", () => {

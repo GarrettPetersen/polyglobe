@@ -7,6 +7,7 @@ import {
   SHIP_WATERLINE_LEVEL,
   encodedShipWaterlineY,
   floatingShipSubmergedPixelKeys,
+  floatingShipSubmergedPixelKeysForDimensions,
   liveShipRefractionOffset,
   shipMaxRasterWaterlineDepth,
   shipPixelBakeHeight,
@@ -90,6 +91,19 @@ test("floating ship refraction is capped at five raster rows", () => {
 
   assert.deepEqual([...rows].sort((a, b) => a - b), [4, 5, 6, 7, 8]);
   assert.equal(rows.size, SHIP_MAX_RASTER_WATERLINE_DEPTH);
+});
+
+test("dockside waterline bakes support rectangular native frames", () => {
+  const low = SHIP_WATERLINE_LEVEL - 1 / 255;
+  const high = SHIP_WATERLINE_LEVEL + 1 / 255;
+  const submerged = floatingShipSubmergedPixelKeysForDimensions([
+    { x: 4, y: 1, sinkHeight: high },
+    { x: 4, y: 2, sinkHeight: low },
+    { x: 4, y: 3, sinkHeight: low },
+    { x: 5, y: 3, sinkHeight: high }
+  ], 8, 4);
+
+  assert.deepEqual([...submerged].sort((a, b) => a - b), [20, 28]);
 });
 
 test("deep-draft ships explicitly extend the normal raster waterline cap", () => {

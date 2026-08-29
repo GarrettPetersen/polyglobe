@@ -38,6 +38,12 @@ same final model-space geometry.
 - `<ship-slug>-dockside-foreground.png` contains geometry nearer to the camera
   than a sailor standing at that hull's deck-entry anchor.
 - `<ship-slug>-dockside-depth.png` is the complete ship depth map.
+- `<ship-slug>-dockside-sink-depth.png` is the model-height waterline bake used
+  to split dry and submerged hull pixels.
+- `<ship-slug>-city-dockside.png` and its matching
+  `<ship-slug>-city-dockside-sink-depth.png` retain three times the native
+  raster detail for the city visualizer. They are drawn at 1:1 logical pixels;
+  do not enlarge the 320×160 assault sprite to substitute for them.
 - `manifest.json` is authoritative for dimensions, deck geometry, anchors,
   fleet-relative scale, view metadata, attribution, and depth encoding.
 - `src/portAssaultShipGeometry.js` is a generated native-coordinate catalog.

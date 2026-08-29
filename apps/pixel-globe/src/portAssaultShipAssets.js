@@ -1,4 +1,4 @@
-import { SHIP_STATS } from "./shipStats.js";
+import { SHIP_STATS, shipLabelForSlug } from "./shipStats.js";
 import { PORT_ASSAULT_SHIP_GEOMETRY } from "./portAssaultShipGeometry.js";
 
 const PORT_ASSAULT_ASSET_ROOT = "/assets/vehicles/unity-ships/port-assault";
@@ -23,6 +23,8 @@ export const PORT_ASSAULT_SHIP_ASSETS = Object.freeze(Object.fromEntries(
       src: `${PORT_ASSAULT_ASSET_ROOT}/${slug}-dockside.png`,
       foregroundSrc: `${PORT_ASSAULT_ASSET_ROOT}/${slug}-dockside-foreground.png`,
       depthSrc: `${PORT_ASSAULT_ASSET_ROOT}/${slug}-dockside-depth.png`,
+      sinkDepthSrc: `${PORT_ASSAULT_ASSET_ROOT}/${slug}-dockside-sink-depth.png`,
+      label: shipLabelForSlug(slug),
       width: PORT_ASSAULT_SHIP_WIDTH,
       height: PORT_ASSAULT_SHIP_HEIGHT,
       broadsideOffsetDegrees: PORT_ASSAULT_BROADSIDE_OFFSET_DEGREES,

@@ -31,25 +31,41 @@ export function floatingShipSubmergedPixelKeys(
   frameSize,
   maxRasterDepth = SHIP_MAX_RASTER_WATERLINE_DEPTH
 ) {
+  return floatingShipSubmergedPixelKeysForDimensions(
+    pixels,
+    frameSize,
+    frameSize,
+    maxRasterDepth
+  );
+}
+
+export function floatingShipSubmergedPixelKeysForDimensions(
+  pixels,
+  frameWidth,
+  frameHeight,
+  maxRasterDepth = SHIP_MAX_RASTER_WATERLINE_DEPTH
+) {
   if (!Array.isArray(pixels) || pixels.length === 0) {
     throw new Error("Floating ship waterline requires opaque sprite pixels");
   }
-  if (!Number.isInteger(frameSize) || frameSize <= 0) {
-    throw new Error(`Floating ship waterline has invalid frame size: ${frameSize}`);
+  for (const [label, value] of [["width", frameWidth], ["height", frameHeight]]) {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`Floating ship waterline has invalid frame ${label}: ${value}`);
+    }
   }
   if (!Number.isInteger(maxRasterDepth) || maxRasterDepth < SHIP_MIN_RASTER_WATERLINE_DEPTH) {
     throw new Error(`Floating ship waterline has invalid maximum raster depth: ${maxRasterDepth}`);
   }
 
-  const pixelKinds = new Uint8Array(frameSize * frameSize);
+  const pixelKinds = new Uint8Array(frameWidth * frameHeight);
   for (const pixel of pixels) {
     if (!pixel || !Number.isInteger(pixel.x) || !Number.isInteger(pixel.y)) {
       throw new Error("Floating ship waterline pixel has invalid coordinates");
     }
-    if (pixel.x < 0 || pixel.x >= frameSize || pixel.y < 0 || pixel.y >= frameSize) {
+    if (pixel.x < 0 || pixel.x >= frameWidth || pixel.y < 0 || pixel.y >= frameHeight) {
       throw new Error(`Floating ship waterline pixel is outside its frame: ${pixel.x},${pixel.y}`);
     }
-    const key = pixel.y * frameSize + pixel.x;
+    const key = pixel.y * frameWidth + pixel.x;
     if (pixelKinds[key] !== 0) {
       throw new Error(`Floating ship waterline has duplicate pixel coordinates: ${pixel.x},${pixel.y}`);
     }
@@ -57,10 +73,10 @@ export function floatingShipSubmergedPixelKeys(
   }
 
   const rawSubmerged = new Set();
-  for (let x = 0; x < frameSize; x++) {
+  for (let x = 0; x < frameWidth; x++) {
     let reachedSilhouette = false;
-    for (let y = frameSize - 1; y >= 0; y--) {
-      const key = y * frameSize + x;
+    for (let y = frameHeight - 1; y >= 0; y--) {
+      const key = y * frameWidth + x;
       const kind = pixelKinds[key];
       if (kind === 0) {
         if (reachedSilhouette) break;
@@ -72,33 +88,33 @@ export function floatingShipSubmergedPixelKeys(
     }
   }
   return capSubmergedRasterDepth(
-    removeUnsupportedSubmergedColumns(rawSubmerged, frameSize),
-    frameSize,
+    removeUnsupportedSubmergedColumns(rawSubmerged, frameWidth, frameHeight),
+    frameWidth,
     maxRasterDepth
   );
 }
 
-function capSubmergedRasterDepth(submerged, frameSize, maxRasterDepth) {
+function capSubmergedRasterDepth(submerged, frameWidth, maxRasterDepth) {
   if (submerged.size === 0) return submerged;
   let lowestY = -1;
-  for (const key of submerged) lowestY = Math.max(lowestY, Math.floor(key / frameSize));
+  for (const key of submerged) lowestY = Math.max(lowestY, Math.floor(key / frameWidth));
   const highestAllowedY = lowestY - maxRasterDepth + 1;
   for (const key of submerged) {
-    if (Math.floor(key / frameSize) < highestAllowedY) submerged.delete(key);
+    if (Math.floor(key / frameWidth) < highestAllowedY) submerged.delete(key);
   }
   return submerged;
 }
 
-function removeUnsupportedSubmergedColumns(rawSubmerged, frameSize) {
+function removeUnsupportedSubmergedColumns(rawSubmerged, frameWidth, frameHeight) {
   const submerged = new Set(rawSubmerged);
-  for (let x = 0; x < frameSize; x++) {
+  for (let x = 0; x < frameWidth; x++) {
     let pixelsAboveColumnBottom = 0;
-    for (let y = frameSize - 1; y >= 0; y--) {
-      const key = y * frameSize + x;
+    for (let y = frameHeight - 1; y >= 0; y--) {
+      const key = y * frameWidth + x;
       if (!rawSubmerged.has(key)) continue;
       if (
         pixelsAboveColumnBottom >= MAX_UNSUPPORTED_SUBMERGED_COLUMN_HEIGHT &&
-        !hasNeighboringSubmergedSupport(rawSubmerged, frameSize, x, y)
+        !hasNeighboringSubmergedSupport(rawSubmerged, frameWidth, frameHeight, x, y)
       ) {
         submerged.delete(key);
       }
@@ -108,11 +124,11 @@ function removeUnsupportedSubmergedColumns(rawSubmerged, frameSize) {
   return submerged;
 }
 
-function hasNeighboringSubmergedSupport(submerged, frameSize, x, y) {
+function hasNeighboringSubmergedSupport(submerged, frameWidth, frameHeight, x, y) {
   for (const neighborX of [x - 1, x + 1]) {
-    if (neighborX < 0 || neighborX >= frameSize) continue;
-    for (let neighborY = Math.max(0, y - 1); neighborY <= Math.min(frameSize - 1, y + 1); neighborY++) {
-      if (submerged.has(neighborY * frameSize + neighborX)) return true;
+    if (neighborX < 0 || neighborX >= frameWidth) continue;
+    for (let neighborY = Math.max(0, y - 1); neighborY <= Math.min(frameHeight - 1, y + 1); neighborY++) {
+      if (submerged.has(neighborY * frameWidth + neighborX)) return true;
     }
   }
   return false;

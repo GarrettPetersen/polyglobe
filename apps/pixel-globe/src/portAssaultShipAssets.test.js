@@ -6,7 +6,8 @@ import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { PORT_ASSAULT_SHIP_ASSETS, portAssaultShipAsset } from "./portAssaultShipAssets.js";
-import { SHIP_STATS } from "./shipStats.js";
+import { SHIP_STATS, shipLabelForSlug } from "./shipStats.js";
+import { SHIP_WATERLINE_DEPTH_BYTE } from "./shipWaterline.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -61,6 +62,19 @@ test("every production hull has matching port-assault geometry and manifest meta
     assert.equal(entry.file.endsWith(asset.src), true);
     assert.equal(entry.foregroundFile.endsWith(asset.foregroundSrc), true);
     assert.equal(entry.depthFile.endsWith(asset.depthSrc), true);
+    assert.equal(entry.sinkDepthFile.endsWith(asset.sinkDepthSrc), true);
+    assert.equal(entry.label, shipLabelForSlug(entry.slug));
+    assert.equal(asset.label, shipLabelForSlug(entry.slug));
+    assert.equal(entry.cityDockside.nativeScale, 3);
+    assert.equal(entry.cityDockside.width, manifest.width * entry.cityDockside.nativeScale);
+    assert.equal(entry.cityDockside.height, manifest.height * entry.cityDockside.nativeScale);
+    assert.match(entry.cityDockside.file, new RegExp(`${entry.slug}-city-dockside\\.png$`));
+    assert.match(
+      entry.cityDockside.sinkDepthFile,
+      new RegExp(`${entry.slug}-city-dockside-sink-depth\\.png$`)
+    );
+    await access(join(appRoot, "..", "..", entry.cityDockside.file));
+    await access(join(appRoot, "..", "..", entry.cityDockside.sinkDepthFile));
     assert.ok(entry.opaquePixels > 100, `${entry.slug} retains a readable silhouette`);
     assert.ok(Number.isInteger(entry.dockRig.removedOpenSailTriangles));
     assert.ok(Number.isInteger(entry.dockRig.removedDeployedRigTriangles));
@@ -93,27 +107,34 @@ test("every production hull has matching port-assault geometry and manifest meta
 });
 
 test("every port-assault hull is hard-edged Resurrect pixel art with complete compositing layers", async () => {
+  const manifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
   const palette = new Set(RESURRECT_64_HEX);
   for (const slug of Object.keys(PORT_ASSAULT_SHIP_ASSETS)) {
     const asset = portAssaultShipAsset(slug);
+    const entry = manifest.ships.find((candidate) => candidate.slug === slug);
+    assert.ok(entry, `${slug} has manifest metadata`);
     // node-canvas can leave its native image worker alive when this entire fleet is
     // decoded in overlapping triples. Serial decoding is just as useful for this
     // asset audit and lets the supervised test process terminate cleanly.
     const base = await loadImage(join(appRoot, `public${asset.src}`));
     const foreground = await loadImage(join(appRoot, `public${asset.foregroundSrc}`));
     const depth = await loadImage(join(appRoot, `public${asset.depthSrc}`));
-    for (const image of [base, foreground, depth]) {
+    const sinkDepth = await loadImage(join(appRoot, `public${asset.sinkDepthSrc}`));
+    for (const image of [base, foreground, depth, sinkDepth]) {
       assert.equal(image.width, asset.width);
       assert.equal(image.height, asset.height);
     }
     const basePixels = imagePixels(base);
     const foregroundPixels = imagePixels(foreground);
     const depthPixels = imagePixels(depth);
+    const sinkDepthPixels = imagePixels(sinkDepth);
     let baseOpaque = 0;
     let foregroundOpaque = 0;
     let depthOpaque = 0;
     let minDepth = 255;
     let maxDepth = 0;
+    let submergedPixels = 0;
+    let abovePixels = 0;
     for (let offset = 0; offset < basePixels.length; offset += 4) {
       const alpha = basePixels[offset + 3];
       assert.ok(alpha === 0 || alpha === 255, `${slug} partial alpha at ${offset / 4}`);
@@ -132,12 +153,46 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
       minDepth = Math.min(minDepth, depthPixels[offset]);
       maxDepth = Math.max(maxDepth, depthPixels[offset]);
       depthOpaque++;
+      assert.equal(sinkDepthPixels[offset + 3], 255);
+      assert.equal(sinkDepthPixels[offset], sinkDepthPixels[offset + 1]);
+      assert.equal(sinkDepthPixels[offset], sinkDepthPixels[offset + 2]);
+      if (sinkDepthPixels[offset] <= SHIP_WATERLINE_DEPTH_BYTE) submergedPixels++;
+      else abovePixels++;
     }
     assert.ok(foregroundOpaque > 0, `${slug} has useful foreground occluders`);
     assert.ok(foregroundOpaque < baseOpaque, `${slug} foreground remains a partial layer`);
     assert.equal(depthOpaque, baseOpaque, `${slug} depth map covers the complete ship`);
     assert.equal(minDepth, 1, `${slug} depth map reaches its far value`);
     assert.equal(maxDepth, 255, `${slug} depth map reaches its near value`);
+    assert.equal(submergedPixels, entry.submergedPixels, `${slug} submerged pixel metadata`);
+    assert.ok(abovePixels > 0, `${slug} sink-depth map crosses above its waterline`);
+
+    const cityBase = await loadImage(join(appRoot, "..", "..", entry.cityDockside.file));
+    const citySinkDepth = await loadImage(
+      join(appRoot, "..", "..", entry.cityDockside.sinkDepthFile)
+    );
+    assert.equal(cityBase.width, entry.cityDockside.width);
+    assert.equal(cityBase.height, entry.cityDockside.height);
+    assert.equal(citySinkDepth.width, entry.cityDockside.width);
+    assert.equal(citySinkDepth.height, entry.cityDockside.height);
+    const cityPixels = imagePixels(cityBase);
+    const citySinkPixels = imagePixels(citySinkDepth);
+    let cityOpaque = 0;
+    for (let offset = 0; offset < cityPixels.length; offset += 4) {
+      const alpha = cityPixels[offset + 3];
+      assert.ok(alpha === 0 || alpha === 255, `${slug} city raster partial alpha at ${offset / 4}`);
+      if (alpha === 0) continue;
+      const hex = [cityPixels[offset], cityPixels[offset + 1], cityPixels[offset + 2]]
+        .map((value) => value.toString(16).padStart(2, "0"))
+        .join("");
+      assert.ok(palette.has(hex), `${slug} city raster has non-Resurrect color #${hex}`);
+      assert.equal(citySinkPixels[offset + 3], 255);
+      assert.equal(citySinkPixels[offset], citySinkPixels[offset + 1]);
+      assert.equal(citySinkPixels[offset], citySinkPixels[offset + 2]);
+      cityOpaque++;
+    }
+    assert.equal(cityOpaque, entry.cityDockside.opaquePixels);
+    assert.ok(cityOpaque > baseOpaque * 5, `${slug} city raster preserves native 3x detail`);
   }
 });
 

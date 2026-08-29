@@ -27,6 +27,18 @@ import {
   sceneEdgeScrollVelocity,
   sceneReasonRows
 } from "./citySceneRules.js";
+import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
+import {
+  CITY_CHIMNEY_SMOKE_EMITTERS,
+  cityChimneySmokeParticles
+} from "./cityChimneySmoke.js";
+import {
+  SHIP_REFRACTION_BAND_HEIGHT,
+  SHIP_SUBMERGED_ALPHA,
+  floatingShipSubmergedPixelKeysForDimensions,
+  liveShipRefractionOffset,
+  shipMaxRasterWaterlineDepth
+} from "../src/shipWaterline.js";
 
 const canvas = document.querySelector("#scene");
 const context = canvas.getContext("2d", { alpha: false });
@@ -65,6 +77,8 @@ const state = {
   surfAtlas: null,
   minifolkAtlases: new Map(),
   shipImage: null,
+  shipSinkDepthImage: null,
+  shipWaterlineLayers: null,
   shipSlug: null,
   city: null,
   features: null,
@@ -157,7 +171,9 @@ function prepareScenePixelCaches() {
 
 function prepareControls() {
   citySelect.replaceChildren(...state.catalog.cities.map((city) => option(city.id, `${city.label} — ${city.country}`)));
-  shipSelect.replaceChildren(...state.shipManifest.ships.map((ship) => option(ship.slug, humanize(ship.slug))));
+  shipSelect.replaceChildren(...cityVisualizerShipOptions(state.shipManifest.ships).map((ship) => (
+    option(ship.value, ship.label)
+  )));
   setOptions(approachOverride, ["auto", "ocean", "river", "lake"]);
   setOptions(dockOverride, ["auto", "none", "wood", "stone"]);
   setOptions(fortOverride, ["auto", "on", "off"]);
@@ -240,9 +256,20 @@ function applyFeatureOverrides() {
 
 async function selectShip(slug) {
   const ship = state.shipManifest.ships.find((candidate) => candidate.slug === slug) || state.shipManifest.ships[0];
+  if (!ship.cityDockside) throw new Error(`Missing native city dockside raster: ${ship.slug}`);
   state.shipSlug = ship.slug;
   shipSelect.value = ship.slug;
-  state.shipImage = await loadImage(`/assets/vehicles/unity-ships/port-assault/${ship.slug}-dockside.png`);
+  state.shipImage = null;
+  state.shipSinkDepthImage = null;
+  state.shipWaterlineLayers = null;
+  const [shipImage, shipSinkDepthImage] = await Promise.all([
+    loadImage(`/assets/vehicles/unity-ships/port-assault/${ship.slug}-city-dockside.png`),
+    loadImage(`/assets/vehicles/unity-ships/port-assault/${ship.slug}-city-dockside-sink-depth.png`)
+  ]);
+  if (state.shipSlug !== ship.slug) return;
+  state.shipImage = shipImage;
+  state.shipSinkDepthImage = shipSinkDepthImage;
+  state.shipWaterlineLayers = docksideShipWaterlineLayers(shipImage, shipSinkDepthImage, ship.slug);
 }
 
 function updateRuleLedger() {
@@ -365,6 +392,7 @@ function render(timeMs) {
     else if (entry.kind === "animated") drawAnimatedLayer(entry.layerName, timeMs, entry.occurrence);
     else if (entry.kind === "dock-shadow-extension") drawDockShadowExtension();
     else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
+    else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
     else if (entry.kind === "npcs") drawNpcs(timeMs);
   }
@@ -411,12 +439,48 @@ function sceneRenderEntries() {
       });
     }
   }
+  for (const emitter of CITY_CHIMNEY_SMOKE_EMITTERS) {
+    if (!activeLayers.has(emitter.layerName)) continue;
+    const authoredOrder = state.portManifest.layerOrder.indexOf(emitter.layerName);
+    if (authoredOrder < 0) throw new Error(`Missing chimney layer order: ${emitter.layerName}`);
+    entries.push({
+      kind: "chimney-smoke",
+      emitter,
+      z: layerSceneZ(emitter.layerName) - 0.1,
+      authoredOrder: authoredOrder - 0.1
+    });
+  }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
   entries.push({ kind: "npcs", ...PORT_SCENE_ENTITY_META.npcs, authoredOrder: 37.5 });
   if (state.features.dock !== "none") {
     entries.push({ kind: "dock-shadow-extension", z: 36, authoredOrder: 16.5 });
   }
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
+}
+
+function drawChimneySmoke(emitter, timeMs) {
+  const occurrence = 0;
+  const approach = state.features?.approach || "ocean";
+  const window = sceneWindow(
+    layerParallaxDepth(emitter.layerName, occurrence),
+    layerSceneOffsetX(emitter.layerName, occurrence, approach),
+    layerSceneOffsetY(emitter.layerName, occurrence, approach),
+    layerParallaxAnchor(emitter.layerName, occurrence)
+  );
+  const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
+  context.save();
+  for (const particle of cityChimneySmokeParticles(emitter, smokeTime)) {
+    if (particle.alpha <= 0) continue;
+    context.globalAlpha = particle.alpha;
+    context.fillStyle = particle.color;
+    context.fillRect(
+      Math.round(particle.x - window.x),
+      Math.round(particle.y - window.y),
+      particle.size,
+      particle.size
+    );
+  }
+  context.restore();
 }
 
 function drawStaticFrame(frame, layerName, occurrence) {
@@ -728,19 +792,133 @@ function tintedFrameCanvas(frame) {
 }
 
 function drawDocksideShip(timeMs) {
-  if (!state.shipImage || !state.shipManifest || !state.features) return;
+  if (!state.shipImage || !state.shipWaterlineLayers || !state.shipManifest || !state.features) return;
   const ship = state.shipManifest.ships.find((candidate) => candidate.slug === state.shipSlug);
-  if (!ship) return;
+  if (!ship?.cityDockside) return;
+  const dockside = ship.cityDockside;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.ship.depth);
-  const berth = state.features.dock === "none" ? { x: 802, y: 528 } : { x: 690, y: 514 };
+  const scale = PORT_SCENE_ENTITY_META.ship.scale;
+  const berth = state.features.dock === "none"
+    ? { x: 802, y: 528 }
+    : { x: PORT_SCENE_DOCK.shipAccessX, y: PORT_SCENE_DOCK.shipAccessY };
   const waterlineY = berth.y +
-    ship.opaqueBounds.minY + ship.opaqueBounds.height - 1 - ship.deckEntryAnchor.y;
+    (state.shipWaterlineLayers.submergedMinY - dockside.deckEntryAnchor.y) * scale;
   const bobY = clamp(oceanRowOffset(waterlineY, timeMs), -1, 1);
-  context.drawImage(
-    state.shipImage,
-    Math.round(berth.x - ship.deckEntryAnchor.x - window.x),
-    Math.round(berth.y - ship.deckEntryAnchor.y - window.y + bobY)
+  drawDocksideShipWaterlineLayers(
+    state.shipWaterlineLayers,
+    Math.round(berth.x - dockside.deckEntryAnchor.x * scale - window.x),
+    Math.round(berth.y - dockside.deckEntryAnchor.y * scale - window.y + bobY),
+    scale,
+    timeMs,
+    hashString(ship.slug)
   );
+}
+
+function drawDocksideShipWaterlineLayers(layers, x, y, scale, timeMs, seed) {
+  const refractionTime = prefersReducedMotion.matches ? 0 : timeMs;
+  context.save();
+  context.globalAlpha = SHIP_SUBMERGED_ALPHA;
+  const firstBandY = Math.floor(layers.submergedMinY / SHIP_REFRACTION_BAND_HEIGHT) *
+    SHIP_REFRACTION_BAND_HEIGHT;
+  for (
+    let sourceY = firstBandY;
+    sourceY <= layers.submergedMaxY;
+    sourceY += SHIP_REFRACTION_BAND_HEIGHT
+  ) {
+    const sourceHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, layers.height - sourceY);
+    context.drawImage(
+      layers.submerged,
+      0,
+      sourceY,
+      layers.width,
+      sourceHeight,
+      x + liveShipRefractionOffset(sourceY, refractionTime, seed),
+      y + sourceY * scale,
+      layers.width * scale,
+      sourceHeight * scale
+    );
+  }
+  context.restore();
+  context.drawImage(
+    layers.above,
+    x,
+    y,
+    layers.width * scale,
+    layers.height * scale
+  );
+}
+
+function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug) {
+  if (
+    shipImage.width !== sinkDepthImage.width ||
+    shipImage.height !== sinkDepthImage.height
+  ) {
+    throw new Error(`Dockside ship waterline bake has mismatched dimensions: ${slug}`);
+  }
+  const source = document.createElement("canvas");
+  source.width = shipImage.width;
+  source.height = shipImage.height;
+  const sourceContext = source.getContext("2d", { willReadFrequently: true });
+  sourceContext.drawImage(shipImage, 0, 0);
+  const color = sourceContext.getImageData(0, 0, source.width, source.height);
+  sourceContext.clearRect(0, 0, source.width, source.height);
+  sourceContext.drawImage(sinkDepthImage, 0, 0);
+  const depth = sourceContext.getImageData(0, 0, source.width, source.height);
+  const pixels = [];
+  for (let pixel = 0; pixel < source.width * source.height; pixel++) {
+    const offset = pixel * 4;
+    if (color.data[offset + 3] <= 16) continue;
+    if (depth.data[offset + 3] <= 16) {
+      throw new Error(`Dockside ship waterline bake misses an opaque pixel: ${slug}`);
+    }
+    pixels.push({
+      x: pixel % source.width,
+      y: Math.floor(pixel / source.width),
+      sinkHeight: depth.data[offset] / 255
+    });
+  }
+  const submergedKeys = floatingShipSubmergedPixelKeysForDimensions(
+    pixels,
+    source.width,
+    source.height,
+    shipMaxRasterWaterlineDepth(slug)
+  );
+  const above = document.createElement("canvas");
+  const submerged = document.createElement("canvas");
+  above.width = submerged.width = source.width;
+  above.height = submerged.height = source.height;
+  const aboveContext = above.getContext("2d");
+  const submergedContext = submerged.getContext("2d");
+  const aboveImage = aboveContext.createImageData(source.width, source.height);
+  const submergedImage = submergedContext.createImageData(source.width, source.height);
+  let submergedMinY = source.height;
+  let submergedMaxY = -1;
+  let opaqueMaxY = -1;
+  for (const pixel of pixels) {
+    opaqueMaxY = Math.max(opaqueMaxY, pixel.y);
+    const key = pixel.y * source.width + pixel.x;
+    const offset = key * 4;
+    const target = submergedKeys.has(key) ? submergedImage.data : aboveImage.data;
+    target[offset] = color.data[offset];
+    target[offset + 1] = color.data[offset + 1];
+    target[offset + 2] = color.data[offset + 2];
+    target[offset + 3] = color.data[offset + 3];
+    if (target === submergedImage.data) {
+      submergedMinY = Math.min(submergedMinY, pixel.y);
+      submergedMaxY = Math.max(submergedMaxY, pixel.y);
+    }
+  }
+  aboveContext.putImageData(aboveImage, 0, 0);
+  submergedContext.putImageData(submergedImage, 0, 0);
+  if (submergedMaxY < 0) submergedMinY = opaqueMaxY;
+  return Object.freeze({
+    above,
+    submerged,
+    width: source.width,
+    height: source.height,
+    submergedMinY,
+    submergedMaxY
+  });
 }
 
 function drawNpcs(timeMs) {

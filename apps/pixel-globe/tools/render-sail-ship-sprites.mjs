@@ -44,6 +44,7 @@ import {
   FUSTA_SLUG,
   JOSEON_HYEOPSEON_SLUG,
   SHIP_STATS,
+  shipLabelForSlug,
   shipStatsForSlug,
   validateShipStatsForSlugs
 } from "../src/shipStats.js";
@@ -3516,6 +3517,7 @@ async function loadConfiguredShipTriangles(config, {
 const PORT_ASSAULT_SHIP_WIDTH = 320;
 const PORT_ASSAULT_SHIP_HEIGHT = 160;
 const PORT_ASSAULT_RENDER_SCALE = 3;
+const PORT_ASSAULT_CITY_NATIVE_SCALE = 3;
 const PORT_ASSAULT_FLEET_SCALE_SAFETY = 0.75;
 const PORT_ASSAULT_FURLED_SAIL_SEGMENTS = 5;
 
@@ -4205,31 +4207,49 @@ function portAssaultModelYaw(broadsideOffsetDegrees) {
   return Math.PI / 2 + angle;
 }
 
-function portAssaultRasterScale(rendered) {
+function portAssaultRasterScale(rendered, nativeScale = 1) {
   const sourceBounds = alphaBounds(rendered.canvas);
-  const padding = { x: 6, top: 4, bottom: 5 };
+  const padding = {
+    x: 6 * nativeScale,
+    top: 4 * nativeScale,
+    bottom: 5 * nativeScale
+  };
   return Math.min(
-    (PORT_ASSAULT_SHIP_WIDTH - padding.x * 2) / sourceBounds.width,
-    (PORT_ASSAULT_SHIP_HEIGHT - padding.top - padding.bottom) / sourceBounds.height
+    (PORT_ASSAULT_SHIP_WIDTH * nativeScale - padding.x * 2) / sourceBounds.width,
+    (PORT_ASSAULT_SHIP_HEIGHT * nativeScale - padding.top - padding.bottom) / sourceBounds.height
   );
 }
 
-function fitPortAssaultRaster(rendered, scale = portAssaultRasterScale(rendered)) {
+function fitPortAssaultRaster(
+  rendered,
+  scale = portAssaultRasterScale(rendered),
+  nativeScale = 1
+) {
   if (!Number.isFinite(scale) || scale <= 0) {
     throw new Error(`Invalid port-assault raster scale: ${scale}`);
   }
+  if (!Number.isInteger(nativeScale) || nativeScale <= 0) {
+    throw new Error(`Invalid port-assault native raster scale: ${nativeScale}`);
+  }
   const sourceBounds = alphaBounds(rendered.canvas);
-  const padding = { x: 6, top: 4, bottom: 5 };
+  const padding = {
+    x: 6 * nativeScale,
+    top: 4 * nativeScale,
+    bottom: 5 * nativeScale
+  };
+  const frameWidth = PORT_ASSAULT_SHIP_WIDTH * nativeScale;
+  const frameHeight = PORT_ASSAULT_SHIP_HEIGHT * nativeScale;
   const drawWidth = Math.max(1, Math.round(sourceBounds.width * scale));
   const drawHeight = Math.max(1, Math.round(sourceBounds.height * scale));
-  const drawX = Math.floor((PORT_ASSAULT_SHIP_WIDTH - drawWidth) / 2);
-  const drawY = PORT_ASSAULT_SHIP_HEIGHT - padding.bottom - drawHeight;
-  const canvas = createCanvas(PORT_ASSAULT_SHIP_WIDTH, PORT_ASSAULT_SHIP_HEIGHT);
+  const drawX = Math.floor((frameWidth - drawWidth) / 2);
+  const drawY = frameHeight - padding.bottom - drawHeight;
+  const canvas = createCanvas(frameWidth, frameHeight);
   const ctx = canvas.getContext("2d");
   const sourceCtx = rendered.canvas.getContext("2d");
   const sourceImage = sourceCtx.getImageData(0, 0, rendered.canvas.width, rendered.canvas.height);
   const image = ctx.createImageData(canvas.width, canvas.height);
   const depth = new Float32Array(canvas.width * canvas.height);
+  const normals = new Float32Array(canvas.width * canvas.height * 3);
   const positions = new Float32Array(canvas.width * canvas.height * 3);
   const alpha = new Uint8Array(canvas.width * canvas.height);
   depth.fill(-Infinity);
@@ -4259,6 +4279,9 @@ function fitPortAssaultRaster(rendered, scale = portAssaultRasterScale(rendered)
       alpha[targetIndex] = 1;
       const sourcePositionOffset = sourceIndex * 3;
       const targetPositionOffset = targetIndex * 3;
+      normals[targetPositionOffset] = rendered.normals[sourcePositionOffset];
+      normals[targetPositionOffset + 1] = rendered.normals[sourcePositionOffset + 1];
+      normals[targetPositionOffset + 2] = rendered.normals[sourcePositionOffset + 2];
       positions[targetPositionOffset] = rendered.positions[sourcePositionOffset];
       positions[targetPositionOffset + 1] = rendered.positions[sourcePositionOffset + 1];
       positions[targetPositionOffset + 2] = rendered.positions[sourcePositionOffset + 2];
@@ -4279,6 +4302,7 @@ function fitPortAssaultRaster(rendered, scale = portAssaultRasterScale(rendered)
     canvas,
     bounds,
     depth,
+    normals,
     positions,
     alpha,
     sourceBounds,
@@ -4333,6 +4357,81 @@ function makePortAssaultDepthMap(frame) {
   }
   ctx.putImageData(image, 0, 0);
   return { canvas, farDepth, nearDepth };
+}
+
+function makePortAssaultSinkDepthMap(frame, waterlineY) {
+  let minHeight = Infinity;
+  let maxHeight = -Infinity;
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    const height = frame.positions[pixel * 3 + 1];
+    if (!Number.isFinite(height)) {
+      throw new Error("Port-assault sink-depth bake found a non-finite model height");
+    }
+    minHeight = Math.min(minHeight, height);
+    maxHeight = Math.max(maxHeight, height);
+  }
+  const heightRange = maxHeight - minHeight;
+  if (!Number.isFinite(heightRange) || heightRange <= 1e-6) {
+    throw new Error(`Port-assault sink-depth bake has no usable height range: ${heightRange}`);
+  }
+  const encodedWaterlineY = encodedShipWaterlineY(waterlineY, minHeight, maxHeight);
+  const waterlineRasterPadding = heightRange / (SHIP_WATERLINE_DEPTH_BYTE - 1);
+  const canvas = createCanvas(frame.canvas.width, frame.canvas.height);
+  const ctx = canvas.getContext("2d");
+  const image = ctx.createImageData(canvas.width, canvas.height);
+  const levels = new Uint8Array(frame.alpha.length);
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    const normalY = frame.normals[pixel * 3 + 1];
+    const modelHeight = frame.positions[pixel * 3 + 1];
+    const height = shipPixelBakeHeight(
+      modelHeight,
+      normalY,
+      encodedWaterlineY,
+      waterlineRasterPadding
+    );
+    const level = height < encodedWaterlineY
+      ? Math.round(clamp(
+          (height - minHeight) / (encodedWaterlineY - minHeight),
+          0,
+          1
+        ) * (SHIP_WATERLINE_DEPTH_BYTE - 1))
+      : SHIP_WATERLINE_DEPTH_BYTE + Math.round(clamp(
+          (height - encodedWaterlineY) / (maxHeight - encodedWaterlineY),
+          0,
+          1
+        ) * (255 - SHIP_WATERLINE_DEPTH_BYTE));
+    levels[pixel] = level;
+  }
+  let submergedPixels = 0;
+  let abovePixels = 0;
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    const level = levels[pixel];
+    const offset = pixel * 4;
+    image.data[offset] = level;
+    image.data[offset + 1] = level;
+    image.data[offset + 2] = level;
+    image.data[offset + 3] = 255;
+    if (level <= SHIP_WATERLINE_DEPTH_BYTE) submergedPixels++;
+    else abovePixels++;
+  }
+  if (abovePixels === 0) {
+    throw new Error(
+      `Port-assault sink-depth map did not cross its waterline: ${submergedPixels}/${abovePixels}`
+    );
+  }
+  ctx.putImageData(image, 0, 0);
+  return {
+    canvas,
+    minHeight,
+    maxHeight,
+    encodedWaterlineY,
+    waterlineLevel: SHIP_WATERLINE_LEVEL,
+    submergedPixels,
+    abovePixels
+  };
 }
 
 function makePortAssaultForeground(frame, sailorDepth) {
@@ -4805,6 +4904,16 @@ async function renderPortAssaultShips() {
       modelYaw: raw.modelYaw,
       ...fitPortAssaultRaster(raw.rendered, fleetRasterScale)
     };
+    const citySelected = {
+      variant: raw.variant,
+      camera: raw.camera,
+      modelYaw: raw.modelYaw,
+      ...fitPortAssaultRaster(
+        raw.rendered,
+        fleetRasterScale * PORT_ASSAULT_CITY_NATIVE_SCALE,
+        PORT_ASSAULT_CITY_NATIVE_SCALE
+      )
+    };
     const reviewLoads = [
       openLoaded,
       {
@@ -4822,20 +4931,34 @@ async function renderPortAssaultShips() {
       fleetRasterScale
     ).canvas);
     const deck = portAssaultDeckCompositing(loaded, selected);
+    const cityDeck = portAssaultDeckCompositing(loaded, citySelected);
     const depthMap = makePortAssaultDepthMap(selected);
+    const sinkDepth = makePortAssaultSinkDepthMap(selected, loaded.waterlineY);
+    const citySinkDepth = makePortAssaultSinkDepthMap(citySelected, loaded.waterlineY);
     const foreground = makePortAssaultForeground(selected, deck.sailorDepth);
     const spritePath = join(portAssaultShipOutputRoot, `${slug}-dockside.png`);
     const foregroundPath = join(portAssaultShipOutputRoot, `${slug}-dockside-foreground.png`);
     const depthPath = join(portAssaultShipOutputRoot, `${slug}-dockside-depth.png`);
+    const sinkDepthPath = join(portAssaultShipOutputRoot, `${slug}-dockside-sink-depth.png`);
+    const citySpritePath = join(portAssaultShipOutputRoot, `${slug}-city-dockside.png`);
+    const citySinkDepthPath = join(
+      portAssaultShipOutputRoot,
+      `${slug}-city-dockside-sink-depth.png`
+    );
     writeFileSync(spritePath, selected.canvas.toBuffer("image/png"));
     writeFileSync(foregroundPath, foreground.canvas.toBuffer("image/png"));
     writeFileSync(depthPath, depthMap.canvas.toBuffer("image/png"));
+    writeFileSync(sinkDepthPath, sinkDepth.canvas.toBuffer("image/png"));
+    writeFileSync(citySpritePath, citySelected.canvas.toBuffer("image/png"));
+    writeFileSync(citySinkDepthPath, citySinkDepth.canvas.toBuffer("image/png"));
     const opaquePixels = selected.alpha.reduce((sum, value) => sum + value, 0);
     const entry = {
       slug,
+      label: shipLabelForSlug(slug),
       file: portablePath(spritePath),
       foregroundFile: portablePath(foregroundPath),
       depthFile: portablePath(depthPath),
+      sinkDepthFile: portablePath(sinkDepthPath),
       sourceTitle: config.sourceTitle,
       creator: config.creator,
       license: config.license,
@@ -4846,6 +4969,23 @@ async function renderPortAssaultShips() {
       deckEntryAnchor: deck.deckEntryAnchor,
       sailorSpawnAnchor: deck.sailorSpawnAnchor,
       foregroundOpaquePixels: foreground.opaquePixels,
+      sinkHeightMin: Number(sinkDepth.minHeight.toFixed(6)),
+      sinkHeightMax: Number(sinkDepth.maxHeight.toFixed(6)),
+      encodedWaterlineY: Number(sinkDepth.encodedWaterlineY.toFixed(6)),
+      sinkWaterlineLevel: Number(sinkDepth.waterlineLevel.toFixed(6)),
+      submergedPixels: sinkDepth.submergedPixels,
+      cityDockside: {
+        nativeScale: PORT_ASSAULT_CITY_NATIVE_SCALE,
+        width: citySelected.canvas.width,
+        height: citySelected.canvas.height,
+        file: portablePath(citySpritePath),
+        sinkDepthFile: portablePath(citySinkDepthPath),
+        opaqueBounds: citySelected.bounds,
+        opaquePixels: citySelected.alpha.reduce((sum, value) => sum + value, 0),
+        deckEntryAnchor: cityDeck.deckEntryAnchor,
+        sailorSpawnAnchor: cityDeck.sailorSpawnAnchor,
+        submergedPixels: citySinkDepth.submergedPixels
+      },
       dockRig: dockRig.metadata
     };
     ships.push(entry);

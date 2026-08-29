@@ -45,11 +45,18 @@ export const PORT_SCENE_CAMERA = Object.freeze({
 export const PORT_SCENE_DOCK = Object.freeze({
   startX: 676,
   beachStartX: 742,
-  shadowWaterExtension: 66
+  shadowWaterExtension: 66,
+  shipAccessX: 680,
+  shipAccessY: 514
 });
 
 export const PORT_SCENE_ENTITY_META = Object.freeze({
-  ship: Object.freeze({ z: 55, depth: PORT_SCENE_DEPTH.foreground }),
+  ship: Object.freeze({
+    z: 55,
+    depth: PORT_SCENE_DEPTH.foreground,
+    scale: 1,
+    nativeRasterScale: 3
+  }),
   npcs: Object.freeze({ z: 62, depth: PORT_SCENE_DEPTH.foreground })
 });
 
@@ -142,7 +149,7 @@ const LAYER_META = new Map([
   ["Shipyard", anchoredLayerMeta(25, PORT_SCENE_DEPTH.businesses)],
   ["Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.foreground)],
   ["Sand Beach Dock Shadow", layerMeta(36, PORT_SCENE_DEPTH.foreground)],
-  ["Left Bank Sand Beach", leftBankLayerMeta(35, PORT_SCENE_DEPTH.businesses, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
+  ["Left Bank Sand Beach", leftBankLayerMeta(70, PORT_SCENE_DEPTH.businesses, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
   ["Desert Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
   ["Rocks Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
   ["Grass Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
