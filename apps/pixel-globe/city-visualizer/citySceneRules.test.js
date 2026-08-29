@@ -9,8 +9,10 @@ import {
   PORT_SCENE_RIVER,
   activePortSceneLayers,
   advanceSceneParallax,
+  layerParallaxAnchor,
   layerParallaxDepth,
   layerSceneOffsetX,
+  layerSceneOffsetY,
   layerSceneZ,
   logicalSceneWindow,
   resolveCitySceneFeatures,
@@ -96,10 +98,15 @@ test("ocean depth slices cover the authored water without gaps", () => {
 
 test("river scenes inset intact left-bank artwork without moving coastal layers", () => {
   assert.equal(layerSceneOffsetX("Distant Forest Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankDistantInsetX);
+  assert.equal(layerSceneOffsetY("Distant Forest Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankDistantOffsetY);
   assert.equal(layerSceneOffsetX("Left Bank Sand Beach", 0, "river"), PORT_SCENE_RIVER.leftBankForegroundInsetX);
+  assert.equal(layerSceneOffsetY("Left Bank Sand Beach", 0, "river"), 0);
   assert.equal(layerSceneOffsetX("Foreground Grass Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankForegroundInsetX);
   assert.equal(layerSceneOffsetX("Sand Beach", 0, "river"), 0);
   assert.equal(layerSceneOffsetX("Left Bank Sand Beach", 0, "ocean"), 0);
+  assert.equal(layerSceneOffsetY("Distant Forest Left Bank", 0, "ocean"), 0);
+  assert.equal(layerParallaxDepth("Distant Forest"), layerParallaxDepth("Midground Grass"));
+  assert.ok(layerParallaxDepth("Distant Forest") > layerParallaxDepth("Distant Hills"));
 });
 
 test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () => {
@@ -113,6 +120,7 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
     "Dock Foreground",
     "Waves",
     "Surf",
+    "Castle Shadow",
     "Gate",
     "Near Castle"
   ];
@@ -122,8 +130,47 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   assert.equal(PORT_SCENE_DOCK.beachStartX - PORT_SCENE_DOCK.startX, PORT_SCENE_DOCK.shadowWaterExtension);
 });
 
+test("the behind-road business row has depth but returns to authored alignment at town focus", () => {
+  const behindRoad = [
+    "Shipyard",
+    "Desert Behind Buildings",
+    "Rocks Behind Buildings",
+    "Grass Behind Buildings",
+    "Home 2",
+    "Home",
+    "Smith",
+    "Market Stall",
+    "Market Stall Copy",
+    "Market Stall Copy Copy"
+  ];
+  assert.ok(behindRoad.every((layer) => layerParallaxDepth(layer) < 1));
+  assert.ok(behindRoad.every((layer) => layerParallaxAnchor(layer) === 1));
+  const upperAtFocus = logicalSceneWindow({
+    width: 455,
+    height: 256,
+    parallax: 1,
+    depth: layerParallaxDepth("Market Stall", 0),
+    parallaxAnchor: layerParallaxAnchor("Market Stall", 0),
+    approach: "river"
+  });
+  const lowerAtFocus = logicalSceneWindow({ width: 455, height: 256, parallax: 1, depth: 1, approach: "river" });
+  assert.equal(upperAtFocus.x, lowerAtFocus.x);
+  const upperAway = logicalSceneWindow({
+    width: 455,
+    height: 256,
+    parallax: 0,
+    depth: layerParallaxDepth("Market Stall", 0),
+    parallaxAnchor: layerParallaxAnchor("Market Stall", 0),
+    approach: "river"
+  });
+  const lowerAway = logicalSceneWindow({ width: 455, height: 256, parallax: 0, depth: 1, approach: "river" });
+  assert.notEqual(upperAway.x, lowerAway.x);
+});
+
 test("explicit scene z places walkers and the inn between gatehouse sections", () => {
+  assert.ok(layerSceneZ("Road") < layerSceneZ("Far Castle"));
   assert.ok(layerSceneZ("Far Castle") < layerSceneZ("Gate"));
+  assert.ok(layerSceneZ("Road") < layerSceneZ("Castle Shadow"));
   assert.ok(layerSceneZ("Gate") < PORT_SCENE_ENTITY_META.npcs.z);
   assert.ok(PORT_SCENE_ENTITY_META.npcs.z < layerSceneZ("Inn"));
   assert.equal(layerSceneZ("Near Castle"), layerSceneZ("Inn"));
@@ -132,8 +179,15 @@ test("explicit scene z places walkers and the inn between gatehouse sections", (
   assert.equal(layerParallaxDepth("Near Castle"), layerParallaxDepth("Inn"));
 
   for (const width of [256, 455, 910]) {
-    for (const parallax of [-1, 1]) {
-      const far = logicalSceneWindow({ width, height: 256, parallax, depth: layerParallaxDepth("Far Castle"), approach: "river" });
+    for (const parallax of [sceneCameraParallaxBounds("river").minimum, 1]) {
+      const far = logicalSceneWindow({
+        width,
+        height: 256,
+        parallax,
+        depth: layerParallaxDepth("Far Castle"),
+        parallaxAnchor: layerParallaxAnchor("Far Castle"),
+        approach: "river"
+      });
       const near = logicalSceneWindow({ width, height: 256, parallax, depth: layerParallaxDepth("Near Castle"), approach: "river" });
       assert.ok(Math.abs(far.x - near.x) <= 3);
     }

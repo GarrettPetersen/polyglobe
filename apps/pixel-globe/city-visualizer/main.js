@@ -11,8 +11,10 @@ import {
   PORT_SCENE_OCEAN_SLICES,
   activePortSceneLayers,
   advanceSceneParallax,
+  layerParallaxAnchor,
   layerParallaxDepth,
   layerSceneOffsetX,
+  layerSceneOffsetY,
   layerSceneZ,
   logicalSceneWindow,
   resolveCitySceneFeatures,
@@ -317,15 +319,18 @@ function advanceCamera(timeMs) {
   if (state.pointer && state.parallax !== previous) updateHover();
 }
 
-function sceneWindow(depth, offsetX = 0) {
+function sceneWindow(depth, offsetX = 0, offsetY = 0, parallaxAnchor = 0) {
   const window = logicalSceneWindow({
     width: canvas.width,
     height: canvas.height,
     parallax: state.parallax,
     depth,
-    approach: state.features?.approach || "ocean"
+    approach: state.features?.approach || "ocean",
+    parallaxAnchor
   });
-  return offsetX === 0 ? window : Object.freeze({ ...window, x: window.x - offsetX });
+  return offsetX === 0 && offsetY === 0
+    ? window
+    : Object.freeze({ ...window, x: window.x - offsetX, y: window.y - offsetY });
 }
 
 function render(timeMs) {
@@ -388,16 +393,20 @@ function sceneRenderEntries() {
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
   entries.push({ kind: "npcs", ...PORT_SCENE_ENTITY_META.npcs, authoredOrder: 37.5 });
   if (state.features.dock !== "none") {
-    entries.push({ kind: "dock-shadow-extension", z: 55, authoredOrder: 16.5 });
+    entries.push({ kind: "dock-shadow-extension", z: 36, authoredOrder: 16.5 });
   }
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
 }
 
 function drawStaticFrame(frame, layerName, occurrence) {
+  const approach = state.features?.approach || "ocean";
   const offsetX = layerSceneOffsetX(layerName, occurrence, state.features?.approach || "ocean");
+  const offsetY = layerSceneOffsetY(layerName, occurrence, approach);
   const window = sceneWindow(
     layerParallaxDepth(layerName, occurrence),
-    offsetX
+    offsetX,
+    offsetY,
+    layerParallaxAnchor(layerName, occurrence)
   );
   if (state.hoveredDestination?.layers.includes(layerName)) drawFrameOutline(frame, window);
   drawAtlasFrame(state.staticAtlas, frame, window, offsetX > 0);
@@ -489,13 +498,28 @@ function animatedOpaqueLeftEdges(atlas, frame) {
 
 function drawDockShadowExtension() {
   const frame = state.portManifest.staticFrames.find((candidate) => candidate.layer === "Sand Beach Dock Shadow");
-  if (!frame) return;
+  const beach = state.portManifest.staticFrames.find((candidate) => candidate.layer === "Sand Beach");
+  if (!frame || !beach) return;
   const window = sceneWindow(layerParallaxDepth("Sand Beach Dock Shadow"));
+  const beachRuns = beachOpaqueRuns(beach);
   for (const row of dockShadowRows()) {
-    const right = Math.round(frame.spriteSourceSize.x + row.x - window.x);
-    const y = Math.round(frame.spriteSourceSize.y + row.y - window.y);
+    const masterY = frame.spriteSourceSize.y + row.y;
+    const beachY = masterY - beach.spriteSourceSize.y;
+    if (beachY < 0 || beachY >= beachRuns.length) continue;
+    const extensionEnd = frame.spriteSourceSize.x + row.x;
+    const extensionStart = extensionEnd - PORT_SCENE_DOCK.shadowWaterExtension;
     context.fillStyle = row.color;
-    context.fillRect(right - PORT_SCENE_DOCK.shadowWaterExtension, y, PORT_SCENE_DOCK.shadowWaterExtension, 1);
+    for (const [runStart, runEnd] of beachRuns[beachY]) {
+      const clippedStart = Math.max(extensionStart, beach.spriteSourceSize.x + runStart);
+      const clippedEnd = Math.min(extensionEnd, beach.spriteSourceSize.x + runEnd);
+      if (clippedEnd <= clippedStart) continue;
+      context.fillRect(
+        Math.round(clippedStart - window.x),
+        Math.round(masterY - window.y),
+        Math.max(1, Math.round(clippedEnd - clippedStart)),
+        1
+      );
+    }
   }
 }
 
@@ -765,7 +789,9 @@ function updateHover() {
       .some((frame, occurrence) => {
         const window = sceneWindow(
           layerParallaxDepth(layerName, occurrence),
-          layerSceneOffsetX(layerName, occurrence, state.features?.approach || "ocean")
+          layerSceneOffsetX(layerName, occurrence, state.features?.approach || "ocean"),
+          layerSceneOffsetY(layerName, occurrence, state.features?.approach || "ocean"),
+          layerParallaxAnchor(layerName, occurrence)
         );
         const masterX = state.pointer.x + window.x;
         const masterY = state.pointer.y + window.y;

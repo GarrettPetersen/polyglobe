@@ -36,18 +36,35 @@ sections retain a slight depth difference, capped so their relative horizontal
 positions stay within three logical pixels. Duplicate layer names, such as the
 two market rows, can have different values by occurrence.
 
+The far castle wall has rearward parallax but draws above the road; depth never
+implicitly determines z-order. The road-cast castle shadow is locked to the
+road plane and draws immediately above it, while the foreground shadow draws
+above foreground terrain.
+
 The ocean is divided into horizon, distant, midground, and foreground bands at
 render time and uses the loading screen's sine-wave pixel-row displacement.
 Beach variants remain rigid, unsliced layers because their authored shapes
 already contain perspective. In river scenes, the intact left-bank assembly is
 inset toward the city bank to produce a much narrower visible river channel.
+Its horizon and distant terrain sit six logical pixels lower than the opposing
+bank, suggesting a bend instead of a mirrored chokepoint.
+
+Forest banks use midground parallax rather than the slower distant-hill depth,
+so trees read as nearby river terrain instead of horizon mountains.
 The right-bank beach, its dock shadow, the ship, every dock component, the
 road, walkers, gate opening, near gate face, waves, and surf share one parallax
 level. They form a continuous walkable lane and shoreline whose authored joints
 cannot separate. The dock shadow repeats each row's leftmost shadow pixel for
 the 66-pixel portion of the dock that projects beyond the beach frame. Wave
 underpaint is clipped to the beach's opaque pixels, so it never paints into an
-area where no beach was authored.
+area where no beach was authored. The repeated dock-shadow rows use the same
+beach mask and remain below the animated shoreline, preventing shadow color
+from leaking onto open water.
+
+The behind-road business row retains real depth, but uses the right-hand town
+view as its zero-displacement anchor. At that focus the upper and lower market
+stalls return to their authored across-the-street alignment and the blacksmith
+remains clear of the castle; depth separation grows only while panning away.
 
 ## Generated data and art
 
