@@ -239,6 +239,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const spiceIslandVillages = ports.filter((city) =>
     city.manualRegion === "spice-islands" && city.settlementType === "village"
   );
+  const sulawesiPorts = ports.filter((city) => city.manualRegion === "sulawesi");
   const northwestCoastVillages = ports.filter((city) => city.manualRegion === "northwest-coast");
   const greatLakesVillages = ports.filter((city) => city.manualRegion === "great-lakes");
   const mesoamericanVillages = ports.filter((city) => city.manualRegion === "mesoamerican-villages");
@@ -495,6 +496,21 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
       `${factionId} should begin 1522 with at least three accessible ports`
     );
   }
+  assert.deepEqual(
+    sulawesiPorts.map((city) => city.city).sort(),
+    ["Garassiq", "Malangke"],
+    "1522 South Sulawesi should not disappear merely because the population dataset is sparse"
+  );
+  assert.ok(sulawesiPorts.every((city) => city.factionId === NEUTRAL_FACTION_ID));
+  assert.equal(sulawesiPorts.find((city) => city.city === "Garassiq")?.displayCity, "Makassar");
+  assert.deepEqual(
+    Object.fromEntries(sulawesiPorts.map((city) => [city.city, city.marketGoods])),
+    {
+      Garassiq: ["rice", "fish", "timber"],
+      Malangke: ["iron", "timber", "rice"]
+    }
+  );
+  assert.equal(new Set(sulawesiPorts.map((city) => city.tileId)).size, sulawesiPorts.length);
   assert.deepEqual(
     northwestCoastVillages.map((city) => city.city).sort(),
     ["Ozette Village", "Yuquot Village"]

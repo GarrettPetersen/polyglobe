@@ -179,6 +179,24 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     placementLon: 127.42520141601562,
     marketGoods: ["cloves", "fish", "timber"]
   }),
+  // South Sulawesi was not empty in 1522. Garassiq was a small, contested
+  // river-mouth port passed among Gowa, Talloq, and Siang before Gowa secured
+  // it later in the century; do not turn that disputed history into modern or
+  // Ternatan sovereignty. Its familiar later name remains the display label.
+  manualCity1522("Garassiq", "Indonesia", -5.14, 119.41, 3500, {
+    displayCity: "Makassar",
+    cityType: "southeast-asian",
+    manualRegion: "sulawesi",
+    marketGoods: ["rice", "fish", "timber"]
+  }),
+  // Archaeology places Luwu's fifteenth- and sixteenth-century port-capital at
+  // Malangke, where hinterland iron and forest produce entered maritime trade.
+  // Palopo did not replace it as the royal center until the seventeenth century.
+  manualCity1522("Malangke", "Indonesia", -2.7776, 120.4245, 15000, {
+    cityType: "southeast-asian",
+    manualRegion: "sulawesi",
+    marketGoods: ["iron", "timber", "rice"]
+  }),
   // Tomogaura was the seaward outlet used by the Iwami silver mine when its
   // ore began moving through Ouchi trade in 1526. Present the province name to
   // the player while retaining the historical harbor as the stable identity.
