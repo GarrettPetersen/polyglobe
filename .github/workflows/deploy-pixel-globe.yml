@@ -50,5 +50,8 @@ jobs:
       - name: Install deployment tooling
         run: npm ci --prefix apps/pixel-globe
 
+      - name: Restore production Earth cache
+        run: gzip --decompress --keep examples/globe-demo/public/earth-globe-cache-8.json.gz
+
       - name: Test, build, and deploy
         run: npm run --prefix apps/pixel-globe deploy
