@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -25,6 +26,33 @@ import {
   snapshotOverboardCrew,
   updateStormWaveState
 } from "./stormWave.js";
+
+const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+
+function functionSource(name, nextName) {
+  const start = MAIN_SOURCE.indexOf(`function ${name}(`);
+  const end = MAIN_SOURCE.indexOf(`function ${nextName}(`, start + 1);
+  assert.ok(start >= 0, `${name} is missing`);
+  assert.ok(end > start, `${name} has no ${nextName} boundary`);
+  return MAIN_SOURCE.slice(start, end);
+}
+
+test("storm-wave frame work defers voyage serialization to idle time", () => {
+  const impact = functionSource("resolveStormWaveImpact", "sweepCrewOverboard");
+  const swimmers = functionSource("updateOverboardCrew", "restoreSweptCrewMember");
+  for (const source of [impact, swimmers]) {
+    assert.match(source, /scheduleEventAutosave/);
+    assert.doesNotMatch(source, /saveVoyageNow/);
+  }
+  assert.match(
+    functionSource("scheduleEventAutosave", "scheduleAutosaveAtIdle"),
+    /scheduleAutosaveAtIdle/
+  );
+  assert.match(
+    functionSource("scheduleAutosaveAtIdle", "queueDeferredAutosaveCallback"),
+    /queueDeferredAutosaveCallback/
+  );
+});
 
 test("breaking storm waves use the existing wind-aligned swell direction", () => {
   const state = createStormWaveState();

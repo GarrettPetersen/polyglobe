@@ -3,6 +3,7 @@ import {
   SHIP_PROPULSION_OAR_SAIL,
   SHIP_PROPULSION_SAIL
 } from "./shipStats.js";
+import { WORLD_KINEMATIC_SCALE } from "./worldScale.js";
 
 export const HYBRID_ROWING_SPEED_RATIO = 0.36;
 export const HYBRID_ROWING_ACCELERATION_RATIO = 0.42;
@@ -13,7 +14,7 @@ export const MAX_EFFECTIVE_ROWERS = 20;
 export const ROWING_FOOD_CONSUMPTION_MULTIPLIER = 1.15;
 export const SHIP_DRAG_PER_SECOND = 0.62;
 export const SHIP_STALLED_DRAG_MULTIPLIER = 1.35;
-export const SHIP_MINIMUM_POWERED_SPEED_RAD = 0.006;
+export const SHIP_MINIMUM_POWERED_SPEED_RAD = 0.006 * WORLD_KINEMATIC_SCALE;
 export const SAIL_CLOSE_HAULED_ANGLE_RANGE_RAD = Math.PI / 15;
 export const SAIL_CLOSE_HAULED_EFFICIENCY = 0.46;
 
@@ -21,7 +22,7 @@ export function sailWindSpeedFactor(windStrength) {
   if (!Number.isFinite(windStrength) || windStrength < 0) {
     throw new Error(`Invalid sailing wind strength: ${windStrength}`);
   }
-  return Math.min(1, 0.28 + windStrength * 0.72);
+  return 0.08 + smoothstep(Math.min(1, windStrength)) * 0.92;
 }
 
 export function sailingEfficiencyForAlignment(stats, alignment) {

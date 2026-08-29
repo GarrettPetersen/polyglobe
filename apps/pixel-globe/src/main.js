@@ -3957,8 +3957,9 @@ let chartRecoveryDiagnosticManualNowMs = 0;
 let chartRecoveryDiagnosticAdmissions = [];
 let chartRecoveryDiagnosticRepairPasses = [];
 let lastAutosaveMs = 0;
-let periodicAutosaveRequest = null;
-let periodicAutosaveDueMs = null;
+let deferredAutosaveRequest = null;
+let deferredAutosaveDueMs = null;
+let pendingIdleSaveReason = null;
 let captainAlertModal = null;
 let characterAlertPortraitStage = createDialoguePortraitStageState();
 let familyDebtReturnReminderDelivered = false;
@@ -15878,39 +15879,57 @@ function placeShipAtTileCenterForRecovery(tileId) {
 }
 
 function schedulePeriodicAutosave(nowMs = performance.now()) {
-  if (periodicAutosaveRequest) return;
-  if (periodicAutosaveDueMs === null) periodicAutosaveDueMs = nowMs;
+  scheduleAutosaveAtIdle("periodic autosave", nowMs);
+}
+
+function scheduleEventAutosave(reason, nowMs = performance.now()) {
+  if (typeof reason !== "string" || reason.trim() === "") {
+    throw new Error("Deferred event save requires a reason");
+  }
+  scheduleAutosaveAtIdle(reason, nowMs);
+}
+
+function scheduleAutosaveAtIdle(reason, nowMs) {
+  if (pendingIdleSaveReason === null || reason !== "periodic autosave") {
+    pendingIdleSaveReason = reason;
+  }
+  if (deferredAutosaveRequest) return;
+  if (deferredAutosaveDueMs === null) deferredAutosaveDueMs = nowMs;
   const voyageState = gameState;
   const callback = (deadline) => {
-    periodicAutosaveRequest = null;
+    deferredAutosaveRequest = null;
     if (voyageState !== gameState || !hasStartedVoyage || gameOverReason || ship?.hitPoints <= 0) {
-      periodicAutosaveDueMs = null;
+      deferredAutosaveDueMs = null;
+      pendingIdleSaveReason = null;
       return;
     }
-    const waitedMs = performance.now() - periodicAutosaveDueMs;
+    const waitedMs = performance.now() - deferredAutosaveDueMs;
     const activeControl = keys.size > 0 || pointerSteering.active || controllerSteering !== null;
     const busy = activeControl || shipCombatState.engagements.size > 0 ||
       Boolean(fishingAction) || Boolean(goldTreasureSequence) || surfaceIceEntrapmentActive;
     const hasIdleBudget = deadline.didTimeout || deadline.timeRemaining() >= 4;
     if ((busy || !hasIdleBudget) && waitedMs < AUTOSAVE_MAX_IDLE_DELAY_MS) {
-      queuePeriodicAutosaveCallback(callback);
+      queueDeferredAutosaveCallback(callback);
       return;
     }
-    periodicAutosaveDueMs = null;
-    saveVoyageNow("periodic autosave", { includeWorldTraffic: false });
+    const saveReason = pendingIdleSaveReason;
+    if (!saveReason) throw new Error("Idle autosave lost its reason");
+    deferredAutosaveDueMs = null;
+    pendingIdleSaveReason = null;
+    saveVoyageNow(saveReason, { includeWorldTraffic: false });
   };
-  queuePeriodicAutosaveCallback(callback);
+  queueDeferredAutosaveCallback(callback);
 }
 
-function queuePeriodicAutosaveCallback(callback) {
+function queueDeferredAutosaveCallback(callback) {
   if (typeof window.requestIdleCallback === "function") {
-    periodicAutosaveRequest = {
+    deferredAutosaveRequest = {
       kind: "idle",
       id: window.requestIdleCallback(callback, { timeout: 1000 })
     };
     return;
   }
-  periodicAutosaveRequest = {
+  deferredAutosaveRequest = {
     kind: "timeout",
     id: window.setTimeout(() => callback({
       didTimeout: false,
@@ -15919,18 +15938,19 @@ function queuePeriodicAutosaveCallback(callback) {
   };
 }
 
-function cancelPeriodicAutosave() {
-  if (periodicAutosaveRequest?.kind === "idle") {
-    window.cancelIdleCallback(periodicAutosaveRequest.id);
-  } else if (periodicAutosaveRequest?.kind === "timeout") {
-    window.clearTimeout(periodicAutosaveRequest.id);
+function cancelDeferredAutosave() {
+  if (deferredAutosaveRequest?.kind === "idle") {
+    window.cancelIdleCallback(deferredAutosaveRequest.id);
+  } else if (deferredAutosaveRequest?.kind === "timeout") {
+    window.clearTimeout(deferredAutosaveRequest.id);
   }
-  periodicAutosaveRequest = null;
-  periodicAutosaveDueMs = null;
+  deferredAutosaveRequest = null;
+  deferredAutosaveDueMs = null;
+  pendingIdleSaveReason = null;
 }
 
 function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
-  cancelPeriodicAutosave();
+  cancelDeferredAutosave();
   if (CAPTURE_SCENARIO) return true;
   if (!hasStartedVoyage || !gameState || !ship || gameOverReason || ship.hitPoints <= 0) return false;
   if (typeof includeWorldTraffic !== "boolean") {
@@ -32325,7 +32345,7 @@ function resolveStormWaveImpact(impact) {
       { count }
     ), "warn");
   }
-  saveVoyageNow("crew swept overboard");
+  scheduleEventAutosave("crew swept overboard");
 }
 
 function sweepCrewOverboard(count, impact) {
@@ -32555,7 +32575,9 @@ function updateOverboardCrew(dt) {
       ), "warn");
       presentPendingNamedCrewDeathNotice();
     }
-    saveVoyageNow(rescued.length > 0 ? "recovered crew overboard" : "crew drowned overboard");
+    scheduleEventAutosave(
+      rescued.length > 0 ? "recovered crew overboard" : "crew drowned overboard"
+    );
   }
   return true;
 }

@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { shipStatsForSlug } from "./shipStats.js";
+import {
+  SHIP_PROPULSION_SAIL,
+  SHIP_STATS,
+  shipStatsForSlug
+} from "./shipStats.js";
+import { WORLD_KINEMATIC_SCALE } from "./worldScale.js";
 import {
   HYBRID_ROWING_SPEED_RATIO,
   MAX_EFFECTIVE_ROWERS,
@@ -41,10 +46,28 @@ test("powered thrust compensates ordinary drag so low-acceleration hulls reach h
   assert.ok(speed >= targetSpeed * 0.99, `${speed} should approach ${targetSpeed}`);
 });
 
-test("wind-driven speed approaches hull speed without exceeding it", () => {
-  assert.equal(sailWindSpeedFactor(0), 0.28);
+test("sail power stays restrained in light airs and approaches hull speed in a strong breeze", () => {
+  assert.equal(SHIP_MINIMUM_POWERED_SPEED_RAD, 0.006 * WORLD_KINEMATIC_SCALE);
+  assert.equal(sailWindSpeedFactor(0), 0.08);
+  assert.ok(sailWindSpeedFactor(0.2) < 0.18);
+  assert.equal(sailWindSpeedFactor(0.5), 0.54);
+  assert.ok(sailWindSpeedFactor(0.8) > 0.9);
   assert.equal(sailWindSpeedFactor(1), 1);
   assert.equal(sailWindSpeedFactor(2), 1);
+});
+
+test("light wind keeps every sail-only hull below half speed", () => {
+  for (const stats of SHIP_STATS.filter((entry) => entry.propulsion === SHIP_PROPULSION_SAIL)) {
+    const performance = shipPropulsionPerformance(stats, {
+      windStrength: 0.2,
+      sailEfficiency: 1,
+      minimumSailSpeed: SHIP_MINIMUM_POWERED_SPEED_RAD
+    });
+    assert.ok(
+      performance.maxSpeedRad < stats.topSpeedRad * 0.5,
+      `${stats.slug} reaches ${(performance.maxSpeedRad / stats.topSpeedRad).toFixed(3)} hull speed`
+    );
+  }
 });
 
 test("world and lake sailing share one drag curve", () => {
