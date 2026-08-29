@@ -17,24 +17,28 @@ Run `npm run city-visualizer:dev` from `apps/pixel-globe`, then open
 - Authored horizontal safe span: x=455 through x=1365
 - Authored vertical scene bottom: y=583
 
-The vertical crop stays bottom-anchored. Extra portrait height reveals sky
-above the master scene rather than making important click targets drift below
-the canonical view. Coastal scenes pan within the authored 910-pixel safe span,
-so a 910-pixel coastal viewport has no horizontal travel. River scenes can pan
-across the entire 1365-pixel master even at that width so both banks remain
-reachable. The camera uses RTS-style edge scrolling: the center is a dead zone,
-speed increases toward either edge, and leaving the canvas stops motion without
-changing the current view. River scenes stop at their useful left-bank framing
+The viewer uses the same two-stage fullscreen policy as the game: first choose
+responsive logical dimensions, then continuously scale and center that canvas
+to fill the browser display. The canonical crop remains y=327 through y=583.
+Extra portrait height expands around its center, and the 256 × 910 extreme uses
+the entire y=0 through y=910 Aseprite master. Coastal scenes pan within the
+authored 910-pixel safe span, so a 910-pixel coastal viewport has no horizontal
+travel. River scenes can pan across the entire 1365-pixel master even at that
+width so both banks remain reachable. The camera uses RTS-style edge scrolling:
+the center is a dead zone, speed increases toward either edge, and leaving the
+canvas stops motion without changing the current view. Fractional fullscreen
+canvas edges are clamped to the logical bounds so subpixel pointer coordinates
+cannot stop the render loop. River scenes stop at their useful left-bank framing
 instead of continuing into an all-land view; their full rightward range remains
 available for inspecting the town and fortifications.
 
 Every authored layer occurrence and synthetic entity has explicit scene `z`
 and parallax-depth metadata. The renderer sorts static art, animated layers,
 the ship, and NPCs together. This lets the gatehouse back and gate sit behind
-walkers while its front wall shares the inn's foreground row. The three castle
-sections retain a slight depth difference, capped so their relative horizontal
-positions stay within three logical pixels. Duplicate layer names, such as the
-two market rows, can have different values by occurrence.
+walkers while its front wall draws above the foreground terrain. The three
+castle sections retain a slight depth difference, capped so their relative
+horizontal positions stay within three logical pixels. Duplicate layer names,
+such as the two market rows, can have different values by occurrence.
 
 The far castle wall has rearward parallax but draws above the road; depth never
 implicitly determines z-order. The road-cast castle shadow is locked to the
@@ -43,14 +47,18 @@ above foreground terrain.
 
 The ocean is divided into horizon, distant, midground, and foreground bands at
 render time and uses the loading screen's sine-wave pixel-row displacement.
+Each band shares the parallax rate of the scenery touching it: horizon water
+with horizon scenery, distant water with the distant shoreline, and both near
+bands with the beach-road plane.
 Beach variants remain rigid, unsliced layers because their authored shapes
 already contain perspective. In river scenes, the intact left-bank assembly is
 inset toward the city bank to produce a much narrower visible river channel.
 Its horizon and distant terrain sit six logical pixels lower than the opposing
 bank, suggesting a bend instead of a mirrored chokepoint.
 
-Forest banks use midground parallax rather than the slower distant-hill depth,
-so trees read as nearby river terrain instead of horizon mountains.
+Forest banks use near-shore parallax rather than distant-hill depth, so trees
+read as nearby river terrain instead of horizon mountains. Their authored
+river gap remains open throughout the pan.
 The right-bank beach, its dock shadow, the ship, every dock component, the
 road, walkers, gate opening, near gate face, waves, and surf share one parallax
 level. They form a continuous walkable lane and shoreline whose authored joints

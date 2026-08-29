@@ -1,4 +1,8 @@
-import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
+import {
+  resolveBrowserViewportDimensions,
+  responsiveLogicalViewport
+} from "../src/responsiveViewport.js";
+import { canvasDisplayLayout } from "../src/displayScaling.js";
 import {
   LOADING_CAPSULE_HEIGHT,
   LOADING_CAPSULE_HORIZON_Y,
@@ -252,11 +256,22 @@ function updateRuleLedger() {
 }
 
 function resizeLogicalCanvas() {
+  const browserViewport = window.visualViewport;
+  const dimensions = resolveBrowserViewportDimensions({
+    shellWidth: stage.clientWidth,
+    shellHeight: stage.clientHeight,
+    windowWidth: window.innerWidth,
+    windowHeight: window.innerHeight,
+    visualViewportWidth: browserViewport?.width,
+    visualViewportHeight: browserViewport?.height
+  });
+  if (!dimensions) return;
+  const { width: viewportWidth, height: viewportHeight } = dimensions;
   const preset = viewportSelect.value;
   const logical = preset === "auto"
     ? responsiveLogicalViewport({
-        viewportWidth: Math.max(1, stage.clientWidth),
-        viewportHeight: Math.max(1, stage.clientHeight)
+        viewportWidth,
+        viewportHeight
       })
     : ({
         canonical: { width: 455, height: 256 },
@@ -267,18 +282,24 @@ function resizeLogicalCanvas() {
   if (!logical) return;
   canvas.width = logical.width;
   canvas.height = logical.height;
-  const availableScale = Math.min(stage.clientWidth / logical.width, stage.clientHeight / logical.height);
-  const scale = availableScale >= 1 ? Math.max(1, Math.floor(availableScale)) : availableScale;
-  canvas.style.width = `${Math.max(1, Math.floor(logical.width * scale))}px`;
-  canvas.style.height = `${Math.max(1, Math.floor(logical.height * scale))}px`;
+  const layout = canvasDisplayLayout({
+    viewportWidth,
+    viewportHeight,
+    canvasWidth: logical.width,
+    canvasHeight: logical.height
+  });
+  canvas.style.left = `${layout.left}px`;
+  canvas.style.top = `${layout.top}px`;
+  canvas.style.width = `${layout.width}px`;
+  canvas.style.height = `${layout.height}px`;
   context.imageSmoothingEnabled = false;
   updateHover();
 }
 
 new ResizeObserver(() => {
-  if (viewportSelect.value === "auto") resizeLogicalCanvas();
-  else resizeLogicalCanvas();
+  resizeLogicalCanvas();
 }).observe(stage);
+window.visualViewport?.addEventListener("resize", resizeLogicalCanvas);
 
 canvas.addEventListener("pointermove", (event) => {
   state.pointer = canvasPoint(event);
@@ -881,8 +902,8 @@ function animationFrame(frames, timeMs) {
 function canvasPoint(event) {
   const rect = canvas.getBoundingClientRect();
   return {
-    x: (event.clientX - rect.left) / rect.width * canvas.width,
-    y: (event.clientY - rect.top) / rect.height * canvas.height
+    x: clamp((event.clientX - rect.left) / rect.width * canvas.width, 0, canvas.width),
+    y: clamp((event.clientY - rect.top) / rect.height * canvas.height, 0, canvas.height)
   };
 }
 

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { canvasDisplayLayout } from "../src/displayScaling.js";
 import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
 import {
   PORT_SCENE_MASTER,
@@ -50,6 +51,28 @@ test("the visualizer inherits the game's exact logical viewport dimensions", () 
   });
 });
 
+test("the visualizer uses the game's continuous fullscreen display scaling", () => {
+  for (const [viewportWidth, viewportHeight] of [
+    [1920, 1080],
+    [5120, 1440],
+    [1024, 1024],
+    [390, 844],
+    [360, 1280]
+  ]) {
+    const logical = responsiveLogicalViewport({ viewportWidth, viewportHeight });
+    const layout = canvasDisplayLayout({
+      viewportWidth,
+      viewportHeight,
+      canvasWidth: logical.width,
+      canvasHeight: logical.height
+    });
+    const horizontalGap = viewportWidth - layout.width;
+    const verticalGap = viewportHeight - layout.height;
+    assert.ok(horizontalGap < 2 || verticalGap < 2, `${viewportWidth}×${viewportHeight} did not fill either axis`);
+    assert.ok(layout.left >= 0 && layout.top >= 0);
+  }
+});
+
 test("coastal views use the safe span while river views can pan across the authored left bank", () => {
   const wideLeft = logicalSceneWindow({ width: 910, height: 256, parallax: -1 });
   const wideRight = logicalSceneWindow({ width: 910, height: 256, parallax: 1 });
@@ -74,6 +97,8 @@ test("RTS camera scrolls only at the edges and stops in place when input ceases"
   assert.equal(sceneEdgeScrollVelocity({ pointerX: 227.5, width: 455 }), 0);
   assert.equal(sceneEdgeScrollVelocity({ pointerX: 0, width: 455 }), -0.45);
   assert.equal(sceneEdgeScrollVelocity({ pointerX: 455, width: 455 }), 0.45);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: -0.39678955078125, width: 455 }), -0.45);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455.39678955078125, width: 455 }), 0.45);
   const firstFrame = advanceSceneParallax({
     current: -0.35,
     velocity: sceneEdgeScrollVelocity({ pointerX: 450, width: 455 }),
@@ -253,12 +278,15 @@ test("duplicate market layers can occupy distinct authored rows", () => {
   assert.ok(layerSceneZ("Market Stall Copy Copy", 1) < layerSceneZ("Market Stall Copy Copy", 2));
 });
 
-test("vertical crops stay bottom-anchored and extreme portrait reveals only additional sky", () => {
+test("vertical crops expand around the authored view and extreme portrait reveals the full tall artwork", () => {
   const landscape = logicalSceneWindow({ width: 455, height: 256 });
-  const portrait = logicalSceneWindow({ width: 256, height: 910 });
+  const portrait = logicalSceneWindow({ width: 256, height: 455 });
+  const extremePortrait = logicalSceneWindow({ width: 256, height: 910 });
+  const authoredCenterY = PORT_SCENE_MASTER.safeBottom - PORT_SCENE_MASTER.safeHeight / 2;
   assert.equal(landscape.y + landscape.height, PORT_SCENE_MASTER.safeBottom);
-  assert.equal(portrait.y + portrait.height, PORT_SCENE_MASTER.safeBottom);
-  assert.ok(portrait.y < 0);
+  assert.ok(Math.abs(portrait.y + portrait.height / 2 - authoredCenterY) <= 0.5);
+  assert.equal(extremePortrait.y, 0);
+  assert.equal(extremePortrait.y + extremePortrait.height, PORT_SCENE_MASTER.height);
 });
 
 test("river, dock, mountain, terrain, and fortification rules activate authored layer families", () => {

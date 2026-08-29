@@ -4,6 +4,7 @@ export const PORT_SCENE_MASTER = Object.freeze({
   leftBankX: 0,
   safeX: 455,
   safeWidth: 910,
+  safeHeight: 256,
   safeBottom: 583
 });
 
@@ -207,9 +208,10 @@ export function logicalSceneWindow({
   }
   const travel = spanWidth - width;
   const centeredX = spanX + travel / 2;
+  const safeCenterY = PORT_SCENE_MASTER.safeBottom - PORT_SCENE_MASTER.safeHeight / 2;
   return Object.freeze({
     x: centeredX + travel / 2 * (parallax * depth + parallaxAnchor * (1 - depth)),
-    y: PORT_SCENE_MASTER.safeBottom - height,
+    y: Math.round(safeCenterY - height / 2),
     width,
     height
   });
@@ -217,16 +219,17 @@ export function logicalSceneWindow({
 
 export function sceneEdgeScrollVelocity({ pointerX, width }) {
   requireLogicalDimension(width, "camera width");
-  if (!Number.isFinite(pointerX) || pointerX < 0 || pointerX > width) {
+  if (!Number.isFinite(pointerX)) {
     throw new Error(`Invalid scene camera pointer x: ${pointerX}`);
   }
+  const boundedPointerX = Math.max(0, Math.min(width, pointerX));
   const edgeWidth = Math.min(PORT_SCENE_CAMERA.maximumEdgeWidth, width * PORT_SCENE_CAMERA.edgeFraction);
-  if (pointerX < edgeWidth) {
-    const intensity = (edgeWidth - pointerX) / edgeWidth;
+  if (boundedPointerX < edgeWidth) {
+    const intensity = (edgeWidth - boundedPointerX) / edgeWidth;
     return -PORT_SCENE_CAMERA.maximumSpeed * intensity * intensity;
   }
-  if (pointerX > width - edgeWidth) {
-    const intensity = (pointerX - (width - edgeWidth)) / edgeWidth;
+  if (boundedPointerX > width - edgeWidth) {
+    const intensity = (boundedPointerX - (width - edgeWidth)) / edgeWidth;
     return PORT_SCENE_CAMERA.maximumSpeed * intensity * intensity;
   }
   return 0;
