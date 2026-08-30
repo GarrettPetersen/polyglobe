@@ -16,15 +16,14 @@ export const BACKGROUND_CITY_QUAY_CLEARANCE = 15;
 export const BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT = 12;
 export const BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT = 36;
 export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
-export const BACKGROUND_CITY_SKYLINE_RISE_PER_PIXEL = 1 / 32;
-export const BACKGROUND_CITY_SKYLINE_TOLERANCE = 3;
+export const BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL = 1 / 32;
+export const BACKGROUND_CITY_FOUNDATION_TOLERANCE = 3;
 
 const FRONT_SCALE = 0.5;
 const SCALE_STEP = 0.055;
 const DEPTH_STEP = 0.01;
 const BASELINE_STEP = 12;
 const ROW_START_OCCLUSION_OVERLAP = 8;
-const ROW_START_REVEAL_FRACTION_STEP = 0.12;
 const BACKGROUND_CITY_BUILDING_MIX_LAYERS = Object.freeze({
   homeA: "Home",
   homeB: "Home 2",
@@ -205,8 +204,8 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
   const baseLeft = baseFrame.spriteSourceSize.x;
   const baseRight = baseLeft + baseFrame.spriteSourceSize.w;
   const rowsNearToFar = [];
-  let skylineAnchorX = null;
-  let skylineAnchorY = null;
+  const foundationAnchorX = baseLeft;
+  const foundationAnchorY = baseTopYByX[0];
 
   for (let distanceFromFront = 0; distanceFromFront < rowCount; distanceFromFront++) {
     const scale = roundTo(FRONT_SCALE - distanceFromFront * SCALE_STEP, 3);
@@ -223,18 +222,18 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
     const remainingChurchPlans = churchPlans.filter((plan) => (
       plan.distanceFromFront >= distanceFromFront
     ));
-    const skylineDeficitX = distanceFromFront === 0
+    const foundationDeficitX = distanceFromFront === 0
       ? baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE
-      : firstCitySkylineDeficitX({
+      : firstCityFoundationDeficitX({
           rows: rowsNearToFar,
           leftX: baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
           rightX: baseRight,
-          anchorX: skylineAnchorX,
-          anchorY: skylineAnchorY
+          anchorX: foundationAnchorX,
+          anchorY: foundationAnchorY
         });
-    if (skylineDeficitX < 0 && remainingChurchPlans.length === 0) break;
-    const deficitX = skylineDeficitX >= 0
-      ? skylineDeficitX
+    if (foundationDeficitX < 0 && remainingChurchPlans.length === 0) break;
+    const deficitX = foundationDeficitX >= 0
+      ? foundationDeficitX
       : Math.max(
           baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
           baseLeft + Math.round(
@@ -247,16 +246,6 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
           baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
           deficitX - ROW_START_OCCLUSION_OVERLAP
         );
-    if (distanceFromFront > 0) {
-      const cityLeft = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE;
-      const revealStartLimit = cityLeft + Math.round(
-        (baseRight - cityLeft) * Math.min(
-          0.84,
-          distanceFromFront * ROW_START_REVEAL_FRACTION_STEP
-        )
-      );
-      x = Math.min(x, revealStartLimit);
-    }
     let previousLayer = null;
     let buildingIndex = 0;
     const cycleOffset = randomInteger(random, 0, buildingPool.length - 1);
@@ -416,10 +405,6 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
       buildings: Object.freeze(buildings)
     });
     rowsNearToFar.push(row);
-    if (distanceFromFront === 0) {
-      skylineAnchorX = buildings[0].x;
-      skylineAnchorY = buildings[0].y;
-    }
   }
   return Object.freeze(rowsNearToFar.reverse().map((row, rowIndex) => Object.freeze({
     ...row,
@@ -555,11 +540,39 @@ export function cityBackgroundColumnSkyline(rows) {
   }));
 }
 
-export function cityBackgroundSkylineTargetY(anchorX, anchorY, x) {
-  if (![anchorX, anchorY, x].every(Number.isFinite) || x < anchorX) {
-    throw new Error(`Invalid background city skyline target: ${anchorX},${anchorY}→${x}`);
+export function cityBackgroundColumnFoundations(rows) {
+  if (
+    !Array.isArray(rows) ||
+    !rows.every((row) => (
+      Number.isInteger(row?.distanceFromFront) &&
+      Array.isArray(row?.buildings) &&
+      row.buildings.every((building) => (
+        Number.isFinite(building?.x) &&
+        Number.isFinite(building?.wallBottomY) &&
+        Number.isInteger(building?.width) &&
+        building.width > 0
+      ))
+    ))
+  ) {
+    throw new Error("Invalid background city rows for foundation measurement");
   }
-  return anchorY - Math.round((x - anchorX) * BACKGROUND_CITY_SKYLINE_RISE_PER_PIXEL);
+  const buildings = rows.flatMap((row) => row.buildings);
+  const frontRow = rows.find((row) => row.distanceFromFront === 0);
+  if (!frontRow || buildings.length === 0) return Object.freeze([]);
+  return Object.freeze(frontRow.buildings.map((frontBuilding) => {
+    const x = frontBuilding.x + frontBuilding.width / 2;
+    const foundationY = Math.min(...buildings.filter((building) => (
+      x >= building.x && x < building.x + building.width
+    )).map((building) => building.wallBottomY));
+    return Object.freeze({ x, foundationY });
+  }));
+}
+
+export function cityBackgroundFoundationTargetY(anchorX, anchorY, x) {
+  if (![anchorX, anchorY, x].every(Number.isFinite) || x < anchorX) {
+    throw new Error(`Invalid background city foundation target: ${anchorX},${anchorY}→${x}`);
+  }
+  return anchorY - Math.round((x - anchorX) * BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL);
 }
 
 export function cityBackgroundAtmosphereLevel(distanceFromFront, rowCount) {
@@ -671,13 +684,24 @@ function directlyBehindDuplicateCount(frame, x, scale, rows) {
   return duplicates;
 }
 
-function firstCitySkylineDeficitX({ rows, leftX, rightX, anchorX, anchorY }) {
+function firstCityFoundationDeficitX({ rows, leftX, rightX, anchorX, anchorY }) {
   for (let x = Math.ceil(leftX); x < rightX; x++) {
-    const skylineTopY = citySkylineTopYAtX(rows, x);
-    const targetY = cityBackgroundSkylineTargetY(anchorX, anchorY, x);
-    if (skylineTopY > targetY + BACKGROUND_CITY_SKYLINE_TOLERANCE) return x;
+    const foundationY = cityHighestFoundationYAtX(rows, x);
+    const targetY = cityBackgroundFoundationTargetY(anchorX, anchorY, x);
+    if (foundationY > targetY + BACKGROUND_CITY_FOUNDATION_TOLERANCE) return x;
   }
   return -1;
+}
+
+function cityHighestFoundationYAtX(rows, x) {
+  let foundationY = Number.POSITIVE_INFINITY;
+  for (const row of rows) {
+    for (const building of row.buildings) {
+      if (x < building.x || x >= building.x + building.width) continue;
+      foundationY = Math.min(foundationY, building.wallBottomY);
+    }
+  }
+  return foundationY;
 }
 
 function citySkylineTopYAtX(rows, x) {

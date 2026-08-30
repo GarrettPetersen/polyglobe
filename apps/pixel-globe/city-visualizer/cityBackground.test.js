@@ -5,21 +5,23 @@ import {
   BACKGROUND_CITY_BUILDING_LAYERS,
   BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT,
   BACKGROUND_CITY_CHURCH_LAYER,
+  BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL,
   BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT,
+  BACKGROUND_CITY_FOUNDATION_TOLERANCE,
   BACKGROUND_CITY_FRONT_DEPTH,
   BACKGROUND_CITY_MAX_ROWS,
   BACKGROUND_CITY_QUAY_CLEARANCE,
-  BACKGROUND_CITY_SKYLINE_TOLERANCE,
   BACKGROUND_CITY_STREET_COLOR,
   cityBackgroundAtmosphereLevel,
   cityBackgroundAtmosphereRgb,
   cityBackgroundBaseTopProfile,
   cityBackgroundChurchPlans,
+  cityBackgroundColumnFoundations,
   cityBackgroundLayout,
   cityBackgroundColumnSkyline,
+  cityBackgroundFoundationTargetY,
   cityBackgroundPainterOrder,
   cityBackgroundRowCount,
-  cityBackgroundSkylineTargetY,
   cityBackgroundStreetRows,
   mirrorCityBackgroundStreetRows,
   oppositeBankCityBackgroundLayout
@@ -197,7 +199,7 @@ test("Christian city profiles space multiple buried churches across distinct sky
   assert.ok(
     coolRearRows.some((row) => row.buildings.some((building) => (
       building.frame.layer !== BACKGROUND_CITY_CHURCH_LAYER &&
-      building.x <= BASE_FRAME.spriteSourceSize.x + Math.round(BASE_FRAME.frame.w * 0.55)
+      building.x <= BASE_FRAME.spriteSourceSize.x + Math.round(BASE_FRAME.frame.w * 0.65)
     ))),
     "cool-shifted rear buildings must occupy a visible part of the skyline"
   );
@@ -266,10 +268,9 @@ test("a falling ribbon adds grounded rear layers at the dip instead of lifting b
   const frontStart = fallingRows.at(-1).buildings[0].x;
   assert.equal(frontStart, flatRows.at(-1).buildings[0].x);
   assert.ok(fallingRows.length > flatRows.length);
-  assert.ok(
-    fallingRows.find((row) => row.distanceFromFront === 3).buildings[0].x <
-      flatRows.find((row) => row.distanceFromFront === 3).buildings[0].x
-  );
+  const fallingRearTier = fallingRows.find((row) => row.distanceFromFront === 3);
+  assert.ok(fallingRearTier);
+  assert.ok(fallingRearTier.buildings[0].x < BASE_FRAME.spriteSourceSize.x + BASE_FRAME.frame.w / 2);
   for (const row of fallingRows) {
     for (const building of row.buildings) {
       assert.equal(building.rowGroundTopY, building.shorelineTopY);
@@ -288,7 +289,7 @@ test("a falling ribbon adds grounded rear layers at the dip instead of lifting b
   }
 });
 
-test("the city adds layers until its skyline reaches a gently rising target", () => {
+test("the city adds layers until its foundations reach a gently rising ground-plane target", () => {
   const rows = cityBackgroundLayout({
     city: LONDON,
     rowCount: BACKGROUND_CITY_MAX_ROWS,
@@ -296,24 +297,30 @@ test("the city adds layers until its skyline reaches a gently rising target", ()
     baseFrame: BASE_FRAME,
     baseTopYByX: FLAT_BASE_TOP
   });
-  const anchor = rows.at(-1).buildings[0];
-  const skyline = cityBackgroundColumnSkyline(rows);
-  for (const column of skyline) {
-    const targetY = cityBackgroundSkylineTargetY(anchor.x, anchor.y, column.x);
+  const anchorX = BASE_FRAME.spriteSourceSize.x;
+  const anchorY = FLAT_BASE_TOP[0];
+  const foundations = cityBackgroundColumnFoundations(rows);
+  assert.equal(BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL, 1 / 32);
+  for (const column of foundations) {
+    const targetY = cityBackgroundFoundationTargetY(
+      anchorX,
+      anchorY,
+      column.x
+    );
     assert.ok(
-      column.topY <= targetY + BACKGROUND_CITY_SKYLINE_TOLERANCE,
-      `skyline at ${column.x} sinks below its ${targetY} target to ${column.topY}`
+      column.foundationY <= targetY + BACKGROUND_CITY_FOUNDATION_TOLERANCE,
+      `foundation at ${column.x} sinks below its ${targetY} target to ${column.foundationY}`
     );
   }
   const frontOnly = rows.filter((row) => row.distanceFromFront === 0);
-  const sunkenSkyline = cityBackgroundColumnSkyline(frontOnly);
+  const sunkenFoundations = cityBackgroundColumnFoundations(frontOnly);
   assert.ok(
-    sunkenSkyline.some((column) => (
-      column.topY >
-        cityBackgroundSkylineTargetY(anchor.x, anchor.y, column.x) +
-          BACKGROUND_CITY_SKYLINE_TOLERANCE
+    sunkenFoundations.some((column) => (
+      column.foundationY >
+        cityBackgroundFoundationTargetY(anchorX, anchorY, column.x) +
+          BACKGROUND_CITY_FOUNDATION_TOLERANCE
     )),
-    "removing the adaptive rear layers should expose a sunken skyline"
+    "removing the adaptive rear layers should expose a sunken ground plane"
   );
 });
 
