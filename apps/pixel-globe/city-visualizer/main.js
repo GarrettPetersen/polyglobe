@@ -33,9 +33,14 @@ import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import {
   BACKGROUND_CITY_BASE_LAYER,
   BACKGROUND_CITY_STREET_COLOR,
+  cityBackgroundAtmosphereLevel,
+  cityBackgroundAtmosphereRgb,
   cityBackgroundBaseTopProfile,
+  cityBackgroundLayout,
+  cityBackgroundPainterOrder,
   cityBackgroundStreetRows,
-  cityBackgroundLayout
+  mirrorCityBackgroundStreetRows,
+  oppositeBankCityBackgroundLayout
 } from "./cityBackground.js";
 import { cityOceanParallaxDepth, cityOceanRowOffset } from "./cityOceanMotion.js";
 import {
@@ -72,6 +77,7 @@ const citySelect = document.querySelector("#city-select");
 const viewportSelect = document.querySelector("#viewport-select");
 const shipSelect = document.querySelector("#ship-select");
 const approachOverride = document.querySelector("#approach-override");
+const leftBankCityOverride = document.querySelector("#left-bank-city-override");
 const dockOverride = document.querySelector("#dock-override");
 const fortOverride = document.querySelector("#fort-override");
 const mountainOverride = document.querySelector("#mountain-override");
@@ -86,6 +92,7 @@ const destinationCopy = document.querySelector("#destination-copy");
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const imageCache = new Map();
 const frameCanvasCache = new Map();
+const backgroundCityAtmosphereCanvasCache = new WeakMap();
 const alphaCache = new Map();
 const animatedRowEdgeCache = new WeakMap();
 let dockShadowExtensionRows = null;
@@ -114,8 +121,12 @@ const state = {
   suppressClick: false,
   hoveredDestination: null,
   backgroundCityRows: [],
+  backgroundCityPainterOrder: [],
+  leftBankBackgroundCityRows: [],
+  leftBankBackgroundCityPainterOrder: [],
   backgroundCityBaseTopYByX: null,
   backgroundCityStreetRows: [],
+  leftBankBackgroundCityStreetRows: [],
   npcAgents: []
 };
 
@@ -206,6 +217,7 @@ function prepareControls() {
     option(ship.value, ship.label)
   )));
   setOptions(approachOverride, ["auto", "ocean", "river", "lake"]);
+  setOptions(leftBankCityOverride, ["auto", "on", "off"]);
   setOptions(dockOverride, ["auto", "none", "wood", "stone"]);
   setOptions(fortOverride, ["auto", "on", "off"]);
   setOptions(mountainOverride, ["auto", "none", "left", "right", "both"]);
@@ -217,6 +229,7 @@ function prepareControls() {
   shipSelect.addEventListener("change", () => selectShip(shipSelect.value));
   for (const control of [
     approachOverride,
+    leftBankCityOverride,
     dockOverride,
     fortOverride,
     mountainOverride,
@@ -226,6 +239,7 @@ function prepareControls() {
   resetOverrides.addEventListener("click", () => {
     for (const control of [
       approachOverride,
+      leftBankCityOverride,
       dockOverride,
       fortOverride,
       mountainOverride,
@@ -253,6 +267,7 @@ function selectCity(cityId) {
   state.npcAgents = createNpcAgents(city.id);
   for (const control of [
     approachOverride,
+    leftBankCityOverride,
     dockOverride,
     fortOverride,
     mountainOverride,
@@ -271,6 +286,9 @@ function applyFeatureOverrides() {
   const mountain = mountainOverride.value;
   const overrides = {
     approach: autoValue(approachOverride.value),
+    leftBankCity: leftBankCityOverride.value === "auto"
+      ? undefined
+      : leftBankCityOverride.value === "on",
     dock: autoValue(dockOverride.value),
     fortified: fortOverride.value === "auto" ? undefined : fortOverride.value === "on",
     mountainsLeft: mountain === "auto" ? undefined : mountain === "left" || mountain === "both",
@@ -307,6 +325,27 @@ function applyFeatureOverrides() {
     baseFrame: backgroundCityBase,
     baseTopYByX: state.backgroundCityBaseTopYByX
   });
+  state.backgroundCityPainterOrder = cityBackgroundPainterOrder(state.backgroundCityRows);
+  state.leftBankBackgroundCityStreetRows = state.features.leftBankCity
+    ? mirrorCityBackgroundStreetRows({
+        rows: state.backgroundCityStreetRows,
+        sceneWidth: PORT_SCENE_MASTER.width
+      })
+    : [];
+  state.leftBankBackgroundCityRows = state.features.leftBankCity
+    ? oppositeBankCityBackgroundLayout({
+        city: state.city,
+        rowCount: state.features.backgroundCityRows,
+        frames: state.portManifest.staticFrames,
+        baseFrame: backgroundCityBase,
+        baseTopYByX: state.backgroundCityBaseTopYByX,
+        sceneWidth: PORT_SCENE_MASTER.width,
+        parallaxAnchor: PORT_SCENE_CAMERA.riverDefaultParallax
+      })
+    : [];
+  state.leftBankBackgroundCityPainterOrder = cityBackgroundPainterOrder(
+    state.leftBankBackgroundCityRows
+  );
   const cameraBounds = sceneCameraParallaxBounds(state.features.approach);
   state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
   updateRuleLedger();
@@ -564,7 +603,8 @@ function render(timeMs) {
     else if (entry.kind === "animated") drawAnimatedLayer(entry.layerName, timeMs, entry.occurrence);
     else if (entry.kind === "dock-shadow-extension") drawDockShadowExtension();
     else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
-    else if (entry.kind === "background-city") drawBackgroundCity();
+    else if (entry.kind === "background-city") drawBackgroundCity(entry.side);
+    else if (entry.kind === "left-bank-background-city-base") drawLeftBankBackgroundCityBase(entry.frame);
     else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
     else if (entry.kind === "npcs") drawNpcs(timeMs);
@@ -605,9 +645,24 @@ function sceneRenderEntries() {
       if (layerName === BACKGROUND_CITY_BASE_LAYER) {
         entries.push({
           kind: "background-city",
+          side: "right",
           z: layerSceneZ(layerName, occurrence) - 0.1,
           authoredOrder: authoredOrder - 0.1
         });
+        if (state.features.leftBankCity) {
+          entries.push({
+            kind: "background-city",
+            side: "left",
+            z: layerSceneZ(layerName, occurrence) - 0.1,
+            authoredOrder: authoredOrder - 0.2
+          });
+          entries.push({
+            kind: "left-bank-background-city-base",
+            frame,
+            z: layerSceneZ(layerName, occurrence),
+            authoredOrder: authoredOrder - 0.05
+          });
+        }
       }
       entries.push({
         kind: "static",
@@ -638,13 +693,39 @@ function sceneRenderEntries() {
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
 }
 
-function drawBackgroundCity() {
-  if (state.backgroundCityRows.length === 0) return;
-  drawBackgroundCityStreet();
-  for (const row of state.backgroundCityRows) {
-    const window = sceneWindow(row.depth, 0, 0, row.parallaxAnchor);
-    for (const building of row.buildings) {
-      const frame = building.frame;
+function drawBackgroundCity(side) {
+  const leftBank = side === "left";
+  const rows = leftBank ? state.leftBankBackgroundCityRows : state.backgroundCityRows;
+  const painterOrder = leftBank
+    ? state.leftBankBackgroundCityPainterOrder
+    : state.backgroundCityPainterOrder;
+  const streetRows = leftBank
+    ? state.leftBankBackgroundCityStreetRows
+    : state.backgroundCityStreetRows;
+  if (rows.length === 0) return;
+  drawBackgroundCityStreet(streetRows, rows.at(-1).parallaxAnchor);
+  for (const entry of painterOrder) {
+    const building = entry.building;
+    const frame = building.frame;
+    const window = sceneWindow(entry.depth, 0, 0, entry.parallaxAnchor);
+    const atmosphereLevel = cityBackgroundAtmosphereLevel(
+      entry.distanceFromFront,
+      rows.length
+    );
+    const atmosphereFrame = backgroundCityAtmosphereFrame(frame, atmosphereLevel);
+    if (atmosphereFrame) {
+      context.drawImage(
+        atmosphereFrame,
+        0,
+        0,
+        frame.frame.w,
+        frame.frame.h,
+        Math.round(building.x - window.x),
+        Math.round(building.y - window.y),
+        building.width,
+        building.height
+      );
+    } else {
       context.drawImage(
         state.staticAtlas,
         frame.frame.x,
@@ -660,16 +741,58 @@ function drawBackgroundCity() {
   }
 }
 
-function drawBackgroundCityStreet() {
-  if (state.backgroundCityStreetRows.length === 0) return;
+function backgroundCityAtmosphereFrame(frame, level) {
+  if (level === 0) return null;
+  let levels = backgroundCityAtmosphereCanvasCache.get(frame);
+  if (!levels) {
+    levels = new Map();
+    backgroundCityAtmosphereCanvasCache.set(frame, levels);
+  }
+  if (levels.has(level)) return levels.get(level);
+  const buffer = document.createElement("canvas");
+  buffer.width = frame.frame.w;
+  buffer.height = frame.frame.h;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  bufferContext.imageSmoothingEnabled = false;
+  bufferContext.drawImage(
+    state.staticAtlas,
+    frame.frame.x,
+    frame.frame.y,
+    frame.frame.w,
+    frame.frame.h,
+    0,
+    0,
+    frame.frame.w,
+    frame.frame.h
+  );
+  const imageData = bufferContext.getImageData(0, 0, buffer.width, buffer.height);
+  for (let offset = 0; offset < imageData.data.length; offset += 4) {
+    if (imageData.data[offset + 3] <= 16) continue;
+    const shifted = cityBackgroundAtmosphereRgb(
+      imageData.data[offset],
+      imageData.data[offset + 1],
+      imageData.data[offset + 2],
+      level
+    );
+    imageData.data[offset] = shifted.red;
+    imageData.data[offset + 1] = shifted.green;
+    imageData.data[offset + 2] = shifted.blue;
+  }
+  bufferContext.putImageData(imageData, 0, 0);
+  levels.set(level, buffer);
+  return buffer;
+}
+
+function drawBackgroundCityStreet(rows, parallaxAnchor) {
+  if (rows.length === 0) return;
   const window = sceneWindow(
     layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
     0,
     0,
-    layerParallaxAnchor(BACKGROUND_CITY_BASE_LAYER)
+    parallaxAnchor
   );
   context.fillStyle = BACKGROUND_CITY_STREET_COLOR;
-  for (const row of state.backgroundCityStreetRows) {
+  for (const row of rows) {
     const screenX = Math.round(row.leftX - window.x);
     const screenY = Math.round(row.y - window.y);
     const screenRight = Math.round(row.rightX - window.x);
@@ -681,6 +804,34 @@ function drawBackgroundCityStreet() {
       1
     );
   }
+}
+
+function drawLeftBankBackgroundCityBase(frame) {
+  const parallaxAnchor = PORT_SCENE_CAMERA.riverDefaultParallax;
+  const window = sceneWindow(
+    layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
+    0,
+    0,
+    parallaxAnchor
+  );
+  const masterX = PORT_SCENE_MASTER.width - frame.spriteSourceSize.x - frame.frame.w;
+  const destinationX = Math.round(masterX - window.x);
+  const destinationY = Math.round(frame.spriteSourceSize.y - window.y);
+  context.save();
+  context.translate(destinationX + frame.frame.w, 0);
+  context.scale(-1, 1);
+  context.drawImage(
+    state.staticAtlas,
+    frame.frame.x,
+    frame.frame.y,
+    frame.frame.w,
+    frame.frame.h,
+    0,
+    destinationY,
+    frame.frame.w,
+    frame.frame.h
+  );
+  context.restore();
 }
 
 function drawChimneySmoke(emitter, timeMs) {

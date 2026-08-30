@@ -1,3 +1,5 @@
+import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
+
 export const BACKGROUND_CITY_BASE_LAYER = "Background City Base";
 export const BACKGROUND_CITY_BUILDING_LAYERS = Object.freeze([
   "Inn",
@@ -7,18 +9,27 @@ export const BACKGROUND_CITY_BUILDING_LAYERS = Object.freeze([
 ]);
 
 export const BACKGROUND_CITY_FRONT_DEPTH = 0.86;
+export const BACKGROUND_CITY_MAX_ROWS = 8;
 export const BACKGROUND_CITY_PARALLAX_ANCHOR = 1;
 export const BACKGROUND_CITY_QUAY_CLEARANCE = 15;
 export const BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT = 12;
 export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
+export const BACKGROUND_CITY_SKYLINE_RISE_PER_PIXEL = 1 / 32;
+export const BACKGROUND_CITY_SKYLINE_TOLERANCE = 3;
 
 const FRONT_SCALE = 0.5;
 const SCALE_STEP = 0.055;
 const DEPTH_STEP = 0.01;
 const BASELINE_STEP = 12;
-const RIGHT_RISE_PER_ROW = 4;
-const PARALLAX_CLEARANCE_PER_ROW = 7;
-const ROW_START_STAGGER = 42;
+const ROW_START_OCCLUSION_OVERLAP = 8;
+const ATMOSPHERE_FOG_RGB = Object.freeze([0x4d, 0x65, 0xb4]);
+const ATMOSPHERE_STRENGTH = Object.freeze([0, 0.2, 0.38]);
+const RESURRECT_64_RGB = Object.freeze(RESURRECT_64_HEX.map(parseHexRgb));
+const ATMOSPHERE_RGB_CACHE = Object.freeze([
+  new Map(),
+  new Map(),
+  new Map()
+]);
 
 export function cityBackgroundRowCount(city) {
   if (!city || typeof city !== "object") throw new Error("Background city requires a city record");
@@ -35,7 +46,7 @@ export function cityBackgroundRowCount(city) {
         ? 3
         : population < 50_000
           ? 4
-          : 5;
+          : BACKGROUND_CITY_MAX_ROWS;
   if (city.capital) rows = Math.max(rows, 3);
   return rows;
 }
@@ -115,11 +126,34 @@ export function cityBackgroundStreetRows({ alpha, width, height, sourceX, source
   return Object.freeze(rows);
 }
 
+export function mirrorCityBackgroundStreetRows({ rows, sceneWidth }) {
+  if (
+    !Array.isArray(rows) ||
+    !Number.isInteger(sceneWidth) ||
+    sceneWidth <= 0 ||
+    !rows.every((row) => (
+      Number.isInteger(row?.y) &&
+      Number.isInteger(row?.leftX) &&
+      Number.isInteger(row?.rightX) &&
+      row.leftX < row.rightX &&
+      row.leftX >= 0 &&
+      row.rightX <= sceneWidth
+    ))
+  ) {
+    throw new Error("Invalid background city street rows to mirror");
+  }
+  return Object.freeze(rows.map((row) => Object.freeze({
+    y: row.y,
+    leftX: sceneWidth - row.rightX,
+    rightX: sceneWidth - row.leftX
+  })));
+}
+
 export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTopYByX }) {
   if (!city || typeof city !== "object" || typeof city.id !== "string" || city.id === "") {
     throw new Error("Background city layout requires a stable city id");
   }
-  if (!Number.isInteger(rowCount) || rowCount < 0 || rowCount > 5) {
+  if (!Number.isInteger(rowCount) || rowCount < 0 || rowCount > BACKGROUND_CITY_MAX_ROWS) {
     throw new Error(`Invalid background city row count: ${rowCount}`);
   }
   if (rowCount === 0) return Object.freeze([]);
@@ -140,21 +174,35 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
   const random = seededRandom(hashString(city.id));
   const baseLeft = baseFrame.spriteSourceSize.x;
   const baseRight = baseLeft + baseFrame.spriteSourceSize.w;
-  const rows = [];
+  const rowsNearToFar = [];
+  let skylineAnchorX = null;
+  let skylineAnchorY = null;
 
-  for (let rowIndex = 0; rowIndex < rowCount; rowIndex++) {
-    const distanceFromFront = rowCount - rowIndex - 1;
+  for (let distanceFromFront = 0; distanceFromFront < rowCount; distanceFromFront++) {
     const scale = roundTo(FRONT_SCALE - distanceFromFront * SCALE_STEP, 3);
     const depth = roundTo(BACKGROUND_CITY_FRONT_DEPTH - distanceFromFront * DEPTH_STEP, 3);
     const verticalOffset = -distanceFromFront * BASELINE_STEP;
     const buildings = [];
-    const parallaxClearance = distanceFromFront * PARALLAX_CLEARANCE_PER_ROW;
     const rowFoundationHeight = Math.max(
       1,
       Math.round(BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT * scale)
     );
-    let x = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE +
-      distanceFromFront * ROW_START_STAGGER + parallaxClearance;
+    const deficitX = distanceFromFront === 0
+      ? baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE
+      : firstCitySkylineDeficitX({
+          rows: rowsNearToFar,
+          leftX: baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
+          rightX: baseRight,
+          anchorX: skylineAnchorX,
+          anchorY: skylineAnchorY
+        });
+    if (deficitX < 0) break;
+    let x = distanceFromFront === 0
+      ? deficitX
+      : Math.max(
+          baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
+          deficitX - ROW_START_OCCLUSION_OVERLAP
+        );
     let previousLayer = null;
     let buildingIndex = 0;
     const cycleOffset = randomInteger(random, 0, buildingFrames.length - 1);
@@ -177,29 +225,37 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
       }
       let frame = buildingFrames[(cycleOffset + buildingIndex) % buildingFrames.length];
       if (!fittingFrames.includes(frame)) frame = fittingFrames[0];
-      if (frame.layer === previousLayer) {
-        const alternatives = fittingFrames.filter((candidate) => candidate.layer !== previousLayer);
-        if (alternatives.length > 0) {
-          frame = alternatives[randomInteger(random, 0, alternatives.length - 1)];
-        }
+      const nonRepeatingFrames = fittingFrames.filter((candidate) => candidate.layer !== previousLayer);
+      const candidates = nonRepeatingFrames.length > 0 ? nonRepeatingFrames : fittingFrames;
+      const duplicateCounts = new Map(candidates.map((candidate) => [
+        candidate,
+        directlyBehindDuplicateCount(candidate, x, scale, rowsNearToFar)
+      ]));
+      const minimumDuplicateCount = Math.min(...duplicateCounts.values());
+      const leastDuplicatedFrames = candidates.filter((candidate) => (
+        duplicateCounts.get(candidate) === minimumDuplicateCount
+      ));
+      if (!leastDuplicatedFrames.includes(frame)) {
+        frame = leastDuplicatedFrames[randomInteger(random, 0, leastDuplicatedFrames.length - 1)];
       }
       const width = Math.max(1, Math.round(frame.frame.w * scale));
       const height = Math.max(1, Math.round(frame.frame.h * scale));
       const foundationHeight = Math.min(height - 1, rowFoundationHeight);
-      const centerX = x + width / 2;
-      const profileX = Math.max(0, Math.min(
-        baseTopYByX.length - 1,
-        Math.round(centerX - baseLeft)
-      ));
-      const rightwardProgress = profileX / Math.max(1, baseTopYByX.length - 1);
-      const rightRise = Math.round(rightwardProgress * distanceFromFront * RIGHT_RISE_PER_ROW);
-      const profileStartX = Math.max(0, Math.floor(x - baseLeft - parallaxClearance));
+      const profileStartX = Math.max(0, Math.floor(x - baseLeft));
       const profileEndX = Math.min(
         baseTopYByX.length,
-        Math.ceil(x + width - baseLeft + parallaxClearance)
+        Math.ceil(x + width - baseLeft)
       );
-      const ribbonTopY = minimumValue(baseTopYByX, profileStartX, profileEndX);
-      const admittedWallBottomY = ribbonTopY + verticalOffset - rightRise;
+      const shorelineTopY = minimumValue(baseTopYByX, profileStartX, profileEndX);
+      const rowGroundTopY = shorelineTopY;
+      const rightRise = 0;
+      const unoccludedWallBottomY = rowGroundTopY + verticalOffset;
+      const unoccludedBottomY = unoccludedWallBottomY + foundationHeight;
+      const foregroundTopY = citySkylineTopYAtX(rowsNearToFar, x + width / 2);
+      const occlusionDrop = Number.isFinite(foregroundTopY)
+        ? Math.min(-verticalOffset, Math.max(0, foregroundTopY - unoccludedBottomY))
+        : 0;
+      const admittedWallBottomY = unoccludedWallBottomY + occlusionDrop;
       const y = admittedWallBottomY - (height - foundationHeight);
       const bottomY = y + height;
       const wallBottomY = bottomY - foundationHeight;
@@ -210,6 +266,9 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
         bottomY,
         wallBottomY,
         admittedWallBottomY,
+        shorelineTopY,
+        rowGroundTopY,
+        occlusionDrop,
         foundationHeight,
         rightRise,
         width,
@@ -222,8 +281,9 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
       x += width - overlap;
     }
 
-    rows.push(Object.freeze({
-      rowIndex,
+    if (buildings.length === 0) break;
+    const row = Object.freeze({
+      rowIndex: distanceFromFront,
       distanceFromFront,
       scale,
       depth,
@@ -231,9 +291,156 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
       verticalOffset,
       rowFoundationHeight,
       buildings: Object.freeze(buildings)
-    }));
+    });
+    rowsNearToFar.push(row);
+    if (distanceFromFront === 0) {
+      skylineAnchorX = buildings[0].x;
+      skylineAnchorY = buildings[0].y;
+    }
   }
-  return Object.freeze(rows);
+  return Object.freeze(rowsNearToFar.reverse().map((row, rowIndex) => Object.freeze({
+    ...row,
+    rowIndex
+  })));
+}
+
+export function oppositeBankCityBackgroundLayout({
+  city,
+  rowCount,
+  frames,
+  baseFrame,
+  baseTopYByX,
+  sceneWidth,
+  parallaxAnchor
+}) {
+  if (!Number.isInteger(sceneWidth) || sceneWidth <= 0) {
+    throw new Error(`Invalid opposite-bank city scene width: ${sceneWidth}`);
+  }
+  if (!Number.isFinite(parallaxAnchor) || parallaxAnchor < -1 || parallaxAnchor > 1) {
+    throw new Error(`Invalid opposite-bank city parallax anchor: ${parallaxAnchor}`);
+  }
+  const generatedRows = cityBackgroundLayout({
+    city: Object.freeze({ ...city, id: `${city.id}|opposite-bank` }),
+    rowCount,
+    frames,
+    baseFrame,
+    baseTopYByX
+  });
+  return Object.freeze(generatedRows.map((row) => Object.freeze({
+    ...row,
+    parallaxAnchor,
+    buildings: Object.freeze(row.buildings.map((building) => Object.freeze({
+      ...building,
+      x: sceneWidth - building.x - building.width
+    })).sort((left, right) => left.x - right.x))
+  })));
+}
+
+export function cityBackgroundPainterOrder(rows) {
+  if (
+    !Array.isArray(rows) ||
+    !rows.every((row) => (
+      Number.isFinite(row?.depth) &&
+      Number.isFinite(row?.parallaxAnchor) &&
+      Number.isInteger(row?.distanceFromFront) &&
+      row.distanceFromFront >= 0 &&
+      Array.isArray(row?.buildings) &&
+      row.buildings.every((building) => Number.isFinite(building?.bottomY))
+    ))
+  ) {
+    throw new Error("Invalid background city rows for painter ordering");
+  }
+  const entries = rows.flatMap((row, rowOrder) => (
+    row.buildings.map((building, buildingOrder) => ({
+      building,
+      depth: row.depth,
+      parallaxAnchor: row.parallaxAnchor,
+      distanceFromFront: row.distanceFromFront,
+      rowOrder,
+      buildingOrder
+    }))
+  ));
+  entries.sort((left, right) => (
+    left.building.bottomY - right.building.bottomY ||
+    left.depth - right.depth ||
+    left.rowOrder - right.rowOrder ||
+    left.buildingOrder - right.buildingOrder
+  ));
+  return Object.freeze(entries.map((entry) => Object.freeze(entry)));
+}
+
+export function cityBackgroundColumnSkyline(rows) {
+  if (
+    !Array.isArray(rows) ||
+    !rows.every((row) => (
+      Number.isInteger(row?.distanceFromFront) &&
+      Array.isArray(row?.buildings) &&
+      row.buildings.every((building) => (
+      Number.isFinite(building?.x) &&
+      Number.isFinite(building?.y) &&
+      Number.isInteger(building?.width) &&
+      building.width > 0
+      ))
+    ))
+  ) {
+    throw new Error("Invalid background city rows for skyline measurement");
+  }
+  const buildings = rows.flatMap((row) => row.buildings);
+  const frontRow = rows.find((row) => row.distanceFromFront === 0);
+  if (!frontRow || buildings.length === 0) return Object.freeze([]);
+  return Object.freeze(frontRow.buildings.map((frontBuilding) => {
+    const x = frontBuilding.x + frontBuilding.width / 2;
+    const topY = Math.min(...buildings.filter((building) => (
+      x >= building.x && x < building.x + building.width
+    )).map((building) => building.y));
+    return Object.freeze({ x, topY });
+  }));
+}
+
+export function cityBackgroundSkylineTargetY(anchorX, anchorY, x) {
+  if (![anchorX, anchorY, x].every(Number.isFinite) || x < anchorX) {
+    throw new Error(`Invalid background city skyline target: ${anchorX},${anchorY}→${x}`);
+  }
+  return anchorY - Math.round((x - anchorX) * BACKGROUND_CITY_SKYLINE_RISE_PER_PIXEL);
+}
+
+export function cityBackgroundAtmosphereLevel(distanceFromFront, rowCount) {
+  if (!Number.isInteger(distanceFromFront) || distanceFromFront < 0) {
+    throw new Error(`Invalid background city row distance: ${distanceFromFront}`);
+  }
+  if (!Number.isInteger(rowCount) || rowCount < 0 || distanceFromFront >= Math.max(1, rowCount)) {
+    throw new Error(`Invalid background city atmospheric row count: ${rowCount}`);
+  }
+  if (distanceFromFront === 0 || rowCount <= 1) return 0;
+  return distanceFromFront >= Math.max(2, rowCount - 2) ? 2 : 1;
+}
+
+export function cityBackgroundAtmosphereRgb(red, green, blue, level) {
+  if (
+    ![red, green, blue].every((value) => Number.isInteger(value) && value >= 0 && value <= 255) ||
+    !Number.isInteger(level) ||
+    level < 0 ||
+    level >= ATMOSPHERE_STRENGTH.length
+  ) {
+    throw new Error(`Invalid background city atmosphere color: ${red},${green},${blue}@${level}`);
+  }
+  if (level === 0) return Object.freeze({ red, green, blue });
+  const colorKey = red << 16 | green << 8 | blue;
+  const cached = ATMOSPHERE_RGB_CACHE[level].get(colorKey);
+  if (cached) return cached;
+  const strength = ATMOSPHERE_STRENGTH[level];
+  const fogged = [red, green, blue].map((channel, index) => (
+    channel + (ATMOSPHERE_FOG_RGB[index] - channel) * strength
+  ));
+  const nearest = RESURRECT_64_RGB.reduce((best, candidate) => {
+    const distance = candidate.reduce((sum, channel, index) => (
+      sum + (channel - fogged[index]) ** 2
+    ), 0);
+    return distance < best.distance ? { color: candidate, distance } : best;
+  }, { color: null, distance: Number.POSITIVE_INFINITY }).color;
+  const shifted = Object.freeze({ red: nearest[0], green: nearest[1], blue: nearest[2] });
+  ATMOSPHERE_RGB_CACHE[level].set(colorKey, shifted);
+  return shifted;
 }
 
 function requireFrame(frame, layerName) {
@@ -249,6 +456,41 @@ function requireFrame(frame, layerName) {
   ) {
     throw new Error(`Invalid background city frame: ${layerName}`);
   }
+}
+
+function directlyBehindDuplicateCount(frame, x, scale, rows) {
+  const width = Math.max(1, Math.round(frame.frame.w * scale));
+  const centerX = x + width / 2;
+  let duplicates = 0;
+  for (const row of rows) {
+    for (const building of row.buildings) {
+      if (building.frame.layer !== frame.layer) continue;
+      const backgroundCenterX = building.x + building.width / 2;
+      const directAlignmentWidth = Math.min(width, building.width) * 0.35;
+      if (Math.abs(centerX - backgroundCenterX) <= directAlignmentWidth) duplicates++;
+    }
+  }
+  return duplicates;
+}
+
+function firstCitySkylineDeficitX({ rows, leftX, rightX, anchorX, anchorY }) {
+  for (let x = Math.ceil(leftX); x < rightX; x++) {
+    const skylineTopY = citySkylineTopYAtX(rows, x);
+    const targetY = cityBackgroundSkylineTargetY(anchorX, anchorY, x);
+    if (skylineTopY > targetY + BACKGROUND_CITY_SKYLINE_TOLERANCE) return x;
+  }
+  return -1;
+}
+
+function citySkylineTopYAtX(rows, x) {
+  let skylineTopY = Number.POSITIVE_INFINITY;
+  for (const row of rows) {
+    for (const building of row.buildings) {
+      if (x < building.x || x >= building.x + building.width) continue;
+      skylineTopY = Math.min(skylineTopY, building.y);
+    }
+  }
+  return skylineTopY;
 }
 
 function hashString(value) {
@@ -287,4 +529,12 @@ function minimumValue(values, start, end) {
 function roundTo(value, decimalPlaces) {
   const multiplier = 10 ** decimalPlaces;
   return Math.round(value * multiplier) / multiplier;
+}
+
+function parseHexRgb(hex) {
+  return Object.freeze([
+    Number.parseInt(hex.slice(0, 2), 16),
+    Number.parseInt(hex.slice(2, 4), 16),
+    Number.parseInt(hex.slice(4, 6), 16)
+  ]);
 }

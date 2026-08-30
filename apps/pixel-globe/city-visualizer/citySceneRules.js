@@ -1,6 +1,7 @@
 import {
   BACKGROUND_CITY_BASE_LAYER,
   BACKGROUND_CITY_FRONT_DEPTH,
+  BACKGROUND_CITY_MAX_ROWS,
   cityBackgroundRowCount
 } from "./cityBackground.js";
 
@@ -475,6 +476,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     leftDistantTerrain: requireTerrain(city.terrain?.leftDistant || city.terrain?.left || "grass"),
     rightDistantTerrain: requireTerrain(city.terrain?.rightDistant || city.terrain?.right || "grass"),
     backgroundCityRows: cityBackgroundRowCount(city),
+    leftBankCity: Boolean(city.builtUpBothBanks),
     npcs: city.settlementType === "village" ? 3 : 6,
     props: city.settlementType === "village" ? 1 : 3
   };
@@ -488,7 +490,13 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   }
   features.npcs = clampInteger(features.npcs, 0, 12, "NPC count");
   features.props = clampInteger(features.props, 0, 6, "prop count");
-  features.backgroundCityRows = clampInteger(features.backgroundCityRows, 0, 5, "background city row count");
+  features.backgroundCityRows = clampInteger(
+    features.backgroundCityRows,
+    0,
+    BACKGROUND_CITY_MAX_ROWS,
+    "background city row count"
+  );
+  features.leftBankCity = features.approach === "river" && Boolean(features.leftBankCity);
   return Object.freeze(features);
 }
 
@@ -536,6 +544,7 @@ export function sceneReasonRows(city, features) {
     Object.freeze({ label: "Water", value: features.approach, reason: city.rules?.approach || "game navigation topology" }),
     Object.freeze({ label: "Dock", value: features.dock, reason: city.rules?.dock || "port scale and culture" }),
     Object.freeze({ label: "Fortification", value: features.fortified ? "gatehouse" : "open town", reason: city.rules?.fortification || "1522 settlement estimate" }),
+    Object.freeze({ label: "Banks", value: features.leftBankCity ? "city on both banks" : "single-bank city", reason: city.rules?.banks || "city-specific scene configuration" }),
     Object.freeze({ label: "Mountains", value: mountain, reason: city.rules?.mountains || "terrain and peak visibility scan" }),
     Object.freeze({ label: "Left bank", value: features.leftTerrain, reason: city.rules?.terrain || "nearby game terrain" }),
     Object.freeze({ label: "Right bank", value: features.rightTerrain, reason: city.rules?.terrain || "nearby game terrain" })

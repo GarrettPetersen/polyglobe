@@ -43,6 +43,8 @@ const SHIP_MANIFEST = JSON.parse(readFileSync(new URL(
 ), "utf8"));
 const VISUALIZER_MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
 const VISUALIZER_STYLES_SOURCE = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
+const VISUALIZER_HTML_SOURCE = readFileSync(new URL("./index.html", import.meta.url), "utf8");
+const CITY_VISUALIZER_CATALOG = JSON.parse(readFileSync(new URL("./data/cities.json", import.meta.url), "utf8"));
 
 const CITY = Object.freeze({
   approach: "river",
@@ -543,6 +545,27 @@ test("river, dock, mountain, terrain, and fortification rules activate authored 
   ]) assert.equal(layers.has(layer), true, layer);
   assert.equal(layers.has("Horizon Mountains"), false);
   assert.equal(layers.has("Stone Dock"), false);
+});
+
+test("opposite-bank development is city data with a river-only manual override", () => {
+  assert.equal(resolveCitySceneFeatures({ ...CITY, builtUpBothBanks: true }).leftBankCity, true);
+  assert.equal(resolveCitySceneFeatures({ ...CITY, approach: "ocean", builtUpBothBanks: true }).leftBankCity, false);
+  assert.equal(resolveCitySceneFeatures({ ...CITY, builtUpBothBanks: false }, { leftBankCity: true }).leftBankCity, true);
+  assert.equal(
+    resolveCitySceneFeatures(
+      { ...CITY, approach: "ocean", builtUpBothBanks: false },
+      { leftBankCity: true }
+    ).leftBankCity,
+    false
+  );
+  assert.match(VISUALIZER_HTML_SOURCE, /id="left-bank-city-override"/);
+});
+
+test("London and Buda default to developed opposite banks in the generated city catalog", () => {
+  const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
+  assert.equal(cityById.get("london|united kingdom")?.builtUpBothBanks, true);
+  assert.equal(cityById.get("budapest|hungary")?.builtUpBothBanks, true);
+  assert.equal(cityById.get("angers|france")?.builtUpBothBanks, false);
 });
 
 test("manual feature overrides can audition missing art without changing the city bake", () => {
