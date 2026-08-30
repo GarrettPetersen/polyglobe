@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
+  backgroundCityChimneySmokeEmitters,
   cityChimneySmokeParticles
 } from "./cityChimneySmoke.js";
 
@@ -55,6 +56,61 @@ test("the smith produces the densest, darkest chimney plume", () => {
       particle.y <= emitter.y &&
       particle.alpha >= 0 &&
       particle.alpha <= emitter.opacity
+    )));
+  }
+});
+
+test("background cities deterministically smoke from exactly half their scaled chimneys", async () => {
+  const manifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
+  const frames = CITY_CHIMNEY_SMOKE_EMITTERS.map((emitter) => (
+    manifest.staticFrames.find((frame) => frame.layer === emitter.layerName)
+  ));
+  assert.ok(frames.every(Boolean));
+  const buildings = Array.from({ length: 12 }, (_, index) => {
+    const frame = frames[index % frames.length];
+    const scale = index < 6 ? 0.5 : 0.25;
+    return Object.freeze({
+      frame,
+      x: 840 + index * 31,
+      y: 420 - index * 3,
+      width: Math.round(frame.frame.w * scale),
+      height: Math.round(frame.frame.h * scale)
+    });
+  });
+  const rows = [
+    Object.freeze({ distanceFromFront: 2, buildings: Object.freeze(buildings.slice(6)) }),
+    Object.freeze({ distanceFromFront: 0, buildings: Object.freeze(buildings.slice(0, 6)) })
+  ];
+  const options = { cityId: "london|united kingdom", side: "right", rows };
+  const selected = backgroundCityChimneySmokeEmitters(options);
+  const repeated = backgroundCityChimneySmokeEmitters(options);
+  assert.equal(selected.length, Math.round(buildings.length / 2));
+  assert.deepEqual(
+    repeated.map(({ emitter }) => emitter.id),
+    selected.map(({ emitter }) => emitter.id)
+  );
+  assert.equal(new Set(selected.map(({ building }) => building)).size, selected.length);
+
+  const sourceByLayer = new Map(CITY_CHIMNEY_SMOKE_EMITTERS.map((emitter) => (
+    [emitter.layerName, emitter]
+  )));
+  for (const { building, emitter } of selected) {
+    const source = sourceByLayer.get(building.frame.layer);
+    const scaleX = building.width / building.frame.frame.w;
+    const scaleY = building.height / building.frame.frame.h;
+    assert.equal(
+      emitter.x,
+      building.x + (source.x - building.frame.spriteSourceSize.x) * scaleX
+    );
+    assert.equal(
+      emitter.y,
+      building.y + (source.y - building.frame.spriteSourceSize.y) * scaleY
+    );
+    assert.equal(emitter.maximumSize, 1);
+    assert.ok(emitter.opacity < source.opacity);
+    assert.ok(emitter.rise >= 2 && emitter.rise <= source.rise);
+    assert.ok(cityChimneySmokeParticles(emitter, 4800).every((particle) => (
+      particle.size === 1 && particle.y <= Math.round(emitter.y)
     )));
   }
 });

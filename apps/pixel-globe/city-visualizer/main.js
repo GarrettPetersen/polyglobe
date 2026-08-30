@@ -50,6 +50,7 @@ import {
 } from "./cityPixelText.js";
 import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
+  backgroundCityChimneySmokeEmitters,
   cityChimneySmokeParticles
 } from "./cityChimneySmoke.js";
 import {
@@ -122,8 +123,10 @@ const state = {
   hoveredDestination: null,
   backgroundCityRows: [],
   backgroundCityPainterOrder: [],
+  backgroundCitySmokeByBuilding: new Map(),
   leftBankBackgroundCityRows: [],
   leftBankBackgroundCityPainterOrder: [],
+  leftBankBackgroundCitySmokeByBuilding: new Map(),
   backgroundCityBaseTopYByX: null,
   backgroundCityStreetRows: [],
   leftBankBackgroundCityStreetRows: [],
@@ -326,6 +329,11 @@ function applyFeatureOverrides() {
     baseTopYByX: state.backgroundCityBaseTopYByX
   });
   state.backgroundCityPainterOrder = cityBackgroundPainterOrder(state.backgroundCityRows);
+  state.backgroundCitySmokeByBuilding = backgroundCitySmokeMap({
+    cityId: state.city.id,
+    side: "right",
+    rows: state.backgroundCityRows
+  });
   state.leftBankBackgroundCityStreetRows = state.features.leftBankCity
     ? mirrorCityBackgroundStreetRows({
         rows: state.backgroundCityStreetRows,
@@ -346,6 +354,11 @@ function applyFeatureOverrides() {
   state.leftBankBackgroundCityPainterOrder = cityBackgroundPainterOrder(
     state.leftBankBackgroundCityRows
   );
+  state.leftBankBackgroundCitySmokeByBuilding = backgroundCitySmokeMap({
+    cityId: state.city.id,
+    side: "left",
+    rows: state.leftBankBackgroundCityRows
+  });
   const cameraBounds = sceneCameraParallaxBounds(state.features.approach);
   state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
   updateRuleLedger();
@@ -603,7 +616,7 @@ function render(timeMs) {
     else if (entry.kind === "animated") drawAnimatedLayer(entry.layerName, timeMs, entry.occurrence);
     else if (entry.kind === "dock-shadow-extension") drawDockShadowExtension();
     else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
-    else if (entry.kind === "background-city") drawBackgroundCity(entry.side);
+    else if (entry.kind === "background-city") drawBackgroundCity(entry.side, timeMs);
     else if (entry.kind === "left-bank-background-city-base") drawLeftBankBackgroundCityBase(entry.frame);
     else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
@@ -693,7 +706,7 @@ function sceneRenderEntries() {
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
 }
 
-function drawBackgroundCity(side) {
+function drawBackgroundCity(side, timeMs) {
   const leftBank = side === "left";
   const rows = leftBank ? state.leftBankBackgroundCityRows : state.backgroundCityRows;
   const painterOrder = leftBank
@@ -702,6 +715,9 @@ function drawBackgroundCity(side) {
   const streetRows = leftBank
     ? state.leftBankBackgroundCityStreetRows
     : state.backgroundCityStreetRows;
+  const smokeByBuilding = leftBank
+    ? state.leftBankBackgroundCitySmokeByBuilding
+    : state.backgroundCitySmokeByBuilding;
   if (rows.length === 0) return;
   drawBackgroundCityStreet(streetRows, rows.at(-1).parallaxAnchor);
   for (const entry of painterOrder) {
@@ -738,7 +754,32 @@ function drawBackgroundCity(side) {
         building.height
       );
     }
+    const emitter = smokeByBuilding.get(building);
+    if (emitter) drawBackgroundCityChimneySmoke(emitter, timeMs, window);
   }
+}
+
+function backgroundCitySmokeMap(options) {
+  return new Map(backgroundCityChimneySmokeEmitters(options).map(({ building, emitter }) => (
+    [building, emitter]
+  )));
+}
+
+function drawBackgroundCityChimneySmoke(emitter, timeMs, window) {
+  const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
+  context.save();
+  for (const particle of cityChimneySmokeParticles(emitter, smokeTime)) {
+    if (particle.alpha <= 0) continue;
+    context.globalAlpha = particle.alpha;
+    context.fillStyle = particle.color;
+    context.fillRect(
+      Math.round(particle.x - window.x),
+      Math.round(particle.y - window.y),
+      particle.size,
+      particle.size
+    );
+  }
+  context.restore();
 }
 
 function backgroundCityAtmosphereFrame(frame, level) {

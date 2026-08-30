@@ -5,6 +5,7 @@ import { canvasDisplayLayout } from "../src/displayScaling.js";
 import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
 import { SHIP_STATS } from "../src/shipStats.js";
 import { pixelFontSizePx } from "../src/pixelText.js";
+import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import {
   CITY_PIXEL_FONT_SMALL_8,
   CITY_PIXEL_FONT_TITLE_8
@@ -19,6 +20,7 @@ import {
   PORT_SCENE_HORIZON_SHIFT_Y,
   PORT_SCENE_OCEAN_SLICES,
   PORT_SCENE_RIVER,
+  PORT_SCENE_WATER_HORIZON_Y,
   activePortSceneLayers,
   advanceSceneParallax,
   docksideShipSideAnchor,
@@ -45,6 +47,10 @@ const VISUALIZER_MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url
 const VISUALIZER_STYLES_SOURCE = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 const VISUALIZER_HTML_SOURCE = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const CITY_VISUALIZER_CATALOG = JSON.parse(readFileSync(new URL("./data/cities.json", import.meta.url), "utf8"));
+const CITY_VISUALIZER_PORT_MANIFEST = JSON.parse(readFileSync(new URL(
+  "./assets/port-parallax/manifest.json",
+  import.meta.url
+), "utf8"));
 
 const CITY = Object.freeze({
   approach: "river",
@@ -531,6 +537,8 @@ test("vertical crops expand around the authored view and extreme portrait reveal
 test("river, dock, mountain, terrain, and fortification rules activate authored layer families", () => {
   const layers = activePortSceneLayers(resolveCitySceneFeatures(CITY));
   for (const layer of [
+    "Distant Land",
+    "Distant Land Left Bank",
     "Left Bank Sand Beach",
     "Rocky Hills Left Bank",
     "Foreground Grass Left Bank",
@@ -545,6 +553,70 @@ test("river, dock, mountain, terrain, and fortification rules activate authored 
   ]) assert.equal(layers.has(layer), true, layer);
   assert.equal(layers.has("Horizon Mountains"), false);
   assert.equal(layers.has("Stone Dock"), false);
+});
+
+test("river horizons close with two parallax-locked banks while open water does not", async () => {
+  for (const layer of ["Distant Land", "Distant Land Left Bank"]) {
+    assert.equal(layerParallaxDepth(layer), layerParallaxDepth("Ocean"));
+    assert.equal(layerParallaxAnchor(layer), layerParallaxAnchor("Ocean"));
+    assert.equal(layerSceneOffsetX(layer, 0, "river"), 0);
+    assert.equal(layerSceneOffsetY(layer, 0, "river"), PORT_SCENE_HORIZON_SHIFT_Y);
+    assert.ok(layerSceneZ(layer) > layerSceneZ("Ocean"));
+    assert.ok(layerSceneZ(layer) < layerSceneZ("Distant Forest"));
+  }
+  const riverLayers = activePortSceneLayers(resolveCitySceneFeatures(CITY));
+  const oceanLayers = activePortSceneLayers(resolveCitySceneFeatures({
+    ...CITY,
+    approach: "ocean"
+  }));
+  assert.equal(riverLayers.has("Distant Land"), true);
+  assert.equal(riverLayers.has("Distant Land Left Bank"), true);
+  assert.equal(oceanLayers.has("Distant Land"), false);
+  assert.equal(oceanLayers.has("Distant Land Left Bank"), false);
+
+  const rightBank = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find((frame) => (
+    frame.layer === "Distant Land"
+  ));
+  const leftBank = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find((frame) => (
+    frame.layer === "Distant Land Left Bank"
+  ));
+  assert.ok(rightBank && leftBank);
+  const authoredInnerOverlap =
+    leftBank.spriteSourceSize.x + leftBank.spriteSourceSize.w - rightBank.spriteSourceSize.x;
+  assert.ok(authoredInnerOverlap >= 0 && authoredInnerOverlap <= 40);
+
+  const atlas = await loadImage(new URL(
+    `./assets/port-parallax/${CITY_VISUALIZER_PORT_MANIFEST.staticSheet}`,
+    import.meta.url
+  ).pathname);
+  const canvas = createCanvas(rightBank.frame.w, rightBank.frame.h);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(
+    atlas,
+    rightBank.frame.x,
+    rightBank.frame.y,
+    rightBank.frame.w,
+    rightBank.frame.h,
+    0,
+    0,
+    rightBank.frame.w,
+    rightBank.frame.h
+  );
+  const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+  let leftmostOpaqueX = canvas.width;
+  let leftmostOpaqueY = -1;
+  for (let y = 0; y < canvas.height; y++) {
+    for (let x = 0; x < canvas.width; x++) {
+      if (pixels[(y * canvas.width + x) * 4 + 3] <= 16 || x >= leftmostOpaqueX) continue;
+      leftmostOpaqueX = x;
+      leftmostOpaqueY = y;
+    }
+  }
+  assert.equal(
+    rightBank.spriteSourceSize.y + leftmostOpaqueY +
+      layerSceneOffsetY("Distant Land", 0, "river"),
+    PORT_SCENE_WATER_HORIZON_Y + PORT_SCENE_HORIZON_SHIFT_Y
+  );
 });
 
 test("opposite-bank development is city data with a river-only manual override", () => {

@@ -28,6 +28,8 @@ const AUTHORED_LAYER_ORDER = Object.freeze([
   "Ocean",
   "Horizon Mountains",
   "Horizon Mountains Left Bank",
+  "Distant Land",
+  "Distant Land Left Bank",
   "Distant Hills",
   "Distant Hills Left Bank",
   "Rocky Hills",

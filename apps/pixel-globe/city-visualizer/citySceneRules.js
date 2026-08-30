@@ -29,6 +29,7 @@ export const PORT_SCENE_DEPTH = Object.freeze({
 
 export const PORT_SCENE_HORIZON_SHIFT_Y = -20;
 export const PORT_SCENE_DISTANT_TERRAIN_SHIFT_Y = -32;
+export const PORT_SCENE_WATER_HORIZON_Y = 446;
 
 export const PORT_SCENE_OCEAN_SLICES = Object.freeze([
   Object.freeze({ top: 426, bottom: 458, z: 1, depth: PORT_SCENE_DEPTH.horizon }),
@@ -155,7 +156,9 @@ const FOREGROUND_SHADOW_LAYERS = Object.freeze({
 
 const RAISED_HORIZON_LAYERS = new Set([
   "Sky",
-  "Horizon Mountains"
+  "Horizon Mountains",
+  "Distant Land",
+  "Distant Land Left Bank"
 ]);
 
 const RAISED_DISTANT_TERRAIN_LAYERS = new Set([
@@ -171,6 +174,8 @@ const LAYER_META = new Map([
   ["Ocean", layerMeta(1, PORT_SCENE_DEPTH.horizon)],
   ["Horizon Mountains", layerMeta(5, PORT_SCENE_DEPTH.horizon)],
   ["Horizon Mountains Left Bank", layerMeta(5, PORT_SCENE_DEPTH.horizon, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankHorizonOffsetY)],
+  ["Distant Land", layerMeta(14, PORT_SCENE_DEPTH.horizon)],
+  ["Distant Land Left Bank", layerMeta(14, PORT_SCENE_DEPTH.horizon)],
   ["Distant Hills", distantLayerMeta(15)],
   ["Distant Hills Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
   ["Rocky Hills", distantLayerMeta(15)],
@@ -510,6 +515,8 @@ export function activePortSceneLayers(features) {
   layers.add(FOREGROUND_LAYERS[features.rightTerrain]);
 
   if (features.approach === "river") {
+    layers.add("Distant Land");
+    layers.add("Distant Land Left Bank");
     layers.add("Left Bank Sand Beach");
     layers.add(DISTANT_LEFT_TERRAIN_LAYERS[features.leftDistantTerrain]);
     layers.add(FOREGROUND_LEFT_LAYERS[features.leftTerrain]);
