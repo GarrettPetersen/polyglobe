@@ -851,7 +851,7 @@ function drawBackgroundCity(side, timeMs) {
     const building = entry.building;
     const frame = building.frame;
     const window = sceneWindow(entry.depth, 0, 0, entry.parallaxAnchor);
-    const atmosphereLevel = cityBackgroundAtmosphereLevel(
+    const atmosphereLevel = building.atmosphereLevel ?? cityBackgroundAtmosphereLevel(
       entry.distanceFromFront,
       rows.length
     );

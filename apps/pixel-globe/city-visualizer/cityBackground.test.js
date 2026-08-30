@@ -5,23 +5,31 @@ import {
   BACKGROUND_CITY_BUILDING_LAYERS,
   BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT,
   BACKGROUND_CITY_CHURCH_LAYER,
+  BACKGROUND_CITY_FAR_SCALE,
   BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL,
   BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT,
   BACKGROUND_CITY_FOUNDATION_TOLERANCE,
   BACKGROUND_CITY_FRONT_DEPTH,
   BACKGROUND_CITY_MAX_ROWS,
+  BACKGROUND_CITY_NEAR_SCALE,
+  BACKGROUND_CITY_POINT_SPACING_X,
+  BACKGROUND_CITY_POINT_SPACING_Y,
   BACKGROUND_CITY_QUAY_CLEARANCE,
   BACKGROUND_CITY_STREET_COLOR,
-  cityBackgroundAtmosphereLevel,
+  cityBackgroundAtmosphereLevelForPerspective,
   cityBackgroundAtmosphereRgb,
   cityBackgroundBaseTopProfile,
   cityBackgroundChurchPlans,
-  cityBackgroundColumnFoundations,
-  cityBackgroundLayout,
-  cityBackgroundColumnSkyline,
+  cityBackgroundDepthForPerspective,
+  cityBackgroundFoundationEnvelope,
+  cityBackgroundFoundationPerspective,
+  cityBackgroundFoundationPoints,
   cityBackgroundFoundationTargetY,
+  cityBackgroundFlyingBuildings,
+  cityBackgroundLayout,
   cityBackgroundPainterOrder,
   cityBackgroundRowCount,
+  cityBackgroundScaleForPerspective,
   cityBackgroundStreetRows,
   mirrorCityBackgroundStreetRows,
   oppositeBankCityBackgroundLayout
@@ -40,7 +48,14 @@ const FRAMES = Object.freeze(BACKGROUND_CITY_BUILDING_LAYERS.map((layer) => fram
 const CHURCH_FRAME = frame(BACKGROUND_CITY_CHURCH_LAYER, 195, 367, 142, 16);
 const FRAMES_WITH_CHURCH = Object.freeze([...FRAMES, CHURCH_FRAME]);
 const BASE_FRAME = frame("Background City Base", 541, 55, 824, 469);
+const BASE_LEFT = BASE_FRAME.spriteSourceSize.x;
+const BASE_RIGHT = BASE_LEFT + BASE_FRAME.frame.w;
+const CITY_LEFT = BASE_LEFT + BACKGROUND_CITY_QUAY_CLEARANCE;
 const FLAT_BASE_TOP = new Int16Array(BASE_FRAME.frame.w).fill(BASE_FRAME.spriteSourceSize.y);
+const FALLING_BASE_TOP = Int16Array.from(
+  { length: BASE_FRAME.frame.w },
+  (_, x) => BASE_FRAME.spriteSourceSize.y + Math.min(34, Math.floor(x / 6))
+);
 const LONDON = Object.freeze({
   id: "london|united kingdom",
   population: 58_250,
@@ -48,339 +63,205 @@ const LONDON = Object.freeze({
   capital: true
 });
 
-test("major cities receive more skyline rows while villages receive none", () => {
+test("major cities receive more skyline depth while villages receive none", () => {
   assert.equal(BACKGROUND_CITY_MAX_ROWS, 8);
   assert.equal(cityBackgroundRowCount(LONDON), 8);
   assert.equal(cityBackgroundRowCount({ ...LONDON, population: 12_000, capital: false }), 3);
   assert.equal(cityBackgroundRowCount({ ...LONDON, population: 1_000, settlementType: "village" }), 0);
 });
 
-test("city skyline generation is deterministic and admits only whole buildings after the quay", () => {
+test("foundation anchors scatter deterministically through the ribbon-to-slope area without rows", () => {
   const input = {
-    city: LONDON,
-    rowCount: 5,
-    frames: FRAMES,
+    cityId: LONDON.id,
+    rowCount: BACKGROUND_CITY_MAX_ROWS,
+    density: "moderate",
     baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
+    baseTopYByX: FALLING_BASE_TOP,
+    seedPoints: []
   };
-  const first = cityBackgroundLayout(input);
-  const second = cityBackgroundLayout(input);
-  assert.deepEqual(first, second);
-  for (const row of first) {
-    assert.ok(row.buildings[0].x >= BASE_FRAME.spriteSourceSize.x + BACKGROUND_CITY_QUAY_CLEARANCE);
-    const last = row.buildings.at(-1);
-    assert.equal(last.x + last.width, BASE_FRAME.spriteSourceSize.x + BASE_FRAME.spriteSourceSize.w);
-    const expectedVariety = Math.min(2, row.buildings.length);
-    assert.ok(
-      new Set(row.buildings.slice(0, 5).map((building) => building.frame.layer)).size >=
-        expectedVariety
-    );
+  const first = cityBackgroundFoundationPoints(input);
+  assert.deepEqual(first, cityBackgroundFoundationPoints(input));
+  assert.ok(first.length > 20);
+  assert.ok(new Set(first.map(({ foundationY }) => foundationY)).size > 12);
+  assert.ok(Math.max(...frequencyCounts(first.map(({ foundationY }) => foundationY))) < first.length / 3);
+  for (const point of first) {
+    const shorelineY = FALLING_BASE_TOP[Math.floor(point.x - BASE_LEFT)];
+    const slopeY = cityBackgroundFoundationTargetY(BASE_LEFT, FALLING_BASE_TOP[0], point.x);
+    assert.ok(point.x >= CITY_LEFT && point.x < BASE_RIGHT);
+    assert.ok(point.foundationY >= slopeY && point.foundationY <= shorelineY);
+    assert.equal(point.perspective, cityBackgroundFoundationPerspective({
+      foundationY: point.foundationY,
+      shorelineY,
+      slopeY
+    }));
+  }
+  assert.equal(BACKGROUND_CITY_POINT_SPACING_X, 30);
+  assert.equal(BACKGROUND_CITY_POINT_SPACING_Y, 7);
+});
+
+test("buildings use bottom-left anchors, grow rightward, and seed the ribbon edge", () => {
+  const rows = layout({ baseTopYByX: FALLING_BASE_TOP });
+  assert.deepEqual(rows, layout({ baseTopYByX: FALLING_BASE_TOP }));
+  const buildings = allBuildings(rows);
+  const grounded = buildings.filter((building) => building.groundedOnRibbon);
+  assert.equal(Math.min(...buildings.map((building) => building.x)), CITY_LEFT);
+  assert.ok(buildings.every((building) => building.x >= CITY_LEFT && building.x < BASE_RIGHT));
+  assert.ok(buildings.some((building) => building.x + building.width > BASE_RIGHT));
+  for (const building of grounded) {
+    const start = Math.floor(building.x - BASE_LEFT);
+    const end = Math.min(FALLING_BASE_TOP.length, Math.ceil(start + building.width));
+    assert.equal(building.wallBottomY, Math.min(...FALLING_BASE_TOP.slice(start, end)));
+  }
+  for (let x = CITY_LEFT; x < BASE_RIGHT; x++) {
+    assert.ok(grounded.some((building) => x >= building.x && x < building.x + building.width));
   }
 });
 
-test("rear rows are smaller, heavily overlapped, and use restrained parallax", () => {
-  const rows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: 5,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
-  });
-  assert.equal(rows.at(-1).scale, 0.5);
-  assert.equal(rows.at(-1).depth, BACKGROUND_CITY_FRONT_DEPTH);
-  assert.ok(rows[0].scale < rows[1].scale);
-  assert.ok(rows[0].depth < rows[1].depth);
-  assert.ok(rows.at(-1).depth - rows[0].depth <= 0.070_001);
-  assert.ok(rows.every((row) => row.buildings.every((building) => building.rightRise === 0)));
-  for (let index = 1; index < rows.length; index++) {
-    const fartherStart = rows[index - 1].buildings[0].x;
-    const nearerStart = rows[index].buildings[0].x;
-    assert.ok(fartherStart >= nearerStart);
-  }
-  for (const row of rows) {
-    assert.ok(row.buildings.every((building) => (
-      building.wallBottomY === building.admittedWallBottomY &&
-      building.bottomY - building.wallBottomY === building.foundationHeight
-    )));
-  }
-  for (let index = 1; index < rows.length; index++) {
-    assert.equal(rows[index].verticalOffset - rows[index - 1].verticalOffset, 12);
-    const shortestNearBuilding = Math.min(...rows[index].buildings.map((building) => building.height));
-    assert.ok(shortestNearBuilding >= 2 * (rows[index].verticalOffset - rows[index - 1].verticalOffset));
-  }
-});
-
-test("the front row permits only its scaled foundation band to intersect the ribbon", () => {
-  const rows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: 5,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
-  });
-  const front = rows.at(-1);
-  assert.equal(front.depth, BACKGROUND_CITY_FRONT_DEPTH);
-  assert.equal(front.parallaxAnchor, 1);
-  assert.ok(front.buildings.every(({ wallBottomY, bottomY, foundationHeight }) => (
-    wallBottomY === BASE_FRAME.spriteSourceSize.y &&
-    bottomY === BASE_FRAME.spriteSourceSize.y + foundationHeight &&
-    foundationHeight === Math.round(BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT * 0.5)
+test("each anchor's Y independently controls scale, palette shift, parallax, and painter depth", () => {
+  const buildings = allBuildings(layout({ baseTopYByX: FALLING_BASE_TOP }));
+  assert.ok(buildings.some((building) => building.scale === BACKGROUND_CITY_NEAR_SCALE));
+  assert.ok(buildings.some((building) => building.scale === BACKGROUND_CITY_FAR_SCALE));
+  assert.ok(new Set(buildings.map((building) => building.scale)).size > 8);
+  assert.ok(buildings.every((building) => (
+    building.scale === cityBackgroundScaleForPerspective(building.perspective) &&
+    building.depth === cityBackgroundDepthForPerspective(building.perspective) &&
+    building.atmosphereLevel ===
+      cityBackgroundAtmosphereLevelForPerspective(building.perspective)
   )));
-  assert.ok(front.buildings.every(({ frame: source, width, height }) => (
-    width === Math.round(source.frame.w * 0.5) &&
-    height === Math.round(source.frame.h * 0.5)
+  const near = buildings.reduce((best, building) => building.perspective < best.perspective ? building : best);
+  const far = buildings.reduce((best, building) => building.perspective > best.perspective ? building : best);
+  assert.ok(near.scale > far.scale);
+  assert.ok(near.depth > far.depth);
+  assert.ok(near.atmosphereLevel < far.atmosphereLevel);
+});
+
+test("only the scaled foundation of ribbon-edge buildings is buried", () => {
+  const buildings = allBuildings(layout({ baseTopYByX: FLAT_BASE_TOP }));
+  const grounded = buildings.filter((building) => building.groundedOnRibbon);
+  assert.ok(grounded.length > 0);
+  assert.ok(grounded.every((building) => (
+    building.scale === BACKGROUND_CITY_NEAR_SCALE &&
+    building.depth === BACKGROUND_CITY_FRONT_DEPTH &&
+    building.foundationHeight ===
+      Math.round(BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT * BACKGROUND_CITY_NEAR_SCALE) &&
+    building.bottomY === building.wallBottomY + building.foundationHeight
   )));
 });
 
-test("Christian city profiles space multiple buried churches across distinct skyline depths", () => {
-  const rows = cityBackgroundLayout({
-    city: {
-      ...LONDON,
-      religiousLandmarks: ["church"],
-      backgroundCity: {
-        density: "dense",
-        buildingMix: { homeA: 4, homeB: 3, inn: 2, smith: 1 },
-        landmarks: { church: 2 }
-      }
-    },
-    rowCount: 6,
-    frames: FRAMES_WITH_CHURCH,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
-  });
-  const churches = rows.flatMap((row) => row.buildings
-    .filter((building) => building.frame.layer === BACKGROUND_CITY_CHURCH_LAYER)
-    .map((building) => ({ row, building })));
+test("Christian cities place buried churches at separate points and depths without changing mass placement", () => {
+  const city = {
+    ...LONDON,
+    religiousLandmarks: ["church"],
+    backgroundCity: {
+      density: "dense",
+      buildingMix: { homeA: 4, homeB: 3, inn: 2, smith: 1 },
+      landmarks: { church: 2 }
+    }
+  };
+  const rows = layout({ city, frames: FRAMES_WITH_CHURCH, baseTopYByX: FALLING_BASE_TOP });
+  const churches = allBuildings(rows).filter((building) => (
+    building.frame.layer === BACKGROUND_CITY_CHURCH_LAYER
+  ));
   assert.equal(churches.length, 2);
-  assert.equal(new Set(churches.map(({ row }) => row.distanceFromFront)).size, 2);
-  assert.equal(new Set(churches.map(({ building }) => building.width)).size, 2);
-  assert.ok(Math.abs(
-    (churches[0].building.x + churches[0].building.width / 2) -
-    (churches[1].building.x + churches[1].building.width / 2)
-  ) > 80);
-  for (const { row, building } of churches) {
+  assert.equal(new Set(churches.map(({ distanceFromFront }) => distanceFromFront)).size, 2);
+  assert.ok(Math.abs(churches[0].x - churches[1].x) > 80);
+  for (const building of churches) {
     assert.equal(
       building.foundationHeight,
-      Math.round(BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT * row.scale)
+      Math.round(BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT * building.scale)
     );
-    assert.ok(building.wallBottomY <= building.shorelineTopY);
     assert.equal(
       building.skylineTopY,
-      building.wallBottomY - Math.round((BUILDING_SIZES.Inn[1] - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) * row.scale)
+      building.wallBottomY - Math.round(
+        (BUILDING_SIZES.Inn[1] - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) * building.scale
+      )
     );
     assert.ok(building.skylineTopY > building.y);
-    assert.ok(building.x >= BASE_FRAME.spriteSourceSize.x + BACKGROUND_CITY_QUAY_CLEARANCE);
-    assert.ok(building.x + building.width <= BASE_FRAME.spriteSourceSize.x + BASE_FRAME.spriteSourceSize.w);
-    const churchCenterX = building.x + building.width / 2;
-    assert.ok(rows.some((nearerRow) => (
-      nearerRow.distanceFromFront < row.distanceFromFront &&
-      nearerRow.buildings.some((nearer) => (
-        churchCenterX >= nearer.x &&
-        churchCenterX < nearer.x + nearer.width &&
-        nearer.bottomY >= building.bottomY
-      ))
-    )), "a nearer building must cover each church's raised rear-row base");
   }
-  const massSkyline = cityBackgroundColumnSkyline(rows);
-  for (const { building } of churches) {
-    const coveredColumns = massSkyline.filter(({ x }) => (
-      x >= building.x && x < building.x + building.width
-    ));
-    assert.ok(coveredColumns.length > 0);
-    assert.ok(
-      coveredColumns.every(({ topY }) => topY > building.y),
-      "church spires must rise above, not replace, the ordinary skyline target"
-    );
-  }
-  const coolRearRows = rows.filter((row) => (
-    cityBackgroundAtmosphereLevel(row.distanceFromFront, rows.length) === 2
-  ));
-  assert.ok(coolRearRows.length >= 1);
-  assert.ok(
-    coolRearRows.some((row) => row.buildings.some((building) => (
-      building.frame.layer !== BACKGROUND_CITY_CHURCH_LAYER &&
-      building.x <= BASE_FRAME.spriteSourceSize.x + Math.round(BASE_FRAME.frame.w * 0.65)
-    ))),
-    "cool-shifted rear buildings must occupy a visible part of the skyline"
-  );
-
-  const ordinaryRows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: 5,
-    frames: FRAMES_WITH_CHURCH,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
-  });
-  assert.equal(ordinaryRows.some((ordinaryRow) => ordinaryRow.buildings.some(
-    (ordinaryBuilding) => ordinaryBuilding.frame.layer === BACKGROUND_CITY_CHURCH_LAYER
-  )), false);
+  assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
 });
 
-test("church plans separate large-city landmarks by both district and distance", () => {
-  const plans = cityBackgroundChurchPlans({
-    cityId: LONDON.id,
-    count: 3,
-    rowCount: 8
-  });
+test("church plans separate large-city landmarks by district and distance", () => {
+  const plans = cityBackgroundChurchPlans({ cityId: LONDON.id, count: 3, rowCount: 8 });
   assert.equal(plans.length, 3);
   assert.equal(new Set(plans.map(({ distanceFromFront }) => distanceFromFront)).size, 3);
   assert.equal(new Set(plans.map(({ targetFraction }) => targetFraction)).size, 3);
-  assert.ok(plans[0].distanceFromFront < plans[1].distanceFromFront);
-  assert.ok(plans[1].distanceFromFront < plans[2].distanceFromFront);
 });
 
-test("city profiles can vary skyline density and the weighted building mix", () => {
-  const profile = (density, buildingMix) => cityBackgroundLayout({
+test("city profiles vary point density and weighted building mix", () => {
+  const profile = (density, buildingMix) => layout({
     city: { ...LONDON, backgroundCity: { density, buildingMix, landmarks: { church: 0 } } },
-    rowCount: 3,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
+    rowCount: 5,
+    baseTopYByX: FALLING_BASE_TOP
   });
   const sparse = profile("sparse", { homeA: 1, homeB: 0, inn: 0, smith: 0 });
   const dense = profile("dense", { homeA: 4, homeB: 4, inn: 2, smith: 1 });
-  assert.ok(sparse.every((row) => row.buildings.every(({ frame: source }) => source.layer === "Home")));
-  assert.ok(
-    dense.flatMap((row) => row.buildings).length > sparse.flatMap((row) => row.buildings).length
-  );
-  assert.ok(new Set(dense.flatMap((row) => row.buildings.map(({ frame: source }) => source.layer))).size > 1);
+  assert.ok(allBuildings(sparse).every(({ frame: source }) => source.layer === "Home"));
+  assert.ok(allBuildings(dense).length > allBuildings(sparse).length);
+  assert.ok(new Set(allBuildings(dense).map(({ frame: source }) => source.layer)).size > 1);
 });
 
-test("a falling ribbon adds grounded rear layers at the dip instead of lifting buildings", () => {
-  const fallingRibbon = Int16Array.from(
-    { length: BASE_FRAME.frame.w },
-    (_, x) => BASE_FRAME.spriteSourceSize.y + Math.min(30, Math.floor(x / 3))
-  );
-  const flatRows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: BACKGROUND_CITY_MAX_ROWS,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
-  });
-  const fallingRows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: BACKGROUND_CITY_MAX_ROWS,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: fallingRibbon
-  });
-  const frontStart = fallingRows.at(-1).buildings[0].x;
-  assert.equal(frontStart, flatRows.at(-1).buildings[0].x);
-  assert.ok(fallingRows.length > flatRows.length);
-  const fallingRearTier = fallingRows.find((row) => row.distanceFromFront === 3);
-  assert.ok(fallingRearTier);
-  assert.ok(fallingRearTier.buildings[0].x < BASE_FRAME.spriteSourceSize.x + BASE_FRAME.frame.w / 2);
-  for (const row of fallingRows) {
-    for (const building of row.buildings) {
-      assert.equal(building.rowGroundTopY, building.shorelineTopY);
-    }
-    if (row.distanceFromFront === 0) continue;
-    const first = row.buildings[0];
-    const centerX = first.x + first.width / 2;
-    assert.ok(fallingRows.some((nearerRow) => (
-      nearerRow.distanceFromFront < row.distanceFromFront &&
-      nearerRow.buildings.some((nearer) => (
-        centerX >= nearer.x &&
-        centerX < nearer.x + nearer.width &&
-        nearer.y <= first.bottomY
-      ))
-    )), `rear row ${row.distanceFromFront} starts without foreground occlusion`);
-  }
-});
-
-test("the city adds layers until its foundations reach a gently rising ground-plane target", () => {
-  const rows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: BACKGROUND_CITY_MAX_ROWS,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
-  });
-  const anchorX = BASE_FRAME.spriteSourceSize.x;
-  const anchorY = FLAT_BASE_TOP[0];
-  const foundations = cityBackgroundColumnFoundations(rows);
+test("the filled foundation envelope follows the rising target smoothly with no flying buildings", () => {
+  const rows = layout({ baseTopYByX: FALLING_BASE_TOP });
+  const envelope = cityBackgroundFoundationEnvelope(rows).filter(({ x }) => x < BASE_RIGHT);
+  assert.equal(envelope[0].x, CITY_LEFT);
+  assert.equal(envelope.at(-1).x, BASE_RIGHT - 1);
+  assert.equal(envelope.length, BASE_RIGHT - CITY_LEFT);
   assert.equal(BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL, 1 / 32);
-  for (const column of foundations) {
-    const targetY = cityBackgroundFoundationTargetY(
-      anchorX,
-      anchorY,
-      column.x
-    );
+  for (const point of envelope) {
+    const targetY = cityBackgroundFoundationTargetY(BASE_LEFT, FALLING_BASE_TOP[0], point.x);
+    const shorelineY = FALLING_BASE_TOP[point.x - BASE_LEFT];
+    if (shorelineY <= targetY) continue;
     assert.ok(
-      column.foundationY <= targetY + BACKGROUND_CITY_FOUNDATION_TOLERANCE,
-      `foundation at ${column.x} sinks below its ${targetY} target to ${column.foundationY}`
+      point.foundationY <= targetY + BACKGROUND_CITY_FOUNDATION_TOLERANCE,
+      `foundation at ${point.x} sinks below ${targetY} to ${point.foundationY}`
     );
   }
-  const frontOnly = rows.filter((row) => row.distanceFromFront === 0);
-  const sunkenFoundations = cityBackgroundColumnFoundations(frontOnly);
-  assert.ok(
-    sunkenFoundations.some((column) => (
-      column.foundationY >
-        cityBackgroundFoundationTargetY(anchorX, anchorY, column.x) +
-          BACKGROUND_CITY_FOUNDATION_TOLERANCE
-    )),
-    "removing the adaptive rear layers should expose a sunken ground plane"
-  );
-});
-
-test("building baselines follow the opaque top edge of a curved stone ribbon", () => {
-  const alpha = new Uint8Array(5 * 5);
-  for (const [x, top] of [0, 0, 1, 1, 3, 3, 4, 4].reduce((pairs, value, index, values) => (
-    index % 2 === 0 ? [...pairs, [value, values[index + 1]]] : pairs
-  ), [])) {
-    for (let y = top; y < 5; y++) alpha[y * 5 + x] = 255;
+  for (let index = 1; index < envelope.length; index++) {
+    assert.ok(
+      Math.abs(envelope[index].foundationY - envelope[index - 1].foundationY) <=
+        BACKGROUND_CITY_FOUNDATION_TOLERANCE + 1
+    );
   }
-  assert.deepEqual(
-    Array.from(cityBackgroundBaseTopProfile({ alpha, width: 5, height: 5, sourceY: 100 })),
-    [100, 101, 102, 103, 104]
-  );
+  assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
 });
 
-test("no wall pixel falls below a curved ribbon across a building's full width", () => {
-  const curvedTop = Int16Array.from({ length: BASE_FRAME.frame.w }, (_, x) => 469 + Math.round(x / 18));
-  const rows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: 5,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: curvedTop
-  });
-  for (const row of rows) {
-    for (const building of row.buildings) {
-      const start = Math.floor(building.x - BASE_FRAME.spriteSourceSize.x);
-      const end = Math.ceil(start + building.width);
-      const ribbonTop = Math.min(...curvedTop.slice(start, end));
-      assert.ok(building.wallBottomY <= ribbonTop);
-      assert.ok(building.bottomY <= ribbonTop + building.foundationHeight);
-    }
+test("building walls never fall below a curved ribbon across their visible width", () => {
+  const rows = layout({ baseTopYByX: FALLING_BASE_TOP });
+  for (const building of allBuildings(rows)) {
+    const start = Math.floor(building.x - BASE_LEFT);
+    const end = Math.min(FALLING_BASE_TOP.length, Math.ceil(start + building.width));
+    const ribbonTop = Math.min(...FALLING_BASE_TOP.slice(start, end));
+    assert.ok(building.wallBottomY <= ribbonTop);
+    assert.ok(building.bottomY <= ribbonTop + building.foundationHeight);
   }
 });
 
-test("every row stays on its local ribbon-relative grade instead of flying", () => {
-  const fallingRibbon = Int16Array.from(
-    { length: BASE_FRAME.frame.w },
-    (_, x) => BASE_FRAME.spriteSourceSize.y + Math.floor(x / 12)
-  );
-  const rows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: 5,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: fallingRibbon
-  });
-  assert.ok(rows.some((row) => row.buildings.some(
-    (building) => building.rowGroundTopY > fallingRibbon[0]
-  )));
-  for (const row of rows) {
-    assert.ok(row.buildings.every((building) => (
-      building.rowGroundTopY === building.shorelineTopY
-    )));
-  }
+test("flying-building detection checks every foundation column, not only its anchor", () => {
+  const frontBuilding = {
+    x: 10,
+    y: 30,
+    wallBottomY: 70,
+    bottomY: 75,
+    width: 20
+  };
+  const partlySupportedRearBuilding = {
+    x: 5,
+    y: 20,
+    wallBottomY: 50,
+    bottomY: 55,
+    width: 20
+  };
+  const rows = [
+    { distanceFromFront: 1, buildings: [partlySupportedRearBuilding] },
+    { distanceFromFront: 0, buildings: [frontBuilding] }
+  ];
+  assert.deepEqual(cityBackgroundFlyingBuildings(rows), [partlySupportedRearBuilding]);
 });
 
-test("the ribbon reserves a bare fifteen-pixel quay before the background city", () => {
+test("the ribbon reserves a bare fifteen-pixel quay before the first anchor", () => {
   assert.equal(BACKGROUND_CITY_QUAY_CLEARANCE, 15);
+  assert.equal(CITY_LEFT, BASE_LEFT + 15);
 });
 
 test("background-city gaps expose an authored gray street rather than blue water", () => {
@@ -416,48 +297,32 @@ test("opposite-bank streets mirror the authored ribbon edge", () => {
   ]);
 });
 
-test("opposite-bank buildings are independently generated, position-mirrored, and never sprite-mirrored", () => {
-  const generatedCity = { ...LONDON, id: `${LONDON.id}|opposite-bank` };
-  const generatedRows = cityBackgroundLayout({
-    city: generatedCity,
+test("opposite-bank buildings mirror complete right-growing placements into left-growing placements", () => {
+  const generatedRows = layout({
+    city: { ...LONDON, id: `${LONDON.id}|opposite-bank` },
     rowCount: 5,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
+    baseTopYByX: FALLING_BASE_TOP
   });
   const oppositeRows = oppositeBankCityBackgroundLayout({
     city: LONDON,
     rowCount: 5,
     frames: FRAMES,
     baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP,
+    baseTopYByX: FALLING_BASE_TOP,
     sceneWidth: 1365,
     parallaxAnchor: -0.12
   });
+  assert.deepEqual(cityBackgroundFlyingBuildings(oppositeRows), []);
   for (const [rowIndex, row] of oppositeRows.entries()) {
     assert.equal(row.parallaxAnchor, -0.12);
-    assert.ok(row.buildings.every((building, index, buildings) => (
-      index === 0 || buildings[index - 1].x <= building.x
-    )));
-    const sourceKeys = generatedRows[rowIndex].buildings.map((source) => (
-      `${source.frame.layer}:${1365 - source.x - source.width}:${source.y}:${source.width}`
+    const source = generatedRows[rowIndex].buildings.map((building) => (
+      `${building.frame.layer}:${1365 - building.x - building.width}:${building.y}:${building.width}`
     )).sort();
-    const mirroredKeys = row.buildings.map((building) => (
+    const mirrored = row.buildings.map((building) => (
       `${building.frame.layer}:${building.x}:${building.y}:${building.width}`
     )).sort();
-    assert.deepEqual(mirroredKeys, sourceKeys);
+    assert.deepEqual(mirrored, source);
   }
-  const ordinaryRows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: 5,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
-  });
-  assert.notDeepEqual(
-    oppositeRows.flatMap((row) => row.buildings.map((building) => building.frame.layer)),
-    ordinaryRows.flatMap((row) => row.buildings.map((building) => building.frame.layer))
-  );
 });
 
 test("buildings with lower bases paint in front of buildings with higher bases", () => {
@@ -475,16 +340,9 @@ test("buildings with lower bases paint in front of buildings with higher bases",
     "tied-near",
     "low"
   ]);
-  assert.equal(order.at(-1).building, lowBase);
 });
 
-test("atmospheric perspective keeps the front row exact and cools only deeper rows", () => {
-  assert.equal(cityBackgroundAtmosphereLevel(0, 5), 0);
-  assert.equal(cityBackgroundAtmosphereLevel(1, 5), 1);
-  assert.equal(cityBackgroundAtmosphereLevel(2, 5), 1);
-  assert.equal(cityBackgroundAtmosphereLevel(3, 5), 2);
-  assert.equal(cityBackgroundAtmosphereLevel(4, 5), 2);
-  assert.equal(cityBackgroundAtmosphereLevel(1, 2), 1);
+test("atmospheric perspective stays on the Resurrect 64 palette", () => {
   const palette = new Set(RESURRECT_64_HEX);
   const warmRoof = [0xb3, 0x38, 0x31];
   const front = cityBackgroundAtmosphereRgb(...warmRoof, 0);
@@ -497,42 +355,35 @@ test("atmospheric perspective keeps the front row exact and cools only deeper ro
   assert.notDeepEqual(rear, middle);
 });
 
-test("adjacent skyline rows avoid stacking identical building sprites directly behind one another", () => {
-  const rows = cityBackgroundLayout({
-    city: LONDON,
-    rowCount: 5,
-    frames: FRAMES,
-    baseFrame: BASE_FRAME,
-    baseTopYByX: FLAT_BASE_TOP
-  });
-  for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
-    const row = rows[rowIndex];
-    for (const [buildingIndex, building] of row.buildings.entries()) {
-      const centerX = building.x + building.width / 2;
-      const previousLayer = row.buildings[buildingIndex - 1]?.frame.layer;
-      const fittingFrames = FRAMES.filter((candidate) => (
-        building.x + Math.max(1, Math.round(candidate.frame.w * row.scale)) <=
-          BASE_FRAME.spriteSourceSize.x + BASE_FRAME.spriteSourceSize.w
-      ));
-      const nonRepeatingFrames = fittingFrames.filter((candidate) => candidate.layer !== previousLayer);
-      const candidates = nonRepeatingFrames.length > 0 ? nonRepeatingFrames : fittingFrames;
-      const duplicateCount = (candidate) => {
-        const candidateWidth = Math.max(1, Math.round(candidate.frame.w * row.scale));
-        const candidateCenterX = building.x + candidateWidth / 2;
-        return rows.slice(rowIndex + 1).reduce((count, nearerRow) => (
-          count + nearerRow.buildings.filter((nearer) => (
-            nearer.frame.layer === candidate.layer &&
-            Math.abs(candidateCenterX - (nearer.x + nearer.width / 2)) <=
-              Math.min(candidateWidth, nearer.width) * 0.35
-          )).length
-        ), 0);
-      };
-      const chosenCount = duplicateCount(building.frame);
-      const minimumCount = Math.min(...candidates.map(duplicateCount));
-      assert.equal(chosenCount, minimumCount, `${building.frame.layer} at ${centerX}`);
-    }
+test("the ribbon top profile interpolates transparent gaps", () => {
+  const alpha = new Uint8Array(5 * 5);
+  for (const [x, top] of [[0, 0], [1, 1], [3, 3], [4, 4]]) {
+    for (let y = top; y < 5; y++) alpha[y * 5 + x] = 255;
   }
+  assert.deepEqual(
+    Array.from(cityBackgroundBaseTopProfile({ alpha, width: 5, height: 5, sourceY: 100 })),
+    [100, 101, 102, 103, 104]
+  );
 });
+
+function layout({
+  city = LONDON,
+  rowCount = BACKGROUND_CITY_MAX_ROWS,
+  frames = FRAMES,
+  baseTopYByX = FLAT_BASE_TOP
+} = {}) {
+  return cityBackgroundLayout({ city, rowCount, frames, baseFrame: BASE_FRAME, baseTopYByX });
+}
+
+function allBuildings(rows) {
+  return rows.flatMap((row) => row.buildings);
+}
+
+function frequencyCounts(values) {
+  const counts = new Map();
+  for (const value of values) counts.set(value, (counts.get(value) || 0) + 1);
+  return [...counts.values()];
+}
 
 function frame(layer, width, height, x = 0, y = 0) {
   return Object.freeze({

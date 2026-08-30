@@ -10,6 +10,7 @@ export const BACKGROUND_CITY_BUILDING_LAYERS = Object.freeze([
 export const BACKGROUND_CITY_CHURCH_LAYER = "Church";
 
 export const BACKGROUND_CITY_FRONT_DEPTH = 0.86;
+export const BACKGROUND_CITY_REAR_DEPTH = 0.8;
 export const BACKGROUND_CITY_MAX_ROWS = 8;
 export const BACKGROUND_CITY_PARALLAX_ANCHOR = 1;
 export const BACKGROUND_CITY_QUAY_CLEARANCE = 15;
@@ -18,12 +19,11 @@ export const BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT = 36;
 export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
 export const BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL = 1 / 32;
 export const BACKGROUND_CITY_FOUNDATION_TOLERANCE = 3;
+export const BACKGROUND_CITY_NEAR_SCALE = 0.5;
+export const BACKGROUND_CITY_FAR_SCALE = 0.17;
 
-const FRONT_SCALE = 0.5;
-const SCALE_STEP = 0.055;
-const DEPTH_STEP = 0.01;
-const BASELINE_STEP = 12;
-const ROW_START_OCCLUSION_OVERLAP = 8;
+export const BACKGROUND_CITY_POINT_SPACING_X = 30;
+export const BACKGROUND_CITY_POINT_SPACING_Y = 7;
 const BACKGROUND_CITY_BUILDING_MIX_LAYERS = Object.freeze({
   homeA: "Home",
   homeB: "Home 2",
@@ -31,9 +31,9 @@ const BACKGROUND_CITY_BUILDING_MIX_LAYERS = Object.freeze({
   smith: "Smith"
 });
 const BACKGROUND_CITY_DENSITY_OVERLAP = Object.freeze({
-  sparse: Object.freeze({ minimum: 0.07, variation: 0.05 }),
-  moderate: Object.freeze({ minimum: 0.12, variation: 0.08 }),
-  dense: Object.freeze({ minimum: 0.18, variation: 0.08 })
+  sparse: Object.freeze({ minimum: 0.07, variation: 0.05, spacingX: 38, spacingY: 10 }),
+  moderate: Object.freeze({ minimum: 0.12, variation: 0.08, spacingX: 30, spacingY: 7 }),
+  dense: Object.freeze({ minimum: 0.18, variation: 0.08, spacingX: 24, spacingY: 6 })
 });
 const ATMOSPHERE_FOG_RGB = Object.freeze([0x4d, 0x65, 0xb4]);
 const ATMOSPHERE_STRENGTH = Object.freeze([0, 0.2, 0.38]);
@@ -162,6 +162,96 @@ export function mirrorCityBackgroundStreetRows({ rows, sceneWidth }) {
   })));
 }
 
+export function cityBackgroundFoundationPoints({
+  cityId,
+  rowCount,
+  density = "moderate",
+  baseFrame,
+  baseTopYByX,
+  seedPoints = []
+}) {
+  if (typeof cityId !== "string" || cityId === "") {
+    throw new Error("Background city foundation points require a city id");
+  }
+  if (!Number.isInteger(rowCount) || rowCount < 0 || rowCount > BACKGROUND_CITY_MAX_ROWS) {
+    throw new Error(`Invalid background city point depth: ${rowCount}`);
+  }
+  requireFoundationBand({ baseFrame, baseTopYByX });
+  const spacing = BACKGROUND_CITY_DENSITY_OVERLAP[density];
+  if (!spacing) throw new Error(`Invalid background city density: ${density}`);
+  if (!Array.isArray(seedPoints) || !seedPoints.every(validFoundationPoint)) {
+    throw new Error("Invalid background city foundation point seeds");
+  }
+  if (rowCount <= 1) return Object.freeze([]);
+
+  const random = seededRandom(hashString(`${cityId}|foundation-points`));
+  const baseLeft = baseFrame.spriteSourceSize.x;
+  const cityLeft = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE;
+  const cityRight = baseLeft + baseFrame.spriteSourceSize.w;
+  const anchorY = baseTopYByX[0];
+  const maximumPerspective = (rowCount - 1) / (BACKGROUND_CITY_MAX_ROWS - 1);
+  let bandArea = 0;
+  for (let x = cityLeft; x < cityRight; x++) {
+    const shorelineY = baseTopYByX[Math.floor(x - baseLeft)];
+    const slopeY = cityBackgroundFoundationTargetY(baseLeft, anchorY, x);
+    bandArea += Math.max(0, (shorelineY - slopeY) * maximumPerspective);
+  }
+  const targetCount = Math.max(0, Math.round(
+    bandArea / (spacing.spacingX * spacing.spacingY * 0.9)
+  ));
+  const accepted = seedPoints.map((point) => ({ ...point }));
+  const generated = [];
+  const attempts = Math.max(240, targetCount * 80);
+
+  for (let attempt = 0; attempt < attempts && generated.length < targetCount; attempt++) {
+    let best = null;
+    for (let candidateIndex = 0; candidateIndex < 18; candidateIndex++) {
+      const candidate = randomFoundationPoint({
+        random,
+        baseLeft,
+        cityLeft,
+        cityRight,
+        anchorY,
+        baseTopYByX,
+        maximumPerspective
+      });
+      if (!candidate) continue;
+      const separation = normalizedFoundationPointSeparation(candidate, accepted, spacing);
+      if (!best || separation > best.separation) best = { candidate, separation };
+    }
+    if (!best || best.separation < 0.86) break;
+    accepted.push(best.candidate);
+    generated.push(best.candidate);
+  }
+
+  const gapCandidates = [];
+  const scanStepX = Math.max(5, Math.round(spacing.spacingX / 2));
+  const scanStepY = Math.max(3, Math.round(spacing.spacingY / 2));
+  for (let x = cityLeft + Math.floor(scanStepX / 2); x < cityRight; x += scanStepX) {
+    const profileX = Math.max(0, Math.min(baseTopYByX.length - 1, Math.floor(x - baseLeft)));
+    const shorelineY = baseTopYByX[profileX];
+    const slopeY = cityBackgroundFoundationTargetY(baseLeft, anchorY, x);
+    const highestY = Math.round(shorelineY - (shorelineY - slopeY) * maximumPerspective);
+    for (let foundationY = shorelineY - scanStepY; foundationY >= highestY; foundationY -= scanStepY) {
+      const perspective = cityBackgroundFoundationPerspective({
+        foundationY,
+        shorelineY,
+        slopeY
+      });
+      if (perspective < 0.08) continue;
+      gapCandidates.push({ x, foundationY, perspective });
+    }
+  }
+  shuffleInPlace(gapCandidates, random);
+  for (const candidate of gapCandidates) {
+    if (normalizedFoundationPointSeparation(candidate, accepted, spacing) < 0.72) continue;
+    accepted.push(candidate);
+    generated.push(candidate);
+  }
+  generated.sort((left, right) => left.perspective - right.perspective || left.x - right.x);
+  return Object.freeze(generated.map((point) => Object.freeze(point)));
+}
+
 export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTopYByX }) {
   if (!city || typeof city !== "object" || typeof city.id !== "string" || city.id === "") {
     throw new Error("Background city layout requires a stable city id");
@@ -179,15 +269,20 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
     throw new Error("Background city layout requires the base top-edge profile");
   }
   const frameByLayer = new Map(frames.map((frame) => [frame.layer, frame]));
-  const buildingFrames = BACKGROUND_CITY_BUILDING_LAYERS.map((layerName) => {
+  BACKGROUND_CITY_BUILDING_LAYERS.forEach((layerName) => {
     const frame = frameByLayer.get(layerName);
     requireFrame(frame, layerName);
-    return frame;
   });
   const skylineReferenceFrame = frameByLayer.get("Inn");
   const buildingPool = backgroundCityBuildingPool(city, frameByLayer);
   const eligibleBuildingFrames = [...new Set(buildingPool)];
   const densityOverlap = backgroundCityDensityOverlap(city);
+  const densityName = city.backgroundCity?.density || "moderate";
+  const random = seededRandom(hashString(`${city.id}|buildings`));
+  const baseLeft = baseFrame.spriteSourceSize.x;
+  const baseRight = baseLeft + baseFrame.spriteSourceSize.w;
+  const cityLeft = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE;
+  const foundationAnchorY = baseTopYByX[0];
   const churchCount = backgroundCityChurchCount(city, rowCount);
   const churchFrame = churchCount > 0
     ? frameByLayer.get(BACKGROUND_CITY_CHURCH_LAYER)
@@ -200,216 +295,95 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
     count: churchCount,
     rowCount
   });
-  const random = seededRandom(hashString(city.id));
-  const baseLeft = baseFrame.spriteSourceSize.x;
-  const baseRight = baseLeft + baseFrame.spriteSourceSize.w;
-  const rowsNearToFar = [];
-  const foundationAnchorX = baseLeft;
-  const foundationAnchorY = baseTopYByX[0];
-
-  for (let distanceFromFront = 0; distanceFromFront < rowCount; distanceFromFront++) {
-    const scale = roundTo(FRONT_SCALE - distanceFromFront * SCALE_STEP, 3);
-    const depth = roundTo(BACKGROUND_CITY_FRONT_DEPTH - distanceFromFront * DEPTH_STEP, 3);
-    const verticalOffset = -distanceFromFront * BASELINE_STEP;
-    const buildings = [];
-    const rowFoundationHeight = Math.max(
-      1,
-      Math.round(BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT * scale)
-    );
-    const rowChurchPlans = churchPlans.filter((plan) => (
-      plan.distanceFromFront === distanceFromFront
-    ));
-    const remainingChurchPlans = churchPlans.filter((plan) => (
-      plan.distanceFromFront >= distanceFromFront
-    ));
-    const foundationDeficitX = distanceFromFront === 0
-      ? baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE
-      : firstCityFoundationDeficitX({
-          rows: rowsNearToFar,
-          leftX: baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
-          rightX: baseRight,
-          anchorX: foundationAnchorX,
-          anchorY: foundationAnchorY
-        });
-    if (foundationDeficitX < 0 && remainingChurchPlans.length === 0) break;
-    const deficitX = foundationDeficitX >= 0
-      ? foundationDeficitX
-      : Math.max(
-          baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
-          baseLeft + Math.round(
-            (baseRight - baseLeft) * Math.min(...remainingChurchPlans.map(({ targetFraction }) => targetFraction))
-          ) - 64
-        );
-    let x = distanceFromFront === 0
-      ? deficitX
-      : Math.max(
-          baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
-          deficitX - ROW_START_OCCLUSION_OVERLAP
-        );
-    let previousLayer = null;
-    let buildingIndex = 0;
-    const cycleOffset = randomInteger(random, 0, buildingPool.length - 1);
-    let finalBuilding = false;
-
-    while (x < baseRight) {
-      let fittingFrames = eligibleBuildingFrames.filter((frame) => (
-        x + Math.max(1, Math.round(frame.frame.w * scale)) <= baseRight
-      ));
-      if (fittingFrames.length === 0) {
-        const smallestFrame = eligibleBuildingFrames.reduce((smallest, frame) => (
-          frame.frame.w < smallest.frame.w ? frame : smallest
-        ));
-        const smallestWidth = Math.max(1, Math.round(smallestFrame.frame.w * scale));
-        const edgeX = baseRight - smallestWidth;
-        if (buildings.length === 0 || edgeX <= buildings.at(-1).x) break;
-        x = edgeX;
-        fittingFrames = [smallestFrame];
-        finalBuilding = true;
-      }
-      let frame = buildingPool[(cycleOffset + buildingIndex) % buildingPool.length];
-      if (!fittingFrames.includes(frame)) frame = fittingFrames[0];
-      const nonRepeatingFrames = fittingFrames.filter((candidate) => candidate.layer !== previousLayer);
-      const candidates = nonRepeatingFrames.length > 0 ? nonRepeatingFrames : fittingFrames;
-      const duplicateCounts = new Map(candidates.map((candidate) => [
-        candidate,
-        directlyBehindDuplicateCount(candidate, x, scale, rowsNearToFar)
-      ]));
-      const minimumDuplicateCount = Math.min(...duplicateCounts.values());
-      const leastDuplicatedFrames = candidates.filter((candidate) => (
-        duplicateCounts.get(candidate) === minimumDuplicateCount
-      ));
-      if (!leastDuplicatedFrames.includes(frame)) {
-        frame = leastDuplicatedFrames[randomInteger(random, 0, leastDuplicatedFrames.length - 1)];
-      }
-      const width = Math.max(1, Math.round(frame.frame.w * scale));
-      const height = Math.max(1, Math.round(frame.frame.h * scale));
-      const foundationHeight = Math.min(height - 1, rowFoundationHeight);
-      const profileStartX = Math.max(0, Math.floor(x - baseLeft));
-      const profileEndX = Math.min(
-        baseTopYByX.length,
-        Math.ceil(x + width - baseLeft)
-      );
-      const shorelineTopY = minimumValue(baseTopYByX, profileStartX, profileEndX);
-      const rowGroundTopY = shorelineTopY;
-      const rightRise = 0;
-      const unoccludedWallBottomY = rowGroundTopY + verticalOffset;
-      const unoccludedBottomY = unoccludedWallBottomY + foundationHeight;
-      const foregroundTopY = citySkylineTopYAtX(rowsNearToFar, x + width / 2);
-      const occlusionDrop = Number.isFinite(foregroundTopY)
-        ? Math.min(-verticalOffset, Math.max(0, foregroundTopY - unoccludedBottomY))
-        : 0;
-      const admittedWallBottomY = unoccludedWallBottomY + occlusionDrop;
-      const y = admittedWallBottomY - (height - foundationHeight);
-      const bottomY = y + height;
-      const wallBottomY = bottomY - foundationHeight;
-      buildings.push(Object.freeze({
-        frame,
-        x,
-        y,
-        bottomY,
-        wallBottomY,
-        admittedWallBottomY,
-        shorelineTopY,
-        rowGroundTopY,
-        occlusionDrop,
-        foundationHeight,
-        skylineTopY: y,
-        rightRise,
-        width,
-        height
-      }));
-      previousLayer = frame.layer;
-      buildingIndex++;
-      if (finalBuilding) break;
-      const overlap = Math.max(3, Math.round(width * (
-        densityOverlap.minimum + random() * densityOverlap.variation
-      )));
-      x += width - overlap;
-    }
-
-    const replacedBuildingIndexes = new Set();
-    for (const churchPlan of rowChurchPlans) {
-      if (!churchFrame || buildings.length === 0) continue;
-      const churchWidth = Math.max(1, Math.round(churchFrame.frame.w * scale));
-      const churchHeight = Math.max(1, Math.round(churchFrame.frame.h * scale));
-      const targetCenterX = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE + Math.round(
-        (baseRight - baseLeft - BACKGROUND_CITY_QUAY_CLEARANCE) * churchPlan.targetFraction
-      );
-      const availableIndexes = buildings.map((_, index) => index).filter((index) => (
-        !replacedBuildingIndexes.has(index)
-      ));
-      if (availableIndexes.length === 0) continue;
-      const replacementIndex = availableIndexes.reduce((closestIndex, index) => (
-        Math.abs(buildings[index].x + buildings[index].width / 2 - targetCenterX) <
-          Math.abs(buildings[closestIndex].x + buildings[closestIndex].width / 2 - targetCenterX)
-          ? index
-          : closestIndex
-      ), availableIndexes[0]);
-      replacedBuildingIndexes.add(replacementIndex);
-      const replaced = buildings[replacementIndex];
-      const churchX = Math.max(
-        baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
-        Math.min(baseRight - churchWidth, Math.round(replaced.x + replaced.width / 2 - churchWidth / 2))
-      );
-      const churchFoundationHeight = Math.min(
-        churchHeight - 1,
-        Math.max(1, Math.round(BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT * scale))
-      );
-      const profileStartX = Math.max(0, Math.floor(churchX - baseLeft));
-      const profileEndX = Math.min(
-        baseTopYByX.length,
-        Math.ceil(churchX + churchWidth - baseLeft)
-      );
-      const shorelineTopY = minimumValue(baseTopYByX, profileStartX, profileEndX);
-      const unoccludedWallBottomY = shorelineTopY + verticalOffset;
-      const unoccludedBottomY = unoccludedWallBottomY + churchFoundationHeight;
-      const foregroundTopY = citySkylineTopYAtX(
-        rowsNearToFar,
-        churchX + churchWidth / 2
-      );
-      const occlusionDrop = Number.isFinite(foregroundTopY)
-        ? Math.min(-verticalOffset, Math.max(0, foregroundTopY - unoccludedBottomY))
-        : 0;
-      const wallBottomY = unoccludedWallBottomY + occlusionDrop;
-      const y = wallBottomY - (churchHeight - churchFoundationHeight);
-      const churchSkylineHeight = Math.max(1, Math.round(
-        (skylineReferenceFrame.frame.h - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) * scale
-      ));
-      buildings[replacementIndex] = Object.freeze({
-        frame: churchFrame,
-        x: churchX,
-        y,
-        bottomY: y + churchHeight,
-        wallBottomY,
-        admittedWallBottomY: wallBottomY,
-        shorelineTopY,
-        rowGroundTopY: shorelineTopY,
-        occlusionDrop,
-        foundationHeight: churchFoundationHeight,
-        skylineTopY: wallBottomY - churchSkylineHeight,
-        rightRise: 0,
-        width: churchWidth,
-        height: churchHeight
-      });
-    }
-
-    if (buildings.length === 0) break;
-    const row = Object.freeze({
-      rowIndex: distanceFromFront,
-      distanceFromFront,
-      scale,
-      depth,
-      parallaxAnchor: BACKGROUND_CITY_PARALLAX_ANCHOR,
-      verticalOffset,
-      rowFoundationHeight,
-      buildings: Object.freeze(buildings)
+  const placements = [];
+  const cycleOffset = randomInteger(random, 0, buildingPool.length - 1);
+  let x = cityLeft;
+  let buildingIndex = 0;
+  let previousLayer = null;
+  while (x < baseRight) {
+    const preferred = buildingPool[(cycleOffset + buildingIndex) % buildingPool.length];
+    const frame = chooseCityBuildingFrame({
+      preferred,
+      candidates: eligibleBuildingFrames,
+      previousLayer,
+      centerX: x,
+      perspective: 0,
+      placements,
+      random
     });
-    rowsNearToFar.push(row);
+    const geometry = cityBackgroundGeometryAtX({
+      frame,
+      x,
+      foundationY: Number.POSITIVE_INFINITY,
+      foundationSourceHeight: BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT,
+      groundOnRibbon: true,
+      baseLeft,
+      baseRight,
+      baseTopYByX,
+      foundationAnchorY
+    });
+    if (!geometry) break;
+    placements.push(cityBackgroundBuilding(frame, geometry));
+    previousLayer = frame.layer;
+    buildingIndex++;
+    const overlap = Math.max(3, Math.round(geometry.width * (
+      densityOverlap.minimum + random() * densityOverlap.variation
+    )));
+    x += geometry.width - overlap;
   }
-  return Object.freeze(rowsNearToFar.reverse().map((row, rowIndex) => Object.freeze({
-    ...row,
-    rowIndex
-  })));
+
+  const points = cityBackgroundFoundationPoints({
+    cityId: city.id,
+    rowCount,
+    density: densityName,
+    baseFrame,
+    baseTopYByX,
+    seedPoints: placements.map((building) => ({
+      x: building.x,
+      foundationY: building.wallBottomY,
+      perspective: 0
+    }))
+  });
+  for (const point of points) {
+    const placement = placeScatteredCityBuilding({
+      point,
+      buildingPool,
+      eligibleBuildingFrames,
+      placements,
+      random,
+      baseLeft,
+      baseRight,
+      baseTopYByX,
+      foundationAnchorY
+    });
+    if (placement) placements.push(placement);
+  }
+
+  fillBackgroundCityFoundationGaps({
+    placements,
+    rowCount,
+    buildingPool,
+    eligibleBuildingFrames,
+    random,
+    baseLeft,
+    baseRight,
+    baseTopYByX,
+    foundationAnchorY
+  });
+
+  insertBackgroundCityChurches({
+    placements,
+    churchPlans,
+    churchFrame,
+    skylineReferenceFrame,
+    rowCount,
+    baseLeft,
+    baseRight,
+    baseTopYByX,
+    foundationAnchorY
+  });
+
+  return backgroundCityPlacementBuckets(placements, rowCount);
 }
 
 export function cityBackgroundChurchPlans({ cityId, count, rowCount }) {
@@ -495,7 +469,7 @@ export function cityBackgroundPainterOrder(rows) {
   const entries = rows.flatMap((row, rowOrder) => (
     row.buildings.map((building, buildingOrder) => ({
       building,
-      depth: row.depth,
+      depth: building.depth ?? row.depth,
       parallaxAnchor: row.parallaxAnchor,
       distanceFromFront: row.distanceFromFront,
       rowOrder,
@@ -509,6 +483,74 @@ export function cityBackgroundPainterOrder(rows) {
     left.buildingOrder - right.buildingOrder
   ));
   return Object.freeze(entries.map((entry) => Object.freeze(entry)));
+}
+
+export function cityBackgroundFlyingBuildings(rows) {
+  if (
+    !Array.isArray(rows) ||
+    !rows.every((row) => (
+      Number.isInteger(row?.distanceFromFront) &&
+      row.distanceFromFront >= 0 &&
+      Array.isArray(row?.buildings) &&
+      row.buildings.every((building) => (
+        Number.isFinite(building?.x) &&
+        Number.isFinite(building?.y) &&
+        Number.isFinite(building?.wallBottomY) &&
+        Number.isFinite(building?.bottomY) &&
+        Number.isInteger(building?.width) &&
+        building.width > 0
+      ))
+    ))
+  ) {
+    throw new Error("Invalid background city rows for flying-building detection");
+  }
+  const entries = rows.flatMap((row) => row.buildings.map((building) => ({ row, building })));
+  const flying = [];
+  for (const { row, building } of entries) {
+    if (building.groundedOnRibbon === true) continue;
+    if (building.groundedOnRibbon === undefined && row.distanceFromFront === 0) continue;
+    const nearerBuildings = entries.filter((candidate) => (
+      candidate.building !== building && (
+        Number.isFinite(candidate.building.perspective) && Number.isFinite(building.perspective)
+          ? candidate.building.perspective < building.perspective
+          : candidate.row.distanceFromFront < row.distanceFromFront
+      )
+    )).map((candidate) => candidate.building);
+    if (!foundationSpanIsOccluded({ building, nearerBuildings })) flying.push(building);
+  }
+  return Object.freeze(flying);
+}
+
+export function cityBackgroundFoundationEnvelope(rows) {
+  if (
+    !Array.isArray(rows) ||
+    !rows.every((row) => (
+      Array.isArray(row?.buildings) &&
+      row.buildings.every((building) => (
+        Number.isFinite(building?.x) &&
+        Number.isFinite(building?.wallBottomY) &&
+        Number.isInteger(building?.width) &&
+        building.width > 0
+      ))
+    ))
+  ) {
+    throw new Error("Invalid background city rows for foundation envelope");
+  }
+  const buildings = rows.flatMap((row) => row.buildings);
+  if (buildings.length === 0) return Object.freeze([]);
+  const leftX = Math.floor(Math.min(...buildings.map((building) => building.x)));
+  const rightX = Math.ceil(Math.max(...buildings.map((building) => (
+    building.x + building.width
+  ))));
+  const envelope = [];
+  for (let x = leftX; x < rightX; x++) {
+    const foundations = buildings.filter((building) => (
+      x >= building.x && x < building.x + building.width
+    )).map((building) => building.wallBottomY);
+    if (foundations.length === 0) continue;
+    envelope.push(Object.freeze({ x, foundationY: Math.min(...foundations) }));
+  }
+  return Object.freeze(envelope);
 }
 
 export function cityBackgroundColumnSkyline(rows) {
@@ -573,6 +615,51 @@ export function cityBackgroundFoundationTargetY(anchorX, anchorY, x) {
     throw new Error(`Invalid background city foundation target: ${anchorX},${anchorY}→${x}`);
   }
   return anchorY - Math.round((x - anchorX) * BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL);
+}
+
+export function cityBackgroundFoundationPerspective({ foundationY, shorelineY, slopeY }) {
+  if (
+    ![foundationY, shorelineY, slopeY].every(Number.isFinite) ||
+    shorelineY < slopeY ||
+    foundationY < slopeY - BACKGROUND_CITY_FOUNDATION_TOLERANCE ||
+    foundationY > shorelineY + BACKGROUND_CITY_FOUNDATION_TOLERANCE
+  ) {
+    throw new Error(
+      `Invalid background city foundation perspective: ${foundationY} in ${slopeY}–${shorelineY}`
+    );
+  }
+  if (shorelineY === slopeY) return 0;
+  return Math.max(0, Math.min(1, (shorelineY - foundationY) / (shorelineY - slopeY)));
+}
+
+export function cityBackgroundScaleForPerspective(perspective) {
+  if (!Number.isFinite(perspective) || perspective < 0 || perspective > 1) {
+    throw new Error(`Invalid background city scale perspective: ${perspective}`);
+  }
+  return roundTo(
+    BACKGROUND_CITY_NEAR_SCALE -
+      (BACKGROUND_CITY_NEAR_SCALE - BACKGROUND_CITY_FAR_SCALE) * perspective,
+    3
+  );
+}
+
+export function cityBackgroundDepthForPerspective(perspective) {
+  if (!Number.isFinite(perspective) || perspective < 0 || perspective > 1) {
+    throw new Error(`Invalid background city depth perspective: ${perspective}`);
+  }
+  return roundTo(
+    BACKGROUND_CITY_FRONT_DEPTH -
+      (BACKGROUND_CITY_FRONT_DEPTH - BACKGROUND_CITY_REAR_DEPTH) * perspective,
+    3
+  );
+}
+
+export function cityBackgroundAtmosphereLevelForPerspective(perspective) {
+  if (!Number.isFinite(perspective) || perspective < 0 || perspective > 1) {
+    throw new Error(`Invalid background city atmosphere perspective: ${perspective}`);
+  }
+  if (perspective < 0.12) return 0;
+  return perspective < 0.68 ? 1 : 2;
 }
 
 export function cityBackgroundAtmosphereLevel(distanceFromFront, rowCount) {
@@ -669,50 +756,408 @@ function requireFrame(frame, layerName) {
   }
 }
 
-function directlyBehindDuplicateCount(frame, x, scale, rows) {
-  const width = Math.max(1, Math.round(frame.frame.w * scale));
-  const centerX = x + width / 2;
-  let duplicates = 0;
-  for (const row of rows) {
-    for (const building of row.buildings) {
-      if (building.frame.layer !== frame.layer) continue;
-      const backgroundCenterX = building.x + building.width / 2;
-      const directAlignmentWidth = Math.min(width, building.width) * 0.35;
-      if (Math.abs(centerX - backgroundCenterX) <= directAlignmentWidth) duplicates++;
-    }
+function requireFoundationBand({ baseFrame, baseTopYByX }) {
+  requireFrame(baseFrame, BACKGROUND_CITY_BASE_LAYER);
+  if (
+    (!Array.isArray(baseTopYByX) && !ArrayBuffer.isView(baseTopYByX)) ||
+    baseTopYByX.length !== baseFrame.frame.w ||
+    !Array.from(baseTopYByX).every(Number.isInteger)
+  ) {
+    throw new Error("Invalid background city foundation band");
   }
-  return duplicates;
 }
 
-function firstCityFoundationDeficitX({ rows, leftX, rightX, anchorX, anchorY }) {
-  for (let x = Math.ceil(leftX); x < rightX; x++) {
-    const foundationY = cityHighestFoundationYAtX(rows, x);
-    const targetY = cityBackgroundFoundationTargetY(anchorX, anchorY, x);
-    if (foundationY > targetY + BACKGROUND_CITY_FOUNDATION_TOLERANCE) return x;
+function cityBackgroundGeometryAtX({
+  frame,
+  x,
+  foundationY,
+  foundationSourceHeight,
+  groundOnRibbon,
+  baseLeft,
+  baseRight,
+  baseTopYByX,
+  foundationAnchorY
+}) {
+  if (!Number.isFinite(x) || (!groundOnRibbon && !Number.isFinite(foundationY))) return null;
+  x = Math.round(x);
+  let scale = groundOnRibbon
+    ? BACKGROUND_CITY_NEAR_SCALE
+    : cityBackgroundScaleForPerspective(0.5);
+  let geometry = null;
+  for (let iteration = 0; iteration < 8; iteration++) {
+    const width = Math.max(1, Math.round(frame.frame.w * scale));
+    const height = Math.max(1, Math.round(frame.frame.h * scale));
+    if (x < baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE || x >= baseRight) return null;
+    const foundationHeight = Math.min(
+      height - 1,
+      Math.max(1, Math.round(foundationSourceHeight * scale))
+    );
+    const profileStartX = Math.max(0, Math.floor(x - baseLeft));
+    const profileEndX = Math.min(
+      baseTopYByX.length,
+      Math.ceil(x + width - baseLeft)
+    );
+    const shorelineTopY = minimumValue(baseTopYByX, profileStartX, profileEndX);
+    const authoredSlopeY = cityBackgroundFoundationTargetY(baseLeft, foundationAnchorY, x);
+    if (!groundOnRibbon && shorelineTopY <= authoredSlopeY) return null;
+    const slopeY = groundOnRibbon ? Math.min(authoredSlopeY, shorelineTopY) : authoredSlopeY;
+    const sampledWallBottomY = groundOnRibbon
+      ? shorelineTopY
+      : Math.max(slopeY, Math.min(shorelineTopY, Math.round(foundationY)));
+    const wallBottomY = sampledWallBottomY;
+    const perspective = cityBackgroundFoundationPerspective({
+      foundationY: wallBottomY,
+      shorelineY: shorelineTopY,
+      slopeY
+    });
+    const nextScale = cityBackgroundScaleForPerspective(perspective);
+    geometry = {
+      x,
+      scale,
+      perspective,
+      depth: cityBackgroundDepthForPerspective(perspective),
+      atmosphereLevel: cityBackgroundAtmosphereLevelForPerspective(perspective),
+      width,
+      height,
+      foundationHeight,
+      shorelineTopY,
+      wallBottomY,
+      sampledWallBottomY,
+      slopeY,
+      groundedOnRibbon: groundOnRibbon || wallBottomY === shorelineTopY
+    };
+    if (nextScale === scale) break;
+    scale = nextScale;
   }
-  return -1;
+  return geometry;
 }
 
-function cityHighestFoundationYAtX(rows, x) {
-  let foundationY = Number.POSITIVE_INFINITY;
-  for (const row of rows) {
-    for (const building of row.buildings) {
-      if (x < building.x || x >= building.x + building.width) continue;
-      foundationY = Math.min(foundationY, building.wallBottomY);
-    }
-  }
-  return foundationY;
+function cityBackgroundBuilding(frame, geometry) {
+  const y = geometry.wallBottomY - (geometry.height - geometry.foundationHeight);
+  return {
+    frame,
+    x: geometry.x,
+    y,
+    bottomY: y + geometry.height,
+    wallBottomY: geometry.wallBottomY,
+    admittedWallBottomY: geometry.wallBottomY,
+    shorelineTopY: geometry.shorelineTopY,
+    rowGroundTopY: geometry.shorelineTopY,
+    sampledWallBottomY: geometry.sampledWallBottomY,
+    occlusionOffset: geometry.wallBottomY - geometry.sampledWallBottomY,
+    foundationHeight: geometry.foundationHeight,
+    skylineTopY: y,
+    scale: geometry.scale,
+    perspective: geometry.perspective,
+    depth: geometry.depth,
+    atmosphereLevel: geometry.atmosphereLevel,
+    groundedOnRibbon: geometry.groundedOnRibbon,
+    rightRise: 0,
+    width: geometry.width,
+    height: geometry.height
+  };
 }
 
-function citySkylineTopYAtX(rows, x) {
-  let skylineTopY = Number.POSITIVE_INFINITY;
-  for (const row of rows) {
-    for (const building of row.buildings) {
-      if (x < building.x || x >= building.x + building.width) continue;
-      skylineTopY = Math.min(skylineTopY, building.skylineTopY);
+function chooseCityBuildingFrame({
+  preferred,
+  candidates,
+  previousLayer,
+  centerX,
+  perspective,
+  placements,
+  random
+}) {
+  const nonRepeating = candidates.filter((candidate) => candidate.layer !== previousLayer);
+  const pool = nonRepeating.length > 0 ? nonRepeating : candidates;
+  const scores = new Map(pool.map((candidate) => [
+    candidate,
+    directlyBehindDuplicateCount(candidate, centerX, perspective, placements)
+  ]));
+  const minimumScore = Math.min(...scores.values());
+  const best = pool.filter((candidate) => scores.get(candidate) === minimumScore);
+  if (best.includes(preferred)) return preferred;
+  return best[randomInteger(random, 0, best.length - 1)];
+}
+
+function directlyBehindDuplicateCount(frame, anchorX, perspective, placements) {
+  const width = Math.max(1, Math.round(
+    frame.frame.w * cityBackgroundScaleForPerspective(perspective)
+  ));
+  const centerX = anchorX + width / 2;
+  return placements.filter((building) => (
+    building.frame.layer === frame.layer &&
+    Math.abs(building.perspective - perspective) > 0.04 &&
+    Math.abs(centerX - (building.x + building.width / 2)) <=
+      Math.min(width, building.width) * 0.35
+  )).length;
+}
+
+function placeScatteredCityBuilding({
+  point,
+  buildingPool,
+  eligibleBuildingFrames,
+  placements,
+  random,
+  baseLeft,
+  baseRight,
+  baseTopYByX,
+  foundationAnchorY
+}) {
+  const preferred = buildingPool[randomInteger(random, 0, buildingPool.length - 1)];
+  const previousLayer = placements
+    .filter((building) => Math.abs(building.perspective - point.perspective) < 0.08)
+    .sort((left, right) => Math.abs(left.x - point.x) - Math.abs(right.x - point.x))[0]
+    ?.frame.layer;
+  const first = chooseCityBuildingFrame({
+    preferred,
+    candidates: eligibleBuildingFrames,
+    previousLayer,
+    centerX: point.x,
+    perspective: point.perspective,
+    placements,
+    random
+  });
+  const orderedFrames = [first, ...eligibleBuildingFrames.filter((frame) => frame !== first)];
+  for (let foundationDrop = 0; foundationDrop <= BACKGROUND_CITY_POINT_SPACING_Y; foundationDrop++) {
+    for (const frame of orderedFrames) {
+      const geometry = cityBackgroundGeometryAtX({
+        frame,
+        x: point.x,
+        foundationY: point.foundationY + foundationDrop,
+        foundationSourceHeight: BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT,
+        groundOnRibbon: false,
+        baseLeft,
+        baseRight,
+        baseTopYByX,
+        foundationAnchorY
+      });
+      if (!geometry) continue;
+      const building = cityBackgroundBuilding(frame, geometry);
+      if (
+        building.groundedOnRibbon ||
+        foundationSpanIsOccluded({ building, nearerBuildings: placements })
+      ) return building;
     }
   }
-  return skylineTopY;
+  return null;
+}
+
+function fillBackgroundCityFoundationGaps({
+  placements,
+  rowCount,
+  buildingPool,
+  eligibleBuildingFrames,
+  random,
+  baseLeft,
+  baseRight,
+  baseTopYByX,
+  foundationAnchorY
+}) {
+  if (rowCount <= 1) return;
+  const maximumPerspective = (rowCount - 1) / (BACKGROUND_CITY_MAX_ROWS - 1);
+  const scanStepX = 1;
+  for (let pass = 0; pass < 2; pass++) {
+    const gaps = [];
+    for (let x = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE; x < baseRight; x += scanStepX) {
+      const profileX = Math.max(0, Math.min(baseTopYByX.length - 1, Math.floor(x - baseLeft)));
+      const shorelineY = baseTopYByX[profileX];
+      const slopeY = cityBackgroundFoundationTargetY(baseLeft, foundationAnchorY, x);
+      if (shorelineY <= slopeY) continue;
+      const targetFoundationY = Math.round(
+        shorelineY - (shorelineY - slopeY) * maximumPerspective
+      );
+      const existingFoundationY = Math.min(...placements.filter((building) => (
+        x >= building.x && x < building.x + building.width
+      )).map((building) => building.wallBottomY));
+      if (existingFoundationY <= targetFoundationY + BACKGROUND_CITY_FOUNDATION_TOLERANCE) continue;
+      const perspective = cityBackgroundFoundationPerspective({
+        foundationY: targetFoundationY,
+        shorelineY,
+        slopeY
+      });
+      gaps.push({ x, foundationY: targetFoundationY, perspective });
+    }
+    gaps.sort((left, right) => left.perspective - right.perspective || left.x - right.x);
+    let additions = 0;
+    for (const point of gaps) {
+      const currentFoundationY = Math.min(...placements.filter((building) => (
+        point.x >= building.x && point.x < building.x + building.width
+      )).map((building) => building.wallBottomY));
+      if (currentFoundationY <= point.foundationY + BACKGROUND_CITY_FOUNDATION_TOLERANCE) continue;
+      const placement = placeScatteredCityBuilding({
+        point,
+        buildingPool,
+        eligibleBuildingFrames,
+        placements,
+        random,
+        baseLeft,
+        baseRight,
+        baseTopYByX,
+        foundationAnchorY
+      });
+      if (!placement) continue;
+      placements.push(placement);
+      additions++;
+    }
+    if (additions === 0) break;
+  }
+}
+
+function insertBackgroundCityChurches({
+  placements,
+  churchPlans,
+  churchFrame,
+  skylineReferenceFrame,
+  rowCount,
+  baseLeft,
+  baseRight,
+  baseTopYByX,
+  foundationAnchorY
+}) {
+  if (!churchFrame || churchPlans.length === 0) return;
+  const used = new Set();
+  for (const plan of churchPlans) {
+    const targetX = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE +
+      (baseRight - baseLeft - BACKGROUND_CITY_QUAY_CLEARANCE) * plan.targetFraction;
+    const targetPerspective = plan.distanceFromFront / Math.max(1, BACKGROUND_CITY_MAX_ROWS - 1);
+    const candidates = placements.map((building, index) => ({ building, index }))
+      .filter(({ index, building }) => !used.has(index) && !building.groundedOnRibbon)
+      .sort((left, right) => (
+        Math.abs(left.building.x - targetX) +
+          Math.abs(left.building.perspective - targetPerspective) * 180 -
+        (Math.abs(right.building.x - targetX) +
+          Math.abs(right.building.perspective - targetPerspective) * 180)
+      ));
+    for (const { building: replaced, index } of candidates) {
+      const geometry = cityBackgroundGeometryAtX({
+        frame: churchFrame,
+        x: replaced.x,
+        foundationY: replaced.wallBottomY,
+        foundationSourceHeight: BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT,
+        groundOnRibbon: false,
+        baseLeft,
+        baseRight,
+        baseTopYByX,
+        foundationAnchorY
+      });
+      if (!geometry) continue;
+      const church = cityBackgroundBuilding(churchFrame, geometry);
+      const otherBuildings = placements.filter((_, candidateIndex) => candidateIndex !== index);
+      if (!foundationSpanIsOccluded({ building: church, nearerBuildings: otherBuildings })) continue;
+      const churchSkylineHeight = Math.max(1, Math.round(
+        (skylineReferenceFrame.frame.h - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) * church.scale
+      ));
+      church.skylineTopY = church.wallBottomY - churchSkylineHeight;
+      placements[index] = church;
+      if (flyingCityPlacements(placements).length > 0) {
+        placements[index] = replaced;
+        continue;
+      }
+      used.add(index);
+      break;
+    }
+  }
+}
+
+function backgroundCityPlacementBuckets(placements, rowCount) {
+  const grouped = new Map();
+  for (const placement of placements) {
+    const distanceFromFront = Math.max(0, Math.min(
+      rowCount - 1,
+      Math.round(placement.perspective * (BACKGROUND_CITY_MAX_ROWS - 1))
+    ));
+    const building = Object.freeze({ ...placement, distanceFromFront });
+    if (!grouped.has(distanceFromFront)) grouped.set(distanceFromFront, []);
+    grouped.get(distanceFromFront).push(building);
+  }
+  const distances = [...grouped.keys()].sort((left, right) => right - left);
+  return Object.freeze(distances.map((distanceFromFront, rowIndex) => {
+    const buildings = grouped.get(distanceFromFront).sort((left, right) => left.x - right.x);
+    return Object.freeze({
+      rowIndex,
+      distanceFromFront,
+      scale: buildings[0].scale,
+      depth: buildings[0].depth,
+      parallaxAnchor: BACKGROUND_CITY_PARALLAX_ANCHOR,
+      verticalOffset: -Math.round(buildings[0].perspective * 56),
+      rowFoundationHeight: buildings[0].foundationHeight,
+      buildings: Object.freeze(buildings)
+    });
+  }));
+}
+
+function foundationSpanIsOccluded({ building, nearerBuildings }) {
+  const leftX = Math.floor(building.x);
+  const rightX = Math.ceil(building.x + building.width);
+  for (let x = leftX; x < rightX; x++) {
+    const covered = nearerBuildings.some((nearer) => (
+      nearer !== building &&
+      (!Number.isFinite(nearer.perspective) ||
+        !Number.isFinite(building.perspective) ||
+        nearer.perspective < building.perspective) &&
+      x >= nearer.x &&
+      x < nearer.x + nearer.width &&
+      nearer.y <= building.wallBottomY &&
+      nearer.bottomY >= building.bottomY
+    ));
+    if (!covered) return false;
+  }
+  return true;
+}
+
+function flyingCityPlacements(placements) {
+  return placements.filter((building) => (
+    !building.groundedOnRibbon &&
+    !foundationSpanIsOccluded({ building, nearerBuildings: placements })
+  ));
+}
+
+function randomFoundationPoint({
+  random,
+  baseLeft,
+  cityLeft,
+  cityRight,
+  anchorY,
+  baseTopYByX,
+  maximumPerspective
+}) {
+  const x = randomInteger(random, cityLeft, cityRight - 1);
+  const profileX = Math.max(0, Math.min(baseTopYByX.length - 1, x - baseLeft));
+  const shorelineY = baseTopYByX[profileX];
+  const slopeY = cityBackgroundFoundationTargetY(baseLeft, anchorY, x);
+  const availableHeight = shorelineY - slopeY;
+  if (availableHeight * maximumPerspective < 2) return null;
+  const minimumPerspective = Math.min(maximumPerspective, 0.08);
+  const perspective = minimumPerspective + random() * (maximumPerspective - minimumPerspective);
+  const foundationY = Math.round(shorelineY - availableHeight * perspective);
+  return {
+    x,
+    foundationY,
+    perspective: cityBackgroundFoundationPerspective({ foundationY, shorelineY, slopeY })
+  };
+}
+
+function normalizedFoundationPointSeparation(point, points, spacing) {
+  if (points.length === 0) return Number.POSITIVE_INFINITY;
+  return Math.min(...points.map((other) => Math.hypot(
+    (point.x - other.x) / spacing.spacingX,
+    (point.foundationY - other.foundationY) / spacing.spacingY
+  )));
+}
+
+function validFoundationPoint(point) {
+  return Number.isFinite(point?.x) &&
+    Number.isFinite(point?.foundationY) &&
+    Number.isFinite(point?.perspective) &&
+    point.perspective >= 0 &&
+    point.perspective <= 1;
+}
+
+function shuffleInPlace(values, random) {
+  for (let index = values.length - 1; index > 0; index--) {
+    const other = randomInteger(random, 0, index);
+    [values[index], values[other]] = [values[other], values[index]];
+  }
 }
 
 function hashString(value) {
