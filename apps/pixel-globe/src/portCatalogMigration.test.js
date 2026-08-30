@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   PORT_CATALOG_VERSION,
   PRE_NORTH_MALUKU_PORT_TILE_IDS,
+  portReferenceMigrationForSavedVoyage,
   sameTopologyPortMigrationForSavedVoyage
 } from "./portCatalogMigration.js";
 
@@ -62,6 +63,17 @@ test("North Maluku port migration targets the canonical current city catalog", (
       `migration target ${targetTileId} must remain in the canonical city catalog`
     );
   }
+});
+
+test("a current-topology save still repairs an orphaned subdivision-seven reference", () => {
+  const migration = portReferenceMigrationForSavedVoyage(
+    { portCatalogVersion: PORT_CATALOG_VERSION },
+    { savedSubdivisions: 8, currentSubdivisions: 8 },
+    currentPortBake.endpoints
+  );
+  assert.equal(migration.get(160888), 643413, "escaped Utrecht reference must be repaired");
+  assert.equal(migration.has(160923), false, "placed York must retain its current identity");
+  assert.equal(migration.has(366350), false, "placed Tidore must retain its current identity");
 });
 
 test("same-topology port migration rejects unknown catalog versions and topologies", () => {

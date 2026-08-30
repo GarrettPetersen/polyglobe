@@ -1860,12 +1860,11 @@ import {
   savedVoyageWorldTopology
 } from "./saveCompatibility.js";
 import {
-  subdivisionSevenPortMigrationForWorld,
   subdivisionSevenPortReferenceCatalog
 } from "./subdivisionSevenPortMigration.js";
 import {
   PORT_CATALOG_VERSION,
-  sameTopologyPortMigrationForSavedVoyage
+  portReferenceMigrationForSavedVoyage
 } from "./portCatalogMigration.js";
 import {
   addDerivedSaveRecoveryLabel,
@@ -15384,18 +15383,15 @@ async function restoreSavedVoyage(payload) {
     console.info("[pixel-globe] corrected cultural name forms for saved characters:", correctedCharacterNameCount);
   }
   ensureWhalePopulation(restoredGameState);
-  const topologyPortTileIds = subdivisionSevenPortMigrationForWorld(savedWorldTopology);
-  const catalogPortTileIds = sameTopologyPortMigrationForSavedVoyage(
+  const legacyPortTileIds = portReferenceMigrationForSavedVoyage(
     payload,
-    savedWorldTopology
+    savedWorldTopology,
+    [...cityByTileId.values(), ...colonizationTargetPlacements]
   );
-  if (topologyPortTileIds && catalogPortTileIds) {
-    throw new Error("Saved voyage selected conflicting port migrations");
-  }
-  const legacyPortTileIds = topologyPortTileIds || catalogPortTileIds;
-  const savedPortReferenceCatalog = topologyPortTileIds
-    ? subdivisionSevenPortReferenceCatalog(portCities, colonizationTargetPlacements)
-    : portCities;
+  const savedPortReferenceCatalog = subdivisionSevenPortReferenceCatalog(
+    portCities,
+    colonizationTargetPlacements
+  );
   const migratedPortReferenceCount = reconcileQuestPortTiles(
     restoredGameState,
     savedPortReferenceCatalog,
@@ -15404,9 +15400,9 @@ async function restoreSavedVoyage(payload) {
   if (migratedPortReferenceCount > 0) {
     console.info(
       `[pixel-globe] migrated ${migratedPortReferenceCount} saved port references from ` +
-        (topologyPortTileIds
+        (savedWorldTopology.changed
           ? `subdivision ${savedWorldTopology.savedSubdivisions}`
-          : "the previous port catalog")
+          : "earlier port catalogs")
     );
   }
   const migratedDiscoveryReferenceCount = reconcileSavedDiscoveryReferences(

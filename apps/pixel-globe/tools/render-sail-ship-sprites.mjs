@@ -92,6 +92,7 @@ import {
   SHIP_WATERLINE_DEPTH_BYTE,
   SHIP_WATERLINE_LEVEL,
   encodedShipWaterlineY,
+  floatingShipSubmergedPixelKeys,
   shipMaxRasterWaterlineDepth,
   shipPixelBakeHeight
 } from "../src/shipWaterline.js";
@@ -1363,7 +1364,11 @@ function copyFrameToSheet(frame, sheetCtx, frameIndex, creaseOutline = null) {
   );
 }
 
-function makeSinkDepthSheet(frames, waterlineY, { exactModelHeight = false } = {}) {
+function makeSinkDepthSheet(
+  frames,
+  waterlineY,
+  { exactModelHeight = false, requireVisibleExteriorWaterline = false } = {}
+) {
   let minHeight = Infinity;
   let maxHeight = -Infinity;
   for (const frame of frames) {
@@ -1411,6 +1416,12 @@ function makeSinkDepthSheet(frames, waterlineY, { exactModelHeight = false } = {
     if (submergedPixels === 0) {
       reconcileOccludedWaterline(frame, levels, waterlineRasterPadding, frameIndex);
     }
+    if (requireVisibleExteriorWaterline && !hasVisibleSubmergedPixels(frame, levels)) {
+      reconcileOccludedExteriorWaterline(frame, levels, waterlineRasterPadding, frameIndex);
+    }
+    if (requireVisibleExteriorWaterline && !hasVisibleSubmergedPixels(frame, levels)) {
+      throw new Error(`Ship frame ${frameIndex} has no visible submerged hull after waterline reconciliation`);
+    }
     for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
       if (!frame.alpha[pixel]) continue;
       const level = levels[pixel];
@@ -1430,6 +1441,19 @@ function makeSinkDepthSheet(frames, waterlineY, { exactModelHeight = false } = {
     encodedWaterlineY,
     waterlineLevel: SHIP_WATERLINE_LEVEL
   };
+}
+
+function hasVisibleSubmergedPixels(frame, levels) {
+  const pixels = [];
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    pixels.push({
+      x: pixel % frameSize,
+      y: Math.floor(pixel / frameSize),
+      sinkHeight: levels[pixel] / 255
+    });
+  }
+  return floatingShipSubmergedPixelKeys(pixels, frameSize).size > 0;
 }
 
 function reconcileOccludedWaterline(frame, levels, rasterPadding, frameIndex) {
@@ -1453,6 +1477,37 @@ function reconcileOccludedWaterline(frame, levels, rasterPadding, frameIndex) {
   }
   if (reconciledPixels === 0) {
     throw new Error(`Ship frame ${frameIndex} could not reconcile its occluded waterline`);
+  }
+}
+
+function reconcileOccludedExteriorWaterline(frame, levels, rasterPadding, frameIndex) {
+  let lowestExteriorSideHeight = Infinity;
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    if (frame.normals[pixel * 3 + 1] >= SHIP_DECK_NORMAL_Y) continue;
+    const y = Math.floor(pixel / frameSize);
+    if (y + 1 < frameSize && frame.alpha[pixel + frameSize]) continue;
+    lowestExteriorSideHeight = Math.min(
+      lowestExteriorSideHeight,
+      frame.positions[pixel * 3 + 1]
+    );
+  }
+  if (!Number.isFinite(lowestExteriorSideHeight)) {
+    throw new Error(`Ship frame ${frameIndex} has no visible exterior side hull for waterline reconciliation`);
+  }
+
+  let reconciledPixels = 0;
+  for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
+    if (!frame.alpha[pixel]) continue;
+    if (frame.normals[pixel * 3 + 1] >= SHIP_DECK_NORMAL_Y) continue;
+    if (frame.positions[pixel * 3 + 1] > lowestExteriorSideHeight + rasterPadding) continue;
+    const y = Math.floor(pixel / frameSize);
+    if (y + 1 < frameSize && frame.alpha[pixel + frameSize]) continue;
+    levels[pixel] = SHIP_WATERLINE_DEPTH_BYTE - 1;
+    reconciledPixels++;
+  }
+  if (reconciledPixels === 0) {
+    throw new Error(`Ship frame ${frameIndex} could not reconcile its exterior waterline`);
   }
 }
 
@@ -2215,7 +2270,8 @@ async function renderShipSpriteSet(config) {
     copyFrameToSheet(frames[i], sheetCtx, i, config.creaseOutline);
   }
   const sinkDepth = makeSinkDepthSheet(frames, waterlineY, {
-    exactModelHeight: config.exactSinkDepth === true
+    exactModelHeight: config.exactSinkDepth === true,
+    requireVisibleExteriorWaterline: config.requireVisibleExteriorWaterline === true
   });
   const wakeAnchors = makeWakeAnchors(frames, waterlineY, config.wakeWaterlineBand);
   const hullFootprints = makeHullFootprints(
@@ -6833,6 +6889,7 @@ function nusantaranOutriggerConfig() {
     wakeWaterlineBand: 0.2,
     expectedWaterlineHullCount: 1,
     waterlineImmersionRatio: 0.82,
+    requireVisibleExteriorWaterline: true,
     colorTransform: borobudurOutriggerPortAssaultSurfaceColor,
     sourceOrientation: {
       rawUpAxis: "+Z before the glTF scene transform; +Y after it",

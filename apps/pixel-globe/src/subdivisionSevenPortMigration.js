@@ -71,3 +71,26 @@ export function subdivisionSevenPortReferenceCatalog(portCities, colonySites) {
   }
   return Object.freeze([...referencesByTileId.values()]);
 }
+
+export function orphanedSubdivisionSevenPortTileIds(currentPlacements) {
+  if (!Array.isArray(currentPlacements)) {
+    throw new Error("Orphaned subdivision-seven port recovery requires current placements");
+  }
+  const currentTileIds = new Set();
+  for (const placement of currentPlacements) {
+    if (!Number.isInteger(placement?.tileId)) {
+      throw new Error(`Invalid current placement tile: ${placement?.tileId ?? "missing"}`);
+    }
+    currentTileIds.add(placement.tileId);
+  }
+  const orphaned = new Map();
+  for (const [savedTileId, currentTileId] of SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS) {
+    if (!currentTileIds.has(currentTileId)) {
+      throw new Error(
+        `Orphaned saved port tile ${savedTileId} targets missing current placement ${currentTileId}`
+      );
+    }
+    if (!currentTileIds.has(savedTileId)) orphaned.set(savedTileId, currentTileId);
+  }
+  return orphaned;
+}

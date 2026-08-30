@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   SUBDIVISION_SEVEN_PORT_MIGRATION_COUNT,
   SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS,
+  orphanedSubdivisionSevenPortTileIds,
   subdivisionSevenPortMigrationForWorld,
   subdivisionSevenPortReferenceCatalog
 } from "./subdivisionSevenPortMigration.js";
@@ -73,6 +74,13 @@ test("legacy tile collisions resolve by saved topology rather than current tile 
     643561,
     "subdivision-seven Hull must not become subdivision-eight York"
   );
+});
+
+test("orphan recovery repairs escaped old tiles without rewriting current placed cities", () => {
+  const orphaned = orphanedSubdivisionSevenPortTileIds(currentPortBake.endpoints);
+  assert.equal(orphaned.get(160888), 643413, "old Utrecht must recover to current Utrecht");
+  assert.equal(orphaned.has(160923), false, "current York must not be mistaken for old Hull");
+  assert.equal(orphaned.has(366350), false, "current Tidore must not be mistaken for old Makian");
 });
 
 test("port migration is selected only for the authored world-topology change", () => {

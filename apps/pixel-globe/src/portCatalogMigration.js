@@ -1,3 +1,8 @@
+import {
+  orphanedSubdivisionSevenPortTileIds,
+  subdivisionSevenPortMigrationForWorld
+} from "./subdivisionSevenPortMigration.js";
+
 export const PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
@@ -34,4 +39,17 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
     );
   }
   return null;
+}
+
+export function portReferenceMigrationForSavedVoyage(payload, topology, currentPlacements) {
+  const topologyMigration = subdivisionSevenPortMigrationForWorld(topology);
+  const catalogMigration = sameTopologyPortMigrationForSavedVoyage(payload, topology);
+  if (topologyMigration && catalogMigration) {
+    throw new Error("Saved voyage selected conflicting port migrations");
+  }
+  const migration = orphanedSubdivisionSevenPortTileIds(currentPlacements);
+  for (const [savedTileId, currentTileId] of topologyMigration || catalogMigration || []) {
+    migration.set(savedTileId, currentTileId);
+  }
+  return migration.size > 0 ? migration : null;
 }

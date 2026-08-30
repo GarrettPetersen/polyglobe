@@ -306,6 +306,36 @@ test("a legacy port mapping wins when its old tile is now another canonical port
   assert.notEqual(state.memory.quests.active.destinationTileId, currentTidore.tileId);
 });
 
+test("port reconciliation repairs a nested crewmate home left behind by an earlier upgrade", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.namedCrew.push({
+    id: "utrecht-crewmate",
+    name: "Anna van Utrecht",
+    expressions: ["neutral"],
+    skillIds: ["able-seaman"],
+    role: "crewmate",
+    joinedCrew: true,
+    homePortTileId: 160888,
+    homePortName: "Utrecht",
+    homePortCountry: "Netherlands"
+  });
+  const currentUtrecht = port(
+    643413,
+    "Utrecht",
+    "Netherlands",
+    "northern-european",
+    "utrecht",
+    52.09,
+    5.12
+  );
+
+  assert.equal(reconcileQuestPortTiles(state, [currentUtrecht], {
+    legacyPortTileIds: new Map([[160888, currentUtrecht.tileId]])
+  }), 1);
+  assert.equal(state.namedCrew[0].homePortTileId, currentUtrecht.tileId);
+  assert.equal(state.namedCrew[0].homePortName, "Utrecht");
+});
+
 test("saved port references never guess from a display name", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const oldLisbon = { ...LISBON, tileId: 101 };
