@@ -14,6 +14,7 @@ import {
   cityBackgroundAtmosphereLevel,
   cityBackgroundAtmosphereRgb,
   cityBackgroundBaseTopProfile,
+  cityBackgroundChurchPlans,
   cityBackgroundLayout,
   cityBackgroundColumnSkyline,
   cityBackgroundPainterOrder,
@@ -129,10 +130,18 @@ test("the front row permits only its scaled foundation band to intersect the rib
   )));
 });
 
-test("Christian cities receive one buried church landmark in a rear skyline row", () => {
+test("Christian city profiles space multiple buried churches across distinct skyline depths", () => {
   const rows = cityBackgroundLayout({
-    city: { ...LONDON, religiousLandmarks: ["church"] },
-    rowCount: 5,
+    city: {
+      ...LONDON,
+      religiousLandmarks: ["church"],
+      backgroundCity: {
+        density: "dense",
+        buildingMix: { homeA: 4, homeB: 3, inn: 2, smith: 1 },
+        landmarks: { church: 2 }
+      }
+    },
+    rowCount: 6,
     frames: FRAMES_WITH_CHURCH,
     baseFrame: BASE_FRAME,
     baseTopYByX: FLAT_BASE_TOP
@@ -140,25 +149,58 @@ test("Christian cities receive one buried church landmark in a rear skyline row"
   const churches = rows.flatMap((row) => row.buildings
     .filter((building) => building.frame.layer === BACKGROUND_CITY_CHURCH_LAYER)
     .map((building) => ({ row, building })));
-  assert.equal(churches.length, 1);
-  const [{ row, building }] = churches;
-  assert.equal(row.distanceFromFront, 2);
-  assert.equal(
-    building.foundationHeight,
-    Math.round(BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT * row.scale)
+  assert.equal(churches.length, 2);
+  assert.equal(new Set(churches.map(({ row }) => row.distanceFromFront)).size, 2);
+  assert.equal(new Set(churches.map(({ building }) => building.width)).size, 2);
+  assert.ok(Math.abs(
+    (churches[0].building.x + churches[0].building.width / 2) -
+    (churches[1].building.x + churches[1].building.width / 2)
+  ) > 80);
+  for (const { row, building } of churches) {
+    assert.equal(
+      building.foundationHeight,
+      Math.round(BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT * row.scale)
+    );
+    assert.ok(building.wallBottomY <= building.shorelineTopY);
+    assert.equal(
+      building.skylineTopY,
+      building.wallBottomY - Math.round((BUILDING_SIZES.Inn[1] - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) * row.scale)
+    );
+    assert.ok(building.skylineTopY > building.y);
+    assert.ok(building.x >= BASE_FRAME.spriteSourceSize.x + BACKGROUND_CITY_QUAY_CLEARANCE);
+    assert.ok(building.x + building.width <= BASE_FRAME.spriteSourceSize.x + BASE_FRAME.spriteSourceSize.w);
+    const churchCenterX = building.x + building.width / 2;
+    assert.ok(rows.some((nearerRow) => (
+      nearerRow.distanceFromFront < row.distanceFromFront &&
+      nearerRow.buildings.some((nearer) => (
+        churchCenterX >= nearer.x &&
+        churchCenterX < nearer.x + nearer.width &&
+        nearer.bottomY >= building.bottomY
+      ))
+    )), "a nearer building must cover each church's raised rear-row base");
+  }
+  const massSkyline = cityBackgroundColumnSkyline(rows);
+  for (const { building } of churches) {
+    const coveredColumns = massSkyline.filter(({ x }) => (
+      x >= building.x && x < building.x + building.width
+    ));
+    assert.ok(coveredColumns.length > 0);
+    assert.ok(
+      coveredColumns.every(({ topY }) => topY > building.y),
+      "church spires must rise above, not replace, the ordinary skyline target"
+    );
+  }
+  const coolRearRows = rows.filter((row) => (
+    cityBackgroundAtmosphereLevel(row.distanceFromFront, rows.length) === 2
+  ));
+  assert.ok(coolRearRows.length >= 1);
+  assert.ok(
+    coolRearRows.some((row) => row.buildings.some((building) => (
+      building.frame.layer !== BACKGROUND_CITY_CHURCH_LAYER &&
+      building.x <= BASE_FRAME.spriteSourceSize.x + Math.round(BASE_FRAME.frame.w * 0.55)
+    ))),
+    "cool-shifted rear buildings must occupy a visible part of the skyline"
   );
-  assert.ok(building.wallBottomY <= building.shorelineTopY);
-  assert.ok(building.x >= BASE_FRAME.spriteSourceSize.x + BACKGROUND_CITY_QUAY_CLEARANCE);
-  assert.ok(building.x + building.width <= BASE_FRAME.spriteSourceSize.x + BASE_FRAME.spriteSourceSize.w);
-  const churchCenterX = building.x + building.width / 2;
-  assert.ok(rows.some((nearerRow) => (
-    nearerRow.distanceFromFront < row.distanceFromFront &&
-    nearerRow.buildings.some((nearer) => (
-      churchCenterX >= nearer.x &&
-      churchCenterX < nearer.x + nearer.width &&
-      nearer.bottomY >= building.bottomY
-    ))
-  )), "a nearer building must cover the church's raised rear-row base");
 
   const ordinaryRows = cityBackgroundLayout({
     city: LONDON,
@@ -170,6 +212,36 @@ test("Christian cities receive one buried church landmark in a rear skyline row"
   assert.equal(ordinaryRows.some((ordinaryRow) => ordinaryRow.buildings.some(
     (ordinaryBuilding) => ordinaryBuilding.frame.layer === BACKGROUND_CITY_CHURCH_LAYER
   )), false);
+});
+
+test("church plans separate large-city landmarks by both district and distance", () => {
+  const plans = cityBackgroundChurchPlans({
+    cityId: LONDON.id,
+    count: 3,
+    rowCount: 8
+  });
+  assert.equal(plans.length, 3);
+  assert.equal(new Set(plans.map(({ distanceFromFront }) => distanceFromFront)).size, 3);
+  assert.equal(new Set(plans.map(({ targetFraction }) => targetFraction)).size, 3);
+  assert.ok(plans[0].distanceFromFront < plans[1].distanceFromFront);
+  assert.ok(plans[1].distanceFromFront < plans[2].distanceFromFront);
+});
+
+test("city profiles can vary skyline density and the weighted building mix", () => {
+  const profile = (density, buildingMix) => cityBackgroundLayout({
+    city: { ...LONDON, backgroundCity: { density, buildingMix, landmarks: { church: 0 } } },
+    rowCount: 3,
+    frames: FRAMES,
+    baseFrame: BASE_FRAME,
+    baseTopYByX: FLAT_BASE_TOP
+  });
+  const sparse = profile("sparse", { homeA: 1, homeB: 0, inn: 0, smith: 0 });
+  const dense = profile("dense", { homeA: 4, homeB: 4, inn: 2, smith: 1 });
+  assert.ok(sparse.every((row) => row.buildings.every(({ frame: source }) => source.layer === "Home")));
+  assert.ok(
+    dense.flatMap((row) => row.buildings).length > sparse.flatMap((row) => row.buildings).length
+  );
+  assert.ok(new Set(dense.flatMap((row) => row.buildings.map(({ frame: source }) => source.layer))).size > 1);
 });
 
 test("a falling ribbon adds grounded rear layers at the dip instead of lifting buildings", () => {

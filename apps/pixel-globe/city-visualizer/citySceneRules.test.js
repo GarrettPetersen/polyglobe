@@ -667,7 +667,16 @@ test("London and Buda default to developed opposite banks in the generated city 
 
 test("Christian communities opt into the shared church landmark through city data", () => {
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
-  assert.deepEqual(cityById.get("london|united kingdom")?.religiousLandmarks, ["church"]);
+  const london = cityById.get("london|united kingdom");
+  const angers = cityById.get("angers|france");
+  const nanjing = cityById.get("nanjing|china");
+  assert.deepEqual(london?.religiousLandmarks, ["church"]);
+  assert.equal(london?.backgroundCity?.landmarks?.church, 2);
+  assert.equal(london?.backgroundCity?.density, "dense");
+  assert.equal(angers?.backgroundCity?.landmarks?.church, 1);
+  assert.equal(angers?.backgroundCity?.density, "moderate");
+  assert.equal(nanjing?.backgroundCity?.landmarks?.church, 0);
+  assert.notDeepEqual(london?.backgroundCity?.buildingMix, angers?.backgroundCity?.buildingMix);
   assert.equal(
     resolveCitySceneFeatures({ ...CITY, religiousLandmarks: ["church"] }).church,
     true

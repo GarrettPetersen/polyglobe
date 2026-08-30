@@ -26,6 +26,7 @@ import {
   isChristianReligion,
   religionCandidatesForHome
 } from "../src/characterReligion.js";
+import { cityBackgroundRowCount } from "../city-visualizer/cityBackground.js";
 
 const GEOGRAPHY_SUBDIVISIONS = 7;
 const NEIGHBORHOOD_RINGS = 5;
@@ -143,6 +144,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   const dock = dockStyle(city, approach);
   const fortification = fortificationEstimate(city);
   const builtUpBothBanks = approach === "river" && DEVELOPED_BOTH_BANKS_CITY_IDS.has(city.cityId);
+  const landmarks = religiousLandmarks(city);
   return Object.freeze({
     id: city.cityId,
     tileId: endpoint.tileId,
@@ -157,7 +159,8 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
     settlementType: city.settlementType || "city",
     factionId: city.factionId,
     capital: Boolean(city.declaredCapitalFactionId),
-    religiousLandmarks: religiousLandmarks(city),
+    religiousLandmarks: landmarks,
+    backgroundCity: backgroundCityProfile(city, landmarks),
     approach,
     builtUpBothBanks,
     dock,
@@ -188,6 +191,34 @@ function religiousLandmarks(city) {
   return Object.freeze(candidates.some(({ id }) => isChristianReligion(id))
     ? ["church"]
     : []);
+}
+
+function backgroundCityProfile(city, landmarks) {
+  const rows = cityBackgroundRowCount(city);
+  const population = Math.round(city.population);
+  const density = rows >= 5 || city.declaredCapitalFactionId
+    ? "dense"
+    : rows >= 3
+      ? "moderate"
+      : "sparse";
+  const variation = hashString(city.cityId);
+  const churchCount = landmarks.includes("church") && rows > 0
+    ? population >= 100_000
+      ? 3
+      : rows >= 5
+        ? 2
+        : 1
+    : 0;
+  return Object.freeze({
+    density,
+    buildingMix: Object.freeze({
+      homeA: 3 + (variation & 1),
+      homeB: 3 + (variation >>> 1 & 1),
+      inn: population >= 20_000 || city.declaredCapitalFactionId ? 2 : 1,
+      smith: population >= 50_000 ? 2 : 1
+    }),
+    landmarks: Object.freeze({ church: churchCount })
+  });
 }
 
 function indexCityCatalog(cities) {
@@ -475,4 +506,13 @@ function greatCircleDistanceKm(latA, lonA, latB, lonB) {
     directionA[0] * directionB[0] + directionA[1] * directionB[1] + directionA[2] * directionB[2]
   ));
   return Math.acos(dot) * EARTH_RADIUS_KM;
+}
+
+function hashString(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index++) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
 }

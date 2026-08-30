@@ -24,6 +24,18 @@ const SCALE_STEP = 0.055;
 const DEPTH_STEP = 0.01;
 const BASELINE_STEP = 12;
 const ROW_START_OCCLUSION_OVERLAP = 8;
+const ROW_START_REVEAL_FRACTION_STEP = 0.12;
+const BACKGROUND_CITY_BUILDING_MIX_LAYERS = Object.freeze({
+  homeA: "Home",
+  homeB: "Home 2",
+  inn: "Inn",
+  smith: "Smith"
+});
+const BACKGROUND_CITY_DENSITY_OVERLAP = Object.freeze({
+  sparse: Object.freeze({ minimum: 0.07, variation: 0.05 }),
+  moderate: Object.freeze({ minimum: 0.12, variation: 0.08 }),
+  dense: Object.freeze({ minimum: 0.18, variation: 0.08 })
+});
 const ATMOSPHERE_FOG_RGB = Object.freeze([0x4d, 0x65, 0xb4]);
 const ATMOSPHERE_STRENGTH = Object.freeze([0, 0.2, 0.38]);
 const RESURRECT_64_RGB = Object.freeze(RESURRECT_64_HEX.map(parseHexRgb));
@@ -173,13 +185,22 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
     requireFrame(frame, layerName);
     return frame;
   });
-  const churchFrame = city.religiousLandmarks?.includes("church")
+  const skylineReferenceFrame = frameByLayer.get("Inn");
+  const buildingPool = backgroundCityBuildingPool(city, frameByLayer);
+  const eligibleBuildingFrames = [...new Set(buildingPool)];
+  const densityOverlap = backgroundCityDensityOverlap(city);
+  const churchCount = backgroundCityChurchCount(city, rowCount);
+  const churchFrame = churchCount > 0
     ? frameByLayer.get(BACKGROUND_CITY_CHURCH_LAYER)
     : null;
-  if (city.religiousLandmarks?.includes("church")) {
+  if (churchCount > 0) {
     requireFrame(churchFrame, BACKGROUND_CITY_CHURCH_LAYER);
   }
-  const churchDistanceFromFront = Math.min(2, rowCount - 1);
+  const churchPlans = cityBackgroundChurchPlans({
+    cityId: city.id,
+    count: churchCount,
+    rowCount
+  });
   const random = seededRandom(hashString(city.id));
   const baseLeft = baseFrame.spriteSourceSize.x;
   const baseRight = baseLeft + baseFrame.spriteSourceSize.w;
@@ -196,7 +217,13 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
       1,
       Math.round(BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT * scale)
     );
-    const deficitX = distanceFromFront === 0
+    const rowChurchPlans = churchPlans.filter((plan) => (
+      plan.distanceFromFront === distanceFromFront
+    ));
+    const remainingChurchPlans = churchPlans.filter((plan) => (
+      plan.distanceFromFront >= distanceFromFront
+    ));
+    const skylineDeficitX = distanceFromFront === 0
       ? baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE
       : firstCitySkylineDeficitX({
           rows: rowsNearToFar,
@@ -205,24 +232,42 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
           anchorX: skylineAnchorX,
           anchorY: skylineAnchorY
         });
-    if (deficitX < 0) break;
+    if (skylineDeficitX < 0 && remainingChurchPlans.length === 0) break;
+    const deficitX = skylineDeficitX >= 0
+      ? skylineDeficitX
+      : Math.max(
+          baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
+          baseLeft + Math.round(
+            (baseRight - baseLeft) * Math.min(...remainingChurchPlans.map(({ targetFraction }) => targetFraction))
+          ) - 64
+        );
     let x = distanceFromFront === 0
       ? deficitX
       : Math.max(
           baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
           deficitX - ROW_START_OCCLUSION_OVERLAP
         );
+    if (distanceFromFront > 0) {
+      const cityLeft = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE;
+      const revealStartLimit = cityLeft + Math.round(
+        (baseRight - cityLeft) * Math.min(
+          0.84,
+          distanceFromFront * ROW_START_REVEAL_FRACTION_STEP
+        )
+      );
+      x = Math.min(x, revealStartLimit);
+    }
     let previousLayer = null;
     let buildingIndex = 0;
-    const cycleOffset = randomInteger(random, 0, buildingFrames.length - 1);
+    const cycleOffset = randomInteger(random, 0, buildingPool.length - 1);
     let finalBuilding = false;
 
     while (x < baseRight) {
-      let fittingFrames = buildingFrames.filter((frame) => (
+      let fittingFrames = eligibleBuildingFrames.filter((frame) => (
         x + Math.max(1, Math.round(frame.frame.w * scale)) <= baseRight
       ));
       if (fittingFrames.length === 0) {
-        const smallestFrame = buildingFrames.reduce((smallest, frame) => (
+        const smallestFrame = eligibleBuildingFrames.reduce((smallest, frame) => (
           frame.frame.w < smallest.frame.w ? frame : smallest
         ));
         const smallestWidth = Math.max(1, Math.round(smallestFrame.frame.w * scale));
@@ -232,7 +277,7 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
         fittingFrames = [smallestFrame];
         finalBuilding = true;
       }
-      let frame = buildingFrames[(cycleOffset + buildingIndex) % buildingFrames.length];
+      let frame = buildingPool[(cycleOffset + buildingIndex) % buildingPool.length];
       if (!fittingFrames.includes(frame)) frame = fittingFrames[0];
       const nonRepeatingFrames = fittingFrames.filter((candidate) => candidate.layer !== previousLayer);
       const candidates = nonRepeatingFrames.length > 0 ? nonRepeatingFrames : fittingFrames;
@@ -279,6 +324,7 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
         rowGroundTopY,
         occlusionDrop,
         foundationHeight,
+        skylineTopY: y,
         rightRise,
         width,
         height
@@ -286,22 +332,31 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
       previousLayer = frame.layer;
       buildingIndex++;
       if (finalBuilding) break;
-      const overlap = Math.max(3, Math.round(width * (0.12 + random() * 0.08)));
+      const overlap = Math.max(3, Math.round(width * (
+        densityOverlap.minimum + random() * densityOverlap.variation
+      )));
       x += width - overlap;
     }
 
-    if (churchFrame && distanceFromFront === churchDistanceFromFront && buildings.length > 0) {
+    const replacedBuildingIndexes = new Set();
+    for (const churchPlan of rowChurchPlans) {
+      if (!churchFrame || buildings.length === 0) continue;
       const churchWidth = Math.max(1, Math.round(churchFrame.frame.w * scale));
       const churchHeight = Math.max(1, Math.round(churchFrame.frame.h * scale));
       const targetCenterX = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE + Math.round(
-        (baseRight - baseLeft - BACKGROUND_CITY_QUAY_CLEARANCE) * 0.58
+        (baseRight - baseLeft - BACKGROUND_CITY_QUAY_CLEARANCE) * churchPlan.targetFraction
       );
-      const replacementIndex = buildings.reduce((closestIndex, building, index) => (
-        Math.abs(building.x + building.width / 2 - targetCenterX) <
+      const availableIndexes = buildings.map((_, index) => index).filter((index) => (
+        !replacedBuildingIndexes.has(index)
+      ));
+      if (availableIndexes.length === 0) continue;
+      const replacementIndex = availableIndexes.reduce((closestIndex, index) => (
+        Math.abs(buildings[index].x + buildings[index].width / 2 - targetCenterX) <
           Math.abs(buildings[closestIndex].x + buildings[closestIndex].width / 2 - targetCenterX)
           ? index
           : closestIndex
-      ), 0);
+      ), availableIndexes[0]);
+      replacedBuildingIndexes.add(replacementIndex);
       const replaced = buildings[replacementIndex];
       const churchX = Math.max(
         baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
@@ -328,6 +383,9 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
         : 0;
       const wallBottomY = unoccludedWallBottomY + occlusionDrop;
       const y = wallBottomY - (churchHeight - churchFoundationHeight);
+      const churchSkylineHeight = Math.max(1, Math.round(
+        (skylineReferenceFrame.frame.h - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) * scale
+      ));
       buildings[replacementIndex] = Object.freeze({
         frame: churchFrame,
         x: churchX,
@@ -339,6 +397,7 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
         rowGroundTopY: shorelineTopY,
         occlusionDrop,
         foundationHeight: churchFoundationHeight,
+        skylineTopY: wallBottomY - churchSkylineHeight,
         rightRise: 0,
         width: churchWidth,
         height: churchHeight
@@ -366,6 +425,40 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
     ...row,
     rowIndex
   })));
+}
+
+export function cityBackgroundChurchPlans({ cityId, count, rowCount }) {
+  if (typeof cityId !== "string" || cityId === "") {
+    throw new Error("Background city church plans require a city id");
+  }
+  if (!Number.isInteger(count) || count < 0 || count > 6) {
+    throw new Error(`Invalid background city church count: ${count}`);
+  }
+  if (!Number.isInteger(rowCount) || rowCount < 0 || rowCount > BACKGROUND_CITY_MAX_ROWS) {
+    throw new Error(`Invalid background city church row count: ${rowCount}`);
+  }
+  if (count === 0 || rowCount === 0) return Object.freeze([]);
+  const admittedCount = Math.min(count, rowCount);
+  const random = seededRandom(hashString(`${cityId}|church-districts`));
+  const minimumDistance = admittedCount >= rowCount ? 0 : rowCount === 1 ? 0 : 1;
+  const maximumDistance = Math.min(
+    rowCount - 1,
+    Math.max(5, minimumDistance + admittedCount - 1)
+  );
+  const plans = [];
+  for (let index = 0; index < admittedCount; index++) {
+    const progress = admittedCount === 1 ? 0.5 : index / (admittedCount - 1);
+    const distanceFromFront = admittedCount === 1
+      ? Math.min(2, rowCount - 1)
+      : Math.round(minimumDistance + (maximumDistance - minimumDistance) * progress);
+    const baseFraction = admittedCount === 1 ? 0.58 : 0.3 + progress * 0.46;
+    const targetFraction = roundTo(Math.max(0.2, Math.min(
+      0.84,
+      baseFraction + (random() - 0.5) * 0.08
+    )), 3);
+    plans.push(Object.freeze({ distanceFromFront, targetFraction }));
+  }
+  return Object.freeze(plans);
 }
 
 export function oppositeBankCityBackgroundLayout({
@@ -442,6 +535,7 @@ export function cityBackgroundColumnSkyline(rows) {
       row.buildings.every((building) => (
       Number.isFinite(building?.x) &&
       Number.isFinite(building?.y) &&
+      Number.isFinite(building?.skylineTopY) &&
       Number.isInteger(building?.width) &&
       building.width > 0
       ))
@@ -456,7 +550,7 @@ export function cityBackgroundColumnSkyline(rows) {
     const x = frontBuilding.x + frontBuilding.width / 2;
     const topY = Math.min(...buildings.filter((building) => (
       x >= building.x && x < building.x + building.width
-    )).map((building) => building.y));
+    )).map((building) => building.skylineTopY));
     return Object.freeze({ x, topY });
   }));
 }
@@ -507,6 +601,46 @@ export function cityBackgroundAtmosphereRgb(red, green, blue, level) {
   return shifted;
 }
 
+function backgroundCityBuildingPool(city, frameByLayer) {
+  const configuredMix = city.backgroundCity?.buildingMix;
+  if (configuredMix === undefined) {
+    return BACKGROUND_CITY_BUILDING_LAYERS.map((layerName) => frameByLayer.get(layerName));
+  }
+  if (!configuredMix || typeof configuredMix !== "object" || Array.isArray(configuredMix)) {
+    throw new Error("Invalid background city building mix");
+  }
+  const pool = [];
+  for (const [mixKey, layerName] of Object.entries(BACKGROUND_CITY_BUILDING_MIX_LAYERS)) {
+    const weight = configuredMix[mixKey];
+    if (!Number.isInteger(weight) || weight < 0 || weight > 12) {
+      throw new Error(`Invalid background city ${mixKey} weight: ${weight}`);
+    }
+    const frame = frameByLayer.get(layerName);
+    requireFrame(frame, layerName);
+    for (let copy = 0; copy < weight; copy++) pool.push(frame);
+  }
+  if (pool.length === 0) throw new Error("Background city building mix cannot be empty");
+  return Object.freeze(pool);
+}
+
+function backgroundCityDensityOverlap(city) {
+  const density = city.backgroundCity?.density || "moderate";
+  const overlap = BACKGROUND_CITY_DENSITY_OVERLAP[density];
+  if (!overlap) throw new Error(`Invalid background city density: ${density}`);
+  return overlap;
+}
+
+function backgroundCityChurchCount(city, rowCount) {
+  const configuredCount = city.backgroundCity?.landmarks?.church;
+  if (configuredCount === undefined) {
+    return city.religiousLandmarks?.includes("church") && rowCount > 0 ? 1 : 0;
+  }
+  if (!Number.isInteger(configuredCount) || configuredCount < 0 || configuredCount > 6) {
+    throw new Error(`Invalid background city church count: ${configuredCount}`);
+  }
+  return configuredCount;
+}
+
 function requireFrame(frame, layerName) {
   if (
     !frame ||
@@ -551,7 +685,7 @@ function citySkylineTopYAtX(rows, x) {
   for (const row of rows) {
     for (const building of row.buildings) {
       if (x < building.x || x >= building.x + building.width) continue;
-      skylineTopY = Math.min(skylineTopY, building.y);
+      skylineTopY = Math.min(skylineTopY, building.skylineTopY);
     }
   }
   return skylineTopY;
