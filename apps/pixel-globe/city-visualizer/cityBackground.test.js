@@ -127,7 +127,7 @@ test("each anchor's Y independently controls scale, palette shift, parallax, and
     BASE_RIGHT - 1
   );
   assert.ok(buildings.some((building) => building.scale === BACKGROUND_CITY_NEAR_SCALE));
-  assert.ok(buildings.some((building) => building.scale === BACKGROUND_CITY_FAR_SCALE));
+  assert.ok(Math.min(...buildings.map((building) => building.scale)) < 0.35);
   assert.ok(new Set(buildings.map((building) => building.scale)).size > 8);
   assert.ok(buildings.every((building) => (
     building.perspective === cityBackgroundVisualPerspective({
@@ -136,7 +136,9 @@ test("each anchor's Y independently controls scale, palette shift, parallax, and
       farY: visualFarY
     }) &&
     building.scale === cityBackgroundScaleForPerspective(building.perspective) &&
-    building.depth === cityBackgroundDepthForPerspective(building.perspective) &&
+    building.depth === (building.groundedOnRibbon
+      ? BACKGROUND_CITY_FRONT_DEPTH
+      : cityBackgroundDepthForPerspective(building.perspective)) &&
     building.atmosphereLevel ===
       cityBackgroundAtmosphereLevelForPerspective(building.perspective)
   )));
@@ -147,7 +149,7 @@ test("each anchor's Y independently controls scale, palette shift, parallax, and
   assert.ok(near.atmosphereLevel < far.atmosphereLevel);
 });
 
-test("the high left ribbon house receives perspective without scale canceling the city rise", () => {
+test("the high left ribbon house receives visual perspective but remains locked to the quay", () => {
   const buildings = allBuildings(layout({ baseTopYByX: FALLING_BASE_TOP }));
   const first = buildings.reduce((leftmost, building) => (
     building.x < leftmost.x ? building : leftmost
@@ -155,6 +157,7 @@ test("the high left ribbon house receives perspective without scale canceling th
   assert.equal(first.x, CITY_LEFT);
   assert.ok(first.perspective > 0.5);
   assert.ok(first.scale < BACKGROUND_CITY_NEAR_SCALE);
+  assert.equal(first.depth, BACKGROUND_CITY_FRONT_DEPTH);
 
   const visualNearY = Math.max(...FALLING_BASE_TOP);
   const visualFarY = cityBackgroundFoundationTargetY(
@@ -238,11 +241,14 @@ test("city profiles vary point density and weighted building mix", () => {
 test("the filled foundation envelope follows the rising target smoothly with no flying buildings", () => {
   const rows = layout({ baseTopYByX: FALLING_BASE_TOP });
   const envelope = cityBackgroundFoundationEnvelope(rows).filter(({ x }) => x < BASE_RIGHT);
+  const slopeEnvelope = envelope.filter(({ x }) => (
+    x < BASE_RIGHT - BACKGROUND_CITY_QUAY_CLEARANCE
+  ));
   assert.equal(envelope[0].x, CITY_LEFT);
   assert.equal(envelope.at(-1).x, BASE_RIGHT - 1);
   assert.equal(envelope.length, BASE_RIGHT - CITY_LEFT);
-  assert.equal(BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL, 1 / 32);
-  for (const point of envelope) {
+  assert.equal(BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL, 1 / 24);
+  for (const point of slopeEnvelope) {
     const targetY = cityBackgroundFoundationTargetY(BASE_LEFT, FALLING_BASE_TOP[0], point.x);
     const shorelineY = FALLING_BASE_TOP[point.x - BASE_LEFT];
     if (shorelineY <= targetY) continue;

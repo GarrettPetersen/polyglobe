@@ -17,7 +17,7 @@ export const BACKGROUND_CITY_QUAY_CLEARANCE = 15;
 export const BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT = 12;
 export const BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT = 36;
 export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
-export const BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL = 1 / 32;
+export const BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL = 1 / 24;
 export const BACKGROUND_CITY_FOUNDATION_TOLERANCE = 3;
 export const BACKGROUND_CITY_NEAR_SCALE = 0.5;
 export const BACKGROUND_CITY_FAR_SCALE = 0.32;
@@ -823,6 +823,7 @@ function cityBackgroundGeometryAtX({
       ? shorelineTopY
       : Math.max(slopeY, Math.min(shorelineTopY, Math.round(foundationY)));
     const wallBottomY = sampledWallBottomY;
+    const groundedOnRibbon = groundOnRibbon || wallBottomY === shorelineTopY;
     const perspective = cityBackgroundVisualPerspective({
       foundationY: wallBottomY,
       nearY: visualNearY,
@@ -833,7 +834,9 @@ function cityBackgroundGeometryAtX({
       x,
       scale,
       perspective,
-      depth: cityBackgroundDepthForPerspective(perspective),
+      depth: groundedOnRibbon
+        ? BACKGROUND_CITY_FRONT_DEPTH
+        : cityBackgroundDepthForPerspective(perspective),
       atmosphereLevel: cityBackgroundAtmosphereLevelForPerspective(perspective),
       width,
       height,
@@ -842,7 +845,7 @@ function cityBackgroundGeometryAtX({
       wallBottomY,
       sampledWallBottomY,
       slopeY,
-      groundedOnRibbon: groundOnRibbon || wallBottomY === shorelineTopY
+      groundedOnRibbon
     };
     if (nextScale === scale) break;
     scale = nextScale;
