@@ -12,15 +12,19 @@ import {
   PORT_SCENE_ENTITY_META,
   PORT_SCENE_DOCK,
   PORT_SCENE_CAMERA,
+  PORT_SCENE_HORIZON_SHIFT_Y,
+  PORT_SCENE_MASTER,
   PORT_SCENE_OCEAN_SLICES,
   activePortSceneLayers,
   advanceSceneParallax,
   docksideShipSideAnchor,
+  docksideShipVerticalPlacement,
   layerParallaxAnchor,
   layerParallaxDepth,
   layerSceneOffsetX,
   layerSceneOffsetY,
   layerSceneZ,
+  layerVisibleSourceRect,
   logicalSceneWindow,
   resolveCitySceneFeatures,
   sceneCameraDefaultParallax,
@@ -39,6 +43,10 @@ import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
   cityChimneySmokeParticles
 } from "./cityChimneySmoke.js";
+import {
+  DOCKSIDE_SHIP_WATERLINE_RGB,
+  docksideShipWaterlinePixelKeys
+} from "./cityDocksideShipWaterline.js";
 import {
   SHIP_REFRACTION_BAND_HEIGHT,
   SHIP_SUBMERGED_ALPHA,
@@ -623,7 +631,13 @@ function drawStaticFrame(frame, layerName, occurrence) {
     layerParallaxAnchor(layerName, occurrence)
   );
   if (state.hoveredDestination?.layers.includes(layerName)) drawFrameOutline(frame, window);
-  drawAtlasFrame(state.staticAtlas, frame, window, offsetX > 0);
+  drawAtlasFrame(
+    state.staticAtlas,
+    frame,
+    window,
+    offsetX > 0,
+    layerVisibleSourceRect(layerName, frame.frame.w, frame.frame.h)
+  );
 }
 
 function drawAnimatedLayer(layerName, timeMs, occurrence) {
@@ -796,8 +810,8 @@ function dockShadowRows() {
 
 function drawOceanSlice(frame, slice, timeMs) {
   const window = sceneWindow(slice.depth);
-  const frameTop = frame.spriteSourceSize.y;
-  const frameBottom = frameTop + frame.spriteSourceSize.h;
+  const frameTop = frame.spriteSourceSize.y + PORT_SCENE_HORIZON_SHIFT_Y;
+  const frameBottom = PORT_SCENE_MASTER.height;
   const top = Math.max(slice.top, frameTop, Math.floor(window.y));
   const bottom = Math.min(slice.bottom, frameBottom, Math.ceil(window.y + window.height));
   if (bottom <= top) return;
@@ -825,8 +839,41 @@ function oceanRowOffset(masterY, timeMs) {
 }
 
 function drawWrappedOceanBand(frame, window, masterY, height, offset) {
-  const sourceY = frame.frame.y + masterY - frame.spriteSourceSize.y;
   const destinationY = Math.round(masterY - window.y);
+  const sourceMasterY = masterY - PORT_SCENE_HORIZON_SHIFT_Y;
+  const sourceBottom = frame.spriteSourceSize.y + frame.spriteSourceSize.h;
+  const copiedHeight = Math.min(height, Math.max(0, sourceBottom - sourceMasterY));
+  if (copiedHeight > 0) {
+    drawWrappedOceanBandPart(
+      frame,
+      frame.frame.y + sourceMasterY - frame.spriteSourceSize.y,
+      copiedHeight,
+      destinationY,
+      copiedHeight,
+      window,
+      offset
+    );
+  }
+  if (copiedHeight < height) {
+    context.fillStyle = "#4d65b4";
+    context.fillRect(
+      0,
+      destinationY + copiedHeight,
+      canvas.width,
+      height - copiedHeight
+    );
+  }
+}
+
+function drawWrappedOceanBandPart(
+  frame,
+  sourceY,
+  sourceHeight,
+  destinationY,
+  destinationHeight,
+  window,
+  offset
+) {
   const rowWidth = frame.frame.w;
   let sourceX = positiveModulo(
     Math.round(window.x - frame.spriteSourceSize.x) - offset,
@@ -841,11 +888,11 @@ function drawWrappedOceanBand(frame, window, masterY, height, offset) {
       frame.frame.x + sourceX,
       sourceY,
       width,
-      height,
+      sourceHeight,
       destinationX,
       destinationY,
       width,
-      height
+      destinationHeight
     );
     remainingWidth -= width;
     destinationX += width;
@@ -853,37 +900,43 @@ function drawWrappedOceanBand(frame, window, masterY, height, offset) {
   }
 }
 
-function drawAtlasFrame(atlas, frame, window, extendLeft = false) {
+function drawAtlasFrame(atlas, frame, window, extendLeft = false, sourceRect = null) {
+  const source = sourceRect || {
+    x: 0,
+    y: 0,
+    width: frame.frame.w,
+    height: frame.frame.h
+  };
   const destinationX = Math.round(frame.spriteSourceSize.x - window.x);
-  const destinationY = Math.round(frame.spriteSourceSize.y - window.y);
+  const destinationY = Math.round(frame.spriteSourceSize.y + source.y - window.y);
   if (extendLeft && destinationX > 0) {
-    const extensionWidth = Math.min(destinationX, frame.frame.w);
+    const extensionWidth = Math.min(destinationX, source.width);
     context.save();
     context.translate(destinationX, 0);
     context.scale(-1, 1);
     context.drawImage(
       atlas,
-      frame.frame.x,
-      frame.frame.y,
+      frame.frame.x + source.x,
+      frame.frame.y + source.y,
       extensionWidth,
-      frame.frame.h,
+      source.height,
       0,
       destinationY,
       extensionWidth,
-      frame.frame.h
+      source.height
     );
     context.restore();
   }
   context.drawImage(
     atlas,
-    frame.frame.x,
-    frame.frame.y,
-    frame.frame.w,
-    frame.frame.h,
-    destinationX,
+    frame.frame.x + source.x,
+    frame.frame.y + source.y,
+    source.width,
+    source.height,
+    destinationX + source.x,
     destinationY,
-    frame.frame.w,
-    frame.frame.h
+    source.width,
+    source.height
   );
 }
 
@@ -968,14 +1021,18 @@ function docksideShipPlacement(timeMs, depth) {
   const berth = state.features.dock === "none"
     ? { x: 802, y: 528 }
     : { x: PORT_SCENE_DOCK.shipAccessX, y: PORT_SCENE_DOCK.shipAccessY };
-  const waterlineY = berth.y +
-    (state.shipWaterlineLayers.submergedMinY - sideAnchor.y) * scale;
+  const vertical = docksideShipVerticalPlacement({
+    dock: state.features.dock,
+    sideAnchorY: sideAnchor.y * scale,
+    submergedMinY: state.shipWaterlineLayers.submergedMinY * scale,
+    beachSideY: berth.y
+  });
   return {
     ship,
     scale,
-    bobY: clamp(oceanRowOffset(waterlineY, timeMs), -1, 1),
+    bobY: clamp(oceanRowOffset(vertical.waterlineY, timeMs), -1, 1),
     x: Math.round(berth.x - sideAnchor.x * scale - window.x),
-    y: Math.round(berth.y - sideAnchor.y * scale - window.y)
+    y: Math.round(vertical.topY - window.y)
   };
 }
 
@@ -1024,6 +1081,13 @@ function drawDocksideShipWaterlineLayers(layers, x, y, scale, timeMs, seed) {
     layers.width * scale,
     layers.height * scale
   );
+  context.drawImage(
+    layers.waterline,
+    x,
+    y,
+    layers.width * scale,
+    layers.height * scale
+  );
 }
 
 function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug) {
@@ -1061,14 +1125,22 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug) {
     source.height,
     shipMaxRasterWaterlineDepth(slug)
   );
+  const waterlineKeys = docksideShipWaterlinePixelKeys(
+    submergedKeys,
+    source.width,
+    source.height
+  );
   const above = document.createElement("canvas");
   const submerged = document.createElement("canvas");
-  above.width = submerged.width = source.width;
-  above.height = submerged.height = source.height;
+  const waterline = document.createElement("canvas");
+  above.width = submerged.width = waterline.width = source.width;
+  above.height = submerged.height = waterline.height = source.height;
   const aboveContext = above.getContext("2d");
   const submergedContext = submerged.getContext("2d");
+  const waterlineContext = waterline.getContext("2d");
   const aboveImage = aboveContext.createImageData(source.width, source.height);
   const submergedImage = submergedContext.createImageData(source.width, source.height);
+  const waterlineImage = waterlineContext.createImageData(source.width, source.height);
   let submergedMinY = source.height;
   let submergedMaxY = -1;
   let opaqueMaxY = -1;
@@ -1086,12 +1158,21 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug) {
       submergedMaxY = Math.max(submergedMaxY, pixel.y);
     }
   }
+  for (const key of waterlineKeys) {
+    const offset = key * 4;
+    waterlineImage.data[offset] = DOCKSIDE_SHIP_WATERLINE_RGB.r;
+    waterlineImage.data[offset + 1] = DOCKSIDE_SHIP_WATERLINE_RGB.g;
+    waterlineImage.data[offset + 2] = DOCKSIDE_SHIP_WATERLINE_RGB.b;
+    waterlineImage.data[offset + 3] = 255;
+  }
   aboveContext.putImageData(aboveImage, 0, 0);
   submergedContext.putImageData(submergedImage, 0, 0);
+  waterlineContext.putImageData(waterlineImage, 0, 0);
   if (submergedMaxY < 0) submergedMinY = opaqueMaxY;
   return Object.freeze({
     above,
     submerged,
+    waterline,
     width: source.width,
     height: source.height,
     submergedMinY,

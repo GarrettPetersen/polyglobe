@@ -1,8 +1,10 @@
 # Port-assault fleet bake
 
-Every production hull has a dedicated 320×160 orthographic sprite for a
-side-running assault scene with 16-pixel sailors. These do not replace the
-47-pixel sailing sprites. All 43 ships share the selected stern-quarter view:
+Every production hull has a dedicated 960×480 orthographic sprite on the
+city's 320×160 logical ship canvas (native scale 3) for a side-running assault
+scene with 16-pixel sailors. These do not replace the 47-pixel sailing sprites.
+There is no separate 320×160 dockside raster: that trial size was superseded by
+the native-scale city bake. All 43 ships share the selected stern-quarter view:
 72.5 degrees off a true broadside at 20 degrees of camera elevation. Their bows
 point away toward roughly one o'clock on screen. The port side faces the dock
 and fighting lane; the camera is near the stern, looking along the dock toward
@@ -37,19 +39,20 @@ same final model-space geometry.
 
 ## Runtime files
 
-- `<ship-slug>-dockside.png` is the complete color sprite and first draw layer.
-- `<ship-slug>-dockside-foreground.png` contains geometry nearer to the camera
+- `<ship-slug>-city-dockside.png` is the complete color sprite and first draw layer.
+- `<ship-slug>-city-dockside-foreground.png` contains geometry nearer to the camera
   than a sailor standing at that hull's deck-entry anchor.
-- `<ship-slug>-dockside-depth.png` is the complete ship depth map.
-- `<ship-slug>-dockside-sink-depth.png` is the model-height waterline bake used
+- `<ship-slug>-city-dockside-depth.png` is the complete ship depth map.
+- `<ship-slug>-city-dockside-sink-depth.png` is the model-height waterline bake used
   to split dry and submerged hull pixels.
-- `<ship-slug>-city-dockside.png` and its matching
-  `<ship-slug>-city-dockside-sink-depth.png` retain three times the native
-  raster detail for the city visualizer. They are drawn at 1:1 logical pixels;
-  do not enlarge the 320×160 assault sprite to substitute for them.
+- `<ship-slug>-city-dockside-water-shadow-{up,level,down}.png` supplies the
+  three water-plane masks used by the one-logical-pixel ship bob.
+- All dockside files retain three times the logical raster detail for the city
+  visualizer. Draw them at one source pixel per screen pixel after the scene's
+  native-scale transform; do not produce or enlarge a 320×160 substitute.
 - `manifest.json` is authoritative for dimensions, deck geometry, anchors,
   fleet-relative scale, view metadata, attribution, and depth encoding.
-- `src/portAssaultShipGeometry.js` is a generated native-coordinate catalog.
+- `src/portAssaultShipGeometry.js` is a generated 3× native-coordinate catalog.
   `src/portAssaultShipAssets.js` combines it with deterministic runtime paths
   and fails loudly if the bake and production roster differ.
 
@@ -78,12 +81,12 @@ within this asset and must not be compared with another asset's depth values.
 
 ## Sailor draw order
 
-At native resolution:
+At 3× native resolution:
 
-1. Draw `<ship-slug>-dockside.png`.
+1. Draw `<ship-slug>-city-dockside.png`.
 2. Put each sailor's feet at `deckEntryAnchor` or another point inside
    `deckPolygon`, and draw sailors back-to-front along the polygon's near axis.
-3. Draw `<ship-slug>-dockside-foreground.png` over the sailors. The port rail,
+3. Draw `<ship-slug>-city-dockside-foreground.png` over the sailors. The port rail,
    near hull, and other camera-near fittings then cover the appropriate parts
    of their bodies while far geometry remains behind them.
 4. Move a departing sailor toward `sailorSpawnAnchor`, then begin the jump to

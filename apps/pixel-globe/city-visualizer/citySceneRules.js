@@ -20,17 +20,19 @@ export const PORT_SCENE_DEPTH = Object.freeze({
   foreground: 1
 });
 
+export const PORT_SCENE_HORIZON_SHIFT_Y = -20;
+
 export const PORT_SCENE_OCEAN_SLICES = Object.freeze([
-  Object.freeze({ top: 446, bottom: 478, z: 1, depth: PORT_SCENE_DEPTH.horizon }),
-  Object.freeze({ top: 478, bottom: 522, z: 10, depth: PORT_SCENE_DEPTH.shoreline }),
-  Object.freeze({ top: 522, bottom: 557, z: 20, depth: PORT_SCENE_DEPTH.foreground }),
-  Object.freeze({ top: 557, bottom: 910, z: 30, depth: PORT_SCENE_DEPTH.foreground })
+  Object.freeze({ top: 426, bottom: 458, z: 1, depth: PORT_SCENE_DEPTH.horizon }),
+  Object.freeze({ top: 458, bottom: 502, z: 10, depth: PORT_SCENE_DEPTH.shoreline }),
+  Object.freeze({ top: 502, bottom: 537, z: 20, depth: PORT_SCENE_DEPTH.foreground }),
+  Object.freeze({ top: 537, bottom: 910, z: 30, depth: PORT_SCENE_DEPTH.foreground })
 ]);
 
 export const PORT_SCENE_RIVER = Object.freeze({
   leftBankDistantInsetX: 296,
   leftBankForegroundInsetX: 400,
-  leftBankDistantOffsetY: 6
+  leftBankDistantOffsetY: -22
 });
 
 export const PORT_SCENE_CAMERA = Object.freeze({
@@ -47,8 +49,11 @@ export const PORT_SCENE_DOCK = Object.freeze({
   topY: 505,
   beachStartX: 742,
   shadowWaterExtension: 66,
-  shipAccessX: 680,
-  shipAccessY: 514
+  shipAccessX: 672,
+  shipAccessY: 514,
+  foregroundPostTopY: 507,
+  foregroundPostHeight: 66,
+  waterlineY: 572
 });
 
 export const PORT_SCENE_ENTITY_META = Object.freeze({
@@ -132,6 +137,17 @@ const FOREGROUND_SHADOW_LAYERS = Object.freeze({
   rocky: "Foreground Rocky Castle Shadow"
 });
 
+const RAISED_HORIZON_LAYERS = new Set([
+  "Sky",
+  "Horizon Mountains",
+  "Distant Hills",
+  "Rocky Hills",
+  "Distant Forest",
+  "Distant Desert",
+  "Distant Plains",
+  "Shipyard"
+]);
+
 const LAYER_META = new Map([
   ["Sky", layerMeta(0, PORT_SCENE_DEPTH.sky)],
   ["Ocean", layerMeta(1, PORT_SCENE_DEPTH.horizon)],
@@ -142,7 +158,7 @@ const LAYER_META = new Map([
   ["Rocky Hills", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
   ["Rocky Hills Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
   ["Distant Forest", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
-  ["Distant Forest Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
+  ["Distant Forest Left Bank", leftBankLayerMeta(21, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
   ["Distant Desert", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
   ["Distant Desert Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
   ["Distant Plains", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
@@ -322,6 +338,26 @@ export function docksideShipSideAnchor(ship) {
   });
 }
 
+export function docksideShipVerticalPlacement({
+  dock,
+  sideAnchorY,
+  submergedMinY,
+  beachSideY = 528
+}) {
+  if (!DOCK_STYLES.includes(dock)) throw new Error(`Invalid dockside ship dock: ${dock}`);
+  if (![sideAnchorY, submergedMinY, beachSideY].every(Number.isFinite)) {
+    throw new Error("Invalid dockside ship vertical placement geometry");
+  }
+  if (dock === "none") {
+    const topY = beachSideY - sideAnchorY;
+    return Object.freeze({ topY, waterlineY: topY + submergedMinY });
+  }
+  return Object.freeze({
+    topY: PORT_SCENE_DOCK.waterlineY - submergedMinY,
+    waterlineY: PORT_SCENE_DOCK.waterlineY
+  });
+}
+
 export function layerParallaxDepth(layerName, occurrence = 0) {
   return resolvedLayerMeta(layerName, occurrence).depth;
 }
@@ -337,11 +373,29 @@ export function layerSceneOffsetX(layerName, occurrence = 0, approach = "ocean")
 
 export function layerSceneOffsetY(layerName, occurrence = 0, approach = "ocean") {
   if (!["ocean", "river", "lake"].includes(approach)) throw new Error(`Invalid port scene approach: ${approach}`);
-  return approach === "river" ? resolvedLayerMeta(layerName, occurrence).riverOffsetY : 0;
+  const backgroundOffset = RAISED_HORIZON_LAYERS.has(layerName)
+    ? PORT_SCENE_HORIZON_SHIFT_Y
+    : 0;
+  const riverOffset = approach === "river"
+    ? resolvedLayerMeta(layerName, occurrence).riverOffsetY
+    : 0;
+  return backgroundOffset + riverOffset;
 }
 
 export function layerParallaxAnchor(layerName, occurrence = 0) {
   return resolvedLayerMeta(layerName, occurrence).parallaxAnchor;
+}
+
+export function layerVisibleSourceRect(layerName, width, height) {
+  if (typeof layerName !== "string" || layerName === "") {
+    throw new Error("Port scene source crop requires a layer name");
+  }
+  for (const [label, value] of [["width", width], ["height", height]]) {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`Invalid ${layerName} source ${label}: ${value}`);
+    }
+  }
+  return Object.freeze({ x: 0, y: 0, width, height });
 }
 
 function resolvedLayerMeta(layerName, occurrence) {

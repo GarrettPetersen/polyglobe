@@ -48,6 +48,20 @@ export function orientCyc3wGalleonToCanonical(point) {
   return CYC3W_GALLEON_SOURCE_ORIENTATION(point);
 }
 
+// Measured after every glTF node transform is applied. The Borobudur model's
+// main keel and both outrigger floats run along local +X, which arrives in the
+// imported scene 19.2 degrees off -X. Treating the scene as simply -X-forward
+// leaves that presentation yaw in every sailing and dockside bake.
+const BOROBUDUR_OUTRIGGER_SOURCE_ORIENTATION = createShipModelBasisOrientation({
+  right: { x: 0.32889341155206975, y: 0, z: 0.9443670493180092 },
+  up: { x: 0, y: 1, z: 0 },
+  forward: { x: -0.944367049318027, y: 0, z: 0.328893411552076 }
+}, "Borobudur outrigger");
+
+export function orientBorobudurOutriggerToCanonical(point) {
+  return BOROBUDUR_OUTRIGGER_SOURCE_ORIENTATION(point);
+}
+
 export function createShipModelBasisOrientation({ right, up, forward }, label = "ship model") {
   const basis = {
     right: requiredUnitVector(right, `${label} right axis`),

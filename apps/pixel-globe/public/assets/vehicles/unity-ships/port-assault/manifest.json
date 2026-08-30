@@ -3,9 +3,10 @@
   "palette": "Resurrect 64",
   "width": 320,
   "height": 160,
+  "nativeScale": 3,
   "rigState": "furled-at-dock",
   "scaleMode": "production-roster-relative",
-  "scaleNotes": "Target dimensions and frame scales follow the 47px production fleet; every hull shares one dockside raster scale and open sail surfaces are replaced in model space before rasterization.",
+  "scaleNotes": "Target dimensions and frame scales follow the 47px production fleet; every hull shares one 3x-native city dockside raster scale and open sail surfaces are replaced in model space before rasterization. The 320x160 values are logical scene dimensions, not a second raster bake.",
   "fleetRasterScale": 0.440661,
   "view": {
     "projection": "orthographic",
@@ -24,21 +25,10 @@
     {
       "slug": "fishing-lugger",
       "label": "Fishing Barque",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 0.9278,
-      "opaqueBounds": {
-        "minX": 146,
-        "minY": 115,
-        "width": 28,
-        "height": 40
-      },
-      "opaquePixels": 352,
       "deckPolygon": [
         {
           "x": 163,
@@ -65,23 +55,13 @@
         "x": 172,
         "y": 142
       },
-      "foregroundOpaquePixels": 238,
-      "sinkHeightMin": -0.312209,
-      "sinkHeightMax": 0.332687,
-      "encodedWaterlineY": -0.307131,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 1,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -129,6 +109,24 @@
           "height": 120
         },
         "opaquePixels": 3051,
+        "deckPolygon": [
+          {
+            "x": 489,
+            "y": 422
+          },
+          {
+            "x": 463,
+            "y": 451
+          },
+          {
+            "x": 477,
+            "y": 452
+          },
+          {
+            "x": 504,
+            "y": 424
+          }
+        ],
         "deckEntryAnchor": {
           "x": 501,
           "y": 425
@@ -137,13 +135,26 @@
           "x": 515,
           "y": 425
         },
+        "foregroundOpaquePixels": 1982,
+        "sinkHeightMin": -0.312209,
+        "sinkHeightMax": 0.337177,
+        "encodedWaterlineY": -0.307095,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 13,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 121,
+          "recoloredPixels": 327
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "stowed",
@@ -161,32 +172,21 @@
     {
       "slug": "small-cog",
       "label": "Small Cog",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.326,
-      "opaqueBounds": {
-        "minX": 132,
-        "minY": 82,
-        "width": 55,
-        "height": 73
-      },
-      "opaquePixels": 1181,
       "deckPolygon": [
         {
           "x": 156,
           "y": 129
         },
         {
-          "x": 143,
+          "x": 144,
           "y": 142
         },
         {
-          "x": 163,
+          "x": 164,
           "y": 145
         },
         {
@@ -199,26 +199,16 @@
         "y": 131
       },
       "sailorSpawnAnchor": {
-        "x": 186,
+        "x": 187,
         "y": 132
       },
-      "foregroundOpaquePixels": 814,
-      "sinkHeightMin": -0.451731,
-      "sinkHeightMax": 0.489856,
-      "encodedWaterlineY": -0.444317,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 5,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -266,6 +256,24 @@
           "height": 219
         },
         "opaquePixels": 10355,
+        "deckPolygon": [
+          {
+            "x": 469,
+            "y": 386
+          },
+          {
+            "x": 432,
+            "y": 427
+          },
+          {
+            "x": 491,
+            "y": 434
+          },
+          {
+            "x": 529,
+            "y": 393
+          }
+        ],
         "deckEntryAnchor": {
           "x": 517,
           "y": 393
@@ -274,13 +282,26 @@
           "x": 560,
           "y": 396
         },
+        "foregroundOpaquePixels": 7116,
+        "sinkHeightMin": -0.451731,
+        "sinkHeightMax": 0.495502,
+        "encodedWaterlineY": -0.444272,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 36,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 82,
+          "recoloredPixels": 463
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -298,28 +319,17 @@
     {
       "slug": "holk",
       "label": "Holk",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.632,
-      "opaqueBounds": {
-        "minX": 133,
-        "minY": 74,
-        "width": 53,
-        "height": 81
-      },
-      "opaquePixels": 1479,
       "deckPolygon": [
         {
-          "x": 159,
+          "x": 160,
           "y": 121
         },
         {
-          "x": 144,
+          "x": 145,
           "y": 137
         },
         {
@@ -327,35 +337,25 @@
           "y": 139
         },
         {
-          "x": 176,
+          "x": 177,
           "y": 123
         }
       ],
       "deckEntryAnchor": {
-        "x": 173,
+        "x": 174,
         "y": 123
       },
       "sailorSpawnAnchor": {
-        "x": 186,
+        "x": 187,
         "y": 124
       },
-      "foregroundOpaquePixels": 1248,
-      "sinkHeightMin": -0.578797,
-      "sinkHeightMax": 0.58517,
-      "encodedWaterlineY": -0.484014,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 9,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -403,6 +403,24 @@
           "height": 242
         },
         "opaquePixels": 12611,
+        "deckPolygon": [
+          {
+            "x": 479,
+            "y": 363
+          },
+          {
+            "x": 434,
+            "y": 411
+          },
+          {
+            "x": 487,
+            "y": 417
+          },
+          {
+            "x": 531,
+            "y": 368
+          }
+        ],
         "deckEntryAnchor": {
           "x": 521,
           "y": 369
@@ -411,13 +429,26 @@
           "x": 561,
           "y": 371
         },
+        "foregroundOpaquePixels": 10693,
+        "sinkHeightMin": -0.586299,
+        "sinkHeightMax": 0.588952,
+        "encodedWaterlineY": -0.484014,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 83,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 158,
+          "recoloredPixels": 641
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -435,28 +466,17 @@
     {
       "slug": "dhow",
       "label": "Dhow",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-dockside-sink-depth.png",
       "sourceTitle": "Dhow",
       "creator": "gogiart",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 0.8581,
-      "opaqueBounds": {
-        "minX": 149,
-        "minY": 104,
-        "width": 21,
-        "height": 51
-      },
-      "opaquePixels": 441,
       "deckPolygon": [
         {
-          "x": 162,
+          "x": 163,
           "y": 131
         },
         {
-          "x": 154,
+          "x": 155,
           "y": 140
         },
         {
@@ -469,30 +489,20 @@
         }
       ],
       "deckEntryAnchor": {
-        "x": 167,
+        "x": 168,
         "y": 132
       },
       "sailorSpawnAnchor": {
         "x": 173,
         "y": 133
       },
-      "foregroundOpaquePixels": 348,
-      "sinkHeightMin": -0.388141,
-      "sinkHeightMax": 0.41236,
-      "encodedWaterlineY": -0.318249,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 13,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -540,6 +550,24 @@
           "height": 153
         },
         "opaquePixels": 3848,
+        "deckPolygon": [
+          {
+            "x": 488,
+            "y": 393
+          },
+          {
+            "x": 464,
+            "y": 419
+          },
+          {
+            "x": 483,
+            "y": 421
+          },
+          {
+            "x": 508,
+            "y": 395
+          }
+        ],
         "deckEntryAnchor": {
           "x": 503,
           "y": 396
@@ -548,13 +576,26 @@
           "x": 520,
           "y": 398
         },
+        "foregroundOpaquePixels": 3098,
+        "sinkHeightMin": -0.405005,
+        "sinkHeightMax": 0.41236,
+        "encodedWaterlineY": -0.318249,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 120,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 640,
+          "recoloredPixels": 1522
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -572,28 +613,17 @@
     {
       "slug": "ocean-dhow",
       "label": "Ocean Dhow",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Ancient Dhow Ship",
       "creator": "Nisa Nurul Azizah",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 1.9,
-      "opaqueBounds": {
-        "minX": 135,
-        "minY": 35,
-        "width": 49,
-        "height": 120
-      },
-      "opaquePixels": 1895,
       "deckPolygon": [
         {
-          "x": 167,
+          "x": 168,
           "y": 113
         },
         {
-          "x": 152,
+          "x": 153,
           "y": 129
         },
         {
@@ -601,35 +631,25 @@
           "y": 130
         },
         {
-          "x": 178,
+          "x": 179,
           "y": 114
         }
       ],
       "deckEntryAnchor": {
-        "x": 176,
+        "x": 177,
         "y": 115
       },
       "sailorSpawnAnchor": {
-        "x": 186,
+        "x": 187,
         "y": 117
       },
-      "foregroundOpaquePixels": 1547,
-      "sinkHeightMin": -0.938103,
-      "sinkHeightMax": 0.939895,
-      "encodedWaterlineY": -0.838672,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 14,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -677,6 +697,24 @@
           "height": 360
         },
         "opaquePixels": 16411,
+        "deckPolygon": [
+          {
+            "x": 503,
+            "y": 339
+          },
+          {
+            "x": 458,
+            "y": 387
+          },
+          {
+            "x": 492,
+            "y": 391
+          },
+          {
+            "x": 537,
+            "y": 342
+          }
+        ],
         "deckEntryAnchor": {
           "x": 530,
           "y": 344
@@ -685,13 +723,29 @@
           "x": 560,
           "y": 351
         },
-        "submergedPixels": 97,
+        "foregroundOpaquePixels": 13331,
+        "sinkHeightMin": -0.943261,
+        "sinkHeightMax": 0.946952,
+        "encodedWaterlineY": -0.838672,
+        "sinkWaterlineLevel": 0.501961,
+        "submergedPixels": 96,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 201,
+          "recoloredPixels": 798
+        },
+        "creaseShading": {
+          "shadeScale": 0.68,
+          "shadedPixels": 1094
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -709,32 +763,21 @@
     {
       "slug": "sampan",
       "label": "Sampan",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 0.9427,
-      "opaqueBounds": {
-        "minX": 146,
-        "minY": 86,
-        "width": 27,
-        "height": 69
-      },
-      "opaquePixels": 640,
       "deckPolygon": [
         {
-          "x": 162,
+          "x": 163,
           "y": 133
         },
         {
-          "x": 154,
+          "x": 155,
           "y": 141
         },
         {
-          "x": 160,
+          "x": 161,
           "y": 142
         },
         {
@@ -744,29 +787,19 @@
       ],
       "deckEntryAnchor": {
         "x": 167,
-        "y": 133
+        "y": 134
       },
       "sailorSpawnAnchor": {
         "x": 173,
         "y": 135
       },
-      "foregroundOpaquePixels": 499,
-      "sinkHeightMin": -0.454482,
-      "sinkHeightMax": 0.466662,
-      "encodedWaterlineY": -0.415201,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -814,6 +847,24 @@
           "height": 206
         },
         "opaquePixels": 5452,
+        "deckPolygon": [
+          {
+            "x": 488,
+            "y": 398
+          },
+          {
+            "x": 464,
+            "y": 424
+          },
+          {
+            "x": 482,
+            "y": 426
+          },
+          {
+            "x": 507,
+            "y": 400
+          }
+        ],
         "deckEntryAnchor": {
           "x": 502,
           "y": 401
@@ -822,13 +873,26 @@
           "x": 519,
           "y": 404
         },
+        "foregroundOpaquePixels": 4179,
+        "sinkHeightMin": -0.454482,
+        "sinkHeightMax": 0.470219,
+        "encodedWaterlineY": -0.415201,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 16,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 92,
+          "recoloredPixels": 333
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -846,21 +910,10 @@
     {
       "slug": "large-junk",
       "label": "Large Junk",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.8354,
-      "opaqueBounds": {
-        "minX": 135,
-        "minY": 44,
-        "width": 49,
-        "height": 111
-      },
-      "opaquePixels": 1816,
       "deckPolygon": [
         {
           "x": 166,
@@ -871,7 +924,7 @@
           "y": 131
         },
         {
-          "x": 157,
+          "x": 158,
           "y": 132
         },
         {
@@ -884,26 +937,16 @@
         "y": 114
       },
       "sailorSpawnAnchor": {
-        "x": 182,
+        "x": 183,
         "y": 114
       },
-      "foregroundOpaquePixels": 1240,
-      "sinkHeightMin": -0.730438,
-      "sinkHeightMax": 0.729496,
-      "encodedWaterlineY": -0.623679,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 34,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -951,6 +994,24 @@
           "height": 333
         },
         "opaquePixels": 15722,
+        "deckPolygon": [
+          {
+            "x": 498,
+            "y": 337
+          },
+          {
+            "x": 445,
+            "y": 394
+          },
+          {
+            "x": 473,
+            "y": 397
+          },
+          {
+            "x": 526,
+            "y": 340
+          }
+        ],
         "deckEntryAnchor": {
           "x": 519,
           "y": 342
@@ -959,13 +1020,26 @@
           "x": 548,
           "y": 343
         },
+        "foregroundOpaquePixels": 10748,
+        "sinkHeightMin": -0.732267,
+        "sinkHeightMax": 0.729538,
+        "encodedWaterlineY": -0.623679,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 275,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 222,
+          "recoloredPixels": 903
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "lowered",
@@ -983,28 +1057,17 @@
     {
       "slug": "javanese-jong",
       "label": "Javanese Jong",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.1847,
-      "opaqueBounds": {
-        "minX": 136,
-        "minY": 48,
-        "width": 47,
-        "height": 107
-      },
-      "opaquePixels": 1943,
       "deckPolygon": [
         {
           "x": 166,
           "y": 110
         },
         {
-          "x": 145,
+          "x": 146,
           "y": 132
         },
         {
@@ -1017,30 +1080,20 @@
         }
       ],
       "deckEntryAnchor": {
-        "x": 173,
+        "x": 174,
         "y": 112
       },
       "sailorSpawnAnchor": {
         "x": 184,
         "y": 112
       },
-      "foregroundOpaquePixels": 1458,
-      "sinkHeightMin": -0.795431,
-      "sinkHeightMax": 0.782626,
-      "encodedWaterlineY": -0.677732,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 61,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -1088,6 +1141,24 @@
           "height": 321
         },
         "opaquePixels": 16695,
+        "deckPolygon": [
+          {
+            "x": 499,
+            "y": 330
+          },
+          {
+            "x": 437,
+            "y": 397
+          },
+          {
+            "x": 466,
+            "y": 400
+          },
+          {
+            "x": 529,
+            "y": 333
+          }
+        ],
         "deckEntryAnchor": {
           "x": 521,
           "y": 335
@@ -1096,13 +1167,26 @@
           "x": 553,
           "y": 335
         },
+        "foregroundOpaquePixels": 12519,
+        "sinkHeightMin": -0.795431,
+        "sinkHeightMax": 0.793898,
+        "encodedWaterlineY": -0.677732,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 458,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 280,
+          "recoloredPixels": 938
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -1120,24 +1204,13 @@
     {
       "slug": "pirate-brig",
       "label": "Heavy Caravel",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.8303,
-      "opaqueBounds": {
-        "minX": 126,
-        "minY": 36,
-        "width": 67,
-        "height": 119
-      },
-      "opaquePixels": 2805,
       "deckPolygon": [
         {
-          "x": 161,
+          "x": 162,
           "y": 117
         },
         {
@@ -1145,7 +1218,7 @@
           "y": 136
         },
         {
-          "x": 164,
+          "x": 165,
           "y": 138
         },
         {
@@ -1158,26 +1231,16 @@
         "y": 120
       },
       "sailorSpawnAnchor": {
-        "x": 193,
-        "y": 121
+        "x": 194,
+        "y": 122
       },
-      "foregroundOpaquePixels": 2301,
-      "sinkHeightMin": -0.82395,
-      "sinkHeightMax": 0.858364,
-      "encodedWaterlineY": -0.764601,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 11,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -1225,6 +1288,24 @@
           "height": 356
         },
         "opaquePixels": 23991,
+        "deckPolygon": [
+          {
+            "x": 485,
+            "y": 351
+          },
+          {
+            "x": 432,
+            "y": 408
+          },
+          {
+            "x": 494,
+            "y": 415
+          },
+          {
+            "x": 546,
+            "y": 358
+          }
+        ],
         "deckEntryAnchor": {
           "x": 534,
           "y": 359
@@ -1233,13 +1314,26 @@
           "x": 581,
           "y": 365
         },
+        "foregroundOpaquePixels": 19637,
+        "sinkHeightMin": -0.826204,
+        "sinkHeightMax": 0.86279,
+        "encodedWaterlineY": -0.764601,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 83,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 302,
+          "recoloredPixels": 1348
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -1257,28 +1351,17 @@
     {
       "slug": "galleon",
       "label": "Galleon",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-dockside-sink-depth.png",
       "sourceTitle": "Sailing ship",
       "creator": "cyc3w",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.3,
-      "opaqueBounds": {
-        "minX": 130,
-        "minY": 42,
-        "width": 59,
-        "height": 113
-      },
-      "opaquePixels": 2657,
       "deckPolygon": [
         {
-          "x": 167,
+          "x": 168,
           "y": 106
         },
         {
-          "x": 145,
+          "x": 146,
           "y": 130
         },
         {
@@ -1298,30 +1381,13 @@
         "x": 198,
         "y": 109
       },
-      "foregroundOpaquePixels": 2255,
-      "sinkHeightMin": -0.768226,
-      "sinkHeightMax": 0.761552,
-      "encodedWaterlineY": -0.706667,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 26,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": {
-        "minimumRegionPixelsAtCityScale": 12,
-        "minimumRegionPixels": 2,
-        "requestedPasses": 2,
-        "completedPasses": 2,
-        "recoloredRegions": 191,
-        "recoloredPixels": 191
-      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -1369,6 +1435,24 @@
           "height": 340
         },
         "opaquePixels": 21902,
+        "deckPolygon": [
+          {
+            "x": 503,
+            "y": 318
+          },
+          {
+            "x": 437,
+            "y": 390
+          },
+          {
+            "x": 493,
+            "y": 396
+          },
+          {
+            "x": 558,
+            "y": 324
+          }
+        ],
         "deckEntryAnchor": {
           "x": 546,
           "y": 326
@@ -1377,6 +1461,11 @@
           "x": 594,
           "y": 326
         },
+        "foregroundOpaquePixels": 18594,
+        "sinkHeightMin": -0.772314,
+        "sinkHeightMax": 0.773106,
+        "encodedWaterlineY": -0.706667,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 227,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
@@ -1388,9 +1477,10 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 1658,
-          "recoloredPixels": 5633
-        }
+          "recoloredRegions": 1672,
+          "recoloredPixels": 5816
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -1408,21 +1498,10 @@
     {
       "slug": "fluyt",
       "label": "Urca",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.3068,
-      "opaqueBounds": {
-        "minX": 133,
-        "minY": 51,
-        "width": 54,
-        "height": 104
-      },
-      "opaquePixels": 2328,
       "deckPolygon": [
         {
           "x": 167,
@@ -1438,7 +1517,7 @@
         },
         {
           "x": 184,
-          "y": 111
+          "y": 112
         }
       ],
       "deckEntryAnchor": {
@@ -1449,23 +1528,13 @@
         "x": 195,
         "y": 112
       },
-      "foregroundOpaquePixels": 1978,
-      "sinkHeightMin": -0.69583,
-      "sinkHeightMax": 0.726114,
-      "encodedWaterlineY": -0.653657,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -1513,6 +1582,24 @@
           "height": 311
         },
         "opaquePixels": 19986,
+        "deckPolygon": [
+          {
+            "x": 502,
+            "y": 329
+          },
+          {
+            "x": 435,
+            "y": 401
+          },
+          {
+            "x": 486,
+            "y": 406
+          },
+          {
+            "x": 552,
+            "y": 335
+          }
+        ],
         "deckEntryAnchor": {
           "x": 541,
           "y": 337
@@ -1521,13 +1608,26 @@
           "x": 585,
           "y": 335
         },
+        "foregroundOpaquePixels": 16966,
+        "sinkHeightMin": -0.696805,
+        "sinkHeightMax": 0.726114,
+        "encodedWaterlineY": -0.653657,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 43,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 681,
+          "recoloredPixels": 2542
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -1545,24 +1645,13 @@
     {
       "slug": "carrack",
       "label": "Carrack",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.1166,
-      "opaqueBounds": {
-        "minX": 131,
-        "minY": 44,
-        "width": 58,
-        "height": 111
-      },
-      "opaquePixels": 2522,
       "deckPolygon": [
         {
-          "x": 163,
+          "x": 162,
           "y": 110
         },
         {
@@ -1570,7 +1659,7 @@
           "y": 131
         },
         {
-          "x": 157,
+          "x": 156,
           "y": 133
         },
         {
@@ -1579,30 +1668,20 @@
         }
       ],
       "deckEntryAnchor": {
-        "x": 174,
+        "x": 173,
         "y": 112
       },
       "sailorSpawnAnchor": {
-        "x": 187,
+        "x": 186,
         "y": 112
       },
-      "foregroundOpaquePixels": 2143,
-      "sinkHeightMin": -0.722632,
-      "sinkHeightMax": 0.740068,
-      "encodedWaterlineY": -0.646269,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 9,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -1650,6 +1729,24 @@
           "height": 333
         },
         "opaquePixels": 20996,
+        "deckPolygon": [
+          {
+            "x": 487,
+            "y": 329
+          },
+          {
+            "x": 427,
+            "y": 394
+          },
+          {
+            "x": 469,
+            "y": 399
+          },
+          {
+            "x": 530,
+            "y": 333
+          }
+        ],
         "deckEntryAnchor": {
           "x": 520,
           "y": 335
@@ -1658,13 +1755,26 @@
           "x": 559,
           "y": 335
         },
+        "foregroundOpaquePixels": 17842,
+        "sinkHeightMin": -0.737561,
+        "sinkHeightMax": 0.743865,
+        "encodedWaterlineY": -0.646269,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 62,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 832,
+          "recoloredPixels": 3336
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -1682,24 +1792,13 @@
     {
       "slug": "ship-of-the-line",
       "label": "Great Carrack",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.346,
-      "opaqueBounds": {
-        "minX": 132,
-        "minY": 46,
-        "width": 55,
-        "height": 109
-      },
-      "opaquePixels": 2507,
       "deckPolygon": [
         {
-          "x": 166,
+          "x": 167,
           "y": 112
         },
         {
@@ -1707,7 +1806,7 @@
           "y": 136
         },
         {
-          "x": 158,
+          "x": 159,
           "y": 138
         },
         {
@@ -1716,30 +1815,20 @@
         }
       ],
       "deckEntryAnchor": {
-        "x": 177,
+        "x": 178,
         "y": 114
       },
       "sailorSpawnAnchor": {
-        "x": 191,
+        "x": 192,
         "y": 114
       },
-      "foregroundOpaquePixels": 2128,
-      "sinkHeightMin": -0.698362,
-      "sinkHeightMax": 0.733049,
-      "encodedWaterlineY": -0.650282,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 9,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -1787,6 +1876,24 @@
           "height": 328
         },
         "opaquePixels": 20580,
+        "deckPolygon": [
+          {
+            "x": 500,
+            "y": 336
+          },
+          {
+            "x": 433,
+            "y": 409
+          },
+          {
+            "x": 476,
+            "y": 414
+          },
+          {
+            "x": 544,
+            "y": 341
+          }
+        ],
         "deckEntryAnchor": {
           "x": 534,
           "y": 343
@@ -1795,13 +1902,26 @@
           "x": 575,
           "y": 341
         },
+        "foregroundOpaquePixels": 17375,
+        "sinkHeightMin": -0.727852,
+        "sinkHeightMax": 0.734483,
+        "encodedWaterlineY": -0.650282,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 90,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 898,
+          "recoloredPixels": 3513
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -1819,24 +1939,13 @@
     {
       "slug": "medium-junk",
       "label": "Medium Junk",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.7244,
-      "opaqueBounds": {
-        "minX": 138,
-        "minY": 47,
-        "width": 43,
-        "height": 108
-      },
-      "opaquePixels": 1765,
       "deckPolygon": [
         {
-          "x": 164,
+          "x": 165,
           "y": 114
         },
         {
@@ -1844,39 +1953,29 @@
           "y": 132
         },
         {
-          "x": 157,
+          "x": 158,
           "y": 133
         },
         {
-          "x": 173,
+          "x": 174,
           "y": 115
         }
       ],
       "deckEntryAnchor": {
-        "x": 171,
+        "x": 172,
         "y": 116
       },
       "sailorSpawnAnchor": {
-        "x": 180,
+        "x": 181,
         "y": 116
       },
-      "foregroundOpaquePixels": 1253,
-      "sinkHeightMin": -0.71819,
-      "sinkHeightMax": 0.735917,
-      "encodedWaterlineY": -0.618396,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 9,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -1924,6 +2023,24 @@
           "height": 325
         },
         "opaquePixels": 15367,
+        "deckPolygon": [
+          {
+            "x": 494,
+            "y": 342
+          },
+          {
+            "x": 445,
+            "y": 395
+          },
+          {
+            "x": 473,
+            "y": 398
+          },
+          {
+            "x": 522,
+            "y": 345
+          }
+        ],
         "deckEntryAnchor": {
           "x": 515,
           "y": 347
@@ -1932,13 +2049,26 @@
           "x": 543,
           "y": 349
         },
+        "foregroundOpaquePixels": 10837,
+        "sinkHeightMin": -0.725824,
+        "sinkHeightMax": 0.736427,
+        "encodedWaterlineY": -0.618396,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 70,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 229,
+          "recoloredPixels": 932
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "lowered",
@@ -1956,32 +2086,21 @@
     {
       "slug": "xebec",
       "label": "Xebec",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.024,
-      "opaqueBounds": {
-        "minX": 135,
-        "minY": 52,
-        "width": 49,
-        "height": 103
-      },
-      "opaquePixels": 1777,
       "deckPolygon": [
         {
           "x": 168,
           "y": 112
         },
         {
-          "x": 148,
+          "x": 149,
           "y": 133
         },
         {
-          "x": 159,
+          "x": 160,
           "y": 134
         },
         {
@@ -1991,29 +2110,19 @@
       ],
       "deckEntryAnchor": {
         "x": 176,
-        "y": 113
+        "y": 114
       },
       "sailorSpawnAnchor": {
         "x": 187,
         "y": 114
       },
-      "foregroundOpaquePixels": 1502,
-      "sinkHeightMin": -0.767394,
-      "sinkHeightMax": 0.778944,
-      "encodedWaterlineY": -0.70696,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -2061,6 +2170,24 @@
           "height": 308
         },
         "opaquePixels": 15257,
+        "deckPolygon": [
+          {
+            "x": 504,
+            "y": 335
+          },
+          {
+            "x": 446,
+            "y": 398
+          },
+          {
+            "x": 479,
+            "y": 402
+          },
+          {
+            "x": 537,
+            "y": 339
+          }
+        ],
         "deckEntryAnchor": {
           "x": 529,
           "y": 341
@@ -2069,13 +2196,26 @@
           "x": 562,
           "y": 342
         },
+        "foregroundOpaquePixels": 12936,
+        "sinkHeightMin": -0.779239,
+        "sinkHeightMax": 0.783992,
+        "encodedWaterlineY": -0.70696,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 76,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 519,
+          "recoloredPixels": 1980
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -2093,64 +2233,43 @@
     {
       "slug": "caravel",
       "label": "Caravel",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.9368,
-      "opaqueBounds": {
-        "minX": 136,
-        "minY": 44,
-        "width": 47,
-        "height": 111
-      },
-      "opaquePixels": 1533,
       "deckPolygon": [
         {
           "x": 168,
-          "y": 114
+          "y": 115
         },
         {
           "x": 150,
           "y": 135
         },
         {
-          "x": 158,
+          "x": 159,
           "y": 136
         },
         {
           "x": 177,
-          "y": 115
+          "y": 116
         }
       ],
       "deckEntryAnchor": {
-        "x": 174,
+        "x": 175,
         "y": 116
       },
       "sailorSpawnAnchor": {
         "x": 184,
         "y": 116
       },
-      "foregroundOpaquePixels": 1303,
-      "sinkHeightMin": -0.712754,
-      "sinkHeightMax": 0.742713,
-      "encodedWaterlineY": -0.670802,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 4,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -2198,6 +2317,24 @@
           "height": 332
         },
         "opaquePixels": 13091,
+        "deckPolygon": [
+          {
+            "x": 505,
+            "y": 344
+          },
+          {
+            "x": 450,
+            "y": 404
+          },
+          {
+            "x": 476,
+            "y": 407
+          },
+          {
+            "x": 531,
+            "y": 347
+          }
+        ],
         "deckEntryAnchor": {
           "x": 524,
           "y": 349
@@ -2206,13 +2343,26 @@
           "x": 553,
           "y": 349
         },
+        "foregroundOpaquePixels": 11123,
+        "sinkHeightMin": -0.742576,
+        "sinkHeightMax": 0.746937,
+        "encodedWaterlineY": -0.670802,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 42,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 392,
+          "recoloredPixels": 1443
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "stowed",
@@ -2230,21 +2380,10 @@
     {
       "slug": "square-rigged-caravel",
       "label": "Square-Rigged Caravel",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.6475,
-      "opaqueBounds": {
-        "minX": 123,
-        "minY": 44,
-        "width": 73,
-        "height": 111
-      },
-      "opaquePixels": 2231,
       "deckPolygon": [
         {
           "x": 157,
@@ -2255,39 +2394,29 @@
           "y": 132
         },
         {
-          "x": 168,
-          "y": 134
+          "x": 169,
+          "y": 135
         },
         {
-          "x": 183,
+          "x": 184,
           "y": 118
         }
       ],
       "deckEntryAnchor": {
-        "x": 178,
+        "x": 179,
         "y": 118
       },
       "sailorSpawnAnchor": {
         "x": 197,
         "y": 121
       },
-      "foregroundOpaquePixels": 1812,
-      "sinkHeightMin": -0.79939,
-      "sinkHeightMax": 0.815971,
-      "encodedWaterlineY": -0.688605,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 8,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -2335,6 +2464,24 @@
           "height": 332
         },
         "opaquePixels": 19464,
+        "deckPolygon": [
+          {
+            "x": 472,
+            "y": 346
+          },
+          {
+            "x": 427,
+            "y": 395
+          },
+          {
+            "x": 506,
+            "y": 404
+          },
+          {
+            "x": 551,
+            "y": 354
+          }
+        ],
         "deckEntryAnchor": {
           "x": 536,
           "y": 355
@@ -2343,13 +2490,26 @@
           "x": 591,
           "y": 363
         },
+        "foregroundOpaquePixels": 15802,
+        "sinkHeightMin": -0.815303,
+        "sinkHeightMax": 0.821553,
+        "encodedWaterlineY": -0.688605,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 77,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 134,
+          "recoloredPixels": 525
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -2367,32 +2527,21 @@
     {
       "slug": "brigantine",
       "label": "Brigantine",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.8058,
-      "opaqueBounds": {
-        "minX": 126,
-        "minY": 50,
-        "width": 67,
-        "height": 105
-      },
-      "opaquePixels": 2451,
       "deckPolygon": [
         {
           "x": 162,
           "y": 113
         },
         {
-          "x": 144,
+          "x": 145,
           "y": 132
         },
         {
-          "x": 168,
+          "x": 169,
           "y": 134
         },
         {
@@ -2408,23 +2557,13 @@
         "x": 199,
         "y": 117
       },
-      "foregroundOpaquePixels": 2076,
-      "sinkHeightMin": -0.739419,
-      "sinkHeightMax": 0.735236,
-      "encodedWaterlineY": -0.682448,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 11,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -2472,6 +2611,24 @@
           "height": 315
         },
         "opaquePixels": 21156,
+        "deckPolygon": [
+          {
+            "x": 486,
+            "y": 339
+          },
+          {
+            "x": 434,
+            "y": 396
+          },
+          {
+            "x": 506,
+            "y": 403
+          },
+          {
+            "x": 558,
+            "y": 347
+          }
+        ],
         "deckEntryAnchor": {
           "x": 544,
           "y": 348
@@ -2480,13 +2637,26 @@
           "x": 597,
           "y": 352
         },
+        "foregroundOpaquePixels": 17945,
+        "sinkHeightMin": -0.745605,
+        "sinkHeightMax": 0.742137,
+        "encodedWaterlineY": -0.682448,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 60,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 525,
+          "recoloredPixels": 1956
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -2504,21 +2674,10 @@
     {
       "slug": "small-junk",
       "label": "Small Junk",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.4602,
-      "opaqueBounds": {
-        "minX": 140,
-        "minY": 62,
-        "width": 40,
-        "height": 93
-      },
-      "opaquePixels": 1255,
       "deckPolygon": [
         {
           "x": 165,
@@ -2534,7 +2693,7 @@
         },
         {
           "x": 173,
-          "y": 122
+          "y": 123
         }
       ],
       "deckEntryAnchor": {
@@ -2545,23 +2704,13 @@
         "x": 179,
         "y": 124
       },
-      "foregroundOpaquePixels": 817,
-      "sinkHeightMin": -0.660807,
-      "sinkHeightMax": 0.657008,
-      "encodedWaterlineY": -0.614414,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 9,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -2609,6 +2758,24 @@
           "height": 278
         },
         "opaquePixels": 10881,
+        "deckPolygon": [
+          {
+            "x": 494,
+            "y": 365
+          },
+          {
+            "x": 452,
+            "y": 411
+          },
+          {
+            "x": 477,
+            "y": 413
+          },
+          {
+            "x": 519,
+            "y": 368
+          }
+        ],
         "deckEntryAnchor": {
           "x": 513,
           "y": 369
@@ -2617,13 +2784,26 @@
           "x": 537,
           "y": 372
         },
+        "foregroundOpaquePixels": 7041,
+        "sinkHeightMin": -0.660807,
+        "sinkHeightMax": 0.660196,
+        "encodedWaterlineY": -0.614414,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 79,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 130,
+          "recoloredPixels": 519
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "lowered",
@@ -2641,36 +2821,25 @@
     {
       "slug": "felucca",
       "label": "Felucca",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 0.9996,
-      "opaqueBounds": {
-        "minX": 141,
-        "minY": 80,
-        "width": 37,
-        "height": 75
-      },
-      "opaquePixels": 624,
       "deckPolygon": [
         {
           "x": 155,
           "y": 130
         },
         {
-          "x": 146,
+          "x": 147,
           "y": 139
         },
         {
-          "x": 164,
+          "x": 165,
           "y": 141
         },
         {
-          "x": 173,
+          "x": 174,
           "y": 132
         }
       ],
@@ -2682,23 +2851,13 @@
         "x": 182,
         "y": 133
       },
-      "foregroundOpaquePixels": 472,
-      "sinkHeightMin": -0.448049,
-      "sinkHeightMax": 0.450496,
-      "encodedWaterlineY": -0.35557,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -2746,6 +2905,24 @@
           "height": 225
         },
         "opaquePixels": 5455,
+        "deckPolygon": [
+          {
+            "x": 466,
+            "y": 389
+          },
+          {
+            "x": 440,
+            "y": 417
+          },
+          {
+            "x": 494,
+            "y": 423
+          },
+          {
+            "x": 521,
+            "y": 395
+          }
+        ],
         "deckEntryAnchor": {
           "x": 510,
           "y": 395
@@ -2754,13 +2931,26 @@
           "x": 547,
           "y": 399
         },
+        "foregroundOpaquePixels": 4171,
+        "sinkHeightMin": -0.453076,
+        "sinkHeightMax": 0.452838,
+        "encodedWaterlineY": -0.35557,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 47,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 144,
+          "recoloredPixels": 565
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -2778,21 +2968,10 @@
     {
       "slug": "cutter",
       "label": "Coastal Pinnace",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.224,
-      "opaqueBounds": {
-        "minX": 125,
-        "minY": 86,
-        "width": 69,
-        "height": 69
-      },
-      "opaquePixels": 840,
       "deckPolygon": [
         {
           "x": 158,
@@ -2807,7 +2986,7 @@
           "y": 142
         },
         {
-          "x": 182,
+          "x": 183,
           "y": 130
         }
       ],
@@ -2816,26 +2995,16 @@
         "y": 130
       },
       "sailorSpawnAnchor": {
-        "x": 194,
+        "x": 195,
         "y": 131
       },
-      "foregroundOpaquePixels": 707,
-      "sinkHeightMin": -0.473314,
-      "sinkHeightMax": 0.48381,
-      "encodedWaterlineY": -0.444663,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -2883,6 +3052,24 @@
           "height": 206
         },
         "opaquePixels": 6833,
+        "deckPolygon": [
+          {
+            "x": 474,
+            "y": 381
+          },
+          {
+            "x": 439,
+            "y": 419
+          },
+          {
+            "x": 513,
+            "y": 427
+          },
+          {
+            "x": 548,
+            "y": 389
+          }
+        ],
         "deckEntryAnchor": {
           "x": 534,
           "y": 389
@@ -2891,13 +3078,26 @@
           "x": 584,
           "y": 393
         },
+        "foregroundOpaquePixels": 5790,
+        "sinkHeightMin": -0.475093,
+        "sinkHeightMax": 0.485845,
+        "encodedWaterlineY": -0.444663,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 11,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 268,
+          "recoloredPixels": 901
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -2915,21 +3115,10 @@
     {
       "slug": "ketch",
       "label": "Lateen Barque",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 1.7542,
-      "opaqueBounds": {
-        "minX": 140,
-        "minY": 70,
-        "width": 40,
-        "height": 85
-      },
-      "opaquePixels": 1100,
       "deckPolygon": [
         {
           "x": 167,
@@ -2956,23 +3145,13 @@
         "x": 179,
         "y": 116
       },
-      "foregroundOpaquePixels": 934,
-      "sinkHeightMin": -0.588874,
-      "sinkHeightMax": 0.585952,
-      "encodedWaterlineY": -0.521733,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 13,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -3020,6 +3199,24 @@
           "height": 254
         },
         "opaquePixels": 9530,
+        "deckPolygon": [
+          {
+            "x": 502,
+            "y": 345
+          },
+          {
+            "x": 451,
+            "y": 400
+          },
+          {
+            "x": 470,
+            "y": 402
+          },
+          {
+            "x": 520,
+            "y": 347
+          }
+        ],
         "deckEntryAnchor": {
           "x": 515,
           "y": 349
@@ -3028,13 +3225,26 @@
           "x": 537,
           "y": 348
         },
+        "foregroundOpaquePixels": 8098,
+        "sinkHeightMin": -0.590832,
+        "sinkHeightMax": 0.590294,
+        "encodedWaterlineY": -0.521733,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 128,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 341,
+          "recoloredPixels": 1186
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -3052,21 +3262,10 @@
     {
       "slug": "mediterranean-galley",
       "label": "Mediterranean Galley",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-dockside-sink-depth.png",
       "sourceTitle": "Russian 22-bank Baltic galley",
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.0291,
-      "opaqueBounds": {
-        "minX": 135,
-        "minY": 65,
-        "width": 50,
-        "height": 90
-      },
-      "opaquePixels": 1491,
       "deckPolygon": [
         {
           "x": 166,
@@ -3093,23 +3292,13 @@
         "x": 183,
         "y": 111
       },
-      "foregroundOpaquePixels": 1137,
-      "sinkHeightMin": -0.590197,
-      "sinkHeightMax": 0.59164,
-      "encodedWaterlineY": -0.495666,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 16,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -3157,6 +3346,24 @@
           "height": 271
         },
         "opaquePixels": 12975,
+        "deckPolygon": [
+          {
+            "x": 498,
+            "y": 330
+          },
+          {
+            "x": 440,
+            "y": 393
+          },
+          {
+            "x": 468,
+            "y": 396
+          },
+          {
+            "x": 527,
+            "y": 333
+          }
+        ],
         "deckEntryAnchor": {
           "x": 519,
           "y": 335
@@ -3165,13 +3372,26 @@
           "x": 550,
           "y": 332
         },
+        "foregroundOpaquePixels": 9878,
+        "sinkHeightMin": -0.590197,
+        "sinkHeightMax": 0.59164,
+        "encodedWaterlineY": -0.495666,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 150,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 912,
+          "recoloredPixels": 2846
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -3189,21 +3409,10 @@
     {
       "slug": "galleass",
       "label": "Galleass",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-dockside-sink-depth.png",
       "sourceTitle": "Russian 22-bank Baltic galley",
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.4289,
-      "opaqueBounds": {
-        "minX": 130,
-        "minY": 47,
-        "width": 60,
-        "height": 108
-      },
-      "opaquePixels": 2214,
       "deckPolygon": [
         {
           "x": 167,
@@ -3214,12 +3423,12 @@
           "y": 126
         },
         {
-          "x": 156,
+          "x": 155,
           "y": 128
         },
         {
           "x": 179,
-          "y": 103
+          "y": 102
         }
       ],
       "deckEntryAnchor": {
@@ -3230,23 +3439,13 @@
         "x": 188,
         "y": 102
       },
-      "foregroundOpaquePixels": 1698,
-      "sinkHeightMin": -0.703906,
-      "sinkHeightMax": 0.666472,
-      "encodedWaterlineY": -0.594452,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 25,
-      "rasterCleanup": {
-        "minimumComponentPixels": 2,
-        "removedComponents": 3,
-        "removedPixels": 3
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -3294,6 +3493,24 @@
           "height": 325
         },
         "opaquePixels": 18712,
+        "deckPolygon": [
+          {
+            "x": 502,
+            "y": 304
+          },
+          {
+            "x": 432,
+            "y": 379
+          },
+          {
+            "x": 466,
+            "y": 383
+          },
+          {
+            "x": 536,
+            "y": 307
+          }
+        ],
         "deckEntryAnchor": {
           "x": 527,
           "y": 310
@@ -3302,13 +3519,26 @@
           "x": 563,
           "y": 306
         },
+        "foregroundOpaquePixels": 14458,
+        "sinkHeightMin": -0.706079,
+        "sinkHeightMax": 0.70725,
+        "encodedWaterlineY": -0.594452,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 209,
         "rasterCleanup": {
           "minimumComponentPixels": 12,
           "removedComponents": 8,
           "removedPixels": 49
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 1434,
+          "recoloredPixels": 3805
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -3326,21 +3556,10 @@
     {
       "slug": "fusta",
       "label": "Fusta",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-dockside-sink-depth.png",
       "sourceTitle": "Russian 22-bank Baltic galley",
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 1.6233,
-      "opaqueBounds": {
-        "minX": 140,
-        "minY": 83,
-        "width": 40,
-        "height": 72
-      },
-      "opaquePixels": 913,
       "deckPolygon": [
         {
           "x": 165,
@@ -3348,7 +3567,7 @@
         },
         {
           "x": 150,
-          "y": 131
+          "y": 130
         },
         {
           "x": 157,
@@ -3356,7 +3575,7 @@
         },
         {
           "x": 173,
-          "y": 115
+          "y": 114
         }
       ],
       "deckEntryAnchor": {
@@ -3367,23 +3586,13 @@
         "x": 179,
         "y": 114
       },
-      "foregroundOpaquePixels": 681,
-      "sinkHeightMin": -0.470111,
-      "sinkHeightMax": 0.432218,
-      "encodedWaterlineY": -0.308837,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 376,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -3431,6 +3640,24 @@
           "height": 217
         },
         "opaquePixels": 7839,
+        "deckPolygon": [
+          {
+            "x": 495,
+            "y": 341
+          },
+          {
+            "x": 449,
+            "y": 391
+          },
+          {
+            "x": 471,
+            "y": 394
+          },
+          {
+            "x": 518,
+            "y": 343
+          }
+        ],
         "deckEntryAnchor": {
           "x": 512,
           "y": 345
@@ -3439,13 +3666,26 @@
           "x": 536,
           "y": 343
         },
+        "foregroundOpaquePixels": 5868,
+        "sinkHeightMin": -0.470111,
+        "sinkHeightMax": 0.465641,
+        "encodedWaterlineY": -0.308837,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 3514,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 222,
+          "recoloredPixels": 631
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -3463,21 +3703,10 @@
     {
       "slug": "joseon-turtle-ship",
       "label": "Turtle Ship",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-dockside-sink-depth.png",
       "sourceTitle": "Geobukseon (Turtle Ship)",
       "creator": "KargaEntiti",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.0274,
-      "opaqueBounds": {
-        "minX": 118,
-        "minY": 54,
-        "width": 84,
-        "height": 101
-      },
-      "opaquePixels": 3676,
       "deckPolygon": [
         {
           "x": 160,
@@ -3504,23 +3733,13 @@
         "x": 191,
         "y": 123
       },
-      "foregroundOpaquePixels": 2952,
-      "sinkHeightMin": -0.737418,
-      "sinkHeightMax": 0.731967,
-      "encodedWaterlineY": -0.70418,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 3,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -3568,6 +3787,24 @@
           "height": 304
         },
         "opaquePixels": 32646,
+        "deckPolygon": [
+          {
+            "x": 479,
+            "y": 359
+          },
+          {
+            "x": 421,
+            "y": 422
+          },
+          {
+            "x": 479,
+            "y": 428
+          },
+          {
+            "x": 537,
+            "y": 365
+          }
+        ],
         "deckEntryAnchor": {
           "x": 525,
           "y": 367
@@ -3576,13 +3813,26 @@
           "x": 572,
           "y": 368
         },
+        "foregroundOpaquePixels": 26178,
+        "sinkHeightMin": -0.737841,
+        "sinkHeightMax": 0.738744,
+        "encodedWaterlineY": -0.70418,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 25,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 2319,
+          "recoloredPixels": 6404
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "stowed",
@@ -3600,32 +3850,21 @@
     {
       "slug": "joseon-hyeopseon",
       "label": "Hyeopseon",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-dockside-sink-depth.png",
       "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
       "creator": "Heat Of Fusion, with JJakgwi",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 1.72,
-      "opaqueBounds": {
-        "minX": 132,
-        "minY": 43,
-        "width": 55,
-        "height": 112
-      },
-      "opaquePixels": 1949,
       "deckPolygon": [
         {
           "x": 161,
           "y": 114
         },
         {
-          "x": 144,
+          "x": 145,
           "y": 132
         },
         {
-          "x": 156,
+          "x": 157,
           "y": 133
         },
         {
@@ -3634,30 +3873,20 @@
         }
       ],
       "deckEntryAnchor": {
-        "x": 170,
+        "x": 171,
         "y": 116
       },
       "sailorSpawnAnchor": {
         "x": 181,
         "y": 116
       },
-      "foregroundOpaquePixels": 1506,
-      "sinkHeightMin": -0.679582,
-      "sinkHeightMax": 0.675546,
-      "encodedWaterlineY": -0.607386,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 28,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -3705,6 +3934,24 @@
           "height": 336
         },
         "opaquePixels": 16940,
+        "deckPolygon": [
+          {
+            "x": 483,
+            "y": 342
+          },
+          {
+            "x": 434,
+            "y": 395
+          },
+          {
+            "x": 471,
+            "y": 399
+          },
+          {
+            "x": 520,
+            "y": 346
+          }
+        ],
         "deckEntryAnchor": {
           "x": 512,
           "y": 347
@@ -3713,13 +3960,26 @@
           "x": 544,
           "y": 349
         },
-        "submergedPixels": 261,
+        "foregroundOpaquePixels": 13304,
+        "sinkHeightMin": -0.679582,
+        "sinkHeightMax": 0.682044,
+        "encodedWaterlineY": -0.607386,
+        "sinkWaterlineLevel": 0.501961,
+        "submergedPixels": 267,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 53,
+          "recoloredPixels": 241
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "stowed",
@@ -3737,21 +3997,10 @@
     {
       "slug": "joseon-panokseon",
       "label": "Panokseon",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-dockside-sink-depth.png",
       "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
       "creator": "Heat Of Fusion, with JJakgwi",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.1516,
-      "opaqueBounds": {
-        "minX": 126,
-        "minY": 15,
-        "width": 68,
-        "height": 140
-      },
-      "opaquePixels": 3075,
       "deckPolygon": [
         {
           "x": 162,
@@ -3778,23 +4027,13 @@
         "x": 187,
         "y": 108
       },
-      "foregroundOpaquePixels": 2451,
-      "sinkHeightMin": -0.850269,
-      "sinkHeightMax": 0.853194,
-      "encodedWaterlineY": -0.782303,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 39,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -3842,6 +4081,24 @@
           "height": 420
         },
         "opaquePixels": 27382,
+        "deckPolygon": [
+          {
+            "x": 485,
+            "y": 315
+          },
+          {
+            "x": 423,
+            "y": 382
+          },
+          {
+            "x": 468,
+            "y": 387
+          },
+          {
+            "x": 530,
+            "y": 320
+          }
+        ],
         "deckEntryAnchor": {
           "x": 520,
           "y": 322
@@ -3850,13 +4107,26 @@
           "x": 561,
           "y": 324
         },
-        "submergedPixels": 315,
+        "foregroundOpaquePixels": 21715,
+        "sinkHeightMin": -0.851558,
+        "sinkHeightMax": 0.853194,
+        "encodedWaterlineY": -0.782303,
+        "sinkWaterlineLevel": 0.501961,
+        "submergedPixels": 329,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 47,
+          "recoloredPixels": 152
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "stowed",
@@ -3874,33 +4144,22 @@
     {
       "slug": "japanese-kuribune",
       "label": "Umi-bune",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-dockside-sink-depth.png",
       "sourceTitle": "Kamakura Period Umi-Bune Japanese Boat",
       "creator": "urszulaczyz",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 1.5039,
-      "opaqueBounds": {
-        "minX": 141,
-        "minY": 97,
-        "width": 38,
-        "height": 58
-      },
-      "opaquePixels": 632,
       "deckPolygon": [
         {
           "x": 164,
           "y": 123
         },
         {
-          "x": 150,
+          "x": 149,
           "y": 139
         },
         {
-          "x": 157,
-          "y": 140
+          "x": 156,
+          "y": 139
         },
         {
           "x": 171,
@@ -3909,29 +4168,19 @@
       ],
       "deckEntryAnchor": {
         "x": 169,
-        "y": 125
+        "y": 124
       },
       "sailorSpawnAnchor": {
         "x": 176,
         "y": 123
       },
-      "foregroundOpaquePixels": 464,
-      "sinkHeightMin": -0.311801,
-      "sinkHeightMax": 0.31001,
-      "encodedWaterlineY": -0.268498,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 8,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -3979,6 +4228,24 @@
           "height": 175
         },
         "opaquePixels": 5306,
+        "deckPolygon": [
+          {
+            "x": 491,
+            "y": 369
+          },
+          {
+            "x": 448,
+            "y": 416
+          },
+          {
+            "x": 469,
+            "y": 418
+          },
+          {
+            "x": 512,
+            "y": 372
+          }
+        ],
         "deckEntryAnchor": {
           "x": 507,
           "y": 373
@@ -3987,13 +4254,26 @@
           "x": 529,
           "y": 369
         },
+        "foregroundOpaquePixels": 3845,
+        "sinkHeightMin": -0.317921,
+        "sinkHeightMax": 0.323876,
+        "encodedWaterlineY": -0.268498,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 79,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 684,
+          "recoloredPixels": 1865
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -4011,21 +4291,10 @@
     {
       "slug": "japanese-kobaya",
       "label": "Kobaya",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-dockside-sink-depth.png",
       "sourceTitle": "Japanese Boat: Kobaya 3D Model",
       "creator": "HIROKAZU KOBAYASHI",
       "license": "BOOTH commercial-use license",
       "targetModelMaxDim": 1.68,
-      "opaqueBounds": {
-        "minX": 141,
-        "minY": 99,
-        "width": 38,
-        "height": 56
-      },
-      "opaquePixels": 895,
       "deckPolygon": [
         {
           "x": 166,
@@ -4052,23 +4321,13 @@
         "x": 180,
         "y": 123
       },
-      "foregroundOpaquePixels": 722,
-      "sinkHeightMin": -0.233656,
-      "sinkHeightMax": 0.268612,
-      "encodedWaterlineY": -0.156335,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 24,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -4116,6 +4375,24 @@
           "height": 168
         },
         "opaquePixels": 7837,
+        "deckPolygon": [
+          {
+            "x": 498,
+            "y": 370
+          },
+          {
+            "x": 450,
+            "y": 422
+          },
+          {
+            "x": 473,
+            "y": 425
+          },
+          {
+            "x": 521,
+            "y": 372
+          }
+        ],
         "deckEntryAnchor": {
           "x": 515,
           "y": 374
@@ -4124,13 +4401,26 @@
           "x": 540,
           "y": 368
         },
+        "foregroundOpaquePixels": 6407,
+        "sinkHeightMin": -0.235541,
+        "sinkHeightMax": 0.274121,
+        "encodedWaterlineY": -0.156335,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 194,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 477,
+          "recoloredPixels": 1290
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "no-sail",
@@ -4146,25 +4436,14 @@
     {
       "slug": "japanese-sekibune",
       "label": "Sekibune",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-dockside-sink-depth.png",
       "sourceTitle": "Japanese Boat: Sekibune 3D Model",
       "creator": "HIROKAZU KOBAYASHI",
       "license": "BOOTH commercial-use license",
       "targetModelMaxDim": 1.9185,
-      "opaqueBounds": {
-        "minX": 132,
-        "minY": 71,
-        "width": 56,
-        "height": 84
-      },
-      "opaquePixels": 1941,
       "deckPolygon": [
         {
           "x": 166,
-          "y": 109
+          "y": 110
         },
         {
           "x": 148,
@@ -4175,35 +4454,25 @@
           "y": 131
         },
         {
-          "x": 180,
+          "x": 179,
           "y": 111
         }
       ],
       "deckEntryAnchor": {
-        "x": 177,
-        "y": 111
+        "x": 176,
+        "y": 112
       },
       "sailorSpawnAnchor": {
-        "x": 189,
+        "x": 188,
         "y": 111
       },
-      "foregroundOpaquePixels": 1643,
-      "sinkHeightMin": -0.55981,
-      "sinkHeightMax": 0.567593,
-      "encodedWaterlineY": -0.448547,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 29,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -4251,6 +4520,24 @@
           "height": 251
         },
         "opaquePixels": 16927,
+        "deckPolygon": [
+          {
+            "x": 498,
+            "y": 329
+          },
+          {
+            "x": 443,
+            "y": 388
+          },
+          {
+            "x": 483,
+            "y": 393
+          },
+          {
+            "x": 538,
+            "y": 333
+          }
+        ],
         "deckEntryAnchor": {
           "x": 529,
           "y": 335
@@ -4259,13 +4546,26 @@
           "x": 565,
           "y": 333
         },
+        "foregroundOpaquePixels": 14368,
+        "sinkHeightMin": -0.566904,
+        "sinkHeightMax": 0.568443,
+        "encodedWaterlineY": -0.448547,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 217,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 509,
+          "recoloredPixels": 1404
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "stowed",
@@ -4283,21 +4583,10 @@
     {
       "slug": "japanese-atakebune",
       "label": "Atakebune",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-dockside-sink-depth.png",
       "sourceTitle": "Atakebune Japanese Medieval Warship",
       "creator": "LukasSI",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.2258,
-      "opaqueBounds": {
-        "minX": 120,
-        "minY": 40,
-        "width": 80,
-        "height": 115
-      },
-      "opaquePixels": 3339,
       "deckPolygon": [
         {
           "x": 159,
@@ -4324,23 +4613,13 @@
         "x": 191,
         "y": 107
       },
-      "foregroundOpaquePixels": 2833,
-      "sinkHeightMin": -0.566977,
-      "sinkHeightMax": 0.564506,
-      "encodedWaterlineY": -0.425962,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 147,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -4388,6 +4667,24 @@
           "height": 345
         },
         "opaquePixels": 29762,
+        "deckPolygon": [
+          {
+            "x": 476,
+            "y": 316
+          },
+          {
+            "x": 413,
+            "y": 385
+          },
+          {
+            "x": 473,
+            "y": 391
+          },
+          {
+            "x": 536,
+            "y": 323
+          }
+        ],
         "deckEntryAnchor": {
           "x": 524,
           "y": 324
@@ -4396,13 +4693,26 @@
           "x": 573,
           "y": 322
         },
+        "foregroundOpaquePixels": 25252,
+        "sinkHeightMin": -0.566977,
+        "sinkHeightMax": 0.571945,
+        "encodedWaterlineY": -0.425962,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 1263,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 2099,
+          "recoloredPixels": 6359
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -4420,24 +4730,13 @@
     {
       "slug": "spanish-nao",
       "label": "Spanish Nao",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-dockside-sink-depth.png",
       "sourceTitle": "Nao Victoria Galleon Ship",
       "creator": "Javier López Cuadrado",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.0032,
-      "opaqueBounds": {
-        "minX": 131,
-        "minY": 43,
-        "width": 57,
-        "height": 112
-      },
-      "opaquePixels": 2686,
       "deckPolygon": [
         {
-          "x": 161,
+          "x": 162,
           "y": 103
         },
         {
@@ -4445,46 +4744,29 @@
           "y": 124
         },
         {
-          "x": 158,
+          "x": 159,
           "y": 126
         },
         {
-          "x": 177,
+          "x": 178,
           "y": 105
         }
       ],
       "deckEntryAnchor": {
-        "x": 174,
+        "x": 175,
         "y": 106
       },
       "sailorSpawnAnchor": {
         "x": 188,
         "y": 106
       },
-      "foregroundOpaquePixels": 2273,
-      "sinkHeightMin": -0.762564,
-      "sinkHeightMax": 0.749058,
-      "encodedWaterlineY": -0.605868,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 80,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": {
-        "minimumRegionPixelsAtCityScale": 12,
-        "minimumRegionPixels": 2,
-        "requestedPasses": 2,
-        "completedPasses": 2,
-        "recoloredRegions": 229,
-        "recoloredPixels": 229
-      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -4532,6 +4814,24 @@
           "height": 336
         },
         "opaquePixels": 23043,
+        "deckPolygon": [
+          {
+            "x": 485,
+            "y": 310
+          },
+          {
+            "x": 427,
+            "y": 373
+          },
+          {
+            "x": 477,
+            "y": 378
+          },
+          {
+            "x": 534,
+            "y": 316
+          }
+        ],
         "deckEntryAnchor": {
           "x": 524,
           "y": 318
@@ -4540,7 +4840,12 @@
           "x": 565,
           "y": 319
         },
-        "submergedPixels": 703,
+        "foregroundOpaquePixels": 19527,
+        "sinkHeightMin": -0.763171,
+        "sinkHeightMax": 0.756324,
+        "encodedWaterlineY": -0.605868,
+        "sinkWaterlineLevel": 0.501961,
+        "submergedPixels": 702,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4551,9 +4856,10 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 1640,
-          "recoloredPixels": 5415
-        }
+          "recoloredRegions": 1583,
+          "recoloredPixels": 5315
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -4571,24 +4877,13 @@
     {
       "slug": "portuguese-carrack",
       "label": "Portuguese Carrack",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-dockside-sink-depth.png",
       "sourceTitle": "Portuguese Carrack",
       "creator": "gogiart",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.2789,
-      "opaqueBounds": {
-        "minX": 115,
-        "minY": 22,
-        "width": 89,
-        "height": 133
-      },
-      "opaquePixels": 4022,
       "deckPolygon": [
         {
-          "x": 161,
+          "x": 162,
           "y": 98
         },
         {
@@ -4596,12 +4891,12 @@
           "y": 121
         },
         {
-          "x": 166,
+          "x": 167,
           "y": 124
         },
         {
-          "x": 188,
-          "y": 100
+          "x": 189,
+          "y": 101
         }
       ],
       "deckEntryAnchor": {
@@ -4612,30 +4907,13 @@
         "x": 203,
         "y": 102
       },
-      "foregroundOpaquePixels": 3408,
-      "sinkHeightMin": -0.838094,
-      "sinkHeightMax": 0.838235,
-      "encodedWaterlineY": -0.644179,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 193,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": {
-        "minimumRegionPixelsAtCityScale": 12,
-        "minimumRegionPixels": 2,
-        "requestedPasses": 2,
-        "completedPasses": 2,
-        "recoloredRegions": 220,
-        "recoloredPixels": 220
-      },
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -4683,6 +4961,24 @@
           "height": 410
         },
         "opaquePixels": 34890,
+        "deckPolygon": [
+          {
+            "x": 486,
+            "y": 293
+          },
+          {
+            "x": 421,
+            "y": 364
+          },
+          {
+            "x": 501,
+            "y": 373
+          },
+          {
+            "x": 566,
+            "y": 302
+          }
+        ],
         "deckEntryAnchor": {
           "x": 550,
           "y": 303
@@ -4691,7 +4987,12 @@
           "x": 610,
           "y": 306
         },
-        "submergedPixels": 1657,
+        "foregroundOpaquePixels": 29574,
+        "sinkHeightMin": -0.840941,
+        "sinkHeightMax": 0.838235,
+        "encodedWaterlineY": -0.644179,
+        "sinkWaterlineLevel": 0.501961,
+        "submergedPixels": 1659,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4702,9 +5003,10 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 1310,
-          "recoloredPixels": 3930
-        }
+          "recoloredRegions": 2007,
+          "recoloredPixels": 6087
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "stowed",
@@ -4722,21 +5024,10 @@
     {
       "slug": "viking-longship",
       "label": "Viking Longship",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Cartoon Sailing Ships",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
       "targetModelMaxDim": 2.1542,
-      "opaqueBounds": {
-        "minX": 122,
-        "minY": 57,
-        "width": 76,
-        "height": 98
-      },
-      "opaquePixels": 1997,
       "deckPolygon": [
         {
           "x": 161,
@@ -4756,30 +5047,20 @@
         }
       ],
       "deckEntryAnchor": {
-        "x": 183,
-        "y": 114
+        "x": 182,
+        "y": 115
       },
       "sailorSpawnAnchor": {
         "x": 203,
         "y": 115
       },
-      "foregroundOpaquePixels": 1451,
-      "sinkHeightMin": -0.659741,
-      "sinkHeightMax": 0.668248,
-      "encodedWaterlineY": -0.584066,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 11,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -4827,6 +5108,24 @@
           "height": 293
         },
         "opaquePixels": 17232,
+        "deckPolygon": [
+          {
+            "x": 482,
+            "y": 334
+          },
+          {
+            "x": 421,
+            "y": 400
+          },
+          {
+            "x": 502,
+            "y": 409
+          },
+          {
+            "x": 563,
+            "y": 342
+          }
+        ],
         "deckEntryAnchor": {
           "x": 547,
           "y": 344
@@ -4835,13 +5134,26 @@
           "x": 608,
           "y": 344
         },
+        "foregroundOpaquePixels": 12494,
+        "sinkHeightMin": -0.672926,
+        "sinkHeightMax": 0.673518,
+        "encodedWaterlineY": -0.584066,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 68,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 157,
+          "recoloredPixels": 672
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -4859,21 +5171,10 @@
     {
       "slug": "polynesian-voyaging-canoe",
       "label": "Polynesian Voyaging Canoe",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-dockside-sink-depth.png",
       "sourceTitle": "Polynesian Voyaging Canoe",
       "creator": "Hialda Alpizar",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.295,
-      "opaqueBounds": {
-        "minX": 122,
-        "minY": 13,
-        "width": 76,
-        "height": 142
-      },
-      "opaquePixels": 3070,
       "deckPolygon": [
         {
           "x": 164,
@@ -4900,23 +5201,13 @@
         "x": 189,
         "y": 101
       },
-      "foregroundOpaquePixels": 2239,
-      "sinkHeightMin": -0.847297,
-      "sinkHeightMax": 0.838397,
-      "encodedWaterlineY": -0.707006,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 149,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -4964,6 +5255,24 @@
           "height": 426
         },
         "opaquePixels": 26981,
+        "deckPolygon": [
+          {
+            "x": 491,
+            "y": 296
+          },
+          {
+            "x": 425,
+            "y": 367
+          },
+          {
+            "x": 470,
+            "y": 372
+          },
+          {
+            "x": 536,
+            "y": 301
+          }
+        ],
         "deckEntryAnchor": {
           "x": 526,
           "y": 303
@@ -4972,13 +5281,26 @@
           "x": 567,
           "y": 304
         },
+        "foregroundOpaquePixels": 19722,
+        "sinkHeightMin": -0.856545,
+        "sinkHeightMax": 0.852187,
+        "encodedWaterlineY": -0.707006,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 1352,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 1519,
+          "recoloredPixels": 4045
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -4996,24 +5318,13 @@
     {
       "slug": "mesoamerican-dugout-canoe",
       "label": "Dugout Canoe",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Canoe - Stylized Game Asset",
       "creator": "irodatiii",
       "license": "Sketchfab Free Standard",
       "targetModelMaxDim": 1.915,
-      "opaqueBounds": {
-        "minX": 140,
-        "minY": 104,
-        "width": 39,
-        "height": 51
-      },
-      "opaquePixels": 949,
       "deckPolygon": [
         {
-          "x": 162,
+          "x": 163,
           "y": 124
         },
         {
@@ -5030,30 +5341,20 @@
         }
       ],
       "deckEntryAnchor": {
-        "x": 172,
+        "x": 173,
         "y": 126
       },
       "sailorSpawnAnchor": {
-        "x": 183,
+        "x": 184,
         "y": 122
       },
-      "foregroundOpaquePixels": 692,
-      "sinkHeightMin": -0.104162,
-      "sinkHeightMax": 0.123466,
-      "encodedWaterlineY": -0.086187,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 11,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -5101,6 +5402,24 @@
           "height": 153
         },
         "opaquePixels": 8464,
+        "deckPolygon": [
+          {
+            "x": 488,
+            "y": 372
+          },
+          {
+            "x": 433,
+            "y": 431
+          },
+          {
+            "x": 471,
+            "y": 435
+          },
+          {
+            "x": 526,
+            "y": 376
+          }
+        ],
         "deckEntryAnchor": {
           "x": 518,
           "y": 378
@@ -5109,13 +5428,26 @@
           "x": 552,
           "y": 367
         },
-        "submergedPixels": 82,
+        "foregroundOpaquePixels": 6278,
+        "sinkHeightMin": -0.126179,
+        "sinkHeightMax": 0.126622,
+        "encodedWaterlineY": -0.086187,
+        "sinkWaterlineLevel": 0.501961,
+        "submergedPixels": 81,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 65,
+          "recoloredPixels": 167
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "no-sail",
@@ -5131,126 +5463,136 @@
     {
       "slug": "nusantaran-outrigger",
       "label": "Nusantaran Outrigger",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-dockside-sink-depth.png",
       "sourceTitle": "Low Poly Borobudur Ship of Sriwijaya",
       "creator": "Nisa Nurul Azizah",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 1.8387,
-      "opaqueBounds": {
-        "minX": 119,
-        "minY": 53,
-        "width": 82,
-        "height": 102
-      },
-      "opaquePixels": 3138,
       "deckPolygon": [
         {
-          "x": 155,
-          "y": 119
+          "x": 158,
+          "y": 120
         },
         {
-          "x": 138,
-          "y": 138
+          "x": 141,
+          "y": 139
         },
         {
-          "x": 172,
-          "y": 141
+          "x": 167,
+          "y": 142
         },
         {
-          "x": 189,
-          "y": 122
+          "x": 185,
+          "y": 123
         }
       ],
       "deckEntryAnchor": {
-        "x": 183,
-        "y": 122
-      },
-      "sailorSpawnAnchor": {
-        "x": 206,
+        "x": 180,
         "y": 124
       },
-      "foregroundOpaquePixels": 2184,
-      "sinkHeightMin": -0.663153,
-      "sinkHeightMax": 0.711603,
-      "encodedWaterlineY": -0.586155,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 106,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
+      "sailorSpawnAnchor": {
+        "x": 199,
+        "y": 125
       },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 311,
-              "minY": 332,
-              "width": 292,
-              "height": 144
+              "minX": 328,
+              "minY": 342,
+              "width": 291,
+              "height": 137
             },
-            "opaquePixels": 18844,
+            "opaquePixels": 18779,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.591528
+            "shadowWaterlineY": -0.586529
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 312,
-              "minY": 332,
-              "width": 291,
-              "height": 144
+              "minX": 328,
+              "minY": 342,
+              "width": 292,
+              "height": 137
             },
-            "opaquePixels": 18720,
+            "opaquePixels": 18444,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.586155
+            "shadowWaterlineY": -0.581154
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 313,
-              "minY": 333,
-              "width": 286,
-              "height": 143
+              "minX": 329,
+              "minY": 342,
+              "width": 291,
+              "height": 137
             },
-            "opaquePixels": 18570,
+            "opaquePixels": 18124,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.580781
+            "shadowWaterlineY": -0.575778
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00537323,
+        "waterShadowModelHeightPerPixel": 0.00537537,
         "opaqueBounds": {
-          "minX": 356,
-          "minY": 160,
-          "width": 247,
-          "height": 305
+          "minX": 339,
+          "minY": 172,
+          "width": 282,
+          "height": 293
         },
-        "opaquePixels": 27359,
+        "opaquePixels": 28654,
+        "deckPolygon": [
+          {
+            "x": 474,
+            "y": 361
+          },
+          {
+            "x": 422,
+            "y": 418
+          },
+          {
+            "x": 502,
+            "y": 427
+          },
+          {
+            "x": 555,
+            "y": 370
+          }
+        ],
         "deckEntryAnchor": {
-          "x": 548,
-          "y": 368
+          "x": 539,
+          "y": 371
         },
         "sailorSpawnAnchor": {
-          "x": 617,
-          "y": 373
+          "x": 597,
+          "y": 374
         },
-        "submergedPixels": 917,
+        "foregroundOpaquePixels": 21430,
+        "sinkHeightMin": -0.661004,
+        "sinkHeightMax": 0.692208,
+        "encodedWaterlineY": -0.581154,
+        "sinkWaterlineLevel": 0.501961,
+        "submergedPixels": 733,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 135,
+          "recoloredPixels": 364
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "stowed",
@@ -5268,28 +5610,17 @@
     {
       "slug": "kelulus",
       "label": "Kelulus",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-dockside-sink-depth.png",
       "sourceTitle": "Procedural Kelulus",
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
       "targetModelMaxDim": 1.8429,
-      "opaqueBounds": {
-        "minX": 136,
-        "minY": 65,
-        "width": 47,
-        "height": 90
-      },
-      "opaquePixels": 1628,
       "deckPolygon": [
         {
-          "x": 164,
+          "x": 165,
           "y": 115
         },
         {
-          "x": 146,
+          "x": 147,
           "y": 134
         },
         {
@@ -5297,35 +5628,25 @@
           "y": 135
         },
         {
-          "x": 172,
+          "x": 173,
           "y": 116
         }
       ],
       "deckEntryAnchor": {
-        "x": 170,
-        "y": 117
-      },
-      "sailorSpawnAnchor": {
-        "x": 179,
+        "x": 171,
         "y": 116
       },
-      "foregroundOpaquePixels": 1300,
-      "sinkHeightMin": -0.558104,
-      "sinkHeightMax": 0.596399,
-      "encodedWaterlineY": -0.45548,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 6,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
+      "sailorSpawnAnchor": {
+        "x": 180,
+        "y": 116
       },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -5373,6 +5694,24 @@
           "height": 271
         },
         "opaquePixels": 13892,
+        "deckPolygon": [
+          {
+            "x": 494,
+            "y": 344
+          },
+          {
+            "x": 441,
+            "y": 402
+          },
+          {
+            "x": 466,
+            "y": 404
+          },
+          {
+            "x": 519,
+            "y": 347
+          }
+        ],
         "deckEntryAnchor": {
           "x": 512,
           "y": 349
@@ -5381,13 +5720,26 @@
           "x": 539,
           "y": 347
         },
+        "foregroundOpaquePixels": 11052,
+        "sinkHeightMin": -0.577683,
+        "sinkHeightMax": 0.596544,
+        "encodedWaterlineY": -0.45548,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 52,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 69,
+          "recoloredPixels": 233
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -5405,25 +5757,14 @@
     {
       "slug": "penjajap",
       "label": "Penjajap",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-dockside-sink-depth.png",
       "sourceTitle": "Procedural Penjajap",
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
       "targetModelMaxDim": 2.059,
-      "opaqueBounds": {
-        "minX": 134,
-        "minY": 76,
-        "width": 52,
-        "height": 79
-      },
-      "opaquePixels": 943,
       "deckPolygon": [
         {
-          "x": 171,
-          "y": 113
+          "x": 170,
+          "y": 112
         },
         {
           "x": 151,
@@ -5435,7 +5776,7 @@
         },
         {
           "x": 178,
-          "y": 114
+          "y": 113
         }
       ],
       "deckEntryAnchor": {
@@ -5446,23 +5787,13 @@
         "x": 185,
         "y": 112
       },
-      "foregroundOpaquePixels": 738,
-      "sinkHeightMin": -0.445521,
-      "sinkHeightMax": 0.451715,
-      "encodedWaterlineY": -0.413017,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 6,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -5510,6 +5841,24 @@
           "height": 238
         },
         "opaquePixels": 8052,
+        "deckPolygon": [
+          {
+            "x": 511,
+            "y": 337
+          },
+          {
+            "x": 452,
+            "y": 401
+          },
+          {
+            "x": 476,
+            "y": 404
+          },
+          {
+            "x": 535,
+            "y": 340
+          }
+        ],
         "deckEntryAnchor": {
           "x": 529,
           "y": 342
@@ -5518,13 +5867,26 @@
           "x": 556,
           "y": 336
         },
+        "foregroundOpaquePixels": 6206,
+        "sinkHeightMin": -0.447802,
+        "sinkHeightMax": 0.451715,
+        "encodedWaterlineY": -0.413017,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 42,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 40,
+          "recoloredPixels": 133
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -5542,24 +5904,13 @@
     {
       "slug": "lancaran",
       "label": "Lancaran",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-dockside-sink-depth.png",
       "sourceTitle": "Procedural Lancaran",
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
       "targetModelMaxDim": 2.0806,
-      "opaqueBounds": {
-        "minX": 133,
-        "minY": 75,
-        "width": 53,
-        "height": 80
-      },
-      "opaquePixels": 1098,
       "deckPolygon": [
         {
-          "x": 170,
+          "x": 171,
           "y": 110
         },
         {
@@ -5571,35 +5922,25 @@
           "y": 132
         },
         {
-          "x": 178,
+          "x": 179,
           "y": 111
         }
       ],
       "deckEntryAnchor": {
-        "x": 176,
-        "y": 112
+        "x": 177,
+        "y": 111
       },
       "sailorSpawnAnchor": {
         "x": 186,
         "y": 109
       },
-      "foregroundOpaquePixels": 868,
-      "sinkHeightMin": -0.420847,
-      "sinkHeightMax": 0.428435,
-      "encodedWaterlineY": -0.345732,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 213,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -5647,6 +5988,24 @@
           "height": 241
         },
         "opaquePixels": 9450,
+        "deckPolygon": [
+          {
+            "x": 512,
+            "y": 329
+          },
+          {
+            "x": 453,
+            "y": 394
+          },
+          {
+            "x": 477,
+            "y": 397
+          },
+          {
+            "x": 536,
+            "y": 332
+          }
+        ],
         "deckEntryAnchor": {
           "x": 530,
           "y": 334
@@ -5655,13 +6014,26 @@
           "x": 558,
           "y": 328
         },
+        "foregroundOpaquePixels": 7408,
+        "sinkHeightMin": -0.422869,
+        "sinkHeightMax": 0.435501,
+        "encodedWaterlineY": -0.345732,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 1969,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 65,
+          "recoloredPixels": 252
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -5679,21 +6051,10 @@
     {
       "slug": "royal-lancaran",
       "label": "Royal Lancaran",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-dockside-sink-depth.png",
       "sourceTitle": "Procedural Royal Lancaran",
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
       "targetModelMaxDim": 2.098,
-      "opaqueBounds": {
-        "minX": 134,
-        "minY": 79,
-        "width": 52,
-        "height": 76
-      },
-      "opaquePixels": 1256,
       "deckPolygon": [
         {
           "x": 171,
@@ -5720,23 +6081,13 @@
         "x": 186,
         "y": 111
       },
-      "foregroundOpaquePixels": 995,
-      "sinkHeightMin": -0.398716,
-      "sinkHeightMax": 0.4308,
-      "encodedWaterlineY": -0.341411,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 157,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -5784,6 +6135,24 @@
           "height": 229
         },
         "opaquePixels": 10692,
+        "deckPolygon": [
+          {
+            "x": 512,
+            "y": 334
+          },
+          {
+            "x": 452,
+            "y": 399
+          },
+          {
+            "x": 476,
+            "y": 402
+          },
+          {
+            "x": 536,
+            "y": 336
+          }
+        ],
         "deckEntryAnchor": {
           "x": 529,
           "y": 339
@@ -5792,13 +6161,26 @@
           "x": 557,
           "y": 332
         },
+        "foregroundOpaquePixels": 8395,
+        "sinkHeightMin": -0.401116,
+        "sinkHeightMax": 0.4308,
+        "encodedWaterlineY": -0.341411,
+        "sinkWaterlineLevel": 0.501961,
         "submergedPixels": 1406,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 44,
+          "recoloredPixels": 185
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",
@@ -5816,24 +6198,13 @@
     {
       "slug": "ottoman-coastal-trader",
       "label": "Kancabash",
-      "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-dockside.png",
-      "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-dockside-foreground.png",
-      "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-dockside-depth.png",
-      "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-dockside-sink-depth.png",
       "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model",
       "creator": "Polygora",
       "license": "CC BY 4.0",
       "targetModelMaxDim": 2.0323,
-      "opaqueBounds": {
-        "minX": 133,
-        "minY": 28,
-        "width": 54,
-        "height": 127
-      },
-      "opaquePixels": 2320,
       "deckPolygon": [
         {
-          "x": 163,
+          "x": 162,
           "y": 106
         },
         {
@@ -5854,26 +6225,16 @@
         "y": 109
       },
       "sailorSpawnAnchor": {
-        "x": 194,
+        "x": 193,
         "y": 110
       },
-      "foregroundOpaquePixels": 1966,
-      "sinkHeightMin": -0.859977,
-      "sinkHeightMax": 0.880285,
-      "encodedWaterlineY": -0.792824,
-      "sinkWaterlineLevel": 0.501961,
-      "submergedPixels": 31,
-      "rasterCleanup": {
-        "minimumComponentPixels": 1,
-        "removedComponents": 0,
-        "removedPixels": 0
-      },
-      "colorCleanup": null,
       "cityDockside": {
         "nativeScale": 3,
         "width": 960,
         "height": 480,
         "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside.png",
+        "foregroundFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-foreground.png",
+        "depthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-depth.png",
         "sinkDepthFile": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-sink-depth.png",
         "waterShadows": {
           "up": {
@@ -5921,6 +6282,24 @@
           "height": 381
         },
         "opaquePixels": 19224,
+        "deckPolygon": [
+          {
+            "x": 487,
+            "y": 318
+          },
+          {
+            "x": 429,
+            "y": 382
+          },
+          {
+            "x": 487,
+            "y": 388
+          },
+          {
+            "x": 545,
+            "y": 325
+          }
+        ],
         "deckEntryAnchor": {
           "x": 533,
           "y": 326
@@ -5929,13 +6308,26 @@
           "x": 580,
           "y": 331
         },
-        "submergedPixels": 261,
+        "foregroundOpaquePixels": 16304,
+        "sinkHeightMin": -0.867506,
+        "sinkHeightMax": 0.887306,
+        "encodedWaterlineY": -0.792824,
+        "sinkWaterlineLevel": 0.501961,
+        "submergedPixels": 263,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
           "removedPixels": 0
         },
-        "colorCleanup": null
+        "colorCleanup": {
+          "minimumRegionPixelsAtCityScale": 12,
+          "minimumRegionPixels": 12,
+          "requestedPasses": 2,
+          "completedPasses": 2,
+          "recoloredRegions": 237,
+          "recoloredPixels": 1002
+        },
+        "creaseShading": null
       },
       "dockRig": {
         "state": "furled",

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { access, readFile } from "node:fs/promises";
+import { access, readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -20,6 +20,7 @@ test("every production hull has matching port-assault geometry and manifest meta
   assert.equal(manifest.palette, "Resurrect 64");
   assert.equal(manifest.rigState, "furled-at-dock");
   assert.equal(manifest.scaleMode, "production-roster-relative");
+  assert.equal(manifest.nativeScale, 3);
   assert.match(manifest.rigReviewFile, /fleet-dock-rig-review\.png$/);
   await access(join(appRoot, "..", "..", manifest.rigReviewFile));
   assert.deepEqual(manifest.depthEncoding, {
@@ -70,36 +71,46 @@ test("every production hull has matching port-assault geometry and manifest meta
     "medium-junk",
     "large-junk"
   ]);
-  const artDirectedDetailedSlugs = new Set([
-    "galleon",
-    "spanish-nao",
-    "portuguese-carrack"
-  ]);
   assert.ok(
-    manifestBySlug.get("galleon").opaquePixels >
-      manifestBySlug.get("fishing-lugger").opaquePixels * 4,
+    manifestBySlug.get("galleon").cityDockside.opaquePixels >
+      manifestBySlug.get("fishing-lugger").cityDockside.opaquePixels * 4,
     "the shared bake keeps a fishing lugger materially smaller than a Galleon"
   );
   for (const entry of manifest.ships) {
     const asset = portAssaultShipAsset(entry.slug);
-    assert.equal(manifest.width, asset.width);
-    assert.equal(manifest.height, asset.height);
-    assert.deepEqual(entry.deckPolygon, asset.deckPolygon);
-    assert.deepEqual(entry.deckEntryAnchor, asset.deckEntryAnchor);
-    assert.deepEqual(entry.sailorSpawnAnchor, asset.sailorSpawnAnchor);
+    assert.equal(manifest.width, asset.logicalWidth);
+    assert.equal(manifest.height, asset.logicalHeight);
+    assert.equal(manifest.nativeScale, asset.nativeScale);
+    assert.equal(entry.cityDockside.width, asset.width);
+    assert.equal(entry.cityDockside.height, asset.height);
+    assert.deepEqual(entry.cityDockside.deckPolygon, asset.deckPolygon);
+    assert.deepEqual(entry.cityDockside.deckEntryAnchor, asset.deckEntryAnchor);
+    assert.deepEqual(entry.cityDockside.sailorSpawnAnchor, asset.sailorSpawnAnchor);
+    assert.deepEqual(
+      entry.deckPolygon,
+      asset.deckPolygon.map((point) => logicalPoint(point, asset.nativeScale))
+    );
+    assert.deepEqual(entry.deckEntryAnchor, logicalPoint(asset.deckEntryAnchor, asset.nativeScale));
+    assert.deepEqual(
+      entry.sailorSpawnAnchor,
+      logicalPoint(asset.sailorSpawnAnchor, asset.nativeScale)
+    );
     assert.equal(manifest.view.bowScreenDirection, asset.bowScreenDirection);
     assert.equal(manifest.view.dockFacingSide, asset.dockFacingSide);
     assert.equal(manifest.view.broadsideOffsetDegrees, asset.broadsideOffsetDegrees);
     assert.equal(manifest.view.cameraElevationDegrees, asset.cameraElevationDegrees);
-    assert.equal(entry.file.endsWith(asset.src), true);
-    assert.equal(entry.foregroundFile.endsWith(asset.foregroundSrc), true);
-    assert.equal(entry.depthFile.endsWith(asset.depthSrc), true);
-    assert.equal(entry.sinkDepthFile.endsWith(asset.sinkDepthSrc), true);
+    for (const obsoleteField of ["file", "foregroundFile", "depthFile", "sinkDepthFile"]) {
+      assert.equal(Object.hasOwn(entry, obsoleteField), false, `${entry.slug} ${obsoleteField}`);
+    }
     assert.equal(entry.label, shipLabelForSlug(entry.slug));
     assert.equal(asset.label, shipLabelForSlug(entry.slug));
     assert.equal(entry.cityDockside.nativeScale, 3);
     assert.equal(entry.cityDockside.width, manifest.width * entry.cityDockside.nativeScale);
     assert.equal(entry.cityDockside.height, manifest.height * entry.cityDockside.nativeScale);
+    assert.equal(entry.cityDockside.file.endsWith(asset.src), true);
+    assert.equal(entry.cityDockside.foregroundFile.endsWith(asset.foregroundSrc), true);
+    assert.equal(entry.cityDockside.depthFile.endsWith(asset.depthSrc), true);
+    assert.equal(entry.cityDockside.sinkDepthFile.endsWith(asset.sinkDepthSrc), true);
     assert.match(entry.cityDockside.file, new RegExp(`${entry.slug}-city-dockside\\.png$`));
     assert.match(
       entry.cityDockside.sinkDepthFile,
@@ -117,42 +128,39 @@ test("every production hull has matching port-assault geometry and manifest meta
       assert.ok(Number.isFinite(waterShadow.shadowWaterlineY));
       await access(join(appRoot, "..", "..", waterShadow.file));
     }
-    for (const cleanup of [entry.rasterCleanup, entry.cityDockside.rasterCleanup]) {
-      assert.ok(Number.isInteger(cleanup.minimumComponentPixels));
-      assert.ok(Number.isInteger(cleanup.removedComponents));
-      assert.ok(Number.isInteger(cleanup.removedPixels));
-    }
+    const cleanup = entry.cityDockside.rasterCleanup;
+    assert.ok(Number.isInteger(cleanup.minimumComponentPixels));
+    assert.ok(Number.isInteger(cleanup.removedComponents));
+    assert.ok(Number.isInteger(cleanup.removedPixels));
     if (entry.slug === "galleass") {
-      assert.deepEqual(entry.rasterCleanup, {
-        minimumComponentPixels: 2,
-        removedComponents: 3,
-        removedPixels: 3
-      });
       assert.deepEqual(entry.cityDockside.rasterCleanup, {
         minimumComponentPixels: 12,
         removedComponents: 8,
         removedPixels: 49
       });
     } else {
-      assert.equal(entry.rasterCleanup.removedPixels, 0);
       assert.equal(entry.cityDockside.rasterCleanup.removedPixels, 0);
     }
-    for (const colorCleanup of [entry.colorCleanup, entry.cityDockside.colorCleanup]) {
-      if (artDirectedDetailedSlugs.has(entry.slug)) {
-        assert.ok(colorCleanup);
-        assert.equal(colorCleanup.minimumRegionPixelsAtCityScale, 12);
-        assert.ok(colorCleanup.minimumRegionPixels >= 2);
-        assert.ok(colorCleanup.completedPasses >= 1);
-        assert.ok(colorCleanup.completedPasses <= colorCleanup.requestedPasses);
-        assert.ok(colorCleanup.recoloredRegions >= 0);
-        assert.ok(colorCleanup.recoloredPixels >= 0);
-      } else {
-        assert.equal(colorCleanup, null);
-      }
+    const colorCleanup = entry.cityDockside.colorCleanup;
+    assert.ok(colorCleanup);
+    assert.equal(colorCleanup.minimumRegionPixelsAtCityScale, 12);
+    assert.ok(colorCleanup.minimumRegionPixels >= 2);
+    assert.ok(colorCleanup.completedPasses >= 1);
+    assert.ok(colorCleanup.completedPasses <= colorCleanup.requestedPasses);
+    assert.ok(colorCleanup.recoloredRegions >= 0);
+    assert.ok(colorCleanup.recoloredPixels >= 0);
+    for (const file of [
+      entry.cityDockside.file,
+      entry.cityDockside.foregroundFile,
+      entry.cityDockside.depthFile,
+      entry.cityDockside.sinkDepthFile
+    ]) {
+      await access(join(appRoot, "..", "..", file));
     }
-    await access(join(appRoot, "..", "..", entry.cityDockside.file));
-    await access(join(appRoot, "..", "..", entry.cityDockside.sinkDepthFile));
-    assert.ok(entry.opaquePixels > 100, `${entry.slug} retains a readable silhouette`);
+    assert.ok(
+      entry.cityDockside.opaquePixels > 900,
+      `${entry.slug} retains a readable native-scale silhouette`
+    );
     assert.ok(Number.isInteger(entry.dockRig.removedOpenSailTriangles));
     assert.ok(Number.isInteger(entry.dockRig.removedDeployedRigTriangles));
     assert.ok(Number.isInteger(entry.dockRig.generatedStackedBattenTriangles));
@@ -196,8 +204,30 @@ test("every production hull has matching port-assault geometry and manifest meta
       entry.sailorSpawnAnchor
     ];
     assert.ok(geometryPoints.every(({ x, y }) => (
+      x >= 0 && x < asset.logicalWidth && y >= 0 && y < asset.logicalHeight
+    )), `${entry.slug} deck geometry stays inside its logical frame`);
+    const nativeGeometryPoints = [
+      ...entry.cityDockside.deckPolygon,
+      entry.cityDockside.deckEntryAnchor,
+      entry.cityDockside.sailorSpawnAnchor
+    ];
+    assert.ok(nativeGeometryPoints.every(({ x, y }) => (
       x >= 0 && x < asset.width && y >= 0 && y < asset.height
-    )), `${entry.slug} deck geometry stays inside its native frame`);
+    )), `${entry.slug} deck geometry stays inside its native 3x frame`);
+  }
+});
+
+test("the generator emits no abandoned 1x dockside raster family", async () => {
+  const files = new Set(await readdir(assetRoot));
+  for (const { slug } of SHIP_STATS) {
+    for (const suffix of [
+      "-dockside.png",
+      "-dockside-foreground.png",
+      "-dockside-depth.png",
+      "-dockside-sink-depth.png"
+    ]) {
+      assert.equal(files.has(`${slug}${suffix}`), false, `${slug}${suffix}`);
+    }
   }
 });
 
@@ -259,45 +289,29 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
     assert.equal(depthOpaque, baseOpaque, `${slug} depth map covers the complete ship`);
     assert.equal(minDepth, 1, `${slug} depth map reaches its far value`);
     assert.equal(maxDepth, 255, `${slug} depth map reaches its near value`);
-    assert.equal(submergedPixels, entry.submergedPixels, `${slug} submerged pixel metadata`);
+    assert.equal(baseOpaque, entry.cityDockside.opaquePixels, `${slug} opaque pixel metadata`);
+    assert.equal(
+      foregroundOpaque,
+      entry.cityDockside.foregroundOpaquePixels,
+      `${slug} foreground pixel metadata`
+    );
+    assert.equal(
+      submergedPixels,
+      entry.cityDockside.submergedPixels,
+      `${slug} submerged pixel metadata`
+    );
     assert.ok(abovePixels > 0, `${slug} sink-depth map crosses above its waterline`);
 
-    const cityBase = await loadImage(join(appRoot, "..", "..", entry.cityDockside.file));
-    const citySinkDepth = await loadImage(
-      join(appRoot, "..", "..", entry.cityDockside.sinkDepthFile)
-    );
     const cityWaterShadows = Object.fromEntries(await Promise.all(
       Object.entries(entry.cityDockside.waterShadows).map(async ([bobState, waterShadow]) => [
         bobState,
         await loadImage(join(appRoot, "..", "..", waterShadow.file))
       ])
     ));
-    assert.equal(cityBase.width, entry.cityDockside.width);
-    assert.equal(cityBase.height, entry.cityDockside.height);
-    assert.equal(citySinkDepth.width, entry.cityDockside.width);
-    assert.equal(citySinkDepth.height, entry.cityDockside.height);
     for (const shadow of Object.values(cityWaterShadows)) {
       assert.equal(shadow.width, entry.cityDockside.width);
       assert.equal(shadow.height, entry.cityDockside.height);
     }
-    const cityPixels = imagePixels(cityBase);
-    const citySinkPixels = imagePixels(citySinkDepth);
-    let cityOpaque = 0;
-    for (let offset = 0; offset < cityPixels.length; offset += 4) {
-      const alpha = cityPixels[offset + 3];
-      assert.ok(alpha === 0 || alpha === 255, `${slug} city raster partial alpha at ${offset / 4}`);
-      if (alpha === 0) continue;
-      const hex = [cityPixels[offset], cityPixels[offset + 1], cityPixels[offset + 2]]
-        .map((value) => value.toString(16).padStart(2, "0"))
-        .join("");
-      assert.ok(palette.has(hex), `${slug} city raster has non-Resurrect color #${hex}`);
-      assert.equal(citySinkPixels[offset + 3], 255);
-      assert.equal(citySinkPixels[offset], citySinkPixels[offset + 1]);
-      assert.equal(citySinkPixels[offset], citySinkPixels[offset + 2]);
-      cityOpaque++;
-    }
-    assert.equal(cityOpaque, entry.cityDockside.opaquePixels);
-    assert.ok(cityOpaque > baseOpaque * 5, `${slug} city raster preserves native 3x detail`);
     const shadowPixelsByBob = Object.fromEntries(Object.entries(cityWaterShadows).map(
       ([bobState, shadow]) => [bobState, imagePixels(shadow)]
     ));
@@ -313,7 +327,7 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
         shadowOpaque++;
       }
       assert.equal(
-        enclosedTransparentPixelCount(shadowPixels, cityBase.width, cityBase.height),
+        enclosedTransparentPixelCount(shadowPixels, base.width, base.height),
         0,
         `${slug} ${bobState} shadow has no one-pixel pinholes`
       );
@@ -326,10 +340,6 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
     );
     if (slug === "galleass") {
       assert.deepEqual(opaqueComponentSizes(basePixels, base.width, base.height), [baseOpaque]);
-      assert.deepEqual(
-        opaqueComponentSizes(cityPixels, cityBase.width, cityBase.height),
-        [cityOpaque]
-      );
     }
   }
 });
@@ -337,6 +347,13 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
 test("port-assault ship lookup fails loudly for an unbaked hull", () => {
   assert.throws(() => portAssaultShipAsset("unregistered-hull"), /No port-assault ship asset/);
 });
+
+function logicalPoint(point, nativeScale) {
+  return {
+    x: Math.round(point.x / nativeScale),
+    y: Math.round(point.y / nativeScale)
+  };
+}
 
 function imagePixels(image) {
   const canvas = createCanvas(image.width, image.height);

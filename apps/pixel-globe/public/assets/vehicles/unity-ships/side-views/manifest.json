@@ -8,7 +8,7 @@
     {
       "slug": "fishing-lugger",
       "label": "Fishing Barque",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/boats/boat 1.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/boats/boat 1.fbx",
       "sourceMaxDim": 831.0967,
       "targetModelMaxDim": 0.9096,
       "width": 192,
@@ -22,7 +22,7 @@
     {
       "slug": "small-cog",
       "label": "Small Cog",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/boats/boat 3.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/boats/boat 3.fbx",
       "sourceMaxDim": 645.6119,
       "targetModelMaxDim": 1.3,
       "width": 192,
@@ -36,7 +36,7 @@
     {
       "slug": "sampan",
       "label": "Sampan",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/boats/chinese boat.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/boats/chinese boat.fbx",
       "sourceMaxDim": 857.9191,
       "targetModelMaxDim": 0.9242,
       "width": 192,
@@ -50,7 +50,7 @@
     {
       "slug": "large-junk",
       "label": "Large Junk",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships large/chinese ship large.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships large/chinese ship large.fbx",
       "sourceMaxDim": 3252.2148,
       "targetModelMaxDim": 1.7994,
       "width": 192,
@@ -64,7 +64,7 @@
     {
       "slug": "pirate-brig",
       "label": "Heavy Caravel",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships large/pirate ship large 1.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships large/pirate ship large 1.fbx",
       "sourceMaxDim": 3234.0896,
       "targetModelMaxDim": 1.7944,
       "width": 192,
@@ -78,7 +78,7 @@
     {
       "slug": "fluyt",
       "label": "Urca",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships large/ship large 3.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships large/ship large 3.fbx",
       "sourceMaxDim": 5137.2568,
       "targetModelMaxDim": 2.2616,
       "width": 192,
@@ -92,7 +92,7 @@
     {
       "slug": "carrack",
       "label": "Carrack",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships large/ship large 4.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships large/ship large 4.fbx",
       "sourceMaxDim": 4324.8892,
       "targetModelMaxDim": 2.0751,
       "width": 192,
@@ -106,7 +106,7 @@
     {
       "slug": "ship-of-the-line",
       "label": "Great Carrack",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships large/ship large 5.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships large/ship large 5.fbx",
       "sourceMaxDim": 5313.3955,
       "targetModelMaxDim": 2.3,
       "width": 192,
@@ -120,7 +120,7 @@
     {
       "slug": "medium-junk",
       "label": "Medium Junk",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/chinese ship medium.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships medium/chinese ship medium.fbx",
       "sourceMaxDim": 2870.6094,
       "targetModelMaxDim": 1.6906,
       "width": 192,
@@ -134,7 +134,7 @@
     {
       "slug": "xebec",
       "label": "Xebec",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 1.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 1.fbx",
       "sourceMaxDim": 3954.8806,
       "targetModelMaxDim": 1.9843,
       "width": 192,
@@ -148,7 +148,7 @@
     {
       "slug": "caravel",
       "label": "Caravel",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 2.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 2.fbx",
       "sourceMaxDim": 3621.5095,
       "targetModelMaxDim": 1.8988,
       "width": 192,
@@ -162,7 +162,7 @@
     {
       "slug": "holk",
       "label": "Holk",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 3.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 3.fbx",
       "sourceMaxDim": 3190.7581,
       "targetModelMaxDim": 1.6,
       "width": 192,
@@ -176,7 +176,7 @@
     {
       "slug": "square-rigged-caravel",
       "label": "Square-Rigged Caravel",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 4.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 4.fbx",
       "sourceMaxDim": 2620.5049,
       "targetModelMaxDim": 1.6152,
       "width": 192,
@@ -190,7 +190,7 @@
     {
       "slug": "brigantine",
       "label": "Brigantine",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 5.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships medium/ship medium 5.fbx",
       "sourceMaxDim": 3148.0386,
       "targetModelMaxDim": 1.7704,
       "width": 192,
@@ -204,7 +204,7 @@
     {
       "slug": "small-junk",
       "label": "Small Junk",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/chinese ship small.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships small/chinese ship small.fbx",
       "sourceMaxDim": 2058.6396,
       "targetModelMaxDim": 1.4316,
       "width": 192,
@@ -218,7 +218,7 @@
     {
       "slug": "felucca",
       "label": "Felucca",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 2.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 2.fbx",
       "sourceMaxDim": 1609.0532,
       "targetModelMaxDim": 0.98,
       "width": 192,
@@ -232,7 +232,7 @@
     {
       "slug": "cutter",
       "label": "Coastal Pinnace",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 3.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 3.fbx",
       "sourceMaxDim": 1941.4077,
       "targetModelMaxDim": 1.2,
       "width": 192,
@@ -246,7 +246,7 @@
     {
       "slug": "ketch",
       "label": "Lateen Barque",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 5.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 5.fbx",
       "sourceMaxDim": 2970.9222,
       "targetModelMaxDim": 1.7198,
       "width": 192,
@@ -260,7 +260,7 @@
     {
       "slug": "javanese-jong",
       "label": "Javanese Jong",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 7.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/ships small/ship small 7.fbx",
       "sourceMaxDim": 2617.5764,
       "targetModelMaxDim": 2.15,
       "width": 192,
@@ -274,7 +274,7 @@
     {
       "slug": "polynesian-voyaging-canoe",
       "label": "Polynesian Voyaging Canoe",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/polynesian-voyaging-canoe/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/polynesian-voyaging-canoe/scene.gltf",
       "sourceMaxDim": 13.4873,
       "targetModelMaxDim": 2.25,
       "width": 192,
@@ -288,7 +288,7 @@
     {
       "slug": "mesoamerican-dugout-canoe",
       "label": "Dugout Canoe",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mesoamerican-dugout-canoe/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/mesoamerican-dugout-canoe/scene.gltf",
       "sourceMaxDim": 9.1055,
       "targetModelMaxDim": 1.85,
       "width": 192,
@@ -302,7 +302,7 @@
     {
       "slug": "mediterranean-galley",
       "label": "Mediterranean Galley",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/mediterranean-galley/scene.gltf",
       "sourceMaxDim": 4604.1799,
       "targetModelMaxDim": 1.615,
       "width": 192,
@@ -316,7 +316,7 @@
     {
       "slug": "fusta",
       "label": "Fusta",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/mediterranean-galley/scene.gltf",
       "sourceMaxDim": 4604.1799,
       "targetModelMaxDim": 1.292,
       "width": 192,
@@ -330,7 +330,7 @@
     {
       "slug": "galleass",
       "label": "Galleass",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/mediterranean-galley/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/mediterranean-galley/scene.gltf",
       "sourceMaxDim": 4604.1799,
       "targetModelMaxDim": 1.9475,
       "width": 192,
@@ -344,7 +344,7 @@
     {
       "slug": "joseon-turtle-ship",
       "label": "Turtle Ship",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/joseon-turtle-ship/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/joseon-turtle-ship/scene.gltf",
       "sourceMaxDim": 1.5561,
       "targetModelMaxDim": 2.05,
       "width": 192,
@@ -358,7 +358,7 @@
     {
       "slug": "joseon-hyeopseon",
       "label": "Hyeopseon",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/joseon-panokseon/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/joseon-panokseon/scene.gltf",
       "sourceMaxDim": 23.1451,
       "targetModelMaxDim": 1.54,
       "width": 192,
@@ -372,7 +372,7 @@
     {
       "slug": "joseon-panokseon",
       "label": "Panokseon",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/joseon-panokseon/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/joseon-panokseon/scene.gltf",
       "sourceMaxDim": 23.1451,
       "targetModelMaxDim": 2.05,
       "width": 192,
@@ -386,8 +386,8 @@
     {
       "slug": "japanese-kuribune",
       "label": "Umi-bune",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/kamakura-umi-bune/scene.gltf",
-      "sourceMaxDim": 449.2172,
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/kamakura-umi-bune/scene.gltf",
+      "sourceMaxDim": 368.1212,
       "targetModelMaxDim": 1.38,
       "width": 192,
       "height": 104,
@@ -400,7 +400,7 @@
     {
       "slug": "japanese-kobaya",
       "label": "Kobaya",
-      "sourceModel": "apps/pixel-globe/source-models/booth/hirokazu-kobayashi-kobaya/kobaya-v1.2.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/booth/hirokazu-kobayashi-kobaya/kobaya-v1.2.fbx",
       "sourceMaxDim": 2200.8705,
       "targetModelMaxDim": 1.56,
       "width": 192,
@@ -414,7 +414,7 @@
     {
       "slug": "japanese-sekibune",
       "label": "Sekibune",
-      "sourceModel": "apps/pixel-globe/source-models/booth/hirokazu-kobayashi-sekibune/sekibune-v1.2.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/booth/hirokazu-kobayashi-sekibune/sekibune-v1.2.fbx",
       "sourceMaxDim": 5626.7821,
       "targetModelMaxDim": 1.82,
       "width": 192,
@@ -428,7 +428,7 @@
     {
       "slug": "japanese-atakebune",
       "label": "Atakebune",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/atakebune-japanese-warship/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/atakebune-japanese-warship/scene.gltf",
       "sourceMaxDim": 54.1264,
       "targetModelMaxDim": 2.08,
       "width": 192,
@@ -442,7 +442,7 @@
     {
       "slug": "spanish-nao",
       "label": "Spanish Nao",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/nao-victoria/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/nao-victoria/scene.gltf",
       "sourceMaxDim": 42.0511,
       "targetModelMaxDim": 2,
       "width": 192,
@@ -456,7 +456,7 @@
     {
       "slug": "portuguese-carrack",
       "label": "Portuguese Carrack",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/portuguese-carrack/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/portuguese-carrack/scene.gltf",
       "sourceMaxDim": 12.1376,
       "targetModelMaxDim": 2.1,
       "width": 192,
@@ -470,7 +470,7 @@
     {
       "slug": "dhow",
       "label": "Dhow",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/dhow-gogiart/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/dhow-gogiart/scene.gltf",
       "sourceMaxDim": 5.9955,
       "targetModelMaxDim": 0.95,
       "width": 192,
@@ -484,8 +484,8 @@
     {
       "slug": "ocean-dhow",
       "label": "Ocean Dhow",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/low-poly-ancient-dhow-ship/scene.gltf",
-      "sourceMaxDim": 5.2234,
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/low-poly-ancient-dhow-ship/scene.gltf",
+      "sourceMaxDim": 5.2305,
       "targetModelMaxDim": 1.72,
       "width": 192,
       "height": 104,
@@ -498,8 +498,8 @@
     {
       "slug": "galleon",
       "label": "Galleon",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/cyc3w-sailing-ship/scene.gltf",
-      "sourceMaxDim": 1.8555,
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/cyc3w-sailing-ship/scene.gltf",
+      "sourceMaxDim": 1.7144,
       "targetModelMaxDim": 2.1,
       "width": 192,
       "height": 104,
@@ -512,7 +512,7 @@
     {
       "slug": "nusantaran-outrigger",
       "label": "Nusantaran Outrigger",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/borobudur-sriwijaya/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/borobudur-sriwijaya/scene.gltf",
       "sourceMaxDim": 39.5996,
       "targetModelMaxDim": 1.85,
       "width": 192,
@@ -526,7 +526,7 @@
     {
       "slug": "kelulus",
       "label": "Kelulus",
-      "sourceModel": "apps/pixel-globe/source-models/procedural/kelulus/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/procedural/kelulus/scene.gltf",
       "sourceMaxDim": 5.4404,
       "targetModelMaxDim": 1.68,
       "width": 192,
@@ -540,7 +540,7 @@
     {
       "slug": "penjajap",
       "label": "Penjajap",
-      "sourceModel": "apps/pixel-globe/source-models/procedural/penjajap/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/procedural/penjajap/scene.gltf",
       "sourceMaxDim": 7.6844,
       "targetModelMaxDim": 1.74,
       "width": 192,
@@ -554,7 +554,7 @@
     {
       "slug": "lancaran",
       "label": "Lancaran",
-      "sourceModel": "apps/pixel-globe/source-models/procedural/lancaran/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/procedural/lancaran/scene.gltf",
       "sourceMaxDim": 8.9162,
       "targetModelMaxDim": 1.74,
       "width": 192,
@@ -568,7 +568,7 @@
     {
       "slug": "royal-lancaran",
       "label": "Royal Lancaran",
-      "sourceModel": "apps/pixel-globe/source-models/procedural/royal-lancaran/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/procedural/royal-lancaran/scene.gltf",
       "sourceMaxDim": 10.0965,
       "targetModelMaxDim": 1.78,
       "width": 192,
@@ -582,7 +582,7 @@
     {
       "slug": "ottoman-coastal-trader",
       "label": "Kancabash",
-      "sourceModel": "apps/pixel-globe/source-models/sketchfab/ottoman-coastal-trader/scene.gltf",
+      "sourceModel": "../polyglobe-ship-source-assets/sketchfab/ottoman-coastal-trader/scene.gltf",
       "sourceMaxDim": 7.385,
       "targetModelMaxDim": 2,
       "width": 192,
@@ -596,7 +596,7 @@
     {
       "slug": "viking-longship",
       "label": "Viking Longship",
-      "sourceModel": "apps/pixel-globe/source-models/unity/low-poly-cartoon-sailing-ships/Models/viking ships/viking ship 1.fbx",
+      "sourceModel": "../polyglobe-ship-source-assets/unity/low-poly-cartoon-sailing-ships/Models/viking ships/viking ship 1.fbx",
       "sourceMaxDim": 1872.1716,
       "targetModelMaxDim": 1.8,
       "width": 192,
@@ -607,26 +607,5 @@
       "license": "Standard Unity Asset Store EULA",
       "sourceTitle": "Low Poly Cartoon Sailing Ships"
     }
-  ],
-  "nativeBoatGenerator": "tools/render-sail-ship-sprites.mjs --native-boats",
-  "mediterraneanGalleyGenerator": "tools/render-sail-ship-sprites.mjs --mediterranean-galley",
-  "fustaGenerator": "tools/render-sail-ship-sprites.mjs --fusta",
-  "galleassGenerator": "tools/render-sail-ship-sprites.mjs --galleass",
-  "joseonTurtleShipGenerator": "tools/render-sail-ship-sprites.mjs --joseon-turtle-ship",
-  "joseonHyeopseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-hyeopseon",
-  "joseonPanokseonGenerator": "tools/render-sail-ship-sprites.mjs --joseon-panokseon",
-  "japaneseKuribuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kuribune",
-  "japaneseKobayaGenerator": "tools/render-sail-ship-sprites.mjs --japanese-kobaya",
-  "japaneseSekibuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-sekibune",
-  "japaneseAtakebuneGenerator": "tools/render-sail-ship-sprites.mjs --japanese-atakebune",
-  "spanishNaoGenerator": "tools/render-sail-ship-sprites.mjs --spanish-nao",
-  "portugueseCarrackGenerator": "tools/render-sail-ship-sprites.mjs --portuguese-carrack",
-  "gogiartDhowGenerator": "tools/render-sail-ship-sprites.mjs --gogiart-dhow",
-  "oceanDhowGenerator": "tools/render-sail-ship-sprites.mjs --ocean-dhow",
-  "cyc3wGalleonGenerator": "tools/render-sail-ship-sprites.mjs --cyc3w-galleon",
-  "nusantaranOutriggerGenerator": "tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
-  "kelulusGenerator": "tools/render-sail-ship-sprites.mjs --kelulus",
-  "malayWarshipGenerator": "tools/render-sail-ship-sprites.mjs --malay-warships",
-  "ottomanCoastalTraderGenerator": "tools/render-sail-ship-sprites.mjs --ottoman-coastal-trader",
-  "vikingLongshipGenerator": "tools/render-sail-ship-sprites.mjs --viking-longship"
+  ]
 }

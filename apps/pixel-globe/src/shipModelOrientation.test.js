@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   createShipModelBasisOrientation,
+  orientBorobudurOutriggerToCanonical,
   orientCyc3wGalleonToCanonical,
   orientNegativeXForwardYUpToZForward,
   orientPositiveXForwardToZForward,
@@ -66,6 +67,37 @@ test("the imported galleon bow, deck, and starboard axes map canonically", () =>
   assert.ok(Math.abs(forward.x) < 1e-12);
   assert.ok(Math.abs(forward.y) < 1e-12);
   assert.ok(Math.abs(forward.z - 1) < 1e-12);
+  assert.ok(Math.abs(right.x - 1) < 1e-12);
+  assert.ok(Math.abs(right.y) < 1e-12);
+  assert.ok(Math.abs(right.z) < 1e-12);
+  assert.deepEqual(up, { x: 0, y: 1, z: 0 });
+});
+
+test("the Borobudur keel and outrigger floats share one canonical forward axis", () => {
+  const importedForward = {
+    x: -0.944367049318027,
+    y: 0,
+    z: 0.328893411552076
+  };
+  const importedRight = {
+    x: 0.32889341155206975,
+    y: 0,
+    z: 0.9443670493180092
+  };
+  const forward = orientBorobudurOutriggerToCanonical(importedForward);
+  const floatForward = orientBorobudurOutriggerToCanonical({
+    x: importedForward.x * 4,
+    y: importedForward.y * 4,
+    z: importedForward.z * 4
+  });
+  const right = orientBorobudurOutriggerToCanonical(importedRight);
+  const up = orientBorobudurOutriggerToCanonical({ x: 0, y: 1, z: 0 });
+
+  assert.ok(Math.abs(forward.x) < 1e-12);
+  assert.ok(Math.abs(forward.y) < 1e-12);
+  assert.ok(Math.abs(forward.z - 1) < 1e-12);
+  assert.ok(Math.abs(floatForward.x) < 1e-12);
+  assert.ok(Math.abs(floatForward.z - 4) < 1e-12);
   assert.ok(Math.abs(right.x - 1) < 1e-12);
   assert.ok(Math.abs(right.y) < 1e-12);
   assert.ok(Math.abs(right.z) < 1e-12);
