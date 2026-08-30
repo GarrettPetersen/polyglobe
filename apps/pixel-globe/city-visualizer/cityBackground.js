@@ -20,7 +20,7 @@ export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
 export const BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL = 1 / 32;
 export const BACKGROUND_CITY_FOUNDATION_TOLERANCE = 3;
 export const BACKGROUND_CITY_NEAR_SCALE = 0.5;
-export const BACKGROUND_CITY_FAR_SCALE = 0.17;
+export const BACKGROUND_CITY_FAR_SCALE = 0.32;
 
 export const BACKGROUND_CITY_POINT_SPACING_X = 30;
 export const BACKGROUND_CITY_POINT_SPACING_Y = 7;
@@ -632,6 +632,18 @@ export function cityBackgroundFoundationPerspective({ foundationY, shorelineY, s
   return Math.max(0, Math.min(1, (shorelineY - foundationY) / (shorelineY - slopeY)));
 }
 
+export function cityBackgroundVisualPerspective({ foundationY, nearY, farY }) {
+  if (
+    ![foundationY, nearY, farY].every(Number.isFinite) ||
+    nearY <= farY
+  ) {
+    throw new Error(
+      `Invalid background city visual perspective: ${foundationY} in ${farY}–${nearY}`
+    );
+  }
+  return Math.max(0, Math.min(1, (nearY - foundationY) / (nearY - farY)));
+}
+
 export function cityBackgroundScaleForPerspective(perspective) {
   if (!Number.isFinite(perspective) || perspective < 0 || perspective > 1) {
     throw new Error(`Invalid background city scale perspective: ${perspective}`);
@@ -780,6 +792,12 @@ function cityBackgroundGeometryAtX({
 }) {
   if (!Number.isFinite(x) || (!groundOnRibbon && !Number.isFinite(foundationY))) return null;
   x = Math.round(x);
+  const visualNearY = maximumValue(baseTopYByX, 0, baseTopYByX.length);
+  const visualFarY = cityBackgroundFoundationTargetY(
+    baseLeft,
+    foundationAnchorY,
+    baseRight - 1
+  );
   let scale = groundOnRibbon
     ? BACKGROUND_CITY_NEAR_SCALE
     : cityBackgroundScaleForPerspective(0.5);
@@ -805,10 +823,10 @@ function cityBackgroundGeometryAtX({
       ? shorelineTopY
       : Math.max(slopeY, Math.min(shorelineTopY, Math.round(foundationY)));
     const wallBottomY = sampledWallBottomY;
-    const perspective = cityBackgroundFoundationPerspective({
+    const perspective = cityBackgroundVisualPerspective({
       foundationY: wallBottomY,
-      shorelineY: shorelineTopY,
-      slopeY
+      nearY: visualNearY,
+      farY: visualFarY
     });
     const nextScale = cityBackgroundScaleForPerspective(perspective);
     geometry = {
@@ -1191,6 +1209,15 @@ function minimumValue(values, start, end) {
   let minimum = Number.POSITIVE_INFINITY;
   for (let index = start; index < end; index++) minimum = Math.min(minimum, values[index]);
   return minimum;
+}
+
+function maximumValue(values, start, end) {
+  if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end > values.length || start >= end) {
+    throw new Error(`Invalid background city ribbon span: ${start}–${end}`);
+  }
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (let index = start; index < end; index++) maximum = Math.max(maximum, values[index]);
+  return maximum;
 }
 
 function roundTo(value, decimalPlaces) {

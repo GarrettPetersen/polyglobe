@@ -30,6 +30,7 @@ import {
   cityBackgroundPainterOrder,
   cityBackgroundRowCount,
   cityBackgroundScaleForPerspective,
+  cityBackgroundVisualPerspective,
   cityBackgroundStreetRows,
   mirrorCityBackgroundStreetRows,
   oppositeBankCityBackgroundLayout
@@ -119,10 +120,21 @@ test("buildings use bottom-left anchors, grow rightward, and seed the ribbon edg
 
 test("each anchor's Y independently controls scale, palette shift, parallax, and painter depth", () => {
   const buildings = allBuildings(layout({ baseTopYByX: FALLING_BASE_TOP }));
+  const visualNearY = Math.max(...FALLING_BASE_TOP);
+  const visualFarY = cityBackgroundFoundationTargetY(
+    BASE_LEFT,
+    FALLING_BASE_TOP[0],
+    BASE_RIGHT - 1
+  );
   assert.ok(buildings.some((building) => building.scale === BACKGROUND_CITY_NEAR_SCALE));
   assert.ok(buildings.some((building) => building.scale === BACKGROUND_CITY_FAR_SCALE));
   assert.ok(new Set(buildings.map((building) => building.scale)).size > 8);
   assert.ok(buildings.every((building) => (
+    building.perspective === cityBackgroundVisualPerspective({
+      foundationY: building.wallBottomY,
+      nearY: visualNearY,
+      farY: visualFarY
+    }) &&
     building.scale === cityBackgroundScaleForPerspective(building.perspective) &&
     building.depth === cityBackgroundDepthForPerspective(building.perspective) &&
     building.atmosphereLevel ===
@@ -133,6 +145,28 @@ test("each anchor's Y independently controls scale, palette shift, parallax, and
   assert.ok(near.scale > far.scale);
   assert.ok(near.depth > far.depth);
   assert.ok(near.atmosphereLevel < far.atmosphereLevel);
+});
+
+test("the high left ribbon house receives perspective without scale canceling the city rise", () => {
+  const buildings = allBuildings(layout({ baseTopYByX: FALLING_BASE_TOP }));
+  const first = buildings.reduce((leftmost, building) => (
+    building.x < leftmost.x ? building : leftmost
+  ));
+  assert.equal(first.x, CITY_LEFT);
+  assert.ok(first.perspective > 0.5);
+  assert.ok(first.scale < BACKGROUND_CITY_NEAR_SCALE);
+
+  const visualNearY = Math.max(...FALLING_BASE_TOP);
+  const visualFarY = cityBackgroundFoundationTargetY(
+    BASE_LEFT,
+    FALLING_BASE_TOP[0],
+    BASE_RIGHT - 1
+  );
+  const homeWallHeight = BUILDING_SIZES.Home[1] - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT;
+  const heightLostToPerspective = Math.round(
+    homeWallHeight * (BACKGROUND_CITY_NEAR_SCALE - BACKGROUND_CITY_FAR_SCALE)
+  );
+  assert.ok(heightLostToPerspective < (visualNearY - visualFarY) / 2);
 });
 
 test("only the scaled foundation of ribbon-edge buildings is buried", () => {
