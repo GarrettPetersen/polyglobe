@@ -109,6 +109,7 @@
           "height": 120
         },
         "opaquePixels": 3051,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 489,
@@ -256,6 +257,7 @@
           "height": 219
         },
         "opaquePixels": 10355,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 469,
@@ -403,6 +405,7 @@
           "height": 242
         },
         "opaquePixels": 12611,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 479,
@@ -550,6 +553,7 @@
           "height": 153
         },
         "opaquePixels": 3848,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 488,
@@ -697,6 +701,7 @@
           "height": 360
         },
         "opaquePixels": 16411,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 503,
@@ -810,7 +815,7 @@
               "width": 139,
               "height": 63
             },
-            "opaquePixels": 3737,
+            "opaquePixels": 3243,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.420573
           },
@@ -822,7 +827,7 @@
               "width": 139,
               "height": 63
             },
-            "opaquePixels": 3734,
+            "opaquePixels": 3245,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.415201
           },
@@ -834,7 +839,7 @@
               "width": 139,
               "height": 63
             },
-            "opaquePixels": 3724,
+            "opaquePixels": 3232,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.409828
           }
@@ -846,7 +851,8 @@
           "width": 81,
           "height": 206
         },
-        "opaquePixels": 5452,
+        "opaquePixels": 4595,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 488,
@@ -873,7 +879,7 @@
           "x": 519,
           "y": 404
         },
-        "foregroundOpaquePixels": 4179,
+        "foregroundOpaquePixels": 3374,
         "sinkHeightMin": -0.454482,
         "sinkHeightMax": 0.470219,
         "encodedWaterlineY": -0.415201,
@@ -889,22 +895,22 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 92,
-          "recoloredPixels": 333
+          "recoloredRegions": 105,
+          "recoloredPixels": 406
         },
         "creaseShading": null
       },
       "dockRig": {
-        "state": "furled",
+        "state": "lowered",
         "selectorType": "topology-components",
-        "removedRigSelectorType": null,
-        "bundleMode": "furled",
+        "removedRigSelectorType": "topology-components",
+        "bundleMode": "junk-lowered",
         "removedOpenSailTriangles": 44,
-        "removedDeployedRigTriangles": 0,
+        "removedDeployedRigTriangles": 60,
         "sourceSailComponents": 1,
         "furledBundles": 1,
         "generatedFurledTriangles": 120,
-        "generatedStackedBattenTriangles": 0
+        "generatedStackedBattenTriangles": 120
       }
     },
     {
@@ -994,6 +1000,7 @@
           "height": 333
         },
         "opaquePixels": 15722,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 498,
@@ -1141,6 +1148,7 @@
           "height": 321
         },
         "opaquePixels": 16695,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 499,
@@ -1288,6 +1296,7 @@
           "height": 356
         },
         "opaquePixels": 23991,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 485,
@@ -1435,6 +1444,7 @@
           "height": 340
         },
         "opaquePixels": 21902,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 503,
@@ -1582,6 +1592,7 @@
           "height": 311
         },
         "opaquePixels": 19986,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 502,
@@ -1729,6 +1740,7 @@
           "height": 333
         },
         "opaquePixels": 20996,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 487,
@@ -1876,6 +1888,7 @@
           "height": 328
         },
         "opaquePixels": 20580,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 500,
@@ -2023,6 +2036,7 @@
           "height": 325
         },
         "opaquePixels": 15367,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 494,
@@ -2170,6 +2184,7 @@
           "height": 308
         },
         "opaquePixels": 15257,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 504,
@@ -2317,6 +2332,7 @@
           "height": 332
         },
         "opaquePixels": 13091,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 505,
@@ -2464,6 +2480,7 @@
           "height": 332
         },
         "opaquePixels": 19464,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 472,
@@ -2611,6 +2628,7 @@
           "height": 315
         },
         "opaquePixels": 21156,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 486,
@@ -2758,6 +2776,7 @@
           "height": 278
         },
         "opaquePixels": 10881,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 494,
@@ -2827,28 +2846,28 @@
       "targetModelMaxDim": 0.9996,
       "deckPolygon": [
         {
-          "x": 155,
-          "y": 130
+          "x": 162,
+          "y": 131
         },
         {
-          "x": 147,
-          "y": 139
+          "x": 154,
+          "y": 140
         },
         {
-          "x": 165,
+          "x": 160,
           "y": 141
         },
         {
-          "x": 174,
+          "x": 169,
           "y": 132
         }
       ],
       "deckEntryAnchor": {
-        "x": 170,
+        "x": 167,
         "y": 132
       },
       "sailorSpawnAnchor": {
-        "x": 182,
+        "x": 173,
         "y": 133
       },
       "cityDockside": {
@@ -2863,80 +2882,81 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 326,
-              "minY": 366,
-              "width": 197,
-              "height": 90
+              "minX": 385,
+              "minY": 398,
+              "width": 133,
+              "height": 58
             },
-            "opaquePixels": 3690,
+            "opaquePixels": 3203,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.360931
+            "shadowWaterlineY": -0.360928
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 327,
-              "minY": 367,
-              "width": 197,
-              "height": 89
+              "minX": 385,
+              "minY": 399,
+              "width": 133,
+              "height": 57
             },
-            "opaquePixels": 3653,
+            "opaquePixels": 3187,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.35557
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 327,
-              "minY": 367,
-              "width": 199,
-              "height": 89
+              "minX": 385,
+              "minY": 399,
+              "width": 133,
+              "height": 57
             },
-            "opaquePixels": 3630,
+            "opaquePixels": 3156,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.35021
+            "shadowWaterlineY": -0.350212
           }
         },
-        "waterShadowModelHeightPerPixel": 0.0053603,
+        "waterShadowModelHeightPerPixel": 0.00535784,
         "opaqueBounds": {
-          "minX": 424,
-          "minY": 240,
-          "width": 112,
-          "height": 225
+          "minX": 439,
+          "minY": 273,
+          "width": 81,
+          "height": 192
         },
-        "opaquePixels": 5455,
+        "opaquePixels": 4758,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
-            "x": 466,
-            "y": 389
+            "x": 487,
+            "y": 394
           },
           {
-            "x": 440,
-            "y": 417
+            "x": 462,
+            "y": 420
           },
           {
-            "x": 494,
-            "y": 423
+            "x": 481,
+            "y": 422
           },
           {
-            "x": 521,
-            "y": 395
+            "x": 506,
+            "y": 396
           }
         ],
         "deckEntryAnchor": {
-          "x": 510,
-          "y": 395
+          "x": 502,
+          "y": 396
         },
         "sailorSpawnAnchor": {
-          "x": 547,
+          "x": 518,
           "y": 399
         },
-        "foregroundOpaquePixels": 4171,
+        "foregroundOpaquePixels": 3613,
         "sinkHeightMin": -0.453076,
-        "sinkHeightMax": 0.452838,
+        "sinkHeightMax": 0.452251,
         "encodedWaterlineY": -0.35557,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 47,
+        "submergedPixels": 50,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2947,21 +2967,21 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 144,
-          "recoloredPixels": 565
+          "recoloredRegions": 55,
+          "recoloredPixels": 173
         },
         "creaseShading": null
       },
       "dockRig": {
-        "state": "furled",
+        "state": "stowed",
         "selectorType": "topology-components",
-        "removedRigSelectorType": null,
-        "bundleMode": "furled",
+        "removedRigSelectorType": "topology-components",
+        "bundleMode": "remove",
         "removedOpenSailTriangles": 188,
-        "removedDeployedRigTriangles": 0,
+        "removedDeployedRigTriangles": 208,
         "sourceSailComponents": 2,
-        "furledBundles": 2,
-        "generatedFurledTriangles": 240,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0,
         "generatedStackedBattenTriangles": 0
       }
     },
@@ -2974,29 +2994,29 @@
       "targetModelMaxDim": 1.224,
       "deckPolygon": [
         {
-          "x": 158,
-          "y": 127
+          "x": 165,
+          "y": 128
         },
         {
-          "x": 146,
-          "y": 140
+          "x": 154,
+          "y": 141
         },
         {
-          "x": 171,
+          "x": 160,
           "y": 142
         },
         {
-          "x": 183,
-          "y": 130
+          "x": 172,
+          "y": 129
         }
       ],
       "deckEntryAnchor": {
-        "x": 178,
-        "y": 130
+        "x": 170,
+        "y": 129
       },
       "sailorSpawnAnchor": {
-        "x": 195,
-        "y": 131
+        "x": 177,
+        "y": 129
       },
       "cityDockside": {
         "nativeScale": 3,
@@ -3010,80 +3030,81 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 277,
+              "minX": 360,
               "minY": 382,
-              "width": 273,
+              "width": 156,
               "height": 82
             },
-            "opaquePixels": 4606,
+            "opaquePixels": 3807,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.450036
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 278,
+              "minX": 361,
               "minY": 382,
-              "width": 273,
+              "width": 156,
               "height": 82
             },
-            "opaquePixels": 4598,
+            "opaquePixels": 3798,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.444663
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 279,
+              "minX": 362,
               "minY": 382,
-              "width": 273,
+              "width": 155,
               "height": 82
             },
-            "opaquePixels": 4588,
+            "opaquePixels": 3783,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.439291
           }
         },
         "waterShadowModelHeightPerPixel": 0.00537255,
         "opaqueBounds": {
-          "minX": 377,
+          "minX": 434,
           "minY": 259,
-          "width": 206,
+          "width": 91,
           "height": 206
         },
-        "opaquePixels": 6833,
+        "opaquePixels": 5084,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
-            "x": 474,
-            "y": 381
+            "x": 496,
+            "y": 385
           },
           {
-            "x": 439,
-            "y": 419
+            "x": 461,
+            "y": 422
           },
           {
-            "x": 513,
-            "y": 427
+            "x": 480,
+            "y": 425
           },
           {
-            "x": 548,
-            "y": 389
+            "x": 515,
+            "y": 387
           }
         ],
         "deckEntryAnchor": {
-          "x": 534,
-          "y": 389
+          "x": 510,
+          "y": 388
         },
         "sailorSpawnAnchor": {
-          "x": 584,
-          "y": 393
+          "x": 530,
+          "y": 388
         },
-        "foregroundOpaquePixels": 5790,
+        "foregroundOpaquePixels": 4315,
         "sinkHeightMin": -0.475093,
         "sinkHeightMax": 0.485845,
         "encodedWaterlineY": -0.444663,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 11,
+        "submergedPixels": 9,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3094,21 +3115,21 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 268,
-          "recoloredPixels": 901
+          "recoloredRegions": 106,
+          "recoloredPixels": 440
         },
         "creaseShading": null
       },
       "dockRig": {
-        "state": "furled",
+        "state": "stowed",
         "selectorType": "topology-components",
-        "removedRigSelectorType": null,
-        "bundleMode": "furled",
+        "removedRigSelectorType": "topology-components",
+        "bundleMode": "remove",
         "removedOpenSailTriangles": 288,
-        "removedDeployedRigTriangles": 0,
+        "removedDeployedRigTriangles": 204,
         "sourceSailComponents": 4,
-        "furledBundles": 4,
-        "generatedFurledTriangles": 480,
+        "furledBundles": 0,
+        "generatedFurledTriangles": 0,
         "generatedStackedBattenTriangles": 0
       }
     },
@@ -3199,6 +3220,7 @@
           "height": 254
         },
         "opaquePixels": 9530,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 502,
@@ -3346,6 +3368,7 @@
           "height": 271
         },
         "opaquePixels": 12975,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 498,
@@ -3493,6 +3516,7 @@
           "height": 325
         },
         "opaquePixels": 18712,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 502,
@@ -3640,6 +3664,7 @@
           "height": 217
         },
         "opaquePixels": 7839,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 495,
@@ -3750,7 +3775,7 @@
               "width": 327,
               "height": 138
             },
-            "opaquePixels": 20596,
+            "opaquePixels": 20545,
             "clippedProjectedPixels": 528,
             "shadowWaterlineY": -0.709547
           },
@@ -3762,7 +3787,7 @@
               "width": 327,
               "height": 138
             },
-            "opaquePixels": 20576,
+            "opaquePixels": 20528,
             "clippedProjectedPixels": 540,
             "shadowWaterlineY": -0.70418
           },
@@ -3774,7 +3799,7 @@
               "width": 328,
               "height": 137
             },
-            "opaquePixels": 20566,
+            "opaquePixels": 20511,
             "clippedProjectedPixels": 552,
             "shadowWaterlineY": -0.698812
           }
@@ -3786,7 +3811,8 @@
           "width": 252,
           "height": 304
         },
-        "opaquePixels": 32646,
+        "opaquePixels": 32447,
+        "berthFraction": 0.9,
         "deckPolygon": [
           {
             "x": 479,
@@ -3813,7 +3839,7 @@
           "x": 572,
           "y": 368
         },
-        "foregroundOpaquePixels": 26178,
+        "foregroundOpaquePixels": 25935,
         "sinkHeightMin": -0.737841,
         "sinkHeightMax": 0.738744,
         "encodedWaterlineY": -0.70418,
@@ -3829,8 +3855,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 2319,
-          "recoloredPixels": 6404
+          "recoloredRegions": 2327,
+          "recoloredPixels": 6403
         },
         "creaseShading": null
       },
@@ -3840,7 +3866,7 @@
         "removedRigSelectorType": "source-meshes",
         "bundleMode": "remove",
         "removedOpenSailTriangles": 204,
-        "removedDeployedRigTriangles": 2968,
+        "removedDeployedRigTriangles": 6472,
         "sourceSailComponents": 2,
         "furledBundles": 0,
         "generatedFurledTriangles": 0,
@@ -3934,6 +3960,7 @@
           "height": 336
         },
         "opaquePixels": 16940,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 483,
@@ -4081,6 +4108,7 @@
           "height": 420
         },
         "opaquePixels": 27382,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 485,
@@ -4228,6 +4256,7 @@
           "height": 175
         },
         "opaquePixels": 5306,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 491,
@@ -4375,6 +4404,7 @@
           "height": 168
         },
         "opaquePixels": 7837,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 498,
@@ -4520,6 +4550,7 @@
           "height": 251
         },
         "opaquePixels": 16927,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 498,
@@ -4667,6 +4698,7 @@
           "height": 345
         },
         "opaquePixels": 29762,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 476,
@@ -4814,6 +4846,7 @@
           "height": 336
         },
         "opaquePixels": 23043,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 485,
@@ -4961,6 +4994,7 @@
           "height": 410
         },
         "opaquePixels": 34890,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 486,
@@ -5108,6 +5142,7 @@
           "height": 293
         },
         "opaquePixels": 17232,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 482,
@@ -5255,6 +5290,7 @@
           "height": 426
         },
         "opaquePixels": 26981,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 491,
@@ -5402,6 +5438,7 @@
           "height": 153
         },
         "opaquePixels": 8464,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 488,
@@ -5547,6 +5584,7 @@
           "height": 293
         },
         "opaquePixels": 28654,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 474,
@@ -5694,6 +5732,7 @@
           "height": 271
         },
         "opaquePixels": 13892,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 494,
@@ -5841,6 +5880,7 @@
           "height": 238
         },
         "opaquePixels": 8052,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 511,
@@ -5988,6 +6028,7 @@
           "height": 241
         },
         "opaquePixels": 9450,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 512,
@@ -6135,6 +6176,7 @@
           "height": 229
         },
         "opaquePixels": 10692,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 512,
@@ -6282,6 +6324,7 @@
           "height": 381
         },
         "opaquePixels": 19224,
+        "berthFraction": 0.5,
         "deckPolygon": [
           {
             "x": 487,

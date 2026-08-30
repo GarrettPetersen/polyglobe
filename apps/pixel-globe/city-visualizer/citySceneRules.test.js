@@ -12,8 +12,10 @@ import {
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import {
   PORT_SCENE_MASTER,
+  PORT_SCENE_CAMERA,
   PORT_SCENE_DOCK,
   PORT_SCENE_ENTITY_META,
+  PORT_SCENE_DISTANT_TERRAIN_SHIFT_Y,
   PORT_SCENE_HORIZON_SHIFT_Y,
   PORT_SCENE_OCEAN_SLICES,
   PORT_SCENE_RIVER,
@@ -137,7 +139,7 @@ test("RTS camera scrolls only at the edges and stops in place when input ceases"
   assert.ok(firstFrame > -0.35);
   assert.ok(firstFrame < 1);
   assert.equal(advanceSceneParallax({ current: firstFrame, velocity: 0, elapsedMs: 1000 }), firstFrame);
-  assert.deepEqual(sceneCameraParallaxBounds("river"), { minimum: -0.12, maximum: 1 });
+  assert.deepEqual(sceneCameraParallaxBounds("river"), { minimum: -0.30, maximum: 1 });
   assert.equal(sceneCameraDefaultParallax("river"), -0.12);
   assert.deepEqual(sceneCameraParallaxBounds("ocean"), { minimum: -1, maximum: 1 });
 });
@@ -180,9 +182,13 @@ test("ocean depth slices cover the authored water without gaps", () => {
 });
 
 test("river scenes separate the banks around the raised horizon", () => {
-  assert.equal(PORT_SCENE_RIVER.leftBankDistantOffsetY, -22);
+  assert.equal(PORT_SCENE_RIVER.leftBankDistantInsetX, 276);
+  assert.equal(PORT_SCENE_RIVER.leftBankForegroundInsetX, 300);
+  assert.equal(PORT_SCENE_RIVER.leftBankHorizonOffsetY, -22);
+  assert.equal(PORT_SCENE_RIVER.leftBankDistantOffsetY, -34);
+  assert.equal(PORT_SCENE_RIVER.leftBankForestOffsetY, -46);
   assert.equal(layerSceneOffsetX("Distant Forest Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankDistantInsetX);
-  assert.equal(layerSceneOffsetY("Distant Forest Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankDistantOffsetY);
+  assert.equal(layerSceneOffsetY("Distant Forest Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankForestOffsetY);
   assert.equal(layerSceneOffsetX("Left Bank Sand Beach", 0, "river"), PORT_SCENE_RIVER.leftBankForegroundInsetX);
   assert.equal(layerSceneOffsetY("Left Bank Sand Beach", 0, "river"), 0);
   assert.equal(layerSceneOffsetX("Foreground Grass Left Bank", 0, "river"), PORT_SCENE_RIVER.leftBankForegroundInsetX);
@@ -191,14 +197,12 @@ test("river scenes separate the banks around the raised horizon", () => {
   assert.equal(layerSceneOffsetY("Distant Forest Left Bank", 0, "ocean"), 0);
   assert.equal(
     layerSceneOffsetY("Distant Forest", 0, "river"),
-    PORT_SCENE_HORIZON_SHIFT_Y
+    PORT_SCENE_DISTANT_TERRAIN_SHIFT_Y
   );
   assert.equal(layerSceneOffsetY("Sky", 0, "river"), PORT_SCENE_HORIZON_SHIFT_Y);
-  assert.equal(
-    layerSceneOffsetY("Shipyard", 0, "river"),
-    PORT_SCENE_HORIZON_SHIFT_Y
-  );
+  assert.equal(layerSceneOffsetY("Shipyard", 0, "river"), 0);
   assert.equal(layerParallaxAnchor("Distant Forest Left Bank"), sceneCameraDefaultParallax("river"));
+  assert.equal(layerParallaxAnchor("Distant Forest"), PORT_SCENE_CAMERA.distantParallaxAnchor);
   assert.ok(layerParallaxDepth("Distant Forest") < layerParallaxDepth("Midground Grass"));
   assert.equal(layerParallaxDepth("Distant Forest"), layerParallaxDepth("Distant Hills"));
 
@@ -223,6 +227,10 @@ test("river scenes separate the banks around the raised horizon", () => {
   const leftForestRightEdge = 371 - (leftWindow.x - PORT_SCENE_RIVER.leftBankDistantInsetX);
   const rightForestLeftEdge = 714 - rightWindow.x;
   assert.ok(rightForestLeftEdge - leftForestRightEdge >= 16);
+
+  const leftBeachRightEdge = 242 + PORT_SCENE_RIVER.leftBankForegroundInsetX;
+  const berthGap = PORT_SCENE_DOCK.shipAccessX - leftBeachRightEdge;
+  assert.equal(berthGap, 130);
 });
 
 test("distant forests retain their authored perspective toward the viewer", () => {
@@ -249,12 +257,26 @@ test("distant forests retain their authored perspective toward the viewer", () =
   const rightForestBottom = rightForestTop + 97;
   const leftForestTop = 426 + layerSceneOffsetY("Distant Forest Left Bank", 0, "river");
   const leftForestBottom = leftForestTop + 141;
+  assert.equal(rightForestTop, 392);
+  assert.equal(leftForestTop, 380);
+  assert.ok(rightForestTop < 404, "right forest must move upward from its prior rendered row");
+  assert.ok(leftForestTop < 392, "left forest must move upward from its prior rendered row");
   assert.ok(rightForestTop < horizonY);
   assert.ok(rightForestBottom > horizonY);
-  assert.equal(leftForestTop, rightForestTop);
+  assert.equal(rightForestTop - leftForestTop, 12);
   assert.ok(leftForestBottom > rightForestBottom);
+  assert.ok(leftForestBottom - rightForestBottom < 40);
   assert.ok(layerSceneZ("Distant Forest Left Bank") > PORT_SCENE_OCEAN_SLICES[2].z);
   assert.ok(layerSceneZ("Distant Forest Left Bank") < PORT_SCENE_OCEAN_SLICES[3].z);
+});
+
+test("the shipyard stays planted behind the beach bend", () => {
+  const shipyardTop = 470 + layerSceneOffsetY("Shipyard", 0, "river");
+  const shipyardBottom = shipyardTop + 41;
+  const beachTop = 478 + layerSceneOffsetY("Sand Beach", 0, "river");
+  assert.ok(shipyardTop < beachTop);
+  assert.ok(shipyardBottom > beachTop);
+  assert.ok(layerSceneZ("Shipyard") < layerSceneZ("Sand Beach"));
 });
 
 test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () => {
@@ -295,16 +317,21 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   );
 });
 
-test("docked ship waterlines meet the authored bottoms of the dock posts", () => {
-  for (const submergedMinY of [410, 450, 460]) {
-    const placement = docksideShipVerticalPlacement({
-      dock: "wood",
-      sideAnchorY: 365,
-      submergedMinY
-    });
-    assert.equal(placement.waterlineY, PORT_SCENE_DOCK.waterlineY);
-    assert.equal(placement.topY + submergedMinY, PORT_SCENE_DOCK.waterlineY);
-  }
+test("dockside ships never move away from the viewer to force a universal waterline", () => {
+  const shortShip = docksideShipVerticalPlacement({
+    dock: "wood",
+    sideAnchorY: 438,
+    submergedMinY: 461
+  });
+  assert.equal(shortShip.waterlineY, PORT_SCENE_DOCK.waterlineY);
+  assert.equal(shortShip.topY, PORT_SCENE_DOCK.waterlineY - 461);
+  const longShip = docksideShipVerticalPlacement({
+    dock: "wood",
+    sideAnchorY: 353.5,
+    submergedMinY: 460
+  });
+  assert.equal(longShip.topY, PORT_SCENE_DOCK.shipAccessY - 353.5);
+  assert.ok(longShip.waterlineY > PORT_SCENE_DOCK.waterlineY);
   const beach = docksideShipVerticalPlacement({
     dock: "none",
     sideAnchorY: 365,
@@ -315,27 +342,18 @@ test("docked ship waterlines meet the authored bottoms of the dock posts", () =>
   assert.equal(beach.waterlineY, 613);
 });
 
-test("dockside ships berth at the middle of their side rather than their bow anchor", () => {
+test("dockside ships berth at their authored side point rather than their bow anchor", () => {
   for (const ship of SHIP_MANIFEST.ships) {
     const dockside = ship.cityDockside;
-    const nearRail = ship.deckPolygon.slice(2);
-    const sideMidpoint = {
-      x: (nearRail[0].x + nearRail[1].x) / 2,
-      y: (nearRail[0].y + nearRail[1].y) / 2
+    const nearRail = dockside.deckPolygon.slice(2);
+    const berthFraction = dockside.berthFraction ?? 0.5;
+    const sidePoint = {
+      x: nearRail[0].x + (nearRail[1].x - nearRail[0].x) * berthFraction,
+      y: nearRail[0].y + (nearRail[1].y - nearRail[0].y) * berthFraction
     };
     const anchor = docksideShipSideAnchor(ship);
-    assert.equal(
-      anchor.x,
-      dockside.deckEntryAnchor.x +
-        (sideMidpoint.x - ship.deckEntryAnchor.x) * dockside.nativeScale,
-      ship.slug
-    );
-    assert.equal(
-      anchor.y,
-      dockside.deckEntryAnchor.y +
-        (sideMidpoint.y - ship.deckEntryAnchor.y) * dockside.nativeScale,
-      ship.slug
-    );
+    assert.equal(anchor.x, sidePoint.x, ship.slug);
+    assert.equal(anchor.y, sidePoint.y, ship.slug);
     assert.ok(
       Math.abs(anchor.x - dockside.deckEntryAnchor.x) < dockside.width / 4,
       ship.slug
@@ -354,7 +372,7 @@ test("ship menus display canonical vessel names rather than internal IDs", () =>
 });
 
 test("shore and town layers retain small parallax but stay attached to the authored composition", () => {
-  const behindRoad = [
+  const townLayers = [
     "Shipyard",
     "Desert Behind Buildings",
     "Rocks Behind Buildings",
@@ -366,11 +384,17 @@ test("shore and town layers retain small parallax but stay attached to the autho
     "Market Stall Copy",
     "Market Stall Copy Copy"
   ];
-  assert.ok(behindRoad.every((layer) => layerParallaxDepth(layer) < 1));
-  assert.ok(behindRoad.every((layer) => layerParallaxDepth(layer) >= 0.94));
+  assert.ok(townLayers.every((layer) => layerParallaxDepth(layer) < 1));
+  assert.ok(townLayers.every((layer) => layerParallaxDepth(layer) >= 0.94));
+  assert.ok(layerParallaxDepth("Distant Forest") < layerParallaxDepth("Home"));
   assert.ok(layerParallaxDepth("Home") < layerParallaxDepth("Smith"));
   assert.ok(layerParallaxDepth("Home 2") < layerParallaxDepth("Smith"));
-  assert.ok(behindRoad.every((layer) => layerParallaxAnchor(layer) === 1));
+  for (const terrain of ["Desert Behind Buildings", "Rocks Behind Buildings", "Grass Behind Buildings"]) {
+    assert.ok(layerSceneZ(terrain) > layerSceneZ("Home"));
+    assert.ok(layerSceneZ(terrain) > layerSceneZ("Home 2"));
+    assert.ok(layerSceneZ(terrain) < layerSceneZ("Smith"));
+  }
+  assert.ok(townLayers.every((layer) => layerParallaxAnchor(layer) === 1));
   const upperAtFocus = logicalSceneWindow({
     width: 455,
     height: 256,
@@ -392,10 +416,57 @@ test("shore and town layers retain small parallax but stay attached to the autho
   const lowerAway = logicalSceneWindow({ width: 455, height: 256, parallax: 0, depth: 1, approach: "river" });
   assert.notEqual(upperAway.x, lowerAway.x);
 
+  const minimum = sceneCameraParallaxBounds("river").minimum;
+  const forestAway = logicalSceneWindow({
+    width: 455,
+    height: 256,
+    parallax: minimum,
+    depth: layerParallaxDepth("Distant Forest"),
+    parallaxAnchor: layerParallaxAnchor("Distant Forest"),
+    approach: "river"
+  });
+  const homeAway = logicalSceneWindow({
+    width: 455,
+    height: 256,
+    parallax: minimum,
+    depth: layerParallaxDepth("Home"),
+    parallaxAnchor: layerParallaxAnchor("Home"),
+    approach: "river"
+  });
+  const smithAway = logicalSceneWindow({
+    width: 455,
+    height: 256,
+    parallax: minimum,
+    depth: layerParallaxDepth("Smith"),
+    parallaxAnchor: layerParallaxAnchor("Smith"),
+    approach: "river"
+  });
+  assert.ok(forestAway.x - homeAway.x >= 30);
+  assert.ok(homeAway.x - smithAway.x >= 4);
+
+  const forestAtFocus = logicalSceneWindow({
+    width: 455,
+    height: 256,
+    parallax: 1,
+    depth: layerParallaxDepth("Distant Forest"),
+    parallaxAnchor: layerParallaxAnchor("Distant Forest"),
+    approach: "river"
+  });
+  const homeAtFocus = logicalSceneWindow({
+    width: 455,
+    height: 256,
+    parallax: 1,
+    depth: layerParallaxDepth("Home"),
+    parallaxAnchor: layerParallaxAnchor("Home"),
+    approach: "river"
+  });
+  const forestToHomeTravel =
+    (homeAtFocus.x - homeAway.x) - (forestAtFocus.x - forestAway.x);
+  assert.ok(forestToHomeTravel >= 120);
+
   for (const width of [256, 455, 910]) {
-    const minimum = sceneCameraParallaxBounds("river").minimum;
     const foreground = logicalSceneWindow({ width, height: 256, parallax: minimum, depth: 1, approach: "river" });
-    for (const layer of ["Distant Plains", "Shipyard", ...behindRoad]) {
+    for (const layer of ["Shipyard", ...townLayers]) {
       const layerWindow = logicalSceneWindow({
         width,
         height: 256,

@@ -41,6 +41,8 @@ test("every production hull has matching port-assault geometry and manifest meta
   ]);
   const stowedSailSlugs = new Set([
     "caravel",
+    "cutter",
+    "felucca",
     "fishing-lugger",
     "japanese-sekibune",
     "joseon-turtle-ship",
@@ -67,6 +69,7 @@ test("every production hull has matching port-assault geometry and manifest meta
     }]
   ]);
   const loweredJunkSailSlugs = new Set([
+    "sampan",
     "small-junk",
     "medium-junk",
     "large-junk"

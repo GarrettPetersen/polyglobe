@@ -3686,7 +3686,20 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
   ["holk", unityDockRig({ 24: 24, 62: 92, 63: 76, 64: 60, 65: 24 })],
   ["dhow", materialDockRig(["acmat_7"], { expectedTriangleCount: 512 })],
   ["ocean-dhow", materialDockRig(["layar_dhow"], { expectedTriangleCount: 784 })],
-  ["sampan", unityDockRig({ 18: 44 })],
+  ["sampan", unityDockRig(
+    { 18: 44 },
+    {
+      removedRigSelector: topologyComponentSelector({
+        12: 10,
+        13: 10,
+        14: 10,
+        15: 10,
+        16: 10,
+        17: 10
+      }),
+      bundleMode: "junk-lowered"
+    }
+  )],
   ["large-junk", unityDockRig(
     { 44: 44, 53: 36, 66: 36 },
     {
@@ -3790,8 +3803,34 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
       bundleMode: "junk-lowered"
     }
   )],
-  ["felucca", unityDockRig({ 0: 72, 4: 116 })],
-  ["cutter", unityDockRig({ 22: 80, 24: 20, 27: 72, 31: 116 })],
+  ["felucca", unityDockRig(
+    { 0: 72, 4: 116 },
+    {
+      removedRigSelector: topologyComponentSelector({
+        1: 24,
+        2: 24,
+        3: 24,
+        14: 64,
+        18: 36,
+        19: 36
+      }),
+      bundleMode: "remove"
+    }
+  )],
+  ["cutter", unityDockRig(
+    { 22: 80, 24: 20, 27: 72, 31: 116 },
+    {
+      removedRigSelector: topologyComponentSelector({
+        23: 12,
+        25: 60,
+        26: 60,
+        28: 24,
+        29: 24,
+        30: 24
+      }),
+      bundleMode: "remove"
+    }
+  )],
   ["ketch", unityDockRig({ 42: 64, 46: 80, 47: 80 })],
   ["mediterranean-galley", materialDockRig(["M_Ship03_Sail"], {
     expectedTriangleCount: 999
@@ -3801,8 +3840,13 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
   ["joseon-turtle-ship", materialDockRig(["Vela"], {
     expectedTriangleCount: 204,
     removedRigSelector: sourceMeshSelector({
-      sourceMeshNames: ["Object_28", "Object_32", "Object_34", "Object_56", "Object_62", "Object_64"],
-      expectedTriangleCount: 2968
+      sourceMeshNames: [
+        "Object_28",
+        "Object_30",
+        "Object_56",
+        "Object_58"
+      ],
+      expectedTriangleCount: 6472
     }),
     bundleMode: "remove"
   })],
@@ -5627,6 +5671,7 @@ async function renderPortAssaultShips() {
         ),
         opaqueBounds: citySelected.bounds,
         opaquePixels: citySelected.alpha.reduce((sum, value) => sum + value, 0),
+        berthFraction: config.portAssaultBerthFraction ?? 0.5,
         deckPolygon: cityDeck.deckPolygon,
         deckEntryAnchor: cityDeck.deckEntryAnchor,
         sailorSpawnAnchor: cityDeck.sailorSpawnAnchor,
@@ -6230,6 +6275,7 @@ function joseonTurtleShipConfig() {
     modelPath: join(joseonTurtleShipSourceRoot, "scene.gltf"),
     targetModelMaxDim: 2.28,
     frameScale: 0.56,
+    portAssaultBerthFraction: 0.9,
     flagAnchorMaxSnapDistancePx: 8,
     sideViewTargetModelMaxDim: 2.05,
     scaleMode: "joseon-warship",

@@ -1,17 +1,27 @@
 import { existsSync } from "node:fs";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { homedir } from "node:os";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { homedir, tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
+import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+
 const toolRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolRoot, "..");
 const cityViewSource = resolve(appRoot, "public/assets/city-view/port-parallax.aseprite");
+const buildingSource = resolve(appRoot, "public/assets/city-view/buildings.aseprite");
 const outputRoot = resolve(appRoot, "city-visualizer/assets");
 const portOutputRoot = resolve(outputRoot, "port-parallax");
 const minifolkOutputRoot = resolve(outputRoot, "minifolks");
 const aseprite = resolveAsepriteBinary();
+
+const BUILDING_LAYER_OVERRIDES = Object.freeze({
+  "Northern European Inn": "Inn",
+  "Norther Europe Home": "Home",
+  "Norther Europe Home 2": "Home 2",
+  Smith: "Smith"
+});
 
 const AUTHORED_LAYER_ORDER = Object.freeze([
   "Sky",
@@ -28,6 +38,7 @@ const AUTHORED_LAYER_ORDER = Object.freeze([
   "Distant Desert Left Bank",
   "Distant Plains",
   "Distant Plains Left Bank",
+  "Background City Base",
   "Shipyard",
   "Sand Beach",
   "Sand Beach Dock Shadow",
@@ -116,6 +127,7 @@ if (JSON.stringify(staticLayerNames) !== JSON.stringify(expectedStaticNames)) {
     "Aseprite layer order changed; update the city visualizer authored layer contract before exporting"
   );
 }
+await applyBuildingOverrides(staticFrames, staticPngPath);
 
 const animated = {};
 for (const layer of ["Waves", "Surf"]) {
@@ -214,6 +226,88 @@ function layerNameFromFilename(filename) {
   const match = String(filename).match(/\((.*)\)(?: \d+)?\.aseprite$/);
   if (!match) throw new Error(`Could not read Aseprite layer name: ${filename}`);
   return match[1];
+}
+
+async function applyBuildingOverrides(staticFrames, staticPngPath) {
+  if (!existsSync(buildingSource)) {
+    throw new Error(`Missing city building source: ${buildingSource}`);
+  }
+  const temporaryRoot = await mkdtemp(resolve(tmpdir(), "polyglobe-city-buildings-"));
+  const dataPath = resolve(temporaryRoot, "building-overrides.json");
+  const sheetPath = resolve(temporaryRoot, "building-overrides.png");
+  try {
+    runAseprite([
+      "--batch",
+      "--all-layers",
+      "--frame-range", "0,0",
+      "--split-layers",
+      buildingSource,
+      "--trim",
+      "--sheet-pack",
+      "--list-layers",
+      "--format", "json-array",
+      "--data", dataPath,
+      "--sheet", sheetPath
+    ]);
+    const overrideSheet = JSON.parse(await readFile(dataPath, "utf8"));
+    const visibleFrames = overrideSheet.frames.map((frame) => ({
+      layer: layerNameFromFilename(frame.filename),
+      ...portableFrame(frame)
+    }));
+    const expectedLayerNames = Object.keys(BUILDING_LAYER_OVERRIDES);
+    const overrideFrames = visibleFrames.filter((frame) => expectedLayerNames.includes(frame.layer));
+    const missingLayerNames = expectedLayerNames.filter((layer) => (
+      !overrideFrames.some((frame) => frame.layer === layer)
+    ));
+    if (missingLayerNames.length > 0) {
+      throw new Error(
+        `Missing buildings.aseprite overrides: ${missingLayerNames.join(", ")}`
+      );
+    }
+
+    const [staticAtlas, overrideAtlas] = await Promise.all([
+      loadImage(staticPngPath),
+      loadImage(sheetPath)
+    ]);
+    const canvas = createCanvas(staticAtlas.width, staticAtlas.height);
+    const context = canvas.getContext("2d");
+    context.imageSmoothingEnabled = false;
+    context.drawImage(staticAtlas, 0, 0);
+    for (const overrideFrame of overrideFrames) {
+      const targetLayer = BUILDING_LAYER_OVERRIDES[overrideFrame.layer];
+      const targetFrame = staticFrames.find((frame) => frame.layer === targetLayer);
+      if (!targetFrame) throw new Error(`Missing target city layer: ${targetLayer}`);
+      if (
+        overrideFrame.frame.w !== targetFrame.frame.w ||
+        overrideFrame.frame.h !== targetFrame.frame.h
+      ) {
+        throw new Error(
+          `${overrideFrame.layer} must remain ${targetFrame.frame.w}x${targetFrame.frame.h} ` +
+          `to preserve ${targetLayer}'s authored scene position`
+        );
+      }
+      context.clearRect(
+        targetFrame.frame.x,
+        targetFrame.frame.y,
+        targetFrame.frame.w,
+        targetFrame.frame.h
+      );
+      context.drawImage(
+        overrideAtlas,
+        overrideFrame.frame.x,
+        overrideFrame.frame.y,
+        overrideFrame.frame.w,
+        overrideFrame.frame.h,
+        targetFrame.frame.x,
+        targetFrame.frame.y,
+        targetFrame.frame.w,
+        targetFrame.frame.h
+      );
+    }
+    await writeFile(staticPngPath, canvas.toBuffer("image/png"));
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
 }
 
 function runAseprite(args) {

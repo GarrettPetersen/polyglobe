@@ -46,7 +46,7 @@
    },
    {
     "filename": "port-parallax (Distant Hills Left Bank).aseprite",
-    "frame": { "x": 2082, "y": 1384, "w": 345, "h": 75 },
+    "frame": { "x": 0, "y": 1421, "w": 345, "h": 75 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 433, "w": 345, "h": 75 },
@@ -126,6 +126,15 @@
     "duration": 100
    },
    {
+    "filename": "port-parallax (Background City Base).aseprite",
+    "frame": { "x": 2082, "y": 1384, "w": 541, "h": 55 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 824, "y": 469, "w": 541, "h": 55 },
+    "sourceSize": { "w": 1365, "h": 910 },
+    "duration": 100
+   },
+   {
     "filename": "port-parallax (Shipyard).aseprite",
     "frame": { "x": 2638, "y": 1204, "w": 84, "h": 41 },
     "rotated": false,
@@ -181,7 +190,7 @@
    },
    {
     "filename": "port-parallax (Desert Behind Buildings).aseprite",
-    "frame": { "x": 2074, "y": 1459, "w": 455, "h": 35 },
+    "frame": { "x": 1614, "y": 1455, "w": 455, "h": 35 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 910, "y": 468, "w": 455, "h": 35 },
@@ -190,7 +199,7 @@
    },
    {
     "filename": "port-parallax (Rocks Behind Buildings).aseprite",
-    "frame": { "x": 788, "y": 1440, "w": 458, "h": 45 },
+    "frame": { "x": 2082, "y": 1439, "w": 458, "h": 45 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 907, "y": 464, "w": 458, "h": 45 },
@@ -199,7 +208,7 @@
    },
    {
     "filename": "port-parallax (Grass Behind Buildings).aseprite",
-    "frame": { "x": 1614, "y": 1455, "w": 460, "h": 40 },
+    "frame": { "x": 788, "y": 1440, "w": 460, "h": 40 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 905, "y": 464, "w": 460, "h": 40 },
@@ -289,7 +298,7 @@
    },
    {
     "filename": "port-parallax (Castle Shadow).aseprite",
-    "frame": { "x": 2427, "y": 1280, "w": 183, "h": 110 },
+    "frame": { "x": 2540, "y": 1439, "w": 183, "h": 110 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1182, "y": 481, "w": 183, "h": 110 },
@@ -316,7 +325,7 @@
    },
    {
     "filename": "port-parallax (Stone Dock).aseprite",
-    "frame": { "x": 2427, "y": 1390, "w": 235, "h": 66 },
+    "frame": { "x": 2413, "y": 1280, "w": 235, "h": 66 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 676, "y": 505, "w": 235, "h": 66 },
@@ -334,7 +343,7 @@
    },
    {
     "filename": "port-parallax (Inn).aseprite",
-    "frame": { "x": 175, "y": 1420, "w": 129, "h": 101 },
+    "frame": { "x": 1248, "y": 1477, "w": 129, "h": 101 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1057, "y": 473, "w": 129, "h": 101 },
@@ -379,7 +388,7 @@
    },
    {
     "filename": "port-parallax (Foreground Grass Castle Shadow).aseprite",
-    "frame": { "x": 2610, "y": 1280, "w": 101, "h": 32 },
+    "frame": { "x": 1358, "y": 1319, "w": 101, "h": 32 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1264, "y": 557, "w": 101, "h": 32 },
@@ -497,10 +506,10 @@
  ],
  "meta": {
   "app": "https://www.aseprite.org/",
-  "version": "1.3.18.1-x64",
+  "version": "1.3.18.3-x64",
   "image": "static.png",
   "format": "RGBA8888",
-  "size": { "w": 2730, "h": 1521 },
+  "size": { "w": 2730, "h": 1578 },
   "scale": "1",
   "layers": [
    { "name": "Sky", "opacity": 255, "blendMode": "normal" },
@@ -517,6 +526,7 @@
    { "name": "Distant Desert Left Bank", "opacity": 255, "blendMode": "normal" },
    { "name": "Distant Plains", "opacity": 255, "blendMode": "normal" },
    { "name": "Distant Plains Left Bank", "opacity": 255, "blendMode": "normal" },
+   { "name": "Background City Base", "opacity": 255, "blendMode": "normal" },
    { "name": "Shipyard", "opacity": 255, "blendMode": "normal" },
    { "name": "Sand Beach", "opacity": 255, "blendMode": "normal" },
    { "name": "Sand Beach Dock Shadow", "opacity": 255, "blendMode": "normal" },

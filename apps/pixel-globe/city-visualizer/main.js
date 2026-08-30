@@ -4,11 +4,6 @@ import {
 } from "../src/responsiveViewport.js";
 import { canvasDisplayLayout } from "../src/displayScaling.js";
 import {
-  LOADING_CAPSULE_HEIGHT,
-  LOADING_CAPSULE_HORIZON_Y,
-  loadingWaveOffset
-} from "../src/loadingScreenMotion.js";
-import {
   PORT_SCENE_ENTITY_META,
   PORT_SCENE_DOCK,
   PORT_SCENE_CAMERA,
@@ -18,6 +13,7 @@ import {
   activePortSceneLayers,
   advanceSceneParallax,
   docksideShipSideAnchor,
+  docksideShipPostClearanceShift,
   docksideShipVerticalPlacement,
   layerParallaxAnchor,
   layerParallaxDepth,
@@ -34,6 +30,14 @@ import {
   sceneReasonRows
 } from "./citySceneRules.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
+import {
+  BACKGROUND_CITY_BASE_LAYER,
+  BACKGROUND_CITY_STREET_COLOR,
+  cityBackgroundBaseTopProfile,
+  cityBackgroundStreetRows,
+  cityBackgroundLayout
+} from "./cityBackground.js";
+import { cityOceanParallaxDepth, cityOceanRowOffset } from "./cityOceanMotion.js";
 import {
   CITY_PIXEL_FONT_SMALL_8,
   CITY_PIXEL_FONT_TITLE_8,
@@ -109,6 +113,9 @@ const state = {
   cameraGesture: null,
   suppressClick: false,
   hoveredDestination: null,
+  backgroundCityRows: [],
+  backgroundCityBaseTopYByX: null,
+  backgroundCityStreetRows: [],
   npcAgents: []
 };
 
@@ -272,6 +279,34 @@ function applyFeatureOverrides() {
     rightTerrain: autoValue(rightTerrainOverride.value)
   };
   state.features = resolveCitySceneFeatures(state.city, overrides);
+  const backgroundCityBase = state.portManifest.staticFrames.find((frame) => (
+    frame.layer === BACKGROUND_CITY_BASE_LAYER
+  ));
+  state.backgroundCityBaseTopYByX = backgroundCityBase
+    ? cityBackgroundBaseTopProfile({
+        alpha: frameAlpha(backgroundCityBase),
+        width: backgroundCityBase.frame.w,
+        height: backgroundCityBase.frame.h,
+        sourceY: backgroundCityBase.spriteSourceSize.y
+      })
+    : null;
+  state.backgroundCityStreetRows = backgroundCityBase
+    ? cityBackgroundStreetRows({
+        alpha: frameAlpha(backgroundCityBase),
+        width: backgroundCityBase.frame.w,
+        height: backgroundCityBase.frame.h,
+        sourceX: backgroundCityBase.spriteSourceSize.x,
+        sourceY: backgroundCityBase.spriteSourceSize.y,
+        rightX: PORT_SCENE_MASTER.width
+      })
+    : [];
+  state.backgroundCityRows = cityBackgroundLayout({
+    city: state.city,
+    rowCount: state.features.backgroundCityRows,
+    frames: state.portManifest.staticFrames,
+    baseFrame: backgroundCityBase,
+    baseTopYByX: state.backgroundCityBaseTopYByX
+  });
   const cameraBounds = sceneCameraParallaxBounds(state.features.approach);
   state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
   updateRuleLedger();
@@ -529,6 +564,7 @@ function render(timeMs) {
     else if (entry.kind === "animated") drawAnimatedLayer(entry.layerName, timeMs, entry.occurrence);
     else if (entry.kind === "dock-shadow-extension") drawDockShadowExtension();
     else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
+    else if (entry.kind === "background-city") drawBackgroundCity();
     else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
     else if (entry.kind === "npcs") drawNpcs(timeMs);
@@ -566,6 +602,13 @@ function sceneRenderEntries() {
         entries.push({ kind: "ocean", frame, slice, z: slice.z, authoredOrder: authoredOrder + sliceIndex / 10 });
       }
     } else {
+      if (layerName === BACKGROUND_CITY_BASE_LAYER) {
+        entries.push({
+          kind: "background-city",
+          z: layerSceneZ(layerName, occurrence) - 0.1,
+          authoredOrder: authoredOrder - 0.1
+        });
+      }
       entries.push({
         kind: "static",
         frame,
@@ -593,6 +636,51 @@ function sceneRenderEntries() {
     entries.push({ kind: "dock-shadow-extension", z: 36, authoredOrder: 16.5 });
   }
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
+}
+
+function drawBackgroundCity() {
+  if (state.backgroundCityRows.length === 0) return;
+  drawBackgroundCityStreet();
+  for (const row of state.backgroundCityRows) {
+    const window = sceneWindow(row.depth, 0, 0, row.parallaxAnchor);
+    for (const building of row.buildings) {
+      const frame = building.frame;
+      context.drawImage(
+        state.staticAtlas,
+        frame.frame.x,
+        frame.frame.y,
+        frame.frame.w,
+        frame.frame.h,
+        Math.round(building.x - window.x),
+        Math.round(building.y - window.y),
+        building.width,
+        building.height
+      );
+    }
+  }
+}
+
+function drawBackgroundCityStreet() {
+  if (state.backgroundCityStreetRows.length === 0) return;
+  const window = sceneWindow(
+    layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
+    0,
+    0,
+    layerParallaxAnchor(BACKGROUND_CITY_BASE_LAYER)
+  );
+  context.fillStyle = BACKGROUND_CITY_STREET_COLOR;
+  for (const row of state.backgroundCityStreetRows) {
+    const screenX = Math.round(row.leftX - window.x);
+    const screenY = Math.round(row.y - window.y);
+    const screenRight = Math.round(row.rightX - window.x);
+    if (screenY < 0 || screenY >= canvas.height || screenRight <= 0 || screenX >= canvas.width) continue;
+    context.fillRect(
+      Math.max(0, screenX),
+      screenY,
+      Math.max(1, Math.min(canvas.width, screenRight) - Math.max(0, screenX)),
+      1
+    );
+  }
 }
 
 function drawChimneySmoke(emitter, timeMs) {
@@ -809,33 +897,34 @@ function dockShadowRows() {
 }
 
 function drawOceanSlice(frame, slice, timeMs) {
-  const window = sceneWindow(slice.depth);
+  const viewportWindow = sceneWindow(slice.depth);
   const frameTop = frame.spriteSourceSize.y + PORT_SCENE_HORIZON_SHIFT_Y;
   const frameBottom = PORT_SCENE_MASTER.height;
-  const top = Math.max(slice.top, frameTop, Math.floor(window.y));
-  const bottom = Math.min(slice.bottom, frameBottom, Math.ceil(window.y + window.height));
+  const top = Math.max(slice.top, frameTop, Math.floor(viewportWindow.y));
+  const bottom = Math.min(slice.bottom, frameBottom, Math.ceil(viewportWindow.y + viewportWindow.height));
   if (bottom <= top) return;
 
   let bandTop = top;
   let bandOffset = oceanRowOffset(top, timeMs);
+  let bandWindow = sceneWindow(cityOceanParallaxDepth(top));
+  let bandCameraX = Math.round(bandWindow.x);
   for (let masterY = top + 1; masterY <= bottom; masterY++) {
     const offset = masterY === bottom ? Number.NaN : oceanRowOffset(masterY, timeMs);
-    if (offset === bandOffset) continue;
-    drawWrappedOceanBand(frame, window, bandTop, masterY - bandTop, bandOffset);
+    const window = masterY === bottom ? null : sceneWindow(cityOceanParallaxDepth(masterY));
+    const cameraX = window ? Math.round(window.x) : Number.NaN;
+    if (offset === bandOffset && cameraX === bandCameraX) continue;
+    drawWrappedOceanBand(frame, bandWindow, bandTop, masterY - bandTop, bandOffset);
     bandTop = masterY;
     bandOffset = offset;
+    bandWindow = window;
+    bandCameraX = cameraX;
   }
   drawDocksideShipWaterShadow(slice, timeMs, top, bottom);
 }
 
 function oceanRowOffset(masterY, timeMs) {
   if (prefersReducedMotion.matches) return 0;
-  const oceanTop = PORT_SCENE_OCEAN_SLICES[0].top;
-  const oceanBottom = PORT_SCENE_OCEAN_SLICES.at(-1).bottom - 1;
-  const progress = clamp((masterY - oceanTop) / (oceanBottom - oceanTop), 0, 1);
-  const loadingRow = LOADING_CAPSULE_HORIZON_Y + progress *
-    (LOADING_CAPSULE_HEIGHT - 1 - LOADING_CAPSULE_HORIZON_Y);
-  return Math.round(loadingWaveOffset(loadingRow, timeMs));
+  return cityOceanRowOffset(masterY, timeMs);
 }
 
 function drawWrappedOceanBand(frame, window, masterY, height, offset) {
@@ -1027,11 +1116,20 @@ function docksideShipPlacement(timeMs, depth) {
     submergedMinY: state.shipWaterlineLayers.submergedMinY * scale,
     beachSideY: berth.y
   });
+  const postClearanceShift = state.features.dock === "none" ? 0 : docksideShipPostClearanceShift({
+    rightmostOpaqueXByRow: state.shipWaterlineLayers.rightmostOpaqueXByRow,
+    topY: vertical.topY + PORT_SCENE_DOCK.maximumShipBobY,
+    sideAnchorX: sideAnchor.x * scale
+  });
   return {
     ship,
     scale,
-    bobY: clamp(oceanRowOffset(vertical.waterlineY, timeMs), -1, 1),
-    x: Math.round(berth.x - sideAnchor.x * scale - window.x),
+    bobY: clamp(
+      oceanRowOffset(vertical.waterlineY, timeMs),
+      -PORT_SCENE_DOCK.maximumShipBobY,
+      PORT_SCENE_DOCK.maximumShipBobY
+    ),
+    x: Math.round(berth.x - sideAnchor.x * scale - postClearanceShift - window.x),
     y: Math.round(vertical.topY - window.y)
   };
 }
@@ -1144,8 +1242,11 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug) {
   let submergedMinY = source.height;
   let submergedMaxY = -1;
   let opaqueMaxY = -1;
+  const rightmostOpaqueXByRow = new Int32Array(source.height);
+  rightmostOpaqueXByRow.fill(-1);
   for (const pixel of pixels) {
     opaqueMaxY = Math.max(opaqueMaxY, pixel.y);
+    rightmostOpaqueXByRow[pixel.y] = Math.max(rightmostOpaqueXByRow[pixel.y], pixel.x);
     const key = pixel.y * source.width + pixel.x;
     const offset = key * 4;
     const target = submergedKeys.has(key) ? submergedImage.data : aboveImage.data;
@@ -1175,6 +1276,7 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug) {
     waterline,
     width: source.width,
     height: source.height,
+    rightmostOpaqueXByRow,
     submergedMinY,
     submergedMaxY
   });

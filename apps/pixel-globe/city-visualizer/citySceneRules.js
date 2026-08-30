@@ -1,3 +1,9 @@
+import {
+  BACKGROUND_CITY_BASE_LAYER,
+  BACKGROUND_CITY_FRONT_DEPTH,
+  cityBackgroundRowCount
+} from "./cityBackground.js";
+
 export const PORT_SCENE_MASTER = Object.freeze({
   width: 1365,
   height: 910,
@@ -14,13 +20,14 @@ export const PORT_SCENE_DEPTH = Object.freeze({
   distant: 0.32,
   midground: 0.58,
   buildings: 0.72,
-  shoreline: 0.94,
-  rearBuildings: 0.94,
+  shoreline: 0.72,
+  rearBuildings: 0.96,
   businesses: 0.98,
   foreground: 1
 });
 
 export const PORT_SCENE_HORIZON_SHIFT_Y = -20;
+export const PORT_SCENE_DISTANT_TERRAIN_SHIFT_Y = -32;
 
 export const PORT_SCENE_OCEAN_SLICES = Object.freeze([
   Object.freeze({ top: 426, bottom: 458, z: 1, depth: PORT_SCENE_DEPTH.horizon }),
@@ -30,9 +37,11 @@ export const PORT_SCENE_OCEAN_SLICES = Object.freeze([
 ]);
 
 export const PORT_SCENE_RIVER = Object.freeze({
-  leftBankDistantInsetX: 296,
-  leftBankForegroundInsetX: 400,
-  leftBankDistantOffsetY: -22
+  leftBankDistantInsetX: 276,
+  leftBankForegroundInsetX: 300,
+  leftBankHorizonOffsetY: -22,
+  leftBankDistantOffsetY: -34,
+  leftBankForestOffsetY: -46
 });
 
 export const PORT_SCENE_CAMERA = Object.freeze({
@@ -41,7 +50,8 @@ export const PORT_SCENE_CAMERA = Object.freeze({
   maximumSpeed: 0.45,
   defaultParallax: -0.35,
   riverDefaultParallax: -0.12,
-  riverMinimumParallax: -0.12
+  riverMinimumParallax: -0.30,
+  distantParallaxAnchor: 0.28
 });
 
 export const PORT_SCENE_DOCK = Object.freeze({
@@ -51,8 +61,13 @@ export const PORT_SCENE_DOCK = Object.freeze({
   shadowWaterExtension: 66,
   shipAccessX: 672,
   shipAccessY: 514,
+  foregroundPostX: 680,
+  foregroundPostWidth: 4,
   foregroundPostTopY: 507,
   foregroundPostHeight: 66,
+  maximumShipBobY: 1,
+  shipPostClearanceX: 16,
+  shipPostClearanceY: 2,
   waterlineY: 572
 });
 
@@ -102,7 +117,7 @@ const DISTANT_LEFT_TERRAIN_LAYERS = Object.freeze({
   rocky: "Rocky Hills Left Bank"
 });
 
-const BEHIND_BUILDING_LAYERS = Object.freeze({
+const BETWEEN_BUILDING_LAYERS = Object.freeze({
   grass: "Grass Behind Buildings",
   forest: "Grass Behind Buildings",
   desert: "Desert Behind Buildings",
@@ -139,40 +154,43 @@ const FOREGROUND_SHADOW_LAYERS = Object.freeze({
 
 const RAISED_HORIZON_LAYERS = new Set([
   "Sky",
-  "Horizon Mountains",
+  "Horizon Mountains"
+]);
+
+const RAISED_DISTANT_TERRAIN_LAYERS = new Set([
   "Distant Hills",
   "Rocky Hills",
   "Distant Forest",
   "Distant Desert",
-  "Distant Plains",
-  "Shipyard"
+  "Distant Plains"
 ]);
 
 const LAYER_META = new Map([
   ["Sky", layerMeta(0, PORT_SCENE_DEPTH.sky)],
   ["Ocean", layerMeta(1, PORT_SCENE_DEPTH.horizon)],
   ["Horizon Mountains", layerMeta(5, PORT_SCENE_DEPTH.horizon)],
-  ["Horizon Mountains Left Bank", layerMeta(5, PORT_SCENE_DEPTH.horizon, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Distant Hills", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Horizon Mountains Left Bank", layerMeta(5, PORT_SCENE_DEPTH.horizon, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankHorizonOffsetY)],
+  ["Distant Hills", distantLayerMeta(15)],
   ["Distant Hills Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Rocky Hills", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Rocky Hills", distantLayerMeta(15)],
   ["Rocky Hills Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Distant Forest", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
-  ["Distant Forest Left Bank", leftBankLayerMeta(21, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Distant Desert", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Distant Forest", distantLayerMeta(15)],
+  ["Distant Forest Left Bank", leftBankLayerMeta(21, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankForestOffsetY)],
+  ["Distant Desert", distantLayerMeta(15)],
   ["Distant Desert Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
-  ["Distant Plains", anchoredLayerMeta(15, PORT_SCENE_DEPTH.shoreline)],
+  ["Distant Plains", distantLayerMeta(15)],
   ["Distant Plains Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
+  [BACKGROUND_CITY_BASE_LAYER, anchoredLayerMeta(24, BACKGROUND_CITY_FRONT_DEPTH)],
   ["Shipyard", anchoredLayerMeta(25, PORT_SCENE_DEPTH.businesses)],
   ["Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.foreground)],
   ["Sand Beach Dock Shadow", layerMeta(36, PORT_SCENE_DEPTH.foreground)],
   ["Left Bank Sand Beach", leftBankLayerMeta(70, PORT_SCENE_DEPTH.businesses, PORT_SCENE_RIVER.leftBankForegroundInsetX)],
-  ["Desert Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
-  ["Rocks Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
-  ["Grass Behind Buildings", anchoredLayerMeta(38, PORT_SCENE_DEPTH.rearBuildings)],
   ["Home 2", anchoredLayerMeta(40, PORT_SCENE_DEPTH.rearBuildings)],
   ["Home", anchoredLayerMeta(40, PORT_SCENE_DEPTH.rearBuildings)],
-  ["Far Castle", anchoredLayerMeta(59, 0.9952)],
+  ["Desert Behind Buildings", anchoredLayerMeta(42, PORT_SCENE_DEPTH.rearBuildings)],
+  ["Rocks Behind Buildings", anchoredLayerMeta(42, PORT_SCENE_DEPTH.rearBuildings)],
+  ["Grass Behind Buildings", anchoredLayerMeta(42, PORT_SCENE_DEPTH.rearBuildings)],
+  ["Far Castle", anchoredLayerMeta(59, 0.996)],
   ["Smith", anchoredLayerMeta(45, PORT_SCENE_DEPTH.businesses)],
   ["Market Stall Copy", anchoredLayerMeta(46, PORT_SCENE_DEPTH.businesses)],
   ["Market Stall Copy Copy", anchoredLayerMeta(46, PORT_SCENE_DEPTH.businesses)],
@@ -307,34 +325,23 @@ export function scenePanParallaxDelta({
 }
 
 export function docksideShipSideAnchor(ship) {
-  const deckPolygon = ship?.deckPolygon;
-  const deckEntry = ship?.deckEntryAnchor;
   const cityDockside = ship?.cityDockside;
-  const cityDeckEntry = cityDockside?.deckEntryAnchor;
-  const nativeScale = cityDockside?.nativeScale;
+  const deckPolygon = cityDockside?.deckPolygon;
   if (
     !Array.isArray(deckPolygon) ||
     deckPolygon.length !== 4 ||
-    !deckPolygon.every(({ x, y }) => Number.isFinite(x) && Number.isFinite(y)) ||
-    !deckEntry ||
-    !Number.isFinite(deckEntry.x) ||
-    !Number.isFinite(deckEntry.y) ||
-    !cityDeckEntry ||
-    !Number.isFinite(cityDeckEntry.x) ||
-    !Number.isFinite(cityDeckEntry.y) ||
-    !Number.isInteger(nativeScale) ||
-    nativeScale <= 0
+    !deckPolygon.every(({ x, y }) => Number.isFinite(x) && Number.isFinite(y))
   ) {
     throw new Error("Invalid city dockside ship berth geometry");
   }
   const nearRail = deckPolygon.slice(2);
-  const sideMidpoint = {
-    x: (nearRail[0].x + nearRail[1].x) / 2,
-    y: (nearRail[0].y + nearRail[1].y) / 2
-  };
+  const berthFraction = cityDockside.berthFraction ?? 0.5;
+  if (!Number.isFinite(berthFraction) || berthFraction < 0 || berthFraction > 1) {
+    throw new Error("Invalid city dockside ship berth fraction");
+  }
   return Object.freeze({
-    x: cityDeckEntry.x + (sideMidpoint.x - deckEntry.x) * nativeScale,
-    y: cityDeckEntry.y + (sideMidpoint.y - deckEntry.y) * nativeScale
+    x: nearRail[0].x + (nearRail[1].x - nearRail[0].x) * berthFraction,
+    y: nearRail[0].y + (nearRail[1].y - nearRail[0].y) * berthFraction
   });
 }
 
@@ -352,10 +359,50 @@ export function docksideShipVerticalPlacement({
     const topY = beachSideY - sideAnchorY;
     return Object.freeze({ topY, waterlineY: topY + submergedMinY });
   }
+  const waterlineTopY = PORT_SCENE_DOCK.waterlineY - submergedMinY;
+  const sideAnchorTopY = PORT_SCENE_DOCK.shipAccessY - sideAnchorY;
+  const topY = Math.max(waterlineTopY, sideAnchorTopY);
   return Object.freeze({
-    topY: PORT_SCENE_DOCK.waterlineY - submergedMinY,
-    waterlineY: PORT_SCENE_DOCK.waterlineY
+    topY,
+    waterlineY: topY + submergedMinY
   });
+}
+
+export function docksideShipPostClearanceShift({
+  rightmostOpaqueXByRow,
+  topY,
+  sideAnchorX
+}) {
+  if (
+    !Array.isArray(rightmostOpaqueXByRow) &&
+    !ArrayBuffer.isView(rightmostOpaqueXByRow)
+  ) {
+    throw new Error("Dockside ship post clearance requires opaque row edges");
+  }
+  if (rightmostOpaqueXByRow.length === 0) {
+    throw new Error("Dockside ship post clearance requires at least one raster row");
+  }
+  if (!Number.isFinite(topY) || !Number.isFinite(sideAnchorX)) {
+    throw new Error("Invalid dockside ship post clearance geometry");
+  }
+  const postBottomY = PORT_SCENE_DOCK.foregroundPostTopY +
+    PORT_SCENE_DOCK.foregroundPostHeight - 1;
+  const safeRightX = PORT_SCENE_DOCK.foregroundPostX -
+    PORT_SCENE_DOCK.shipPostClearanceX;
+  const firstRowBelowPost = Math.max(0, Math.floor(
+    postBottomY - PORT_SCENE_DOCK.shipPostClearanceY - topY
+  ) + 1);
+  let rightmostSourceX = -1;
+  for (let y = firstRowBelowPost; y < rightmostOpaqueXByRow.length; y++) {
+    const edge = rightmostOpaqueXByRow[y];
+    if (!Number.isInteger(edge) || edge < -1) {
+      throw new Error(`Invalid dockside ship opaque row edge: ${edge}`);
+    }
+    rightmostSourceX = Math.max(rightmostSourceX, edge);
+  }
+  if (rightmostSourceX < 0) return 0;
+  const unshiftedRightX = PORT_SCENE_DOCK.shipAccessX - sideAnchorX + rightmostSourceX;
+  return Math.max(0, Math.ceil(unshiftedRightX - safeRightX));
 }
 
 export function layerParallaxDepth(layerName, occurrence = 0) {
@@ -375,7 +422,9 @@ export function layerSceneOffsetY(layerName, occurrence = 0, approach = "ocean")
   if (!["ocean", "river", "lake"].includes(approach)) throw new Error(`Invalid port scene approach: ${approach}`);
   const backgroundOffset = RAISED_HORIZON_LAYERS.has(layerName)
     ? PORT_SCENE_HORIZON_SHIFT_Y
-    : 0;
+    : RAISED_DISTANT_TERRAIN_LAYERS.has(layerName)
+      ? PORT_SCENE_DISTANT_TERRAIN_SHIFT_Y
+      : 0;
   const riverOffset = approach === "river"
     ? resolvedLayerMeta(layerName, occurrence).riverOffsetY
     : 0;
@@ -425,6 +474,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     rightTerrain: requireTerrain(city.terrain?.right || "grass"),
     leftDistantTerrain: requireTerrain(city.terrain?.leftDistant || city.terrain?.left || "grass"),
     rightDistantTerrain: requireTerrain(city.terrain?.rightDistant || city.terrain?.right || "grass"),
+    backgroundCityRows: cityBackgroundRowCount(city),
     npcs: city.settlementType === "village" ? 3 : 6,
     props: city.settlementType === "village" ? 1 : 3
   };
@@ -438,14 +488,16 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   }
   features.npcs = clampInteger(features.npcs, 0, 12, "NPC count");
   features.props = clampInteger(features.props, 0, 6, "prop count");
+  features.backgroundCityRows = clampInteger(features.backgroundCityRows, 0, 5, "background city row count");
   return Object.freeze(features);
 }
 
 export function activePortSceneLayers(features) {
   if (!features || typeof features !== "object") throw new Error("Port scene layers require features");
   const layers = new Set(ALWAYS_VISIBLE_LAYERS);
+  if (features.backgroundCityRows > 0) layers.add(BACKGROUND_CITY_BASE_LAYER);
   layers.add(DISTANT_TERRAIN_LAYERS[features.rightDistantTerrain]);
-  layers.add(BEHIND_BUILDING_LAYERS[features.rightTerrain]);
+  layers.add(BETWEEN_BUILDING_LAYERS[features.rightTerrain]);
   layers.add(MIDGROUND_LAYERS[features.rightTerrain]);
   layers.add(FOREGROUND_LAYERS[features.rightTerrain]);
 
@@ -496,6 +548,10 @@ function definedOverrides(overrides) {
 
 function anchoredLayerMeta(z, depth) {
   return layerMeta(z, depth, 0, 0, 1);
+}
+
+function distantLayerMeta(z) {
+  return layerMeta(z, PORT_SCENE_DEPTH.shoreline, 0, 0, PORT_SCENE_CAMERA.distantParallaxAnchor);
 }
 
 function leftBankLayerMeta(z, depth, riverOffsetX, riverOffsetY = 0) {
