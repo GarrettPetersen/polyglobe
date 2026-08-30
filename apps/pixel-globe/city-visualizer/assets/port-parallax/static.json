@@ -19,43 +19,43 @@
    },
    {
     "filename": "port-parallax (Horizon Mountains).aseprite",
-    "frame": { "x": 431, "y": 1024, "w": 681, "h": 107 },
+    "frame": { "x": 806, "y": 1380, "w": 670, "h": 63 },
     "rotated": false,
     "trimmed": true,
-    "spriteSourceSize": { "x": 684, "y": 388, "w": 681, "h": 107 },
+    "spriteSourceSize": { "x": 695, "y": 388, "w": 670, "h": 63 },
     "sourceSize": { "w": 1365, "h": 910 },
     "duration": 100
    },
    {
     "filename": "port-parallax (Horizon Mountains Left Bank).aseprite",
-    "frame": { "x": 0, "y": 1401, "w": 438, "h": 97 },
+    "frame": { "x": 1714, "y": 1450, "w": 437, "h": 56 },
     "rotated": false,
     "trimmed": true,
-    "spriteSourceSize": { "x": 0, "y": 398, "w": 438, "h": 97 },
+    "spriteSourceSize": { "x": 0, "y": 398, "w": 437, "h": 56 },
     "sourceSize": { "w": 1365, "h": 910 },
     "duration": 100
    },
    {
     "filename": "port-parallax (Distant Land).aseprite",
-    "frame": { "x": 438, "y": 1424, "w": 733, "h": 53 },
+    "frame": { "x": 0, "y": 1391, "w": 733, "h": 48 },
     "rotated": false,
     "trimmed": true,
-    "spriteSourceSize": { "x": 632, "y": 418, "w": 733, "h": 53 },
+    "spriteSourceSize": { "x": 632, "y": 418, "w": 733, "h": 48 },
     "sourceSize": { "w": 1365, "h": 910 },
     "duration": 100
    },
    {
     "filename": "port-parallax (Distant Land Left Bank).aseprite",
-    "frame": { "x": 431, "y": 910, "w": 663, "h": 114 },
+    "frame": { "x": 1782, "y": 1389, "w": 663, "h": 61 },
     "rotated": false,
     "trimmed": true,
-    "spriteSourceSize": { "x": 0, "y": 413, "w": 663, "h": 114 },
+    "spriteSourceSize": { "x": 0, "y": 413, "w": 663, "h": 61 },
     "sourceSize": { "w": 1365, "h": 910 },
     "duration": 100
    },
    {
     "filename": "port-parallax (Distant Hills).aseprite",
-    "frame": { "x": 654, "y": 1131, "w": 654, "h": 90 },
+    "frame": { "x": 431, "y": 1098, "w": 654, "h": 90 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 711, "y": 431, "w": 654, "h": 90 },
@@ -64,7 +64,7 @@
    },
    {
     "filename": "port-parallax (Distant Hills Left Bank).aseprite",
-    "frame": { "x": 0, "y": 1498, "w": 345, "h": 75 },
+    "frame": { "x": 1369, "y": 1443, "w": 345, "h": 75 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 433, "w": 345, "h": 75 },
@@ -73,7 +73,7 @@
    },
    {
     "filename": "port-parallax (Rocky Hills).aseprite",
-    "frame": { "x": 0, "y": 1131, "w": 654, "h": 91 },
+    "frame": { "x": 431, "y": 1007, "w": 654, "h": 91 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 711, "y": 430, "w": 654, "h": 91 },
@@ -82,7 +82,7 @@
    },
    {
     "filename": "port-parallax (Rocky Hills Left Bank).aseprite",
-    "frame": { "x": 1607, "y": 1257, "w": 354, "h": 134 },
+    "frame": { "x": 2246, "y": 1255, "w": 354, "h": 134 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 433, "w": 354, "h": 134 },
@@ -91,7 +91,7 @@
    },
    {
     "filename": "port-parallax (Distant Forest).aseprite",
-    "frame": { "x": 2038, "y": 1114, "w": 651, "h": 97 },
+    "frame": { "x": 431, "y": 910, "w": 651, "h": 97 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 714, "y": 424, "w": 651, "h": 97 },
@@ -100,7 +100,7 @@
    },
    {
     "filename": "port-parallax (Distant Forest Left Bank).aseprite",
-    "frame": { "x": 1607, "y": 1116, "w": 371, "h": 141 },
+    "frame": { "x": 2038, "y": 1114, "w": 371, "h": 141 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 426, "w": 371, "h": 141 },
@@ -109,7 +109,7 @@
    },
    {
     "filename": "port-parallax (Distant Desert).aseprite",
-    "frame": { "x": 654, "y": 1221, "w": 660, "h": 76 },
+    "frame": { "x": 0, "y": 1188, "w": 660, "h": 76 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 705, "y": 446, "w": 660, "h": 76 },
@@ -118,7 +118,7 @@
    },
    {
     "filename": "port-parallax (Distant Desert Left Bank).aseprite",
-    "frame": { "x": 438, "y": 1477, "w": 360, "h": 93 },
+    "frame": { "x": 0, "y": 1439, "w": 360, "h": 93 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 450, "w": 360, "h": 93 },
@@ -127,7 +127,7 @@
    },
    {
     "filename": "port-parallax (Distant Plains).aseprite",
-    "frame": { "x": 0, "y": 1222, "w": 654, "h": 75 },
+    "frame": { "x": 660, "y": 1204, "w": 654, "h": 75 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 711, "y": 447, "w": 654, "h": 75 },
@@ -136,7 +136,7 @@
    },
    {
     "filename": "port-parallax (Distant Plains Left Bank).aseprite",
-    "frame": { "x": 464, "y": 1297, "w": 366, "h": 127 },
+    "frame": { "x": 0, "y": 1264, "w": 366, "h": 127 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 450, "w": 366, "h": 127 },
@@ -145,7 +145,7 @@
    },
    {
     "filename": "port-parallax (Background City Base).aseprite",
-    "frame": { "x": 1266, "y": 1492, "w": 541, "h": 55 },
+    "frame": { "x": 828, "y": 1443, "w": 541, "h": 55 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 824, "y": 469, "w": 541, "h": 55 },
@@ -154,7 +154,7 @@
    },
    {
     "filename": "port-parallax (Shipyard).aseprite",
-    "frame": { "x": 2609, "y": 985, "w": 84, "h": 41 },
+    "frame": { "x": 2644, "y": 957, "w": 84, "h": 41 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 841, "y": 470, "w": 84, "h": 41 },
@@ -190,7 +190,7 @@
    },
    {
     "filename": "port-parallax (Home 2).aseprite",
-    "frame": { "x": 1277, "y": 910, "w": 85, "h": 79 },
+    "frame": { "x": 2644, "y": 878, "w": 85, "h": 79 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1027, "y": 409, "w": 85, "h": 79 },
@@ -199,7 +199,7 @@
    },
    {
     "filename": "port-parallax (Home).aseprite",
-    "frame": { "x": 2611, "y": 878, "w": 95, "h": 71 },
+    "frame": { "x": 1260, "y": 910, "w": 95, "h": 71 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1156, "y": 414, "w": 95, "h": 71 },
@@ -208,7 +208,7 @@
    },
    {
     "filename": "port-parallax (Desert Behind Buildings).aseprite",
-    "frame": { "x": 2265, "y": 1545, "w": 455, "h": 35 },
+    "frame": { "x": 360, "y": 1514, "w": 455, "h": 35 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 910, "y": 468, "w": 455, "h": 35 },
@@ -217,7 +217,7 @@
    },
    {
     "filename": "port-parallax (Rocks Behind Buildings).aseprite",
-    "frame": { "x": 1807, "y": 1505, "w": 458, "h": 45 },
+    "frame": { "x": 828, "y": 1498, "w": 458, "h": 45 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 907, "y": 464, "w": 458, "h": 45 },
@@ -226,7 +226,7 @@
    },
    {
     "filename": "port-parallax (Grass Behind Buildings).aseprite",
-    "frame": { "x": 2265, "y": 1505, "w": 460, "h": 40 },
+    "frame": { "x": 1714, "y": 1506, "w": 460, "h": 40 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 905, "y": 464, "w": 460, "h": 40 },
@@ -280,7 +280,7 @@
    },
    {
     "filename": "port-parallax (Midground Grass).aseprite",
-    "frame": { "x": 0, "y": 1297, "w": 464, "h": 104 },
+    "frame": { "x": 1782, "y": 1255, "w": 464, "h": 104 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 901, "y": 482, "w": 464, "h": 104 },
@@ -289,7 +289,7 @@
    },
    {
     "filename": "port-parallax (Midground Desert).aseprite",
-    "frame": { "x": 830, "y": 1297, "w": 440, "h": 104 },
+    "frame": { "x": 366, "y": 1279, "w": 440, "h": 104 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 925, "y": 482, "w": 440, "h": 104 },
@@ -298,7 +298,7 @@
    },
    {
     "filename": "port-parallax (Midground Rocky).aseprite",
-    "frame": { "x": 1270, "y": 1391, "w": 440, "h": 101 },
+    "frame": { "x": 806, "y": 1279, "w": 440, "h": 101 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 925, "y": 485, "w": 440, "h": 101 },
@@ -307,7 +307,7 @@
    },
    {
     "filename": "port-parallax (Road).aseprite",
-    "frame": { "x": 798, "y": 1477, "w": 468, "h": 71 },
+    "frame": { "x": 360, "y": 1443, "w": 468, "h": 71 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 897, "y": 483, "w": 468, "h": 71 },
@@ -316,7 +316,7 @@
    },
    {
     "filename": "port-parallax (Castle Shadow).aseprite",
-    "frame": { "x": 1094, "y": 910, "w": 183, "h": 110 },
+    "frame": { "x": 1782, "y": 1116, "w": 183, "h": 110 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1182, "y": 481, "w": 183, "h": 110 },
@@ -334,7 +334,7 @@
    },
    {
     "filename": "port-parallax (Dock).aseprite",
-    "frame": { "x": 2469, "y": 1049, "w": 234, "h": 38 },
+    "frame": { "x": 0, "y": 1127, "w": 234, "h": 38 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 676, "y": 505, "w": 234, "h": 38 },
@@ -343,7 +343,7 @@
    },
    {
     "filename": "port-parallax (Stone Dock).aseprite",
-    "frame": { "x": 1112, "y": 1020, "w": 235, "h": 66 },
+    "frame": { "x": 2174, "y": 1450, "w": 235, "h": 66 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 676, "y": 505, "w": 235, "h": 66 },
@@ -361,7 +361,7 @@
    },
    {
     "filename": "port-parallax (Inn).aseprite",
-    "frame": { "x": 2503, "y": 1211, "w": 129, "h": 101 },
+    "frame": { "x": 2600, "y": 1190, "w": 129, "h": 101 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1057, "y": 473, "w": 129, "h": 101 },
@@ -406,7 +406,7 @@
    },
    {
     "filename": "port-parallax (Foreground Grass Castle Shadow).aseprite",
-    "frame": { "x": 1112, "y": 1086, "w": 101, "h": 32 },
+    "frame": { "x": 1260, "y": 1017, "w": 101, "h": 32 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1264, "y": 557, "w": 101, "h": 32 },
@@ -415,7 +415,7 @@
    },
    {
     "filename": "port-parallax (Foreground Grass Left Bank).aseprite",
-    "frame": { "x": 2328, "y": 1211, "w": 175, "h": 293 },
+    "frame": { "x": 1607, "y": 1116, "w": 175, "h": 293 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 482, "w": 175, "h": 293 },
@@ -424,7 +424,7 @@
    },
    {
     "filename": "port-parallax (Foreground Desert Left Bank).aseprite",
-    "frame": { "x": 1978, "y": 1211, "w": 175, "h": 294 },
+    "frame": { "x": 2469, "y": 896, "w": 175, "h": 294 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 498, "w": 175, "h": 294 },
@@ -433,7 +433,7 @@
    },
    {
     "filename": "port-parallax (Foreground Rocky Left Bank).aseprite",
-    "frame": { "x": 2153, "y": 1211, "w": 175, "h": 294 },
+    "frame": { "x": 1085, "y": 910, "w": 175, "h": 294 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 0, "y": 498, "w": 175, "h": 294 },
@@ -451,7 +451,7 @@
    },
    {
     "filename": "port-parallax (Foreground Desert Castle Shadow).aseprite",
-    "frame": { "x": 2609, "y": 949, "w": 99, "h": 36 },
+    "frame": { "x": 1260, "y": 981, "w": 99, "h": 36 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1266, "y": 556, "w": 99, "h": 36 },
@@ -469,7 +469,7 @@
    },
    {
     "filename": "port-parallax (Foreground Rocky Castle Shadow).aseprite",
-    "frame": { "x": 1213, "y": 1086, "w": 92, "h": 32 },
+    "frame": { "x": 1260, "y": 1049, "w": 92, "h": 32 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1273, "y": 558, "w": 92, "h": 32 },
@@ -478,7 +478,7 @@
    },
    {
     "filename": "port-parallax (Far Castle).aseprite",
-    "frame": { "x": 2469, "y": 896, "w": 140, "h": 153 },
+    "frame": { "x": 2445, "y": 1389, "w": 140, "h": 153 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1225, "y": 345, "w": 140, "h": 153 },
@@ -527,7 +527,7 @@
   "version": "1.3.18.3-x64",
   "image": "static.png",
   "format": "RGBA8888",
-  "size": { "w": 2730, "h": 1580 },
+  "size": { "w": 2730, "h": 1549 },
   "scale": "1",
   "layers": [
    { "name": "Sky", "opacity": 255, "blendMode": "normal" },

@@ -21,7 +21,7 @@ export const PORT_SCENE_DEPTH = Object.freeze({
   distant: 0.32,
   midground: 0.58,
   buildings: 0.72,
-  shoreline: 0.72,
+  shoreline: 0.52,
   rearBuildings: 0.96,
   businesses: 0.98,
   foreground: 1
@@ -56,7 +56,7 @@ export const PORT_SCENE_CAMERA = Object.freeze({
   defaultParallax: -0.35,
   riverDefaultParallax: -0.12,
   riverMinimumParallax: -0.30,
-  distantParallaxAnchor: 0.28
+  distantParallaxAnchor: 0.113
 });
 
 export const PORT_SCENE_DOCK = Object.freeze({

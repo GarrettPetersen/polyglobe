@@ -202,6 +202,12 @@ test("ocean depth slices cover the authored water without gaps", () => {
   }
   assert.equal(PORT_SCENE_OCEAN_SLICES[1].depth, layerParallaxDepth("Distant Plains"));
   assert.equal(PORT_SCENE_OCEAN_SLICES[1].depth, layerParallaxDepth("Distant Forest"));
+  const distantTerrainMidpoint = (
+    layerParallaxDepth("Ocean") + layerParallaxDepth("Background City Base")
+  ) / 2;
+  assert.ok(Math.abs(
+    layerParallaxDepth("Distant Forest") - distantTerrainMidpoint
+  ) <= 0.02);
   assert.equal(PORT_SCENE_OCEAN_SLICES[2].depth, layerParallaxDepth("Midground Grass"));
   assert.equal(PORT_SCENE_OCEAN_SLICES[2].depth, layerParallaxDepth("Sand Beach"));
   assert.ok(layerSceneZ("Distant Plains") < PORT_SCENE_OCEAN_SLICES[2].z);
