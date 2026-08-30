@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   RELIGION_CATALOG,
   inferCharacterReligion,
+  isChristianReligion,
   isIslamicReligion,
   islamicReligionForHome,
   religionCandidatesForCharacter,
@@ -119,6 +120,15 @@ test("Islamic communities provide a locally appropriate Hajj pilgrim religion", 
     cityType: "mediterranean",
     factionId: "portugal"
   }, "hajj-lisbon"), null);
+});
+
+test("Christian landmark detection includes western and orthodox traditions", () => {
+  assert.equal(isChristianReligion("roman-catholic"), true);
+  assert.equal(isChristianReligion("lutheran"), true);
+  assert.equal(isChristianReligion("eastern-orthodox"), true);
+  assert.equal(isChristianReligion("ethiopian-orthodox"), true);
+  assert.equal(isChristianReligion("sunni-islam"), false);
+  assert.equal(isChristianReligion("mahayana-buddhism"), false);
 });
 
 test("new minority affiliations stay confined to plausible 1522 regions", () => {

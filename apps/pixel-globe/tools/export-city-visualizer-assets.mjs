@@ -23,6 +23,8 @@ const BUILDING_LAYER_OVERRIDES = Object.freeze({
   Smith: "Smith"
 });
 
+const STANDALONE_BUILDING_LAYERS = Object.freeze(["Church"]);
+
 const AUTHORED_LAYER_ORDER = Object.freeze([
   "Sky",
   "Ocean",
@@ -129,7 +131,7 @@ if (JSON.stringify(staticLayerNames) !== JSON.stringify(expectedStaticNames)) {
     "Aseprite layer order changed; update the city visualizer authored layer contract before exporting"
   );
 }
-await applyBuildingOverrides(staticFrames, staticPngPath);
+await applyBuildingAssets(staticFrames, staticPngPath);
 
 const animated = {};
 for (const layer of ["Waves", "Surf"]) {
@@ -230,7 +232,7 @@ function layerNameFromFilename(filename) {
   return match[1];
 }
 
-async function applyBuildingOverrides(staticFrames, staticPngPath) {
+async function applyBuildingAssets(staticFrames, staticPngPath) {
   if (!existsSync(buildingSource)) {
     throw new Error(`Missing city building source: ${buildingSource}`);
   }
@@ -256,7 +258,10 @@ async function applyBuildingOverrides(staticFrames, staticPngPath) {
       layer: layerNameFromFilename(frame.filename),
       ...portableFrame(frame)
     }));
-    const expectedLayerNames = Object.keys(BUILDING_LAYER_OVERRIDES);
+    const expectedLayerNames = [
+      ...Object.keys(BUILDING_LAYER_OVERRIDES),
+      ...STANDALONE_BUILDING_LAYERS
+    ];
     const overrideFrames = visibleFrames.filter((frame) => expectedLayerNames.includes(frame.layer));
     const missingLayerNames = expectedLayerNames.filter((layer) => (
       !overrideFrames.some((frame) => frame.layer === layer)
@@ -271,11 +276,21 @@ async function applyBuildingOverrides(staticFrames, staticPngPath) {
       loadImage(staticPngPath),
       loadImage(sheetPath)
     ]);
-    const canvas = createCanvas(staticAtlas.width, staticAtlas.height);
+    const standaloneFrames = overrideFrames.filter((frame) => (
+      STANDALONE_BUILDING_LAYERS.includes(frame.layer)
+    ));
+    const appendedHeight = standaloneFrames.reduce((height, frame) => height + frame.frame.h, 0);
+    const appendedWidth = standaloneFrames.reduce(
+      (width, frame) => Math.max(width, frame.frame.w),
+      staticAtlas.width
+    );
+    const canvas = createCanvas(appendedWidth, staticAtlas.height + appendedHeight);
     const context = canvas.getContext("2d");
     context.imageSmoothingEnabled = false;
     context.drawImage(staticAtlas, 0, 0);
-    for (const overrideFrame of overrideFrames) {
+    for (const overrideFrame of overrideFrames.filter((frame) => (
+      Object.hasOwn(BUILDING_LAYER_OVERRIDES, frame.layer)
+    ))) {
       const targetLayer = BUILDING_LAYER_OVERRIDES[overrideFrame.layer];
       const targetFrame = staticFrames.find((frame) => frame.layer === targetLayer);
       if (!targetFrame) throw new Error(`Missing target city layer: ${targetLayer}`);
@@ -305,6 +320,35 @@ async function applyBuildingOverrides(staticFrames, staticPngPath) {
         targetFrame.frame.w,
         targetFrame.frame.h
       );
+    }
+    let appendedY = staticAtlas.height;
+    for (const standaloneFrame of standaloneFrames) {
+      context.drawImage(
+        overrideAtlas,
+        standaloneFrame.frame.x,
+        standaloneFrame.frame.y,
+        standaloneFrame.frame.w,
+        standaloneFrame.frame.h,
+        0,
+        appendedY,
+        standaloneFrame.frame.w,
+        standaloneFrame.frame.h
+      );
+      staticFrames.push({
+        id: `building-${standaloneFrame.layer.toLowerCase().replaceAll(" ", "-")}`,
+        layer: standaloneFrame.layer,
+        sheet: "static.png",
+        frame: {
+          x: 0,
+          y: appendedY,
+          w: standaloneFrame.frame.w,
+          h: standaloneFrame.frame.h
+        },
+        spriteSourceSize: standaloneFrame.spriteSourceSize,
+        sourceSize: standaloneFrame.sourceSize,
+        duration: standaloneFrame.duration
+      });
+      appendedY += standaloneFrame.frame.h;
     }
     await writeFile(staticPngPath, canvas.toBuffer("image/png"));
   } finally {

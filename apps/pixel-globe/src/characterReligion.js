@@ -190,6 +190,11 @@ export function isIslamicReligion(religionId) {
   return religionById(religionId).iconId === "religion:islam";
 }
 
+export function isChristianReligion(religionId) {
+  const iconId = religionById(religionId).iconId;
+  return iconId === "religion:christian" || iconId === "religion:orthodox";
+}
+
 export function islamicReligionForHome(homePort, identityKey) {
   if (typeof identityKey !== "string" || identityKey.trim() === "") {
     throw new Error("Islamic religion selection requires an identity key");

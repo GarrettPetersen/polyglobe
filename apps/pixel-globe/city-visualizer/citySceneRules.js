@@ -94,8 +94,6 @@ const ALWAYS_VISIBLE_LAYERS = Object.freeze([
   "Ocean",
   "Shipyard",
   "Sand Beach",
-  "Home 2",
-  "Home",
   "Smith",
   "Market Stall Copy",
   "Market Stall Copy Copy",
@@ -515,6 +513,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     leftDistantTerrain: requireTerrain(city.terrain?.leftDistant || city.terrain?.left || "grass"),
     rightDistantTerrain: requireTerrain(city.terrain?.rightDistant || city.terrain?.right || "grass"),
     backgroundCityRows: cityBackgroundRowCount(city),
+    church: Boolean(city.religiousLandmarks?.includes("church")),
     leftBankCity: Boolean(city.builtUpBothBanks),
     npcs: city.settlementType === "village" ? 3 : 6,
     props: city.settlementType === "village" ? 1 : 3

@@ -22,6 +22,10 @@ import {
 } from "../src/terrainMetadata.js";
 import { isWaterSurfaceRow } from "../src/terrainSurface.js";
 import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
+import {
+  isChristianReligion,
+  religionCandidatesForHome
+} from "../src/characterReligion.js";
 
 const GEOGRAPHY_SUBDIVISIONS = 7;
 const NEIGHBORHOOD_RINGS = 5;
@@ -153,6 +157,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
     settlementType: city.settlementType || "city",
     factionId: city.factionId,
     capital: Boolean(city.declaredCapitalFactionId),
+    religiousLandmarks: religiousLandmarks(city),
     approach,
     builtUpBothBanks,
     dock,
@@ -176,6 +181,13 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
       terrain: `dominant land cover within ${NEIGHBORHOOD_RINGS} game-tile rings, split across the approach axis`
     })
   });
+}
+
+function religiousLandmarks(city) {
+  const candidates = religionCandidatesForHome(city);
+  return Object.freeze(candidates.some(({ id }) => isChristianReligion(id))
+    ? ["church"]
+    : []);
 }
 
 function indexCityCatalog(cities) {

@@ -665,6 +665,16 @@ test("London and Buda default to developed opposite banks in the generated city 
   assert.equal(cityById.get("angers|france")?.builtUpBothBanks, false);
 });
 
+test("Christian communities opt into the shared church landmark through city data", () => {
+  const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
+  assert.deepEqual(cityById.get("london|united kingdom")?.religiousLandmarks, ["church"]);
+  assert.equal(
+    resolveCitySceneFeatures({ ...CITY, religiousLandmarks: ["church"] }).church,
+    true
+  );
+  assert.equal(resolveCitySceneFeatures(CITY).church, false);
+});
+
 test("manual feature overrides can audition missing art without changing the city bake", () => {
   const features = resolveCitySceneFeatures(CITY, {
     approach: "ocean",

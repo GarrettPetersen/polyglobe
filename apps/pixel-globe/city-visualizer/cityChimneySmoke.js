@@ -69,6 +69,20 @@ const CITY_CHIMNEY_SMOKE_EMITTER_BY_LAYER = new Map(
   CITY_CHIMNEY_SMOKE_EMITTERS.map((emitter) => [emitter.layerName, emitter])
 );
 
+export function placedCityBuildingChimneySmokeEmitter(placement) {
+  requireBackgroundBuilding(placement);
+  const source = CITY_CHIMNEY_SMOKE_EMITTER_BY_LAYER.get(placement.frame.layer);
+  if (!source) return null;
+  const scaleX = placement.width / placement.frame.frame.w;
+  const scaleY = placement.height / placement.frame.frame.h;
+  return Object.freeze({
+    ...source,
+    id: `city-building-slot|${placement.id}`,
+    x: placement.x + (source.x - placement.frame.spriteSourceSize.x) * scaleX,
+    y: placement.y + (source.y - placement.frame.spriteSourceSize.y) * scaleY
+  });
+}
+
 export function backgroundCityChimneySmokeEmitters({ cityId, side, rows }) {
   if (typeof cityId !== "string" || cityId === "") {
     throw new Error("Background city chimney smoke requires a city id");

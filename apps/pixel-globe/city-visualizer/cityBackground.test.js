@@ -3,6 +3,8 @@ import test from "node:test";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 import {
   BACKGROUND_CITY_BUILDING_LAYERS,
+  BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT,
+  BACKGROUND_CITY_CHURCH_LAYER,
   BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT,
   BACKGROUND_CITY_FRONT_DEPTH,
   BACKGROUND_CITY_MAX_ROWS,
@@ -32,6 +34,8 @@ const FRAMES = Object.freeze(BACKGROUND_CITY_BUILDING_LAYERS.map((layer) => fram
   layer,
   ...BUILDING_SIZES[layer]
 )));
+const CHURCH_FRAME = frame(BACKGROUND_CITY_CHURCH_LAYER, 195, 367, 142, 16);
+const FRAMES_WITH_CHURCH = Object.freeze([...FRAMES, CHURCH_FRAME]);
 const BASE_FRAME = frame("Background City Base", 541, 55, 824, 469);
 const FLAT_BASE_TOP = new Int16Array(BASE_FRAME.frame.w).fill(BASE_FRAME.spriteSourceSize.y);
 const LONDON = Object.freeze({
@@ -123,6 +127,49 @@ test("the front row permits only its scaled foundation band to intersect the rib
     width === Math.round(source.frame.w * 0.5) &&
     height === Math.round(source.frame.h * 0.5)
   )));
+});
+
+test("Christian cities receive one buried church landmark in a rear skyline row", () => {
+  const rows = cityBackgroundLayout({
+    city: { ...LONDON, religiousLandmarks: ["church"] },
+    rowCount: 5,
+    frames: FRAMES_WITH_CHURCH,
+    baseFrame: BASE_FRAME,
+    baseTopYByX: FLAT_BASE_TOP
+  });
+  const churches = rows.flatMap((row) => row.buildings
+    .filter((building) => building.frame.layer === BACKGROUND_CITY_CHURCH_LAYER)
+    .map((building) => ({ row, building })));
+  assert.equal(churches.length, 1);
+  const [{ row, building }] = churches;
+  assert.equal(row.distanceFromFront, 2);
+  assert.equal(
+    building.foundationHeight,
+    Math.round(BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT * row.scale)
+  );
+  assert.ok(building.wallBottomY <= building.shorelineTopY);
+  assert.ok(building.x >= BASE_FRAME.spriteSourceSize.x + BACKGROUND_CITY_QUAY_CLEARANCE);
+  assert.ok(building.x + building.width <= BASE_FRAME.spriteSourceSize.x + BASE_FRAME.spriteSourceSize.w);
+  const churchCenterX = building.x + building.width / 2;
+  assert.ok(rows.some((nearerRow) => (
+    nearerRow.distanceFromFront < row.distanceFromFront &&
+    nearerRow.buildings.some((nearer) => (
+      churchCenterX >= nearer.x &&
+      churchCenterX < nearer.x + nearer.width &&
+      nearer.bottomY >= building.bottomY
+    ))
+  )), "a nearer building must cover the church's raised rear-row base");
+
+  const ordinaryRows = cityBackgroundLayout({
+    city: LONDON,
+    rowCount: 5,
+    frames: FRAMES_WITH_CHURCH,
+    baseFrame: BASE_FRAME,
+    baseTopYByX: FLAT_BASE_TOP
+  });
+  assert.equal(ordinaryRows.some((ordinaryRow) => ordinaryRow.buildings.some(
+    (ordinaryBuilding) => ordinaryBuilding.frame.layer === BACKGROUND_CITY_CHURCH_LAYER
+  )), false);
 });
 
 test("a falling ribbon adds grounded rear layers at the dip instead of lifting buildings", () => {

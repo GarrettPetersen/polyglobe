@@ -53,8 +53,10 @@ import {
 import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
   backgroundCityChimneySmokeEmitters,
-  cityChimneySmokeParticles
+  cityChimneySmokeParticles,
+  placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
+import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
   docksideShipWaterlinePixelKeys
@@ -134,6 +136,7 @@ const state = {
   backgroundCityBaseTopYByX: null,
   backgroundCityStreetRows: [],
   leftBankBackgroundCityStreetRows: [],
+  streetBuildings: [],
   npcAgents: []
 };
 
@@ -306,6 +309,10 @@ function applyFeatureOverrides() {
     rightTerrain: autoValue(rightTerrainOverride.value)
   };
   state.features = resolveCitySceneFeatures(state.city, overrides);
+  state.streetBuildings = cityStreetBuildingPlacements({
+    features: state.features,
+    frames: state.portManifest.staticFrames
+  });
   const backgroundCityBase = state.portManifest.staticFrames.find((frame) => (
     frame.layer === BACKGROUND_CITY_BASE_LAYER
   ));
@@ -683,6 +690,10 @@ function render(timeMs) {
     else if (entry.kind === "background-city") drawBackgroundCity(entry.side, timeMs);
     else if (entry.kind === "left-bank-background-city-base") drawLeftBankBackgroundCityBase(entry.frame);
     else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
+    else if (entry.kind === "city-building") drawCityStreetBuilding(entry.placement);
+    else if (entry.kind === "city-building-smoke") {
+      drawCityStreetBuildingSmoke(entry.placement, entry.emitter, timeMs);
+    }
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
     else if (entry.kind === "npcs") drawNpcs(timeMs);
   }
@@ -762,12 +773,64 @@ function sceneRenderEntries() {
       authoredOrder: authoredOrder - 0.1
     });
   }
+  for (const [placementOrder, placement] of state.streetBuildings.entries()) {
+    const authoredOrder = 15 + placementOrder / 10;
+    const emitter = placedCityBuildingChimneySmokeEmitter(placement);
+    if (emitter) {
+      entries.push({
+        kind: "city-building-smoke",
+        placement,
+        emitter,
+        z: placement.z - 0.1,
+        authoredOrder: authoredOrder - 0.01
+      });
+    }
+    entries.push({
+      kind: "city-building",
+      placement,
+      z: placement.z,
+      authoredOrder
+    });
+  }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
   entries.push({ kind: "npcs", ...PORT_SCENE_ENTITY_META.npcs, authoredOrder: 37.5 });
   if (state.features.dock !== "none") {
     entries.push({ kind: "dock-shadow-extension", z: 36, authoredOrder: 16.5 });
   }
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
+}
+
+function drawCityStreetBuilding(placement) {
+  const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+  context.drawImage(
+    state.staticAtlas,
+    placement.frame.frame.x,
+    placement.frame.frame.y,
+    placement.frame.frame.w,
+    placement.frame.frame.h,
+    Math.round(placement.x - window.x),
+    Math.round(placement.y - window.y),
+    placement.width,
+    placement.height
+  );
+}
+
+function drawCityStreetBuildingSmoke(placement, emitter, timeMs) {
+  const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+  const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
+  context.save();
+  for (const particle of cityChimneySmokeParticles(emitter, smokeTime)) {
+    if (particle.alpha <= 0) continue;
+    context.globalAlpha = particle.alpha;
+    context.fillStyle = particle.color;
+    context.fillRect(
+      Math.round(particle.x - window.x),
+      Math.round(particle.y - window.y),
+      particle.size,
+      particle.size
+    );
+  }
+  context.restore();
 }
 
 function drawBackgroundCity(side, timeMs) {

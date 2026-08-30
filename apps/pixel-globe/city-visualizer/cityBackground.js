@@ -7,12 +7,14 @@ export const BACKGROUND_CITY_BUILDING_LAYERS = Object.freeze([
   "Home",
   "Home 2"
 ]);
+export const BACKGROUND_CITY_CHURCH_LAYER = "Church";
 
 export const BACKGROUND_CITY_FRONT_DEPTH = 0.86;
 export const BACKGROUND_CITY_MAX_ROWS = 8;
 export const BACKGROUND_CITY_PARALLAX_ANCHOR = 1;
 export const BACKGROUND_CITY_QUAY_CLEARANCE = 15;
 export const BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT = 12;
+export const BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT = 36;
 export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
 export const BACKGROUND_CITY_SKYLINE_RISE_PER_PIXEL = 1 / 32;
 export const BACKGROUND_CITY_SKYLINE_TOLERANCE = 3;
@@ -171,6 +173,13 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
     requireFrame(frame, layerName);
     return frame;
   });
+  const churchFrame = city.religiousLandmarks?.includes("church")
+    ? frameByLayer.get(BACKGROUND_CITY_CHURCH_LAYER)
+    : null;
+  if (city.religiousLandmarks?.includes("church")) {
+    requireFrame(churchFrame, BACKGROUND_CITY_CHURCH_LAYER);
+  }
+  const churchDistanceFromFront = Math.min(2, rowCount - 1);
   const random = seededRandom(hashString(city.id));
   const baseLeft = baseFrame.spriteSourceSize.x;
   const baseRight = baseLeft + baseFrame.spriteSourceSize.w;
@@ -279,6 +288,61 @@ export function cityBackgroundLayout({ city, rowCount, frames, baseFrame, baseTo
       if (finalBuilding) break;
       const overlap = Math.max(3, Math.round(width * (0.12 + random() * 0.08)));
       x += width - overlap;
+    }
+
+    if (churchFrame && distanceFromFront === churchDistanceFromFront && buildings.length > 0) {
+      const churchWidth = Math.max(1, Math.round(churchFrame.frame.w * scale));
+      const churchHeight = Math.max(1, Math.round(churchFrame.frame.h * scale));
+      const targetCenterX = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE + Math.round(
+        (baseRight - baseLeft - BACKGROUND_CITY_QUAY_CLEARANCE) * 0.58
+      );
+      const replacementIndex = buildings.reduce((closestIndex, building, index) => (
+        Math.abs(building.x + building.width / 2 - targetCenterX) <
+          Math.abs(buildings[closestIndex].x + buildings[closestIndex].width / 2 - targetCenterX)
+          ? index
+          : closestIndex
+      ), 0);
+      const replaced = buildings[replacementIndex];
+      const churchX = Math.max(
+        baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE,
+        Math.min(baseRight - churchWidth, Math.round(replaced.x + replaced.width / 2 - churchWidth / 2))
+      );
+      const churchFoundationHeight = Math.min(
+        churchHeight - 1,
+        Math.max(1, Math.round(BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT * scale))
+      );
+      const profileStartX = Math.max(0, Math.floor(churchX - baseLeft));
+      const profileEndX = Math.min(
+        baseTopYByX.length,
+        Math.ceil(churchX + churchWidth - baseLeft)
+      );
+      const shorelineTopY = minimumValue(baseTopYByX, profileStartX, profileEndX);
+      const unoccludedWallBottomY = shorelineTopY + verticalOffset;
+      const unoccludedBottomY = unoccludedWallBottomY + churchFoundationHeight;
+      const foregroundTopY = citySkylineTopYAtX(
+        rowsNearToFar,
+        churchX + churchWidth / 2
+      );
+      const occlusionDrop = Number.isFinite(foregroundTopY)
+        ? Math.min(-verticalOffset, Math.max(0, foregroundTopY - unoccludedBottomY))
+        : 0;
+      const wallBottomY = unoccludedWallBottomY + occlusionDrop;
+      const y = wallBottomY - (churchHeight - churchFoundationHeight);
+      buildings[replacementIndex] = Object.freeze({
+        frame: churchFrame,
+        x: churchX,
+        y,
+        bottomY: y + churchHeight,
+        wallBottomY,
+        admittedWallBottomY: wallBottomY,
+        shorelineTopY,
+        rowGroundTopY: shorelineTopY,
+        occlusionDrop,
+        foundationHeight: churchFoundationHeight,
+        rightRise: 0,
+        width: churchWidth,
+        height: churchHeight
+      });
     }
 
     if (buildings.length === 0) break;
