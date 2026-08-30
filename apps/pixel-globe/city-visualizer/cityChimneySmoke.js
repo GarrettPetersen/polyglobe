@@ -1,6 +1,6 @@
 const DARK_SMOKE = Object.freeze(["#3e3546", "#625565", "#7f708a"]);
 const LIGHT_SMOKE = Object.freeze(["#625565", "#7f708a", "#9babb2"]);
-const DISTANT_SMOKE = Object.freeze(["#7f708a", "#9babb2"]);
+const DISTANT_SMOKE = Object.freeze(["#625565", "#7f708a"]);
 
 export const CITY_CHIMNEY_SMOKE_EMITTERS = Object.freeze([
   chimneyEmitter({
@@ -157,15 +157,17 @@ function backgroundBuildingEmitter({ building, distanceFromFront, key, source })
   const frame = building.frame;
   const scaleX = building.width / frame.frame.w;
   const scaleY = building.height / frame.frame.h;
-  const depthOpacity = Math.max(0.28, 0.58 - distanceFromFront * 0.05);
+  const depthOpacity = Math.max(0.55, 0.9 - distanceFromFront * 0.05);
   return Object.freeze({
     id: `background-city|${key}`,
     layerName: source.layerName,
     x: building.x + (source.x - frame.spriteSourceSize.x) * scaleX,
     y: building.y + (source.y - frame.spriteSourceSize.y) * scaleY,
-    emissionIntervalMs: Math.round(source.emissionIntervalMs / Math.max(0.25, scaleX)),
-    lifetimeMs: Math.round(source.lifetimeMs * 0.8),
-    rise: Math.max(2, Math.round(source.rise * scaleY)),
+    emissionIntervalMs: Math.round(
+      source.emissionIntervalMs / Math.max(0.4, Math.sqrt(scaleX))
+    ),
+    lifetimeMs: Math.round(source.lifetimeMs * 0.9),
+    rise: Math.max(3, Math.round(source.rise * scaleY)),
     drift: Math.max(1, Math.round(source.drift * scaleX)),
     spread: Math.max(1, source.spread * scaleX),
     maximumSize: 1,

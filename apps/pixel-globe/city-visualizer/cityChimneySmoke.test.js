@@ -108,8 +108,15 @@ test("background cities deterministically smoke from exactly half their scaled c
     );
     assert.equal(emitter.maximumSize, 1);
     assert.ok(emitter.opacity < source.opacity);
-    assert.ok(emitter.rise >= 2 && emitter.rise <= source.rise);
-    assert.ok(cityChimneySmokeParticles(emitter, 4800).every((particle) => (
+    assert.ok(
+      emitter.opacity >= source.opacity * 0.55,
+      `${emitter.id} remains visible after the background-city atmosphere pass`
+    );
+    assert.ok(emitter.rise >= 3 && emitter.rise <= source.rise);
+    const particles = cityChimneySmokeParticles(emitter, 4800);
+    assert.ok(particles.length > 0);
+    assert.ok(particles.some((particle) => particle.alpha >= emitter.opacity * 0.8));
+    assert.ok(particles.every((particle) => (
       particle.size === 1 && particle.y <= Math.round(emitter.y)
     )));
   }

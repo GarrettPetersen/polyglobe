@@ -12,6 +12,7 @@ import {
   PORT_SCENE_OCEAN_SLICES,
   activePortSceneLayers,
   advanceSceneParallax,
+  advanceSceneScrollVelocity,
   docksideShipSideAnchor,
   docksideShipPostClearanceShift,
   docksideShipVerticalPlacement,
@@ -26,6 +27,7 @@ import {
   sceneCameraDefaultParallax,
   sceneCameraParallaxBounds,
   sceneEdgeScrollVelocity,
+  sceneInertialPanTargetVelocity,
   scenePanParallaxDelta,
   sceneReasonRows
 } from "./citySceneRules.js";
@@ -116,6 +118,8 @@ const state = {
   city: null,
   features: null,
   parallax: PORT_SCENE_CAMERA.defaultParallax,
+  cameraVelocity: 0,
+  cameraPanTarget: null,
   lastRenderTimeMs: null,
   pointer: null,
   cameraGesture: null,
@@ -279,6 +283,8 @@ function selectCity(cityId) {
   ]) control.value = "auto";
   applyFeatureOverrides();
   state.parallax = sceneCameraDefaultParallax(state.features.approach);
+  state.cameraVelocity = 0;
+  state.cameraPanTarget = null;
   selectShip(city.defaultShip);
   const url = new URL(location.href);
   url.searchParams.set("city", city.id);
@@ -361,6 +367,8 @@ function applyFeatureOverrides() {
   });
   const cameraBounds = sceneCameraParallaxBounds(state.features.approach);
   state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
+  state.cameraVelocity = 0;
+  state.cameraPanTarget = null;
   updateRuleLedger();
   updateHover();
 }
@@ -490,6 +498,8 @@ canvas.addEventListener("pointermove", (event) => {
 
 canvas.addEventListener("pointerdown", (event) => {
   if (!event.isPrimary || event.button !== 0 || state.cameraGesture) return;
+  state.cameraVelocity = 0;
+  state.cameraPanTarget = null;
   state.suppressClick = false;
   state.cameraGesture = {
     pointerId: event.pointerId,
@@ -513,7 +523,9 @@ canvas.addEventListener("wheel", (event) => {
   else if (event.deltaMode === 2) screenDeltaX *= canvas.clientWidth;
   event.preventDefault();
   const maximumDelta = canvas.clientWidth * 0.25;
-  panCameraByScreenPixels(clamp(screenDeltaX, -maximumDelta, maximumDelta));
+  const boundedDelta = clamp(screenDeltaX, -maximumDelta, maximumDelta);
+  if (prefersReducedMotion.matches) panCameraByScreenPixels(boundedDelta);
+  else queueCameraPanByScreenPixels(boundedDelta);
 }, { passive: false });
 
 canvas.addEventListener("pointerleave", () => {
@@ -563,12 +575,31 @@ function panCameraByScreenPixels(screenDeltaX) {
   });
   if (delta === 0) return;
   const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
+  state.cameraVelocity = 0;
+  state.cameraPanTarget = null;
   state.parallax = clamp(
     state.parallax + delta,
     cameraBounds.minimum,
     cameraBounds.maximum
   );
   updateHover();
+}
+
+function queueCameraPanByScreenPixels(screenDeltaX) {
+  const delta = scenePanParallaxDelta({
+    screenDeltaX,
+    displayWidth: canvas.clientWidth,
+    logicalWidth: canvas.width,
+    approach: state.features?.approach || "ocean"
+  });
+  if (delta === 0) return;
+  const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
+  const target = state.cameraPanTarget ?? state.parallax;
+  state.cameraPanTarget = clamp(
+    target + delta,
+    cameraBounds.minimum,
+    cameraBounds.maximum
+  );
 }
 
 function advanceCamera(timeMs) {
@@ -579,14 +610,47 @@ function advanceCamera(timeMs) {
   const elapsedMs = Math.min(50, Math.max(0, timeMs - state.lastRenderTimeMs));
   state.lastRenderTimeMs = timeMs;
   const previous = state.parallax;
-  if (!prefersReducedMotion.matches && state.pointer && !state.cameraGesture) {
+  if (prefersReducedMotion.matches || state.cameraGesture) {
+    state.cameraVelocity = 0;
+  } else {
+    const targetVelocity = state.cameraPanTarget === null
+      ? (state.pointer
+          ? sceneEdgeScrollVelocity({ pointerX: state.pointer.x, width: canvas.width })
+          : 0)
+      : sceneInertialPanTargetVelocity({
+          current: state.parallax,
+          target: state.cameraPanTarget
+        });
+    state.cameraVelocity = advanceSceneScrollVelocity({
+      current: state.cameraVelocity,
+      target: targetVelocity,
+      elapsedMs
+    });
+  }
+  if (state.cameraVelocity !== 0) {
     const next = advanceSceneParallax({
       current: state.parallax,
-      velocity: sceneEdgeScrollVelocity({ pointerX: state.pointer.x, width: canvas.width }),
+      velocity: state.cameraVelocity,
       elapsedMs
     });
     const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
-    state.parallax = clamp(next, cameraBounds.minimum, cameraBounds.maximum);
+    const crossedPanTarget = state.cameraPanTarget !== null &&
+      Math.sign(state.cameraPanTarget - state.parallax) !==
+        Math.sign(state.cameraPanTarget - next);
+    state.parallax = crossedPanTarget
+      ? state.cameraPanTarget
+      : clamp(next, cameraBounds.minimum, cameraBounds.maximum);
+    if (crossedPanTarget) {
+      state.cameraVelocity = 0;
+      state.cameraPanTarget = null;
+    }
+    if (
+      (state.parallax === cameraBounds.minimum && state.cameraVelocity < 0) ||
+      (state.parallax === cameraBounds.maximum && state.cameraVelocity > 0)
+    ) {
+      state.cameraVelocity = 0;
+      state.cameraPanTarget = null;
+    }
   }
   if (state.pointer && state.parallax !== previous) updateHover();
 }

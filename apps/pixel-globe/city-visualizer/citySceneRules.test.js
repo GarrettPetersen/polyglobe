@@ -23,6 +23,7 @@ import {
   PORT_SCENE_WATER_HORIZON_Y,
   activePortSceneLayers,
   advanceSceneParallax,
+  advanceSceneScrollVelocity,
   docksideShipSideAnchor,
   docksideShipVerticalPlacement,
   layerParallaxAnchor,
@@ -36,6 +37,7 @@ import {
   sceneCameraDefaultParallax,
   sceneCameraParallaxBounds,
   sceneEdgeScrollVelocity,
+  sceneInertialPanTargetVelocity,
   scenePanParallaxDelta
 } from "./citySceneRules.js";
 
@@ -133,7 +135,7 @@ test("coastal views use the safe span while river views can pan across the autho
   assert.equal(riverCanonicalLeft.x, PORT_SCENE_MASTER.leftBankX);
 });
 
-test("RTS camera scrolls only at the edges and stops in place when input ceases", () => {
+test("RTS camera scrolls only at the edges with restrained start, stop, and reversal inertia", () => {
   assert.equal(sceneEdgeScrollVelocity({ pointerX: 227.5, width: 455 }), 0);
   assert.equal(sceneEdgeScrollVelocity({ pointerX: 0, width: 455 }), -0.45);
   assert.equal(sceneEdgeScrollVelocity({ pointerX: 455, width: 455 }), 0.45);
@@ -147,6 +149,20 @@ test("RTS camera scrolls only at the edges and stops in place when input ceases"
   assert.ok(firstFrame > -0.35);
   assert.ok(firstFrame < 1);
   assert.equal(advanceSceneParallax({ current: firstFrame, velocity: 0, elapsedMs: 1000 }), firstFrame);
+  const starting = advanceSceneScrollVelocity({ current: 0, target: 0.45, elapsedMs: 16 });
+  assert.ok(starting > 0 && starting < 0.45);
+  const stopping = advanceSceneScrollVelocity({ current: 0.45, target: 0, elapsedMs: 16 });
+  assert.ok(stopping > 0 && stopping < 0.45);
+  const reversing = advanceSceneScrollVelocity({ current: 0.45, target: -0.45, elapsedMs: 16 });
+  assert.ok(reversing > 0 && reversing < 0.45);
+  assert.equal(
+    advanceSceneScrollVelocity({ current: 0.01, target: -0.45, elapsedMs: 16 }),
+    0
+  );
+  assert.equal(
+    advanceSceneScrollVelocity({ current: 0, target: 0.45, elapsedMs: 1000 }),
+    0.45
+  );
   assert.deepEqual(sceneCameraParallaxBounds("river"), { minimum: -0.30, maximum: 1 });
   assert.equal(sceneCameraDefaultParallax("river"), -0.12);
   assert.deepEqual(sceneCameraParallaxBounds("ocean"), { minimum: -1, maximum: 1 });
@@ -171,6 +187,9 @@ test("wheel and swipe distances pan the camera through the authored scene", () =
     logicalWidth: 910,
     approach: "ocean"
   }), 0);
+  assert.equal(sceneInertialPanTargetVelocity({ current: 0, target: 0.5 }), 0.9);
+  assert.ok(sceneInertialPanTargetVelocity({ current: 0.499, target: 0.5 }) < 0.11);
+  assert.equal(sceneInertialPanTargetVelocity({ current: 0.5, target: 0.5 }), 0);
 });
 
 test("ocean depth slices cover the authored water without gaps", () => {

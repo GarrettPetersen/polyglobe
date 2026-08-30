@@ -50,6 +50,9 @@ export const PORT_SCENE_CAMERA = Object.freeze({
   edgeFraction: 0.2,
   maximumEdgeWidth: 72,
   maximumSpeed: 0.45,
+  maximumPanSpeed: 0.9,
+  acceleration: 5.4,
+  braking: 5,
   defaultParallax: -0.35,
   riverDefaultParallax: -0.12,
   riverMinimumParallax: -0.30,
@@ -306,6 +309,37 @@ export function advanceSceneParallax({ current, velocity, elapsedMs }) {
   }
   if (elapsedMs === 0 || velocity === 0) return current;
   return Math.max(-1, Math.min(1, current + velocity * elapsedMs / 1000));
+}
+
+export function advanceSceneScrollVelocity({ current, target, elapsedMs }) {
+  for (const [label, value] of [["current", current], ["target", target]]) {
+    if (!Number.isFinite(value) || Math.abs(value) > PORT_SCENE_CAMERA.maximumPanSpeed) {
+      throw new Error(`Invalid scene scroll velocity ${label}: ${value}`);
+    }
+  }
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+    throw new Error(`Invalid scene scroll velocity elapsed time: ${elapsedMs}`);
+  }
+  if (elapsedMs === 0 || current === target) return current;
+  const reversing = current !== 0 && target !== 0 && Math.sign(current) !== Math.sign(target);
+  const slowing = reversing || Math.abs(target) < Math.abs(current);
+  const rate = slowing ? PORT_SCENE_CAMERA.braking : PORT_SCENE_CAMERA.acceleration;
+  const maximumChange = rate * elapsedMs / 1000;
+  const immediateTarget = reversing ? 0 : target;
+  if (Math.abs(immediateTarget - current) <= maximumChange) return immediateTarget;
+  return current + Math.sign(immediateTarget - current) * maximumChange;
+}
+
+export function sceneInertialPanTargetVelocity({ current, target }) {
+  for (const [label, value] of [["current", current], ["target", target]]) {
+    if (!Number.isFinite(value) || value < -1 || value > 1) {
+      throw new Error(`Invalid scene inertial pan ${label}: ${value}`);
+    }
+  }
+  const distance = target - current;
+  if (distance === 0) return 0;
+  const brakingSpeed = Math.sqrt(2 * PORT_SCENE_CAMERA.braking * Math.abs(distance));
+  return Math.sign(distance) * Math.min(PORT_SCENE_CAMERA.maximumPanSpeed, brakingSpeed);
 }
 
 export function scenePanParallaxDelta({
