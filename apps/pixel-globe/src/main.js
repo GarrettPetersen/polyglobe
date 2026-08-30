@@ -1076,10 +1076,14 @@ import {
   earlySailingHelpWindowIsActive,
   rowingTutorialMessage,
   sailingHelpPages,
-  sailingTutorialTerrainKind,
+  sailingTutorialTerrainRow,
   updateEarlySailingHelpState,
   updateSailingTutorialState
 } from "./sailingTutorial.js";
+import {
+  TERRAIN_WEATHER_MODE_STATIC,
+  terrainRowUsesWorldWeather
+} from "./terrainWeatherPolicy.js";
 import {
   RIVER_GATEWAY_SEARCH_RADIUS_PX,
   advanceRiverCenterline,
@@ -53019,7 +53023,11 @@ function terrainImage(key) {
 }
 
 function terrainImageForTile(row, id) {
-  if (isPermanentSeaIceRow(row) || (isWaterSurfaceRow(row) && tileHasSurfaceIce(id))) {
+  const usesWorldWeather = terrainRowUsesWorldWeather(row);
+  if (
+    isPermanentSeaIceRow(row) ||
+    (usesWorldWeather && isWaterSurfaceRow(row) && tileHasSurfaceIce(id))
+  ) {
     return terrainImage("snow_01");
   }
   const key = spriteForTerrain(row, id);
@@ -53061,7 +53069,11 @@ function terrainBaseImageForTile(row, id, baseSpriteKey) {
 }
 
 function terrainColorForTile(row, id) {
-  if (isPermanentSeaIceRow(row) || (isWaterSurfaceRow(row) && tileHasSurfaceIce(id))) {
+  const usesWorldWeather = terrainRowUsesWorldWeather(row);
+  if (
+    isPermanentSeaIceRow(row) ||
+    (usesWorldWeather && isWaterSurfaceRow(row) && tileHasSurfaceIce(id))
+  ) {
     return terrainSpriteColor("snow_01");
   }
   const key = spriteForTerrain(row, id);
@@ -53225,6 +53237,7 @@ function terrainSpriteColor(key) {
 
 function tileHasSeasonalSnowTerrain(row, id) {
   if (!row || isWaterSurfaceRow(row)) return false;
+  if (!terrainRowUsesWorldWeather(row)) return false;
   if (!snowGroundMask) throw new Error("Snow ground mask is not initialized");
   return tileHasSnowGround(id);
 }
@@ -59419,7 +59432,12 @@ function drawTutorialTerrainField(rect, diagram) {
   ctx.beginPath();
   ctx.rect(inner.x, inner.y, inner.w, inner.h);
   ctx.clip();
-  ctx.fillStyle = terrainColorForTile({ t: "water", waterDepthBand: 2, latitudeDeg: 35 }, 899999);
+  ctx.fillStyle = terrainColorForTile({
+    t: "water",
+    waterDepthBand: 2,
+    latitudeDeg: 35,
+    weatherMode: TERRAIN_WEATHER_MODE_STATIC
+  }, 899999);
   ctx.fillRect(inner.x, inner.y, inner.w, inner.h);
   const tutorialChart = { tileById: new Map() };
   drawTerrainConnectorFaces(faceCalls, tutorialChart, { waveClockMs: lastFrameMs });
@@ -59434,15 +59452,11 @@ function drawTutorialTerrainField(rect, diagram) {
 }
 
 function tutorialTerrainRow(x, y, diagram, rect) {
-  const kind = sailingTutorialTerrainKind(
+  return sailingTutorialTerrainRow(
     diagram,
     (x - rect.x) / rect.w,
     (y - rect.y) / rect.h
   );
-  if (kind === "land") return { t: "land", e: 0, h: 0, latitudeDeg: 35 };
-  if (kind === "coastal-water") return { t: "beach", e: -0.1, h: 0, latitudeDeg: 35 };
-  if (kind === "deep-water") return { t: "water", e: -0.2, h: 0, waterDepthBand: 2, latitudeDeg: 35 };
-  throw new Error(`Unknown sailing tutorial terrain kind: ${kind}`);
 }
 
 function tutorialTerrainLevel(row) {
@@ -62229,9 +62243,24 @@ function isLandmassChannelFace(call) {
 }
 
 function landmassChannelFaceColor(call) {
+  const aWorldWeather = terrainRowUsesWorldWeather(call.row);
+  const bWorldWeather = terrainRowUsesWorldWeather(call.nrow);
+  if (aWorldWeather !== bWorldWeather) {
+    throw new Error(`Terrain face mixes world and static weather: ${call.a}/${call.b}`);
+  }
+  const aLatitude = Number.isFinite(call.row?.latitudeDeg)
+    ? call.row.latitudeDeg
+    : graph?.latDeg?.[call.a];
+  const bLatitude = Number.isFinite(call.nrow?.latitudeDeg)
+    ? call.nrow.latitudeDeg
+    : graph?.latDeg?.[call.b];
+  if (!Number.isFinite(aLatitude) || !Number.isFinite(bLatitude)) {
+    throw new Error(`Landmass channel is missing latitude: ${call.a}/${call.b}`);
+  }
   const row = {
     t: "beach",
-    latitudeDeg: (graph.latDeg[call.a] + graph.latDeg[call.b]) * 0.5
+    latitudeDeg: (aLatitude + bLatitude) * 0.5,
+    weatherMode: aWorldWeather ? undefined : TERRAIN_WEATHER_MODE_STATIC
   };
   return terrainColorForTile(row, call.a);
 }

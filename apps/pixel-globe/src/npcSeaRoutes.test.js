@@ -1876,6 +1876,42 @@ test("a staged worker restore cannot revive a reserve sortie superseded between 
   assert.equal(secondShip.capitalNavalReserveSlotId, restoredSlot.id);
 });
 
+test("a worker snapshot cannot retain a stale sortie beside its replacement", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const firstResponse = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_BURNING,
+    clockMinutes: 100,
+    threatUntilMinute: 101
+  });
+  const firstShip = routes.shipById.get(firstResponse.shipId);
+  const staleFirstShip = structuredClone(firstShip);
+  const slotId = firstShip.capitalNavalReserveSlotId;
+
+  updateNpcSeaRouteSystem(routes, 100_000);
+  assert.equal(routes.shipById.has(firstShip.id), false);
+  const secondResponse = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetPortId: 2,
+    reason: NPC_PORT_RESPONSE_LOST,
+    clockMinutes: 100_001,
+    allowReinforcement: true
+  });
+  const secondShip = routes.shipById.get(secondResponse.shipId);
+  assert.equal(secondShip.capitalNavalReserveSlotId, slotId);
+
+  const racedSnapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  racedSnapshot.ships.push(staleFirstShip);
+  applyNpcSeaRouteSimulationSnapshot(routes, racedSnapshot);
+
+  const restoredSlot = routes.capitalNavalReserveSlots.find((slot) => slot.id === slotId);
+  assert.equal(routes.shipById.has(firstShip.id), false);
+  assert.equal(restoredSlot.activeShipId, secondShip.id);
+  assert.equal(routes.shipById.get(secondShip.id).capitalNavalReserveSlotId, slotId);
+});
+
 test("a staged worker restore keeps an encounter created between batches", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

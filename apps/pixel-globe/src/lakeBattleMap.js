@@ -1,3 +1,5 @@
+import { TERRAIN_WEATHER_MODE_STATIC } from "./terrainWeatherPolicy.js";
+
 export const LAKE_BATTLE_HEX_COLUMN_SPACING = 24;
 export const LAKE_BATTLE_HEX_ROW_SPACING = 20;
 
@@ -229,6 +231,7 @@ function terrain(type, elevation, hill, waterDepthBand) {
     e: elevation,
     h: hill,
     latitudeDeg: LAKE_BATTLE_LATITUDE_DEG,
+    weatherMode: TERRAIN_WEATHER_MODE_STATIC,
     waterDepthBand
   });
 }

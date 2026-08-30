@@ -9,9 +9,11 @@ import {
   earlySailingHelpWindowIsActive,
   sailingHelpPages,
   sailingTutorialTerrainKind,
+  sailingTutorialTerrainRow,
   updateEarlySailingHelpState,
   updateSailingTutorialState
 } from "./sailingTutorial.js";
+import { terrainRowUsesWorldWeather } from "./terrainWeatherPolicy.js";
 import {
   CONTROL_SCHEME_ABSOLUTE,
   CONTROL_SCHEME_RELATIVE
@@ -145,6 +147,16 @@ test("ordinary sailing diagrams remain open water", () => {
   assert.equal(sailingTutorialTerrainKind("steer", 0.1, 0.1), "deep-water");
   assert.equal(sailingTutorialTerrainKind("tack", 0.9, 0.9), "deep-water");
   assert.equal(sailingTutorialTerrainKind("row", 0.5, 0.5), "deep-water");
+});
+
+test("tutorial terrain is static and cannot query the world weather grid", () => {
+  for (const diagram of ["steer", "tack", "row", "haul"]) {
+    for (const point of [[0.1, 0.1], [0.43, 0.4], [0.8, 0.5]]) {
+      const row = sailingTutorialTerrainRow(diagram, point[0], point[1]);
+      assert.equal(terrainRowUsesWorldWeather(row), false);
+      assert.equal(row.latitudeDeg, 35);
+    }
+  }
 });
 
 test("the hauling diagram traps the ship inside a widening cove", () => {

@@ -3,6 +3,7 @@ import {
   CONTROL_SCHEME_RELATIVE,
   normalizeControlScheme
 } from "./controlScheme.js";
+import { TERRAIN_WEATHER_MODE_STATIC } from "./terrainWeatherPolicy.js";
 
 export const STALL_TUTORIAL_TRIGGER_SECONDS = 5;
 export const EARLY_SAILING_HELP_TRIGGER_SECONDS = 10;
@@ -29,6 +30,22 @@ export function sailingTutorialTerrainKind(diagram, normalizedX, normalizedY) {
   );
   if (channelMargin <= 0) return "land";
   return channelMargin < 0.1 ? "coastal-water" : "deep-water";
+}
+
+export function sailingTutorialTerrainRow(diagram, normalizedX, normalizedY) {
+  const kind = sailingTutorialTerrainKind(diagram, normalizedX, normalizedY);
+  const base = {
+    e: 0,
+    h: 0,
+    latitudeDeg: 35,
+    weatherMode: TERRAIN_WEATHER_MODE_STATIC
+  };
+  if (kind === "land") return Object.freeze({ ...base, t: "land" });
+  if (kind === "coastal-water") return Object.freeze({ ...base, t: "beach", e: -0.1 });
+  if (kind === "deep-water") {
+    return Object.freeze({ ...base, t: "water", e: -0.2, waterDepthBand: 2 });
+  }
+  throw new Error(`Unknown sailing tutorial terrain kind: ${kind}`);
 }
 
 export function createSailingTutorialState(options = {}) {

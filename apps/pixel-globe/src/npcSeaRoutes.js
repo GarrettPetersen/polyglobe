@@ -1454,9 +1454,18 @@ function capitalNavalReserveSlotStatesMatch(left, right) {
 }
 
 function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {
-  const slotIds = new Set(system.capitalNavalReserveSlots.map((slot) => slot.id));
+  const slotById = new Map(system.capitalNavalReserveSlots.map((slot) => [slot.id, slot]));
+  const staleShipIds = new Set();
   for (const ship of ships) {
-    if (ship.capitalNavalReserveSlotId === null || slotIds.has(ship.capitalNavalReserveSlotId)) {
+    if (ship.capitalNavalReserveSlotId === null) continue;
+    const slot = slotById.get(ship.capitalNavalReserveSlotId);
+    if (slot?.activeShipId === ship.id) continue;
+    if (slot) {
+      // A staged worker snapshot can finish copying an older sortie after its
+      // finite slot has returned to store or launched a newer ship. The slot is
+      // the authoritative reserve ledger, so the older worker copy must not
+      // survive as a free additional warship.
+      staleShipIds.add(ship.id);
       continue;
     }
     // Reserve slots are authoritative in a worker snapshot. A conquest can abolish a
@@ -1471,6 +1480,10 @@ function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {
       ship,
       ship.portResponse?.returnPortId ?? null
     ));
+  }
+  if (staleShipIds.size > 0) {
+    system.ships = system.ships.filter((ship) => !staleShipIds.has(ship.id));
+    for (const shipId of staleShipIds) system.shipById.delete(shipId);
   }
 }
 

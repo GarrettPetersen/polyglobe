@@ -8,6 +8,10 @@ import {
   lakeBattleMapWaterAt,
   nearestLakeBattleCell
 } from "./lakeBattleMap.js";
+import {
+  TERRAIN_WEATHER_MODE_STATIC,
+  terrainRowUsesWorldWeather
+} from "./terrainWeatherPolicy.js";
 
 test("the battle lake is a deterministic connected hex terrain field", () => {
   const a = createLakeBattleMap(455, 256, 1234);
@@ -19,6 +23,8 @@ test("the battle lake is a deterministic connected hex terrain field", () => {
   assert.ok(a.cells.some((cell) => cell.terrain.t === "beach"));
   assert.ok(a.cells.some((cell) => cell.terrain.t === "lake"));
   assert.ok(a.cells.some((cell) => cell.terrain.t === "water" && cell.terrain.waterDepthBand >= 2));
+  assert.ok(a.cells.every((cell) => cell.terrain.weatherMode === TERRAIN_WEATHER_MODE_STATIC));
+  assert.ok(a.cells.every((cell) => terrainRowUsesWorldWeather(cell.terrain) === false));
 });
 
 test("battle collision follows the nearest drawn terrain cell", () => {
