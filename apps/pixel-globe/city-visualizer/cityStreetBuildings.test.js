@@ -19,6 +19,10 @@ const FRAMES_WITH_MEDITERRANEAN = Object.freeze([
   regionalFrame("Med Home 2", "Home 2", 85, 69, 1027, 419),
   regionalFrame("Med Inn", "Inn", 129, 101, 1057, 473)
 ]);
+const FRAMES_WITH_MIDDLE_EAST = Object.freeze([
+  ...FRAMES,
+  regionalFrame("Middle East Home", "Home", 99, 56, 1154, 429, "islamic-desert")
+]);
 
 test("the shared church stays in the midground while rear-street homes remain modular", () => {
   const placements = cityStreetBuildingPlacements({
@@ -58,6 +62,20 @@ test("Mediterranean street slots use regional art while retaining logical roles"
   assert.ok(placements.every(({ wallBottomY }) => Number.isInteger(wallBottomY)));
 });
 
+test("Middle Eastern street slots reuse Home A for Home B without exposing northern art", () => {
+  const placements = cityStreetBuildingPlacements({
+    features: {},
+    frames: FRAMES_WITH_MIDDLE_EAST,
+    cityType: "islamic-desert"
+  });
+  assert.deepEqual(placements.map(({ layerName, frame: source }) => (
+    [layerName, source.layer, source.regionalOf]
+  )), [
+    ["Home 2", "Middle East Home", "Home 2"],
+    ["Home", "Middle East Home", "Home"]
+  ]);
+});
+
 test("ordinary buildings can be reassigned to any open slot while the gatehouse stays fixed", () => {
   const placements = cityStreetBuildingPlacements({
     features: {},
@@ -84,10 +102,10 @@ function frame(layer, width, height, x, y) {
   });
 }
 
-function regionalFrame(layer, regionalOf, width, height, x, y) {
+function regionalFrame(layer, regionalOf, width, height, x, y, cityType = "mediterranean") {
   return Object.freeze({
     ...frame(layer, width, height, x, y),
-    cityType: "mediterranean",
+    cityType,
     regionalOf
   });
 }

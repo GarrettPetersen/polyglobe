@@ -140,6 +140,23 @@ test("regional buildings retain their canonical chimney emitters", async () => {
     regionalFrames.map(({ layer }) => layer).sort(),
     ["Med Home", "Med Home 2", "Med Inn", "Med Smith", "Middle East Inn"].sort()
   );
+  const chimneylessRegionalFrames = manifest.staticFrames.filter((frame) => (
+    frame.regionalOf && frame.hasChimney === false
+  ));
+  assert.deepEqual(
+    chimneylessRegionalFrames.map(({ layer }) => layer).sort(),
+    ["Middle East Home", "Middle East Smith"].sort()
+  );
+  for (const frame of chimneylessRegionalFrames) {
+    assert.equal(placedCityBuildingChimneySmokeEmitter({
+      id: `test|${frame.id}`,
+      frame,
+      x: frame.spriteSourceSize.x,
+      y: frame.spriteSourceSize.y,
+      width: frame.frame.w,
+      height: frame.frame.h
+    }), null, `${frame.layer} does not inherit smoke without an authored chimney`);
+  }
   const atlas = await loadImage(join(assetRoot, manifest.staticSheet));
   const canvas = createCanvas(atlas.width, atlas.height);
   const context = canvas.getContext("2d", { willReadFrequently: true });

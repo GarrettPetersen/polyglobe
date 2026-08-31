@@ -32,6 +32,18 @@ const REGIONAL_BUILDING_LAYERS = Object.freeze({
     cityType: "islamic-desert",
     regionalOf: "Inn",
     sourceBase: "Northern European Inn"
+  }),
+  "Middle East Home": Object.freeze({
+    cityType: "islamic-desert",
+    regionalOf: "Home",
+    sourceBase: "Northern Europe Home",
+    hasChimney: false
+  }),
+  "Middle East Smith": Object.freeze({
+    cityType: "islamic-desert",
+    regionalOf: "Smith",
+    sourceBase: "Northern European Smith",
+    hasChimney: false
   })
 });
 

@@ -15,7 +15,9 @@ const FRAMES = Object.freeze([
   frame("Med Smith", { cityType: "mediterranean", regionalOf: "Smith" }),
   frame("Med Home", { cityType: "mediterranean", regionalOf: "Home" }),
   frame("Med Home 2", { cityType: "mediterranean", regionalOf: "Home 2" }),
-  frame("Middle East Inn", { cityType: "islamic-desert", regionalOf: "Inn" })
+  frame("Middle East Inn", { cityType: "islamic-desert", regionalOf: "Inn" }),
+  frame("Middle East Home", { cityType: "islamic-desert", regionalOf: "Home" }),
+  frame("Middle East Smith", { cityType: "islamic-desert", regionalOf: "Smith" })
 ]);
 
 test("Mediterranean cities select all four authored regional building frames", () => {
@@ -36,13 +38,18 @@ test("other regions retain the shared Northern European base frames", () => {
   );
 });
 
-test("Middle Eastern cities use the authored inn and retain shared fallbacks elsewhere", () => {
-  assert.deepEqual(
-    ["Inn", "Smith", "Home", "Home 2"].map((baseLayer) => (
-      cityRegionalBuildingFrame(FRAMES, "islamic-desert", baseLayer).layer
-    )),
-    ["Middle East Inn", "Smith", "Home", "Home 2"]
-  );
+test("Middle Eastern cities use every authored regional frame and reuse Home A for unfinished Home B", () => {
+  const selected = ["Inn", "Smith", "Home", "Home 2"].map((baseLayer) => (
+    cityRegionalBuildingFrame(FRAMES, "islamic-desert", baseLayer)
+  ));
+  assert.deepEqual(selected.map(({ layer }) => layer), [
+    "Middle East Inn",
+    "Middle East Smith",
+    "Middle East Home",
+    "Middle East Home"
+  ]);
+  assert.equal(selected[3].regionalOf, "Home 2");
+  assert.match(selected[3].id, /as-home-2$/);
 });
 
 test("regional frames preserve their logical building roles", () => {
@@ -50,6 +57,8 @@ test("regional frames preserve their logical building roles", () => {
   assert.equal(cityBuildingLogicalLayer(FRAMES[6]), "Home");
   assert.equal(cityBuildingLogicalLayer(FRAMES[0]), "Inn");
   assert.equal(cityBuildingLogicalLayer(FRAMES[8]), "Inn");
+  assert.equal(cityBuildingLogicalLayer(FRAMES[9]), "Home");
+  assert.equal(cityBuildingLogicalLayer(FRAMES[10]), "Smith");
 });
 
 function frame(layer, extra = {}) {

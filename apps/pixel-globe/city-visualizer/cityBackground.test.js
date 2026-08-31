@@ -56,6 +56,12 @@ const MEDITERRANEAN_FRAMES = Object.freeze([
   frame("Med Home", 95, 71, 0, 0, { cityType: "mediterranean", regionalOf: "Home" }),
   frame("Med Home 2", 85, 69, 0, 10, { cityType: "mediterranean", regionalOf: "Home 2" })
 ]);
+const MIDDLE_EASTERN_FRAMES = Object.freeze([
+  ...FRAMES,
+  frame("Middle East Inn", 127, 101, 0, 0, { cityType: "islamic-desert", regionalOf: "Inn" }),
+  frame("Middle East Smith", 108, 67, 2, 4, { cityType: "islamic-desert", regionalOf: "Smith" }),
+  frame("Middle East Home", 99, 56, -2, 15, { cityType: "islamic-desert", regionalOf: "Home" })
+]);
 const BASE_FRAME = frame("Background City Base", 541, 55, 824, 469);
 const BASE_LEFT = BASE_FRAME.spriteSourceSize.x;
 const BASE_RIGHT = BASE_LEFT + BASE_FRAME.frame.w;
@@ -292,6 +298,32 @@ test("Mediterranean skyline generation uses the complete regional building set",
     frames: MEDITERRANEAN_FRAMES,
     baseTopYByX: FALLING_BASE_TOP
   })), []);
+});
+
+test("Middle Eastern skyline generation uses the three completed regional buildings", () => {
+  const city = {
+    ...LONDON,
+    cityType: "islamic-desert",
+    backgroundCity: {
+      density: "dense",
+      buildingMix: { homeA: 4, homeB: 4, inn: 2, smith: 2 },
+      landmarks: { church: 0 }
+    }
+  };
+  const rows = layout({
+    city,
+    frames: MIDDLE_EASTERN_FRAMES,
+    baseTopYByX: FALLING_BASE_TOP
+  });
+  const layers = [...new Set(allBuildings(rows).map(({ frame: source }) => source.layer))];
+  assert.ok(layers.includes("Middle East Home"));
+  assert.ok(layers.includes("Middle East Inn"));
+  assert.ok(layers.includes("Middle East Smith"));
+  assert.ok(!layers.includes("Home 2"), "unfinished Home B reuses regional Home A instead of northern art");
+  assert.ok(!layers.includes("Home"));
+  assert.ok(!layers.includes("Inn"));
+  assert.ok(!layers.includes("Smith"));
+  assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
 });
 
 test("the filled foundation envelope follows the rising target smoothly with no flying buildings", () => {

@@ -6,15 +6,30 @@ export const CITY_REGIONAL_BUILDING_BASE_LAYERS = Object.freeze([
 ]);
 
 const CITY_REGIONAL_BUILDING_BASE_LAYER_SET = new Set(CITY_REGIONAL_BUILDING_BASE_LAYERS);
+const CITY_REGIONAL_BUILDING_FALLBACKS = new Map([
+  ["Home 2", "Home"]
+]);
 
 export function cityRegionalBuildingFrame(frames, cityType, baseLayer) {
   if (!Array.isArray(frames)) throw new Error("Regional city buildings require atlas frames");
   if (!CITY_REGIONAL_BUILDING_BASE_LAYER_SET.has(baseLayer)) return null;
   const baseFrame = frames.find((frame) => frame.layer === baseLayer);
   if (!baseFrame) throw new Error(`Missing base city building frame: ${baseLayer}`);
-  return frames.find((frame) => (
+  const exactRegionalFrame = frames.find((frame) => (
     frame.cityType === cityType && frame.regionalOf === baseLayer
-  )) || baseFrame;
+  ));
+  if (exactRegionalFrame) return exactRegionalFrame;
+  const fallbackBaseLayer = CITY_REGIONAL_BUILDING_FALLBACKS.get(baseLayer);
+  if (!fallbackBaseLayer) return baseFrame;
+  const regionalFallback = frames.find((frame) => (
+    frame.cityType === cityType && frame.regionalOf === fallbackBaseLayer
+  ));
+  if (!regionalFallback) return baseFrame;
+  return Object.freeze({
+    ...regionalFallback,
+    id: `${regionalFallback.id}|as-${baseLayer.toLowerCase().replaceAll(" ", "-")}`,
+    regionalOf: baseLayer
+  });
 }
 
 export function cityBuildingLogicalLayer(frame) {
