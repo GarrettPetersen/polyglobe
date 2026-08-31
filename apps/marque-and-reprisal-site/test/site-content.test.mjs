@@ -17,6 +17,8 @@ import {
   shipRoster,
   site,
   mysteryShip,
+  WORLD_CITY_COUNT,
+  WORLD_MAP_HEX_COUNT,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
 import {
@@ -341,16 +343,29 @@ test("press kit publishes every localized screenshot set and download", async ()
   for (const language of languages) assert.match(pressReadme, new RegExp(language.replace(/[()]/g, "\\$&")));
 });
 
-test("world copy uses the exact subdivision-7 map-cell count", async () => {
-  assert.equal(WORLD_MAP_CELL_COUNT, 163_842);
-  assert.match(features[0].copy, /163,842-cell map/);
+test("world copy follows the production subdivision-8 globe and city catalog", async () => {
+  assert.equal(WORLD_MAP_CELL_COUNT, 655_362);
+  assert.equal(WORLD_MAP_HEX_COUNT, 655_350);
+  assert.equal(WORLD_CITY_COUNT, 277);
+  assert.match(features[0].copy, /655,362-tile map/);
+  assert.match(features[0].copy, /277 cities/);
 
   const pagesSource = await readFile(
     path.join(appRoot, "tools/pages.mjs"),
     "utf8"
   );
   assert.match(pagesSource, /WORLD_MAP_CELL_COUNT\.toLocaleString\("en-US"\)/);
-  assert.doesNotMatch(features[0].copy + pagesSource, /164k|164,000/);
+  assert.match(pagesSource, /WORLD_CITY_COUNT\.toLocaleString\("en-US"\)/);
+  assert.match(homePage(), /655,362\s+tiles ·\s+277\s+cities/);
+  assert.match(qAndAText(), /655,350 hexes and 12 pentagons/);
+  for (const locale of websiteLocales) {
+    assert.match(locale.featureCopy.explore, /655/);
+    assert.match(locale.featureCopy.explore, /277/);
+  }
+  assert.doesNotMatch(
+    features[0].copy + qAndAText() + websiteLocales.map(({ featureCopy }) => featureCopy.explore).join("\n"),
+    /163,8|163 8|163\.8|164k|164[, .]?000|16[.,]?4万|16만 4천/
+  );
 });
 
 test("social sharing uses the 1200 × 630 capsule card", async () => {

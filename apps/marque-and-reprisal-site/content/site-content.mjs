@@ -1,5 +1,9 @@
 import { readFileSync } from "node:fs";
 import {
+  geodesicTileCount,
+  WORLD_GLOBE_SUBDIVISIONS
+} from "../../pixel-globe/src/worldScale.js";
+import {
   SHIP_STATS,
   shipLabelForSlug
 } from "../../pixel-globe/src/shipStats.js";
@@ -11,8 +15,22 @@ import {
   steamScreenshotFileName
 } from "../../pixel-globe/tools/steam-screenshot-catalog.mjs";
 
-// A subdivision-7 icosphere has 10 × 4⁷ + 2 dual cells.
-export const WORLD_MAP_CELL_COUNT = 163_842;
+const WORLD_MAP_PENTAGON_COUNT = 12;
+export const WORLD_MAP_CELL_COUNT = geodesicTileCount(WORLD_GLOBE_SUBDIVISIONS);
+export const WORLD_MAP_HEX_COUNT = WORLD_MAP_CELL_COUNT - WORLD_MAP_PENTAGON_COUNT;
+
+const cityCatalog = JSON.parse(readFileSync(new URL(
+  "../../pixel-globe/city-visualizer/data/cities.json",
+  import.meta.url
+), "utf8"));
+if (
+  cityCatalog.format !== "marque-city-visualizer-catalog" ||
+  !Array.isArray(cityCatalog.cities) ||
+  cityCatalog.cityCount !== cityCatalog.cities.length
+) {
+  throw new Error("Website city count requires a valid production city catalog");
+}
+export const WORLD_CITY_COUNT = cityCatalog.cities.length;
 
 export const site = Object.freeze({
   title: "Marque & Reprisal",
@@ -194,7 +212,7 @@ export const features = Object.freeze([
     id: "explore",
     title: "Explore",
     eyebrow: "A globe without edges",
-    copy: `The world of Marque & Reprisal is a fully realized, ${WORLD_MAP_CELL_COUNT.toLocaleString("en-US")}-cell map of the entire Earth, complete with accurate geography, navigable rivers and lakes, mountains, a detailed weather simulation, and many ancient and natural wonders to discover.`,
+    copy: `The world of Marque & Reprisal is a fully realized, ${WORLD_MAP_CELL_COUNT.toLocaleString("en-US")}-tile map of the entire Earth, with ${WORLD_CITY_COUNT.toLocaleString("en-US")} cities, accurate geography, navigable rivers and lakes, mountains, a detailed weather simulation, and many ancient and natural wonders to discover.`,
     video: "/assets/video/explore.webm",
     poster: screenshotUrl("explore-pyramids")
   }),
@@ -291,7 +309,7 @@ export const qAndA = Object.freeze([
   Object.freeze({
     question: "How large is the game's world, and how closely does its geography match the real Earth?",
     answer: Object.freeze([
-      `The world is a Goldberg polyhedron with 163,830 hexes and 12 pentagons. You can think of it like a big soccer ball: the 12 pentagons allow the mostly hexagonal tiling to loop around and connect back with itself, rather than tiling the plane.`,
+      `The world is a Goldberg polyhedron with ${WORLD_MAP_HEX_COUNT.toLocaleString("en-US")} hexes and ${WORLD_MAP_PENTAGON_COUNT} pentagons. You can think of it like a big soccer ball: the ${WORLD_MAP_PENTAGON_COUNT} pentagons allow the mostly hexagonal tiling to loop around and connect back with itself, rather than tiling the plane.`,
       `The world geography is based on real geography from public mapping datasets, including coastlines, rivers, biomes, and human settlements. Precipitation, wind, and seasonal polar sea ice are all pre-baked into an annual loop based on real climate data and procedural simulation.`,
       `To make the geography work, I had to make some manual tweaks. For instance, the Gibraltar hex is mostly land, and some hexes in Panama are mostly sea, but making Gibraltar closed and Panama open would have dramatic implications for navigation, so those are manually adjusted to keep the topology of the world's landmasses accurate. Many small Pacific islands are expanded to hex size rather than being absorbed into the ocean, even if they ought to be too small to appear. Some coastal ports ended up falling one hex away from the coast and needing to be rescued, either by bumping the city or adjusting the coastline.`
     ])

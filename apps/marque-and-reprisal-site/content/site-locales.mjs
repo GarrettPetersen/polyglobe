@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { CAPSULE_TITLE_LOCALES } from "../../pixel-globe/tools/capsule-title-locales.mjs";
 import { STEAM_SCREENSHOT_LANGUAGES } from "../../pixel-globe/tools/steam-screenshot-catalog.mjs";
+import { WORLD_CITY_COUNT, WORLD_MAP_CELL_COUNT } from "./site-content.mjs";
 
 const FEATURE_IDS = Object.freeze([
   "explore", "trade", "fish", "whale", "colonize", "fight", "pillage", "survive"
@@ -172,18 +173,62 @@ const ACTION_TITLES = Object.freeze({
   ko: ["탐험", "교역", "낚시", "고래 사냥", "식민지", "전투", "약탈", "생존"]
 });
 
-const MAP_COUNT_REPLACEMENTS = Object.freeze({
-  english: ["164k-hex", "163,842-cell"],
-  schinese: ["16.4万个六边形", "163,842个六边形"],
-  russian: ["164 тысяч шестиугольников", "163 842 шестиугольников"],
-  spanish: ["164 000 hexágonos", "163 842 hexágonos"],
-  brazilian: ["164 mil hexágonos", "163.842 hexágonos"],
-  japanese: ["16万4千のヘックス", "163,842個のヘックス"],
-  german: ["164.000 Hexfeldern", "163.842 Hexfeldern"],
-  french: ["164 000 hexagones", "163 842 hexagones"],
-  polish: ["164 tysięcy heksów", "163 842 heksów"],
-  tchinese: ["16.4萬個六角格", "163,842個六角格"],
-  koreana: ["16만 4천 개의 육각형", "163,842개의 육각형"]
+const WORLD_COPY_LOCALIZATIONS = Object.freeze({
+  english: Object.freeze({
+    sourceCount: "164k-hex",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("en-US")}-tile`,
+    citySuffix: ` The world includes ${WORLD_CITY_COUNT.toLocaleString("en-US")} cities.`
+  }),
+  schinese: Object.freeze({
+    sourceCount: "16.4万个六边形",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("en-US")}个地块`,
+    citySuffix: `世界中共有${WORLD_CITY_COUNT.toLocaleString("en-US")}座城市。`
+  }),
+  russian: Object.freeze({
+    sourceCount: "164 тысяч шестиугольников",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("ru-RU")} ячеек`,
+    citySuffix: ` В мире насчитывается ${WORLD_CITY_COUNT.toLocaleString("ru-RU")} городов.`
+  }),
+  spanish: Object.freeze({
+    sourceCount: "164 000 hexágonos",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("es-ES")} casillas`,
+    citySuffix: ` El mundo incluye ${WORLD_CITY_COUNT.toLocaleString("es-ES")} ciudades.`
+  }),
+  brazilian: Object.freeze({
+    sourceCount: "164 mil hexágonos",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("pt-BR")} células`,
+    citySuffix: ` O mundo inclui ${WORLD_CITY_COUNT.toLocaleString("pt-BR")} cidades.`
+  }),
+  japanese: Object.freeze({
+    sourceCount: "16万4千のヘックス",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("ja-JP")}個のタイル`,
+    citySuffix: `世界には${WORLD_CITY_COUNT.toLocaleString("ja-JP")}の都市が存在する。`
+  }),
+  german: Object.freeze({
+    sourceCount: "164.000 Hexfeldern",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("de-DE")} Feldern`,
+    citySuffix: ` Die Welt umfasst ${WORLD_CITY_COUNT.toLocaleString("de-DE")} Städte.`
+  }),
+  french: Object.freeze({
+    sourceCount: "164 000 hexagones",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("fr-FR")} cases`,
+    citySuffix: ` Le monde compte ${WORLD_CITY_COUNT.toLocaleString("fr-FR")} villes.`
+  }),
+  polish: Object.freeze({
+    sourceCount: "ze 164 tysięcy heksów",
+    tileCount: `z ${WORLD_MAP_CELL_COUNT.toLocaleString("pl-PL")} pól`,
+    citySuffix: ` Świat obejmuje ${WORLD_CITY_COUNT.toLocaleString("pl-PL")} miast.`
+  }),
+  tchinese: Object.freeze({
+    sourceCount: "16.4萬個六角格",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("en-US")}個地塊`,
+    citySuffix: `世界中共有${WORLD_CITY_COUNT.toLocaleString("en-US")}座城市。`
+  }),
+  koreana: Object.freeze({
+    sourceCount: "16만 4천 개의 육각형으로",
+    tileCount: `${WORLD_MAP_CELL_COUNT.toLocaleString("ko-KR")}개의 타일로`,
+    citySuffix: ` 세계에는 ${WORLD_CITY_COUNT.toLocaleString("ko-KR")}개의 도시가 있습니다.`
+  })
 });
 
 const storePage = JSON.parse(readFileSync(new URL(
@@ -257,11 +302,11 @@ function steamParagraphs(about, steamCode) {
   if (paragraphs.length !== 10) {
     throw new Error(`Steam website copy needs 10 paragraphs for ${steamCode}; found ${paragraphs.length}`);
   }
-  const replacement = MAP_COUNT_REPLACEMENTS[steamCode];
-  if (!replacement || !paragraphs[2].includes(replacement[0])) {
+  const worldCopy = WORLD_COPY_LOCALIZATIONS[steamCode];
+  if (!worldCopy || !paragraphs[2].includes(worldCopy.sourceCount)) {
     throw new Error(`Steam map count copy is unrecognized for ${steamCode}`);
   }
-  paragraphs[2] = paragraphs[2].replace(replacement[0], replacement[1]);
+  paragraphs[2] = paragraphs[2].replace(worldCopy.sourceCount, worldCopy.tileCount) + worldCopy.citySuffix;
   return paragraphs;
 }
 

@@ -12,6 +12,7 @@ import {
   shipRoster,
   site,
   mysteryShip,
+  WORLD_CITY_COUNT,
   WORLD_MAP_CELL_COUNT
 } from "../content/site-content.mjs";
 import {
@@ -108,7 +109,8 @@ export function homePage(localeValue = "en") {
     "<p>Read the weather, ration food and water, work each market, and decide what kind of captain this voyage will make you. Complete your captain's special objective to win the run—or lose everything at sea.</p>",
     "</div>",
     "<div class='manifest-ledger reveal' aria-label='Core voyage systems'>",
-    "<div><span>World</span><strong>", WORLD_MAP_CELL_COUNT.toLocaleString("en-US"), " map cells</strong></div>",
+    "<div><span>World</span><strong>", WORLD_MAP_CELL_COUNT.toLocaleString("en-US"), " tiles · ",
+    WORLD_CITY_COUNT.toLocaleString("en-US"), " cities</strong></div>",
     "<div><span>Conditions</span><strong>Wind, weather, hunger, thirst</strong></div>",
     "<div><span>Economy</span><strong>Reactive ports and NPC trade</strong></div>",
     "<div><span>Stakes</span><strong>One captain. One life.</strong></div>",
