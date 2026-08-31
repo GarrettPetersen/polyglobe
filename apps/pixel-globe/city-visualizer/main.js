@@ -46,6 +46,12 @@ import {
 } from "./cityBackground.js";
 import { cityOceanParallaxDepth, cityOceanRowOffset } from "./cityOceanMotion.js";
 import {
+  cityWaterDepthIndex,
+  cityWaterLatitudeBand,
+  cityWaterPaletteHexForSourceHex,
+  cityWaterPaletteRgb
+} from "./cityWaterPalette.js";
+import {
   CITY_PIXEL_FONT_SMALL_8,
   CITY_PIXEL_FONT_TITLE_8,
   createCityPixelTextRenderer
@@ -101,11 +107,13 @@ const destinationCopy = document.querySelector("#destination-copy");
 
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const imageCache = new Map();
-const frameCanvasCache = new Map();
+const frameCanvasCache = new WeakMap();
 const backgroundCityAtmosphereCanvasCache = new WeakMap();
 const regionalStaticFrameCanvasCache = new Map();
-const alphaCache = new Map();
+const alphaCache = new WeakMap();
 const animatedRowEdgeCache = new WeakMap();
+const latitudeWaterFrameCanvasCache = new WeakMap();
+const latitudeWaterCssColorCache = new Map();
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 const state = {
@@ -417,7 +425,19 @@ async function selectShip(slug) {
   }
   state.shipImage = shipImage;
   state.shipSinkDepthImage = shipSinkDepthImage;
-  state.shipWaterlineLayers = docksideShipWaterlineLayers(shipImage, shipSinkDepthImage, ship.slug);
+  const waterlineRgb = cityWaterPaletteRgb(
+    DOCKSIDE_SHIP_WATERLINE_RGB.r,
+    DOCKSIDE_SHIP_WATERLINE_RGB.g,
+    DOCKSIDE_SHIP_WATERLINE_RGB.b,
+    state.city.lat,
+    PORT_SCENE_DOCK.waterlineY
+  );
+  state.shipWaterlineLayers = docksideShipWaterlineLayers(
+    shipImage,
+    shipSinkDepthImage,
+    ship.slug,
+    waterlineRgb
+  );
   state.shipWaterShadowImages = Object.freeze(Object.fromEntries(
     shadowStates.map((bobState, index) => [
       bobState,
@@ -1050,14 +1070,18 @@ function drawStaticFrame(frame, layerName, occurrence) {
     offsetY,
     layerParallaxAnchor(layerName, occurrence)
   );
-  if (state.hoveredDestination?.layers.includes(layerName)) drawFrameOutline(frame, window);
   const regionalFrame = regionalStaticFrame(frame, layerName);
+  const sourceAtlas = regionalFrame?.atlas || state.staticAtlas;
+  const sourceFrame = regionalFrame?.frame || frame;
+  if (state.hoveredDestination?.layers.includes(layerName)) {
+    drawFrameOutline(sourceAtlas, sourceFrame, window);
+  }
   drawAtlasFrame(
-    regionalFrame?.atlas || state.staticAtlas,
-    regionalFrame?.frame || frame,
+    sourceAtlas,
+    sourceFrame,
     window,
     offsetX > 0,
-    layerVisibleSourceRect(layerName, frame.frame.w, frame.frame.h)
+    layerVisibleSourceRect(layerName, sourceFrame.frame.w, sourceFrame.frame.h)
   );
 }
 
@@ -1130,7 +1154,8 @@ function drawAnimatedLayer(layerName, timeMs, occurrence) {
   const window = sceneWindow(layerParallaxDepth(layerName, occurrence));
   const atlas = layerName === "Waves" ? state.waveAtlas : state.surfAtlas;
   if (layerName === "Waves") drawWaterToWaveEdges(atlas, frame, window);
-  drawAtlasFrame(atlas, frame, window);
+  const latitudeFrame = latitudeWaterFrame(atlas, frame);
+  drawAtlasFrame(latitudeFrame.atlas, latitudeFrame.frame, window);
 }
 
 function drawWaterToWaveEdges(atlas, frame, window) {
@@ -1138,10 +1163,10 @@ function drawWaterToWaveEdges(atlas, frame, window) {
   const beach = state.portManifest.staticFrames.find((candidate) => candidate.layer === "Sand Beach");
   if (!beach) return;
   const beachRuns = beachOpaqueRuns(beach);
-  context.fillStyle = "#4d65b4";
   for (let y = 0; y < edges.length; y++) {
     if (edges[y] < 0) continue;
     const masterY = frame.spriteSourceSize.y + y;
+    context.fillStyle = latitudeWaterCssColor("4d65b4", masterY);
     const beachY = masterY - beach.spriteSourceSize.y;
     if (beachY < 0 || beachY >= beachRuns.length) continue;
     const wavefrontX = frame.spriteSourceSize.x + edges[y];
@@ -1293,6 +1318,7 @@ function dockShadowRows() {
 }
 
 function drawOceanSlice(frame, slice, timeMs) {
+  const latitudeFrame = latitudeWaterFrame(state.staticAtlas, frame, PORT_SCENE_HORIZON_SHIFT_Y);
   const viewportWindow = sceneWindow(slice.depth);
   const frameTop = frame.spriteSourceSize.y + PORT_SCENE_HORIZON_SHIFT_Y;
   const frameBottom = PORT_SCENE_MASTER.height;
@@ -1309,7 +1335,14 @@ function drawOceanSlice(frame, slice, timeMs) {
     const window = masterY === bottom ? null : sceneWindow(cityOceanParallaxDepth(masterY));
     const cameraX = window ? Math.round(window.x) : Number.NaN;
     if (offset === bandOffset && cameraX === bandCameraX) continue;
-    drawWrappedOceanBand(frame, bandWindow, bandTop, masterY - bandTop, bandOffset);
+    drawWrappedOceanBand(
+      latitudeFrame.atlas,
+      latitudeFrame.frame,
+      bandWindow,
+      bandTop,
+      masterY - bandTop,
+      bandOffset
+    );
     bandTop = masterY;
     bandOffset = offset;
     bandWindow = window;
@@ -1323,13 +1356,14 @@ function oceanRowOffset(masterY, timeMs) {
   return cityOceanRowOffset(masterY, timeMs);
 }
 
-function drawWrappedOceanBand(frame, window, masterY, height, offset) {
+function drawWrappedOceanBand(atlas, frame, window, masterY, height, offset) {
   const destinationY = Math.round(masterY - window.y);
   const sourceMasterY = masterY - PORT_SCENE_HORIZON_SHIFT_Y;
   const sourceBottom = frame.spriteSourceSize.y + frame.spriteSourceSize.h;
   const copiedHeight = Math.min(height, Math.max(0, sourceBottom - sourceMasterY));
   if (copiedHeight > 0) {
     drawWrappedOceanBandPart(
+      atlas,
       frame,
       frame.frame.y + sourceMasterY - frame.spriteSourceSize.y,
       copiedHeight,
@@ -1340,7 +1374,7 @@ function drawWrappedOceanBand(frame, window, masterY, height, offset) {
     );
   }
   if (copiedHeight < height) {
-    context.fillStyle = "#4d65b4";
+    context.fillStyle = latitudeWaterCssColor("4d65b4", masterY + copiedHeight);
     context.fillRect(
       0,
       destinationY + copiedHeight,
@@ -1351,6 +1385,7 @@ function drawWrappedOceanBand(frame, window, masterY, height, offset) {
 }
 
 function drawWrappedOceanBandPart(
+  atlas,
   frame,
   sourceY,
   sourceHeight,
@@ -1369,7 +1404,7 @@ function drawWrappedOceanBandPart(
   while (remainingWidth > 0) {
     const width = Math.min(rowWidth - sourceX, remainingWidth);
     context.drawImage(
-      state.staticAtlas,
+      atlas,
       frame.frame.x + sourceX,
       sourceY,
       width,
@@ -1383,6 +1418,73 @@ function drawWrappedOceanBandPart(
     destinationX += width;
     sourceX = 0;
   }
+}
+
+function latitudeWaterFrame(atlas, frame, masterYOffset = 0) {
+  let frameCache = latitudeWaterFrameCanvasCache.get(frame);
+  if (!frameCache) {
+    frameCache = new Map();
+    latitudeWaterFrameCanvasCache.set(frame, frameCache);
+  }
+  const latitudeBandKey = `${cityWaterLatitudeBand(state.city.lat)}|${masterYOffset}`;
+  const cached = frameCache.get(latitudeBandKey);
+  if (cached) return cached;
+
+  const buffer = document.createElement("canvas");
+  buffer.width = frame.frame.w;
+  buffer.height = frame.frame.h;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  if (!bufferContext) throw new Error(`Could not create latitude water canvas for ${frame.layer || "animation"}`);
+  bufferContext.imageSmoothingEnabled = false;
+  bufferContext.drawImage(
+    atlas,
+    frame.frame.x,
+    frame.frame.y,
+    frame.frame.w,
+    frame.frame.h,
+    0,
+    0,
+    frame.frame.w,
+    frame.frame.h
+  );
+  const imageData = bufferContext.getImageData(0, 0, buffer.width, buffer.height);
+  for (let y = 0; y < buffer.height; y++) {
+    const masterY = frame.spriteSourceSize.y + masterYOffset + y;
+    for (let x = 0; x < buffer.width; x++) {
+      const offset = (y * buffer.width + x) * 4;
+      if (imageData.data[offset + 3] === 0) continue;
+      const mapped = cityWaterPaletteRgb(
+        imageData.data[offset],
+        imageData.data[offset + 1],
+        imageData.data[offset + 2],
+        state.city.lat,
+        masterY
+      );
+      imageData.data[offset] = mapped.r;
+      imageData.data[offset + 1] = mapped.g;
+      imageData.data[offset + 2] = mapped.b;
+    }
+  }
+  bufferContext.putImageData(imageData, 0, 0);
+
+  const result = Object.freeze({
+    atlas: buffer,
+    frame: Object.freeze({
+      ...frame,
+      frame: Object.freeze({ ...frame.frame, x: 0, y: 0 })
+    })
+  });
+  frameCache.set(latitudeBandKey, result);
+  return result;
+}
+
+function latitudeWaterCssColor(sourceHex, masterY) {
+  const cacheKey = `${sourceHex}|${cityWaterLatitudeBand(state.city.lat)}|${cityWaterDepthIndex(masterY)}`;
+  const cached = latitudeWaterCssColorCache.get(cacheKey);
+  if (cached) return cached;
+  const color = `#${cityWaterPaletteHexForSourceHex(sourceHex, state.city.lat, masterY)}`;
+  latitudeWaterCssColorCache.set(cacheKey, color);
+  return color;
 }
 
 function drawAtlasFrame(atlas, frame, window, extendLeft = false, sourceRect = null) {
@@ -1425,8 +1527,8 @@ function drawAtlasFrame(atlas, frame, window, extendLeft = false, sourceRect = n
   );
 }
 
-function drawFrameOutline(frame, window) {
-  const mask = tintedFrameCanvas(frame);
+function drawFrameOutline(atlas, frame, window) {
+  const mask = tintedFrameCanvas(atlas, frame);
   const x = Math.round(frame.spriteSourceSize.x - window.x);
   const y = Math.round(frame.spriteSourceSize.y - window.y);
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
@@ -1434,15 +1536,20 @@ function drawFrameOutline(frame, window) {
   }
 }
 
-function tintedFrameCanvas(frame) {
-  if (frameCanvasCache.has(frame.id)) return frameCanvasCache.get(frame.id);
+function tintedFrameCanvas(atlas, frame) {
+  let atlasCache = frameCanvasCache.get(atlas);
+  if (!atlasCache) {
+    atlasCache = new WeakMap();
+    frameCanvasCache.set(atlas, atlasCache);
+  }
+  if (atlasCache.has(frame)) return atlasCache.get(frame);
   const mask = document.createElement("canvas");
   mask.width = frame.frame.w;
   mask.height = frame.frame.h;
   const maskContext = mask.getContext("2d");
   maskContext.imageSmoothingEnabled = false;
   maskContext.drawImage(
-    state.staticAtlas,
+    atlas,
     frame.frame.x,
     frame.frame.y,
     frame.frame.w,
@@ -1455,7 +1562,7 @@ function tintedFrameCanvas(frame) {
   maskContext.globalCompositeOperation = "source-in";
   maskContext.fillStyle = "#ffe55c";
   maskContext.fillRect(0, 0, mask.width, mask.height);
-  frameCanvasCache.set(frame.id, mask);
+  atlasCache.set(frame, mask);
   return mask;
 }
 
@@ -1584,7 +1691,7 @@ function drawDocksideShipWaterlineLayers(layers, x, y, scale, timeMs, seed) {
   );
 }
 
-function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug) {
+function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineRgb) {
   if (
     shipImage.width !== sinkDepthImage.width ||
     shipImage.height !== sinkDepthImage.height
@@ -1657,9 +1764,9 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug) {
   }
   for (const key of waterlineKeys) {
     const offset = key * 4;
-    waterlineImage.data[offset] = DOCKSIDE_SHIP_WATERLINE_RGB.r;
-    waterlineImage.data[offset + 1] = DOCKSIDE_SHIP_WATERLINE_RGB.g;
-    waterlineImage.data[offset + 2] = DOCKSIDE_SHIP_WATERLINE_RGB.b;
+    waterlineImage.data[offset] = waterlineRgb.r;
+    waterlineImage.data[offset + 1] = waterlineRgb.g;
+    waterlineImage.data[offset + 2] = waterlineRgb.b;
     waterlineImage.data[offset + 3] = 255;
   }
   aboveContext.putImageData(aboveImage, 0, 0);
@@ -1751,7 +1858,13 @@ function updateHover() {
         );
         const masterX = state.pointer.x + window.x;
         const masterY = state.pointer.y + window.y;
-        return frameContainsOpaquePixel(frame, masterX, masterY);
+        const regionalFrame = regionalStaticFrame(frame, layerName);
+        return frameContainsOpaquePixel(
+          regionalFrame?.atlas || state.staticAtlas,
+          regionalFrame?.frame || frame,
+          masterX,
+          masterY
+        );
       });
   })) || null;
   canvas.classList.toggle("is-actionable", Boolean(state.hoveredDestination));
@@ -1761,11 +1874,11 @@ function updateHover() {
   );
 }
 
-function frameContainsOpaquePixel(frame, masterX, masterY) {
+function frameContainsOpaquePixel(atlas, frame, masterX, masterY) {
   const localX = Math.floor(masterX - frame.spriteSourceSize.x);
   const localY = Math.floor(masterY - frame.spriteSourceSize.y);
   if (localX < -1 || localY < -1 || localX > frame.frame.w || localY > frame.frame.h) return false;
-  const alpha = frameAlpha(frame);
+  const alpha = frameAlpha(frame, atlas);
   for (let dy = -1; dy <= 1; dy++) {
     for (let dx = -1; dx <= 1; dx++) {
       const x = localX + dx;
@@ -1777,14 +1890,19 @@ function frameContainsOpaquePixel(frame, masterX, masterY) {
   return false;
 }
 
-function frameAlpha(frame) {
-  if (alphaCache.has(frame.id)) return alphaCache.get(frame.id);
+function frameAlpha(frame, atlas = state.staticAtlas) {
+  let atlasCache = alphaCache.get(atlas);
+  if (!atlasCache) {
+    atlasCache = new WeakMap();
+    alphaCache.set(atlas, atlasCache);
+  }
+  if (atlasCache.has(frame)) return atlasCache.get(frame);
   const buffer = document.createElement("canvas");
   buffer.width = frame.frame.w;
   buffer.height = frame.frame.h;
   const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
   bufferContext.drawImage(
-    state.staticAtlas,
+    atlas,
     frame.frame.x,
     frame.frame.y,
     frame.frame.w,
@@ -1797,7 +1915,7 @@ function frameAlpha(frame) {
   const rgba = bufferContext.getImageData(0, 0, buffer.width, buffer.height).data;
   const alpha = new Uint8Array(buffer.width * buffer.height);
   for (let index = 0; index < alpha.length; index++) alpha[index] = rgba[index * 4 + 3];
-  alphaCache.set(frame.id, alpha);
+  atlasCache.set(frame, alpha);
   return alpha;
 }
 

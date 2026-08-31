@@ -26,7 +26,7 @@ const RESURRECT_PALETTE = RESURRECT_64_HEX.map((hex) => {
   return Object.freeze({ ...rgb, oklab: rgbToOklab(rgb) });
 });
 
-const SOURCE_BASE_HEX = Object.freeze([
+export const WATER_SOURCE_BASE_HEX = Object.freeze([
   "9babb2",
   "7e9ca3",
   "618c93",
@@ -66,7 +66,7 @@ export const WATER_BASE_RESURRECT_HEX = Object.freeze([
   ...new Set([...TROPICAL_BASE_HEX, ...TEMPERATE_BASE_HEX, ...COLD_BASE_HEX])
 ]);
 
-const SOURCE_BASE = SOURCE_BASE_HEX.map(parseHex);
+const SOURCE_BASE = WATER_SOURCE_BASE_HEX.map(parseHex);
 const TROPICAL_BASE = TROPICAL_BASE_HEX.map(parseHex);
 const TEMPERATE_BASE = TEMPERATE_BASE_HEX.map(parseHex);
 const COLD_BASE = COLD_BASE_HEX.map(parseHex);

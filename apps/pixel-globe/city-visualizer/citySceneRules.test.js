@@ -115,6 +115,21 @@ test("city labels and controls stay on the game's native pixel font grid", () =>
   );
 });
 
+test("regional hover outlines and hit masks use the displayed building silhouette", () => {
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /const sourceAtlas = regionalFrame\?\.atlas \|\| state\.staticAtlas;[\s\S]*drawFrameOutline\(sourceAtlas, sourceFrame, window\)/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /const regionalFrame = regionalStaticFrame\(frame, layerName\);[\s\S]*frameContainsOpaquePixel\([\s\S]*regionalFrame\?\.atlas \|\| state\.staticAtlas,[\s\S]*regionalFrame\?\.frame \|\| frame/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /layerVisibleSourceRect\(layerName, sourceFrame\.frame\.w, sourceFrame\.frame\.h\)/
+  );
+});
+
 test("coastal views use the safe span while river views can pan across the authored left bank", () => {
   const wideLeft = logicalSceneWindow({ width: 910, height: 256, parallax: -1 });
   const wideRight = logicalSceneWindow({ width: 910, height: 256, parallax: 1 });
