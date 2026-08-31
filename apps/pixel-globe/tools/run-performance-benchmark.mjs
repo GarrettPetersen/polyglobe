@@ -44,8 +44,6 @@ try {
     }
     if (args.cpuProfile) {
       await cdp.send("Profiler.enable");
-      await cdp.send("Profiler.start");
-      cpuProfilerRunning = true;
     }
     const url = benchmarkUrl(baseUrl, args);
     const loadStartedAt = performance.now();
@@ -60,6 +58,10 @@ try {
     await page.bringToFront();
     const readyMs = performance.now() - loadStartedAt;
     process.stdout.write(`  Scene ready in ${Math.round(readyMs)} ms; collecting frames...\n`);
+    if (args.cpuProfile) {
+      await cdp.send("Profiler.start");
+      cpuProfilerRunning = true;
+    }
     await page.waitForFunction(
       () => window.__PIXEL_GLOBE_BENCHMARK_RESULT__ !== null || Boolean(window.__PIXEL_GLOBE_CAPTURE_ERROR__),
       null,

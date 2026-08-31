@@ -7896,10 +7896,12 @@ function reconcileCourtPoliticsIdentities(state, portCities, legacyPortTileIds) 
   const canonicalPortAliases = new Map(
     Object.values(CANONICAL_PORTS).map((reference) => [reference.id, reference.cityId])
   );
+  const runtimePortAliases = legacyRuntimePortAliases(portCities);
   const snapshotAliases = new Map();
   const resolveStoredIdentity = (storedId, tileId, label) => {
     if (typeof storedId === "string" && cityById.has(storedId)) return cityById.get(storedId);
-    const canonicalId = canonicalPortAliases.get(storedId) || snapshotAliases.get(storedId);
+    const canonicalId = canonicalPortAliases.get(storedId) || runtimePortAliases.get(storedId) ||
+      snapshotAliases.get(storedId);
     if (canonicalId && cityById.has(canonicalId)) return cityById.get(canonicalId);
     const embeddedTile = typeof storedId === "string"
       ? /\|(\d+)$/.exec(storedId)?.[1]
@@ -7957,6 +7959,22 @@ function reconcileCourtPoliticsIdentities(state, portCities, legacyPortTileIds) 
   }
   validateCourtPolitics(memory);
   return updates;
+}
+
+// IDENTITY_MIGRATION_EXCEPTION: released saves briefly persisted runtime portId
+// aliases for dynamic cities. Resolve those aliases only at the load boundary;
+// current state continues to store the city's canonical cityId.
+function legacyRuntimePortAliases(portCities) {
+  const aliases = new Map();
+  for (const city of portCities) {
+    if (typeof city.portId !== "string" || city.portId === "") continue;
+    const previous = aliases.get(city.portId);
+    if (previous && previous !== city.cityId) {
+      throw new Error(`Legacy port id ${city.portId} names multiple canonical cities`);
+    }
+    aliases.set(city.portId, city.cityId);
+  }
+  return aliases;
 }
 
 function reconcilePortConquestIdentities(state, portCities, legacyPortTileIds) {

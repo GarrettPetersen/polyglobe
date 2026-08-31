@@ -421,6 +421,36 @@ test("stable city identities absorb city renames without stranding active work",
   assert.equal(state.memory.quests.active, null);
 });
 
+test("court history resolves a dynamic colony port alias to its canonical city id", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const manila = {
+    ...port(13, "Manila", "Philippines", "southeast-asian", "spain", 14.58, 121),
+    portId: "colony-manila-philippines",
+    playerDevelopedPort: true
+  };
+  state.relations.courts.history.push({
+    id: "court-action-14-court-13-royal-dispatch-22761",
+    simMinute: 22761,
+    source: "autonomous-court",
+    authorityFactionId: "spain",
+    kind: "royal-dispatch",
+    targetFactionId: "spain",
+    secondaryFactionId: null,
+    destinationCityId: manila.portId,
+    destinationName: "Manila",
+    headline: "Spanish authority renewed at Manila",
+    detail: "The court receives its officers' return."
+  });
+  state.relations.courts.portServiceMinutes[manila.portId] = 22761;
+
+  assert.equal(reconcileQuestPortTiles(state, [LISBON, manila]), 2);
+  assert.equal(state.relations.courts.history[0].destinationCityId, manila.cityId);
+  assert.deepEqual(state.relations.courts.portServiceMinutes, {
+    [manila.cityId]: 22761
+  });
+  assert.equal(reconcileQuestPortTiles(state, [LISBON, manila]), 0);
+});
+
 test("an allied capture recalls an active commission instead of leaving an impossible target", () => {
   const stats = shipStatsForSlug("large-junk");
   const state = createGameState({

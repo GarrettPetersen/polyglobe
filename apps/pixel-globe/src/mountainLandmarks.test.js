@@ -36,6 +36,9 @@ test("full named mountain data aligns with cached peak tiles", async () => {
   assert.ok(fuji);
   assert.equal(fuji.elevationM, 3776);
   assert.ok(registry.peakTileIds.has(fuji.tileId));
+  const matterhorn = registry.famous.find((mountain) => mountain.id === "mountain-matterhorn");
+  assert.ok(matterhorn);
+  assert.ok(matterhorn.legacyDiscoveryIds.includes("mountain-40279-matterhorn"));
   assert.equal(registry.famous.some((mountain) => mountain.displayName === "Cero Raya"), false);
   assert.deepEqual(
     new Set(AUTHORED_MOUNTAIN_REPORT_IDS),

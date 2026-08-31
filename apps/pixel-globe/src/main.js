@@ -5326,7 +5326,22 @@ async function loadShipRenderLayersForSlug(slug) {
   const payload = bundle.slice(entry.byteOffset, end);
   const image = await loadBundledPngImage(payload, `ship render-layer atlas: ${slug}`);
   validateImageDimensions(image, `Ship render-layer atlas: ${slug}`, entry.width, entry.height);
+  primeShipRenderLayerAtlasSource(image, slug);
   return Object.freeze({ image, entry });
+}
+
+function primeShipRenderLayerAtlasSource(image, slug) {
+  const primed = worldRenderer.primeAtlasSources([image]);
+  if (primed.sourceCount !== 1 || primed.pageIndices.length !== 1) {
+    throw new Error(
+      `Ship render-layer atlas priming failed for ${slug}: ` +
+        `${primed.sourceCount} sources on ${primed.pageIndices.length} pages`
+    );
+  }
+  console.info(
+    `[pixel-globe] ship render-layer GPU atlas primed for ${slug} on page ` +
+      primed.pageIndices[0]
+  );
 }
 
 function loadShipRenderLayerBundle(bundleName) {

@@ -597,6 +597,7 @@ function relaxProtectedComponentEdges({
   // pixels. Reserve that full diagonal distance so a valid continuous solve
   // cannot cross the post-rounding stitch limit by a fraction of a pixel.
   const allowedError = Math.max(0, maximumEdgeErrorPx - Math.SQRT2);
+  const allowedErrorSquared = allowedError * allowedError;
   for (let iteration = 0; iteration < 96; iteration++) {
     let maximumViolation = 0;
     const reverse = iteration % 2 === 1;
@@ -610,9 +611,10 @@ function relaxProtectedComponentEdges({
         : positions.get(constraint.neighborId);
       const errorX = point.x - neighbor.x - constraint.expectedDx;
       const errorY = point.y - neighbor.y - constraint.expectedDy;
-      const error = Math.hypot(errorX, errorY);
+      const errorSquared = errorX * errorX + errorY * errorY;
+      if (errorSquared <= allowedErrorSquared) continue;
+      const error = Math.sqrt(errorSquared);
       const violation = error - allowedError;
-      if (violation <= 0) continue;
       maximumViolation = Math.max(maximumViolation, violation);
       const correctionScale = violation / error;
       const moveScale = constraint.neighborIsPending ? 0.5 : 1;

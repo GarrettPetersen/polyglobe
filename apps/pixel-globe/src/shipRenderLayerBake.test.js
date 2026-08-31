@@ -113,3 +113,16 @@ test("committed ship render-layer manifest matches the production ship roster", 
     manifest
   );
 });
+
+test("ship render-layer atlases are GPU-resident before their assets become drawable", async () => {
+  const mainSource = await readFile(new URL("./main.js", import.meta.url), "utf8");
+  const loaderSource = mainSource.match(
+    /async function loadShipRenderLayersForSlug\(slug\) \{[\s\S]*?\n\}/
+  )?.[0];
+
+  assert.ok(loaderSource, "ship render-layer loader is present");
+  assert.match(
+    loaderSource,
+    /validateImageDimensions\([\s\S]*?primeShipRenderLayerAtlasSource\(image, slug\);[\s\S]*?return Object\.freeze/
+  );
+});
