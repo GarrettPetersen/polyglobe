@@ -479,6 +479,14 @@ const COLONIAL_CITY_FOUNDINGS_BY_KEY = new Map(COLONIAL_CITY_FOUNDINGS.map((entr
   entry
 ]));
 const COLONIZATION_TARGETS_BY_KEY = buildColonizationTargetMap();
+const LEGACY_COLONIZATION_TARGET_CITY_IDS = new Map(COLONIZATION_TARGETS.map((target) => [
+  legacyColonizationTargetKey(target.city, target.country),
+  target.cityId
+]));
+
+if (LEGACY_COLONIZATION_TARGET_CITY_IDS.size !== COLONIZATION_TARGETS.length) {
+  throw new Error("Colonization targets contain duplicate legacy presentation identities");
+}
 
 if (COLONIAL_CITY_FOUNDINGS_BY_KEY.size !== COLONIAL_CITY_FOUNDINGS.length) {
   throw new Error("Colonial city registry contains duplicate city keys");
@@ -506,6 +514,17 @@ export function colonizationTargetForCity(city) {
   if (!city || typeof city !== "object") return null;
   if (!nonEmptyString(city.cityId)) return null;
   return COLONIZATION_TARGETS_BY_KEY.get(city.cityId) || null;
+}
+
+// IDENTITY_MIGRATION_EXCEPTION: released saves before game-state v93 stored
+// colonization targets as presentation text. Resolve that text exactly once at
+// the load boundary; current runtime state must use cityId.
+export function legacyColonizationTargetCityId(city, country) {
+  const cityId = LEGACY_COLONIZATION_TARGET_CITY_IDS.get(
+    legacyColonizationTargetKey(city, country)
+  );
+  if (!cityId) throw new Error(`Legacy colonization target does not resolve: ${city}, ${country}`);
+  return cityId;
 }
 
 export function withColonialFounding(cityRecord) {
@@ -654,6 +673,13 @@ function addTargetKey(map, key, target) {
   const prev = map.get(key);
   if (prev && prev !== target) throw new Error(`Colonization target registry contains duplicate id: ${key}`);
   map.set(key, target);
+}
+
+function legacyColonizationTargetKey(city, country) {
+  if (!nonEmptyString(city) || !nonEmptyString(country)) {
+    throw new Error("Legacy colonization target requires city and country text");
+  }
+  return `${city}\u0000${country}`;
 }
 
 function colonizationCityType(type, factionId, cityId) {

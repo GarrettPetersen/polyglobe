@@ -10,6 +10,7 @@ import {
 import { gameMinuteForDate } from "./rulers.js";
 import {
   advanceSovereignAuthority,
+  convertCatholicFactorForPapalAuthority,
   createSovereignAuthority,
   papalAuthorityResponseMultiplier,
   recordEnglishReformationAuthority,
@@ -107,4 +108,24 @@ test("individual naval outcomes have cumulative but deliberately tiny effects", 
   assert.equal(authority.scores.england, beforeEngland + 0.08);
   assert.equal(authority.scores.france, beforeFrance - 0.12);
   validateSovereignAuthority(authority);
+});
+
+test("factor conversion rolls require canonical character identity", () => {
+  const factor = {
+    id: "factor-augsburg-01",
+    name: "Jakob Rehlinger",
+    homePort: "Augsburg",
+    religionId: "roman-catholic",
+    nationalityId: "habsburg"
+  };
+  const renamed = { ...factor, name: "Jacob Rehlinger", homePort: "Augusta Vindelicorum" };
+
+  assert.equal(
+    convertCatholicFactorForPapalAuthority(factor, 0).religionId,
+    convertCatholicFactorForPapalAuthority(renamed, 0).religionId
+  );
+  assert.throws(
+    () => convertCatholicFactorForPapalAuthority({ ...factor, id: undefined }, 0),
+    /Catholic factor requires a canonical id/
+  );
 });

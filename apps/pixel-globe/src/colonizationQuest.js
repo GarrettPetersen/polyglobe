@@ -1,5 +1,6 @@
 import {
-  colonizationTargetForCity
+  colonizationTargetForCity,
+  legacyColonizationTargetCityId
 } from "./colonialCities.js";
 import { CANONICAL_PORTS } from "./canonicalPorts.js";
 import { cityIsInEurope } from "./cityCatalogData.js";
@@ -283,27 +284,69 @@ export function colonizationQuestMemory(state) {
   return validateColonizationQuestMemory(memory);
 }
 
-export function migrateColonizationQuestMemory(memory) {
+export function migrateColonizationQuestMemory(memory, {
+  legacyCityIdForPortReference = null
+} = {}) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     return createColonizationQuestMemory();
   }
   if (![1, 2, COLONIZATION_QUEST_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported colonization quest memory: ${memory.version ?? "missing"}`);
   }
-  return validateColonizationQuestMemory(migrateColonizationQuestRecord(memory));
+  return validateColonizationQuestMemory(migrateColonizationQuestRecord(
+    memory,
+    legacyCityIdForPortReference
+  ));
 }
 
-function migrateColonizationQuestRecord(memory) {
+function migrateColonizationQuestRecord(memory, legacyCityIdForPortReference) {
   return {
     ...memory,
     version: COLONIZATION_QUEST_VERSION,
-    targetCityId: memory.targetCityId ?? null,
+    targetCityId: migratedColonizationTargetCityId(memory),
+    originCityId: migratedColonizationPortCityId(
+      memory,
+      "origin",
+      legacyCityIdForPortReference
+    ),
+    approvalCityId: migratedColonizationPortCityId(
+      memory,
+      "approval",
+      legacyCityIdForPortReference
+    ),
     resupplyExtensionMinutes: memory.resupplyExtensionMinutes ?? 0,
     aftermath: memory.aftermath ?? null,
     pastSettlements: Array.isArray(memory.pastSettlements)
-      ? memory.pastSettlements.map(migrateColonizationQuestRecord)
+      ? memory.pastSettlements.map((settlement) => migrateColonizationQuestRecord(
+          settlement,
+          legacyCityIdForPortReference
+        ))
       : []
   };
+}
+
+function migratedColonizationTargetCityId(memory) {
+  if (nonEmptyString(memory.targetCityId)) return memory.targetCityId;
+  if (memory.targetCity === null || memory.targetCity === undefined) return null;
+  return legacyColonizationTargetCityId(memory.targetCity, memory.targetCountry);
+}
+
+function migratedColonizationPortCityId(memory, prefix, legacyCityIdForPortReference) {
+  const cityId = memory[`${prefix}CityId`];
+  if (nonEmptyString(cityId)) return cityId;
+  const city = memory[`${prefix}City`];
+  if (city === null || city === undefined) return null;
+  const tileId = memory[`${prefix}TileId`];
+  if (!Number.isInteger(tileId)) {
+    throw new Error(`Legacy colonization ${prefix} has no canonicalizable tile`);
+  }
+  if (typeof legacyCityIdForPortReference !== "function") {
+    throw new Error(`Legacy colonization ${prefix} migration requires a canonical city resolver`);
+  }
+  return requireEntityId(
+    legacyCityIdForPortReference(Object.freeze({ tileId })),
+    `Migrated colonization ${prefix}`
+  );
 }
 
 export function prepareNextColonizationExpedition(state, memory = colonizationQuestMemory(state)) {

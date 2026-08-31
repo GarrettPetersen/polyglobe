@@ -16,6 +16,7 @@ const DURABLE_TILE_EQUALITY = /(?:\.tileId\s*===\s*[^;]*(?:quest|memory|matter|c
 const DURABLE_TILE_LOOKUP = /ByTileId\.get\([^)]*(?:quest|offer|memory|matter|contract)/i;
 const TILE_DERIVED_ENTITY_ID = /(?:`(?:city|port|shore-battery|pirate-hideout)[-:]\$\{[^}]*tileId|\b(?:portId|cityId|originId|destinationId|targetId|homePortId|subjectId|missionId|identityKey|rollKey|cityIdentity)\b\s*(?::|=(?!=))\s*[^,;]*\btileId\b|\bid\s*:\s*`[^`]*\$\{[^}]*tileId)/i;
 const PRESENTATION_DERIVED_IDENTITY = /\b(?:identityKey|rollKey|cityIdentity|subjectId|missionId)\b\s*[:=][^;]*(?:\.name\b|\.city\b|\.country\b|displayName\b|displayCity\b)/;
+const PRESENTATION_PASSED_TO_IDENTITY_SELECTOR = /\b[A-Za-z_$][\w$]*(?:ForKey|ById)\([^\n)]*(?:\.name\b|\.city\b|\.country\b|displayName\b|displayCity\b)/;
 const TILE_COMPARED_TO_CANONICAL_ID = /(?:\.tileId\s*(?:===|!==)\s*[\w$?.[\]]+\.(?:cityId|portId)|\.(?:cityId|portId)\s*(?:===|!==)\s*[\w$?.[\]]+\.tileId)/;
 
 test("production entity logic never uses presentation text as identity", async () => {
@@ -73,6 +74,18 @@ test("production identity keys never depend on presentation text", async () => {
     });
   }
   assert.deepEqual(violations, [], `Presentation-derived identity keys:\n${violations.join("\n")}`);
+});
+
+test("identity selectors never receive presentation text", async () => {
+  const violations = [];
+  for (const file of await productionSourceFiles()) {
+    const lines = (await readFile(file, "utf8")).split("\n");
+    lines.forEach((line, index) => {
+      if (!PRESENTATION_PASSED_TO_IDENTITY_SELECTOR.test(line)) return;
+      violations.push(`${path.basename(file)}:${index + 1}: ${line.trim()}`);
+    });
+  }
+  assert.deepEqual(violations, [], `Presentation text passed to identity selectors:\n${violations.join("\n")}`);
 });
 
 test("tile coordinates are never compared with canonical city or port ids", async () => {

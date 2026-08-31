@@ -1083,7 +1083,9 @@ export function migrateGameState(state, shipStats, {
       },
       cargoReservations: state.memory?.cargoReservations || {},
       missionItemGifts: state.memory?.missionItemGifts || {},
-      colonization: migrateColonizationQuestMemory(state.memory?.colonization),
+      colonization: migrateColonizationQuestMemory(state.memory?.colonization, {
+        legacyCityIdForPortReference
+      }),
       conquest: migratedConquest,
       achievements: migrateVoyageAchievementProgress(state.memory?.achievements),
       whales: migrateWhaleMemory(state.memory?.whales),

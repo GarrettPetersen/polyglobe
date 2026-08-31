@@ -4037,7 +4037,8 @@ function greetingView(session, city, gameState, context) {
     };
   }
   const name = cityLabel(city);
-  const personalityId = city.character?.personalityId || portPersonalityForKey(`${name}|${city.country || "port"}`);
+  const personalityId = city.character?.personalityId ||
+    portPersonalityForKey(requireCityId(city, "Port personality city"));
   const arrival = portFlavor(city, gameState, context, memory.visits);
   const greeting = portGreetingPresentationForPersonality({
     personalityId,

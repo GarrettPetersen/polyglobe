@@ -12,7 +12,7 @@ function portGreetingPresentationForPersonality(options) {
 }
 
 test("port personalities are stable and distributed across factors", () => {
-  assert.equal(portPersonalityForKey("Lisbon|Portugal"), portPersonalityForKey("Lisbon|Portugal"));
+  assert.equal(portPersonalityForKey("lisbon|portugal"), portPersonalityForKey("lisbon|portugal"));
   const assigned = new Set(Array.from({ length: 100 }, (_, index) => portPersonalityForKey(`port-${index}`)));
   assert.deepEqual([...assigned].sort(), [...PORT_PERSONALITY_IDS].sort());
 });

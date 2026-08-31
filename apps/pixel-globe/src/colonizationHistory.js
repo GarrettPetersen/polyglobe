@@ -1,11 +1,12 @@
 import { tradeGoodById } from "./economy.js";
 import { religionById } from "./characterReligion.js";
+import { colonizationTargetForCity } from "./colonialCities.js";
 
 const FETCH_REWARDS = Object.freeze([300, 220, 240]);
 const DEFAULT_RESUPPLY_REWARD = 1500;
 
 const HISTORIES = Object.freeze([
-  history("Lima", "Peru", {
+  history("lima|peru", {
     sponsorRole: "royal surveyor",
     settlementLeaderRole: "governor of the City of Kings",
     basis: "Pizarro founded the City of Kings in 1535 on Taulichusco's lands in the Rimac valley.",
@@ -22,7 +23,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "food reserves while the new capital draws farmers and officials", "The City of Kings needs grain before its first dry season ends.", "The Rimac irrigates the fields, but the new population is growing faster than its harvest.", "Your grain has arrived before the storehouses failed."),
     established: "The City of Kings now governs Spain's Pacific conquests from the Rimac valley. Its warehouses face the road to the harbor, while the older landscape remains beneath the new grid."
   }),
-  history("Recife", "Brazil", {
+  history("recife|brazil", {
     sponsorRole: "Pernambuco harbor factor",
     settlementLeaderRole: "harbor factor of Recife",
     basis: "Recife grew around the arrecife dos navios as the reef-sheltered warehouse port for Olinda and Pernambuco sugar.",
@@ -39,7 +40,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("sugar", 10, "the first export cargo from Pernambuco's mills", "Recife needs a full sugar cargo to prove the new harbor can pay.", "The wharves are ready, but a port without an export cargo is only a row of sheds.", "The first Pernambuco sugar is under lock in Recife's warehouse."),
     established: "Recife has become the reef-sheltered warehouse port of Pernambuco. Sugar comes down from the mills, and Atlantic hulls crowd the channel."
   }),
-  history("Asuncion", "Paraguay", {
+  history("asuncion|paraguay", {
     sponsorRole: "Rio de la Plata adelantado",
     settlementLeaderRole: "commander of the Asuncion fort",
     basis: "Asuncion began as a 1537 fort during the search up the Paraguay River and became a refuge and base for later river settlements.",
@@ -56,7 +57,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "food and seed for a garrison far upriver", "Asuncion needs grain before the river isolates it again.", "The fort has become a refuge, but too many mouths now depend on a small harvest.", "The grain boats are unloaded; the river fort will endure."),
     established: "Asuncion has outgrown its first mud-and-thatch fort. It is now the upriver refuge from which new settlements can spread through the Plata basin."
   }),
-  history("Salvador", "Brazil", {
+  history("salvador|brazil", {
     sponsorRole: "agent of the governor-general",
     settlementLeaderRole: "governor-general at Salvador",
     basis: "Tome de Sousa founded fortified Salvador in 1549 as the planned seat of Brazil's first governor-general.",
@@ -73,7 +74,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "the planned capital's first crowded year", "Salvador needs grain while officials, soldiers, builders, and clergy continue to arrive.", "The upper city's walls rise quickly; its fields do not.", "The royal granary is full enough to carry Salvador through another season."),
     established: "Salvador now stands as Brazil's fortified capital, with government on the heights and Atlantic commerce below."
   }),
-  history("Concepcion", "Chile", {
+  history("concepcion|chile", {
     sponsorRole: "captain of the Chilean frontier",
     settlementLeaderRole: "commandant of Concepcion",
     basis: "Valdivia founded Concepcion at Penco Bay in 1550 as a strategic base in Mapuche territory during the conquest of Chile.",
@@ -90,7 +91,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("gunpowder", 6, "a garrison exposed on the Mapuche frontier", "Concepcion is asking for powder, not ceremony.", "The stockade still stands, but every watch reports movement beyond the fields.", "The powder is dry and the garrison can hold its walls."),
     established: "Concepcion endures at Penco as a military and administrative center, sustained from Peru on a frontier Spain has not subdued."
   }),
-  history("Rio de Janeiro", "Brazil", {
+  history("rio de janeiro|brazil", {
     sponsorRole: "captain against France Antarctique",
     settlementLeaderRole: "captain of Sao Sebastiao",
     basis: "Estacio de Sa founded Sao Sebastiao do Rio de Janeiro in 1565 as a military base against France Antarctique in Guanabara Bay.",
@@ -117,7 +118,7 @@ const HISTORIES = Object.freeze([
     }),
     established: "Sao Sebastiao has secured Guanabara Bay for Portugal. Around the old redoubt, Rio de Janeiro is becoming a true port."
   }),
-  history("St. Augustine", "United States of America", {
+  history("st. augustine|united states of america", {
     sponsorRole: "captain-general of Florida",
     settlementLeaderRole: "governor of St. Augustine",
     basis: "Pedro Menendez de Aviles founded St. Augustine in 1565 as a planned Spanish base and moved against French Fort Caroline.",
@@ -134,7 +135,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "a large garrison and town in an uncertain food landscape", "San Agustin needs grain before storms or war cut off the harbor.", "The planned town survives, but its soldiers and families have consumed the first stores.", "The granary is secure; San Agustin can remain a town rather than another abandoned camp."),
     established: "St. Augustine has survived where earlier Spanish ventures did not, a permanent planned town and naval base in Florida."
   }),
-  history("Caracas", "Venezuela", {
+  history("caracas|venezuela", {
     sponsorRole: "captain of the Venezuela expedition",
     settlementLeaderRole: "alcalde of Santiago de Leon",
     basis: "Diego de Losada founded Santiago de Leon de Caracas in 1567 after Caracas and allied peoples defeated earlier settlements.",
@@ -151,7 +152,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "a settlement still unable to feed itself securely", "Caracas needs grain before another lean season isolates the valley.", "The town grid holds, but farms beyond it remain exposed and uncertain.", "The grain has arrived; Santiago de Leon has survived another year."),
     established: "Santiago de Leon de Caracas now holds the valley, and the Indian name Caracas has already outlasted the one in the charter."
   }),
-  history("Manila", "Philippines", {
+  history("manila|philippines", {
     sponsorRole: "agent of Legazpi",
     settlementLeaderRole: "governor of Manila",
     basis: "Legazpi made Manila the Spanish capital in 1571 after the conquest of the existing Tagalog polity of Maynila.",
@@ -168,7 +169,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("silk-cloth", 6, "the first cargo linking Manila to the China trade", "Manila needs a Chinese silk cargo to justify the new trans-Pacific capital.", "The walls stand, but the sponsors promised a trade entrepot, not merely a garrison.", "The silk warehouses are open; Manila now has the commerce its conquest promised."),
     established: "Spanish Manila now commands the bay from beside the old Tagalog port, drawing Chinese junks and Pacific shipping into a new imperial capital."
   }),
-  history("Nagasaki", "Japan", {
+  history("nagasaki|japan", {
     sponsorRole: "Portuguese Japan-trade factor",
     settlementLeaderRole: "port steward of Nagasaki",
     basis: "Omura Sumitada and Jesuit planners opened Nagasaki to the Portuguese China ship in 1571 and laid out six streets by the anchorage.",
@@ -193,7 +194,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("silk-cloth", 6, "the Macau-Japan trade on which the new port depends", "Nagasaki needs a China-trade cargo, not another load of European promises.", "The six streets are filling, but no port built for the great ship can prosper while its warehouses are empty.", "Macau silk is in the warehouses; Nagasaki's reason for being is now visible on its quays."),
     established: "Nagasaki is a Japanese port transformed by the annual Portuguese ship, its six streets shared by local officials, Jesuits, and foreign factors."
   }),
-  history("Luanda", "Angola", {
+  history("luanda|angola", {
     sponsorRole: "agent of Paulo Dias de Novais",
     settlementLeaderRole: "governor of Sao Paulo de Luanda",
     basis: "Paulo Dias de Novais founded Luanda in 1576 with settlers and soldiers; it became a fortified bridgehead tied to war and the Atlantic slave trade.",
@@ -210,7 +211,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "families and soldiers before local harvests are secured", "Luanda needs grain for a population built around a garrison rather than farms.", "The fort dominates the bay, but its crowded settlement cannot yet feed itself.", "The grain has arrived; the bridgehead will not collapse from its own poor planning."),
     established: "Sao Paulo de Luanda has become Portugal's fortified Angolan port. Its Atlantic wealth comes from inland war and the slave trade."
   }),
-  history("Buenos Aires", "Argentina", {
+  history("buenos aires|argentina", {
     sponsorRole: "agent of Juan de Garay",
     settlementLeaderRole: "alcalde of Buenos Aires",
     basis: "Juan de Garay led the successful 1580 refoundation from Asuncion to give the Paraguay settlements an Atlantic outlet.",
@@ -227,7 +228,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "the second foundation's first uncertain harvest", "Buenos Aires must not repeat the hunger that destroyed the first settlement.", "The river town is holding, but its first harvest cannot yet support every arrival.", "The reserve grain is dry in the storehouse; this Buenos Aires will not be abandoned so easily."),
     established: "The second Buenos Aires now links Asuncion and the interior river towns to the Atlantic, succeeding where the first foundation failed."
   }),
-  history("St. John's", "Canada", {
+  history("st. john's|canada", {
     sponsorRole: "Newfoundland fishing promoter",
     settlementLeaderRole: "fishing admiral at St. John's",
     basis: "Gilbert asserted an English claim at St. John's in 1583, but the harbor was already an international seasonal fishery and his colony plan failed.",
@@ -244,7 +245,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("salt", 12, "another full cod-curing season", "St. John's needs salt before the cod fleets arrive.", "The winter crew survived, but the spring fishery will overwhelm the salt store.", "The curing sheds are supplied; this season's cod can cross the Atlantic."),
     established: "St. John's now has permanent stores and winter residents serving a fishery that was international long before England claimed it."
   }),
-  history("Roanoke", "United States of America", {
+  history("roanoke|united states of america", {
     sponsorRole: "agent of Sir Walter Raleigh",
     settlementLeaderRole: "governor of the Cittie of Ralegh",
     basis: "John White's 1587 colony settled on Roanoke Island after an earlier military colony failed; war with Spain delayed relief until 1590, when the settlement was found abandoned.",
@@ -261,7 +262,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 14, "the colony while its first fields and alliances are tested", "Roanoke needs grain before another poor harvest turns trade into desperation.", "The houses stand, but drought and old quarrels have made food uncertain throughout the sounds.", "The grain is stored. Roanoke has time to plant, trade, and choose its future."),
     established: "The Cittie of Ralegh has survived its first season on Roanoke Island. Its families now wait for the next sail from England."
   }),
-  history("Port Royal", "Canada", {
+  history("port royal|canada", {
     sponsorRole: "Acadian colonial organizer",
     settlementLeaderRole: "governor of Port Royal",
     basis: "De Monts, Poutrincourt, and Champlain moved to sheltered Port Royal after the disastrous Saint Croix winter and maintained relations with the Mi'kmaq.",
@@ -278,7 +279,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "seed and food insurance after the first northern winter", "Port Royal needs grain before its second winter.", "The Habitation stands, and the Order of Good Cheer keeps spirits up, but fellowship cannot fill an empty granary.", "The grain has arrived in time for planting and winter stores."),
     established: "Port Royal has survived its first year in the sheltered basin. The Habitation, Mi'kmaq trade, and Champlain's Order of Good Cheer give Acadia a durable beginning."
   }),
-  history("Jamestown", "United States of America", {
+  history("jamestown|united states of america", {
     sponsorRole: "Virginia Company adventurer",
     settlementLeaderRole: "president of the Jamestown council",
     basis: "The Virginia Company founded Jamestown in 1607 for profit; disease, brackish water, drought, and conflict with Powhatan brought catastrophic mortality.",
@@ -305,7 +306,7 @@ const HISTORIES = Object.freeze([
     }),
     established: "Jamestown has survived disease, hunger, and war long enough to become permanent. The Company's pamphlets boast of the fort; its graveyard keeps the truer account."
   }),
-  history("Quebec", "Canada", {
+  history("quebec|canada", {
     sponsorRole: "agent of de Monts and Champlain",
     settlementLeaderRole: "commandant of Quebec",
     basis: "Champlain founded Quebec in 1608 as a fortified fur-trade post where the St. Lawrence narrows, within alliances with Innu, Algonquin, and Wendat peoples.",
@@ -322,7 +323,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "the Habitation after its deadly first winter", "Quebec needs grain before ice closes the St. Lawrence.", "The post survived, but scurvy and cold have left too few hands for a confident harvest.", "The grain is inside the Habitation before freeze-up."),
     established: "Quebec now anchors New France at the river narrows, sustained by shipping, fur trade, and alliances with the Innu, Algonquin, and Wendat."
   }),
-  history("St. George's", "Bermuda", {
+  history("st. george's|bermuda", {
     sponsorRole: "Virginia Company island promoter",
     settlementLeaderRole: "governor of St. George's",
     basis: "St. George's followed the 1609 wreck of the Sea Venture; survivors built Deliverance and Patience, and a deliberate town was settled in 1612.",
@@ -339,7 +340,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("iron", 6, "tools and ship fittings on an isolated island", "St. George's needs iron; cedar is plentiful, but the island cannot grow nails or axes.", "The houses hold and new boats take shape, but every broken tool has become precious.", "The smithy has iron again, and the island fleet can keep working."),
     established: "St. George's has turned the Sea Venture's emergency refuge into England's permanent Bermuda capital."
   }),
-  history("Fort Orange", "United States of America", {
+  history("fort orange|united states of america", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "Dutch West India Company factor",
     settlementLeaderRole: "chief factor of Fort Orange",
@@ -357,7 +358,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("wool-cloth", 8, "the exchange stock needed for the fur trade", "Fort Orange needs trade cloth before the next upriver rendezvous.", "The fort is sound, but its warehouse is nearly empty and Mahican and Mohawk traders will not accept Company promises.", "The trade cloth is shelved; Fort Orange can meet its trading partners with goods in hand."),
     established: "Fort Orange now gathers pelts at the head of Hudson navigation, a Dutch company post whose survival depends on Mahican and Mohawk trade."
   }),
-  history("Plymouth", "United States of America", {
+  history("plymouth|united states of america", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "representative of the Leiden congregation",
     settlementLeaderRole: "governor of Plymouth",
@@ -375,7 +376,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 14, "survivors of the first winter and the next planting", "Plymouth needs grain after a winter that spared very few households.", "The settlement stands among the cleared fields of Patuxet, but illness and hunger have taken a terrible share.", "The grain has arrived; the survivors can plant without immediately consuming their seed."),
     established: "Plymouth has endured at Patuxet through Wampanoag aid and an uneasy alliance; English stores alone would not have saved it."
   }),
-  history("New Amsterdam", "United States of America", {
+  history("new amsterdam|united states of america", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "Dutch West India Company director",
     settlementLeaderRole: "director of New Amsterdam",
@@ -393,7 +394,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("wool-cloth", 8, "the fur trade and the new harbor market", "New Amsterdam needs trade cloth before its factors lose the upriver business.", "The fort commands the harbor, but commerce is slowing as its exchange stock empties.", "The cloth is in the Company warehouse; ships and pelts are moving again."),
     established: "New Amsterdam now governs New Netherland from Manhattan, its quays crowded with Dutch, Walloon, African, and foreign merchants."
   }),
-  history("Bridgetown", "Barbados", {
+  history("bridgetown|barbados", {
     sponsorRole: "agent of the Earl of Carlisle",
     settlementLeaderRole: "governor at Bridgetown",
     basis: "English settlement at Bridgetown began in 1628 at Carlisle Bay; its early organic street plan preceded the later sugar-slavery economy.",
@@ -410,7 +411,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "the island's first crowded planting seasons", "Bridgetown needs food while planters gamble on export crops.", "Cotton and tobacco occupy the promoters, but neither feeds a hungry harbor town.", "The grain is unloaded; Bridgetown has time to learn what this island can sustain."),
     established: "Bridgetown now anchors English Barbados at Carlisle Bay. Its port prospers while plantations spread and demand ever more bond labor."
   }),
-  history("Boston", "United States of America", {
+  history("boston|united states of america", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "Massachusetts Bay organizer",
     settlementLeaderRole: "governor of Boston",
@@ -428,7 +429,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 14, "a large migration through its first New England winter", "Boston needs grain; the Winthrop fleet arrived faster than its farms could grow.", "The spring is sound and the meetinghouse is busy, but too many new households share too small a harvest.", "The grain is ashore; Boston's first winter need not empty the town."),
     established: "Boston now occupies the Shawmut peninsula, a Puritan harbor and government center built around the spring that drew the fleet across the river."
   }),
-  history("Trois-Rivieres", "Canada", {
+  history("trois-rivieres|canada", {
     sponsorRole: "agent of Champlain",
     settlementLeaderRole: "commandant of Trois-Rivieres",
     basis: "Champlain sent Laviolette in 1634 to build a fortified post at the Saint-Maurice confluence, already a longstanding Indian fur-trade rendezvous.",
@@ -445,7 +446,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("wool-cloth", 8, "the next annual fur-trade rendezvous", "Trois-Rivieres needs trade cloth before the spring gathering.", "The fort survived fire and rebuilding, but its exchange stock is nearly gone.", "The warehouse is ready for the rendezvous at the three rivers."),
     established: "Trois-Rivieres has become a permanent fortified fur post at the Saint-Maurice confluence, linking French shipping to Algonquin and Innu trade routes."
   }),
-  history("Hartford", "United States of America", {
+  history("hartford|united states of america", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "Connecticut congregation organizer",
     settlementLeaderRole: "magistrate at Hartford",
@@ -463,7 +464,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "the congregation until its river farms mature", "Hartford needs grain while its new meadows are fenced and planted.", "The cattle have pasture and the houses have roofs, but the first crop remains thin.", "The grain is stored; the river congregation can survive to its own harvest."),
     established: "Hartford has become an English farming town on the Connecticut, beside the old Indian paths and just beyond the Dutch post."
   }),
-  history("Providence", "United States of America", {
+  history("providence|united states of america", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "friend of Roger Williams",
     settlementLeaderRole: "steward of Providence",
@@ -481,7 +482,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("wool-cloth", 8, "trade obligations and the settlement's first households", "Providence needs trade cloth to honor its agreements and outfit new arrivals.", "The spring is good and dissenters keep arriving, but the settlement's exchange stores are exhausted.", "The promised goods are available again, preserving both trade and trust."),
     established: "Providence now offers a refuge for conscience under civil government, founded through negotiation with Narragansett leaders rather than a Massachusetts patent."
   }),
-  history("New Haven", "United States of America", {
+  history("new haven|united states of america", {
     organizerReligionId: "reformed-protestant",
     sponsorRole: "agent of Davenport and Eaton",
     settlementLeaderRole: "magistrate of New Haven",
@@ -499,7 +500,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 12, "the planned town while its farms and trade develop", "New Haven needs grain; its ordered squares do not yet produce an ordered harvest.", "The meetinghouse and wharf stand, but the merchant venture has not fed the settlement.", "The grain is stored; New Haven has another year to make its port succeed."),
     established: "New Haven now stands at Quinnipiac as a rigorously planned Puritan merchant colony, its nine-square order clearer than its commercial future."
   }),
-  history("Ville-Marie", "Canada", {
+  history("ville-marie|canada", {
     sponsorRole: "agent of the Societe Notre-Dame",
     settlementLeaderRole: "governor of Ville-Marie",
     basis: "Maisonneuve and Jeanne Mance founded Ville-Marie in 1642 as a missionary settlement; Mance established the Hotel-Dieu hospital.",
@@ -526,7 +527,7 @@ const HISTORIES = Object.freeze([
     }),
     established: "Ville-Marie endures on Montreal Island, with Maisonneuve's fort and Jeanne Mance's Hotel-Dieu defining the mission settlement together."
   }),
-  history("Charleston", "United States of America", {
+  history("charleston|united states of america", {
     sponsorRole: "agent of the Lords Proprietors",
     settlementLeaderRole: "governor of Charles Towne",
     basis: "The Lords Proprietors planted Charles Towne at Albemarle Point in 1670; settlers fortified it against Spain and relied on Cusabo support before moving in 1680.",
@@ -543,7 +544,7 @@ const HISTORIES = Object.freeze([
     resupply: resupply("grain", 14, "settlers whose first crops have failed", "Charles Towne needs grain after poor first harvests.", "Cusabo food and support have kept the settlement alive, but the Proprietors' own crops have disappointed them.", "The grain is secure; Charles Towne has survived its weakest season."),
     established: "Charles Towne now anchors Carolina as a fortified port. Its prosperity is already tied to Barbados, spreading plantations, and slave labor."
   }),
-  history("Philadelphia", "United States of America", {
+  history("philadelphia|united states of america", {
     organizerReligionId: "quaker",
     sponsorRole: "agent of William Penn",
     settlementLeaderRole: "steward of Philadelphia",
@@ -563,17 +564,17 @@ const HISTORIES = Object.freeze([
   })
 ]);
 
-const HISTORIES_BY_KEY = new Map(HISTORIES.map((entry) => [targetKey(entry), entry]));
+const HISTORIES_BY_CITY_ID = new Map(HISTORIES.map((entry) => [entry.cityId, entry]));
 
-if (HISTORIES_BY_KEY.size !== HISTORIES.length) {
-  throw new Error("Colonization histories contain duplicate target keys");
+if (HISTORIES_BY_CITY_ID.size !== HISTORIES.length) {
+  throw new Error("Colonization histories contain duplicate city ids");
 }
 
 export function colonizationHistoryForTarget(target) {
   if (!target || typeof target !== "object") return null;
-  const entry = HISTORIES_BY_KEY.get(targetKey(target)) || null;
+  const entry = HISTORIES_BY_CITY_ID.get(target.cityId) || null;
   if (!entry && target.waterAccess !== "inland") {
-    throw new Error(`Missing colonization history: ${target.city}, ${target.country}`);
+    throw new Error(`Missing colonization history for canonical city: ${target.cityId}`);
   }
   return entry;
 }
@@ -582,8 +583,10 @@ export function colonizationHistoryEntries() {
   return HISTORIES;
 }
 
-function history(city, country, details) {
-  if (!nonEmpty(city) || !nonEmpty(country)) throw new Error("Colonization history requires a target identity");
+function history(cityId, details) {
+  const target = colonizationTargetForCity({ cityId });
+  if (!target) throw new Error(`Colonization history requires a canonical target: ${cityId}`);
+  const { city, country } = target;
   if (!nonEmpty(details.sponsorRole) || !nonEmpty(details.settlementLeaderRole) ||
       !nonEmpty(details.basis) || !nonEmpty(details.pitch) || !nonEmpty(details.ready) ||
       !nonEmpty(details.departed) || !nonEmpty(details.landing) ||
@@ -596,6 +599,7 @@ function history(city, country, details) {
   const organizerReligionId = details.organizerReligionId ?? null;
   if (organizerReligionId !== null) religionById(organizerReligionId);
   return Object.freeze({
+    cityId,
     city,
     country,
     organizerReligionId,
@@ -684,10 +688,6 @@ function approval(entry) {
     throw new Error("Invalid colonization approval history");
   }
   return Object.freeze({ ...entry });
-}
-
-function targetKey(value) {
-  return `${value.city}\u0000${value.country}`;
 }
 
 function nonEmpty(value) {

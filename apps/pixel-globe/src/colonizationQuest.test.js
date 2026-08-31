@@ -56,13 +56,19 @@ import {
   grantColonizationApproval,
   landColonists,
   markColonizationOrganizerApproached,
+  migrateColonizationQuestMemory,
   reconcileColonizationQuestOriginAfterConquest,
   relocateColonizationQuestOrigin,
   inspectColonizationAftermath,
   roanokeCluesAboard,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
-import { createGameState, shipItemRows } from "./gameState.js";
+import {
+  GAME_STATE_VERSION,
+  createGameState,
+  migrateGameState,
+  shipItemRows
+} from "./gameState.js";
 import {
   applyPortConquestOwnership,
   createPortConquestMemory,
@@ -353,6 +359,46 @@ test("existing Port Royal quest saves bind to the generalized quest model", () =
   assignColonizationQuest(legacy, { target: PORT_ROYAL, origin: BORDEAUX });
   assert.equal(legacy.targetCity, "Port Royal");
   assert.equal(legacy.originCity, "Bordeaux");
+});
+
+test("active pre-canonical colonization saves gain city ids before validation", () => {
+  const legacy = createGameState({ cargoCapacity: 100 });
+  assignColonizationQuest(legacy.memory.colonization, {
+    target: PORT_ROYAL,
+    origin: BORDEAUX
+  });
+  completeColonizationFetchStage(
+    legacy.memory.colonization,
+    COLONIZATION_FETCH_STAGES[0].id
+  );
+  legacy.version = 90;
+  delete legacy.memory.colonization.targetCityId;
+  delete legacy.memory.colonization.originCityId;
+  delete legacy.memory.colonization.approvalCityId;
+
+  const restored = migrateGameState(legacy, null, {
+    legacyCityIdForPortReference: ({ tileId }) => {
+      assert.equal(tileId, BORDEAUX.tileId);
+      return BORDEAUX.cityId;
+    }
+  });
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.memory.colonization.targetCityId, PORT_ROYAL.cityId);
+  assert.equal(restored.memory.colonization.originCityId, BORDEAUX.cityId);
+  assert.equal(restored.memory.colonization.fetchStageIndex, 1);
+});
+
+test("legacy colonization migration rejects an unresolved origin instead of guessing", () => {
+  const legacy = createColonizationQuestMemory();
+  assignColonizationQuest(legacy, { target: PORT_ROYAL, origin: BORDEAUX });
+  delete legacy.targetCityId;
+  delete legacy.originCityId;
+
+  assert.throws(
+    () => migrateColonizationQuestMemory(legacy),
+    /requires a canonical city resolver/
+  );
 });
 
 test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continues to Japan", () => {

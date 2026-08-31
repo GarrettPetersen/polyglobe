@@ -88,6 +88,21 @@ test("inland historical sites remain excluded from sailing colony quests", () =>
   }
 });
 
+test("colonization histories resolve by canonical city id rather than presentation text", () => {
+  const target = colonizationTargetForCity({ cityId: "lima|peru" });
+  const renamedPresentation = {
+    ...target,
+    city: "Ciudad de los Reyes",
+    country: "Viceroyalty of Peru"
+  };
+
+  assert.equal(colonizationHistoryForTarget(renamedPresentation).cityId, target.cityId);
+  assert.throws(
+    () => colonizationHistoryForTarget({ ...target, cityId: "missing-colony|peru" }),
+    /Missing colonization history for canonical city/
+  );
+});
+
 test("only documented waterborne colony attacks receive specific canoe-defense profiles", () => {
   const defenses = colonizationHistoryEntries()
     .filter((history) => history.defense)

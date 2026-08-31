@@ -192,8 +192,7 @@ export function convertCatholicFactorForPapalAuthority(character, memoryOrScore)
     : papalAuthorityScore(memoryOrScore);
   assertAuthorityScore(score, "factor conversion");
   if (score >= 48) return character;
-  const identity = character.identityKey || character.id ||
-    `${character.name}|${character.homePort || "unknown"}`;
+  const identity = requireEntityId(character.id, "Catholic factor");
   const chance = Math.min(0.48, (48 - score) / 75);
   const roll = hashString32(`${identity}|papal-authority-conversion`) / 0x100000000;
   return roll < chance
