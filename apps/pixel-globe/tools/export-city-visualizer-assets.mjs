@@ -44,6 +44,24 @@ const REGIONAL_BUILDING_LAYERS = Object.freeze({
     regionalOf: "Smith",
     sourceBase: "Northern European Smith",
     hasChimney: false
+  }),
+  "Middle East Far Wall": Object.freeze({
+    cityType: "islamic-desert",
+    regionalOf: "Far Castle",
+    sourceBase: "Castle Wall Far",
+    hasChimney: false
+  }),
+  "Middle East Gate": Object.freeze({
+    cityType: "islamic-desert",
+    regionalOf: "Gate",
+    sourceBase: "Far Gate Side",
+    hasChimney: false
+  }),
+  "Middle East Near Wall": Object.freeze({
+    cityType: "islamic-desert",
+    regionalOf: "Near Castle",
+    sourceBase: "Castle Wall Near",
+    hasChimney: false
   })
 });
 

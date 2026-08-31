@@ -145,7 +145,13 @@ test("regional buildings retain their canonical chimney emitters", async () => {
   ));
   assert.deepEqual(
     chimneylessRegionalFrames.map(({ layer }) => layer).sort(),
-    ["Middle East Home", "Middle East Smith"].sort()
+    [
+      "Middle East Far Wall",
+      "Middle East Gate",
+      "Middle East Home",
+      "Middle East Near Wall",
+      "Middle East Smith"
+    ].sort()
   );
   for (const frame of chimneylessRegionalFrames) {
     assert.equal(placedCityBuildingChimneySmokeEmitter({

@@ -46,11 +46,13 @@ import {
 } from "./cityBackground.js";
 import { cityOceanParallaxDepth, cityOceanRowOffset } from "./cityOceanMotion.js";
 import {
+  cityWaterAnimatedLayerUsesPalette,
   cityWaterDepthIndex,
   cityWaterLatitudeBand,
   cityWaterPaletteHexForSourceHex,
   cityWaterPaletteRgb
 } from "./cityWaterPalette.js";
+import { flagWaveColumnOffsets } from "../src/flagAnimation.js";
 import {
   CITY_PIXEL_FONT_SMALL_8,
   CITY_PIXEL_FONT_TITLE_8,
@@ -83,6 +85,12 @@ import {
   cityRegionalPaletteRgb
 } from "./cityRegionalPalette.js";
 import { cityRegionalBuildingFrame } from "./cityRegionalBuildings.js";
+import {
+  CITY_GATEHOUSE_FLAG_LAYER,
+  cityGatehouseFlagGeometry,
+  cityGatehouseFlagPhase,
+  cityGatehouseFlagVisible
+} from "./cityGatehouseFlag.js";
 
 const canvas = document.querySelector("#scene");
 const context = canvas.getContext("2d", { alpha: false });
@@ -131,6 +139,8 @@ const state = {
   shipWaterlineLayers: null,
   shipWaterShadowImages: null,
   shipSlug: null,
+  cityFlagFactionId: null,
+  cityFlagImage: null,
   city: null,
   features: null,
   parallax: PORT_SCENE_CAMERA.defaultParallax,
@@ -302,10 +312,27 @@ function selectCity(cityId) {
   state.parallax = sceneCameraDefaultParallax(state.features.approach);
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
+  void selectCityFlag(city);
   selectShip(city.defaultShip);
   const url = new URL(location.href);
   url.searchParams.set("city", city.id);
   history.replaceState(null, "", url);
+}
+
+async function selectCityFlag(city) {
+  const factionId = city.factionId;
+  state.cityFlagFactionId = factionId;
+  state.cityFlagImage = null;
+  if (!cityGatehouseFlagVisible({ fortified: true, factionId })) return;
+  try {
+    const image = await loadImage(`/assets/factions/flags/${factionId}.png`);
+    if (image.width !== 32 || image.height !== 20) {
+      throw new Error(`City flag ${factionId} must be 32x20, got ${image.width}x${image.height}`);
+    }
+    if (state.cityFlagFactionId === factionId) state.cityFlagImage = image;
+  } catch (error) {
+    console.error(`Could not load city flag ${factionId}`, error);
+  }
 }
 
 function applyFeatureOverrides() {
@@ -719,6 +746,7 @@ function render(timeMs) {
     else if (entry.kind === "city-building-smoke") {
       drawCityStreetBuildingSmoke(entry.placement, entry.emitter, timeMs);
     }
+    else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
     else if (entry.kind === "npcs") drawNpcs(timeMs);
   }
@@ -785,6 +813,25 @@ function sceneRenderEntries() {
         z: layerSceneZ(layerName, occurrence),
         authoredOrder
       });
+      if (
+        layerName === CITY_GATEHOUSE_FLAG_LAYER &&
+        state.cityFlagImage &&
+        cityGatehouseFlagVisible({
+          fortified: state.features.fortified,
+          factionId: state.city.factionId
+        })
+      ) {
+        entries.push({
+          kind: "gatehouse-flag",
+          frame: cityRegionalBuildingFrame(
+            state.portManifest.staticFrames,
+            state.city.cityType,
+            CITY_GATEHOUSE_FLAG_LAYER
+          ) || frame,
+          z: layerSceneZ(layerName, occurrence),
+          authoredOrder: authoredOrder + 0.01
+        });
+      }
     }
   }
   for (const emitter of CITY_CHIMNEY_SMOKE_EMITTERS) {
@@ -1154,8 +1201,48 @@ function drawAnimatedLayer(layerName, timeMs, occurrence) {
   const window = sceneWindow(layerParallaxDepth(layerName, occurrence));
   const atlas = layerName === "Waves" ? state.waveAtlas : state.surfAtlas;
   if (layerName === "Waves") drawWaterToWaveEdges(atlas, frame, window);
-  const latitudeFrame = latitudeWaterFrame(atlas, frame);
-  drawAtlasFrame(latitudeFrame.atlas, latitudeFrame.frame, window);
+  const renderedFrame = cityWaterAnimatedLayerUsesPalette(layerName)
+    ? latitudeWaterFrame(atlas, frame)
+    : { atlas, frame };
+  drawAtlasFrame(renderedFrame.atlas, renderedFrame.frame, window);
+}
+
+function drawGatehouseFlag(frame, timeMs) {
+  const image = state.cityFlagImage;
+  if (!image) return;
+  const approach = state.features?.approach || "ocean";
+  const window = sceneWindow(
+    layerParallaxDepth(CITY_GATEHOUSE_FLAG_LAYER, 0),
+    layerSceneOffsetX(CITY_GATEHOUSE_FLAG_LAYER, 0, approach),
+    layerSceneOffsetY(CITY_GATEHOUSE_FLAG_LAYER, 0, approach),
+    layerParallaxAnchor(CITY_GATEHOUSE_FLAG_LAYER, 0)
+  );
+  const geometry = cityGatehouseFlagGeometry(frame);
+  const poleX = Math.round(geometry.poleX - window.x);
+  const poleTopY = Math.round(geometry.poleTopY - window.y);
+  const poleBottomY = Math.round(geometry.poleBottomY - window.y);
+  context.fillStyle = "#3e3546";
+  context.fillRect(poleX, poleTopY, 1, poleBottomY - poleTopY + 1);
+
+  const phase = cityGatehouseFlagPhase(prefersReducedMotion.matches ? 0 : timeMs);
+  const columnOffsets = flagWaveColumnOffsets(geometry.flagWidth, phase, 1);
+  const destinationX = Math.round(geometry.flagX - window.x);
+  const destinationY = Math.round(geometry.flagY - window.y);
+  for (let column = 0; column < geometry.flagWidth; column++) {
+    const sourceX = Math.floor(column * image.width / geometry.flagWidth);
+    const sourceEndX = Math.floor((column + 1) * image.width / geometry.flagWidth);
+    context.drawImage(
+      image,
+      sourceX,
+      0,
+      Math.max(1, sourceEndX - sourceX),
+      image.height,
+      destinationX + column,
+      destinationY + columnOffsets[column],
+      1,
+      geometry.flagHeight
+    );
+  }
 }
 
 function drawWaterToWaveEdges(atlas, frame, window) {

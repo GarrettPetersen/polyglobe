@@ -10,6 +10,7 @@ import { PORT_SCENE_OCEAN_SLICES } from "./citySceneRules.js";
 import {
   CITY_WATER_DEPTH_LEVELS,
   CITY_WATER_ART_BASE_HEX,
+  cityWaterAnimatedLayerUsesPalette,
   cityWaterDepthIndex,
   cityWaterLatitudeBand,
   cityWaterPaletteHexForSourceHex,
@@ -64,10 +65,19 @@ test("tropical city water is turquoise while temperate water uses a cooler muted
   assert.ok(["c7dcd0", "9babb2", "7f708a", "625565", "4d65b4", "484a77", "323353"].includes(temperate));
 });
 
+test("waves follow local water color while authored white surf stays white", () => {
+  assert.equal(cityWaterAnimatedLayerUsesPalette("Waves"), true);
+  assert.equal(cityWaterAnimatedLayerUsesPalette("Surf"), false);
+  assert.throws(
+    () => cityWaterAnimatedLayerUsesPalette("Foam"),
+    /Invalid city water animation layer/
+  );
+});
+
 test("static ocean, animated waves, shoreline fill, and ship waterlines share the city palette", () => {
   const source = fs.readFileSync(new URL("./main.js", import.meta.url), "utf8");
   assert.match(source, /drawOceanSlice[\s\S]*latitudeWaterFrame\(state\.staticAtlas, frame, PORT_SCENE_HORIZON_SHIFT_Y\)/);
-  assert.match(source, /drawAnimatedLayer[\s\S]*latitudeWaterFrame\(atlas, frame\)/);
+  assert.match(source, /drawAnimatedLayer[\s\S]*cityWaterAnimatedLayerUsesPalette\(layerName\)[\s\S]*latitudeWaterFrame\(atlas, frame\)/);
   assert.match(source, /drawWaterToWaveEdges[\s\S]*latitudeWaterCssColor\("4d65b4", masterY\)/);
   assert.match(source, /docksideShipWaterlineLayers\([\s\S]*waterlineRgb/);
 });

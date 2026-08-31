@@ -12,8 +12,8 @@ count separately because the visualizer positions and draws them independently.
 - **10 authored pieces per regional kit**: two homes, five other buildings, and
   three fortification sections.
 - **6 initial regional kits = 60 normal-state coverage slots.**
-- **32 slots are already drawn or supplied by documented shared sprites and regional palette swaps**
-  across the regional kits, leaving **28
+- **35 slots are already drawn or supplied by documented shared sprites and regional palette swaps**
+  across the regional kits, leaving **25
   normal-state slots** to complete.
 - Bombardment is a **single procedural rendering system**, not another 60
   hand-drawn slots. Door, fire, smoke, gate-opening, and exceptional collapsed
@@ -120,9 +120,9 @@ planes use `#cd683d`.
 - [x] Market stall — reuse the global timber market stall
 - [x] Shipyard — reuse the global timber shipyard
 - [x] Mosque — used for Islamic ports; Christian ports retain the generic church
-- [ ] Far castle wall
-- [ ] Gatehouse / gate
-- [ ] Near castle wall
+- [x] Far castle wall
+- [x] Gatehouse / gate
+- [x] Near castle wall
 
 ## Primitive / village
 

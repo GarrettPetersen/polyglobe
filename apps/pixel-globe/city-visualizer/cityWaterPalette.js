@@ -24,6 +24,13 @@ export function cityWaterLatitudeBand(latitudeDeg) {
   return waterLatitudeBand(latitudeDeg);
 }
 
+export function cityWaterAnimatedLayerUsesPalette(layerName) {
+  if (layerName !== "Waves" && layerName !== "Surf") {
+    throw new Error(`Invalid city water animation layer: ${layerName}`);
+  }
+  return layerName === "Waves";
+}
+
 export function cityWaterPaletteHexForSourceHex(sourceHex, latitudeDeg, masterY) {
   const source = parseHex(sourceHex);
   const mapped = cityWaterPaletteRgb(source.r, source.g, source.b, latitudeDeg, masterY);

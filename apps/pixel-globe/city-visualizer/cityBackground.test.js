@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 import {
@@ -83,6 +84,11 @@ const LONDON = Object.freeze({
   settlementType: "city",
   capital: true
 });
+
+const CITY_CATALOG = JSON.parse(readFileSync(
+  new URL("./data/cities.json", import.meta.url),
+  "utf8"
+));
 
 test("all non-village cities use the full background area while villages receive none", () => {
   assert.equal(BACKGROUND_CITY_MAX_ROWS, 8);
@@ -317,6 +323,17 @@ test("city profiles vary point density and weighted building mix", () => {
   assert.ok(new Set(allBuildings(dense).map(({ frame: source }) => source.layer)).size > 1);
   assert.ok(Math.max(...allBuildings(sparse).map(({ perspective }) => perspective)) > 0.9);
   assert.ok(Math.max(...allBuildings(dense).map(({ perspective }) => perspective)) > 0.9);
+});
+
+test("generated skylines use inns as occasional accents rather than their dominant mass", () => {
+  for (const city of CITY_CATALOG.cities) {
+    const mix = city.backgroundCity.buildingMix;
+    assert.equal(mix.inn, 1, `${city.id} should have one inn weight`);
+    assert.ok(
+      mix.homeA + mix.homeB >= 6,
+      `${city.id} should weight ordinary homes well above inns`
+    );
+  }
 });
 
 test("Mediterranean skyline generation uses the complete regional building set", () => {

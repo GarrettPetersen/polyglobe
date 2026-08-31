@@ -211,7 +211,7 @@ function backgroundCityProfile(city, landmarks) {
     buildingMix: Object.freeze({
       homeA: 3 + (variation & 1),
       homeB: 3 + (variation >>> 1 & 1),
-      inn: population >= 20_000 || city.declaredCapitalFactionId ? 2 : 1,
+      inn: 1,
       smith: population >= 50_000 ? 2 : 1
     }),
     landmarks: Object.freeze({
