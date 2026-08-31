@@ -200,3 +200,27 @@ test("legacy cartaz papers issued by an inspector retain their validity without 
   assert.equal(portugueseCartazStatus(migrated, GOA, 101).valid, true);
   assert.equal(reconcileQuestPortTiles(migrated, [GOA]), 0);
 });
+
+test("legacy cartaz port aliases migrate to canonical city ids", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const legacy = structuredClone(state);
+  legacy.version = 90;
+  legacy.relations.portugueseCartaz = {
+    issuedMinute: 100,
+    untilMinute: 100 + 90 * 1440,
+    issuedAtCityId: COLOMBO.portId,
+    graceUntilMinute: 0,
+    inspectedShipUntilMinute: {}
+  };
+
+  const migrated = migrateGameState(legacy, null, {
+    legacyCityIdForPortReference: ({ tileId }) => {
+      assert.equal(tileId, COLOMBO.tileId);
+      return COLOMBO.cityId;
+    }
+  });
+
+  assert.equal(migrated.relations.portugueseCartaz.issuedAtCityId, COLOMBO.cityId);
+  assert.equal(reconcileQuestPortTiles(migrated, [COLOMBO]), 0);
+  validateGameState(migrated);
+});

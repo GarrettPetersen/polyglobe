@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
+  CAMPAIGN_GOAL_TREASURE,
   CAMPAIGN_GOAL_WHITE_WHALE,
   FAMILY_DEBT_PRINCIPAL,
   createCampaignGoal
@@ -18,6 +19,7 @@ import {
 } from "./gameState.js";
 import { shipMinimumCrew } from "./shipLoadouts.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { TREASURE_MAP_PIECE_COUNT } from "./treasureCampaign.js";
 
 const PLAYER = Object.freeze({
   id: "player-campaign-test",
@@ -137,6 +139,45 @@ test("version 14 saves gain colony quest and cargo reservation state", () => {
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.equal(restored.memory.colonization.stage, "fetch");
   assert.deepEqual(restored.memory.cargoReservations, {});
+});
+
+test("legacy treasure pirate hideouts gain canonical city ids before validation", () => {
+  const legacy = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: PLAYER,
+    campaignGoalType: CAMPAIGN_GOAL_TREASURE
+  });
+  legacy.version = 90;
+  delete legacy.playerCharacter.homePortCityId;
+  delete legacy.memory.campaignGoal.homePortCityId;
+  legacy.memory.campaignGoal.mapPirates = Array.from(
+    { length: TREASURE_MAP_PIECE_COUNT },
+    (_, index) => ({
+      id: `treasure-pirate-${String(index + 1).padStart(2, "0")}`,
+      shipId: `treasure-map-pirate-${String(index + 1).padStart(2, "0")}`,
+      hideoutTileId: 100 + index,
+      shipSlug: "sloop",
+      captainId: null,
+      captainName: null
+    })
+  );
+
+  const restored = migrateGameState(legacy, null, {
+    legacyCityIdForPortReference: ({ tileId }) => tileId === HOME.tileId
+      ? HOME.cityId
+      : `treasure-port-${tileId}|test`
+  });
+
+  assert.equal(restored.version, GAME_STATE_VERSION);
+  assert.equal(restored.playerCharacter.homePortCityId, HOME.cityId);
+  assert.deepEqual(
+    restored.memory.campaignGoal.mapPirates.map((pirate) => pirate.hideoutCityId),
+    Array.from(
+      { length: TREASURE_MAP_PIECE_COUNT },
+      (_, index) => `treasure-port-${100 + index}|test`
+    )
+  );
+  validateGameState(restored);
 });
 
 test("version 23 saves gain per-voyage achievement progress", () => {

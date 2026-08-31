@@ -392,11 +392,13 @@ import {
   CAMPAIGN_GOAL_WHITE_WHALE,
   campaignGoalTypeForCharacter,
   createCampaignGoal,
+  migrateCampaignGoalPortIdentities,
   settleExplorerHomecoming,
   settleFamilyDebtHomecoming,
   settleWhiteWhaleHomecoming,
   validateCampaignGoal
 } from "./campaignGoals.js";
+import { migrateLegacyPortCityId } from "./legacyPortIdentity.js";
 import {
   TREASURE_MAP_PIECE_COUNT,
   settleTreasureHomecoming
@@ -1013,7 +1015,9 @@ export function migrateGameState(state, shipStats, {
       personalTradePasses: migratePersonalTradePassMemory(
         state.relations.personalTradePasses
       ),
-      portugueseCartaz: migratePortugueseCartazMemory(state.relations.portugueseCartaz),
+      portugueseCartaz: migratePortugueseCartazMemory(state.relations.portugueseCartaz, {
+        legacyCityIdForPortReference
+      }),
       tradeEmbargoes: migratedTradeEmbargoes,
       foreignSettlementExpulsions: migrateForeignSettlementExpulsionMemory(
         state.relations.foreignSettlementExpulsions
@@ -1067,8 +1071,12 @@ export function migrateGameState(state, shipStats, {
           ...createChefQuestMemory(),
           ...(state.memory?.quests?.chef || {})
         },
-        pirateCaptive: migratePirateCaptiveQuestMemory(state.memory?.quests?.pirateCaptive),
-        castaway: migrateCastawayQuestMemory(state.memory?.quests?.castaway),
+        pirateCaptive: migratePirateCaptiveQuestMemory(state.memory?.quests?.pirateCaptive, {
+          legacyCityIdForPortReference
+        }),
+        castaway: migrateCastawayQuestMemory(state.memory?.quests?.castaway, {
+          legacyCityIdForPortReference
+        }),
         naturalist: migrateNaturalistQuestMemory(state.memory?.quests?.naturalist),
         hospitallerMalta: migrateHospitallerMaltaQuestMemory(
           state.memory?.quests?.hospitallerMalta
@@ -1094,7 +1102,10 @@ export function migrateGameState(state, shipStats, {
       whales: migrateWhaleMemory(state.memory?.whales),
       icebergs: state.memory?.icebergs?.version === 1 ? state.memory.icebergs : createIcebergMemory(),
       campaignGoal: state.memory?.campaignGoal
-        ? { ...state.memory.campaignGoal, homePortCityId: legacyHomePortCityId }
+        ? migrateCampaignGoalPortIdentities(state.memory.campaignGoal, {
+            homePortCityId: legacyHomePortCityId,
+            legacyCityIdForPortReference
+          })
         : (playerCharacterSupportsCampaignGoal(migratedPlayerCharacter)
           ? createCampaignGoal({ playerCharacter: migratedPlayerCharacter, startMinute: savedGameStartMinute(state) })
           : null),
@@ -1191,35 +1202,49 @@ function createPortugueseCartazMemory() {
   };
 }
 
-function migratePortugueseCartazMemory(memory) {
+function migratePortugueseCartazMemory(memory, {
+  legacyCityIdForPortReference = null
+} = {}) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     return createPortugueseCartazMemory();
   }
   return {
     issuedMinute: memory.issuedMinute ?? null,
     untilMinute: memory.untilMinute ?? 0,
-    issuedAtCityId: migratedPortugueseCartazIssuerCityId(memory),
+    issuedAtCityId: migratedPortugueseCartazIssuerCityId(
+      memory,
+      legacyCityIdForPortReference
+    ),
     graceUntilMinute: memory.graceUntilMinute ?? 0,
     inspectedShipUntilMinute: memory.inspectedShipUntilMinute || {}
   };
 }
 
-function migratedPortugueseCartazIssuerCityId(memory) {
-  if (memory.issuedAtCityId !== undefined) return memory.issuedAtCityId;
-  const legacyIssuerId = memory.issuedAtPortId ?? null;
+function migratedPortugueseCartazIssuerCityId(memory, legacyCityIdForPortReference) {
+  const legacyIssuerId = memory.issuedAtCityId !== undefined
+    ? memory.issuedAtCityId
+    : memory.issuedAtPortId ?? null;
   if (legacyIssuerId === null) return null;
   if (typeof legacyIssuerId !== "string" || legacyIssuerId === "") {
     throw new Error("Legacy Portuguese cartaz issuer must be a non-empty id");
   }
-  if (!legacyIssuerId.startsWith("inspection:")) return legacyIssuerId;
-  const inspectorShipId = legacyIssuerId.slice("inspection:".length);
-  if (inspectorShipId === "") {
-    throw new Error("Legacy Portuguese cartaz inspection issuer is missing its ship id");
+  if (legacyIssuerId.startsWith("inspection:")) {
+    const inspectorShipId = legacyIssuerId.slice("inspection:".length);
+    if (inspectorShipId === "") {
+      throw new Error("Legacy Portuguese cartaz inspection issuer is missing its ship id");
+    }
+    // IDENTITY_MIGRATION_EXCEPTION: older voyages could buy a cartaz at sea and
+    // recorded the inspecting ship in the field later reserved for issuing cities.
+    // The permit's validity is preserved; there was no city identity to migrate.
+    return null;
   }
-  // IDENTITY_MIGRATION_EXCEPTION: older voyages could buy a cartaz at sea and
-  // recorded the inspecting ship in the field later reserved for issuing cities.
-  // The permit's validity is preserved; there was no city identity to migrate.
-  return null;
+  const legacyTileMatch = /^city-(\d+)$/.exec(legacyIssuerId);
+  if (!legacyTileMatch) return requireEntityId(legacyIssuerId, "Portuguese cartaz issuer");
+  return migrateLegacyPortCityId(null, {
+    legacyCityIdForPortReference,
+    reference: { tileId: Number(legacyTileMatch[1]) },
+    diagnosticScope: "Portuguese cartaz issuer"
+  });
 }
 
 function migrateVisitedPortMemories(memories) {

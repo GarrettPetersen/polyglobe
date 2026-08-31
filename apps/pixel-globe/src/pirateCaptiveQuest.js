@@ -18,6 +18,7 @@ import {
 import { questJourneyHalfwayReached } from "./questJourneyDialogue.js";
 import { characterPronouns } from "./characterPronouns.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
+import { migrateLegacyPortCityId } from "./legacyPortIdentity.js";
 
 export const PIRATE_CAPTIVE_STAGE_ABOARD = RESCUED_TRAVELER_STAGE_ABOARD;
 export const PIRATE_CAPTIVE_STAGE_HOMECOMING = RESCUED_TRAVELER_STAGE_HOMECOMING;
@@ -126,11 +127,16 @@ export function activePirateCaptiveQuest(state) {
   return quest;
 }
 
-export function migratePirateCaptiveQuestMemory(memory) {
+export function migratePirateCaptiveQuestMemory(memory, {
+  legacyCityIdForPortReference = null
+} = {}) {
   if (!memory) return createPirateCaptiveQuestMemory();
   let rescuedMemory;
   if (memory.active === null || memory.active?.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE) {
-    rescuedMemory = migrateRescuedTravelerQuestMemory(memory, RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE);
+    rescuedMemory = migrateRescuedTravelerQuestMemory(memory, {
+      expectedType: RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE,
+      legacyCityIdForPortReference
+    });
   } else {
     const { pirateShipId, ...legacyActive } = memory.active;
     if (typeof pirateShipId !== "string" || pirateShipId.trim() === "") {
@@ -145,13 +151,37 @@ export function migratePirateCaptiveQuestMemory(memory) {
         emergencyAid: null,
         emergencyAidReceived: false
       }
-    }, RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE);
+    }, {
+      expectedType: RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE,
+      legacyCityIdForPortReference
+    });
   }
   if (!rescuedMemory.active) return rescuedMemory;
   const active = rescuedMemory.active;
-  const deception = active.deception
-    ? { halfwayTileId: null, escapeCount: 0, ...active.deception }
-    : null;
+  let deception = null;
+  if (active.deception) {
+    deception = { halfwayTileId: null, escapeCount: 0, ...active.deception };
+    deception.wantedPortCityId = migrateLegacyPortCityId(deception.wantedPortCityId, {
+      legacyCityIdForPortReference,
+      reference: {
+        tileId: deception.wantedPortTileId,
+        name: deception.wantedPortName,
+        country: deception.wantedPortCountry
+      },
+      diagnosticScope: "Pirate captive wanted port"
+    });
+    const hasEscapeOrigin = (
+      deception.escapeOriginPortCityId !== undefined &&
+      deception.escapeOriginPortCityId !== null
+    ) || Number.isInteger(deception.escapeOriginPortTileId);
+    deception.escapeOriginPortCityId = hasEscapeOrigin
+      ? migrateLegacyPortCityId(deception.escapeOriginPortCityId, {
+          legacyCityIdForPortReference,
+          reference: { tileId: deception.escapeOriginPortTileId },
+          diagnosticScope: "Pirate captive escape origin"
+        })
+      : null;
+  }
   rescuedMemory.active = {
     ...active,
     captiveKind: active.captiveKind || PIRATE_CAPTIVE_KIND_REAL,
@@ -521,11 +551,11 @@ export function preparePirateCaptiveAuthorityHandover(memory, questId) {
 
 export function validatePirateCaptiveQuestMemory(memory) {
   validateRescuedTravelerQuestMemory(memory, RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE);
-  if (memory.active) validatePirateCaptiveQuest(memory.active, { allowLegacyIdentities: true });
+  if (memory.active) validatePirateCaptiveQuest(memory.active);
   return memory;
 }
 
-function validatePirateCaptiveQuest(quest, { allowLegacyIdentities = false } = {}) {
+function validatePirateCaptiveQuest(quest) {
   if (!PIRATE_CAPTIVE_KINDS.has(quest.captiveKind)) {
     throw new Error(`Invalid pirate captive identity: ${quest.captiveKind}`);
   }
@@ -550,9 +580,7 @@ function validatePirateCaptiveQuest(quest, { allowLegacyIdentities = false } = {
       (!Number.isInteger(deception.halfwayTileId) || deception.halfwayTileId < 0)) {
     throw new Error(`Invalid pirate captive halfway tile: ${deception.halfwayTileId}`);
   }
-  if (!allowLegacyIdentities || deception.wantedPortCityId !== undefined) {
-    requireEntityId(deception.wantedPortCityId, "Pirate captive wanted port");
-  }
+  requireEntityId(deception.wantedPortCityId, "Pirate captive wanted port");
   for (const [label, value] of [
     ["wanted port name", deception.wantedPortName],
     ["wanted port country", deception.wantedPortCountry],
@@ -564,12 +592,12 @@ function validatePirateCaptiveQuest(quest, { allowLegacyIdentities = false } = {
       (!Number.isFinite(deception.nextEscapeCheckMinute) || deception.nextEscapeCheckMinute < 0)) {
     throw new Error("Detained pirate captive requires a future escape check");
   }
-  if (deception.state === PIRATE_CAPTIVE_STATE_ESCAPED && (
-    !Number.isFinite(deception.escapedAtMinute) ||
-    (!allowLegacyIdentities && typeof deception.escapeOriginPortCityId !== "string") ||
-    !Number.isInteger(deception.escapeOriginPortTileId)
-  )) {
-    throw new Error("Escaped pirate captive requires escape timing and origin");
+  if (deception.state === PIRATE_CAPTIVE_STATE_ESCAPED) {
+    requireEntityId(deception.escapeOriginPortCityId, "Pirate captive escape origin");
+    if (!Number.isFinite(deception.escapedAtMinute) ||
+        !Number.isInteger(deception.escapeOriginPortTileId)) {
+      throw new Error("Escaped pirate captive requires escape timing and origin");
+    }
   }
   if (!Number.isInteger(deception.escapeCount) || deception.escapeCount < 0) {
     throw new Error(`Invalid pirate captive escape count: ${deception.escapeCount}`);

@@ -29,8 +29,13 @@ export function activeCastawayQuest(state) {
   return activeRescuedTravelerQuest(state, "castaway");
 }
 
-export function migrateCastawayQuestMemory(memory) {
-  return migrateRescuedTravelerQuestMemory(memory, RESCUED_TRAVELER_TYPE_CASTAWAY);
+export function migrateCastawayQuestMemory(memory, {
+  legacyCityIdForPortReference = null
+} = {}) {
+  return migrateRescuedTravelerQuestMemory(memory, {
+    expectedType: RESCUED_TRAVELER_TYPE_CASTAWAY,
+    legacyCityIdForPortReference
+  });
 }
 
 export function castawayRescueAppears(roll) {

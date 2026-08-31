@@ -318,6 +318,63 @@ test("legacy pirate captive saves migrate into the shared rescue schema", () => 
   assert.equal(migrated.active.deception, null);
 });
 
+test("legacy deceptive captive ports migrate to canonical city ids before validation", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.2, 0.05);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  delete quest.homePortCityId;
+  delete quest.deception.wantedPortCityId;
+
+  const references = [];
+  const migrated = migratePirateCaptiveQuestMemory(memory, {
+    legacyCityIdForPortReference: (reference) => {
+      references.push(reference);
+      return new Map([
+        [homePort.tileId, homePort.cityId],
+        [wantedPort.tileId, wantedPort.cityId]
+      ]).get(reference.tileId);
+    }
+  });
+
+  assert.equal(migrated.active.homePortCityId, homePort.cityId);
+  assert.equal(migrated.active.deception.wantedPortCityId, wantedPort.cityId);
+  assert.deepEqual(references, [
+    {
+      tileId: homePort.tileId,
+      name: homePort.displayCity,
+      country: homePort.country
+    },
+    {
+      tileId: wantedPort.tileId,
+      name: wantedPort.displayCity,
+      country: wantedPort.country
+    }
+  ]);
+  validatePirateCaptiveQuestMemory(migrated);
+});
+
+test("legacy escaped captive origins migrate independently from their destination", () => {
+  const memory = createPirateCaptiveQuestMemory();
+  const quest = createQuest(memory, 0.2, 0.05);
+  acceptPirateCaptiveQuest(memory, quest.id);
+  recordPirateCaptiveEscape(quest, {
+    currentMinute: 800,
+    escapeOriginPortCityId: "funchal|portugal",
+    escapeOriginPortTileId: 81
+  });
+  delete quest.deception.escapeOriginPortCityId;
+
+  const migrated = migratePirateCaptiveQuestMemory(memory, {
+    legacyCityIdForPortReference: ({ tileId }) => {
+      assert.equal(tileId, 81);
+      return "funchal|portugal";
+    }
+  });
+
+  assert.equal(migrated.active.deception.escapeOriginPortCityId, "funchal|portugal");
+  validatePirateCaptiveQuestMemory(migrated);
+});
+
 test("fake captive identities are uncommon and split between evil and reformed", () => {
   assert.equal(pirateCaptiveKindForRoll(0.01), PIRATE_CAPTIVE_KIND_FAKE_EVIL);
   assert.equal(pirateCaptiveKindForRoll(0.149), PIRATE_CAPTIVE_KIND_FAKE_EVIL);

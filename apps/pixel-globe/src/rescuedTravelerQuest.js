@@ -7,6 +7,7 @@ import { charactersShareFamilyName } from "./characterNames.js";
 import { characterPronouns } from "./characterPronouns.js";
 import { validateCharacterSkillIds } from "./characterSkills.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
+import { migrateLegacyPortCityId } from "./legacyPortIdentity.js";
 
 export const RESCUED_TRAVELER_STAGE_OFFER = "offer";
 export const RESCUED_TRAVELER_STAGE_ABOARD = "aboard";
@@ -124,7 +125,10 @@ export function createRescuedTravelerQuest(memory, {
   return active;
 }
 
-export function migrateRescuedTravelerQuestMemory(memory, expectedType = null) {
+export function migrateRescuedTravelerQuestMemory(memory, {
+  expectedType = null,
+  legacyCityIdForPortReference = null
+} = {}) {
   if (!memory) return createRescuedTravelerQuestMemory();
   if (memory.version !== 1 && memory.version !== 2) {
     throw new Error(`Unsupported rescued traveler quest version: ${memory.version}`);
@@ -133,18 +137,28 @@ export function migrateRescuedTravelerQuestMemory(memory, expectedType = null) {
     ...memory,
     version: 2,
     formerTravelers: (memory.formerTravelers || []).map((entry) => {
-      const homePort = rescuedTravelerHomePort(entry);
+      const homePortCityId = migrateRescuedTravelerHomePortCityId(
+        entry,
+        legacyCityIdForPortReference
+      );
+      const homePort = rescuedTravelerHomePort({ ...entry, homePortCityId });
       return {
         ...entry,
+        homePortCityId,
         character: rescuedTravelerWithBiography(entry.character, homePort)
       };
     })
   };
   if (memory.active) {
     const active = memory.active;
-    const homePort = rescuedTravelerHomePort(active);
+    const homePortCityId = migrateRescuedTravelerHomePortCityId(
+      active,
+      legacyCityIdForPortReference
+    );
+    const homePort = rescuedTravelerHomePort({ ...active, homePortCityId });
     migrated.active = {
       ...active,
+      homePortCityId,
       character: rescuedTravelerWithBiography(active.character, homePort),
       familyMember: active.familyMember
         ? rescuedTravelerWithBiography(active.familyMember, homePort)
@@ -152,6 +166,18 @@ export function migrateRescuedTravelerQuestMemory(memory, expectedType = null) {
     };
   }
   return validateRescuedTravelerQuestMemory(migrated, expectedType);
+}
+
+function migrateRescuedTravelerHomePortCityId(entry, legacyCityIdForPortReference) {
+  return migrateLegacyPortCityId(entry.homePortCityId, {
+    legacyCityIdForPortReference,
+    reference: {
+      tileId: entry.homePortTileId,
+      name: entry.homePortName,
+      country: entry.homePortCountry
+    },
+    diagnosticScope: "Rescued traveler home port"
+  });
 }
 
 export function acceptRescuedTravelerQuest(memory, questId) {
@@ -582,9 +608,7 @@ function validateRescuedTravelerQuest(quest) {
   if (!Number.isInteger(quest.homePortTileId) || quest.homePortTileId < 0) {
     throw new Error(`Invalid rescued traveler home port tile: ${quest.homePortTileId}`);
   }
-  if (quest.homePortCityId !== undefined && quest.homePortCityId !== null) {
-    requireEntityId(quest.homePortCityId, "Rescued traveler home port");
-  }
+  requireEntityId(quest.homePortCityId, "Rescued traveler home port");
   for (const [label, value] of [
     ["home port name", quest.homePortName],
     ["home port country", quest.homePortCountry]
@@ -699,9 +723,7 @@ function validateFormerRescuedTraveler(entry, expectedType) {
   if (!Number.isInteger(entry.homePortTileId) || entry.homePortTileId < 0) {
     throw new Error(`Invalid former rescued traveler home port: ${entry.homePortTileId}`);
   }
-  if (entry.homePortCityId !== undefined && entry.homePortCityId !== null) {
-    requireEntityId(entry.homePortCityId, "Former rescued traveler home port");
-  }
+  requireEntityId(entry.homePortCityId, "Former rescued traveler home port");
   for (const [label, value] of [
     ["home port name", entry.homePortName],
     ["home port country", entry.homePortCountry]

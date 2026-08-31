@@ -5,6 +5,7 @@ import { WHITE_WHALE_ID } from "./whaleSpecies.js";
 import { campaignRomanceEpilogue, validateCampaignVictoryRomance } from "./campaignRomance.js";
 import { characterPronouns } from "./characterPronouns.js";
 import { requireEntityId } from "./entityIds.js";
+import { migrateLegacyPortCityId } from "./legacyPortIdentity.js";
 import {
   TREASURE_MAP_PIECE_COUNT,
   createTreasureCampaignFields,
@@ -154,6 +155,31 @@ export function createCampaignGoal({ playerCharacter, startMinute = 0, type = nu
   };
   const goal = { ...base, ...definition.createFields(startMinute, playerCharacter) };
   return validateCampaignGoal(goal);
+}
+
+export function migrateCampaignGoalPortIdentities(goal, {
+  homePortCityId,
+  legacyCityIdForPortReference = null
+}) {
+  if (!goal || typeof goal !== "object") throw new Error("Campaign goal must be an object");
+  const migrated = {
+    ...goal,
+    homePortCityId: requireEntityId(homePortCityId, "Migrated campaign home port")
+  };
+  if (migrated.type === CAMPAIGN_GOAL_TREASURE) {
+    if (!Array.isArray(migrated.mapPirates)) {
+      throw new Error("Treasure campaign has no pirate roster");
+    }
+    migrated.mapPirates = migrated.mapPirates.map((pirate) => ({
+      ...pirate,
+      hideoutCityId: migrateLegacyPortCityId(pirate.hideoutCityId, {
+        legacyCityIdForPortReference,
+        reference: { tileId: pirate.hideoutTileId },
+        diagnosticScope: `Treasure pirate ${pirate.id || "unknown"} hideout`
+      })
+    }));
+  }
+  return validateCampaignGoal(migrated);
 }
 
 export function validateCampaignGoal(goal) {
