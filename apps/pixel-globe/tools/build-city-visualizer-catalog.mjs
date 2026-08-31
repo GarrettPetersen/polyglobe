@@ -28,13 +28,17 @@ import {
   religionCandidatesForHome
 } from "../src/characterReligion.js";
 import { cityBackgroundEnabled } from "../city-visualizer/cityBackground.js";
+import {
+  deriveCityArchitectureProfile,
+  deriveCityServiceProfile
+} from "../city-visualizer/cityArchitecture.js";
 
 const GEOGRAPHY_SUBDIVISIONS = 7;
 const NEIGHBORHOOD_RINGS = 5;
 const MAX_APPROACH_SEARCH_RINGS = 18;
 const EARTH_RADIUS_KM = 6371;
 const CITY_VISUALIZER_FORMAT = "marque-city-visualizer-catalog";
-const CITY_VISUALIZER_VERSION = 1;
+const CITY_VISUALIZER_VERSION = 2;
 const DEVELOPED_BOTH_BANKS_CITY_IDS = new Set([
   "budapest|hungary",
   "london|united kingdom"
@@ -146,6 +150,8 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   const fortification = fortificationEstimate(city);
   const builtUpBothBanks = approach === "river" && DEVELOPED_BOTH_BANKS_CITY_IDS.has(city.cityId);
   const landmarks = religiousLandmarks(city);
+  const architecture = deriveCityArchitectureProfile(city);
+  const services = deriveCityServiceProfile({ ...city, architecture });
   return Object.freeze({
     id: city.cityId,
     tileId: endpoint.tileId,
@@ -159,6 +165,8 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
     cityType: city.cityType,
     settlementType: city.settlementType || "city",
     factionId: city.factionId,
+    architecture,
+    services,
     capital: Boolean(city.declaredCapitalFactionId),
     religiousLandmarks: landmarks,
     backgroundCity: backgroundCityProfile(city, landmarks),
@@ -207,6 +215,7 @@ function backgroundCityProfile(city, landmarks) {
     ? population >= 100_000 ? 3 : population >= 50_000 ? 2 : 1
     : 0;
   return Object.freeze({
+    enabled: cityBackgroundEnabled(city),
     density,
     buildingMix: Object.freeze({
       homeA: 3 + (variation & 1),

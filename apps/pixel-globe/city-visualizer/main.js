@@ -69,6 +69,7 @@ import {
   placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
 import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
+import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
   docksideShipWaterlinePixelKeys
@@ -189,24 +190,28 @@ const DESTINATIONS = Object.freeze([
     id: "shipyard",
     label: "Shipyard",
     layers: Object.freeze(["Shipyard"]),
+    requiredFeature: "shipyard",
     copy: "This will open the existing shipyard modal: repairs, outfitting, and available hulls."
   }),
   Object.freeze({
     id: "market",
     label: "Market",
     layers: Object.freeze(["Market Stall", "Market Stall Copy", "Market Stall Copy Copy"]),
+    requiredFeature: "market",
     copy: "This will open the existing market modal for regional cargo and prices."
   }),
   Object.freeze({
     id: "store",
     label: "Item store",
     layers: Object.freeze(["Smith"]),
+    requiredFeature: "store",
     copy: "This will open the existing item-store modal for weapons, tools, and supplies."
   }),
   Object.freeze({
     id: "inn",
     label: "Inn",
     layers: Object.freeze(["Inn"]),
+    requiredFeature: "inn",
     copy: "This will open the existing inn flow for rumours, quests, and recruitable characters."
   }),
   Object.freeze({
@@ -384,7 +389,7 @@ function applyFeatureOverrides() {
   state.streetBuildings = cityStreetBuildingPlacements({
     features: state.features,
     frames: state.portManifest.staticFrames,
-    cityType: state.city.cityType
+    buildingStyle: cityArchitectureStyleForLayer(state.city, "Home")
   });
   const backgroundCityBase = state.portManifest.staticFrames.find((frame) => (
     frame.layer === BACKGROUND_CITY_BASE_LAYER
@@ -902,7 +907,7 @@ function sceneRenderEntries() {
           kind: "gatehouse-flag",
           frame: cityRegionalBuildingFrame(
             state.portManifest.staticFrames,
-            state.city.cityType,
+            cityArchitectureStyleForLayer(state.city, CITY_GATEHOUSE_FLAG_LAYER),
             CITY_GATEHOUSE_FLAG_LAYER
           ) || frame,
           z: layerSceneZ(layerName, occurrence),
@@ -913,6 +918,14 @@ function sceneRenderEntries() {
   }
   for (const emitter of CITY_CHIMNEY_SMOKE_EMITTERS) {
     if (!activeLayers.has(emitter.layerName)) continue;
+    const baseFrame = state.portManifest.staticFrames.find((frame) => frame.layer === emitter.layerName);
+    if (!baseFrame) throw new Error(`Missing chimney building frame: ${emitter.layerName}`);
+    const displayedFrame = cityRegionalBuildingFrame(
+      state.portManifest.staticFrames,
+      cityArchitectureStyleForLayer(state.city, emitter.layerName),
+      emitter.layerName
+    ) || baseFrame;
+    if (displayedFrame.hasChimney === false) continue;
     const authoredOrder = state.portManifest.layerOrder.indexOf(emitter.layerName);
     if (authoredOrder < 0) throw new Error(`Missing chimney layer order: ${emitter.layerName}`);
     entries.push({
@@ -1210,7 +1223,7 @@ function drawStaticFrame(frame, layerName, occurrence) {
 }
 
 function regionalStaticFrame(frame, layerName) {
-  const cityType = state.city?.cityType;
+  const cityType = cityArchitectureStyleForLayer(state.city, layerName);
   const regionalBuildingFrame = cityRegionalBuildingFrame(
     state.portManifest.staticFrames,
     cityType,
@@ -2042,7 +2055,8 @@ function updateHover() {
   if (!state.ready || !state.pointer || !state.features) return;
   const activeLayers = activePortSceneLayers(state.features);
   const destinations = DESTINATIONS.filter((destination) => (
-    !destination.requiresFortification || state.features.fortified
+    (!destination.requiresFortification || state.features.fortified) &&
+    (!destination.requiredFeature || state.features[destination.requiredFeature])
   ));
   state.hoveredDestination = destinations.find((destination) => destination.layers.some((layerName) => {
     if (!activeLayers.has(layerName)) return false;

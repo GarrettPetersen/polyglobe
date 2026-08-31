@@ -28,6 +28,20 @@ export const CITY_STREET_BUILDING_SLOTS = Object.freeze([
     groundY: 473,
     z: 40,
     depth: PORT_SCENE_DEPTH.rearBuildings
+  }),
+  buildingSlot({
+    id: "business-east",
+    centerX: 1153,
+    groundY: 488,
+    z: 45,
+    depth: PORT_SCENE_DEPTH.businesses
+  }),
+  buildingSlot({
+    id: "foreground-east",
+    centerX: 1121.5,
+    groundY: 562,
+    z: 65,
+    depth: PORT_SCENE_DEPTH.foreground
   })
 ]);
 
@@ -37,13 +51,25 @@ export function defaultCityStreetBuildingAssignments(features) {
   if (!features || typeof features !== "object") {
     throw new Error("City street building assignments require scene features");
   }
-  return Object.freeze([
+  const housing = [
     Object.freeze({ slotId: "rear-center", layerName: "Home 2" }),
     Object.freeze({ slotId: "rear-east", layerName: "Home" })
+  ];
+  if (!features.primitiveSettlement) return Object.freeze(housing);
+  return Object.freeze([
+    ...housing,
+    Object.freeze({ slotId: "business-east", layerName: "Home" }),
+    Object.freeze({ slotId: "foreground-east", layerName: "Home 2" })
   ]);
 }
 
-export function cityStreetBuildingPlacements({ features, frames, assignments, cityType }) {
+export function cityStreetBuildingPlacements({
+  features,
+  frames,
+  assignments,
+  buildingStyle,
+  cityType = buildingStyle
+}) {
   if (!Array.isArray(frames)) throw new Error("City street buildings require atlas frames");
   const resolvedAssignments = assignments || defaultCityStreetBuildingAssignments(features);
   if (!Array.isArray(resolvedAssignments)) {

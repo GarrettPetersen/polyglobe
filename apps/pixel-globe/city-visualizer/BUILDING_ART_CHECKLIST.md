@@ -5,16 +5,15 @@ visual styles. It counts an independently placeable scene sprite as one piece.
 Repeated market stalls count once, while the three touching fortification layers
 count separately because the visualizer positions and draws them independently.
 
-## Count
+## Current count
 
 - **8 functional building families**: Home A, Home B, inn, item store/smith,
   market, shipyard, religious landmark, and fortifications.
 - **10 authored pieces per regional kit**: two homes, five other buildings, and
   three fortification sections.
 - **6 initial regional kits = 60 normal-state coverage slots.**
-- **35 slots are already drawn or supplied by documented shared sprites and regional palette swaps**
-  across the regional kits, leaving **25
-  normal-state slots** to complete.
+- **43 slots are resolved** by authored art, a documented shared sprite/palette
+  swap, or a deliberate omission. **17 normal-state slots still need art.**
 - Bombardment is a **single procedural rendering system**, not another 60
   hand-drawn slots. Door, fire, smoke, gate-opening, and exceptional collapsed
   states are not included in the building count.
@@ -22,6 +21,39 @@ count separately because the visualizer positions and draws them independently.
 Shared art may satisfy more than one slot. In particular, the generic Christian
 church is intended for any Christian port rather than being redrawn for every
 region.
+
+| Initial kit | Resolved | Still to draw |
+| --- | ---: | ---: |
+| Northern European | 10 | 0 |
+| Mediterranean | 10 | 0 |
+| Middle Eastern | 9 | 1 |
+| Primitive / village | 10 | 0 |
+| Chinese / Korean | 2 | 8 |
+| Japanese | 2 | 8 |
+| **Total** | **43** | **17** |
+
+Checklist labels are intentional:
+
+- **AUTHORED** means unique source art exists and is wired into the visualizer.
+- **SHARED** means the slot is complete with an existing global sprite or a
+  documented runtime palette swap.
+- **OMIT** means we have decided not to draw or display that building for this
+  kit. It still counts as resolved world-coverage behavior.
+- **DRAW** is one of the 17 pieces still required for the initial 60-slot pass.
+- **LATER** is outside the initial 60 and does not count toward the 17.
+
+## What needs drawing now
+
+1. **Middle Eastern Home B** — one alternate flat-roofed home. This completes
+   the Middle Eastern kit.
+2. **Chinese / Korean kit — 8 pieces:** Home A, Home B, inn, smith, temple or
+   shrine, far wall, gatehouse, and near wall.
+3. **Japanese kit — 8 pieces:** Home A, Home B, inn, smith, Buddhist temple or
+   Shinto shrine, far wall, gatehouse, and near wall.
+
+That is the complete **17-piece current art queue**. The Chinese/Korean and
+Japanese market stalls and shipyards are already covered by the shared global
+sprites.
 
 The market stall and shipyard are also global functional sprites. Their rough
 timber construction is culturally neutral at this scale: the market is a simple
@@ -87,55 +119,73 @@ planes use `#cd683d`.
 
 ## Northern European
 
-- [x] Home A
-- [x] Home B
-- [x] Inn
-- [x] Item store / smith
-- [x] Market stall
-- [x] Shipyard
-- [x] Generic Christian stone church
-- [x] Far castle wall
-- [x] Gatehouse / gate
-- [x] Near castle wall
+- [x] Home A — **AUTHORED**
+- [x] Home B — **AUTHORED**
+- [x] Inn — **AUTHORED**
+- [x] Item store / smith — **AUTHORED**
+- [x] Market stall — **AUTHORED**, also the global shared market
+- [x] Shipyard — **AUTHORED**, also the global shared shipyard
+- [x] Generic Christian stone church — **AUTHORED**, shared by Christian ports
+- [x] Far castle wall — **AUTHORED**
+- [x] Gatehouse / gate — **AUTHORED**
+- [x] Near castle wall — **AUTHORED**
 
 ## Mediterranean
 
-- [x] Home A
-- [x] Home B
-- [x] Inn
-- [x] Item store / smith
-- [x] Market stall — reuse the global timber market stall
-- [x] Shipyard — reuse the global timber shipyard
-- [x] Religious landmark — reuse the generic Christian stone church
-- [x] Far castle wall — reuse Northern geometry with the limestone palette swap
-- [x] Gatehouse / gate — reuse Northern geometry with the limestone palette swap
-- [x] Near castle wall — reuse Northern geometry with the limestone palette swap
+- [x] Home A — **AUTHORED**
+- [x] Home B — **AUTHORED**
+- [x] Inn — **AUTHORED**
+- [x] Item store / smith — **AUTHORED**
+- [x] Market stall — **SHARED**, global timber market stall
+- [x] Shipyard — **SHARED**, global timber shipyard
+- [x] Religious landmark — **SHARED**, generic Christian stone church with the
+  documented terracotta roof swap
+- [x] Far castle wall — **SHARED**, Northern geometry with the limestone palette swap
+- [x] Gatehouse / gate — **SHARED**, Northern geometry with the limestone palette swap
+- [x] Near castle wall — **SHARED**, Northern geometry with the limestone palette swap
 
 ## Middle Eastern
 
-- [x] Home A
-- [ ] Home B
-- [x] Inn
-- [x] Item store / smith
-- [x] Market stall — reuse the global timber market stall
-- [x] Shipyard — reuse the global timber shipyard
-- [x] Mosque — used for Islamic ports; Christian ports retain the generic church
-- [x] Far castle wall
-- [x] Gatehouse / gate
-- [x] Near castle wall
+- [x] Home A — **AUTHORED**
+- [ ] Home B — **DRAW**; Home A is temporarily reused in this slot
+- [x] Inn — **AUTHORED**
+- [x] Item store / smith — **AUTHORED**
+- [x] Market stall — **SHARED**, global timber market stall
+- [x] Shipyard — **SHARED**, global timber shipyard
+- [x] Mosque — **AUTHORED** for Islamic ports; Christian ports use the shared church
+- [x] Far castle wall — **AUTHORED**
+- [x] Gatehouse / gate — **AUTHORED**
+- [x] Near castle wall — **AUTHORED**
 
 ## Primitive / village
 
-- [ ] Home A
-- [ ] Home B
-- [ ] Inn or communal house
-- [ ] Item store / craft workshop
-- [x] Market stall — reuse the global timber market stall
-- [x] Shipyard / boatbuilding beach — reuse the global timber shipyard
-- [ ] Sacred or communal landmark — reuse the generic church for Christian colonies
-- [ ] Far palisade / defensive wall
-- [ ] Gate
-- [ ] Near palisade / defensive wall
+This is implemented as the `earthen-village` scene style. Sparse villages use
+only repeated copies of the two huts plus a restrained pair of global market
+stalls. They deliberately
+have no inn, smith, religious landmark, or fortification; a visible shipyard is
+reserved for larger villages and can later be overridden in city JSON. The
+background-city flag defaults off but remains explicit city data for exceptional
+larger settlements.
+
+- [x] Home A — **AUTHORED**, small earthen hut
+- [x] Home B — **AUTHORED**, large earthen hut
+- [x] Inn — **OMIT**; use another hut as non-interactive scene mass
+- [x] Item store / smith — **OMIT**; use another hut as non-interactive scene mass
+- [x] Market stall — **SHARED**, restrained use of the global timber market stall
+- [x] Shipyard / boatbuilding beach — **SHARED CONDITIONALLY** for larger villages
+- [x] Religious landmark — **OMIT** from the generic sparse-village profile
+- [x] Far defensive wall — **OMIT** from the generic sparse-village profile
+- [x] Gate — **OMIT** from the generic sparse-village profile
+- [x] Near defensive wall — **OMIT** from the generic sparse-village profile
+
+Swahili Coast ports are a deliberate hybrid rather than sparse villages. Their
+housing pool provisionally uses the earthen huts, while service buildings,
+mosques, and fortifications use the Middle Eastern visual language. This
+reflects the documented mixture of earthen and coral-stone construction and
+African, Arab, Persian, and Indian influence at Kilwa, while keeping the three
+concepts independently overridable per city. See the
+[Met overview of Kilwa and Songo Mnara](https://www.metmuseum.org/ru/perspectives/kilwa-kisiwani-songo-mnara)
+and [UNESCO site history](https://whc.unesco.org/en/list/144).
 
 ## Chinese / Korean
 
@@ -144,16 +194,16 @@ the same broad timber-frame, stone-base, and tiled-roof language at this scale.
 Later Korean alternates should emphasize lower roof profiles, mud walls, and
 thatch without blocking the first world-coverage pass.
 
-- [ ] Home A
-- [ ] Home B
-- [ ] Inn
-- [ ] Item store / smith
-- [x] Market stall — reuse the global timber market stall
-- [x] Shipyard — reuse the global timber shipyard
-- [ ] Temple or shrine — reuse the generic church in Christian ports
-- [ ] Far castle wall
-- [ ] Gatehouse / gate
-- [ ] Near castle wall
+- [ ] Home A — **DRAW**
+- [ ] Home B — **DRAW**
+- [ ] Inn — **DRAW**
+- [ ] Item store / smith — **DRAW**
+- [x] Market stall — **SHARED**, global timber market stall
+- [x] Shipyard — **SHARED**, global timber shipyard
+- [ ] Temple or shrine — **DRAW**; Christian ports use the shared church
+- [ ] Far castle wall — **DRAW**
+- [ ] Gatehouse / gate — **DRAW**
+- [ ] Near castle wall — **DRAW**
 
 ## Japanese
 
@@ -161,27 +211,49 @@ Keep Japan separate from the Chinese/Korean kit. Its stronger dark-timber and
 white-plaster contrast, roof massing, deep eaves, and layered wooden
 fortifications need distinct silhouettes rather than a palette swap.
 
-- [ ] Home A
-- [ ] Home B
-- [ ] Inn
-- [ ] Item store / smith
-- [x] Market stall — reuse the global timber market stall
-- [x] Shipyard — reuse the global timber shipyard
-- [ ] Buddhist temple or Shinto shrine — reuse the generic church in Christian ports
-- [ ] Far castle wall
-- [ ] Gatehouse / gate
-- [ ] Near castle wall
+- [ ] Home A — **DRAW**
+- [ ] Home B — **DRAW**
+- [ ] Inn — **DRAW**
+- [ ] Item store / smith — **DRAW**
+- [x] Market stall — **SHARED**, global timber market stall
+- [x] Shipyard — **SHARED**, global timber shipyard
+- [ ] Buddhist temple or Shinto shrine — **DRAW**; Christian ports use the shared church
+- [ ] Far castle wall — **DRAW**
+- [ ] Gatehouse / gate — **DRAW**
+- [ ] Near castle wall — **DRAW**
+
+## Art we have explicitly decided not to draw
+
+These decisions are part of the checklist, not missing work:
+
+- [x] Regional market-stall variants — **OMIT**; keep the global timber stall.
+- [x] Regional shipyard variants — **OMIT**; keep the global timber shipyard.
+- [x] A separate Mediterranean church — **OMIT**; use the generic Christian
+  church with the documented terracotta roof swap.
+- [x] Separate Mediterranean fortification silhouettes — **OMIT**; use the
+  Northern geometry with the documented limestone palette swap.
+- [x] Generic sparse-village inns, smiths, religious landmarks, and
+  fortifications — **OMIT**; the sparse scene is huts, market stalls, and an
+  optional shipyard. Historically important exceptions belong in per-city JSON
+  or a later regional kit, not in every village.
+- [x] Sixty hand-drawn bombarded building variants — **OMIT**; build one
+  procedural damage system that works on every completed sprite.
+- [x] Separate background-city building sprites — **OMIT**; the skyline reuses
+  scaled regional homes, inns, smiths, and religious landmarks.
 
 ## Required animation, weather, and damage systems
 
 These are reusable systems or additional states, not additional building
 families.
 
-- [ ] Parallax cloud layers driven by variable weather, with clear, fair,
-  overcast, and storm coverage
+- [x] Three authored parallax cloud layers drift with the shared city wind
+- [x] Shared wind direction and speed drive clouds, chimney smoke, and flags
+- [ ] Weather-state cloud coverage controls for clear, fair, overcast, and storm
 - [ ] Inn open-door state
 - [ ] Inn occupied/fire animation
 - [ ] Near gate frame that allows NPCs to walk through the opening
+- [x] Manual bombarded art for every building — **OMIT** in favor of the
+  procedural system below
 - [ ] Deterministic procedural bombardment seeded by city, building slot, and
   bombardment event
 - [ ] Select impact points only on substantial opaque wall or roof regions
@@ -196,7 +268,7 @@ families.
 - [ ] Support stable damage severity levels without rerolling the pattern on
   scene reload
 - [ ] Verify pixel-perfect damage results across every completed building sprite
-- [ ] Optionally hand-author rare fully collapsed states for major landmarks
+- **LATER:** optionally hand-author rare fully collapsed states for major landmarks
 - [ ] Recheck chimney locations and smoke intensity after each regional replacement
 - [ ] Recheck castle and foreground shadows after each regional replacement
 
@@ -204,18 +276,49 @@ The procedural background city reuses scaled Home A, Home B, inn, and smith
 sprites. It does not require separate building drawings, but every regional kit
 must remain readable at half scale and below.
 
+## Required city data and game integration
+
+These tasks are outside the 60-piece art count:
+
+- [x] Generate a JSON record for every water-accessible city currently in the
+  game
+- [x] Derive baseline population/settlement scale, region, river or ocean
+  approach, dock type, nearby terrain, mountain visibility, religion,
+  landmarks, fortification estimate, architecture, services, and background
+  city state from production game data
+- [x] Support explicit architecture, service, background-city, and developed-
+  opposite-bank values in city scene data
+- [ ] Audit every generated city scene and add explicit per-city overrides where
+  the geographic or cultural default is wrong
+- [ ] Historically review fortifications, important religious landmarks,
+  developed opposite banks, and major service omissions for the game's era
+- [ ] Define dated/stateful overrides so colonies and other cities can grow,
+  acquire buildings, change control, or retain bombardment damage during play
+- [ ] Wire building hover/click targets to the existing port modals and replace
+  the present city menu with the visual scene
+- [ ] Build the city-storming encounter on the same walkable dock-road-gate lane
+  after the visualizer is integrated
+
 ## Later regional splits
 
 The initial six kits can be divided when broader world coverage needs stronger
 local identity. Each new kit adds up to ten coverage slots, although the generic
 church and other shared landmarks can be reused.
 
-- [ ] South Asian
-- [ ] Southeast Asian
-- [ ] Mesoamerican
-- [ ] Andean
-- [ ] Sub-Saharan African
-- [ ] Native North American
-- [ ] Polynesian / Pacific village
-- [ ] Promote the Chinese/Korean kit into a separate Korean kit when the shared
-  version no longer reads correctly
+- **LATER — South Asian:** likely needs a distinct urban kit rather than being
+  treated as Middle Eastern.
+- **LATER — Southeast Asian:** likely needs a distinct urban kit.
+- **LATER — Mesoamerican:** the generic hut scene covers sparse villages only;
+  major cities need monumental masonry and their own landmarks.
+- **LATER — Andean:** the generic hut scene covers sparse villages only; major
+  cities need masonry and their own landmarks.
+- **LATER — Sub-Saharan African:** retain the sparse hut profile where it fits,
+  but add specific urban traditions rather than treating the continent as one
+  visual culture.
+- **LATER — Native North American:** add local village forms where the current
+  earthen huts do not fit.
+- **LATER — Polynesian / Pacific:** the sparse scene logic exists, but the
+  earthen hut art should eventually be replaced with a locally appropriate kit.
+- **LATER — Korean:** split it from the Chinese kit when the shared timber-and-
+  tile kit no longer reads correctly; emphasize lower roof profiles, mud walls,
+  and thatch.

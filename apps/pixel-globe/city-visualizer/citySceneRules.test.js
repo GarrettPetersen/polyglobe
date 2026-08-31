@@ -55,10 +55,12 @@ const CITY_VISUALIZER_PORT_MANIFEST = JSON.parse(readFileSync(new URL(
 ), "utf8"));
 
 const CITY = Object.freeze({
+  cityType: "northern-european",
   approach: "river",
   dock: "wood",
   fortified: true,
   settlementType: "city",
+  population: 50000,
   mountains: { left: true, right: false },
   terrain: {
     left: "forest",
@@ -127,6 +129,13 @@ test("regional hover outlines and hit masks use the displayed building silhouett
   assert.match(
     VISUALIZER_MAIN_SOURCE,
     /layerVisibleSourceRect\(layerName, sourceFrame\.frame\.w, sourceFrame\.frame\.h\)/
+  );
+});
+
+test("static regional buildings emit smoke only when their displayed sprite has a chimney", () => {
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /const displayedFrame = cityRegionalBuildingFrame\([\s\S]*if \(displayedFrame\.hasChimney === false\) continue;/
   );
 });
 
@@ -742,4 +751,75 @@ test("manual feature overrides can audition missing art without changing the cit
   assert.equal(layers.has("Gate"), false);
   assert.equal(layers.has("Horizon Mountains"), true);
   assert.equal(layers.has("Foreground Desert"), true);
+});
+
+test("sparse earthen villages show huts and a market without urban institutions", () => {
+  const smallVillage = {
+    ...CITY,
+    cityType: "polynesian",
+    settlementType: "village",
+    population: 1800,
+    fortified: true,
+    religiousLandmarks: ["church"]
+  };
+  const features = resolveCitySceneFeatures(smallVillage);
+  assert.deepEqual({
+    backgroundCity: features.backgroundCity,
+    church: features.church,
+    fortified: features.fortified,
+    inn: features.inn,
+    market: features.market,
+    mosque: features.mosque,
+    primitiveSettlement: features.primitiveSettlement,
+    shipyard: features.shipyard,
+    store: features.store
+  }, {
+    backgroundCity: false,
+    church: false,
+    fortified: false,
+    inn: false,
+    market: true,
+    mosque: false,
+    primitiveSettlement: true,
+    shipyard: false,
+    store: false
+  });
+  const layers = activePortSceneLayers(features);
+  assert.equal(layers.has("Market Stall"), true);
+  assert.equal(layers.has("Market Stall Copy"), false);
+  assert.equal(layers.has("Market Stall Copy Copy"), false);
+  assert.equal(layers.has("Shipyard"), false);
+  assert.equal(layers.has("Smith"), false);
+  assert.equal(layers.has("Inn"), false);
+  assert.equal(layers.has("Gate"), false);
+
+  const largerFeatures = resolveCitySceneFeatures({ ...smallVillage, population: 3000 });
+  assert.equal(largerFeatures.shipyard, true);
+  assert.equal(activePortSceneLayers(largerFeatures).has("Shipyard"), true);
+});
+
+test("generated village and Swahili architecture profiles remain explicit city data", () => {
+  const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
+  const fiji = cityById.get("fiji village|fiji");
+  const kilwa = cityById.get("kilwa|tanzania");
+  assert.deepEqual(fiji?.architecture, {
+    housingStyle: "earthen-village",
+    serviceStyle: "polynesian",
+    fortificationStyle: "polynesian",
+    settlementForm: "sparse-village"
+  });
+  assert.deepEqual(fiji?.services, {
+    inn: false,
+    smith: false,
+    market: true,
+    shipyard: true
+  });
+  assert.equal(fiji?.backgroundCity?.enabled, false);
+  assert.deepEqual(kilwa?.architecture, {
+    housingStyle: "earthen-village",
+    serviceStyle: "islamic-desert",
+    fortificationStyle: "islamic-desert",
+    settlementForm: "urban"
+  });
+  assert.equal(kilwa?.backgroundCity?.enabled, true);
 });

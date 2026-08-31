@@ -167,6 +167,8 @@ test("regional buildings retain their canonical chimney emitters", async () => {
   assert.deepEqual(
     chimneylessRegionalFrames.map(({ layer }) => layer).sort(),
     [
+      "Earthen Hut",
+      "Earthen Hut Large",
       "Middle East Far Wall",
       "Middle East Gate",
       "Middle East Home",

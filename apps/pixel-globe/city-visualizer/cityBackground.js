@@ -1,4 +1,5 @@
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
+import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import { cityRegionalBuildingFrame } from "./cityRegionalBuildings.js";
 
 export const BACKGROUND_CITY_BASE_LAYER = "Background City Base";
@@ -60,6 +61,12 @@ const BACKGROUND_CITY_RELIGIOUS_LANDMARK_LAYERS = new Set([
 
 export function cityBackgroundEnabled(city) {
   if (!city || typeof city !== "object") throw new Error("Background city requires a city record");
+  if (city.backgroundCity?.enabled !== undefined) {
+    if (typeof city.backgroundCity.enabled !== "boolean") {
+      throw new Error("Background city enabled flag must be boolean");
+    }
+    return city.backgroundCity.enabled;
+  }
   return city.settlementType !== "village";
 }
 
@@ -693,7 +700,11 @@ function backgroundCityBuildingPool(city, frameByLayer) {
   const configuredMix = city.backgroundCity?.buildingMix;
   if (configuredMix === undefined) {
     return BACKGROUND_CITY_BUILDING_LAYERS.map((layerName) => (
-      cityRegionalBuildingFrame(frames, city.cityType, layerName)
+      cityRegionalBuildingFrame(
+        frames,
+        cityArchitectureStyleForLayer(city, layerName),
+        layerName
+      )
     ));
   }
   if (!configuredMix || typeof configuredMix !== "object" || Array.isArray(configuredMix)) {
@@ -705,7 +716,11 @@ function backgroundCityBuildingPool(city, frameByLayer) {
     if (!Number.isInteger(weight) || weight < 0 || weight > 12) {
       throw new Error(`Invalid background city ${mixKey} weight: ${weight}`);
     }
-    const frame = cityRegionalBuildingFrame(frames, city.cityType, layerName);
+    const frame = cityRegionalBuildingFrame(
+      frames,
+      cityArchitectureStyleForLayer(city, layerName),
+      layerName
+    );
     requireFrame(frame, frame.layer);
     for (let copy = 0; copy < weight; copy++) pool.push(frame);
   }

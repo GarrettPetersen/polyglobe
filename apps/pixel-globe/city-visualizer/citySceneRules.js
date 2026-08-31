@@ -3,6 +3,7 @@ import {
   BACKGROUND_CITY_FRONT_DEPTH,
   cityBackgroundEnabled
 } from "./cityBackground.js";
+import { cityArchitectureProfile, cityServiceProfile } from "./cityArchitecture.js";
 
 export const PORT_SCENE_MASTER = Object.freeze({
   width: 1365,
@@ -94,18 +95,17 @@ const ALWAYS_VISIBLE_LAYERS = Object.freeze([
   "Cloud 1",
   "Cloud 2",
   "Cloud 3",
-  "Shipyard",
   "Sand Beach",
-  "Smith",
-  "Market Stall Copy",
-  "Market Stall Copy Copy",
-  "Market Stall",
   "Road",
   "Waves",
   "Surf",
-  "Inn",
   "Barrel",
   "Crate"
+]);
+const MARKET_LAYERS = Object.freeze([
+  "Market Stall Copy",
+  "Market Stall Copy Copy",
+  "Market Stall"
 ]);
 
 const DISTANT_TERRAIN_LAYERS = Object.freeze({
@@ -507,10 +507,13 @@ function resolvedLayerMeta(layerName, occurrence) {
 
 export function resolveCitySceneFeatures(city, overrides = {}) {
   if (!city || typeof city !== "object") throw new Error("City scene requires a city record");
+  const architecture = cityArchitectureProfile(city);
+  const services = cityServiceProfile(city);
+  const primitiveSettlement = architecture.settlementForm === "sparse-village";
   const automatic = {
     approach: city.approach,
     dock: city.dock,
-    fortified: Boolean(city.fortified),
+    fortified: primitiveSettlement ? false : Boolean(city.fortified),
     mountainsLeft: Boolean(city.mountains?.left),
     mountainsRight: Boolean(city.mountains?.right),
     leftTerrain: requireTerrain(city.terrain?.left || "grass"),
@@ -518,8 +521,13 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     leftDistantTerrain: requireTerrain(city.terrain?.leftDistant || city.terrain?.left || "grass"),
     rightDistantTerrain: requireTerrain(city.terrain?.rightDistant || city.terrain?.right || "grass"),
     backgroundCity: cityBackgroundEnabled(city),
-    church: Boolean(city.religiousLandmarks?.includes("church")),
-    mosque: Boolean(city.religiousLandmarks?.includes("mosque")),
+    church: !primitiveSettlement && Boolean(city.religiousLandmarks?.includes("church")),
+    mosque: !primitiveSettlement && Boolean(city.religiousLandmarks?.includes("mosque")),
+    primitiveSettlement,
+    inn: services.inn,
+    store: services.smith,
+    market: services.market,
+    shipyard: services.shipyard,
     leftBankCity: Boolean(city.builtUpBothBanks),
     npcs: city.settlementType === "village" ? 3 : 6,
     props: city.settlementType === "village" ? 1 : 3
@@ -536,12 +544,24 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   features.props = clampInteger(features.props, 0, 6, "prop count");
   features.backgroundCity = Boolean(features.backgroundCity);
   features.leftBankCity = features.approach === "river" && Boolean(features.leftBankCity);
+  for (const key of ["primitiveSettlement", "inn", "store", "market", "shipyard"]) {
+    features[key] = Boolean(features[key]);
+  }
   return Object.freeze(features);
 }
 
 export function activePortSceneLayers(features) {
   if (!features || typeof features !== "object") throw new Error("Port scene layers require features");
   const layers = new Set(ALWAYS_VISIBLE_LAYERS);
+  if (features.shipyard) layers.add("Shipyard");
+  if (features.market) {
+    const visibleMarketLayers = features.primitiveSettlement ? ["Market Stall"] : MARKET_LAYERS;
+    visibleMarketLayers.forEach((layerName) => layers.add(layerName));
+  }
+  if (!features.primitiveSettlement) {
+    layers.add("Smith");
+    layers.add("Inn");
+  }
   if (features.backgroundCity) layers.add(BACKGROUND_CITY_BASE_LAYER);
   layers.add(DISTANT_TERRAIN_LAYERS[features.rightDistantTerrain]);
   layers.add(BETWEEN_BUILDING_LAYERS[features.rightTerrain]);

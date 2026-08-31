@@ -23,6 +23,11 @@ const FRAMES_WITH_MIDDLE_EAST = Object.freeze([
   ...FRAMES,
   regionalFrame("Middle East Home", "Home", 99, 56, 1154, 429, "islamic-desert")
 ]);
+const FRAMES_WITH_EARTHEN_HUTS = Object.freeze([
+  ...FRAMES,
+  regionalFrame("Earthen Hut", "Home", 68, 54, 0, 17, "earthen-village", false),
+  regionalFrame("Earthen Hut Large", "Home 2", 88, 68, 0, 11, "earthen-village", false)
+]);
 
 test("the shared church stays in the midground while rear-street homes remain modular", () => {
   const placements = cityStreetBuildingPlacements({
@@ -76,6 +81,23 @@ test("Middle Eastern street slots reuse Home A for Home B without exposing north
   ]);
 });
 
+test("sparse earthen settlements repeat both huts across the rear, business, and foreground slots", () => {
+  const placements = cityStreetBuildingPlacements({
+    features: { primitiveSettlement: true },
+    frames: FRAMES_WITH_EARTHEN_HUTS,
+    buildingStyle: "earthen-village"
+  });
+  assert.deepEqual(placements.map(({ slotId, layerName, frame: source }) => (
+    [slotId, layerName, source.layer]
+  )), [
+    ["rear-center", "Home 2", "Earthen Hut Large"],
+    ["rear-east", "Home", "Earthen Hut"],
+    ["business-east", "Home", "Earthen Hut"],
+    ["foreground-east", "Home 2", "Earthen Hut Large"]
+  ]);
+  assert.ok(placements.every(({ frame: source }) => source.hasChimney === false));
+});
+
 test("ordinary buildings can be reassigned to any open slot while the gatehouse stays fixed", () => {
   const placements = cityStreetBuildingPlacements({
     features: {},
@@ -102,10 +124,20 @@ function frame(layer, width, height, x, y) {
   });
 }
 
-function regionalFrame(layer, regionalOf, width, height, x, y, cityType = "mediterranean") {
+function regionalFrame(
+  layer,
+  regionalOf,
+  width,
+  height,
+  x,
+  y,
+  cityType = "mediterranean",
+  hasChimney = true
+) {
   return Object.freeze({
     ...frame(layer, width, height, x, y),
     cityType,
-    regionalOf
+    regionalOf,
+    hasChimney
   });
 }

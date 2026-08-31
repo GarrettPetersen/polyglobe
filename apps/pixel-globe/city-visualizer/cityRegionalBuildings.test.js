@@ -24,7 +24,9 @@ const FRAMES = Object.freeze([
   frame("Middle East Smith", { cityType: "islamic-desert", regionalOf: "Smith" }),
   frame("Middle East Far Wall", { cityType: "islamic-desert", regionalOf: "Far Castle" }),
   frame("Middle East Gate", { cityType: "islamic-desert", regionalOf: "Gate" }),
-  frame("Middle East Near Wall", { cityType: "islamic-desert", regionalOf: "Near Castle" })
+  frame("Middle East Near Wall", { cityType: "islamic-desert", regionalOf: "Near Castle" }),
+  frame("Earthen Hut", { cityType: "earthen-village", regionalOf: "Home", hasChimney: false }),
+  frame("Earthen Hut Large", { cityType: "earthen-village", regionalOf: "Home 2", hasChimney: false })
 ]);
 
 const EXPORTED_FRAMES = JSON.parse(readFileSync(
@@ -67,6 +69,14 @@ test("Middle Eastern cities use every authored regional frame and reuse Home A f
   assert.match(selected[3].id, /as-home-2$/);
 });
 
+test("earthen villages select the small and large hut for the two housing roles", () => {
+  const selected = ["Home", "Home 2"].map((baseLayer) => (
+    cityRegionalBuildingFrame(FRAMES, "earthen-village", baseLayer)
+  ));
+  assert.deepEqual(selected.map(({ layer }) => layer), ["Earthen Hut", "Earthen Hut Large"]);
+  assert.ok(selected.every(({ hasChimney }) => hasChimney === false));
+});
+
 test("regional frames preserve their logical building roles", () => {
   for (const [layer, logicalLayer] of [
     ["Med Inn", "Inn"],
@@ -77,9 +87,29 @@ test("regional frames preserve their logical building roles", () => {
     ["Middle East Smith", "Smith"],
     ["Middle East Far Wall", "Far Castle"],
     ["Middle East Gate", "Gate"],
-    ["Middle East Near Wall", "Near Castle"]
+    ["Middle East Near Wall", "Near Castle"],
+    ["Earthen Hut", "Home"],
+    ["Earthen Hut Large", "Home 2"]
   ]) {
     assert.equal(cityBuildingLogicalLayer(FRAMES.find((frame) => frame.layer === layer)), logicalLayer);
+  }
+});
+
+test("exported earthen huts preserve the two housing ground lines", () => {
+  for (const [baseLayer, regionalLayer] of [
+    ["Home", "Earthen Hut"],
+    ["Home 2", "Earthen Hut Large"]
+  ]) {
+    const base = EXPORTED_FRAMES.find(({ layer }) => layer === baseLayer);
+    const regional = EXPORTED_FRAMES.find(({ layer }) => layer === regionalLayer);
+    assert.ok(regional, `missing exported regional frame ${regionalLayer}`);
+    assert.equal(regional.cityType, "earthen-village");
+    assert.equal(regional.regionalOf, baseLayer);
+    assert.equal(regional.hasChimney, false);
+    assert.equal(
+      regional.spriteSourceSize.y + regional.spriteSourceSize.h,
+      base.spriteSourceSize.y + base.spriteSourceSize.h
+    );
   }
 });
 

@@ -1,0 +1,84 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+
+import {
+  EARTHEN_VILLAGE_BUILDING_STYLE,
+  cityArchitectureProfile,
+  cityArchitectureStyleForLayer,
+  cityServiceProfile,
+  deriveCityArchitectureProfile,
+  deriveCityServiceProfile
+} from "./cityArchitecture.js";
+
+test("low-population village cultures use the sparse earthen settlement form", () => {
+  for (const cityType of ["mesoamerican", "polynesian", "sub-saharan"]) {
+    const city = cityRecord({ cityType, settlementType: "village", population: 1800 });
+    const architecture = deriveCityArchitectureProfile(city);
+    assert.equal(architecture.housingStyle, EARTHEN_VILLAGE_BUILDING_STYLE);
+    assert.equal(architecture.settlementForm, "sparse-village");
+    assert.deepEqual(deriveCityServiceProfile(city), {
+      inn: false,
+      smith: false,
+      market: true,
+      shipyard: false
+    });
+  }
+});
+
+test("larger earthen villages can show a boatbuilding beach without gaining urban services", () => {
+  const city = cityRecord({ cityType: "polynesian", settlementType: "village", population: 3000 });
+  assert.deepEqual(deriveCityServiceProfile(city), {
+    inn: false,
+    smith: false,
+    market: true,
+    shipyard: true
+  });
+});
+
+test("city type alone does not collapse major indigenous cities into the sparse village form", () => {
+  const city = cityRecord({ cityType: "mesoamerican", settlementType: "city", population: 100000 });
+  const architecture = deriveCityArchitectureProfile(city);
+  assert.equal(architecture.housingStyle, "mesoamerican");
+  assert.equal(architecture.settlementForm, "urban");
+  assert.deepEqual(deriveCityServiceProfile(city), {
+    inn: true,
+    smith: true,
+    market: true,
+    shipyard: true
+  });
+});
+
+test("Swahili ports separate earthen housing from Islamic service and fortification art", () => {
+  const city = cityRecord({
+    cityType: "sub-saharan",
+    settlementType: "city",
+    population: 30000,
+    manualRegion: "swahili-coast"
+  });
+  const architecture = deriveCityArchitectureProfile(city);
+  assert.deepEqual(architecture, {
+    housingStyle: EARTHEN_VILLAGE_BUILDING_STYLE,
+    serviceStyle: "islamic-desert",
+    fortificationStyle: "islamic-desert",
+    settlementForm: "urban"
+  });
+  const catalogCity = { ...city, architecture };
+  assert.equal(cityArchitectureStyleForLayer(catalogCity, "Home"), EARTHEN_VILLAGE_BUILDING_STYLE);
+  assert.equal(cityArchitectureStyleForLayer(catalogCity, "Inn"), "islamic-desert");
+  assert.equal(cityArchitectureStyleForLayer(catalogCity, "Gate"), "islamic-desert");
+});
+
+test("catalog architecture and service profiles are validated at the scene boundary", () => {
+  const city = cityRecord({ cityType: "polynesian", settlementType: "village", population: 1000 });
+  assert.throws(() => cityArchitectureProfile({ ...city, architecture: {} }), /housing architecture/);
+  assert.throws(() => cityServiceProfile({ ...city, services: { market: true } }), /inn service/);
+});
+
+function cityRecord(overrides) {
+  return Object.freeze({
+    cityType: "northern-european",
+    settlementType: "city",
+    population: 10000,
+    ...overrides
+  });
+}

@@ -24,6 +24,18 @@ const BUILDING_LAYER_OVERRIDES = Object.freeze({
 });
 
 const REGIONAL_BUILDING_LAYERS = Object.freeze({
+  "Earthen Hut": Object.freeze({
+    cityType: "earthen-village",
+    regionalOf: "Home",
+    sourceBase: "Northern Europe Home",
+    hasChimney: false
+  }),
+  "Earthen Hut Large": Object.freeze({
+    cityType: "earthen-village",
+    regionalOf: "Home 2",
+    sourceBase: "Northern Europe Home 2",
+    hasChimney: false
+  }),
   "Med Inn": Object.freeze({ cityType: "mediterranean", regionalOf: "Inn", sourceBase: "Northern European Inn" }),
   "Med Home": Object.freeze({ cityType: "mediterranean", regionalOf: "Home", sourceBase: "Northern Europe Home" }),
   "Med Home 2": Object.freeze({ cityType: "mediterranean", regionalOf: "Home 2", sourceBase: "Northern Europe Home 2" }),

@@ -83,6 +83,7 @@ const LONDON = Object.freeze({
   id: "london|united kingdom",
   population: 58_250,
   settlementType: "city",
+  cityType: "northern-european",
   capital: true
 });
 
