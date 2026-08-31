@@ -90,6 +90,26 @@ const RIO_DE_JANEIRO = Object.freeze({
   ...colonizationTargetForCity({ cityId: "rio de janeiro|brazil", city: "Rio de Janeiro", country: "Brazil" }),
   tileId: 101
 });
+const BOSTON = Object.freeze({
+  ...colonizationTargetForCity({
+    cityId: "boston|united states of america",
+    city: "Boston",
+    country: "United States of America"
+  }),
+  tileId: 102
+});
+const PLYMOUTH = Object.freeze({
+  ...BORDEAUX,
+  cityId: "plymouth|england",
+  tileId: 22,
+  portId: "city-22",
+  city: "Plymouth",
+  displayCity: "Plymouth",
+  country: "England",
+  factionId: "england",
+  lat: 50.38,
+  lon: -4.14
+});
 
 test("the colonial organizer approaches before first-port business", () => {
   const shipStats = shipStatsForSlug("brigantine");
@@ -108,7 +128,8 @@ test("the colonial organizer approaches before first-port business", () => {
     simMinute: 1000,
     shipStats
   });
-  assert.match(view.text, /Captain, a word before you see the factor/);
+  assert.doesNotMatch(view.text, /Captain, a word before you see the factor/);
+  assert.match(view.text, /Bring \d+ .+ for/i);
   assert.equal(view.options[0].label, "Not now");
   const notNowIndex = view.options.findIndex((option) => option.label === "Not now");
   assert.notEqual(notNowIndex, -1);
@@ -124,6 +145,31 @@ test("the colonial organizer approaches before first-port business", () => {
   assert.equal(session.nodeId, "loadout");
   assert.equal(session.colonizationArrival, false);
   assert.equal(colonizationOrganizerShouldApproach(gameState, BORDEAUX), true);
+});
+
+test("the Shawmut organizer gives a concise first request", () => {
+  const shipStats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
+  assignColonizationQuest(gameState.memory.colonization, { target: BOSTON, origin: PLYMOUTH });
+  const economy = createWorldEconomy({ ports: [PLYMOUTH], startMinute: 0 });
+  const session = createPortArrivalDialogueSession(PLYMOUTH, {
+    colonizationApproach: true,
+    needsLoadout: true
+  });
+  const quest = colonizationQuestView(gameState);
+  const stage = quest.fetchStage;
+
+  const view = portDialogueView(session, PLYMOUTH, gameState, economy, [PLYMOUTH], {
+    simMinute: 1000,
+    shipStats
+  });
+
+  assert.equal(
+    view.text,
+    `${quest.history.pitch} Bring ${stage.quantity} ${stage.goodLabel.toLowerCase()} for ` +
+      `${stage.purpose}. I will pay ${stage.reward} doubloons when the order is complete.`
+  );
+  assert.doesNotMatch(view.text, /Shawmut has good water but little ready shelter/);
 });
 
 test("a colony departure confirmation does not say not now after embarkation", () => {

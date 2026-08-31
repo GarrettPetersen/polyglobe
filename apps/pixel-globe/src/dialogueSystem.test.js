@@ -4746,6 +4746,7 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
     id: "shipyard-10-4",
     shipSlug: "brigantine",
     shipLabel: "Brigantine",
+    source: "new-build",
     price: 35000
   };
   const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
@@ -4788,6 +4789,12 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
     closed: false,
     action: { type: "purchase-ship", listingId: listing.id, shipSlug: "brigantine" }
   });
+  assert.equal(session.shipyardPurchasePending, true);
+  const pendingView = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(pendingView.text, "The shipwrights are readying the vessel for inspection.");
+  assert.equal(pendingView.feedbackTone, undefined);
+  assert.equal(pendingView.options[0].label, "Confirm exchange");
+  assert.ok(pendingView.options.every((entry) => entry.disabled));
 
 });
 
@@ -4815,6 +4822,7 @@ test("shipyards allow a profitable downgrade after projecting the smaller loadou
     id: "shipyard-10-downgrade",
     shipSlug: "felucca",
     shipLabel: "Felucca",
+    source: "new-build",
     price: 5000
   };
   const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
@@ -4847,6 +4855,7 @@ test("shipyards still block a smaller ship when transferred trade cargo cannot f
     id: "shipyard-10-overloaded",
     shipSlug: "felucca",
     shipLabel: "Felucca",
+    source: "new-build",
     price: 5000
   };
   const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
@@ -4884,6 +4893,7 @@ test("shipyards explain when permanent crew cannot berth instead of formatting i
     id: "shipyard-10-no-berths",
     shipSlug: "dhow",
     shipLabel: "Dhow",
+    source: "new-build",
     price: 1000
   };
   const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
@@ -4942,6 +4952,7 @@ test("shipyards account for the historian leaving with a traded-in Viking longsh
     id: "shipyard-10-dhow",
     shipSlug: "dhow",
     shipLabel: "Dhow",
+    source: "new-build",
     price: 1000
   };
   const context = { shipStats: currentStats, shipyard: { famous: true, listing } };
@@ -4977,6 +4988,7 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
       portName: "Porto",
       shipLabel: "Brigantine",
       shipProseLabel: "brigantine",
+      source: "new-build",
       distanceKm: 312
     }
   });
@@ -4992,6 +5004,7 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
         portName: "Porto",
         shipLabel: "Brigantine",
         shipProseLabel: "brigantine",
+        source: "new-build",
         distanceKm: 312
       }
     }),

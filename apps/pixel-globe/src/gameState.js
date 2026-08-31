@@ -605,6 +605,7 @@ export const PORT_DISGUISE_MAX_SUCCESS_CHANCE = 0.9;
 export const PORT_DISGUISE_LOCK_DAYS = 14;
 export const FACTION_SAFE_PASSAGE_DAYS = 30;
 export const FACTION_SAFE_PASSAGE_REFUSAL_DAYS = 2;
+export const TRADE_EMBARGO_WARNING_COOLDOWN_DAYS = 60;
 export const FISH_CARGO_GOOD_ID = "fish";
 export const SHIP_ITEM_FISHING_NET = "fishing-net";
 export const SHIP_ITEM_CANNON_EQUIPMENT = "cannon-equipment";
@@ -632,6 +633,8 @@ const PORT_DISGUISE_LOCK_MINUTES = PORT_DISGUISE_LOCK_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_MINUTES = FACTION_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
 const FACTION_SAFE_PASSAGE_REFUSAL_MINUTES = FACTION_SAFE_PASSAGE_REFUSAL_DAYS * MINUTES_PER_DAY;
 const ENVOY_SAFE_PASSAGE_MINUTES = ENVOY_SAFE_PASSAGE_DAYS * MINUTES_PER_DAY;
+const TRADE_EMBARGO_WARNING_COOLDOWN_MINUTES =
+  TRADE_EMBARGO_WARNING_COOLDOWN_DAYS * MINUTES_PER_DAY;
 const ENVOY_QUEST_KINDS = new Set([
   "friendly-envoy",
   "hostile-envoy",
@@ -4794,6 +4797,20 @@ function assertPortEntryStatusContext(state, simMinute, context) {
   return context;
 }
 
+export function playerFactionAttacksOnSight(state, factionId) {
+  assertGameState(state);
+  const id = assertFactionId(factionId);
+  const playerFactionId = state.playerCharacter?.nationalityId || null;
+  if (!playerFactionId || id === NEUTRAL_FACTION_ID || id === playerFactionId) return false;
+  const diplomacy = worldDiplomacyBetween(
+    state.relations.diplomacy,
+    playerFactionId,
+    id
+  );
+  return factionReputation(state, id) <= HOSTILE_PORT_REPUTATION_THRESHOLD ||
+    diplomacy === DIPLOMACY_HOSTILE || diplomacy === DIPLOMACY_WAR;
+}
+
 export function portEntryStatus(state, city, simMinute = 0, context = null) {
   if (!context) assertGameState(state);
   const evaluation = assertPortEntryStatusContext(
@@ -5425,7 +5442,7 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   assertPlayerTradeAccess(state, city, context);
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
-  const embargoOrders = playerTradeEmbargoPurchaseWarnings(state, city, goodId);
+  const embargoOrders = playerTradeEmbargoPurchaseOrders(state, city, goodId);
   if (row.stock < quantity) throw new Error(`${cityLabel(city)} has only ${row.stock} ${row.good.label}`);
   const terms = playerTradeTerms(state, city, goodId, context);
   if (!terms.allowed) {
@@ -5475,7 +5492,7 @@ export function buyGood(state, economy, city, goodId, quantity = 1, context = {}
   };
 }
 
-export function playerTradeEmbargoPurchaseWarnings(state, city, goodId) {
+function playerTradeEmbargoPurchaseOrders(state, city, goodId) {
   assertGameState(state);
   if (!city || typeof city !== "object") throw new Error("Trade embargo warning requires a city");
   const sourceFactionId = tradeReputationFactionId(city);
@@ -5485,6 +5502,19 @@ export function playerTradeEmbargoPurchaseWarnings(state, city, goodId) {
     goodId,
     playerFactionId: state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID
   });
+}
+
+export function playerTradeEmbargoPurchaseWarnings(
+  state,
+  city,
+  goodId,
+  simMinute = state?.survival?.lastMinute
+) {
+  return visiblePlayerTradeEmbargoWarnings(
+    state,
+    playerTradeEmbargoPurchaseOrders(state, city, goodId),
+    simMinute
+  );
 }
 
 function portPurchasePriceMultiplier(city) {
@@ -5536,7 +5566,7 @@ function sellGoodWithPricing(state, economy, city, goodId, quantity, context, pr
   assertPlayerTradeAccess(state, city, context);
   const row = marketRow(economy, city, goodId);
   const tradeFactionId = tradeReputationFactionId(city);
-  const embargoOrders = playerTradeEmbargoSaleWarnings(state, city, goodId);
+  const embargoOrders = playerTradeEmbargoSaleOrders(state, city, goodId);
   const held = state.cargo[row.good.id] || 0;
   if (row.good.sellable === false) {
     throw new Error(`${row.good.label} is a ship supply and cannot be sold`);
@@ -5589,7 +5619,7 @@ function sellGoodWithPricing(state, economy, city, goodId, quantity, context, pr
   };
 }
 
-export function playerTradeEmbargoSaleWarnings(state, city, goodId) {
+function playerTradeEmbargoSaleOrders(state, city, goodId) {
   assertGameState(state);
   if (!city || typeof city !== "object") throw new Error("Trade embargo warning requires a city");
   const destinationFactionId = tradeReputationFactionId(city);
@@ -5599,6 +5629,68 @@ export function playerTradeEmbargoSaleWarnings(state, city, goodId) {
     goodId,
     playerFactionId: state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID
   });
+}
+
+export function playerTradeEmbargoSaleWarnings(
+  state,
+  city,
+  goodId,
+  simMinute = state?.survival?.lastMinute
+) {
+  return visiblePlayerTradeEmbargoWarnings(
+    state,
+    playerTradeEmbargoSaleOrders(state, city, goodId),
+    simMinute
+  );
+}
+
+export function acknowledgePlayerTradeEmbargoWarnings(state, orders, simMinute) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (!Array.isArray(orders) || orders.length === 0) {
+    throw new Error("Acknowledging trade embargo warnings requires at least one order");
+  }
+  const issuerFactionIds = new Set();
+  for (const order of orders) {
+    if (!order || typeof order.id !== "string" || order.id === "") {
+      throw new Error("Acknowledging trade embargo warnings requires canonical order ids");
+    }
+    const canonical = tradeEmbargoOrderById(state.relations.tradeEmbargoes, order.id);
+    if (canonical.issuerFactionId !== order.issuerFactionId) {
+      throw new Error(`Trade embargo warning issuer changed for ${order.id}`);
+    }
+    issuerFactionIds.add(assertFactionId(order.issuerFactionId));
+  }
+  for (const factionId of issuerFactionIds) {
+    state.memory.decisions[tradeEmbargoWarningAcknowledgementKey(factionId)] = simMinute + 1;
+  }
+  return Object.freeze([...issuerFactionIds]);
+}
+
+function visiblePlayerTradeEmbargoWarnings(state, orders, simMinute) {
+  assertSimulationMinute(simMinute);
+  if (!Array.isArray(orders)) throw new Error("Trade embargo warnings require orders");
+  if (orders.length === 0) return Object.freeze([]);
+  return Object.freeze(orders.filter((order) => (
+    !tradeEmbargoWarningOnCooldown(state, order.issuerFactionId, simMinute) &&
+    order.followerFactionIds.some((factionId) => (
+      !playerFactionAttacksOnSight(state, factionId)
+    ))
+  )));
+}
+
+function tradeEmbargoWarningOnCooldown(state, issuerFactionId, simMinute) {
+  const factionId = assertFactionId(issuerFactionId);
+  const value = state.memory.decisions[tradeEmbargoWarningAcknowledgementKey(factionId)];
+  if (value === undefined) return false;
+  if (!Number.isFinite(value) || value < 1) {
+    throw new Error(`Invalid trade embargo warning acknowledgement minute: ${value}`);
+  }
+  return simMinute - (value - 1) < TRADE_EMBARGO_WARNING_COOLDOWN_MINUTES;
+}
+
+function tradeEmbargoWarningAcknowledgementKey(issuerFactionId) {
+  return `trade.embargo-warning-acknowledged.${assertFactionId(issuerFactionId)}`;
 }
 
 function recordTradeEmbargoDeliveryConsequences(state, orders) {

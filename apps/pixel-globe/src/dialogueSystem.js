@@ -5,6 +5,7 @@ import {
   PORT_NAVIGATION_REASON_QUEST_CARGO,
   PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
   PORT_NAVIGATION_REASON_TRADE_PRICE,
+  acknowledgePlayerTradeEmbargoWarnings,
   acknowledgePlayerPortCustomsNotice,
   acceptQuest,
   adjustFactionReputation,
@@ -130,8 +131,7 @@ import { rulerAtMinute } from "./rulers.js";
 import { portGreetingPresentationForPersonality, portPersonalityForKey } from "./portDialoguePersonality.js";
 import { portFactorRecognitionForCaptain } from "./portFactorRecognition.js";
 import {
-  occasionalReligiousGreeting,
-  protestantColonistReception
+  occasionalReligiousGreeting
 } from "./religiousDialogue.js";
 import { isIslamicReligion, religionById } from "./characterReligion.js";
 import {
@@ -196,6 +196,7 @@ import { formatSignedReputation } from "./reputationDisplay.js";
 import { validateDialogueDecision } from "./dialogueDecisionValidation.js";
 import { shipLabelForSlug, shipStatsForSlug } from "./shipStats.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
+import { shipyardListingCondition } from "./shipyardListingPresentation.js";
 import { portArrivalPresentation } from "./portArrivalFlavor.js";
 import {
   playerShipyardLedger,
@@ -443,6 +444,7 @@ export function createPortDialogueSession(city, options = {}) {
     shipyardMaterialSourceHints: null,
     shipyardPurchaseListingId: null,
     shipyardPurchaseReturnNodeId: null,
+    shipyardPurchasePending: false,
     shipyardInvestmentArrival: options.shipyardInvestmentArrival === true,
     shipyardInvestmentOfferApproached: false,
     specialEquipmentOffer: null,
@@ -1953,6 +1955,7 @@ export function selectPortDialogueOption(
     if (session.nodeId === "shipyard-purchase") {
       session.shipyardPurchaseListingId = null;
       session.shipyardPurchaseReturnNodeId = null;
+      session.shipyardPurchasePending = false;
     }
     if (session.nodeId === "marque" && action.nodeId !== "marque") {
       session.marqueGrantedFactionId = null;
@@ -2040,6 +2043,7 @@ export function selectPortDialogueOption(
     requireShipyardListingAction(action, context);
     session.shipyardPurchaseListingId = action.listingId;
     session.shipyardPurchaseReturnNodeId = null;
+    session.shipyardPurchasePending = false;
     session.nodeId = "shipyard-purchase";
     session.selectedIndex = 0;
     session.feedback = null;
@@ -2052,6 +2056,7 @@ export function selectPortDialogueOption(
     requireShipyardListingAction(action, context);
     session.shipyardPurchaseListingId = action.listingId;
     session.shipyardPurchaseReturnNodeId = session.nodeId;
+    session.shipyardPurchasePending = false;
     session.nodeId = "shipyard-purchase-confirm";
     session.selectedIndex = 1;
     session.feedback = null;
@@ -2067,6 +2072,7 @@ export function selectPortDialogueOption(
     }
     session.nodeId = returnNodeId;
     session.shipyardPurchaseReturnNodeId = null;
+    session.shipyardPurchasePending = false;
     if (returnNodeId === "shipyard") session.shipyardPurchaseListingId = null;
     session.selectedIndex = 0;
     session.feedback = null;
@@ -2282,6 +2288,8 @@ export function selectPortDialogueOption(
       throw new Error("Ship purchase requires explicit confirmation");
     }
     requireShipyardListingAction(action, context);
+    session.shipyardPurchasePending = true;
+    session.feedback = null;
     return { closed: false, action };
   }
   if (action.type === "begin-shipyard-investment") {
@@ -2974,7 +2982,12 @@ export function selectPortDialogueOption(
   }
   if (action.type === "buy" || action.type === "buy-max") {
     const quantity = action.type === "buy-max" ? action.quantity : 1;
-    const warnings = playerTradeEmbargoPurchaseWarnings(gameState, city, action.goodId)
+    const warnings = playerTradeEmbargoPurchaseWarnings(
+      gameState,
+      city,
+      action.goodId,
+      context.simMinute ?? 0
+    )
       .filter((order) => !session.acknowledgedTradeEmbargoOrderIds.includes(order.id));
     if (warnings.length > 0) {
       session.pendingTradeEmbargoPurchase = {
@@ -2994,6 +3007,7 @@ export function selectPortDialogueOption(
   }
   if (action.type === "confirm-trade-embargo-purchase") {
     const pending = requiredTradeEmbargoPurchase(session);
+    acknowledgePlayerTradeEmbargoWarnings(gameState, pending.orders, context.simMinute ?? 0);
     session.acknowledgedTradeEmbargoOrderIds = [...new Set([
       ...session.acknowledgedTradeEmbargoOrderIds,
       ...pending.orders.map((order) => order.id)
@@ -3058,6 +3072,7 @@ export function selectPortDialogueOption(
   }
   if (action.type === "confirm-trade-embargo-sale") {
     const pending = requiredTradeEmbargoSale(session);
+    acknowledgePlayerTradeEmbargoWarnings(gameState, pending.orders, context.simMinute ?? 0);
     session.acknowledgedTradeEmbargoOrderIds = [...new Set([
       ...session.acknowledgedTradeEmbargoOrderIds,
       ...pending.orders.map((order) => order.id)
@@ -5022,6 +5037,15 @@ function caribbeanGingerView(session, city, gameState) {
   };
 }
 
+function colonizationFetchRequestVerb(lead) {
+  if (typeof lead !== "string" || lead === "") {
+    throw new Error("Colonization fetch request requires a lead sentence");
+  }
+  const match = lead.match(/([A-Za-z]+)$/);
+  if (!match) throw new Error(`Colonization fetch request has no closing verb: ${lead}`);
+  return match[1];
+}
+
 function colonizationView(session, city, gameState, context) {
   const quest = colonizationQuestView(gameState, {
     currentMinute: context.simMinute ?? 0,
@@ -5103,18 +5127,8 @@ function colonizationView(session, city, gameState, context) {
       ? `${factionNounPhrase(quest.target.originFactionId, { sentenceStart: true })} has lost its last port, but loyal servants have not abandoned the flag. This expedition can keep our cause alive overseas until fortune turns.`
       : null;
     const introduction = session.colonizationArrival && quest.fetchStageIndex === 0
-      ? [
-          "Captain, a word before you see the factor.",
-          exileIntroduction,
-          history.pitch,
-          history.organizerReligionId && gameState.playerCharacter?.religionId
-            ? protestantColonistReception({
-                organizerReligionId: history.organizerReligionId,
-                captainReligionId: gameState.playerCharacter.religionId
-              })
-            : null,
-          stage.lead
-        ].filter(Boolean).join(" ")
+      ? [exileIntroduction, history.pitch, colonizationFetchRequestVerb(stage.lead)]
+        .filter(Boolean).join(" ")
       : stage.lead;
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
@@ -5796,7 +5810,9 @@ function shipyardView(session, city, gameState, economy, context) {
       speaker: speakerName(city),
       expressionId: "neutral",
       text: nearestListing
-        ? `I heard a rumour of a new ${nearestListing.shipProseLabel} for sale at ${nearestListing.portName}.`
+        ? nearestListing.source === "trade-in"
+          ? `I heard a rumour of a pre-owned ${nearestListing.shipProseLabel} for sale at ${nearestListing.portName}.`
+          : `I heard a rumour of a new ${nearestListing.shipProseLabel} for sale at ${nearestListing.portName}.`
         : city.isPirateHideout
           ? "The hidden slips can patch any hull, but there is no captured vessel for sale today. No shipyard currently has a vessel for sale."
           : yard?.famous
@@ -5827,7 +5843,7 @@ function shipyardView(session, city, gameState, economy, context) {
     feedback: session.feedback,
     options: [
       ...listings.map((listing) => option(
-        `${listing.source === "trade-in" ? "Pre-owned" : "New"} ${listing.shipLabel}  ${listing.price} db`,
+        `${shipyardListingCondition(listing.source).menuAdjective} ${listing.shipLabel}  ${listing.price} db`,
         {
           type: "inspect-shipyard-listing",
           listingId: listing.id,
@@ -5850,11 +5866,11 @@ function shipyardPurchaseView(session, city, gameState, context) {
 
 function shipyardListingView(session, city, gameState, context, listing, backNodeId) {
   const purchase = shipyardPurchaseOffer(listing, gameState, context);
-  const condition = listing.source === "trade-in" ? "A pre-owned" : "A newly built";
+  const condition = shipyardListingCondition(listing.source);
   return {
     speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
-    text: `${condition} ${listing.shipLabel} is offered for ${listing.price} doubloons. Your ${purchase.currentShipLabel} is worth ${purchase.purchaseTerms.tradeInValue} in trade.`,
+    text: `${condition.sentenceLead} ${listing.shipLabel} is offered for ${listing.price} doubloons. Your ${purchase.currentShipLabel} is worth ${purchase.purchaseTerms.tradeInValue} in trade.`,
     feedback: session.feedback,
     presentation: {
       kind: "shipyard",
@@ -5888,19 +5904,28 @@ function shipyardPurchaseConfirmationView(session, city, gameState, context) {
   const tradeQuestion = purchase.purchaseTerms.netPrice >= 0
     ? `Trade your ${purchase.currentShipLabel} and pay ${purchase.purchaseTerms.netPrice} doubloons for the ${listing.shipLabel}`
     : `Trade your ${purchase.currentShipLabel} for the ${listing.shipLabel} and receive ${-purchase.purchaseTerms.netPrice} doubloons`;
+  const pending = session.shipyardPurchasePending === true;
   return {
     speaker: city.isPirateHideout ? `${cityLabel(city)} hidden yard` : `${cityLabel(city)} shipyard`,
     expressionId: "attentive",
-    text: `${tradeQuestion}? This cannot be undone.`,
-    feedback: session.feedback,
-    feedbackTone: "danger",
+    text: pending
+      ? "The shipwrights are readying the vessel for inspection."
+      : `${tradeQuestion}? This cannot be undone.`,
+    feedback: pending ? null : session.feedback,
+    feedbackTone: pending ? undefined : "danger",
     options: [
       option("Confirm exchange", {
         type: "purchase-ship",
         listingId: listing.id,
         shipSlug: listing.shipSlug
+      }, {
+        disabled: pending,
+        disabledReason: pending ? "The shipwrights are readying the vessel for inspection." : null
       }),
-      option(`Keep ${purchase.currentShipLabel}`, { type: "cancel-ship-purchase" })
+      option(`Keep ${purchase.currentShipLabel}`, { type: "cancel-ship-purchase" }, {
+        disabled: pending,
+        disabledReason: pending ? "The shipwrights are readying the vessel for inspection." : null
+      })
     ]
   };
 }
@@ -7013,7 +7038,12 @@ function ensureMarketUndoSession(session, nodeId, gameState, economy, city) {
 function continueMarketSale(session, city, gameState, economy, action, context) {
   const quantity = action.type === "sell-all" ? action.quantity : 1;
   const normalizedAction = { ...action, quantity };
-  const embargoOrders = playerTradeEmbargoSaleWarnings(gameState, city, action.goodId)
+  const embargoOrders = playerTradeEmbargoSaleWarnings(
+    gameState,
+    city,
+    action.goodId,
+    context.simMinute ?? 0
+  )
     .filter((order) => !session.acknowledgedTradeEmbargoOrderIds.includes(order.id));
   if (embargoOrders.length > 0) {
     session.pendingTradeEmbargoSale = {

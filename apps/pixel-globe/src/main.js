@@ -452,6 +452,7 @@ import {
   nextGamePoliticsMinute,
   playerVesselLossOutcome,
   playerFishingNet,
+  playerFactionAttacksOnSight,
   playerWhaleHarpoon,
   playerShipIsWarship,
   playerPortAttackStatus,
@@ -1843,6 +1844,7 @@ import {
   shipyardPurchaseTerms,
   shipyardRumorForPort
 } from "./shipyards.js";
+import { shipyardListingCondition } from "./shipyardListingPresentation.js";
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
   assertPlayerShipyardInvestmentWorldConsistency,
@@ -23843,7 +23845,8 @@ async function purchaseShipyardShip(action) {
   if (shipyardPurchaseListingId) return;
   const session = dialogueState;
   if (session?.kind !== "port" || session.nodeId !== "shipyard-purchase-confirm" ||
-      session.shipyardPurchaseListingId !== action.listingId) {
+      session.shipyardPurchaseListingId !== action.listingId ||
+      session.shipyardPurchasePending !== true) {
     throw new Error("Shipyard trade attempted without the active confirmation screen");
   }
   const city = currentDialogueCity();
@@ -23856,14 +23859,14 @@ async function purchaseShipyardShip(action) {
     return;
   }
   shipyardPurchaseListingId = listing.id;
-  session.feedback = "The shipwrights are readying the vessel for inspection.";
   invalidateDialogueView();
   dirty = true;
   try {
     const stats = shipStatsForSlug(listing.shipSlug);
     const assets = await loadShipAssetSet(listing.shipSlug);
     if (dialogueState !== session || session.nodeId !== "shipyard-purchase-confirm" ||
-        session.shipyardPurchaseListingId !== listing.id) return;
+        session.shipyardPurchaseListingId !== listing.id ||
+        session.shipyardPurchasePending !== true) return;
     const purchaseTerms = shipyardPurchaseTerms(listing.price, ship.typeSlug);
     const tradedShipSlug = ship.typeSlug;
     const vikingTradeIn = vikingLongshipTradeInPlan(gameState);
@@ -23898,6 +23901,7 @@ async function purchaseShipyardShip(action) {
     playShipHandoverSound();
     session.shipyardPurchaseListingId = null;
     session.shipyardPurchaseReturnNodeId = null;
+    session.shipyardPurchasePending = false;
     const transactionText = purchaseTerms.netPrice >= 0
       ? `The ${listing.shipLabel} is yours for ${purchaseTerms.netPrice} doubloons after trade-in.`
       : `The ${listing.shipLabel} is yours, and I have returned ${-purchaseTerms.netPrice} doubloons on the trade.`;
@@ -23949,6 +23953,7 @@ async function purchaseShipyardShip(action) {
     saveVoyageNow("ship purchase");
   } catch (error) {
     console.error(new Error(`Failed to purchase ${listing.shipLabel}`, { cause: error }));
+    session.shipyardPurchasePending = false;
     session.feedback = error instanceof Error ? error.message : "The ship purchase failed.";
   } finally {
     shipyardPurchaseListingId = null;
@@ -26042,9 +26047,7 @@ function npcShipIsHostileToPlayer(state) {
   if (state.combatEnemyIds?.includes(PLAYER_COMBAT_ID) || strategic.encounter?.forceAttack === true) {
     return true;
   }
-  const diplomacy = currentDiplomacyBetween(ship.factionId, state.factionId);
-  return factionReputation(gameState, state.factionId) <= HOSTILE_PORT_REPUTATION_THRESHOLD ||
-    diplomacy === DIPLOMACY_HOSTILE || diplomacy === DIPLOMACY_WAR;
+  return playerFactionAttacksOnSight(gameState, state.factionId);
 }
 
 function portCallInInteractionRange(call) {
@@ -61146,6 +61149,7 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   const presentation = dialogueView.presentation;
   const shipyard = presentation.kind === "shipyard";
   const listing = shipyard ? presentation.listing : null;
+  const listingCondition = shipyard ? shipyardListingCondition(listing.source) : null;
   const candidateSlug = shipyard ? listing.shipSlug : presentation.candidateShipSlug;
   const vessel = createShipyardShipView(candidateSlug);
   const comparison = createShipComparisonView(presentation.currentShipSlug, candidateSlug);
@@ -61162,7 +61166,7 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
 
   drawPiratePaperModal(panel, 0.9);
 
-  const heading = shipyard ? "SHIPYARD / NEW VESSEL" : "SURRENDERED PRIZE";
+  const heading = shipyard ? listingCondition.overlayHeading : "SURRENDERED PRIZE";
   const headingLayout = shipyard
     ? drawShipyardPurchaseBalance(panel, presentation.purchaseTerms.netPrice, heading)
     : { x: panel.x + panel.w / 2, align: "center" };
@@ -61197,13 +61201,23 @@ function drawVesselDecisionDialogueOverlay(dialogueView) {
   }
 
   if (compact) {
-    if (shipyard) drawCompactShipyardStats(panel, comparison, presentation.purchaseTerms, artY, sideViewSize.h);
+    if (shipyard) {
+      drawCompactShipyardStats(
+        panel,
+        comparison,
+        presentation.purchaseTerms,
+        listingCondition.comparisonHeading,
+        artY,
+        sideViewSize.h
+      );
+    }
     else drawCompactShipCaptureStats(panel, comparison, presentation, artY, sideViewSize.h);
   } else if (shipyard) {
     drawLandscapeShipyardStats(
       panel,
       comparison,
       presentation.purchaseTerms,
+      listingCondition.comparisonHeading,
       artX + sideViewSize.w + (panel.w < 370 ? 8 : 12)
     );
   } else {
@@ -61239,11 +61253,11 @@ function vesselDecisionSideViewSize(panelWidth, compact) {
   return { w: 120, h: 65 };
 }
 
-function drawLandscapeShipyardStats(panel, comparison, purchaseTerms, comparisonX) {
+function drawLandscapeShipyardStats(panel, comparison, purchaseTerms, candidateHeading, comparisonX) {
   const comparisonY = panel.y + 40;
   drawShipComparison(
     comparison,
-    shipyardComparisonColumns(comparison),
+    shipyardComparisonColumns(comparison, candidateHeading),
     comparisonX,
     panel.x + panel.w - 12,
     comparisonY,
@@ -61256,11 +61270,11 @@ function drawLandscapeShipyardStats(panel, comparison, purchaseTerms, comparison
   );
 }
 
-function drawCompactShipyardStats(panel, comparison, purchaseTerms, artY, artHeight) {
+function drawCompactShipyardStats(panel, comparison, purchaseTerms, candidateHeading, artY, artHeight) {
   const comparisonY = artY + artHeight + 9;
   drawShipComparison(
     comparison,
-    shipyardComparisonColumns(comparison),
+    shipyardComparisonColumns(comparison, candidateHeading),
     panel.x + 12,
     panel.x + panel.w - 12,
     comparisonY,
@@ -61273,9 +61287,12 @@ function drawCompactShipyardStats(panel, comparison, purchaseTerms, artY, artHei
   );
 }
 
-function shipyardComparisonColumns(comparison) {
+function shipyardComparisonColumns(comparison, candidateHeading) {
+  if (typeof candidateHeading !== "string" || candidateHeading === "") {
+    throw new Error("Shipyard comparison requires a candidate condition heading");
+  }
   return {
-    candidateHeading: "NEW",
+    candidateHeading,
     currentHeading: "CURRENT",
     candidateHull: String(comparison.candidate.maxHull),
     currentHull: String(comparison.current.maxHull)

@@ -837,6 +837,7 @@ function shipyardListingNotice(yard, listing, distanceKm, local) {
     shipSlug: listing.shipSlug,
     shipLabel: listing.shipLabel,
     shipProseLabel: shipLabelForProse(listing.shipSlug),
+    source: listing.source,
     price: listing.price,
     distanceKm: Math.round(distanceKm),
     local

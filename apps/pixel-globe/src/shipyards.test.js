@@ -313,6 +313,7 @@ test("nearby factors can gossip about an active shipyard listing", () => {
 
   assert.equal(rumor.portName, "Lisbon");
   assert.equal(rumor.shipSlug, lisbonYard.listing.shipSlug);
+  assert.equal(rumor.source, "new-build");
   assert.equal(rumor.local, false);
   assert.ok(rumor.distanceKm < 400);
 });
@@ -328,6 +329,7 @@ test("factors advertise their own active listing before another port's", () => {
 
   assert.equal(rumor.portId, LISBON.cityId);
   assert.equal(rumor.shipSlug, lisbonYard.listing.shipSlug);
+  assert.equal(rumor.source, "new-build");
   assert.equal(rumor.distanceKm, 0);
   assert.equal(rumor.local, true);
 });
@@ -346,6 +348,7 @@ test("empty shipyards can name the nearest active vessel sale worldwide", () => 
   assert.equal(listing.portName, "Porto");
   assert.equal(listing.shipSlug, portoYard.listing.shipSlug);
   assert.equal(listing.shipProseLabel, shipLabelForProse(listing.shipSlug));
+  assert.equal(listing.source, "new-build");
   assert.ok(listing.distanceKm < 400);
 });
 

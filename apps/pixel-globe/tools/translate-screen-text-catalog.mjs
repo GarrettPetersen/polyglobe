@@ -125,6 +125,7 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  ...reviewedShipyardListingOverrides(),
   ...reviewedPortFactorRecognitionOverrides(),
   ...reviewedTreasurePirateSearchOverrides(),
   "The hoard is ours: {0} units of gold and Captain {1}'s treasure. Every pirate afloat will hunt us. Set course for {2}; I marked it on the chart. The old crew bars the way.": Object.freeze({
@@ -1309,6 +1310,87 @@ function reviewedLocaleOverrides(source, values) {
     throw new Error(`Reviewed locale translations are incomplete: ${source}`);
   }
   return Object.freeze(Object.fromEntries(LOCALES.map(({ id }, index) => [id, values[index]])));
+}
+
+function reviewedShipyardListingOverrides() {
+  const entries = [
+    ["I hear there is a pre-owned {0} for sale in {1}.", [
+      "听说{1}有一艘二手{0}出售。",
+      "Я слышал, что в {1} продаётся подержанный {0}.",
+      "He oído que hay un {0} usado a la venta en {1}.",
+      "Ouvi dizer que há um {0} usado à venda em {1}.",
+      "{1}で中古の{0}が売りに出ていると聞きました。",
+      "Ich habe gehört, dass in {1} ein gebrauchter {0} zum Verkauf steht.",
+      "J'ai entendu dire qu'un {0} d'occasion était à vendre à {1}.",
+      "Słyszałem, że w {1} jest na sprzedaż używany {0}.",
+      "聽說{1}有一艘二手{0}出售。",
+      "{1}에서 중고 {0}을 판매한다고 들었습니다."
+    ]],
+    ["I heard a rumour of a pre-owned {0} for sale at {1}.", [
+      "我听说{1}有一艘二手{0}出售。",
+      "До меня дошли слухи о продаже подержанного {0} в {1}.",
+      "He oído el rumor de que hay un {0} usado a la venta en {1}.",
+      "Ouvi um boato de que há um {0} usado à venda em {1}.",
+      "{1}で中古の{0}が売りに出ているという噂を聞きました。",
+      "Ich habe von einem gebrauchten {0} gehört, der in {1} zum Verkauf steht.",
+      "J'ai entendu dire qu'un {0} d'occasion était à vendre à {1}.",
+      "Słyszałem plotkę o używanym {0} na sprzedaż w {1}.",
+      "我聽說{1}有一艘二手{0}出售。",
+      "{1}에서 중고 {0}이 판매된다는 소문을 들었습니다."
+    ]],
+    ["Our shipyard has a pre-owned {0} for sale.", [
+      "我们的造船厂有一艘二手{0}出售。",
+      "На нашей верфи продаётся подержанный {0}.",
+      "Nuestro astillero tiene un {0} usado a la venta.",
+      "Nosso estaleiro tem um {0} usado à venda.",
+      "当造船所では中古の{0}を販売しています。",
+      "Unsere Werft hat einen gebrauchten {0} zum Verkauf.",
+      "Notre chantier naval propose un {0} d'occasion à la vente.",
+      "Nasza stocznia ma na sprzedaż używany {0}.",
+      "我們的造船廠有一艘二手{0}出售。",
+      "우리 조선소에서 중고 {0}을 판매하고 있습니다."
+    ]],
+    ["Shipyard report: a pre-owned {0} is for sale in {1}.", [
+      "造船厂报告：{1}有一艘二手{0}出售。",
+      "Отчёт верфи: в {1} продаётся подержанный {0}.",
+      "Informe del astillero: hay un {0} usado a la venta en {1}.",
+      "Relatório do estaleiro: há um {0} usado à venda em {1}.",
+      "造船所報告：{1}で中古の{0}が売りに出ています。",
+      "Werftbericht: In {1} steht ein gebrauchter {0} zum Verkauf.",
+      "Rapport du chantier naval : un {0} d'occasion est en vente à {1}.",
+      "Raport stoczni: w {1} jest na sprzedaż używany {0}.",
+      "造船廠報告：{1}有一艘二手{0}出售。",
+      "조선소 보고서: {1}에서 중고 {0}을 판매합니다."
+    ]],
+    ["There is profit in news: a pre-owned {0} is for sale in {1}.", [
+      "这消息有利可图：{1}有一艘二手{0}出售。",
+      "На этой вести можно заработать: в {1} продаётся подержанный {0}.",
+      "Hay ganancia en la noticia: hay un {0} usado a la venta en {1}.",
+      "Há lucro nessa notícia: há um {0} usado à venda em {1}.",
+      "この知らせには商機があります。{1}で中古の{0}が売りに出ています。",
+      "Diese Nachricht ist Geld wert: In {1} steht ein gebrauchter {0} zum Verkauf.",
+      "Cette nouvelle vaut de l'or : un {0} d'occasion est en vente à {1}.",
+      "Ta wieść jest coś warta: w {1} jest na sprzedaż używany {0}.",
+      "這消息有利可圖：{1}有一艘二手{0}出售。",
+      "돈이 될 소식입니다. {1}에서 중고 {0}을 판매합니다."
+    ]],
+    ["Word travels ahead of wakes. A pre-owned {0} is for sale in {1}.", [
+      "风声传得比船迹还快。{1}有一艘二手{0}出售。",
+      "Вести опережают корабельный след. В {1} продаётся подержанный {0}.",
+      "Las noticias viajan más rápido que las estelas. Hay un {0} usado a la venta en {1}.",
+      "As notícias correm à frente das esteiras. Há um {0} usado à venda em {1}.",
+      "噂は船の航跡よりも早く伝わります。{1}で中古の{0}が売りに出ています。",
+      "Die Kunde reist schneller als das Kielwasser. In {1} steht ein gebrauchter {0} zum Verkauf.",
+      "Les nouvelles voyagent plus vite que les sillages. Un {0} d'occasion est en vente à {1}.",
+      "Wieści biegną szybciej niż kilwater. W {1} jest na sprzedaż używany {0}.",
+      "風聲傳得比船跡還快。{1}有一艘二手{0}出售。",
+      "소식은 배의 항적보다 앞서 전해집니다. {1}에서 중고 {0}을 판매합니다."
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [
+    source,
+    reviewedLocaleOverrides(source, values)
+  ]));
 }
 
 function reviewedWarLoanOverrides() {

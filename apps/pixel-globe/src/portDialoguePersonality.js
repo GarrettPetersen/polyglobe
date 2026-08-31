@@ -3,6 +3,7 @@ import {
   occasionalReligiousGreeting
 } from "./religiousDialogue.js";
 import { factionNounPhrase } from "./factions.js";
+import { shipyardListingCondition } from "./shipyardListingPresentation.js";
 
 export const PORT_PERSONALITY_IDS = Object.freeze([
   "cordial",
@@ -251,11 +252,31 @@ function shipyardRumorLine(personalityId, rumor) {
     throw new Error("Shipyard rumor requires a prose-form ship label");
   }
   const hull = rumor.shipProseLabel;
-  if (rumor.local === true) return `Our shipyard has a new ${hull} for sale.`;
-  if (personalityId === "austere") return `Shipyard report: a new ${hull} is for sale in ${rumor.portName}.`;
-  if (personalityId === "enterprising") return `There is profit in news: a new ${hull} is for sale in ${rumor.portName}.`;
-  if (personalityId === "reflective") return `Word travels ahead of wakes. A new ${hull} is for sale in ${rumor.portName}.`;
-  return `I hear there is a new ${hull} for sale in ${rumor.portName}.`;
+  shipyardListingCondition(rumor.source);
+  const preOwned = rumor.source === "trade-in";
+  if (rumor.local === true) {
+    return preOwned
+      ? `Our shipyard has a pre-owned ${hull} for sale.`
+      : `Our shipyard has a new ${hull} for sale.`;
+  }
+  if (personalityId === "austere") {
+    return preOwned
+      ? `Shipyard report: a pre-owned ${hull} is for sale in ${rumor.portName}.`
+      : `Shipyard report: a new ${hull} is for sale in ${rumor.portName}.`;
+  }
+  if (personalityId === "enterprising") {
+    return preOwned
+      ? `There is profit in news: a pre-owned ${hull} is for sale in ${rumor.portName}.`
+      : `There is profit in news: a new ${hull} is for sale in ${rumor.portName}.`;
+  }
+  if (personalityId === "reflective") {
+    return preOwned
+      ? `Word travels ahead of wakes. A pre-owned ${hull} is for sale in ${rumor.portName}.`
+      : `Word travels ahead of wakes. A new ${hull} is for sale in ${rumor.portName}.`;
+  }
+  return preOwned
+    ? `I hear there is a pre-owned ${hull} for sale in ${rumor.portName}.`
+    : `I hear there is a new ${hull} for sale in ${rumor.portName}.`;
 }
 
 function lowerFirst(value) {
