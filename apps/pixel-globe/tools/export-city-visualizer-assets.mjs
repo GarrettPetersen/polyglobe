@@ -49,6 +49,7 @@ const REGIONAL_BUILDING_LAYERS = Object.freeze({
 
 const STANDALONE_BUILDING_LAYERS = Object.freeze([
   "Church",
+  "Mosque",
   ...Object.keys(REGIONAL_BUILDING_LAYERS)
 ]);
 

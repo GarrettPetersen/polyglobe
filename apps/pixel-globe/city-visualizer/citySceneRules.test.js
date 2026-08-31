@@ -684,6 +684,22 @@ test("Christian communities opt into the shared church landmark through city dat
   assert.equal(resolveCitySceneFeatures(CITY).church, false);
 });
 
+test("Islamic communities opt into the mosque landmark through city data", () => {
+  const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
+  const cairo = cityById.get("cairo|egypt");
+  const alexandria = cityById.get("alexandria|egypt");
+  const london = cityById.get("london|united kingdom");
+  assert.deepEqual(cairo?.religiousLandmarks, ["mosque"]);
+  assert.equal(cairo?.backgroundCity?.landmarks?.mosque, 3);
+  assert.equal(alexandria?.backgroundCity?.landmarks?.mosque, 1);
+  assert.equal(london?.backgroundCity?.landmarks?.mosque, 0);
+  assert.equal(
+    resolveCitySceneFeatures({ ...CITY, religiousLandmarks: ["mosque"] }).mosque,
+    true
+  );
+  assert.equal(resolveCitySceneFeatures(CITY).mosque, false);
+});
+
 test("manual feature overrides can audition missing art without changing the city bake", () => {
   const features = resolveCitySceneFeatures(CITY, {
     approach: "ocean",

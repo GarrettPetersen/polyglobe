@@ -9,6 +9,7 @@ export const BACKGROUND_CITY_BUILDING_LAYERS = Object.freeze([
   "Home 2"
 ]);
 export const BACKGROUND_CITY_CHURCH_LAYER = "Church";
+export const BACKGROUND_CITY_MOSQUE_LAYER = "Mosque";
 
 export const BACKGROUND_CITY_FRONT_DEPTH = 0.86;
 export const BACKGROUND_CITY_REAR_DEPTH = 0.8;
@@ -18,6 +19,8 @@ export const BACKGROUND_CITY_QUAY_CLEARANCE = 15;
 export const BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT = 12;
 export const BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT = 36;
 export const BACKGROUND_CITY_CHURCH_SCALE_MULTIPLIER = 0.72;
+export const BACKGROUND_CITY_MOSQUE_FOUNDATION_SOURCE_HEIGHT = 12;
+export const BACKGROUND_CITY_MOSQUE_SCALE_MULTIPLIER = 1;
 export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
 export const BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL = 1 / 24;
 export const BACKGROUND_CITY_FOUNDATION_TOLERANCE = 3;
@@ -44,6 +47,10 @@ const ATMOSPHERE_RGB_CACHE = Object.freeze([
   new Map(),
   new Map(),
   new Map()
+]);
+const BACKGROUND_CITY_RELIGIOUS_LANDMARK_LAYERS = new Set([
+  BACKGROUND_CITY_CHURCH_LAYER,
+  BACKGROUND_CITY_MOSQUE_LAYER
 ]);
 
 export function cityBackgroundEnabled(city) {
@@ -261,17 +268,7 @@ export function cityBackgroundLayout({ city, frames, baseFrame, baseTopYByX }) {
   const baseRight = baseLeft + baseFrame.spriteSourceSize.w;
   const cityLeft = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE;
   const foundationAnchorY = baseTopYByX[0];
-  const churchCount = backgroundCityChurchCount(city);
-  const churchFrame = churchCount > 0
-    ? frameByLayer.get(BACKGROUND_CITY_CHURCH_LAYER)
-    : null;
-  if (churchCount > 0) {
-    requireFrame(churchFrame, BACKGROUND_CITY_CHURCH_LAYER);
-  }
-  const churchPlans = cityBackgroundChurchPlans({
-    cityId: city.id,
-    count: churchCount
-  });
+  const landmarkGroups = backgroundCityReligiousLandmarkGroups({ city, frameByLayer });
   const placements = [];
   const cycleOffset = randomInteger(random, 0, buildingPool.length - 1);
   let x = cityLeft;
@@ -346,10 +343,9 @@ export function cityBackgroundLayout({ city, frames, baseFrame, baseTopYByX }) {
     foundationAnchorY
   });
 
-  insertBackgroundCityChurches({
+  insertBackgroundCityReligiousLandmarks({
     placements,
-    churchPlans,
-    churchFrame,
+    landmarkGroups,
     skylineReferenceFrame,
     baseLeft,
     baseRight,
@@ -361,15 +357,23 @@ export function cityBackgroundLayout({ city, frames, baseFrame, baseTopYByX }) {
 }
 
 export function cityBackgroundChurchPlans({ cityId, count }) {
+  return cityBackgroundReligiousLandmarkPlans({ cityId, count, landmark: "church" });
+}
+
+export function cityBackgroundMosquePlans({ cityId, count }) {
+  return cityBackgroundReligiousLandmarkPlans({ cityId, count, landmark: "mosque" });
+}
+
+function cityBackgroundReligiousLandmarkPlans({ cityId, count, landmark }) {
   if (typeof cityId !== "string" || cityId === "") {
-    throw new Error("Background city church plans require a city id");
+    throw new Error(`Background city ${landmark} plans require a city id`);
   }
   if (!Number.isInteger(count) || count < 0 || count > 6) {
-    throw new Error(`Invalid background city church count: ${count}`);
+    throw new Error(`Invalid background city ${landmark} count: ${count}`);
   }
   if (count === 0) return Object.freeze([]);
   const admittedCount = count;
-  const random = seededRandom(hashString(`${cityId}|church-districts`));
+  const random = seededRandom(hashString(`${cityId}|${landmark}-districts`));
   const minimumPerspective = 0.68;
   const maximumPerspective = 0.92;
   const plans = [];
@@ -711,15 +715,44 @@ function backgroundCityDensityOverlap(city) {
   return overlap;
 }
 
-function backgroundCityChurchCount(city) {
-  const configuredCount = city.backgroundCity?.landmarks?.church;
+function backgroundCityReligiousLandmarkCount(city, landmark) {
+  const configuredCount = city.backgroundCity?.landmarks?.[landmark];
   if (configuredCount === undefined) {
-    return city.religiousLandmarks?.includes("church") ? 1 : 0;
+    return city.religiousLandmarks?.includes(landmark) ? 1 : 0;
   }
   if (!Number.isInteger(configuredCount) || configuredCount < 0 || configuredCount > 6) {
-    throw new Error(`Invalid background city church count: ${configuredCount}`);
+    throw new Error(`Invalid background city ${landmark} count: ${configuredCount}`);
   }
   return configuredCount;
+}
+
+function backgroundCityReligiousLandmarkGroups({ city, frameByLayer }) {
+  return Object.freeze([
+    Object.freeze({
+      landmark: "church",
+      layer: BACKGROUND_CITY_CHURCH_LAYER,
+      foundationSourceHeight: BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT,
+      scaleMultiplier: BACKGROUND_CITY_CHURCH_SCALE_MULTIPLIER,
+      plans: cityBackgroundChurchPlans({
+        cityId: city.id,
+        count: backgroundCityReligiousLandmarkCount(city, "church")
+      })
+    }),
+    Object.freeze({
+      landmark: "mosque",
+      layer: BACKGROUND_CITY_MOSQUE_LAYER,
+      foundationSourceHeight: BACKGROUND_CITY_MOSQUE_FOUNDATION_SOURCE_HEIGHT,
+      scaleMultiplier: BACKGROUND_CITY_MOSQUE_SCALE_MULTIPLIER,
+      plans: cityBackgroundMosquePlans({
+        cityId: city.id,
+        count: backgroundCityReligiousLandmarkCount(city, "mosque")
+      })
+    })
+  ].filter((group) => group.plans.length > 0).map((group) => {
+    const frame = frameByLayer.get(group.layer);
+    requireFrame(frame, group.layer);
+    return Object.freeze({ ...group, frame });
+  }));
 }
 
 function requireFrame(frame, layerName) {
@@ -998,24 +1031,31 @@ function fillBackgroundCityFoundationGaps({
   }
 }
 
-function insertBackgroundCityChurches({
+function insertBackgroundCityReligiousLandmarks({
   placements,
-  churchPlans,
-  churchFrame,
+  landmarkGroups,
   skylineReferenceFrame,
   baseLeft,
   baseRight,
   baseTopYByX,
   foundationAnchorY
 }) {
-  if (!churchFrame || churchPlans.length === 0) return;
+  if (landmarkGroups.length === 0) return;
   const used = new Set();
-  for (const plan of churchPlans) {
+  const plannedLandmarks = landmarkGroups.flatMap((group) => (
+    group.plans.map((plan) => ({ ...group, plan }))
+  ));
+  for (const landmark of plannedLandmarks) {
+    const { plan, frame, foundationSourceHeight, scaleMultiplier } = landmark;
     const targetX = baseLeft + BACKGROUND_CITY_QUAY_CLEARANCE +
       (baseRight - baseLeft - BACKGROUND_CITY_QUAY_CLEARANCE) * plan.targetFraction;
     const targetPerspective = plan.targetPerspective;
     const candidates = placements.map((building, index) => ({ building, index }))
-      .filter(({ index, building }) => !used.has(index) && !building.groundedOnRibbon)
+      .filter(({ index, building }) => (
+        !used.has(index) &&
+        !building.groundedOnRibbon &&
+        !BACKGROUND_CITY_RELIGIOUS_LANDMARK_LAYERS.has(building.frame.layer)
+      ))
       .sort((left, right) => (
         Math.abs(left.building.x - targetX) +
           Math.abs(left.building.perspective - targetPerspective) * 180 -
@@ -1024,11 +1064,11 @@ function insertBackgroundCityChurches({
       ));
     for (const { building: replaced, index } of candidates) {
       const geometry = cityBackgroundGeometryAtX({
-        frame: churchFrame,
+        frame,
         x: replaced.x,
         foundationY: replaced.wallBottomY,
-        foundationSourceHeight: BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT,
-        scaleMultiplier: BACKGROUND_CITY_CHURCH_SCALE_MULTIPLIER,
+        foundationSourceHeight,
+        scaleMultiplier,
         groundOnRibbon: false,
         baseLeft,
         baseRight,
@@ -1036,14 +1076,15 @@ function insertBackgroundCityChurches({
         foundationAnchorY
       });
       if (!geometry) continue;
-      const church = cityBackgroundBuilding(churchFrame, geometry);
+      const religiousLandmark = cityBackgroundBuilding(frame, geometry);
       const otherBuildings = placements.filter((_, candidateIndex) => candidateIndex !== index);
-      if (!foundationSpanIsOccluded({ building: church, nearerBuildings: otherBuildings })) continue;
-      const churchSkylineHeight = Math.max(1, Math.round(
-        (skylineReferenceFrame.frame.h - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) * church.scale
+      if (!foundationSpanIsOccluded({ building: religiousLandmark, nearerBuildings: otherBuildings })) continue;
+      const skylineHeight = Math.max(1, Math.round(
+        (skylineReferenceFrame.frame.h - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) *
+          religiousLandmark.scale
       ));
-      church.skylineTopY = church.wallBottomY - churchSkylineHeight;
-      placements[index] = church;
+      religiousLandmark.skylineTopY = religiousLandmark.wallBottomY - skylineHeight;
+      placements[index] = religiousLandmark;
       if (flyingCityPlacements(placements).length > 0) {
         placements[index] = replaced;
         continue;

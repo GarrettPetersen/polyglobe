@@ -24,6 +24,7 @@ import { isWaterSurfaceRow } from "../src/terrainSurface.js";
 import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
 import {
   isChristianReligion,
+  isIslamicReligion,
   religionCandidatesForHome
 } from "../src/characterReligion.js";
 import { cityBackgroundEnabled } from "../city-visualizer/cityBackground.js";
@@ -188,9 +189,10 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
 
 function religiousLandmarks(city) {
   const candidates = religionCandidatesForHome(city);
-  return Object.freeze(candidates.some(({ id }) => isChristianReligion(id))
-    ? ["church"]
-    : []);
+  const landmarks = [];
+  if (candidates.some(({ id }) => isChristianReligion(id))) landmarks.push("church");
+  if (candidates.some(({ id }) => isIslamicReligion(id))) landmarks.push("mosque");
+  return Object.freeze(landmarks);
 }
 
 function backgroundCityProfile(city, landmarks) {
@@ -201,12 +203,8 @@ function backgroundCityProfile(city, landmarks) {
       ? "moderate"
       : "sparse";
   const variation = hashString(city.cityId);
-  const churchCount = landmarks.includes("church") && cityBackgroundEnabled(city)
-    ? population >= 100_000
-      ? 3
-      : population >= 50_000
-        ? 2
-        : 1
+  const landmarkCount = (landmark) => landmarks.includes(landmark) && cityBackgroundEnabled(city)
+    ? population >= 100_000 ? 3 : population >= 50_000 ? 2 : 1
     : 0;
   return Object.freeze({
     density,
@@ -216,7 +214,10 @@ function backgroundCityProfile(city, landmarks) {
       inn: population >= 20_000 || city.declaredCapitalFactionId ? 2 : 1,
       smith: population >= 50_000 ? 2 : 1
     }),
-    landmarks: Object.freeze({ church: churchCount })
+    landmarks: Object.freeze({
+      church: landmarkCount("church"),
+      mosque: landmarkCount("mosque")
+    })
   });
 }
 

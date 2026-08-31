@@ -513,6 +513,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     rightDistantTerrain: requireTerrain(city.terrain?.rightDistant || city.terrain?.right || "grass"),
     backgroundCity: cityBackgroundEnabled(city),
     church: Boolean(city.religiousLandmarks?.includes("church")),
+    mosque: Boolean(city.religiousLandmarks?.includes("mosque")),
     leftBankCity: Boolean(city.builtUpBothBanks),
     npcs: city.settlementType === "village" ? 3 : 6,
     props: city.settlementType === "village" ? 1 : 3

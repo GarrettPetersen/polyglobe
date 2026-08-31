@@ -6,6 +6,9 @@ import {
   BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT,
   BACKGROUND_CITY_CHURCH_LAYER,
   BACKGROUND_CITY_CHURCH_SCALE_MULTIPLIER,
+  BACKGROUND_CITY_MOSQUE_FOUNDATION_SOURCE_HEIGHT,
+  BACKGROUND_CITY_MOSQUE_LAYER,
+  BACKGROUND_CITY_MOSQUE_SCALE_MULTIPLIER,
   BACKGROUND_CITY_FAR_SCALE,
   BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL,
   BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT,
@@ -21,6 +24,7 @@ import {
   cityBackgroundAtmosphereRgb,
   cityBackgroundBaseTopProfile,
   cityBackgroundChurchPlans,
+  cityBackgroundMosquePlans,
   cityBackgroundDepthForPerspective,
   cityBackgroundEnabled,
   cityBackgroundFoundationEnvelope,
@@ -48,7 +52,9 @@ const FRAMES = Object.freeze(BACKGROUND_CITY_BUILDING_LAYERS.map((layer) => fram
   ...BUILDING_SIZES[layer]
 )));
 const CHURCH_FRAME = frame(BACKGROUND_CITY_CHURCH_LAYER, 195, 367, 142, 16);
+const MOSQUE_FRAME = frame(BACKGROUND_CITY_MOSQUE_LAYER, 165, 137, 161, 119);
 const FRAMES_WITH_CHURCH = Object.freeze([...FRAMES, CHURCH_FRAME]);
+const FRAMES_WITH_MOSQUE = Object.freeze([...FRAMES, MOSQUE_FRAME]);
 const MEDITERRANEAN_FRAMES = Object.freeze([
   ...FRAMES,
   frame("Med Inn", 129, 101, 0, 0, { cityType: "mediterranean", regionalOf: "Inn" }),
@@ -257,6 +263,46 @@ test("a lone church sits behind the surrounding roof mass", () => {
     }),
     [{ targetPerspective: 0.84, targetFraction: 0.554 }]
   );
+});
+
+test("Islamic cities place buried mosques deep in the skyline without creating flying buildings", () => {
+  const city = {
+    ...LONDON,
+    id: "cairo|egypt",
+    cityType: "islamic-desert",
+    religiousLandmarks: ["mosque"],
+    backgroundCity: {
+      density: "dense",
+      buildingMix: { homeA: 4, homeB: 3, inn: 2, smith: 1 },
+      landmarks: { church: 0, mosque: 3 }
+    }
+  };
+  const rows = layout({ city, frames: FRAMES_WITH_MOSQUE, baseTopYByX: FALLING_BASE_TOP });
+  const mosques = allBuildings(rows).filter((building) => (
+    building.frame.layer === BACKGROUND_CITY_MOSQUE_LAYER
+  ));
+  assert.equal(mosques.length, 3);
+  assert.equal(new Set(mosques.map(({ perspective }) => perspective)).size, 3);
+  assert.equal(BACKGROUND_CITY_MOSQUE_FOUNDATION_SOURCE_HEIGHT, 12);
+  assert.equal(BACKGROUND_CITY_MOSQUE_SCALE_MULTIPLIER, 1);
+  for (const building of mosques) {
+    assert.ok(building.perspective >= 0.65);
+    assert.equal(
+      building.foundationHeight,
+      Math.round(BACKGROUND_CITY_MOSQUE_FOUNDATION_SOURCE_HEIGHT * building.scale)
+    );
+    assert.ok(building.skylineTopY > building.y, "minarets do not inflate the city mass target");
+  }
+  assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
+});
+
+test("mosque plans use separate districts and distances from church plans", () => {
+  const mosques = cityBackgroundMosquePlans({ cityId: "cairo|egypt", count: 3 });
+  const churches = cityBackgroundChurchPlans({ cityId: "cairo|egypt", count: 3 });
+  assert.equal(mosques.length, 3);
+  assert.equal(new Set(mosques.map(({ targetPerspective }) => targetPerspective)).size, 3);
+  assert.equal(new Set(mosques.map(({ targetFraction }) => targetFraction)).size, 3);
+  assert.notDeepEqual(mosques, churches);
 });
 
 test("city profiles vary point density and weighted building mix", () => {
