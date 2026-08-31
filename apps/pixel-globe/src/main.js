@@ -4380,6 +4380,13 @@ async function main() {
   if (localSaveResult.status === "invalid") {
     console.warn("[pixel-globe] local save is unavailable", localSaveResult.error);
     gameTelemetry.captureCrash(localSaveResult.error, telemetryCrashContext("save-read"));
+    capsuleLoadingScreen.fail(localSaveResult.error);
+    drawFatalError(
+      localSaveResult.error,
+      "Save could not be read",
+      telemetryCrashContext("save-read")
+    );
+    return;
   }
   voyageHistoryResult = CAPTURE_SCENARIO
     ? { status: "ready", records: [], error: null }
@@ -6616,6 +6623,7 @@ function lowFrameRateTelemetryContext() {
 }
 
 function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {}) {
+  if (displayedCrashReport) return;
   if (pendingWorldAssetError) {
     const error = pendingWorldAssetError;
     pendingWorldAssetError = null;
@@ -15365,6 +15373,11 @@ async function continueSavedVoyage() {
       menu.selectedIndex = 0;
       menu.message = "SAVE COULD NOT BE LOADED";
     }
+    drawFatalError(
+      error,
+      "Save could not be loaded",
+      telemetryCrashContext("save-restore")
+    );
     dirty = true;
   }
 }
@@ -62486,7 +62499,11 @@ function drawLoading() {
   drawPixelText("Loading Marque & Reprisal...", 8, 14, { font: PIXEL_FONT_SMALL_8 });
 }
 
-function drawFatalError(err, heading = "Prototype failed to start") {
+function drawFatalError(
+  err,
+  heading = "Prototype failed to start",
+  crashContext = telemetryCrashContext()
+) {
   ctx.fillStyle = "#1d1513";
   ctx.fillRect(0, 0, SCREEN_W, SCREEN_H);
   ctx.fillStyle = "#f0d2be";
@@ -62498,7 +62515,7 @@ function drawFatalError(err, heading = "Prototype failed to start") {
     heading,
     occurredAt: new Date().toISOString(),
     metadata: telemetryMetadata,
-    context: telemetryCrashContext(),
+    context: crashContext,
     language: currentLanguage,
     viewport: { width: SCREEN_W, height: SCREEN_H },
     userAgent: navigator.userAgent || "unknown"

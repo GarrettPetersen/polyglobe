@@ -8008,6 +8008,26 @@ function reconcilePortConquestIdentities(state, portCities, legacyPortTileIds) {
     }
   }
   for (const event of conquest.events) {
+    const eventKind = event.kind ?? "port-capture";
+    if (eventKind === "faction-collapse") continue;
+    if (["faction-restoration", "faction-succession"].includes(eventKind)) {
+      const capitalCityId = resolve(event.capitalPortId, `Conquest event ${event.id} capital`);
+      const controlledCityIds = event.cityPortIds.map((storedId, index) => (
+        resolve(storedId, `Conquest event ${event.id} city ${index}`)
+      ));
+      const changed = event.capitalPortId !== capitalCityId || controlledCityIds.some((cityId, index) => (
+        event.cityPortIds[index] !== cityId
+      ));
+      if (changed) {
+        event.capitalPortId = capitalCityId;
+        event.cityPortIds = controlledCityIds;
+        updates += 1;
+      }
+      continue;
+    }
+    if (eventKind !== "port-capture") {
+      throw new Error(`Unknown conquest event kind ${eventKind}: ${event.id}`);
+    }
     const cityId = resolve(event.cityId || event.portId, `Conquest event ${event.id}`);
     const city = cityById.get(cityId);
     if (event.cityId !== cityId || event.portId !== cityId || event.cityTileId !== city.tileId) {

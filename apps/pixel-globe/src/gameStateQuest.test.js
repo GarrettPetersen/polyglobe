@@ -352,6 +352,37 @@ test("saved port references follow canonical identities without guessing from di
   assert.equal(state.memory.quests.active.destinationTileId, PORTO.tileId);
 });
 
+test("constitutional conquest history is reconciled by its event kind rather than as a port capture", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  state.memory.conquest.events.push(
+    {
+      id: "succession-test-portugal-spain",
+      kind: "faction-succession",
+      predecessorFactionId: "portugal",
+      successorFactionId: "spain",
+      capitalPortId: LISBON.cityId,
+      cityPortIds: [LISBON.cityId, PORTO.cityId],
+      simMinute: 100,
+      source: "test"
+    },
+    {
+      id: "collapse-test-portugal",
+      kind: "faction-collapse",
+      factionId: "portugal",
+      successorFactionId: "spain",
+      simMinute: 101,
+      source: "test"
+    }
+  );
+
+  assert.doesNotThrow(() => reconcileQuestPortTiles(state, [LISBON, PORTO]));
+  assert.equal(state.memory.conquest.events[0].capitalPortId, LISBON.cityId);
+  assert.deepEqual(state.memory.conquest.events[0].cityPortIds, [
+    LISBON.cityId,
+    PORTO.cityId
+  ]);
+});
+
 test("stable city identities absorb city renames without stranding active work", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO]);

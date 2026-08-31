@@ -624,6 +624,33 @@ test("a collapsed empire loses its NPC fleet and captured port ownership", () =>
   assert.equal(routes.ships.some((ship) => ship.factionId === "portugal"), false);
 });
 
+test("conquest ownership ignores generated fishing grounds while requiring city ids for ports", () => {
+  const fishState = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({
+    ports: PORTS,
+    startMinute: 0,
+    economy,
+    fishState,
+    fishingGroundIsNavigable: ALL_TEST_FISHING_GROUNDS_NAVIGABLE
+  });
+  assert.ok(routes.ships.some((ship) => (
+    ship.currentPort?.isFishingGround || ship.finalDestination?.isFishingGround ||
+    ship.plan?.origin?.isFishingGround || ship.plan?.destination?.isFishingGround
+  )));
+  const ownership = new Map(PORTS.map((entry) => [entry.cityId, entry.factionId]));
+
+  assert.doesNotThrow(() => applyNpcConquestOwnership(routes, ownership, new Set()));
+
+  const ordinaryShip = routes.ships.find((ship) => typeof ship.currentPort?.cityId === "string");
+  assert.ok(ordinaryShip);
+  ordinaryShip.currentPort = { ...ordinaryShip.currentPort, cityId: undefined };
+  assert.throws(
+    () => applyNpcConquestOwnership(routes, ownership, new Set()),
+    /NPC route port requires a canonical id/
+  );
+});
+
 test("a succeeded empire transfers its active and replacement fleets", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

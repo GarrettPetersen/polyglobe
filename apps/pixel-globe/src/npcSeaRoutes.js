@@ -2637,8 +2637,14 @@ function synchronizeExpansionistWarshipFleets(system, startMinute, collapsedFact
 
 function synchronizeNpcPortFaction(port, portFactionByCityId) {
   if (!port) return;
+  if (npcRouteSpatialObservation(port)) return;
   const factionId = portFactionByCityId.get(requireCityId(port, "NPC route port"));
   if (factionId) port.factionId = factionId;
+}
+
+function npcRouteSpatialObservation(destination) {
+  return destination?.isFishingGround === true || destination?.isWhalingGround === true ||
+    isSavedEncounterPoint(destination);
 }
 
 function choosePirateHideouts(ports) {
