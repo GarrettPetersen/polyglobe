@@ -2222,6 +2222,7 @@ import { fetchStaticAsset, isTransientStaticAssetError } from "./staticAssetFetc
 import { createOnDemandAssetStore } from "./onDemandAssetStore.js";
 import {
   terrainConnectorEdgeKey,
+  terrainConnectorHalfWidthPx,
   terrainConnectorLengthIsRenderable,
   terrainConnectorRasterSpans
 } from "./terrainConnectorRaster.js";
@@ -50966,7 +50967,11 @@ function terrainConnectorGeometry(call, activeChart) {
   const uy = dy / len;
   const nx = -uy;
   const ny = ux;
-  const width = FACE_HALF_WIDTH + Math.min(2, Math.abs(call.nlevel - call.level));
+  const width = terrainConnectorHalfWidthPx({
+    baseHalfWidthPx: FACE_HALF_WIDTH,
+    levelDifference: Math.abs(call.nlevel - call.level),
+    waterOnly: isWaterSurfaceRow(call.row) && isWaterSurfaceRow(call.nrow)
+  });
   const endpointWidth = width + (
     isCoastFace(call) || isLandmassChannelFace(call) ? COAST_FACE_ENDPOINT_OVERLAP_PX : 0
   );

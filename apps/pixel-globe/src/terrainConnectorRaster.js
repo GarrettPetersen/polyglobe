@@ -1,4 +1,26 @@
 const CONNECTOR_EDGE_NOISE_PX = 1;
+const WATER_JUNCTION_OVERLAP_PX = 1;
+
+export function terrainConnectorHalfWidthPx({
+  baseHalfWidthPx,
+  levelDifference,
+  waterOnly
+}) {
+  if (!Number.isInteger(baseHalfWidthPx) || baseHalfWidthPx <= 0) {
+    throw new Error(`Terrain connector base half-width must be a positive integer: ${baseHalfWidthPx}`);
+  }
+  if (!Number.isInteger(levelDifference) || levelDifference < 0) {
+    throw new Error(`Terrain connector level difference must be a non-negative integer: ${levelDifference}`);
+  }
+  if (typeof waterOnly !== "boolean") {
+    throw new Error("Terrain connector water-only state must be boolean");
+  }
+  // Irregular water sprites can otherwise leave a one-pixel clear-buffer hole
+  // where three integer-projected tile silhouettes meet. Coast and land widths
+  // remain unchanged so their authored edge detail keeps its existing shape.
+  return baseHalfWidthPx + Math.min(2, levelDifference) +
+    (waterOnly ? WATER_JUNCTION_OVERLAP_PX : 0);
+}
 
 export function terrainConnectorLengthIsRenderable(lengthPx, maximumLengthPx) {
   if (!Number.isFinite(lengthPx) || lengthPx < 0) {

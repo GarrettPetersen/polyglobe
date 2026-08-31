@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   terrainConnectorCallSequenceKey,
   terrainConnectorEdgeKey,
+  terrainConnectorHalfWidthPx,
   terrainConnectorLengthIsRenderable,
   terrainConnectorRasterSpans
 } from "./terrainConnectorRaster.js";
@@ -38,6 +39,39 @@ test("terrain connector edge noise is deterministic and breaks up straight seams
   assert.deepEqual(terrainConnectorRasterSpans(square, 77), first);
   assert.notDeepEqual(terrainConnectorRasterSpans(square, 78), first);
   assert.ok(new Set(first.map((span) => `${span.x}:${span.width}`)).size > 1);
+});
+
+test("water-only connectors cover integer-projected three-tile junctions", () => {
+  assert.equal(terrainConnectorHalfWidthPx({
+    baseHalfWidthPx: 9,
+    levelDifference: 0,
+    waterOnly: true
+  }), 10);
+  assert.equal(terrainConnectorHalfWidthPx({
+    baseHalfWidthPx: 9,
+    levelDifference: 0,
+    waterOnly: false
+  }), 9);
+  assert.equal(terrainConnectorHalfWidthPx({
+    baseHalfWidthPx: 9,
+    levelDifference: 4,
+    waterOnly: true
+  }), 12);
+});
+
+test("terrain connector width rejects malformed geometry state", () => {
+  assert.throws(
+    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 0, levelDifference: 0, waterOnly: true }),
+    /positive integer/
+  );
+  assert.throws(
+    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 9, levelDifference: -1, waterOnly: true }),
+    /non-negative integer/
+  );
+  assert.throws(
+    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 9, levelDifference: 0, waterOnly: "yes" }),
+    /must be boolean/
+  );
 });
 
 test("terrain connector raster rejects malformed geometry", () => {
