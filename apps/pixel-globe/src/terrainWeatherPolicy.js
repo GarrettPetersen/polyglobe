@@ -8,3 +8,18 @@ export function terrainRowUsesWorldWeather(row) {
   if (mode === TERRAIN_WEATHER_MODE_STATIC) return false;
   throw new Error(`Unknown terrain weather mode: ${mode}`);
 }
+
+export function assertStaticTerrainCells(cells, context) {
+  if (!Array.isArray(cells) || typeof context !== "string" || context === "") {
+    throw new Error("Static terrain validation requires cells and a context");
+  }
+  for (const cell of cells) {
+    if (!cell || !Number.isInteger(cell.id) || !cell.terrain) {
+      throw new Error(`${context} has a malformed terrain cell`);
+    }
+    if (terrainRowUsesWorldWeather(cell.terrain)) {
+      throw new Error(`${context} cell ${cell.id} must not use world weather`);
+    }
+  }
+  return cells;
+}

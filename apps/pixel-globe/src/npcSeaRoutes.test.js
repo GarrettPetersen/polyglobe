@@ -1970,6 +1970,7 @@ test("a staged worker restore keeps an encounter created between batches", () =>
   assert.equal(advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 }), false);
   const encounter = configureNpcEncounter(routes, {
     id: "colony-defense:mid-restore",
+    captainHomeCityId: PORTS[0].cityId,
     factionId: "neutral",
     role: NPC_ROLE_WARSHIP,
     shipSlug: "mesoamerican-dugout-canoe",
@@ -1995,6 +1996,7 @@ test("worker simulation cannot overwrite a scripted encounter added after its sn
   const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
   const encounter = configureNpcEncounter(routes, {
     id: "colony-defense:late-worker-race",
+    captainHomeCityId: PORTS[0].cityId,
     factionId: "neutral",
     role: NPC_ROLE_WARSHIP,
     shipSlug: "mesoamerican-dugout-canoe",
@@ -2670,6 +2672,7 @@ test("NPC turtle ships can reject damage with their intrinsic armor", () => {
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const turtleShip = configureNpcEncounter(routes, {
     id: "armored-turtle-test",
+    captainHomeCityId: PORTS[7].cityId,
     factionId: "joseon",
     role: NPC_ROLE_WARSHIP,
     shipSlug: "joseon-turtle-ship",
@@ -2697,6 +2700,7 @@ test("temporary fisherman encounters receive valid fishing equipment", () => {
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const fisherman = configureNpcEncounter(routes, {
     id: "benchmark-fisherman-test",
+    captainHomeCityId: PORTS[7].cityId,
     factionId: "ming",
     role: NPC_ROLE_FISHERMAN,
     shipSlug: "sampan",
@@ -2789,6 +2793,7 @@ test("temporary quest encounters persist in saves but never enter the replacemen
   const replacementCount = routes.replacementQueue.length;
   const encounter = configureNpcEncounter(routes, {
     id: "colony-defense:test:1",
+    captainHomeCityId: PORTS[0].cityId,
     factionId: "neutral",
     role: NPC_ROLE_WARSHIP,
     shipSlug: "mesoamerican-dugout-canoe",
@@ -2804,10 +2809,13 @@ test("temporary quest encounters persist in saves but never enter the replacemen
 
   assert.equal(encounter.specie, 0);
   const snapshot = snapshotNpcSeaRouteSystem(routes);
-  assert.equal(snapshot.ships.find((ship) => ship.id === encounter.id).encounter.kind, "colonization-defense");
+  const savedEncounter = snapshot.ships.find((ship) => ship.id === encounter.id);
+  assert.equal(savedEncounter.encounter.kind, "colonization-defense");
+  assert.equal(savedEncounter.captainHomeCityId, PORTS[0].cityId);
   const restored = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   restoreNpcSeaRouteSystem(restored, snapshot, { economy });
   assert.equal(restored.shipById.get(encounter.id).encounter.kind, "colonization-defense");
+  assert.equal(restored.shipById.get(encounter.id).captainHomeCityId, PORTS[0].cityId);
   assert.equal(restored.shipById.get(encounter.id).replaceOnSink, false);
   damageNpcShip(routes, encounter.id, encounter.maxHitPoints);
   const removed = sinkNpcShip(routes, encounter.id, 1001);

@@ -339,6 +339,7 @@ import {
   generatePlayerCharacter,
   generateSpecialPortCharacter,
   loadCharacterPortraitManifest,
+  repairLegacyNpcCaptainHomeCityIds,
   reconcileCharacterPortraitMetadata
 } from "./characterPortraits.js";
 import { reconcileRegionalCharacterNameForms } from "./characterNames.js";
@@ -1080,6 +1081,7 @@ import {
   updateSailingTutorialState
 } from "./sailingTutorial.js";
 import {
+  assertStaticTerrainCells,
   TERRAIN_WEATHER_MODE_STATIC,
   terrainRowUsesWorldWeather
 } from "./terrainWeatherPolicy.js";
@@ -4268,7 +4270,7 @@ requestAnimationFrame(pollControllerDuringStartup);
 main().catch((err) => {
   console.error(err);
   if (CAPTURE_SCENARIO || PERFORMANCE_BENCHMARK) {
-    window.__PIXEL_GLOBE_CAPTURE_ERROR__ = err instanceof Error ? err.message : String(err);
+    window.__PIXEL_GLOBE_CAPTURE_ERROR__ = captureAutomationFailure(err);
   }
   gameTelemetry.captureCrash(err, telemetryCrashContext("startup"));
   capsuleLoadingScreen.fail(err);
@@ -4826,6 +4828,7 @@ async function main() {
       configureCaptureEncounter(npcSeaRoutes, encounter, weatherClockMinutes);
     }
   }
+  repairLegacyPointEncounterCaptainHomes();
   resetDistantWorldWorkerSchedule();
   const playerPirateHideoutPorts = buildPlayerPirateHideoutPorts(npcSeaRoutes.pirateHideouts);
   pirateHideoutPortsByTileId = new Map(playerPirateHideoutPorts.map((port) => [port.tileId, port]));
@@ -4839,13 +4842,19 @@ async function main() {
     pirateHideoutHosts,
     characterPortraitManifest,
     usedCharacterNames,
-    { excludedSourceIds: playerPortraitSourceExclusions(playerCharacter) }
+    {
+      excludedSourceIds: playerPortraitSourceExclusions(playerCharacter),
+      homeCitiesById: cityById
+    }
   );
   npcShipCaptains = assignNpcShipCaptains(
     npcSeaRoutes.ships,
     characterPortraitManifest,
     usedCharacterNames,
-    { excludedSourceIds: playerPortraitSourceExclusions(playerCharacter) }
+    {
+      excludedSourceIds: playerPortraitSourceExclusions(playerCharacter),
+      homeCitiesById: cityById
+    }
   );
   if (!CAPTURE_SCENARIO) synchronizeTreasurePirateCaptains();
   console.info(`[pixel-globe] NPC sea routes: ${npcSeaRoutes.ships.length} ships`);
@@ -6505,7 +6514,7 @@ function loop(nowMs) {
       gameTelemetry.captureCrash(error, telemetryCrashContext());
     }
     if (CAPTURE_AUTOMATIC || PERFORMANCE_BENCHMARK) {
-      window.__PIXEL_GLOBE_CAPTURE_ERROR__ = error instanceof Error ? error.message : String(error);
+      window.__PIXEL_GLOBE_CAPTURE_ERROR__ = captureAutomationFailure(error);
     }
     if (PERFORMANCE_BENCHMARK) setPerformanceBenchmarkDomStatus({ error: error instanceof Error ? error.message : String(error) });
     drawFatalError(error, "Prototype runtime failure");
@@ -6533,6 +6542,11 @@ function loop(nowMs) {
       performance.now() - frameCallbackStartedAtMs
     );
   }
+}
+
+function captureAutomationFailure(error) {
+  if (!(error instanceof Error)) return String(error);
+  return typeof error.stack === "string" && error.stack !== "" ? error.stack : error.message;
 }
 
 function mainThreadFreezeTelemetryIsEligible() {
@@ -8459,6 +8473,7 @@ function ensureTreasureCampaignEncounters({
       const home = campaignGoalHomeCity();
       added.push(configureNpcEncounter(npcSeaRoutes, {
         id: pirate.shipId,
+        captainHomeCityId: home.cityId,
         factionId: PIRATE_FACTION_ID,
         role: NPC_ROLE_PIRATE,
         shipSlug: pirate.shipSlug,
@@ -8533,6 +8548,41 @@ function synchronizeTreasurePirateCaptains() {
     }
   }
   return changed;
+}
+
+function repairLegacyPointEncounterCaptainHomes() {
+  if (!npcSeaRoutes) throw new Error("NPC captain-home repair requires sea routes");
+  const repaired = repairLegacyNpcCaptainHomeCityIds(
+    npcSeaRoutes.ships,
+    legacyPointEncounterCaptainHomeCityId
+  );
+  if (repaired > 0) {
+    console.info(`[pixel-globe] repaired ${repaired} legacy point-encounter captain homes`);
+  }
+  return repaired;
+}
+
+function legacyPointEncounterCaptainHomeCityId(npcShip) {
+  const encounter = npcShip.encounter;
+  if (encounter?.kind === TREASURE_PIRATE_ENCOUNTER_KIND &&
+      encounter.stage === TREASURE_PIRATE_STAGE_AMBUSH) {
+    const goal = activeTreasureCampaignGoal();
+    if (!goal || !treasureCampaignPirateForShip(goal, npcShip.id)) {
+      throw new Error(`Legacy treasure ambush ship has no campaign identity: ${npcShip.id}`);
+    }
+    return campaignGoalHomeCity().cityId;
+  }
+  if (encounter?.kind === "colonization-defense") {
+    const memory = gameState?.memory?.colonization;
+    const quest = memory?.stage === COLONIZATION_STAGE_DEFEND
+      ? colonizationQuestView(gameState, { currentMinute: Math.max(0, weatherClockMinutes) })
+      : null;
+    if (!quest?.target || encounter.colonyTileId !== memory.targetTileId) {
+      throw new Error(`Legacy colony-defense ship has no matching colony identity: ${npcShip.id}`);
+    }
+    return quest.target.cityId;
+  }
+  throw new Error(`Coordinate-only NPC ship has no declared captain home: ${npcShip.id}`);
 }
 
 function removeTreasurePirateShip(shipId) {
@@ -8659,6 +8709,7 @@ function ensureColonizationDefenseEncounter({
     const headingDeg = initialBearingDeg(spawn, quest.target);
     added.push(configureNpcEncounter(npcSeaRoutes, {
       id: shipId,
+      captainHomeCityId: quest.target.cityId,
       factionId: NEUTRAL_FACTION_ID,
       role: NPC_ROLE_WARSHIP,
       shipSlug: "mesoamerican-dugout-canoe",
@@ -8689,7 +8740,10 @@ function ensureColonizationDefenseEncounter({
         unassigned,
         characterPortraitManifest,
         usedCharacterNames,
-        { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+        {
+          excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+          homeCitiesById: cityById
+        }
       );
       if (!npcShipCaptains) npcShipCaptains = new Map();
       for (const [shipId, captain] of assignments) npcShipCaptains.set(shipId, captain);
@@ -15677,11 +15731,21 @@ async function restoreSavedVoyage(payload) {
   ensureNaturalistCharacter(gameState);
   for (const character of pirateHideoutCharacters.values()) usedCharacterNames.add(character.name);
   campaignGoalContact = createCampaignGoalContact(gameState.playerCharacter, gameState.memory.campaignGoal);
+  const repairedLegacyCaptainHomes = repairLegacyPointEncounterCaptainHomes();
+  if (repairedLegacyCaptainHomes > 0) {
+    recoveredDerivedSystems = addDerivedSaveRecoveryLabel(
+      recoveredDerivedSystems,
+      "NPC captain homes"
+    );
+  }
   npcShipCaptains = assignNpcShipCaptains(
     npcSeaRoutes.ships,
     characterPortraitManifest,
     usedCharacterNames,
-    { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+    {
+      excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+      homeCitiesById: cityById
+    }
   );
   reconcileEnglishReformationCharacters();
   reconcilePapalAuthorityCharacters();
@@ -48187,6 +48251,7 @@ function clearLakeBattleTerrainCache() {
 }
 
 function buildLakeBattleTerrainChart(map) {
+  assertStaticTerrainCells(map?.cells, "Local battle terrain");
   const faceCalls = [];
   const tileCalls = [];
   const tileById = new Map();

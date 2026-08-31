@@ -11,7 +11,12 @@ import {
   portraitAllowsReligion
 } from "./characterReligion.js";
 import { characterSkillIdsForIdentity } from "./characterSkills.js";
-import { cityTerritoryId, requireCityId } from "./entityIds.js";
+import {
+  cityTerritoryId,
+  requireCityId,
+  requireEntityById,
+  requireEntityId
+} from "./entityIds.js";
 import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
@@ -270,7 +275,7 @@ export function assignNpcShipCaptains(
   npcShips,
   manifest,
   usedNames,
-  { excludedSourceIds = [] } = {}
+  { excludedSourceIds = [], homeCitiesById = null } = {}
 ) {
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);
@@ -292,11 +297,12 @@ export function assignNpcShipCaptains(
       });
     const identityKey = `captain|${ship.id}`;
     const character = assignCharacterSprite(identityKey, region, sourcePool, used);
+    const homeCity = npcCaptainHomeCity(ship, homeCitiesById);
     assignments.set(ship.id, {
       ...character,
       ...assignRegionalCharacterIdentity({
         identityKey,
-        ship,
+        city: homeCity,
         character,
         usedNames
       }),
@@ -305,6 +311,44 @@ export function assignNpcShipCaptains(
     });
   }
   return assignments;
+}
+
+export function repairLegacyNpcCaptainHomeCityIds(npcShips, legacyHomeCityIdForShip) {
+  if (!Array.isArray(npcShips)) {
+    throw new Error("NPC captain-home repair requires a ship array");
+  }
+  if (typeof legacyHomeCityIdForShip !== "function") {
+    throw new Error("NPC captain-home repair requires an explicit legacy identity resolver");
+  }
+  let repaired = 0;
+  for (const ship of npcShips) {
+    if (!ship || typeof ship.id !== "string" || ship.id === "") {
+      throw new Error(`NPC captain-home repair found an invalid ship: ${ship?.id}`);
+    }
+    if (ship.currentPort?.cityId || ship.plan?.origin?.cityId) continue;
+    if (ship.captainHomeCityId !== undefined && ship.captainHomeCityId !== null) {
+      requireEntityId(ship.captainHomeCityId, `NPC ship ${ship.id} captain home`);
+      continue;
+    }
+    ship.captainHomeCityId = requireEntityId(
+      legacyHomeCityIdForShip(ship),
+      `Legacy coordinate-only NPC ship ${ship.id} captain home`
+    );
+    repaired++;
+  }
+  return repaired;
+}
+
+function npcCaptainHomeCity(ship, homeCitiesById) {
+  const routeHome = ship?.currentPort?.cityId
+    ? ship.currentPort
+    : ship?.plan?.origin?.cityId ? ship.plan.origin : null;
+  if (routeHome) return routeHome;
+  const cityId = requireEntityId(ship?.captainHomeCityId, `NPC ship ${ship?.id || "unknown"} captain home`);
+  if (!(homeCitiesById instanceof Map)) {
+    throw new Error(`NPC ship ${ship.id} captain home requires a canonical city index`);
+  }
+  return requireEntityById(homeCitiesById, cityId, `NPC ship ${ship.id} captain home`);
 }
 
 export function assignMissingNpcShipCaptains(

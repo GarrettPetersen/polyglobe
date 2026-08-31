@@ -6,6 +6,7 @@ import {
   LEPANTO_LAND_POLYGONS,
   LEPANTO_MAP_BOUNDS
 } from "./generated/lepantoLandData.js";
+import { TERRAIN_WEATHER_MODE_STATIC } from "./terrainWeatherPolicy.js";
 
 const COAST_SAMPLE_COUNT = 8;
 const HISTORICAL_BATTLE_TILE_ID_BASE = 3_000_000;
@@ -242,7 +243,14 @@ function terrainForCell(cell, latitudeDeg) {
 }
 
 function terrain(t, e, h, waterDepthBand, latitudeDeg) {
-  return Object.freeze({ t, e, h, latitudeDeg, waterDepthBand });
+  return Object.freeze({
+    t,
+    e,
+    h,
+    latitudeDeg,
+    weatherMode: TERRAIN_WEATHER_MODE_STATIC,
+    waterDepthBand
+  });
 }
 
 function pointInRing(x, y, ring) {

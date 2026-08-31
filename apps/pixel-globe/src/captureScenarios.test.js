@@ -549,3 +549,16 @@ test("capture validation rejects unknown vessels and malformed clocks", () => {
   malformedRiverStart.sequence.riverStart.lon = 181;
   assert.throws(() => validateCaptureScenario(malformedRiverStart), /river start longitude/);
 });
+
+test("every scripted encounter gives its captain a canonical home city", () => {
+  for (const id of captureScenarioIds()) {
+    const capture = captureScenarioFromSearch(`?capture=${id}`);
+    for (const encounter of capture.encounters) {
+      assert.match(
+        encounter.captainHomeCityId,
+        /^[^|]+\|[^|]+$/,
+        `${id}/${encounter.id}`
+      );
+    }
+  }
+});

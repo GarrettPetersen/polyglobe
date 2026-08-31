@@ -21,6 +21,7 @@ import {
   generatePirateCaptiveCharacter,
   generatePirateCaptiveFamilyMember,
   generatePlayerCharacter,
+  repairLegacyNpcCaptainHomeCityIds,
   reconcileCharacterPortraitMetadata,
   validateCharacterPortraitManifest
 } from "./characterPortraits.js";
@@ -1205,6 +1206,71 @@ test("ship captains use pirate portraits only for pirate crews", () => {
   assert.equal(regional, 30);
   assert.equal(new Set(values.map((captain) => captain.name)).size, values.length);
   assert.ok(values.every((captain) => captain.nameCulture === "nahua"));
+});
+
+test("coordinate-only encounters resolve captain culture through a canonical home city", () => {
+  const homeCity = {
+    cityId: "mexico city|mexico",
+    city: "Mexico City",
+    country: "Mexico",
+    cityType: "mesoamerican",
+    factionId: "spain",
+    lat: 19.4,
+    lon: -99.1
+  };
+  const ship = {
+    id: "coordinate-only-encounter",
+    captainHomeCityId: homeCity.cityId,
+    factionId: "spain",
+    slug: "caravel",
+    role: "warship",
+    profileId: "wide-world",
+    currentPort: {
+      id: "capture:coordinate-only-encounter",
+      cityType: "mesoamerican",
+      routeRegion: "americas",
+      lat: 20,
+      lon: -98
+    }
+  };
+
+  const captains = assignNpcShipCaptains(
+    [ship],
+    GENERATED_MANIFEST,
+    new Set(),
+    { homeCitiesById: new Map([[homeCity.cityId, homeCity]]) }
+  );
+  assert.equal(captains.get(ship.id).nameCulture, "nahua");
+});
+
+test("legacy coordinate-only encounters require an explicit canonical captain home repair", () => {
+  const routed = {
+    id: "ordinary-route",
+    currentPort: { cityId: "lisbon|portugal" }
+  };
+  const knownLegacy = {
+    id: "known-point-encounter",
+    currentPort: { id: "point:known", lat: 1, lon: 2 }
+  };
+  let resolverCalls = 0;
+  assert.equal(repairLegacyNpcCaptainHomeCityIds(
+    [routed, knownLegacy],
+    (ship) => {
+      resolverCalls++;
+      assert.equal(ship.id, knownLegacy.id);
+      return "algiers|algeria";
+    }
+  ), 1);
+  assert.equal(resolverCalls, 1);
+  assert.equal(knownLegacy.captainHomeCityId, "algiers|algeria");
+
+  assert.throws(
+    () => repairLegacyNpcCaptainHomeCityIds(
+      [{ id: "unknown-point", currentPort: { id: "point:unknown", lat: 3, lon: 4 } }],
+      () => null
+    ),
+    /Legacy coordinate-only NPC ship unknown-point captain home requires a canonical id/
+  );
 });
 
 test("missing NPC captain assignments are reconciled without replacing existing captains", () => {

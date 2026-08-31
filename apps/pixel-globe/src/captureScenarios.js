@@ -1,4 +1,4 @@
-import { factionById } from "./factions.js";
+import { factionById, factionCapitalForId } from "./factions.js";
 import { religionById } from "./characterReligion.js";
 import { ICEBERG_VARIANTS } from "./icebergSystem.js";
 import { NPC_SHIP_SLUGS } from "./npcSeaRoutes.js";
@@ -286,6 +286,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     encounters: [
       {
         id: "capture-atakebune",
+        captainHomeCityId: captureCaptainHomeCityId("japan"),
         factionId: "japan",
         shipSlug: "japanese-atakebune",
         role: "warship",
@@ -1998,6 +1999,7 @@ export function validateCaptureScenario(value) {
   const encounterIds = new Set();
   for (const encounter of value.encounters) {
     validateVessel(encounter, "capture encounter");
+    requiredCityId(encounter.captainHomeCityId, "capture encounter captain home city");
     if (!NPC_SHIP_SLUGS.includes(encounter.shipSlug)) {
       throw new Error(`Capture encounter ship has no NPC sprite asset: ${encounter.shipSlug}`);
     }
@@ -2341,7 +2343,21 @@ function trailerSequence(kind, variant, values = {}) {
 }
 
 function captureEncounter(id, factionId, shipSlug, lat, lon, headingDeg) {
-  return { id, factionId, shipSlug, role: "warship", lat, lon, headingDeg };
+  return {
+    id,
+    captainHomeCityId: captureCaptainHomeCityId(factionId),
+    factionId,
+    shipSlug,
+    role: "warship",
+    lat,
+    lon,
+    headingDeg
+  };
+}
+
+function captureCaptainHomeCityId(factionId) {
+  if (factionId === "pirate") return "algiers|algeria";
+  return factionCapitalForId(factionId).cityId;
 }
 
 function captureFightEncounter(id, factionId, shipSlug, lat, lon, headingDeg) {
@@ -2418,6 +2434,7 @@ function busyWorldBenchmarkEncounters() {
       const index = row * 6 + column;
       encounters.push({
         id: `benchmark-ship-${String(index + 1).padStart(2, "0")}`,
+        captainHomeCityId: captureCaptainHomeCityId("ming"),
         factionId: "ming",
         shipSlug: slugs[index % slugs.length],
         role: "merchant",
@@ -2434,6 +2451,7 @@ function combatHotspotBenchmarkEncounters() {
   return [
     {
       id: "benchmark-med-pirate",
+      captainHomeCityId: captureCaptainHomeCityId("pirate"),
       factionId: "pirate",
       shipSlug: "xebec",
       role: "pirate",
@@ -2444,6 +2462,7 @@ function combatHotspotBenchmarkEncounters() {
     },
     {
       id: "benchmark-med-damaged",
+      captainHomeCityId: captureCaptainHomeCityId("ottoman"),
       factionId: "ottoman",
       shipSlug: "felucca",
       role: "merchant",
@@ -2455,6 +2474,7 @@ function combatHotspotBenchmarkEncounters() {
     },
     {
       id: "benchmark-med-escort",
+      captainHomeCityId: captureCaptainHomeCityId("ottoman"),
       factionId: "ottoman",
       shipSlug: "xebec",
       role: "warship",
@@ -2465,6 +2485,7 @@ function combatHotspotBenchmarkEncounters() {
     },
     {
       id: "benchmark-med-merchant",
+      captainHomeCityId: captureCaptainHomeCityId("venice"),
       factionId: "venice",
       shipSlug: "small-cog",
       role: "merchant",
@@ -2492,6 +2513,7 @@ function nanjingHotspotBenchmarkEncounters() {
     const [shipSlug, role] = ships[index % ships.length];
     return {
       id: `benchmark-nanjing-ship-${String(index + 1).padStart(2, "0")}`,
+      captainHomeCityId: captureCaptainHomeCityId("ming"),
       factionId: "ming",
       shipSlug,
       role,
@@ -2523,6 +2545,7 @@ function gibraltarHotspotBenchmarkEncounters() {
     const [shipSlug, role, factionId] = ships[index % ships.length];
     return {
       id: `benchmark-gibraltar-ship-${String(index + 1).padStart(2, "0")}`,
+      captainHomeCityId: captureCaptainHomeCityId(factionId),
       factionId,
       shipSlug,
       role,

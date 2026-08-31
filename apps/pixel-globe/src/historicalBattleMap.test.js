@@ -11,6 +11,11 @@ import {
   historicalBattleMinimapLandMask,
   historicalBattleTerrainWindowMap
 } from "./historicalBattleMap.js";
+import {
+  assertStaticTerrainCells,
+  TERRAIN_WEATHER_MODE_STATIC,
+  terrainRowUsesWorldWeather
+} from "./terrainWeatherPolicy.js";
 
 test("the Lepanto field is a ship-scale crop of the historical battle water", () => {
   const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
@@ -59,6 +64,23 @@ test("authored shore clearance rejects ships that only have their center in wate
   assert.equal(historicalBattleMapWaterAt(map, coastalWater.x, coastalWater.y), true);
   assert.equal(historicalBattleMapWaterAt(map, coastalWater.x, coastalWater.y, 12), false);
   assert.equal(historicalBattleMapWaterAt(map, openWater.x, openWater.y, 8), true);
+});
+
+test("historical battle terrain cannot query weather with arena-local tile ids", () => {
+  const map = createHistoricalBattleMap(historicalBattleScenarioById(LEPANTO_SCENARIO_ID).map);
+  const center = historicalBattleMapPointForLonLat(map, 21.2, 38.23);
+  const terrainWindow = historicalBattleTerrainWindowMap(map, {
+    minX: center.x - 500,
+    minY: center.y - 500,
+    maxX: center.x + 500,
+    maxY: center.y + 500
+  });
+
+  assertStaticTerrainCells(terrainWindow.cells, "Historical battle terrain");
+  assert.ok(terrainWindow.cells.every((cell) => (
+    cell.terrain.weatherMode === TERRAIN_WEATHER_MODE_STATIC &&
+    terrainRowUsesWorldWeather(cell.terrain) === false
+  )));
 });
 
 test("the Lepanto minimap distinguishes the battle water from islands and mainland", () => {

@@ -661,6 +661,11 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
   if (!Number.isFinite(spec.headingDeg)) throw new Error(`Invalid NPC encounter heading: ${spec.id}`);
   if (system.shipById.has(spec.id)) throw new Error(`NPC encounter id already exists: ${spec.id}`);
   assertFactionId(spec.factionId);
+  const captainHomeCityId = requireEntityId(
+    spec.captainHomeCityId,
+    `NPC encounter ${spec.id} captain home`
+  );
+  requiredNpcRoutePort(system, captainHomeCityId, `NPC encounter ${spec.id} captain home`);
   if (!NPC_ROLE_SET.has(spec.role)) throw new Error(`Unknown NPC encounter role: ${spec.role}`);
   if (spec.encounter !== undefined && (!spec.encounter || typeof spec.encounter !== "object")) {
     throw new Error(`Invalid NPC encounter metadata: ${spec.id}`);
@@ -688,6 +693,7 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
   const seed = hashString32(`${spec.id}|capture`);
   const ship = {
     id: spec.id,
+    captainHomeCityId,
     factionId: spec.factionId,
     role: spec.role,
     profileId: spec.profileId || "wide-world",
@@ -1612,6 +1618,9 @@ function reconcileRestoredNpcShip(ship, context) {
   ship.cargoOrigins = ship.cargoOrigins || {};
   ship.tradeEmbargoConvictions = ship.tradeEmbargoConvictions ?? 0;
   ship.lastTradeEmbargoEnforcement = ship.lastTradeEmbargoEnforcement ?? null;
+  if (ship.captainHomeCityId !== undefined && ship.captainHomeCityId !== null) {
+    requireEntityId(ship.captainHomeCityId, `${context} ship ${ship.id} captain home`);
+  }
   reconcileNpcNationalCircuitFields(ship, `${context} ship ${ship.id}`);
   reconcileNpcPortResponseFields(ship, `${context} ship ${ship.id}`);
   assertFactionId(ship.factionId);
