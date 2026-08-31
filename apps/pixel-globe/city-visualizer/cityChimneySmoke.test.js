@@ -69,6 +69,27 @@ test("the smith produces the densest, darkest chimney plume", () => {
   }
 });
 
+test("one shared wind direction bends every chimney plume consistently", () => {
+  const emitter = CITY_CHIMNEY_SMOKE_EMITTERS[0];
+  const timeMs = 4800;
+  const east = cityChimneySmokeParticles(emitter, timeMs, {
+    flowDirectionRad: 0,
+    strength: 1
+  });
+  const west = cityChimneySmokeParticles(emitter, timeMs, {
+    flowDirectionRad: Math.PI,
+    strength: 1
+  });
+  const calm = cityChimneySmokeParticles(emitter, timeMs, {
+    flowDirectionRad: 0,
+    strength: 0
+  });
+  assert.equal(east.length, west.length);
+  assert.equal(east.length, calm.length);
+  assert.ok(meanX(east) > meanX(calm));
+  assert.ok(meanX(west) < meanX(calm));
+});
+
 test("background cities deterministically smoke from exactly half their scaled chimneys", async () => {
   const manifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
   const frames = CITY_CHIMNEY_SMOKE_EMITTERS.map((emitter) => (
@@ -212,4 +233,8 @@ function sceneAlpha(frame, atlasPixels, atlasWidth, sceneX, sceneY) {
   const atlasX = frame.frame.x + localX;
   const atlasY = frame.frame.y + localY;
   return atlasPixels[(atlasY * atlasWidth + atlasX) * 4 + 3];
+}
+
+function meanX(particles) {
+  return particles.reduce((sum, particle) => sum + particle.x, 0) / particles.length;
 }

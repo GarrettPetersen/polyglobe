@@ -52,7 +52,11 @@ import {
   cityWaterPaletteHexForSourceHex,
   cityWaterPaletteRgb
 } from "./cityWaterPalette.js";
-import { flagWaveColumnOffsets } from "../src/flagAnimation.js";
+import {
+  flagFabricColumnLayout,
+  flagWaveColumnOffsets,
+  flagWindPose
+} from "../src/flagAnimation.js";
 import {
   CITY_PIXEL_FONT_SMALL_8,
   CITY_PIXEL_FONT_TITLE_8,
@@ -91,6 +95,17 @@ import {
   cityGatehouseFlagPhase,
   cityGatehouseFlagVisible
 } from "./cityGatehouseFlag.js";
+import {
+  CITY_WIND_DIRECTION_OPTIONS,
+  CITY_WIND_SPEED_OPTIONS,
+  cityWindForCity
+} from "./cityWind.js";
+import {
+  CITY_CLOUD_SPECS,
+  advanceCityCloudDrift,
+  cityCloudDrawPositions,
+  cityCloudSpec
+} from "./cityClouds.js";
 
 const canvas = document.querySelector("#scene");
 const context = canvas.getContext("2d", { alpha: false });
@@ -107,6 +122,8 @@ const fortOverride = document.querySelector("#fort-override");
 const mountainOverride = document.querySelector("#mountain-override");
 const leftTerrainOverride = document.querySelector("#left-terrain-override");
 const rightTerrainOverride = document.querySelector("#right-terrain-override");
+const windSpeedOverride = document.querySelector("#wind-speed-override");
+const windDirectionOverride = document.querySelector("#wind-direction-override");
 const resetOverrides = document.querySelector("#reset-overrides");
 const ruleLedger = document.querySelector("#rule-ledger");
 const destinationDialog = document.querySelector("#destination-dialog");
@@ -141,6 +158,9 @@ const state = {
   shipSlug: null,
   cityFlagFactionId: null,
   cityFlagImage: null,
+  wind: null,
+  cloudDriftByLayer: new Map(CITY_CLOUD_SPECS.map(({ layer }) => [layer, 0])),
+  lastCloudTimeMs: null,
   city: null,
   features: null,
   parallax: PORT_SCENE_CAMERA.defaultParallax,
@@ -257,6 +277,8 @@ function prepareControls() {
   setOptions(mountainOverride, ["auto", "none", "left", "right", "both"]);
   setOptions(leftTerrainOverride, ["auto", "grass", "forest", "desert", "rocky"]);
   setOptions(rightTerrainOverride, ["auto", "grass", "forest", "desert", "rocky"]);
+  setLabeledOptions(windSpeedOverride, CITY_WIND_SPEED_OPTIONS);
+  setLabeledOptions(windDirectionOverride, CITY_WIND_DIRECTION_OPTIONS);
 
   citySelect.addEventListener("change", () => selectCity(citySelect.value));
   viewportSelect.addEventListener("change", resizeLogicalCanvas);
@@ -270,6 +292,9 @@ function prepareControls() {
     leftTerrainOverride,
     rightTerrainOverride
   ]) control.addEventListener("change", applyFeatureOverrides);
+  for (const control of [windSpeedOverride, windDirectionOverride]) {
+    control.addEventListener("change", applyWindOverrides);
+  }
   resetOverrides.addEventListener("click", () => {
     for (const control of [
       approachOverride,
@@ -280,6 +305,8 @@ function prepareControls() {
       leftTerrainOverride,
       rightTerrainOverride
     ]) control.value = "auto";
+    windSpeedOverride.value = "auto";
+    windDirectionOverride.value = "auto";
     applyFeatureOverrides();
   });
 }
@@ -308,10 +335,14 @@ function selectCity(cityId) {
     leftTerrainOverride,
     rightTerrainOverride
   ]) control.value = "auto";
+  windSpeedOverride.value = "auto";
+  windDirectionOverride.value = "auto";
   applyFeatureOverrides();
   state.parallax = sceneCameraDefaultParallax(state.features.approach);
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
+  state.cloudDriftByLayer = new Map(CITY_CLOUD_SPECS.map(({ layer }) => [layer, 0]));
+  state.lastCloudTimeMs = null;
   void selectCityFlag(city);
   selectShip(city.defaultShip);
   const url = new URL(location.href);
@@ -416,6 +447,14 @@ function applyFeatureOverrides() {
   state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
+  applyWindOverrides();
+}
+
+function applyWindOverrides() {
+  state.wind = cityWindForCity(state.city, {
+    speed: windSpeedOverride.value,
+    direction: windDirectionOverride.value
+  });
   updateRuleLedger();
   updateHover();
 }
@@ -482,7 +521,17 @@ function publicAssetUrl(file) {
 }
 
 function updateRuleLedger() {
-  ruleLedger.replaceChildren(...sceneReasonRows(state.city, state.features).flatMap((row) => {
+  const rows = [...sceneReasonRows(state.city, state.features)];
+  if (state.wind) {
+    rows.push(Object.freeze({
+      label: "Wind",
+      value: `${state.wind.speedLabel}, ${state.wind.directionLabel}`,
+      reason: state.wind.automaticSpeed && state.wind.automaticDirection
+        ? "production game wind field at this city's coordinates"
+        : "visualizer weather override"
+    }));
+  }
+  ruleLedger.replaceChildren(...rows.flatMap((row) => {
     const term = document.createElement("dt");
     term.textContent = row.label;
     const detail = document.createElement("dd");
@@ -731,6 +780,7 @@ function sceneWindow(depth, offsetX = 0, offsetY = 0, parallaxAnchor = 0) {
 function render(timeMs) {
   if (!state.ready) return;
   advanceCamera(timeMs);
+  advanceCloudMotion(timeMs);
   context.imageSmoothingEnabled = false;
   context.fillStyle = "#6385c5";
   context.fillRect(0, 0, canvas.width, canvas.height);
@@ -747,11 +797,29 @@ function render(timeMs) {
       drawCityStreetBuildingSmoke(entry.placement, entry.emitter, timeMs);
     }
     else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
+    else if (entry.kind === "cloud") drawCloud(entry, timeMs);
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
     else if (entry.kind === "npcs") drawNpcs(timeMs);
   }
   drawSceneLabels();
   requestAnimationFrame(render);
+}
+
+function advanceCloudMotion(timeMs) {
+  if (!Number.isFinite(timeMs) || timeMs < 0) throw new Error(`Invalid city cloud time: ${timeMs}`);
+  const previousTimeMs = state.lastCloudTimeMs;
+  state.lastCloudTimeMs = timeMs;
+  if (previousTimeMs === null || prefersReducedMotion.matches) return;
+  const elapsedMs = Math.min(100, Math.max(0, timeMs - previousTimeMs));
+  for (const spec of CITY_CLOUD_SPECS) {
+    const current = state.cloudDriftByLayer.get(spec.layer) || 0;
+    state.cloudDriftByLayer.set(spec.layer, advanceCityCloudDrift({
+      current,
+      elapsedMs,
+      wind: state.wind,
+      spec
+    }));
+  }
 }
 
 function sceneRenderEntries() {
@@ -778,7 +846,16 @@ function sceneRenderEntries() {
     const frames = state.portManifest.staticFrames.filter((frame) => frame.layer === layerName);
     const frame = frames[occurrence];
     if (!frame) throw new Error(`Missing ${layerName} layer occurrence ${occurrence}`);
-    if (layerName === "Ocean") {
+    const cloud = cityCloudSpec(layerName);
+    if (cloud) {
+      entries.push({
+        kind: "cloud",
+        frame,
+        spec: cloud,
+        z: cloud.z,
+        authoredOrder
+      });
+    } else if (layerName === "Ocean") {
       for (const [sliceIndex, slice] of PORT_SCENE_OCEAN_SLICES.entries()) {
         entries.push({ kind: "ocean", frame, slice, z: slice.z, authoredOrder: authoredOrder + sliceIndex / 10 });
       }
@@ -893,7 +970,7 @@ function drawCityStreetBuildingSmoke(placement, emitter, timeMs) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
   context.save();
-  for (const particle of cityChimneySmokeParticles(emitter, smokeTime)) {
+  for (const particle of cityChimneySmokeParticles(emitter, smokeTime, state.wind)) {
     if (particle.alpha <= 0) continue;
     context.globalAlpha = particle.alpha;
     context.fillStyle = particle.color;
@@ -969,7 +1046,7 @@ function backgroundCitySmokeMap(options) {
 function drawBackgroundCityChimneySmoke(emitter, timeMs, window) {
   const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
   context.save();
-  for (const particle of cityChimneySmokeParticles(emitter, smokeTime)) {
+  for (const particle of cityChimneySmokeParticles(emitter, smokeTime, state.wind)) {
     if (particle.alpha <= 0) continue;
     context.globalAlpha = particle.alpha;
     context.fillStyle = particle.color;
@@ -1093,7 +1170,7 @@ function drawChimneySmoke(emitter, timeMs) {
   );
   const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
   context.save();
-  for (const particle of cityChimneySmokeParticles(emitter, smokeTime)) {
+  for (const particle of cityChimneySmokeParticles(emitter, smokeTime, state.wind)) {
     if (particle.alpha <= 0) continue;
     context.globalAlpha = particle.alpha;
     context.fillStyle = particle.color;
@@ -1224,23 +1301,58 @@ function drawGatehouseFlag(frame, timeMs) {
   context.fillStyle = "#3e3546";
   context.fillRect(poleX, poleTopY, 1, poleBottomY - poleTopY + 1);
 
-  const phase = cityGatehouseFlagPhase(prefersReducedMotion.matches ? 0 : timeMs);
-  const columnOffsets = flagWaveColumnOffsets(geometry.flagWidth, phase, 1);
-  const destinationX = Math.round(geometry.flagX - window.x);
+  const pose = flagWindPose(state.wind.flowDirectionRad, state.wind.strength);
+  const layout = flagFabricColumnLayout(geometry.flagWidth, geometry.flagHeight, pose);
+  const phase = cityGatehouseFlagPhase(prefersReducedMotion.matches ? 0 : timeMs) * pose.waveRate;
+  const columnOffsets = flagWaveColumnOffsets(layout.fabricWidth, phase, pose.waveAmplitudePx);
   const destinationY = Math.round(geometry.flagY - window.y);
-  for (let column = 0; column < geometry.flagWidth; column++) {
-    const sourceX = Math.floor(column * image.width / geometry.flagWidth);
-    const sourceEndX = Math.floor((column + 1) * image.width / geometry.flagWidth);
+  for (let column = 0; column < layout.fabricWidth; column++) {
+    const columnLayout = layout.columns[column];
+    const sourceX = Math.min(image.width - 1, Math.floor(columnLayout.sourceStart * image.width));
+    const sourceEndX = Math.max(sourceX + 1, Math.ceil(columnLayout.sourceEnd * image.width));
     context.drawImage(
       image,
       sourceX,
       0,
       Math.max(1, sourceEndX - sourceX),
       image.height,
-      destinationX + column,
-      destinationY + columnOffsets[column],
+      poleX + pose.flyDirection * (column + 1),
+      destinationY + columnOffsets[column] + columnLayout.y,
       1,
-      geometry.flagHeight
+      columnLayout.height
+    );
+  }
+}
+
+function drawCloud(entry, timeMs) {
+  const cloudTime = prefersReducedMotion.matches ? 0 : timeMs;
+  const window = sceneWindow(entry.spec.depth);
+  for (const position of cityCloudDrawPositions({
+    spec: entry.spec,
+    frame: entry.frame,
+    timeMs: cloudTime,
+    wind: state.wind,
+    sceneWidth: PORT_SCENE_MASTER.width,
+    driftX: state.cloudDriftByLayer.get(entry.spec.layer) || 0
+  })) {
+    const destinationX = Math.round(position.x - window.x);
+    const destinationY = Math.round(position.y - window.y);
+    if (
+      destinationX + entry.frame.frame.w <= 0 ||
+      destinationX >= canvas.width ||
+      destinationY + entry.frame.frame.h <= 0 ||
+      destinationY >= canvas.height
+    ) continue;
+    context.drawImage(
+      state.staticAtlas,
+      entry.frame.frame.x,
+      entry.frame.frame.y,
+      entry.frame.frame.w,
+      entry.frame.frame.h,
+      destinationX,
+      destinationY,
+      entry.frame.frame.w,
+      entry.frame.frame.h
     );
   }
 }
@@ -2056,6 +2168,10 @@ function option(value, label) {
 
 function setOptions(select, values) {
   select.replaceChildren(...values.map((value) => option(value, humanize(value))));
+}
+
+function setLabeledOptions(select, values) {
+  select.replaceChildren(...values.map(({ value, label }) => option(value, label)));
 }
 
 function autoValue(value) {

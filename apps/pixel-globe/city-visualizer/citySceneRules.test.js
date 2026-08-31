@@ -595,6 +595,19 @@ test("river, dock, mountain, terrain, and fortification rules activate authored 
   assert.equal(layers.has("Stone Dock"), false);
 });
 
+test("all port scenes retain the three authored cloud layers at distinct parallax depths", () => {
+  const layers = activePortSceneLayers(resolveCitySceneFeatures(CITY));
+  for (const layer of ["Cloud 1", "Cloud 2", "Cloud 3"]) {
+    assert.equal(layers.has(layer), true, layer);
+  }
+  assert.ok(layerParallaxDepth("Cloud 1") < layerParallaxDepth("Cloud 2"));
+  assert.ok(layerParallaxDepth("Cloud 2") < layerParallaxDepth("Cloud 3"));
+  assert.ok(layerSceneZ("Cloud 1") < layerSceneZ("Ocean"));
+  assert.ok(layerSceneZ("Cloud 2") > layerSceneZ("Ocean"));
+  assert.ok(layerSceneZ("Cloud 2") < layerSceneZ("Horizon Mountains"));
+  assert.ok(layerSceneZ("Cloud 3") > layerSceneZ("Horizon Mountains"));
+});
+
 test("river horizons close with two parallax-locked banks while open water does not", async () => {
   for (const layer of ["Distant Land", "Distant Land Left Bank"]) {
     assert.equal(layerParallaxDepth(layer), layerParallaxDepth("Ocean"));

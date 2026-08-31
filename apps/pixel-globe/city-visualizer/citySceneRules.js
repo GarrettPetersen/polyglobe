@@ -91,6 +91,9 @@ export const TERRAIN_FAMILIES = Object.freeze(["grass", "forest", "desert", "roc
 const ALWAYS_VISIBLE_LAYERS = Object.freeze([
   "Sky",
   "Ocean",
+  "Cloud 1",
+  "Cloud 2",
+  "Cloud 3",
   "Shipyard",
   "Sand Beach",
   "Smith",
@@ -172,6 +175,9 @@ const RAISED_DISTANT_TERRAIN_LAYERS = new Set([
 const LAYER_META = new Map([
   ["Sky", layerMeta(0, PORT_SCENE_DEPTH.sky)],
   ["Ocean", layerMeta(1, PORT_SCENE_DEPTH.horizon)],
+  ["Cloud 1", layerMeta(0.5, 0.08)],
+  ["Cloud 2", layerMeta(4, 0.13)],
+  ["Cloud 3", layerMeta(6, 0.2)],
   ["Horizon Mountains", layerMeta(5, PORT_SCENE_DEPTH.horizon)],
   ["Horizon Mountains Left Bank", layerMeta(5, PORT_SCENE_DEPTH.horizon, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankHorizonOffsetY)],
   ["Distant Land", layerMeta(14, PORT_SCENE_DEPTH.horizon)],

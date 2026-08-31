@@ -150,11 +150,24 @@ export function backgroundCityChimneySmokeEmitters({ cityId, side, rows }) {
     })));
 }
 
-export function cityChimneySmokeParticles(emitter, timeMs) {
+export function cityChimneySmokeParticles(
+  emitter,
+  timeMs,
+  wind = Object.freeze({ flowDirectionRad: 0, strength: 1 })
+) {
   requireEmitter(emitter);
   if (!Number.isFinite(timeMs) || timeMs < 0) {
     throw new Error(`Invalid city chimney smoke time: ${timeMs}`);
   }
+  if (
+    !Number.isFinite(wind?.flowDirectionRad) ||
+    !Number.isFinite(wind?.strength) ||
+    wind.strength < 0
+  ) {
+    throw new Error("City chimney smoke requires valid wind");
+  }
+  const windX = Math.cos(wind.flowDirectionRad);
+  const windY = Math.sin(wind.flowDirectionRad);
   const latestEmission = Math.floor(timeMs / emitter.emissionIntervalMs);
   const oldestEmission = Math.max(
     0,
@@ -171,10 +184,13 @@ export function cityChimneySmokeParticles(emitter, timeMs) {
       emitter.spread * life;
     const expansion = Math.floor(life * (emitter.maximumSize + 0.6));
     const size = Math.max(1, Math.min(emitter.maximumSize, 1 + expansion));
-    const centerX = emitter.x + startOffset + emitter.drift * life + wobble;
+    const windDistance = emitter.drift * wind.strength * life;
+    const centerX = emitter.x + startOffset + windX * windDistance + wobble;
     particles.push(Object.freeze({
       x: Math.round(centerX - (size - 1) / 2),
-      y: Math.round(emitter.y - emitter.rise * life - (size - 1) / 2),
+      y: Math.round(
+        emitter.y - emitter.rise * life + windY * windDistance * 0.35 - (size - 1) / 2
+      ),
       size,
       color: emitter.colors[Math.floor(random(seed, 2) * emitter.colors.length)],
       alpha: emitter.opacity * smokeFade(life)

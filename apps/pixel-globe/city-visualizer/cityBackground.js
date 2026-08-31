@@ -13,6 +13,11 @@ export const BACKGROUND_CITY_MOSQUE_LAYER = "Mosque";
 
 export const BACKGROUND_CITY_FRONT_DEPTH = 0.86;
 export const BACKGROUND_CITY_REAR_DEPTH = 0.8;
+export const BACKGROUND_CITY_PARALLAX_DEPTHS = Object.freeze([
+  BACKGROUND_CITY_FRONT_DEPTH,
+  0.83,
+  BACKGROUND_CITY_REAR_DEPTH
+]);
 export const BACKGROUND_CITY_MAX_ROWS = 8;
 export const BACKGROUND_CITY_PARALLAX_ANCHOR = 1;
 export const BACKGROUND_CITY_QUAY_CLEARANCE = 15;
@@ -629,11 +634,11 @@ export function cityBackgroundDepthForPerspective(perspective) {
   if (!Number.isFinite(perspective) || perspective < 0 || perspective > 1) {
     throw new Error(`Invalid background city depth perspective: ${perspective}`);
   }
-  return roundTo(
-    BACKGROUND_CITY_FRONT_DEPTH -
-      (BACKGROUND_CITY_FRONT_DEPTH - BACKGROUND_CITY_REAR_DEPTH) * perspective,
-    3
+  const plane = Math.min(
+    BACKGROUND_CITY_PARALLAX_DEPTHS.length - 1,
+    Math.floor(perspective * BACKGROUND_CITY_PARALLAX_DEPTHS.length)
   );
+  return BACKGROUND_CITY_PARALLAX_DEPTHS[plane];
 }
 
 export function cityBackgroundAtmosphereLevelForPerspective(perspective) {

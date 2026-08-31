@@ -17,6 +17,7 @@ import {
   BACKGROUND_CITY_FRONT_DEPTH,
   BACKGROUND_CITY_MAX_ROWS,
   BACKGROUND_CITY_NEAR_SCALE,
+  BACKGROUND_CITY_PARALLAX_DEPTHS,
   BACKGROUND_CITY_POINT_SPACING_X,
   BACKGROUND_CITY_POINT_SPACING_Y,
   BACKGROUND_CITY_QUAY_CLEARANCE,
@@ -174,6 +175,20 @@ test("each anchor's Y independently controls scale, palette shift, parallax, and
   assert.ok(near.scale > far.scale);
   assert.ok(near.depth > far.depth);
   assert.ok(near.atmosphereLevel < far.atmosphereLevel);
+  assert.deepEqual(
+    [...new Set(buildings.map((building) => building.depth))].sort((left, right) => right - left),
+    [...BACKGROUND_CITY_PARALLAX_DEPTHS]
+  );
+});
+
+test("background buildings share three coherent pixel parallax planes", () => {
+  assert.deepEqual(BACKGROUND_CITY_PARALLAX_DEPTHS, [0.86, 0.83, 0.8]);
+  assert.equal(cityBackgroundDepthForPerspective(0), 0.86);
+  assert.equal(cityBackgroundDepthForPerspective(0.32), 0.86);
+  assert.equal(cityBackgroundDepthForPerspective(0.34), 0.83);
+  assert.equal(cityBackgroundDepthForPerspective(0.65), 0.83);
+  assert.equal(cityBackgroundDepthForPerspective(0.67), 0.8);
+  assert.equal(cityBackgroundDepthForPerspective(1), 0.8);
 });
 
 test("the high left ribbon house receives visual perspective but remains locked to the quay", () => {
