@@ -95,7 +95,7 @@ test("named crew cannot be duplicated or silently removed", () => {
   assert.deepEqual(validateNamedCrew(value.namedCrew), []);
 });
 
-test("named crew reject a second identity with the same portrait or full name", () => {
+test("named crew reject a second identity with the same portrait", () => {
   const value = state(3, 6);
   const first = { ...character(), sourceId: "portrait-one" };
   addNamedCrewMember(value, first);
@@ -105,11 +105,6 @@ test("named crew reject a second identity with the same portrait or full name", 
     name: "Ines Costa",
     sourceId: first.sourceId
   }), /repeats .* portrait/);
-  assert.throws(() => addNamedCrewMember(value, {
-    ...character("name-double"),
-    name: `  ${first.name.toUpperCase()}  `,
-    sourceId: "portrait-two"
-  }), /repeats an existing .* name/);
   assert.equal(value.namedCrew.length, 1);
 });
 
@@ -130,7 +125,14 @@ test("quest recruitment can reconcile the same already-aboard crewmate without a
 });
 
 test("casualties take unnamed crew, then named crew, then the captain", () => {
-  const captain = { ...character("captain"), skillIds: ["skilled-chef"] };
+  const captain = {
+    ...character("captain"),
+    homePortCityId: "london|united kingdom",
+    homePortTileId: 1,
+    homePortName: "London",
+    homePortCountry: "United Kingdom",
+    skillIds: ["skilled-chef"]
+  };
   const stats = {
     slug: "test-ship",
     cargoCapacity: 20,

@@ -71,18 +71,20 @@ export function createTeaRaceQuest({
   const season = teaRaceSeasonAtMinute(simMinute, origin.lon || 0);
   if (!season.open) throw new Error(`Tea race offered outside the spring crop: day ${season.dayIndex}`);
   const id = `tea-race-${season.year}`;
-  const competitors = teaRaceCompetitorManifest(id, origin.tileId, destination.tileId);
+  const competitors = teaRaceCompetitorManifest(id, origin.cityId, destination.cityId);
   return Object.freeze({
     id,
     kind: TEA_RACE_QUEST_KIND,
     stage: "race",
     seasonYear: season.year,
     originKey,
+    originCityId: origin.cityId,
     originTileId: origin.tileId,
     originName: portName(origin),
     originCountry: origin.country || "",
     originFactionId: "ming",
     destinationKey,
+    destinationCityId: destination.cityId,
     destinationTileId: destination.tileId,
     destinationName: portName(destination),
     destinationCountry: destination.country || "",
@@ -102,9 +104,10 @@ export function createTeaRaceQuest({
   });
 }
 
-export function teaRaceCompetitorManifest(questId, originPortId, destinationPortId) {
+export function teaRaceCompetitorManifest(questId, originCityId, destinationCityId) {
   if (typeof questId !== "string" || questId === "" ||
-      !Number.isInteger(originPortId) || !Number.isInteger(destinationPortId)) {
+      typeof originCityId !== "string" || originCityId === "" ||
+      typeof destinationCityId !== "string" || destinationCityId === "") {
     throw new Error("Tea race competitor manifest requires quest and port ids");
   }
   return Object.freeze(TEA_RACE_COMPETITORS.map((entry, index) => Object.freeze({
@@ -112,8 +115,8 @@ export function teaRaceCompetitorManifest(questId, originPortId, destinationPort
     factionId: entry.factionId,
     role: "merchant",
     shipSlug: entry.shipSlug,
-    originPortId,
-    destinationPortId,
+    originCityId,
+    destinationCityId,
     departureDelayMinutes: entry.departureDelayMinutes,
     holdProgress: entry.holdProgress
   })));

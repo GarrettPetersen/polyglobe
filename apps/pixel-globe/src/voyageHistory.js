@@ -1,7 +1,7 @@
 import { gameStorage } from "./gameStorage.js";
 
 export const VOYAGE_HISTORY_STORAGE_KEY = "marque-and-reprisal.voyage-history";
-export const VOYAGE_HISTORY_VERSION = 2;
+export const VOYAGE_HISTORY_VERSION = 3;
 export const MAX_PAST_VOYAGES = 50;
 export const VOYAGE_OUTCOME_TYPES = Object.freeze(["victory", "death", "quit", "demo"]);
 const LEGACY_ABANDONED_VOYAGE_OUTCOME = "Voyage abandoned for a new expedition.";
@@ -41,6 +41,7 @@ export function appendVoyageRecord(record, {
   const previous = loaded.status === "ready" ? loaded.records : [];
   const normalized = {
     ...record,
+    goalType: record.goalType ?? null,
     id: `${Math.floor(endedAt)}-${previous.length + 1}`,
     endedAt: Math.floor(endedAt)
   };
@@ -114,16 +115,19 @@ function validateVoyageHistory(history) {
 function migrateVoyageHistory(history) {
   if (!history || typeof history !== "object") throw new Error("Invalid voyage history");
   if (history.version === VOYAGE_HISTORY_VERSION) return history;
-  if (history.version !== 1 || !Array.isArray(history.records)) {
+  if (![1, 2].includes(history.version) || !Array.isArray(history.records)) {
     throw new Error(`Unsupported voyage history version: ${history.version ?? "missing"}`);
   }
   return {
     version: VOYAGE_HISTORY_VERSION,
     records: history.records.map((record) => ({
       ...record,
-      outcomeType: record.outcome === LEGACY_ABANDONED_VOYAGE_OUTCOME ? "quit" : "death",
-      goal: "Unknown",
-      mappedPercent: 0
+      outcomeType: history.version === 1
+        ? record.outcome === LEGACY_ABANDONED_VOYAGE_OUTCOME ? "quit" : "death"
+        : record.outcomeType,
+      goal: history.version === 1 ? "Unknown" : record.goal,
+      goalType: null,
+      mappedPercent: history.version === 1 ? 0 : record.mappedPercent
     }))
   };
 }
@@ -146,6 +150,11 @@ function validateVoyageRecord(record) {
   }
   if (!VOYAGE_OUTCOME_TYPES.includes(record.outcomeType)) {
     throw new Error(`Voyage record has invalid outcome type: ${record.outcomeType}`);
+  }
+  if (record.goalType !== null && (
+    typeof record.goalType !== "string" || record.goalType.trim() === ""
+  )) {
+    throw new Error(`Voyage record has invalid goal type: ${record.goalType}`);
   }
   if (!Number.isFinite(record.endedAt) || record.endedAt <= 0) {
     throw new Error(`Voyage record has invalid endedAt: ${record.endedAt}`);

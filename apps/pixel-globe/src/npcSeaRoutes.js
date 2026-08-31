@@ -20,6 +20,7 @@ import {
   shipStatsForSlug
 } from "./shipStats.js";
 import { HYBRID_ROUTE_PROGRESS_FLOOR } from "./shipPropulsion.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 import {
   DIPLOMACY_WAR,
   NEUTRAL_FACTION_ID,
@@ -105,7 +106,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
-export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 3;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 5;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 212;
 export const NPC_PACIFIC_FLEET_TARGET = 32;
@@ -172,14 +173,12 @@ export function npcFleetOriginWeightsForPorts(ports) {
   }
   const weights = new Map();
   for (const port of ports) {
-    if (!Number.isInteger(port?.tileId) || port.tileId < 0) {
-      throw new Error(`NPC fleet origin weight port has invalid tile id: ${port?.tileId}`);
-    }
-    if (weights.has(port.tileId)) {
-      throw new Error(`NPC fleet origin weights received duplicate port tile: ${port.tileId}`);
+    const cityId = requireCityId(port, "NPC fleet origin weight port");
+    if (weights.has(cityId)) {
+      throw new Error(`NPC fleet origin weights received duplicate city: ${cityId}`);
     }
     // Every eligible home remains possible even if it is outside the active fleet's busiest pools.
-    weights.set(port.tileId, 1);
+    weights.set(cityId, 1);
   }
 
   const usablePorts = ports
@@ -596,8 +595,12 @@ export function createNpcSeaRouteSystem({
 export function addNpcSeaRoutePort(system, port) {
   assertSaveableNpcRouteSystem(system);
   if (!isAnyUsablePort(port)) throw new Error(`NPC route port is unusable: ${portName(port)}`);
+  const cityId = requireCityId(port, "NPC route port");
+  if (system.ports.some((candidate) => candidate.cityId === cityId)) {
+    throw new Error(`NPC route port already exists: ${cityId}`);
+  }
   if (system.ports.some((candidate) => candidate.tileId === port.tileId)) {
-    throw new Error(`NPC route port already exists: ${port.tileId}`);
+    throw new Error(`NPC route port tile is already occupied: ${port.tileId}`);
   }
   const normalized = normalizeNpcRoutePort(port);
   if (normalized.routeAnchors.length === 0) {
@@ -613,8 +616,14 @@ export function addNpcSeaRoutePort(system, port) {
 export function replaceNpcSeaRoutePort(system, port) {
   assertSaveableNpcRouteSystem(system);
   if (!isAnyUsablePort(port)) throw new Error(`NPC replacement route port is unusable: ${portName(port)}`);
-  const index = system.ports.findIndex((candidate) => candidate.tileId === port.tileId);
-  if (index < 0) throw new Error(`NPC replacement route port does not exist: ${port.tileId}`);
+  const cityId = requireCityId(port, "NPC replacement route port");
+  const index = system.ports.findIndex((candidate) => candidate.cityId === cityId);
+  if (index < 0) throw new Error(`NPC replacement route port does not exist: ${cityId}`);
+  if (system.ports.some((candidate, candidateIndex) => (
+    candidateIndex !== index && candidate.tileId === port.tileId
+  ))) {
+    throw new Error(`NPC replacement route port tile is already occupied: ${port.tileId}`);
+  }
   const normalized = normalizeNpcRoutePort(port);
   if (normalized.routeAnchors.length === 0) {
     throw new Error(`NPC replacement route port has no sea-lane anchors: ${portName(port)}`);
@@ -628,19 +637,15 @@ export function replaceNpcSeaRoutePort(system, port) {
 
 export function npcSeaRouteHasPort(system, port) {
   assertSaveableNpcRouteSystem(system);
-  if (!Number.isInteger(port?.tileId) || port.tileId < 0) {
-    throw new Error("NPC route port lookup requires a tile id");
-  }
-  return system.ports.some((candidate) => candidate.tileId === port.tileId);
+  const cityId = requireCityId(port, "NPC route port lookup");
+  return system.ports.some((candidate) => candidate.cityId === cityId);
 }
 
 export function npcSeaRoutePortSettlementType(system, port) {
   assertSaveableNpcRouteSystem(system);
-  if (!Number.isInteger(port?.tileId) || port.tileId < 0) {
-    throw new Error("NPC route settlement lookup requires a tile id");
-  }
-  const existing = system.ports.find((candidate) => candidate.tileId === port.tileId);
-  if (!existing) throw new Error(`NPC route port does not exist: ${port.tileId}`);
+  const cityId = requireCityId(port, "NPC route settlement lookup");
+  const existing = system.ports.find((candidate) => candidate.cityId === cityId);
+  if (!existing) throw new Error(`NPC route port does not exist: ${cityId}`);
   return existing.settlementType === "village" ? "village" : "city";
 }
 
@@ -716,9 +721,9 @@ export function configureNpcEncounter(system, spec, clockMinutes) {
     hideoutCooldownUntilPortVisit: 0,
     nationalCircuitId: null,
     nationalCircuitFactionId: null,
-    nationalCircuitPortIds: [],
+    nationalCircuitCityIds: [],
     capitalNavalReserveSlotId: null,
-    capitalNavalReserveDestinationPortId: null,
+    capitalNavalReserveDestinationCityId: null,
     capitalNavalReserveDocked: false,
     portResponse: null,
     currentPort: origin,
@@ -748,10 +753,11 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
     throw new Error("NPC route encounter requires an id");
   }
   if (system.shipById.has(spec.id)) throw new Error(`NPC route encounter id already exists: ${spec.id}`);
-  if (!Number.isInteger(spec.originPortId)) {
+  if (typeof spec.originCityId !== "string" || spec.originCityId === "") {
     throw new Error(`NPC route encounter requires an origin port: ${spec.id}`);
   }
-  if (spec.destinationPortId !== undefined && !Number.isInteger(spec.destinationPortId)) {
+  if (spec.destinationCityId !== undefined &&
+      (typeof spec.destinationCityId !== "string" || spec.destinationCityId === "")) {
     throw new Error(`NPC route encounter has an invalid destination port: ${spec.id}`);
   }
   if (spec.departureDelayMinutes !== undefined && (
@@ -771,14 +777,10 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
   if (spec.hiddenAtOrigin !== undefined && typeof spec.hiddenAtOrigin !== "boolean") {
     throw new Error(`Invalid NPC route encounter hideout state: ${spec.id}`);
   }
-  const origin = system.ports.find((port) => port.tileId === spec.originPortId);
-  if (!origin) throw new Error(`NPC route encounter origin is missing: ${spec.originPortId}`);
-  const destination = spec.destinationPortId === undefined
+  const origin = requiredNpcRoutePort(system, spec.originCityId, "NPC route encounter origin");
+  const destination = spec.destinationCityId === undefined
     ? null
-    : system.ports.find((port) => port.tileId === spec.destinationPortId);
-  if (spec.destinationPortId !== undefined && !destination) {
-    throw new Error(`NPC route encounter destination is missing: ${spec.destinationPortId}`);
-  }
+    : requiredNpcRoutePort(system, spec.destinationCityId, "NPC route encounter destination");
   const profileSpec = Object.freeze({
     id: spec.profileId || "wide-world",
     mode: spec.mode || "interregional"
@@ -795,11 +797,16 @@ export function configureNpcRouteEncounter(system, spec, clockMinutes) {
   });
   ship.encounter = spec.encounter ? cloneJsonData(spec.encounter) : null;
   if (ship.encounter) {
-    const savedOriginPortId = ship.encounter.originPortId;
-    if (savedOriginPortId !== undefined && savedOriginPortId !== spec.originPortId) {
+    const savedOriginCityId = ship.encounter.originCityId;
+    if (savedOriginCityId !== undefined && savedOriginCityId !== spec.originCityId) {
       throw new Error(`NPC route encounter origin does not match its route: ${spec.id}`);
     }
-    ship.encounter.originPortId = spec.originPortId;
+    ship.encounter.originCityId = spec.originCityId;
+    if (destination && ship.encounter.destinationCityId !== undefined &&
+        ship.encounter.destinationCityId !== spec.destinationCityId) {
+      throw new Error(`NPC route encounter destination does not match its route: ${spec.id}`);
+    }
+    if (destination) ship.encounter.destinationCityId = spec.destinationCityId;
   }
   ship.replaceOnSink = spec.replaceOnSink !== false;
   if (spec.specie !== undefined) {
@@ -868,35 +875,35 @@ export function stageNpcRouteEncounterAtDestination(
   system,
   shipId,
   clockMinutes,
-  { holdProgress = null, originPortId = null } = {}
+  { holdProgress = null, originCityId = null } = {}
 ) {
   assertSaveableNpcRouteSystem(system);
   if (!Number.isFinite(clockMinutes) || clockMinutes < 0) {
     throw new Error(`Invalid NPC encounter staging clock: ${clockMinutes}`);
   }
   const ship = requiredNpcShip(system, shipId);
-  const destinationPortId = ship.encounter?.destinationPortId;
-  if (ship.encounter?.holdAtDestination !== true || !Number.isInteger(destinationPortId)) {
+  const destinationCityId = ship.encounter?.destinationCityId;
+  if (ship.encounter?.holdAtDestination !== true ||
+      typeof destinationCityId !== "string" || destinationCityId === "") {
     throw new Error(`NPC encounter cannot be staged at a destination: ${shipId}`);
   }
-  const destination = system.ports.find((port) => port.tileId === destinationPortId);
-  if (!destination) throw new Error(`NPC encounter destination is missing: ${destinationPortId}`);
+  const destination = requiredNpcRoutePort(system, destinationCityId, "NPC encounter destination");
   if (holdProgress !== null &&
       (!Number.isFinite(holdProgress) || holdProgress <= 0 || holdProgress > 1)) {
     throw new Error(`Invalid NPC encounter staging progress: ${shipId}`);
   }
-  if (originPortId !== null && !Number.isInteger(originPortId)) {
+  if (originCityId !== null && (typeof originCityId !== "string" || originCityId === "")) {
     throw new Error(`Invalid NPC encounter staging origin: ${shipId}`);
   }
-  if (originPortId !== null) {
-    const savedOriginPortId = ship.encounter.originPortId;
-    if (savedOriginPortId !== undefined && savedOriginPortId !== originPortId) {
+  if (originCityId !== null) {
+    const savedOriginCityId = ship.encounter.originCityId;
+    if (savedOriginCityId !== undefined && savedOriginCityId !== originCityId) {
       throw new Error(`NPC encounter staging origin changed: ${shipId}`);
     }
-    ship.encounter.originPortId = originPortId;
+    ship.encounter.originCityId = originCityId;
   }
   if (
-    ship.currentPort?.tileId === destinationPortId &&
+    ship.currentPort?.cityId === destinationCityId &&
     ship.plan?.segments?.length === 1 &&
     ship.plan.segments[0].kind === "wait"
   ) {
@@ -1442,7 +1449,7 @@ function refreshLocallyAuthoritativeNpcRestoreState(plan) {
 function capitalNavalReserveSlotStatesMatch(left, right) {
   return left.id === right.id &&
     left.factionId === right.factionId &&
-    left.originPortId === right.originPortId &&
+    left.originCityId === right.originCityId &&
     left.profileId === right.profileId &&
     left.shipSlug === right.shipSlug &&
     left.stockedMinute === right.stockedMinute &&
@@ -1473,12 +1480,12 @@ function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {
     // Demobilize that ship instead of restoring a reference to a constitutional owner
     // which no longer exists.
     ship.capitalNavalReserveSlotId = null;
-    ship.capitalNavalReserveDestinationPortId = null;
+    ship.capitalNavalReserveDestinationCityId = null;
     ship.capitalNavalReserveDocked = false;
     ship.replaceOnSink = Boolean(npcControlledNavalBaseForShipOrNull(
       system,
       ship,
-      ship.portResponse?.returnPortId ?? null
+      ship.portResponse?.returnCityId ?? null
     ));
   }
   if (staleShipIds.size > 0) {
@@ -1505,7 +1512,7 @@ export function restoreNpcSeaRouteSystem(
 ) {
   assertSaveableNpcRouteSystem(system);
   validateOptionalSeedKey(seedKey, "restored NPC routes");
-  if (!snapshot || ![1, 2, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, 2, 3, 4, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil) ||
       (snapshot.version >= 3 && !Array.isArray(snapshot.capitalNavalReserveSlots))) {
     throw new Error("Unsupported NPC route save data");
@@ -1513,6 +1520,9 @@ export function restoreNpcSeaRouteSystem(
   const ships = cloneJsonData(snapshot.ships);
   const replacementQueue = cloneJsonData(snapshot.replacementQueue);
   if (snapshot.version === 1) migrateNpcRouteFactionsTo1522(ships, replacementQueue);
+  if (snapshot.version < NPC_SEA_ROUTE_SNAPSHOT_VERSION) {
+    migrateNpcRouteEntityReferences(system, ships, replacementQueue);
+  }
   const shipById = new Map();
   for (const ship of ships) {
     if (!ship || typeof ship.id !== "string" || ship.id === "" || shipById.has(ship.id)) {
@@ -1576,7 +1586,7 @@ export function restoreNpcSeaRouteSystem(
   synchronizeNpcWhalerFleet(system, system.economy.lastMinute);
   system.shipById = new Map(system.ships.map((ship) => [ship.id, ship]));
   system.capitalNavalReserveSlots = snapshot.version >= 3
-    ? cloneJsonData(snapshot.capitalNavalReserveSlots).map(validateCapitalNavalReserveSlot)
+    ? restoreCapitalNavalReserveSlots(system, snapshot.capitalNavalReserveSlots, snapshot.version)
     : createInitialCapitalNavalReserveSlots(system, system.economy.lastMinute);
   validateCapitalNavalReserveAssignments(system);
   synchronizeNationalPortCircuits(system, system.economy.lastMinute);
@@ -1620,6 +1630,77 @@ function migrateNpcRouteFactionsTo1522(ships, replacementQueue) {
   }
 }
 
+function migrateNpcRouteEntityReferences(system, ships, replacementQueue) {
+  for (const ship of ships) {
+    if (Array.isArray(ship.nationalCircuitPortIds)) {
+      ship.nationalCircuitCityIds = ship.nationalCircuitPortIds.map((tileId) => (
+        cityIdForLegacyPortTile(system, tileId, `Legacy national circuit on ${ship.id}`)
+      ));
+      delete ship.nationalCircuitPortIds;
+    }
+    if (ship.capitalNavalReserveDestinationPortId !== undefined) {
+      ship.capitalNavalReserveDestinationCityId = ship.capitalNavalReserveDestinationPortId === null
+        ? null
+        : cityIdForLegacyPortTile(
+            system,
+            ship.capitalNavalReserveDestinationPortId,
+            `Legacy capital reserve destination on ${ship.id}`
+          );
+      delete ship.capitalNavalReserveDestinationPortId;
+    }
+    if (ship.portResponse) {
+      ship.portResponse.targetCityId = cityIdForLegacyPortTile(
+        system,
+        ship.portResponse.targetPortId,
+        `Legacy port-response target on ${ship.id}`
+      );
+      ship.portResponse.returnCityId = cityIdForLegacyPortTile(
+        system,
+        ship.portResponse.returnPortId,
+        `Legacy port-response return on ${ship.id}`
+      );
+      delete ship.portResponse.targetPortId;
+      delete ship.portResponse.returnPortId;
+    }
+    if (ship.encounter) {
+      if (ship.encounter.originPortId !== undefined) {
+        ship.encounter.originCityId = cityIdForLegacyPortTile(
+          system,
+          ship.encounter.originPortId,
+          `Legacy encounter origin on ${ship.id}`
+        );
+        delete ship.encounter.originPortId;
+      }
+      if (ship.encounter.destinationPortId !== undefined) {
+        ship.encounter.destinationCityId = cityIdForLegacyPortTile(
+          system,
+          ship.encounter.destinationPortId,
+          `Legacy encounter destination on ${ship.id}`
+        );
+        delete ship.encounter.destinationPortId;
+      }
+    }
+  }
+  for (const replacement of replacementQueue) {
+    replacement.originCityId = cityIdForLegacyPortTile(
+      system,
+      replacement.originPortId,
+      `Legacy NPC replacement origin ${replacement.shipId}`
+    );
+    delete replacement.originPortId;
+    if (Array.isArray(replacement.nationalCircuitPortIds)) {
+      replacement.nationalCircuitCityIds = replacement.nationalCircuitPortIds.map((tileId) => (
+        cityIdForLegacyPortTile(
+          system,
+          tileId,
+          `Legacy replacement national circuit ${replacement.shipId}`
+        )
+      ));
+      delete replacement.nationalCircuitPortIds;
+    }
+  }
+}
+
 function repairOverextendedNpcShips(system, ships, replacementQueue) {
   const regionalProfile = fleetProfileForId("east-asia");
   const japanesePorts = system.ports.filter((port) => (
@@ -1657,7 +1738,7 @@ function repairOverextendedNpcShips(system, ships, replacementQueue) {
       JAPANESE_SHIP_SLUGS.includes(slug)
     ));
     if (hasLocalJapaneseHull && japanesePorts.length > 0) {
-      const previousOrigin = system.ports.find((port) => port.tileId === replacement.originPortId) ||
+      const previousOrigin = system.ports.find((port) => port.cityId === replacement.originCityId) ||
         japanesePorts[0];
       const origin = nearestJapaneseFleetPort(japanesePorts, previousOrigin, replacement.factionId);
       replacement.profileId = regionalProfile.id;
@@ -1666,7 +1747,7 @@ function repairOverextendedNpcShips(system, ships, replacementQueue) {
         replacement.role,
         replacement.factionId
       ).slice();
-      replacement.originPortId = origin.tileId;
+      replacement.originCityId = requireCityId(origin, "NPC replacement origin");
     } else {
       const compatibleSlugs = replacement.slugs.filter((slug) => (
         npcShipSupportsFleetMode(slug, profileSpec.mode)
@@ -1893,16 +1974,16 @@ function isSavedEncounterPoint(destination) {
 
 export function applyNpcConquestOwnership(
   system,
-  portFactionByTileId,
+  portFactionByCityId,
   collapsedFactionIds,
   factionSuccessors = new Map()
 ) {
   assertSaveableNpcRouteSystem(system);
-  if (!(portFactionByTileId instanceof Map)) throw new Error("NPC conquest ownership requires a port faction map");
+  if (!(portFactionByCityId instanceof Map)) throw new Error("NPC conquest ownership requires a port faction map");
   if (!(collapsedFactionIds instanceof Set)) throw new Error("NPC conquest ownership requires collapsed factions");
   if (!(factionSuccessors instanceof Map)) throw new Error("NPC conquest ownership requires a successor map");
-  for (const [tileId, factionId] of portFactionByTileId) {
-    if (!Number.isInteger(tileId)) throw new Error(`Invalid conquered port tile: ${tileId}`);
+  for (const [cityId, factionId] of portFactionByCityId) {
+    requireEntityId(cityId, "Conquered port");
     assertFactionId(factionId);
   }
   for (const factionId of collapsedFactionIds) assertFactionId(factionId);
@@ -1911,7 +1992,7 @@ export function applyNpcConquestOwnership(
     assertFactionId(successorFactionId);
   }
 
-  for (const port of system.ports) synchronizeNpcPortFaction(port, portFactionByTileId);
+  for (const port of system.ports) synchronizeNpcPortFaction(port, portFactionByCityId);
   for (const ship of system.ships) {
     ship.factionId = factionSuccessors.get(ship.factionId) || ship.factionId;
     if (collapsedFactionIds.has(ship.factionId)) ship.factionId = NEUTRAL_FACTION_ID;
@@ -1919,10 +2000,10 @@ export function applyNpcConquestOwnership(
       if (ship.factionId === NEUTRAL_FACTION_ID) ship.portResponse = null;
       else ship.portResponse.factionId = ship.factionId;
     }
-    synchronizeNpcPortFaction(ship.currentPort, portFactionByTileId);
-    synchronizeNpcPortFaction(ship.finalDestination, portFactionByTileId);
-    synchronizeNpcPortFaction(ship.plan?.origin, portFactionByTileId);
-    synchronizeNpcPortFaction(ship.plan?.destination, portFactionByTileId);
+    synchronizeNpcPortFaction(ship.currentPort, portFactionByCityId);
+    synchronizeNpcPortFaction(ship.finalDestination, portFactionByCityId);
+    synchronizeNpcPortFaction(ship.plan?.origin, portFactionByCityId);
+    synchronizeNpcPortFaction(ship.plan?.destination, portFactionByCityId);
   }
   for (const replacement of system.replacementQueue) {
     replacement.factionId = factionSuccessors.get(replacement.factionId) || replacement.factionId;
@@ -1956,7 +2037,7 @@ export function npcCapitalNavalReserveStatus(system, factionId) {
     }).length,
     inTransitCount: slots.filter((slot) => {
       const ship = slot.activeShipId ? system.shipById.get(slot.activeShipId) : null;
-      return Boolean(ship && ship.capitalNavalReserveDestinationPortId !== null);
+      return Boolean(ship && ship.capitalNavalReserveDestinationCityId !== null);
     }).length,
     vacantCount: slots.filter((slot) => slot.shipSlug === null && slot.activeShipId === null).length,
     slots: Object.freeze(slots.map((slot) => Object.freeze({ ...slot, allowedSlugs: Object.freeze([...slot.allowedSlugs]) })))
@@ -2007,7 +2088,7 @@ export function expandNpcCapitalNavalReserve(system, {
     system.capitalNavalReserveSlots.push(validateCapitalNavalReserveSlot({
       id,
       factionId,
-      originPortId: origin.tileId,
+      originCityId: requireCityId(origin, "Capital reserve origin"),
       profileId: profileSpec.id,
       allowedSlugs,
       shipSlug: null,
@@ -2045,7 +2126,7 @@ export function returnNpcWarLoanOffensiveShips(system, shipIds, clockMinutes) {
 
 export function orderNpcPortResponse(system, {
   factionId,
-  targetPortId,
+  targetCityId,
   reason,
   clockMinutes,
   threatUntilMinute = null,
@@ -2056,7 +2137,7 @@ export function orderNpcPortResponse(system, {
   if (factionId === NEUTRAL_FACTION_ID || factionId === PIRATE_FACTION_ID) {
     throw new Error(`Port response requires a sovereign faction: ${factionId}`);
   }
-  if (!Number.isInteger(targetPortId)) throw new Error(`Invalid port-response target: ${targetPortId}`);
+  requireEntityId(targetCityId, "port-response target");
   if (!NPC_PORT_RESPONSE_REASONS.has(reason)) throw new Error(`Unknown port-response reason: ${reason}`);
   if (!Number.isFinite(clockMinutes) || clockMinutes < 0) {
     throw new Error(`Invalid port-response minute: ${clockMinutes}`);
@@ -2071,13 +2152,12 @@ export function orderNpcPortResponse(system, {
   } else if (threatUntilMinute !== null) {
     throw new Error("A non-burning port response cannot have a battery recovery minute");
   }
-  const target = system.ports.find((port) => port.tileId === targetPortId);
-  if (!target) throw new Error(`Port-response target is missing: ${targetPortId}`);
+  const target = requiredNpcRoutePort(system, targetCityId, "port-response target");
   const controlledPorts = system.ports.filter((port) => (
     port.factionId === factionId && npcRoutePortAcceptsTraffic(port)
   ));
   if (controlledPorts.length === 0) {
-    return Object.freeze({ outcome: "no-controlled-port", factionId, targetPortId, shipId: null });
+    return Object.freeze({ outcome: "no-controlled-port", factionId, targetCityId, shipId: null });
   }
   const existingReserveSlot = system.capitalNavalReserveSlots.find((slot) => (
     slot.factionId === factionId
@@ -2092,16 +2172,16 @@ export function orderNpcPortResponse(system, {
   }
   const existing = system.ships.find((ship) => (
     ship.factionId === factionId && ship.role === NPC_ROLE_WARSHIP &&
-    ship.portResponse?.targetPortId === targetPortId
+    ship.portResponse?.targetCityId === targetCityId
   ));
   if (existing && !allowReinforcement) {
     assignNpcPortResponse(existing, {
       factionId,
       targetPort: target,
-      targetPortId,
-      returnPortId: existing.capitalNavalReserveSlotId
-        ? requiredCapitalNavalReserveSlot(system, existing.capitalNavalReserveSlotId).originPortId
-        : returnPort.tileId,
+      targetCityId,
+      returnCityId: existing.capitalNavalReserveSlotId
+        ? requiredCapitalNavalReserveSlot(system, existing.capitalNavalReserveSlotId).originCityId
+        : requireCityId(returnPort, "Port-response return port"),
       reason,
       clockMinutes,
       threatUntilMinute
@@ -2109,7 +2189,7 @@ export function orderNpcPortResponse(system, {
     return Object.freeze({
       outcome: "already-responding",
       factionId,
-      targetPortId,
+      targetCityId,
       shipId: existing.id
     });
   }
@@ -2126,7 +2206,7 @@ export function orderNpcPortResponse(system, {
     return Object.freeze({
       outcome: "reserve-activated",
       factionId,
-      targetPortId,
+      targetCityId,
       shipId: ship.id,
       reserveSlotId: stockedSlot.id
     });
@@ -2146,8 +2226,8 @@ export function orderNpcPortResponse(system, {
     assignNpcPortResponse(unassigned, {
       factionId,
       targetPort: target,
-      targetPortId,
-      returnPortId: returnPort.tileId,
+      targetCityId,
+      returnCityId: requireCityId(returnPort, "Port-response return port"),
       reason,
       clockMinutes,
       threatUntilMinute
@@ -2155,7 +2235,7 @@ export function orderNpcPortResponse(system, {
     return Object.freeze({
       outcome: "warship-recalled",
       factionId,
-      targetPortId,
+      targetCityId,
       shipId: unassigned.id
     });
   }
@@ -2163,20 +2243,20 @@ export function orderNpcPortResponse(system, {
   const retasked = system.ships
     .filter((ship) => (
       ship.factionId === factionId && ship.role === NPC_ROLE_WARSHIP && ship.portResponse &&
-      ship.portResponse.targetPortId !== targetPortId
+      ship.portResponse.targetCityId !== targetCityId
     ))
     .sort((a, b) => (
       distanceKm(a.currentPort, target) - distanceKm(b.currentPort, target) ||
       a.id.localeCompare(b.id)
     ))[0] || null;
   if (!retasked) {
-    return Object.freeze({ outcome: "no-warship-available", factionId, targetPortId, shipId: null });
+    return Object.freeze({ outcome: "no-warship-available", factionId, targetCityId, shipId: null });
   }
   assignNpcPortResponse(retasked, {
     factionId,
     targetPort: target,
-    targetPortId,
-    returnPortId: retasked.portResponse.returnPortId,
+    targetCityId,
+    returnCityId: retasked.portResponse.returnCityId,
     reason,
     clockMinutes,
     threatUntilMinute
@@ -2184,7 +2264,7 @@ export function orderNpcPortResponse(system, {
   return Object.freeze({
     outcome: "warship-retasked",
     factionId,
-    targetPortId,
+    targetCityId,
     shipId: retasked.id
   });
 }
@@ -2213,7 +2293,7 @@ function createInitialCapitalNavalReserveSlots(system, startMinute) {
       slots.push(validateCapitalNavalReserveSlot({
         id,
         factionId,
-        originPortId: origin.tileId,
+        originCityId: requireCityId(origin, "Capital reserve origin"),
         profileId: profileSpec.id,
         allowedSlugs,
         shipSlug: weightedCheapShipSlug(allowedSlugs, seed),
@@ -2293,7 +2373,7 @@ function reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsed
   const removedSlotIds = new Set();
   const retiredShipIds = new Set();
   for (const slot of system.capitalNavalReserveSlots) {
-    const storedOrigin = system.ports.find((port) => port.tileId === slot.originPortId);
+    const storedOrigin = system.ports.find((port) => port.cityId === slot.originCityId);
     const originRemainsUsable = !collapsedFactionIds.has(slot.factionId) &&
       storedOrigin?.factionId === slot.factionId && npcRoutePortAcceptsTraffic(storedOrigin);
     if (originRemainsUsable) continue;
@@ -2309,7 +2389,7 @@ function reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsed
       continue;
     }
 
-    slot.originPortId = replacement.tileId;
+    slot.originCityId = requireCityId(replacement, "Capital reserve replacement origin");
     if (slot.shipSlug !== null) {
       slot.shipSlug = null;
       slot.stockedMinute = null;
@@ -2323,14 +2403,14 @@ function reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsed
     if (ship.capitalNavalReserveDocked) {
       slot.activeShipId = null;
       ship.capitalNavalReserveSlotId = null;
-      ship.capitalNavalReserveDestinationPortId = null;
+      ship.capitalNavalReserveDestinationCityId = null;
       ship.capitalNavalReserveDocked = false;
       retiredShipIds.add(ship.id);
       continue;
     }
-    if (ship.portResponse) ship.portResponse.returnPortId = replacement.tileId;
-    if (ship.capitalNavalReserveDestinationPortId !== null) {
-      ship.capitalNavalReserveDestinationPortId = replacement.tileId;
+    if (ship.portResponse) ship.portResponse.returnCityId = replacement.cityId;
+    if (ship.capitalNavalReserveDestinationCityId !== null) {
+      ship.capitalNavalReserveDestinationCityId = replacement.cityId;
       ship.finalDestination = replacement;
     }
   }
@@ -2338,7 +2418,7 @@ function reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsed
   for (const ship of system.ships) {
     if (!removedSlotIds.has(ship.capitalNavalReserveSlotId)) continue;
     ship.capitalNavalReserveSlotId = null;
-    ship.capitalNavalReserveDestinationPortId = null;
+    ship.capitalNavalReserveDestinationCityId = null;
     ship.capitalNavalReserveDocked = false;
     ship.replaceOnSink = false;
     if (!ship.portResponse || ship.portResponse.phase === "returning") {
@@ -2406,8 +2486,8 @@ function activateCapitalNavalReserveSlot(system, slot, target, {
   assignNpcPortResponse(ship, {
     factionId: slot.factionId,
     targetPort: target,
-    targetPortId: target.tileId,
-    returnPortId: slot.originPortId,
+    targetCityId: requireCityId(target, "Capital reserve response target"),
+    returnCityId: slot.originCityId,
     reason,
     clockMinutes,
     threatUntilMinute
@@ -2420,7 +2500,7 @@ function activateCapitalNavalReserveSlot(system, slot, target, {
 }
 
 function activeCapitalNavalReservePort(system, slot) {
-  const storedCapital = system.ports.find((port) => port.tileId === slot.originPortId);
+  const storedCapital = system.ports.find((port) => port.cityId === slot.originCityId);
   if (storedCapital?.factionId === slot.factionId && npcRoutePortAcceptsTraffic(storedCapital)) {
     return storedCapital;
   }
@@ -2435,7 +2515,7 @@ function activeCapitalNavalReservePort(system, slot) {
   if (!replacement) {
     throw new Error(`Capital naval reserve has no navigable port for ${slot.factionId}`);
   }
-  slot.originPortId = replacement.tileId;
+  slot.originCityId = requireCityId(replacement, "Capital reserve replacement origin");
   return replacement;
 }
 
@@ -2489,23 +2569,23 @@ function launchCapitalNavalReserveShip(system, ship, desiredDestination, clockMi
 function assignNpcPortResponse(ship, {
   factionId,
   targetPort,
-  targetPortId,
-  returnPortId,
+  targetCityId,
+  returnCityId,
   reason,
   clockMinutes,
   threatUntilMinute
 }) {
   ship.portResponse = {
     factionId,
-    targetPortId,
-    returnPortId,
+    targetCityId,
+    returnCityId,
     reason,
     phase: "responding",
     orderedMinute: clockMinutes,
     threatUntilMinute: reason === NPC_PORT_RESPONSE_BURNING ? threatUntilMinute : null
   };
-  ship.capitalNavalReserveDestinationPortId = null;
-  if (!targetPort || targetPort.tileId !== targetPortId) {
+  ship.capitalNavalReserveDestinationCityId = null;
+  if (!targetPort || targetPort.cityId !== targetCityId) {
     throw new Error(`Port response ${ship.id} has a mismatched target port`);
   }
   ship.finalDestination = targetPort;
@@ -2555,10 +2635,9 @@ function synchronizeExpansionistWarshipFleets(system, startMinute, collapsedFact
   return added;
 }
 
-function synchronizeNpcPortFaction(port, portFactionByTileId) {
+function synchronizeNpcPortFaction(port, portFactionByCityId) {
   if (!port) return;
-  if (!Number.isInteger(port.tileId)) throw new Error("NPC route port has no tile id");
-  const factionId = portFactionByTileId.get(port.tileId);
+  const factionId = portFactionByCityId.get(requireCityId(port, "NPC route port"));
   if (factionId) port.factionId = factionId;
 }
 
@@ -2572,8 +2651,8 @@ function choosePirateHideouts(ports) {
   const candidates = discreetPorts.length >= count ? discreetPorts : ports;
   return [...candidates]
     .sort((a, b) => (
-      hashString32(`${a.tileId}|${a.city}|pirate-hideout`) -
-      hashString32(`${b.tileId}|${b.city}|pirate-hideout`)
+      hashString32(`${requireCityId(a, "Pirate hideout candidate")}|pirate-hideout`) -
+      hashString32(`${requireCityId(b, "Pirate hideout candidate")}|pirate-hideout`)
     ))
     .slice(0, count);
 }
@@ -2802,8 +2881,7 @@ function reconcileNpcPortResponseThreats(system, clockMinutes) {
   for (const ship of system.ships) {
     const response = ship.portResponse;
     if (!response || response.phase !== "responding") continue;
-    const target = system.ports.find((port) => port.tileId === response.targetPortId);
-    if (!target) throw new Error(`Port-response target disappeared: ${ship.id}`);
+    const target = requiredNpcRoutePort(system, response.targetCityId, "port-response target");
     const resolved = response.reason === NPC_PORT_RESPONSE_BURNING
       ? clockMinutes >= response.threatUntilMinute
       : target.factionId === ship.factionId;
@@ -2820,7 +2898,10 @@ function orderNpcPortResponseReturn(system, ship) {
   if (ship.capitalNavalReserveSlotId) {
     const slot = requiredCapitalNavalReserveSlot(system, ship.capitalNavalReserveSlotId);
     returnPort = activeCapitalNavalReservePort(system, slot);
-    ship.capitalNavalReserveDestinationPortId = returnPort.tileId;
+    ship.capitalNavalReserveDestinationCityId = requireCityId(
+      returnPort,
+      "Capital reserve return destination"
+    );
   } else {
     returnPort = npcPortResponseReturnPortOrNull(system, ship);
     if (!returnPort) {
@@ -2829,7 +2910,7 @@ function orderNpcPortResponseReturn(system, ship) {
     }
   }
   response.phase = "returning";
-  response.returnPortId = returnPort.tileId;
+  response.returnCityId = requireCityId(returnPort, "Port-response return destination");
   ship.finalDestination = returnPort;
   return true;
 }
@@ -2837,17 +2918,17 @@ function orderNpcPortResponseReturn(system, ship) {
 function npcPortResponseReturnPortOrNull(system, ship) {
   const response = ship.portResponse;
   if (!response) throw new Error(`NPC response ship has no response order: ${ship.id}`);
-  return npcControlledNavalBaseForShipOrNull(system, ship, response.returnPortId);
+  return npcControlledNavalBaseForShipOrNull(system, ship, response.returnCityId);
 }
 
-function npcControlledNavalBaseForShipOrNull(system, ship, preferredPortId = null) {
-  if (preferredPortId !== null && !Number.isInteger(preferredPortId)) {
-    throw new Error(`Invalid preferred NPC naval base for ${ship.id}: ${preferredPortId}`);
+function npcControlledNavalBaseForShipOrNull(system, ship, preferredCityId = null) {
+  if (preferredCityId !== null) {
+    requireEntityId(preferredCityId, `Preferred NPC naval base for ${ship.id}`);
   }
   const controlledPorts = system.ports.filter((port) => (
     port.factionId === ship.factionId && npcRoutePortAcceptsTraffic(port)
   ));
-  const orderedReturnPort = controlledPorts.find((port) => port.tileId === preferredPortId);
+  const orderedReturnPort = controlledPorts.find((port) => port.cityId === preferredCityId);
   return orderedReturnPort || capitalNavalReserveRebasePortOrNull(
     controlledPorts,
     ship.factionId,
@@ -2879,7 +2960,7 @@ function demobilizeReturnedCapitalNavalReserves(system, clockMinutes) {
     if (slot.activeShipId !== ship.id || slot.shipSlug !== null) {
       throw new Error(`Capital naval reserve return does not match slot ${slot.id}`);
     }
-    if (ship.currentPort.tileId !== slot.originPortId) {
+    if (ship.currentPort.cityId !== slot.originCityId) {
       throw new Error(`Capital naval reserve ${ship.id} returned to the wrong port`);
     }
     slot.activeShipId = null;
@@ -3060,7 +3141,9 @@ function removeNpcShipForReplacement(system, ship, clockMinutes) {
     return { ship, replacement: null, delayDays: null, port: null };
   }
   const replacementPort = chooseNpcReplacementPort(system, ship);
-  const yard = system.economy.shipyards?.yards?.get(replacementPort.tileId) || null;
+  const yard = system.economy.shipyards?.yards?.get(
+    requireCityId(replacementPort, "NPC replacement shipyard")
+  ) || null;
   const yardSpeed = clamp((yard?.wealthScale || 0.75) + (yard?.famous ? 0.8 : 0), 0.65, 3.4);
   const delayDays = Math.max(
     NPC_REPLACEMENT_MIN_DAYS,
@@ -3078,11 +3161,11 @@ function removeNpcShipForReplacement(system, ship, clockMinutes) {
     cultureType: ship.cultureType || ship.currentPort?.cityType || null,
     slugs: ship.slugs.slice(),
     seed: hashString32(`${ship.seed}|${ship.portVisits}|replacement`),
-    originPortId: replacementPort.tileId,
+    originCityId: requireCityId(replacementPort, "NPC replacement origin"),
     readyMinute: clockMinutes + delayDays * WEATHER_MINUTES_PER_DAY,
     nationalCircuitId: ship.nationalCircuitId,
     nationalCircuitFactionId: ship.nationalCircuitFactionId,
-    nationalCircuitPortIds: ship.nationalCircuitPortIds.slice()
+    nationalCircuitCityIds: ship.nationalCircuitCityIds.slice()
   };
   system.ships = system.ships.filter((entry) => entry.id !== ship.id);
   system.shipById.delete(ship.id);
@@ -3344,7 +3427,7 @@ function synchronizeNationalPortCircuits(system, startMinute) {
     const slugs = profileSlugsForRole(profileSpec, NPC_ROLE_MERCHANT, spec.factionId);
     const slug = npcShipSlugForRole(profileSpec, NPC_ROLE_MERCHANT, seed, spec.factionId);
     assertNpcShipSupportsFleetMode(slug, profileSpec, id);
-    const origin = requiredNationalCircuitPort(system, spec.portIds[0], id);
+    const origin = requiredNationalCircuitPort(system, spec.cityIds[0], id);
     const ship = createNpcShipRecord({
       id,
       factionId: spec.factionId,
@@ -3398,10 +3481,10 @@ function buildNationalPortCircuitSpecs(system) {
       if (!nationalPortGroupNeedsOceanCircuit(networkPorts)) continue;
       const hub = chooseNationalCircuitHub(networkPorts, factionId);
       const remotePorts = networkPorts
-        .filter((port) => port.tileId !== hub.tileId)
-        .sort((a, b) => a.tileId - b.tileId);
+        .filter((port) => port.cityId !== hub.cityId)
+        .sort((a, b) => a.cityId.localeCompare(b.cityId));
       const remotePortsPerCircuit = NATIONAL_CIRCUIT_MAX_PORTS - 1;
-      const groupKey = Math.min(...networkPorts.map((port) => port.tileId));
+      const groupKey = requireCityId(hub, "National circuit hub");
       for (let offset = 0; offset < remotePorts.length; offset += remotePortsPerCircuit) {
         const chunk = remotePorts.slice(offset, offset + remotePortsPerCircuit);
         const orderedPorts = nearestNeighborPortOrder(hub, chunk);
@@ -3409,7 +3492,7 @@ function buildNationalPortCircuitSpecs(system) {
         specs.push(Object.freeze({
           id: `national-circuit:${factionId}:${groupKey}:${circuitIndex}`,
           factionId,
-          portIds: Object.freeze(orderedPorts.map((port) => port.tileId))
+          cityIds: Object.freeze(orderedPorts.map((port) => requireCityId(port, "National circuit port")))
         }));
       }
     }
@@ -3421,7 +3504,7 @@ function connectedNationalPortGroups(system, factionPorts) {
   const ungrouped = new Set(factionPorts);
   const groups = [];
   while (ungrouped.size > 0) {
-    const first = [...ungrouped].sort((a, b) => a.tileId - b.tileId)[0];
+    const first = [...ungrouped].sort((a, b) => a.cityId.localeCompare(b.cityId))[0];
     const group = [];
     const pending = [first];
     ungrouped.delete(first);
@@ -3434,7 +3517,7 @@ function connectedNationalPortGroups(system, factionPorts) {
         pending.push(candidate);
       }
     }
-    groups.push(group.sort((a, b) => a.tileId - b.tileId));
+    groups.push(group.sort((a, b) => a.cityId.localeCompare(b.cityId)));
   }
   return groups;
 }
@@ -3454,7 +3537,7 @@ function chooseNationalCircuitHub(ports, factionId) {
   return [...ports].sort((a, b) => (
     Number(b.capitalOfFactionId === factionId) - Number(a.capitalOfFactionId === factionId) ||
     b.population - a.population ||
-    a.tileId - b.tileId
+    a.cityId.localeCompare(b.cityId)
   ))[0];
 }
 
@@ -3464,7 +3547,7 @@ function nearestNeighborPortOrder(hub, remotePorts) {
   while (remaining.size > 0) {
     const current = ordered[ordered.length - 1];
     const next = [...remaining].sort((a, b) => (
-      distanceKm(current, a) - distanceKm(current, b) || a.tileId - b.tileId
+      distanceKm(current, a) - distanceKm(current, b) || a.cityId.localeCompare(b.cityId)
     ))[0];
     ordered.push(next);
     remaining.delete(next);
@@ -3473,7 +3556,7 @@ function nearestNeighborPortOrder(hub, remotePorts) {
 }
 
 function chooseExistingNationalCircuitShip(system, spec) {
-  const hub = requiredNationalCircuitPort(system, spec.portIds[0], spec.id);
+  const hub = requiredNationalCircuitPort(system, spec.cityIds[0], spec.id);
   return system.ships
     .filter((ship) => (
       ship.factionId === spec.factionId &&
@@ -3494,30 +3577,30 @@ function chooseExistingNationalCircuitShip(system, spec) {
 function assignNpcNationalCircuit(record, spec) {
   record.nationalCircuitId = spec.id;
   record.nationalCircuitFactionId = spec.factionId;
-  record.nationalCircuitPortIds = spec.portIds.slice();
+  record.nationalCircuitCityIds = spec.cityIds.slice();
 }
 
 function clearNpcNationalCircuit(record) {
   record.nationalCircuitId = null;
   record.nationalCircuitFactionId = null;
-  record.nationalCircuitPortIds = [];
+  record.nationalCircuitCityIds = [];
 }
 
 function reconcileNpcNationalCircuitFields(record, label) {
   record.nationalCircuitId ??= null;
   record.nationalCircuitFactionId ??= null;
-  record.nationalCircuitPortIds ??= [];
+  record.nationalCircuitCityIds ??= [];
   const unassigned = record.nationalCircuitId === null &&
     record.nationalCircuitFactionId === null &&
-    Array.isArray(record.nationalCircuitPortIds) &&
-    record.nationalCircuitPortIds.length === 0;
+    Array.isArray(record.nationalCircuitCityIds) &&
+    record.nationalCircuitCityIds.length === 0;
   if (unassigned) return;
   if (typeof record.nationalCircuitId !== "string" || record.nationalCircuitId === "" ||
       typeof record.nationalCircuitFactionId !== "string" || record.nationalCircuitFactionId === "" ||
-      !Array.isArray(record.nationalCircuitPortIds) || record.nationalCircuitPortIds.length < 2 ||
-      record.nationalCircuitPortIds.length > NATIONAL_CIRCUIT_MAX_PORTS ||
-      record.nationalCircuitPortIds.some((portId) => !Number.isInteger(portId)) ||
-      new Set(record.nationalCircuitPortIds).size !== record.nationalCircuitPortIds.length) {
+      !Array.isArray(record.nationalCircuitCityIds) || record.nationalCircuitCityIds.length < 2 ||
+      record.nationalCircuitCityIds.length > NATIONAL_CIRCUIT_MAX_PORTS ||
+      record.nationalCircuitCityIds.some((cityId) => typeof cityId !== "string" || cityId === "") ||
+      new Set(record.nationalCircuitCityIds).size !== record.nationalCircuitCityIds.length) {
     throw new Error(`Invalid national port circuit fields on ${label}`);
   }
   assertFactionId(record.nationalCircuitFactionId);
@@ -3525,16 +3608,15 @@ function reconcileNpcNationalCircuitFields(record, label) {
 
 function reconcileNpcPortResponseFields(ship, label) {
   ship.capitalNavalReserveSlotId ??= null;
-  ship.capitalNavalReserveDestinationPortId ??= null;
+  ship.capitalNavalReserveDestinationCityId ??= null;
   ship.capitalNavalReserveDocked ??= false;
   ship.portResponse ??= null;
   if (ship.capitalNavalReserveSlotId !== null &&
       (typeof ship.capitalNavalReserveSlotId !== "string" || ship.capitalNavalReserveSlotId === "")) {
     throw new Error(`Invalid capital naval reserve slot on ${label}`);
   }
-  if (ship.capitalNavalReserveDestinationPortId !== null &&
-      !Number.isInteger(ship.capitalNavalReserveDestinationPortId)) {
-    throw new Error(`Invalid capital naval reserve destination on ${label}`);
+  if (ship.capitalNavalReserveDestinationCityId !== null) {
+    requireEntityId(ship.capitalNavalReserveDestinationCityId, `Capital naval reserve destination on ${label}`);
   }
   if (typeof ship.capitalNavalReserveDocked !== "boolean" ||
       (ship.capitalNavalReserveDocked && ship.capitalNavalReserveSlotId === null)) {
@@ -3543,7 +3625,8 @@ function reconcileNpcPortResponseFields(ship, label) {
   if (ship.portResponse === null) return;
   const response = ship.portResponse;
   if (response.factionId !== ship.factionId ||
-      !Number.isInteger(response.targetPortId) || !Number.isInteger(response.returnPortId) ||
+      typeof response.targetCityId !== "string" || response.targetCityId === "" ||
+      typeof response.returnCityId !== "string" || response.returnCityId === "" ||
       !NPC_PORT_RESPONSE_REASONS.has(response.reason) ||
       !["responding", "returning"].includes(response.phase) ||
       !Number.isFinite(response.orderedMinute) || response.orderedMinute < 0 ||
@@ -3558,7 +3641,8 @@ function reconcileNpcPortResponseFields(ship, label) {
 
 function validateCapitalNavalReserveSlot(slot) {
   if (!slot || typeof slot.id !== "string" || slot.id === "" ||
-      !Number.isInteger(slot.originPortId) || typeof slot.profileId !== "string" ||
+      typeof slot.originCityId !== "string" || slot.originCityId === "" ||
+      typeof slot.profileId !== "string" ||
       slot.profileId === "" || !Array.isArray(slot.allowedSlugs) || slot.allowedSlugs.length === 0 ||
       new Set(slot.allowedSlugs).size !== slot.allowedSlugs.length ||
       !Number.isInteger(slot.activationCount) || slot.activationCount < 0 ||
@@ -3578,6 +3662,21 @@ function validateCapitalNavalReserveSlot(slot) {
   return slot;
 }
 
+function restoreCapitalNavalReserveSlots(system, savedSlots, snapshotVersion) {
+  const slots = cloneJsonData(savedSlots);
+  if (snapshotVersion < 4) {
+    for (const slot of slots) {
+      slot.originCityId = cityIdForLegacyPortTile(
+        system,
+        slot.originPortId,
+        `Legacy capital naval reserve origin ${slot.id}`
+      );
+    }
+  }
+  for (const slot of slots) delete slot.originPortId;
+  return slots.map(validateCapitalNavalReserveSlot);
+}
+
 function requiredCapitalNavalReserveSlot(system, slotId) {
   const slot = system.capitalNavalReserveSlots.find((candidate) => candidate.id === slotId);
   if (!slot) throw new Error(`Capital naval reserve slot is missing: ${slotId}`);
@@ -3594,7 +3693,7 @@ function validateCapitalNavalReserveAssignments(system) {
     validateCapitalNavalReserveSlot(slot);
     if (slotIds.has(slot.id)) throw new Error(`Duplicate capital naval reserve slot: ${slot.id}`);
     slotIds.add(slot.id);
-    const origin = system.ports.find((port) => port.tileId === slot.originPortId);
+    const origin = system.ports.find((port) => port.cityId === slot.originCityId);
     if (!origin) throw new Error(`Capital naval reserve port is missing: ${slot.id}`);
     if (origin.factionId !== slot.factionId || !npcRoutePortAcceptsTraffic(origin)) {
       throw new Error(`Capital naval reserve port is unusable: ${slot.id}`);
@@ -3620,10 +3719,26 @@ function validateCapitalNavalReserveAssignments(system) {
   return system;
 }
 
-function requiredNationalCircuitPort(system, portId, circuitId) {
-  const port = system.ports.find((candidate) => candidate.tileId === portId);
-  if (!port) throw new Error(`National port circuit ${circuitId} is missing port ${portId}`);
-  return port;
+function requiredNationalCircuitPort(system, cityId, circuitId) {
+  return requiredNpcRoutePort(system, cityId, `National port circuit ${circuitId}`);
+}
+
+function requiredNpcRoutePort(system, cityId, label) {
+  requireEntityId(cityId, label);
+  const matches = system.ports.filter((port) => port.cityId === cityId);
+  if (matches.length !== 1) {
+    throw new Error(`${label} resolves to ${matches.length} ports: ${cityId}`);
+  }
+  return matches[0];
+}
+
+function cityIdForLegacyPortTile(system, tileId, label) {
+  if (!Number.isInteger(tileId)) throw new Error(`${label} has no legacy port tile`);
+  const matches = system.ports.filter((port) => port.tileId === tileId);
+  if (matches.length !== 1) {
+    throw new Error(`${label} resolves to ${matches.length} ports at tile ${tileId}`);
+  }
+  return requireCityId(matches[0], label);
 }
 
 function assertNationalPortCircuitCoverage(system, circuitSpecs) {
@@ -3640,7 +3755,7 @@ function assertNationalPortCircuitCoverage(system, circuitSpecs) {
     if (!record) throw new Error(`National port circuit has no ocean-going ship: ${spec.id}`);
     if (record.factionId !== spec.factionId ||
         record.nationalCircuitFactionId !== spec.factionId ||
-        record.nationalCircuitPortIds.join(",") !== spec.portIds.join(",")) {
+        record.nationalCircuitCityIds.join(",") !== spec.cityIds.join(",")) {
       throw new Error(`National port circuit assignment is stale: ${spec.id}`);
     }
   }
@@ -3683,9 +3798,9 @@ function createNpcShipRecord({ id, factionId, role, profileSpec, slugs, slug, se
     hideoutCooldownUntilPortVisit: 0,
     nationalCircuitId: null,
     nationalCircuitFactionId: null,
-    nationalCircuitPortIds: [],
+    nationalCircuitCityIds: [],
     capitalNavalReserveSlotId: null,
-    capitalNavalReserveDestinationPortId: null,
+    capitalNavalReserveDestinationCityId: null,
     capitalNavalReserveDocked: false,
     portResponse: null,
     currentPort: origin,
@@ -3703,10 +3818,9 @@ function spawnDueNpcReplacements(system, clockMinutes) {
     if (system.shipById.has(replacement.shipId)) {
       throw new Error(`NPC replacement id is already active: ${replacement.shipId}`);
     }
-    const origin = system.ports.find((port) => port.tileId === replacement.originPortId);
-    if (!origin) throw new Error(`NPC replacement port is missing: ${replacement.originPortId}`);
+    const origin = requiredNpcRoutePort(system, replacement.originCityId, "NPC replacement origin");
     const shipyardSale = claimNpcShipyardSale(system.economy.shipyards, {
-      portId: replacement.originPortId,
+      portId: origin.cityId,
       factionId: replacement.factionId,
       allowedSlugs: replacement.slugs,
       mode: replacement.mode
@@ -3737,7 +3851,7 @@ function spawnDueNpcReplacements(system, clockMinutes) {
     reconcileNpcNationalCircuitFields(replacement, `replacement ${replacement.shipId}`);
     ship.nationalCircuitId = replacement.nationalCircuitId;
     ship.nationalCircuitFactionId = replacement.nationalCircuitFactionId;
-    ship.nationalCircuitPortIds = replacement.nationalCircuitPortIds.slice();
+    ship.nationalCircuitCityIds = replacement.nationalCircuitCityIds.slice();
     assignNpcPlan(system, ship, replacement.readyMinute);
     settleNpcShipToClock(system, ship, clockMinutes, 96);
     system.ships.push(ship);
@@ -3757,11 +3871,11 @@ function restockCapitalNavalReserves(system, clockMinutes) {
       candidate.activeShipId === null && candidate.allowedSlugs.includes(sale.shipSlug)
     ));
     if (!slot) continue;
-    const salePort = system.ports.find((port) => port.tileId === sale.portId);
+    const salePort = system.ports.find((port) => port.cityId === sale.portId);
     if (!salePort || salePort.factionId !== slot.factionId) continue;
     const capital = activeCapitalNavalReservePort(system, slot);
     claimNpcShipyardSaleById(system.economy.shipyards, sale.id);
-    if (salePort.tileId === capital.tileId) {
+    if (salePort.cityId === capital.cityId) {
       slot.shipSlug = sale.shipSlug;
       slot.stockedMinute = Math.max(clockMinutes, sale.soldMinute);
       slot.sourceSaleId = sale.id;
@@ -3774,7 +3888,10 @@ function restockCapitalNavalReserves(system, clockMinutes) {
         Math.max(clockMinutes, sale.soldMinute)
       );
       slot.activeShipId = ship.id;
-      ship.capitalNavalReserveDestinationPortId = capital.tileId;
+      ship.capitalNavalReserveDestinationCityId = requireCityId(
+        capital,
+        "Capital reserve stocking destination"
+      );
       launchCapitalNavalReserveShip(
         system,
         ship,
@@ -3799,7 +3916,7 @@ function purchaseNpcShipyardFleetGrowth(system, clockMinutes) {
   let purchases = 0;
   for (const sale of npcShipyardSales(system.economy.shipyards)) {
     if (purchases >= NPC_SHIPYARD_PURCHASES_PER_MAINTENANCE) break;
-    const origin = system.ports.find((port) => port.tileId === sale.portId);
+    const origin = system.ports.find((port) => port.cityId === sale.portId);
     if (!origin) continue;
     const upgradingShip = npcShipyardUpgradeCandidate(system, origin, sale);
     if (upgradingShip) {
@@ -3923,10 +4040,14 @@ function chooseNpcReplacementPort(system, ship) {
 }
 
 function npcReplacementPortScore(system, port, ship) {
-  const yard = system.economy.shipyards?.yards?.get(port.tileId);
+  const yard = system.economy.shipyards?.yards?.get(
+    requireCityId(port, "NPC replacement shipyard")
+  );
   const shipbuilding = (yard?.wealthScale || 0.5) + (yard?.famous ? 1.2 : 0);
   const distancePenalty = distanceKm(ship.currentPort, port) / 5000;
-  const variation = hashUnit(`${ship.id}|${port.tileId}|replacement-port`) * 0.2;
+  const variation = hashUnit(
+    `${ship.id}|${requireCityId(port, "NPC replacement port")}|replacement-port`
+  ) * 0.2;
   return shipbuilding - distancePenalty + variation;
 }
 
@@ -4178,7 +4299,7 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
         ship.plan.endMinute >= system.contactStartMinute) {
       system.onForeignPortCall(ship.factionId, ship.currentPort.factionId, ship.plan.endMinute);
     }
-    if (ship.capitalNavalReserveDestinationPortId === ship.currentPort.tileId) {
+    if (ship.capitalNavalReserveDestinationCityId === ship.currentPort.cityId) {
       if (!ship.capitalNavalReserveSlotId) {
         throw new Error(`Reserve-bound ship has no capital naval reserve slot: ${ship.id}`);
       }
@@ -4186,20 +4307,20 @@ function settleNpcShipToClock(system, ship, clockMinutes, maxPlans) {
       ship.finalDestination = null;
       ship.visualNavigation = null;
       ship.portResponse = null;
-      ship.capitalNavalReserveDestinationPortId = null;
+      ship.capitalNavalReserveDestinationCityId = null;
       ship.capitalNavalReserveDocked = true;
       changed = true;
       guard++;
       break;
     }
     if (ship.portResponse?.phase === "returning" &&
-        ship.portResponse.returnPortId === ship.currentPort.tileId) {
+        ship.portResponse.returnCityId === ship.currentPort.cityId) {
       ship.portResponse = null;
       ship.finalDestination = null;
     }
     if (
       ship.encounter?.holdAtDestination === true &&
-      ship.encounter.destinationPortId === ship.currentPort.tileId
+      ship.encounter.destinationCityId === ship.currentPort.cityId
     ) {
       const arrivalMinute = ship.plan.endMinute;
       const lastSail = [...ship.plan.segments].reverse().find((segment) => segment.kind === "sail");
@@ -4333,12 +4454,11 @@ function repositionHeldNpcRouteEncounter(system, ship, destination, holdProgress
 }
 
 function restoredEncounterApproachVectors(system, ship, destination, clockMinutes) {
-  const originPortId = ship.encounter?.originPortId;
-  if (!Number.isInteger(originPortId)) {
+  const originCityId = ship.encounter?.originCityId;
+  if (typeof originCityId !== "string" || originCityId === "") {
     throw new Error(`Held NPC encounter is missing its route origin: ${ship.id}`);
   }
-  const origin = system.ports.find((port) => port.tileId === originPortId);
-  if (!origin) throw new Error(`Held NPC encounter route origin is missing: ${originPortId}`);
+  const origin = requiredNpcRoutePort(system, originCityId, "Held NPC encounter route origin");
   const route = routeBetweenPorts(system, origin, destination, ship.slug, clockMinutes);
   const lastSail = [...route.segments]
     .reverse()
@@ -4356,13 +4476,12 @@ function rebaseStaleNpcShipPlan(system, ship, clockMinutes) {
 }
 
 function chooseNpcDestination(system, ship, origin) {
-  if (ship.capitalNavalReserveDestinationPortId !== null) {
-    const destination = system.ports.find((port) => (
-      port.tileId === ship.capitalNavalReserveDestinationPortId
-    ));
-    if (!destination) {
-      throw new Error(`Capital naval reserve destination is missing: ${ship.id}`);
-    }
+  if (ship.capitalNavalReserveDestinationCityId !== null) {
+    const destination = requiredNpcRoutePort(
+      system,
+      ship.capitalNavalReserveDestinationCityId,
+      "Capital naval reserve destination"
+    );
     if (samePort(origin, destination)) {
       throw new Error(`Capital naval reserve ship was not demobilized at ${portName(origin)}: ${ship.id}`);
     }
@@ -4378,7 +4497,7 @@ function chooseNpcDestination(system, ship, origin) {
     return chooseNationalCircuitDestination(system, ship, origin);
   }
   const profileSpec = fleetProfileForId(ship.profileId);
-  const seed = hashString32(`${ship.seed}|${origin.tileId}|dest`);
+  const seed = hashString32(`${ship.seed}|${routeLocationIdentity(origin)}|dest`);
   const candidates = system.ports
     .filter(npcRoutePortAcceptsTraffic)
     .filter((port) => !samePort(port, origin))
@@ -4406,7 +4525,7 @@ function chooseNpcDestination(system, ship, origin) {
 }
 
 function chooseConnectedEncounterPatrolDestination(system, ship, origin) {
-  const seed = hashString32(`${ship.seed}|${origin.tileId}|encounter-patrol`);
+  const seed = hashString32(`${ship.seed}|${routeLocationIdentity(origin)}|encounter-patrol`);
   const candidates = system.ports
     .filter(npcRoutePortAcceptsTraffic)
     .filter((port) => !samePort(port, origin))
@@ -4425,11 +4544,10 @@ function chooseConnectedEncounterPatrolDestination(system, ship, origin) {
 function chooseNpcPortResponseDestination(system, ship, origin) {
   reconcileNpcPortResponseFields(ship, `responding ship ${ship.id}`);
   const response = ship.portResponse;
-  const destinationPortId = response.phase === "returning"
-    ? response.returnPortId
-    : response.targetPortId;
-  const destination = system.ports.find((port) => port.tileId === destinationPortId);
-  if (!destination) throw new Error(`Port-response destination is missing: ${ship.id}`);
+  const destinationCityId = response.phase === "returning"
+    ? response.returnCityId
+    : response.targetCityId;
+  const destination = requiredNpcRoutePort(system, destinationCityId, "Port-response destination");
   if (!samePort(origin, destination)) return destination;
   if (response.phase === "returning") {
     throw new Error(`Returning port-response ship was not released at ${portName(origin)}: ${ship.id}`);
@@ -4438,9 +4556,9 @@ function chooseNpcPortResponseDestination(system, ship, origin) {
 }
 
 function capitalNavalReservePatrolPort(system, ship, origin) {
-  const responseBaseId = ship.portResponse?.returnPortId ||
-    ship.capitalNavalReserveDestinationPortId;
-  const preferredBase = system.ports.find((port) => port.tileId === responseBaseId);
+  const responseBaseId = ship.portResponse?.returnCityId ||
+    ship.capitalNavalReserveDestinationCityId;
+  const preferredBase = system.ports.find((port) => port.cityId === responseBaseId);
   if (preferredBase && !samePort(preferredBase, origin) &&
       npcPortsShareRouteNetwork(system, origin, preferredBase)) {
     return preferredBase;
@@ -4466,10 +4584,10 @@ function chooseNationalCircuitDestination(system, ship, origin) {
   if (ship.nationalCircuitFactionId !== ship.factionId) {
     throw new Error(`NPC ship ${ship.id} has a foreign national port circuit`);
   }
-  const ports = ship.nationalCircuitPortIds.map((portId) => {
-    const port = requiredNationalCircuitPort(system, portId, ship.nationalCircuitId);
+  const ports = ship.nationalCircuitCityIds.map((cityId) => {
+    const port = requiredNationalCircuitPort(system, cityId, ship.nationalCircuitId);
     if (port.factionId !== ship.factionId || !npcRoutePortAcceptsTraffic(port)) {
-      throw new Error(`NPC ship ${ship.id} has an unavailable national circuit port: ${portId}`);
+      throw new Error(`NPC ship ${ship.id} has an unavailable national circuit port: ${cityId}`);
     }
     return port;
   });
@@ -4499,7 +4617,7 @@ function chooseWhalerDestination(system, ship, origin) {
   if (grounds.length === 0) {
     throw new Error(`NPC whaler profile ${profileSpec.id} has no reachable hunting grounds`);
   }
-  const seed = hashString32(`${ship.seed}|${origin.tileId}|whaling-ground`);
+  const seed = hashString32(`${ship.seed}|${routeLocationIdentity(origin)}|whaling-ground`);
   return grounds.sort((a, b) => (
     distanceKm(origin, a) - distanceKm(origin, b) ||
     destinationRank(origin, a, seed) - destinationRank(origin, b, seed)
@@ -4509,7 +4627,7 @@ function chooseWhalerDestination(system, ship, origin) {
 function chooseWhalerSalePort(system, ship, origin) {
   const profileSpec = fleetProfileForId(ship.profileId);
   const quantity = Math.max(1, ship.cargo[WHALE_BLUBBER_GOOD_ID] || ship.cargoCapacity);
-  const seed = hashString32(`${ship.seed}|${origin.tileId}|blubber-sale`);
+  const seed = hashString32(`${ship.seed}|${routeLocationIdentity(origin)}|blubber-sale`);
   const candidates = system.ports
     .filter(npcRoutePortAcceptsTraffic)
     .filter((port) => !samePort(port, origin))
@@ -4542,7 +4660,7 @@ function chooseFishermanDestination(system, ship, origin) {
 
 function chooseFishermanFishingGround(system, ship, origin) {
   if (!system.fishState || system.fishingGrounds.length === 0) return null;
-  const seed = hashString32(`${ship.seed}|${origin.tileId}|fishery`);
+  const seed = hashString32(`${ship.seed}|${routeLocationIdentity(origin)}|fishery`);
   const candidates = system.fishingGrounds
     .map((ground) => {
       const forecast = fishermanGroundForecast(system, ship, origin, ground);
@@ -4589,7 +4707,7 @@ function fishermanGroundForecast(system, ship, origin, ground) {
 
 function chooseFishermanSalePort(system, ship, origin, quantity) {
   const safeQuantity = Math.max(1, Math.min(ship.cargoCapacity, Math.floor(quantity)));
-  const seed = hashString32(`${ship.seed}|${origin.tileId}|fish-sale`);
+  const seed = hashString32(`${ship.seed}|${routeLocationIdentity(origin)}|fish-sale`);
   const profileSpec = fleetProfileForId(ship.profileId);
   const candidates = system.ports
     .filter(npcRoutePortAcceptsTraffic)
@@ -4719,6 +4837,7 @@ function enterPirateHideout(ship, arrivalMinute) {
 }
 
 function npcMerchantCanTradeAtPort(system, ship, port) {
+  if (port?.isFishingGround || port?.isWhalingGround) return true;
   const relation = system.relationBetween(ship.factionId, port.factionId);
   return evaluateTradeAccess({
     port,
@@ -5303,7 +5422,7 @@ function chooseSeasonalHop(system, ship, origin, desiredDestination, startMinute
 
 export function routeBetweenPorts(system, origin, destination, shipSlug, startMinute) {
   const startMonth = routeMonthIndex(startMinute);
-  const key = `${origin.tileId}|${destination.tileId}|${shipSlug}|${startMonth}`;
+  const key = `${routeLocationIdentity(origin)}|${routeLocationIdentity(destination)}|${shipSlug}|${startMonth}`;
   const cached = system.routeCache.get(key);
   if (cached) return cached;
 
@@ -5814,7 +5933,7 @@ function rankedProfilePorts(ports, profileSpec) {
       profileSpec.mode !== "interregional" ||
       !isJapanesePolityFaction(port.factionId)
     ))
-    .sort((a, b) => b.population - a.population || portName(a).localeCompare(portName(b)))
+    .sort((a, b) => b.population - a.population || a.cityId.localeCompare(b.cityId))
     .slice(0, profileSpec.mode === "regional" ? 34 : 54);
 }
 
@@ -5824,11 +5943,12 @@ function addExpectedFleetOrigins(weights, pool, shipCount) {
   }
   const expectedOriginsPerPort = shipCount / pool.length;
   for (const port of pool) {
-    const current = weights.get(port.tileId);
+    const cityId = requireCityId(port, "NPC fleet origin weight port");
+    const current = weights.get(cityId);
     if (!Number.isFinite(current) || current <= 0) {
-      throw new Error(`NPC fleet origin weights are missing port ${port.tileId}`);
+      throw new Error(`NPC fleet origin weights are missing port ${cityId}`);
     }
-    weights.set(port.tileId, current + expectedOriginsPerPort);
+    weights.set(cityId, current + expectedOriginsPerPort);
   }
 }
 
@@ -5836,7 +5956,7 @@ function destinationRank(origin, candidate, seed) {
   const distance = distanceKm(origin, candidate);
   const ideal = origin.routeRegion === candidate.routeRegion ? 1150 : 7400;
   const populationBoost = Math.log10(Math.max(10, candidate.population || 10)) * -80;
-  const jitter = hashString32(`${seed}|${candidate.tileId}`) % 500;
+  const jitter = hashString32(`${seed}|${routeLocationIdentity(candidate)}`) % 500;
   return Math.abs(distance - ideal) + populationBoost + jitter;
 }
 
@@ -6136,11 +6256,16 @@ function mesoamericanVillageRoleWeights() {
 }
 
 function portNodeId(port, role) {
-  return `${role}:${port.tileId}`;
+  return `${role}:${routeLocationIdentity(port)}`;
 }
 
 function samePort(a, b) {
-  return a?.tileId === b?.tileId;
+  if (!a || !b) return false;
+  const aCityId = typeof a.cityId === "string" && a.cityId !== "" ? requireCityId(a, "NPC route port") : null;
+  const bCityId = typeof b.cityId === "string" && b.cityId !== "" ? requireCityId(b, "NPC route port") : null;
+  if (aCityId !== null || bCityId !== null) return aCityId !== null && aCityId === bCityId;
+  // IDENTITY_SPATIAL_EXCEPTION: two generated fishing-ground observations coincide only at the same tile.
+  return Number.isInteger(a.tileId) && a.tileId === b.tileId;
 }
 
 function portName(port) {
@@ -6148,7 +6273,23 @@ function portName(port) {
 }
 
 function portPoint(port) {
-  return { id: `port:${port.tileId}`, label: portName(port), lat: port.lat, lon: port.lon, port };
+  return {
+    id: `port:${routeLocationIdentity(port)}`,
+    label: portName(port),
+    lat: port.lat,
+    lon: port.lon,
+    port
+  };
+}
+
+function routeLocationIdentity(port) {
+  if (typeof port?.cityId === "string" && port.cityId !== "") {
+    return requireCityId(port, "NPC route point");
+  }
+  // IDENTITY_SPATIAL_EXCEPTION: generated fishing/whaling grounds and capture points are observations,
+  // so their exact water tile is the entity the route system needs to preserve.
+  if (!Number.isInteger(port?.tileId)) throw new Error("NPC route point has no canonical or spatial identity");
+  return `tile:${port.tileId}`;
 }
 
 function routeStateKey(nodeId, step) {

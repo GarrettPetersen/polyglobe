@@ -1,3 +1,5 @@
+import { requireCityId } from "./entityIds.js";
+
 export const REMOTE_OCEAN_APPROACH_DISTANCE_KM = 1200;
 export const ISOLATED_VILLAGE_NEIGHBOR_DISTANCE_KM = 900;
 
@@ -170,12 +172,13 @@ export function buildPortArrivalNavigation({ ports, sailingDistanceKm, approachK
     throw new Error("Port arrival navigation requires an approach-kind function");
   }
 
-  const seenTileIds = new Set();
+  const seenCityIds = new Set();
   const classified = ports.map((port) => {
-    if (!Number.isInteger(port?.tileId) || seenTileIds.has(port.tileId)) {
-      throw new Error(`Port arrival navigation received invalid or duplicate tile: ${port?.tileId}`);
+    const cityId = requireCityId(port, "Port arrival navigation city");
+    if (seenCityIds.has(cityId)) {
+      throw new Error(`Port arrival navigation received duplicate city: ${cityId}`);
     }
-    seenTileIds.add(port.tileId);
+    seenCityIds.add(cityId);
     const approachKind = approachKindForPort(port);
     if (!PORT_APPROACH_KINDS.has(approachKind)) {
       throw new Error(`Invalid port approach kind for ${port.city}: ${approachKind}`);
@@ -188,7 +191,7 @@ export function buildPortArrivalNavigation({ ports, sailingDistanceKm, approachK
   return new Map(classified.map(({ port, approachKind }) => {
     const nearestPortDistanceKm = shortestDistance(
       port,
-      classified.filter((entry) => entry.port.tileId !== port.tileId).map((entry) => entry.port),
+      classified.filter((entry) => entry.port.cityId !== port.cityId).map((entry) => entry.port),
       sailingDistanceKm
     );
     const oceanAccessDistanceKm = approachKind === "ocean"
@@ -201,7 +204,7 @@ export function buildPortArrivalNavigation({ ports, sailingDistanceKm, approachK
       port.settlementType === "village" &&
       (nearestPortDistanceKm === null || nearestPortDistanceKm >= ISOLATED_VILLAGE_NEIGHBOR_DISTANCE_KM)
     );
-    return [port.tileId, Object.freeze({
+    return [port.cityId, Object.freeze({
       approachKind,
       nearestPortDistanceKm,
       oceanAccessDistanceKm,
@@ -433,7 +436,7 @@ function arrivalVariant(city, key, lines) {
   if (!Array.isArray(lines) || lines.length === 0 || lines.some((line) => typeof line !== "string")) {
     throw new Error(`Port arrival variant requires non-empty text for ${city.city || "unknown city"}`);
   }
-  const cityIdentity = `${city.tileId ?? "no-tile"}|${city.displayCity || city.city || "unknown city"}`;
+  const cityIdentity = requireCityId(city, "Port arrival city");
   return lines[hashString32(`${cityIdentity}|${key}`) % lines.length];
 }
 

@@ -1,4 +1,6 @@
-function canonicalPort(id, city, country) {
+import { requireCityId } from "./entityIds.js";
+
+function canonicalPort(id, cityId, city, country) {
   if (typeof id !== "string" || !/^[a-z0-9-]+$/.test(id)) {
     throw new Error(`Invalid canonical port id: ${id}`);
   }
@@ -6,95 +8,79 @@ function canonicalPort(id, city, country) {
       typeof country !== "string" || country.trim() === "") {
     throw new Error(`Canonical port ${id} requires a city and country`);
   }
-  return Object.freeze({ id, city: city.trim(), country: country.trim() });
+  if (typeof cityId !== "string" || cityId.trim() === "") {
+    throw new Error(`Canonical port ${id} requires a canonical city id`);
+  }
+  return Object.freeze({ id, cityId, city: city.trim(), country: country.trim() });
 }
 
 export const CANONICAL_PORTS = Object.freeze({
-  ADEN: canonicalPort("aden", "Aden", "Yemen"),
-  AGRA: canonicalPort("agra", "Agra", "India"),
-  ALGIERS: canonicalPort("algiers", "Algiers", "Algeria"),
-  BAGHDAD: canonicalPort("baghdad", "Baghdad", "Iraq"),
-  BANDA_VILLAGE: canonicalPort("banda-village", "Banda Village", "Indonesia"),
-  BARCELONA: canonicalPort("barcelona", "Barcelona", "Spain"),
-  BEIJING: canonicalPort("beijing", "Beijing", "China"),
-  BIRGU: canonicalPort("birgu", "Birgu", "Malta"),
-  BORDEAUX: canonicalPort("bordeaux", "Bordeaux", "France"),
-  BREMEN: canonicalPort("bremen", "Bremen", "Germany"),
-  BUDAPEST: canonicalPort("budapest", "Budapest", "Hungary"),
-  CHAN_CHAN: canonicalPort("chan-chan", "Chanchan", "Peru"),
-  CHANGSHA: canonicalPort("changsha", "Changsha", "China"),
-  DELHI: canonicalPort("delhi", "Delhi", "India"),
-  DIU: canonicalPort("diu", "Diu", "India"),
-  FUZHOU: canonicalPort("fuzhou", "Fuzhou", "China"),
-  GENT: canonicalPort("gent", "Gent", "Belgium"),
-  GOA: canonicalPort("goa", "Goa", "India"),
-  GUANGZHOU: canonicalPort("guangzhou", "Guangzhou", "China"),
-  HAFNARFJORDUR: canonicalPort("hafnarfjordur", "Hafnarfjordur", "Iceland"),
-  HAMBURG: canonicalPort("hamburg", "Hamburg", "Germany"),
-  HANSEONG: canonicalPort("hanseong", "Seoul", "Republic of Korea"),
-  JEDDAH: canonicalPort("jeddah", "Jeddah", "Saudi Arabia"),
-  JINJIANG: canonicalPort("jinjiang", "Tsinkiang", "China"),
-  KAGOSHIMA: canonicalPort("kagoshima", "Kagoshima", "Japan"),
-  KERKIRA: canonicalPort("kerkira", "Kerkira", "Greece"),
-  KAZAN: canonicalPort("kazan", "Kazan", "Russian Federation"),
-  KYOTO: canonicalPort("kyoto", "Kyoto", "Japan"),
-  LISBON: canonicalPort("lisbon", "Lisbon", "Portugal"),
-  LONDON: canonicalPort("london", "London", "United Kingdom"),
-  LUBECK: canonicalPort("lubeck", "Lubeck", "Germany"),
-  MASSAWA: canonicalPort("massawa", "Massawa", "Ethiopia"),
-  MARSEILLE: canonicalPort("marseille", "Marseille", "France"),
-  NAGASAKI: canonicalPort("nagasaki", "Nagasaki", "Japan"),
-  NAHA: canonicalPort("naha", "Naha", "Japan"),
-  NANJING: canonicalPort("nanjing", "Nanjing", "China"),
-  NINGBO: canonicalPort("ningbo", "Ningbo", "China"),
-  PANAMA_CITY: canonicalPort("panama-city", "Panama City", "Panama"),
-  PARIS: canonicalPort("paris", "Paris", "France"),
-  RHODES: canonicalPort("rhodes", "Rhodes", "Greece"),
-  ROME: canonicalPort("rome", "Rome", "Italy"),
-  SANTO_DOMINGO: canonicalPort("santo-domingo", "Santo Domingo", "Dominican Republic"),
-  SEVILLE: canonicalPort("seville", "Seville", "Spain"),
-  TRIPOLI: canonicalPort("tripoli", "Tripoli", "Libya"),
-  TUNIS: canonicalPort("tunis", "Tunis", "Tunisia"),
-  TSUSHIMA_FUCHU: canonicalPort("tsushima-fuchu", "Tsushima Fuchu", "Japan"),
-  VALENCIA: canonicalPort("valencia", "Valencia", "Spain"),
-  VERACRUZ: canonicalPort("veracruz", "Veracruz", "Mexico"),
-  VIENNA: canonicalPort("vienna", "Vienna", "Austria"),
-  YAMAGUCHI: canonicalPort("yamaguchi", "Yamaguchi", "Japan")
+  ADEN: canonicalPort("aden", "aden|yemen", "Aden", "Yemen"),
+  AGRA: canonicalPort("agra", "agra|india", "Agra", "India"),
+  ALGIERS: canonicalPort("algiers", "algiers|algeria", "Algiers", "Algeria"),
+  BAGHDAD: canonicalPort("baghdad", "baghdad|iraq", "Baghdad", "Iraq"),
+  BANDA_VILLAGE: canonicalPort("banda-village", "banda village|indonesia", "Banda Village", "Indonesia"),
+  BARCELONA: canonicalPort("barcelona", "barcelona|spain", "Barcelona", "Spain"),
+  BEIJING: canonicalPort("beijing", "beijing|china", "Beijing", "China"),
+  BIRGU: canonicalPort("birgu", "birgu|malta", "Birgu", "Malta"),
+  BORDEAUX: canonicalPort("bordeaux", "bordeaux|france", "Bordeaux", "France"),
+  BREMEN: canonicalPort("bremen", "bremen|germany", "Bremen", "Germany"),
+  BUDAPEST: canonicalPort("budapest", "budapest|hungary", "Budapest", "Hungary"),
+  CHAN_CHAN: canonicalPort("chan-chan", "chanchan|peru", "Chanchan", "Peru"),
+  CHANGSHA: canonicalPort("changsha", "changsha|china", "Changsha", "China"),
+  DELHI: canonicalPort("delhi", "delhi|india", "Delhi", "India"),
+  DIU: canonicalPort("diu", "diu|india", "Diu", "India"),
+  FUZHOU: canonicalPort("fuzhou", "fuzhou|china", "Fuzhou", "China"),
+  GENT: canonicalPort("gent", "gent|belgium", "Gent", "Belgium"),
+  GOA: canonicalPort("goa", "goa|india", "Goa", "India"),
+  GUANGZHOU: canonicalPort("guangzhou", "guangzhou|china", "Guangzhou", "China"),
+  HAFNARFJORDUR: canonicalPort("hafnarfjordur", "hafnarfjordur|iceland", "Hafnarfjordur", "Iceland"),
+  HAMBURG: canonicalPort("hamburg", "hamburg|germany", "Hamburg", "Germany"),
+  HANSEONG: canonicalPort("hanseong", "seoul|republic of korea", "Seoul", "Republic of Korea"),
+  JEDDAH: canonicalPort("jeddah", "jeddah|saudi arabia", "Jeddah", "Saudi Arabia"),
+  JINJIANG: canonicalPort("jinjiang", "tsinkiang|china", "Tsinkiang", "China"),
+  KAGOSHIMA: canonicalPort("kagoshima", "kagoshima|japan", "Kagoshima", "Japan"),
+  KERKIRA: canonicalPort("kerkira", "kerkira|greece", "Kerkira", "Greece"),
+  KAZAN: canonicalPort("kazan", "kazan|russian federation", "Kazan", "Russian Federation"),
+  KYOTO: canonicalPort("kyoto", "kyoto|japan", "Kyoto", "Japan"),
+  LISBON: canonicalPort("lisbon", "lisbon|portugal", "Lisbon", "Portugal"),
+  LONDON: canonicalPort("london", "london|united kingdom", "London", "United Kingdom"),
+  LUBECK: canonicalPort("lubeck", "lubeck|germany", "Lubeck", "Germany"),
+  MASSAWA: canonicalPort("massawa", "massawa|ethiopia", "Massawa", "Ethiopia"),
+  MARSEILLE: canonicalPort("marseille", "marseille|france", "Marseille", "France"),
+  NAGASAKI: canonicalPort("nagasaki", "nagasaki|japan", "Nagasaki", "Japan"),
+  NAHA: canonicalPort("naha", "naha|japan", "Naha", "Japan"),
+  NANJING: canonicalPort("nanjing", "nanjing|china", "Nanjing", "China"),
+  NINGBO: canonicalPort("ningbo", "ningbo|china", "Ningbo", "China"),
+  PANAMA_CITY: canonicalPort("panama-city", "panama city|panama", "Panama City", "Panama"),
+  PARIS: canonicalPort("paris", "paris|france", "Paris", "France"),
+  RHODES: canonicalPort("rhodes", "rhodes|greece", "Rhodes", "Greece"),
+  ROME: canonicalPort("rome", "rome|italy", "Rome", "Italy"),
+  SANTO_DOMINGO: canonicalPort("santo-domingo", "santo domingo|dominican republic", "Santo Domingo", "Dominican Republic"),
+  SEVILLE: canonicalPort("seville", "seville|spain", "Seville", "Spain"),
+  TRIPOLI: canonicalPort("tripoli", "tripoli|libya", "Tripoli", "Libya"),
+  TUNIS: canonicalPort("tunis", "tunis|tunisia", "Tunis", "Tunisia"),
+  TSUSHIMA_FUCHU: canonicalPort("tsushima-fuchu", "tsushima fuchu|japan", "Tsushima Fuchu", "Japan"),
+  VALENCIA: canonicalPort("valencia", "valencia|spain", "Valencia", "Spain"),
+  VERACRUZ: canonicalPort("veracruz", "veracruz|mexico", "Veracruz", "Mexico"),
+  VIENNA: canonicalPort("vienna", "vienna|austria", "Vienna", "Austria"),
+  YAMAGUCHI: canonicalPort("yamaguchi", "yamaguchi|japan", "Yamaguchi", "Japan")
 });
 
 export const REQUIRED_CANONICAL_PORTS = Object.freeze(Object.values(CANONICAL_PORTS));
 
 const referencesById = new Map();
-const referencesByIdentity = new Map();
 const validatedCatalogs = new WeakMap();
-const identityCache = new WeakMap();
 for (const reference of REQUIRED_CANONICAL_PORTS) {
-  const identity = canonicalPortIdentity(reference);
   if (referencesById.has(reference.id)) {
     throw new Error(`Duplicate canonical port id: ${reference.id}`);
   }
-  if (referencesByIdentity.has(identity)) {
-    throw new Error(`Duplicate canonical port identity: ${identity}`);
-  }
   referencesById.set(reference.id, reference);
-  referencesByIdentity.set(identity, reference);
-}
-
-export function canonicalPortIdentity(port) {
-  if (typeof port?.city !== "string" || port.city.trim() === "" ||
-      typeof port?.country !== "string" || port.country.trim() === "") {
-    throw new Error("Canonical port identity requires a city and country");
-  }
-  const cached = identityCache.get(port);
-  if (cached?.city === port.city && cached.country === port.country) return cached.identity;
-  const identity = `${normalizeIdentityPart(port.city)}|${normalizeIdentityPart(port.country)}`;
-  identityCache.set(port, { city: port.city, country: port.country, identity });
-  return identity;
 }
 
 export function portMatchesCanonicalReference(port, reference) {
   assertCanonicalReference(reference);
-  return Boolean(port) && canonicalPortIdentity(port) === canonicalPortIdentity(reference);
+  return Boolean(port) && requireCityId(port, "Canonical port candidate") === reference.cityId;
 }
 
 export function requireCanonicalPort(portCities, reference, context = "game system") {
@@ -152,8 +138,4 @@ function assertCanonicalReference(reference) {
   if (!reference || referencesById.get(reference.id) !== reference) {
     throw new Error(`Unregistered canonical port reference: ${reference?.id || "missing"}`);
   }
-}
-
-function normalizeIdentityPart(value) {
-  return value.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }

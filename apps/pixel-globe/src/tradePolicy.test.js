@@ -33,24 +33,28 @@ import {
 
 const LISBON = Object.freeze({
   tileId: 1,
+  cityId: "lisbon|portugal",
   city: "Lisbon",
   country: "Portugal",
   factionId: "portugal"
 });
 const GOA = Object.freeze({
   tileId: 2,
+  cityId: "goa|india",
   city: "Goa",
   country: "India",
   factionId: "portugal"
 });
 const CALICUT = Object.freeze({
   tileId: 3,
+  cityId: "calicut|india",
   city: "Calicut",
   country: "India",
   factionId: "vijayanagara"
 });
 const COLOMBO = Object.freeze({
   tileId: 4,
+  cityId: "colombo|sri lanka",
   city: "Colombo",
   country: "Sri Lanka",
   factionId: "neutral",
@@ -146,7 +150,7 @@ test("personal standing nudges customs without overriding diplomacy", () => {
 
 test("suzerain privileges are asymmetric while tributary commerce can be reciprocal", () => {
   const portugueseInHormuz = tradeTerms({
-    port: { tileId: 8, city: "Hormuz", country: "Iran", factionId: "hormuz" },
+    port: { cityId: "hormuz|iran", tileId: 8, city: "Hormuz", country: "Iran", factionId: "hormuz" },
     traderFactionId: "portugal",
     relation: DIPLOMACY_FRIENDLY,
     suzeraintyPrivilege: {
@@ -210,6 +214,7 @@ test("Portuguese Estado ports levy crown-controlled spices without taxing indepe
   assert.equal(isPortugueseEstadoPort(LISBON), false);
   assert.equal(isPortugueseEstadoPort({
     tileId: 8,
+    cityId: "hormuz|iran",
     city: "Hormuz",
     country: "Iran",
     factionId: "hormuz",
@@ -327,6 +332,7 @@ test("war blocks ordinary commerce while illicit access and disguise remain expl
 test("foreign settlements provide the more favorable lawful customs jurisdiction", () => {
   const ternate = {
     tileId: 4,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Indonesia",
     factionId: "ternate",
@@ -377,6 +383,7 @@ test("foreign settlements provide the more favorable lawful customs jurisdiction
 test("a resident settlement can open a closed sovereign market but cannot override war", () => {
   const mingPortWithPortugueseSettlement = {
     tileId: 5,
+    cityId: "guangzhou|china",
     city: "Guangzhou",
     country: "China",
     factionId: "ming",
@@ -385,6 +392,7 @@ test("a resident settlement can open a closed sovereign market but cannot overri
     foreignSettlements: [{
       ...foreignSettlementById("portuguese-ternate"),
       id: "portuguese-guangzhou-test",
+      cityId: "guangzhou|china",
       city: "Guangzhou",
       country: "China"
     }]

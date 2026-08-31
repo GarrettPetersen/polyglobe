@@ -5,7 +5,7 @@ import {
   TREASURE_MAP_PIECE_COUNT,
   TREASURE_PIRATE_HINT_LIMIT,
   acquireTreasureMapPiece,
-  bindTreasurePirateCaptainName,
+  bindTreasurePirateCaptain,
   createTreasureCampaignFields,
   initializeTreasureCampaign,
   recordTreasureAmbushDefeat,
@@ -182,6 +182,7 @@ test("all twelve map pieces unlock the treasure and all twelve ambushers gate ho
   assert.equal(treasureAmbushComplete(goal), true);
   assert.deepEqual(campaignGoalDestination(goal), {
     kind: "home",
+    homePortCityId: "test home|test",
     homePortTileId: 0,
     reason: "return-with-treasure"
   });
@@ -208,6 +209,7 @@ test("recovering the treasure names home and marks the return course before the 
   assert.match(ladenMessage, /old crew bars the way/i);
   assert.deepEqual(campaignGoalDestination(goal), {
     kind: "home",
+    homePortCityId: "test home|test",
     homePortTileId: 0,
     reason: "treasure-home-ambush"
   });
@@ -227,6 +229,7 @@ function initializedGoal() {
     version: 1,
     type: "pirate-treasure",
     status: "active",
+    homePortCityId: "test home|test",
     homePortTileId: 0,
     introSeen: true,
     endingVariant: 0
@@ -237,6 +240,7 @@ function initializedGoal() {
     navigationMask: Uint8Array.from([1, 0, ...Array(12).fill(1)]),
     occupiedTileIds: [0],
     pirateHideouts: Array.from({ length: 12 }, (_, index) => ({
+      cityId: `pirate-hideout-${index + 1}`,
       tileId: index + 2,
       lat: -45 + index * 8,
       lon: -165 + index * 30
@@ -249,7 +253,10 @@ function initializedGoal() {
 
 function bindCaptains(goal) {
   for (const [index, pirate] of goal.mapPirates.entries()) {
-    bindTreasurePirateCaptainName(goal, pirate.id, `Rogue ${index + 1}`);
+    bindTreasurePirateCaptain(goal, pirate.id, {
+      id: `rogue-${index + 1}`,
+      name: `Rogue ${index + 1}`
+    });
   }
 }
 

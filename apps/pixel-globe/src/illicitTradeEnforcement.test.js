@@ -21,6 +21,7 @@ import {
 } from "./gameState.js";
 
 const GUANGZHOU = Object.freeze({
+  cityId: "guangzhou|china",
   tileId: 41,
   portId: "port-guangzhou",
   displayCity: "Guangzhou"
@@ -43,6 +44,7 @@ test("illicit port trade leaves a bounded, expiring enforcement incident", () =>
   const incident = recordIllicitTradeDeparture(memory, illicitVisit(), GUANGZHOU, 100);
 
   assert.equal(incident.enforcementFactionId, "ming");
+  assert.equal(incident.originCityId, GUANGZHOU.cityId);
   assert.equal(incident.originName, "Guangzhou");
   assert.equal(incident.expiresMinute, 100 + ILLICIT_TRADE_ENFORCEMENT_DURATION_MINUTES);
   assert.deepEqual(incident.purchasedCargo, { silk: 3, tea: 2 });

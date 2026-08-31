@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { cityCatalogId, loadCityCatalogFromCsv } from "./cityCatalogData.js";
+import { loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import { IWAMI_SILVER_PRODUCTION_START_MINUTE } from "./economy.js";
 import { createForeignSettlementExpulsionMemory, withForeignSettlements1522 } from "./foreignSettlements.js";
 import {
@@ -143,7 +143,7 @@ test("the Buda controller check uses Budapest's stable identity", () => {
 
 function port(city, country, factionId) {
   const sourceCity = city === "Buda" ? "Budapest" : city;
-  return { city: sourceCity, cityId: cityCatalogId(sourceCity, country), country, factionId };
+  return { city: sourceCity, cityId: `${sourceCity.toLowerCase()}|${country.toLowerCase()}`, country, factionId };
 }
 
 function worldState(worldCities = WORLD_CITIES) {

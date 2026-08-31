@@ -13,6 +13,7 @@ import { BASIC_FISHING_NET_ID } from "./fishingNets.js";
 
 const LISBON = {
   tileId: 1,
+  cityId: "lisbon|portugal",
   city: "Lisbon",
   displayCity: "Lisbon",
   country: "Portugal",

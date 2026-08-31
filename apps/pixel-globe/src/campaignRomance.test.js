@@ -21,6 +21,7 @@ const MALE_CAPTAIN = Object.freeze({
   sex: "male",
   gender: "male",
   nationalityId: "portugal",
+  homePortCityId: "lisbon|portugal",
   homePortTileId: 12,
   homePortName: "Lisbon"
 });
@@ -101,7 +102,7 @@ test("campaign dialogue renders the confessing crewmate before the captain answe
     currentMinute: 100
   });
   const session = createCampaignDialogueSession({
-    cityTileId: MALE_CAPTAIN.homePortTileId,
+    cityId: MALE_CAPTAIN.homePortCityId,
     phase: "explorer-victory",
     steps: campaignRomanceDialogueSteps(romance),
     victoryOnClose: true,

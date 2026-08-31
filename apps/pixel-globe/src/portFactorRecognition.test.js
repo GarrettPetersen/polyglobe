@@ -9,6 +9,7 @@ import {
 
 const istanbul = Object.freeze({
   tileId: 41,
+  cityId: "istanbul|türkiye",
   city: "Istanbul",
   displayCity: "Istanbul",
   country: "Türkiye",
@@ -17,6 +18,7 @@ const istanbul = Object.freeze({
 });
 const rhodes = Object.freeze({
   tileId: 42,
+  cityId: "rhodes|greece",
   city: "Rhodes",
   displayCity: "Rhodes",
   country: "Greece",
@@ -42,6 +44,7 @@ test("a factor calls the captain the hero of a major enemy port taken for the re
   state.memory.conquest.events.push({
     id: "capture-rhodes",
     portId: "rhodes|greece",
+    cityId: rhodes.cityId,
     cityTileId: rhodes.tileId,
     cityName: "Rhodes",
     previousFactionId: "hospitallers",

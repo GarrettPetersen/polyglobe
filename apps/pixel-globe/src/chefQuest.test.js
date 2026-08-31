@@ -12,11 +12,12 @@ import {
   maybeSpawnChefQuest,
   recruitChef
 } from "./chefQuest.js";
-import { createGameState, deliverQuestCargoRequirement } from "./gameState.js";
+import { deliverQuestCargoRequirement } from "./gameState.js";
+import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import { NAMED_CREW_ROLE_CHEF, addNamedCrewMember } from "./namedCrew.js";
 
 const stats = { slug: "test", cargoCapacity: 40, crewCapacity: 8, cannons: 0, mass: 10, navalWeaponKind: null };
-const city = { tileId: 44, city: "Istanbul", country: "Ottoman Empire", cityType: "islamic-desert" };
+const city = { cityId: "istanbul|ottoman empire", tileId: 44, city: "Istanbul", country: "Ottoman Empire", cityType: "islamic-desert" };
 
 function game() {
   return createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -99,6 +100,7 @@ test("chef event copy follows the host region", () => {
   assert.match(chefEventProfileForPort({ country: "England", cityType: "northern-european" }).eventLabel, /midsummer/);
   const wendat = {
     tileId: 45,
+    cityId: "wendat village|canada",
     city: "Wendat Village",
     country: "Canada",
     cityType: "mesoamerican",
@@ -110,6 +112,7 @@ test("chef event copy follows the host region", () => {
   assert.doesNotMatch(chefEventProfileForPort(wendat).eventLabel, /merchant|guild/i);
   assert.match(chefEventProfileForPort({
     ...wendat,
+    cityId: "tahiti village|french polynesia",
     city: "Tahiti Village",
     country: "French Polynesia",
     cityType: "polynesian",
@@ -120,6 +123,7 @@ test("chef event copy follows the host region", () => {
 test("active village chef quests migrate away from the urban guild banquet", () => {
   const state = game();
   const legacyVillage = {
+    cityId: "wendat village|canada",
     tileId: 45,
     city: "Wendat Village",
     country: "Canada"

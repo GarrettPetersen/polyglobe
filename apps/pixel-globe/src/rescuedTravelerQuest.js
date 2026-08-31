@@ -6,6 +6,7 @@ import {
 import { charactersShareFamilyName } from "./characterNames.js";
 import { characterPronouns } from "./characterPronouns.js";
 import { validateCharacterSkillIds } from "./characterSkills.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
 export const RESCUED_TRAVELER_STAGE_OFFER = "offer";
 export const RESCUED_TRAVELER_STAGE_ABOARD = "aboard";
@@ -104,6 +105,7 @@ export function createRescuedTravelerQuest(memory, {
     rescueType,
     sourceId,
     stage: RESCUED_TRAVELER_STAGE_OFFER,
+    homePortCityId: homePort.cityId,
     homePortTileId: homePort.tileId,
     homePortName: homePort.displayCity || homePort.city,
     homePortCountry: homePort.country,
@@ -245,6 +247,7 @@ export function completeRescuedTravelerQuest(memory, questId, {
       id: quest.id,
       rescueType: quest.rescueType,
       character: quest.character,
+      homePortCityId: quest.homePortCityId,
       homePortTileId: quest.homePortTileId,
       homePortName: quest.homePortName,
       homePortCountry: quest.homePortCountry,
@@ -259,21 +262,21 @@ export function completeRescuedTravelerQuest(memory, questId, {
   return quest;
 }
 
-export function formerRescuedTravelerCharactersAtPort(memories, cityTileId) {
-  validateFormerTravelerSearch(memories, cityTileId);
+export function formerRescuedTravelerCharactersAtPort(memories, cityId) {
+  validateFormerTravelerSearch(memories, cityId);
   return memories.flatMap((memory) => memory.formerTravelers)
-    .filter((entry) => entry.homePortTileId === cityTileId)
+    .filter((entry) => entry.homePortCityId === cityId)
     .map((entry) => entry.character);
 }
 
 export function nextRescuedTravelerPortReunion(memories, {
-  cityTileId,
+  cityId,
   currentMinute,
   roll,
   captain,
   variantSeed = 0
 }) {
-  validateFormerTravelerSearch(memories, cityTileId);
+  validateFormerTravelerSearch(memories, cityId);
   assertMinute(currentMinute, "rescued traveler reunion");
   assertUnitRoll(roll, "rescued traveler reunion");
   assertCharacter(captain, "Captain");
@@ -281,7 +284,7 @@ export function nextRescuedTravelerPortReunion(memories, {
     throw new Error(`Invalid rescued traveler reunion variant: ${variantSeed}`);
   }
   const candidates = memories.flatMap((memory) => memory.formerTravelers)
-    .filter((entry) => entry.homePortTileId === cityTileId)
+    .filter((entry) => entry.homePortCityId === cityId)
     .filter((entry) => rescuedTravelerReunionIsReady(entry, currentMinute))
     .sort((a, b) => (
       a.greetingCount - b.greetingCount ||
@@ -322,7 +325,7 @@ export function recordRescuedTravelerPortReunion(memory, entryId, currentMinute)
 
 export function createRescuedTravelerDialogueSession(quest, {
   phase,
-  cityTileId = null,
+  cityId = null,
   admittedToPort = false,
   continueToPortOnClose = false,
   nextPortNodeId = "greeting",
@@ -338,7 +341,7 @@ export function createRescuedTravelerDialogueSession(quest, {
   if (phase === "homecoming" && quest.stage !== RESCUED_TRAVELER_STAGE_HOMECOMING) {
     throw new Error(`Rescued traveler homecoming dialogue requires homecoming stage, got ${quest.stage}`);
   }
-  if (phase === "homecoming" && cityTileId !== quest.homePortTileId) {
+  if (phase === "homecoming" && cityId !== quest.homePortCityId) {
     throw new Error("Rescued traveler homecoming dialogue is at the wrong port");
   }
   if (surrenderPrize !== null && (
@@ -359,7 +362,7 @@ export function createRescuedTravelerDialogueSession(quest, {
     stepIndex: 0,
     selectedIndex: 0,
     feedback: null,
-    cityTileId,
+    cityId,
     admittedToPort,
     continueToPortOnClose,
     nextPortNodeId,
@@ -579,6 +582,9 @@ function validateRescuedTravelerQuest(quest) {
   if (!Number.isInteger(quest.homePortTileId) || quest.homePortTileId < 0) {
     throw new Error(`Invalid rescued traveler home port tile: ${quest.homePortTileId}`);
   }
+  if (quest.homePortCityId !== undefined && quest.homePortCityId !== null) {
+    requireEntityId(quest.homePortCityId, "Rescued traveler home port");
+  }
   for (const [label, value] of [
     ["home port name", quest.homePortName],
     ["home port country", quest.homePortCountry]
@@ -655,13 +661,14 @@ function assertCharacter(character, label) {
 
 function rescuedTravelerWithBiography(character, homePort) {
   return characterWithBiography(character, {
-    identityKey: character?.id || character?.name,
+    identityKey: requireEntityId(character?.id, "Rescued traveler"),
     homePort
   });
 }
 
 function rescuedTravelerHomePort(entry) {
   return {
+    cityId: entry.homePortCityId,
     tileId: entry.homePortTileId,
     city: entry.homePortName,
     displayCity: entry.homePortName,
@@ -669,14 +676,12 @@ function rescuedTravelerHomePort(entry) {
   };
 }
 
-function validateFormerTravelerSearch(memories, cityTileId) {
+function validateFormerTravelerSearch(memories, cityId) {
   if (!Array.isArray(memories) || memories.length === 0) {
     throw new Error("Former rescued traveler search requires quest memories");
   }
   for (const memory of memories) validateRescuedTravelerQuestMemory(memory);
-  if (!Number.isInteger(cityTileId) || cityTileId < 0) {
-    throw new Error(`Invalid former rescued traveler port tile: ${cityTileId}`);
-  }
+  requireEntityId(cityId, "Former rescued traveler port");
 }
 
 function validateFormerRescuedTraveler(entry, expectedType) {
@@ -693,6 +698,9 @@ function validateFormerRescuedTraveler(entry, expectedType) {
   assertCharacter(entry.character, "Former rescued traveler");
   if (!Number.isInteger(entry.homePortTileId) || entry.homePortTileId < 0) {
     throw new Error(`Invalid former rescued traveler home port: ${entry.homePortTileId}`);
+  }
+  if (entry.homePortCityId !== undefined && entry.homePortCityId !== null) {
+    requireEntityId(entry.homePortCityId, "Former rescued traveler home port");
   }
   for (const [label, value] of [
     ["home port name", entry.homePortName],
@@ -758,6 +766,7 @@ function assertUnitRoll(value, label) {
 
 function assertPort(port, label) {
   if (!port || typeof port !== "object") throw new Error(`${label} must be a city`);
+  requireCityId(port, label);
   if (!Number.isInteger(port.tileId) || port.tileId < 0) throw new Error(`${label} needs a tile id`);
   if (typeof (port.displayCity || port.city) !== "string" || !(port.displayCity || port.city).trim()) {
     throw new Error(`${label} needs a city name`);

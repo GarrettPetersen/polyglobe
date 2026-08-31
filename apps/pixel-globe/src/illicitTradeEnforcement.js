@@ -1,5 +1,7 @@
 import { assertFactionId } from "./factions.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
+export const ILLICIT_TRADE_ENFORCEMENT_VERSION = 2;
 export const ILLICIT_TRADE_ENFORCEMENT_DURATION_MINUTES = 7 * 24 * 60;
 export const ILLICIT_TRADE_MINIMUM_FINE = 80;
 const ILLICIT_TRADE_MAX_INCIDENTS = 8;
@@ -7,6 +9,7 @@ const ILLICIT_TRADE_MAX_CHECKED_SHIPS = 32;
 
 export function createIllicitTradeEnforcementMemory() {
   return {
+    version: ILLICIT_TRADE_ENFORCEMENT_VERSION,
     nextIncidentId: 1,
     incidents: []
   };
@@ -16,6 +19,7 @@ export function migrateIllicitTradeEnforcementMemory(memory) {
   if (memory === null || memory === undefined) return createIllicitTradeEnforcementMemory();
   validateIllicitTradeEnforcementMemory(memory);
   return {
+    version: memory.version ?? 1,
     nextIncidentId: memory.nextIncidentId,
     incidents: memory.incidents.map(copyIncident)
   };
@@ -28,12 +32,16 @@ export function validateIllicitTradeEnforcementMemory(memory) {
   if (!Number.isInteger(memory.nextIncidentId) || memory.nextIncidentId <= 0) {
     throw new Error(`Invalid next illicit trade incident id: ${memory.nextIncidentId}`);
   }
+  const version = memory.version ?? 1;
+  if (![1, ILLICIT_TRADE_ENFORCEMENT_VERSION].includes(version)) {
+    throw new Error(`Unsupported illicit trade enforcement version: ${version}`);
+  }
   if (!Array.isArray(memory.incidents) || memory.incidents.length > ILLICIT_TRADE_MAX_INCIDENTS) {
     throw new Error("Illicit trade enforcement incidents must be a bounded array");
   }
   const ids = new Set();
   for (const incident of memory.incidents) {
-    validateIncident(incident);
+    validateIncident(incident, { legacy: version === 1 });
     if (ids.has(incident.id)) throw new Error(`Duplicate illicit trade incident: ${incident.id}`);
     ids.add(incident.id);
   }
@@ -45,6 +53,7 @@ export function recordIllicitTradeDeparture(memory, visit, port, simMinute) {
   if (!port || !Number.isInteger(port.tileId) || port.tileId < 0) {
     throw new Error("Illicit trade departure requires a placed port");
   }
+  const originCityId = requireCityId(port, "Illicit trade departure port");
   if (!Number.isFinite(simMinute) || simMinute < 0) {
     throw new Error(`Invalid illicit trade departure minute: ${simMinute}`);
   }
@@ -54,7 +63,7 @@ export function recordIllicitTradeDeparture(memory, visit, port, simMinute) {
     policyId: visit.policyId,
     enforcementFactionId: visit.enforcementFactionId,
     reputationPenalty: visit.reputationPenalty,
-    originPortId: port.portId || `city-${port.tileId}`,
+    originCityId,
     originTileId: port.tileId,
     originName: port.displayCity || port.city || port.name,
     startedMinute: simMinute,
@@ -221,7 +230,7 @@ function validateVisit(visit) {
   validatePurchasedCargo(visit.purchasedCargo);
 }
 
-function validateIncident(incident) {
+function validateIncident(incident, { legacy = false } = {}) {
   if (!incident || typeof incident !== "object" || Array.isArray(incident)) {
     throw new Error("Illicit trade incident must be an object");
   }
@@ -229,11 +238,13 @@ function validateIncident(incident) {
     throw new Error("Illicit trade incident requires an id");
   }
   validatePolicyFields(incident);
-  if (typeof incident.originPortId !== "string" || incident.originPortId === "" ||
+  const originId = legacy ? incident.originPortId : incident.originCityId;
+  if (typeof originId !== "string" || originId === "" ||
       !Number.isInteger(incident.originTileId) || incident.originTileId < 0 ||
       typeof incident.originName !== "string" || incident.originName === "") {
     throw new Error(`Invalid illicit trade incident origin: ${incident.id}`);
   }
+  requireEntityId(originId, "Illicit trade incident origin");
   if (!Number.isFinite(incident.startedMinute) || incident.startedMinute < 0 ||
       !Number.isFinite(incident.expiresMinute) || incident.expiresMinute <= incident.startedMinute) {
     throw new Error(`Invalid illicit trade incident time: ${incident.id}`);

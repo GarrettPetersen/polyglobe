@@ -56,8 +56,8 @@ const CITY_CATALOG_MAX_COUNT = 480;
 const repoRoot = new URL("../../../", import.meta.url);
 
 test("water-access intent gives small gameplay ports selection weight", () => {
-  const inland = { city: "Large Inland", population: 40000 };
-  const port = { city: "Small Port", population: 5000, coastalIntent: true };
+  const inland = { cityId: "large inland|test territory", city: "Large Inland", population: 40000 };
+  const port = { cityId: "small port|test territory", city: "Small Port", population: 5000, coastalIntent: true };
 
   assert.ok(cityCatalogSelectionScore(port) > cityCatalogSelectionScore(inland));
   assert.deepEqual(
@@ -67,8 +67,9 @@ test("water-access intent gives small gameplay ports selection weight", () => {
 });
 
 test("a nearby larger coastal city replaces a minor inland city", () => {
-  const nara = { city: "Nara City", country: "Japan", lat: 34.685333, lon: 135.832742, population: 10000 };
+  const nara = { cityId: "nara city|japan", city: "Nara City", country: "Japan", lat: 34.685333, lon: 135.832742, population: 10000 };
   const sakai = {
+    cityId: "sakai|japan",
     city: "Sakai",
     country: "Japan",
     lat: 34.573333,
@@ -76,7 +77,7 @@ test("a nearby larger coastal city replaces a minor inland city", () => {
     population: 30000,
     coastalIntent: true
   };
-  const kyoto = { city: "Kyoto", country: "Japan", lat: 35.02107, lon: 135.75385, population: 66400 };
+  const kyoto = { cityId: "kyoto|japan", city: "Kyoto", country: "Japan", lat: 35.02107, lon: 135.75385, population: 66400 };
 
   assert.equal(CITY_COASTAL_REPLACEMENT_RADIUS_KM, 50);
   assert.deepEqual(
@@ -127,10 +128,10 @@ test("distant future rows cannot revive an ancient city or backfill a new one", 
 });
 
 test("modern Cincinnati is not substituted for its pre-contact archaeological record", () => {
-  assert.equal(cityDatasetRecordAllowedIn1522("Cincinnati", "United States of America"), false);
-  assert.equal(cityDatasetRecordAllowedIn1522("Chillicothe", "United States of America"), true);
-  assert.equal(cityDatasetRecordAllowedIn1522("Syracuse", "Greece"), false);
-  assert.equal(cityDatasetRecordAllowedIn1522("Syracuse", "Italy"), true);
+  assert.equal(cityDatasetRecordAllowedIn1522("cincinnati|united states of america"), false);
+  assert.equal(cityDatasetRecordAllowedIn1522("chillicothe|united states of america"), true);
+  assert.equal(cityDatasetRecordAllowedIn1522("syracuse|greece"), false);
+  assert.equal(cityDatasetRecordAllowedIn1522("syracuse|italy"), true);
 });
 
 test("1522 city selection keeps enough British Isles ports and Inca access", async () => {
@@ -537,9 +538,9 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
 });
 
 test("colonial city metadata separates conquest, negotiated ports, and settler colonies", () => {
-  const mexicoCity = colonialFoundingForCity({ city: "Mexico City", country: "Mexico" });
-  const nagasaki = colonialFoundingForCity({ city: "Nagasaki", country: "Japan" });
-  const havana = colonialFoundingForCity({ city: "Havana", country: "Cuba" });
+  const mexicoCity = colonialFoundingForCity({ cityId: "mexico city|mexico" });
+  const nagasaki = colonialFoundingForCity({ cityId: "nagasaki|japan" });
+  const havana = colonialFoundingForCity({ cityId: "havana|cuba" });
 
   assert.equal(mexicoCity.type, COLONIAL_FOUNDING_CONQUERED);
   assert.equal(mexicoCity.precolonialName, "Tenochtitlan");
@@ -576,11 +577,11 @@ test("new colonies are absent in 1522 while negotiated Nagasaki begins as a vill
 });
 
 test("colonization targets cover accelerated history hooks", () => {
-  const jamestown = colonizationTargetForCity({ city: "Jamestown", country: "United States of America" });
-  const quebec = colonizationTargetForCity({ city: "Quebec", country: "Canada" });
-  const newAmsterdam = colonizationTargetForCity({ city: "New York", country: "United States of America" });
-  const manila = colonizationTargetForCity({ city: "Manila", country: "Philippines" });
-  const nagasaki = colonizationTargetForCity({ city: "Nagasaki", country: "Japan" });
+  const jamestown = colonizationTargetForCity({ cityId: "jamestown|united states of america" });
+  const quebec = colonizationTargetForCity({ cityId: "quebec|canada" });
+  const newAmsterdam = colonizationTargetForCity({ cityId: "new york|united states of america" });
+  const manila = colonizationTargetForCity({ cityId: "manila|philippines" });
+  const nagasaki = colonizationTargetForCity({ cityId: "nagasaki|japan" });
 
   assert.equal(jamestown.type, COLONIAL_FOUNDING_SETTLER);
   assert.equal(jamestown.datasetFirstYear, null);
@@ -635,15 +636,15 @@ function buildCityRecords1522(csv) {
     const row = rows[rowIndex];
     if (row.length === 1 && row[0] === "") continue;
     const city = row[indexes.city]?.trim();
+    const cityId = row[indexes.city_id]?.trim();
     const country = row[indexes.country]?.trim();
     const lat = Number(row[indexes.latitude]);
     const lon = Number(row[indexes.longitude]);
     const year = Number.parseInt(row[indexes.year], 10);
     const population = Number(row[indexes.population]);
-    if (!city || !country || population <= 0) continue;
-    if (!cityDatasetRecordAllowedIn1522(city, country)) continue;
+    if (!cityId || !city || !country || population <= 0) continue;
+    if (!cityDatasetRecordAllowedIn1522(cityId)) continue;
 
-    const cityId = cityKey(city, country);
     const observations = observationsByCity.get(cityId) || [];
     observations.push({
       cityId,
@@ -678,7 +679,7 @@ function buildCityRecords1522(csv) {
   }
 
   for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
-    const cityId = cityKey(manualSpec.city, manualSpec.country);
+    const cityId = manualSpec.cityId;
     const cityRecord = withColonialFounding({
       cityId,
       city: manualSpec.city,
@@ -708,7 +709,7 @@ function buildCityRecords1522(csv) {
   }
 
   for (const capitalSpec of factionCapitalCityRecords1522()) {
-    const cityId = cityKey(capitalSpec.city, capitalSpec.country);
+    const cityId = capitalSpec.cityId;
     if (bestByCity.has(cityId)) continue;
     const cityRecord = withColonialFounding({
       cityId,

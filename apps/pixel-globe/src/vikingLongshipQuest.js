@@ -1,4 +1,5 @@
 import { deliverQuestCargoRequirement } from "./gameState.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 import { CANONICAL_PORTS, portMatchesCanonicalReference } from "./canonicalPorts.js";
 import {
   NAMED_CREW_ROLE_HISTORIAN,
@@ -13,6 +14,7 @@ import {
 export const VIKING_LONGSHIP_SLUG = "viking-longship";
 export const VIKING_LONGSHIP_PORT_CITY = CANONICAL_PORTS.HAFNARFJORDUR.city;
 export const VIKING_LONGSHIP_PORT_COUNTRY = CANONICAL_PORTS.HAFNARFJORDUR.country;
+export const VIKING_LONGSHIP_PORT_CITY_ID = CANONICAL_PORTS.HAFNARFJORDUR.cityId;
 export const VIKING_LONGSHIP_PRICE = 42000;
 export const VIKING_LONGSHIP_SPAWN_CHANCE = 0.2;
 export const VIKING_LONGSHIP_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
@@ -53,13 +55,13 @@ export function maybeSpawnVikingLongshipQuest(state, city, context = {}) {
   if (!hasPermanentCrewBerth(state)) return null;
 
   const period = vikingRollPeriod(context.simMinute);
-  const rollKey = `${city.portId || city.tileId}|${period}`;
+  const rollKey = `${requireCityId(city, "Viking longship quest port")}|${period}`;
   if (memory.rolls[rollKey]) return null;
   memory.rolls[rollKey] = true;
   pruneRolls(memory.rolls);
 
   const chance = vikingSpawnChance(context.spawnChance);
-  const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
+  const identityKey = requireEntityId(state.playerCharacter?.id, "Viking longship quest captain");
   if (chance < 1 && seededFraction(`${identityKey}|${rollKey}|viking-longship`) >= chance) return null;
   memory.flags[QUEST_OFFERED_FLAG] = true;
   return vikingLongshipQuestState(state, city);
@@ -208,8 +210,7 @@ export function acceptVikingLongshipReward(state) {
 
 function isVikingLongshipEnthusiast(character) {
   return character?.role === NAMED_CREW_ROLE_HISTORIAN &&
-    character.homePortName === VIKING_LONGSHIP_PORT_CITY &&
-    character.homePortCountry === VIKING_LONGSHIP_PORT_COUNTRY;
+    character.homePortCityId === VIKING_LONGSHIP_PORT_CITY_ID;
 }
 
 export function declineVikingLongshipReward(state) {

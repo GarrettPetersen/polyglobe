@@ -46,6 +46,7 @@ import {
   findCanonicalPort,
   portMatchesCanonicalReference
 } from "./canonicalPorts.js";
+import { requireCityId } from "./entityIds.js";
 import {
   EAST_ASIAN_MISSION_NINGBO,
   eastAsianMissionDialogue,
@@ -308,13 +309,11 @@ export function imperialElectionOfferForCity(state, city, portCities, context = 
 export function previewTravelMissionOffersForCities(state, cities, portCities, context = {}) {
   if (!Array.isArray(cities)) throw new Error("Travel mission preview requires an origin city array");
   const quests = questMemory(state);
-  const offersByTileId = new Map();
+  const offersByCityId = new Map();
   for (const city of cities) {
-    if (!Number.isInteger(city?.tileId)) {
-      throw new Error("Travel mission preview origin has no tile id");
-    }
-    if (offersByTileId.has(city.tileId)) {
-      throw new Error(`Travel mission preview has duplicate origin tile ${city.tileId}`);
+    const cityId = requireCityId(city, "Travel mission preview origin");
+    if (offersByCityId.has(cityId)) {
+      throw new Error(`Travel mission preview has duplicate origin city ${cityId}`);
     }
     const previewState = {
       ...state,
@@ -323,12 +322,12 @@ export function previewTravelMissionOffersForCities(state, cities, portCities, c
         quests: structuredClone(quests)
       }
     };
-    offersByTileId.set(
-      city.tileId,
+    offersByCityId.set(
+      cityId,
       travelMissionOffersForCity(previewState, city, portCities, context)
     );
   }
-  return offersByTileId;
+  return offersByCityId;
 }
 
 export function envoyOfferForCapital(state, city, portCities, context = {}) {
@@ -590,22 +589,25 @@ function buildEnvoyQuest(origin, target, kind, distanceKm, period, simMinute, op
     throw new Error(`Trade-opening envoy target does not host ${tradeAccessPolicy.id}`);
   }
   return {
-    id: options.id || `${kind}-${origin.tileId}-${target.tileId}-${hashString32(seed).toString(36)}`,
+    id: options.id || `${kind}-${hashString32(seed).toString(36)}`,
     kind,
     stage: "outbound",
     originKey,
+    originCityId: origin.cityId,
     originTileId: origin.tileId,
     originName: cityLabel(origin),
     originCountry: origin.country || "",
     originFactionId: origin.factionId,
     originRulerName: originRuler.displayName,
     targetKey,
+    targetCityId: target.cityId,
     targetTileId: target.tileId,
     targetName: cityLabel(target),
     targetCountry: target.country || "",
     targetFactionId: target.factionId,
     targetRulerName: targetRuler.displayName,
     destinationKey: targetKey,
+    destinationCityId: target.cityId,
     destinationTileId: target.tileId,
     destinationName: cityLabel(target),
     destinationCountry: target.country || "",
@@ -889,7 +891,7 @@ function buildEastAsianPassengerQuest(plan) {
   const originKey = cityKey(origin);
   const destinationKey = cityKey(destination);
   const sideSuffix = plan.startingFactionId ? `-${plan.startingFactionId}` : "";
-  const id = `east-asian-${plan.id}${sideSuffix}-${origin.tileId}-${destination.tileId}`;
+  const id = `east-asian-${plan.id}${sideSuffix}-${hashString32(`${origin.cityId}|${destination.cityId}`).toString(36)}`;
   return {
     id,
     kind: "passenger",
@@ -897,11 +899,13 @@ function buildEastAsianPassengerQuest(plan) {
     eastAsianStartingFactionId: plan.startingFactionId,
     eastAsianRequiresOutcome: plan.requiresOutcome,
     originKey,
+    originCityId: origin.cityId,
     originTileId: origin.tileId,
     originName: cityLabel(origin),
     originCountry: origin.country || "",
     originFactionId: origin.factionId,
     destinationKey,
+    destinationCityId: destination.cityId,
     destinationTileId: destination.tileId,
     destinationName: cityLabel(destination),
     destinationCountry: destination.country || "",
@@ -917,6 +921,7 @@ function buildEastAsianPassengerQuest(plan) {
         itinerary: createQuestItinerary(
           plan.itinerary.map((stop, index) => ({
             key: cityKey(stop),
+            cityId: stop.cityId,
             tileId: stop.tileId,
             name: cityLabel(stop),
             country: stop.country || "",
@@ -924,7 +929,7 @@ function buildEastAsianPassengerQuest(plan) {
           })),
           {
             mode: QUEST_ITINERARY_OPEN,
-            openingStopTileId: plan.itinerary[0].tileId
+            openingStopCityId: plan.itinerary[0].cityId
           }
         ),
         eastAsianBatteryUpgrades: []
@@ -936,7 +941,7 @@ function buildEastAsianPassengerQuest(plan) {
         eastAsianDelegationShips: ningboDelegationManifest(
           id,
           plan.delegationOrigins,
-          plan.destination.tileId
+          plan.destination.cityId
         )
       }
       : {})
@@ -964,16 +969,18 @@ function buildPassengerQuest(origin, destination, scenario, distanceKm, period, 
   const destinationKey = cityKey(destination);
   const seed = `${originKey}|${destinationKey}|${scenario.id}|${period}`;
   const reward = 150 + Math.round(distanceKm / 18) + (hashString32(`${seed}|reward`) % 101);
-  const id = `passenger-${origin.tileId}-${destination.tileId}-${hashString32(seed).toString(36)}`;
+  const id = `passenger-${hashString32(seed).toString(36)}`;
   return {
     id,
     kind: "passenger",
     originKey,
+    originCityId: origin.cityId,
     originTileId: origin.tileId,
     originName: cityLabel(origin),
     originCountry: origin.country || "",
     originFactionId: origin.factionId,
     destinationKey,
+    destinationCityId: destination.cityId,
     destinationTileId: destination.tileId,
     destinationName: cityLabel(destination),
     destinationCountry: destination.country || "",
@@ -1088,7 +1095,7 @@ function chooseEnvoyKind(seed, forcedKind) {
 
 function chooseEnvoyDestination(origin, portCities, missionKind, context) {
   const candidates = portCities
-    .filter((port) => port.tileId !== origin.tileId)
+    .filter((port) => port.cityId !== origin.cityId)
     .filter((port) => port.isFactionCapital && port.capitalOfFactionId === port.factionId)
     .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
     .map((port) => ({
@@ -1100,8 +1107,8 @@ function chooseEnvoyDestination(origin, portCities, missionKind, context) {
     .filter(({ relation }) => missionKind === "friendly-envoy"
       ? relation !== DIPLOMACY_ALLY
       : relation !== DIPLOMACY_WAR);
-  if (context.destinationTileId !== undefined) {
-    return candidates.find(({ port }) => port.tileId === context.destinationTileId)?.port || null;
+  if (context.destinationCityId !== undefined) {
+    return candidates.find(({ port }) => port.cityId === context.destinationCityId)?.port || null;
   }
   if (candidates.length === 0) return null;
   const seed = `${cityKey(origin)}|${passengerRollPeriod(context.simMinute)}|${missionKind}|target`;
@@ -1114,13 +1121,13 @@ function chooseEnvoyDestination(origin, portCities, missionKind, context) {
 }
 
 function choosePassengerDestination(origin, portCities, context) {
-  if (context.destinationTileId !== undefined) {
-    const destination = portCities.find((port) => port.tileId === context.destinationTileId) || null;
+  if (context.destinationCityId !== undefined) {
+    const destination = portCities.find((port) => port.cityId === context.destinationCityId) || null;
     if (!destination) return null;
     return passengerDistanceIsMedium(greatCircleDistanceKm(origin, destination)) ? destination : null;
   }
   const candidates = portCities
-    .filter((port) => port.tileId !== origin.tileId)
+    .filter((port) => port.cityId !== origin.cityId)
     .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
     .map((port) => ({ port, distanceKm: greatCircleDistanceKm(origin, port) }))
     .filter(({ distanceKm }) => passengerDistanceIsMedium(distanceKm));
@@ -1138,7 +1145,7 @@ function hajjPassengerPlan(origin, portCities, context, rollKey) {
   const forcedHajj = context.scenarioId === HAJJ_PASSENGER_SCENARIO_ID;
   if (context.scenarioId && !forcedHajj) return null;
   const destination = findCanonicalPort(portCities, CANONICAL_PORTS.JEDDAH, "Hajj passenger mission");
-  if (!destination || destination.tileId === origin.tileId) return null;
+  if (!destination || destination.cityId === origin.cityId) return null;
   const passengerReligionId = islamicReligionForHome(
     origin,
     `${rollKey}|hajj-passenger`
@@ -1162,10 +1169,10 @@ function hajjReturnPassengerPlan(origin, portCities, context, rollKey) {
   if (!portMatchesCanonicalReference(origin, CANONICAL_PORTS.JEDDAH)) return null;
 
   const candidates = portCities
-    .filter((port) => port.tileId !== origin.tileId)
+    .filter((port) => port.cityId !== origin.cityId)
     .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
     .filter((port) => (
-      context.destinationTileId === undefined || port.tileId === context.destinationTileId
+      context.destinationCityId === undefined || port.cityId === context.destinationCityId
     ))
     .map((port) => {
       const distanceKm = passengerTravelDistanceKm(origin, port, context);

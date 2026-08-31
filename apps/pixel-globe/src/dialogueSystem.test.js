@@ -34,7 +34,7 @@ import {
   GUNPOWDER_GOOD_ID,
   HARDTACK_GOOD_ID,
   MATCHLOCKS_GOOD_ID,
-  createWorldEconomy,
+  createWorldEconomy as createCanonicalWorldEconomy,
   fundWorldEconomyShipyard,
   portMarket,
   quotePortPurchase
@@ -54,7 +54,6 @@ import {
   cargoHoldStatus,
   cargoUsed,
   capturePortMissionOfferForCity,
-  createGameState,
   deliverQuestCargoRequirement,
   deliveryOfferForCity,
   diplomacyBetweenForState,
@@ -75,6 +74,7 @@ import {
   resolveCatholicBibleInspection,
   visitPort
 } from "./gameState.js";
+import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import {
   DIPLOMACY_FRIENDLY,
   DIPLOMACY_HOSTILE,
@@ -121,6 +121,26 @@ import {
   grantColonizationApproval,
   landColonists
 } from "./colonizationQuest.js";
+
+function createWorldEconomy(options) {
+  const canonicalByTileId = new Map();
+  const canonicalize = (port) => {
+    if (typeof port?.cityId === "string" && port.cityId !== "") return port;
+    if (!Number.isInteger(port?.tileId)) throw new Error("Test economy port needs a tile id");
+    let canonical = canonicalByTileId.get(port.tileId);
+    if (!canonical) {
+      port.cityId = `test-city:${port.tileId}`;
+      canonical = port;
+      canonicalByTileId.set(port.tileId, canonical);
+    }
+    return canonical;
+  };
+  return createCanonicalWorldEconomy({
+    ...options,
+    ports: options.ports.map(canonicalize),
+    ...(options.shipyardPorts ? { shipyardPorts: options.shipyardPorts.map(canonicalize) } : {})
+  });
+}
 import {
   JAPANESE_MATCHLOCK_COMPLETION_REWARD,
   JAPANESE_MATCHLOCK_FETCH_STAGES,
@@ -153,12 +173,16 @@ import {
 
 test("a port dialogue fallback retains the admitted port's visit memory identity", () => {
   const state = createGameState({ cargoCapacity: 20 });
-  const admittedPort = { tileId: 17, portId: "dock-17", city: "Cordoba" };
+  const admittedPort = { cityId: "cordoba|spain", tileId: 17, portId: "dock-17", city: "Cordoba" };
   visitPort(state, admittedPort, 0);
   const session = createPortDialogueSession(admittedPort, { admittedToPort: true });
-  const fallbackCity = restorePortDialogueCityIdentity(session, { tileId: 17, city: "Cordoba" });
+  const fallbackCity = restorePortDialogueCityIdentity(session, {
+    cityId: admittedPort.cityId,
+    tileId: 99,
+    city: "Renamed Cordoba"
+  });
 
-  assert.equal(fallbackCity.portId, admittedPort.portId);
+  assert.equal(fallbackCity.portId, admittedPort.cityId);
   assert.equal(portMemory(state, fallbackCity).visits, 1);
 });
 
@@ -434,6 +458,7 @@ test("a non-enemy ship offers emergency provisions once the player is depleted",
 
 test("hostile shore batteries hail before opening fire", () => {
   const city = {
+    cityId: "alexandria|egypt",
     tileId: 17,
     portId: "city-17",
     city: "Alexandria",
@@ -455,6 +480,7 @@ test("hostile shore batteries hail before opening fire", () => {
 
 test("shore battery speakers use the period city display name", () => {
   const city = {
+    cityId: "feodosia|russian federation",
     tileId: 17,
     portId: "city-17",
     city: "Feodosia",
@@ -473,6 +499,7 @@ test("shore battery speakers use the period city display name", () => {
 
 test("hostile shore batteries sell civilian passage for the whole empire", () => {
   const city = {
+    cityId: "alexandria|egypt",
     tileId: 17,
     portId: "city-17",
     city: "Alexandria",
@@ -501,6 +528,7 @@ test("hostile shore batteries sell civilian passage for the whole empire", () =>
 
 test("shore batteries do not quote passage that the faction will refuse", () => {
   const city = {
+    cityId: "alexandria|egypt",
     tileId: 17,
     portId: "city-17",
     city: "Alexandria",
@@ -533,6 +561,7 @@ test("personal hostility challenges blame the captain rather than a war between 
 
 test("disabled shore battery passage offers stay open without crashing", () => {
   const city = {
+    cityId: "alexandria|egypt",
     tileId: 17,
     portId: "city-17",
     city: "Alexandria",
@@ -1020,6 +1049,7 @@ test("ship dialogue rejects a different NPC ship", () => {
 test("captured ports greet the player under their current sovereign", () => {
   const ceuta = {
     tileId: 102,
+    cityId: "ceuta|morocco",
     city: "Ceuta",
     displayCity: "Ceuta",
     country: "Morocco",
@@ -1057,6 +1087,7 @@ test("captured ports greet the player under their current sovereign", () => {
 test("port dialogue exposes live market specie, stock, and prices", () => {
   const city = {
     tileId: 1,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -1148,6 +1179,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
 test("a factor explains customs once and repeats the explanation only after the rate changes", () => {
   const city = {
     tileId: 91,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -1182,6 +1214,7 @@ test("a factor explains customs once and repeats the explanation only after the 
 test("a port lists independent passenger and scripted travel offers together", () => {
   const city = {
     tileId: 190,
+    cityId: "hamburg|germany",
     city: "Hamburg",
     displayCity: "Hamburg",
     country: "Germany",
@@ -1208,6 +1241,7 @@ test("a port lists independent passenger and scripted travel offers together", (
 test("a foreign settlement is explained by the factor and supplies its resident customs privilege", () => {
   const city = withForeignSettlements1522({
     tileId: 92,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     displayCity: "Ternate",
     country: "Indonesia",
@@ -1258,6 +1292,7 @@ test("a foreign settlement is explained by the factor and supplies its resident 
 test("Colombo offers cartaz papers before opening its official cinnamon market", () => {
   const city = withForeignSettlements1522({
     tileId: 155810,
+    cityId: "colombo|sri lanka",
     city: "Colombo",
     displayCity: "Colombo",
     country: "Sri Lanka",
@@ -1338,6 +1373,7 @@ test("Colombo offers cartaz papers before opening its official cinnamon market",
 test("Colombo offers costly cartaz papers to hostile captains and a clear refusal during war", () => {
   const city = withForeignSettlements1522({
     tileId: 155810,
+    cityId: "colombo|sri lanka",
     city: "Colombo",
     displayCity: "Colombo",
     country: "Sri Lanka",
@@ -1397,6 +1433,7 @@ test("Colombo offers costly cartaz papers to hostile captains and a clear refusa
 test("Colombo smugglers sell cinnamon under the existing illicit-trade enforcement policy", () => {
   const city = withForeignSettlements1522({
     tileId: 155810,
+    cityId: "colombo|sri lanka",
     city: "Colombo",
     displayCity: "Colombo",
     country: "Sri Lanka",
@@ -1474,6 +1511,7 @@ test("Colombo smugglers sell cinnamon under the existing illicit-trade enforceme
 test("buying the final unit disables its stable market row instead of moving later goods", () => {
   const city = {
     tileId: 109,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     country: "Portugal",
@@ -1495,7 +1533,7 @@ test("buying the final unit disables its stable market row instead of moving lat
   const followingIndex = buyIndexes[1];
   const goodId = initial.options[purchaseIndex].action.goodId;
   const followingGoodId = initial.options[followingIndex].action.goodId;
-  economy.portStates.get(city.tileId).goods.get(goodId).stock = 1;
+  economy.portStates.get(city.cityId).goods.get(goodId).stock = 1;
 
   const singleUnitView = portDialogueView(session, city, gameState, economy, [city]);
   const buyMaxIndex = singleUnitView.options.findIndex((entry) => (
@@ -1526,6 +1564,7 @@ test("buying the final unit disables its stable market row instead of moving lat
 test("scrolling a port market exposes every stocked trade good that cargo hints can recommend", () => {
   const rouen = {
     tileId: 110,
+    cityId: "rouen|france",
     city: "Rouen",
     displayCity: "Rouen",
     country: "France",
@@ -1534,7 +1573,7 @@ test("scrolling a port market exposes every stocked trade good that cargo hints 
     character: { name: "Claude Le Roux", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [rouen], startMinute: 0 });
-  const marketState = economy.portStates.get(rouen.tileId).goods;
+  const marketState = economy.portStates.get(rouen.cityId).goods;
   marketState.get("sugar").stock = 20;
   marketState.get("wool-cloth").stock = 20;
   const gameState = createGameState({ cargoCapacity: 200 });
@@ -1565,6 +1604,7 @@ test("scrolling a port market exposes every stocked trade good that cargo hints 
 test("Ming markets visibly offer domestic gunpowder but not scarce imported matchlocks", () => {
   const city = {
     tileId: 110,
+    cityId: "guangzhou|china",
     city: "Guangzhou",
     displayCity: "Guangzhou",
     country: "Ming",
@@ -1590,6 +1630,7 @@ test("Ming markets visibly offer domestic gunpowder but not scarce imported matc
 test("selling the final unit disables its stable market row instead of moving later goods", () => {
   const city = {
     tileId: 107,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     country: "Portugal",
@@ -1634,6 +1675,7 @@ test("selling the final unit disables its stable market row instead of moving la
 test("edible cargo market rows show remaining sale clicks instead of rations", () => {
   const city = {
     tileId: 108,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     country: "Portugal",
@@ -1661,6 +1703,7 @@ test("edible cargo market rows show remaining sale clicks instead of rations", (
 test("market capacity explains provision space reserved by the selected loadout", () => {
   const city = {
     tileId: 109,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "England",
@@ -1705,6 +1748,7 @@ test("market capacity explains provision space reserved by the selected loadout"
 test("port menus pin Back and Leave Port after their ordinary actions", () => {
   const city = {
     tileId: 106,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
@@ -1757,6 +1801,7 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
 test("market rows put unit and bulk actions together and undo every purchase on the page", () => {
   const city = {
     tileId: 301,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
@@ -1780,7 +1825,7 @@ test("market rows put unit and bulk actions together and undo every purchase on 
   assert.ok(initialUndoIndex >= 0);
   assert.equal(initial.options[initialUndoIndex].disabled, true);
   assert.equal(initial.options[initialUndoIndex].placement, undefined);
-  const port = economy.portStates.get(city.tileId);
+  const port = economy.portStates.get(city.cityId);
   const before = {
     doubloons: gameState.doubloons,
     cargo: { ...gameState.cargo },
@@ -1838,6 +1883,7 @@ test("market rows put unit and bulk actions together and undo every purchase on 
 test("sell all is a paired market action and undo restores cargo, accounts, and port specie", () => {
   const city = {
     tileId: 302,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
@@ -1855,7 +1901,7 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
   const sellAll = initial.options.find((entry) => (
     entry.action.type === "sell-all" && entry.action.goodId === "wool"
   ));
-  const port = economy.portStates.get(city.tileId);
+  const port = economy.portStates.get(city.cityId);
   const before = {
     doubloons: gameState.doubloons,
     cargo: { ...gameState.cargo },
@@ -1921,6 +1967,7 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
 test("sell all remains actionable when only one unit is held", () => {
   const city = {
     tileId: 303,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
@@ -1958,6 +2005,7 @@ test("sell all remains actionable when only one unit is held", () => {
 test("a factor warns before delivering Papally prohibited arms to Ottoman buyers", () => {
   const city = {
     tileId: 912,
+    cityId: "istanbul|turkey",
     city: "Istanbul",
     displayCity: "Istanbul",
     country: "Turkey",
@@ -1997,6 +2045,7 @@ test("a factor warns before delivering Papally prohibited arms to Ottoman buyers
 test("sell all matches the same sequence of rounded prices as individual sales", () => {
   const city = {
     tileId: 304,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
@@ -2005,10 +2054,10 @@ test("sell all matches the same sequence of rounded prices as individual sales",
     character: { name: "Fernao da Cunha" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
-  const port = economy.portStates.get(city.tileId);
+  const port = economy.portStates.get(city.cityId);
   port.goods.get("wool").stock = 30;
   port.specie = 28;
-  const gameState = createGameState({ cargoCapacity: 20 });
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter: null });
   gameState.cargo.wool = 3;
   gameState.accounts.cargoCostBasis.wool = 24;
   const session = createPortDialogueSession(city, { initialNodeId: "sell" });
@@ -2019,7 +2068,7 @@ test("sell all matches the same sequence of rounded prices as individual sales",
 
   assert.ok(sellAllIndex >= 0);
   assert.equal(view.options[sellAllIndex].disabled, false);
-  assert.match(view.options[sellAllIndex].label, /25 db/);
+  assert.match(view.options[sellAllIndex].label, /24 db/);
   const sale = selectPortDialogueOption(
     session,
     city,
@@ -2031,9 +2080,9 @@ test("sell all matches the same sequence of rounded prices as individual sales",
   );
 
   assert.equal(sale.marketSale.quantity, 3);
-  assert.equal(sale.marketSale.price, 25);
+  assert.equal(sale.marketSale.price, 24);
   assert.equal(gameState.cargo.wool, undefined);
-  assert.equal(port.specie, 3);
+  assert.equal(port.specie, 4);
 });
 
 test("market comparisons use pixel-font-safe directional wording", () => {
@@ -2049,6 +2098,7 @@ test("market comparisons use pixel-font-safe directional wording", () => {
 test("founded colonies state and display their 15% goods discount", () => {
   const city = {
     tileId: 109,
+    cityId: "port royal|canada",
     city: "Port Royal",
     displayCity: "Port Royal",
     country: "Canada",
@@ -2080,6 +2130,7 @@ test("founded colonies state and display their 15% goods discount", () => {
 test("a developed Nagasaki port states its trading discount without calling the player its founder", () => {
   const city = {
     tileId: 110,
+    cityId: "nagasaki|japan",
     city: "Nagasaki",
     displayCity: "Nagasaki",
     country: "Japan",
@@ -2106,6 +2157,7 @@ test("a developed Nagasaki port states its trading discount without calling the 
 test("leaving the buy screen recommends the strongest distance-adjusted trade route", () => {
   const ternate = {
     tileId: 101,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     displayCity: "Ternate",
     country: "Ternate",
@@ -2117,6 +2169,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
   };
   const london = {
     tileId: 102,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "England",
@@ -2127,6 +2180,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
   };
   const lisbon = {
     tileId: 103,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -2188,6 +2242,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
       closed: false,
       action: {
         type: "set-port-heading",
+        destinationCityId: london.cityId,
         destinationTileId: london.tileId,
         destinationName: "London",
         reason: "TRADE PRICE TIP",
@@ -2203,6 +2258,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
 test("trade advice scores net proceeds after customs and crown duties", () => {
   const ternate = {
     tileId: 114,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Ternate",
     cityType: "southeast-asian",
@@ -2213,6 +2269,7 @@ test("trade advice scores net proceeds after customs and crown duties", () => {
   };
   const goa = {
     tileId: 115,
+    cityId: "goa|india",
     city: "Goa",
     country: "India",
     cityType: "south-asian",
@@ -2270,6 +2327,7 @@ test("trade advice scores net proceeds after customs and crown duties", () => {
 test("trade advice prefers a useful regional price over a better transcontinental price", () => {
   const istanbul = {
     tileId: 110,
+    cityId: "istanbul|turkey",
     city: "Istanbul",
     country: "Turkey",
     cityType: "islamic-desert",
@@ -2280,6 +2338,7 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   };
   const cairo = {
     tileId: 111,
+    cityId: "cairo|egypt",
     city: "Cairo",
     country: "Egypt",
     cityType: "islamic-desert",
@@ -2290,6 +2349,7 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   };
   const wuhan = {
     tileId: 112,
+    cityId: "wuhan|china",
     city: "Wuhan",
     country: "China",
     cityType: "east-asian",
@@ -2300,8 +2360,8 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   };
   const ports = [istanbul, cairo, wuhan];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  economy.portStates.get(cairo.tileId).goods.get("silver").stock = 0;
-  economy.portStates.get(wuhan.tileId).goods.get("silver").stock = 0;
+  economy.portStates.get(cairo.cityId).goods.get("silver").stock = 0;
+  economy.portStates.get(wuhan.cityId).goods.get("silver").stock = 0;
   const gameState = createGameState({ cargoCapacity: 20 });
   const purchases = {
     silver: { goodId: "silver", quantity: 1, cost: 60 }
@@ -2332,6 +2392,7 @@ test("trade advice prefers a useful regional price over a better transcontinenta
 test("post-purchase trade advice uses the blended ledger cost basis", () => {
   const origin = {
     tileId: 210,
+    cityId: "istanbul|turkey",
     city: "Istanbul",
     country: "Turkey",
     cityType: "islamic-desert",
@@ -2342,6 +2403,7 @@ test("post-purchase trade advice uses the blended ledger cost basis", () => {
   };
   const destination = {
     tileId: 211,
+    cityId: "bursa|turkey",
     city: "Bursa",
     country: "Turkey",
     cityType: "islamic-desert",
@@ -2372,6 +2434,7 @@ test("post-purchase trade advice uses the blended ledger cost basis", () => {
 test("leaving the buy screen without a purchase returns directly to port business", () => {
   const city = {
     tileId: 104,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
@@ -2395,12 +2458,14 @@ test("leaving the buy screen without a purchase returns directly to port busines
 
 test("leaving a market empty-handed can reveal a source for outstanding quest cargo", () => {
   const hafnarfjordur = {
+    cityId: "hafnarfjordur|iceland",
     tileId: 106,
     city: VIKING_LONGSHIP_PORT_CITY,
     country: "Iceland"
   };
   const ternate = {
     tileId: 107,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Ternate",
     factionId: "neutral",
@@ -2412,6 +2477,7 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
   };
   const london = {
     tileId: 108,
+    cityId: "london|united kingdom",
     city: "London",
     country: "England",
     factionId: "neutral",
@@ -2422,8 +2488,8 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
   };
   const ports = [ternate, london];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  economy.portStates.get(ternate.tileId).goods.get("wool").stock = 0;
-  economy.portStates.get(london.tileId).goods.get("wool").stock = 20;
+  economy.portStates.get(ternate.cityId).goods.get("wool").stock = 0;
+  economy.portStates.get(london.cityId).goods.get("wool").stock = 20;
   const shipStats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
   maybeSpawnVikingLongshipQuest(gameState, hafnarfjordur, {
@@ -2443,6 +2509,7 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
   }), {
     goodId: "wool",
     goodLabel: "Wool",
+    destinationCityId: london.cityId,
     destinationTileId: london.tileId,
     destinationName: "London",
     distanceKm: 14200
@@ -2502,6 +2569,7 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
       closed: false,
       action: {
         type: "set-port-heading",
+        destinationCityId: london.cityId,
         destinationTileId: london.tileId,
         destinationName: "London",
         reason: "QUEST CARGO SOURCE",
@@ -2514,6 +2582,7 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
 test("an outstanding quest cargo waypoint does not suppress hints for another good", () => {
   const origin = {
     tileId: 601,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Ternate",
     factionId: "neutral",
@@ -2525,6 +2594,7 @@ test("an outstanding quest cargo waypoint does not suppress hints for another go
   };
   const source = {
     tileId: 602,
+    cityId: "london|united kingdom",
     city: "London",
     country: "England",
     factionId: "neutral",
@@ -2537,6 +2607,7 @@ test("an outstanding quest cargo waypoint does not suppress hints for another go
   const shipStats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
   maybeSpawnVikingLongshipQuest(state, {
+    cityId: "hafnarfjordur|iceland",
     tileId: 603,
     city: VIKING_LONGSHIP_PORT_CITY,
     country: "Iceland"
@@ -2547,10 +2618,11 @@ test("an outstanding quest cargo waypoint does not suppress hints for another go
     availableIngredientGoodIds: new Set(["grain", "pepper", "wine", "olive-oil"])
   });
   for (const goodId of ["wool", "grain", "pepper", "wine", "olive-oil"]) {
-    economy.portStates.get(origin.tileId).goods.get(goodId).stock = 0;
-    economy.portStates.get(source.tileId).goods.get(goodId).stock = 20;
+    economy.portStates.get(origin.cityId).goods.get(goodId).stock = 0;
+    economy.portStates.get(source.cityId).goods.get(goodId).stock = 20;
   }
   addPortNavigationWaypoint(state, {
+    destinationCityId: source.cityId,
     destinationTileId: source.tileId,
     destinationName: "London",
     reason: "QUEST CARGO SOURCE",
@@ -2573,27 +2645,29 @@ test("an outstanding quest cargo waypoint does not suppress hints for another go
 
 test("a sold-out quest cargo waypoint is replaced by a fresh source", () => {
   const origin = {
-    tileId: 611, city: "Ternate", country: "Ternate", factionId: "neutral",
+    cityId: "ternate|indonesia", tileId: 611, city: "Ternate", country: "Ternate", factionId: "neutral",
     cityType: "southeast-asian", lat: 0.79, lon: 127.38, population: 25000
   };
   const stale = {
-    tileId: 612, city: "Malacca", country: "Malacca", factionId: "neutral",
+    cityId: "malacca|malaysia", tileId: 612, city: "Malacca", country: "Malacca", factionId: "neutral",
     cityType: "southeast-asian", lat: 2.19, lon: 102.25, population: 60000
   };
   const fresh = {
-    tileId: 613, city: "Sakai", country: "Japan", factionId: "neutral",
+    cityId: "sakai|japan", tileId: 613, city: "Sakai", country: "Japan", factionId: "neutral",
     cityType: "east-asian", lat: 34.57, lon: 135.48, population: 50000
   };
   const economy = createWorldEconomy({ ports: [origin, stale, fresh], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   maybeSpawnVikingLongshipQuest(state, {
+    cityId: "hafnarfjordur|iceland",
     tileId: 614, city: VIKING_LONGSHIP_PORT_CITY, country: "Iceland"
   }, { spawnChance: 1, simMinute: 0 });
-  economy.portStates.get(origin.tileId).goods.get("wool").stock = 0;
-  economy.portStates.get(stale.tileId).goods.get("wool").stock = 0;
-  economy.portStates.get(fresh.tileId).goods.get("wool").stock = 10;
+  economy.portStates.get(origin.cityId).goods.get("wool").stock = 0;
+  economy.portStates.get(stale.cityId).goods.get("wool").stock = 0;
+  economy.portStates.get(fresh.cityId).goods.get("wool").stock = 10;
   addPortNavigationWaypoint(state, {
+    destinationCityId: stale.cityId,
     destinationTileId: stale.tileId,
     destinationName: stale.city,
     reason: "QUEST CARGO SOURCE",
@@ -2611,6 +2685,7 @@ test("a sold-out quest cargo waypoint is replaced by a fresh source", () => {
   });
   assert.equal(hint.destinationTileId, fresh.tileId);
   addPortNavigationWaypoint(state, {
+    destinationCityId: fresh.cityId,
     destinationTileId: fresh.tileId,
     destinationName: fresh.city,
     reason: "QUEST CARGO SOURCE",
@@ -2627,6 +2702,7 @@ test("a sold-out quest cargo waypoint is replaced by a fresh source", () => {
 test("market buy controls subtly mark goods still needed for quests", () => {
   const city = {
     tileId: 604,
+    cityId: "london|united kingdom",
     city: "London",
     country: "England",
     factionId: "neutral",
@@ -2637,12 +2713,13 @@ test("market buy controls subtly mark goods still needed for quests", () => {
     character: { name: "Thomas More" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
-  for (const [goodId, goodState] of economy.portStates.get(city.tileId).goods) {
+  for (const [goodId, goodState] of economy.portStates.get(city.cityId).goods) {
     goodState.stock = goodId === "wool" ? 20 : 0;
   }
   const shipStats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: shipStats.cargoCapacity, shipStats });
   maybeSpawnVikingLongshipQuest(state, {
+    cityId: "hafnarfjordur|iceland",
     tileId: 605,
     city: VIKING_LONGSHIP_PORT_CITY,
     country: "Iceland"
@@ -2665,6 +2742,7 @@ test("market buy controls subtly mark goods still needed for quests", () => {
 test("quest cargo sale controls are red and warn once per port visit", () => {
   const city = {
     tileId: 606,
+    cityId: "london|united kingdom",
     city: "London",
     country: "England",
     factionId: "neutral",
@@ -2686,6 +2764,7 @@ test("quest cargo sale controls are red and warn once per port visit", () => {
     }
   });
   maybeSpawnVikingLongshipQuest(state, {
+    cityId: "hafnarfjordur|iceland",
     tileId: 607,
     city: VIKING_LONGSHIP_PORT_CITY,
     country: "Iceland"
@@ -2726,6 +2805,7 @@ test("quest cargo sale controls are red and warn once per port visit", () => {
 test("trade advice never recommends reselling cargo bought for a quest", () => {
   const origin = {
     tileId: 608,
+    cityId: "london|united kingdom",
     city: "London",
     country: "England",
     factionId: "neutral",
@@ -2736,6 +2816,7 @@ test("trade advice never recommends reselling cargo bought for a quest", () => {
   };
   const destination = {
     tileId: 609,
+    cityId: "bordeaux|france",
     city: "Bordeaux",
     country: "France",
     factionId: "neutral",
@@ -2748,6 +2829,7 @@ test("trade advice never recommends reselling cargo bought for a quest", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   maybeSpawnVikingLongshipQuest(state, {
+    cityId: "hafnarfjordur|iceland",
     tileId: 610,
     city: VIKING_LONGSHIP_PORT_CITY,
     country: "Iceland"
@@ -2767,6 +2849,7 @@ test("trade advice never recommends reselling cargo bought for a quest", () => {
 test("leaving the sell screen without a sale recommends a market for held trade goods", () => {
   const ternate = {
     tileId: 105,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     displayCity: "Ternate",
     country: "Ternate",
@@ -2778,6 +2861,7 @@ test("leaving the sell screen without a sale recommends a market for held trade 
   };
   const london = {
     tileId: 106,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "England",
@@ -2812,6 +2896,7 @@ test("leaving the sell screen without a sale recommends a market for held trade 
 test("held-cargo price advice does not recommend a loss-making destination", () => {
   const ternate = {
     tileId: 205,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     displayCity: "Ternate",
     country: "Ternate",
@@ -2823,6 +2908,7 @@ test("held-cargo price advice does not recommend a loss-making destination", () 
   };
   const london = {
     tileId: 206,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "England",
@@ -2851,12 +2937,14 @@ test("held-cargo price advice does not recommend a loss-making destination", () 
 
 test("quest cargo advice prefers a nearby stocked market over a distant producer", () => {
   const hafnarfjordur = {
+    cityId: "hafnarfjordur|iceland",
     tileId: 109,
     city: VIKING_LONGSHIP_PORT_CITY,
     country: "Iceland"
   };
   const london = {
     tileId: 110,
+    cityId: "london|united kingdom",
     city: "London",
     country: "England",
     factionId: "neutral",
@@ -2867,6 +2955,7 @@ test("quest cargo advice prefers a nearby stocked market over a distant producer
   };
   const bristol = {
     tileId: 111,
+    cityId: "bristol|england",
     city: "Bristol",
     country: "England",
     factionId: "neutral",
@@ -2877,6 +2966,7 @@ test("quest cargo advice prefers a nearby stocked market over a distant producer
   };
   const sakai = {
     tileId: 112,
+    cityId: "sakai|japan",
     city: "Sakai",
     country: "Japan",
     factionId: "neutral",
@@ -2887,9 +2977,9 @@ test("quest cargo advice prefers a nearby stocked market over a distant producer
   };
   const ports = [london, bristol, sakai];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  const londonWool = economy.portStates.get(london.tileId).goods.get("wool");
-  const bristolWool = economy.portStates.get(bristol.tileId).goods.get("wool");
-  const sakaiWool = economy.portStates.get(sakai.tileId).goods.get("wool");
+  const londonWool = economy.portStates.get(london.cityId).goods.get("wool");
+  const bristolWool = economy.portStates.get(bristol.cityId).goods.get("wool");
+  const sakaiWool = economy.portStates.get(sakai.cityId).goods.get("wool");
   londonWool.stock = 0;
   bristolWool.stock = 5;
   bristolWool.productionPerDay = 0;
@@ -2917,6 +3007,7 @@ test("quest cargo advice prefers a nearby stocked market over a distant producer
   }), {
     goodId: "wool",
     goodLabel: "Wool",
+    destinationCityId: bristol.cityId,
     destinationTileId: bristol.tileId,
     destinationName: "Bristol",
     distanceKm: 190
@@ -2926,6 +3017,7 @@ test("quest cargo advice prefers a nearby stocked market over a distant producer
 test("held-cargo price advice prefers a distant profit over a nearby loss", () => {
   const origin = {
     tileId: 207,
+    cityId: "istanbul|ottoman empire",
     city: "Istanbul",
     country: "Ottoman Empire",
     cityType: "islamic-desert",
@@ -2937,6 +3029,7 @@ test("held-cargo price advice prefers a distant profit over a nearby loss", () =
   };
   const nearby = {
     tileId: 208,
+    cityId: "bursa|ottoman empire",
     city: "Bursa",
     country: "Ottoman Empire",
     cityType: "islamic-desert",
@@ -2947,6 +3040,7 @@ test("held-cargo price advice prefers a distant profit over a nearby loss", () =
   };
   const distant = {
     tileId: 209,
+    cityId: "london|united kingdom",
     city: "London",
     country: "England",
     cityType: "northern-european",
@@ -2957,9 +3051,9 @@ test("held-cargo price advice prefers a distant profit over a nearby loss", () =
   };
   const ports = [origin, nearby, distant];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  economy.portStates.get(origin.tileId).goods.get("fish").stock *= 100;
-  economy.portStates.get(nearby.tileId).goods.get("fish").stock *= 100;
-  economy.portStates.get(distant.tileId).goods.get("fish").stock = 0;
+  economy.portStates.get(origin.cityId).goods.get("fish").stock *= 100;
+  economy.portStates.get(nearby.cityId).goods.get("fish").stock *= 100;
+  economy.portStates.get(distant.cityId).goods.get("fish").stock = 0;
   const nearbyRevenue = quotePortPurchase(economy, nearby, "fish", 1);
   const distantRevenue = quotePortPurchase(economy, distant, "fish", 1);
   assert.ok(distantRevenue > nearbyRevenue);
@@ -2985,6 +3079,7 @@ test("held-cargo price advice prefers a distant profit over a nearby loss", () =
 test("trade advice praises the current port when its cargo price leads the local area", () => {
   const istanbul = {
     tileId: 107,
+    cityId: "istanbul|ottoman empire",
     city: "Istanbul",
     displayCity: "Istanbul",
     country: "Ottoman Empire",
@@ -2997,6 +3092,7 @@ test("trade advice praises the current port when its cargo price leads the local
   };
   const bursa = {
     tileId: 108,
+    cityId: "bursa|ottoman empire",
     city: "Bursa",
     displayCity: "Bursa",
     country: "Ottoman Empire",
@@ -3008,8 +3104,8 @@ test("trade advice praises the current port when its cargo price leads the local
   };
   const ports = [istanbul, bursa];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  const istanbulFish = economy.portStates.get(istanbul.tileId).goods.get("fish");
-  const bursaFish = economy.portStates.get(bursa.tileId).goods.get("fish");
+  const istanbulFish = economy.portStates.get(istanbul.cityId).goods.get("fish");
+  const bursaFish = economy.portStates.get(bursa.cityId).goods.get("fish");
   istanbulFish.stock = 0;
   bursaFish.stock = bursaFish.targetStock * 100;
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -3079,6 +3175,7 @@ test("trade advice praises the current port when its cargo price leads the local
 test("leaving the sell screen with no sellable cargo returns directly to port business", () => {
   const city = {
     tileId: 109,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
@@ -3103,6 +3200,7 @@ test("leaving the sell screen with no sellable cargo returns directly to port bu
 test("leaving the sell screen after a completed sale does not offer trade advice", () => {
   const porto = {
     tileId: 107,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     country: "Portugal",
@@ -3114,6 +3212,7 @@ test("leaving the sell screen after a completed sale does not offer trade advice
   };
   const london = {
     tileId: 108,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "England",
@@ -3149,6 +3248,7 @@ test("leaving the sell screen after a completed sale does not offer trade advice
 test("selling all cloves and leaving the market cannot restore the departed cargo", () => {
   const city = {
     tileId: 109,
+    cityId: "malaga|spain",
     city: "Malaga",
     country: "Spain",
     cityType: "mediterranean",
@@ -3192,6 +3292,7 @@ test("selling all cloves and leaving the market cannot restore the departed carg
 test("the first port requires a chunky loadout choice and provisions the ship", () => {
   const city = {
     tileId: 9,
+    cityId: "cadiz|spain",
     city: "Cadiz",
     displayCity: "Cadiz",
     country: "Spain",
@@ -3232,6 +3333,7 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
 test("custom loadout opens a slider model and reports discarded provisions", () => {
   const city = {
     tileId: 9,
+    cityId: "cadiz|spain",
     city: "Cadiz",
     displayCity: "Cadiz",
     country: "Spain",
@@ -3291,6 +3393,7 @@ test("custom loadout opens a slider model and reports discarded provisions", () 
 test("custom loadout feedback never exposes scientific notation for fractional stores", () => {
   const city = {
     tileId: 9,
+    cityId: "cadiz|spain",
     city: "Cadiz",
     displayCity: "Cadiz",
     country: "Spain",
@@ -3321,6 +3424,7 @@ test("custom loadout feedback never exposes scientific notation for fractional s
 test("an already active banquet chef waits for a permanent berth before joining", () => {
   const city = {
     tileId: 44,
+    cityId: "istanbul|ottoman empire",
     city: "Istanbul",
     displayCity: "Istanbul",
     country: "Ottoman Empire",
@@ -3367,6 +3471,7 @@ test("an already active banquet chef waits for a permanent berth before joining"
 test("the banquet chef accepts ingredients across separate visits", () => {
   const city = {
     tileId: 45,
+    cityId: "istanbul|ottoman empire",
     city: "Istanbul",
     displayCity: "Istanbul",
     country: "Ottoman Empire",
@@ -3437,6 +3542,7 @@ test("the banquet chef accepts ingredients across separate visits", () => {
 test("enemy port guards bar resupply and offer one risky disguise route", () => {
   const city = {
     tileId: 12,
+    cityId: "calais|france",
     city: "Calais",
     displayCity: "Calais",
     country: "France",
@@ -3487,6 +3593,7 @@ test("enemy port guards bar resupply and offer one risky disguise route", () => 
 test("a disabled hostile harbor offers an eligible captain a marine landing", () => {
   const city = {
     tileId: 12,
+    cityId: "calais|france",
     city: "Calais",
     displayCity: "Calais",
     country: "France",
@@ -3527,6 +3634,7 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
 test("a friendly foreign port warns before a piratical city attack", () => {
   const city = {
     tileId: 13,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -3561,6 +3669,7 @@ test("a friendly foreign port warns before a piratical city attack", () => {
 test("formal war permits a lawful port raid but grants no right of conquest", () => {
   const city = {
     tileId: 130,
+    cityId: "calais|france",
     city: "Calais",
     displayCity: "Calais",
     country: "France",
@@ -3593,6 +3702,7 @@ test("formal war permits a lawful port raid but grants no right of conquest", ()
 test("a port attack button identifies the letter of marque that makes it legal", () => {
   const city = {
     tileId: 131,
+    cityId: "rhodes|rhodes",
     city: "Rhodes",
     displayCity: "Rhodes",
     country: "Rhodes",
@@ -3620,6 +3730,7 @@ test("a port attack button identifies the letter of marque that makes it legal",
 test("a friendly capture-commission target closes its harbor and engages", () => {
   const city = {
     tileId: 14,
+    cityId: "rhodes|rhodes",
     city: "Rhodes",
     displayCity: "Rhodes",
     country: "Rhodes",
@@ -3636,6 +3747,7 @@ test("a friendly capture-commission target closes its harbor and engages", () =>
     id: "capture-rhodes",
     kind: "capture-port",
     stage: "capture",
+    targetCityId: city.cityId,
     targetTileId: city.tileId,
     originFactionId: "ottoman"
   };
@@ -3657,6 +3769,7 @@ test("a friendly capture-commission target closes its harbor and engages", () =>
 test("an independent-port commission bars entry without naming a neutral sovereign", () => {
   const city = {
     tileId: 141,
+    cityId: "aden|yemen",
     city: "Aden",
     displayCity: "Aden",
     country: "Yemen",
@@ -3673,6 +3786,7 @@ test("an independent-port commission bars entry without naming a neutral soverei
     id: "capture-aden",
     kind: "capture-port",
     stage: "capture",
+    targetCityId: city.cityId,
     targetTileId: city.tileId,
     targetFactionId: "neutral",
     independentTarget: true,
@@ -3708,6 +3822,7 @@ test("an independent-port commission bars entry without naming a neutral soverei
 test("an unauthorized marine landing pillages instead of annexing", () => {
   const city = {
     tileId: 15,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -3737,6 +3852,7 @@ test("an unauthorized marine landing pillages instead of annexing", () => {
 test("a disabled enemy harbor never admits an ineligible captain in disguise", () => {
   const city = {
     tileId: 12,
+    cityId: "calais|france",
     city: "Calais",
     displayCity: "Calais",
     country: "France",
@@ -3774,6 +3890,7 @@ test("a disabled enemy harbor never admits an ineligible captain in disguise", (
 test("a recovering non-enemy port refuses business and names the bombarding ship", () => {
   const city = {
     tileId: 17,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     country: "Portugal",
@@ -3810,6 +3927,7 @@ test("a recovering non-enemy port refuses business and names the bombarding ship
 test("a successful disguise opens commerce but not faction business", () => {
   const city = {
     tileId: 14,
+    cityId: "calais|france",
     city: "Calais",
     displayCity: "Calais",
     country: "France",
@@ -3847,6 +3965,7 @@ test("a successful disguise opens commerce but not faction business", () => {
 test("foreign captains must find an illicit market to trade at Ming ports", () => {
   const city = {
     tileId: 15,
+    cityId: "guangzhou|china",
     city: "Guangzhou",
     displayCity: "Guangzhou",
     country: "China",
@@ -3909,6 +4028,7 @@ test("foreign captains must find an illicit market to trade at Ming ports", () =
 test("captains admitted under safe passage can seek an illicit wartime market", () => {
   const city = {
     tileId: 151,
+    cityId: "calais|france",
     city: "Calais",
     displayCity: "Calais",
     country: "France",
@@ -3947,6 +4067,7 @@ test("captains admitted under safe passage can seek an illicit wartime market", 
 test("a failed Ming illicit-market approach costs standing and cannot be repeated that visit", () => {
   const city = {
     tileId: 16,
+    cityId: "nanjing|china",
     city: "Nanjing",
     displayCity: "Nanjing",
     country: "China",
@@ -3979,6 +4100,7 @@ test("a failed Ming illicit-market approach costs standing and cannot be repeate
 test("pirate hideouts speak and trade like covert havens", () => {
   const marketPort = {
     tileId: 18,
+    cityId: "falmouth|united kingdom",
     city: "Falmouth",
     displayCity: "Falmouth",
     country: "United Kingdom",
@@ -4017,6 +4139,7 @@ test("pirate hideouts speak and trade like covert havens", () => {
 test("ports stock a local selection of fishing net upgrades", () => {
   const city = {
     tileId: 13,
+    cityId: "bristol|england",
     city: "Bristol",
     displayCity: "Bristol",
     country: "United Kingdom",
@@ -4049,6 +4172,7 @@ test("a factor can proactively fit an affordable equipment upgrade", () => {
   const city = {
     tileId: 17,
     portId: "lubeck",
+    cityId: "lubeck|germany",
     city: "Lubeck",
     displayCity: "Lubeck",
     country: "Hanseatic League",
@@ -4097,6 +4221,7 @@ test("a capital factor proactively offers a qualified captain a wartime letter o
   const city = {
     tileId: 1,
     portId: "london",
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -4154,6 +4279,7 @@ test("declining a proactive marque offer leaves the ordinary request available",
   const city = {
     tileId: 1,
     portId: "london",
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -4193,6 +4319,7 @@ test("declining a proactive marque offer leaves the ordinary request available",
 test("a declined factor offer points the player back to the equipment store", () => {
   const city = {
     tileId: 17,
+    cityId: "lubeck|hanseatic league",
     city: "Lubeck",
     country: "Hanseatic League",
     cityType: "northern-european",
@@ -4227,6 +4354,7 @@ test("equipment factor follow-up agrees with a plural equipment label", () => {
   const city = {
     tileId: 10,
     portId: "lisbon",
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4263,6 +4391,7 @@ test("equipment factor follow-up agrees with a plural equipment label", () => {
 test("the equipment overview shows stocked levels and identifies specialist markets", () => {
   const city = {
     tileId: 14,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4288,6 +4417,7 @@ test("the equipment overview shows stocked levels and identifies specialist mark
 test("the equipment store exposes stocked cannon upgrades and their complete firing profile", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4321,6 +4451,7 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
 test("equipment merchants omit gear below the player's current tier", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4345,6 +4476,7 @@ test("equipment merchants omit gear below the player's current tier", () => {
 test("a Polynesian equipment store does not present the player's cannons as local stock", () => {
   const city = {
     tileId: 11,
+    cityId: "tarawa village|neutral",
     city: "Tarawa Village",
     displayCity: "Tarawa Village",
     country: "Neutral",
@@ -4370,9 +4502,10 @@ test("a Polynesian equipment store does not present the player's cannons as loca
 });
 
 test("a rare equipment offer persists after declining and remembers the player", () => {
-  const voyageSeed = "dialogue-test-143";
+  const voyageSeed = "dialogue-test-15";
   const city = {
     tileId: 17,
+    cityId: "porto novo|portugal",
     city: "Porto Novo",
     displayCity: "Porto Novo",
     country: "Portugal",
@@ -4434,6 +4567,7 @@ test("a rare equipment offer persists after declining and remembers the player",
 test("package job offers show the destination distance", () => {
   const lisbon = {
     tileId: 21,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4448,6 +4582,7 @@ test("package job offers show the destination distance", () => {
   const porto = {
     ...lisbon,
     tileId: 22,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     population: 50000,
@@ -4470,6 +4605,7 @@ test("package job offers show the destination distance", () => {
 test("a rumor queued before an active delivery cannot trap Back in a quest self-loop", () => {
   const istanbul = {
     tileId: 23,
+    cityId: "istanbul|ottoman empire",
     city: "Istanbul",
     displayCity: "Istanbul",
     country: "Ottoman Empire",
@@ -4484,6 +4620,7 @@ test("a rumor queued before an active delivery cannot trap Back in a quest self-
   const athens = {
     ...istanbul,
     tileId: 24,
+    cityId: "athens|greece",
     city: "Athens",
     displayCity: "Athens",
     lat: 37.98,
@@ -4513,6 +4650,7 @@ test("a rumor queued before an active delivery cannot trap Back in a quest self-
 test("no-work Back returns to the city menu after an arrival continuation", () => {
   const city = {
     tileId: 25,
+    cityId: "faro|portugal",
     city: "Faro",
     displayCity: "Faro",
     country: "Portugal",
@@ -4552,6 +4690,7 @@ test("no-work Back returns to the city menu after an arrival continuation", () =
 test("arrival news cannot replay after its greeting is acknowledged", () => {
   const city = {
     tileId: 26,
+    cityId: "cadiz|spain",
     city: "Cadiz",
     displayCity: "Cadiz",
     country: "Spain",
@@ -4592,6 +4731,7 @@ test("arrival news cannot replay after its greeting is acknowledged", () => {
 test("shipyards show a full vessel presentation and enforce the asking price", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4654,6 +4794,7 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
 test("shipyards allow a profitable downgrade after projecting the smaller loadout", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4690,6 +4831,7 @@ test("shipyards allow a profitable downgrade after projecting the smaller loadou
 test("shipyards still block a smaller ship when transferred trade cargo cannot fit", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4720,6 +4862,7 @@ test("shipyards still block a smaller ship when transferred trade cargo cannot f
 test("shipyards explain when permanent crew cannot berth instead of formatting infinite cargo", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4759,6 +4902,7 @@ test("shipyards explain when permanent crew cannot berth instead of formatting i
 test("shipyards account for the historian leaving with a traded-in Viking longship", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4767,6 +4911,7 @@ test("shipyards account for the historian leaving with a traded-in Viking longsh
     character: { name: "Fernao da Cunha" }
   };
   const hafnarfjordur = {
+    cityId: "hafnarfjordur|iceland",
     tileId: 64,
     city: VIKING_LONGSHIP_PORT_CITY,
     country: "Iceland",
@@ -4785,6 +4930,7 @@ test("shipyards account for the historian leaving with a traded-in Viking longsh
   addNamedCrewMember(gameState, {
     id: "icelandic-historian",
     name: "Leif Eriksen",
+    homePortCityId: "hafnarfjordur|iceland",
     homePortName: VIKING_LONGSHIP_PORT_CITY,
     homePortCountry: "Iceland",
     expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
@@ -4810,6 +4956,7 @@ test("shipyards account for the historian leaving with a traded-in Viking longsh
 test("empty shipyards direct captains to the nearest listed vessel", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4825,7 +4972,8 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
   const view = portDialogueView(session, city, gameState, economy, [city], {
     shipyard: { famous: true, listing: null },
     nearestShipyardListing: {
-      portId: 11,
+      portId: "porto|portugal",
+      tileId: 11,
       portName: "Porto",
       shipLabel: "Brigantine",
       shipProseLabel: "brigantine",
@@ -4839,7 +4987,8 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
     selectPortDialogueOption(session, city, gameState, economy, [city], 0, {
       shipyard: { famous: true, listing: null },
       nearestShipyardListing: {
-        portId: 11,
+        portId: "porto|portugal",
+        tileId: 11,
         portName: "Porto",
         shipLabel: "Brigantine",
         shipProseLabel: "brigantine",
@@ -4850,6 +4999,7 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
       closed: false,
       action: {
         type: "set-port-heading",
+        destinationCityId: "porto|portugal",
         destinationTileId: 11,
         destinationName: "Porto",
         reason: "NEW SHIP FOR SALE"
@@ -4863,6 +5013,7 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
 test("a wealthy captain sees and can begin the major-port shipyard project", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4876,7 +5027,7 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   gameState.doubloons = 75000;
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
-  const yard = economy.shipyards.yards.get(city.tileId);
+  const yard = economy.shipyards.yards.get(city.cityId);
   const context = { shipStats: stats, shipyard: yard, simMinute: 100 };
   const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
 
@@ -4900,6 +5051,7 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
 test("opening a funded shipyard atomically creates its portfolio and readable world ledger", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4940,7 +5092,7 @@ test("opening a funded shipyard atomically creates its portfolio and readable wo
   assert.equal(result.closed, false);
   assert.equal(result.action, undefined);
   assert.equal(result.playerShipyardFunded.portTileId, city.tileId);
-  assert.deepEqual(gameState.memory.shipyardInvestment.backedPortTileIds, [city.tileId]);
+  assert.deepEqual(gameState.memory.shipyardInvestment.backedPortCityIds, [city.cityId]);
   assert.ok(yard.playerBacking);
   assert.ok(yard.playerAccounts);
   const ledger = portDialogueView(session, city, gameState, economy, [city], context);
@@ -4950,6 +5102,7 @@ test("opening a funded shipyard atomically creates its portfolio and readable wo
 test("a proactive shipyard offer can be declined back into the arrival queue", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -4965,7 +5118,7 @@ test("a proactive shipyard offer can be declined back into the arrival queue", (
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const context = {
     shipStats: stats,
-    shipyard: economy.shipyards.yards.get(city.tileId),
+    shipyard: economy.shipyards.yards.get(city.cityId),
     simMinute: 100
   };
   const session = createPortDialogueSession(city, {
@@ -4995,6 +5148,7 @@ test("a proactive shipyard offer can be declined back into the arrival queue", (
 test("a returning shipyard investor is invited to inspect the yard after receiving ordinary dialogue", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -5006,7 +5160,7 @@ test("a returning shipyard investor is invited to inspect the yard after receivi
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
-  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  gameState.memory.shipyardInvestment.backedPortCityIds.push(city.cityId);
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   fundWorldEconomyShipyard(economy, city, {
     investedMinute: 0,
@@ -5027,7 +5181,7 @@ test("a returning shipyard investor is invited to inspect the yard after receivi
   session.shipyardLedgerReturnNodeId = "greeting";
   const view = portDialogueView(session, city, gameState, economy, [city], {
     shipStats: stats,
-    shipyard: economy.shipyards.yards.get(city.tileId),
+    shipyard: economy.shipyards.yards.get(city.cityId),
     simMinute: 100
   });
   assert.equal(view.presentation, undefined);
@@ -5045,13 +5199,13 @@ test("a returning shipyard investor is invited to inspect the yard after receivi
     0,
     {
       shipStats: stats,
-      shipyard: economy.shipyards.yards.get(city.tileId),
+      shipyard: economy.shipyards.yards.get(city.cityId),
       simMinute: 100
     }
   );
   const review = portDialogueView(session, city, gameState, economy, [city], {
     shipStats: stats,
-    shipyard: economy.shipyards.yards.get(city.tileId),
+    shipyard: economy.shipyards.yards.get(city.cityId),
     simMinute: 100
   });
   assert.match(review.text, /inspect the yard/);
@@ -5068,13 +5222,13 @@ test("a returning shipyard investor is invited to inspect the yard after receivi
     0,
     {
       shipStats: stats,
-      shipyard: economy.shipyards.yards.get(city.tileId),
+      shipyard: economy.shipyards.yards.get(city.cityId),
       simMinute: 100
     }
   );
   const accounts = portDialogueView(session, city, gameState, economy, [city], {
     shipStats: stats,
-    shipyard: economy.shipyards.yards.get(city.tileId),
+    shipyard: economy.shipyards.yards.get(city.cityId),
     simMinute: 100
   });
   assert.equal(accounts.presentation.kind, "player-shipyard-ledger");
@@ -5084,6 +5238,7 @@ test("a returning shipyard investor is invited to inspect the yard after receivi
 test("an owned shipyard buys uncommitted construction cargo through its stores tab", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -5095,7 +5250,7 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
-  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  gameState.memory.shipyardInvestment.backedPortCityIds.push(city.cityId);
   gameState.cargo.timber = 5;
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const yard = fundWorldEconomyShipyard(economy, city, {
@@ -5105,7 +5260,7 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
   });
   for (const goodId of ["timber", "iron", "naval-stores", "linen-cloth"]) {
     yard.materialInventory[goodId] = 0;
-    economy.portStates.get(city.tileId).goods.get(goodId).stock = 0;
+    economy.portStates.get(city.cityId).goods.get(goodId).stock = 0;
   }
   const context = { shipStats: stats, shipyard: yard, simMinute: 100 };
   const arrivalSession = createPortDialogueSession(city, {
@@ -5177,7 +5332,7 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
   assert.equal(result.marketSale.good.id, "timber");
   assert.equal(gameState.cargo.timber, undefined);
   assert.equal(yard.materialInventory.timber, 5);
-  assert.equal(economy.portStates.get(city.tileId).goods.get("timber").stock, 0);
+  assert.equal(economy.portStates.get(city.cityId).goods.get("timber").stock, 0);
   assert.match(session.feedback, /moved straight to the yard stores/);
 
   yard.materialInventory.timber = 0;
@@ -5185,6 +5340,7 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
   gameState.doubloons = 100000;
   beginShipyardInvestment(gameState, {
     tileId: 11,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     settlementType: "city"
@@ -5198,6 +5354,7 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
 test("owned shipyard supply hints are cached and can become named waypoints", () => {
   const city = {
     tileId: 10,
+    cityId: "cadiz|spain",
     city: "Cadiz",
     displayCity: "Cadiz",
     country: "Spain",
@@ -5209,6 +5366,7 @@ test("owned shipyard supply hints are cached and can become named waypoints", ()
   };
   const source = {
     tileId: 11,
+    cityId: "exeter|england",
     city: "Exeter",
     displayCity: "Exeter",
     country: "England",
@@ -5222,7 +5380,7 @@ test("owned shipyard supply hints are cached and can become named waypoints", ()
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
-  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  gameState.memory.shipyardInvestment.backedPortCityIds.push(city.cityId);
   const economy = createWorldEconomy({ ports: [city, source], startMinute: 0 });
   const yard = fundWorldEconomyShipyard(economy, city, {
     investedMinute: 0,
@@ -5231,9 +5389,9 @@ test("owned shipyard supply hints are cached and can become named waypoints", ()
   });
   for (const goodId of ["timber", "iron", "naval-stores", "linen-cloth"]) {
     yard.materialInventory[goodId] = 0;
-    economy.portStates.get(city.tileId).goods.get(goodId).stock = 0;
+    economy.portStates.get(city.cityId).goods.get(goodId).stock = 0;
   }
-  const timber = economy.portStates.get(source.tileId).goods.get("timber");
+  const timber = economy.portStates.get(source.cityId).goods.get("timber");
   timber.stock = 50;
   timber.productionPerDay = 1;
   const session = createPortDialogueSession(city, {
@@ -5272,6 +5430,7 @@ test("owned shipyard supply hints are cached and can become named waypoints", ()
 test("shipyard hints prefer an open supplier but still name a barred last source", () => {
   const city = {
     tileId: 20,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -5284,6 +5443,7 @@ test("shipyard hints prefer an open supplier but still name a barred last source
   const barredSource = {
     ...city,
     tileId: 21,
+    cityId: "rouen|france",
     city: "Rouen",
     displayCity: "Rouen",
     country: "France",
@@ -5293,6 +5453,7 @@ test("shipyard hints prefer an open supplier but still name a barred last source
   const openSource = {
     ...city,
     tileId: 22,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -5313,7 +5474,7 @@ test("shipyard hints prefer an open supplier but still name a barred last source
   gameState.relations.diplomacy.overrides[diplomacyPairKey("england", "france")] =
     DIPLOMACY_HOSTILE;
   gameState.relations.factionReputation.france = 0;
-  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  gameState.memory.shipyardInvestment.backedPortCityIds.push(city.cityId);
   const ports = [city, barredSource, openSource];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const yard = fundWorldEconomyShipyard(economy, city, {
@@ -5325,9 +5486,9 @@ test("shipyard hints prefer an open supplier but still name a barred last source
   yard.materialInventory.iron = 100;
   yard.materialInventory["naval-stores"] = 100;
   yard.materialInventory["linen-cloth"] = 0;
-  economy.portStates.get(city.tileId).goods.get("linen-cloth").stock = 0;
+  economy.portStates.get(city.cityId).goods.get("linen-cloth").stock = 0;
   for (const source of [barredSource, openSource]) {
-    const linen = economy.portStates.get(source.tileId).goods.get("linen-cloth");
+    const linen = economy.portStates.get(source.cityId).goods.get("linen-cloth");
     linen.stock = 20;
     linen.productionPerDay = 1;
   }
@@ -5350,7 +5511,7 @@ test("shipyard hints prefer an open supplier but still name a barred last source
   assert.equal(preferred.destinationName, "Lisbon");
   assert.equal(preferred.accessible, true);
 
-  economy.portStates.get(openSource.tileId).goods.get("linen-cloth").stock = 0;
+  economy.portStates.get(openSource.cityId).goods.get("linen-cloth").stock = 0;
   const barredSession = createPortDialogueSession(city, {
     initialNodeId: "shipyard",
     shipyardLedgerTab: "materials",
@@ -5372,6 +5533,7 @@ test("shipyard hints prefer an open supplier but still name a barred last source
 test("a player-backed yard replaces the ordinary shipyard and keeps its finished hull purchasable", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -5384,7 +5546,7 @@ test("a player-backed yard replaces the ordinary shipyard and keeps its finished
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   gameState.doubloons = 200000;
-  gameState.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  gameState.memory.shipyardInvestment.backedPortCityIds.push(city.cityId);
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const yard = fundWorldEconomyShipyard(economy, city, {
     investedMinute: 0,
@@ -5446,6 +5608,7 @@ test("a player-backed yard replaces the ordinary shipyard and keeps its finished
 test("a completed ship sale gets a named historical handover before returning to port", () => {
   const city = {
     tileId: 10,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -5483,6 +5646,7 @@ test("a completed ship sale gets a named historical handover before returning to
 test("the Icelandic enthusiast unlocks the Viking longship after three fetch deliveries", () => {
   const city = {
     tileId: 64,
+    cityId: "hafnarfjordur|iceland",
     city: "Hafnarfjordur",
     displayCity: "Hafnarfjordur",
     country: "Iceland",
@@ -5606,6 +5770,7 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
 test("a Kyoto gunsmith establishes domestic matchlock production after Nagasaki opens", () => {
   const city = {
     tileId: 65,
+    cityId: "kyoto|japan",
     city: "Kyoto",
     displayCity: "Kyoto",
     country: "Japan",
@@ -5687,6 +5852,7 @@ test("a Kyoto gunsmith establishes domestic matchlock production after Nagasaki 
 test("a Caribbean planter pays for ginger roots and establishes local production", () => {
   const city = {
     tileId: 68,
+    cityId: "havana|cuba",
     city: "Havana",
     displayCity: "Havana",
     country: "Cuba",
@@ -5893,6 +6059,7 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
 
 function conquestQuestCity(tileId, city, country, lat, lon, factionId, characterName) {
   return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city,
     displayCity: city,
@@ -5908,11 +6075,12 @@ function conquestQuestCity(tileId, city, country, lat, lon, factionId, character
 
 function establishNagasakiQuest(gameState, kyoto) {
   const target = {
-    ...colonizationTargetForCity({ city: "Nagasaki", country: "Japan" }),
+    ...colonizationTargetForCity({ cityId: "nagasaki|japan", city: "Nagasaki", country: "Japan" }),
     tileId: 66
   };
   const origin = {
     tileId: 67,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     factionId: "portugal",
@@ -5937,6 +6105,7 @@ function establishNagasakiQuest(gameState, kyoto) {
 test("declining a passenger clears the offer without starting or failing it", () => {
   const origin = {
     tileId: 1,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -5948,12 +6117,13 @@ test("declining a passenger clears the offer without starting or failing it", ()
     id: "passenger-1-2-test",
     kind: "passenger",
     originKey: "Lisbon|Portugal|1",
+    originCityId: origin.cityId,
     originTileId: origin.tileId,
     originName: "Lisbon",
     destinationTileId: 2,
     destinationName: "Goa",
     distanceKm: 7640,
-    passenger: { name: "Mateo Costa" },
+    passenger: { id: "passenger:mateo-costa", name: "Mateo Costa" },
     reward: 180,
     scenarioId: "family-letter",
     dialogue: {
@@ -5986,6 +6156,7 @@ test("declining a passenger clears the offer without starting or failing it", ()
 test("a passenger can disembark before the captain enters a barred destination", () => {
   const destination = {
     tileId: 2,
+    cityId: "algiers|algeria",
     city: "Algiers",
     displayCity: "Algiers",
     country: "Algeria",
@@ -5995,14 +6166,16 @@ test("a passenger can disembark before the captain enters a barred destination",
     id: "passenger-hostile-algiers-test",
     kind: "passenger",
     originKey: "Lisbon|Portugal|1",
+    originCityId: "lisbon|portugal",
     originTileId: 1,
     originName: "Lisbon",
     destinationKey: "Algiers|Algeria|2",
+    destinationCityId: destination.cityId,
     destinationTileId: destination.tileId,
     destinationName: destination.city,
     destinationCountry: destination.country,
     distanceKm: 1100,
-    passenger: { name: "Yusuf Benali" },
+    passenger: { id: "passenger:yusuf-benali", name: "Yusuf Benali" },
     reward: 180,
     scenarioId: "family-letter",
     dialogue: { arrival: "Algiers at last." }
@@ -6029,6 +6202,7 @@ test("a passenger can disembark before the captain enters a barred destination",
 test("a Muslim captain can accompany a Hajj passenger inland from Jeddah", () => {
   const jeddah = {
     tileId: 14,
+    cityId: "jeddah|saudi arabia",
     city: "Jeddah",
     displayCity: "Jeddah",
     country: "Saudi Arabia",
@@ -6038,15 +6212,17 @@ test("a Muslim captain can accompany a Hajj passenger inland from Jeddah", () =>
     id: "passenger-hajj-aceh-jeddah",
     kind: "passenger",
     originKey: "Aceh|Indonesia|13",
+    originCityId: "aceh|indonesia",
     originTileId: 13,
     originName: "Aceh",
     originFactionId: "ottoman",
     destinationKey: "Jeddah|Saudi Arabia|14",
+    destinationCityId: jeddah.cityId,
     destinationTileId: jeddah.tileId,
     destinationName: "Jeddah",
     destinationCountry: "Saudi Arabia",
     distanceKm: 8600,
-    passenger: { name: "Nur Aisyah", religionId: "sunni-islam" },
+    passenger: { id: "passenger:nur-aisyah", name: "Nur Aisyah", religionId: "sunni-islam" },
     reward: 650,
     scenarioId: "hajj",
     dialogue: {
@@ -6115,6 +6291,7 @@ test("a Muslim captain can accompany a Hajj passenger inland from Jeddah", () =>
 test("a captain of the relevant faith can join a religious mission for an extra reward", () => {
   const nanjing = {
     tileId: 102,
+    cityId: "nanjing|china",
     city: "Nanjing",
     displayCity: "Nanjing",
     country: "China",
@@ -6124,15 +6301,17 @@ test("a captain of the relevant faith can join a religious mission for an extra 
     id: "passenger-religious-ming-mediation",
     kind: "passenger",
     originKey: "Beijing|China|101",
+    originCityId: "beijing|china",
     originTileId: 101,
     originName: "Beijing",
     originFactionId: "ming",
     destinationKey: "Nanjing|China|102",
+    destinationCityId: nanjing.cityId,
     destinationTileId: nanjing.tileId,
     destinationName: "Nanjing",
     destinationCountry: "China",
     distanceKm: 850,
-    passenger: { name: "Shi Dehai", religionId: "mahayana-buddhism" },
+    passenger: { id: "passenger:shi-dehai", name: "Shi Dehai", religionId: "mahayana-buddhism" },
     passengerReligionId: "mahayana-buddhism",
     reward: 300,
     scenarioId: "religious-ming-three-teachings-mediation",
@@ -6208,6 +6387,7 @@ test("a Catholic captain chooses whether the September Testament changes their f
   const simMinute = gameMinuteForDate(1535, 1, 1);
   const destination = {
     tileId: 202,
+    cityId: "bremen|germany",
     city: "Bremen",
     displayCity: "Bremen",
     country: "Germany",
@@ -6217,15 +6397,17 @@ test("a Catholic captain chooses whether the September Testament changes their f
     id: "passenger-september-testament-conversion",
     kind: "passenger",
     originKey: "Hamburg|Germany|201",
+    originCityId: "hamburg|germany",
     originTileId: 201,
     originName: "Hamburg",
     originFactionId: "denmark-norway",
     destinationKey: "Bremen|Germany|202",
+    destinationCityId: destination.cityId,
     destinationTileId: destination.tileId,
     destinationName: destination.city,
     destinationCountry: destination.country,
     distanceKm: 95,
-    passenger: { name: "Greta Weiss", religionId: "lutheran" },
+    passenger: { id: "passenger:greta-weiss", name: "Greta Weiss", religionId: "lutheran" },
     passengerReligionId: "lutheran",
     reward: 180,
     scenarioId: "religious-september-testament",
@@ -6313,11 +6495,12 @@ test("three Testament deliveries convert factors before any captain may convert"
       country: "Germany",
       factionId: "bremen"
     },
-    { tileId: 303, city: "Amsterdam", country: "Netherlands", factionId: "habsburg" },
-    { tileId: 304, city: "London", country: "United Kingdom", factionId: "england" }
+    { cityId: "amsterdam|netherlands", tileId: 303, city: "Amsterdam", country: "Netherlands", factionId: "habsburg" },
+    { cityId: "london|united kingdom", tileId: 304, city: "London", country: "United Kingdom", factionId: "england" }
   ].map((city) => ({ ...city, displayCity: city.city }));
   const itinerary = cities.map((city) => ({
     key: `${city.city}|${city.country}|${city.tileId}`,
+    cityId: city.cityId,
     tileId: city.tileId,
     name: city.city,
     country: city.country,
@@ -6328,15 +6511,17 @@ test("three Testament deliveries convert factors before any captain may convert"
     id: "passenger-september-testament-circuit",
     kind: "passenger",
     originKey: "Hamburg|Germany|301",
+    originCityId: "hamburg|germany",
     originTileId: 301,
     originName: "Hamburg",
     originFactionId: "denmark-norway",
     destinationKey: itinerary[0].key,
+    destinationCityId: itinerary[0].cityId,
     destinationTileId: itinerary[0].tileId,
     destinationName: itinerary[0].name,
     destinationCountry: itinerary[0].country,
     distanceKm: 1800,
-    passenger: { name: "Greta Weiss", religionId: "lutheran" },
+    passenger: { id: "passenger:greta-weiss", name: "Greta Weiss", religionId: "lutheran" },
     passengerReligionId: "lutheran",
     reward: 360,
     scenarioId: "religious-september-testament",
@@ -6379,7 +6564,7 @@ test("three Testament deliveries convert factors before any captain may convert"
       reconcileCharacterForPapalAuthority(
         state,
         { name: `Factor ${index}`, religionId: "roman-catholic" },
-        { portTileId: city.tileId }
+        { portCityId: city.cityId }
       ).religionId,
       "lutheran"
     );
@@ -6460,9 +6645,10 @@ test("Catholic Bible inspections can pass cleanly, show sympathy, or seize the b
 });
 
 test("envoy dialogue lets courts negotiate while the captain carries the answer", () => {
-  const origin = { tileId: 1, city: "Lisbon", country: "Portugal", factionId: "portugal" };
+  const origin = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", country: "Portugal", factionId: "portugal" };
   const target = {
     tileId: 2,
+    cityId: "london|united kingdom",
     city: "London",
     country: "United Kingdom",
     factionId: "england",
@@ -6470,6 +6656,7 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
   };
   const otherPort = {
     tileId: 3,
+    cityId: "calais|france",
     city: "Calais",
     country: "France",
     factionId: "france",
@@ -6482,21 +6669,24 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
     kind: "friendly-envoy",
     stage: "outbound",
     originKey: "Lisbon|Portugal|1",
+    originCityId: origin.cityId,
     originTileId: origin.tileId,
     originName: "Lisbon",
     originCountry: "Portugal",
     originFactionId: "portugal",
     targetKey: "London|United Kingdom|2",
+    targetCityId: target.cityId,
     targetTileId: target.tileId,
     targetName: "London",
     targetCountry: "United Kingdom",
     targetFactionId: "england",
     destinationKey: "London|United Kingdom|2",
+    destinationCityId: target.cityId,
     destinationTileId: target.tileId,
     destinationName: "London",
     destinationCountry: "United Kingdom",
     distanceKm: 1580,
-    passenger: { name: "Duarte de Meneses" },
+    passenger: { id: "envoy:duarte-de-meneses", name: "Duarte de Meneses" },
     reward: 310,
     dialogue: {
       offer: "Carry me to London and home again.",
@@ -6581,11 +6771,13 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
 });
 
 test("a quest character precedes the loadout and factor during port arrival", () => {
-  const city = { tileId: 1, city: "Lisbon", country: "Portugal" };
+  const city = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", country: "Portugal" };
   const passengerQuest = {
     id: "passenger-arrival-order",
     kind: "passenger",
+    originCityId: city.cityId,
     originTileId: city.tileId,
+    destinationCityId: "goa|india",
     destinationTileId: 2
   };
   const passengerSession = createPassengerDialogueSession(city, passengerQuest);
@@ -6625,7 +6817,7 @@ test("a quest character precedes the loadout and factor during port arrival", ()
   const futureQuestSession = createPortArrivalDialogueSession(city, {
     questCharacterSession: {
       kind: "colony-founder",
-      cityTileId: city.tileId,
+      cityId: city.cityId,
       questId: "future-colony-quest"
     }
   });
@@ -6638,17 +6830,13 @@ test("a quest character precedes the loadout and factor during port arrival", ()
 test("a drunk captain and factor exchange remarks before ordinary port dialogue", () => {
   const city = {
     tileId: 81,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
     character: { name: "Fernao da Cunha", personalityId: "vigilant" }
   };
-  const gameState = createGameState({ cargoCapacity: 20 });
-  gameState.playerCharacter = {
-    name: "Ines Pereira",
-    expressions: ["neutral", "happy"],
-    skillIds: ["able-seaman"]
-  };
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter: inesPlayer(city) });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortArrivalDialogueSession(city, { arrivedDrunk: true, drunkVariant: 2 });
 
@@ -6669,17 +6857,13 @@ test("a drunk captain and factor exchange remarks before ordinary port dialogue"
 test("a port factor remembers the captain's drunken arrivals on later visits", () => {
   const city = {
     tileId: 82,
+    cityId: "porto|portugal",
     city: "Porto",
     country: "Portugal",
     cityType: "mediterranean",
     character: { name: "Tomas Velho", personalityId: "cordial" }
   };
-  const gameState = createGameState({ cargoCapacity: 20 });
-  gameState.playerCharacter = {
-    name: "Ines Pereira",
-    expressions: ["neutral", "happy"],
-    skillIds: ["able-seaman"]
-  };
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter: inesPlayer(city) });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
 
   visitPort(gameState, city, 100, { arrivedDrunk: true });
@@ -6710,6 +6894,7 @@ test("a port factor remembers the captain's drunken arrivals on later visits", (
 test("a port factor receives a wealthy magnate according to her present station", () => {
   const city = {
     tileId: 83,
+    cityId: "istanbul|türkiye",
     city: "Istanbul",
     displayCity: "Istanbul",
     country: "Türkiye",
@@ -6717,13 +6902,8 @@ test("a port factor receives a wealthy magnate according to her present station"
     cityType: "mediterranean",
     character: { name: "Kemal Reis", personalityId: "enterprising" }
   };
-  const gameState = createGameState({ cargoCapacity: 20 });
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter: inesPlayer(city) });
   gameState.doubloons = 1_100_000;
-  gameState.playerCharacter = {
-    name: "Ines Pereira",
-    expressions: ["neutral", "happy"],
-    skillIds: ["able-seaman"]
-  };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   visitPort(gameState, city, 100);
 
@@ -6737,9 +6917,23 @@ test("a port factor receives a wealthy magnate according to her present station"
   assert.match(greeting.text, /Augsburg's great families|royal squadron/i);
 });
 
+function inesPlayer(city) {
+  return {
+    id: "player:ines-pereira",
+    name: "Ines Pereira",
+    homePortCityId: city.cityId,
+    homePortTileId: city.tileId,
+    homePortName: city.displayCity || city.city,
+    homePortCountry: city.country,
+    expressions: ["neutral", "happy"],
+    skillIds: ["able-seaman"]
+  };
+}
+
 test("an active package mission opens its factor before the port menu", () => {
   const origin = {
     tileId: 71,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -6752,6 +6946,7 @@ test("an active package mission opens its factor before the port menu", () => {
   const destination = {
     ...origin,
     tileId: 72,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     lat: 41.15,
@@ -6760,6 +6955,7 @@ test("an active package mission opens its factor before the port menu", () => {
   const unrelated = {
     ...origin,
     tileId: 73,
+    cityId: "cadiz|spain",
     city: "Cadiz",
     displayCity: "Cadiz",
     country: "Spain",
@@ -6789,6 +6985,7 @@ test("an active package mission opens its factor before the port menu", () => {
 test("completing an arrival delivery proceeds to the required loadout", () => {
   const origin = {
     tileId: 74,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -6802,6 +6999,7 @@ test("completing an arrival delivery proceeds to the required loadout", () => {
   const destination = {
     ...origin,
     tileId: 75,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     lat: 41.15,
@@ -6838,6 +7036,7 @@ test("completing an arrival delivery proceeds to the required loadout", () => {
 test("completing a packet rolls the destination's next job without re-entering port", () => {
   const origin = {
     tileId: 76,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -6851,6 +7050,7 @@ test("completing a packet rolls the destination's next job without re-entering p
   const destination = {
     ...origin,
     tileId: 77,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     lat: 41.15,
@@ -6895,7 +7095,7 @@ test("completing a packet rolls the destination's next job without re-entering p
 });
 
 test("only admitted port sessions carry automatic departure services", () => {
-  const city = { tileId: 1, city: "Lisbon", country: "Portugal" };
+  const city = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", country: "Portugal" };
   const barred = createPortDialogueSession(city, { initialNodeId: "barred" });
   const admitted = createPortDialogueSession(city, { admittedToPort: true });
 
@@ -6906,6 +7106,7 @@ test("only admitted port sessions carry automatic departure services", () => {
 test("capital port dialogue can grant a letter of marque", () => {
   const city = {
     tileId: 1,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -6959,6 +7160,7 @@ test("capital port dialogue can grant a letter of marque", () => {
 test("a crown capture commission names the enemy port, spoils, and return reward", () => {
   const london = {
     tileId: 801,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -6971,6 +7173,7 @@ test("a crown capture commission names the enemy port, spoils, and return reward
   };
   const calais = {
     tileId: 802,
+    cityId: "calais|france",
     city: "Calais",
     displayCity: "Calais",
     country: "France",
@@ -7014,6 +7217,7 @@ test("a crown capture commission names the enemy port, spoils, and return reward
 test("capital petition dialogue lets the captain name an enemy while the court fixes the objective", () => {
   const london = {
     tileId: 803,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -7026,6 +7230,7 @@ test("capital petition dialogue lets the captain name an enemy while the court f
   };
   const calais = {
     tileId: 804,
+    cityId: "calais|france",
     city: "Calais",
     displayCity: "Calais",
     country: "France",
@@ -7089,6 +7294,7 @@ test("capital petition dialogue lets the captain name an enemy while the court f
 test("a captain may ask whether the council has designs upon an independent harbor", () => {
   const istanbul = {
     tileId: 807,
+    cityId: "istanbul|turkey",
     city: "Istanbul",
     displayCity: "Istanbul",
     country: "Turkey",
@@ -7101,6 +7307,7 @@ test("a captain may ask whether the council has designs upon an independent harb
   };
   const aden = {
     tileId: 808,
+    cityId: "aden|yemen",
     city: "Aden",
     displayCity: "Aden",
     country: "Yemen",
@@ -7156,6 +7363,7 @@ test("a captain may ask whether the council has designs upon an independent harb
 test("an independent-port warrant fixes the objective without inventing a neutral sovereign", () => {
   const istanbul = {
     tileId: 805,
+    cityId: "istanbul|turkey",
     city: "Istanbul",
     displayCity: "Istanbul",
     country: "Turkey",
@@ -7168,6 +7376,7 @@ test("an independent-port warrant fixes the objective without inventing a neutra
   };
   const aden = {
     tileId: 806,
+    cityId: "aden|yemen",
     city: "Aden",
     displayCity: "Aden",
     country: "Yemen",
@@ -7224,6 +7433,7 @@ test("an independent-port warrant fixes the objective without inventing a neutra
 test("a final capital commission explains the war's grievance and general peace", () => {
   const london = {
     tileId: 811,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -7236,6 +7446,7 @@ test("a final capital commission explains the war's grievance and general peace"
   };
   const paris = {
     tileId: 812,
+    cityId: "paris|france",
     city: "Paris",
     displayCity: "Paris",
     country: "France",
@@ -7248,6 +7459,7 @@ test("a final capital commission explains the war's grievance and general peace"
   };
   const capturedFrenchPorts = ["Calais", "Rouen", "Bordeaux", "Marseille"].map((name, index) => ({
     tileId: 813 + index,
+    cityId: `${name.toLocaleLowerCase("en-US")}|france`,
     city: name,
     displayCity: name,
     country: "France",
@@ -7293,6 +7505,7 @@ test("a final capital commission explains the war's grievance and general peace"
 test("letter of marque dialogue shows fractional standing until the requirement is truly met", () => {
   const city = {
     tileId: 1,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -7335,6 +7548,7 @@ test("letter of marque dialogue shows fractional standing until the requirement 
 test("a trusted captain can petition a capital for a historically named personal trade pass", () => {
   const city = {
     tileId: 81,
+    cityId: "beijing|china",
     city: "Beijing",
     displayCity: "Beijing",
     country: "China",

@@ -22,6 +22,7 @@ let worldFixturePromise = null;
 test("Jamestown defense canoes spawn on nearby navigable water", async () => {
   const { graph, directionIndex, navigation } = await worldFixture();
   const jamestown = colonizationTargetForCity({
+    cityId: "jamestown|united states of america",
     city: "Jamestown",
     country: "United States of America"
   });
@@ -80,7 +81,7 @@ test("Jamestown defense canoes spawn on nearby navigable water", async () => {
 
 test("Ville-Marie defense canoes spawn together on its navigable river approach", async () => {
   const { graph, directionIndex, navigation } = await worldFixture();
-  const villeMarie = colonizationTargetForCity({ city: "Ville-Marie", country: "Canada" });
+  const villeMarie = colonizationTargetForCity({ cityId: "ville-marie|canada", city: "Ville-Marie", country: "Canada" });
   const targetTileId = findNearestTileId(
     graph,
     directionIndex,

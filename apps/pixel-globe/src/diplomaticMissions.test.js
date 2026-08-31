@@ -232,7 +232,16 @@ test("Ming and Japanese capitals can commission a persistent wokou hunt", () => 
 function stateFor(nationalityId, cargoCapacity) {
   return createGameState({
     cargoCapacity,
-    playerCharacter: { name: "Test Captain", nationalityId, expressions: ["neutral"] }
+    playerCharacter: {
+      id: "player:test-captain",
+      name: "Test Captain",
+      nationalityId,
+      homePortCityId: BEIJING.cityId,
+      homePortTileId: BEIJING.tileId,
+      homePortName: BEIJING.city,
+      homePortCountry: BEIJING.country,
+      expressions: ["neutral"]
+    }
   });
 }
 
@@ -246,6 +255,7 @@ function capital(tileId, city, country, factionId, lat, lon) {
 
 function port(tileId, city, country, factionId, lat, lon) {
   return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city,
     displayCity: city,

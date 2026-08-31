@@ -40,6 +40,7 @@ import { shipStatsForSlug } from "./shipStats.js";
 
 const CHARACTER = Object.freeze({ name: "Martin Belloc", expressions: ["neutral"] });
 const BORDEAUX = Object.freeze({
+  cityId: "bordeaux|france",
   tileId: 10,
   portId: "city-10",
   city: "Bordeaux",
@@ -53,11 +54,12 @@ const BORDEAUX = Object.freeze({
   character: CHARACTER
 });
 const PORT_ROYAL = Object.freeze({
-  ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
+  ...colonizationTargetForCity({ cityId: "port royal|canada", city: "Port Royal", country: "Canada" }),
   tileId: 99
 });
 const LISBON = Object.freeze({
   ...BORDEAUX,
+  cityId: "lisbon|portugal",
   tileId: 20,
   portId: "city-20",
   city: "Lisbon",
@@ -69,6 +71,7 @@ const LISBON = Object.freeze({
 });
 const KYOTO = Object.freeze({
   ...BORDEAUX,
+  cityId: "kyoto|japan",
   tileId: 21,
   portId: "city-21",
   city: "Kyoto",
@@ -80,11 +83,11 @@ const KYOTO = Object.freeze({
   lon: 135.77
 });
 const NAGASAKI = Object.freeze({
-  ...colonizationTargetForCity({ city: "Nagasaki", country: "Japan" }),
+  ...colonizationTargetForCity({ cityId: "nagasaki|japan", city: "Nagasaki", country: "Japan" }),
   tileId: 100
 });
 const RIO_DE_JANEIRO = Object.freeze({
-  ...colonizationTargetForCity({ city: "Rio de Janeiro", country: "Brazil" }),
+  ...colonizationTargetForCity({ cityId: "rio de janeiro|brazil", city: "Rio de Janeiro", country: "Brazil" }),
   tileId: 101
 });
 
@@ -422,6 +425,7 @@ test("every sailing colony renders its own history through the complete dialogue
     }[target.originFactionId];
     const origin = {
       ...BORDEAUX,
+      cityId: `test-sponsor-${index}|${target.originTerritoryId || sponsorCountry.toLocaleLowerCase("en-US")}`,
       tileId: 2000 + index,
       portId: `origin-${index}`,
       city: `Sponsor Port ${index}`,

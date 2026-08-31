@@ -15,7 +15,7 @@ import {
   questCargoTransfersFromDeliveries
 } from "./questCargoDeliveries.js";
 
-const CITY = Object.freeze({ tileId: 10, city: "Porto", country: "Portugal" });
+const CITY = Object.freeze({ cityId: "porto|portugal", tileId: 10, city: "Porto", country: "Portugal" });
 
 test("quest cargo deliveries expose one strict presentation contract", () => {
   assert.deepEqual(questCargoTransfer("timber", 6), { goodId: "timber", quantity: 6 });

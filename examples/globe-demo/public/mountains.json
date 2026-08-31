@@ -1,5 +1,9 @@
 [
   {
+    "id": "mountain-mount-everest",
+    "legacyDiscoveryIds": [
+      "mountain-38758-mount-everest"
+    ],
     "name": "Mt. Everest",
     "nameAlt": null,
     "lat": 27.980480509130615,
@@ -12,6 +16,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-k2",
+    "legacyDiscoveryIds": [
+      "mountain-96675-k2"
+    ],
     "name": "K2",
     "nameAlt": null,
     "lat": 35.88240597247014,
@@ -24,6 +32,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kanchenjunga",
+    "legacyDiscoveryIds": [
+      "mountain-154874-kanchenjunga"
+    ],
     "name": "Kanchenjunga",
     "nameAlt": null,
     "lat": 27.700082178754343,
@@ -36,6 +48,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-dhaulagiri",
+    "legacyDiscoveryIds": [
+      "mountain-38744-dhaulagiri"
+    ],
     "name": "Dhaulagiri",
     "nameAlt": null,
     "lat": 28.69646161029023,
@@ -48,6 +64,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nanga-parbat",
+    "legacyDiscoveryIds": [
+      "mountain-97786-nanga-parbat"
+    ],
     "name": "Nanga Parbat",
     "nameAlt": null,
     "lat": 35.23997793377311,
@@ -60,6 +80,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nanda-devi",
+    "legacyDiscoveryIds": [
+      "mountain-6107-nanda-devi"
+    ],
     "name": "Nanda Devi",
     "nameAlt": null,
     "lat": 30.54247787263352,
@@ -72,6 +96,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-batura-mustagh-i",
+    "legacyDiscoveryIds": [
+      "mountain-97789-batura-mustagh-i"
+    ],
     "name": "Batura Mustagh I",
     "nameAlt": null,
     "lat": 36.538284406444504,
@@ -84,6 +112,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-namcha-barwa",
+    "legacyDiscoveryIds": [
+      "mountain-91991-namcha-barwa"
+    ],
     "name": "Namcha Barwa",
     "nameAlt": null,
     "lat": 29.642997835302864,
@@ -96,6 +128,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-tirich-mir",
+    "legacyDiscoveryIds": [
+      "mountain-98069-tirich-mir"
+    ],
     "name": "Tirich Mir",
     "nameAlt": null,
     "lat": 36.25000971847338,
@@ -108,6 +144,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kongkoerh",
+    "legacyDiscoveryIds": [
+      "mountain-97794-kongkoerh"
+    ],
     "name": "Kongkoerh",
     "nameAlt": null,
     "lat": 38.59009575568886,
@@ -120,6 +160,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gangkar-punsum",
+    "legacyDiscoveryIds": [
+      "mountain-91929-gangkar-punsum"
+    ],
     "name": "Gangkar Punsum",
     "nameAlt": null,
     "lat": 28.04999441385226,
@@ -132,6 +176,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gongga-shan",
+    "legacyDiscoveryIds": [
+      "mountain-61278-gongga-shan"
+    ],
     "name": "Gongga Shan",
     "nameAlt": null,
     "lat": 29.59578008131124,
@@ -144,6 +192,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pik-imeni-ismail-samani",
+    "legacyDiscoveryIds": [
+      "mountain-97821-pik-imeni-ismail-samani"
+    ],
     "name": "Pik Imeni Ismail Samani",
     "nameAlt": null,
     "lat": 38.93237398265639,
@@ -156,6 +208,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nowshak",
+    "legacyDiscoveryIds": [
+      "mountain-98069-nowshak"
+    ],
     "name": "Nowshak",
     "nameAlt": null,
     "lat": 36.42211822981498,
@@ -168,6 +224,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pik-pobeda",
+    "legacyDiscoveryIds": [
+      "mountain-56715-pik-pobeda"
+    ],
     "name": "Pik Pobeda",
     "nameAlt": null,
     "lat": 42.0399807738059,
@@ -180,6 +240,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gyala-peri",
+    "legacyDiscoveryIds": [
+      "mountain-91986-gyala-peri"
+    ],
     "name": "Gyala Peri",
     "nameAlt": null,
     "lat": 29.81001700789087,
@@ -192,6 +256,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-liushi-shan",
+    "legacyDiscoveryIds": [
+      "mountain-96862-liushi-shan"
+    ],
     "name": "Liushi Shan",
     "nameAlt": null,
     "lat": 35.322538317997996,
@@ -204,6 +272,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nyainqentanglha-feng",
+    "legacyDiscoveryIds": [
+      "mountain-91926-nyainqentanglha-feng"
+    ],
     "name": "Nyainqentanglha Feng",
     "nameAlt": null,
     "lat": 30.390201625799953,
@@ -216,6 +288,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nun",
+    "legacyDiscoveryIds": [
+      "mountain-24281-nun"
+    ],
     "name": "Nun",
     "nameAlt": null,
     "lat": 33.984365358423496,
@@ -228,6 +304,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-lunpo-gangri",
+    "legacyDiscoveryIds": [
+      "mountain-154827-lunpo-gangri"
+    ],
     "name": "Lunpo Gangri",
     "nameAlt": null,
     "lat": 29.830091621863353,
@@ -240,6 +320,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kangto",
+    "legacyDiscoveryIds": [
+      "mountain-92019-kangto"
+    ],
     "name": "Kangtö",
     "nameAlt": null,
     "lat": 27.874694967895323,
@@ -252,6 +336,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-muztag-feng",
+    "legacyDiscoveryIds": [
+      "mountain-14185-muztag-feng"
+    ],
     "name": "Muztag Feng",
     "nameAlt": "Ulugh Muztag",
     "lat": 36.41650380055506,
@@ -264,6 +352,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-aconcagua",
+    "legacyDiscoveryIds": [
+      "mountain-1731-aconcagua"
+    ],
     "name": "Cerro Aconcagua",
     "nameAlt": null,
     "lat": -32.65567863052878,
@@ -276,6 +368,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-shahi-kangri",
+    "legacyDiscoveryIds": [
+      "mountain-96890-shahi-kangri"
+    ],
     "name": "Shahi Kangri",
     "nameAlt": null,
     "lat": 35.169979330122565,
@@ -288,6 +384,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-purog-kangri",
+    "legacyDiscoveryIds": [
+      "mountain-14170-purog-kangri"
+    ],
     "name": "Purog Kangri",
     "nameAlt": null,
     "lat": 33.919981184032856,
@@ -300,6 +400,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-bairiga",
+    "legacyDiscoveryIds": [
+      "mountain-91980-bairiga"
+    ],
     "name": "Bairiga",
     "nameAlt": null,
     "lat": 29.169972072260997,
@@ -312,6 +416,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nevado-ojos-del-salado",
+    "legacyDiscoveryIds": [
+      "mountain-106905-nevado-ojos-del-salado"
+    ],
     "name": "Nevado Ojos del Salado",
     "nameAlt": null,
     "lat": -27.109591919594422,
@@ -324,6 +432,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nevado-huascaran",
+    "legacyDiscoveryIds": [
+      "mountain-134595-nevado-huascaran"
+    ],
     "name": "Nevado Huascarán",
     "nameAlt": null,
     "lat": -9.121364486613274,
@@ -336,6 +448,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-ak-tag",
+    "legacyDiscoveryIds": [
+      "mountain-96578-ak-tag"
+    ],
     "name": "Ak Tag",
     "nameAlt": null,
     "lat": 36.73357768321911,
@@ -348,6 +464,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-llullaillaco",
+    "legacyDiscoveryIds": [
+      "mountain-26845-volcan-llullaillaco"
+    ],
     "name": "Volcán Llullaillaco",
     "nameAlt": null,
     "lat": -24.719703067433116,
@@ -360,6 +480,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kangju-kangri",
+    "legacyDiscoveryIds": [
+      "mountain-96884-kangju-kangri"
+    ],
     "name": "Kangju Kangri",
     "nameAlt": null,
     "lat": 33.75142713150329,
@@ -372,6 +496,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nganglong-kangri",
+    "legacyDiscoveryIds": [
+      "mountain-96906-nganglong-kangri"
+    ],
     "name": "Nganglong Kangri",
     "nameAlt": null,
     "lat": 32.81660446393939,
@@ -384,6 +512,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kailash",
+    "legacyDiscoveryIds": [
+      "mountain-96899-kailash"
+    ],
     "name": "Kailash",
     "nameAlt": null,
     "lat": 31.066598981098316,
@@ -396,6 +528,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-geladandong",
+    "legacyDiscoveryIds": [
+      "mountain-3562-geladandong"
+    ],
     "name": "Geladandong",
     "nameAlt": "Geladaindong",
     "lat": 33.41662134635651,
@@ -408,6 +544,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-tupungato",
+    "legacyDiscoveryIds": [
+      "mountain-107417-cerro-tupungato"
+    ],
     "name": "Cerro Tupungato",
     "nameAlt": null,
     "lat": -33.354533702866775,
@@ -420,6 +560,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nevado-sajama",
+    "legacyDiscoveryIds": [
+      "mountain-33712-nevado-sajama"
+    ],
     "name": "Nevado Sajama",
     "nameAlt": null,
     "lat": -18.10186624151686,
@@ -432,6 +576,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nevado-coropuna",
+    "legacyDiscoveryIds": [
+      "mountain-134136-nevado-coropuna"
+    ],
     "name": "Nevado Coropuna",
     "nameAlt": null,
     "lat": -15.516643721003547,
@@ -444,6 +592,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nevado-illimani",
+    "legacyDiscoveryIds": [
+      "mountain-134303-nevado-illimani"
+    ],
     "name": "Nevado Illimani",
     "nameAlt": null,
     "lat": -16.653828191388712,
@@ -456,6 +608,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nevado-auzangate",
+    "legacyDiscoveryIds": [
+      "mountain-134184-nevado-auzangate"
+    ],
     "name": "Nevado Auzangate",
     "nameAlt": null,
     "lat": -13.800082464257486,
@@ -468,6 +624,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-magen-gangri",
+    "legacyDiscoveryIds": [
+      "mountain-61486-magen-gangri"
+    ],
     "name": "Magen Gangri",
     "nameAlt": "Mt. Amnyemaqen",
     "lat": 34.80011365578439,
@@ -480,6 +640,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-chimborazo",
+    "legacyDiscoveryIds": [
+      "mountain-139272-chimborazo"
+    ],
     "name": "Chimborazo",
     "nameAlt": null,
     "lat": -1.469260929551098,
@@ -492,6 +656,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-denali",
+    "legacyDiscoveryIds": [
+      "mountain-48412-denali"
+    ],
     "name": "Denali",
     "nameAlt": "Mt. McKinley",
     "lat": 63.06941124467545,
@@ -504,6 +672,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-aucanquilcha",
+    "legacyDiscoveryIds": [
+      "mountain-33681-aucanquilcha"
+    ],
     "name": "Aucanquilcha",
     "nameAlt": null,
     "lat": -21.228416682471405,
@@ -516,6 +688,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n41p07551-e77p67099",
+    "legacyDiscoveryIds": [
+      "mountain-96670-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 41.07551068842347,
@@ -528,6 +704,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-logan",
+    "legacyDiscoveryIds": [
+      "mountain-12005-mount-logan"
+    ],
     "name": "Mt. Logan",
     "nameAlt": null,
     "lat": 60.57979558789025,
@@ -540,6 +720,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-kilimanjaro",
+    "legacyDiscoveryIds": [
+      "mountain-37992-mount-kilimanjaro"
+    ],
     "name": "Mt. Kilimanjaro",
     "nameAlt": null,
     "lat": -3.075714746279047,
@@ -552,6 +736,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-hkakabo-razi",
+    "legacyDiscoveryIds": [
+      "mountain-23066-hkakabo-razi"
+    ],
     "name": "Hkakabo Razi",
     "nameAlt": null,
     "lat": 28.33006961160926,
@@ -564,6 +752,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kangze-gyai",
+    "legacyDiscoveryIds": [
+      "mountain-15386-kangze-gyai"
+    ],
     "name": "Kangze'gyai",
     "nameAlt": null,
     "lat": 38.51520977117177,
@@ -576,6 +768,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-cristobol-colon",
+    "legacyDiscoveryIds": [
+      "mountain-34520-pico-cristobol-colon"
+    ],
     "name": "Pico Cristóbol Colón",
     "nameAlt": null,
     "lat": 10.842495780618037,
@@ -588,6 +784,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-elbrus",
+    "legacyDiscoveryIds": [
+      "mountain-101412-mount-elbrus"
+    ],
     "name": "Gora Elbrus",
     "nameAlt": "Mount Elbrus",
     "lat": 43.35517092583443,
@@ -600,6 +800,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-de-orizaba",
+    "legacyDiscoveryIds": [
+      "mountain-79439-pico-de-orizaba"
+    ],
     "name": "Pico de Orizaba",
     "nameAlt": null,
     "lat": 19.033988462405773,
@@ -612,6 +816,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n39p62000-e70p72001",
+    "legacyDiscoveryIds": [
+      "mountain-97770-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 39.620000196474564,
@@ -624,6 +832,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-damavand",
+    "legacyDiscoveryIds": [
+      "mountain-102637-mount-damavand"
+    ],
     "name": "Mt. Damavand",
     "nameAlt": null,
     "lat": 35.95519159496193,
@@ -636,6 +848,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-bogda-feng",
+    "legacyDiscoveryIds": [
+      "mountain-56766-bogda-feng"
+    ],
     "name": "Bogda Feng",
     "nameAlt": "Bogda Peak",
     "lat": 43.79511598697797,
@@ -648,6 +864,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-popocatepetl",
+    "legacyDiscoveryIds": [
+      "mountain-79533-volcan-popocatepetl"
+    ],
     "name": "Volcán Popocatépetl",
     "nameAlt": null,
     "lat": 19.034190420292816,
@@ -660,6 +880,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-ritacuba-blanco",
+    "legacyDiscoveryIds": [
+      "mountain-139399-ritacuba-blanco"
+    ],
     "name": "Ritacuba Blanco",
     "nameAlt": null,
     "lat": 6.489980182132399,
@@ -672,6 +896,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-nevado-del-ruiz",
+    "legacyDiscoveryIds": [
+      "mountain-139198-nevado-del-ruiz"
+    ],
     "name": "Nevado del Ruiz",
     "nameAlt": null,
     "lat": 4.899965737410085,
@@ -684,6 +912,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pik-karakol",
+    "legacyDiscoveryIds": [
+      "mountain-96651-pik-karakol"
+    ],
     "name": "Pik Karakol",
     "nameAlt": null,
     "lat": 42.159984150289326,
@@ -696,6 +928,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-shkhara",
+    "legacyDiscoveryIds": [
+      "mountain-25438-gora-shkhara"
+    ],
     "name": "Gora Shkhara",
     "nameAlt": null,
     "lat": 43.00000778567329,
@@ -708,6 +944,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-kenya",
+    "legacyDiscoveryIds": [
+      "mountain-151829-mount-kenya"
+    ],
     "name": "Mt. Kenya",
     "nameAlt": null,
     "lat": -0.150072011359029,
@@ -720,6 +960,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-ararat",
+    "legacyDiscoveryIds": [
+      "mountain-102435-mount-ararat"
+    ],
     "name": "Mount Ararat",
     "nameAlt": null,
     "lat": 39.70009669447747,
@@ -732,6 +976,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-shah-fuladi",
+    "legacyDiscoveryIds": [
+      "mountain-98054-shah-fuladi"
+    ],
     "name": "Shah Fuladi",
     "nameAlt": null,
     "lat": 34.64210180495869,
@@ -744,6 +992,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-blackburn",
+    "legacyDiscoveryIds": [
+      "mountain-47822-mount-blackburn"
+    ],
     "name": "Mt. Blackburn",
     "nameAlt": null,
     "lat": 61.73669114805122,
@@ -756,6 +1008,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-bolivar",
+    "legacyDiscoveryIds": [
+      "mountain-138642-pico-bolivar"
+    ],
     "name": "Pico Bolívar",
     "nameAlt": null,
     "lat": 8.552858823586945,
@@ -768,6 +1024,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-stanley",
+    "legacyDiscoveryIds": [
+      "mountain-159328-mount-stanley"
+    ],
     "name": "Mt. Stanley",
     "nameAlt": null,
     "lat": 0.380107833717176,
@@ -780,6 +1040,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pik-talghar",
+    "legacyDiscoveryIds": [
+      "mountain-96647-pik-talghar"
+    ],
     "name": "Pik Talghar",
     "nameAlt": null,
     "lat": 43.10547019428932,
@@ -792,6 +1056,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-vinson-massif",
+    "legacyDiscoveryIds": [
+      "mountain-114732-vinson-massif"
+    ],
     "name": "Vinson Massif",
     "nameAlt": null,
     "lat": -78.52936249227913,
@@ -804,6 +1072,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-puncak-jaya",
+    "legacyDiscoveryIds": [
+      "mountain-90673-puncak-jaya"
+    ],
     "name": "Puncak Jaya",
     "nameAlt": "Carstensz Pyramid",
     "lat": -4.077668215497425,
@@ -816,6 +1088,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-sabalon-kuh",
+    "legacyDiscoveryIds": [
+      "mountain-102571-sabalon-kuh"
+    ],
     "name": "Sabalon Kuh",
     "nameAlt": null,
     "lat": 38.25508801265502,
@@ -828,6 +1104,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-blanc",
+    "legacyDiscoveryIds": [
+      "mountain-161118-mont-blanc"
+    ],
     "name": "Mt. Blanc",
     "nameAlt": null,
     "lat": 45.833678898832034,
@@ -840,6 +1120,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-sikaram",
+    "legacyDiscoveryIds": [
+      "mountain-98089-sikaram"
+    ],
     "name": "Sikaram",
     "nameAlt": null,
     "lat": 34.03998456051628,
@@ -852,6 +1136,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-klyuchevskaya-sopka",
+    "legacyDiscoveryIds": [
+      "mountain-59689-klyuchevskaya-sopka"
+    ],
     "name": "Klyuchevskaya Sopka",
     "nameAlt": null,
     "lat": 56.05597930961122,
@@ -864,6 +1152,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-domuyo",
+    "legacyDiscoveryIds": [
+      "mountain-107466-volcan-domuyo"
+    ],
     "name": "Volcán Domuyo",
     "nameAlt": null,
     "lat": -36.57988194216479,
@@ -876,6 +1168,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-fairweather",
+    "legacyDiscoveryIds": [
+      "mountain-47846-mount-fairweather"
+    ],
     "name": "Mt. Fairweather",
     "nameAlt": null,
     "lat": 58.90709958421083,
@@ -888,6 +1184,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n38p95007-e68p16992",
+    "legacyDiscoveryIds": [
+      "mountain-98018-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 38.950065493561716,
@@ -900,6 +1200,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monte-rosa",
+    "legacyDiscoveryIds": [
+      "mountain-161048-monte-rosa"
+    ],
     "name": "Monte Rosa",
     "nameAlt": null,
     "lat": 45.94002992215107,
@@ -912,6 +1216,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-koketau",
+    "legacyDiscoveryIds": [
+      "mountain-14532-koketau"
+    ],
     "name": "Köketau",
     "nameAlt": null,
     "lat": 45.170004890417644,
@@ -924,6 +1232,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-zard-kuh",
+    "legacyDiscoveryIds": [
+      "mountain-102596-zard-kuh"
+    ],
     "name": "Zard Kuh",
     "nameAlt": null,
     "lat": 32.36999479252329,
@@ -936,6 +1248,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-ras-dejen",
+    "legacyDiscoveryIds": [
+      "mountain-25336-ras-dejen"
+    ],
     "name": "Ras Dejen",
     "nameAlt": null,
     "lat": 13.236746923139563,
@@ -948,6 +1264,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-kirkpatrick",
+    "legacyDiscoveryIds": [
+      "mountain-117540-mount-kirkpatrick"
+    ],
     "name": "Mt. Kirkpatrick",
     "nameAlt": null,
     "lat": -84.33961011947117,
@@ -960,6 +1280,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-karisimbi",
+    "legacyDiscoveryIds": [
+      "mountain-129020-volcan-karisimbi"
+    ],
     "name": "Volcan Karisimbi",
     "nameAlt": null,
     "lat": -1.50003931153708,
@@ -972,6 +1296,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-wilhelm",
+    "legacyDiscoveryIds": [
+      "mountain-37258-mount-wilhelm"
+    ],
     "name": "Mt. Wilhelm",
     "nameAlt": null,
     "lat": -5.80012664254528,
@@ -984,6 +1312,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-belukha",
+    "legacyDiscoveryIds": [
+      "mountain-14559-belukha"
+    ],
     "name": "Belukha",
     "nameAlt": null,
     "lat": 49.80707915175273,
@@ -996,6 +1328,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-laotzyunshan",
+    "legacyDiscoveryIds": [
+      "mountain-92179-laotzyunshan"
+    ],
     "name": "Laotzyunshan",
     "nameAlt": null,
     "lat": 26.87330698076066,
@@ -1008,6 +1344,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-tebulosmta",
+    "legacyDiscoveryIds": [
+      "mountain-101380-gora-tebulosmta"
+    ],
     "name": "Gora Tebulosmta",
     "nameAlt": null,
     "lat": 42.59011405812237,
@@ -1020,6 +1360,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-manas",
+    "legacyDiscoveryIds": [
+      "mountain-97209-gora-manas"
+    ],
     "name": "Gora Manas",
     "nameAlt": null,
     "lat": 42.290004637970284,
@@ -1032,6 +1376,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-matterhorn",
+    "legacyDiscoveryIds": [
+      "mountain-161046-matterhorn"
+    ],
     "name": "Matterhorn",
     "nameAlt": null,
     "lat": 45.93817190959023,
@@ -1044,6 +1392,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-bazar-dyuzi",
+    "legacyDiscoveryIds": [
+      "mountain-101548-bazar-dyuzi"
+    ],
     "name": "Bazar Dyuzi",
     "nameAlt": null,
     "lat": 41.2100954243517,
@@ -1056,6 +1408,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-hezar",
+    "legacyDiscoveryIds": [
+      "mountain-25627-kuh-e-hezar"
+    ],
     "name": "Kuh-e Hezar",
     "nameAlt": null,
     "lat": 29.511604033989983,
@@ -1068,6 +1424,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-whitney",
+    "legacyDiscoveryIds": [
+      "mountain-11408-mount-whitney"
+    ],
     "name": "Mt. Whitney",
     "nameAlt": null,
     "lat": 36.582715141594875,
@@ -1080,6 +1440,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-talo",
+    "legacyDiscoveryIds": [
+      "mountain-99817-talo"
+    ],
     "name": "Talo",
     "nameAlt": null,
     "lat": 10.656694524534643,
@@ -1092,6 +1456,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-dinar",
+    "legacyDiscoveryIds": [
+      "mountain-25617-kuh-e-dinar"
+    ],
     "name": "Kuh-e Dinar",
     "nameAlt": null,
     "lat": 30.950069280272103,
@@ -1104,6 +1472,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-elbert",
+    "legacyDiscoveryIds": [
+      "mountain-45441-mount-elbert"
+    ],
     "name": "Mt. Elbert",
     "nameAlt": null,
     "lat": 39.12508219847679,
@@ -1116,6 +1488,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-rainier",
+    "legacyDiscoveryIds": [
+      "mountain-44574-mount-rainier"
+    ],
     "name": "Mount Rainier",
     "nameAlt": null,
     "lat": 46.849971378030766,
@@ -1128,6 +1504,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-tavan-bogd-uul",
+    "legacyDiscoveryIds": [
+      "mountain-58012-tavan-bogd-uul"
+    ],
     "name": "Tavan Bogd Uul",
     "nameAlt": null,
     "lat": 49.14994857887867,
@@ -1140,6 +1520,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-uncompahgre-pk",
+    "legacyDiscoveryIds": [
+      "mountain-45424-uncompahgre-pk"
+    ],
     "name": "Uncompahgre Pk.",
     "nameAlt": null,
     "lat": 38.0730027816933,
@@ -1152,6 +1536,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-longs-pk",
+    "legacyDiscoveryIds": [
+      "mountain-45370-longs-pk"
+    ],
     "name": "Longs Pk.",
     "nameAlt": null,
     "lat": 40.255076968083074,
@@ -1164,6 +1552,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-white-mountain-peak",
+    "legacyDiscoveryIds": [
+      "mountain-11200-white-mountain-peak"
+    ],
     "name": "White Mountain Peak",
     "nameAlt": null,
     "lat": 37.63006874382146,
@@ -1176,6 +1568,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n26p14997-e102p90991",
+    "legacyDiscoveryIds": [
+      "mountain-92141-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 26.14997461251255,
@@ -1188,6 +1584,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-de-colima",
+    "legacyDiscoveryIds": [
+      "mountain-79244-volcan-de-colima"
+    ],
     "name": "Volcán de Colima",
     "nameAlt": null,
     "lat": 19.566793760013596,
@@ -1200,6 +1600,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-shasta",
+    "legacyDiscoveryIds": [
+      "mountain-46701-mount-shasta"
+    ],
     "name": "Mt. Shasta",
     "nameAlt": null,
     "lat": 41.40930668413502,
@@ -1212,6 +1616,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-elgon",
+    "legacyDiscoveryIds": [
+      "mountain-151764-mount-elgon"
+    ],
     "name": "Mt. Elgon",
     "nameAlt": null,
     "lat": 1.123151291741095,
@@ -1224,6 +1632,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-batu",
+    "legacyDiscoveryIds": [
+      "mountain-25047-mount-batu"
+    ],
     "name": "Mt. Batu",
     "nameAlt": null,
     "lat": 6.666693333298667,
@@ -1236,6 +1648,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-sidley",
+    "legacyDiscoveryIds": [
+      "mountain-28289-mount-sidley"
+    ],
     "name": "Mt. Sidley",
     "nameAlt": null,
     "lat": -77.03156201878257,
@@ -1248,6 +1664,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-galeras",
+    "legacyDiscoveryIds": [
+      "mountain-139239-volcan-galeras"
+    ],
     "name": "Volcán Galeras",
     "nameAlt": null,
     "lat": 1.216778968176172,
@@ -1260,6 +1680,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-finsteraarhorn",
+    "legacyDiscoveryIds": [
+      "mountain-10079-finsteraarhorn"
+    ],
     "name": "Finsteraarhorn",
     "nameAlt": null,
     "lat": 46.54000641299078,
@@ -1272,6 +1696,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-amba-farit",
+    "legacyDiscoveryIds": [
+      "mountain-25039-amba-farit"
+    ],
     "name": "Amba Farit",
     "nameAlt": null,
     "lat": 10.95009894283676,
@@ -1284,6 +1712,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-munkh-khairkhan",
+    "legacyDiscoveryIds": [
+      "mountain-58036-munkh-khairkhan"
+    ],
     "name": "Munkh Khairkhan",
     "nameAlt": null,
     "lat": 46.89008021439833,
@@ -1296,6 +1728,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-kaplan",
+    "legacyDiscoveryIds": [
+      "mountain-117534-mount-kaplan"
+    ],
     "name": "Mount Kaplan",
     "nameAlt": null,
     "lat": -84.55998656581706,
@@ -1308,6 +1744,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-tajumulco",
+    "legacyDiscoveryIds": [
+      "mountain-4975-volcan-tajumulco"
+    ],
     "name": "Volcán Tajumulco",
     "nameAlt": null,
     "lat": 15.043462180663468,
@@ -1320,6 +1760,10 @@
     "subregion": "Central America"
   },
   {
+    "id": "mountain-gannett-peak",
+    "legacyDiscoveryIds": [
+      "mountain-44827-gannett-peak"
+    ],
     "name": "Gannett Peak",
     "nameAlt": null,
     "lat": 43.17999265460972,
@@ -1332,6 +1776,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mauna-kea",
+    "legacyDiscoveryIds": [
+      "mountain-69447-mauna-kea"
+    ],
     "name": "Mauna Kea",
     "nameAlt": null,
     "lat": 19.820493257722248,
@@ -1344,6 +1792,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-grand-teton",
+    "legacyDiscoveryIds": [
+      "mountain-44838-grand-teton"
+    ],
     "name": "Grand Teton",
     "nameAlt": null,
     "lat": 43.76336820713416,
@@ -1356,6 +1808,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-jang-qal-eh",
+    "legacyDiscoveryIds": [
+      "mountain-97870-kuh-e-jang-qal-eh"
+    ],
     "name": "Kuh-e Jang Qal'eh",
     "nameAlt": null,
     "lat": 33.11699662513334,
@@ -1368,6 +1824,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-minto",
+    "legacyDiscoveryIds": [
+      "mountain-118072-mount-minto"
+    ],
     "name": "Mt. Minto",
     "nameAlt": null,
     "lat": -71.7697512296558,
@@ -1380,6 +1840,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jebel-toubkal",
+    "legacyDiscoveryIds": [
+      "mountain-163329-jebel-toubkal"
+    ],
     "name": "Jebel Toubkal",
     "nameAlt": null,
     "lat": 31.06207512442846,
@@ -1392,6 +1856,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-s5p94998-e146p36996",
+    "legacyDiscoveryIds": [
+      "mountain-2354-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -5.949979394734271,
@@ -1404,6 +1872,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-kings-pk",
+    "legacyDiscoveryIds": [
+      "mountain-45381-kings-pk"
+    ],
     "name": "Kings Pk.",
     "nameAlt": null,
     "lat": 40.78210627012135,
@@ -1416,6 +1888,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gunung-kinabalu",
+    "legacyDiscoveryIds": [
+      "mountain-23918-gunung-kinabalu"
+    ],
     "name": "Gunung Kinabalu",
     "nameAlt": null,
     "lat": 6.083398563929052,
@@ -1428,6 +1904,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-aragats-lerr",
+    "legacyDiscoveryIds": [
+      "mountain-102433-aragats-lerr"
+    ],
     "name": "Aragats Lerr",
     "nameAlt": null,
     "lat": 40.529982043931675,
@@ -1440,6 +1920,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-fridtjof-nansen",
+    "legacyDiscoveryIds": [
+      "mountain-28259-mount-fridtjof-nansen"
+    ],
     "name": "Mt. Fridtjof Nansen",
     "nameAlt": null,
     "lat": -85.34762232530097,
@@ -1452,6 +1936,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-tacana",
+    "legacyDiscoveryIds": [
+      "mountain-4975-volcan-tacana"
+    ],
     "name": "Volcán Tacaná",
     "nameAlt": null,
     "lat": 15.130061722629293,
@@ -1464,6 +1952,10 @@
     "subregion": "Central America"
   },
   {
+    "id": "mountain-cerro-san-valentin",
+    "legacyDiscoveryIds": [
+      "mountain-1717-cerro-san-valentin"
+    ],
     "name": "Cerro San Valentín",
     "nameAlt": null,
     "lat": -46.594892777678766,
@@ -1476,6 +1968,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-cameroun",
+    "legacyDiscoveryIds": [
+      "mountain-160460-mont-cameroun"
+    ],
     "name": "Mont Cameroun",
     "nameAlt": null,
     "lat": 4.219973531722289,
@@ -1488,6 +1984,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-dombai-ulgen",
+    "legacyDiscoveryIds": [
+      "mountain-25426-dombai-ulgen"
+    ],
     "name": "Dombai-Ulgen",
     "nameAlt": null,
     "lat": 43.2299974274426,
@@ -1500,6 +2000,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-victoria-s8p89606-e147p54277",
+    "legacyDiscoveryIds": [
+      "mountain-149092-mount-victoria"
+    ],
     "name": "Mt. Victoria",
     "nameAlt": null,
     "lat": -8.896060267823458,
@@ -1512,6 +2016,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-mount-lister",
+    "legacyDiscoveryIds": [
+      "mountain-117681-mount-lister"
+    ],
     "name": "Mount Lister",
     "nameAlt": null,
     "lat": -78.06001236278153,
@@ -1524,6 +2032,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-waddington",
+    "legacyDiscoveryIds": [
+      "mountain-46475-mount-waddington"
+    ],
     "name": "Mt. Waddington",
     "nameAlt": null,
     "lat": 51.37237395110047,
@@ -1536,6 +2048,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-lesatima",
+    "legacyDiscoveryIds": [
+      "mountain-151828-lesatima"
+    ],
     "name": "Lesatima",
     "nameAlt": null,
     "lat": -0.324805975232238,
@@ -1548,6 +2064,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-otgon-tenger",
+    "legacyDiscoveryIds": [
+      "mountain-57748-otgon-tenger"
+    ],
     "name": "Otgon Tenger",
     "nameAlt": null,
     "lat": 47.59996218736911,
@@ -1560,6 +2080,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-truchas-pk",
+    "legacyDiscoveryIds": [
+      "mountain-45408-truchas-pk"
+    ],
     "name": "Truchas Pk.",
     "nameAlt": null,
     "lat": 35.962906386247134,
@@ -1572,6 +2096,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-wheeler-pk",
+    "legacyDiscoveryIds": [
+      "mountain-45496-wheeler-pk"
+    ],
     "name": "Wheeler Pk.",
     "nameAlt": null,
     "lat": 38.98625634692057,
@@ -1584,6 +2112,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-tergun-bogd",
+    "legacyDiscoveryIds": [
+      "mountain-14486-tergun-bogd"
+    ],
     "name": "Tergun Bogd",
     "nameAlt": null,
     "lat": 45.00512647143234,
@@ -1596,6 +2128,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-robson",
+    "legacyDiscoveryIds": [
+      "mountain-2809-mount-robson"
+    ],
     "name": "Mt. Robson",
     "nameAlt": null,
     "lat": 53.11046391860576,
@@ -1608,6 +2144,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-yu-shan",
+    "legacyDiscoveryIds": [
+      "mountain-61554-yu-shan"
+    ],
     "name": "Yu Shan",
     "nameAlt": "Jade Mountain",
     "lat": 23.469912668241875,
@@ -1620,6 +2160,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-taftan",
+    "legacyDiscoveryIds": [
+      "mountain-24483-kuh-e-taftan"
+    ],
     "name": "Kuh-e Taftan",
     "nameAlt": null,
     "lat": 28.62969433283243,
@@ -1632,6 +2176,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-faure-peak",
+    "legacyDiscoveryIds": [
+      "mountain-112485-faure-peak"
+    ],
     "name": "Faure Peak",
     "nameAlt": null,
     "lat": -85.71001555781841,
@@ -1644,6 +2192,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kackar-dagi",
+    "legacyDiscoveryIds": [
+      "mountain-102448-kackar-dagi"
+    ],
     "name": "Kackar Dagi",
     "nameAlt": null,
     "lat": 40.841481888913215,
@@ -1656,6 +2208,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-erciyes-dagi",
+    "legacyDiscoveryIds": [
+      "mountain-101898-erciyes-dagi"
+    ],
     "name": "Erciyes Dagi",
     "nameAlt": null,
     "lat": 38.52995269692621,
@@ -1668,6 +2224,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-peale",
+    "legacyDiscoveryIds": [
+      "mountain-45385-mount-peale"
+    ],
     "name": "Mount Peale",
     "nameAlt": null,
     "lat": 38.44000065403541,
@@ -1680,6 +2240,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-borah-pk",
+    "legacyDiscoveryIds": [
+      "mountain-44892-borah-pk"
+    ],
     "name": "Borah Pk.",
     "nameAlt": null,
     "lat": 44.14010044963194,
@@ -1692,6 +2256,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-humphreys-pk",
+    "legacyDiscoveryIds": [
+      "mountain-45698-humphreys-pk"
+    ],
     "name": "Humphreys Pk.",
     "nameAlt": null,
     "lat": 35.34632895709215,
@@ -1704,6 +2272,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-saramati",
+    "legacyDiscoveryIds": [
+      "mountain-92310-saramati"
+    ],
     "name": "Saramati",
     "nameAlt": null,
     "lat": 25.729982990609273,
@@ -1716,6 +2288,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-chirripo",
+    "legacyDiscoveryIds": [
+      "mountain-137364-cerro-chirripo"
+    ],
     "name": "Cerro Chirripó",
     "nameAlt": null,
     "lat": 9.48360194183249,
@@ -1728,6 +2304,10 @@
     "subregion": "Central America"
   },
   {
+    "id": "mountain-gunung-kerinci",
+    "legacyDiscoveryIds": [
+      "mountain-95792-gunung-kerinci"
+    ],
     "name": "Gunung Kerinci",
     "nameAlt": null,
     "lat": -1.697958040843304,
@@ -1740,6 +2320,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-grossglockner",
+    "legacyDiscoveryIds": [
+      "mountain-98227-grossglockner"
+    ],
     "name": "Grossglockner",
     "nameAlt": null,
     "lat": 47.074710114736845,
@@ -1752,6 +2336,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-erebus",
+    "legacyDiscoveryIds": [
+      "mountain-29548-mount-erebus"
+    ],
     "name": "Mt. Erebus",
     "nameAlt": null,
     "lat": -77.51448371828972,
@@ -1764,6 +2352,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-fuji",
+    "legacyDiscoveryIds": [
+      "mountain-65687-mount-fuji"
+    ],
     "name": "Fuji",
     "nameAlt": null,
     "lat": 35.357921339808655,
@@ -1776,6 +2368,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-taibai-shan",
+    "legacyDiscoveryIds": [
+      "mountain-62364-taibai-shan"
+    ],
     "name": "Taibai Shan",
     "nameAlt": null,
     "lat": 33.95007290920289,
@@ -1788,6 +2384,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kizilkaya",
+    "legacyDiscoveryIds": [
+      "mountain-6435-kizilkaya"
+    ],
     "name": "Kizilkaya",
     "nameAlt": "Aladağ Tepe",
     "lat": 37.96996386772184,
@@ -1800,6 +2400,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-demirkazik",
+    "legacyDiscoveryIds": [
+      "mountain-101867-demirkazik"
+    ],
     "name": "Demirkazik",
     "nameAlt": null,
     "lat": 37.83570226441289,
@@ -1812,6 +2416,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-aoraki-mt-cook",
+    "legacyDiscoveryIds": [
+      "mountain-22262-aoraki-mt-cook"
+    ],
     "name": "Aoraki/Mt. Cook",
     "nameAlt": null,
     "lat": -43.59565658871877,
@@ -1824,6 +2432,10 @@
     "subregion": "New Zealand"
   },
   {
+    "id": "mountain-cerro-nube-flan",
+    "legacyDiscoveryIds": [
+      "mountain-79474-cerro-nube-flan"
+    ],
     "name": "Cerro Nube Flan",
     "nameAlt": null,
     "lat": 16.213808136101775,
@@ -1836,6 +2448,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gunung-rinjani",
+    "legacyDiscoveryIds": [
+      "mountain-24123-gunung-rinjani"
+    ],
     "name": "Gunung Rinjani",
     "nameAlt": null,
     "lat": -8.409988025278352,
@@ -1848,6 +2464,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-pico-del-teide",
+    "legacyDiscoveryIds": [
+      "mountain-163183-pico-del-teide"
+    ],
     "name": "Pico del Teide",
     "nameAlt": null,
     "lat": 28.270815167549628,
@@ -1860,6 +2480,10 @@
     "subregion": "North Atlantic Ocean"
   },
   {
+    "id": "mountain-cerro-san-rafael",
+    "legacyDiscoveryIds": [
+      "mountain-19604-cerro-san-rafael"
+    ],
     "name": "Cerro San Rafael",
     "nameAlt": null,
     "lat": 25.359996141538872,
@@ -1872,6 +2496,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gunnbj-rn-fjeld",
+    "legacyDiscoveryIds": [
+      "mountain-51866-gunnbj-rn-fjeld"
+    ],
     "name": "Gunnbjørn Fjeld",
     "nameAlt": null,
     "lat": 68.9194849671932,
@@ -1884,6 +2512,10 @@
     "subregion": "Greenland"
   },
   {
+    "id": "mountain-loolmalasin",
+    "legacyDiscoveryIds": [
+      "mountain-31256-loolmalasin"
+    ],
     "name": "Loolmalasin",
     "nameAlt": null,
     "lat": -3.042674435958133,
@@ -1896,6 +2528,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gunung-semeru",
+    "legacyDiscoveryIds": [
+      "mountain-96077-gunung-semeru"
+    ],
     "name": "Gunung Semeru",
     "nameAlt": null,
     "lat": -8.107859026255795,
@@ -1908,6 +2544,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-jabal-an-nabi-shu-aib",
+    "legacyDiscoveryIds": [
+      "mountain-100361-jabal-an-nabi-shu-aib"
+    ],
     "name": "Jabal an-Nabi Shu’aib",
     "nameAlt": null,
     "lat": 15.275107877106564,
@@ -1920,6 +2560,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-sierra-blanca-peak",
+    "legacyDiscoveryIds": [
+      "mountain-45566-sierra-blanca-peak"
+    ],
     "name": "Sierra Blanca Peak",
     "nameAlt": null,
     "lat": 33.370009466026026,
@@ -1932,6 +2576,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-garin",
+    "legacyDiscoveryIds": [
+      "mountain-102612-kuh-e-garin"
+    ],
     "name": "Kuh-e Garin",
     "nameAlt": null,
     "lat": 33.96009002040042,
@@ -1944,6 +2592,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gugu",
+    "legacyDiscoveryIds": [
+      "mountain-99861-gugu"
+    ],
     "name": "Gugu",
     "nameAlt": null,
     "lat": 8.210095897690493,
@@ -1956,6 +2608,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cheekha-dar",
+    "legacyDiscoveryIds": [
+      "mountain-102690-cheekha-dar"
+    ],
     "name": "Cheekha Dar",
     "nameAlt": null,
     "lat": 36.77998760566255,
@@ -1968,6 +2624,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-haji-ebrahim",
+    "legacyDiscoveryIds": [
+      "mountain-102717-kuh-e-haji-ebrahim"
+    ],
     "name": "Kuh-e Haji Ebrahim",
     "nameAlt": null,
     "lat": 36.545272149336334,
@@ -1980,6 +2640,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monte-tronador",
+    "legacyDiscoveryIds": [
+      "mountain-26912-monte-tronador"
+    ],
     "name": "Monte Tronador",
     "nameAlt": null,
     "lat": -41.157055494201686,
@@ -1992,6 +2656,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-helan-shan",
+    "legacyDiscoveryIds": [
+      "mountain-62524-helan-shan"
+    ],
     "name": "Helan Shan",
     "nameAlt": null,
     "lat": 38.83717103470236,
@@ -2004,6 +2672,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-sir-sandford",
+    "legacyDiscoveryIds": [
+      "mountain-44558-mount-sir-sandford"
+    ],
     "name": "Mount Sir Sandford",
     "nameAlt": null,
     "lat": 51.66400113999657,
@@ -2016,6 +2688,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-san-gorgonio-mt",
+    "legacyDiscoveryIds": [
+      "mountain-11414-san-gorgonio-mt"
+    ],
     "name": "San Gorgonio Mt.",
     "nameAlt": null,
     "lat": 34.10768084425449,
@@ -2028,6 +2704,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-daxue-shan",
+    "legacyDiscoveryIds": [
+      "mountain-92207-daxue-shan"
+    ],
     "name": "Daxue Shan",
     "nameAlt": null,
     "lat": 24.109997995449163,
@@ -2040,6 +2720,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-sierra-el-viejo",
+    "legacyDiscoveryIds": [
+      "mountain-78156-sierra-el-viejo"
+    ],
     "name": "Sierra El Viejo",
     "nameAlt": null,
     "lat": 24.000698386979238,
@@ -2052,6 +2736,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-munku-sardyk",
+    "legacyDiscoveryIds": [
+      "mountain-14365-gora-munku-sardyk"
+    ],
     "name": "Gora Munku-Sardyk",
     "nameAlt": null,
     "lat": 51.7163890158966,
@@ -2064,6 +2752,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-thabana-ntlenyana",
+    "legacyDiscoveryIds": [
+      "mountain-31839-thabana-ntlenyana"
+    ],
     "name": "Thabana Ntlenyana",
     "nameAlt": null,
     "lat": -29.466602027744443,
@@ -2076,6 +2768,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-mohi",
+    "legacyDiscoveryIds": [
+      "mountain-32403-mont-mohi"
+    ],
     "name": "Mont Mohi",
     "nameAlt": null,
     "lat": -2.950016157380901,
@@ -2088,6 +2784,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mulhacen",
+    "legacyDiscoveryIds": [
+      "mountain-162157-mulhacen"
+    ],
     "name": "Mulhacén",
     "nameAlt": null,
     "lat": 37.05137861427652,
@@ -2100,6 +2800,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mt-baldy",
+    "legacyDiscoveryIds": [
+      "mountain-45701-mt-baldy"
+    ],
     "name": "Mt.Baldy",
     "nameAlt": null,
     "lat": 33.92046588296177,
@@ -2112,6 +2816,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-baru",
+    "legacyDiscoveryIds": [
+      "mountain-137360-volcan-baru"
+    ],
     "name": "Volcán Barú",
     "nameAlt": null,
     "lat": 8.808133592814556,
@@ -2124,6 +2832,10 @@
     "subregion": "Central America"
   },
   {
+    "id": "mountain-mount-takahe",
+    "legacyDiscoveryIds": [
+      "mountain-114693-mount-takahe"
+    ],
     "name": "Mt. Takahe",
     "nameAlt": null,
     "lat": -76.27284662872377,
@@ -2136,6 +2848,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-koryakskaya-sopka",
+    "legacyDiscoveryIds": [
+      "mountain-14964-koryakskaya-sopka"
+    ],
     "name": "Koryakskaya Sopka",
     "nameAlt": null,
     "lat": 53.334919914269975,
@@ -2148,6 +2864,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-bulu-rantekombola",
+    "legacyDiscoveryIds": [
+      "mountain-95923-bulu-rantekombola"
+    ],
     "name": "Bulu Rantekombola",
     "nameAlt": null,
     "lat": -3.340602710930114,
@@ -2160,6 +2880,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-obasta-tsukai",
+    "legacyDiscoveryIds": [
+      "mountain-97992-obasta-tsukai"
+    ],
     "name": "Obasta Tsukai",
     "nameAlt": null,
     "lat": 31.694405268773124,
@@ -2172,6 +2896,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mafadi",
+    "legacyDiscoveryIds": [
+      "mountain-31839-mafadi"
+    ],
     "name": "Mafadi",
     "nameAlt": null,
     "lat": -29.20001761684219,
@@ -2184,6 +2912,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-el-jabaln",
+    "legacyDiscoveryIds": [
+      "mountain-78217-cerro-el-jabaln"
+    ],
     "name": "Cerro El Jabaln",
     "nameAlt": null,
     "lat": 25.180011272602428,
@@ -2196,6 +2928,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-hood",
+    "legacyDiscoveryIds": [
+      "mountain-44569-mount-hood"
+    ],
     "name": "Mt. Hood",
     "nameAlt": null,
     "lat": 45.38448416646173,
@@ -2208,6 +2944,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-isachsen-mountain",
+    "legacyDiscoveryIds": [
+      "mountain-29214-isachsen-mountain"
+    ],
     "name": "Isachsen Mountain",
     "nameAlt": null,
     "lat": -72.13004410014791,
@@ -2220,6 +2960,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-argun",
+    "legacyDiscoveryIds": [
+      "mountain-25084-argun"
+    ],
     "name": "Argun",
     "nameAlt": null,
     "lat": 6.109814655554828,
@@ -2232,6 +2976,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-crazy-peak",
+    "legacyDiscoveryIds": [
+      "mountain-44796-crazy-peak"
+    ],
     "name": "Crazy Peak",
     "nameAlt": null,
     "lat": 46.019964853844336,
@@ -2244,6 +2992,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-emi-koussi",
+    "legacyDiscoveryIds": [
+      "mountain-40039-emi-koussi"
+    ],
     "name": "Emi Koussi",
     "nameAlt": null,
     "lat": 19.793390509280513,
@@ -2256,6 +3008,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-muleta",
+    "legacyDiscoveryIds": [
+      "mountain-25029-muleta"
+    ],
     "name": "Muleta",
     "nameAlt": null,
     "lat": 9.268880316323958,
@@ -2268,6 +3024,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-de-aneto",
+    "legacyDiscoveryIds": [
+      "mountain-40598-pico-de-aneto"
+    ],
     "name": "Pico de Aneto",
     "nameAlt": null,
     "lat": 42.632202081783,
@@ -2280,6 +3040,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kegueur-terbi",
+    "legacyDiscoveryIds": [
+      "mountain-160076-kegueur-terbi"
+    ],
     "name": "Kegueur Terbi",
     "nameAlt": null,
     "lat": 21.4166876137882,
@@ -2292,6 +3056,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monte-fitz-roy",
+    "legacyDiscoveryIds": [
+      "mountain-27994-monte-fitz-roy"
+    ],
     "name": "Monte Fitz Roy",
     "nameAlt": null,
     "lat": -49.27131947998258,
@@ -2304,6 +3072,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-forel",
+    "legacyDiscoveryIds": [
+      "mountain-3273-mount-forel"
+    ],
     "name": "Mt. Forel",
     "nameAlt": null,
     "lat": 66.93500637749037,
@@ -2316,6 +3088,10 @@
     "subregion": "Greenland"
   },
   {
+    "id": "mountain-cerro-mohinora",
+    "legacyDiscoveryIds": [
+      "mountain-45054-cerro-mohinora"
+    ],
     "name": "Cerro Mohinora",
     "nameAlt": null,
     "lat": 26.034293134811932,
@@ -2328,6 +3104,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-adrar-bou-nasser",
+    "legacyDiscoveryIds": [
+      "mountain-161323-adrar-bou-nasser"
+    ],
     "name": "Adrar Bou Nasser",
     "nameAlt": null,
     "lat": 33.59010317133002,
@@ -2340,6 +3120,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-gordo",
+    "legacyDiscoveryIds": [
+      "mountain-79230-cerro-gordo"
+    ],
     "name": "Cerro Gordo",
     "nameAlt": null,
     "lat": 23.240003809627396,
@@ -2352,6 +3136,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-etna",
+    "legacyDiscoveryIds": [
+      "mountain-161763-mount-etna"
+    ],
     "name": "Monte Etna",
     "nameAlt": null,
     "lat": 37.75512106748106,
@@ -2364,6 +3152,10 @@
     "subregion": "Mediterranean Sea"
   },
   {
+    "id": "mountain-peak-n21p13148-e16p52735",
+    "legacyDiscoveryIds": [
+      "mountain-160017-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 21.131482685700192,
@@ -2376,6 +3168,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-siah-khvani",
+    "legacyDiscoveryIds": [
+      "mountain-97038-kuh-e-siah-khvani"
+    ],
     "name": "Kuh-e Siah Khvani",
     "nameAlt": null,
     "lat": 36.27998026891118,
@@ -2388,6 +3184,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-maotou-shan",
+    "legacyDiscoveryIds": [
+      "mountain-92225-maotou-shan"
+    ],
     "name": "Maotou Shan",
     "nameAlt": null,
     "lat": 24.52009368088713,
@@ -2400,6 +3200,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-baker",
+    "legacyDiscoveryIds": [
+      "mountain-44586-mount-baker"
+    ],
     "name": "Mt. Baker",
     "nameAlt": null,
     "lat": 48.79591640288499,
@@ -2412,6 +3216,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-jihaf",
+    "legacyDiscoveryIds": [
+      "mountain-25183-jabal-jihaf"
+    ],
     "name": "Jabal Jihaf",
     "nameAlt": null,
     "lat": 13.740914592364092,
@@ -2424,6 +3232,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-fareghan",
+    "legacyDiscoveryIds": [
+      "mountain-102138-kuh-e-fareghan"
+    ],
     "name": "Kuh-e Fareghan",
     "nameAlt": null,
     "lat": 27.890084158888314,
@@ -2436,6 +3248,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-cleveland",
+    "legacyDiscoveryIds": [
+      "mountain-44605-mount-cleveland"
+    ],
     "name": "Mt. Cleveland",
     "nameAlt": null,
     "lat": 48.92500788428554,
@@ -2448,6 +3264,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kinyeti",
+    "legacyDiscoveryIds": [
+      "mountain-99757-kinyeti"
+    ],
     "name": "Kinyeti",
     "nameAlt": null,
     "lat": 3.955085567071237,
@@ -2460,6 +3280,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-andrew-jackson",
+    "legacyDiscoveryIds": [
+      "mountain-114964-mount-andrew-jackson"
+    ],
     "name": "Mt. Andrew Jackson",
     "nameAlt": null,
     "lat": -71.36712798603857,
@@ -2472,6 +3296,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-fan-si-pan",
+    "legacyDiscoveryIds": [
+      "mountain-93375-fan-si-pan"
+    ],
     "name": "Fan Si Pan",
     "nameAlt": null,
     "lat": 22.313299849122785,
@@ -2484,6 +3312,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-s8p31289-e115p40012",
+    "legacyDiscoveryIds": [
+      "mountain-6070-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -8.312886673186071,
@@ -2496,6 +3328,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-ayrybaba",
+    "legacyDiscoveryIds": [
+      "mountain-97895-ayrybaba"
+    ],
     "name": "Ayrybaba",
     "nameAlt": null,
     "lat": 37.83008783515297,
@@ -2508,6 +3344,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-redoubt-volcano",
+    "legacyDiscoveryIds": [
+      "mountain-47307-redoubt-volcano"
+    ],
     "name": "Redoubt Volcano",
     "nameAlt": null,
     "lat": 60.49000511130908,
@@ -2520,6 +3360,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-duarte",
+    "legacyDiscoveryIds": [
+      "mountain-34503-pico-duarte"
+    ],
     "name": "Pico Duarte",
     "nameAlt": null,
     "lat": 19.022880778618173,
@@ -2532,6 +3376,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-trapper-pk",
+    "legacyDiscoveryIds": [
+      "mountain-2837-trapper-pk"
+    ],
     "name": "Trapper Pk.",
     "nameAlt": null,
     "lat": 45.90638373816901,
@@ -2544,6 +3392,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-qurnat-as-sawda",
+    "legacyDiscoveryIds": [
+      "mountain-101925-qurnat-as-sawda"
+    ],
     "name": "Qurnat as Sawdā",
     "nameAlt": null,
     "lat": 34.314526112168195,
@@ -2556,6 +3408,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kyrkjeskipet-pk",
+    "legacyDiscoveryIds": [
+      "mountain-28928-kyrkjeskipet-pk"
+    ],
     "name": "Kyrkjeskipet Pk.",
     "nameAlt": null,
     "lat": -71.8695992090119,
@@ -2568,6 +3424,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gunung-ciremay",
+    "legacyDiscoveryIds": [
+      "mountain-96284-gunung-ciremay"
+    ],
     "name": "Gunung Ciremay",
     "nameAlt": null,
     "lat": -6.887791039026467,
@@ -2580,6 +3440,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-pik-bam",
+    "legacyDiscoveryIds": [
+      "mountain-58835-pik-bam"
+    ],
     "name": "Pik BAM",
     "nameAlt": null,
     "lat": 56.85997365794597,
@@ -2592,6 +3456,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kizlar-sivrisi",
+    "legacyDiscoveryIds": [
+      "mountain-6434-kizlar-sivrisi"
+    ],
     "name": "Kizlar Sivrisi",
     "nameAlt": null,
     "lat": 36.61486683721279,
@@ -2604,6 +3472,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-picacho-del-diablo",
+    "legacyDiscoveryIds": [
+      "mountain-45230-picacho-del-diablo"
+    ],
     "name": "Picacho del Diablo",
     "nameAlt": null,
     "lat": 30.987916188304737,
@@ -2616,6 +3488,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-piton-des-neiges",
+    "legacyDiscoveryIds": [
+      "mountain-126386-piton-des-neiges"
+    ],
     "name": "Piton des Neiges",
     "nameAlt": null,
     "lat": -21.104414539824447,
@@ -2628,6 +3504,10 @@
     "subregion": "Indian Ocean"
   },
   {
+    "id": "mountain-peak-n55p96999-e114p43985",
+    "legacyDiscoveryIds": [
+      "mountain-911-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 55.969985641306536,
@@ -2640,6 +3520,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-wutai-shan",
+    "legacyDiscoveryIds": [
+      "mountain-62416-wutai-shan"
+    ],
     "name": "Wutai Shan",
     "nameAlt": null,
     "lat": 39.087598814640835,
@@ -2652,6 +3536,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-haleakala",
+    "legacyDiscoveryIds": [
+      "mountain-17414-haleakala"
+    ],
     "name": "Haleakalā",
     "nameAlt": null,
     "lat": 20.719690554011024,
@@ -2664,6 +3552,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-mount-victoria-n21p24317-e93p91737",
+    "legacyDiscoveryIds": [
+      "mountain-23088-mount-victoria"
+    ],
     "name": "Mt. Victoria",
     "nameAlt": null,
     "lat": 21.243165397237277,
@@ -2676,6 +3568,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-marrah",
+    "legacyDiscoveryIds": [
+      "mountain-160489-jabal-marrah"
+    ],
     "name": "Jabal Marrah",
     "nameAlt": null,
     "lat": 12.949724374068126,
@@ -2688,6 +3584,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-shams",
+    "legacyDiscoveryIds": [
+      "mountain-25596-jabal-shams"
+    ],
     "name": "Jabal Shams",
     "nameAlt": null,
     "lat": 23.236893658166863,
@@ -2700,6 +3600,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-fuyul-sojol",
+    "legacyDiscoveryIds": [
+      "mountain-95254-fuyul-sojol"
+    ],
     "name": "Fuyul Sojol",
     "nameAlt": null,
     "lat": 0.615186814240076,
@@ -2712,6 +3616,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-gunung-binaiya",
+    "legacyDiscoveryIds": [
+      "mountain-23037-gunung-binaiya"
+    ],
     "name": "Gunung Binaiya",
     "nameAlt": null,
     "lat": -3.159486877826211,
@@ -2724,6 +3632,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-ulysses-mountain",
+    "legacyDiscoveryIds": [
+      "mountain-47604-ulysses-mountain"
+    ],
     "name": "Ulysses Mountain",
     "nameAlt": null,
     "lat": 57.350004275077204,
@@ -2736,6 +3648,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-seelig",
+    "legacyDiscoveryIds": [
+      "mountain-114468-mount-seelig"
+    ],
     "name": "Mount Seelig",
     "nameAlt": null,
     "lat": -82.47004556749819,
@@ -2748,6 +3664,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-soira",
+    "legacyDiscoveryIds": [
+      "mountain-100903-soira"
+    ],
     "name": "Soira",
     "nameAlt": null,
     "lat": 14.75001737078395,
@@ -2760,6 +3680,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-tate-yama",
+    "legacyDiscoveryIds": [
+      "mountain-65674-tate-yama"
+    ],
     "name": "Tate-yama",
     "nameAlt": null,
     "lat": 36.59499418112735,
@@ -2772,6 +3696,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-da-neblina",
+    "legacyDiscoveryIds": [
+      "mountain-139321-pico-da-neblina"
+    ],
     "name": "Pico da Neblina",
     "nameAlt": null,
     "lat": 0.80001867246564,
@@ -2784,6 +3712,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-oku",
+    "legacyDiscoveryIds": [
+      "mountain-160432-mount-oku"
+    ],
     "name": "Mt. Oku",
     "nameAlt": null,
     "lat": 6.183488892749622,
@@ -2796,6 +3728,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-de-santa-isabel",
+    "legacyDiscoveryIds": [
+      "mountain-160398-pico-de-santa-isabel"
+    ],
     "name": "Pico de Santa Isabel",
     "nameAlt": null,
     "lat": 3.5901072735996,
@@ -2808,6 +3744,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-sapitwa-peak",
+    "legacyDiscoveryIds": [
+      "mountain-31635-sapitwa-peak"
+    ],
     "name": "Sapitwa Peak",
     "nameAlt": null,
     "lat": -15.950045346606757,
@@ -2820,6 +3760,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-ras-koh",
+    "legacyDiscoveryIds": [
+      "mountain-97697-ras-koh"
+    ],
     "name": "Ras Koh",
     "nameAlt": null,
     "lat": 28.833994931369347,
@@ -2832,6 +3776,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-pobeda",
+    "legacyDiscoveryIds": [
+      "mountain-3458-gora-pobeda"
+    ],
     "name": "Gora Pobeda",
     "nameAlt": null,
     "lat": 65.19000945024806,
@@ -2844,6 +3792,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-sawda",
+    "legacyDiscoveryIds": [
+      "mountain-25142-jabal-sawda"
+    ],
     "name": "Jabal Sawdā",
     "nameAlt": null,
     "lat": 18.255804332035638,
@@ -2856,6 +3808,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-sacajawea-pk",
+    "legacyDiscoveryIds": [
+      "mountain-2835-sacajawea-pk"
+    ],
     "name": "Sacajawea Pk.",
     "nameAlt": null,
     "lat": 45.25365584723258,
@@ -2868,6 +3824,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-tastau",
+    "legacyDiscoveryIds": [
+      "mountain-14551-gora-tastau"
+    ],
     "name": "Gora Tastau",
     "nameAlt": null,
     "lat": 47.19947969735458,
@@ -2880,6 +3840,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-longnawan",
+    "legacyDiscoveryIds": [
+      "mountain-96416-longnawan"
+    ],
     "name": "Longnawan",
     "nameAlt": null,
     "lat": 1.814251181216491,
@@ -2892,6 +3856,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-tata-mailau",
+    "legacyDiscoveryIds": [
+      "mountain-91550-tata-mailau"
+    ],
     "name": "Tata Mailau",
     "nameAlt": null,
     "lat": -8.909954970452304,
@@ -2904,6 +3872,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-abongabong",
+    "legacyDiscoveryIds": [
+      "mountain-23160-abongabong"
+    ],
     "name": "Abongabong",
     "nameAlt": null,
     "lat": 4.250065256892327,
@@ -2916,6 +3888,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-mtorwi",
+    "legacyDiscoveryIds": [
+      "mountain-124810-mtorwi"
+    ],
     "name": "Mtorwi",
     "nameAlt": null,
     "lat": -9.080003511346021,
@@ -2928,6 +3904,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-roosevelt",
+    "legacyDiscoveryIds": [
+      "mountain-47691-mount-roosevelt"
+    ],
     "name": "Mt. Roosevelt",
     "nameAlt": null,
     "lat": 58.44263683557977,
@@ -2940,6 +3920,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gunung-umsini",
+    "legacyDiscoveryIds": [
+      "mountain-91771-gunung-umsini"
+    ],
     "name": "Gunung Umsini",
     "nameAlt": null,
     "lat": -1.149925118552119,
@@ -2952,6 +3936,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-gunung-merapi",
+    "legacyDiscoveryIds": [
+      "mountain-24099-gunung-merapi"
+    ],
     "name": "Gunung Merapi",
     "nameAlt": null,
     "lat": -7.540922845737001,
@@ -2964,6 +3952,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-zugspitze",
+    "legacyDiscoveryIds": [
+      "mountain-24634-zugspitze"
+    ],
     "name": "Zugspitze",
     "nameAlt": null,
     "lat": 47.41997731843267,
@@ -2976,6 +3968,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-nay-band",
+    "legacyDiscoveryIds": [
+      "mountain-25613-kuh-e-nay-band"
+    ],
     "name": "Kuh-e Nay Band",
     "nameAlt": null,
     "lat": 32.450091290526196,
@@ -2988,6 +3984,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-viejo",
+    "legacyDiscoveryIds": [
+      "mountain-79293-cerro-viejo"
+    ],
     "name": "Cerro Viejo",
     "nameAlt": null,
     "lat": 20.369980276800163,
@@ -3000,6 +4000,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-mus-khaya",
+    "legacyDiscoveryIds": [
+      "mountain-54324-gora-mus-khaya"
+    ],
     "name": "Gora Mus-Khaya",
     "nameAlt": null,
     "lat": 62.59129614288,
@@ -3012,6 +4016,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-apo",
+    "legacyDiscoveryIds": [
+      "mountain-1453-mount-apo"
+    ],
     "name": "Mt. Apo",
     "nameAlt": null,
     "lat": 6.997056044930417,
@@ -3024,6 +4032,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-keele-peak",
+    "legacyDiscoveryIds": [
+      "mountain-47972-keele-peak"
+    ],
     "name": "Keele Peak",
     "nameAlt": null,
     "lat": 63.42998685620945,
@@ -3036,6 +4048,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pic-de-coma-pedrosa",
+    "legacyDiscoveryIds": [
+      "mountain-162329-pic-de-coma-pedrosa"
+    ],
     "name": "Pic de Coma Pedrosa",
     "nameAlt": null,
     "lat": 42.59011405812237,
@@ -3048,6 +4064,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kuh-e-ruzeh",
+    "legacyDiscoveryIds": [
+      "mountain-97044-kuh-e-ruzeh"
+    ],
     "name": "Kuh-e Ruzeh",
     "nameAlt": null,
     "lat": 37.8040756593013,
@@ -3060,6 +4080,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-fishers-peak",
+    "legacyDiscoveryIds": [
+      "mountain-2791-fishers-peak"
+    ],
     "name": "Fishers Peak",
     "nameAlt": null,
     "lat": 37.09996968190007,
@@ -3072,6 +4096,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pulog",
+    "legacyDiscoveryIds": [
+      "mountain-95062-pulog"
+    ],
     "name": "Pulog",
     "nameAlt": "Mt. Pulag",
     "lat": 16.59639715732392,
@@ -3084,6 +4112,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-musala",
+    "legacyDiscoveryIds": [
+      "mountain-98855-musala"
+    ],
     "name": "Musala",
     "nameAlt": null,
     "lat": 42.17981641479735,
@@ -3096,6 +4128,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-olympus-n40p08325-e22p35012",
+    "legacyDiscoveryIds": [
+      "mountain-98887-mount-olympus"
+    ],
     "name": "Mt. Olympus",
     "nameAlt": null,
     "lat": 40.08325119778335,
@@ -3108,6 +4144,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-paget",
+    "legacyDiscoveryIds": [
+      "mountain-103690-mount-paget"
+    ],
     "name": "Mt. Paget",
     "nameAlt": null,
     "lat": -54.422295780697866,
@@ -3120,6 +4160,10 @@
     "subregion": "Southern Atlantic Ocean"
   },
   {
+    "id": "mountain-corno-grande",
+    "legacyDiscoveryIds": [
+      "mountain-161720-corno-grande"
+    ],
     "name": "Corno Grande",
     "nameAlt": null,
     "lat": 42.487317493615365,
@@ -3132,6 +4176,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-tahat",
+    "legacyDiscoveryIds": [
+      "mountain-162974-tahat"
+    ],
     "name": "Tahat",
     "nameAlt": null,
     "lat": 23.288271744631658,
@@ -3144,6 +4192,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-grandiozny-pk",
+    "legacyDiscoveryIds": [
+      "mountain-57051-grandiozny-pk"
+    ],
     "name": "Grandiozny Pk.",
     "nameAlt": null,
     "lat": 53.925687125460335,
@@ -3156,6 +4208,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-da-bandeira",
+    "legacyDiscoveryIds": [
+      "mountain-26323-pico-da-bandeira"
+    ],
     "name": "Pico da Bandeira",
     "nameAlt": null,
     "lat": -20.435368451614607,
@@ -3168,6 +4224,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-tapuaenuku",
+    "legacyDiscoveryIds": [
+      "mountain-5610-tapuaenuku"
+    ],
     "name": "Tapuaenuku",
     "nameAlt": null,
     "lat": -42.00002771473653,
@@ -3180,6 +4240,10 @@
     "subregion": "New Zealand"
   },
   {
+    "id": "mountain-maromokotro",
+    "legacyDiscoveryIds": [
+      "mountain-125431-maromokotro"
+    ],
     "name": "Maromokotro",
     "nameAlt": null,
     "lat": -14.019974211674437,
@@ -3192,6 +4256,10 @@
     "subregion": "Indian Ocean"
   },
   {
+    "id": "mountain-peak-n63p44538-w44p68503",
+    "legacyDiscoveryIds": [
+      "mountain-51483-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 63.445376047202444,
@@ -3204,6 +4272,10 @@
     "subregion": "Greenland"
   },
   {
+    "id": "mountain-triglav",
+    "legacyDiscoveryIds": [
+      "mountain-98201-triglav"
+    ],
     "name": "Triglav",
     "nameAlt": null,
     "lat": 46.38005576644942,
@@ -3216,6 +4288,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-las-minas",
+    "legacyDiscoveryIds": [
+      "mountain-137251-cerro-las-minas"
+    ],
     "name": "Cerro Las Minas",
     "nameAlt": null,
     "lat": 14.539981168254897,
@@ -3228,6 +4304,10 @@
     "subregion": "Central America"
   },
   {
+    "id": "mountain-volcaan-villarrica",
+    "legacyDiscoveryIds": [
+      "mountain-107196-volcaan-villarrica"
+    ],
     "name": "Volcaán Villarrica",
     "nameAlt": null,
     "lat": -39.423529774943646,
@@ -3240,6 +4320,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n54p67140-e110p45498",
+    "legacyDiscoveryIds": [
+      "mountain-56932-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 54.67139642759328,
@@ -3252,6 +4336,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-marahuaca",
+    "legacyDiscoveryIds": [
+      "mountain-139318-cerro-marahuaca"
+    ],
     "name": "Cerro Marahuaca",
     "nameAlt": null,
     "lat": 3.659984702517917,
@@ -3264,6 +4352,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-mcmaster",
+    "legacyDiscoveryIds": [
+      "mountain-29186-mount-mcmaster"
+    ],
     "name": "Mt. McMaster",
     "nameAlt": null,
     "lat": -66.76345755922107,
@@ -3276,6 +4368,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-phou-bia",
+    "legacyDiscoveryIds": [
+      "mountain-23418-phou-bia"
+    ],
     "name": "Phou Bia",
     "nameAlt": null,
     "lat": 18.97998492340936,
@@ -3288,6 +4384,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-de-cano",
+    "legacyDiscoveryIds": [
+      "mountain-159152-pico-de-cano"
+    ],
     "name": "Pico de Cano",
     "nameAlt": null,
     "lat": 14.948784323215762,
@@ -3300,6 +4400,10 @@
     "subregion": "North Atlantic Ocean"
   },
   {
+    "id": "mountain-dund-sayhni-nuru",
+    "legacyDiscoveryIds": [
+      "mountain-62006-dund-sayhni-nuru"
+    ],
     "name": "Dund Sayhni Nuru",
     "nameAlt": null,
     "lat": 43.64679811473054,
@@ -3312,6 +4416,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-ash-shaykh",
+    "legacyDiscoveryIds": [
+      "mountain-101945-jabal-ash-shaykh"
+    ],
     "name": "Jabal ash Shaykh",
     "nameAlt": null,
     "lat": 33.40999712766136,
@@ -3324,6 +4432,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-anderson-summit",
+    "legacyDiscoveryIds": [
+      "mountain-114493-anderson-summit"
+    ],
     "name": "Anderson Summit",
     "nameAlt": null,
     "lat": -85.0398385054411,
@@ -3336,6 +4448,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-da-pedra-da-mina",
+    "legacyDiscoveryIds": [
+      "mountain-104926-pico-da-pedra-da-mina"
+    ],
     "name": "Pico da Pedra da Mina",
     "nameAlt": null,
     "lat": -22.429823760937566,
@@ -3348,6 +4464,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-ruapehu",
+    "legacyDiscoveryIds": [
+      "mountain-88822-mount-ruapehu"
+    ],
     "name": "Mt. Ruapehu",
     "nameAlt": null,
     "lat": -39.283290218178095,
@@ -3360,6 +4480,10 @@
     "subregion": "New Zealand"
   },
   {
+    "id": "mountain-cerro-grande",
+    "legacyDiscoveryIds": [
+      "mountain-45545-cerro-grande"
+    ],
     "name": "Cerro Grande",
     "nameAlt": null,
     "lat": 28.78871597309336,
@@ -3372,6 +4496,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-nirvana",
+    "legacyDiscoveryIds": [
+      "mountain-47920-mount-nirvana"
+    ],
     "name": "Mt. Nirvana",
     "nameAlt": null,
     "lat": 61.86889278091229,
@@ -3384,6 +4512,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-roraima",
+    "legacyDiscoveryIds": [
+      "mountain-138820-mount-roraima"
+    ],
     "name": "Mt. Roraima",
     "nameAlt": null,
     "lat": 5.143324991301924,
@@ -3396,6 +4528,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-champaqui",
+    "legacyDiscoveryIds": [
+      "mountain-106986-cerro-champaqui"
+    ],
     "name": "Cerro Champaquí",
     "nameAlt": null,
     "lat": -31.991641097917707,
@@ -3408,6 +4544,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-naiguata",
+    "legacyDiscoveryIds": [
+      "mountain-138705-pico-naiguata"
+    ],
     "name": "Pico Naiguatá",
     "nameAlt": null,
     "lat": 10.53996286582138,
@@ -3420,6 +4560,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-korab",
+    "legacyDiscoveryIds": [
+      "mountain-24787-korab"
+    ],
     "name": "Korab",
     "nameAlt": null,
     "lat": 41.78700832449062,
@@ -3432,6 +4576,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-macdonald",
+    "legacyDiscoveryIds": [
+      "mountain-47939-mount-macdonald"
+    ],
     "name": "Mt. Macdonald",
     "nameAlt": null,
     "lat": 64.7507914374979,
@@ -3444,6 +4592,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-howson-pk",
+    "legacyDiscoveryIds": [
+      "mountain-41791-howson-pk"
+    ],
     "name": "Howson Pk.",
     "nameAlt": null,
     "lat": 54.42177647920299,
@@ -3456,6 +4608,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-eddy",
+    "legacyDiscoveryIds": [
+      "mountain-46701-mount-eddy"
+    ],
     "name": "Mount Eddy",
     "nameAlt": null,
     "lat": 41.32008168963758,
@@ -3468,6 +4624,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-chamberlin",
+    "legacyDiscoveryIds": [
+      "mountain-48677-mount-chamberlin"
+    ],
     "name": "Mt. Chamberlin",
     "nameAlt": null,
     "lat": 69.28107036816243,
@@ -3480,6 +4640,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-thudaka-mountain",
+    "legacyDiscoveryIds": [
+      "mountain-47689-thudaka-mountain"
+    ],
     "name": "Thudaka Mountain",
     "nameAlt": null,
     "lat": 57.92998693509925,
@@ -3492,6 +4656,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-big-ben",
+    "legacyDiscoveryIds": [
+      "mountain-119052-big-ben"
+    ],
     "name": "Big Ben",
     "nameAlt": null,
     "lat": -53.10003710262269,
@@ -3504,6 +4672,10 @@
     "subregion": "South Indian Ocean"
   },
   {
+    "id": "mountain-paektu-san",
+    "legacyDiscoveryIds": [
+      "mountain-64371-paektu-san"
+    ],
     "name": "Paektu-san",
     "nameAlt": "Changbai Shan",
     "lat": 41.99999311217056,
@@ -3516,6 +4688,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-el-pital",
+    "legacyDiscoveryIds": [
+      "mountain-34423-cerro-el-pital"
+    ],
     "name": "Cerro El Pital",
     "nameAlt": null,
     "lat": 14.38007091329095,
@@ -3528,6 +4704,10 @@
     "subregion": "Central America"
   },
   {
+    "id": "mountain-jabal-hamoyet",
+    "legacyDiscoveryIds": [
+      "mountain-25385-jabal-hamoyet"
+    ],
     "name": "Jabal Hamoyet",
     "nameAlt": null,
     "lat": 17.55012308311545,
@@ -3540,6 +4720,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kabobo",
+    "legacyDiscoveryIds": [
+      "mountain-129089-kabobo"
+    ],
     "name": "Kabobo",
     "nameAlt": null,
     "lat": -5.139966701365509,
@@ -3552,6 +4736,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gunung-tambora",
+    "legacyDiscoveryIds": [
+      "mountain-96111-gunung-tambora"
+    ],
     "name": "Gunung Tambora",
     "nameAlt": null,
     "lat": -8.250037378736991,
@@ -3564,6 +4752,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-mount-balbi",
+    "legacyDiscoveryIds": [
+      "mountain-86124-mount-balbi"
+    ],
     "name": "Mount Balbi",
     "nameAlt": null,
     "lat": -5.909991733098934,
@@ -3576,6 +4768,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-daba-shan",
+    "legacyDiscoveryIds": [
+      "mountain-62377-daba-shan"
+    ],
     "name": "Daba Shan",
     "nameAlt": null,
     "lat": 32.24987024130764,
@@ -3588,6 +4784,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monte-cinto",
+    "legacyDiscoveryIds": [
+      "mountain-40565-monte-cinto"
+    ],
     "name": "Monte Cinto",
     "nameAlt": null,
     "lat": 42.3859750258951,
@@ -3600,6 +4800,10 @@
     "subregion": "Mediterranean Sea"
   },
   {
+    "id": "mountain-kennedy-pk",
+    "legacyDiscoveryIds": [
+      "mountain-92236-kennedy-pk"
+    ],
     "name": "Kennedy Pk.",
     "nameAlt": null,
     "lat": 23.3316522987694,
@@ -3612,6 +4816,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-anai-mudi",
+    "legacyDiscoveryIds": [
+      "mountain-155776-anai-mudi"
+    ],
     "name": "Anai Mudi",
     "nameAlt": null,
     "lat": 10.170097191483208,
@@ -3624,6 +4832,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-maja-e-jezercs",
+    "legacyDiscoveryIds": [
+      "mountain-98802-maja-e-jezercs"
+    ],
     "name": "Maja e Jezercs",
     "nameAlt": null,
     "lat": 42.44001895646892,
@@ -3636,6 +4848,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-chen",
+    "legacyDiscoveryIds": [
+      "mountain-54804-gora-chen"
+    ],
     "name": "Gora Chen",
     "nameAlt": null,
     "lat": 65.30419643958453,
@@ -3648,6 +4864,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pic-la-selle",
+    "legacyDiscoveryIds": [
+      "mountain-137743-pic-la-selle"
+    ],
     "name": "Pic la Selle",
     "nameAlt": null,
     "lat": 18.35997421017457,
@@ -3660,6 +4880,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-loi-leng",
+    "legacyDiscoveryIds": [
+      "mountain-5819-loi-leng"
+    ],
     "name": "Loi Leng",
     "nameAlt": null,
     "lat": 22.659940366450527,
@@ -3672,6 +4896,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-heha",
+    "legacyDiscoveryIds": [
+      "mountain-32396-mont-heha"
+    ],
     "name": "Mont Heha",
     "nameAlt": null,
     "lat": -3.599997421053487,
@@ -3684,6 +4912,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-guadalupe-pk",
+    "legacyDiscoveryIds": [
+      "mountain-11141-guadalupe-pk"
+    ],
     "name": "Guadalupe Pk.",
     "nameAlt": null,
     "lat": 31.90137171141906,
@@ -3696,6 +4928,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pic-boby",
+    "legacyDiscoveryIds": [
+      "mountain-125501-pic-boby"
+    ],
     "name": "Pic Boby",
     "nameAlt": null,
     "lat": -22.199914902323073,
@@ -3708,6 +4944,10 @@
     "subregion": "Indian Ocean"
   },
   {
+    "id": "mountain-daravica",
+    "legacyDiscoveryIds": [
+      "mountain-98791-daravica"
+    ],
     "name": "Daravica",
     "nameAlt": null,
     "lat": 42.529970999359726,
@@ -3720,6 +4960,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gerlach",
+    "legacyDiscoveryIds": [
+      "mountain-99359-gerlach"
+    ],
     "name": "Gerlach",
     "nameAlt": null,
     "lat": 49.17095219913158,
@@ -3732,6 +4976,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kimhandu",
+    "legacyDiscoveryIds": [
+      "mountain-124681-kimhandu"
+    ],
     "name": "Kimhandu",
     "nameAlt": null,
     "lat": -7.100493085664539,
@@ -3744,6 +4992,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-torre-de-cerredo",
+    "legacyDiscoveryIds": [
+      "mountain-10144-torre-de-cerredo"
+    ],
     "name": "Torre de Cerredo",
     "nameAlt": null,
     "lat": 43.19469518878675,
@@ -3756,6 +5008,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-inyaptuk-golets",
+    "legacyDiscoveryIds": [
+      "mountain-56942-inyaptuk-golets"
+    ],
     "name": "Inyaptuk Golets",
     "nameAlt": null,
     "lat": 56.36408626209037,
@@ -3768,6 +5024,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-doda-betta",
+    "legacyDiscoveryIds": [
+      "mountain-156047-doda-betta"
+    ],
     "name": "Doda Betta",
     "nameAlt": null,
     "lat": 11.39998033202302,
@@ -3780,6 +5040,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gebel-katherna",
+    "legacyDiscoveryIds": [
+      "mountain-101782-gebel-katherna"
+    ],
     "name": "Gebel Katherna",
     "nameAlt": null,
     "lat": 28.510094872123105,
@@ -3792,6 +5056,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-moro-de-moco",
+    "legacyDiscoveryIds": [
+      "mountain-32715-moro-de-moco"
+    ],
     "name": "Moro de Môco",
     "nameAlt": null,
     "lat": -12.465221614030554,
@@ -3804,6 +5072,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-khuvkhoitun",
+    "legacyDiscoveryIds": [
+      "mountain-59731-gora-khuvkhoitun"
+    ],
     "name": "Gora Khuvkhoitun",
     "nameAlt": null,
     "lat": 57.93285473709532,
@@ -3816,6 +5088,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-barbeau-pk",
+    "legacyDiscoveryIds": [
+      "mountain-52988-barbeau-pk"
+    ],
     "name": "Barbeau Pk.",
     "nameAlt": null,
     "lat": 81.91058761781157,
@@ -3828,6 +5104,10 @@
     "subregion": "Arctic Archipelago"
   },
   {
+    "id": "mountain-peak-n2p64010-w73p89000",
+    "legacyDiscoveryIds": [
+      "mountain-139422-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 2.640097372929745,
@@ -3840,6 +5120,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-grauspitze",
+    "legacyDiscoveryIds": [
+      "mountain-161037-grauspitze"
+    ],
     "name": "Grauspitze",
     "nameAlt": null,
     "lat": 47.04999046936227,
@@ -3852,6 +5136,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-ngoc-linh",
+    "legacyDiscoveryIds": [
+      "mountain-93007-ngoc-linh"
+    ],
     "name": "Ngoc Linh",
     "nameAlt": null,
     "lat": 15.161647936163476,
@@ -3864,6 +5152,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-devils-paw",
+    "legacyDiscoveryIds": [
+      "mountain-47946-devils-paw"
+    ],
     "name": "Devils Paw",
     "nameAlt": null,
     "lat": 58.741413333677336,
@@ -3876,6 +5168,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-inyangani",
+    "legacyDiscoveryIds": [
+      "mountain-125687-inyangani"
+    ],
     "name": "Inyangani",
     "nameAlt": null,
     "lat": -18.28128562836956,
@@ -3888,6 +5184,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-de-almanzor",
+    "legacyDiscoveryIds": [
+      "mountain-162018-pico-de-almanzor"
+    ],
     "name": "Pico de Almanzor",
     "nameAlt": null,
     "lat": 40.260085523681845,
@@ -3900,6 +5200,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-cherskoga",
+    "legacyDiscoveryIds": [
+      "mountain-56936-gora-cherskoga"
+    ],
     "name": "Gora Cherskoga",
     "nameAlt": null,
     "lat": 55.03996957145435,
@@ -3912,6 +5216,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pik-aborigen",
+    "legacyDiscoveryIds": [
+      "mountain-54773-pik-aborigen"
+    ],
     "name": "Pik Aborigen",
     "nameAlt": null,
     "lat": 61.97399166533164,
@@ -3924,6 +5232,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-halcon",
+    "legacyDiscoveryIds": [
+      "mountain-95113-mount-halcon"
+    ],
     "name": "Mount Halcon",
     "nameAlt": null,
     "lat": 13.260093254882207,
@@ -3936,6 +5248,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-mazong-shan",
+    "legacyDiscoveryIds": [
+      "mountain-56694-mazong-shan"
+    ],
     "name": "Mazong Shan",
     "nameAlt": null,
     "lat": 41.52381680609076,
@@ -3948,6 +5264,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-doi-inthanon",
+    "legacyDiscoveryIds": [
+      "mountain-93444-doi-inthanon"
+    ],
     "name": "Doi Inthanon",
     "nameAlt": null,
     "lat": 18.598284516890217,
@@ -3960,6 +5280,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-al-lawz",
+    "legacyDiscoveryIds": [
+      "mountain-6431-jabal-al-lawz"
+    ],
     "name": "Jabal al Lawz",
     "nameAlt": null,
     "lat": 28.68999895790472,
@@ -3972,6 +5296,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-darwin",
+    "legacyDiscoveryIds": [
+      "mountain-111392-cerro-darwin"
+    ],
     "name": "Cerro Darwin",
     "nameAlt": null,
     "lat": -54.65987903902017,
@@ -3984,6 +5312,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-brandberg",
+    "legacyDiscoveryIds": [
+      "mountain-130048-brandberg"
+    ],
     "name": "Brandberg",
     "nameAlt": null,
     "lat": -21.160235699804275,
@@ -3996,6 +5328,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-fenghuang-shan",
+    "legacyDiscoveryIds": [
+      "mountain-62309-fenghuang-shan"
+    ],
     "name": "Fenghuang Shan",
     "nameAlt": null,
     "lat": 27.895496630261178,
@@ -4008,6 +5344,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-uludag-tepe",
+    "legacyDiscoveryIds": [
+      "mountain-98670-uludag-tepe"
+    ],
     "name": "Uludag Tepe",
     "nameAlt": null,
     "lat": 40.0924604774327,
@@ -4020,6 +5360,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-moldoveanu",
+    "legacyDiscoveryIds": [
+      "mountain-99566-moldoveanu"
+    ],
     "name": "Moldoveanu",
     "nameAlt": null,
     "lat": 45.60845546319703,
@@ -4032,6 +5376,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pidurutalagala",
+    "legacyDiscoveryIds": [
+      "mountain-155812-pidurutalagala"
+    ],
     "name": "Pidurutalagala",
     "nameAlt": null,
     "lat": 7.000691286897265,
@@ -4044,6 +5392,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-igikpak",
+    "legacyDiscoveryIds": [
+      "mountain-48447-mount-igikpak"
+    ],
     "name": "Mt. Igikpak,",
     "nameAlt": null,
     "lat": 67.44078970981128,
@@ -4056,6 +5408,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n52p62128-e94p29665",
+    "legacyDiscoveryIds": [
+      "mountain-57869-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 52.62128152460012,
@@ -4068,6 +5424,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-durmitor",
+    "legacyDiscoveryIds": [
+      "mountain-98809-durmitor"
+    ],
     "name": "Durmitor",
     "nameAlt": null,
     "lat": 43.13006866493166,
@@ -4080,6 +5440,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-burun-shibertuy",
+    "legacyDiscoveryIds": [
+      "mountain-14339-gora-burun-shibertuy"
+    ],
     "name": "Gora Burun-Shibertuy",
     "nameAlt": null,
     "lat": 49.700081863195145,
@@ -4092,6 +5456,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-taranaki",
+    "legacyDiscoveryIds": [
+      "mountain-88755-mount-taranaki"
+    ],
     "name": "Mt. Taranaki",
     "nameAlt": "Mt. Egmont",
     "lat": -39.29629630610394,
@@ -4104,6 +5472,10 @@
     "subregion": "New Zealand"
   },
   {
+    "id": "mountain-kompasberg",
+    "legacyDiscoveryIds": [
+      "mountain-126762-kompasberg"
+    ],
     "name": "Kompasberg",
     "nameAlt": null,
     "lat": -31.769487422165824,
@@ -4116,6 +5488,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-torres-del-paine",
+    "legacyDiscoveryIds": [
+      "mountain-28030-torres-del-paine"
+    ],
     "name": "Torres del Paine",
     "nameAlt": null,
     "lat": -50.959041150458305,
@@ -4128,6 +5504,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-golets-oblachnyy",
+    "legacyDiscoveryIds": [
+      "mountain-222-gora-golets-oblachnyy"
+    ],
     "name": "Gora Golets-Oblachnyy",
     "nameAlt": null,
     "lat": 57.62099136791709,
@@ -4140,6 +5520,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-galdhpiggen",
+    "legacyDiscoveryIds": [
+      "mountain-54969-galdhpiggen"
+    ],
     "name": "Galdhpiggen",
     "nameAlt": null,
     "lat": 61.636479644498415,
@@ -4152,6 +5536,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-skalistyy-golets",
+    "legacyDiscoveryIds": [
+      "mountain-58838-skalistyy-golets"
+    ],
     "name": "Skalistyy Golets",
     "nameAlt": null,
     "lat": 56.4014888627715,
@@ -4164,6 +5552,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jebel-tidirhine",
+    "legacyDiscoveryIds": [
+      "mountain-161402-jebel-tidirhine"
+    ],
     "name": "Jebel Tidirhine",
     "nameAlt": null,
     "lat": 34.83020538095442,
@@ -4176,6 +5568,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-psiloritis",
+    "legacyDiscoveryIds": [
+      "mountain-24719-psiloritis"
+    ],
     "name": "Psiloritis",
     "nameAlt": null,
     "lat": 35.230001214152985,
@@ -4188,6 +5584,10 @@
     "subregion": "Mediterranean Sea"
   },
   {
+    "id": "mountain-gora-ledyanaya",
+    "legacyDiscoveryIds": [
+      "mountain-53456-gora-ledyanaya"
+    ],
     "name": "Gora Ledyanaya",
     "nameAlt": null,
     "lat": 61.901811916500975,
@@ -4200,6 +5600,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-binga",
+    "legacyDiscoveryIds": [
+      "mountain-125102-mount-binga"
+    ],
     "name": "Mt. Binga",
     "nameAlt": null,
     "lat": -19.787164417348023,
@@ -4212,6 +5616,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-canlaon-pk",
+    "legacyDiscoveryIds": [
+      "mountain-90791-canlaon-pk"
+    ],
     "name": "Canlaon Pk.",
     "nameAlt": null,
     "lat": 10.456473475316088,
@@ -4224,6 +5632,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-mount-olympus-n47p81169-w123p71761",
+    "legacyDiscoveryIds": [
+      "mountain-46538-mount-olympus"
+    ],
     "name": "Mt. Olympus",
     "nameAlt": null,
     "lat": 47.81169483614935,
@@ -4236,6 +5648,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-chuo-yang-sin",
+    "legacyDiscoveryIds": [
+      "mountain-23313-chuo-yang-sin"
+    ],
     "name": "Chuo Yang Sin",
     "nameAlt": null,
     "lat": 12.404316904308558,
@@ -4248,6 +5664,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-serra-namuli",
+    "legacyDiscoveryIds": [
+      "mountain-7981-serra-namuli"
+    ],
     "name": "Serra Namúli",
     "nameAlt": null,
     "lat": -15.333427525874356,
@@ -4260,6 +5680,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-chappal-wadi",
+    "legacyDiscoveryIds": [
+      "mountain-160414-chappal-wadi"
+    ],
     "name": "Chappal Wadi",
     "nameAlt": null,
     "lat": 7.059986122534312,
@@ -4272,6 +5696,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-shimbiris",
+    "legacyDiscoveryIds": [
+      "mountain-25166-shimbiris"
+    ],
     "name": "Shimbiris",
     "nameAlt": null,
     "lat": 10.738770209830605,
@@ -4284,6 +5712,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n67p60329-e128p14504",
+    "legacyDiscoveryIds": [
+      "mountain-13667-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 67.60328502572943,
@@ -4296,6 +5728,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-fox-mountain",
+    "legacyDiscoveryIds": [
+      "mountain-47975-fox-mountain"
+    ],
     "name": "Fox Mountain",
     "nameAlt": null,
     "lat": 61.91998812633523,
@@ -4308,6 +5744,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-maglic",
+    "legacyDiscoveryIds": [
+      "mountain-98810-maglic"
+    ],
     "name": "Maglic",
     "nameAlt": null,
     "lat": 43.27996180869807,
@@ -4320,6 +5760,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n55p90887-e130p42546",
+    "legacyDiscoveryIds": [
+      "mountain-60015-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 55.908873184686065,
@@ -4332,6 +5776,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-botev",
+    "legacyDiscoveryIds": [
+      "mountain-98839-botev"
+    ],
     "name": "Botev",
     "nameAlt": null,
     "lat": 42.7199729794937,
@@ -4344,6 +5792,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n53p60999-e134p56996",
+    "legacyDiscoveryIds": [
+      "mountain-958-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 53.60998655642821,
@@ -4356,6 +5808,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kartala",
+    "legacyDiscoveryIds": [
+      "mountain-125841-kartala"
+    ],
     "name": "Kartala",
     "nameAlt": null,
     "lat": -11.750048344419142,
@@ -4368,6 +5824,10 @@
     "subregion": "Comores"
   },
   {
+    "id": "mountain-jebel-lekst",
+    "legacyDiscoveryIds": [
+      "mountain-163326-jebel-lekst"
+    ],
     "name": "Jebel Lekst",
     "nameAlt": null,
     "lat": 29.789982785495788,
@@ -4380,6 +5840,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-alto",
+    "legacyDiscoveryIds": [
+      "mountain-72880-pico-alto"
+    ],
     "name": "Pico Alto",
     "nameAlt": null,
     "lat": 38.469971204473204,
@@ -4392,6 +5856,10 @@
     "subregion": "North Atlantic Ocean"
   },
   {
+    "id": "mountain-mount-frank-rae",
+    "legacyDiscoveryIds": [
+      "mountain-47861-mount-frank-rae"
+    ],
     "name": "Mt. Frank Rae",
     "nameAlt": null,
     "lat": 64.49507236091878,
@@ -4404,6 +5872,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n78p80068-w79p55084",
+    "legacyDiscoveryIds": [
+      "mountain-52990-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 78.80067850674973,
@@ -4416,6 +5888,10 @@
     "subregion": "Arctic Archipelago"
   },
   {
+    "id": "mountain-peak-s4p39999-e152p92979",
+    "legacyDiscoveryIds": [
+      "mountain-85782-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -4.399993003224708,
@@ -4428,6 +5904,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-vulkan-alaid",
+    "legacyDiscoveryIds": [
+      "mountain-61073-vulkan-alaid"
+    ],
     "name": "Vulkan Alaid",
     "nameAlt": null,
     "lat": 50.86000679166182,
@@ -4440,6 +5920,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-popomanaseu",
+    "legacyDiscoveryIds": [
+      "mountain-87268-mount-popomanaseu"
+    ],
     "name": "Mt. Popomanaseu",
     "nameAlt": null,
     "lat": -9.7021145866061,
@@ -4452,6 +5936,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-ulawun",
+    "legacyDiscoveryIds": [
+      "mountain-85799-ulawun"
+    ],
     "name": "Ulawun",
     "nameAlt": null,
     "lat": -5.050135833206923,
@@ -4464,6 +5952,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-die-berg",
+    "legacyDiscoveryIds": [
+      "mountain-125157-die-berg"
+    ],
     "name": "Die Berg",
     "nameAlt": null,
     "lat": -25.22225507356127,
@@ -4476,6 +5968,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-garet-el-djenoun",
+    "legacyDiscoveryIds": [
+      "mountain-162853-garet-el-djenoun"
+    ],
     "name": "Garet el Djenoun",
     "nameAlt": null,
     "lat": 25.045790060870885,
@@ -4488,6 +5984,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-djebel-chelia",
+    "legacyDiscoveryIds": [
+      "mountain-161888-djebel-chelia"
+    ],
     "name": "Djebel Chelia",
     "nameAlt": null,
     "lat": 35.33336326074372,
@@ -4500,6 +6000,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-seweweekspoort-pk",
+    "legacyDiscoveryIds": [
+      "mountain-122110-seweweekspoort-pk"
+    ],
     "name": "Seweweekspoort Pk.",
     "nameAlt": null,
     "lat": -33.39581389497923,
@@ -4512,6 +6016,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-moncayo",
+    "legacyDiscoveryIds": [
+      "mountain-40595-moncayo"
+    ],
     "name": "Moncayo",
     "nameAlt": null,
     "lat": 41.779980190021384,
@@ -4524,6 +6032,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-lalla-khedidja",
+    "legacyDiscoveryIds": [
+      "mountain-161877-lalla-khedidja"
+    ],
     "name": "Lalla Khedidja",
     "nameAlt": null,
     "lat": 36.45709733585154,
@@ -4536,6 +6048,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n30p24532-e110p58140",
+    "legacyDiscoveryIds": [
+      "mountain-62341-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 30.245317037632326,
@@ -4548,6 +6064,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jebel-jar",
+    "legacyDiscoveryIds": [
+      "mountain-100711-jebel-jar"
+    ],
     "name": "Jebel Jar",
     "nameAlt": null,
     "lat": 24.5658169465146,
@@ -4560,6 +6080,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-asahi-dake",
+    "legacyDiscoveryIds": [
+      "mountain-64435-asahi-dake"
+    ],
     "name": "Asahi-dake",
     "nameAlt": "Mount Asahi",
     "lat": 43.6577846237859,
@@ -4572,6 +6096,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-cantillana",
+    "legacyDiscoveryIds": [
+      "mountain-107447-cerro-cantillana"
+    ],
     "name": "Cerro Cantillana",
     "nameAlt": null,
     "lat": -33.97002055943172,
@@ -4584,6 +6112,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-bukit-raya",
+    "legacyDiscoveryIds": [
+      "mountain-24198-bukit-raya"
+    ],
     "name": "Bukit Raya",
     "nameAlt": null,
     "lat": -0.666841852735317,
@@ -4596,6 +6128,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-beerenberg",
+    "legacyDiscoveryIds": [
+      "mountain-12643-beerenberg"
+    ],
     "name": "Beerenberg",
     "nameAlt": null,
     "lat": 71.08007083440116,
@@ -4608,6 +6144,10 @@
     "subregion": "Arctic Ocean"
   },
   {
+    "id": "mountain-san-lorenzo",
+    "legacyDiscoveryIds": [
+      "mountain-162056-san-lorenzo"
+    ],
     "name": "San Lorenzo",
     "nameAlt": null,
     "lat": 42.24630095121328,
@@ -4620,6 +6160,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pic-bette",
+    "legacyDiscoveryIds": [
+      "mountain-160010-pic-bette"
+    ],
     "name": "Pic Bette",
     "nameAlt": null,
     "lat": 22.029993325173024,
@@ -4632,6 +6176,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-oda",
+    "legacyDiscoveryIds": [
+      "mountain-25349-jabal-oda"
+    ],
     "name": "Jabal Oda",
     "nameAlt": null,
     "lat": 20.340090509517182,
@@ -4644,6 +6192,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-perserajoq",
+    "legacyDiscoveryIds": [
+      "mountain-51641-perserajoq"
+    ],
     "name": "Perserajoq",
     "nameAlt": null,
     "lat": 71.37286937904213,
@@ -4656,6 +6208,10 @@
     "subregion": "Greenland"
   },
   {
+    "id": "mountain-blue-mountain-pk",
+    "legacyDiscoveryIds": [
+      "mountain-138110-blue-mountain-pk"
+    ],
     "name": "Blue Mountain Pk.",
     "nameAlt": null,
     "lat": 18.062732592018563,
@@ -4668,6 +6224,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-mount-ramlo",
+    "legacyDiscoveryIds": [
+      "mountain-100949-mount-ramlo"
+    ],
     "name": "Mt. Ramlo",
     "nameAlt": null,
     "lat": 13.392416062475505,
@@ -4680,6 +6240,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-takuan",
+    "legacyDiscoveryIds": [
+      "mountain-21588-takuan"
+    ],
     "name": "Takuan",
     "nameAlt": null,
     "lat": -6.479189841952646,
@@ -4692,6 +6256,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-mont-orohena",
+    "legacyDiscoveryIds": [
+      "mountain-143888-mont-orohena"
+    ],
     "name": "Mont Orohena",
     "nameAlt": null,
     "lat": -17.617086529448855,
@@ -4704,6 +6272,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-mount-kosciuszko",
+    "legacyDiscoveryIds": [
+      "mountain-150867-mount-kosciuszko"
+    ],
     "name": "Mt. Kosciuszko",
     "nameAlt": null,
     "lat": -36.45587979951783,
@@ -4716,6 +6288,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-outlook-pk",
+    "legacyDiscoveryIds": [
+      "mountain-53017-outlook-pk"
+    ],
     "name": "Outlook Pk.",
     "nameAlt": null,
     "lat": 79.75549500513131,
@@ -4728,6 +6304,10 @@
     "subregion": "Arctic Archipelago"
   },
   {
+    "id": "mountain-harney-pk",
+    "legacyDiscoveryIds": [
+      "mountain-44755-harney-pk"
+    ],
     "name": "Harney Pk.",
     "nameAlt": null,
     "lat": 43.886279777191056,
@@ -4740,6 +6320,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-golden-hinde",
+    "legacyDiscoveryIds": [
+      "mountain-46557-golden-hinde"
+    ],
     "name": "Golden Hinde",
     "nameAlt": null,
     "lat": 49.67653357356544,
@@ -4752,6 +6336,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gunung-tahan",
+    "legacyDiscoveryIds": [
+      "mountain-95716-gunung-tahan"
+    ],
     "name": "Gunung Tahan",
     "nameAlt": null,
     "lat": 4.633502501240059,
@@ -4764,6 +6352,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-el-teleno",
+    "legacyDiscoveryIds": [
+      "mountain-162069-el-teleno"
+    ],
     "name": "El Teleno",
     "nameAlt": null,
     "lat": 42.3499861304233,
@@ -4776,6 +6368,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-huanggang-shan",
+    "legacyDiscoveryIds": [
+      "mountain-15513-huanggang-shan"
+    ],
     "name": "Huanggang Shan",
     "nameAlt": null,
     "lat": 27.853287431868324,
@@ -4788,6 +6384,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-midzor",
+    "legacyDiscoveryIds": [
+      "mountain-98772-midzor"
+    ],
     "name": "Midzor",
     "nameAlt": null,
     "lat": 43.39006924871618,
@@ -4800,6 +6400,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-s9p91983-e33p37000",
+    "legacyDiscoveryIds": [
+      "mountain-124776-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -9.919825188842935,
@@ -4812,6 +6416,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monte-viglio",
+    "legacyDiscoveryIds": [
+      "mountain-40450-monte-viglio"
+    ],
     "name": "Monte Viglio",
     "nameAlt": null,
     "lat": 41.880070518841954,
@@ -4824,6 +6432,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-england-pk",
+    "legacyDiscoveryIds": [
+      "mountain-109809-england-pk"
+    ],
     "name": "England Pk.",
     "nameAlt": null,
     "lat": -82.61812109028118,
@@ -4836,6 +6448,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-vsevidof",
+    "legacyDiscoveryIds": [
+      "mountain-10334-mount-vsevidof"
+    ],
     "name": "Mt. Vsevidof",
     "nameAlt": null,
     "lat": 53.14818965190617,
@@ -4848,6 +6464,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-odin",
+    "legacyDiscoveryIds": [
+      "mountain-13156-mount-odin"
+    ],
     "name": "Mt. Odin",
     "nameAlt": null,
     "lat": 66.5646963958007,
@@ -4860,6 +6480,10 @@
     "subregion": "Arctic Archipelago"
   },
   {
+    "id": "mountain-nanfengmian",
+    "legacyDiscoveryIds": [
+      "mountain-991-nanfengmian"
+    ],
     "name": "Nanfengmian",
     "nameAlt": null,
     "lat": 26.310006042208727,
@@ -4872,6 +6496,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-hua-shan",
+    "legacyDiscoveryIds": [
+      "mountain-62652-hua-shan"
+    ],
     "name": "Hua Shan",
     "nameAlt": null,
     "lat": 34.43598358543836,
@@ -4884,6 +6512,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-phu-soai-dao",
+    "legacyDiscoveryIds": [
+      "mountain-23440-phu-soai-dao"
+    ],
     "name": "Phu Soai Dao",
     "nameAlt": null,
     "lat": 17.729986777319652,
@@ -4896,6 +6528,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kebnekaise",
+    "legacyDiscoveryIds": [
+      "mountain-55192-kebnekaise"
+    ],
     "name": "Kebnekaise",
     "nameAlt": null,
     "lat": 67.90601989841312,
@@ -4908,6 +6544,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-hvannadalshnkur",
+    "legacyDiscoveryIds": [
+      "mountain-50657-hvannadalshnkur"
+    ],
     "name": "Hvannadalshnkur",
     "nameAlt": null,
     "lat": 64.03888988565664,
@@ -4920,6 +6560,10 @@
     "subregion": "Iceland"
   },
   {
+    "id": "mountain-pico-mogoton",
+    "legacyDiscoveryIds": [
+      "mountain-137318-pico-mogoton"
+    ],
     "name": "Pico Mogotón",
     "nameAlt": null,
     "lat": 13.763816616755236,
@@ -4932,6 +6576,10 @@
     "subregion": "Central America"
   },
   {
+    "id": "mountain-gora-tardoki-yani",
+    "legacyDiscoveryIds": [
+      "mountain-60134-gora-tardoki-yani"
+    ],
     "name": "Gora Tardoki-Yani",
     "nameAlt": null,
     "lat": 48.899965106291695,
@@ -4944,6 +6592,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-mantalingajan",
+    "legacyDiscoveryIds": [
+      "mountain-95410-mount-mantalingajan"
+    ],
     "name": "Mt. Mantalingajan",
     "nameAlt": null,
     "lat": 8.845778542960147,
@@ -4956,6 +6608,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-myinmoletkat-taung",
+    "legacyDiscoveryIds": [
+      "mountain-23392-myinmoletkat-taung"
+    ],
     "name": "Myinmoletkat Taung",
     "nameAlt": null,
     "lat": 13.480590875960303,
@@ -4968,6 +6624,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cero-raya",
+    "legacyDiscoveryIds": [
+      "mountain-138656-cero-raya"
+    ],
     "name": "Cero Raya",
     "nameAlt": null,
     "lat": 5.451674293245532,
@@ -4980,6 +6640,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-sunzu",
+    "legacyDiscoveryIds": [
+      "mountain-31288-sunzu"
+    ],
     "name": "Sunzu",
     "nameAlt": null,
     "lat": -9.179851490702134,
@@ -4992,6 +6656,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-queen-mary-s-peak",
+    "legacyDiscoveryIds": [
+      "mountain-32277-queen-mary-s-peak"
+    ],
     "name": "Queen Mary's Peak",
     "nameAlt": null,
     "lat": -37.09366280681276,
@@ -5004,6 +6672,10 @@
     "subregion": "Southern Atlantic Ocean"
   },
   {
+    "id": "mountain-gora-goverla",
+    "legacyDiscoveryIds": [
+      "mountain-99584-gora-goverla"
+    ],
     "name": "Gora Goverla",
     "nameAlt": null,
     "lat": 48.15999140815089,
@@ -5016,6 +6688,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-katmai",
+    "legacyDiscoveryIds": [
+      "mountain-41203-mount-katmai"
+    ],
     "name": "Mt. Katmai",
     "nameAlt": null,
     "lat": 58.27880859760711,
@@ -5028,6 +6704,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-dimlang",
+    "legacyDiscoveryIds": [
+      "mountain-160347-dimlang"
+    ],
     "name": "Dimlang",
     "nameAlt": null,
     "lat": 8.397755166334719,
@@ -5040,6 +6720,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-iwate-san",
+    "legacyDiscoveryIds": [
+      "mountain-65640-iwate-san"
+    ],
     "name": "Iwate-san",
     "nameAlt": null,
     "lat": 39.859885774709184,
@@ -5052,6 +6736,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-mitchell",
+    "legacyDiscoveryIds": [
+      "mountain-73765-mount-mitchell"
+    ],
     "name": "Mt. Mitchell",
     "nameAlt": null,
     "lat": 35.76470491589905,
@@ -5064,6 +6752,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-serra-do-barbado",
+    "legacyDiscoveryIds": [
+      "mountain-105606-serra-do-barbado"
+    ],
     "name": "Serra do Barbado",
     "nameAlt": null,
     "lat": -13.303750761050381,
@@ -5076,6 +6768,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-huanggangliang",
+    "legacyDiscoveryIds": [
+      "mountain-62271-huanggangliang"
+    ],
     "name": "Huanggangliang",
     "nameAlt": null,
     "lat": 43.54186079662083,
@@ -5088,6 +6784,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-clingmans-dome",
+    "legacyDiscoveryIds": [
+      "mountain-4627-clingmans-dome"
+    ],
     "name": "Clingmans Dome",
     "nameAlt": null,
     "lat": 35.58694158372014,
@@ -5100,6 +6800,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-de-sao-tome",
+    "legacyDiscoveryIds": [
+      "mountain-160114-pico-de-sao-tome"
+    ],
     "name": "Pico de São Tomé",
     "nameAlt": null,
     "lat": 0.281956300612265,
@@ -5112,6 +6816,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-bagzane",
+    "legacyDiscoveryIds": [
+      "mountain-162944-mont-bagzane"
+    ],
     "name": "Mont Bagzane",
     "nameAlt": null,
     "lat": 18.666627065866976,
@@ -5124,6 +6832,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-moussa-ali",
+    "legacyDiscoveryIds": [
+      "mountain-100882-moussa-ali"
+    ],
     "name": "Moussa Ali",
     "nameAlt": null,
     "lat": 12.450080561513445,
@@ -5136,6 +6848,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n68p37472-e140p09569",
+    "legacyDiscoveryIds": [
+      "mountain-3450-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 68.37472376267218,
@@ -5148,6 +6864,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pummel-pk",
+    "legacyDiscoveryIds": [
+      "mountain-11145-pummel-pk"
+    ],
     "name": "Pummel Pk.",
     "nameAlt": null,
     "lat": 29.29163150341821,
@@ -5160,6 +6880,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-harper",
+    "legacyDiscoveryIds": [
+      "mountain-48435-mount-harper"
+    ],
     "name": "Mount Harper",
     "nameAlt": null,
     "lat": 64.23999954957822,
@@ -5172,6 +6896,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-bogong",
+    "legacyDiscoveryIds": [
+      "mountain-37775-mount-bogong"
+    ],
     "name": "Mount Bogong",
     "nameAlt": null,
     "lat": -36.730057826973066,
@@ -5184,6 +6912,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-ishizuchi-san",
+    "legacyDiscoveryIds": [
+      "mountain-65663-ishizuchi-san"
+    ],
     "name": "Ishizuchi-san",
     "nameAlt": null,
     "lat": 33.77008804026645,
@@ -5196,6 +6928,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-picacho-la-laguna",
+    "legacyDiscoveryIds": [
+      "mountain-19712-picacho-la-laguna"
+    ],
     "name": "Picacho la Laguna",
     "nameAlt": null,
     "lat": 23.5578047406848,
@@ -5208,6 +6944,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-turquino",
+    "legacyDiscoveryIds": [
+      "mountain-34627-pico-turquino"
+    ],
     "name": "Pico Turquino",
     "nameAlt": null,
     "lat": 19.989491617603306,
@@ -5220,6 +6960,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-qiajivik-mtn",
+    "legacyDiscoveryIds": [
+      "mountain-53185-qiajivik-mtn"
+    ],
     "name": "Qiajivik Mtn.",
     "nameAlt": null,
     "lat": 72.19067764685092,
@@ -5232,6 +6976,10 @@
     "subregion": "Arctic Archipelago"
   },
   {
+    "id": "mountain-peak-n25p42547-e91p79253",
+    "legacyDiscoveryIds": [
+      "mountain-91951-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 25.425470888519556,
@@ -5244,6 +6992,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-teljo",
+    "legacyDiscoveryIds": [
+      "mountain-160474-jabal-teljo"
+    ],
     "name": "Jabal Teljo",
     "nameAlt": null,
     "lat": 14.700214555838116,
@@ -5256,6 +7008,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-olympus",
+    "legacyDiscoveryIds": [
+      "mountain-101973-olympus"
+    ],
     "name": "Olympus",
     "nameAlt": null,
     "lat": 34.965759514740476,
@@ -5268,6 +7024,10 @@
     "subregion": "Mediterranean Sea"
   },
   {
+    "id": "mountain-halla-san",
+    "legacyDiscoveryIds": [
+      "mountain-1040-halla-san"
+    ],
     "name": "Halla-san",
     "nameAlt": null,
     "lat": 33.359992354828485,
@@ -5280,6 +7040,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-loma-mansa",
+    "legacyDiscoveryIds": [
+      "mountain-158329-loma-mansa"
+    ],
     "name": "Loma Mansa",
     "nameAlt": null,
     "lat": 9.242666182585225,
@@ -5292,6 +7056,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-shengtang-shan",
+    "legacyDiscoveryIds": [
+      "mountain-61724-shengtang-shan"
+    ],
     "name": "Shengtang Shan",
     "nameAlt": null,
     "lat": 23.98979266107868,
@@ -5304,6 +7072,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-al-uwaynt",
+    "legacyDiscoveryIds": [
+      "mountain-100636-jabal-al-uwaynt"
+    ],
     "name": "Jabal al Uwaynt",
     "nameAlt": null,
     "lat": 21.916492992652508,
@@ -5316,6 +7088,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-washington",
+    "legacyDiscoveryIds": [
+      "mountain-18651-mount-washington"
+    ],
     "name": "Mt. Washington",
     "nameAlt": null,
     "lat": 44.267293526894235,
@@ -5328,6 +7104,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-oksskolten",
+    "legacyDiscoveryIds": [
+      "mountain-55267-oksskolten"
+    ],
     "name": "Oksskolten",
     "nameAlt": null,
     "lat": 66.02449943952693,
@@ -5340,6 +7120,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-chiri-san",
+    "legacyDiscoveryIds": [
+      "mountain-16417-chiri-san"
+    ],
     "name": "Chiri-san",
     "nameAlt": null,
     "lat": 35.33679654482352,
@@ -5352,6 +7136,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-troglav",
+    "legacyDiscoveryIds": [
+      "mountain-24770-troglav"
+    ],
     "name": "Troglav",
     "nameAlt": null,
     "lat": 43.960519496469594,
@@ -5364,6 +7152,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n83p32740-w35p35320",
+    "legacyDiscoveryIds": [
+      "mountain-12730-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 83.32740297860224,
@@ -5376,6 +7168,10 @@
     "subregion": "Greenland"
   },
   {
+    "id": "mountain-peak-n75p36348-w82p63482",
+    "legacyDiscoveryIds": [
+      "mountain-13266-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 75.36347644393925,
@@ -5388,6 +7184,10 @@
     "subregion": "Arctic Archipelago"
   },
   {
+    "id": "mountain-paishidin",
+    "legacyDiscoveryIds": [
+      "mountain-15496-paishidin"
+    ],
     "name": "Paishidin",
     "nameAlt": null,
     "lat": 24.92982584212841,
@@ -5400,6 +7200,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-narodnaya",
+    "legacyDiscoveryIds": [
+      "mountain-58685-gora-narodnaya"
+    ],
     "name": "Gora Narodnaya",
     "nameAlt": null,
     "lat": 65.02711021855582,
@@ -5412,6 +7216,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-s13p90639-e29p66819",
+    "legacyDiscoveryIds": [
+      "mountain-124543-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -13.906393095999107,
@@ -5424,6 +7232,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n67p82128-e178p26896",
+    "legacyDiscoveryIds": [
+      "mountain-53536-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 67.82127836900814,
@@ -5436,6 +7248,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-puy-de-sancy",
+    "legacyDiscoveryIds": [
+      "mountain-161081-puy-de-sancy"
+    ],
     "name": "Puy de Sancy",
     "nameAlt": null,
     "lat": 45.53041893564201,
@@ -5448,6 +7264,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-arlan",
+    "legacyDiscoveryIds": [
+      "mountain-101520-gora-arlan"
+    ],
     "name": "Gora Arlan",
     "nameAlt": null,
     "lat": 39.67000496930744,
@@ -5460,6 +7280,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-parana",
+    "legacyDiscoveryIds": [
+      "mountain-108077-pico-parana"
+    ],
     "name": "Pico Paraná",
     "nameAlt": null,
     "lat": -25.2557800828111,
@@ -5472,6 +7296,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-tabwemasana",
+    "legacyDiscoveryIds": [
+      "mountain-86256-mount-tabwemasana"
+    ],
     "name": "Mt. Tabwemasana",
     "nameAlt": null,
     "lat": -15.35233078410198,
@@ -5484,6 +7312,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-yunwu-shan",
+    "legacyDiscoveryIds": [
+      "mountain-62192-yunwu-shan"
+    ],
     "name": "Yunwu Shan",
     "nameAlt": null,
     "lat": 41.09639313394415,
@@ -5496,6 +7328,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-emlembe",
+    "legacyDiscoveryIds": [
+      "mountain-125160-emlembe"
+    ],
     "name": "Emlembe",
     "nameAlt": null,
     "lat": -25.919817615422176,
@@ -5508,6 +7344,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mauga-silisili",
+    "legacyDiscoveryIds": [
+      "mountain-89097-mauga-silisili"
+    ],
     "name": "Mauga Silisili",
     "nameAlt": null,
     "lat": -13.610080484123515,
@@ -5520,6 +7360,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-daiyun-shan",
+    "legacyDiscoveryIds": [
+      "mountain-15515-daiyun-shan"
+    ],
     "name": "Daiyun Shan",
     "nameAlt": null,
     "lat": 25.68090722405681,
@@ -5532,6 +7376,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-is",
+    "legacyDiscoveryIds": [
+      "mountain-100757-jabal-is"
+    ],
     "name": "Jabal Is",
     "nameAlt": null,
     "lat": 22.049865981258463,
@@ -5544,6 +7392,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-bukit-pagon",
+    "legacyDiscoveryIds": [
+      "mountain-95307-bukit-pagon"
+    ],
     "name": "Bukit Pagon",
     "nameAlt": null,
     "lat": 4.299989246570377,
@@ -5556,6 +7408,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-grand-ross",
+    "legacyDiscoveryIds": [
+      "mountain-118896-grand-ross"
+    ],
     "name": "Grand Ross",
     "nameAlt": null,
     "lat": -49.578537817758715,
@@ -5568,6 +7424,10 @@
     "subregion": "South Indian Ocean"
   },
   {
+    "id": "mountain-wuzhi-shan",
+    "legacyDiscoveryIds": [
+      "mountain-93065-wuzhi-shan"
+    ],
     "name": "Wuzhi Shan",
     "nameAlt": null,
     "lat": 18.913258037528976,
@@ -5580,6 +7440,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-punta-la-marmora",
+    "legacyDiscoveryIds": [
+      "mountain-161754-punta-la-marmora"
+    ],
     "name": "Punta la Marmora",
     "nameAlt": null,
     "lat": 40.03114606292518,
@@ -5592,6 +7456,10 @@
     "subregion": "Mediterranean Sea"
   },
   {
+    "id": "mountain-dinara",
+    "legacyDiscoveryIds": [
+      "mountain-98727-dinara"
+    ],
     "name": "Dinara",
     "nameAlt": null,
     "lat": 44.06000395162903,
@@ -5604,6 +7472,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-morro-da-boa-vista",
+    "legacyDiscoveryIds": [
+      "mountain-108116-morro-da-boa-vista"
+    ],
     "name": "Morro da Boa Vista",
     "nameAlt": null,
     "lat": -28.11550376339892,
@@ -5616,6 +7488,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-phnom-aural",
+    "legacyDiscoveryIds": [
+      "mountain-93213-phnom-aural"
+    ],
     "name": "Phnom Aural",
     "nameAlt": null,
     "lat": 12.050930993553436,
@@ -5628,6 +7504,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-alto-de-buey",
+    "legacyDiscoveryIds": [
+      "mountain-139116-alto-de-buey"
+    ],
     "name": "Alto de Buey",
     "nameAlt": null,
     "lat": 6.080086454581476,
@@ -5640,6 +7520,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-buller",
+    "legacyDiscoveryIds": [
+      "mountain-150917-mount-buller"
+    ],
     "name": "Mt. Buller",
     "nameAlt": null,
     "lat": -37.15643131810704,
@@ -5652,6 +7536,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-kuju-san",
+    "legacyDiscoveryIds": [
+      "mountain-4129-kuju-san"
+    ],
     "name": "Kuju-san",
     "nameAlt": null,
     "lat": 33.08007872338111,
@@ -5664,6 +7552,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-qingliang-feng",
+    "legacyDiscoveryIds": [
+      "mountain-61703-qingliang-feng"
+    ],
     "name": "Qingliang Feng",
     "nameAlt": null,
     "lat": 30.121112937098317,
@@ -5676,6 +7568,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-junipero-serra-pk",
+    "legacyDiscoveryIds": [
+      "mountain-44646-junipero-serra-pk"
+    ],
     "name": "Junipero Serra Pk.",
     "nameAlt": null,
     "lat": 36.15916906087957,
@@ -5688,6 +7584,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n9p21698-e9p16219",
+    "legacyDiscoveryIds": [
+      "mountain-160379-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 9.216977139352835,
@@ -5700,6 +7600,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-khao-luang",
+    "legacyDiscoveryIds": [
+      "mountain-92518-khao-luang"
+    ],
     "name": "Khao Luang",
     "nameAlt": null,
     "lat": 8.498168627774575,
@@ -5712,6 +7616,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-tianzhu-shan",
+    "legacyDiscoveryIds": [
+      "mountain-61663-tianzhu-shan"
+    ],
     "name": "Tianzhu Shan",
     "nameAlt": null,
     "lat": 31.06001515398058,
@@ -5724,6 +7632,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-ramm",
+    "legacyDiscoveryIds": [
+      "mountain-101791-jabal-ramm"
+    ],
     "name": "Jabal Ramm",
     "nameAlt": null,
     "lat": 29.570091038078836,
@@ -5736,6 +7648,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-richard-molard",
+    "legacyDiscoveryIds": [
+      "mountain-158348-mount-richard-molard"
+    ],
     "name": "Mt. Richard-Molard",
     "nameAlt": "Mt. Nimba",
     "lat": 7.619692210696826,
@@ -5748,6 +7664,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-rogers",
+    "legacyDiscoveryIds": [
+      "mountain-73760-mount-rogers"
+    ],
     "name": "Mt. Rogers",
     "nameAlt": null,
     "lat": 36.6770294748459,
@@ -5760,6 +7680,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n14p96648-e49p04807",
+    "legacyDiscoveryIds": [
+      "mountain-6341-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 14.966475834121098,
@@ -5772,6 +7696,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-guru-sikhar",
+    "legacyDiscoveryIds": [
+      "mountain-155376-guru-sikhar"
+    ],
     "name": "Guru Sikhar",
     "nameAlt": null,
     "lat": 24.656697995685832,
@@ -5784,6 +7712,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cret-de-la-neige",
+    "legacyDiscoveryIds": [
+      "mountain-40291-cret-de-la-neige"
+    ],
     "name": "Crêt de la Neige",
     "nameAlt": null,
     "lat": 46.26994832643131,
@@ -5796,6 +7728,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-newtontoppen",
+    "legacyDiscoveryIds": [
+      "mountain-55902-newtontoppen"
+    ],
     "name": "Newtontoppen",
     "nameAlt": null,
     "lat": 79.13867522651185,
@@ -5808,6 +7744,10 @@
     "subregion": "Arctic Ocean"
   },
   {
+    "id": "mountain-sorak-san",
+    "legacyDiscoveryIds": [
+      "mountain-65426-sorak-san"
+    ],
     "name": "Sorak-san",
     "nameAlt": null,
     "lat": 38.14191081275379,
@@ -5820,6 +7760,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volcan-wolf",
+    "legacyDiscoveryIds": [
+      "mountain-83460-volcan-wolf"
+    ],
     "name": "Volcán Wolf",
     "nameAlt": null,
     "lat": 0.058106178609179,
@@ -5832,6 +7776,10 @@
     "subregion": "Galapagos Islands"
   },
   {
+    "id": "mountain-gora-kamen",
+    "legacyDiscoveryIds": [
+      "mountain-59500-gora-kamen"
+    ],
     "name": "Gora Kamen",
     "nameAlt": null,
     "lat": 69.13008665180598,
@@ -5844,6 +7792,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-chapada-dos-veadeiros",
+    "legacyDiscoveryIds": [
+      "mountain-104973-chapada-dos-veadeiros"
+    ],
     "name": "Chapada dos Veadeiros",
     "nameAlt": null,
     "lat": -13.990084444391456,
@@ -5856,6 +7808,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jiuling-shan",
+    "legacyDiscoveryIds": [
+      "mountain-61863-jiuling-shan"
+    ],
     "name": "Jiuling Shan",
     "nameAlt": null,
     "lat": 28.883797746315167,
@@ -5868,6 +7824,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-hunsberge",
+    "legacyDiscoveryIds": [
+      "mountain-132122-hunsberge"
+    ],
     "name": "Hunsberge",
     "nameAlt": null,
     "lat": -27.83332820361663,
@@ -5880,6 +7840,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-caubvick",
+    "legacyDiscoveryIds": [
+      "mountain-13130-mount-caubvick"
+    ],
     "name": "Mt. Caubvick",
     "nameAlt": null,
     "lat": 58.896920906703656,
@@ -5892,6 +7856,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-de-los-inocentes",
+    "legacyDiscoveryIds": [
+      "mountain-26685-cerro-de-los-inocentes"
+    ],
     "name": "Cerro de Los Inocentes",
     "nameAlt": null,
     "lat": -33.74261597861661,
@@ -5904,6 +7872,10 @@
     "subregion": "South Pacific Ocean"
   },
   {
+    "id": "mountain-gora-korolenko",
+    "legacyDiscoveryIds": [
+      "mountain-58905-gora-korolenko"
+    ],
     "name": "Gora Korolenko",
     "nameAlt": null,
     "lat": 58.288260226720915,
@@ -5916,6 +7888,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-yamantau",
+    "legacyDiscoveryIds": [
+      "mountain-18-gora-yamantau"
+    ],
     "name": "Gora Yamantau",
     "nameAlt": null,
     "lat": 54.24348805651775,
@@ -5928,6 +7904,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-stokap",
+    "legacyDiscoveryIds": [
+      "mountain-15262-gora-stokap"
+    ],
     "name": "Gora Stokap",
     "nameAlt": null,
     "lat": 44.84364094494943,
@@ -5940,6 +7920,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-panie",
+    "legacyDiscoveryIds": [
+      "mountain-86313-mont-panie"
+    ],
     "name": "Mont Panié",
     "nameAlt": null,
     "lat": -20.589987409937905,
@@ -5952,6 +7936,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-mount-bartle-frere",
+    "legacyDiscoveryIds": [
+      "mountain-37602-mount-bartle-frere"
+    ],
     "name": "Mount Bartle Frere",
     "nameAlt": null,
     "lat": -17.39994140929575,
@@ -5964,6 +7952,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-mont-humboldt",
+    "legacyDiscoveryIds": [
+      "mountain-89482-mont-humboldt"
+    ],
     "name": "Mont Humboldt",
     "nameAlt": null,
     "lat": -21.887768792102975,
@@ -5976,6 +7968,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-mount-ossa",
+    "legacyDiscoveryIds": [
+      "mountain-9284-mount-ossa"
+    ],
     "name": "Mt. Ossa",
     "nameAlt": null,
     "lat": -41.871017016490825,
@@ -5988,6 +7984,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-gora-lopatina",
+    "legacyDiscoveryIds": [
+      "mountain-3790-gora-lopatina"
+    ],
     "name": "Gora Lopatina",
     "nameAlt": null,
     "lat": 50.855886850766055,
@@ -6000,6 +8000,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-round-mtn",
+    "legacyDiscoveryIds": [
+      "mountain-150677-round-mtn"
+    ],
     "name": "Round Mtn.",
     "nameAlt": null,
     "lat": -30.440362175931043,
@@ -6012,6 +8016,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-mount-katahdin",
+    "legacyDiscoveryIds": [
+      "mountain-74372-mount-katahdin"
+    ],
     "name": "Mt. Katahdin",
     "nameAlt": null,
     "lat": 45.90339476144071,
@@ -6024,6 +8032,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-snezka",
+    "legacyDiscoveryIds": [
+      "mountain-98240-snezka"
+    ],
     "name": "Sněžka",
     "nameAlt": null,
     "lat": 50.74000341517839,
@@ -6036,6 +8048,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n60p10826-w159p33959",
+    "legacyDiscoveryIds": [
+      "mountain-47371-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 60.10826431321254,
@@ -6048,6 +8064,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-volna",
+    "legacyDiscoveryIds": [
+      "mountain-53647-volna"
+    ],
     "name": "Volna",
     "nameAlt": null,
     "lat": 63.53605513848662,
@@ -6060,6 +8080,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-konzhakovskiy-kamen",
+    "legacyDiscoveryIds": [
+      "mountain-58503-gora-konzhakovskiy-kamen"
+    ],
     "name": "Gora Konzhakovskiy Kamen",
     "nameAlt": null,
     "lat": 59.632774663948695,
@@ -6072,6 +8096,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-salher",
+    "legacyDiscoveryIds": [
+      "mountain-155985-salher"
+    ],
     "name": "Salher",
     "nameAlt": null,
     "lat": 20.711491063796913,
@@ -6084,6 +8112,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-barrington-tops",
+    "legacyDiscoveryIds": [
+      "mountain-150713-barrington-tops"
+    ],
     "name": "Barrington Tops",
     "nameAlt": null,
     "lat": -32.0069898973333,
@@ -6096,6 +8128,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-serrania-de-santiago",
+    "legacyDiscoveryIds": [
+      "mountain-33615-serrania-de-santiago"
+    ],
     "name": "Serrania de Santiago",
     "nameAlt": null,
     "lat": -18.11592251045535,
@@ -6108,6 +8144,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-gora-sedova",
+    "legacyDiscoveryIds": [
+      "mountain-14034-gora-sedova"
+    ],
     "name": "Gora Sedova",
     "nameAlt": null,
     "lat": 75.17000078814806,
@@ -6120,6 +8160,10 @@
     "subregion": "Arctic Ocean"
   },
   {
+    "id": "mountain-roman-kosh",
+    "legacyDiscoveryIds": [
+      "mountain-24932-roman-kosh"
+    ],
     "name": "Roman-Kosh",
     "nameAlt": null,
     "lat": 44.62867696997643,
@@ -6132,6 +8176,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jebel-chambi",
+    "legacyDiscoveryIds": [
+      "mountain-161937-jebel-chambi"
+    ],
     "name": "Jebel Chambi",
     "nameAlt": null,
     "lat": 35.20007105529259,
@@ -6144,6 +8192,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-vulkan-milna",
+    "legacyDiscoveryIds": [
+      "mountain-60875-vulkan-milna"
+    ],
     "name": "Vulkan Milna",
     "nameAlt": null,
     "lat": 46.81814281503213,
@@ -6156,6 +8208,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-zeil",
+    "legacyDiscoveryIds": [
+      "mountain-151253-mount-zeil"
+    ],
     "name": "Mount Zeil",
     "nameAlt": null,
     "lat": -23.399948667157318,
@@ -6168,6 +8224,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-black-mt-n68p56263-w160p33969",
+    "legacyDiscoveryIds": [
+      "mountain-48601-black-mt"
+    ],
     "name": "Black Mt.",
     "nameAlt": null,
     "lat": 68.56262538078086,
@@ -6180,6 +8240,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-yibir",
+    "legacyDiscoveryIds": [
+      "mountain-6443-jabal-yibir"
+    ],
     "name": "Jabal Yibir",
     "nameAlt": null,
     "lat": 25.659984386958726,
@@ -6192,6 +8256,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-s49p32003-w74p49999",
+    "legacyDiscoveryIds": [
+      "mountain-111490-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -49.320031722338356,
@@ -6204,6 +8272,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-buku-sulat",
+    "legacyDiscoveryIds": [
+      "mountain-91718-buku-sulat"
+    ],
     "name": "Buku Sulat",
     "nameAlt": null,
     "lat": 0.752841310051423,
@@ -6216,6 +8288,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-peak-n12p56003-e54p02003",
+    "legacyDiscoveryIds": [
+      "mountain-152555-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 12.560026435221928,
@@ -6228,6 +8304,10 @@
     "subregion": "Arabian Sea"
   },
   {
+    "id": "mountain-mahendra-giri",
+    "legacyDiscoveryIds": [
+      "mountain-156171-mahendra-giri"
+    ],
     "name": "Mahendra Giri",
     "nameAlt": null,
     "lat": 18.974289710994626,
@@ -6240,6 +8320,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-unzen-dake",
+    "legacyDiscoveryIds": [
+      "mountain-16404-unzen-dake"
+    ],
     "name": "Unzen-dake",
     "nameAlt": null,
     "lat": 32.75658257990897,
@@ -6252,6 +8336,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-senlin-shan",
+    "legacyDiscoveryIds": [
+      "mountain-64576-senlin-shan"
+    ],
     "name": "Senlin Shan",
     "nameAlt": null,
     "lat": 43.17999265460972,
@@ -6264,6 +8352,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monalanong-hill",
+    "legacyDiscoveryIds": [
+      "mountain-124909-monalanong-hill"
+    ],
     "name": "Monalanong Hill",
     "nameAlt": null,
     "lat": -24.839989184958398,
@@ -6276,6 +8368,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-feldberg",
+    "legacyDiscoveryIds": [
+      "mountain-161110-feldberg"
+    ],
     "name": "Feldberg",
     "nameAlt": null,
     "lat": 47.87725036628486,
@@ -6288,6 +8384,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-pinatubo",
+    "legacyDiscoveryIds": [
+      "mountain-23854-mount-pinatubo"
+    ],
     "name": "Mt. Pinatubo",
     "nameAlt": null,
     "lat": 15.141775280078036,
@@ -6300,6 +8400,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-spruce-knob",
+    "legacyDiscoveryIds": [
+      "mountain-73692-spruce-knob"
+    ],
     "name": "Spruce Knob",
     "nameAlt": null,
     "lat": 38.71498651303882,
@@ -6312,6 +8416,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-la-soufriere-n16p04000-w61p66004",
+    "legacyDiscoveryIds": [
+      "mountain-138544-la-soufriere"
+    ],
     "name": "La Soufrière",
     "nameAlt": null,
     "lat": 16.040003178508996,
@@ -6324,6 +8432,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-morne-diablotins",
+    "legacyDiscoveryIds": [
+      "mountain-34743-morne-diablotins"
+    ],
     "name": "Morne Diablotins",
     "nameAlt": null,
     "lat": 15.500008180122293,
@@ -6336,6 +8448,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-puig-mayor",
+    "legacyDiscoveryIds": [
+      "mountain-162312-puig-mayor"
+    ],
     "name": "Puig Mayor",
     "nameAlt": null,
     "lat": 39.80846729666698,
@@ -6348,6 +8464,10 @@
     "subregion": "Mediterranean Sea"
   },
   {
+    "id": "mountain-mount-osborn",
+    "legacyDiscoveryIds": [
+      "mountain-47548-mount-osborn"
+    ],
     "name": "Mt. Osborn",
     "nameAlt": null,
     "lat": 65.00239057318124,
@@ -6360,6 +8480,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-balsam-beartown-mountain",
+    "legacyDiscoveryIds": [
+      "mountain-73641-balsam-beartown-mountain"
+    ],
     "name": "Balsam Beartown Mountain",
     "nameAlt": null,
     "lat": 37.08009702581463,
@@ -6372,6 +8496,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-ngaoui",
+    "legacyDiscoveryIds": [
+      "mountain-160731-mont-ngaoui"
+    ],
     "name": "Mont Ngaoui",
     "nameAlt": null,
     "lat": 6.59007051095297,
@@ -6384,6 +8512,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-masif-des-bongos",
+    "legacyDiscoveryIds": [
+      "mountain-159440-masif-des-bongos"
+    ],
     "name": "Masif des Bongos",
     "nameAlt": null,
     "lat": 8.599995794423748,
@@ -6396,6 +8528,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pipa-dingzi",
+    "legacyDiscoveryIds": [
+      "mountain-64604-pipa-dingzi"
+    ],
     "name": "Pipa Dingzi",
     "nameAlt": null,
     "lat": 43.99000534797848,
@@ -6408,6 +8544,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-montagne-pelee",
+    "legacyDiscoveryIds": [
+      "mountain-138616-montagne-pelee"
+    ],
     "name": "Montagne Pelée",
     "nameAlt": null,
     "lat": 14.820096757589312,
@@ -6420,6 +8560,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-mount-wuteve",
+    "legacyDiscoveryIds": [
+      "mountain-158311-mount-wuteve"
+    ],
     "name": "Mount Wuteve",
     "nameAlt": null,
     "lat": 8.140056902462547,
@@ -6432,6 +8576,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-aniakchak-pk",
+    "legacyDiscoveryIds": [
+      "mountain-41281-aniakchak-pk"
+    ],
     "name": "Aniakchak Pk.",
     "nameAlt": null,
     "lat": 56.872818179562174,
@@ -6444,6 +8592,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kodachadri",
+    "legacyDiscoveryIds": [
+      "mountain-156093-kodachadri"
+    ],
     "name": "Kodachadri",
     "nameAlt": null,
     "lat": 13.879538486033269,
@@ -6456,6 +8608,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-ben-nevis",
+    "legacyDiscoveryIds": [
+      "mountain-71862-ben-nevis"
+    ],
     "name": "Ben Nevis",
     "nameAlt": null,
     "lat": 56.79700318876467,
@@ -6468,6 +8624,10 @@
     "subregion": "British Isles"
   },
   {
+    "id": "mountain-cerro-de-punta",
+    "legacyDiscoveryIds": [
+      "mountain-137730-cerro-de-punta"
+    ],
     "name": "Cerro de Punta",
     "nameAlt": null,
     "lat": 18.1699722300406,
@@ -6480,6 +8640,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-haltiatunturi",
+    "legacyDiscoveryIds": [
+      "mountain-56330-haltiatunturi"
+    ],
     "name": "Haltiatunturi",
     "nameAlt": null,
     "lat": 69.30001401796746,
@@ -6492,6 +8656,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-tomanivi",
+    "legacyDiscoveryIds": [
+      "mountain-90077-tomanivi"
+    ],
     "name": "Tomanivi",
     "nameAlt": null,
     "lat": -17.61417833587538,
@@ -6504,6 +8672,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-vesuvio",
+    "legacyDiscoveryIds": [
+      "mountain-161794-vesuvio"
+    ],
     "name": "Vesuvio",
     "nameAlt": null,
     "lat": 40.81672185196123,
@@ -6516,6 +8688,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-slide-mt",
+    "legacyDiscoveryIds": [
+      "mountain-18750-slide-mt"
+    ],
     "name": "Slide Mt.",
     "nameAlt": null,
     "lat": 42.00879847604582,
@@ -6528,6 +8704,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-marcy",
+    "legacyDiscoveryIds": [
+      "mountain-74317-mount-marcy"
+    ],
     "name": "Mt. Marcy",
     "nameAlt": null,
     "lat": 44.133799363556065,
@@ -6540,6 +8720,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-jacques-cartier",
+    "legacyDiscoveryIds": [
+      "mountain-74222-mont-jacques-cartier"
+    ],
     "name": "Mont Jacques-Cartier",
     "nameAlt": null,
     "lat": 48.99670293418728,
@@ -6552,6 +8736,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-hongtu-zhang",
+    "legacyDiscoveryIds": [
+      "mountain-61876-hongtu-zhang"
+    ],
     "name": "Hongtu Zhang",
     "nameAlt": null,
     "lat": 23.769093082113542,
@@ -6564,6 +8752,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-dalrymple",
+    "legacyDiscoveryIds": [
+      "mountain-149839-mount-dalrymple"
+    ],
     "name": "Mount Dalrymple",
     "nameAlt": null,
     "lat": -21.02993247108145,
@@ -6576,6 +8768,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-mount-meharry",
+    "legacyDiscoveryIds": [
+      "mountain-146557-mount-meharry"
+    ],
     "name": "Mt. Meharry",
     "nameAlt": null,
     "lat": -22.966708607863737,
@@ -6588,6 +8784,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-cerro-tres-picos",
+    "legacyDiscoveryIds": [
+      "mountain-106416-cerro-tres-picos"
+    ],
     "name": "Cerro Tres Picos",
     "nameAlt": null,
     "lat": -38.13326122617674,
@@ -6600,6 +8800,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-s19p44674-e147p01994",
+    "legacyDiscoveryIds": [
+      "mountain-150131-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -19.446744202941332,
@@ -6612,6 +8816,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-la-soufriere-n13p34996-w61p18006",
+    "legacyDiscoveryIds": [
+      "mountain-138628-la-soufriere"
+    ],
     "name": "La Soufrière",
     "nameAlt": null,
     "lat": 13.349964514618193,
@@ -6624,6 +8832,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-julianatop",
+    "legacyDiscoveryIds": [
+      "mountain-8565-julianatop"
+    ],
     "name": "Julianatop",
     "nameAlt": null,
     "lat": 3.683007901641304,
@@ -6636,6 +8848,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kiska-volcano",
+    "legacyDiscoveryIds": [
+      "mountain-65767-kiska-volcano"
+    ],
     "name": "Kiska Volcano",
     "nameAlt": null,
     "lat": 52.092111468959146,
@@ -6648,6 +8864,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-har-meron",
+    "legacyDiscoveryIds": [
+      "mountain-25577-har-meron"
+    ],
     "name": "Har Meron",
     "nameAlt": null,
     "lat": 33.00002261695562,
@@ -6660,6 +8880,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monte-mitra",
+    "legacyDiscoveryIds": [
+      "mountain-160263-monte-mitra"
+    ],
     "name": "Monte Mitra",
     "nameAlt": null,
     "lat": 1.390058835262636,
@@ -6672,6 +8896,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-do-jabre",
+    "legacyDiscoveryIds": [
+      "mountain-104496-pico-do-jabre"
+    ],
     "name": "Pico do Jabre",
     "nameAlt": null,
     "lat": -7.245498848564409,
@@ -6684,6 +8912,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-ooumu",
+    "legacyDiscoveryIds": [
+      "mountain-142981-mont-ooumu"
+    ],
     "name": "Mont Ooumu",
     "nameAlt": null,
     "lat": -8.8500138695767,
@@ -6696,6 +8928,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-consuelo-pk",
+    "legacyDiscoveryIds": [
+      "mountain-149746-consuelo-pk"
+    ],
     "name": "Consuelo Pk.",
     "nameAlt": null,
     "lat": -24.953166384859628,
@@ -6708,6 +8944,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-doyle-s-delight",
+    "legacyDiscoveryIds": [
+      "mountain-34296-doyle-s-delight"
+    ],
     "name": "Doyle's Delight",
     "nameAlt": null,
     "lat": 16.500022853625026,
@@ -6720,6 +8960,10 @@
     "subregion": "Central America"
   },
   {
+    "id": "mountain-saint-mary-peak",
+    "legacyDiscoveryIds": [
+      "mountain-9513-saint-mary-peak"
+    ],
     "name": "Saint Mary Peak",
     "nameAlt": null,
     "lat": -31.50007560084491,
@@ -6732,6 +8976,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-mount-moresby",
+    "legacyDiscoveryIds": [
+      "mountain-41862-mount-moresby"
+    ],
     "name": "Mt. Moresby",
     "nameAlt": null,
     "lat": 53.02600513024264,
@@ -6744,6 +8992,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-seraya",
+    "legacyDiscoveryIds": [
+      "mountain-53746-seraya"
+    ],
     "name": "Seraya",
     "nameAlt": null,
     "lat": 63.64180028814451,
@@ -6756,6 +9008,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-warning",
+    "legacyDiscoveryIds": [
+      "mountain-149569-mount-warning"
+    ],
     "name": "Mt. Warning",
     "nameAlt": null,
     "lat": -28.397113841097493,
@@ -6768,6 +9024,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-mount-misery",
+    "legacyDiscoveryIds": [
+      "mountain-137504-mount-misery"
+    ],
     "name": "Mount Misery",
     "nameAlt": null,
     "lat": 17.366704930099218,
@@ -6780,6 +9040,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-hombori-tondo",
+    "legacyDiscoveryIds": [
+      "mountain-162602-hombori-tondo"
+    ],
     "name": "Hombori Tondo",
     "nameAlt": null,
     "lat": 15.260082210310259,
@@ -6792,6 +9056,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-serra-branca",
+    "legacyDiscoveryIds": [
+      "mountain-135365-pico-serra-branca"
+    ],
     "name": "Pico Serra Branca",
     "nameAlt": null,
     "lat": -4.790983472548007,
@@ -6804,6 +9072,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n51p10579-e121p97813",
+    "legacyDiscoveryIds": [
+      "mountain-61924-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 51.10578954019821,
@@ -6816,6 +9088,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-brocken",
+    "legacyDiscoveryIds": [
+      "mountain-6204-brocken"
+    ],
     "name": "Brocken",
     "nameAlt": null,
     "lat": 51.82447687704425,
@@ -6828,6 +9104,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-yapeitso",
+    "legacyDiscoveryIds": [
+      "mountain-12342-mont-yapeitso"
+    ],
     "name": "Mont Yapeitso",
     "nameAlt": null,
     "lat": 52.314871018372166,
@@ -6840,6 +9120,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-sakurajima",
+    "legacyDiscoveryIds": [
+      "mountain-65393-sakurajima"
+    ],
     "name": "Sakurajima",
     "nameAlt": null,
     "lat": 31.583328430897183,
@@ -6852,6 +9136,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kao",
+    "legacyDiscoveryIds": [
+      "mountain-5694-kao"
+    ],
     "name": "Kao",
     "nameAlt": null,
     "lat": -19.745561092616313,
@@ -6864,6 +9152,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-bluff-knoll",
+    "legacyDiscoveryIds": [
+      "mountain-146956-bluff-knoll"
+    ],
     "name": "Bluff Knoll",
     "nameAlt": null,
     "lat": -34.36666584959234,
@@ -6876,6 +9168,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-snowdon",
+    "legacyDiscoveryIds": [
+      "mountain-160881-snowdon"
+    ],
     "name": "Snowdon",
     "nameAlt": null,
     "lat": 53.072536227418304,
@@ -6888,6 +9184,10 @@
     "subregion": "British Isles"
   },
   {
+    "id": "mountain-mont-bengoue",
+    "legacyDiscoveryIds": [
+      "mountain-40074-mont-bengoue"
+    ],
     "name": "Mont Bengoué",
     "nameAlt": null,
     "lat": 0.96013088531663,
@@ -6900,6 +9200,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pico-el-yunque",
+    "legacyDiscoveryIds": [
+      "mountain-137444-pico-el-yunque"
+    ],
     "name": "Pico El Yunque",
     "nameAlt": null,
     "lat": 18.31049452784802,
@@ -6912,6 +9216,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-mowdok-mual",
+    "legacyDiscoveryIds": [
+      "mountain-92108-mowdok-mual"
+    ],
     "name": "Mowdok Mual",
     "nameAlt": null,
     "lat": 21.880059789829204,
@@ -6924,6 +9232,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n47p50710-e129p56060",
+    "legacyDiscoveryIds": [
+      "mountain-64589-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 47.50710195090482,
@@ -6936,6 +9248,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-carrauntoohil",
+    "legacyDiscoveryIds": [
+      "mountain-72076-carrauntoohil"
+    ],
     "name": "Carrauntoohil",
     "nameAlt": null,
     "lat": 51.99896849145299,
@@ -6948,6 +9264,10 @@
     "subregion": "British Isles"
   },
   {
+    "id": "mountain-selvili-tepe",
+    "legacyDiscoveryIds": [
+      "mountain-101929-selvili-tepe"
+    ],
     "name": "Selvili Tepe",
     "nameAlt": null,
     "lat": 35.320074431776014,
@@ -6960,6 +9280,10 @@
     "subregion": "Mediterranean Sea"
   },
   {
+    "id": "mountain-mont-nabeba",
+    "legacyDiscoveryIds": [
+      "mountain-40072-mont-nabeba"
+    ],
     "name": "Mont Nabeba",
     "nameAlt": null,
     "lat": 1.840101790758524,
@@ -6972,6 +9296,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n31p58010-e35p10998",
+    "legacyDiscoveryIds": [
+      "mountain-101738-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 31.58009710470443,
@@ -6984,6 +9312,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kekes",
+    "legacyDiscoveryIds": [
+      "mountain-24930-kekes"
+    ],
     "name": "Kékes",
     "nameAlt": null,
     "lat": 47.88007777670352,
@@ -6996,6 +9328,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n59p20979-w115p61555",
+    "legacyDiscoveryIds": [
+      "mountain-51971-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 59.20979406531712,
@@ -7008,6 +9344,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monts-de-la-leketi",
+    "legacyDiscoveryIds": [
+      "mountain-129638-monts-de-la-leketi"
+    ],
     "name": "Monts de la Lékéti",
     "nameAlt": null,
     "lat": -2.518149411719236,
@@ -7020,6 +9360,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-anglem",
+    "legacyDiscoveryIds": [
+      "mountain-147328-mount-anglem"
+    ],
     "name": "Mount Anglem",
     "nameAlt": null,
     "lat": -46.740060106888265,
@@ -7032,6 +9376,10 @@
     "subregion": "New Zealand"
   },
   {
+    "id": "mountain-mont-agou",
+    "legacyDiscoveryIds": [
+      "mountain-40609-mont-agou"
+    ],
     "name": "Mont Agou",
     "nameAlt": null,
     "lat": 6.87830480734668,
@@ -7044,6 +9392,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-tremblant",
+    "legacyDiscoveryIds": [
+      "mountain-49373-mont-tremblant"
+    ],
     "name": "Mont Tremblant",
     "nameAlt": null,
     "lat": 46.25867907633408,
@@ -7056,6 +9408,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-lata-mountain",
+    "legacyDiscoveryIds": [
+      "mountain-85482-lata-mountain"
+    ],
     "name": "Lata Mountain",
     "nameAlt": null,
     "lat": -14.244551382070881,
@@ -7068,6 +9424,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-peak-n79p53152-e98p76000",
+    "legacyDiscoveryIds": [
+      "mountain-58418-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 79.531523708396,
@@ -7080,6 +9440,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n18p76587-e145p67934",
+    "legacyDiscoveryIds": [
+      "mountain-64161-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 18.76586917156196,
@@ -7092,6 +9456,10 @@
     "subregion": "Micronesia"
   },
   {
+    "id": "mountain-tai-mo-shan",
+    "legacyDiscoveryIds": [
+      "mountain-61745-tai-mo-shan"
+    ],
     "name": "Tai Mo Shan",
     "nameAlt": null,
     "lat": 22.409997285440966,
@@ -7104,6 +9472,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-el-copey",
+    "legacyDiscoveryIds": [
+      "mountain-138848-cerro-el-copey"
+    ],
     "name": "Cerro El Copey",
     "nameAlt": null,
     "lat": 11.010080435289765,
@@ -7116,6 +9488,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-mount-gimie",
+    "legacyDiscoveryIds": [
+      "mountain-138629-mount-gimie"
+    ],
     "name": "Mount Gimie",
     "nameAlt": null,
     "lat": 13.859988962567101,
@@ -7128,6 +9504,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-aripo-peak",
+    "legacyDiscoveryIds": [
+      "mountain-34758-aripo-peak"
+    ],
     "name": "Aripo Peak",
     "nameAlt": null,
     "lat": 10.719988126335224,
@@ -7140,6 +9520,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-mount-ord",
+    "legacyDiscoveryIds": [
+      "mountain-149134-mount-ord"
+    ],
     "name": "Mount Ord",
     "nameAlt": null,
     "lat": -17.329983197222603,
@@ -7152,6 +9536,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-kabbal-durga",
+    "legacyDiscoveryIds": [
+      "mountain-39071-kabbal-durga"
+    ],
     "name": "Kabbal Durga",
     "nameAlt": null,
     "lat": 12.500004551191509,
@@ -7164,6 +9552,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-kdeyyat-ej-joul",
+    "legacyDiscoveryIds": [
+      "mountain-158817-kdeyyat-ej-joul"
+    ],
     "name": "Kdeyyat ej Joul",
     "nameAlt": null,
     "lat": 19.719999013127577,
@@ -7176,6 +9568,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-soufriere-hills-volcano",
+    "legacyDiscoveryIds": [
+      "mountain-34471-soufriere-hills-volcano"
+    ],
     "name": "Soufrière Hills Volcano",
     "nameAlt": null,
     "lat": 16.723388276699183,
@@ -7188,6 +9584,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-morne-seychellois",
+    "legacyDiscoveryIds": [
+      "mountain-152320-morne-seychellois"
+    ],
     "name": "Morne Seychellois",
     "nameAlt": null,
     "lat": -4.632244573328947,
@@ -7200,6 +9600,10 @@
     "subregion": "Indian Ocean"
   },
   {
+    "id": "mountain-peak-s15p15005-w54p92664",
+    "legacyDiscoveryIds": [
+      "mountain-135932-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -15.150049764435536,
@@ -7212,6 +9616,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-serra-dos-carajas-pico",
+    "legacyDiscoveryIds": [
+      "mountain-34125-serra-dos-carajas-pico"
+    ],
     "name": "Serra dos Carajás-Pico",
     "nameAlt": null,
     "lat": -6.374818005926684,
@@ -7224,6 +9632,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-afadjoto",
+    "legacyDiscoveryIds": [
+      "mountain-162383-mount-afadjoto"
+    ],
     "name": "Mount Afadjoto",
     "nameAlt": null,
     "lat": 7.149978557002527,
@@ -7236,6 +9648,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-slaettaratindur",
+    "legacyDiscoveryIds": [
+      "mountain-50403-slaettaratindur"
+    ],
     "name": "Slaettaratindur",
     "nameAlt": null,
     "lat": 62.30031521922244,
@@ -7248,6 +9664,10 @@
     "subregion": "North Atlantic Ocean"
   },
   {
+    "id": "mountain-mount-scenery",
+    "legacyDiscoveryIds": [
+      "mountain-137509-mount-scenery"
+    ],
     "name": "Mount Scenery",
     "nameAlt": null,
     "lat": 17.63005801480871,
@@ -7260,6 +9680,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-uluru-ayers-rock",
+    "legacyDiscoveryIds": [
+      "mountain-151237-uluru-ayers-rock"
+    ],
     "name": "Uluru/Ayers Rock",
     "nameAlt": null,
     "lat": -25.345045468885942,
@@ -7272,6 +9696,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-cerro-maine-hanari",
+    "legacyDiscoveryIds": [
+      "mountain-139526-cerro-maine-hanari"
+    ],
     "name": "Cerro Maine Hanari",
     "nameAlt": null,
     "lat": -0.730014279803669,
@@ -7284,6 +9712,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-bellevue-de-l-inini",
+    "legacyDiscoveryIds": [
+      "mountain-135649-bellevue-de-l-inini"
+    ],
     "name": "Bellevue de L'Inini",
     "nameAlt": null,
     "lat": 3.580090162402058,
@@ -7296,6 +9728,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-bokkeveldberg",
+    "legacyDiscoveryIds": [
+      "mountain-32095-bokkeveldberg"
+    ],
     "name": "Bokkeveldberg",
     "nameAlt": null,
     "lat": -31.125403328795016,
@@ -7308,6 +9744,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-tres-kandu",
+    "legacyDiscoveryIds": [
+      "mountain-6829-cerro-tres-kandu"
+    ],
     "name": "Cerro Tres Kandú",
     "nameAlt": null,
     "lat": -25.880072303251282,
@@ -7320,6 +9760,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-saint-catherine",
+    "legacyDiscoveryIds": [
+      "mountain-138617-mount-saint-catherine"
+    ],
     "name": "Mount Saint Catherine",
     "nameAlt": null,
     "lat": 12.163259970329065,
@@ -7332,6 +9776,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-magazine-mountain",
+    "legacyDiscoveryIds": [
+      "mountain-44180-magazine-mountain"
+    ],
     "name": "Magazine Mountain",
     "nameAlt": null,
     "lat": 35.188317106266446,
@@ -7344,6 +9792,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-baldy-mt",
+    "legacyDiscoveryIds": [
+      "mountain-49887-baldy-mt"
+    ],
     "name": "Baldy Mt.",
     "nameAlt": null,
     "lat": 51.44770424296906,
@@ -7356,6 +9808,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cerro-san-miguel",
+    "legacyDiscoveryIds": [
+      "mountain-106721-cerro-san-miguel"
+    ],
     "name": "Cerro San Miguel",
     "nameAlt": null,
     "lat": -19.29988042748063,
@@ -7368,6 +9824,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-petite-riviere-noire-peak",
+    "legacyDiscoveryIds": [
+      "mountain-126399-petite-riviere-noire-peak"
+    ],
     "name": "Petite Rivière Noire Peak",
     "nameAlt": null,
     "lat": -20.40386302123524,
@@ -7380,6 +9840,10 @@
     "subregion": "Indian Ocean"
   },
   {
+    "id": "mountain-krakatau",
+    "legacyDiscoveryIds": [
+      "mountain-23967-krakatau"
+    ],
     "name": "Krakatau",
     "nameAlt": "Krakatoa",
     "lat": -6.102094075258194,
@@ -7392,6 +9856,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-gros-morne",
+    "legacyDiscoveryIds": [
+      "mountain-76535-gros-morne"
+    ],
     "name": "Gros Morne",
     "nameAlt": null,
     "lat": 49.59837587127819,
@@ -7404,6 +9872,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-ngihneni",
+    "legacyDiscoveryIds": [
+      "mountain-67580-ngihneni"
+    ],
     "name": "Ngihneni",
     "nameAlt": null,
     "lat": 6.874709956957247,
@@ -7416,6 +9888,10 @@
     "subregion": "Micronesia"
   },
   {
+    "id": "mountain-olavtoppen",
+    "legacyDiscoveryIds": [
+      "mountain-127528-olavtoppen"
+    ],
     "name": "Olavtoppen",
     "nameAlt": null,
     "lat": -54.41987228605332,
@@ -7428,6 +9904,10 @@
     "subregion": "Southern Atlantic Ocean"
   },
   {
+    "id": "mountain-peak-n75p39009-w115p08521",
+    "legacyDiscoveryIds": [
+      "mountain-52754-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 75.39009449345207,
@@ -7440,6 +9920,10 @@
     "subregion": "Arctic Archipelago"
   },
   {
+    "id": "mountain-mont-singave",
+    "legacyDiscoveryIds": [
+      "mountain-22362-mont-singave"
+    ],
     "name": "Mont Singave",
     "nameAlt": null,
     "lat": -14.269432593755084,
@@ -7452,6 +9936,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-tena-kourou",
+    "legacyDiscoveryIds": [
+      "mountain-40663-tena-kourou"
+    ],
     "name": "Téna Kourou",
     "nameAlt": null,
     "lat": 10.770073682322916,
@@ -7464,6 +9952,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-hohe-acht",
+    "legacyDiscoveryIds": [
+      "mountain-161056-hohe-acht"
+    ],
     "name": "Hohe Acht",
     "nameAlt": null,
     "lat": 50.39287819892173,
@@ -7476,6 +9968,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-monte-titano",
+    "legacyDiscoveryIds": [
+      "mountain-40444-monte-titano"
+    ],
     "name": "Monte Titano",
     "nameAlt": null,
     "lat": 43.909989633130394,
@@ -7488,6 +9984,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cold-mt",
+    "legacyDiscoveryIds": [
+      "mountain-59611-cold-mt"
+    ],
     "name": "Cold Mt.",
     "nameAlt": null,
     "lat": 52.88532126612558,
@@ -7500,6 +10000,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-durham-heights",
+    "legacyDiscoveryIds": [
+      "mountain-47696-durham-heights"
+    ],
     "name": "Durham Heights",
     "nameAlt": null,
     "lat": 71.14009271843157,
@@ -7512,6 +10016,10 @@
     "subregion": "Arctic Archipelago"
   },
   {
+    "id": "mountain-mount-usborne",
+    "legacyDiscoveryIds": [
+      "mountain-106314-mount-usborne"
+    ],
     "name": "Mt. Usborne",
     "nameAlt": null,
     "lat": -51.702084608482224,
@@ -7524,6 +10032,10 @@
     "subregion": "Falkland Islands"
   },
   {
+    "id": "mountain-eagle-mt",
+    "legacyDiscoveryIds": [
+      "mountain-50283-eagle-mt"
+    ],
     "name": "Eagle Mt.",
     "nameAlt": null,
     "lat": 47.90459546419105,
@@ -7536,6 +10048,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n7p66610-e4p93594",
+    "legacyDiscoveryIds": [
+      "mountain-632-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 7.666102133140257,
@@ -7548,6 +10064,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-signal-de-botrange",
+    "legacyDiscoveryIds": [
+      "mountain-161055-signal-de-botrange"
+    ],
     "name": "Signal de Botrange",
     "nameAlt": null,
     "lat": 50.499996662211544,
@@ -7560,6 +10080,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-ishpatina-ridge",
+    "legacyDiscoveryIds": [
+      "mountain-50020-ishpatina-ridge"
+    ],
     "name": "Ishpatina Ridge",
     "nameAlt": null,
     "lat": 47.33632636161774,
@@ -7572,6 +10096,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-benara",
+    "legacyDiscoveryIds": [
+      "mountain-125436-benara"
+    ],
     "name": "Benara",
     "nameAlt": null,
     "lat": -12.9600184372961,
@@ -7584,6 +10112,10 @@
     "subregion": "Comores"
   },
   {
+    "id": "mountain-te-manga",
+    "legacyDiscoveryIds": [
+      "mountain-85318-te-manga"
+    ],
     "name": "Te Manga",
     "nameAlt": null,
     "lat": -21.212179268352813,
@@ -7596,6 +10128,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-tanekas",
+    "legacyDiscoveryIds": [
+      "mountain-162654-tanekas"
+    ],
     "name": "Tanekas",
     "nameAlt": null,
     "lat": 10.349960885687409,
@@ -7608,6 +10144,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-snaefell",
+    "legacyDiscoveryIds": [
+      "mountain-160873-snaefell"
+    ],
     "name": "Snaefell",
     "nameAlt": null,
     "lat": 54.260088994833026,
@@ -7620,6 +10160,10 @@
     "subregion": "British Isles"
   },
   {
+    "id": "mountain-peak-n12p36998-w12p54004",
+    "legacyDiscoveryIds": [
+      "mountain-159134-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 12.369984063510543,
@@ -7632,6 +10176,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-black-mt-s21p48434-e139p74380",
+    "legacyDiscoveryIds": [
+      "mountain-37567-black-mt"
+    ],
     "name": "Black Mt.",
     "nameAlt": null,
     "lat": -21.48433771693756,
@@ -7644,6 +10192,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-buurgplaatz",
+    "legacyDiscoveryIds": [
+      "mountain-161054-buurgplaatz"
+    ],
     "name": "Buurgplaatz",
     "nameAlt": null,
     "lat": 50.15998036357894,
@@ -7656,6 +10208,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-white-hill",
+    "legacyDiscoveryIds": [
+      "mountain-74267-white-hill"
+    ],
     "name": "White Hill",
     "nameAlt": null,
     "lat": 46.6976951311972,
@@ -7668,6 +10224,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-sage",
+    "legacyDiscoveryIds": [
+      "mountain-137501-mount-sage"
+    ],
     "name": "Mount Sage",
     "nameAlt": null,
     "lat": 18.416683984857414,
@@ -7680,6 +10240,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-cerro-catedral",
+    "legacyDiscoveryIds": [
+      "mountain-27103-cerro-catedral"
+    ],
     "name": "Cerro Catedral",
     "nameAlt": null,
     "lat": -34.34000740850212,
@@ -7692,6 +10256,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-cone-pk",
+    "legacyDiscoveryIds": [
+      "mountain-150220-cone-pk"
+    ],
     "name": "Cone Pk.",
     "nameAlt": null,
     "lat": -13.379040661341563,
@@ -7704,6 +10272,10 @@
     "subregion": "Australia"
   },
   {
+    "id": "mountain-yonaha-dake",
+    "legacyDiscoveryIds": [
+      "mountain-16303-yonaha-dake"
+    ],
     "name": "Yonaha-dake",
     "nameAlt": null,
     "lat": 26.71614335306056,
@@ -7716,6 +10288,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-crown-mountain",
+    "legacyDiscoveryIds": [
+      "mountain-137501-crown-mountain"
+    ],
     "name": "Crown Mountain",
     "nameAlt": null,
     "lat": 18.35997421017457,
@@ -7728,6 +10304,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-balaneshty",
+    "legacyDiscoveryIds": [
+      "mountain-24948-balaneshty"
+    ],
     "name": "Balaneshty",
     "nameAlt": null,
     "lat": 47.219958227101166,
@@ -7740,6 +10320,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-rock-of-gibraltar",
+    "legacyDiscoveryIds": [
+      "mountain-161369-rock-of-gibraltar"
+    ],
     "name": "Rock of Gibraltar",
     "nameAlt": null,
     "lat": 36.130087125144776,
@@ -7752,6 +10336,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-pic-du-paradis",
+    "legacyDiscoveryIds": [
+      "mountain-137509-pic-du-paradis"
+    ],
     "name": "Pic du Paradis",
     "nameAlt": null,
     "lat": 18.080100970304613,
@@ -7764,6 +10352,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-mount-lamlam",
+    "legacyDiscoveryIds": [
+      "mountain-16050-mount-lamlam"
+    ],
     "name": "Mount Lamlam",
     "nameAlt": null,
     "lat": 13.351257045095295,
@@ -7776,6 +10368,10 @@
     "subregion": "Micronesia"
   },
   {
+    "id": "mountain-mount-obama",
+    "legacyDiscoveryIds": [
+      "mountain-137432-mount-obama"
+    ],
     "name": "Mount Obama",
     "nameAlt": null,
     "lat": 17.04341074451412,
@@ -7788,6 +10384,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-taal-volcano",
+    "legacyDiscoveryIds": [
+      "mountain-95070-taal-volcano"
+    ],
     "name": "Taal Volcano",
     "nameAlt": null,
     "lat": 14.00188457400644,
@@ -7800,6 +10400,10 @@
     "subregion": "Malay Archipelago"
   },
   {
+    "id": "mountain-murray-hill",
+    "legacyDiscoveryIds": [
+      "mountain-23580-murray-hill"
+    ],
     "name": "Murray Hill",
     "nameAlt": null,
     "lat": -10.485630405194271,
@@ -7812,6 +10416,10 @@
     "subregion": "Indian Ocean"
   },
   {
+    "id": "mountain-ukko-koli",
+    "legacyDiscoveryIds": [
+      "mountain-56140-ukko-koli"
+    ],
     "name": "Ukko Koli",
     "nameAlt": null,
     "lat": 63.09009173230908,
@@ -7824,6 +10432,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-s25p07192-w130p10223",
+    "legacyDiscoveryIds": [
+      "mountain-144884-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -25.071917622443365,
@@ -7836,6 +10448,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-dzyarzhynskaya",
+    "legacyDiscoveryIds": [
+      "mountain-99556-dzyarzhynskaya"
+    ],
     "name": "Dzyarzhynskaya",
     "nameAlt": null,
     "lat": 53.8600104205926,
@@ -7848,6 +10464,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-hillaby",
+    "legacyDiscoveryIds": [
+      "mountain-138626-mount-hillaby"
+    ],
     "name": "Mount Hillaby",
     "nameAlt": null,
     "lat": 13.21008848204933,
@@ -7860,6 +10480,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-vaalserberg",
+    "legacyDiscoveryIds": [
+      "mountain-161055-vaalserberg"
+    ],
     "name": "Vaalserberg",
     "nameAlt": null,
     "lat": 50.76007802915088,
@@ -7872,6 +10496,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mount-bates",
+    "legacyDiscoveryIds": [
+      "mountain-89294-mount-bates"
+    ],
     "name": "Mount Bates",
     "nameAlt": null,
     "lat": -29.03530076416652,
@@ -7884,6 +10512,10 @@
     "subregion": "Melanesia"
   },
   {
+    "id": "mountain-suur-munamagi",
+    "legacyDiscoveryIds": [
+      "mountain-98323-suur-munamagi"
+    ],
     "name": "Suur Munamagi",
     "nameAlt": null,
     "lat": 57.71999112414761,
@@ -7896,6 +10528,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n56p86999-e25p96000",
+    "legacyDiscoveryIds": [
+      "mountain-98322-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 56.86999076914351,
@@ -7908,6 +10544,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n54p53996-e25p63000",
+    "legacyDiscoveryIds": [
+      "mountain-99516-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 54.53996223470298,
@@ -7920,6 +10560,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n29p12001-e46p78994",
+    "legacyDiscoveryIds": [
+      "mountain-102246-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 29.120007691005533,
@@ -7932,6 +10576,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-morne-du-vilet",
+    "legacyDiscoveryIds": [
+      "mountain-137503-morne-du-vilet"
+    ],
     "name": "Morne du Vilet",
     "nameAlt": null,
     "lat": 17.90669992848592,
@@ -7944,6 +10592,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-peak-n11p68999-w13p90002",
+    "legacyDiscoveryIds": [
+      "mountain-159114-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 11.689991857822747,
@@ -7956,6 +10608,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-dingli-cliffs",
+    "legacyDiscoveryIds": [
+      "mountain-40504-dingli-cliffs"
+    ],
     "name": "Dingli Cliffs",
     "nameAlt": null,
     "lat": 35.8599886470079,
@@ -7968,6 +10624,10 @@
     "subregion": "Mediterranean Sea"
   },
   {
+    "id": "mountain-mount-ngerchelchauus",
+    "legacyDiscoveryIds": [
+      "mountain-22966-mount-ngerchelchauus"
+    ],
     "name": "Mount Ngerchelchauus",
     "nameAlt": null,
     "lat": 7.590085184455702,
@@ -7980,6 +10640,10 @@
     "subregion": "Micronesia"
   },
   {
+    "id": "mountain-morne-de-la-grande-montagne",
+    "legacyDiscoveryIds": [
+      "mountain-76575-morne-de-la-grande-montagne"
+    ],
     "name": "Morne de la Grande Montagne",
     "nameAlt": null,
     "lat": 47.03997335816474,
@@ -7992,6 +10656,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jamanota",
+    "legacyDiscoveryIds": [
+      "mountain-34533-jamanota"
+    ],
     "name": "Jamanota",
     "nameAlt": null,
     "lat": 12.489987439993968,
@@ -8004,6 +10672,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-bukit-timah",
+    "legacyDiscoveryIds": [
+      "mountain-95685-bukit-timah"
+    ],
     "name": "Bukit Timah",
     "nameAlt": null,
     "lat": 1.34999039047247,
@@ -8016,6 +10688,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-alto-coloane",
+    "legacyDiscoveryIds": [
+      "mountain-92879-alto-coloane"
+    ],
     "name": "Alto Coloane",
     "nameAlt": null,
     "lat": 22.11998575964124,
@@ -8028,6 +10704,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-m-lleh-j",
+    "legacyDiscoveryIds": [
+      "mountain-98185-m-lleh-j"
+    ],
     "name": "Møllehøj",
     "nameAlt": null,
     "lat": 55.98000275250408,
@@ -8040,6 +10720,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-lenina",
+    "legacyDiscoveryIds": [
+      "mountain-99089-lenina"
+    ],
     "name": "Lenina",
     "nameAlt": null,
     "lat": 55.68999122670435,
@@ -8052,6 +10736,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-mont-agel",
+    "legacyDiscoveryIds": [
+      "mountain-162255-mont-agel"
+    ],
     "name": "Mont Agel",
     "nameAlt": null,
     "lat": 43.745919045693284,
@@ -8064,6 +10752,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n49p23998-w2p09001",
+    "legacyDiscoveryIds": [
+      "mountain-161196-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 49.23998140492429,
@@ -8076,6 +10768,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-jabal-ad-dukhan",
+    "legacyDiscoveryIds": [
+      "mountain-25673-jabal-ad-dukhan"
+    ],
     "name": "Jabal ad Dukhan",
     "nameAlt": null,
     "lat": 26.039988347226668,
@@ -8088,6 +10784,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n49p44000-w2p36003",
+    "legacyDiscoveryIds": [
+      "mountain-161134-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 49.440000496255806,
@@ -8100,6 +10800,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-n24p71999-e51p04995",
+    "legacyDiscoveryIds": [
+      "mountain-102342-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 24.719991597486413,
@@ -8112,6 +10816,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-peak-s0p86008-e169p53994",
+    "legacyDiscoveryIds": [
+      "mountain-21751-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -0.860075159062035,
@@ -8124,6 +10832,10 @@
     "subregion": "Micronesia"
   },
   {
+    "id": "mountain-town-hill",
+    "legacyDiscoveryIds": [
+      "mountain-73930-town-hill"
+    ],
     "name": "Town Hill",
     "nameAlt": null,
     "lat": 32.31001330007029,
@@ -8136,6 +10848,10 @@
     "subregion": "North Atlantic Ocean"
   },
   {
+    "id": "mountain-peak-s19p00284-w169p87182",
+    "legacyDiscoveryIds": [
+      "mountain-89747-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -19.002840767211666,
@@ -8148,6 +10864,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-peak-s0p52386-e166p93371",
+    "legacyDiscoveryIds": [
+      "mountain-86665-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -0.52385566870592,
@@ -8160,6 +10880,10 @@
     "subregion": "Micronesia"
   },
   {
+    "id": "mountain-crocus-hill",
+    "legacyDiscoveryIds": [
+      "mountain-137509-crocus-hill"
+    ],
     "name": "Crocus Hill",
     "nameAlt": null,
     "lat": 18.223410286953282,
@@ -8172,6 +10896,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-mount-alvernia",
+    "legacyDiscoveryIds": [
+      "mountain-137996-mount-alvernia"
+    ],
     "name": "Mount Alvernia",
     "nameAlt": null,
     "lat": 24.289982864385593,
@@ -8184,6 +10912,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-peak-n13p57006-w13p99002",
+    "legacyDiscoveryIds": [
+      "mountain-159121-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 13.570058219922188,
@@ -8196,6 +10928,10 @@
     "subregion": null
   },
   {
+    "id": "mountain-blue-bottle",
+    "legacyDiscoveryIds": [
+      "mountain-137596-blue-bottle"
+    ],
     "name": "Blue Bottle",
     "nameAlt": null,
     "lat": 21.800003683403716,
@@ -8208,6 +10944,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-the-bluff",
+    "legacyDiscoveryIds": [
+      "mountain-138136-the-bluff"
+    ],
     "name": "The Bluff",
     "nameAlt": null,
     "lat": 19.750009955142787,
@@ -8220,6 +10960,10 @@
     "subregion": "West Indies"
   },
   {
+    "id": "mountain-peak-s0p38006-w160p02003",
+    "legacyDiscoveryIds": [
+      "mountain-84310-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -0.380061653128337,
@@ -8232,6 +10976,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-peak-s7p28549-e72p37760",
+    "legacyDiscoveryIds": [
+      "mountain-39394-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -7.285486510199746,
@@ -8244,6 +10992,10 @@
     "subregion": "Indian Ocean"
   },
   {
+    "id": "mountain-peak-n9p83008-e169p31399",
+    "legacyDiscoveryIds": [
+      "mountain-67805-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": 9.830080892850603,
@@ -8256,6 +11008,10 @@
     "subregion": "Micronesia"
   },
   {
+    "id": "mountain-peak-s8p51589-e179p20362",
+    "legacyDiscoveryIds": [
+      "mountain-22375-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -8.515894741245873,
@@ -8268,6 +11024,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-peak-s9p17597-w171p85379",
+    "legacyDiscoveryIds": [
+      "mountain-84770-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -9.17597389927083,
@@ -8280,6 +11040,10 @@
     "subregion": "Polynesia"
   },
   {
+    "id": "mountain-peak-s12p17990-e96p90005",
+    "legacyDiscoveryIds": [
+      "mountain-23697-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -12.179895511210319,
@@ -8292,6 +11056,10 @@
     "subregion": "Indian Ocean"
   },
   {
+    "id": "mountain-peak-s0p66983-e73p18979",
+    "legacyDiscoveryIds": [
+      "mountain-157459-peak"
+    ],
     "name": "Peak",
     "nameAlt": null,
     "lat": -0.669830829463606,

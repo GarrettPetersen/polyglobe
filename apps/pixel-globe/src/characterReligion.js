@@ -1,3 +1,5 @@
+import { cityTerritoryId, requireCityId } from "./entityIds.js";
+
 export const RELIGION_CATALOG = Object.freeze([
   religion("roman-catholic", "Roman Catholic", "religion:christian"),
   religion("eastern-orthodox", "Eastern Orthodox", "religion:orthodox"),
@@ -102,75 +104,75 @@ const CATHOLIC_FACTIONS = new Set([
   "denmark-norway"
 ]);
 const ORTHODOX_COUNTRIES = new Set([
-  "Bulgaria",
-  "Georgia",
-  "Greece",
-  "Romania",
-  "Russian Federation",
-  "Serbia",
-  "Ukraine"
+  "bulgaria",
+  "georgia",
+  "greece",
+  "romania",
+  "russian federation",
+  "serbia",
+  "ukraine"
 ]);
 const POLYNESIAN_COUNTRIES = new Set([
-  "Aotearoa",
-  "Cook Islands",
-  "Fiji",
-  "French Polynesia",
-  "Hawaii",
-  "Kiribati",
-  "Niue",
-  "Rapa Nui",
-  "Samoa",
-  "Tonga"
+  "aotearoa",
+  "cook islands",
+  "fiji",
+  "french polynesia",
+  "hawaii",
+  "kiribati",
+  "niue",
+  "rapa nui",
+  "samoa",
+  "tonga"
 ]);
-const MESOAMERICAN_COUNTRIES = new Set(["Guatemala", "Mexico"]);
-const ANDEAN_COUNTRIES = new Set(["Bolivia", "Columbia", "Ecuador", "Peru"]);
+const MESOAMERICAN_COUNTRIES = new Set(["guatemala", "mexico"]);
+const ANDEAN_COUNTRIES = new Set(["bolivia", "columbia", "ecuador", "peru"]);
 const NORTH_AMERICAN_COUNTRIES = new Set([
-  "Makah",
-  "Nuu-chah-nulth",
-  "United States of America"
+  "makah",
+  "nuu-chah-nulth",
+  "united states of america"
 ]);
 const SWAHILI_COAST_CITIES = new Set([
-  "kilwa",
-  "mombasa",
-  "mogadishu",
-  "mozambique",
-  "sofala"
+  "kilwa|tanzania",
+  "mombasa|kenya",
+  "mogadishu|somalia",
+  "mozambique|mozambique",
+  "sofala|mozambique"
 ]);
 const EARLY_REFORMATION_CITIES = new Set([
-  "bremen",
-  "erfurt",
-  "hamburg",
-  "leipzig",
-  "lubeck",
-  "magdeburg",
-  "nurnberg",
-  "wroclaw",
-  "worms"
+  "bremen|germany",
+  "erfurt|germany",
+  "hamburg|germany",
+  "leipzig|germany",
+  "lubeck|germany",
+  "magdeburg|germany",
+  "nurnberg|germany",
+  "wroclaw|poland",
+  "worms|germany"
 ]);
 const SOUTH_ASIAN_PORT_CITIES = new Set([
-  "calicut",
-  "cochin",
-  "colombo",
-  "quilon"
+  "calicut|india",
+  "cochin|india",
+  "colombo|sri lanka",
+  "quilon|india"
 ]);
 const SOUTHEAST_ASIAN_MUSLIM_PORTS = new Set([
-  "aceh",
-  "bandar seri begawan",
-  "gresik",
-  "hitu village",
-  "makian village",
-  "malacca",
-  "patani",
-  "ternate",
-  "tidore",
-  "gane village"
+  "aceh|indonesia",
+  "bandar seri begawan|brunei",
+  "gresik|indonesia",
+  "hitu village|indonesia",
+  "makian village|indonesia",
+  "malacca|malaysia",
+  "patani|thailand",
+  "ternate|indonesia",
+  "tidore|indonesia",
+  "gane village|indonesia"
 ]);
 const SOUTHEAST_ASIAN_BUDDHIST_CITIES = new Set([
-  "ayutthaya",
-  "chiang mai",
-  "luang prabang",
-  "pegu",
-  "sukhothai"
+  "ayutthaya|thailand",
+  "chiang mai|thailand",
+  "luang prabang|lao people's democratic republic",
+  "pegu|myanmar",
+  "sukhothai|thailand"
 ]);
 
 export function characterReligionProfile(character) {
@@ -257,8 +259,10 @@ export function religionCandidatesForHome(homePort) {
   if (!homePort || typeof homePort !== "object") {
     throw new Error("Character religion requires a home city");
   }
-  const city = normalized(homePort.displayCity || homePort.city || homePort.homePortName);
-  const country = String(homePort.country || homePort.homePortCountry || "");
+  const cityId = homePort.cityId === undefined || homePort.cityId === null
+    ? ""
+    : requireCityId(homePort, "Character religion home city");
+  const country = cityId === "" ? "" : cityTerritoryId(homePort, "Character religion home city");
   const factionId = String(homePort.factionId || homePort.nationalityId || "");
   const cityType = String(homePort.cityType || "");
   const nameCulture = String(homePort.nameCulture || "");
@@ -270,27 +274,27 @@ export function religionCandidatesForHome(homePort) {
 
   if (nameCulture === "tatar") return choices(["sunni-islam", 1]);
   if (factionId === "ainu" || nameCulture === "ainu") return choices(["ainu-traditional", 1]);
-  if (country === "Japan" || factionId === "japan" || factionId === "ryukyu") {
+  if (country === "japan" || factionId === "japan" || factionId === "ryukyu") {
     return choices(["kami-buddhist", 1]);
   }
-  if (country === "Republic of Korea" || country === "Dem. People's Republic of Korea" || factionId === "joseon") {
+  if (country === "republic of korea" || country === "dem. people's republic of korea" || factionId === "joseon") {
     return choices(["korean-traditional", 3], ["mahayana-buddhism", 2]);
   }
-  if (country === "China" || factionId === "ming") {
-    if (city === "lhasa") return choices(["tibetan-buddhism", 1]);
-    if (["kashi", "tsinkiang", "turpan"].includes(city)) {
+  if (country === "china" || factionId === "ming") {
+    if (cityId === "lhasa|china") return choices(["tibetan-buddhism", 1]);
+    if (["kashi|china", "tsinkiang|china", "turpan|china"].includes(cityId)) {
       return choices(["sunni-islam", 4], ["chinese-traditional", 1]);
     }
     return choices(["chinese-traditional", 2], ["daoism", 1], ["mahayana-buddhism", 1]);
   }
 
   if (POLYNESIAN_COUNTRIES.has(country)) return choices(["polynesian-traditional", 1]);
-  if (["Guam", "Philippines"].includes(country)) return choices(["austronesian-traditional", 1]);
+  if (["guam", "philippines"].includes(country)) return choices(["austronesian-traditional", 1]);
   if (ANDEAN_COUNTRIES.has(country) || factionId === "inca" || cityType === "andean") {
     return choices(["andean-traditional", 1]);
   }
   if (NORTH_AMERICAN_COUNTRIES.has(country)) return choices(["north-american-traditional", 1]);
-  if (["Bahamas", "Brazil"].includes(country)) return choices(["american-traditional", 1]);
+  if (["bahamas", "brazil"].includes(country)) return choices(["american-traditional", 1]);
   if (MESOAMERICAN_COUNTRIES.has(country) || cityType === "mesoamerican" || cityType === "meso-american") {
     if (factionId === "spain") {
       return choices(["mesoamerican-traditional", 3], ["roman-catholic", 2]);
@@ -298,52 +302,52 @@ export function religionCandidatesForHome(homePort) {
     return choices(["mesoamerican-traditional", 1]);
   }
 
-  if (country === "Sri Lanka") {
+  if (country === "sri lanka") {
     return choices(["theravada-buddhism", 4], ["hinduism", 1]);
   }
-  if (country === "Maldives") return choices(["sunni-islam", 1]);
-  if (country === "India" || country === "Pakistan" || cityType === "south-asian") {
-    return southAsianReligionCandidates({ city, factionId });
+  if (country === "maldives") return choices(["sunni-islam", 1]);
+  if (country === "india" || country === "pakistan" || cityType === "south-asian") {
+    return southAsianReligionCandidates({ cityId, factionId });
   }
 
-  if (country === "Thailand" || country === "Myanmar" || country === "Lao People's Democratic Republic") {
-    if (SOUTHEAST_ASIAN_MUSLIM_PORTS.has(city)) return choices(["sunni-islam", 1]);
+  if (country === "thailand" || country === "myanmar" || country === "lao people's democratic republic") {
+    if (SOUTHEAST_ASIAN_MUSLIM_PORTS.has(cityId)) return choices(["sunni-islam", 1]);
     return choices(["theravada-buddhism", 1]);
   }
   if (cityType === "southeast-asian") {
-    if (SOUTHEAST_ASIAN_MUSLIM_PORTS.has(city)) return choices(["sunni-islam", 1]);
-    if (SOUTHEAST_ASIAN_BUDDHIST_CITIES.has(city)) return choices(["theravada-buddhism", 1]);
-    if (city === "binh dinh") return choices(["hinduism", 3], ["sunni-islam", 1]);
+    if (SOUTHEAST_ASIAN_MUSLIM_PORTS.has(cityId)) return choices(["sunni-islam", 1]);
+    if (SOUTHEAST_ASIAN_BUDDHIST_CITIES.has(cityId)) return choices(["theravada-buddhism", 1]);
+    if (cityId === "binh dinh|vietnam") return choices(["hinduism", 3], ["sunni-islam", 1]);
     return choices(["austronesian-traditional", 2], ["sunni-islam", 1], ["hinduism", 1]);
   }
 
-  if (country === "Ethiopia" || factionId === "ethiopia") {
-    if (city === "massawa") return choices(["ethiopian-orthodox", 3], ["sunni-islam", 2]);
+  if (country === "ethiopia" || factionId === "ethiopia") {
+    if (cityId === "massawa|ethiopia") return choices(["ethiopian-orthodox", 3], ["sunni-islam", 2]);
     return choices(["ethiopian-orthodox", 1]);
   }
-  if (SWAHILI_COAST_CITIES.has(city) || ["Kenya", "Somalia", "Tanzania"].includes(country)) {
+  if (SWAHILI_COAST_CITIES.has(cityId) || ["kenya", "somalia", "tanzania"].includes(country)) {
     return choices(["sunni-islam", 1]);
   }
-  if (country === "Angola" && city === "m'banza-congo") {
+  if (cityId === "m'banza-congo|angola") {
     return choices(["roman-catholic", 3], ["african-traditional", 2]);
   }
   if (cityType === "sub-saharan") {
-    if (factionId === "songhai" || ["gao", "kano", "mali", "tombouctou"].includes(city)) {
+    if (factionId === "songhai" || ["gao|mali", "kano|nigeria", "mali|mali", "tombouctou|mali"].includes(cityId)) {
       return choices(["sunni-islam", 4], ["african-traditional", 1]);
     }
     return choices(["african-traditional", 1]);
   }
 
-  if (city === "baghdad") {
+  if (cityId === "baghdad|iraq") {
     return choices(["sunni-islam", 5], ["shia-islam", 3], ["judaism", 1]);
   }
   if (factionId === "safavid") {
-    if (["kerman", "yazd"].includes(city)) {
+    if (["kerman|iran", "yazd|iran"].includes(cityId)) {
       return choices(["shia-islam", 5], ["sunni-islam", 1], ["zoroastrianism", 2]);
     }
     return choices(["shia-islam", 6], ["sunni-islam", 2], ["zoroastrianism", 1]);
   }
-  if (city === "jerusalem") {
+  if (cityId === "jerusalem|israel") {
     return choices(
       ["sunni-islam", 5],
       ["judaism", 2],
@@ -351,14 +355,14 @@ export function religionCandidatesForHome(homePort) {
       ["roman-catholic", 1]
     );
   }
-  if (country === "Oman" || city === "muscat") {
+  if (country === "oman" || cityId === "muscat|oman") {
     return choices(["ibadi-islam", 4], ["sunni-islam", 1]);
   }
-  if (country === "Iran") {
-    if (city === "hormuz") {
+  if (country === "iran") {
+    if (cityId === "hormuz|iran") {
       return choices(["sunni-islam", 6], ["shia-islam", 3], ["zoroastrianism", 1]);
     }
-    if (["kerman", "yazd"].includes(city)) {
+    if (["kerman|iran", "yazd|iran"].includes(cityId)) {
       return choices(["shia-islam", 5], ["sunni-islam", 1], ["zoroastrianism", 2]);
     }
     return choices(["shia-islam", 6], ["sunni-islam", 2], ["zoroastrianism", 1]);
@@ -370,13 +374,13 @@ export function religionCandidatesForHome(homePort) {
     return choices(["sunni-islam", 1]);
   }
 
-  if (country === "Albania") {
+  if (country === "albania") {
     return choices(["sunni-islam", 2], ["eastern-orthodox", 2], ["roman-catholic", 1]);
   }
   if (factionId === "hospitallers") {
     return choices(["roman-catholic", 3], ["eastern-orthodox", 2]);
   }
-  if (country === "Cyprus") {
+  if (country === "cyprus") {
     return choices(["eastern-orthodox", 3], ["roman-catholic", 1]);
   }
   if (ORTHODOX_COUNTRIES.has(country) || factionId === "muscovy") {
@@ -386,7 +390,7 @@ export function religionCandidatesForHome(homePort) {
   if (factionId === "poland-lithuania") {
     return choices(["roman-catholic", 3], ["eastern-orthodox", 1], ["judaism", 1]);
   }
-  if (country === "Germany" && EARLY_REFORMATION_CITIES.has(city)) {
+  if (country === "germany" && EARLY_REFORMATION_CITIES.has(cityId)) {
     return choices(["roman-catholic", 4], ["lutheran", 1]);
   }
   if (CATHOLIC_FACTIONS.has(factionId) || cityType === "northern-european" || cityType === "mediterranean") {
@@ -484,14 +488,14 @@ export function religionCandidatesForHome(homePort) {
   );
 }
 
-function southAsianReligionCandidates({ city, factionId }) {
-  if (["lahore", "multan"].includes(city)) {
+function southAsianReligionCandidates({ cityId, factionId }) {
+  if (["lahore|pakistan", "multan|pakistan"].includes(cityId)) {
     return choices(["hinduism", 4], ["sunni-islam", 4], ["sikhism", 1]);
   }
-  if (city === "goa") {
+  if (cityId === "goa|india") {
     return choices(["hinduism", 5], ["sunni-islam", 2], ["roman-catholic", 2], ["jainism", 1]);
   }
-  if (SOUTH_ASIAN_PORT_CITIES.has(city)) {
+  if (SOUTH_ASIAN_PORT_CITIES.has(cityId)) {
     return choices(["hinduism", 6], ["sunni-islam", 2], ["judaism", 1], ["roman-catholic", 1]);
   }
   if (factionId === "vijayanagara") return choices(["hinduism", 9], ["jainism", 1]);
@@ -505,15 +509,22 @@ function southAsianReligionCandidates({ city, factionId }) {
   }
   if (factionId === "bengal") return choices(["hinduism", 3], ["sunni-islam", 2]);
   if (["delhi", "mughal"].includes(factionId)) return choices(["hinduism", 3], ["sunni-islam", 2]);
-  if (["amber", "jodhpur", "ujjain"].includes(city)) {
+  if (["amber|india", "jodhpur|india", "ujjain|india"].includes(cityId)) {
     return choices(["hinduism", 4], ["jainism", 1]);
   }
-  if (city === "srinagar") return choices(["sunni-islam", 3], ["hinduism", 1]);
+  if (cityId === "srinagar|india") return choices(["sunni-islam", 3], ["hinduism", 1]);
   return choices(["hinduism", 4], ["sunni-islam", 1], ["jainism", 1]);
 }
 
 function religionContext(homePort, character) {
+  if (homePort && typeof homePort === "object") {
+    requireCityId(homePort, "Character religion home city");
+  } else if ((character.homePortTileId !== undefined || character.homePortName !== undefined) &&
+      (character.homePortCityId === undefined || character.homePortCityId === null)) {
+    throw new Error("Placed character religion requires a canonical home-city id");
+  }
   const characterContext = {
+    cityId: character.homePortCityId,
     displayCity: character.homePortName,
     country: character.homePortCountry,
     factionId: character.nationalityId,
@@ -570,10 +581,6 @@ function assertPortraitReligionFamily(requiredReligionFamily) {
 
 function religion(id, label, iconId) {
   return Object.freeze({ id, label, iconId });
-}
-
-function normalized(value) {
-  return String(value || "").trim().toLowerCase();
 }
 
 function hashString32(value) {

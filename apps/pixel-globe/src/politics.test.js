@@ -49,8 +49,13 @@ import {
 } from "./politics.js";
 
 const PLAYER = {
+  id: "player:joan-alden",
   name: "Joan Alden",
   nationalityId: "england",
+  homePortCityId: "london|united kingdom",
+  homePortTileId: 1,
+  homePortName: "London",
+  homePortCountry: "United Kingdom",
   expressions: ["neutral", "happy"]
 };
 
@@ -103,6 +108,7 @@ test("politics cards name each nation's capital while pirates have none", () => 
 test("politics cards follow a restored nation's current capital", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const cities = FACTION_CAPITALS_1522.map((capital, index) => ({
+    cityId: `${capital.city.toLowerCase()}|${capital.factionId}`,
     tileId: index + 1,
     city: capital.factionId === "hospitallers" ? "Birgu" : capital.city,
     displayCity: capital.factionId === "hospitallers" ? "Birgu" : capital.city,
@@ -113,7 +119,7 @@ test("politics cards follow a restored nation's current capital", () => {
   const birgu = cities.find((city) => city.factionId === "hospitallers");
 
   assert.equal(politicsCard(view, "hospitallers").capital.city, "Birgu");
-  assert.equal(politicsCard(view, "hospitallers").capital.portId, `city-${birgu.tileId}`);
+  assert.equal(politicsCard(view, "hospitallers").capital.portId, birgu.cityId);
 });
 
 test("collapsed empires leave the active politics cards", () => {
@@ -366,12 +372,14 @@ test("scripted political notices remain available in dated politics history", ()
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   recordPortCapture(state.memory.conquest, {
     tileId: 900001,
+    cityId: "cuzco|peru",
     city: "Cuzco",
     country: "Peru",
     factionId: "inca"
   }, "spain", 300, "conquistador-campaign");
   const ternate = withForeignSettlements1522({
     tileId: 900002,
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Indonesia",
     factionId: "ternate"
@@ -394,8 +402,10 @@ test("scripted political notices remain available in dated politics history", ()
   acceptPapalCommission(papacy, state.relations.diplomacy, {
     ...context,
     simMinute: papacy.lastUpdateMinute,
+    originCityId: "rome|italy",
     originTileId: 1,
     itinerary: [{
+      cityId: "test port|test",
       tileId: 2,
       portName: "Test Port",
       factionId: "habsburg",
@@ -450,7 +460,7 @@ test("politics news keeps the ten newest dated developments", () => {
 
 test("politics cards omit neutral relationships even after contact", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const venice = { tileId: 9, city: "Venice", country: "Italy", factionId: "venice" };
+  const venice = { cityId: "venice|italy", tileId: 9, city: "Venice", country: "Italy", factionId: "venice" };
   visitPort(state, venice, 100);
   const view = createPoliticsView(state);
   const england = politicsCard(view, "england");
@@ -463,6 +473,7 @@ test("politics view independently marks every faction that granted a letter of m
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const london = {
     tileId: 1,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -472,6 +483,7 @@ test("politics view independently marks every faction that granted a letter of m
   };
   const paris = {
     tileId: 2,
+    cityId: "paris|france",
     city: "Paris",
     displayCity: "Paris",
     country: "France",

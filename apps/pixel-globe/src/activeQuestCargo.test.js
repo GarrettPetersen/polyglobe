@@ -21,7 +21,7 @@ import {
   completeColonizationFetchStage,
   landColonists
 } from "./colonizationQuest.js";
-import { createGameState } from "./gameState.js";
+import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import {
   PAPAL_COMMISSION_ALMS,
   acceptPapalCommission,
@@ -41,6 +41,7 @@ import {
 } from "./vikingLongshipQuest.js";
 
 const HAFNARFJORDUR = Object.freeze({
+  cityId: "hafnarfjordur|iceland",
   tileId: 64,
   portId: "city-64",
   city: VIKING_LONGSHIP_PORT_CITY,
@@ -48,12 +49,14 @@ const HAFNARFJORDUR = Object.freeze({
 });
 const ISTANBUL = Object.freeze({
   tileId: 44,
+  cityId: "istanbul|ottoman empire",
   city: "Istanbul",
   country: "Ottoman Empire",
   cityType: "islamic-desert"
 });
 const BORDEAUX = Object.freeze({
   tileId: 10,
+  cityId: "bordeaux|france",
   city: "Bordeaux",
   country: "France",
   factionId: "france",
@@ -61,11 +64,12 @@ const BORDEAUX = Object.freeze({
   lon: -0.58
 });
 const PORT_ROYAL = Object.freeze({
-  ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
+  ...colonizationTargetForCity({ cityId: "port royal|canada", city: "Port Royal", country: "Canada" }),
   tileId: 123
 });
 const CADIZ = Object.freeze({
   tileId: 77,
+  cityId: "cadiz|spain",
   city: "Cadiz",
   country: "Spain",
   settlementType: "city"
@@ -171,9 +175,9 @@ test("shipyard materials are protected and offered immediately after landing", (
   assert.deepEqual(
     activeQuestCargoRequirements(state).filter((requirement) => requirement.id.startsWith("shipyard.")),
     [
-      { id: "shipyard.77.timber", goodId: "timber", remainingQuantity: 20 },
-      { id: "shipyard.77.iron", goodId: "iron", remainingQuantity: 12 },
-      { id: "shipyard.77.naval-stores", goodId: "naval-stores", remainingQuantity: 10 }
+      { id: "shipyard.cadiz|spain.timber", goodId: "timber", remainingQuantity: 20 },
+      { id: "shipyard.cadiz|spain.iron", goodId: "iron", remainingQuantity: 12 },
+      { id: "shipyard.cadiz|spain.naval-stores", goodId: "naval-stores", remainingQuantity: 10 }
     ]
   );
   assert.equal(
@@ -199,8 +203,10 @@ test("accepted Papal transport cargo is protected with other quest provisions", 
     playerReligionId: "roman-catholic",
     papalReputation: 20,
     simMinute: papacy.lastUpdateMinute,
+    originCityId: "rome|italy",
     originTileId: 1,
     itinerary: [{
+      cityId: "relief port|test",
       tileId: 2,
       portName: "Relief Port",
       factionId: papacy.pendingMatter.targetFactionId,

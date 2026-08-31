@@ -71,7 +71,7 @@ test("Great Barrier Reef capture stages a ship over the underwater discovery", (
   assert.equal(scenario.player.lat, -18.4);
   assert.equal(scenario.player.lon, 147.2);
   assert.equal(scenario.sequence.kind, "explore");
-  assert.equal(scenario.sequence.discoveryName, "Great Barrier Reef");
+  assert.equal(scenario.sequence.discoveryId, "landmark-great-barrier-reef");
   assert.deepEqual(scenario.encounters, []);
 });
 
@@ -231,7 +231,7 @@ test("the upwind Short stages one cohesive city voyage and three oared exception
   const captures = ids.map((id) => captureScenarioFromSearch(`?capture=${id}`));
   assert.equal(captures[0].player.shipSlug, "caravel");
   assert.equal(captures[0].sequence.variant, "upwind-voyage");
-  assert.equal(captures[0].sequence.cityName, "Ribeira Grande");
+  assert.equal(captures[0].sequence.cityId, "ribeira grande|cape verde");
   assert.equal(captures[0].sequence.durationSeconds, 37);
   assert.deepEqual(
     captures.slice(1).map((capture) => capture.player.shipSlug),
@@ -250,12 +250,12 @@ test("the loadout Short stages deprivation, the four presets, and the optional c
   const deprivation = captureScenarioFromSearch("?capture=short-loadout-deprivation");
   assert.equal(deprivation.sequence.kind, "survive");
   assert.equal(deprivation.sequence.variant, "deprivation-death");
-  assert.equal(deprivation.player.homeCityName, "Lisbon");
+  assert.equal(deprivation.player.homeCityId, "lisbon|portugal");
 
   const presets = captureScenarioFromSearch("?capture=short-loadout-presets");
   assert.equal(presets.sequence.kind, "loadout");
   assert.equal(presets.sequence.variant, "presets");
-  assert.equal(presets.sequence.cityName, "Lisbon");
+  assert.equal(presets.sequence.cityId, "lisbon|portugal");
 
   const custom = captureScenarioFromSearch("?capture=short-loadout-custom");
   assert.equal(custom.sequence.kind, "loadout");
@@ -292,9 +292,9 @@ test("the religion Short stages Old World origins, faith profiles, the Hajj, and
       .map((capture) => capture.player.religionId),
     ["roman-catholic", "sunni-islam", "eastern-orthodox", "lutheran"]
   );
-  assert.equal(captures[5].sequence.originCityName, "Aden");
-  assert.equal(captures[5].sequence.cityName, "Jeddah");
-  assert.equal(captures[5].sequence.passengerHomeCityName, "Thessaloniki");
+  assert.equal(captures[5].sequence.originCityId, "aden|yemen");
+  assert.equal(captures[5].sequence.cityId, "jeddah|saudi arabia");
+  assert.equal(captures[5].sequence.passengerHomeCityId, "thessaloniki|greece");
   assert.equal(captures[6].sequence.religiousMissionId, "jewish-responsum");
   assert.ok(captures
     .filter((capture) => capture.player.characterPortraitSourceId)
@@ -360,13 +360,13 @@ test("the colony Short crosses several oceans and shows six distinct colonial si
     "defend",
     "city"
   ]);
-  assert.deepEqual([...new Set(colonyCaptures.map((capture) => capture.sequence.cityName))], [
-    "Port Royal",
-    "Buenos Aires",
-    "Jamestown",
-    "Recife",
-    "Rio de Janeiro",
-    "Manila"
+  assert.deepEqual([...new Set(colonyCaptures.map((capture) => capture.sequence.cityId))], [
+    "port royal|canada",
+    "buenos aires|argentina",
+    "jamestown|united states of america",
+    "recife|brazil",
+    "rio de janeiro|brazil",
+    "manila|philippines"
   ]);
   assert.ok(new Set(captures.map((capture) => capture.player.factionId)).size >= 4);
   assert.ok(new Set(captures.map((capture) => capture.player.shipSlug)).size >= 4);
@@ -390,10 +390,10 @@ test("the landscape panda trailer has new b-roll, encounter, fishing, reactions,
   );
   assert.ok(captures.every((capture) => capture.player.factionId === "portugal"));
   assert.ok(captures.every((capture) => capture.player.shipSlug === "caravel"));
-  assert.ok(captures.every((capture) => capture.player.homeCityName === "Lisbon"));
+  assert.ok(captures.every((capture) => capture.player.homeCityId === "lisbon|portugal"));
   assert.equal(new Set(captures.map((capture) => capture.player.characterPortraitSourceId)).size, 1);
-  assert.equal(captures.find((capture) => capture.sequence.variant === "encounter").sequence.cityName, "Chengdu");
-  assert.equal(captures.find((capture) => capture.sequence.variant === "naturalist").sequence.cityName, "Vienna");
+  assert.equal(captures.find((capture) => capture.sequence.variant === "encounter").sequence.cityId, "chengdu|china");
+  assert.equal(captures.find((capture) => capture.sequence.variant === "naturalist").sequence.cityId, "vienna|austria");
   assert.equal(captures.filter((capture) => capture.sequence.variant === "sail" &&
     capture.sequence.pandaAboard === false).length, 3);
 });
@@ -435,7 +435,7 @@ test("trading trailer shots perform a rapid run of repeated transactions", () =>
     assert.equal(capture.sequence.transactionCount, 6);
     assert.equal(capture.sequence.factorPortraitSourceId, expectedPortraitsForCapture.factor);
     assert.equal(capture.player.characterPortraitSourceId, expectedPortraitsForCapture.player);
-    assert.equal(capture.player.homeCityName, "Lisbon");
+    assert.equal(capture.player.homeCityId, "lisbon|portugal");
     assert.doesNotMatch(capture.sequence.factorPortraitSourceId, /openai|retro-diffusion/);
     assert.doesNotMatch(capture.player.characterPortraitSourceId, /openai|retro-diffusion/);
   }
@@ -470,7 +470,7 @@ test("visible trailer captain portrait is a reviewed human-made asset", () => {
     capture.player.characterPortraitSourceId,
     "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait"
   );
-  assert.equal(capture.player.homeCityName, "Venice");
+  assert.equal(capture.player.homeCityId, "venice|italy");
   assert.doesNotMatch(capture.player.characterPortraitSourceId, /openai|retro-diffusion/);
 });
 
@@ -478,7 +478,7 @@ test("the Nubian pyramid trailer shot follows the Nile south instead of steering
   const scenario = captureScenarioFromSearch("?capture=trailer-explore-pyramid");
   assert.equal(scenario.title, "Discover the Pyramids of Meroe");
   assert.equal(scenario.player.headingDeg, 270);
-  assert.equal(scenario.sequence.discoveryName, "The Pyramids of Meroe");
+  assert.equal(scenario.sequence.discoveryId, "landmark-pyramids-of-meroe");
   assert.deepEqual(scenario.sequence.riverStart, { lat: 17.82, lon: 33.63 });
   assert.ok(scenario.sequence.sailingTarget.lat < scenario.player.lat);
 });

@@ -1,5 +1,6 @@
 import { applyCrewCasualties, crewWoundsForceSurrender } from "./combatWounds.js";
 import { DIPLOMACY_WAR } from "./factions.js";
+import { requireCityId } from "./entityIds.js";
 
 export const SHORE_BATTERY_DISABLE_DAYS = 3;
 export const SHORE_BATTERY_DISABLE_MINUTES = SHORE_BATTERY_DISABLE_DAYS * 24 * 60;
@@ -61,7 +62,7 @@ const UPGRADE_LEVEL_PREFIX = "shoreBatteryUpgradeLevel:";
 
 export function shoreBatteryId(city) {
   assertCity(city);
-  return `shore-battery:${city.portId || `city-${city.tileId}`}`;
+  return `shore-battery:${requireCityId(city, "Shore battery city")}`;
 }
 
 export function shoreBatteryLevel(city, flags = null) {
@@ -95,7 +96,7 @@ export function upgradeShoreBattery(city, flags, levels = 1) {
   const before = shoreBatteryLevel(city, flags);
   const base = shoreBatteryLevel(city);
   const after = Math.min(SHORE_BATTERY_MAX_LEVEL, before + levels);
-  flags[upgradeFlagKey(city.portId || `city-${city.tileId}`)] = after - base;
+  flags[upgradeFlagKey(requireCityId(city, "Upgraded shore battery city"))] = after - base;
   return Object.freeze({
     cityTileId: city.tileId,
     cityName: city.portAlias || city.displayCity || city.city,
@@ -139,7 +140,7 @@ export function createShoreBatteryState(city, flags, simMinute) {
     id: shoreBatteryId(city),
     cityTileId: city.tileId,
     cityName: city.portAlias || city.displayCity || city.city,
-    portId: city.portId || `city-${city.tileId}`,
+    portId: requireCityId(city, "Shore battery city"),
     factionId: city.factionId,
     cultureType: city.cityType || null,
     batteryLevel: tier.level,
@@ -390,7 +391,7 @@ export function shoreBatteryPlayerResponse({
 }
 
 function readDisabledUntil(flags, city) {
-  const value = flags[disabledFlagKey(city.portId || `city-${city.tileId}`)];
+  const value = flags[disabledFlagKey(requireCityId(city, "Disabled shore battery city"))];
   if (value === undefined) return 0;
   if (!Number.isFinite(value) || value < 0) {
     throw new Error(`Invalid shore battery disabled time for ${city.portId || city.tileId}: ${value}`);
@@ -399,7 +400,7 @@ function readDisabledUntil(flags, city) {
 }
 
 function readDisabledByShip(flags, city) {
-  const value = flags[disabledByShipFlagKey(city.portId || `city-${city.tileId}`)];
+  const value = flags[disabledByShipFlagKey(requireCityId(city, "Disabled shore battery city"))];
   if (value === undefined) return null;
   assertAttackerShipLabel(value);
   return value.trim();
@@ -423,7 +424,7 @@ function upgradeFlagKey(portId) {
 
 function readUpgradeLevel(flags, city) {
   if (flags === null) return 0;
-  const portId = city.portId || `city-${city.tileId}`;
+  const portId = requireCityId(city, "Disabled shore battery city");
   const value = flags[upgradeFlagKey(portId)];
   if (value === undefined) return 0;
   if (!Number.isInteger(value) || value < 0 || value >= SHORE_BATTERY_MAX_LEVEL) {

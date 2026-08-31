@@ -16,6 +16,7 @@ const expressions = Object.freeze([
 ]);
 const homePort = Object.freeze({
   tileId: 17,
+  cityId: "kefe|crimea",
   city: "Kefe",
   displayCity: "Kefe",
   country: "Crimea"
@@ -27,6 +28,10 @@ const captain = Object.freeze({
   givenName: "Ines",
   familyName: "Pereira",
   sex: "female",
+  homePortCityId: homePort.cityId,
+  homePortTileId: homePort.tileId,
+  homePortName: homePort.city,
+  homePortCountry: homePort.country,
   expressions,
   skillIds: ["able-seaman"]
 });

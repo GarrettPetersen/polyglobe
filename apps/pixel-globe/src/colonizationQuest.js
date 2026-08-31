@@ -1,6 +1,9 @@
-import { colonizationTargetForCity } from "./colonialCities.js";
+import {
+  colonizationTargetForCity
+} from "./colonialCities.js";
 import { CANONICAL_PORTS } from "./canonicalPorts.js";
 import { cityIsInEurope } from "./cityCatalogData.js";
+import { cityTerritoryId, requireEntityId } from "./entityIds.js";
 import {
   CARGO_SPACE_TICKS_PER_UNIT,
   availableCargoTicks,
@@ -71,6 +74,7 @@ const STAGES = new Set([
   COLONIZATION_STAGE_ESTABLISHED
 ]);
 const TARGET = colonizationTargetForCity({
+  cityId: "port royal|canada",
   city: COLONIZATION_TARGET_CITY,
   country: COLONIZATION_TARGET_COUNTRY
 });
@@ -100,11 +104,14 @@ export function createColonizationQuestMemory() {
     defenseShipIds: [],
     defenseDefeatedShipIds: [],
     aftermath: null,
+    targetCityId: null,
     targetCity: null,
     targetCountry: null,
+    originCityId: null,
     originTileId: null,
     originCity: null,
     originCountry: null,
+    approvalCityId: null,
     approvalTileId: null,
     approvalCity: null,
     approvalCountry: null,
@@ -290,6 +297,7 @@ function migrateColonizationQuestRecord(memory) {
   return {
     ...memory,
     version: COLONIZATION_QUEST_VERSION,
+    targetCityId: memory.targetCityId ?? null,
     resupplyExtensionMinutes: memory.resupplyExtensionMinutes ?? 0,
     aftermath: memory.aftermath ?? null,
     pastSettlements: Array.isArray(memory.pastSettlements)
@@ -366,20 +374,21 @@ export function assignColonizationQuest(memory, {
   } else if (approvalPort) {
     throw new Error(`${target.city} does not require a government approval stop`);
   }
-  if (selectedTarget && (
-    selectedTarget.city !== target.city || selectedTarget.country !== target.country
-  )) {
+  if (selectedTarget && selectedTarget.cityId !== target.cityId) {
     throw new Error(`Saved colony ${selectedTarget.city} does not match ${target.city}`);
   }
   if (selectedOrigin && Number.isInteger(selectedOrigin.tileId) && selectedOrigin.tileId !== origin.tileId) {
     throw new Error(`Saved colony origin ${selectedOrigin.tileId} does not match ${origin.tileId}`);
   }
+  memory.targetCityId = target.cityId;
   memory.targetCity = target.city;
   memory.targetCountry = target.country;
   memory.targetTileId = target.tileId;
+  memory.originCityId = origin.cityId;
   memory.originTileId = origin.tileId;
   memory.originCity = origin.city;
   memory.originCountry = origin.country;
+  memory.approvalCityId = approvalPort?.cityId ?? null;
   memory.approvalTileId = approvalPort?.tileId ?? null;
   memory.approvalCity = approvalPort?.city ?? null;
   memory.approvalCountry = approvalPort?.country ?? null;
@@ -400,7 +409,7 @@ export function colonizationOriginCanSponsorTarget(origin, target) {
     cityIsInEurope(origin) &&
     origin?.factionId &&
     target?.originFactionId === origin.factionId &&
-    (!target.originCountry || target.originCountry === origin.country) &&
+    (!target.originTerritoryId || cityTerritoryId(origin, "Colonization origin") === target.originTerritoryId) &&
     target.waterAccess !== "inland" &&
     Number.isInteger(target.tileId) &&
     greatCircleDistanceKm(origin, target) >= COLONIZATION_MIN_VOYAGE_DISTANCE_KM
@@ -413,7 +422,6 @@ export function colonizationOriginCanHostExiledSponsor(origin, target) {
     origin?.foundingFactionId &&
     target?.originFactionId === origin.foundingFactionId &&
     origin.factionId !== target.originFactionId &&
-    (!target.originCountry || target.originCountry === origin.country) &&
     target.waterAccess !== "inland" &&
     Number.isInteger(target.tileId) &&
     greatCircleDistanceKm(origin, target) >= COLONIZATION_MIN_VOYAGE_DISTANCE_KM
@@ -429,10 +437,11 @@ export function relocateColonizationQuestOrigin(memory, {
   validateQuestTarget(target);
   validateQuestOrigin(origin);
   const selectedTarget = requiredSelectedTarget(memory);
-  if (selectedTarget.city !== target.city || selectedTarget.country !== target.country) {
+  if (selectedTarget.cityId !== target.cityId) {
     throw new Error(`Cannot relocate ${selectedTarget.city} expedition as ${target.city}`);
   }
   assertColonizationOriginCanHostTarget(origin, target, { allowExiledSponsor });
+  memory.originCityId = origin.cityId;
   memory.originTileId = origin.tileId;
   memory.originCity = origin.city;
   memory.originCountry = origin.country;
@@ -526,7 +535,7 @@ export function colonizationOfferForCity(state, city, portCities, targetPlacemen
   pruneSpawnRolls(spawnRolls);
 
   const spawnChance = colonizationSpawnChance(context.spawnChance);
-  const identityKey = state.playerCharacter?.identityKey || state.playerCharacter?.name || "captain";
+  const identityKey = requireEntityId(state.playerCharacter?.id, "Colonization quest captain");
   if (spawnChance < 1 && seededFraction(`${identityKey}|${rollKey}|colonization`) >= spawnChance) return null;
   const target = chooseColonizationTarget(eligibleTargets, `${identityKey}|${rollKey}|target`, context);
   const approvalPort = target.approvalFactionId
@@ -578,27 +587,17 @@ export function colonizationGovernmentInExileFactionId(memory, collapsedFactionI
 
 export function isColonizationQuestOrigin(memory, city) {
   const origin = colonizationOriginIdentity(memory);
-  return Boolean(origin && (
-    city?.tileId === origin.tileId ||
-    (city?.city === origin.city && city?.country === origin.country)
-  ));
+  return Boolean(origin && city?.cityId === origin.cityId);
 }
 
 export function isColonizationQuestTarget(memory, city) {
   const target = colonizationSelectedTarget(memory);
-  return Boolean(target && (
-    city?.tileId === memory.targetTileId ||
-    city?.portId === colonizationTargetPortId(target) ||
-    (city?.city === target.city && city?.country === target.country)
-  ));
+  return Boolean(target && city?.cityId === target.cityId);
 }
 
 export function isColonizationQuestApproval(memory, city) {
   const approval = colonizationApprovalIdentity(memory);
-  return Boolean(approval && (
-    city?.tileId === approval.tileId ||
-    (city?.city === approval.city && city?.country === approval.country)
-  ));
+  return Boolean(approval && city?.cityId === approval.cityId);
 }
 
 export function grantColonizationApproval(memory, { approvalCargoDelivered = false } = {}) {
@@ -973,7 +972,7 @@ export function colonizationAftermathReportPort(memory, portCities) {
   return portCities
     .filter((city) => colonizationAftermathReportPortEligible(city, target))
     .sort((a, b) => (
-      Number(b.tileId === settlement.originTileId) - Number(a.tileId === settlement.originTileId) ||
+      Number(b.cityId === settlement.originCityId) - Number(a.cityId === settlement.originCityId) ||
       Number(b.capitalOfFactionId === target.originFactionId) -
         Number(a.capitalOfFactionId === target.originFactionId) ||
       greatCircleDistanceKm(a, target) - greatCircleDistanceKm(b, target) ||
@@ -985,7 +984,7 @@ export function discoverColonizationAftermath(memory, city, reportCity, currentM
   validateColonizationQuestMemory(memory);
   assertMinute(currentMinute);
   const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
-    candidate.targetTileId === city?.tileId &&
+    candidate.targetCityId === city?.cityId &&
     candidate.aftermath?.stage === COLONIZATION_AFTERMATH_MISSING
   ));
   if (!settlement) throw new Error("No missing colony can be discovered at this site");
@@ -997,9 +996,9 @@ export function discoverColonizationAftermath(memory, city, reportCity, currentM
 
 export function colonizationAftermathAtSite(memory, city) {
   validateColonizationQuestMemory(memory);
-  if (!Number.isInteger(city?.tileId)) return null;
+  if (typeof city?.cityId !== "string") return null;
   const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
-    candidate.targetTileId === city.tileId &&
+    candidate.targetCityId === city.cityId &&
     [
       COLONIZATION_AFTERMATH_INVESTIGATING,
       COLONIZATION_AFTERMATH_REPORTING,
@@ -1013,7 +1012,7 @@ export function inspectColonizationAftermath(memory, city, currentMinute) {
   validateColonizationQuestMemory(memory);
   assertMinute(currentMinute);
   const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
-    candidate.targetTileId === city?.tileId &&
+    candidate.targetCityId === city?.cityId &&
     candidate.aftermath?.stage === COLONIZATION_AFTERMATH_INVESTIGATING
   ));
   if (!settlement) throw new Error("No colony investigation is active at this site");
@@ -1343,8 +1342,8 @@ function assertMinute(value) {
 
 function colonizationSelectedTarget(memory) {
   if (!memory || typeof memory !== "object") return null;
-  if (nonEmptyString(memory.targetCity) && nonEmptyString(memory.targetCountry)) {
-    return colonizationTargetForCity({ city: memory.targetCity, country: memory.targetCountry });
+  if (nonEmptyString(memory.targetCityId)) {
+    return colonizationTargetForCity({ cityId: memory.targetCityId });
   }
   const legacyMemory = memory.targetCity === undefined &&
     memory.targetCountry === undefined &&
@@ -1370,8 +1369,9 @@ function selectedTargetView(memory) {
 
 function colonizationOriginIdentity(memory) {
   if (!memory || typeof memory !== "object") return null;
-  if (nonEmptyString(memory.originCity) && nonEmptyString(memory.originCountry)) {
+  if (nonEmptyString(memory.originCityId) && nonEmptyString(memory.originCity) && nonEmptyString(memory.originCountry)) {
     return Object.freeze({
+      cityId: memory.originCityId,
       tileId: memory.originTileId,
       city: memory.originCity,
       country: memory.originCountry
@@ -1387,8 +1387,9 @@ function colonizationOriginIdentity(memory) {
 
 function colonizationApprovalIdentity(memory) {
   if (!memory || typeof memory !== "object") return null;
-  if (nonEmptyString(memory.approvalCity) && nonEmptyString(memory.approvalCountry)) {
+  if (nonEmptyString(memory.approvalCityId) && nonEmptyString(memory.approvalCity) && nonEmptyString(memory.approvalCountry)) {
     return Object.freeze({
+      cityId: memory.approvalCityId,
       tileId: memory.approvalTileId,
       city: memory.approvalCity,
       country: memory.approvalCountry
@@ -1414,7 +1415,7 @@ function validateOptionalIdentity(memory, prefix, { tileId = false } = {}) {
 }
 
 function validateQuestTarget(target) {
-  if (!target || !nonEmptyString(target.city) || !nonEmptyString(target.country) ||
+  if (!target || !nonEmptyString(target.cityId) || !nonEmptyString(target.city) || !nonEmptyString(target.country) ||
       !Number.isInteger(target.tileId) || target.tileId < 0) {
     throw new Error("Colonization quest requires a placed target");
   }
@@ -1490,14 +1491,14 @@ export function colonizationResupplyRequirementId(target, resupply) {
 }
 
 function colonizationRequirementPrefix(target) {
-  if (!target?.city || !target?.country) {
+  if (!target?.cityId) {
     throw new Error("Colonization cargo requirement needs a selected target");
   }
-  return `colonization.${target.city}.${target.country}`.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  return `colonization.${target.cityId}`.replace(/[^a-z0-9]+/g, "-");
 }
 
 function validateQuestOrigin(origin) {
-  if (!origin || !nonEmptyString(origin.city) || !nonEmptyString(origin.country) ||
+  if (!origin || !nonEmptyString(origin.cityId) || !nonEmptyString(origin.city) || !nonEmptyString(origin.country) ||
       !nonEmptyString(origin.factionId) || !Number.isInteger(origin.tileId) || origin.tileId < 0) {
     throw new Error("Colonization quest requires a faction port origin");
   }
@@ -1509,9 +1510,6 @@ function assertColonizationOriginCanHostTarget(origin, target, { allowExiledSpon
   const sponsorFactionId = allowExiledSponsor ? origin.foundingFactionId : origin.factionId;
   if (target.originFactionId !== sponsorFactionId) {
     throw new Error(`${origin.city} cannot sponsor a ${target.originFactionId} colony mission`);
-  }
-  if (target.originCountry && target.originCountry !== origin.country) {
-    throw new Error(`${target.city} expedition must leave from ${target.originCountry}`);
   }
   throw new Error(`${origin.city} cannot reach the ${target.city} colonization target`);
 }
@@ -1558,6 +1556,7 @@ function colonizationRollPeriod(simMinute = 0) {
 function chooseColonizationTarget(candidates, seed, context) {
   const requested = context.targetTileId === undefined
     ? null
+    // IDENTITY_SPATIAL_EXCEPTION: scenario authors may deliberately select this exact world tile.
     : candidates.find((target) => target.tileId === context.targetTileId);
   if (context.targetTileId !== undefined && !requested) {
     throw new Error(`Requested colony target is not eligible: ${context.targetTileId}`);
@@ -1574,6 +1573,7 @@ function chooseApprovalPort(target, portCities, context) {
       portIdentityKey(a).localeCompare(portIdentityKey(b))
     ));
   if (context.approvalTileId !== undefined) {
+    // IDENTITY_SPATIAL_EXCEPTION: scenario authors may deliberately select this exact world tile.
     const requested = candidates.find((port) => port.tileId === context.approvalTileId);
     if (!requested) throw new Error(`Requested approval port is not eligible: ${context.approvalTileId}`);
     return requested;
@@ -1587,22 +1587,19 @@ function pruneSpawnRolls(rolls) {
 }
 
 function colonizationTargetPortId(target) {
-  return `colony-${slug(target.city)}-${slug(target.country)}`;
+  return `colony-${target.cityId.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
 }
 
 function colonizationTargetKey(target) {
-  return `${target.city.trim().toLowerCase()}|${target.country.trim().toLowerCase()}`;
+  return target.cityId;
 }
 
 function portIdentityKey(city) {
-  return `${city.city}|${city.country}|${city.tileId}`;
+  return city.cityId;
 }
 
 function portMatchesIdentity(city, identity) {
-  return Boolean(identity && (
-    city?.tileId === identity.tileId ||
-    (city?.city === identity.city && city?.country === identity.country)
-  ));
+  return Boolean(identity && city?.cityId === identity.cityId);
 }
 
 function colonizationReplacementOriginOrder(a, b, target, previousOrigin) {

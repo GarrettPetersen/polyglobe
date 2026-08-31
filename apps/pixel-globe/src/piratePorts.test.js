@@ -6,8 +6,8 @@ import { buildPlayerPirateHideoutPorts } from "./piratePorts.js";
 
 test("revealed pirate hideouts use village art and pirate allegiance without changing their market key", () => {
   const ports = [
-    { tileId: 9, city: "Dover", displayCity: "Dover", country: "United Kingdom", factionId: "england" },
-    { tileId: 3, city: "Calais", displayCity: "Calais", country: "France", factionId: "france" }
+    { cityId: "dover|united kingdom", tileId: 9, city: "Dover", displayCity: "Dover", country: "United Kingdom", factionId: "england" },
+    { cityId: "calais|france", tileId: 3, city: "Calais", displayCity: "Calais", country: "France", factionId: "france" }
   ];
   const hideouts = buildPlayerPirateHideoutPorts(ports);
 

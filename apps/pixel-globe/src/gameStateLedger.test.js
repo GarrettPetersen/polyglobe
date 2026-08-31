@@ -85,6 +85,7 @@ test("repeated compaction merges an existing archive without losing prior totals
 test("collecting shipyard dividends pays the purse and clears the yard balance together", () => {
   const city = {
     tileId: 91,
+    cityId: "cadiz|spain",
     city: "Cadiz",
     displayCity: "Cadiz",
     country: "Spain",
@@ -98,7 +99,7 @@ test("collecting shipyard dividends pays the purse and clears the yard balance t
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
-  state.memory.shipyardInvestment.backedPortTileIds.push(city.tileId);
+  state.memory.shipyardInvestment.backedPortCityIds.push(city.cityId);
   const system = createWorldShipyards({ ports: [city], startMinute: 0 });
   const yard = fundPlayerShipyard(system, city, {
     investedMinute: 0,

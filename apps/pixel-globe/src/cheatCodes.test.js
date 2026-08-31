@@ -24,11 +24,13 @@ const PLAYER = Object.freeze({
   gender: "female",
   nameCulture: "english",
   nationalityId: "england",
+  homePortCityId: "test-harbor|test",
   homePortTileId: 12,
   homePortName: "Test Harbor",
   expressions: ["neutral"]
 });
 const HOME = Object.freeze({
+  cityId: "test-harbor|test",
   tileId: 12,
   city: "Test Harbor",
   factionId: "neutral",

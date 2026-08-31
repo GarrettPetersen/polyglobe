@@ -1,4 +1,5 @@
 import { shipLabelForProse } from "./shipStats.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
 export const TREASURE_MAP_PIECE_COUNT = 12;
 export const TREASURE_PIRATE_HINT_LIMIT = 3;
@@ -80,10 +81,12 @@ export function initializeTreasureCampaign(goal, {
     return {
       id: `treasure-pirate-${String(index + 1).padStart(2, "0")}`,
       shipId: `treasure-map-pirate-${String(index + 1).padStart(2, "0")}`,
+      hideoutCityId: requireCityId(hideout, "Treasure pirate hideout"),
       hideoutTileId: hideout.tileId,
       shipSlug: pirateShipSlugs[
         hashString32(`${identityKey}|treasure-pirate-ship|${index}`) % pirateShipSlugs.length
       ],
+      captainId: null,
       captainName: null
     };
   });
@@ -91,16 +94,18 @@ export function initializeTreasureCampaign(goal, {
   return goal;
 }
 
-export function bindTreasurePirateCaptainName(goal, pirateId, captainName) {
+export function bindTreasurePirateCaptain(goal, pirateId, captain) {
   validateTreasureCampaignFields(goal);
   const pirate = requiredMapPirate(goal, pirateId);
-  assertNonEmptyString(captainName, "Treasure pirate captain name");
-  if (pirate.captainName !== null && pirate.captainName !== captainName) {
+  assertNonEmptyString(captain?.id, "Treasure pirate captain id");
+  assertNonEmptyString(captain?.name, "Treasure pirate captain name");
+  if (pirate.captainId !== null && pirate.captainId !== undefined && pirate.captainId !== captain.id) {
     throw new Error(
-      `Treasure pirate ${pirateId} changed captains: ${pirate.captainName} != ${captainName}`
+      `Treasure pirate ${pirateId} changed captains: ${pirate.captainId} != ${captain.id}`
     );
   }
-  pirate.captainName = captainName;
+  pirate.captainId = captain.id;
+  pirate.captainName ??= captain.name;
   return pirate;
 }
 
@@ -343,11 +348,15 @@ export function validateTreasureCampaignFields(goal) {
     assertNonEmptyString(pirate?.id, "Treasure pirate id");
     assertNonEmptyString(pirate.shipId, "Treasure pirate ship id");
     assertNonEmptyString(pirate.shipSlug, "Treasure pirate ship type");
+    requireEntityId(pirate.hideoutCityId, "Treasure pirate hideout");
     if (!Number.isInteger(pirate.hideoutTileId) || pirate.hideoutTileId < 0) {
       throw new Error(`Invalid treasure pirate hideout: ${pirate.hideoutTileId}`);
     }
     if (pirate.captainName !== null) {
       assertNonEmptyString(pirate.captainName, "Treasure pirate captain name");
+    }
+    if (pirate.captainId !== null && pirate.captainId !== undefined) {
+      assertNonEmptyString(pirate.captainId, "Treasure pirate captain id");
     }
     if (pirateIds.has(pirate.id) || shipIds.has(pirate.shipId)) {
       throw new Error(`Duplicate treasure pirate identity: ${pirate.id}/${pirate.shipId}`);

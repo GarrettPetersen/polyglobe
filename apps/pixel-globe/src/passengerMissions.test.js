@@ -50,8 +50,13 @@ import { characterWithBiography } from "./characterBiography.js";
 import { gameStatePerkTotals } from "./playerPerks.js";
 
 const PLAYER = {
+  id: "player:joan-alden",
   name: "Joan Alden",
   nationalityId: "england",
+  homePortCityId: "london|united kingdom",
+  homePortTileId: 5,
+  homePortName: "London",
+  homePortCountry: "United Kingdom",
   expressions: ["neutral", "happy"]
 };
 
@@ -92,9 +97,9 @@ test("passenger missions spawn as persistent medium-distance offers", () => {
   const offer = passengerOfferForCity(state, LISBON, [LISBON, PORTO, ISTANBUL], {
     spawnChance: 1,
     simMinute: 0,
-    destinationTileId: ISTANBUL.tileId,
+    destinationCityId: ISTANBUL.cityId,
     scenarioId: "shipwrecked-sailor",
-    createCharacter: () => ({ name: "Mateo Costa" })
+    createCharacter: () => ({ id: "passenger:mateo-costa", name: "Mateo Costa" })
   });
 
   assert.equal(offer.kind, "passenger");
@@ -119,7 +124,7 @@ test("declined passengers release their port slot for a later spawn period", () 
   const first = passengerOfferForCity(state, LISBON, ports, {
     spawnChance: 1,
     simMinute: 0,
-    destinationTileId: ISTANBUL.tileId
+    destinationCityId: ISTANBUL.cityId
   });
 
   declinePassengerOffer(state, first, { simMinute: 0 });
@@ -127,13 +132,13 @@ test("declined passengers release their port slot for a later spawn period", () 
   assert.equal(passengerOfferForCity(state, LISBON, ports, {
     spawnChance: 1,
     simMinute: 0,
-    destinationTileId: ISTANBUL.tileId
+    destinationCityId: ISTANBUL.cityId
   }), null);
 
   const later = passengerOfferForCity(state, LISBON, ports, {
     spawnChance: 1,
     simMinute: PASSENGER_ROLL_PERIOD_MINUTES,
-    destinationTileId: LONDON.tileId
+    destinationCityId: LONDON.cityId
   });
   assert.ok(later);
   assert.notEqual(later.id, first.id);
@@ -144,7 +149,7 @@ test("Baghdad participates in ordinary city work", () => {
   const offer = passengerOfferForCity(state, BAGHDAD, [BAGHDAD, ISTANBUL], {
     spawnChance: 1,
     simMinute: 0,
-    destinationTileId: ISTANBUL.tileId,
+    destinationCityId: ISTANBUL.cityId,
     scenarioId: "patron-papers"
   });
 
@@ -164,7 +169,7 @@ test("patron passengers mention closed roads only on the same landmass", () => {
     {
       spawnChance: 1,
       simMinute: 0,
-      destinationTileId: istanbul.tileId,
+      destinationCityId: istanbul.cityId,
       scenarioId: "patron-papers"
     }
   );
@@ -179,7 +184,7 @@ test("patron passengers mention closed roads only on the same landmass", () => {
     {
       spawnChance: 1,
       simMinute: 0,
-      destinationTileId: london.tileId,
+      destinationCityId: london.cityId,
       scenarioId: "patron-papers"
     }
   );
@@ -197,7 +202,7 @@ test("Muslim ports can offer long-distance Hajj passage to Jeddah", () => {
     sailingDistanceKm: () => 8600,
     createCharacter: (request) => {
       characterRequest = request;
-      return { name: "Nur Aisyah", religionId: request.quest.passengerReligionId };
+      return { id: "passenger:nur-aisyah", name: "Nur Aisyah", religionId: request.quest.passengerReligionId };
     }
   });
 
@@ -240,10 +245,10 @@ test("nearby portrait previews do not persist passenger offers or consume their 
     hajjScenarioChance: 1,
     simMinute: 0,
     sailingDistanceKm: () => 8600,
-    createCharacter: () => ({ name: "Nur Aisyah", religionId: "sunni-islam" })
+    createCharacter: () => ({ id: "passenger:nur-aisyah", name: "Nur Aisyah", religionId: "sunni-islam" })
   });
 
-  assert.equal(previews.get(ACEH.tileId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
+  assert.equal(previews.get(ACEH.cityId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
   assert.deepEqual(state.memory.quests, questsBefore);
 
   const committed = passengerOfferForCity(state, ACEH, [ACEH, JEDDAH], {
@@ -269,8 +274,8 @@ test("previewing one nearby port does not block another port's passenger preview
     }
   );
 
-  assert.equal(previews.get(ACEH.tileId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
-  assert.equal(previews.get(BAGHDAD.tileId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
+  assert.equal(previews.get(ACEH.cityId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
+  assert.equal(previews.get(BAGHDAD.cityId)?.[0]?.scenarioId, HAJJ_PASSENGER_SCENARIO_ID);
   assert.deepEqual(state.memory.quests.passengerOffers, {});
 });
 
@@ -288,7 +293,7 @@ test("pirate hideouts never generate ordinary travel missions", () => {
     }
   });
 
-  assert.deepEqual(previews.get(hideout.tileId), []);
+  assert.deepEqual(previews.get(hideout.cityId), []);
   assert.equal(sampledDistance, false);
   assert.equal(passengerOfferForCity(state, hideout, [ACEH, JEDDAH], {
     spawnChance: 1,
@@ -304,11 +309,11 @@ test("Jeddah commonly offers repeatable passages home to returning Hajj pilgrims
     spawnChance: 1,
     hajjReturnScenarioChance: 1,
     simMinute: 0,
-    destinationTileId: ACEH.tileId,
+    destinationCityId: ACEH.cityId,
     sailingDistanceKm: () => 8600,
     createCharacter: (request) => {
       characterRequest = request;
-      return { name: "Nur Aisyah", religionId: request.quest.passengerReligionId };
+      return { id: "passenger:nur-aisyah", name: "Nur Aisyah", religionId: request.quest.passengerReligionId };
     }
   });
 
@@ -328,7 +333,7 @@ test("Jeddah commonly offers repeatable passages home to returning Hajj pilgrims
     spawnChance: 1,
     hajjReturnScenarioChance: 1,
     simMinute: PASSENGER_ROLL_PERIOD_MINUTES,
-    destinationTileId: ACEH.tileId,
+    destinationCityId: ACEH.cityId,
     sailingDistanceKm: () => 8600
   });
 
@@ -343,7 +348,7 @@ test("Hajj return passengers can only name Muslim communities as home", () => {
     spawnChance: 1,
     scenarioId: HAJJ_RETURN_PASSENGER_SCENARIO_ID,
     simMinute: 0,
-    destinationTileId: LISBON.tileId,
+    destinationCityId: LISBON.cityId,
     sailingDistanceKm: () => 5000
   }), null);
 });
@@ -353,8 +358,8 @@ test("accepting and completing passenger passage pays fare and clears pending of
   const offer = passengerOfferForCity(state, LISBON, [LISBON, LONDON, GOA], {
     spawnChance: 1,
     simMinute: 0,
-    destinationTileId: LONDON.tileId,
-    createCharacter: () => ({ name: "Hana Sato" })
+    destinationCityId: LONDON.cityId,
+    createCharacter: () => ({ id: "passenger:hana-sato", name: "Hana Sato" })
   });
   const before = state.doubloons;
 
@@ -388,7 +393,7 @@ test("one passenger and one package delivery can travel aboard together", () => 
   const passenger = passengerOfferForCity(state, LISBON, [LISBON, LONDON, GOA], {
     spawnChance: 1,
     simMinute: 0,
-    destinationTileId: LONDON.tileId,
+    destinationCityId: LONDON.cityId,
     createCharacter: () => passengerCharacter
   });
   acceptQuest(state, passenger);
@@ -450,18 +455,18 @@ test("passenger destinations reject local hops and intercontinental extremes", (
   assert.equal(passengerOfferForCity(shortState, LISBON, [LISBON, PORTO], {
     spawnChance: 1,
     simMinute: 0,
-    destinationTileId: PORTO.tileId
+    destinationCityId: PORTO.cityId
   }), null);
   assert.equal(passengerOfferForCity(longState, BEIJING, [BEIJING, HAVANA, NAGASAKI], {
     spawnChance: 1,
     simMinute: 0,
-    destinationTileId: HAVANA.tileId
+    destinationCityId: HAVANA.cityId
   }), null);
 });
 
 test("old unaccepted long-distance offers expire but active passengers remain untouched", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const originKey = `${LISBON.city}|${LISBON.country}|${LISBON.tileId}`;
+  const originKey = LISBON.cityId;
   state.memory.quests.passengerOffers[originKey] = {
     id: "passenger-old-world-spanning",
     kind: "passenger",
@@ -488,7 +493,7 @@ test("version 51 saves move an active passenger into the concurrent mission slot
     id: "passenger-legacy-active",
     kind: "passenger",
     originTileId: LISBON.tileId,
-    destinationTileId: LONDON.tileId,
+    destinationCityId: LONDON.cityId,
     passenger: { id: "legacy-passenger", name: "Hana Sato" }
   };
 
@@ -506,10 +511,10 @@ test("a friendly envoy negotiates abroad and is paid only after returning home",
   const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON, ISTANBUL], {
     envoySpawnChance: 1,
     envoyKind: "friendly-envoy",
-    destinationTileId: LONDON.tileId,
+    destinationCityId: LONDON.cityId,
     relationBetween: diplomacyBetween,
     simMinute: 0,
-    createCharacter: () => ({ name: "Duarte de Meneses" })
+    createCharacter: () => ({ id: "envoy:duarte-de-meneses", name: "Duarte de Meneses" })
   });
 
   assert.equal(offer.kind, "friendly-envoy");
@@ -545,7 +550,7 @@ test("a special envoy from the player capital opens a sovereign market during ne
     envoySpawnChance: 1,
     relationBetween: diplomacyBetween,
     simMinute: 0,
-    createCharacter: () => ({ name: "Thomas Moreton" })
+    createCharacter: () => ({ id: "envoy:thomas-moreton", name: "Thomas Moreton" })
   });
 
   assert.equal(offer.kind, "friendly-envoy");
@@ -580,7 +585,7 @@ test("the Ming trade-opening embassy cannot bypass the envoy spawn roll", () => 
     envoySpawnChance: 0,
     relationBetween: diplomacyBetween,
     simMinute: 0,
-    createCharacter: () => ({ name: "Thomas Moreton" })
+    createCharacter: () => ({ id: "envoy:thomas-moreton", name: "Thomas Moreton" })
   };
 
   assert.equal(envoyOfferForCapital(state, LONDON, [LONDON, BEIJING], context), null);
@@ -635,7 +640,7 @@ test("a hostile envoy worsens relations and the player's standing with the forei
     destinationTileId: LONDON.tileId,
     relationBetween: diplomacyBetween,
     simMinute: 0,
-    createCharacter: () => ({ name: "Rui de Sousa" })
+    createCharacter: () => ({ id: "envoy:rui-de-sousa", name: "Rui de Sousa" })
   });
 
   acceptQuest(state, offer);
@@ -657,10 +662,10 @@ test("a hostile envoy expels a resident settlement when its host turns hostile",
   const offer = envoyOfferForCapital(state, VENICE, [VENICE, VENETIAN_ISTANBUL], {
     envoySpawnChance: 1,
     envoyKind: "hostile-envoy",
-    destinationTileId: VENETIAN_ISTANBUL.tileId,
+    destinationCityId: VENETIAN_ISTANBUL.cityId,
     relationBetween: diplomacyBetween,
     simMinute: 0,
-    createCharacter: () => ({ name: "Rui de Sousa" })
+    createCharacter: () => ({ id: "envoy:rui-de-sousa", name: "Rui de Sousa" })
   });
 
   acceptQuest(state, offer);
@@ -688,10 +693,10 @@ test("an envoy can claim seven days of passage from either participating nation"
   const offer = envoyOfferForCapital(state, LISBON, [LISBON, LONDON], {
     envoySpawnChance: 1,
     envoyKind: "hostile-envoy",
-    destinationTileId: LONDON.tileId,
+    destinationCityId: LONDON.cityId,
     relationBetween: diplomacyBetween,
     simMinute: 0,
-    createCharacter: () => ({ name: "Rui de Sousa" })
+    createCharacter: () => ({ id: "envoy:rui-de-sousa", name: "Rui de Sousa" })
   });
   acceptQuest(state, offer);
 
@@ -712,5 +717,16 @@ test("an envoy can claim seven days of passage from either participating nation"
 });
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {
-  return { tileId, city, displayCity: city, country, cityType, factionId, population: 60000, lat, lon };
+  return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
+    tileId,
+    city,
+    displayCity: city,
+    country,
+    cityType,
+    factionId,
+    population: 60000,
+    lat,
+    lon
+  };
 }

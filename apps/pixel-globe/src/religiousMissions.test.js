@@ -80,6 +80,7 @@ test("Catholic ports enforce the Edict against forbidden Testaments", () => {
   const state = createGameState({
     cargoCapacity: 20,
     playerCharacter: {
+      ...playerHome(port(2, "Vienna", "Austria", "habsburg", "northern-european")),
       name: "Test Bookseller",
       nationalityId: "denmark-norway",
       religionId: "lutheran",
@@ -122,6 +123,7 @@ test("the September Testament visits three Catholic factors before completion", 
   const state = createGameState({
     cargoCapacity: 20,
     playerCharacter: {
+      ...playerHome(origin),
       name: "Captain Test",
       nationalityId: "denmark-norway",
       religionId: "roman-catholic",
@@ -147,7 +149,7 @@ test("the September Testament visits three Catholic factors before completion", 
   assert.equal(new Set(quest.itinerary.stops.map(({ tileId }) => tileId)).size, 3);
   assert.ok(quest.itinerary.stops.every(({ tileId }) => tileId !== excludedLutheranFactor.tileId));
   assert.equal(quest.destinationTileId, quest.itinerary.stops[0].tileId);
-  assert.deepEqual(quest.itinerary.completedTileIds, []);
+  assert.deepEqual(quest.itinerary.completedCityIds, []);
   assert.match(quest.dialogue.offer, /three hidden ports/);
 });
 
@@ -163,6 +165,7 @@ test("the September Testament offer does not consume an ordinary passenger offer
   const state = createGameState({
     cargoCapacity: 20,
     playerCharacter: {
+      ...playerHome(origin),
       name: "Captain Test",
       nationalityId: "denmark-norway",
       religionId: "roman-catholic",
@@ -172,11 +175,12 @@ test("the September Testament offer does not consume an ordinary passenger offer
   const context = {
     spawnChance: 1,
     scenarioId: "patron-papers",
-    destinationTileId: destinations[0].tileId,
+    destinationCityId: destinations[0].cityId,
     simMinute: 0,
     sailingDistanceKm: () => 700,
     portFactorReligionId: () => "roman-catholic",
     createCharacter: ({ scenario }) => ({
+      id: `passenger:${scenario.id}`,
       name: scenario.id === "patron-papers" ? "Ordinary Passenger" : "Lutheran Bookseller"
     })
   };
@@ -264,6 +268,7 @@ test("Christian missionary voyages use their documented 1522 routes", () => {
     const state = createGameState({
       cargoCapacity: 20,
       playerCharacter: {
+        ...playerHome(entry.origin),
         name: "Captain Test",
         nationalityId: entry.origin.factionId,
         religionId: entry.playerReligionId || "roman-catholic",
@@ -272,6 +277,7 @@ test("Christian missionary voyages use their documented 1522 routes", () => {
     });
     const distractor = {
       ...entry.destination,
+      cityId: `not-${entry.destination.cityId}`,
       tileId: entry.destination.tileId + 100,
       city: `Not ${entry.destination.city}`,
       displayCity: `Not ${entry.destination.city}`
@@ -334,6 +340,7 @@ test("a Daoist captain receives the Buddhist-Daoist harbor mediation", () => {
   const state = createGameState({
     cargoCapacity: 20,
     playerCharacter: {
+      ...playerHome(beijing),
       name: "Lin Mei",
       nationalityId: "ming",
       religionId: "daoism",
@@ -344,7 +351,7 @@ test("a Daoist captain receives the Buddhist-Daoist harbor mediation", () => {
   const quest = passengerOfferForCity(state, beijing, [beijing, nanjing], {
     spawnChance: 1,
     religiousMissionId: "ming-three-teachings-mediation",
-    destinationTileId: nanjing.tileId,
+    destinationCityId: nanjing.cityId,
     simMinute: 0,
     sailingDistanceKm: () => 850,
     createCharacter: (request) => {
@@ -384,6 +391,7 @@ test("mission generation prefers work in the captain's own tradition", () => {
   const state = createGameState({
     cargoCapacity: 20,
     playerCharacter: {
+      ...playerHome(origin),
       name: "Bhai Amar",
       nationalityId: "delhi",
       religionId: "sikhism",
@@ -394,7 +402,7 @@ test("mission generation prefers work in the captain's own tradition", () => {
     spawnChance: 1,
     religiousScenarioChance: 1,
     hajjScenarioChance: 0,
-    destinationTileId: destination.tileId,
+    destinationCityId: destination.cityId,
     simMinute: 0,
     sailingDistanceKm: () => 500
   });
@@ -407,6 +415,7 @@ test("mission generation prefers work in the captain's own tradition", () => {
 
 function port(tileId, city, country, factionId, cityType = null) {
   return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city,
     displayCity: city,
@@ -415,6 +424,16 @@ function port(tileId, city, country, factionId, cityType = null) {
     cityType: cityType || (country === "China" ? "east-asian" : "south-asian"),
     lat: tileId,
     lon: tileId
+  };
+}
+
+function playerHome(city) {
+  return {
+    id: `player:test:${city.cityId}`,
+    homePortCityId: city.cityId,
+    homePortTileId: city.tileId,
+    homePortName: city.displayCity || city.city,
+    homePortCountry: city.country
   };
 }
 

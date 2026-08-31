@@ -8,6 +8,7 @@ import {
   normalize3
 } from "./geodesic.js";
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
+import { requireCityId, requireEntityById, requireEntityId } from "./entityIds.js";
 import {
   WORLD_DISCRETE_WEATHER_SUBDIVISIONS,
   WORLD_GLOBE_SUBDIVISIONS,
@@ -139,7 +140,7 @@ import {
   ABOARD_ROLE_EMISSARY,
   ABOARD_ROLE_PASSENGER,
   ABOARD_ROLE_SOLDIER,
-  aboardCharacterHomePortTileId,
+  aboardCharacterHomePortCityId,
   aboardRoleSkillsAreActive,
   aboardRoster
 } from "./aboardRoster.js";
@@ -710,7 +711,6 @@ import {
   RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE,
   completeRescuedTravelerQuest,
   createRescuedTravelerDialogueSession,
-  formerRescuedTravelerCharactersAtPort,
   nextRescuedTravelerPortReunion,
   prepareRescuedTravelerHomecoming,
   recordRescuedTravelerPortReunion,
@@ -842,7 +842,6 @@ import {
   CAMPAIGN_GOAL_COMPLETE,
   CAMPAIGN_GOAL_TREASURE,
   CAMPAIGN_GOAL_WHITE_WHALE,
-  campaignGoalTypeForStoredLabel,
   campaignGoalTypeForCharacter,
   campaignGoalDestinations,
   campaignDialogueCharacter,
@@ -1047,7 +1046,7 @@ import {
   TREASURE_PIRATE_STAGE_AMBUSH,
   TREASURE_PIRATE_STAGE_HUNT,
   acquireTreasureMapPiece,
-  bindTreasurePirateCaptainName,
+  bindTreasurePirateCaptain,
   initializeTreasureCampaign,
   recordTreasureAmbushDefeat,
   recordTreasurePirateRumor,
@@ -3683,6 +3682,7 @@ let statusPersonImages;
 let statusPersonOpaquePixels;
 let cityCatalog;
 let cityByTileId;
+let cityById;
 let shipSpriteAssetStore;
 let shipLightingAssetStore;
 let shipRenderLayerAssetStore;
@@ -3760,7 +3760,7 @@ let caribbeanGingerPlanter;
 let banquetChef;
 let naturalistCharacter;
 let lastPortPortraitPreloadAtMs = -Infinity;
-const preloadedPortPortraitKeyByTileId = new Map();
+const preloadedPortPortraitKeyByCityId = new Map();
 const papalNuncioPreviewCharacters = new Map();
 const hospitallerNuncioPreviewCharacters = new Map();
 let queuedCharacterAlertSteps = [];
@@ -3769,7 +3769,7 @@ let animalNoiseAudioContext = null;
 let colonizationTargetTileId = null;
 let colonizationTargetPlacements = [];
 let portSailingDistances;
-let portArrivalNavigationByTileId;
+let portArrivalNavigationByCityId;
 let landRoadNetwork;
 let landTradeSystem;
 let portCitiesByTileId;
@@ -4407,7 +4407,7 @@ async function main() {
     if (voyageHistoryResult.status === "ready" && importCampaignVoyageHistory(
       achievementProfile,
       voyageHistoryResult.records
-        .map((record) => campaignGoalTypeForStoredLabel(record.goal))
+        .map((record) => record.goalType)
         .filter(Boolean)
     )) {
       writeAchievementProfile(achievementProfile);
@@ -4495,6 +4495,8 @@ async function main() {
   assertManualShallowWaterReachesOcean(oceanReachableNavigationMask, SUBDIVISIONS);
   if (BUILD_EDITION_ID === "demo") initializeDemoMediterraneanNavigation();
   cityByTileId = placeCityCatalogOnWorld({ ...worldPortPlacementOptions(), cities: cityCatalog });
+  cityById = new Map([...cityByTileId.values()].map((city) => [city.cityId, city]));
+  if (cityById.size !== cityByTileId.size) throw new Error("Placed city catalog contains duplicate canonical ids");
   landRoadNetwork = parseLandRoadNetwork(loadedLandRoadData, {
     subdivisions: SUBDIVISIONS,
     earthCacheVersion: String(earth.version)
@@ -4606,7 +4608,7 @@ async function main() {
     portSailingDistances,
     [...portCities, ...colonizationTargetPlacements]
   );
-  portArrivalNavigationByTileId = buildPortArrivalNavigation({
+  portArrivalNavigationByCityId = buildPortArrivalNavigation({
     ports: portCities,
     sailingDistanceKm: sailingDistanceBetweenPorts,
     approachKindForPort: portArrivalApproachKind
@@ -4623,7 +4625,7 @@ async function main() {
       accessMask: demoMediterraneanAccessMask,
       accessTileIdsForPort: (port) => portAccessTileIds(worldPortPlacementOptions(), port.tileId)
     });
-    demoAccessiblePortIds = new Set(demoAccessiblePortCities.map((city) => city.tileId));
+    demoAccessiblePortIds = new Set(demoAccessiblePortCities.map((city) => city.cityId));
     if (demoAccessiblePortCities.length === 0) {
       throw new Error("Mediterranean demo navigation contains no ports");
     }
@@ -4821,7 +4823,7 @@ async function main() {
   const playerPirateHideoutPorts = buildPlayerPirateHideoutPorts(npcSeaRoutes.pirateHideouts);
   pirateHideoutPortsByTileId = new Map(playerPirateHideoutPorts.map((port) => [port.tileId, port]));
   const pirateHideoutHosts = playerPirateHideoutPorts.map((port) => ({
-    id: port.portId,
+    id: port.cityId,
     role: NPC_ROLE_PIRATE,
     currentPort: port,
     profileId: port.routeRegion || null
@@ -6878,10 +6880,10 @@ function platformActivity(displayToken, description, mode, parameters = {}) {
 
 function platformActivityPort() {
   if (portWaitState) {
-    return chartPortCallById(portWaitState.portId) || cityByTileId.get(portWaitState.cityTileId) || null;
+    return chartPortCallById(portWaitState.portId) || cityById.get(portWaitState.cityId) || null;
   }
   if (dialogueState?.kind === "port") {
-    return chartPortCallById(dialogueState.portId) || cityByTileId.get(dialogueState.cityTileId) || null;
+    return chartPortCallById(dialogueState.portId) || cityById.get(dialogueState.cityId) || null;
   }
   return null;
 }
@@ -7463,7 +7465,7 @@ function openCampaignGoalIntroDialogue() {
     }
   }
   dialogueState = createCampaignDialogueSession({
-    cityTileId: goal.homePortTileId,
+    cityId: goal.homePortCityId,
     steps,
     phase: campaignGoalIntroPhase(goal.type)
   });
@@ -7478,8 +7480,8 @@ function openCampaignGoalIntroDialogue() {
 function campaignGoalHomeCity() {
   const goal = gameState?.memory?.campaignGoal;
   if (!goal) throw new Error("Player has no campaign goal");
-  const city = cityByTileId.get(goal.homePortTileId);
-  if (!city) throw new Error(`Campaign home port is not placed: ${goal.homePortTileId}`);
+  const city = cityById.get(goal.homePortCityId);
+  if (!city) throw new Error(`Campaign home port is not placed: ${goal.homePortCityId}`);
   return city;
 }
 
@@ -7533,7 +7535,7 @@ function maybeOpenCampaignGoalDepartureReminder(departureCity) {
   });
   if (interval === null) return false;
 
-  if (departureCity.tileId === goal.homePortTileId) {
+  if (departureCity.cityId === goal.homePortCityId) {
     markCampaignGoalReminderDelivered(gameState.memory.decisions, interval);
     return false;
   }
@@ -7745,6 +7747,7 @@ function resolvePirateCaptiveEscapeAtSea(quest, { mode, onComplete = null }) {
   const escapePort = nearestNpcRoutePortToPosition(ship.position);
   recordPirateCaptiveEscape(quest, {
     currentMinute: Math.floor(weatherClockMinutes),
+    escapeOriginPortCityId: escapePort.cityId,
     escapeOriginPortTileId: escapePort.tileId,
     stolenPossession: stolen
   });
@@ -7838,14 +7841,14 @@ function ensureEscapedPirateCaptiveEncounter({ assignCaptain = true } = {}) {
   let strategic = npcSeaRoutes.shipById.get(shipId);
   const created = !strategic;
   if (!strategic) {
-    const originPortId = quest.deception.escapeOriginPortTileId;
-    const destinationPortId = quest.deception.wantedPortTileId === originPortId
+    const originCityId = quest.deception.escapeOriginPortCityId;
+    const destinationCityId = quest.deception.wantedPortCityId === originCityId
       ? undefined
-      : quest.deception.wantedPortTileId;
+      : quest.deception.wantedPortCityId;
     strategic = configureNpcRouteEncounter(npcSeaRoutes, {
       id: shipId,
-      originPortId,
-      ...(destinationPortId === undefined ? {} : { destinationPortId }),
+      originCityId,
+      ...(destinationCityId === undefined ? {} : { destinationCityId }),
       factionId: PIRATE_FACTION_ID,
       role: NPC_ROLE_PIRATE,
       shipSlug: "galleon",
@@ -7929,7 +7932,9 @@ function papalCommissionJourneyDialogueSubject() {
   if (objective?.kind !== "destination" || !event) return null;
   return createDecisionBackedQuestJourneyDialogueSubject({
     id: `papal-commission-${matter.id}`,
+    originCityId: matter.commission.originCityId,
     originTileId: matter.commission.originTileId,
+    destinationCityId: objective.destination.cityId,
     destinationTileId: objective.destination.tileId,
     character: matter.commission.nuncio,
     journeyEvents: [event],
@@ -8134,7 +8139,7 @@ function ensureTeaRaceEncounters({ assignCaptains = true } = {}) {
         encounter: {
           kind: "tea-race",
           questId: quest.id,
-          destinationPortId: spec.destinationPortId,
+          destinationCityId: spec.destinationCityId,
           holdAtDestination: true,
           holdProgress: spec.holdProgress
         }
@@ -8163,7 +8168,7 @@ function teaRaceRivalArrivals(quest) {
     const strategic = npcSeaRoutes?.shipById.get(spec.id);
     if (!strategic) return [];
     const arrivedAtMinute = strategic.encounter?.arrivedAtMinute ??
-      (strategic.plan?.destination?.tileId === quest.destinationTileId
+      (strategic.plan?.destination?.cityId === quest.destinationCityId
         ? strategic.plan.endMinute
         : null);
     return Number.isFinite(arrivedAtMinute)
@@ -8190,7 +8195,7 @@ function maybeRecordTeaRaceRivalArrival() {
 
 function recordTeaRaceArrivalAtPort(city) {
   const quest = activeTeaRaceQuest();
-  if (!quest || city.tileId !== quest.destinationTileId || quest.stage !== "race") return null;
+  if (!quest || city.cityId !== quest.destinationCityId || quest.stage !== "race") return null;
   ensureTeaRaceEncounters();
   const first = teaRaceRivalArrivals(quest)[0] || null;
   if (first && first.arrivalMinute <= weatherClockMinutes) {
@@ -8229,13 +8234,13 @@ function reconcileNingboDelegationManifest(quest) {
   for (const factionId of ["hosokawa", "ouchi"]) {
     const capital = portCities.find((city) => city.factionId === factionId && city.isFactionCapital === true);
     if (!capital) throw new Error(`Ningbo mission requires a ${factionId} capital`);
-    delegationOrigins[factionId] = capital.tileId;
+    delegationOrigins[factionId] = capital.cityId;
   }
   quest.eastAsianStage ||= "race";
   return reconcileNingboMissionDelegationManifest(
     quest,
     delegationOrigins,
-    quest.destinationTileId
+    quest.destinationCityId
   );
 }
 
@@ -8260,7 +8265,7 @@ function ensureNingboMissionEncounters({ assignCaptains = true } = {}) {
           kind: "ningbo-delegation",
           questId: quest.id,
           delegationRole: spec.delegationRole,
-          destinationPortId: spec.destinationPortId,
+          destinationCityId: spec.destinationCityId,
           holdAtDestination: true,
           holdProgress: spec.holdProgress,
           forceAttack: quest.eastAsianStage === "battle" &&
@@ -8276,10 +8281,10 @@ function ensureNingboMissionEncounters({ assignCaptains = true } = {}) {
           kind: "ningbo-delegation",
           questId: quest.id,
           delegationRole: spec.delegationRole,
-          destinationPortId: spec.destinationPortId,
+          destinationCityId: spec.destinationCityId,
           holdAtDestination: true,
           holdProgress: spec.holdProgress,
-          originPortId: spec.originPortId
+          originCityId: spec.originCityId
         };
       }
       strategic.encounter.forceAttack = quest.eastAsianStage === "battle" &&
@@ -8326,7 +8331,7 @@ function stageNingboMissionFleetAtDestination(quest) {
       npcSeaRoutes,
       strategic.id,
       Math.floor(weatherClockMinutes),
-      { holdProgress, originPortId: spec.originPortId }
+      { holdProgress, originCityId: spec.originCityId }
     );
     if (!staged) continue;
     const visualState = npcVisualShips.get(strategic.id);
@@ -8379,7 +8384,7 @@ function ensureWokouHuntEncounter({ assignCaptains = true, respawnAtPort = false
   if (existing) return existing;
   const strategic = configureNpcRouteEncounter(npcSeaRoutes, {
     id: quest.targetShipId,
-    originPortId: quest.patrolTileId,
+    originCityId: quest.patrolCityId,
     factionId: PIRATE_FACTION_ID,
     role: NPC_ROLE_PIRATE,
     shipSlug: quest.targetShipSlug,
@@ -8471,7 +8476,7 @@ function ensureTreasureCampaignEncounters({
       if (acquired.has(pirate.id) || npcSeaRoutes.shipById.has(pirate.shipId)) continue;
       added.push(configureNpcRouteEncounter(npcSeaRoutes, {
         id: pirate.shipId,
-        originPortId: pirate.hideoutTileId,
+        originCityId: pirate.hideoutCityId,
         factionId: PIRATE_FACTION_ID,
         role: NPC_ROLE_PIRATE,
         shipSlug: pirate.shipSlug,
@@ -8505,9 +8510,15 @@ function synchronizeTreasurePirateCaptains() {
       }
       continue;
     }
-    if (pirate.captainName === null) {
-      bindTreasurePirateCaptainName(goal, pirate.id, captain.name);
+    if (pirate.captainId === null || pirate.captainId === undefined) {
+      bindTreasurePirateCaptain(goal, pirate.id, {
+        id: captain.id,
+        name: pirate.captainName || captain.name
+      });
       changed = true;
+    } else if (captain.id !== pirate.captainId) {
+      throw new Error(`Treasure pirate ${pirate.id} captain identity changed`);
+    // IDENTITY_PRESENTATION_SYNC: preserve the captain name already shown in this voyage.
     } else if (captain.name !== pirate.captainName) {
       npcShipCaptains.set(pirate.shipId, { ...captain, name: pirate.captainName });
       changed = true;
@@ -8602,7 +8613,7 @@ function ensureColonizationDefenseEncounter({
     targetTileId: memory.targetTileId,
     count: shipIds.length,
     pixelsPerRadian: PIXELS_PER_RADIAN,
-    seed: spriteKeyHash(`${gameState.voyageSeed}|${quest.target.city}|colony-defense`)
+    seed: spriteKeyHash(`${gameState.voyageSeed}|${quest.target.cityId}|colony-defense`)
   });
   const added = [];
   for (const [index, shipId] of shipIds.entries()) {
@@ -8866,7 +8877,7 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   banquetChef = null;
   naturalistCharacter = null;
   lastPortPortraitPreloadAtMs = -Infinity;
-  preloadedPortPortraitKeyByTileId.clear();
+  preloadedPortPortraitKeyByCityId.clear();
   papalNuncioPreviewCharacters.clear();
   hospitallerNuncioPreviewCharacters.clear();
   usedCharacterNames = new Set([
@@ -8882,7 +8893,7 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
 
   const vikingLongshipPort = portCities.find(isVikingLongshipQuestPort);
   if (!vikingLongshipPort) throw new Error("Hafnarfjordur is missing from the dockable 1522 port roster");
-  vikingLongshipPortFactor = portCityCharacters.get(vikingLongshipPort.tileId);
+  vikingLongshipPortFactor = portCityCharacters.get(vikingLongshipPort.cityId);
   if (!vikingLongshipPortFactor) throw new Error("Hafnarfjordur has no generated port factor to replace");
   usedCharacterNames.delete(vikingLongshipPortFactor.name);
   const vikingCharacterSourceId = playerSourceIds.includes(VIKING_LONGSHIP_CHARACTER_SOURCE_ID)
@@ -8898,26 +8909,27 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   const enthusiast = Object.freeze({
     ...vikingEnthusiast,
     role: "historical-enthusiast",
+    homePortCityId: vikingLongshipPort.cityId,
     homePortTileId: vikingLongshipPort.tileId,
     homePortName: cityLabelText(vikingLongshipPort),
     homePortCountry: vikingLongshipPort.country,
     skillIds: characterSkillIdsForIdentity(
-      `viking-enthusiast|${vikingLongshipPort.tileId}|${vikingEnthusiast.id}`,
+      `viking-enthusiast|${vikingLongshipPort.cityId}|${vikingEnthusiast.id}`,
       { traveler: true }
     )
   });
   const enthusiastAboard = permanentNamedCrew.some((member) => member.id === enthusiast.id);
   if (enthusiastAboard) {
-    portCityCharacters.set(vikingLongshipPort.tileId, vikingLongshipPortFactor);
+    portCityCharacters.set(vikingLongshipPort.cityId, vikingLongshipPortFactor);
     usedCharacterNames.add(vikingLongshipPortFactor.name);
   } else {
-    portCityCharacters.set(vikingLongshipPort.tileId, enthusiast);
+    portCityCharacters.set(vikingLongshipPort.cityId, enthusiast);
   }
 }
 
 function naturalistPort() {
-  const tileId = gameState?.memory?.quests?.naturalist?.portTileId;
-  return Number.isInteger(tileId) ? portCitiesByTileId.get(tileId) || null : null;
+  const cityId = gameState?.memory?.quests?.naturalist?.portCityId;
+  return typeof cityId === "string" ? cityById.get(cityId) || null : null;
 }
 
 function naturalistQuestViewForBuild(state = gameState) {
@@ -8945,17 +8957,17 @@ function ensureNaturalistCharacter(state, { portraitSourceId = null } = {}) {
     return naturalistCharacter;
   }
   const startMinute = state.accounts?.ledger?.[0]?.simMinute ?? 0;
-  const tileId = assignNaturalistPort(
+  const cityId = assignNaturalistPort(
     memory,
     playerAccessiblePortCities(),
     `${state.voyageSeed}|${startMinute}`
   );
-  const port = portCitiesByTileId.get(tileId);
-  if (!port) throw new Error(`Naturalist quest points to a missing port: ${tileId}`);
-  const factor = portCityCharacters.get(tileId);
+  const port = cityById.get(cityId);
+  if (!port) throw new Error(`Naturalist quest points to a missing port: ${cityId}`);
+  const factor = portCityCharacters.get(port.cityId);
   if (!factor) throw new Error(`${cityLabelText(port)} has no factor to distinguish from the naturalist`);
   naturalistCharacter = generateSpecialPortCharacter({
-    identityKey: `natural-philosopher-${tileId}`,
+    identityKey: `natural-philosopher-${cityId}`,
     port,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     portraitSourceId,
@@ -8969,9 +8981,9 @@ function ensureNaturalistCharacter(state, { portraitSourceId = null } = {}) {
 
 function createCampaignGoalContact(playerCharacter, goal) {
   if (!goal) throw new Error("Cannot assign a campaign contact without a campaign goal");
-  const homeCity = portCitiesByTileId.get(goal.homePortTileId);
-  if (!homeCity) throw new Error(`Campaign home port is not in the port roster: ${goal.homePortTileId}`);
-  const factor = portCityCharacters.get(homeCity.tileId);
+  const homeCity = cityById.get(goal.homePortCityId);
+  if (!homeCity) throw new Error(`Campaign home port is not in the port roster: ${goal.homePortCityId}`);
+  const factor = portCityCharacters.get(homeCity.cityId);
   if (!factor) throw new Error(`Campaign home port has no factor: ${cityLabelText(homeCity)}`);
   const reservedNames = new Set([playerCharacter.name]);
   for (const character of portCityCharacters.values()) reservedNames.add(character.name);
@@ -10510,7 +10522,7 @@ function capturePlayerCharacter(character, scenarioValue) {
   const captureCharacter = scenarioValue.player.characterPortraitSourceId
     ? generatePlayerCharacter({
       identityKey: scenarioValue.seed,
-      homePort: captureCityByName(scenarioValue.player.homeCityName),
+      homePort: captureCityById(scenarioValue.player.homeCityId),
       portraitSourceId: scenarioValue.player.characterPortraitSourceId,
       manifest: characterPortraitManifest,
       usedNames: usedCharacterNames
@@ -11161,11 +11173,11 @@ function stageCaptureSequence() {
   gameState.memory.flags.tackingTutorialShown = true;
   stageCaptureDiscoveryMemory(sequence);
   if (sequence.kind === "explore") {
-    const discovery = captureDiscoveryByName(sequence.discoveryName);
+    const discovery = captureDiscoveryById(sequence.discoveryId);
     if (sequence.riverStart) placeCapturePlayerNearRiverCoordinates(sequence.riverStart);
     captureDirector.steeringTarget = captureSequenceSailingTarget(sequence) || discoveryDirection(discovery);
   } else if (sequence.kind === "trade") {
-    const city = captureCityByName(sequence.cityName);
+    const city = captureCityById(sequence.cityId);
     placeCapturePlayerNearTile(city.tileId);
     stageCaptureFactorPortrait(sequence, city);
     gameState.doubloons = 12_000;
@@ -11216,7 +11228,7 @@ function captureSequenceSailingTarget(sequence) {
 
 function stageCaptureDiscoveryMemory(sequence) {
   const featuredDiscovery = sequence.kind === "explore"
-    ? captureDiscoveryByName(sequence.discoveryName)
+    ? captureDiscoveryById(sequence.discoveryId)
     : null;
   for (const discovery of discoveryCatalog) {
     if (discovery.id === featuredDiscovery?.id) continue;
@@ -11225,8 +11237,8 @@ function stageCaptureDiscoveryMemory(sequence) {
 }
 
 function stageCaptureFactorPortrait(sequence, city) {
-  const previous = portCityCharacters.get(city.tileId);
-  if (!previous) throw new Error(`Capture trade port has no factor: ${sequence.cityName}`);
+  const previous = portCityCharacters.get(city.cityId);
+  if (!previous) throw new Error(`Capture trade port has no factor: ${sequence.cityId}`);
   usedCharacterNames.delete(previous.name);
   const factor = assignPortCityCharacterFromSource(
     city,
@@ -11235,7 +11247,7 @@ function stageCaptureFactorPortrait(sequence, city) {
     usedCharacterNames,
     { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
   );
-  portCityCharacters.set(city.tileId, factor);
+  portCityCharacters.set(city.cityId, factor);
   usedCharacterNames.add(factor.name);
   chart = buildChart(camera);
 }
@@ -11291,12 +11303,12 @@ function captureSailingSimulationSeconds(seconds) {
 
 function updateCaptureExplore(sequence, nowMs) {
   if (captureCue("approach", 0.3)) {
-    emitCaptureEvent("capture-beat", { action: "approach-discovery", name: sequence.discoveryName });
+    emitCaptureEvent("capture-beat", { action: "approach-discovery", name: sequence.discoveryId });
   }
   if (captureCue("discover", 3.2)) {
-    const discovery = captureDiscoveryByName(sequence.discoveryName);
+    const discovery = captureDiscoveryById(sequence.discoveryId);
     if (!queueDiscovery(discovery, nowMs)) {
-      throw new Error(`Capture discovery was already recorded: ${sequence.discoveryName}`);
+      throw new Error(`Capture discovery was already recorded: ${sequence.discoveryId}`);
     }
   }
   if (captureCue("dismiss-discovery", 5.4) && captainAlertModal) closeCaptainAlertModal();
@@ -11304,10 +11316,10 @@ function updateCaptureExplore(sequence, nowMs) {
 
 function updateCaptureTrade(sequence) {
   if (captureCue("open-market", 0.7)) {
-    const cityCall = capturePortCallByName(sequence.cityName);
+    const cityCall = capturePortCallById(sequence.cityId);
     if (cityCall.character?.sourceId !== sequence.factorPortraitSourceId) {
       throw new Error(
-        `Capture trade factor mismatch for ${sequence.cityName}: ` +
+        `Capture trade factor mismatch for ${sequence.cityId}: ` +
         `${cityCall.character?.sourceId || "missing"}`
       );
     }
@@ -11320,10 +11332,10 @@ function updateCaptureTrade(sequence) {
     ensureDialoguePortraitLoaded();
     emitCaptureEvent("capture-portrait", {
       role: "factor",
-      city: sequence.cityName,
+      city: sequence.cityId,
       sourceId: cityCall.character.sourceId
     });
-    emitCaptureEvent("capture-beat", { action: `market-${sequence.variant}`, city: sequence.cityName });
+    emitCaptureEvent("capture-beat", { action: `market-${sequence.variant}`, city: sequence.cityId });
     dirty = true;
   }
   for (let index = 0; index < sequence.transactionCount; index += 1) {
@@ -11391,12 +11403,12 @@ function updateCaptureSailing(sequence) {
   if (sequence.variant === "upwind-voyage") {
     if (captureCue("upwind-voyage-route", 0.1)) {
       emitCaptureSailingBeat("upwind-voyage-route", {
-        cityName: sequence.cityName,
+        cityName: sequence.cityId,
         callout: captureUpwindVoyageCalloutData(sequence)
       });
     }
     if (captureCue("first-close-hauled-leg", 18.16)) {
-      setCaptureUpwindVoyageTack(1, sequence.cityName, false);
+      setCaptureUpwindVoyageTack(1, sequence.cityId, false);
     }
     const voyage = captureDirector.upwindVoyage;
     if (captureDirector.elapsedSeconds > 18.16 && voyage?.tackSide) {
@@ -11409,18 +11421,18 @@ function updateCaptureSailing(sequence) {
         ? signedCrossTrackPx >= voyage.halfLaneWidthPx
         : signedCrossTrackPx <= -voyage.halfLaneWidthPx;
       if (crossedLaneEdge && captureDirector.elapsedSeconds - voyage.lastTackSeconds >= 2) {
-        setCaptureUpwindVoyageTack(-voyage.tackSide, sequence.cityName, true);
+        setCaptureUpwindVoyageTack(-voyage.tackSide, sequence.cityId, true);
       }
     }
     if (captureDirector.elapsedSeconds > 18.16 && !captureDirector.upwindVoyageArrived) {
-      const cityCall = capturePortCallByName(sequence.cityName);
+      const cityCall = capturePortCallById(sequence.cityId);
       if (portCallInInteractionRange(cityCall)) {
         captureDirector.upwindVoyageArrived = true;
         captureDirector.steeringTarget = null;
         ship.targetHeading = ship.heading.slice();
         ship.velocity = [0, 0, 0];
         emitCaptureSailingBeat("arrive-city", {
-          cityName: sequence.cityName,
+          cityName: sequence.cityId,
           interactionDistancePx: Math.round(Math.sqrt(distance2(
             localLayout.viewX,
             localLayout.viewY,
@@ -11469,11 +11481,11 @@ function emitCaptureSailingBeat(action, details) {
 }
 
 function captureUpwindVoyageCalloutData(sequence) {
-  const cityCall = capturePortCallByName(sequence.cityName);
+  const cityCall = capturePortCallById(sequence.cityId);
   const offset = chartOffsetPixels(chart);
   const cityLabel = cityLabelBoxes(chart.cityCalls, chart)
     .find((entry) => entry.call.tileId === cityCall.tileId);
-  if (!cityLabel) throw new Error(`Capture could not place the ${sequence.cityName} label`);
+  if (!cityLabel) throw new Error(`Capture could not place the ${sequence.cityId} label`);
   const flowDirectionRad = windIndicatorTarget().flowDirectionRad;
   const wind = {
     x: Math.cos(flowDirectionRad),
@@ -11485,7 +11497,7 @@ function captureUpwindVoyageCalloutData(sequence) {
     y: cityCall.y + offset.y
   };
   const routeLength = Math.hypot(city.x - player.x, city.y - player.y);
-  if (routeLength <= 1) throw new Error(`Capture ${sequence.cityName} route has zero screen length`);
+  if (routeLength <= 1) throw new Error(`Capture ${sequence.cityId} route has zero screen length`);
   const route = {
     x: (city.x - player.x) / routeLength,
     y: (city.y - player.y) / routeLength
@@ -11493,12 +11505,12 @@ function captureUpwindVoyageCalloutData(sequence) {
   const upwindAlignment = route.x * -wind.x + route.y * -wind.y;
   if (upwindAlignment < 0.85) {
     throw new Error(
-      `Capture ${sequence.cityName} is not visibly upwind: ${upwindAlignment.toFixed(3)}`
+      `Capture ${sequence.cityId} is not visibly upwind: ${upwindAlignment.toFixed(3)}`
     );
   }
   return {
     city: {
-      name: sequence.cityName,
+      name: sequence.cityId,
       x: Math.round(city.x),
       y: Math.round(city.y),
       labelBox: {
@@ -11584,22 +11596,22 @@ function enforceCaptureModalPolicy() {
 }
 
 function updateCapturePillage(sequence) {
-  const cityCall = capturePortCallByName(sequence.cityName);
+  const cityCall = capturePortCallById(sequence.cityId);
   const battery = ensureShoreBatteryState(cityCall);
   if (sequence.variant === "bombard") {
     if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.0) {
-      aimCaptureBroadsideAt(tileCenterVector(cityCall.tileId), sequence.broadsideSide, sequence.cityName);
+      aimCaptureBroadsideAt(tileCenterVector(cityCall.tileId), sequence.broadsideSide, sequence.cityId);
     }
     battery.engagedTargetIds.add(PLAYER_COMBAT_ID);
     if (captureCue("fire-on-port", 1.0)) {
       const geometry = captureBroadsideGeometry(tileCenterVector(cityCall.tileId), sequence.broadsideSide);
-      assertCaptureBroadsideGeometry(geometry, sequence.cityName);
+      assertCaptureBroadsideGeometry(geometry, sequence.cityId);
       if (!fireBroadside(sequence.broadsideSide)) {
-        throw new Error(`Capture could not fire on ${sequence.cityName}`);
+        throw new Error(`Capture could not fire on ${sequence.cityId}`);
       }
       emitCaptureEvent("capture-beat", {
         action: "bombard-port",
-        city: sequence.cityName,
+        city: sequence.cityId,
         side: sequence.broadsideSide,
         targetDistancePx: Math.round(geometry.distancePx * 10) / 10,
         targetAlignment: Math.round(geometry.alignment * 1000) / 1000
@@ -11621,7 +11633,7 @@ function updateCapturePillage(sequence) {
   if (captureCue("open-assault", 2.2)) openPortDialogue(cityCall);
   if (captureCue("land-marines", 2.3)) {
     attemptPlayerPortConquest(cityCall, () => 0);
-    emitCaptureEvent("capture-beat", { action: "land-marines", city: sequence.cityName });
+    emitCaptureEvent("capture-beat", { action: "land-marines", city: sequence.cityId });
   }
   if (captureCue("dismiss-conquest", 4.3)) {
     if (captainAlertModal) closeCaptainAlertModal();
@@ -11632,31 +11644,31 @@ function updateCapturePillage(sequence) {
 function updateCaptureColonization(sequence) {
   if (sequence.variant === "offer") {
     if (captureCue("open-colony-offer", 0.8)) {
-      openCaptureColonizationDialogue(sequence.originCityName);
+      openCaptureColonizationDialogue(sequence.originCityId);
       emitCaptureEvent("capture-beat", {
         action: "propose-colonial-expedition",
-        city: sequence.cityName,
-        originCity: sequence.originCityName
+        city: sequence.cityId,
+        originCity: sequence.originCityId
       });
     }
     return;
   }
   if (sequence.variant === "embark") {
-    if (captureCue("open-colony-embark", 0.8)) openCaptureColonizationDialogue(sequence.originCityName);
+    if (captureCue("open-colony-embark", 0.8)) openCaptureColonizationDialogue(sequence.originCityId);
     if (captureCue("embark-colonists", 5.0)) {
       captureChooseDialogueAction("embark-colonists");
       emitCaptureEvent("capture-beat", {
         action: "embark-colonists",
-        city: sequence.cityName,
-        originCity: sequence.originCityName
+        city: sequence.cityId,
+        originCity: sequence.originCityId
       });
     }
     return;
   }
   if (sequence.variant === "deadline") {
     if (captureCue("open-colony-deadline", 0.8)) {
-      openCaptureColonizationDialogue(sequence.cityName);
-      emitCaptureEvent("capture-beat", { action: "show-colony-deadline", city: sequence.cityName });
+      openCaptureColonizationDialogue(sequence.cityId);
+      emitCaptureEvent("capture-beat", { action: "show-colony-deadline", city: sequence.cityId });
     }
     return;
   }
@@ -11664,7 +11676,7 @@ function updateCaptureColonization(sequence) {
     if (captureCue("defend-colony", 0.1)) {
       emitCaptureEvent("capture-beat", {
         action: "defend-colony",
-        city: sequence.cityName,
+        city: sequence.cityId,
         attackerCount: colonizationQuestView(gameState, {
           currentMinute: Math.floor(weatherClockMinutes)
         }).defenseRemaining
@@ -11674,18 +11686,18 @@ function updateCaptureColonization(sequence) {
   }
   if (sequence.variant === "city") {
     if (captureCue("open-established-colony", 0.8)) {
-      openCapturePortNode(sequence.cityName, "root");
-      emitCaptureEvent("capture-beat", { action: "visit-established-colony", city: sequence.cityName });
+      openCapturePortNode(sequence.cityId, "root");
+      emitCaptureEvent("capture-beat", { action: "visit-established-colony", city: sequence.cityId });
     }
     if (captureCue("browse-established-colony-market", 6.0)) captureChooseDialogueNode("buy");
     return;
   }
-  if (captureCue("open-colony", 1.0)) openCaptureColonizationDialogue(sequence.cityName);
+  if (captureCue("open-colony", 1.0)) openCaptureColonizationDialogue(sequence.cityId);
   if (captureCue("complete-colony-action", 4.5)) {
     const actionType = sequence.variant === "found" ? "land-colonists" : "deliver-colony-resupply";
     captureChooseDialogueAction(actionType);
     playSoundEffect(soundEffects?.discoverySuccess, 0.68, 1);
-    emitCaptureEvent("capture-beat", { action: actionType, city: sequence.cityName });
+    emitCaptureEvent("capture-beat", { action: actionType, city: sequence.cityId });
   }
   if (captureCue("close-colony-result", 6.5) && captainAlertModal) closeCaptainAlertModal();
 }
@@ -11695,7 +11707,7 @@ function openCaptureColonizationDialogue(cityName) {
 }
 
 function openCapturePortNode(cityName, nodeId) {
-  const cityCall = capturePortCallByName(cityName);
+  const cityCall = capturePortCallById(cityName);
   dialogueState = createPortDialogueSession(cityCall, {
     initialNodeId: nodeId,
     admittedToPort: true
@@ -11728,7 +11740,7 @@ function updateCaptureSurvival(sequence) {
   }
   if (sequence.variant === "drunk-arrival") {
     if (captureCue("open-drunk-arrival", 0.8)) {
-      const cityCall = capturePortCallByName(sequence.cityName);
+      const cityCall = capturePortCallById(sequence.cityId);
       dialogueState = createPortDialogueSession(cityCall, {
         initialNodeId: "drunk-captain",
         postDrunkNodeId: "greeting",
@@ -11738,7 +11750,7 @@ function updateCaptureSurvival(sequence) {
       dialogueLayout = createDialogueLayoutState();
       stopShipForDialogue();
       ensureDialoguePortraitLoaded();
-      emitCaptureEvent("capture-beat", { action: "arrive-drunk", city: sequence.cityName });
+      emitCaptureEvent("capture-beat", { action: "arrive-drunk", city: sequence.cityId });
       dirty = true;
     }
     if (captureCue("factor-notices", 6.2)) {
@@ -11750,7 +11762,7 @@ function updateCaptureSurvival(sequence) {
   }
   if (sequence.variant === "remembered-arrival") {
     if (captureCue("open-remembered-arrival", 0.8)) {
-      const cityCall = capturePortCallByName(sequence.cityName);
+      const cityCall = capturePortCallById(sequence.cityId);
       dialogueState = createPortDialogueSession(cityCall, {
         initialNodeId: "greeting",
         drunkVariant: 1,
@@ -11761,7 +11773,7 @@ function updateCaptureSurvival(sequence) {
       ensureDialoguePortraitLoaded();
       emitCaptureEvent("capture-beat", {
         action: "factor-remembers-drunk-arrival",
-        city: sequence.cityName
+        city: sequence.cityId
       });
       dirty = true;
     }
@@ -11860,7 +11872,7 @@ function updateCapturePanda(sequence) {
         throw new Error("Panda trailer could not record the panda encounter");
       }
       presentAnchoredAnimalEncounter(ANIMAL_CATALOG_BY_ID.get("panda"));
-      emitCaptureEvent("capture-beat", { action: "meet-panda", city: sequence.cityName });
+      emitCaptureEvent("capture-beat", { action: "meet-panda", city: sequence.cityId });
     }
     for (const [cueId, atSeconds] of [
       ["panda-call-read", 4.0],
@@ -11883,11 +11895,11 @@ function updateCapturePanda(sequence) {
   }
   if (sequence.variant === "port-reaction") {
     if (captureCue("panda-port-reaction", 0.8)) {
-      const cityCall = capturePortCallByName(sequence.cityName);
-      if (!maybeOpenAnimalCompanionNpcReaction(`capture:panda:${sequence.cityName}`, cityCall.character)) {
-        throw new Error(`Panda trailer could not open the ${sequence.cityName} reaction`);
+      const cityCall = capturePortCallById(sequence.cityId);
+      if (!maybeOpenAnimalCompanionNpcReaction(`capture:panda:${sequence.cityId}`, cityCall.character)) {
+        throw new Error(`Panda trailer could not open the ${sequence.cityId} reaction`);
       }
-      emitCaptureEvent("capture-beat", { action: "panda-port-reaction", city: sequence.cityName });
+      emitCaptureEvent("capture-beat", { action: "panda-port-reaction", city: sequence.cityId });
     }
     if (captureCue("panda-port-line-read", 4.4)) {
       closeRequiredCaptureAlert("panda-port-line-read");
@@ -11896,11 +11908,11 @@ function updateCapturePanda(sequence) {
   }
   if (sequence.variant === "naturalist") {
     if (captureCue("naturalist-offer", 0.8)) {
-      const cityCall = capturePortCallByName(sequence.cityName);
+      const cityCall = capturePortCallById(sequence.cityId);
       if (!maybeOpenNaturalistPortDialogue(cityCall)) {
         throw new Error("Panda trailer could not open the naturalist offer");
       }
-      emitCaptureEvent("capture-beat", { action: "naturalist-offers-for-panda", city: sequence.cityName });
+      emitCaptureEvent("capture-beat", { action: "naturalist-offers-for-panda", city: sequence.cityId });
     }
     for (const [cueId, atSeconds] of [
       ["naturalist-intro-read", 4.1],
@@ -11917,7 +11929,7 @@ function updateCapturePanda(sequence) {
 function updateCapturePapal(sequence) {
   if (sequence.variant === "rome") {
     if (captureCue("papal-rome-sailing", 0.1)) {
-      emitCaptureEvent("capture-beat", { action: "sail-past-rome", city: sequence.cityName });
+      emitCaptureEvent("capture-beat", { action: "sail-past-rome", city: sequence.cityId });
     }
     if (captureCue("open-papal-politics", 3.4)) {
       openCapturePoliticsFactionPage("papal-states");
@@ -11940,13 +11952,13 @@ function updateCapturePapal(sequence) {
   }
   if (sequence.variant === "nuncio") {
     if (captureCue("open-papal-commission", 0.8)) {
-      const rome = capturePortCallByName(sequence.cityName);
+      const rome = capturePortCallById(sequence.cityId);
       if (!maybeOpenPapalCommissionPortDialogue(rome, {
         nuncioPortraitSourceId: sequence.nuncioPortraitSourceId
       })) {
         throw new Error("Papal capture could not open the nuncio's commission");
       }
-      emitCaptureEvent("capture-beat", { action: "receive-papal-commission", city: sequence.cityName });
+      emitCaptureEvent("capture-beat", { action: "receive-papal-commission", city: sequence.cityId });
     }
     if (captureCue("papal-offer-read", 5.2)) closeRequiredCaptureAlert("papal-offer-read");
     if (captureCue("accept-papal-commission", 6.0)) {
@@ -12002,8 +12014,8 @@ function updateCapturePapal(sequence) {
 
 function updateCaptureLoadout(sequence) {
   if (captureCue("open-loadout", 0.6)) {
-    openCapturePortNode(sequence.cityName, "loadout");
-    emitCaptureEvent("capture-beat", { action: "open-loadout-presets", city: sequence.cityName });
+    openCapturePortNode(sequence.cityId, "loadout");
+    emitCaptureEvent("capture-beat", { action: "open-loadout-presets", city: sequence.cityId });
   }
   if (sequence.variant === "presets") {
     for (const [index, preset] of ["long-haul", "short-haul", "combat", "balanced", "custom"].entries()) {
@@ -12033,7 +12045,7 @@ function updateCaptureReligion(sequence) {
     if (captureCue("show-captain-faith", 0.1)) {
       emitCaptureEvent("capture-beat", {
         action: "show-captain-faith",
-        city: sequence.cityName,
+        city: sequence.cityId,
         religionId: gameState.playerCharacter.religionId
       });
     }
@@ -12042,12 +12054,12 @@ function updateCaptureReligion(sequence) {
   if (sequence.variant === "hajj") {
     if (captureCue("open-hajj-arrival", 0.8)) {
       openPassengerDialogue(
-        capturePortCallByName(sequence.cityName),
+        capturePortCallById(sequence.cityId),
         captureDirector.religionQuest
       );
       emitCaptureEvent("capture-beat", {
         action: "arrive-for-hajj",
-        city: sequence.cityName
+        city: sequence.cityId
       });
     }
     if (captureCue("undertake-hajj", 7.8)) {
@@ -12059,13 +12071,13 @@ function updateCaptureReligion(sequence) {
   if (sequence.variant === "mission") {
     if (captureCue("open-religious-mission", 0.8)) {
       openPassengerDialogue(
-        capturePortCallByName(sequence.cityName),
+        capturePortCallById(sequence.cityId),
         captureDirector.religionQuest
       );
       emitCaptureEvent("capture-beat", {
         action: "offer-religious-mission",
         missionId: sequence.religiousMissionId,
-        city: sequence.cityName
+        city: sequence.cityId
       });
     }
     return;
@@ -12079,18 +12091,18 @@ function updateCaptureCompanions(sequence) {
 
   if (sequence.variant === "passenger-offer" || sequence.variant === "passenger-arrival") {
     if (captureCue("open-passenger", 0.8)) {
-      const cityName = sequence.variant === "passenger-offer"
-        ? sequence.originCityName
-        : sequence.destinationCityName;
-      openPassengerDialogue(capturePortCallByName(cityName), quest);
+      const cityId = sequence.variant === "passenger-offer"
+        ? sequence.originCityId
+        : sequence.destinationCityId;
+      openPassengerDialogue(capturePortCallById(cityId), quest);
       emitCaptureEvent("capture-portrait", {
         role: "passenger",
         sourceId: quest.passenger.sourceId
       });
       emitCaptureEvent("capture-beat", {
         action: sequence.variant,
-        origin: sequence.originCityName,
-        destination: sequence.destinationCityName
+        origin: sequence.originCityId,
+        destination: sequence.destinationCityId
       });
     }
     if (captureCue("resolve-passenger", 8.0)) {
@@ -12213,10 +12225,10 @@ function updateCaptureCompanions(sequence) {
 }
 
 function openCaptureRescuedTravelerHomecoming(quest) {
-  const home = capturePortCallByName(quest.homePortName);
+  const home = capturePortCallById(quest.homePortCityId);
   dialogueState = createRescuedTravelerDialogueSession(quest, {
     phase: "homecoming",
-    cityTileId: home.tileId,
+    cityId: home.cityId,
     admittedToPort: true
   });
   dialogueLayout = createDialogueLayoutState();
@@ -12298,21 +12310,27 @@ function captureAutopilotHeading() {
   return normalizeTangentOrFallback(toward, ship.position, ship.heading);
 }
 
-function captureDiscoveryByName(name) {
-  const matches = discoveryCatalog.filter((entry) => entry.displayName === name);
-  if (matches.length !== 1) throw new Error(`Capture discovery ${name} matched ${matches.length} entries`);
+function captureDiscoveryById(discoveryId) {
+  const matches = discoveryCatalog.filter((entry) => entry.id === discoveryId);
+  if (matches.length !== 1) {
+    throw new Error(`Capture discovery ${discoveryId} matched ${matches.length} canonical entries`);
+  }
   return matches[0];
 }
 
-function captureCityByName(name) {
-  const matches = portCities.filter((city) => cityLabelText(city) === name || city.city === name);
-  if (matches.length !== 1) throw new Error(`Capture city ${name} matched ${matches.length} ports`);
+function captureCityById(cityId) {
+  const matches = portCities.filter((city) => city.cityId === cityId);
+  if (matches.length !== 1) {
+    throw new Error(`Capture city ${cityId} matched ${matches.length} canonical ports`);
+  }
   return matches[0];
 }
 
-function capturePortCallByName(name) {
-  const matches = (chart?.cityCalls || []).filter((city) => cityLabelText(city) === name || city.city === name);
-  if (matches.length !== 1) throw new Error(`Capture city ${name} matched ${matches.length} visible calls`);
+function capturePortCallById(cityId) {
+  const matches = (chart?.cityCalls || []).filter((city) => city.cityId === cityId);
+  if (matches.length !== 1) {
+    throw new Error(`Capture city ${cityId} matched ${matches.length} visible canonical calls`);
+  }
   return matches[0];
 }
 
@@ -12404,7 +12422,7 @@ function stageCaptureSailing(sequence) {
     placeCapturePlayerNearRiverCoordinates(sequence.riverStart);
   }
   if (sequence.variant === "upwind-voyage") {
-    const city = captureCityByName(sequence.cityName);
+    const city = captureCityById(sequence.cityId);
     placeCapturePlayerForUpwindVoyage(city);
     const cityPosition = tileCenterVector(city.tileId);
     const towardCity = normalizeOrNull(projectTangentVector([
@@ -12412,9 +12430,9 @@ function stageCaptureSailing(sequence) {
       cityPosition[1] - ship.position[1],
       cityPosition[2] - ship.position[2]
     ], ship.position));
-    if (!towardCity) throw new Error(`Capture could not define a route to ${sequence.cityName}`);
+    if (!towardCity) throw new Error(`Capture could not define a route to ${sequence.cityId}`);
     const crosswind = normalizeOrNull(cross3(ship.position, towardCity));
-    if (!crosswind) throw new Error(`Capture could not define a tacking corridor to ${sequence.cityName}`);
+    if (!crosswind) throw new Error(`Capture could not define a tacking corridor to ${sequence.cityId}`);
     captureDirector.upwindVoyage = {
       crosswind,
       halfLaneWidthPx: 5,
@@ -12447,17 +12465,17 @@ function stageCaptureSailing(sequence) {
     if (!heading) throw new Error("Capture river cruise could not resolve its sailing heading");
     speedRatio = sequence.speedRatio ?? 0.25;
   } else if (sequence.variant === "upwind-voyage") {
-    const city = captureCityByName(sequence.cityName);
+    const city = captureCityById(sequence.cityId);
     const towardCity = normalizeOrNull(projectTangentVector([
       tileCenterVector(city.tileId)[0] - ship.position[0],
       tileCenterVector(city.tileId)[1] - ship.position[1],
       tileCenterVector(city.tileId)[2] - ship.position[2]
     ], ship.position));
-    if (!towardCity) throw new Error(`Capture could not steer toward ${sequence.cityName}`);
+    if (!towardCity) throw new Error(`Capture could not steer toward ${sequence.cityId}`);
     const upwindAlignment = dot3(towardCity, scaleVector(windFlow, -1));
     if (upwindAlignment < 0.85) {
       throw new Error(
-        `Capture ${sequence.cityName} course is not upwind: ${upwindAlignment.toFixed(3)}`
+        `Capture ${sequence.cityId} course is not upwind: ${upwindAlignment.toFixed(3)}`
       );
     }
     heading = towardCity;
@@ -12554,7 +12572,7 @@ function placeCapturePlayerForUpwindVoyage(city) {
     );
   }
   placeCapturePlayerOnTile(selected.tileId);
-  if (!capturePortCallByName(cityLabelText(city))) {
+  if (!capturePortCallById(city.cityId)) {
     throw new Error(`Capture destination ${cityLabelText(city)} is not visible`);
   }
 }
@@ -12694,18 +12712,18 @@ function assertCaptureBroadsideGeometry(geometry, targetLabel) {
 }
 
 function stageCapturePillage(sequence) {
-  const city = captureCityByName(sequence.cityName);
+  const city = captureCityById(sequence.cityId);
   if (sequence.variant === "bombard") {
-    placeCapturePlayerForBroadsideTarget(city.tileId, sequence.cityName);
+    placeCapturePlayerForBroadsideTarget(city.tileId, sequence.cityId);
   } else {
     placeCapturePlayerNearTile(city.tileId);
   }
   maximizeCaptureCombatLoadout();
-  const call = capturePortCallByName(sequence.cityName);
+  const call = capturePortCallById(sequence.cityId);
   const battery = ensureShoreBatteryState(call);
   markPlayerPortAssault(gameState.memory.flags, call, weatherClockMinutes + WEATHER_MINUTES_PER_DAY);
   if (sequence.variant === "bombard") {
-    aimCaptureBroadsideAt(tileCenterVector(call.tileId), sequence.broadsideSide, sequence.cityName);
+    aimCaptureBroadsideAt(tileCenterVector(call.tileId), sequence.broadsideSide, sequence.cityId);
   }
   if (sequence.variant === "assault") {
     damageShoreBattery(
@@ -12718,7 +12736,7 @@ function stageCapturePillage(sequence) {
     const status = playerPortConquestStatus(call);
     if (!status.canAttempt) {
       throw new Error(
-        `Capture assault is ineligible at ${sequence.cityName}: ` +
+        `Capture assault is ineligible at ${sequence.cityId}: ` +
         `crew ${gameState.ship.crew}/${gameState.ship.crewCapacity}, battery disabled ${status.batteryDisabled}`
       );
     }
@@ -12754,10 +12772,10 @@ function placeCapturePlayerForBroadsideTarget(targetTileId, targetLabel) {
 
 function stageCaptureColonization(sequence) {
   const memory = gameState.memory.colonization;
-  const target = colonizationTargetPlacements.find((candidate) => candidate.city === sequence.cityName);
-  if (!target) throw new Error(`Capture colonization target is unavailable: ${sequence.cityName}`);
-  const origin = sequence.originCityName
-    ? captureCityByName(sequence.originCityName)
+  const target = colonizationTargetPlacements.find((candidate) => candidate.cityId === sequence.cityId);
+  if (!target) throw new Error(`Capture colonization target is unavailable: ${sequence.cityId}`);
+  const origin = sequence.originCityId
+    ? captureCityById(sequence.originCityId)
     : requireCanonicalPort(portCities, CANONICAL_PORTS.BORDEAUX, "Capture colonization");
   assignColonizationQuest(memory, { target, origin });
   colonizationTargetTileId = target.tileId;
@@ -12860,7 +12878,7 @@ function stageCaptureSurvival(sequence) {
     return;
   }
   if (sequence.variant === "drunk-arrival") {
-    const city = captureCityByName(sequence.cityName);
+    const city = captureCityById(sequence.cityId);
     placeCapturePlayerNearTile(city.tileId);
     stopShipMotion();
     gameState.survival.wineOnlyMinutes = WEATHER_MINUTES_PER_DAY;
@@ -12869,7 +12887,7 @@ function stageCaptureSurvival(sequence) {
     return;
   }
   if (sequence.variant === "remembered-arrival") {
-    const cityCall = capturePortCallByName(sequence.cityName);
+    const cityCall = capturePortCallById(sequence.cityId);
     placeCapturePlayerNearTile(cityCall.tileId);
     stopShipMotion();
     const simMinute = Math.floor(weatherClockMinutes);
@@ -12922,7 +12940,7 @@ function stageCaptureSurvival(sequence) {
 
 function stageCapturePanda(sequence) {
   if (sequence.variant === "encounter") {
-    const city = captureCityByName(sequence.cityName);
+    const city = captureCityById(sequence.cityId);
     placeCapturePlayerNearTile(city.tileId);
     anchored = true;
     initialAnimalEncounterRollPending = false;
@@ -12941,12 +12959,13 @@ function stageCapturePanda(sequence) {
     return;
   }
   if (sequence.variant === "port-reaction") {
-    placeCapturePlayerNearTile(captureCityByName(sequence.cityName).tileId);
+    placeCapturePlayerNearTile(captureCityById(sequence.cityId).tileId);
     return;
   }
   if (sequence.variant === "naturalist") {
-    const city = captureCityByName(sequence.cityName);
+    const city = captureCityById(sequence.cityId);
     const memory = gameState.memory.quests.naturalist;
+    memory.portCityId = city.cityId;
     memory.portTileId = city.tileId;
     memory.met = true;
     memory.reportedAnimalIds = [...ANIMAL_CATALOG_BY_ID.keys()];
@@ -12963,7 +12982,7 @@ function stageCapturePanda(sequence) {
 }
 
 function stageCapturePapal(sequence) {
-  const city = captureCityByName(sequence.cityName);
+  const city = captureCityById(sequence.cityId);
   placeCapturePlayerNearTile(city.tileId);
   if (sequence.variant === "rome") {
     stageCaptureSailing(sequence);
@@ -13003,10 +13022,10 @@ function stageCapturePapal(sequence) {
     return;
   }
   if (sequence.variant === "bibles") {
-    const factor = portCityCharacters.get(city.tileId);
-    if (!factor) throw new Error(`${sequence.cityName} has no factor for the Bible capture`);
+    const factor = portCityCharacters.get(city.cityId);
+    if (!factor) throw new Error(`${sequence.cityId} has no factor for the Bible capture`);
     const bookseller = generateSpecialPortCharacter({
-      identityKey: `papal-capture-bookseller|${city.tileId}`,
+      identityKey: `papal-capture-bookseller|${requireCityId(city, "Papal bookseller city")}`,
       port: city,
       excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
       portraitSourceId: sequence.booksellerPortraitSourceId,
@@ -13023,7 +13042,7 @@ function stageCapturePapal(sequence) {
 }
 
 function stageCaptureLoadout(sequence) {
-  const city = captureCityByName(sequence.cityName);
+  const city = captureCityById(sequence.cityId);
   placeCapturePlayerNearTile(city.tileId);
   stopShipMotion();
   gameState.doubloons = 12_000;
@@ -13032,7 +13051,7 @@ function stageCaptureLoadout(sequence) {
 }
 
 function stageCaptureReligion(sequence) {
-  const city = captureCityByName(sequence.cityName);
+  const city = captureCityById(sequence.cityId);
   if (sequence.variant === "profile") {
     placeCapturePlayerNearTile(city.tileId);
     stopShipMotion();
@@ -13046,12 +13065,12 @@ function stageCaptureReligion(sequence) {
   }
 
   const origin = sequence.variant === "hajj"
-    ? captureCityByName(sequence.originCityName)
+    ? captureCityById(sequence.originCityId)
     : city;
   const createCapturePassengerCharacter = sequence.variant === "hajj"
     ? ({ quest: passengerQuest, destination, scenario }) => generatePassengerCharacter({
         identityKey: passengerQuest.id,
-        originPort: captureCityByName(sequence.passengerHomeCityName),
+        originPort: captureCityById(sequence.passengerHomeCityId),
         destinationPort: destination,
         scenarioId: scenario.id,
         namePortPreference: scenario.namePort,
@@ -13070,7 +13089,7 @@ function stageCaptureReligion(sequence) {
       spawnChance: 1,
       simMinute: Math.floor(weatherClockMinutes),
       sailingDistanceKm: sailingDistanceBetweenPorts,
-      portFactorReligionId: (port) => portCityCharacters.get(port.tileId)?.religionId || null,
+      portFactorReligionId: (port) => portCityCharacters.get(port.cityId)?.religionId || null,
       createCharacter: createCapturePassengerCharacter,
       ...(sequence.variant === "hajj"
         ? { scenarioId: HAJJ_PASSENGER_SCENARIO_ID, hajjScenarioChance: 1 }
@@ -13079,16 +13098,16 @@ function stageCaptureReligion(sequence) {
   );
   if (!quest) {
     throw new Error(
-      `Religion capture could not create ${sequence.variant} quest at ${sequence.cityName}`
+      `Religion capture could not create ${sequence.variant} quest at ${sequence.cityId}`
     );
   }
   if (sequence.variant === "hajj") {
     const acceptedQuest = acceptQuest(gameState, quest, {
       simMinute: Math.floor(weatherClockMinutes)
     });
-    if (acceptedQuest.destinationTileId !== city.tileId) {
+    if (acceptedQuest.destinationCityId !== city.cityId) {
       throw new Error(
-        `Religion capture Hajj destination is ${acceptedQuest.destinationName}, expected ${sequence.cityName}`
+        `Religion capture Hajj destination is ${acceptedQuest.destinationName}, expected ${sequence.cityId}`
       );
     }
     captureDirector.religionQuest = acceptedQuest;
@@ -13101,24 +13120,24 @@ function stageCaptureReligion(sequence) {
 
 function stageCaptureCompanions(sequence) {
   if (sequence.variant === "passenger-offer" || sequence.variant === "passenger-arrival") {
-    const origin = captureCityByName(sequence.originCityName);
-    const destination = captureCityByName(sequence.destinationCityName);
+    const origin = captureCityById(sequence.originCityId);
+    const destination = captureCityById(sequence.destinationCityId);
     const quest = passengerOfferForCity(
       gameState,
       origin,
       playerAccessiblePortCities(),
       {
-        destinationTileId: destination.tileId,
+        destinationCityId: destination.cityId,
         spawnChance: 1,
         simMinute: Math.floor(weatherClockMinutes),
         sailingDistanceKm: sailingDistanceBetweenPorts,
         createCharacter: createPassengerCharacterForQuest
       }
     );
-    if (!quest || quest.destinationTileId !== destination.tileId) {
+    if (!quest || quest.destinationCityId !== destination.cityId) {
       throw new Error(
-        `Companions capture could not create ${sequence.originCityName} to ` +
-        `${sequence.destinationCityName} passenger mission`
+        `Companions capture could not create ${sequence.originCityId} to ` +
+        `${sequence.destinationCityId} passenger mission`
       );
     }
     captureDirector.companionQuest = quest;
@@ -13132,7 +13151,7 @@ function stageCaptureCompanions(sequence) {
     return;
   }
 
-  const home = captureCityByName(sequence.homeCityName);
+  const home = captureCityById(sequence.homeCityId);
   if (sequence.variant.startsWith("castaway-")) {
     const identityKey = `companions-${sequence.variant}`;
     const familySurvived = sequence.variant !== "castaway-recruit";
@@ -13179,7 +13198,7 @@ function stageCaptureCompanions(sequence) {
     return;
   }
 
-  const wantedPort = captureCityByName(sequence.wantedCityName);
+  const wantedPort = captureCityById(sequence.wantedCityId);
   const sourceId = "companions-pirate-ship";
   const captive = generatePirateCaptiveCharacter({
     identityKey: sourceId,
@@ -13221,6 +13240,7 @@ function stageCaptureCompanions(sequence) {
     );
     recordPirateCaptiveEscape(quest, {
       currentMinute: escapedAtMinute,
+      escapeOriginPortCityId: home.cityId,
       escapeOriginPortTileId: home.tileId
     });
     if (quest.deception.revengeShipId !== sequence.encounterId) {
@@ -13259,7 +13279,7 @@ function captureChooseTradeGood(sequence) {
   chooseDialogueOption(index);
   emitCaptureEvent("capture-beat", {
     action: sequence.variant,
-    city: sequence.cityName,
+    city: sequence.cityId,
     goodId: sequence.goodId
   });
 }
@@ -15353,12 +15373,35 @@ async function restoreSavedVoyage(payload) {
   resetStormPassageState(stormPassageState);
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
+  const savedWorldTopology = savedVoyageWorldTopology(payload, SUBDIVISIONS);
+  const legacyPortTileIds = portReferenceMigrationForSavedVoyage(
+    payload,
+    savedWorldTopology,
+    [...cityByTileId.values(), ...colonizationTargetPlacements]
+  );
+  const savedPortReferenceCatalog = subdivisionSevenPortReferenceCatalog(
+    portCities,
+    colonizationTargetPlacements
+  );
+  const savedCityReferenceCatalog = [...new Map([
+    ...cityById.values(),
+    ...savedPortReferenceCatalog
+  ].map((city) => [city.cityId, city])).values()];
+  const legacyCityIdForPortReference = ({ tileId }) => {
+    const currentTileId = legacyPortTileIds.get(tileId) ?? tileId;
+    const matches = savedCityReferenceCatalog.filter((city) => city.tileId === currentTileId);
+    if (matches.length !== 1) {
+      throw new Error(
+        `Saved home-port tile ${tileId} resolves to ${matches.length} canonical cities`
+      );
+    }
+    return matches[0].cityId;
+  };
   const {
     savedShip,
     shipStats: stats,
     gameState: restoredGameState
-  } = migrateSavedVoyageCore(payload);
-  const savedWorldTopology = savedVoyageWorldTopology(payload, SUBDIVISIONS);
+  } = migrateSavedVoyageCore(payload, { legacyCityIdForPortReference });
   const restoredDemoVoyageScope = demoVoyageScopeForSavedGame({
     buildEditionId: BUILD_EDITION_ID,
     savedScope: payload.demoVoyageScope,
@@ -15387,18 +15430,9 @@ async function restoreSavedVoyage(payload) {
     console.info("[pixel-globe] corrected cultural name forms for saved characters:", correctedCharacterNameCount);
   }
   ensureWhalePopulation(restoredGameState);
-  const legacyPortTileIds = portReferenceMigrationForSavedVoyage(
-    payload,
-    savedWorldTopology,
-    [...cityByTileId.values(), ...colonizationTargetPlacements]
-  );
-  const savedPortReferenceCatalog = subdivisionSevenPortReferenceCatalog(
-    portCities,
-    colonizationTargetPlacements
-  );
   const migratedPortReferenceCount = reconcileQuestPortTiles(
     restoredGameState,
-    savedPortReferenceCatalog,
+    savedCityReferenceCatalog,
     { legacyPortTileIds }
   );
   if (migratedPortReferenceCount > 0) {
@@ -15685,7 +15719,7 @@ function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology
   const repairedShipyardPorts = reconcilePlayerShipyardInvestmentWorld(
     restoredGameState.memory.shipyardInvestment,
     worldEconomy,
-    cityByTileId,
+    cityById,
     simulationMinute
   );
   if (repairedShipyardPorts.length > 0) {
@@ -15696,7 +15730,7 @@ function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology
   assertPlayerShipyardInvestmentWorldConsistency(
     restoredGameState.memory.shipyardInvestment,
     worldEconomy,
-    cityByTileId
+    cityById
   );
   syncJapaneseMatchlockIndustry(restoredGameState);
   syncCaribbeanGingerIndustry(restoredGameState);
@@ -16005,7 +16039,7 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
     assertPlayerShipyardInvestmentWorldConsistency(
       gameState.memory.shipyardInvestment,
       worldEconomy,
-      cityByTileId
+      cityById
     );
     const payload = {
       gameState,
@@ -16187,7 +16221,7 @@ function currentAchievementSnapshot() {
   const foundedCityIds = state
     ? colonizationWorldRecords(state.memory.colonization)
       .filter((record) => record.playerFoundedColony)
-      .map((record) => `${record.city}|${record.country || ""}`)
+      .map((record) => record.cityId)
     : [];
   const soldGoodIds = ledgerMetrics?.soldGoodIds || [];
   const currentShipSlug = state ? ship?.stats?.slug || ship?.typeSlug || null : null;
@@ -16248,10 +16282,9 @@ function achievementVisitedPortCount(state) {
 }
 
 function achievementHawaiiVisited(state) {
-  const hawaii = portCities.find((city) => city.city === "Hawaii Village" && city.country === "Hawaii");
+  const hawaii = cityById.get("hawaii village|hawaii");
   if (!hawaii) throw new Error("Hawaii Village is missing from the 1522 port catalog");
-  const portId = hawaii.portId || `city-${hawaii.tileId}`;
-  return (state.memory.visitedPorts[portId]?.visits || 0) > 0;
+  return (state.memory.visitedPorts[requireCityId(hawaii, "Hawaii visit check")]?.visits || 0) > 0;
 }
 
 function syncAchievementsFromGameState(event = null) {
@@ -16384,16 +16417,16 @@ function applyCurrentPortConquestOwnership({
       "warn"
     );
   }
-  const cityStateByTileId = new Map(allCities.map((city) => [city.tileId, city]));
+  const cityStateByCityId = new Map(allCities.map((city) => [city.cityId, city]));
   for (const city of chart?.cityCalls || []) {
-    const cityState = cityStateByTileId.get(city.tileId);
+    const cityState = cityStateByCityId.get(city.cityId);
     if (cityState) factionSyncCity(city, cityState);
   }
   if (npcSeaRoutes) {
-    const portFactionByTileId = new Map(portCities.map((city) => [city.tileId, city.factionId]));
+    const portFactionByCityId = new Map(portCities.map((city) => [city.cityId, city.factionId]));
     applyNpcConquestOwnership(
       npcSeaRoutes,
-      portFactionByTileId,
+      portFactionByCityId,
       new Set(gameState.memory.conquest.collapsedFactionIds),
       new Map(Object.entries(gameState.memory.conquest.factionSuccessors))
     );
@@ -16416,7 +16449,7 @@ function orderPortNavalResponse(city, factionId, reason, threatUntilMinute = nul
   if (!npcSeaRoutes) throw new Error("Port naval response requires NPC sea routes");
   const result = orderNpcPortResponse(npcSeaRoutes, {
     factionId,
-    targetPortId: city.tileId,
+    targetCityId: city.cityId,
     reason,
     clockMinutes: Math.floor(weatherClockMinutes),
     threatUntilMinute
@@ -19124,7 +19157,7 @@ function openActiveInteractionDialogue() {
 function openPortDialogue(cityCall) {
   if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
-  clearPortNavigationWaypointsAt(gameState, cityCall.tileId);
+  clearPortNavigationWaypointsAt(gameState, cityCall.cityId);
   combatMusicUntilMs = 0;
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   const colonyAftermath = colonizationAftermathAtSite(gameState.memory.colonization, cityCall);
@@ -19145,7 +19178,7 @@ function openPortDialogue(cityCall) {
   const entryStatus = portEntryStatus(gameState, cityCall, Math.floor(weatherClockMinutes));
   const papalLegationObjective = papalCommissionObjective(gameState.relations.papacy);
   const papalLegationAtPort = papalLegationObjective?.kind === "destination" &&
-    papalLegationObjective.destination.tileId === cityCall.tileId;
+    papalLegationObjective.destination.cityId === cityCall.cityId;
   const recoveryStatus = shoreBatteryRecoveryStatus(
     ensureShoreBatteryState(cityCall),
     Math.floor(weatherClockMinutes)
@@ -19212,12 +19245,12 @@ function openPortDialogue(cityCall) {
   }
   const treasureGoal = activeTreasureCampaignGoal();
   if (treasureGoal &&
-      cityCall.tileId === treasureGoal.homePortTileId &&
+      cityCall.cityId === treasureGoal.homePortCityId &&
       treasureGoal.treasureRecovered &&
       !treasureAmbushComplete(treasureGoal)) {
     const remaining = TREASURE_MAP_PIECE_COUNT - treasureGoal.ambushDefeatedPirateIds.length;
     dialogueState = createCampaignDialogueSession({
-      cityTileId: cityCall.tileId,
+      cityId: cityCall.cityId,
       phase: "pirate-treasure-blockade",
       steps: [{
         speaker: "player",
@@ -19360,7 +19393,7 @@ function activePapalCommissionObjectiveIsAt(cityCall) {
   const matter = papalPendingMatter(gameState.relations.papacy);
   if (matter?.status !== PAPAL_MATTER_COMMISSIONED) return false;
   const objective = papalCommissionObjective(gameState.relations.papacy);
-  return objective?.destination?.tileId === cityCall.tileId;
+  return objective?.destination?.cityId === cityCall.cityId;
 }
 
 function continuePortArrivalDialogues() {
@@ -19389,7 +19422,7 @@ function continuePortArrivalDialogues() {
     () => maybeOpenPapalCommissionPortDialogue(cityCall),
     () => maybeOpenNaturalistPortDialogue(cityCall),
     () => maybeOpenAnimalCompanionNpcReaction(
-      `port:${cityCall.tileId}`,
+      `port:${requireCityId(cityCall, "Animal reaction port")}`,
       cityCall.character
     ),
     () => openPendingDiscoveryPortDialogue(),
@@ -19414,8 +19447,7 @@ function maybeOpenSovereignWarLoanDialogue(cityCall) {
   if (contract) return false;
 
   if (memory.offer) {
-    const offerCapital = portCitiesByTileId.get(memory.offer.capitalTileId) ||
-      cityByTileId.get(memory.offer.capitalTileId) || null;
+    const offerCapital = cityById.get(memory.offer.capitalPortId) || null;
     cancelStaleSovereignWarLoanOffer(memory, {
       relationBetween: currentDiplomacyBetween,
       capitalFactionId: sovereignCapitalFactionId(offerCapital),
@@ -19452,14 +19484,14 @@ function sovereignCapitalFactionId(city) {
 function sovereignWarLoanAudienceIsAt(city, contract) {
   if (sovereignCapitalFactionId(city) === contract.borrowerFactionId) return true;
   return contract.status === SOVEREIGN_WAR_LOAN_DEFAULT_READY &&
-    city?.portId === contract.capitalPortId && city?.tileId === contract.capitalTileId;
+    city?.cityId === contract.capitalPortId;
 }
 
 function sovereignWarLoanSecurityPort(contract) {
   const security = contract?.security;
   if (!security) throw new Error("Secured war loan has no customs assignment");
-  const city = portCitiesByTileId.get(security.tileId) || cityByTileId.get(security.tileId);
-  if (!city || city.portId !== security.portId) {
+  const city = cityById.get(security.portId);
+  if (!city) {
     throw new Error(`Secured war-loan port is missing: ${security.portId}`);
   }
   return city;
@@ -19612,7 +19644,7 @@ function acceptSovereignWarLoan(cityCall) {
     const target = targets[index % targets.length];
     const order = orderNpcPortResponse(npcSeaRoutes, {
       factionId: contract.borrowerFactionId,
-      targetPortId: target.tileId,
+      targetCityId: target.cityId,
       reason: NPC_PORT_RESPONSE_WAR_LOAN,
       clockMinutes: simMinute,
       allowReinforcement: true
@@ -19845,12 +19877,12 @@ function maybeOpenFormerRescuedTravelerReunion(cityCall) {
   dialogueState.rescuedTravelerReunionChecked = true;
   const currentMinute = Math.floor(weatherClockMinutes);
   const reunion = nextRescuedTravelerPortReunion(rescuedTravelerQuestMemories(), {
-    cityTileId: cityCall.tileId,
+    cityId: cityCall.cityId,
     currentMinute,
     roll: Math.random(),
     captain: gameState.playerCharacter,
     variantSeed: spriteKeyHash(
-      `${gameState.voyageSeed}|${cityCall.tileId}|${currentMinute}|rescued-traveler-reunion`
+      `${gameState.voyageSeed}|${cityCall.cityId}|${currentMinute}|rescued-traveler-reunion`
     )
   });
   if (!reunion) return false;
@@ -19883,12 +19915,12 @@ function maybeOpenCharacterHomecoming(cityCall) {
   const homecoming = nextCharacterHomecoming({
     decisions: gameState.memory.decisions,
     roster: currentAboardRoster(),
-    cityTileId: cityCall.tileId,
+    cityId: cityCall.cityId,
     cityName: cityLabelText(cityCall),
     currentMinute,
-    historianHomePortTileId: historianHomePort.tileId,
+    historianHomePortCityId: historianHomePort.cityId,
     variantSeed: spriteKeyHash(
-      `${gameState.voyageSeed}|${cityCall.tileId}|${currentMinute}|crew-homecoming`
+      `${gameState.voyageSeed}|${requireCityId(cityCall, "Crew homecoming city")}|${currentMinute}|crew-homecoming`
     )
   });
   if (!homecoming) return false;
@@ -19916,7 +19948,7 @@ function maybeOpenShipyardInvestmentOfferDialogue(cityCall) {
       dialogueState.shipyardInvestmentOfferApproached === true) {
     return false;
   }
-  const yard = worldEconomy?.shipyards.yards.get(cityCall.tileId) || null;
+  const yard = worldEconomy?.shipyards.yards.get(cityCall.cityId) || null;
   if (!shipyardInvestmentOfferAvailable(
     gameState,
     cityCall,
@@ -20007,7 +20039,7 @@ function maybeOpenConquistadorRewardDialogue(cityCall) {
   const memory = gameState.memory.quests.conquistador;
   if (memory.stage !== CONQUISTADOR_STAGE_REWARD_READY) return false;
   const destination = activeConquistadorDestination();
-  if (!destination || destination.tileId !== cityCall.tileId) return false;
+  if (!destination || destination.cityId !== cityCall.cityId) return false;
   ensureConquistadorQuestGiver(gameState);
   dialogueState.conquistadorRewardApproached = true;
   dialogueState.nextPortNodeId = dialogueState.nodeId;
@@ -20179,11 +20211,11 @@ function createRescuedTravelerHomecomingSession(cityCall, {
 }
 
 function rescuedTravelerAtHome(cityCall) {
-  if (!cityCall || !Number.isInteger(cityCall.tileId)) return null;
+  if (!cityCall || typeof cityCall.cityId !== "string") return null;
   return activeRescuedTravelers().find((quest) => (
     (quest.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
-      ? pirateCaptiveDestination(quest).tileId
-      : quest.homePortTileId) === cityCall.tileId &&
+      ? pirateCaptiveDestination(quest).cityId
+      : quest.homePortCityId) === cityCall.cityId &&
     (quest.rescueType !== RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE ||
       quest.stage === RESCUED_TRAVELER_STAGE_HOMECOMING ||
       pirateCaptiveIsAboard(quest)) &&
@@ -20240,7 +20272,7 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     sailingDistanceKm: sailingDistanceBetweenPorts
   });
   const drunkVariant = spriteKeyHash(
-    `${cityCall.portId || cityCall.tileId}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
+    `${requireCityId(cityCall, "Port gossip city")}|${weatherParts.dayIndex}|${portMemory(gameState, cityCall).visits}`
   );
   const arrivingTravelMission = passengerDialogueQuestForCity(cityCall);
   if (arrivingTravelMission && shouldAutoOpenPassengerDialogue(cityCall, arrivingTravelMission)) {
@@ -20366,7 +20398,9 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
       equipmentFactorPitch
     });
   }
-  const rumor = maybeCampaignRumor(`port:${cityCall.tileId}:visit:${portMemory(gameState, cityCall).visits}`);
+  const rumor = maybeCampaignRumor(
+    `port:${requireCityId(cityCall, "Campaign rumor port")}:visit:${portMemory(gameState, cityCall).visits}`
+  );
   if (rumor) {
     const nextPortNodeId = needsLoadout
       ? "loadout"
@@ -20438,7 +20472,7 @@ function maybeOpenHospitallerMaltaQuestPortDialogue(cityCall) {
     return false;
   }
   const objective = hospitallerMaltaQuestObjective(memory);
-  if (!objective || objective.destination.tileId !== cityCall.tileId) return false;
+  if (!objective || objective.destination.cityId !== cityCall.cityId) return false;
   if (memory.stage === HOSPITALLER_MALTA_STAGE_SEEK_ROME) {
     return openHospitallerMaltaPetitionOffer(cityCall, memory);
   }
@@ -20457,10 +20491,10 @@ function hospitallerMaltaGrantorCapital() {
 
 function generateHospitallerMaltaNuncio(memory, rome) {
   if (memory.envoy) return memory.envoy;
-  const identityKey = `hospitaller-malta-nuncio|${gameState.voyageSeed}|${rome.tileId}`;
+  const identityKey = `hospitaller-malta-nuncio|${gameState.voyageSeed}|${requireCityId(rome, "Hospitaller nuncio city")}`;
   const cached = hospitallerNuncioPreviewCharacters.get(identityKey);
   if (cached) return cached;
-  const factor = portCityCharacters.get(rome.tileId);
+  const factor = portCityCharacters.get(rome.cityId);
   if (!factor) throw new Error("Rome has no factor for the Malta petition");
   const nuncio = generateSpecialPortCharacter({
     identityKey,
@@ -20587,7 +20621,7 @@ function openHospitallerMaltaGrantAudience(capital, memory) {
     relation: DIPLOMACY_FRIENDLY
   });
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
-  const courtCharacter = portCityCharacters.get(capital.tileId);
+  const courtCharacter = portCityCharacters.get(capital.cityId);
   if (!courtCharacter) throw new Error(`${cityLabelText(capital)} has no court representative`);
   const opened = startCharacterAlertSequence([
     pairedCharacterAlertStep({
@@ -20647,7 +20681,7 @@ function maybeOpenPapalCommissionPortDialogue(cityCall, { nuncioPortraitSourceId
   if (!matter) return false;
   if (matter.status === PAPAL_MATTER_COMMISSIONED) {
     const objective = papalCommissionObjective(gameState.relations.papacy);
-    if (!objective || objective.destination.tileId !== cityCall.tileId) return false;
+    if (!objective || objective.destination.cityId !== cityCall.cityId) return false;
     return objective.kind === "return-to-rome"
       ? completePapalCommissionAtRome(cityCall, matter)
       : openPapalCommissionDestination(cityCall, matter, objective.destination);
@@ -20731,11 +20765,11 @@ function papalPlayerEligibilityContext() {
 
 function generatePapalNuncio(matter, rome, { portraitSourceId = null } = {}) {
   if (matter.commission?.nuncio) return matter.commission.nuncio;
-  const identityKey = `papal-nuncio|${matter.id}|${rome.tileId}`;
+  const identityKey = `papal-nuncio|${matter.id}|${requireCityId(rome, "Papal nuncio city")}`;
   const cacheKey = `${identityKey}|${portraitSourceId || "automatic"}`;
   const cached = papalNuncioPreviewCharacters.get(cacheKey);
   if (cached) return cached;
-  const factor = portCityCharacters.get(rome.tileId);
+  const factor = portCityCharacters.get(rome.cityId);
   if (!factor) throw new Error("Rome has no factor for the Papal commission");
   const nuncio = generateSpecialPortCharacter({
     identityKey,
@@ -20762,8 +20796,9 @@ function papalCommissionItinerary(matter) {
     if (!factionId) return null;
     const port = papalCommissionPortForFaction(factionId);
     if (!port) return null;
-    if (destinations.some((entry) => entry.tileId === port.tileId)) continue;
+    if (destinations.some((entry) => entry.cityId === port.cityId)) continue;
     destinations.push({
+      cityId: port.cityId,
       tileId: port.tileId,
       portName: cityLabelText(port),
       factionId,
@@ -20782,7 +20817,7 @@ function papalCommissionReward(rome, itinerary) {
   let distanceKm = 0;
   let previous = rome;
   for (const stop of itinerary) {
-    const port = portCitiesByTileId.get(stop.tileId);
+    const port = cityById.get(stop.cityId);
     if (!port) throw new Error(`Papal itinerary port is missing: ${stop.portName}`);
     const legDistanceKm = sailingDistanceBetweenPorts(previous, port);
     if (!Number.isFinite(legDistanceKm) || legDistanceKm <= 0) {
@@ -20806,6 +20841,7 @@ function acceptPapalCommissionOffer(rome, matter, itinerary, nuncio) {
     {
       ...papalPlayerEligibilityContext(),
       simMinute: Math.floor(weatherClockMinutes),
+      originCityId: rome.cityId,
       originTileId: rome.tileId,
       itinerary,
       rewardDoubloons: papalCommissionReward(rome, itinerary),
@@ -20980,7 +21016,7 @@ function openPapalCommissionAudience(cityCall, matter, destination) {
   const finalAudience = matter.commission.nextStopIndex === matter.commission.itinerary.length - 1;
   const nuncio = matter.commission.nuncio;
   const journeySubject = papalCommissionJourneyDialogueSubject();
-  const journeyEvent = journeySubject?.destinationTileId === cityCall.tileId
+  const journeyEvent = journeySubject?.destinationCityId === cityCall.cityId
     ? pendingQuestJourneyDialogue(journeySubject, { arrived: true })
     : null;
   const steps = [
@@ -21008,6 +21044,7 @@ function openPapalCommissionAudience(cityCall, matter, destination) {
   ];
   if (!finalAudience) {
     advancePapalCommissionAtPort(gameState.relations.papacy, {
+      cityId: cityCall.cityId,
       tileId: cityCall.tileId,
       simMinute: Math.floor(weatherClockMinutes),
       cargoComplete: papalCommissionCargoStatus(destination).complete
@@ -21046,6 +21083,7 @@ function openPapalCommissionAudience(cityCall, matter, destination) {
 
 function finishPapalCommissionAudience(cityCall, matter, destination, recommendation) {
   advancePapalCommissionAtPort(gameState.relations.papacy, {
+    cityId: cityCall.cityId,
     tileId: cityCall.tileId,
     simMinute: Math.floor(weatherClockMinutes),
     recommendation,
@@ -21152,7 +21190,7 @@ function maybeOpenNaturalistPortDialogue(cityCall) {
     currentVisit
   });
   const companionGreetingId = companionGreetingIds[0] || null;
-  if (!naturalistShouldApproach(memory, gameState.memory.animals, cityCall.tileId, {
+  if (!naturalistShouldApproach(memory, gameState.memory.animals, cityCall.cityId, {
     companionOfferAvailable: companionOfferIds.length > 0,
     formerCompanionGreetingAvailable: companionGreetingId !== null
   })) return false;
@@ -21490,13 +21528,13 @@ function maybeOpenAnimalCompanionNpcReaction(interactionKey, npcCharacter) {
 
 function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = false) {
   const goal = gameState.memory.campaignGoal;
-  if (!goal || cityCall.tileId !== goal.homePortTileId) return null;
+  if (!goal || cityCall.cityId !== goal.homePortCityId) return null;
   if (goal.type === CAMPAIGN_GOAL_WHITE_WHALE && !goal.whiteWhaleKilled) return null;
   if (goal.type === CAMPAIGN_GOAL_TREASURE && !treasureAmbushComplete(goal)) return null;
   if (goal.status === CAMPAIGN_GOAL_COMPLETE) {
     const retirementObligation = currentCampaignRetirementObligation();
     const session = createCampaignDialogueSession({
-      cityTileId: cityCall.tileId,
+      cityId: cityCall.cityId,
       steps: [
         ...campaignRetirementReturnSteps(goal, gameState.playerCharacter),
         ...(retirementObligation ? campaignRetirementBlockedSteps(retirementObligation) : [])
@@ -21532,7 +21570,7 @@ function createCampaignHomecomingSession(cityCall, needsLoadout, arrivedDrunk = 
     : ordinarySteps;
   const retirementObligation = outcome.completed ? currentCampaignRetirementObligation() : null;
   const session = createCampaignDialogueSession({
-    cityTileId: cityCall.tileId,
+    cityId: cityCall.cityId,
     steps: [
       ...steps,
       ...(retirementObligation ? campaignRetirementBlockedSteps(retirementObligation) : [])
@@ -21570,7 +21608,7 @@ function openPendingDiscoveryPortDialogue() {
 function admitPlayerToPort(cityCall, { arrivedDrunk = false } = {}) {
   const needsLoadout = !gameState.ship?.loadoutId;
   visitPort(gameState, cityCall, Math.floor(weatherClockMinutes), { arrivedDrunk });
-  recordChartReframePortVisit(gameState.memory.chartReframeDialogue, cityCall.tileId);
+  recordChartReframePortVisit(gameState.memory.chartReframeDialogue, cityCall.cityId);
   syncAchievementsFromGameState();
   if (needsLoadout) repairPlayerShipAtPort();
   else applyAutomaticPortServices(cityCall);
@@ -21742,6 +21780,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
   recordPortCaptureAuthorityForState(gameState, {
     winnerFactionId: event.newFactionId,
     loserFactionId: event.previousFactionId,
+    cityId: event.cityId,
     cityName: event.cityName,
     simMinute,
     capital: Boolean(event.capitalCapturedFactionId)
@@ -21750,7 +21789,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     ? advanceCapturePortMissionAfterConquest(gameState, cityCall, event, simMinute)
     : null;
   const conquistadorCapture = gameState.memory.quests.conquistador.stage === CONQUISTADOR_STAGE_CAPTURE &&
-    gameState.memory.quests.conquistador.targetTileId === cityCall.tileId
+    gameState.memory.quests.conquistador.targetCityId === cityCall.cityId
     ? recordConquistadorTargetCapture(
         gameState.memory.quests.conquistador,
         gameState.memory.conquest,
@@ -22065,12 +22104,12 @@ function createWorldPassengerDialogueSession(cityCall, quest, options = {}) {
   if (
     quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
     gameState.memory.quests.passengerActive?.id === quest.id &&
-    cityCall.tileId === quest.destinationTileId
+    cityCall.cityId === quest.destinationCityId
   ) {
     const rivalCourier = ningboRivalDelegationShip(quest, "courier");
     const strategic = npcSeaRoutes.shipById.get(rivalCourier.id);
     const rivalArrivalMinute = strategic?.encounter?.arrivedAtMinute ??
-      (strategic?.plan?.destination?.tileId === quest.destinationTileId
+      (strategic?.plan?.destination?.cityId === quest.destinationCityId
         ? strategic.plan.endMinute
         : null);
     preparePassengerDialogueArrival(gameState, cityCall, quest, {
@@ -22145,7 +22184,7 @@ function beginCampaignRetirement() {
   const retirementObligation = currentCampaignRetirementObligation();
   if (retirementObligation) {
     dialogueState = createCampaignDialogueSession({
-      cityTileId: city.tileId,
+      cityId: city.cityId,
       steps: campaignRetirementBlockedSteps(retirementObligation),
       phase: `${goal.type}-retirement-blocked`,
       continueToPortOnClose: true,
@@ -22177,7 +22216,7 @@ function beginCampaignRetirement() {
     return;
   }
   dialogueState = createCampaignDialogueSession({
-    cityTileId: city.tileId,
+    cityId: city.cityId,
     steps: retirementSteps,
     phase: `${goal.type}-retirement`,
     victoryOnClose: true,
@@ -23049,8 +23088,9 @@ function consumeLandedSeagull(id) {
 function startWaitingInPort(city) {
   if (!city || portWaitState || gameOverReason) return false;
   portWaitState = {
+    cityId: city.cityId,
     cityTileId: city.tileId,
-    portId: city.portId || `city-${city.tileId}`,
+    portId: city.cityId,
     startedAtMinute: weatherClockMinutes,
     disguisedEntry: dialogueState?.disguisedEntry === true,
     illicitTradeAccessPolicyId: dialogueState?.illicitTradeAccessPolicyId || null,
@@ -23081,8 +23121,8 @@ function resetSurvivalDamageTimers() {
 
 function stopWaitingInPort() {
   if (!portWaitState) return false;
-  const city = chartPortCallById(portWaitState.portId) || cityByTileId.get(portWaitState.cityTileId);
-  const character = city?.character || (city ? portCityCharacters?.get(city.tileId) : null);
+  const city = chartPortCallById(portWaitState.portId) || cityById.get(portWaitState.cityId);
+  const character = city?.character || (city ? portCityCharacters?.get(city.cityId) : null);
   const disguisedEntry = portWaitState.disguisedEntry === true;
   const illicitTradeAccessPolicyId = portWaitState.illicitTradeAccessPolicyId || null;
   const illicitTradeAttemptedPolicyId = portWaitState.illicitTradeAttemptedPolicyId || null;
@@ -23827,7 +23867,7 @@ async function purchaseShipyardShip(action) {
 function placeVikingLongshipEnthusiastAtPort(historian) {
   const port = vikingLongshipQuestPort();
   if (!port) throw new Error("Cannot return the Viking longship to missing Hafnarfjordur");
-  portCityCharacters.set(port.tileId, historian);
+  portCityCharacters.set(port.cityId, historian);
   usedCharacterNames.add(historian.name);
   if (vikingLongshipPortFactor) usedCharacterNames.delete(vikingLongshipPortFactor.name);
 }
@@ -23889,7 +23929,7 @@ async function acquireVikingLongship(action) {
       context: transactionContext
     });
     if (!vikingLongshipPortFactor) throw new Error("Viking longship handover lost the Hafnarfjordur factor");
-    portCityCharacters.set(city.tileId, vikingLongshipPortFactor);
+    portCityCharacters.set(city.cityId, vikingLongshipPortFactor);
     usedCharacterNames.add(vikingLongshipPortFactor.name);
     applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
@@ -24299,7 +24339,7 @@ function currentColonizationDialogueCharacter(city) {
       dialogueState.colonizationApprovalStep === 2);
   if (!approvalConversation) return ensureColonizationOrganizer(gameState);
   if (dialogueState.colonizationApprovalStep === 1) {
-    const official = portCityCharacters.get(city.tileId);
+    const official = portCityCharacters.get(city.cityId);
     if (!official) throw new Error(`${cityLabelText(city)} has no official for the colony negotiation`);
     return official;
   }
@@ -24364,8 +24404,8 @@ function currentDialogueCity() {
       };
     }
   }
-  const placedCity = cityByTileId.get(dialogueState.cityTileId);
-  if (!placedCity) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityTileId}`);
+  const placedCity = cityById.get(dialogueState.cityId);
+  if (!placedCity) throw new Error(`Dialogue city is no longer placed: ${dialogueState.cityId}`);
   const city = dialogueState.kind === "port"
     ? restorePortDialogueCityIdentity(dialogueState, placedCity)
     : placedCity;
@@ -24384,7 +24424,7 @@ function currentDialogueCity() {
       : dialogueState.nodeId === "conquistador"
         ? ensureConquistadorQuestGiver(gameState)
         : null;
-  const character = questCharacter || portCityCharacters?.get(city.tileId);
+  const character = questCharacter || portCityCharacters?.get(city.cityId);
   if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
   return {
     ...city,
@@ -24454,9 +24494,9 @@ function buildCurrentDialogueView() {
 }
 
 function portDialogueContext() {
-  const city = dialogueState?.cityTileId === undefined
+  const city = dialogueState?.cityId === undefined
     ? null
-    : chartPortCallById(dialogueState.portId) || cityByTileId.get(dialogueState.cityTileId);
+    : chartPortCallById(dialogueState.portId) || cityById.get(dialogueState.cityId);
   const questOnlyColony = city?.colonizationQuestSite === true &&
     city.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED;
   const shipyard = city && !questOnlyColony ? shipyardAtPort(worldEconomy.shipyards, city) : null;
@@ -24474,7 +24514,7 @@ function portDialogueContext() {
     dayIndex: weatherParts.dayIndex,
     localHour: city ? weatherLocalHour(simMinute, graph.lonDeg[city.tileId]) : null,
     playerShipSlug: ship?.stats?.slug || gameState.ship?.slug || null,
-    arrivalNavigation: city ? portArrivalNavigationByTileId?.get(city.tileId) || null : null,
+    arrivalNavigation: city ? portArrivalNavigationByCityId?.get(city.cityId) || null : null,
     shipPower: playerShipPrivateeringPower(),
     shipStats: ship ? currentPlayerEffectiveShipStats() : null,
     nearbyShips: nearbyPortTraffic(city),
@@ -24577,7 +24617,7 @@ function travelMissionOfferContext(createCharacter) {
     historicalWorldState: historicalGossipWorldState(),
     relationBetween: currentDiplomacyBetween,
     sailingDistanceKm: sailingDistanceBetweenPorts,
-    portFactorReligionId: (port) => portCityCharacters.get(port.tileId)?.religionId || null,
+    portFactorReligionId: (port) => portCityCharacters.get(port.cityId)?.religionId || null,
     createCharacter
   };
 }
@@ -24592,7 +24632,7 @@ function shouldAutoOpenPassengerDialogue(city, quest) {
     return false;
   }
   if (questHasDestination(quest, city) && activeTravelMissionQuest(gameState)?.id === quest.id) return true;
-  return quest.originTileId === city.tileId && quest.seen !== true;
+  return quest.originCityId === city.cityId && quest.seen !== true;
 }
 
 function createPassengerCharacterForQuest({ quest, origin, destination, scenario }) {
@@ -24736,7 +24776,7 @@ function currentDialogueSubject() {
     if (dialogueState.journeyEvent) return passenger;
     if (
       passenger.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
-      passenger.destinationTileId === dialogueState.cityTileId &&
+      passenger.destinationCityId === dialogueState.cityId &&
       !passenger.eastAsianOutcomeId &&
       ningboMissionBribeDecision(passenger) === null
     ) {
@@ -24746,14 +24786,14 @@ function currentDialogueSubject() {
     }
     if (
       passenger.eastAsianMissionId === EAST_ASIAN_MISSION_TSUSHIMA &&
-      passenger.destinationTileId === dialogueState.cityTileId &&
+      passenger.destinationCityId === dialogueState.cityId &&
       !passenger.eastAsianOutcomeId &&
       dialogueState.eastAsianHearingStage === null
     ) {
       return passenger;
     }
     if (
-      passenger.destinationTileId === dialogueState.cityTileId &&
+      passenger.destinationCityId === dialogueState.cityId &&
       eastAsianMissionHasOutcomes(passenger)
     ) {
       return currentDialogueCity();
@@ -24766,7 +24806,7 @@ function currentDialogueSubject() {
       ? pirateCaptiveDialogueCharacter(dialogueState, quest)
       : rescuedTravelerDialogueCharacter(dialogueState, quest);
     return {
-      ...(dialogueState.cityTileId === null ? {} : currentDialogueCity()),
+      ...(dialogueState.cityId === null ? {} : currentDialogueCity()),
       character,
       portrait: characterExpression(character)
     };
@@ -24850,7 +24890,7 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
   if (dialogueState.kind === "passenger") {
     const passenger = currentDialoguePassenger();
     if (
-      passenger.destinationTileId === dialogueState.cityTileId &&
+      passenger.destinationCityId === dialogueState.cityId &&
       eastAsianMissionHasOutcomes(passenger)
     ) {
       return dialoguePortraitPair(captain, speakerCharacter, speakerCharacter);
@@ -24860,7 +24900,7 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
       dialogueState.envoyNegotiationResult ||
       (activeQuest?.id === passenger.id &&
         passenger.stage === "outbound" &&
-        passenger.targetTileId === dialogueState.cityTileId)
+        passenger.targetCityId === dialogueState.cityId)
     );
     if (envoyExchange) {
       const official = currentDialogueCity().character;
@@ -24875,11 +24915,11 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
         dialogueState.colonizationApprovalStep === 2);
     if (colonyApprovalExchange) {
       const organizer = ensureColonizationOrganizer(gameState);
-      const official = portCityCharacters.get(dialogueState.cityTileId);
+      const official = portCityCharacters.get(dialogueState.cityId);
       if (!official) throw new Error("Colonization approval dialogue has no local official");
       return dialoguePortraitPair(organizer, official, speakerCharacter);
     }
-    const portFactor = portCityCharacters?.get(dialogueState.cityTileId) ||
+    const portFactor = portCityCharacters?.get(dialogueState.cityId) ||
       chartPortCallById(dialogueState.portId)?.character ||
       null;
     return dialoguePortraitPair(captain, speakerCharacter.id === captain?.id ? portFactor : speakerCharacter, speakerCharacter);
@@ -25652,7 +25692,7 @@ function playerPerkTotalsSignature(state, additionalCharacters) {
       if (!Array.isArray(character.skillIds)) {
         throw new Error(`Player perk character lacks skills: ${character.id || character.name || "unknown"}`);
       }
-      return `${character.id || character.name}:${character.skillIds.join(",")}`;
+      return `${requireEntityId(character.id, "Player perk character")}:${character.skillIds.join(",")}`;
     });
   const itemEntries = Object.entries(items)
     .sort(([a], [b]) => a.localeCompare(b))
@@ -26462,9 +26502,8 @@ function currentChartReframeDialogueContext() {
   const itemIds = Object.entries(gameState.inventory.items)
     .filter(([, quantity]) => Number.isInteger(quantity) && quantity > 0)
     .map(([itemId]) => itemId);
-  const recentPortNames = gameState.memory.chartReframeDialogue.recentPortTileIds
-    .map((tileId) => portCitiesByTileId.get(tileId) || cityByTileId.get(tileId))
-    .filter(Boolean)
+  const recentPortNames = gameState.memory.chartReframeDialogue.recentPortCityIds
+    .map((cityId) => requireEntityById(cityById, cityId, "recent chart-dialogue port"))
     .map(cityLabelText);
   const latitudeDeg = latitudeDegForDirection(ship.position);
   const longitudeDeg = longitudeDegForDirection(ship.position);
@@ -27994,29 +28033,32 @@ function syncColonizationSettlementWorldState(state, memory, binding, { startMin
     if (binding.target.preexistingSettlement) {
       const baseSettlement = portCitiesByTileId.get(targetTileId);
       if (!baseSettlement || baseSettlement.colonizationQuestSite ||
-          baseSettlement.city !== binding.target.city ||
-          baseSettlement.country !== binding.target.country) {
+          baseSettlement.cityId !== binding.target.cityId) {
         throw new Error(`Cannot restore the original ${binding.target.city} village`);
       }
       cityByTileId.set(targetTileId, baseSettlement);
+      cityById.set(baseSettlement.cityId, baseSettlement);
       if (active && colonizationBaseSettlementCharacter) {
-        portCityCharacters.set(targetTileId, colonizationBaseSettlementCharacter);
+        portCityCharacters.set(baseSettlement.cityId, colonizationBaseSettlementCharacter);
       }
       chart = null;
       dirty = true;
     } else {
-      if (existing?.colonizationQuestSite) cityByTileId.delete(targetTileId);
-      portCityCharacters.delete(targetTileId);
+      if (existing?.colonizationQuestSite) {
+        cityByTileId.delete(targetTileId);
+        cityById.delete(existing.cityId);
+      }
+      portCityCharacters.delete(binding.target.cityId);
     }
     return null;
   }
   let baseSettlementCharacter = null;
   if (existing && !existing.colonizationQuestSite) {
-    if (!binding.target.preexistingSettlement || existing.city !== binding.target.city ||
-        existing.country !== binding.target.country || existing.settlementType !== "village") {
+    if (!binding.target.preexistingSettlement || existing.cityId !== binding.target.cityId ||
+        existing.settlementType !== "village") {
       throw new Error(`${binding.target.city} target tile is occupied by ${cityLabelText(existing)}`);
     }
-    baseSettlementCharacter = portCityCharacters.get(existing.tileId) || null;
+    baseSettlementCharacter = portCityCharacters.get(existing.cityId) || null;
     if (!baseSettlementCharacter) {
       throw new Error(`${binding.target.city} village has no resident character`);
     }
@@ -28024,19 +28066,20 @@ function syncColonizationSettlementWorldState(state, memory, binding, { startMin
   }
 
   cityByTileId.set(record.tileId, record);
+  cityById.set(record.cityId, record);
   const developedPortCharacter = record.playerDevelopedPort
-    ? baseSettlementCharacter || colonizationBaseSettlementCharacter || portCityCharacters.get(record.tileId)
+    ? baseSettlementCharacter || colonizationBaseSettlementCharacter || portCityCharacters.get(record.cityId)
     : null;
   if (record.playerDevelopedPort && !developedPortCharacter) {
     throw new Error(`${binding.target.city} developed port has no local official`);
   }
   const settlementCharacter = developedPortCharacter ||
-    portCityCharacters.get(record.tileId) ||
+    portCityCharacters.get(record.cityId) ||
     (active
       ? colonizationOrganizer
       : createArchivedColonizationOrganizer(state, memory, binding));
   if (!settlementCharacter) throw new Error(`${binding.target.city} colony has no resident official`);
-  portCityCharacters.set(record.tileId, settlementCharacter);
+  portCityCharacters.set(record.cityId, settlementCharacter);
   if (record.hiddenSettlement || record.colonyAbandoned) {
     const portIndex = portCities.findIndex((city) => city.tileId === record.tileId);
     if (portIndex >= 0) portCities.splice(portIndex, 1);
@@ -28099,19 +28142,15 @@ function bindColonizationQuestSelection(state, memory = state.memory.colonizatio
   const quest = colonizationQuestView(questState, { currentMinute: Math.max(0, weatherClockMinutes) });
   if (!quest.target) return null;
   const target = colonizationTargetPlacements.find((candidate) => (
-    candidate.city === quest.target.city && candidate.country === quest.target.country
+    candidate.cityId === quest.target.cityId
   ));
   if (!target) {
     throw new Error(`Saved colony is not a water-accessible sailing target: ${quest.target.city}`);
   }
-  let origin = portCities.find((candidate) => (
-    Number.isInteger(quest.origin?.tileId)
-      ? candidate.tileId === quest.origin.tileId
-      : candidate.city === quest.origin?.city && candidate.country === quest.origin?.country
-  ));
+  const origin = portCities.find((candidate) => candidate.cityId === quest.origin?.cityId);
   if (!origin) throw new Error(`Saved colony origin is not a dockable port: ${quest.origin?.city || "unknown"}`);
   const approvalPort = quest.approval
-    ? portCities.find((candidate) => candidate.tileId === quest.approval.tileId)
+    ? portCities.find((candidate) => candidate.cityId === quest.approval.cityId)
     : null;
   if (quest.approval && !approvalPort) {
     throw new Error(`Saved colony approval port is not dockable: ${quest.approval.city}`);
@@ -28123,11 +28162,11 @@ function bindColonizationQuestSelection(state, memory = state.memory.colonizatio
 function createArchivedColonizationOrganizer(state, memory, binding) {
   const questState = { ...state, memory: { ...state.memory, colonization: memory } };
   const quest = colonizationQuestView(questState, { currentMinute: Math.max(0, weatherClockMinutes) });
-  const factor = portCityCharacters.get(binding.origin.tileId);
+  const factor = portCityCharacters.get(binding.origin.cityId);
   if (!factor) throw new Error(`${cityLabelText(binding.origin)} has no factor for its archived colony`);
   const identityPort = colonizationOrganizerIdentityPort(quest, binding.origin);
   return generateSpecialPortCharacter({
-    identityKey: `colonial-organizer-${quest.target.city}-${quest.target.country}-${binding.origin.tileId}`,
+    identityKey: `colonial-organizer-${quest.target.cityId}-${binding.origin.cityId}`,
     port: identityPort,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     role: "colonial-organizer",
@@ -28139,15 +28178,15 @@ function createArchivedColonizationOrganizer(state, memory, binding) {
 
 function ensureColonizationOrganizer(state, origin = null, { portraitSourceId = null } = {}) {
   const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
-  const organizerPort = origin || portCities.find((candidate) => candidate.tileId === quest.origin?.tileId);
+  const organizerPort = origin || portCities.find((candidate) => candidate.cityId === quest.origin?.cityId);
   if (!quest.target || !organizerPort) throw new Error("Colonization organizer requires a selected target and origin");
-  const questKey = `${quest.target.city}|${quest.target.country}|${organizerPort.tileId}`;
+  const questKey = `${quest.target.cityId}|${organizerPort.cityId}`;
   if (colonizationOrganizer && colonizationOrganizerQuestKey === questKey) return colonizationOrganizer;
-  const factor = portCityCharacters.get(organizerPort.tileId);
+  const factor = portCityCharacters.get(organizerPort.cityId);
   if (!factor) throw new Error(`${cityLabelText(organizerPort)} has no generated port factor`);
   const identityPort = colonizationOrganizerIdentityPort(quest, organizerPort);
   colonizationOrganizer = generateSpecialPortCharacter({
-    identityKey: `colonial-organizer-${quest.target.city}-${quest.target.country}-${organizerPort.tileId}`,
+    identityKey: `colonial-organizer-${quest.target.cityId}-${organizerPort.cityId}`,
     port: identityPort,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     portraitSourceId,
@@ -28174,10 +28213,10 @@ function ensureConquistadorQuestGiver(state) {
     Math.max(0, weatherClockMinutes)
   );
   const origin = quest.origin;
-  const factor = portCityCharacters.get(origin.tileId);
+  const factor = portCityCharacters.get(origin.cityId);
   if (!factor) throw new Error(`${cityLabelText(origin)} has no factor for the conquistador expedition`);
   conquistadorQuestGiver = generateSpecialPortCharacter({
-    identityKey: `conquistador-adelantado-${origin.tileId}`,
+    identityKey: `conquistador-adelantado-${origin.cityId}`,
     port: { ...origin, factionId: "spain" },
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     role: "adelantado",
@@ -28202,10 +28241,10 @@ function ensureJapaneseMatchlockGunsmith(state) {
   if (!workshopPort) {
     throw new Error(`${JAPANESE_MATCHLOCK_WORKSHOP_CITY} is missing from the dockable port roster`);
   }
-  const factor = portCityCharacters.get(workshopPort.tileId);
+  const factor = portCityCharacters.get(workshopPort.cityId);
   if (!factor) throw new Error(`${cityLabelText(workshopPort)} has no generated port factor`);
   japaneseMatchlockGunsmith = generateSpecialPortCharacter({
-    identityKey: `japanese-matchlock-gunsmith-${workshopPort.tileId}`,
+    identityKey: `japanese-matchlock-gunsmith-${workshopPort.cityId}`,
     port: workshopPort,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     role: "gunsmith",
@@ -28238,10 +28277,10 @@ function ensureCaribbeanGingerPlanter(state) {
   if (caribbeanGingerPlanter) return caribbeanGingerPlanter;
   const cultivationPort = currentCaribbeanGingerPort(state);
   if (!cultivationPort) throw new Error("Caribbean ginger planter requires an active cultivation port");
-  const factor = portCityCharacters.get(cultivationPort.tileId);
+  const factor = portCityCharacters.get(cultivationPort.cityId);
   if (!factor) throw new Error(`${cityLabelText(cultivationPort)} has no generated port factor`);
   caribbeanGingerPlanter = generateSpecialPortCharacter({
-    identityKey: `caribbean-ginger-planter-${cultivationPort.tileId}`,
+    identityKey: `caribbean-ginger-planter-${cultivationPort.cityId}`,
     port: cultivationPort,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     role: "planter",
@@ -28257,10 +28296,10 @@ function ensureBanquetChef(state, port) {
   if (banquetChef) return banquetChef;
   const quest = chefQuestState(state, port);
   if (!quest) throw new Error("Banquet chef requires an active quest at this port");
-  const factor = portCityCharacters.get(port.tileId);
+  const factor = portCityCharacters.get(port.cityId);
   if (!factor) throw new Error(`${cityLabelText(port)} has no generated port factor`);
   const character = generateSpecialPortCharacter({
-    identityKey: `banquet-chef-${port.tileId}`,
+    identityKey: `banquet-chef-${port.cityId}`,
     port,
     excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
     role: "chef",
@@ -31255,6 +31294,7 @@ function attemptNpcPortConquest(battery, npcShipId) {
   recordPortCaptureAuthorityForState(gameState, {
     winnerFactionId: event.newFactionId,
     loserFactionId: event.previousFactionId,
+    cityId: event.cityId,
     cityName: event.cityName,
     simMinute: Math.floor(weatherClockMinutes),
     capital: Boolean(event.capitalCapturedFactionId)
@@ -31918,6 +31958,7 @@ function updateWorldDiplomacy() {
     recordPortCaptureAuthorityForState(gameState, {
       winnerFactionId: event.newFactionId,
       loserFactionId: event.previousFactionId,
+      cityId: event.cityId,
       cityName: event.cityName,
       simMinute: event.simMinute,
       capital: Boolean(event.capitalCapturedFactionId)
@@ -32079,7 +32120,7 @@ function reconcilePapalAuthorityCharacters() {
       const updated = reconcileCharacterForPapalAuthority(
         gameState,
         character,
-        portFactors ? { portTileId: key } : undefined
+        portFactors ? { portCityId: key } : undefined
       );
       if (updated === character) continue;
       characters.set(key, updated);
@@ -32947,6 +32988,7 @@ function createPastVoyageRecord({ state, playerShip, startMinute, endMinute, out
     vessel: shipLabelForSlug(playerShip.typeSlug),
     outcome,
     outcomeType,
+    goalType: state.memory.campaignGoal.type,
     goal: campaignGoalLabel(state.memory.campaignGoal),
     ...stats
   };
@@ -33223,7 +33265,7 @@ function refreshWorldSpatialStaticEntries() {
     (chart.cityCalls || [])
       .filter((call) => Number.isFinite(call.x) && Number.isFinite(call.y))
       .map((call) => ({
-        id: `port:${call.portId ?? call.tileId}`,
+        id: `port:${requireCityId(call, "Spatial port entry")}`,
         x: call.x,
         y: call.y,
         radius: 0,
@@ -36223,7 +36265,7 @@ function rescuedTravelerHomePort(identityKey) {
     .map((city) => ({
       city,
       distanceKm: EARTH_RADIUS_KM * vectorArcDistance(ship.position, tileCenterVector(city.tileId)),
-      jitter: (spriteKeyHash(`${identityKey}|${city.tileId}|rescued-traveler-home`) % 401) - 200
+      jitter: (spriteKeyHash(`${identityKey}|${requireCityId(city, "Rescued traveler home city")}|rescued-traveler-home`) % 401) - 200
     }))
     .filter((entry) => entry.distanceKm >= 500)
     .sort((a, b) => (
@@ -36266,10 +36308,15 @@ function activeRescuedTravelerDestinations() {
         !pirateCaptiveIsAboard(traveler)) continue;
     const objective = traveler.rescueType === RESCUED_TRAVELER_TYPE_PIRATE_CAPTIVE
       ? pirateCaptiveDestination(traveler)
-      : { tileId: traveler.homePortTileId, name: traveler.homePortName, kind: "home" };
-    const destination = cityByTileId.get(objective.tileId) || portCitiesByTileId.get(objective.tileId);
+      : {
+          cityId: traveler.homePortCityId,
+          tileId: traveler.homePortTileId,
+          name: traveler.homePortName,
+          kind: "home"
+        };
+    const destination = cityById.get(objective.cityId) || null;
     if (!destination) {
-      throw new Error(`Rescued traveler destination is missing: ${objective.tileId}`);
+      throw new Error(`Rescued traveler destination is missing: ${objective.cityId}`);
     }
     destinations.push({ traveler, objective, destination });
   }
@@ -36312,10 +36359,9 @@ function repairActiveRescuedTravelerIdentityConflicts() {
       : null;
     if (!travelerConflict && !familyConflict) continue;
 
-    const homePort = cityByTileId.get(quest.homePortTileId) ||
-      portCitiesByTileId.get(quest.homePortTileId);
+    const homePort = cityById.get(quest.homePortCityId) || null;
     if (!homePort) {
-      throw new Error(`Duplicate rescued traveler has no canonical home port: ${quest.homePortTileId}`);
+      throw new Error(`Duplicate rescued traveler has no canonical home port: ${quest.homePortCityId}`);
     }
     const identityKey = `${quest.id}|identity-repair-v1`;
     const excludedSourceIds = playerPortraitSourceExclusions(
@@ -40714,7 +40760,7 @@ function updateDiscoveryWorldProgress(nowMs) {
 
 function captureDiscoveryIsDeferred(discovery) {
   return captureDirector?.sequence.kind === "explore" &&
-    captureDirector.sequence.discoveryName === discovery.displayName &&
+    captureDirector.sequence.discoveryId === discovery.id &&
     !captureDirector.firedCues.has("discover");
 }
 
@@ -41782,11 +41828,11 @@ function makeCityCall(city, tileCall, activeChart) {
   const spriteY = Math.round(tileCall.drawSurfaceY - TILE_ART_HALF + offsetY);
   const labelH = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
   const character = city.isPirateHideout
-    ? pirateHideoutCharacters.get(city.portId) || null
-    : portCityCharacters?.get(city.tileId) || null;
+    ? pirateHideoutCharacters.get(city.cityId) || null
+    : portCityCharacters?.get(city.cityId) || null;
   return {
     ...city,
-    portId: city.portId || `city-${city.tileId}`,
+    portId: city.cityId,
     character,
     portrait: character ? characterExpression(character) : null,
     visualOffset,
@@ -41805,7 +41851,7 @@ function makeCityCall(city, tileCall, activeChart) {
 
 function cityVisualOffset(city, tileCall, activeChart) {
   if (!activeChart?.waterIndex) throw new Error(`Cannot place city without a river index: ${city.city}`);
-  const key = city.portId || `city-${city.tileId}`;
+  const key = requireCityId(city, "City visual placement");
   const cached = cityVisualOffsets.get(key);
   if (cached) return cached;
 
@@ -42930,7 +42976,7 @@ function currentFetchQuestRequirements() {
     : null;
   const shipyardProject = gameState.memory.shipyardInvestment.project;
   const shipyardDestination = shipyardProject
-    ? portCitiesByTileId.get(shipyardProject.portTileId) || cityByTileId.get(shipyardProject.portTileId)
+    ? cityById.get(shipyardProject.portCityId)
     : null;
   if (shipyardProject && !shipyardDestination) {
     throw new Error(`Player-backed shipyard port is missing: ${shipyardProject.portName}`);
@@ -43162,7 +43208,7 @@ function questJournalEntries() {
         ? treatyOfMadridJournalTitle(activeQuest)
         : uiText(titleKey);
     entries.push({
-      id: `travel:${activeQuest.id}:${activeDestination.tileId}`,
+      id: `travel:${activeQuest.id}:${activeDestination.cityId}`,
       title,
       nextStep: ningboPresentation
         ? renderedUiText(ningboPresentation.summary)
@@ -43354,8 +43400,8 @@ function vikingLongshipJournalEntry(quest, port) {
 
 function chefQuestJournalPort(state) {
   const memory = state?.memory?.quests?.chef;
-  if (!Number.isInteger(memory?.portTileId)) return null;
-  return cityByTileId.get(memory.portTileId) || portCities.find((port) => port.tileId === memory.portTileId) || null;
+  if (typeof memory?.portCityId !== "string") return null;
+  return cityById.get(memory.portCityId) || null;
 }
 
 function chefQuestJournalEntry(quest) {
@@ -43844,8 +43890,7 @@ function navigationMenuEntries() {
   }
   const shipyardProject = gameState.memory.shipyardInvestment.project;
   if (shipyardProject) {
-    const destination = portCitiesByTileId.get(shipyardProject.portTileId) ||
-      cityByTileId.get(shipyardProject.portTileId);
+    const destination = cityById.get(shipyardProject.portCityId);
     if (!destination) throw new Error(`Player-backed shipyard port is missing: ${shipyardProject.portName}`);
     entries.push({
       id: "shipyard-investment",
@@ -43860,8 +43905,7 @@ function navigationMenuEntries() {
   const papalMatter = papalPendingMatter(gameState.relations.papacy);
   if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
     const objective = papalCommissionObjective(gameState.relations.papacy);
-    const destination = portCitiesByTileId.get(objective.destination.tileId) ||
-      cityByTileId.get(objective.destination.tileId);
+    const destination = cityById.get(objective.destination.cityId);
     if (!destination) throw new Error(`Papal objective port is missing: ${objective.destination.portName}`);
     entries.push({
       id: `papal:${papalMatter.id}`,
@@ -43875,8 +43919,7 @@ function navigationMenuEntries() {
   const maltaQuest = gameState.memory.quests.hospitallerMalta;
   const maltaObjective = hospitallerMaltaQuestObjective(maltaQuest);
   if (maltaObjective) {
-    const destination = portCitiesByTileId.get(maltaObjective.destination.tileId) ||
-      cityByTileId.get(maltaObjective.destination.tileId);
+    const destination = cityById.get(maltaObjective.destination.cityId);
     if (!destination) {
       throw new Error(`Hospitaller Malta objective port is missing: ${maltaObjective.destination.city}`);
     }
@@ -43906,7 +43949,7 @@ function navigationMenuEntries() {
   }
   for (const { quest, destination: questDestination } of activeQuestDestinations()) {
     entries.push({
-      id: `quest:${quest.id}:${questDestination.tileId}`,
+      id: `quest:${quest.id}:${questDestination.cityId}`,
       destinationName: cityLabelText(questDestination),
       reason: navigationQuestReason(quest),
       style: QUEST_NAVIGATION_STYLE,
@@ -43933,6 +43976,7 @@ function navigationMenuEntries() {
     const destination = colonizationObjectiveDestination(gameState, colonizationTarget);
     if (!destination) throw new Error("Colonization navigation destination is missing");
     entries.push({
+      // IDENTITY_SPATIAL_EXCEPTION: a colony objective can be an uninhabited site with only a tile.
       id: `colonization:${colonizationTarget.kind}:${colonizationTarget.tileId}`,
       destinationName: cityLabelText(destination),
       reason: colonizationNavigationReason(colonizationTarget),
@@ -43962,7 +44006,7 @@ function navigationMenuEntries() {
   const naturalistDestination = activeNaturalistReportDestination();
   if (naturalistDestination) {
     entries.push({
-      id: `naturalist:${naturalistDestination.tileId}`,
+      id: `naturalist:${naturalistDestination.cityId}`,
       destinationName: cityLabelText(naturalistDestination),
       reason: "REPORT ANIMAL SIGHTINGS",
       style: NATURALIST_NAVIGATION_STYLE,
@@ -44021,8 +44065,7 @@ function activeColonizationObjective() {
 }
 
 function fetchQuestWorldDestination(fetchTarget) {
-  const destination = portCitiesByTileId?.get(fetchTarget.destination.tileId) ||
-    cityByTileId?.get(fetchTarget.destination.tileId);
+  const destination = cityById?.get(fetchTarget.destination.cityId);
   if (!destination || !Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) {
     throw new Error(`Fetch quest destination is not a placed port: ${fetchTarget.destination.city}`);
   }
@@ -44136,6 +44179,7 @@ function campaignNavigationMenuEntry(destination) {
       throw new Error(`Treasure island navigation mismatch: ${destination.tileId}`);
     }
     return {
+      // IDENTITY_SPATIAL_EXCEPTION: the generated treasure island is a place on the chart, not a city.
       id: `campaign:treasure-island:${destination.tileId}`,
       destinationName: `Captain ${goal.treasureCaptainName}'s island`,
       reason: "FOLLOW THE COMPLETED MAP",
@@ -44162,7 +44206,7 @@ function campaignNavigationMenuEntry(destination) {
               ? uiText("navigation.retire")
         : "RETURN HOME";
   return {
-    id: `campaign:home:${home.tileId}`,
+    id: `campaign:home:${home.cityId}`,
     destinationName: cityLabelText(home),
     reason,
     style: CAMPAIGN_NAVIGATION_STYLE,
@@ -44174,7 +44218,7 @@ function campaignNavigationMenuEntry(destination) {
 function shipyardDividendNavigationEntries() {
   if (!worldEconomy) return [];
   return availablePlayerShipyardPayouts(worldEconomy.shipyards).map((payout) => {
-    const destination = portCitiesByTileId.get(payout.portId) || cityByTileId.get(payout.portId);
+    const destination = cityById.get(payout.portId);
     if (!destination) throw new Error(`Player-backed shipyard port is missing: ${payout.portName}`);
     return {
       id: `shipyard-dividend:${payout.portId}`,
@@ -44189,10 +44233,13 @@ function shipyardDividendNavigationEntries() {
 }
 
 function portWaypointDestination(waypoint) {
-  const destination = portCitiesByTileId?.get(waypoint.destinationTileId) ||
-    cityByTileId?.get(waypoint.destinationTileId);
-  if (!destination) {
-    throw new Error(`Port waypoint points to missing city tile: ${waypoint.destinationTileId}`);
+  const destination = requireEntityById(
+    cityById,
+    waypoint.destinationCityId,
+    "Port waypoint destination"
+  );
+  if (destination.tileId !== waypoint.destinationTileId) {
+    throw new Error(`Port waypoint ${waypoint.destinationCityId} has a stale navigation tile`);
   }
   if (!Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) {
     throw new Error(`Port waypoint destination has no coordinates: ${waypoint.destinationName}`);
@@ -45874,7 +45921,7 @@ function currentAboardRoster() {
     homePortName: aboardCharacterHomePortName(entry, {
       activeQuest,
       rescuedTravelers,
-      historianHomePortTileId: historianHomePort.tileId
+      historianHomePortCityId: historianHomePort.cityId
     })
   }));
   return Object.freeze({ ...roster, named: Object.freeze(named) });
@@ -45888,7 +45935,7 @@ function currentAboardMenuRoster() {
 function aboardCharacterHomePortName(entry, {
   activeQuest,
   rescuedTravelers,
-  historianHomePortTileId
+  historianHomePortCityId
 }) {
   if (entry.role === ABOARD_ROLE_ANIMAL) {
     if (typeof entry.character.homePortName !== "string" || entry.character.homePortName.trim() === "") {
@@ -45896,13 +45943,13 @@ function aboardCharacterHomePortName(entry, {
     }
     return entry.character.homePortName;
   }
-  const tileId = aboardCharacterHomePortTileId(entry, {
+  const homePortCityId = aboardCharacterHomePortCityId(entry, {
     activeTravelQuest: activeQuest,
     rescuedTravelers,
-    historianHomePortTileId
+    historianHomePortCityId
   });
-  const port = portCitiesByTileId.get(tileId) || cityByTileId.get(tileId);
-  if (!port) throw new Error(`Aboard character home port is not placed: ${tileId}`);
+  const port = cityById.get(homePortCityId);
+  if (!port) throw new Error(`Aboard character home port is not placed: ${homePortCityId}`);
   return cityLabelText(port);
 }
 
@@ -45963,10 +46010,8 @@ function aboardCharacterGoal(entry, activeQuest, colonization, rescuedTravelers)
 function aboardCharacterWithBiography(character) {
   if (!character || typeof character !== "object") throw new Error("Aboard biography requires a character");
   const isAnimalCompanion = character.role === "ship-animal-companion";
-  const homeTileId = Number.isInteger(character.homePortTileId)
-    ? character.homePortTileId
-    : Number.isInteger(character.originPortTileId) ? character.originPortTileId : null;
-  const homePort = homeTileId === null ? null : portCitiesByTileId.get(homeTileId) || null;
+  const homePortCityId = character.homePortCityId || character.originPortCityId || null;
+  const homePort = homePortCityId === null ? null : cityById.get(homePortCityId) || null;
   const nationality = homePort?.factionId ? factionById(homePort.factionId) : null;
   const sovereign = nationality && nationality.id !== NEUTRAL_FACTION_ID;
   return characterWithBiography({
@@ -45974,8 +46019,8 @@ function aboardCharacterWithBiography(character) {
     homePortCountry: character.homePortCountry || homePort?.country || null
   }, {
     identityKey: isAnimalCompanion
-      ? `${character.id || character.name}|${gameState.voyageSeed}`
-      : character.id || character.name,
+      ? `${requireEntityId(character.id, "Animal companion")}|${gameState.voyageSeed}`
+      : requireEntityId(character.id, "Aboard character"),
     minimumAge: isAnimalCompanion ? 0 : 5,
     nationalityId: character.nationalityId ?? nationality?.id ?? null,
     nationalityName: character.nationalityName ?? (sovereign ? nationality.name : null),
@@ -56444,13 +56489,18 @@ function drawShipWindV({
   drawPixelLine(geometry.apex.x, geometry.apex.y, geometry.starboard.x, geometry.starboard.y, color);
 }
 
+function visibleChartCity(city) {
+  const cityId = requireCityId(city, "Chart destination city");
+  return chart.cityCalls?.find((call) => call.cityId === cityId) || null;
+}
+
 function drawQuestDestinationArrow(nowMs) {
   if (!ship || !chart || !localLayout) return;
   for (const { quest, destination } of activeQuestDestinations()) {
     const destinationVector = placedCityTargetVector(destination);
-    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    const visibleCity = visibleChartCity(destination);
     drawWorldTargetArrow({
-      id: `quest:${quest.id}:${destination.tileId}`,
+      id: `quest:${quest.id}:${destination.cityId}`,
       label: cityLabelText(destination),
       targetVector: destinationVector,
       localPoint: visibleCity || localPointForGlobeVector(destinationVector),
@@ -56465,7 +56515,7 @@ function drawQuestDestinationArrow(nowMs) {
   )) {
     const destination = sovereignWarLoanCourtDestination(warLoan);
     const targetVector = placedCityTargetVector(destination);
-    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    const visibleCity = visibleChartCity(destination);
     drawWorldTargetArrow({
       id: warLoan.id,
       label: warLoan.status === SOVEREIGN_WAR_LOAN_REPAYMENT_READY
@@ -56481,7 +56531,7 @@ function drawQuestDestinationArrow(nowMs) {
   const conquistadorDestination = activeConquistadorDestination();
   if (conquistadorDestination) {
     const targetVector = placedCityTargetVector(conquistadorDestination);
-    const visibleCity = chart.cityCalls?.find((call) => call.tileId === conquistadorDestination.tileId);
+    const visibleCity = visibleChartCity(conquistadorDestination);
     drawWorldTargetArrow({
       id: CONQUISTADOR_QUEST_ID,
       label: cityLabelText(conquistadorDestination),
@@ -56505,9 +56555,8 @@ function sovereignWarLoanCourtDestination(contract) {
   if (contract.status !== SOVEREIGN_WAR_LOAN_DEFAULT_READY) {
     throw new Error(`War-loan borrower has no current capital: ${contract.borrowerFactionId}`);
   }
-  const issueCapital = portCitiesByTileId.get(contract.capitalTileId) ||
-    cityByTileId.get(contract.capitalTileId) || null;
-  if (!issueCapital || issueCapital.portId !== contract.capitalPortId) {
+  const issueCapital = cityById.get(contract.capitalPortId) || null;
+  if (!issueCapital) {
     throw new Error(`War-loan issue capital is missing: ${contract.capitalPortId}`);
   }
   return issueCapital;
@@ -56574,7 +56623,7 @@ function drawRescuedTravelerDestinationArrows(nowMs) {
   if (!ship || !chart || !localLayout) return;
   for (const { traveler, objective, destination } of activeRescuedTravelerDestinations()) {
     const targetVector = placedCityTargetVector(destination);
-    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    const visibleCity = visibleChartCity(destination);
     drawWorldTargetArrow({
       id: `rescued-traveler:${traveler.id}`,
       label: objective.name,
@@ -56633,6 +56682,7 @@ function drawOneCampaignGoalDestinationArrow(destination, nowMs) {
     const targetVector = tileCenterVector(destination.tileId);
     const visibleTile = chart.tileCalls.find((call) => call.id === destination.tileId);
     drawWorldTargetArrow({
+      // IDENTITY_SPATIAL_EXCEPTION: the generated treasure island is a place on the chart, not a city.
       id: `campaign:treasure-island:${destination.tileId}`,
       label: `Captain ${goal.treasureCaptainName}'s island`,
       targetVector,
@@ -56663,13 +56713,13 @@ function drawOneCampaignGoalDestinationArrow(destination, nowMs) {
     throw new Error(`Unknown campaign destination kind: ${destination.kind}`);
   }
   const homeCity = campaignGoalHomeCity();
-  if (homeCity.tileId !== destination.homePortTileId) {
-    throw new Error(`Campaign destination home port mismatch: ${destination.homePortTileId}`);
+  if (homeCity.cityId !== destination.homePortCityId) {
+    throw new Error(`Campaign destination home port mismatch: ${destination.homePortCityId}`);
   }
   const targetVector = placedCityTargetVector(homeCity);
-  const visibleCity = chart.cityCalls?.find((call) => call.tileId === homeCity.tileId);
+  const visibleCity = visibleChartCity(homeCity);
   drawWorldTargetArrow({
-    id: `campaign:home:${homeCity.tileId}`,
+    id: `campaign:home:${homeCity.cityId}`,
     label: cityLabelText(homeCity),
     targetVector,
     localPoint: visibleCity || localPointForGlobeVector(targetVector),
@@ -56684,7 +56734,7 @@ function drawPortNavigationHeadingArrow(nowMs) {
   for (const waypoint of gameState.memory.navigation.optionalWaypoints) {
     const destination = portWaypointDestination(waypoint);
     const targetVector = placedCityTargetVector(destination);
-    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    const visibleCity = visibleChartCity(destination);
     drawWorldTargetArrow({
       id: waypoint.id,
       label: waypoint.destinationName,
@@ -56702,9 +56752,9 @@ function drawNaturalistDestinationArrow(nowMs) {
   const destination = activeNaturalistReportDestination();
   if (!destination) return;
   const targetVector = placedCityTargetVector(destination);
-  const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+  const visibleCity = visibleChartCity(destination);
   drawWorldTargetArrow({
-    id: `naturalist:${destination.tileId}`,
+    id: `naturalist:${destination.cityId}`,
     label: cityLabelText(destination),
     targetVector,
     localPoint: visibleCity || localPointForGlobeVector(targetVector),
@@ -56720,11 +56770,10 @@ function drawPapalCommissionDestinationArrow(nowMs) {
   if (matter?.status !== PAPAL_MATTER_COMMISSIONED) return;
   const objective = papalCommissionObjective(gameState.relations.papacy);
   if (!objective) throw new Error("Active Papal commission has no map objective");
-  const destination = portCitiesByTileId.get(objective.destination.tileId) ||
-    cityByTileId.get(objective.destination.tileId);
+  const destination = cityById.get(objective.destination.cityId);
   if (!destination) throw new Error(`Papal objective port is missing: ${objective.destination.portName}`);
   const targetVector = placedCityTargetVector(destination);
-  const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+  const visibleCity = visibleChartCity(destination);
   drawWorldTargetArrow({
     id: `papal:${matter.id}:${objective.kind}`,
     label: objective.destination.portName,
@@ -56741,13 +56790,12 @@ function drawHospitallerMaltaDestinationArrow(nowMs) {
   const memory = gameState.memory.quests.hospitallerMalta;
   const objective = hospitallerMaltaQuestObjective(memory);
   if (!objective) return;
-  const destination = portCitiesByTileId.get(objective.destination.tileId) ||
-    cityByTileId.get(objective.destination.tileId);
+  const destination = cityById.get(objective.destination.cityId);
   if (!destination) {
     throw new Error(`Hospitaller Malta objective port is missing: ${objective.destination.city}`);
   }
   const targetVector = placedCityTargetVector(destination);
-  const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+  const visibleCity = visibleChartCity(destination);
   drawWorldTargetArrow({
     id: `hospitaller-malta:${memory.stage}`,
     label: cityLabelText(destination),
@@ -56766,9 +56814,9 @@ function drawColonizationDestinationArrow(nowMs) {
   const destination = colonizationObjectiveDestination(gameState, objective);
   if (!destination) throw new Error("Colonization objective has no world destination");
   const targetVector = tileCenterVector(objective.tileId);
-  const visibleCity = chart.cityCalls?.find((call) => call.tileId === objective.tileId);
+  const visibleCity = visibleChartCity(destination);
   drawWorldTargetArrow({
-    id: `colonization:${objective.kind}:${objective.tileId}`,
+    id: `colonization:${objective.kind}:${destination.cityId}`,
     label: cityLabelText(destination),
     targetVector,
     localPoint: visibleCity || localPointForGlobeVector(targetVector),
@@ -56784,7 +56832,7 @@ function drawFetchQuestDestinationArrows(nowMs) {
     if (["colonization", "conquistador"].includes(fetchTarget.questId)) continue;
     const destination = fetchQuestWorldDestination(fetchTarget);
     const targetVector = placedCityTargetVector(destination);
-    const visibleCity = chart.cityCalls?.find((call) => call.tileId === destination.tileId);
+    const visibleCity = visibleChartCity(destination);
     drawWorldTargetArrow({
       id: `fetch:${fetchTarget.id}`,
       label: cityLabelText(destination),
@@ -56800,7 +56848,7 @@ function drawFetchQuestDestinationArrows(nowMs) {
 function drawShipyardDividendDestinationArrows(nowMs) {
   if (!ship || !chart || !localLayout) return;
   for (const entry of shipyardDividendNavigationEntries()) {
-    const visibleCity = chart.cityCalls?.find((call) => call.tileId === entry.destination.tileId);
+    const visibleCity = visibleChartCity(entry.destination);
     drawWorldTargetArrow({
       id: entry.id,
       label: entry.destinationName,
@@ -57003,10 +57051,9 @@ function activeQuestDestinations() {
 }
 
 function destinationPortForQuestStop(stop) {
-  const destination = portCitiesByTileId?.get(stop.tileId) || cityByTileId?.get(stop.tileId);
-  if (!destination) throw new Error(`Quest destination is not a placed port: ${stop.name} (${stop.tileId})`);
+  const destination = requireEntityById(cityById, stop.cityId, "Quest destination");
   if (!Number.isFinite(destination.lat) || !Number.isFinite(destination.lon)) {
-    throw new Error(`Quest destination has no coordinates: ${stop.name} (${stop.tileId})`);
+    throw new Error(`Quest destination has no coordinates: ${stop.cityId}`);
   }
   return destination;
 }
@@ -58220,7 +58267,7 @@ function drawPiratePaperControl(rect, {
 function drawPortWaitControls(nowMs) {
   portWaitButtonRect = null;
   if (!portWaitState || gameOverReason) return;
-  const city = cityByTileId.get(portWaitState.cityTileId);
+  const city = cityById.get(portWaitState.cityId);
   const status = `WAITING SAFELY IN ${city ? cityLabelText(city).toUpperCase() : "PORT"}`;
   const statusLayout = noticeTextLayout(status, 220);
   const statusX = Math.floor((SCREEN_W - statusLayout.width) / 2);
@@ -61869,7 +61916,7 @@ function preloadNearbyPortPortraits(nowMs) {
     nearbyPortCalls.push(cityCall);
   }
   const cityCall = nearbyPortCalls.find((candidate) => (
-    preloadedPortPortraitKeyByTileId.get(candidate.tileId) !==
+    preloadedPortPortraitKeyByCityId.get(candidate.cityId) !==
       `${gameState.playerCharacter.id}|${candidate.character?.id || "missing"}`
   ));
   if (!cityCall) return;
@@ -61879,7 +61926,7 @@ function preloadNearbyPortPortraits(nowMs) {
     portCharacter: cityCall.character,
     dockable: true
   }));
-  preloadedPortPortraitKeyByTileId.set(cityCall.tileId, preloadKey);
+  preloadedPortPortraitKeyByCityId.set(cityCall.cityId, preloadKey);
 }
 
 function preloadDialogueCharacters(characters) {

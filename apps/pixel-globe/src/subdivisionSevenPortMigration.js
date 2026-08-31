@@ -55,7 +55,7 @@ export function subdivisionSevenPortReferenceCatalog(portCities, colonySites) {
     if (referencesByTileId.has(reference.tileId)) {
       const existing = referencesByTileId.get(reference.tileId);
       if (reference.preexistingSettlement !== true ||
-          existing.city !== reference.city || existing.country !== reference.country) {
+          existing.cityId !== reference.cityId) {
         throw new Error(`Conflicting current port reference tile: ${reference.tileId}`);
       }
       continue;

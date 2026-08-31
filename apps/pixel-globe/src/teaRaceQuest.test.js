@@ -31,8 +31,13 @@ import {
 } from "./teaRaceQuest.js";
 
 const PLAYER = Object.freeze({
+  id: "player:joan-alden",
   name: "Joan Alden",
   nationalityId: "england",
+  homePortCityId: "london|united kingdom",
+  homePortTileId: 3,
+  homePortName: "London",
+  homePortCountry: "United Kingdom",
   expressions: ["neutral", "happy"]
 });
 const GUANGZHOU = port(1, "Guangzhou", "China", "ming", 23.12, 113.25);
@@ -201,6 +206,7 @@ function raceStateWithOpenTrade() {
 
 function port(tileId, city, country, factionId, lat, lon) {
   return Object.freeze({
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     portId: `port-${tileId}`,
     city,

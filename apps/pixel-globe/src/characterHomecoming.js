@@ -1,6 +1,6 @@
 import {
   ABOARD_ROLE_CREWMATE,
-  aboardCharacterHomePortTileId
+  aboardCharacterHomePortCityId
 } from "./aboardRoster.js";
 
 const MINUTES_PER_DAY = 24 * 60;
@@ -38,17 +38,17 @@ const CRAFT_SKILLS = new Set([
 export function nextCharacterHomecoming({
   decisions,
   roster,
-  cityTileId,
+  cityId,
   cityName,
   currentMinute,
-  historianHomePortTileId = null,
+  historianHomePortCityId = null,
   variantSeed = 0
 }) {
-  assertHomecomingContext({ decisions, roster, cityTileId, cityName, currentMinute, variantSeed });
+  assertHomecomingContext({ decisions, roster, cityId, cityName, currentMinute, variantSeed });
   const candidate = roster.named.find((entry) => {
     if (entry.role !== ABOARD_ROLE_CREWMATE) return false;
-    const homePortTileId = aboardCharacterHomePortTileId(entry, { historianHomePortTileId });
-    return homePortTileId === cityTileId && characterHomecomingIsReady(
+    const homePortCityId = aboardCharacterHomePortCityId(entry, { historianHomePortCityId });
+    return homePortCityId === cityId && characterHomecomingIsReady(
       decisions,
       entry.character.id,
       currentMinute
@@ -244,7 +244,7 @@ function hasAnySkill(characterSkills, soughtSkills) {
 function assertHomecomingContext({
   decisions,
   roster,
-  cityTileId,
+  cityId,
   cityName,
   currentMinute,
   variantSeed
@@ -253,8 +253,8 @@ function assertHomecomingContext({
   if (!roster || !Array.isArray(roster.named)) {
     throw new Error("Character homecoming requires an aboard roster");
   }
-  if (!Number.isInteger(cityTileId) || cityTileId < 0) {
-    throw new Error(`Invalid character homecoming city tile: ${cityTileId}`);
+  if (typeof cityId !== "string" || cityId === "") {
+    throw new Error(`Invalid character homecoming city id: ${cityId}`);
   }
   if (typeof cityName !== "string" || cityName.trim() === "") {
     throw new Error("Character homecoming requires a city name");

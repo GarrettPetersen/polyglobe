@@ -170,7 +170,7 @@ test("representative 1522 cities receive their governing faction", () => {
     ["Akkeshi Kotan", "Japan", "ainu"]
   ];
   for (const [city, country, factionId] of cases) {
-    assert.equal(factionIdForCity1522({ city, country }), factionId, `${city}, ${country}`);
+    assert.equal(factionIdForCity1522(cityRecord(city, country)), factionId, `${city}, ${country}`);
   }
 });
 
@@ -191,26 +191,26 @@ test("represented Imperial cities retain their researched 1522 sovereigns", () =
     ["Worms", "Germany", "worms"], ["Metz", "France", "metz"]
   ];
   for (const [city, country, factionId] of assignments) {
-    assert.equal(factionIdForCity1522({ city, country }), factionId, `${city}, ${country}`);
+    assert.equal(factionIdForCity1522(cityRecord(city, country)), factionId, `${city}, ${country}`);
   }
 });
 
 test("overseas possessions and uncertain small powers are handled explicitly", () => {
-  assert.equal(factionIdForCity1522({ city: "Goa", country: "India" }), "portugal");
-  assert.equal(factionIdForCity1522({ city: "Hormuz", country: "Iran" }), "hormuz");
-  assert.equal(factionIdForCity1522({ city: "Muscat", country: "Oman" }), "hormuz");
-  assert.equal(factionIdForCity1522({ city: "Bakhchiserai", country: "Ukraine" }), "crimea");
-  assert.equal(factionIdForCity1522({ city: "Avignon", country: "France" }), "papal-states");
-  assert.equal(factionIdForCity1522({ city: "Salerno", country: "Italy" }), "spain");
-  assert.equal(factionIdForCity1522({ city: "Suceava", country: "Romania" }), "moldavia");
-  assert.equal(factionIdForCity1522({ city: "Targoviste", country: "Romania" }), "wallachia");
-  assert.equal(factionIdForCity1522({ city: "Kiev", country: "Ukraine" }), "poland-lithuania");
-  assert.equal(factionIdForCity1522({ city: "Florence", country: "Italy" }), "florence");
-  assert.equal(factionIdForCity1522({ city: "Pisa", country: "Italy" }), "florence");
-  assert.equal(factionIdForCity1522({ city: "Kazan", country: "Russian Federation" }), "kazan");
-  assert.equal(factionIdForCity1522({ city: "Chiang Mai", country: "Thailand" }), NEUTRAL_FACTION_ID);
-  assert.equal(factionIdForCity1522({ city: "Banda Village", country: "Indonesia" }), NEUTRAL_FACTION_ID);
-  assert.equal(factionIdForCity1522({ city: "Unknown", country: "Unknown" }), NEUTRAL_FACTION_ID);
+  assert.equal(factionIdForCity1522({ cityId: "goa|india", city: "Goa", country: "India" }), "portugal");
+  assert.equal(factionIdForCity1522({ cityId: "hormuz|iran", city: "Hormuz", country: "Iran" }), "hormuz");
+  assert.equal(factionIdForCity1522({ cityId: "muscat|oman", city: "Muscat", country: "Oman" }), "hormuz");
+  assert.equal(factionIdForCity1522({ cityId: "bakhchiserai|ukraine", city: "Bakhchiserai", country: "Ukraine" }), "crimea");
+  assert.equal(factionIdForCity1522({ cityId: "avignon|france", city: "Avignon", country: "France" }), "papal-states");
+  assert.equal(factionIdForCity1522({ cityId: "salerno|italy", city: "Salerno", country: "Italy" }), "spain");
+  assert.equal(factionIdForCity1522({ cityId: "suceava|romania", city: "Suceava", country: "Romania" }), "moldavia");
+  assert.equal(factionIdForCity1522({ cityId: "targoviste|romania", city: "Targoviste", country: "Romania" }), "wallachia");
+  assert.equal(factionIdForCity1522({ cityId: "kiev|ukraine", city: "Kiev", country: "Ukraine" }), "poland-lithuania");
+  assert.equal(factionIdForCity1522({ cityId: "florence|italy", city: "Florence", country: "Italy" }), "florence");
+  assert.equal(factionIdForCity1522({ cityId: "pisa|italy", city: "Pisa", country: "Italy" }), "florence");
+  assert.equal(factionIdForCity1522({ cityId: "kazan|russian federation", city: "Kazan", country: "Russian Federation" }), "kazan");
+  assert.equal(factionIdForCity1522({ cityId: "chiang mai|thailand", city: "Chiang Mai", country: "Thailand" }), NEUTRAL_FACTION_ID);
+  assert.equal(factionIdForCity1522({ cityId: "banda village|indonesia", city: "Banda Village", country: "Indonesia" }), NEUTRAL_FACTION_ID);
+  assert.equal(factionIdForCity1522({ cityId: "unknown|unknown", city: "Unknown", country: "Unknown" }), NEUTRAL_FACTION_ID);
 });
 
 test("the defeated Aztec Empire is not a sovereign power in 1522", () => {
@@ -218,10 +218,18 @@ test("the defeated Aztec Empire is not a sovereign power in 1522", () => {
   assert.equal(migrateFactionIdTo1522("aztec"), "spain");
   assert.equal(migrateFactionIdTo1522("inca"), "inca");
   for (const city of ["Mexico City", "Texcoco", "Tenayuca", "Cholula", "Zempoala"]) {
-    assert.equal(factionIdForCity1522({ city, country: "Mexico" }), "spain", city);
+    assert.equal(factionIdForCity1522(cityRecord(city, "Mexico")), "spain", city);
   }
-  assert.equal(factionIdForCity1522({ city: "Tzintzuntzan", country: "Mexico" }), NEUTRAL_FACTION_ID);
+  assert.equal(factionIdForCity1522({ cityId: "tzintzuntzan|mexico", city: "Tzintzuntzan", country: "Mexico" }), NEUTRAL_FACTION_ID);
 });
+
+function cityRecord(city, country) {
+  return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
+    city,
+    country
+  };
+}
 
 test("every sovereign faction has one declared water-accessible capital", () => {
   const sovereignFactionIds = FACTIONS

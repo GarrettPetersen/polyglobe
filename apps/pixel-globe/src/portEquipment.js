@@ -1,5 +1,6 @@
 import { portEconomySummary } from "./economy.js";
 import { isPreGunpowderCulture } from "./navalWeapons.js";
+import { requireCityId } from "./entityIds.js";
 
 export const EQUIPMENT_STOCK_FISHING_NET = "fishing-net";
 export const EQUIPMENT_STOCK_CANNON = "cannon";
@@ -11,10 +12,10 @@ const EQUIPMENT_STOCK_KINDS = new Set([
   EQUIPMENT_STOCK_WHALE_HARPOON
 ]);
 const TIER_PROSPERITY_THRESHOLDS = Object.freeze([0, 0.27, 0.53, 0.8]);
-const EQUIPMENT_SPECIALIST_PORT_NAMES = Object.freeze({
-  [EQUIPMENT_STOCK_FISHING_NET]: Object.freeze(["brugge", "guangzhou", "lubeck"]),
-  [EQUIPMENT_STOCK_CANNON]: Object.freeze(["goa", "istanbul", "lisbon"]),
-  [EQUIPMENT_STOCK_WHALE_HARPOON]: Object.freeze(["bordeaux"])
+const EQUIPMENT_SPECIALIST_CITY_IDS = Object.freeze({
+  [EQUIPMENT_STOCK_FISHING_NET]: Object.freeze(["brugge|belgium", "guangzhou|china", "lubeck|germany"]),
+  [EQUIPMENT_STOCK_CANNON]: Object.freeze(["goa|india", "istanbul|turkey", "lisbon|portugal"]),
+  [EQUIPMENT_STOCK_WHALE_HARPOON]: Object.freeze(["bordeaux|france"])
 });
 const PRE_CONTACT_NATIVE_FACTION_IDS = new Set(["inca", "neutral"]);
 
@@ -53,11 +54,7 @@ export function nativePreContactPortCannotBuildCannons(city, kind) {
 
 export function equipmentSpecialistAtPort(city, kind) {
   assertEquipmentKind(kind);
-  const cityName = city?.city || city?.displayCity;
-  if (typeof cityName !== "string" || cityName.trim() === "") {
-    throw new Error("Port equipment specialist lookup requires a city name");
-  }
-  return EQUIPMENT_SPECIALIST_PORT_NAMES[kind].includes(normalizedPortName(cityName));
+  return EQUIPMENT_SPECIALIST_CITY_IDS[kind].includes(requireCityId(city, "Equipment specialist port"));
 }
 
 export function portEquipmentProsperity(economy, city) {
@@ -82,9 +79,7 @@ function assertEquipment(equipment) {
 }
 
 function requiredPortId(city) {
-  const id = city?.portId || (Number.isInteger(city?.tileId) ? `city-${city.tileId}` : null);
-  if (!id) throw new Error("Port equipment requires a city tile or port id");
-  return id;
+  return requireCityId(city, "Port equipment city");
 }
 
 function hashUnit(value) {
@@ -94,14 +89,6 @@ function hashUnit(value) {
     hash = Math.imul(hash, 0x01000193);
   }
   return (hash >>> 0) / 0x100000000;
-}
-
-function normalizedPortName(value) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim()
-    .toLowerCase();
 }
 
 function clamp(value, minimum, maximum) {

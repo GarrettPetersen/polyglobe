@@ -2,6 +2,7 @@ import { FACTIONS, NEUTRAL_FACTION_ID, assertFactionId } from "./factions.js";
 import { rulerAtMinute } from "./rulers.js";
 import { isChristianReligion } from "./religiousAttitudes.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
+import { cityTerritoryId, requireCityId } from "./entityIds.js";
 
 export const PORT_CONQUEST_MIN_CREW = 36;
 export const PORT_CONQUEST_NPC_LANDING_RANGE_PX = 28;
@@ -240,6 +241,7 @@ export function recordPortCapture(memory, city, newFactionId, simMinute, source 
   memory.events.push({
     id: `capture-${simMinute}-${portId}`,
     portId,
+    cityId: city.cityId,
     cityTileId: city.tileId,
     cityName: city.displayCity || city.city,
     previousFactionId,
@@ -744,7 +746,7 @@ export function replaceFactionAtControlledCities(memory, cities, {
 
 export function portConquestPortId(city) {
   assertCity(city);
-  return city.portId || `city-${city.tileId}`;
+  return requireCityId(city, "Conquest city");
 }
 
 export function markPlayerPortAssault(flags, city, untilMinute) {
@@ -815,7 +817,7 @@ function playerRaidFlagKey(city) {
 }
 
 function assertCity(city) {
-  if (!city || !Number.isInteger(city.tileId) || !city.factionId) {
+  if (!city || typeof city.cityId !== "string" || !Number.isInteger(city.tileId) || !city.factionId) {
     throw new Error("Port conquest requires a faction city");
   }
 }
@@ -883,10 +885,7 @@ function concessionCityOrder(
 
 function concessionCityScore(city, capital, winnerCities, portIds) {
   const port = portIds.has(portConquestPortId(city));
-  const overseasPort = port &&
-    typeof city.country === "string" &&
-    typeof capital.country === "string" &&
-    city.country !== capital.country;
+  const overseasPort = port && cityTerritoryId(city) !== cityTerritoryId(capital);
   const frontierDistanceKm = nearestCityDistanceKm(city, winnerCities);
   const frontierScore = Number.isFinite(frontierDistanceKm)
     ? Math.max(0, 1600 - frontierDistanceKm) * 0.75

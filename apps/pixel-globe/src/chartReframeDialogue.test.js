@@ -188,8 +188,10 @@ test("ending a corrective effect starts a fresh unassisted confirmation window",
 
 test("recent ports are unique, bounded, and available to templates", () => {
   const memory = createChartReframeDialogueMemory();
-  for (const tileId of [1, 2, 3, 4, 5, 3]) recordChartReframePortVisit(memory, tileId);
-  assert.deepEqual(memory.recentPortTileIds, [3, 5, 4, 2]);
+  for (const cityId of ["a", "b", "c", "d", "e", "c"]) {
+    recordChartReframePortVisit(memory, cityId);
+  }
+  assert.deepEqual(memory.recentPortCityIds, ["c", "e", "d", "b"]);
   assert.equal(
     formatChartReframeDialogueMessage("The market at {0} is astern.", ["Lisbon"]),
     "The market at Lisbon is astern."

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGameState } from "./gameState.js";
+import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { NAMED_CREW_ROLE_HISTORIAN, addNamedCrewMember } from "./namedCrew.js";
 import {
@@ -30,6 +30,7 @@ import {
 } from "./vikingLongshipQuest.js";
 
 const HAFNARFJORDUR = Object.freeze({
+  cityId: "hafnarfjordur|iceland",
   city: VIKING_LONGSHIP_PORT_CITY,
   country: "Iceland",
   tileId: 64,
@@ -116,6 +117,7 @@ test("trading in the longship sends its enthusiast and vessel back to Iceland", 
   const historian = addNamedCrewMember(state, {
     id: "icelandic-historian",
     name: "Leif Eriksen",
+    homePortCityId: HAFNARFJORDUR.cityId,
     homePortName: VIKING_LONGSHIP_PORT_CITY,
     homePortCountry: "Iceland",
     expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
@@ -142,9 +144,9 @@ test("longship materials cannot be delivered at another port", () => {
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   state.cargo.wool = 8;
 
-  assert.equal(vikingLongshipQuestState(state, { city: "Bergen", country: "Norway" }), null);
+  assert.equal(vikingLongshipQuestState(state, { cityId: "bergen|norway", city: "Bergen", country: "Norway" }), null);
   assert.throws(
-    () => deliverVikingLongshipQuestCargo(state, { city: "Bergen", country: "Norway" }, "wool-sail"),
+    () => deliverVikingLongshipQuestCargo(state, { cityId: "bergen|norway", city: "Bergen", country: "Norway" }, "wool-sail"),
     /only be delivered in Hafnarfjordur/
   );
 });

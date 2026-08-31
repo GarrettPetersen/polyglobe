@@ -1,4 +1,5 @@
 import { CANNON_EQUIPMENT, cannonEquipmentById } from "./cannonEquipment.js";
+import { requireCityId } from "./entityIds.js";
 import { FISHING_NETS, fishingNetById } from "./fishingNets.js";
 import { perkItemSummary } from "./perkItems.js";
 import {
@@ -303,7 +304,5 @@ function assertPitchMinute(simMinute) {
 }
 
 function portKey(city) {
-  const key = city?.portId || (Number.isInteger(city?.tileId) ? `city-${city.tileId}` : null);
-  if (!key) throw new Error("Equipment factor pitch requires a port id");
-  return key;
+  return requireCityId(city, "Equipment factor pitch port");
 }

@@ -9,6 +9,7 @@ import {
   isCityPortAccessTile
 } from "./cityPortAccess.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
+import { requireCityId } from "./entityIds.js";
 
 export function placeCityCatalogOnWorld(options) {
   const { cities } = options;
@@ -114,11 +115,7 @@ export function placeColonizationTargetsOnWorld({
 }
 
 function settlementKey(record) {
-  if (typeof record?.city !== "string" || record.city.trim() === "" ||
-      typeof record?.country !== "string" || record.country.trim() === "") {
-    throw new Error("Colony-target settlement requires a city and country");
-  }
-  return `${record.city.trim().toLowerCase()}|${record.country.trim().toLowerCase()}`;
+  return requireCityId(record, "Colony-target settlement");
 }
 
 export function portCitiesOnWorld(cityByTileId, options) {
@@ -203,7 +200,8 @@ function placedSettlement(settlement, tileId, earthRows) {
   if (!Number.isInteger(landmassId) || landmassId < 0) {
     throw new Error(`Placed settlement has no landmass id: ${settlement?.city || "unknown"} at ${tileId}`);
   }
-  return { ...settlement, tileId, landmassId };
+  const cityId = requireCityId(settlement, "Placed settlement");
+  return { ...settlement, cityId, portId: settlement.portId || cityId, tileId, landmassId };
 }
 
 function validateCoordinates(record, label) {

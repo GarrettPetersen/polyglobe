@@ -14,18 +14,20 @@ import { CROSSBOWS_ITEM_ID, MARINERS_BOWS_ITEM_ID } from "./portableWeapons.js";
 
 const CITY = Object.freeze({
   tileId: 17,
+  cityId: "porto novo|portugal",
   city: "Porto Novo",
   country: "Portugal",
   cityType: "mediterranean",
   factionId: "portugal",
   population: 70000
 });
+const OFFER_SEED = "dialogue-test-15";
 
 test("a declined special item stays at its port and prompts reconsideration", () => {
-  const economy = createWorldEconomy({ ports: [CITY], startMinute: 0 });
+  const economy = createWorldEconomy({ ports: [CITY], startMinute: 0, seedKey: OFFER_SEED });
   const memory = createSpecialEquipmentOfferMemory();
-  const first = openSpecialEquipmentOffer(memory, economy, CITY);
-  const second = openSpecialEquipmentOffer(memory, economy, CITY);
+  const first = openSpecialEquipmentOffer(memory, economy, CITY, { seedKey: OFFER_SEED });
+  const second = openSpecialEquipmentOffer(memory, economy, CITY, { seedKey: OFFER_SEED });
 
   assert.ok(first.item.id);
   assert.equal(first.reconsidered, false);
@@ -35,22 +37,22 @@ test("a declined special item stays at its port and prompts reconsideration", ()
 });
 
 test("checking special stock does not count as presenting it to the player", () => {
-  const economy = createWorldEconomy({ ports: [CITY], startMinute: 0 });
+  const economy = createWorldEconomy({ ports: [CITY], startMinute: 0, seedKey: OFFER_SEED });
   const memory = createSpecialEquipmentOfferMemory();
-  const item = ensureSpecialEquipmentOffer(memory, economy, CITY);
+  const item = ensureSpecialEquipmentOffer(memory, economy, CITY, { seedKey: OFFER_SEED });
 
   assert.ok(item.id);
   assert.equal(specialEquipmentOfferEntry(memory, CITY).timesOffered, 0);
-  assert.equal(openSpecialEquipmentOffer(memory, economy, CITY).reconsidered, false);
+  assert.equal(openSpecialEquipmentOffer(memory, economy, CITY, { seedKey: OFFER_SEED }).reconsidered, false);
 });
 
 test("a purchased special item cannot be offered or completed twice", () => {
-  const economy = createWorldEconomy({ ports: [CITY], startMinute: 0 });
+  const economy = createWorldEconomy({ ports: [CITY], startMinute: 0, seedKey: OFFER_SEED });
   const memory = createSpecialEquipmentOfferMemory();
-  const offer = openSpecialEquipmentOffer(memory, economy, CITY);
+  const offer = openSpecialEquipmentOffer(memory, economy, CITY, { seedKey: OFFER_SEED });
 
   assert.equal(completeSpecialEquipmentOfferPurchase(memory, CITY, offer.item.id).id, offer.item.id);
-  assert.equal(openSpecialEquipmentOffer(memory, economy, CITY), null);
+  assert.equal(openSpecialEquipmentOffer(memory, economy, CITY, { seedKey: OFFER_SEED }), null);
   assert.throws(
     () => completeSpecialEquipmentOfferPurchase(memory, CITY, offer.item.id),
     /No active special equipment offer/
@@ -61,7 +63,7 @@ test("a purchased special item cannot be offered or completed twice", () => {
 test("an obsolete small-arms offer is retired after the player acquires better arms", () => {
   const economy = createWorldEconomy({ ports: [CITY], startMinute: 0 });
   const memory = createSpecialEquipmentOfferMemory();
-  memory.byPort[String(CITY.tileId)] = {
+  memory.byPort[CITY.cityId] = {
     itemId: MARINERS_BOWS_ITEM_ID,
     timesOffered: 1,
     purchased: false

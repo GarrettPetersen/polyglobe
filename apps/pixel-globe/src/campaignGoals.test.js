@@ -21,7 +21,6 @@ import {
   campaignGoalPresentation,
   campaignGoalSelectionWeights,
   campaignGoalTypeForCharacter,
-  campaignGoalTypeForStoredLabel,
   campaignHomecomingSteps,
   campaignRetirementBlockedSteps,
   campaignRetirementReturnSteps,
@@ -52,11 +51,12 @@ const CHARACTER = Object.freeze({
   gender: "male",
   nameCulture: "chinese",
   nationalityId: "ming",
+  homePortCityId: "nanjing|china",
   homePortTileId: 42,
   homePortName: "Nanjing"
 });
-const CONTACT = Object.freeze({ id: "factor-test", name: "Zhao Min", homePortTileId: 42 });
-const HOME = Object.freeze({ tileId: 42, city: "Nanjing", lat: 32.06, lon: 118.80 });
+const CONTACT = Object.freeze({ id: "factor-test", name: "Zhao Min", homePortCityId: "nanjing|china", homePortTileId: 42 });
+const HOME = Object.freeze({ cityId: "nanjing|china", tileId: 42, city: "Nanjing", lat: 32.06, lon: 118.80 });
 const WONDERS = Object.freeze([
   Object.freeze({ id: "mount-a", kind: "mountain", displayName: "Mount A", detail: "1,000 m", lat: HOME.lat, lon: HOME.lon }),
   Object.freeze({ id: "lake-b", kind: "landmark", displayName: "Lake B", detail: "A great lake", lat: -HOME.lat, lon: HOME.lon - 180 }),
@@ -115,14 +115,6 @@ test("campaign selection subtly favors goals played less often", () => {
   assert.ok(selections[CAMPAIGN_GOAL_TREASURE] > selections[CAMPAIGN_GOAL_EXPLORER]);
   assert.ok(selections[CAMPAIGN_GOAL_TREASURE] > selections[CAMPAIGN_GOAL_FAMILY_DEBT]);
   assert.ok(selections[CAMPAIGN_GOAL_TREASURE] > selections[CAMPAIGN_GOAL_WHITE_WHALE]);
-});
-
-test("stored voyage labels map back to stable campaign goal ids", () => {
-  assert.equal(campaignGoalTypeForStoredLabel("Explorer"), CAMPAIGN_GOAL_EXPLORER);
-  assert.equal(campaignGoalTypeForStoredLabel("Family Debt"), CAMPAIGN_GOAL_FAMILY_DEBT);
-  assert.equal(campaignGoalTypeForStoredLabel("The White Whale"), CAMPAIGN_GOAL_WHITE_WHALE);
-  assert.equal(campaignGoalTypeForStoredLabel("Captain's Treasure"), CAMPAIGN_GOAL_TREASURE);
-  assert.equal(campaignGoalTypeForStoredLabel("Unknown"), null);
 });
 
 test("treasure dialogue keeps the three-rumor cap as an invisible backend constraint", () => {
@@ -286,6 +278,7 @@ test("explorer destination returns home after finding the patron's assigned wond
     discoveredIds: new Set(["mount-a", "lake-b"])
   }), {
     kind: CAMPAIGN_DESTINATION_HOME,
+    homePortCityId: CHARACTER.homePortCityId,
     homePortTileId: CHARACTER.homePortTileId,
     reason: "report-discovery"
   });
@@ -345,6 +338,7 @@ test("family debt points home only with the debt, reserve, and one month of inte
     doubloons: payoff.requiredDoubloons
   }), {
     kind: CAMPAIGN_DESTINATION_HOME,
+    homePortCityId: CHARACTER.homePortCityId,
     homePortTileId: CHARACTER.homePortTileId,
     reason: "pay-family-debt",
     requiredDoubloons: payoff.requiredDoubloons
@@ -563,7 +557,7 @@ test("explorer homecoming labels every exchange in a multi-wonder report", () =>
     "REPORT 2/2: The Grand Canal"
   ]);
   const session = createCampaignDialogueSession({
-    cityTileId: CHARACTER.homePortTileId,
+    cityId: CHARACTER.homePortCityId,
     phase: CAMPAIGN_GOAL_EXPLORER,
     steps
   });
@@ -572,7 +566,7 @@ test("explorer homecoming labels every exchange in a multi-wonder report", () =>
 
 test("the final homecoming dialogue lets the captain retire or keep sailing", () => {
   const session = createCampaignDialogueSession({
-    cityTileId: CHARACTER.homePortTileId,
+    cityId: CHARACTER.homePortCityId,
     phase: "explorer-victory",
     steps: [
       { speaker: "contact", expressionId: "happy", text: "The atlas is complete." },
@@ -615,7 +609,7 @@ test("blocked retirement names the traveler and destination the captain actually
 test("every campaign intro phase closes into a valid voyage start", () => {
   for (const goalType of CAMPAIGN_GOAL_TYPE_IDS) {
     const session = createCampaignDialogueSession({
-      cityTileId: CHARACTER.homePortTileId,
+      cityId: CHARACTER.homePortCityId,
       phase: campaignGoalIntroPhase(goalType),
       steps: [{ speaker: "contact", expressionId: "attentive", text: "BACK" }]
     });
@@ -628,7 +622,7 @@ test("every campaign intro phase closes into a valid voyage start", () => {
 
 test("legacy white whale intro dialogue still starts the voyage", () => {
   const session = createCampaignDialogueSession({
-    cityTileId: CHARACTER.homePortTileId,
+    cityId: CHARACTER.homePortCityId,
     phase: "white-whale-intro",
     steps: [{ speaker: "contact", expressionId: "attentive", text: "BACK" }]
   });
@@ -641,7 +635,7 @@ test("legacy white whale intro dialogue still starts the voyage", () => {
 
 test("choosing retirement starts the victory ending while legacy dialogue still closes into victory", () => {
   const choiceSession = createCampaignDialogueSession({
-    cityTileId: CHARACTER.homePortTileId,
+    cityId: CHARACTER.homePortCityId,
     phase: "explorer-retirement-choice",
     steps: [{ speaker: "contact", expressionId: "happy", text: "The atlas is complete." }],
     retirementChoiceOnClose: true
@@ -652,7 +646,7 @@ test("choosing retirement starts the victory ending while legacy dialogue still 
   });
 
   const legacySession = createCampaignDialogueSession({
-    cityTileId: CHARACTER.homePortTileId,
+    cityId: CHARACTER.homePortCityId,
     phase: "explorer-retirement",
     steps: [{ speaker: "player", expressionId: "happy", text: "Now I shall retire." }],
     victoryOnClose: true
@@ -676,13 +670,13 @@ test("completed goals provide a fresh retirement choice on every later homecomin
     goal.status = CAMPAIGN_GOAL_COMPLETE;
     const steps = campaignRetirementReturnSteps(goal, CHARACTER);
     const firstVisit = createCampaignDialogueSession({
-      cityTileId: CHARACTER.homePortTileId,
+      cityId: CHARACTER.homePortCityId,
       phase: `${type}-retirement-choice`,
       steps,
       retirementChoiceOnClose: true
     });
     const laterVisit = createCampaignDialogueSession({
-      cityTileId: CHARACTER.homePortTileId,
+      cityId: CHARACTER.homePortCityId,
       phase: `${type}-retirement-choice`,
       steps: campaignRetirementReturnSteps(goal, CHARACTER),
       retirementChoiceOnClose: true
@@ -731,6 +725,7 @@ test("killing the white whale sends the captain home and completes the revenge v
   assert.equal(markWhiteWhaleKilled(goal, 1200), true);
   assert.deepEqual(campaignGoalDestination(goal), {
     kind: CAMPAIGN_DESTINATION_HOME,
+    homePortCityId: CHARACTER.homePortCityId,
     homePortTileId: CHARACTER.homePortTileId,
     reason: "return-after-white-whale"
   });

@@ -9,10 +9,12 @@ import {
   questCargoDeliverableQuantity,
   questCargoDeliveryProgress
 } from "./questCargoDeliveries.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
 export const JAPANESE_MATCHLOCK_QUEST_VERSION = 1;
 export const JAPANESE_MATCHLOCK_WORKSHOP_CITY = CANONICAL_PORTS.KYOTO.city;
 export const JAPANESE_MATCHLOCK_WORKSHOP_COUNTRY = CANONICAL_PORTS.KYOTO.country;
+export const JAPANESE_MATCHLOCK_WORKSHOP_CITY_ID = CANONICAL_PORTS.KYOTO.cityId;
 export const JAPANESE_MATCHLOCK_PRODUCTION_PER_DAY = 1.5;
 export const JAPANESE_MATCHLOCK_INITIAL_STOCK = 6;
 export const JAPANESE_MATCHLOCK_COMPLETION_REWARD = 1200;
@@ -56,6 +58,7 @@ export function createJapaneseMatchlockQuestMemory() {
     stage: JAPANESE_MATCHLOCK_STAGE_LOCKED,
     fetchStageIndex: 0,
     workshopTileId: null,
+    workshopCityId: null,
     offerSeen: false,
     completedMinute: null,
     spawnRolls: {}
@@ -81,7 +84,7 @@ export function validateJapaneseMatchlockQuestMemory(memory) {
   validateSpawnRolls(memory.spawnRolls);
 
   if (memory.stage === JAPANESE_MATCHLOCK_STAGE_LOCKED) {
-    if (memory.fetchStageIndex !== 0 || memory.workshopTileId !== null || memory.offerSeen ||
+    if (memory.fetchStageIndex !== 0 || memory.workshopTileId !== null || memory.workshopCityId !== null || memory.offerSeen ||
         memory.completedMinute !== null) {
       throw new Error("Locked Japanese matchlock quest contains active progress");
     }
@@ -90,6 +93,9 @@ export function validateJapaneseMatchlockQuestMemory(memory) {
 
   if (!Number.isInteger(memory.workshopTileId) || memory.workshopTileId < 0) {
     throw new Error(`Invalid Japanese matchlock workshop tile: ${memory.workshopTileId}`);
+  }
+  if (memory.workshopCityId !== null && memory.workshopCityId !== JAPANESE_MATCHLOCK_WORKSHOP_CITY_ID) {
+    throw new Error(`Invalid Japanese matchlock workshop city id: ${memory.workshopCityId}`);
   }
   if (memory.stage === JAPANESE_MATCHLOCK_STAGE_ACTIVE &&
       memory.fetchStageIndex >= JAPANESE_MATCHLOCK_FETCH_STAGES.length) {
@@ -118,8 +124,7 @@ export function isJapaneseMatchlockWorkshopCity(city) {
 export function japaneseMatchlockPrerequisiteMet(state) {
   const colony = state?.memory?.colonization;
   return colony?.stage === COLONIZATION_STAGE_ESTABLISHED &&
-    colony.targetCity === CANONICAL_PORTS.NAGASAKI.city &&
-    colony.targetCountry === CANONICAL_PORTS.NAGASAKI.country;
+    colony.targetCityId === CANONICAL_PORTS.NAGASAKI.cityId;
 }
 
 export function maybeSpawnJapaneseMatchlockQuest(state, city, context = {}) {
@@ -132,18 +137,19 @@ export function maybeSpawnJapaneseMatchlockQuest(state, city, context = {}) {
   if (!japaneseMatchlockPrerequisiteMet(state)) return null;
 
   const period = rollPeriod(context.simMinute);
-  const rollKey = `${city.tileId}|${period}`;
+  const rollKey = `${requireCityId(city, "Japanese matchlock quest port")}|${period}`;
   if (memory.spawnRolls[rollKey]) return null;
   memory.spawnRolls[rollKey] = true;
   pruneRolls(memory.spawnRolls);
   const chance = spawnChance(context.spawnChance);
-  const identityKey = state.playerCharacter?.identityKey || state.playerCharacter?.name || "captain";
+  const identityKey = requireEntityId(state.playerCharacter?.id, "Japanese matchlock quest captain");
   if (chance < 1 && seededFraction(`${identityKey}|${rollKey}|japanese-matchlocks`) >= chance) {
     return null;
   }
 
   memory.stage = JAPANESE_MATCHLOCK_STAGE_ACTIVE;
   memory.workshopTileId = city.tileId;
+  memory.workshopCityId = JAPANESE_MATCHLOCK_WORKSHOP_CITY_ID;
   validateJapaneseMatchlockQuestMemory(memory);
   return japaneseMatchlockQuestState(state, city);
 }
@@ -184,6 +190,7 @@ export function japaneseMatchlockQuestState(state, city) {
     completed: memory.stage === JAPANESE_MATCHLOCK_STAGE_COMPLETED,
     offerSeen: memory.offerSeen,
     workshop: Object.freeze({
+      cityId: JAPANESE_MATCHLOCK_WORKSHOP_CITY_ID,
       tileId: memory.workshopTileId,
       city: JAPANESE_MATCHLOCK_WORKSHOP_CITY,
       country: JAPANESE_MATCHLOCK_WORKSHOP_COUNTRY
@@ -258,8 +265,10 @@ function activeQuestStage(state, city, stageId) {
 }
 
 function assertWorkshop(memory, city) {
-  if (city.tileId !== memory.workshopTileId) {
-    throw new Error(`Japanese matchlock workshop moved from tile ${memory.workshopTileId} to ${city.tileId}`);
+  if (city.cityId !== memory.workshopCityId) {
+    throw new Error(
+      `Japanese matchlock workshop identity changed from ${memory.workshopCityId} to ${city.cityId}`
+    );
   }
 }
 

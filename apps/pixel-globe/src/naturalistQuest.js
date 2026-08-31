@@ -1,8 +1,10 @@
 import { ANIMAL_CATALOG_BY_ID, validateAnimalEncounterMemory } from "./animalEncounters.js";
 import { validateCharacterBiography } from "./characterBiography.js";
 import { validateCharacterSkillIds } from "./characterSkills.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
+import { PIRATE_FACTION_ID } from "./factions.js";
 
-export const NATURALIST_QUEST_MEMORY_VERSION = 2;
+export const NATURALIST_QUEST_MEMORY_VERSION = 3;
 export const NATURALIST_REPORT_REWARD = 100;
 export const NATURALIST_COMPLETION_REWARD = 1000;
 
@@ -50,6 +52,7 @@ export function naturalistQuestPresentation(view, buildEditionId = "full") {
 export function createNaturalistQuestMemory() {
   return {
     version: NATURALIST_QUEST_MEMORY_VERSION,
+    portCityId: null,
     portTileId: null,
     character: null,
     met: false,
@@ -59,14 +62,19 @@ export function createNaturalistQuestMemory() {
 }
 
 export function validateNaturalistQuestMemory(memory) {
+  if (memory?.version === 2) return validateLegacyNaturalistQuestMemory(memory);
   if (!memory || memory.version !== NATURALIST_QUEST_MEMORY_VERSION) {
     throw new Error(`Unsupported naturalist quest memory: ${memory?.version ?? "missing"}`);
   }
   if (memory.portTileId !== null && !Number.isInteger(memory.portTileId)) {
     throw new Error(`Invalid naturalist port tile: ${memory.portTileId}`);
   }
+  if ((memory.portCityId === null) !== (memory.portTileId === null)) {
+    throw new Error("Naturalist port identity is incomplete");
+  }
+  if (memory.portCityId !== null) requireEntityId(memory.portCityId, "Naturalist port");
   if (memory.character !== null) {
-    validateNaturalistCharacter(memory.character, memory.portTileId);
+    validateNaturalistCharacter(memory.character, memory.portCityId);
   }
   if (typeof memory.met !== "boolean" || typeof memory.completionRewarded !== "boolean") {
     throw new Error("Naturalist quest flags must be booleans");
@@ -86,7 +94,7 @@ export function validateNaturalistQuestMemory(memory) {
 
 export function migrateNaturalistQuestMemory(memory) {
   if (!memory) return createNaturalistQuestMemory();
-  if (memory.version === NATURALIST_QUEST_MEMORY_VERSION) {
+  if (memory.version === NATURALIST_QUEST_MEMORY_VERSION || memory.version === 2) {
     return validateNaturalistQuestMemory(memory);
   }
   if (memory.version !== 1) {
@@ -94,7 +102,7 @@ export function migrateNaturalistQuestMemory(memory) {
   }
   return validateNaturalistQuestMemory({
     ...memory,
-    version: NATURALIST_QUEST_MEMORY_VERSION,
+    version: 2,
     character: null
   });
 }
@@ -108,7 +116,7 @@ export function setNaturalistQuestCharacter(memory, character) {
   if (!memory || memory.version !== NATURALIST_QUEST_MEMORY_VERSION) {
     throw new Error(`Unsupported naturalist quest memory: ${memory?.version ?? "missing"}`);
   }
-  if (character !== null) validateNaturalistCharacter(character, memory.portTileId);
+  if (character !== null) validateNaturalistCharacter(character, memory.portCityId);
   memory.character = character;
   validateNaturalistQuestMemory(memory);
   return memory.character;
@@ -116,13 +124,16 @@ export function setNaturalistQuestCharacter(memory, character) {
 
 export function assignNaturalistPort(memory, ports, identityKey = "naturalist") {
   validateNaturalistQuestMemory(memory);
-  if (memory.portTileId !== null) return memory.portTileId;
+  if (memory.portCityId !== null) return memory.portCityId;
   if (!Array.isArray(ports) || ports.length === 0) throw new Error("Naturalist assignment requires ports");
-  const candidates = ports.filter((port) => Number.isInteger(port.tileId) && port.country !== "Pirate");
+  const candidates = ports.filter((port) => (
+    Number.isInteger(port.tileId) && port.factionId !== PIRATE_FACTION_ID
+  ));
   if (candidates.length === 0) throw new Error("Naturalist assignment found no suitable port");
   const index = hashString32(String(identityKey)) % candidates.length;
+  memory.portCityId = requireCityId(candidates[index], "Naturalist port");
   memory.portTileId = candidates[index].tileId;
-  return memory.portTileId;
+  return memory.portCityId;
 }
 
 export function naturalistQuestView(memory, animalMemory, {
@@ -137,6 +148,7 @@ export function naturalistQuestView(memory, animalMemory, {
     catalogIdSet.has(id) && !memory.reportedAnimalIds.includes(id)
   ));
   return Object.freeze({
+    portCityId: memory.portCityId,
     portTileId: memory.portTileId,
     met: memory.met,
     reportedCount: reportedAnimalIds.length,
@@ -148,7 +160,7 @@ export function naturalistQuestView(memory, animalMemory, {
   });
 }
 
-export function naturalistShouldApproach(memory, animalMemory, cityTileId, {
+export function naturalistShouldApproach(memory, animalMemory, cityId, {
   companionOfferAvailable = false,
   formerCompanionGreetingAvailable = false
 } = {}) {
@@ -159,7 +171,7 @@ export function naturalistShouldApproach(memory, animalMemory, cityTileId, {
     throw new Error("Former companion greeting availability must be boolean");
   }
   const view = naturalistQuestView(memory, animalMemory);
-  return view.portTileId === cityTileId &&
+  return view.portCityId === cityId &&
     (!view.met || view.hasUnreportedAnimals || companionOfferAvailable || formerCompanionGreetingAvailable);
 }
 
@@ -210,8 +222,8 @@ function validatedNaturalistCatalogIds(catalogAnimalIds) {
   return ids;
 }
 
-function validateNaturalistCharacter(character, portTileId) {
-  if (!Number.isInteger(portTileId)) {
+function validateNaturalistCharacter(character, portCityId) {
+  if (typeof portCityId !== "string" || portCityId === "") {
     throw new Error("Naturalist character requires an assigned port");
   }
   validateCharacterBiography(character);
@@ -231,8 +243,23 @@ function validateNaturalistCharacter(character, portTileId) {
   if (character.role !== "natural-philosopher") {
     throw new Error(`Naturalist character has invalid role: ${character.role}`);
   }
-  if (character.homePortTileId !== portTileId) {
+  if (character.homePortCityId !== portCityId) {
     throw new Error("Naturalist character does not belong to the naturalist port");
   }
   return character;
+}
+
+function validateLegacyNaturalistQuestMemory(memory) {
+  if (memory.portTileId !== null && !Number.isInteger(memory.portTileId)) {
+    throw new Error(`Invalid legacy naturalist port tile: ${memory.portTileId}`);
+  }
+  if (memory.character !== null) {
+    validateCharacterBiography(memory.character);
+    validateCharacterSkillIds(memory.character.skillIds);
+  }
+  if (typeof memory.met !== "boolean" || typeof memory.completionRewarded !== "boolean" ||
+      !Array.isArray(memory.reportedAnimalIds)) {
+    throw new Error("Invalid legacy naturalist quest memory");
+  }
+  return memory;
 }

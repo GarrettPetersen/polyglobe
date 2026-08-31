@@ -33,6 +33,15 @@ import {
 } from "./shipyards.js";
 import { JAPANESE_SHIP_SLUGS, shipLabelForProse } from "./shipStats.js";
 
+const TEST_CITY_IDS = new Map([
+  ["Lisbon", "lisbon|portugal"], ["Porto", "porto|portugal"],
+  ["Seoul", "seoul|republic of korea"], ["Nanjing", "nanjing|china"],
+  ["Nagasaki", "nagasaki|japan"], ["Seville", "seville|spain"],
+  ["Venice", "venice|italy"], ["Istanbul", "istanbul|turkey"],
+  ["Malacca", "malacca|malaysia"], ["Goa", "goa|india"],
+  ["Chanchan", "chanchan|peru"], ["Lahore", "lahore|pakistan"]
+]);
+
 const LISBON = port(1, "Lisbon", "mediterranean", 100000, 38.72, -9.14, "portugal");
 const PORTO = port(2, "Porto", "northern-european", 65000, 41.15, -8.61);
 const SMALL_PORT = port(3, "Quiet Haven", "northern-european", 2500, 42, -9);
@@ -317,7 +326,7 @@ test("factors advertise their own active listing before another port's", () => {
 
   const rumor = shipyardRumorForPort(system, LISBON, testSailingDistanceKm);
 
-  assert.equal(rumor.portId, LISBON.tileId);
+  assert.equal(rumor.portId, LISBON.cityId);
   assert.equal(rumor.shipSlug, lisbonYard.listing.shipSlug);
   assert.equal(rumor.distanceKm, 0);
   assert.equal(rumor.local, true);
@@ -353,7 +362,7 @@ test("demo shipyard hints ignore listings outside the accessible ports", () => {
     system,
     LISBON,
     testSailingDistanceKm,
-    new Set([LISBON.tileId, FIJI.tileId])
+    new Set([LISBON.cityId, FIJI.cityId])
   );
 
   assert.equal(listing.portName, "Fiji Village");
@@ -367,7 +376,7 @@ test("new listings spawn over time and purchased listings disappear", () => {
   assert.equal(advanceWorldShipyards(system, buildMinute), true);
   assert.ok(yard.listing);
   const claimed = claimShipyardListing(system, SMALL_PORT, yard.listing.id);
-  assert.equal(claimed.portId, SMALL_PORT.tileId);
+  assert.equal(claimed.portId, SMALL_PORT.cityId);
   assert.equal(yard.listing, null);
 });
 
@@ -392,7 +401,7 @@ test("an unsold shipyard listing becomes an NPC hull purchase", () => {
   const listing = yard.listing;
   advanceWorldShipyards(system, listing.expiresMinute + 1);
   const sale = claimNpcShipyardSale(system, {
-    portId: LISBON.tileId,
+    portId: LISBON.cityId,
     factionId: LISBON.factionId,
     allowedSlugs: [listing.shipSlug],
     mode: "regional"
@@ -527,7 +536,7 @@ test("player-backed yards favor major hulls and return profit after upkeep", () 
   assert.equal(sale.dividend, roundHundred(netProfit * 0.4));
   assert.ok(sale.dividend < listing.price * 0.12);
   assert.deepEqual(availablePlayerShipyardPayouts(system), [{
-    portId: LISBON.tileId,
+    portId: LISBON.cityId,
     portName: LISBON.city,
     amount: yard.playerDividendBalance
   }]);
@@ -838,7 +847,7 @@ test("shipyard snapshots restore listings and construction clocks", () => {
 
   assert.equal(system.lastMinute, 120000);
   assert.equal(lisbon.buildNumber, 14);
-  assert.equal(lisbon.listing.id, snapshot.yards.find((yard) => yard.portId === LISBON.tileId).listing.id);
+  assert.equal(lisbon.listing.id, snapshot.yards.find((yard) => yard.portId === LISBON.cityId).listing.id);
   assert.equal(lisbon.nextBuildMinute, 123456);
 });
 
@@ -918,7 +927,17 @@ test("ship construction books split every material from labor without changing t
 });
 
 function port(tileId, city, cityType, population, lat, lon, factionId = "neutral") {
-  return { tileId, city, displayCity: city, cityType, population, lat, lon, factionId };
+  return {
+    cityId: TEST_CITY_IDS.get(city) || `test-port:${tileId}`,
+    tileId,
+    city,
+    displayCity: city,
+    cityType,
+    population,
+    lat,
+    lon,
+    factionId
+  };
 }
 
 function average(values) {

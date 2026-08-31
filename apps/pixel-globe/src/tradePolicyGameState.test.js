@@ -20,13 +20,18 @@ import { createWorldEconomy } from "./economy.js";
 import { foreignSettlementById } from "./foreignSettlements.js";
 
 const PLAYER = Object.freeze({
+  id: "cartaz-test-captain",
   name: "Joan Alden",
   nationalityId: "england",
+  homePortCityId: "london|united kingdom",
+  homePortTileId: 1,
+  homePortName: "London",
   expressions: ["neutral", "happy"]
 });
 const GOA = Object.freeze({
   tileId: 12,
   portId: "city-12",
+  cityId: "goa|india",
   city: "Goa",
   displayCity: "Goa",
   country: "India",
@@ -35,6 +40,7 @@ const GOA = Object.freeze({
 const COLOMBO = Object.freeze({
   tileId: 155810,
   portId: "city-155810",
+  cityId: "colombo|sri lanka",
   city: "Colombo",
   displayCity: "Colombo",
   country: "Sri Lanka",
@@ -150,7 +156,7 @@ test("inspection fines are punitive and provide grace without issuing a cartaz",
   assert.equal(settled.fine, inspection.fine);
   assert.equal(settled.graceUntilMinute, 200 + 7 * 1440);
   assert.equal(fineState.relations.portugueseCartaz.untilMinute, 0);
-  assert.equal(fineState.relations.portugueseCartaz.issuedAtPortId, null);
+  assert.equal(fineState.relations.portugueseCartaz.issuedAtCityId, null);
 });
 
 test("version 38 voyages gain empty cartaz memory without losing their voyage", () => {
@@ -163,7 +169,7 @@ test("version 38 voyages gain empty cartaz memory without losing their voyage", 
   assert.deepEqual(migrated.relations.portugueseCartaz, {
     issuedMinute: null,
     untilMinute: 0,
-    issuedAtPortId: null,
+    issuedAtCityId: null,
     graceUntilMinute: 0,
     inspectedShipUntilMinute: {}
   });

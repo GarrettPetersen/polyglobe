@@ -31,12 +31,16 @@ import {
 } from "./portConquest.js";
 
 function city(overrides = {}) {
-  return {
+  const result = {
     tileId: 12,
     portId: "lisbon",
     city: "Lisbon",
     factionId: "portugal",
     ...overrides
+  };
+  return {
+    ...result,
+    cityId: overrides.cityId || `${result.portId || result.city.toLowerCase()}|${result.factionId}`
   };
 }
 
@@ -396,7 +400,7 @@ test("territorial peace deterministically cedes the city nearest the winner's fr
     { cities }
   );
 
-  assert.deepEqual(treaty.concessionCityIds, ["city-21"]);
+  assert.deepEqual(treaty.concessionCityIds, ["near inland city|portugal"]);
   assert.deepEqual(treaty.concessionCityNames, ["Near Inland City"]);
   assert.deepEqual(treaty.concessionPortIds, []);
   assert.equal(effectivePortFactionId(memory, nearInland), "england");
@@ -417,6 +421,7 @@ test("territorial peace can prefer a valuable overseas port to a minor nearby ci
   const englishPort = city({
     tileId: 30,
     portId: "plymouth",
+    cityId: "plymouth|united kingdom",
     city: "Plymouth",
     country: "United Kingdom",
     factionId: "england",
@@ -427,6 +432,7 @@ test("territorial peace can prefer a valuable overseas port to a minor nearby ci
   const localInland = city({
     tileId: 31,
     portId: undefined,
+    cityId: "evora|portugal",
     city: "Evora",
     country: "Portugal",
     lat: 38.57,
@@ -436,6 +442,7 @@ test("territorial peace can prefer a valuable overseas port to a minor nearby ci
   const goa = city({
     tileId: 32,
     portId: "goa",
+    cityId: "goa|india",
     city: "Goa",
     country: "India",
     lat: 15.49,
@@ -453,9 +460,9 @@ test("territorial peace can prefer a valuable overseas port to a minor nearby ci
     { cities }
   );
 
-  assert.deepEqual(treaty.concessionCityIds, ["goa"]);
+  assert.deepEqual(treaty.concessionCityIds, ["goa|india"]);
   assert.deepEqual(treaty.concessionCityNames, ["Goa"]);
-  assert.deepEqual(treaty.concessionPortIds, ["goa"]);
+  assert.deepEqual(treaty.concessionPortIds, ["goa|india"]);
   assert.equal(effectivePortFactionId(memory, goa), "england");
   assert.equal(effectivePortFactionId(memory, localInland), "portugal");
 });

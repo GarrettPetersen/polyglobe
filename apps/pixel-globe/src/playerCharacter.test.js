@@ -223,8 +223,8 @@ test("maritime fleet weighting favors busy ports without removing quiet homes", 
   const buda = port(102, "Buda", "Hungary", "northern-european", "hungary", 47.5, 19.04);
   const ports = [london, buda];
   const weights = new Map([
-    [london.tileId, 9],
-    [buda.tileId, 1]
+    [london.cityId, 9],
+    [buda.cityId, 1]
   ]);
   const starts = { London: 0, Buda: 0 };
   for (let i = 0; i < 1000; i++) {
@@ -361,6 +361,7 @@ test("player-facing home labels use the 1522 realm instead of the modern country
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {
   return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city,
     displayCity: city,

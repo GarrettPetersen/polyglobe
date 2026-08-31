@@ -13,7 +13,7 @@ const veteran = Object.freeze({
   name: "Brites Pereira"
 });
 
-test("character identity conflicts detect repeated ids, portraits, and full names", () => {
+test("character identity conflicts use canonical character and portrait ids, never display names", () => {
   assert.equal(characterIdentityConflict(veteran, {
     id: veteran.id,
     sourceId: "merchant-woman-002",
@@ -28,7 +28,7 @@ test("character identity conflicts detect repeated ids, portraits, and full name
     id: "captive-2",
     sourceId: "merchant-woman-002",
     name: "  BRITES PEREIRA  "
-  }), "name");
+  }), null);
 });
 
 test("an active traveler can be checked against the permanent roster", () => {

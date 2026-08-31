@@ -10,6 +10,7 @@ import {
   factionById,
   factionHasFlag
 } from "./factions.js";
+import { requireCityId } from "./entityIds.js";
 
 export const FOREIGN_SETTLEMENT_EXPULSION_MEMORY_VERSION = 1;
 const DIPLOMACY_RELATIONS = new Set([
@@ -23,6 +24,7 @@ const DIPLOMACY_RELATIONS = new Set([
 const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   settlement({
     id: "portuguese-hormuz",
+    cityId: "hormuz|iran",
     city: "Hormuz",
     country: "Iran",
     factionId: "portugal",
@@ -31,6 +33,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-muscat",
+    cityId: "muscat|oman",
     city: "Muscat",
     country: "Oman",
     factionId: "portugal",
@@ -39,6 +42,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-ternate",
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Indonesia",
     factionId: "portugal",
@@ -47,6 +51,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-ayutthaya",
+    cityId: "ayutthaya|thailand",
     city: "Ayutthaya",
     country: "Thailand",
     factionId: "portugal",
@@ -55,6 +60,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-patani",
+    cityId: "patani|thailand",
     city: "Patani",
     country: "Thailand",
     factionId: "portugal",
@@ -63,6 +69,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-cochin",
+    cityId: "cochin|india",
     city: "Cochin",
     country: "India",
     factionId: "portugal",
@@ -71,6 +78,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-calicut",
+    cityId: "calicut|india",
     city: "Calicut",
     country: "India",
     factionId: "portugal",
@@ -79,6 +87,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-colombo",
+    cityId: "colombo|sri lanka",
     city: "Colombo",
     country: "Sri Lanka",
     factionId: "portugal",
@@ -87,6 +96,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-zanzibar",
+    cityId: "zanzibar|tanzania",
     city: "Zanzibar",
     country: "Tanzania",
     factionId: "portugal",
@@ -95,6 +105,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-quilon",
+    cityId: "quilon|india",
     city: "Quilon",
     country: "India",
     factionId: "portugal",
@@ -103,6 +114,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "venetian-constantinople",
+    cityId: "istanbul|turkey",
     city: "Istanbul",
     country: "Turkey",
     factionId: "venice",
@@ -111,6 +123,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "venetian-alexandria",
+    cityId: "alexandria|egypt",
     city: "Alexandria",
     country: "Egypt",
     factionId: "venice",
@@ -119,6 +132,7 @@ const FOREIGN_SETTLEMENT_SPECS = Object.freeze([
   }),
   settlement({
     id: "portuguese-nagasaki",
+    cityId: "nagasaki|japan",
     city: "Nagasaki",
     country: "Japan",
     factionId: "portugal",
@@ -138,7 +152,7 @@ const CITY_FLAG_IDS_CACHE = new WeakMap();
 
 for (const entry of FOREIGN_SETTLEMENT_SPECS) {
   if (!entry.activeAtStart) continue;
-  const key = cityKey(entry.city, entry.country);
+  const key = entry.cityId;
   const existing = STARTING_SETTLEMENTS_BY_CITY.get(key) || [];
   existing.push(entry);
   STARTING_SETTLEMENTS_BY_CITY.set(key, existing);
@@ -176,7 +190,7 @@ export function foreignSettlementsByIds(settlementIds) {
 
 export function foreignSettlementsForCity1522(city) {
   assertCityIdentity(city);
-  return STARTING_SETTLEMENTS_BY_CITY.get(cityKey(city.city, city.country)) || EMPTY_FOREIGN_SETTLEMENTS;
+  return STARTING_SETTLEMENTS_BY_CITY.get(requireCityId(city)) || EMPTY_FOREIGN_SETTLEMENTS;
 }
 
 export function withForeignSettlements1522(city) {
@@ -194,15 +208,14 @@ export function portForeignSettlements(port) {
   const cached = PORT_SETTLEMENTS_CACHE.get(port);
   if (
     cached?.entries === entries &&
-    cached.city === port.city &&
-    cached.country === port.country
+    cached.cityId === port.cityId
   ) {
     return entries;
   }
   const seen = new Set();
   for (const entry of entries) {
     assertForeignSettlement(entry);
-    if (entry.city !== port.city || entry.country !== port.country) {
+    if (entry.cityId !== requireCityId(port)) {
       throw new Error(
         `Foreign settlement ${entry.id} belongs in ${entry.city}, ${entry.country}, not ${port.city}, ${port.country}`
       );
@@ -214,8 +227,7 @@ export function portForeignSettlements(port) {
   }
   PORT_SETTLEMENTS_CACHE.set(port, {
     entries,
-    city: port.city,
-    country: port.country
+    cityId: port.cityId
   });
   return entries;
 }
@@ -230,6 +242,13 @@ export function createForeignSettlementExpulsionMemory() {
 
 export function migrateForeignSettlementExpulsionMemory(memory) {
   if (memory === undefined || memory === null) return createForeignSettlementExpulsionMemory();
+  for (const [settlementId, record] of Object.entries(memory.byId || {})) {
+    const settlement = foreignSettlementById(settlementId);
+    record.cityId ??= settlement.cityId;
+    record.city = settlement.city;
+    record.country = settlement.country;
+    record.label = settlement.label;
+  }
   return validateForeignSettlementExpulsionMemory(memory);
 }
 
@@ -262,7 +281,7 @@ export function validateForeignSettlementExpulsionMemory(memory) {
     if (!Number.isFinite(record.simMinute) || record.simMinute < 0) {
       throw new Error(`Invalid foreign settlement expulsion minute: ${record.simMinute}`);
     }
-    if (record.city !== settlement.city || record.country !== settlement.country) {
+    if (record.cityId !== settlement.cityId) {
       throw new Error(`Foreign settlement expulsion is assigned to the wrong city: ${settlementId}`);
     }
     if (record.label !== settlement.label) {
@@ -300,6 +319,7 @@ export function expelHostileForeignSettlements({
       if (![DIPLOMACY_HOSTILE, DIPLOMACY_WAR].includes(relation)) continue;
       const record = {
         settlementId: settlement.id,
+        cityId: settlement.cityId,
         city: settlement.city,
         country: settlement.country,
         label: settlement.label,
@@ -390,6 +410,7 @@ export function cityFlagFactionIds(port, expulsionMemory = null) {
 
 function settlement({
   id,
+  cityId,
   city,
   country,
   factionId,
@@ -399,6 +420,7 @@ function settlement({
 }) {
   const entry = Object.freeze({
     id,
+    cityId,
     city,
     country,
     factionId,
@@ -412,7 +434,7 @@ function settlement({
 
 function assertForeignSettlement(entry) {
   if (!entry || typeof entry !== "object") throw new Error("Invalid foreign settlement");
-  for (const field of ["id", "city", "country", "label", "factorText"]) {
+  for (const field of ["id", "cityId", "city", "country", "label", "factorText"]) {
     if (typeof entry[field] !== "string" || entry[field] === "") {
       throw new Error(`Foreign settlement has invalid ${field}: ${entry[field]}`);
     }
@@ -427,9 +449,7 @@ function assertForeignSettlement(entry) {
 }
 
 function assertCityIdentity(city) {
-  if (!city || typeof city !== "object") throw new Error("Foreign settlement lookup requires a city");
-  if (typeof city.city !== "string" || city.city === "") throw new Error("City requires a name");
-  if (typeof city.country !== "string" || city.country === "") throw new Error("City requires a country");
+  requireCityId(city, "Foreign settlement lookup");
 }
 
 function assertExpulsionMemoryShape(memory) {
@@ -443,8 +463,4 @@ function assertExpulsionMemoryShape(memory) {
   ) {
     throw new Error(`Invalid foreign settlement expulsion memory version: ${memory?.version ?? "missing"}`);
   }
-}
-
-function cityKey(city, country) {
-  return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
 }

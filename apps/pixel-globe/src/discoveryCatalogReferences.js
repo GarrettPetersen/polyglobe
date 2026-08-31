@@ -1,21 +1,21 @@
 const DISCOVERY_KINDS = new Set(["mountain", "landmark", "legend", "achievement"]);
-const LEGACY_TILE_MOUNTAIN_ID = /^mountain-\d+-(.+)$/;
 
 export function validateDiscoveryCatalog(catalog) {
   if (!Array.isArray(catalog) || catalog.length === 0) {
     throw new Error("Discovery catalog must be a non-empty array");
   }
   const ids = new Set();
-  const identities = new Set();
+  const referenceIds = new Set();
   for (const discovery of catalog) {
     validateCatalogDiscovery(discovery);
     if (ids.has(discovery.id)) throw new Error(`Discovery catalog contains duplicate id: ${discovery.id}`);
     ids.add(discovery.id);
-    const identity = discoveryIdentity(discovery.kind, discovery.displayName);
-    if (identities.has(identity)) {
-      throw new Error(`Discovery catalog contains duplicate identity: ${identity}`);
+    for (const referenceId of [discovery.id, ...(discovery.legacyIds || [])]) {
+      if (referenceIds.has(referenceId)) {
+        throw new Error(`Discovery catalog contains duplicate reference id: ${referenceId}`);
+      }
+      referenceIds.add(referenceId);
     }
-    identities.add(identity);
   }
   return catalog;
 }
@@ -146,20 +146,11 @@ export function validateSavedDiscoveryReferences(state, catalog) {
 function discoveryReferenceResolver(catalog) {
   validateDiscoveryCatalog(catalog);
   const byId = new Map(catalog.map((entry) => [entry.id, entry]));
-  const byIdentity = new Map(catalog.map((entry) => [
-    discoveryIdentity(entry.kind, entry.displayName),
-    entry
-  ]));
-  const mountainBySlug = new Map();
+  const byLegacyId = new Map();
   for (const entry of catalog) {
-    if (entry.kind !== "mountain") continue;
-    const slug = slugify(entry.displayName);
-    if (mountainBySlug.has(slug)) {
-      throw new Error(`Mountain discovery slug is ambiguous: ${slug}`);
-    }
-    mountainBySlug.set(slug, entry);
+    for (const legacyId of entry.legacyIds || []) byLegacyId.set(legacyId, entry);
   }
-  return { byId, byIdentity, mountainBySlug };
+  return { byId, byLegacyId };
 }
 
 function resolveStoredDiscovery(storedId, storedEntry, resolver) {
@@ -168,13 +159,7 @@ function resolveStoredDiscovery(storedId, storedEntry, resolver) {
   }
   const byId = resolveSavedDiscoveryId(storedId, resolver, "Saved discovery", false);
   if (byId) return byId;
-  if (!DISCOVERY_KINDS.has(storedEntry.kind) ||
-      typeof storedEntry.displayName !== "string" || storedEntry.displayName.trim() === "") {
-    throw new Error(`Saved discovery cannot be identified: ${storedId}`);
-  }
-  const byIdentity = resolver.byIdentity.get(discoveryIdentity(storedEntry.kind, storedEntry.displayName));
-  if (!byIdentity) throw new Error(`Saved discovery is missing from the runtime catalog: ${storedId}`);
-  return byIdentity;
+  throw new Error(`Saved discovery is missing from the runtime catalog: ${storedId}`);
 }
 
 function resolveSavedDiscoveryId(storedId, resolver, label, required = true) {
@@ -183,11 +168,8 @@ function resolveSavedDiscoveryId(storedId, resolver, label, required = true) {
   }
   const exact = resolver.byId.get(storedId);
   if (exact) return exact;
-  const legacyMountainMatch = storedId.match(LEGACY_TILE_MOUNTAIN_ID);
-  const migratedMountain = legacyMountainMatch
-    ? resolver.mountainBySlug.get(legacyMountainMatch[1])
-    : null;
-  if (migratedMountain) return migratedMountain;
+  const migrated = resolver.byLegacyId.get(storedId);
+  if (migrated) return migrated;
   if (!required) return null;
   throw new Error(`${label} is missing from the runtime discovery catalog: ${storedId}`);
 }
@@ -213,6 +195,10 @@ function validateCatalogDiscovery(discovery) {
   if (!DISCOVERY_KINDS.has(discovery.kind)) {
     throw new Error(`Discovery catalog entry has invalid kind: ${discovery.id}`);
   }
+  if (discovery.legacyIds !== undefined && (!Array.isArray(discovery.legacyIds) ||
+      discovery.legacyIds.some((legacyId) => typeof legacyId !== "string" || legacyId.trim() === ""))) {
+    throw new Error(`Discovery catalog entry has invalid legacy ids: ${discovery.id}`);
+  }
 }
 
 function validateSavedEntry(id, entry, canonical) {
@@ -220,20 +206,10 @@ function validateSavedEntry(id, entry, canonical) {
     throw new Error(`Saved discovery entry is malformed: ${id}`);
   }
   if (entry.id !== id) throw new Error(`Saved discovery key and id disagree: ${id} / ${entry.id}`);
-  if (entry.kind !== canonical.kind || entry.displayName !== canonical.displayName) {
-    throw new Error(`Saved discovery identity disagrees with the runtime catalog: ${id}`);
+  if (entry.kind !== canonical.kind) {
+    throw new Error(`Saved discovery kind disagrees with the runtime catalog: ${id}`);
   }
-}
-
-function discoveryIdentity(kind, displayName) {
-  return `${kind}:${displayName.trim().toLocaleLowerCase("en-US")}`;
-}
-
-function slugify(value) {
-  return value
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "peak";
+  if (typeof entry.displayName !== "string" || entry.displayName.trim() === "") {
+    throw new Error(`Saved discovery has no display name: ${id}`);
+  }
 }

@@ -1,4 +1,5 @@
 import { portEquipmentProsperity } from "./portEquipment.js";
+import { requireCityId } from "./entityIds.js";
 import { perkEffectLabels, validatePerkSource } from "./perkSystem.js";
 import { MATCHLOCKS_GOOD_ID, portMarket } from "./economy.js";
 import { isJapanesePolityFaction } from "./factions.js";
@@ -224,9 +225,7 @@ function portHasRegion(city, region) {
 }
 
 function requiredPortId(city) {
-  const id = city?.portId || (Number.isInteger(city?.tileId) ? `city-${city.tileId}` : null);
-  if (!id) throw new Error("Perk item offer requires a city tile or port id");
-  return id;
+  return requireCityId(city, "Perk item offer port");
 }
 
 function perkOfferSeedKey(seedKey, value) {

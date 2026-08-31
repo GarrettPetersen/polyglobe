@@ -1,3 +1,5 @@
+import { cityTerritoryId, requireCityId } from "./entityIds.js";
+
 export const NEUTRAL_FACTION_ID = "neutral";
 export const PIRATE_FACTION_ID = "pirate";
 
@@ -114,102 +116,99 @@ if (FACTIONS_BY_ID.size !== FACTIONS.length) {
 }
 
 export const FACTION_CAPITALS_1522 = Object.freeze([
-  capital("england", "London", "United Kingdom"),
-  capital("scotland", "Edinburgh", "United Kingdom"),
-  capital("france", "Paris", "France"),
-  capital("spain", "Seville", "Spain"),
-  capital("portugal", "Lisbon", "Portugal"),
-  capital("hormuz", "Hormuz", "Iran"),
-  capital("burgundian-netherlands", "Gent", "Belgium"),
-  capital("habsburg", "Vienna", "Austria"),
-  capital("hungary", "Budapest", "Hungary"),
-  capital("bohemia", "Prague", "Austria"),
-  capital("mainz", "Mainz", "Germany"),
-  capital("cologne-electorate", "Bonn", "Germany", {
+  capital("england", "london|united kingdom", "London", "United Kingdom"),
+  capital("scotland", "edinburgh|united kingdom", "Edinburgh", "United Kingdom"),
+  capital("france", "paris|france", "Paris", "France"),
+  capital("spain", "seville|spain", "Seville", "Spain"),
+  capital("portugal", "lisbon|portugal", "Lisbon", "Portugal"),
+  capital("hormuz", "hormuz|iran", "Hormuz", "Iran"),
+  capital("burgundian-netherlands", "gent|belgium", "Gent", "Belgium"),
+  capital("habsburg", "vienna|austria", "Vienna", "Austria"),
+  capital("hungary", "budapest|hungary", "Budapest", "Hungary"),
+  capital("bohemia", "prague|austria", "Prague", "Austria"),
+  capital("mainz", "mainz|germany", "Mainz", "Germany"),
+  capital("cologne-electorate", "bonn|germany", "Bonn", "Germany", {
     lat: 50.7374, lon: 7.0982, population: 8000
   }),
-  capital("trier", "Trier", "Germany"),
-  capital("palatinate", "Heidelberg", "Germany", {
+  capital("trier", "trier|germany", "Trier", "Germany"),
+  capital("palatinate", "heidelberg|germany", "Heidelberg", "Germany", {
     lat: 49.3988, lon: 8.6724, population: 12000
   }),
-  capital("electoral-saxony", "Wittenberg", "Germany", {
+  capital("electoral-saxony", "wittenberg|germany", "Wittenberg", "Germany", {
     lat: 51.866, lon: 12.645, population: 7000
   }),
-  capital("brandenburg", "Berlin", "Germany", {
+  capital("brandenburg", "berlin|germany", "Berlin", "Germany", {
     lat: 52.52, lon: 13.405, population: 12000
   }),
-  capital("ducal-saxony", "Leipzig", "Germany"),
-  capital("liege", "Liege", "Belgium"),
-  capital("magdeburg", "Magdeburg", "Germany"),
-  capital("utrecht", "Utrecht", "Netherlands"),
-  capital("cleves-mark", "Soest", "Germany", { seatCity: "Cleves" }),
-  capital("calenberg", "Hannover", "Germany"),
-  capital("augsburg", "Augsberg", "Germany"),
-  capital("cologne", "Cologne", "Germany"),
-  capital("nuremberg", "Nurnberg", "Germany"),
-  capital("lubeck", "Lubeck", "Germany"),
-  capital("hamburg", "Hamburg", "Germany"),
-  capital("bremen", "Bremen", "Germany"),
-  capital("speyer", "Speyer", "Germany"),
-  capital("regensburg", "Regensburg", "Germany"),
-  capital("worms", "Worms", "Germany"),
-  capital("metz", "Metz", "France"),
-  capital("ottoman", "Istanbul", "Turkey"),
-  capital("venice", "Venice", "Italy"),
-  capital("genoa", "Genova", "Italy"),
-  capital("florence", "Florence", "Italy"),
-  capital("papal-states", "Rome", "Italy"),
-  capital("hospitallers", "Rhodes", "Greece"),
-  capital("ming", "Beijing", "China"),
-  capital("inca", "Cuzco", "Peru"),
-  capital("safavid", "Siraf", "Iran"),
-  capital("muscovy", "Kholmogory", "Russian Federation", {
+  capital("ducal-saxony", "leipzig|germany", "Leipzig", "Germany"),
+  capital("liege", "liege|belgium", "Liege", "Belgium"),
+  capital("magdeburg", "magdeburg|germany", "Magdeburg", "Germany"),
+  capital("utrecht", "utrecht|netherlands", "Utrecht", "Netherlands"),
+  capital("cleves-mark", "soest|germany", "Soest", "Germany", { seatCity: "Cleves" }),
+  capital("calenberg", "hannover|germany", "Hannover", "Germany"),
+  capital("augsburg", "augsberg|germany", "Augsberg", "Germany"),
+  capital("cologne", "cologne|germany", "Cologne", "Germany"),
+  capital("nuremberg", "nurnberg|germany", "Nurnberg", "Germany"),
+  capital("lubeck", "lubeck|germany", "Lubeck", "Germany"),
+  capital("hamburg", "hamburg|germany", "Hamburg", "Germany"),
+  capital("bremen", "bremen|germany", "Bremen", "Germany"),
+  capital("speyer", "speyer|germany", "Speyer", "Germany"),
+  capital("regensburg", "regensburg|germany", "Regensburg", "Germany"),
+  capital("worms", "worms|germany", "Worms", "Germany"),
+  capital("metz", "metz|france", "Metz", "France"),
+  capital("ottoman", "istanbul|turkey", "Istanbul", "Turkey"),
+  capital("venice", "venice|italy", "Venice", "Italy"),
+  capital("genoa", "genova|italy", "Genova", "Italy"),
+  capital("florence", "florence|italy", "Florence", "Italy"),
+  capital("papal-states", "rome|italy", "Rome", "Italy"),
+  capital("hospitallers", "rhodes|greece", "Rhodes", "Greece"),
+  capital("ming", "beijing|china", "Beijing", "China"),
+  capital("inca", "cuzco|peru", "Cuzco", "Peru"),
+  capital("safavid", "siraf|iran", "Siraf", "Iran"),
+  capital("muscovy", "kholmogory|russian federation", "Kholmogory", "Russian Federation", {
     lat: 64.225,
     lon: 41.65,
     population: 7000
   }),
-  capital("kazan", "Kazan", "Russian Federation"),
-  capital("crimea", "Bakhchiserai", "Ukraine"),
-  capital("wallachia", "Braila", "Romania", { seatCity: "Targoviste" }),
-  capital("moldavia", "Galati", "Romania", { seatCity: "Suceava" }),
-  capital("ragusa", "Ragusa", "Croatia"),
-  capital("hejaz", "Jeddah", "Saudi Arabia", { seatCity: "Mecca" }),
-  capital("poland-lithuania", "Krakow", "Poland"),
-  capital("sweden", "Soderkoping", "Sweden"),
-  capital("denmark-norway", "Roskilde", "Denmark"),
-  capital("songhai", "Gao", "Mali"),
-  capital("morocco", "Azemmour", "Morocco"),
-  capital("ethiopia", "Massawa", "Ethiopia", {
+  capital("kazan", "kazan|russian federation", "Kazan", "Russian Federation"),
+  capital("crimea", "bakhchiserai|ukraine", "Bakhchiserai", "Ukraine"),
+  capital("wallachia", "braila|romania", "Braila", "Romania", { seatCity: "Targoviste" }),
+  capital("moldavia", "galati|romania", "Galati", "Romania", { seatCity: "Suceava" }),
+  capital("ragusa", "ragusa|croatia", "Ragusa", "Croatia"),
+  capital("hejaz", "jeddah|saudi arabia", "Jeddah", "Saudi Arabia", { seatCity: "Mecca" }),
+  capital("poland-lithuania", "krakow|poland", "Krakow", "Poland"),
+  capital("sweden", "soderkoping|sweden", "Soderkoping", "Sweden"),
+  capital("denmark-norway", "roskilde|denmark", "Roskilde", "Denmark"),
+  capital("songhai", "gao|mali", "Gao", "Mali"),
+  capital("morocco", "azemmour|morocco", "Azemmour", "Morocco"),
+  capital("ethiopia", "massawa|ethiopia", "Massawa", "Ethiopia", {
     lat: 15.6097,
     lon: 39.45,
     population: 8000
   }),
-  capital("vijayanagara", "Rajahmundry", "India"),
-  capital("gujarat", "Cambay", "India"),
-  capital("bengal", "Gauda", "India"),
-  capital("delhi", "Agra", "India"),
-  capital("ayutthaya", "Ayutthaya", "Thailand"),
-  capital("ternate", "Ternate", "Indonesia"),
-  capital("tidore", "Tidore", "Indonesia"),
-  capital("japan", "Kyoto", "Japan"),
-  capital("hosokawa", "Sakai", "Japan"),
-  capital("ouchi", "Yamaguchi", "Japan"),
-  capital("shimazu", "Kagoshima", "Japan"),
-  capital("so", "Tsushima Fuchu", "Japan"),
-  capital("shoni", "Nagasaki", "Japan"),
-  capital("nagao", "Naoetsu", "Japan", { seatCity: "Kasugayama" }),
-  capital("ando", "Tsuchizaki Minato", "Japan", { seatCity: "Hiyama" }),
-  capital("kakizaki", "Kaminokuni", "Japan"),
-  capital("ryukyu", "Naha", "Japan", { seatCity: "Shuri" }),
-  capital("ainu", "Akkeshi Kotan", "Japan"),
-  capital("joseon", "Seoul", "Republic of Korea")
+  capital("vijayanagara", "rajahmundry|india", "Rajahmundry", "India"),
+  capital("gujarat", "cambay|india", "Cambay", "India"),
+  capital("bengal", "gauda|india", "Gauda", "India"),
+  capital("delhi", "agra|india", "Agra", "India"),
+  capital("ayutthaya", "ayutthaya|thailand", "Ayutthaya", "Thailand"),
+  capital("ternate", "ternate|indonesia", "Ternate", "Indonesia"),
+  capital("tidore", "tidore|indonesia", "Tidore", "Indonesia"),
+  capital("japan", "kyoto|japan", "Kyoto", "Japan"),
+  capital("hosokawa", "sakai|japan", "Sakai", "Japan"),
+  capital("ouchi", "yamaguchi|japan", "Yamaguchi", "Japan"),
+  capital("shimazu", "kagoshima|japan", "Kagoshima", "Japan"),
+  capital("so", "tsushima fuchu|japan", "Tsushima Fuchu", "Japan"),
+  capital("shoni", "nagasaki|japan", "Nagasaki", "Japan"),
+  capital("nagao", "naoetsu|japan", "Naoetsu", "Japan", { seatCity: "Kasugayama" }),
+  capital("ando", "tsuchizaki minato|japan", "Tsuchizaki Minato", "Japan", { seatCity: "Hiyama" }),
+  capital("kakizaki", "kaminokuni|japan", "Kaminokuni", "Japan"),
+  capital("ryukyu", "naha|japan", "Naha", "Japan", { seatCity: "Shuri" }),
+  capital("ainu", "akkeshi kotan|japan", "Akkeshi Kotan", "Japan"),
+  capital("joseon", "seoul|republic of korea", "Seoul", "Republic of Korea")
 ]);
 
 const FACTION_CAPITALS_BY_ID = new Map(FACTION_CAPITALS_1522.map((item) => [item.factionId, item]));
-const FACTION_CAPITALS_BY_CITY_KEY = new Map(FACTION_CAPITALS_1522.map((item) => [
-  cityKey(item.city, item.country),
-  item
-]));
+const FACTION_CAPITALS_BY_CITY_ID = new Map(FACTION_CAPITALS_1522.map((item) => [item.cityId, item]));
 
 const ALLIANCES_1522 = Object.freeze([
   ["england", "spain"],
@@ -332,207 +331,211 @@ const WARS_1522 = Object.freeze([
 export const DIPLOMACY_MATRIX_1522 = buildDiplomacyMatrix();
 
 const CITY_FACTION_OVERRIDES = uniqueMap([
-  ...cityRulesForCountry("United Kingdom", [
-    "London", "Norwich", "Exeter", "Bristol", "Southampton", "York", "Hull",
-    "Newcastle upon Tyne"
+  ...cityRules([
+    "london|united kingdom", "norwich|united kingdom", "exeter|united kingdom", "bristol|united kingdom",
+    "southampton|united kingdom", "york|united kingdom", "hull|united kingdom", "newcastle upon tyne|united kingdom"
   ], "england"),
-  cityRule("Dublin", "Ireland", "england"),
-  cityRule("Edinburgh", "United Kingdom", "scotland"),
-  cityRule("Glasgow", "United Kingdom", "scotland"),
-  cityRule("Avignon", "France", "papal-states"),
-  cityRule("Metz", "France", "metz"),
+  cityRule("dublin|ireland", "england"),
+  cityRule("edinburgh|united kingdom", "scotland"),
+  cityRule("glasgow|united kingdom", "scotland"),
+  cityRule("avignon|france", "papal-states"),
+  cityRule("metz|france", "metz"),
 
   // The Empire is constitutional membership, not Habsburg sovereignty. These
   // rules use source-catalog identities; display aliases such as Augsburg and
   // Breslau never participate in ownership lookup.
-  cityRule("Brugge", "Belgium", "burgundian-netherlands"),
-  cityRule("Gent", "Belgium", "burgundian-netherlands"),
-  cityRule("Vienna", "Austria", "habsburg"),
-  cityRule("Prague", "Austria", "bohemia"),
-  cityRule("Wroclaw", "Germany", "bohemia"),
-  cityRule("Mainz", "Germany", "mainz"),
-  cityRule("Erfurt", "Germany", "mainz"),
-  cityRule("Bonn", "Germany", "cologne-electorate"),
-  cityRule("Trier", "Germany", "trier"),
-  cityRule("Heidelberg", "Germany", "palatinate"),
-  cityRule("Wittenberg", "Germany", "electoral-saxony"),
-  cityRule("Berlin", "Germany", "brandenburg"),
-  cityRule("Leipzig", "Germany", "ducal-saxony"),
-  cityRule("Liege", "Belgium", "liege"),
-  cityRule("Magdeburg", "Germany", "magdeburg"),
-  cityRule("Utrecht", "Netherlands", "utrecht"),
-  cityRule("Soest", "Germany", "cleves-mark"),
-  cityRule("Hannover", "Germany", "calenberg"),
-  cityRule("Augsberg", "Germany", "augsburg"),
-  cityRule("Cologne", "Germany", "cologne"),
-  cityRule("Nurnberg", "Germany", "nuremberg"),
-  cityRule("Lubeck", "Germany", "lubeck"),
-  cityRule("Hamburg", "Germany", "hamburg"),
-  cityRule("Bremen", "Germany", "bremen"),
-  cityRule("Speyer", "Germany", "speyer"),
-  cityRule("Regensburg", "Germany", "regensburg"),
-  cityRule("Worms", "Germany", "worms"),
+  cityRule("brugge|belgium", "burgundian-netherlands"),
+  cityRule("gent|belgium", "burgundian-netherlands"),
+  cityRule("vienna|austria", "habsburg"),
+  cityRule("prague|austria", "bohemia"),
+  cityRule("wroclaw|germany", "bohemia"),
+  cityRule("mainz|germany", "mainz"),
+  cityRule("erfurt|germany", "mainz"),
+  cityRule("bonn|germany", "cologne-electorate"),
+  cityRule("trier|germany", "trier"),
+  cityRule("heidelberg|germany", "palatinate"),
+  cityRule("wittenberg|germany", "electoral-saxony"),
+  cityRule("berlin|germany", "brandenburg"),
+  cityRule("leipzig|germany", "ducal-saxony"),
+  cityRule("liege|belgium", "liege"),
+  cityRule("magdeburg|germany", "magdeburg"),
+  cityRule("utrecht|netherlands", "utrecht"),
+  cityRule("soest|germany", "cleves-mark"),
+  cityRule("hannover|germany", "calenberg"),
+  cityRule("augsberg|germany", "augsburg"),
+  cityRule("cologne|germany", "cologne"),
+  cityRule("nurnberg|germany", "nuremberg"),
+  cityRule("lubeck|germany", "lubeck"),
+  cityRule("hamburg|germany", "hamburg"),
+  cityRule("bremen|germany", "bremen"),
+  cityRule("speyer|germany", "speyer"),
+  cityRule("regensburg|germany", "regensburg"),
+  cityRule("worms|germany", "worms"),
 
-  cityRule("Venice", "Italy", "venice"),
-  cityRule("Verona", "Italy", "venice"),
-  cityRule("Genova", "Italy", "genoa"),
-  cityRule("Florence", "Italy", "florence"),
-  cityRule("Pisa", "Italy", "florence"),
-  cityRule("Rome", "Italy", "papal-states"),
-  cityRule("Bologna", "Italy", "papal-states"),
-  cityRule("Milan", "Italy", "habsburg"),
-  cityRule("Pavia", "Italy", "habsburg"),
-  cityRule("Cremona", "Italy", "habsburg"),
-  cityRule("Naples", "Italy", "spain"),
-  cityRule("Capua", "Italy", "spain"),
-  cityRule("Palermo", "Italy", "spain"),
-  cityRule("Taranto", "Italy", "spain"),
-  cityRule("Crotone", "Italy", "spain"),
-  cityRule("Messina", "Italy", "spain"),
-  cityRule("Olbia", "Italy", "spain"),
-  cityRule("Cagliari", "Italy", "spain"),
-  cityRule("Syracuse", "Italy", "spain"),
-  cityRule("Salerno", "Italy", "spain"),
-  cityRule("Bastia", "Italy", "genoa"),
+  cityRule("venice|italy", "venice"),
+  cityRule("verona|italy", "venice"),
+  cityRule("genova|italy", "genoa"),
+  cityRule("florence|italy", "florence"),
+  cityRule("pisa|italy", "florence"),
+  cityRule("rome|italy", "papal-states"),
+  cityRule("bologna|italy", "papal-states"),
+  cityRule("milan|italy", "habsburg"),
+  cityRule("pavia|italy", "habsburg"),
+  cityRule("cremona|italy", "habsburg"),
+  cityRule("naples|italy", "spain"),
+  cityRule("capua|italy", "spain"),
+  cityRule("palermo|italy", "spain"),
+  cityRule("taranto|italy", "spain"),
+  cityRule("crotone|italy", "spain"),
+  cityRule("messina|italy", "spain"),
+  cityRule("olbia|italy", "spain"),
+  cityRule("cagliari|italy", "spain"),
+  cityRule("syracuse|italy", "spain"),
+  cityRule("salerno|italy", "spain"),
+  cityRule("bastia|italy", "genoa"),
 
-  cityRule("Ceuta", "Morocco", "portugal"),
-  cityRule("Algiers", "Algeria", "ottoman"),
-  cityRule("Tripoli", "Libya", "spain"),
+  cityRule("ceuta|morocco", "portugal"),
+  cityRule("algiers|algeria", "ottoman"),
+  cityRule("tripoli|libya", "spain"),
   // Charles V did not grant Malta to the displaced Hospitallers until 1530.
   // In 1522 Birgu remains Spanish while the order still rules Rhodes.
-  cityRule("Birgu", "Malta", "spain"),
-  cityRule("Ragusa", "Croatia", "ragusa"),
+  cityRule("birgu|malta", "spain"),
+  cityRule("ragusa|croatia", "ragusa"),
 
-  cityRule("Kerkira", "Greece", "venice"),
-  cityRule("Gortyn", "Greece", "venice"),
-  cityRule("Knossos", "Greece", "venice"),
-  cityRule("Akrotiri", "Greece", "venice"),
-  cityRule("Iraklion", "Greece", "venice"),
-  cityRule("Rhodes", "Greece", "hospitallers"),
+  cityRule("kerkira|greece", "venice"),
+  cityRule("gortyn|greece", "venice"),
+  cityRule("knossos|greece", "venice"),
+  cityRule("akrotiri|greece", "venice"),
+  cityRule("iraklion|greece", "venice"),
+  cityRule("rhodes|greece", "hospitallers"),
 
-  cityRule("Goa", "India", "portugal"),
-  cityRule("Hormuz", "Iran", "hormuz"),
-  cityRule("Malacca", "Malaysia", "portugal"),
-  cityRule("Muscat", "Oman", "hormuz"),
-  cityRule("Sofala", "Mozambique", "portugal"),
-  cityRule("Mozambique", "Mozambique", "portugal"),
+  cityRule("goa|india", "portugal"),
+  cityRule("hormuz|iran", "hormuz"),
+  cityRule("malacca|malaysia", "portugal"),
+  cityRule("muscat|oman", "hormuz"),
+  cityRule("sofala|mozambique", "portugal"),
+  cityRule("mozambique|mozambique", "portugal"),
 
-  cityRule("Lhasa", "China", NEUTRAL_FACTION_ID),
-  cityRule("Kashi", "China", NEUTRAL_FACTION_ID),
-  cityRule("Turpan", "China", NEUTRAL_FACTION_ID),
+  cityRule("lhasa|china", NEUTRAL_FACTION_ID),
+  cityRule("kashi|china", NEUTRAL_FACTION_ID),
+  cityRule("turpan|china", NEUTRAL_FACTION_ID),
 
-  cityRule("Mexico City", "Mexico", "spain"),
-  cityRule("Texcoco", "Mexico", "spain"),
-  cityRule("Tenayuca", "Mexico", "spain"),
-  cityRule("Cholula", "Mexico", "spain"),
-  cityRule("Zempoala", "Mexico", "spain"),
-  cityRule("Veracruz", "Mexico", "spain"),
+  cityRule("mexico city|mexico", "spain"),
+  cityRule("texcoco|mexico", "spain"),
+  cityRule("tenayuca|mexico", "spain"),
+  cityRule("cholula|mexico", "spain"),
+  cityRule("zempoala|mexico", "spain"),
+  cityRule("veracruz|mexico", "spain"),
 
-  cityRule("Baghdad", "Iraq", "safavid"),
-  cityRule("Jeddah", "Saudi Arabia", "hejaz"),
-  cityRule("Mecca", "Saudi Arabia", "hejaz"),
-  cityRule("Braila", "Romania", "wallachia"),
-  cityRule("Galati", "Romania", "moldavia"),
-  cityRule("Targoviste", "Romania", "wallachia"),
-  cityRule("Suceava", "Romania", "moldavia"),
-  cityRule("Kiev", "Ukraine", "poland-lithuania"),
+  cityRule("baghdad|iraq", "safavid"),
+  cityRule("jeddah|saudi arabia", "hejaz"),
+  cityRule("mecca|saudi arabia", "hejaz"),
+  cityRule("braila|romania", "wallachia"),
+  cityRule("galati|romania", "moldavia"),
+  cityRule("targoviste|romania", "wallachia"),
+  cityRule("suceava|romania", "moldavia"),
+  cityRule("kiev|ukraine", "poland-lithuania"),
 
-  cityRule("Naha", "Japan", "ryukyu"),
-  cityRule("Akkeshi Kotan", "Japan", "ainu"),
-  cityRule("Sakai", "Japan", "hosokawa"),
-  cityRule("Yamaguchi", "Japan", "ouchi"),
-  cityRule("Fukuoka", "Japan", "ouchi"),
-  cityRule("Tomogaura", "Japan", "ouchi"),
-  cityRule("Kagoshima", "Japan", "shimazu"),
-  cityRule("Tsushima Fuchu", "Japan", "so"),
-  cityRule("Nagasaki", "Japan", "shoni"),
-  cityRule("Naoetsu", "Japan", "nagao"),
-  cityRule("Tsuchizaki Minato", "Japan", "ando"),
-  cityRule("Kaminokuni", "Japan", "kakizaki"),
+  cityRule("naha|japan", "ryukyu"),
+  cityRule("akkeshi kotan|japan", "ainu"),
+  cityRule("sakai|japan", "hosokawa"),
+  cityRule("yamaguchi|japan", "ouchi"),
+  cityRule("fukuoka|japan", "ouchi"),
+  cityRule("tomogaura|japan", "ouchi"),
+  cityRule("kagoshima|japan", "shimazu"),
+  cityRule("tsushima fuchu|japan", "so"),
+  cityRule("nagasaki|japan", "shoni"),
+  cityRule("naoetsu|japan", "nagao"),
+  cityRule("tsuchizaki minato|japan", "ando"),
+  cityRule("kaminokuni|japan", "kakizaki"),
 
-  cityRule("Sarai", "Russian Federation", NEUTRAL_FACTION_ID),
-  cityRule("Astrakhan", "Russian Federation", NEUTRAL_FACTION_ID),
-  cityRule("Kazan", "Russian Federation", "kazan"),
-  cityRule("Feodosia", "Russian Federation", "ottoman"),
-  cityRule("Sudak", "Russian Federation", "ottoman"),
-  cityRule("Bakhchiserai", "Ukraine", "crimea"),
+  cityRule("sarai|russian federation", NEUTRAL_FACTION_ID),
+  cityRule("astrakhan|russian federation", NEUTRAL_FACTION_ID),
+  cityRule("kazan|russian federation", "kazan"),
+  cityRule("feodosia|russian federation", "ottoman"),
+  cityRule("sudak|russian federation", "ottoman"),
+  cityRule("bakhchiserai|ukraine", "crimea"),
 
-  cityRule("Stockholm", "Sweden", "denmark-norway"),
-  cityRule("Kalmar", "Sweden", "denmark-norway"),
-  cityRule("Visby", "Sweden", "denmark-norway"),
-  cityRule("Turku", "Finland", "denmark-norway"),
+  cityRule("stockholm|sweden", "denmark-norway"),
+  cityRule("kalmar|sweden", "denmark-norway"),
+  cityRule("visby|sweden", "denmark-norway"),
+  cityRule("turku|finland", "denmark-norway"),
 
-  ...cityRulesForCountry("India", [
-    "Vijayanagar", "Manyakheta", "Thanjavur", "Badami", "Chittoor", "Kanchipuram",
-    "Kolar", "Madurai", "Halebidu", "Rajahmundry"
+  ...cityRules([
+    "vijayanagar|india", "manyakheta|india", "thanjavur|india", "badami|india",
+    "chittoor|india", "kanchipuram|india", "kolar|india", "madurai|india",
+    "halebidu|india", "rajahmundry|india"
   ], "vijayanagara"),
-  ...cityRulesForCountry("India", [
-    "Ahmedabad", "Cambay", "Diu", "Patan", "Somnath", "Dholavira", "Surat"
+  ...cityRules([
+    "ahmedabad|india", "cambay|india", "diu|india", "patan|india",
+    "somnath|india", "dholavira|india", "surat|india"
   ], "gujarat"),
-  ...cityRulesForCountry("India", [
-    "Gauda", "Patna", "Pandua", "Kamarupa", "Kamtapur", "Nadiya", "Tamralipti"
+  ...cityRules([
+    "gauda|india", "patna|india", "pandua|india", "kamarupa|india",
+    "kamtapur|india", "nadiya|india", "tamralipti|india"
   ], "bengal"),
-  ...cityRulesForCountry("India", [
-    "Agra", "Delhi", "Kanauji", "Jaunpur", "Lahore", "Multan"
+  ...cityRules([
+    "agra|india", "delhi|india", "kanauji|india", "jaunpur|india",
+    "lahore|india", "multan|india"
   ], "delhi"),
-  cityRule("Lahore", "Pakistan", "delhi"),
-  cityRule("Multan", "Pakistan", "delhi"),
+  cityRule("lahore|pakistan", "delhi"),
+  cityRule("multan|pakistan", "delhi"),
 
-  cityRule("Ayutthaya", "Thailand", "ayutthaya"),
-  cityRule("Sukhothai", "Thailand", "ayutthaya"),
+  cityRule("ayutthaya|thailand", "ayutthaya"),
+  cityRule("sukhothai|thailand", "ayutthaya"),
 
-  cityRule("Ternate", "Indonesia", "ternate"),
-  cityRule("Hitu Village", "Indonesia", "ternate"),
-  cityRule("Buru Village", "Indonesia", "ternate"),
-  cityRule("Tidore", "Indonesia", "tidore"),
-  cityRule("Makian Village", "Indonesia", "tidore"),
-  cityRule("Gane Village", "Indonesia", "tidore")
+  cityRule("ternate|indonesia", "ternate"),
+  cityRule("hitu village|indonesia", "ternate"),
+  cityRule("buru village|indonesia", "ternate"),
+  cityRule("tidore|indonesia", "tidore"),
+  cityRule("makian village|indonesia", "tidore"),
+  cityRule("gane village|indonesia", "tidore")
 ], "city faction overrides");
 
-const COUNTRY_FACTIONS = uniqueMap([
-  ["France", "france"],
-  ["Spain", "spain"],
-  ["Portugal", "portugal"],
-  ["Austria", "habsburg"],
-  ["Belgium", "burgundian-netherlands"],
-  ["Germany", NEUTRAL_FACTION_ID],
-  ["Netherlands", "burgundian-netherlands"],
-  ["Hungary", "hungary"],
-  ["Turkey", "ottoman"],
-  ["Egypt", "ottoman"],
-  ["Greece", "ottoman"],
-  ["Bulgaria", "ottoman"],
-  ["Serbia", "ottoman"],
-  ["Albania", "ottoman"],
-  ["Israel", "ottoman"],
-  ["Lebanon", "ottoman"],
-  ["Syria", "ottoman"],
-  ["Syria/Turkey", "ottoman"],
-  ["Syrian Arab Republic", "ottoman"],
-  ["Cyprus", "venice"],
-  ["China", "ming"],
-  ["Peru", "inca"],
-  ["Iran", "safavid"],
-  ["Russian Federation", "muscovy"],
-  ["Poland", "poland-lithuania"],
-  ["Lithuania", "poland-lithuania"],
-  ["Sweden", "sweden"],
-  ["Denmark", "denmark-norway"],
-  ["Norway", "denmark-norway"],
-  ["Iceland", "denmark-norway"],
-  ["Mali", "songhai"],
-  ["Morocco", "morocco"],
-  ["Ethiopia", "ethiopia"],
-  ["Japan", "japan"],
-  ["Republic of Korea", "joseon"],
-  ["Dem. People's Republic of Korea", "joseon"],
-  ["Cuba", "spain"],
-  ["Dominican Republic", "spain"],
-  ["Panama", "spain"],
-  ["Puerto Rico", "spain"],
-  ["Malta", "spain"],
-  ["Cape Verde", "portugal"],
-  ["Sao Tome and Principe", "portugal"]
+const TERRITORY_FACTIONS = uniqueMap([
+  ["france", "france"],
+  ["spain", "spain"],
+  ["portugal", "portugal"],
+  ["austria", "habsburg"],
+  ["belgium", "burgundian-netherlands"],
+  ["germany", NEUTRAL_FACTION_ID],
+  ["netherlands", "burgundian-netherlands"],
+  ["hungary", "hungary"],
+  ["turkey", "ottoman"],
+  ["egypt", "ottoman"],
+  ["greece", "ottoman"],
+  ["bulgaria", "ottoman"],
+  ["serbia", "ottoman"],
+  ["albania", "ottoman"],
+  ["israel", "ottoman"],
+  ["lebanon", "ottoman"],
+  ["syria", "ottoman"],
+  ["syria/turkey", "ottoman"],
+  ["syrian arab republic", "ottoman"],
+  ["cyprus", "venice"],
+  ["china", "ming"],
+  ["peru", "inca"],
+  ["iran", "safavid"],
+  ["russian federation", "muscovy"],
+  ["poland", "poland-lithuania"],
+  ["lithuania", "poland-lithuania"],
+  ["sweden", "sweden"],
+  ["denmark", "denmark-norway"],
+  ["norway", "denmark-norway"],
+  ["iceland", "denmark-norway"],
+  ["mali", "songhai"],
+  ["morocco", "morocco"],
+  ["ethiopia", "ethiopia"],
+  ["japan", "japan"],
+  ["republic of korea", "joseon"],
+  ["dem. people's republic of korea", "joseon"],
+  ["cuba", "spain"],
+  ["dominican republic", "spain"],
+  ["panama", "spain"],
+  ["puerto rico", "spain"],
+  ["malta", "spain"],
+  ["cape verde", "portugal"],
+  ["sao tome and principe", "portugal"]
 ], "country faction assignments");
 
 validateCityFactionRules();
@@ -573,7 +576,7 @@ export function factionCapitalForId(factionId) {
 
 export function factionCapitalForCity(city) {
   if (!city || typeof city !== "object") throw new Error("Capital lookup requires a city");
-  return FACTION_CAPITALS_BY_CITY_KEY.get(cityKey(city.city, city.country)) || null;
+  return FACTION_CAPITALS_BY_CITY_ID.get(requireCityId(city)) || null;
 }
 
 export function factionCapitalCityRecords1522() {
@@ -586,11 +589,11 @@ export function factionCapitalCityRecords1522() {
 
 export function markFactionCapitalsOnPorts(ports) {
   if (!Array.isArray(ports)) throw new Error("Faction capitals require a list of water-accessible ports");
-  const portsByCapitalKey = new Map(ports.map((port) => [cityKey(port.city, port.country), port]));
+  const portsByCityId = new Map(ports.map((port) => [requireCityId(port), port]));
   const capitalPorts = new Map();
 
   for (const capitalSpec of FACTION_CAPITALS_1522) {
-    const port = portsByCapitalKey.get(cityKey(capitalSpec.city, capitalSpec.country));
+    const port = portsByCityId.get(capitalSpec.cityId);
     if (!port) {
       throw new Error(
         `${capitalSpec.factionId} capital ${capitalSpec.city}, ${capitalSpec.country} is not water accessible`
@@ -626,12 +629,9 @@ export function diplomacyBetween(factionAId, factionBId) {
 
 export function factionIdForCity1522(city) {
   if (!city || typeof city !== "object") throw new Error("City faction assignment requires a city");
-  if (!nonEmptyString(city.city) || !nonEmptyString(city.country)) {
-    throw new Error("City faction assignment requires city and country names");
-  }
-  const override = CITY_FACTION_OVERRIDES.get(cityKey(city.city, city.country));
+  const override = CITY_FACTION_OVERRIDES.get(requireCityId(city));
   if (override) return override;
-  return COUNTRY_FACTIONS.get(city.country.trim()) || NEUTRAL_FACTION_ID;
+  return TERRITORY_FACTIONS.get(cityTerritoryId(city)) || NEUTRAL_FACTION_ID;
 }
 
 function faction(id, name, shortName, adjective, kind, article = null, details = {}) {
@@ -645,9 +645,10 @@ function faction(id, name, shortName, adjective, kind, article = null, details =
   return Object.freeze({ id, name, shortName, adjective, kind, article, emergent: details.emergent === true });
 }
 
-function capital(factionId, city, country, details = {}) {
+function capital(factionId, cityId, city, country, details = {}) {
   return Object.freeze({
     factionId,
+    cityId,
     city,
     country,
     lat: details.lat,
@@ -701,16 +702,12 @@ function assertKnownFactionForBuild(factionId) {
   if (!FACTIONS_BY_ID.has(factionId)) throw new Error(`Diplomacy data references unknown faction: ${factionId}`);
 }
 
-function cityRule(city, country, factionId) {
-  return [cityKey(city, country), factionId];
+function cityRule(cityId, factionId) {
+  return [cityId, factionId];
 }
 
-function cityRulesForCountry(country, cities, factionId) {
-  return cities.map((city) => cityRule(city, country, factionId));
-}
-
-function cityKey(city, country) {
-  return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
+function cityRules(cityIds, factionId) {
+  return cityIds.map((cityId) => cityRule(cityId, factionId));
 }
 
 function uniqueMap(entries, label) {
@@ -721,7 +718,7 @@ function uniqueMap(entries, label) {
 
 function validateCityFactionRules() {
   for (const factionId of CITY_FACTION_OVERRIDES.values()) assertFactionId(factionId);
-  for (const factionId of COUNTRY_FACTIONS.values()) assertFactionId(factionId);
+  for (const factionId of TERRITORY_FACTIONS.values()) assertFactionId(factionId);
 }
 
 function validateFactionCapitalRules() {
@@ -740,7 +737,7 @@ function validateFactionCapitalRules() {
   if (FACTION_CAPITALS_BY_ID.size !== FACTION_CAPITALS_1522.length) {
     throw new Error("Faction capital registry contains duplicate faction ids");
   }
-  if (FACTION_CAPITALS_BY_CITY_KEY.size !== FACTION_CAPITALS_1522.length) {
+  if (FACTION_CAPITALS_BY_CITY_ID.size !== FACTION_CAPITALS_1522.length) {
     throw new Error("Faction capital registry contains duplicate city keys");
   }
   for (const capitalSpec of FACTION_CAPITALS_1522) {

@@ -50,7 +50,12 @@ for (const fixtureName of readdirSync(SNAPSHOT_DIRECTORY)
       const saved = structuredClone(entry.state);
       assert.equal(saved.version, fixture.gameStateVersion);
       const expected = compatibilityFacts(saved);
-      const migrated = migrateGameState(saved, shipStatsForSlug(saved.ship.slug));
+      const migrated = migrateGameState(saved, shipStatsForSlug(saved.ship.slug), {
+        legacyCityIdForPortReference: ({ tileId }) => {
+          assert.equal(tileId, 1);
+          return "london|united kingdom";
+        }
+      });
       validateGameState(migrated);
       assert.deepEqual(compatibilityFacts(migrated), expected);
     }

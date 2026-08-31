@@ -59,6 +59,7 @@ test("the suite covers storage, navigation, combat, fishing, and scavenging", ()
 
 test("special equipment is an uncommon single-item port lottery", () => {
   const ports = Array.from({ length: 240 }, (_, index) => ({
+    cityId: `lottery-port-${index}|portugal`,
     tileId: 9000 + index,
     city: `Lottery Port ${index}`,
     country: "Portugal",
@@ -79,6 +80,7 @@ test("a port selling matchlocks also offers arquebuses as equipment", () => {
   const lisbon = {
     tileId: 1,
     portId: "lisbon",
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",

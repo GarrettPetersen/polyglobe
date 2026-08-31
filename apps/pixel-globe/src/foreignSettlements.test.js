@@ -33,17 +33,17 @@ test("the 1522 registry contains only historically active starting settlements",
     ]
   );
   assert.deepEqual(
-    foreignSettlementsForCity1522({ city: "Ternate", country: "Indonesia" })
+    foreignSettlementsForCity1522({ cityId: "ternate|indonesia", city: "Ternate", country: "Indonesia" })
       .map((entry) => entry.factionId),
     ["portugal"]
   );
   assert.deepEqual(
-    foreignSettlementsForCity1522({ city: "Zanzibar", country: "Tanzania" })
+    foreignSettlementsForCity1522({ cityId: "zanzibar|tanzania", city: "Zanzibar", country: "Tanzania" })
       .map((entry) => entry.factionId),
     ["portugal"]
   );
   assert.deepEqual(
-    foreignSettlementsForCity1522({ city: "Nagasaki", country: "Japan" }),
+    foreignSettlementsForCity1522({ cityId: "nagasaki|japan", city: "Nagasaki", country: "Japan" }),
     []
   );
   assert.equal(foreignSettlementById("portuguese-nagasaki").activeAtStart, false);
@@ -51,6 +51,7 @@ test("the 1522 registry contains only historically active starting settlements",
 
 test("city enrichment preserves sovereignty while exposing resident jurisdictions", () => {
   const ternate = withForeignSettlements1522({
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Indonesia",
     factionId: "ternate"
@@ -68,13 +69,14 @@ test("city enrichment preserves sovereignty while exposing resident jurisdiction
 });
 
 test("cities without a foreign settlement remain unchanged", () => {
-  const london = { city: "London", country: "United Kingdom", factionId: "england" };
+  const london = { cityId: "london|united kingdom", city: "London", country: "United Kingdom", factionId: "england" };
   assert.equal(withForeignSettlements1522(london), london);
   assert.deepEqual(cityFlagFactionIds(london), ["england"]);
 });
 
 test("hostile relations permanently expel a resident settlement for the voyage", () => {
   const ternate = withForeignSettlements1522({
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Indonesia",
     factionId: "ternate"
@@ -116,6 +118,7 @@ test("hostile relations permanently expel a resident settlement for the voyage",
 
 test("a resident power taking sovereignty removes the duplicate flag without an expulsion", () => {
   const portugueseTernate = withForeignSettlements1522({
+    cityId: "ternate|indonesia",
     city: "Ternate",
     country: "Indonesia",
     factionId: "portugal"

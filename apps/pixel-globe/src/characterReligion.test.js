@@ -22,6 +22,7 @@ test("every religion has a display label and a registered native-size icon", () 
 
 test("religion follows the home city rather than merely the ruling faction", () => {
   const ottomanGreek = religionCandidatesForHome({
+    cityId: "athens|greece",
     city: "Athens",
     country: "Greece",
     cityType: "mediterranean",
@@ -33,6 +34,7 @@ test("religion follows the home city rather than merely the ruling faction", () 
   );
 
   const portugueseGoa = religionCandidatesForHome({
+    cityId: "goa|india",
     city: "Goa",
     country: "India",
     cityType: "south-asian",
@@ -47,6 +49,7 @@ test("religion follows the home city rather than merely the ruling faction", () 
 test("Catholic settler colonies retain their founding faith", () => {
   assert.deepEqual(
     religionCandidatesForHome({
+      cityId: "st. augustine|united states of america",
       city: "St. Augustine",
       country: "United States of America",
       cityType: "mediterranean",
@@ -59,23 +62,24 @@ test("Catholic settler colonies retain their founding faith", () => {
 
 test("distinctive 1522 religious contexts remain explicit", () => {
   const cases = [
-    [{ city: "Rome", country: "Italy", cityType: "mediterranean", factionId: "papal-states" }, "roman-catholic"],
-    [{ city: "Rhodes", country: "Greece", cityType: "mediterranean", factionId: "hospitallers" }, "roman-catholic"],
-    [{ city: "Moscow", country: "Russian Federation", cityType: "northern-european", factionId: "muscovy" }, "eastern-orthodox"],
-    [{ city: "Tabriz", country: "Iran", cityType: "islamic-desert", factionId: "safavid" }, "shia-islam"],
-    [{ city: "Baghdad", country: "Iraq", cityType: "islamic-desert", factionId: "safavid" }, "sunni-islam"],
-    [{ city: "Muscat", country: "Oman", cityType: "islamic-desert", factionId: "portugal" }, "ibadi-islam"],
-    [{ city: "Kyoto", country: "Japan", cityType: "east-asian", factionId: "japan" }, "kami-buddhist"],
-    [{ city: "Ayutthaya", country: "Thailand", cityType: "southeast-asian", factionId: "ayutthaya" }, "theravada-buddhism"],
-    [{ city: "Male", country: "Maldives", cityType: "south-asian", factionId: "neutral" }, "sunni-islam"],
-    [{ city: "Cuzco", country: "Peru", cityType: "andean", factionId: "inca" }, "andean-traditional"],
-    [{ city: "Hawaii Village", country: "Hawaii", cityType: "polynesian", factionId: "neutral" }, "polynesian-traditional"]
+    [{ cityId: "rome|italy", city: "Rome", country: "Italy", cityType: "mediterranean", factionId: "papal-states" }, "roman-catholic"],
+    [{ cityId: "rhodes|greece", city: "Rhodes", country: "Greece", cityType: "mediterranean", factionId: "hospitallers" }, "roman-catholic"],
+    [{ cityId: "moscow|russian federation", city: "Moscow", country: "Russian Federation", cityType: "northern-european", factionId: "muscovy" }, "eastern-orthodox"],
+    [{ cityId: "tabriz|iran", city: "Tabriz", country: "Iran", cityType: "islamic-desert", factionId: "safavid" }, "shia-islam"],
+    [{ cityId: "baghdad|iraq", city: "Baghdad", country: "Iraq", cityType: "islamic-desert", factionId: "safavid" }, "sunni-islam"],
+    [{ cityId: "muscat|oman", city: "Muscat", country: "Oman", cityType: "islamic-desert", factionId: "portugal" }, "ibadi-islam"],
+    [{ cityId: "kyoto|japan", city: "Kyoto", country: "Japan", cityType: "east-asian", factionId: "japan" }, "kami-buddhist"],
+    [{ cityId: "ayutthaya|thailand", city: "Ayutthaya", country: "Thailand", cityType: "southeast-asian", factionId: "ayutthaya" }, "theravada-buddhism"],
+    [{ cityId: "male|maldives", city: "Male", country: "Maldives", cityType: "south-asian", factionId: "neutral" }, "sunni-islam"],
+    [{ cityId: "cuzco|peru", city: "Cuzco", country: "Peru", cityType: "andean", factionId: "inca" }, "andean-traditional"],
+    [{ cityId: "hawaii village|hawaii", city: "Hawaii Village", country: "Hawaii", cityType: "polynesian", factionId: "neutral" }, "polynesian-traditional"]
   ];
   for (const [homePort, expected] of cases) {
     assert.equal(religionCandidatesForHome(homePort)[0].id, expected, homePort.city);
   }
   assert.deepEqual(
     religionCandidatesForHome({
+      cityId: "baghdad|iraq",
       city: "Baghdad",
       country: "Iraq",
       cityType: "islamic-desert",
@@ -85,6 +89,7 @@ test("distinctive 1522 religious contexts remain explicit", () => {
   );
   assert.deepEqual(
     religionCandidatesForHome({
+      cityId: "rhodes|greece",
       city: "Rhodes",
       country: "Greece",
       cityType: "mediterranean",
@@ -94,6 +99,7 @@ test("distinctive 1522 religious contexts remain explicit", () => {
   );
   assert.deepEqual(
     religionCandidatesForHome({
+      cityId: "nanjing|china",
       city: "Nanjing",
       country: "China",
       cityType: "east-asian",
@@ -109,12 +115,14 @@ test("Islamic communities provide a locally appropriate Hajj pilgrim religion", 
   assert.equal(isIslamicReligion("ibadi-islam"), true);
   assert.equal(isIslamicReligion("roman-catholic"), false);
   assert.equal(islamicReligionForHome({
+    cityId: "muscat|oman",
     city: "Muscat",
     country: "Oman",
     cityType: "islamic-desert",
     factionId: "portugal"
   }, "hajj-muscat"), "ibadi-islam");
   assert.equal(islamicReligionForHome({
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
@@ -133,6 +141,7 @@ test("Christian landmark detection includes western and orthodox traditions", ()
 
 test("new minority affiliations stay confined to plausible 1522 regions", () => {
   const lahore = religionCandidatesForHome({
+    cityId: "lahore|pakistan",
     city: "Lahore",
     country: "Pakistan",
     cityType: "south-asian",
@@ -141,6 +150,7 @@ test("new minority affiliations stay confined to plausible 1522 regions", () => 
   assert.ok(lahore.some(({ id }) => id === "sikhism"));
 
   const cambay = religionCandidatesForHome({
+    cityId: "cambay|india",
     city: "Cambay",
     country: "India",
     cityType: "south-asian",
@@ -149,6 +159,7 @@ test("new minority affiliations stay confined to plausible 1522 regions", () => 
   assert.ok(cambay.some(({ id }) => id === "zoroastrianism"));
 
   const rome = religionCandidatesForHome({
+    cityId: "rome|italy",
     city: "Rome",
     country: "Italy",
     cityType: "mediterranean",
@@ -159,6 +170,7 @@ test("new minority affiliations stay confined to plausible 1522 regions", () => 
 
 test("a character receives one deterministic affiliation that persists when supplied", () => {
   const homePort = {
+    cityId: "jerusalem|israel",
     city: "Jerusalem",
     country: "Israel",
     cityType: "islamic-desert",
@@ -177,7 +189,7 @@ test("a character receives one deterministic affiliation that persists when supp
   assert.equal(repeated.id, first.id);
   assert.equal(inferCharacterReligion({
     identityKey: "changed-key",
-    homePort: { city: "Rome", country: "Italy", cityType: "mediterranean", factionId: "papal-states" },
+    homePort: { cityId: "rome|italy", city: "Rome", country: "Italy", cityType: "mediterranean", factionId: "papal-states" },
     character: { religionId: first.id }
   }).id, first.id);
 });
@@ -187,6 +199,7 @@ test("clerical attire constrains religion without moving Buddhist monks out of A
     id: "western-monk",
     requiredReligionFamily: "christian"
   }, {
+    cityId: "goa|india",
     city: "Goa",
     country: "India",
     cityType: "south-asian",
@@ -198,6 +211,7 @@ test("clerical attire constrains religion without moving Buddhist monks out of A
     id: "western-monk",
     requiredReligionFamily: "christian"
   }, {
+    cityId: "kyoto|japan",
     city: "Kyoto",
     country: "Japan",
     cityType: "east-asian",
@@ -209,6 +223,7 @@ test("clerical attire constrains religion without moving Buddhist monks out of A
     id: "buddhist-monk",
     requiredReligionFamily: "buddhist"
   }, {
+    cityId: "beijing|china",
     city: "Beijing",
     country: "China",
     cityType: "east-asian",

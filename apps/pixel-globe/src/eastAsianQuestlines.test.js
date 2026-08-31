@@ -49,9 +49,14 @@ import { JOSEON_TRADE_POLICY_ID, MING_TRADE_POLICY_ID } from "./sovereignTradeAc
 import { questDestinationStops } from "./questItinerary.js";
 
 const PLAYER = Object.freeze({
+  id: "player:joan-alden",
   name: "Joan Alden",
   nationalityId: "england",
   religionId: "roman-catholic",
+  homePortCityId: "sakai|japan",
+  homePortTileId: 1,
+  homePortName: "Sakai",
+  homePortCountry: "Japan",
   expressions: ["neutral", "happy"]
 });
 
@@ -341,8 +346,8 @@ test("legacy Ningbo fleets reconcile faction identity, battle rosters, and warsh
 
   const manifest = reconcileNingboMissionDelegationManifest(
     quest,
-    { hosokawa: SAKAI.tileId, ouchi: YAMAGUCHI.tileId },
-    NINGBO.tileId
+    { hosokawa: SAKAI.cityId, ouchi: YAMAGUCHI.cityId },
+    NINGBO.cityId
   );
 
   assert.equal(manifest.length, 4);
@@ -514,12 +519,16 @@ function gameState() {
 }
 
 function port(tileId, city, factionId, lat, lon, population = 80000) {
+  const country = factionId === "joseon"
+    ? "Republic of Korea"
+    : factionId === "ming" ? "China" : "Japan";
   return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     portId: `port-${tileId}`,
     city,
     displayCity: city,
-    country: factionId === "joseon" ? "Republic of Korea" : factionId === "ming" ? "China" : "Japan",
+    country,
     cityType: "east-asian",
     factionId,
     population,

@@ -11,6 +11,7 @@ import {
   portraitAllowsReligion
 } from "./characterReligion.js";
 import { characterSkillIdsForIdentity } from "./characterSkills.js";
+import { cityTerritoryId, requireCityId } from "./entityIds.js";
 import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
@@ -217,7 +218,7 @@ export function assignPortCityCharacters(
     const region = portraitRegionForCity(city);
     const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
     const character = assignCharacterSprite(key, region, sourcePool, used);
-    assignments.set(city.tileId, {
+    assignments.set(city.cityId, {
       ...character,
       ...assignRegionalCharacterIdentity({
         identityKey: key,
@@ -354,6 +355,7 @@ export function generatePlayerCharacter({
     ...name,
     skillIds: characterSkillIdsForIdentity(`player|${identityKey}`),
     role: "player-captain",
+    homePortCityId: homePort.cityId,
     homePortTileId: homePort.tileId,
     homePortName: homePort.displayCity || homePort.city
   }, portBiographyOptions(`player|${identityKey}`, homePort)));
@@ -382,7 +384,7 @@ export function generateCampaignContactCharacter({
   }
   const reservedNames = new Set(usedNames);
   return generateSpecialPortCharacter({
-    identityKey: `campaign-contact|${goalType}|${playerCharacter.id}|${homePort.tileId}`,
+    identityKey: `campaign-contact|${goalType}|${playerCharacter.id}|${requireCityId(homePort, "Campaign contact home port")}`,
     port: homePort,
     excludedSourceIds: [excludedSourceId, ...excludedSourceIds],
     role: goalType === "explorer"
@@ -436,6 +438,7 @@ export function generateSpecialPortCharacter({
     }),
     skillIds: characterSkillIdsForIdentity(identityKey, { traveler: true }),
     role,
+    homePortCityId: port.cityId,
     homePortTileId: port.tileId
   }, portBiographyOptions(identityKey, port)));
 }
@@ -497,7 +500,9 @@ export function generatePassengerCharacter({
     ...(religionId === null ? {} : { religionId }),
     skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
     role: "passenger",
+    originPortCityId: originPort.cityId,
     originPortTileId: originPort.tileId,
+    destinationPortCityId: destinationPort.cityId,
     destinationPortTileId: destinationPort.tileId
   }, portBiographyOptions(key, namePort)));
 }
@@ -570,6 +575,7 @@ function generateRescuedTravelerCharacter({
     ...name,
     skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
     role: rescueType,
+    homePortCityId: homePort.cityId,
     homePortTileId: homePort.tileId,
     homePortName: homePort.displayCity || homePort.city,
     homePortCountry: homePort.country,
@@ -653,6 +659,7 @@ function generateRescuedTravelerFamilyMember({
     ...name,
     skillIds: characterSkillIdsForIdentity(key, { traveler: true }),
     role: "family",
+    homePortCityId: homePort.cityId,
     homePortTileId: homePort.tileId,
     homePortName: homePort.displayCity || homePort.city,
     homePortCountry: homePort.country
@@ -888,12 +895,13 @@ function portraitRegionForNpcShip(ship) {
 }
 
 function sovereignEastAsianPortraitRegion(subject) {
-  if (subject?.factionId === "japan" || subject?.country === "Japan") return "japan";
+  const territoryId = subject?.cityId ? cityTerritoryId(subject, "Portrait home city") : null;
+  if (subject?.factionId === "japan" || territoryId === "japan") return "japan";
   if (
     subject?.factionId === "joseon"
-    || subject?.country === "Republic of Korea"
-    || subject?.country === "Dem. People's Republic of Korea"
-    || subject?.country === "Joseon"
+    || territoryId === "republic of korea"
+    || territoryId === "dem. people's republic of korea"
+    || territoryId === "joseon"
   ) {
     return "joseon";
   }
@@ -912,7 +920,7 @@ export function characterExpression(character, expressionId = "neutral") {
 }
 
 function stableCityKey(city) {
-  return `${city.displayCity || city.city}|${city.country}|${city.tileId}`;
+  return requireCityId(city, "Character portrait city");
 }
 
 function hashString32(value) {

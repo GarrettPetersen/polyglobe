@@ -13,6 +13,7 @@ import { shipStatsForSlug } from "./shipStats.js";
 
 const LISBON = Object.freeze({
   tileId: 10,
+  cityId: "lisbon|portugal",
   city: "Lisbon",
   displayCity: "Lisbon",
   country: "Portugal",
@@ -22,6 +23,7 @@ const LISBON = Object.freeze({
 
 const FUNCHAL = Object.freeze({
   tileId: 11,
+  cityId: "funchal|portugal",
   city: "Funchal",
   displayCity: "Funchal",
   country: "Portugal",

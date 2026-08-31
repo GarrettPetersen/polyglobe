@@ -19,6 +19,7 @@ import {
   rawWorldDiplomacyBetween,
   validateWorldDiplomacy
 } from "./worldDiplomacy.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
 export const TRADE_EMBARGO_VERSION = 2;
 export const TRADE_EMBARGO_SCOPE_ALL_GOODS = "all-goods";
@@ -30,7 +31,7 @@ export const TRADE_EMBARGO_AUTHORITY_NATIONAL = "national";
 export const TRADE_EMBARGO_AUTHORITY_PAPAL = "papal";
 export const TRADE_EMBARGO_HISTORY_LIMIT = 32;
 export const TRADE_EMBARGO_ORDER_LIMIT = 48;
-export const TRADE_EMBARGO_ENFORCEMENT_VERSION = 2;
+export const TRADE_EMBARGO_ENFORCEMENT_VERSION = 3;
 export const TRADE_EMBARGO_REPUTATION_PENALTY = 9;
 export const PAPAL_EMBARGO_REPUTATION_PENALTY = 5;
 
@@ -478,7 +479,7 @@ export function createTradeEmbargoEnforcementMemory() {
 
 export function migrateTradeEmbargoEnforcementMemory(memory, { embargoMemory = null } = {}) {
   if (memory === undefined || memory === null) return createTradeEmbargoEnforcementMemory();
-  if (memory.version !== 1 && memory.version !== TRADE_EMBARGO_ENFORCEMENT_VERSION) {
+  if (![1, 2, TRADE_EMBARGO_ENFORCEMENT_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported trade embargo enforcement version: ${memory.version ?? "missing"}`);
   }
   if (embargoMemory !== null) validateTradeEmbargoMemory(embargoMemory);
@@ -493,7 +494,9 @@ export function migrateTradeEmbargoEnforcementMemory(memory, { embargoMemory = n
     });
   }
   return validateTradeEmbargoEnforcementMemory({
-    version: TRADE_EMBARGO_ENFORCEMENT_VERSION,
+    version: memory.version === TRADE_EMBARGO_ENFORCEMENT_VERSION
+      ? TRADE_EMBARGO_ENFORCEMENT_VERSION
+      : 2,
     nextIncidentId: memory.nextIncidentId,
     incidents
   });
@@ -501,7 +504,7 @@ export function migrateTradeEmbargoEnforcementMemory(memory, { embargoMemory = n
 
 export function validateTradeEmbargoEnforcementMemory(memory) {
   if (!memory || typeof memory !== "object" ||
-      memory.version !== TRADE_EMBARGO_ENFORCEMENT_VERSION) {
+      ![2, TRADE_EMBARGO_ENFORCEMENT_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported trade embargo enforcement version: ${memory?.version ?? "missing"}`);
   }
   if (!Number.isInteger(memory.nextIncidentId) || memory.nextIncidentId <= 0) {
@@ -512,7 +515,7 @@ export function validateTradeEmbargoEnforcementMemory(memory) {
   }
   const ids = new Set();
   for (const incident of memory.incidents) {
-    validateIncident(incident);
+    validateIncident(incident, { legacy: memory.version === 2 });
     if (ids.has(incident.id)) throw new Error(`Duplicate trade embargo incident: ${incident.id}`);
     ids.add(incident.id);
   }
@@ -531,6 +534,7 @@ export function recordTradeEmbargoPurchase(memory, orders, {
   if (!port || !Number.isInteger(port.tileId) || port.tileId < 0) {
     throw new Error("Trade embargo purchase requires a placed port");
   }
+  const originCityId = requireCityId(port, "Trade embargo purchase port");
   if (typeof goodId !== "string" || goodId === "" ||
       !Number.isFinite(quantity) || quantity <= 0 ||
       !Number.isFinite(transactionValue) || transactionValue <= 0) {
@@ -542,7 +546,7 @@ export function recordTradeEmbargoPurchase(memory, orders, {
     validateEmbargoOrder(order);
     if (order.liftedMinute !== null || !embargoOrderControlsGood(order, goodId)) continue;
     let incident = memory.incidents.find((entry) => (
-      entry.orderId === order.id && entry.originTileId === port.tileId &&
+      entry.orderId === order.id && entry.originCityId === originCityId &&
       entry.interceptingShipId === null && entry.combatActive === false
     ));
     if (!incident) {
@@ -551,7 +555,7 @@ export function recordTradeEmbargoPurchase(memory, orders, {
         orderId: order.id,
         restrictionKind: order.restrictionKind,
         targetFactionId: order.targetFactionId,
-        originPortId: port.portId || `city-${port.tileId}`,
+        originCityId,
         originTileId: port.tileId,
         originName: port.displayCity || port.city || port.name,
         startedMinute: simMinute,
@@ -1096,7 +1100,7 @@ function validateEmbargoEvent(event) {
   }
 }
 
-function validateIncident(incident) {
+function validateIncident(incident, { legacy = false } = {}) {
   if (!incident || typeof incident !== "object" || typeof incident.id !== "string" || incident.id === "" ||
       typeof incident.orderId !== "string" || incident.orderId === "") {
     throw new Error("Invalid trade embargo incident");
@@ -1105,11 +1109,13 @@ function validateIncident(incident) {
   if (!EMBARGO_RESTRICTIONS.has(incident.restrictionKind)) {
     throw new Error(`Invalid trade embargo incident restriction: ${incident.id}`);
   }
-  if (typeof incident.originPortId !== "string" || incident.originPortId === "" ||
+  const originId = legacy ? incident.originPortId : incident.originCityId;
+  if (typeof originId !== "string" || originId === "" ||
       !Number.isInteger(incident.originTileId) || incident.originTileId < 0 ||
       typeof incident.originName !== "string" || incident.originName === "") {
     throw new Error(`Invalid trade embargo incident origin: ${incident.id}`);
   }
+  requireEntityId(originId, "Trade embargo incident origin");
   assertMinute(incident.startedMinute, "trade embargo incident");
   if (!Number.isFinite(incident.transactionValue) || incident.transactionValue <= 0) {
     throw new Error(`Invalid trade embargo incident value: ${incident.id}`);

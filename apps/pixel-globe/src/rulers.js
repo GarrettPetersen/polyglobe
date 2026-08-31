@@ -18,34 +18,34 @@ export const ENGLISH_REFORMATION_MINUTE = gameMinuteForDate(1534, 11, 3);
 
 const RAW_RULER_TIMELINES = Object.freeze({
   england: [
-    ruler(1522, 1, 1, "Henry VIII", "King"),
-    ruler(1534, 11, 3, "Henry VIII", "King"),
+    ruler(1522, 1, 1, "Henry VIII", "King", "henry-viii"),
+    ruler(1534, 11, 3, "Henry VIII", "King", "henry-viii"),
     ruler(1547, 1, 28, "Edward VI", "King")
   ],
   scotland: [ruler(1522, 1, 1, "James V", "King"), ruler(1542, 12, 14, "Mary", "Queen")],
   france: [ruler(1522, 1, 1, "Francis I", "King"), ruler(1547, 3, 31, "Henry II", "King")],
-  spain: [ruler(1522, 1, 1, "Charles I", "King"), ruler(1556, 1, 16, "Philip II", "King")],
+  spain: [ruler(1522, 1, 1, "Charles I", "King", "charles-v"), ruler(1556, 1, 16, "Philip II", "King", "philip-ii-of-spain")],
   portugal: [ruler(1522, 1, 1, "John III", "King"), ruler(1557, 6, 11, "Sebastian I", "King")],
   hormuz: [ruler(1522, 1, 1, "Turanshah IV", "King")],
   "burgundian-netherlands": [
-    ruler(1522, 1, 1, "Charles V", "Duke of Burgundy"),
-    ruler(1555, 10, 25, "Philip II", "Duke of Burgundy")
+    ruler(1522, 1, 1, "Charles V", "Duke of Burgundy", "charles-v"),
+    ruler(1555, 10, 25, "Philip II", "Duke of Burgundy", "philip-ii-of-spain")
   ],
   habsburg: [
-    ruler(1522, 1, 1, "Ferdinand I", "Archduke"),
-    ruler(1564, 7, 25, "Maximilian II", "Archduke")
+    ruler(1522, 1, 1, "Ferdinand I", "Archduke", "ferdinand-i"),
+    ruler(1564, 7, 25, "Maximilian II", "Archduke", "maximilian-ii")
   ],
   hungary: [
-    ruler(1522, 1, 1, "Louis II", "King"),
-    ruler(1526, 8, 29, "Ferdinand I", "King"),
-    ruler(1564, 7, 25, "Maximilian II", "King")
+    ruler(1522, 1, 1, "Louis II", "King", "louis-ii-of-hungary"),
+    ruler(1526, 8, 29, "Ferdinand I", "King", "ferdinand-i"),
+    ruler(1564, 7, 25, "Maximilian II", "King", "maximilian-ii")
   ],
   bohemia: [
-    ruler(1522, 1, 1, "Louis II", "King"),
-    ruler(1526, 8, 29, "Ferdinand I", "King"),
-    ruler(1564, 7, 25, "Maximilian II", "King")
+    ruler(1522, 1, 1, "Louis II", "King", "louis-ii-of-hungary"),
+    ruler(1526, 8, 29, "Ferdinand I", "King", "ferdinand-i"),
+    ruler(1564, 7, 25, "Maximilian II", "King", "maximilian-ii")
   ],
-  mainz: [ruler(1522, 1, 1, "Albert of Brandenburg", "Archbishop-Elector"), ruler(1545, 9, 24, "Sebastian of Heusenstamm", "Archbishop-Elector")],
+  mainz: [ruler(1522, 1, 1, "Albert of Brandenburg", "Archbishop-Elector", "albert-of-brandenburg"), ruler(1545, 9, 24, "Sebastian of Heusenstamm", "Archbishop-Elector")],
   "cologne-electorate": [ruler(1522, 1, 1, "Hermann of Wied", "Archbishop-Elector"), ruler(1547, 2, 25, "Adolf III of Schaumburg", "Archbishop-Elector")],
   trier: [ruler(1522, 1, 1, "Richard von Greiffenklau", "Archbishop-Elector"), ruler(1531, 3, 13, "Johann III von Metzenhausen", "Archbishop-Elector")],
   palatinate: [ruler(1522, 1, 1, "Louis V", "Elector Palatine"), ruler(1544, 3, 16, "Frederick II", "Elector Palatine")],
@@ -61,7 +61,7 @@ const RAW_RULER_TIMELINES = Object.freeze({
     ruler(1541, 8, 18, "Maurice", "Duke")
   ],
   liege: [ruler(1522, 1, 1, "Erard de la Marck", "Prince-Bishop"), ruler(1538, 3, 18, "Cornelius of Berghes", "Prince-Bishop")],
-  magdeburg: [ruler(1522, 1, 1, "Albert of Brandenburg", "Prince-Archbishop"), ruler(1545, 9, 24, "John Albert of Brandenburg", "Prince-Archbishop")],
+  magdeburg: [ruler(1522, 1, 1, "Albert of Brandenburg", "Prince-Archbishop", "albert-of-brandenburg"), ruler(1545, 9, 24, "John Albert of Brandenburg", "Prince-Archbishop")],
   utrecht: [ruler(1522, 1, 1, "Philip of Burgundy", "Prince-Bishop"), ruler(1524, 4, 7, "Henry of the Palatinate", "Prince-Bishop")],
   "cleves-mark": [ruler(1522, 1, 1, "John III", "Duke"), ruler(1539, 2, 6, "William V", "Duke")],
   calenberg: [ruler(1522, 1, 1, "Eric I", "Prince"), ruler(1540, 7, 30, "Elizabeth of Brandenburg", "Regent")],
@@ -90,15 +90,15 @@ const RAW_RULER_TIMELINES = Object.freeze({
     ruler(1522, 1, 1, "Giulio de' Medici", "Cardinal-Governor"),
     ruler(1524, 5, 1, "Silvio Passerini", "Cardinal-Regent"),
     ruler(1527, 5, 16, "Florentine Signoria", "Signoria"),
-    ruler(1530, 8, 12, "Alessandro de' Medici", "Lord"),
-    ruler(1532, 5, 1, "Alessandro de' Medici", "Duke"),
+    ruler(1530, 8, 12, "Alessandro de' Medici", "Lord", "alessandro-de-medici"),
+    ruler(1532, 5, 1, "Alessandro de' Medici", "Duke", "alessandro-de-medici"),
     ruler(1537, 1, 6, "Cosimo I de' Medici", "Duke")
   ],
   "papal-states": [
-    ruler(1522, 1, 1, "Adrian VI", "Pope"),
-    ruler(1523, 11, 19, "Clement VII", "Pope"),
-    ruler(1534, 10, 13, "Paul III", "Pope"),
-    ruler(1550, 2, 7, "Julius III", "Pope")
+    ruler(1522, 1, 1, "Adrian VI", "Pope", "adrian-vi"),
+    ruler(1523, 11, 19, "Clement VII", "Pope", "clement-vii"),
+    ruler(1534, 10, 13, "Paul III", "Pope", "paul-iii"),
+    ruler(1550, 2, 7, "Julius III", "Pope", "julius-iii")
   ],
   hospitallers: [
     ruler(1522, 1, 1, "Philippe Villiers de L'Isle-Adam", "Grand Master")
@@ -114,9 +114,9 @@ const RAW_RULER_TIMELINES = Object.freeze({
   muscovy: [ruler(1522, 1, 1, "Vasili III", "Grand Prince"), ruler(1533, 12, 3, "Ivan IV", "Grand Prince")],
   kazan: [
     ruler(1522, 1, 1, "Sahib I Giray", "Khan"),
-    yearRuler(1524, "Safa Giray", "Khan"),
+    yearRuler(1524, "Safa Giray", "Khan", "safa-giray"),
     yearRuler(1532, "Jan Ali", "Khan"),
-    yearRuler(1535, "Safa Giray", "Khan"),
+    yearRuler(1535, "Safa Giray", "Khan", "safa-giray"),
     yearRuler(1549, "Soyembika", "Regent"),
     yearRuler(1551, "Shah Ali", "Khan"),
     yearRuler(1552, "Yadegar Mokhammad", "Khan")
@@ -141,9 +141,9 @@ const RAW_RULER_TIMELINES = Object.freeze({
     ruler(1548, 4, 1, "Sigismund II Augustus", "King")
   ],
   sweden: [
-    ruler(1522, 1, 1, "Gustav Eriksson", "Regent"),
-    ruler(1523, 6, 6, "Gustav I", "King"),
-    ruler(1527, 6, 18, "Gustav I", "King"),
+    ruler(1522, 1, 1, "Gustav Eriksson", "Regent", "gustav-i"),
+    ruler(1523, 6, 6, "Gustav I", "King", "gustav-i"),
+    ruler(1527, 6, 18, "Gustav I", "King", "gustav-i"),
     ruler(1560, 9, 29, "Eric XIV", "King")
   ],
   "denmark-norway": [
@@ -320,14 +320,14 @@ const RULER_FAITH_DEFAULTS = Object.freeze({
 });
 
 const RULER_FAITH_OVERRIDES = Object.freeze({
-  "england|Henry VIII|1534-11-3": faith("anglican", 0.72),
-  "england|Edward VI|1547-1-28": faith("anglican", 0.9),
-  "sweden|Gustav I|1527-6-18": faith("lutheran", 0.62),
-  "denmark-norway|Christian III|1534-7-4": faith("lutheran", 0.88),
-  "electoral-saxony|John|1525-5-5": faith("lutheran", 0.78),
-  "electoral-saxony|John Frederick I|1532-8-16": faith("lutheran", 0.9),
-  "ducal-saxony|Henry IV|1539-4-17": faith("lutheran", 0.76),
-  "ducal-saxony|Maurice|1541-8-18": faith("lutheran", 0.68)
+  "england:ruler-record:1534-11-3": faith("anglican", 0.72),
+  "england:ruler-record:1547-1-28": faith("anglican", 0.9),
+  "sweden:ruler-record:1527-6-18": faith("lutheran", 0.62),
+  "denmark-norway:ruler-record:1534-7-4": faith("lutheran", 0.88),
+  "electoral-saxony:ruler-record:1525-5-5": faith("lutheran", 0.78),
+  "electoral-saxony:ruler-record:1532-8-16": faith("lutheran", 0.9),
+  "ducal-saxony:ruler-record:1539-4-17": faith("lutheran", 0.76),
+  "ducal-saxony:ruler-record:1541-8-18": faith("lutheran", 0.68)
 });
 
 const RULER_AUTHORITY_DEFAULTS = Object.freeze({
@@ -408,51 +408,51 @@ const RULER_AUTHORITY_DEFAULTS = Object.freeze({
 });
 
 const RULER_AUTHORITY_OVERRIDES = Object.freeze({
-  "england|Henry VIII|1534-11-3": 84,
-  "england|Edward VI|1547-1-28": 58,
-  "scotland|Mary|1542-12-14": 32,
-  "france|Henry II|1547-3-31": 78,
-  "spain|Philip II|1556-1-16": 86,
-  "portugal|Sebastian I|1557-6-11": 45,
-  "habsburg|Maximilian II|1564-7-25": 74,
-  "hungary|Ferdinand I|1526-8-29": 56,
-  "hungary|Maximilian II|1564-7-25": 68,
-  "bohemia|Ferdinand I|1526-8-29": 68,
-  "bohemia|Maximilian II|1564-7-25": 72,
-  "ottoman|Selim II|1566-9-7": 66,
-  "venice|Andrea Gritti|1523-5-20": 82,
-  "venice|Pietro Lando|1538-12-28": 70,
-  "genoa|Antoniotto II Adorno|1522-5-31": 58,
-  "papal-states|Clement VII|1523-11-19": 48,
-  "papal-states|Paul III|1534-10-13": 72,
-  "papal-states|Julius III|1550-2-7": 58,
-  "ming|Longqing|1567-2-4": 72,
-  "inca|Huascar|1527-1-1": 54,
-  "inca|Atahualpa|1532-1-1": 68,
-  "inca|Manco Inca Yupanqui|1533-1-1": 56,
-  "safavid|Tahmasp I|1524-5-23": 52,
-  "muscovy|Ivan IV|1533-12-3": 38,
-  "crimea|Ghazi I Giray|1523-1-1": 38,
-  "crimea|Saadet I Giray|1524-1-1": 58,
-  "poland-lithuania|Sigismund II Augustus|1548-4-1": 70,
-  "sweden|Gustav I|1523-6-6": 72,
-  "sweden|Gustav I|1527-6-18": 80,
-  "denmark-norway|Frederick I|1523-1-20": 62,
-  "denmark-norway|Christian III|1534-7-4": 74,
-  "songhai|Askia Musa|1528-1-1": 44,
-  "songhai|Askia Benkan|1531-1-1": 58,
-  "songhai|Askia Ismail|1537-1-1": 52,
-  "songhai|Askia Ishaq I|1539-1-1": 64,
-  "songhai|Askia Dawud|1549-1-1": 78,
-  "vijayanagara|Achyuta Deva Raya|1529-1-1": 62,
-  "vijayanagara|Sadasiva Raya|1542-1-1": 34,
-  "mughal|Humayun|1530-12-26": 58,
-  "mughal|Akbar|1556-2-14": 92,
-  "japan|Ashikaga Yoshiteru|1546-1-1": 34,
-  "hosokawa|Hosokawa Harumoto|1531-1-1": 62,
-  "ouchi|Ouchi Yoshitaka|1529-1-1": 70,
-  "nagao|Nagao Harukage|1536-1-1": 48,
-  "ryukyu|Sho Sei|1527-1-1": 62
+  "england:ruler-record:1534-11-3": 84,
+  "england:ruler-record:1547-1-28": 58,
+  "scotland:ruler-record:1542-12-14": 32,
+  "france:ruler-record:1547-3-31": 78,
+  "spain:ruler-record:1556-1-16": 86,
+  "portugal:ruler-record:1557-6-11": 45,
+  "habsburg:ruler-record:1564-7-25": 74,
+  "hungary:ruler-record:1526-8-29": 56,
+  "hungary:ruler-record:1564-7-25": 68,
+  "bohemia:ruler-record:1526-8-29": 68,
+  "bohemia:ruler-record:1564-7-25": 72,
+  "ottoman:ruler-record:1566-9-7": 66,
+  "venice:ruler-record:1523-5-20": 82,
+  "venice:ruler-record:1538-12-28": 70,
+  "genoa:ruler-record:1522-5-31": 58,
+  "papal-states:ruler-record:1523-11-19": 48,
+  "papal-states:ruler-record:1534-10-13": 72,
+  "papal-states:ruler-record:1550-2-7": 58,
+  "ming:ruler-record:1567-2-4": 72,
+  "inca:ruler-record:1527-1-1": 54,
+  "inca:ruler-record:1532-1-1": 68,
+  "inca:ruler-record:1533-1-1": 56,
+  "safavid:ruler-record:1524-5-23": 52,
+  "muscovy:ruler-record:1533-12-3": 38,
+  "crimea:ruler-record:1523-1-1": 38,
+  "crimea:ruler-record:1524-1-1": 58,
+  "poland-lithuania:ruler-record:1548-4-1": 70,
+  "sweden:ruler-record:1523-6-6": 72,
+  "sweden:ruler-record:1527-6-18": 80,
+  "denmark-norway:ruler-record:1523-1-20": 62,
+  "denmark-norway:ruler-record:1534-7-4": 74,
+  "songhai:ruler-record:1528-1-1": 44,
+  "songhai:ruler-record:1531-1-1": 58,
+  "songhai:ruler-record:1537-1-1": 52,
+  "songhai:ruler-record:1539-1-1": 64,
+  "songhai:ruler-record:1549-1-1": 78,
+  "vijayanagara:ruler-record:1529-1-1": 62,
+  "vijayanagara:ruler-record:1542-1-1": 34,
+  "mughal:ruler-record:1530-12-26": 58,
+  "mughal:ruler-record:1556-2-14": 92,
+  "japan:ruler-record:1546-1-1": 34,
+  "hosokawa:ruler-record:1531-1-1": 62,
+  "ouchi:ruler-record:1529-1-1": 70,
+  "nagao:ruler-record:1536-1-1": 48,
+  "ryukyu:ruler-record:1527-1-1": 62
 });
 
 const REGIONAL_GROUPS = Object.freeze([
@@ -577,10 +577,10 @@ function rulerGossipDecisionKey(event) {
   }
   factionById(event.factionId);
   assertSimMinute(event.fromMinute);
-  if (typeof event.displayName !== "string" || event.displayName.trim() === "") {
-    throw new Error("Ruler gossip event requires the succeeding ruler's name");
+  if (typeof event.id !== "string" || event.id.trim() === "") {
+    throw new Error("Ruler gossip event requires the succeeding ruler's id");
   }
-  return `${RULER_GOSSIP_DECISION_PREFIX}.${event.factionId}.${event.fromMinute}.${event.displayName}`;
+  return `${RULER_GOSSIP_DECISION_PREFIX}.${event.id}`;
 }
 
 function assertRulerGossipDecisions(decisions) {
@@ -589,26 +589,34 @@ function assertRulerGossipDecisions(decisions) {
   }
 }
 
-function ruler(year, month, day, name, title) {
+function ruler(year, month, day, name, title, personId = null) {
   if (typeof name !== "string" || name.trim() === "" || typeof title !== "string" || title.trim() === "") {
     throw new Error("Ruler entries require a name and title");
   }
-  return { year, month, day, name, title };
+  if (personId !== null && (typeof personId !== "string" || personId.trim() === "")) {
+    throw new Error(`Invalid ruler identity: ${personId}`);
+  }
+  return { year, month, day, name, title, personId };
 }
 
-function yearRuler(year, name, title) {
-  return { ...ruler(year, 1, 1, name, title), datePrecision: "year" };
+function yearRuler(year, name, title, personId = null) {
+  return { ...ruler(year, 1, 1, name, title, personId), datePrecision: "year" };
 }
 
 function freezeTimelines(rawTimelines) {
   return Object.freeze(Object.fromEntries(Object.entries(rawTimelines).map(([factionId, timeline]) => [
     factionId,
     Object.freeze(timeline.map((entry) => {
-      const rulerFaith = faithForRuler(factionId, entry);
-      return Object.freeze({
+      const canonical = {
         ...entry,
+        id: entry.personId || `${factionId}:ruler:${entry.year}-${entry.month}-${entry.day}`,
+        recordId: `${factionId}:ruler-record:${entry.year}-${entry.month}-${entry.day}`
+      };
+      const rulerFaith = faithForRuler(factionId, canonical);
+      return Object.freeze({
+        ...canonical,
         ...rulerFaith,
-        authority: authorityForRuler(factionId, entry),
+        authority: authorityForRuler(factionId, canonical),
         factionId,
         factionName: factionById(factionId).name,
         displayName: `${entry.title} ${entry.name}`,
@@ -622,7 +630,7 @@ function buildRulerChanges(timelines) {
   return Object.values(timelines)
     .flatMap((timeline) => timeline.slice(1).flatMap((next, index) => {
       const previousRuler = timeline[index];
-      if (next.name === previousRuler.name && next.title === previousRuler.title) return [];
+      if (next.id === previousRuler.id) return [];
       return [Object.freeze({ ...next, previousRuler })];
     }))
     .sort((left, right) => (
@@ -666,6 +674,9 @@ function validateRulerRegistry() {
       }
     }
     for (const entry of timeline) {
+      if (typeof entry.id !== "string" || entry.id.trim() === "") {
+        throw new Error(`Ruler for ${factionId} has no canonical identity`);
+      }
       religionById(entry.religionId);
       if (!Number.isFinite(entry.piety) || entry.piety < 0 || entry.piety > 1) {
         throw new Error(`Invalid ruler piety for ${entry.displayName}: ${entry.piety}`);
@@ -678,7 +689,7 @@ function validateRulerRegistry() {
 }
 
 function authorityForRuler(factionId, entry) {
-  const overrideKey = `${factionId}|${entry.name}|${entry.year}-${entry.month}-${entry.day}`;
+  const overrideKey = entry.recordId;
   const score = RULER_AUTHORITY_OVERRIDES[overrideKey] ?? RULER_AUTHORITY_DEFAULTS[factionId];
   if (!Number.isFinite(score) || score < 0 || score > 100) {
     throw new Error(`Missing or invalid ruler authority for ${overrideKey}`);
@@ -687,7 +698,7 @@ function authorityForRuler(factionId, entry) {
 }
 
 function faithForRuler(factionId, entry) {
-  const overrideKey = `${factionId}|${entry.name}|${entry.year}-${entry.month}-${entry.day}`;
+  const overrideKey = entry.recordId;
   const profile = RULER_FAITH_OVERRIDES[overrideKey] || RULER_FAITH_DEFAULTS[factionId];
   if (!profile) throw new Error(`Missing ruler faith for ${factionId}`);
   return profile;

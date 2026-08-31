@@ -83,8 +83,12 @@ import { HOSPITALLER_MALTA_STAGE_LOCKED } from "./hospitallerMaltaQuest.js";
 import { ENGLISH_LONGBOWS_ITEM_ID } from "./portableWeapons.js";
 
 const PLAYER = {
+  id: "reputation-test-captain",
   name: "Joan Alden",
   nationalityId: "england",
+  homePortCityId: "london|united kingdom",
+  homePortTileId: 1,
+  homePortName: "London",
   expressions: ["neutral", "happy"]
 };
 
@@ -146,6 +150,7 @@ test("port attacks distinguish capture commissions, wartime raids, privateering,
     id: "capture-rhodes",
     kind: "capture-port",
     stage: "capture",
+    targetCityId: rhodes.cityId,
     targetTileId: rhodes.tileId,
     originFactionId: "ottoman"
   };
@@ -202,7 +207,7 @@ test("version 45 voyages gain papal politics without recalculating established r
   delete saved.relations.papacy;
   const restored = migrateGameState(saved, null);
   assert.equal(restored.relations.factionReputation.france, 37);
-  assert.equal(restored.relations.papacy.version, 5);
+  assert.equal(restored.relations.papacy.version, 6);
 });
 
 test("port entry evaluation context can be reused across an armed-port combat tick", () => {
@@ -573,7 +578,7 @@ test("version 88 voyages gain trade embargo politics and enforcement ledgers", (
     order.restrictionKind === "strategic-exports"
   )));
   assert.deepEqual(restored.memory.tradeEmbargoEnforcement, {
-    version: 2,
+    version: 3,
     nextIncidentId: 1,
     incidents: []
   });
@@ -677,6 +682,7 @@ test("a first deliberate attack makes a neutral victim treat the captain as an o
   assert.equal(factionReputation(state, "ming"), HOSTILE_PORT_REPUTATION_THRESHOLD);
   assert.equal(portEntryStatus(state, {
     tileId: 88,
+    cityId: "guangzhou|china",
     city: "Guangzhou",
     displayCity: "Guangzhou",
     country: "China",
@@ -767,6 +773,7 @@ test("sustained piracy eventually reveals the pirate hideout network", () => {
   assert.ok(factionReputation(state, "pirate") >= PIRATE_HIDEOUT_REPUTATION_REQUIRED);
   const pirateCove = {
     tileId: 44,
+    cityId: "dover|united kingdom",
     city: "Dover",
     displayCity: "Dover",
     portAlias: "Black Gull Cove",
@@ -1272,7 +1279,18 @@ test("armed warships cannot buy civilian safe passage", () => {
 });
 
 function port(tileId, city, country, cityType, population, factionId) {
-  return { tileId, city, displayCity: city, country, cityType, population, factionId, lat: 0, lon: 0 };
+  return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
+    tileId,
+    city,
+    displayCity: city,
+    country,
+    cityType,
+    population,
+    factionId,
+    lat: 0,
+    lon: 0
+  };
 }
 
 function pickAttackStatus(status) {

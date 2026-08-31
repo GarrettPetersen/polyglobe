@@ -92,7 +92,7 @@ test("an election creates an elector's transport commission without granting the
     spawnChance: 0,
     envoySpawnChance: 0,
     relationBetween: diplomacyBetween,
-    createCharacter: () => ({ name: "Jiri of Sternberg" })
+    createCharacter: () => ({ id: "envoy:jiri-of-sternberg", name: "Jiri of Sternberg" })
   });
   const offer = offers.find((quest) => quest.kind === "imperial-election-envoy");
   assert.ok(offer);

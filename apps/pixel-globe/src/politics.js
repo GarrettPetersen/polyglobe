@@ -10,6 +10,7 @@ import {
   factionCapitalForId,
   factionExistsIn1522
 } from "./factions.js";
+import { requireCityId } from "./entityIds.js";
 import {
   activeGameTradeEmbargoes,
   diplomacyBetweenForState,
@@ -535,7 +536,7 @@ function politicsCapitals(gameState, powers, cities) {
     }
     capitalByFactionId.set(factionId, Object.freeze({
       city: cityName,
-      portId: city.portId || (Number.isInteger(city.tileId) ? `city-${city.tileId}` : null)
+      portId: requireCityId(city, "Politics capital")
     }));
   }
   for (const faction of powers) {
@@ -608,6 +609,7 @@ function playerTradeStanding(gameState, faction, simMinute) {
   );
   const customs = customsTerms({
     port: {
+      cityId: `politics-trade-subject:${faction.id}`,
       city: faction.shortName,
       country: faction.shortName,
       factionId: faction.id

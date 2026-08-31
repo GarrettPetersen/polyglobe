@@ -24,6 +24,7 @@ import {
   SUZERAINTY_KIND_TRIBUTARY,
   SUZERAINTY_KIND_VASSAL
 } from "./suzerainty.js";
+import { requireEntityId } from "./entityIds.js";
 
 export const SOVEREIGN_AUTHORITY_VERSION = 1;
 export const AUTHORITY_MIN = 0;
@@ -341,11 +342,13 @@ export function recordNavalAuthorityOutcome(memory, {
 export function recordPortCaptureAuthority(memory, {
   winnerFactionId,
   loserFactionId,
+  cityId,
   cityName,
   simMinute,
   capital = false
 }) {
   validateSovereignAuthority(memory);
+  requireEntityId(cityId, "Captured city");
   assertMinute(simMinute, "port-capture authority");
   if (!isSovereignFaction(winnerFactionId) || !isSovereignFaction(loserFactionId) ||
       winnerFactionId === loserFactionId) {
@@ -363,7 +366,7 @@ export function recordPortCaptureAuthority(memory, {
       detail: cityName
     })
   ];
-  if (capital && cityName === "Vienna") {
+  if (capital && cityId === "vienna|austria") {
     if (winnerFactionId === "ottoman") {
       events.push(adjustSovereignAuthority(memory, "poland-lithuania", -1.5, {
         simMinute,
@@ -381,7 +384,8 @@ export function recordPortCaptureAuthority(memory, {
   return Object.freeze(events);
 }
 
-export function recordColonyAuthority(memory, factionId, cityName, simMinute) {
+export function recordColonyAuthority(memory, factionId, cityId, cityName, simMinute) {
+  requireEntityId(cityId, "Founded colony");
   if (!isSovereignFaction(factionId)) return null;
   return adjustSovereignAuthority(memory, factionId, 1.25, {
     simMinute,

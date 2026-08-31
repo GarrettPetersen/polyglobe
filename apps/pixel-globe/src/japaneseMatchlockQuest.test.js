@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGameState, migrateGameState } from "./gameState.js";
+import { migrateGameState } from "./gameState.js";
+import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import {
   JAPANESE_MATCHLOCK_FETCH_STAGES,
   JAPANESE_MATCHLOCK_STAGE_ACTIVE,
@@ -16,8 +17,8 @@ import {
   validateJapaneseMatchlockQuestMemory
 } from "./japaneseMatchlockQuest.js";
 
-const KYOTO = Object.freeze({ tileId: 20, city: "Kyoto", country: "Japan" });
-const OSAKA = Object.freeze({ tileId: 21, city: "Osaka", country: "Japan" });
+const KYOTO = Object.freeze({ cityId: "kyoto|japan", tileId: 20, city: "Kyoto", country: "Japan" });
+const OSAKA = Object.freeze({ cityId: "osaka|japan", tileId: 21, city: "Osaka", country: "Japan" });
 
 test("the Japanese matchlock workshop unlocks only after the Nagasaki quest succeeds", () => {
   const state = createGameState({ cargoCapacity: 50 });
@@ -68,6 +69,7 @@ test("version 20 saves migrate with a locked Japanese matchlock quest", () => {
 
 function establishNagasaki(state) {
   state.memory.colonization.stage = "established";
+  state.memory.colonization.targetCityId = "nagasaki|japan";
   state.memory.colonization.targetCity = "Nagasaki";
   state.memory.colonization.targetCountry = "Japan";
 }

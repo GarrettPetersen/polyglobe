@@ -20,6 +20,7 @@ const CAPTAIN = Object.freeze({
   name: "Test Captain",
   gender: "female",
   nationalityId: "portugal",
+  homePortCityId: "lisbon|portugal",
   homePortTileId: 12,
   homePortName: "Lisbon"
 });

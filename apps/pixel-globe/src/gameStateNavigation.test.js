@@ -18,12 +18,14 @@ import { SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS } from "./subdivisionSevenPort
 test("quest cargo waypoints remain distinct per required good", () => {
   const state = createGameState({ cargoCapacity: 10 });
   addPortNavigationWaypoint(state, {
+    destinationCityId: "porto|portugal",
     destinationTileId: 42,
     destinationName: "Porto",
     reason: PORT_NAVIGATION_REASON_QUEST_CARGO,
     questCargoGoodId: "wool"
   });
   addPortNavigationWaypoint(state, {
+    destinationCityId: "porto|portugal",
     destinationTileId: 42,
     destinationName: "Porto",
     reason: PORT_NAVIGATION_REASON_QUEST_CARGO,
@@ -31,10 +33,11 @@ test("quest cargo waypoints remain distinct per required good", () => {
   });
 
   assert.deepEqual(state.memory.navigation.optionalWaypoints.map((waypoint) => waypoint.id), [
-    "port:42:quest-cargo:wool",
-    "port:42:quest-cargo:grain"
+    "port:porto|portugal:quest-cargo:wool",
+    "port:porto|portugal:quest-cargo:grain"
   ]);
   assert.throws(() => addPortNavigationWaypoint(state, {
+    destinationCityId: "porto|portugal",
     destinationTileId: 42,
     destinationName: "Porto",
     reason: PORT_NAVIGATION_REASON_QUEST_CARGO
@@ -45,42 +48,51 @@ test("optional port waypoints persist independently until removed or reached", (
   const state = createGameState({ cargoCapacity: 10 });
 
   assert.deepEqual(addPortNavigationWaypoint(state, {
+    destinationCityId: "porto|portugal",
     destinationTileId: 42,
     destinationName: "Porto",
     reason: "NEW SHIP FOR SALE"
   }), {
-    id: "port:42",
+    id: "port:porto|portugal",
+    destinationCityId: "porto|portugal",
     destinationTileId: 42,
     destinationName: "Porto",
     reason: "NEW SHIP FOR SALE"
   });
   addPortNavigationWaypoint(state, {
+    destinationCityId: "london|united kingdom",
     destinationTileId: 81,
     destinationName: "London",
     reason: "TRADE PRICE TIP",
     tradeGoodId: "cloves"
   });
-  assert.equal(clearPortNavigationWaypointsAt(state, 41), false);
-  assert.equal(removeOptionalNavigationWaypoint(state, "port:81:trade-price:cloves"), true);
+  assert.equal(clearPortNavigationWaypointsAt(state, "lisbon|portugal"), false);
+  assert.equal(removeOptionalNavigationWaypoint(
+    state,
+    "port:london|united kingdom:trade-price:cloves"
+  ), true);
   assert.deepEqual(state.memory.navigation.optionalWaypoints, [{
-    id: "port:42",
+    id: "port:porto|portugal",
+    destinationCityId: "porto|portugal",
     destinationTileId: 42,
     destinationName: "Porto",
     reason: "NEW SHIP FOR SALE"
   }]);
-  assert.equal(clearPortNavigationWaypointsAt(state, 42), true);
+  assert.equal(clearPortNavigationWaypointsAt(state, "porto|portugal"), true);
   assert.deepEqual(state.memory.navigation.optionalWaypoints, []);
 });
 
 test("trade price waypoints remain distinct and name their goods", () => {
   const state = createGameState({ cargoCapacity: 10 });
   addPortNavigationWaypoint(state, {
+    destinationCityId: "london|united kingdom",
     destinationTileId: 81,
     destinationName: "London",
     reason: "TRADE PRICE TIP",
     tradeGoodId: "cloves"
   });
   addPortNavigationWaypoint(state, {
+    destinationCityId: "london|united kingdom",
     destinationTileId: 81,
     destinationName: "London",
     reason: "TRADE PRICE TIP",
@@ -88,10 +100,11 @@ test("trade price waypoints remain distinct and name their goods", () => {
   });
 
   assert.deepEqual(state.memory.navigation.optionalWaypoints.map((waypoint) => waypoint.id), [
-    "port:81:trade-price:cloves",
-    "port:81:trade-price:tea"
+    "port:london|united kingdom:trade-price:cloves",
+    "port:london|united kingdom:trade-price:tea"
   ]);
   assert.throws(() => addPortNavigationWaypoint(state, {
+    destinationCityId: "london|united kingdom",
     destinationTileId: 81,
     destinationName: "London",
     reason: "TRADE PRICE TIP"
@@ -101,18 +114,20 @@ test("trade price waypoints remain distinct and name their goods", () => {
 test("shipyard supply waypoints stay distinct and name their construction material", () => {
   const state = createGameState({ cargoCapacity: 10 });
   const waypoint = addPortNavigationWaypoint(state, {
+    destinationCityId: "exeter|united kingdom",
     destinationTileId: 81,
     destinationName: "Exeter",
     reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
     shipyardMaterialGoodId: "timber"
   });
 
-  assert.equal(waypoint.id, "port:81:shipyard-supply:timber");
+  assert.equal(waypoint.id, "port:exeter|united kingdom:shipyard-supply:timber");
   assert.equal(
     portNavigationReasonLabel(waypoint.reason, waypoint.shipyardMaterialGoodId),
     "Shipyard supply: Timber"
   );
   assert.throws(() => addPortNavigationWaypoint(state, {
+    destinationCityId: "exeter|united kingdom",
     destinationTileId: 81,
     destinationName: "Exeter",
     reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY
@@ -122,6 +137,7 @@ test("shipyard supply waypoints stay distinct and name their construction materi
 test("saved optional waypoints follow a port moved onto its real island", () => {
   const state = createGameState({ cargoCapacity: 20 });
   addPortNavigationWaypoint(state, {
+    destinationCityId: "tarawa village|kiribati",
     destinationTileId: 21837,
     destinationName: "Tarawa Village",
     reason: "NEW SHIP FOR SALE"
@@ -129,6 +145,7 @@ test("saved optional waypoints follow a port moved onto its real island", () => 
 
   const updates = reconcileQuestPortTiles(state, [{
     tileId: 270430,
+    cityId: "tarawa village|kiribati",
     city: "Tarawa Village",
     displayCity: "Tarawa Village",
     country: "Kiribati"
@@ -136,7 +153,8 @@ test("saved optional waypoints follow a port moved onto its real island", () => 
 
   assert.equal(updates, 1);
   assert.deepEqual(state.memory.navigation.optionalWaypoints, [{
-    id: "port:270430",
+    id: "port:tarawa village|kiribati",
+    destinationCityId: "tarawa village|kiribati",
     destinationTileId: 270430,
     destinationName: "Tarawa Village",
     reason: "NEW SHIP FOR SALE"
@@ -148,7 +166,12 @@ test("version 18 voyages gain an empty optional waypoint list during migration",
   saved.version = 18;
   delete saved.memory.navigation.optionalWaypoints;
 
-  const restored = migrateGameState(saved, null);
+  const restored = migrateGameState(saved, null, {
+    legacyCityIdForPortReference: ({ tileId }) => {
+      assert.equal(tileId, 42);
+      return "porto|portugal";
+    }
+  });
 
   assert.equal(restored.version, GAME_STATE_VERSION);
   assert.deepEqual(restored.memory.navigation.optionalWaypoints, []);
@@ -163,10 +186,16 @@ test("version 19 singular headings migrate into removable optional waypoints", (
     destinationName: "Porto"
   };
 
-  const restored = migrateGameState(saved, null);
+  const restored = migrateGameState(saved, null, {
+    legacyCityIdForPortReference: ({ tileId }) => {
+      assert.equal(tileId, 42);
+      return "porto|portugal";
+    }
+  });
 
   assert.deepEqual(restored.memory.navigation.optionalWaypoints, [{
-    id: "port:42",
+    id: "port:porto|portugal",
+    destinationCityId: "porto|portugal",
     destinationTileId: 42,
     destinationName: "Porto",
     reason: "NEW SHIP FOR SALE"

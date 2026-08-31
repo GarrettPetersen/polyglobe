@@ -5,6 +5,7 @@ import {
   assertFactionId
 } from "./factions.js";
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
+import { requireCityId } from "./entityIds.js";
 
 export const SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD = 900_000;
 export const SOVEREIGN_WAR_LOAN_PRINCIPAL = 1_000_000;
@@ -677,11 +678,7 @@ function controlledPortIds(ports, factionId) {
 }
 
 function requiredPortId(port) {
-  const portId = port?.portId;
-  if (typeof portId !== "string" || portId.trim() === "") {
-    throw new Error(`War-loan port has no canonical reference: ${port?.tileId ?? "missing"}`);
-  }
-  return portId;
+  return requireCityId(port, "War-loan city");
 }
 
 function requiredPortName(port) {
@@ -693,7 +690,8 @@ function requiredPortName(port) {
 }
 
 function cityMatchesPortReference(city, portId, tileId) {
-  return city?.portId === portId && city?.tileId === tileId;
+  assertPortReference(portId, tileId, "war-loan city");
+  return city?.cityId === portId;
 }
 
 function assertPortReference(portId, tileId, label) {

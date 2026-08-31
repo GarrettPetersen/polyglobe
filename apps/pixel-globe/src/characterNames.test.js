@@ -12,7 +12,7 @@ import {
 } from "./characterNames.js";
 
 test("regional character names are deterministic and respect family-first cultures", () => {
-  const city = { city: "Nanjing", country: "China", cityType: "east-asian" };
+  const city = { cityId: "nanjing|china", city: "Nanjing", country: "China", cityType: "east-asian" };
   const args = {
     identityKey: "Nanjing|China|12",
     city,
@@ -30,7 +30,7 @@ test("regional character names are deterministic and respect family-first cultur
 test("explicit portrait sex selects the matching given-name pool", () => {
   const character = assignRegionalCharacterName({
     identityKey: "captain|ship-4",
-    ship: { currentPort: { city: "Lisbon", country: "Portugal", cityType: "mediterranean" } },
+    ship: { currentPort: { cityId: "lisbon|portugal", city: "Lisbon", country: "Portugal", cityType: "mediterranean" } },
     sex: "female",
     usedNames: new Set()
   });
@@ -41,7 +41,7 @@ test("explicit portrait sex selects the matching given-name pool", () => {
 test("character names reject missing portrait sex", () => {
   assert.throws(() => assignRegionalCharacterName({
     identityKey: "captain|ship-5",
-    ship: { currentPort: { city: "Lisbon", country: "Portugal", cityType: "mediterranean" } },
+    ship: { currentPort: { cityId: "lisbon|portugal", city: "Lisbon", country: "Portugal", cityType: "mediterranean" } },
     usedNames: new Set()
   }), /requires an explicit sex/);
 });
@@ -50,7 +50,7 @@ test("a shared name registry prevents duplicate people", () => {
   const usedNames = new Set();
   const args = {
     identityKey: "same-key",
-    city: { city: "London", country: "United Kingdom", factionId: "england" },
+    city: { cityId: "london|united kingdom", city: "London", country: "United Kingdom", factionId: "england" },
     sex: "male",
     usedNames
   };
@@ -61,17 +61,19 @@ test("a shared name registry prevents duplicate people", () => {
 });
 
 test("England and Scotland use distinct naming cultures", () => {
-  assert.equal(nameCultureForSubject({ city: "London", country: "United Kingdom", factionId: "england" }), "english");
-  assert.equal(nameCultureForSubject({ city: "Edinburgh", country: "United Kingdom", factionId: "scotland" }), "scottish");
+  assert.equal(nameCultureForSubject({ cityId: "london|united kingdom", city: "London", country: "United Kingdom", factionId: "england" }), "english");
+  assert.equal(nameCultureForSubject({ cityId: "edinburgh|united kingdom", city: "Edinburgh", country: "United Kingdom", factionId: "scotland" }), "scottish");
 });
 
 test("Iceland and Sweden use distinct local name cultures", () => {
   assert.equal(nameCultureForSubject({
+    cityId: "hafnarfjordur|iceland",
     city: "Hafnarfjordur",
     country: "Iceland",
     factionId: "denmark-norway"
   }), "icelandic");
   assert.equal(nameCultureForSubject({
+    cityId: "soderkoping|sweden",
     city: "Soderkoping",
     country: "Sweden",
     factionId: "sweden"
@@ -80,6 +82,7 @@ test("Iceland and Sweden use distinct local name cultures", () => {
 
 test("Icelandic patronymics use son and daughter forms", () => {
   const city = {
+    cityId: "hafnarfjordur|iceland",
     city: "Hafnarfjordur",
     country: "Iceland",
     factionId: "neutral"
@@ -104,7 +107,7 @@ test("Icelandic patronymics use son and daughter forms", () => {
 });
 
 test("Pacific island villages use the Polynesian naming culture", () => {
-  const village = { city: "Fiji Village", country: "Fiji", cityType: "polynesian", factionId: "neutral" };
+  const village = { cityId: "fiji village|fiji", city: "Fiji Village", country: "Fiji", cityType: "polynesian", factionId: "neutral" };
   assert.equal(nameCultureForSubject(village), "polynesian");
   const character = assignRegionalCharacterName({
     identityKey: "fiji-village-factor",
@@ -118,25 +121,25 @@ test("Pacific island villages use the Polynesian naming culture", () => {
 
 test("Indigenous American settlements use their local naming traditions", () => {
   const cases = [
-    [{ city: "Yuquot Village", country: "Nuu-chah-nulth", cityType: "mesoamerican" }, "northwestCoast"],
-    [{ city: "Ozette Village", country: "Makah", cityType: "mesoamerican" }, "northwestCoast"],
-    [{ city: "Wendat Village", country: "Canada", cityType: "mesoamerican" }, "wendat"],
-    [{ city: "Chillicothe", country: "United States of America", cityType: "mesoamerican" }, "shawnee"],
-    [{ city: "Guanahani Village", country: "Bahamas", cityType: "mesoamerican" }, "taino"],
-    [{ city: "Coroa Vermelha Village", country: "Brazil", cityType: "mesoamerican" }, "tupi"],
-    [{ city: "Xicalango", country: "Mexico", cityType: "mesoamerican" }, "maya"],
-    [{ city: "Chakan Putum", country: "Mexico", cityType: "mesoamerican" }, "maya"],
-    [{ city: "Cuzamil", country: "Mexico", cityType: "mesoamerican" }, "maya"],
-    [{ city: "Merida", displayCity: "Tiho", country: "Mexico", cityType: "mesoamerican" }, "maya"],
-    [{ city: "Gumarcaj", country: "Guatemala", cityType: "mesoamerican" }, "maya"],
-    [{ city: "Guatemala City", country: "Guatemala", cityType: "mesoamerican" }, "maya"],
-    [{ city: "Tzintzuntzan", country: "Mexico", cityType: "mesoamerican" }, "purepecha"],
-    [{ city: "Mexico City", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
-    [{ city: "Texcoco", displayCity: "Tezcoco", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
-    [{ city: "Cholula", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
-    [{ city: "Tenayuca", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
-    [{ city: "Zempoala", displayCity: "Cempoala", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
-    [{ city: "Veracruz", country: "Mexico", cityType: "mediterranean", factionId: "spain" }, "spanish"]
+    [{ cityId: "yuquot village|nuu-chah-nulth", city: "Yuquot Village", country: "Nuu-chah-nulth", cityType: "mesoamerican" }, "northwestCoast"],
+    [{ cityId: "ozette village|makah", city: "Ozette Village", country: "Makah", cityType: "mesoamerican" }, "northwestCoast"],
+    [{ cityId: "wendat village|canada", city: "Wendat Village", country: "Canada", cityType: "mesoamerican" }, "wendat"],
+    [{ cityId: "chillicothe|united states of america", city: "Chillicothe", country: "United States of America", cityType: "mesoamerican" }, "shawnee"],
+    [{ cityId: "guanahani village|bahamas", city: "Guanahani Village", country: "Bahamas", cityType: "mesoamerican" }, "taino"],
+    [{ cityId: "coroa vermelha village|brazil", city: "Coroa Vermelha Village", country: "Brazil", cityType: "mesoamerican" }, "tupi"],
+    [{ cityId: "xicalango|mexico", city: "Xicalango", country: "Mexico", cityType: "mesoamerican" }, "maya"],
+    [{ cityId: "chakan putum|mexico", city: "Chakan Putum", country: "Mexico", cityType: "mesoamerican" }, "maya"],
+    [{ cityId: "cuzamil|mexico", city: "Cuzamil", country: "Mexico", cityType: "mesoamerican" }, "maya"],
+    [{ cityId: "merida|mexico", city: "Merida", displayCity: "Tiho", country: "Mexico", cityType: "mesoamerican" }, "maya"],
+    [{ cityId: "gumarcaj|guatemala", city: "Gumarcaj", country: "Guatemala", cityType: "mesoamerican" }, "maya"],
+    [{ cityId: "guatemala city|guatemala", city: "Guatemala City", country: "Guatemala", cityType: "mesoamerican" }, "maya"],
+    [{ cityId: "tzintzuntzan|mexico", city: "Tzintzuntzan", country: "Mexico", cityType: "mesoamerican" }, "purepecha"],
+    [{ cityId: "mexico city|mexico", city: "Mexico City", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ cityId: "texcoco|mexico", city: "Texcoco", displayCity: "Tezcoco", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ cityId: "cholula|mexico", city: "Cholula", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ cityId: "tenayuca|mexico", city: "Tenayuca", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ cityId: "zempoala|mexico", city: "Zempoala", displayCity: "Cempoala", country: "Mexico", cityType: "mesoamerican" }, "nahua"],
+    [{ cityId: "veracruz|mexico", city: "Veracruz", country: "Mexico", cityType: "mediterranean", factionId: "spain" }, "spanish"]
   ];
 
   for (const [city, expectedCulture] of cases) {
@@ -195,11 +198,14 @@ test("ports across the Old World use specific local naming traditions", () => {
     ["Ayutthaya", "Thailand", "ayutthaya", "thai"],
     ["Pegu", "Myanmar", "neutral", "monBurmese"],
     ["Binh Dinh", "Vietnam", "neutral", "cham"],
-    ["Luang Prabang", "Laos", "neutral", "lao"]
+    ["Luang Prabang", "Lao People's Democratic Republic", "neutral", "lao"]
   ];
 
   for (const [city, country, factionId, expectedCulture] of cases) {
-    const homePort = { city, country, factionId };
+    const cityId = city === "Prague"
+      ? "prague|austria"
+      : `${city.toLowerCase()}|${country.toLowerCase()}`;
+    const homePort = { cityId, city, country, factionId };
     assert.equal(nameCultureForSubject(homePort), expectedCulture, city);
     const candidates = nameCultureCandidatesForSubject(homePort);
     assert.equal(candidates[0], expectedCulture, city);
@@ -224,17 +230,17 @@ test("ports across the Old World use specific local naming traditions", () => {
 
 test("Japanese ports draw surnames from their local clan networks", () => {
   const cases = [
-    [{ city: "Kyoto", country: "Japan", factionId: "japan" }, ["Ashikaga", "Hino", "Ise", "Konoe", "Sanjo", "Yamana"]],
-    [{ city: "Edo", country: "Japan", factionId: "japan" }, ["Hojo", "Ota", "Chiba", "Toyoshima", "Uesugi", "Satomi"]],
-    [{ city: "Sakai", country: "Japan", factionId: "hosokawa" }, ["Hosokawa", "Miyoshi", "Kagawa", "Kozai", "Atagi", "Yasumi"]],
-    [{ city: "Yamaguchi", country: "Japan", factionId: "ouchi" }, ["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"]],
-    [{ city: "Fukuoka", displayCity: "Hakata", country: "Japan", factionId: "ouchi" }, ["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"]],
-    [{ city: "Kagoshima", country: "Japan", factionId: "shimazu" }, ["Shimazu", "Niiro", "Ijuin", "Machida", "Kawakami", "Kabayama"]],
-    [{ city: "Tsushima Fuchu", country: "Japan", factionId: "so" }, ["So", "Yanagawa", "Hata", "Kono", "Harada"]],
-    [{ city: "Nagasaki", country: "Japan", factionId: "shoni" }, ["Shoni", "Ryuzoji", "Omura", "Arima", "Matsuura", "Goto"]],
-    [{ city: "Naoetsu", country: "Japan", factionId: "nagao" }, ["Nagao", "Uesugi", "Honjo", "Irobe", "Yasuda", "Nakajo"]],
-    [{ city: "Tsuchizaki Minato", country: "Japan", factionId: "ando" }, ["Ando", "Asari", "Nanbu", "Tozawa", "Onodera", "Oura"]],
-    [{ city: "Kaminokuni", country: "Japan", factionId: "kakizaki" }, ["Kakizaki", "Takeda", "Kudo", "Ando", "Shimokuni"]]
+    [{ cityId: "kyoto|japan", city: "Kyoto", country: "Japan", factionId: "japan" }, ["Ashikaga", "Hino", "Ise", "Konoe", "Sanjo", "Yamana"]],
+    [{ cityId: "edo|japan", city: "Edo", country: "Japan", factionId: "japan" }, ["Hojo", "Ota", "Chiba", "Toyoshima", "Uesugi", "Satomi"]],
+    [{ cityId: "sakai|japan", city: "Sakai", country: "Japan", factionId: "hosokawa" }, ["Hosokawa", "Miyoshi", "Kagawa", "Kozai", "Atagi", "Yasumi"]],
+    [{ cityId: "yamaguchi|japan", city: "Yamaguchi", country: "Japan", factionId: "ouchi" }, ["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"]],
+    [{ cityId: "fukuoka|japan", city: "Fukuoka", displayCity: "Hakata", country: "Japan", factionId: "ouchi" }, ["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"]],
+    [{ cityId: "kagoshima|japan", city: "Kagoshima", country: "Japan", factionId: "shimazu" }, ["Shimazu", "Niiro", "Ijuin", "Machida", "Kawakami", "Kabayama"]],
+    [{ cityId: "tsushima fuchu|japan", city: "Tsushima Fuchu", country: "Japan", factionId: "so" }, ["So", "Yanagawa", "Hata", "Kono", "Harada"]],
+    [{ cityId: "nagasaki|japan", city: "Nagasaki", country: "Japan", factionId: "shoni" }, ["Shoni", "Ryuzoji", "Omura", "Arima", "Matsuura", "Goto"]],
+    [{ cityId: "naoetsu|japan", city: "Naoetsu", country: "Japan", factionId: "nagao" }, ["Nagao", "Uesugi", "Honjo", "Irobe", "Yasuda", "Nakajo"]],
+    [{ cityId: "tsuchizaki minato|japan", city: "Tsuchizaki Minato", country: "Japan", factionId: "ando" }, ["Ando", "Asari", "Nanbu", "Tozawa", "Onodera", "Oura"]],
+    [{ cityId: "kaminokuni|japan", city: "Kaminokuni", country: "Japan", factionId: "kakizaki" }, ["Kakizaki", "Takeda", "Kudo", "Ando", "Shimokuni"]]
   ];
   const formerCelebrityGivenNames = new Set([
     "Dosan", "Harunobu", "Hideyoshi", "Hisahide", "Ieyasu", "Kenshin",
@@ -260,10 +266,10 @@ test("Japanese ports draw surnames from their local clan networks", () => {
 
 test("Malukan characters use their home locative before regional fallbacks", () => {
   const cases = [
-    [{ city: "Ternate", country: "Indonesia", factionId: "ternate" }, "Ternate", "Tidore"],
-    [{ city: "Tidore", country: "Indonesia", factionId: "tidore" }, "Tidore", "Ternate"],
-    [{ city: "Banda Village", country: "Indonesia", factionId: "neutral" }, "Banda", null],
-    [{ city: "Buru Village", country: "Indonesia", factionId: "tidore" }, "Buru", null]
+    [{ cityId: "ternate|indonesia", city: "Ternate", country: "Indonesia", factionId: "ternate" }, "Ternate", "Tidore"],
+    [{ cityId: "tidore|indonesia", city: "Tidore", country: "Indonesia", factionId: "tidore" }, "Tidore", "Ternate"],
+    [{ cityId: "banda village|indonesia", city: "Banda Village", country: "Indonesia", factionId: "neutral" }, "Banda", null],
+    [{ cityId: "buru village|indonesia", city: "Buru Village", country: "Indonesia", factionId: "tidore" }, "Buru", null]
   ];
 
   for (const [city, expectedLocative, forbiddenLocative] of cases) {
@@ -284,8 +290,8 @@ test("Malukan characters use their home locative before regional fallbacks", () 
 
 test("Malukan name exhaustion never falls back to the rival capital", () => {
   for (const [city, forbiddenLocative] of [
-    [{ city: "Ternate", country: "Indonesia", factionId: "ternate" }, "Tidore"],
-    [{ city: "Tidore", country: "Indonesia", factionId: "tidore" }, "Ternate"]
+    [{ cityId: "ternate|indonesia", city: "Ternate", country: "Indonesia", factionId: "ternate" }, "Tidore"],
+    [{ cityId: "tidore|indonesia", city: "Tidore", country: "Indonesia", factionId: "tidore" }, "Ternate"]
   ]) {
     const usedNames = new Set();
     const identities = [];
@@ -302,7 +308,7 @@ test("Malukan name exhaustion never falls back to the rival capital", () => {
 });
 
 test("faith-sensitive names remain grounded in the character's home region", () => {
-  const lahore = { city: "Lahore", country: "India", factionId: "delhi" };
+  const lahore = { cityId: "lahore|india", city: "Lahore", country: "India", factionId: "delhi" };
   const cases = [
     ["hinduism", "northIndian"],
     ["sunni-islam", "indoMuslim"],
@@ -321,7 +327,7 @@ test("faith-sensitive names remain grounded in the character's home region", () 
 
   const jewishIdentity = assignRegionalCharacterName({
     identityKey: "jerusalem|judaism",
-    city: { city: "Jerusalem", country: "Israel", factionId: "ottoman" },
+    city: { cityId: "jerusalem|israel", city: "Jerusalem", country: "Israel", factionId: "ottoman" },
     sex: "female",
     religionId: "judaism",
     usedNames: new Set()
@@ -331,6 +337,7 @@ test("faith-sensitive names remain grounded in the character's home region", () 
 
 test("border and colonial cities mix local and ruling name cultures", () => {
   const sudak = {
+    cityId: "sudak|russian federation",
     city: "Sudak",
     country: "Russian Federation",
     cityType: "mediterranean",
@@ -365,24 +372,29 @@ test("eastern European home countries use precise local naming pools", () => {
     ["Belgrade", "Serbia", "serbian"]
   ];
   for (const [city, country, expected] of cases) {
-    assert.equal(nameCultureForSubject({ city, country, factionId: "neutral" }), expected);
+    assert.equal(nameCultureForSubject({
+      cityId: `${city.toLowerCase()}|${country.toLowerCase()}`,
+      city,
+      country,
+      factionId: "neutral"
+    }), expected);
   }
 });
 
 test("Russian, Bulgarian, and Polish surnames use feminine forms", () => {
   const cases = [
     {
-      city: { city: "Moscow", country: "Russian Federation", factionId: "muscovy" },
+      city: { cityId: "moscow|russian federation", city: "Moscow", country: "Russian Federation", factionId: "muscovy" },
       expectedCulture: "russian",
       assertForm: (identity) => assert.match(identity.familyName, /ova$|eva$/)
     },
     {
-      city: { city: "Sofia", country: "Bulgaria", factionId: "neutral" },
+      city: { cityId: "sofia|bulgaria", city: "Sofia", country: "Bulgaria", factionId: "neutral" },
       expectedCulture: "bulgarian",
       assertForm: (identity) => assert.match(identity.familyName, /ova$|eva$/)
     },
     {
-      city: { city: "Warsaw", country: "Poland", factionId: "poland-lithuania" },
+      city: { cityId: "warsaw|poland", city: "Warsaw", country: "Poland", factionId: "poland-lithuania" },
       expectedCulture: "polish",
       assertForm: (identity) => {
         assert.equal(/ski$/.test(identity.familyName), false);
@@ -449,6 +461,7 @@ test("saved female Slavic names are reconciled without replacing their identity"
 
 test("Belgrade identities couple religion, local culture, and portrait attire", () => {
   const belgrade = {
+    cityId: "belgrade|serbia",
     city: "Belgrade",
     country: "Serbia",
     cityType: "mediterranean",

@@ -25,7 +25,7 @@ export const MAX_MOUNTAIN_DISCOVERY_RADIUS_PX = Math.max(
 export const WATER_DISCOVERY_MENU_SPRITE_KEY = "water_shallow_01";
 
 const MOUNTAIN_DISCOVERY_RADIUS_OVERRIDES = new Map([
-  ["Mount Shasta", MOUNT_SHASTA_DISCOVERY_RADIUS_PX]
+  ["mountain-mount-shasta", MOUNT_SHASTA_DISCOVERY_RADIUS_PX]
 ]);
 
 const GRAND_CANAL_ROUTE_COORDINATES = Object.freeze([
@@ -467,6 +467,7 @@ export function mountainIsAccessibleFromNavigation(tileId, graph, navigableMask,
 export function mountainDiscovery(mountain) {
   return {
     id: mountain.id,
+    legacyIds: mountain.legacyDiscoveryIds,
     kind: "mountain",
     displayName: mountain.displayName,
     notice: `You have discovered ${mountain.displayName}`,
@@ -474,7 +475,7 @@ export function mountainDiscovery(mountain) {
     lat: mountain.lat,
     lon: mountain.lon,
     tileId: mountain.tileId,
-    radiusPx: MOUNTAIN_DISCOVERY_RADIUS_OVERRIDES.get(mountain.displayName) ??
+    radiusPx: MOUNTAIN_DISCOVERY_RADIUS_OVERRIDES.get(mountain.id) ??
       DEFAULT_MOUNTAIN_DISCOVERY_RADIUS_PX,
     menuTerrainSpriteKey: MOUNTAIN_DISCOVERY_MENU_SPRITE_KEY
   };

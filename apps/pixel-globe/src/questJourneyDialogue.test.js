@@ -25,7 +25,9 @@ test("decision-backed journey dialogue fires en route and persists without a que
   });
   const createSubject = () => createDecisionBackedQuestJourneyDialogueSubject({
     id: "commission-1",
+    originCityId: "rome|italy",
     originTileId: 10,
+    destinationCityId: "paris|france",
     destinationTileId: 20,
     character: { id: "envoy-1", name: "The Envoy" },
     journeyEvents: [event],

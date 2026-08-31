@@ -81,19 +81,19 @@ import {
   sellGood
 } from "./gameState.js";
 
-const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000);
-const GOA = port(2, "Goa", "India", "south-asian", 60000);
-const TERNATE = port(3, "Ternate", "Spice Islands", "southeast-asian", 45000);
-const GUANGZHOU = port(4, "Guangzhou", "Ming", "east-asian", 100000);
-const VERACRUZ = port(5, "Veracruz", "New Spain", "mesoamerican", 50000);
-const FIJI = port(6, "Fiji Village", "Fiji", "polynesian", 3500, "village", ["fish", "timber", "sugar"]);
-const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "village", [NUTMEG_GOOD_ID, "fish", "timber"]);
-const COLOMBO = port(9, "Colombo", "Sri Lanka", "south-asian", 12000);
-const MALACCA = port(10, "Malacca", "Malaysia", "southeast-asian", 90000);
-const KYOTO = port(11, "Kyoto", "Japan", "east-asian", 100000);
-const AYUTTHAYA = port(14, "Ayutthaya", "Thailand", "southeast-asian", 90000);
-const HAVANA = port(12, "Havana", "Cuba", "mediterranean", 8000);
-const SANTO_DOMINGO = port(13, "Santo Domingo", "Dominican Republic", "mediterranean", 20000);
+const LONDON = port(1, "London", "United Kingdom", "northern-european", 80000, "city", null, "london|united kingdom");
+const GOA = port(2, "Goa", "India", "south-asian", 60000, "city", null, "goa|india");
+const TERNATE = port(3, "Ternate", "Indonesia", "southeast-asian", 45000, "city", null, "ternate|indonesia");
+const GUANGZHOU = port(4, "Guangzhou", "China", "east-asian", 100000, "city", null, "guangzhou|china");
+const VERACRUZ = port(5, "Veracruz", "Mexico", "mesoamerican", 50000, "city", null, "veracruz|mexico");
+const FIJI = port(6, "Fiji Village", "Fiji", "polynesian", 3500, "village", ["fish", "timber", "sugar"], "fiji village|fiji");
+const BANDA = port(8, "Banda Village", "Indonesia", "southeast-asian", 3500, "village", [NUTMEG_GOOD_ID, "fish", "timber"], "banda village|indonesia");
+const COLOMBO = port(9, "Colombo", "Sri Lanka", "south-asian", 12000, "city", null, "colombo|sri lanka");
+const MALACCA = port(10, "Malacca", "Malaysia", "southeast-asian", 90000, "city", null, "malacca|malaysia");
+const KYOTO = port(11, "Kyoto", "Japan", "east-asian", 100000, "city", null, "kyoto|japan");
+const AYUTTHAYA = port(14, "Ayutthaya", "Thailand", "southeast-asian", 90000, "city", null, "ayutthaya|thailand");
+const HAVANA = port(12, "Havana", "Cuba", "mediterranean", 8000, "city", null, "havana|cuba");
+const SANTO_DOMINGO = port(13, "Santo Domingo", "Dominican Republic", "mediterranean", 20000, "city", null, "santo domingo|dominican republic");
 const CITY_CATALOG = loadCityCatalogFromCsv(readFileSync(
   new URL(
     "../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
@@ -446,7 +446,8 @@ test("player-founded colonies use local economies instead of their founders' cit
     ["Zacatecas", "Mexico"],
     ["Lima", "Peru"]
   ].map(([city, country], index) => {
-    const target = colonizationTargetForCity({ city, country });
+    const cityId = `${city.toLowerCase()}|${country.toLowerCase()}`;
+    const target = colonizationTargetForCity({ cityId });
     assert.ok(target, `missing colonization target for ${city}`);
     return {
       ...target,
@@ -510,13 +511,13 @@ test("Chinese ports do not begin a voyage with Mediterranean olive oil imports",
 });
 
 test("1522 bullion exports come from named American and African gateways", () => {
-  const mexicoCity = port(80, "Mexico City", "Mexico", "mesoamerican", 100000);
+  const mexicoCity = port(80, "Mexico City", "Mexico", "mesoamerican", 100000, "city", null, "mexico city|mexico");
   const tezcoco = port(81, "Tezcoco", "Mexico", "mesoamerican", 30000);
-  const cuzco = port(82, "Cuzco", "Peru", "andean", 90000);
+  const cuzco = port(82, "Cuzco", "Peru", "andean", 90000, "city", null, "cuzco|peru");
   const chanchan = port(83, "Chanchan", "Peru", "andean", 25000);
-  const sofala = port(84, "Sofala", "Mozambique", "sub-saharan", 12000);
+  const sofala = port(84, "Sofala", "Mozambique", "sub-saharan", 12000, "city", null, "sofala|mozambique");
   const mombasa = port(85, "Mombasa", "Kenya", "sub-saharan", 20000);
-  const gao = port(86, "Gao", "Mali", "sub-saharan", 50000);
+  const gao = port(86, "Gao", "Mali", "sub-saharan", 50000, "city", null, "gao|mali");
   const economy = createWorldEconomy({
     ports: [
       SANTO_DOMINGO,
@@ -544,10 +545,10 @@ test("1522 bullion exports come from named American and African gateways", () =>
 });
 
 test("1522 mints turn delivered bullion into specie without needing port cash", () => {
-  const lisbon = port(87, "Lisbon", "Portugal", "mediterranean", 65000);
+  const lisbon = port(87, "Lisbon", "Portugal", "mediterranean", 65000, "city", null, "lisbon|portugal");
   const economy = createWorldEconomy({ ports: [lisbon, SANTO_DOMINGO], startMinute: 0 });
-  const lisbonState = economy.portStates.get(lisbon.tileId);
-  const santoDomingoState = economy.portStates.get(SANTO_DOMINGO.tileId);
+  const lisbonState = economy.portStates.get(lisbon.cityId);
+  const santoDomingoState = economy.portStates.get(SANTO_DOMINGO.cityId);
   const lisbonGoldBefore = lisbonState.goods.get("gold").stock;
   const santoDomingoGoldBefore = santoDomingoState.goods.get("gold").stock;
   lisbonState.specie = 0;
@@ -587,11 +588,11 @@ test("wine is a drink rather than edible cargo", () => {
 });
 
 test("1522 arms markets separate domestic gunpowder from imported matchlocks", () => {
-  const lisbon = port(70, "Lisbon", "Portugal", "mediterranean", 65000);
-  const kyoto = port(71, "Kyoto", "Japan", "east-asian", 100000);
-  const guangzhou = port(72, "Guangzhou", "Ming", "east-asian", 100000);
-  const istanbul = port(73, "Istanbul", "Ottoman Empire", "mediterranean", 140000);
-  const goa = port(74, "Goa", "Portugal", "south-asian", 65000);
+  const lisbon = port(70, "Lisbon", "Portugal", "mediterranean", 65000, "city", null, "lisbon|portugal");
+  const kyoto = port(71, "Kyoto", "Japan", "east-asian", 100000, "city", null, "kyoto|japan");
+  const guangzhou = port(72, "Guangzhou", "Ming", "east-asian", 100000, "city", null, "guangzhou|china");
+  const istanbul = port(73, "Istanbul", "Ottoman Empire", "mediterranean", 140000, "city", null, "istanbul|turkey");
+  const goa = port(74, "Goa", "Portugal", "south-asian", 65000, "city", null, "goa|india");
   const economy = createWorldEconomy({
     ports: [lisbon, kyoto, guangzhou, istanbul, goa],
     startMinute: 0
@@ -623,7 +624,7 @@ test("1522 arms markets separate domestic gunpowder from imported matchlocks", (
 test("shore battery volleys deplete gunpowder and a disabled battery creates maximum scarcity", () => {
   const batteryPort = port(75, "Alexandria", "Egypt", "mediterranean", 80000);
   const economy = createWorldEconomy({ ports: [batteryPort], startMinute: 0 });
-  const portState = economy.portStates.get(batteryPort.tileId);
+  const portState = economy.portStates.get(batteryPort.cityId);
   portState.specie = portState.targetSpecie;
   const before = marketByGood(economy, batteryPort).get(GUNPOWDER_GOOD_ID);
 
@@ -645,7 +646,7 @@ test("shore battery volleys deplete gunpowder and a disabled battery creates max
 });
 
 test("a depleted gunpowder market stays integrated with a nearby producing city", () => {
-  const nanjing = port(76, "Nanjing", "China", "east-asian", 160000);
+  const nanjing = port(76, "Nanjing", "China", "east-asian", 160000, "city", null, "nanjing|china");
   const changzhou = port(77, "Changzhou", "China", "east-asian", 90000);
   const economy = createWorldEconomy({ ports: [nanjing, changzhou], startMinute: 0 });
   connectNearbyPortMarkets(economy, [nanjing, changzhou], () => 50);
@@ -761,12 +762,12 @@ test("cargo lots make spices and precious metal exceptionally valuable per hold"
 
 test("a founded port joins the economy and its save snapshot", () => {
   const economy = createWorldEconomy({ ports: [LONDON], startMinute: 0 });
-  const colony = port(99, "Port Royal", "Canada", "northern-european", 2400);
+  const colony = port(99, "Port Royal", "Canada", "northern-european", 2400, "city", null, "port royal|canada");
   const added = addWorldEconomyPort(economy, colony, 500);
 
   assert.equal(added.port.name, "Port Royal");
   assert.ok(portMarket(economy, colony).some((row) => row.listedForSale));
-  assert.ok(snapshotWorldEconomy(economy).ports.some((entry) => entry.id === colony.tileId));
+  assert.ok(snapshotWorldEconomy(economy).ports.some((entry) => entry.id === colony.cityId));
   assert.throws(() => addWorldEconomyPort(economy, colony, 500), /already exists/);
 });
 
@@ -813,7 +814,14 @@ test("developing a village replaces its economy without discarding local stock",
 });
 
 test("a founder discount changes both the quoted and executed market price", () => {
-  const colony = { ...LONDON, tileId: 98, city: "Port Royal", displayCity: "Port Royal", purchaseDiscountMultiplier: 0.85 };
+  const colony = {
+    ...LONDON,
+    cityId: "port royal|canada",
+    tileId: 98,
+    city: "Port Royal",
+    displayCity: "Port Royal",
+    purchaseDiscountMultiplier: 0.85
+  };
   const economy = createWorldEconomy({ ports: [LONDON, colony], startMinute: 0 });
   const base = quotePortSale(economy, colony, "wool", 1);
   const quoted = quotePortSale(economy, colony, "wool", 1, colony.purchaseDiscountMultiplier);
@@ -1017,10 +1025,10 @@ test("1522 coal markets connect medieval producers to established fuel consumers
 });
 
 test("Baltic ports offer distinct, moderate-value regional trade loops", () => {
-  const gdansk = port(120, "Gdansk", "Poland", "northern-european", 50000);
-  const lubeck = port(121, "Lubeck", "Germany", "northern-european", 50000);
-  const stockholm = port(122, "Stockholm", "Sweden", "northern-european", 50000);
-  const novgorod = port(123, "Novgorod", "Russia", "northern-european", 50000);
+  const gdansk = port(120, "Gdansk", "Poland", "northern-european", 50000, "city", null, "gdansk|poland");
+  const lubeck = port(121, "Lubeck", "Germany", "northern-european", 50000, "city", null, "lubeck|germany");
+  const stockholm = port(122, "Stockholm", "Sweden", "northern-european", 50000, "city", null, "stockholm|sweden");
+  const novgorod = port(123, "Novgorod", "Russia", "northern-european", 50000, "city", null, "novgorod|russian federation");
   const economy = createWorldEconomy({
     ports: [gdansk, lubeck, stockholm, novgorod],
     startMinute: 0,
@@ -1049,11 +1057,11 @@ test("Baltic ports offer distinct, moderate-value regional trade loops", () => {
 });
 
 test("Chinese, Korean, and Japanese ports have complementary specialties", () => {
-  const jingdezhen = port(130, "Jingdezhen", "Ming", "east-asian", 50000);
-  const hangzhou = port(131, "Hangzhou", "Ming", "east-asian", 50000);
-  const kaesong = port(132, "Kaesong", "Joseon", "east-asian", 50000);
-  const kyoto = port(133, "Kyoto", "Japan", "east-asian", 50000);
-  const kagoshima = port(134, "Kagoshima", "Japan", "east-asian", 50000);
+  const jingdezhen = port(130, "Jingdezhen", "Ming", "east-asian", 50000, "city", null, "jingdezhen|china");
+  const hangzhou = port(131, "Hangzhou", "Ming", "east-asian", 50000, "city", null, "hangzhou|china");
+  const kaesong = port(132, "Kaesong", "Joseon", "east-asian", 50000, "city", null, "kaesong|dem. people's republic of korea");
+  const kyoto = port(133, "Kyoto", "Japan", "east-asian", 50000, "city", null, "kyoto|japan");
+  const kagoshima = port(134, "Kagoshima", "Japan", "east-asian", 50000, "city", null, "kagoshima|japan");
   const economy = createWorldEconomy({
     ports: [jingdezhen, hangzhou, kaesong, kyoto, kagoshima],
     startMinute: 0,
@@ -1122,12 +1130,17 @@ test("beaver-country villages and player-founded colonies supply valuable pelts"
     lon: -126.6174
   };
   const portRoyal = {
-    ...port(71, "Port Royal", "Canada", "northern-european", 2400),
+    ...port(71, "Port Royal", "Canada", "northern-european", 2400, "city", null, "port royal|canada"),
     lat: 44.741944,
     lon: -65.515556,
     playerFoundedColony: true
   };
-  const ordinaryPort = { ...portRoyal, tileId: 72, playerFoundedColony: false };
+  const ordinaryPort = {
+    ...portRoyal,
+    cityId: "test-port:ordinary-acadia|canada",
+    tileId: 72,
+    playerFoundedColony: false
+  };
   const economy = createWorldEconomy({ ports: [LONDON, yuquot, portRoyal, ordinaryPort], startMinute: 0 });
   const yuquotMarket = marketByGood(economy, yuquot);
   const londonPelts = marketByGood(economy, LONDON).get(BEAVER_PELTS_GOOD_ID);
@@ -1441,8 +1454,8 @@ test("local price levels fall with specie scarcity and rise with specie abundanc
 });
 
 test("specie price pressure gives NPC merchants a balancing trade direction", () => {
-  const lowCashPort = { ...LONDON, tileId: 41, city: "Low Cash", displayCity: "Low Cash" };
-  const highCashPort = { ...LONDON, tileId: 42, city: "High Cash", displayCity: "High Cash" };
+  const lowCashPort = { ...LONDON, cityId: "test-port:low-cash|united kingdom", tileId: 41, city: "Low Cash", displayCity: "Low Cash" };
+  const highCashPort = { ...LONDON, cityId: "test-port:high-cash|united kingdom", tileId: 42, city: "High Cash", displayCity: "High Cash" };
   const economy = createWorldEconomy({ ports: [lowCashPort, highCashPort], startMinute: 0 });
   const [lowState, highState] = [...economy.portStates.values()];
   for (const good of TRADE_GOODS) {
@@ -1501,7 +1514,7 @@ test("a player shipyard can stock several years of hull materials from the port 
     seedCapital: 100000,
     materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
   });
-  const port = economy.portStates.get(LONDON.tileId);
+  const port = economy.portStates.get(LONDON.cityId);
   for (const goodId of ["timber", "iron", NAVAL_STORES_GOOD_ID, "linen-cloth"]) {
     yard.materialInventory[goodId] = 0;
     port.goods.get(goodId).stock = 50;
@@ -1600,7 +1613,7 @@ test("older economy snapshots leave newly added ports at current defaults", () =
   restoreWorldEconomy(expanded, snapshot);
 
   assert.deepEqual(portEconomySummary(expanded, FIJI), fijiBefore);
-  assert.ok(expanded.shipyards.yards.has(FIJI.tileId));
+  assert.ok(expanded.shipyards.yards.has(FIJI.cityId));
 });
 
 test("older economy snapshots initialize newly added trade goods without changing saved stocks", () => {
@@ -1625,19 +1638,19 @@ test("older economy snapshots initialize newly added trade goods without changin
     savedPort.stocks = savedPort.stocks.filter(([goodId]) => !newGoodIds.has(goodId));
   }
   const savedWool = snapshot.ports
-    .find((savedPort) => savedPort.id === LONDON.tileId)
+    .find((savedPort) => savedPort.id === LONDON.cityId)
     .stocks.find(([goodId]) => goodId === "wool")[1];
   const freshNewGoodStocks = new Map(
-    [...economy.portStates.get(LONDON.tileId).goods.entries()]
+    [...economy.portStates.get(LONDON.cityId).goods.entries()]
       .filter(([goodId]) => newGoodIds.has(goodId))
       .map(([goodId, state]) => [goodId, state.stock])
   );
 
   restoreWorldEconomy(economy, snapshot);
 
-  assert.equal(economy.portStates.get(LONDON.tileId).goods.get("wool").stock, savedWool);
+  assert.equal(economy.portStates.get(LONDON.cityId).goods.get("wool").stock, savedWool);
   for (const [goodId, stock] of freshNewGoodStocks) {
-    assert.equal(economy.portStates.get(LONDON.tileId).goods.get(goodId).stock, stock);
+    assert.equal(economy.portStates.get(LONDON.cityId).goods.get(goodId).stock, stock);
   }
 });
 
@@ -1653,8 +1666,31 @@ function sellToPortOneLotAtATime(economy, city, goodId, quantity) {
   return total;
 }
 
-function port(tileId, city, country, cityType, population, settlementType = "city", marketGoods = null) {
-  return { tileId, city, displayCity: city, country, cityType, population, settlementType, marketGoods, lat: 0, lon: 0 };
+function port(
+  tileId,
+  city,
+  country,
+  cityType,
+  population,
+  settlementType = "city",
+  marketGoods = null,
+  cityId = `test-port:${tileId}|${country.toLocaleLowerCase("en-US")}`
+) {
+  return {
+    cityId: cityId.includes("|")
+      ? cityId
+      : `${cityId}|${country.toLocaleLowerCase("en-US")}`,
+    tileId,
+    city,
+    displayCity: city,
+    country,
+    cityType,
+    population,
+    settlementType,
+    marketGoods,
+    lat: 0,
+    lon: 0
+  };
 }
 
 function matrixEconomyPorts() {

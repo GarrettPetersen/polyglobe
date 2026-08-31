@@ -35,7 +35,7 @@ test("version 84 voyages gain Metz, Florence, and Kazan without rewriting existi
   saved.relations.imperial.religiousBlocByFactionId.worms = "lutheran";
   saved.relations.diplomacy.overrides["france|worms"] = "hostile";
 
-  const migrated = migrateGameState(saved, shipStatsForSlug(saved.ship.slug));
+  const migrated = migrateFixture(saved);
 
   validateGameState(migrated);
   assert.equal(migrated.version, GAME_STATE_VERSION);
@@ -60,7 +60,7 @@ test("version 81 voyages gain the Empire and preserve formerly combined player s
   ));
   const saved = structuredClone(fixture.states[0].state);
   saved.relations.factionReputation.habsburg = 37;
-  const migrated = migrateGameState(saved, shipStatsForSlug(saved.ship.slug));
+  const migrated = migrateFixture(saved);
   validateGameState(migrated);
   assert.equal(migrated.version, GAME_STATE_VERSION);
   assert.equal(migrated.relations.factionReputation.habsburg, 37);
@@ -84,7 +84,7 @@ test("version 83 voyages split composite standing, warrants, authority, and dyna
   saved.relations.safePassageUntilMinute.habsburg = 500;
   saved.relations.authority.scores.habsburg = 67;
 
-  const migrated = migrateGameState(saved, shipStatsForSlug(saved.ship.slug));
+  const migrated = migrateFixture(saved);
 
   assert.equal(migrated.relations.factionReputation.habsburg, 41);
   assert.equal(migrated.relations.factionReputation["burgundian-netherlands"], 41);
@@ -102,3 +102,14 @@ test("version 83 voyages split composite standing, warrants, authority, and dyna
     "spain"
   );
 });
+
+function migrateFixture(saved) {
+  return migrateGameState(saved, shipStatsForSlug(saved.ship.slug), {
+    legacyCityIdForPortReference: (reference) => {
+      if (reference.tileId !== 1) {
+        throw new Error(`Unexpected fixture home-port tile: ${reference.tileId}`);
+      }
+      return "london|united kingdom";
+    }
+  });
+}

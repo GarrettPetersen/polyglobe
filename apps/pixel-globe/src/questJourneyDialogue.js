@@ -17,7 +17,9 @@ export function questJourneyHalfwayReached({ originDistance, destinationDistance
 
 export function createDecisionBackedQuestJourneyDialogueSubject({
   id,
+  originCityId,
   originTileId,
+  destinationCityId,
   destinationTileId,
   character,
   journeyEvents,
@@ -25,6 +27,8 @@ export function createDecisionBackedQuestJourneyDialogueSubject({
   decisionKeyPrefix
 }) {
   if (typeof id !== "string" || id === "" ||
+      typeof originCityId !== "string" || originCityId === "" ||
+      typeof destinationCityId !== "string" || destinationCityId === "" ||
       !Number.isInteger(originTileId) || !Number.isInteger(destinationTileId) ||
       !character?.id || !Array.isArray(journeyEvents) || journeyEvents.length === 0 ||
       !decisions || typeof decisions !== "object" || Array.isArray(decisions) ||
@@ -34,7 +38,9 @@ export function createDecisionBackedQuestJourneyDialogueSubject({
   const decisionKey = (eventId) => `${decisionKeyPrefix}.${eventId}`;
   const subject = {
     id,
+    originCityId,
     originTileId,
+    destinationCityId,
     destinationTileId,
     passenger: character,
     dialogue: Object.freeze({ journeyEvents: Object.freeze([...journeyEvents]) }),

@@ -3,14 +3,21 @@ import {
   perkItemIsMerchantUpgrade,
   perkItemOfferAtPort
 } from "./perkItems.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
-const SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION = 1;
+export const SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION = 2;
 
 export function createSpecialEquipmentOfferMemory() {
   return {
     version: SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION,
     byPort: {}
   };
+}
+
+export function migrateSpecialEquipmentOfferMemory(memory) {
+  if (!memory) return createSpecialEquipmentOfferMemory();
+  validateSpecialEquipmentOfferMemory(memory);
+  return memory;
 }
 
 export function openSpecialEquipmentOffer(
@@ -93,7 +100,7 @@ export function validateSpecialEquipmentOfferMemory(memory) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     throw new Error("Special equipment offer memory must be an object");
   }
-  if (memory.version !== SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION) {
+  if (![1, SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported special equipment offer memory version: ${memory.version}`);
   }
   if (!memory.byPort || typeof memory.byPort !== "object" || Array.isArray(memory.byPort)) {
@@ -102,6 +109,11 @@ export function validateSpecialEquipmentOfferMemory(memory) {
   for (const [key, entry] of Object.entries(memory.byPort)) {
     if (key.trim() === "" || !entry || typeof entry !== "object" || Array.isArray(entry)) {
       throw new Error(`Invalid special equipment offer record: ${key}`);
+    }
+    if (memory.version === 1) {
+      if (!/^\d+$/.test(key)) throw new Error(`Invalid legacy special equipment port: ${key}`);
+    } else {
+      requireEntityId(key, "Special equipment offer port");
     }
     perkItemById(entry.itemId);
     if (!Number.isInteger(entry.timesOffered) || entry.timesOffered < 0) {
@@ -115,6 +127,5 @@ export function validateSpecialEquipmentOfferMemory(memory) {
 }
 
 function portKey(city) {
-  if (!Number.isInteger(city?.tileId)) throw new Error("Special equipment offer requires a city tile");
-  return String(city.tileId);
+  return requireCityId(city, "Special equipment offer port");
 }

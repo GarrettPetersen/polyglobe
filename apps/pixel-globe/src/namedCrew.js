@@ -1,5 +1,4 @@
 import { validateCharacterSkillIds } from "./characterSkills.js";
-import { normalizedCharacterName } from "./characterIdentity.js";
 import { convertEnglishCatholicCharacter } from "./papalPolitics.js";
 
 export const NAMED_CREW_ROLE_CREWMATE = "crewmate";
@@ -94,11 +93,6 @@ export function addNamedCrewMember(
   if (visualDouble) {
     throw new Error(`${character.name} repeats ${visualDouble.name}'s named-crewmate portrait`);
   }
-  const nameDouble = members.find((member) => normalizedCharacterName(member.name) ===
-    normalizedCharacterName(character.name));
-  if (nameDouble) {
-    throw new Error(`${character.name} repeats an existing named-crewmate name`);
-  }
   const historicallyCurrentCharacter = state.relations?.papacy?.englishReformationApplied
     ? convertEnglishCatholicCharacter(character)
     : character;
@@ -128,8 +122,7 @@ export function reconcileNamedCrewMember(
       added: true
     });
   }
-  if (existing.name !== character.name || existing.sourceId !== character.sourceId ||
-      existing.role !== role) {
+  if (existing.role !== role) {
     throw new Error(`Named crewmate reconciliation conflicts with ${character.id}`);
   }
   return Object.freeze({ member: existing, added: false });

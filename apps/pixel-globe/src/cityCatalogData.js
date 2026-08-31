@@ -13,6 +13,7 @@ import {
 } from "./factions.js";
 import { withForeignSettlements1522 } from "./foreignSettlements.js";
 import { economyRegionForCity } from "./economyRegions.js";
+import { cityTerritoryId, requireEntityId } from "./entityIds.js";
 
 export const CITY_DATA_YEAR = 1522;
 export const CITY_MAX_COUNT = 480;
@@ -80,29 +81,29 @@ export const CITY_IMAGE_KEYS = Object.freeze([...new Set([
   "village"
 ])]);
 
-const NATIVE_AMERICAN_CITY_ART_COUNTRIES = new Set([
+const NATIVE_AMERICAN_CITY_ART_COUNTRIES = territoryIds([
   "Canada",
   "United States of America"
 ]);
 
-const EAST_ASIAN = new Set(["China", "Dem. People's Republic of Korea", "Japan", "Republic of Korea"]);
-const SOUTH_ASIAN = new Set(["India", "Nepal", "Pakistan", "Sri Lanka"]);
-const SOUTHEAST_ASIAN = new Set([
+const EAST_ASIAN = territoryIds(["China", "Dem. People's Republic of Korea", "Japan", "Republic of Korea"]);
+const SOUTH_ASIAN = territoryIds(["India", "Nepal", "Pakistan", "Sri Lanka"]);
+const SOUTHEAST_ASIAN = territoryIds([
   "Brunei", "Cambodia", "Indonesia", "Lao People's Democratic Republic", "Malaysia", "Myanmar", "Thailand", "Vietnam"
 ]);
-const POLYNESIAN = new Set([
+const POLYNESIAN = territoryIds([
   "Aotearoa", "Cook Islands", "Fiji", "French Polynesia", "Hawaii", "Kiribati", "Niue", "Rapa Nui", "Samoa", "Tonga"
 ]);
-const ANDEAN = new Set(["Bolivia", "Columbia", "Ecuador", "Peru"]);
-const MESOAMERICAN = new Set(["Guatemala", "Mexico", "United States of America"]);
-const MEDITERRANEAN = new Set([
+const ANDEAN = territoryIds(["Bolivia", "Columbia", "Ecuador", "Peru"]);
+const MESOAMERICAN = territoryIds(["Guatemala", "Mexico", "United States of America"]);
+const MEDITERRANEAN = territoryIds([
   "Albania", "Bulgaria", "Cyprus", "Greece", "Italy", "Portugal", "Romania", "Serbia", "Spain"
 ]);
-const NORTHERN_EUROPEAN = new Set([
+const NORTHERN_EUROPEAN = territoryIds([
   "Austria", "Belgium", "Denmark", "England", "France", "Germany", "Hungary", "Iceland", "Ireland", "Lithuania",
   "Netherlands", "Norway", "Poland", "Russian Federation", "Scotland", "Sweden", "Ukraine", "United Kingdom", "Wales"
 ]);
-const EUROPEAN_CITY_COUNTRIES = new Set([
+const EUROPEAN_CITY_COUNTRIES = territoryIds([
   ...MEDITERRANEAN,
   ...NORTHERN_EUROPEAN,
   "Belarus",
@@ -121,12 +122,12 @@ const EUROPEAN_CITY_COUNTRIES = new Set([
   "Slovenia",
   "Switzerland"
 ]);
-const ISLAMIC_DESERT = new Set([
+const ISLAMIC_DESERT = territoryIds([
   "Afghanistan", "Algeria", "Armenia", "Egypt", "Georgia", "Iran", "Iraq", "Israel", "Kyrgyzstan", "Lebanon", "Libya",
   "Mauritania", "Morocco", "Oman", "Saudi Arabia", "Sudan", "Sumer", "Syria", "Syria/Turkey", "Tunisia", "Turkey",
   "Turkey/Syria", "Turkmenistan", "Uzbekistan", "Yemen"
 ]);
-const SUB_SAHARAN = new Set([
+const SUB_SAHARAN = territoryIds([
   "Angola", "Ethiopia", "Guinea", "Kenya", "Mali", "Mozambique", "Nigeria", "Senegal", "Somalia", "Tanzania", "Zimbabwe"
 ]);
 
@@ -139,6 +140,7 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
   if (rows.length < 2) throw new Error(`City dataset has no city rows: ${CITY_DATA_URL}`);
 
   const header = rows[0];
+  const cityIdIndex = requiredCsvIndex(header, "city_id");
   const cityIndex = requiredCsvIndex(header, "city");
   const countryIndex = requiredCsvIndex(header, "country");
   const latIndex = requiredCsvIndex(header, "latitude");
@@ -152,6 +154,10 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
   for (let rowIndex = 1; rowIndex < rows.length; rowIndex++) {
     const row = rows[rowIndex];
     if (row.length === 1 && row[0] === "") continue;
+    const cityId = requireEntityId(
+      requiredCsvCell(row, cityIdIndex, rowIndex, "city_id").trim(),
+      `City dataset row ${rowIndex + 1}`
+    );
     const city = requiredCsvCell(row, cityIndex, rowIndex, "city").trim();
     const country = requiredCsvCell(row, countryIndex, rowIndex, "country").trim();
     const lat = requiredCsvNumber(row, latIndex, rowIndex, "latitude");
@@ -161,9 +167,7 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
     const coastalIntent = optionalCsvBoolean(row, coastalIntentIndex);
     const lakeIntent = optionalCsvBoolean(row, lakeIntentIndex);
     if (population <= 0) continue;
-    if (!cityDatasetRecordAllowedIn1522(city, country)) continue;
-
-    const cityId = cityCatalogId(city, country);
+    if (!cityDatasetRecordAllowedIn1522(cityId)) continue;
     const observations = observationsByCity.get(cityId) || [];
     observations.push({ cityId, city, country, lat, lon, year, population, coastalIntent, lakeIntent });
     observationsByCity.set(cityId, observations);
@@ -178,9 +182,9 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
     if (!observation) continue;
     const baseCityRecord = {
       ...observation,
-      displayCity: cityDisplayName(observation.city, observation.country, targetYear),
-      ...cityPlacementOverride(observation.city, observation.country),
-      cityType: cityTypeForCity(observation.country, observation.lat, observation.lon)
+      displayCity: cityDisplayName(observation.cityId, targetYear, observation.city),
+      ...cityPlacementOverride(observation.cityId),
+      cityType: cityTypeForCity(observation.cityId, observation.lat, observation.lon)
     };
     const cityRecord = withColonialFounding({
       ...baseCityRecord,
@@ -205,16 +209,11 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
 function ensureManualCityRecords(bestByCity, targetYear) {
   for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
     if (manualSpec.year > targetYear) continue;
-    const cityId = cityCatalogId(manualSpec.city, manualSpec.country);
+    const cityId = requireEntityId(manualSpec.cityId, "Manual city");
     const baseCityRecord = {
       cityId,
       city: manualSpec.city,
-      displayCity: cityDisplayName(
-        manualSpec.city,
-        manualSpec.country,
-        targetYear,
-        manualSpec.displayCity || manualSpec.city
-      ),
+      displayCity: cityDisplayName(cityId, targetYear, manualSpec.displayCity || manualSpec.city),
       country: manualSpec.country,
       lat: manualSpec.lat,
       lon: manualSpec.lon,
@@ -224,7 +223,7 @@ function ensureManualCityRecords(bestByCity, targetYear) {
             placementLat: manualSpec.placementLat,
             placementLon: manualSpec.placementLon
           }),
-      cityType: manualSpec.cityType || cityTypeForCity(manualSpec.country, manualSpec.lat, manualSpec.lon),
+      cityType: manualSpec.cityType || cityTypeForCity(cityId, manualSpec.lat, manualSpec.lon),
       year: manualSpec.year,
       population: manualSpec.population,
       coastalIntent: manualSpec.coastalIntent,
@@ -256,16 +255,16 @@ function ensureManualCityRecords(bestByCity, targetYear) {
 
 function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
   for (const capitalSpec of factionCapitalCityRecords1522()) {
-    const cityId = cityCatalogId(capitalSpec.city, capitalSpec.country);
+    const cityId = requireEntityId(capitalSpec.cityId, "Faction capital city");
     if (bestByCity.has(cityId)) continue;
     const baseCityRecord = {
       cityId,
       city: capitalSpec.city,
-      displayCity: cityDisplayName(capitalSpec.city, capitalSpec.country, targetYear),
+      displayCity: cityDisplayName(cityId, targetYear, capitalSpec.city),
       country: capitalSpec.country,
       lat: capitalSpec.lat,
       lon: capitalSpec.lon,
-      cityType: cityTypeForCity(capitalSpec.country, capitalSpec.lat, capitalSpec.lon),
+      cityType: cityTypeForCity(cityId, capitalSpec.lat, capitalSpec.lon),
       year: targetYear,
       population: capitalSpec.population,
       coastalIntent: true,
@@ -287,7 +286,7 @@ function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
 function ensureFactionCapitalsInCityCatalog(cities, bestByCity) {
   const included = new Set(cities.map((city) => city.cityId));
   for (const capitalSpec of FACTION_CAPITALS_1522) {
-    const cityId = cityCatalogId(capitalSpec.city, capitalSpec.country);
+    const cityId = requireEntityId(capitalSpec.cityId, "Faction capital city");
     if (included.has(cityId)) continue;
     const city = bestByCity.get(cityId);
     if (!city) throw new Error(`No city catalog record for faction capital: ${capitalSpec.city}, ${capitalSpec.country}`);
@@ -302,7 +301,7 @@ function ensureFactionCapitalsInCityCatalog(cities, bestByCity) {
 function ensureManualCitiesInCityCatalog(cities, bestByCity) {
   const included = new Set(cities.map((city) => city.cityId));
   for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
-    const cityId = cityCatalogId(manualSpec.city, manualSpec.country);
+    const cityId = requireEntityId(manualSpec.cityId, "Manual city");
     if (included.has(cityId)) continue;
     const city = bestByCity.get(cityId);
     if (!city) throw new Error(`No city catalog record for manual city: ${manualSpec.city}, ${manualSpec.country}`);
@@ -383,47 +382,42 @@ function optionalCsvBoolean(row, index) {
   return value === "1" || value === "true" || value === "yes";
 }
 
-export function cityCatalogId(city, country) {
-  if (typeof city !== "string" || city.trim() === "") {
-    throw new Error("City catalog id requires a city");
-  }
-  if (typeof country !== "string" || country.trim() === "") {
-    throw new Error("City catalog id requires a country");
-  }
-  return `${city.trim().toLowerCase()}|${country.trim().toLowerCase()}`;
+function territoryIds(values) {
+  return new Set(values.map((value) => value.toLocaleLowerCase("en-US")));
 }
 
-function cityDisplayName(city, country, targetYear, fallback = city) {
-  const rules = CITY_DISPLAY_NAME_OVERRIDES.get(cityCatalogId(city, country));
+function cityDisplayName(cityId, targetYear, fallback) {
+  const rules = CITY_DISPLAY_NAME_OVERRIDES.get(requireEntityId(cityId));
   if (!rules) return fallback;
   const rule = rules.find((item) => targetYear <= item.throughYear);
   return rule?.displayCity || fallback;
 }
 
-function cityPlacementOverride(city, country) {
-  return CITY_PLACEMENT_OVERRIDES_1522.get(cityCatalogId(city, country)) || {};
+function cityPlacementOverride(cityId) {
+  return CITY_PLACEMENT_OVERRIDES_1522.get(requireEntityId(cityId, "City placement override")) || {};
 }
 
-export function cityTypeForCity(country, lat, lon) {
+export function cityTypeForCity(cityId, lat, lon) {
+  const country = cityTerritoryId({ cityId }, "City art classification");
   if (EAST_ASIAN.has(country)) return "east-asian";
   if (SOUTH_ASIAN.has(country)) return "south-asian";
   if (SOUTHEAST_ASIAN.has(country)) return "southeast-asian";
   if (POLYNESIAN.has(country)) return "polynesian";
   if (ANDEAN.has(country)) return "andean";
   if (MESOAMERICAN.has(country)) return "mesoamerican";
-  if (country === "France" && lat < 45.5 && lon > 2) return "mediterranean";
-  if (country === "Mali" && lat < 14) return "sub-saharan";
-  if (country === "Russian Federation" && lat < 47 && lon > 30) return "mediterranean";
-  if (country === "Ukraine" && lat < 46 && lon > 30) return "mediterranean";
+  if (country === "france" && lat < 45.5 && lon > 2) return "mediterranean";
+  if (country === "mali" && lat < 14) return "sub-saharan";
+  if (country === "russian federation" && lat < 47 && lon > 30) return "mediterranean";
+  if (country === "ukraine" && lat < 46 && lon > 30) return "mediterranean";
   if (MEDITERRANEAN.has(country)) return "mediterranean";
   if (NORTHERN_EUROPEAN.has(country)) return "northern-european";
   if (ISLAMIC_DESERT.has(country)) return "islamic-desert";
   if (SUB_SAHARAN.has(country)) return "sub-saharan";
-  throw new Error(`No city type art bucket for city country: ${country}`);
+  throw new Error(`No city type art bucket for canonical territory: ${country}`);
 }
 
 export function cityIsInEurope(city) {
-  return Boolean(city && EUROPEAN_CITY_COUNTRIES.has(city.country));
+  return Boolean(city && EUROPEAN_CITY_COUNTRIES.has(cityTerritoryId(city, "European city")));
 }
 
 export function cityArtKeyForCity(city) {
@@ -432,7 +426,7 @@ export function cityArtKeyForCity(city) {
   if (city.settlementType === "village") return "village";
   if (
     city.cityType === "mesoamerican" &&
-    NATIVE_AMERICAN_CITY_ART_COUNTRIES.has(city.country)
+    NATIVE_AMERICAN_CITY_ART_COUNTRIES.has(cityTerritoryId(city, "City art"))
   ) return "native-american";
   return CITY_TYPE_ART_KEYS[city.cityType] || city.cityType;
 }

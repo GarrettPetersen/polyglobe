@@ -23,8 +23,13 @@ import {
 import { worldDiplomacyBetween } from "./worldDiplomacy.js";
 
 const PLAYER = Object.freeze({
+  id: "player:joan-alden",
   name: "Joan Alden",
   nationalityId: "england",
+  homePortCityId: "paris|france",
+  homePortTileId: 161197,
+  homePortName: "Paris",
+  homePortCountry: "France",
   expressions: ["neutral", "happy"]
 });
 const PARIS = port(161197, "Paris", "France", "france", 48.86, 2.35);
@@ -36,6 +41,7 @@ const SEVILLE = port(161342, "Seville", "Spain", "spain", 37.39, -5.99);
 const GENT = port(161189, "Gent", "Belgium", "burgundian-netherlands", 51.05, 3.72);
 const MILAN = Object.freeze({
   tileId: 99,
+  cityId: "milan|italy",
   city: "Milan",
   displayCity: "Milan",
   country: "Italy",
@@ -207,6 +213,7 @@ function historicalWorldState(state, milan) {
 
 function port(tileId, city, country, factionId, lat, lon) {
   return Object.freeze({
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city,
     displayCity: city,

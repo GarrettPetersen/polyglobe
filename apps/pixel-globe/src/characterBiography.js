@@ -1,5 +1,6 @@
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 import { inferCharacterReligion, religionById } from "./characterReligion.js";
+import { requireEntityId } from "./entityIds.js";
 
 export const CHARACTER_BIOGRAPHY_REFERENCE_YEAR = 1522;
 export const CHARACTER_BIOGRAPHY_REFERENCE_MONTH = 3;
@@ -88,7 +89,7 @@ const CULTURE_NATIONALITIES = Object.freeze({
 });
 
 export function characterWithBiography(character, {
-  identityKey = character?.id || character?.name,
+  identityKey = character?.id,
   referenceYear = CHARACTER_BIOGRAPHY_REFERENCE_YEAR,
   referenceMonth = CHARACTER_BIOGRAPHY_REFERENCE_MONTH,
   referenceDay = CHARACTER_BIOGRAPHY_REFERENCE_DAY,
@@ -100,9 +101,7 @@ export function characterWithBiography(character, {
   homePort = null
 } = {}) {
   if (!character || typeof character !== "object") throw new Error("Character biography requires a character");
-  if (typeof identityKey !== "string" || identityKey.trim() === "") {
-    throw new Error("Character biography requires an identity key");
-  }
+  requireEntityId(identityKey, "Character biography");
   assertCalendarDate({ year: referenceYear, month: referenceMonth, day: referenceDay }, "biography reference");
   const sex = character.sex || character.gender;
   if (sex !== "female" && sex !== "male") {

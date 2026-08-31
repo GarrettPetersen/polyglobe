@@ -27,6 +27,7 @@ import { shipyardAtPort } from "./shipyards.js";
 
 const LISBON = Object.freeze({
   tileId: 1,
+  cityId: "lisbon|kingdom of portugal",
   city: "Lisbon",
   displayCity: "Lisbon",
   country: "Kingdom of Portugal",
@@ -51,6 +52,7 @@ test("a wealthy captain can begin one major-port shipyard investment", () => {
   const yard = { famous: true, playerBacking: null };
   assert.equal(shipyardInvestmentOfferAvailable(state, LISBON, yard), true);
   const project = beginShipyardInvestment(state, LISBON, yard, 1000);
+  assert.equal(project.portCityId, LISBON.cityId);
   assert.equal(project.portTileId, LISBON.tileId);
   assert.equal(project.capitalPaid, false);
   assert.deepEqual(project.materialsDelivered, { timber: 0, iron: 0, "naval-stores": 0 });
@@ -75,7 +77,7 @@ test("a shipyard cannot open until capital and every material are delivered", ()
   const completed = completeShipyardInvestment(state.memory.shipyardInvestment, project, 1);
   assert.equal(completed.portTileId, LISBON.tileId);
   assert.equal(state.memory.shipyardInvestment.project, null);
-  assert.deepEqual(state.memory.shipyardInvestment.backedPortTileIds, [LISBON.tileId]);
+  assert.deepEqual(state.memory.shipyardInvestment.backedPortCityIds, [LISBON.cityId]);
   validateShipyardInvestmentMemory(state.memory.shipyardInvestment);
 });
 
@@ -113,7 +115,7 @@ test("another major-port yard can be backed after the investment cooldown", () =
   project.capitalPaid = true;
   project.materialsDelivered = { ...SHIPYARD_INVESTMENT_MATERIALS };
   completeShipyardInvestment(state.memory.shipyardInvestment, project, 2000);
-  const porto = { ...LISBON, tileId: 2, city: "Porto" };
+  const porto = { ...LISBON, cityId: "porto|portugal", tileId: 2, city: "Porto" };
   assert.equal(shipyardInvestmentOfferAvailable(state, porto, yard, 2001), false);
   assert.equal(shipyardInvestmentOfferAvailable(
     state,
@@ -135,13 +137,14 @@ test("a later investment can fund a famous Ottoman-controlled yard", () => {
     memory: {
       shipyardInvestment: {
         ...createShipyardInvestmentMemory(),
-        backedPortTileIds: [LISBON.tileId],
+        backedPortCityIds: [LISBON.cityId],
         lastCompletedMinute: 1000
       }
     }
   };
   const ottomanPort = {
     ...LISBON,
+    cityId: "constantinople|turkey",
     tileId: 3,
     city: "Constantinople",
     factionId: "ottoman"
@@ -174,24 +177,24 @@ test("restoring a save repairs every player-backed shipyard in the world economy
   const port = LISBON;
   const memory = {
     ...createShipyardInvestmentMemory(),
-    backedPortTileIds: [port.tileId],
+    backedPortCityIds: [port.cityId],
     lastCompletedMinute: 100
   };
   const economy = createWorldEconomy({ ports: [port], startMinute: 200 });
-  const citiesByTileId = new Map([[port.tileId, port]]);
+  const citiesById = new Map([[port.cityId, port]]);
 
   assert.deepEqual(
-    reconcilePlayerShipyardInvestmentWorld(memory, economy, citiesByTileId, 200),
+    reconcilePlayerShipyardInvestmentWorld(memory, economy, citiesById, 200),
     ["Lisbon"]
   );
   assert.equal(shipyardAtPort(economy.shipyards, port).playerBacking.seedCapital, 100000);
   assert.equal(assertPlayerShipyardInvestmentWorldConsistency(
     memory,
     economy,
-    citiesByTileId
+    citiesById
   ), true);
   assert.deepEqual(
-    reconcilePlayerShipyardInvestmentWorld(memory, economy, citiesByTileId, 200),
+    reconcilePlayerShipyardInvestmentWorld(memory, economy, citiesById, 200),
     []
   );
 });
@@ -199,7 +202,7 @@ test("restoring a save repairs every player-backed shipyard in the world economy
 test("save-time consistency rejects a portfolio whose simulated yard is not backed", () => {
   const memory = {
     ...createShipyardInvestmentMemory(),
-    backedPortTileIds: [LISBON.tileId],
+    backedPortCityIds: [LISBON.cityId],
     lastCompletedMinute: 100
   };
   const economy = createWorldEconomy({ ports: [LISBON], startMinute: 200 });
@@ -207,7 +210,7 @@ test("save-time consistency rejects a portfolio whose simulated yard is not back
     () => assertPlayerShipyardInvestmentWorldConsistency(
       memory,
       economy,
-      new Map([[LISBON.tileId, LISBON]])
+      new Map([[LISBON.cityId, LISBON]])
     ),
     /world state is incomplete/
   );
@@ -216,12 +219,12 @@ test("save-time consistency rejects a portfolio whose simulated yard is not back
 test("restoring a player-backed shipyard fails clearly when its city is missing", () => {
   const memory = {
     ...createShipyardInvestmentMemory(),
-    backedPortTileIds: [999],
+    backedPortCityIds: ["missing|port"],
     lastCompletedMinute: 100
   };
   const economy = createWorldEconomy({ ports: [LISBON], startMinute: 200 });
   assert.throws(
     () => reconcilePlayerShipyardInvestmentWorld(memory, economy, new Map(), 200),
-    /missing from the city catalog: 999/
+    /missing from the city catalog: missing\|port/
   );
 });

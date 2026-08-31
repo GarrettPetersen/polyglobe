@@ -10,8 +10,9 @@ import {
   recordPortCapture
 } from "./portConquest.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
-export const CONQUISTADOR_QUEST_VERSION = 2;
+export const CONQUISTADOR_QUEST_VERSION = 3;
 export const CONQUISTADOR_QUEST_ID = "spanish-conquest-of-the-inca";
 export const CONQUISTADOR_STAGE_DORMANT = "dormant";
 export const CONQUISTADOR_STAGE_FETCH = "fetch";
@@ -55,7 +56,9 @@ export function createConquistadorQuestMemory() {
     version: CONQUISTADOR_QUEST_VERSION,
     stage: CONQUISTADOR_STAGE_DORMANT,
     offerSeen: false,
+    originCityId: null,
     originTileId: null,
+    targetCityId: null,
     targetTileId: null,
     fetchStageIndex: 0,
     companyStrength: 0,
@@ -64,14 +67,14 @@ export function createConquistadorQuestMemory() {
     capturedAtMinute: null,
     rewardReadyMinute: null,
     transferSchedule: [],
-    transferredTileIds: [],
+    transferredCityIds: [],
     completedAtMinute: null
   };
 }
 
 export function migrateConquistadorQuestMemory(memory) {
   if (memory === undefined || memory === null) return createConquistadorQuestMemory();
-  if (![1, CONQUISTADOR_QUEST_VERSION].includes(memory.version)) {
+  if (![1, 2, CONQUISTADOR_QUEST_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported conquistador quest version: ${memory.version ?? "missing"}`);
   }
   const migratedCompany = memory.version === 1
@@ -83,20 +86,30 @@ export function migrateConquistadorQuestMemory(memory) {
         failedAssaults: 0
       }
     : {};
-  return validateConquistadorQuestMemory({
+  const canUseCanonicalVersion = memory.version === CONQUISTADOR_QUEST_VERSION || (
+    memory.stage === CONQUISTADOR_STAGE_DORMANT &&
+    (memory.originTileId ?? null) === null &&
+    (memory.targetTileId ?? null) === null
+  );
+  const migrated = {
     ...createConquistadorQuestMemory(),
     ...memory,
     ...migratedCompany,
-    version: CONQUISTADOR_QUEST_VERSION,
+    version: canUseCanonicalVersion ? CONQUISTADOR_QUEST_VERSION : 2,
     transferSchedule: [...(memory.transferSchedule || [])],
-    transferredTileIds: [...(memory.transferredTileIds || [])]
-  });
+    ...(canUseCanonicalVersion
+      ? { transferredCityIds: [...(memory.transferredCityIds || [])] }
+      : { transferredTileIds: [...(memory.transferredTileIds || [])] })
+  };
+  if (canUseCanonicalVersion) delete migrated.transferredTileIds;
+  return validateConquistadorQuestMemory(migrated);
 }
 
 export function validateConquistadorQuestMemory(memory) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     throw new Error("Conquistador quest memory must be an object");
   }
+  if (memory.version === 2) return validateLegacyConquistadorQuestMemory(memory);
   if (memory.version !== CONQUISTADOR_QUEST_VERSION) {
     throw new Error(`Invalid conquistador quest version: ${memory.version}`);
   }
@@ -104,6 +117,8 @@ export function validateConquistadorQuestMemory(memory) {
   if (typeof memory.offerSeen !== "boolean") throw new Error("Conquistador offer flag must be boolean");
   assertOptionalTileId(memory.originTileId, "origin");
   assertOptionalTileId(memory.targetTileId, "target");
+  assertOptionalEntityId(memory.originCityId, "origin");
+  assertOptionalEntityId(memory.targetCityId, "target");
   if (!Number.isInteger(memory.fetchStageIndex) || memory.fetchStageIndex < 0 ||
       memory.fetchStageIndex > CONQUISTADOR_FETCH_STAGES.length) {
     throw new Error(`Invalid conquistador fetch stage index: ${memory.fetchStageIndex}`);
@@ -122,28 +137,30 @@ export function validateConquistadorQuestMemory(memory) {
   assertOptionalMinute(memory.rewardReadyMinute, "reward");
   assertOptionalMinute(memory.completedAtMinute, "completion");
   if (!Array.isArray(memory.transferSchedule)) throw new Error("Conquistador transfers must be an array");
-  const scheduledTiles = new Set();
+  const scheduledCityIds = new Set();
   let previousMinute = -Infinity;
   for (const transfer of memory.transferSchedule) {
-    if (!Number.isInteger(transfer?.tileId) || transfer.tileId < 0 ||
+    if (typeof transfer?.cityId !== "string" || transfer.cityId === "" ||
+        !Number.isInteger(transfer.tileId) || transfer.tileId < 0 ||
         !Number.isFinite(transfer.simMinute) || transfer.simMinute < 0) {
       throw new Error("Invalid conquistador transfer");
     }
-    if (scheduledTiles.has(transfer.tileId)) {
-      throw new Error(`Duplicate conquistador transfer tile: ${transfer.tileId}`);
+    if (scheduledCityIds.has(transfer.cityId)) {
+      throw new Error(`Duplicate conquistador transfer city: ${transfer.cityId}`);
     }
     if (transfer.simMinute < previousMinute) {
       throw new Error("Conquistador transfers must be chronological");
     }
-    scheduledTiles.add(transfer.tileId);
+    scheduledCityIds.add(transfer.cityId);
     previousMinute = transfer.simMinute;
   }
-  if (!Array.isArray(memory.transferredTileIds) ||
-      memory.transferredTileIds.some((tileId) => !scheduledTiles.has(tileId)) ||
-      new Set(memory.transferredTileIds).size !== memory.transferredTileIds.length) {
+  if (!Array.isArray(memory.transferredCityIds) ||
+      memory.transferredCityIds.some((cityId) => !scheduledCityIds.has(cityId)) ||
+      new Set(memory.transferredCityIds).size !== memory.transferredCityIds.length) {
     throw new Error("Invalid completed conquistador transfers");
   }
-  const bound = memory.originTileId !== null && memory.targetTileId !== null;
+  const bound = memory.originCityId !== null && memory.targetCityId !== null &&
+    memory.originTileId !== null && memory.targetTileId !== null;
   if (memory.stage === CONQUISTADOR_STAGE_DORMANT && bound) {
     throw new Error("Dormant conquistador quest cannot be bound to ports");
   }
@@ -193,8 +210,8 @@ export function conquistadorQuestView(memory, portCities, currentMinute, { cargo
   validateConquistadorQuestMemory(memory);
   assertMinute(currentMinute, "conquistador-view");
   const canonical = conquistadorQuestPorts(portCities);
-  const origin = boundPort(memory.originTileId, canonical.origin, portCities, "origin");
-  const target = boundPort(memory.targetTileId, canonical.target, portCities, "target");
+  const origin = boundPort(memory.originCityId, canonical.origin, portCities, "origin");
+  const target = boundPort(memory.targetCityId, canonical.target, portCities, "target");
   const fetchStage = memory.stage === CONQUISTADOR_STAGE_FETCH
     ? CONQUISTADOR_FETCH_STAGES[memory.fetchStageIndex]
     : null;
@@ -222,7 +239,9 @@ export function acceptConquistadorQuest(memory, portCities) {
   const { origin, target } = conquistadorQuestPorts(portCities);
   memory.stage = CONQUISTADOR_STAGE_FETCH;
   memory.offerSeen = true;
+  memory.originCityId = requireCityId(origin, "Conquistador origin");
   memory.originTileId = origin.tileId;
+  memory.targetCityId = requireCityId(target, "Conquistador target");
   memory.targetTileId = target.tileId;
   memory.fetchStageIndex = 0;
   return validateConquistadorQuestMemory(memory);
@@ -269,7 +288,7 @@ export function beginConquistadorExpedition(memory, eligibility) {
 
 export function conquistadorCompanyAssaultStatus(memory, city) {
   validateConquistadorQuestMemory(memory);
-  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE || city?.tileId !== memory.targetTileId) return null;
+  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE || city?.cityId !== memory.targetCityId) return null;
   const assaultChanceBonus = Math.min(
     0.46,
     CONQUISTADOR_FIRST_ASSAULT_BONUS + memory.failedAssaults * CONQUISTADOR_RETRY_ASSAULT_BONUS
@@ -316,7 +335,7 @@ export function conquistadorCompanyReplenishmentPolicy(memory, portCities) {
   );
   return Object.freeze({
     spanishPortsRemain,
-    exileBaseTileId: spanishPortsRemain ? null : memory.originTileId
+    exileBaseCityId: spanishPortsRemain ? null : memory.originCityId
   });
 }
 
@@ -326,7 +345,7 @@ export function isConquistadorCompanyReplenishmentPort(memory, city, portCities)
   const policy = conquistadorCompanyReplenishmentPolicy(memory, portCities);
   return policy.spanishPortsRemain
     ? city?.factionId === CONQUISTADOR_ORIGIN_FACTION_ID
-    : city?.tileId === policy.exileBaseTileId;
+    : city?.cityId === policy.exileBaseCityId;
 }
 
 export function replenishConquistadorCompany(memory, city, portCities) {
@@ -343,7 +362,7 @@ export function replenishConquistadorCompany(memory, city, portCities) {
 
 export function conquistadorCommissionedCaptureFactionId(memory, city) {
   validateConquistadorQuestMemory(memory);
-  return memory.stage === CONQUISTADOR_STAGE_CAPTURE && city?.tileId === memory.targetTileId
+  return memory.stage === CONQUISTADOR_STAGE_CAPTURE && city?.cityId === memory.targetCityId
     ? CONQUISTADOR_ORIGIN_FACTION_ID
     : null;
 }
@@ -351,12 +370,12 @@ export function conquistadorCommissionedCaptureFactionId(memory, city) {
 export function recordConquistadorTargetCapture(memory, conquestMemory, cities, event, simMinute) {
   validateConquistadorQuestMemory(memory);
   assertMinute(simMinute, "conquistador capture");
-  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE || event?.cityTileId !== memory.targetTileId ||
+  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE || event?.cityId !== memory.targetCityId ||
       event.newFactionId !== CONQUISTADOR_ORIGIN_FACTION_ID || event.source !== "player") {
     throw new Error("Conquistador quest received an unrelated port capture");
   }
-  const target = cities.find((city) => city.tileId === memory.targetTileId);
-  if (!target) throw new Error(`Conquistador target city is missing: ${memory.targetTileId}`);
+  const target = cities.find((city) => city.cityId === memory.targetCityId);
+  if (!target) throw new Error(`Conquistador target city is missing: ${memory.targetCityId}`);
   memory.stage = CONQUISTADOR_STAGE_CAMPAIGN;
   memory.companyStrength = 0;
   memory.companyNeedsReplenishment = false;
@@ -369,12 +388,13 @@ export function recordConquistadorTargetCapture(memory, conquestMemory, cities, 
       greatCircleDistanceKm(target, a) - greatCircleDistanceKm(target, b) || a.tileId - b.tileId
     ));
   memory.transferSchedule = candidates.map((city, index) => ({
+    cityId: requireCityId(city, "Conquistador campaign city"),
     tileId: city.tileId,
     simMinute: simMinute + Math.round(
       CONQUISTADOR_CAMPAIGN_MINUTES * 0.9 * (index + 1) / (candidates.length + 1)
     )
   }));
-  memory.transferredTileIds = [];
+  memory.transferredCityIds = [];
   const spanishName = spanishConquestName(target);
   if (spanishName) recordCityDisplayName(conquestMemory, target, spanishName);
   return validateConquistadorQuestMemory(memory);
@@ -383,8 +403,8 @@ export function recordConquistadorTargetCapture(memory, conquestMemory, cities, 
 export function nextConquistadorQuestMinute(memory) {
   validateConquistadorQuestMemory(memory);
   if (memory.stage !== CONQUISTADOR_STAGE_CAMPAIGN) return Number.POSITIVE_INFINITY;
-  const completed = new Set(memory.transferredTileIds);
-  const nextTransfer = memory.transferSchedule.find((entry) => !completed.has(entry.tileId));
+  const completed = new Set(memory.transferredCityIds);
+  const nextTransfer = memory.transferSchedule.find((entry) => !completed.has(entry.cityId));
   return Math.min(nextTransfer?.simMinute ?? Number.POSITIVE_INFINITY, memory.rewardReadyMinute);
 }
 
@@ -392,12 +412,12 @@ export function advanceConquistadorCampaign(memory, conquestMemory, cities, curr
   validateConquistadorQuestMemory(memory);
   assertMinute(currentMinute, "conquistador campaign");
   if (memory.stage !== CONQUISTADOR_STAGE_CAMPAIGN) return Object.freeze({ transfers: [], rewardReady: false });
-  const completed = new Set(memory.transferredTileIds);
+  const completed = new Set(memory.transferredCityIds);
   const transfers = [];
   for (const scheduled of memory.transferSchedule) {
-    if (scheduled.simMinute > currentMinute || completed.has(scheduled.tileId)) continue;
-    const city = cities.find((candidate) => candidate.tileId === scheduled.tileId);
-    if (!city) throw new Error(`Conquistador campaign city is missing: ${scheduled.tileId}`);
+    if (scheduled.simMinute > currentMinute || completed.has(scheduled.cityId)) continue;
+    const city = cities.find((candidate) => candidate.cityId === scheduled.cityId);
+    if (!city) throw new Error(`Conquistador campaign city is missing: ${scheduled.cityId}`);
     if (effectivePortFactionId(conquestMemory, city) === CONQUISTADOR_TARGET_FACTION_ID) {
       const currentCity = { ...city, factionId: CONQUISTADOR_TARGET_FACTION_ID };
       transfers.push(recordPortCapture(
@@ -410,9 +430,9 @@ export function advanceConquistadorCampaign(memory, conquestMemory, cities, curr
       const spanishName = spanishConquestName(city);
       if (spanishName) recordCityDisplayName(conquestMemory, city, spanishName);
     }
-    completed.add(scheduled.tileId);
+    completed.add(scheduled.cityId);
   }
-  memory.transferredTileIds = [...completed];
+  memory.transferredCityIds = [...completed];
   const rewardReady = currentMinute >= memory.rewardReadyMinute;
   if (rewardReady) {
     const incaCitiesRemain = cities.some((city) => (
@@ -445,16 +465,16 @@ export function completeConquistadorQuest(memory, simMinute) {
 
 export function isConquistadorQuestOrigin(memory, city) {
   validateConquistadorQuestMemory(memory);
-  return memory.originTileId === null
+  return memory.originCityId === null
     ? portMatchesCanonicalReference(city, CANONICAL_PORTS.PANAMA_CITY)
-    : city?.tileId === memory.originTileId;
+    : city?.cityId === memory.originCityId;
 }
 
 export function isConquistadorQuestTarget(memory, city) {
   validateConquistadorQuestMemory(memory);
-  return memory.targetTileId === null
+  return memory.targetCityId === null
     ? portMatchesCanonicalReference(city, CANONICAL_PORTS.CHAN_CHAN)
-    : city?.tileId === memory.targetTileId;
+    : city?.cityId === memory.targetCityId;
 }
 
 export function conquistadorQuestShouldAppearAtCity(memory, city, portCities) {
@@ -495,13 +515,13 @@ export function conquistadorQuestDestination(memory, portCities, currentMinute) 
 }
 
 function spanishConquestName(city) {
-  return SPANISH_CITY_NAMES.get(`${city.city.toLowerCase()}|${city.country.toLowerCase()}`) || null;
+  return SPANISH_CITY_NAMES.get(requireCityId(city, "Conquistador city")) || null;
 }
 
-function boundPort(tileId, fallback, portCities, label) {
-  if (tileId === null) return fallback;
-  const port = portCities.find((candidate) => candidate.tileId === tileId);
-  if (!port) throw new Error(`Conquistador ${label} port is missing: ${tileId}`);
+function boundPort(cityId, fallback, portCities, label) {
+  if (cityId === null) return fallback;
+  const port = portCities.find((candidate) => candidate.cityId === cityId);
+  if (!port) throw new Error(`Conquistador ${label} port is missing: ${cityId}`);
   return port;
 }
 
@@ -515,8 +535,34 @@ function assertOptionalTileId(value, label) {
   }
 }
 
+function assertOptionalEntityId(value, label) {
+  if (value !== null) requireEntityId(value, `Conquistador ${label}`);
+}
+
 function assertOptionalMinute(value, label) {
   if (value !== null) assertMinute(value, `conquistador ${label}`);
+}
+
+function validateLegacyConquistadorQuestMemory(memory) {
+  if (!STAGES.has(memory.stage) || typeof memory.offerSeen !== "boolean") {
+    throw new Error("Invalid legacy conquistador quest state");
+  }
+  assertOptionalTileId(memory.originTileId, "legacy origin");
+  assertOptionalTileId(memory.targetTileId, "legacy target");
+  if (!Array.isArray(memory.transferSchedule) || !Array.isArray(memory.transferredTileIds)) {
+    throw new Error("Invalid legacy conquistador transfer state");
+  }
+  const scheduledTiles = new Set();
+  for (const transfer of memory.transferSchedule) {
+    if (!Number.isInteger(transfer?.tileId) || !Number.isFinite(transfer.simMinute)) {
+      throw new Error("Invalid legacy conquistador transfer");
+    }
+    scheduledTiles.add(transfer.tileId);
+  }
+  if (memory.transferredTileIds.some((tileId) => !scheduledTiles.has(tileId))) {
+    throw new Error("Invalid completed legacy conquistador transfers");
+  }
+  return memory;
 }
 
 function assertMinute(value, label) {

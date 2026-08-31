@@ -16,7 +16,7 @@ import {
 } from "./imperialEstates.js";
 import { gameMinuteForDate, rulerAtMinute, rulerChangesBetween } from "./rulers.js";
 
-export const IMPERIAL_CONSTITUTION_VERSION = 3;
+export const IMPERIAL_CONSTITUTION_VERSION = 4;
 export const IMPERIAL_HISTORY_LIMIT = 40;
 export const IMPERIAL_AUTHORITY_MIN = 0;
 export const IMPERIAL_AUTHORITY_MAX = 100;
@@ -128,6 +128,7 @@ export function createImperialConstitution({ startMinute = 0 } = {}) {
     startMinute,
     lastUpdateMinute: startMinute,
     emperorFactionId: "burgundian-netherlands",
+    emperorRulerId: rulerAtMinute("burgundian-netherlands", startMinute).id,
     emperorRulerName: rulerAtMinute("burgundian-netherlands", startMinute).name,
     emperorOfficeVacant: false,
     kingOfRomans: null,
@@ -167,15 +168,14 @@ export function migrateImperialConstitution(memory, { startMinute = 0 } = {}) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
     throw new Error("Imperial constitution migration requires an object");
   }
-  if (![1, 2, IMPERIAL_CONSTITUTION_VERSION].includes(memory.version)) {
+  if (![1, 2, 3, IMPERIAL_CONSTITUTION_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported Imperial constitution version: ${memory.version ?? "missing"}`);
   }
   const initial = createImperialConstitution({ startMinute });
   const migratedFromV1 = memory.version === 1;
   const migratedFromCombinedHabsburg = memory.version < 3;
   const charlesHeldOffice = migratedFromCombinedHabsburg &&
-    memory.emperorFactionId === "habsburg" &&
-    (memory.emperorRulerName === undefined || memory.emperorRulerName === "Charles V");
+    memory.emperorFactionId === "habsburg";
   const emperorFactionId = charlesHeldOffice
     ? "burgundian-netherlands"
     : memory.emperorFactionId;
@@ -185,11 +185,18 @@ export function migrateImperialConstitution(memory, { startMinute = 0 } = {}) {
     ...memory,
     version: IMPERIAL_CONSTITUTION_VERSION,
     emperorFactionId,
+    emperorRulerId: memory.emperorRulerId || emperorRuler.id,
     emperorRulerName: migratedFromV1
       ? emperorRuler.name
       : memory.emperorRulerName,
     emperorOfficeVacant: migratedFromV1 ? false : memory.emperorOfficeVacant,
-    kingOfRomans: migratedFromV1 ? null : memory.kingOfRomans,
+    kingOfRomans: migratedFromV1 || !memory.kingOfRomans ? null : {
+      ...memory.kingOfRomans,
+      rulerId: memory.kingOfRomans.rulerId || rulerAtMinute(
+        memory.kingOfRomans.factionId,
+        memory.kingOfRomans.electedMinute
+      ).id
+    },
     pendingElection: migratedFromV1 ? null : memory.pendingElection,
     foundationalElectionResolved: migratedFromV1
       ? memory.electionSequence > 0 || !charlesHeldOffice
@@ -238,6 +245,9 @@ export function validateImperialConstitution(memory) {
     throw new Error("Imperial constitution update precedes its start");
   }
   assertFactionId(memory.emperorFactionId);
+  if (typeof memory.emperorRulerId !== "string" || memory.emperorRulerId.trim() === "") {
+    throw new Error("Imperial constitution is missing the Emperor's id");
+  }
   if (typeof memory.emperorRulerName !== "string" || memory.emperorRulerName.trim() === "") {
     throw new Error("Imperial constitution is missing the Emperor's name");
   }
@@ -353,12 +363,14 @@ export function holdImperialElection(memory, {
   const previousEmperorFactionId = memory.emperorFactionId;
   if (office === IMPERIAL_ELECTION_OFFICE_EMPEROR) {
     memory.emperorFactionId = winnerFactionId;
+    memory.emperorRulerId = candidateRulers[winnerFactionId].id;
     memory.emperorRulerName = candidateRulers[winnerFactionId].name;
     memory.emperorOfficeVacant = false;
     memory.kingOfRomans = null;
   } else {
     memory.kingOfRomans = Object.freeze({
       factionId: winnerFactionId,
+      rulerId: candidateRulers[winnerFactionId].id,
       rulerName: candidateRulers[winnerFactionId].name,
       electedMinute: simMinute
     });
@@ -376,6 +388,7 @@ export function holdImperialElection(memory, {
     previousEmperorFactionId,
     emperorFactionId: memory.emperorFactionId,
     winnerFactionId,
+    winnerRulerId: candidateRulers[winnerFactionId].id,
     winnerRulerName: candidateRulers[winnerFactionId].name,
     candidateFactionIds: Object.freeze(candidates),
     runoffCandidateFactionIds: Object.freeze(runoffCandidateFactionIds),
@@ -504,15 +517,16 @@ function conveneImperialElection(memory, {
 function handleTrackedRulerChange(memory, change) {
   if (memory.kingOfRomans &&
       change.factionId === memory.kingOfRomans.factionId &&
-      change.previousRuler.name === memory.kingOfRomans.rulerName &&
+      change.previousRuler.id === memory.kingOfRomans.rulerId &&
       !(change.factionId === memory.emperorFactionId &&
-        change.previousRuler.name === memory.emperorRulerName)) {
+        change.previousRuler.id === memory.emperorRulerId)) {
     const previousKingOfRomans = memory.kingOfRomans;
     memory.kingOfRomans = null;
     const event = freezeEvent({
       kind: "king-of-romans-vacancy",
       simMinute: change.fromMinute,
       factionId: previousKingOfRomans.factionId,
+      rulerId: previousKingOfRomans.rulerId,
       rulerName: previousKingOfRomans.rulerName,
       source: "ruler-succession"
     });
@@ -529,11 +543,12 @@ function handleTrackedRulerChange(memory, change) {
     return event;
   }
   if (change.factionId !== memory.emperorFactionId ||
-      change.previousRuler.name !== memory.emperorRulerName) return null;
+      change.previousRuler.id !== memory.emperorRulerId) return null;
   if (memory.kingOfRomans !== null) {
     const previousEmperorFactionId = memory.emperorFactionId;
     const successor = memory.kingOfRomans;
     memory.emperorFactionId = successor.factionId;
+    memory.emperorRulerId = successor.rulerId;
     memory.emperorRulerName = successor.rulerName;
     memory.emperorOfficeVacant = false;
     memory.kingOfRomans = null;
@@ -542,6 +557,7 @@ function handleTrackedRulerChange(memory, change) {
       simMinute: change.fromMinute,
       previousEmperorFactionId,
       emperorFactionId: successor.factionId,
+      emperorRulerId: successor.rulerId,
       emperorRulerName: successor.rulerName,
       source: "ruler-succession"
     });
@@ -553,6 +569,7 @@ function handleTrackedRulerChange(memory, change) {
     kind: "imperial-vacancy",
     simMinute: change.fromMinute,
     previousEmperorFactionId: memory.emperorFactionId,
+    previousEmperorRulerId: memory.emperorRulerId,
     previousEmperorRulerName: memory.emperorRulerName,
     source: "ruler-succession"
   });
@@ -571,9 +588,9 @@ function handleTrackedRulerChange(memory, change) {
 
 function nextTrackedRulerChange(memory) {
   return rulerChangesBetween(memory.lastUpdateMinute, Number.MAX_SAFE_INTEGER).find((change) => (
-    (change.factionId === memory.emperorFactionId && change.previousRuler.name === memory.emperorRulerName) ||
+    (change.factionId === memory.emperorFactionId && change.previousRuler.id === memory.emperorRulerId) ||
     (memory.kingOfRomans !== null && change.factionId === memory.kingOfRomans.factionId &&
-      change.previousRuler.name === memory.kingOfRomans.rulerName)
+      change.previousRuler.id === memory.kingOfRomans.rulerId)
   )) || null;
 }
 
@@ -783,6 +800,7 @@ export function imperialPoliticsView(memory, simMinute = memory?.lastUpdateMinut
   return Object.freeze({
     emperorFactionId: memory.emperorFactionId,
     emperorFactionName: factionById(memory.emperorFactionId).shortName,
+    emperorRulerId: memory.emperorRulerId,
     emperorRulerName: memory.emperorRulerName,
     emperorOfficeVacant: memory.emperorOfficeVacant,
     kingOfRomans: memory.kingOfRomans,
@@ -852,6 +870,9 @@ function validateKingOfRomans(kingOfRomans) {
     throw new Error("Invalid King of the Romans state");
   }
   assertFactionId(kingOfRomans.factionId);
+  if (typeof kingOfRomans.rulerId !== "string" || kingOfRomans.rulerId.trim() === "") {
+    throw new Error("King of the Romans is missing a ruler id");
+  }
   if (typeof kingOfRomans.rulerName !== "string" || kingOfRomans.rulerName.trim() === "") {
     throw new Error("King of the Romans is missing a ruler name");
   }

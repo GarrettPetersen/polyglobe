@@ -235,8 +235,8 @@ test("fleet-origin weights preserve every port while favoring active sailing ori
   assert.ok([...weights.values()].some((weight) => weight > 1));
 
   assert.throws(
-    () => npcFleetOriginWeightsForPorts([PORTS[0], { ...PORTS[1], tileId: PORTS[0].tileId }]),
-    /duplicate port tile/i
+    () => npcFleetOriginWeightsForPorts([PORTS[0], { ...PORTS[1], cityId: PORTS[0].cityId }]),
+    /duplicate city/i
   );
 });
 
@@ -491,7 +491,7 @@ test("a founded American colony joins a Spanish ocean-going circuit", () => {
   const added = addNpcSeaRoutePort(routes, colony);
   const circuitShip = routes.ships.find((ship) => (
     ship.nationalCircuitFactionId === "spain" &&
-    ship.nationalCircuitPortIds.includes(colony.tileId)
+    ship.nationalCircuitCityIds.includes(colony.cityId)
   ));
 
   assert.equal(added.routeRegion, "americas");
@@ -500,7 +500,7 @@ test("a founded American colony joins a Spanish ocean-going circuit", () => {
   assert.equal(circuitShip.factionId, "spain");
   assert.equal(circuitShip.mode, "interregional");
   assert.equal(circuitShip.role, NPC_ROLE_MERCHANT);
-  assert.ok(circuitShip.nationalCircuitPortIds.includes(2), "the circuit should return to Seville");
+  assert.ok(circuitShip.nationalCircuitCityIds.includes(PORTS[1].cityId), "the circuit should return to Seville");
   assert.notEqual(circuitShip.slug, "mesoamerican-dugout-canoe");
   assert.throws(() => addNpcSeaRoutePort(routes, colony), /already exists/);
 });
@@ -515,46 +515,48 @@ test("national circuits cover every overseas port and survive save restore", () 
   const economy = createWorldEconomy({ ports: spanishPorts, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: spanishPorts, startMinute: 0, economy });
   const spanishCircuitShips = routes.ships.filter((ship) => ship.nationalCircuitFactionId === "spain");
-  const coveredPortIds = new Set(spanishCircuitShips.flatMap((ship) => ship.nationalCircuitPortIds));
+  const coveredCityIds = new Set(spanishCircuitShips.flatMap((ship) => ship.nationalCircuitCityIds));
 
   assert.ok(spanishCircuitShips.length > 0);
-  assert.ok([2, 97, 98, 99].every((portId) => coveredPortIds.has(portId)));
-  assert.ok(spanishCircuitShips.every((ship) => ship.nationalCircuitPortIds.length <= 6));
+  assert.ok(spanishPorts.filter((port) => [2, 97, 98, 99].includes(port.tileId))
+    .every((port) => coveredCityIds.has(port.cityId)));
+  assert.ok(spanishCircuitShips.every((ship) => ship.nationalCircuitCityIds.length <= 6));
 
   const circuitShip = spanishCircuitShips[0];
   const visitedCircuitPorts = new Set();
-  for (let leg = 0; leg < 12 && visitedCircuitPorts.size < circuitShip.nationalCircuitPortIds.length; leg++) {
+  for (let leg = 0; leg < 12 && visitedCircuitPorts.size < circuitShip.nationalCircuitCityIds.length; leg++) {
     const arrivalMinute = circuitShip.plan.endMinute - circuitShip.clockOffsetMinutes;
     advanceWorldEconomy(economy, arrivalMinute);
     updateNpcSeaRouteEvents(routes, arrivalMinute, [circuitShip.id]);
-    if (circuitShip.nationalCircuitPortIds.includes(circuitShip.currentPort.tileId)) {
-      visitedCircuitPorts.add(circuitShip.currentPort.tileId);
+    if (circuitShip.nationalCircuitCityIds.includes(circuitShip.currentPort.cityId)) {
+      visitedCircuitPorts.add(circuitShip.currentPort.cityId);
     }
   }
   assert.deepEqual(
-    [...visitedCircuitPorts].sort((a, b) => a - b),
-    circuitShip.nationalCircuitPortIds.slice().sort((a, b) => a - b)
+    [...visitedCircuitPorts].sort(),
+    circuitShip.nationalCircuitCityIds.slice().sort()
   );
 
   const snapshot = snapshotNpcSeaRouteSystem(routes);
   restoreNpcSeaRouteSystem(routes, snapshot, { economy });
   const restoredCircuitShips = routes.ships.filter((ship) => ship.nationalCircuitFactionId === "spain");
   assert.deepEqual(
-    restoredCircuitShips.map((ship) => [ship.id, ship.nationalCircuitId, ship.nationalCircuitPortIds]),
-    spanishCircuitShips.map((ship) => [ship.id, ship.nationalCircuitId, ship.nationalCircuitPortIds])
+    restoredCircuitShips.map((ship) => [ship.id, ship.nationalCircuitId, ship.nationalCircuitCityIds]),
+    spanishCircuitShips.map((ship) => [ship.id, ship.nationalCircuitId, ship.nationalCircuitCityIds])
   );
 
   const legacySnapshot = snapshotNpcSeaRouteSystem(routes);
   for (const ship of legacySnapshot.ships) {
     delete ship.nationalCircuitId;
     delete ship.nationalCircuitFactionId;
-    delete ship.nationalCircuitPortIds;
+    delete ship.nationalCircuitCityIds;
   }
   restoreNpcSeaRouteSystem(routes, legacySnapshot, { economy });
   const migratedCoverage = new Set(routes.ships
     .filter((ship) => ship.nationalCircuitFactionId === "spain")
-    .flatMap((ship) => ship.nationalCircuitPortIds));
-  assert.ok([2, 97, 98, 99].every((portId) => migratedCoverage.has(portId)));
+    .flatMap((ship) => ship.nationalCircuitCityIds));
+  assert.ok(spanishPorts.filter((port) => [2, 97, 98, 99].includes(port.tileId))
+    .every((port) => migratedCoverage.has(port.cityId)));
 });
 
 test("a sunk national circuit ship keeps its route reserved while a replacement is built", () => {
@@ -567,13 +569,13 @@ test("a sunk national circuit ship keeps its route reserved while a replacement 
   const circuitShip = routes.ships.find((ship) => ship.nationalCircuitFactionId === "spain");
   assert.ok(circuitShip);
   const circuitId = circuitShip.nationalCircuitId;
-  const circuitPortIds = circuitShip.nationalCircuitPortIds.slice();
+  const circuitCityIds = circuitShip.nationalCircuitCityIds.slice();
 
   sinkNpcShip(routes, circuitShip.id, 1000);
   const replacement = routes.replacementQueue.find((entry) => entry.shipId === circuitShip.id);
   assert.ok(replacement);
   assert.equal(replacement.nationalCircuitId, circuitId);
-  assert.deepEqual(replacement.nationalCircuitPortIds, circuitPortIds);
+  assert.deepEqual(replacement.nationalCircuitCityIds, circuitCityIds);
 
   const snapshot = snapshotNpcSeaRouteSystem(routes);
   restoreNpcSeaRouteSystem(routes, snapshot, { economy });
@@ -610,11 +612,13 @@ test("a collapsed empire loses its NPC fleet and captured port ownership", () =>
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   assert.ok(routes.ships.some((ship) => ship.factionId === "portugal"));
-  const factionByTileId = new Map(PORTS.map((entry) => [
-    entry.tileId,
-    entry.tileId === 1 ? "england" : entry.factionId === "portugal" ? "neutral" : entry.factionId
+  const factionByCityId = new Map(PORTS.map((entry) => [
+    entry.cityId,
+    entry.cityId === PORTS[0].cityId
+      ? "england"
+      : entry.factionId === "portugal" ? "neutral" : entry.factionId
   ]));
-  applyNpcConquestOwnership(routes, factionByTileId, new Set(["portugal"]));
+  applyNpcConquestOwnership(routes, factionByCityId, new Set(["portugal"]));
   assert.equal(routes.ports.find((entry) => entry.tileId === 1).factionId, "england");
   assert.equal(routes.ports.find((entry) => entry.tileId === 5).factionId, "neutral");
   assert.equal(routes.ships.some((ship) => ship.factionId === "portugal"), false);
@@ -633,7 +637,7 @@ test("a succeeded empire transfers its active and replacement fleets", () => {
 
   applyNpcConquestOwnership(
     routes,
-    new Map(PORTS.map((entry) => [entry.tileId, entry.factionId])),
+    new Map(PORTS.map((entry) => [entry.cityId, entry.factionId])),
     new Set(["delhi"]),
     new Map([["delhi", "mughal"]])
   );
@@ -655,14 +659,14 @@ test("Mughal succession launches a persistent regional war flotilla", () => {
         : diplomacyBetween(factionAId, factionBId)
     )
   });
-  const factionByTileId = new Map(PORTS.map((entry) => [
-    entry.tileId,
-    entry.tileId === 5 ? "mughal" : entry.tileId === 6 ? "bengal" : entry.factionId
+  const factionByCityId = new Map(PORTS.map((entry) => [
+    entry.cityId,
+    entry.cityId === PORTS[4].cityId ? "mughal" : entry.cityId === PORTS[5].cityId ? "bengal" : entry.factionId
   ]));
 
   applyNpcConquestOwnership(
     routes,
-    factionByTileId,
+    factionByCityId,
     new Set(["delhi"]),
     new Map([["delhi", "mughal"]])
   );
@@ -676,7 +680,7 @@ test("Mughal succession launches a persistent regional war flotilla", () => {
 
   applyNpcConquestOwnership(
     routes,
-    factionByTileId,
+    factionByCityId,
     new Set(["delhi"]),
     new Map([["delhi", "mughal"]])
   );
@@ -720,7 +724,7 @@ test("a war loan permanently raises the reserve target, buys shipyard hulls, and
 
   economy.shipyards.npcSales.push(Object.freeze({
     id: "goa-war-loan-galleon:npc-sale",
-    portId: 5,
+    portId: PORTS[4].cityId,
     factionId: "portugal",
     shipSlug: "galleon",
     price: 60000,
@@ -734,14 +738,14 @@ test("a war loan permanently raises the reserve target, buys shipyard hulls, and
 
   const first = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_WAR_LOAN,
     clockMinutes: 101,
     allowReinforcement: true
   });
   const second = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_WAR_LOAN,
     clockMinutes: 101,
     allowReinforcement: true
@@ -765,7 +769,7 @@ test("an inland capital mobilizes its finite naval reserve from an explicit coas
 
   assert.equal(inca.targetCount, 1);
   assert.equal(inca.stockedCount, 1);
-  assert.ok(inca.slots.every((slot) => slot.originPortId === 36));
+  assert.ok(inca.slots.every((slot) => slot.originCityId === routeCityId(routes, 36)));
   assert.ok(inca.slots.every((slot) => slot.profileId === "andean-coast"));
   assert.ok(inca.slots.every((slot) => slot.shipSlug === "mesoamerican-dugout-canoe"));
 });
@@ -775,7 +779,7 @@ test("a surviving realm rebases its reserve response to its navigable capital af
   const routes = createNpcSeaRouteSystem({ ports: INCA_PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
     factionId: "inca",
-    targetPortId: 36,
+    targetCityId: routeCityId(routes, 36),
     reason: NPC_PORT_RESPONSE_BURNING,
     clockMinutes: 0,
     threatUntilMinute: 1
@@ -785,19 +789,19 @@ test("a surviving realm rebases its reserve response to its navigable capital af
   applyNpcConquestOwnership(
     routes,
     new Map(INCA_PORTS.map((entry) => [
-      entry.tileId,
-      entry.tileId === 36 ? "spain" : entry.factionId
+      entry.cityId,
+      entry.cityId === routeCityId(routes, 36) ? "spain" : entry.factionId
     ])),
     new Set()
   );
   const rebased = npcCapitalNavalReserveStatus(routes, "inca");
   assert.equal(rebased.targetCount, 1);
-  assert.equal(rebased.slots[0].originPortId, 35);
+  assert.equal(rebased.slots[0].originCityId, routeCityId(routes, 35));
   assert.equal(rebased.slots[0].profileId, "andean-coast");
   const returning = routes.shipById.get(response.shipId);
   assert.equal(returning.capitalNavalReserveSlotId, rebased.slots[0].id);
   assert.equal(returning.replaceOnSink, false);
-  assert.equal(returning.portResponse.returnPortId, 35);
+  assert.equal(returning.portResponse.returnCityId, routeCityId(routes, 35));
 
   const workerSnapshot = snapshotNpcSeaRouteStrategicSystem(routes);
   applyNpcSeaRouteSimulationSnapshot(routes, workerSnapshot);
@@ -805,7 +809,7 @@ test("a surviving realm rebases its reserve response to its navigable capital af
 
   assert.equal(routes.shipById.has(response.shipId), true);
   assert.equal(routes.shipById.get(response.shipId).portResponse.phase, "returning");
-  assert.equal(routes.shipById.get(response.shipId).portResponse.returnPortId, 35);
+  assert.equal(routes.shipById.get(response.shipId).portResponse.returnCityId, routeCityId(routes, 35));
 });
 
 test("a realm retires its reserve only after losing every navigable port", () => {
@@ -813,7 +817,7 @@ test("a realm retires its reserve only after losing every navigable port", () =>
   const routes = createNpcSeaRouteSystem({ ports: INCA_PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
     factionId: "inca",
-    targetPortId: 36,
+    targetCityId: routeCityId(routes, 36),
     reason: NPC_PORT_RESPONSE_BURNING,
     clockMinutes: 0,
     threatUntilMinute: 1
@@ -823,7 +827,7 @@ test("a realm retires its reserve only after losing every navigable port", () =>
   applyNpcConquestOwnership(
     routes,
     new Map(INCA_PORTS.map((entry) => [
-      entry.tileId,
+      entry.cityId,
       entry.factionId === "inca" ? "spain" : entry.factionId
     ])),
     new Set()
@@ -856,20 +860,20 @@ test("a reserve rebases to another compatible naval port after its storehouse is
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
   const before = npcCapitalNavalReserveStatus(routes, "portugal");
-  assert.ok(before.slots.every((slot) => slot.originPortId === 1));
+  assert.ok(before.slots.every((slot) => slot.originCityId === PORTS[0].cityId));
 
   applyNpcConquestOwnership(
     routes,
     new Map(ports.map((entry) => [
-      entry.tileId,
-      entry.tileId === 1 ? "spain" : entry.factionId
+      entry.cityId,
+      entry.cityId === PORTS[0].cityId ? "spain" : entry.factionId
     ])),
     new Set()
   );
 
   const rebased = npcCapitalNavalReserveStatus(routes, "portugal");
   assert.equal(rebased.targetCount, before.targetCount);
-  assert.ok(rebased.slots.every((slot) => slot.originPortId === porto.tileId));
+  assert.ok(rebased.slots.every((slot) => slot.originCityId === porto.cityId));
   assert.equal(rebased.stockedCount, 0);
   assert.equal(rebased.vacantCount, rebased.targetCount);
 });
@@ -887,6 +891,7 @@ test("every initial reserve faction keeps its fleet profile at a fallback naviga
   for (const [index, factionId] of factionIds.entries()) {
     const inlandCapital = Object.freeze({
       ...INCA_PORTS.find((entry) => entry.tileId === 35),
+      cityId: `${factionId}-inland-court|test`,
       tileId: 1000 + index,
       city: `${factionId} inland court`,
       displayCity: `${factionId} inland court`,
@@ -905,7 +910,7 @@ test("every initial reserve faction keeps its fleet profile at a fallback naviga
     const originalProfileId = slot.profileId;
     const response = orderNpcPortResponse(routes, {
       factionId,
-      targetPortId: slot.originPortId,
+      targetCityId: slot.originCityId,
       reason: NPC_PORT_RESPONSE_BURNING,
       clockMinutes: 0,
       threatUntilMinute: 1
@@ -914,8 +919,8 @@ test("every initial reserve faction keeps its fleet profile at a fallback naviga
     applyNpcConquestOwnership(
       routes,
       new Map(ports.map((entry) => [
-        entry.tileId,
-        entry.factionId === factionId && entry.tileId !== inlandCapital.tileId
+        entry.cityId,
+        entry.factionId === factionId && entry.cityId !== inlandCapital.cityId
           ? "neutral"
           : entry.factionId
       ])),
@@ -931,7 +936,7 @@ test("every initial reserve faction keeps its fleet profile at a fallback naviga
       `${factionId} retains its finite reserve at a navigable capital`
     );
     const rebased = npcCapitalNavalReserveStatus(routes, factionId);
-    assert.ok(rebased.slots.every((candidate) => candidate.originPortId === inlandCapital.tileId));
+    assert.ok(rebased.slots.every((candidate) => candidate.originCityId === inlandCapital.cityId));
     assert.ok(rebased.slots.every((candidate) => candidate.profileId === originalProfileId));
     assert.equal(
       routes.shipById.has(response.shipId),
@@ -939,7 +944,7 @@ test("every initial reserve faction keeps its fleet profile at a fallback naviga
       `${factionId} sends its response ship back to the fallback capital`
     );
     assert.equal(routes.shipById.get(response.shipId).portResponse.phase, "returning");
-    assert.equal(routes.shipById.get(response.shipId).portResponse.returnPortId, inlandCapital.tileId);
+    assert.equal(routes.shipById.get(response.shipId).portResponse.returnCityId, inlandCapital.cityId);
   }
 });
 
@@ -950,7 +955,7 @@ test("a burning port activates one reserve sortie and the same port loss escalat
 
   const burning = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 5,
+    targetCityId: routeCityId(routes, 5),
     reason: NPC_PORT_RESPONSE_BURNING,
     clockMinutes: 1000,
     threatUntilMinute: 4000
@@ -959,7 +964,7 @@ test("a burning port activates one reserve sortie and the same port loss escalat
   const active = routes.shipById.get(burning.shipId);
   assert.ok(active);
   assert.equal(active.role, NPC_ROLE_WARSHIP);
-  assert.equal(active.portResponse.targetPortId, 5);
+  assert.equal(active.portResponse.targetCityId, PORTS[4].cityId);
   assert.equal(active.portResponse.reason, NPC_PORT_RESPONSE_BURNING);
   assert.equal(active.plan.destination.tileId, 5);
   const during = npcCapitalNavalReserveStatus(routes, "portugal");
@@ -968,7 +973,7 @@ test("a burning port activates one reserve sortie and the same port loss escalat
 
   const lost = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 5,
+    targetCityId: routeCityId(routes, 5),
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 1100
   });
@@ -985,7 +990,7 @@ test("a resolved port threat sends its reserve ship home and restocks the same f
   const before = npcCapitalNavalReserveStatus(routes, "portugal");
   const response = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 1,
+    targetCityId: routeCityId(routes, 1),
     reason: NPC_PORT_RESPONSE_BURNING,
     clockMinutes: 1000,
     threatUntilMinute: 1001
@@ -1010,7 +1015,7 @@ test("an empty reserve slot buys a suitable hull elsewhere and sails it to the c
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 5,
+    targetCityId: routeCityId(routes, 5),
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 1000
   });
@@ -1021,7 +1026,7 @@ test("an empty reserve slot buys a suitable hull elsewhere and sails it to the c
   assert.equal(npcCapitalNavalReserveStatus(routes, "portugal").vacantCount, 1);
   economy.shipyards.npcSales.push(Object.freeze({
     id: "goa-reserve-galleon:npc-sale",
-    portId: 5,
+    portId: PORTS[4].cityId,
     factionId: "portugal",
     shipSlug: "galleon",
     price: 60000,
@@ -1036,7 +1041,7 @@ test("an empty reserve slot buys a suitable hull elsewhere and sails it to the c
   const transitSlot = inTransit.slots.find((slot) => slot.activeShipId !== null);
   const transitShip = routes.shipById.get(transitSlot.activeShipId);
   assert.equal(transitShip.currentPort.tileId, 5);
-  assert.equal(transitShip.capitalNavalReserveDestinationPortId, 1);
+  assert.equal(transitShip.capitalNavalReserveDestinationCityId, PORTS[0].cityId);
   assert.equal(transitShip.plan.destination.tileId, 1);
 
   updateNpcSeaRouteSystem(routes, transitShip.plan.endMinute + 1);
@@ -1060,13 +1065,13 @@ test("a realm without an existing sea reserve cannot conjure one at a fallback c
   assert.equal(npcCapitalNavalReserveStatus(routes, "inca").targetCount, 0);
   assert.deepEqual(orderNpcPortResponse(routes, {
     factionId: "inca",
-    targetPortId: cuzco.tileId,
+    targetCityId: cuzco.cityId,
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 1000
   }), {
     outcome: "no-warship-available",
     factionId: "inca",
-    targetPortId: cuzco.tileId,
+    targetCityId: cuzco.cityId,
     shipId: null
   });
 });
@@ -1338,7 +1343,7 @@ test("isolated Northwest Coast fishers stay inside the Yuquot sea-lane component
   assert.ok(yuquot);
   const fisherman = configureNpcRouteEncounter(routes, {
     id: "yuquot-fishing-regression",
-    originPortId: yuquot.tileId,
+    originCityId: yuquot.cityId,
     factionId: "neutral",
     role: NPC_ROLE_FISHERMAN,
     profileId: "mesoamerican-coast",
@@ -1421,7 +1426,7 @@ test("regional Pacific fishers do not chase richer grounds across another sea re
   const hawaiiPort = routes.ports.find((portSpec) => portSpec.tileId === hawaii.tileId);
   const fisherman = configureNpcRouteEncounter(routes, {
     id: "hawaii-fishing-route-regression",
-    originPortId: hawaiiPort.tileId,
+    originCityId: hawaiiPort.cityId,
     factionId: "neutral",
     role: NPC_ROLE_FISHERMAN,
     profileId: "pacific-islands",
@@ -1622,7 +1627,7 @@ test("version 2 NPC route saves gain stocked capital reserves without replacing 
   delete snapshot.capitalNavalReserveSlots;
   for (const ship of snapshot.ships) {
     delete ship.capitalNavalReserveSlotId;
-    delete ship.capitalNavalReserveDestinationPortId;
+    delete ship.capitalNavalReserveDestinationCityId;
     delete ship.capitalNavalReserveDocked;
     delete ship.portResponse;
   }
@@ -1637,6 +1642,23 @@ test("version 2 NPC route saves gain stocked capital reserves without replacing 
   assert.ok(routes.ships.every((ship) => (
     ship.capitalNavalReserveSlotId === null && ship.portResponse === null
   )));
+});
+
+test("version 3 naval reserves migrate their navigation tiles to canonical origin cities", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  snapshot.version = 3;
+  for (const slot of snapshot.capitalNavalReserveSlots) {
+    slot.originPortId = routes.ports.find((port) => port.cityId === slot.originCityId).tileId;
+    delete slot.originCityId;
+  }
+
+  restoreNpcSeaRouteSystem(routes, snapshot, { economy });
+
+  const portugal = npcCapitalNavalReserveStatus(routes, "portugal");
+  assert.ok(portugal.slots.every((slot) => slot.originCityId === PORTS[0].cityId));
+  assert.ok(portugal.slots.every((slot) => slot.originPortId === undefined));
 });
 
 test("visual navigation cleanup tolerates a ship sunk earlier in the same frame", () => {
@@ -1774,7 +1796,7 @@ test("a staged worker restore does not resurrect a reserve sortie returned betwe
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_BURNING,
     clockMinutes: 100,
     threatUntilMinute: 101
@@ -1813,7 +1835,7 @@ test("a staged worker restore keeps a reserve sortie launched between batches", 
   assert.equal(advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems: 1 }), false);
   const response = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 100
   });
@@ -1839,7 +1861,7 @@ test("a staged worker restore cannot revive a reserve sortie superseded between 
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const firstResponse = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_BURNING,
     clockMinutes: 100,
     threatUntilMinute: 101
@@ -1857,7 +1879,7 @@ test("a staged worker restore cannot revive a reserve sortie superseded between 
 
   const secondResponse = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 100_001,
     allowReinforcement: true
@@ -1881,7 +1903,7 @@ test("a worker snapshot cannot retain a stale sortie beside its replacement", ()
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const firstResponse = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_BURNING,
     clockMinutes: 100,
     threatUntilMinute: 101
@@ -1894,7 +1916,7 @@ test("a worker snapshot cannot retain a stale sortie beside its replacement", ()
   assert.equal(routes.shipById.has(firstShip.id), false);
   const secondResponse = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 100_001,
     allowReinforcement: true
@@ -1975,7 +1997,7 @@ test("a worker snapshot cannot demobilize the reserve slot of a preserved visibl
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 100
   });
@@ -2008,7 +2030,7 @@ test("a preserved reserve ship detaches when its worker snapshot removes the slo
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 100
   });
@@ -2027,7 +2049,7 @@ test("a preserved reserve ship detaches when its worker snapshot removes the slo
 
   const restored = routes.shipById.get(protectedShip.id);
   assert.equal(restored.capitalNavalReserveSlotId, null);
-  assert.equal(restored.capitalNavalReserveDestinationPortId, null);
+  assert.equal(restored.capitalNavalReserveDestinationCityId, null);
   assert.equal(restored.capitalNavalReserveDocked, false);
   assert.equal(restored.replaceOnSink, true);
 });
@@ -2037,7 +2059,7 @@ test("a worker snapshot demobilizes any reserve ship whose faction slot was abol
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
     factionId: "portugal",
-    targetPortId: 2,
+    targetCityId: routeCityId(routes, 2),
     reason: NPC_PORT_RESPONSE_LOST,
     clockMinutes: 100
   });
@@ -2052,7 +2074,7 @@ test("a worker snapshot demobilizes any reserve ship whose faction slot was abol
 
   const restored = routes.shipById.get(reserveShip.id);
   assert.equal(restored.capitalNavalReserveSlotId, null);
-  assert.equal(restored.capitalNavalReserveDestinationPortId, null);
+  assert.equal(restored.capitalNavalReserveDestinationCityId, null);
   assert.equal(restored.capitalNavalReserveDocked, false);
   assert.equal(restored.replaceOnSink, true);
 });
@@ -2716,7 +2738,7 @@ test("unsold shipyard hulls create capped peacetime NPC fleet growth", () => {
   economy.shipyards.npcSales.length = 0;
   economy.shipyards.npcSales.push(Object.freeze({
     id: "shipyard-growth-test:npc-sale",
-    portId: PORTS[0].tileId,
+    portId: PORTS[0].cityId,
     factionId: PORTS[0].factionId,
     shipSlug: "caravel",
     price: 12000,
@@ -2773,7 +2795,7 @@ test("routed quest pirates can respawn concealed at their hideout", () => {
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const encounter = configureNpcRouteEncounter(routes, {
     id: "treasure-pirate:test",
-    originPortId: PORTS[0].tileId,
+    originCityId: PORTS[0].cityId,
     factionId: PIRATE_FACTION_ID,
     role: NPC_ROLE_PIRATE,
     shipSlug: "pirate-brig",
@@ -2814,7 +2836,7 @@ test("treasure pirates can patrol from an interregional-excluded Northwest Coast
   const yuquot = routes.ports.find((port) => port.city === "Yuquot Village");
   const encounter = configureNpcRouteEncounter(routes, {
     id: "treasure-map-pirate-ozette",
-    originPortId: ozette.tileId,
+    originCityId: ozette.cityId,
     factionId: PIRATE_FACTION_ID,
     role: NPC_ROLE_PIRATE,
     shipSlug: "pirate-brig",
@@ -2835,8 +2857,8 @@ test("routed delegation encounters depart for and wait at their specified destin
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const delegation = configureNpcRouteEncounter(routes, {
     id: "delegation:test",
-    originPortId: 8,
-    destinationPortId: 9,
+    originCityId: routeCityId(routes, 8),
+    destinationCityId: routeCityId(routes, 9),
     departureDelayMinutes: 30,
     factionId: "ming",
     role: NPC_ROLE_WARSHIP,
@@ -2844,7 +2866,7 @@ test("routed delegation encounters depart for and wait at their specified destin
     replaceOnSink: false,
     encounter: {
       kind: "test-delegation",
-      destinationPortId: 9,
+      destinationCityId: routeCityId(routes, 9),
       holdAtDestination: true
     }
   }, 1000);
@@ -2883,13 +2905,13 @@ test("legacy routed encounters adopt their canonical faction and vessel without 
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const delegation = configureNpcRouteEncounter(routes, {
     id: "delegation:identity",
-    originPortId: 8,
-    destinationPortId: 9,
+    originCityId: routeCityId(routes, 8),
+    destinationCityId: routeCityId(routes, 9),
     factionId: "hosokawa",
     role: NPC_ROLE_MERCHANT,
     shipSlug: "japanese-kuribune",
     replaceOnSink: false,
-    encounter: { kind: "test-delegation", destinationPortId: 9 }
+    encounter: { kind: "test-delegation", destinationCityId: routeCityId(routes, 9) }
   }, 1000);
   const routeVector = npcShipSnapshotForId(routes, delegation.id, 1000).routeVector;
 
@@ -2916,15 +2938,15 @@ test("routed delegations can be assembled at their hearing without waiting for t
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const delegation = configureNpcRouteEncounter(routes, {
     id: "delegation:staged",
-    originPortId: 8,
-    destinationPortId: 9,
+    originCityId: routeCityId(routes, 8),
+    destinationCityId: routeCityId(routes, 9),
     factionId: "ming",
     role: NPC_ROLE_WARSHIP,
     shipSlug: "small-junk",
     replaceOnSink: false,
     encounter: {
       kind: "test-delegation",
-      destinationPortId: 9,
+      destinationCityId: routeCityId(routes, 9),
       holdAtDestination: true,
       holdProgress: 0.93
     }
@@ -2954,15 +2976,15 @@ test("legacy held delegations recover their visual position when restaged", () =
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const delegation = configureNpcRouteEncounter(routes, {
     id: "delegation:legacy-held",
-    originPortId: 8,
-    destinationPortId: 9,
+    originCityId: routeCityId(routes, 8),
+    destinationCityId: routeCityId(routes, 9),
     factionId: "ming",
     role: NPC_ROLE_WARSHIP,
     shipSlug: "small-junk",
     replaceOnSink: false,
     encounter: {
       kind: "test-delegation",
-      destinationPortId: 9,
+      destinationCityId: routeCityId(routes, 9),
       holdAtDestination: true,
       holdProgress: 0.93
     }
@@ -2970,18 +2992,18 @@ test("legacy held delegations recover their visual position when restaged", () =
   stageNpcRouteEncounterAtDestination(routes, delegation.id, 1100);
   delegation.visualNavigation = null;
   delete delegation.encounter.holdApproachVectors;
-  delete delegation.encounter.originPortId;
+  delete delegation.encounter.originCityId;
 
   assert.equal(stageNpcRouteEncounterAtDestination(
     routes,
     delegation.id,
     1101,
-    { holdProgress: 0.93, originPortId: 8 }
+    { holdProgress: 0.93, originCityId: routeCityId(routes, 8) }
   ), true);
   const restored = npcShipSnapshotForId(routes, delegation.id, 1101);
   assert.equal(restored.id, delegation.id);
   assert.match(restored.routeKey, /^held:/);
-  assert.equal(delegation.encounter.originPortId, 8);
+  assert.equal(delegation.encounter.originCityId, routeCityId(routes, 8));
   assert.equal(delegation.encounter.holdProgress, 0.93);
 });
 
@@ -2990,7 +3012,11 @@ test("the annual tea race launches five distinct wind-routed merchants for Londo
   const ports = [...PORTS, london];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
-  const manifest = teaRaceCompetitorManifest("tea-race-1522", 8, london.tileId);
+  const manifest = teaRaceCompetitorManifest(
+    "tea-race-1522",
+    routeCityId(routes, 8),
+    london.cityId
+  );
   const racers = manifest.map((spec) => {
     const racer = configureNpcRouteEncounter(routes, {
       ...spec,
@@ -2998,7 +3024,7 @@ test("the annual tea race launches five distinct wind-routed merchants for Londo
       encounter: {
         kind: "tea-race",
         questId: "tea-race-1522",
-        destinationPortId: london.tileId,
+        destinationCityId: london.cityId,
         holdAtDestination: true,
         holdProgress: spec.holdProgress
       }
@@ -3092,8 +3118,15 @@ function cargoUnits(ship) {
   ), 0);
 }
 
+function routeCityId(routes, tileId) {
+  const matches = routes.ports.filter((candidate) => candidate.tileId === tileId);
+  assert.equal(matches.length, 1, `test route tile ${tileId} must identify exactly one port`);
+  return matches[0].cityId;
+}
+
 function port(tileId, city, country, cityType, lat, lon, population, factionId) {
   return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city,
     displayCity: city,

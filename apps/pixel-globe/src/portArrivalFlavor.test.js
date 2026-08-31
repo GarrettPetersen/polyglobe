@@ -8,6 +8,7 @@ import {
 } from "./portArrivalFlavor.js";
 
 const TARAWA = Object.freeze({
+  cityId: "tarawa-village|kiribati",
   city: "Tarawa Village",
   cityType: "polynesian",
   manualRegion: "pacific-islands",
@@ -77,7 +78,7 @@ test("Pacific greetings vary by visit while remaining deterministic", () => {
 });
 
 test("ordinary regional waterfront observations vary between visits", () => {
-  const city = { city: "Istanbul", cityType: "mediterranean", population: 180000 };
+  const city = { cityId: "istanbul|turkey", city: "Istanbul", cityType: "mediterranean", population: 180000 };
   const greetings = Array.from({ length: 12 }, (_, index) => portArrivalFlavor({
     city,
     playerShipSlug: "xebec",
@@ -90,12 +91,12 @@ test("ordinary regional waterfront observations vary between visits", () => {
 
 test("major ports get region-specific waterfront observations", () => {
   const eastAsian = portArrivalFlavor({
-    city: { city: "Nanjing", cityType: "east-asian", population: 160000 },
+    city: { cityId: "nanjing|china", city: "Nanjing", cityType: "east-asian", population: 160000 },
     playerShipSlug: "large-junk",
     playerShipLabel: "Large Junk"
   });
   const mediterranean = portArrivalFlavor({
-    city: { city: "Istanbul", cityType: "mediterranean", population: 180000 },
+    city: { cityId: "istanbul|turkey", city: "Istanbul", cityType: "mediterranean", population: 180000 },
     playerShipSlug: "xebec",
     playerShipLabel: "Xebec"
   });
@@ -108,6 +109,7 @@ test("major ports get region-specific waterfront observations", () => {
 test("Northwest Coast villages react to an unfamiliar deep-water rig", () => {
   const presentation = portArrivalPresentation({
     city: {
+      cityId: "yuquot-village|canada",
       city: "Yuquot Village",
       cityType: "mesoamerican",
       manualRegion: "northwest-coast",
@@ -126,6 +128,7 @@ test("Northwest Coast villages react to an unfamiliar deep-water rig", () => {
 test("Great Lakes villages recognize their freshwater isolation", () => {
   const presentation = portArrivalPresentation({
     city: {
+      cityId: "wendat-village|canada",
       city: "Wendat Village",
       cityType: "mesoamerican",
       manualRegion: "great-lakes",
@@ -142,12 +145,12 @@ test("Great Lakes villages recognize their freshwater isolation", () => {
 
 test("Dongola and Timbuktu get specific remote African arrivals", () => {
   const dongola = portArrivalFlavor({
-    city: { city: "Dongola", cityType: "sub-saharan", population: 20000 },
+    city: { cityId: "dongola|sudan", city: "Dongola", cityType: "sub-saharan", population: 20000 },
     playerShipSlug: "carrack",
     playerShipLabel: "Carrack"
   });
   const timbuktu = portArrivalFlavor({
-    city: { city: "Tombouctou", cityType: "sub-saharan", population: 25000 },
+    city: { cityId: "tombouctou|mali", city: "Tombouctou", cityType: "sub-saharan", population: 25000 },
     playerShipSlug: "carrack",
     playerShipLabel: "Carrack"
   });
@@ -159,9 +162,9 @@ test("Dongola and Timbuktu get specific remote African arrivals", () => {
 
 test("port remoteness is derived once from sailing access rather than dialogue-time guesses", () => {
   const ports = [
-    { tileId: 1, city: "Coast", settlementType: "city" },
-    { tileId: 2, city: "Upper River", settlementType: "city" },
-    { tileId: 3, city: "Outer Island", settlementType: "village" }
+    { cityId: "coast|test", tileId: 1, city: "Coast", settlementType: "city" },
+    { cityId: "upper-river|test", tileId: 2, city: "Upper River", settlementType: "city" },
+    { cityId: "outer-island|test", tileId: 3, city: "Outer Island", settlementType: "village" }
   ];
   const distances = new Map([
     ["1:2", 1600],
@@ -177,13 +180,13 @@ test("port remoteness is derived once from sailing access rather than dialogue-t
     approachKindForPort: (port) => port.tileId === 2 ? "river" : "ocean"
   });
 
-  assert.deepEqual(navigation.get(1), {
+  assert.deepEqual(navigation.get("coast|test"), {
     approachKind: "ocean",
     nearestPortDistanceKm: 1200,
     oceanAccessDistanceKm: 0,
     remote: false
   });
-  assert.equal(navigation.get(2).remote, true);
-  assert.equal(navigation.get(2).oceanAccessDistanceKm, 1600);
-  assert.equal(navigation.get(3).remote, true);
+  assert.equal(navigation.get("upper-river|test").remote, true);
+  assert.equal(navigation.get("upper-river|test").oceanAccessDistanceKm, 1600);
+  assert.equal(navigation.get("outer-island|test").remote, true);
 });

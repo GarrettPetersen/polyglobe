@@ -33,7 +33,7 @@ import {
 test("Panipat replaces the surviving Lodi state with the Mughal Empire", () => {
   const state = historicalState("delhi");
   const ports = historicalPorts();
-  state.memory.conquest.portFactionOverrides.lahore = "portugal";
+  state.memory.conquest.portFactionOverrides["lahore|pakistan"] = "portugal";
   state.relations.diplomacy.overrides["bengal|delhi"] = "friendly";
   state.relations.factionReputation.delhi = 27;
   state.relations.lettersOfMarque.delhi = { factionId: "delhi", simMinute: 10 };
@@ -76,7 +76,7 @@ test("Panipat replaces the surviving Lodi state with the Mughal Empire", () => {
 test("Panipat does not overwrite a divergent campaign where Agra already fell", () => {
   const state = historicalState("portugal");
   const ports = historicalPorts();
-  state.memory.conquest.portFactionOverrides.agra = "portugal";
+  state.memory.conquest.portFactionOverrides["agra|india"] = "portugal";
 
   assert.deepEqual(advanceHistoricalSovereignty(
     state,
@@ -156,6 +156,7 @@ function historicalPorts() {
 
 function city(tileId, portId, cityName, country, details = {}) {
   return {
+    cityId: `${cityName.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     portId,
     city: cityName,

@@ -155,10 +155,66 @@ export function aboardCharacterHomePortTileId(entry, {
   ], `${character.name} home port`);
 }
 
+export function aboardCharacterHomePortCityId(entry, {
+  activeTravelQuest = null,
+  rescuedTravelers = [],
+  historianHomePortCityId = null
+} = {}) {
+  if (!entry || entry.kind !== "named" || !entry.character) {
+    throw new Error("Aboard home port requires a named character entry");
+  }
+  if (!Array.isArray(rescuedTravelers)) {
+    throw new Error("Aboard home port requires a rescued traveler list");
+  }
+
+  const character = entry.character;
+  const rescuedTraveler = rescuedTravelers.find((traveler) => (
+    traveler?.character?.id === character.id
+  ));
+  if (rescuedTraveler) {
+    return requiredCityId(
+      rescuedTraveler.homePortCityId,
+      `${character.name} rescued traveler home port`
+    );
+  }
+
+  if (entry.role === ABOARD_ROLE_PASSENGER || entry.role === ABOARD_ROLE_CAPTIVE) {
+    return firstCityId([
+      character.destinationPortCityId,
+      activeTravelQuest?.destinationCityId,
+      character.homePortCityId
+    ], `${character.name} passenger home port`);
+  }
+  if (entry.role === ABOARD_ROLE_EMISSARY) {
+    return firstCityId([
+      character.originPortCityId,
+      activeTravelQuest?.originCityId,
+      character.homePortCityId
+    ], `${character.name} emissary home port`);
+  }
+
+  return firstCityId([
+    character.homePortCityId,
+    entry.role === ABOARD_ROLE_CREWMATE && character.role === "historian"
+      ? historianHomePortCityId
+      : null
+  ], `${character.name} home port`);
+}
+
 function consumeTraveler(groups, kind) {
   const count = groups.get(kind) || 0;
   if (count <= 0) throw new Error(`Named ${kind} is not present in the traveler manifest`);
   groups.set(kind, count - 1);
+}
+
+function firstCityId(values, label) {
+  const cityId = values.find((value) => typeof value === "string" && value !== "");
+  return requiredCityId(cityId, label);
+}
+
+function requiredCityId(value, label) {
+  if (typeof value !== "string" || value === "") throw new Error(`Missing ${label}`);
+  return value;
 }
 
 function namedEntry(id, character, role) {

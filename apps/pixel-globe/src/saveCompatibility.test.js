@@ -33,7 +33,16 @@ for (const fixtureName of FIXTURE_FILES) {
     const payload = loaded.save.payload;
     const originalPayload = structuredClone(payload);
     const expected = compatibilityFacts(payload);
-    const restored = migrateSavedVoyageCore(payload);
+    const restored = migrateSavedVoyageCore(payload, {
+      legacyCityIdForPortReference: ({ tileId }) => {
+        const cityId = new Map([
+          [4242, "lisbon|portugal"],
+          [5151, "porto|portugal"]
+        ]).get(tileId);
+        assert.ok(cityId, `Unexpected legacy city tile: ${tileId}`);
+        return cityId;
+      }
+    });
     assert.deepEqual(payload, originalPayload);
 
     assert.equal(restored.gameState.version, GAME_STATE_VERSION);
@@ -126,7 +135,11 @@ function compatibilityFacts(payload) {
     campaignGoalType: state.memory.campaignGoal?.type || null,
     campaignGoalStatus: state.memory.campaignGoal?.status || null,
     campaignDebtBalance: state.memory.campaignGoal?.debtBalance || null,
-    optionalWaypoints: structuredClone(state.memory.navigation.optionalWaypoints),
+    optionalWaypoints: state.memory.navigation.optionalWaypoints.map((waypoint) => ({
+      destinationTileId: waypoint.destinationTileId,
+      destinationName: waypoint.destinationName,
+      reason: waypoint.reason
+    })),
     shipTypeSlug: payload.playerShip.typeSlug,
     shipFactionId: payload.playerShip.factionId,
     shipTileId: payload.playerShip.tileId,

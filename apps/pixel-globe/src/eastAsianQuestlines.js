@@ -107,14 +107,14 @@ export function isEastAsianMissionQuest(quest) {
   return Boolean(quest && ALL_MISSION_IDS.includes(quest.eastAsianMissionId));
 }
 
-export function ningboDelegationManifest(questId, delegationOrigins, destinationPortId) {
+export function ningboDelegationManifest(questId, delegationOrigins, destinationCityId) {
   if (typeof questId !== "string" || questId === "") throw new Error("Ningbo delegation requires a quest id");
-  if (!delegationOrigins || !Number.isInteger(destinationPortId)) {
+  if (!delegationOrigins || typeof destinationCityId !== "string" || destinationCityId === "") {
     throw new Error("Ningbo delegation requires both origins and Ningbo");
   }
   return Object.freeze(NINGBO_FACTIONS.flatMap((factionId) => {
-    const originPortId = delegationOrigins[factionId];
-    if (!Number.isInteger(originPortId)) {
+    const originCityId = delegationOrigins[factionId];
+    if (typeof originCityId !== "string" || originCityId === "") {
       throw new Error(`Ningbo delegation requires a ${factionId} origin`);
     }
     return [
@@ -123,8 +123,8 @@ export function ningboDelegationManifest(questId, delegationOrigins, destination
         factionId,
         role: "warship",
         shipSlug: "japanese-sekibune",
-        originPortId,
-        destinationPortId,
+        originCityId,
+        destinationCityId,
         delegationRole: "courier",
         departureDelayMinutes: 0,
         holdProgress: factionId === "hosokawa" ? 0.94 : 0.97
@@ -134,8 +134,8 @@ export function ningboDelegationManifest(questId, delegationOrigins, destination
         factionId,
         role: "warship",
         shipSlug: "japanese-sekibune",
-        originPortId,
-        destinationPortId,
+        originCityId,
+        destinationCityId,
         delegationRole: "escort",
         departureDelayMinutes: 30,
         holdProgress: factionId === "hosokawa" ? 0.90 : 0.93
@@ -147,12 +147,12 @@ export function ningboDelegationManifest(questId, delegationOrigins, destination
 export function reconcileNingboMissionDelegationManifest(
   quest,
   delegationOrigins,
-  destinationPortId
+  destinationCityId
 ) {
   if (quest?.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO) {
     throw new Error(`Cannot reconcile a non-Ningbo mission: ${quest?.id}`);
   }
-  const canonical = ningboDelegationManifest(quest.id, delegationOrigins, destinationPortId);
+  const canonical = ningboDelegationManifest(quest.id, delegationOrigins, destinationCityId);
   const existing = Array.isArray(quest.eastAsianDelegationShips)
     ? quest.eastAsianDelegationShips
     : [];
@@ -434,9 +434,11 @@ function ningboMissionPlan(quests, city, portCities) {
     const capital = portCities.find((candidate) => (
       candidate.factionId === factionId && candidate.isFactionCapital === true
     ));
-    return [factionId, capital?.tileId ?? null];
+    return [factionId, capital?.cityId ?? null];
   }));
-  if (Object.values(delegationOrigins).some((tileId) => !Number.isInteger(tileId))) return null;
+  if (Object.values(delegationOrigins).some((cityId) => (
+    typeof cityId !== "string" || cityId === ""
+  ))) return null;
   return freezePlan(missionDefinition({
     id: EAST_ASIAN_MISSION_NINGBO,
     originFactionId: city.factionId,

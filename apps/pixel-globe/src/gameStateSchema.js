@@ -23,8 +23,10 @@ const SCHEMA_PLAYER_CHARACTER = Object.freeze({
   sex: "female",
   nameCulture: "english",
   nationalityId: "england",
+  homePortCityId: "london|united kingdom",
   homePortTileId: 1,
   homePortName: "London",
+  homePortCountry: "United Kingdom",
   religionId: "roman-catholic",
   expressions: Object.freeze(["neutral", "happy"])
 });

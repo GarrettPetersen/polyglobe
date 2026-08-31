@@ -60,7 +60,7 @@ test("surrendered cargo left by a full hold can transfer after taking a larger p
 
 test("port conquest pays prize money and records the captured treasury", () => {
   const state = createGameState({ cargoCapacity: 3, startMinute: 100 });
-  const city = { tileId: 9, city: "Lisbon", displayCity: "Lisbon", country: "Portugal" };
+  const city = { cityId: "lisbon|portugal", tileId: 9, city: "Lisbon", displayCity: "Lisbon", country: "Portugal" };
   const prize = receivePortConquestPrize(state, city, 1800, { simMinute: 140 });
   assert.deepEqual(prize, { amount: 1800, balance: 2160 });
   assert.equal(state.doubloons, 2160);
@@ -82,7 +82,7 @@ test("port conquest pays prize money and records the captured treasury", () => {
 
 test("port raids record plunder without describing a conquest", () => {
   const state = createGameState({ cargoCapacity: 3, startMinute: 100 });
-  const city = { tileId: 9, city: "Lisbon", displayCity: "Lisbon", country: "Portugal" };
+  const city = { cityId: "lisbon|portugal", tileId: 9, city: "Lisbon", displayCity: "Lisbon", country: "Portugal" };
   const prize = receivePortRaidPrize(state, city, 1150, { simMinute: 140 });
   assert.deepEqual(prize, { amount: 1150, balance: 1510 });
   assert.equal(state.accounts.ledger.at(-1).kind, "raid");

@@ -49,8 +49,13 @@ import {
 } from "./sovereignWarLoan.js";
 
 const PLAYER = {
+  id: "player:joan-alden",
   name: "Joan Alden",
   nationalityId: "england",
+  homePortCityId: "lisbon|portugal",
+  homePortTileId: 1,
+  homePortName: "Lisbon",
+  homePortCountry: "Portugal",
   expressions: ["neutral", "happy"]
 };
 
@@ -150,7 +155,7 @@ test("victory repays, defeat defaults, and an insolvent even peace receives cour
   assert.equal(solventPeace.outcome, "peace-solvent");
 
   const security = customsSecurity(100);
-  assert.equal(security.portId, "lisbon");
+  assert.equal(security.portId, "lisbon|portugal");
   const insolventMemory = fundedMemory();
   const insolventPeace = resolveSovereignWarLoan(insolventMemory, {
     relationBetween: () => DIPLOMACY_NEUTRAL,
@@ -161,7 +166,7 @@ test("victory repays, defeat defaults, and an insolvent even peace receives cour
   });
   assert.equal(insolventPeace.status, SOVEREIGN_WAR_LOAN_RENEGOTIATION_READY);
   assert.equal(insolventPeace.outcome, "peace-insolvent");
-  assert.equal(insolventMemory.contract.security.portId, "lisbon");
+  assert.equal(insolventMemory.contract.security.portId, "lisbon|portugal");
 
   assert.throws(() => resolveSovereignWarLoan(fundedMemory(), {
     relationBetween: () => DIPLOMACY_NEUTRAL,
@@ -488,6 +493,7 @@ function port(tileId, portId, city, factionId) {
   return {
     tileId,
     portId,
+    cityId: `${portId}|${factionId}`,
     city,
     displayCity: city,
     country: factionId,

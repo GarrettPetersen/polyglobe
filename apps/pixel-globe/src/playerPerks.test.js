@@ -24,6 +24,10 @@ function perkState() {
       id: "perk-test-captain",
       name: "Perk Test Captain",
       nationalityId: "england",
+      homePortCityId: "london|united kingdom",
+      homePortTileId: 1,
+      homePortName: "London",
+      homePortCountry: "United Kingdom",
       expressions: [{ id: "neutral" }],
       skillIds: ["skilled-chef"]
     }

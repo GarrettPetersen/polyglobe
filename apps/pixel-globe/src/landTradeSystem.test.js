@@ -411,6 +411,7 @@ function syntheticRoads() {
 
 function city(tileId, name, cityType, population) {
   return {
+    cityId: `${name.toLocaleLowerCase("en-US")}|test`,
     tileId,
     city: name,
     displayCity: name,

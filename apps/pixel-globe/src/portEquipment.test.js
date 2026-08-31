@@ -17,6 +17,7 @@ import {
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
 
 const PORTS = Object.freeze(Array.from({ length: 12 }, (_, index) => ({
+  cityId: `test-port-${index}|test`,
   tileId: 300 + index,
   city: `Test Port ${index}`,
   displayCity: `Test Port ${index}`,
@@ -47,18 +48,19 @@ test("equipment stock is deterministic and varies between ports", () => {
 
 test("historical specialist ports permanently stock every grade of their craft", () => {
   const specialists = [
-    ["Lisbon", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
-    ["Istanbul", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
-    ["Goa", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
-    ["Brugge", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
-    ["Lubeck", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
-    ["Guangzhou", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
-    ["Bordeaux", EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS]
+    ["lisbon|portugal", "Lisbon", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
+    ["istanbul|turkey", "Istanbul", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
+    ["goa|india", "Goa", EQUIPMENT_STOCK_CANNON, CANNON_EQUIPMENT],
+    ["brugge|belgium", "Brugge", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
+    ["lubeck|germany", "Lubeck", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
+    ["guangzhou|china", "Guangzhou", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
+    ["bordeaux|france", "Bordeaux", EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS]
   ];
 
-  for (const [cityName, kind, catalog] of specialists) {
+  for (const [cityId, cityName, kind, catalog] of specialists) {
     const city = {
-      tileId: 900 + specialists.findIndex((entry) => entry[0] === cityName),
+      cityId,
+      tileId: 900 + specialists.findIndex((entry) => entry[0] === cityId),
       city: cityName,
       country: "Test",
       cityType: "northern-european",
@@ -76,7 +78,15 @@ test("historical specialist ports permanently stock every grade of their craft",
 test("trade wealth can unlock top-tier equipment at an ordinary port", () => {
   const city = PORTS.find((candidate) => {
     const economy = createWorldEconomy({ ports: [candidate], startMinute: 0 });
-    return !equipmentAvailableAtPort(
+    const initiallyAvailable = equipmentAvailableAtPort(
+      economy,
+      candidate,
+      EQUIPMENT_STOCK_CANNON,
+      CANNON_EQUIPMENT.at(-1)
+    );
+    const targetSpecie = portEconomySummary(economy, candidate).targetSpecie;
+    executePortSale(economy, candidate, "hardtack", Math.ceil(targetSpecie * 0.45 / 2));
+    return !initiallyAvailable && equipmentAvailableAtPort(
       economy,
       candidate,
       EQUIPMENT_STOCK_CANNON,
@@ -102,6 +112,7 @@ test("trade wealth can unlock top-tier equipment at an ordinary port", () => {
 test("native pre-contact ports do not invent cannon merchandise", () => {
   const chanchan = {
     tileId: 950,
+    cityId: "chanchan|peru",
     city: "Chanchan",
     country: "Peru",
     cityType: "andean",

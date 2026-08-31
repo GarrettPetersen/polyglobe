@@ -19,6 +19,7 @@ import {
 } from "./colonizationQuest.js";
 import {
   JAPANESE_MATCHLOCK_STAGE_ACTIVE,
+  JAPANESE_MATCHLOCK_WORKSHOP_CITY_ID,
   JAPANESE_MATCHLOCK_WORKSHOP_CITY,
   JAPANESE_MATCHLOCK_WORKSHOP_COUNTRY,
   japaneseMatchlockQuestMemory,
@@ -27,6 +28,7 @@ import {
 import {
   VIKING_LONGSHIP_PORT_CITY,
   VIKING_LONGSHIP_PORT_COUNTRY,
+  VIKING_LONGSHIP_PORT_CITY_ID,
   vikingLongshipQuestState
 } from "./vikingLongshipQuest.js";
 import { papalCommissionCargoRequirements } from "./papalPolitics.js";
@@ -104,6 +106,7 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
   }
 
   const viking = vikingLongshipQuestState(state, {
+    cityId: VIKING_LONGSHIP_PORT_CITY_ID,
     city: VIKING_LONGSHIP_PORT_CITY,
     country: VIKING_LONGSHIP_PORT_COUNTRY
   });
@@ -112,6 +115,7 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
   const matchlockMemory = japaneseMatchlockQuestMemory(state);
   if (matchlockMemory.stage === JAPANESE_MATCHLOCK_STAGE_ACTIVE) {
     const matchlocks = japaneseMatchlockQuestState(state, {
+      cityId: JAPANESE_MATCHLOCK_WORKSHOP_CITY_ID,
       tileId: matchlockMemory.workshopTileId,
       city: JAPANESE_MATCHLOCK_WORKSHOP_CITY,
       country: JAPANESE_MATCHLOCK_WORKSHOP_COUNTRY
@@ -122,6 +126,7 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
   const gingerMemory = caribbeanGingerQuestMemory(state);
   if (gingerMemory.stage === CARIBBEAN_GINGER_STAGE_ACTIVE) {
     const ginger = caribbeanGingerQuestState(state, {
+      cityId: gingerMemory.cultivationCityId,
       tileId: gingerMemory.cultivationTileId,
       city: gingerMemory.cultivationCity,
       country: gingerMemory.cultivationCountry
@@ -132,6 +137,7 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
   const chefMemory = chefQuestMemory(state);
   if (chefMemory.stage === CHEF_QUEST_STAGE_GATHERING) {
     const chef = chefQuestState(state, {
+      cityId: chefMemory.portCityId,
       tileId: chefMemory.portTileId,
       city: chefMemory.portCity,
       country: chefMemory.portCountry
@@ -178,7 +184,7 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
   if (shipyardProject) {
     for (const { goodId, remaining } of shipyardInvestmentMaterialProgress(shipyardProject)) {
       add(
-        `shipyard.${shipyardProject.portTileId}.${goodId}`,
+        `shipyard.${shipyardProject.portCityId}.${goodId}`,
         goodId,
         remaining
       );
@@ -255,7 +261,7 @@ export function questCargoDeliveryPromptsAtPort(state, city, { currentMinute = 0
   add(QUEST_CARGO_PROMPT_COLONIZATION, colonizationDelivery);
 
   const conquistador = state.memory.quests.conquistador;
-  if (conquistador.stage === CONQUISTADOR_STAGE_FETCH && city.tileId === conquistador.originTileId) {
+  if (conquistador.stage === CONQUISTADOR_STAGE_FETCH && city.cityId === conquistador.originCityId) {
     const stage = CONQUISTADOR_FETCH_STAGES[conquistador.fetchStageIndex];
     const progress = questCargoDeliveryProgress(
       state,

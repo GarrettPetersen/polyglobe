@@ -119,8 +119,8 @@ test("religious refuge colonies give their organizers explicit historical affili
 });
 
 test("Nagasaki is a Japanese port sponsored from Portugal and Fort Orange starts in 1624", () => {
-  const nagasaki = colonizationTargetForCity({ city: "Nagasaki", country: "Japan" });
-  const fortOrange = colonizationTargetForCity({ city: "Fort Orange", country: "United States of America" });
+  const nagasaki = colonizationTargetForCity({ cityId: "nagasaki|japan", city: "Nagasaki", country: "Japan" });
+  const fortOrange = colonizationTargetForCity({ cityId: "fort orange|united states of america", city: "Fort Orange", country: "United States of America" });
 
   assert.equal(nagasaki.factionId, "japan");
   assert.equal(nagasaki.originFactionId, "portugal");
@@ -131,7 +131,7 @@ test("Nagasaki is a Japanese port sponsored from Portugal and Fort Orange starts
 
 test("target-specific fetch and resupply cargo drive the shared quest state", () => {
   const target = {
-    ...colonizationTargetForCity({ city: "St. John's", country: "Canada" }),
+    ...colonizationTargetForCity({ cityId: "st. john's|canada", city: "St. John's", country: "Canada" }),
     tileId: 901
   };
   const history = colonizationHistoryForTarget(target);
@@ -140,6 +140,7 @@ test("target-specific fetch and resupply cargo drive the shared quest state", ()
     target,
     origin: {
       tileId: 902,
+      cityId: "bristol|england",
       city: "Bristol",
       country: "England",
       factionId: "england",

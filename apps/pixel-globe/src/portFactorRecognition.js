@@ -1,5 +1,6 @@
 import { colonizationWorldRecords } from "./colonizationQuest.js";
 import { factionById } from "./factions.js";
+import { requireCityId } from "./entityIds.js";
 
 const MINUTES_PER_DAY = 24 * 60;
 const MAJOR_PORT_POPULATION = 75_000;
@@ -21,7 +22,7 @@ export function portFactorRecognitionForCaptain({
   candidates.sort((left, right) => right.weight - left.weight || left.kind.localeCompare(right.kind));
   const highestWeight = candidates[0].weight;
   const distinguished = candidates.filter((candidate) => candidate.weight >= highestWeight - 22);
-  const seed = `${city.tileId}|${visitCount}|${dayIndex}|${personalityId}`;
+  const seed = `${requireCityId(city, "Port factor recognition city")}|${visitCount}|${dayIndex}|${personalityId}`;
   const selected = distinguished[hashString32(`${seed}|deed`) % distinguished.length];
   const variant = hashString32(`${seed}|${selected.kind}|line`) % 2;
   return Object.freeze({
@@ -57,30 +58,30 @@ function captainRecognitionCandidates(gameState, city, cities, simMinute) {
   if (!conquest || !Array.isArray(conquest.events) || !Array.isArray(conquest.treaties)) {
     throw new Error("Captain recognition requires conquest history");
   }
-  const cityByTileId = new Map(cities.map((entry) => [entry.tileId, entry]));
+  const cityById = new Map(cities.map((entry) => [entry.cityId, entry]));
   const playerCaptures = conquest.events.filter((event) => (
     event?.source === "player" &&
-    typeof event.cityName === "string" &&
+    typeof event.cityId === "string" &&
     typeof event.newFactionId === "string"
   ));
   const localMajorCaptures = playerCaptures
     .filter((event) => event.newFactionId === city.factionId)
     .filter((event) => {
-      const capturedCity = cityByTileId.get(event.cityTileId);
+      const capturedCity = cityById.get(event.cityId);
       return Boolean(event.capitalCapturedFactionId) ||
         Number(capturedCity?.population || 0) >= MAJOR_PORT_POPULATION;
     })
     .sort((left, right) => (
       Number(Boolean(right.capitalCapturedFactionId)) - Number(Boolean(left.capitalCapturedFactionId)) ||
-      Number(cityByTileId.get(right.cityTileId)?.population || 0) -
-        Number(cityByTileId.get(left.cityTileId)?.population || 0) ||
+      Number(cityById.get(right.cityId)?.population || 0) -
+        Number(cityById.get(left.cityId)?.population || 0) ||
       right.simMinute - left.simMinute
     ));
   const candidates = [];
   if (localMajorCaptures[0]) {
-    const capturedCity = cityByTileId.get(localMajorCaptures[0].cityTileId);
+    const capturedCity = cityById.get(localMajorCaptures[0].cityId);
     if (!capturedCity) {
-      throw new Error(`Captain recognition cannot resolve captured city ${localMajorCaptures[0].cityTileId}`);
+      throw new Error(`Captain recognition cannot resolve captured city ${localMajorCaptures[0].cityId}`);
     }
     candidates.push({
       kind: "hero-of-port",

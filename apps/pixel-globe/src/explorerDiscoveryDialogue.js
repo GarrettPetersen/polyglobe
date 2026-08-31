@@ -90,140 +90,140 @@ const WORLD_REPORTS = new Map(Object.entries({
 }));
 
 const MOUNTAIN_REPORTS = new Map(Object.entries({
-  "Mount Everest": exchange(
+  "mountain-mount-everest": exchange(
     "Everest rose behind ranks of other peaks, yet its white summit still stood alone above the clouds. Even from far below, the scale made every familiar mountain seem unfinished.",
     "If the world wears a crown, you may have found it. We cannot measure that summit yet, but your angles and bearings will give future mapmakers somewhere to begin."
   ),
-  "K2": exchange(
+  "mountain-k2": exchange(
     "K2 is a dark pyramid armored in ice, with ridges so steep that snow can scarcely cling to them. It looked less like a mountain to climb than a blade thrust through the range.",
     "A severe mountain, then, and unmistakable from every approach. Draw that sharp profile; a navigator remembers a silhouette long after numbers fade."
   ),
-  "Muztag Feng": exchange(
+  "mountain-muztag-feng": exchange(
     "Muztag Feng spread a broad white crest above the desert roads. Glaciers poured from it in long frozen streams, feeding valleys that otherwise seemed starved of water.",
     "Then the ice mountain governs the dry country below it. Show me where each frozen tongue descends; a mountain's true reach is often measured by its rivers."
   ),
-  "Aconcagua": exchange(
+  "mountain-aconcagua": exchange(
     "Aconcagua towered above the dry Andes, bare rock and pale snow under an empty blue sky. Its height is startling because so little hides it: no forest, no gentle foothills, only ascent.",
     "The great southern sentinel. A clear, dry profile may let us compare its height with peaks half a world away. Your observations are becoming a language of their own."
   ),
-  "Kailash": exchange(
+  "mountain-kailash": exchange(
     "Kailash has four clean faces meeting beneath a cap of snow. Pilgrims circle it but do not climb, and their reverence made the silence around the mountain feel deliberate.",
     "Then our account must honor the boundary they keep. A wonder is not made greater by planting a flag upon it; sometimes understanding begins with restraint."
   ),
-  "Denali": exchange(
+  "mountain-denali": exchange(
     "Denali rises from low country with scarcely any warning, an immense wall of snow above rivers and dark forest. Clouds crossed its middle while the summit remained in another weather.",
     "That rise from plain to summit may be as astonishing as the height itself. Put the lower country in your sketch, so readers can feel what the mountain does to scale."
   ),
-  "Mount Kilimanjaro": exchange(
+  "mountain-mount-kilimanjaro": exchange(
     "Kilimanjaro stands alone above warm grasslands, its snowy crown shining over country where no snow should be. At dawn the whole upper mountain turned rose and gold.",
     "Snow above the equatorial plains: precisely the sort of truth a comfortable scholar would dismiss as sailors' nonsense. Your careful account will make disbelief harder."
   ),
-  "Mount Elbrus": exchange(
+  "mountain-mount-elbrus": exchange(
     "Elbrus carries two rounded summits beneath a single mantle of snow. It rises broad and pale above the Caucasus rather than cutting the sky like a narrow horn.",
     "Twin crowns will make it easy to recognize and hard to confuse. Record which summit appeared higher; even a simple distinction can settle years of argument."
   ),
-  "Vinson Massif": exchange(
+  "mountain-vinson-massif": exchange(
     "Far south, Vinson rose from an endless waste of ice, a dark rampart beneath a sun that barely circled the horizon. There was no tree, road, or chimney smoke for scale.",
     "A mountain in a world almost emptied of everything else. Keep that page exactly as you drew it. The blankness around the massif is part of the discovery."
   ),
-  "Mount Whitney": exchange(
+  "mountain-mount-whitney": exchange(
     "Whitney's granite crest rises above a deep, dry valley, with bright snow caught in its upper hollows. From the west it belongs to a long wall of peaks; from the east it seems abrupt and immense.",
     "Two faces of the same mountain, depending on the road taken. Your paired sketches prove why one view is never enough for a true chart."
   ),
-  "Mount Kosciuszko": exchange(
+  "mountain-mount-kosciuszko": exchange(
     "Kosciuszko is no lonely spire. It is the highest swell in a broad, windswept country of rounded ridges, pale grass, and winter snow.",
     "Then height need not always announce itself with cliffs. I am glad you resisted the temptation to make the mountain more dramatic than it is. Accuracy is its own wonder."
   ),
-  "Dhaulagiri": exchange(
+  "mountain-dhaulagiri": exchange(
     "Dhaulagiri appeared as an enormous white wall above the river gorge, its glaciers broken into blue steps. The valley made the summit seem almost impossibly near and impossibly high at once.",
     "A white mountain ruling one of the world's deepest roads. Trace the gorge beneath it; mountain and passage explain one another."
   ),
-  "Mont Blanc": exchange(
+  "mountain-mont-blanc": exchange(
     "Mont Blanc shone above the Alps like a dome of polished snow. Great glaciers spilled from its shoulders toward green valleys crowded with farms and church towers.",
     "The contrast is the marvel: cultivated valleys beneath a wilderness of ice. Your drawing should keep both, rather than letting the summit consume the human country below."
   ),
-  "Mount Shasta": exchange(
+  "mountain-mount-shasta": exchange(
     "Shasta rises by itself above the forests, a broad volcanic cone with a smaller shoulder beside it. Snowfields catch the light long after the lower country has gone dark.",
     "An isolated peak becomes compass, calendar, and landmark. Ask the people beneath it when the snow retreats; their answer will add seasons to our chart."
   ),
-  "Grand Teton": exchange(
+  "mountain-grand-teton": exchange(
     "The Grand Teton leaps from the valley without a screen of foothills, all sharp granite and snow-filled gullies. Its summit is a narrow point among a row of jagged neighbors.",
     "A mountain whose drama comes from suddenness. Preserve the flat valley at its foot; without that calm foreground, readers will not understand the ascent."
   ),
-  "Mount Hood": exchange(
+  "mountain-mount-hood": exchange(
     "Mount Hood is a clean snow cone above dark forests and the great river. Its shape stayed with us for days, changing color while the outline scarcely changed at all.",
     "That is a pilot's mountain, visible enough to order an entire landscape. Put its bearings from the river and coast in the margin."
   ),
-  "Mount Washington": exchange(
+  "mountain-mount-washington": exchange(
     "Mount Washington is not the tallest peak I have seen, but its weather is ferocious. Clear sky became cloud and driving sleet before we had crossed the upper rocks.",
     "An excellent warning against judging danger by height alone. I will mark your weather notes boldly; future travelers may value them more than the summit sketch."
   ),
-  "Chimborazo": exchange(
+  "mountain-chimborazo": exchange(
     "Chimborazo lifts an ice-covered dome almost directly above the equatorial country. Its broad white mass seems to push higher because tropical fields lie within sight below.",
     "Another snowy contradiction beneath the hot sun, but broader and heavier than Kilimanjaro in your account. Comparing them will make both descriptions stronger."
   ),
-  "Mount Kenya": exchange(
+  "mountain-mount-kenya": exchange(
     "Mount Kenya's dark, jagged summits rise from forest and high moorland, with small glaciers shining between the rock towers. It looks like the broken core of a far larger mountain.",
     "Then draw the missing shape your eye imagines around those spires. Erosion can tell a mountain's history as clearly as masonry tells a city's."
   ),
-  "Puncak Jaya": exchange(
+  "mountain-puncak-jaya": exchange(
     "Puncak Jaya is a wall of pale, sheer rock above steaming equatorial forest, with snow and ice hidden in its highest folds. I had never seen cold and jungle pressed so close together.",
     "That meeting of climates deserves a full page. Record how quickly the vegetation changed as you climbed; the mountain stacks distant worlds one above another."
   ),
-  "Pico de Orizaba": exchange(
+  "mountain-pico-de-orizaba": exchange(
     "Orizaba's volcanic cone rises so evenly that it seems drawn with a compass. Snow covers the summit while its lower slopes descend toward green country and the Gulf roads.",
     "A perfect landmark between high plateau and sea. Your bearings may let sailors identify the coast before any headland appears."
   ),
-  "Matterhorn": exchange(
+  "mountain-matterhorn": exchange(
     "The Matterhorn is a four-sided horn of dark rock, each ridge cutting cleanly toward the summit. Clouds gathered beneath the point and made it seem detached from the earth.",
     "No reader will mistake that profile. Sometimes a mountain gives the cartographer a symbol more memorable than any written name."
   ),
-  "Mauna Kea": exchange(
+  "mountain-mauna-kea": exchange(
     "Mauna Kea rises from the ocean as an entire island slope, gentle for leagues before reaching a cold, bare summit. Snow lay above warm Pacific water and black volcanic stone.",
     "Most of the mountain begins beneath your keel, then. That thought enlarges it beyond what the eye can see. Sound the surrounding depths wherever you safely can."
   ),
-  "Mount Fuji": exchange(
+  "mountain-mount-fuji": exchange(
     "Fuji stood apart from every other height, a near-perfect cone carrying snow above fields, roads, and the sea. Its symmetry made the mountain feel composed rather than accidental.",
     "Now I understand why painters return to it. Give me its outline from several bearings; each view may test just how perfect that cone truly is."
   ),
-  "Mount Etna": exchange(
+  "mountain-mount-etna": exchange(
     "Etna breathed smoke above Sicily, and old black lava divided orchards and villages. The same mountain that buried fields has made the surrounding soil astonishingly rich.",
     "Creation and destruction from one furnace. Mark the fresh flows separately from the cultivated slopes; the island's prosperity and danger share a source."
   ),
-  "Mount Olympus": exchange(
+  "mountain-mount-olympus-n40p08325-e22p35012": exchange(
     "Olympus is not one neat summit but a crown of ravines, cliffs, and high peaks frequently hidden in cloud. From the sea it truly seems to possess its own weather.",
     "No wonder poets placed a court of gods there. We shall keep the old stories beside your measured bearings; imagination is also evidence of how a place commands people."
   ),
-  "Ben Nevis": exchange(
+  "mountain-ben-nevis": exchange(
     "Ben Nevis rises dark above the sea lochs, its broad upper slopes vanishing into rain. The northern cliffs hold snow in deep gullies even when the lower glens are green.",
     "A mountain shaped as much by Atlantic weather as by stone. Your harbor approaches and cloud notes will make this a useful page as well as a handsome one."
   ),
-  "Kanchenjunga": exchange(
+  "mountain-kanchenjunga": exchange(
     "Kanchenjunga showed five great snowy summits, sometimes appearing together and sometimes separated by cloud. The whole massif glowed at sunrise before the valleys saw daylight.",
     "Five peaks rather than one: preserve their order. A careful sequence of silhouettes may identify the mountain from routes that never share the same view."
   ),
-  "Nanga Parbat": exchange(
+  "mountain-nanga-parbat": exchange(
     "Nanga Parbat rises in one overwhelming sweep above the Indus country, its bare lower walls giving way to hanging ice. The face seemed tall enough to contain several climates.",
     "A naked mountain indeed, displaying its structure instead of hiding among neighboring peaks. Your section of the valley and face may be our most instructive mountain drawing."
   ),
-  "Mount Ararat": exchange(
+  "mountain-mount-ararat": exchange(
     "Ararat stands alone above the Armenian highlands, a vast snow-capped cone with a lesser cone beside it. Stories of the ancient flood cling to it in every village.",
     "Then set the stories beside the observations and confuse neither for the other. A good atlas has room for what people believe as well as what a captain measures."
   ),
-  "Mount Rainier": exchange(
+  "mountain-mount-rainier": exchange(
     "Rainier loomed above the inland waters, a massive white volcano cut by rivers of ice. Even at great distance it dwarfed the forested ridges in front of it.",
     "A glacier-clad beacon for the whole sound. Note the river mouths below; all that ice must send its influence far beyond the mountain."
   )
 }));
 
-export const AUTHORED_MOUNTAIN_REPORT_NAMES = Object.freeze([...MOUNTAIN_REPORTS.keys()]);
+export const AUTHORED_MOUNTAIN_REPORT_IDS = Object.freeze([...MOUNTAIN_REPORTS.keys()]);
 export const AUTHORED_WORLD_REPORT_IDS = Object.freeze([...WORLD_REPORTS.keys()]);
 
 export function explorerReportDialogueForDiscovery(discovery) {
   if (!discovery || typeof discovery !== "object") {
     throw new Error("Explorer report dialogue requires a discovery");
   }
-  const key = discovery.kind === "mountain" ? discovery.displayName : discovery.id;
+  const key = discovery.id;
   if (typeof key !== "string" || key.trim() === "") {
     throw new Error("Explorer report discovery has no dialogue key");
   }

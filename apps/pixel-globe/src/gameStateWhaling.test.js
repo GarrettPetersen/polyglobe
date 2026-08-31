@@ -22,6 +22,7 @@ import {
 } from "./portEquipment.js";
 
 const PORTS = Object.freeze(Array.from({ length: 40 }, (_, index) => ({
+  cityId: `whaling-port-${index}|test-coast`,
   tileId: 900 + index,
   city: `Whaling Port ${index}`,
   displayCity: `Whaling Port ${index}`,

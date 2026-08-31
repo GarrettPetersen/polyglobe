@@ -27,9 +27,9 @@ const PAPAL_SHORT_CAPTAIN_SOURCE_ID = TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID;
 const PAPAL_SHORT_NUNCIO_SOURCE_ID =
   "curated-historical-portraits-by-captainskolot-old-scholar";
 const PAPAL_SHORT_BOOKSELLER_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
-const PAPAL_SHORT_ROME_CITY = "Rome";
-const PAPAL_SHORT_HAMBURG_CITY = "Hamburg";
-const PAPAL_SHORT_HOME_PORT = "Seville";
+const PAPAL_SHORT_ROME_CITY = "rome|italy";
+const PAPAL_SHORT_HAMBURG_CITY = "hamburg|germany";
+const PAPAL_SHORT_HOME_PORT = "seville|spain";
 const PAPAL_SHORT_BIBLE_DESTINATION = "Antwerp";
 const PAPAL_SHORT_SCENE_ROME = "The Papal States at Rome";
 const PAPAL_SHORT_SCENE_ACTIONS = "Papal Decrees and Diplomacy";
@@ -39,16 +39,16 @@ const PAPAL_SHORT_SCENE_NUNCIO_ROUTE = "Carry a Papal Nuncio through the Aegean"
 const PAPAL_SHORT_SCENE_BIBLE_ROUTE = "Smuggle Bibles through the North Sea";
 const COLONY_SHORT_CAPTAIN_SOURCE_ID = TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID;
 const COLONY_SHORT_ORGANIZER_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
-const COLONY_SHORT_PORT_ROYAL = "Port Royal";
-const COLONY_SHORT_BORDEAUX = "Bordeaux";
-const COLONY_SHORT_BUENOS_AIRES = "Buenos Aires";
-const COLONY_SHORT_SEVILLE = "Seville";
-const COLONY_SHORT_JAMESTOWN = "Jamestown";
-const COLONY_SHORT_LONDON = "London";
-const COLONY_SHORT_RECIFE = "Recife";
-const COLONY_SHORT_RIO = "Rio de Janeiro";
-const COLONY_SHORT_LISBON = "Lisbon";
-const COLONY_SHORT_MANILA = "Manila";
+const COLONY_SHORT_PORT_ROYAL = "port royal|canada";
+const COLONY_SHORT_BORDEAUX = "bordeaux|france";
+const COLONY_SHORT_BUENOS_AIRES = "buenos aires|argentina";
+const COLONY_SHORT_SEVILLE = "seville|spain";
+const COLONY_SHORT_JAMESTOWN = "jamestown|united states of america";
+const COLONY_SHORT_LONDON = "london|united kingdom";
+const COLONY_SHORT_RECIFE = "recife|brazil";
+const COLONY_SHORT_RIO = "rio de janeiro|brazil";
+const COLONY_SHORT_LISBON = "lisbon|portugal";
+const COLONY_SHORT_MANILA = "manila|philippines";
 const COLONY_SHORT_SCENE_OFFER_CAPTURE = "A Colonial Expedition Is Proposed in Bordeaux";
 const COLONY_SHORT_SCENE_EMBARK = "Colonists Embark at Bordeaux";
 const COLONY_SHORT_SCENE_OUTBOUND = "A Spanish Colonial Expedition Leaves Europe";
@@ -60,10 +60,10 @@ const COLONY_SHORT_SCENE_RESUPPLY = "Resupply Recife";
 const COLONY_SHORT_SCENE_DEFENSE = "Defend Rio de Janeiro from War Canoes";
 const COLONY_SHORT_SCENE_CITY = "Manila Becomes a Permanent City";
 const LOADOUT_SHORT_CAPTAIN_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
-const LOADOUT_SHORT_PORT = "Lisbon";
+const LOADOUT_SHORT_PORT = "lisbon|portugal";
 const TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
 const TRADE_GOODS_SHORT_FACTOR_SOURCE_ID = TRAILER_TERNATE_FACTOR_SOURCE_ID;
-const TRADE_GOODS_SHORT_ALEXANDRIA = "Alexandria";
+const TRADE_GOODS_SHORT_ALEXANDRIA = "alexandria|egypt";
 const TRADE_GOODS_SHORT_BORDEAUX = COLONY_SHORT_BORDEAUX;
 const TRADE_GOODS_SHORT_TITLE_GRAIN = "The Crew Can Eat Trade Grain";
 const TRADE_GOODS_SHORT_TITLE_WINE = "Wine Is a Drinkable Trade Good";
@@ -73,9 +73,9 @@ const TRADE_GOODS_SHORT_TITLE_EMERGENCY = "The Water Casks Are Dry";
 const TRADE_GOODS_SHORT_TITLE_DRUNK = "The Factor Notices a Drunk Arrival";
 const TRADE_GOODS_SHORT_TITLE_REMEMBERED = "The Factor Remembers Last Time";
 const COMPANIONS_SHORT_CAPTAIN_SOURCE_ID = TRAILER_LISBON_CAPTAIN_SOURCE_ID;
-const COMPANIONS_SHORT_LONDON = "London";
-const COMPANIONS_SHORT_HOME = "Lisbon";
-const COMPANIONS_SHORT_WANTED_PORT = "Seville";
+const COMPANIONS_SHORT_LONDON = "london|united kingdom";
+const COMPANIONS_SHORT_HOME = "lisbon|portugal";
+const COMPANIONS_SHORT_WANTED_PORT = "seville|spain";
 const COMPANIONS_SHORT_REVENGE_SHIP_ID =
   "companions-pirate-ship:false-captive-revenge:1";
 const COMPANIONS_SHORT_SCENE_PASSENGER = "Take a Passenger from London to Lisbon";
@@ -90,13 +90,13 @@ const RELIGION_SHORT_EUROPEAN_CAPTAIN_SOURCE_ID =
   "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait";
 const RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID =
   "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard";
-const RELIGION_SHORT_CITY_ADEN = "Aden";
-const RELIGION_SHORT_CITY_HAMBURG = "Hamburg";
-const RELIGION_SHORT_CITY_JEDDAH = "Jeddah";
-const RELIGION_SHORT_CITY_KHOLMOGORY = "Kholmogory";
-const RELIGION_SHORT_CITY_KRAKOW = "Krakow";
-const RELIGION_SHORT_CITY_LISBON = "Lisbon";
-const RELIGION_SHORT_CITY_THESSALONIKI = "Thessaloniki";
+const RELIGION_SHORT_CITY_ADEN = "aden|yemen";
+const RELIGION_SHORT_CITY_HAMBURG = "hamburg|germany";
+const RELIGION_SHORT_CITY_JEDDAH = "jeddah|saudi arabia";
+const RELIGION_SHORT_CITY_KHOLMOGORY = "kholmogory|russian federation";
+const RELIGION_SHORT_CITY_KRAKOW = "krakow|poland";
+const RELIGION_SHORT_CITY_LISBON = "lisbon|portugal";
+const RELIGION_SHORT_CITY_THESSALONIKI = "thessaloniki|greece";
 const RELIGION_SHORT_TITLE_CATHOLIC = "A Portuguese Catholic Captain";
 const RELIGION_SHORT_TITLE_CANOE = "A Dugout Canoe in the Great Lakes";
 const RELIGION_SHORT_TITLE_HAJJ = "Undertake the Hajj with a Pilgrim";
@@ -327,7 +327,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [],
     encounters: [],
     sequence: trailerSequence("explore", "reef", {
-      discoveryName: "Great Barrier Reef"
+      discoveryId: "landmark-great-barrier-reef"
     })
   }),
   "benchmark-busy-world": scenario({
@@ -448,7 +448,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-explore-fuji-v1",
     player: capturePlayer("japan", "small-junk", 34.72, 139.65, 315),
     world: captureWorld(112, 7, 40),
-    sequence: trailerSequence("explore", "fuji", { discoveryName: "Mount Fuji" })
+    sequence: trailerSequence("explore", "fuji", { discoveryId: "mountain-mount-fuji" })
   }),
   "trailer-explore-pyramid": trailerScenario({
     id: "trailer-explore-pyramid",
@@ -457,7 +457,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("ottoman", "felucca", 17.82, 33.63, 270),
     world: captureWorld(68, 16, 50),
     sequence: trailerSequence("explore", "pyramid", {
-      discoveryName: "The Pyramids of Meroe",
+      discoveryId: "landmark-pyramids-of-meroe",
       riverStart: { lat: 17.82, lon: 33.63 },
       sailingTarget: { lat: 15.6, lon: 32.55 },
       requireOpenWaterCourse: true
@@ -469,11 +469,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-trade-ternate-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 0.79, 127.38, 180, {
       characterPortraitSourceId: TRAILER_TERNATE_CAPTAIN_SOURCE_ID,
-      homeCityName: "Lisbon"
+      homeCityId: "lisbon|portugal"
     }),
     world: captureWorld(196, 13, 10),
     sequence: trailerSequence("trade", "buy", {
-      cityName: "Ternate",
+      cityId: "ternate|indonesia",
       goodId: "cloves",
       transactionCount: 6,
       factorPortraitSourceId: TRAILER_TERNATE_FACTOR_SOURCE_ID
@@ -485,11 +485,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-trade-lisbon-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 90, {
       characterPortraitSourceId: TRAILER_LISBON_CAPTAIN_SOURCE_ID,
-      homeCityName: "Lisbon"
+      homeCityId: "lisbon|portugal"
     }),
     world: captureWorld(196, 15, 20),
     sequence: trailerSequence("trade", "sell", {
-      cityName: "Lisbon",
+      cityId: "lisbon|portugal",
       goodId: "cinnamon",
       transactionCount: 6,
       factorPortraitSourceId: TRAILER_LISBON_FACTOR_SOURCE_ID
@@ -736,7 +736,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     hour: 10,
     minute: 20,
     variant: "upwind-voyage",
-    cityName: "Ribeira Grande",
+    cityId: "ribeira grande|cape verde",
     durationSeconds: 37
   }),
   "short-upwind-turtle-ship": upwindSailingScenario({
@@ -871,7 +871,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: captureWorld(210, 14, 40),
     diplomacy: [{ factionAId: "england", factionBId: "spain", relation: "war" }],
     sequence: trailerSequence("pillage", "bombard", {
-      cityName: "Havana",
+      cityId: "havana|cuba",
       broadsideSide: "starboard"
     })
   }),
@@ -881,11 +881,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-pillage-alexandria-v1",
     player: capturePlayer("venice", "galleon", 31.20, 29.91, 180, {
       characterPortraitSourceId: TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID,
-      homeCityName: "Venice"
+      homeCityId: "venice|italy"
     }),
     world: captureWorld(92, 11, 30),
     diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
-    sequence: trailerSequence("pillage", "assault", { cityName: "Alexandria" })
+    sequence: trailerSequence("pillage", "assault", { cityId: "alexandria|egypt" })
   }),
   "trailer-colonize-found": trailerScenario({
     id: "trailer-colonize-found",
@@ -893,7 +893,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-colonize-found-v1",
     player: capturePlayer("france", "carrack", 44.74, -65.52, 45),
     world: captureWorld(176, 9, 45),
-    sequence: trailerSequence("colonize", "found", { cityName: "Port Royal" })
+    sequence: trailerSequence("colonize", "found", { cityId: "port royal|canada" })
   }),
   "trailer-colonize-establish": trailerScenario({
     id: "trailer-colonize-establish",
@@ -901,7 +901,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-colonize-establish-v1",
     player: capturePlayer("france", "carrack", 44.74, -65.52, 315),
     world: captureWorld(220, 15, 0),
-    sequence: trailerSequence("colonize", "establish", { cityName: "Port Royal" })
+    sequence: trailerSequence("colonize", "establish", { cityId: "port royal|canada" })
   }),
   "short-colony-offer": trailerScenario({
     id: "short-colony-offer",
@@ -909,13 +909,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-colony-offer-v1",
     player: capturePlayer("france", "carrack", 44.84, -1.26, 15, {
       characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COLONY_SHORT_BORDEAUX
+      homeCityId: COLONY_SHORT_BORDEAUX
     }),
     world: captureWorld(176, 9, 45),
     sequence: trailerSequence("colonize", "offer", {
       durationSeconds: 14,
-      cityName: COLONY_SHORT_PORT_ROYAL,
-      originCityName: COLONY_SHORT_BORDEAUX,
+      cityId: COLONY_SHORT_PORT_ROYAL,
+      originCityId: COLONY_SHORT_BORDEAUX,
       organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
     })
   }),
@@ -925,13 +925,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-colony-embark-v1",
     player: capturePlayer("france", "carrack", 44.84, -1.26, 15, {
       characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COLONY_SHORT_BORDEAUX
+      homeCityId: COLONY_SHORT_BORDEAUX
     }),
     world: captureWorld(176, 10, 30),
     sequence: trailerSequence("colonize", "embark", {
       durationSeconds: 12,
-      cityName: COLONY_SHORT_PORT_ROYAL,
-      originCityName: COLONY_SHORT_BORDEAUX,
+      cityId: COLONY_SHORT_PORT_ROYAL,
+      originCityId: COLONY_SHORT_BORDEAUX,
       organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
     })
   }),
@@ -980,13 +980,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-colony-found-v1",
     player: capturePlayer("spain", "galleon", -34.61, -58.38, 45, {
       characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COLONY_SHORT_SEVILLE
+      homeCityId: COLONY_SHORT_SEVILLE
     }),
     world: captureWorld(184, 16, 35),
     sequence: trailerSequence("colonize", "found", {
       durationSeconds: 12,
-      cityName: COLONY_SHORT_BUENOS_AIRES,
-      originCityName: COLONY_SHORT_SEVILLE,
+      cityId: COLONY_SHORT_BUENOS_AIRES,
+      originCityId: COLONY_SHORT_SEVILLE,
       organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
     })
   }),
@@ -996,13 +996,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-colony-deadline-v2",
     player: capturePlayer("england", "brigantine", 37.21, -76.78, 315, {
       characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COLONY_SHORT_LONDON
+      homeCityId: COLONY_SHORT_LONDON
     }),
     world: captureWorld(214, 16, 15),
     sequence: trailerSequence("colonize", "deadline", {
       durationSeconds: 12,
-      cityName: COLONY_SHORT_JAMESTOWN,
-      originCityName: COLONY_SHORT_LONDON,
+      cityId: COLONY_SHORT_JAMESTOWN,
+      originCityId: COLONY_SHORT_LONDON,
       organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
     })
   }),
@@ -1012,13 +1012,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-colony-resupply-v1",
     player: capturePlayer("portugal", "portuguese-carrack", -8.05, -34.88, 315, {
       characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COLONY_SHORT_LISBON
+      homeCityId: COLONY_SHORT_LISBON
     }),
     world: captureWorld(220, 15, 0),
     sequence: trailerSequence("colonize", "resupply", {
       durationSeconds: 12,
-      cityName: COLONY_SHORT_RECIFE,
-      originCityName: COLONY_SHORT_LISBON,
+      cityId: COLONY_SHORT_RECIFE,
+      originCityId: COLONY_SHORT_LISBON,
       organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
     })
   }),
@@ -1028,13 +1028,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-colony-defense-v1",
     player: capturePlayer("portugal", "galleon", -22.9, -43.21, 90, {
       characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COLONY_SHORT_LISBON
+      homeCityId: COLONY_SHORT_LISBON
     }),
     world: captureWorld(238, 12, 20),
     sequence: trailerSequence("colonize", "defend", {
       durationSeconds: 16,
-      cityName: COLONY_SHORT_RIO,
-      originCityName: COLONY_SHORT_LISBON,
+      cityId: COLONY_SHORT_RIO,
+      originCityId: COLONY_SHORT_LISBON,
       organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
     })
   }),
@@ -1044,13 +1044,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-colony-city-v1",
     player: capturePlayer("spain", "galleon", 14.58, 121, 315, {
       characterPortraitSourceId: COLONY_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COLONY_SHORT_SEVILLE
+      homeCityId: COLONY_SHORT_SEVILLE
     }),
     world: captureWorld(240, 14, 20),
     sequence: trailerSequence("colonize", "city", {
       durationSeconds: 14,
-      cityName: COLONY_SHORT_MANILA,
-      originCityName: COLONY_SHORT_SEVILLE,
+      cityId: COLONY_SHORT_MANILA,
+      originCityId: COLONY_SHORT_SEVILLE,
       organizerPortraitSourceId: COLONY_SHORT_ORGANIZER_SOURCE_ID
     })
   }),
@@ -1068,11 +1068,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-demo-trade-naples-v1",
     player: capturePlayer("spain", "brigantine", 40.85, 14.27, 180, {
       characterPortraitSourceId: TRAILER_LISBON_CAPTAIN_SOURCE_ID,
-      homeCityName: "Venice"
+      homeCityId: "venice|italy"
     }),
     world: captureWorld(118, 13, 40),
     sequence: trailerSequence("trade", "buy", {
-      cityName: captureNaplesCityId(),
+      cityId: captureNaplesCityId(),
       goodId: "olive-oil",
       transactionCount: 4,
       factorPortraitSourceId: TRAILER_TERNATE_FACTOR_SOURCE_ID,
@@ -1086,7 +1086,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     player: capturePlayer("ottoman", "felucca", 31.5, 29.0, 135),
     world: captureWorld(68, 15, 30),
     sequence: trailerSequence("explore", "great-pyramid", {
-      discoveryName: "The Great Pyramid",
+      discoveryId: "landmark-great-pyramid",
       sailingTarget: { lat: 32.4, lon: 28.5 },
       requireOpenWaterCourse: true,
       modalPolicy: "suppress"
@@ -1098,11 +1098,11 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-demo-trade-alexandria-v1",
     player: capturePlayer("venice", "brigantine", 31.2, 29.91, 180, {
       characterPortraitSourceId: TRAILER_LISBON_CAPTAIN_SOURCE_ID,
-      homeCityName: "Venice"
+      homeCityId: "venice|italy"
     }),
     world: captureWorld(118, 15, 10),
     sequence: trailerSequence("trade", "sell", {
-      cityName: "Alexandria",
+      cityId: "alexandria|egypt",
       goodId: "olive-oil",
       transactionCount: 4,
       factorPortraitSourceId: TRAILER_TERNATE_FACTOR_SOURCE_ID,
@@ -1261,7 +1261,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: captureWorld(92, 12, 10),
     diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
     sequence: trailerSequence("pillage", "bombard", {
-      cityName: "Alexandria",
+      cityId: "alexandria|egypt",
       broadsideSide: "starboard",
       holdBroadsideAim: true,
       modalPolicy: "suppress"
@@ -1273,12 +1273,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-demo-pillage-assault-alexandria-v1",
     player: capturePlayer("venice", "galleass", 31.2, 29.91, 180, {
       characterPortraitSourceId: TRAILER_ALEXANDRIA_CAPTAIN_SOURCE_ID,
-      homeCityName: "Venice"
+      homeCityId: "venice|italy"
     }),
     world: captureWorld(92, 15, 30),
     diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
     sequence: trailerSequence("pillage", "assault", {
-      cityName: "Alexandria",
+      cityId: "alexandria|egypt",
       modalPolicy: "show"
     })
   }),
@@ -1356,7 +1356,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-loadout-deprivation-v1",
     player: capturePlayer("portugal", "caravel", 18.5, -39.5, 90, {
       characterPortraitSourceId: LOADOUT_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: LOADOUT_SHORT_PORT
+      homeCityId: LOADOUT_SHORT_PORT
     }),
     world: captureWorld(130, 12, 20, 180),
     sequence: trailerSequence("survive", "deprivation-death", { durationSeconds: 12 })
@@ -1367,12 +1367,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-loadout-presets-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 45, {
       characterPortraitSourceId: LOADOUT_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: LOADOUT_SHORT_PORT
+      homeCityId: LOADOUT_SHORT_PORT
     }),
     world: captureWorld(196, 13, 10),
     sequence: trailerSequence("loadout", "presets", {
       durationSeconds: 16,
-      cityName: LOADOUT_SHORT_PORT
+      cityId: LOADOUT_SHORT_PORT
     })
   }),
   "short-loadout-custom": trailerScenario({
@@ -1381,12 +1381,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-loadout-custom-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 38.72, -9.14, 45, {
       characterPortraitSourceId: LOADOUT_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: LOADOUT_SHORT_PORT
+      homeCityId: LOADOUT_SHORT_PORT
     }),
     world: captureWorld(196, 14, 10),
     sequence: trailerSequence("loadout", "custom", {
       durationSeconds: 18,
-      cityName: LOADOUT_SHORT_PORT
+      cityId: LOADOUT_SHORT_PORT
     })
   }),
   "short-trade-goods-grain": trailerScenario({
@@ -1395,12 +1395,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-trade-goods-grain-v1",
     player: capturePlayer("ottoman", "felucca", 31.2, 29.91, 180, {
       characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
-      homeCityName: RELIGION_SHORT_CITY_THESSALONIKI
+      homeCityId: RELIGION_SHORT_CITY_THESSALONIKI
     }),
     world: captureWorld(196, 14, 5),
     sequence: trailerSequence("trade", "sell", {
       durationSeconds: 9,
-      cityName: TRADE_GOODS_SHORT_ALEXANDRIA,
+      cityId: TRADE_GOODS_SHORT_ALEXANDRIA,
       goodId: "grain",
       transactionCount: 3,
       factorPortraitSourceId: TRADE_GOODS_SHORT_FACTOR_SOURCE_ID
@@ -1412,12 +1412,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-trade-goods-wine-v1",
     player: capturePlayer("france", "brigantine", 45.7, -1.1, 90, {
       characterPortraitSourceId: TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: TRADE_GOODS_SHORT_BORDEAUX
+      homeCityId: TRADE_GOODS_SHORT_BORDEAUX
     }),
     world: captureWorld(196, 15, 20),
     sequence: trailerSequence("trade", "sell", {
       durationSeconds: 9,
-      cityName: TRADE_GOODS_SHORT_BORDEAUX,
+      cityId: TRADE_GOODS_SHORT_BORDEAUX,
       goodId: "wine",
       transactionCount: 3,
       factorPortraitSourceId: TRADE_GOODS_SHORT_FACTOR_SOURCE_ID
@@ -1445,7 +1445,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-trade-goods-wine-emergency-v1",
     player: capturePlayer("portugal", "caravel", 33, -24, 90, {
       characterPortraitSourceId: TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: LOADOUT_SHORT_PORT
+      homeCityId: LOADOUT_SHORT_PORT
     }),
     world: captureWorld(210, 13, 20),
     sequence: trailerSequence("survive", "wine-emergency", { durationSeconds: 13 })
@@ -1456,12 +1456,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-trade-goods-drunk-arrival-v1",
     player: capturePlayer("france", "brigantine", 45.7, -1.1, 90, {
       characterPortraitSourceId: TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: TRADE_GOODS_SHORT_BORDEAUX
+      homeCityId: TRADE_GOODS_SHORT_BORDEAUX
     }),
     world: captureWorld(210, 15, 10),
     sequence: trailerSequence("survive", "drunk-arrival", {
       durationSeconds: 16,
-      cityName: TRADE_GOODS_SHORT_BORDEAUX
+      cityId: TRADE_GOODS_SHORT_BORDEAUX
     })
   }),
   "short-trade-goods-remembered-arrival": trailerScenario({
@@ -1470,12 +1470,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-trade-goods-remembered-arrival-v1",
     player: capturePlayer("france", "brigantine", 45.7, -1.1, 90, {
       characterPortraitSourceId: TRADE_GOODS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: TRADE_GOODS_SHORT_BORDEAUX
+      homeCityId: TRADE_GOODS_SHORT_BORDEAUX
     }),
     world: captureWorld(214, 12, 10),
     sequence: trailerSequence("survive", "remembered-arrival", {
       durationSeconds: 12,
-      cityName: TRADE_GOODS_SHORT_BORDEAUX
+      cityId: TRADE_GOODS_SHORT_BORDEAUX
     })
   }),
   "short-companions-passenger-offer": trailerScenario({
@@ -1484,13 +1484,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-companions-passenger-offer-v1",
     player: capturePlayer("england", "brigantine", 51.5, 0.1, 90, {
       characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COMPANIONS_SHORT_LONDON
+      homeCityId: COMPANIONS_SHORT_LONDON
     }),
     world: captureWorld(196, 11, 20),
     sequence: trailerSequence("companions", "passenger-offer", {
       durationSeconds: 12,
-      originCityName: COMPANIONS_SHORT_LONDON,
-      destinationCityName: COMPANIONS_SHORT_HOME
+      originCityId: COMPANIONS_SHORT_LONDON,
+      destinationCityId: COMPANIONS_SHORT_HOME
     })
   }),
   "short-companions-passenger-arrival": trailerScenario({
@@ -1499,13 +1499,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-companions-passenger-arrival-v1",
     player: capturePlayer("england", "brigantine", 49.3, 0.2, 180, {
       characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COMPANIONS_SHORT_LONDON
+      homeCityId: COMPANIONS_SHORT_LONDON
     }),
     world: captureWorld(198, 15, 10),
     sequence: trailerSequence("companions", "passenger-arrival", {
       durationSeconds: 12,
-      originCityName: COMPANIONS_SHORT_LONDON,
-      destinationCityName: COMPANIONS_SHORT_HOME
+      originCityId: COMPANIONS_SHORT_LONDON,
+      destinationCityId: COMPANIONS_SHORT_HOME
     })
   }),
   "short-companions-castaway-offer": trailerScenario({
@@ -1514,12 +1514,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-companions-castaway-offer-v1",
     player: capturePlayer("portugal", "caravel", 46.8, -53.2, 225, {
       characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     }),
     world: captureWorld(196, 13, 20),
     sequence: trailerSequence("companions", "castaway-offer", {
       durationSeconds: 13,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     })
   }),
   "short-companions-castaway-reunion": trailerScenario({
@@ -1528,12 +1528,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-companions-castaway-reunion-v1",
     player: capturePlayer("portugal", "caravel", 38.72, -9.14, 45, {
       characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     }),
     world: captureWorld(202, 15, 20),
     sequence: trailerSequence("companions", "castaway-reunion", {
       durationSeconds: 19,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     })
   }),
   "short-companions-castaway-recruit": trailerScenario({
@@ -1542,12 +1542,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-companions-castaway-recruit-v1",
     player: capturePlayer("portugal", "caravel", 38.72, -9.14, 45, {
       characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     }),
     world: captureWorld(205, 16, 10),
     sequence: trailerSequence("companions", "castaway-recruit", {
       durationSeconds: 15,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     })
   }),
   "short-companions-pirate-offer": trailerScenario({
@@ -1556,13 +1556,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-companions-pirate-offer-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29, 90, {
       characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     }),
     world: captureWorld(205, 14, 10),
     sequence: trailerSequence("companions", "pirate-offer", {
       durationSeconds: 13,
-      homeCityName: COMPANIONS_SHORT_HOME,
-      wantedCityName: COMPANIONS_SHORT_WANTED_PORT
+      homeCityId: COMPANIONS_SHORT_HOME,
+      wantedCityId: COMPANIONS_SHORT_WANTED_PORT
     })
   }),
   "short-companions-pirate-escape": trailerScenario({
@@ -1571,13 +1571,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-companions-pirate-escape-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29, 90, {
       characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     }),
     world: captureWorld(206, 15, 10),
     sequence: trailerSequence("companions", "pirate-escape", {
       durationSeconds: 14,
-      homeCityName: COMPANIONS_SHORT_HOME,
-      wantedCityName: COMPANIONS_SHORT_WANTED_PORT
+      homeCityId: COMPANIONS_SHORT_HOME,
+      wantedCityId: COMPANIONS_SHORT_WANTED_PORT
     })
   }),
   "short-companions-pirate-revenge": trailerScenario({
@@ -1586,7 +1586,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-companions-pirate-revenge-v1",
     player: capturePlayer("portugal", "portuguese-carrack", 35.7, -29, 90, {
       characterPortraitSourceId: COMPANIONS_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: COMPANIONS_SHORT_HOME
+      homeCityId: COMPANIONS_SHORT_HOME
     }),
     world: captureWorld(209, 16, 10),
     encounters: [
@@ -1604,8 +1604,8 @@ const CAPTURE_SCENARIOS = Object.freeze({
     ],
     sequence: trailerSequence("companions", "pirate-revenge", {
       durationSeconds: 15,
-      homeCityName: COMPANIONS_SHORT_HOME,
-      wantedCityName: COMPANIONS_SHORT_WANTED_PORT,
+      homeCityId: COMPANIONS_SHORT_HOME,
+      wantedCityId: COMPANIONS_SHORT_WANTED_PORT,
       encounterId: COMPANIONS_SHORT_REVENGE_SHIP_ID,
       broadsideSide: "starboard"
     })
@@ -1616,13 +1616,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-religion-portuguese-profile-v1",
     player: capturePlayer("portugal", "caravel", 38.72, -9.14, 45, {
       characterPortraitSourceId: RELIGION_SHORT_EUROPEAN_CAPTAIN_SOURCE_ID,
-      homeCityName: RELIGION_SHORT_CITY_LISBON,
+      homeCityId: RELIGION_SHORT_CITY_LISBON,
       religionId: "roman-catholic"
     }),
     world: captureWorld(196, 11, 20),
     sequence: trailerSequence("religion", "profile", {
       durationSeconds: 10,
-      cityName: RELIGION_SHORT_CITY_LISBON
+      cityId: RELIGION_SHORT_CITY_LISBON
     })
   }),
   "short-religion-great-lakes-canoe": sailingTrailerScenario({
@@ -1644,13 +1644,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-religion-ottoman-profile-v1",
     player: capturePlayer("ottoman", "felucca", 40.64, 22.94, 120, {
       characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
-      homeCityName: RELIGION_SHORT_CITY_THESSALONIKI,
+      homeCityId: RELIGION_SHORT_CITY_THESSALONIKI,
       religionId: "sunni-islam"
     }),
     world: captureWorld(196, 12, 10),
     sequence: trailerSequence("religion", "profile", {
       durationSeconds: 10,
-      cityName: RELIGION_SHORT_CITY_THESSALONIKI
+      cityId: RELIGION_SHORT_CITY_THESSALONIKI
     })
   }),
   "short-religion-orthodox-profile": trailerScenario({
@@ -1659,13 +1659,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-religion-orthodox-profile-v1",
     player: capturePlayer("muscovy", "small-cog", 64.225, 41.65, 210, {
       characterPortraitSourceId: RELIGION_SHORT_EUROPEAN_CAPTAIN_SOURCE_ID,
-      homeCityName: RELIGION_SHORT_CITY_KHOLMOGORY,
+      homeCityId: RELIGION_SHORT_CITY_KHOLMOGORY,
       religionId: "eastern-orthodox"
     }),
     world: captureWorld(196, 13, 5),
     sequence: trailerSequence("religion", "profile", {
       durationSeconds: 10,
-      cityName: RELIGION_SHORT_CITY_KHOLMOGORY
+      cityId: RELIGION_SHORT_CITY_KHOLMOGORY
     })
   }),
   "short-religion-lutheran-profile": trailerScenario({
@@ -1674,13 +1674,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-religion-lutheran-profile-v1",
     player: capturePlayer("denmark-norway", "small-cog", 53.54, 9.76, 305, {
       characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
-      homeCityName: RELIGION_SHORT_CITY_HAMBURG,
+      homeCityId: RELIGION_SHORT_CITY_HAMBURG,
       religionId: "lutheran"
     }),
     world: captureWorld(196, 14, 15),
     sequence: trailerSequence("religion", "profile", {
       durationSeconds: 10,
-      cityName: RELIGION_SHORT_CITY_HAMBURG
+      cityId: RELIGION_SHORT_CITY_HAMBURG
     })
   }),
   "short-religion-hajj": trailerScenario({
@@ -1689,15 +1689,15 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-religion-hajj-v1",
     player: capturePlayer("ottoman", "dhow", 21.49, 39.18, 315, {
       characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
-      homeCityName: RELIGION_SHORT_CITY_THESSALONIKI,
+      homeCityId: RELIGION_SHORT_CITY_THESSALONIKI,
       religionId: "sunni-islam"
     }),
     world: captureWorld(196, 15, 10),
     sequence: trailerSequence("religion", "hajj", {
       durationSeconds: 16,
-      cityName: RELIGION_SHORT_CITY_JEDDAH,
-      originCityName: RELIGION_SHORT_CITY_ADEN,
-      passengerHomeCityName: RELIGION_SHORT_CITY_THESSALONIKI
+      cityId: RELIGION_SHORT_CITY_JEDDAH,
+      originCityId: RELIGION_SHORT_CITY_ADEN,
+      passengerHomeCityId: RELIGION_SHORT_CITY_THESSALONIKI
     })
   }),
   "short-religion-jewish-mission": trailerScenario({
@@ -1706,13 +1706,13 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "short-religion-jewish-mission-v1",
     player: capturePlayer("poland-lithuania", "small-cog", 50.06, 19.94, 90, {
       characterPortraitSourceId: RELIGION_SHORT_MALE_CAPTAIN_SOURCE_ID,
-      homeCityName: RELIGION_SHORT_CITY_KRAKOW,
+      homeCityId: RELIGION_SHORT_CITY_KRAKOW,
       religionId: "judaism"
     }),
     world: captureWorld(196, 10, 40),
     sequence: trailerSequence("religion", "mission", {
       durationSeconds: 14,
-      cityName: RELIGION_SHORT_CITY_KRAKOW,
+      cityId: RELIGION_SHORT_CITY_KRAKOW,
       religiousMissionId: "jewish-responsum"
     })
   }),
@@ -1778,7 +1778,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: captureWorld(142, 10, 20),
     sequence: trailerSequence("panda", "encounter", {
       durationSeconds: 22,
-      cityName: "Chengdu"
+      cityId: "chengdu|china"
     })
   }),
   "trailer-panda-fish-yellow-sea": trailerScenario({
@@ -1797,7 +1797,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: captureWorld(224, 12, 30),
     sequence: trailerSequence("panda", "port-reaction", {
       durationSeconds: 8,
-      cityName: "Lisbon"
+      cityId: "lisbon|portugal"
     })
   }),
   "trailer-panda-port-nanjing": trailerScenario({
@@ -1808,7 +1808,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: captureWorld(240, 14, 5),
     sequence: trailerSequence("panda", "port-reaction", {
       durationSeconds: 8,
-      cityName: "Nanjing"
+      cityId: "nanjing|china"
     })
   }),
   "trailer-panda-naturalist": trailerScenario({
@@ -1819,7 +1819,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     world: captureWorld(266, 15, 20),
     sequence: trailerSequence("panda", "naturalist", {
       durationSeconds: 14,
-      cityName: "Vienna",
+      cityId: "vienna|austria",
       naturalistPortraitSourceId: PANDA_TRAILER_NATURALIST_SOURCE_ID
     })
   }),
@@ -1863,12 +1863,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-papal-rome-v1",
     player: capturePlayer("spain", "caravel", 41.68, 12.18, 25, {
       characterPortraitSourceId: PAPAL_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: PAPAL_SHORT_HOME_PORT
+      homeCityId: PAPAL_SHORT_HOME_PORT
     }),
     world: captureWorld(196, 10, 20),
     sequence: trailerSequence("papal", "rome", {
       durationSeconds: 12,
-      cityName: PAPAL_SHORT_ROME_CITY,
+      cityId: PAPAL_SHORT_ROME_CITY,
       beamSide: "starboard"
     })
   }),
@@ -1878,12 +1878,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-papal-actions-v1",
     player: capturePlayer("spain", "caravel", 41.68, 12.18, 25, {
       characterPortraitSourceId: PAPAL_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: PAPAL_SHORT_HOME_PORT
+      homeCityId: PAPAL_SHORT_HOME_PORT
     }),
     world: captureWorld(196, 11, 5),
     sequence: trailerSequence("papal", "actions", {
       durationSeconds: 12,
-      cityName: PAPAL_SHORT_ROME_CITY
+      cityId: PAPAL_SHORT_ROME_CITY
     })
   }),
   "trailer-papal-nuncio-route": sailingTrailerScenario({
@@ -1905,12 +1905,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-papal-nuncio-v1",
     player: capturePlayer("spain", "caravel", 41.68, 12.18, 25, {
       characterPortraitSourceId: PAPAL_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: PAPAL_SHORT_HOME_PORT
+      homeCityId: PAPAL_SHORT_HOME_PORT
     }),
     world: captureWorld(196, 12, 10),
     sequence: trailerSequence("papal", "nuncio", {
       durationSeconds: 18,
-      cityName: PAPAL_SHORT_ROME_CITY,
+      cityId: PAPAL_SHORT_ROME_CITY,
       nuncioPortraitSourceId: PAPAL_SHORT_NUNCIO_SOURCE_ID
     })
   }),
@@ -1933,12 +1933,12 @@ const CAPTURE_SCENARIOS = Object.freeze({
     seed: "trailer-papal-bibles-v1",
     player: capturePlayer("spain", "caravel", 53.54, 9.76, 305, {
       characterPortraitSourceId: PAPAL_SHORT_CAPTAIN_SOURCE_ID,
-      homeCityName: PAPAL_SHORT_HOME_PORT
+      homeCityId: PAPAL_SHORT_HOME_PORT
     }),
     world: captureWorld(196, 13, 15),
     sequence: trailerSequence("papal", "bibles", {
       durationSeconds: 18,
-      cityName: PAPAL_SHORT_HAMBURG_CITY,
+      cityId: PAPAL_SHORT_HAMBURG_CITY,
       destinationName: PAPAL_SHORT_BIBLE_DESTINATION,
       booksellerPortraitSourceId: PAPAL_SHORT_BOOKSELLER_SOURCE_ID
     })
@@ -1976,8 +1976,8 @@ export function validateCaptureScenario(value) {
   if (value.player.characterPortraitSourceId !== undefined) {
     requiredString(value.player.characterPortraitSourceId, "capture player portrait source id");
   }
-  if (value.player.homeCityName !== undefined) {
-    requiredString(value.player.homeCityName, "capture player home city name");
+  if (value.player.homeCityId !== undefined) {
+    requiredCityId(value.player.homeCityId, "capture player home city");
   }
   if (value.player.religionId !== undefined) religionById(value.player.religionId);
   numberInRange(value.player.activePlaySeconds, 0, 86400, "capture active play seconds");
@@ -2042,22 +2042,25 @@ function validateCaptureSequence(value) {
   const maximumDuration = value.kind === "sail" && value.variant === "upwind-voyage" ? 40 : 30;
   numberInRange(value.durationSeconds, 3, maximumDuration, "capture sequence duration");
   const requiredByKind = {
-    explore: ["discoveryName"],
-    trade: ["cityName", "goodId"],
+    explore: ["discoveryId"],
+    trade: ["cityId", "goodId"],
     fish: [],
     whale: ["speciesId"],
     sail: [],
     fight: ["encounterId"],
-    pillage: ["cityName"],
-    colonize: ["cityName"],
+    pillage: ["cityId"],
+    colonize: ["cityId"],
     survive: [],
     panda: [],
-    papal: ["cityName"],
-    loadout: ["cityName"],
-    religion: ["cityName"],
+    papal: ["cityId"],
+    loadout: ["cityId"],
+    religion: ["cityId"],
     companions: []
   };
-  for (const key of requiredByKind[value.kind]) requiredString(value[key], `capture sequence ${key}`);
+  for (const key of requiredByKind[value.kind]) {
+    if (key.endsWith("CityId") || key === "cityId") requiredCityId(value[key], `capture sequence ${key}`);
+    else requiredString(value[key], `capture sequence ${key}`);
+  }
   if (value.kind === "trade") {
     integerInRange(value.transactionCount, 2, 12, "capture trade transaction count");
     requiredString(value.factorPortraitSourceId, "capture trade factor portrait source id");
@@ -2094,8 +2097,8 @@ function validateCaptureSequence(value) {
       throw new Error("Capture beam side requires a beam-reach sailing sequence");
     }
     if (value.variant === "upwind-voyage") {
-      requiredString(value.cityName, "capture upwind destination city name");
-    } else if (value.cityName !== undefined) {
+      requiredCityId(value.cityId, "capture upwind destination city");
+    } else if (value.cityId !== undefined) {
       throw new Error("Capture sailing city requires the upwind-voyage variant");
     }
     if (["upwind-voyage", "row-upwind"].includes(value.variant) &&
@@ -2119,7 +2122,7 @@ function validateCaptureSequence(value) {
     throw new Error("Capture stationary flag must be boolean");
   }
   if (value.kind === "survive" && ["drunk-arrival", "remembered-arrival"].includes(value.variant)) {
-    requiredString(value.cityName, "drunk arrival capture city name");
+    requiredCityId(value.cityId, "drunk arrival capture city");
   }
   if (value.kind === "loadout" && !["presets", "custom"].includes(value.variant)) {
     throw new Error(`Invalid loadout capture variant: ${value.variant}`);
@@ -2129,8 +2132,8 @@ function validateCaptureSequence(value) {
       throw new Error(`Invalid religion capture variant: ${value.variant}`);
     }
     if (value.variant === "hajj") {
-      requiredString(value.originCityName, "religion capture Hajj origin city name");
-      requiredString(value.passengerHomeCityName, "religion capture Hajj passenger home city name");
+      requiredCityId(value.originCityId, "religion capture Hajj origin city");
+      requiredCityId(value.passengerHomeCityId, "religion capture Hajj passenger home city");
     }
     if (value.variant === "mission") {
       requiredString(value.religiousMissionId, "religion capture mission id");
@@ -2151,13 +2154,13 @@ function validateCaptureSequence(value) {
       throw new Error(`Invalid companions capture variant: ${value.variant}`);
     }
     if (value.variant.startsWith("passenger-")) {
-      requiredString(value.originCityName, "companions capture passenger origin city name");
-      requiredString(value.destinationCityName, "companions capture passenger destination city name");
+      requiredCityId(value.originCityId, "companions capture passenger origin city");
+      requiredCityId(value.destinationCityId, "companions capture passenger destination city");
     } else {
-      requiredString(value.homeCityName, "companions capture home city name");
+      requiredCityId(value.homeCityId, "companions capture home city");
     }
     if (value.variant.startsWith("pirate-")) {
-      requiredString(value.wantedCityName, "companions capture wanted city name");
+      requiredCityId(value.wantedCityId, "companions capture wanted city");
     }
     if (value.variant === "pirate-revenge") {
       requiredString(value.encounterId, "companions capture revenge ship id");
@@ -2171,7 +2174,7 @@ function validateCaptureSequence(value) {
       throw new Error(`Invalid panda capture variant: ${value.variant}`);
     }
     if (["encounter", "port-reaction", "naturalist"].includes(value.variant)) {
-      requiredString(value.cityName, "panda capture city name");
+      requiredCityId(value.cityId, "panda capture city");
     }
     if (value.naturalistPortraitSourceId !== undefined) {
       if (value.variant !== "naturalist") {
@@ -2191,14 +2194,14 @@ function validateCaptureSequence(value) {
     if (!["offer", "embark", "found", "deadline", "resupply", "establish", "defend", "city"].includes(value.variant)) {
       throw new Error(`Invalid colonization capture variant: ${value.variant}`);
     }
-    if (value.originCityName !== undefined) {
-      requiredString(value.originCityName, "colonization capture origin city name");
+    if (value.originCityId !== undefined) {
+      requiredCityId(value.originCityId, "colonization capture origin city");
     }
     if (value.organizerPortraitSourceId !== undefined) {
       requiredString(value.organizerPortraitSourceId, "colonization capture organizer portrait source id");
     }
     if (["offer", "embark", "deadline", "defend", "city"].includes(value.variant)) {
-      requiredString(value.originCityName, "colonization capture origin city name");
+      requiredCityId(value.originCityId, "colonization capture origin city");
       requiredString(value.organizerPortraitSourceId, "colonization capture organizer portrait source id");
     }
   }
@@ -2302,7 +2305,7 @@ function upwindSailingScenario(value) {
     world: captureWorld(value.day, value.hour, value.minute, 1),
     sequence: trailerSequence("sail", value.variant, {
       durationSeconds: value.durationSeconds,
-      cityName: value.cityName,
+      cityId: value.cityId,
       requireOpenWaterCourse: true
     })
   });
@@ -2316,7 +2319,7 @@ function pandaTrailerPlayer(lat, lon, headingDeg) {
   return {
     ...capturePlayer("portugal", "caravel", lat, lon, headingDeg),
     characterPortraitSourceId: PANDA_TRAILER_CAPTAIN_SOURCE_ID,
-    homeCityName: "Lisbon"
+    homeCityId: "lisbon|portugal"
   };
 }
 
@@ -2325,7 +2328,7 @@ function captureWorld(day, hour, minute, timeScale = 180) {
 }
 
 function captureNaplesCityId() {
-  return "Naples";
+  return "naples|italy";
 }
 
 function trailerSequence(kind, variant, values = {}) {
@@ -2542,6 +2545,14 @@ function validateVessel(value, label) {
 
 function requiredString(value, label) {
   if (typeof value !== "string" || value.trim() === "") throw new Error(`${label} is required`);
+}
+
+function requiredCityId(value, label) {
+  requiredString(value, label);
+  const separator = value.lastIndexOf("|");
+  if (separator <= 0 || separator === value.length - 1) {
+    throw new Error(`${label} must use a canonical city id: ${value}`);
+  }
 }
 
 function integerInRange(value, min, max, label) {

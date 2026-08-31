@@ -1,4 +1,6 @@
-export const CHART_REFRAME_DIALOGUE_MEMORY_VERSION = 1;
+import { requireEntityId } from "./entityIds.js";
+
+export const CHART_REFRAME_DIALOGUE_MEMORY_VERSION = 2;
 export const CHART_REFRAME_DIALOGUE_COOLDOWN_MINUTES = 21 * 24 * 60;
 export const CHART_REFRAME_DIALOGUE_CATASTROPHIC_COOLDOWN_MINUTES = 3 * 24 * 60;
 export const CHART_REFRAME_DIALOGUE_CONFIRMATION_MS = 20_000;
@@ -70,7 +72,7 @@ export function createChartReframeDialogueMemory() {
     shownIds: [],
     recentIds: [],
     recentCategories: [],
-    recentPortTileIds: [],
+    recentPortCityIds: [],
     lastShownMinute: null,
     shownCount: 0
   };
@@ -83,16 +85,20 @@ export function migrateChartReframeDialogueMemory(memory) {
 }
 
 export function validateChartReframeDialogueMemory(memory) {
-  if (!memory || memory.version !== CHART_REFRAME_DIALOGUE_MEMORY_VERSION) {
+  if (!memory || ![1, CHART_REFRAME_DIALOGUE_MEMORY_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported chart reframe dialogue memory: ${memory?.version ?? "missing"}`);
   }
   validateStringArray(memory.shownIds, "shown ids", CHART_REFRAME_DIALOGUES.length);
   validateStringArray(memory.recentIds, "recent ids", RECENT_DIALOGUE_LIMIT);
   validateStringArray(memory.recentCategories, "recent categories", RECENT_CATEGORY_LIMIT);
-  if (!Array.isArray(memory.recentPortTileIds) ||
-      memory.recentPortTileIds.length > RECENT_PORT_LIMIT ||
-      memory.recentPortTileIds.some((id) => !Number.isInteger(id))) {
-    throw new Error("Chart reframe dialogue has invalid recent ports");
+  if (memory.version === 1) {
+    if (!Array.isArray(memory.recentPortTileIds) ||
+        memory.recentPortTileIds.length > RECENT_PORT_LIMIT ||
+        memory.recentPortTileIds.some((id) => !Number.isInteger(id))) {
+      throw new Error("Legacy chart reframe dialogue has invalid recent ports");
+    }
+  } else {
+    validateStringArray(memory.recentPortCityIds, "recent port city ids", RECENT_PORT_LIMIT);
   }
   if (memory.lastShownMinute !== null &&
       (!Number.isFinite(memory.lastShownMinute) || memory.lastShownMinute < 0)) {
@@ -105,14 +111,17 @@ export function validateChartReframeDialogueMemory(memory) {
   return memory;
 }
 
-export function recordChartReframePortVisit(memory, tileId) {
+export function recordChartReframePortVisit(memory, cityId) {
   validateChartReframeDialogueMemory(memory);
-  if (!Number.isInteger(tileId)) throw new Error(`Chart reframe port visit requires a tile id: ${tileId}`);
-  memory.recentPortTileIds = [
-    tileId,
-    ...memory.recentPortTileIds.filter((id) => id !== tileId)
+  if (memory.version !== CHART_REFRAME_DIALOGUE_MEMORY_VERSION) {
+    throw new Error("Legacy chart reframe memory must be reconciled before recording a port visit");
+  }
+  const canonicalId = requireEntityId(cityId, "Chart reframe port visit");
+  memory.recentPortCityIds = [
+    canonicalId,
+    ...memory.recentPortCityIds.filter((id) => id !== canonicalId)
   ].slice(0, RECENT_PORT_LIMIT);
-  return memory.recentPortTileIds;
+  return memory.recentPortCityIds;
 }
 
 export function createChartReframeDialogueTrigger() {

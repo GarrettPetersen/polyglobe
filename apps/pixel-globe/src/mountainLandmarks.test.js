@@ -11,7 +11,7 @@ import {
 } from "./gameState.js";
 import { buildMountainLandmarks } from "./mountainLandmarks.js";
 import {
-  AUTHORED_MOUNTAIN_REPORT_NAMES,
+  AUTHORED_MOUNTAIN_REPORT_IDS,
   explorerReportDialogueForDiscovery,
   validateExplorerReportDialogueCatalog
 } from "./explorerDiscoveryDialogue.js";
@@ -32,14 +32,14 @@ test("full named mountain data aligns with cached peak tiles", async () => {
 
   assert.equal(registry.all.length, 692);
   assert.equal(registry.peakTileIds.size, earth.peaks.length);
-  const fuji = registry.famous.find((mountain) => mountain.displayName === "Mount Fuji");
+  const fuji = registry.famous.find((mountain) => mountain.id === "mountain-mount-fuji");
   assert.ok(fuji);
   assert.equal(fuji.elevationM, 3776);
   assert.ok(registry.peakTileIds.has(fuji.tileId));
   assert.equal(registry.famous.some((mountain) => mountain.displayName === "Cero Raya"), false);
   assert.deepEqual(
-    new Set(AUTHORED_MOUNTAIN_REPORT_NAMES),
-    new Set(registry.famous.map((mountain) => mountain.displayName))
+    new Set(AUTHORED_MOUNTAIN_REPORT_IDS),
+    new Set(registry.famous.map((mountain) => mountain.id))
   );
   const discoveries = registry.famous.map((mountain) => ({ ...mountain, kind: "mountain" }));
   assert.equal(validateExplorerReportDialogueCatalog(discoveries), registry.famous.length);

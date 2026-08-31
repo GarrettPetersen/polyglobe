@@ -1,4 +1,5 @@
 import { RICE_GOOD_ID, tradeGoodById } from "./economy.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 import { hasPermanentCrewBerth } from "./namedCrew.js";
 import {
   questCargoDeliverableQuantity,
@@ -33,6 +34,7 @@ export function createChefQuestMemory() {
     version: CHEF_QUEST_VERSION,
     stage: CHEF_QUEST_STAGE_LOCKED,
     portTileId: null,
+    portCityId: null,
     portCity: null,
     portCountry: null,
     ingredientGoodIds: [],
@@ -51,7 +53,7 @@ export function validateChefQuestMemory(memory) {
   if (typeof memory.offerSeen !== "boolean") throw new Error("Chef quest requires an offer-seen flag");
   validateRolls(memory.spawnRolls);
   if (memory.stage === CHEF_QUEST_STAGE_LOCKED) {
-    if (memory.portTileId !== null || memory.portCity !== null || memory.portCountry !== null ||
+    if (memory.portTileId !== null || memory.portCityId !== null || memory.portCity !== null || memory.portCountry !== null ||
         memory.ingredientGoodIds.length !== 0 || memory.eventProfileId !== null || memory.offerSeen ||
         memory.completedMinute !== null) {
       throw new Error("Locked chef quest contains active progress");
@@ -59,6 +61,7 @@ export function validateChefQuestMemory(memory) {
     return memory;
   }
   if (!Number.isInteger(memory.portTileId) || memory.portTileId < 0 ||
+      (memory.portCityId !== null && (typeof memory.portCityId !== "string" || memory.portCityId === "")) ||
       typeof memory.portCity !== "string" || memory.portCity === "" ||
       typeof memory.portCountry !== "string" || memory.portCountry === "") {
     throw new Error("Chef quest requires a valid origin port");
@@ -92,7 +95,7 @@ export function maybeSpawnChefQuest(state, city, context = {}) {
   const simMinute = context.simMinute ?? 0;
   if (!Number.isFinite(simMinute) || simMinute < 0) throw new Error(`Invalid chef quest minute: ${simMinute}`);
   const period = Math.floor(simMinute / CHEF_QUEST_ROLL_PERIOD_MINUTES);
-  const rollKey = `${city.tileId}|${period}`;
+  const rollKey = `${requireCityId(city, "Chef quest port")}|${period}`;
   if (memory.spawnRolls[rollKey]) return null;
   memory.spawnRolls[rollKey] = true;
   pruneRolls(memory.spawnRolls);
@@ -100,7 +103,7 @@ export function maybeSpawnChefQuest(state, city, context = {}) {
   if (!Number.isFinite(chance) || chance < 0 || chance > 1) {
     throw new Error(`Invalid chef quest spawn chance: ${chance}`);
   }
-  const identity = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
+  const identity = requireEntityId(state.playerCharacter?.id, "Chef quest captain");
   if (chance < 1 && seededFraction(`${identity}|chef|${rollKey}`) >= chance) return null;
   const ingredientGoodIds = selectIngredients(
     `${identity}|${rollKey}`,
@@ -110,6 +113,7 @@ export function maybeSpawnChefQuest(state, city, context = {}) {
 
   memory.stage = CHEF_QUEST_STAGE_GATHERING;
   memory.portTileId = city.tileId;
+  memory.portCityId = requireCityId(city, "Chef quest port");
   memory.portCity = city.displayCity || city.city;
   memory.portCountry = city.country;
   memory.ingredientGoodIds = ingredientGoodIds;
@@ -120,7 +124,8 @@ export function maybeSpawnChefQuest(state, city, context = {}) {
 
 export function chefQuestState(state, city) {
   const memory = chefQuestMemory(state);
-  if (memory.stage === CHEF_QUEST_STAGE_LOCKED || city?.tileId !== memory.portTileId) return null;
+  if (memory.stage === CHEF_QUEST_STAGE_LOCKED || !city ||
+      requireCityId(city, "Chef quest port") !== memory.portCityId) return null;
   memory.portCity = city.displayCity || city.city;
   memory.portCountry = city.country;
   if (city.settlementType === "village" && memory.eventProfileId === "guild-banquet") {
@@ -151,7 +156,12 @@ export function chefQuestState(state, city) {
       ingredients.every((entry) => entry.ready),
     offerSeen: memory.offerSeen,
     event: chefEventProfile(memory.eventProfileId),
-    port: Object.freeze({ tileId: memory.portTileId, city: memory.portCity, country: memory.portCountry })
+    port: Object.freeze({
+      cityId: memory.portCityId,
+      tileId: memory.portTileId,
+      city: memory.portCity,
+      country: memory.portCountry
+    })
   });
 }
 
@@ -198,11 +208,11 @@ export function completeChefBanquet(state, city, currentMinute) {
 }
 
 export function chefIngredientRequirementId(memory, goodId) {
-  if (!Number.isInteger(memory?.portTileId) || memory.portTileId < 0) {
+  if (typeof memory?.portCityId !== "string" || memory.portCityId === "") {
     throw new Error("Chef ingredient requirement needs an origin port");
   }
   validateIngredientGoodId(goodId);
-  return `chef.${memory.portTileId}.${goodId}`;
+  return `chef.${memory.portCityId}.${goodId}`;
 }
 
 export function recruitChef(state, city) {

@@ -158,7 +158,7 @@ export function readyFetchQuestDestinations(requirements) {
   const destinations = new Map();
   for (const entry of requirements) {
     if (!entry.routeReady) continue;
-    const key = `${entry.questId}:${entry.destination.tileId}`;
+    const key = `${entry.questId}:${entry.destination.cityId}`;
     const existing = destinations.get(key);
     if (existing) {
       existing.requirementIds.push(entry.id);
@@ -208,7 +208,8 @@ function requirement({
   if (!Number.isInteger(delivered) || delivered < 0 || delivered > good.quantity) {
     throw new Error(`Invalid fetch quest cargo delivered: ${id}`);
   }
-  if (!destination || !Number.isInteger(destination.tileId) || typeof destination.city !== "string") {
+  if (!destination || typeof destination.cityId !== "string" || destination.cityId === "" ||
+      !Number.isInteger(destination.tileId) || typeof destination.city !== "string") {
     throw new Error(`Invalid fetch quest destination: ${id}`);
   }
   const remaining = good.quantity - delivered;

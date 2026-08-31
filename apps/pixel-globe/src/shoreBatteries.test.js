@@ -32,6 +32,7 @@ import {
 } from "./shoreBatteries.js";
 
 const city = {
+  cityId: "alexandria|egypt",
   tileId: 7,
   portId: "test-port",
   city: "Alexandria",

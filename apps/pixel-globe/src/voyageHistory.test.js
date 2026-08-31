@@ -144,6 +144,7 @@ function voyageRecord(overrides = {}) {
     vessel: "Caravel",
     outcome: "Lost at sea.",
     outcomeType: "death",
+    goalType: "explorer",
     goal: "Explorer",
     daysAtSea: 10,
     doubloonsEarned: 500,

@@ -62,14 +62,16 @@ test("an eligible Catholic captain can carry a pending matter as a Papal commiss
   acceptPapalCommission(papacy, diplomacy, {
     ...context,
     simMinute: papacy.lastUpdateMinute,
+    originCityId: "rome|italy",
     originTileId: 1,
-    itinerary: [{ tileId: 2, portName: "Test Port", factionId: "habsburg", purpose: "test" }],
+    itinerary: [{ cityId: "test port|test", tileId: 2, portName: "Test Port", factionId: "habsburg", purpose: "test" }],
     rewardDoubloons: 500,
     nuncio: { id: "nuncio-test", name: "Monsignor Test" }
   });
   assert.equal(papacy.pendingMatter.status, PAPAL_MATTER_COMMISSIONED);
   assert.equal(papalCommissionObjective(papacy).destination.tileId, 2);
   advancePapalCommissionAtPort(papacy, {
+    cityId: "test port|test",
     tileId: 2,
     simMinute: papacy.lastUpdateMinute + 1,
     recommendation: "firm"
@@ -94,8 +96,9 @@ test("an accepted commission blocks autonomous policy and is revoked if Papal st
   acceptPapalCommission(papacy, diplomacy, {
     ...context,
     simMinute: papacy.lastUpdateMinute,
+    originCityId: "rome|italy",
     originTileId: 1,
-    itinerary: [{ tileId: 2, portName: "Test Port", factionId: "habsburg", purpose: "test" }],
+    itinerary: [{ cityId: "test port|test", tileId: 2, portName: "Test Port", factionId: "habsburg", purpose: "test" }],
     rewardDoubloons: 500,
     nuncio: { id: "nuncio-revoked", name: "Monsignor Test" }
   });
@@ -163,8 +166,10 @@ test("Papal transport commissions cannot advance before their cargo arrives", ()
   acceptPapalCommission(papacy, diplomacy, {
     ...context,
     simMinute: papacy.lastUpdateMinute,
+    originCityId: "rome|italy",
     originTileId: 1,
     itinerary: [{
+      cityId: "relief port|test",
       tileId: 2,
       portName: "Relief Port",
       factionId: matter.targetFactionId,
@@ -176,12 +181,14 @@ test("Papal transport commissions cannot advance before their cargo arrives", ()
 
   assert.throws(
     () => advancePapalCommissionAtPort(papacy, {
+      cityId: "relief port|test",
       tileId: 2,
       simMinute: papacy.lastUpdateMinute + 1
     }),
     /cargo is incomplete/
   );
   advancePapalCommissionAtPort(papacy, {
+    cityId: "relief port|test",
     tileId: 2,
     simMinute: papacy.lastUpdateMinute + 1,
     cargoComplete: true
@@ -274,9 +281,14 @@ test("Papal authority multiplies pious rulers' response to a pronouncement", () 
 
 test("the 1534 settlement converts English Catholics aboard to Anglicanism once", () => {
   const player = {
+    id: "player:anne-wade",
     name: "Anne Wade",
     nationalityId: "england",
     religionId: "roman-catholic",
+    homePortCityId: "agra|india",
+    homePortTileId: 1,
+    homePortName: "Agra",
+    homePortCountry: "India",
     expressions: ["neutral"]
   };
   const state = createGameState({
@@ -287,6 +299,7 @@ test("the 1534 settlement converts English Catholics aboard to Anglicanism once"
   const portCities = [{
     tileId: 1,
     portId: "agra",
+    cityId: "agra|india",
     city: "Agra",
     country: "India",
     lat: 27.18,

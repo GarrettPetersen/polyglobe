@@ -10,6 +10,7 @@ import {
 const CATALOG = Object.freeze([
   Object.freeze({
     id: "mountain-mont-blanc",
+    legacyIds: Object.freeze(["mountain-161118-mont-blanc"]),
     kind: "mountain",
     displayName: "Mont Blanc",
     detail: "4,808 m"
@@ -87,10 +88,21 @@ test("restore validation covers every saved discovery reference surface", () => 
   }
 });
 
-test("discovery catalogs reject identities that cannot be reconciled unambiguously", () => {
+test("discovery catalogs use ids rather than presentation text as identity", () => {
+  assert.doesNotThrow(
+    () => validateDiscoveryCatalog([...CATALOG, {
+      ...CATALOG[0],
+      id: "mountain-other-id",
+      legacyIds: ["mountain-other-legacy-id"]
+    }])
+  );
   assert.throws(
-    () => validateDiscoveryCatalog([...CATALOG, { ...CATALOG[0], id: "mountain-other-id" }]),
-    /duplicate identity/
+    () => validateDiscoveryCatalog([...CATALOG, {
+      ...CATALOG[0],
+      id: "mountain-other-id",
+      legacyIds: ["mountain-161118-mont-blanc"]
+    }]),
+    /duplicate reference id/
   );
   const state = savedState({
     discoveries: {

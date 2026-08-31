@@ -22,20 +22,21 @@ import {
 } from "./naturalistQuest.js";
 
 const ports = [
-  { tileId: 10, country: "Portugal" },
-  { tileId: 20, country: "Ming" },
-  { tileId: 30, country: "Pirate" }
+  { cityId: "lisbon|portugal", tileId: 10, country: "Portugal" },
+  { cityId: "nanjing|china", tileId: 20, country: "Ming" },
+  { cityId: "pirate-haven|pirate", tileId: 30, country: "Pirate" }
 ];
 
 test("the naturalist receives one persistent non-pirate home port", () => {
   const memory = createNaturalistQuestMemory();
   const first = assignNaturalistPort(memory, ports, "voyage-one");
-  assert.ok([10, 20].includes(first));
+  assert.ok(["lisbon|portugal", "nanjing|china"].includes(first));
   assert.equal(assignNaturalistPort(memory, ports.slice().reverse(), "different-key"), first);
 });
 
 test("the naturalist retains one persisted identity and portrait", () => {
   const memory = createNaturalistQuestMemory();
+  memory.portCityId = "lisbon|portugal";
   memory.portTileId = 10;
   const character = naturalistCharacterFixture();
   assert.equal(setNaturalistQuestCharacter(memory, character), character);
@@ -59,27 +60,29 @@ test("legacy naturalist memory migrates without inventing a former portrait", ()
 
 test("the naturalist approaches on first meeting and whenever reports are waiting", () => {
   const quest = createNaturalistQuestMemory();
+  quest.portCityId = "lisbon|portugal";
   quest.portTileId = 10;
   const animals = createAnimalEncounterMemory();
-  assert.equal(naturalistShouldApproach(quest, animals, 10), true);
+  assert.equal(naturalistShouldApproach(quest, animals, "lisbon|portugal"), true);
   meetNaturalist(quest);
-  assert.equal(naturalistShouldApproach(quest, animals, 10), false);
+  assert.equal(naturalistShouldApproach(quest, animals, "lisbon|portugal"), false);
   recordAnimalEncounter(animals, "tiger");
-  assert.equal(naturalistShouldApproach(quest, animals, 10), true);
-  assert.equal(naturalistShouldApproach(quest, animals, 20), false);
+  assert.equal(naturalistShouldApproach(quest, animals, "lisbon|portugal"), true);
+  assert.equal(naturalistShouldApproach(quest, animals, "nanjing|china"), false);
   reportAnimalsToNaturalist(quest, animals);
-  assert.equal(naturalistShouldApproach(quest, animals, 10, { companionOfferAvailable: true }), true);
-  assert.equal(naturalistShouldApproach(quest, animals, 20, { companionOfferAvailable: true }), false);
-  assert.equal(naturalistShouldApproach(quest, animals, 10, {
+  assert.equal(naturalistShouldApproach(quest, animals, "lisbon|portugal", { companionOfferAvailable: true }), true);
+  assert.equal(naturalistShouldApproach(quest, animals, "nanjing|china", { companionOfferAvailable: true }), false);
+  assert.equal(naturalistShouldApproach(quest, animals, "lisbon|portugal", {
     formerCompanionGreetingAvailable: true
   }), true);
-  assert.equal(naturalistShouldApproach(quest, animals, 20, {
+  assert.equal(naturalistShouldApproach(quest, animals, "nanjing|china", {
     formerCompanionGreetingAvailable: true
   }), false);
 });
 
 test("a panda remains an animal report independently of its companion disposition", () => {
   const quest = createNaturalistQuestMemory();
+  quest.portCityId = "lisbon|portugal";
   quest.portTileId = 10;
   meetNaturalist(quest);
   const animals = createAnimalEncounterMemory();
@@ -123,6 +126,7 @@ test("the demo completes a regional natural history while the full game keeps th
 
 test("a regional catalog completes without completing the global bestiary", () => {
   const quest = createNaturalistQuestMemory();
+  quest.portCityId = "lisbon|portugal";
   quest.portTileId = 10;
   meetNaturalist(quest);
   const animals = createAnimalEncounterMemory();
@@ -142,6 +146,7 @@ test("a regional catalog completes without completing the global bestiary", () =
 
 test("animal reports pay once and the completed bestiary grants its bonus", () => {
   const quest = createNaturalistQuestMemory();
+  quest.portCityId = "lisbon|portugal";
   quest.portTileId = 10;
   meetNaturalist(quest);
   const animals = createAnimalEncounterMemory();
@@ -179,6 +184,7 @@ function naturalistCharacterFixture() {
     expressions: [{ id: "neutral", src: "assets/characters/naturalist.png", width: 64, height: 64 }],
     skillIds: ["natural-philosopher"],
     role: "natural-philosopher",
+    homePortCityId: "lisbon|portugal",
     homePortTileId: 10
   };
 }

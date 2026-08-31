@@ -59,9 +59,26 @@ export function validateNamedMountains(mountains) {
   if (!Array.isArray(mountains) || mountains.length === 0) {
     throw new Error("Named mountain dataset must be a non-empty array");
   }
+  const ids = new Set();
+  const legacyIds = new Set();
   for (let index = 0; index < mountains.length; index++) {
     const mountain = mountains[index];
     if (!mountain || typeof mountain !== "object") throw new Error(`Invalid mountain at index ${index}`);
+    if (typeof mountain.id !== "string" || mountain.id.trim() === "") {
+      throw new Error(`Mountain ${index} has no canonical id`);
+    }
+    if (ids.has(mountain.id)) throw new Error(`Duplicate mountain id: ${mountain.id}`);
+    ids.add(mountain.id);
+    if (!Array.isArray(mountain.legacyDiscoveryIds) || mountain.legacyDiscoveryIds.length === 0) {
+      throw new Error(`Mountain ${mountain.id} has no explicit legacy discovery ids`);
+    }
+    for (const legacyId of mountain.legacyDiscoveryIds) {
+      if (typeof legacyId !== "string" || legacyId.trim() === "") {
+        throw new Error(`Mountain ${mountain.id} has an invalid legacy discovery id`);
+      }
+      if (legacyIds.has(legacyId)) throw new Error(`Duplicate legacy mountain discovery id: ${legacyId}`);
+      legacyIds.add(legacyId);
+    }
     if (typeof mountain.name !== "string" || mountain.name.trim() === "") {
       throw new Error(`Mountain ${index} has no name`);
     }
@@ -81,11 +98,6 @@ export function buildMountainLandmarks(mountains, graph, directionIndex, cachePe
   const cachedPeakTileIds = validateCachePeaks(cachePeaks);
   const allCachedPeakTileIds = [...cachedPeakTileIds];
   const displayNames = mountains.map(mountainDisplayName);
-  const displayNameSlugCounts = new Map();
-  for (const displayName of displayNames) {
-    const slug = slugify(displayName);
-    displayNameSlugCounts.set(slug, (displayNameSlugCounts.get(slug) || 0) + 1);
-  }
   const cachePeakIdsByElevation = new Map();
   for (const [tileId, elevationM] of cachePeaks) {
     let tileIds = cachePeakIdsByElevation.get(elevationM);
@@ -105,7 +117,6 @@ export function buildMountainLandmarks(mountains, graph, directionIndex, cachePe
     const displayName = displayNames[index];
     return {
       ...mountain,
-      id: mountainLandmarkId(mountain, displayName, displayNameSlugCounts),
       tileId,
       displayName,
       famous: isFamousMountain(mountain)
@@ -122,25 +133,6 @@ export function buildMountainLandmarks(mountains, graph, directionIndex, cachePe
     famousByTileId,
     peakTileIds
   };
-}
-
-export function mountainLandmarkId(mountain, displayName, displayNameSlugCounts) {
-  if (!mountain || !Number.isFinite(mountain.lat) || !Number.isFinite(mountain.lon)) {
-    throw new Error(`Mountain landmark id requires coordinates: ${displayName || "unknown"}`);
-  }
-  if (typeof displayName !== "string" || displayName.trim() === "") {
-    throw new Error("Mountain landmark id requires a display name");
-  }
-  if (!(displayNameSlugCounts instanceof Map)) {
-    throw new Error("Mountain landmark id requires display-name counts");
-  }
-  const slug = slugify(displayName);
-  const count = displayNameSlugCounts.get(slug);
-  if (!Number.isInteger(count) || count <= 0) {
-    throw new Error(`Mountain landmark display name was not counted: ${displayName}`);
-  }
-  if (count === 1) return `mountain-${slug}`;
-  return `mountain-${slug}-${coordinateId(mountain.lat, "n", "s")}-${coordinateId(mountain.lon, "e", "w")}`;
 }
 
 function validateCachePeaks(cachePeaks) {
@@ -217,18 +209,4 @@ function normalizeMountainName(name) {
     .replace(/[.'’-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function slugify(value) {
-  return value
-    .toLowerCase()
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "") || "peak";
-}
-
-function coordinateId(value, positivePrefix, negativePrefix) {
-  const prefix = value < 0 ? negativePrefix : positivePrefix;
-  return `${prefix}${Math.abs(value).toFixed(5).replace(".", "p")}`;
 }

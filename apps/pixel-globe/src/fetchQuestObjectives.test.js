@@ -7,12 +7,12 @@ import {
   readyFetchQuestDestinations
 } from "./fetchQuestObjectives.js";
 
-const LISBON = Object.freeze({ tileId: 10, city: "Lisbon", country: "Portugal" });
-const KYOTO = Object.freeze({ tileId: 20, city: "Kyoto", country: "Japan" });
-const NAGASAKI = Object.freeze({ tileId: 30, city: "Nagasaki", country: "Japan" });
-const HAFNARFJORDUR = Object.freeze({ tileId: 40, city: "Hafnarfjordur", country: "Iceland" });
-const HAVANA = Object.freeze({ tileId: 50, city: "Havana", country: "Cuba" });
-const CADIZ = Object.freeze({ tileId: 60, city: "Cadiz", country: "Spain" });
+const LISBON = Object.freeze({ cityId: "lisbon|portugal", tileId: 10, city: "Lisbon", country: "Portugal" });
+const KYOTO = Object.freeze({ cityId: "kyoto|japan", tileId: 20, city: "Kyoto", country: "Japan" });
+const NAGASAKI = Object.freeze({ cityId: "nagasaki|japan", tileId: 30, city: "Nagasaki", country: "Japan" });
+const HAFNARFJORDUR = Object.freeze({ cityId: "hafnarfjordur|iceland", tileId: 40, city: "Hafnarfjordur", country: "Iceland" });
+const HAVANA = Object.freeze({ cityId: "havana|cuba", tileId: 50, city: "Havana", country: "Cuba" });
+const CADIZ = Object.freeze({ cityId: "cadiz|spain", tileId: 60, city: "Cadiz", country: "Spain" });
 
 test("colonization fetch cargo points back to the sponsor only when complete", () => {
   const colonization = colonizationView({

@@ -15,6 +15,7 @@ import { createSpecialEquipmentOfferMemory } from "./specialEquipmentOffers.js";
 const CITY = Object.freeze({
   tileId: 17,
   portId: "lubeck",
+  cityId: "lubeck|germany",
   city: "Lubeck",
   country: "Hanseatic League",
   cityType: "northern-european",
@@ -26,6 +27,7 @@ const OTHER_CITY = Object.freeze({
   ...CITY,
   tileId: 18,
   portId: "guangzhou",
+  cityId: "guangzhou|china",
   city: "Guangzhou"
 });
 

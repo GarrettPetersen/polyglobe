@@ -25,7 +25,7 @@ import {
   isRomanCatholicReligion
 } from "./religiousAttitudes.js";
 
-export const PAPAL_POLITICS_VERSION = 5;
+export const PAPAL_POLITICS_VERSION = 6;
 export const PAPAL_FACTION_ID = "papal-states";
 export const PAPAL_ACTION_FAVOUR = "papal-favour";
 export const PAPAL_ACTION_EXCOMMUNICATION = "papal-excommunication";
@@ -145,7 +145,8 @@ export function migratePapalPolitics(memory, { startMinute = 0, seedKey = "papac
     };
   }
   if (migrated?.version === 4) {
-    const history = migrated.history.map((action) => migratePapalAction(action));
+    const legacyActionById = new Map(migrated.history.map((action) => [action.id, action]));
+    const history = migrated.history.map((action) => migratePapalAction(action, legacyActionById));
     const activeDecrees = {};
     for (const action of history) {
       const key = papalDecreeKey(action.kind, action.targetFactionId);
@@ -160,23 +161,48 @@ export function migratePapalPolitics(memory, { startMinute = 0, seedKey = "papac
         const action = Object.values(activeDecrees).find((candidate) => (
           candidate.kind === PAPAL_ACTION_EXCOMMUNICATION &&
           candidate.targetFactionId === factionId &&
-          candidate.targetRulerName === entry.rulerName
+          candidate.simMinute === entry.simMinute
         ));
-        return [factionId, { ...entry, actionId: action?.id || null }];
+        return [factionId, {
+          ...entry,
+          rulerId: action?.targetRulerId || rulerAtMinute(factionId, entry.simMinute).id,
+          actionId: action?.id || null
+        }];
       }));
     migrated = {
       ...migrated,
-      version: PAPAL_POLITICS_VERSION,
+      version: 5,
       excommunications,
       activeDecrees,
       history
+    };
+  }
+  if (migrated?.version === 5) {
+    const legacyActionById = new Map(migrated.history.map((action) => [action.id, action]));
+    const history = migrated.history.map((action) => migratePapalAction(action, legacyActionById));
+    const actionById = new Map(history.map((action) => [action.id, action]));
+    migrated = {
+      ...migrated,
+      history,
+      activeDecrees: Object.fromEntries(Object.entries(migrated.activeDecrees).map(([id, action]) => [
+        id,
+        migratePapalAction(action, legacyActionById)
+      ])),
+      excommunications: Object.fromEntries(Object.entries(migrated.excommunications).map(([
+        factionId,
+        entry
+      ]) => [factionId, {
+        ...entry,
+        rulerId: entry.rulerId || actionById.get(entry.actionId)?.targetRulerId ||
+          rulerAtMinute(factionId, entry.simMinute).id
+      }]))
     };
   }
   return validatePapalPolitics(migrated);
 }
 
 export function validatePapalPolitics(memory) {
-  if (!memory || typeof memory !== "object" || memory.version !== PAPAL_POLITICS_VERSION) {
+  if (!memory || typeof memory !== "object" || ![5, PAPAL_POLITICS_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported papal politics version: ${memory?.version ?? "missing"}`);
   }
   if (!Number.isInteger(memory.seed) || memory.seed < 0 || memory.seed > 0xffffffff) {
@@ -198,10 +224,14 @@ export function validatePapalPolitics(memory) {
       Array.isArray(memory.excommunications)) {
     throw new Error("Papal excommunications must be an object");
   }
+  const legacyIdentities = memory.version === 5;
   for (const [factionId, entry] of Object.entries(memory.excommunications)) {
     assertFactionId(factionId);
     if (!entry || typeof entry.rulerName !== "string" || entry.rulerName === "") {
       throw new Error(`Invalid papal excommunication for ${factionId}`);
+    }
+    if (!legacyIdentities && (typeof entry.rulerId !== "string" || entry.rulerId === "")) {
+      throw new Error(`Papal excommunication has no ruler id for ${factionId}`);
     }
     if (entry.actionId !== null &&
         (typeof entry.actionId !== "string" || entry.actionId === "")) {
@@ -214,7 +244,7 @@ export function validatePapalPolitics(memory) {
     throw new Error("Active Papal decrees must be an object");
   }
   for (const [actionId, action] of Object.entries(memory.activeDecrees)) {
-    validatePapalAction(action);
+    validatePapalAction(action, { legacyIdentities });
     if (action.kind === PAPAL_ACTION_REVOCATION || action.id !== actionId) {
       throw new Error(`Invalid active Papal decree: ${actionId}`);
     }
@@ -222,8 +252,10 @@ export function validatePapalPolitics(memory) {
   if (!Array.isArray(memory.history) || memory.history.length > PAPAL_HISTORY_LIMIT) {
     throw new Error("Invalid papal action history");
   }
-  for (const action of memory.history) validatePapalAction(action);
-  if (memory.pendingMatter !== null) validatePapalMatter(memory.pendingMatter);
+  for (const action of memory.history) validatePapalAction(action, { legacyIdentities });
+  if (memory.pendingMatter !== null) validatePapalMatter(memory.pendingMatter, {
+    legacyCityReferences: memory.version === 5
+  });
   return memory;
 }
 
@@ -388,6 +420,7 @@ export function acceptPapalCommission(memory, diplomacy, {
   playerReligionId,
   papalReputation,
   simMinute,
+  originCityId,
   originTileId,
   itinerary,
   rewardDoubloons,
@@ -402,6 +435,9 @@ export function acceptPapalCommission(memory, diplomacy, {
     throw new Error(`Cannot accept Papal commission: ${eligibilityResult.reason}`);
   }
   assertMinute(simMinute, "papal commission acceptance");
+  if (typeof originCityId !== "string" || originCityId.trim() === "") {
+    throw new Error(`Invalid Papal commission origin city: ${originCityId}`);
+  }
   if (!Number.isInteger(originTileId) || originTileId < 0) {
     throw new Error(`Invalid Papal commission origin: ${originTileId}`);
   }
@@ -424,6 +460,7 @@ export function acceptPapalCommission(memory, diplomacy, {
   matter.commission = {
     acceptedMinute: simMinute,
     deadlineMinute: simMinute + PAPAL_COMMISSION_DEADLINE_DAYS * MINUTES_PER_DAY,
+    originCityId,
     originTileId,
     itinerary: route,
     nextStopIndex: 0,
@@ -472,6 +509,7 @@ export function papalCommissionObjective(memory) {
         kind: "return-to-rome",
         matterId: matter.id,
         destination: {
+          cityId: commission.originCityId,
           tileId: commission.originTileId,
           portName: "Rome",
           factionId: PAPAL_FACTION_ID,
@@ -490,6 +528,7 @@ export function papalCommissionCargoRequirements(memory) {
 }
 
 export function advancePapalCommissionAtPort(memory, {
+  cityId,
   tileId,
   simMinute,
   recommendation = null,
@@ -499,7 +538,7 @@ export function advancePapalCommissionAtPort(memory, {
   assertMinute(simMinute, "papal commission port visit");
   const objective = papalCommissionObjective(memory);
   if (!objective || objective.kind !== "destination") return null;
-  if (objective.destination.tileId !== tileId) return null;
+  if (objective.destination.cityId !== cityId) return null;
   if (recommendation !== null && !["firm", "moderate"].includes(recommendation)) {
     throw new Error(`Invalid Papal commission recommendation: ${recommendation}`);
   }
@@ -799,7 +838,9 @@ function enactPapalAction(memory, diplomacy, {
     id: `${kind}-${simMinute}-${targetFactionId}`,
     kind,
     targetFactionId,
+    targetRulerId: targetRuler.id,
     targetRulerName: targetRuler.displayName,
+    popeId: pope.id,
     popeName: pope.displayName,
     respondingFactionIds: Object.freeze(respondingFactionIds),
     simMinute,
@@ -808,6 +849,7 @@ function enactPapalAction(memory, diplomacy, {
   });
   if (kind === PAPAL_ACTION_EXCOMMUNICATION) {
     memory.excommunications[targetFactionId] = {
+      rulerId: targetRuler.id,
       rulerName: targetRuler.displayName,
       simMinute,
       actionId: action.id
@@ -891,7 +933,7 @@ function chooseRevocablePapalDecree(memory, diplomacy, simMinute) {
 function papalDecreeShouldEnd(action, diplomacy, simMinute) {
   const relation = worldDiplomacyBetween(diplomacy, PAPAL_FACTION_ID, action.targetFactionId);
   const currentRuler = rulerAtMinute(action.targetFactionId, simMinute);
-  const rulerChanged = !currentRuler || currentRuler.displayName !== action.targetRulerName;
+  const rulerChanged = !currentRuler || currentRuler.id !== action.targetRulerId;
   if (action.kind === PAPAL_ACTION_FAVOUR) {
     return rulerChanged || relation === DIPLOMACY_HOSTILE || relation === DIPLOMACY_WAR;
   }
@@ -920,7 +962,7 @@ function revokePapalDecree(memory, actionId, simMinute, source) {
   if (decree.kind === PAPAL_ACTION_EXCOMMUNICATION) {
     const entry = memory.excommunications[decree.targetFactionId];
     if (entry && (entry.actionId === actionId ||
-        entry.actionId === null && entry.rulerName === decree.targetRulerName)) {
+        entry.actionId === null && entry.rulerId === decree.targetRulerId)) {
       delete memory.excommunications[decree.targetFactionId];
     }
   }
@@ -928,7 +970,9 @@ function revokePapalDecree(memory, actionId, simMinute, source) {
     id: `${PAPAL_ACTION_REVOCATION}-${simMinute}-${actionId}`,
     kind: PAPAL_ACTION_REVOCATION,
     targetFactionId: decree.targetFactionId,
+    targetRulerId: decree.targetRulerId,
     targetRulerName: decree.targetRulerName,
+    popeId: pope.id,
     popeName: pope.displayName,
     respondingFactionIds: Object.freeze([]),
     simMinute,
@@ -951,7 +995,7 @@ function createPapalMatter(memory, diplomacy, proposal, simMinute) {
   let commissionKind;
   const pope = rulerAtMinute(PAPAL_FACTION_ID, simMinute);
   const catholicWarPair = firstCatholicWarPair(memory, diplomacy, simMinute);
-  const reformCandidate = pope?.displayName === "Adrian VI" &&
+  const reformCandidate = pope?.id === "adrian-vi" &&
     !memory.history.some((action) => action.source === "player-papal-reform") &&
     papalRandom(memory, memory.sequence, `adrian-reform|${simMinute}`) < 0.45;
 
@@ -1172,7 +1216,7 @@ function papalMatterView(matter) {
   });
 }
 
-function validatePapalMatter(matter) {
+function validatePapalMatter(matter, { legacyCityReferences = false } = {}) {
   if (!matter || typeof matter !== "object" || Array.isArray(matter) ||
       typeof matter.id !== "string" || matter.id === "") {
     throw new Error("Invalid pending Papal matter");
@@ -1225,12 +1269,14 @@ function validatePapalMatter(matter) {
   } else if (matter.revocation !== null) {
     throw new Error("Active Papal matter retains a revocation");
   }
-  if (matter.status === PAPAL_MATTER_COMMISSIONED) validatePapalCommission(matter.commission);
+  if (matter.status === PAPAL_MATTER_COMMISSIONED) {
+    validatePapalCommission(matter.commission, { legacyCityReferences });
+  }
   else if (matter.commission !== null) throw new Error("Available Papal matter retains a commission");
   return matter;
 }
 
-function validatePapalCommission(commission) {
+function validatePapalCommission(commission, { legacyCityReferences = false } = {}) {
   if (!commission || typeof commission !== "object" || Array.isArray(commission)) {
     throw new Error("Commissioned Papal matter requires a commission");
   }
@@ -1242,12 +1288,16 @@ function validatePapalCommission(commission) {
   if (!Number.isInteger(commission.originTileId) || commission.originTileId < 0) {
     throw new Error(`Invalid Papal commission origin: ${commission.originTileId}`);
   }
+  if (!legacyCityReferences &&
+      (typeof commission.originCityId !== "string" || commission.originCityId.trim() === "")) {
+    throw new Error(`Invalid Papal commission origin city: ${commission.originCityId}`);
+  }
   if (!Array.isArray(commission.itinerary) || commission.itinerary.length < 1 ||
       commission.itinerary.length > 3) {
     throw new Error("Papal commission requires one to three destinations");
   }
   commission.itinerary.forEach((entry, index) => {
-    validatePapalDestination(entry);
+    validatePapalDestination(entry, { legacyCityReferences });
     if (entry.order !== index) throw new Error(`Invalid Papal itinerary order: ${entry.order}`);
   });
   if (!Number.isInteger(commission.nextStopIndex) || commission.nextStopIndex < 0 ||
@@ -1263,7 +1313,7 @@ function validatePapalCommission(commission) {
   validatePapalNuncio(commission.nuncio);
 }
 
-function validatePapalDestination(destination) {
+function validatePapalDestination(destination, { legacyCityReferences = false } = {}) {
   if (!destination || typeof destination !== "object" || Array.isArray(destination)) {
     throw new Error("Papal itinerary destination must be an object");
   }
@@ -1271,6 +1321,10 @@ function validatePapalDestination(destination) {
       typeof destination.portName !== "string" || destination.portName.trim() === "" ||
       typeof destination.purpose !== "string" || destination.purpose.trim() === "") {
     throw new Error("Invalid Papal itinerary destination");
+  }
+  if (!legacyCityReferences &&
+      (typeof destination.cityId !== "string" || destination.cityId.trim() === "")) {
+    throw new Error("Papal itinerary destination requires a city id");
   }
   assertFactionId(destination.factionId);
   if (!Number.isInteger(destination.order) || destination.order < 0) {
@@ -1325,7 +1379,7 @@ function papalRandom(memory, sequence, salt) {
   return hashString32(`${memory.seed}|${sequence}|${salt}`) / 0x100000000;
 }
 
-function validatePapalAction(action) {
+function validatePapalAction(action, { legacyIdentities = false } = {}) {
   if (!action || typeof action !== "object" || typeof action.id !== "string" || action.id === "") {
     throw new Error("Invalid papal action");
   }
@@ -1336,6 +1390,12 @@ function validatePapalAction(action) {
   if (typeof action.targetRulerName !== "string" || action.targetRulerName === "" ||
       typeof action.popeName !== "string" || action.popeName === "") {
     throw new Error("Papal action requires ruler names");
+  }
+  if (!legacyIdentities && (
+    typeof action.targetRulerId !== "string" || action.targetRulerId === "" ||
+    typeof action.popeId !== "string" || action.popeId === ""
+  )) {
+    throw new Error("Papal action requires ruler ids");
   }
   if (!Array.isArray(action.respondingFactionIds)) {
     throw new Error("Papal action requires responding Catholic factions");
@@ -1356,9 +1416,16 @@ function validatePapalAction(action) {
   }
 }
 
-function migratePapalAction(action) {
+function migratePapalAction(action, legacyActionById = new Map()) {
+  const revoked = action.kind === PAPAL_ACTION_REVOCATION
+    ? legacyActionById.get(action.revokedActionId)
+    : null;
+  const targetMinute = revoked?.simMinute ?? action.simMinute;
   return {
     ...action,
+    targetRulerId: action.targetRulerId || revoked?.targetRulerId ||
+      rulerAtMinute(action.targetFactionId, targetMinute).id,
+    popeId: action.popeId || rulerAtMinute(PAPAL_FACTION_ID, action.simMinute).id,
     logistics: action.logistics ?? null
   };
 }

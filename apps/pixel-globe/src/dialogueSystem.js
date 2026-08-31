@@ -1,3 +1,4 @@
+import { requireCityId, requireEntityId } from "./entityIds.js";
 import {
   FACTION_SAFE_PASSAGE_DAYS,
   PORT_NAVIGATION_REASON_NEW_SHIP,
@@ -379,6 +380,7 @@ export const QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES = 60 * 24 * 60;
 const QUEST_CARGO_HINT_DECLINE_DECISION_PREFIX = "quest-cargo.market-hint-declined";
 
 export function createPortDialogueSession(city, options = {}) {
+  const cityId = requireCityId(city, "Port dialogue city");
   if (options.rumorText !== undefined && (typeof options.rumorText !== "string" || options.rumorText === "")) {
     throw new Error("Port rumor text must be a non-empty string");
   }
@@ -402,8 +404,8 @@ export function createPortDialogueSession(city, options = {}) {
   }
   return {
     kind: "port",
-    cityTileId: city.tileId,
-    portId: city.portId || `city-${city.tileId}`,
+    cityId,
+    portId: cityId,
     nodeId: options.initialNodeId || "greeting",
     admittedToPort: options.admittedToPort === true,
     disguisedEntry: options.disguisedEntry === true,
@@ -474,15 +476,15 @@ export function createPortDialogueSession(city, options = {}) {
 
 export function restorePortDialogueCityIdentity(session, city) {
   if (session?.kind !== "port") throw new Error("Port city identity requires a port dialogue session");
-  if (!Number.isInteger(city?.tileId)) throw new Error("Port city identity requires a city tile");
-  if (city.tileId !== session.cityTileId) {
-    throw new Error(`Port dialogue city changed from tile ${session.cityTileId} to ${city.tileId}`);
+  const cityId = requireCityId(city, "Port dialogue city");
+  if (cityId !== session.cityId) {
+    throw new Error(`Port dialogue city changed from ${session.cityId} to ${cityId}`);
   }
   if (typeof session.portId !== "string" || session.portId === "") {
     throw new Error("Port dialogue session has no stable port id");
   }
-  if (city.portId && city.portId !== session.portId) {
-    throw new Error(`Port dialogue city ${city.tileId} changed identity from ${session.portId} to ${city.portId}`);
+  if (session.portId !== cityId) {
+    throw new Error(`Port dialogue city ${cityId} changed canonical identity from ${session.portId}`);
   }
   return {
     ...city,
@@ -498,7 +500,7 @@ export function createPortArrivalDialogueSession(city, options = {}) {
     throw new Error(`Invalid drunk port dialogue variant: ${drunkVariant}`);
   }
   if (options.questCharacterSession) {
-    if (options.questCharacterSession.cityTileId !== city.tileId) {
+    if (options.questCharacterSession.cityId !== city.cityId) {
       throw new Error("Port-arrival quest character does not belong to this city");
     }
     const nextPortNodeId = options.openDeliveryMission === true
@@ -642,7 +644,7 @@ export function createPassengerDialogueSession(city, quest, options = {}) {
   }
   return {
     kind: "passenger",
-    cityTileId: city.tileId,
+    cityId: requireCityId(city, "Passenger dialogue city"),
     questId: quest.id,
     admittedToPort: options.admittedToPort === true,
     continueToPortOnClose: options.continueToPortOnClose === true,
@@ -667,7 +669,7 @@ export function preparePassengerDialogueArrival(gameState, city, quest, context 
   if (
     quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
     gameState.memory.quests.passengerActive?.id === quest.id &&
-    city.tileId === quest.destinationTileId
+    city.cityId === quest.destinationCityId
   ) {
     recordNingboMissionArrival(gameState, quest.id, context);
   }
@@ -878,8 +880,8 @@ export function createShoreBatteryDialogueSession(city, context = {}) {
   if (!ruler) throw new Error(`Shore battery faction has no ruler: ${city.factionId}`);
   return {
     kind: "shore-battery",
-    cityTileId: city.tileId,
-    portId: city.portId || `city-${city.tileId}`,
+    cityId: requireCityId(city, "Shore battery city"),
+    portId: requireCityId(city, "Shore battery city"),
     selectedIndex: 0,
     relation: context.relation,
     playerWarship: context.playerWarship,
@@ -891,7 +893,7 @@ export function createShoreBatteryDialogueSession(city, context = {}) {
 }
 
 export function shoreBatteryDialogueView(session, city) {
-  if (!session || session.kind !== "shore-battery" || session.cityTileId !== city?.tileId) {
+  if (!session || session.kind !== "shore-battery" || session.cityId !== city?.cityId) {
     throw new Error("Shore battery dialogue city does not match active session");
   }
   const faction = factionById(city.factionId);
@@ -1182,7 +1184,7 @@ function shipDialogueContentView(session, ship) {
         ? occasionalReligiousGreeting({
             speakerReligionId: ship.character.religionId,
             listenerReligionId: session.listenerReligionId,
-            key: `ship:${ship.id}|${ship.character.id || ship.character.name}`
+            key: `ship:${ship.id}|${requireEntityId(ship.character.id, "NPC ship captain")}`
           }) || "Fair winds, captain."
         : "Fair winds, captain.";
   const expressionId = ship.stormStatus
@@ -1642,7 +1644,7 @@ function piracyProceedLabel(actionType) {
 
 export function portDialogueView(session, city, gameState, economy, portCities, context = {}) {
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
-  if (session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active session");
+  if (session.cityId !== city.cityId) throw new Error("Dialogue city does not match active session");
 
   const view = portDialogueNodeView(session, city, gameState, economy, portCities, context);
   validateDialogueDecision(view, session.nodeId);
@@ -2134,6 +2136,9 @@ export function selectPortDialogueOption(
     if (!Number.isInteger(action.destinationTileId)) {
       throw new Error(`Port heading requires a destination tile id: ${action.destinationTileId}`);
     }
+    if (typeof action.destinationCityId !== "string" || action.destinationCityId === "") {
+      throw new Error("Port heading requires a canonical destination city id");
+    }
     if (typeof action.destinationName !== "string" || action.destinationName.trim() === "") {
       throw new Error("Port heading requires a destination name");
     }
@@ -2167,6 +2172,7 @@ export function selectPortDialogueOption(
       closed: false,
       action: {
         type: "set-port-heading",
+        destinationCityId: action.destinationCityId,
         destinationTileId: action.destinationTileId,
         destinationName: action.destinationName,
         reason: action.reason,
@@ -2383,7 +2389,7 @@ export function selectPortDialogueOption(
       context
     );
     const missionItemGift = maybeGrantMissionPerkItem(gameState, city, {
-      missionId: `chef-banquet-${city.tileId}`,
+      missionId: `chef-banquet-${requireCityId(city, "Chef banquet city")}`,
       distanceKm: 3000,
       reward: CHEF_QUEST_REWARD,
       random: context.missionGiftRandom || neverGrantMissionItem,
@@ -2789,6 +2795,7 @@ export function selectPortDialogueOption(
     recordColonyAuthorityForState(
       gameState,
       quest.target.factionId,
+      quest.target.cityId,
       quest.target.city,
       minute,
       { challengesPapalAuthority: quest.history?.organizerReligionId === "reformed-protestant" }
@@ -3382,7 +3389,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
       ]
     };
   }
-  if (active?.id === quest.id && isEnvoyQuest(quest) && quest.stage === "outbound" && quest.targetTileId === city.tileId) {
+  if (active?.id === quest.id && isEnvoyQuest(quest) && quest.stage === "outbound" && quest.targetCityId === city.cityId) {
     return {
       speaker,
       expressionId: quest.kind === "hostile-envoy" ? "stern" : "attentive",
@@ -3395,7 +3402,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
       ]
     };
   }
-  if (active?.id === quest.id && quest.destinationTileId === city.tileId &&
+  if (active?.id === quest.id && quest.destinationCityId === city.cityId &&
       eastAsianMissionHasOutcomes(quest)) {
     if (
       quest.eastAsianMissionId === EAST_ASIAN_MISSION_NINGBO &&
@@ -3544,7 +3551,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
   }
   if (active?.id === quest.id && questHasDestination(quest, city) &&
       quest.eastAsianMissionId === EAST_ASIAN_MISSION_PORTUGUESE_GUNS) {
-    const completedStops = quest.itinerary?.completedTileIds?.length || 0;
+    const completedStops = quest.itinerary?.completedCityIds?.length || 0;
     const legNumber = completedStops + 1;
     const arsenalStop = completedStops === 0;
     return {
@@ -3568,7 +3575,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
   }
   if (active?.id === quest.id && questHasDestination(quest, city)) {
     if (isMultiPortReligiousMission(quest) && !session.religiousParticipationUnderway) {
-      const legNumber = quest.itinerary.completedTileIds.length + 1;
+      const legNumber = quest.itinerary.completedCityIds.length + 1;
       const legCount = quest.itinerary.stops.length;
       return {
         speaker,
@@ -3751,7 +3758,7 @@ export function selectPassengerDialogueOption(
     return { closed: true, action: null };
   }
   if (action.type === "choose-east-asian-outcome") {
-    if (!isEastAsianMissionQuest(quest) || quest.destinationTileId !== city.tileId) {
+    if (!isEastAsianMissionQuest(quest) || quest.destinationCityId !== city.cityId) {
       throw new Error("East Asian mission outcome is not available here");
     }
     selectEastAsianMissionOutcome(gameState, quest.id, action.outcomeId, { ...context, city });
@@ -3761,7 +3768,7 @@ export function selectPassengerDialogueOption(
   if (action.type === "answer-ningbo-bribe") {
     if (
       quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO ||
-      quest.destinationTileId !== city.tileId
+      quest.destinationCityId !== city.cityId
     ) {
       throw new Error("Ningbo bribe is not available here");
     }
@@ -3778,7 +3785,7 @@ export function selectPassengerDialogueOption(
   if (action.type === "refuse-tsushima-vouch") {
     if (
       quest.eastAsianMissionId !== EAST_ASIAN_MISSION_TSUSHIMA ||
-      quest.destinationTileId !== city.tileId ||
+      quest.destinationCityId !== city.cityId ||
       session.eastAsianHearingStage !== null
     ) {
       throw new Error("Tsushima testimony cannot advance from this dialogue");
@@ -3791,7 +3798,7 @@ export function selectPassengerDialogueOption(
     if (
       quest.eastAsianMissionId !== EAST_ASIAN_MISSION_NINGBO ||
       quest.eastAsianStage !== "battle" ||
-      quest.destinationTileId !== city.tileId
+      quest.destinationCityId !== city.cityId
     ) {
       throw new Error("Ningbo battle is not ready");
     }
@@ -3809,7 +3816,7 @@ export function selectPassengerDialogueOption(
     if (
       !isReligiousPassengerQuest(quest) ||
       !captainCanParticipateInReligiousMission(gameState, quest) ||
-      quest.destinationTileId !== city.tileId ||
+      quest.destinationCityId !== city.cityId ||
       activeTravelPassengerQuest(gameState)?.id !== quest.id
     ) {
       throw new Error("Captain is not eligible to participate in this religious mission");
@@ -3976,15 +3983,15 @@ function hajjArrivalDialogueText(quest, gameState) {
 
 function assertPassengerDialogueSubject(session, city, quest) {
   if (!session || session.kind !== "passenger") throw new Error("Missing passenger dialogue session");
-  if (!city || session.cityTileId !== city.tileId) throw new Error("Dialogue city does not match active passenger session");
+  if (!city || session.cityId !== city.cityId) throw new Error("Dialogue city does not match active passenger session");
   if (!quest || (quest.kind !== "passenger" && !isEnvoyQuest(quest)) || session.questId !== quest.id) {
     throw new Error("Dialogue passenger quest does not match active session");
   }
-  const negotiationTarget = session.envoyNegotiationResult && quest.targetTileId === city.tileId;
+  const negotiationTarget = session.envoyNegotiationResult && quest.targetCityId === city.cityId;
   const stagedItineraryResult = Boolean(
     session.religiousLegDelivery || session.eastAsianLegDelivery
   );
-  if (quest.originTileId !== city.tileId && !questHasDestination(quest, city) &&
+  if (quest.originCityId !== city.cityId && !questHasDestination(quest, city) &&
       !negotiationTarget && !stagedItineraryResult) {
     throw new Error(`${cityLabel(city)} is not part of passenger quest ${quest.id}`);
   }
@@ -4248,7 +4255,7 @@ function portAttackOption(city, gameState, attack, action) {
   const notice = attackLegalityNotice({
     piracy: attack.piracy,
     issuerAdjective: issuerIds.length > 0 ? factionById(issuerIds[0]).adjective : null,
-    subjectId: String(city.tileId)
+    subjectId: requireCityId(city, "Port attack notice")
   });
   return option("Attack city", action, {
     detail: notice.detail,
@@ -4298,7 +4305,7 @@ function rootView(session, city, gameState, economy, portCities, context) {
     PORTUGUESE_CROWN_SPICE_POLICY_ID;
   const illicitMarket = tradeAccess.illicit || cartazIllicitMarket;
   const activeQuest = gameState.memory.quests?.active || null;
-  const canCompleteQuest = activeQuest?.destinationTileId === city.tileId;
+  const canCompleteQuest = activeQuest?.destinationCityId === city.cityId;
   const shipyardProject = shipyardInvestmentAtPort(gameState, city);
   const shipyardProjectOffer = shipyardInvestmentOfferAvailable(
     gameState,
@@ -5774,8 +5781,11 @@ function shipyardView(session, city, gameState, economy, context) {
   const investmentOptions = shipyardInvestmentOptions(city, gameState, yard, context.simMinute ?? 0);
   if (listings.length === 0) {
     const nearestListing = context.nearestShipyardListing || null;
-    if (nearestListing && !Number.isInteger(nearestListing.portId)) {
-      throw new Error(`Nearest shipyard listing requires a port tile id: ${nearestListing.portId}`);
+    if (nearestListing && (typeof nearestListing.portId !== "string" || nearestListing.portId === "")) {
+      throw new Error(`Nearest shipyard listing requires a canonical city id: ${nearestListing.portId}`);
+    }
+    if (nearestListing && !Number.isInteger(nearestListing.tileId)) {
+      throw new Error(`Nearest shipyard listing requires a port tile id: ${nearestListing.tileId}`);
     }
     if (nearestListing && (typeof nearestListing.shipProseLabel !== "string" ||
         nearestListing.shipProseLabel === "")) {
@@ -5795,7 +5805,8 @@ function shipyardView(session, city, gameState, economy, context) {
       options: [
         ...(nearestListing ? [option(`Set a heading for ${nearestListing.portName}`, {
           type: "set-port-heading",
-          destinationTileId: nearestListing.portId,
+          destinationCityId: nearestListing.portId,
+          destinationTileId: nearestListing.tileId,
           destinationName: nearestListing.portName,
           reason: PORT_NAVIGATION_REASON_NEW_SHIP,
           nextNodeId: "root"
@@ -6064,7 +6075,7 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
         const waypointSet = source && gameState.memory.navigation.optionalWaypoints.some((waypoint) => (
           waypoint.reason === PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY &&
           waypoint.shipyardMaterialGoodId === source.goodId &&
-          waypoint.destinationTileId === source.destinationTileId
+          waypoint.destinationCityId === source.destinationCityId
         ));
         return [
           ...(sale ? [option(
@@ -6084,6 +6095,7 @@ function playerShipyardLedgerView(session, city, gameState, economy, context, ya
                 : `Set heading: ${source.destinationName} (${source.goodLabel}; harbor barred)`,
             {
               type: "set-port-heading",
+              destinationCityId: source.destinationCityId,
               destinationTileId: source.destinationTileId,
               destinationName: source.destinationName,
               reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
@@ -6222,7 +6234,7 @@ function shipyardMaterialSourceHints({
   const needed = materials.filter((material) => material.stockpileMissing > 0);
   const bestByGoodId = new Map();
   for (const destination of portCities) {
-    if (destination.tileId === originCity.tileId) continue;
+    if (destination.cityId === originCity.cityId) continue;
     const accessible = destinationAcceptsPlayerTrade(destination, gameState, simMinute);
     const available = needed
       .map((material) => ({
@@ -6249,6 +6261,7 @@ function shipyardMaterialSourceHints({
     return source ? [Object.freeze({
       goodId: material.goodId,
       goodLabel: tradeGoodById(material.goodId).label,
+      destinationCityId: source.destination.cityId,
       destinationTileId: source.destination.tileId,
       destinationName: cityLabel(source.destination),
       distanceKm: source.distanceKm,
@@ -6620,6 +6633,7 @@ function tradeTipView(session, city) {
     options: [
       option(`Set a heading for ${tip.destinationName}`, {
         type: "set-port-heading",
+        destinationCityId: tip.destinationCityId,
         destinationTileId: tip.destinationTileId,
         destinationName: tip.destinationName,
         reason: PORT_NAVIGATION_REASON_TRADE_PRICE,
@@ -6642,6 +6656,7 @@ function questCargoTipView(session, city) {
     options: [
       option(`Set a heading for ${tip.destinationName}`, {
         type: "set-port-heading",
+        destinationCityId: tip.destinationCityId,
         destinationTileId: tip.destinationTileId,
         destinationName: tip.destinationName,
         reason: PORT_NAVIGATION_REASON_QUEST_CARGO,
@@ -6685,13 +6700,13 @@ export function bestQuestCargoSource({
   }
   if (typeof random !== "function") throw new Error("Quest cargo advice requires a random source");
 
-  const portByTileId = new Map(portCities.map((port) => [port.tileId, port]));
+  const portByCityId = new Map(portCities.map((port) => [port.cityId, port]));
   const waypointGoodIds = new Set();
   for (const waypoint of gameState.memory.navigation.optionalWaypoints) {
     if (waypoint.reason !== PORT_NAVIGATION_REASON_QUEST_CARGO || !waypoint.questCargoGoodId) {
       continue;
     }
-    const destination = portByTileId.get(waypoint.destinationTileId);
+    const destination = portByCityId.get(waypoint.destinationCityId);
     if (!destination || !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
     const row = portMarket(economy, destination)
       .find((entry) => entry.good.id === waypoint.questCargoGoodId);
@@ -6709,7 +6724,7 @@ export function bestQuestCargoSource({
 
     const sources = [];
     for (const destination of portCities) {
-      if (destination.tileId === originCity.tileId ||
+      if (destination.cityId === originCity.cityId ||
           !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) {
         continue;
       }
@@ -6740,6 +6755,7 @@ export function bestQuestCargoSource({
     hints.push(Object.freeze({
       goodId,
       goodLabel: good.label,
+      destinationCityId: source.destination.cityId,
       destinationTileId: source.destination.tileId,
       destinationName: cityLabel(source.destination),
       distanceKm: source.distanceKm
@@ -6823,7 +6839,7 @@ export function bestPurchasedTradeRoute({
       : purchase.cost;
     const candidates = [];
     for (const destination of portCities) {
-      if (!includeLocalMarket && destination.tileId === originCity.tileId) continue;
+      if (!includeLocalMarket && destination.cityId === originCity.cityId) continue;
       if (!destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
       const terms = playerTradeTerms(gameState, destination, good.id);
       if (maximumPortPurchaseQuantity(
@@ -6842,7 +6858,7 @@ export function bestPurchasedTradeRoute({
       );
       const pnl = revenue - expectedCost;
       if (pnl <= 0) continue;
-      const localMarket = destination.tileId === originCity.tileId;
+      const localMarket = destination.cityId === originCity.cityId;
       const distanceKm = localMarket ? 0 : sailingDistanceKm(originCity, destination);
       if (distanceKm === null) continue;
       if (!Number.isInteger(distanceKm) || distanceKm < 0) {
@@ -6851,6 +6867,7 @@ export function bestPurchasedTradeRoute({
       candidates.push({
         goodId: good.id,
         goodLabel: good.label,
+        destinationCityId: destination.cityId,
         destinationTileId: destination.tileId,
         destinationName: cityLabel(destination),
         quantity: purchase.quantity,

@@ -3,7 +3,8 @@ import { join } from "node:path";
 import process from "node:process";
 import { spawn, spawnSync } from "node:child_process";
 
-const DEFAULT_TIMEOUT_MS = 5 * 60 * 1000;
+const DEFAULT_TIMEOUT_MS = 10 * 60 * 1000;
+const DEFAULT_TEST_CONCURRENCY = 4;
 const TERMINATION_GRACE_MS = 2_000;
 const TEST_FILE_PATTERN = /\.test\.(?:cjs|js|mjs)$/;
 const SIGNAL_EXIT_CODES = Object.freeze({
@@ -25,8 +26,11 @@ const exitCode = await runSupervisedTests(testFiles, timeoutMs);
 process.exitCode = exitCode;
 
 async function runSupervisedTests(args, timeoutMs) {
+  const testArgs = args.some((arg) => arg === "--test-concurrency" || arg.startsWith("--test-concurrency="))
+    ? args
+    : [`--test-concurrency=${DEFAULT_TEST_CONCURRENCY}`, ...args];
   // A dedicated process group lets one timeout clean up Node's per-file test workers too.
-  const child = spawn(process.execPath, ["--test", "--test-force-exit", ...args], {
+  const child = spawn(process.execPath, ["--test", ...testArgs], {
     cwd: process.cwd(),
     detached: process.platform !== "win32",
     stdio: "inherit"

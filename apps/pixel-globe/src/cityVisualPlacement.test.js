@@ -35,7 +35,7 @@ test("cities stay centered when shifting cannot uncover river", () => {
 });
 
 test("manual bank preferences break otherwise equal placement ties", () => {
-  const east = cityBankPreferenceVector({ city: "Cairo", country: "Egypt" });
+  const east = cityBankPreferenceVector({ cityId: "cairo|egypt", city: "Cairo", country: "Egypt" });
   const offset = selectCityVisualOffset(() => ({
     riverOverlapPixels: 0,
     centerOnOpenWater: false

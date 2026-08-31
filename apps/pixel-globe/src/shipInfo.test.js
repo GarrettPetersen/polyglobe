@@ -7,10 +7,10 @@ import {
   TRADE_PASS_REPUTATION_REQUIRED,
   acceptQuest,
   adjustFactionReputation,
-  createGameState,
   grantLetterOfMarque,
   issuePersonalTradePass
 } from "./gameState.js";
+import { createTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import {
   SHIP_INFO_CARGO_ROWS_PER_PAGE,
   SHIP_PAPER_ROW_CONTENT_INSET,
@@ -242,6 +242,7 @@ test("ship papers include active deliveries and letters of marque", () => {
   adjustFactionReputation(gameState, "england", LETTER_OF_MARQUE_REPUTATION_REQUIRED);
   grantLetterOfMarque(gameState, {
     tileId: 3,
+    cityId: "london|united kingdom",
     city: "London",
     displayCity: "London",
     country: "United Kingdom",
@@ -329,6 +330,7 @@ test("ship papers include the captain's named sovereign trade permits", () => {
   adjustFactionReputation(gameState, "spain", TRADE_PASS_REPUTATION_REQUIRED);
   issuePersonalTradePass(gameState, {
     tileId: 4,
+    cityId: "seville|spain",
     city: "Seville",
     displayCity: "Seville",
     country: "Spain",
@@ -361,7 +363,7 @@ test("ship papers show an active passenger aboard", () => {
     originName: "Lisbon",
     destinationTileId: 2,
     destinationName: "Goa",
-    passenger: { name: "Mateo Costa" },
+    passenger: { id: "passenger:mateo-costa", name: "Mateo Costa" },
     passengerName: "Mateo Costa",
     reward: 180
   });

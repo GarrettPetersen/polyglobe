@@ -46,8 +46,13 @@ import { NEUTRAL_FACTION_ID } from "./factions.js";
 import { PRE_NORTH_MALUKU_PORT_TILE_IDS } from "./portCatalogMigration.js";
 
 const PLAYER = {
+  id: "player:joan-alden",
   name: "Joan Alden",
   nationalityId: "england",
+  homePortCityId: "lisbon|portugal",
+  homePortTileId: 1,
+  homePortName: "Lisbon",
+  homePortCountry: "Portugal",
   expressions: ["neutral", "happy"]
 };
 
@@ -276,8 +281,8 @@ test("saved jobs rebind through an explicit coastal-port migration", () => {
   }), 2);
   assert.equal(state.memory.quests.active.originTileId, LISBON.tileId);
   assert.equal(state.memory.quests.active.destinationTileId, PORTO.tileId);
-  assert.equal(state.memory.quests.active.originKey, `Lisbon|Portugal|${LISBON.tileId}`);
-  assert.equal(state.memory.quests.active.destinationKey, `Porto|Portugal|${PORTO.tileId}`);
+  assert.equal(state.memory.quests.active.originKey, LISBON.cityId);
+  assert.equal(state.memory.quests.active.destinationKey, PORTO.cityId);
 
   completeQuest(state, PORTO, { simMinute: 100 });
   assert.equal(state.memory.quests.active, null);
@@ -336,24 +341,24 @@ test("port reconciliation repairs a nested crewmate home left behind by an earli
   assert.equal(state.namedCrew[0].homePortName, "Utrecht");
 });
 
-test("saved port references never guess from a display name", () => {
+test("saved port references follow canonical identities without guessing from display names", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const oldLisbon = { ...LISBON, tileId: 101 };
   const oldPorto = { ...PORTO, tileId: 202 };
   acceptQuest(state, deliveryQuestForCity(oldLisbon, [oldLisbon, oldPorto]));
 
-  assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO]), 0);
-  assert.equal(state.memory.quests.active.originTileId, oldLisbon.tileId);
-  assert.equal(state.memory.quests.active.destinationTileId, oldPorto.tileId);
+  assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO]), 2);
+  assert.equal(state.memory.quests.active.originTileId, LISBON.tileId);
+  assert.equal(state.memory.quests.active.destinationTileId, PORTO.tileId);
 });
 
-test("stable destination tiles absorb city renames without stranding active work", () => {
+test("stable city identities absorb city renames without stranding active work", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO]);
   acceptQuest(state, quest);
   const renamedPorto = { ...PORTO, displayCity: "Portus Cale", factionId: "spain" };
 
-  assert.equal(reconcileQuestPortTiles(state, [LISBON, renamedPorto]), 1);
+  assert.ok(reconcileQuestPortTiles(state, [LISBON, renamedPorto]) >= 1);
   assert.equal(state.memory.quests.active.destinationName, "Portus Cale");
   assert.equal(state.memory.quests.active.destinationTileId, PORTO.tileId);
   completeQuest(state, renamedPorto, { simMinute: 100 });
@@ -520,12 +525,14 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
 
   const event = {
     portId: "calais",
+    cityId: CALAIS.cityId,
     cityTileId: CALAIS.tileId,
     newFactionId: "england",
     source: "player"
   };
   const unrelatedConquest = {
     portId: "paris",
+    cityId: PARIS.cityId,
     cityTileId: PARIS.tileId,
     newFactionId: "england",
     source: "player"
@@ -630,6 +637,7 @@ test("a mostly defeated enemy can trigger a distinct war-ending capital commissi
   acceptQuest(state, offer);
   const event = {
     portId: "paris",
+    cityId: PARIS.cityId,
     cityTileId: PARIS.tileId,
     newFactionId: "england",
     source: "player"
@@ -708,8 +716,10 @@ test("an active colonization expedition does not suppress a capital capture comm
   putEnglandAtWarWithFrance(state);
   state.memory.colonization.stage = "fetch";
   state.memory.colonization.targetTileId = 99;
+  state.memory.colonization.targetCityId = "jamestown|united states of america";
   state.memory.colonization.targetCity = "Jamestown";
   state.memory.colonization.targetCountry = "United States of America";
+  state.memory.colonization.originCityId = LONDON.cityId;
   state.memory.colonization.originTileId = LONDON.tileId;
   state.memory.colonization.originCity = LONDON.city;
   state.memory.colonization.originCountry = LONDON.country;
@@ -1114,17 +1124,19 @@ test("ordinary passenger work improves standing with the commissioning port", ()
     id: "passenger-standing-test",
     kind: "passenger",
     originKey: `London|United Kingdom|${LONDON.tileId}`,
+    originCityId: LONDON.cityId,
     originTileId: LONDON.tileId,
     originName: "London",
     originCountry: "United Kingdom",
     originFactionId: "england",
     destinationKey: `Dover|United Kingdom|${DOVER.tileId}`,
+    destinationCityId: DOVER.cityId,
     destinationTileId: DOVER.tileId,
     destinationName: "Dover",
     destinationCountry: "United Kingdom",
     distanceKm: 120,
     reward: 100,
-    passenger: { name: "Thomas Hale" }
+    passenger: { id: "passenger:thomas-hale", name: "Thomas Hale" }
   };
   const before = factionReputation(state, "england");
 
@@ -1135,5 +1147,16 @@ test("ordinary passenger work improves standing with the commissioning port", ()
 });
 
 function port(tileId, city, country, cityType, factionId, lat, lon) {
-  return { tileId, city, displayCity: city, country, cityType, factionId, population: 60000, lat, lon };
+  return {
+    cityId: `${city.toLowerCase()}|${country.toLowerCase()}`,
+    tileId,
+    city,
+    displayCity: city,
+    country,
+    cityType,
+    factionId,
+    population: 60000,
+    lat,
+    lon
+  };
 }

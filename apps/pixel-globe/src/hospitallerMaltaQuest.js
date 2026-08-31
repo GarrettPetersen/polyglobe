@@ -3,8 +3,9 @@ import {
   PIRATE_FACTION_ID,
   assertFactionId
 } from "./factions.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
-export const HOSPITALLER_MALTA_QUEST_VERSION = 1;
+export const HOSPITALLER_MALTA_QUEST_VERSION = 2;
 export const HOSPITALLER_MALTA_STAGE_LOCKED = "locked";
 export const HOSPITALLER_MALTA_STAGE_SEEK_ROME = "seek-rome";
 export const HOSPITALLER_MALTA_STAGE_PETITION = "petition";
@@ -49,7 +50,7 @@ export function migrateHospitallerMaltaQuestMemory(memory) {
 
 export function validateHospitallerMaltaQuestMemory(memory) {
   if (!memory || typeof memory !== "object" || Array.isArray(memory) ||
-      memory.version !== HOSPITALLER_MALTA_QUEST_VERSION) {
+      ![1, HOSPITALLER_MALTA_QUEST_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported Hospitaller Malta quest memory: ${memory?.version ?? "missing"}`);
   }
   if (!STAGES.has(memory.stage)) {
@@ -58,7 +59,8 @@ export function validateHospitallerMaltaQuestMemory(memory) {
   if (!Array.isArray(memory.grantedCities)) {
     throw new Error("Hospitaller Malta quest granted cities must be an array");
   }
-  memory.grantedCities.forEach(validatePortReference);
+  const legacy = memory.version === 1;
+  memory.grantedCities.forEach((city) => validatePortReference(city, { legacy }));
 
   if (memory.stage === HOSPITALLER_MALTA_STAGE_LOCKED) {
     assertEmptyProgress(memory);
@@ -66,8 +68,8 @@ export function validateHospitallerMaltaQuestMemory(memory) {
   }
 
   assertMinute(memory.activatedMinute, "Hospitaller Malta activation");
-  validatePortReference(memory.rome);
-  validatePortReference(memory.malta);
+  validatePortReference(memory.rome, { legacy });
+  validatePortReference(memory.malta, { legacy });
 
   if (memory.stage === HOSPITALLER_MALTA_STAGE_SEEK_ROME) {
     if (memory.acceptedMinute !== null || memory.grantedMinute !== null ||
@@ -89,7 +91,7 @@ export function validateHospitallerMaltaQuestMemory(memory) {
   )) {
     throw new Error(`Invalid Hospitaller Malta grantor: ${memory.grantorFactionId}`);
   }
-  validatePortReference(memory.grantorCapital);
+  validatePortReference(memory.grantorCapital, { legacy });
 
   if (memory.stage === HOSPITALLER_MALTA_STAGE_PETITION) {
     validateEnvoy(memory.envoy);
@@ -102,7 +104,10 @@ export function validateHospitallerMaltaQuestMemory(memory) {
 
   assertMinute(memory.grantedMinute, "Hospitaller Malta grant");
   if (memory.grantedMinute < memory.acceptedMinute || memory.grantedCities.length < 1 ||
-      !memory.grantedCities.some((city) => city.tileId === memory.malta.tileId)) {
+      !memory.grantedCities.some((city) => (
+        // IDENTITY_SPATIAL_EXCEPTION: version 1 saves predate canonical city ids.
+        legacy ? city.tileId === memory.malta.tileId : city.cityId === memory.malta.cityId
+      ))) {
     throw new Error("Hospitaller Malta grant does not include Malta");
   }
   if (memory.stage === HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME) {
@@ -195,9 +200,7 @@ export function reconcileHospitallerMaltaPetition(memory, { malta, grantorCapita
     return Object.freeze({ kind: "recalled" });
   }
   const previousCapital = memory.grantorCapital;
-  if (previousCapital.tileId === grantorCapital.tileId &&
-      previousCapital.city === grantorCapital.city &&
-      previousCapital.country === grantorCapital.country) {
+  if (previousCapital.cityId === requireCityId(grantorCapital, "Hospitaller grantor capital")) {
     return null;
   }
   memory.grantorCapital = portReference(grantorCapital);
@@ -278,9 +281,13 @@ export function relocateHospitallerCaptainHome(state, malta) {
   if (state?.playerCharacter?.nationalityId !== HOSPITALLER_FACTION_ID) return false;
   validatePortReference(malta);
   state.playerCharacter.homePortTileId = malta.tileId;
+  state.playerCharacter.homePortCityId = requireCityId(malta, "Hospitaller home port");
   state.playerCharacter.homePortName = malta.city;
   state.playerCharacter.homePortCountry = malta.country;
-  if (state.memory?.campaignGoal) state.memory.campaignGoal.homePortTileId = malta.tileId;
+  if (state.memory?.campaignGoal) {
+    state.memory.campaignGoal.homePortCityId = malta.cityId;
+    state.memory.campaignGoal.homePortTileId = malta.tileId;
+  }
   return true;
 }
 
@@ -306,19 +313,21 @@ function assertEmptyProgress(memory) {
 function portReference(port) {
   validatePortReference(port);
   return {
+    cityId: requireCityId(port, "Hospitaller Malta port"),
     tileId: port.tileId,
     city: port.city,
     country: port.country
   };
 }
 
-function validatePortReference(port) {
+function validatePortReference(port, { legacy = false } = {}) {
   if (!port || typeof port !== "object" || Array.isArray(port) ||
       !Number.isInteger(port.tileId) || port.tileId < 0 ||
       typeof port.city !== "string" || port.city.trim() === "" ||
       typeof port.country !== "string" || port.country.trim() === "") {
     throw new Error("Hospitaller Malta quest contains an invalid port reference");
   }
+  if (!legacy) requireEntityId(port.cityId, "Hospitaller Malta port");
   return port;
 }
 

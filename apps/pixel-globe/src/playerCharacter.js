@@ -286,22 +286,25 @@ function chooseSeededWeighted(items, weights, key) {
   }
   let total = 0;
   for (const item of items) {
-    const weight = weights.get(item.tileId);
+    const weight = weights.get(item.cityId);
     if (!Number.isFinite(weight) || weight <= 0) {
-      throw new Error(`Invalid player home weight for port ${item.tileId}: ${weight}`);
+      throw new Error(`Invalid player home weight for port ${item.cityId}: ${weight}`);
     }
     total += weight;
   }
   let cursor = hashString32(key) / 0x100000000 * total;
   for (const item of items) {
-    cursor -= weights.get(item.tileId);
+    cursor -= weights.get(item.cityId);
     if (cursor < 0) return item;
   }
   throw new Error(`Weighted player home selection exceeded its total: ${key}`);
 }
 
 function stablePortKey(port) {
-  return `${port.country || ""}|${port.displayCity || port.city || ""}|${port.tileId ?? ""}`;
+  if (typeof port?.cityId !== "string" || port.cityId === "") {
+    throw new Error("Player home port has no canonical city id");
+  }
+  return port.cityId;
 }
 
 function hashString32(value) {

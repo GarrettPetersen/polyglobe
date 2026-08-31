@@ -16,8 +16,9 @@ import {
 } from "./worldDiplomacy.js";
 import { dependentsOf } from "./suzerainty.js";
 import { QUEST_JOURNEY_TRIGGER_DESTINATION_CLOSER } from "./questJourneyDialogue.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 
-export const COURT_POLITICS_VERSION = 1;
+export const COURT_POLITICS_VERSION = 2;
 export const COURT_MATTER_AVAILABLE = "available";
 export const COURT_MATTER_COMMISSIONED = "commissioned";
 
@@ -106,7 +107,7 @@ export function migrateCourtPolitics(memory, { startMinute = 0, seedKey = "court
 }
 
 export function validateCourtPolitics(memory) {
-  if (!memory || typeof memory !== "object" || memory.version !== COURT_POLITICS_VERSION) {
+  if (!memory || typeof memory !== "object" || ![1, COURT_POLITICS_VERSION].includes(memory.version)) {
     throw new Error(`Unsupported court politics version: ${memory?.version ?? "missing"}`);
   }
   if (!Number.isInteger(memory.seed) || memory.seed < 0 || memory.seed > 0xffffffff) {
@@ -132,8 +133,9 @@ export function validateCourtPolitics(memory) {
   if (!Array.isArray(memory.history) || memory.history.length > COURT_HISTORY_LIMIT) {
     throw new Error("Invalid court politics history");
   }
-  for (const action of memory.history) validateCourtAction(action);
-  if (memory.pendingMatter !== null) validateCourtMatter(memory.pendingMatter);
+  const legacy = memory.version === 1;
+  for (const action of memory.history) validateCourtAction(action, { legacy });
+  if (memory.pendingMatter !== null) validateCourtMatter(memory.pendingMatter, { legacy });
   return memory;
 }
 
@@ -218,9 +220,9 @@ export function courtMissionPlan(memory, origin, portCities) {
   validatePortList(portCities);
   const matter = memory.pendingMatter;
   if (!matter || matter.status !== COURT_MATTER_AVAILABLE) return null;
-  if (matter.origin.tileId !== origin.tileId) return null;
-  const destination = portCities.find((port) => port.tileId === matter.destination.tileId) || null;
-  if (!destination || portIdentity(destination) !== matter.destination.portId) return null;
+  if (matter.origin.cityId !== origin.cityId) return null;
+  const destination = portCities.find((port) => port.cityId === matter.destination.cityId) || null;
+  if (!destination) return null;
   if (destination.factionId !== matter.destination.factionId) return null;
   return Object.freeze({
     destination,
@@ -494,9 +496,9 @@ function shogunalPolicyCandidates(diplomacy, portCities, memory) {
     return candidates;
   }
   const domesticPorts = portCities
-    .filter((port) => port.factionId === JAPAN_FACTION_ID && port.tileId !== origin.tileId)
+    .filter((port) => port.factionId === JAPAN_FACTION_ID && port.cityId !== origin.cityId)
     .filter((port) => greatCircleDistanceKm(origin, port) >= 120)
-    .sort((a, b) => portIdentity(a).localeCompare(portIdentity(b)));
+    .sort((a, b) => requireCityId(a).localeCompare(requireCityId(b)));
   return domesticPorts.map((destination, index) => policyCandidate({
     kind: INTERNAL_SHOGUNAL_KINDS[(memory.sequence + index) % INTERNAL_SHOGUNAL_KINDS.length],
     authorityFactionId: JAPAN_FACTION_ID,
@@ -530,13 +532,13 @@ function administrationCandidates(memory, portCities, actionMinute) {
   const candidates = [];
   for (const origin of capitals) {
     for (const destination of portCities) {
-      if (destination.tileId === origin.tileId || destination.factionId !== origin.factionId) continue;
+      if (destination.cityId === origin.cityId || destination.factionId !== origin.factionId) continue;
       const distanceKm = greatCircleDistanceKm(origin, destination);
       const threshold = destination.playerFoundedColony === true
         ? FOUNDED_COLONY_DISTANCE_KM
         : OVERSEAS_DISTANCE_KM;
       if (distanceKm < threshold) continue;
-      const serviceMinute = memory.portServiceMinutes[portIdentity(destination)] ?? memory.startMinute;
+      const serviceMinute = memory.portServiceMinutes[requireCityId(destination)] ?? memory.startMinute;
       const neglectYears = Math.max(0, actionMinute - serviceMinute) / (365 * MINUTES_PER_DAY);
       const imperialWeight = ["spain", "portugal"].includes(origin.factionId)
         ? IBERIAN_ADMINISTRATION_WEIGHT
@@ -558,14 +560,14 @@ function administrationCandidates(memory, portCities, actionMinute) {
 
 function administrationKind(memory, origin, destination) {
   const index = hashString32(
-    `${memory.seed}|${memory.sequence}|${portIdentity(origin)}|${portIdentity(destination)}`
+    `${memory.seed}|${memory.sequence}|${requireCityId(origin)}|${requireCityId(destination)}`
   ) % ADMINISTRATION_KINDS.length;
   return ADMINISTRATION_KINDS[index];
 }
 
 function createCourtMatter(memory, proposal, simMinute) {
   const matter = {
-    id: `court-${memory.sequence}-${proposal.kind}-${proposal.destination.tileId}`,
+    id: `court-${memory.sequence}-${proposal.kind}-${requireCityId(proposal.destination)}`,
     status: COURT_MATTER_AVAILABLE,
     authorityFactionId: proposal.authorityFactionId,
     kind: proposal.kind,
@@ -587,7 +589,7 @@ function enactCourtMatter(memory, diplomacy, matter, { simMinute, source, portCi
   if (typeof source !== "string" || source.trim() === "") {
     throw new Error("Court action requires a source");
   }
-  const liveDestination = portCities.find((port) => port.tileId === matter.destination.tileId) || null;
+  const liveDestination = portCities.find((port) => port.cityId === matter.destination.cityId) || null;
   if (liveDestination && matterIsAdministrative(matter) &&
       liveDestination.factionId !== matter.authorityFactionId) {
     throw new Error(
@@ -647,7 +649,7 @@ function enactCourtMatter(memory, diplomacy, matter, { simMinute, source, portCi
     ));
   }
   if (matterIsAdministrative(matter)) {
-    memory.portServiceMinutes[matter.destination.portId] = simMinute;
+    memory.portServiceMinutes[matter.destination.cityId] = simMinute;
   }
   const action = {
     id: `court-action-${memory.sequence}-${matter.id}`,
@@ -657,7 +659,7 @@ function enactCourtMatter(memory, diplomacy, matter, { simMinute, source, portCi
     kind: matter.kind,
     targetFactionId: matter.targetFactionId,
     secondaryFactionId: matter.secondaryFactionId,
-    destinationPortId: matter.destination.portId,
+    destinationCityId: matter.destination.cityId,
     destinationName: matter.destination.name,
     headline: courtActionHeadline(matter),
     detail: courtActionDetail(matter)
@@ -725,7 +727,7 @@ function courtMatterView(matter) {
   });
 }
 
-function validateCourtMatter(matter) {
+function validateCourtMatter(matter, { legacy = false } = {}) {
   if (!matter || typeof matter !== "object" || typeof matter.id !== "string" || matter.id === "") {
     throw new Error("Invalid court matter");
   }
@@ -736,8 +738,8 @@ function validateCourtMatter(matter) {
   assertFactionId(matter.authorityFactionId);
   assertFactionId(matter.targetFactionId);
   if (matter.secondaryFactionId !== null) assertFactionId(matter.secondaryFactionId);
-  validatePortSnapshot(matter.origin, "court matter origin");
-  validatePortSnapshot(matter.destination, "court matter destination");
+  validatePortSnapshot(matter.origin, "court matter origin", { legacy });
+  validatePortSnapshot(matter.destination, "court matter destination", { legacy });
   assertMinute(matter.createdMinute, "court matter creation");
   assertMinute(matter.autonomousDecisionMinute, "court matter decision");
   if (matter.autonomousDecisionMinute <= matter.createdMinute) {
@@ -759,7 +761,7 @@ function validateCourtMatter(matter) {
   return matter;
 }
 
-function validateCourtAction(action) {
+function validateCourtAction(action, { legacy = false } = {}) {
   if (!action || typeof action !== "object" || typeof action.id !== "string" || action.id === "") {
     throw new Error("Invalid court action");
   }
@@ -768,7 +770,8 @@ function validateCourtAction(action) {
   assertFactionId(action.targetFactionId);
   if (action.secondaryFactionId !== null) assertFactionId(action.secondaryFactionId);
   if (!COURT_KINDS.has(action.kind)) throw new Error(`Invalid court action kind: ${action.kind}`);
-  for (const field of ["source", "destinationPortId", "destinationName", "headline", "detail"]) {
+  const identityField = legacy ? "destinationPortId" : "destinationCityId";
+  for (const field of ["source", identityField, "destinationName", "headline", "detail"]) {
     if (typeof action[field] !== "string" || action[field].trim() === "") {
       throw new Error(`Court action requires ${field}`);
     }
@@ -833,15 +836,11 @@ function portSnapshot(port) {
   validatePort(port, "court port snapshot");
   return {
     tileId: port.tileId,
-    portId: portIdentity(port),
+    cityId: requireCityId(port, "Court port snapshot"),
     name: portName(port),
     country: port.country || "",
     factionId: port.factionId
   };
-}
-
-function portIdentity(port) {
-  return String(port.portId || `${portName(port)}|${port.country || ""}|${port.tileId}`);
 }
 
 function portName(port) {
@@ -859,18 +858,21 @@ function validatePort(port, label) {
     throw new Error(`Invalid ${label}`);
   }
   assertFactionId(port.factionId);
+  requireCityId(port, label);
   if (!Number.isFinite(port.lat) || !Number.isFinite(port.lon)) {
     throw new Error(`${label} requires coordinates: ${portName(port)}`);
   }
   return port;
 }
 
-function validatePortSnapshot(port, label) {
-  if (!port || !Number.isInteger(port.tileId) || typeof port.portId !== "string" ||
-      port.portId === "" || typeof port.name !== "string" || port.name === "" ||
+function validatePortSnapshot(port, label, { legacy = false } = {}) {
+  const identity = legacy ? port?.portId : port?.cityId;
+  if (!port || !Number.isInteger(port.tileId) || typeof identity !== "string" ||
+      identity === "" || typeof port.name !== "string" || port.name === "" ||
       typeof port.country !== "string") {
     throw new Error(`Invalid ${label}`);
   }
+  requireEntityId(identity, label);
   assertFactionId(port.factionId);
 }
 

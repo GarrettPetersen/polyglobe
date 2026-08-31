@@ -72,6 +72,7 @@ import { shipStatsForSlug } from "./shipStats.js";
 
 const DAY = 24 * 60;
 const BORDEAUX = Object.freeze({
+  cityId: "bordeaux|france",
   tileId: 10,
   city: "Bordeaux",
   country: "France",
@@ -80,14 +81,15 @@ const BORDEAUX = Object.freeze({
   lon: -0.58
 });
 const PORT_ROYAL = Object.freeze({
-  ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
+  ...colonizationTargetForCity({ cityId: "port royal|canada" }),
   tileId: 123
 });
 const ROANOKE = Object.freeze({
-  ...colonizationTargetForCity({ city: "Roanoke", country: "United States of America" }),
+  ...colonizationTargetForCity({ cityId: "roanoke|united states of america" }),
   tileId: 124
 });
 const LONDON = Object.freeze({
+  cityId: "london|united kingdom",
   tileId: 11,
   city: "London",
   country: "United Kingdom",
@@ -144,7 +146,11 @@ test("a spawned organizer approaches once before waiting in the port menu", () =
   assignColonizationQuest(state.memory.colonization, { target: PORT_ROYAL, origin: BORDEAUX });
 
   assert.equal(colonizationOrganizerShouldApproach(state, BORDEAUX), true);
-  assert.equal(colonizationOrganizerShouldApproach(state, { city: "Lisbon", country: "Portugal" }), false);
+  assert.equal(colonizationOrganizerShouldApproach(state, {
+    cityId: "lisbon|portugal",
+    city: "Lisbon",
+    country: "Portugal"
+  }), false);
   assert.equal(markColonizationOrganizerApproached(state), true);
   assert.equal(colonizationOrganizerShouldApproach(state, BORDEAUX), false);
 });
@@ -160,6 +166,7 @@ test("all water-accessible colony sites can enter a constrained sailing offer po
   assert.equal(inlandTargets.length, 6);
   for (const target of sailingTargets) {
     const origin = {
+      cityId: `test-sponsor|${target.originTerritoryId || target.originFactionId}`,
       tileId: 9000,
       city: "Sponsor Port",
       country: target.originCountry || SPONSOR_COUNTRY_BY_FACTION[target.originFactionId],
@@ -183,7 +190,7 @@ test("all water-accessible colony sites can enter a constrained sailing offer po
 
 test("colonization offers roll infrequently, persist after being seen, and select a requested eligible site", () => {
   const state = {
-    playerCharacter: { name: "Test Captain", identityKey: "colonization-roll-test" },
+    playerCharacter: { id: "player:colonization-roll-test", name: "Test Captain" },
     memory: { colonization: createColonizationQuestMemory(), flags: {} }
   };
   const target = PORT_ROYAL;
@@ -216,10 +223,11 @@ test("colonization offers roll infrequently, persist after being seen, and selec
 
 test("an overseas colony cannot sponsor another colonial expedition", () => {
   const stJohns = {
-    ...colonizationTargetForCity({ city: "St. John's", country: "Canada" }),
+    ...colonizationTargetForCity({ cityId: "st. john's|canada" }),
     tileId: 124
   };
   const jamestown = {
+    cityId: "jamestown|united states of america",
     tileId: 125,
     city: "Jamestown",
     country: "United States of America",
@@ -229,6 +237,7 @@ test("an overseas colony cannot sponsor another colonial expedition", () => {
     lon: -76.78
   };
   const london = {
+    cityId: "london|united kingdom",
     tileId: 126,
     city: "London",
     country: "United Kingdom",
@@ -238,7 +247,7 @@ test("an overseas colony cannot sponsor another colonial expedition", () => {
     lon: -0.13
   };
   const state = {
-    playerCharacter: { identityKey: "metropolitan-colony-origin" },
+    playerCharacter: { id: "player:metropolitan-colony-origin" },
     memory: {
       colonization: createColonizationQuestMemory(),
       flags: {},
@@ -266,10 +275,11 @@ test("an overseas colony cannot sponsor another colonial expedition", () => {
 
 test("old overseas-origin saves relocate to Europe and overseas territory does not block exile sponsorship", () => {
   const stJohns = {
-    ...colonizationTargetForCity({ city: "St. John's", country: "Canada" }),
+    ...colonizationTargetForCity({ cityId: "st. john's|canada" }),
     tileId: 124
   };
   const jamestown = {
+    cityId: "jamestown|united states of america",
     tileId: 125,
     city: "Jamestown",
     country: "United States of America",
@@ -279,6 +289,7 @@ test("old overseas-origin saves relocate to Europe and overseas territory does n
     lon: -76.78
   };
   const london = {
+    cityId: "london|united kingdom",
     tileId: 126,
     city: "London",
     country: "United Kingdom",
@@ -290,6 +301,7 @@ test("old overseas-origin saves relocate to Europe and overseas territory does n
   const memory = createColonizationQuestMemory();
   assignColonizationQuest(memory, { target: stJohns, origin: london });
   memory.originTileId = jamestown.tileId;
+  memory.originCityId = jamestown.cityId;
   memory.originCity = jamestown.city;
   memory.originCountry = jamestown.country;
 
@@ -301,7 +313,7 @@ test("old overseas-origin saves relocate to Europe and overseas territory does n
   assert.equal(memory.originCity, "London");
 
   const exileState = {
-    playerCharacter: { identityKey: "overseas-only-england" },
+    playerCharacter: { id: "player:overseas-only-england" },
     memory: {
       colonization: createColonizationQuestMemory(),
       flags: {},
@@ -345,10 +357,11 @@ test("existing Port Royal quest saves bind to the generalized quest model", () =
 
 test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continues to Japan", () => {
   const nagasaki = {
-    ...colonizationTargetForCity({ city: "Nagasaki", country: "Japan" }),
+    ...colonizationTargetForCity({ cityId: "nagasaki|japan" }),
     tileId: 777
   };
   const kyoto = {
+    cityId: "kyoto|japan",
     tileId: 20,
     city: "Kyoto",
     country: "Japan",
@@ -358,6 +371,7 @@ test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continue
     lon: 135.77
   };
   const lisbon = {
+    cityId: "lisbon|portugal",
     tileId: 21,
     city: "Lisbon",
     country: "Portugal",
@@ -380,7 +394,7 @@ test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continue
   assert.deepEqual(eligibleColonizationTargetsForOrigin(kyoto, [nagasaki]), []);
 
   const state = {
-    playerCharacter: { identityKey: "nagasaki-route-test" },
+    playerCharacter: { id: "player:nagasaki-route-test" },
     memory: {
       colonization: createColonizationQuestMemory(),
       flags: {},
@@ -414,14 +428,15 @@ test("Nagasaki sails from Portugal, stops in Kyoto for permission, then continue
 
 test("Dutch West India Company expeditions originate in the Netherlands, not Lubeck", () => {
   const newAmsterdam = {
-    ...colonizationTargetForCity({ city: "New Amsterdam", country: "United States of America" }),
+    ...colonizationTargetForCity({ cityId: "new amsterdam|united states of america" }),
     tileId: 778
   };
   const fortOrange = {
-    ...colonizationTargetForCity({ city: "Fort Orange", country: "United States of America" }),
+    ...colonizationTargetForCity({ cityId: "fort orange|united states of america" }),
     tileId: 779
   };
   const utrecht = {
+    cityId: "utrecht|netherlands",
     tileId: 22,
     city: "Utrecht",
     country: "Netherlands",
@@ -430,6 +445,7 @@ test("Dutch West India Company expeditions originate in the Netherlands, not Lub
     lon: 5.12
   };
   const lubeck = {
+    cityId: "lubeck|germany",
     tileId: 23,
     city: "Lubeck",
     country: "Germany",
@@ -474,6 +490,7 @@ test("a pre-departure expedition office follows its sponsor after the origin is 
   completeColonizationFetchStage(memory, firstStage.id);
   const capturedBordeaux = { ...BORDEAUX, factionId: "england", foundingFactionId: "france" };
   const marseille = {
+    cityId: "marseille|france",
     tileId: 11,
     city: "Marseille",
     country: "France",
@@ -590,7 +607,7 @@ test("an established exile colony restores its sponsor without returning the ann
   };
   const conquest = createPortConquestMemory();
   conquest.collapsedFactionIds.push("france");
-  conquest.portFactionOverrides["city-10"] = "england";
+  conquest.portFactionOverrides[BORDEAUX.cityId] = "england";
 
   const restoredFactionId = colonizationGovernmentInExileFactionId(
     memory,
@@ -612,7 +629,7 @@ test("an established exile colony restores its sponsor without returning the ann
 
 test("a conquered founding port can offer its former ruler's colony expedition in exile", () => {
   const state = {
-    playerCharacter: { identityKey: "conquered-colony-origin" },
+    playerCharacter: { id: "player:conquered-colony-origin" },
     memory: {
       colonization: createColonizationQuestMemory(),
       flags: {},
@@ -635,7 +652,7 @@ test("a conquered founding port can offer its former ruler's colony expedition i
 
 test("a conquered founding port defers to any surviving sponsor port", () => {
   const state = {
-    playerCharacter: { identityKey: "surviving-colony-sponsor" },
+    playerCharacter: { id: "player:surviving-colony-sponsor" },
     memory: {
       colonization: createColonizationQuestMemory(),
       flags: {},
@@ -644,6 +661,7 @@ test("a conquered founding port defers to any surviving sponsor port", () => {
   };
   const capturedBordeaux = { ...BORDEAUX, factionId: "england", foundingFactionId: "france" };
   const marseille = {
+    cityId: "marseille|france",
     tileId: 11,
     city: "Marseille",
     country: "France",
@@ -717,7 +735,7 @@ test("timely resupply creates a discounted French city", () => {
 
 test("Roanoke is available from 1522 and becomes a lost-colony investigation two years after founding", () => {
   const state = {
-    playerCharacter: { identityKey: "roanoke-1522" },
+    playerCharacter: { id: "player:roanoke-1522" },
     memory: {
       colonization: createColonizationQuestMemory(),
       flags: {},
@@ -756,6 +774,7 @@ test("Roanoke is available from 1522 and becomes a lost-colony investigation two
   assert.equal(offer.aftermath.stage, COLONIZATION_AFTERMATH_MISSING);
   assert.equal(colonizationWorldRecord(offer).hiddenSettlement, true);
   assert.equal(colonizationAftermathForPort(offer, {
+    cityId: "jamestown|united states of america",
     tileId: 12,
     city: "Jamestown",
     country: "United States of America",
@@ -789,7 +808,16 @@ test("Roanoke is available from 1522 and becomes a lost-colony investigation two
 
   const gameState = createGameState({
     cargoCapacity: 20,
-    playerCharacter: { name: "Test Captain", nationalityId: "england", expressions: ["neutral"] }
+    playerCharacter: {
+      id: "player:test-captain",
+      name: "Test Captain",
+      nationalityId: "england",
+      homePortCityId: LONDON.cityId,
+      homePortTileId: LONDON.tileId,
+      homePortName: LONDON.city,
+      homePortCountry: LONDON.country,
+      expressions: ["neutral"]
+    }
   });
   gameState.memory.colonization = offer;
   const clue = shipItemRows(gameState).find((row) => row.id === ROANOKE_CLUES_ITEM_ID);
@@ -829,6 +857,7 @@ test("approaching missing Roanoke commissions the existing investigation without
   assert.equal(nearby.stage, COLONIZATION_AFTERMATH_MISSING);
 
   const jamestown = {
+    cityId: "jamestown|united states of america",
     tileId: 125,
     city: "Jamestown",
     country: "United States of America",
@@ -857,11 +886,11 @@ test("an established colony is archived before a later expedition is offered", (
   const memory = awaitingResupplyMemory();
   establishColony(memory, 1200);
   const quebec = {
-    ...colonizationTargetForCity({ city: "Quebec", country: "Canada" }),
+    ...colonizationTargetForCity({ cityId: "quebec|canada" }),
     tileId: 124
   };
   const state = {
-    playerCharacter: { name: "Test Captain", identityKey: "repeat-colonization-test" },
+    playerCharacter: { id: "player:repeat-colonization-test", name: "Test Captain" },
     memory: { colonization: memory, flags: { colonizationOrganizerApproached: true } }
   };
 
@@ -897,10 +926,11 @@ test("the colony remains a navigation destination with only fractional resupply 
 
 test("establishing Nagasaki upgrades its Japanese village with a Portuguese settlement", () => {
   const target = {
-    ...colonizationTargetForCity({ city: "Nagasaki", country: "Japan" }),
+    ...colonizationTargetForCity({ cityId: "nagasaki|japan" }),
     tileId: 789
   };
   const origin = {
+    cityId: "lisbon|portugal",
     tileId: 790,
     city: "Lisbon",
     country: "Portugal",
@@ -909,6 +939,7 @@ test("establishing Nagasaki upgrades its Japanese village with a Portuguese sett
     lon: -9.14
   };
   const approvalPort = {
+    cityId: "kyoto|japan",
     tileId: 791,
     city: "Kyoto",
     country: "Japan",
@@ -943,11 +974,12 @@ test("establishing Nagasaki upgrades its Japanese village with a Portuguese sett
 
 test("historically attacked colonies upgrade, survive a canoe defense, and await a victory report", () => {
   const target = {
-    ...colonizationTargetForCity({ city: "Jamestown", country: "United States of America" }),
+    ...colonizationTargetForCity({ cityId: "jamestown|united states of america" }),
     tileId: 456
   };
   const origin = {
     ...BORDEAUX,
+    cityId: "london|united kingdom",
     city: "London",
     country: "United Kingdom",
     factionId: "england",

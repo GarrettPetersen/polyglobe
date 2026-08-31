@@ -16,11 +16,11 @@ import {
   relocateHospitallerCaptainHome
 } from "./hospitallerMaltaQuest.js";
 
-const RHODES = Object.freeze({ tileId: 1, city: "Rhodes", country: "Greece", factionId: "ottoman" });
-const ROME = Object.freeze({ tileId: 2, city: "Rome", country: "Italy", factionId: "papal-states" });
-const MALTA = Object.freeze({ tileId: 3, city: "Birgu", country: "Malta", factionId: "spain" });
-const SEVILLE = Object.freeze({ tileId: 4, city: "Seville", country: "Spain", factionId: "spain" });
-const TRIPOLI = Object.freeze({ tileId: 5, city: "Tripoli", country: "Libya", factionId: "spain" });
+const RHODES = Object.freeze({ cityId: "rhodes|greece", tileId: 1, city: "Rhodes", country: "Greece", factionId: "ottoman" });
+const ROME = Object.freeze({ cityId: "rome|italy", tileId: 2, city: "Rome", country: "Italy", factionId: "papal-states" });
+const MALTA = Object.freeze({ cityId: "birgu|malta", tileId: 3, city: "Birgu", country: "Malta", factionId: "spain" });
+const SEVILLE = Object.freeze({ cityId: "seville|spain", tileId: 4, city: "Seville", country: "Spain", factionId: "spain" });
+const TRIPOLI = Object.freeze({ cityId: "tripoli|libya", tileId: 5, city: "Tripoli", country: "Libya", factionId: "spain" });
 const ENVOY = Object.freeze({ id: "malta-envoy", name: "Giulio Carafa" });
 
 test("the Malta restoration remains locked until a Hospitaller captain loses Rhodes", () => {
@@ -110,7 +110,7 @@ test("a Malta petition follows a displaced Spanish court instead of stranding it
     envoy: ENVOY,
     simMinute: 200
   });
-  const toledo = { tileId: 6, city: "Toledo", country: "Spain", factionId: "spain" };
+  const toledo = { cityId: "toledo|spain", tileId: 6, city: "Toledo", country: "Spain", factionId: "spain" };
 
   const result = reconcileHospitallerMaltaPetition(memory, {
     malta: MALTA,

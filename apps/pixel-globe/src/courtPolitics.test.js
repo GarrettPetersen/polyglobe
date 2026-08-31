@@ -153,9 +153,18 @@ function capital(tileId, city, country, factionId, lat, lon) {
 }
 
 function port(tileId, city, country, factionId, lat, lon, extra = {}) {
-  return Object.freeze({ tileId, city, country, factionId, lat, lon, ...extra });
+  return Object.freeze({
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
+    tileId,
+    city,
+    country,
+    factionId,
+    lat,
+    lon,
+    ...extra
+  });
 }
 
 function matterPortId(port) {
-  return `${port.city}|${port.country}|${port.tileId}`;
+  return port.cityId;
 }

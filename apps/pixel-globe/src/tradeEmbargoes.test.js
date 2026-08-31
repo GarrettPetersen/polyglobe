@@ -40,6 +40,7 @@ import { npcTradeEmbargoViolations } from "./npcSeaRoutes.js";
 const RHODES = Object.freeze({
   tileId: 12,
   portId: "city-12",
+  cityId: "rhodes|greece",
   city: "Rhodes",
   country: "Greece",
   factionId: "hospitallers"
@@ -47,6 +48,7 @@ const RHODES = Object.freeze({
 const ISTANBUL = Object.freeze({
   tileId: 13,
   portId: "city-13",
+  cityId: "istanbul|turkey",
   city: "Istanbul",
   country: "Turkey",
   factionId: "ottoman"
@@ -54,6 +56,7 @@ const ISTANBUL = Object.freeze({
 const ROUEN = Object.freeze({
   tileId: 14,
   portId: "city-14",
+  cityId: "rouen|france",
   city: "Rouen",
   country: "France",
   factionId: "france"

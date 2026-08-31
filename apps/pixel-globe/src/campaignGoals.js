@@ -4,6 +4,7 @@ import { greatCircleDistanceKm, MAX_GREAT_CIRCLE_DISTANCE_KM } from "./worldDist
 import { WHITE_WHALE_ID } from "./whaleSpecies.js";
 import { campaignRomanceEpilogue, validateCampaignVictoryRomance } from "./campaignRomance.js";
 import { characterPronouns } from "./characterPronouns.js";
+import { requireEntityId } from "./entityIds.js";
 import {
   TREASURE_MAP_PIECE_COUNT,
   createTreasureCampaignFields,
@@ -146,6 +147,7 @@ export function createCampaignGoal({ playerCharacter, startMinute = 0, type = nu
     version: CAMPAIGN_GOAL_VERSION,
     type: selectedType,
     status: CAMPAIGN_GOAL_ACTIVE,
+    homePortCityId: playerCharacter.homePortCityId,
     homePortTileId: playerCharacter.homePortTileId,
     introSeen: false,
     endingVariant: hashString32(`${playerCharacter.id}|campaign-ending`) % 4
@@ -166,6 +168,7 @@ export function validateCampaignGoal(goal) {
   if (!Number.isInteger(goal.homePortTileId) || goal.homePortTileId < 0) {
     throw new Error(`Invalid campaign home port: ${goal.homePortTileId}`);
   }
+  requireEntityId(goal.homePortCityId, "Campaign home port");
   if (typeof goal.introSeen !== "boolean") throw new Error("Campaign goal intro state must be boolean");
   if (!Number.isInteger(goal.endingVariant) || goal.endingVariant < 0 || goal.endingVariant > 3) {
     throw new Error(`Invalid campaign ending variant: ${goal.endingVariant}`);
@@ -249,6 +252,7 @@ export function campaignGoalDestinations(goal, {
     return [discoveredIds.has(goal.currentLeadDiscoveryId)
       ? {
           kind: CAMPAIGN_DESTINATION_HOME,
+          homePortCityId: goal.homePortCityId,
           homePortTileId: goal.homePortTileId,
           reason: "report-discovery"
         }
@@ -262,6 +266,7 @@ export function campaignGoalDestinations(goal, {
     if (goal.whiteWhaleKilled) {
       return [{
         kind: CAMPAIGN_DESTINATION_HOME,
+        homePortCityId: goal.homePortCityId,
         homePortTileId: goal.homePortTileId,
         reason: "return-after-white-whale"
       }];
@@ -301,6 +306,7 @@ export function campaignGoalDestinations(goal, {
     }
     return [{
       kind: CAMPAIGN_DESTINATION_HOME,
+      homePortCityId: goal.homePortCityId,
       homePortTileId: goal.homePortTileId,
       reason: treasureAmbushComplete(goal) ? "return-with-treasure" : "treasure-home-ambush"
     }];
@@ -318,6 +324,7 @@ export function campaignGoalDestinations(goal, {
   return doubloons >= payoff.requiredDoubloons
     ? [{
         kind: CAMPAIGN_DESTINATION_HOME,
+        homePortCityId: goal.homePortCityId,
         homePortTileId: goal.homePortTileId,
         reason: "pay-family-debt",
         requiredDoubloons: payoff.requiredDoubloons
@@ -539,13 +546,6 @@ export function markWhiteWhaleKilled(goal, currentMinute) {
 export function campaignGoalTypeForCharacter(playerCharacter, campaignStartsByGoal = {}) {
   assertCharacter(playerCharacter);
   return seededGoalType(playerCharacter.id, campaignStartsByGoal);
-}
-
-export function campaignGoalTypeForStoredLabel(label) {
-  if (typeof label !== "string" || label.trim() === "") return null;
-  return CAMPAIGN_GOAL_TYPE_IDS.find(
-    (type) => CAMPAIGN_GOAL_DEFINITIONS[type].label === label
-  ) || null;
 }
 
 export function campaignGoalSelectionWeights(campaignStartsByGoal = {}) {
@@ -802,7 +802,7 @@ export function campaignGoalPresentation(goal) {
 }
 
 export function createCampaignDialogueSession({
-  cityTileId,
+  cityId,
   steps,
   phase,
   continueToPortOnClose = false,
@@ -813,7 +813,7 @@ export function createCampaignDialogueSession({
   companionCharacter = null,
   participantCharacters = []
 }) {
-  if (!Number.isInteger(cityTileId) || cityTileId < 0) throw new Error(`Invalid campaign dialogue city: ${cityTileId}`);
+  requireEntityId(cityId, "Campaign dialogue city");
   if (!Array.isArray(steps) || steps.length === 0) throw new Error("Campaign dialogue requires at least one step");
   if (typeof phase !== "string" || phase === "") throw new Error("Campaign dialogue requires a phase");
   const closingModes = [victoryOnClose, retirementChoiceOnClose, retirementBlockedOnClose]
@@ -836,7 +836,7 @@ export function createCampaignDialogueSession({
   for (const entry of steps) validateDialogueStep(entry, companionCharacter, participantIds);
   return {
     kind: "campaign-goal",
-    cityTileId,
+    cityId,
     phase,
     steps,
     stepIndex: 0,
@@ -1676,6 +1676,7 @@ function compassDirection(fromLatDeg, fromLonDeg, toLatDeg, toLonDeg) {
 
 function assertCharacter(character) {
   assertPerson(character);
+  requireEntityId(character.homePortCityId, "Campaign character home port");
   if (!Number.isInteger(character.homePortTileId) || character.homePortTileId < 0) {
     throw new Error("Campaign character requires a home port");
   }

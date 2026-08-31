@@ -58,6 +58,7 @@ import {
   updateSurvival,
   validateGameState
 } from "./gameState.js";
+import { SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION } from "./specialEquipmentOffers.js";
 import { rainCollectionStrength } from "./stormSystem.js";
 import { crewHoldSpace, shipLoadoutPlan } from "./shipLoadouts.js";
 import { effectivePlayerShipStats } from "./playerPerks.js";
@@ -133,7 +134,10 @@ test("version 28 saves gain persistent special equipment offers", () => {
 
   const migrated = migrateGameState(state);
 
-  assert.equal(migrated.memory.specialEquipmentOffers.version, 1);
+  assert.equal(
+    migrated.memory.specialEquipmentOffers.version,
+    SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION
+  );
   assert.deepEqual(migrated.memory.specialEquipmentOffers.byPort, {});
   assert.equal(validateGameState(migrated), migrated);
 });
@@ -296,6 +300,9 @@ test("version 27 ship saves migrate before named crew memory exists", () => {
       id: "migration-captain",
       name: "Migration Captain",
       nationalityId: "england",
+      homePortCityId: LONDON.cityId,
+      homePortTileId: LONDON.tileId,
+      homePortName: LONDON.city,
       expressions: [{ id: "neutral" }],
       skillIds: ["organized"]
     }
@@ -705,11 +712,12 @@ test("the ship traveler manifest distinguishes passengers, envoys, and settlers"
   state.memory.quests.active = null;
   assignColonizationQuest(state.memory.colonization, {
     target: {
-      ...colonizationTargetForCity({ city: "Port Royal", country: "Canada" }),
+      ...colonizationTargetForCity({ cityId: "port royal|canada", city: "Port Royal", country: "Canada" }),
       tileId: 1
     },
     origin: {
       tileId: 2,
+      cityId: "bordeaux|france",
       city: "Bordeaux",
       country: "France",
       factionId: "france",
@@ -1038,6 +1046,10 @@ test("organized captains can apply preset and custom loadouts using effective sh
       id: "organized-loadout-captain",
       name: "Organized Captain",
       nationalityId: "england",
+      homePortCityId: LONDON.cityId,
+      homePortTileId: LONDON.tileId,
+      homePortName: LONDON.city,
+      homePortCountry: LONDON.country,
       expressions: [{ id: "neutral" }],
       skillIds: ["organized"]
     }
@@ -1112,7 +1124,7 @@ test("passenger provisions report the same trade capacity that the market enforc
     originName: "London",
     destinationTileId: 2,
     destinationName: "Porto",
-    passenger: { name: "Municipal Orrery" },
+    passenger: { id: "passenger:municipal-orrery", name: "Municipal Orrery" },
     passengerName: "Municipal Orrery",
     reward: 100
   });
@@ -1689,6 +1701,7 @@ function pirateCaptiveTestCharacter() {
 
 function port(tileId, city, country, cityType, population, factionId = null) {
   return {
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city,
     displayCity: city,

@@ -1,4 +1,5 @@
 import { inferCharacterReligion, religionById } from "./characterReligion.js";
+import { cityTerritoryId, requireCityId } from "./entityIds.js";
 import { registerCharacterProperName } from "./properNounLocalization.js";
 
 const CULTURES = Object.freeze({
@@ -417,166 +418,165 @@ const CULTURES = Object.freeze({
   )
 });
 
-const COUNTRY_CULTURES = new Map([
-  ["France", "french"], ["Spain", "spanish"], ["Portugal", "portuguese"],
-  ["Italy", "italian"], ["Austria", "germanic"], ["Belgium", "germanic"],
-  ["Germany", "germanic"], ["Netherlands", "germanic"], ["Denmark", "nordic"],
-  ["Norway", "nordic"], ["Sweden", "nordic"], ["Iceland", "icelandic"], ["Poland", "polish"],
-  ["Lithuania", "lithuanian"], ["Russian Federation", "russian"], ["Ukraine", "ruthenian"],
-  ["Hungary", "hungarian"], ["Albania", "albanian"], ["Bulgaria", "bulgarian"],
-  ["Romania", "romanian"], ["Serbia", "serbian"], ["Greece", "greek"],
-  ["Cyprus", "greek"], ["Ireland", "irish"], ["Finland", "finnish"], ["Turkey", "ottoman"],
-  ["Egypt", "arabic"], ["Iraq", "arabic"], ["Lebanon", "arabic"],
-  ["Israel", "arabic"], ["Morocco", "arabic"], ["Algeria", "arabic"],
-  ["Libya", "arabic"], ["Tunisia", "arabic"], ["Oman", "arabic"],
-  ["Saudi Arabia", "arabic"], ["Syrian Arab Republic", "arabic"], ["Yemen", "arabic"],
-  ["Iran", "persian"], ["India", "southAsian"], ["Pakistan", "southAsian"],
-  ["Nepal", "southAsian"], ["Sri Lanka", "southAsian"], ["Bangladesh", "southAsian"],
-  ["Thailand", "southeastAsian"], ["Myanmar", "southeastAsian"],
-  ["Vietnam", "southeastAsian"], ["Cambodia", "southeastAsian"],
-  ["Indonesia", "southeastAsian"], ["Malaysia", "southeastAsian"],
-  ["Brunei", "southeastAsian"], ["Lao People's Democratic Republic", "southeastAsian"],
-  ["Philippines", "southeastAsian"],
-  ["Aotearoa", "polynesian"], ["Cook Islands", "polynesian"],
-  ["Fiji", "polynesian"], ["French Polynesia", "polynesian"],
-  ["Hawaii", "polynesian"], ["Kiribati", "polynesian"],
-  ["Niue", "polynesian"], ["Rapa Nui", "polynesian"],
-  ["Samoa", "polynesian"], ["Tonga", "polynesian"],
-  ["China", "chinese"], ["Japan", "japanese"],
-  ["Republic of Korea", "korean"], ["Dem. People's Republic of Korea", "korean"],
-  ["Mali", "westAfrican"], ["Ghana", "westAfrican"], ["Nigeria", "westAfrican"],
-  ["Senegal", "westAfrican"], ["Ethiopia", "eastAfrican"], ["Kenya", "eastAfrican"],
-  ["Mozambique", "eastAfrican"], ["Tanzania", "eastAfrican"], ["Somalia", "eastAfrican"], ["Mexico", "nahua"],
-  ["Guatemala", "maya"], ["Nuu-chah-nulth", "northwestCoast"], ["Makah", "northwestCoast"],
-  ["Peru", "andean"], ["Bolivia", "andean"],
-  ["Ecuador", "andean"], ["Columbia", "andean"], ["Cuba", "spanish"],
-  ["Dominican Republic", "spanish"], ["Panama", "spanish"], ["Puerto Rico", "spanish"],
-  ["Malta", "italian"], ["Croatia", "slavic"], ["Cape Verde", "portuguese"],
-  ["Sao Tome and Principe", "portuguese"], ["Maldives", "southAsian"]
+const TERRITORY_CULTURES = new Map([
+  ["france", "french"], ["spain", "spanish"], ["portugal", "portuguese"],
+  ["italy", "italian"], ["austria", "germanic"], ["belgium", "germanic"],
+  ["germany", "germanic"], ["netherlands", "germanic"], ["denmark", "nordic"],
+  ["norway", "nordic"], ["sweden", "nordic"], ["iceland", "icelandic"], ["poland", "polish"],
+  ["lithuania", "lithuanian"], ["russian federation", "russian"], ["ukraine", "ruthenian"],
+  ["hungary", "hungarian"], ["albania", "albanian"], ["bulgaria", "bulgarian"],
+  ["romania", "romanian"], ["serbia", "serbian"], ["greece", "greek"],
+  ["cyprus", "greek"], ["ireland", "irish"], ["finland", "finnish"], ["turkey", "ottoman"],
+  ["egypt", "arabic"], ["iraq", "arabic"], ["lebanon", "arabic"],
+  ["israel", "arabic"], ["morocco", "arabic"], ["algeria", "arabic"],
+  ["libya", "arabic"], ["tunisia", "arabic"], ["oman", "arabic"],
+  ["saudi arabia", "arabic"], ["syrian arab republic", "arabic"], ["yemen", "arabic"],
+  ["iran", "persian"], ["india", "southAsian"], ["pakistan", "southAsian"],
+  ["nepal", "southAsian"], ["sri lanka", "southAsian"], ["bangladesh", "southAsian"],
+  ["thailand", "southeastAsian"], ["myanmar", "southeastAsian"],
+  ["vietnam", "southeastAsian"], ["cambodia", "southeastAsian"],
+  ["indonesia", "southeastAsian"], ["malaysia", "southeastAsian"],
+  ["brunei", "southeastAsian"], ["lao people's democratic republic", "southeastAsian"],
+  ["philippines", "southeastAsian"],
+  ["aotearoa", "polynesian"], ["cook islands", "polynesian"],
+  ["fiji", "polynesian"], ["french polynesia", "polynesian"],
+  ["hawaii", "polynesian"], ["kiribati", "polynesian"],
+  ["niue", "polynesian"], ["rapa nui", "polynesian"],
+  ["samoa", "polynesian"], ["tonga", "polynesian"],
+  ["china", "chinese"], ["japan", "japanese"],
+  ["republic of korea", "korean"], ["dem. people's republic of korea", "korean"],
+  ["mali", "westAfrican"], ["ghana", "westAfrican"], ["nigeria", "westAfrican"],
+  ["senegal", "westAfrican"], ["ethiopia", "eastAfrican"], ["kenya", "eastAfrican"],
+  ["mozambique", "eastAfrican"], ["tanzania", "eastAfrican"], ["somalia", "eastAfrican"], ["mexico", "nahua"],
+  ["guatemala", "maya"], ["nuu-chah-nulth", "northwestCoast"], ["makah", "northwestCoast"],
+  ["peru", "andean"], ["bolivia", "andean"],
+  ["ecuador", "andean"], ["columbia", "andean"], ["cuba", "spanish"],
+  ["dominican republic", "spanish"], ["panama", "spanish"], ["puerto rico", "spanish"],
+  ["malta", "italian"], ["croatia", "slavic"], ["cape verde", "portuguese"],
+  ["sao tome and principe", "portuguese"], ["maldives", "southAsian"]
 ]);
 
 const CITY_CULTURES = new Map([
-  ["prague", "czech"],
-  ["riga", "germanic"],
-  ["bakhchiserai", "crimeanTatar"],
-  ["feodosia", "crimeanTatar"],
-  ["sudak", "crimeanTatar"],
-  ["kazan", "tatar"],
-  ["samarkand", "centralAsian"],
-  ["bukhara", "centralAsian"],
-  ["kabul", "centralAsian"],
-  ["kashi", "centralAsian"],
-  ["tsinkiang", "centralAsian"],
-  ["turpan", "centralAsian"],
-  ["herat", "persian"],
-  ["kilwa", "swahili"],
-  ["mombasa", "swahili"],
-  ["sofala", "swahili"],
-  ["mozambique", "swahili"],
-  ["mogadishu", "somali"],
-  ["massawa", "ethiopian"],
-  ["axum", "ethiopian"],
-  ["zimbabwe", "shona"],
-  ["gao", "mande"],
-  ["mali", "mande"],
-  ["tombouctou", "mande"],
-  ["dienne", "mande"],
-  ["ikoso", "mande"],
-  ["oyo", "yoruba"],
-  ["kano", "hausa"],
-  ["alkalawa", "hausa"],
-  ["nkazargamu", "kanuri"],
-  ["m'banza-congo", "kongo"],
-  ["mossel bay village", "khoikhoi"],
-  ["vijayanagar", "southIndian"],
-  ["bhimavaram", "southIndian"],
-  ["madurai", "southIndian"],
-  ["chittoor", "southIndian"],
-  ["kolar", "southIndian"],
-  ["warangal", "southIndian"],
-  ["rajahmundry", "southIndian"],
-  ["calicut", "malayali"],
-  ["cochin", "malayali"],
-  ["quilon", "malayali"],
-  ["colombo", "sinhalese"],
-  ["ahmedabad", "gujarati"],
-  ["cambay", "gujarati"],
-  ["surat", "gujarati"],
-  ["diu", "gujarati"],
-  ["gauda", "bengali"],
-  ["patna", "bengali"],
-  ["kamtapur", "bengali"],
-  ["cuttack", "bengali"],
-  ["lahore", "northIndian"],
-  ["delhi", "northIndian"],
-  ["mughal", "northIndian"],
-  ["thana", "northIndian"],
-  ["chanderi", "northIndian"],
-  ["amber", "northIndian"],
-  ["mandu", "northIndian"],
-  ["ujjain", "northIndian"],
-  ["jaunpur", "northIndian"],
-  ["jodhpur", "northIndian"],
-  ["thatta", "northIndian"],
-  ["srinagar", "northIndian"],
-  ["multan", "northIndian"],
-  ["goa", "malayali"],
-  ["malacca", "malay"],
-  ["bandar seri begawan", "malay"],
-  ["aceh", "malay"],
-  ["patani", "malay"],
-  ["gresik", "javanese"],
-  ["ternate", "malukan"],
-  ["tidore", "malukan"],
-  ["banda village", "malukan"],
-  ["hitu village", "malukan"],
-  ["buru village", "malukan"],
-  ["makian village", "malukan"],
-  ["gane village", "malukan"],
-  ["bastia", "italian"],
-  ["cagliari", "italian"],
-  ["ceuta", "portuguese"],
-  ["algiers", "arabic"],
-  ["tripoli", "arabic"],
-  ["baghdad", "arabic"],
-  ["birgu", "italian"],
-  ["syracuse", "italian"],
-  ["ragusa", "slavic"],
-  ["kerkira", "greek"],
-  ["funchal", "portuguese"],
-  ["angra", "portuguese"],
-  ["las palmas", "spanish"],
-  ["ribeira grande", "portuguese"],
-  ["sao tome", "portuguese"],
-  ["suez", "arabic"],
-  ["male", "southAsian"],
-  ["maynila", "southeastAsian"],
-  ["san juan", "spanish"],
-  ["zanzibar", "swahili"],
-  ["suq", "arabic"],
-  ["mactan village", "cebuano"],
-  ["ayutthaya", "thai"],
-  ["chiang mai", "thai"],
-  ["pegu", "monBurmese"],
-  ["binh dinh", "cham"],
-  ["luang prabang", "lao"],
-  ["yuquot village", "northwestCoast"],
-  ["ozette village", "northwestCoast"],
-  ["wendat village", "wendat"],
-  ["chillicothe", "shawnee"],
-  ["guanahani village", "taino"],
-  ["coroa vermelha village", "tupi"],
-  ["xicalango", "maya"],
-  ["chakan putum", "maya"],
-  ["cuzamil", "maya"],
-  ["merida", "maya"],
-  ["tiho", "maya"],
-  ["gumarcaj", "maya"],
-  ["guatemala city", "maya"],
-  ["tzintzuntzan", "purepecha"],
-  ["veracruz", "spanish"],
-  ["naha", "ryukyuan"],
-  ["akkeshi kotan", "ainu"]
+  ["prague|austria", "czech"],
+  ["riga|russian federation", "germanic"],
+  ["bakhchiserai|ukraine", "crimeanTatar"],
+  ["feodosia|russian federation", "crimeanTatar"],
+  ["sudak|russian federation", "crimeanTatar"],
+  ["kazan|russian federation", "tatar"],
+  ["samarkand|uzbekistan", "centralAsian"],
+  ["bukhara|uzbekistan", "centralAsian"],
+  ["kabul|afghanistan", "centralAsian"],
+  ["kashi|china", "centralAsian"],
+  ["tsinkiang|china", "centralAsian"],
+  ["turpan|china", "centralAsian"],
+  ["herat|afghanistan", "persian"],
+  ["kilwa|tanzania", "swahili"],
+  ["mombasa|kenya", "swahili"],
+  ["sofala|mozambique", "swahili"],
+  ["mozambique|mozambique", "swahili"],
+  ["mogadishu|somalia", "somali"],
+  ["massawa|ethiopia", "ethiopian"],
+  ["axum|ethiopia", "ethiopian"],
+  ["zimbabwe|zimbabwe", "shona"],
+  ["gao|mali", "mande"],
+  ["mali|mali", "mande"],
+  ["tombouctou|mali", "mande"],
+  ["dienne|senegal", "mande"],
+  ["ikoso|guinea", "mande"],
+  ["oyo|nigeria", "yoruba"],
+  ["kano|nigeria", "hausa"],
+  ["alkalawa|nigeria", "hausa"],
+  ["nkazargamu|nigeria", "kanuri"],
+  ["m'banza-congo|angola", "kongo"],
+  ["mossel bay village|south africa", "khoikhoi"],
+  ["vijayanagar|india", "southIndian"],
+  ["bhimavaram|india", "southIndian"],
+  ["madurai|india", "southIndian"],
+  ["chittoor|india", "southIndian"],
+  ["kolar|india", "southIndian"],
+  ["warangal|india", "southIndian"],
+  ["rajahmundry|india", "southIndian"],
+  ["calicut|india", "malayali"],
+  ["cochin|india", "malayali"],
+  ["quilon|india", "malayali"],
+  ["colombo|sri lanka", "sinhalese"],
+  ["ahmedabad|india", "gujarati"],
+  ["cambay|india", "gujarati"],
+  ["surat|india", "gujarati"],
+  ["diu|india", "gujarati"],
+  ["gauda|india", "bengali"],
+  ["patna|india", "bengali"],
+  ["kamtapur|india", "bengali"],
+  ["cuttack|india", "bengali"],
+  ["lahore|pakistan", "northIndian"],
+  ["delhi|india", "northIndian"],
+  ["thana|india", "northIndian"],
+  ["chanderi|india", "northIndian"],
+  ["amber|india", "northIndian"],
+  ["mandu|india", "northIndian"],
+  ["ujjain|india", "northIndian"],
+  ["jaunpur|india", "northIndian"],
+  ["jodhpur|india", "northIndian"],
+  ["thatta|india", "northIndian"],
+  ["srinagar|india", "northIndian"],
+  ["multan|pakistan", "northIndian"],
+  ["goa|india", "malayali"],
+  ["malacca|malaysia", "malay"],
+  ["bandar seri begawan|brunei", "malay"],
+  ["aceh|indonesia", "malay"],
+  ["patani|thailand", "malay"],
+  ["gresik|indonesia", "javanese"],
+  ["ternate|indonesia", "malukan"],
+  ["tidore|indonesia", "malukan"],
+  ["banda village|indonesia", "malukan"],
+  ["hitu village|indonesia", "malukan"],
+  ["buru village|indonesia", "malukan"],
+  ["makian village|indonesia", "malukan"],
+  ["gane village|indonesia", "malukan"],
+  ["bastia|italy", "italian"],
+  ["cagliari|italy", "italian"],
+  ["ceuta|morocco", "portuguese"],
+  ["algiers|algeria", "arabic"],
+  ["tripoli|libya", "arabic"],
+  ["baghdad|iraq", "arabic"],
+  ["birgu|malta", "italian"],
+  ["syracuse|italy", "italian"],
+  ["ragusa|croatia", "slavic"],
+  ["kerkira|greece", "greek"],
+  ["funchal|portugal", "portuguese"],
+  ["angra|portugal", "portuguese"],
+  ["las palmas|spain", "spanish"],
+  ["ribeira grande|cape verde", "portuguese"],
+  ["sao tome|sao tome and principe", "portuguese"],
+  ["suez|egypt", "arabic"],
+  ["male|maldives", "southAsian"],
+  ["maynila|philippines", "southeastAsian"],
+  ["san juan|puerto rico", "spanish"],
+  ["zanzibar|tanzania", "swahili"],
+  ["suq|yemen", "arabic"],
+  ["mactan village|philippines", "cebuano"],
+  ["ayutthaya|thailand", "thai"],
+  ["chiang mai|thailand", "thai"],
+  ["pegu|myanmar", "monBurmese"],
+  ["binh dinh|vietnam", "cham"],
+  ["luang prabang|lao people's democratic republic", "lao"],
+  ["yuquot village|nuu-chah-nulth", "northwestCoast"],
+  ["ozette village|makah", "northwestCoast"],
+  ["wendat village|canada", "wendat"],
+  ["chillicothe|united states of america", "shawnee"],
+  ["guanahani village|bahamas", "taino"],
+  ["coroa vermelha village|brazil", "tupi"],
+  ["xicalango|mexico", "maya"],
+  ["chakan putum|mexico", "maya"],
+  ["cuzamil|mexico", "maya"],
+  ["merida|mexico", "maya"],
+  ["merida|mexico", "maya"],
+  ["gumarcaj|guatemala", "maya"],
+  ["guatemala city|guatemala", "maya"],
+  ["tzintzuntzan|mexico", "purepecha"],
+  ["veracruz|mexico", "spanish"],
+  ["naha|japan", "ryukyuan"],
+  ["akkeshi kotan|japan", "ainu"]
 ]);
 
 const FACTION_CULTURES = new Map([
@@ -634,40 +634,39 @@ const FACTION_CULTURES = new Map([
 ]);
 
 const MALUKAN_LOCATIVE_BY_CITY = new Map([
-  ["ternate", "Ternate"],
-  ["tidore", "Tidore"],
-  ["banda village", "Banda"],
-  ["hitu village", "Hitu"],
-  ["buru village", "Buru"],
-  ["makian village", "Makian"],
-  ["gane village", "Gane"]
+  ["ternate|indonesia", "Ternate"],
+  ["tidore|indonesia", "Tidore"],
+  ["banda village|indonesia", "Banda"],
+  ["hitu village|indonesia", "Hitu"],
+  ["buru village|indonesia", "Buru"],
+  ["makian village|indonesia", "Makian"],
+  ["gane village|indonesia", "Gane"]
 ]);
 
 const JAPANESE_FAMILY_NAMES_BY_CITY = new Map([
-  ["kyoto", Object.freeze(["Ashikaga", "Hino", "Ise", "Konoe", "Sanjo", "Yamana"])],
-  ["edo", Object.freeze(["Hojo", "Ota", "Chiba", "Toyoshima", "Uesugi", "Satomi"])],
-  ["sakai", Object.freeze(["Hosokawa", "Miyoshi", "Kagawa", "Kozai", "Atagi", "Yasumi"])],
-  ["yamaguchi", Object.freeze(["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"])],
-  ["fukuoka", Object.freeze(["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"])],
-  ["hakata", Object.freeze(["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"])],
-  ["kagoshima", Object.freeze(["Shimazu", "Niiro", "Ijuin", "Machida", "Kawakami", "Kabayama"])],
-  ["tsushima fuchu", Object.freeze(["So", "Yanagawa", "Hata", "Kono", "Harada"])],
-  ["nagasaki", Object.freeze(["Shoni", "Ryuzoji", "Omura", "Arima", "Matsuura", "Goto"])],
-  ["naoetsu", Object.freeze(["Nagao", "Uesugi", "Honjo", "Irobe", "Yasuda", "Nakajo"])],
-  ["tsuchizaki minato", Object.freeze(["Ando", "Asari", "Nanbu", "Tozawa", "Onodera", "Oura"])],
-  ["kaminokuni", Object.freeze(["Kakizaki", "Takeda", "Kudo", "Ando", "Shimokuni"])]
+  ["kyoto|japan", Object.freeze(["Ashikaga", "Hino", "Ise", "Konoe", "Sanjo", "Yamana"])],
+  ["edo|japan", Object.freeze(["Hojo", "Ota", "Chiba", "Toyoshima", "Uesugi", "Satomi"])],
+  ["sakai|japan", Object.freeze(["Hosokawa", "Miyoshi", "Kagawa", "Kozai", "Atagi", "Yasumi"])],
+  ["yamaguchi|japan", Object.freeze(["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"])],
+  ["fukuoka|japan", Object.freeze(["Ouchi", "Sue", "Naito", "Sugi", "Hironaka", "Yoshimi"])],
+  ["kagoshima|japan", Object.freeze(["Shimazu", "Niiro", "Ijuin", "Machida", "Kawakami", "Kabayama"])],
+  ["tsushima fuchu|japan", Object.freeze(["So", "Yanagawa", "Hata", "Kono", "Harada"])],
+  ["nagasaki|japan", Object.freeze(["Shoni", "Ryuzoji", "Omura", "Arima", "Matsuura", "Goto"])],
+  ["naoetsu|japan", Object.freeze(["Nagao", "Uesugi", "Honjo", "Irobe", "Yasuda", "Nakajo"])],
+  ["tsuchizaki minato|japan", Object.freeze(["Ando", "Asari", "Nanbu", "Tozawa", "Onodera", "Oura"])],
+  ["kaminokuni|japan", Object.freeze(["Kakizaki", "Takeda", "Kudo", "Ando", "Shimokuni"])]
 ]);
 
 const JAPANESE_FAMILY_NAMES_BY_FACTION = new Map([
-  ["japan", JAPANESE_FAMILY_NAMES_BY_CITY.get("kyoto")],
-  ["hosokawa", JAPANESE_FAMILY_NAMES_BY_CITY.get("sakai")],
-  ["ouchi", JAPANESE_FAMILY_NAMES_BY_CITY.get("yamaguchi")],
-  ["shimazu", JAPANESE_FAMILY_NAMES_BY_CITY.get("kagoshima")],
-  ["so", JAPANESE_FAMILY_NAMES_BY_CITY.get("tsushima fuchu")],
-  ["shoni", JAPANESE_FAMILY_NAMES_BY_CITY.get("nagasaki")],
-  ["nagao", JAPANESE_FAMILY_NAMES_BY_CITY.get("naoetsu")],
-  ["ando", JAPANESE_FAMILY_NAMES_BY_CITY.get("tsuchizaki minato")],
-  ["kakizaki", JAPANESE_FAMILY_NAMES_BY_CITY.get("kaminokuni")]
+  ["japan", JAPANESE_FAMILY_NAMES_BY_CITY.get("kyoto|japan")],
+  ["hosokawa", JAPANESE_FAMILY_NAMES_BY_CITY.get("sakai|japan")],
+  ["ouchi", JAPANESE_FAMILY_NAMES_BY_CITY.get("yamaguchi|japan")],
+  ["shimazu", JAPANESE_FAMILY_NAMES_BY_CITY.get("kagoshima|japan")],
+  ["so", JAPANESE_FAMILY_NAMES_BY_CITY.get("tsushima fuchu|japan")],
+  ["shoni", JAPANESE_FAMILY_NAMES_BY_CITY.get("nagasaki|japan")],
+  ["nagao", JAPANESE_FAMILY_NAMES_BY_CITY.get("naoetsu|japan")],
+  ["ando", JAPANESE_FAMILY_NAMES_BY_CITY.get("tsuchizaki minato|japan")],
+  ["kakizaki", JAPANESE_FAMILY_NAMES_BY_CITY.get("kaminokuni|japan")]
 ]);
 
 const ISLAMIC_RELIGIONS = new Set(["sunni-islam", "shia-islam", "ibadi-islam"]);
@@ -884,6 +883,7 @@ export function reconcileRegionalCharacterNameForms(root) {
       const name = nameCulture.order === "family-first"
         ? `${familyName} ${value.givenName}`
         : `${value.givenName} ${familyName}`;
+      // IDENTITY_PRESENTATION_SYNC: recalculate inflected display forms for the same character id.
       if (value.familyName !== familyName || value.name !== name) {
         if (Object.isFrozen(value)) {
           throw new Error(`Cannot reconcile frozen character name: ${value.name}`);
@@ -906,6 +906,7 @@ export function nameCultureForSubject(subject) {
 
 export function nameCultureCandidatesForSubject(subject) {
   if (!subject || typeof subject !== "object") throw new Error("Character name requires a city or home port");
+  requireCityId(subject, "Character home city");
   const localCulture = localNameCultureForSubject(subject);
   const candidates = [localCulture];
   const factionCulture = FACTION_CULTURES.get(subject.factionId);
@@ -941,16 +942,13 @@ function preferredMuhammadName({ identityKey, cultureId, gender, religionId, giv
 
 function familyNamePlanForSubject(nameCulture, cultureId, subject) {
   if (cultureId === "japanese") {
-    const cityName = normalizeName(subject.displayCity || subject.city);
-    const names = JAPANESE_FAMILY_NAMES_BY_CITY.get(cityName)
-      || JAPANESE_FAMILY_NAMES_BY_CITY.get(normalizeName(subject.city))
+    const names = JAPANESE_FAMILY_NAMES_BY_CITY.get(subject.cityId)
       || JAPANESE_FAMILY_NAMES_BY_FACTION.get(subject.factionId)
       || nameCulture.family;
     return { names, preferFirst: false };
   }
   if (cultureId !== "malukan") return { names: nameCulture.family, preferFirst: false };
-  const cityName = normalizeName(subject.displayCity || subject.city);
-  const localLocative = MALUKAN_LOCATIVE_BY_CITY.get(cityName)
+  const localLocative = MALUKAN_LOCATIVE_BY_CITY.get(subject.cityId)
     || (subject.factionId === "ternate" ? "Ternate" : null)
     || (subject.factionId === "tidore" ? "Tidore" : null);
   if (!localLocative) return { names: nameCulture.family, preferFirst: false };
@@ -969,14 +967,16 @@ function familyNamePlanForSubject(nameCulture, cultureId, subject) {
 }
 
 function localNameCultureForSubject(subject) {
-  const cityCulture = CITY_CULTURES.get(normalizeName(subject.displayCity || subject.city))
-    || CITY_CULTURES.get(normalizeName(subject.city));
+  const cityCulture = CITY_CULTURES.get(subject.cityId);
   if (cityCulture) return cityCulture;
-  if (subject.country === "United Kingdom") {
-    return subject.factionId === "scotland" || normalizeName(subject.city) === "edinburgh" ? "scottish" : "english";
+  const territoryId = cityTerritoryId(subject, "Character home city");
+  if (territoryId === "united kingdom") {
+    return subject.factionId === "scotland" || subject.cityId === "edinburgh|united kingdom"
+      ? "scottish"
+      : "english";
   }
-  const countryCulture = COUNTRY_CULTURES.get(subject.country);
-  if (countryCulture) return countryCulture;
+  const territoryCulture = TERRITORY_CULTURES.get(territoryId);
+  if (territoryCulture) return territoryCulture;
   if (subject.cityType === "east-asian") return "chinese";
   if (subject.cityType === "south-asian") return "southAsian";
   if (subject.cityType === "southeast-asian") return "southeastAsian";
@@ -1059,10 +1059,6 @@ function familyNameRootForCharacter(character) {
     throw new Error(`${character.familyName} is not a ${character.nameCulture} family name`);
   }
   return matchingRoot;
-}
-
-function normalizeName(value) {
-  return String(value || "").trim().toLowerCase();
 }
 
 function hashString32(value) {

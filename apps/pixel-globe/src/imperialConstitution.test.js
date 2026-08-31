@@ -43,10 +43,15 @@ test("Imperial membership is independent of sovereignty, suzerainty, and city di
     imperialEstateForCity({ cityId: IMPERIAL_CITY_REFERENCES.AUGSBURG.id }).factionId,
     "augsburg"
   );
-  assert.throws(
-    () => imperialEstateForCity({ city: "Augsburg", country: "Germany" }),
-    /canonical cityId/
+  assert.equal(
+    imperialEstateForCity({
+      cityId: IMPERIAL_CITY_REFERENCES.AUGSBURG.id,
+      city: "Renamed Augsburg",
+      country: "Renamed Territory"
+    }).factionId,
+    "augsburg"
   );
+  assert.equal(imperialEstateForCity({ cityId: "unknown-city|germany" }), null);
   assert.equal(IMPERIAL_CIRCLES_1512.length, 10);
 });
 

@@ -45,6 +45,7 @@ import {
 
 const homePort = Object.freeze({
   tileId: 41,
+  cityId: "porto|portugal",
   city: "Porto",
   displayCity: "Porto",
   country: "Portugal"
@@ -52,6 +53,7 @@ const homePort = Object.freeze({
 
 const wantedPort = Object.freeze({
   tileId: 72,
+  cityId: "lisbon|portugal",
   city: "Lisbon",
   displayCity: "Lisbon",
   country: "Portugal",
@@ -160,7 +162,7 @@ test("a surviving family shares a surname and gives money plus a high-value item
 
   const session = createPirateCaptiveDialogueSession(quest, {
     phase: "homecoming",
-    cityTileId: homePort.tileId,
+    cityId: homePort.cityId,
     admittedToPort: true
   });
   assert.equal(pirateCaptiveDialogueView(session, quest).speaker, familyMember.name);
@@ -189,7 +191,7 @@ test("a surviving family can complete a repeat rescue with a cash-only reward", 
 
   const session = createPirateCaptiveDialogueSession(quest, {
     phase: "homecoming",
-    cityTileId: homePort.tileId,
+    cityId: homePort.cityId,
     admittedToPort: true
   });
   selectPirateCaptiveDialogueOption(session, quest, memory, 0);
@@ -222,7 +224,7 @@ test("a captive whose family was lost asks to remain as permanent crew", () => {
   preparePirateCaptiveHomecoming(memory, quest.id, null);
   const session = createPirateCaptiveDialogueSession(quest, {
     phase: "homecoming",
-    cityTileId: homePort.tileId,
+    cityId: homePort.cityId,
     admittedToPort: true
   });
   assert.equal(pirateCaptiveDialogueView(session, quest).expressionId, "crying");
@@ -392,6 +394,7 @@ test("an armed confrontation detains an evil impostor for a preselected capital"
     "A warrant is only paper. I shall deny every word on it."
   );
   assert.deepEqual(pirateCaptiveDestination(quest), {
+    cityId: wantedPort.cityId,
     tileId: wantedPort.tileId,
     name: wantedPort.city,
     country: wantedPort.country,
@@ -418,6 +421,7 @@ test("an escaped evil impostor returns later and can be recaptured", () => {
   acceptPirateCaptiveQuest(memory, quest.id);
   recordPirateCaptiveEscape(quest, {
     currentMinute: 5000,
+    escapeOriginPortCityId: "lagos|portugal",
     escapeOriginPortTileId: 81,
     stolenPossession: { kind: "cargo", id: "wine", label: "Wine", quantity: 1 }
   });
@@ -444,6 +448,7 @@ test("an evil impostor receives a fresh powerful return after every escape", () 
   acceptPirateCaptiveQuest(memory, quest.id);
   recordPirateCaptiveEscape(quest, {
     currentMinute: 5000,
+    escapeOriginPortCityId: "lagos|portugal",
     escapeOriginPortTileId: 81
   });
   const firstShipId = quest.deception.revengeShipId;
@@ -452,6 +457,7 @@ test("an evil impostor receives a fresh powerful return after every escape", () 
 
   recordPirateCaptiveEscape(quest, {
     currentMinute: 11000,
+    escapeOriginPortCityId: "faro|portugal",
     escapeOriginPortTileId: 82
   });
   assert.equal(quest.deception.escapeCount, 2);

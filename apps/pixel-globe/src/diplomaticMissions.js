@@ -74,7 +74,7 @@ export function tributeMissionPlan(state, origin, portCities) {
   );
   if (!relationship || !suzeraintyTermsForRelationship(relationship).tribute) return null;
   const destination = sovereignCapitalForFaction(portCities, relationship.suzerainFactionId);
-  if (!destination || destination.tileId === origin.tileId) return null;
+  if (!destination || destination.cityId === origin.cityId) return null;
   const requirement = tributeCargoForOrigin(origin);
   return Object.freeze({
     destination,

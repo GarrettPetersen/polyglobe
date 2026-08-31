@@ -101,8 +101,13 @@ test("the elected Emperor's Estate connections fit the live politics layouts", (
   const state = createGameState({
     cargoCapacity: 20,
     playerCharacter: {
+      id: "player:joan-alden",
       name: "Joan Alden",
       nationalityId: "england",
+      homePortCityId: "london|united kingdom",
+      homePortTileId: 1,
+      homePortName: "London",
+      homePortCountry: "United Kingdom",
       expressions: ["neutral", "happy"]
     }
   });

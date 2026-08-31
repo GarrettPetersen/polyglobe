@@ -6,7 +6,7 @@ import {
   DIPLOMACY_WAR,
   factionById
 } from "./factions.js";
-import { cityCatalogId } from "./cityCatalogData.js";
+import { requireCityId } from "./entityIds.js";
 import {
   activeForeignSettlements,
   foreignSettlementById,
@@ -113,7 +113,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     gossipUntil: [1524, 1, 1],
     countries: ["Turkey", "Greece", "Italy", "Cyprus"],
     factionIds: ["ottoman", "venice", "genoa", "papal-states", "hospitallers", "hungary"],
-    requiredCityController: cityController("Rhodes", "Greece", "ottoman"),
+    requiredCityController: cityController("rhodes|greece", "Rhodes", "Greece", "ottoman"),
     place: "Rhodes",
     report: "the Knights of Saint John have surrendered Rhodes to Suleiman after a hard siege",
     tradeImpact: "Captains are recalculating every passage through the eastern Mediterranean.",
@@ -127,7 +127,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     factionIds: ["france", "habsburg", "spain", "venice", "genoa", "florence", "papal-states"],
     requiredActiveFactionIds: ["france", "habsburg"],
     requiredRelations: [relation("france", "habsburg", [DIPLOMACY_WAR])],
-    requiredCityController: cityController("Milan", "Italy", "habsburg"),
+    requiredCityController: cityController("milan|italy", "Milan", "Italy", "habsburg"),
     place: "Pavia",
     report: "King Francis I has been captured after the French defeat at Pavia",
     tradeImpact: "Couriers, lenders, and armorers are all charging wartime prices.",
@@ -140,7 +140,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     countries: ["India", "Pakistan", "Bangladesh"],
     factionIds: ["mughal", "gujarat", "bengal", "vijayanagara"],
     requiredActiveFactionIds: ["mughal"],
-    requiredCityController: cityController("Delhi", "India", "mughal"),
+    requiredCityController: cityController("delhi|india", "Delhi", "India", "mughal"),
     place: "Panipat",
     report: "Babur's smaller army has broken the Lodi host at Panipat with field guns and disciplined ranks",
     tradeImpact: "North Indian caravans are waiting to learn whose coin and customs will prevail.",
@@ -154,7 +154,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     factionIds: ["hungary", "habsburg", "ottoman", "poland-lithuania"],
     requiredActiveFactionIds: ["hungary", "ottoman"],
     requiredRelations: [relation("hungary", "ottoman", [DIPLOMACY_WAR])],
-    requiredCityController: cityController("Budapest", "Hungary", "hungary", "Buda"),
+    requiredCityController: cityController("budapest|hungary", "Budapest", "Hungary", "hungary", "Buda"),
     place: "Mohacs",
     report: "the Hungarian army has been shattered at Mohacs and King Louis II is dead",
     tradeImpact: "Danube traffic is nervous, and every border fortress wants provisions.",
@@ -180,7 +180,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     factionIds: ["papal-states", "habsburg", "spain", "france", "venice", "genoa", "florence"],
     requiredActiveFactionIds: ["papal-states", "habsburg"],
     requiredRelations: [relation("papal-states", "habsburg", [DIPLOMACY_WAR])],
-    requiredCityController: cityController("Rome", "Italy", "papal-states"),
+    requiredCityController: cityController("rome|italy", "Rome", "Italy", "papal-states"),
     place: "Rome",
     report: "mutinous imperial troops have stormed and sacked Rome while the Pope shelters in Castel Sant'Angelo",
     tradeImpact: "Bankers and church agents are moving valuables out of exposed cities.",
@@ -206,7 +206,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     factionIds: ["habsburg", "hungary", "ottoman", "poland-lithuania", "venice"],
     requiredActiveFactionIds: ["habsburg", "ottoman"],
     requiredRelations: [relation("habsburg", "ottoman", [DIPLOMACY_WAR])],
-    requiredCityController: cityController("Vienna", "Austria", "habsburg"),
+    requiredCityController: cityController("vienna|austria", "Vienna", "Austria", "habsburg"),
     place: "Vienna",
     report: "Suleiman's army has besieged Vienna but withdrawn without taking the city",
     tradeImpact: "The Danube ports are rebuilding walls and buying powder before anything else.",
@@ -261,7 +261,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     countries: ["Thailand", "Myanmar", "Malaysia"],
     factionIds: ["ayutthaya"],
     requiredActiveFactionIds: ["ayutthaya"],
-    requiredCityController: cityController("Ayutthaya", "Thailand", "ayutthaya"),
+    requiredCityController: cityController("ayutthaya|thailand", "Ayutthaya", "Thailand", "ayutthaya"),
     place: "Ayutthaya",
     report: "the Toungoo invasion has failed to take Ayutthaya, though Queen Suriyothai was killed defending the royal army",
     tradeImpact: "The northern roads want elephants, rice, weapons, and guards in equal measure.",
@@ -469,16 +469,16 @@ function foreignSettlementIsActive(settlementId, worldState) {
   const settlement = foreignSettlementById(settlementId);
   const matches = historicalCityMatches(
     worldState.worldCities,
-    cityCatalogId(settlement.city, settlement.country),
+    settlement.cityId,
     `${settlement.city}, ${settlement.country}`
   );
   return activeForeignSettlements(matches[0], worldState.foreignSettlementExpulsions)
     .some((entry) => entry.id === settlementId);
 }
 
-function cityController(city, country, factionId, displayCity = city) {
+function cityController(cityId, city, country, factionId, displayCity = city) {
   const requirement = Object.freeze({
-    cityId: cityCatalogId(city, country),
+    cityId,
     displayCity,
     country,
     factionId
@@ -525,7 +525,7 @@ export function validateHistoricalGossipCityCatalog(worldCities) {
       const settlement = foreignSettlementById(event.requiredForeignSettlementId);
       historicalCityMatches(
         worldCities,
-        cityCatalogId(settlement.city, settlement.country),
+        settlement.cityId,
         `${settlement.city}, ${settlement.country}`
       );
     }
@@ -545,14 +545,7 @@ function historicalWorldCityId(city) {
   if (!city || typeof city !== "object") {
     throw new Error("Historical gossip world city must be an object");
   }
-  const derivedId = cityCatalogId(city.city, city.country);
-  if (city.cityId !== undefined && city.cityId !== derivedId) {
-    throw new Error(
-      `Historical gossip world city id mismatch for ${city.city}, ${city.country}: ` +
-        `${city.cityId} != ${derivedId}`
-    );
-  }
-  return derivedId;
+  return requireCityId(city, "Historical gossip world city");
 }
 
 function historicalMinuteForDate(date, label) {

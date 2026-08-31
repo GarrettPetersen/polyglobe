@@ -1,4 +1,5 @@
 import { GINGER_GOOD_ID, tradeGoodById } from "./economy.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 import {
   questCargoDeliverableQuantity,
   questCargoDeliveryProgress
@@ -15,9 +16,9 @@ export const CARIBBEAN_GINGER_STAGE_LOCKED = "locked";
 export const CARIBBEAN_GINGER_STAGE_ACTIVE = "active";
 export const CARIBBEAN_GINGER_STAGE_COMPLETED = "completed";
 
-const CARIBBEAN_GINGER_PORTS = Object.freeze(new Set([
-  "Havana|Cuba",
-  "Santo Domingo|Dominican Republic"
+const CARIBBEAN_GINGER_CITY_IDS = Object.freeze(new Set([
+  "havana|cuba",
+  "santo domingo|dominican republic"
 ]));
 
 export const CARIBBEAN_GINGER_FETCH_STAGE = fetchStage(
@@ -32,6 +33,7 @@ export function createCaribbeanGingerQuestMemory() {
     version: CARIBBEAN_GINGER_QUEST_VERSION,
     stage: CARIBBEAN_GINGER_STAGE_LOCKED,
     cultivationTileId: null,
+    cultivationCityId: null,
     cultivationCity: null,
     cultivationCountry: null,
     offerSeen: false,
@@ -55,7 +57,7 @@ export function validateCaribbeanGingerQuestMemory(memory) {
   validateSpawnRolls(memory.spawnRolls);
 
   if (memory.stage === CARIBBEAN_GINGER_STAGE_LOCKED) {
-    if (memory.cultivationTileId !== null || memory.cultivationCity !== null ||
+    if (memory.cultivationTileId !== null || memory.cultivationCityId !== null || memory.cultivationCity !== null ||
         memory.cultivationCountry !== null || memory.offerSeen || memory.completedMinute !== null) {
       throw new Error("Locked Caribbean ginger quest contains active progress");
     }
@@ -63,6 +65,8 @@ export function validateCaribbeanGingerQuestMemory(memory) {
   }
 
   if (!Number.isInteger(memory.cultivationTileId) || memory.cultivationTileId < 0 ||
+      (memory.cultivationCityId !== null &&
+       (typeof memory.cultivationCityId !== "string" || memory.cultivationCityId === "")) ||
       typeof memory.cultivationCity !== "string" || memory.cultivationCity === "" ||
       typeof memory.cultivationCountry !== "string" || memory.cultivationCountry === "") {
     throw new Error("Caribbean ginger quest has an invalid cultivation port");
@@ -82,7 +86,7 @@ export function caribbeanGingerQuestMemory(state) {
 }
 
 export function isCaribbeanGingerQuestPort(city) {
-  return CARIBBEAN_GINGER_PORTS.has(`${city?.city}|${city?.country}`);
+  return Boolean(city) && CARIBBEAN_GINGER_CITY_IDS.has(requireCityId(city, "Caribbean ginger port"));
 }
 
 export function maybeSpawnCaribbeanGingerQuest(state, city, context = {}) {
@@ -93,18 +97,19 @@ export function maybeSpawnCaribbeanGingerQuest(state, city, context = {}) {
   }
 
   const period = rollPeriod(context.simMinute);
-  const rollKey = `${city.tileId}|${period}`;
+  const rollKey = `${requireCityId(city, "Caribbean ginger quest port")}|${period}`;
   if (memory.spawnRolls[rollKey]) return null;
   memory.spawnRolls[rollKey] = true;
   pruneRolls(memory.spawnRolls);
   const chance = spawnChance(context.spawnChance);
-  const identityKey = state.playerCharacter?.identityKey || state.playerCharacter?.name || "captain";
+  const identityKey = requireEntityId(state.playerCharacter?.id, "Caribbean ginger quest captain");
   if (chance < 1 && seededFraction(`${identityKey}|${rollKey}|caribbean-ginger`) >= chance) {
     return null;
   }
 
   memory.stage = CARIBBEAN_GINGER_STAGE_ACTIVE;
   memory.cultivationTileId = city.tileId;
+  memory.cultivationCityId = requireCityId(city, "Caribbean ginger cultivation port");
   memory.cultivationCity = city.city;
   memory.cultivationCountry = city.country;
   validateCaribbeanGingerQuestMemory(memory);
@@ -114,7 +119,7 @@ export function maybeSpawnCaribbeanGingerQuest(state, city, context = {}) {
 export function caribbeanGingerQuestState(state, city) {
   const memory = caribbeanGingerQuestMemory(state);
   if (memory.stage === CARIBBEAN_GINGER_STAGE_LOCKED) return null;
-  if (city?.tileId !== memory.cultivationTileId) return null;
+  if (city?.cityId !== memory.cultivationCityId) return null;
   assertCultivationPort(memory, city);
   const held = state.cargo?.[GINGER_GOOD_ID] || 0;
   const requirementId = caribbeanGingerRequirementId();
@@ -146,6 +151,7 @@ export function caribbeanGingerQuestState(state, city) {
     completed: memory.stage === CARIBBEAN_GINGER_STAGE_COMPLETED,
     offerSeen: memory.offerSeen,
     cultivationPort: Object.freeze({
+      cityId: memory.cultivationCityId,
       tileId: memory.cultivationTileId,
       city: memory.cultivationCity,
       country: memory.cultivationCountry
@@ -156,8 +162,8 @@ export function caribbeanGingerQuestState(state, city) {
 export function caribbeanGingerQuestPort(state, ports) {
   const memory = caribbeanGingerQuestMemory(state);
   if (memory.stage === CARIBBEAN_GINGER_STAGE_LOCKED) return null;
-  const port = ports.find((candidate) => candidate.tileId === memory.cultivationTileId) || null;
-  if (!port) throw new Error(`Caribbean ginger cultivation port is missing: ${memory.cultivationTileId}`);
+  const port = ports.find((candidate) => candidate.cityId === memory.cultivationCityId) || null;
+  if (!port) throw new Error(`Caribbean ginger cultivation port is missing: ${memory.cultivationCityId}`);
   assertCultivationPort(memory, port);
   return port;
 }
@@ -215,8 +221,8 @@ export function caribbeanGingerRequirementId() {
 }
 
 function assertCultivationPort(memory, city) {
-  if (city.tileId !== memory.cultivationTileId) {
-    throw new Error(`Caribbean ginger cultivation is bound to tile ${memory.cultivationTileId}`);
+  if (requireCityId(city, "Caribbean ginger cultivation port") !== memory.cultivationCityId) {
+    throw new Error(`Caribbean ginger cultivation is bound to ${memory.cultivationCityId}`);
   }
   memory.cultivationCity = city.displayCity || city.city;
   memory.cultivationCountry = city.country;

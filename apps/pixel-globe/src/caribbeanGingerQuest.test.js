@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGameState, migrateGameState } from "./gameState.js";
+import { migrateGameState } from "./gameState.js";
+import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import {
   CARIBBEAN_GINGER_FETCH_STAGE,
   CARIBBEAN_GINGER_STAGE_ACTIVE,
@@ -17,13 +18,14 @@ import {
   validateCaribbeanGingerQuestMemory
 } from "./caribbeanGingerQuest.js";
 
-const HAVANA = Object.freeze({ tileId: 20, city: "Havana", country: "Cuba" });
+const HAVANA = Object.freeze({ cityId: "havana|cuba", tileId: 20, city: "Havana", country: "Cuba" });
 const SANTO_DOMINGO = Object.freeze({
+  cityId: "santo domingo|dominican republic",
   tileId: 21,
   city: "Santo Domingo",
   country: "Dominican Republic"
 });
-const PANAMA = Object.freeze({ tileId: 22, city: "Panama City", country: "Panama" });
+const PANAMA = Object.freeze({ cityId: "panama city|panama", tileId: 22, city: "Panama City", country: "Panama" });
 
 test("a deterministic Caribbean port can offer the ginger cultivation quest", () => {
   const state = createGameState({ cargoCapacity: 50 });

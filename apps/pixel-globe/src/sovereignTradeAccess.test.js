@@ -4,12 +4,12 @@ import test from "node:test";
 import { createWorldEconomy, portMarket } from "./economy.js";
 import {
   buyGood,
-  createGameState,
   openSovereignTradeToFaction,
   playerTradeAccess,
   sellGood,
   sovereignTradeOpenToFaction
 } from "./gameState.js";
+import { createTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import {
   JOSEON_TRADE_POLICY_ID,
   MING_TRADE_POLICY_ID,
@@ -262,6 +262,7 @@ test("wartime trade closure is distinct from sovereign market policy", () => {
 
 function port(tileId, city, country, factionId) {
   return Object.freeze({
+    cityId: `${city.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city,
     displayCity: city,

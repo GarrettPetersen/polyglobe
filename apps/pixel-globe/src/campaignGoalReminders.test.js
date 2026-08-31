@@ -25,6 +25,7 @@ const CHARACTER = Object.freeze({
   gender: "female",
   nameCulture: "scottish",
   nationalityId: "scotland",
+  homePortCityId: "edinburgh|united kingdom",
   homePortTileId: 42,
   homePortName: "Edinburgh"
 });
@@ -146,6 +147,7 @@ test("treasure reminders report map progress and the completed map", () => {
   goal.mapPirates = Array.from({ length: TREASURE_MAP_PIECE_COUNT }, (_, index) => ({
     id: `pirate-${index}`,
     shipId: `ship-${index}`,
+    hideoutCityId: `pirate-haven-${index}|test`,
     hideoutTileId: index,
     shipSlug: "pirate-brig",
     captainName: `Pirate ${index}`

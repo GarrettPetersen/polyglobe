@@ -25,6 +25,7 @@ import {
 
 const homePort = Object.freeze({
   tileId: 72,
+  cityId: "porto|portugal",
   city: "Porto",
   displayCity: "Porto",
   country: "Portugal"
@@ -72,7 +73,7 @@ test("rescued castaways remember their captain on later visits home", () => {
   prepareCastawayHomecoming(memory, quest.id, null);
   completeCastawayQuest(memory, quest.id, { settledAtHomeMinute: 100 });
   assert.deepEqual(
-    formerRescuedTravelerCharactersAtPort([memory], homePort.tileId).map((entry) => entry.id),
+    formerRescuedTravelerCharactersAtPort([memory], homePort.cityId).map((entry) => entry.id),
     [castaway.id]
   );
 
@@ -86,14 +87,14 @@ test("rescued castaways remember their captain on later visits home", () => {
   };
   const firstEligibleMinute = 100 + 30 * 24 * 60;
   assert.equal(nextRescuedTravelerPortReunion([memory], {
-    cityTileId: homePort.tileId,
+    cityId: homePort.cityId,
     currentMinute: firstEligibleMinute - 1,
     roll: 0,
     captain,
     variantSeed: 0
   }), null);
   const reunion = nextRescuedTravelerPortReunion([memory], {
-    cityTileId: homePort.tileId,
+    cityId: homePort.cityId,
     currentMinute: firstEligibleMinute,
     roll: 0.99,
     captain,
@@ -103,14 +104,14 @@ test("rescued castaways remember their captain on later visits home", () => {
   assert.match(reunion.message, /supper was not my only reason/i);
   recordRescuedTravelerPortReunion(memory, reunion.entryId, firstEligibleMinute);
   assert.equal(nextRescuedTravelerPortReunion([memory], {
-    cityTileId: homePort.tileId,
+    cityId: homePort.cityId,
     currentMinute: firstEligibleMinute + 60 * 24 * 60 - 1,
     roll: 0,
     captain,
     variantSeed: 0
   }), null);
   assert.equal(nextRescuedTravelerPortReunion([memory], {
-    cityTileId: homePort.tileId,
+    cityId: homePort.cityId,
     currentMinute: firstEligibleMinute + 60 * 24 * 60,
     roll: 0.35,
     captain,

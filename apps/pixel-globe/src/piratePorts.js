@@ -1,4 +1,5 @@
 import { PIRATE_FACTION_ID } from "./factions.js";
+import { requireCityId } from "./entityIds.js";
 
 const PIRATE_HIDEOUT_NAMES = Object.freeze([
   "Black Gull Cove",
@@ -28,7 +29,7 @@ function playerPirateHideoutPort(port, portAlias) {
   if (!port || !Number.isInteger(port.tileId)) throw new Error("Pirate hideout requires a valid port tile");
   return Object.freeze({
     ...port,
-    portId: `pirate-hideout-${port.tileId}`,
+    portId: requireCityId(port, "Pirate hideout city"),
     portAlias,
     originalFactionId: port.factionId,
     factionId: PIRATE_FACTION_ID,

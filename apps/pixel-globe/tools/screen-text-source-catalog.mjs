@@ -73,9 +73,26 @@ const EXCLUDED_FILES = new Set([
   "screenTextLocalization.js",
   "worldWebglRenderer.js"
 ]);
+const PERSISTENT_PROPER_NOUN_TEMPLATES = Object.freeze([
+  "Alexandria",
+  "Chengdu",
+  "Havana",
+  "Lisbon",
+  "Mount Fuji",
+  "Nanjing",
+  "Port Royal",
+  "Ribeira Grande",
+  "Vienna"
+]);
+const NON_DISPLAY_VALIDATION_CALLS = new Set([
+  "requireCityId",
+  "requireEntityById",
+  "requireEntityId",
+  "requiredNpcRoutePort"
+]);
 
 export function extractScreenTextSourceCatalog(sourceRoot) {
-  const templates = new Set();
+  const templates = new Set(PERSISTENT_PROPER_NOUN_TEMPLATES);
   const files = readdirSync(sourceRoot)
     .filter((name) => name.endsWith(".js") && !name.endsWith(".test.js") && !EXCLUDED_FILES.has(name))
     .sort();
@@ -146,6 +163,8 @@ function collectDisplayFunctionBody(body, templates) {
   function visitDisplayNode(node) {
     if (ts.isNewExpression(node) && node.expression.getText() === "Error") return;
     if (ts.isCallExpression(node) && node.expression.getText().startsWith("console.")) return;
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
+        NON_DISPLAY_VALIDATION_CALLS.has(node.expression.text)) return;
     if (ts.isStringLiteralLike(node) || ts.isTemplateExpression(node) ||
         (ts.isBinaryExpression(node) && node.operatorToken.kind === ts.SyntaxKind.PlusToken)) {
       collectDisplayExpression(node, templates);
@@ -222,6 +241,8 @@ function normalizeDisplayTemplate(value) {
   if (/^\{\d+\}$/.test(normalized)) return null;
   if (/^\{0\}\s+\{1\}/.test(normalized)) return null;
   if (/^[a-z][a-z0-9_.:/-]*$/.test(normalized)) return null;
+  if (normalized.includes("{") &&
+      /^(?:\{\d+\}[:/])?[a-z0-9]+(?:[-.:/]\{?\d*\}?|[-.:/][a-z0-9]+)+$/i.test(normalized)) return null;
   const withoutPlaceholders = normalized.replace(/\{\d+\}/g, "");
   if (withoutPlaceholders.includes(".") &&
       /^[a-z][A-Za-z0-9]*(?:\.[a-z][A-Za-z0-9]*)*\.?$/.test(withoutPlaceholders)) return null;

@@ -37,6 +37,7 @@ test("player portrait selection uses a directly authored regional captain sprite
   const usedNames = new Set();
   const homePort = {
     tileId: 7,
+    cityId: "cadiz|spain",
     city: "Cadiz",
     displayCity: "Cadiz",
     country: "Spain",
@@ -88,6 +89,7 @@ test("European players draw from every expressive regional portrait", () => {
       const character = generatePlayerCharacter({
         identityKey: `european-player-${cityType}-${index}`,
         homePort: {
+          cityId: `${city.toLowerCase()}|${city === "Cadiz" ? "spain" : "united kingdom"}`,
           tileId: 100 + index,
           city,
           displayCity: city,
@@ -218,6 +220,7 @@ test("authored portrait weights provide extra slots without a separate religion 
     sourceCharacters: [monk, layperson]
   };
   const cities = [1, 2, 3].map((tileId) => ({
+    cityId: `test-port-${tileId}|china`,
     tileId,
     city: `Test Port ${tileId}`,
     displayCity: `Test Port ${tileId}`,
@@ -335,6 +338,7 @@ test("saved characters inherit corrected visual ages and consistent birthdays", 
 test("East Asian players use the authored Ming portrait group", () => {
   const homePort = {
     tileId: 12,
+    cityId: "beijing|china",
     city: "Beijing",
     displayCity: "Beijing",
     country: "China",
@@ -382,6 +386,7 @@ test("Japanese and Joseon players use their own reviewed portrait groups", () =>
       const character = generatePlayerCharacter({
         identityKey: `${profile.factionId}-player-${index}`,
         homePort: {
+          cityId: `${profile.city.toLowerCase()}|${profile.country.toLowerCase()}`,
           tileId: 200 + index,
           city: profile.city,
           displayCity: profile.city,
@@ -407,6 +412,7 @@ test("Japanese and Joseon factors and ship captains keep their sovereign portrai
   const ports = [
     {
       tileId: 301,
+      cityId: "kyoto|japan",
       city: "Kyoto",
       country: "Japan",
       factionId: "japan",
@@ -414,6 +420,7 @@ test("Japanese and Joseon factors and ship captains keep their sovereign portrai
     },
     {
       tileId: 302,
+      cityId: "seoul|republic of korea",
       city: "Seoul",
       country: "Republic of Korea",
       factionId: "joseon",
@@ -421,8 +428,8 @@ test("Japanese and Joseon factors and ship captains keep their sovereign portrai
     }
   ];
   const factors = assignPortCityCharacters(ports, GENERATED_MANIFEST, new Set());
-  assert.ok(isJapanesePortraitSourceId(factors.get(301).sourceId));
-  assert.ok(factors.get(302).sourceId.startsWith("joseon-korean-portrait-pack-by-openai-"));
+  assert.ok(isJapanesePortraitSourceId(factors.get("kyoto|japan").sourceId));
+  assert.ok(factors.get("seoul|republic of korea").sourceId.startsWith("joseon-korean-portrait-pack-by-openai-"));
 
   const ships = ports.map((currentPort, index) => ({
     id: `east-asian-sovereign-${index}`,
@@ -821,6 +828,7 @@ test("portrait expression packs produce one individual with many expressions", (
 test("player generation is deterministic for an identity key", () => {
   const homePort = {
     tileId: 11,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -841,6 +849,7 @@ test("player generation is deterministic for an identity key", () => {
 test("campaign contacts are distinct people from the home port factor", () => {
   const homePort = {
     tileId: 11,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -890,6 +899,7 @@ test("campaign contacts are distinct people from the home port factor", () => {
 test("the treasure campaign contact is an old warrior rather than a young factor", () => {
   const homePort = {
     tileId: 11,
+    cityId: "lisbon|portugal",
     city: "Lisbon",
     displayCity: "Lisbon",
     country: "Portugal",
@@ -922,6 +932,7 @@ test("Ternate and Tidore factors and patrons keep their own locatives", () => {
     [1, "Tidore", "tidore", "Ternate"]
   ]) {
     const homePort = {
+      cityId: `${cityName.toLowerCase()}|indonesia`,
       tileId: 1200 + index,
       city: cityName,
       displayCity: cityName,
@@ -955,6 +966,7 @@ test("return-home passenger generation can use destination culture", () => {
     identityKey: "passenger-lisbon-nagasaki",
     originPort: {
       tileId: 1,
+      cityId: "lisbon|portugal",
       city: "Lisbon",
       displayCity: "Lisbon",
       country: "Portugal",
@@ -964,6 +976,7 @@ test("return-home passenger generation can use destination culture", () => {
     },
     destinationPort: {
       tileId: 2,
+      cityId: "nagasaki|japan",
       city: "Nagasaki",
       displayCity: "Nagasaki",
       country: "Japan",
@@ -991,6 +1004,7 @@ test("Hajj passenger generation preserves the origin community's Islamic religio
     identityKey: "hajj-aceh-jeddah",
     originPort: {
       tileId: 13,
+      cityId: "aceh|indonesia",
       city: "Aceh",
       displayCity: "Aceh",
       country: "Indonesia",
@@ -999,6 +1013,7 @@ test("Hajj passenger generation preserves the origin community's Islamic religio
     },
     destinationPort: {
       tileId: 14,
+      cityId: "jeddah|saudi arabia",
       city: "Jeddah",
       displayCity: "Jeddah",
       country: "Saudi Arabia",
@@ -1021,6 +1036,7 @@ test("Hajj passenger generation preserves the origin community's Islamic religio
     identityKey: "hajj-goa-jeddah",
     originPort: {
       tileId: 3,
+      cityId: "goa|india",
       city: "Goa",
       displayCity: "Goa",
       country: "India",
@@ -1029,6 +1045,7 @@ test("Hajj passenger generation preserves the origin community's Islamic religio
     },
     destinationPort: {
       tileId: 14,
+      cityId: "jeddah|saudi arabia",
       city: "Jeddah",
       displayCity: "Jeddah",
       country: "Saudi Arabia",
@@ -1048,6 +1065,7 @@ test("Hajj passenger generation preserves the origin community's Islamic religio
 test("pirate captives use expressive portraits and reunite with the same family name", () => {
   const homePort = {
     tileId: 8,
+    cityId: "porto|portugal",
     city: "Porto",
     displayCity: "Porto",
     country: "Portugal",
@@ -1112,40 +1130,41 @@ test("pirate captives use expressive portraits and reunite with the same family 
 test("port assignments use their authored culture-group portrait pools", () => {
   const usedNames = new Set();
   const assignments = assignPortCityCharacters([
-    { tileId: 1, city: "Tenochtitlan", country: "Mexico", cityType: "meso-american", lat: 19.4, lon: -99.1 },
-    { tileId: 2, city: "Kilwa", country: "Tanzania", cityType: "sub-saharan", lat: -8.9, lon: 39.5 },
-    { tileId: 3, city: "Fiji Village", country: "Fiji", cityType: "polynesian", lat: -18.1, lon: 178.4 },
-    { tileId: 4, city: "Beijing", country: "China", cityType: "east-asian", lat: 39.9, lon: 116.4 },
-    { tileId: 5, city: "Vijayanagar", country: "India", cityType: "south-asian", lat: 15.3, lon: 76.5 },
-    { tileId: 6, city: "Malacca", country: "Malaysia", cityType: "southeast-asian", lat: 2.2, lon: 102.3 },
-    { tileId: 7, city: "Alexandria", country: "Egypt", cityType: "islamic-desert", lat: 31.2, lon: 29.9 }
+    { cityId: "tenochtitlan|mexico", tileId: 1, city: "Tenochtitlan", country: "Mexico", cityType: "meso-american", lat: 19.4, lon: -99.1 },
+    { cityId: "kilwa|tanzania", tileId: 2, city: "Kilwa", country: "Tanzania", cityType: "sub-saharan", lat: -8.9, lon: 39.5 },
+    { cityId: "fiji village|fiji", tileId: 3, city: "Fiji Village", country: "Fiji", cityType: "polynesian", lat: -18.1, lon: 178.4 },
+    { cityId: "beijing|china", tileId: 4, city: "Beijing", country: "China", cityType: "east-asian", lat: 39.9, lon: 116.4 },
+    { cityId: "vijayanagar|india", tileId: 5, city: "Vijayanagar", country: "India", cityType: "south-asian", lat: 15.3, lon: 76.5 },
+    { cityId: "malacca|malaysia", tileId: 6, city: "Malacca", country: "Malaysia", cityType: "southeast-asian", lat: 2.2, lon: 102.3 },
+    { cityId: "alexandria|egypt", tileId: 7, city: "Alexandria", country: "Egypt", cityType: "islamic-desert", lat: 31.2, lon: 29.9 }
   ], GENERATED_MANIFEST, usedNames);
 
-  const american = assignments.get(1);
+  const american = assignments.get("tenochtitlan|mexico");
   assert.ok(american.sourceRegions.includes("americas"));
   assert.equal(american.nameCulture, "nahua");
   assert.ok(american.name.includes(" "));
   assert.ok(PORT_PERSONALITY_IDS.includes(american.personalityId));
-  const african = assignments.get(2);
+  const african = assignments.get("kilwa|tanzania");
   assert.ok(african.sourceId.startsWith("sub-saharan-african-portrait-pack-by-openai-"));
   assert.equal(african.nameCulture, "swahili");
   assert.ok(PORT_PERSONALITY_IDS.includes(african.personalityId));
-  const polynesian = assignments.get(3);
+  const polynesian = assignments.get("fiji village|fiji");
   assert.equal(polynesian.region, "polynesia");
   assert.ok(polynesian.sourceId.startsWith("polynesian-portrait-pack-by-openai-"));
   assert.equal(polynesian.nameCulture, "polynesian");
-  const eastAsian = assignments.get(4);
+  const eastAsian = assignments.get("beijing|china");
   assert.ok(eastAsian.sourceRegions.includes("east-asia"));
   assert.equal(eastAsian.nameCulture, "chinese");
-  assert.ok(assignments.get(5).sourceId.startsWith("south-asian-portrait-pack-by-openai-"));
-  assert.ok(assignments.get(6).sourceId.startsWith("southeast-asian-portrait-pack-by-openai-"));
-  assert.ok(assignments.get(7).sourceId.startsWith("indian-ocean-portrait-pack-by-openai-"));
+  assert.ok(assignments.get("vijayanagar|india").sourceId.startsWith("south-asian-portrait-pack-by-openai-"));
+  assert.ok(assignments.get("malacca|malaysia").sourceId.startsWith("southeast-asian-portrait-pack-by-openai-"));
+  assert.ok(assignments.get("alexandria|egypt").sourceId.startsWith("indian-ocean-portrait-pack-by-openai-"));
   assert.equal(usedNames.size, 7);
 });
 
 test("a fixed port source keeps the Viking helmet portrait and an Icelandic name", () => {
   const city = {
     tileId: 64,
+    cityId: "hafnarfjordur|iceland",
     city: "Hafnarfjordur",
     country: "Iceland",
     cityType: "northern-european",
@@ -1169,6 +1188,7 @@ test("ship captains use pirate portraits only for pirate crews", () => {
     profileId: "atlantic-coast",
     currentPort: {
       routeRegion: "americas",
+      cityId: "mexico city|mexico",
       city: "Mexico City",
       country: "Mexico",
       cityType: "mesoamerican",
@@ -1195,6 +1215,7 @@ test("missing NPC captain assignments are reconciled without replacing existing 
     profileId: "indian-ocean",
     currentPort: {
       routeRegion: "indian-ocean",
+      cityId: "cambay|india",
       city: "Cambay",
       country: "India",
       cityType: "islamic-desert",
@@ -1227,6 +1248,7 @@ test("a reserved player portrait source is never reused by NPC generators", () =
   const reservedSourceId = "knight-portrait-pack-by-captainskeleto-knight-portrait";
   const exclusions = { excludedSourceIds: [reservedSourceId] };
   const ports = Array.from({ length: 70 }, (_, index) => ({
+    cityId: `mediterranean-port-${index}|spain`,
     tileId: 1000 + index,
     city: `Mediterranean Port ${index}`,
     displayCity: `Mediterranean Port ${index}`,
@@ -1246,6 +1268,7 @@ test("a reserved player portrait source is never reused by NPC generators", () =
     profileId: "mediterranean",
     currentPort: {
       routeRegion: "europe",
+      cityId: "cadiz|spain",
       city: "Cadiz",
       country: "Spain",
       cityType: "mediterranean",

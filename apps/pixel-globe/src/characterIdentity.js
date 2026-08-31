@@ -3,7 +3,6 @@ export function characterIdentityConflict(first, second) {
   assertCharacterIdentity(second, "Second character");
   if (first.id === second.id) return "id";
   if (first.sourceId === second.sourceId) return "portrait";
-  if (normalizedCharacterName(first.name) === normalizedCharacterName(second.name)) return "name";
   return null;
 }
 
@@ -42,10 +41,4 @@ function assertCharacterIdentity(character, label) {
       throw new Error(`${label} requires ${field}`);
     }
   }
-}
-
-export function normalizedCharacterName(value) {
-  if (typeof value !== "string") throw new Error("Character name must be a string");
-  const compatibilityComposition = String.fromCharCode(78, 70, 75, 67);
-  return value.trim().normalize(compatibilityComposition).toLocaleLowerCase("en");
 }

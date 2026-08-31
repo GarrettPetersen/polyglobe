@@ -19,6 +19,7 @@ test("the shared village placeholder is a nonblank transparent 36px sprite", asy
 test("substantial northern Native American settlements use their own city art", async () => {
   assert.ok(CITY_IMAGE_KEYS.includes("native-american"));
   assert.equal(cityArtKeyForCity({
+    cityId: "wendat town|canada",
     city: "Wendat Town",
     country: "Canada",
     cityType: "mesoamerican",
@@ -26,6 +27,7 @@ test("substantial northern Native American settlements use their own city art", 
     settlementType: "city"
   }), "native-american");
   assert.equal(cityArtKeyForCity({
+    cityId: "chillicothe|united states of america",
     city: "Chillicothe",
     country: "United States of America",
     cityType: "mesoamerican",
@@ -33,6 +35,7 @@ test("substantial northern Native American settlements use their own city art", 
     settlementType: "city"
   }), "native-american");
   assert.equal(cityArtKeyForCity({
+    cityId: "yuquot village|nuu-chah-nulth",
     city: "Yuquot Village",
     country: "Nuu-chah-nulth",
     cityType: "mesoamerican",
@@ -40,6 +43,7 @@ test("substantial northern Native American settlements use their own city art", 
     settlementType: "village"
   }), "village");
   assert.equal(cityArtKeyForCity({
+    cityId: "cempoala|mexico",
     city: "Cempoala",
     country: "Mexico",
     cityType: "mesoamerican",
@@ -51,8 +55,9 @@ test("substantial northern Native American settlements use their own city art", 
 
 test("historical British countries remain European without inventing the United Kingdom", () => {
   for (const country of ["England", "Scotland", "Wales"]) {
-    assert.equal(cityIsInEurope({ country }), true);
-    assert.equal(cityTypeForCity(country, 52, -2), "northern-european");
+    const cityId = `test|${country.toLocaleLowerCase("en-US")}`;
+    assert.equal(cityIsInEurope({ cityId, country }), true);
+    assert.equal(cityTypeForCity(cityId, 52, -2), "northern-european");
   }
 });
 

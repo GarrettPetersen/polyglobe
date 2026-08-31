@@ -56,6 +56,7 @@ import {
   validateAnimalCompanionMemory
 } from "./animalCompanions.js";
 import {
+  NATURALIST_QUEST_MEMORY_VERSION,
   createNaturalistQuestMemory,
   migrateNaturalistQuestMemory,
   setNaturalistQuestCharacter,
@@ -175,6 +176,7 @@ import {
   SEPTEMBER_TESTAMENT_MISSION_ID
 } from "./religiousMissions.js";
 import {
+  PAPAL_POLITICS_VERSION,
   PAPAL_MATTER_COMMISSIONED,
   advancePapalPolitics,
   convertEnglishCatholicCharacter,
@@ -185,6 +187,7 @@ import {
   validatePapalPolitics
 } from "./papalPolitics.js";
 import {
+  COURT_POLITICS_VERSION,
   advanceCourtPolitics,
   commissionCourtMatter,
   completeCourtCommission,
@@ -265,6 +268,7 @@ import {
 import { upgradeShoreBattery } from "./shoreBatteries.js";
 import {
   QUEST_ITINERARY_OPEN,
+  QUEST_ITINERARY_VERSION,
   completeQuestItineraryStop,
   createQuestItinerary,
   migrateQuestItinerary,
@@ -289,6 +293,7 @@ import {
   tradeTerms
 } from "./tradePolicy.js";
 import {
+  ILLICIT_TRADE_ENFORCEMENT_VERSION,
   beginIllicitTradeEnforcementCombat as markIllicitTradeEnforcementCombat,
   createIllicitTradeEnforcementMemory,
   illicitCargoAvailable,
@@ -301,6 +306,7 @@ import {
 import {
   PAPAL_EMBARGO_REPUTATION_PENALTY,
   TRADE_EMBARGO_AUTHORITY_PAPAL,
+  TRADE_EMBARGO_ENFORCEMENT_VERSION,
   TRADE_EMBARGO_REPUTATION_PENALTY,
   activeTradeEmbargoCombatFactionIds,
   activeTradeEmbargoOrders,
@@ -337,6 +343,7 @@ import {
   validatePortConquestMemory
 } from "./portConquest.js";
 import {
+  HOSPITALLER_MALTA_QUEST_VERSION,
   HOSPITALLER_MALTA_STAGE_PETITION,
   HOSPITALLER_MALTA_STAGE_RETURN_TO_ROME,
   createHospitallerMaltaQuestMemory,
@@ -345,6 +352,7 @@ import {
 } from "./hospitallerMaltaQuest.js";
 import {
   advanceConquistadorCampaign,
+  CONQUISTADOR_QUEST_VERSION,
   CONQUISTADOR_STAGE_CAPTURE,
   conquistadorCommissionedCaptureFactionId,
   createConquistadorQuestMemory,
@@ -441,8 +449,10 @@ import {
   validateCastawayQuestMemory
 } from "./castawayQuest.js";
 import {
+  SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION,
   completeSpecialEquipmentOfferPurchase,
   createSpecialEquipmentOfferMemory,
+  migrateSpecialEquipmentOfferMemory,
   openSpecialEquipmentOffer,
   specialEquipmentOfferEntry,
   validateSpecialEquipmentOfferMemory
@@ -469,7 +479,9 @@ import {
   validateQuestCargoDeliveryMemory
 } from "./questCargoDeliveries.js";
 import { validateVoyageStartProfile } from "./voyageStartProfile.js";
+import { requireCityId, requireEntityId } from "./entityIds.js";
 import {
+  CHART_REFRAME_DIALOGUE_MEMORY_VERSION,
   createChartReframeDialogueMemory,
   migrateChartReframeDialogueMemory,
   validateChartReframeDialogueMemory
@@ -477,6 +489,7 @@ import {
 import {
   SHIPYARD_INVESTMENT_CAPITAL,
   SHIPYARD_INVESTMENT_MATERIALS,
+  SHIPYARD_INVESTMENT_VERSION,
   beginShipyardInvestment,
   completeShipyardInvestment,
   createShipyardInvestmentMemory,
@@ -509,7 +522,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 90;
+export const GAME_STATE_VERSION = 93;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -656,7 +669,7 @@ export function createGameState({
   const normalizedPlayerCharacter = playerCharacter === null ? null : {
     ...playerCharacter,
     skillIds: playerCharacter.skillIds || characterSkillIdsForIdentity(
-      playerCharacter.id || playerCharacter.name
+      requireEntityId(playerCharacter.id, "Player character")
     )
   };
   if (normalizedPlayerCharacter !== null) assertPlayerCharacter(normalizedPlayerCharacter);
@@ -832,9 +845,11 @@ export function validateGameState(state) {
   return state;
 }
 
-export function migrateGameState(state, shipStats) {
+export function migrateGameState(state, shipStats, {
+  legacyCityIdForPortReference = null
+} = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -859,9 +874,19 @@ export function migrateGameState(state, shipStats) {
     throw new Error("Game state migration requires relations");
   }
 
+  const legacyHomePortCityId = migratedHomePortCityId(
+    state.playerCharacter,
+    state.memory?.campaignGoal,
+    legacyCityIdForPortReference
+  );
+
   const migrationVoyageSeed = typeof state.voyageSeed === "string" && state.voyageSeed.trim() !== ""
     ? state.voyageSeed
-    : worldDiplomacySeedKey(state.playerCharacter, savedGameStartMinute(state));
+    : worldDiplomacySeedKey(
+        state.playerCharacter,
+        savedGameStartMinute(state),
+        legacyHomePortCityId
+      );
   const migratedConquest = migrateConquestFactionReferences(
     state.memory?.conquest || createPortConquestMemory(),
     { splitCombinedHabsburg: state.version <= 83 }
@@ -905,6 +930,14 @@ export function migrateGameState(state, shipStats) {
   );
   const legacyPortHeading = state.memory?.navigation?.portHeading || null;
   const { portHeading: _removedPortHeading, ...legacyNavigation } = state.memory?.navigation || {};
+  const migratedNavigationWaypoints = migrateNavigationWaypointIdentities(
+    state.memory?.navigation?.optionalWaypoints || (legacyPortHeading ? [{
+      destinationTileId: legacyPortHeading.destinationTileId,
+      destinationName: legacyPortHeading.destinationName,
+      reason: legacyPortHeading.reason || PORT_NAVIGATION_REASON_NEW_SHIP
+    }] : []),
+    legacyCityIdForPortReference
+  );
   const {
     panda: legacyPandaCompanion,
     animalCompanions: savedAnimalCompanions,
@@ -916,9 +949,10 @@ export function migrateGameState(state, shipStats) {
   } = state.relations;
   const migratedPlayerCharacter = state.playerCharacter ? {
     ...state.playerCharacter,
+    homePortCityId: legacyHomePortCityId,
     nationalityId: migrateFactionIdTo1522(state.playerCharacter.nationalityId),
     skillIds: state.playerCharacter.skillIds || characterSkillIdsForIdentity(
-      state.playerCharacter.id || state.playerCharacter.name
+      requireEntityId(state.playerCharacter.id, "Saved player character")
     )
   } : state.playerCharacter;
   const migrated = {
@@ -992,7 +1026,7 @@ export function migrateGameState(state, shipStats) {
       visitedPorts: migrateVisitedPortMemories(state.memory?.visitedPorts),
       namedCrewDeathNotices: state.memory?.namedCrewDeathNotices || [],
       birthdays: state.memory?.birthdays || createBirthdayMemory(),
-      specialEquipmentOffers: state.memory?.specialEquipmentOffers || createSpecialEquipmentOfferMemory(),
+      specialEquipmentOffers: migrateSpecialEquipmentOfferMemory(state.memory?.specialEquipmentOffers),
       illicitTradeEnforcement: migrateIllicitTradeEnforcementMemory(
         state.memory?.illicitTradeEnforcement
       ),
@@ -1018,11 +1052,18 @@ export function migrateGameState(state, shipStats) {
         capturePortRolls: state.memory?.quests?.capturePortRolls || {},
         courtMissionOffers: state.memory?.quests?.courtMissionOffers || {},
         courtMissionRolls: state.memory?.quests?.courtMissionRolls || {},
-        japaneseMatchlocks: state.memory?.quests?.japaneseMatchlocks ||
-          createJapaneseMatchlockQuestMemory(),
-        caribbeanGinger: state.memory?.quests?.caribbeanGinger ||
-          createCaribbeanGingerQuestMemory(),
-        chef: state.memory?.quests?.chef || createChefQuestMemory(),
+        japaneseMatchlocks: {
+          ...createJapaneseMatchlockQuestMemory(),
+          ...(state.memory?.quests?.japaneseMatchlocks || {})
+        },
+        caribbeanGinger: {
+          ...createCaribbeanGingerQuestMemory(),
+          ...(state.memory?.quests?.caribbeanGinger || {})
+        },
+        chef: {
+          ...createChefQuestMemory(),
+          ...(state.memory?.quests?.chef || {})
+        },
         pirateCaptive: migratePirateCaptiveQuestMemory(state.memory?.quests?.pirateCaptive),
         castaway: migrateCastawayQuestMemory(state.memory?.quests?.castaway),
         naturalist: migrateNaturalistQuestMemory(state.memory?.quests?.naturalist),
@@ -1038,12 +1079,7 @@ export function migrateGameState(state, shipStats) {
         ...legacyNavigation,
         minimumCumulativeLongitudeDeg: Math.min(0, legacyNavigation.cumulativeLongitudeDeg),
         maximumCumulativeLongitudeDeg: Math.max(0, legacyNavigation.cumulativeLongitudeDeg),
-        optionalWaypoints: state.memory?.navigation?.optionalWaypoints || (legacyPortHeading ? [{
-          id: `port:${legacyPortHeading.destinationTileId}`,
-          destinationTileId: legacyPortHeading.destinationTileId,
-          destinationName: legacyPortHeading.destinationName,
-          reason: legacyPortHeading.reason || PORT_NAVIGATION_REASON_NEW_SHIP
-        }] : [])
+        optionalWaypoints: migratedNavigationWaypoints
       },
       cargoReservations: state.memory?.cargoReservations || {},
       missionItemGifts: state.memory?.missionItemGifts || {},
@@ -1052,9 +1088,11 @@ export function migrateGameState(state, shipStats) {
       achievements: migrateVoyageAchievementProgress(state.memory?.achievements),
       whales: migrateWhaleMemory(state.memory?.whales),
       icebergs: state.memory?.icebergs?.version === 1 ? state.memory.icebergs : createIcebergMemory(),
-      campaignGoal: state.memory?.campaignGoal || (playerCharacterSupportsCampaignGoal(migratedPlayerCharacter)
-        ? createCampaignGoal({ playerCharacter: migratedPlayerCharacter, startMinute: savedGameStartMinute(state) })
-        : null),
+      campaignGoal: state.memory?.campaignGoal
+        ? { ...state.memory.campaignGoal, homePortCityId: legacyHomePortCityId }
+        : (playerCharacterSupportsCampaignGoal(migratedPlayerCharacter)
+          ? createCampaignGoal({ playerCharacter: migratedPlayerCharacter, startMinute: savedGameStartMinute(state) })
+          : null),
       cartography: state.memory?.cartography || createCartographyMemory()
     }
   };
@@ -1142,7 +1180,7 @@ function createPortugueseCartazMemory() {
   return {
     issuedMinute: null,
     untilMinute: 0,
-    issuedAtPortId: null,
+    issuedAtCityId: null,
     graceUntilMinute: 0,
     inspectedShipUntilMinute: {}
   };
@@ -1155,7 +1193,7 @@ function migratePortugueseCartazMemory(memory) {
   return {
     issuedMinute: memory.issuedMinute ?? null,
     untilMinute: memory.untilMinute ?? 0,
-    issuedAtPortId: memory.issuedAtPortId ?? null,
+    issuedAtCityId: memory.issuedAtCityId ?? memory.issuedAtPortId ?? null,
     graceUntilMinute: memory.graceUntilMinute ?? 0,
     inspectedShipUntilMinute: memory.inspectedShipUntilMinute || {}
   };
@@ -1169,6 +1207,34 @@ function migrateVisitedPortMemories(memories) {
     lastDrunkVisit: memory?.lastDrunkVisit ?? null,
     lastDrunkArrivalMinute: memory?.lastDrunkArrivalMinute ?? null
   }]));
+}
+
+function migrateNavigationWaypointIdentities(waypoints, legacyCityIdForPortReference) {
+  if (!Array.isArray(waypoints)) throw new Error("Saved navigation waypoints must be an array");
+  return waypoints.map((waypoint) => {
+    let destinationCityId = waypoint.destinationCityId || null;
+    if (destinationCityId === null) {
+      if (typeof legacyCityIdForPortReference !== "function") {
+        throw new Error("Legacy navigation waypoint migration requires a canonical city resolver");
+      }
+      destinationCityId = legacyCityIdForPortReference(Object.freeze({
+        tileId: waypoint.destinationTileId,
+        name: waypoint.destinationName || null,
+        country: null
+      }));
+    }
+    requireEntityId(destinationCityId, "Saved navigation waypoint destination");
+    const migrated = { ...waypoint, destinationCityId };
+    migrated.id = portNavigationWaypointId({
+      destinationCityId,
+      destinationTileId: migrated.destinationTileId,
+      reason: migrated.reason,
+      questCargoGoodId: migrated.questCargoGoodId || null,
+      shipyardMaterialGoodId: migrated.shipyardMaterialGoodId || null,
+      tradeGoodId: migrated.tradeGoodId || null
+    });
+    return migrated;
+  });
 }
 
 function migrateRetiredFactionReferences(value) {
@@ -1216,13 +1282,15 @@ function migrateConcurrentQuestMemory(quests) {
 
 function migrateQuestCharacterSkills(quests) {
   if (!quests || typeof quests !== "object") return quests;
-  const migrateCharacter = (character, identityFallback) => character ? {
-    ...character,
-    skillIds: character.skillIds || characterSkillIdsForIdentity(
-      character.id || character.name || identityFallback,
-      { traveler: true }
-    )
-  } : character;
+  const migrateCharacter = (character, identityFallback) => {
+    if (!character) return character;
+    const id = character.id || identityFallback;
+    return {
+      ...character,
+      id,
+      skillIds: character.skillIds || characterSkillIdsForIdentity(id, { traveler: true })
+    };
+  };
   const migrateQuest = (quest, key) => quest ? {
     ...quest,
     passenger: migrateCharacter(quest.passenger, `saved-traveler|${key}`)
@@ -1326,6 +1394,7 @@ function migrateAddedAgraOwnership(conquest) {
 }
 
 export function addPortNavigationWaypoint(state, {
+  destinationCityId,
   destinationTileId,
   destinationName,
   reason,
@@ -1367,14 +1436,19 @@ export function addPortNavigationWaypoint(state, {
   if (questCargoGoodId !== null) tradeGoodById(questCargoGoodId);
   if (shipyardMaterialGoodId !== null) tradeGoodById(shipyardMaterialGoodId);
   if (tradeGoodId !== null) tradeGoodById(tradeGoodId);
+  if (typeof destinationCityId !== "string" || destinationCityId === "") {
+    throw new Error("Port navigation waypoint requires a canonical destination city id");
+  }
   const waypoint = {
     id: portNavigationWaypointId({
+      destinationCityId,
       destinationTileId,
       reason,
       questCargoGoodId,
       shipyardMaterialGoodId,
       tradeGoodId
     }),
+    destinationCityId,
     destinationTileId,
     destinationName,
     reason
@@ -1398,6 +1472,7 @@ export function addPortNavigationWaypoint(state, {
 }
 
 function portNavigationWaypointId({
+  destinationCityId,
   destinationTileId,
   reason,
   questCargoGoodId = null,
@@ -1405,15 +1480,15 @@ function portNavigationWaypointId({
   tradeGoodId = null
 }) {
   if (reason === PORT_NAVIGATION_REASON_QUEST_CARGO && questCargoGoodId) {
-    return `port:${destinationTileId}:quest-cargo:${questCargoGoodId}`;
+    return `port:${destinationCityId}:quest-cargo:${questCargoGoodId}`;
   }
   if (reason === PORT_NAVIGATION_REASON_TRADE_PRICE && tradeGoodId) {
-    return `port:${destinationTileId}:trade-price:${tradeGoodId}`;
+    return `port:${destinationCityId}:trade-price:${tradeGoodId}`;
   }
   if (reason === PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY && shipyardMaterialGoodId) {
-    return `port:${destinationTileId}:shipyard-supply:${shipyardMaterialGoodId}`;
+    return `port:${destinationCityId}:shipyard-supply:${shipyardMaterialGoodId}`;
   }
-  return `port:${destinationTileId}`;
+  return `port:${destinationCityId}`;
 }
 
 export function portNavigationReasonLabel(reason, goodId = null) {
@@ -1444,11 +1519,11 @@ export function removeOptionalNavigationWaypoint(state, waypointId) {
   return true;
 }
 
-export function clearPortNavigationWaypointsAt(state, portTileId) {
+export function clearPortNavigationWaypointsAt(state, cityId) {
   assertGameState(state);
-  if (!Number.isInteger(portTileId)) throw new Error(`Invalid arrival port tile id: ${portTileId}`);
+  requireEntityId(cityId, "Arrival city");
   const waypoints = state.memory.navigation.optionalWaypoints;
-  const remaining = waypoints.filter((entry) => entry.destinationTileId !== portTileId);
+  const remaining = waypoints.filter((entry) => entry.destinationCityId !== cityId);
   const removed = remaining.length !== waypoints.length;
   if (removed) state.memory.navigation.optionalWaypoints = remaining;
   return removed;
@@ -1668,11 +1743,11 @@ export function papalAuthorityMultiplierForState(state) {
   return papalAuthorityResponseMultiplier(state.relations.authority);
 }
 
-export function reconcileCharacterForPapalAuthority(state, character, { portTileId = null } = {}) {
+export function reconcileCharacterForPapalAuthority(state, character, { portCityId = null } = {}) {
   assertGameState(state);
-  const forcedConversions = state.memory.flags?.lutheranFactorPortTileIds;
-  if (Number.isInteger(portTileId) && Array.isArray(forcedConversions) &&
-      forcedConversions.includes(portTileId) && character?.religionId === "roman-catholic") {
+  const forcedConversions = state.memory.flags?.lutheranFactorPortCityIds;
+  if (typeof portCityId === "string" && Array.isArray(forcedConversions) &&
+      forcedConversions.includes(portCityId) && character?.religionId === "roman-catholic") {
     return Object.freeze({ ...character, religionId: "lutheran" });
   }
   return convertCatholicFactorForPapalAuthority(character, state.relations.authority);
@@ -1710,18 +1785,19 @@ export function deliverReligiousMissionLeg(state, city, context = {}) {
         source: quest.id
       })
     : null;
-  const convertedFactors = Array.isArray(state.memory.flags.lutheranFactorPortTileIds)
-    ? state.memory.flags.lutheranFactorPortTileIds
+  const convertedFactors = Array.isArray(state.memory.flags.lutheranFactorPortCityIds)
+    ? state.memory.flags.lutheranFactorPortCityIds
     : [];
-  if (!convertedFactors.includes(city.tileId)) convertedFactors.push(city.tileId);
-  state.memory.flags.lutheranFactorPortTileIds = convertedFactors;
+  const destinationCityId = requireCityId(city, "Religious mission destination");
+  if (!convertedFactors.includes(destinationCityId)) convertedFactors.push(destinationCityId);
+  state.memory.flags.lutheranFactorPortCityIds = convertedFactors;
   recordDecision(state, `quest.religious-delivery.${quest.id}.${delivery.stepNumber}`, 1);
   return Object.freeze({
     questId: quest.id,
     legNumber: delivery.stepNumber,
     legCount: delivery.stepCount,
     destinationName: stop.name,
-    convertedFactorTileId: city.tileId,
+    convertedFactorCityId: destinationCityId,
     authorityEvents,
     imperialReligiousCirculation,
     final: delivery.final,
@@ -1749,7 +1825,7 @@ export function deliverEastAsianMissionLeg(state, city, context = {}) {
     batteryUpgrade = upgradeShoreBattery(city, state.memory.flags);
     quest.eastAsianBatteryUpgrades.push(batteryUpgrade);
   }
-  recordDecision(state, `quest.east-asian-delivery.${quest.id}.${stop.tileId}`, 1);
+  recordDecision(state, `quest.east-asian-delivery.${quest.id}.${stop.cityId}`, 1);
   return Object.freeze({
     questId: quest.id,
     legNumber: delivery.stepNumber,
@@ -1777,6 +1853,7 @@ function ensurePortugueseGunsItinerary(quest, portCities) {
     const port = requireCanonicalPort(portCities, reference, "Portuguese guns itinerary");
     return {
       key: cityKey(port),
+      cityId: port.cityId,
       tileId: port.tileId,
       name: cityLabel(port),
       country: port.country || "",
@@ -1785,7 +1862,7 @@ function ensurePortugueseGunsItinerary(quest, portCities) {
   });
   quest.itinerary = createQuestItinerary(stops, {
     mode: QUEST_ITINERARY_OPEN,
-    openingStopTileId: stops[0].tileId
+    openingStopCityId: stops[0].cityId
   });
   quest.eastAsianBatteryUpgrades = [];
   return stops;
@@ -1848,12 +1925,18 @@ export function recordPeaceTreatyAuthorityForState(state, outcome) {
   return recordPeaceTreatyAuthority(state.relations.authority, outcome);
 }
 
-export function recordColonyAuthorityForState(state, factionId, cityName, simMinute, {
+export function recordColonyAuthorityForState(state, factionId, cityId, cityName, simMinute, {
   challengesPapalAuthority = false
 } = {}) {
   assertGameState(state);
   const events = [];
-  const event = recordColonyAuthority(state.relations.authority, factionId, cityName, simMinute);
+  const event = recordColonyAuthority(
+    state.relations.authority,
+    factionId,
+    cityId,
+    cityName,
+    simMinute
+  );
   if (event) events.push(event);
   if (challengesPapalAuthority) {
     events.push(...recordProtestantMissionAuthority(
@@ -1935,8 +2018,8 @@ export function settleCampaignGoalAtHome(state, city, {
   assertSimulationMinute(currentMinute);
   const goal = state.memory.campaignGoal;
   if (!goal) throw new Error("Player character has no campaign goal");
-  if (city.tileId !== goal.homePortTileId) {
-    throw new Error(`Campaign homecoming is not at the player's home port: ${city.tileId}`);
+  if (city.cityId !== goal.homePortCityId) {
+    throw new Error(`Campaign homecoming is not at the player's home port: ${city.cityId}`);
   }
 
   const outcome = goal.type === CAMPAIGN_GOAL_EXPLORER
@@ -2617,7 +2700,7 @@ export function issueSovereignWarLoanForState(state, city, ports, context = {}) 
   const simMinute = context.simMinute ?? null;
   assertSimulationMinute(simMinute);
   const offer = state.memory.quests.sovereignWarLoan.offer;
-  if (!offer || city?.portId !== offer.capitalPortId || city?.tileId !== offer.capitalTileId) {
+  if (!offer || city?.cityId !== offer.capitalPortId) {
     throw new Error("A sovereign war loan must be issued at the offering capital");
   }
   const ruler = rulerAtMinute(offer.borrowerFactionId, simMinute);
@@ -2748,7 +2831,7 @@ function requiredWarLoanAudienceAtCapital(state, city, status) {
   const currentBorrowerCapital = city?.factionId === contract.borrowerFactionId &&
     city?.isFactionCapital === true && city?.capitalOfFactionId === contract.borrowerFactionId;
   const fallenIssueCapital = status === SOVEREIGN_WAR_LOAN_DEFAULT_READY &&
-    city?.portId === contract.capitalPortId && city?.tileId === contract.capitalTileId;
+    city?.cityId === contract.capitalPortId;
   if (!currentBorrowerCapital && !fallenIssueCapital) {
     throw new Error(`War-loan audience requires the ${contract.borrowerFactionId} capital`);
   }
@@ -3881,7 +3964,7 @@ export function maybeGrantMissionPerkItem(state, city, {
   }
   const item = missionGiftItem({
     city,
-    identityKey: `${missionId}|${state.playerCharacter?.id || state.playerCharacter?.name || "captain"}`,
+    identityKey: `${missionId}|${requireEntityId(state.playerCharacter?.id, "Mission gift captain")}`,
     ownedItemIds: Object.keys(state.inventory.items).filter((id) => state.inventory.items[id] > 0)
   });
   if (!item) {
@@ -4009,7 +4092,7 @@ export function prepareHighValueMissionPerkItem(state, city, missionId) {
   if (existingItemId === null) return null;
   const item = highValueMissionGiftItem({
     city,
-    identityKey: `${missionId}|${state.playerCharacter?.id || state.playerCharacter?.name || "captain"}`,
+    identityKey: `${missionId}|${requireEntityId(state.playerCharacter?.id, "High-value mission gift captain")}`,
     ownedItemIds: Object.keys(state.inventory.items).filter((id) => state.inventory.items[id] > 0)
   });
   state.memory.missionItemGifts[missionId] = item?.id || null;
@@ -4394,7 +4477,7 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
   const active = quests.active;
   if (!isEnvoyQuest(active)) throw new Error("No active envoy mission to negotiate");
   if (active.stage !== "outbound") throw new Error(`Envoy mission is not outbound: ${active.stage}`);
-  if (active.targetTileId !== city?.tileId || active.destinationTileId !== city?.tileId) {
+  if (active.targetCityId !== city?.cityId || active.destinationCityId !== city?.cityId) {
     throw new Error(`Envoy negotiations belong in ${active.targetName}, not ${cityLabel(city)}`);
   }
   assertSimulationMinute(context.simMinute);
@@ -4504,6 +4587,7 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
   active.stage = "return";
   active.negotiatedAtMinute = context.simMinute;
   active.destinationKey = active.originKey;
+  active.destinationCityId = active.originCityId;
   active.destinationTileId = active.originTileId;
   active.destinationName = active.originName;
   active.destinationCountry = active.originCountry;
@@ -4695,7 +4779,7 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
   const hostRuler = rulerAtMinute(factionId, simMinute);
   const catholicContraband = Boolean(
     passengerQuest &&
-    passengerQuest.originTileId !== city.tileId &&
+    passengerQuest.originCityId !== city.cityId &&
     religiousMissionIsCatholicContraband(passengerQuest) &&
     hostRuler &&
     isRomanCatholicReligion(hostRuler.religionId)
@@ -5828,7 +5912,7 @@ export function portugueseCartazStatus(state, city, simMinute, cargoCapacity = s
     exempt: traderFactionId === PORTUGUESE_FACTION_ID,
     valid: traderFactionId === PORTUGUESE_FACTION_ID || memory.untilMinute > simMinute,
     untilMinute: memory.untilMinute,
-    issuedAtPortId: memory.issuedAtPortId,
+    issuedAtCityId: memory.issuedAtCityId,
     fee,
     relation,
     canPurchase: fee !== null && traderFactionId !== PORTUGUESE_FACTION_ID &&
@@ -5845,7 +5929,7 @@ export function purchasePortugueseCartaz(state, city, simMinute) {
   state.relations.portugueseCartaz.issuedMinute = simMinute;
   state.relations.portugueseCartaz.untilMinute = simMinute +
     PORTUGUESE_CARTAZ_DURATION_DAYS * 24 * 60;
-  state.relations.portugueseCartaz.issuedAtPortId = city.portId || `city-${city.tileId}`;
+  state.relations.portugueseCartaz.issuedAtCityId = requireCityId(city, "Cartaz issuing city");
   state.relations.portugueseCartaz.graceUntilMinute = 0;
   recordDecision(state, "trade.portuguese-cartaz.purchased", 1);
   recordLedgerEntry(state, city, { simMinute }, {
@@ -6163,7 +6247,7 @@ export function portMemory(state, city) {
 }
 
 function requiredPortMemory(state, city) {
-  const key = city.portId || cityKey(city);
+  const key = requireCityId(city, "Visited port");
   let memory = state.memory.visitedPorts[key];
   if (!memory) {
     memory = createPortVisitMemory();
@@ -6189,7 +6273,7 @@ export function deliveryQuestForCity(city, portCities, {
   if (!factionId || !regionKey) return null;
   const candidates = portCities
     .filter((port) => (
-      port.tileId !== city.tileId &&
+      port.cityId !== city.cityId &&
       port.factionId === factionId &&
       deliveryRegionKey(port) === regionKey
     ))
@@ -6208,7 +6292,7 @@ export function deliveryQuestForCity(city, portCities, {
   ) % 96) + (onboarding ? 50 : 0);
   const distanceKm = Math.round(greatCircleDistanceKm(city, destination));
   return {
-    id: `delivery-${city.tileId}-${destination.tileId}-${offerPeriod}`,
+    id: `delivery-${hashString32(`${city.cityId}|${destination.cityId}`).toString(36)}-${offerPeriod}`,
     kind: "delivery",
     onboarding,
     onboardingIndex,
@@ -6222,12 +6306,14 @@ export function deliveryQuestForCity(city, portCities, {
     completionText: scenario?.completion || null,
     offerPeriod,
     originKey: cityKey(city),
+    originCityId: city.cityId,
     originTileId: city.tileId,
     originName: cityLabel(city),
     originCountry: city.country || "",
     factionId,
     regionKey,
     destinationKey: cityKey(destination),
+    destinationCityId: destination.cityId,
     destinationTileId: destination.tileId,
     destinationName: cityLabel(destination),
     destinationCountry: destination.country || "",
@@ -6299,7 +6385,7 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
     issuerFactionId,
     candidate
   );
-  const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
+  const identityKey = requireEntityId(state.playerCharacter?.id, "Capture commission captain");
   if (spawnChance < 1 &&
       seededFraction(`${state.voyageSeed}|${identityKey}|${rollKey}|capture-commission`) >= spawnChance) {
     return null;
@@ -6539,11 +6625,12 @@ function createCapturePortMissionOffer(
   if (!ruler) throw new Error(`Capture-port commission has no ruler for ${issuerFactionId}`);
   const reward = capturePortMissionReward(candidate.port, candidate.distanceKm, candidate.kind);
   const offer = {
-    id: `${candidate.kind}-${issuerFactionId}-${city.tileId}-${candidate.port.tileId}-${offerPeriod}-` +
+    id: `${candidate.kind}-${issuerFactionId}-${hashString32(`${city.cityId}|${candidate.port.cityId}`).toString(36)}-${offerPeriod}-` +
       `${captureCommissionSequence(quests)}`,
     kind: candidate.kind,
     stage: "capture",
     originKey: cityKey(city),
+    originCityId: city.cityId,
     originTileId: city.tileId,
     originName: cityLabel(city),
     originCountry: city.country || "",
@@ -6552,6 +6639,7 @@ function createCapturePortMissionOffer(
     originFactionAdjective: issuer.adjective,
     originRulerName: ruler.displayName,
     targetKey: cityKey(candidate.port),
+    targetCityId: candidate.port.cityId,
     targetTileId: candidate.port.tileId,
     targetName: cityLabel(candidate.port),
     targetCountry: candidate.port.country || "",
@@ -6562,6 +6650,7 @@ function createCapturePortMissionOffer(
     targetFactionNoun: enemy ? factionNounPhrase(enemy.id) : null,
     independentTarget,
     destinationKey: cityKey(candidate.port),
+    destinationCityId: candidate.port.cityId,
     destinationTileId: candidate.port.tileId,
     destinationName: cityLabel(candidate.port),
     destinationCountry: candidate.port.country || "",
@@ -6607,7 +6696,7 @@ function commissionedPortCaptureFactionIdForValidState(state, city) {
   if (conquistadorFactionId) return conquistadorFactionId;
   const quest = questMemory(state).active;
   if (!isCaptureCommissionQuest(quest) || quest.stage !== "capture" ||
-      quest.targetTileId !== city.tileId) return null;
+      quest.targetCityId !== city.cityId) return null;
   return assertFactionId(quest.originFactionId);
 }
 
@@ -6702,10 +6791,10 @@ export function advanceCapturePortMissionAfterConquest(state, city, event, simMi
   assertSimulationMinute(simMinute);
   const quest = questMemory(state).active;
   if (!isCaptureCommissionQuest(quest)) return null;
-  if (quest.stage !== "capture" || quest.targetTileId !== city?.tileId) {
+  if (quest.stage !== "capture" || quest.targetCityId !== city?.cityId) {
     throw new Error(`Capture-port commission does not target ${cityLabel(city)}`);
   }
-  if (!event || event.cityTileId !== city.tileId) {
+  if (!event || event.cityId !== city.cityId) {
     throw new Error("Capture-port commission received the wrong conquest event");
   }
   if (event.newFactionId !== quest.originFactionId || event.source !== "player") {
@@ -6714,6 +6803,7 @@ export function advanceCapturePortMissionAfterConquest(state, city, event, simMi
   quest.stage = "return";
   quest.capturedAtMinute = simMinute;
   quest.destinationKey = quest.originKey;
+  quest.destinationCityId = quest.originCityId;
   quest.destinationTileId = quest.originTileId;
   quest.destinationName = quest.originName;
   quest.destinationCountry = quest.originCountry;
@@ -6726,15 +6816,15 @@ export function capturePortMissionMatchesConquest(state, city, event) {
   if (!city || !Number.isInteger(city.tileId)) {
     throw new Error("Capture-port mission matching requires a city");
   }
-  if (!event || !Number.isInteger(event.cityTileId) || !event.newFactionId) {
+  if (!event || typeof event.cityId !== "string" || !event.newFactionId) {
     throw new Error("Capture-port mission matching requires a conquest event");
   }
   const quest = questMemory(state).active;
   return Boolean(
     isCaptureCommissionQuest(quest) &&
     quest.stage === "capture" &&
-    quest.targetTileId === city.tileId &&
-    event.cityTileId === city.tileId &&
+    quest.targetCityId === city.cityId &&
+    event.cityId === city.cityId &&
     event.newFactionId === quest.originFactionId &&
     event.source === "player"
   );
@@ -6951,7 +7041,7 @@ function captureCommissionPetitionChance(state, issuerFactionId, candidate) {
 }
 
 function captureCommissionSelectionSeed(state, city, issuerFactionId, offerPeriod, purpose) {
-  const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
+  const identityKey = requireEntityId(state.playerCharacter?.id, "Capture commission captain");
   return `${state.voyageSeed}|${identityKey}|${cityKey(city)}|${issuerFactionId}|` +
     `${offerPeriod}|${captureCommissionSequence(questMemory(state))}|${purpose}`;
 }
@@ -7016,19 +7106,22 @@ export function wokouHuntMissionOfferForCity(state, city, portCities, context = 
   if (!ruler) throw new Error(`Wokou commission has no ruler for ${factionId}`);
   const reward = 700 + hashString32(`${rollKey}|reward`) % 401;
   const offer = {
-    id: `wokou-hunt-${factionId}-${city.tileId}-${patrolPort.tileId}-${period}`,
+    id: `wokou-hunt-${factionId}-${hashString32(`${city.cityId}|${patrolPort.cityId}`).toString(36)}-${period}`,
     kind: WOKOU_HUNT_QUEST_KIND,
     stage: "hunt",
     originKey: cityKey(city),
+    originCityId: city.cityId,
     originTileId: city.tileId,
     originName: cityLabel(city),
     originCountry: city.country || "",
     originFactionId: factionId,
     originRulerName: ruler.displayName,
     patrolKey: cityKey(patrolPort),
+    patrolCityId: patrolPort.cityId,
     patrolTileId: patrolPort.tileId,
     patrolName: cityLabel(patrolPort),
     destinationKey: cityKey(patrolPort),
+    destinationCityId: patrolPort.cityId,
     destinationTileId: patrolPort.tileId,
     destinationName: cityLabel(patrolPort),
     destinationCountry: patrolPort.country || "",
@@ -7061,6 +7154,7 @@ export function recordWokouHuntVictory(state, shipId, context = {}) {
   active.stage = "return";
   active.defeatedAtMinute = context.simMinute ?? 0;
   active.destinationKey = active.originKey;
+  active.destinationCityId = active.originCityId;
   active.destinationTileId = active.originTileId;
   active.destinationName = active.originName;
   active.destinationCountry = active.originCountry;
@@ -7094,7 +7188,7 @@ export function deliveryOfferForCity(state, city, portCities, context = {}) {
   const spawnChance = context.spawnChance === undefined && candidate.onboarding
     ? 1
     : deliverySpawnChance(context.spawnChance);
-  const identityKey = state.playerCharacter?.id || state.playerCharacter?.name || "captain";
+  const identityKey = requireEntityId(state.playerCharacter?.id, "Delivery mission captain");
   if (spawnChance < 1 && seededFraction(`${identityKey}|${rollKey}|delivery`) >= spawnChance) {
     return null;
   }
@@ -7158,11 +7252,26 @@ export function reconcileQuestPortTiles(state, portCities, {
   const quests = questMemory(state);
   let updates = 0;
 
+  const cartazIssuerId = state.relations.portugueseCartaz.issuedAtCityId;
+  if (cartazIssuerId !== null) {
+    const matches = portCities.filter((city) => (
+      city.cityId === cartazIssuerId || city.portId === cartazIssuerId
+    ));
+    if (matches.length !== 1) {
+      throw new Error(`Saved cartaz issuer ${cartazIssuerId} resolves to ${matches.length} cities`);
+    }
+    if (state.relations.portugueseCartaz.issuedAtCityId !== matches[0].cityId) {
+      state.relations.portugueseCartaz.issuedAtCityId = matches[0].cityId;
+      updates += 1;
+    }
+  }
+
   const reconcile = (quest) => {
     if (!quest || typeof quest !== "object") return;
     updates += reconcileQuestEndpoint(quest, "origin", portCities, legacyPortTileIds);
     updates += reconcileQuestEndpoint(quest, "destination", portCities, legacyPortTileIds);
     updates += reconcileQuestItinerary(quest, portCities, legacyPortTileIds);
+    updates += reconcileNpcEncounterManifestPortIds(quest, portCities, legacyPortTileIds);
     if (isEnvoyQuest(quest)) {
       updates += reconcileQuestEndpoint(quest, "target", portCities, legacyPortTileIds);
     }
@@ -7205,21 +7314,25 @@ export function reconcileQuestPortTiles(state, portCities, {
   }
   quests.capturePortOffers = captureOffers;
 
-  updates += reconcileNestedHomePortReferences(state, portCities, legacyPortTileIds);
+  updates += reconcileNestedPortReferences(state, portCities, legacyPortTileIds);
 
   const reconciledWaypoints = [];
   for (const waypoint of state.memory.navigation.optionalWaypoints) {
     const destination = reconciledPortReference(portCities, {
+      cityId: waypoint.destinationCityId,
       tileId: waypoint.destinationTileId,
       name: waypoint.destinationName
     }, legacyPortTileIds);
     if (destination && (
+      destination.cityId !== waypoint.destinationCityId ||
       destination.tileId !== waypoint.destinationTileId ||
       cityLabel(destination) !== waypoint.destinationName
     )) {
+      waypoint.destinationCityId = destination.cityId;
       waypoint.destinationTileId = destination.tileId;
       waypoint.destinationName = cityLabel(destination);
       waypoint.id = portNavigationWaypointId({
+        destinationCityId: destination.cityId,
         destinationTileId: destination.tileId,
         reason: waypoint.reason,
         questCargoGoodId: waypoint.questCargoGoodId || null,
@@ -7234,70 +7347,107 @@ export function reconcileQuestPortTiles(state, portCities, {
   state.memory.navigation.optionalWaypoints = reconciledWaypoints;
 
   const playerHome = reconciledPortReference(portCities, {
+    cityId: state.playerCharacter?.homePortCityId,
     tileId: state.playerCharacter?.homePortTileId,
     name: state.playerCharacter?.homePortName,
     country: state.playerCharacter?.homePortCountry
   }, legacyPortTileIds);
   if (playerHome && (
+    playerHome.cityId !== state.playerCharacter.homePortCityId ||
     playerHome.tileId !== state.playerCharacter.homePortTileId ||
     cityLabel(playerHome) !== state.playerCharacter.homePortName ||
     (playerHome.country || "") !== state.playerCharacter.homePortCountry
   )) {
+    state.playerCharacter.homePortCityId = playerHome.cityId;
     state.playerCharacter.homePortTileId = playerHome.tileId;
     state.playerCharacter.homePortName = cityLabel(playerHome);
     state.playerCharacter.homePortCountry = playerHome.country || "";
-    if (state.memory.campaignGoal) state.memory.campaignGoal.homePortTileId = playerHome.tileId;
+    if (state.memory.campaignGoal) {
+      state.memory.campaignGoal.homePortCityId = playerHome.cityId;
+      state.memory.campaignGoal.homePortTileId = playerHome.tileId;
+    }
     updates += 1;
   }
 
   for (const memoryKey of ["pirateCaptive", "castaway"]) {
-    const traveler = quests[memoryKey]?.active;
-    const home = reconciledPortReference(portCities, {
-      tileId: traveler?.homePortTileId,
-      name: traveler?.homePortName,
-      country: traveler?.homePortCountry
+    const memory = quests[memoryKey];
+    const travelers = [memory?.active, ...(memory?.formerTravelers || [])].filter(Boolean);
+    for (const traveler of travelers) {
+      const home = reconciledPortReference(portCities, {
+        cityId: traveler.homePortCityId,
+        tileId: traveler.homePortTileId,
+        name: traveler.homePortName,
+        country: traveler.homePortCountry
+      }, legacyPortTileIds);
+      if (home && (
+        home.cityId !== traveler.homePortCityId ||
+        home.tileId !== traveler.homePortTileId ||
+        cityLabel(home) !== traveler.homePortName ||
+        (home.country || "") !== traveler.homePortCountry
+      )) {
+        traveler.homePortCityId = home.cityId;
+        traveler.homePortTileId = home.tileId;
+        traveler.homePortName = cityLabel(home);
+        traveler.homePortCountry = home.country || "";
+        updates += 1;
+      }
+    }
+  }
+  const pirateDeception = quests.pirateCaptive?.active?.deception;
+  if (pirateDeception) {
+    const wantedPort = reconciledPortReference(portCities, {
+      cityId: pirateDeception.wantedPortCityId,
+      tileId: pirateDeception.wantedPortTileId
     }, legacyPortTileIds);
-    if (home && (
-      home.tileId !== traveler.homePortTileId ||
-      cityLabel(home) !== traveler.homePortName ||
-      (home.country || "") !== traveler.homePortCountry
-    )) {
-      traveler.homePortTileId = home.tileId;
-      traveler.homePortName = cityLabel(home);
-      traveler.homePortCountry = home.country || "";
+    if (!wantedPort) throw new Error("Pirate captive wanted port does not resolve to a current city");
+    if (pirateDeception.wantedPortCityId !== wantedPort.cityId ||
+        pirateDeception.wantedPortTileId !== wantedPort.tileId ||
+        pirateDeception.wantedPortName !== cityLabel(wantedPort) ||
+        pirateDeception.wantedPortCountry !== (wantedPort.country || "")) {
+      pirateDeception.wantedPortCityId = wantedPort.cityId;
+      pirateDeception.wantedPortTileId = wantedPort.tileId;
+      pirateDeception.wantedPortName = cityLabel(wantedPort);
+      pirateDeception.wantedPortCountry = wantedPort.country || "";
       updates += 1;
+    }
+    if (Number.isInteger(pirateDeception.escapeOriginPortTileId) ||
+        typeof pirateDeception.escapeOriginPortCityId === "string") {
+      const escapePort = reconciledPortReference(portCities, {
+        cityId: pirateDeception.escapeOriginPortCityId,
+        tileId: pirateDeception.escapeOriginPortTileId
+      }, legacyPortTileIds);
+      if (!escapePort) throw new Error("Pirate captive escape origin does not resolve to a current city");
+      if (pirateDeception.escapeOriginPortCityId !== escapePort.cityId ||
+          pirateDeception.escapeOriginPortTileId !== escapePort.tileId) {
+        pirateDeception.escapeOriginPortCityId = escapePort.cityId;
+        pirateDeception.escapeOriginPortTileId = escapePort.tileId;
+        updates += 1;
+      }
     }
   }
 
-  const chef = quests.chef;
-  const chefPort = reconciledPortReference(portCities, {
-    tileId: chef?.portTileId,
-    name: chef?.portCity,
-    country: chef?.portCountry
-  }, legacyPortTileIds);
-  if (chefPort && (
-    chefPort.tileId !== chef.portTileId ||
-    cityLabel(chefPort) !== chef.portCity ||
-    (chefPort.country || "") !== chef.portCountry
-  )) {
-    chef.portTileId = chefPort.tileId;
-    chef.portCity = cityLabel(chefPort);
-    chef.portCountry = chefPort.country || "";
-    updates += 1;
-  }
+  updates += reconcileNamedPortFields(quests.chef, {
+    tileField: "portTileId",
+    cityIdField: "portCityId",
+    nameField: "portCity",
+    countryField: "portCountry"
+  }, portCities, legacyPortTileIds);
 
   const colonization = state.memory.colonization;
-  for (const endpoint of ["origin", "approval"]) {
+  for (const endpoint of ["target", "origin", "approval"]) {
     const port = reconciledPortReference(portCities, {
+      cityId: colonization?.[`${endpoint}CityId`],
       tileId: colonization?.[`${endpoint}TileId`],
       name: colonization?.[`${endpoint}City`],
       country: colonization?.[`${endpoint}Country`]
     }, legacyPortTileIds);
     if (port && (
+      port.cityId !== colonization[`${endpoint}CityId`] ||
       port.tileId !== colonization[`${endpoint}TileId`] ||
       cityLabel(port) !== colonization[`${endpoint}City`] ||
       (port.country || "") !== colonization[`${endpoint}Country`]
     )) {
+      colonization[`${endpoint}CityId`] = port.cityId;
       colonization[`${endpoint}TileId`] = port.tileId;
       colonization[`${endpoint}City`] = cityLabel(port);
       colonization[`${endpoint}Country`] = port.country || "";
@@ -7305,7 +7455,7 @@ export function reconcileQuestPortTiles(state, portCities, {
     }
   }
   for (const settlement of colonization?.pastSettlements || []) {
-    for (const endpoint of ["origin", "approval"]) {
+    for (const endpoint of ["target", "origin", "approval"]) {
       updates += reconcileNamedPortFields(settlement, {
         tileField: `${endpoint}TileId`,
         nameField: `${endpoint}City`,
@@ -7324,86 +7474,107 @@ export function reconcileQuestPortTiles(state, portCities, {
     countryField: "reportCountry"
   }, portCities, legacyPortTileIds);
 
-  const ginger = quests.caribbeanGinger;
-  const gingerPort = reconciledPortReference(portCities, {
-    tileId: ginger?.cultivationTileId,
-    name: ginger?.cultivationCity,
-    country: ginger?.cultivationCountry
-  }, legacyPortTileIds);
-  if (gingerPort && (
-    gingerPort.tileId !== ginger.cultivationTileId ||
-    cityLabel(gingerPort) !== ginger.cultivationCity ||
-    (gingerPort.country || "") !== ginger.cultivationCountry
-  )) {
-    ginger.cultivationTileId = gingerPort.tileId;
-    ginger.cultivationCity = cityLabel(gingerPort);
-    ginger.cultivationCountry = gingerPort.country || "";
-    updates += 1;
-  }
+  updates += reconcileNamedPortFields(quests.caribbeanGinger, {
+    tileField: "cultivationTileId",
+    cityIdField: "cultivationCityId",
+    nameField: "cultivationCity",
+    countryField: "cultivationCountry"
+  }, portCities, legacyPortTileIds);
 
   const naturalist = quests.naturalist;
   const naturalistPort = reconciledPortReference(portCities, {
+    cityId: naturalist?.portCityId,
     tileId: naturalist?.portTileId
   }, legacyPortTileIds);
-  if (naturalistPort && naturalistPort.tileId !== naturalist.portTileId) {
+  if (naturalistPort && (
+    naturalist.version !== NATURALIST_QUEST_MEMORY_VERSION ||
+    naturalistPort.cityId !== naturalist.portCityId ||
+    naturalistPort.tileId !== naturalist.portTileId
+  )) {
+    naturalist.version = NATURALIST_QUEST_MEMORY_VERSION;
+    naturalist.portCityId = naturalistPort.cityId;
     naturalist.portTileId = naturalistPort.tileId;
     if (naturalist.character) {
+      naturalist.character.homePortCityId = naturalistPort.cityId;
       naturalist.character.homePortTileId = naturalistPort.tileId;
       naturalist.character.homePortName = cityLabel(naturalistPort);
       naturalist.character.homePortCountry = naturalistPort.country || "";
     }
     updates += 1;
-  } else if (Number.isInteger(naturalist?.portTileId) && !naturalistPort) {
+  } else if ((Number.isInteger(naturalist?.portTileId) || naturalist?.portCityId) && !naturalistPort) {
+    naturalist.version = NATURALIST_QUEST_MEMORY_VERSION;
+    naturalist.portCityId = null;
     naturalist.portTileId = null;
     setNaturalistQuestCharacter(naturalist, null);
     updates += 1;
   }
 
-  const matchlocks = quests.japaneseMatchlocks;
-  updates += reconcileBarePortField(
-    matchlocks,
-    "workshopTileId",
-    portCities,
-    legacyPortTileIds
-  );
+  updates += reconcileNamedPortFields(quests.japaneseMatchlocks, {
+    tileField: "workshopTileId",
+    cityIdField: "workshopCityId"
+  }, portCities, legacyPortTileIds);
 
   const conquistador = quests.conquistador;
-  for (const field of ["originTileId", "targetTileId"]) {
-    updates += reconcileBarePortField(conquistador, field, portCities, legacyPortTileIds);
-  }
-  if (Array.isArray(conquistador?.transferSchedule)) {
-    const movedTransfers = new Map();
-    for (const transfer of conquistador.transferSchedule) {
-      const previousTileId = transfer.tileId;
-      const port = reconciledPortReference(portCities, { tileId: previousTileId }, legacyPortTileIds);
-      if (!port || port.tileId === previousTileId) continue;
-      transfer.tileId = port.tileId;
-      movedTransfers.set(previousTileId, port.tileId);
+  for (const endpoint of ["origin", "target"]) {
+    const tileField = `${endpoint}TileId`;
+    const cityIdField = `${endpoint}CityId`;
+    if (conquistador?.[tileField] === null && conquistador?.[cityIdField] == null) continue;
+    const port = reconciledPortReference(portCities, {
+      cityId: conquistador?.[cityIdField],
+      tileId: conquistador?.[tileField]
+    }, legacyPortTileIds);
+    if (!port) throw new Error(`Saved conquistador ${endpoint} does not resolve to a current city`);
+    if (conquistador[cityIdField] !== port.cityId || conquistador[tileField] !== port.tileId) {
+      conquistador[cityIdField] = port.cityId;
+      conquistador[tileField] = port.tileId;
       updates += 1;
     }
-    conquistador.transferredTileIds = conquistador.transferredTileIds.map(
-      (tileId) => movedTransfers.get(tileId) ?? tileId
-    );
+  }
+  if (Array.isArray(conquistador?.transferSchedule)) {
+    const completedLegacyTiles = new Set(conquistador.transferredTileIds || []);
+    const completedCityIds = new Set(conquistador.transferredCityIds || []);
+    for (const transfer of conquistador.transferSchedule) {
+      const previousTileId = transfer.tileId;
+      const port = reconciledPortReference(portCities, {
+        cityId: transfer.cityId,
+        tileId: previousTileId
+      }, legacyPortTileIds);
+      if (!port) throw new Error(`Saved conquistador transfer does not resolve: ${previousTileId}`);
+      if (completedLegacyTiles.has(previousTileId)) completedCityIds.add(port.cityId);
+      if (transfer.cityId === port.cityId && transfer.tileId === port.tileId) continue;
+      transfer.cityId = port.cityId;
+      transfer.tileId = port.tileId;
+      updates += 1;
+    }
+    if (conquistador.version !== CONQUISTADOR_QUEST_VERSION) updates += 1;
+    conquistador.version = CONQUISTADOR_QUEST_VERSION;
+    conquistador.transferredCityIds = [...completedCityIds];
+    delete conquistador.transferredTileIds;
   }
 
   const treasureGoal = state.memory.campaignGoal;
   for (const pirate of treasureGoal?.mapPirates || []) {
-    updates += reconcileBarePortField(pirate, "hideoutTileId", portCities, legacyPortTileIds);
+    updates += reconcileNamedPortFields(pirate, {
+      tileField: "hideoutTileId",
+      cityIdField: "hideoutCityId"
+    }, portCities, legacyPortTileIds);
   }
 
   const shipyardInvestment = state.memory.shipyardInvestment;
-  if (Array.isArray(shipyardInvestment?.backedPortTileIds)) {
-    const migratedBackedPorts = shipyardInvestment.backedPortTileIds.map((tileId) => (
-      reconciledPortReference(portCities, { tileId }, legacyPortTileIds)?.tileId ?? tileId
-    ));
-    const uniqueBackedPorts = [...new Set(migratedBackedPorts)];
-    updates += uniqueBackedPorts.filter(
-      (tileId, index) => tileId !== shipyardInvestment.backedPortTileIds[index]
-    ).length;
-    shipyardInvestment.backedPortTileIds = uniqueBackedPorts;
+  if (shipyardInvestment?.version === 2) {
+    const backedPortCityIds = shipyardInvestment.backedPortTileIds.map((tileId) => {
+      const port = reconciledPortReference(portCities, { tileId }, legacyPortTileIds);
+      if (!port) throw new Error(`Saved player-backed shipyard does not resolve: ${tileId}`);
+      return port.cityId;
+    });
+    shipyardInvestment.version = SHIPYARD_INVESTMENT_VERSION;
+    shipyardInvestment.backedPortCityIds = [...new Set(backedPortCityIds)];
+    delete shipyardInvestment.backedPortTileIds;
+    updates += 1;
   }
   updates += reconcileNamedPortFields(shipyardInvestment?.project, {
     tileField: "portTileId",
+    cityIdField: "portCityId",
     nameField: "portName"
   }, portCities, legacyPortTileIds);
 
@@ -7421,31 +7592,445 @@ export function reconcileQuestPortTiles(state, portCities, {
   }, portCities, legacyPortTileIds);
 
   const chartReframe = state.memory.chartReframeDialogue;
-  if (Array.isArray(chartReframe?.recentPortTileIds)) {
-    const migratedRecentPorts = chartReframe.recentPortTileIds.map((tileId) => (
-      reconciledPortReference(portCities, { tileId }, legacyPortTileIds)?.tileId ?? tileId
-    ));
-    const uniqueRecentPorts = [...new Set(migratedRecentPorts)];
-    if (uniqueRecentPorts.some((tileId, index) => tileId !== chartReframe.recentPortTileIds[index]) ||
-        uniqueRecentPorts.length !== chartReframe.recentPortTileIds.length) {
-      chartReframe.recentPortTileIds = uniqueRecentPorts;
-      updates += 1;
-    }
+  if (chartReframe?.version === 1) {
+    chartReframe.recentPortCityIds = [...new Set(chartReframe.recentPortTileIds.map((tileId) => {
+      const port = reconciledPortReference(portCities, { tileId }, legacyPortTileIds);
+      if (!port) throw new Error(`recent chart-dialogue port does not resolve: ${tileId}`);
+      return port.cityId;
+    }))];
+    delete chartReframe.recentPortTileIds;
+    chartReframe.version = CHART_REFRAME_DIALOGUE_MEMORY_VERSION;
+    updates += 1;
   }
+  validateChartReframeDialogueMemory(chartReframe);
 
   const convertedFactorTileIds = state.memory.flags?.lutheranFactorPortTileIds;
   if (Array.isArray(convertedFactorTileIds)) {
-    const migrated = [...new Set(convertedFactorTileIds.map((tileId) => (
-      reconciledPortReference(portCities, { tileId }, legacyPortTileIds)?.tileId ?? tileId
-    )))];
-    if (migrated.some((tileId, index) => tileId !== convertedFactorTileIds[index]) ||
-        migrated.length !== convertedFactorTileIds.length) {
-      state.memory.flags.lutheranFactorPortTileIds = migrated;
+    state.memory.flags.lutheranFactorPortCityIds = [...new Set(convertedFactorTileIds.map((tileId) => {
+      const port = reconciledPortReference(portCities, { tileId }, legacyPortTileIds);
+      if (!port) throw new Error(`Converted factor port does not resolve: ${tileId}`);
+      return port.cityId;
+    }))];
+    delete state.memory.flags.lutheranFactorPortTileIds;
+    updates += 1;
+  }
+
+  updates += reconcilePortConquestIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcileVisitedPortIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcileSpecialEquipmentOfferIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcilePortFlagIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcileCourtPoliticsIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcileHospitallerMaltaIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcileTradeEmbargoIncidentIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcileIllicitTradeIncidentIdentities(state, portCities, legacyPortTileIds);
+  updates += reconcilePapalCommissionIdentities(state, portCities, legacyPortTileIds);
+
+  assertGameState(state);
+  return updates;
+}
+
+function reconcileVisitedPortIdentities(state, portCities, legacyPortTileIds) {
+  const cityById = new Map(portCities.map((city) => [city.cityId, city]));
+  const cityIdByLegacyPortId = new Map();
+  for (const city of portCities) {
+    if (typeof city.portId !== "string" || city.portId === "") continue;
+    const previous = cityIdByLegacyPortId.get(city.portId);
+    if (previous && previous !== city.cityId) {
+      throw new Error(`Legacy port id ${city.portId} names multiple canonical cities`);
+    }
+    cityIdByLegacyPortId.set(city.portId, city.cityId);
+  }
+  let updates = 0;
+  const reconciled = {};
+  for (const [storedId, memory] of Object.entries(state.memory.visitedPorts)) {
+    let cityId = cityById.has(storedId) ? storedId : cityIdByLegacyPortId.get(storedId) || null;
+    if (cityId === null) {
+      const legacyTileMatch = /(?:^city-|\|)(\d+)$/.exec(storedId);
+      if (legacyTileMatch) {
+        cityId = reconciledPortReference(portCities, {
+          tileId: Number(legacyTileMatch[1])
+        }, legacyPortTileIds)?.cityId || null;
+      }
+    }
+    if (cityId === null) {
+      cityId = `legacy-port-visit:${hashString32(storedId).toString(36)}`;
+    }
+    if (cityId !== storedId) updates += 1;
+    reconciled[cityId] = reconciled[cityId]
+      ? mergePortVisitMemories(reconciled[cityId], memory)
+      : memory;
+  }
+  state.memory.visitedPorts = reconciled;
+  validateVisitedPortMemories(reconciled);
+  return updates;
+}
+
+function reconcileSpecialEquipmentOfferIdentities(state, portCities, legacyPortTileIds) {
+  const memory = state.memory.specialEquipmentOffers;
+  if (memory.version === SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION) return 0;
+  const byPort = {};
+  for (const [legacyTileId, entry] of Object.entries(memory.byPort)) {
+    const city = reconciledPortReference(portCities, {
+      tileId: Number(legacyTileId)
+    }, legacyPortTileIds);
+    if (!city) throw new Error(`Special equipment offer port does not resolve: ${legacyTileId}`);
+    if (byPort[city.cityId]) {
+      throw new Error(`Special equipment offer collides at canonical city ${city.cityId}`);
+    }
+    byPort[city.cityId] = entry;
+  }
+  memory.version = SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION;
+  memory.byPort = byPort;
+  validateSpecialEquipmentOfferMemory(memory);
+  return 1;
+}
+
+function reconcilePortFlagIdentities(state, portCities, legacyPortTileIds) {
+  const prefixes = [
+    "shoreBatteryDisabledUntil:",
+    "shoreBatteryDisabledByShip:",
+    "shoreBatteryUpgradeLevel:"
+  ];
+  const cityById = new Map(portCities.map((city) => [city.cityId, city]));
+  const cityIdByLegacyPortId = new Map(portCities
+    .filter((city) => typeof city.portId === "string" && city.portId !== "")
+    .map((city) => [city.portId, city.cityId]));
+  let updates = 0;
+  for (const prefix of prefixes) {
+    for (const key of Object.keys(state.memory.flags)) {
+      if (!key.startsWith(prefix)) continue;
+      const storedId = key.slice(prefix.length);
+      if (cityById.has(storedId)) continue;
+      let cityId = cityIdByLegacyPortId.get(storedId) || null;
+      const legacyTile = /^city-(\d+)$/.exec(storedId);
+      if (cityId === null && legacyTile) {
+        cityId = reconciledPortReference(portCities, {
+          tileId: Number(legacyTile[1])
+        }, legacyPortTileIds)?.cityId || null;
+      }
+      if (cityId === null) throw new Error(`Saved port flag does not resolve: ${key}`);
+      const canonicalKey = `${prefix}${cityId}`;
+      if (Object.prototype.hasOwnProperty.call(state.memory.flags, canonicalKey) &&
+          state.memory.flags[canonicalKey] !== state.memory.flags[key]) {
+        throw new Error(`Saved port flags conflict at ${canonicalKey}`);
+      }
+      state.memory.flags[canonicalKey] = state.memory.flags[key];
+      delete state.memory.flags[key];
       updates += 1;
     }
   }
+  return updates;
+}
 
-  assertGameState(state);
+function mergePortVisitMemories(left, right) {
+  const visits = left.visits + right.visits;
+  const drunkArrivals = left.drunkArrivals + right.drunkArrivals;
+  return {
+    visits,
+    drunkArrivals,
+    lastDrunkVisit: drunkArrivals > 0
+      ? Math.min(visits, Math.max(left.lastDrunkVisit || 0, right.lastDrunkVisit || 0))
+      : null,
+    lastDrunkArrivalMinute: drunkArrivals > 0
+      ? Math.max(left.lastDrunkArrivalMinute || 0, right.lastDrunkArrivalMinute || 0)
+      : null
+  };
+}
+
+function reconcilePapalCommissionIdentities(state, portCities, legacyPortTileIds) {
+  const memory = state.relations.papacy;
+  let updates = 0;
+  const commission = memory.pendingMatter?.commission;
+  if (commission) {
+    const origin = reconciledPortReference(portCities, {
+      cityId: commission.originCityId,
+      tileId: commission.originTileId
+    }, legacyPortTileIds);
+    if (!origin) throw new Error("Saved Papal commission origin does not resolve");
+    if (commission.originCityId !== origin.cityId || commission.originTileId !== origin.tileId) {
+      commission.originCityId = origin.cityId;
+      commission.originTileId = origin.tileId;
+      updates += 1;
+    }
+    for (const destination of commission.itinerary) {
+      const city = reconciledPortReference(portCities, {
+        cityId: destination.cityId,
+        tileId: destination.tileId
+    }, legacyPortTileIds);
+    if (!city) throw new Error(`Saved Papal destination does not resolve: ${destination.order}`);
+    // IDENTITY_PRESENTATION_SYNC: refresh labels only after the canonical city id resolves.
+    if (destination.cityId !== city.cityId || destination.tileId !== city.tileId ||
+          destination.portName !== cityLabel(city)) {
+        destination.cityId = city.cityId;
+        destination.tileId = city.tileId;
+        destination.portName = cityLabel(city);
+        updates += 1;
+      }
+    }
+  }
+  if (memory.version !== PAPAL_POLITICS_VERSION) {
+    memory.version = PAPAL_POLITICS_VERSION;
+    updates += 1;
+  }
+  validatePapalPolitics(memory);
+  return updates;
+}
+
+function reconcileTradeEmbargoIncidentIdentities(state, portCities, legacyPortTileIds) {
+  const memory = state.memory.tradeEmbargoEnforcement;
+  let updates = 0;
+  for (const incident of memory.incidents) {
+    const city = reconciledPortReference(portCities, {
+      cityId: incident.originCityId,
+      tileId: incident.originTileId
+    }, legacyPortTileIds);
+    if (!city) {
+      throw new Error(`Trade embargo incident origin does not resolve: ${incident.id}`);
+    }
+    if (incident.originCityId !== city.cityId || incident.originTileId !== city.tileId ||
+        incident.originName !== cityLabel(city)) {
+      incident.originCityId = city.cityId;
+      incident.originTileId = city.tileId;
+      incident.originName = cityLabel(city);
+      updates += 1;
+    }
+    delete incident.originPortId;
+  }
+  if (memory.version !== TRADE_EMBARGO_ENFORCEMENT_VERSION) {
+    memory.version = TRADE_EMBARGO_ENFORCEMENT_VERSION;
+    updates += 1;
+  }
+  validateTradeEmbargoEnforcementMemory(memory);
+  return updates;
+}
+
+function reconcileIllicitTradeIncidentIdentities(state, portCities, legacyPortTileIds) {
+  const memory = state.memory.illicitTradeEnforcement;
+  let updates = 0;
+  for (const incident of memory.incidents) {
+    const city = reconciledPortReference(portCities, {
+      cityId: incident.originCityId,
+      tileId: incident.originTileId
+    }, legacyPortTileIds);
+    if (!city) throw new Error(`Illicit trade incident origin does not resolve: ${incident.id}`);
+    if (incident.originCityId !== city.cityId || incident.originTileId !== city.tileId ||
+        incident.originName !== cityLabel(city)) {
+      incident.originCityId = city.cityId;
+      incident.originTileId = city.tileId;
+      incident.originName = cityLabel(city);
+      updates += 1;
+    }
+    delete incident.originPortId;
+  }
+  if (memory.version !== ILLICIT_TRADE_ENFORCEMENT_VERSION) {
+    memory.version = ILLICIT_TRADE_ENFORCEMENT_VERSION;
+    updates += 1;
+  }
+  validateIllicitTradeEnforcementMemory(memory);
+  return updates;
+}
+
+function reconcileHospitallerMaltaIdentities(state, portCities, legacyPortTileIds) {
+  const memory = state.memory.quests.hospitallerMalta;
+  let updates = 0;
+  const reconcileReference = (reference, label) => {
+    if (!reference) return;
+    const city = reconciledPortReference(portCities, {
+      cityId: reference.cityId,
+      tileId: reference.tileId
+    }, legacyPortTileIds);
+    if (!city) throw new Error(`${label} does not resolve to a current canonical city`);
+    // IDENTITY_PRESENTATION_SYNC: refresh labels only after the canonical city id resolves.
+    if (reference.cityId !== city.cityId || reference.tileId !== city.tileId ||
+        reference.city !== cityLabel(city) || reference.country !== (city.country || "")) {
+      reference.cityId = city.cityId;
+      reference.tileId = city.tileId;
+      reference.city = cityLabel(city);
+      reference.country = city.country || "";
+      updates += 1;
+    }
+  };
+  reconcileReference(memory.rome, "Hospitaller Rome");
+  reconcileReference(memory.malta, "Hospitaller Malta");
+  reconcileReference(memory.grantorCapital, "Hospitaller grantor capital");
+  for (const city of memory.grantedCities) reconcileReference(city, "Hospitaller granted city");
+  if (memory.version !== HOSPITALLER_MALTA_QUEST_VERSION) {
+    memory.version = HOSPITALLER_MALTA_QUEST_VERSION;
+    updates += 1;
+  }
+  validateHospitallerMaltaQuestMemory(memory);
+  return updates;
+}
+
+function reconcileCourtPoliticsIdentities(state, portCities, legacyPortTileIds) {
+  const memory = state.relations.courts;
+  const cityById = new Map(portCities.map((city) => [city.cityId, city]));
+  const canonicalPortAliases = new Map(
+    Object.values(CANONICAL_PORTS).map((reference) => [reference.id, reference.cityId])
+  );
+  const snapshotAliases = new Map();
+  const resolveStoredIdentity = (storedId, tileId, label) => {
+    if (typeof storedId === "string" && cityById.has(storedId)) return cityById.get(storedId);
+    const canonicalId = canonicalPortAliases.get(storedId) || snapshotAliases.get(storedId);
+    if (canonicalId && cityById.has(canonicalId)) return cityById.get(canonicalId);
+    const embeddedTile = typeof storedId === "string"
+      ? /\|(\d+)$/.exec(storedId)?.[1]
+      : null;
+    const resolved = reconciledPortReference(portCities, {
+      tileId: Number.isInteger(tileId) ? tileId : embeddedTile === null ? null : Number(embeddedTile)
+    }, legacyPortTileIds);
+    if (resolved) return resolved;
+    throw new Error(`${label} does not resolve to a current canonical city: ${storedId ?? tileId}`);
+  };
+  let updates = 0;
+  const reconcileSnapshot = (snapshot, label) => {
+    if (!snapshot) return;
+    const storedId = snapshot.cityId || snapshot.portId || null;
+    const city = resolveStoredIdentity(storedId, snapshot.tileId, label);
+    if (typeof snapshot.portId === "string") snapshotAliases.set(snapshot.portId, city.cityId);
+    // IDENTITY_PRESENTATION_SYNC: refresh labels only after the canonical city id resolves.
+    if (snapshot.cityId !== city.cityId || snapshot.tileId !== city.tileId ||
+        snapshot.name !== cityLabel(city) || snapshot.country !== (city.country || "")) {
+      snapshot.cityId = city.cityId;
+      snapshot.tileId = city.tileId;
+      snapshot.name = cityLabel(city);
+      snapshot.country = city.country || "";
+      updates += 1;
+    }
+    delete snapshot.portId;
+  };
+  reconcileSnapshot(memory.pendingMatter?.origin, "Court matter origin");
+  reconcileSnapshot(memory.pendingMatter?.destination, "Court matter destination");
+
+  for (const action of memory.history) {
+    const storedId = action.destinationCityId || action.destinationPortId;
+    const city = resolveStoredIdentity(storedId, null, `Court action ${action.id}`);
+    if (action.destinationCityId !== city.cityId || action.destinationName !== cityLabel(city)) {
+      action.destinationCityId = city.cityId;
+      action.destinationName = cityLabel(city);
+      updates += 1;
+    }
+    if (typeof action.destinationPortId === "string") {
+      snapshotAliases.set(action.destinationPortId, city.cityId);
+      delete action.destinationPortId;
+    }
+  }
+
+  const serviceMinutes = {};
+  for (const [storedId, minute] of Object.entries(memory.portServiceMinutes)) {
+    const city = resolveStoredIdentity(storedId, null, "Court administration service");
+    serviceMinutes[city.cityId] = Math.max(serviceMinutes[city.cityId] ?? 0, minute);
+    if (city.cityId !== storedId) updates += 1;
+  }
+  memory.portServiceMinutes = serviceMinutes;
+  if (memory.version !== COURT_POLITICS_VERSION) {
+    memory.version = COURT_POLITICS_VERSION;
+    updates += 1;
+  }
+  validateCourtPolitics(memory);
+  return updates;
+}
+
+function reconcilePortConquestIdentities(state, portCities, legacyPortTileIds) {
+  const conquest = state.memory.conquest;
+  const cityById = new Map(portCities.map((city) => [city.cityId, city]));
+  const canonicalPortAliases = new Map(
+    Object.values(CANONICAL_PORTS).map((reference) => [reference.id, reference.cityId])
+  );
+  const eventAliases = new Map();
+  for (const event of conquest.events) {
+    const city = reconciledPortReference(portCities, {
+      cityId: event.cityId,
+      tileId: event.cityTileId,
+      name: event.cityName
+    }, legacyPortTileIds);
+    if (city && typeof event.portId === "string") eventAliases.set(event.portId, city.cityId);
+  }
+  const resolve = (storedId, label) => {
+    if (typeof storedId !== "string" || storedId === "") {
+      throw new Error(`${label} is missing a stored city identity`);
+    }
+    if (cityById.has(storedId)) return storedId;
+    const alias = canonicalPortAliases.get(storedId) || eventAliases.get(storedId);
+    if (alias && cityById.has(alias)) return alias;
+    const legacyTileMatch = /^city-(\d+)$/.exec(storedId);
+    if (legacyTileMatch) {
+      const city = reconciledPortReference(portCities, {
+        tileId: Number(legacyTileMatch[1])
+      }, legacyPortTileIds);
+      if (city) return city.cityId;
+    }
+    throw new Error(`${label} does not resolve to a current canonical city: ${storedId}`);
+  };
+  let updates = 0;
+  const rekey = (source, label) => {
+    const target = {};
+    for (const [storedId, value] of Object.entries(source)) {
+      const cityId = resolve(storedId, label);
+      if (target[cityId] !== undefined && target[cityId] !== value) {
+        throw new Error(`${label} has conflicting records for ${cityId}`);
+      }
+      target[cityId] = value;
+      if (cityId !== storedId) updates += 1;
+    }
+    return target;
+  };
+  conquest.portFactionOverrides = rekey(conquest.portFactionOverrides, "Conquest ownership override");
+  conquest.cityDisplayNameOverrides = rekey(
+    conquest.cityDisplayNameOverrides,
+    "Conquest display-name override"
+  );
+  for (const [factionId, storedId] of Object.entries(conquest.factionCapitalOverrides)) {
+    const cityId = resolve(storedId, `Conquest capital for ${factionId}`);
+    if (cityId !== storedId) {
+      conquest.factionCapitalOverrides[factionId] = cityId;
+      updates += 1;
+    }
+  }
+  for (const event of conquest.events) {
+    const cityId = resolve(event.cityId || event.portId, `Conquest event ${event.id}`);
+    const city = cityById.get(cityId);
+    if (event.cityId !== cityId || event.portId !== cityId || event.cityTileId !== city.tileId) {
+      event.cityId = cityId;
+      event.portId = cityId;
+      event.cityTileId = city.tileId;
+      event.cityName = cityLabel(city);
+      updates += 1;
+    }
+  }
+  for (const treaty of conquest.treaties) {
+    for (const field of ["capitalPortId", "capitalCityId"]) {
+      if (typeof treaty[field] !== "string") continue;
+      const cityId = resolve(treaty[field], `Conquest treaty ${treaty.id} ${field}`);
+      if (cityId !== treaty[field]) {
+        treaty[field] = cityId;
+        updates += 1;
+      }
+    }
+    for (const field of ["concessionPortIds", "concessionCityIds"]) {
+      if (!Array.isArray(treaty[field])) continue;
+      const cityIds = [...new Set(treaty[field].map((storedId) => (
+        resolve(storedId, `Conquest treaty ${treaty.id} ${field}`)
+      )))];
+      if (cityIds.some((cityId, index) => cityId !== treaty[field][index]) ||
+          cityIds.length !== treaty[field].length) {
+        treaty[field] = cityIds;
+        updates += 1;
+      }
+    }
+  }
+  const flags = state.memory.flags;
+  for (const prefix of ["playerPortAssaultUntil:", "playerPortRaidedUntil:"]) {
+    for (const key of Object.keys(flags)) {
+      if (!key.startsWith(prefix)) continue;
+      const storedId = key.slice(prefix.length);
+      const cityId = resolve(storedId, "Player port assault flag");
+      if (cityId === storedId) continue;
+      flags[`${prefix}${cityId}`] = flags[key];
+      delete flags[key];
+      updates += 1;
+    }
+  }
   return updates;
 }
 
@@ -7475,34 +8060,34 @@ export function questStateForCity(state, city, portCities) {
   const active = quests.active;
   if (active) {
     if (isTeaRaceQuest(active)) {
-      if (active.destinationTileId === city.tileId && active.stage === "arrived") {
+      if (active.destinationCityId === city.cityId && active.stage === "arrived") {
         return { kind: "ready-to-complete", quest: active };
       }
-      if (active.originTileId === city.tileId || active.destinationTileId === city.tileId) {
+      if (active.originCityId === city.cityId || active.destinationCityId === city.cityId) {
         return { kind: "in-progress-here", quest: active };
       }
       return { kind: "busy", quest: active };
     }
     if (isWokouHuntQuest(active)) {
-      if (active.stage === "return" && active.originTileId === city.tileId) {
+      if (active.stage === "return" && active.originCityId === city.cityId) {
         return { kind: "ready-to-complete", quest: active };
       }
-      if (active.originTileId === city.tileId || active.patrolTileId === city.tileId) {
+      if (active.originCityId === city.cityId || active.patrolCityId === city.cityId) {
         return { kind: "in-progress-here", quest: active };
       }
       return { kind: "busy", quest: active };
     }
     if (isCaptureCommissionQuest(active)) {
-      if (active.stage === "return" && active.originTileId === city.tileId) {
+      if (active.stage === "return" && active.originCityId === city.cityId) {
         return { kind: "ready-to-complete", quest: active };
       }
-      if (active.originTileId === city.tileId || active.targetTileId === city.tileId) {
+      if (active.originCityId === city.cityId || active.targetCityId === city.cityId) {
         return { kind: "in-progress-here", quest: active };
       }
       return { kind: "busy", quest: active };
     }
-    if (active.destinationTileId === city.tileId) return { kind: "ready-to-complete", quest: active };
-    if (active.originTileId === city.tileId) return { kind: "in-progress-here", quest: active };
+    if (active.destinationCityId === city.cityId) return { kind: "ready-to-complete", quest: active };
+    if (active.originCityId === city.cityId) return { kind: "in-progress-here", quest: active };
     return { kind: "busy", quest: active };
   }
   const offer = pendingCapturePortMissionOfferForCity(state, city) ||
@@ -7534,7 +8119,7 @@ export function acceptQuest(state, quest, context = {}) {
   const passenger = quest.passenger ? {
     ...quest.passenger,
     skillIds: quest.passenger.skillIds || characterSkillIdsForIdentity(
-      quest.passenger.id || quest.passenger.name || `quest-passenger|${quest.id}`,
+      requireEntityId(quest.passenger.id, `Quest passenger ${quest.id}`),
       { traveler: true }
     )
   } : quest.passenger;
@@ -7898,7 +8483,7 @@ export function completeQuest(state, city, context = {}) {
       : null;
   const active = activeSlot ? quests[activeSlot] : null;
   if (!active) throw new Error("No active quest to complete");
-  if (active.destinationTileId !== city.tileId) {
+  if (active.destinationCityId !== city.cityId) {
     throw new Error(`Quest destination is ${active.destinationName}, not ${cityLabel(city)}`);
   }
   if (isEnvoyQuest(active) && active.stage !== "return") {
@@ -8189,7 +8774,7 @@ function applyEastAsianMissionConsequences(state, quest, context) {
 const NINGBO_MISSION_FACTIONS = new Set(["hosokawa", "ouchi"]);
 
 export function cityKey(city) {
-  return `${city.displayCity || city.city}|${city.country}|${city.tileId}`;
+  return requireCityId(city, "Quest city");
 }
 
 export function cityLabel(city) {
@@ -8870,20 +9455,23 @@ function deliveryFactionId(city) {
 }
 
 function reconcileQuestEndpoint(quest, endpoint, portCities, legacyPortTileIds) {
+  const cityIdField = `${endpoint}CityId`;
   const tileField = `${endpoint}TileId`;
   const nameField = `${endpoint}Name`;
   const countryField = `${endpoint}Country`;
   const keyField = `${endpoint}Key`;
-  const name = quest[nameField];
-  if (typeof name !== "string" || name === "") return 0;
+  if (!Number.isInteger(quest[tileField]) && typeof quest[cityIdField] !== "string") return 0;
 
   const current = reconciledPortReference(portCities, {
+    cityId: quest[cityIdField],
     tileId: quest[tileField],
     name: quest[nameField],
     country: quest[countryField]
   }, legacyPortTileIds);
   if (current) {
-    const changed = quest[nameField] !== cityLabel(current) ||
+    const changed = quest[cityIdField] !== current.cityId ||
+      quest[tileField] !== current.tileId ||
+      quest[nameField] !== cityLabel(current) ||
       quest[countryField] !== (current.country || "") ||
       quest[keyField] !== cityKey(current);
     updateQuestEndpointIdentity(quest, endpoint, current);
@@ -8893,42 +9481,93 @@ function reconcileQuestEndpoint(quest, endpoint, portCities, legacyPortTileIds) 
   return 0;
 }
 
+function reconcileNpcEncounterManifestPortIds(quest, portCities, legacyPortTileIds) {
+  let updates = 0;
+  for (const field of ["teaRaceCompetitors", "eastAsianDelegationShips"]) {
+    for (const spec of quest[field] || []) {
+      for (const endpoint of ["origin", "destination"]) {
+        const cityIdField = `${endpoint}CityId`;
+        const legacyPortIdField = `${endpoint}PortId`;
+        if (spec[cityIdField] === undefined && spec[legacyPortIdField] === undefined) continue;
+        const port = reconciledPortReference(portCities, {
+          cityId: spec[cityIdField],
+          tileId: spec[legacyPortIdField]
+        }, legacyPortTileIds);
+        if (!port) {
+          throw new Error(`Saved ${field} ${endpoint} does not resolve to a current city`);
+        }
+        if (spec[cityIdField] !== port.cityId || spec[legacyPortIdField] !== undefined) {
+          spec[cityIdField] = port.cityId;
+          delete spec[legacyPortIdField];
+          updates += 1;
+        }
+      }
+    }
+  }
+  return updates;
+}
+
 function reconcileQuestItinerary(quest, portCities, legacyPortTileIds) {
   if (!quest.itinerary) return 0;
   let updates = 0;
-  const movedTileIds = new Map();
+  const legacyItinerary = quest.itinerary.version !== QUEST_ITINERARY_VERSION;
+  const completedLegacyTileIds = legacyItinerary ? new Set(quest.itinerary.completedTileIds) : null;
+  const openingLegacyTileId = legacyItinerary ? quest.itinerary.openingStopTileId : null;
+  const completedCityIds = legacyItinerary ? [] : [...quest.itinerary.completedCityIds];
+  let openingStopCityId = legacyItinerary ? null : quest.itinerary.openingStopCityId;
   for (const stop of quest.itinerary.stops) {
     const previousTileId = stop.tileId;
     const port = reconciledPortReference(portCities, {
+      cityId: stop?.cityId,
       tileId: stop?.tileId,
       name: stop?.name,
       country: stop?.country
     }, legacyPortTileIds);
-    if (!port) continue;
-    const changed = port.tileId !== stop.tileId || stop.name !== cityLabel(port) ||
+    if (!port) {
+      if (legacyItinerary) {
+        throw new Error(`Saved itinerary stop does not resolve to a current city: ${previousTileId}`);
+      }
+      continue;
+    }
+    // IDENTITY_PRESENTATION_SYNC: refresh labels only after the canonical city id resolves.
+    const changed = port.cityId !== stop.cityId || port.tileId !== stop.tileId || stop.name !== cityLabel(port) ||
       stop.country !== (port.country || "") || stop.factionId !== (port.factionId || null) ||
       stop.key !== cityKey(port);
-    if (!changed) continue;
+    if (legacyItinerary && completedLegacyTileIds.has(previousTileId)) completedCityIds.push(port.cityId);
+    if (legacyItinerary && openingLegacyTileId === previousTileId) openingStopCityId = port.cityId;
+    if (!changed && !legacyItinerary) continue;
+    stop.cityId = port.cityId;
     stop.tileId = port.tileId;
     stop.name = cityLabel(port);
     stop.country = port.country || "";
     stop.factionId = port.factionId || null;
     stop.key = cityKey(port);
-    if (previousTileId !== port.tileId) movedTileIds.set(previousTileId, port.tileId);
     updates += 1;
   }
-  quest.itinerary.completedTileIds = quest.itinerary.completedTileIds
-    .map((tileId) => movedTileIds.get(tileId) ?? tileId);
+  if (legacyItinerary) {
+    quest.itinerary = createQuestItinerary(quest.itinerary.stops, {
+      mode: quest.itinerary.mode,
+      openingStopCityId,
+      completedCityIds
+    });
+    updates += 1;
+  }
   validateQuestItinerary(quest.itinerary);
   const next = questDestinationStops(quest)[0];
   if (next) {
-    const destination = portCities.find((port) => port.tileId === next.tileId);
+    const destination = portCities.find((port) => port.cityId === next.cityId);
     if (destination) updateQuestEndpointIdentity(quest, "destination", destination);
   }
   return updates;
 }
 
-function reconciledPortReference(portCities, { tileId }, legacyPortTileIds) {
+function reconciledPortReference(portCities, { cityId = null, tileId }, legacyPortTileIds) {
+  if (typeof cityId === "string" && cityId !== "") {
+    const matches = portCities.filter((port) => port.cityId === cityId);
+    if (matches.length > 1) throw new Error(`Saved canonical city ${cityId} resolves to ${matches.length} current ports`);
+    if (matches.length === 0) return null;
+    return matches[0];
+  }
   if (!Number.isInteger(tileId)) return null;
   const migratedTileId = legacyPortTileIds?.get(tileId);
   const resolvedTileId = migratedTileId ?? tileId;
@@ -8951,16 +9590,21 @@ function reconcileBarePortField(record, field, portCities, legacyPortTileIds) {
 
 function reconcileNamedPortFields(record, {
   tileField,
+  cityIdField = tileField.replace(/TileId$/, "CityId"),
   nameField = null,
   countryField = null
 }, portCities, legacyPortTileIds) {
-  if (!record || !Number.isInteger(record[tileField])) return 0;
-  const port = reconciledPortReference(portCities, { tileId: record[tileField] }, legacyPortTileIds);
+  if (!record || (!Number.isInteger(record[tileField]) && typeof record[cityIdField] !== "string")) return 0;
+  const port = reconciledPortReference(portCities, {
+    cityId: record[cityIdField],
+    tileId: record[tileField]
+  }, legacyPortTileIds);
   if (!port) return 0;
-  const changed = record[tileField] !== port.tileId ||
+  const changed = record[cityIdField] !== port.cityId || record[tileField] !== port.tileId ||
     (nameField !== null && record[nameField] !== cityLabel(port)) ||
     (countryField !== null && record[countryField] !== (port.country || ""));
   if (!changed) return 0;
+  record[cityIdField] = port.cityId;
   record[tileField] = port.tileId;
   if (nameField !== null) record[nameField] = cityLabel(port);
   if (countryField !== null) record[countryField] = port.country || "";
@@ -8973,36 +9617,41 @@ function reconcilePortIdentityFields(record, {
   nameField = null
 }, portCities, legacyPortTileIds) {
   if (!record || !Number.isInteger(record[tileField])) return 0;
-  const port = reconciledPortReference(portCities, { tileId: record[tileField] }, legacyPortTileIds);
+  const port = reconciledPortReference(portCities, {
+    cityId: typeof record[portIdField] === "string" && record[portIdField].includes("|")
+      ? record[portIdField]
+      : null,
+    tileId: record[tileField]
+  }, legacyPortTileIds);
   if (!port) return 0;
-  if (typeof port.portId !== "string" || port.portId.trim() === "") {
-    throw new Error(`Migrated port ${port.tileId} has no canonical port id`);
-  }
-  const changed = record[tileField] !== port.tileId || record[portIdField] !== port.portId ||
+  requireCityId(port, "Migrated war-loan city");
+  const changed = record[tileField] !== port.tileId || record[portIdField] !== port.cityId ||
     (nameField !== null && record[nameField] !== cityLabel(port));
   if (!changed) return 0;
   record[tileField] = port.tileId;
-  record[portIdField] = port.portId;
+  record[portIdField] = port.cityId;
   if (nameField !== null) record[nameField] = cityLabel(port);
   return 1;
 }
 
-function reconcileNestedHomePortReferences(value, portCities, legacyPortTileIds, seen = new WeakSet()) {
+function reconcileNestedPortReferences(value, portCities, legacyPortTileIds, seen = new WeakSet()) {
   if (value === null || typeof value !== "object") return 0;
   if (seen.has(value)) return 0;
   seen.add(value);
   let updates = 0;
-  if (Number.isInteger(value.homePortTileId)) {
+  for (const tileField of Object.keys(value).filter((field) => /^(home|origin|destination)PortTileId$/.test(field))) {
+    const prefix = tileField.slice(0, -"TileId".length);
     updates += reconcileNamedPortFields(value, {
-      tileField: "homePortTileId",
-      nameField: Object.prototype.hasOwnProperty.call(value, "homePortName") ? "homePortName" : null,
-      countryField: Object.prototype.hasOwnProperty.call(value, "homePortCountry")
-        ? "homePortCountry"
+      tileField,
+      cityIdField: `${prefix}CityId`,
+      nameField: Object.prototype.hasOwnProperty.call(value, `${prefix}Name`) ? `${prefix}Name` : null,
+      countryField: Object.prototype.hasOwnProperty.call(value, `${prefix}Country`)
+        ? `${prefix}Country`
         : null
     }, portCities, legacyPortTileIds);
   }
   for (const child of Object.values(value)) {
-    updates += reconcileNestedHomePortReferences(child, portCities, legacyPortTileIds, seen);
+    updates += reconcileNestedPortReferences(child, portCities, legacyPortTileIds, seen);
   }
   return updates;
 }
@@ -9020,6 +9669,7 @@ function assertLegacyPortTileIds(legacyPortTileIds) {
 }
 
 function updateQuestEndpointIdentity(quest, endpoint, port) {
+  quest[`${endpoint}CityId`] = port.cityId;
   quest[`${endpoint}TileId`] = port.tileId;
   quest[`${endpoint}Name`] = cityLabel(port);
   quest[`${endpoint}Country`] = port.country || "";
@@ -9031,10 +9681,10 @@ function updateQuestEndpointIdentity(quest, endpoint, port) {
 
 function removeInvalidatedQuestOffers(state, portCities, events) {
   const quests = questMemory(state);
-  const portsByTileId = new Map(portCities.map((port) => [port.tileId, port]));
+  const portsByCityId = new Map(portCities.map((port) => [port.cityId, port]));
   pruneOfferMap(quests.capturePortOffers, (offer) => {
-    const origin = portsByTileId.get(offer?.originTileId);
-    const target = portsByTileId.get(offer?.targetTileId);
+    const origin = portsByCityId.get(offer?.originCityId);
+    const target = portsByCityId.get(offer?.targetCityId);
     return isCaptureCommissionQuest(offer) && origin?.factionId === offer.originFactionId &&
       target?.factionId === offer.targetFactionId &&
       (offer.independentTarget === true
@@ -9046,25 +9696,25 @@ function removeInvalidatedQuestOffers(state, portCities, events) {
           ) === DIPLOMACY_WAR);
   }, "capture-offer-invalidated", events);
   pruneOfferMap(quests.courtMissionOffers, (offer) => {
-    const origin = portsByTileId.get(offer?.originTileId);
+    const origin = portsByCityId.get(offer?.originCityId);
     return !isWokouHuntQuest(offer) || origin?.factionId === offer.originFactionId;
   }, "court-offer-invalidated", events);
   pruneOfferMap(quests.passengerOffers, (offer) => {
     if (!isEnvoyQuest(offer)) return true;
-    const origin = portsByTileId.get(offer.originTileId);
-    const target = portsByTileId.get(offer.targetTileId);
+    const origin = portsByCityId.get(offer.originCityId);
+    const target = portsByCityId.get(offer.targetCityId);
     return origin?.factionId === offer.originFactionId && target?.factionId === offer.targetFactionId &&
       treatyOfMadridOfferStillValid(state, offer);
   }, "envoy-offer-invalidated", events);
   pruneOfferMap(quests.deliveryOffers, (offer) => {
     if (isTeaRaceQuest(offer)) {
-      const origin = portsByTileId.get(offer.originTileId);
-      const destination = portsByTileId.get(offer.destinationTileId);
+      const origin = portsByCityId.get(offer.originCityId);
+      const destination = portsByCityId.get(offer.destinationCityId);
       return origin?.factionId === "ming" && Boolean(destination);
     }
     if (offer?.kind !== "delivery") return true;
-    const origin = portsByTileId.get(offer.originTileId);
-    const destination = portsByTileId.get(offer.destinationTileId);
+    const origin = portsByCityId.get(offer.originCityId);
+    const destination = portsByCityId.get(offer.destinationCityId);
     if (!origin || !destination || origin.factionId !== destination.factionId) return false;
     offer.factionId = origin.factionId;
     return true;
@@ -9085,7 +9735,7 @@ function reconcileActiveCaptureCommission(state, quest, portCities, events) {
     return;
   }
   if (quest.stage !== "capture") return;
-  const target = portCities.find((port) => port.tileId === quest.targetTileId) || null;
+  const target = portCities.find((port) => port.cityId === quest.targetCityId) || null;
   const issuingCourtSurvives = portCities.some((port) => port.factionId === quest.originFactionId);
   const targetStillEnemy = target?.factionId === quest.targetFactionId;
   const authorityContinues = targetStillEnemy && (
@@ -9106,6 +9756,7 @@ function reconcileActiveCaptureCommission(state, quest, portCities, events) {
         : "target-changed-hands";
   quest.stage = "return";
   quest.destinationKey = quest.originKey;
+  quest.destinationCityId = quest.originCityId;
   quest.destinationTileId = quest.originTileId;
   quest.destinationName = quest.originName;
   quest.destinationCountry = quest.originCountry;
@@ -9123,7 +9774,7 @@ function reconcileActiveEnvoyMission(quest, portCities, events) {
     return;
   }
   if (quest.stage !== "outbound") return;
-  const target = portCities.find((port) => port.tileId === quest.targetTileId) || null;
+  const target = portCities.find((port) => port.cityId === quest.targetCityId) || null;
   if (target?.factionId === quest.targetFactionId) return;
   const replacement = preferredFactionPort(portCities, quest.targetFactionId);
   if (replacement) {
@@ -9142,6 +9793,7 @@ function reconcileActiveEnvoyMission(quest, portCities, events) {
   quest.reward = Math.max(100, Math.round(quest.originalReward * 0.5 / 25) * 25);
   quest.stage = "return";
   quest.destinationKey = quest.originKey;
+  quest.destinationCityId = quest.originCityId;
   quest.destinationTileId = quest.originTileId;
   quest.destinationName = quest.originName;
   quest.destinationCountry = quest.originCountry;
@@ -9154,7 +9806,7 @@ function reconcileActiveEnvoyMission(quest, portCities, events) {
 }
 
 function relocateReturningCommission(quest, portCities, events) {
-  const current = portCities.find((port) => port.tileId === quest.originTileId) || null;
+  const current = portCities.find((port) => port.cityId === quest.originCityId) || null;
   if (current?.factionId === quest.originFactionId) {
     updateQuestEndpointIdentity(quest, "destination", current);
     return;
@@ -9389,6 +10041,7 @@ function assertOptionalNavigationWaypoint(waypoint) {
   if (typeof waypoint.id !== "string" || waypoint.id === "") {
     throw new Error("Optional navigation waypoint requires an id");
   }
+  requireEntityId(waypoint.destinationCityId, "Optional navigation waypoint destination");
   if (!Number.isInteger(waypoint.destinationTileId)) {
     throw new Error(`Invalid navigation waypoint tile id: ${waypoint.destinationTileId}`);
   }
@@ -9580,6 +10233,9 @@ function assertGameState(state) {
     }
   } else {
     validateCampaignGoal(state.memory.campaignGoal);
+    if (state.memory.campaignGoal.homePortCityId !== state.playerCharacter?.homePortCityId) {
+      throw new Error("Campaign goal home city does not match the player character");
+    }
     if (state.memory.campaignGoal.homePortTileId !== state.playerCharacter?.homePortTileId) {
       throw new Error("Campaign goal home port does not match the player character");
     }
@@ -9726,10 +10382,10 @@ function assertPortugueseCartazMemory(memory) {
   if (memory.issuedMinute !== null) assertSimulationMinute(memory.issuedMinute);
   assertSimulationMinute(memory.untilMinute);
   assertSimulationMinute(memory.graceUntilMinute);
-  if (memory.issuedAtPortId !== null && (
-    typeof memory.issuedAtPortId !== "string" || memory.issuedAtPortId === ""
+  if (memory.issuedAtCityId !== null && (
+    typeof memory.issuedAtCityId !== "string" || memory.issuedAtCityId === ""
   )) {
-    throw new Error("Portuguese cartaz issuer must be null or a non-empty port id");
+    throw new Error("Portuguese cartaz issuer must be null or a non-empty city id");
   }
   if (
     !memory.inspectedShipUntilMinute ||
@@ -9892,6 +10548,10 @@ function assertPlayerCharacter(character) {
   if (!Array.isArray(character.expressions) || character.expressions.length === 0) {
     throw new Error("Player character requires an authored portrait expression");
   }
+  requireEntityId(character.homePortCityId, "Player home port");
+  if (!Number.isInteger(character.homePortTileId) || character.homePortTileId < 0) {
+    throw new Error(`Player home port has an invalid route tile: ${character.homePortTileId}`);
+  }
   if (character.nationalityId !== undefined) assertFactionId(character.nationalityId);
   validateCharacterSkillIds(character.skillIds);
 }
@@ -9976,18 +10636,28 @@ function validateCartographyMemory(cartography) {
 function playerCharacterSupportsCampaignGoal(character) {
   if (!character) return false;
   return typeof character.id === "string" && character.id !== "" &&
+    typeof character.homePortCityId === "string" && character.homePortCityId !== "" &&
     Number.isInteger(character.homePortTileId) && character.homePortTileId >= 0;
 }
 
-function worldDiplomacySeedKey(character, startMinute) {
+function migratedHomePortCityId(character, campaignGoal, legacyCityIdForPortReference) {
+  if (!character) return null;
+  const existing = character.homePortCityId || campaignGoal?.homePortCityId || null;
+  if (existing !== null) return requireEntityId(existing, "Saved player home port");
+  if (typeof legacyCityIdForPortReference !== "function") {
+    throw new Error("Legacy game-state migration requires a canonical home-port resolver");
+  }
+  return requireEntityId(legacyCityIdForPortReference(Object.freeze({
+    tileId: character.homePortTileId,
+    name: character.homePortName || null,
+    country: character.homePortCountry || null
+  })), "Migrated player home port");
+}
+
+function worldDiplomacySeedKey(character, startMinute, homePortCityId = character?.homePortCityId) {
   if (!character) return `anonymous|${startMinute}`;
-  return [
-    character.id || character.sourceId || "captain",
-    character.name || "unknown",
-    character.birthDateLabel || character.birthDate?.label || "unknown-birth",
-    character.homePortName || "unknown-home",
-    startMinute
-  ].join("|");
+  return `${requireEntityId(character.id, "World diplomacy captain")}|` +
+    `${requireEntityId(homePortCityId, "World diplomacy home port")}|${startMinute}`;
 }
 
 function validateVoyageSeed(value) {

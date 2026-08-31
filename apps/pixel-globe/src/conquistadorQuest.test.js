@@ -211,7 +211,7 @@ test("an annexed Spain leaves Panama as the expedition's exile replenishment bas
 
   const policy = conquistadorCompanyReplenishmentPolicy(memory, ports);
   assert.equal(policy.spanishPortsRemain, false);
-  assert.equal(policy.exileBaseTileId, ports[0].tileId);
+  assert.equal(policy.exileBaseCityId, ports[0].cityId);
   assert.equal(isConquistadorCompanyReplenishmentPort(memory, ports[0], ports), true);
   assert.equal(isConquistadorCompanyReplenishmentPort(memory, ports[1], ports), false);
   assert.equal(replenishConquistadorCompany(memory, ports[0], ports).added, 12);
@@ -244,6 +244,7 @@ function questPorts() {
 
 function city(tileId, cityName, country, lat, lon, factionId, extra = {}) {
   return {
+    cityId: `${cityName.toLocaleLowerCase("en-US")}|${country.toLocaleLowerCase("en-US")}`,
     tileId,
     city: cityName,
     displayCity: cityName,

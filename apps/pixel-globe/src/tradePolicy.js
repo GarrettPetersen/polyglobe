@@ -14,6 +14,7 @@ import {
   sovereignTradePolicyForPort
 } from "./sovereignTradeAccess.js";
 import { activeForeignSettlements } from "./foreignSettlements.js";
+import { requireCityId } from "./entityIds.js";
 
 export const PORTUGUESE_FACTION_ID = "portugal";
 export const PORTUGUESE_CARTAZ_DURATION_DAYS = 90;
@@ -58,18 +59,18 @@ export const PORTUGUESE_CROWN_SPICE_POLICY = Object.freeze({
 });
 
 const PORTUGUESE_CROWN_SPICE_SET = new Set(PORTUGUESE_CROWN_SPICE_GOOD_IDS);
-const PORTUGUESE_ESTADO_PORT_KEYS = new Set([
-  portKey("Goa", "India"),
-  portKey("Hormuz", "Iran"),
-  portKey("Malacca", "Malaysia"),
-  portKey("Muscat", "Oman"),
-  portKey("Calicut", "India"),
-  portKey("Cochin", "India"),
-  portKey("Colombo", "Sri Lanka"),
-  portKey("Quilon", "India"),
-  portKey("Sofala", "Mozambique"),
-  portKey("Mozambique", "Mozambique"),
-  portKey("Ternate", "Indonesia")
+const PORTUGUESE_ESTADO_CITY_IDS = new Set([
+  "goa|india",
+  "hormuz|iran",
+  "malacca|malaysia",
+  "muscat|oman",
+  "calicut|india",
+  "cochin|india",
+  "colombo|sri lanka",
+  "quilon|india",
+  "sofala|mozambique",
+  "mozambique|mozambique",
+  "ternate|indonesia"
 ]);
 
 const PORTUGUESE_CARTAZ_ENFORCEMENT_ZONES = Object.freeze([
@@ -429,7 +430,7 @@ export function customsRateForRelation(relation) {
 
 export function isPortugueseEstadoPort(port, foreignSettlementExpulsions = null) {
   assertTradePolicyPort(port);
-  if (!PORTUGUESE_ESTADO_PORT_KEYS.has(portKey(portName(port), port.country))) return false;
+  if (!PORTUGUESE_ESTADO_CITY_IDS.has(requireCityId(port, "Portuguese Estado port"))) return false;
   if ((port.factionId || NEUTRAL_FACTION_ID) === PORTUGUESE_FACTION_ID) return true;
   return activeForeignSettlements(port, foreignSettlementExpulsions)
     .some((entry) => entry.factionId === PORTUGUESE_FACTION_ID);
@@ -542,10 +543,7 @@ function assertDiplomaticRelation(relation) {
 function assertTradePolicyPort(port) {
   if (!port || typeof port !== "object") throw new Error("Trade policy requires a port");
   assertFactionId(port.factionId || NEUTRAL_FACTION_ID);
-  const name = portName(port);
-  if (!name || typeof port.country !== "string") {
-    throw new Error("Trade policy port requires city and country names");
-  }
+  requireCityId(port, "Trade policy port");
 }
 
 function assertLatitudeLongitude(latitudeDeg, longitudeDeg) {
@@ -555,14 +553,6 @@ function assertLatitudeLongitude(latitudeDeg, longitudeDeg) {
   if (!Number.isFinite(longitudeDeg) || longitudeDeg < -180 || longitudeDeg > 180) {
     throw new Error(`Invalid cartaz longitude: ${longitudeDeg}`);
   }
-}
-
-function portName(port) {
-  return port.displayCity || port.city || port.name;
-}
-
-function portKey(city, country) {
-  return `${city}|${country}`;
 }
 
 function zone(id, latitudeDeg, longitudeDeg, radiusKm) {

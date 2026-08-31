@@ -604,7 +604,7 @@ function buildMissionPlan(mission, origin, portCities, context, rollKey, playerR
     .filter((religionId) => mission.passengerReligionIds.includes(religionId));
   if (originReligions.length === 0) return null;
   const destinations = portCities
-    .filter((port) => port.tileId !== origin.tileId)
+    .filter((port) => port.cityId !== origin.cityId)
     .filter((port) => Number.isFinite(port.lat) && Number.isFinite(port.lon))
     .filter((port) => portMatchesDestination(mission, port))
     .filter((port) => portMatchesDestinationFactor(mission, port, context))
@@ -615,9 +615,9 @@ function buildMissionPlan(mission, origin, portCities, context, rollKey, playerR
     .filter(({ distanceKm }) => Number.isFinite(distanceKm) &&
       distanceKm >= mission.minimumDistanceKm &&
       distanceKm <= mission.maximumDistanceKm);
-  const eligibleDestinations = context.destinationTileId === undefined || mission.deliveryStopCount > 1
+  const eligibleDestinations = context.destinationCityId === undefined || mission.deliveryStopCount > 1
     ? destinations
-    : destinations.filter(({ port }) => port.tileId === context.destinationTileId);
+    : destinations.filter(({ port }) => port.cityId === context.destinationCityId);
   if (eligibleDestinations.length === 0) return null;
   const itinerary = missionItinerary(
     mission,
@@ -636,7 +636,8 @@ function buildMissionPlan(mission, origin, portCities, context, rollKey, playerR
     destination: destination.port,
     distanceKm: itinerary.reduce((sum, stop) => sum + stop.legDistanceKm, 0),
     itinerary: Object.freeze(itinerary.map(({ port, legDistanceKm }) => Object.freeze({
-      key: `${port.city}|${port.country || ""}|${port.tileId}`,
+      key: port.cityId,
+      cityId: port.cityId,
       tileId: port.tileId,
       name: cityLabel(port),
       country: port.country || "",
@@ -683,9 +684,9 @@ function missionItinerary(mission, origin, destinations, context, rollKey) {
   const itinerary = [];
   let previous = origin;
   for (let index = 0; index < stopCount; index += 1) {
-    const requiredFirstTileId = index === 0 ? context.destinationTileId : undefined;
+    const requiredFirstCityId = index === 0 ? context.destinationCityId : undefined;
     const candidates = remaining
-      .filter(({ port }) => requiredFirstTileId === undefined || port.tileId === requiredFirstTileId)
+      .filter(({ port }) => requiredFirstCityId === undefined || port.cityId === requiredFirstCityId)
       .map((candidate) => {
         const legDistanceKm = index === 0
           ? candidate.distanceKm
@@ -697,12 +698,12 @@ function missionItinerary(mission, origin, destinations, context, rollKey) {
         };
       })
       .filter(({ legDistanceKm }) => Number.isFinite(legDistanceKm))
-      .sort((left, right) => left.score - right.score || left.port.tileId - right.port.tileId);
+      .sort((left, right) => left.score - right.score || left.port.cityId.localeCompare(right.port.cityId));
     const selected = candidates[0];
     if (!selected) return null;
     itinerary.push(selected);
     previous = selected.port;
-    remaining.splice(remaining.findIndex(({ port }) => port.tileId === selected.port.tileId), 1);
+    remaining.splice(remaining.findIndex(({ port }) => port.cityId === selected.port.cityId), 1);
   }
   return itinerary;
 }
@@ -712,7 +713,7 @@ function itineraryStopScore(mission, destination, distanceKm, rollKey, index) {
     Math.min(2200, mission.maximumDistanceKm);
   const distancePenalty = Math.abs(distanceKm - preferredDistanceKm) /
     Math.max(preferredDistanceKm, 1);
-  return seededFraction(`${rollKey}|${mission.id}|stop-${index}|${destination.tileId}`) +
+  return seededFraction(`${rollKey}|${mission.id}|stop-${index}|${destination.cityId}`) +
     distancePenalty * 0.35;
 }
 
@@ -739,7 +740,7 @@ function destinationScore(mission, destination, distanceKm, rollKey) {
   const preferredDistanceKm = Math.min(2200, mission.maximumDistanceKm);
   const distancePenalty = Math.abs(distanceKm - preferredDistanceKm) /
     Math.max(preferredDistanceKm, 1);
-  return seededFraction(`${rollKey}|${mission.id}|${destination.tileId}`) + distancePenalty * 0.35;
+  return seededFraction(`${rollKey}|${mission.id}|${destination.cityId}`) + distancePenalty * 0.35;
 }
 
 function forcedReligiousMission(context) {
