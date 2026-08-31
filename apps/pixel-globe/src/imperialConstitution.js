@@ -23,6 +23,16 @@ export const IMPERIAL_AUTHORITY_MAX = 100;
 export const IMPERIAL_ELECTION_CONVENED_MINUTE = gameMinuteForDate(1530, 6, 20);
 export const IMPERIAL_KING_OF_ROMANS_ELECTION_MINUTE = gameMinuteForDate(1531, 1, 5);
 export const IMPERIAL_SUCCESSION_ELECTION_DELAY_DAYS = 45;
+export const IMPERIAL_HISTORY_EVENT_KINDS = Object.freeze([
+  "election",
+  "election-convened",
+  "king-of-romans-vacancy",
+  "king-of-romans-succeeds",
+  "imperial-vacancy",
+  "elector-support",
+  "diet-resolution",
+  "reformation"
+]);
 
 export const IMPERIAL_ELECTION_OFFICE_EMPEROR = "emperor";
 export const IMPERIAL_ELECTION_OFFICE_KING_OF_ROMANS = "king-of-romans";
@@ -290,6 +300,11 @@ export function validateImperialConstitution(memory) {
   for (const resolution of memory.resolutions) validateResolution(resolution);
   if (!Array.isArray(memory.history) || memory.history.length > IMPERIAL_HISTORY_LIMIT) {
     throw new Error("Invalid Imperial constitution history");
+  }
+  for (const event of memory.history) {
+    if (!event || !IMPERIAL_HISTORY_EVENT_KINDS.includes(event.kind)) {
+      throw new Error(`Invalid Imperial history event: ${event?.kind ?? "missing"}`);
+    }
   }
   return memory;
 }

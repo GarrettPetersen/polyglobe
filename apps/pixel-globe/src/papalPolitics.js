@@ -32,6 +32,13 @@ export const PAPAL_ACTION_EXCOMMUNICATION = "papal-excommunication";
 export const PAPAL_ACTION_CONDEMNATION = "papal-condemnation";
 export const PAPAL_ACTION_CRUSADE = "papal-crusade";
 export const PAPAL_ACTION_REVOCATION = "papal-revocation";
+export const PAPAL_RECORDED_ACTION_KINDS = Object.freeze([
+  PAPAL_ACTION_FAVOUR,
+  PAPAL_ACTION_EXCOMMUNICATION,
+  PAPAL_ACTION_CONDEMNATION,
+  PAPAL_ACTION_CRUSADE,
+  PAPAL_ACTION_REVOCATION
+]);
 export const PAPAL_COMMISSION_ADMONITION = "admonition";
 export const PAPAL_COMMISSION_COMMENDATION = "commendation";
 export const PAPAL_COMMISSION_PEACE = "peace";
@@ -73,10 +80,7 @@ const PAPAL_ACTION_KINDS = new Set([
   PAPAL_ACTION_CONDEMNATION,
   PAPAL_ACTION_CRUSADE
 ]);
-const PAPAL_RECORDED_ACTION_KINDS = new Set([
-  ...PAPAL_ACTION_KINDS,
-  PAPAL_ACTION_REVOCATION
-]);
+const PAPAL_RECORDED_ACTION_KIND_SET = new Set(PAPAL_RECORDED_ACTION_KINDS);
 const SOVEREIGN_FACTIONS = FACTIONS.filter(({ id }) => (
   id !== NEUTRAL_FACTION_ID && id !== PIRATE_FACTION_ID
 ));
@@ -1383,7 +1387,7 @@ function validatePapalAction(action, { legacyIdentities = false } = {}) {
   if (!action || typeof action !== "object" || typeof action.id !== "string" || action.id === "") {
     throw new Error("Invalid papal action");
   }
-  if (!PAPAL_RECORDED_ACTION_KINDS.has(action.kind)) {
+  if (!PAPAL_RECORDED_ACTION_KIND_SET.has(action.kind)) {
     throw new Error(`Invalid recorded papal action kind: ${action.kind}`);
   }
   assertFactionId(action.targetFactionId);

@@ -34,6 +34,11 @@ export const TRADE_EMBARGO_ORDER_LIMIT = 48;
 export const TRADE_EMBARGO_ENFORCEMENT_VERSION = 3;
 export const TRADE_EMBARGO_REPUTATION_PENALTY = 9;
 export const PAPAL_EMBARGO_REPUTATION_PENALTY = 5;
+export const TRADE_EMBARGO_EVENT_KINDS = Object.freeze([
+  "imposed",
+  "lifted",
+  "followers-changed"
+]);
 
 const MINUTES_PER_DAY = 24 * 60;
 const REVIEW_MIN_DAYS = 75;
@@ -58,7 +63,7 @@ const EMBARGO_RESTRICTIONS = new Set([
   TRADE_EMBARGO_RESTRICTION_EXPORTS,
   TRADE_EMBARGO_RESTRICTION_BLOCKADE
 ]);
-const EMBARGO_EVENT_KINDS = new Set(["imposed", "lifted", "followers-changed"]);
+const EMBARGO_EVENT_KINDS = new Set(TRADE_EMBARGO_EVENT_KINDS);
 const HISTORICAL_TRANSITION_STATES = new Set(["completed", "averted"]);
 
 export const TRADE_EMBARGO_WAR_MATERIEL_GOOD_IDS = Object.freeze([

@@ -9,6 +9,7 @@ export const SUZERAINTY_KIND_AUTONOMOUS_VASSAL = "autonomous-vassal";
 export const SUZERAINTY_KIND_TRIBUTARY = "tributary";
 export const SUZERAINTY_KIND_PERSONAL_UNION = "personal-union";
 export const SUZERAINTY_HISTORY_LIMIT = 32;
+export const SUZERAINTY_EVENT_KINDS = Object.freeze(["established", "released"]);
 
 const SUZERAINTY_KINDS = new Set([
   SUZERAINTY_KIND_VASSAL,
@@ -466,7 +467,7 @@ function validateSuzeraintyEvent(event) {
   if (!event || typeof event !== "object" || typeof event.id !== "string" || event.id === "") {
     throw new Error("Invalid suzerainty event");
   }
-  if (!["established", "released"].includes(event.kind)) {
+  if (!SUZERAINTY_EVENT_KINDS.includes(event.kind)) {
     throw new Error(`Invalid suzerainty event kind: ${event.kind}`);
   }
   assertSovereignFaction(event.vassalFactionId, "vassal");

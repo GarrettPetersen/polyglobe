@@ -6,11 +6,16 @@ import {
   canonicalGameStateFixtures,
   canonicalGameStateSchemaEntries
 } from "../src/gameStateSchema.js";
+import { createDenseSaveCompatibilityFixture } from "../src/test-fixtures/createDenseSaveCompatibilityFixture.js";
 
 const directory = new URL("../src/test-fixtures/save-schemas/", import.meta.url);
 const schemaOutput = new URL(`game-state-v${GAME_STATE_VERSION}.json`, directory);
 const statesOutput = new URL(`canonical-states-v${GAME_STATE_VERSION}.json`, directory);
-if (existsSync(schemaOutput) || existsSync(statesOutput)) {
+const denseSaveOutput = new URL(
+  `../src/test-fixtures/saves/dense-local-save-v2-game-state-v${GAME_STATE_VERSION}.json`,
+  import.meta.url
+);
+if (existsSync(schemaOutput) || existsSync(statesOutput) || existsSync(denseSaveOutput)) {
   throw new Error(
     `Schema snapshot already exists for game-state version ${GAME_STATE_VERSION}. ` +
       "Increment GAME_STATE_VERSION before freezing a changed persisted schema."
@@ -29,7 +34,12 @@ writeFileSync(statesOutput, `${JSON.stringify({
   gameStateVersion: GAME_STATE_VERSION,
   states: canonicalGameStateFixtures()
 }, null, 2)}\n`, { flag: "wx" });
+writeFileSync(
+  denseSaveOutput,
+  `${JSON.stringify(createDenseSaveCompatibilityFixture(), null, 2)}\n`,
+  { flag: "wx" }
+);
 console.log(
   `Frozen game-state schema v${GAME_STATE_VERSION}: ${entries.length} entries and ` +
-    `${canonicalGameStateFixtures().length} migration fixtures`
+    `${canonicalGameStateFixtures().length} migration fixtures plus one dense local save`
 );

@@ -6,6 +6,7 @@ import {
 } from "./campaignGoals.js";
 import { createGameState } from "./gameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { createDenseSaveCompatibilityFixture } from "./test-fixtures/createDenseSaveCompatibilityFixture.js";
 
 const SCHEMA_CAMPAIGN_GOAL_TYPES = Object.freeze([
   CAMPAIGN_GOAL_EXPLORER,
@@ -41,7 +42,7 @@ export function canonicalGameStateSchemaEntries() {
 
 export function canonicalGameStateFixtures() {
   const shipStats = shipStatsForSlug("brigantine");
-  return SCHEMA_CAMPAIGN_GOAL_TYPES.map((campaignGoalType) => ({
+  const campaignFixtures = SCHEMA_CAMPAIGN_GOAL_TYPES.map((campaignGoalType) => ({
     campaignGoalType,
     state: createGameState({
       cargoCapacity: shipStats.cargoCapacity,
@@ -52,6 +53,13 @@ export function canonicalGameStateFixtures() {
       voyageSeed: `save-schema-${campaignGoalType}`
     })
   }));
+  return [
+    ...campaignFixtures,
+    {
+      campaignGoalType: "dense-save-compatibility",
+      state: createDenseSaveCompatibilityFixture().payload.gameState
+    }
+  ];
 }
 
 export function persistedValueSchemaEntries(value) {

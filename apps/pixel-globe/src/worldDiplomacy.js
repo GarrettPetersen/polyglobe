@@ -32,6 +32,20 @@ import { factionDiplomaticAggressionMultiplier } from "./factionExpansion.js";
 import { imperialDefensePartners } from "./imperialConstitution.js";
 
 export const WORLD_DIPLOMACY_VERSION = 10;
+export const WORLD_DIPLOMACY_EVENT_KINDS = Object.freeze([
+  "war",
+  "peace",
+  "alliance-war",
+  "alliance",
+  "alliance-ended",
+  "relations-improve",
+  "relations-worsen",
+  "vassalage",
+  "rebellion",
+  "independence",
+  "union-dissolved",
+  "succession"
+]);
 export const DIPLOMACY_MIN_EVENT_DAYS = 75;
 export const DIPLOMACY_MAX_EVENT_DAYS = 150;
 export const DIPLOMACY_PAIR_COOLDOWN_DAYS = 120;
@@ -985,20 +999,7 @@ function validateDiplomacyEvent(event) {
   if (!event || typeof event !== "object" || typeof event.id !== "string" || event.id === "") {
     throw new Error("Invalid diplomacy history event");
   }
-  if (![
-    "war",
-    "peace",
-    "alliance-war",
-    "alliance",
-    "alliance-ended",
-    "relations-improve",
-    "relations-worsen",
-    "vassalage",
-    "rebellion",
-    "independence",
-    "union-dissolved",
-    "succession"
-  ].includes(event.kind)) {
+  if (!WORLD_DIPLOMACY_EVENT_KINDS.includes(event.kind)) {
     throw new Error(`Invalid diplomacy history event kind: ${event.kind}`);
   }
   assertSovereignPair(event.factionAId, event.factionBId);

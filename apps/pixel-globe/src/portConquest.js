@@ -16,6 +16,12 @@ export const CAPITAL_PEACE_TERM_TRIBUTARY = "tributary-status";
 export const CAPITAL_PEACE_TERM_CONCESSIONS = "territorial-concessions";
 export const CAPITAL_PEACE_TERM_PAPAL_FAVOUR = "papal-favour";
 export const CAPITAL_PEACE_TERM_PAPAL_EXCOMMUNICATION = "papal-excommunication";
+export const PORT_CONQUEST_EVENT_KINDS = Object.freeze([
+  "port-capture",
+  "faction-collapse",
+  "faction-restoration",
+  "faction-succession"
+]);
 
 const PORT_CONQUEST_EVENT_LIMIT = 80;
 const PORT_CONQUEST_TREATY_LIMIT = 40;
@@ -107,6 +113,12 @@ export function validatePortConquestMemory(memory) {
   }
   for (const treaty of memory.treaties) validatePeaceTreaty(treaty);
   if (!Array.isArray(memory.events)) throw new Error("Port conquest events must be an array");
+  for (const event of memory.events) {
+    const kind = event?.kind ?? "port-capture";
+    if (!PORT_CONQUEST_EVENT_KINDS.includes(kind)) {
+      throw new Error(`Invalid port conquest event kind: ${kind}`);
+    }
+  }
   return memory;
 }
 
@@ -240,6 +252,7 @@ export function recordPortCapture(memory, city, newFactionId, simMinute, source 
     : null;
   memory.events.push({
     id: `capture-${simMinute}-${portId}`,
+    kind: "port-capture",
     portId,
     cityId: city.cityId,
     cityTileId: city.tileId,

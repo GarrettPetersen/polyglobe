@@ -2,7 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
-import { GAME_STATE_VERSION } from "./gameState.js";
+import {
+  GAME_STATE_VERSION,
+  reconcileQuestPortTiles,
+  validateGameState
+} from "./gameState.js";
+import { COURT_ACTION_KINDS } from "./courtPolitics.js";
+import { IMPERIAL_HISTORY_EVENT_KINDS } from "./imperialConstitution.js";
 import {
   LOCAL_SAVE_STORAGE_KEY,
   readLocalSave
@@ -12,13 +18,30 @@ import {
   recoverSavedVoyageWorldClock,
   savedVoyageWorldTopology
 } from "./saveCompatibility.js";
+import { PAPAL_RECORDED_ACTION_KINDS } from "./papalPolitics.js";
+import { PORT_CONQUEST_EVENT_KINDS } from "./portConquest.js";
+import {
+  SUZERAINTY_EVENT_KINDS,
+  SUZERAINTY_KIND_AUTONOMOUS_VASSAL,
+  SUZERAINTY_KIND_PERSONAL_UNION,
+  SUZERAINTY_KIND_TRIBUTARY,
+  SUZERAINTY_KIND_VASSAL
+} from "./suzerainty.js";
+import { DENSE_SAVE_PORT_CATALOG } from "./test-fixtures/createDenseSaveCompatibilityFixture.js";
+import { TRADE_EMBARGO_EVENT_KINDS } from "./tradeEmbargoes.js";
+import { WORLD_DIPLOMACY_EVENT_KINDS } from "./worldDiplomacy.js";
 
 const FIXTURE_DIRECTORY = new URL("./test-fixtures/saves/", import.meta.url);
 const FIXTURE_FILES = readdirSync(FIXTURE_DIRECTORY)
   .filter((name) => name.endsWith(".json"))
   .sort();
+const CURRENT_DENSE_FIXTURE = `dense-local-save-v2-game-state-v${GAME_STATE_VERSION}.json`;
 
 assert.ok(FIXTURE_FILES.length > 0, "Save compatibility suite requires at least one frozen fixture");
+assert.ok(
+  FIXTURE_FILES.includes(CURRENT_DENSE_FIXTURE),
+  `Game-state version ${GAME_STATE_VERSION} requires a frozen dense local-save fixture`
+);
 
 for (const fixtureName of FIXTURE_FILES) {
   test(`released save remains compatible: ${fixtureName}`, () => {
@@ -46,6 +69,13 @@ for (const fixtureName of FIXTURE_FILES) {
     assert.deepEqual(payload, originalPayload);
 
     assert.equal(restored.gameState.version, GAME_STATE_VERSION);
+    if (fixtureName.startsWith("dense-local-save-")) {
+      if (payload.gameState.version === GAME_STATE_VERSION) {
+        assertDenseEventKindCoverage(payload.gameState);
+      }
+      reconcileQuestPortTiles(restored.gameState, DENSE_SAVE_PORT_CATALOG);
+      validateGameState(restored.gameState);
+    }
     assert.deepEqual(compatibilityFacts({
       ...payload,
       gameState: restored.gameState,
@@ -122,6 +152,49 @@ test("released saves migrate from the subdivision-seven world without mutation",
     /cannot load/
   );
 });
+
+function assertDenseEventKindCoverage(state) {
+  assertExactKinds(state.memory.conquest.events, PORT_CONQUEST_EVENT_KINDS, "conquest events");
+  assertExactKinds(
+    state.relations.diplomacy.history,
+    WORLD_DIPLOMACY_EVENT_KINDS,
+    "diplomacy events"
+  );
+  assertExactKinds(
+    state.relations.diplomacy.suzerainties.history,
+    SUZERAINTY_EVENT_KINDS,
+    "suzerainty events"
+  );
+  assert.deepEqual(
+    new Set(state.relations.diplomacy.suzerainties.history.map((event) => event.relationshipKind)),
+    new Set([
+      SUZERAINTY_KIND_VASSAL,
+      SUZERAINTY_KIND_AUTONOMOUS_VASSAL,
+      SUZERAINTY_KIND_TRIBUTARY,
+      SUZERAINTY_KIND_PERSONAL_UNION
+    ])
+  );
+  assertExactKinds(
+    state.relations.tradeEmbargoes.history,
+    TRADE_EMBARGO_EVENT_KINDS,
+    "trade embargo events"
+  );
+  assertExactKinds(
+    state.relations.imperial.history,
+    IMPERIAL_HISTORY_EVENT_KINDS,
+    "Imperial events"
+  );
+  assertExactKinds(state.relations.courts.history, COURT_ACTION_KINDS, "court events");
+  assertExactKinds(state.relations.papacy.history, PAPAL_RECORDED_ACTION_KINDS, "Papal events");
+}
+
+function assertExactKinds(records, expectedKinds, label) {
+  assert.deepEqual(
+    new Set(records.map((record) => record.kind)),
+    new Set(expectedKinds),
+    `Dense save does not cover every registered ${label}`
+  );
+}
 
 function compatibilityFacts(payload) {
   const state = payload.gameState;
