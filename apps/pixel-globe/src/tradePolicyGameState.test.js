@@ -13,6 +13,7 @@ import {
   portugueseCartazInspectionStatus,
   portugueseCartazStatus,
   purchasePortugueseCartaz,
+  reconcileQuestPortTiles,
   surrenderPortugueseControlledCargo,
   validateGameState
 } from "./gameState.js";
@@ -173,4 +174,29 @@ test("version 38 voyages gain empty cartaz memory without losing their voyage", 
     graceUntilMinute: 0,
     inspectedShipUntilMinute: {}
   });
+});
+
+test("legacy cartaz papers issued by an inspector retain their validity without inventing a city", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const legacy = structuredClone(state);
+  legacy.version = 92;
+  legacy.relations.portugueseCartaz = {
+    issuedMinute: 100,
+    untilMinute: 100 + 90 * 1440,
+    issuedAtPortId: "inspection:indian-ocean-27",
+    graceUntilMinute: 0,
+    inspectedShipUntilMinute: { "indian-ocean-27": 500 }
+  };
+
+  const migrated = migrateGameState(legacy);
+
+  assert.equal(migrated.version, GAME_STATE_VERSION);
+  assert.equal(migrated.relations.portugueseCartaz.issuedMinute, 100);
+  assert.equal(migrated.relations.portugueseCartaz.untilMinute, 100 + 90 * 1440);
+  assert.equal(migrated.relations.portugueseCartaz.issuedAtCityId, null);
+  assert.deepEqual(migrated.relations.portugueseCartaz.inspectedShipUntilMinute, {
+    "indian-ocean-27": 500
+  });
+  assert.equal(portugueseCartazStatus(migrated, GOA, 101).valid, true);
+  assert.equal(reconcileQuestPortTiles(migrated, [GOA]), 0);
 });

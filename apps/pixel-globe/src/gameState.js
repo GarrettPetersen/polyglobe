@@ -1195,10 +1195,28 @@ function migratePortugueseCartazMemory(memory) {
   return {
     issuedMinute: memory.issuedMinute ?? null,
     untilMinute: memory.untilMinute ?? 0,
-    issuedAtCityId: memory.issuedAtCityId ?? memory.issuedAtPortId ?? null,
+    issuedAtCityId: migratedPortugueseCartazIssuerCityId(memory),
     graceUntilMinute: memory.graceUntilMinute ?? 0,
     inspectedShipUntilMinute: memory.inspectedShipUntilMinute || {}
   };
+}
+
+function migratedPortugueseCartazIssuerCityId(memory) {
+  if (memory.issuedAtCityId !== undefined) return memory.issuedAtCityId;
+  const legacyIssuerId = memory.issuedAtPortId ?? null;
+  if (legacyIssuerId === null) return null;
+  if (typeof legacyIssuerId !== "string" || legacyIssuerId === "") {
+    throw new Error("Legacy Portuguese cartaz issuer must be a non-empty id");
+  }
+  if (!legacyIssuerId.startsWith("inspection:")) return legacyIssuerId;
+  const inspectorShipId = legacyIssuerId.slice("inspection:".length);
+  if (inspectorShipId === "") {
+    throw new Error("Legacy Portuguese cartaz inspection issuer is missing its ship id");
+  }
+  // IDENTITY_MIGRATION_EXCEPTION: older voyages could buy a cartaz at sea and
+  // recorded the inspecting ship in the field later reserved for issuing cities.
+  // The permit's validity is preserved; there was no city identity to migrate.
+  return null;
 }
 
 function migrateVisitedPortMemories(memories) {
