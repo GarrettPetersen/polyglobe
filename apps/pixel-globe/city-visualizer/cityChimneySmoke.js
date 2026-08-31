@@ -62,6 +62,21 @@ export const CITY_CHIMNEY_SMOKE_EMITTERS = Object.freeze([
     maximumSize: 2,
     opacity: 0.48,
     colors: LIGHT_SMOKE
+  }),
+  chimneyEmitter({
+    id: "middle-east-inn",
+    layerName: "Middle East Inn",
+    x: 1101.5,
+    y: 472,
+    mouthPixels: Object.freeze([{ x: 1101, y: 473 }, { x: 1102, y: 473 }]),
+    emissionIntervalMs: 680,
+    lifetimeMs: 2850,
+    rise: 24,
+    drift: 7,
+    spread: 3,
+    maximumSize: 2,
+    opacity: 0.48,
+    colors: LIGHT_SMOKE
   })
 ]);
 
@@ -69,9 +84,15 @@ const CITY_CHIMNEY_SMOKE_EMITTER_BY_LAYER = new Map(
   CITY_CHIMNEY_SMOKE_EMITTERS.map((emitter) => [emitter.layerName, emitter])
 );
 
+function chimneySmokeSourceForFrame(frame) {
+  if (frame?.hasChimney === false) return null;
+  return CITY_CHIMNEY_SMOKE_EMITTER_BY_LAYER.get(frame?.layer) ||
+    CITY_CHIMNEY_SMOKE_EMITTER_BY_LAYER.get(frame?.regionalOf);
+}
+
 export function placedCityBuildingChimneySmokeEmitter(placement) {
   requireBackgroundBuilding(placement);
-  const source = CITY_CHIMNEY_SMOKE_EMITTER_BY_LAYER.get(placement.frame.layer);
+  const source = chimneySmokeSourceForFrame(placement.frame);
   if (!source) return null;
   const scaleX = placement.width / placement.frame.frame.w;
   const scaleY = placement.height / placement.frame.frame.h;
@@ -96,7 +117,7 @@ export function backgroundCityChimneySmokeEmitters({ cityId, side, rows }) {
       throw new Error("Invalid background city chimney smoke row");
     }
     for (const building of row.buildings) {
-      const source = CITY_CHIMNEY_SMOKE_EMITTER_BY_LAYER.get(building?.frame?.layer);
+      const source = chimneySmokeSourceForFrame(building?.frame);
       if (!source) continue;
       requireBackgroundBuilding(building);
       const key = [

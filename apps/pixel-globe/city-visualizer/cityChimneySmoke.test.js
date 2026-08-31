@@ -8,7 +8,8 @@ import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modul
 import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
   backgroundCityChimneySmokeEmitters,
-  cityChimneySmokeParticles
+  cityChimneySmokeParticles,
+  placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
 
 const visualizerRoot = dirname(fileURLToPath(import.meta.url));
@@ -26,8 +27,16 @@ test("each smoke emitter occupies the transparent pixel immediately above its au
     const frame = manifest.staticFrames.find((candidate) => candidate.layer === emitter.layerName);
     assert.ok(frame, `${emitter.layerName} has an exported atlas frame`);
     for (const mouthPixel of emitter.mouthPixels) {
-      assert.equal(sceneAlpha(frame, atlasPixels, atlas.width, mouthPixel.x, mouthPixel.y), 255);
-      assert.equal(sceneAlpha(frame, atlasPixels, atlas.width, mouthPixel.x, mouthPixel.y - 1), 0);
+      assert.equal(
+        sceneAlpha(frame, atlasPixels, atlas.width, mouthPixel.x, mouthPixel.y),
+        255,
+        `${frame.layer} has an opaque flue mouth at ${mouthPixel.x},${mouthPixel.y}`
+      );
+      assert.equal(
+        sceneAlpha(frame, atlasPixels, atlas.width, mouthPixel.x, mouthPixel.y - 1),
+        0,
+        `${frame.layer} has clear air above ${mouthPixel.x},${mouthPixel.y}`
+      );
     }
     assert.equal(emitter.y, emitter.mouthPixels[0].y - 1);
   }
@@ -119,6 +128,52 @@ test("background cities deterministically smoke from exactly half their scaled c
     assert.ok(particles.every((particle) => (
       particle.size === 1 && particle.y <= Math.round(emitter.y)
     )));
+  }
+});
+
+test("regional buildings retain their canonical chimney emitters", async () => {
+  const manifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
+  const regionalFrames = manifest.staticFrames.filter((frame) => (
+    frame.regionalOf && frame.hasChimney !== false
+  ));
+  assert.deepEqual(
+    regionalFrames.map(({ layer }) => layer).sort(),
+    ["Med Home", "Med Home 2", "Med Inn", "Med Smith", "Middle East Inn"].sort()
+  );
+  const atlas = await loadImage(join(assetRoot, manifest.staticSheet));
+  const canvas = createCanvas(atlas.width, atlas.height);
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(atlas, 0, 0);
+  const atlasPixels = context.getImageData(0, 0, atlas.width, atlas.height).data;
+  const sourceByLayer = new Map(CITY_CHIMNEY_SMOKE_EMITTERS.map((emitter) => (
+    [emitter.layerName, emitter]
+  )));
+  for (const frame of regionalFrames) {
+    const placement = {
+      id: `test|${frame.id}`,
+      frame,
+      x: frame.spriteSourceSize.x,
+      y: frame.spriteSourceSize.y,
+      width: frame.frame.w,
+      height: frame.frame.h
+    };
+    const emitter = placedCityBuildingChimneySmokeEmitter(placement);
+    const source = sourceByLayer.get(frame.layer) || sourceByLayer.get(frame.regionalOf);
+    assert.ok(emitter, `${frame.layer} retains ${frame.regionalOf}'s chimney`);
+    assert.equal(emitter.x, source.x);
+    assert.equal(emitter.y, source.y);
+    for (const mouthPixel of frame.layer === "Middle East Inn" ? source.mouthPixels : []) {
+      assert.equal(
+        sceneAlpha(frame, atlasPixels, atlas.width, mouthPixel.x, mouthPixel.y),
+        255,
+        `${frame.layer} has an opaque flue mouth at ${mouthPixel.x},${mouthPixel.y}`
+      );
+      assert.equal(
+        sceneAlpha(frame, atlasPixels, atlas.width, mouthPixel.x, mouthPixel.y - 1),
+        0,
+        `${frame.layer} has clear air above ${mouthPixel.x},${mouthPixel.y}`
+      );
+    }
   }
 });
 

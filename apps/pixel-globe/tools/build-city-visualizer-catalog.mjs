@@ -26,7 +26,7 @@ import {
   isChristianReligion,
   religionCandidatesForHome
 } from "../src/characterReligion.js";
-import { cityBackgroundRowCount } from "../city-visualizer/cityBackground.js";
+import { cityBackgroundEnabled } from "../city-visualizer/cityBackground.js";
 
 const GEOGRAPHY_SUBDIVISIONS = 7;
 const NEIGHBORHOOD_RINGS = 5;
@@ -194,18 +194,17 @@ function religiousLandmarks(city) {
 }
 
 function backgroundCityProfile(city, landmarks) {
-  const rows = cityBackgroundRowCount(city);
   const population = Math.round(city.population);
-  const density = rows >= 5 || city.declaredCapitalFactionId
+  const density = population >= 50_000 || city.declaredCapitalFactionId
     ? "dense"
-    : rows >= 3
+    : population >= 8_000
       ? "moderate"
       : "sparse";
   const variation = hashString(city.cityId);
-  const churchCount = landmarks.includes("church") && rows > 0
+  const churchCount = landmarks.includes("church") && cityBackgroundEnabled(city)
     ? population >= 100_000
       ? 3
-      : rows >= 5
+      : population >= 50_000
         ? 2
         : 1
     : 0;

@@ -1,4 +1,8 @@
 import { PORT_SCENE_DEPTH, PORT_SCENE_MASTER } from "./citySceneRules.js";
+import {
+  cityBuildingLogicalLayer,
+  cityRegionalBuildingFrame
+} from "./cityRegionalBuildings.js";
 
 export const CITY_STREET_BUILDING_FOUNDATION_SOURCE_HEIGHT = 12;
 export const CITY_STREET_CHURCH_FOUNDATION_SOURCE_HEIGHT = 36;
@@ -39,7 +43,7 @@ export function defaultCityStreetBuildingAssignments(features) {
   ]);
 }
 
-export function cityStreetBuildingPlacements({ features, frames, assignments }) {
+export function cityStreetBuildingPlacements({ features, frames, assignments, cityType }) {
   if (!Array.isArray(frames)) throw new Error("City street buildings require atlas frames");
   const resolvedAssignments = assignments || defaultCityStreetBuildingAssignments(features);
   if (!Array.isArray(resolvedAssignments)) {
@@ -56,16 +60,16 @@ export function cityStreetBuildingPlacements({ features, frames, assignments }) 
     if (FIXED_GATEHOUSE_LAYERS.has(layerName)) {
       throw new Error(`${layerName} is fixed at the street terminus and cannot occupy a building slot`);
     }
-    const frame = frameByLayer.get(layerName);
+    const frame = cityRegionalBuildingFrame(frames, cityType, layerName) || frameByLayer.get(layerName);
     requireBuildingFrame(frame, layerName);
-    return placeCityStreetBuilding(slot, frame);
+    return placeCityStreetBuilding(slot, frame, layerName);
   }));
 }
 
-export function placeCityStreetBuilding(slot, frame) {
+export function placeCityStreetBuilding(slot, frame, logicalLayerName = cityBuildingLogicalLayer(frame)) {
   requireBuildingSlot(slot);
-  requireBuildingFrame(frame, frame?.layer);
-  const foundationHeight = frame.layer === "Church"
+  requireBuildingFrame(frame, logicalLayerName);
+  const foundationHeight = logicalLayerName === "Church"
     ? CITY_STREET_CHURCH_FOUNDATION_SOURCE_HEIGHT
     : CITY_STREET_BUILDING_FOUNDATION_SOURCE_HEIGHT;
   const x = Math.round(slot.centerX - frame.frame.w / 2);
@@ -74,9 +78,9 @@ export function placeCityStreetBuilding(slot, frame) {
     throw new Error(`${frame.layer} does not fit city street slot ${slot.id}`);
   }
   return Object.freeze({
-    id: `${slot.id}|${frame.layer}`,
+    id: `${slot.id}|${logicalLayerName}`,
     slotId: slot.id,
-    layerName: frame.layer,
+    layerName: logicalLayerName,
     frame,
     x,
     y,
@@ -115,7 +119,7 @@ function requireBuildingSlot(slot) {
 function requireBuildingFrame(frame, layerName) {
   if (
     !frame ||
-    frame.layer !== layerName ||
+    cityBuildingLogicalLayer(frame) !== layerName ||
     !Number.isInteger(frame.frame?.w) ||
     frame.frame.w <= 0 ||
     !Number.isInteger(frame.frame?.h) ||

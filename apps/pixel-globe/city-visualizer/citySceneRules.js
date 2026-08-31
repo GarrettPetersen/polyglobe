@@ -1,8 +1,7 @@
 import {
   BACKGROUND_CITY_BASE_LAYER,
   BACKGROUND_CITY_FRONT_DEPTH,
-  BACKGROUND_CITY_MAX_ROWS,
-  cityBackgroundRowCount
+  cityBackgroundEnabled
 } from "./cityBackground.js";
 
 export const PORT_SCENE_MASTER = Object.freeze({
@@ -512,7 +511,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     rightTerrain: requireTerrain(city.terrain?.right || "grass"),
     leftDistantTerrain: requireTerrain(city.terrain?.leftDistant || city.terrain?.left || "grass"),
     rightDistantTerrain: requireTerrain(city.terrain?.rightDistant || city.terrain?.right || "grass"),
-    backgroundCityRows: cityBackgroundRowCount(city),
+    backgroundCity: cityBackgroundEnabled(city),
     church: Boolean(city.religiousLandmarks?.includes("church")),
     leftBankCity: Boolean(city.builtUpBothBanks),
     npcs: city.settlementType === "village" ? 3 : 6,
@@ -528,12 +527,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   }
   features.npcs = clampInteger(features.npcs, 0, 12, "NPC count");
   features.props = clampInteger(features.props, 0, 6, "prop count");
-  features.backgroundCityRows = clampInteger(
-    features.backgroundCityRows,
-    0,
-    BACKGROUND_CITY_MAX_ROWS,
-    "background city row count"
-  );
+  features.backgroundCity = Boolean(features.backgroundCity);
   features.leftBankCity = features.approach === "river" && Boolean(features.leftBankCity);
   return Object.freeze(features);
 }
@@ -541,7 +535,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
 export function activePortSceneLayers(features) {
   if (!features || typeof features !== "object") throw new Error("Port scene layers require features");
   const layers = new Set(ALWAYS_VISIBLE_LAYERS);
-  if (features.backgroundCityRows > 0) layers.add(BACKGROUND_CITY_BASE_LAYER);
+  if (features.backgroundCity) layers.add(BACKGROUND_CITY_BASE_LAYER);
   layers.add(DISTANT_TERRAIN_LAYERS[features.rightDistantTerrain]);
   layers.add(BETWEEN_BUILDING_LAYERS[features.rightTerrain]);
   layers.add(MIDGROUND_LAYERS[features.rightTerrain]);

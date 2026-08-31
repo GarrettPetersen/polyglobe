@@ -72,6 +72,11 @@ import {
   SHIP_SURFACE_LIGHTING_BLEND,
   shipLightingCssColor
 } from "../src/shipLighting.js";
+import {
+  cityRegionalPaletteApplies,
+  cityRegionalPaletteRgb
+} from "./cityRegionalPalette.js";
+import { cityRegionalBuildingFrame } from "./cityRegionalBuildings.js";
 
 const canvas = document.querySelector("#scene");
 const context = canvas.getContext("2d", { alpha: false });
@@ -98,6 +103,7 @@ const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const imageCache = new Map();
 const frameCanvasCache = new Map();
 const backgroundCityAtmosphereCanvasCache = new WeakMap();
+const regionalStaticFrameCanvasCache = new Map();
 const alphaCache = new Map();
 const animatedRowEdgeCache = new WeakMap();
 let dockShadowExtensionRows = null;
@@ -311,7 +317,8 @@ function applyFeatureOverrides() {
   state.features = resolveCitySceneFeatures(state.city, overrides);
   state.streetBuildings = cityStreetBuildingPlacements({
     features: state.features,
-    frames: state.portManifest.staticFrames
+    frames: state.portManifest.staticFrames,
+    cityType: state.city.cityType
   });
   const backgroundCityBase = state.portManifest.staticFrames.find((frame) => (
     frame.layer === BACKGROUND_CITY_BASE_LAYER
@@ -336,7 +343,6 @@ function applyFeatureOverrides() {
     : [];
   state.backgroundCityRows = cityBackgroundLayout({
     city: state.city,
-    rowCount: state.features.backgroundCityRows,
     frames: state.portManifest.staticFrames,
     baseFrame: backgroundCityBase,
     baseTopYByX: state.backgroundCityBaseTopYByX
@@ -356,7 +362,6 @@ function applyFeatureOverrides() {
   state.leftBankBackgroundCityRows = state.features.leftBankCity
     ? oppositeBankCityBackgroundLayout({
         city: state.city,
-        rowCount: state.features.backgroundCityRows,
         frames: state.portManifest.staticFrames,
         baseFrame: backgroundCityBase,
         baseTopYByX: state.backgroundCityBaseTopYByX,
@@ -802,10 +807,12 @@ function sceneRenderEntries() {
 
 function drawCityStreetBuilding(placement) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+  const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
+  const sourceFrame = regionalFrame?.frame || placement.frame;
   context.drawImage(
-    state.staticAtlas,
-    placement.frame.frame.x,
-    placement.frame.frame.y,
+    regionalFrame?.atlas || state.staticAtlas,
+    sourceFrame.frame.x,
+    sourceFrame.frame.y,
     placement.frame.frame.w,
     placement.frame.frame.h,
     Math.round(placement.x - window.x),
@@ -910,22 +917,28 @@ function drawBackgroundCityChimneySmoke(emitter, timeMs, window) {
 }
 
 function backgroundCityAtmosphereFrame(frame, level) {
-  if (level === 0) return null;
+  const regionalFrame = regionalStaticFrame(frame, frame.layer);
+  if (level === 0) return regionalFrame?.atlas || null;
   let levels = backgroundCityAtmosphereCanvasCache.get(frame);
   if (!levels) {
     levels = new Map();
     backgroundCityAtmosphereCanvasCache.set(frame, levels);
   }
-  if (levels.has(level)) return levels.get(level);
+  const regionalKey = cityRegionalPaletteApplies(state.city?.cityType, frame.layer)
+    ? state.city.cityType
+    : "default";
+  const cacheKey = `${regionalKey}:${level}`;
+  if (levels.has(cacheKey)) return levels.get(cacheKey);
   const buffer = document.createElement("canvas");
   buffer.width = frame.frame.w;
   buffer.height = frame.frame.h;
   const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
   bufferContext.imageSmoothingEnabled = false;
+  const sourceFrame = regionalFrame?.frame || frame;
   bufferContext.drawImage(
-    state.staticAtlas,
-    frame.frame.x,
-    frame.frame.y,
+    regionalFrame?.atlas || state.staticAtlas,
+    sourceFrame.frame.x,
+    sourceFrame.frame.y,
     frame.frame.w,
     frame.frame.h,
     0,
@@ -947,7 +960,7 @@ function backgroundCityAtmosphereFrame(frame, level) {
     imageData.data[offset + 2] = shifted.blue;
   }
   bufferContext.putImageData(imageData, 0, 0);
-  levels.set(level, buffer);
+  levels.set(cacheKey, buffer);
   return buffer;
 }
 
@@ -1038,13 +1051,77 @@ function drawStaticFrame(frame, layerName, occurrence) {
     layerParallaxAnchor(layerName, occurrence)
   );
   if (state.hoveredDestination?.layers.includes(layerName)) drawFrameOutline(frame, window);
+  const regionalFrame = regionalStaticFrame(frame, layerName);
   drawAtlasFrame(
-    state.staticAtlas,
-    frame,
+    regionalFrame?.atlas || state.staticAtlas,
+    regionalFrame?.frame || frame,
     window,
     offsetX > 0,
     layerVisibleSourceRect(layerName, frame.frame.w, frame.frame.h)
   );
+}
+
+function regionalStaticFrame(frame, layerName) {
+  const cityType = state.city?.cityType;
+  const regionalBuildingFrame = cityRegionalBuildingFrame(
+    state.portManifest.staticFrames,
+    cityType,
+    layerName
+  );
+  const sourceFrame = regionalBuildingFrame || frame;
+  const paletteApplies = cityRegionalPaletteApplies(cityType, layerName);
+  if (sourceFrame === frame && !paletteApplies) return null;
+  if (!paletteApplies) return { atlas: state.staticAtlas, frame: sourceFrame };
+  const cacheKey = `${cityType}:${sourceFrame.id}`;
+  if (regionalStaticFrameCanvasCache.has(cacheKey)) {
+    return regionalStaticFrameCanvasCache.get(cacheKey);
+  }
+
+  const buffer = document.createElement("canvas");
+  buffer.width = sourceFrame.frame.w;
+  buffer.height = sourceFrame.frame.h;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  bufferContext.imageSmoothingEnabled = false;
+  bufferContext.drawImage(
+    state.staticAtlas,
+    sourceFrame.frame.x,
+    sourceFrame.frame.y,
+    sourceFrame.frame.w,
+    sourceFrame.frame.h,
+    0,
+    0,
+    sourceFrame.frame.w,
+    sourceFrame.frame.h
+  );
+  const imageData = bufferContext.getImageData(0, 0, buffer.width, buffer.height);
+  for (let offset = 0; offset < imageData.data.length; offset += 4) {
+    if (imageData.data[offset + 3] <= 16) continue;
+    const shifted = cityRegionalPaletteRgb(
+      cityType,
+      layerName,
+      imageData.data[offset],
+      imageData.data[offset + 1],
+      imageData.data[offset + 2]
+    );
+    imageData.data[offset] = shifted.red;
+    imageData.data[offset + 1] = shifted.green;
+    imageData.data[offset + 2] = shifted.blue;
+  }
+  bufferContext.putImageData(imageData, 0, 0);
+
+  const regionalFrame = {
+    atlas: buffer,
+    frame: {
+      ...sourceFrame,
+      frame: {
+        ...sourceFrame.frame,
+        x: 0,
+        y: 0
+      }
+    }
+  };
+  regionalStaticFrameCanvasCache.set(cacheKey, regionalFrame);
+  return regionalFrame;
 }
 
 function drawAnimatedLayer(layerName, timeMs, occurrence) {
@@ -1629,10 +1706,8 @@ function drawNpcs(timeMs) {
 
 function drawSceneLabels() {
   const cityLabel = state.city.label.toUpperCase();
-  const cityWidth = pixelText.measure(cityLabel, CITY_PIXEL_FONT_TITLE_8);
-  drawLabelPlate(7, 7, cityWidth + 8, 15);
-  pixelText.draw(cityLabel, 11, 9, {
-    color: "#fff2bc",
+  pixelText.draw(cityLabel, 8, 8, {
+    color: "#ffffff",
     font: CITY_PIXEL_FONT_TITLE_8
   });
 

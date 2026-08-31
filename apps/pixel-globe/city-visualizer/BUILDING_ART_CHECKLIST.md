@@ -12,7 +12,8 @@ count separately because the visualizer positions and draws them independently.
 - **10 authored pieces per regional kit**: two homes, five other buildings, and
   three fortification sections.
 - **6 initial regional kits = 60 normal-state coverage slots.**
-- **11 slots are already drawn** across the regional kits, leaving **49
+- **29 slots are already drawn or supplied by documented shared sprites and regional palette swaps**
+  across the regional kits, leaving **31
   normal-state slots** to complete.
 - Bombardment is a **single procedural rendering system**, not another 60
   hand-drawn slots. Door, fire, smoke, gate-opening, and exceptional collapsed
@@ -21,6 +22,13 @@ count separately because the visualizer positions and draws them independently.
 Shared art may satisfy more than one slot. In particular, the generic Christian
 church is intended for any Christian port rather than being redrawn for every
 region.
+
+The market stall and shipyard are also global functional sprites. Their rough
+timber construction is culturally neutral at this scale: the market is a simple
+wooden stall with an awning, while the shipyard is an arrangement of posts,
+timbers, and boatbuilding equipment beside the water. Regional identity comes
+from the buildings, skyline landmark, terrain, props, and fortifications around
+them rather than from redrawing these two structures.
 
 Scene placement is modular: any complete building sprite can occupy any normal
 building slot. The gatehouse is the exception; its three-piece composition stays
@@ -43,6 +51,40 @@ continues beyond the visible scene.
 The three fortification pieces must retain compatible joins and matching
 silhouettes across regions. Unfortified cities simply omit all three.
 
+## Reusable regional palette swaps
+
+These runtime swaps are part of the art contract. If a source sprite is
+replaced, preserve its listed source colors or update both the mapping in
+`cityRegionalPalette.js` and its tests. All target colors are from Resurrect 64.
+
+### Mediterranean fortifications
+
+The Northern European Far Castle, Gate, and Near Castle geometry is reused with
+this four-color limestone ramp:
+
+| Northern source | Mediterranean target |
+| --- | --- |
+| `#3e3546` | `#625565` |
+| `#625565` | `#966c6c` |
+| `#7f708a` | `#ab947a` |
+| `#9babb2` | `#c7dcd0` |
+
+The current Far Castle export also contains `#655565`, a near-duplicate of
+`#625565`; the runtime normalizes it to the same `#966c6c` target.
+
+### Mediterranean Christian church roof
+
+Only the two red roof colors change. Walls, masonry, openings, and the cross
+remain untouched:
+
+| Shared church source | Mediterranean target |
+| --- | --- |
+| `#6e2727` | `#9e4539` |
+| `#b33831` | `#cd683d` |
+
+Reserve the brighter `#e6904e` for small edge highlights; broad sunlit roof
+planes use `#cd683d`.
+
 ## Northern European
 
 - [x] Home A
@@ -58,25 +100,25 @@ silhouettes across regions. Unfortified cities simply omit all three.
 
 ## Mediterranean
 
-- [ ] Home A
-- [ ] Home B
-- [ ] Inn
-- [ ] Item store / smith
-- [ ] Market stall
-- [ ] Shipyard
+- [x] Home A
+- [x] Home B
+- [x] Inn
+- [x] Item store / smith
+- [x] Market stall — reuse the global timber market stall
+- [x] Shipyard — reuse the global timber shipyard
 - [x] Religious landmark — reuse the generic Christian stone church
-- [ ] Far castle wall
-- [ ] Gatehouse / gate
-- [ ] Near castle wall
+- [x] Far castle wall — reuse Northern geometry with the limestone palette swap
+- [x] Gatehouse / gate — reuse Northern geometry with the limestone palette swap
+- [x] Near castle wall — reuse Northern geometry with the limestone palette swap
 
 ## Middle Eastern
 
 - [ ] Home A
 - [ ] Home B
-- [ ] Inn
+- [x] Inn
 - [ ] Item store / smith
-- [ ] Market stall
-- [ ] Shipyard
+- [x] Market stall — reuse the global timber market stall
+- [x] Shipyard — reuse the global timber shipyard
 - [ ] Mosque — reuse the generic church in Christian ports
 - [ ] Far castle wall
 - [ ] Gatehouse / gate
@@ -88,8 +130,8 @@ silhouettes across regions. Unfortified cities simply omit all three.
 - [ ] Home B
 - [ ] Inn or communal house
 - [ ] Item store / craft workshop
-- [ ] Market stall
-- [ ] Shipyard / boatbuilding beach
+- [x] Market stall — reuse the global timber market stall
+- [x] Shipyard / boatbuilding beach — reuse the global timber shipyard
 - [ ] Sacred or communal landmark — reuse the generic church for Christian colonies
 - [ ] Far palisade / defensive wall
 - [ ] Gate
@@ -106,8 +148,8 @@ thatch without blocking the first world-coverage pass.
 - [ ] Home B
 - [ ] Inn
 - [ ] Item store / smith
-- [ ] Market stall
-- [ ] Shipyard
+- [x] Market stall — reuse the global timber market stall
+- [x] Shipyard — reuse the global timber shipyard
 - [ ] Temple or shrine — reuse the generic church in Christian ports
 - [ ] Far castle wall
 - [ ] Gatehouse / gate
@@ -123,18 +165,20 @@ fortifications need distinct silhouettes rather than a palette swap.
 - [ ] Home B
 - [ ] Inn
 - [ ] Item store / smith
-- [ ] Market stall
-- [ ] Shipyard
+- [x] Market stall — reuse the global timber market stall
+- [x] Shipyard — reuse the global timber shipyard
 - [ ] Buddhist temple or Shinto shrine — reuse the generic church in Christian ports
 - [ ] Far castle wall
 - [ ] Gatehouse / gate
 - [ ] Near castle wall
 
-## Required animation and damage systems
+## Required animation, weather, and damage systems
 
 These are reusable systems or additional states, not additional building
 families.
 
+- [ ] Parallax cloud layers driven by variable weather, with clear, fair,
+  overcast, and storm coverage
 - [ ] Inn open-door state
 - [ ] Inn occupied/fire animation
 - [ ] Near gate frame that allows NPCs to walk through the opening

@@ -18,12 +18,27 @@ const aseprite = resolveAsepriteBinary();
 
 const BUILDING_LAYER_OVERRIDES = Object.freeze({
   "Northern European Inn": "Inn",
-  "Norther Europe Home": "Home",
-  "Norther Europe Home 2": "Home 2",
-  Smith: "Smith"
+  "Northern Europe Home": "Home",
+  "Northern Europe Home 2": "Home 2",
+  "Northern European Smith": "Smith"
 });
 
-const STANDALONE_BUILDING_LAYERS = Object.freeze(["Church"]);
+const REGIONAL_BUILDING_LAYERS = Object.freeze({
+  "Med Inn": Object.freeze({ cityType: "mediterranean", regionalOf: "Inn", sourceBase: "Northern European Inn" }),
+  "Med Home": Object.freeze({ cityType: "mediterranean", regionalOf: "Home", sourceBase: "Northern Europe Home" }),
+  "Med Home 2": Object.freeze({ cityType: "mediterranean", regionalOf: "Home 2", sourceBase: "Northern Europe Home 2" }),
+  "Med Smith": Object.freeze({ cityType: "mediterranean", regionalOf: "Smith", sourceBase: "Northern European Smith" }),
+  "Middle East Inn": Object.freeze({
+    cityType: "islamic-desert",
+    regionalOf: "Inn",
+    sourceBase: "Northern European Inn"
+  })
+});
+
+const STANDALONE_BUILDING_LAYERS = Object.freeze([
+  "Church",
+  ...Object.keys(REGIONAL_BUILDING_LAYERS)
+]);
 
 const AUTHORED_LAYER_ORDER = Object.freeze([
   "Sky",
@@ -323,6 +338,14 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
     }
     let appendedY = staticAtlas.height;
     for (const standaloneFrame of standaloneFrames) {
+      const regional = REGIONAL_BUILDING_LAYERS[standaloneFrame.layer];
+      const canonicalSpriteSourceSize = regional
+        ? regionalBuildingSpriteSourceSize({
+            regionalFrame: standaloneFrame,
+            sourceBaseFrame: visibleFrames.find((frame) => frame.layer === regional.sourceBase),
+            targetFrame: staticFrames.find((frame) => frame.layer === regional.regionalOf)
+          })
+        : standaloneFrame.spriteSourceSize;
       context.drawImage(
         overrideAtlas,
         standaloneFrame.frame.x,
@@ -344,9 +367,16 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
           w: standaloneFrame.frame.w,
           h: standaloneFrame.frame.h
         },
-        spriteSourceSize: standaloneFrame.spriteSourceSize,
-        sourceSize: standaloneFrame.sourceSize,
-        duration: standaloneFrame.duration
+        spriteSourceSize: canonicalSpriteSourceSize,
+        sourceSize: regional
+          ? staticFrames.find((frame) => frame.layer === regional.regionalOf).sourceSize
+          : standaloneFrame.sourceSize,
+        duration: standaloneFrame.duration,
+        ...(regional ? {
+          cityType: regional.cityType,
+          regionalOf: regional.regionalOf,
+          ...(regional.hasChimney === false ? { hasChimney: false } : {})
+        } : {})
       });
       appendedY += standaloneFrame.frame.h;
     }
@@ -354,6 +384,22 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+function regionalBuildingSpriteSourceSize({ regionalFrame, sourceBaseFrame, targetFrame }) {
+  if (!sourceBaseFrame || !targetFrame) {
+    throw new Error(`Missing canonical source for regional building: ${regionalFrame.layer}`);
+  }
+  return {
+    x: targetFrame.spriteSourceSize.x + (
+      regionalFrame.spriteSourceSize.x - sourceBaseFrame.spriteSourceSize.x
+    ),
+    y: targetFrame.spriteSourceSize.y + (
+      regionalFrame.spriteSourceSize.y - sourceBaseFrame.spriteSourceSize.y
+    ),
+    w: regionalFrame.frame.w,
+    h: regionalFrame.frame.h
+  };
 }
 
 function runAseprite(args) {

@@ -5,6 +5,7 @@ import {
   BACKGROUND_CITY_BUILDING_LAYERS,
   BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT,
   BACKGROUND_CITY_CHURCH_LAYER,
+  BACKGROUND_CITY_CHURCH_SCALE_MULTIPLIER,
   BACKGROUND_CITY_FAR_SCALE,
   BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL,
   BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT,
@@ -21,6 +22,7 @@ import {
   cityBackgroundBaseTopProfile,
   cityBackgroundChurchPlans,
   cityBackgroundDepthForPerspective,
+  cityBackgroundEnabled,
   cityBackgroundFoundationEnvelope,
   cityBackgroundFoundationPerspective,
   cityBackgroundFoundationPoints,
@@ -28,7 +30,6 @@ import {
   cityBackgroundFlyingBuildings,
   cityBackgroundLayout,
   cityBackgroundPainterOrder,
-  cityBackgroundRowCount,
   cityBackgroundScaleForPerspective,
   cityBackgroundVisualPerspective,
   cityBackgroundStreetRows,
@@ -48,6 +49,13 @@ const FRAMES = Object.freeze(BACKGROUND_CITY_BUILDING_LAYERS.map((layer) => fram
 )));
 const CHURCH_FRAME = frame(BACKGROUND_CITY_CHURCH_LAYER, 195, 367, 142, 16);
 const FRAMES_WITH_CHURCH = Object.freeze([...FRAMES, CHURCH_FRAME]);
+const MEDITERRANEAN_FRAMES = Object.freeze([
+  ...FRAMES,
+  frame("Med Inn", 129, 101, 0, 0, { cityType: "mediterranean", regionalOf: "Inn" }),
+  frame("Med Smith", 110, 71, 0, 0, { cityType: "mediterranean", regionalOf: "Smith" }),
+  frame("Med Home", 95, 71, 0, 0, { cityType: "mediterranean", regionalOf: "Home" }),
+  frame("Med Home 2", 85, 69, 0, 10, { cityType: "mediterranean", regionalOf: "Home 2" })
+]);
 const BASE_FRAME = frame("Background City Base", 541, 55, 824, 469);
 const BASE_LEFT = BASE_FRAME.spriteSourceSize.x;
 const BASE_RIGHT = BASE_LEFT + BASE_FRAME.frame.w;
@@ -64,17 +72,18 @@ const LONDON = Object.freeze({
   capital: true
 });
 
-test("major cities receive more skyline depth while villages receive none", () => {
+test("all non-village cities use the full background area while villages receive none", () => {
   assert.equal(BACKGROUND_CITY_MAX_ROWS, 8);
-  assert.equal(cityBackgroundRowCount(LONDON), 8);
-  assert.equal(cityBackgroundRowCount({ ...LONDON, population: 12_000, capital: false }), 3);
-  assert.equal(cityBackgroundRowCount({ ...LONDON, population: 1_000, settlementType: "village" }), 0);
+  assert.equal(cityBackgroundEnabled(LONDON), true);
+  assert.equal(cityBackgroundEnabled({ ...LONDON, population: 12_000, capital: false }), true);
+  assert.equal(cityBackgroundEnabled({ ...LONDON, population: 31_486, capital: false }), true);
+  assert.equal(cityBackgroundEnabled({ ...LONDON, population: 45_000, capital: false }), true);
+  assert.equal(cityBackgroundEnabled({ ...LONDON, population: 1_000, settlementType: "village" }), false);
 });
 
 test("foundation anchors scatter deterministically through the ribbon-to-slope area without rows", () => {
   const input = {
     cityId: LONDON.id,
-    rowCount: BACKGROUND_CITY_MAX_ROWS,
     density: "moderate",
     baseFrame: BASE_FRAME,
     baseTopYByX: FALLING_BASE_TOP,
@@ -200,9 +209,14 @@ test("Christian cities place buried churches at separate points and depths witho
     building.frame.layer === BACKGROUND_CITY_CHURCH_LAYER
   ));
   assert.equal(churches.length, 2);
-  assert.equal(new Set(churches.map(({ distanceFromFront }) => distanceFromFront)).size, 2);
+  assert.equal(new Set(churches.map(({ perspective }) => perspective)).size, 2);
   assert.ok(Math.abs(churches[0].x - churches[1].x) > 80);
   for (const building of churches) {
+    assert.ok(building.perspective >= 0.65);
+    assert.ok(
+      building.scale < cityBackgroundScaleForPerspective(building.perspective),
+      "distant church should be smaller than an ordinary building at the same foundation"
+    );
     assert.equal(
       building.foundationHeight,
       Math.round(BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT * building.scale)
@@ -219,16 +233,29 @@ test("Christian cities place buried churches at separate points and depths witho
 });
 
 test("church plans separate large-city landmarks by district and distance", () => {
-  const plans = cityBackgroundChurchPlans({ cityId: LONDON.id, count: 3, rowCount: 8 });
+  const plans = cityBackgroundChurchPlans({ cityId: LONDON.id, count: 3 });
   assert.equal(plans.length, 3);
-  assert.equal(new Set(plans.map(({ distanceFromFront }) => distanceFromFront)).size, 3);
+  assert.equal(BACKGROUND_CITY_CHURCH_SCALE_MULTIPLIER, 0.72);
+  assert.ok(plans.every(({ targetPerspective }) => (
+    targetPerspective >= 0.68 && targetPerspective <= 0.92
+  )));
+  assert.equal(new Set(plans.map(({ targetPerspective }) => targetPerspective)).size, 3);
   assert.equal(new Set(plans.map(({ targetFraction }) => targetFraction)).size, 3);
+});
+
+test("a lone church sits behind the surrounding roof mass", () => {
+  assert.deepEqual(
+    cityBackgroundChurchPlans({
+      cityId: "barcelona|spain",
+      count: 1
+    }),
+    [{ targetPerspective: 0.84, targetFraction: 0.554 }]
+  );
 });
 
 test("city profiles vary point density and weighted building mix", () => {
   const profile = (density, buildingMix) => layout({
     city: { ...LONDON, backgroundCity: { density, buildingMix, landmarks: { church: 0 } } },
-    rowCount: 5,
     baseTopYByX: FALLING_BASE_TOP
   });
   const sparse = profile("sparse", { homeA: 1, homeB: 0, inn: 0, smith: 0 });
@@ -236,6 +263,35 @@ test("city profiles vary point density and weighted building mix", () => {
   assert.ok(allBuildings(sparse).every(({ frame: source }) => source.layer === "Home"));
   assert.ok(allBuildings(dense).length > allBuildings(sparse).length);
   assert.ok(new Set(allBuildings(dense).map(({ frame: source }) => source.layer)).size > 1);
+  assert.ok(Math.max(...allBuildings(sparse).map(({ perspective }) => perspective)) > 0.9);
+  assert.ok(Math.max(...allBuildings(dense).map(({ perspective }) => perspective)) > 0.9);
+});
+
+test("Mediterranean skyline generation uses the complete regional building set", () => {
+  const city = {
+    ...LONDON,
+    cityType: "mediterranean",
+    backgroundCity: {
+      density: "dense",
+      buildingMix: { homeA: 4, homeB: 4, inn: 2, smith: 2 },
+      landmarks: { church: 0 }
+    }
+  };
+  const buildings = allBuildings(layout({
+    city,
+    frames: MEDITERRANEAN_FRAMES,
+    baseTopYByX: FALLING_BASE_TOP
+  }));
+  assert.deepEqual(
+    [...new Set(buildings.map(({ frame: source }) => source.layer))].sort(),
+    ["Med Home", "Med Home 2", "Med Inn", "Med Smith"].sort()
+  );
+  assert.ok(buildings.every(({ frame: source }) => source.cityType === "mediterranean"));
+  assert.deepEqual(cityBackgroundFlyingBuildings(layout({
+    city,
+    frames: MEDITERRANEAN_FRAMES,
+    baseTopYByX: FALLING_BASE_TOP
+  })), []);
 });
 
 test("the filled foundation envelope follows the rising target smoothly with no flying buildings", () => {
@@ -340,12 +396,10 @@ test("opposite-bank streets mirror the authored ribbon edge", () => {
 test("opposite-bank buildings mirror complete right-growing placements into left-growing placements", () => {
   const generatedRows = layout({
     city: { ...LONDON, id: `${LONDON.id}|opposite-bank` },
-    rowCount: 5,
     baseTopYByX: FALLING_BASE_TOP
   });
   const oppositeRows = oppositeBankCityBackgroundLayout({
     city: LONDON,
-    rowCount: 5,
     frames: FRAMES,
     baseFrame: BASE_FRAME,
     baseTopYByX: FALLING_BASE_TOP,
@@ -408,11 +462,15 @@ test("the ribbon top profile interpolates transparent gaps", () => {
 
 function layout({
   city = LONDON,
-  rowCount = BACKGROUND_CITY_MAX_ROWS,
   frames = FRAMES,
   baseTopYByX = FLAT_BASE_TOP
 } = {}) {
-  return cityBackgroundLayout({ city, rowCount, frames, baseFrame: BASE_FRAME, baseTopYByX });
+  return cityBackgroundLayout({
+    city,
+    frames,
+    baseFrame: BASE_FRAME,
+    baseTopYByX
+  });
 }
 
 function allBuildings(rows) {
@@ -425,12 +483,13 @@ function frequencyCounts(values) {
   return [...counts.values()];
 }
 
-function frame(layer, width, height, x = 0, y = 0) {
+function frame(layer, width, height, x = 0, y = 0, extra = {}) {
   return Object.freeze({
     id: layer,
     layer,
     frame: Object.freeze({ x: 0, y: 0, w: width, h: height }),
-    spriteSourceSize: Object.freeze({ x, y, w: width, h: height })
+    spriteSourceSize: Object.freeze({ x, y, w: width, h: height }),
+    ...extra
   });
 }
 
