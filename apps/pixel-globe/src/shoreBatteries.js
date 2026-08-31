@@ -60,6 +60,100 @@ const DISABLED_BY_SHIP_PREFIX = "shoreBatteryDisabledByShip:";
 const WAR_WARNING_SEEN_PREFIX = "shoreBatteryWarWarningSeen:";
 const UPGRADE_LEVEL_PREFIX = "shoreBatteryUpgradeLevel:";
 
+const PORT_FLAG_PREFIXES = Object.freeze([
+  DISABLED_UNTIL_PREFIX,
+  DISABLED_BY_SHIP_PREFIX,
+  UPGRADE_LEVEL_PREFIX
+]);
+
+export function reconcileShoreBatteryPortFlagIdentities(flags, canonicalCityIdForStoredId) {
+  assertFlags(flags);
+  if (typeof canonicalCityIdForStoredId !== "function") {
+    throw new Error("Shore battery flag reconciliation requires a city identity resolver");
+  }
+
+  const aliasesByCityId = new Map();
+  for (const key of Object.keys(flags)) {
+    const prefix = PORT_FLAG_PREFIXES.find((candidate) => key.startsWith(candidate));
+    if (!prefix) continue;
+    const storedId = key.slice(prefix.length);
+    if (!storedId) throw new Error(`Shore battery port flag is missing an identity: ${key}`);
+    const cityId = canonicalCityIdForStoredId(storedId);
+    if (typeof cityId !== "string" || !cityId) {
+      throw new Error(`Saved shore battery port does not resolve: ${storedId}`);
+    }
+    const aliases = aliasesByCityId.get(cityId) || new Set();
+    aliases.add(storedId);
+    aliasesByCityId.set(cityId, aliases);
+  }
+
+  let updates = 0;
+  for (const [cityId, aliases] of aliasesByCityId) {
+    const disableRecords = [...aliases].flatMap((storedId) => {
+      const untilKey = disabledFlagKey(storedId);
+      const shipKey = disabledByShipFlagKey(storedId);
+      const disabledUntilMinute = flags[untilKey];
+      const disabledByShipLabel = flags[shipKey];
+      if (disabledUntilMinute === undefined && disabledByShipLabel === undefined) return [];
+      if (!Number.isFinite(disabledUntilMinute) || disabledUntilMinute < 0) {
+        throw new Error(`Invalid saved shore battery disabled time for ${storedId}: ${disabledUntilMinute}`);
+      }
+      if (disabledByShipLabel !== undefined) assertAttackerShipLabel(disabledByShipLabel);
+      return [{ storedId, disabledUntilMinute, disabledByShipLabel }];
+    });
+    const winningDisableRecord = disableRecords.reduce((winner, candidate) => {
+      if (winner === null || candidate.disabledUntilMinute > winner.disabledUntilMinute) {
+        return candidate;
+      }
+      if (candidate.disabledUntilMinute < winner.disabledUntilMinute) return winner;
+      if (candidate.disabledByShipLabel !== undefined && winner.disabledByShipLabel === undefined) {
+        return candidate;
+      }
+      if (candidate.disabledByShipLabel === undefined && winner.disabledByShipLabel !== undefined) {
+        return winner;
+      }
+      if (candidate.storedId === cityId && winner.storedId !== cityId) return candidate;
+      return winner;
+    }, null);
+
+    const upgradeLevels = [...aliases].flatMap((storedId) => {
+      const value = flags[upgradeFlagKey(storedId)];
+      if (value === undefined) return [];
+      if (!Number.isInteger(value) || value < 0 || value >= SHORE_BATTERY_MAX_LEVEL) {
+        throw new Error(`Invalid saved shore battery upgrade level for ${storedId}: ${value}`);
+      }
+      return [value];
+    });
+
+    for (const storedId of aliases) {
+      if (storedId === cityId) continue;
+      for (const prefix of PORT_FLAG_PREFIXES) {
+        const key = `${prefix}${storedId}`;
+        if (!Object.prototype.hasOwnProperty.call(flags, key)) continue;
+        delete flags[key];
+        updates += 1;
+      }
+    }
+
+    updates += setOrDeleteFlag(
+      flags,
+      disabledFlagKey(cityId),
+      winningDisableRecord?.disabledUntilMinute
+    );
+    updates += setOrDeleteFlag(
+      flags,
+      disabledByShipFlagKey(cityId),
+      winningDisableRecord?.disabledByShipLabel?.trim()
+    );
+    updates += setOrDeleteFlag(
+      flags,
+      upgradeFlagKey(cityId),
+      upgradeLevels.length > 0 ? Math.max(...upgradeLevels) : undefined
+    );
+  }
+  return updates;
+}
+
 export function shoreBatteryId(city) {
   assertCity(city);
   return `shore-battery:${requireCityId(city, "Shore battery city")}`;
@@ -447,6 +541,17 @@ function assertAttackerShipLabel(value) {
   if (typeof value !== "string" || !value.trim()) {
     throw new Error("Shore battery damage requires a specific attacking ship label");
   }
+}
+
+function setOrDeleteFlag(flags, key, value) {
+  if (value === undefined) {
+    if (!Object.prototype.hasOwnProperty.call(flags, key)) return 0;
+    delete flags[key];
+    return 1;
+  }
+  if (flags[key] === value) return 0;
+  flags[key] = value;
+  return 1;
 }
 
 function assertCity(city) {

@@ -352,6 +352,31 @@ test("saved port references follow canonical identities without guessing from di
   assert.equal(state.memory.quests.active.destinationTileId, PORTO.tileId);
 });
 
+test("save reconciliation collapses dual-written port aliases without discarding later history", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const legacyLisbonTileId = 101;
+  const legacyId = `city-${legacyLisbonTileId}`;
+  state.memory.flags[`shoreBatteryDisabledUntil:${legacyId}`] = 900;
+  state.memory.flags[`shoreBatteryDisabledByShip:${legacyId}`] = "the Pelican";
+  state.memory.flags[`shoreBatteryUpgradeLevel:${legacyId}`] = 2;
+  state.memory.flags[`shoreBatteryDisabledUntil:${LISBON.cityId}`] = 700;
+  state.memory.flags[`shoreBatteryDisabledByShip:${LISBON.cityId}`] = "the Golden Hind";
+  state.memory.flags[`shoreBatteryUpgradeLevel:${LISBON.cityId}`] = 1;
+
+  assert.ok(reconcileQuestPortTiles(state, [LISBON, PORTO], {
+    legacyPortTileIds: new Map([[legacyLisbonTileId, LISBON.tileId]])
+  }) > 0);
+  assert.equal(state.memory.flags[`shoreBatteryDisabledUntil:${LISBON.cityId}`], 900);
+  assert.equal(state.memory.flags[`shoreBatteryDisabledByShip:${LISBON.cityId}`], "the Pelican");
+  assert.equal(state.memory.flags[`shoreBatteryUpgradeLevel:${LISBON.cityId}`], 2);
+  assert.equal(state.memory.flags[`shoreBatteryDisabledUntil:${legacyId}`], undefined);
+  assert.equal(state.memory.flags[`shoreBatteryDisabledByShip:${legacyId}`], undefined);
+  assert.equal(state.memory.flags[`shoreBatteryUpgradeLevel:${legacyId}`], undefined);
+  assert.equal(reconcileQuestPortTiles(state, [LISBON, PORTO], {
+    legacyPortTileIds: new Map([[legacyLisbonTileId, LISBON.tileId]])
+  }), 0);
+});
+
 test("constitutional conquest history is reconciled by its event kind rather than as a port capture", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   state.memory.conquest.events.push(

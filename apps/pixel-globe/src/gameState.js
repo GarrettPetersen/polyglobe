@@ -265,7 +265,10 @@ import {
   IMPERIAL_ELECTION_ENVOY_QUEST_KIND,
   isImperialElectionEnvoyQuest
 } from "./imperialElectionMissions.js";
-import { upgradeShoreBattery } from "./shoreBatteries.js";
+import {
+  reconcileShoreBatteryPortFlagIdentities,
+  upgradeShoreBattery
+} from "./shoreBatteries.js";
 import {
   QUEST_ITINERARY_OPEN,
   QUEST_ITINERARY_VERSION,
@@ -7706,40 +7709,20 @@ function reconcileSpecialEquipmentOfferIdentities(state, portCities, legacyPortT
 }
 
 function reconcilePortFlagIdentities(state, portCities, legacyPortTileIds) {
-  const prefixes = [
-    "shoreBatteryDisabledUntil:",
-    "shoreBatteryDisabledByShip:",
-    "shoreBatteryUpgradeLevel:"
-  ];
   const cityById = new Map(portCities.map((city) => [city.cityId, city]));
   const cityIdByLegacyPortId = new Map(portCities
     .filter((city) => typeof city.portId === "string" && city.portId !== "")
     .map((city) => [city.portId, city.cityId]));
-  let updates = 0;
-  for (const prefix of prefixes) {
-    for (const key of Object.keys(state.memory.flags)) {
-      if (!key.startsWith(prefix)) continue;
-      const storedId = key.slice(prefix.length);
-      if (cityById.has(storedId)) continue;
-      let cityId = cityIdByLegacyPortId.get(storedId) || null;
-      const legacyTile = /^city-(\d+)$/.exec(storedId);
-      if (cityId === null && legacyTile) {
-        cityId = reconciledPortReference(portCities, {
-          tileId: Number(legacyTile[1])
-        }, legacyPortTileIds)?.cityId || null;
-      }
-      if (cityId === null) throw new Error(`Saved port flag does not resolve: ${key}`);
-      const canonicalKey = `${prefix}${cityId}`;
-      if (Object.prototype.hasOwnProperty.call(state.memory.flags, canonicalKey) &&
-          state.memory.flags[canonicalKey] !== state.memory.flags[key]) {
-        throw new Error(`Saved port flags conflict at ${canonicalKey}`);
-      }
-      state.memory.flags[canonicalKey] = state.memory.flags[key];
-      delete state.memory.flags[key];
-      updates += 1;
-    }
-  }
-  return updates;
+  return reconcileShoreBatteryPortFlagIdentities(state.memory.flags, (storedId) => {
+    if (cityById.has(storedId)) return storedId;
+    const legacyPortCityId = cityIdByLegacyPortId.get(storedId);
+    if (legacyPortCityId) return legacyPortCityId;
+    const legacyTile = /^city-(\d+)$/.exec(storedId);
+    if (!legacyTile) return null;
+    return reconciledPortReference(portCities, {
+      tileId: Number(legacyTile[1])
+    }, legacyPortTileIds)?.cityId || null;
+  });
 }
 
 function mergePortVisitMemories(left, right) {

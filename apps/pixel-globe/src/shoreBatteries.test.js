@@ -13,6 +13,7 @@ import {
   createShoreBatteryState,
   damageShoreBattery,
   damageShoreBatteryCrew,
+  reconcileShoreBatteryPortFlagIdentities,
   shoreBatteryCanFire,
   shoreBatteryDisabledNotice,
   shoreBatteryGunCount,
@@ -78,6 +79,39 @@ test("battery upgrades persist as additive fortification levels", () => {
   });
   assert.equal(shoreBatteryLevel(city, flags), 3);
   assert.equal(createShoreBatteryState(city, flags, 0).gunCount, 4);
+});
+
+test("port identity reconciliation merges every shore-battery flag as one semantic record", () => {
+  const canonicalId = city.cityId;
+  const legacyId = "city-700";
+  const flags = {
+    [`shoreBatteryDisabledUntil:${legacyId}`]: 700,
+    [`shoreBatteryDisabledByShip:${legacyId}`]: "the Golden Hind",
+    [`shoreBatteryUpgradeLevel:${legacyId}`]: 2,
+    [`shoreBatteryDisabledUntil:${canonicalId}`]: 500,
+    [`shoreBatteryDisabledByShip:${canonicalId}`]: "the Pelican",
+    [`shoreBatteryUpgradeLevel:${canonicalId}`]: 1
+  };
+  const resolve = (storedId) => (
+    storedId === legacyId || storedId === canonicalId ? canonicalId : null
+  );
+
+  assert.ok(reconcileShoreBatteryPortFlagIdentities(flags, resolve) > 0);
+  assert.deepEqual(flags, {
+    [`shoreBatteryDisabledUntil:${canonicalId}`]: 700,
+    [`shoreBatteryDisabledByShip:${canonicalId}`]: "the Golden Hind",
+    [`shoreBatteryUpgradeLevel:${canonicalId}`]: 2
+  });
+  assert.equal(reconcileShoreBatteryPortFlagIdentities(flags, resolve), 0);
+});
+
+test("port identity reconciliation rejects unresolved or internally invalid durable aliases", () => {
+  assert.throws(() => reconcileShoreBatteryPortFlagIdentities({
+    "shoreBatteryUpgradeLevel:lost-port": 1
+  }, () => null), /does not resolve/);
+  assert.throws(() => reconcileShoreBatteryPortFlagIdentities({
+    "shoreBatteryDisabledByShip:legacy-port": "the Pelican"
+  }, () => city.cityId), /disabled time/);
 });
 
 test("only fortified ports demand empire-wide passage tolls", () => {
