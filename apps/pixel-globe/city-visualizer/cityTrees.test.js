@@ -8,7 +8,8 @@ import {
   darkerResurrect64Hex
 } from "../src/waterLatitudePalette.js";
 import {
-  CITY_TREE_SHADOW_Z,
+  CITY_TREE_BACKGROUND_SHADOW_Z,
+  CITY_TREE_FOREGROUND_SHADOW_Z,
   cityTreeCount,
   cityTreePlacements,
   cityTreeShadowRgb
@@ -46,19 +47,20 @@ test("the city tree atlas exports eleven paired Resurrect trees and shadows", as
   assert.ok(opaquePixels > 0);
 });
 
-test("individual tree placement is sparse, deterministic, and ordered by perspective", () => {
+test("individual trees are sparse, deterministic props across near and rear planes", () => {
   const city = sampleCity({ id: "forest-port", cityType: "northern-european", lat: 52 });
   const features = { rightTerrain: "forest" };
   const placements = cityTreePlacements({ city, features, trees: manifest.trees });
   assert.deepEqual(placements, cityTreePlacements({ city, features, trees: manifest.trees }));
   assert.ok(placements.length >= 2 && placements.length <= 3);
   assert.ok(placements.every(({ tree }) => tree.id !== "palm"));
-  assert.ok(placements.every(({ z }) => z < 40), "trees stay behind the quay houses");
-  const byBase = [...placements].sort((a, b) => a.baseY - b.baseY);
-  for (let index = 1; index < byBase.length; index++) {
-    assert.ok(byBase[index].scale > byBase[index - 1].scale);
-    assert.ok(byBase[index].depth > byBase[index - 1].depth);
-  }
+  const foreground = placements.filter(({ depth }) => depth === 1);
+  const behindBuildings = placements.filter(({ depth }) => depth < 1);
+  assert.ok(foreground.length >= 1, "at least one individual tree fills the open foreground");
+  assert.ok(foreground.every(({ z, scale, baseY }) => z > 70 && scale >= 0.9 && baseY >= 575));
+  assert.equal(foreground[0].baseY, 575, "the first foreground tree enters the normal-height viewport");
+  assert.equal(behindBuildings.length, 1);
+  assert.ok(behindBuildings.every(({ z, scale }) => z < 40 && scale < 0.5));
 });
 
 test("regional pools and latitude prevent implausible tree choices", () => {
@@ -70,6 +72,8 @@ test("regional pools and latitude prevent implausible tree choices", () => {
   });
   assert.ok(polynesian.length > 0);
   assert.ok(polynesian.every(({ tree }) => tree.id === "palm"));
+  assert.ok(polynesian.filter(({ depth }) => depth === 1).every(({ shadowZ, z }) => shadowZ < z));
+  assert.ok(polynesian.filter(({ depth }) => depth < 1).every(({ shadowZ, z }) => shadowZ > z));
 
   const coolMediterranean = cityTreePlacements({
     city: sampleCity({ id: "cool-med-port", cityType: "mediterranean", lat: 44 }),
@@ -77,6 +81,53 @@ test("regional pools and latitude prevent implausible tree choices", () => {
     trees: manifest.trees
   });
   assert.ok(coolMediterranean.every(({ tree }) => tree.id !== "palm"));
+
+  const southeastAsian = cityTreePlacements({
+    city: sampleCity({ id: "makian-like-port", cityType: "southeast-asian", lat: 1 }),
+    features: forest,
+    trees: manifest.trees
+  });
+  assert.equal(southeastAsian[0].tree.id, "palm", "a tropical palm occupies the first foreground slot");
+  assert.ok(southeastAsian.some(({ tree }) => tree.id !== "palm"), "tropical scenes retain other regional trees");
+});
+
+test("some river scenes with actual opposite-bank tree cover place a regional foreground tree there", () => {
+  const features = {
+    approach: "river",
+    leftTerrain: "grass",
+    leftTreeCover: true,
+    rightTerrain: "forest"
+  };
+  let placements = [];
+  for (let index = 0; index < 20 && placements.length === 0; index++) {
+    placements = cityTreePlacements({
+      city: sampleCity({ id: `river-port-${index}`, cityType: "northern-european", lat: 52 }),
+      features,
+      trees: manifest.trees
+    }).filter(({ id }) => id.endsWith(":left-bank-foreground"));
+  }
+  assert.equal(placements.length, 1);
+  assert.equal(placements[0].parallaxAnchor, -1);
+  assert.equal(placements[0].depth, 1);
+  assert.equal(placements[0].scale, 0.9);
+  assert.equal(placements[0].baseY, 575);
+  assert.ok(placements[0].tree.id !== "palm");
+});
+
+test("a river scene never invents a left-bank tree where the terrain scan found no tree cover", () => {
+  for (let index = 0; index < 20; index++) {
+    const placements = cityTreePlacements({
+      city: sampleCity({ id: `bare-river-port-${index}`, cityType: "northern-european", lat: 52 }),
+      features: {
+        approach: "river",
+        leftTerrain: "grass",
+        leftTreeCover: false,
+        rightTerrain: "forest"
+      },
+      trees: manifest.trees
+    });
+    assert.ok(placements.every(({ id }) => !id.endsWith(":left-bank-foreground")));
+  }
 });
 
 test("open terrain gets fewer accents than forest and desert only permits an occasional palm", () => {
@@ -103,8 +154,10 @@ test("tree shadows remap the underlying scene colour through the game's Resurrec
     );
     assert.ok(RESURRECT_64_HEX.includes(expected));
   }
-  assert.ok(CITY_TREE_SHADOW_Z > 42, "the shadow is applied after the ground plane");
-  assert.ok(CITY_TREE_SHADOW_Z < 45, "the shadow remains behind near businesses");
+  assert.ok(CITY_TREE_BACKGROUND_SHADOW_Z > 42, "rear shadows cover the ground behind buildings");
+  assert.ok(CITY_TREE_BACKGROUND_SHADOW_Z < 45, "rear shadows stay behind near businesses");
+  assert.ok(CITY_TREE_FOREGROUND_SHADOW_Z > 70, "near shadows cover the foreground terrain");
+  assert.ok(CITY_TREE_FOREGROUND_SHADOW_Z < 74, "near shadows remain behind their trees");
 });
 
 function sampleCity(overrides) {

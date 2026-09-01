@@ -515,6 +515,8 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     rightTerrain: requireTerrain(city.terrain?.right || "grass"),
     leftDistantTerrain: requireTerrain(city.terrain?.leftDistant || city.terrain?.left || "grass"),
     rightDistantTerrain: requireTerrain(city.terrain?.rightDistant || city.terrain?.right || "grass"),
+    leftTreeCover: Boolean(city.terrain?.leftTreeCover ?? city.terrain?.left === "forest"),
+    rightTreeCover: Boolean(city.terrain?.rightTreeCover ?? city.terrain?.right === "forest"),
     backgroundCity: cityBackgroundEnabled(city),
     church: !primitiveSettlement && Boolean(city.religiousLandmarks?.includes("church")),
     mosque: !primitiveSettlement && Boolean(city.religiousLandmarks?.includes("mosque")),
@@ -539,7 +541,15 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   features.props = clampInteger(features.props, 0, 6, "prop count");
   features.backgroundCity = Boolean(features.backgroundCity);
   features.leftBankCity = features.approach === "river" && Boolean(features.leftBankCity);
-  for (const key of ["primitiveSettlement", "inn", "store", "market", "shipyard"]) {
+  for (const key of [
+    "leftTreeCover",
+    "rightTreeCover",
+    "primitiveSettlement",
+    "inn",
+    "store",
+    "market",
+    "shipyard"
+  ]) {
     features[key] = Boolean(features[key]);
   }
   return Object.freeze(features);

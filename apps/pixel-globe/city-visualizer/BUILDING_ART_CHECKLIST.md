@@ -70,8 +70,11 @@ continues beyond the visible scene.
 The environment kit also includes **11 authored individual trees with matching
 shadows**: black pine, cedar, cypress, Douglas fir, fir, palm, juniper, larch,
 Scots pine, spruce, and yew. The visualizer selects these sparsely from regional,
-latitude, and nearby-terrain rules; they supplement rather than replace the
-distant forest layers.
+latitude, and nearby-terrain rules. Individual trees mix near-foreground props
+with smaller specimens behind the quay buildings; only the continuous forest
+mass belongs at the horizon distance. Some river scenes also place a regional
+tree on the left foreground bank, but only when the production terrain scan
+finds forest, jungle, conifer, or broadleaf tree-cover tiles on that side.
 
 ## Piece contract for every regional kit
 
@@ -165,10 +168,10 @@ planes use `#cd683d`.
 
 ## Primitive / village
 
-This is implemented as the `earthen-village` scene style. Sparse villages use
-only repeated copies of the two huts plus a restrained pair of global market
-stalls. They deliberately
-have no inn, smith, religious landmark, or fortification; a visible shipyard is
+This is implemented as the `earthen-village` scene style. Every catalog entry
+whose settlement type is `village` uses repeated copies of the two huts plus a
+restrained pair of global market stalls. They deliberately have no inn, smith,
+religious landmark, or fortification; a visible shipyard is
 reserved for larger villages and can later be overridden in city JSON. The
 background-city flag defaults off but remains explicit city data for exceptional
 larger settlements.

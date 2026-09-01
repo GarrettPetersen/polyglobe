@@ -16,9 +16,11 @@ import {
 } from "../src/geodesic.js";
 import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
 import {
+  TERRAIN_RENDER_FAMILY,
   TERRAIN_TRAIT,
   terrainHasAnyTrait,
-  terrainHasTrait
+  terrainHasTrait,
+  terrainRenderFamily
 } from "../src/terrainMetadata.js";
 import { isWaterSurfaceRow } from "../src/terrainSurface.js";
 import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
@@ -38,7 +40,13 @@ const NEIGHBORHOOD_RINGS = 5;
 const MAX_APPROACH_SEARCH_RINGS = 18;
 const EARTH_RADIUS_KM = 6371;
 const CITY_VISUALIZER_FORMAT = "marque-city-visualizer-catalog";
-const CITY_VISUALIZER_VERSION = 2;
+const CITY_VISUALIZER_VERSION = 3;
+const TREE_COVER_RENDER_FAMILIES = new Set([
+  TERRAIN_RENDER_FAMILY.BROADLEAF,
+  TERRAIN_RENDER_FAMILY.CONIFER,
+  TERRAIN_RENDER_FAMILY.FOREST,
+  TERRAIN_RENDER_FAMILY.TROPICAL
+]);
 const DEVELOPED_BOTH_BANKS_CITY_IDS = new Set([
   "budapest|hungary",
   "london|united kingdom"
@@ -304,6 +312,7 @@ function terrainNeighborhood({ graph, earthRows, cityTileId, shorelineAxis }) {
     rightDistant: newTerrainScore()
   };
   const cityDirection = graphCenter(graph, cityTileId);
+  const treeCover = { left: false, right: false };
   const visited = new Set([cityTileId]);
   const queue = [{ tileId: cityTileId, ring: 0 }];
   for (let head = 0; head < queue.length; head++) {
@@ -314,6 +323,7 @@ function terrainNeighborhood({ graph, earthRows, cityTileId, shorelineAxis }) {
       const side = signedSide(cityDirection, direction, shorelineAxis) < 0 ? "left" : "right";
       const distanceWeight = 1 / (1 + current.ring * 0.7);
       scores[side][terrainFamily(row)] += distanceWeight;
+      if (current.ring > 0 && terrainHasTreeCover(row)) treeCover[side] = true;
       if (current.ring >= 2) scores[`${side}Distant`][terrainFamily(row)] += distanceWeight;
     }
     if (current.ring >= NEIGHBORHOOD_RINGS) continue;
@@ -327,8 +337,14 @@ function terrainNeighborhood({ graph, earthRows, cityTileId, shorelineAxis }) {
     left: dominantTerrain(scores.left),
     right: dominantTerrain(scores.right),
     leftDistant: dominantTerrain(scores.leftDistant),
-    rightDistant: dominantTerrain(scores.rightDistant)
+    rightDistant: dominantTerrain(scores.rightDistant),
+    leftTreeCover: treeCover.left,
+    rightTreeCover: treeCover.right
   };
+}
+
+function terrainHasTreeCover(row) {
+  return TREE_COVER_RENDER_FAMILIES.has(terrainRenderFamily(row?.t || "land"));
 }
 
 function visiblePeakTileSides({ graph, cityTileId, shorelineAxis, peakEntries }) {

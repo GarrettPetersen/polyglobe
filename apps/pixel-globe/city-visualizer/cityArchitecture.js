@@ -1,11 +1,5 @@
 export const EARTHEN_VILLAGE_BUILDING_STYLE = "earthen-village";
 
-const EARTHEN_VILLAGE_CITY_TYPES = new Set([
-  "andean",
-  "mesoamerican",
-  "polynesian",
-  "sub-saharan"
-]);
 const HOUSING_LAYERS = new Set(["Home", "Home 2"]);
 const SERVICE_BUILDING_LAYERS = new Set(["Inn", "Smith"]);
 const FORTIFICATION_LAYERS = new Set(["Far Castle", "Gate", "Near Castle"]);
@@ -14,8 +8,7 @@ const SETTLEMENT_FORMS = new Set(["sparse-village", "urban"]);
 export function deriveCityArchitectureProfile(city) {
   requireCityArchitectureSource(city);
   const settlementType = city.settlementType || "city";
-  const sparseEarthenVillage = settlementType === "village" &&
-    EARTHEN_VILLAGE_CITY_TYPES.has(city.cityType);
+  const sparseEarthenVillage = settlementType === "village";
   const swahiliCoast = city.manualRegion === "swahili-coast";
   return architectureProfile({
     housingStyle: sparseEarthenVillage || swahiliCoast

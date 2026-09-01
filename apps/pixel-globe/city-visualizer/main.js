@@ -70,7 +70,6 @@ import {
 } from "./cityChimneySmoke.js";
 import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
 import {
-  CITY_TREE_SHADOW_Z,
   cityTreePlacements,
   cityTreeShadowRgb
 } from "./cityTrees.js";
@@ -984,7 +983,7 @@ function sceneRenderEntries() {
     entries.push({
       kind: "tree-shadow",
       placement,
-      z: CITY_TREE_SHADOW_Z,
+      z: placement.shadowZ,
       authoredOrder: 14 + placementOrder / 100
     });
   }

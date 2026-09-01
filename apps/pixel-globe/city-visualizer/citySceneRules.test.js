@@ -705,6 +705,24 @@ test("London and Buda default to developed opposite banks in the generated city 
   assert.equal(cityById.get("angers|france")?.builtUpBothBanks, false);
 });
 
+test("the city catalog preserves actual tree-cover tiles even when open ground is dominant", () => {
+  const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
+  const london = cityById.get("london|united kingdom");
+  const zaragoza = cityById.get("zaragoza|spain");
+  assert.equal(CITY_VISUALIZER_CATALOG.version, 3);
+  assert.equal(london?.terrain?.leftTreeCover, true);
+  assert.equal(zaragoza?.terrain?.left, "grass");
+  assert.equal(
+    zaragoza?.terrain?.leftTreeCover,
+    true,
+    "tree-bearing production tiles survive the dominant-terrain reduction"
+  );
+  assert.ok(CITY_VISUALIZER_CATALOG.cities.every((city) => (
+    typeof city.terrain?.leftTreeCover === "boolean" &&
+    typeof city.terrain?.rightTreeCover === "boolean"
+  )));
+});
+
 test("Christian communities opt into the shared church landmark through city data", () => {
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const london = cityById.get("london|united kingdom");
@@ -804,6 +822,7 @@ test("sparse earthen villages show huts and a market without urban institutions"
 test("generated village and Swahili architecture profiles remain explicit city data", () => {
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const fiji = cityById.get("fiji village|fiji");
+  const makian = cityById.get("makian village|indonesia");
   const kilwa = cityById.get("kilwa|tanzania");
   assert.deepEqual(fiji?.architecture, {
     housingStyle: "earthen-village",
@@ -818,6 +837,19 @@ test("generated village and Swahili architecture profiles remain explicit city d
     shipyard: true
   });
   assert.equal(fiji?.backgroundCity?.enabled, false);
+  assert.deepEqual(makian?.architecture, {
+    housingStyle: "earthen-village",
+    serviceStyle: "southeast-asian",
+    fortificationStyle: "southeast-asian",
+    settlementForm: "sparse-village"
+  });
+  assert.deepEqual(makian?.services, {
+    inn: false,
+    smith: false,
+    market: true,
+    shipyard: false
+  });
+  assert.equal(makian?.backgroundCity?.enabled, false);
   assert.deepEqual(kilwa?.architecture, {
     housingStyle: "earthen-village",
     serviceStyle: "islamic-desert",

@@ -3,13 +3,49 @@ import {
   nearestResurrect64Hex
 } from "../src/waterLatitudePalette.js";
 
-export const CITY_TREE_SHADOW_Z = 42.1;
+export const CITY_TREE_BACKGROUND_SHADOW_Z = 42.1;
+export const CITY_TREE_FOREGROUND_SHADOW_Z = 73.9;
 
 const TREE_SLOTS = Object.freeze([
-  Object.freeze({ id: "near", centerX: 1018, baseY: 498, scale: 0.5, depth: 0.94, z: 39.7 }),
-  Object.freeze({ id: "middle", centerX: 1138, baseY: 486, scale: 0.45, depth: 0.88, z: 39.6 }),
-  Object.freeze({ id: "far", centerX: 1258, baseY: 478, scale: 0.4, depth: 0.82, z: 39.5 })
+  Object.freeze({
+    id: "foreground-east",
+    centerX: 1015,
+    baseY: 575,
+    scale: 0.9,
+    depth: 1,
+    z: 74,
+    shadowZ: CITY_TREE_FOREGROUND_SHADOW_Z
+  }),
+  Object.freeze({
+    id: "behind-buildings",
+    centerX: 1138,
+    baseY: 486,
+    scale: 0.45,
+    depth: 0.88,
+    z: 39.6,
+    shadowZ: CITY_TREE_BACKGROUND_SHADOW_Z
+  }),
+  Object.freeze({
+    id: "foreground-center",
+    centerX: 1220,
+    baseY: 650,
+    scale: 1,
+    depth: 1,
+    z: 74.1,
+    shadowZ: CITY_TREE_FOREGROUND_SHADOW_Z
+  })
 ]);
+
+const LEFT_BANK_FOREGROUND_TREE_SLOT = Object.freeze({
+  id: "left-bank-foreground",
+  centerX: 430,
+  baseY: 575,
+  scale: 0.9,
+  depth: 1,
+  z: 74,
+  shadowZ: CITY_TREE_FOREGROUND_SHADOW_Z,
+  parallaxAnchor: -1
+});
 
 const REGION_TREE_POOLS = Object.freeze({
   "northern-european": Object.freeze([
@@ -26,6 +62,14 @@ const REGION_TREE_POOLS = Object.freeze({
   polynesian: Object.freeze(["palm"])
 });
 
+const TROPICAL_FOREGROUND_PALM_CITY_TYPES = new Set([
+  "mesoamerican",
+  "polynesian",
+  "south-asian",
+  "southeast-asian",
+  "sub-saharan"
+]);
+
 export function cityTreePlacements({ city, features, trees }) {
   requireTreeInputs(city, features, trees);
   const availableById = new Map(trees.map((tree) => [tree.id, tree]));
@@ -34,12 +78,21 @@ export function cityTreePlacements({ city, features, trees }) {
     .filter((id) => availableById.has(id));
   if (pool.length === 0) return Object.freeze([]);
   const count = cityTreeCount(city, features.rightTerrain, pool.includes("palm"));
-  if (count === 0) return Object.freeze([]);
-  const slotOffset = stableHash(`${city.id}:tree-slots`) % TREE_SLOTS.length;
-  const slots = [...TREE_SLOTS.slice(slotOffset), ...TREE_SLOTS.slice(0, slotOffset)].slice(0, count);
+  const leftBankTree = features.approach === "river" &&
+    Boolean(features.leftTreeCover ?? features.leftTerrain === "forest") &&
+    stableHash(`${city.id}:left-bank-tree`) % 2 === 0;
+  if (count === 0 && !leftBankTree) return Object.freeze([]);
+  const slots = [
+    ...TREE_SLOTS.slice(0, count),
+    ...(leftBankTree ? [LEFT_BANK_FOREGROUND_TREE_SLOT] : [])
+  ];
   let previousTreeId = null;
   const placements = slots.map((slot, index) => {
-    let poolIndex = stableHash(`${city.id}:tree-species:${index}`) % pool.length;
+    let poolIndex = index === 0 &&
+      TROPICAL_FOREGROUND_PALM_CITY_TYPES.has(city.cityType) &&
+      pool.includes("palm")
+      ? pool.indexOf("palm")
+      : stableHash(`${city.id}:tree-species:${index}`) % pool.length;
     if (pool.length > 1 && pool[poolIndex] === previousTreeId) {
       poolIndex = (poolIndex + 1) % pool.length;
     }
@@ -59,7 +112,8 @@ export function cityTreePlacements({ city, features, trees }) {
       scale: slot.scale,
       depth: slot.depth,
       z: slot.z,
-      parallaxAnchor: 1,
+      shadowZ: slot.shadowZ,
+      parallaxAnchor: slot.parallaxAnchor ?? 1,
       flipX: stableHash(`${city.id}:tree-flip:${index}`) % 2 === 1
     });
   });

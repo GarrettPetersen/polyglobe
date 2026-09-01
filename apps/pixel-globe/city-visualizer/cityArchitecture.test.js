@@ -10,8 +10,19 @@ import {
   deriveCityServiceProfile
 } from "./cityArchitecture.js";
 
-test("low-population village cultures use the sparse earthen settlement form", () => {
-  for (const cityType of ["mesoamerican", "polynesian", "sub-saharan"]) {
+test("every catalog village uses the sparse earthen settlement form instead of regional fallbacks", () => {
+  for (const cityType of [
+    "andean",
+    "east-asian",
+    "islamic-desert",
+    "mediterranean",
+    "mesoamerican",
+    "northern-european",
+    "polynesian",
+    "south-asian",
+    "southeast-asian",
+    "sub-saharan"
+  ]) {
     const city = cityRecord({ cityType, settlementType: "village", population: 1800 });
     const architecture = deriveCityArchitectureProfile(city);
     assert.equal(architecture.housingStyle, EARTHEN_VILLAGE_BUILDING_STYLE);
