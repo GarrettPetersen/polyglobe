@@ -79,6 +79,7 @@ import {
   noteSessionActivity
 } from "./sessionActivity.js";
 import { advanceFrameCadence } from "./frameCadence.js";
+import { boundedSimulationSeconds, elapsedRealSeconds } from "./frameTiming.js";
 import {
   cachedPausedView,
   capturePausedView,
@@ -4134,7 +4135,7 @@ window.visualViewport?.addEventListener("resize", fitCanvasToDisplay);
 window.addEventListener("blur", handleWindowBlur);
 document.addEventListener("fullscreenchange", handleFullscreenChange);
 document.addEventListener("visibilitychange", handleFullscreenVisibilityChange);
-document.addEventListener("visibilitychange", resetSessionFrameClock);
+document.addEventListener("visibilitychange", resetFrameClocksAfterVisibilityChange);
 screen.orientation?.addEventListener?.("change", fitCanvasToDisplay);
 window.addEventListener("pagehide", () => gameTelemetry.stop());
 crashCopyButton.addEventListener("click", () => void copyDisplayedCrashReport());
@@ -6673,7 +6674,8 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   }
   if (diagnosticModeEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
   pollGamepadControls(nowMs);
-  const dt = clamp((nowMs - lastFrameMs) / 1000, 0, 0.05);
+  const realFrameSeconds = elapsedRealSeconds(lastFrameMs, nowMs);
+  const simulationSeconds = boundedSimulationSeconds(realFrameSeconds);
   const sessionFrameSeconds = Math.max(0, (nowMs - lastSessionFrameMs) / 1000);
   updateAdaptiveVisualDensity(sessionFrameSeconds);
   lastFrameMs = nowMs;
@@ -6683,7 +6685,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     updateWaterAnimation(nowMs);
     measurePerformanceBenchmarkStage(
       "battle",
-      () => updateLakeBattleModeFrame(dt, nowMs)
+      () => updateLakeBattleModeFrame(simulationSeconds, nowMs)
     );
     updateMusicContext(nowMs);
     dirty = false;
@@ -6706,7 +6708,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   });
   let chartRebuiltThisFrame = false;
   if (!simulationPaused) {
-    advanceActivePlayTime(gameState, dt);
+    advanceActivePlayTime(gameState, simulationSeconds);
     if (!CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK) {
       gameTelemetry.recordActivePlaySeconds(activeSessionFrameSeconds(sessionActivityState, {
         nowMs,
@@ -6714,12 +6716,12 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
         continuousInput: keys.size > 0 || pointerSteering.active || controllerSteering !== null
       }));
     }
-    if (updatePlayerWind(dt)) dirty = true;
+    if (updatePlayerWind(simulationSeconds)) dirty = true;
     if (fishingAction) {
       if (updateFishingAction(nowMs)) dirty = true;
     } else if (!anchored && !portWaitState && measurePerformanceBenchmarkStage(
       "sailing",
-      () => updateSailing(captureSailingSimulationSeconds(dt))
+      () => updateSailing(captureSailingSimulationSeconds(simulationSeconds))
     )) dirty = true;
     if (maybeAutoAnchorAtNonPortQuestSite()) dirty = true;
     if (measurePerformanceBenchmarkStage("quests.journey", () => {
@@ -6727,7 +6729,10 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       const dialogueChanged = maybeOpenQuestJourneyDialogueAtSea();
       return captiveChanged || dialogueChanged;
     })) dirty = true;
-    if (measurePerformanceBenchmarkStage("navalWeapons", () => updateNavalWeapons(dt))) {
+    if (measurePerformanceBenchmarkStage(
+      "navalWeapons",
+      () => updateNavalWeapons(simulationSeconds)
+    )) {
       dirty = true;
     }
     if (measurePerformanceBenchmarkStage("waterAnimation", () => updateWaterAnimation(nowMs))) {
@@ -6742,10 +6747,16 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     )) dirty = true;
     if (updateSurfaceIceTransition(nowMs)) dirty = true;
     if (presentPendingSurfaceIceEntrapment()) dirty = true;
-    if (measurePerformanceBenchmarkStage("weather", () => updateWeather(dt, nowMs))) dirty = true;
+    // Physics bounds large steps for collision stability. Calendar time intentionally
+    // uses uncapped foreground time so visual and world pacing do not vary by frame rate.
+    const gameClockSeconds = document.visibilityState === "visible" ? realFrameSeconds : 0;
+    if (measurePerformanceBenchmarkStage(
+      "weather",
+      () => updateWeather(gameClockSeconds, nowMs)
+    )) dirty = true;
     if (measurePerformanceBenchmarkStage(
       "weather.breakingWave",
-      () => updateStormWaveHazard(dt)
+      () => updateStormWaveHazard(simulationSeconds)
     )) dirty = true;
     const objectiveScanIsDue = worldObjectiveScanIsDue(lastWorldObjectiveScanAtMs, nowMs);
     if (objectiveScanIsDue) lastWorldObjectiveScanAtMs = nowMs;
@@ -6783,11 +6794,20 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       );
     }
     if (chartRepairCheckIsDue && maybeOpenChartReframeDialogue(nowMs)) dirty = true;
-    if (measurePerformanceBenchmarkStage("icebergs", () => updateIcebergs(dt))) dirty = true;
-    if (measurePerformanceBenchmarkStage("whales", () => updateWhales(dt, nowMs))) dirty = true;
-    if (measurePerformanceBenchmarkStage("npcShips", () => updateNpcShips(dt))) dirty = true;
-    if (updateSeagulls(dt, nowMs)) dirty = true;
-    if (updateWindIndicator(dt)) dirty = true;
+    if (measurePerformanceBenchmarkStage(
+      "icebergs",
+      () => updateIcebergs(simulationSeconds)
+    )) dirty = true;
+    if (measurePerformanceBenchmarkStage(
+      "whales",
+      () => updateWhales(simulationSeconds, nowMs)
+    )) dirty = true;
+    if (measurePerformanceBenchmarkStage(
+      "npcShips",
+      () => updateNpcShips(simulationSeconds)
+    )) dirty = true;
+    if (updateSeagulls(simulationSeconds, nowMs)) dirty = true;
+    if (updateWindIndicator(simulationSeconds)) dirty = true;
     if (measurePerformanceBenchmarkStage("precipitation", () => updatePrecipitationAnimation(nowMs))) dirty = true;
     if (updateStormLightning(stormLightningState, {
       nowMs,
@@ -6800,13 +6820,16 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     "chart.visualRepair",
     () => updateChartVisualRepair(nowMs)
   )) dirty = true;
-  if (updateStormFogPresentation(dt)) dirty = true;
+  if (updateStormFogPresentation(simulationSeconds)) dirty = true;
   if (updateStormShipStrike(stormShipStrikeState, nowMs)) dirty = true;
   if (updateWorldShipSinkEffects(nowMs)) dirty = true;
   if (updateStatusPersonParticles(nowMs)) dirty = true;
   if (updateItemAcquisitionEffects(nowMs)) dirty = true;
   if (updateDepartureControlFeedback(nowMs)) dirty = true;
-  measurePerformanceBenchmarkStage("audio.ambient", () => updateAmbientAudio(dt));
+  measurePerformanceBenchmarkStage(
+    "audio.ambient",
+    () => updateAmbientAudio(simulationSeconds)
+  );
   measurePerformanceBenchmarkStage("audio.music", () => updateMusicContext(nowMs));
   if (!CAPTURE_SCENARIO && hasStartedVoyage && !surfaceIceEntrapmentActive &&
       nowMs - lastAutosaveMs >= AUTOSAVE_INTERVAL_MS) {
@@ -29186,8 +29209,10 @@ function noteCurrentSessionActivity(nowMs = performance.now()) {
   noteSessionActivity(sessionActivityState, nowMs);
 }
 
-function resetSessionFrameClock() {
-  lastSessionFrameMs = performance.now();
+function resetFrameClocksAfterVisibilityChange() {
+  const nowMs = performance.now();
+  lastFrameMs = nowMs;
+  lastSessionFrameMs = nowMs;
   suspendMainThreadFreezeMonitor(mainThreadFreezeMonitor);
   if (document.visibilityState === "hidden") {
     clearSessionHeldControls();
@@ -31873,10 +31898,13 @@ function updateFishAnimation(nowMs) {
   return true;
 }
 
-function updateWeather(dt, nowMs) {
+function updateWeather(gameClockElapsedRealSeconds, nowMs) {
   if (!runtimeWeather || !weatherBake) return false;
   if (weatherTimeScale > 0) {
-    weatherClockMinutes = advanceGameClockMinutes(weatherClockMinutes, dt, weatherTimeScale);
+    weatherClockMinutes = advanceGameClockMinutes(weatherClockMinutes, {
+      elapsedRealSeconds: gameClockElapsedRealSeconds,
+      timeScale: weatherTimeScale
+    });
   }
   weatherParts = weatherClockParts(weatherClockMinutes);
   const dayNightNotice = firstDayNightNoticeState

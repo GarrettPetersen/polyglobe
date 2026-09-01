@@ -4,17 +4,24 @@ export const DEFAULT_GAME_TIME_SCALE = WORLD_GAME_TIME_SCALE;
 export const SHIP_TOP_SPEED_SCALE = 0.78;
 export const SHIP_ACCELERATION_SCALE = 0.24;
 
-export function advanceGameClockMinutes(currentMinute, elapsedSeconds, timeScale = DEFAULT_GAME_TIME_SCALE) {
+export function advanceGameClockMinutes(currentMinute, timing) {
   if (!Number.isFinite(currentMinute)) {
     throw new Error(`Invalid current game minute: ${currentMinute}`);
   }
-  if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0) {
-    throw new Error(`Invalid elapsed game time: ${elapsedSeconds}`);
+  if (!timing || typeof timing !== "object" || Array.isArray(timing)) {
+    throw new Error("Game clock advancement requires named real-time timing");
+  }
+  const {
+    elapsedRealSeconds,
+    timeScale = DEFAULT_GAME_TIME_SCALE
+  } = timing;
+  if (!Number.isFinite(elapsedRealSeconds) || elapsedRealSeconds < 0) {
+    throw new Error(`Invalid elapsed real time for game clock: ${elapsedRealSeconds}`);
   }
   if (!Number.isFinite(timeScale) || timeScale < 0) {
     throw new Error(`Invalid game time scale: ${timeScale}`);
   }
-  return currentMinute + elapsedSeconds * timeScale / 60;
+  return currentMinute + elapsedRealSeconds * timeScale / 60;
 }
 
 export function realSecondsPerGameDay(timeScale = DEFAULT_GAME_TIME_SCALE) {

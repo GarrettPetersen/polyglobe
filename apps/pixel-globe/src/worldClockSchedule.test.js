@@ -22,8 +22,10 @@ test("normal-speed frame slicing follows the longer world's hourly political cad
   for (let frame = 0; frame < renderHz * 3; frame++) {
     currentMinute = advanceGameClockMinutes(
       currentMinute,
-      1 / renderHz,
-      DEFAULT_GAME_TIME_SCALE
+      {
+        elapsedRealSeconds: 1 / renderHz,
+        timeScale: DEFAULT_GAME_TIME_SCALE
+      }
     );
     if (frame % 6 !== 5) continue;
     const period = periodicGameHourPeriod(previousPeriod, currentMinute);
