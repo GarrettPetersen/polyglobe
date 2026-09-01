@@ -99,7 +99,7 @@
 - Selected icons were modified and palette-adapted to Resurrect 64. Source links are recorded in the public game icon manifest.
 
 ## City-view Pixel Art
-- ray_d_ash - ["Trees 100px by 150px"](https://ray-d-ash.itch.io/trees-100-150) (itch.io asset license; source for every tree in `city-view/trees.aseprite` except the original palm tree by Garrett Petersen)
+- ray_d_ash - "Trees 100px by 150px" (itch.io asset license; source for every tree in `city-view/trees.aseprite` except the original palm tree by Garrett Petersen)
 
 ## Pixel Art Effects
 - InfectedTribe - "Pixel Animated Lightning Strike Effect" (itch.io asset license)
