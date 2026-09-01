@@ -30,22 +30,26 @@ test("only fortified cities with a national flag fly a gatehouse flag", () => {
 test("the national flag stays attached to the far tower across regional variants", () => {
   const northern = FRAMES.find(({ layer }) => layer === "Far Castle");
   const middleEastern = cityRegionalBuildingFrame(FRAMES, "islamic-desert", "Far Castle");
+  const chinese = cityRegionalBuildingFrame(FRAMES, "east-asian", "Far Castle");
   const northernGeometry = cityGatehouseFlagGeometry(northern);
-  const middleEasternGeometry = cityGatehouseFlagGeometry(middleEastern);
 
   assert.equal(middleEastern.layer, "Middle East Far Wall");
-  assert.equal(middleEasternGeometry.poleX, northernGeometry.poleX);
-  assert.equal(
-    middleEasternGeometry.poleBottomY - middleEastern.spriteSourceSize.y,
-    northernGeometry.poleBottomY - northern.spriteSourceSize.y
-  );
-  assert.equal(middleEasternGeometry.flagWidth, CITY_GATEHOUSE_FLAG_WIDTH);
-  assert.equal(middleEasternGeometry.flagHeight, CITY_GATEHOUSE_FLAG_HEIGHT);
-  assert.equal(middleEasternGeometry.waveAmplitudeScale, CITY_GATEHOUSE_FLAG_SCALE);
+  assert.equal(chinese.layer, "China Gate Far");
+  for (const regional of [middleEastern, chinese]) {
+    const regionalGeometry = cityGatehouseFlagGeometry(regional);
+    assert.equal(regionalGeometry.poleX, northernGeometry.poleX);
+    assert.equal(
+      regionalGeometry.poleBottomY - regional.spriteSourceSize.y,
+      northernGeometry.poleBottomY - northern.spriteSourceSize.y
+    );
+    assert.equal(regionalGeometry.flagWidth, CITY_GATEHOUSE_FLAG_WIDTH);
+    assert.equal(regionalGeometry.flagHeight, CITY_GATEHOUSE_FLAG_HEIGHT);
+    assert.equal(regionalGeometry.waveAmplitudeScale, CITY_GATEHOUSE_FLAG_SCALE);
+    assert.ok(regionalGeometry.flagY < regional.spriteSourceSize.y);
+    assert.ok(regionalGeometry.poleBottomY > regional.spriteSourceSize.y);
+  }
   assert.ok(CITY_GATEHOUSE_FLAG_WIDTH >= 14 * 2 && CITY_GATEHOUSE_FLAG_WIDTH <= 14 * 3);
   assert.ok(CITY_GATEHOUSE_FLAG_HEIGHT >= 9 * 2 && CITY_GATEHOUSE_FLAG_HEIGHT <= 9 * 3);
-  assert.ok(middleEasternGeometry.flagY < middleEastern.spriteSourceSize.y);
-  assert.ok(middleEasternGeometry.poleBottomY > middleEastern.spriteSourceSize.y);
 });
 
 test("the enlarged gatehouse flag keeps the shared wind flip and fabric deformation", () => {

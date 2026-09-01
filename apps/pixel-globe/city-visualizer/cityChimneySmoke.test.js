@@ -168,6 +168,9 @@ test("regional buildings retain their canonical chimney emitters", async () => {
     chimneylessRegionalFrames.map(({ layer }) => layer).sort(),
     [
       "China Home",
+      "China Gate Far",
+      "China Gateway",
+      "China Gate Near",
       "Earthen Hut",
       "Earthen Hut Large",
       "Japan Home",

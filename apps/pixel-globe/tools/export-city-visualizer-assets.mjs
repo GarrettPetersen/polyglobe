@@ -92,6 +92,26 @@ const REGIONAL_BUILDING_LAYERS = Object.freeze({
     sourceBase: "Northern Europe Home",
     hasChimney: false
   }),
+  "China Gate Far": Object.freeze({
+    cityType: "east-asian",
+    regionalOf: "Far Castle",
+    sourceBase: "Castle Wall Far",
+    sceneOffsetX: -3,
+    hasChimney: false
+  }),
+  "China Gateway": Object.freeze({
+    cityType: "east-asian",
+    regionalOf: "Gate",
+    sourceBase: "Far Gate Side",
+    hasChimney: false
+  }),
+  "China Gate Near": Object.freeze({
+    cityType: "east-asian",
+    regionalOf: "Near Castle",
+    sourceBase: "Castle Wall Near",
+    sceneOffsetX: -3,
+    hasChimney: false
+  }),
   "Japan Home": Object.freeze({
     cityType: "japanese",
     regionalOf: "Home",
