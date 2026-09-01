@@ -1915,12 +1915,12 @@
           "x": 575,
           "y": 341
         },
-        "foregroundOpaquePixels": 17375,
+        "foregroundOpaquePixels": 17385,
         "sinkHeightMin": -0.727852,
         "sinkHeightMax": 0.734483,
         "encodedWaterlineY": -0.650282,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 90,
+        "submergedPixels": 93,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1931,8 +1931,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 898,
-          "recoloredPixels": 3513
+          "recoloredRegions": 609,
+          "recoloredPixels": 2257
         },
         "creaseShading": null
       },
@@ -3395,12 +3395,12 @@
           "x": 550,
           "y": 332
         },
-        "foregroundOpaquePixels": 9878,
+        "foregroundOpaquePixels": 9875,
         "sinkHeightMin": -0.590197,
         "sinkHeightMax": 0.59164,
         "encodedWaterlineY": -0.495666,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 150,
+        "submergedPixels": 151,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3411,8 +3411,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 912,
-          "recoloredPixels": 2846
+          "recoloredRegions": 575,
+          "recoloredPixels": 1563
         },
         "creaseShading": null
       },
@@ -3543,12 +3543,12 @@
           "x": 563,
           "y": 306
         },
-        "foregroundOpaquePixels": 14458,
+        "foregroundOpaquePixels": 14448,
         "sinkHeightMin": -0.706079,
         "sinkHeightMax": 0.70725,
         "encodedWaterlineY": -0.594452,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 209,
+        "submergedPixels": 207,
         "rasterCleanup": {
           "minimumComponentPixels": 12,
           "removedComponents": 8,
@@ -3559,8 +3559,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 1434,
-          "recoloredPixels": 3805
+          "recoloredRegions": 643,
+          "recoloredPixels": 1781
         },
         "creaseShading": null
       },
@@ -3691,12 +3691,12 @@
           "x": 536,
           "y": 343
         },
-        "foregroundOpaquePixels": 5868,
+        "foregroundOpaquePixels": 5869,
         "sinkHeightMin": -0.470111,
         "sinkHeightMax": 0.465641,
         "encodedWaterlineY": -0.308837,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 3514,
+        "submergedPixels": 3490,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3707,8 +3707,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 222,
-          "recoloredPixels": 631
+          "recoloredRegions": 220,
+          "recoloredPixels": 634
         },
         "creaseShading": null
       },
@@ -4582,7 +4582,7 @@
         "sinkHeightMax": 0.568443,
         "encodedWaterlineY": -0.448547,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 217,
+        "submergedPixels": 214,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4593,8 +4593,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 509,
-          "recoloredPixels": 1404
+          "recoloredRegions": 130,
+          "recoloredPixels": 536
         },
         "creaseShading": null
       },
@@ -4725,12 +4725,12 @@
           "x": 573,
           "y": 322
         },
-        "foregroundOpaquePixels": 25252,
+        "foregroundOpaquePixels": 25256,
         "sinkHeightMin": -0.566977,
         "sinkHeightMax": 0.571945,
         "encodedWaterlineY": -0.425962,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 1263,
+        "submergedPixels": 1262,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4741,8 +4741,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 2099,
-          "recoloredPixels": 6359
+          "recoloredRegions": 475,
+          "recoloredPixels": 1509
         },
         "creaseShading": null
       },
@@ -5317,12 +5317,12 @@
           "x": 567,
           "y": 304
         },
-        "foregroundOpaquePixels": 19722,
+        "foregroundOpaquePixels": 19723,
         "sinkHeightMin": -0.856545,
         "sinkHeightMax": 0.852187,
         "encodedWaterlineY": -0.707006,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 1352,
+        "submergedPixels": 1330,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5333,8 +5333,8 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 1519,
-          "recoloredPixels": 4045
+          "recoloredRegions": 497,
+          "recoloredPixels": 1693
         },
         "creaseShading": null
       },

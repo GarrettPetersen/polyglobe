@@ -3,11 +3,18 @@ import test from "node:test";
 
 import {
   PORT_ASSAULT_COLOR_CLEANUP,
+  atakebunePortAssaultSurfaceColor,
   borobudurOutriggerPortAssaultSurfaceColor,
+  fustaPortAssaultSurfaceColor,
+  galleassPortAssaultSurfaceColor,
+  greatCarrackPortAssaultSurfaceColor,
   joseonPortAssaultSurfaceColor,
+  mediterraneanGalleyPortAssaultSurfaceColor,
   mesoamericanDugoutPortAssaultSurfaceColor,
   oceanDhowPortAssaultSurfaceColor,
-  ottomanTraderPortAssaultSurfaceColor
+  ottomanTraderPortAssaultSurfaceColor,
+  polynesianVoyagingCanoePortAssaultSurfaceColor,
+  sekibunePortAssaultSurfaceColor
 } from "./portAssaultShipColors.js";
 
 test("Ocean Dhow dockside colors are flat by meaningful material, not triangle", () => {
@@ -186,6 +193,225 @@ test("Nusantaran Outrigger hull uses a restrained wood ramp instead of the Dhow 
   ]);
 });
 
+test("Polynesian voyaging canoe separates its light deck from the twin hulls", () => {
+  const surface = { waterlineY: -0.707 };
+  const deck = polynesianVoyagingCanoePortAssaultSurfaceColor(
+    {},
+    { ...surface, sourceMaterialName: "Deck" },
+    { y: -0.54, modelX: 0.03, modelZ: 0.17 }
+  );
+  const hull = polynesianVoyagingCanoePortAssaultSurfaceColor(
+    {},
+    { ...surface, sourceMaterialName: "Hull" },
+    { y: -0.58 }
+  );
+  assert.deepEqual(deck, { r: 171, g: 148, b: 122, bakeLighting: false });
+  assert.deepEqual(hull, { r: 150, g: 108, b: 108, bakeLighting: false });
+  assert.notDeepEqual(deck, hull);
+});
+
+test("Polynesian voyaging canoe deck uses clean model-space plank seams", () => {
+  const surface = { sourceMaterialName: "Deck", waterlineY: -0.707 };
+  const seam = polynesianVoyagingCanoePortAssaultSurfaceColor(
+    {},
+    surface,
+    { y: -0.54, modelX: 0, modelZ: 0.17 }
+  );
+  const plank = polynesianVoyagingCanoePortAssaultSurfaceColor(
+    {},
+    surface,
+    { y: -0.54, modelX: 0.03, modelZ: 0.17 }
+  );
+  assert.deepEqual(seam, { r: 76, g: 62, b: 36, bakeLighting: false });
+  assert.deepEqual(plank, { r: 171, g: 148, b: 122, bakeLighting: false });
+});
+
+test("Polynesian voyaging canoe dockside palette covers every source surface", () => {
+  const surfaces = [
+    "Hull-box",
+    "Leaf",
+    "Leaf.001",
+    "material",
+    "Ropes",
+    "Trim",
+    "Sails",
+    "procedural-furled-sail-cloth"
+  ];
+  for (const sourceMaterialName of surfaces) {
+    assert.equal(
+      polynesianVoyagingCanoePortAssaultSurfaceColor(
+        {},
+        { sourceMaterialName, waterlineY: -0.707 },
+        { y: -0.54 }
+      ).bakeLighting,
+      false
+    );
+  }
+  assert.throws(
+    () => polynesianVoyagingCanoePortAssaultSurfaceColor(
+      {},
+      { sourceMaterialName: "new-material", waterlineY: -0.707 },
+      { y: -0.54 }
+    ),
+    /Unmapped Polynesian Voyaging Canoe/
+  );
+});
+
+test("Great Carrack replaces the cyan-orange atlas with deck and hull structure", () => {
+  const surface = { sourceMaterialName: "texture main", waterlineY: -0.65 };
+  const deck = greatCarrackPortAssaultSurfaceColor(
+    {},
+    { ...surface, normal: { y: 1 } },
+    { y: -0.3, modelX: 0.03, modelZ: 0.17 }
+  );
+  const hull = greatCarrackPortAssaultSurfaceColor(
+    {},
+    { ...surface, normal: { y: 0 } },
+    { y: -0.5 }
+  );
+  assert.deepEqual(deck, { r: 171, g: 148, b: 122, bakeLighting: false });
+  assert.deepEqual(hull, { r: 98, g: 85, b: 101, bakeLighting: false });
+  assert.notDeepEqual(deck, hull);
+  assert.deepEqual(
+    greatCarrackPortAssaultSurfaceColor(
+      {},
+      { sourceMaterialName: "procedural-furled-sail-cloth", waterlineY: -0.65 },
+      { y: 0 }
+    ),
+    { r: 199, g: 220, b: 208, bakeLighting: false }
+  );
+});
+
+test("Mediterranean galley family separates deck planes, hull bands, and rig", () => {
+  const transforms = [
+    mediterraneanGalleyPortAssaultSurfaceColor,
+    galleassPortAssaultSurfaceColor,
+    fustaPortAssaultSurfaceColor
+  ];
+  for (const transform of transforms) {
+    const surface = {
+      sourceMaterialName: "M_Ship03_WoodDark_01",
+      sourceMeshName: "Object_24",
+      waterlineY: -0.5
+    };
+    const deck = transform(
+      {},
+      { ...surface, normal: { y: 0 } },
+      { y: -0.3, modelX: 0.03, modelZ: 0.17 }
+    );
+    const hull = transform(
+      {},
+      { ...surface, sourceMeshName: "Object_21", normal: { y: 0 } },
+      { y: -0.4 }
+    );
+    assert.equal(deck.bakeLighting, false);
+    assert.equal(hull.bakeLighting, false);
+    assert.notDeepEqual(deck, hull);
+    for (const sourceMaterialName of [
+      "M_Ship03_Glass",
+      "M_Ship03_Metal",
+      "M_Ship03_Plank_01",
+      "M_Ship03_Plank_02",
+      "M_Ship03_Rope_01",
+      "M_Ship03_Sail",
+      "M_Ship03_WoodDark_02",
+      "procedural-furled-sail-cloth"
+    ]) {
+      assert.equal(
+        transform({}, { sourceMaterialName, waterlineY: -0.5 }, { y: -0.3 }).bakeLighting,
+        false
+      );
+    }
+  }
+});
+
+test("Atakebune lightens its fortress roofs without merging them into its hull", () => {
+  const surface = { waterlineY: -0.426 };
+  const deck = atakebunePortAssaultSurfaceColor(
+    {},
+    { ...surface, sourceMaterialName: "Wood", normal: { y: 1 } },
+    { y: -0.2 }
+  );
+  const hull = atakebunePortAssaultSurfaceColor(
+    {},
+    { ...surface, sourceMaterialName: "Wood", normal: { y: 0 } },
+    { y: -0.3 }
+  );
+  const roof = atakebunePortAssaultSurfaceColor(
+    {},
+    { ...surface, sourceMaterialName: "RoofTopTile" },
+    { y: 0 }
+  );
+  assert.equal(deck.bakeLighting, false);
+  assert.equal(hull.bakeLighting, false);
+  assert.equal(roof.bakeLighting, false);
+  assert.notDeepEqual(deck, hull);
+  assert.notDeepEqual(roof, hull);
+  for (const sourceMaterialName of [
+    "Black",
+    "ChainSteel",
+    "CopperPlating",
+    "FrogStone",
+    "Lantern",
+    "MastHolz",
+    "Material",
+    "RoofBrick",
+    "Rope",
+    "Sail",
+    "WhitePlanks",
+    "WoodPlankGrey",
+    "procedural-furled-sail-cloth"
+  ]) {
+    assert.equal(
+      atakebunePortAssaultSurfaceColor(
+        {},
+        { ...surface, sourceMaterialName, normal: { y: 0 } },
+        { y: -0.3 }
+      ).bakeLighting,
+      false
+    );
+  }
+});
+
+test("Sekibune separates its upper deck from the underlying hull", () => {
+  const surface = { sourceMaterialName: "__DEFAULT", waterlineY: -0.449 };
+  const deck = sekibunePortAssaultSurfaceColor(
+    {},
+    { ...surface, sourceMeshName: "櫓", normal: { y: 1 } },
+    { y: -0.2 }
+  );
+  const hull = sekibunePortAssaultSurfaceColor(
+    {},
+    { ...surface, sourceMeshName: "船体", normal: { y: 0 } },
+    { y: -0.3 }
+  );
+  assert.deepEqual(deck, { r: 171, g: 148, b: 122, bakeLighting: false });
+  assert.deepEqual(hull, { r: 98, g: 85, b: 101, bakeLighting: false });
+  for (const sourceMeshName of [
+    "帆",
+    "帆柱_倒",
+    "帆柱_立",
+    "帆桁",
+    "旗",
+    "旗001",
+    "旗002",
+    "旗003",
+    "筒車立",
+    "舵",
+    "艫車立",
+    "表車立"
+  ]) {
+    assert.equal(
+      sekibunePortAssaultSurfaceColor(
+        {},
+        { ...surface, sourceMeshName, normal: { y: 0 } },
+        { y: -0.3 }
+      ).bakeLighting,
+      false
+    );
+  }
+});
+
 test("Joseon dockside ships retain distinct structural surfaces", () => {
   const expected = new Map([
     ["bottom", { r: 171, g: 148, b: 122, bakeLighting: false }],
@@ -269,6 +495,38 @@ test("Ottoman trader separates hull bands, structural timber, rig, and hardware"
 });
 
 test("ship-specific dockside palettes fail loudly when source materials drift", () => {
+  assert.throws(
+    () => greatCarrackPortAssaultSurfaceColor(
+      {},
+      { sourceMaterialName: "new", waterlineY: 0 },
+      { y: 0 }
+    ),
+    /Unmapped Great Carrack/
+  );
+  assert.throws(
+    () => galleassPortAssaultSurfaceColor(
+      {},
+      { sourceMaterialName: "new", waterlineY: 0 },
+      { y: 0 }
+    ),
+    /Unmapped Galleass/
+  );
+  assert.throws(
+    () => atakebunePortAssaultSurfaceColor(
+      {},
+      { sourceMaterialName: "new", waterlineY: 0 },
+      { y: 0 }
+    ),
+    /Unmapped Atakebune/
+  );
+  assert.throws(
+    () => sekibunePortAssaultSurfaceColor(
+      {},
+      { sourceMaterialName: "__DEFAULT", sourceMeshName: "new", waterlineY: 0 },
+      { y: 0 }
+    ),
+    /Unmapped Sekibune/
+  );
   assert.throws(
     () => joseonPortAssaultSurfaceColor({}, { sourceMaterialName: "new" }),
     /Unmapped Joseon/

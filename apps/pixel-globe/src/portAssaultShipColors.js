@@ -46,6 +46,87 @@ const DUGOUT_CANOE_SURFACE_COLORS = Object.freeze({
   interior: flatColor(171, 148, 122)
 });
 
+const POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS = Object.freeze({
+  deepHull: flatColor(46, 34, 47),
+  lowerHull: flatColor(76, 62, 36),
+  hull: flatColor(150, 108, 108),
+  gunwale: flatColor(98, 85, 101),
+  deckEdge: flatColor(98, 85, 101),
+  deck: flatColor(171, 148, 122),
+  deckSeam: flatColor(76, 62, 36),
+  hullBox: flatColor(121, 105, 141),
+  wovenLashing: flatColor(178, 186, 144),
+  structuralWood: flatColor(76, 62, 36),
+  rope: flatColor(46, 34, 47),
+  accentCloth: flatColor(150, 108, 108),
+  sail: flatColor(199, 178, 141)
+});
+
+const GREAT_CARRACK_SURFACE_COLORS = Object.freeze({
+  deepHull: flatColor(46, 34, 47),
+  lowerHull: flatColor(76, 62, 36),
+  hull: flatColor(98, 85, 101),
+  upperHull: flatColor(150, 108, 108),
+  deck: flatColor(171, 148, 122),
+  deckSeam: flatColor(76, 62, 36),
+  structuralWood: flatColor(76, 62, 36),
+  sail: flatColor(199, 220, 208)
+});
+
+const MEDITERRANEAN_GALLEY_SURFACE_COLORS = Object.freeze({
+  deepHull: flatColor(46, 34, 47),
+  lowerHull: flatColor(76, 62, 36),
+  hull: flatColor(150, 108, 108),
+  upperHull: flatColor(98, 85, 101),
+  deck: flatColor(171, 148, 122),
+  deckSeam: flatColor(76, 62, 36),
+  structuralWood: flatColor(76, 62, 36),
+  rope: flatColor(46, 34, 47),
+  hardware: flatColor(67, 83, 76),
+  sail: flatColor(199, 220, 208)
+});
+
+const GALLEASS_SURFACE_COLORS = Object.freeze({
+  ...MEDITERRANEAN_GALLEY_SURFACE_COLORS,
+  hull: flatColor(98, 85, 101),
+  upperHull: flatColor(150, 108, 108)
+});
+
+const FUSTA_SURFACE_COLORS = Object.freeze({
+  ...MEDITERRANEAN_GALLEY_SURFACE_COLORS,
+  lowerHull: flatColor(98, 85, 101),
+  hull: flatColor(150, 108, 108),
+  upperHull: flatColor(171, 148, 122)
+});
+
+const ATAKEBUNE_SURFACE_COLORS = Object.freeze({
+  deepHull: flatColor(46, 34, 47),
+  lowerHull: flatColor(76, 62, 36),
+  hull: flatColor(98, 85, 101),
+  upperHull: flatColor(150, 108, 108),
+  deck: flatColor(171, 148, 122),
+  lightTimber: flatColor(199, 178, 141),
+  roof: flatColor(121, 105, 141),
+  roofEdge: flatColor(98, 85, 101),
+  structuralWood: flatColor(76, 62, 36),
+  rope: flatColor(46, 34, 47),
+  hardware: flatColor(67, 83, 76),
+  lantern: flatColor(224, 224, 126),
+  sail: flatColor(199, 220, 208)
+});
+
+const SEKIBUNE_SURFACE_COLORS = Object.freeze({
+  deepHull: flatColor(46, 34, 47),
+  lowerHull: flatColor(76, 62, 36),
+  hull: flatColor(98, 85, 101),
+  upperWorks: flatColor(150, 108, 108),
+  upperHull: flatColor(150, 108, 108),
+  deck: flatColor(171, 148, 122),
+  structuralWood: flatColor(76, 62, 36),
+  flag: flatColor(199, 178, 141),
+  sail: flatColor(199, 220, 208)
+});
+
 const OTTOMAN_TRADER_SURFACE_COLORS = Object.freeze({
   deepHull: flatColor(46, 34, 47),
   lowerHull: flatColor(76, 62, 36),
@@ -187,6 +268,171 @@ export function mesoamericanDugoutPortAssaultSurfaceColor(sampledColor, surface,
           : DUGOUT_CANOE_SURFACE_COLORS.interior;
 }
 
+export function polynesianVoyagingCanoePortAssaultSurfaceColor(
+  _sampledColor,
+  surface,
+  point
+) {
+  const materialName = requiredMaterialName(surface, "Polynesian Voyaging Canoe dockside");
+  if (materialName === "Deck") {
+    const height = heightAboveWaterline(surface, point, "Polynesian Voyaging Canoe");
+    if (height < 0.14) return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.deckEdge;
+    if (modelSpacePlankSeam(point, {
+      plankWidth: 0.08,
+      plankLength: 0.24,
+      seamHalfWidth: 0.006,
+      columnOffset: 0.24,
+      label: "Polynesian Voyaging Canoe"
+    })) return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.deckSeam;
+    return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.deck;
+  }
+  if (materialName === "Hull") {
+    const height = heightAboveWaterline(surface, point, "Polynesian Voyaging Canoe");
+    return height < 0
+      ? POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.deepHull
+      : height < 0.08
+        ? POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.lowerHull
+        : height < 0.18
+          ? POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.hull
+          : POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.gunwale;
+  }
+  if (materialName === "Hull-box") {
+    return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.hullBox;
+  }
+  if (materialName === "Leaf" || materialName === "Leaf.001") {
+    return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.wovenLashing;
+  }
+  if (materialName === "material") {
+    return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.accentCloth;
+  }
+  if (materialName === "Ropes") return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.rope;
+  if (materialName === "Trim") {
+    return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.structuralWood;
+  }
+  if (materialName === "Sails" || materialName === "procedural-furled-sail-cloth") {
+    return POLYNESIAN_VOYAGING_CANOE_SURFACE_COLORS.sail;
+  }
+  throw new Error(`Unmapped Polynesian Voyaging Canoe dockside material: ${materialName}`);
+}
+
+export function greatCarrackPortAssaultSurfaceColor(_sampledColor, surface, point) {
+  const materialName = requiredMaterialName(surface, "Great Carrack dockside");
+  if (materialName === "procedural-furled-sail-cloth") {
+    return GREAT_CARRACK_SURFACE_COLORS.sail;
+  }
+  if (materialName !== "texture main") {
+    throw new Error(`Unmapped Great Carrack dockside material: ${materialName}`);
+  }
+  const height = heightAboveWaterline(surface, point, "Great Carrack");
+  if (height >= 0.15 && upwardFacingSurface(surface)) {
+    if (modelSpacePlankSeam(point, {
+      plankWidth: 0.08,
+      plankLength: 0.24,
+      seamHalfWidth: 0.006,
+      columnOffset: 0.24,
+      label: "Great Carrack"
+    })) return GREAT_CARRACK_SURFACE_COLORS.deckSeam;
+    return GREAT_CARRACK_SURFACE_COLORS.deck;
+  }
+  if (height >= 0.52) return GREAT_CARRACK_SURFACE_COLORS.structuralWood;
+  return bandedHullColor(height, GREAT_CARRACK_SURFACE_COLORS, {
+    lowerHullTop: 0.08,
+    hullTop: 0.24,
+    upperHullTop: 0.52
+  });
+}
+
+export function mediterraneanGalleyPortAssaultSurfaceColor(_color, surface, point) {
+  return galleyPortAssaultSurfaceColor(
+    surface,
+    point,
+    "Mediterranean Galley",
+    MEDITERRANEAN_GALLEY_SURFACE_COLORS,
+    0.85
+  );
+}
+
+export function galleassPortAssaultSurfaceColor(_color, surface, point) {
+  return galleyPortAssaultSurfaceColor(
+    surface,
+    point,
+    "Galleass",
+    GALLEASS_SURFACE_COLORS,
+    1.025
+  );
+}
+
+export function fustaPortAssaultSurfaceColor(_color, surface, point) {
+  return galleyPortAssaultSurfaceColor(
+    surface,
+    point,
+    "Fusta",
+    FUSTA_SURFACE_COLORS,
+    0.68
+  );
+}
+
+export function atakebunePortAssaultSurfaceColor(_sampledColor, surface, point) {
+  const materialName = requiredMaterialName(surface, "Atakebune dockside");
+  if (materialName === "Wood" || materialName === "Material" || materialName === "CopperPlating") {
+    const height = heightAboveWaterline(surface, point, "Atakebune");
+    if (height >= 0.14 && upwardFacingSurface(surface)) {
+      return ATAKEBUNE_SURFACE_COLORS.deck;
+    }
+    return bandedHullColor(height, ATAKEBUNE_SURFACE_COLORS, {
+      lowerHullTop: 0.07,
+      hullTop: 0.18,
+      upperHullTop: 0.42
+    });
+  }
+  if (materialName === "WhitePlanks") return ATAKEBUNE_SURFACE_COLORS.lightTimber;
+  if (materialName === "WoodPlankGrey") return ATAKEBUNE_SURFACE_COLORS.deck;
+  if (materialName === "RoofTopTile") return ATAKEBUNE_SURFACE_COLORS.roof;
+  if (materialName === "RoofBrick" || materialName === "Black") {
+    return ATAKEBUNE_SURFACE_COLORS.roofEdge;
+  }
+  if (materialName === "MastHolz") return ATAKEBUNE_SURFACE_COLORS.structuralWood;
+  if (materialName === "Rope") return ATAKEBUNE_SURFACE_COLORS.rope;
+  if (materialName === "ChainSteel" || materialName === "FrogStone") {
+    return ATAKEBUNE_SURFACE_COLORS.hardware;
+  }
+  if (materialName === "Lantern") return ATAKEBUNE_SURFACE_COLORS.lantern;
+  if (materialName === "Sail" || materialName === "procedural-furled-sail-cloth") {
+    return ATAKEBUNE_SURFACE_COLORS.sail;
+  }
+  throw new Error(`Unmapped Atakebune dockside material: ${materialName}`);
+}
+
+export function sekibunePortAssaultSurfaceColor(_sampledColor, surface, point) {
+  const materialName = requiredMaterialName(surface, "Sekibune dockside");
+  if (materialName === "procedural-furled-sail-cloth") {
+    return SEKIBUNE_SURFACE_COLORS.sail;
+  }
+  if (materialName !== "__DEFAULT") {
+    throw new Error(`Unmapped Sekibune dockside material: ${materialName}`);
+  }
+  const meshName = requiredMeshName(surface, "Sekibune dockside");
+  if (meshName === "船体") {
+    const height = heightAboveWaterline(surface, point, "Sekibune");
+    return bandedHullColor(height, SEKIBUNE_SURFACE_COLORS, {
+      lowerHullTop: 0.07,
+      hullTop: 0.18,
+      upperHullTop: 0.36
+    });
+  }
+  if (meshName === "櫓") {
+    return upwardFacingSurface(surface)
+      ? SEKIBUNE_SURFACE_COLORS.deck
+      : SEKIBUNE_SURFACE_COLORS.upperWorks;
+  }
+  if (meshName.startsWith("旗")) return SEKIBUNE_SURFACE_COLORS.flag;
+  if (["帆柱_倒", "帆柱_立", "帆桁", "筒車立", "舵", "艫車立", "表車立"].includes(meshName)) {
+    return SEKIBUNE_SURFACE_COLORS.structuralWood;
+  }
+  if (meshName === "帆") return SEKIBUNE_SURFACE_COLORS.sail;
+  throw new Error(`Unmapped Sekibune dockside mesh: ${meshName}`);
+}
+
 export function ottomanTraderPortAssaultSurfaceColor(_sampledColor, surface, point) {
   const materialName = requiredMaterialName(surface, "Ottoman trader dockside");
   if (materialName === "Wood") {
@@ -229,20 +475,90 @@ function oceanDhowModelZ(point) {
 }
 
 function oceanDhowUpwardFacingSurface(surface) {
+  return upwardFacingSurface(surface);
+}
+
+function galleyPortAssaultSurfaceColor(surface, point, label, colors, scale) {
+  const materialName = requiredMaterialName(surface, `${label} dockside`);
+  if (materialName === "M_Ship03_Sail" || materialName === "procedural-furled-sail-cloth") {
+    return colors.sail;
+  }
+  if (materialName === "M_Ship03_Rope_01") return colors.rope;
+  if (materialName === "M_Ship03_Metal" || materialName === "M_Ship03_Glass") {
+    return colors.hardware;
+  }
+  if (materialName === "M_Ship03_Plank_01") return colors.structuralWood;
+  if (
+    materialName === "M_Ship03_Plank_02" ||
+    materialName === "M_Ship03_WoodDark_01" ||
+    materialName === "M_Ship03_WoodDark_02"
+  ) {
+    const height = heightAboveWaterline(surface, point, label);
+    const isDeckPlane = surface?.sourceMeshName === "Object_24" || horizontalFacingSurface(surface);
+    if (height >= 0.11 * scale && isDeckPlane) {
+      if (modelSpacePlankSeam(point, {
+        plankWidth: 0.075 * scale,
+        plankLength: 0.22 * scale,
+        seamHalfWidth: 0.006 * scale,
+        columnOffset: 0.225 * scale,
+        label
+      })) return colors.deckSeam;
+      return colors.deck;
+    }
+    if (height >= 0.38 * scale) return colors.structuralWood;
+    return bandedHullColor(height, colors, {
+      lowerHullTop: 0.07 * scale,
+      hullTop: 0.2 * scale,
+      upperHullTop: 0.38 * scale
+    });
+  }
+  throw new Error(`Unmapped ${label} dockside material: ${materialName}`);
+}
+
+function bandedHullColor(height, colors, { lowerHullTop, hullTop, upperHullTop }) {
+  return height < 0
+    ? colors.deepHull
+    : height < lowerHullTop
+      ? colors.lowerHull
+      : height < hullTop
+        ? colors.hull
+        : height < upperHullTop
+          ? colors.upperHull
+          : colors.structuralWood;
+}
+
+function upwardFacingSurface(surface) {
   const normalY = surface?.normal?.y;
-  if (!Number.isFinite(normalY)) return false;
-  return normalY >= 0.62;
+  return Number.isFinite(normalY) && normalY >= 0.62;
+}
+
+function horizontalFacingSurface(surface) {
+  const normalY = surface?.normal?.y;
+  return Number.isFinite(normalY) && Math.abs(normalY) >= 0.62;
 }
 
 function oceanDhowDeckPlankSeam(point) {
-  if (!Number.isFinite(point?.modelX)) {
-    throw new Error("Ocean Dhow dockside deck color requires canonical athwartship position");
+  return modelSpacePlankSeam(point, {
+    plankWidth: 0.07,
+    plankLength: 0.18,
+    seamHalfWidth: 0.006,
+    columnOffset: 0.21,
+    label: "Ocean Dhow"
+  });
+}
+
+function modelSpacePlankSeam(point, {
+  plankWidth,
+  plankLength,
+  seamHalfWidth,
+  columnOffset,
+  label
+}) {
+  if (!Number.isFinite(point?.modelX) || !Number.isFinite(point?.modelZ)) {
+    throw new Error(`${label} dockside deck color requires canonical deck position`);
   }
-  const plankWidth = 0.07;
-  const plankLength = 0.18;
-  const seamHalfWidth = 0.006;
   const longitudinalSeam = periodicDistance(point.modelX, plankWidth) < seamHalfWidth;
-  const plankColumn = Math.floor((point.modelX + 0.21) / plankWidth);
+  const plankColumn = Math.floor((point.modelX + columnOffset) / plankWidth);
   const stagger = Math.abs(plankColumn % 2) * plankLength * 0.5;
   const transverseSeam = periodicDistance(point.modelZ + stagger, plankLength) < seamHalfWidth;
   return longitudinalSeam || transverseSeam;
@@ -264,6 +580,13 @@ function requiredMaterialName(surface, label) {
     throw new Error(`${label} color requires a source material name`);
   }
   return surface.sourceMaterialName;
+}
+
+function requiredMeshName(surface, label) {
+  if (typeof surface?.sourceMeshName !== "string") {
+    throw new Error(`${label} color requires a source mesh name`);
+  }
+  return surface.sourceMeshName;
 }
 
 function requiredSampledColor(color, label) {

@@ -71,11 +71,18 @@ import { simplifyGalleonTextureColor } from "../src/galleonTexture.js";
 import { flattenShipTriangleTextures } from "../src/shipTextureFlattening.js";
 import {
   PORT_ASSAULT_COLOR_CLEANUP,
+  atakebunePortAssaultSurfaceColor,
   borobudurOutriggerPortAssaultSurfaceColor,
+  fustaPortAssaultSurfaceColor,
+  galleassPortAssaultSurfaceColor,
+  greatCarrackPortAssaultSurfaceColor,
   joseonPortAssaultSurfaceColor,
+  mediterraneanGalleyPortAssaultSurfaceColor,
   mesoamericanDugoutPortAssaultSurfaceColor,
   oceanDhowPortAssaultSurfaceColor,
-  ottomanTraderPortAssaultSurfaceColor
+  ottomanTraderPortAssaultSurfaceColor,
+  polynesianVoyagingCanoePortAssaultSurfaceColor,
+  sekibunePortAssaultSurfaceColor
 } from "../src/portAssaultShipColors.js";
 import {
   mergeGeneratedRosterEntries,
@@ -2605,6 +2612,9 @@ function unityShipConfig(modelPath) {
     sideViewTargetModelMaxDim: rosterEntry.sideViewTargetModelMaxDim,
     frameScale: rosterEntry.frameScale,
     waterlineOffsetY: rosterEntry.waterlineOffsetY,
+    portAssaultColorTransform: rosterEntry.slug === "ship-of-the-line"
+      ? greatCarrackPortAssaultSurfaceColor
+      : undefined,
     flagAnchorMaxSnapDistancePx: rosterEntry.flagAnchorMaxSnapDistancePx,
     collectOptions: rosterEntry.collectOptions,
     staticTrianglesForHull: rosterEntry.staticTrianglesForHull,
@@ -6200,6 +6210,7 @@ function mediterraneanGalleyConfig() {
     sideViewTargetModelMaxDim:
       MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * MEDITERRANEAN_GALLEY_SCALE,
     colorTransform: mediterraneanGalleyHullColor,
+    portAssaultColorTransform: mediterraneanGalleyPortAssaultSurfaceColor,
     scaleMode: "galley-pixel-derivative",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
@@ -6236,6 +6247,7 @@ function galleassConfig() {
     sideViewTargetModelMaxDim: MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * GALLEASS_SCALE,
     scaleMode: "large-galley-pixel-derivative",
     colorTransform: galleassHullColor,
+    portAssaultColorTransform: galleassPortAssaultSurfaceColor,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y * GALLEASS_SCALE,
     collectOptions: {
@@ -6274,6 +6286,7 @@ function fustaConfig() {
     flagAnchorMaxSnapDistancePx: 5,
     scaleMode: "light-galley-pixel-derivative",
     colorTransform: fustaHullColor,
+    portAssaultColorTransform: fustaPortAssaultSurfaceColor,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: FUSTA_WATERLINE_OFFSET_Y * FUSTA_SCALE,
     collectOptions: {
@@ -6483,6 +6496,7 @@ function japaneseAtakebuneConfig() {
     frameScale: 0.6,
     sideViewTargetModelMaxDim: 2.08,
     scaleMode: "japanese-fortress-warship",
+    portAssaultColorTransform: atakebunePortAssaultSurfaceColor,
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     waterlineOffsetY: 0.073,
@@ -6637,6 +6651,7 @@ function japaneseSekibuneConfig() {
     frameScale: 0.61,
     sideViewTargetModelMaxDim: 1.82,
     scaleMode: "japanese-medium-warship",
+    portAssaultColorTransform: sekibunePortAssaultSurfaceColor,
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
     wakeWaterlineBand: 0.22,
@@ -8357,6 +8372,7 @@ function nativeBoatConfigs() {
       outputDir: unityFleetOutputRoot,
       outputPrefix: `polynesian-voyaging-canoe-${SHIP_SPRITE_HEADING_SUFFIX}`,
       waterlineOffsetY: -0.995,
+      portAssaultColorTransform: polynesianVoyagingCanoePortAssaultSurfaceColor,
       expectedWaterlineHullCount: 2
     },
     {
