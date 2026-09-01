@@ -11,7 +11,8 @@ export const BACKGROUND_CITY_BUILDING_LAYERS = Object.freeze([
 ]);
 export const BACKGROUND_CITY_CHURCH_LAYER = "Church";
 export const BACKGROUND_CITY_MOSQUE_LAYER = "Mosque";
-export const BACKGROUND_CITY_PAGODA_LAYER = "Japan Pagoda";
+export const BACKGROUND_CITY_JAPAN_PAGODA_LAYER = "Japan Pagoda";
+export const BACKGROUND_CITY_CHINA_PAGODA_LAYER = "China Pagoda";
 
 export const BACKGROUND_CITY_FRONT_DEPTH = 0.86;
 export const BACKGROUND_CITY_REAR_DEPTH = 0.8;
@@ -28,7 +29,8 @@ export const BACKGROUND_CITY_CHURCH_FOUNDATION_SOURCE_HEIGHT = 36;
 export const BACKGROUND_CITY_CHURCH_SCALE_MULTIPLIER = 0.72;
 export const BACKGROUND_CITY_MOSQUE_FOUNDATION_SOURCE_HEIGHT = 12;
 export const BACKGROUND_CITY_MOSQUE_SCALE_MULTIPLIER = 1;
-export const BACKGROUND_CITY_PAGODA_FOUNDATION_SOURCE_HEIGHT = 18;
+export const BACKGROUND_CITY_JAPAN_PAGODA_FOUNDATION_SOURCE_HEIGHT = 18;
+export const BACKGROUND_CITY_CHINA_PAGODA_FOUNDATION_SOURCE_HEIGHT = 12;
 export const BACKGROUND_CITY_PAGODA_SCALE_MULTIPLIER = 0.72;
 export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
 export const BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL = 1 / 24;
@@ -60,7 +62,8 @@ const ATMOSPHERE_RGB_CACHE = Object.freeze([
 const BACKGROUND_CITY_RELIGIOUS_LANDMARK_LAYERS = new Set([
   BACKGROUND_CITY_CHURCH_LAYER,
   BACKGROUND_CITY_MOSQUE_LAYER,
-  BACKGROUND_CITY_PAGODA_LAYER
+  BACKGROUND_CITY_JAPAN_PAGODA_LAYER,
+  BACKGROUND_CITY_CHINA_PAGODA_LAYER
 ]);
 
 export function cityBackgroundEnabled(city) {
@@ -755,6 +758,9 @@ function backgroundCityReligiousLandmarkCount(city, landmark) {
 }
 
 function backgroundCityReligiousLandmarkGroups({ city, frameByLayer }) {
+  const pagodaLayer = city.country === "China"
+    ? BACKGROUND_CITY_CHINA_PAGODA_LAYER
+    : BACKGROUND_CITY_JAPAN_PAGODA_LAYER;
   return Object.freeze([
     Object.freeze({
       landmark: "church",
@@ -778,8 +784,10 @@ function backgroundCityReligiousLandmarkGroups({ city, frameByLayer }) {
     }),
     Object.freeze({
       landmark: "pagoda",
-      layer: BACKGROUND_CITY_PAGODA_LAYER,
-      foundationSourceHeight: BACKGROUND_CITY_PAGODA_FOUNDATION_SOURCE_HEIGHT,
+      layer: pagodaLayer,
+      foundationSourceHeight: pagodaLayer === BACKGROUND_CITY_CHINA_PAGODA_LAYER
+        ? BACKGROUND_CITY_CHINA_PAGODA_FOUNDATION_SOURCE_HEIGHT
+        : BACKGROUND_CITY_JAPAN_PAGODA_FOUNDATION_SOURCE_HEIGHT,
       scaleMultiplier: BACKGROUND_CITY_PAGODA_SCALE_MULTIPLIER,
       plans: cityBackgroundPagodaPlans({
         cityId: city.id,

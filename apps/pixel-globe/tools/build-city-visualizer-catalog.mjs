@@ -217,7 +217,10 @@ function religiousLandmarks(city, architecture) {
   const landmarks = [];
   if (candidates.some(({ id }) => isChristianReligion(id))) landmarks.push("church");
   if (candidates.some(({ id }) => isIslamicReligion(id))) landmarks.push("mosque");
-  if (architecture.housingStyle === "japanese") landmarks.push("pagoda");
+  if (
+    architecture.housingStyle === "japanese" ||
+    architecture.housingStyle === "east-asian"
+  ) landmarks.push("pagoda");
   return Object.freeze(landmarks);
 }
 

@@ -10,8 +10,10 @@ import {
   BACKGROUND_CITY_MOSQUE_FOUNDATION_SOURCE_HEIGHT,
   BACKGROUND_CITY_MOSQUE_LAYER,
   BACKGROUND_CITY_MOSQUE_SCALE_MULTIPLIER,
-  BACKGROUND_CITY_PAGODA_FOUNDATION_SOURCE_HEIGHT,
-  BACKGROUND_CITY_PAGODA_LAYER,
+  BACKGROUND_CITY_CHINA_PAGODA_FOUNDATION_SOURCE_HEIGHT,
+  BACKGROUND_CITY_CHINA_PAGODA_LAYER,
+  BACKGROUND_CITY_JAPAN_PAGODA_FOUNDATION_SOURCE_HEIGHT,
+  BACKGROUND_CITY_JAPAN_PAGODA_LAYER,
   BACKGROUND_CITY_PAGODA_SCALE_MULTIPLIER,
   BACKGROUND_CITY_FAR_SCALE,
   BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL,
@@ -354,21 +356,54 @@ test("Japanese cities place pagodas deep in the skyline without inflating the ci
     baseTopYByX: FALLING_BASE_TOP
   });
   const pagodas = allBuildings(rows).filter(({ frame: source }) => (
-    source.layer === BACKGROUND_CITY_PAGODA_LAYER
+    source.layer === BACKGROUND_CITY_JAPAN_PAGODA_LAYER
   ));
   assert.equal(pagodas.length, 2);
   assert.equal(new Set(pagodas.map(({ perspective }) => perspective)).size, 2);
-  assert.equal(BACKGROUND_CITY_PAGODA_FOUNDATION_SOURCE_HEIGHT, 18);
+  assert.equal(BACKGROUND_CITY_JAPAN_PAGODA_FOUNDATION_SOURCE_HEIGHT, 18);
   assert.equal(BACKGROUND_CITY_PAGODA_SCALE_MULTIPLIER, 0.72);
   for (const building of pagodas) {
     assert.ok(building.perspective >= 0.65);
     assert.equal(
       building.foundationHeight,
-      Math.round(BACKGROUND_CITY_PAGODA_FOUNDATION_SOURCE_HEIGHT * building.scale)
+      Math.round(BACKGROUND_CITY_JAPAN_PAGODA_FOUNDATION_SOURCE_HEIGHT * building.scale)
     );
     assert.ok(building.skylineTopY > building.y, "pagoda finials do not inflate the mass target");
   }
   assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
+});
+
+test("Ming cities use the faceted masonry pagoda while Joseon keeps a square silhouette", () => {
+  const rowsFor = (id, country) => layout({
+    city: {
+      ...LONDON,
+      id,
+      country,
+      cityType: "east-asian",
+      religiousLandmarks: ["pagoda"],
+      backgroundCity: {
+        density: "dense",
+        buildingMix: { homeA: 4, homeB: 4, inn: 1, smith: 2 },
+        landmarks: { church: 0, mosque: 0, pagoda: 3 }
+      }
+    },
+    frames: EXPORTED_BUILDING_FRAMES,
+    baseTopYByX: FALLING_BASE_TOP
+  });
+  const mingRows = rowsFor("nanjing|china", "China");
+  const joseonRows = rowsFor("seoul|republic of korea", "Republic of Korea");
+  const landmarkLayers = (rows) => allBuildings(rows)
+    .map(({ frame: source }) => source.layer)
+    .filter((layer) => layer.endsWith("Pagoda"));
+  assert.deepEqual(new Set(landmarkLayers(mingRows)), new Set([
+    BACKGROUND_CITY_CHINA_PAGODA_LAYER
+  ]));
+  assert.deepEqual(new Set(landmarkLayers(joseonRows)), new Set([
+    BACKGROUND_CITY_JAPAN_PAGODA_LAYER
+  ]));
+  assert.equal(BACKGROUND_CITY_CHINA_PAGODA_FOUNDATION_SOURCE_HEIGHT, 12);
+  assert.deepEqual(cityBackgroundFlyingBuildings(mingRows), []);
+  assert.deepEqual(cityBackgroundFlyingBuildings(joseonRows), []);
 });
 
 test("pagoda plans distribute large-city landmarks across districts and depth", () => {
