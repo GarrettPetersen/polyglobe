@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
@@ -255,6 +256,11 @@ for (const layer of ["Waves", "Surf"]) {
 const portManifest = {
   format: "marque-city-view-layer-atlas",
   version: 1,
+  assetRevision: await cityViewAssetRevision([
+    staticPngPath,
+    resolve(portOutputRoot, animated.Waves.sheet),
+    resolve(portOutputRoot, animated.Surf.sheet)
+  ]),
   source: "apps/pixel-globe/public/assets/city-view/port-parallax.aseprite",
   sourceSize: staticFrames[0].sourceSize,
   safeArea: { x: 455, width: 910, bottom: 583 },
@@ -264,6 +270,12 @@ const portManifest = {
   animated
 };
 await writeFile(resolve(portOutputRoot, "manifest.json"), `${JSON.stringify(portManifest)}\n`);
+
+async function cityViewAssetRevision(paths) {
+  const digest = createHash("sha256");
+  for (const path of paths) digest.update(await readFile(path));
+  return digest.digest("hex").slice(0, 16);
+}
 
 const minifolksSourceRoot = process.env.MINIFOLKS_SOURCE_ROOT;
 if (!minifolksSourceRoot) {

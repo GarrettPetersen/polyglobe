@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
@@ -33,10 +34,28 @@ const FRAMES = Object.freeze([
   frame("Japan Smith", { cityType: "japanese", regionalOf: "Smith", hasChimney: false })
 ]);
 
-const EXPORTED_FRAMES = JSON.parse(readFileSync(
+const PORT_MANIFEST = JSON.parse(readFileSync(
   new URL("./assets/port-parallax/manifest.json", import.meta.url),
   "utf8"
-)).staticFrames;
+));
+const EXPORTED_FRAMES = PORT_MANIFEST.staticFrames;
+
+test("the port atlas revision fingerprints every packed image", () => {
+  const digest = createHash("sha256");
+  for (const sheet of [
+    PORT_MANIFEST.staticSheet,
+    PORT_MANIFEST.animated.Waves.sheet,
+    PORT_MANIFEST.animated.Surf.sheet
+  ]) {
+    digest.update(readFileSync(new URL(`./assets/port-parallax/${sheet}`, import.meta.url)));
+  }
+  assert.equal(PORT_MANIFEST.assetRevision, digest.digest("hex").slice(0, 16));
+
+  const mainSource = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  assert.match(mainSource, /portAtlasUrl\(portManifest, portManifest\.staticSheet\)/);
+  assert.match(mainSource, /manifest\.assetRevision/);
+  assert.doesNotMatch(mainSource, /loadImage\("\.\/assets\/port-parallax\/static\.png"\)/);
+});
 
 test("Mediterranean cities select all four authored regional building frames", () => {
   assert.deepEqual(

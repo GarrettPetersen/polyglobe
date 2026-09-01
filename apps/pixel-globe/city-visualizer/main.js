@@ -247,7 +247,7 @@ async function initialize() {
   try {
     const [catalog, portManifest, peopleManifest, shipManifest, treeManifest] = await Promise.all([
       fetchJson("./data/cities.json"),
-      fetchJson("./assets/port-parallax/manifest.json"),
+      fetchJson("./assets/port-parallax/manifest.json", { cache: "no-store" }),
       fetchJson("./assets/minifolks/manifest.json"),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),
       fetchJson("./assets/trees/manifest.json"),
@@ -263,9 +263,9 @@ async function initialize() {
     state.shipManifest = shipManifest;
     state.treeManifest = treeManifest;
     [state.staticAtlas, state.waveAtlas, state.surfAtlas, state.treeAtlas, state.peopleAtlas] = await Promise.all([
-      loadImage("./assets/port-parallax/static.png"),
-      loadImage("./assets/port-parallax/waves.png"),
-      loadImage("./assets/port-parallax/surf.png"),
+      loadImage(portAtlasUrl(portManifest, portManifest.staticSheet)),
+      loadImage(portAtlasUrl(portManifest, portManifest.animated?.Waves?.sheet)),
+      loadImage(portAtlasUrl(portManifest, portManifest.animated?.Surf?.sheet)),
       loadImage(`./assets/trees/${treeManifest.sheet}`),
       loadImage(`./assets/minifolks/${state.peopleManifest.sheet}`)
     ]);
@@ -2379,10 +2379,20 @@ function incrementOccurrence(map, layerName) {
   return next;
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, options) {
+  const response = await fetch(url, options);
   if (!response.ok) throw new Error(`Could not load ${url}: HTTP ${response.status}`);
   return response.json();
+}
+
+function portAtlasUrl(manifest, sheet) {
+  if (typeof sheet !== "string" || sheet.length === 0) {
+    throw new Error("City-view atlas manifest is missing a sheet filename");
+  }
+  if (typeof manifest?.assetRevision !== "string" || manifest.assetRevision.length === 0) {
+    throw new Error("City-view atlas manifest is missing its asset revision");
+  }
+  return `./assets/port-parallax/${sheet}?v=${encodeURIComponent(manifest.assetRevision)}`;
 }
 
 function loadImage(url) {
