@@ -3,7 +3,7 @@ export function createCachedSceneRenderer({
   createSurface,
   drawEntry,
   isStaticEntry,
-  staticContextAttributes = () => undefined
+  staticContextAttributes = (_entries) => undefined
 }) {
   requireFunction(createSurface, "surface factory");
   requireFunction(drawEntry, "entry renderer");
