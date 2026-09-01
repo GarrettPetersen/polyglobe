@@ -158,8 +158,8 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   const dock = dockStyle(city, approach);
   const fortification = fortificationEstimate(city);
   const builtUpBothBanks = approach === "river" && DEVELOPED_BOTH_BANKS_CITY_IDS.has(city.cityId);
-  const landmarks = religiousLandmarks(city);
   const architecture = deriveCityArchitectureProfile(city);
+  const landmarks = religiousLandmarks(city, architecture);
   const services = deriveCityServiceProfile({ ...city, architecture });
   const populationProfileId = cityPopulationProfileId({
     id: city.cityId,
@@ -212,11 +212,12 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   });
 }
 
-function religiousLandmarks(city) {
+function religiousLandmarks(city, architecture) {
   const candidates = religionCandidatesForHome(city);
   const landmarks = [];
   if (candidates.some(({ id }) => isChristianReligion(id))) landmarks.push("church");
   if (candidates.some(({ id }) => isIslamicReligion(id))) landmarks.push("mosque");
+  if (architecture.housingStyle === "japanese") landmarks.push("pagoda");
   return Object.freeze(landmarks);
 }
 
@@ -242,7 +243,8 @@ function backgroundCityProfile(city, landmarks) {
     }),
     landmarks: Object.freeze({
       church: landmarkCount("church"),
-      mosque: landmarkCount("mosque")
+      mosque: landmarkCount("mosque"),
+      pagoda: landmarkCount("pagoda")
     })
   });
 }

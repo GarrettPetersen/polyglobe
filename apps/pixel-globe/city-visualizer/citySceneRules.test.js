@@ -869,6 +869,9 @@ test("generated regional architecture profiles remain explicit city data", () =>
     fortificationStyle: "japanese",
     settlementForm: "urban"
   });
+  assert.deepEqual(kyoto?.religiousLandmarks, ["pagoda"]);
+  assert.equal(kyoto?.backgroundCity?.landmarks?.pagoda, 2);
+  assert.equal(nanjing?.backgroundCity?.landmarks?.pagoda, 0);
   for (const city of [nanjing, seoul]) {
     assert.deepEqual(city?.architecture, {
       housingStyle: "east-asian",

@@ -12,8 +12,8 @@ count separately because the visualizer positions and draws them independently.
 - **10 authored pieces per regional kit**: two homes, five other buildings, and
   three fortification sections.
 - **6 initial regional kits = 60 normal-state coverage slots.**
-- **47 slots are resolved** by authored art, a documented shared sprite/palette
-  swap, or a deliberate omission. **13 normal-state slots still need art.**
+- **48 slots are resolved** by authored art, a documented shared sprite/palette
+  swap, or a deliberate omission. **12 normal-state slots still need art.**
 - Bombardment is a **single procedural rendering system**, not another 60
   hand-drawn slots. Door, fire, smoke, gate-opening, and exceptional collapsed
   states are not included in the building count.
@@ -29,8 +29,8 @@ region.
 | Middle Eastern | 9 | 1 |
 | Primitive / village | 10 | 0 |
 | Chinese / Korean | 3 | 7 |
-| Japanese | 5 | 5 |
-| **Total** | **47** | **13** |
+| Japanese | 6 | 4 |
+| **Total** | **48** | **12** |
 
 Checklist labels are intentional:
 
@@ -39,8 +39,8 @@ Checklist labels are intentional:
   documented runtime palette swap.
 - **OMIT** means we have decided not to draw or display that building for this
   kit. It still counts as resolved world-coverage behavior.
-- **DRAW** is one of the 17 pieces still required for the initial 60-slot pass.
-- **LATER** is outside the initial 60 and does not count toward the 17.
+- **DRAW** is one of the 12 pieces still required for the initial 60-slot pass.
+- **LATER** is outside the initial 60 and does not count toward the 12.
 
 ## What needs drawing now
 
@@ -48,10 +48,9 @@ Checklist labels are intentional:
    the Middle Eastern kit.
 2. **Chinese / Korean kit — 7 pieces:** Home B, inn, smith, temple or shrine,
    far wall, gatehouse, and near wall.
-3. **Japanese kit — 5 pieces:** Home B, Buddhist temple or Shinto shrine, far
-   wall, gatehouse, and near wall.
+3. **Japanese kit — 4 pieces:** Home B, far wall, gatehouse, and near wall.
 
-That is the complete **13-piece current art queue**. The Chinese/Korean and
+That is the complete **12-piece current art queue**. The Chinese/Korean and
 Japanese market stalls and shipyards are already covered by the shared global
 sprites.
 
@@ -226,7 +225,7 @@ fortifications need distinct silhouettes rather than a palette swap.
 - [x] Item store / smith — **AUTHORED**
 - [x] Market stall — **SHARED**, global timber market stall
 - [x] Shipyard — **SHARED**, global timber shipyard
-- [ ] Buddhist temple or Shinto shrine — **DRAW**; Christian ports use the shared church
+- [x] Buddhist temple or Shinto shrine — **AUTHORED** as the Japanese pagoda and wired into deep city skylines
 - [ ] Far castle wall — **DRAW**
 - [ ] Gatehouse / gate — **DRAW**
 - [ ] Near castle wall — **DRAW**

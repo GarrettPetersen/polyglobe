@@ -10,6 +10,9 @@ import {
   BACKGROUND_CITY_MOSQUE_FOUNDATION_SOURCE_HEIGHT,
   BACKGROUND_CITY_MOSQUE_LAYER,
   BACKGROUND_CITY_MOSQUE_SCALE_MULTIPLIER,
+  BACKGROUND_CITY_PAGODA_FOUNDATION_SOURCE_HEIGHT,
+  BACKGROUND_CITY_PAGODA_LAYER,
+  BACKGROUND_CITY_PAGODA_SCALE_MULTIPLIER,
   BACKGROUND_CITY_FAR_SCALE,
   BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL,
   BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT,
@@ -27,6 +30,7 @@ import {
   cityBackgroundBaseTopProfile,
   cityBackgroundChurchPlans,
   cityBackgroundMosquePlans,
+  cityBackgroundPagodaPlans,
   cityBackgroundDepthForPerspective,
   cityBackgroundEnabled,
   cityBackgroundFoundationEnvelope,
@@ -329,6 +333,49 @@ test("mosque plans use separate districts and distances from church plans", () =
   assert.equal(new Set(mosques.map(({ targetPerspective }) => targetPerspective)).size, 3);
   assert.equal(new Set(mosques.map(({ targetFraction }) => targetFraction)).size, 3);
   assert.notDeepEqual(mosques, churches);
+});
+
+test("Japanese cities place pagodas deep in the skyline without inflating the city mass", () => {
+  const city = {
+    ...LONDON,
+    id: "kyoto|japan",
+    country: "Japan",
+    cityType: "east-asian",
+    religiousLandmarks: ["pagoda"],
+    backgroundCity: {
+      density: "dense",
+      buildingMix: { homeA: 4, homeB: 4, inn: 1, smith: 2 },
+      landmarks: { church: 0, mosque: 0, pagoda: 2 }
+    }
+  };
+  const rows = layout({
+    city,
+    frames: EXPORTED_BUILDING_FRAMES,
+    baseTopYByX: FALLING_BASE_TOP
+  });
+  const pagodas = allBuildings(rows).filter(({ frame: source }) => (
+    source.layer === BACKGROUND_CITY_PAGODA_LAYER
+  ));
+  assert.equal(pagodas.length, 2);
+  assert.equal(new Set(pagodas.map(({ perspective }) => perspective)).size, 2);
+  assert.equal(BACKGROUND_CITY_PAGODA_FOUNDATION_SOURCE_HEIGHT, 18);
+  assert.equal(BACKGROUND_CITY_PAGODA_SCALE_MULTIPLIER, 0.72);
+  for (const building of pagodas) {
+    assert.ok(building.perspective >= 0.65);
+    assert.equal(
+      building.foundationHeight,
+      Math.round(BACKGROUND_CITY_PAGODA_FOUNDATION_SOURCE_HEIGHT * building.scale)
+    );
+    assert.ok(building.skylineTopY > building.y, "pagoda finials do not inflate the mass target");
+  }
+  assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
+});
+
+test("pagoda plans distribute large-city landmarks across districts and depth", () => {
+  const pagodas = cityBackgroundPagodaPlans({ cityId: "kyoto|japan", count: 3 });
+  assert.equal(pagodas.length, 3);
+  assert.equal(new Set(pagodas.map(({ targetPerspective }) => targetPerspective)).size, 3);
+  assert.equal(new Set(pagodas.map(({ targetFraction }) => targetFraction)).size, 3);
 });
 
 test("city profiles vary point density and weighted building mix", () => {
