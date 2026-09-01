@@ -602,16 +602,30 @@ export function consumeTrackedEmbargoCargo(memory, goodId, quantity) {
     throw new Error(`Invalid tracked embargo cargo consumption: ${goodId}=${quantity}`);
   }
   let consumed = 0;
-  const incidents = [...memory.incidents]
-    .filter((incident) => (incident.cargo[goodId] || 0) > 0)
-    .sort((a, b) => a.startedMinute - b.startedMinute || a.id.localeCompare(b.id));
-  for (const incident of incidents) {
-    const held = incident.cargo[goodId];
-    const removed = Math.min(held, quantity);
-    const after = held - removed;
-    if (after > 0) incident.cargo[goodId] = after;
-    else delete incident.cargo[goodId];
-    consumed = Math.max(consumed, removed);
+  const incidentsByOrderId = new Map();
+  for (const incident of memory.incidents) {
+    if ((incident.cargo[goodId] || 0) <= 0) continue;
+    const group = incidentsByOrderId.get(incident.orderId) || [];
+    group.push(incident);
+    incidentsByOrderId.set(incident.orderId, group);
+  }
+  for (const incidents of incidentsByOrderId.values()) {
+    let remaining = quantity;
+    let consumedForOrder = 0;
+    incidents.sort((a, b) => a.startedMinute - b.startedMinute || a.id.localeCompare(b.id));
+    for (const incident of incidents) {
+      if (remaining <= 0) break;
+      const held = incident.cargo[goodId];
+      const removed = Math.min(held, remaining);
+      const after = held - removed;
+      if (after > 0) incident.cargo[goodId] = after;
+      else delete incident.cargo[goodId];
+      remaining -= removed;
+      consumedForOrder += removed;
+    }
+    // The same physical parcel can violate several concurrent orders. Count
+    // it once while retiring its provenance independently under each order.
+    consumed = Math.max(consumed, consumedForOrder);
   }
   pruneEmptyIncidents(memory);
   return consumed;
@@ -1126,7 +1140,10 @@ function validateIncident(incident, { legacy = false } = {}) {
     throw new Error(`Invalid trade embargo incident value: ${incident.id}`);
   }
   validateCargoManifest(incident.cargo, { positive: true });
-  if (Object.keys(incident.cargo).length === 0) {
+  // Once a patrol has caught the ship, disposing of the last offending parcel
+  // does not erase the recorded offence: the fine or fight still has to be
+  // resolved. An unobserved empty incident, however, is impossible state.
+  if (Object.keys(incident.cargo).length === 0 && incident.interceptingShipId === null) {
     throw new Error(`Trade embargo incident has no cargo: ${incident.id}`);
   }
   if (!Array.isArray(incident.checkedShipIds) || incident.checkedShipIds.length > CHECKED_SHIP_LIMIT ||

@@ -194,21 +194,21 @@ const riverChains = [
 ];
 const cityRiverChains = Object.fromEntries(Object.entries(
   MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]
-).map(([city, chain]) => [city, refineChain(chain)]));
-cityRiverChains.Delhi = delhiYamunaApproach;
-cityRiverChains.Gao = nigerRiverRoute;
-cityRiverChains.Tombouctou = nigerRiverRoute;
-cityRiverChains.Lyon = rhoneRiverRoute;
-cityRiverChains.Cuttack = cuttackMahanadiRoute;
-cityRiverChains.Nanchang = nanchangGanRoute;
-cityRiverChains.Chengdu = chengduMinYangtzeRoute;
-cityRiverChains.Xian = xianWeiYellowRoute;
-cityRiverChains.Pegu = peguBagoRoute;
-cityRiverChains.Jaunpur = jaunpurGomtiGangesRoute;
-cityRiverChains.Cremona = cremonaPoRoute;
-cityRiverChains.Tours = toursLoireRoute;
-cityRiverChains.Angers = angersLoireRoute;
-cityRiverChains.Coimbra = coimbraMondegoRoute;
+).map(([cityId, chain]) => [cityId, refineChain(chain)]));
+cityRiverChains["delhi|india"] = delhiYamunaApproach;
+cityRiverChains["gao|mali"] = nigerRiverRoute;
+cityRiverChains["tombouctou|mali"] = nigerRiverRoute;
+cityRiverChains["lyon|france"] = rhoneRiverRoute;
+cityRiverChains["cuttack|india"] = cuttackMahanadiRoute;
+cityRiverChains["nanchang|china"] = nanchangGanRoute;
+cityRiverChains["chengdu|china"] = chengduMinYangtzeRoute;
+cityRiverChains["xian|china"] = xianWeiYellowRoute;
+cityRiverChains["pegu|myanmar"] = peguBagoRoute;
+cityRiverChains["jaunpur|india"] = jaunpurGomtiGangesRoute;
+cityRiverChains["cremona|italy"] = cremonaPoRoute;
+cityRiverChains["tours|france"] = toursLoireRoute;
+cityRiverChains["angers|france"] = angersLoireRoute;
+cityRiverChains["coimbra|portugal"] = coimbraMondegoRoute;
 const shallowWaterTileIdSet = new Set(shallowWaterGroups.flatMap(refineChain));
 const lakeMalawiCorridor = routeThroughCoordinates([
   { lat: -9.5, lon: 34.3 },

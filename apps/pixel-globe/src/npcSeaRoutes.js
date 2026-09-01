@@ -3392,6 +3392,44 @@ function createNpcProfileShip(system, profileSpec, pool, index, startMinute) {
   return ship;
 }
 
+// Older snapshots could lose a profile ship's canonical home after both ends
+// of its live route became coordinate-only fishing or whaling grounds. Rebuild
+// the original home from the stable profile ship id and voyage seed—the same
+// inputs used at creation—rather than guessing from its current coordinates.
+export function legacyNpcProfileCaptainHomeCityId(system, ship) {
+  assertSaveableNpcRouteSystem(system);
+  if (!ship || typeof ship.id !== "string" || ship.id === "" ||
+      typeof ship.profileId !== "string" || ship.profileId === "") {
+    throw new Error("Legacy NPC profile captain-home repair requires a ship identity");
+  }
+  const profileSpec = WHALER_PROFILE_BY_ID.get(ship.profileId) ||
+    FLEET_PROFILES.find((profile) => profile.id === ship.profileId) || null;
+  if (profileSpec === null) return null;
+  const idPrefix = `${profileSpec.id}-`;
+  if (!ship.id.startsWith(idPrefix)) return null;
+  const indexText = ship.id.slice(idPrefix.length);
+  if (!/^\d+$/.test(indexText)) {
+    throw new Error(`Legacy NPC profile ship has an invalid stable id: ${ship.id}`);
+  }
+  const index = Number(indexText);
+  const pool = rankedProfilePorts(system.ports, profileSpec);
+  const count = profileSpec.minimumPorts === undefined
+    ? Math.min(profileSpec.count, pool.length * 2)
+    : profileSpec.count;
+  if (pool.length === 0 || index >= count) {
+    throw new Error(
+      `Legacy NPC profile ship ${ship.id} has no current canonical origin in ${profileSpec.id}`
+    );
+  }
+  const seed = hashString32(npcSeedKey(system, `${profileSpec.id}|${index}|npc`));
+  let origin = profileSpec.coverPorts ? pool[index % pool.length] : pool[seed % pool.length];
+  if (ship.role === NPC_ROLE_PIRATE && npcPortHasMajorProtection(origin)) {
+    const discreetOrigins = pool.filter((port) => !npcPortHasMajorProtection(port));
+    if (discreetOrigins.length > 0) origin = discreetOrigins[seed % discreetOrigins.length];
+  }
+  return requireCityId(origin, `Legacy NPC profile ship ${ship.id} captain home`);
+}
+
 function synchronizeNpcWhalerFleet(system, startMinute) {
   if (!system.whaleMemory) return 0;
   const desiredIds = new Set(WHALER_PROFILES.flatMap((profileSpec) => (
@@ -3847,6 +3885,7 @@ function createNpcShipRecord({ id, factionId, role, profileSpec, slugs, slug, se
   const stats = shipStatsForSlug(slug);
   return {
     id,
+    captainHomeCityId: requireCityId(origin, `NPC profile ship ${id} captain home`),
     factionId,
     role,
     profileId: profileSpec.id,

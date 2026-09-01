@@ -4,6 +4,10 @@ import test from "node:test";
 
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
 import { cityRequiresPortAccess } from "./cityCatalogSelection.js";
+import {
+  INLAND_CITY_IDS_1522,
+  INLAND_CITY_SAILING_GATEWAYS_1522
+} from "./cityPortAccessPolicy.js";
 import { validateCanonicalPortCatalog } from "./canonicalPorts.js";
 import {
   MAX_MOUNTAIN_DISCOVERY_RADIUS_PX,
@@ -21,7 +25,11 @@ import {
   WORLD_WATERWAY_INVARIANTS,
   boundedNavigablePathExists
 } from "./worldMapInvariants.js";
-import { placeCityCatalogOnWorld, portCitiesOnWorld } from "./worldPortPlacement.js";
+import {
+  placeCityCatalogOnWorld,
+  portCitiesOnWorld,
+  validateCityPortAccessCatalog
+} from "./worldPortPlacement.js";
 import {
   WORLD_GLOBE_SUBDIVISIONS,
   WORLD_LANDMARK_VIEWPORT_RADIUS_PX,
@@ -91,18 +99,17 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
   };
   const placedByTileId = placeCityCatalogOnWorld({ ...placementOptions, cities });
   const ports = portCitiesOnWorld(placedByTileId, placementOptions);
+  assert.equal(validateCityPortAccessCatalog(placedByTileId, ports, placementOptions), true);
   assert.doesNotThrow(() => validateCanonicalPortCatalog(ports));
-  const portKeys = new Set(ports.map((city) => `${city.city}|${city.country}`));
+  const portCityIds = new Set(ports.map((city) => city.cityId));
   const northMalukuPorts = [
-    ["Ternate", 366292],
-    ["Tidore", 366350],
-    ["Makian Village", 366359]
-  ].map(([cityName, expectedTileId]) => {
-    const port = ports.find((candidate) => (
-      candidate.city === cityName && candidate.country === "Indonesia"
-    ));
-    assert.ok(port, `${cityName} must remain a dockable North Maluku island`);
-    assert.equal(port.tileId, expectedTileId, `${cityName} must occupy its authored island tile`);
+    ["ternate|indonesia", 366292],
+    ["tidore|indonesia", 366350],
+    ["makian village|indonesia", 366359]
+  ].map(([cityId, expectedTileId]) => {
+    const port = ports.find((candidate) => candidate.cityId === cityId);
+    assert.ok(port, `${cityId} must remain a dockable North Maluku island`);
+    assert.equal(port.tileId, expectedTileId, `${cityId} must occupy its authored island tile`);
     return port;
   });
   assert.equal(
@@ -119,47 +126,42 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     "Tidore and Makian should form the next reach of the volcanic island chain"
   );
   for (const city of cities.filter(cityRequiresPortAccess)) {
-    assert.ok(portKeys.has(`${city.city}|${city.country}`), `${city.city} must remain water-accessible`);
+    assert.ok(portCityIds.has(city.cityId), `${city.cityId} must remain water-accessible`);
   }
-  assert.ok(!portKeys.has("Mecca|Saudi Arabia"), "Mecca must remain inland behind Jeddah");
-  assert.ok(portKeys.has("Delhi|India"), "Delhi must retain its Yamuna approach");
-  assert.ok(portKeys.has("Tomogaura|Japan"), "Iwami must retain its historical Tomogaura export harbor");
-  assert.ok(portKeys.has("Gao|Mali"), "Gao must retain its Niger approach");
-  assert.ok(portKeys.has("Tombouctou|Mali"), "Timbuktu must retain its Kabara approach");
-  for (const [city, country] of [
-    ["Cuttack", "India"],
-    ["Nanchang", "China"],
-    ["Chengdu", "China"],
-    ["Xian", "China"],
-    ["Pegu", "Myanmar"],
-    ["Jaunpur", "India"],
-    ["Cremona", "Italy"],
-    ["Tours", "France"],
-    ["Angers", "France"],
-    ["Coimbra", "Portugal"]
+  assert.ok(!portCityIds.has("mecca|saudi arabia"), "Mecca must remain inland behind Jeddah");
+  assert.ok(portCityIds.has("delhi|india"), "Delhi must retain its Yamuna approach");
+  assert.ok(portCityIds.has("tomogaura|japan"), "Iwami must retain its historical Tomogaura export harbor");
+  assert.ok(portCityIds.has("gao|mali"), "Gao must retain its Niger approach");
+  assert.ok(portCityIds.has("tombouctou|mali"), "Timbuktu must retain its Kabara approach");
+  for (const cityId of [
+    "cuttack|india",
+    "nanchang|china",
+    "chengdu|china",
+    "xian|china",
+    "pegu|myanmar",
+    "jaunpur|india",
+    "cremona|italy",
+    "tours|france",
+    "angers|france",
+    "coimbra|portugal"
   ]) {
-    assert.ok(portKeys.has(`${city}|${country}`), `${city} must retain its historic river approach`);
+    assert.ok(portCityIds.has(cityId), `${cityId} must retain its historic river approach`);
   }
-  for (const [city, country] of [
-    ["Aleppo", "Syria"],
-    ["Bursa", "Turkey"],
-    ["Chillicothe", "United States of America"],
-    ["Dienne", "Senegal"],
-    ["Granada", "Spain"],
-    ["Jerusalem", "Israel"],
-    ["Mecca", "Saudi Arabia"],
-    ["Nimes", "France"],
-    ["Tiho", "Mexico"]
-  ]) {
-    assert.ok(!portKeys.has(`${city}|${country}`), `${city} must remain an inland settlement`);
+  const placedCityIds = new Set([...placedByTileId.values()].map((city) => city.cityId));
+  for (const cityId of INLAND_CITY_IDS_1522) {
+    assert.ok(placedCityIds.has(cityId), `${cityId} must resolve to a placed canonical city`);
+    assert.ok(!portCityIds.has(cityId), `${cityId} must remain an inland settlement`);
   }
-  const manualRiverCities = new Set(
-    Object.keys(MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[WORLD_GLOBE_SUBDIVISIONS])
+  for (const { inlandCityId, gatewayCityId } of INLAND_CITY_SAILING_GATEWAYS_1522) {
+    assert.ok(portCityIds.has(gatewayCityId), `${inlandCityId} requires gateway ${gatewayCityId}`);
+  }
+  const manualRiverCityIds = Object.keys(
+    MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[WORLD_GLOBE_SUBDIVISIONS]
   );
-  for (const cityName of manualRiverCities) {
+  for (const cityId of manualRiverCityIds) {
     assert.ok(
-      ports.some((city) => city.city === cityName),
-      `${cityName} must remain dockable at its authored river ending`
+      portCityIds.has(cityId),
+      `${cityId} must remain dockable at its authored river ending`
     );
   }
 

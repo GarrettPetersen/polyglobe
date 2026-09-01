@@ -19,7 +19,8 @@ import {
   placeCityCatalogOnWorld,
   placeColonizationTargetsOnWorld,
   portAccessTileIds,
-  portCitiesOnWorld
+  portCitiesOnWorld,
+  validateCityPortAccessCatalog
 } from "../src/worldPortPlacement.js";
 import {
   WEATHER_DAYS,
@@ -116,6 +117,7 @@ const placementOptions = {
 const cityCatalog = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
 const cityByTileId = placeCityCatalogOnWorld({ ...placementOptions, cities: cityCatalog });
 const portCities = portCitiesOnWorld(cityByTileId, placementOptions);
+validateCityPortAccessCatalog(cityByTileId, portCities, placementOptions);
 const colonyTargets = placeColonizationTargetsOnWorld({
   ...placementOptions,
   targets: COLONIZATION_TARGETS,

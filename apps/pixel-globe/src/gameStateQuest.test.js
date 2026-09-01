@@ -9,7 +9,9 @@ import {
   CAPTURE_PORT_MISSION_REPUTATION_GAIN,
   ONBOARDING_DELIVERY_COUNT,
   ONBOARDING_DELIVERY_SCENARIOS,
+  PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
   acceptQuest,
+  addPortNavigationWaypoint,
   advanceCapturePortMissionAfterConquest,
   capturePortMissionMatchesConquest,
   captureCommissionAutomaticOfferChance,
@@ -34,6 +36,7 @@ import {
   reconcileQuestPortTiles,
   reconcileQuestWorldAssumptions
 } from "./gameState.js";
+import { INLAND_CITY_SAILING_GATEWAYS_1522 } from "./cityPortAccessPolicy.js";
 import {
   CAPTURE_COMMISSION_PRIORITY_HISTORICAL_ATTEMPT,
   CAPTURE_COMMISSION_PRIORITY_HISTORICAL_CONQUEST,
@@ -288,6 +291,58 @@ test("saved jobs rebind through an explicit coastal-port migration", () => {
 
   completeQuest(state, PORTO, { simMinute: 100 });
   assert.equal(state.memory.quests.active, null);
+});
+
+test("every saved inland sailing reference moves to its canonical maritime gateway", () => {
+  INLAND_CITY_SAILING_GATEWAYS_1522.forEach(({ inlandCityId, gatewayCityId }, index) => {
+    const inland = canonicalTestCity(inlandCityId, 1000 + index);
+    const gateway = canonicalTestCity(gatewayCityId, 2000 + index);
+    const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+    const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO]);
+    acceptQuest(state, quest);
+    Object.assign(state.memory.quests.active, {
+      destinationCityId: inland.cityId,
+      destinationTileId: inland.tileId,
+      destinationName: inland.city,
+      destinationCountry: inland.country,
+      destinationKey: inland.cityId
+    });
+    addPortNavigationWaypoint(state, {
+      destinationCityId: inland.cityId,
+      destinationTileId: inland.tileId,
+      destinationName: inland.city,
+      reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
+      shipyardMaterialGoodId: "timber"
+    });
+    Object.assign(state.playerCharacter, {
+      homePortCityId: inland.cityId,
+      homePortTileId: inland.tileId,
+      homePortName: inland.city,
+      homePortCountry: inland.country
+    });
+    Object.assign(state.memory.campaignGoal, {
+      homePortCityId: inland.cityId,
+      homePortTileId: inland.tileId
+    });
+
+    const result = reconcileQuestWorldAssumptions(state, [LISBON, gateway], {
+      identityCities: [LISBON, inland, gateway]
+    });
+
+    assert.ok(result.endpointUpdates >= 3, inland.cityId);
+    assert.equal(state.memory.quests.active.destinationCityId, gateway.cityId);
+    assert.equal(state.memory.quests.active.destinationTileId, gateway.tileId);
+    assert.equal(state.playerCharacter.homePortCityId, gateway.cityId);
+    assert.equal(state.playerCharacter.homePortTileId, gateway.tileId);
+    assert.deepEqual(state.memory.navigation.optionalWaypoints, [{
+      id: `port:${gateway.cityId}:shipyard-supply:timber`,
+      destinationCityId: gateway.cityId,
+      destinationTileId: gateway.tileId,
+      destinationName: gateway.city,
+      reason: PORT_NAVIGATION_REASON_SHIPYARD_SUPPLY,
+      shipyardMaterialGoodId: "timber"
+    }]);
+  });
 });
 
 test("a legacy port mapping wins when its old tile is now another canonical port", () => {
@@ -1298,5 +1353,13 @@ function port(tileId, city, country, cityType, factionId, lat, lon) {
     population: 60000,
     lat,
     lon
+  };
+}
+
+function canonicalTestCity(cityId, tileId) {
+  const [city, country] = cityId.split("|");
+  return {
+    ...port(tileId, city, country, "mediterranean", "england", 0, 0),
+    cityId
   };
 }

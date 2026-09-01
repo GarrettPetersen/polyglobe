@@ -1260,8 +1260,9 @@ test("legacy coordinate-only encounters require an explicit canonical captain ho
       assert.equal(ship.id, knownLegacy.id);
       return "algiers|algeria";
     }
-  ), 1);
+  ), 2);
   assert.equal(resolverCalls, 1);
+  assert.equal(routed.captainHomeCityId, "lisbon|portugal");
   assert.equal(knownLegacy.captainHomeCityId, "algiers|algeria");
 
   assert.throws(
@@ -1269,7 +1270,7 @@ test("legacy coordinate-only encounters require an explicit canonical captain ho
       [{ id: "unknown-point", currentPort: { id: "point:unknown", lat: 3, lon: 4 } }],
       () => null
     ),
-    /Legacy coordinate-only NPC ship unknown-point captain home requires a canonical id/
+    /Legacy NPC ship unknown-point captain home requires a canonical id/
   );
 });
 

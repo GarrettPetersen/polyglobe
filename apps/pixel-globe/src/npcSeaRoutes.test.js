@@ -33,6 +33,7 @@ import {
   createNpcSeaRouteStrategicSnapshotPlan,
   damageNpcShip,
   expandNpcCapitalNavalReserve,
+  legacyNpcProfileCaptainHomeCityId,
   npcCargoAvailableQuantity,
   npcFleetOriginWeightsForPorts,
   npcPortHasMajorProtection,
@@ -1622,6 +1623,23 @@ test("independent Mesoamerican villages get a sparse dugout-canoe fishing fleet"
   assert.ok(nativeShips.some((ship) => ship.role === NPC_ROLE_FISHERMAN));
   assert.ok(nativeShips.some((ship) => ship.role === NPC_ROLE_MERCHANT));
   assert.ok(nativeShips.every((ship) => ship.role !== NPC_ROLE_PIRATE));
+  assert.ok(nativeShips.every((ship) => typeof ship.captainHomeCityId === "string"));
+
+  const current = nativeShips[0];
+  const legacyCoordinateOnly = {
+    ...current,
+    captainHomeCityId: undefined,
+    currentPort: { id: "point:legacy-fishing-ground", lat: 20, lon: -90 },
+    plan: {
+      ...current.plan,
+      origin: { id: "point:legacy-fishing-ground", lat: 20, lon: -90 }
+    }
+  };
+  assert.equal(
+    legacyNpcProfileCaptainHomeCityId(routes, legacyCoordinateOnly),
+    current.captainHomeCityId,
+    "legacy profile identity must recover the original canonical home without coordinate matching"
+  );
 });
 
 test("NPC route snapshots restore ships, plans, and replacement queues without caches", () => {

@@ -997,6 +997,7 @@ import {
   expandNpcCapitalNavalReserve,
   npcCargoAvailableQuantity,
   npcFleetOriginWeightsForPorts,
+  legacyNpcProfileCaptainHomeCityId,
   npcFactionCanMaintainCapitalNavalReserve,
   npcPortHasMajorProtection,
   npcTradeEmbargoViolations,
@@ -1951,7 +1952,8 @@ import {
   placeCityCatalogOnWorld,
   placeColonizationTargetsOnWorld,
   portAccessTileIds,
-  portCitiesOnWorld
+  portCitiesOnWorld,
+  validateCityPortAccessCatalog
 } from "./worldPortPlacement.js";
 import { buildPortArrivalNavigation } from "./portArrivalFlavor.js";
 import {
@@ -4612,6 +4614,7 @@ async function main() {
   }
   characterPortraitManifest = loadedCharacterPortraitManifest;
   portCities = portCitiesOnWorld(cityByTileId, worldPortPlacementOptions());
+  validateCityPortAccessCatalog(cityByTileId, portCities, worldPortPlacementOptions());
   validateCanonicalPortCatalog(portCities);
   validateHistoricalGossipCityCatalog([...cityByTileId.values()]);
   portSailingDistances = parsePortSailingDistances(loadedPortSailingDistanceData, {
@@ -8602,6 +8605,8 @@ function legacyPointEncounterCaptainHomeCityId(npcShip) {
     }
     return quest.target.cityId;
   }
+  const profileHomeCityId = legacyNpcProfileCaptainHomeCityId(npcSeaRoutes, npcShip);
+  if (profileHomeCityId !== null) return profileHomeCityId;
   throw new Error(`Coordinate-only NPC ship has no declared captain home: ${npcShip.id}`);
 }
 

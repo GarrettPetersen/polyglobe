@@ -76,9 +76,16 @@ test("a current-topology save still repairs an orphaned subdivision-seven refere
   assert.equal(migration.has(366350), false, "placed Tidore must retain its current identity");
 });
 
+test("version-one saves remain compatible after maritime gateways are added", () => {
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 1 }, {
+    savedSubdivisions: 8,
+    currentSubdivisions: 8
+  }), null);
+});
+
 test("same-topology port migration rejects unknown catalog versions and topologies", () => {
   assert.throws(
-    () => sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 2 }, {
+    () => sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 3 }, {
       savedSubdivisions: 8,
       currentSubdivisions: 8
     }),

@@ -218,8 +218,10 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const demoPortNames = new Set(demoPorts.map((port) => port.city));
   const manualCityRiverChains = MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS];
   const missingManualRiverPorts = Object.entries(manualCityRiverChains)
-    .filter(([cityName, chain]) => !ports.some((city) => city.city === cityName && city.tileId === chain[0]))
-    .map(([cityName]) => cityName);
+    .filter(([cityId, chain]) => !ports.some((city) => (
+      city.cityId === cityId && city.tileId === chain[0]
+    )))
+    .map(([cityId]) => cityId);
   const britishIslesPorts = ports.filter((city) =>
     city.country === "United Kingdom" || city.country === "Ireland"
   );

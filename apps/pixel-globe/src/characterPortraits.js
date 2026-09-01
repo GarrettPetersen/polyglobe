@@ -325,14 +325,14 @@ export function repairLegacyNpcCaptainHomeCityIds(npcShips, legacyHomeCityIdForS
     if (!ship || typeof ship.id !== "string" || ship.id === "") {
       throw new Error(`NPC captain-home repair found an invalid ship: ${ship?.id}`);
     }
-    if (ship.currentPort?.cityId || ship.plan?.origin?.cityId) continue;
     if (ship.captainHomeCityId !== undefined && ship.captainHomeCityId !== null) {
       requireEntityId(ship.captainHomeCityId, `NPC ship ${ship.id} captain home`);
       continue;
     }
+    const routedHomeCityId = ship.currentPort?.cityId || ship.plan?.origin?.cityId || null;
     ship.captainHomeCityId = requireEntityId(
-      legacyHomeCityIdForShip(ship),
-      `Legacy coordinate-only NPC ship ${ship.id} captain home`
+      routedHomeCityId || legacyHomeCityIdForShip(ship),
+      `Legacy NPC ship ${ship.id} captain home`
     );
     repaired++;
   }

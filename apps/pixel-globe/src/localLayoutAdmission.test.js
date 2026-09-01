@@ -3659,7 +3659,9 @@ function gameWorldProtection(graph) {
     subdivisions: earth.subdivisions
   });
   const featureTileIds = new Set(
-    MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[earth.subdivisions]?.Smolensk || []
+    MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[earth.subdivisions]?.[
+      "smolensk|russian federation"
+    ] || []
   );
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
     if ((navigation.riverMasks[tileId] || 0) !== 0 ||

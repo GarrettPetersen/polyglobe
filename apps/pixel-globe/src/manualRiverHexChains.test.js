@@ -20,33 +20,33 @@ const SUBDIVISIONS = 7;
 const repoRoot = new URL("../../../", import.meta.url);
 
 const MANUAL_CITY_RIVER_CONNECTIONS = Object.freeze([
-  { city: "Guangzhou", lat: 23.11667, lon: 113.25, tileId: 61752 },
-  { city: "Jingdezhen", lat: 29.268836, lon: 117.17842, tileId: 61646 },
-  { city: "Florence", lat: 43.771033, lon: 11.248, tileId: 162182 },
-  { city: "Bologna", lat: 44.49381, lon: 11.33875, tileId: 40274 },
-  { city: "Verona", lat: 45.43419, lon: 10.99779, tileId: 161032 },
-  { city: "Changsha", lat: 28.196111, lon: 112.972222, tileId: 15508 },
-  { city: "Wroclaw", lat: 51.116667, lon: 17.033333, tileId: 98257 },
-  { city: "Bremen", lat: 53.07516, lon: 8.80777, tileId: 98128 },
-  { city: "Glasgow", lat: 55.86515, lon: -4.25763, tileId: 71858 },
-  { city: "Hamburg", lat: 53.57532, lon: 10.01534, tileId: 98427 },
-  { city: "Magdeburg", lat: 52.130808, lon: 11.628878, tileId: 98280 },
-  { city: "Prague", lat: 50.08804, lon: 14.42076, tileId: 98296 },
-  { city: "Lyon", lat: 45.74846, lon: 4.84671, tileId: 161095 },
-  { city: "Toulouse", lat: 43.60426, lon: 1.44367, tileId: 10151 },
-  { city: "Cordoba", lat: 38.046133, lon: -4.893564, tileId: 162135 },
-  { city: "Zaragoza", lat: 41.648792, lon: -0.889581, tileId: 162350 },
-  { city: "Vilnius", lat: 54.683333, lon: 25.283333, tileId: 99518 },
-  { city: "Novgorod", lat: 58.525569, lon: 31.274192, tileId: 24836 },
-  { city: "Kiev", lat: 50.45466, lon: 30.5238, tileId: 99609 },
-  { city: "Smolensk", lat: 54.7818, lon: 32.0401, tileId: 99530 },
-  { city: "Lahore", lat: 31.54972, lon: 74.34361, tileId: 24284 },
-  { city: "Agra", lat: 27.18333, lon: 78.01667, tileId: 154941 },
-  { city: "Baghdad", lat: 33.34058, lon: 44.40088, tileId: 102672 },
-  { city: "Diyarbakir", lat: 37.914411, lon: 40.230628, tileId: 102394 },
-  { city: "Edirne", lat: 41.681808, lon: 26.562269, tileId: 98639 },
-  { city: "Plovdiv", lat: 42.15, lon: 24.75, tileId: 98850 },
-  { city: "Chiang Mai", lat: 18.790978, lon: 98.960775, tileId: 93453 }
+  { cityId: "guangzhou|china", city: "Guangzhou", lat: 23.11667, lon: 113.25, tileId: 61752 },
+  { cityId: "jingdezhen|china", city: "Jingdezhen", lat: 29.268836, lon: 117.17842, tileId: 61646 },
+  { cityId: "florence|italy", city: "Florence", lat: 43.771033, lon: 11.248, tileId: 162182 },
+  { cityId: "bologna|italy", city: "Bologna", lat: 44.49381, lon: 11.33875, tileId: 40274 },
+  { cityId: "verona|italy", city: "Verona", lat: 45.43419, lon: 10.99779, tileId: 161032 },
+  { cityId: "changsha|china", city: "Changsha", lat: 28.196111, lon: 112.972222, tileId: 15508 },
+  { cityId: "wroclaw|germany", city: "Wroclaw", lat: 51.116667, lon: 17.033333, tileId: 98257 },
+  { cityId: "bremen|germany", city: "Bremen", lat: 53.07516, lon: 8.80777, tileId: 98128 },
+  { cityId: "glasgow|united kingdom", city: "Glasgow", lat: 55.86515, lon: -4.25763, tileId: 71858 },
+  { cityId: "hamburg|germany", city: "Hamburg", lat: 53.57532, lon: 10.01534, tileId: 98427 },
+  { cityId: "magdeburg|germany", city: "Magdeburg", lat: 52.130808, lon: 11.628878, tileId: 98280 },
+  { cityId: "prague|austria", city: "Prague", lat: 50.08804, lon: 14.42076, tileId: 98296 },
+  { cityId: "lyon|france", city: "Lyon", lat: 45.74846, lon: 4.84671, tileId: 161095 },
+  { cityId: "toulouse|france", city: "Toulouse", lat: 43.60426, lon: 1.44367, tileId: 10151 },
+  { cityId: "cordoba|spain", city: "Cordoba", lat: 38.046133, lon: -4.893564, tileId: 162135 },
+  { cityId: "zaragoza|spain", city: "Zaragoza", lat: 41.648792, lon: -0.889581, tileId: 162350 },
+  { cityId: "vilnius|lithuania", city: "Vilnius", lat: 54.683333, lon: 25.283333, tileId: 99518 },
+  { cityId: "novgorod|russian federation", city: "Novgorod", lat: 58.525569, lon: 31.274192, tileId: 24836 },
+  { cityId: "kiev|ukraine", city: "Kiev", lat: 50.45466, lon: 30.5238, tileId: 99609 },
+  { cityId: "smolensk|russian federation", city: "Smolensk", lat: 54.7818, lon: 32.0401, tileId: 99530 },
+  { cityId: "lahore|pakistan", city: "Lahore", lat: 31.54972, lon: 74.34361, tileId: 24284 },
+  { cityId: "agra|india", city: "Agra", lat: 27.18333, lon: 78.01667, tileId: 154941 },
+  { cityId: "baghdad|iraq", city: "Baghdad", lat: 33.34058, lon: 44.40088, tileId: 102672 },
+  { cityId: "diyarbakir|turkey", city: "Diyarbakir", lat: 37.914411, lon: 40.230628, tileId: 102394 },
+  { cityId: "edirne|turkey", city: "Edirne", lat: 41.681808, lon: 26.562269, tileId: 98639 },
+  { cityId: "plovdiv|bulgaria", city: "Plovdiv", lat: 42.15, lon: 24.75, tileId: 98850 },
+  { cityId: "chiang mai|thailand", city: "Chiang Mai", lat: 18.790978, lon: 98.960775, tileId: 93453 }
 ]);
 
 const INTENTIONALLY_INLAND_WATER_SETTLEMENTS = Object.freeze([
@@ -79,11 +79,11 @@ test("manual city river corridors give their mapped city tiles ocean access", as
   const { earth, graph, directionIndex, masks, reachable } = await buildManualRiverFixture();
   const cityChains = MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS];
 
-  assert.deepEqual(Object.keys(cityChains), MANUAL_CITY_RIVER_CONNECTIONS.map(({ city }) => city));
-  for (const { city, lat, lon, tileId } of MANUAL_CITY_RIVER_CONNECTIONS) {
+  assert.deepEqual(Object.keys(cityChains), MANUAL_CITY_RIVER_CONNECTIONS.map(({ cityId }) => cityId));
+  for (const { cityId, city, lat, lon, tileId } of MANUAL_CITY_RIVER_CONNECTIONS) {
     const nearestTileId = findNearestTileId(graph, directionIndex, latLonToDirection(lat, lon));
     assert.equal(nearestTileId, tileId, `${city} moved to a different globe tile`);
-    assert.equal(cityChains[city][0], tileId, `${city} river chain must begin at its city tile`);
+    assert.equal(cityChains[cityId][0], tileId, `${city} river chain must begin at its city tile`);
     assert.equal(reachable[tileId], 1, `${city} river chain must reach the ocean`);
     assert.equal(cityHasPortAccess({
       graph,

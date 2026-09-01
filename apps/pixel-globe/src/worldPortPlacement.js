@@ -1,8 +1,12 @@
 import { findNearestTileId } from "./geodesic.js";
 import {
-  cityMustRemainInland,
   cityRequiresPortAccess
 } from "./cityCatalogSelection.js";
+import {
+  INLAND_CITY_IDS_1522,
+  INLAND_CITY_SAILING_GATEWAYS_1522,
+  cityMustRemainInland
+} from "./cityPortAccessPolicy.js";
 import {
   CITY_PORT_ACCESS_RING_DISTANCE,
   cityHasPortAccess,
@@ -127,6 +131,55 @@ export function portCitiesOnWorld(cityByTileId, options) {
   return ports;
 }
 
+export function validateCityPortAccessCatalog(cityByTileId, portCities, options) {
+  if (!(cityByTileId instanceof Map)) {
+    throw new Error("City port-access validation requires a placed city map");
+  }
+  if (!Array.isArray(portCities)) {
+    throw new Error("City port-access validation requires a port list");
+  }
+  const citiesById = uniqueCitiesById([...cityByTileId.values()], "placed city");
+  const portsById = uniqueCitiesById(portCities, "port city");
+
+  for (const port of portCities) {
+    const placed = citiesById.get(port.cityId);
+    if (!placed || placed.tileId !== port.tileId) {
+      throw new Error(`Port is absent from its placed canonical city: ${port.cityId}`);
+    }
+    if (cityMustRemainInland(port)) {
+      throw new Error(`Inland city entered the port catalog: ${port.cityId}`);
+    }
+    if (!cityHasPortAccess(portAccessOptions(options, port.tileId))) {
+      throw new Error(`Port has no ocean-reachable approach: ${port.cityId}`);
+    }
+  }
+
+  for (const city of citiesById.values()) {
+    if (cityRequiresPortAccess(city) && !portsById.has(city.cityId)) {
+      throw new Error(`Declared water-accessible city is not a port: ${city.cityId}`);
+    }
+  }
+  for (const cityId of INLAND_CITY_IDS_1522) {
+    if (!citiesById.has(cityId)) {
+      throw new Error(`Inland city registry points to a missing placed city: ${cityId}`);
+    }
+    if (portsById.has(cityId)) {
+      throw new Error(`Inland city is incorrectly dockable: ${cityId}`);
+    }
+  }
+  for (const { inlandCityId, gatewayCityId } of INLAND_CITY_SAILING_GATEWAYS_1522) {
+    if (!citiesById.has(inlandCityId)) {
+      throw new Error(`Inland sailing gateway source is missing: ${inlandCityId}`);
+    }
+    if (!portsById.has(gatewayCityId)) {
+      throw new Error(
+        `Inland sailing gateway ${gatewayCityId} for ${inlandCityId} is not a current port`
+      );
+    }
+  }
+  return true;
+}
+
 export function portAccessTileIds(options, cityTileId) {
   const { graph } = options;
   if (!Number.isInteger(cityTileId) || cityTileId < 0 || cityTileId >= graph.tileCount) {
@@ -208,6 +261,16 @@ function validateCoordinates(record, label) {
   if (!Number.isFinite(record?.lat) || !Number.isFinite(record?.lon)) {
     throw new Error(`Invalid coordinates for ${label}`);
   }
+}
+
+function uniqueCitiesById(cities, label) {
+  const byId = new Map();
+  for (const city of cities) {
+    const cityId = requireCityId(city, label);
+    if (byId.has(cityId)) throw new Error(`Duplicate ${label} canonical id: ${cityId}`);
+    byId.set(cityId, city);
+  }
+  return byId;
 }
 
 function latLonToDirection(latDeg, lonDeg) {

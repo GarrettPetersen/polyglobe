@@ -13,46 +13,46 @@ const BAGHDAD_TIGRIS_HEX_CHAIN = Object.freeze(LOWER_MESOPOTAMIAN_RIVER_HEX_CHAI
 
 export const MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze({
-    Guangzhou: Object.freeze([61752, 15492, 92879]),
-    Jingdezhen: Object.freeze([61646, 15465, 61859, 61651]),
-    Florence: Object.freeze([162182, 40562, 162199]),
-    Bologna: Object.freeze([40274, 161027, 98199]),
-    Verona: Object.freeze([161032, 161027, 98199]),
-    Changsha: Object.freeze([15508, 61803, 15502]),
-    Wroclaw: Object.freeze([
+    "guangzhou|china": Object.freeze([61752, 15492, 92879]),
+    "jingdezhen|china": Object.freeze([61646, 15465, 61859, 61651]),
+    "florence|italy": Object.freeze([162182, 40562, 162199]),
+    "bologna|italy": Object.freeze([40274, 161027, 98199]),
+    "verona|italy": Object.freeze([161032, 161027, 98199]),
+    "changsha|china": Object.freeze([15508, 61803, 15502]),
+    "wroclaw|germany": Object.freeze([
       98257, 98256, 24642, 98242, 98239, 98238, 98440, 24692, 98474,
       98473,
     ]),
-    Bremen: Object.freeze([98128, 98127, 98140]),
-    Glasgow: Object.freeze([71858, 71857, 71934]),
-    Hamburg: Object.freeze([98427, 98409, 6192, 98140]),
-    Magdeburg: Object.freeze([98280, 98417, 24686, 98425, 98427]),
-    Prague: Object.freeze([98296, 98297, 98293, 98277, 98276, 24652, 98280]),
-    Lyon: Object.freeze([161095, 40292, 162219, 40573, 162221, 10152, 162210]),
-    Toulouse: Object.freeze([10151, 162203, 162318, 162314, 162042, 160953, 40256]),
-    Cordoba: Object.freeze([162135, 40354, 161342, 161345, 161343]),
-    Zaragoza: Object.freeze([162350, 40601, 162352, 162351, 162344]),
-    Vilnius: Object.freeze([99518, 99515, 24676, 98375, 24677, 98386, 24680]),
-    Novgorod: Object.freeze([24836, 98998, 60, 55031, 13797, 55038]),
-    Kiev: Object.freeze([
+    "bremen|germany": Object.freeze([98128, 98127, 98140]),
+    "glasgow|united kingdom": Object.freeze([71858, 71857, 71934]),
+    "hamburg|germany": Object.freeze([98427, 98409, 6192, 98140]),
+    "magdeburg|germany": Object.freeze([98280, 98417, 24686, 98425, 98427]),
+    "prague|austria": Object.freeze([98296, 98297, 98293, 98277, 98276, 24652, 98280]),
+    "lyon|france": Object.freeze([161095, 40292, 162219, 40573, 162221, 10152, 162210]),
+    "toulouse|france": Object.freeze([10151, 162203, 162318, 162314, 162042, 160953, 40256]),
+    "cordoba|spain": Object.freeze([162135, 40354, 161342, 161345, 161343]),
+    "zaragoza|spain": Object.freeze([162350, 40601, 162352, 162351, 162344]),
+    "vilnius|lithuania": Object.freeze([99518, 99515, 24676, 98375, 24677, 98386, 24680]),
+    "novgorod|russian federation": Object.freeze([24836, 98998, 60, 55031, 13797, 55038]),
+    "kiev|ukraine": Object.freeze([
       99609, 99591, 6278, 99406, 24938, 99429, 24943, 99423, 24884,
       99168, 99167, 1589, 99387, 24933, 99460, 24951, 99473,
     ]),
-    Smolensk: Object.freeze([
+    "smolensk|russian federation": Object.freeze([
       99530, 99533, 24969, 99545, 24967, 99527, 6285, 99589, 24981,
       99609,
     ]),
-    Lahore: Object.freeze([
+    "lahore|pakistan": Object.freeze([
       24284, 97961, 24572, 97998, 24581, 98013, 24583, 98008, 24565,
       97934, 1559, 97487, 24456, 97492, 97529, 97543, 97544, 97541,
       6159, 97510, 24463, 97514,
     ]),
-    Agra: Object.freeze([154941, 96794, 24277, 96798]),
-    Baghdad: BAGHDAD_TIGRIS_HEX_CHAIN,
-    Diyarbakir: Object.freeze([102394, 102396, 102393, 25686, 102651, 25747]),
-    Edirne: Object.freeze([98639, 98637, 1580, 98819]),
-    Plovdiv: Object.freeze([98850, 98643, 24745, 98639]),
-    "Chiang Mai": Object.freeze([
+    "agra|india": Object.freeze([154941, 96794, 24277, 96798]),
+    "baghdad|iraq": BAGHDAD_TIGRIS_HEX_CHAIN,
+    "diyarbakir|turkey": Object.freeze([102394, 102396, 102393, 25686, 102651, 25747]),
+    "edirne|turkey": Object.freeze([98639, 98637, 1580, 98819]),
+    "plovdiv|bulgaria": Object.freeze([98850, 98643, 24745, 98639]),
+    "chiang mai|thailand": Object.freeze([
       93453, 23436, 93443, 23435, 93466, 23427, 93406, 5895, 93398,
       93399, 93401, 93272, 93271, 93279,
     ]),

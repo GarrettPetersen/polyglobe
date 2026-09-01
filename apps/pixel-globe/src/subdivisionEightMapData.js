@@ -453,14 +453,14 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
     }
   ],
   "cityRiverChains": {
-    "Guangzhou": [
+    "guangzhou|china": [
       61752,
       246563,
       15492,
       370876,
       92879
     ],
-    "Jingdezhen": [
+    "jingdezhen|china": [
       61646,
       246170,
       15465,
@@ -469,35 +469,35 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       246995,
       61651
     ],
-    "Florence": [
+    "florence|italy": [
       162182,
       648595,
       40562,
       648663,
       162199
     ],
-    "Bologna": [
+    "bologna|italy": [
       40274,
       643975,
       161027,
       643973,
       98199
     ],
-    "Verona": [
+    "verona|italy": [
       161032,
       643995,
       161027,
       643973,
       98199
     ],
-    "Changsha": [
+    "changsha|china": [
       15508,
       246753,
       61803,
       246751,
       15502
     ],
-    "Wroclaw": [
+    "wroclaw|germany": [
       98257,
       392384,
       98256,
@@ -518,21 +518,21 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       393255,
       98473
     ],
-    "Bremen": [
+    "bremen|germany": [
       98128,
       391889,
       98127,
       391968,
       98140
     ],
-    "Glasgow": [
+    "glasgow|united kingdom": [
       71858,
       287102,
       71857,
       287396,
       71934
     ],
-    "Hamburg": [
+    "hamburg|germany": [
       98427,
       393056,
       98409,
@@ -541,7 +541,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       391927,
       98140
     ],
-    "Magdeburg": [
+    "magdeburg|germany": [
       98280,
       393011,
       98417,
@@ -552,7 +552,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       393061,
       98427
     ],
-    "Prague": [
+    "prague|austria": [
       98296,
       392534,
       98297,
@@ -567,7 +567,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       392461,
       98280
     ],
-    "Lyon": [
+    "lyon|france": [
       644228,
       161095,
       644223,
@@ -585,7 +585,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       648907,
       162261
     ],
-    "Toulouse": [
+    "toulouse|france": [
       10151,
       648678,
       162203,
@@ -600,7 +600,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       643684,
       40256
     ],
-    "Cordoba": [
+    "cordoba|spain": [
       162135,
       648396,
       40354,
@@ -611,7 +611,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       645236,
       161343
     ],
-    "Zaragoza": [
+    "zaragoza|spain": [
       162350,
       649291,
       40601,
@@ -622,7 +622,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       649298,
       162344
     ],
-    "Vilnius": [
+    "vilnius|lithuania": [
       99518,
       397390,
       99515,
@@ -637,7 +637,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       392874,
       24680
     ],
-    "Novgorod": [
+    "novgorod|russian federation": [
       24836,
       395309,
       98998,
@@ -650,7 +650,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       219839,
       55038
     ],
-    "Kiev": [
+    "kiev|ukraine": [
       99609,
       397772,
       99591,
@@ -685,7 +685,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       397211,
       99473
     ],
-    "Smolensk": [
+    "smolensk|russian federation": [
       99530,
       397459,
       99533,
@@ -706,7 +706,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       397771,
       99609
     ],
-    "Lahore": [
+    "lahore|pakistan": [
       24284,
       391192,
       97961,
@@ -751,7 +751,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       389384,
       97514
     ],
-    "Agra": [
+    "agra|india": [
       154941,
       619429,
       96794,
@@ -760,7 +760,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       386569,
       96798
     ],
-    "Baghdad": [
+    "baghdad|iraq": [
       102672,
       410023,
       102484,
@@ -783,7 +783,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       408209,
       25649
     ],
-    "Diyarbakir": [
+    "diyarbakir|turkey": [
       102394,
       408886,
       102396,
@@ -796,7 +796,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       409935,
       25747
     ],
-    "Edirne": [
+    "edirne|turkey": [
       98639,
       393881,
       98637,
@@ -805,7 +805,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       394576,
       98819
     ],
-    "Plovdiv": [
+    "plovdiv|bulgaria": [
       98850,
       394702,
       98643,
@@ -814,7 +814,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       393883,
       98639
     ],
-    "Chiang Mai": [
+    "chiang mai|thailand": [
       93453,
       373213,
       23436,
@@ -843,7 +843,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       372490,
       93279
     ],
-    "Delhi": [
+    "delhi|india": [
       386720,
       24278,
       386560,
@@ -853,7 +853,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       619429,
       619432
     ],
-    "Gao": [
+    "gao|mali": [
       640423,
       640422,
       160152,
@@ -938,7 +938,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       40933,
       654806
     ],
-    "Tombouctou": [
+    "tombouctou|mali": [
       640423,
       640422,
       160152,
@@ -1023,14 +1023,14 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       40933,
       654806
     ],
-    "Cuttack": [
+    "cuttack|india": [
       9724,
       619921,
       619965,
       619967,
       619966
     ],
-    "Nanchang": [
+    "nanchang|china": [
       247002,
       15521,
       246991,
@@ -1060,7 +1060,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       246274,
       246273
     ],
-    "Chengdu": [
+    "chengdu|china": [
       244788,
       61297,
       244790,
@@ -1140,7 +1140,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       246274,
       246273
     ],
-    "Xian": [
+    "xian|china": [
       250102,
       15707,
       250216,
@@ -1185,7 +1185,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       62128,
       248057
     ],
-    "Pegu": [
+    "pegu|myanmar": [
       372151,
       93195,
       372160,
@@ -1194,7 +1194,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       372153,
       371954
     ],
-    "Jaunpur": [
+    "jaunpur|india": [
       155087,
       620014,
       38813,
@@ -1238,7 +1238,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       367796,
       367802
     ],
-    "Cremona": [
+    "cremona|italy": [
       643985,
       161031,
       643992,
@@ -1249,7 +1249,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       643971,
       392171
     ],
-    "Tours": [
+    "tours|france": [
       644530,
       161167,
       644545,
@@ -1262,7 +1262,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       643728,
       643734
     ],
-    "Angers": [
+    "angers|france": [
       161169,
       644540,
       644538,
@@ -1272,7 +1272,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       643728,
       643734
     ],
-    "Coimbra": [
+    "coimbra|portugal": [
       645775,
       161487,
       645777

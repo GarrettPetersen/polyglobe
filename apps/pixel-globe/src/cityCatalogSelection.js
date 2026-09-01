@@ -1,6 +1,7 @@
 import { withColonialFounding } from "./colonialCities.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { cityTerritoryId, requireEntityId } from "./entityIds.js";
+export { cityMustRemainInland } from "./cityPortAccessPolicy.js";
 
 export const CITY_WATER_ACCESS_SCORE_BONUS = 45000;
 export const CITY_OBSERVATION_RELEVANCE_YEARS = 100;
@@ -146,6 +147,23 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     manualRegion: "lower-danube",
     requiredTradePort: true,
     marketGoods: ["grain", "fish", "timber"]
+  }),
+  // Bursa is an inland market. Mudanya was its Marmara roadstead and had been
+  // under Ottoman rule since 1321; keep the port and the city as distinct
+  // canonical places rather than dragging Bursa onto the coast.
+  manualCity1522("mudanya|turkey", "Mudanya", "Turkey", 40.3764, 28.8833, 3000, {
+    cityType: "islamic-desert",
+    manualRegion: "eastern-mediterranean",
+    marketGoods: ["silk", "olive-oil", "fish"]
+  }),
+  // Jaffa was a small, difficult roadstead in 1522, but it remained the
+  // seaward landing for Jerusalem. Model it as a village, not as Jerusalem
+  // itself or as a large later Ottoman port.
+  manualVillage1522("jaffa|israel", "Jaffa", "Israel", 32.0535, 34.7503, 500, {
+    cityType: "islamic-desert",
+    manualRegion: "eastern-mediterranean",
+    marketGoods: ["olive-oil", "wool", "fish"],
+    playerHomeExcluded: true
   }),
   manualCity1522("malacca|malaysia", "Malacca", "Malaysia", 2.1896, 102.2501, 90000, {
     manualRegion: "strait-of-malacca"
@@ -766,22 +784,6 @@ export function cityRequiresPortAccess(city) {
     city?.requiredTradePort ||
     cityHasWaterAccessIntent(city)
   );
-}
-
-const EXPLICITLY_INLAND_CITY_REFS_1522 = new Set([
-  "aleppo|syria",
-  "bursa|turkey",
-  "chillicothe|united states of america",
-  "dienne|senegal",
-  "granada|spain",
-  "jerusalem|israel",
-  "mecca|saudi arabia",
-  "nimes|france",
-  "tiho|mexico"
-]);
-
-export function cityMustRemainInland(city) {
-  return EXPLICITLY_INLAND_CITY_REFS_1522.has(requireEntityId(city?.cityId, "Inland city"));
 }
 
 function cityLabelText(city) {

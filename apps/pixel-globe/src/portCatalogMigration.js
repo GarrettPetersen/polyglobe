@@ -3,7 +3,8 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 1;
+export const PORT_CATALOG_VERSION = 2;
+const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
 // overlarge shared landmass. These one-time mappings preserve saves made before
@@ -32,12 +33,16 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
   if (payload.portCatalogVersion === undefined) {
     return PRE_NORTH_MALUKU_PORT_TILE_IDS;
   }
-  if (payload.portCatalogVersion !== PORT_CATALOG_VERSION) {
+  if (!Number.isInteger(payload.portCatalogVersion) ||
+      payload.portCatalogVersion < EARLIEST_SUPPORTED_PORT_CATALOG_VERSION ||
+      payload.portCatalogVersion > PORT_CATALOG_VERSION) {
     throw new Error(
       `Saved voyage port catalog version ${payload.portCatalogVersion} cannot load into ` +
         `${PORT_CATALOG_VERSION}`
     );
   }
+  // Catalog version 2 adds maritime gateways without moving version-1 ports.
+  // Canonical inland references are reconciled to those gateways at load time.
   return null;
 }
 

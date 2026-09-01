@@ -490,6 +490,7 @@ import {
 } from "./questCargoDeliveries.js";
 import { validateVoyageStartProfile } from "./voyageStartProfile.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
+import { sailingGatewayCityIdForInlandCity } from "./cityPortAccessPolicy.js";
 import {
   CHART_REFRAME_DIALOGUE_MEMORY_VERSION,
   createChartReframeDialogueMemory,
@@ -7413,10 +7414,14 @@ export function teaRaceOfferForCity(state, city, portCities, context = {}) {
 }
 
 export function reconcileQuestPortTiles(state, portCities, {
-  legacyPortTileIds = null
+  legacyPortTileIds = null,
+  identityCities = portCities
 } = {}) {
   assertGameState(state);
   if (!Array.isArray(portCities)) throw new Error("Quest port reconciliation requires a port list");
+  if (!Array.isArray(identityCities)) {
+    throw new Error("Quest port reconciliation requires an identity city list");
+  }
   assertLegacyPortTileIds(legacyPortTileIds);
   const quests = questMemory(state);
   let updates = 0;
@@ -7505,6 +7510,7 @@ export function reconcileQuestPortTiles(state, portCities, {
         destinationTileId: destination.tileId,
         reason: waypoint.reason,
         questCargoGoodId: waypoint.questCargoGoodId || null,
+        shipyardMaterialGoodId: waypoint.shipyardMaterialGoodId || null,
         tradeGoodId: waypoint.tradeGoodId || null
       });
       updates += 1;
@@ -7699,12 +7705,15 @@ export function reconcileQuestPortTiles(state, portCities, {
       updates += 1;
     }
   }
+  // Campaign transfers may deliberately lead overland after the player lands
+  // at the target port. They belong to the full city catalog, not the sailing
+  // catalog, so resolve them through their separate identity catalog.
   if (Array.isArray(conquistador?.transferSchedule)) {
     const completedLegacyTiles = new Set(conquistador.transferredTileIds || []);
     const completedCityIds = new Set(conquistador.transferredCityIds || []);
     for (const transfer of conquistador.transferSchedule) {
       const previousTileId = transfer.tileId;
-      const port = reconciledPortReference(portCities, {
+      const port = reconciledPortReference(identityCities, {
         cityId: transfer.cityId,
         tileId: previousTileId
       }, legacyPortTileIds);
@@ -8234,7 +8243,14 @@ export function reconcileQuestWorldAssumptions(state, portCities, options = {}) 
   if (!Array.isArray(identityCities)) {
     throw new Error("Quest world reconciliation requires an identity city list");
   }
-  const endpointUpdates = reconcileQuestPortTiles(state, identityCities, options);
+  // Port references resolve only against the sailing catalog. The one known
+  // overland exception—conquistador campaign transfers—receives the full city
+  // identity catalog separately, so an inland destination cannot leak back
+  // into maritime routing.
+  const endpointUpdates = reconcileQuestPortTiles(state, portCities, {
+    ...options,
+    identityCities
+  });
   const quests = questMemory(state);
   const events = [];
 
@@ -9762,8 +9778,17 @@ function reconciledPortReference(portCities, { cityId = null, tileId }, legacyPo
   if (typeof cityId === "string" && cityId !== "") {
     const matches = portCities.filter((port) => port.cityId === cityId);
     if (matches.length > 1) throw new Error(`Saved canonical city ${cityId} resolves to ${matches.length} current ports`);
-    if (matches.length === 0) return null;
-    return matches[0];
+    if (matches.length === 1) return matches[0];
+    const gatewayCityId = sailingGatewayCityIdForInlandCity(cityId);
+    if (gatewayCityId === null) return null;
+    const gatewayMatches = portCities.filter((port) => port.cityId === gatewayCityId);
+    if (gatewayMatches.length !== 1) {
+      throw new Error(
+        `Saved inland sailing destination ${cityId} requires gateway ${gatewayCityId}, ` +
+          `which resolves to ${gatewayMatches.length} current ports`
+      );
+    }
+    return gatewayMatches[0];
   }
   if (!Number.isInteger(tileId)) return null;
   const migratedTileId = legacyPortTileIds?.get(tileId);

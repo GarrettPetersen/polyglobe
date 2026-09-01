@@ -33,7 +33,8 @@ import {
   tradeEmbargoIncidentForInspection,
   tradeEmbargoOrdersForPurchase,
   tradeEmbargoOrdersForSale,
-  tradeEmbargoOrdersForShipping
+  tradeEmbargoOrdersForShipping,
+  validateTradeEmbargoEnforcementMemory
 } from "./tradeEmbargoes.js";
 import { npcTradeEmbargoViolations } from "./npcSeaRoutes.js";
 
@@ -170,6 +171,54 @@ test("selling or jettisoning tracked cargo removes the corresponding embargo ris
   assert.deepEqual(enforcement.incidents[0].cargo, { "wool-cloth": 1 });
   assert.equal(consumeTrackedEmbargoCargo(enforcement, "wool-cloth", 1), 1);
   assert.equal(enforcement.incidents.length, 0);
+});
+
+test("tracked cargo consumption is divided across incidents instead of multiplied", () => {
+  const embargoes = createTradeEmbargoMemory({ seedKey: "bounded-consumption" });
+  const enforcement = createTradeEmbargoEnforcementMemory();
+  const orders = tradeEmbargoOrdersForPurchase(embargoes, {
+    sourceFactionId: "france",
+    goodId: "wool-cloth",
+    playerFactionId: "england"
+  });
+  const paris = { ...ROUEN, cityId: "paris|france", city: "Paris", tileId: 15 };
+  for (const [port, simMinute] of [[ROUEN, 100], [paris, 101]]) {
+    recordTradeEmbargoPurchase(enforcement, orders, {
+      port,
+      goodId: "wool-cloth",
+      quantity: 2,
+      transactionValue: 300,
+      simMinute
+    });
+  }
+
+  assert.equal(consumeTrackedEmbargoCargo(enforcement, "wool-cloth", 3), 3);
+  assert.equal(enforcement.incidents.length, orders.length);
+  assert.ok(enforcement.incidents.every((incident) => (
+    incident.originCityId === paris.cityId && incident.cargo["wool-cloth"] === 1
+  )));
+});
+
+test("a detected embargo offence remains valid after its last parcel is disposed", () => {
+  const embargoes = createTradeEmbargoMemory({ seedKey: "caught-empty-cargo" });
+  const enforcement = createTradeEmbargoEnforcementMemory();
+  const orders = tradeEmbargoOrdersForPurchase(embargoes, {
+    sourceFactionId: "france",
+    goodId: "wool-cloth",
+    playerFactionId: "england"
+  });
+  const [recorded] = recordTradeEmbargoPurchase(enforcement, orders, {
+    port: ROUEN,
+    goodId: "wool-cloth",
+    quantity: 1,
+    transactionValue: 300,
+    simMinute: 100
+  });
+  resolveTradeEmbargoInspection(enforcement, recorded.id, "spain", "spanish-galleon", 0);
+
+  assert.equal(consumeTrackedEmbargoCargo(enforcement, "wool-cloth", 1), 1);
+  assert.deepEqual(enforcement.incidents[0].cargo, {});
+  assert.doesNotThrow(() => validateTradeEmbargoEnforcementMemory(enforcement));
 });
 
 test("national embargoes lift after peace while later wars can produce new orders", () => {
