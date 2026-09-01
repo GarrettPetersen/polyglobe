@@ -67,6 +67,24 @@ test("individual trees are sparse, deterministic props across near and rear plan
   assert.ok(castleBacking.every(({ z, scale }) => z < 45 && scale === 0.55));
 });
 
+test("baked tree lighting and left-cast shadows always retain their authored orientation", () => {
+  const features = { rightTerrain: "forest" };
+  const placements = Array.from({ length: 24 }, (_, index) => cityTreePlacements({
+    city: sampleCity({ id: `shadow-direction-${index}` }),
+    features,
+    trees: manifest.trees
+  })).flat();
+  assert.ok(placements.length > 0);
+  assert.ok(
+    placements.every(({ flipX }) => flipX === false),
+    "all tree lighting retains its authored direction"
+  );
+  assert.ok(
+    placements.every(({ shadowFlipX }) => shadowFlipX === false),
+    "all tree shadows retain the authored left-cast direction"
+  );
+});
+
 test("regional pools and latitude prevent implausible tree choices", () => {
   const forest = { rightTerrain: "forest" };
   const polynesian = cityTreePlacements({

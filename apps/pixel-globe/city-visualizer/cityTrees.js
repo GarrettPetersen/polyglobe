@@ -127,7 +127,10 @@ export function cityTreePlacements({ city, features, trees }) {
       z: slot.depth === 1 ? cityGroundPainterZ(slot.baseY) : slot.z,
       shadowZ: slot.shadowZ,
       parallaxAnchor: slot.parallaxAnchor ?? 1,
-      flipX: stableHash(`${city.id}:tree-flip:${index}`) % 2 === 1
+      // The lighting and shadow direction are baked into each authored tree.
+      // Mirroring either part would contradict the scene's left-cast light.
+      flipX: false,
+      shadowFlipX: false
     });
   });
   return Object.freeze(placements);

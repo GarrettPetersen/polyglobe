@@ -1086,7 +1086,7 @@ function cityTreeShadowMask(placement) {
     variants = new Map();
     treeShadowMaskCache.set(part, variants);
   }
-  const key = `${placement.scale}:${placement.flipX ? 1 : 0}`;
+  const key = `${placement.scale}:${placement.shadowFlipX ? 1 : 0}`;
   if (variants.has(key)) return variants.get(key);
   const width = Math.max(1, Math.round(part.sourceSize.w * placement.scale));
   const height = Math.max(1, Math.round(part.sourceSize.h * placement.scale));
@@ -1096,7 +1096,7 @@ function cityTreeShadowMask(placement) {
   const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
   bufferContext.imageSmoothingEnabled = false;
   bufferContext.save();
-  if (placement.flipX) {
+  if (placement.shadowFlipX) {
     bufferContext.translate(width, 0);
     bufferContext.scale(-1, 1);
   }
