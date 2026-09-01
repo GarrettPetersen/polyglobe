@@ -12,8 +12,9 @@ count separately because the visualizer positions and draws them independently.
 - **10 authored pieces per regional kit**: two homes, five other buildings, and
   three fortification sections.
 - **6 initial regional kits = 60 normal-state coverage slots.**
-- **57 slots are resolved** by authored art, a documented shared sprite/palette
-  swap, or a deliberate omission. **3 normal-state slots still need art.**
+- **All 60 slots are resolved** by authored art, a documented shared sprite,
+  palette swap, or a deliberate omission. **No normal-state slots still need
+  art for the initial world-coverage pass.**
 - Bombardment is a **single procedural rendering system**, not another 60
   hand-drawn slots. Door, fire, smoke, gate-opening, and exceptional collapsed
   states are not included in the building count.
@@ -26,11 +27,11 @@ region.
 | --- | ---: | ---: |
 | Northern European | 10 | 0 |
 | Mediterranean | 10 | 0 |
-| Middle Eastern | 9 | 1 |
+| Middle Eastern | 10 | 0 |
 | Primitive / village | 10 | 0 |
-| Chinese / Korean | 9 | 1 |
-| Japanese | 9 | 1 |
-| **Total** | **57** | **3** |
+| Chinese / Korean | 10 | 0 |
+| Japanese | 10 | 0 |
+| **Total** | **60** | **0** |
 
 Checklist labels are intentional:
 
@@ -39,19 +40,16 @@ Checklist labels are intentional:
   documented runtime palette swap.
 - **OMIT** means we have decided not to draw or display that building for this
   kit. It still counts as resolved world-coverage behavior.
-- **DRAW** is one of the 3 pieces still required for the initial 60-slot pass.
-- **LATER** is outside the initial 60 and does not count toward the 3.
+- **DRAW** is an unresolved piece required for the initial 60-slot pass. There
+  are currently none.
+- **LATER** is outside the initial 60 and does not affect its resolved count.
 
 ## What needs drawing now
 
-1. **Middle Eastern Home B** — one alternate flat-roofed home.
-2. **Chinese / Korean Home B** — one alternate home using the shared tiled-roof
-   language.
-3. **Japanese Home B** — one alternate home using the Japanese timber-and-
-   plaster language.
-
-That is the complete **3-piece current art queue**. The Chinese/Korean and
-Japanese inns, smiths, fortifications, market stalls, and shipyards are complete.
+Nothing for the initial 60-slot world-coverage pass. Middle Eastern,
+Chinese/Korean, and Japanese scenes deliberately reuse Home A in the Home B
+slot. A second house silhouette may be added later for variety, but it is not a
+missing functional building and does not block scene coverage.
 
 The market stall and shipyard are also global functional sprites. Their rough
 timber construction is culturally neutral at this scale: the market is a simple
@@ -154,7 +152,8 @@ planes use `#cd683d`.
 ## Middle Eastern
 
 - [x] Home A — **AUTHORED**
-- [ ] Home B — **DRAW**; Home A is temporarily reused in this slot
+- [x] Home B — **SHARED**; deliberately reuse Home A because one regional home
+  silhouette is sufficient for the initial pass
 - [x] Inn — **AUTHORED**
 - [x] Item store / smith — **AUTHORED**
 - [x] Market stall — **SHARED**, global timber market stall
@@ -202,7 +201,7 @@ Later Korean alternates should emphasize lower roof profiles, mud walls, and
 thatch without blocking the first world-coverage pass.
 
 - [x] Home A — **AUTHORED**, shared by Ming Chinese and Joseon Korean cities
-- [ ] Home B — **DRAW**
+- [x] Home B — **SHARED**; deliberately reuse Home A for the initial pass
 - [x] Inn — **AUTHORED**
 - [x] Item store / smith — **AUTHORED**
 - [x] Market stall — **SHARED**, global timber market stall
@@ -219,7 +218,7 @@ white-plaster contrast, roof massing, deep eaves, and layered wooden
 fortifications need distinct silhouettes rather than a palette swap.
 
 - [x] Home A — **AUTHORED**
-- [ ] Home B — **DRAW**
+- [x] Home B — **SHARED**; deliberately reuse Home A for the initial pass
 - [x] Inn — **AUTHORED**
 - [x] Item store / smith — **AUTHORED**
 - [x] Market stall — **SHARED**, global timber market stall
@@ -247,6 +246,10 @@ These decisions are part of the checklist, not missing work:
   procedural damage system that works on every completed sprite.
 - [x] Separate background-city building sprites — **OMIT**; the skyline reuses
   scaled regional homes, inns, smiths, and religious landmarks.
+- [x] Separate Home B silhouettes for the Middle Eastern, Chinese/Korean, and
+  Japanese kits — **OMIT** for the initial pass; each kit deliberately reuses
+  its authored Home A. Distinct alternates can be added later as optional
+  variety rather than required world coverage.
 
 ## Required animation, weather, and damage systems
 
