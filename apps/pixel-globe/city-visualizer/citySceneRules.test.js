@@ -121,7 +121,7 @@ test("city labels and controls stay on the game's native pixel font grid", () =>
 test("regional hover outlines and hit masks use the displayed building silhouette", () => {
   assert.match(
     VISUALIZER_MAIN_SOURCE,
-    /const sourceAtlas = regionalFrame\?\.atlas \|\| state\.staticAtlas;[\s\S]*drawFrameOutline\(sourceAtlas, sourceFrame, window\)/
+    /const sourceAtlas = regionalFrame\?\.atlas \|\| state\.staticAtlas;[\s\S]*drawFrameOutline\(sourceAtlas, sourceFrame, window, targetContext\)/
   );
   assert.match(
     VISUALIZER_MAIN_SOURCE,

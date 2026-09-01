@@ -31,6 +31,7 @@
     "city-visualizer:check": "npm --prefix apps/pixel-globe run city-visualizer:check",
     "city-visualizer:catalog": "npm --prefix apps/pixel-globe run city-visualizer:catalog",
     "city-visualizer:assets": "npm --prefix apps/pixel-globe run city-visualizer:assets",
+    "city-visualizer:benchmark": "npm --prefix apps/pixel-globe run city-visualizer:benchmark --",
     "pixel-globe:build": "npm --prefix apps/pixel-globe run build",
     "pixel-globe:build-demo": "npm --prefix apps/pixel-globe run build:demo",
     "pixel-globe:deploy": "npm --prefix apps/pixel-globe run deploy",

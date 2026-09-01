@@ -1,4 +1,3 @@
-import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -14,17 +13,21 @@ import {
   performanceBenchmarkRequiresChartIntegrityTelemetry,
   performanceBenchmarkRequiresPausedOverlayBudget
 } from "../src/performanceBenchmark.js";
+import {
+  startBenchmarkServer,
+  waitForBenchmarkServer
+} from "./benchmark-server.mjs";
 
 const require = createRequire(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = parseArgs(process.argv.slice(2));
 const playwright = loadPlaywright();
-const server = args.baseUrl ? null : startBenchmarkServer(args.port);
+const server = args.baseUrl ? null : startBenchmarkServer({ appRoot: APP_ROOT, port: args.port });
 const baseUrl = args.baseUrl || `http://127.0.0.1:${args.port}`;
 const errors = [];
 
 try {
-  await waitForServer(baseUrl, server);
+  await waitForBenchmarkServer({ baseUrl, server });
   const runtime = await launchBenchmarkRuntime(playwright, args);
   const { context, page } = runtime;
   let cdp = null;
@@ -215,33 +218,6 @@ async function launchBenchmarkRuntime(loadedPlaywright, options) {
     page: context.pages()[0] || await context.newPage(),
     close: () => context.close()
   };
-}
-
-function startBenchmarkServer(port) {
-  return spawn(process.execPath, ["server.mjs"], {
-    cwd: APP_ROOT,
-    env: { ...process.env, PORT: String(port) },
-    stdio: ["ignore", "pipe", "pipe"]
-  });
-}
-
-async function waitForServer(baseUrl, server) {
-  const deadline = Date.now() + 30_000;
-  let lastError = null;
-  while (Date.now() < deadline) {
-    if (server && server.exitCode !== null) {
-      throw new Error(`Benchmark server exited with code ${server.exitCode}`);
-    }
-    try {
-      const response = await fetch(baseUrl);
-      if (response.ok) return;
-      lastError = new Error(`HTTP ${response.status}`);
-    } catch (error) {
-      lastError = error;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 100));
-  }
-  throw new Error(`Benchmark server did not start at ${baseUrl}: ${lastError?.message || "timeout"}`);
 }
 
 function loadPlaywright() {

@@ -9,6 +9,22 @@ Production: `https://pirates-of-the-pixel-globe.pages.dev/city-visualizer/`
 Run `npm run city-visualizer:dev` from `apps/pixel-globe`, then open
 `http://127.0.0.1:5177/city-visualizer/`.
 
+Run `npm run city-visualizer:benchmark` from the repository root for the
+repeatable London frame benchmark. Use `-- --camera pan` to measure continuous
+edge scrolling, or `-- --city 'nanjing|china'` to select another catalog ID.
+Reports are written below `apps/pixel-globe/build/performance/`.
+
+## Rendering boundary
+
+The visualizer builds and sorts its scene entries only when the selected city
+or feature set changes. `src/cachedSceneRenderer.js` then collapses consecutive
+static entries into offscreen Canvas2D batches. Those batches rebuild only when
+their visible pixel projection, viewport, or hover treatment changes; ordinary
+frames composite them with `drawImage` while water, clouds, smoke, flags, ships,
+and people stay dynamic. The renderer is independent of the visualizer controls
+so the same entry plan can move into the main game loop without importing the
+standalone page.
+
 ## Canvas contract
 
 - Canonical landscape: 455 × 256 logical pixels

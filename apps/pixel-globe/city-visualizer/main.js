@@ -118,6 +118,13 @@ import {
   cityCloudDrawPositions,
   cityCloudSpec
 } from "./cityClouds.js";
+import {
+  createPerformanceBenchmarkState,
+  recordPerformanceBenchmarkFrame,
+  recordPerformanceBenchmarkStage
+} from "../src/performanceBenchmark.js";
+import { cityVisualizerBenchmarkFromSearch } from "./cityVisualizerBenchmark.js";
+import { createCachedSceneRenderer } from "../src/cachedSceneRenderer.js";
 
 const canvas = document.querySelector("#scene");
 const context = canvas.getContext("2d", { alpha: false });
@@ -153,8 +160,21 @@ const latitudeWaterFrameCanvasCache = new WeakMap();
 const latitudeWaterCssColorCache = new Map();
 const treeShadowMaskCache = new WeakMap();
 const treeShadowColorCache = new Map();
+const staticProjectionSpecsCache = new WeakMap();
+const CITY_VISUALIZER_BENCHMARK = cityVisualizerBenchmarkFromSearch(window.location.search);
+const STATIC_SCENE_ENTRY_KINDS = new Set([
+  "background-city-static",
+  "city-building",
+  "dock-shadow-extension",
+  "left-bank-background-city-base",
+  "quay-cargo",
+  "static",
+  "tree",
+  "tree-shadow"
+]);
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
+let renderFrameId = null;
 const state = {
   ready: false,
   catalog: null,
@@ -200,8 +220,19 @@ const state = {
   streetBuildings: [],
   treePlacements: [],
   quayCargoPlacements: [],
-  npcAgents: []
+  npcAgents: [],
+  renderCount: 0,
+  benchmarkState: null
 };
+const citySceneRenderer = createCachedSceneRenderer({
+  displayContext: context,
+  createSurface: createCitySceneCacheSurface,
+  drawEntry: drawMeasuredSceneEntry,
+  isStaticEntry: (entry) => STATIC_SCENE_ENTRY_KINDS.has(entry.kind),
+  staticContextAttributes: (entries) => entries.some((entry) => entry.kind === "tree-shadow")
+    ? { willReadFrequently: true }
+    : undefined
+});
 
 const DESTINATIONS = Object.freeze([
   Object.freeze({
@@ -271,11 +302,12 @@ async function initialize() {
     ]);
     prepareScenePixelCaches();
     prepareControls();
-    selectInitialCity();
+    await selectInitialCity();
     resizeLogicalCanvas();
     state.ready = true;
     loading.hidden = true;
-    requestAnimationFrame(render);
+    if (CITY_VISUALIZER_BENCHMARK) setupCityVisualizerBenchmark();
+    scheduleRender();
   } catch (error) {
     console.error(error);
     loading.textContent = error instanceof Error ? error.message : String(error);
@@ -307,9 +339,13 @@ function prepareControls() {
   setLabeledOptions(windSpeedOverride, CITY_WIND_SPEED_OPTIONS);
   setLabeledOptions(windDirectionOverride, CITY_WIND_DIRECTION_OPTIONS);
 
-  citySelect.addEventListener("change", () => selectCity(citySelect.value));
+  citySelect.addEventListener("change", () => {
+    void selectCity(citySelect.value).catch(reportVisualizerError);
+  });
   viewportSelect.addEventListener("change", resizeLogicalCanvas);
-  shipSelect.addEventListener("change", () => selectShip(shipSelect.value));
+  shipSelect.addEventListener("change", () => {
+    void selectShip(shipSelect.value).catch(reportVisualizerError);
+  });
   for (const control of [
     approachOverride,
     leftBankCityOverride,
@@ -338,18 +374,20 @@ function prepareControls() {
   });
 }
 
-function selectInitialCity() {
+async function selectInitialCity() {
   const requested = new URL(location.href).searchParams.get("city");
   const city = state.catalog.cities.find((candidate) => candidate.id === requested) ||
     state.catalog.cities.find((candidate) => candidate.label === "London") ||
     state.catalog.cities[0];
-  selectCity(city.id);
+  await selectCity(city.id);
 }
 
-function selectCity(cityId) {
+async function selectCity(cityId) {
   const city = state.catalog.cities.find((candidate) => candidate.id === cityId);
   if (!city) throw new Error(`Unknown visualizer city: ${cityId}`);
   state.city = city;
+  state.cityFlagFactionId = city.factionId;
+  state.cityFlagImage = null;
   citySelect.value = city.id;
   canvas.setAttribute("aria-label", `${city.label}, ${city.country}`);
   for (const control of [
@@ -369,11 +407,20 @@ function selectCity(cityId) {
   state.cameraPanTarget = null;
   state.cloudDriftByLayer = new Map(CITY_CLOUD_SPECS.map(({ layer }) => [layer, 0]));
   state.lastCloudTimeMs = null;
-  void selectCityFlag(city);
-  selectShip(city.defaultShip);
+  await Promise.all([
+    selectCityFlag(city),
+    selectShip(city.defaultShip)
+  ]);
+  if (state.city.id !== city.id) return;
   const url = new URL(location.href);
   url.searchParams.set("city", city.id);
   history.replaceState(null, "", url);
+}
+
+function reportVisualizerError(error) {
+  console.error(error);
+  loading.hidden = false;
+  loading.textContent = error instanceof Error ? error.message : String(error);
 }
 
 async function selectCityFlag(city) {
@@ -386,7 +433,10 @@ async function selectCityFlag(city) {
     if (image.width !== 32 || image.height !== 20) {
       throw new Error(`City flag ${factionId} must be 32x20, got ${image.width}x${image.height}`);
     }
-    if (state.cityFlagFactionId === factionId) state.cityFlagImage = image;
+    if (state.cityFlagFactionId === factionId) {
+      state.cityFlagImage = image;
+      rebuildCitySceneRenderPlan();
+    }
   } catch (error) {
     console.error(`Could not load city flag ${factionId}`, error);
   }
@@ -489,6 +539,7 @@ function applyFeatureOverrides() {
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
   applyWindOverrides();
+  rebuildCitySceneRenderPlan();
 }
 
 function applyWindOverrides() {
@@ -759,6 +810,15 @@ function advanceCamera(timeMs) {
   const elapsedMs = Math.min(50, Math.max(0, timeMs - state.lastRenderTimeMs));
   state.lastRenderTimeMs = timeMs;
   const previous = state.parallax;
+  const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
+  if (
+    CITY_VISUALIZER_BENCHMARK?.cameraMode === "pan" &&
+    state.cameraPanTarget === null
+  ) {
+    state.cameraPanTarget = state.parallax >= cameraBounds.maximum
+      ? cameraBounds.minimum
+      : cameraBounds.maximum;
+  }
   if (prefersReducedMotion.matches || state.cameraGesture) {
     state.cameraVelocity = 0;
   } else {
@@ -782,7 +842,6 @@ function advanceCamera(timeMs) {
       velocity: state.cameraVelocity,
       elapsedMs
     });
-    const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
     const crossedPanTarget = state.cameraPanTarget !== null &&
       Math.sign(state.cameraPanTarget - state.parallax) !==
         Math.sign(state.cameraPanTarget - next);
@@ -819,34 +878,225 @@ function sceneWindow(depth, offsetX = 0, offsetY = 0, parallaxAnchor = 0) {
 }
 
 function render(timeMs) {
+  renderFrameId = null;
   if (!state.ready) return;
+  const cpuStartedAtMs = state.benchmarkState ? performance.now() : 0;
+  try {
+    if (state.benchmarkState) renderBenchmarkedCityFrame(timeMs);
+    else renderCityFrame(timeMs);
+    state.renderCount++;
+  } finally {
+    if (state.benchmarkState) {
+      updateCityVisualizerBenchmark(timeMs, performance.now() - cpuStartedAtMs);
+    }
+    scheduleRender();
+  }
+}
+
+function renderCityFrame(timeMs) {
   advanceCamera(timeMs);
   advanceCloudMotion(timeMs);
   context.imageSmoothingEnabled = false;
   context.fillStyle = "#6385c5";
   context.fillRect(0, 0, canvas.width, canvas.height);
-  for (const entry of sceneRenderEntries()) {
-    if (entry.kind === "static") drawStaticFrame(entry.frame, entry.layerName, entry.occurrence);
-    else if (entry.kind === "animated") drawAnimatedLayer(entry.layerName, timeMs, entry.occurrence);
-    else if (entry.kind === "dock-shadow-extension") drawDockShadowExtension();
-    else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
-    else if (entry.kind === "background-city") drawBackgroundCity(entry.side, timeMs);
-    else if (entry.kind === "left-bank-background-city-base") drawLeftBankBackgroundCityBase(entry.frame);
-    else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
-    else if (entry.kind === "city-building") drawCityStreetBuilding(entry.placement);
-    else if (entry.kind === "city-building-smoke") {
-      drawCityStreetBuildingSmoke(entry.placement, entry.emitter, timeMs);
-    }
-    else if (entry.kind === "tree") drawCityTree(entry.placement);
-    else if (entry.kind === "tree-shadow") drawCityTreeShadow(entry.placement);
-    else if (entry.kind === "quay-cargo") drawQuayCargo(entry.placement);
-    else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
-    else if (entry.kind === "cloud") drawCloud(entry, timeMs);
-    else if (entry.kind === "ship") drawDocksideShip(timeMs);
-    else if (entry.kind === "npc") drawNpc(entry.agent, timeMs);
-  }
+  citySceneRenderer.renderFrame({
+    timeMs,
+    width: canvas.width,
+    height: canvas.height,
+    staticCacheKey: staticSceneCacheKey
+  });
   drawSceneLabels();
-  requestAnimationFrame(render);
+}
+
+function renderBenchmarkedCityFrame(timeMs) {
+  measureCityBenchmarkStage("update", () => {
+    advanceCamera(timeMs);
+    advanceCloudMotion(timeMs);
+  });
+  context.imageSmoothingEnabled = false;
+  measureCityBenchmarkStage("render.clear", () => {
+    context.fillStyle = "#6385c5";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+  });
+  measureCityBenchmarkStage("render.scene", () => citySceneRenderer.renderFrame({
+    timeMs,
+    width: canvas.width,
+    height: canvas.height,
+    staticCacheKey: staticSceneCacheKey
+  }));
+  measureCityBenchmarkStage("render.labels", drawSceneLabels);
+}
+
+function scheduleRender() {
+  if (document.visibilityState === "hidden" || renderFrameId !== null) return;
+  renderFrameId = requestAnimationFrame(render);
+}
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") {
+    if (renderFrameId !== null) cancelAnimationFrame(renderFrameId);
+    renderFrameId = null;
+    return;
+  }
+  state.lastRenderTimeMs = null;
+  state.lastCloudTimeMs = null;
+  scheduleRender();
+});
+
+function drawSceneEntry(entry, timeMs, targetContext = context) {
+  if (entry.kind === "static") {
+    drawStaticFrame(entry.frame, entry.layerName, entry.occurrence, targetContext);
+  }
+  else if (entry.kind === "animated") drawAnimatedLayer(entry.layerName, timeMs, entry.occurrence);
+  else if (entry.kind === "dock-shadow-extension") drawDockShadowExtension(targetContext);
+  else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
+  else if (entry.kind === "background-city-static") drawBackgroundCityStatic(entry.side, targetContext);
+  else if (entry.kind === "background-city-smoke") drawBackgroundCitySmoke(entry.side, timeMs);
+  else if (entry.kind === "left-bank-background-city-base") {
+    drawLeftBankBackgroundCityBase(entry.frame, targetContext);
+  }
+  else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
+  else if (entry.kind === "city-building") drawCityStreetBuilding(entry.placement, targetContext);
+  else if (entry.kind === "city-building-smoke") {
+    drawCityStreetBuildingSmoke(entry.placement, entry.emitter, timeMs);
+  }
+  else if (entry.kind === "tree") drawCityTree(entry.placement, targetContext);
+  else if (entry.kind === "tree-shadow") drawCityTreeShadow(entry.placement, targetContext);
+  else if (entry.kind === "quay-cargo") drawQuayCargo(entry.placement, targetContext);
+  else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
+  else if (entry.kind === "cloud") drawCloud(entry, timeMs);
+  else if (entry.kind === "ship") drawDocksideShip(timeMs);
+  else if (entry.kind === "npc") drawNpc(entry.agent, timeMs);
+  else throw new Error(`Unknown city scene render entry: ${entry.kind}`);
+}
+
+function drawMeasuredSceneEntry(entry, timeMs, targetContext) {
+  if (!state.benchmarkState) return drawSceneEntry(entry, timeMs, targetContext);
+  const startedAtMs = performance.now();
+  try {
+    return drawSceneEntry(entry, timeMs, targetContext);
+  } finally {
+    recordPerformanceBenchmarkStage(
+      state.benchmarkState,
+      `render.${entry.kind}`,
+      performance.now() - startedAtMs
+    );
+  }
+}
+
+function measureCityBenchmarkStage(name, operation) {
+  if (!state.benchmarkState) return operation();
+  const startedAtMs = performance.now();
+  try {
+    return operation();
+  } finally {
+    recordPerformanceBenchmarkStage(
+      state.benchmarkState,
+      name,
+      performance.now() - startedAtMs
+    );
+  }
+}
+
+function setupCityVisualizerBenchmark() {
+  const startedAtMs = performance.now();
+  if (CITY_VISUALIZER_BENCHMARK.cameraMode === "pan") {
+    state.pointer = null;
+    state.cameraPanTarget = null;
+  }
+  state.benchmarkState = createPerformanceBenchmarkState(
+    CITY_VISUALIZER_BENCHMARK,
+    startedAtMs
+  );
+  window.__CITY_VISUALIZER_BENCHMARK_READY__ = true;
+  window.__CITY_VISUALIZER_BENCHMARK_RESULT__ = null;
+  setCityVisualizerBenchmarkDomStatus({ ready: true });
+}
+
+function updateCityVisualizerBenchmark(timeMs, cpuMs) {
+  if (!state.benchmarkState || state.benchmarkState.result) return;
+  const result = recordPerformanceBenchmarkFrame(
+    state.benchmarkState,
+    timeMs,
+    cpuMs,
+    state.renderCount,
+    cityVisualizerBenchmarkSceneSnapshot
+  );
+  if (!result) return;
+  window.__CITY_VISUALIZER_BENCHMARK_RESULT__ = Object.freeze({
+    ...result,
+    viewport: Object.freeze({ width: canvas.width, height: canvas.height }),
+    environment: Object.freeze({
+      hardwareConcurrency: navigator.hardwareConcurrency || null,
+      deviceMemoryGb: navigator.deviceMemory || null,
+      userAgent: navigator.userAgent
+    })
+  });
+  setCityVisualizerBenchmarkDomStatus({ result: window.__CITY_VISUALIZER_BENCHMARK_RESULT__ });
+  console.info(
+    "[city-visualizer] performance benchmark complete",
+    window.__CITY_VISUALIZER_BENCHMARK_RESULT__
+  );
+}
+
+function setCityVisualizerBenchmarkDomStatus({ ready = false, result = null }) {
+  let status = document.getElementById("city-visualizer-performance-benchmark");
+  if (!status) {
+    status = document.createElement("script");
+    status.id = "city-visualizer-performance-benchmark";
+    status.type = "application/json";
+    status.hidden = true;
+    document.body.appendChild(status);
+  }
+  if (ready) status.dataset.ready = "true";
+  if (result) status.textContent = JSON.stringify(result);
+}
+
+function cityVisualizerBenchmarkSceneSnapshot() {
+  return {
+    cityId: state.city.id,
+    approach: state.features.approach,
+    cameraMode: CITY_VISUALIZER_BENCHMARK?.cameraMode || "interactive",
+    staticFrames: state.portManifest.staticFrames.length,
+    backgroundBuildings: state.backgroundCityPainterOrder.length +
+      state.leftBankBackgroundCityPainterOrder.length,
+    streetBuildings: state.streetBuildings.length,
+    trees: state.treePlacements.length,
+    quayCargo: state.quayCargoPlacements.length,
+    npcs: state.npcAgents.length,
+    renderWorkload: citySceneRenderer.stats()
+  };
+}
+
+function createCitySceneCacheSurface(width, height) {
+  if (typeof OffscreenCanvas !== "function") {
+    throw new Error("City scene static caching requires OffscreenCanvas support");
+  }
+  return new OffscreenCanvas(width, height);
+}
+
+function staticSceneCacheKey(entries) {
+  let projectionSpecs = staticProjectionSpecsCache.get(entries);
+  if (!projectionSpecs) {
+    projectionSpecs = staticSceneProjectionSpecs(entries);
+    staticProjectionSpecsCache.set(entries, projectionSpecs);
+  }
+  if (projectionSpecs.length === 0) {
+    throw new Error("City scene static cache has no projection planes");
+  }
+  const projectionKey = projectionSpecs.map(({ depth, parallaxAnchor }) => (
+    Math.round(sceneWindow(depth, 0, 0, parallaxAnchor).x)
+  )).join(",");
+  const hoveredDestinationId = state.hoveredDestination && entries.some((entry) => (
+    entry.kind === "static" && state.hoveredDestination.layers.includes(entry.layerName)
+  ))
+    ? state.hoveredDestination.id
+    : "no-hover";
+  return [
+    `${canvas.width}x${canvas.height}`,
+    projectionKey,
+    hoveredDestinationId
+  ].join("|");
 }
 
 function advanceCloudMotion(timeMs) {
@@ -866,7 +1116,58 @@ function advanceCloudMotion(timeMs) {
   }
 }
 
-function sceneRenderEntries() {
+function rebuildCitySceneRenderPlan() {
+  if (!state.features || !state.portManifest) return;
+  const entries = createSceneRenderEntries();
+  citySceneRenderer.setEntries(entries);
+}
+
+function staticSceneProjectionSpecs(entries) {
+  const specs = new Map();
+  const add = (depth, parallaxAnchor = 0) => {
+    if (!Number.isFinite(depth) || !Number.isFinite(parallaxAnchor)) {
+      throw new Error(`Invalid static scene projection: ${depth}, ${parallaxAnchor}`);
+    }
+    specs.set(`${depth}|${parallaxAnchor}`, Object.freeze({ depth, parallaxAnchor }));
+  };
+  for (const entry of entries) {
+    if (!STATIC_SCENE_ENTRY_KINDS.has(entry.kind)) continue;
+    if (entry.kind === "static") {
+      add(
+        layerParallaxDepth(entry.layerName, entry.occurrence),
+        layerParallaxAnchor(entry.layerName, entry.occurrence)
+      );
+    } else if (entry.kind === "background-city-static") {
+      const painterOrder = entry.side === "left"
+        ? state.leftBankBackgroundCityPainterOrder
+        : state.backgroundCityPainterOrder;
+      for (const building of painterOrder) add(building.depth, building.parallaxAnchor);
+      const rows = entry.side === "left"
+        ? state.leftBankBackgroundCityRows
+        : state.backgroundCityRows;
+      if (rows.length > 0) {
+        add(layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER), rows.at(-1).parallaxAnchor);
+      }
+    } else if (entry.kind === "left-bank-background-city-base") {
+      add(
+        layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
+        PORT_SCENE_CAMERA.riverDefaultParallax
+      );
+    } else if (
+      entry.kind === "city-building" ||
+      entry.kind === "tree" ||
+      entry.kind === "tree-shadow" ||
+      entry.kind === "quay-cargo"
+    ) {
+      add(entry.placement.depth, entry.placement.parallaxAnchor || 0);
+    } else if (entry.kind === "dock-shadow-extension") {
+      add(layerParallaxDepth("Sand Beach Dock Shadow"));
+    }
+  }
+  return Object.freeze([...specs.values()]);
+}
+
+function createSceneRenderEntries() {
   const activeLayers = activePortSceneLayers(state.features);
   const staticOccurrence = new Map();
   const entries = [];
@@ -906,17 +1207,29 @@ function sceneRenderEntries() {
     } else {
       if (layerName === BACKGROUND_CITY_BASE_LAYER) {
         entries.push({
-          kind: "background-city",
+          kind: "background-city-static",
           side: "right",
           z: layerSceneZ(layerName, occurrence) - 0.1,
           authoredOrder: authoredOrder - 0.1
         });
+        entries.push({
+          kind: "background-city-smoke",
+          side: "right",
+          z: layerSceneZ(layerName, occurrence) - 0.1,
+          authoredOrder: authoredOrder - 0.099
+        });
         if (state.features.leftBankCity) {
           entries.push({
-            kind: "background-city",
+            kind: "background-city-static",
             side: "left",
             z: layerSceneZ(layerName, occurrence) - 0.1,
             authoredOrder: authoredOrder - 0.2
+          });
+          entries.push({
+            kind: "background-city-smoke",
+            side: "left",
+            z: layerSceneZ(layerName, occurrence) - 0.1,
+            authoredOrder: authoredOrder - 0.199
           });
           entries.push({
             kind: "left-bank-background-city-base",
@@ -1030,14 +1343,14 @@ function sceneRenderEntries() {
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
 }
 
-function drawCityTree(placement) {
+function drawCityTree(placement, targetContext) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
-  drawCityTreePart(placement, placement.tree.frame, window);
+  drawCityTreePart(placement, placement.tree.frame, window, targetContext);
 }
 
-function drawQuayCargo(placement) {
+function drawQuayCargo(placement, targetContext) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
-  context.drawImage(
+  targetContext.drawImage(
     state.staticAtlas,
     placement.frame.frame.x,
     placement.frame.frame.y,
@@ -1050,7 +1363,7 @@ function drawQuayCargo(placement) {
   );
 }
 
-function drawCityTreeShadow(placement) {
+function drawCityTreeShadow(placement, targetContext) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   const mask = cityTreeShadowMask(placement);
   const destinationX = Math.round(placement.originX - window.x);
@@ -1060,7 +1373,7 @@ function drawCityTreeShadow(placement) {
   const right = Math.min(canvas.width, destinationX + mask.width);
   const bottom = Math.min(canvas.height, destinationY + mask.height);
   if (left >= right || top >= bottom) return;
-  const imageData = context.getImageData(left, top, right - left, bottom - top);
+  const imageData = targetContext.getImageData(left, top, right - left, bottom - top);
   for (let y = 0; y < imageData.height; y++) {
     for (let x = 0; x < imageData.width; x++) {
       const maskX = left - destinationX + x;
@@ -1086,7 +1399,7 @@ function drawCityTreeShadow(placement) {
       imageData.data[offset + 2] = shadow.blue;
     }
   }
-  context.putImageData(imageData, left, top);
+  targetContext.putImageData(imageData, left, top);
 }
 
 function cityTreeShadowMask(placement) {
@@ -1130,7 +1443,7 @@ function cityTreeShadowMask(placement) {
   return mask;
 }
 
-function drawCityTreePart(placement, part, window) {
+function drawCityTreePart(placement, part, window, targetContext) {
   const fullWidth = Math.round(part.sourceSize.w * placement.scale);
   const sourceX = Math.round(part.spriteSourceSize.x * placement.scale);
   const destinationX = Math.round(placement.originX - window.x);
@@ -1139,12 +1452,12 @@ function drawCityTreePart(placement, part, window) {
   );
   const destinationWidth = Math.max(1, Math.round(part.frame.w * placement.scale));
   const destinationHeight = Math.max(1, Math.round(part.frame.h * placement.scale));
-  context.save();
+  targetContext.save();
   if (placement.flipX) {
-    context.translate(destinationX + fullWidth, 0);
-    context.scale(-1, 1);
+    targetContext.translate(destinationX + fullWidth, 0);
+    targetContext.scale(-1, 1);
   }
-  context.drawImage(
+  targetContext.drawImage(
     state.treeAtlas,
     part.frame.x,
     part.frame.y,
@@ -1155,14 +1468,14 @@ function drawCityTreePart(placement, part, window) {
     destinationWidth,
     destinationHeight
   );
-  context.restore();
+  targetContext.restore();
 }
 
-function drawCityStreetBuilding(placement) {
+function drawCityStreetBuilding(placement, targetContext) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
   const sourceFrame = regionalFrame?.frame || placement.frame;
-  context.drawImage(
+  targetContext.drawImage(
     regionalFrame?.atlas || state.staticAtlas,
     sourceFrame.frame.x,
     sourceFrame.frame.y,
@@ -1193,20 +1506,26 @@ function drawCityStreetBuildingSmoke(placement, emitter, timeMs) {
   context.restore();
 }
 
-function drawBackgroundCity(side, timeMs) {
+function backgroundCityRenderState(side) {
   const leftBank = side === "left";
-  const rows = leftBank ? state.leftBankBackgroundCityRows : state.backgroundCityRows;
-  const painterOrder = leftBank
-    ? state.leftBankBackgroundCityPainterOrder
-    : state.backgroundCityPainterOrder;
-  const streetRows = leftBank
-    ? state.leftBankBackgroundCityStreetRows
-    : state.backgroundCityStreetRows;
-  const smokeByBuilding = leftBank
-    ? state.leftBankBackgroundCitySmokeByBuilding
-    : state.backgroundCitySmokeByBuilding;
+  return Object.freeze({
+    rows: leftBank ? state.leftBankBackgroundCityRows : state.backgroundCityRows,
+    painterOrder: leftBank
+      ? state.leftBankBackgroundCityPainterOrder
+      : state.backgroundCityPainterOrder,
+    streetRows: leftBank
+      ? state.leftBankBackgroundCityStreetRows
+      : state.backgroundCityStreetRows,
+    smokeByBuilding: leftBank
+      ? state.leftBankBackgroundCitySmokeByBuilding
+      : state.backgroundCitySmokeByBuilding
+  });
+}
+
+function drawBackgroundCityStatic(side, targetContext) {
+  const { rows, painterOrder, streetRows } = backgroundCityRenderState(side);
   if (rows.length === 0) return;
-  drawBackgroundCityStreet(streetRows, rows.at(-1).parallaxAnchor);
+  drawBackgroundCityStreet(streetRows, rows.at(-1).parallaxAnchor, targetContext);
   for (const entry of painterOrder) {
     const building = entry.building;
     const frame = building.frame;
@@ -1217,7 +1536,7 @@ function drawBackgroundCity(side, timeMs) {
     );
     const atmosphereFrame = backgroundCityAtmosphereFrame(frame, atmosphereLevel);
     if (atmosphereFrame) {
-      context.drawImage(
+      targetContext.drawImage(
         atmosphereFrame,
         0,
         0,
@@ -1229,7 +1548,7 @@ function drawBackgroundCity(side, timeMs) {
         building.height
       );
     } else {
-      context.drawImage(
+      targetContext.drawImage(
         state.staticAtlas,
         frame.frame.x,
         frame.frame.y,
@@ -1241,8 +1560,17 @@ function drawBackgroundCity(side, timeMs) {
         building.height
       );
     }
-    const emitter = smokeByBuilding.get(building);
-    if (emitter) drawBackgroundCityChimneySmoke(emitter, timeMs, window);
+  }
+}
+
+function drawBackgroundCitySmoke(side, timeMs) {
+  const { rows, painterOrder, smokeByBuilding } = backgroundCityRenderState(side);
+  if (rows.length === 0) return;
+  for (const entry of painterOrder) {
+    const emitter = smokeByBuilding.get(entry.building);
+    if (!emitter) continue;
+    const window = sceneWindow(entry.depth, 0, 0, entry.parallaxAnchor);
+    drawBackgroundCityChimneySmoke(emitter, timeMs, window);
   }
 }
 
@@ -1317,7 +1645,7 @@ function backgroundCityAtmosphereFrame(frame, level) {
   return buffer;
 }
 
-function drawBackgroundCityStreet(rows, parallaxAnchor) {
+function drawBackgroundCityStreet(rows, parallaxAnchor, targetContext) {
   if (rows.length === 0) return;
   const window = sceneWindow(
     layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
@@ -1325,13 +1653,13 @@ function drawBackgroundCityStreet(rows, parallaxAnchor) {
     0,
     parallaxAnchor
   );
-  context.fillStyle = BACKGROUND_CITY_STREET_COLOR;
+  targetContext.fillStyle = BACKGROUND_CITY_STREET_COLOR;
   for (const row of rows) {
     const screenX = Math.round(row.leftX - window.x);
     const screenY = Math.round(row.y - window.y);
     const screenRight = Math.round(row.rightX - window.x);
     if (screenY < 0 || screenY >= canvas.height || screenRight <= 0 || screenX >= canvas.width) continue;
-    context.fillRect(
+    targetContext.fillRect(
       Math.max(0, screenX),
       screenY,
       Math.max(1, Math.min(canvas.width, screenRight) - Math.max(0, screenX)),
@@ -1340,7 +1668,7 @@ function drawBackgroundCityStreet(rows, parallaxAnchor) {
   }
 }
 
-function drawLeftBankBackgroundCityBase(frame) {
+function drawLeftBankBackgroundCityBase(frame, targetContext) {
   const parallaxAnchor = PORT_SCENE_CAMERA.riverDefaultParallax;
   const window = sceneWindow(
     layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
@@ -1351,10 +1679,10 @@ function drawLeftBankBackgroundCityBase(frame) {
   const masterX = PORT_SCENE_MASTER.width - frame.spriteSourceSize.x - frame.frame.w;
   const destinationX = Math.round(masterX - window.x);
   const destinationY = Math.round(frame.spriteSourceSize.y - window.y);
-  context.save();
-  context.translate(destinationX + frame.frame.w, 0);
-  context.scale(-1, 1);
-  context.drawImage(
+  targetContext.save();
+  targetContext.translate(destinationX + frame.frame.w, 0);
+  targetContext.scale(-1, 1);
+  targetContext.drawImage(
     state.staticAtlas,
     frame.frame.x,
     frame.frame.y,
@@ -1365,7 +1693,7 @@ function drawLeftBankBackgroundCityBase(frame) {
     frame.frame.w,
     frame.frame.h
   );
-  context.restore();
+  targetContext.restore();
 }
 
 function drawChimneySmoke(emitter, timeMs) {
@@ -1393,7 +1721,7 @@ function drawChimneySmoke(emitter, timeMs) {
   context.restore();
 }
 
-function drawStaticFrame(frame, layerName, occurrence) {
+function drawStaticFrame(frame, layerName, occurrence, targetContext) {
   const approach = state.features?.approach || "ocean";
   const offsetX = layerSceneOffsetX(layerName, occurrence, state.features?.approach || "ocean");
   const offsetY = layerSceneOffsetY(layerName, occurrence, approach);
@@ -1407,9 +1735,10 @@ function drawStaticFrame(frame, layerName, occurrence) {
   const sourceAtlas = regionalFrame?.atlas || state.staticAtlas;
   const sourceFrame = regionalFrame?.frame || frame;
   if (state.hoveredDestination?.layers.includes(layerName)) {
-    drawFrameOutline(sourceAtlas, sourceFrame, window);
+    drawFrameOutline(sourceAtlas, sourceFrame, window, targetContext);
   }
   drawAtlasFrame(
+    targetContext,
     sourceAtlas,
     sourceFrame,
     window,
@@ -1490,7 +1819,7 @@ function drawAnimatedLayer(layerName, timeMs, occurrence) {
   const renderedFrame = cityWaterAnimatedLayerUsesPalette(layerName)
     ? latitudeWaterFrame(atlas, frame)
     : { atlas, frame };
-  drawAtlasFrame(renderedFrame.atlas, renderedFrame.frame, window);
+  drawAtlasFrame(context, renderedFrame.atlas, renderedFrame.frame, window);
 }
 
 function drawGatehouseFlag(frame, timeMs) {
@@ -1645,7 +1974,7 @@ function animatedOpaqueLeftEdges(atlas, frame) {
   return edges;
 }
 
-function drawDockShadowExtension() {
+function drawDockShadowExtension(targetContext) {
   const frame = state.portManifest.staticFrames.find((candidate) => candidate.layer === "Sand Beach Dock Shadow");
   const beach = state.portManifest.staticFrames.find((candidate) => candidate.layer === "Sand Beach");
   if (!frame || !beach) return;
@@ -1657,12 +1986,12 @@ function drawDockShadowExtension() {
     if (beachY < 0 || beachY >= beachRuns.length) continue;
     const extensionEnd = frame.spriteSourceSize.x + row.x;
     const extensionStart = extensionEnd - PORT_SCENE_DOCK.shadowWaterExtension;
-    context.fillStyle = row.color;
+    targetContext.fillStyle = row.color;
     for (const [runStart, runEnd] of beachRuns[beachY]) {
       const clippedStart = Math.max(extensionStart, beach.spriteSourceSize.x + runStart);
       const clippedEnd = Math.min(extensionEnd, beach.spriteSourceSize.x + runEnd);
       if (clippedEnd <= clippedStart) continue;
-      context.fillRect(
+      targetContext.fillRect(
         Math.round(clippedStart - window.x),
         Math.round(masterY - window.y),
         Math.max(1, Math.round(clippedEnd - clippedStart)),
@@ -1901,7 +2230,14 @@ function latitudeWaterCssColor(sourceHex, masterY) {
   return color;
 }
 
-function drawAtlasFrame(atlas, frame, window, extendLeft = false, sourceRect = null) {
+function drawAtlasFrame(
+  targetContext,
+  atlas,
+  frame,
+  window,
+  extendLeft = false,
+  sourceRect = null
+) {
   const source = sourceRect || {
     x: 0,
     y: 0,
@@ -1912,10 +2248,10 @@ function drawAtlasFrame(atlas, frame, window, extendLeft = false, sourceRect = n
   const destinationY = Math.round(frame.spriteSourceSize.y + source.y - window.y);
   if (extendLeft && destinationX > 0) {
     const extensionWidth = Math.min(destinationX, source.width);
-    context.save();
-    context.translate(destinationX, 0);
-    context.scale(-1, 1);
-    context.drawImage(
+    targetContext.save();
+    targetContext.translate(destinationX, 0);
+    targetContext.scale(-1, 1);
+    targetContext.drawImage(
       atlas,
       frame.frame.x + source.x,
       frame.frame.y + source.y,
@@ -1926,9 +2262,9 @@ function drawAtlasFrame(atlas, frame, window, extendLeft = false, sourceRect = n
       extensionWidth,
       source.height
     );
-    context.restore();
+    targetContext.restore();
   }
-  context.drawImage(
+  targetContext.drawImage(
     atlas,
     frame.frame.x + source.x,
     frame.frame.y + source.y,
@@ -1941,12 +2277,12 @@ function drawAtlasFrame(atlas, frame, window, extendLeft = false, sourceRect = n
   );
 }
 
-function drawFrameOutline(atlas, frame, window) {
+function drawFrameOutline(atlas, frame, window, targetContext) {
   const mask = tintedFrameCanvas(atlas, frame);
   const x = Math.round(frame.spriteSourceSize.x - window.x);
   const y = Math.round(frame.spriteSourceSize.y - window.y);
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1], [-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    context.drawImage(mask, x + dx, y + dy);
+    targetContext.drawImage(mask, x + dx, y + dy);
   }
 }
 
