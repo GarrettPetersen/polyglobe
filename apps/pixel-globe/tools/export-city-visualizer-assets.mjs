@@ -6,6 +6,12 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
+import {
+  CITY_PERSON_APPEARANCES,
+  CITY_PERSON_ARCHETYPES,
+  CITY_PERSON_SKIN_RAMP
+} from "../city-visualizer/cityPeopleCatalog.js";
+import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 
 const toolRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolRoot, "..");
@@ -17,6 +23,8 @@ const portOutputRoot = resolve(outputRoot, "port-parallax");
 const minifolkOutputRoot = resolve(outputRoot, "minifolks");
 const treeOutputRoot = resolve(outputRoot, "trees");
 const aseprite = resolveAsepriteBinary();
+const ASEPRITE_EXPORT_TIMEOUT_MS = 30_000;
+const ASEPRITE_EXPORT_MAX_ATTEMPTS = 3;
 
 const BUILDING_LAYER_OVERRIDES = Object.freeze({
   "Northern European Inn": "Inn",
@@ -179,13 +187,6 @@ const AUTHORED_LAYER_ORDER = Object.freeze([
   "Crate"
 ]);
 
-const MINIFOLKS = Object.freeze([
-  Object.freeze({ id: "villager-man", source: "villagers/aseprite/ase/MiniVillagerMan.aseprite" }),
-  Object.freeze({ id: "villager-woman", source: "villagers/aseprite/ase/MiniVillagerWoman.aseprite" }),
-  Object.freeze({ id: "merchant", source: "villagers-2/aseprite/MiniMerchant.aseprite" }),
-  Object.freeze({ id: "worker", source: "villagers/aseprite/ase/MiniWorker.aseprite" })
-]);
-
 await mkdir(portOutputRoot, { recursive: true });
 await mkdir(minifolkOutputRoot, { recursive: true });
 await mkdir(treeOutputRoot, { recursive: true });
@@ -271,43 +272,12 @@ if (!minifolksSourceRoot) {
   }
   console.warn("[pixel-globe] MINIFOLKS_SOURCE_ROOT is unset; keeping existing production MiniFolks exports");
 } else {
-  const characters = [];
-  for (const character of MINIFOLKS) {
-    const source = resolve(minifolksSourceRoot, character.source);
-    if (!existsSync(source)) throw new Error(`Missing MiniFolks source: ${source}`);
-    const jsonPath = resolve(minifolkOutputRoot, `${character.id}.json`);
-    const pngPath = resolve(minifolkOutputRoot, `${character.id}.png`);
-    runAseprite([
-      "--batch",
-      "--all-layers",
-      "--tag", "walk",
-      source,
-      "--trim",
-      "--sheet-pack",
-      "--merge-duplicates",
-      "--format", "json-array",
-      "--data", jsonPath,
-      "--sheet", pngPath
-    ]);
-    const sheet = JSON.parse(await readFile(jsonPath, "utf8"));
-    characters.push({
-      id: character.id,
-      sheet: `${character.id}.png`,
-      frames: sheet.frames.map(portableFrame)
-    });
-  }
-  await writeFile(resolve(minifolkOutputRoot, "manifest.json"), `${JSON.stringify({
-    format: "marque-city-view-minifolks",
-    version: 1,
-    source: "private polyglobe-ship-source-assets MiniFolks production exports",
-    license: "itch.io asset licenses retained with the private source archives",
-    characters
-  })}\n`);
+  await exportCityPeopleAssets(minifolksSourceRoot);
 }
 
 console.log(
   `[pixel-globe] exported ${AUTHORED_LAYER_ORDER.length} city-view layers ` +
-  `and ${MINIFOLKS.length} MiniFolks production characters to ${outputRoot}`
+  `and ${CITY_PERSON_APPEARANCES.length} city person appearances to ${outputRoot}`
 );
 
 function portableFrame(frame) {
@@ -317,6 +287,188 @@ function portableFrame(frame) {
     sourceSize: frame.sourceSize,
     duration: frame.duration
   };
+}
+
+async function exportCityPeopleAssets(privateSourceRoot) {
+  const temporaryRoot = await mkdtemp(resolve(tmpdir(), "polyglobe-city-people-"));
+  try {
+    const archetypeRasters = new Map();
+    for (const archetype of CITY_PERSON_ARCHETYPES) {
+      const source = cityPersonSourcePath(archetype, privateSourceRoot);
+      if (!existsSync(source)) throw new Error(`Missing city person source: ${source}`);
+      const jsonPath = resolve(temporaryRoot, `${archetype.id}.json`);
+      const pngPath = resolve(temporaryRoot, `${archetype.id}.png`);
+      runAseprite([
+        "--batch",
+        "--all-layers",
+        "--tag", "walk",
+        source,
+        "--trim",
+        "--sheet-pack",
+        "--merge-duplicates",
+        "--format", "json-array",
+        "--data", jsonPath,
+        "--sheet", pngPath
+      ]);
+      const sheet = JSON.parse(await readFile(jsonPath, "utf8"));
+      if (!Array.isArray(sheet.frames) || sheet.frames.length === 0) {
+        throw new Error(`City person source has no walk frames: ${archetype.id}`);
+      }
+      archetypeRasters.set(archetype.id, Object.freeze({
+        image: await loadImage(pngPath),
+        frames: Object.freeze(sheet.frames.map(portableFrame))
+      }));
+    }
+
+    const archetypeById = new Map(CITY_PERSON_ARCHETYPES.map((entry) => [entry.id, entry]));
+    const variants = CITY_PERSON_APPEARANCES.map((appearance) => {
+      const archetype = archetypeById.get(appearance.archetypeId);
+      if (!archetype) throw new Error(`Unknown city person archetype: ${appearance.archetypeId}`);
+      const raster = archetypeRasters.get(archetype.id);
+      return Object.freeze({
+        appearance,
+        archetype,
+        frames: raster.frames,
+        canvas: paletteSwapCityPerson(raster.image, archetype, appearance)
+      });
+    });
+    const placements = packCityPersonVariants(variants, 256);
+    const atlasWidth = Math.max(...placements.map(({ x, variant }) => x + variant.canvas.width));
+    const atlasHeight = Math.max(...placements.map(({ y, variant }) => y + variant.canvas.height));
+    if (atlasWidth <= 0 || atlasHeight <= 0 || atlasWidth > 256 || atlasHeight > 4096) {
+      throw new Error(`Invalid city people atlas dimensions: ${atlasWidth}x${atlasHeight}`);
+    }
+    const atlas = createCanvas(atlasWidth, atlasHeight);
+    const atlasContext = atlas.getContext("2d");
+    atlasContext.imageSmoothingEnabled = false;
+    const appearances = [];
+    for (const { variant, x, y } of placements) {
+      atlasContext.drawImage(variant.canvas, x, y);
+      appearances.push(Object.freeze({
+        id: variant.appearance.id,
+        archetypeId: variant.archetype.id,
+        roles: variant.archetype.roles,
+        skinTone: variant.appearance.skinTone,
+        animations: Object.freeze({
+          walk: Object.freeze(variant.frames.map((frame) => Object.freeze({
+            ...frame,
+            frame: Object.freeze({ ...frame.frame, x: frame.frame.x + x, y: frame.frame.y + y })
+          })))
+        })
+      }));
+    }
+
+    await rm(minifolkOutputRoot, { recursive: true, force: true });
+    await mkdir(minifolkOutputRoot, { recursive: true });
+    await writeFile(resolve(minifolkOutputRoot, "people.png"), atlas.toBuffer("image/png"));
+    await writeFile(resolve(minifolkOutputRoot, "manifest.json"), `${JSON.stringify({
+      format: "marque-city-people-atlas",
+      version: 2,
+      palette: "Resurrect 64",
+      sheet: "people.png",
+      credits: [
+        { name: "LYASeeK", url: "https://lyaseek.itch.io/" },
+        { name: "Garrett Petersen" }
+      ],
+      appearances
+    })}\n`);
+  } finally {
+    await rm(temporaryRoot, { recursive: true, force: true });
+  }
+}
+
+function cityPersonSourcePath(archetype, privateSourceRoot) {
+  if (archetype.sourceRepository === "polyglobe-ship-source-assets") {
+    return resolve(privateSourceRoot, archetype.sourcePath);
+  }
+  if (archetype.sourceRepository === "polyglobe") {
+    return resolve(appRoot, archetype.sourcePath);
+  }
+  throw new Error(`Unknown city person source repository: ${archetype.sourceRepository}`);
+}
+
+function paletteSwapCityPerson(image, archetype, appearance) {
+  const canvas = createCanvas(image.width, image.height);
+  const context = canvas.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  context.drawImage(image, 0, 0);
+  const imageData = context.getImageData(0, 0, image.width, image.height);
+  const sourceColors = new Set();
+  const paletteColors = new Set(RESURRECT_64_HEX);
+  const replacements = new Map(Object.entries(appearance.palette));
+  const targetSkin = CITY_PERSON_SKIN_RAMP[appearance.skinTone];
+  if (!targetSkin) throw new Error(`Unknown city person skin tone: ${appearance.skinTone}`);
+  if (targetSkin.length < archetype.skinRamp.length) {
+    throw new Error(
+      `Appearance ${appearance.id} skin ramp has ${targetSkin.length} colors; ` +
+      `${archetype.id} requires ${archetype.skinRamp.length}`
+    );
+  }
+  const targetSkinOffset = targetSkin.length - archetype.skinRamp.length;
+  for (let index = 0; index < archetype.skinRamp.length; index++) {
+    const source = archetype.skinRamp[index];
+    const target = targetSkin[targetSkinOffset + index];
+    if (replacements.has(source) && replacements.get(source) !== target) {
+      throw new Error(`Appearance ${appearance.id} replaces skin color #${source} twice`);
+    }
+    replacements.set(source, target);
+  }
+  for (let offset = 0; offset < imageData.data.length; offset += 4) {
+    const alpha = imageData.data[offset + 3];
+    if (alpha !== 0 && alpha !== 255) {
+      throw new Error(`City person source has partial alpha: ${archetype.id}`);
+    }
+    if (alpha === 0) continue;
+    const source = rgbKey(imageData.data, offset);
+    if (!paletteColors.has(source)) {
+      throw new Error(`City person source ${archetype.id} contains non-Resurrect color #${source}`);
+    }
+    sourceColors.add(source);
+    const target = replacements.get(source);
+    if (!target) continue;
+    if (!paletteColors.has(target)) {
+      throw new Error(`Appearance ${appearance.id} targets non-Resurrect color #${target}`);
+    }
+    imageData.data[offset] = Number.parseInt(target.slice(0, 2), 16);
+    imageData.data[offset + 1] = Number.parseInt(target.slice(2, 4), 16);
+    imageData.data[offset + 2] = Number.parseInt(target.slice(4, 6), 16);
+  }
+  const missingSources = [...replacements.keys()].filter((source) => !sourceColors.has(source));
+  if (missingSources.length > 0) {
+    throw new Error(
+      `Appearance ${appearance.id} palette colors are absent from its walk cycle: ` +
+      missingSources.map((source) => `#${source}`).join(", ")
+    );
+  }
+  context.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+function packCityPersonVariants(variants, maximumWidth) {
+  const placements = [];
+  let x = 0;
+  let y = 0;
+  let rowHeight = 0;
+  for (const variant of variants) {
+    if (variant.canvas.width > maximumWidth) {
+      throw new Error(`City person sheet exceeds atlas width: ${variant.appearance.id}`);
+    }
+    if (x > 0 && x + variant.canvas.width > maximumWidth) {
+      x = 0;
+      y += rowHeight;
+      rowHeight = 0;
+    }
+    placements.push(Object.freeze({ variant, x, y }));
+    x += variant.canvas.width;
+    rowHeight = Math.max(rowHeight, variant.canvas.height);
+  }
+  return placements;
+}
+
+function rgbKey(rgba, offset) {
+  return [rgba[offset], rgba[offset + 1], rgba[offset + 2]]
+    .map((component) => component.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 async function exportTreeAssets() {
@@ -546,12 +698,32 @@ function regionalBuildingSpriteSourceSize({
 }
 
 function runAseprite(args) {
-  const result = spawnSync(aseprite, args, { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
-  if (result.status !== 0) {
+  const sourcePath = args.find((argument) => argument.endsWith(".aseprite")) || args.join(" ");
+  for (let attempt = 1; attempt <= ASEPRITE_EXPORT_MAX_ATTEMPTS; attempt++) {
+    const result = spawnSync(aseprite, args, {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: ASEPRITE_EXPORT_TIMEOUT_MS
+    });
+    if (!result.error && result.status === 0) return;
+    if (result.error?.code !== "ETIMEDOUT") {
+      throw new Error(
+        `Aseprite export failed (${result.status}): ` +
+        `${result.error?.message || result.stderr || result.stdout || args.join(" ")}`
+      );
+    }
+    if (attempt < ASEPRITE_EXPORT_MAX_ATTEMPTS) {
+      console.warn(
+        `[pixel-globe] Aseprite timed out after ${ASEPRITE_EXPORT_TIMEOUT_MS}ms; ` +
+        `retrying export (${attempt + 1}/${ASEPRITE_EXPORT_MAX_ATTEMPTS}): ${sourcePath}`
+      );
+      continue;
+    }
     throw new Error(
-      `Aseprite export failed (${result.status}): ${result.stderr || result.stdout || args.join(" ")}`
+      `Aseprite export timed out ${ASEPRITE_EXPORT_MAX_ATTEMPTS} times: ${args.join(" ")}`
     );
   }
+  throw new Error("Aseprite export exhausted attempts without a result");
 }
 
 function resolveAsepriteBinary() {

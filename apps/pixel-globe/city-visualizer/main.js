@@ -76,6 +76,10 @@ import {
 } from "./cityTrees.js";
 import { cityQuayCargoPlacements } from "./cityQuayCargo.js";
 import { CITY_NPC_PATHS, cityGroundPainterZ } from "./cityPainterOrder.js";
+import {
+  createCityPeopleAgents,
+  validateCityPeopleManifest
+} from "./cityPeople.js";
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
@@ -155,14 +159,15 @@ const state = {
   ready: false,
   catalog: null,
   portManifest: null,
-  minifolkManifest: null,
+  peopleManifest: null,
   shipManifest: null,
   treeManifest: null,
   staticAtlas: null,
   waveAtlas: null,
   surfAtlas: null,
   treeAtlas: null,
-  minifolkAtlases: new Map(),
+  peopleAtlas: null,
+  peopleById: new Map(),
   shipImage: null,
   shipSinkDepthImage: null,
   shipWaterlineLayers: null,
@@ -240,7 +245,7 @@ await initialize();
 
 async function initialize() {
   try {
-    const [catalog, portManifest, minifolkManifest, shipManifest, treeManifest] = await Promise.all([
+    const [catalog, portManifest, peopleManifest, shipManifest, treeManifest] = await Promise.all([
       fetchJson("./data/cities.json"),
       fetchJson("./assets/port-parallax/manifest.json"),
       fetchJson("./assets/minifolks/manifest.json"),
@@ -251,18 +256,19 @@ async function initialize() {
     ]);
     state.catalog = catalog;
     state.portManifest = portManifest;
-    state.minifolkManifest = minifolkManifest;
+    state.peopleManifest = validateCityPeopleManifest(peopleManifest);
+    state.peopleById = new Map(
+      state.peopleManifest.appearances.map((appearance) => [appearance.id, appearance])
+    );
     state.shipManifest = shipManifest;
     state.treeManifest = treeManifest;
-    [state.staticAtlas, state.waveAtlas, state.surfAtlas, state.treeAtlas] = await Promise.all([
+    [state.staticAtlas, state.waveAtlas, state.surfAtlas, state.treeAtlas, state.peopleAtlas] = await Promise.all([
       loadImage("./assets/port-parallax/static.png"),
       loadImage("./assets/port-parallax/waves.png"),
       loadImage("./assets/port-parallax/surf.png"),
-      loadImage(`./assets/trees/${treeManifest.sheet}`)
+      loadImage(`./assets/trees/${treeManifest.sheet}`),
+      loadImage(`./assets/minifolks/${state.peopleManifest.sheet}`)
     ]);
-    await Promise.all(minifolkManifest.characters.map(async (character) => {
-      state.minifolkAtlases.set(character.id, await loadImage(`./assets/minifolks/${character.sheet}`));
-    }));
     prepareScenePixelCaches();
     prepareControls();
     selectInitialCity();
@@ -346,7 +352,6 @@ function selectCity(cityId) {
   state.city = city;
   citySelect.value = city.id;
   canvas.setAttribute("aria-label", `${city.label}, ${city.country}`);
-  state.npcAgents = createNpcAgents(city.id);
   for (const control of [
     approachOverride,
     leftBankCityOverride,
@@ -402,6 +407,11 @@ function applyFeatureOverrides() {
     rightTerrain: autoValue(rightTerrainOverride.value)
   };
   state.features = resolveCitySceneFeatures(state.city, overrides);
+  state.npcAgents = createCityPeopleAgents({
+    city: state.city,
+    count: state.features.npcs,
+    paths: CITY_NPC_PATHS
+  });
   state.streetBuildings = cityStreetBuildingPlacements({
     features: state.features,
     frames: state.portManifest.staticFrames,
@@ -2188,16 +2198,17 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineR
 }
 
 function drawNpc(agent, timeMs) {
-  if (!state.minifolkManifest || !state.features) return;
+  if (!state.peopleManifest || !state.peopleAtlas || !state.features) return;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
   const time = prefersReducedMotion.matches ? 0 : timeMs;
-  const character = state.minifolkManifest.characters[agent.characterIndex % state.minifolkManifest.characters.length];
-  const atlas = state.minifolkAtlases.get(character.id);
+  const appearance = state.peopleById.get(agent.appearanceId);
+  if (!appearance) throw new Error(`Unknown city person appearance: ${agent.appearanceId}`);
+  const atlas = state.peopleAtlas;
   const cycle = (time * agent.speed + agent.phase) % 2;
   const progress = cycle <= 1 ? cycle : 2 - cycle;
   const facingRight = cycle <= 1;
   const x = agent.startX + (agent.endX - agent.startX) * progress;
-  const frame = animationFrame(character.frames, time + agent.phase * 1000);
+  const frame = animationFrame(appearance.animations.walk, time + agent.phase * 1000);
   const dx = Math.round(x + frame.spriteSourceSize.x - window.x);
   const dy = Math.round(agent.feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
   if (facingRight) {
@@ -2321,21 +2332,6 @@ function frameAlpha(frame, atlas = state.staticAtlas) {
   return alpha;
 }
 
-function createNpcAgents(cityId) {
-  let seed = hashString(cityId);
-  return CITY_NPC_PATHS.map(({ startX, endX, feetY }, index) => {
-    seed = xorshift(seed);
-    return Object.freeze({
-      startX,
-      endX,
-      feetY,
-      phase: ((seed >>> 0) % 1000) / 500,
-      speed: 0.00012 + ((seed >>> 12) & 255) / 1_000_000,
-      characterIndex: index
-    });
-  });
-}
-
 function animationFrame(frames, timeMs) {
   const duration = frames.reduce((sum, frame) => sum + frame.duration, 0);
   let elapsed = duration === 0 ? 0 : timeMs % duration;
@@ -2408,14 +2404,6 @@ function hashString(value) {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0 || 1;
-}
-
-function xorshift(value) {
-  let next = value >>> 0;
-  next ^= next << 13;
-  next ^= next >>> 17;
-  next ^= next << 5;
-  return next >>> 0;
 }
 
 function clamp(value, minimum, maximum) {

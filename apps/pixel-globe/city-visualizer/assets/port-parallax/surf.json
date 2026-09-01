@@ -191,7 +191,7 @@
  ],
  "meta": {
   "app": "https://www.aseprite.org/",
-  "version": "1.3.18.3-x64",
+  "version": "1.3.18.2-x64",
   "image": "surf.png",
   "format": "RGBA8888",
   "size": { "w": 885, "h": 1546 },

@@ -712,7 +712,7 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const london = cityById.get("london|united kingdom");
   const zaragoza = cityById.get("zaragoza|spain");
-  assert.equal(CITY_VISUALIZER_CATALOG.version, 3);
+  assert.equal(CITY_VISUALIZER_CATALOG.version, 4);
   assert.equal(london?.terrain?.leftTreeCover, true);
   assert.equal(zaragoza?.terrain?.left, "grass");
   assert.equal(

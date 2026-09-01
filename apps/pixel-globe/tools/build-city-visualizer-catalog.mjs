@@ -34,13 +34,14 @@ import {
   deriveCityArchitectureProfile,
   deriveCityServiceProfile
 } from "../city-visualizer/cityArchitecture.js";
+import { cityPopulationProfileId } from "../city-visualizer/cityPeople.js";
 
 const GEOGRAPHY_SUBDIVISIONS = 7;
 const NEIGHBORHOOD_RINGS = 5;
 const MAX_APPROACH_SEARCH_RINGS = 18;
 const EARTH_RADIUS_KM = 6371;
 const CITY_VISUALIZER_FORMAT = "marque-city-visualizer-catalog";
-const CITY_VISUALIZER_VERSION = 3;
+const CITY_VISUALIZER_VERSION = 4;
 const TREE_COVER_RENDER_FAMILIES = new Set([
   TERRAIN_RENDER_FAMILY.BROADLEAF,
   TERRAIN_RENDER_FAMILY.CONIFER,
@@ -160,6 +161,13 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   const landmarks = religiousLandmarks(city);
   const architecture = deriveCityArchitectureProfile(city);
   const services = deriveCityServiceProfile({ ...city, architecture });
+  const populationProfileId = cityPopulationProfileId({
+    id: city.cityId,
+    cityType: city.cityType,
+    country: city.country,
+    factionId: city.factionId,
+    religiousLandmarks: landmarks
+  });
   return Object.freeze({
     id: city.cityId,
     tileId: endpoint.tileId,
@@ -177,6 +185,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
     services,
     capital: Boolean(city.declaredCapitalFactionId),
     religiousLandmarks: landmarks,
+    populationProfileId,
     backgroundCity: backgroundCityProfile(city, landmarks),
     approach,
     builtUpBothBanks,

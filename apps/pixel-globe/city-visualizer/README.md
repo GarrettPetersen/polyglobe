@@ -93,8 +93,15 @@ records.
 `public/assets/city-view/port-parallax.aseprite`. Set `MINIFOLKS_SOURCE_ROOT` to
 the `itch/minifolks` directory in the private source-assets checkout when the
 licensed MiniFolks production sheets need to be regenerated. Only the selected
-walk-cycle atlases are committed here; the source packs and archives remain in
-the private repository.
+walk cycles are committed here in one packed Resurrect 64 atlas; the source
+packs and archives remain in the private repository.
+
+`cityPeopleCatalog.js` owns source archetypes and production palette variants.
+`cityPeople.js` owns culture-aware ambient and garrison pools and deterministic
+scene-only people. Every generated city record stores its
+`populationProfileId`, so the mapping is portable to the game without importing
+the visualizer renderer. The future recruitment and combat identity boundary is
+documented in `PEOPLE.md`.
 
 ## Interaction boundary
 
