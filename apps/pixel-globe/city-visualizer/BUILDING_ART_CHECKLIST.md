@@ -67,6 +67,12 @@ building slot. The gatehouse is the exception; its three-piece composition stays
 fixed at the end of the street because the partial building implies the city
 continues beyond the visible scene.
 
+The environment kit also includes **11 authored individual trees with matching
+shadows**: black pine, cedar, cypress, Douglas fir, fir, palm, juniper, larch,
+Scots pine, spruce, and yew. The visualizer selects these sparsely from regional,
+latitude, and nearby-terrain rules; they supplement rather than replace the
+distant forest layers.
+
 ## Piece contract for every regional kit
 
 1. Home A

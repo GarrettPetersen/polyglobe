@@ -69,6 +69,11 @@ import {
   placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
 import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
+import {
+  CITY_TREE_SHADOW_Z,
+  cityTreePlacements,
+  cityTreeShadowRgb
+} from "./cityTrees.js";
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
@@ -140,6 +145,8 @@ const alphaCache = new WeakMap();
 const animatedRowEdgeCache = new WeakMap();
 const latitudeWaterFrameCanvasCache = new WeakMap();
 const latitudeWaterCssColorCache = new Map();
+const treeShadowMaskCache = new WeakMap();
+const treeShadowColorCache = new Map();
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 const state = {
@@ -148,9 +155,11 @@ const state = {
   portManifest: null,
   minifolkManifest: null,
   shipManifest: null,
+  treeManifest: null,
   staticAtlas: null,
   waveAtlas: null,
   surfAtlas: null,
+  treeAtlas: null,
   minifolkAtlases: new Map(),
   shipImage: null,
   shipSinkDepthImage: null,
@@ -182,6 +191,7 @@ const state = {
   backgroundCityStreetRows: [],
   leftBankBackgroundCityStreetRows: [],
   streetBuildings: [],
+  treePlacements: [],
   npcAgents: []
 };
 
@@ -227,11 +237,12 @@ await initialize();
 
 async function initialize() {
   try {
-    const [catalog, portManifest, minifolkManifest, shipManifest] = await Promise.all([
+    const [catalog, portManifest, minifolkManifest, shipManifest, treeManifest] = await Promise.all([
       fetchJson("./data/cities.json"),
       fetchJson("./assets/port-parallax/manifest.json"),
       fetchJson("./assets/minifolks/manifest.json"),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),
+      fetchJson("./assets/trees/manifest.json"),
       document.fonts?.load?.(CITY_PIXEL_FONT_SMALL_8) || Promise.resolve(),
       document.fonts?.load?.(CITY_PIXEL_FONT_TITLE_8) || Promise.resolve()
     ]);
@@ -239,10 +250,12 @@ async function initialize() {
     state.portManifest = portManifest;
     state.minifolkManifest = minifolkManifest;
     state.shipManifest = shipManifest;
-    [state.staticAtlas, state.waveAtlas, state.surfAtlas] = await Promise.all([
+    state.treeManifest = treeManifest;
+    [state.staticAtlas, state.waveAtlas, state.surfAtlas, state.treeAtlas] = await Promise.all([
       loadImage("./assets/port-parallax/static.png"),
       loadImage("./assets/port-parallax/waves.png"),
-      loadImage("./assets/port-parallax/surf.png")
+      loadImage("./assets/port-parallax/surf.png"),
+      loadImage(`./assets/trees/${treeManifest.sheet}`)
     ]);
     await Promise.all(minifolkManifest.characters.map(async (character) => {
       state.minifolkAtlases.set(character.id, await loadImage(`./assets/minifolks/${character.sheet}`));
@@ -390,6 +403,11 @@ function applyFeatureOverrides() {
     features: state.features,
     frames: state.portManifest.staticFrames,
     buildingStyle: cityArchitectureStyleForLayer(state.city, "Home")
+  });
+  state.treePlacements = cityTreePlacements({
+    city: state.city,
+    features: state.features,
+    trees: state.treeManifest.trees
   });
   const backgroundCityBase = state.portManifest.staticFrames.find((frame) => (
     frame.layer === BACKGROUND_CITY_BASE_LAYER
@@ -801,6 +819,8 @@ function render(timeMs) {
     else if (entry.kind === "city-building-smoke") {
       drawCityStreetBuildingSmoke(entry.placement, entry.emitter, timeMs);
     }
+    else if (entry.kind === "tree") drawCityTree(entry.placement);
+    else if (entry.kind === "tree-shadow") drawCityTreeShadow(entry.placement);
     else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
     else if (entry.kind === "cloud") drawCloud(entry, timeMs);
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
@@ -954,12 +974,139 @@ function sceneRenderEntries() {
       authoredOrder
     });
   }
+  for (const [placementOrder, placement] of state.treePlacements.entries()) {
+    entries.push({
+      kind: "tree",
+      placement,
+      z: placement.z,
+      authoredOrder: 14 + placementOrder / 100
+    });
+    entries.push({
+      kind: "tree-shadow",
+      placement,
+      z: CITY_TREE_SHADOW_Z,
+      authoredOrder: 14 + placementOrder / 100
+    });
+  }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
   entries.push({ kind: "npcs", ...PORT_SCENE_ENTITY_META.npcs, authoredOrder: 37.5 });
   if (state.features.dock !== "none") {
     entries.push({ kind: "dock-shadow-extension", z: 36, authoredOrder: 16.5 });
   }
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
+}
+
+function drawCityTree(placement) {
+  const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+  drawCityTreePart(placement, placement.tree.frame, window);
+}
+
+function drawCityTreeShadow(placement) {
+  const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+  const mask = cityTreeShadowMask(placement);
+  const destinationX = Math.round(placement.originX - window.x);
+  const destinationY = Math.round(placement.originY - window.y);
+  const left = Math.max(0, destinationX);
+  const top = Math.max(0, destinationY);
+  const right = Math.min(canvas.width, destinationX + mask.width);
+  const bottom = Math.min(canvas.height, destinationY + mask.height);
+  if (left >= right || top >= bottom) return;
+  const imageData = context.getImageData(left, top, right - left, bottom - top);
+  for (let y = 0; y < imageData.height; y++) {
+    for (let x = 0; x < imageData.width; x++) {
+      const maskX = left - destinationX + x;
+      const maskY = top - destinationY + y;
+      if (mask.alpha[maskY * mask.width + maskX] === 0) continue;
+      const offset = (y * imageData.width + x) * 4;
+      const sourceKey = (
+        imageData.data[offset] << 16 |
+        imageData.data[offset + 1] << 8 |
+        imageData.data[offset + 2]
+      );
+      let shadow = treeShadowColorCache.get(sourceKey);
+      if (!shadow) {
+        shadow = cityTreeShadowRgb(
+          imageData.data[offset],
+          imageData.data[offset + 1],
+          imageData.data[offset + 2]
+        );
+        treeShadowColorCache.set(sourceKey, shadow);
+      }
+      imageData.data[offset] = shadow.red;
+      imageData.data[offset + 1] = shadow.green;
+      imageData.data[offset + 2] = shadow.blue;
+    }
+  }
+  context.putImageData(imageData, left, top);
+}
+
+function cityTreeShadowMask(placement) {
+  const part = placement.tree.shadow;
+  let variants = treeShadowMaskCache.get(part);
+  if (!variants) {
+    variants = new Map();
+    treeShadowMaskCache.set(part, variants);
+  }
+  const key = `${placement.scale}:${placement.flipX ? 1 : 0}`;
+  if (variants.has(key)) return variants.get(key);
+  const width = Math.max(1, Math.round(part.sourceSize.w * placement.scale));
+  const height = Math.max(1, Math.round(part.sourceSize.h * placement.scale));
+  const buffer = document.createElement("canvas");
+  buffer.width = width;
+  buffer.height = height;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  bufferContext.imageSmoothingEnabled = false;
+  bufferContext.save();
+  if (placement.flipX) {
+    bufferContext.translate(width, 0);
+    bufferContext.scale(-1, 1);
+  }
+  bufferContext.drawImage(
+    state.treeAtlas,
+    part.frame.x,
+    part.frame.y,
+    part.frame.w,
+    part.frame.h,
+    Math.round(part.spriteSourceSize.x * placement.scale),
+    Math.round(part.spriteSourceSize.y * placement.scale),
+    Math.max(1, Math.round(part.frame.w * placement.scale)),
+    Math.max(1, Math.round(part.frame.h * placement.scale))
+  );
+  bufferContext.restore();
+  const pixels = bufferContext.getImageData(0, 0, width, height).data;
+  const alpha = new Uint8Array(width * height);
+  for (let index = 0; index < alpha.length; index++) alpha[index] = pixels[index * 4 + 3];
+  const mask = Object.freeze({ width, height, alpha });
+  variants.set(key, mask);
+  return mask;
+}
+
+function drawCityTreePart(placement, part, window) {
+  const fullWidth = Math.round(part.sourceSize.w * placement.scale);
+  const sourceX = Math.round(part.spriteSourceSize.x * placement.scale);
+  const destinationX = Math.round(placement.originX - window.x);
+  const destinationY = Math.round(
+    placement.originY + part.spriteSourceSize.y * placement.scale - window.y
+  );
+  const destinationWidth = Math.max(1, Math.round(part.frame.w * placement.scale));
+  const destinationHeight = Math.max(1, Math.round(part.frame.h * placement.scale));
+  context.save();
+  if (placement.flipX) {
+    context.translate(destinationX + fullWidth, 0);
+    context.scale(-1, 1);
+  }
+  context.drawImage(
+    state.treeAtlas,
+    part.frame.x,
+    part.frame.y,
+    part.frame.w,
+    part.frame.h,
+    placement.flipX ? sourceX : destinationX + sourceX,
+    destinationY,
+    destinationWidth,
+    destinationHeight
+  );
+  context.restore();
 }
 
 function drawCityStreetBuilding(placement) {
@@ -1822,16 +1969,12 @@ function docksideShipPlacement(timeMs, depth) {
   const sideAnchor = docksideShipSideAnchor(ship);
   const window = sceneWindow(depth);
   const scale = PORT_SCENE_ENTITY_META.ship.scale;
-  const berth = state.features.dock === "none"
-    ? { x: 802, y: 528 }
-    : { x: PORT_SCENE_DOCK.shipAccessX, y: PORT_SCENE_DOCK.shipAccessY };
   const vertical = docksideShipVerticalPlacement({
     dock: state.features.dock,
     sideAnchorY: sideAnchor.y * scale,
-    submergedMinY: state.shipWaterlineLayers.submergedMinY * scale,
-    beachSideY: berth.y
+    submergedMinY: state.shipWaterlineLayers.submergedMinY * scale
   });
-  const postClearanceShift = state.features.dock === "none" ? 0 : docksideShipPostClearanceShift({
+  const postClearanceShift = docksideShipPostClearanceShift({
     rightmostOpaqueXByRow: state.shipWaterlineLayers.rightmostOpaqueXByRow,
     topY: vertical.topY + PORT_SCENE_DOCK.maximumShipBobY,
     sideAnchorX: sideAnchor.x * scale
@@ -1844,7 +1987,9 @@ function docksideShipPlacement(timeMs, depth) {
       -PORT_SCENE_DOCK.maximumShipBobY,
       PORT_SCENE_DOCK.maximumShipBobY
     ),
-    x: Math.round(berth.x - sideAnchor.x * scale - postClearanceShift - window.x),
+    x: Math.round(
+      PORT_SCENE_DOCK.shipAccessX - sideAnchor.x * scale - postClearanceShift - window.x
+    ),
     y: Math.round(vertical.topY - window.y)
   };
 }

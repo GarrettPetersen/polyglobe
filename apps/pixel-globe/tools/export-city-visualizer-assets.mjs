@@ -11,9 +11,11 @@ const toolRoot = dirname(fileURLToPath(import.meta.url));
 const appRoot = resolve(toolRoot, "..");
 const cityViewSource = resolve(appRoot, "public/assets/city-view/port-parallax.aseprite");
 const buildingSource = resolve(appRoot, "public/assets/city-view/buildings.aseprite");
+const treeSource = resolve(appRoot, "public/assets/city-view/trees.aseprite");
 const outputRoot = resolve(appRoot, "city-visualizer/assets");
 const portOutputRoot = resolve(outputRoot, "port-parallax");
 const minifolkOutputRoot = resolve(outputRoot, "minifolks");
+const treeOutputRoot = resolve(outputRoot, "trees");
 const aseprite = resolveAsepriteBinary();
 
 const BUILDING_LAYER_OVERRIDES = Object.freeze({
@@ -158,6 +160,8 @@ const MINIFOLKS = Object.freeze([
 
 await mkdir(portOutputRoot, { recursive: true });
 await mkdir(minifolkOutputRoot, { recursive: true });
+await mkdir(treeOutputRoot, { recursive: true });
+await exportTreeAssets();
 const staticJsonPath = resolve(portOutputRoot, "static.json");
 const staticPngPath = resolve(portOutputRoot, "static.png");
 runAseprite([
@@ -285,6 +289,61 @@ function portableFrame(frame) {
     sourceSize: frame.sourceSize,
     duration: frame.duration
   };
+}
+
+async function exportTreeAssets() {
+  if (!existsSync(treeSource)) throw new Error(`Missing city tree source: ${treeSource}`);
+  const dataPath = resolve(treeOutputRoot, "source.json");
+  const sheetPath = resolve(treeOutputRoot, "trees.png");
+  runAseprite([
+    "--batch",
+    "--all-layers",
+    "--frame-range", "0,0",
+    "--split-layers",
+    treeSource,
+    "--trim",
+    "--sheet-pack",
+    "--merge-duplicates",
+    "--list-layers",
+    "--format", "json-array",
+    "--data", dataPath,
+    "--sheet", sheetPath
+  ]);
+  const sheet = JSON.parse(await readFile(dataPath, "utf8"));
+  const frames = sheet.frames.map((frame) => ({
+    layer: layerNameFromFilename(frame.filename),
+    ...portableFrame(frame)
+  }));
+  const treeLayers = frames.filter(({ layer }) => !layer.endsWith(" Shadow"));
+  const trees = treeLayers.map((tree) => {
+    const shadow = frames.find(({ layer }) => layer === `${tree.layer} Shadow`);
+    if (!shadow) throw new Error(`Missing tree shadow layer: ${tree.layer}`);
+    return Object.freeze({
+      id: tree.layer.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, ""),
+      name: tree.layer,
+      frame: portableTreeFrame(tree),
+      shadow: portableTreeFrame(shadow)
+    });
+  });
+  if (trees.length === 0) throw new Error("City tree source exports no tree layers");
+  const manifest = Object.freeze({
+    format: "marque-city-tree-atlas",
+    version: 1,
+    source: "apps/pixel-globe/public/assets/city-view/trees.aseprite",
+    sheet: "trees.png",
+    palette: "Resurrect 64",
+    trees
+  });
+  await writeFile(resolve(treeOutputRoot, "manifest.json"), `${JSON.stringify(manifest)}\n`);
+  await rm(dataPath);
+}
+
+function portableTreeFrame(frame) {
+  return Object.freeze({
+    frame: frame.frame,
+    spriteSourceSize: frame.spriteSourceSize,
+    sourceSize: frame.sourceSize
+  });
 }
 
 function layerNameFromFilename(filename) {

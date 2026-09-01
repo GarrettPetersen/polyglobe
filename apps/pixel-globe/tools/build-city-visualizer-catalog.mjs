@@ -437,7 +437,7 @@ function dockStyle(city, approach) {
 }
 
 function dockRule(city, dock, approach) {
-  if (dock === "none") return "beach landing for a village or very small settlement";
+  if (dock === "none") return "ship anchors offshore; boats and canoes use the beach landing";
   if (approach === "river" && dock === "wood") return "river landing uses the lighter timber structure";
   if (dock === "stone") {
     return city.requiredTradePort

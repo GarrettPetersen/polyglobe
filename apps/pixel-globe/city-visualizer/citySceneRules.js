@@ -391,16 +391,11 @@ export function docksideShipSideAnchor(ship) {
 export function docksideShipVerticalPlacement({
   dock,
   sideAnchorY,
-  submergedMinY,
-  beachSideY = 528
+  submergedMinY
 }) {
   if (!DOCK_STYLES.includes(dock)) throw new Error(`Invalid dockside ship dock: ${dock}`);
-  if (![sideAnchorY, submergedMinY, beachSideY].every(Number.isFinite)) {
+  if (![sideAnchorY, submergedMinY].every(Number.isFinite)) {
     throw new Error("Invalid dockside ship vertical placement geometry");
-  }
-  if (dock === "none") {
-    const topY = beachSideY - sideAnchorY;
-    return Object.freeze({ topY, waterlineY: topY + submergedMinY });
   }
   const waterlineTopY = PORT_SCENE_DOCK.waterlineY - submergedMinY;
   const sideAnchorTopY = PORT_SCENE_DOCK.shipAccessY - sideAnchorY;

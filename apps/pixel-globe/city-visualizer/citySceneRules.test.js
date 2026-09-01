@@ -374,7 +374,7 @@ test("ship-to-gate lane and its terrain remain one rigid parallax assembly", () 
   );
 });
 
-test("dockside ships never move away from the viewer to force a universal waterline", () => {
+test("docked and no-dock ships share one berth geometry", () => {
   const shortShip = docksideShipVerticalPlacement({
     dock: "wood",
     sideAnchorY: 438,
@@ -389,14 +389,17 @@ test("dockside ships never move away from the viewer to force a universal waterl
   });
   assert.equal(longShip.topY, PORT_SCENE_DOCK.shipAccessY - 353.5);
   assert.ok(longShip.waterlineY > PORT_SCENE_DOCK.waterlineY);
-  const beach = docksideShipVerticalPlacement({
+  const anchored = docksideShipVerticalPlacement({
     dock: "none",
     sideAnchorY: 365,
-    submergedMinY: 450,
-    beachSideY: 528
+    submergedMinY: 450
   });
-  assert.equal(beach.topY, 163);
-  assert.equal(beach.waterlineY, 613);
+  const docked = docksideShipVerticalPlacement({
+    dock: "wood",
+    sideAnchorY: 365,
+    submergedMinY: 450
+  });
+  assert.deepEqual(anchored, docked);
 });
 
 test("dockside ships berth at their authored side point rather than their bow anchor", () => {
