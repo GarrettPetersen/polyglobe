@@ -98,6 +98,9 @@
 - Nikoichu - "1-bit Pixel Icons" (CC0 1.0)
 - Selected icons were modified and palette-adapted to Resurrect 64. Source links are recorded in the public game icon manifest.
 
+## Character Sprites
+- LYASeeK - "MiniFolks" (itch.io asset license; palette-adapted and modified for cultural variants)
+
 ## City-view Pixel Art
 - ray_d_ash - "Trees 100px by 150px" (itch.io asset license; source for every tree in `city-view/trees.aseprite` except the original palm tree by Garrett Petersen)
 
