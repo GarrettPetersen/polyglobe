@@ -50,7 +50,8 @@ import {
   cityWaterDepthIndex,
   cityWaterLatitudeBand,
   cityWaterPaletteHexForSourceHex,
-  cityWaterPaletteRgb
+  cityWaterPaletteRgb,
+  cityWaterPaletteRgbAt
 } from "./cityWaterPalette.js";
 import {
   flagFabricColumnLayout,
@@ -73,6 +74,8 @@ import {
   cityTreePlacements,
   cityTreeShadowRgb
 } from "./cityTrees.js";
+import { cityQuayCargoPlacements } from "./cityQuayCargo.js";
+import { CITY_NPC_PATHS, cityGroundPainterZ } from "./cityPainterOrder.js";
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
@@ -191,6 +194,7 @@ const state = {
   leftBankBackgroundCityStreetRows: [],
   streetBuildings: [],
   treePlacements: [],
+  quayCargoPlacements: [],
   npcAgents: []
 };
 
@@ -407,6 +411,11 @@ function applyFeatureOverrides() {
     city: state.city,
     features: state.features,
     trees: state.treeManifest.trees
+  });
+  state.quayCargoPlacements = cityQuayCargoPlacements({
+    city: state.city,
+    features: state.features,
+    frames: state.portManifest.staticFrames
   });
   const backgroundCityBase = state.portManifest.staticFrames.find((frame) => (
     frame.layer === BACKGROUND_CITY_BASE_LAYER
@@ -820,10 +829,11 @@ function render(timeMs) {
     }
     else if (entry.kind === "tree") drawCityTree(entry.placement);
     else if (entry.kind === "tree-shadow") drawCityTreeShadow(entry.placement);
+    else if (entry.kind === "quay-cargo") drawQuayCargo(entry.placement);
     else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
     else if (entry.kind === "cloud") drawCloud(entry, timeMs);
     else if (entry.kind === "ship") drawDocksideShip(timeMs);
-    else if (entry.kind === "npcs") drawNpcs(timeMs);
+    else if (entry.kind === "npc") drawNpc(entry.agent, timeMs);
   }
   drawSceneLabels();
   requestAnimationFrame(render);
@@ -987,8 +997,23 @@ function sceneRenderEntries() {
       authoredOrder: 14 + placementOrder / 100
     });
   }
+  for (const [placementOrder, placement] of state.quayCargoPlacements.entries()) {
+    entries.push({
+      kind: "quay-cargo",
+      placement,
+      z: placement.z,
+      authoredOrder: 36 + placementOrder / 100
+    });
+  }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
-  entries.push({ kind: "npcs", ...PORT_SCENE_ENTITY_META.npcs, authoredOrder: 37.5 });
+  for (const [agentOrder, agent] of state.npcAgents.slice(0, state.features.npcs).entries()) {
+    entries.push({
+      kind: "npc",
+      agent,
+      z: cityGroundPainterZ(agent.feetY),
+      authoredOrder: 37.5 + agentOrder / 100
+    });
+  }
   if (state.features.dock !== "none") {
     entries.push({ kind: "dock-shadow-extension", z: 36, authoredOrder: 16.5 });
   }
@@ -998,6 +1023,21 @@ function sceneRenderEntries() {
 function drawCityTree(placement) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   drawCityTreePart(placement, placement.tree.frame, window);
+}
+
+function drawQuayCargo(placement) {
+  const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+  context.drawImage(
+    state.staticAtlas,
+    placement.frame.frame.x,
+    placement.frame.frame.y,
+    placement.width,
+    placement.height,
+    Math.round(placement.x - window.x),
+    Math.round(placement.y - window.y),
+    placement.width,
+    placement.height
+  );
 }
 
 function drawCityTreeShadow(placement) {
@@ -1809,13 +1849,15 @@ function latitudeWaterFrame(atlas, frame, masterYOffset = 0) {
   for (let y = 0; y < buffer.height; y++) {
     const masterY = frame.spriteSourceSize.y + masterYOffset + y;
     for (let x = 0; x < buffer.width; x++) {
+      const masterX = frame.spriteSourceSize.x + x;
       const offset = (y * buffer.width + x) * 4;
       if (imageData.data[offset + 3] === 0) continue;
-      const mapped = cityWaterPaletteRgb(
+      const mapped = cityWaterPaletteRgbAt(
         imageData.data[offset],
         imageData.data[offset + 1],
         imageData.data[offset + 2],
         state.city.lat,
+        masterX,
         masterY
       );
       imageData.data[offset] = mapped.r;
@@ -2141,29 +2183,27 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineR
   });
 }
 
-function drawNpcs(timeMs) {
+function drawNpc(agent, timeMs) {
   if (!state.minifolkManifest || !state.features) return;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
   const time = prefersReducedMotion.matches ? 0 : timeMs;
-  for (const agent of state.npcAgents.slice(0, state.features.npcs)) {
-    const character = state.minifolkManifest.characters[agent.characterIndex % state.minifolkManifest.characters.length];
-    const atlas = state.minifolkAtlases.get(character.id);
-    const cycle = (time * agent.speed + agent.phase) % 2;
-    const progress = cycle <= 1 ? cycle : 2 - cycle;
-    const facingRight = cycle <= 1;
-    const x = agent.startX + (agent.endX - agent.startX) * progress;
-    const frame = animationFrame(character.frames, time + agent.phase * 1000);
-    const dx = Math.round(x + frame.spriteSourceSize.x - window.x);
-    const dy = Math.round(agent.feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
-    if (facingRight) {
-      context.drawImage(atlas, frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, dx, dy, frame.frame.w, frame.frame.h);
-    } else {
-      context.save();
-      context.translate(dx + frame.frame.w, 0);
-      context.scale(-1, 1);
-      context.drawImage(atlas, frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, 0, dy, frame.frame.w, frame.frame.h);
-      context.restore();
-    }
+  const character = state.minifolkManifest.characters[agent.characterIndex % state.minifolkManifest.characters.length];
+  const atlas = state.minifolkAtlases.get(character.id);
+  const cycle = (time * agent.speed + agent.phase) % 2;
+  const progress = cycle <= 1 ? cycle : 2 - cycle;
+  const facingRight = cycle <= 1;
+  const x = agent.startX + (agent.endX - agent.startX) * progress;
+  const frame = animationFrame(character.frames, time + agent.phase * 1000);
+  const dx = Math.round(x + frame.spriteSourceSize.x - window.x);
+  const dy = Math.round(agent.feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
+  if (facingRight) {
+    context.drawImage(atlas, frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, dx, dy, frame.frame.w, frame.frame.h);
+  } else {
+    context.save();
+    context.translate(dx + frame.frame.w, 0);
+    context.scale(-1, 1);
+    context.drawImage(atlas, frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, 0, dy, frame.frame.w, frame.frame.h);
+    context.restore();
   }
 }
 
@@ -2171,7 +2211,8 @@ function drawSceneLabels() {
   const cityLabel = state.city.label.toUpperCase();
   pixelText.draw(cityLabel, 8, 8, {
     color: "#ffffff",
-    font: CITY_PIXEL_FONT_TITLE_8
+    font: CITY_PIXEL_FONT_TITLE_8,
+    wordSpacingPx: 4
   });
 
   if (state.hoveredDestination) {
@@ -2278,15 +2319,7 @@ function frameAlpha(frame, atlas = state.staticAtlas) {
 
 function createNpcAgents(cityId) {
   let seed = hashString(cityId);
-  const paths = [
-    [900, 1005, 518],
-    [960, 1070, 544],
-    [1020, 1132, 518],
-    [1080, 1185, 548],
-    [1140, 1242, 520],
-    [970, 1120, 565]
-  ];
-  return paths.map(([startX, endX, feetY], index) => {
+  return CITY_NPC_PATHS.map(({ startX, endX, feetY }, index) => {
     seed = xorshift(seed);
     return Object.freeze({
       startX,

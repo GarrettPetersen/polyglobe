@@ -76,6 +76,30 @@ const REGIONAL_BUILDING_LAYERS = Object.freeze({
     regionalOf: "Near Castle",
     sourceBase: "Castle Wall Near",
     hasChimney: false
+  }),
+  "China Home": Object.freeze({
+    cityType: "east-asian",
+    regionalOf: "Home",
+    sourceBase: "Northern Europe Home",
+    hasChimney: false
+  }),
+  "Japan Home": Object.freeze({
+    cityType: "japanese",
+    regionalOf: "Home",
+    sourceBase: "Northern Europe Home",
+    hasChimney: false
+  }),
+  "Japan Inn": Object.freeze({
+    cityType: "japanese",
+    regionalOf: "Inn",
+    sourceBase: "Northern European Inn",
+    hasChimney: false
+  }),
+  "Japan Smith": Object.freeze({
+    cityType: "japanese",
+    regionalOf: "Smith",
+    sourceBase: "Northern European Smith",
+    hasChimney: false
   })
 });
 
@@ -499,9 +523,10 @@ function regionalBuildingSpriteSourceSize({ regionalFrame, sourceBaseFrame, targ
     x: targetFrame.spriteSourceSize.x + (
       regionalFrame.spriteSourceSize.x - sourceBaseFrame.spriteSourceSize.x
     ),
-    y: targetFrame.spriteSourceSize.y + (
-      regionalFrame.spriteSourceSize.y - sourceBaseFrame.spriteSourceSize.y
-    ),
+    // Every regional variant shares the canonical scene ground line. Authored
+    // source layers can trim one transparent row differently, which must not
+    // make a replacement building hover or sink by a pixel in the quay scene.
+    y: targetFrame.spriteSourceSize.y + targetFrame.spriteSourceSize.h - regionalFrame.frame.h,
     w: regionalFrame.frame.w,
     h: regionalFrame.frame.h
   };

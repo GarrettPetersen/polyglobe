@@ -91,6 +91,10 @@ const CITY_CATALOG = JSON.parse(readFileSync(
   new URL("./data/cities.json", import.meta.url),
   "utf8"
 ));
+const EXPORTED_BUILDING_FRAMES = JSON.parse(readFileSync(
+  new URL("./assets/port-parallax/manifest.json", import.meta.url),
+  "utf8"
+)).staticFrames;
 
 test("all non-village cities use the full background area while villages receive none", () => {
   assert.equal(BACKGROUND_CITY_MAX_ROWS, 8);
@@ -402,6 +406,57 @@ test("Middle Eastern skyline generation uses the three completed regional buildi
   assert.ok(!layers.includes("Home"));
   assert.ok(!layers.includes("Inn"));
   assert.ok(!layers.includes("Smith"));
+  assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
+});
+
+test("Ming and Joseon skylines replace both Northern homes with the shared Chinese home", () => {
+  const city = {
+    ...LONDON,
+    id: "nanjing|china",
+    country: "China",
+    cityType: "east-asian",
+    backgroundCity: {
+      density: "dense",
+      buildingMix: { homeA: 4, homeB: 4, inn: 1, smith: 1 },
+      landmarks: { church: 0, mosque: 0 }
+    }
+  };
+  const buildings = allBuildings(layout({
+    city,
+    frames: EXPORTED_BUILDING_FRAMES,
+    baseTopYByX: FALLING_BASE_TOP
+  }));
+  const housing = buildings.filter(({ frame: source }) => (
+    source.regionalOf === "Home" || source.regionalOf === "Home 2"
+  ));
+  assert.ok(housing.length > 0);
+  assert.ok(housing.every(({ frame: source }) => source.layer === "China Home"));
+  assert.deepEqual(cityBackgroundFlyingBuildings(layout({
+    city,
+    frames: EXPORTED_BUILDING_FRAMES,
+    baseTopYByX: FALLING_BASE_TOP
+  })), []);
+});
+
+test("Japanese skylines use the authored home, inn, and smith at every perspective", () => {
+  const city = {
+    ...LONDON,
+    id: "kyoto|japan",
+    country: "Japan",
+    cityType: "east-asian",
+    backgroundCity: {
+      density: "dense",
+      buildingMix: { homeA: 4, homeB: 4, inn: 2, smith: 2 },
+      landmarks: { church: 0, mosque: 0 }
+    }
+  };
+  const rows = layout({
+    city,
+    frames: EXPORTED_BUILDING_FRAMES,
+    baseTopYByX: FALLING_BASE_TOP
+  });
+  const layers = new Set(allBuildings(rows).map(({ frame: source }) => source.layer));
+  assert.deepEqual([...layers].sort(), ["Japan Home", "Japan Inn", "Japan Smith"].sort());
   assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
 });
 

@@ -11,6 +11,7 @@ import {
   CITY_PIXEL_FONT_TITLE_8
 } from "./cityPixelText.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
+import { cityGroundPainterZ } from "./cityPainterOrder.js";
 import {
   PORT_SCENE_MASTER,
   PORT_SCENE_CAMERA,
@@ -546,6 +547,8 @@ test("explicit scene z places walkers and the inn between gatehouse sections", (
   assert.ok(layerSceneZ("Road") < layerSceneZ("Castle Shadow"));
   assert.ok(layerSceneZ("Gate") < PORT_SCENE_ENTITY_META.npcs.z);
   assert.ok(PORT_SCENE_ENTITY_META.npcs.z < layerSceneZ("Inn"));
+  assert.ok(layerSceneZ("Inn") < cityGroundPainterZ(565));
+  assert.ok(cityGroundPainterZ(565) < cityGroundPainterZ(575));
   assert.ok(layerSceneZ("Foreground Grass") < layerSceneZ("Near Castle"));
   assert.ok(layerSceneZ("Foreground Grass Castle Shadow") < layerSceneZ("Near Castle"));
   assert.ok(layerSceneZ("Near Castle") < layerSceneZ("Barrel"));
@@ -819,11 +822,14 @@ test("sparse earthen villages show huts and a market without urban institutions"
   assert.equal(activePortSceneLayers(largerFeatures).has("Shipyard"), true);
 });
 
-test("generated village and Swahili architecture profiles remain explicit city data", () => {
+test("generated regional architecture profiles remain explicit city data", () => {
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const fiji = cityById.get("fiji village|fiji");
   const makian = cityById.get("makian village|indonesia");
   const kilwa = cityById.get("kilwa|tanzania");
+  const kyoto = cityById.get("kyoto|japan");
+  const nanjing = cityById.get("nanjing|china");
+  const seoul = cityById.get("seoul|republic of korea");
   assert.deepEqual(fiji?.architecture, {
     housingStyle: "earthen-village",
     serviceStyle: "polynesian",
@@ -857,4 +863,18 @@ test("generated village and Swahili architecture profiles remain explicit city d
     settlementForm: "urban"
   });
   assert.equal(kilwa?.backgroundCity?.enabled, true);
+  assert.deepEqual(kyoto?.architecture, {
+    housingStyle: "japanese",
+    serviceStyle: "japanese",
+    fortificationStyle: "japanese",
+    settlementForm: "urban"
+  });
+  for (const city of [nanjing, seoul]) {
+    assert.deepEqual(city?.architecture, {
+      housingStyle: "east-asian",
+      serviceStyle: "east-asian",
+      fortificationStyle: "east-asian",
+      settlementForm: "urban"
+    });
+  }
 });

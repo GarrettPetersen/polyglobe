@@ -6,15 +6,17 @@ import {
   waterLatitudeBand,
   waterPaletteHexForSourceHex
 } from "../src/waterLatitudePalette.js";
-import { PORT_SCENE_OCEAN_SLICES } from "./citySceneRules.js";
+import { PORT_SCENE_MASTER, PORT_SCENE_OCEAN_SLICES } from "./citySceneRules.js";
 import {
   CITY_WATER_DEPTH_LEVELS,
   CITY_WATER_ART_BASE_HEX,
   cityWaterAnimatedLayerUsesPalette,
   cityWaterDepthIndex,
+  cityWaterDepthIndexAt,
   cityWaterLatitudeBand,
   cityWaterPaletteHexForSourceHex,
-  cityWaterPaletteRgb
+  cityWaterPaletteRgb,
+  cityWaterPaletteRgbAt
 } from "./cityWaterPalette.js";
 
 test("city water uses every production depth band from horizon to foreground", () => {
@@ -36,6 +38,54 @@ test("city water uses every production depth band from horizon to foreground", (
   assert.throws(() => cityWaterDepthIndex(Number.NaN), /row must be finite/);
 });
 
+test("city water depth boundaries form smooth natural contours instead of straight stripes", () => {
+  const top = PORT_SCENE_OCEAN_SLICES[0].top;
+  const bottom = PORT_SCENE_OCEAN_SLICES[2].bottom - 1;
+  const sceneWidth = PORT_SCENE_MASTER.width;
+
+  for (let boundaryIndex = 0; boundaryIndex < CITY_WATER_DEPTH_LEVELS - 1; boundaryIndex++) {
+    const upperDepth = CITY_WATER_DEPTH_LEVELS - 1 - boundaryIndex;
+    const boundaryRows = [];
+    for (let x = 0; x < sceneWidth; x++) {
+      let boundaryY = null;
+      for (let y = top; y <= bottom; y++) {
+        if (cityWaterDepthIndexAt(x, y) < upperDepth) {
+          boundaryY = y;
+          break;
+        }
+      }
+      assert.notEqual(boundaryY, null, `missing water contour ${boundaryIndex} at x=${x}`);
+      boundaryRows.push(boundaryY);
+    }
+
+    assert.ok(
+      new Set(boundaryRows).size >= 12,
+      `water contour ${boundaryIndex} is still effectively a straight horizontal line`
+    );
+    for (let x = 1; x < boundaryRows.length; x++) {
+      assert.ok(
+        Math.abs(boundaryRows[x] - boundaryRows[x - 1]) <= 1,
+        `water contour ${boundaryIndex} has noisy pixel scatter at x=${x}`
+      );
+    }
+    assert.ok(
+      Math.abs(boundaryRows[0] - boundaryRows.at(-1)) <= 1,
+      `water contour ${boundaryIndex} does not wrap seamlessly`
+    );
+  }
+
+  for (const x of [0, 136, 341, 682, 1023, PORT_SCENE_MASTER.width - 1]) {
+    let previous = CITY_WATER_DEPTH_LEVELS;
+    for (let y = top; y <= bottom; y++) {
+      const depth = cityWaterDepthIndexAt(x, y);
+      assert.ok(depth <= previous, `water depth reversed at x=${x}, y=${y}`);
+      previous = depth;
+    }
+  }
+
+  assert.throws(() => cityWaterDepthIndexAt(Number.NaN, top), /column must be finite/);
+});
+
 test("city ocean and wave colors delegate to the production latitude palette", () => {
   const masterY = PORT_SCENE_OCEAN_SLICES[1].top;
   const latitude = -6.1622;
@@ -49,6 +99,15 @@ test("city ocean and wave colors delegate to the production latitude palette", (
 
   const rgb = cityWaterPaletteRgb(77, 101, 180, latitude, masterY);
   assert.equal(toHex(rgb), expected);
+
+  const contouredRgb = cityWaterPaletteRgbAt(77, 101, 180, latitude, 417, masterY);
+  const contouredDepth = cityWaterDepthIndexAt(417, masterY);
+  const contouredExpected = waterPaletteHexForSourceHex(
+    WATER_SOURCE_BASE_HEX[contouredDepth],
+    waterLatitudeBand(latitude),
+    contouredDepth
+  );
+  assert.equal(toHex(contouredRgb), contouredExpected);
 });
 
 test("city palette caching can share the production five-degree latitude bands", () => {
@@ -78,6 +137,7 @@ test("static ocean, animated waves, shoreline fill, and ship waterlines share th
   const source = fs.readFileSync(new URL("./main.js", import.meta.url), "utf8");
   assert.match(source, /drawOceanSlice[\s\S]*latitudeWaterFrame\(state\.staticAtlas, frame, PORT_SCENE_HORIZON_SHIFT_Y\)/);
   assert.match(source, /drawAnimatedLayer[\s\S]*cityWaterAnimatedLayerUsesPalette\(layerName\)[\s\S]*latitudeWaterFrame\(atlas, frame\)/);
+  assert.match(source, /latitudeWaterFrame[\s\S]*cityWaterPaletteRgbAt\([\s\S]*masterX,[\s\S]*masterY/);
   assert.match(source, /drawWaterToWaveEdges[\s\S]*latitudeWaterCssColor\("4d65b4", masterY\)/);
   assert.match(source, /docksideShipWaterlineLayers\([\s\S]*waterlineRgb/);
 });

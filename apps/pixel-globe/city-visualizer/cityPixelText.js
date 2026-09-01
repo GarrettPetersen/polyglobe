@@ -25,15 +25,16 @@ export function createCityPixelTextRenderer(context, createCanvas) {
   let scratchCanvas = null;
   let scratchContext = null;
 
-  function measure(text, font = CITY_PIXEL_FONT_SMALL_8) {
+  function measure(text, font = CITY_PIXEL_FONT_SMALL_8, options = {}) {
     const compatibleText = compatible(text, font);
-    const key = `${font}\u0000${compatibleText}`;
+    const wordSpacingPx = requireWordSpacing(options.wordSpacingPx);
+    const key = `${font}\u0000${wordSpacingPx ?? "font"}\u0000${compatibleText}`;
     const cached = widthCache.get(key);
     if (cached !== undefined) return cached;
     context.font = font;
     context.textAlign = "left";
     context.textBaseline = "top";
-    const width = Math.ceil(context.measureText(compatibleText).width);
+    const width = Math.ceil(measuredWidth(context, compatibleText, wordSpacingPx));
     cache(widthCache, key, width);
     return width;
   }
@@ -41,8 +42,9 @@ export function createCityPixelTextRenderer(context, createCanvas) {
   function draw(text, x, y, options = {}) {
     const font = options.font || CITY_PIXEL_FONT_SMALL_8;
     const color = options.color || "#ffffff";
+    const wordSpacingPx = requireWordSpacing(options.wordSpacingPx);
     const compatibleText = compatible(text, font);
-    const width = measure(compatibleText, font);
+    const width = measure(compatibleText, font, { wordSpacingPx });
     const aligned = pixelTextOrigin({
       x,
       y,
@@ -52,13 +54,13 @@ export function createCityPixelTextRenderer(context, createCanvas) {
     const origin = snapPointToTransformedPixelGrid(aligned, context.getTransform());
     context.save();
     context.imageSmoothingEnabled = false;
-    context.drawImage(raster(compatibleText, font, color, width), origin.x, origin.y);
+    context.drawImage(raster(compatibleText, font, color, width, wordSpacingPx), origin.x, origin.y);
     context.restore();
     return Object.freeze({ x: origin.x, y: origin.y, width });
   }
 
-  function raster(text, font, color, width) {
-    const key = `${font}\u0000${color}\u0000${text}`;
+  function raster(text, font, color, width, wordSpacingPx) {
+    const key = `${font}\u0000${color}\u0000${wordSpacingPx ?? "font"}\u0000${text}`;
     const cached = rasterCache.get(key);
     if (cached) return cached;
     const layout = fontLayout(font);
@@ -69,7 +71,7 @@ export function createCityPixelTextRenderer(context, createCanvas) {
     scratch.textAlign = "left";
     scratch.textBaseline = "alphabetic";
     scratch.fillStyle = color;
-    scratch.fillText(text, layout.padding, layout.baselineY);
+    drawTextWithWordSpacing(scratch, text, layout.padding, layout.baselineY, wordSpacingPx);
     const imageData = scratch.getImageData(layout.padding, layout.padding, Math.max(1, width), layout.height);
     const opaquePixels = hardenPixelTextAlpha(imageData.data);
     if (text.trim().length > 0 && opaquePixels === 0) {
@@ -117,6 +119,39 @@ export function createCityPixelTextRenderer(context, createCanvas) {
   }
 
   return Object.freeze({ draw, measure });
+}
+
+function measuredWidth(context, text, wordSpacingPx) {
+  if (wordSpacingPx === null) return context.measureText(text).width;
+  let width = 0;
+  for (const run of text.split(/( +)/)) {
+    width += /^ +$/.test(run) ? run.length * wordSpacingPx : context.measureText(run).width;
+  }
+  return width;
+}
+
+function drawTextWithWordSpacing(context, text, x, y, wordSpacingPx) {
+  if (wordSpacingPx === null) {
+    context.fillText(text, x, y);
+    return;
+  }
+  let cursorX = x;
+  for (const run of text.split(/( +)/)) {
+    if (/^ +$/.test(run)) {
+      cursorX += run.length * wordSpacingPx;
+      continue;
+    }
+    context.fillText(run, Math.round(cursorX), y);
+    cursorX += context.measureText(run).width;
+  }
+}
+
+function requireWordSpacing(value) {
+  if (value === undefined || value === null) return null;
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(`Invalid city pixel word spacing: ${value}`);
+  }
+  return value;
 }
 
 function compatible(text, font) {

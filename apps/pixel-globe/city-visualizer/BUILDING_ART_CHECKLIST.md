@@ -12,8 +12,8 @@ count separately because the visualizer positions and draws them independently.
 - **10 authored pieces per regional kit**: two homes, five other buildings, and
   three fortification sections.
 - **6 initial regional kits = 60 normal-state coverage slots.**
-- **43 slots are resolved** by authored art, a documented shared sprite/palette
-  swap, or a deliberate omission. **17 normal-state slots still need art.**
+- **47 slots are resolved** by authored art, a documented shared sprite/palette
+  swap, or a deliberate omission. **13 normal-state slots still need art.**
 - Bombardment is a **single procedural rendering system**, not another 60
   hand-drawn slots. Door, fire, smoke, gate-opening, and exceptional collapsed
   states are not included in the building count.
@@ -28,9 +28,9 @@ region.
 | Mediterranean | 10 | 0 |
 | Middle Eastern | 9 | 1 |
 | Primitive / village | 10 | 0 |
-| Chinese / Korean | 2 | 8 |
-| Japanese | 2 | 8 |
-| **Total** | **43** | **17** |
+| Chinese / Korean | 3 | 7 |
+| Japanese | 5 | 5 |
+| **Total** | **47** | **13** |
 
 Checklist labels are intentional:
 
@@ -46,12 +46,12 @@ Checklist labels are intentional:
 
 1. **Middle Eastern Home B** — one alternate flat-roofed home. This completes
    the Middle Eastern kit.
-2. **Chinese / Korean kit — 8 pieces:** Home A, Home B, inn, smith, temple or
-   shrine, far wall, gatehouse, and near wall.
-3. **Japanese kit — 8 pieces:** Home A, Home B, inn, smith, Buddhist temple or
-   Shinto shrine, far wall, gatehouse, and near wall.
+2. **Chinese / Korean kit — 7 pieces:** Home B, inn, smith, temple or shrine,
+   far wall, gatehouse, and near wall.
+3. **Japanese kit — 5 pieces:** Home B, Buddhist temple or Shinto shrine, far
+   wall, gatehouse, and near wall.
 
-That is the complete **17-piece current art queue**. The Chinese/Korean and
+That is the complete **13-piece current art queue**. The Chinese/Korean and
 Japanese market stalls and shipyards are already covered by the shared global
 sprites.
 
@@ -203,7 +203,7 @@ the same broad timber-frame, stone-base, and tiled-roof language at this scale.
 Later Korean alternates should emphasize lower roof profiles, mud walls, and
 thatch without blocking the first world-coverage pass.
 
-- [ ] Home A — **DRAW**
+- [x] Home A — **AUTHORED**, shared by Ming Chinese and Joseon Korean cities
 - [ ] Home B — **DRAW**
 - [ ] Inn — **DRAW**
 - [ ] Item store / smith — **DRAW**
@@ -220,10 +220,10 @@ Keep Japan separate from the Chinese/Korean kit. Its stronger dark-timber and
 white-plaster contrast, roof massing, deep eaves, and layered wooden
 fortifications need distinct silhouettes rather than a palette swap.
 
-- [ ] Home A — **DRAW**
+- [x] Home A — **AUTHORED**
 - [ ] Home B — **DRAW**
-- [ ] Inn — **DRAW**
-- [ ] Item store / smith — **DRAW**
+- [x] Inn — **AUTHORED**
+- [x] Item store / smith — **AUTHORED**
 - [x] Market stall — **SHARED**, global timber market stall
 - [x] Shipyard — **SHARED**, global timber shipyard
 - [ ] Buddhist temple or Shinto shrine — **DRAW**; Christian ports use the shared church

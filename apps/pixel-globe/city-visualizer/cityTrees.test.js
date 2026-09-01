@@ -9,6 +9,7 @@ import {
 } from "../src/waterLatitudePalette.js";
 import {
   CITY_TREE_BACKGROUND_SHADOW_Z,
+  CITY_TREE_CASTLE_BACKING_SHADOW_Z,
   CITY_TREE_FOREGROUND_SHADOW_Z,
   cityTreeCount,
   cityTreePlacements,
@@ -52,15 +53,18 @@ test("individual trees are sparse, deterministic props across near and rear plan
   const features = { rightTerrain: "forest" };
   const placements = cityTreePlacements({ city, features, trees: manifest.trees });
   assert.deepEqual(placements, cityTreePlacements({ city, features, trees: manifest.trees }));
-  assert.ok(placements.length >= 2 && placements.length <= 3);
+  assert.ok(placements.length >= 3 && placements.length <= 4);
   assert.ok(placements.every(({ tree }) => tree.id !== "palm"));
   const foreground = placements.filter(({ depth }) => depth === 1);
   const behindBuildings = placements.filter(({ depth }) => depth < 1);
+  const midgroundAccent = behindBuildings.filter(({ id }) => id.endsWith(":behind-buildings"));
+  const castleBacking = behindBuildings.filter(({ id }) => id.endsWith(":castle-backing"));
   assert.ok(foreground.length >= 1, "at least one individual tree fills the open foreground");
   assert.ok(foreground.every(({ z, scale, baseY }) => z > 70 && scale >= 0.9 && baseY >= 575));
   assert.equal(foreground[0].baseY, 575, "the first foreground tree enters the normal-height viewport");
-  assert.equal(behindBuildings.length, 1);
-  assert.ok(behindBuildings.every(({ z, scale }) => z < 40 && scale < 0.5));
+  assert.equal(behindBuildings.length, 2);
+  assert.ok(midgroundAccent.every(({ z, scale }) => z < 40 && scale < 0.5));
+  assert.ok(castleBacking.every(({ z, scale }) => z < 45 && scale === 0.55));
 });
 
 test("regional pools and latitude prevent implausible tree choices", () => {
@@ -73,7 +77,12 @@ test("regional pools and latitude prevent implausible tree choices", () => {
   assert.ok(polynesian.length > 0);
   assert.ok(polynesian.every(({ tree }) => tree.id === "palm"));
   assert.ok(polynesian.filter(({ depth }) => depth === 1).every(({ shadowZ, z }) => shadowZ < z));
-  assert.ok(polynesian.filter(({ depth }) => depth < 1).every(({ shadowZ, z }) => shadowZ > z));
+  assert.ok(polynesian
+    .filter(({ id }) => id.endsWith(":behind-buildings"))
+    .every(({ shadowZ, z }) => shadowZ > z));
+  assert.ok(polynesian
+    .filter(({ id }) => id.endsWith(":castle-backing"))
+    .every(({ shadowZ, z }) => shadowZ < z));
 
   const coolMediterranean = cityTreePlacements({
     city: sampleCity({ id: "cool-med-port", cityType: "mediterranean", lat: 44 }),
@@ -128,6 +137,30 @@ test("a river scene never invents a left-bank tree where the terrain scan found 
     });
     assert.ok(placements.every(({ id }) => !id.endsWith(":left-bank-foreground")));
   }
+});
+
+test("one regional tree always occupies the plane behind the castle", () => {
+  const city = sampleCity({ id: "open-town", cityType: "northern-european", lat: 52 });
+  const baseFeatures = {
+    approach: "ocean",
+    fortified: false,
+    rightTerrain: "grass"
+  };
+  const openTown = cityTreePlacements({ city, features: baseFeatures, trees: manifest.trees });
+  const backing = openTown.find(({ id }) => id.endsWith(":castle-backing"));
+  assert.ok(backing);
+  assert.equal(backing.baseY, 508);
+  assert.equal(backing.scale, 0.55);
+  assert.equal(backing.shadowZ, CITY_TREE_CASTLE_BACKING_SHADOW_Z);
+  assert.equal(backing.depth, 0.996, "the backing tree is parallax-locked to the far wall");
+  assert.ok(backing.z < 45, "the backing tree stays behind the far castle wall");
+
+  const fortified = cityTreePlacements({
+    city,
+    features: { ...baseFeatures, fortified: true },
+    trees: manifest.trees
+  });
+  assert.ok(fortified.some(({ id }) => id.endsWith(":castle-backing")));
 });
 
 test("open terrain gets fewer accents than forest and desert only permits an occasional palm", () => {

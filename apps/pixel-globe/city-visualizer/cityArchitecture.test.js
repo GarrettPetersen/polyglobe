@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   EARTHEN_VILLAGE_BUILDING_STYLE,
+  JAPANESE_BUILDING_STYLE,
   cityArchitectureProfile,
   cityArchitectureStyleForLayer,
   cityServiceProfile,
@@ -59,6 +60,25 @@ test("city type alone does not collapse major indigenous cities into the sparse 
   });
 });
 
+test("Japanese ports use their distinct building kit while Ming and Joseon share east Asian art", () => {
+  const japanese = deriveCityArchitectureProfile(cityRecord({
+    cityType: "east-asian",
+    country: "Japan"
+  }));
+  assert.deepEqual(japanese, {
+    housingStyle: JAPANESE_BUILDING_STYLE,
+    serviceStyle: JAPANESE_BUILDING_STYLE,
+    fortificationStyle: JAPANESE_BUILDING_STYLE,
+    settlementForm: "urban"
+  });
+
+  for (const country of ["China", "Republic of Korea", "Dem. People's Republic of Korea"]) {
+    const shared = deriveCityArchitectureProfile(cityRecord({ cityType: "east-asian", country }));
+    assert.equal(shared.housingStyle, "east-asian");
+    assert.equal(shared.serviceStyle, "east-asian");
+  }
+});
+
 test("Swahili ports separate earthen housing from Islamic service and fortification art", () => {
   const city = cityRecord({
     cityType: "sub-saharan",
@@ -88,6 +108,7 @@ test("catalog architecture and service profiles are validated at the scene bound
 function cityRecord(overrides) {
   return Object.freeze({
     cityType: "northern-european",
+    country: "United Kingdom",
     settlementType: "city",
     population: 10000,
     ...overrides

@@ -1,4 +1,5 @@
 export const EARTHEN_VILLAGE_BUILDING_STYLE = "earthen-village";
+export const JAPANESE_BUILDING_STYLE = "japanese";
 
 const HOUSING_LAYERS = new Set(["Home", "Home 2"]);
 const SERVICE_BUILDING_LAYERS = new Set(["Inn", "Smith"]);
@@ -10,12 +11,15 @@ export function deriveCityArchitectureProfile(city) {
   const settlementType = city.settlementType || "city";
   const sparseEarthenVillage = settlementType === "village";
   const swahiliCoast = city.manualRegion === "swahili-coast";
+  const regionalStyle = city.country === "Japan"
+    ? JAPANESE_BUILDING_STYLE
+    : city.cityType;
   return architectureProfile({
     housingStyle: sparseEarthenVillage || swahiliCoast
       ? EARTHEN_VILLAGE_BUILDING_STYLE
-      : city.cityType,
-    serviceStyle: swahiliCoast ? "islamic-desert" : city.cityType,
-    fortificationStyle: swahiliCoast ? "islamic-desert" : city.cityType,
+      : regionalStyle,
+    serviceStyle: swahiliCoast ? "islamic-desert" : regionalStyle,
+    fortificationStyle: swahiliCoast ? "islamic-desert" : regionalStyle,
     settlementForm: sparseEarthenVillage ? "sparse-village" : "urban"
   });
 }

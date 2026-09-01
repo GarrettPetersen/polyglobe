@@ -2,9 +2,11 @@ import {
   darkerResurrect64Hex,
   nearestResurrect64Hex
 } from "../src/waterLatitudePalette.js";
+import { cityGroundPainterZ } from "./cityPainterOrder.js";
 
 export const CITY_TREE_BACKGROUND_SHADOW_Z = 42.1;
 export const CITY_TREE_FOREGROUND_SHADOW_Z = 73.9;
+export const CITY_TREE_CASTLE_BACKING_SHADOW_Z = 44.7;
 
 const TREE_SLOTS = Object.freeze([
   Object.freeze({
@@ -47,6 +49,17 @@ const LEFT_BANK_FOREGROUND_TREE_SLOT = Object.freeze({
   parallaxAnchor: -1
 });
 
+const CASTLE_BACKING_TREE_SLOT = Object.freeze({
+  id: "castle-backing",
+  centerX: 1332,
+  baseY: 508,
+  scale: 0.55,
+  depth: 0.996,
+  z: 44.8,
+  shadowZ: CITY_TREE_CASTLE_BACKING_SHADOW_Z,
+  parallaxAnchor: 1
+});
+
 const REGION_TREE_POOLS = Object.freeze({
   "northern-european": Object.freeze([
     "yew", "scots-pine", "larch", "spruce", "fir", "black-pine"
@@ -81,10 +94,10 @@ export function cityTreePlacements({ city, features, trees }) {
   const leftBankTree = features.approach === "river" &&
     Boolean(features.leftTreeCover ?? features.leftTerrain === "forest") &&
     stableHash(`${city.id}:left-bank-tree`) % 2 === 0;
-  if (count === 0 && !leftBankTree) return Object.freeze([]);
   const slots = [
     ...TREE_SLOTS.slice(0, count),
-    ...(leftBankTree ? [LEFT_BANK_FOREGROUND_TREE_SLOT] : [])
+    ...(leftBankTree ? [LEFT_BANK_FOREGROUND_TREE_SLOT] : []),
+    CASTLE_BACKING_TREE_SLOT
   ];
   let previousTreeId = null;
   const placements = slots.map((slot, index) => {
@@ -111,7 +124,7 @@ export function cityTreePlacements({ city, features, trees }) {
       baseY: slot.baseY,
       scale: slot.scale,
       depth: slot.depth,
-      z: slot.z,
+      z: slot.depth === 1 ? cityGroundPainterZ(slot.baseY) : slot.z,
       shadowZ: slot.shadowZ,
       parallaxAnchor: slot.parallaxAnchor ?? 1,
       flipX: stableHash(`${city.id}:tree-flip:${index}`) % 2 === 1

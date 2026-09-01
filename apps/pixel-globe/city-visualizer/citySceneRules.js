@@ -4,6 +4,8 @@ import {
   cityBackgroundEnabled
 } from "./cityBackground.js";
 import { cityArchitectureProfile, cityServiceProfile } from "./cityArchitecture.js";
+import { cityQuayCargoCount } from "./cityQuayCargo.js";
+import { cityGroundPainterZ } from "./cityPainterOrder.js";
 
 export const PORT_SCENE_MASTER = Object.freeze({
   width: 1365,
@@ -83,7 +85,7 @@ export const PORT_SCENE_ENTITY_META = Object.freeze({
     scale: 1,
     nativeRasterScale: 3
   }),
-  npcs: Object.freeze({ z: 62, depth: PORT_SCENE_DEPTH.foreground })
+  npcs: Object.freeze({ z: cityGroundPainterZ(518), depth: PORT_SCENE_DEPTH.foreground })
 });
 
 export const DOCK_STYLES = Object.freeze(["none", "wood", "stone"]);
@@ -98,9 +100,7 @@ const ALWAYS_VISIBLE_LAYERS = Object.freeze([
   "Sand Beach",
   "Road",
   "Waves",
-  "Surf",
-  "Barrel",
-  "Crate"
+  "Surf"
 ]);
 const MARKET_LAYERS = Object.freeze([
   "Market Stall Copy",
@@ -526,8 +526,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     market: services.market,
     shipyard: services.shipyard,
     leftBankCity: Boolean(city.builtUpBothBanks),
-    npcs: city.settlementType === "village" ? 3 : 6,
-    props: city.settlementType === "village" ? 1 : 3
+    npcs: city.settlementType === "village" ? 3 : 6
   };
   const features = { ...automatic, ...definedOverrides(overrides) };
   if (!DOCK_STYLES.includes(features.dock)) throw new Error(`Unknown dock style: ${features.dock}`);
@@ -537,8 +536,15 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   for (const key of ["leftTerrain", "rightTerrain", "leftDistantTerrain", "rightDistantTerrain"]) {
     features[key] = requireTerrain(features[key]);
   }
+  if (features.props === undefined) {
+    features.props = cityQuayCargoCount(city, {
+      dock: features.dock,
+      market: features.market,
+      shipyard: features.shipyard
+    });
+  }
   features.npcs = clampInteger(features.npcs, 0, 12, "NPC count");
-  features.props = clampInteger(features.props, 0, 6, "prop count");
+  features.props = clampInteger(features.props, 0, 18, "prop count");
   features.backgroundCity = Boolean(features.backgroundCity);
   features.leftBankCity = features.approach === "river" && Boolean(features.leftBankCity);
   for (const key of [
