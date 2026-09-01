@@ -93,6 +93,10 @@ const REGIONAL_BUILDING_LAYERS = Object.freeze({
     cityType: "japanese",
     regionalOf: "Inn",
     sourceBase: "Northern European Inn",
+    // The Japanese inn is wider than the canonical inn. Keep its façade clear
+    // of the foreground market row while allowing its right eave to meet the
+    // gatehouse side naturally.
+    sceneOffsetX: 50,
     hasChimney: false
   }),
   "Japan Smith": Object.freeze({
@@ -472,7 +476,8 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
         ? regionalBuildingSpriteSourceSize({
             regionalFrame: standaloneFrame,
             sourceBaseFrame: visibleFrames.find((frame) => frame.layer === regional.sourceBase),
-            targetFrame: staticFrames.find((frame) => frame.layer === regional.regionalOf)
+            targetFrame: staticFrames.find((frame) => frame.layer === regional.regionalOf),
+            sceneOffsetX: regional.sceneOffsetX ?? 0
           })
         : standaloneFrame.spriteSourceSize;
       context.drawImage(
@@ -515,14 +520,22 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
   }
 }
 
-function regionalBuildingSpriteSourceSize({ regionalFrame, sourceBaseFrame, targetFrame }) {
+function regionalBuildingSpriteSourceSize({
+  regionalFrame,
+  sourceBaseFrame,
+  targetFrame,
+  sceneOffsetX = 0
+}) {
   if (!sourceBaseFrame || !targetFrame) {
     throw new Error(`Missing canonical source for regional building: ${regionalFrame.layer}`);
+  }
+  if (!Number.isInteger(sceneOffsetX)) {
+    throw new Error(`Invalid regional building scene offset: ${regionalFrame.layer}/${sceneOffsetX}`);
   }
   return {
     x: targetFrame.spriteSourceSize.x + (
       regionalFrame.spriteSourceSize.x - sourceBaseFrame.spriteSourceSize.x
-    ),
+    ) + sceneOffsetX,
     // Every regional variant shares the canonical scene ground line. Authored
     // source layers can trim one transparent row differently, which must not
     // make a replacement building hover or sink by a pixel in the quay scene.

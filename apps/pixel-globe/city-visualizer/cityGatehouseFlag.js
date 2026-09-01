@@ -1,14 +1,16 @@
 import { factionHasFlag } from "../src/factions.js";
 
 export const CITY_GATEHOUSE_FLAG_LAYER = "Far Castle";
-export const CITY_GATEHOUSE_FLAG_WIDTH = 14;
-export const CITY_GATEHOUSE_FLAG_HEIGHT = 9;
+export const CITY_GATEHOUSE_FLAG_SCALE = 2.5;
+export const CITY_GATEHOUSE_FLAG_WIDTH = Math.round(14 * CITY_GATEHOUSE_FLAG_SCALE);
+export const CITY_GATEHOUSE_FLAG_HEIGHT = Math.round(9 * CITY_GATEHOUSE_FLAG_SCALE);
 export const CITY_GATEHOUSE_FLAG_WAVE_SPEED_RAD_PER_MS = 0.002;
 
 const FAR_TOWER_CENTER_X = 45;
-const POLE_TOP_ABOVE_FRAME = 15;
+const FLAG_BOTTOM_CLEARANCE_ABOVE_FRAME = 4;
+const FLAG_TOP_ABOVE_FRAME = CITY_GATEHOUSE_FLAG_HEIGHT + FLAG_BOTTOM_CLEARANCE_ABOVE_FRAME;
+const POLE_TOP_ABOVE_FRAME = FLAG_TOP_ABOVE_FRAME + 2;
 const POLE_BOTTOM_BELOW_FRAME_TOP = 20;
-const FLAG_TOP_ABOVE_FRAME = 13;
 
 export function cityGatehouseFlagVisible({ fortified, factionId }) {
   if (typeof fortified !== "boolean") {
@@ -37,7 +39,8 @@ export function cityGatehouseFlagGeometry(frame) {
     flagX: poleX + 1,
     flagY: frame.spriteSourceSize.y - FLAG_TOP_ABOVE_FRAME,
     flagWidth: CITY_GATEHOUSE_FLAG_WIDTH,
-    flagHeight: CITY_GATEHOUSE_FLAG_HEIGHT
+    flagHeight: CITY_GATEHOUSE_FLAG_HEIGHT,
+    waveAmplitudeScale: CITY_GATEHOUSE_FLAG_SCALE
   });
 }
 

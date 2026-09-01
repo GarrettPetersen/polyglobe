@@ -1503,7 +1503,11 @@ function drawGatehouseFlag(frame, timeMs) {
   const pose = flagWindPose(state.wind.flowDirectionRad, state.wind.strength);
   const layout = flagFabricColumnLayout(geometry.flagWidth, geometry.flagHeight, pose);
   const phase = cityGatehouseFlagPhase(prefersReducedMotion.matches ? 0 : timeMs) * pose.waveRate;
-  const columnOffsets = flagWaveColumnOffsets(layout.fabricWidth, phase, pose.waveAmplitudePx);
+  const columnOffsets = flagWaveColumnOffsets(
+    layout.fabricWidth,
+    phase,
+    pose.waveAmplitudePx * geometry.waveAmplitudeScale
+  );
   const destinationY = Math.round(geometry.flagY - window.y);
   for (let column = 0; column < layout.fabricWidth; column++) {
     const columnLayout = layout.columns[column];

@@ -173,6 +173,22 @@ test("exported East Asian buildings preserve their authored roles and scene grou
   }
 });
 
+test("the wider Japanese inn clears the foreground market façades", () => {
+  const japaneseInn = EXPORTED_FRAMES.find(({ layer }) => layer === "Japan Inn");
+  const foregroundStalls = EXPORTED_FRAMES.filter((frame) => (
+    frame.layer.startsWith("Market Stall") && frame.spriteSourceSize.y >= 500
+  ));
+  assert.ok(japaneseInn);
+  assert.ok(foregroundStalls.length >= 3);
+  const marketRight = Math.max(...foregroundStalls.map((frame) => (
+    frame.spriteSourceSize.x + frame.spriteSourceSize.w
+  )));
+  assert.ok(
+    japaneseInn.spriteSourceSize.x >= marketRight,
+    `Japanese inn façade starts at ${japaneseInn.spriteSourceSize.x}, before market edge ${marketRight}`
+  );
+});
+
 test("exported Middle Eastern fortifications keep the shared pieces grounded and joined", () => {
   for (const [baseLayer, regionalLayer] of [
     ["Far Castle", "Middle East Far Wall"],

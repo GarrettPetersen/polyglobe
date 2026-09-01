@@ -5,11 +5,16 @@ import test from "node:test";
 import { cityRegionalBuildingFrame } from "./cityRegionalBuildings.js";
 import {
   CITY_GATEHOUSE_FLAG_HEIGHT,
+  CITY_GATEHOUSE_FLAG_SCALE,
   CITY_GATEHOUSE_FLAG_WIDTH,
   cityGatehouseFlagGeometry,
   cityGatehouseFlagPhase,
   cityGatehouseFlagVisible
 } from "./cityGatehouseFlag.js";
+import {
+  flagFabricColumnLayout,
+  flagWindPose
+} from "../src/flagAnimation.js";
 
 const FRAMES = JSON.parse(readFileSync(
   new URL("./assets/port-parallax/manifest.json", import.meta.url),
@@ -36,8 +41,25 @@ test("the national flag stays attached to the far tower across regional variants
   );
   assert.equal(middleEasternGeometry.flagWidth, CITY_GATEHOUSE_FLAG_WIDTH);
   assert.equal(middleEasternGeometry.flagHeight, CITY_GATEHOUSE_FLAG_HEIGHT);
+  assert.equal(middleEasternGeometry.waveAmplitudeScale, CITY_GATEHOUSE_FLAG_SCALE);
+  assert.ok(CITY_GATEHOUSE_FLAG_WIDTH >= 14 * 2 && CITY_GATEHOUSE_FLAG_WIDTH <= 14 * 3);
+  assert.ok(CITY_GATEHOUSE_FLAG_HEIGHT >= 9 * 2 && CITY_GATEHOUSE_FLAG_HEIGHT <= 9 * 3);
   assert.ok(middleEasternGeometry.flagY < middleEastern.spriteSourceSize.y);
   assert.ok(middleEasternGeometry.poleBottomY > middleEastern.spriteSourceSize.y);
+});
+
+test("the enlarged gatehouse flag keeps the shared wind flip and fabric deformation", () => {
+  const eastward = flagWindPose(0, 1);
+  const westward = flagWindPose(Math.PI, 1);
+  assert.equal(eastward.flyDirection, 1);
+  assert.equal(westward.flyDirection, -1);
+  const layout = flagFabricColumnLayout(
+    CITY_GATEHOUSE_FLAG_WIDTH,
+    CITY_GATEHOUSE_FLAG_HEIGHT,
+    eastward
+  );
+  assert.equal(layout.fabricWidth, CITY_GATEHOUSE_FLAG_WIDTH);
+  assert.equal(layout.columns[0].height, CITY_GATEHOUSE_FLAG_HEIGHT);
 });
 
 test("gatehouse flag motion is deterministic and validates time", () => {
