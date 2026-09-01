@@ -491,7 +491,7 @@ test("Middle Eastern skyline generation uses the three completed regional buildi
   assert.deepEqual(cityBackgroundFlyingBuildings(rows), []);
 });
 
-test("Ming and Joseon skylines replace both Northern homes with the shared Chinese home", () => {
+test("Ming and Joseon skylines use the authored Chinese home, inn, and smith", () => {
   const city = {
     ...LONDON,
     id: "nanjing|china",
@@ -513,6 +513,11 @@ test("Ming and Joseon skylines replace both Northern homes with the shared Chine
   ));
   assert.ok(housing.length > 0);
   assert.ok(housing.every(({ frame: source }) => source.layer === "China Home"));
+  const layers = new Set(buildings.map(({ frame: source }) => source.layer));
+  assert.ok(layers.has("China Inn"));
+  assert.ok(layers.has("China Smith"));
+  assert.ok(!layers.has("Inn"));
+  assert.ok(!layers.has("Smith"));
   assert.deepEqual(cityBackgroundFlyingBuildings(layout({
     city,
     frames: EXPORTED_BUILDING_FRAMES,

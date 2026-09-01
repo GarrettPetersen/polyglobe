@@ -12,8 +12,8 @@ count separately because the visualizer positions and draws them independently.
 - **10 authored pieces per regional kit**: two homes, five other buildings, and
   three fortification sections.
 - **6 initial regional kits = 60 normal-state coverage slots.**
-- **49 slots are resolved** by authored art, a documented shared sprite/palette
-  swap, or a deliberate omission. **11 normal-state slots still need art.**
+- **57 slots are resolved** by authored art, a documented shared sprite/palette
+  swap, or a deliberate omission. **3 normal-state slots still need art.**
 - Bombardment is a **single procedural rendering system**, not another 60
   hand-drawn slots. Door, fire, smoke, gate-opening, and exceptional collapsed
   states are not included in the building count.
@@ -28,9 +28,9 @@ region.
 | Mediterranean | 10 | 0 |
 | Middle Eastern | 9 | 1 |
 | Primitive / village | 10 | 0 |
-| Chinese / Korean | 4 | 6 |
-| Japanese | 6 | 4 |
-| **Total** | **49** | **11** |
+| Chinese / Korean | 9 | 1 |
+| Japanese | 9 | 1 |
+| **Total** | **57** | **3** |
 
 Checklist labels are intentional:
 
@@ -39,20 +39,19 @@ Checklist labels are intentional:
   documented runtime palette swap.
 - **OMIT** means we have decided not to draw or display that building for this
   kit. It still counts as resolved world-coverage behavior.
-- **DRAW** is one of the 11 pieces still required for the initial 60-slot pass.
-- **LATER** is outside the initial 60 and does not count toward the 11.
+- **DRAW** is one of the 3 pieces still required for the initial 60-slot pass.
+- **LATER** is outside the initial 60 and does not count toward the 3.
 
 ## What needs drawing now
 
-1. **Middle Eastern Home B** — one alternate flat-roofed home. This completes
-   the Middle Eastern kit.
-2. **Chinese / Korean kit — 6 pieces:** Home B, inn, smith, far wall,
-   gatehouse, and near wall.
-3. **Japanese kit — 4 pieces:** Home B, far wall, gatehouse, and near wall.
+1. **Middle Eastern Home B** — one alternate flat-roofed home.
+2. **Chinese / Korean Home B** — one alternate home using the shared tiled-roof
+   language.
+3. **Japanese Home B** — one alternate home using the Japanese timber-and-
+   plaster language.
 
-That is the complete **11-piece current art queue**. The Chinese/Korean and
-Japanese market stalls and shipyards are already covered by the shared global
-sprites.
+That is the complete **3-piece current art queue**. The Chinese/Korean and
+Japanese inns, smiths, fortifications, market stalls, and shipyards are complete.
 
 The market stall and shipyard are also global functional sprites. Their rough
 timber construction is culturally neutral at this scale: the market is a simple
@@ -204,14 +203,14 @@ thatch without blocking the first world-coverage pass.
 
 - [x] Home A — **AUTHORED**, shared by Ming Chinese and Joseon Korean cities
 - [ ] Home B — **DRAW**
-- [ ] Inn — **DRAW**
-- [ ] Item store / smith — **DRAW**
+- [x] Inn — **AUTHORED**
+- [x] Item store / smith — **AUTHORED**
 - [x] Market stall — **SHARED**, global timber market stall
 - [x] Shipyard — **SHARED**, global timber shipyard
 - [x] Temple or shrine — **AUTHORED** Ming pagoda for China; Joseon provisionally uses the square Japanese silhouette at skyline scale
-- [ ] Far castle wall — **DRAW**
-- [ ] Gatehouse / gate — **DRAW**
-- [ ] Near castle wall — **DRAW**
+- [x] Far castle wall — **AUTHORED**
+- [x] Gatehouse / gate — **AUTHORED**
+- [x] Near castle wall — **AUTHORED**
 
 ## Japanese
 
@@ -226,9 +225,9 @@ fortifications need distinct silhouettes rather than a palette swap.
 - [x] Market stall — **SHARED**, global timber market stall
 - [x] Shipyard — **SHARED**, global timber shipyard
 - [x] Buddhist temple or Shinto shrine — **AUTHORED** as the Japanese pagoda and wired into deep city skylines
-- [ ] Far castle wall — **DRAW**
-- [ ] Gatehouse / gate — **DRAW**
-- [ ] Near castle wall — **DRAW**
+- [x] Far castle wall — **AUTHORED**
+- [x] Gatehouse / gate — **AUTHORED**
+- [x] Near castle wall — **AUTHORED**
 
 ## Art we have explicitly decided not to draw
 

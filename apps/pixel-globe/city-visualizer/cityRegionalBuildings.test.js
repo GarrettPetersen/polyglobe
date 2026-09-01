@@ -29,12 +29,17 @@ const FRAMES = Object.freeze([
   frame("Earthen Hut", { cityType: "earthen-village", regionalOf: "Home", hasChimney: false }),
   frame("Earthen Hut Large", { cityType: "earthen-village", regionalOf: "Home 2", hasChimney: false }),
   frame("China Home", { cityType: "east-asian", regionalOf: "Home", hasChimney: false }),
+  frame("China Inn", { cityType: "east-asian", regionalOf: "Inn", hasChimney: false }),
+  frame("China Smith", { cityType: "east-asian", regionalOf: "Smith", hasChimney: false }),
   frame("China Gate Far", { cityType: "east-asian", regionalOf: "Far Castle", hasChimney: false }),
   frame("China Gateway", { cityType: "east-asian", regionalOf: "Gate", hasChimney: false }),
   frame("China Gate Near", { cityType: "east-asian", regionalOf: "Near Castle", hasChimney: false }),
   frame("Japan Home", { cityType: "japanese", regionalOf: "Home", hasChimney: false }),
   frame("Japan Inn", { cityType: "japanese", regionalOf: "Inn", hasChimney: false }),
-  frame("Japan Smith", { cityType: "japanese", regionalOf: "Smith", hasChimney: false })
+  frame("Japan Smith", { cityType: "japanese", regionalOf: "Smith", hasChimney: false }),
+  frame("Japan Gate Far", { cityType: "japanese", regionalOf: "Far Castle", hasChimney: false }),
+  frame("Japan Gateway", { cityType: "japanese", regionalOf: "Gate", hasChimney: false }),
+  frame("Japan Gate Near", { cityType: "japanese", regionalOf: "Near Castle", hasChimney: false })
 ]);
 
 const PORT_MANIFEST = JSON.parse(readFileSync(
@@ -103,11 +108,16 @@ test("earthen villages select the small and large hut for the two housing roles"
   assert.ok(selected.every(({ hasChimney }) => hasChimney === false));
 });
 
-test("Ming and Joseon cities share the Chinese home for both current housing roles", () => {
-  const selected = ["Home", "Home 2"].map((baseLayer) => (
+test("Ming and Joseon cities use their authored home, inn, and smith", () => {
+  const selected = ["Home", "Home 2", "Inn", "Smith"].map((baseLayer) => (
     cityRegionalBuildingFrame(FRAMES, "east-asian", baseLayer)
   ));
-  assert.deepEqual(selected.map(({ layer }) => layer), ["China Home", "China Home"]);
+  assert.deepEqual(selected.map(({ layer }) => layer), [
+    "China Home",
+    "China Home",
+    "China Inn",
+    "China Smith"
+  ]);
   assert.equal(selected[1].regionalOf, "Home 2");
   assert.ok(selected.every(({ hasChimney }) => hasChimney === false));
 });
@@ -124,15 +134,18 @@ test("Ming and Joseon cities use the authored Chinese gatehouse", () => {
   assert.ok(selected.every(({ hasChimney }) => hasChimney === false));
 });
 
-test("Japanese cities use the authored home, inn, and smith without Northern fallbacks", () => {
-  const selected = ["Home", "Home 2", "Inn", "Smith"].map((baseLayer) => (
+test("Japanese cities use the complete authored kit except for Home B", () => {
+  const selected = ["Home", "Home 2", "Inn", "Smith", "Far Castle", "Gate", "Near Castle"].map((baseLayer) => (
     cityRegionalBuildingFrame(FRAMES, "japanese", baseLayer)
   ));
   assert.deepEqual(selected.map(({ layer }) => layer), [
     "Japan Home",
     "Japan Home",
     "Japan Inn",
-    "Japan Smith"
+    "Japan Smith",
+    "Japan Gate Far",
+    "Japan Gateway",
+    "Japan Gate Near"
   ]);
   assert.ok(selected.every(({ hasChimney }) => hasChimney === false));
 });
@@ -151,12 +164,17 @@ test("regional frames preserve their logical building roles", () => {
     ["Earthen Hut", "Home"],
     ["Earthen Hut Large", "Home 2"],
     ["China Home", "Home"],
+    ["China Inn", "Inn"],
+    ["China Smith", "Smith"],
     ["China Gate Far", "Far Castle"],
     ["China Gateway", "Gate"],
     ["China Gate Near", "Near Castle"],
     ["Japan Home", "Home"],
     ["Japan Inn", "Inn"],
-    ["Japan Smith", "Smith"]
+    ["Japan Smith", "Smith"],
+    ["Japan Gate Far", "Far Castle"],
+    ["Japan Gateway", "Gate"],
+    ["Japan Gate Near", "Near Castle"]
   ]) {
     assert.equal(cityBuildingLogicalLayer(FRAMES.find((frame) => frame.layer === layer)), logicalLayer);
   }
@@ -180,26 +198,29 @@ test("exported earthen huts preserve the two housing ground lines", () => {
   }
 });
 
-test("regional fortifications preserve Northern geometry where no replacement is authored", () => {
-  for (const cityType of ["mediterranean", "japanese"]) {
-    assert.deepEqual(
-      ["Far Castle", "Gate", "Near Castle"].map((baseLayer) => (
-        cityRegionalBuildingFrame(FRAMES, cityType, baseLayer).layer
-      )),
-      ["Far Castle", "Gate", "Near Castle"]
-    );
-  }
+test("Mediterranean fortifications preserve Northern geometry", () => {
+  assert.deepEqual(
+    ["Far Castle", "Gate", "Near Castle"].map((baseLayer) => (
+      cityRegionalBuildingFrame(FRAMES, "mediterranean", baseLayer).layer
+    )),
+    ["Far Castle", "Gate", "Near Castle"]
+  );
 });
 
 test("exported East Asian buildings preserve their authored roles and scene ground lines", () => {
   for (const [cityType, baseLayer, regionalLayer] of [
     ["east-asian", "Home", "China Home"],
+    ["east-asian", "Inn", "China Inn"],
+    ["east-asian", "Smith", "China Smith"],
     ["east-asian", "Far Castle", "China Gate Far"],
     ["east-asian", "Gate", "China Gateway"],
     ["east-asian", "Near Castle", "China Gate Near"],
     ["japanese", "Home", "Japan Home"],
     ["japanese", "Inn", "Japan Inn"],
-    ["japanese", "Smith", "Japan Smith"]
+    ["japanese", "Smith", "Japan Smith"],
+    ["japanese", "Far Castle", "Japan Gate Far"],
+    ["japanese", "Gate", "Japan Gateway"],
+    ["japanese", "Near Castle", "Japan Gate Near"]
   ]) {
     const base = EXPORTED_FRAMES.find(({ layer }) => layer === baseLayer);
     const regional = EXPORTED_FRAMES.find(({ layer }) => layer === regionalLayer);
@@ -278,6 +299,32 @@ test("exported Chinese fortifications keep the shared pieces grounded and joined
     );
     assert.equal(
       cityRegionalBuildingFrame(EXPORTED_FRAMES, "east-asian", baseLayer).layer,
+      regionalLayer
+    );
+  }
+});
+
+test("exported Japanese fortifications keep the shared pieces grounded and joined", () => {
+  for (const [baseLayer, regionalLayer] of [
+    ["Far Castle", "Japan Gate Far"],
+    ["Gate", "Japan Gateway"],
+    ["Near Castle", "Japan Gate Near"]
+  ]) {
+    const base = EXPORTED_FRAMES.find(({ layer }) => layer === baseLayer);
+    const regional = EXPORTED_FRAMES.find(({ layer }) => layer === regionalLayer);
+
+    assert.ok(base, `missing exported base frame ${baseLayer}`);
+    assert.ok(regional, `missing exported regional frame ${regionalLayer}`);
+    assert.equal(regional.cityType, "japanese");
+    assert.equal(regional.regionalOf, baseLayer);
+    assert.equal(regional.spriteSourceSize.x, base.spriteSourceSize.x);
+    assert.equal(
+      regional.spriteSourceSize.y + regional.spriteSourceSize.h,
+      base.spriteSourceSize.y + base.spriteSourceSize.h,
+      `${regionalLayer} must retain ${baseLayer}'s ground line`
+    );
+    assert.equal(
+      cityRegionalBuildingFrame(EXPORTED_FRAMES, "japanese", baseLayer).layer,
       regionalLayer
     );
   }

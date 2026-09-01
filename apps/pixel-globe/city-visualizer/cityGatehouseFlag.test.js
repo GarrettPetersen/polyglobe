@@ -31,11 +31,13 @@ test("the national flag stays attached to the far tower across regional variants
   const northern = FRAMES.find(({ layer }) => layer === "Far Castle");
   const middleEastern = cityRegionalBuildingFrame(FRAMES, "islamic-desert", "Far Castle");
   const chinese = cityRegionalBuildingFrame(FRAMES, "east-asian", "Far Castle");
+  const japanese = cityRegionalBuildingFrame(FRAMES, "japanese", "Far Castle");
   const northernGeometry = cityGatehouseFlagGeometry(northern);
 
   assert.equal(middleEastern.layer, "Middle East Far Wall");
   assert.equal(chinese.layer, "China Gate Far");
-  for (const regional of [middleEastern, chinese]) {
+  assert.equal(japanese.layer, "Japan Gate Far");
+  for (const regional of [middleEastern, chinese, japanese]) {
     const regionalGeometry = cityGatehouseFlagGeometry(regional);
     assert.equal(regionalGeometry.poleX, northernGeometry.poleX);
     assert.equal(
