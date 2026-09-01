@@ -93,6 +93,7 @@ import {
   CREW_HIRE_COST,
   CUSTOM_LOADOUT_ID,
   FOOD_RATIONS_PER_HOLD_UNIT,
+  SHIP_LOADOUT_PRESETS,
   WATER_PERSON_DAYS_PER_UNIT,
   WATER_RESTOCK_COST,
   balancedProvisionTargets,
@@ -413,6 +414,10 @@ import {
   roanokeCluesAboard,
   validateColonizationQuestMemory
 } from "./colonizationQuest.js";
+import {
+  COLONIZATION_TARGETS,
+  colonizationTargetPortId
+} from "./colonialCities.js";
 import {
   CARGO_SPACE_TICKS_PER_UNIT,
   availableCargoTicks,
@@ -6490,6 +6495,30 @@ export function capturePortMissionEligibility(state) {
   };
 }
 
+export function capturePortMissionLoadoutRecommendation(state, stats) {
+  assertGameState(state);
+  const eligibility = capturePortMissionEligibility(state);
+  if (!state.ship || eligibility.eligible || !eligibility.largeWarship) return null;
+
+  const effectiveStats = requirePlayerShipState(state, stats);
+  const minimumCrew = permanentCrewFloor(state);
+  const currentPlan = selectedShipLoadoutPlan(state, effectiveStats, { minimumCrew });
+  if (loadoutPlanSupportsCaptureMission(currentPlan, eligibility)) return null;
+
+  for (const preset of SHIP_LOADOUT_PRESETS) {
+    if (preset.id === state.ship.loadoutId) continue;
+    const plan = shipLoadoutPlan(effectiveStats, preset.id, { minimumCrew });
+    if (loadoutPlanSupportsCaptureMission(plan, eligibility)) {
+      return Object.freeze({ loadoutId: preset.id, label: preset.label, plan });
+    }
+  }
+  return null;
+}
+
+function loadoutPlanSupportsCaptureMission(plan, eligibility) {
+  return plan.cannons >= eligibility.minimumCannons && plan.crew >= eligibility.minimumCrew;
+}
+
 export function capturePortMissionOfferForCity(state, city, portCities, context = {}) {
   assertGameState(state);
   if (!Array.isArray(portCities)) throw new Error("Capture-port missions require a port list");
@@ -8058,13 +8087,19 @@ function reconcileCourtPoliticsIdentities(state, portCities, legacyPortTileIds) 
 // current state continues to store the city's canonical cityId.
 function legacyRuntimePortAliases(portCities) {
   const aliases = new Map();
+  const addAlias = (portId, cityId) => {
+    const previous = aliases.get(portId);
+    if (previous && previous !== cityId) {
+      throw new Error(`Legacy port id ${portId} names multiple canonical cities`);
+    }
+    aliases.set(portId, cityId);
+  };
   for (const city of portCities) {
     if (typeof city.portId !== "string" || city.portId === "") continue;
-    const previous = aliases.get(city.portId);
-    if (previous && previous !== city.cityId) {
-      throw new Error(`Legacy port id ${city.portId} names multiple canonical cities`);
-    }
-    aliases.set(city.portId, city.cityId);
+    addAlias(city.portId, city.cityId);
+  }
+  for (const target of COLONIZATION_TARGETS) {
+    addAlias(colonizationTargetPortId(target), target.cityId);
   }
   return aliases;
 }
@@ -8195,7 +8230,11 @@ function reconcilePortConquestIdentities(state, portCities, legacyPortTileIds) {
 export function reconcileQuestWorldAssumptions(state, portCities, options = {}) {
   assertGameState(state);
   if (!Array.isArray(portCities)) throw new Error("Quest world reconciliation requires a port list");
-  const endpointUpdates = reconcileQuestPortTiles(state, portCities, options);
+  const identityCities = options.identityCities ?? portCities;
+  if (!Array.isArray(identityCities)) {
+    throw new Error("Quest world reconciliation requires an identity city list");
+  }
+  const endpointUpdates = reconcileQuestPortTiles(state, identityCities, options);
   const quests = questMemory(state);
   const events = [];
 

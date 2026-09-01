@@ -20,6 +20,7 @@ import {
   conquistadorCompanyAssaultStatus,
   conquistadorCompanyReplenishmentPolicy,
   conquistadorCommissionedCaptureFactionId,
+  conquistadorEmbarkationShouldApproach,
   conquistadorFetchRequirementId,
   conquistadorQuestAvailable,
   conquistadorQuestDestination,
@@ -97,6 +98,9 @@ test("the Spanish expedition gathers partially delivered supplies before commiss
     completeConquistadorFetchStage(memory, remaining.id);
   }
   assert.equal(memory.stage, CONQUISTADOR_STAGE_READY);
+  assert.equal(conquistadorEmbarkationShouldApproach(memory, origin, true), true);
+  assert.equal(conquistadorEmbarkationShouldApproach(memory, origin, false), false);
+  assert.equal(conquistadorEmbarkationShouldApproach(memory, ports[1], true), false);
   assert.throws(
     () => beginConquistadorExpedition(memory, { eligible: false }),
     /conquest-capable ship/

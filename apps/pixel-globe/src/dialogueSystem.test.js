@@ -5958,10 +5958,10 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   const ports = [panama, chanChan, cuzco, cartagena];
   const stats = shipStatsForSlug("galleon");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
-  gameState.ship.cannons = 8;
-  gameState.ship.crew = 36;
+  gameState.doubloons = 10_000;
+  restockShipLoadoutAtPort(gameState, panama, stats, "short-haul", { simMinute: 0 });
   const economy = createWorldEconomy({ ports, startMinute: 0 });
-  const context = { portCities: ports, simMinute: 100 };
+  const context = { portCities: ports, simMinute: 100, shipStats: stats };
   const proactiveArrival = createPortArrivalDialogueSession(panama, {
     conquistadorApproach: true
   });
@@ -5995,7 +5995,24 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
 
   view = portDialogueView(session, panama, gameState, economy, ports, context);
   assert.match(view.text, /notary.*chaplain.*every man counted his share/s);
-  const embarkIndex = view.options.findIndex(
+  let embarkIndex = view.options.findIndex(
+    (entry) => entry.action.type === "begin-conquistador-expedition"
+  );
+  assert.equal(view.options[embarkIndex].disabled, true);
+  const switchIndex = view.options.findIndex(
+    (entry) => entry.action.type === "select-loadout"
+  );
+  assert.equal(view.options[switchIndex].label, "Switch to Combat focused");
+  const loadoutArrival = createPortArrivalDialogueSession(panama, {
+    conquistadorEmbarkationApproach: true
+  });
+  assert.equal(loadoutArrival.nodeId, "conquistador");
+  assert.equal(loadoutArrival.conquistadorEmbarkationApproached, true);
+  selectPortDialogueOption(session, panama, gameState, economy, ports, switchIndex, context);
+  assert.equal(gameState.ship.loadoutId, "combat");
+  assert.equal(session.nodeId, "conquistador");
+  view = portDialogueView(session, panama, gameState, economy, ports, context);
+  embarkIndex = view.options.findIndex(
     (entry) => entry.action.type === "begin-conquistador-expedition"
   );
   assert.equal(view.options[embarkIndex].disabled, false);
@@ -6010,6 +6027,28 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   );
   assert.equal(gameState.memory.quests.conquistador.stage, CONQUISTADOR_STAGE_CAPTURE);
   assert.ok(embarked.conquistadorDiplomacyEvents.length > 0);
+
+  const attack = playerPortAttackStatus(gameState, chanChan);
+  assert.equal(attack.mode, "conquest");
+  assert.equal(attack.captureFactionId, "spain");
+  assert.equal(attack.piracy, false);
+  const landingSession = createPortDialogueSession(chanChan, { initialNodeId: "barred" });
+  const landingView = portDialogueView(landingSession, chanChan, gameState, economy, ports, {
+    ...context,
+    portEntryStatus: portEntryStatus(gameState, chanChan, context.simMinute),
+    portRecoveryStatus: { attackerShipLabel: "your ship", disabledUntilMinute: 3000, daysRemaining: 2 },
+    portAttackStatus: attack,
+    portConquestStatus: {
+      canAttempt: true,
+      playerAssaultActive: true,
+      successPercent: 79,
+      capital: false,
+      conquistadorCompany: { ready: true }
+    }
+  });
+  assert.match(landingView.text, /conquistadors are lowering their boats/i);
+  assert.match(landingView.text, /Spanish Trujillo.*march inland toward Cuzco/i);
+  assert.equal(landingView.options[0].label, "Land the conquistadors");
 
   view = portDialogueView(session, panama, gameState, economy, ports, context);
   assert.match(view.text, /royal seal.*cross.*Spain's peace/s);

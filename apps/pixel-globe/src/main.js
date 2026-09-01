@@ -419,6 +419,7 @@ import {
   consumePendingDiscoveryPortDialogue,
   advanceCapturePortMissionAfterConquest,
   capturePortMissionMatchesConquest,
+  capturePortMissionLoadoutRecommendation,
   capturePortMissionOfferForCity,
   createPortEntryStatusContext,
   createGameState,
@@ -1627,6 +1628,7 @@ import {
   CONQUISTADOR_STAGE_REWARD_READY,
   conquistadorCompanyAssaultStatus,
   conquistadorCompanyReplenishmentPolicy,
+  conquistadorEmbarkationShouldApproach,
   conquistadorFetchRequirementId,
   isConquistadorCompanyReplenishmentPort,
   conquistadorQuestDestination,
@@ -16499,7 +16501,7 @@ function applyCurrentPortConquestOwnership({
     gameState,
     currentPorts
   );
-  reconcileQuestWorldAssumptions(gameState, currentPorts);
+  reconcileQuestWorldAssumptions(gameState, currentPorts, { identityCities: allCities });
   if (colonizationOriginChange) {
     colonizationOrganizer = null;
     colonizationOrganizerQuestKey = null;
@@ -19507,6 +19509,7 @@ function continuePortArrivalDialogues() {
     () => maybeOpenShipyardArrivalDialogue(cityCall),
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
+    () => maybeOpenConquistadorEmbarkationDialogue(cityCall),
     () => maybeOpenConquistadorOfferDialogue(cityCall),
     () => maybeOpenQuestCargoDeliveryDialogue(cityCall),
     () => maybeOpenShipyardInvestmentOfferDialogue(cityCall),
@@ -20126,6 +20129,38 @@ function maybeOpenConquistadorOfferDialogue(cityCall) {
   return true;
 }
 
+function maybeOpenConquistadorEmbarkationDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.rumorText !== null ||
+      dialogueState.conquistadorEmbarkationApproached === true) {
+    return false;
+  }
+  const recommendation = conquistadorEmbarkationLoadoutRecommendation(cityCall);
+  if (!recommendation) return false;
+  ensureConquistadorQuestGiver(gameState);
+  dialogueState.conquistadorEmbarkationApproached = true;
+  dialogueState.conquistadorArrival = true;
+  dialogueState.nextPortNodeId = dialogueState.nodeId;
+  dialogueState.nodeId = "conquistador";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
+}
+
+function conquistadorEmbarkationLoadoutRecommendation(cityCall) {
+  const memory = gameState.memory.quests.conquistador;
+  if (!ship) return null;
+  const recommendation = capturePortMissionLoadoutRecommendation(
+    gameState,
+    currentPlayerEffectiveShipStats()
+  );
+  return conquistadorEmbarkationShouldApproach(memory, cityCall, recommendation !== null)
+    ? recommendation
+    : null;
+}
+
 function maybeOpenConquistadorRewardDialogue(cityCall) {
   if (!["greeting", "root"].includes(dialogueState.nodeId) || dialogueState.rumorText !== null ||
       dialogueState.conquistadorRewardApproached === true) {
@@ -20460,6 +20495,16 @@ function createOrdinaryPortArrivalSession(cityCall, needsLoadout, arrivedDrunk =
     });
   }
   const conquistadorMemory = gameState.memory.quests.conquistador;
+  const conquistadorEmbarkationLoadout = conquistadorEmbarkationLoadoutRecommendation(cityCall);
+  if (conquistadorEmbarkationLoadout && !openDeliveryMission) {
+    ensureConquistadorQuestGiver(gameState);
+    return createPortArrivalDialogueSession(cityCall, {
+      needsLoadout,
+      arrivedDrunk,
+      drunkVariant,
+      conquistadorEmbarkationApproach: true
+    });
+  }
   if (conquistadorQuestOfferShouldApproach(conquistadorMemory, cityCall, portCities) &&
       !openDeliveryMission) {
     ensureConquistadorQuestGiver(gameState);
@@ -21966,9 +22011,9 @@ function completePlayerPortConquest(
   if (conquistadorCapture) {
     openCharacterAlertModal(
       ensureConquistadorQuestGiver(gameState),
-      `Trujillo is ours. Keep the ${prize.amount} doubloons from the assault. ` +
-        "Have the notary record every chest. I march for Cuzco at dawn. Return in one year; " +
-        "God willing, your share will come from an empire.",
+      `Chan Chan has fallen. The company is ashore; Spain's flag flies over Trujillo. Keep the ` +
+        `${prize.amount} doubloons. I march for Cuzco at dawn. If I live to take the empire, word ` +
+        "will reach Trujillo; return then.",
       "happy"
     );
   } else {
@@ -32065,7 +32110,8 @@ function updateWorldDiplomacy() {
   } else {
     const questReconciliation = reconcileQuestWorldAssumptions(
       gameState,
-      playerAccessiblePortCities()
+      playerAccessiblePortCities(),
+      { identityCities: [...cityByTileId.values()] }
     );
     if (questReconciliation.events.length > 0) dirty = true;
   }

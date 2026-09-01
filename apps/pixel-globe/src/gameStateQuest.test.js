@@ -15,6 +15,7 @@ import {
   captureCommissionAutomaticOfferChance,
   captureCommissionPetitionOptionsForCity,
   capturePortMissionEligibility,
+  capturePortMissionLoadoutRecommendation,
   capturePortMissionOfferForCity,
   commissionedPortCaptureFactionId,
   completeQuest,
@@ -41,6 +42,7 @@ import {
 } from "./captureCommissionPriorities.js";
 import { PERK_ITEMS } from "./perkItems.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { shipLoadoutPlan } from "./shipLoadouts.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { NEUTRAL_FACTION_ID } from "./factions.js";
 import { PRE_NORTH_MALUKU_PORT_TILE_IDS } from "./portCatalogMigration.js";
@@ -425,7 +427,6 @@ test("court history resolves a dynamic colony port alias to its canonical city i
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const manila = {
     ...port(13, "Manila", "Philippines", "southeast-asian", "spain", 14.58, 121),
-    portId: "colony-manila-philippines",
     playerDevelopedPort: true
   };
   state.relations.courts.history.push({
@@ -436,12 +437,12 @@ test("court history resolves a dynamic colony port alias to its canonical city i
     kind: "royal-dispatch",
     targetFactionId: "spain",
     secondaryFactionId: null,
-    destinationCityId: manila.portId,
+    destinationCityId: "colony-manila-philippines",
     destinationName: "Manila",
     headline: "Spanish authority renewed at Manila",
     detail: "The court receives its officers' return."
   });
-  state.relations.courts.portServiceMinutes[manila.portId] = 22761;
+  state.relations.courts.portServiceMinutes["colony-manila-philippines"] = 22761;
 
   assert.equal(reconcileQuestPortTiles(state, [LISBON, manila]), 2);
   assert.equal(state.relations.courts.history[0].destinationCityId, manila.cityId);
@@ -449,6 +450,34 @@ test("court history resolves a dynamic colony port alias to its canonical city i
     [manila.cityId]: 22761
   });
   assert.equal(reconcileQuestPortTiles(state, [LISBON, manila]), 0);
+});
+
+test("conquistador inland transfers use the city catalog without entering port routing", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const panama = port(137225, "Panama City", "Panama", "latin-american", "spain", 8.98, -79.52);
+  const chanChan = port(134664, "Chanchan", "Peru", "andean", "spain", -8.11, -79.07);
+  const cuzco = port(134123, "Cuzco", "Peru", "andean", "inca", -13.53, -71.97);
+  Object.assign(state.memory.quests.conquistador, {
+    stage: "campaign",
+    offerSeen: true,
+    originCityId: panama.cityId,
+    originTileId: panama.tileId,
+    targetCityId: chanChan.cityId,
+    targetTileId: chanChan.tileId,
+    companyStrength: 0,
+    companyNeedsReplenishment: false,
+    capturedAtMinute: 100,
+    rewardReadyMinute: 1000,
+    transferSchedule: [{ cityId: cuzco.cityId, tileId: cuzco.tileId, simMinute: 900 }],
+    transferredCityIds: []
+  });
+
+  const result = reconcileQuestWorldAssumptions(state, [panama, chanChan], {
+    identityCities: [panama, chanChan, cuzco]
+  });
+
+  assert.equal(result.endpointUpdates, 0);
+  assert.equal(state.memory.quests.conquistador.transferSchedule[0].cityId, cuzco.cityId);
 });
 
 test("an allied capture recalls an active commission instead of leaving an impossible target", () => {
@@ -821,6 +850,31 @@ test("an active colonization expedition does not suppress a capital capture comm
   assert.equal(offer.kind, "capture-capital");
   assert.equal(offer.targetTileId, PARIS.tileId);
   assert.equal(state.memory.colonization.stage, "fetch");
+});
+
+test("capture missions recommend a preset only when the selected loadout is the blocker", () => {
+  const stats = shipStatsForSlug("galleon");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  const shortHaul = shipLoadoutPlan(stats, "short-haul");
+  state.ship.loadoutId = shortHaul.id;
+  state.ship.loadoutTargets = shortHaul;
+  state.ship.crew = shortHaul.crew;
+  state.ship.cannons = shortHaul.cannons;
+
+  const recommendation = capturePortMissionLoadoutRecommendation(state, stats);
+  const eligibility = capturePortMissionEligibility(state);
+  assert.equal(recommendation.loadoutId, "combat");
+  assert.ok(recommendation.plan.crew >= eligibility.minimumCrew);
+  assert.ok(recommendation.plan.cannons >= eligibility.minimumCannons);
+
+  const combat = shipLoadoutPlan(stats, "combat");
+  state.ship.loadoutId = combat.id;
+  state.ship.loadoutTargets = combat;
+  assert.equal(capturePortMissionLoadoutRecommendation(state, stats), null);
 });
 
 test("capture warrants require a letter of marque but may be issued before the ship is prepared", () => {

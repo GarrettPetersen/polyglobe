@@ -125,6 +125,50 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Chan Chan has fallen. The company is ashore; Spain's flag flies over Trujillo. Keep the {0} doubloons. I march for Cuzco at dawn. If I live to take the empire, word will reach Trujillo; return then.": Object.freeze({
+    "zh-Hans": "昌昌陷落了。部队已经登陆；西班牙旗帜飘扬在特鲁希略上空。留下这 {0} 枚达布隆。我黎明时向库斯科进军。若我能活着征服帝国，消息会传到特鲁希略；届时再回来。",
+    ru: "Чан-Чан пал. Отряд высадился; над Трухильо реет испанский флаг. Оставьте себе {0} дублонов. На рассвете я выступаю к Куско. Если доживу до покорения империи, в Трухильо придёт весть; тогда возвращайтесь.",
+    es: "Chan Chan ha caído. La compañía está en tierra; la bandera de España ondea sobre Trujillo. Conserva los {0} doblones. Marcho hacia Cuzco al amanecer. Si vivo para conquistar el imperio, la noticia llegará a Trujillo; vuelve entonces.",
+    "pt-BR": "Chan Chan caiu. A companhia está em terra; a bandeira da Espanha tremula sobre Trujillo. Fique com os {0} dobrões. Marcho para Cuzco ao amanhecer. Se eu viver para conquistar o império, a notícia chegará a Trujillo; volte então.",
+    ja: "チャン・チャンは陥落した。隊は上陸し、トルヒーリョにはスペインの旗が翻っている。{0}ダブロンは受け取れ。夜明けにクスコへ進軍する。生きて帝国を征服できたなら、報せはトルヒーリョに届く。その時に戻ってこい。",
+    de: "Chan Chan ist gefallen. Die Kompanie ist an Land; Spaniens Flagge weht über Trujillo. Behaltet die {0} Dublonen. Bei Tagesanbruch marschiere ich nach Cuzco. Wenn ich die Eroberung des Reiches erlebe, erreicht Trujillo die Kunde; kehrt dann zurück.",
+    fr: "Chan Chan est tombée. La compagnie a débarqué ; le drapeau espagnol flotte sur Trujillo. Gardez les {0} doublons. Je marche sur Cuzco à l’aube. Si je vis assez pour conquérir l’empire, la nouvelle parviendra à Trujillo ; revenez alors.",
+    pl: "Chan Chan upadło. Kompania zeszła na ląd; nad Trujillo powiewa hiszpańska flaga. Zatrzymajcie {0} dublonów. O świcie ruszam na Cuzco. Jeśli dożyję podboju imperium, wieść dotrze do Trujillo; wtedy wróćcie.",
+    "zh-Hant": "昌昌陷落了。部隊已經登陸；西班牙旗幟飄揚在特魯希略上空。留下這 {0} 枚達布隆。我黎明時向庫斯科進軍。若我能活著征服帝國，消息會傳到特魯希略；屆時再回來。",
+    ko: "찬찬은 함락되었다. 원정대는 상륙했고 트루히요에는 스페인 깃발이 나부낀다. {0}더블룬은 가져라. 나는 새벽에 쿠스코로 진군한다. 살아서 제국을 정복한다면 트루히요에 소식이 닿을 테니, 그때 돌아오라."
+  }),
+  "CREW {0} GUNS {1}": Object.freeze({
+    "zh-Hans": "船员 {0} 火炮 {1}", ru: "КОМАНДА {0} ПУШКИ {1}",
+    es: "TRIPULACIÓN {0} CAÑONES {1}", "pt-BR": "TRIPULAÇÃO {0} CANHÕES {1}",
+    ja: "乗組員 {0} 大砲 {1}", de: "MANNSCHAFT {0} KANONEN {1}",
+    fr: "ÉQUIPAGE {0} CANONS {1}", pl: "ZAŁOGA {0} DZIAŁA {1}",
+    "zh-Hant": "船員 {0} 火炮 {1}", ko: "선원 {0} 대포 {1}"
+  }),
+  "Land the conquistadors": Object.freeze({
+    "zh-Hans": "让征服者登陆", ru: "Высадить конкистадоров",
+    es: "Desembarcar a los conquistadores", "pt-BR": "Desembarcar os conquistadores",
+    ja: "コンキスタドールを上陸させる", de: "Konquistadoren an Land setzen",
+    fr: "Débarquer les conquistadors", pl: "Wysadzić konkwistadorów",
+    "zh-Hant": "讓征服者登陸", ko: "콩키스타도르를 상륙시킨다"
+  }),
+  "Switch to {0}": Object.freeze({
+    "zh-Hans": "切换为{0}", ru: "Переключиться на {0}", es: "Cambiar a {0}",
+    "pt-BR": "Mudar para {0}", ja: "{0}に切り替える", de: "Zu {0} wechseln",
+    fr: "Passer à {0}", pl: "Przełącz na {0}", "zh-Hant": "切換為{0}",
+    ko: "{0}(으)로 전환"
+  }),
+  "The harbor guns are silent. The conquistadors are lowering their boats. If the assault succeeds, Chan Chan will become Spanish Trujillo, and the company will march inland toward Cuzco.": Object.freeze({
+    "zh-Hans": "港口炮台已经沉默。征服者们正在放下小艇。如果进攻成功，昌昌将成为西班牙的特鲁希略，部队随后将向内陆进军库斯科。",
+    ru: "Портовые орудия умолкли. Конкистадоры спускают шлюпки. Если штурм удастся, Чан-Чан станет испанским Трухильо, а отряд двинется вглубь страны к Куско.",
+    es: "Los cañones del puerto han callado. Los conquistadores están arriando sus botes. Si el asalto triunfa, Chan Chan se convertirá en la Trujillo española y la compañía marchará tierra adentro hacia Cuzco.",
+    "pt-BR": "Os canhões do porto silenciaram. Os conquistadores estão baixando os botes. Se o ataque for bem-sucedido, Chan Chan se tornará a Trujillo espanhola, e a companhia marchará para o interior rumo a Cuzco.",
+    ja: "港の砲台は沈黙した。コンキスタドールたちがボートを降ろしている。襲撃が成功すれば、チャン・チャンはスペイン領トルヒーリョとなり、隊は内陸のクスコへ進軍する。",
+    de: "Die Hafengeschütze schweigen. Die Konquistadoren lassen ihre Boote zu Wasser. Gelingt der Sturm, wird Chan Chan zum spanischen Trujillo, und die Kompanie marschiert landeinwärts nach Cuzco.",
+    fr: "Les canons du port se sont tus. Les conquistadors mettent leurs chaloupes à l’eau. Si l’assaut réussit, Chan Chan deviendra la Trujillo espagnole et la compagnie marchera dans les terres vers Cuzco.",
+    pl: "Działa portowe umilkły. Konkwistadorzy opuszczają łodzie. Jeśli szturm się powiedzie, Chan Chan stanie się hiszpańskim Trujillo, a kompania pomaszeruje w głąb lądu ku Cuzco.",
+    "zh-Hant": "港口炮臺已經沉默。征服者們正在放下小艇。如果進攻成功，昌昌將成為西班牙的特魯希略，部隊隨後將向內陸進軍庫斯科。",
+    ko: "항구 포대가 침묵했다. 콩키스타도르들이 보트를 내리고 있다. 공격에 성공하면 찬찬은 스페인령 트루히요가 되고, 원정대는 내륙의 쿠스코로 진군한다."
+  }),
   ...reviewedShipyardListingOverrides(),
   ...reviewedPortFactorRecognitionOverrides(),
   ...reviewedTreasurePirateSearchOverrides(),

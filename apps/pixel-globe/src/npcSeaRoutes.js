@@ -983,6 +983,7 @@ export function createNpcSeaRouteStrategicSnapshotPlan(system) {
   return {
     version: 1,
     system,
+    destroyedReserveSlotIds: new Set(),
     phase: "ships",
     itemIndex: 0,
     snapshot: {
@@ -1025,8 +1026,20 @@ export function advanceNpcSeaRouteStrategicSnapshotPlan(plan, { maxItems = 12 } 
     for (; plan.itemIndex < end; plan.itemIndex++) {
       if (plan.phase === "ships") {
         const ship = source[plan.itemIndex];
-        reconcileNpcCargoCapacity(ship, "route snapshot");
-        target.push({ ...cloneJsonData(ship), visualNavigation: null });
+        const destroyedSlotId = destroyedCapitalNavalReserveSlotId(
+          ship,
+          system.capitalNavalReserveSlots,
+          "route snapshot"
+        );
+        if (destroyedSlotId !== null) {
+          plan.destroyedReserveSlotIds.add(destroyedSlotId);
+        } else {
+          reconcileNpcCargoCapacity(ship, "route snapshot");
+          target.push({ ...cloneJsonData(ship), visualNavigation: null });
+        }
+      } else if (plan.phase === "reserve-slots" &&
+          plan.destroyedReserveSlotIds.has(source[plan.itemIndex].id)) {
+        target.push(retiredCapitalNavalReserveSlot(source[plan.itemIndex]));
       } else {
         target.push(cloneJsonData(source[plan.itemIndex]));
       }
@@ -1047,6 +1060,7 @@ export function advanceNpcSeaRouteStrategicSnapshotPlan(plan, { maxItems = 12 } 
 
 function assertNpcSeaRouteStrategicSnapshotPlan(plan) {
   if (!plan || plan.version !== 1 || !plan.system || !plan.snapshot ||
+      !(plan.destroyedReserveSlotIds instanceof Set) ||
       !Number.isInteger(plan.itemIndex) || plan.itemIndex < 0 ||
       typeof plan.phase !== "string") {
     throw new Error("Invalid NPC strategic snapshot plan");
@@ -1211,6 +1225,8 @@ export function createNpcSeaRouteSimulationRestorePlan(
     currentReserveSlotsById,
     initialReserveSlotStateById,
     protectedReserveSlotIds,
+    destroyedReserveShipIds: new Set(),
+    destroyedReserveSlotIds: new Set(),
     phase: "snapshot-ships",
     itemIndex: 0,
     ships: [],
@@ -1242,8 +1258,21 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
               visualNavigation: plan.existingVisualNavigation.get(simulatedShip.id) || null
             };
         if (ship) {
-          plan.ships.push(ship);
-          plan.includedIds.add(ship.id);
+          const reserveSlots = plan.preservedIds.has(simulatedShip.id)
+            ? plan.system.capitalNavalReserveSlots
+            : plan.snapshot.capitalNavalReserveSlots;
+          const destroyedSlotId = destroyedCapitalNavalReserveSlotId(
+            ship,
+            reserveSlots,
+            "worker simulation"
+          );
+          if (destroyedSlotId !== null) {
+            plan.destroyedReserveShipIds.add(ship.id);
+            plan.destroyedReserveSlotIds.add(destroyedSlotId);
+          } else {
+            plan.ships.push(ship);
+            plan.includedIds.add(ship.id);
+          }
         }
         remaining--;
       }
@@ -1257,7 +1286,8 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
       const end = Math.min(currentShips.length, plan.itemIndex + remaining);
       for (; plan.itemIndex < end; plan.itemIndex++) {
         const ship = currentShips[plan.itemIndex];
-        if (plan.preservedIds.has(ship.id) && !plan.includedIds.has(ship.id)) {
+        if (plan.preservedIds.has(ship.id) && !plan.includedIds.has(ship.id) &&
+            !plan.destroyedReserveShipIds.has(ship.id)) {
           plan.ships.push(ship);
           plan.includedIds.add(ship.id);
         }
@@ -1323,11 +1353,16 @@ export function advanceNpcSeaRouteSimulationRestorePlan(plan, { maxItems = 12 } 
         const slot = slots[plan.itemIndex];
         if (!plan.protectedReserveSlotIds.has(slot.id) ||
             plan.currentReserveSlotsById.has(slot.id)) {
-          plan.reserveSlots.push(validateCapitalNavalReserveSlot({
+          const restoredSlot = {
             ...(plan.protectedReserveSlotIds.has(slot.id)
               ? plan.currentReserveSlotsById.get(slot.id)
               : slot)
-          }));
+          };
+          plan.reserveSlots.push(validateCapitalNavalReserveSlot(
+            plan.destroyedReserveSlotIds.has(slot.id)
+              ? retiredCapitalNavalReserveSlot(restoredSlot)
+              : restoredSlot
+          ));
         }
         remaining--;
       }
@@ -1362,6 +1397,8 @@ function assertNpcSeaRouteSimulationRestorePlan(plan) {
       !(plan.currentShipById instanceof Map) || !(plan.currentReserveSlotsById instanceof Map) ||
       !(plan.initialReserveSlotStateById instanceof Map) ||
       !(plan.protectedReserveSlotIds instanceof Set) || !Array.isArray(plan.ships) ||
+      !(plan.destroyedReserveShipIds instanceof Set) ||
+      !(plan.destroyedReserveSlotIds instanceof Set) ||
       !(plan.includedIds instanceof Set) || !(plan.shipById instanceof Map) ||
       !(plan.danger instanceof Map) || !Array.isArray(plan.reserveSlots) ||
       !Number.isInteger(plan.itemIndex) || plan.itemIndex < 0 || typeof plan.phase !== "string") {
@@ -1371,7 +1408,9 @@ function assertNpcSeaRouteSimulationRestorePlan(plan) {
 
 function refreshLocallyAuthoritativeNpcRestoreState(plan) {
   const liveSlotsById = new Map(plan.system.capitalNavalReserveSlots.map((slot) => [slot.id, slot]));
-  const authoritativeSlotIds = new Set(plan.protectedReserveSlotIds);
+  const authoritativeSlotIds = new Set(
+    [...plan.protectedReserveSlotIds].filter((slotId) => !plan.destroyedReserveSlotIds.has(slotId))
+  );
   for (const [slotId, initialSlot] of plan.initialReserveSlotStateById) {
     const liveSlot = liveSlotsById.get(slotId);
     if (!liveSlot || !capitalNavalReserveSlotStatesMatch(liveSlot, initialSlot)) {
@@ -1386,7 +1425,9 @@ function refreshLocallyAuthoritativeNpcRestoreState(plan) {
     .filter((ship) => !plan.initialShipIds.has(ship.id))
     .map((ship) => ship.id));
   const authoritativeShipIds = new Set([...plan.preservedIds, ...liveAddedShipIds]);
+  for (const shipId of plan.destroyedReserveShipIds) authoritativeShipIds.delete(shipId);
   for (const ship of plan.system.ships) {
+    if (plan.destroyedReserveShipIds.has(ship.id)) continue;
     if (liveAddedShipIds.has(ship.id) && ship.capitalNavalReserveSlotId !== null) {
       authoritativeSlotIds.add(ship.capitalNavalReserveSlotId);
     }
@@ -1630,6 +1671,34 @@ function reconcileRestoredNpcShip(ship, context) {
   ship.maxHitPoints = reconciledHull.maxHitPoints;
   reconcileNpcCargoCapacity(ship, context);
   return ship;
+}
+
+function destroyedCapitalNavalReserveSlotId(ship, reserveSlots, context) {
+  if (ship?.hitPoints !== 0) return null;
+  if (!Number.isFinite(ship.maxHitPoints) || ship.maxHitPoints <= 0) {
+    throw new Error(`Invalid restored NPC hull: ${ship?.id}`);
+  }
+  if (ship.capitalNavalReserveSlotId === null || ship.capitalNavalReserveSlotId === undefined ||
+      ship.replaceOnSink !== false) {
+    throw new Error(`Destroyed ${context} NPC ship was not retired: ${ship.id}`);
+  }
+  const slot = reserveSlots.find((candidate) => candidate.id === ship.capitalNavalReserveSlotId);
+  if (!slot || slot.activeShipId !== ship.id) {
+    throw new Error(`Destroyed capital reserve ship does not match its slot: ${ship.id}`);
+  }
+  return slot.id;
+}
+
+function retiredCapitalNavalReserveSlot(slot) {
+  return clearCapitalNavalReserveSlot(cloneJsonData(slot));
+}
+
+function clearCapitalNavalReserveSlot(slot) {
+  slot.activeShipId = null;
+  slot.shipSlug = null;
+  slot.stockedMinute = null;
+  slot.sourceSaleId = null;
+  return slot;
 }
 
 function migrateNpcRouteFactionsTo1522(ships, replacementQueue) {
@@ -3146,10 +3215,7 @@ function removeNpcShipForReplacement(system, ship, clockMinutes) {
       if (slot.activeShipId !== ship.id) {
         throw new Error(`Capital naval reserve slot lost the wrong ship: ${ship.id}`);
       }
-      slot.activeShipId = null;
-      slot.shipSlug = null;
-      slot.stockedMinute = null;
-      slot.sourceSaleId = null;
+      clearCapitalNavalReserveSlot(slot);
     }
     system.ships = system.ships.filter((entry) => entry.id !== ship.id);
     system.shipById.delete(ship.id);

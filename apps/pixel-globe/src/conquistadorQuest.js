@@ -500,6 +500,16 @@ export function conquistadorQuestOfferShouldApproach(memory, city, portCities) {
     conquistadorQuestShouldAppearAtCity(memory, city, portCities);
 }
 
+export function conquistadorEmbarkationShouldApproach(memory, city, hasEligibleLoadout) {
+  validateConquistadorQuestMemory(memory);
+  if (typeof hasEligibleLoadout !== "boolean") {
+    throw new Error("Conquistador embarkation approach requires loadout eligibility");
+  }
+  return memory.stage === CONQUISTADOR_STAGE_READY &&
+    isConquistadorQuestOrigin(memory, city) &&
+    hasEligibleLoadout;
+}
+
 export function conquistadorQuestDestination(memory, portCities, currentMinute) {
   validateConquistadorQuestMemory(memory);
   assertMinute(currentMinute, "conquistador destination");

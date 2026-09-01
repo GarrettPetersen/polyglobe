@@ -1776,6 +1776,55 @@ test("worker restore reconciles an obsolete NPC maximum hull before validation",
   assert.equal(restored.hitPoints, restored.maxHitPoints);
 });
 
+test("worker restore completes a destroyed capital-reserve sortie instead of restoring a zero hull", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetCityId: routeCityId(routes, 2),
+    reason: NPC_PORT_RESPONSE_BURNING,
+    clockMinutes: 100,
+    threatUntilMinute: 101
+  });
+  const reserveShip = routes.shipById.get(response.shipId);
+  const slotId = reserveShip.capitalNavalReserveSlotId;
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+  snapshot.ships.find((ship) => ship.id === reserveShip.id).hitPoints = 0;
+
+  applyNpcSeaRouteSimulationSnapshot(routes, snapshot);
+
+  const restoredSlot = routes.capitalNavalReserveSlots.find((slot) => slot.id === slotId);
+  assert.equal(routes.shipById.has(reserveShip.id), false);
+  assert.equal(restoredSlot.activeShipId, null);
+  assert.equal(restoredSlot.shipSlug, null);
+  assert.equal(restoredSlot.stockedMinute, null);
+  assert.equal(restoredSlot.sourceSaleId, null);
+});
+
+test("worker snapshots retire a destroyed capital-reserve sortie before transfer", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, {
+    factionId: "portugal",
+    targetCityId: routeCityId(routes, 2),
+    reason: NPC_PORT_RESPONSE_BURNING,
+    clockMinutes: 100,
+    threatUntilMinute: 101
+  });
+  const reserveShip = routes.shipById.get(response.shipId);
+  const slotId = reserveShip.capitalNavalReserveSlotId;
+  reserveShip.hitPoints = 0;
+
+  const snapshot = snapshotNpcSeaRouteStrategicSystem(routes);
+
+  const snapshotSlot = snapshot.capitalNavalReserveSlots.find((slot) => slot.id === slotId);
+  assert.equal(snapshot.ships.some((ship) => ship.id === reserveShip.id), false);
+  assert.equal(snapshotSlot.activeShipId, null);
+  assert.equal(snapshotSlot.shipSlug, null);
+  assert.equal(snapshotSlot.stockedMinute, null);
+  assert.equal(snapshotSlot.sourceSaleId, null);
+});
+
 test("strategic NPC snapshots serialize worldwide traffic in bounded batches", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });

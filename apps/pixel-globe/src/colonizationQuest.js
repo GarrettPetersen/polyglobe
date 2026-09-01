@@ -1,4 +1,5 @@
 import {
+  colonizationTargetPortId,
   colonizationTargetForCity,
   legacyColonizationTargetCityId
 } from "./colonialCities.js";
@@ -1627,10 +1628,6 @@ function chooseApprovalPort(target, portCities, context) {
 function pruneSpawnRolls(rolls) {
   const keys = Object.keys(rolls);
   for (const key of keys.slice(0, Math.max(0, keys.length - 256))) delete rolls[key];
-}
-
-function colonizationTargetPortId(target) {
-  return `colony-${target.cityId.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
 }
 
 function colonizationTargetKey(target) {

@@ -516,6 +516,14 @@ export function colonizationTargetForCity(city) {
   return COLONIZATION_TARGETS_BY_KEY.get(city.cityId) || null;
 }
 
+export function colonizationTargetPortId(target) {
+  const canonical = colonizationTargetForCity(target);
+  if (!canonical) {
+    throw new Error(`Unknown colonization target port: ${target?.cityId || "missing"}`);
+  }
+  return `colony-${canonical.cityId.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")}`;
+}
+
 // IDENTITY_MIGRATION_EXCEPTION: released saves before game-state v93 stored
 // colonization targets as presentation text. Resolve that text exactly once at
 // the load boundary; current runtime state must use cityId.

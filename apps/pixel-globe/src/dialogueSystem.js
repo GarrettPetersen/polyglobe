@@ -22,6 +22,7 @@ import {
   cargoUsed,
   captureCommissionPetitionOptionsForCity,
   capturePortMissionEligibility,
+  capturePortMissionLoadoutRecommendation,
   changePlayerReligion,
   cityLabel,
   completeQuest,
@@ -457,7 +458,8 @@ export function createPortDialogueSession(city, options = {}) {
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
     conquistadorArrival: options.conquistadorArrival === true,
-    conquistadorOfferApproached: false,
+    conquistadorOfferApproached: options.conquistadorApproach === true,
+    conquistadorEmbarkationApproached: options.conquistadorEmbarkationApproach === true,
     conquistadorReplenishmentApproached: false,
     conquistadorRewardApproached: false,
     japaneseMatchlockArrival: options.japaneseMatchlockArrival === true,
@@ -583,7 +585,7 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       admittedToPort: true
     });
   }
-  if (options.conquistadorApproach === true) {
+  if (options.conquistadorApproach === true || options.conquistadorEmbarkationApproach === true) {
     const nextPortNodeId = needsLoadout ? "loadout" : "greeting";
     return createPortDialogueSession(city, {
       initialNodeId: arrivedDrunk ? "drunk-captain" : "conquistador",
@@ -591,6 +593,8 @@ export function createPortArrivalDialogueSession(city, options = {}) {
       postDrunkNodeId: arrivedDrunk ? "conquistador" : null,
       drunkVariant,
       conquistadorArrival: true,
+      conquistadorApproach: options.conquistadorApproach === true,
+      conquistadorEmbarkationApproach: options.conquistadorEmbarkationApproach === true,
       admittedToPort: true
     });
   }
@@ -2878,7 +2882,7 @@ export function selectPortDialogueOption(
     session.feedback = `${result.plan.label}: ${gameState.ship.crew} crew / ` +
       `${gameState.ship.cannons} guns.` + loadoutRemovalSummary(result.removed) +
       (shortages > 0 ? " Stores short." : "");
-    session.nodeId = "root";
+    session.nodeId = action.returnNodeId || "root";
     session.selectedIndex = 0;
     return { closed: false, loadoutResult: result };
   }
@@ -4174,6 +4178,10 @@ function barredPortView(city, gameState, context) {
   }
   const independentTarget = status.factionId === NEUTRAL_FACTION_ID &&
     attack?.independentTarget === true;
+  const conquistadorLanding = conquest?.conquistadorCompany?.ready === true;
+  if (conquistadorLanding && attack?.mode !== "conquest") {
+    throw new Error("Conquistador landing lost its Spanish conquest commission");
+  }
   const faction = independentTarget ? null : factionById(status.factionId);
   const ruler = independentTarget ? null : rulerAtMinute(status.factionId, context.simMinute ?? 0);
   if (!independentTarget && !ruler) {
@@ -4191,7 +4199,9 @@ function barredPortView(city, gameState, context) {
   const options = [];
   if (conquest?.canAttempt) {
     options.push(option(
-      attack?.mode === "raid" ? "Pillage city" : "Land Marines",
+      attack?.mode === "raid"
+        ? "Pillage city"
+        : conquistadorLanding ? "Land the conquistadors" : "Land Marines",
       { type: "land-marines" },
       {
         detail: `${conquest.successPercent}% Chance of Success`
@@ -4214,7 +4224,9 @@ function barredPortView(city, gameState, context) {
     speaker: `${cityLabel(city)} harbor guard`,
     expressionId: "stern",
     text: conquest?.canAttempt
-      ? attack?.mode === "raid"
+      ? conquistadorLanding
+        ? `The harbor guns are silent. The conquistadors are lowering their boats. If the assault succeeds, Chan Chan will become Spanish Trujillo, and the company will march inland toward Cuzco.`
+        : attack?.mode === "raid"
         ? `The harbor guns are silent. ${cityLabel(city)} is exposed to plunder, though no sovereign will recognize its annexation.`
         : `The harbor guns are silent. ${cityLabel(city)} is exposed, but ${conquest.capital ? "the capital garrison" : "the garrison"} still bars the quays.`
       : conquest?.playerRaidActive
@@ -5406,6 +5418,9 @@ function conquistadorView(session, city, gameState, portCities, context) {
 
   if (quest.stage === CONQUISTADOR_STAGE_READY) {
     if (!atOrigin) throw new Error("Prepared conquistador company is not in Panama City");
+    const loadoutRecommendation = context.shipStats
+      ? capturePortMissionLoadoutRecommendation(gameState, context.shipStats)
+      : null;
     const missing = [
       !eligibility.cannonArmed ? `${eligibility.minimumCannons} cannons` : null,
       !eligibility.largeWarship ? `room for ${eligibility.minimumCrew} crew` : null,
@@ -5422,6 +5437,13 @@ function conquistadorView(session, city, gameState, portCities, context) {
           disabled: !eligibility.eligible,
           disabledReason: missing.length > 0 ? `Need ${missing.join(", ")}.` : null
         }),
+        ...(loadoutRecommendation ? [option(`Switch to ${loadoutRecommendation.label}`, {
+          type: "select-loadout",
+          loadoutId: loadoutRecommendation.loadoutId,
+          returnNodeId: "conquistador"
+        }, {
+          detail: `CREW ${loadoutRecommendation.plan.crew}  GUNS ${loadoutRecommendation.plan.cannons}`
+        })] : []),
         back
       ]
     };
