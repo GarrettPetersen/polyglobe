@@ -15,6 +15,7 @@ export function createCachedSceneRenderer({
   let workload = emptyWorkload();
   let staticCacheBuilds = 0;
   let staticCacheHits = 0;
+  let uncachedFrames = 0;
 
   function setEntries(entries) {
     if (!Array.isArray(entries)) throw new Error("Cached scene renderer requires render entries");
@@ -58,6 +59,7 @@ export function createCachedSceneRenderer({
     plan = Object.freeze(nextPlan);
     staticCacheBuilds = 0;
     staticCacheHits = 0;
+    uncachedFrames = 0;
     workload = Object.freeze({
       entries: entries.length,
       staticEntries,
@@ -67,10 +69,13 @@ export function createCachedSceneRenderer({
     });
   }
 
-  function renderFrame({ timeMs, width, height, staticCacheKey }) {
+  function renderFrame({ timeMs, width, height, staticCacheKey, useStaticCache = true }) {
     requireFiniteTime(timeMs);
     requireDimension(width, "width");
     requireDimension(height, "height");
+    if (typeof useStaticCache !== "boolean") {
+      throw new Error("Cached scene renderer requires an explicit cache-use boolean");
+    }
     if (
       (typeof staticCacheKey !== "string" && typeof staticCacheKey !== "function") ||
       staticCacheKey === ""
@@ -80,6 +85,15 @@ export function createCachedSceneRenderer({
     const staticCacheKeyForBatch = typeof staticCacheKey === "function"
       ? staticCacheKey
       : () => staticCacheKey;
+
+    if (!useStaticCache) {
+      uncachedFrames++;
+      for (const item of plan) {
+        if (item.kind === "dynamic-entry") drawEntry(item.entry, timeMs, displayContext);
+        else for (const entry of item.entries) drawEntry(entry, timeMs, displayContext);
+      }
+      return;
+    }
 
     for (const item of plan) {
       if (item.kind === "dynamic-entry") {
@@ -140,6 +154,7 @@ export function createCachedSceneRenderer({
       ...workload,
       staticCacheBuilds,
       staticCacheHits,
+      uncachedFrames,
       staticBatchStats: Object.freeze(plan
         .filter((item) => item.kind === "static-batch")
         .map((batch) => Object.freeze({
@@ -166,6 +181,7 @@ function emptyWorkload() {
     staticEntries: 0,
     dynamicEntries: 0,
     staticBatches: 0,
+    uncachedFrames: 0,
     kinds: Object.freeze({})
   });
 }

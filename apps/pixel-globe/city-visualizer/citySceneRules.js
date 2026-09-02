@@ -61,43 +61,28 @@ export const PORT_SCENE_CAMERA = Object.freeze({
   distantParallaxAnchor: 0.113
 });
 
-export function citySetSailControlRect({
+export function citySetSailOceanRect({
   shipX,
-  shipY,
-  shipWidth,
-  shipHeight,
-  controlWidth,
+  waterSurfaceY,
   viewportWidth,
   viewportHeight
 }) {
   for (const [label, value] of Object.entries({
     shipX,
-    shipY,
-    shipWidth,
-    shipHeight,
-    controlWidth,
+    waterSurfaceY,
     viewportWidth,
     viewportHeight
   })) {
     if (!Number.isFinite(value)) throw new Error(`Invalid Set Sail ${label}: ${value}`);
   }
-  if (shipWidth <= 0 || shipHeight <= 0 || controlWidth <= 0 ||
-      viewportWidth <= 0 || viewportHeight <= 0) {
+  if (viewportWidth <= 0 || viewportHeight <= 0) {
     throw new Error("Set Sail layout dimensions must be positive");
   }
-  const margin = 6;
-  const gap = 9;
-  const height = 22;
-  const width = Math.min(controlWidth, Math.max(1, viewportWidth - margin * 2));
-  const x = Math.max(margin, Math.min(
-    viewportWidth - margin - width,
-    Math.round(shipX - gap - width)
-  ));
-  const y = Math.max(margin, Math.min(
-    viewportHeight - margin - height,
-    Math.round(shipY + shipHeight * 0.42 - height / 2)
-  ));
-  return Object.freeze({ x, y, w: width, h: height });
+  const shipGap = 6;
+  const right = Math.max(0, Math.min(viewportWidth, Math.floor(shipX - shipGap)));
+  const top = Math.max(0, Math.min(viewportHeight, Math.ceil(waterSurfaceY)));
+  if (right === 0 || top === viewportHeight) return null;
+  return Object.freeze({ x: 0, y: top, w: right, h: viewportHeight - top });
 }
 
 export const PORT_SCENE_DOCK = Object.freeze({
@@ -349,11 +334,25 @@ export function sceneCameraDefaultParallax(approach) {
   return approach === "river" ? PORT_SCENE_CAMERA.riverDefaultParallax : PORT_SCENE_CAMERA.defaultParallax;
 }
 
+export function cityStaticSceneCacheAllowed({ cameraGestureActive, panTarget, velocity }) {
+  if (typeof cameraGestureActive !== "boolean") {
+    throw new Error("City static scene cache requires an explicit gesture state");
+  }
+  if (panTarget !== null && (!Number.isFinite(panTarget) || panTarget < -1 || panTarget > 1)) {
+    throw new Error(`Invalid city static scene cache pan target: ${panTarget}`);
+  }
+  if (!Number.isFinite(velocity) || Math.abs(velocity) > PORT_SCENE_CAMERA.maximumPanSpeed) {
+    throw new Error(`Invalid city static scene cache velocity: ${velocity}`);
+  }
+  return !cameraGestureActive && panTarget === null && velocity === 0;
+}
+
 export function advanceSceneParallax({ current, velocity, elapsedMs }) {
-  for (const [label, value] of [["current", current], ["velocity", velocity]]) {
-    if (!Number.isFinite(value) || value < -1 || value > 1) {
-      throw new Error(`Invalid scene parallax ${label}: ${value}`);
-    }
+  if (!Number.isFinite(current) || current < -1 || current > 1) {
+    throw new Error(`Invalid scene parallax current: ${current}`);
+  }
+  if (!Number.isFinite(velocity) || Math.abs(velocity) > PORT_SCENE_CAMERA.maximumPanSpeed) {
+    throw new Error(`Invalid scene parallax velocity: ${velocity}`);
   }
   if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
     throw new Error(`Invalid scene parallax elapsed time: ${elapsedMs}`);

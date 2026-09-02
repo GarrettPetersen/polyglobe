@@ -502,6 +502,7 @@ import {
 import { validateVoyageStartProfile } from "./voyageStartProfile.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { sailingGatewayCityIdForInlandCity } from "./cityPortAccessPolicy.js";
+import { requireCanonicalDiscoveryId } from "./discoveryIdentity.js";
 import {
   CHART_REFRAME_DIALOGUE_MEMORY_VERSION,
   createChartReframeDialogueMemory,
@@ -2154,6 +2155,7 @@ export function pendingDiscoveryPortDialogue(state) {
 
 export function hasDiscovery(state, discoveryId) {
   assertGameState(state);
+  requireCanonicalDiscoveryId(discoveryId, "Discovery lookup");
   return Boolean(state.memory.discoveries[discoveryId]);
 }
 
@@ -11091,6 +11093,7 @@ function assertDiscovery(discovery) {
   if (!discovery || typeof discovery.id !== "string" || discovery.id === "") {
     throw new Error("Cannot record a discovery without an id");
   }
+  requireCanonicalDiscoveryId(discovery.id);
   if (typeof discovery.displayName !== "string" || discovery.displayName === "") {
     throw new Error(`Discovery ${discovery.id} has no display name`);
   }

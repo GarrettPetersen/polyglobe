@@ -10,6 +10,20 @@ import {
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { requireCityId, requireEntityById, requireEntityId } from "./entityIds.js";
 import {
+  PIRATE_MENU_CHART_LINE,
+  PIRATE_MENU_DANGER,
+  PIRATE_MENU_INK,
+  PIRATE_MENU_INK_MUTED,
+  PIRATE_MENU_PAPER,
+  PIRATE_MENU_PAPER_BUTTON,
+  PIRATE_MENU_PAPER_INSET,
+  PIRATE_MENU_PAPER_INSET_ALT,
+  PIRATE_MENU_PAPER_SELECTED,
+  PIRATE_MENU_QUEST_CARGO,
+  PIRATE_MENU_QUEST_CARGO_DANGER,
+  PIRATE_MENU_SUCCESS
+} from "./pirateUiPalette.js";
+import {
   WORLD_DISCRETE_WEATHER_SUBDIVISIONS,
   WORLD_GLOBE_SUBDIVISIONS,
   WORLD_PIXELS_PER_RADIAN,
@@ -946,7 +960,8 @@ import {
 } from "./discoveries.js";
 import {
   reconcileSavedDiscoveryReferences,
-  validateDiscoveryCatalog
+  validateDiscoveryCatalog,
+  validateSavedDiscoveryReferences
 } from "./discoveryCatalogReferences.js";
 import {
   CORAL_REEF_ALPHA,
@@ -3055,18 +3070,6 @@ const PIXEL_FONT_TITLE_8 = "8px \"Pixel Pirate\", monospace";
 let PIXEL_FONT_SMALL_INK_TOP_OFFSET = languageUsesTallPixelMetrics(currentLanguage) ? 1 : 3;
 document.documentElement.lang = currentLanguage;
 const PIXEL_TEXT_RASTER_CACHE_LIMIT = 2048;
-const PIRATE_MENU_PAPER = "#ead8b2";
-const PIRATE_MENU_PAPER_BUTTON = "#d6bd8f";
-const PIRATE_MENU_PAPER_SELECTED = "#fbb954";
-const PIRATE_MENU_INK = "#2f241c";
-const PIRATE_MENU_INK_MUTED = "#715033";
-const PIRATE_MENU_CHART_LINE = "#547e64";
-const PIRATE_MENU_PAPER_INSET = "#d6bd8f";
-const PIRATE_MENU_PAPER_INSET_ALT = "#c9aa78";
-const PIRATE_MENU_QUEST_CARGO = "#c7bf88";
-const PIRATE_MENU_QUEST_CARGO_DANGER = "#d6a095";
-const PIRATE_MENU_DANGER = "#9e3e36";
-const PIRATE_MENU_SUCCESS = "#547e64";
 const CUSTOM_LOADOUT_FIELD_ICONS = Object.freeze({
   crew: "action:passenger",
   cannons: "action:attack",
@@ -10794,6 +10797,10 @@ function setupPerformanceBenchmark() {
     weatherClockMinutes,
     PERFORMANCE_BENCHMARK.targetLandCarts
   );
+  // Production compiles and presents its first world frame beneath the loading
+  // screen. Benchmarks use capture scenarios, so they must establish the same
+  // presentation invariant before a port transition snapshots the world.
+  render(performance.now(), { allowColdCoveredWorldRender: true });
   ship.velocity = scaleVector(ship.heading, currentPlayerEffectiveShipStats().topSpeedRad * 0.62);
   playerIntroModal = null;
   captainAlertModal = null;
@@ -16284,6 +16291,7 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
     }
     syncCartographyToGameState();
     syncAchievementsFromGameState();
+    validateSavedDiscoveryReferences(gameState, discoveryCatalog);
     assertPlayerShipyardInvestmentWorldConsistency(
       gameState.memory.shipyardInvestment,
       worldEconomy,

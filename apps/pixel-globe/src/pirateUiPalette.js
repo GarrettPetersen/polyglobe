@@ -1,0 +1,12 @@
+export const PIRATE_MENU_PAPER = "#ead8b2";
+export const PIRATE_MENU_PAPER_BUTTON = "#d6bd8f";
+export const PIRATE_MENU_PAPER_SELECTED = "#fbb954";
+export const PIRATE_MENU_INK = "#2f241c";
+export const PIRATE_MENU_INK_MUTED = "#715033";
+export const PIRATE_MENU_CHART_LINE = "#547e64";
+export const PIRATE_MENU_PAPER_INSET = "#d6bd8f";
+export const PIRATE_MENU_PAPER_INSET_ALT = "#c9aa78";
+export const PIRATE_MENU_QUEST_CARGO = "#c7bf88";
+export const PIRATE_MENU_QUEST_CARGO_DANGER = "#d6a095";
+export const PIRATE_MENU_DANGER = "#9e3e36";
+export const PIRATE_MENU_SUCCESS = "#547e64";

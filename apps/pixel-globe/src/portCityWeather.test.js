@@ -15,6 +15,19 @@ test("port city weather uses live wind and the surrounding tile ring", () => {
   assert.deepEqual(weather.precipitation, { kind: "rain", intensity: 0.46 });
 });
 
+test("port city weather preserves storm-amplified live wind", () => {
+  const weather = portCityWeatherPresentation({
+    wind: { directionRad: 2.4, strength: 1.2478692962959834 },
+    nearbyConditions: [
+      { raining: true, snowing: false, stormIntensity: 0.8 }
+    ]
+  });
+  assert.deepEqual(weather.wind, {
+    directionRad: 2.4,
+    strength: 1.2478692962959834
+  });
+});
+
 test("nearby snow takes precedence over rain and storms can produce rain", () => {
   assert.deepEqual(portCityWeatherPresentation({
     wind: { directionRad: 0, strength: 0.2 },
@@ -38,4 +51,13 @@ test("clear nearby conditions do not create a city overlay", () => {
       { raining: false, snowing: false, stormIntensity: 0.25 }
     ]
   }).precipitation, { kind: null, intensity: 0 });
+});
+
+test("port city weather rejects wind outside the authoritative storm range", () => {
+  assert.throws(() => portCityWeatherPresentation({
+    wind: { directionRad: 0, strength: 2.61 },
+    nearbyConditions: [
+      { raining: false, snowing: false, stormIntensity: 0 }
+    ]
+  }), /within 0\.\.2\.6/);
 });

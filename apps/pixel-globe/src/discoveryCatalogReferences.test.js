@@ -91,6 +91,79 @@ test("pre-canonical Mount Olympus saves reconcile to its stable coordinate id", 
   assert.equal(state.memory.discoveries[canonicalId].id, canonicalId);
 });
 
+test("tile-derived mountain ids survive historical peak-tile changes", () => {
+  const storedId = "mountain-161762-mount-etna";
+  const canonicalId = "mountain-mount-etna";
+  const catalog = [{
+    id: canonicalId,
+    legacyIds: ["mountain-161763-mount-etna"],
+    kind: "mountain",
+    displayName: "Mount Etna",
+    detail: "3,322 m"
+  }];
+  const state = savedState({
+    discoveries: {
+      [storedId]: {
+        id: storedId,
+        kind: "mountain",
+        displayName: "Mount Etna",
+        detail: "3,322 m"
+      }
+    },
+    discoveryOrder: [storedId],
+    pendingDiscoveryPortDialogueIds: [],
+    campaignGoal: {
+      type: "explorer",
+      reportedDiscoveryIds: [storedId],
+      currentLeadDiscoveryId: storedId
+    }
+  });
+
+  assert.equal(reconcileSavedDiscoveryReferences(state, catalog), 4);
+  assert.deepEqual(state.memory.discoveryOrder, [canonicalId]);
+  assert.deepEqual(state.memory.campaignGoal.reportedDiscoveryIds, [canonicalId]);
+  assert.equal(state.memory.campaignGoal.currentLeadDiscoveryId, canonicalId);
+  assert.equal(state.memory.discoveries[canonicalId].id, canonicalId);
+});
+
+test("ambiguous tile-derived mountain slugs require an explicit legacy id", () => {
+  const storedId = "mountain-999999-mount-olympus";
+  const catalog = [
+    {
+      id: "mountain-mount-olympus-n40p08325-e22p35012",
+      legacyIds: ["mountain-24808-mount-olympus"],
+      kind: "mountain",
+      displayName: "Mount Olympus",
+      detail: "2,917 m"
+    },
+    {
+      id: "mountain-mount-olympus-n48p12345-w123p45678",
+      legacyIds: ["mountain-12345-mount-olympus"],
+      kind: "mountain",
+      displayName: "Mount Olympus",
+      detail: "2,429 m"
+    }
+  ];
+  const state = savedState({
+    discoveries: {
+      [storedId]: {
+        id: storedId,
+        kind: "mountain",
+        displayName: "Mount Olympus",
+        detail: "2,917 m"
+      }
+    },
+    discoveryOrder: [storedId],
+    pendingDiscoveryPortDialogueIds: [],
+    campaignGoal: null
+  });
+
+  assert.throws(
+    () => reconcileSavedDiscoveryReferences(state, catalog),
+    /ambiguous tile-derived mountain id/
+  );
+});
+
 test("restore validation covers every saved discovery reference surface", () => {
   const valid = () => savedState({
     discoveries: {
@@ -155,6 +228,18 @@ test("discovery catalogs use ids rather than presentation text as identity", () 
   assert.throws(
     () => reconcileSavedDiscoveryReferences(state, CATALOG),
     /missing from the runtime catalog/
+  );
+});
+
+test("tile-derived ids are legacy migration input, never catalog identity", () => {
+  assert.throws(
+    () => validateDiscoveryCatalog([{
+      id: "mountain-161762-mount-etna",
+      kind: "mountain",
+      displayName: "Mount Etna",
+      detail: "3,322 m"
+    }]),
+    /canonical discovery id, not tile-derived legacy id/
   );
 });
 

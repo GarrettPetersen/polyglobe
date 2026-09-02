@@ -1,7 +1,3 @@
-import {
-  darkerResurrect64Hex,
-  nearestResurrect64Hex
-} from "../src/waterLatitudePalette.js";
 import { cityGroundPainterZ } from "./cityPainterOrder.js";
 
 export const CITY_TREE_BACKGROUND_SHADOW_Z = 42.1;
@@ -152,16 +148,6 @@ export function cityTreeCount(city, terrain, palmAvailable = false) {
   }
   if (terrain === "rocky") return seed % 2;
   return palmAvailable && seed % 3 === 0 ? 1 : 0;
-}
-
-export function cityTreeShadowRgb(red, green, blue) {
-  const sourceHex = nearestResurrect64Hex(red, green, blue);
-  const shadowHex = darkerResurrect64Hex(sourceHex, 2);
-  return Object.freeze({
-    red: Number.parseInt(shadowHex.slice(0, 2), 16),
-    green: Number.parseInt(shadowHex.slice(2, 4), 16),
-    blue: Number.parseInt(shadowHex.slice(4, 6), 16)
-  });
 }
 
 function requireTreeInputs(city, features, trees) {

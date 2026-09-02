@@ -3,17 +3,13 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
-import {
-  RESURRECT_64_HEX,
-  darkerResurrect64Hex
-} from "../src/waterLatitudePalette.js";
+import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 import {
   CITY_TREE_BACKGROUND_SHADOW_Z,
   CITY_TREE_CASTLE_BACKING_SHADOW_Z,
   CITY_TREE_FOREGROUND_SHADOW_Z,
   cityTreeCount,
-  cityTreePlacements,
-  cityTreeShadowRgb
+  cityTreePlacements
 } from "./cityTrees.js";
 
 const manifestUrl = new URL("./assets/trees/manifest.json", import.meta.url);
@@ -190,21 +186,7 @@ test("open terrain gets fewer accents than forest and desert only permits an occ
   assert.ok(cityTreeCount(city, "desert", true) <= 1);
 });
 
-test("tree shadows remap the underlying scene colour through the game's Resurrect shade ramp", () => {
-  for (const sourceHex of ["239063", "a2a947", "f9c22b", "c7dcd0", "4d65b4"]) {
-    const red = Number.parseInt(sourceHex.slice(0, 2), 16);
-    const green = Number.parseInt(sourceHex.slice(2, 4), 16);
-    const blue = Number.parseInt(sourceHex.slice(4, 6), 16);
-    const shadow = cityTreeShadowRgb(red, green, blue);
-    const expected = darkerResurrect64Hex(sourceHex, 2);
-    assert.equal(
-      [shadow.red, shadow.green, shadow.blue]
-        .map((value) => value.toString(16).padStart(2, "0"))
-        .join(""),
-      expected
-    );
-    assert.ok(RESURRECT_64_HEX.includes(expected));
-  }
+test("tree shadows keep their authored painter planes", () => {
   assert.ok(CITY_TREE_BACKGROUND_SHADOW_Z > 42, "rear shadows cover the ground behind buildings");
   assert.ok(CITY_TREE_BACKGROUND_SHADOW_Z < 45, "rear shadows stay behind near businesses");
   assert.ok(CITY_TREE_FOREGROUND_SHADOW_Z > 70, "near shadows cover the foreground terrain");

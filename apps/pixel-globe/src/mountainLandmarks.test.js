@@ -72,6 +72,27 @@ test("landmark discoveries are recorded only once", () => {
   assert.deepEqual(discoveredEntries(state), [fuji]);
 });
 
+test("live discovery state accepts canonical ids only", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const legacyEtna = {
+    id: "mountain-161762-mount-etna",
+    kind: "mountain",
+    displayName: "Mount Etna",
+    detail: "3,322 m"
+  };
+
+  assert.throws(
+    () => recordDiscovery(state, legacyEtna),
+    /canonical discovery id, not tile-derived legacy id/
+  );
+  assert.throws(
+    () => hasDiscovery(state, legacyEtna.id),
+    /canonical discovery id, not tile-derived legacy id/
+  );
+  assert.deepEqual(state.memory.discoveries, {});
+  assert.deepEqual(state.memory.discoveryOrder, []);
+});
+
 test("circumnavigation progress unwraps the international date line", () => {
   const state = createGameState({ cargoCapacity: 20 });
   assert.equal(updateCircumnavigationProgress(state, 170), false);

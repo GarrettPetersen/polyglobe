@@ -1,4 +1,5 @@
 import { dateToSubsolarLatDeg, windAtLatLonDeg } from "../src/weather.js";
+import { MAX_STORM_WIND_STRENGTH } from "../src/stormSystem.js";
 
 export const CITY_WIND_SPEED_OPTIONS = Object.freeze([
   Object.freeze({ value: "auto", label: "Auto — game wind field" }),
@@ -69,7 +70,7 @@ export function cityWindFromGeographicWind({ directionRad, strength }) {
   if (!Number.isFinite(directionRad)) {
     throw new Error(`Invalid live city wind direction: ${directionRad}`);
   }
-  if (!Number.isFinite(strength) || strength < 0 || strength > 1) {
+  if (!Number.isFinite(strength) || strength < 0 || strength > MAX_STORM_WIND_STRENGTH) {
     throw new Error(`Invalid live city wind strength: ${strength}`);
   }
   return cityWindFromScreenFlow({

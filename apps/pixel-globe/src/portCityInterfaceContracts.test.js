@@ -56,6 +56,14 @@ test("city shipyards receive the authoritative current build for owned and ordin
   );
 });
 
+test("the paused-port benchmark establishes the same covered world frame as production", () => {
+  const setup = functionSource("setupPerformanceBenchmark", "updatePerformanceBenchmark");
+  assert.match(
+    setup,
+    /render\(performance\.now\(\), \{ allowColdCoveredWorldRender: true \}\);[\s\S]*openPortDialogue\(cityCall\)/
+  );
+});
+
 function functionSource(name, nextName) {
   const start = MAIN_SOURCE.indexOf(`function ${name}(`);
   const end = MAIN_SOURCE.indexOf(`function ${nextName}(`, start + 1);

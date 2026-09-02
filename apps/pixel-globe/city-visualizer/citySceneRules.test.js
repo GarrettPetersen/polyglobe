@@ -26,7 +26,8 @@ import {
   activePortSceneLayers,
   advanceSceneParallax,
   advanceSceneScrollVelocity,
-  citySetSailControlRect,
+  citySetSailOceanRect,
+  cityStaticSceneCacheAllowed,
   docksideShipSideAnchor,
   docksideShipVerticalPlacement,
   layerParallaxAnchor,
@@ -194,6 +195,16 @@ test("RTS camera scrolls only at the edges with restrained start, stop, and reve
   assert.ok(firstFrame > -0.35);
   assert.ok(firstFrame < 1);
   assert.equal(advanceSceneParallax({ current: firstFrame, velocity: 0, elapsedMs: 1000 }), firstFrame);
+  assert.equal(advanceSceneParallax({
+    current: 0,
+    velocity: PORT_SCENE_CAMERA.maximumPanSpeed,
+    elapsedMs: 100
+  }), 0.145);
+  assert.throws(() => advanceSceneParallax({
+    current: 0,
+    velocity: PORT_SCENE_CAMERA.maximumPanSpeed + 0.01,
+    elapsedMs: 16
+  }), /Invalid scene parallax velocity/);
   const starting = advanceSceneScrollVelocity({ current: 0, target: 0.72, elapsedMs: 16 });
   assert.ok(starting > 0 && starting < 0.72);
   const stopping = advanceSceneScrollVelocity({ current: 0.72, target: 0, elapsedMs: 16 });
@@ -211,6 +222,34 @@ test("RTS camera scrolls only at the edges with restrained start, stop, and reve
   assert.deepEqual(sceneCameraParallaxBounds("river"), { minimum: -0.30, maximum: 1 });
   assert.equal(sceneCameraDefaultParallax("river"), -0.12);
   assert.deepEqual(sceneCameraParallaxBounds("ocean"), { minimum: -1, maximum: 1 });
+});
+
+test("static city batches are cached only while every camera input is stationary", () => {
+  assert.equal(cityStaticSceneCacheAllowed({
+    cameraGestureActive: false,
+    panTarget: null,
+    velocity: 0
+  }), true);
+  assert.equal(cityStaticSceneCacheAllowed({
+    cameraGestureActive: true,
+    panTarget: null,
+    velocity: 0
+  }), false);
+  assert.equal(cityStaticSceneCacheAllowed({
+    cameraGestureActive: false,
+    panTarget: 0.5,
+    velocity: 0
+  }), false);
+  assert.equal(cityStaticSceneCacheAllowed({
+    cameraGestureActive: false,
+    panTarget: null,
+    velocity: 0.25
+  }), false);
+  assert.throws(() => cityStaticSceneCacheAllowed({
+    cameraGestureActive: false,
+    panTarget: 2,
+    velocity: 0
+  }), /Invalid city static scene cache pan target/);
 });
 
 test("wheel and swipe distances pan the camera through the authored scene", () => {
@@ -237,25 +276,30 @@ test("wheel and swipe distances pan the camera through the authored scene", () =
   assert.equal(sceneInertialPanTargetVelocity({ current: 0.5, target: 0.5 }), 0);
 });
 
-test("Set Sail control stays left of the player ship and inside narrow viewports", () => {
-  assert.deepEqual(citySetSailControlRect({
+test("Set Sail uses the visible ocean left of the player ship as its hit target", () => {
+  assert.deepEqual(citySetSailOceanRect({
     shipX: 140,
-    shipY: 160,
-    shipWidth: 120,
-    shipHeight: 60,
-    controlWidth: 86,
+    waterSurfaceY: 119,
     viewportWidth: 455,
     viewportHeight: 256
-  }), { x: 45, y: 174, w: 86, h: 22 });
-  assert.deepEqual(citySetSailControlRect({
+  }), { x: 0, y: 119, w: 134, h: 137 });
+  assert.deepEqual(citySetSailOceanRect({
     shipX: 30,
-    shipY: 220,
-    shipWidth: 120,
-    shipHeight: 60,
-    controlWidth: 86,
+    waterSurfaceY: 228,
     viewportWidth: 256,
     viewportHeight: 256
-  }), { x: 6, y: 228, w: 86, h: 22 });
+  }), { x: 0, y: 228, w: 24, h: 28 });
+  assert.equal(citySetSailOceanRect({
+    shipX: 4,
+    waterSurfaceY: 119,
+    viewportWidth: 455,
+    viewportHeight: 256
+  }), null);
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /shipX: placement\.x \+ state\.shipWaterlineLayers\.opaqueMinX \* placement\.scale/,
+    "Set Sail must anchor to the visible ship silhouette rather than transparent raster padding"
+  );
 });
 
 test("ocean depth slices cover the authored water without gaps", () => {

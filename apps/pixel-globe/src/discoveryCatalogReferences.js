@@ -1,3 +1,8 @@
+import {
+  requireCanonicalDiscoveryId,
+  tileDerivedMountainDiscoverySlug
+} from "./discoveryIdentity.js";
+
 const DISCOVERY_KINDS = new Set(["mountain", "landmark", "legend", "achievement"]);
 
 export function validateDiscoveryCatalog(catalog) {
@@ -147,10 +152,21 @@ function discoveryReferenceResolver(catalog) {
   validateDiscoveryCatalog(catalog);
   const byId = new Map(catalog.map((entry) => [entry.id, entry]));
   const byLegacyId = new Map();
+  const legacyMountainsBySlug = new Map();
   for (const entry of catalog) {
-    for (const legacyId of entry.legacyIds || []) byLegacyId.set(legacyId, entry);
+    for (const legacyId of entry.legacyIds || []) {
+      byLegacyId.set(legacyId, entry);
+      const slug = tileDerivedMountainDiscoverySlug(legacyId);
+      if (slug === null) continue;
+      let discoveries = legacyMountainsBySlug.get(slug);
+      if (!discoveries) {
+        discoveries = new Map();
+        legacyMountainsBySlug.set(slug, discoveries);
+      }
+      discoveries.set(entry.id, entry);
+    }
   }
-  return { byId, byLegacyId };
+  return { byId, byLegacyId, legacyMountainsBySlug };
 }
 
 function resolveStoredDiscovery(storedId, storedEntry, resolver) {
@@ -170,6 +186,20 @@ function resolveSavedDiscoveryId(storedId, resolver, label, required = true) {
   if (exact) return exact;
   const migrated = resolver.byLegacyId.get(storedId);
   if (migrated) return migrated;
+  // Pre-canonical mountain ids embedded a mutable peak tile before the stable
+  // name slug. The slug may migrate an unlisted historical tile only when the
+  // catalog proves that it identifies exactly one mountain.
+  const mountainSlug = tileDerivedMountainDiscoverySlug(storedId);
+  if (mountainSlug !== null) {
+    const candidates = [...(resolver.legacyMountainsBySlug.get(mountainSlug)?.values() || [])];
+    if (candidates.length === 1) return candidates[0];
+    if (candidates.length > 1) {
+      throw new Error(
+        `${label} has an ambiguous tile-derived mountain id ${storedId}: ` +
+        candidates.map((candidate) => candidate.id).join(", ")
+      );
+    }
+  }
   if (!required) return null;
   throw new Error(`${label} is missing from the runtime discovery catalog: ${storedId}`);
 }
@@ -189,6 +219,7 @@ function validateCatalogDiscovery(discovery) {
   if (typeof discovery.id !== "string" || discovery.id === "") {
     throw new Error("Discovery catalog entry has no id");
   }
+  requireCanonicalDiscoveryId(discovery.id, "Discovery catalog entry");
   if (typeof discovery.displayName !== "string" || discovery.displayName.trim() === "") {
     throw new Error(`Discovery catalog entry has no display name: ${discovery.id}`);
   }

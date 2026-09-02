@@ -1,4 +1,5 @@
 import { findNearestTileId } from "./geodesic.js";
+import { requireCanonicalDiscoveryId } from "./discoveryIdentity.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
 
 export const NAMED_MOUNTAINS_URL = "shared/mountains.json";
@@ -67,6 +68,7 @@ export function validateNamedMountains(mountains) {
     if (typeof mountain.id !== "string" || mountain.id.trim() === "") {
       throw new Error(`Mountain ${index} has no canonical id`);
     }
+    requireCanonicalDiscoveryId(mountain.id, `Mountain ${index}`);
     if (ids.has(mountain.id)) throw new Error(`Duplicate mountain id: ${mountain.id}`);
     ids.add(mountain.id);
     if (!Array.isArray(mountain.legacyDiscoveryIds) || mountain.legacyDiscoveryIds.length === 0) {

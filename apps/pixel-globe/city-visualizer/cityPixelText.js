@@ -39,24 +39,41 @@ export function createCityPixelTextRenderer(context, createCanvas) {
     return width;
   }
 
+  function height(font = CITY_PIXEL_FONT_SMALL_8) {
+    return fontLayout(font).height;
+  }
+
   function draw(text, x, y, options = {}) {
     const font = options.font || CITY_PIXEL_FONT_SMALL_8;
     const color = options.color || "#ffffff";
     const wordSpacingPx = requireWordSpacing(options.wordSpacingPx);
+    const scale = requireScale(options.scale);
     const compatibleText = compatible(text, font);
     const width = measure(compatibleText, font, { wordSpacingPx });
     const aligned = pixelTextOrigin({
       x,
       y,
-      width,
+      width: width * scale,
       align: options.align || "left"
     });
     const origin = snapPointToTransformedPixelGrid(aligned, context.getTransform());
+    const image = raster(compatibleText, font, color, width, wordSpacingPx);
     context.save();
     context.imageSmoothingEnabled = false;
-    context.drawImage(raster(compatibleText, font, color, width, wordSpacingPx), origin.x, origin.y);
+    context.drawImage(
+      image,
+      origin.x,
+      origin.y,
+      image.width * scale,
+      image.height * scale
+    );
     context.restore();
-    return Object.freeze({ x: origin.x, y: origin.y, width });
+    return Object.freeze({
+      x: origin.x,
+      y: origin.y,
+      width: width * scale,
+      height: image.height * scale
+    });
   }
 
   function raster(text, font, color, width, wordSpacingPx) {
@@ -118,7 +135,7 @@ export function createCityPixelTextRenderer(context, createCanvas) {
     target.set(key, value);
   }
 
-  return Object.freeze({ draw, measure });
+  return Object.freeze({ draw, height, measure });
 }
 
 function measuredWidth(context, text, wordSpacingPx) {
@@ -150,6 +167,14 @@ function requireWordSpacing(value) {
   if (value === undefined || value === null) return null;
   if (!Number.isInteger(value) || value < 0) {
     throw new Error(`Invalid city pixel word spacing: ${value}`);
+  }
+  return value;
+}
+
+function requireScale(value) {
+  if (value === undefined) return 1;
+  if (!Number.isInteger(value) || value <= 0) {
+    throw new Error(`Invalid city pixel text scale: ${value}`);
   }
   return value;
 }

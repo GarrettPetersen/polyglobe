@@ -1,11 +1,15 @@
 import { precipitationKindForConditions } from "./precipitation.js";
+import { MAX_STORM_WIND_STRENGTH } from "./stormSystem.js";
 
 export function portCityWeatherPresentation({ wind, nearbyConditions }) {
   if (!Number.isFinite(wind?.directionRad)) {
     throw new Error("Port city weather requires a finite wind direction");
   }
-  if (!Number.isFinite(wind?.strength) || wind.strength < 0 || wind.strength > 1) {
-    throw new Error(`Port city weather wind strength must be within 0..1: ${wind?.strength}`);
+  if (!Number.isFinite(wind?.strength) ||
+      wind.strength < 0 || wind.strength > MAX_STORM_WIND_STRENGTH) {
+    throw new Error(
+      `Port city weather wind strength must be within 0..${MAX_STORM_WIND_STRENGTH}: ${wind?.strength}`
+    );
   }
   if (!Array.isArray(nearbyConditions) || nearbyConditions.length === 0) {
     throw new Error("Port city weather requires at least one nearby condition sample");

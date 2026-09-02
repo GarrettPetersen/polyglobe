@@ -19,12 +19,19 @@
 }
 
 :root {
+  --paper: #ead8b2;
+  --paper-button: #d6bd8f;
+  --paper-selected: #fbb954;
+  --ink: #2f241c;
+  --ink-muted: #715033;
+  --chart-line: #547e64;
+  --backdrop: #111711;
   color-scheme: dark;
   font-family: "Silkscreen", monospace;
   font-size: 8px;
   font-synthesis: none;
-  background: #111711;
-  color: #ead8a6;
+  background: var(--backdrop);
+  color: var(--paper);
 }
 
 * {
@@ -43,7 +50,7 @@ body {
 body {
   display: grid;
   place-items: center;
-  background: #111711;
+  background: var(--backdrop);
 }
 
 .visualizer {
@@ -90,9 +97,9 @@ body {
   margin: 0;
   padding: 9px 11px;
   translate: -50% -50%;
-  border: 1px solid #a9894c;
-  background: #172118;
-  color: #ead8a6;
+  border: 1px solid var(--chart-line);
+  background: var(--paper);
+  color: var(--ink);
   font: 8px/1.4 "Dogica", monospace;
   text-transform: uppercase;
   letter-spacing: 0;
@@ -110,10 +117,10 @@ body {
   width: min(390px, calc(100vw - 16px));
   max-height: calc(100dvh - 16px);
   overflow: auto;
-  border: 1px solid #8a7145;
-  background: #172118;
-  box-shadow: 3px 3px 0 #080c09;
-  color: #ead8a6;
+  border: 1px solid var(--chart-line);
+  background: var(--paper);
+  box-shadow: 3px 3px 0 var(--ink);
+  color: var(--ink);
   font-size: 8px;
 }
 
@@ -126,7 +133,7 @@ body {
   cursor: pointer;
   list-style: none;
   padding: 8px 10px;
-  color: #f3c969;
+  color: var(--ink);
   text-transform: uppercase;
   letter-spacing: 1px;
   white-space: nowrap;
@@ -149,7 +156,7 @@ body {
   grid-template-columns: 1fr 1fr;
   gap: 9px;
   padding: 0 10px 11px;
-  border-top: 1px solid #42513c;
+  border-top: 1px solid var(--chart-line);
 }
 
 .field {
@@ -169,7 +176,7 @@ fieldset,
 
 .field > span,
 legend {
-  color: #bfae83;
+  color: var(--ink-muted);
   text-transform: uppercase;
   letter-spacing: 0;
 }
@@ -177,10 +184,10 @@ legend {
 select,
 button {
   min-height: 29px;
-  border: 1px solid #77643e;
+  border: 1px solid var(--ink-muted);
   border-radius: 0;
-  background: #0f1712;
-  color: #f1dfac;
+  background: var(--paper-button);
+  color: var(--ink);
   font: 8px/1.3 "Dogica", monospace;
 }
 
@@ -197,7 +204,7 @@ button {
 select:focus-visible,
 button:focus-visible,
 .drawer > summary:focus-visible {
-  outline: 2px solid #f4cf62;
+  outline: 2px solid var(--paper-selected);
   outline-offset: 2px;
 }
 
@@ -208,7 +215,7 @@ fieldset {
   min-width: 0;
   margin: 5px 0 0;
   padding: 0 8px 8px;
-  border: 1px solid #42513c;
+  border: 1px solid var(--chart-line);
 }
 
 legend {
@@ -216,7 +223,7 @@ legend {
 }
 
 .reset {
-  color: #f3c969;
+  color: var(--ink);
 }
 
 .rule-ledger {
@@ -225,34 +232,34 @@ legend {
   gap: 5px 8px;
   margin: 2px 0 0;
   padding-top: 9px;
-  border-top: 1px solid #42513c;
+  border-top: 1px solid var(--chart-line);
   font: 8px/1.5 "Dogica", monospace;
 }
 
 .rule-ledger dt {
-  color: #f3c969;
+  color: var(--chart-line);
 }
 
 .rule-ledger dd {
   min-width: 0;
   margin: 0;
-  color: #c9bc98;
+  color: var(--ink);
 }
 
 .fallback-note {
   margin: 0;
-  color: #8fa184;
+  color: var(--ink-muted);
   font: 8px/1.5 "Dogica", monospace;
 }
 
 .destination-dialog {
   width: min(340px, calc(100vw - 32px));
   padding: 0;
-  border: 2px solid #cfad58;
+  border: 2px solid var(--chart-line);
   border-radius: 0;
-  background: #172118;
-  color: #ead8a6;
-  box-shadow: 5px 5px 0 #080c09;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 5px 5px 0 var(--ink);
 }
 
 .destination-dialog::backdrop {
@@ -265,27 +272,27 @@ legend {
 
 .destination-dialog__eyebrow {
   margin: 0 0 9px;
-  color: #d0ad56;
+  color: var(--chart-line);
   font-size: 8px;
   text-transform: uppercase;
 }
 
 .destination-dialog h2 {
   margin: 0 0 12px;
-  color: #fff1bc;
+  color: var(--ink);
   font: 8px/1.5 "Pixel Pirate", monospace;
   font-weight: normal;
 }
 
 .destination-dialog p:not(.destination-dialog__eyebrow) {
   margin: 0 0 18px;
-  color: #c9bc98;
+  color: var(--ink-muted);
   font: 8px/1.5 "Dogica", monospace;
 }
 
 .destination-dialog button {
   width: 100%;
-  color: #f3c969;
+  color: var(--ink);
 }
 
 @media (max-width: 520px) {

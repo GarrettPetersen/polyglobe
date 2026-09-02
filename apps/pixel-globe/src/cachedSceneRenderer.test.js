@@ -58,6 +58,7 @@ test("cached scene renderer rebuilds static runs only when their cache key chang
     kinds: { layer: 3, cloud: 1 },
     staticCacheBuilds: 4,
     staticCacheHits: 2,
+    uncachedFrames: 0,
     staticBatchStats: [
       {
         id: "static-batch-0",
@@ -75,6 +76,39 @@ test("cached scene renderer rebuilds static runs only when their cache key chang
       }
     ]
   });
+});
+
+test("cached scene renderer draws static entries directly while the camera is moving", () => {
+  const entryDraws = [];
+  const display = fakeContext("display", []);
+  const renderer = createCachedSceneRenderer({
+    displayContext: display,
+    createSurface: () => ({
+      width: 455,
+      height: 256,
+      getContext: () => fakeContext("surface", [])
+    }),
+    drawEntry: (entry, timeMs, context) => {
+      entryDraws.push(`${context.id}:${entry.id}:${timeMs}`);
+    },
+    isStaticEntry: (entry) => entry.static
+  });
+  renderer.setEntries([
+    { id: "quay", kind: "layer", static: true },
+    { id: "cloud", kind: "cloud", static: false }
+  ]);
+
+  renderer.renderFrame({
+    timeMs: 10,
+    width: 455,
+    height: 256,
+    staticCacheKey: "moving-view",
+    useStaticCache: false
+  });
+
+  assert.deepEqual(entryDraws, ["display:quay:10", "display:cloud:10"]);
+  assert.equal(renderer.stats().staticCacheBuilds, 0);
+  assert.equal(renderer.stats().uncachedFrames, 1);
 });
 
 test("cached scene renderer fails loudly on malformed frame contracts", () => {
@@ -98,12 +132,25 @@ test("cached scene renderer fails loudly on malformed frame contracts", () => {
     () => renderer.renderFrame({ timeMs: 0, width: 1, height: 1, staticCacheKey: "" }),
     /non-empty static cache key/
   );
+  assert.throws(
+    () => renderer.renderFrame({
+      timeMs: 0,
+      width: 1,
+      height: 1,
+      staticCacheKey: "view",
+      useStaticCache: "sometimes"
+    }),
+    /cache-use boolean/
+  );
 });
 
 function fakeContext(id, drawCalls) {
   return {
     id,
     imageSmoothingEnabled: true,
+    save() {},
+    restore() {},
+    translate() {},
     clearRect() {},
     drawImage(...args) {
       drawCalls.push({ id, args });

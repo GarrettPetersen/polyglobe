@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  cityWindFromGeographicWind,
   cityWindForCity,
   cityWindSpeedLabel,
   screenWindFlowDirection
@@ -34,6 +35,16 @@ test("screen wind conversion matches the main game's geographic projection", () 
   assert.equal(cityWindSpeedLabel(0.42), "light");
   assert.equal(cityWindSpeedLabel(0.78), "moderate");
   assert.equal(cityWindSpeedLabel(0.79), "strong");
+});
+
+test("live city wind preserves storm-amplified strength", () => {
+  const wind = cityWindFromGeographicWind({ directionRad: 1.2, strength: 1.25 });
+  assert.equal(wind.strength, 1.25);
+  assert.equal(wind.speedLabel, "strong");
+  assert.throws(
+    () => cityWindFromGeographicWind({ directionRad: 1.2, strength: 2.61 }),
+    /Invalid live city wind strength/
+  );
 });
 
 test("city wind rejects unknown overrides and invalid geography", () => {

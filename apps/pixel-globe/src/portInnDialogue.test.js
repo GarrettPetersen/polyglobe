@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { portInnDialogue } from "./portInnDialogue.js";
+import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
+import { drinkForCity, portInnDialogue } from "./portInnDialogue.js";
+
+const repoRoot = new URL("../../../", import.meta.url);
 
 test("a local captain remembers the region's drink fondly", () => {
   const city = { cityId: "venice|italy", cityType: "mediterranean", country: "Italy", factionId: "venice" };
@@ -46,4 +50,23 @@ test("port drinks follow canonical local culture rather than the country display
   });
   assert.equal(view.drinkLabel, "sake");
   assert.equal(view.familiar, true);
+});
+
+test("every canonical city has a drink profile", async () => {
+  const cityCsv = await readFile(new URL(
+    "examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
+    repoRoot
+  ), "utf8");
+  const cities = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
+  for (const city of cities) {
+    assert.doesNotThrow(() => drinkForCity(city), city.cityId);
+  }
+});
+
+test("Central Asian cities using East Asian art retain the regional drink fallback", () => {
+  assert.equal(drinkForCity({
+    cityId: "kashi|china",
+    cityType: "east-asian",
+    factionId: "ming"
+  }).label, "rice wine");
 });

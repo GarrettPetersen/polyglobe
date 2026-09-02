@@ -48,3 +48,23 @@ test("city pixel text rejects fractional word spacing", () => {
     /Invalid city pixel word spacing/
   );
 });
+
+test("city pixel text enlarges with integer nearest-neighbor scaling", () => {
+  const canvas = createCanvas(128, 48);
+  const renderer = createCityPixelTextRenderer(canvas.getContext("2d"), () => createCanvas(1, 1));
+  const naturalWidth = renderer.measure("SET SAIL", CITY_PIXEL_FONT_TITLE_8, { wordSpacingPx: 4 });
+  const naturalHeight = renderer.height(CITY_PIXEL_FONT_TITLE_8);
+  const result = renderer.draw("SET SAIL", 7, 5, {
+    font: CITY_PIXEL_FONT_TITLE_8,
+    wordSpacingPx: 4,
+    scale: 2
+  });
+  assert.equal(result.x, 7);
+  assert.equal(result.y, 5);
+  assert.equal(result.width, naturalWidth * 2);
+  assert.equal(result.height, naturalHeight * 2);
+  assert.throws(
+    () => renderer.draw("SET SAIL", 0, 0, { scale: 1.5 }),
+    /Invalid city pixel text scale/
+  );
+});

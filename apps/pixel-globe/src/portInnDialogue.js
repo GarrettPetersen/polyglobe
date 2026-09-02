@@ -4,6 +4,7 @@ const DRINK_BY_CITY_TYPE = Object.freeze({
   "northern-european": drink("ale", "malty and bitter"),
   mediterranean: drink("local wine", "bright and dry"),
   "islamic-desert": drink("raisin wine", "sweet with spice"),
+  "east-asian": drink("rice wine", "warm and mellow"),
   "south-asian": drink("palm toddy", "tart and yeasty"),
   "southeast-asian": drink("palm arrack", "hot and fragrant"),
   "sub-saharan": drink("sorghum beer", "sour and grainy"),

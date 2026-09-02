@@ -7,6 +7,7 @@ const STORM_DURATION_SPREAD_MINUTES = 30 * 60;
 
 export const STORM_ACTIVE_INTENSITY = 0.28;
 export const STORM_DAMAGE_INTENSITY = 0.42;
+export const MAX_STORM_WIND_STRENGTH = 2.6;
 
 export function rainCollectionStrength({ raining, snowing, stormIntensity }) {
   if (typeof raining !== "boolean" || typeof snowing !== "boolean") {
@@ -228,7 +229,11 @@ export function stormWindStrength(baseStrength, stormIntensity) {
     throw new Error("Storm wind requires finite strengths");
   }
   const intensity = clamp(stormIntensity, 0, 1);
-  return clamp(baseStrength * (1 + intensity * 1.4) + intensity * 0.35, 0, 2.6);
+  return clamp(
+    baseStrength * (1 + intensity * 1.4) + intensity * 0.35,
+    0,
+    MAX_STORM_WIND_STRENGTH
+  );
 }
 
 export function stormDamageForHour({
