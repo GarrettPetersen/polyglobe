@@ -3,9 +3,12 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
+  CITY_REGIONAL_BUILDING_BASE_LAYERS,
   cityBuildingLogicalLayer,
-  cityRegionalBuildingFrame
+  cityRegionalBuildingFrame,
+  cityRegionalBuildingRenderStyle
 } from "./cityRegionalBuildings.js";
 
 const FRAMES = Object.freeze([
@@ -47,6 +50,10 @@ const PORT_MANIFEST = JSON.parse(readFileSync(
   "utf8"
 ));
 const EXPORTED_FRAMES = PORT_MANIFEST.staticFrames;
+const CITY_CATALOG = JSON.parse(readFileSync(
+  new URL("./data/cities.json", import.meta.url),
+  "utf8"
+)).cities;
 
 test("the port atlas revision fingerprints every packed image", () => {
   const digest = createHash("sha256");
@@ -74,7 +81,7 @@ test("Mediterranean cities select all four authored regional building frames", (
   );
 });
 
-test("other regions retain the shared Northern European base frames", () => {
+test("Northern European cities retain their authored base frames", () => {
   assert.deepEqual(
     ["Inn", "Smith", "Home", "Home 2"].map((baseLayer) => (
       cityRegionalBuildingFrame(FRAMES, "northern-european", baseLayer).layer
@@ -148,6 +155,101 @@ test("Japanese cities use the complete authored kit except for Home B", () => {
     "Japan Gate Near"
   ]);
   assert.ok(selected.every(({ hasChimney }) => hasChimney === false));
+});
+
+test("Malacca and every Southeast Asian city use the closest raised-timber kit", () => {
+  const selected = ["Home", "Home 2", "Inn", "Smith", "Far Castle", "Gate", "Near Castle"]
+    .map((baseLayer) => cityRegionalBuildingFrame(FRAMES, "southeast-asian", baseLayer));
+  assert.deepEqual(selected.map(({ layer }) => layer), [
+    "Japan Home",
+    "Japan Home",
+    "Japan Inn",
+    "Japan Smith",
+    "Japan Gate Far",
+    "Japan Gateway",
+    "Japan Gate Near"
+  ]);
+});
+
+test("South Asian cities use the closest available masonry kit", () => {
+  assert.deepEqual(
+    ["Home", "Home 2", "Inn", "Smith", "Far Castle", "Gate", "Near Castle"].map((baseLayer) => (
+      cityRegionalBuildingFrame(FRAMES, "south-asian", baseLayer).layer
+    )),
+    [
+      "Middle East Home",
+      "Middle East Home",
+      "Middle East Inn",
+      "Middle East Smith",
+      "Middle East Far Wall",
+      "Middle East Gate",
+      "Middle East Near Wall"
+    ]
+  );
+});
+
+test("American and Pacific regions use earthen buildings instead of Tudor fallbacks", () => {
+  for (const cityType of ["andean", "mesoamerican", "polynesian"]) {
+    assert.deepEqual(
+      ["Home", "Home 2", "Inn", "Smith"].map((baseLayer) => (
+        cityRegionalBuildingFrame(FRAMES, cityType, baseLayer).layer
+      )),
+      ["Earthen Hut", "Earthen Hut Large", "Earthen Hut Large", "Earthen Hut"]
+    );
+    assert.equal(cityRegionalBuildingRenderStyle(cityType, "Gate"), "islamic-desert");
+  }
+});
+
+test("African cities combine earthen housing with the closest Islamicate civic kit", () => {
+  assert.equal(cityRegionalBuildingRenderStyle("sub-saharan", "Home"), "earthen-village");
+  assert.equal(cityRegionalBuildingRenderStyle("sub-saharan", "Inn"), "islamic-desert");
+  assert.equal(cityRegionalBuildingRenderStyle("sub-saharan", "Gate"), "islamic-desert");
+});
+
+test("unsupported architecture styles fail instead of silently becoming Northern European", () => {
+  assert.throws(
+    () => cityRegionalBuildingFrame(FRAMES, "unknown-region", "Home"),
+    /No regional city building kit/
+  );
+});
+
+test("an incomplete authored kit fails instead of silently borrowing a Tudor role", () => {
+  const framesWithoutJapaneseSmith = FRAMES.filter((frame) => frame.layer !== "Japan Smith");
+  assert.throws(
+    () => cityRegionalBuildingFrame(framesWithoutJapaneseSmith, "japanese", "Smith"),
+    /Missing japanese city building frame/
+  );
+});
+
+test("every generated city resolves its cultural architecture without an accidental Tudor fallback", () => {
+  for (const city of CITY_CATALOG) {
+    for (const baseLayer of CITY_REGIONAL_BUILDING_BASE_LAYERS) {
+      const architectureStyle = cityArchitectureStyleForLayer(city, baseLayer);
+      const selected = cityRegionalBuildingFrame(FRAMES, architectureStyle, baseLayer);
+      assert.ok(selected, `${city.id} has no ${baseLayer} building`);
+      if (city.cityType !== "northern-european") {
+        assert.notEqual(
+          architectureStyle,
+          "northern-european",
+          `${city.id} classified ${baseLayer} as Northern European`
+        );
+      }
+      const intentionalMediterraneanFortificationPalette = (
+        architectureStyle === "mediterranean" &&
+        ["Far Castle", "Gate", "Near Castle"].includes(baseLayer)
+      );
+      if (
+        architectureStyle !== "northern-european" &&
+        !intentionalMediterraneanFortificationPalette
+      ) {
+        assert.notEqual(
+          selected,
+          FRAMES.find((frame) => frame.layer === baseLayer),
+          `${city.id} silently fell back to Northern European ${baseLayer}`
+        );
+      }
+    }
+  }
 });
 
 test("regional frames preserve their logical building roles", () => {

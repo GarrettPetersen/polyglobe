@@ -62,7 +62,6 @@ const FRAMES = Object.freeze(BACKGROUND_CITY_BUILDING_LAYERS.map((layer) => fram
 const CHURCH_FRAME = frame(BACKGROUND_CITY_CHURCH_LAYER, 195, 367, 142, 16);
 const MOSQUE_FRAME = frame(BACKGROUND_CITY_MOSQUE_LAYER, 165, 137, 161, 119);
 const FRAMES_WITH_CHURCH = Object.freeze([...FRAMES, CHURCH_FRAME]);
-const FRAMES_WITH_MOSQUE = Object.freeze([...FRAMES, MOSQUE_FRAME]);
 const MEDITERRANEAN_FRAMES = Object.freeze([
   ...FRAMES,
   frame("Med Inn", 129, 101, 0, 0, { cityType: "mediterranean", regionalOf: "Inn" }),
@@ -76,6 +75,7 @@ const MIDDLE_EASTERN_FRAMES = Object.freeze([
   frame("Middle East Smith", 108, 67, 2, 4, { cityType: "islamic-desert", regionalOf: "Smith" }),
   frame("Middle East Home", 99, 56, -2, 15, { cityType: "islamic-desert", regionalOf: "Home" })
 ]);
+const FRAMES_WITH_MOSQUE = Object.freeze([...MIDDLE_EASTERN_FRAMES, MOSQUE_FRAME]);
 const BASE_FRAME = frame("Background City Base", 541, 55, 824, 469);
 const BASE_LEFT = BASE_FRAME.spriteSourceSize.x;
 const BASE_RIGHT = BASE_LEFT + BASE_FRAME.frame.w;

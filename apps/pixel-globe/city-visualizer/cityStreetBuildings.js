@@ -68,7 +68,7 @@ export function cityStreetBuildingPlacements({
   frames,
   assignments,
   buildingStyle,
-  cityType = buildingStyle
+  cityType = buildingStyle || "northern-european"
 }) {
   if (!Array.isArray(frames)) throw new Error("City street buildings require atlas frames");
   const resolvedAssignments = assignments || defaultCityStreetBuildingAssignments(features);

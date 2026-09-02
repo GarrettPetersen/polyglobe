@@ -315,6 +315,14 @@ The initial six kits can be divided when broader world coverage needs stronger
 local identity. Each new kit adds up to ten coverage slots, although the generic
 church and other shared landmarks can be reused.
 
+Until those kits are authored, the visualizer uses an explicit closest-fit
+policy instead of silently falling back to Northern European timber-and-plaster
+buildings: South Asian ports use the Middle Eastern masonry kit; Southeast Asian
+ports use the raised-timber Japanese kit; Andean, Mesoamerican, and Polynesian
+ports use the earthen kit; and Sub-Saharan ports combine earthen housing with
+Middle Eastern service and fortification silhouettes. Unknown architecture
+styles are an error, and a catalog-wide test verifies every generated port.
+
 - **LATER — South Asian:** likely needs a distinct urban kit rather than being
   treated as Middle Eastern.
 - **LATER — Southeast Asian:** likely needs a distinct urban kit.
