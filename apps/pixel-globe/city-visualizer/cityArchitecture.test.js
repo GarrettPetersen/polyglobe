@@ -97,6 +97,7 @@ test("Swahili ports separate earthen housing from Islamic service and fortificat
   assert.equal(cityArchitectureStyleForLayer(catalogCity, "Home"), EARTHEN_VILLAGE_BUILDING_STYLE);
   assert.equal(cityArchitectureStyleForLayer(catalogCity, "Inn"), "islamic-desert");
   assert.equal(cityArchitectureStyleForLayer(catalogCity, "Gate"), "islamic-desert");
+  assert.equal(cityArchitectureStyleForLayer(catalogCity, "Gate Front Edge"), "islamic-desert");
 });
 
 test("catalog architecture and service profiles are validated at the scene boundary", () => {

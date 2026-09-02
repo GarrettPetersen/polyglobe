@@ -7,6 +7,7 @@ import {
 } from "./portCityTransition.js";
 
 test("city entry expands from the overworld city sprite to cover the viewport", () => {
+  assert.ok(PORT_CITY_TRANSITION_DURATION_MS >= 800);
   const start = frame("enter", 0);
   const finish = frame("enter", PORT_CITY_TRANSITION_DURATION_MS);
   assert.equal(start.radius, 0);

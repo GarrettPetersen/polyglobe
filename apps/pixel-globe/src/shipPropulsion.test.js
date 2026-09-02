@@ -328,6 +328,7 @@ test("rowing crew power rises to a capped twenty-rower complement", () => {
   assert.equal(MAX_EFFECTIVE_ROWERS, 20);
   assert.equal(rowingCrewRatio(0, 40), 0);
   assert.equal(rowingCrewRatio(5, 40), 0.25);
+  assert.equal(rowingCrewRatio(10.5, 40), 0.525);
   assert.equal(rowingCrewRatio(20, 40), 1);
   assert.equal(rowingCrewRatio(40, 40), 1);
   assert.equal(rowingCrewRatio(3, 3), 1);

@@ -169,6 +169,40 @@ const REGIONAL_BUILDING_LAYERS = Object.freeze({
   })
 });
 
+const BUILDING_FOREGROUND_LAYERS = Object.freeze({
+  "European Gate Front Edge": Object.freeze({
+    layer: "Gate Front Edge",
+    sourceBase: "Far Gate Side",
+    targetLayer: "Gate"
+  }),
+  "China Gateway Front Edge": Object.freeze({
+    layer: "China Gateway Front Edge",
+    cityType: "east-asian",
+    regionalOf: "Gate Front Edge",
+    sourceBase: "China Gateway",
+    targetLayer: "China Gateway"
+  }),
+  "Japan Gateway Front Edge": Object.freeze({
+    layer: "Japan Gateway Front Edge",
+    cityType: "japanese",
+    regionalOf: "Gate Front Edge",
+    sourceBase: "Japan Gateway",
+    targetLayer: "Japan Gateway"
+  }),
+  "Middle East Gate Front Edge": Object.freeze({
+    layer: "Middle East Gate Front Edge",
+    cityType: "islamic-desert",
+    regionalOf: "Gate Front Edge",
+    sourceBase: "Middle East Gate",
+    targetLayer: "Middle East Gate"
+  }),
+  "Shipyard Front": Object.freeze({
+    layer: "Shipyard Front",
+    sourceBase: "Shipyard",
+    targetLayer: "Shipyard"
+  })
+});
+
 const STANDALONE_BUILDING_LAYERS = Object.freeze([
   "Church",
   "Mosque",
@@ -460,8 +494,8 @@ async function exportCityPeopleAssets(privateSourceRoot) {
 
 function cityPersonAnimationTags(archetype) {
   return archetype.id === "suspicious-merchant"
-    ? Object.freeze(["walk", "idle2"])
-    : Object.freeze(["walk"]);
+    ? Object.freeze(["idle", "walk", "jump", "idle2"])
+    : Object.freeze(["idle", "walk", "jump"]);
 }
 
 function combineCityPersonAnimations(animations) {
@@ -668,7 +702,8 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
     }));
     const expectedLayerNames = [
       ...Object.keys(BUILDING_LAYER_OVERRIDES),
-      ...STANDALONE_BUILDING_LAYERS
+      ...STANDALONE_BUILDING_LAYERS,
+      ...Object.keys(BUILDING_FOREGROUND_LAYERS)
     ];
     const overrideFrames = visibleFrames.filter((frame) => expectedLayerNames.includes(frame.layer));
     const missingLayerNames = expectedLayerNames.filter((layer) => (
@@ -684,11 +719,12 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
       loadImage(staticPngPath),
       loadImage(sheetPath)
     ]);
-    const standaloneFrames = overrideFrames.filter((frame) => (
-      STANDALONE_BUILDING_LAYERS.includes(frame.layer)
+    const appendedFrames = overrideFrames.filter((frame) => (
+      STANDALONE_BUILDING_LAYERS.includes(frame.layer) ||
+      Object.hasOwn(BUILDING_FOREGROUND_LAYERS, frame.layer)
     ));
-    const appendedHeight = standaloneFrames.reduce((height, frame) => height + frame.frame.h, 0);
-    const appendedWidth = standaloneFrames.reduce(
+    const appendedHeight = appendedFrames.reduce((height, frame) => height + frame.frame.h, 0);
+    const appendedWidth = appendedFrames.reduce(
       (width, frame) => Math.max(width, frame.frame.w),
       staticAtlas.width
     );
@@ -730,9 +766,22 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
       );
     }
     let appendedY = staticAtlas.height;
-    for (const standaloneFrame of standaloneFrames) {
+    for (const standaloneFrame of appendedFrames) {
       const regional = REGIONAL_BUILDING_LAYERS[standaloneFrame.layer];
-      const canonicalSpriteSourceSize = regional
+      const foreground = BUILDING_FOREGROUND_LAYERS[standaloneFrame.layer];
+      const targetFrame = foreground
+        ? staticFrames.find((frame) => frame.layer === foreground.targetLayer)
+        : null;
+      const sourceBaseFrame = foreground
+        ? visibleFrames.find((frame) => frame.layer === foreground.sourceBase)
+        : null;
+      const canonicalSpriteSourceSize = foreground
+        ? foregroundBuildingSpriteSourceSize({
+            foregroundFrame: standaloneFrame,
+            sourceBaseFrame,
+            targetFrame
+          })
+        : regional
         ? regionalBuildingSpriteSourceSize({
             regionalFrame: standaloneFrame,
             sourceBaseFrame: visibleFrames.find((frame) => frame.layer === regional.sourceBase),
@@ -753,7 +802,7 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
       );
       staticFrames.push({
         id: `building-${standaloneFrame.layer.toLowerCase().replaceAll(" ", "-")}`,
-        layer: standaloneFrame.layer,
+        layer: foreground?.layer || standaloneFrame.layer,
         sheet: "static.png",
         frame: {
           x: 0,
@@ -762,11 +811,17 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
           h: standaloneFrame.frame.h
         },
         spriteSourceSize: canonicalSpriteSourceSize,
-        sourceSize: regional
+        sourceSize: foreground
+          ? targetFrame.sourceSize
+          : regional
           ? staticFrames.find((frame) => frame.layer === regional.regionalOf).sourceSize
           : standaloneFrame.sourceSize,
         duration: standaloneFrame.duration,
-        ...(regional ? {
+        ...(foreground?.cityType ? {
+          cityType: foreground.cityType,
+          regionalOf: foreground.regionalOf,
+          hasChimney: false
+        } : regional ? {
           cityType: regional.cityType,
           regionalOf: regional.regionalOf,
           ...(regional.hasChimney === false ? { hasChimney: false } : {})
@@ -778,6 +833,20 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+function foregroundBuildingSpriteSourceSize({ foregroundFrame, sourceBaseFrame, targetFrame }) {
+  if (!sourceBaseFrame || !targetFrame) {
+    throw new Error(`Missing scene anchor for building foreground: ${foregroundFrame.layer}`);
+  }
+  return {
+    x: targetFrame.spriteSourceSize.x +
+      foregroundFrame.spriteSourceSize.x - sourceBaseFrame.spriteSourceSize.x,
+    y: targetFrame.spriteSourceSize.y +
+      foregroundFrame.spriteSourceSize.y - sourceBaseFrame.spriteSourceSize.y,
+    w: foregroundFrame.frame.w,
+    h: foregroundFrame.frame.h
+  };
 }
 
 function regionalBuildingSpriteSourceSize({

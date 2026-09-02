@@ -126,6 +126,7 @@ export function portConquestStatus({
   city,
   batteryDisabled,
   crew,
+  effectiveCrew = crew,
   crewCapacity,
   attackerFactionId,
   assaultChanceBonus = 0,
@@ -134,6 +135,10 @@ export function portConquestStatus({
   assertCity(city);
   assertFactionId(attackerFactionId);
   assertCrew(crew, "crew");
+  const maximumEffectiveCrew = crew === 0 ? 0 : 1 + Math.max(0, crew - 1) * 1.1;
+  if (!Number.isFinite(effectiveCrew) || effectiveCrew < 0 || effectiveCrew > maximumEffectiveCrew) {
+    throw new Error(`Invalid effective conquest crew: ${effectiveCrew}/${crew}`);
+  }
   assertCrew(crewCapacity, "crew capacity");
   assertCrew(auxiliaryTroops, "auxiliary troops");
   if (crew > crewCapacity) throw new Error("Port conquest crew exceeds ship capacity");
@@ -144,14 +149,19 @@ export function portConquestStatus({
   const alreadyOwned = city.factionId === attackerFactionId;
   const largeWarship = crewCapacity >= PORT_CONQUEST_MIN_CREW;
   const landingForce = crew + auxiliaryTroops;
+  const effectiveLandingForce = effectiveCrew + auxiliaryTroops;
   const enoughCrew = landingForce >= PORT_CONQUEST_MIN_CREW;
   const canAttempt = !alreadyOwned && batteryDisabled === true && largeWarship && enoughCrew;
   const capital = city.isFactionCapital === true;
-  const crewAdvantage = Math.max(0, landingForce - PORT_CONQUEST_MIN_CREW);
+  const crewDifference = effectiveLandingForce - PORT_CONQUEST_MIN_CREW;
   const population = Math.max(1000, Number(city.population || 1000));
   if (!Number.isFinite(population)) throw new Error(`Invalid conquest port population: ${city.population}`);
   const populationPenalty = clamp((Math.log10(population) - 3.3) * 0.08, 0, 0.16);
-  const crewChance = (capital ? 0.24 : 0.48) + crewAdvantage * (capital ? 0.003 : 0.005);
+  const crewChance = (capital ? 0.24 : 0.48) + crewDifference * (
+    crewDifference >= 0
+      ? (capital ? 0.003 : 0.005)
+      : (capital ? 0.004 : 0.006)
+  );
   const baseSuccessChance = clamp(
     crewChance - populationPenalty,
     capital ? 0.15 : 0.32,
@@ -171,6 +181,7 @@ export function portConquestStatus({
     capital,
     minimumCrew: PORT_CONQUEST_MIN_CREW,
     landingForce,
+    effectiveLandingForce,
     auxiliaryTroops,
     populationPenalty,
     assaultChanceBonus,

@@ -473,6 +473,23 @@ test("surrender judgment weighs combat power, damage, and escape speed", () => {
   assert.equal(npcShouldOfferSurrender(threatShip("damaged", 5, 18, 0.045, 30), player), true);
 });
 
+test("individual crew experience contributes to player combat threat", () => {
+  const npc = { ...threatShip("crew-threat", 2, 0, 0.03), crew: 5, woundedCrew: 0 };
+  const novicePlayer = {
+    ...threatShip("player", 2, 0, 0.04),
+    crew: 20,
+    woundedCrew: 0,
+    effectiveCrew: 4.8
+  };
+  const veteranPlayer = { ...novicePlayer, effectiveCrew: 21.9 };
+  assert.equal(npcShouldOfferSurrender(npc, novicePlayer), false);
+  assert.equal(npcShouldOfferSurrender(npc, veteranPlayer), true);
+  assert.throws(
+    () => npcShouldOfferSurrender(npc, { ...threatShip("player", 2, 0, 0.04), effectiveCrew: 2 }),
+    /requires crew and wounds/
+  );
+});
+
 function ship(id, role, factionId, x, y, hitPoints, cannons, maxHitPoints = hitPoints) {
   return {
     id,

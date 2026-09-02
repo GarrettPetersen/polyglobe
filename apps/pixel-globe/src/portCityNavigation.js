@@ -1,4 +1,5 @@
 export const PORT_CITY_LOCATION = Object.freeze({
+  SET_SAIL: "set-sail",
   MARKET: "market",
   EQUIPMENT: "equipment",
   SHIPYARD: "shipyard",
@@ -9,6 +10,7 @@ export const PORT_CITY_LOCATION = Object.freeze({
 });
 
 const LOCATION_ORDER = Object.freeze([
+  PORT_CITY_LOCATION.SET_SAIL,
   PORT_CITY_LOCATION.SHIP,
   PORT_CITY_LOCATION.MARKET,
   PORT_CITY_LOCATION.INN,
@@ -19,6 +21,7 @@ const LOCATION_ORDER = Object.freeze([
 ]);
 
 const LOCATION_LABELS = Object.freeze({
+  [PORT_CITY_LOCATION.SET_SAIL]: "Set Sail",
   [PORT_CITY_LOCATION.MARKET]: "Market",
   [PORT_CITY_LOCATION.EQUIPMENT]: "Smith",
   [PORT_CITY_LOCATION.SHIPYARD]: "Shipyard",
@@ -91,9 +94,8 @@ export function portCityLocationForRootAction(action) {
   }
   if (action.type === "open-passenger") return PORT_CITY_LOCATION.INN;
   if (action.type === "open-trade-pass") return PORT_CITY_LOCATION.AUTHORITY;
-  if (action.type === "wait-in-port" || action.type === "close") {
-    return PORT_CITY_LOCATION.SHIP;
-  }
+  if (action.type === "close") return PORT_CITY_LOCATION.SET_SAIL;
+  if (action.type === "wait-in-port") return PORT_CITY_LOCATION.SHIP;
   if (action.type !== "node") {
     throw new Error(`Unmapped port root action type: ${action.type}`);
   }

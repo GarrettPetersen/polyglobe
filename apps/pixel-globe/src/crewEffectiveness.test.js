@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  MAXIMUM_EFFECTIVE_CREW_WORK_COUNT,
   MAXIMUM_CREW_WORK_COUNT,
   STANDARD_CREW_WORK_COUNT,
   crewScaledFailureChance,
@@ -13,7 +14,7 @@ import { shipStatsForSlug } from "./shipStats.js";
 test("crew work is anchored at one hand, the typical complement, and the largest complement", () => {
   assert.equal(crewWorkMultiplier(1), 0.5);
   assert.equal(crewWorkMultiplier(STANDARD_CREW_WORK_COUNT), 1);
-  assert.equal(crewWorkMultiplier(MAXIMUM_CREW_WORK_COUNT), 2);
+  assert.equal(crewWorkMultiplier(MAXIMUM_EFFECTIVE_CREW_WORK_COUNT), 2);
 });
 
 test("crew work changes smoothly and monotonically around the typical complement", () => {
@@ -55,8 +56,9 @@ test("crew multipliers improve success and reduce failure without guaranteeing e
 });
 
 test("crew work rejects malformed complements and probability scales", () => {
-  assert.throws(() => crewWorkMultiplier(1.5), /active crew/);
-  assert.throws(() => crewWorkMultiplier(MAXIMUM_CREW_WORK_COUNT + 1), /exceeds/);
+  assert.ok(crewWorkMultiplier(1.5) > crewWorkMultiplier(1));
+  assert.ok(crewWorkMultiplier(1.5) < crewWorkMultiplier(2));
+  assert.throws(() => crewWorkMultiplier(MAXIMUM_EFFECTIVE_CREW_WORK_COUNT + 0.1), /exceeds/);
   assert.throws(() => crewScaledSuccessChance(1.1, 1), /success chance/);
   assert.throws(() => crewScaledFailureChance(0.5, Infinity), /activity multiplier/);
 });

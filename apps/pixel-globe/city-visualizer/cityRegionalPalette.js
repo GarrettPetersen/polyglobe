@@ -1,6 +1,7 @@
 export const CITY_FORTIFICATION_LAYERS = Object.freeze([
   "Far Castle",
   "Gate",
+  "Gate Front Edge",
   "Near Castle"
 ]);
 

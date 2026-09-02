@@ -13,6 +13,7 @@ import {
   persistedValueSchemaEntries
 } from "./gameStateSchema.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { testCrewMigrationOptions } from "./test-fixtures/crewTestFixtures.js";
 
 const SNAPSHOT_DIRECTORY = new URL("./test-fixtures/save-schemas/", import.meta.url);
 const SCHEMA_SNAPSHOT_URL = new URL(
@@ -51,6 +52,7 @@ for (const fixtureName of readdirSync(SNAPSHOT_DIRECTORY)
       assert.equal(saved.version, fixture.gameStateVersion);
       const expected = compatibilityFacts(saved);
       const migrated = migrateGameState(saved, shipStatsForSlug(saved.ship.slug), {
+        ...testCrewMigrationOptions(),
         legacyCityIdForPortReference: ({ tileId }) => {
           assert.equal(tileId, 1);
           return "london|united kingdom";
@@ -72,6 +74,7 @@ test("legacy migration rebuilds stale derived cargo capacity while current saves
   legacy.cargoCapacity += 4;
 
   const migrated = migrateGameState(legacy, shipStats, {
+    ...testCrewMigrationOptions(),
     legacyCityIdForPortReference: () => "london|united kingdom"
   });
   assert.equal(migrated.cargoCapacity, shipStats.cargoCapacity);

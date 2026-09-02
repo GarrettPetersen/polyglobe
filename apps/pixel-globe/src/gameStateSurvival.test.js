@@ -30,7 +30,6 @@ import {
   castawayEmergencyAidNeed,
   createGameState,
   foodRationsForCargoQuantity,
-  initializeProvisionalShipLoadout,
   initializeShipProvisions,
   loseCrew,
   migrateGameState,
@@ -58,11 +57,18 @@ import {
   updateSurvival,
   validateGameState
 } from "./gameState.js";
+import {
+  initializeTestProvisionalShipLoadout as initializeProvisionalShipLoadout,
+  setTestCrewCount,
+  testCrewMigrationOptions
+} from "./test-fixtures/crewTestFixtures.js";
+import { DEFAULT_TEST_PLAYER_CHARACTER } from "./test-fixtures/createTestGameState.js";
 import { SPECIAL_EQUIPMENT_OFFER_MEMORY_VERSION } from "./specialEquipmentOffers.js";
 import { rainCollectionStrength } from "./stormSystem.js";
 import { crewHoldSpace, shipLoadoutPlan } from "./shipLoadouts.js";
 import { effectivePlayerShipStats } from "./playerPerks.js";
-import { shipStatsForSlug } from "./shipStats.js";
+import { SHIP_STATS, shipStatsForSlug } from "./shipStats.js";
+import { validateCrewAggregate } from "./crewMembers.js";
 import { colonizationTargetForCity } from "./colonialCities.js";
 import {
   COLONIZATION_FETCH_STAGES,
@@ -260,16 +266,17 @@ test("a saved Xebec repairs a stale Lateen Barque crew target", () => {
   delete legacy.ship.slug;
   legacy.ship.loadoutTargets = shipLoadoutPlan(lateenBarque, "short-haul");
   legacy.ship.crew = 4;
+  legacy.playerCharacter = structuredClone(DEFAULT_TEST_PLAYER_CHARACTER);
   legacy.doubloons = 56000;
 
-  const restored = migrateGameState(legacy, xebec);
+  const restored = migrateGameState(legacy, xebec, testCrewMigrationOptions());
   assert.equal(restored.ship.slug, "xebec");
   assert.equal(restored.ship.loadoutTargets.crew, 12);
 
   const result = restockSelectedShipLoadoutAtPort(restored, LONDON, { simMinute: 240 });
-  assert.equal(result.additions.crew, 8);
-  assert.equal(restored.ship.crew, 12);
-  assert.equal(restored.doubloons, 55984);
+  assert.equal(result.additions.crew, 0);
+  assert.equal(restored.ship.crew, 4);
+  assert.equal(restored.doubloons, 56000);
 });
 
 test("current saves shed guns removed by a historical ship refit", () => {
@@ -282,7 +289,7 @@ test("current saves shed guns removed by a historical ship refit", () => {
   saved.ship.cannonCapacity = 24;
   saved.ship.cannons = 24;
 
-  const restored = migrateGameState(saved, royalLancaran);
+  const restored = migrateGameState(saved, royalLancaran, testCrewMigrationOptions());
 
   assert.equal(restored.ship.cannonCapacity, 10);
   assert.equal(restored.ship.cannons, 10);
@@ -302,9 +309,9 @@ test("current saves discharge only anonymous crew that exceed canonical hull cap
     skillIds: ["able-seaman"]
   }, NAMED_CREW_ROLE_HISTORIAN, { replaceGenericWhenFull: true });
   saved.ship.crewCapacity = 42;
-  saved.ship.crew = 18;
+  setTestCrewCount(saved, 18);
 
-  const restored = migrateGameState(saved, fusta);
+  const restored = migrateGameState(saved, fusta, testCrewMigrationOptions());
 
   assert.equal(restored.ship.crewCapacity, 12);
   assert.equal(restored.ship.crew, 12);
@@ -331,7 +338,7 @@ test("version 27 ship saves migrate before named crew memory exists", () => {
   state.version = 27;
   delete state.namedCrew;
 
-  const migrated = migrateGameState(state, stats);
+  const migrated = migrateGameState(state, stats, testCrewMigrationOptions());
 
   assert.deepEqual(migrated.namedCrew, []);
   assert.equal(validateGameState(migrated), migrated);
@@ -447,7 +454,7 @@ test("active rowing modestly increases food consumption", () => {
   const rowing = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   for (const state of [baseline, rowing]) {
     initializeProvisionalShipLoadout(state, stats);
-    state.ship.crew = 1;
+    setTestCrewCount(state, 1);
     state.cargo = { hardtack: 5 };
     state.accounts.cargoCostBasis = { hardtack: 10 };
   }
@@ -530,7 +537,7 @@ test("a ship drinks wine only after water runs out and tracks full wine-only day
   const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
-  state.ship.crew = 1;
+  setTestCrewCount(state, 1);
   state.survival.freshWater = 0;
   state.cargo = { hardtack: 1, [WINE_GOOD_ID]: 1 };
   state.accounts.cargoCostBasis = { hardtack: 2, [WINE_GOOD_ID]: 18 };
@@ -565,7 +572,7 @@ test("brief rain does not repeat the dry-casks emergency", () => {
   const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
-  state.ship.crew = 1;
+  setTestCrewCount(state, 1);
   state.survival.freshWater = 0;
   state.cargo = { hardtack: 1, [WINE_GOOD_ID]: 1 };
   state.accounts.cargoCostBasis = { hardtack: 2, [WINE_GOOD_ID]: 18 };
@@ -584,7 +591,7 @@ test("old dry-cask saves resume inside their existing wine emergency", () => {
   const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
-  state.ship.crew = 1;
+  setTestCrewCount(state, 1);
   state.survival.freshWater = 0;
   state.survival.wineOnlyMinutes = 0;
   state.cargo = { hardtack: 1, [WINE_GOOD_ID]: 1 };
@@ -618,7 +625,7 @@ test("small-boat food falls one day at a time and frees ration-sized hold space"
   initializeProvisionalShipLoadout(state, stats);
   state.cargo = { hardtack: 1 };
   state.accounts.cargoCostBasis = { hardtack: 2 };
-  state.ship.crew = 1;
+  setTestCrewCount(state, 1);
   const usedBefore = cargoUsed(state);
 
   assert.equal(survivalStatus(state).foodDays, 12);
@@ -654,7 +661,7 @@ test("ordinary rain raises cask levels but mixed weather still requires resupply
   const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
-  state.ship.crew = 1;
+  setTestCrewCount(state, 1);
   state.survival.freshWater -= 2;
   const waterBeforeRain = state.survival.freshWater;
   const ordinaryRainfall = rainCollectionStrength({
@@ -679,7 +686,7 @@ test("heavy rain can raise a minimally crewed boat's water supply", () => {
   const stats = shipStatsForSlug("mesoamerican-dugout-canoe");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
-  state.ship.crew = 1;
+  setTestCrewCount(state, 1);
   state.survival.freshWater -= 1;
   const waterBefore = state.survival.freshWater;
 
@@ -793,9 +800,10 @@ test("version 67 pirate captive saves gain the deceptive-captive schema", () => 
   acceptPirateCaptiveQuest(state.memory.quests.pirateCaptive, quest.id);
   delete quest.captiveKind;
   delete quest.deception;
+  state.playerCharacter = structuredClone(DEFAULT_TEST_PLAYER_CHARACTER);
   state.version = 67;
 
-  const migrated = migrateGameState(state, stats);
+  const migrated = migrateGameState(state, stats, testCrewMigrationOptions());
 
   assert.equal(migrated.memory.quests.pirateCaptive.active.captiveKind, "real");
   assert.equal(migrated.memory.quests.pirateCaptive.active.deception, null);
@@ -1040,7 +1048,7 @@ test("hardtack and extra water can be bought but not sold back", () => {
   assert.throws(() => sellGood(state, economy, LONDON, FRESH_WATER_GOOD_ID, 1), /cannot be sold/);
 });
 
-test("loadouts put crew, guns, food, and water into the hold", () => {
+test("loadouts target crew while restocking only guns, food, and water", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   initializeProvisionalShipLoadout(state, stats);
@@ -1048,7 +1056,9 @@ test("loadouts put crew, guns, food, and water into the hold", () => {
   const plan = shipLoadoutPlan(stats, "combat");
 
   assert.equal(state.ship.loadoutId, "combat");
-  assert.equal(state.ship.crew, plan.crew);
+  assert.equal(state.ship.crew, 12);
+  assert.equal(state.ship.loadoutTargets.crew, plan.crew);
+  assert.equal(result.additions.crew, 0);
   assert.equal(state.ship.cannons, plan.cannons);
   assert.equal(cargoUsed(state),
     crewHoldSpace(state.ship.crew) + state.ship.cannons +
@@ -1444,13 +1454,32 @@ test("crew die from thirst and sometimes from hull damage", () => {
 
   assert.equal(loseCrew(state, 1), 1);
   assert.equal(state.ship.crew, startingCrew - 1);
-  const rolls = [0, 0.99];
+  const rolls = [0, 0.99, 0, 0];
   assert.equal(rollCrewCasualtiesForDamage(state, 4, () => rolls.shift()), 2);
   assert.equal(rollCrewCasualtiesForDamage(state, 1, () => 0.99), 0);
 
   const remainingCrew = state.ship.crew;
   assert.equal(loseCrew(state, remainingCrew + 10), remainingCrew);
   assert.equal(state.ship.crew, 0);
+});
+
+test("every hull preserves individual crew identity through initialization and repeated losses", () => {
+  for (const stats of SHIP_STATS) {
+    const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+    initializeProvisionalShipLoadout(state, stats);
+    validateCrewAggregate(state);
+    validateGameState(state);
+    assert.equal(new Set(state.crewRoster.map(({ id }) => id)).size, state.crewRoster.length, stats.slug);
+    while (state.ship.crew > 0) {
+      const before = state.ship.crew;
+      const requestedLoss = Math.min(3, before);
+      assert.equal(loseCrew(state, requestedLoss, () => 0.5), requestedLoss, stats.slug);
+      assert.equal(state.ship.crew, before - requestedLoss, stats.slug);
+      validateCrewAggregate(state);
+      validateGameState(state);
+    }
+    assert.deepEqual(state.crewRoster, [], stats.slug);
+  }
 });
 
 test("dehydration and starvation kill crew without damaging the hull", () => {
@@ -1569,6 +1598,7 @@ test("a ship trade-in can disembark a named crewmate before fitting the replacem
     expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
     skillIds: ["able-seaman"]
   }, NAMED_CREW_ROLE_HISTORIAN);
+  setTestCrewCount(state, 2);
 
   const result = purchasePlayerShip(state, LONDON, dhow, {
     listingPrice: 1000,
@@ -1595,6 +1625,7 @@ test("a surrendered ship award can disembark a named crewmate with the replaced 
     expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
     skillIds: ["able-seaman"]
   }, NAMED_CREW_ROLE_HISTORIAN);
+  setTestCrewCount(state, 2);
 
   const result = awardPlayerShip(
     state,
@@ -1618,6 +1649,7 @@ test("a more valuable trade-in pays the difference without hiding the credit", (
   const felucca = shipStatsForSlug("felucca");
   const state = createGameState({ cargoCapacity: carrack.cargoCapacity, shipStats: carrack });
   initializeProvisionalShipLoadout(state, carrack);
+  setTestCrewCount(state, felucca.crewCapacity);
   state.doubloons = 100;
 
   const result = purchasePlayerShip(state, LONDON, felucca, {
@@ -1630,13 +1662,13 @@ test("a more valuable trade-in pays the difference without hiding the credit", (
   assert.equal(state.accounts.ledger.at(-1).amount, 2000);
 });
 
-test("a smaller ship accepts cargo after reducing the old ship's loadout", () => {
+test("a smaller ship accepts cargo after dismissing excess crew and reducing the old loadout", () => {
   const galleon = shipStatsForSlug("galleon");
   const felucca = shipStatsForSlug("felucca");
   const state = createGameState({ cargoCapacity: galleon.cargoCapacity, shipStats: galleon });
   initializeProvisionalShipLoadout(state, galleon);
   state.ship.loadoutId = "short-haul";
-  state.ship.crew = 20;
+  setTestCrewCount(state, felucca.crewCapacity);
   state.ship.cannons = 9;
   state.survival.freshWaterCapacity = 20;
   state.survival.freshWater = 20;
@@ -1684,6 +1716,7 @@ test("a rejected ship replacement changes neither money nor the ledger", () => {
   const felucca = shipStatsForSlug("felucca");
   const state = createGameState({ cargoCapacity: carrack.cargoCapacity, shipStats: carrack });
   initializeProvisionalShipLoadout(state, carrack);
+  setTestCrewCount(state, felucca.crewCapacity);
   state.doubloons = 60000;
   state.cargo.timber = felucca.cargoCapacity + 1;
   state.accounts.cargoCostBasis.timber = 100;

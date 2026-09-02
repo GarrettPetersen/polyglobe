@@ -4,7 +4,8 @@ import { shipStatsForSlug } from "./shipStats.js";
 import { CAMPAIGN_GOAL_FAMILY_DEBT } from "./campaignGoals.js";
 
 export function migrateSavedVoyageCore(payload, {
-  legacyCityIdForPortReference = null
+  legacyCityIdForPortReference = null,
+  crewMigrationContextForHomePort = null
 } = {}) {
   if (!payload || typeof payload !== "object") {
     throw new Error("Saved voyage payload is missing");
@@ -19,7 +20,8 @@ export function migrateSavedVoyageCore(payload, {
   };
   const shipStats = shipStatsForSlug(savedShip.typeSlug);
   const gameState = migrateGameState(structuredClone(payload.gameState), shipStats, {
-    legacyCityIdForPortReference
+    legacyCityIdForPortReference,
+    crewMigrationContextForHomePort
   });
 
   factionById(savedShip.factionId);

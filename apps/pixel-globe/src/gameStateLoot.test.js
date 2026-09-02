@@ -8,7 +8,6 @@ import {
   cargoUsedTicks,
   createGameState,
   fishCatchCargoCapacity,
-  initializeProvisionalShipLoadout,
   migrateGameState,
   recordDiscovery,
   receiveDiscoveryCargo,
@@ -20,6 +19,7 @@ import {
   receiveSurrenderedLoot,
   setCargoCapacity
 } from "./gameState.js";
+import { initializeTestProvisionalShipLoadout as initializeProvisionalShipLoadout } from "./test-fixtures/crewTestFixtures.js";
 import { shipStatsForSlug } from "./shipStats.js";
 
 test("surrendered loot credits money and accepts only cargo that fits", () => {

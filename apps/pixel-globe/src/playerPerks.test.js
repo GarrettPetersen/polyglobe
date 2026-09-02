@@ -14,6 +14,7 @@ import {
   addNamedCrewMember
 } from "./namedCrew.js";
 import { shipStatsForSlug } from "./shipStats.js";
+import { setTestCrewCount } from "./test-fixtures/crewTestFixtures.js";
 
 function perkState() {
   const stats = shipStatsForSlug("brigantine");
@@ -47,7 +48,7 @@ test("carried items and captain skills share one stacking perk total", () => {
 
 test("permanent named crew contribute their skills to ship work", () => {
   const state = perkState();
-  state.ship.crew = 2;
+  setTestCrewCount(state, 2);
   addNamedCrewMember(state, {
     id: "master-chef",
     name: "Lucia Ferraro",
@@ -76,7 +77,7 @@ test("a detained captive never contributes their character skill", () => {
 
 test("hull sheathing and a named shipwright share the resistance perk total", () => {
   const state = perkState();
-  state.ship.crew = 2;
+  setTestCrewCount(state, 2);
   state.inventory.items["lead-sheathing"] = 1;
   addNamedCrewMember(state, {
     id: "crew-shipwright",

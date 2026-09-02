@@ -4,6 +4,7 @@ import test from "node:test";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
+import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import {
   CITY_PERSON_APPEARANCES,
   CITY_PERSON_ARCHETYPES,
@@ -12,6 +13,7 @@ import {
 import {
   CITY_POPULATION_PROFILES,
   cityPopulationProfileId,
+  cityRecruitableCrewAppearances,
   createCityPeopleAgents,
   validateCityPeopleManifest
 } from "./cityPeople.js";
@@ -25,7 +27,7 @@ const manifest = validateCityPeopleManifest(JSON.parse(await readFile(new URL(
 const appearanceById = new Map(CITY_PERSON_APPEARANCES.map((entry) => [entry.id, entry]));
 
 test("every port has an explicit reproducible population profile", () => {
-  assert.equal(catalog.version, 4);
+  assert.equal(catalog.version, 5);
   assert.equal(catalog.cityCount, catalog.cities.length);
   for (const city of catalog.cities) {
     assert.equal(city.populationProfileId, cityPopulationProfileId(city), city.id);
@@ -46,6 +48,23 @@ test("every port has an explicit reproducible population profile", () => {
   for (const [cityId, profileId] of representativeProfiles) {
     assert.equal(city(cityId).populationProfileId, profileId);
   }
+});
+
+test("every future sailing colony has a baked scene and a live recruitable population pool", () => {
+  const bakedCityIds = new Set(catalog.cities.map(({ cityId }) => cityId));
+  const sailingTargets = COLONIZATION_TARGETS.filter(({ waterAccess }) => waterAccess !== "inland");
+  assert.ok(sailingTargets.length > 0);
+  for (const target of sailingTargets) {
+    assert.ok(bakedCityIds.has(target.cityId), `missing baked colony scene: ${target.cityId}`);
+    const liveCity = {
+      ...target,
+      population: 2400,
+      settlementType: "city",
+      playerFoundedColony: true
+    };
+    assert.ok(cityRecruitableCrewAppearances(liveCity).length > 0, target.cityId);
+  }
+  assert.equal(city("lima|peru").cityType, "andean");
 });
 
 test("peacetime city populations retain a distinct deterministic garrison pool", () => {
@@ -70,6 +89,21 @@ test("peacetime city populations retain a distinct deterministic garrison pool",
     paths: CITY_NPC_PATHS
   });
   assert.equal(capitalVillage.filter(({ role }) => role === "garrison").length, 1);
+});
+
+test("every port recruits only attack-capable foot silhouettes from its own population", () => {
+  for (const port of catalog.cities) {
+    const recruits = cityRecruitableCrewAppearances(port);
+    assert.ok(recruits.length > 0, port.id);
+    assert.equal(new Set(recruits.map(({ appearanceId }) => appearanceId)).size, recruits.length);
+    assert.ok(recruits.every(({ crewTypeId }) => typeof crewTypeId === "string" && crewTypeId !== ""));
+    assert.ok(recruits.every(({ appearanceId }) => !appearanceId.includes("horse")));
+  }
+  const japanese = cityRecruitableCrewAppearances(city("yamaguchi|japan"));
+  assert.ok(japanese.some(({ appearanceId, crewTypeId }) => (
+    appearanceId === "japanese-samurai" && crewTypeId === "ronin"
+  )));
+  assert.ok(japanese.every(({ appearanceId }) => appearanceId !== "japanese-horse-samurai"));
 });
 
 test("African profiles require dark and deep civilian appearances", () => {
@@ -148,11 +182,14 @@ test("the packed people atlas contains every appearance with hard pixel alpha", 
   }
   assert.ok(opaquePixels > 0);
   for (const appearance of manifest.appearances) {
-    for (const frame of appearance.animations.walk) {
-      assert.ok(frame.frame.x >= 0 && frame.frame.y >= 0, appearance.id);
-      assert.ok(frame.frame.x + frame.frame.w <= atlas.width, appearance.id);
-      assert.ok(frame.frame.y + frame.frame.h <= atlas.height, appearance.id);
-      assert.deepEqual(frame.sourceSize, { w: 32, h: 32 });
+    for (const animationId of ["idle", "walk", "jump"]) {
+      assert.ok(appearance.animations[animationId]?.length > 0, `${appearance.id}/${animationId}`);
+      for (const frame of appearance.animations[animationId]) {
+        assert.ok(frame.frame.x >= 0 && frame.frame.y >= 0, appearance.id);
+        assert.ok(frame.frame.x + frame.frame.w <= atlas.width, appearance.id);
+        assert.ok(frame.frame.y + frame.frame.h <= atlas.height, appearance.id);
+        assert.deepEqual(frame.sourceSize, { w: 32, h: 32 });
+      }
     }
   }
 });

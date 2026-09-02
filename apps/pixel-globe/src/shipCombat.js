@@ -504,11 +504,24 @@ function validateEntity(entity) {
     throw new Error(`Invalid maximum hull: ${entity.id}`);
   }
   if (!Number.isInteger(entity.cannons) || entity.cannons < 0) throw new Error(`Invalid cannon count: ${entity.id}`);
+  if (entity.effectiveCrew !== undefined && entity.crew === undefined && entity.woundedCrew === undefined) {
+    throw new Error(`Effective combat crew for ${entity.id} requires crew and wounds`);
+  }
   if (entity.crew !== undefined || entity.woundedCrew !== undefined) {
     if (!Number.isInteger(entity.crew) || entity.crew <= 0 ||
         !Number.isInteger(entity.woundedCrew) || entity.woundedCrew < 0 ||
         entity.woundedCrew > entity.crew) {
       throw new Error(`Invalid combat crew for ${entity.id}: ${entity.woundedCrew}/${entity.crew}`);
+    }
+    if (entity.effectiveCrew !== undefined) {
+      const activeCrew = activeCombatCrew(entity.crew, entity.woundedCrew);
+      const maximumEffectiveCrew = activeCrew === 0 ? 0 : 1 + Math.max(0, activeCrew - 1) * 1.1;
+      if (!Number.isFinite(entity.effectiveCrew) || entity.effectiveCrew < 0 ||
+          entity.effectiveCrew > maximumEffectiveCrew) {
+        throw new Error(
+          `Invalid effective combat crew for ${entity.id}: ${entity.effectiveCrew}/${activeCrew}`
+        );
+      }
     }
   }
   if (typeof entity.npcAttackProtected !== "boolean") {
@@ -541,7 +554,8 @@ function validatedCombatPower(entity) {
   const activeCrew = Number.isInteger(entity.crew)
     ? activeCombatCrew(entity.crew, entity.woundedCrew)
     : 0;
-  return entity.hitPoints * 10 + entity.cannons * 9 + activeCrew * 2;
+  const effectiveCrew = entity.effectiveCrew ?? activeCrew;
+  return entity.hitPoints * 10 + entity.cannons * 9 + effectiveCrew * 2;
 }
 
 function withinDistance(a, b, radius) {

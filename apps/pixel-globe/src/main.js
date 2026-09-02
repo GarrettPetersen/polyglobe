@@ -343,7 +343,11 @@ import {
   repairLegacyNpcCaptainHomeCityIds,
   reconcileCharacterPortraitMetadata
 } from "./characterPortraits.js";
-import { reconcileRegionalCharacterNameForms } from "./characterNames.js";
+import {
+  assignRegionalCharacterName,
+  reconcileRegionalCharacterNameForms
+} from "./characterNames.js";
+import { cityRecruitableCrewAppearances } from "../city-visualizer/cityPeople.js";
 import { conflictingCharacterIdentity } from "./characterIdentity.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
 import {
@@ -734,6 +738,20 @@ import {
 } from "./whaleHarpoons.js";
 import { crewWorkMultiplier } from "./crewEffectiveness.js";
 import {
+  advanceCrewSailingExperience,
+  createCrewRecruitmentOffer,
+  createMigratedCrewRoster,
+  crewExperienceSummary,
+  crewMemberExperienceStars,
+  crewRecruitmentOfferAt,
+  dismissCrewMember,
+  removeCrewCasualties,
+  restoreCrewMember,
+  restoreDismissedCrew,
+  validateCrewAggregate
+} from "./crewMembers.js";
+import { CREW_HIRE_COST } from "./shipLoadouts.js";
+import {
   DEPARTURE_CONTROL_FEEDBACK_KINDS,
   departureControlFeedbackAttention,
   departureControlFeedbackIsActive,
@@ -941,6 +959,7 @@ import {
 } from "./explorerDiscoveryDialogue.js";
 import {
   beginShipHandoverDialogue,
+  cancelPendingCrewDismissal,
   createPassengerDialogueSession,
   createPortArrivalDialogueSession,
   createPortDialogueSession,
@@ -968,6 +987,7 @@ import {
   shipDialogueView
 } from "./dialogueSystem.js";
 import { PORT_CITY_LOCATION } from "./portCityNavigation.js";
+import { portCityWeatherPresentation } from "./portCityWeather.js";
 import { portInnDialogue } from "./portInnDialogue.js";
 import { portCityCircleWipeFrame } from "./portCityTransition.js";
 import { createCitySceneRuntime } from "../city-visualizer/main.js";
@@ -1421,6 +1441,7 @@ import {
   dialogueOptionTextLayout,
   dialogueOptionWindow,
   dialoguePanelGeometry,
+  marketModeSwitchLayout,
   stepCharacterAlertChoicePage
 } from "./dialoguePanelLayout.js";
 import {
@@ -1851,6 +1872,7 @@ import {
   registerShipyardTradeIn,
   shipReplacementTermsWithoutTradeIn,
   shipyardAtPort,
+  shipyardCurrentBuild,
   shipyardListings,
   shipyardListingById,
   shipyardMaterialStatus,
@@ -3130,11 +3152,12 @@ const ABOARD_MENU_PANEL_W = 420;
 const ABOARD_MENU_PANEL_H = 420;
 const ABOARD_NAMED_TILE_MIN_W = 76;
 const ABOARD_NAMED_TILE_MIN_H = 106;
-const ABOARD_GENERIC_TILE_MIN_W = 52;
-const ABOARD_GENERIC_TILE_MIN_H = 42;
-const ABOARD_GENERIC_FRAME_SIZE = 22;
+const ABOARD_GENERIC_TILE_MIN_W = 68;
+const ABOARD_GENERIC_TILE_MIN_H = 58;
+const ABOARD_GENERIC_FRAME_SIZE = 34;
 const ABOARD_CONTENT_SECTION_GAP = 8;
 const ABOARD_SCROLL_STEP = ABOARD_GENERIC_TILE_MIN_H;
+const ABOARD_UNDO_CREW_FOCUS_ID = "crew-dismissals:undo";
 const CAPTAIN_MAP_CONTROL_SIZE = 18;
 const CAPTAIN_MAP_PAN_FRACTION = 0.2;
 const NAVIGATION_MENU_PANEL_W = 420;
@@ -3490,6 +3513,7 @@ let portCityView = null;
 let portCityTransition = null;
 let portCityIllicitEvent = null;
 let portCitySceneSyncKey = null;
+let portCityWeatherCache = null;
 let portCitySceneSelectionSerial = 0;
 let portCityPointerDown = null;
 let gpuShipDrawCommands = [];
@@ -4234,7 +4258,7 @@ window.addEventListener("keydown", (event) => {
     event.preventDefault();
     return;
   }
-  if (dispatchWorldOverlayKey(event)) return;
+  if (dispatchWorldOverlayKey(event, keyAction)) return;
   if (keyAction === KEY_ACTION.CAPTAIN_MENU && captainMenuButtonIsAvailable()) {
     event.preventDefault();
     openCaptainMenu();
@@ -4838,7 +4862,11 @@ async function main() {
   if (CAPTURE_SCENARIO) gameState.activePlaySeconds = CAPTURE_SCENARIO.player.activePlaySeconds;
   applyCurrentPortConquestOwnership();
   sailingTutorialState = createSailingTutorialState();
-  initializeProvisionalShipLoadout(gameState, ship.stats);
+  initializeProvisionalShipLoadout(
+    gameState,
+    ship.stats,
+    crewGenerationContextForHomePort(gameState.playerCharacter.homePortCityId)
+  );
   if (CAPTURE_SCENARIO) applyCaptureDiplomacy(gameState, CAPTURE_SCENARIO.diplomacy);
   reconcileForeignSettlementPolitics();
   npcSeaRoutes = createNpcSeaRouteSystem({
@@ -7125,6 +7153,9 @@ function createAboardMenuState() {
     closeButtonRect: null,
     backButtonRect: null,
     namedEntryRects: [],
+    crewEntryRects: [],
+    crewDismissals: [],
+    undoCrewDismissalsRect: null,
     scrollUpRect: null,
     scrollDownRect: null
   };
@@ -9389,7 +9420,7 @@ function currentInteractionInputOwner() {
   });
 }
 
-function dispatchWorldOverlayKey(event) {
+function dispatchWorldOverlayKey(event, keyAction) {
   const owner = currentInteractionInputOwner();
   if (owner === INTERACTION_INPUT.TELEMETRY_CONSENT) handleTelemetryConsentKeyDown(event);
   else if (owner === INTERACTION_INPUT.OPTIONS) handleOptionsKeyDown(event);
@@ -9407,7 +9438,7 @@ function dispatchWorldOverlayKey(event) {
   else if (owner === INTERACTION_INPUT.ACHIEVEMENTS) handleAchievementsKeyDown(event);
   else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuKeyDown(event);
   else if (owner === INTERACTION_INPUT.DIALOGUE) {
-    if (portCityRootNavigationIsActive()) handlePortCityKeyDown(event);
+    if (portCityRootNavigationIsActive()) handlePortCityKeyDown(event, keyAction);
     else handleDialogueKeyDown(event);
   }
   else if (owner === INTERACTION_INPUT.PORT_WAIT) handlePortWaitKeyDown(event);
@@ -12634,7 +12665,7 @@ function stageCaptureSailing(sequence) {
     heading = towardCity;
     speedRatio = 0.08;
   } else if (sequence.variant === "row-upwind") {
-    gameState.ship.crew = gameState.ship.crewCapacity;
+    setScenarioCrewCount(gameState.ship.crewCapacity);
     const requestedRations = gameState.ship.crewCapacity * 6;
     const addedRations = stowForagedFood(gameState, requestedRations);
     if (addedRations < gameState.ship.crewCapacity * 4) {
@@ -12789,7 +12820,7 @@ function captureWhalePlacement() {
 }
 
 function maximizeCaptureCombatLoadout() {
-  gameState.ship.crew = gameState.ship.crewCapacity;
+  setScenarioCrewCount(gameState.ship.crewCapacity);
   gameState.ship.cannons = gameState.ship.cannonCapacity;
   syncShipCargoFromGameState();
 }
@@ -13066,7 +13097,7 @@ function stageCaptureSurvival(sequence) {
   if (sequence.variant === "overboard-rescue") {
     captureDirector.steeringTarget = null;
     ship.velocity = [0, 0, 0];
-    gameState.ship.crew = gameState.ship.crewCapacity;
+    setScenarioCrewCount(gameState.ship.crewCapacity);
     gameState.memory.flags[FIRST_STORM_WARNING_SHOWN_FLAG] = true;
     gameState.memory.flags[FIRST_STORM_CLEARANCE_SHOWN_FLAG] = true;
     gameState.memory.flags[STORM_OVERBOARD_EXPLAINED_FLAG] = true;
@@ -13081,12 +13112,12 @@ function stageCaptureSurvival(sequence) {
     ]);
     gameState.survival.freshWater = 0;
     delete gameState.cargo.hardtack;
-    gameState.ship.crew = 1;
+    setScenarioCrewCount(1);
     syncShipCargoFromGameState();
     return;
   }
   gameState.survival.freshWater = 0;
-  gameState.ship.crew = Math.min(6, gameState.ship.crewCapacity);
+  setScenarioCrewCount(Math.min(6, gameState.ship.crewCapacity));
   survivalDeprivationTimers.waterNextMinute = weatherClockMinutes + SURVIVAL_DEHYDRATION_INTERVAL_MINUTES;
   syncShipCargoFromGameState();
 }
@@ -15462,7 +15493,9 @@ function archiveSavedVoyageBeforeStartingOver() {
   const payload = localSaveResult.status === "ready" ? localSaveResult.save?.payload : null;
   if (!payload) return false;
   try {
-    const { gameState: savedState } = migrateSavedVoyageCore(payload);
+    const { gameState: savedState } = migrateSavedVoyageCore(payload, {
+      crewMigrationContextForHomePort: crewGenerationContextForHomePort
+    });
     const record = createPastVoyageRecord({
       state: savedState,
       playerShip: payload.playerShip,
@@ -15527,6 +15560,41 @@ async function continueSavedVoyage() {
   }
 }
 
+function crewGenerationContextForHomePort(homePortCityId) {
+  const homePort = cityById?.get(homePortCityId);
+  if (!homePort) throw new Error(`Crew home port is missing from the city catalog: ${homePortCityId}`);
+  const usedNames = new Set();
+  return Object.freeze({
+    homePort,
+    appearances: cityRecruitableCrewAppearances(homePort),
+    nameForIdentity: (identityKey) => assignRegionalCharacterName({
+      identityKey,
+      city: homePort,
+      sex: "male",
+      usedNames
+    }).givenName
+  });
+}
+
+function setScenarioCrewCount(count) {
+  if (!Number.isInteger(count) || count < 1 || count > gameState.ship.crewCapacity) {
+    throw new Error(`Invalid capture crew count: ${count}/${gameState.ship.crewCapacity}`);
+  }
+  const ordinaryCount = count - 1 - gameState.namedCrew.length;
+  if (ordinaryCount < 0) throw new Error(`Capture crew count is below named commitments: ${count}`);
+  const generation = crewGenerationContextForHomePort(gameState.playerCharacter.homePortCityId);
+  gameState.crewRoster = createMigratedCrewRoster({
+    count: ordinaryCount,
+    voyageSeed: `${gameState.voyageSeed}|capture|${count}`,
+    homePort: generation.homePort,
+    currentMinute: Math.floor(weatherClockMinutes),
+    appearances: generation.appearances,
+    nameForIdentity: generation.nameForIdentity
+  });
+  gameState.ship.crew = count;
+  validateCrewAggregate(gameState);
+}
+
 async function restoreSavedVoyage(payload) {
   resetStormPassageState(stormPassageState);
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
@@ -15559,7 +15627,10 @@ async function restoreSavedVoyage(payload) {
     savedShip,
     shipStats: stats,
     gameState: restoredGameState
-  } = migrateSavedVoyageCore(payload, { legacyCityIdForPortReference });
+  } = migrateSavedVoyageCore(payload, {
+    legacyCityIdForPortReference,
+    crewMigrationContextForHomePort: crewGenerationContextForHomePort
+  });
   const restoredDemoVoyageScope = demoVoyageScopeForSavedGame({
     buildEditionId: BUILD_EDITION_ID,
     savedScope: payload.demoVoyageScope,
@@ -16977,7 +17048,7 @@ function handleAboardMenuKeyDown(event) {
   }
   if (aboardMenu.selectedNamedId) return;
   if (event.key === "Enter" || event.key === " ") {
-    openFocusedAboardCharacter();
+    activateFocusedAboardEntry();
     return;
   }
   if (event.key === "Home") {
@@ -16985,7 +17056,7 @@ function handleAboardMenuKeyDown(event) {
     return;
   }
   if (event.key === "End") {
-    focusAboardCharacterAtIndex(currentAboardMenuRoster().named.length - 1);
+    focusAboardCharacterAtIndex(aboardFocusableLayoutEntries().length - 1);
     return;
   }
   if (["PageUp", "PageDown"].includes(event.key)) {
@@ -17223,6 +17294,9 @@ function openAboardMenu() {
   aboardMenu.scrollDownRect = null;
   aboardMenu.backButtonRect = null;
   aboardMenu.namedEntryRects = [];
+  aboardMenu.crewEntryRects = [];
+  aboardMenu.crewDismissals = [];
+  aboardMenu.undoCrewDismissalsRect = null;
   if (roster.named.length === 0) throw new Error("Aboard roster has no named characters");
   aboardMenu.focusedNamedId = roster.named[0].id;
   for (const entry of roster.named) {
@@ -17234,6 +17308,8 @@ function openAboardMenu() {
 }
 
 function closeAboardMenu() {
+  const shouldCommitCrewDismissals = aboardMenu.isOpen && aboardMenu.crewDismissals.length > 0;
+  if (shouldCommitCrewDismissals) saveVoyageNow("dismissed crewmates");
   aboardMenu.isOpen = false;
   clearPausedView(aboardMenu.viewCache);
   aboardMenu.selectedNamedId = null;
@@ -17242,6 +17318,9 @@ function closeAboardMenu() {
   aboardMenu.closeButtonRect = null;
   aboardMenu.backButtonRect = null;
   aboardMenu.namedEntryRects = [];
+  aboardMenu.crewEntryRects = [];
+  aboardMenu.undoCrewDismissalsRect = null;
+  aboardMenu.crewDismissals = [];
   aboardMenu.scrollUpRect = null;
   aboardMenu.scrollDownRect = null;
   dirty = true;
@@ -18502,6 +18581,15 @@ function handleAboardMenuPointerDown(point) {
     scrollAboardMenu(1, true);
     return;
   }
+  if (pointInRect(point, aboardMenu.undoCrewDismissalsRect)) {
+    undoAboardCrewDismissals();
+    return;
+  }
+  const crewEntry = aboardMenu.crewEntryRects.find((entry) => pointInRect(point, entry.rect));
+  if (crewEntry) {
+    dismissAboardCrewMember(crewEntry.memberId);
+    return;
+  }
   const characterEntry = aboardMenu.namedEntryRects.find((entry) => pointInRect(point, entry.rect));
   if (!characterEntry) return;
   aboardMenu.focusedNamedId = characterEntry.entryId;
@@ -18513,12 +18601,23 @@ function handleAboardMenuPointerDown(point) {
 function updateAboardMenuSelectionFromPoint(point) {
   if (aboardMenu.selectedNamedId) return;
   const characterEntry = aboardMenu.namedEntryRects.find((entry) => pointInRect(point, entry.rect));
+  const crewEntry = aboardMenu.crewEntryRects.find((entry) => pointInRect(point, entry.rect));
   if (characterEntry) aboardMenu.focusedNamedId = characterEntry.entryId;
+  else if (crewEntry) aboardMenu.focusedNamedId = crewEntry.entryId;
 }
 
-function openFocusedAboardCharacter() {
+function activateFocusedAboardEntry() {
   if (!aboardMenu.focusedNamedId) throw new Error("Aboard character focus is missing");
+  if (aboardMenu.focusedNamedId === ABOARD_UNDO_CREW_FOCUS_ID) {
+    undoAboardCrewDismissals();
+    return;
+  }
   const roster = currentAboardMenuRoster();
+  const crew = roster.generic.find((entry) => entry.id === aboardMenu.focusedNamedId)?.crewMember || null;
+  if (crew) {
+    dismissAboardCrewMember(crew.id);
+    return;
+  }
   if (!roster.named.some((entry) => entry.id === aboardMenu.focusedNamedId)) {
     throw new Error("Focused aboard character is no longer present: " + aboardMenu.focusedNamedId);
   }
@@ -18527,28 +18626,58 @@ function openFocusedAboardCharacter() {
   dirty = true;
 }
 
+function dismissAboardCrewMember(memberId) {
+  const dismissal = dismissCrewMember(gameState, memberId);
+  aboardMenu.crewDismissals.push(dismissal);
+  refreshAboardRosterAfterCrewChange();
+  playCollectionDingSound();
+  showSurvivalNotice(`${dismissal.member.name.toUpperCase()} DISMISSED`, "warn");
+}
+
+function undoAboardCrewDismissals() {
+  if (aboardMenu.crewDismissals.length === 0) return false;
+  restoreDismissedCrew(gameState, aboardMenu.crewDismissals);
+  aboardMenu.crewDismissals = [];
+  refreshAboardRosterAfterCrewChange();
+  playCollectionDingSound();
+  showSurvivalNotice("CREW DISMISSALS UNDONE", "good");
+  return true;
+}
+
+function refreshAboardRosterAfterCrewChange() {
+  clearPausedView(aboardMenu.viewCache);
+  const roster = capturePausedView(aboardMenu.viewCache, gameState, currentAboardRoster);
+  const focusable = aboardRosterLayout(roster, aboardMenuBodyWidth());
+  const entries = aboardFocusableLayoutEntries(focusable);
+  if (!entries.some(({ id }) => id === aboardMenu.focusedNamedId)) {
+    aboardMenu.focusedNamedId = entries.at(-1)?.id || roster.named[0].id;
+  }
+  syncShipCargoFromGameState();
+  dirty = true;
+}
+
 function stepAboardCharacterFocus(direction) {
-  const roster = currentAboardMenuRoster();
-  const layout = aboardRosterLayout(roster, aboardMenuBodyWidth());
+  const layout = aboardRosterLayout(currentAboardMenuRoster(), aboardMenuBodyWidth());
+  const entries = aboardFocusableLayoutEntries(layout);
   const currentIndex = Math.max(
     0,
-    layout.named.findIndex((entry) => entry.id === aboardMenu.focusedNamedId)
+    entries.findIndex((entry) => entry.id === aboardMenu.focusedNamedId)
   );
-  const nextIndex = stepAboardGridIndex(
-    currentIndex,
-    direction,
-    layout.named.length,
-    layout.namedColumns
-  );
+  const delta = ["right", "down"].includes(direction) ? 1 : -1;
+  const nextIndex = stepMenuIndex(currentIndex, delta, entries.length);
   focusAboardCharacterAtIndex(nextIndex, layout);
 }
 
 function focusAboardCharacterAtIndex(index, suppliedLayout = null) {
   const roster = currentAboardMenuRoster();
   const layout = suppliedLayout || aboardRosterLayout(roster, aboardMenuBodyWidth());
-  const entry = layout.named[index];
+  const entry = aboardFocusableLayoutEntries(layout)[index];
   if (!entry) throw new Error("Cannot focus aboard character index: " + index);
   aboardMenu.focusedNamedId = entry.id;
+  if (entry.id === ABOARD_UNDO_CREW_FOCUS_ID) {
+    dirty = true;
+    return;
+  }
   const viewportHeight = Math.max(1, aboardMenu.viewportHeight);
   if (entry.y < aboardMenu.scrollY) {
     setAboardMenuScroll(entry.y);
@@ -18557,6 +18686,22 @@ function focusAboardCharacterAtIndex(index, suppliedLayout = null) {
   } else {
     dirty = true;
   }
+}
+
+function aboardFocusableLayoutEntries(suppliedLayout = null) {
+  const layout = suppliedLayout || aboardRosterLayout(currentAboardMenuRoster(), aboardMenuBodyWidth());
+  const entries = [
+    ...layout.named,
+    ...layout.generic.filter(({ crewMember }) => crewMember)
+  ];
+  if (aboardMenu.crewDismissals.length > 0) {
+    entries.push({
+      id: ABOARD_UNDO_CREW_FOCUS_ID,
+      y: aboardMenu.scrollY + aboardMenu.viewportHeight,
+      h: UI_PAGER_BUTTON_H
+    });
+  }
+  return entries;
 }
 
 function aboardMenuBodyWidth() {
@@ -19059,11 +19204,15 @@ function handleDialogueKeyDown(event) {
   }
 }
 
-function handlePortCityKeyDown(event) {
+function handlePortCityKeyDown(event, keyAction) {
   event.preventDefault();
   if (!portCityRuntime) throw new Error("Port city input received before runtime initialization");
+  if (keyAction === KEY_ACTION.CAPTAIN_MENU) {
+    openCaptainMenu();
+    return;
+  }
   if (event.key === "Escape") {
-    activatePortCityDestination({ id: PORT_CITY_LOCATION.SHIP });
+    activatePortCityDestination({ id: PORT_CITY_LOCATION.SET_SAIL });
     return;
   }
   if (event.key === "Enter" || event.key === " ") {
@@ -19277,8 +19426,9 @@ function updateDialogueSelectionFromPoint(point) {
 
 function stepDialogueSelection(direction) {
   const view = currentDialogueView();
-  if ((view.optionColumns || 1) > 1) {
-    const rows = dialogueSelectableOptionRows(view);
+  const crewRows = crewDialogueSelectableOptionRows(view);
+  if ((view.optionColumns || 1) > 1 || crewRows) {
+    const rows = crewRows || dialogueSelectableOptionRows(view);
     const currentRowIndex = rows.findIndex((row) => (
       row.some((entry) => entry.index === dialogueState.selectedIndex)
     ));
@@ -19301,8 +19451,9 @@ function stepDialogueSelection(direction) {
 
 function stepDialogueSelectionColumn(direction) {
   const view = currentDialogueView();
-  if ((view.optionColumns || 1) <= 1) return false;
-  const row = dialogueSelectableOptionRows(view).find((entries) => (
+  const crewRows = crewDialogueSelectableOptionRows(view);
+  if ((view.optionColumns || 1) <= 1 && !crewRows) return false;
+  const row = (crewRows || dialogueSelectableOptionRows(view)).find((entries) => (
     entries.some((entry) => entry.index === dialogueState.selectedIndex)
   ));
   if (!row || row.length < 2) return true;
@@ -19310,6 +19461,23 @@ function stepDialogueSelectionColumn(direction) {
   dialogueState.selectedIndex = row[stepMenuIndex(currentColumnIndex, direction, row.length)].index;
   dirty = true;
   return true;
+}
+
+function crewDialogueSelectableOptionRows(view) {
+  const kind = view.presentation?.kind;
+  if (!["crew-recruitment", "crew-dismissal"].includes(kind)) return null;
+  const columns = crewDialogueGridColumns(Math.min(420, SCREEN_W - 12));
+  if (columns === 1) return null;
+  const candidateCount = view.presentation.candidates.length;
+  const entries = view.options.map((option, index) => ({ option, index }));
+  const rows = [];
+  for (let index = 0; index < candidateCount; index += columns) {
+    rows.push(entries.slice(index, Math.min(candidateCount, index + columns)));
+  }
+  const footer = entries.slice(candidateCount);
+  if (footer.length > 0) rows.push(footer);
+  if (rows.length === 0) throw new Error("Crew dialogue has no selectable options");
+  return rows;
 }
 
 function handleCanvasWheel(event) {
@@ -19425,7 +19593,21 @@ function activatePortCityView(cityCall) {
     centerY: center.y,
     startedAtMs: null
   };
+  resetWorldNorthUpBehindPortCityCover();
   queuePortCitySceneSync();
+}
+
+function resetWorldNorthUpBehindPortCityCover() {
+  if (!opaqueWorldCoverIsActive()) {
+    throw new Error("Port city north-up reset requires an opaque world cover");
+  }
+  cancelChartModalReframeTransition();
+  chartReframePendingBehindCover = false;
+  const reframed = reframeWorldNorthUp("port city opened");
+  chartWorldRenderPendingBehindCover = reframed;
+  chartWorldFramePreparedBehindCover = !reframed && worldFramePresented;
+  chartWorldRenderPreparationBehindCover = null;
+  chartReframeCoverWasActive = true;
 }
 
 function deactivatePortCityView() {
@@ -19479,20 +19661,30 @@ async function synchronizePortCityScene() {
   const nodeId = dialogueState?.nodeId || dialogueState?.nextPortNodeId || null;
   const barred = ["barred", "recovering"].includes(nodeId);
   const illicitCaughtStartedAtMs = portCityIllicitEvent?.startedAtMs || null;
-  const saleShipSlugs = worldEconomyHasShipyardPort(worldEconomy, city)
-    ? shipyardListings(shipyardAtPort(worldEconomy.shipyards, city))
+  const yard = worldEconomyHasShipyardPort(worldEconomy, city)
+    ? shipyardAtPort(worldEconomy.shipyards, city)
+    : null;
+  const saleShipSlugs = yard
+    ? shipyardListings(yard)
         .slice(0, 3)
         .map(({ shipSlug }) => shipSlug)
     : [];
+  const shipyardConstruction = yard
+    ? shipyardCurrentBuild(yard, Math.floor(weatherClockMinutes))
+    : null;
   const playerShipSlug = ship?.typeSlug || gameState?.ship?.slug;
   if (!playerShipSlug) throw new Error("Port city view has no player ship slug");
+  const label = cityLabelText(city);
   const syncKey = JSON.stringify({
     cityId: city.cityId,
     availableDestinationIds,
     barred,
     illicitCaughtStartedAtMs,
+    factionId: city.factionId,
+    label,
     playerShipSlug,
-    saleShipSlugs
+    saleShipSlugs,
+    shipyardConstruction
   });
   if (syncKey === portCitySceneSyncKey && portCityView.sceneReady) return;
   const serial = ++portCitySceneSelectionSerial;
@@ -19500,8 +19692,11 @@ async function synchronizePortCityScene() {
     availableDestinationIds,
     barred,
     illicitCaughtStartedAtMs,
+    factionId: city.factionId,
+    label,
     playerShipSlug,
-    saleShipSlugs
+    saleShipSlugs,
+    shipyardConstruction
   });
   if (!portCityView || serial !== portCitySceneSelectionSerial || portCityView.cityId !== city.cityId) return;
   portCitySceneSyncKey = syncKey;
@@ -19862,8 +20057,40 @@ function continuePortArrivalDialogues() {
     ),
     () => openPendingDiscoveryPortDialogue(),
     () => maybeOpenFormerRescuedTravelerReunion(cityCall),
-    () => maybeOpenCharacterHomecoming(cityCall)
+    () => maybeOpenCharacterHomecoming(cityCall),
+    () => maybeOpenCrewRecruitmentArrival(cityCall)
   ]);
+}
+
+function maybeOpenCrewRecruitmentArrival(cityCall) {
+  if (dialogueState.crewRecruitmentArrivalPresented) return false;
+  dialogueState.crewRecruitmentArrivalPresented = true;
+  const targetCrew = gameState.ship.loadoutTargets?.crew || gameState.ship.crewCapacity;
+  if (gameState.ship.crew >= targetCrew) return false;
+  const offer = prepareCrewRecruitmentAt(cityCall, { allowEmpty: false });
+  if (offer.candidates.length === 0) return false;
+  dialogueState.nodeId = "crew-recruitment";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  return true;
+}
+
+function prepareCrewRecruitmentAt(city, { allowEmpty }) {
+  const existing = crewRecruitmentOfferAt(gameState.memory.crewRecruitment, city);
+  if (existing) return existing;
+  const targetCrew = gameState.ship.loadoutTargets?.crew || gameState.ship.crewCapacity;
+  const generation = crewGenerationContextForHomePort(city.cityId);
+  return createCrewRecruitmentOffer({
+    memory: gameState.memory.crewRecruitment,
+    state: gameState,
+    city,
+    simMinute: Math.floor(weatherClockMinutes),
+    targetCrew,
+    appearances: generation.appearances,
+    nameForIdentity: generation.nameForIdentity,
+    baseHireCost: CREW_HIRE_COST,
+    allowEmpty
+  });
 }
 
 function maybeOpenSovereignWarLoanDialogue(cityCall) {
@@ -22136,6 +22363,7 @@ function playerPortConquestStatus(cityCall) {
     city: cityCall,
     batteryDisabled: shoreBatteryIsDisabled(battery, simMinute),
     crew: gameState.ship.crew,
+    effectiveCrew: crewExperienceSummary(gameState).effectiveCrew,
     crewCapacity: gameState.ship.crewCapacity,
     attackerFactionId: attackStatus.assaultFactionId,
     assaultChanceBonus,
@@ -23650,6 +23878,9 @@ function closeDialogue() {
   if (dialogueState?.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) {
     throw new Error("Historical battle dialogue must close through its final action");
   }
+  if (dialogueState?.kind === "port") {
+    cancelPendingCrewDismissal(dialogueState, gameState);
+  }
   const wasPortDialogue = dialogueState?.kind === "port" || dialogueState?.kind === "passenger" ||
     (dialogueState?.kind === "rescued-traveler" && dialogueState.phase === "homecoming") ||
     (dialogueState?.kind === "campaign-goal" && dialogueState.admittedToPort === true);
@@ -23770,8 +24001,13 @@ function applyDialogueOption(optionIndex) {
       );
       showSurvivalNotice(`${result.perkItemPurchase.item.label.toUpperCase()} ACQUIRED`, "good");
     }
+    if (result.crewHire) {
+      spawnCrewRecruitmentEffect(result.crewHire.member, purchaseIconOrigin, lastFrameMs);
+      showSurvivalNotice(`${result.crewHire.member.name.toUpperCase()} JOINED THE CREW`, "good");
+    }
     const marketLedgerOpen = portMarketTransactionSessionOpen(dialogueState);
-    if (!marketLedgerOpen) {
+    const crewDismissalOpen = dialogueState.kind === "port" && dialogueState.crewDismissal !== null;
+    if (!marketLedgerOpen && !crewDismissalOpen) {
       saveVoyageNow("port transaction");
     }
     if (result.action?.type === "open-passenger") {
@@ -24178,6 +24414,26 @@ function spawnIconAcquisitionEffect(iconId, origin, nowMs) {
     startY: origin.y,
     startedAtMs: nowMs,
     iconSize: GAME_ICON_SIZE
+  }));
+  trimItemAcquisitionEffects();
+  dirty = true;
+}
+
+function spawnCrewRecruitmentEffect(member, origin, nowMs) {
+  if (!member || typeof member.appearanceId !== "string") {
+    throw new Error("Crew recruitment effect requires a crew member appearance");
+  }
+  const flight = createItemAcquisitionEffect({
+    iconId: "menu:captain",
+    startX: origin.x,
+    startY: origin.y,
+    startedAtMs: nowMs,
+    iconSize: 32
+  });
+  itemAcquisitionEffects.push(Object.freeze({
+    ...flight,
+    kind: "crew-recruitment",
+    appearanceId: member.appearanceId
   }));
   trimItemAcquisitionEffects();
   dirty = true;
@@ -25057,7 +25313,10 @@ function portDialogueContext() {
       homeCity,
       speakerName: gameState.playerCharacter.name,
       variantSeed: Math.floor(simMinute / WEATHER_MINUTES_PER_DAY)
-    }) : null
+    }) : null,
+    prepareCrewRecruitment: city
+      ? (options) => prepareCrewRecruitmentAt(city, options)
+      : null
   };
 }
 
@@ -26147,7 +26406,7 @@ function fishingChanceForCall(call) {
 
 function playerCrewWorkMultiplier() {
   if (!gameState?.ship || !ship?.stats) throw new Error("Cannot calculate crew work before the player ship is ready");
-  return crewWorkMultiplier(gameState.ship.crew);
+  return crewWorkMultiplier(crewExperienceSummary(gameState).effectiveCrew);
 }
 
 function currentPlayerPerkCharacters() {
@@ -29760,7 +30019,7 @@ function dispatchControllerKey(key, keyAction = null) {
   else if (lakeBattleMode?.kind === "historical" &&
       dialogueState?.kind === HISTORICAL_BATTLE_DIALOGUE_KIND) handleDialogueKeyDown(event);
   else if (lakeBattleMode) handleLakeBattleKeyDown(event, keyAction);
-  else dispatchWorldOverlayKey(event);
+  else dispatchWorldOverlayKey(event, keyAction);
 }
 
 function cancelControllerKeyBindingCapture() {
@@ -31113,9 +31372,13 @@ function firePlayerPortableWeaponsAtWill() {
   if (maximumRangeScale <= 0) return false;
   const target = nearestPlayerPortableWeaponTarget(CANNON_RANGE_PX * maximumRangeScale);
   if (!target) return false;
+  const activeCrewCount = activeCombatCrew(gameState.ship.crew, ship.woundedCrew);
+  const effectiveActiveCrew = Math.floor(
+    crewExperienceSummary(gameState, activeCrewCount).effectiveCrew
+  );
   const assignments = activePortableWeaponAssignments({
     ownedItemIds,
-    activeCrew: activeCombatCrew(gameState.ship.crew, ship.woundedCrew),
+    activeCrew: effectiveActiveCrew,
     shipStats: ship.stats,
     installedCannons: gameState.ship.cannons,
     targetDistancePx: target.distance,
@@ -31448,7 +31711,8 @@ function updateNavalWeapons(dt) {
       playerFriendlyFirePenaltyFactionIds.clear();
     }
   }
-  const activeCrew = activeCombatCrew(gameState?.ship?.crew || 0, ship.woundedCrew);
+  const activeCrewCount = activeCombatCrew(gameState?.ship?.crew || 0, ship.woundedCrew);
+  const activeCrew = crewExperienceSummary(gameState, activeCrewCount).effectiveCrew;
   const installedCannons = gameState?.ship?.cannons || 0;
   const reloadMultiplier = currentPlayerPerkTotals().cannonReloadMultiplier;
   const reloadDt = dt / reloadMultiplier;
@@ -32685,9 +32949,21 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
       ? ROWING_FOOD_CONSUMPTION_MULTIPLIER
       : 1
   });
+  const crewExperienceAdvanced = !safePort && !anchored && gameState.crewRoster.length > 0;
+  const crewLevelUps = !crewExperienceAdvanced
+    ? []
+    : advanceCrewSailingExperience(gameState, currentMinute - previousMinute);
+  if (crewLevelUps.length > 0) {
+    showSurvivalNotice(
+      crewLevelUps.length === 1
+        ? "A CREWMATE GAINED EXPERIENCE"
+        : `${crewLevelUps.length} CREWMATES GAINED EXPERIENCE`,
+      "good"
+    );
+  }
   if (safePort) {
     resetSurvivalDamageTimers();
-    return result.changed;
+    return result.changed || crewLevelUps.length > 0;
   }
   const hullRepaired = repairShipHullOverTime(
     ship,
@@ -32710,7 +32986,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   if (status.foodRations > 0 && status.foodDays <= 3) {
     showSurvivalNotice("FOOD LOW", "warn");
   }
-  return result.changed || deprivationChanged || hullRepaired > 0;
+  return result.changed || crewExperienceAdvanced || deprivationChanged || hullRepaired > 0;
 }
 
 function queueWineCaptainDialogues(result) {
@@ -32936,17 +33212,25 @@ function sweepCrewOverboard(count, impact) {
   const swept = [];
   for (let index = 0; index < count; index++) {
     let character = null;
-    let kind = "generic";
-    if (genericCrewCount(gameState) <= 0) {
-      const named = namedCrewMembers(gameState);
-      if (named.length === 0) throw new Error("Storm wave tried to sweep the captain overboard");
-      character = removeNamedCrewMember(
-        gameState,
-        named[Math.floor(Math.random() * named.length)].id
-      );
-      kind = "named";
+    let kind = "crew";
+    if (genericCrewCount(gameState) > 0) {
+      const [casualty] = removeCrewCasualties(gameState, 1, Math.random);
+      if (!casualty) throw new Error("Storm wave failed to select an ordinary crew member");
+      character = casualty.member;
     }
-    gameState.ship.crew -= 1;
+    if (genericCrewCount(gameState) <= 0) {
+      if (character === null) {
+        const named = namedCrewMembers(gameState);
+        if (named.length === 0) throw new Error("Storm wave tried to sweep the captain overboard");
+        character = removeNamedCrewMember(
+          gameState,
+          named[Math.floor(Math.random() * named.length)].id
+        );
+        gameState.ship.crew -= 1;
+        kind = "named";
+        validateCrewAggregate(gameState);
+      }
+    }
     const seed = hashInt(impact.seed ^ Math.imul(index + 1, 0x9e3779b1));
     swept.push({
       id: `storm-overboard-${Math.floor(weatherClockMinutes * 1000)}-${impact.id}-${index}`,
@@ -33170,8 +33454,10 @@ function restoreSweptCrewMember(entry) {
     });
     return;
   }
-  // A port may already have refilled this generic berth while the sailor was in the water.
-  gameState.ship.crew = Math.min(gameState.ship.crew + 1, gameState.ship.crewCapacity);
+  if (entry.kind !== "crew") throw new Error(`Unknown overboard crew kind: ${entry.kind}`);
+  if (!restoreCrewMember(gameState, entry.character)) {
+    throw new Error(`Recovered crew member ${entry.character.id} has no available berth`);
+  }
 }
 
 function recordDrownedCrewMember(entry) {
@@ -35562,6 +35848,7 @@ function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
 )) {
   const weapon = playerNavalWeapon();
   const effectiveStats = currentPlayerEffectiveShipStats();
+  const activeCrew = activeCombatCrew(gameState.ship.crew, ship.woundedCrew);
   return {
     id: PLAYER_COMBAT_ID,
     factionId: ship.factionId,
@@ -35573,6 +35860,7 @@ function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
     cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? gameState?.ship?.cannons || 0 : 0,
     crew: gameState.ship.crew,
     woundedCrew: ship.woundedCrew,
+    effectiveCrew: crewExperienceSummary(gameState, activeCrew).effectiveCrew,
     topSpeedRad: effectiveStats.topSpeedRad,
     combatGrace: false,
     npcAttackProtected: playerNpcAttackGraceIsActive(gameState.activePlaySeconds),
@@ -39680,6 +39968,7 @@ function drawPortCityScene(nowMs) {
   if (!portCityView?.sceneReady || !portCityRuntime) {
     throw new Error("Port city scene rendered before it was ready");
   }
+  portCityRuntime.setWeather(currentPortCityWeatherPresentation());
   const revision = portCityRuntime.render(nowMs);
   worldRenderer.beginFrame({
     width: SCREEN_W,
@@ -39697,6 +39986,28 @@ function drawPortCityScene(nowMs) {
     destinationRect: { x: 0, y: 0, width: SCREEN_W, height: SCREEN_H }
   });
   worldRenderer.endFrame();
+}
+
+function currentPortCityWeatherPresentation() {
+  if (!ship || !graph || !playerWindState) {
+    throw new Error("Port city weather sampled before the world weather was ready");
+  }
+  const cacheKey = `${ship.tileId}:${Math.floor(weatherClockMinutes)}`;
+  if (portCityWeatherCache?.key === cacheKey) return portCityWeatherCache.presentation;
+  const nearbyTileIds = [ship.tileId, ...(graph.neighbors[ship.tileId] || [])];
+  const presentation = portCityWeatherPresentation({
+    wind: windForShip(),
+    nearbyConditions: nearbyTileIds.map((tileId) => {
+      const flags = weatherFlagsForTile(tileId);
+      return Object.freeze({
+        raining: (flags & TILE_DAY_RAIN) !== 0,
+        snowing: (flags & TILE_DAY_SNOW_FALL) !== 0,
+        stormIntensity: stormIntensityForTile(tileId)
+      });
+    })
+  });
+  portCityWeatherCache = Object.freeze({ key: cacheKey, presentation });
+  return presentation;
 }
 
 function drawPortCityTransitionOverlay(nowMs) {
@@ -40252,7 +40563,7 @@ function drawWorldInterface(nowMs) {
   if (dialogueVisible) {
     measurePerformanceBenchmarkStage("render.dialogue", () => drawDialogueOverlay(nowMs));
   }
-  if (!dialogueVisible && !portCityView?.sceneReady) drawCaptainMenuButton();
+  if (!dialogueVisible) drawCaptainMenuButton();
   if (discoveriesMenu.isOpen) {
     measurePerformanceBenchmarkStage("render.discoveries", drawDiscoveriesMenu);
   }
@@ -43300,7 +43611,7 @@ function captainMenuButtonIsAvailable() {
   return captainMenuShortcutAvailable({
     blockingMenu: menusAreOpen(),
     blockingModal: Boolean(startMenu || gameOverReason || playerIntroModal || captainAlertModal),
-    dialogueActive: Boolean(dialogueState)
+    dialogueActive: Boolean(dialogueState) && !portCityRootNavigationIsActive()
   });
 }
 
@@ -43516,7 +43827,17 @@ function drawItemAcquisitionEffects(nowMs) {
   for (const effect of itemAcquisitionEffects) {
     const frame = itemAcquisitionEffectFrame(effect, nowMs);
     if (frame.complete || frame.pending) continue;
-    drawGameIcon(effect.iconId, frame.x, frame.y, { contrastOutline: true });
+    if (effect.kind === "crew-recruitment") {
+      portCityRuntime.drawPersonSprite(ctx, {
+        appearanceId: effect.appearanceId,
+        animationId: "jump",
+        timeMs: nowMs - effect.startedAtMs,
+        x: frame.x,
+        y: frame.y
+      });
+    } else {
+      drawGameIcon(effect.iconId, frame.x, frame.y, { contrastOutline: true });
+    }
   }
 }
 
@@ -46477,6 +46798,7 @@ function currentAboardRoster() {
   const roster = aboardRoster({
     captain: aboardCharacterWithBiography(gameState.playerCharacter),
     crewCount: gameState.ship.crew,
+    crewMembers: gameState.crewRoster,
     namedCrew: namedCrewMembers(gameState).map(aboardCharacterWithBiography),
     travelerGroups,
     namedTravelers: namedTravelers.map((traveler) => ({
@@ -46647,6 +46969,7 @@ function drawAboardMenu() {
   ctx.rect(body.x, body.y, body.w, body.h);
   ctx.clip();
   aboardMenu.namedEntryRects = [];
+  aboardMenu.crewEntryRects = [];
   for (const entry of layout.named) {
     const drawY = body.y + entry.y - aboardMenu.scrollY;
     if (drawY + entry.h < body.y || drawY > body.y + body.h) continue;
@@ -46661,7 +46984,19 @@ function drawAboardMenu() {
   for (const entry of layout.generic) {
     const drawY = body.y + entry.y - aboardMenu.scrollY;
     if (drawY + entry.h < body.y || drawY > body.y + body.h) continue;
-    drawAboardGenericEntry(entry, body.x + entry.x, drawY);
+    const entryRect = drawAboardGenericEntry(
+      entry,
+      body.x + entry.x,
+      drawY,
+      entry.id === aboardMenu.focusedNamedId
+    );
+    if (entry.crewMember) {
+      aboardMenu.crewEntryRects.push({
+        entryId: entry.id,
+        memberId: entry.crewMember.id,
+        rect: entryRect
+      });
+    }
   }
   ctx.restore();
 
@@ -46690,10 +47025,31 @@ function drawAboardMenu() {
     );
     drawMenuScrollTriangle(body.x + body.w / 2, body.y + body.h + 1, "down");
   }
-  drawOptionsText(`${roster.count}`, panel.x + panel.w / 2, footerY + 3, {
-    align: "center",
-    color: PIRATE_MENU_INK_MUTED
-  });
+  aboardMenu.undoCrewDismissalsRect = aboardMenu.crewDismissals.length > 0
+    ? { x: panel.x + panel.w / 2 - 43, y: footerY, w: 86, h: UI_PAGER_BUTTON_H }
+    : null;
+  if (aboardMenu.undoCrewDismissalsRect) {
+    drawPiratePaperInset(
+      aboardMenu.undoCrewDismissalsRect,
+      aboardMenu.focusedNamedId === ABOARD_UNDO_CREW_FOCUS_ID ||
+        pointInRect(captainMenu.hoverPoint, aboardMenu.undoCrewDismissalsRect)
+    );
+    drawOptionsText("UNDO ALL", panel.x + panel.w / 2, footerY + 3, {
+      align: "center",
+      color: PIRATE_MENU_DANGER
+    });
+  } else {
+    const experience = crewExperienceSummary(gameState);
+    drawOptionsText(
+      `${gameState.ship.crew} CREW  EXPERIENCE ${experience.overallStars}/3`,
+      panel.x + panel.w / 2,
+      footerY + 3,
+      {
+      align: "center",
+      color: PIRATE_MENU_INK_MUTED
+      }
+    );
+  }
   ctx.restore();
 }
 
@@ -46783,19 +47139,24 @@ function aboardNamedEntryTextLayout(entry, width) {
 
 function aboardGenericEntryTextLayout(entry, width) {
   const lineHeight = localizedLineHeight(8);
+  const sections = entry.crewMember
+    ? [
+        { id: "name", text: renderedUiText(entry.crewMember.name.toUpperCase()) },
+        { id: "role", text: renderedUiText(entry.crewMember.crewTypeId.toUpperCase()), gapBefore: 1 }
+      ]
+    : [{ id: "role", text: renderedUiText(aboardRoleLabel(entry.role)) }];
   const layout = contentSizedTextStackLayout({
-    sections: [
-      { id: "role", text: renderedUiText(aboardRoleLabel(entry.role)) }
-    ],
+    sections,
     width: Math.max(1, Math.floor(width) - 2),
     measureText: (text) => measureRenderedPixelTextWidth(text, PIXEL_FONT_SMALL_8),
     lineHeight,
-    startY: 25,
-    bottomPadding: 1,
+    startY: 37,
+    bottomPadding: entry.crewMember ? 12 : 1,
     minimumHeight: ABOARD_GENERIC_TILE_MIN_H
   });
   return Object.freeze({
-    role: layout.sections[0],
+    name: entry.crewMember ? layout.sections[0] : null,
+    role: entry.crewMember ? layout.sections[1] : layout.sections[0],
     lineHeight,
     height: layout.height
   });
@@ -47040,7 +47401,14 @@ function drawAboardWrappedDetailRow({ label, value, iconId, x, y, width }) {
   return y + Math.max(GAME_ICON_SIZE - 4, valueLines.length * lineHeight);
 }
 
-function drawAboardGenericEntry(entry, x, y) {
+function drawAboardGenericEntry(entry, x, y, selected = false) {
+  const cardRect = {
+    x: Math.round(x + 1),
+    y: Math.round(y),
+    w: Math.max(1, Math.round(entry.w - 2)),
+    h: entry.textLayout.height
+  };
+  if (entry.crewMember) drawPiratePaperInset(cardRect, selected);
   const frameX = Math.round(x + (entry.w - ABOARD_GENERIC_FRAME_SIZE) / 2);
   const frameY = Math.round(y);
   const color = aboardRoleColor(entry.role);
@@ -47053,13 +47421,59 @@ function drawAboardGenericEntry(entry, x, y) {
     ABOARD_GENERIC_FRAME_SIZE - 1,
     ABOARD_GENERIC_FRAME_SIZE - 1
   );
-  drawGameIcon("menu:captain", frameX + 3, frameY + 3, { alpha: 0.9 });
+  if (entry.crewMember) {
+    portCityRuntime.drawPersonSprite(ctx, {
+      appearanceId: entry.crewMember.appearanceId,
+      animationId: "idle",
+      timeMs: performance.now(),
+      x: frameX + 1,
+      y: frameY + 1
+    });
+    drawCrewExperienceStars(
+      crewMemberExperienceStars(entry.crewMember),
+      frameX + ABOARD_GENERIC_FRAME_SIZE / 2,
+      frameY + 2
+    );
+  } else {
+    drawGameIcon("menu:captain", frameX + 9, frameY + 9, { alpha: 0.9 });
+  }
+  if (entry.textLayout.name) {
+    entry.textLayout.name.lines.forEach((line, index) => drawOptionsText(
+      line,
+      x + entry.w / 2,
+      y + entry.textLayout.name.y + index * entry.textLayout.lineHeight,
+      { align: "center", color: PIRATE_MENU_INK }
+    ));
+  }
   entry.textLayout.role.lines.forEach((line, index) => drawOptionsText(
     line,
     x + entry.w / 2,
     y + entry.textLayout.role.y + index * entry.textLayout.lineHeight,
     { align: "center", color }
   ));
+  if (entry.crewMember) {
+    drawOptionsText("DISMISS", cardRect.x + cardRect.w / 2, cardRect.y + cardRect.h - 9, {
+      align: "center",
+      color: selected ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+    });
+  }
+  return cardRect;
+}
+
+function drawCrewExperienceStars(stars, centerX, y) {
+  if (!Number.isInteger(stars) || stars < 0 || stars > 3) {
+    throw new Error(`Invalid displayed crew experience: ${stars}`);
+  }
+  const starWidth = 5;
+  const gap = 2;
+  const startX = Math.round(centerX - (stars * starWidth + Math.max(0, stars - 1) * gap) / 2);
+  ctx.fillStyle = "#f9c22b";
+  for (let index = 0; index < stars; index += 1) {
+    const x = startX + index * (starWidth + gap);
+    ctx.fillRect(x + 2, y, 1, 5);
+    ctx.fillRect(x, y + 2, 5, 1);
+    ctx.fillRect(x + 1, y + 1, 3, 3);
+  }
 }
 
 function aboardRoleLabel(role) {
@@ -56878,7 +57292,10 @@ function playerRowerRatio() {
   const activeCrew = ship.woundedCrew === undefined
     ? crew
     : activeCombatCrew(crew, ship.woundedCrew);
-  return rowingCrewRatio(activeCrew, ship.stats.crewCapacity);
+  return rowingCrewRatio(
+    crewExperienceSummary(gameState, activeCrew).effectiveCrew,
+    ship.stats.crewCapacity
+  );
 }
 
 function stormBobbedShipCall(call, nowMs) {
@@ -60554,6 +60971,14 @@ function drawDialogueOverlay(nowMs) {
     drawCustomLoadoutDialogueOverlay(view);
     return;
   }
+  if (view.presentation?.kind === "crew-recruitment") {
+    drawCrewRecruitmentDialogueOverlay(nowMs, view);
+    return;
+  }
+  if (view.presentation?.kind === "crew-dismissal") {
+    drawCrewDismissalDialogueOverlay(nowMs, view);
+    return;
+  }
   if (view.presentation?.kind === "player-shipyard-ledger") {
     drawPlayerShipyardLedgerOverlay(view);
     return;
@@ -60607,9 +61032,15 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     : [];
   const optionHeight = dialogueOptionsHeight(view, dialogueFont, optionW);
   const optionGroups = dialogueOptionGroups(view.options);
-  const modeSwitchReserve = optionGroups.modeSwitches.length > 0 ? optionHeight : 0;
+  const compactMarketSwitch = view.presentation?.kind === "market";
+  if (compactMarketSwitch && optionGroups.modeSwitches.length !== 2) {
+    throw new Error("Market dialogue requires its Buy/Sell switch actions");
+  }
+  const modeSwitchReserve = optionGroups.modeSwitches.length > 0 && !compactMarketSwitch
+    ? optionHeight
+    : 0;
   const optionRowCount = dialogueRegularOptionRows(view, optionGroups.regular).length +
-    (optionGroups.modeSwitches.length > 0 ? 1 : 0) +
+    (optionGroups.modeSwitches.length > 0 && !compactMarketSwitch ? 1 : 0) +
     (optionGroups.exits.length > 0 ? 1 : 0);
   const maximumPanelHeight = SCREEN_H - 13;
   let feedbackLines = view.feedback
@@ -60697,7 +61128,8 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     });
   });
 
-  if (portFaction) drawDialogueFactionFlag(portFaction, panel, nowMs, subject, factionBlockW);
+  if (compactMarketSwitch) drawMarketModeSwitch(view, optionGroups.modeSwitches, panel);
+  else if (portFaction) drawDialogueFactionFlag(portFaction, panel, nowMs, subject, factionBlockW);
 
   const textX = panel.x + 12;
   let y = panel.y + textYOffset;
@@ -60720,7 +61152,47 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   }
 
   const optionX = textX;
-  drawDialogueOptions(view, optionX, safeOptions.y, optionW, optionBottom, dialogueFont);
+  drawDialogueOptions(view, optionX, safeOptions.y, optionW, optionBottom, dialogueFont, {
+    groups: optionGroups,
+    preserveOptionRects: compactMarketSwitch,
+    drawModeSwitches: !compactMarketSwitch
+  });
+}
+
+function drawMarketModeSwitch(view, modeEntries, panel) {
+  const entriesByMode = new Map(modeEntries.map((entry) => [entry.option.action?.mode, entry]));
+  if (entriesByMode.size !== 2 || !entriesByMode.has("buy") || !entriesByMode.has("sell")) {
+    throw new Error("Market mode switch actions must contain Buy and Sell");
+  }
+  dialogueLayout.optionRects = [];
+  const layout = marketModeSwitchLayout({ panel, activeMode: view.presentation.mode });
+  ctx.fillStyle = PIRATE_MENU_INK;
+  ctx.fillRect(layout.outer.x, layout.outer.y, layout.outer.w, layout.outer.h);
+  ctx.fillStyle = PIRATE_MENU_INK_MUTED;
+  ctx.fillRect(layout.outer.x + 2, layout.outer.y + 2, layout.outer.w - 4, layout.outer.h - 4);
+  ctx.fillStyle = PIRATE_MENU_PAPER_INSET_ALT;
+  ctx.fillRect(layout.thumb.x + 1, layout.thumb.y + 1, layout.thumb.w, layout.thumb.h);
+  ctx.fillStyle = PIRATE_MENU_PAPER_SELECTED;
+  ctx.fillRect(layout.thumb.x, layout.thumb.y, layout.thumb.w, layout.thumb.h);
+  ctx.fillStyle = PIRATE_MENU_PAPER;
+  ctx.fillRect(layout.thumb.x + 1, layout.thumb.y + 1, layout.thumb.w - 2, 1);
+
+  for (const mode of ["buy", "sell"]) {
+    const entry = entriesByMode.get(mode);
+    const rect = layout.hitRects[mode];
+    dialogueLayout.optionRects.push({ index: entry.index, rect });
+    const selected = dialogueState.selectedIndex === entry.index;
+    if (selected) {
+      ctx.strokeStyle = PIRATE_MENU_CHART_LINE;
+      ctx.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+    }
+    const label = renderedUiText(entry.option.label).toUpperCase();
+    ctx.fillStyle = mode === view.presentation.mode ? PIRATE_MENU_INK : PIRATE_MENU_PAPER;
+    drawPixelText(label, rect.x + Math.floor(rect.w / 2), controlTextY(rect), {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center"
+    });
+  }
 }
 
 function settledDialogueOverlayCacheBase(view, subject) {
@@ -60930,6 +61402,224 @@ function drawCustomLoadoutDialogueOverlay(dialogueView) {
   drawDialogueOptions(dialogueView, left, optionY, optionWidth, optionBottom, PIXEL_FONT_SMALL_8);
 }
 
+function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
+  const { candidates, crew, crewCapacity } = dialogueView.presentation;
+  const panelW = Math.min(420, SCREEN_W - 12);
+  const columns = crewDialogueGridColumns(panelW);
+  const rows = Math.ceil(candidates.length / columns);
+  const cardHeight = 66;
+  const panelH = Math.min(SCREEN_H - 12, Math.max(116, 72 + rows * cardHeight + 30));
+  const panel = {
+    x: Math.floor((SCREEN_W - panelW) / 2),
+    y: Math.floor((SCREEN_H - panelH) / 2),
+    w: panelW,
+    h: panelH
+  };
+  drawPiratePaperModal(panel, 0.88);
+  drawOptionsText("CREW MUSTER", panel.x + panel.w / 2, panel.y + 9, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  drawOptionsText(`${crew}/${crewCapacity} BERTHS`, panel.x + panel.w - 10, panel.y + 10, {
+    align: "right",
+    color: PIRATE_MENU_INK_MUTED
+  });
+  drawOptionsText(
+    fitPixelText(dialogueView.text.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24),
+    panel.x + 12,
+    panel.y + 28,
+    { color: PIRATE_MENU_INK }
+  );
+
+  dialogueLayout.optionRects = [];
+  dialogueLayout.previousRect = null;
+  dialogueLayout.nextRect = null;
+  const gap = 4;
+  const cardW = Math.floor((panel.w - 20 - gap * (columns - 1)) / columns);
+  const cardsY = panel.y + 45;
+  candidates.forEach((candidate, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    const rect = {
+      x: panel.x + 10 + column * (cardW + gap),
+      y: cardsY + row * cardHeight,
+      w: cardW,
+      h: cardHeight - 4
+    };
+    const option = dialogueView.options[index];
+    const selected = dialogueState.selectedIndex === index;
+    drawPiratePaperInset(rect, selected && !option.disabled);
+    const spriteX = rect.x + 3;
+    const spriteY = rect.y + 4;
+    portCityRuntime.drawPersonSprite(ctx, {
+      appearanceId: candidate.member.appearanceId,
+      animationId: "idle",
+      timeMs: nowMs + index * 137,
+      x: spriteX,
+      y: spriteY
+    });
+    drawCrewExperienceStars(candidate.stars, spriteX + 16, spriteY + 1);
+    const textX = rect.x + 39;
+    const textW = rect.w - 45;
+    drawOptionsText(
+      fitPixelText(candidate.member.name.toUpperCase(), PIXEL_FONT_SMALL_8, textW),
+      textX,
+      rect.y + 7,
+      { color: option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK }
+    );
+    drawOptionsText(candidate.member.crewTypeId.toUpperCase(), textX, rect.y + 19, {
+      color: PIRATE_MENU_INK_MUTED
+    });
+    const hireRect = { x: textX, y: rect.y + 34, w: textW, h: 20 };
+    drawPiratePaperInset(hireRect, selected && !option.disabled);
+    drawOptionsText(`HIRE  ${candidate.cost} DB`, hireRect.x + hireRect.w / 2, hireRect.y + 6, {
+      align: "center",
+      color: option.disabled ? PIRATE_MENU_INK_MUTED : "#9b7b24"
+    });
+    dialogueLayout.optionRects.push({ index, rect });
+  });
+
+  const exitIndex = dialogueView.options.length - 1;
+  const exitRect = {
+    x: panel.x + 10,
+    y: panel.y + panel.h - 27,
+    w: panel.w - 20,
+    h: 20
+  };
+  drawPiratePaperInset(exitRect, dialogueState.selectedIndex === exitIndex);
+  drawOptionsText("BACK TO CITY", exitRect.x + exitRect.w / 2, exitRect.y + 6, {
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  dialogueLayout.optionRects.push({ index: exitIndex, rect: exitRect });
+  if (dialogueView.feedback) {
+    drawOptionsText(
+      fitPixelText(dialogueView.feedback.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24),
+      panel.x + panel.w / 2,
+      exitRect.y - 11,
+      { align: "center", color: PIRATE_MENU_SUCCESS }
+    );
+  }
+}
+
+function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
+  const { candidates, currentCrew, targetCrew } = dialogueView.presentation;
+  const panelW = Math.min(420, SCREEN_W - 12);
+  const columns = crewDialogueGridColumns(panelW);
+  const cardHeight = 56;
+  const panelH = Math.min(SCREEN_H - 12, Math.max(188, SCREEN_H - 24));
+  const panel = {
+    x: Math.floor((SCREEN_W - panelW) / 2),
+    y: Math.floor((SCREEN_H - panelH) / 2),
+    w: panelW,
+    h: panelH
+  };
+  drawPiratePaperModal(panel, 0.9);
+  drawOptionsText("REDUCE CREW", panel.x + panel.w / 2, panel.y + 9, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_DANGER
+  });
+  drawOptionsText(`${currentCrew} → ${targetCrew}`, panel.x + panel.w - 10, panel.y + 10, {
+    align: "right",
+    color: PIRATE_MENU_INK_MUTED
+  });
+  drawOptionsText(
+    fitPixelText(dialogueView.text.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24),
+    panel.x + 12,
+    panel.y + 28,
+    { color: PIRATE_MENU_INK }
+  );
+  dialogueLayout.optionRects = [];
+  dialogueLayout.previousRect = null;
+  dialogueLayout.nextRect = null;
+  const gap = 4;
+  const cardW = Math.floor((panel.w - 20 - gap * (columns - 1)) / columns);
+  const cardsY = panel.y + 44;
+  const footerY = panel.y + panel.h - 28;
+  const visibleRows = Math.max(1, Math.floor((footerY - cardsY - 5) / cardHeight));
+  const pageSize = visibleRows * columns;
+  const selectedCandidateIndex = Math.min(dialogueState.selectedIndex, Math.max(0, candidates.length - 1));
+  const pageIndex = candidates.length === 0 ? 0 : Math.floor(selectedCandidateIndex / pageSize);
+  const pageCount = Math.max(1, Math.ceil(candidates.length / pageSize));
+  const pageStart = pageIndex * pageSize;
+  const visibleCandidates = candidates.slice(pageStart, pageStart + pageSize);
+  visibleCandidates.forEach((candidate, localIndex) => {
+    const index = pageStart + localIndex;
+    const rect = {
+      x: panel.x + 10 + (localIndex % columns) * (cardW + gap),
+      y: cardsY + Math.floor(localIndex / columns) * cardHeight,
+      w: cardW,
+      h: cardHeight - 4
+    };
+    const option = dialogueView.options[index];
+    const selected = dialogueState.selectedIndex === index;
+    drawPiratePaperInset(rect, selected && !option.disabled);
+    portCityRuntime.drawPersonSprite(ctx, {
+      appearanceId: candidate.member.appearanceId,
+      animationId: "idle",
+      timeMs: nowMs + index * 137,
+      x: rect.x + 2,
+      y: rect.y + 3
+    });
+    drawCrewExperienceStars(candidate.stars, rect.x + 18, rect.y + 4);
+    const textX = rect.x + 38;
+    const textW = rect.w - 43;
+    drawOptionsText(
+      fitPixelText(candidate.member.name.toUpperCase(), PIXEL_FONT_SMALL_8, textW),
+      textX,
+      rect.y + 8,
+      { color: option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK }
+    );
+    drawOptionsText(candidate.member.crewTypeId.toUpperCase(), textX, rect.y + 20, {
+      color: PIRATE_MENU_INK_MUTED
+    });
+    drawOptionsText("DISMISS", textX, rect.y + 35, {
+      color: option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_DANGER
+    });
+    dialogueLayout.optionRects.push({ index, rect });
+  });
+  if (pageCount > 1) {
+    drawOptionsText(`PAGE ${pageIndex + 1}/${pageCount}`, panel.x + panel.w / 2, footerY - 11, {
+      align: "center",
+      color: PIRATE_MENU_INK_MUTED
+    });
+  }
+  const footerOptions = dialogueView.options.slice(candidates.length);
+  const footerGap = 3;
+  const footerW = Math.floor((panel.w - 20 - footerGap * 2) / 3);
+  footerOptions.forEach((option, offset) => {
+    const index = candidates.length + offset;
+    const rect = {
+      x: panel.x + 10 + offset * (footerW + footerGap),
+      y: footerY,
+      w: footerW,
+      h: 21
+    };
+    drawPiratePaperInset(rect, dialogueState.selectedIndex === index && !option.disabled);
+    drawOptionsText(
+      fitPixelText(option.label.toUpperCase(), PIXEL_FONT_SMALL_8, rect.w - 5),
+      rect.x + rect.w / 2,
+      rect.y + 7,
+      {
+        align: "center",
+        color: option.disabled ? PIRATE_MENU_INK_MUTED : PIRATE_MENU_INK
+      }
+    );
+    dialogueLayout.optionRects.push({ index, rect });
+  });
+}
+
+function crewDialogueGridColumns(panelWidth) {
+  if (!Number.isFinite(panelWidth) || panelWidth <= 0) {
+    throw new Error(`Crew dialogue requires a positive panel width: ${panelWidth}`);
+  }
+  if (panelWidth >= 390) return 3;
+  if (panelWidth >= 260) return 2;
+  return 1;
+}
+
 function customLoadoutFieldLabel(key) {
   if (key === "crew") return "CREW";
   if (key === "cannons") return "CANNONS";
@@ -61015,7 +61705,8 @@ function drawPlayerShipyardLedgerOverlay(dialogueView) {
     regular: allOptionGroups.regular.filter((entry) => (
       !tabEntries.includes(entry) && !materialActionEntries.includes(entry)
     )),
-    exits: allOptionGroups.exits
+    exits: allOptionGroups.exits,
+    modeSwitches: Object.freeze([])
   };
   if (tabEntries.length !== 3) {
     throw new Error(`Player shipyard requires three ledger tabs, received ${tabEntries.length}`);
@@ -62177,7 +62868,11 @@ function drawDialogueOptions(
   width,
   bottom,
   font = PIXEL_FONT_SMALL_8,
-  { groups = dialogueOptionGroups(view.options), preserveOptionRects = false } = {}
+  {
+    groups = dialogueOptionGroups(view.options),
+    preserveOptionRects = false,
+    drawModeSwitches = true
+  } = {}
 ) {
   if (!preserveOptionRects) dialogueLayout.optionRects = [];
   dialogueLayout.previousRect = null;
@@ -62258,7 +62953,7 @@ function drawDialogueOptions(
     }
   }
 
-  if (groups.modeSwitches.length > 0) {
+  if (drawModeSwitches && groups.modeSwitches.length > 0) {
     const modeRects = dialogueRegularOptionRowRects({
       x,
       y: stack.y - optionHeight,

@@ -58,6 +58,24 @@ test("landing marines requires a large hull and at least 36 fighting hands", () 
   assert.equal(PORT_CONQUEST_MIN_CREW, 36);
 });
 
+test("experience changes assault odds without replacing the minimum headcount", () => {
+  const base = {
+    city: city({ population: 25000 }),
+    batteryDisabled: true,
+    crew: 36,
+    crewCapacity: 54,
+    attackerFactionId: "england"
+  };
+  const novices = portConquestStatus({ ...base, effectiveCrew: 8 });
+  const seasoned = portConquestStatus({ ...base, effectiveCrew: 34 });
+  const veterans = portConquestStatus({ ...base, effectiveCrew: 39.5 });
+  assert.equal(novices.canAttempt, true);
+  assert.equal(seasoned.canAttempt, true);
+  assert.equal(veterans.canAttempt, true);
+  assert.ok(novices.successChance < seasoned.successChance);
+  assert.ok(seasoned.successChance < veterans.successChance);
+});
+
 test("capitals resist conquest more strongly and inflict heavier losses", () => {
   const ordinary = portConquestStatus({
     city: city(), batteryDisabled: true, crew: 54, crewCapacity: 54, attackerFactionId: "england"

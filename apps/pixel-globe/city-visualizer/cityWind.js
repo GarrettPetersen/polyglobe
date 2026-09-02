@@ -57,6 +57,35 @@ export function cityWindForCity(city, { speed = "auto", direction = "auto" } = {
   const automaticDirection = screenWindFlowDirection(geographicWind.directionRad);
   const flowDirectionRad = direction === "auto" ? automaticDirection : DIRECTION_RAD[direction];
   const strength = speed === "auto" ? geographicWind.strength : SPEED_STRENGTH[speed];
+  return cityWindFromScreenFlow({
+    flowDirectionRad,
+    strength,
+    automaticSpeed: speed === "auto",
+    automaticDirection: direction === "auto"
+  });
+}
+
+export function cityWindFromGeographicWind({ directionRad, strength }) {
+  if (!Number.isFinite(directionRad)) {
+    throw new Error(`Invalid live city wind direction: ${directionRad}`);
+  }
+  if (!Number.isFinite(strength) || strength < 0 || strength > 1) {
+    throw new Error(`Invalid live city wind strength: ${strength}`);
+  }
+  return cityWindFromScreenFlow({
+    flowDirectionRad: screenWindFlowDirection(directionRad),
+    strength,
+    automaticSpeed: true,
+    automaticDirection: true
+  });
+}
+
+function cityWindFromScreenFlow({
+  flowDirectionRad,
+  strength,
+  automaticSpeed,
+  automaticDirection
+}) {
   return Object.freeze({
     flowDirectionRad,
     strength,
@@ -64,8 +93,8 @@ export function cityWindForCity(city, { speed = "auto", direction = "auto" } = {
     flowY: Math.sin(flowDirectionRad),
     speedLabel: cityWindSpeedLabel(strength),
     directionLabel: cityWindDirectionLabel(flowDirectionRad),
-    automaticSpeed: speed === "auto",
-    automaticDirection: direction === "auto"
+    automaticSpeed,
+    automaticDirection
   });
 }
 

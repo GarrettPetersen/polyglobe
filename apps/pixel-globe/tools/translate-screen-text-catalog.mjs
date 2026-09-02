@@ -179,6 +179,7 @@ const REVIEWED_OVERRIDES = Object.freeze({
     de: "Alle Geschäfte rückgängig machen", fr: "Annuler toutes les transactions",
     pl: "Cofnij wszystkie transakcje", "zh-Hant": "撤銷所有交易", ko: "모든 거래 되돌리기"
   }),
+  ...reviewedCrewOverrides(),
   ...reviewedPortCityOverrides(),
   "Chan Chan has fallen. The company is ashore; Spain's flag flies over Trujillo. Keep the {0} doubloons. I march for Cuzco at dawn. If I live to take the empire, word will reach Trujillo; return then.": Object.freeze({
     "zh-Hans": "昌昌陷落了。部队已经登陆；西班牙旗帜飘扬在特鲁希略上空。留下这 {0} 枚达布隆。我黎明时向库斯科进军。若我能活着征服帝国，消息会传到特鲁希略；届时再回来。",
@@ -1409,6 +1410,184 @@ function reviewedLocaleOverrides(source, values) {
     throw new Error(`Reviewed locale translations are incomplete: ${source}`);
   }
   return Object.freeze(Object.fromEntries(LOCALES.map(({ id }, index) => [id, values[index]])));
+}
+
+function reviewedCrewOverrides() {
+  const entries = [
+    ["{0} CREW EXPERIENCE {1}/3", [
+      "{0} 船员经验 {1}/3", "{0} ОПЫТ КОМАНДЫ {1}/3", "{0} EXPERIENCIA DE TRIPULACIÓN {1}/3",
+      "{0} EXPERIÊNCIA DA TRIPULAÇÃO {1}/3", "{0} 乗組員経験 {1}/3", "{0} MANNSCHAFTSERFAHRUNG {1}/3",
+      "{0} EXPÉRIENCE D’ÉQUIPAGE {1}/3", "{0} DOŚWIADCZENIE ZAŁOGI {1}/3", "{0} 船員經驗 {1}/3",
+      "{0} 선원 경험 {1}/3"
+    ]],
+    ["{0} crew muster", [
+      "{0} 船员招募", "Набор команды: {0}", "Reclutamiento de tripulación: {0}",
+      "Recrutamento de tripulação: {0}", "{0} 乗組員募集", "Mannschaftsmusterung: {0}",
+      "Recrutement d’équipage : {0}", "Werbunek załogi: {0}", "{0} 船員招募", "{0} 선원 모집"
+    ]],
+    ["{0} crew still need to be dismissed.", [
+      "仍需遣散 {0} 名船员。", "Нужно уволить ещё {0} членов команды.",
+      "Aún hay que despedir a {0} tripulantes.", "Ainda é preciso dispensar {0} tripulantes.",
+      "あと{0}人の乗組員を解雇する必要があります。", "Noch {0} Mannschaftsmitglieder müssen entlassen werden.",
+      "Il faut encore congédier {0} membres d’équipage.", "Trzeba jeszcze zwolnić {0} członków załogi.",
+      "仍需遣散 {0} 名船員。", "선원 {0}명을 더 해고해야 합니다."
+    ]],
+    ["{0} CREWMATES GAINED EXPERIENCE", [
+      "{0} 名船员获得经验", "{0} ЧЛЕНОВ КОМАНДЫ ПОЛУЧИЛИ ОПЫТ", "{0} TRIPULANTES GANARON EXPERIENCIA",
+      "{0} TRIPULANTES GANHARAM EXPERIÊNCIA", "乗組員{0}人が経験を積んだ", "{0} BESATZUNGSMITGLIEDER SAMMELTEN ERFAHRUNG",
+      "{0} MARINS ONT GAGNÉ DE L’EXPÉRIENCE", "{0} CZŁONKÓW ZAŁOGI ZDOBYŁO DOŚWIADCZENIE",
+      "{0} 名船員獲得經驗", "선원 {0}명이 경험을 쌓았습니다"
+    ]],
+    ["{0} DISMISSED", [
+      "已遣散 {0}", "{0} УВОЛЕН", "{0}: DESPEDIDO", "{0} DISPENSADO", "{0}を解雇", "{0} ENTLASSEN",
+      "{0} CONGÉDIÉ", "ZWOLNIONO: {0}", "已遣散 {0}", "{0} 해고됨"
+    ]],
+    ["{0} doubloons required.", [
+      "需要 {0} 达布隆。", "Требуется {0} дублонов.", "Se necesitan {0} doblones.",
+      "São necessários {0} dobrões.", "{0}ダブロン必要です。", "{0} Dublonen erforderlich.",
+      "{0} doublons requis.", "Potrzeba {0} dublonów.", "需要 {0} 達布隆。", "더블룬 {0}개가 필요합니다."
+    ]],
+    ["{0} joined the crew.", [
+      "{0} 加入了船员。", "{0} вступил в команду.", "{0} se unió a la tripulación.",
+      "{0} juntou-se à tripulação.", "{0}が乗組員に加わりました。", "{0} ist der Mannschaft beigetreten.",
+      "{0} a rejoint l’équipage.", "{0} dołączył do załogi.", "{0} 加入了船員。", "{0}이(가) 선원이 되었습니다."
+    ]],
+    ["{0} muster", [
+      "{0} 招募", "Набор: {0}", "Reclutamiento: {0}", "Recrutamento: {0}", "{0} 募集",
+      "Musterung: {0}", "Recrutement : {0}", "Werbunek: {0}", "{0} 招募", "{0} 모집"
+    ]],
+    ["{0}: {1} crew / {2} guns.", [
+      "{0}：{1} 名船员 / {2} 门炮。", "{0}: команда {1} / орудия {2}.",
+      "{0}: {1} tripulantes / {2} cañones.", "{0}: {1} tripulantes / {2} canhões.",
+      "{0}：乗組員{1}人 / 大砲{2}門。", "{0}: {1} Mann / {2} Kanonen.",
+      "{0} : {1} marins / {2} canons.", "{0}: {1} załogi / {2} dział.",
+      "{0}：{1} 名船員 / {2} 門砲。", "{0}: 선원 {1}명 / 대포 {2}문."
+    ]],
+    ["{0}/{1} BERTHS", [
+      "铺位 {0}/{1}", "КОЙКИ {0}/{1}", "LITERAS {0}/{1}", "BELICHES {0}/{1}", "寝台 {0}/{1}",
+      "KOJEN {0}/{1}", "COUCHETTES {0}/{1}", "KOJE {0}/{1}", "鋪位 {0}/{1}", "침상 {0}/{1}"
+    ]],
+    ["A CREWMATE GAINED EXPERIENCE", [
+      "一名船员获得经验", "ЧЛЕН КОМАНДЫ ПОЛУЧИЛ ОПЫТ", "UN TRIPULANTE GANÓ EXPERIENCIA",
+      "UM TRIPULANTE GANHOU EXPERIÊNCIA", "乗組員が経験を積んだ", "EIN BESATZUNGSMITGLIED SAMMELTE ERFAHRUNG",
+      "UN MARIN A GAGNÉ DE L’EXPÉRIENCE", "CZŁONEK ZAŁOGI ZDOBYŁ DOŚWIADCZENIE",
+      "一名船員獲得經驗", "선원 한 명이 경험을 쌓았습니다"
+    ]],
+    ["All dismissals undone.", [
+      "已撤销所有遣散。", "Все увольнения отменены.", "Se deshicieron todos los despidos.",
+      "Todas as dispensas foram desfeitas.", "すべての解雇を取り消しました。", "Alle Entlassungen wurden rückgängig gemacht.",
+      "Tous les congédiements ont été annulés.", "Cofnięto wszystkie zwolnienia.",
+      "已撤銷所有遣散。", "모든 해고를 되돌렸습니다."
+    ]],
+    ["Apply loadout", [
+      "应用配置", "Применить оснащение", "Aplicar configuración", "Aplicar configuração", "装備を適用",
+      "Ausrüstung anwenden", "Appliquer l’équipement", "Zastosuj wyposażenie", "套用配置", "장비 적용"
+    ]],
+    ["BACK TO CITY", [
+      "返回城市", "НАЗАД В ГОРОД", "VOLVER A LA CIUDAD", "VOLTAR À CIDADE", "街へ戻る", "ZURÜCK ZUR STADT",
+      "RETOUR EN VILLE", "WRÓĆ DO MIASTA", "返回城市", "도시로 돌아가기"
+    ]],
+    ["Cancel", [
+      "取消", "Отмена", "Cancelar", "Cancelar", "キャンセル", "Abbrechen", "Annuler", "Anuluj", "取消", "취소"
+    ]],
+    ["CREW DISMISSALS UNDONE", [
+      "已撤销船员遣散", "УВОЛЬНЕНИЯ КОМАНДЫ ОТМЕНЕНЫ", "DESPIDOS DE TRIPULACIÓN DESHECHOS",
+      "DISPENSAS DA TRIPULAÇÃO DESFEITAS", "乗組員の解雇を取り消した", "MANNSCHAFTSENTLASSUNGEN RÜCKGÄNGIG",
+      "CONGÉDIEMENTS ANNULÉS", "COFNIĘTO ZWOLNIENIA ZAŁOGI", "已撤銷船員遣散", "선원 해고 취소됨"
+    ]],
+    ["CREW MUSTER", [
+      "船员招募", "НАБОР КОМАНДЫ", "RECLUTAMIENTO", "RECRUTAMENTO", "乗組員募集", "MANNSCHAFTSMUSTERUNG",
+      "RECRUTEMENT D’ÉQUIPAGE", "WERBUNEK ZAŁOGI", "船員招募", "선원 모집"
+    ]],
+    ["DISMISS", [
+      "遣散", "УВОЛИТЬ", "DESPEDIR", "DISPENSAR", "解雇", "ENTLASSEN", "CONGÉDIER", "ZWOLNIJ", "遣散", "해고"
+    ]],
+    ["Dismiss {0}", [
+      "遣散 {0}", "Уволить {0}", "Despedir a {0}", "Dispensar {0}", "{0}を解雇", "{0} entlassen",
+      "Congédier {0}", "Zwolnij {0}", "遣散 {0}", "{0} 해고"
+    ]],
+    ["Dismiss {0} crew before taking this vessel.", [
+      "接收此船前请遣散 {0} 名船员。", "Перед переходом на это судно увольте {0} членов команды.",
+      "Despedid a {0} tripulantes antes de tomar este buque.", "Dispensai {0} tripulantes antes de assumir esta embarcação.",
+      "この船に乗り換える前に乗組員を{0}人解雇してください。", "Entlasst {0} Mannschaftsmitglieder, bevor Ihr dieses Schiff übernehmt.",
+      "Congédiez {0} membres d’équipage avant de prendre ce navire.", "Zwolnijcie {0} członków załogi przed przejęciem tego okrętu.",
+      "接收此船前請遣散 {0} 名船員。", "이 배를 인수하기 전에 선원 {0}명을 해고하십시오."
+    ]],
+    ["Dismiss {0} more crewmate{1} for this loadout.", [
+      "此配置还需遣散 {0} 名船员{1}。", "Для этого оснащения увольте ещё {0} членов команды{1}.",
+      "Despedid a {0} tripulantes más{1} para esta configuración.", "Dispensai mais {0} tripulantes{1} para esta configuração.",
+      "この装備にはあと{0}人の乗組員{1}を解雇してください。", "Entlasst für diese Ausrüstung noch {0} Mannschaftsmitglieder{1}.",
+      "Congédiez encore {0} membres d’équipage{1} pour cet équipement.", "Zwolnijcie jeszcze {0} członków załogi{1} dla tego wyposażenia.",
+      "此配置還需遣散 {0} 名船員{1}。", "이 장비를 위해 선원 {0}명{1}을 더 해고하십시오."
+    ]],
+    ["Every berth is occupied.", [
+      "所有铺位都已占用。", "Все койки заняты.", "Todas las literas están ocupadas.", "Todos os beliches estão ocupados.",
+      "すべての寝台が埋まっています。", "Alle Kojen sind belegt.", "Toutes les couchettes sont occupées.",
+      "Wszystkie koje są zajęte.", "所有鋪位都已占用。", "모든 침상이 찼습니다."
+    ]],
+    ["Hire {0} — {1} db", [
+      "雇用 {0} — {1} DB", "Нанять {0} — {1} DB", "Contratar a {0} — {1} DB", "Contratar {0} — {1} DB",
+      "{0}を雇う — {1} DB", "{0} anheuern — {1} DB", "Engager {0} — {1} DB", "Zatrudnij {0} — {1} DB",
+      "雇用 {0} — {1} DB", "{0} 고용 — {1} DB"
+    ]],
+    ["Hire {0} ({1})", [
+      "雇用 {0}（{1}）", "Нанять {0} ({1})", "Contratar a {0} ({1})", "Contratar {0} ({1})", "{0}を雇う（{1}）",
+      "{0} anheuern ({1})", "Engager {0} ({1})", "Zatrudnij {0} ({1})", "雇用 {0}（{1}）", "{0} 고용 ({1})"
+    ]],
+    ["HIRE {0} DB", [
+      "雇用 {0} DB", "НАНЯТЬ {0} DB", "CONTRATAR {0} DB", "CONTRATAR {0} DB", "雇う {0} DB",
+      "ANHEUERN {0} DB", "ENGAGER {0} DB", "ZATRUDNIJ {0} DB", "雇用 {0} DB", "고용 {0} DB"
+    ]],
+    ["Hire crew", [
+      "雇用船员", "Нанять команду", "Contratar tripulación", "Contratar tripulação", "乗組員を雇う",
+      "Mannschaft anheuern", "Engager un équipage", "Zatrudnij załogę", "雇用船員", "선원 고용"
+    ]],
+    ["No dismissals to undo.", [
+      "没有可撤销的遣散。", "Нет увольнений для отмены.", "No hay despidos que deshacer.",
+      "Não há dispensas para desfazer.", "取り消す解雇はありません。", "Keine Entlassungen rückgängig zu machen.",
+      "Aucun congédiement à annuler.", "Brak zwolnień do cofnięcia.", "沒有可撤銷的遣散。", "되돌릴 해고가 없습니다."
+    ]],
+    ["No suitable hands are looking for a berth today.", [
+      "今天没有合适的水手来找铺位。", "Сегодня подходящих моряков, ищущих койку, нет.",
+      "Hoy no hay marineros aptos buscando litera.", "Hoje não há marinheiros aptos procurando beliche.",
+      "今日は寝台を求める適任の船乗りはいません。", "Heute sucht kein geeigneter Seemann eine Koje.",
+      "Aucun marin convenable ne cherche de couchette aujourd’hui.", "Dziś żaden odpowiedni marynarz nie szuka koi.",
+      "今天沒有合適的水手來找鋪位。", "오늘은 침상을 찾는 적당한 선원이 없습니다."
+    ]],
+    ["REDUCE CREW", [
+      "削减船员", "СОКРАТИТЬ КОМАНДУ", "REDUCIR TRIPULACIÓN", "REDUZIR TRIPULAÇÃO", "乗組員を減らす",
+      "MANNSCHAFT VERKLEINERN", "RÉDUIRE L’ÉQUIPAGE", "ZMNIEJSZ ZAŁOGĘ", "削減船員", "선원 감축"
+    ]],
+    ["The crew target is satisfied.", [
+      "船员目标已达成。", "Требуемая численность команды достигнута.", "Se alcanzó el objetivo de tripulación.",
+      "A meta de tripulação foi atingida.", "乗組員の目標人数を満たしました。", "Die Sollstärke der Mannschaft ist erreicht.",
+      "L’effectif visé est atteint.", "Osiągnięto docelową liczebność załogi.", "船員目標已達成。", "목표 선원 수를 채웠습니다."
+    ]],
+    ["The new crew complement is ready.", [
+      "新的船员编制已就绪。", "Новый состав команды готов.", "La nueva dotación está lista.",
+      "A nova tripulação está pronta.", "新しい乗組員編成が整いました。", "Die neue Mannschaftsstärke ist bereit.",
+      "Le nouvel effectif est prêt.", "Nowy skład załogi jest gotowy.", "新的船員編制已就緒。", "새 선원 구성이 준비되었습니다."
+    ]],
+    ["These men have offered to join your crew.", [
+      "这些人愿意加入你的船员。", "Эти люди предложили вступить в вашу команду.",
+      "Estos hombres se han ofrecido a unirse a vuestra tripulación.", "Estes homens se ofereceram para integrar vossa tripulação.",
+      "この者たちが乗組員への参加を申し出ています。", "Diese Männer haben angeboten, Eurer Mannschaft beizutreten.",
+      "Ces hommes proposent de rejoindre votre équipage.", "Ci ludzie zaoferowali dołączyć do waszej załogi.",
+      "這些人願意加入你的船員。", "이들이 선원으로 합류하겠다고 나섰습니다."
+    ]],
+    ["Undo all", [
+      "全部撤销", "Отменить всё", "Deshacer todo", "Desfazer tudo", "すべて取り消す", "Alles rückgängig machen",
+      "Tout annuler", "Cofnij wszystko", "全部撤銷", "모두 되돌리기"
+    ]],
+    ["UNDO ALL", [
+      "全部撤销", "ОТМЕНИТЬ ВСЁ", "DESHACER TODO", "DESFAZER TUDO", "すべて取り消す", "ALLES RÜCKGÄNGIG MACHEN",
+      "TOUT ANNULER", "COFNIJ WSZYSTKO", "全部撤銷", "모두 되돌리기"
+    ]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [
+    source,
+    reviewedLocaleOverrides(source, values)
+  ]));
 }
 
 function reviewedPortCityOverrides() {

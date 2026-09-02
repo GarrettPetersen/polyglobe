@@ -21,6 +21,7 @@ import {
   shipbuildingMaterialRequirements,
   shipyardBuildDurationDays,
   shipyardConstructionCostBreakdown,
+  shipyardCurrentBuild,
   shipyardMaterialStockTargets,
   shipTradeInValue,
   shipyardAtPort,
@@ -495,6 +496,30 @@ test("shipbuilding materials are consumed with construction progress instead of 
     assert.ok(Math.abs(yard.materialConsumedForBuild[goodId] - requirements[goodId] * 0.5) < 1e-9);
     assert.ok(Math.abs(yard.materialInventory[goodId] - (100 - requirements[goodId] * 0.5)) < 1e-9);
   }
+});
+
+test("every yard exposes the same real construction progress used by player-backed books", () => {
+  const system = createWorldShipyards({ ports: [SMALL_PORT], startMinute: 0, seedKey: "visible-build" });
+  const yard = shipyardAtPort(system, SMALL_PORT);
+  yard.buildStartedMinute = 10;
+  yard.nextBuildMinute = 110;
+  yard.materialDelayDays = 0;
+
+  const halfway = shipyardCurrentBuild(yard, 60);
+  assert.equal(halfway.progress, 0.5);
+  assert.equal(halfway.startedMinute, 10);
+  assert.equal(halfway.completeMinute, 110);
+  assert.equal(typeof halfway.shipSlug, "string");
+
+  fundPlayerShipyard(system, SMALL_PORT, {
+    investedMinute: 60,
+    seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 }
+  });
+  assert.deepEqual(
+    playerShipyardLedger(yard, 60).currentBuild.progress,
+    shipyardCurrentBuild(yard, 60).progress
+  );
 });
 
 test("large sailing ships require more material and take longer than small craft", () => {

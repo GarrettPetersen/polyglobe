@@ -33,6 +33,7 @@ export {
 export function aboardRoster({
   captain,
   crewCount,
+  crewMembers = [],
   namedCrew = [],
   travelerGroups = [],
   namedTravelers = [],
@@ -43,6 +44,7 @@ export function aboardRoster({
     throw new Error("Aboard roster requires a named captain");
   }
   assertCount(crewCount, "crew");
+  if (!Array.isArray(crewMembers)) throw new Error("Individual aboard crew must be an array");
   if (!Array.isArray(namedCrew)) throw new Error("Named aboard crew must be an array");
   if (!Array.isArray(travelerGroups)) throw new Error("Aboard travelers must be an array");
   if (!Array.isArray(namedTravelers)) throw new Error("Named aboard travelers must be an array");
@@ -92,8 +94,17 @@ export function aboardRoster({
     throw new Error(`Crew ${crewCount} cannot contain captain and ${namedCrew.length} named crewmates`);
   }
   const generic = [];
-  for (let index = 0; index < Math.max(0, genericCrewCount); index++) {
-    generic.push(genericEntry(`crew:${index}`, ABOARD_ROLE_CREWMATE));
+  if (crewMembers.length !== Math.max(0, genericCrewCount)) {
+    throw new Error(
+      `Individual crew roster ${crewMembers.length} does not match ordinary crew ${Math.max(0, genericCrewCount)}`
+    );
+  }
+  for (const member of crewMembers) {
+    if (!member || typeof member.id !== "string" || member.id === "" ||
+        typeof member.name !== "string" || member.name === "") {
+      throw new Error("Individual aboard crewmate requires an ID and name");
+    }
+    generic.push(genericEntry(`crew:${member.id}`, ABOARD_ROLE_CREWMATE, member));
   }
   for (const kind of TRAVELER_KINDS) {
     const count = remainingTravelers.get(kind) || 0;
@@ -221,8 +232,8 @@ function namedEntry(id, character, role) {
   return Object.freeze({ id, kind: "named", character, role });
 }
 
-function genericEntry(id, role) {
-  return Object.freeze({ id, kind: "generic", character: null, role });
+function genericEntry(id, role, crewMember = null) {
+  return Object.freeze({ id, kind: "generic", character: null, crewMember, role });
 }
 
 function assertCount(value, label) {

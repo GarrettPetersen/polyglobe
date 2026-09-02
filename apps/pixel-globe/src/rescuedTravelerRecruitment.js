@@ -12,6 +12,7 @@ export function recruitRescuedTravelerAsNamedCrew(state, memory, quest, characte
     throw new Error("Rescued traveler recruitment requires a player ship and named crew");
   }
   const crewBefore = state.ship.crew;
+  const crewRosterBefore = [...state.crewRoster];
   const completedBefore = memory.completedCount;
   const activeBefore = memory.active;
   let reconciliation = null;
@@ -23,6 +24,7 @@ export function recruitRescuedTravelerAsNamedCrew(state, memory, quest, characte
     if (reconciliation?.added) {
       removeNamedCrewMember(state, reconciliation.member.id);
       state.ship.crew = crewBefore;
+      state.crewRoster = crewRosterBefore;
     }
     memory.active = activeBefore;
     memory.completedCount = completedBefore;

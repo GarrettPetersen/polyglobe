@@ -90,7 +90,6 @@ import {
 } from "./captureCommissionPriorities.js";
 import {
   CANNON_RESTOCK_COST,
-  CREW_HIRE_COST,
   CUSTOM_LOADOUT_ID,
   FOOD_RATIONS_PER_HOLD_UNIT,
   SHIP_LOADOUT_PRESETS,
@@ -483,6 +482,18 @@ import {
   validateNamedCrewDeathNotices
 } from "./namedCrew.js";
 import {
+  createCrewRecruitmentMemory,
+  createCrewRoster,
+  createMigratedCrewRoster,
+  crewExperienceSummary,
+  crewMemberExperienceStars,
+  hireCrewCandidate,
+  removeCrewCasualties,
+  validateCrewAggregate,
+  validateCrewRecruitmentMemory,
+  validateCrewRoster
+} from "./crewMembers.js";
+import {
   createQuestCargoDeliveryMemory,
   questCargoDeliverableQuantity,
   recordQuestCargoDelivery,
@@ -533,7 +544,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 94;
+export const GAME_STATE_VERSION = 95;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -707,6 +718,7 @@ export function createGameState({
     cargoCapacity,
     cargo: {},
     namedCrew: createNamedCrewMemory(),
+    crewRoster: createCrewRoster(),
     ship: shipStats === null ? null : createPlayerShipState(shipStats),
     survival: createSurvivalState(
       startMinute,
@@ -791,6 +803,7 @@ export function createGameState({
       animalCompanions: createAnimalCompanionMemory(),
       pendingDiscoveryPortDialogueIds: [],
       namedCrewDeathNotices: [],
+      crewRecruitment: createCrewRecruitmentMemory(),
       birthdays: createBirthdayMemory(),
       specialEquipmentOffers: createSpecialEquipmentOfferMemory(),
       illicitTradeEnforcement: createIllicitTradeEnforcementMemory(),
@@ -860,10 +873,11 @@ export function validateGameState(state) {
 }
 
 export function migrateGameState(state, shipStats, {
-  legacyCityIdForPortReference = null
+  legacyCityIdForPortReference = null,
+  crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -954,13 +968,34 @@ export function migrateGameState(state, shipStats, {
       requireEntityId(state.playerCharacter.id, "Saved player character")
     )
   } : state.playerCharacter;
+  const migratedNamedCrew = state.namedCrew || createNamedCrewMemory();
+  const ordinaryCrewCount = state.ship?.crew > 0
+    ? state.ship.crew - 1 - migratedNamedCrew.length
+    : 0;
+  if (ordinaryCrewCount < 0) {
+    throw new Error(`Saved crew is below its captain and named-crew commitments: ${state.ship.crew}`);
+  }
+  const migratedCrewRoster = ordinaryCrewCount === 0
+    ? createCrewRoster()
+    : createMigratedCrewRoster({
+        count: ordinaryCrewCount,
+        voyageSeed: migrationVoyageSeed,
+        currentMinute: savedCrewExperienceMinute(state),
+        ...requireCrewMigrationContext(
+          typeof crewMigrationContextForHomePort === "function"
+            ? crewMigrationContextForHomePort(legacyHomePortCityId)
+            : null,
+          legacyHomePortCityId
+        )
+      });
   const migrated = {
     ...state,
     version: GAME_STATE_VERSION,
     voyageSeed: migrationVoyageSeed,
     voyageStartProfile: state.voyageStartProfile || null,
     playerCharacter: migratedPlayerCharacter,
-    namedCrew: state.namedCrew || createNamedCrewMemory(),
+    namedCrew: migratedNamedCrew,
+    crewRoster: migratedCrewRoster,
     survival: {
       ...state.survival,
       foodRationDebt: Number.isFinite(state.survival?.foodRationDebt)
@@ -1026,6 +1061,7 @@ export function migrateGameState(state, shipStats, {
       ...migratedMemoryBase,
       visitedPorts: migrateVisitedPortMemories(state.memory?.visitedPorts),
       namedCrewDeathNotices: state.memory?.namedCrewDeathNotices || [],
+      crewRecruitment: createCrewRecruitmentMemory(),
       birthdays: state.memory?.birthdays || createBirthdayMemory(),
       specialEquipmentOffers: migrateSpecialEquipmentOfferMemory(state.memory?.specialEquipmentOffers),
       illicitTradeEnforcement: migrateIllicitTradeEnforcementMemory(
@@ -1141,6 +1177,30 @@ function restoreLoadedGameState(state, shipStats = null) {
   return validateGameState(state);
 }
 
+function requireCrewMigrationContext(context, homePortCityId) {
+  if (!context || typeof context !== "object" || Array.isArray(context)) {
+    throw new Error(`Crew migration requires the canonical home port ${homePortCityId}`);
+  }
+  if (requireCityId(context.homePort, "Crew migration home port") !== homePortCityId) {
+    throw new Error(
+      `Crew migration home port changed: ${context.homePort.cityId}/${homePortCityId}`
+    );
+  }
+  if (!Array.isArray(context.appearances) || context.appearances.length === 0) {
+    throw new Error(`Crew migration requires recruitable people from ${homePortCityId}`);
+  }
+  if (typeof context.nameForIdentity !== "function") {
+    throw new Error(`Crew migration requires the first-name roster for ${homePortCityId}`);
+  }
+  return context;
+}
+
+function savedCrewExperienceMinute(state) {
+  const minute = state.survival?.lastMinute ?? savedGameStartMinute(state);
+  assertSimulationMinute(minute);
+  return minute;
+}
+
 function reconcileLoadedShipLoadout(state, shipStats) {
   if (!state.ship) return null;
   if (!shipStats || shipStats.slug !== state.ship.slug) {
@@ -1154,7 +1214,9 @@ function reconcileLoadedShipLoadout(state, shipStats) {
   state.ship.baseCargoCapacity = shipStats.cargoCapacity;
   state.ship.mass = shipStats.mass;
   state.cargoCapacity = effectivePlayerShipStats(state, shipStats).cargoCapacity;
-  const plan = selectedShipLoadoutPlan(state, shipStats);
+  const plan = selectedShipLoadoutPlan(state, shipStats, {
+    minimumCrew: Math.max(permanentCrewFloor(state), state.ship.crew)
+  });
   state.ship.loadoutTargets = plan;
   return { plan, crewRepair };
 }
@@ -1169,14 +1231,29 @@ function repairLoadedCrewOverflow(state, savedCrewCapacity) {
       `${permanentCrew - crewCapacity} more berths than its canonical capacity ${crewCapacity}`
     );
   }
+  const dischargeCount = crew - crewCapacity;
+  const dischargedIds = [...state.crewRoster]
+    .sort((left, right) => (
+      crewMemberExperienceStars(left) - crewMemberExperienceStars(right) ||
+      right.recruitedAtMinute - left.recruitedAtMinute ||
+      left.id.localeCompare(right.id)
+    ))
+    .slice(0, dischargeCount)
+    .map(({ id }) => id);
+  if (dischargedIds.length !== dischargeCount) {
+    throw new Error(`Cannot discharge ${dischargeCount} ordinary crew from ${slug}`);
+  }
+  const dischargedSet = new Set(dischargedIds);
+  state.crewRoster = state.crewRoster.filter(({ id }) => !dischargedSet.has(id));
   state.ship.crew = crewCapacity;
+  validateCrewAggregate(state);
   return {
     shipSlug: slug,
     savedCrewCapacity,
     canonicalCrewCapacity: crewCapacity,
     beforeCrew: crew,
     afterCrew: state.ship.crew,
-    dischargedAnonymousCrew: crew - state.ship.crew,
+    dischargedCrewMemberIds: dischargedIds,
     permanentCrew
   };
 }
@@ -2282,6 +2359,11 @@ export function setPlayerShipStats(state, stats) {
   if (stats.crewCapacity < futureCrewFloor) {
     throw new Error(`Cannot move ${futureCrewFloor} committed crew into a ${stats.crewCapacity}-berth ship`);
   }
+  if (state.ship.crew > stats.crewCapacity) {
+    throw new Error(
+      `Cannot move ${state.ship.crew} aboard crew into a ${stats.crewCapacity}-berth ship; dismiss crew first`
+    );
+  }
   const projectedCargoUsed = playerShipReplacementCargoUsed(state, stats);
   if (projectedCargoUsed > effectiveStats.cargoCapacity) {
     throw new Error(
@@ -2297,14 +2379,15 @@ export function setPlayerShipStats(state, stats) {
     hardtack: state.cargo[HARDTACK_GOOD_ID] || 0,
     hardtackBasis: state.accounts.cargoCostBasis[HARDTACK_GOOD_ID]
   };
-  const plan = selectedShipLoadoutPlan(state, stats);
+  const plan = selectedShipLoadoutPlan(state, stats, {
+    minimumCrew: Math.max(crewFloor, state.ship.crew)
+  });
   state.cargoCapacity = effectiveStats.cargoCapacity;
   state.ship.slug = stats.slug;
   state.ship.crewCapacity = stats.crewCapacity;
   state.ship.cannonCapacity = stats.cannons;
   state.ship.baseCargoCapacity = stats.cargoCapacity;
   state.ship.mass = stats.mass;
-  state.ship.crew = Math.max(crewFloor, Math.min(state.ship.crew, plan.crew));
   state.ship.cannons = Math.min(state.ship.cannons, plan.cannons);
   state.ship.loadoutTargets = plan;
   state.survival.freshWaterCapacity = plan.waterUnits;
@@ -2337,8 +2420,13 @@ export function playerShipReplacementCargoUsed(state, stats, context = {}) {
       `Cannot preview a ${stats.crewCapacity}-berth ship with ${committedCrew} permanent crew commitments`
     );
   }
-  const plan = selectedShipLoadoutPlan(state, stats, { minimumCrew: crewFloor });
   const crewAfterDepartures = state.ship.crew - departures.length;
+  if (crewAfterDepartures > stats.crewCapacity) {
+    throw new Error(
+      `Cannot preview ${crewAfterDepartures} aboard crew in a ${stats.crewCapacity}-berth ship; dismiss crew first`
+    );
+  }
+  const plan = selectedShipLoadoutPlan(state, stats, { minimumCrew: crewFloor });
   let usedTicks = 0;
   for (const [goodId, heldQuantity] of Object.entries(state.cargo)) {
     const good = goodById(goodId);
@@ -3183,19 +3271,36 @@ export function receiveEmergencyShipAid(state, npcShipId, options = {}) {
   return granted;
 }
 
-export function initializeProvisionalShipLoadout(state, stats) {
+export function initializeProvisionalShipLoadout(state, stats, crewGenerationContext) {
   assertGameState(state);
   const loadoutStats = requirePlayerShipState(state, stats);
   const plan = shipLoadoutPlan(loadoutStats, "short-haul");
+  if (state.crewRoster.length > 0 || state.namedCrew.length > 0 || state.ship.crew !== 0) {
+    throw new Error("Provisional ship loadout requires an empty aboard roster");
+  }
+  const homePortCityId = state.playerCharacter?.homePortCityId || crewGenerationContext?.homePort?.cityId;
+  if (typeof homePortCityId !== "string" || homePortCityId === "") {
+    throw new Error("Provisional crew requires the captain's canonical home port");
+  }
+  const generation = requireCrewMigrationContext(crewGenerationContext, homePortCityId);
   state.ship.loadoutId = null;
   state.ship.loadoutTargets = plan;
   state.ship.crew = plan.crew;
+  state.crewRoster = createMigratedCrewRoster({
+    count: plan.crew - 1,
+    voyageSeed: state.voyageSeed,
+    homePort: generation.homePort,
+    currentMinute: state.survival.lastMinute,
+    appearances: generation.appearances,
+    nameForIdentity: generation.nameForIdentity
+  });
   state.ship.cannons = plan.cannons;
   state.survival.freshWaterCapacity = plan.waterUnits;
   state.survival.freshWater = plan.waterUnits;
   state.cargo[HARDTACK_GOOD_ID] = plan.foodUnits;
   state.accounts.cargoCostBasis[HARDTACK_GOOD_ID] = plan.foodUnits * tradeGoodById(HARDTACK_GOOD_ID).basePrice;
   recordDecision(state, "loadout.provisional.short-haul", 1);
+  validateCrewAggregate(state);
   return plan;
 }
 
@@ -3220,10 +3325,14 @@ function restockShipLoadoutPlanAtPort(state, city, plan, context) {
   if (plan.crew < crewFloor) {
     throw new Error(`Loadout crew ${plan.crew} is below permanent crew floor ${crewFloor}`);
   }
+  if (state.ship.crew > plan.crew) {
+    throw new Error(
+      `Loadout ${plan.id} requires dismissing ${state.ship.crew - plan.crew} crew members first`
+    );
+  }
 
   state.ship.loadoutId = plan.id;
   state.ship.loadoutTargets = plan;
-  state.ship.crew = Math.max(crewFloor, Math.min(state.ship.crew, plan.crew));
   state.ship.cannons = Math.min(state.ship.cannons, plan.cannons);
   trimCargoQuantity(state, HARDTACK_GOOD_ID, plan.foodUnits);
   state.survival.freshWaterCapacity = plan.waterUnits;
@@ -3232,8 +3341,8 @@ function restockShipLoadoutPlanAtPort(state, city, plan, context) {
   let spent = 0;
   const additions = { crew: 0, cannons: 0, food: 0, water: 0 };
   const priorities = plan.id === "combat"
-    ? ["crew", "cannons", "provisions"]
-    : ["crew", "provisions", "cannons"];
+    ? ["cannons", "provisions"]
+    : ["provisions", "cannons"];
   for (const kind of priorities) {
     if (kind === "provisions") {
       const result = restockBalancedProvisions(state, plan, hardtack);
@@ -3292,17 +3401,48 @@ export function loseCrew(state, requestedLoss, random = Math.random) {
   if (typeof random !== "function") throw new Error("Crew loss random source must be a function");
   if (!state.ship || requestedLoss === 0) return 0;
   const lost = Math.min(state.ship.crew, requestedLoss);
-  let remaining = lost - Math.min(genericCrewCount(state), lost);
+  const ordinaryCasualties = removeCrewCasualties(state, Math.min(genericCrewCount(state), lost), random);
+  let remaining = lost - ordinaryCasualties.length;
   while (remaining > 0 && namedCrewMembers(state).length > 0) {
     const members = namedCrewMembers(state);
     const index = Math.min(members.length - 1, Math.floor(random() * members.length));
     const dead = removeNamedCrewMember(state, members[index].id);
+    state.ship.crew -= 1;
     state.memory.namedCrewDeathNotices.push(createNamedCrewDeathNotice(dead));
     remaining -= 1;
   }
-  state.ship.crew -= lost;
+  if (remaining > 0) {
+    if (remaining !== 1 || state.ship.crew !== 1) {
+      throw new Error(`Crew casualty resolution cannot remove ${remaining} from ${state.ship.crew}`);
+    }
+    state.ship.crew = 0;
+  }
+  validateCrewAggregate(state);
   if (lost > 0) recordDecision(state, "crew.lost", lost);
   return lost;
+}
+
+export function hireCrewMemberAtPort(state, city, memberId, context = {}) {
+  assertGameState(state);
+  assertSimulationMinute(context.simMinute);
+  const hired = hireCrewCandidate(
+    state,
+    state.memory.crewRecruitment,
+    city,
+    memberId,
+    context.simMinute
+  );
+  recordLedgerEntry(state, city, context, {
+    kind: "crew",
+    description: `Hire ${hired.member.name} (${hired.member.crewTypeId})`,
+    goodId: null,
+    quantity: 1,
+    amount: -hired.cost,
+    costBasis: hired.cost,
+    pnl: null
+  });
+  recordDecision(state, `crew.hired.${hired.member.homePortCityId}`, 1);
+  return hired;
 }
 
 export function applySurvivalDeprivation(state, { dehydration, starvation }) {
@@ -6500,12 +6640,14 @@ export function capturePortMissionEligibility(state) {
   const ship = state.ship;
   const cannonArmed = (ship?.cannons || 0) >= CAPTURE_PORT_MISSION_MIN_CANNONS;
   const largeWarship = (ship?.crewCapacity || 0) >= PORT_CONQUEST_MIN_CREW;
+  const effectiveCrew = ship ? crewExperienceSummary(state).effectiveCrew : 0;
   const enoughCrew = (ship?.crew || 0) >= PORT_CONQUEST_MIN_CREW;
   return {
     eligible: Boolean(ship && cannonArmed && largeWarship && enoughCrew),
     cannonArmed,
     largeWarship,
     enoughCrew,
+    effectiveCrew,
     minimumCannons: CAPTURE_PORT_MISSION_MIN_CANNONS,
     minimumCrew: PORT_CONQUEST_MIN_CREW
   };
@@ -9037,17 +9179,7 @@ function createSurvivalState(startMinute, freshWaterCapacity = FRESH_WATER_CAPAC
 function restockLoadoutKind(state, plan, kind) {
   let spent = 0;
   let quantity = 0;
-  if (kind === "crew") {
-    while (state.ship.crew < plan.crew) {
-      const nextCrew = state.ship.crew + 1;
-      const space = crewHoldSpace(nextCrew) - crewHoldSpace(state.ship.crew);
-      if (state.doubloons < CREW_HIRE_COST || cargoFree(state) < space) break;
-      state.ship.crew = nextCrew;
-      state.doubloons -= CREW_HIRE_COST;
-      spent += CREW_HIRE_COST;
-      quantity += 1;
-    }
-  } else if (kind === "cannons") {
+  if (kind === "cannons") {
     while (state.ship.cannons < plan.cannons) {
       if (state.doubloons < CANNON_RESTOCK_COST || cargoFree(state) < 1) break;
       state.ship.cannons += 1;
@@ -10370,6 +10502,7 @@ function assertGameState(state) {
   }
   if (state.playerCharacter !== null) assertPlayerCharacter(state.playerCharacter);
   validateNamedCrew(state.namedCrew);
+  validateCrewRoster(state.crewRoster);
   assertCargoCapacity(state.cargoCapacity);
   if (!Number.isInteger(state.doubloons) || state.doubloons < 0) {
     throw new Error(`Invalid doubloon balance: ${state.doubloons}`);
@@ -10391,6 +10524,7 @@ function assertGameState(state) {
       }, state.ship.loadoutTargets, { minimumCrew: permanentCrewFloor(state) });
     }
   }
+  validateCrewAggregate(state);
   if (!state.inventory || typeof state.inventory !== "object") throw new Error("Game state inventory must be an object");
   if (!state.inventory.items || typeof state.inventory.items !== "object") {
     throw new Error("Game state inventory items must be an object");
@@ -10438,6 +10572,7 @@ function assertGameState(state) {
   if (!state.memory || typeof state.memory !== "object") throw new Error("Game state memory must be an object");
   validateVisitedPortMemories(state.memory.visitedPorts);
   validateNamedCrewDeathNotices(state.memory.namedCrewDeathNotices);
+  validateCrewRecruitmentMemory(state.memory.crewRecruitment);
   validateBirthdayMemory(state.memory.birthdays);
   validateSpecialEquipmentOfferMemory(state.memory.specialEquipmentOffers);
   validateIllicitTradeEnforcementMemory(state.memory.illicitTradeEnforcement);

@@ -54,7 +54,8 @@ test("a lone crew member takes ten times as long to reload ten cannons", () => {
 });
 
 test("cannon reload staffing rejects malformed combat state", () => {
-  assert.throws(() => cannonReloadWorkRate(1.5, 10), /active cannon crew/);
+  assert.equal(cannonReloadWorkRate(1.5, 10), 0.15);
+  assert.throws(() => cannonReloadWorkRate(Number.NaN, 10), /active cannon crew/);
   assert.throws(() => cannonReloadWorkRate(1, -1), /installed cannon count/);
   assert.throws(() => advanceCannonReload(-1, 1, 1, 1), /reload work/);
   assert.throws(() => advanceCannonReload(1, -1, 1, 1), /timestep/);

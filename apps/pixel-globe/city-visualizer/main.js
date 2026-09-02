@@ -14,6 +14,7 @@ import {
   activePortSceneLayers,
   advanceSceneParallax,
   advanceSceneScrollVelocity,
+  citySetSailControlRect,
   docksideShipSideAnchor,
   docksideShipPostClearanceShift,
   docksideShipVerticalPlacement,
@@ -82,7 +83,16 @@ import {
   cityShipyardSaleShipSlugs,
   validateCityShipSideViewManifest
 } from "./cityShipyardSaleShips.js";
-import { CITY_NPC_PATHS, cityGroundPainterZ } from "./cityPainterOrder.js";
+import {
+  CITY_GATE_FRONT_PAINTER_Z,
+  cityGroundPainterZ,
+  cityNpcPaths
+} from "./cityPainterOrder.js";
+import {
+  CITY_SHIPYARD_FRONT_Z,
+  cityShipyardConstructionPlacement,
+  validateCityShipyardConstruction
+} from "./cityShipyardConstruction.js";
 import {
   cityGarrisonAppearanceIds,
   citySuspiciousMerchantAppearanceId,
@@ -120,8 +130,10 @@ import {
 import {
   CITY_WIND_DIRECTION_OPTIONS,
   CITY_WIND_SPEED_OPTIONS,
+  cityWindFromGeographicWind,
   cityWindForCity
 } from "./cityWind.js";
+import { cityPrecipitationParticles } from "./cityPrecipitation.js";
 import {
   CITY_CLOUD_SPECS,
   advanceCityCloudDrift,
@@ -135,6 +147,7 @@ import {
 } from "../src/performanceBenchmark.js";
 import { cityVisualizerBenchmarkFromSearch } from "./cityVisualizerBenchmark.js";
 import { createCachedSceneRenderer } from "../src/cachedSceneRenderer.js";
+import { shipyardConstructionFillPixels } from "../src/shipyardConstructionArt.js";
 
 export async function createCitySceneRuntime({
   canvas,
@@ -204,6 +217,9 @@ const STATIC_SCENE_ENTRY_KINDS = new Set([
   "left-bank-background-city-base",
   "left-bank-background-city-underlay",
   "quay-cargo",
+  "gate-front",
+  "shipyard-construction",
+  "shipyard-front",
   "static",
   "tree",
   "tree-shadow"
@@ -229,6 +245,7 @@ const state = {
   peopleAtlas: null,
   peopleById: new Map(),
   shipImage: null,
+  shipOutline: null,
   shipSinkDepthImage: null,
   shipWaterlineLayers: null,
   shipWaterShadowImages: null,
@@ -236,9 +253,14 @@ const state = {
   shipyardSaleRequestKey: null,
   shipyardSaleShips: [],
   shipyardSaleShipPlacements: [],
+  shipyardConstructionRequestKey: null,
+  shipyardConstructionPlacement: null,
   cityFlagFactionId: null,
   cityFlagImage: null,
   wind: null,
+  precipitation: Object.freeze({ kind: null, intensity: 0 }),
+  weatherSignature: null,
+  precipitationFrameCache: null,
   cloudDriftByLayer: new Map(CITY_CLOUD_SPECS.map(({ layer }) => [layer, 0])),
   lastCloudTimeMs: null,
   city: null,
@@ -285,9 +307,15 @@ const citySceneRenderer = createCachedSceneRenderer({
 
 const DESTINATIONS = Object.freeze([
   Object.freeze({
+    id: PORT_CITY_LOCATION.SET_SAIL,
+    label: "Set Sail",
+    layers: Object.freeze([]),
+    copy: "This leaves port."
+  }),
+  Object.freeze({
     id: PORT_CITY_LOCATION.SHIPYARD,
     label: "Shipyard",
-    layers: Object.freeze(["Shipyard", "Dock", "Stone Dock"]),
+    layers: Object.freeze(["Shipyard"]),
     copy: "This will open the existing shipyard modal: repairs, outfitting, and available hulls."
   }),
   Object.freeze({
@@ -456,11 +484,25 @@ async function selectCity(cityId, {
   playerShipSlug = null,
   saleShipSlugs = null,
   availableDestinationIds = null,
+  factionId = null,
+  label = null,
+  shipyardConstruction = null,
   barred = false,
   illicitCaughtStartedAtMs = null
 } = {}) {
-  const city = state.catalog.cities.find((candidate) => candidate.id === cityId);
-  if (!city) throw new Error(`Unknown visualizer city: ${cityId}`);
+  const catalogCity = state.catalog.cities.find((candidate) => candidate.id === cityId);
+  if (!catalogCity) throw new Error(`Unknown visualizer city: ${cityId}`);
+  if (factionId !== null && (typeof factionId !== "string" || factionId === "")) {
+    throw new Error(`Invalid visualizer city faction: ${factionId}`);
+  }
+  if (label !== null && (typeof label !== "string" || label.trim() === "")) {
+    throw new Error(`Invalid visualizer city label: ${label}`);
+  }
+  const liveFactionId = factionId ?? catalogCity.factionId;
+  const liveLabel = label ?? catalogCity.label;
+  const city = liveFactionId === catalogCity.factionId && liveLabel === catalogCity.label
+    ? catalogCity
+    : Object.freeze({ ...catalogCity, factionId: liveFactionId, label: liveLabel });
   state.city = city;
   state.availableDestinationIds = availableDestinationIds === null
     ? null
@@ -476,6 +518,7 @@ async function selectCity(cityId, {
   state.cityFlagImage = null;
   state.shipyardSaleShips = [];
   state.shipyardSaleShipPlacements = [];
+  state.shipyardConstructionPlacement = null;
   citySelect.value = city.id;
   canvas.setAttribute("aria-label", `${renderText(city.label)}, ${renderText(city.country)}`);
   for (const control of [
@@ -498,11 +541,12 @@ async function selectCity(cityId, {
   await Promise.all([
     selectCityFlag(city),
     selectShip(playerShipSlug || city.defaultShip),
-    selectShipyardSaleShips(saleShipSlugs || cityShipyardSaleShipSlugs(city, state.features))
+    selectShipyardSaleShips(saleShipSlugs || cityShipyardSaleShipSlugs(city, state.features)),
+    selectShipyardConstruction(shipyardConstruction)
   ]);
   if (state.city.id !== city.id) return;
   const firstDestination = activeDestinations()[0];
-  if (firstDestination) focusDestination(firstDestination.id);
+  if (firstDestination) focusDestination(firstDestination.id, { immediate: true });
   if (!externalFrameClock) {
     const url = new URL(location.href);
     url.searchParams.set("city", city.id);
@@ -555,7 +599,7 @@ function applyFeatureOverrides() {
   state.npcAgents = createCityPeopleAgents({
     city: state.city,
     count: state.features.npcs,
-    paths: CITY_NPC_PATHS
+    paths: cityNpcPaths({ fortified: state.features.fortified })
   });
   state.specialAgents = createSpecialPeopleAgents();
   state.streetBuildings = cityStreetBuildingPlacements({
@@ -660,6 +704,7 @@ async function selectShip(slug) {
   state.shipSlug = ship.slug;
   shipSelect.value = ship.slug;
   state.shipImage = null;
+  state.shipOutline = null;
   state.shipSinkDepthImage = null;
   state.shipWaterlineLayers = null;
   state.shipWaterShadowImages = null;
@@ -678,6 +723,7 @@ async function selectShip(slug) {
     }
   }
   state.shipImage = shipImage;
+  state.shipOutline = tintedImageCanvas(shipImage, "#ffe55c");
   state.shipSinkDepthImage = shipSinkDepthImage;
   const waterlineRgb = cityWaterPaletteRgb(
     DOCKSIDE_SHIP_WATERLINE_RGB.r,
@@ -728,7 +774,47 @@ async function selectShipyardSaleShips(slugs) {
   updateHover();
 }
 
+async function selectShipyardConstruction(construction) {
+  const validated = validateCityShipyardConstruction(construction);
+  const requestKey = `${state.city.id}:${validated?.shipSlug || "none"}:${validated?.progress ?? 0}`;
+  state.shipyardConstructionRequestKey = requestKey;
+  state.shipyardConstructionPlacement = null;
+  rebuildCitySceneRenderPlan();
+  if (!validated) return;
+  const ship = state.shipSideViewManifest.ships.find(({ slug }) => slug === validated.shipSlug);
+  if (!ship) throw new Error(`Missing city construction side view: ${validated.shipSlug}`);
+  const image = await loadImage(publicAssetUrl(ship.file));
+  if (image.width !== ship.width || image.height !== ship.height) {
+    throw new Error(
+      `City construction side view has mismatched dimensions: ${ship.slug} ` +
+      `${image.width}x${image.height}`
+    );
+  }
+  const raster = cityShipSideViewRaster(ship, image);
+  const constructionImage = cityShipyardConstructionImage(raster, validated.progress);
+  if (state.shipyardConstructionRequestKey !== requestKey) return;
+  state.shipyardConstructionPlacement = cityShipyardConstructionPlacement(
+    Object.freeze({ ...raster, image: constructionImage }),
+    validated.progress
+  );
+  rebuildCitySceneRenderPlan();
+}
+
 function cityShipyardSaleShipRaster(ship, image) {
+  const raster = cityShipSideViewRaster(ship, image);
+  const outline = document.createElement("canvas");
+  outline.width = raster.width;
+  outline.height = raster.height;
+  const outlineContext = outline.getContext("2d");
+  outlineContext.imageSmoothingEnabled = false;
+  outlineContext.drawImage(image, 0, 0);
+  outlineContext.globalCompositeOperation = "source-in";
+  outlineContext.fillStyle = "#ffe55c";
+  outlineContext.fillRect(0, 0, outline.width, outline.height);
+  return Object.freeze({ ...raster, outline });
+}
+
+function cityShipSideViewRaster(ship, image) {
   const source = document.createElement("canvas");
   source.width = ship.width;
   source.height = ship.height;
@@ -754,22 +840,33 @@ function cityShipyardSaleShipRaster(ship, image) {
   if (maxX < 0 || maxY !== ship.lowestOpaquePixelY) {
     throw new Error(`City shipyard sale side-view metadata does not match raster: ${ship.slug}`);
   }
-  const outline = document.createElement("canvas");
-  outline.width = source.width;
-  outline.height = source.height;
-  const outlineContext = outline.getContext("2d");
-  outlineContext.imageSmoothingEnabled = false;
-  outlineContext.drawImage(source, 0, 0);
-  outlineContext.globalCompositeOperation = "source-in";
-  outlineContext.fillStyle = "#ffe55c";
-  outlineContext.fillRect(0, 0, outline.width, outline.height);
   return Object.freeze({
     ...ship,
     image,
     alpha,
-    outline,
     opaqueBounds: Object.freeze({ minX, minY, maxX, maxY })
   });
+}
+
+function cityShipyardConstructionImage(ship, progress) {
+  const canvas = document.createElement("canvas");
+  canvas.width = ship.width;
+  canvas.height = ship.height;
+  const target = canvas.getContext("2d", { willReadFrequently: true });
+  if (!target) throw new Error(`Could not create city construction raster: ${ship.slug}`);
+  target.imageSmoothingEnabled = false;
+  target.drawImage(ship.image, 0, 0);
+  const source = target.getImageData(0, 0, canvas.width, canvas.height);
+  const output = target.createImageData(canvas.width, canvas.height);
+  output.data.set(shipyardConstructionFillPixels(
+    source.data,
+    canvas.width,
+    canvas.height,
+    progress
+  ));
+  target.clearRect(0, 0, canvas.width, canvas.height);
+  target.putImageData(output, 0, 0);
+  return canvas;
 }
 
 function publicAssetUrl(file) {
@@ -993,6 +1090,23 @@ function queueCameraPanByScreenPixels(screenDeltaX) {
   );
 }
 
+function queueCameraPanByLogicalPixels(logicalDeltaX) {
+  const delta = scenePanParallaxDelta({
+    screenDeltaX: logicalDeltaX,
+    displayWidth: canvas.width,
+    logicalWidth: canvas.width,
+    approach: state.features?.approach || "ocean"
+  });
+  if (delta === 0) return;
+  const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
+  const target = state.cameraPanTarget ?? state.parallax;
+  state.cameraPanTarget = clamp(
+    target + delta,
+    cameraBounds.minimum,
+    cameraBounds.maximum
+  );
+}
+
 function advanceCamera(timeMs) {
   if (state.lastRenderTimeMs === null) {
     state.lastRenderTimeMs = timeMs;
@@ -1096,6 +1210,7 @@ function renderCityFrame(timeMs) {
     height: canvas.height,
     staticCacheKey: staticSceneCacheKey
   });
+  drawCityPrecipitation(timeMs);
   drawSceneLabels();
 }
 
@@ -1115,7 +1230,42 @@ function renderBenchmarkedCityFrame(timeMs) {
     height: canvas.height,
     staticCacheKey: staticSceneCacheKey
   }));
+  measureCityBenchmarkStage("render.precipitation", () => drawCityPrecipitation(timeMs));
   measureCityBenchmarkStage("render.labels", drawSceneLabels);
+}
+
+function drawCityPrecipitation(timeMs) {
+  const { kind, intensity } = state.precipitation;
+  if (kind === null || intensity === 0) return;
+  if (!state.wind) throw new Error("City precipitation rendered before wind initialization");
+  const animationTimeMs = prefersReducedMotion.matches ? 0 : Math.floor(timeMs / 33) * 33;
+  const cacheKey = `${kind}:${intensity}:${animationTimeMs}:${canvas.width}x${canvas.height}`;
+  if (state.precipitationFrameCache?.key !== cacheKey) {
+    state.precipitationFrameCache = Object.freeze({
+      key: cacheKey,
+      particles: cityPrecipitationParticles({
+        kind,
+        intensity,
+        timeMs: animationTimeMs,
+        width: canvas.width,
+        height: canvas.height,
+        wind: state.wind
+      })
+    });
+  }
+  const particles = state.precipitationFrameCache.particles;
+  context.save();
+  context.fillStyle = kind === "snow" ? "#c7dcd0" : "#8fd3ff";
+  for (const particle of particles) {
+    context.globalAlpha = particle.alpha;
+    if (kind === "rain") {
+      const windTail = Math.round(state.wind.flowX * state.wind.strength * 2);
+      context.fillRect(particle.x - windTail, particle.y, 1, particle.length);
+    } else {
+      context.fillRect(particle.x, particle.y, particle.length, particle.length);
+    }
+  }
+  context.restore();
 }
 
 function scheduleRender() {
@@ -1157,6 +1307,11 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
   else if (entry.kind === "tree") drawCityTree(entry.placement, targetContext);
   else if (entry.kind === "tree-shadow") drawCityTreeShadow(entry.placement, targetContext);
   else if (entry.kind === "quay-cargo") drawQuayCargo(entry.placement, targetContext);
+  else if (entry.kind === "gate-front") drawGateFront(entry.frame, targetContext);
+  else if (entry.kind === "shipyard-construction") {
+    drawShipyardConstruction(entry.placement, targetContext);
+  }
+  else if (entry.kind === "shipyard-front") drawShipyardFront(entry.frame, targetContext);
   else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
   else if (entry.kind === "cloud") drawCloud(entry, timeMs);
   else if (entry.kind === "shipyard-sale-ship") {
@@ -1558,12 +1713,44 @@ function createSceneRenderEntries() {
       authoredOrder: 36 + placementOrder / 100
     });
   }
-  for (const [placementOrder, placement] of state.shipyardSaleShipPlacements.entries()) {
+  if (state.features.shipyard) {
+    for (const [placementOrder, placement] of state.shipyardSaleShipPlacements.entries()) {
+      entries.push({
+        kind: "shipyard-sale-ship",
+        placement,
+        z: placement.z,
+        authoredOrder: 12 + placementOrder / 100
+      });
+    }
+    if (state.shipyardConstructionPlacement) {
+      entries.push({
+        kind: "shipyard-construction",
+        placement: state.shipyardConstructionPlacement,
+        z: state.shipyardConstructionPlacement.z,
+        authoredOrder: 12.8
+      });
+    }
+    const shipyardFront = state.portManifest.staticFrames.find(({ layer }) => (
+      layer === "Shipyard Front"
+    ));
+    if (!shipyardFront) throw new Error("Port scene is missing its shipyard front frame");
     entries.push({
-      kind: "shipyard-sale-ship",
-      placement,
-      z: placement.z,
-      authoredOrder: 12 + placementOrder / 100
+      kind: "shipyard-front",
+      frame: shipyardFront,
+      z: CITY_SHIPYARD_FRONT_Z,
+      authoredOrder: 12.9
+    });
+  }
+  if (state.features.fortified) {
+    const gateFront = state.portManifest.staticFrames.find(({ layer }) => (
+      layer === "Gate Front Edge"
+    ));
+    if (!gateFront) throw new Error("Port scene is missing its gate front edge");
+    entries.push({
+      kind: "gate-front",
+      frame: gateFront,
+      z: CITY_GATE_FRONT_PAINTER_Z,
+      authoredOrder: 39
     });
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
@@ -1606,6 +1793,53 @@ function drawQuayCargo(placement, targetContext) {
     Math.round(placement.y - window.y),
     placement.width,
     placement.height
+  );
+}
+
+function drawGateFront(frame, targetContext) {
+  const regional = regionalStaticFrame(frame, "Gate Front Edge");
+  const sourceAtlas = regional?.atlas || state.staticAtlas;
+  const sourceFrame = regional?.frame || frame;
+  drawAtlasFrame(
+    targetContext,
+    sourceAtlas,
+    sourceFrame,
+    sceneWindow(
+      layerParallaxDepth("Gate"),
+      0,
+      0,
+      layerParallaxAnchor("Gate")
+    )
+  );
+}
+
+function drawShipyardConstruction(placement, targetContext) {
+  const window = sceneWindow(
+    placement.depth,
+    0,
+    0,
+    placement.parallaxAnchor
+  );
+  targetContext.drawImage(
+    placement.ship.image,
+    Math.round(placement.x - window.x),
+    Math.round(placement.y - window.y),
+    placement.width,
+    placement.height
+  );
+}
+
+function drawShipyardFront(frame, targetContext) {
+  drawAtlasFrame(
+    targetContext,
+    state.staticAtlas,
+    frame,
+    sceneWindow(
+      layerParallaxDepth("Shipyard"),
+      0,
+      0,
+      layerParallaxAnchor("Shipyard")
+    )
   );
 }
 
@@ -2566,10 +2800,44 @@ function tintedFrameCanvas(atlas, frame) {
   return mask;
 }
 
+function tintedImageCanvas(image, color) {
+  if (!(image instanceof HTMLImageElement) && !(image instanceof HTMLCanvasElement)) {
+    throw new TypeError("Tinted city image requires a raster source");
+  }
+  if (typeof color !== "string" || color.length === 0) {
+    throw new Error("Tinted city image requires a color");
+  }
+  const mask = document.createElement("canvas");
+  mask.width = image.width;
+  mask.height = image.height;
+  const maskContext = mask.getContext("2d");
+  if (!maskContext) throw new Error("Could not create tinted city image");
+  maskContext.imageSmoothingEnabled = false;
+  maskContext.drawImage(image, 0, 0);
+  maskContext.globalCompositeOperation = "source-in";
+  maskContext.fillStyle = color;
+  maskContext.fillRect(0, 0, mask.width, mask.height);
+  return mask;
+}
+
 function drawDocksideShip(timeMs) {
   if (!state.shipImage) return;
   const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
   if (!placement) return;
+  if (!state.shipOutline) throw new Error("Player ship is missing its city highlight");
+  const outlineY = placement.y + placement.bobY;
+  for (const [dx, dy] of [
+    [-1, 0], [1, 0], [0, -1], [0, 1],
+    [-1, -1], [1, -1], [-1, 1], [1, 1]
+  ]) {
+    context.drawImage(
+      state.shipOutline,
+      placement.x + dx,
+      outlineY + dy,
+      state.shipOutline.width * placement.scale,
+      state.shipOutline.height * placement.scale
+    );
+  }
   drawDocksideShipWaterlineLayers(
     state.shipWaterlineLayers,
     placement.x,
@@ -2900,6 +3168,63 @@ function drawNpc(agent, timeMs) {
   }
 }
 
+function drawPersonSprite(targetContext, {
+  appearanceId,
+  animationId = "walk",
+  timeMs = 0,
+  x,
+  y,
+  scale = 1,
+  facingRight = true
+}) {
+  if (!targetContext || typeof targetContext.drawImage !== "function") {
+    throw new Error("City person sprite requires a canvas context");
+  }
+  if (![timeMs, x, y, scale].every(Number.isFinite) || scale <= 0) {
+    throw new Error("City person sprite requires finite placement and a positive scale");
+  }
+  const appearance = state.peopleById.get(appearanceId);
+  if (!appearance) throw new Error(`Unknown city person appearance: ${appearanceId}`);
+  const animation = appearance.animations[animationId];
+  if (!Array.isArray(animation) || animation.length === 0) {
+    throw new Error(`City person ${appearanceId} has no ${animationId} animation`);
+  }
+  const frame = animationFrame(animation, prefersReducedMotion.matches ? 0 : timeMs);
+  const dx = Math.round(x + frame.spriteSourceSize.x * scale);
+  const dy = Math.round(y + frame.spriteSourceSize.y * scale);
+  const dw = Math.round(frame.frame.w * scale);
+  const dh = Math.round(frame.frame.h * scale);
+  if (facingRight) {
+    targetContext.drawImage(
+      state.peopleAtlas,
+      frame.frame.x,
+      frame.frame.y,
+      frame.frame.w,
+      frame.frame.h,
+      dx,
+      dy,
+      dw,
+      dh
+    );
+    return;
+  }
+  targetContext.save();
+  targetContext.translate(dx + dw, 0);
+  targetContext.scale(-1, 1);
+  targetContext.drawImage(
+    state.peopleAtlas,
+    frame.frame.x,
+    frame.frame.y,
+    frame.frame.w,
+    frame.frame.h,
+    0,
+    dy,
+    dw,
+    dh
+  );
+  targetContext.restore();
+}
+
 function drawSceneLabels() {
   const localizedCityLabel = renderText(state.city.label);
   const cityLabel = localizedCityLabel.toUpperCase();
@@ -2909,6 +3234,8 @@ function drawSceneLabels() {
     font: cityFont,
     wordSpacingPx: 4
   });
+
+  drawSetSailControl();
 
   const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
   if (highlightedDestination) {
@@ -2923,6 +3250,54 @@ function drawSceneLabels() {
       font
     });
   }
+}
+
+function drawSetSailControl() {
+  const destination = destinationById(PORT_CITY_LOCATION.SET_SAIL);
+  if (!destination) return;
+  const rect = setSailControlRect();
+  if (!rect) return;
+  const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
+  const highlighted = highlightedDestination?.id === PORT_CITY_LOCATION.SET_SAIL;
+  context.fillStyle = highlighted ? "rgb(37 35 27 / 92%)" : "rgb(10 16 12 / 82%)";
+  context.fillRect(rect.x, rect.y, rect.w, rect.h);
+  context.strokeStyle = highlighted ? "#ffe55c" : "#9c824b";
+  context.lineWidth = 1;
+  context.strokeRect(rect.x + 0.5, rect.y + 0.5, rect.w - 1, rect.h - 1);
+  const label = renderText(destination.label).toUpperCase();
+  const font = smallFontForText(label);
+  const labelWidth = pixelText.measure(label, font);
+  const textX = rect.x + Math.floor((rect.w - labelWidth) / 2);
+  const textY = rect.y + Math.floor((rect.h - 8) / 2);
+  pixelText.draw(label, textX, textY, {
+    color: highlighted ? "#ffe55c" : "#f7dca7",
+    font
+  });
+  const chevronX = rect.x + 5;
+  const chevronY = rect.y + Math.floor(rect.h / 2);
+  context.fillStyle = highlighted ? "#ffe55c" : "#9c824b";
+  context.fillRect(chevronX, chevronY, 4, 1);
+  context.fillRect(chevronX, chevronY - 1, 1, 3);
+}
+
+function setSailControlRect() {
+  const placement = docksideShipPlacement(
+    state.lastRenderTimeMs ?? 0,
+    PORT_SCENE_ENTITY_META.ship.depth
+  );
+  if (!placement || !state.shipImage) return null;
+  const label = renderText("Set Sail").toUpperCase();
+  const font = smallFontForText(label);
+  const controlWidth = Math.max(76, pixelText.measure(label, font) + 20);
+  return citySetSailControlRect({
+    shipX: placement.x,
+    shipY: placement.y + placement.bobY,
+    shipWidth: state.shipImage.width * placement.scale,
+    shipHeight: state.shipImage.height * placement.scale,
+    controlWidth,
+    viewportWidth: canvas.width,
+    viewportHeight: canvas.height
+  });
 }
 
 function drawLabelPlate(x, y, width, height) {
@@ -2982,6 +3357,13 @@ function validateAvailableDestinationIds(destinationIds) {
 function destinationAtPoint(x, y) {
   if (![x, y].every(Number.isFinite)) throw new Error("Invalid city destination coordinates");
   const destinations = activeDestinations();
+  const setSailDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.SET_SAIL);
+  if (setSailDestination) {
+    const rect = setSailControlRect();
+    if (rect && x >= rect.x && x <= rect.x + rect.w && y >= rect.y && y <= rect.y + rect.h) {
+      return Object.freeze({ destination: setSailDestination, saleShipId: null });
+    }
+  }
   const shipDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP);
   if (shipDestination && docksideShipContainsPoint(x, y)) {
     return Object.freeze({ destination: shipDestination, saleShipId: null });
@@ -3059,12 +3441,16 @@ function specialDestinationContainsPoint(destinationId, screenX, screenY) {
   return screenX >= x - 6 && screenX <= x + 6 && screenY >= y - 18 && screenY <= y + 2;
 }
 
-function focusDestination(destinationId) {
+function focusDestination(destinationId, { immediate = false } = {}) {
+  if (typeof immediate !== "boolean") throw new Error("City focus motion policy must be boolean");
   const destination = destinationById(destinationId);
   if (!destination) throw new Error(`City destination is unavailable: ${destinationId}`);
   state.focusedDestinationId = destinationId;
   const anchor = destinationScreenAnchor(destination);
-  if (anchor) panCameraByLogicalPixels(anchor.x - canvas.width / 2);
+  if (!anchor) return;
+  const deltaX = anchor.x - canvas.width / 2;
+  if (immediate || prefersReducedMotion.matches) panCameraByLogicalPixels(deltaX);
+  else queueCameraPanByLogicalPixels(deltaX);
 }
 
 function moveDestinationFocus(direction) {
@@ -3083,6 +3469,10 @@ function moveDestinationFocus(direction) {
 }
 
 function destinationScreenAnchor(destination) {
+  if (destination.id === PORT_CITY_LOCATION.SET_SAIL) {
+    const rect = setSailControlRect();
+    return rect ? { x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 } : null;
+  }
   if (destination.id === PORT_CITY_LOCATION.SHIP) {
     const placement = docksideShipPlacement(state.lastRenderTimeMs ?? 0, PORT_SCENE_ENTITY_META.ship.depth);
     return placement ? { x: placement.x + state.shipImage.width / 2, y: placement.y } : null;
@@ -3361,6 +3751,27 @@ return Object.freeze({
     const hit = destinationAtPoint(x, y);
     return hit ? activateDestination(hit.destination.id, hit.saleShipId) : null;
   },
+  setWeather({ wind, precipitation }) {
+    if (![null, "rain", "snow"].includes(precipitation?.kind)) {
+      throw new Error(`Unknown live city precipitation kind: ${precipitation?.kind}`);
+    }
+    if (!Number.isFinite(precipitation?.intensity) ||
+        precipitation.intensity < 0 || precipitation.intensity > 1) {
+      throw new Error(`Invalid live city precipitation intensity: ${precipitation?.intensity}`);
+    }
+    if (precipitation.kind === null && precipitation.intensity !== 0) {
+      throw new Error("Clear live city weather cannot have precipitation intensity");
+    }
+    const signature = `${wind?.directionRad}:${wind?.strength}:${precipitation.kind}:${precipitation.intensity}`;
+    if (state.weatherSignature === signature) return;
+    state.weatherSignature = signature;
+    state.wind = cityWindFromGeographicWind(wind);
+    state.precipitation = Object.freeze({
+      kind: precipitation.kind,
+      intensity: precipitation.intensity
+    });
+    state.precipitationFrameCache = null;
+  },
   setPointer(x, y) {
     if (x === null && y === null) state.pointer = null;
     else if (![x, y].every(Number.isFinite)) throw new Error("Invalid city pointer coordinates");
@@ -3376,6 +3787,9 @@ return Object.freeze({
     renderCityFrame(timeMs);
     state.renderCount++;
     return state.renderCount;
+  },
+  drawPersonSprite(targetContext, options) {
+    drawPersonSprite(targetContext, options);
   },
   resize(width, height) {
     if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {

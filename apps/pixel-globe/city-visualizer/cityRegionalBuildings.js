@@ -5,6 +5,7 @@ export const CITY_REGIONAL_BUILDING_BASE_LAYERS = Object.freeze([
   "Home 2",
   "Far Castle",
   "Gate",
+  "Gate Front Edge",
   "Near Castle"
 ]);
 
@@ -12,6 +13,7 @@ const CITY_REGIONAL_BUILDING_BASE_LAYER_SET = new Set(CITY_REGIONAL_BUILDING_BAS
 const CITY_REGIONAL_BUILDING_FORTIFICATION_LAYERS = new Set([
   "Far Castle",
   "Gate",
+  "Gate Front Edge",
   "Near Castle"
 ]);
 const CITY_REGIONAL_BUILDING_SERVICE_LAYERS = new Set(["Inn", "Smith"]);

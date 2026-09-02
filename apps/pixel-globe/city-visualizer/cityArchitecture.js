@@ -5,7 +5,12 @@ export const JAPANESE_BUILDING_STYLE = "japanese";
 
 const HOUSING_LAYERS = new Set(["Home", "Home 2"]);
 const SERVICE_BUILDING_LAYERS = new Set(["Inn", "Smith"]);
-const FORTIFICATION_LAYERS = new Set(["Far Castle", "Gate", "Near Castle"]);
+const FORTIFICATION_LAYERS = new Set([
+  "Far Castle",
+  "Gate",
+  "Gate Front Edge",
+  "Near Castle"
+]);
 const SETTLEMENT_FORMS = new Set(["sparse-village", "urban"]);
 
 export function deriveCityArchitectureProfile(city) {

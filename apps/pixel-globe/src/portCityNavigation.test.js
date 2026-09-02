@@ -27,6 +27,7 @@ const ROOT_VIEW = Object.freeze({
 test("port city navigation classifies every root action without using labels", () => {
   const model = portCityNavigationModel(ROOT_VIEW, serviceProfile(true));
   assert.deepEqual(model.locations.map(({ id }) => id), [
+    PORT_CITY_LOCATION.SET_SAIL,
     PORT_CITY_LOCATION.SHIP,
     PORT_CITY_LOCATION.MARKET,
     PORT_CITY_LOCATION.INN,
@@ -36,7 +37,11 @@ test("port city navigation classifies every root action without using labels", (
   ]);
   assert.deepEqual(
     model.locations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP).actions.map(({ label }) => label),
-    ["Ship loadout", "Cargo ledger", "Wait safely in port", "Leave port"]
+    ["Ship loadout", "Cargo ledger", "Wait safely in port"]
+  );
+  assert.deepEqual(
+    model.locations.find(({ id }) => id === PORT_CITY_LOCATION.SET_SAIL).actions.map(({ label }) => label),
+    ["Leave port"]
   );
 });
 

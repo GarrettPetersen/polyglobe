@@ -3,7 +3,9 @@ import test from "node:test";
 
 import {
   DAY_NIGHT_VARIANT_STEPS,
+  NIGHT_LAND_GRADE_HEX,
   NIGHT_GRADE_HEX,
+  NIGHT_WATER_GRADE_HEX,
   SUNSET_GRADE_HEX,
   SUNSET_LAND_GRADE_HEX,
   SUNSET_WATER_GRADE_HEX,
@@ -104,6 +106,18 @@ test("dominant water and land colors stay distinct at sunset and night", () => {
   for (const [water, land] of terrainPairs) {
     assert.notEqual(nightPaletteHexForSourceHex(water), nightPaletteHexForSourceHex(land), `${water}/${land} night`);
     assert.notEqual(sunsetPaletteHexForSourceHex(water), sunsetPaletteHexForSourceHex(land), `${water}/${land} sunset`);
+  }
+});
+
+test("night water and land use separate Resurrect ramps", () => {
+  const waterRamp = new Set(NIGHT_WATER_GRADE_HEX);
+  const landRamp = new Set(NIGHT_LAND_GRADE_HEX);
+  assert.equal([...waterRamp].some((hex) => landRamp.has(hex)), false);
+  for (const source of ["323353", "484a77", "4d65b4", "4d9be6", "0b5e65", "0b8a8f", "0eaf9b", "30e1b9"]) {
+    assert.equal(waterRamp.has(nightPaletteHexForSourceHex(source)), true, source);
+  }
+  for (const source of ["4c3e24", "676633", "a2a947", "165a4c", "239063", "1ebc73", "91db69"]) {
+    assert.equal(landRamp.has(nightPaletteHexForSourceHex(source)), true, source);
   }
 });
 

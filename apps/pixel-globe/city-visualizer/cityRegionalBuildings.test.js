@@ -18,6 +18,7 @@ const FRAMES = Object.freeze([
   frame("Home 2"),
   frame("Far Castle"),
   frame("Gate"),
+  frame("Gate Front Edge"),
   frame("Near Castle"),
   frame("Med Inn", { cityType: "mediterranean", regionalOf: "Inn" }),
   frame("Med Smith", { cityType: "mediterranean", regionalOf: "Smith" }),
@@ -28,6 +29,11 @@ const FRAMES = Object.freeze([
   frame("Middle East Smith", { cityType: "islamic-desert", regionalOf: "Smith" }),
   frame("Middle East Far Wall", { cityType: "islamic-desert", regionalOf: "Far Castle" }),
   frame("Middle East Gate", { cityType: "islamic-desert", regionalOf: "Gate" }),
+  frame("Middle East Gate Front Edge", {
+    cityType: "islamic-desert",
+    regionalOf: "Gate Front Edge",
+    hasChimney: false
+  }),
   frame("Middle East Near Wall", { cityType: "islamic-desert", regionalOf: "Near Castle" }),
   frame("Earthen Hut", { cityType: "earthen-village", regionalOf: "Home", hasChimney: false }),
   frame("Earthen Hut Large", { cityType: "earthen-village", regionalOf: "Home 2", hasChimney: false }),
@@ -36,12 +42,22 @@ const FRAMES = Object.freeze([
   frame("China Smith", { cityType: "east-asian", regionalOf: "Smith", hasChimney: false }),
   frame("China Gate Far", { cityType: "east-asian", regionalOf: "Far Castle", hasChimney: false }),
   frame("China Gateway", { cityType: "east-asian", regionalOf: "Gate", hasChimney: false }),
+  frame("China Gateway Front Edge", {
+    cityType: "east-asian",
+    regionalOf: "Gate Front Edge",
+    hasChimney: false
+  }),
   frame("China Gate Near", { cityType: "east-asian", regionalOf: "Near Castle", hasChimney: false }),
   frame("Japan Home", { cityType: "japanese", regionalOf: "Home", hasChimney: false }),
   frame("Japan Inn", { cityType: "japanese", regionalOf: "Inn", hasChimney: false }),
   frame("Japan Smith", { cityType: "japanese", regionalOf: "Smith", hasChimney: false }),
   frame("Japan Gate Far", { cityType: "japanese", regionalOf: "Far Castle", hasChimney: false }),
   frame("Japan Gateway", { cityType: "japanese", regionalOf: "Gate", hasChimney: false }),
+  frame("Japan Gateway Front Edge", {
+    cityType: "japanese",
+    regionalOf: "Gate Front Edge",
+    hasChimney: false
+  }),
   frame("Japan Gate Near", { cityType: "japanese", regionalOf: "Near Castle", hasChimney: false })
 ]);
 
@@ -91,7 +107,9 @@ test("Northern European cities retain their authored base frames", () => {
 });
 
 test("Middle Eastern cities use every authored regional frame and reuse Home A for unfinished Home B", () => {
-  const selected = ["Inn", "Smith", "Home", "Home 2", "Far Castle", "Gate", "Near Castle"].map((baseLayer) => (
+  const selected = [
+    "Inn", "Smith", "Home", "Home 2", "Far Castle", "Gate", "Gate Front Edge", "Near Castle"
+  ].map((baseLayer) => (
     cityRegionalBuildingFrame(FRAMES, "islamic-desert", baseLayer)
   ));
   assert.deepEqual(selected.map(({ layer }) => layer), [
@@ -101,6 +119,7 @@ test("Middle Eastern cities use every authored regional frame and reuse Home A f
     "Middle East Home",
     "Middle East Far Wall",
     "Middle East Gate",
+    "Middle East Gate Front Edge",
     "Middle East Near Wall"
   ]);
   assert.equal(selected[3].regionalOf, "Home 2");
@@ -130,19 +149,22 @@ test("Ming and Joseon cities use their authored home, inn, and smith", () => {
 });
 
 test("Ming and Joseon cities use the authored Chinese gatehouse", () => {
-  const selected = ["Far Castle", "Gate", "Near Castle"].map((baseLayer) => (
+  const selected = ["Far Castle", "Gate", "Gate Front Edge", "Near Castle"].map((baseLayer) => (
     cityRegionalBuildingFrame(FRAMES, "east-asian", baseLayer)
   ));
   assert.deepEqual(selected.map(({ layer }) => layer), [
     "China Gate Far",
     "China Gateway",
+    "China Gateway Front Edge",
     "China Gate Near"
   ]);
   assert.ok(selected.every(({ hasChimney }) => hasChimney === false));
 });
 
 test("Japanese cities use the complete authored kit except for Home B", () => {
-  const selected = ["Home", "Home 2", "Inn", "Smith", "Far Castle", "Gate", "Near Castle"].map((baseLayer) => (
+  const selected = [
+    "Home", "Home 2", "Inn", "Smith", "Far Castle", "Gate", "Gate Front Edge", "Near Castle"
+  ].map((baseLayer) => (
     cityRegionalBuildingFrame(FRAMES, "japanese", baseLayer)
   ));
   assert.deepEqual(selected.map(({ layer }) => layer), [
@@ -152,6 +174,7 @@ test("Japanese cities use the complete authored kit except for Home B", () => {
     "Japan Smith",
     "Japan Gate Far",
     "Japan Gateway",
+    "Japan Gateway Front Edge",
     "Japan Gate Near"
   ]);
   assert.ok(selected.every(({ hasChimney }) => hasChimney === false));
@@ -236,7 +259,7 @@ test("every generated city resolves its cultural architecture without an acciden
       }
       const intentionalMediterraneanFortificationPalette = (
         architectureStyle === "mediterranean" &&
-        ["Far Castle", "Gate", "Near Castle"].includes(baseLayer)
+        ["Far Castle", "Gate", "Gate Front Edge", "Near Castle"].includes(baseLayer)
       );
       if (
         architectureStyle !== "northern-european" &&
@@ -262,6 +285,7 @@ test("regional frames preserve their logical building roles", () => {
     ["Middle East Smith", "Smith"],
     ["Middle East Far Wall", "Far Castle"],
     ["Middle East Gate", "Gate"],
+    ["Middle East Gate Front Edge", "Gate Front Edge"],
     ["Middle East Near Wall", "Near Castle"],
     ["Earthen Hut", "Home"],
     ["Earthen Hut Large", "Home 2"],
@@ -270,12 +294,14 @@ test("regional frames preserve their logical building roles", () => {
     ["China Smith", "Smith"],
     ["China Gate Far", "Far Castle"],
     ["China Gateway", "Gate"],
+    ["China Gateway Front Edge", "Gate Front Edge"],
     ["China Gate Near", "Near Castle"],
     ["Japan Home", "Home"],
     ["Japan Inn", "Inn"],
     ["Japan Smith", "Smith"],
     ["Japan Gate Far", "Far Castle"],
     ["Japan Gateway", "Gate"],
+    ["Japan Gateway Front Edge", "Gate Front Edge"],
     ["Japan Gate Near", "Near Castle"]
   ]) {
     assert.equal(cityBuildingLogicalLayer(FRAMES.find((frame) => frame.layer === layer)), logicalLayer);
@@ -302,11 +328,32 @@ test("exported earthen huts preserve the two housing ground lines", () => {
 
 test("Mediterranean fortifications preserve Northern geometry", () => {
   assert.deepEqual(
-    ["Far Castle", "Gate", "Near Castle"].map((baseLayer) => (
+    ["Far Castle", "Gate", "Gate Front Edge", "Near Castle"].map((baseLayer) => (
       cityRegionalBuildingFrame(FRAMES, "mediterranean", baseLayer).layer
     )),
-    ["Far Castle", "Gate", "Near Castle"]
+    ["Far Castle", "Gate", "Gate Front Edge", "Near Castle"]
   );
+});
+
+test("exported gate fronts preserve each authored gate-relative offset", () => {
+  for (const [cityType, gateLayer, frontLayer] of [
+    ["northern-european", "Gate", "Gate Front Edge"],
+    ["east-asian", "China Gateway", "China Gateway Front Edge"],
+    ["japanese", "Japan Gateway", "Japan Gateway Front Edge"],
+    ["islamic-desert", "Middle East Gate", "Middle East Gate Front Edge"]
+  ]) {
+    const gate = EXPORTED_FRAMES.find(({ layer }) => layer === gateLayer);
+    const front = cityRegionalBuildingFrame(EXPORTED_FRAMES, cityType, "Gate Front Edge");
+    assert.ok(gate, `missing exported gate ${gateLayer}`);
+    assert.equal(front.layer, frontLayer);
+    assert.ok(front.spriteSourceSize.x >= gate.spriteSourceSize.x);
+    assert.ok(front.spriteSourceSize.y >= gate.spriteSourceSize.y);
+    assert.equal(
+      front.spriteSourceSize.y + front.spriteSourceSize.h,
+      gate.spriteSourceSize.y + gate.spriteSourceSize.h,
+      `${frontLayer} must share ${gateLayer}'s ground line`
+    );
+  }
 });
 
 test("exported East Asian buildings preserve their authored roles and scene ground lines", () => {

@@ -519,8 +519,12 @@ export function conquistadorQuestDestination(memory, portCities, currentMinute) 
   const view = conquistadorQuestView(memory, portCities, currentMinute);
   if ([CONQUISTADOR_STAGE_FETCH, CONQUISTADOR_STAGE_READY].includes(view.stage)) return view.origin;
   if (view.stage === CONQUISTADOR_STAGE_CAPTURE && view.companyNeedsReplenishment) return null;
-  if ([CONQUISTADOR_STAGE_CAPTURE, CONQUISTADOR_STAGE_CAMPAIGN,
-    CONQUISTADOR_STAGE_REWARD_READY].includes(view.stage)) return view.target;
+  if (view.stage === CONQUISTADOR_STAGE_CAPTURE || view.stage === CONQUISTADOR_STAGE_REWARD_READY) {
+    return view.target;
+  }
+  if (view.stage === CONQUISTADOR_STAGE_CAMPAIGN) {
+    return currentMinute >= view.rewardReadyMinute ? view.target : null;
+  }
   return null;
 }
 

@@ -21,8 +21,22 @@ const passenger = Object.freeze({ id: "passenger", name: "Mateo Costa" });
 const envoy = Object.freeze({ id: "envoy", name: "Mei Lin" });
 const leader = Object.freeze({ id: "leader", name: "Jeanne Moreau" });
 
+function aboardRosterFixture(options) {
+  const genericCrewCount = Math.max(
+    0,
+    options.crewCount - 1 - (options.namedCrew?.length || 0)
+  );
+  return aboardRoster({
+    ...options,
+    crewMembers: Array.from({ length: genericCrewCount }, (_, index) => ({
+      id: `ordinary-${index + 1}`,
+      name: `Sailor ${index + 1}`
+    }))
+  });
+}
+
 test("crew count includes the captain and every unnamed hand receives one compact entry", () => {
-  const roster = aboardRoster({ captain, crewCount: 25 });
+  const roster = aboardRosterFixture({ captain, crewCount: 25 });
   assert.equal(roster.count, 25);
   assert.deepEqual(roster.named.map((entry) => entry.role), [ABOARD_ROLE_CAPTAIN]);
   assert.equal(roster.generic.length, 24);
@@ -31,7 +45,7 @@ test("crew count includes the captain and every unnamed hand receives one compac
 });
 
 test("named passengers and emissaries replace their generic manifest person", () => {
-  const passengerRoster = aboardRoster({
+  const passengerRoster = aboardRosterFixture({
     captain,
     crewCount: 2,
     travelerGroups: [{ kind: "passenger", count: 1 }],
@@ -43,7 +57,7 @@ test("named passengers and emissaries replace their generic manifest person", ()
   );
   assert.equal(passengerRoster.generic.length, 1);
 
-  const envoyRoster = aboardRoster({
+  const envoyRoster = aboardRosterFixture({
     captain,
     crewCount: 0,
     travelerGroups: [{ kind: "envoy", count: 1 }],
@@ -57,7 +71,7 @@ test("named passengers and emissaries replace their generic manifest person", ()
 });
 
 test("the colony leader occupies one of the settler places aboard", () => {
-  const roster = aboardRoster({
+  const roster = aboardRosterFixture({
     captain,
     crewCount: 3,
     travelerGroups: [{ kind: "settler", count: 12 }],
@@ -69,7 +83,7 @@ test("the colony leader occupies one of the settler places aboard", () => {
 });
 
 test("an expeditionary company appears among the people aboard", () => {
-  const roster = aboardRoster({
+  const roster = aboardRosterFixture({
     captain,
     crewCount: 3,
     travelerGroups: [{ kind: "soldier", count: 24 }]
@@ -79,7 +93,7 @@ test("an expeditionary company appears among the people aboard", () => {
 
 test("an animal companion gets a named card without counting as a person or sailor", () => {
   const panda = Object.freeze({ id: "panda", name: "Panda" });
-  const roster = aboardRoster({
+  const roster = aboardRosterFixture({
     captain,
     crewCount: 3,
     animalCompanions: [panda]
@@ -91,7 +105,7 @@ test("an animal companion gets a named card without counting as a person or sail
 });
 
 test("a named traveler must match somebody in the manifest", () => {
-  assert.throws(() => aboardRoster({
+  assert.throws(() => aboardRosterFixture({
     captain,
     crewCount: 1,
     travelerGroups: [],
@@ -101,7 +115,7 @@ test("a named traveler must match somebody in the manifest", () => {
 
 test("ordinary missions and a rescued pirate captive can travel together", () => {
   const secondPassenger = Object.freeze({ id: "captive", name: "Brites Pereira" });
-  const roster = aboardRoster({
+  const roster = aboardRosterFixture({
     captain,
     crewCount: 3,
     travelerGroups: [{ kind: "passenger", count: 2 }],
@@ -116,7 +130,7 @@ test("ordinary missions and a rescued pirate captive can travel together", () =>
 
 test("a detained pirate retains their real home while bound for the authorities", () => {
   const captive = Object.freeze({ id: "captive", name: "Brites Pereira" });
-  const roster = aboardRoster({
+  const roster = aboardRosterFixture({
     captain,
     crewCount: 3,
     travelerGroups: [{ kind: "captive", count: 1 }],
@@ -135,7 +149,7 @@ test("a captive's skills remain inactive until they cease to be a captive", () =
 });
 
 test("aboard characters resolve home ports according to their role", () => {
-  const roster = aboardRoster({
+  const roster = aboardRosterFixture({
     captain: { ...captain, homePortTileId: 10 },
     crewCount: 2,
     namedCrew: [{ id: "chef", name: "Lucia Costa", homePortTileId: 11 }],
@@ -164,7 +178,7 @@ test("aboard characters resolve home ports according to their role", () => {
 test("rescued travelers retain their stated home and old historians retain Iceland", () => {
   const rescued = { id: "rescued", name: "Brites Pereira" };
   const historian = { id: "historian", name: "Leif", role: "historian" };
-  const roster = aboardRoster({
+  const roster = aboardRosterFixture({
     captain: { ...captain, homePortTileId: 10 },
     crewCount: 2,
     namedCrew: [historian],
@@ -180,7 +194,7 @@ test("rescued travelers retain their stated home and old historians retain Icela
 });
 
 test("a named character without a resolvable home port fails loudly", () => {
-  const roster = aboardRoster({ captain, crewCount: 1 });
+  const roster = aboardRosterFixture({ captain, crewCount: 1 });
   assert.throws(
     () => aboardCharacterHomePortTileId(roster.named[0]),
     /Missing Ana Costa home port/

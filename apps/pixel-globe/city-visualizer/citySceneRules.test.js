@@ -4,6 +4,7 @@ import test from "node:test";
 import { canvasDisplayLayout } from "../src/displayScaling.js";
 import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
 import { SHIP_STATS } from "../src/shipStats.js";
+import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import { pixelFontSizePx } from "../src/pixelText.js";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import {
@@ -11,7 +12,6 @@ import {
   CITY_PIXEL_FONT_TITLE_8
 } from "./cityPixelText.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
-import { cityGroundPainterZ } from "./cityPainterOrder.js";
 import {
   BACKGROUND_CITY_UNDERLAY_LAYERS,
   PORT_SCENE_MASTER,
@@ -26,6 +26,7 @@ import {
   activePortSceneLayers,
   advanceSceneParallax,
   advanceSceneScrollVelocity,
+  citySetSailControlRect,
   docksideShipSideAnchor,
   docksideShipVerticalPlacement,
   layerParallaxAnchor,
@@ -42,6 +43,12 @@ import {
   sceneInertialPanTargetVelocity,
   scenePanParallaxDelta
 } from "./citySceneRules.js";
+import {
+  CITY_GATE_FRONT_PAINTER_Z,
+  CITY_GATE_TRAVERSAL_PATHS,
+  cityGroundPainterZ,
+  cityNpcPaths
+} from "./cityPainterOrder.js";
 
 const SHIP_MANIFEST = JSON.parse(readFileSync(new URL(
   "../public/assets/vehicles/unity-ships/port-assault/manifest.json",
@@ -134,6 +141,18 @@ test("regional hover outlines and hit masks use the displayed building silhouett
   );
 });
 
+test("the shipyard highlight excludes inert dock layers and the player ship owns a yellow outline", () => {
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /id: PORT_CITY_LOCATION\.SHIPYARD,[\s\S]*?layers: Object\.freeze\(\["Shipyard"\]\)/
+  );
+  assert.doesNotMatch(
+    VISUALIZER_MAIN_SOURCE,
+    /id: PORT_CITY_LOCATION\.SHIPYARD,[\s\S]*?layers: Object\.freeze\(\[[^\]]*"(?:Dock|Stone Dock)"/
+  );
+  assert.match(VISUALIZER_MAIN_SOURCE, /state\.shipOutline = tintedImageCanvas\(shipImage, "#ffe55c"\)/);
+});
+
 test("static regional buildings emit smoke only when their displayed sprite has a chimney", () => {
   assert.match(
     VISUALIZER_MAIN_SOURCE,
@@ -163,10 +182,10 @@ test("coastal views use the safe span while river views can pan across the autho
 
 test("RTS camera scrolls only at the edges with restrained start, stop, and reversal inertia", () => {
   assert.equal(sceneEdgeScrollVelocity({ pointerX: 227.5, width: 455 }), 0);
-  assert.equal(sceneEdgeScrollVelocity({ pointerX: 0, width: 455 }), -0.45);
-  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455, width: 455 }), 0.45);
-  assert.equal(sceneEdgeScrollVelocity({ pointerX: -0.39678955078125, width: 455 }), -0.45);
-  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455.39678955078125, width: 455 }), 0.45);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 0, width: 455 }), -0.72);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455, width: 455 }), 0.72);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: -0.39678955078125, width: 455 }), -0.72);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455.39678955078125, width: 455 }), 0.72);
   const firstFrame = advanceSceneParallax({
     current: -0.35,
     velocity: sceneEdgeScrollVelocity({ pointerX: 450, width: 455 }),
@@ -175,19 +194,19 @@ test("RTS camera scrolls only at the edges with restrained start, stop, and reve
   assert.ok(firstFrame > -0.35);
   assert.ok(firstFrame < 1);
   assert.equal(advanceSceneParallax({ current: firstFrame, velocity: 0, elapsedMs: 1000 }), firstFrame);
-  const starting = advanceSceneScrollVelocity({ current: 0, target: 0.45, elapsedMs: 16 });
-  assert.ok(starting > 0 && starting < 0.45);
-  const stopping = advanceSceneScrollVelocity({ current: 0.45, target: 0, elapsedMs: 16 });
-  assert.ok(stopping > 0 && stopping < 0.45);
-  const reversing = advanceSceneScrollVelocity({ current: 0.45, target: -0.45, elapsedMs: 16 });
-  assert.ok(reversing > 0 && reversing < 0.45);
+  const starting = advanceSceneScrollVelocity({ current: 0, target: 0.72, elapsedMs: 16 });
+  assert.ok(starting > 0 && starting < 0.72);
+  const stopping = advanceSceneScrollVelocity({ current: 0.72, target: 0, elapsedMs: 16 });
+  assert.ok(stopping > 0 && stopping < 0.72);
+  const reversing = advanceSceneScrollVelocity({ current: 0.72, target: -0.72, elapsedMs: 16 });
+  assert.ok(reversing > 0 && reversing < 0.72);
   assert.equal(
-    advanceSceneScrollVelocity({ current: 0.01, target: -0.45, elapsedMs: 16 }),
+    advanceSceneScrollVelocity({ current: 0.01, target: -0.72, elapsedMs: 16 }),
     0
   );
   assert.equal(
-    advanceSceneScrollVelocity({ current: 0, target: 0.45, elapsedMs: 1000 }),
-    0.45
+    advanceSceneScrollVelocity({ current: 0, target: 0.72, elapsedMs: 1000 }),
+    0.72
   );
   assert.deepEqual(sceneCameraParallaxBounds("river"), { minimum: -0.30, maximum: 1 });
   assert.equal(sceneCameraDefaultParallax("river"), -0.12);
@@ -213,9 +232,30 @@ test("wheel and swipe distances pan the camera through the authored scene", () =
     logicalWidth: 910,
     approach: "ocean"
   }), 0);
-  assert.equal(sceneInertialPanTargetVelocity({ current: 0, target: 0.5 }), 0.9);
-  assert.ok(sceneInertialPanTargetVelocity({ current: 0.499, target: 0.5 }) < 0.11);
+  assert.equal(sceneInertialPanTargetVelocity({ current: 0, target: 0.5 }), 1.45);
+  assert.ok(sceneInertialPanTargetVelocity({ current: 0.499, target: 0.5 }) < 0.12);
   assert.equal(sceneInertialPanTargetVelocity({ current: 0.5, target: 0.5 }), 0);
+});
+
+test("Set Sail control stays left of the player ship and inside narrow viewports", () => {
+  assert.deepEqual(citySetSailControlRect({
+    shipX: 140,
+    shipY: 160,
+    shipWidth: 120,
+    shipHeight: 60,
+    controlWidth: 86,
+    viewportWidth: 455,
+    viewportHeight: 256
+  }), { x: 45, y: 174, w: 86, h: 22 });
+  assert.deepEqual(citySetSailControlRect({
+    shipX: 30,
+    shipY: 220,
+    shipWidth: 120,
+    shipHeight: 60,
+    controlWidth: 86,
+    viewportWidth: 256,
+    viewportHeight: 256
+  }), { x: 6, y: 228, w: 86, h: 22 });
 });
 
 test("ocean depth slices cover the authored water without gaps", () => {
@@ -542,6 +582,18 @@ test("shore and town layers retain small parallax but stay attached to the autho
   }
 });
 
+test("fortified cities send two walkers into the gate behind its front edge", () => {
+  const openPaths = cityNpcPaths({ fortified: false });
+  const fortifiedPaths = cityNpcPaths({ fortified: true });
+  assert.equal(openPaths.some((path) => CITY_GATE_TRAVERSAL_PATHS.includes(path)), false);
+  assert.deepEqual(fortifiedPaths.slice(-2), CITY_GATE_TRAVERSAL_PATHS);
+  for (const path of CITY_GATE_TRAVERSAL_PATHS) {
+    assert.ok(path.startX < 1254, "walker begins outside the gate");
+    assert.ok(path.endX >= 1290, "walker reaches behind the front edge");
+    assert.ok(cityGroundPainterZ(path.feetY) < CITY_GATE_FRONT_PAINTER_Z);
+  }
+});
+
 test("explicit scene z places walkers and the inn between gatehouse sections", () => {
   assert.ok(layerSceneZ("Road") < layerSceneZ("Far Castle"));
   assert.ok(layerSceneZ("Far Castle") < layerSceneZ("Gate"));
@@ -713,7 +765,7 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const london = cityById.get("london|united kingdom");
   const zaragoza = cityById.get("zaragoza|spain");
-  assert.equal(CITY_VISUALIZER_CATALOG.version, 4);
+  assert.equal(CITY_VISUALIZER_CATALOG.version, 5);
   assert.equal(london?.terrain?.leftTreeCover, true);
   assert.equal(zaragoza?.terrain?.left, "grass");
   assert.equal(
@@ -725,6 +777,15 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
     typeof city.terrain?.leftTreeCover === "boolean" &&
     typeof city.terrain?.rightTreeCover === "boolean"
   )));
+});
+
+test("every future sailing colony has a baked city scene", () => {
+  const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
+  for (const target of COLONIZATION_TARGETS.filter(({ waterAccess }) => waterAccess !== "inland")) {
+    const city = cityById.get(target.cityId);
+    assert.equal(city?.cityId, target.cityId, target.cityId);
+    assert.equal(city?.label, target.city, target.cityId);
+  }
 });
 
 test("Christian communities opt into the shared church landmark through city data", () => {

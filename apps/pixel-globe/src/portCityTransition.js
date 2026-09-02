@@ -1,4 +1,4 @@
-export const PORT_CITY_TRANSITION_DURATION_MS = 420;
+export const PORT_CITY_TRANSITION_DURATION_MS = 860;
 
 export function portCityCircleWipeFrame({
   direction,

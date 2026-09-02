@@ -1,5 +1,6 @@
 import { validateCharacterSkillIds } from "./characterSkills.js";
 import { convertEnglishCatholicCharacter } from "./papalPolitics.js";
+import { crewRosterMembers, dismissCrewMember, validateCrewAggregate } from "./crewMembers.js";
 
 export const NAMED_CREW_ROLE_CREWMATE = "crewmate";
 export const NAMED_CREW_ROLE_CHEF = "chef";
@@ -64,7 +65,11 @@ export function genericCrewCount(state) {
   if (state.ship.crew < floor) {
     throw new Error(`Crew ${state.ship.crew} is below permanent named crew floor ${floor}`);
   }
-  return state.ship.crew - floor;
+  const rosterCount = crewRosterMembers(state).length;
+  if (state.ship.crew - floor !== rosterCount) {
+    throw new Error(`Crew aggregate does not match individual roster: ${state.ship.crew - floor}/${rosterCount}`);
+  }
+  return rosterCount;
 }
 
 export function canAddNamedCrewMember(state) {
@@ -97,13 +102,17 @@ export function addNamedCrewMember(
     ? convertEnglishCatholicCharacter(character)
     : character;
   const entry = Object.freeze({ ...historicallyCurrentCharacter, role, joinedCrew: true });
-  if (canAddNamedCrewMember(state)) {
-    state.ship.crew += 1;
-  } else if (!replaceGenericWhenFull || genericCrewCount(state) <= 0) {
-    throw new Error(`${character.name} cannot join because the ship has no crew berth`);
+  if (!canAddNamedCrewMember(state)) {
+    if (!replaceGenericWhenFull || genericCrewCount(state) <= 0) {
+      throw new Error(`${character.name} cannot join because the ship has no crew berth`);
+    }
+    const replaced = crewRosterMembers(state).at(-1);
+    dismissCrewMember(state, replaced.id);
   }
+  state.ship.crew += 1;
   members.push(entry);
   validateNamedCrew(members);
+  validateCrewAggregate(state);
   return entry;
 }
 

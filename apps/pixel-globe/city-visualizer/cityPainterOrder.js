@@ -11,6 +11,24 @@ export const CITY_NPC_PATHS = Object.freeze([
   npcPath(970, 1120, 565)
 ]);
 
+export const CITY_GATE_TRAVERSAL_PATHS = Object.freeze([
+  npcPath(1224, 1294, 570),
+  npcPath(1208, 1290, 581)
+]);
+
+export const CITY_GATE_FRONT_PAINTER_Z = 76;
+
+export function cityNpcPaths({ fortified }) {
+  if (typeof fortified !== "boolean") {
+    throw new Error("City NPC paths require a fortification state");
+  }
+  if (!fortified) return CITY_NPC_PATHS;
+  return Object.freeze([
+    ...CITY_NPC_PATHS.slice(0, CITY_NPC_PATHS.length - CITY_GATE_TRAVERSAL_PATHS.length),
+    ...CITY_GATE_TRAVERSAL_PATHS
+  ]);
+}
+
 // Grounded entities share the road until the authored foreground terrain begins.
 // Keep rear walkers between the gate and inn, then step onto the foreground band
 // so feet/base Y can decide whether a person, tree, or cargo pile is in front.

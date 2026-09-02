@@ -17,6 +17,7 @@ import {
   dialogueOptionTextLayout,
   dialogueOptionWindow,
   dialoguePanelGeometry,
+  marketModeSwitchLayout,
   stepCharacterAlertChoicePage
 } from "./dialoguePanelLayout.js";
 
@@ -322,6 +323,22 @@ test("market modes form one pinned two-cell switch above ordinary actions", () =
     width: 220,
     regularWidthReserve: 29
   }), [108, 108, 191, 220]);
+});
+
+test("market mode switch occupies the panel header and slides between two touch targets", () => {
+  const buy = marketModeSwitchLayout({
+    panel: { x: 6, y: 78, w: 443, h: 171 },
+    activeMode: "buy"
+  });
+  const sell = marketModeSwitchLayout({
+    panel: { x: 6, y: 78, w: 443, h: 171 },
+    activeMode: "sell"
+  });
+  assert.deepEqual(buy.outer, { x: 337, y: 85, w: 104, h: 22 });
+  assert.deepEqual(buy.hitRects.buy, { x: 337, y: 85, w: 51, h: 22 });
+  assert.deepEqual(buy.hitRects.sell, { x: 390, y: 85, w: 51, h: 22 });
+  assert.equal(buy.thumb.x, 339);
+  assert.equal(sell.thumb.x, 392);
 });
 
 test("a mode switch fails loudly unless both choices are present", () => {

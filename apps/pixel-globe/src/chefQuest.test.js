@@ -15,6 +15,7 @@ import {
 import { deliverQuestCargoRequirement } from "./gameState.js";
 import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import { NAMED_CREW_ROLE_CHEF, addNamedCrewMember } from "./namedCrew.js";
+import { setTestCrewCount } from "./test-fixtures/crewTestFixtures.js";
 
 const stats = { slug: "test", cargoCapacity: 40, crewCapacity: 8, cannons: 0, mass: 10, navalWeaponKind: null };
 const city = { cityId: "istanbul|ottoman empire", tileId: 44, city: "Istanbul", country: "Ottoman Empire", cityType: "islamic-desert" };
@@ -166,7 +167,7 @@ test("chef missions do not spawn without a permanent berth, while active mission
 
   const activeState = game();
   const activeQuest = maybeSpawnChefQuest(activeState, city, { simMinute: 0, spawnChance: 1 });
-  activeState.ship.crew = activeState.ship.crewCapacity;
+  setTestCrewCount(activeState, activeState.ship.crewCapacity);
   for (let index = 0; index < stats.crewCapacity - 1; index += 1) {
     addNamedCrewMember(activeState, {
       id: `chef-berth-${index}`,

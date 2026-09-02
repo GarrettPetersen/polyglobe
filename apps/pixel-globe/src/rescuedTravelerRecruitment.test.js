@@ -9,6 +9,8 @@ import {
   prepareRescuedTravelerHomecoming
 } from "./rescuedTravelerQuest.js";
 import { recruitRescuedTravelerAsNamedCrew } from "./rescuedTravelerRecruitment.js";
+import { shipStatsForSlug } from "./shipStats.js";
+import { setTestCrewCount } from "./test-fixtures/crewTestFixtures.js";
 
 const expressions = Object.freeze([
   Object.freeze({ id: "neutral", src: "neutral.png" }),
@@ -51,11 +53,13 @@ const captive = Object.freeze({
 });
 
 function recruitmentFixture() {
-  const state = createGameState({ cargoCapacity: 20, playerCharacter: captain });
-  state.ship = {
-    crew: 2,
-    crewCapacity: 8
-  };
+  const shipStats = shipStatsForSlug("fusta");
+  const state = createGameState({
+    cargoCapacity: shipStats.cargoCapacity,
+    playerCharacter: captain,
+    shipStats
+  });
+  setTestCrewCount(state, 2);
   const memory = createRescuedTravelerQuestMemory();
   const quest = createRescuedTravelerQuest(memory, {
     rescueType: "pirate-captive",

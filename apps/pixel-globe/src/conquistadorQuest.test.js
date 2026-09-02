@@ -127,6 +127,9 @@ test("capturing Chan Chan renames Trujillo and advances inland conquest over one
   recordConquistadorTargetCapture(quest, conquest, ports, event, captureMinute);
   assert.equal(quest.stage, CONQUISTADOR_STAGE_CAMPAIGN);
   assert.equal(quest.rewardReadyMinute, captureMinute + CONQUISTADOR_CAMPAIGN_DAYS * DAY);
+  assert.equal(conquistadorQuestDestination(quest, ports, captureMinute), null);
+  assert.equal(conquistadorQuestDestination(quest, ports, quest.rewardReadyMinute - 1), null);
+  assert.equal(conquistadorQuestDestination(quest, ports, quest.rewardReadyMinute), target);
   applyPortConquestOwnership(conquest, ports);
   assert.equal(target.displayCity, "Trujillo");
   assert.equal(effectivePortFactionId(conquest, cuzco), "inca");

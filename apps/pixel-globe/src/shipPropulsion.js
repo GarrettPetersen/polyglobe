@@ -203,7 +203,7 @@ export function shipDirectionalTranslationAllowed(stats, headingAlignment) {
 }
 
 export function rowingCrewRatio(activeCrew, shipCrewCapacity) {
-  if (!Number.isInteger(activeCrew) || activeCrew < 0) {
+  if (!Number.isFinite(activeCrew) || activeCrew < 0) {
     throw new Error(`Invalid active rowing crew: ${activeCrew}`);
   }
   if (!Number.isInteger(shipCrewCapacity) || shipCrewCapacity <= 0) {

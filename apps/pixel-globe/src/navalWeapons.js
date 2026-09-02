@@ -69,7 +69,7 @@ export function cannonMuzzleForeAftSpan(projectileCount) {
 }
 
 export function cannonReloadWorkRate(activeCrew, installedCannons) {
-  requireNonNegativeInteger(activeCrew, "active cannon crew");
+  requireNonNegativeNumber(activeCrew, "active cannon crew");
   requireNonNegativeInteger(installedCannons, "installed cannon count");
   if (installedCannons === 0) return 1;
   if (activeCrew === 0) return 0;
@@ -81,7 +81,7 @@ export function advanceCannonReload(cooldownSeconds, dt, activeCrew, installedCa
     throw new Error(`Invalid cannon reload work: ${cooldownSeconds}`);
   }
   if (!Number.isFinite(dt) || dt < 0) throw new Error(`Invalid cannon reload timestep: ${dt}`);
-  requireNonNegativeInteger(activeCrew, "active cannon crew");
+  requireNonNegativeNumber(activeCrew, "active cannon crew");
   requireNonNegativeInteger(installedCannons, "installed cannon count");
   if (cooldownSeconds === 0 || installedCannons === 0) return 0;
   return Math.max(0, cooldownSeconds - dt * cannonReloadWorkRate(activeCrew, installedCannons));
@@ -89,4 +89,8 @@ export function advanceCannonReload(cooldownSeconds, dt, activeCrew, installedCa
 
 function requireNonNegativeInteger(value, label) {
   if (!Number.isInteger(value) || value < 0) throw new Error(`Invalid ${label}: ${value}`);
+}
+
+function requireNonNegativeNumber(value, label) {
+  if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}: ${value}`);
 }

@@ -28,6 +28,7 @@ import {
   SUZERAINTY_KIND_VASSAL
 } from "./suzerainty.js";
 import { DENSE_SAVE_PORT_CATALOG } from "./test-fixtures/createDenseSaveCompatibilityFixture.js";
+import { testCrewMigrationOptions } from "./test-fixtures/crewTestFixtures.js";
 import { TRADE_EMBARGO_EVENT_KINDS } from "./tradeEmbargoes.js";
 import { WORLD_DIPLOMACY_EVENT_KINDS } from "./worldDiplomacy.js";
 
@@ -57,6 +58,7 @@ for (const fixtureName of FIXTURE_FILES) {
     const originalPayload = structuredClone(payload);
     const expected = compatibilityFacts(payload);
     const restored = migrateSavedVoyageCore(payload, {
+      ...testCrewMigrationOptions(),
       legacyCityIdForPortReference: ({ tileId }) => {
         const cityId = new Map([
           [4242, "lisbon|portugal"],

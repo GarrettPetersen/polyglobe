@@ -223,6 +223,46 @@ export function dialoguePanelGeometry({
   });
 }
 
+export function marketModeSwitchLayout({ panel, activeMode, width = 104, height = 22 }) {
+  if (!panel || ![panel.x, panel.y, panel.w, panel.h].every(Number.isFinite) ||
+      panel.w <= 0 || panel.h <= 0) {
+    throw new Error("Market mode switch requires a valid panel");
+  }
+  if (!["buy", "sell"].includes(activeMode)) {
+    throw new Error(`Unknown market mode switch state: ${activeMode}`);
+  }
+  if (!Number.isInteger(width) || width < 72 || !Number.isInteger(height) || height < 18) {
+    throw new Error(`Invalid market mode switch dimensions: ${width}x${height}`);
+  }
+  const outer = Object.freeze({
+    x: panel.x + panel.w - width - 8,
+    y: panel.y + 7,
+    w: width,
+    h: height
+  });
+  const slotGap = 2;
+  const slotWidth = Math.floor((width - slotGap) / 2);
+  const buyRect = Object.freeze({ x: outer.x, y: outer.y, w: slotWidth, h: height });
+  const sellRect = Object.freeze({
+    x: outer.x + slotWidth + slotGap,
+    y: outer.y,
+    w: width - slotWidth - slotGap,
+    h: height
+  });
+  const activeRect = activeMode === "buy" ? buyRect : sellRect;
+  const thumb = Object.freeze({
+    x: activeRect.x + 2,
+    y: activeRect.y + 2,
+    w: activeRect.w - 4,
+    h: activeRect.h - 4
+  });
+  return Object.freeze({
+    outer,
+    thumb,
+    hitRects: Object.freeze({ buy: buyRect, sell: sellRect })
+  });
+}
+
 export function dialogueFeedbackSlotCount({ visibleLineCount, reservedLineCount = 0 }) {
   for (const [label, value] of Object.entries({ visibleLineCount, reservedLineCount })) {
     if (!Number.isInteger(value) || value < 0) {

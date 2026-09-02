@@ -43,6 +43,7 @@ import {
   futurePermanentCrewFloor,
   grantGuaranteedMissionPerkItem,
   grantLetterOfMarque,
+  hireCrewMemberAtPort,
   issuePersonalTradePass,
   isCaptureCapitalQuest,
   isCaptureCommissionQuest,
@@ -198,6 +199,13 @@ import {
 } from "./shipLoadouts.js";
 import { cannonReloadWorkRate } from "./navalWeapons.js";
 import { crewWorkMultiplier } from "./crewEffectiveness.js";
+import {
+  crewMemberExperienceStars,
+  crewRecruitmentOfferAt,
+  dismissCrewMember,
+  projectedCrewExperienceSummary,
+  restoreDismissedCrew
+} from "./crewMembers.js";
 import { formatDisplayQuantity } from "./displayNumber.js";
 import { formatSignedReputation } from "./reputationDisplay.js";
 import { validateDialogueDecision } from "./dialogueDecisionValidation.js";
@@ -466,6 +474,8 @@ export function createPortDialogueSession(city, options = {}) {
     letterOfMarqueFactorOfferOutcome: null,
     rulerRumor: options.rulerRumor || null,
     historicalGossip: options.historicalGossip || null,
+    crewRecruitmentArrivalPresented: false,
+    crewDismissal: null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
     conquistadorArrival: options.conquistadorArrival === true,
@@ -1802,6 +1812,12 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "inn-drink") {
     return innDrinkView(session, city, gameState, economy, portCities, context);
   }
+  if (session.nodeId === "crew-recruitment") {
+    return crewRecruitmentView(session, city, gameState);
+  }
+  if (session.nodeId === "crew-dismissal") {
+    return crewDismissalView(session, city, gameState);
+  }
   if (session.nodeId === "illicit-caught") return illicitCaughtView(session, city);
   if (session.nodeId === "city-attack") return cityAttackView(session, city, gameState, context);
   if (session.nodeId === "portuguese-cartaz") {
@@ -1996,6 +2012,74 @@ export function selectPortDialogueOption(
   }
   if (rootActionOrigin) session.cityMenuLocationId = null;
   if (action.type === "close") return { closed: true };
+  if (action.type === "open-crew-recruitment") {
+    if (typeof context.prepareCrewRecruitment !== "function") {
+      throw new Error("Crew recruitment requires a port recruitment provider");
+    }
+    context.prepareCrewRecruitment({ allowEmpty: true });
+    session.nodeId = "crew-recruitment";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "hire-crew-member") {
+    const hired = hireCrewMemberAtPort(gameState, city, action.memberId, context);
+    session.feedback = `${hired.member.name} joined the crew.`;
+    session.selectedIndex = 0;
+    return { closed: false, crewHire: hired };
+  }
+  if (action.type === "dismiss-crew-member") {
+    const dismissal = requireCrewDismissal(session);
+    if (gameState.ship.crew <= dismissal.targetCrew) {
+      throw new Error("Crew dismissal target is already satisfied");
+    }
+    dismissal.dismissals.push(dismissCrewMember(gameState, action.memberId));
+    session.feedback = null;
+    session.selectedIndex = 0;
+    return { closed: false, crewDismissed: dismissal.dismissals.at(-1).member };
+  }
+  if (action.type === "undo-crew-dismissals") {
+    const dismissal = requireCrewDismissal(session);
+    restoreDismissedCrew(gameState, dismissal.dismissals);
+    dismissal.dismissals = [];
+    session.feedback = "All dismissals undone.";
+    session.selectedIndex = 0;
+    return { closed: false, crewDismissalsUndone: true };
+  }
+  if (action.type === "cancel-crew-dismissal") {
+    const dismissal = requireCrewDismissal(session);
+    cancelPendingCrewDismissal(session, gameState);
+    session.nodeId = dismissal.returnNodeId;
+    session.feedback = null;
+    session.selectedIndex = 0;
+    return { closed: false, crewDismissalsUndone: true };
+  }
+  if (action.type === "confirm-crew-dismissal") {
+    const dismissal = requireCrewDismissal(session);
+    if (gameState.ship.crew !== dismissal.targetCrew) {
+      throw new Error(`Crew dismissal is incomplete: ${gameState.ship.crew}/${dismissal.targetCrew}`);
+    }
+    const result = dismissal.kind === "preset"
+      ? restockShipLoadoutAtPort(
+          gameState,
+          city,
+          context.shipStats,
+          dismissal.loadoutId,
+          context
+        )
+      : restockCustomShipLoadoutAtPort(
+          gameState,
+          city,
+          context.shipStats,
+          dismissal.customDraft,
+          context
+        );
+    session.crewDismissal = null;
+    session.nodeId = dismissal.afterNodeId;
+    session.feedback = `${result.plan.label}: ${gameState.ship.crew} crew / ${gameState.ship.cannons} guns.`;
+    session.selectedIndex = 0;
+    return { closed: false, loadoutResult: result, crewDismissalsCommitted: true };
+  }
   if (action.type === "node") {
     if (session.nodeId === "greeting") {
       session.rumorText = null;
@@ -2989,6 +3073,19 @@ export function selectPortDialogueOption(
   }
   if (action.type === "select-loadout") {
     if (!context.shipStats) throw new Error("Selecting a loadout requires player ship stats");
+    const plan = shipLoadoutPlan(context.shipStats, action.loadoutId, {
+      minimumCrew: permanentCrewFloor(gameState)
+    });
+    if (gameState.ship.crew > plan.crew) {
+      beginCrewDismissal(session, {
+        kind: "preset",
+        targetCrew: plan.crew,
+        loadoutId: action.loadoutId,
+        returnNodeId: "loadout",
+        afterNodeId: action.returnNodeId || "root"
+      });
+      return { closed: false };
+    }
     const result = restockShipLoadoutAtPort(gameState, city, context.shipStats, action.loadoutId, context);
     const shortages = Object.values(result.shortfalls).reduce((sum, value) => sum + value, 0);
     session.feedback = `${result.plan.label}: ${gameState.ship.crew} crew / ` +
@@ -3014,6 +3111,19 @@ export function selectPortDialogueOption(
   if (action.type === "select-custom-loadout") {
     if (!context.shipStats) throw new Error("Selecting a custom loadout requires player ship stats");
     if (!session.customLoadoutDraft) throw new Error("Custom loadout editor has no draft");
+    const plan = shipCustomLoadoutPlan(context.shipStats, session.customLoadoutDraft, {
+      minimumCrew: permanentCrewFloor(gameState)
+    });
+    if (gameState.ship.crew > plan.crew) {
+      beginCrewDismissal(session, {
+        kind: "custom",
+        targetCrew: plan.crew,
+        customDraft: { ...session.customLoadoutDraft },
+        returnNodeId: "custom-loadout",
+        afterNodeId: "root"
+      });
+      return { closed: false };
+    }
     const result = restockCustomShipLoadoutAtPort(
       gameState,
       city,
@@ -4669,7 +4779,132 @@ function innDrinkView(session, city, gameState, economy, portCities, context) {
     feedback: session.feedback,
     options: [
       ...(work ? [option(work.label, work.action)] : []),
+      option("Hire crew", { type: "open-crew-recruitment" }, {
+        disabled: gameState.ship.crew >= gameState.ship.crewCapacity,
+        disabledReason: "Every berth is occupied."
+      }),
       option("Back to city", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function crewRecruitmentView(session, city, gameState) {
+  const offer = crewRecruitmentOfferAt(gameState.memory.crewRecruitment, city);
+  if (!offer) throw new Error(`Crew recruitment opened without an offer at ${cityLabel(city)}`);
+  const full = gameState.ship.crew >= gameState.ship.crewCapacity;
+  const candidates = offer.candidates.map(({ member, cost }) => Object.freeze({
+    member,
+    cost,
+    stars: crewMemberExperienceStars(member),
+    affordable: gameState.doubloons >= cost,
+    berthAvailable: !full
+  }));
+  return {
+    speaker: `${cityLabel(city)} muster`,
+    expressionId: "neutral",
+    text: candidates.length > 0
+      ? "These men have offered to join your crew."
+      : "No suitable hands are looking for a berth today.",
+    feedback: session.feedback,
+    presentation: Object.freeze({
+      kind: "crew-recruitment",
+      candidates: Object.freeze(candidates),
+      crew: gameState.ship.crew,
+      crewCapacity: gameState.ship.crewCapacity
+    }),
+    options: [
+      ...candidates.map(({ member, cost, affordable, berthAvailable }) => option(
+        `Hire ${member.name} — ${cost} db`,
+        { type: "hire-crew-member", memberId: member.id },
+        {
+          disabled: !affordable || !berthAvailable,
+          disabledReason: !berthAvailable ? "Every berth is occupied." : `${cost} doubloons required.`
+        }
+      )),
+      option("Back to city", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function beginCrewDismissal(session, {
+  kind,
+  targetCrew,
+  loadoutId = null,
+  customDraft = null,
+  returnNodeId,
+  afterNodeId
+}) {
+  if (!["preset", "custom"].includes(kind)) throw new Error(`Unknown crew dismissal kind: ${kind}`);
+  if (!Number.isInteger(targetCrew) || targetCrew < 1) {
+    throw new Error(`Invalid crew dismissal target: ${targetCrew}`);
+  }
+  session.crewDismissal = {
+    kind,
+    targetCrew,
+    loadoutId,
+    customDraft,
+    returnNodeId,
+    afterNodeId,
+    dismissals: []
+  };
+  session.nodeId = "crew-dismissal";
+  session.selectedIndex = 0;
+  session.feedback = null;
+}
+
+export function cancelPendingCrewDismissal(session, gameState) {
+  if (!session?.crewDismissal) return false;
+  const dismissal = requireCrewDismissal(session);
+  if (dismissal.dismissals.length > 0) restoreDismissedCrew(gameState, dismissal.dismissals);
+  session.crewDismissal = null;
+  return true;
+}
+
+function requireCrewDismissal(session) {
+  const dismissal = session.crewDismissal;
+  if (!dismissal || !Array.isArray(dismissal.dismissals)) {
+    throw new Error("Crew dismissal modal has no pending loadout change");
+  }
+  return dismissal;
+}
+
+function crewDismissalView(session, city, gameState) {
+  const dismissal = requireCrewDismissal(session);
+  const remaining = Math.max(0, gameState.ship.crew - dismissal.targetCrew);
+  const canDismiss = remaining > 0;
+  const candidates = gameState.crewRoster.map((member) => Object.freeze({
+    member,
+    stars: crewMemberExperienceStars(member)
+  }));
+  return {
+    speaker: `${cityLabel(city)} crew muster`,
+    expressionId: "neutral",
+    text: remaining > 0
+      ? `Dismiss ${remaining} more crewmate${remaining === 1 ? "" : "s"} for this loadout.`
+      : "The new crew complement is ready.",
+    feedback: session.feedback,
+    presentation: Object.freeze({
+      kind: "crew-dismissal",
+      candidates: Object.freeze(candidates),
+      targetCrew: dismissal.targetCrew,
+      currentCrew: gameState.ship.crew,
+      dismissedCount: dismissal.dismissals.length
+    }),
+    options: [
+      ...candidates.map(({ member }) => option(
+        `Dismiss ${member.name}`,
+        { type: "dismiss-crew-member", memberId: member.id },
+        { disabled: !canDismiss, disabledReason: "The crew target is satisfied." }
+      )),
+      option("Undo all", { type: "undo-crew-dismissals" }, {
+        disabled: dismissal.dismissals.length === 0,
+        disabledReason: "No dismissals to undo."
+      }),
+      option("Apply loadout", { type: "confirm-crew-dismissal" }, {
+        disabled: remaining !== 0,
+        disabledReason: `${remaining} crew still need to be dismissed.`
+      }),
+      option("Cancel", { type: "cancel-crew-dismissal" }, { placement: "port-exit" })
     ]
   };
 }
@@ -6505,7 +6740,9 @@ function shipyardPurchaseOffer(listing, gameState, context) {
   };
   const committedCrew = futurePermanentCrewFloor(gameState, replacementContext);
   const permanentCrewDoesNotFit = committedCrew > stats.crewCapacity;
-  const transferredCargoUsed = permanentCrewDoesNotFit
+  const crewAfterDepartures = gameState.ship.crew - replacementContext.departingNamedCrewIds.length;
+  const aboardCrewDoesNotFit = crewAfterDepartures > stats.crewCapacity;
+  const transferredCargoUsed = permanentCrewDoesNotFit || aboardCrewDoesNotFit
     ? null
     : playerShipReplacementCargoUsed(gameState, stats, replacementContext);
   const cargoDoesNotFit = transferredCargoUsed !== null && transferredCargoUsed > stats.cargoCapacity;
@@ -6515,6 +6752,8 @@ function shipyardPurchaseOffer(listing, gameState, context) {
     ? "You already command this type of vessel."
     : permanentCrewDoesNotFit
       ? `Your permanent crew require ${committedCrew} berths; this vessel has only ${stats.crewCapacity}.`
+    : aboardCrewDoesNotFit
+      ? `Dismiss ${crewAfterDepartures - stats.crewCapacity} crew before taking this vessel.`
     : cargoDoesNotFit
       ? `Your transferred cargo uses ${cargoSpaceLabel(transferredCargoUsed)} units and will not fit its ` +
         `${stats.cargoCapacity}-unit hold.`
@@ -7462,6 +7701,7 @@ function customLoadoutView(session, city, gameState, context) {
   }
   const minimumCrew = permanentCrewFloor(gameState);
   const plan = shipCustomLoadoutPlan(context.shipStats, session.customLoadoutDraft, { minimumCrew });
+  const projectedCrew = projectedCrewExperienceSummary(gameState, plan.crew);
   const labels = { crew: "Crew", cannons: "Guns", foodUnits: "Food", waterUnits: "Water" };
   return {
     speaker: speakerName(city),
@@ -7472,9 +7712,9 @@ function customLoadoutView(session, city, gameState, context) {
       kind: "custom-loadout",
       shipLabel: shipLabelForSlug(context.shipStats.slug),
       plan,
-      crewWorkMultiplier: crewWorkMultiplier(plan.crew),
+      crewWorkMultiplier: crewWorkMultiplier(projectedCrew.effectiveCrew),
       cannonReloadPercent: plan.cannons > 0
-        ? Math.round(cannonReloadWorkRate(plan.crew, plan.cannons) * 100)
+        ? Math.round(cannonReloadWorkRate(projectedCrew.effectiveCrew, plan.cannons) * 100)
         : null,
       fields: CUSTOM_LOADOUT_FIELDS.map((key) => ({
         key,

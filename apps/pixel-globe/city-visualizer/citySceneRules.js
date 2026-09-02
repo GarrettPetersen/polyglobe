@@ -51,15 +51,54 @@ export const PORT_SCENE_RIVER = Object.freeze({
 export const PORT_SCENE_CAMERA = Object.freeze({
   edgeFraction: 0.2,
   maximumEdgeWidth: 72,
-  maximumSpeed: 0.45,
-  maximumPanSpeed: 0.9,
-  acceleration: 5.4,
-  braking: 5,
+  maximumSpeed: 0.72,
+  maximumPanSpeed: 1.45,
+  acceleration: 6.8,
+  braking: 6.4,
   defaultParallax: -0.35,
   riverDefaultParallax: -0.12,
   riverMinimumParallax: -0.30,
   distantParallaxAnchor: 0.113
 });
+
+export function citySetSailControlRect({
+  shipX,
+  shipY,
+  shipWidth,
+  shipHeight,
+  controlWidth,
+  viewportWidth,
+  viewportHeight
+}) {
+  for (const [label, value] of Object.entries({
+    shipX,
+    shipY,
+    shipWidth,
+    shipHeight,
+    controlWidth,
+    viewportWidth,
+    viewportHeight
+  })) {
+    if (!Number.isFinite(value)) throw new Error(`Invalid Set Sail ${label}: ${value}`);
+  }
+  if (shipWidth <= 0 || shipHeight <= 0 || controlWidth <= 0 ||
+      viewportWidth <= 0 || viewportHeight <= 0) {
+    throw new Error("Set Sail layout dimensions must be positive");
+  }
+  const margin = 6;
+  const gap = 9;
+  const height = 22;
+  const width = Math.min(controlWidth, Math.max(1, viewportWidth - margin * 2));
+  const x = Math.max(margin, Math.min(
+    viewportWidth - margin - width,
+    Math.round(shipX - gap - width)
+  ));
+  const y = Math.max(margin, Math.min(
+    viewportHeight - margin - height,
+    Math.round(shipY + shipHeight * 0.42 - height / 2)
+  ));
+  return Object.freeze({ x, y, w: width, h: height });
+}
 
 export const PORT_SCENE_DOCK = Object.freeze({
   startX: 676,

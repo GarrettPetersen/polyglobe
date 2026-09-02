@@ -1,6 +1,14 @@
 const SHIPYARD_OUTLINE_RGBA = Object.freeze([62, 48, 34, 255]);
 
 export function shipyardConstructionPixels(sourcePixels, width, height, progress) {
+  return constructionPixels(sourcePixels, width, height, progress, { outline: true });
+}
+
+export function shipyardConstructionFillPixels(sourcePixels, width, height, progress) {
+  return constructionPixels(sourcePixels, width, height, progress, { outline: false });
+}
+
+function constructionPixels(sourcePixels, width, height, progress, { outline }) {
   if (!(sourcePixels instanceof Uint8ClampedArray) || sourcePixels.length !== width * height * 4) {
     throw new Error("Shipyard construction art requires complete RGBA source pixels");
   }
@@ -31,7 +39,7 @@ export function shipyardConstructionPixels(sourcePixels, width, height, progress
         if (y >= fillY) output.set(sourcePixels.subarray(offset, offset + 4), offset);
         continue;
       }
-      if (!transparentPixelTouchesShip(sourcePixels, width, height, x, y)) continue;
+      if (!outline || !transparentPixelTouchesShip(sourcePixels, width, height, x, y)) continue;
       output.set(SHIPYARD_OUTLINE_RGBA, offset);
     }
   }

@@ -19,6 +19,7 @@ import {
   pendingNamedCrewDeathNotice
 } from "./gameState.js";
 import { gameStatePerkTotals } from "./playerPerks.js";
+import { setTestCrewCount } from "./test-fixtures/crewTestFixtures.js";
 
 function character(id = "astrid") {
   return {
@@ -33,6 +34,17 @@ function state(crew = 4, crewCapacity = 8) {
   return {
     playerCharacter: character("captain"),
     namedCrew: [],
+    crewRoster: Array.from({ length: Math.max(0, crew - 1) }, (_, index) => ({
+      id: `ordinary-crew-${index + 1}`,
+      name: `Sailor ${index + 1}`,
+      homePortCityId: "london|united kingdom",
+      homePortTileId: 1,
+      homePortName: "London",
+      appearanceId: "mariner-light-black-hair",
+      crewTypeId: "sailor",
+      recruitedAtMinute: 0,
+      sailingMinutes: 0
+    })),
     ship: { crew, crewCapacity }
   };
 }
@@ -146,7 +158,7 @@ test("casualties take unnamed crew, then named crew, then the captain", () => {
     playerCharacter: captain,
     shipStats: stats
   });
-  value.ship.crew = 2;
+  setTestCrewCount(value, 2);
   addNamedCrewMember(value, character(), NAMED_CREW_ROLE_HISTORIAN);
   assert.equal(gameStatePerkTotals(value).topSpeedMultiplier, 1.05);
 

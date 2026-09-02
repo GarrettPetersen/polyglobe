@@ -6,7 +6,6 @@ import {
   cargoHoldStatus,
   cargoUsed,
   createGameState,
-  initializeProvisionalShipLoadout,
   ledgerEntries,
   playerWhaleHarpoon,
   purchaseWhaleHarpoon,
@@ -14,6 +13,7 @@ import {
   restockShipLoadoutAtPort,
   shipItemRows
 } from "./gameState.js";
+import { initializeTestProvisionalShipLoadout as initializeProvisionalShipLoadout } from "./test-fixtures/crewTestFixtures.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { WHALE_HARPOONS } from "./whaleHarpoons.js";
 import {

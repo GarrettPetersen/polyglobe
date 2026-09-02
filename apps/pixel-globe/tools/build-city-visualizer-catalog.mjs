@@ -35,13 +35,14 @@ import {
   deriveCityServiceProfile
 } from "../city-visualizer/cityArchitecture.js";
 import { cityPopulationProfileId } from "../city-visualizer/cityPeople.js";
+import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 
 const GEOGRAPHY_SUBDIVISIONS = 7;
 const NEIGHBORHOOD_RINGS = 5;
 const MAX_APPROACH_SEARCH_RINGS = 18;
 const EARTH_RADIUS_KM = 6371;
 const CITY_VISUALIZER_FORMAT = "marque-city-visualizer-catalog";
-const CITY_VISUALIZER_VERSION = 4;
+const CITY_VISUALIZER_VERSION = 5;
 const TREE_COVER_RENDER_FAMILIES = new Set([
   TERRAIN_RENDER_FAMILY.BROADLEAF,
   TERRAIN_RENDER_FAMILY.CONIFER,
@@ -90,12 +91,20 @@ const navigation = buildWorldNavigationTopology({
 const mountains = JSON.parse(mountainText);
 const sailing = JSON.parse(sailingText);
 const cityCatalog = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
-const currentPorts = sailing.endpoints.filter((endpoint) => endpoint.kind === "port");
 const cityByEndpointKey = indexCityCatalog(cityCatalog);
+const colonyByEndpointKey = new Map(COLONIZATION_TARGETS.map((target) => [
+  endpointKey(target.city, target.country),
+  target
+]));
 
-const cities = currentPorts.map((endpoint) => {
-  const city = cityByEndpointKey.get(endpointKey(endpoint.name, endpoint.country));
-  if (!city) throw new Error(`No city record for current port ${endpoint.name}, ${endpoint.country}`);
+const cities = sailing.endpoints.map((endpoint) => {
+  const key = endpointKey(endpoint.name, endpoint.country);
+  const city = endpoint.kind === "port"
+    ? cityByEndpointKey.get(key)
+    : endpoint.kind === "colony"
+      ? colonizationVisualizerCity(colonyByEndpointKey.get(key), endpoint)
+      : null;
+  if (!city) throw new Error(`No city record for ${endpoint.kind} ${endpoint.name}, ${endpoint.country}`);
   return visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows, navigation, mountains });
 }).sort((a, b) => a.label.localeCompare(b.label) || a.country.localeCompare(b.country));
 
@@ -162,7 +171,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   const landmarks = religiousLandmarks(city, architecture);
   const services = deriveCityServiceProfile({ ...city, architecture });
   const populationProfileId = cityPopulationProfileId({
-    id: city.cityId,
+    cityId: city.cityId,
     cityType: city.cityType,
     country: city.country,
     factionId: city.factionId,
@@ -170,6 +179,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   });
   return Object.freeze({
     id: city.cityId,
+    cityId: city.cityId,
     tileId: endpoint.tileId,
     geographyTileId: cityTileId,
     label: cityLabelText(city),
@@ -209,6 +219,20 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
       mountains: mountainVisibility.reason,
       terrain: `dominant land cover within ${NEIGHBORHOOD_RINGS} game-tile rings, split across the approach axis`
     })
+  });
+}
+
+function colonizationVisualizerCity(target, endpoint) {
+  if (!target || target.city !== endpoint.name || target.country !== endpoint.country) {
+    throw new Error(`Unknown colonization scene endpoint: ${endpoint.name}, ${endpoint.country}`);
+  }
+  return Object.freeze({
+    ...target,
+    population: 2400,
+    settlementType: "city",
+    requiredTradePort: true,
+    colonialFoundingType: target.type,
+    declaredCapitalFactionId: null
   });
 }
 

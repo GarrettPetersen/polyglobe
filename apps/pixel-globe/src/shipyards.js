@@ -595,14 +595,13 @@ export function playerShipyardLedger(yard, simMinute) {
     throw new Error("Player shipyard ledger requires a player-backed yard");
   }
   if (!Number.isFinite(simMinute)) throw new Error(`Invalid shipyard ledger minute: ${simMinute}`);
+  const currentBuild = shipyardCurrentBuild(yard, simMinute);
   const plannedListing = generateShipyardListing(
     yard,
     yard.buildNumber + 1,
     yard.nextBuildMinute
   );
-  const scheduledCompleteMinute = yard.nextBuildMinute - yard.materialDelayDays * MINUTES_PER_DAY;
-  const buildDuration = Math.max(1, scheduledCompleteMinute - yard.buildStartedMinute);
-  const progress = clamp((simMinute - yard.buildStartedMinute) / buildDuration, 0, 1);
+  const progress = currentBuild.progress;
   const accounts = yard.playerAccounts;
   const constructionCost = playerBackedConstructionCost(plannedListing);
   const costBreakdown = shipyardConstructionCostBreakdown(
@@ -632,11 +631,7 @@ export function playerShipyardLedger(yard, simMinute) {
     investedMinute: yard.playerBacking.investedMinute,
     materialContributions: Object.freeze({ ...yard.playerBacking.materialContributions }),
     currentBuild: Object.freeze({
-      shipSlug: plannedListing.shipSlug,
-      shipLabel: plannedListing.shipLabel,
-      startedMinute: yard.buildStartedMinute,
-      completeMinute: yard.nextBuildMinute,
-      progress,
+      ...currentBuild,
       constructionCost,
       costBreakdown,
       accruedConstructionCost: workInProgressExpenses,
@@ -668,6 +663,30 @@ export function playerShipyardLedger(yard, simMinute) {
       cashBalance,
       entries: Object.freeze(journalEntries)
     })
+  });
+}
+
+export function shipyardCurrentBuild(yard, simMinute) {
+  if (!yard || !Number.isInteger(yard.buildNumber) || yard.buildNumber < 0 ||
+      !Number.isFinite(yard.buildStartedMinute) || !Number.isFinite(yard.nextBuildMinute) ||
+      yard.buildStartedMinute > yard.nextBuildMinute ||
+      !Number.isInteger(yard.materialDelayDays) || yard.materialDelayDays < 0) {
+    throw new Error("Shipyard current build requires a valid construction clock");
+  }
+  if (!Number.isFinite(simMinute)) throw new Error(`Invalid shipyard build minute: ${simMinute}`);
+  const plannedListing = generateShipyardListing(
+    yard,
+    yard.buildNumber + 1,
+    yard.nextBuildMinute
+  );
+  const scheduledCompleteMinute = yard.nextBuildMinute - yard.materialDelayDays * MINUTES_PER_DAY;
+  const buildDuration = Math.max(1, scheduledCompleteMinute - yard.buildStartedMinute);
+  return Object.freeze({
+    shipSlug: plannedListing.shipSlug,
+    shipLabel: plannedListing.shipLabel,
+    startedMinute: yard.buildStartedMinute,
+    completeMinute: yard.nextBuildMinute,
+    progress: clamp((simMinute - yard.buildStartedMinute) / buildDuration, 0, 1)
   });
 }
 

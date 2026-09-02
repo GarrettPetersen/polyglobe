@@ -42,6 +42,10 @@ import {
   quotePortPurchase
 } from "./economy.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
+import {
+  createCrewRecruitmentOffer,
+  crewRecruitmentOfferAt
+} from "./crewMembers.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID, perkItemById } from "./perkItems.js";
 import {
   CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID,
@@ -62,7 +66,6 @@ import {
   factionReputation,
   hasLetterOfMarqueFrom,
   hasPersonalTradePass,
-  initializeProvisionalShipLoadout,
   playerPortAttackStatus,
   playerTradeTerms,
   portMemory,
@@ -77,6 +80,11 @@ import {
   visitPort
 } from "./gameState.js";
 import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
+import {
+  initializeTestProvisionalShipLoadout as initializeProvisionalShipLoadout,
+  setTestCrewCount,
+  setTestCrewExperienceStars
+} from "./test-fixtures/crewTestFixtures.js";
 import {
   DIPLOMACY_FRIENDLY,
   DIPLOMACY_HOSTILE,
@@ -3474,6 +3482,144 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
   assert.match(session.feedback, /Balanced:/);
 });
 
+test("port crew offers show individuals and hire the selected sailor", () => {
+  const city = {
+    tileId: 9,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60_000,
+    character: { name: "Isabel Mendez" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  setTestCrewCount(gameState, 1);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const offer = createCrewRecruitmentOffer({
+    memory: gameState.memory.crewRecruitment,
+    state: gameState,
+    city,
+    simMinute: 100,
+    targetCrew: gameState.ship.loadoutTargets.crew,
+    appearances: [{ appearanceId: "mariner-light-black-hair", crewTypeId: "sailor" }],
+    nameForIdentity: () => "Mateo",
+    baseHireCost: 2
+  });
+  const session = createPortDialogueSession(city, { initialNodeId: "crew-recruitment" });
+  const context = { shipStats: stats, simMinute: 120 };
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  const offeredCount = offer.candidates.length;
+
+  assert.equal(view.presentation.kind, "crew-recruitment");
+  assert.equal(view.presentation.candidates.length, offer.candidates.length);
+  assert.match(view.text, /offered to join/);
+  const candidate = view.presentation.candidates[0];
+  const beforeDoubloons = gameState.doubloons;
+  const hired = selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+
+  assert.equal(hired.crewHire.member.id, candidate.member.id);
+  assert.equal(gameState.crewRoster.at(-1).id, candidate.member.id);
+  assert.equal(gameState.ship.crew, 2);
+  assert.equal(gameState.doubloons, beforeDoubloons - candidate.cost);
+  assert.equal(crewRecruitmentOfferAt(gameState.memory.crewRecruitment, city).candidates.length,
+    offeredCount - 1);
+
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.presentation.candidates.some(({ member }) => member.id === candidate.member.id), false);
+});
+
+test("crew recruitment presents a clean empty state when no hands are available", () => {
+  const city = {
+    tileId: 9,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60_000,
+    character: { name: "Isabel Mendez" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  createCrewRecruitmentOffer({
+    memory: gameState.memory.crewRecruitment,
+    state: gameState,
+    city,
+    simMinute: 100,
+    targetCrew: gameState.ship.crew,
+    appearances: [{ appearanceId: "mariner-light-black-hair", crewTypeId: "sailor" }],
+    nameForIdentity: () => "Mateo",
+    baseHireCost: 2,
+    allowEmpty: true
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "crew-recruitment" });
+  const view = portDialogueView(session, city, gameState, economy, [city], { simMinute: 120 });
+
+  assert.deepEqual(view.presentation.candidates, []);
+  assert.match(view.text, /No suitable hands/);
+  assert.deepEqual(view.options.map(({ label }) => label), ["Back to city"]);
+});
+
+test("lower loadouts require individual dismissals and support undo all", () => {
+  const city = {
+    tileId: 9,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60_000,
+    character: { name: "Isabel Mendez" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  setTestCrewCount(gameState, 13);
+  const initialIds = gameState.crewRoster.map(({ id }) => id);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "loadout" });
+  const context = { shipStats: stats, simMinute: 120 };
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 1, context);
+  assert.equal(session.nodeId, "crew-dismissal");
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.presentation.kind, "crew-dismissal");
+  assert.equal(view.presentation.targetCrew, 12);
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  assert.equal(gameState.ship.crew, 12);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const undoIndex = view.options.findIndex(({ action }) => action.type === "undo-crew-dismissals");
+  selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex, context);
+  assert.equal(gameState.ship.crew, 13);
+  assert.deepEqual(gameState.crewRoster.map(({ id }) => id), initialIds);
+
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const cancelIndex = view.options.findIndex(({ action }) => action.type === "cancel-crew-dismissal");
+  selectPortDialogueOption(session, city, gameState, economy, [city], cancelIndex, context);
+  assert.equal(gameState.ship.crew, 13);
+  assert.deepEqual(gameState.crewRoster.map(({ id }) => id), initialIds);
+  assert.equal(session.nodeId, "loadout");
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 1, context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const applyIndex = view.options.findIndex(({ action }) => action.type === "confirm-crew-dismissal");
+  const applied = selectPortDialogueOption(session, city, gameState, economy, [city], applyIndex, context);
+  assert.equal(applied.crewDismissalsCommitted, true);
+  assert.equal(gameState.ship.crew, 12);
+  assert.equal(gameState.ship.loadoutId, "short-haul");
+  assert.equal(session.nodeId, "root");
+});
+
 test("custom loadout opens a slider model and reports discarded provisions", () => {
   const city = {
     tileId: 9,
@@ -3586,7 +3732,7 @@ test("an already active banquet chef waits for a permanent berth before joining"
   };
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
   const quest = maybeSpawnChefQuest(gameState, city, { simMinute: 0, spawnChance: 1 });
-  gameState.ship.crew = gameState.ship.crewCapacity;
+  setTestCrewCount(gameState, gameState.ship.crewCapacity);
   addNamedCrewMember(gameState, {
     id: "existing-chef",
     name: "Existing Chef",
@@ -4937,7 +5083,7 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
 
 });
 
-test("shipyards allow a profitable downgrade after projecting the smaller loadout", () => {
+test("shipyards require excess crew to be dismissed before a profitable downgrade", () => {
   const city = {
     tileId: 10,
     cityId: "lisbon|portugal",
@@ -4952,7 +5098,7 @@ test("shipyards allow a profitable downgrade after projecting the smaller loadou
   const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   gameState.ship.loadoutId = "short-haul";
-  gameState.ship.crew = 20;
+  setTestCrewCount(gameState, 20);
   gameState.ship.cannons = 9;
   gameState.survival.freshWaterCapacity = 20;
   gameState.survival.freshWater = 20;
@@ -4971,8 +5117,8 @@ test("shipyards allow a profitable downgrade after projecting the smaller loadou
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   const purchase = view.options.find((entry) => entry.action.type === "confirm-ship-purchase");
 
-  assert.equal(purchase.disabled, false);
-  assert.match(purchase.label, /^Trade for Felucca  \+\d+ db$/);
+  assert.equal(purchase.disabled, true);
+  assert.match(purchase.disabledReason, /Dismiss \d+ crew/);
 });
 
 test("shipyards still block a smaller ship when transferred trade cargo cannot fit", () => {
@@ -5020,7 +5166,7 @@ test("shipyards explain when permanent crew cannot berth instead of formatting i
   };
   const currentStats = shipStatsForSlug("galleon");
   const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
-  gameState.ship.crew = 2;
+  setTestCrewCount(gameState, 2);
   addNamedCrewMember(gameState, {
     id: "shipyard-berth-test",
     name: "Permanent Sailor",
@@ -5075,7 +5221,7 @@ test("shipyards account for the historian leaving with a traded-in Viking longsh
     deliverVikingLongshipQuestCargo(gameState, hafnarfjordur, stage.id);
   }
   acceptVikingLongshipReward(gameState);
-  gameState.ship.crew = 1;
+  setTestCrewCount(gameState, 1);
   addNamedCrewMember(gameState, {
     id: "icelandic-historian",
     name: "Leif Eriksen",
@@ -6150,6 +6296,8 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
   selectPortDialogueOption(session, panama, gameState, economy, ports, switchIndex, context);
   assert.equal(gameState.ship.loadoutId, "combat");
   assert.equal(session.nodeId, "conquistador");
+  setTestCrewCount(gameState, gameState.ship.loadoutTargets.crew);
+  setTestCrewExperienceStars(gameState, 3);
   view = portDialogueView(session, panama, gameState, economy, ports, context);
   embarkIndex = view.options.findIndex(
     (entry) => entry.action.type === "begin-conquistador-expedition"
@@ -7384,7 +7532,8 @@ test("a crown capture commission names the enemy port, spoils, and return reward
     shipStats: stats
   });
   gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
-  gameState.ship.crew = 36;
+  setTestCrewCount(gameState, 36);
+  setTestCrewExperienceStars(gameState, 3);
   gameState.ship.cannons = 8;
   gameState.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   const ports = [london, calais];
@@ -7670,7 +7819,8 @@ test("a final capital commission explains the war's grievance and general peace"
     shipStats: stats
   });
   gameState.relations.diplomacy.overrides["england|france"] = DIPLOMACY_WAR;
-  gameState.ship.crew = 36;
+  setTestCrewCount(gameState, 36);
+  setTestCrewExperienceStars(gameState, 3);
   gameState.ship.cannons = 8;
   gameState.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   const ports = [london, paris, ...capturedFrenchPorts];

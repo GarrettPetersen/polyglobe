@@ -4,6 +4,7 @@ import test from "node:test";
 import { createPlayerTestGameState as createGameState } from "./test-fixtures/createTestGameState.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import { NAMED_CREW_ROLE_HISTORIAN, addNamedCrewMember } from "./namedCrew.js";
+import { setTestCrewCount } from "./test-fixtures/crewTestFixtures.js";
 import {
   VIKING_LONGSHIP_FETCH_STAGES,
   VIKING_LONGSHIP_PORT_CITY,
@@ -199,7 +200,7 @@ test("the longship mission waits for a named crew berth but never cancels an act
     spawnChance: 1,
     simMinute: 0
   });
-  activeState.ship.crew = activeState.ship.crewCapacity;
+  setTestCrewCount(activeState, activeState.ship.crewCapacity);
   addNamedCrewMember(activeState, {
     id: "existing-crew",
     name: "Existing Crew",

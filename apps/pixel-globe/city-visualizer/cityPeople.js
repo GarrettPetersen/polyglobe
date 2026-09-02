@@ -230,11 +230,32 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
 const ARCHETYPE_BY_ID = new Map(CITY_PERSON_ARCHETYPES.map((entry) => [entry.id, entry]));
 const APPEARANCE_BY_ID = new Map(CITY_PERSON_APPEARANCES.map((entry) => [entry.id, entry]));
 const PROFILE_BY_ID = new Map(CITY_POPULATION_PROFILES.map((entry) => [entry.id, entry]));
+const RECRUITABLE_AMBIENT_ARCHETYPE_IDS = new Set(["mariner", "gunner", "hunter"]);
+const NON_RECRUITABLE_GARRISON_ARCHETYPE_IDS = new Set(["cavalier", "horseman", "horse-samurai"]);
+const CREW_TYPE_BY_ARCHETYPE_ID = Object.freeze({
+  archer: "archer",
+  crossbowman: "crossbowman",
+  gunner: "gunner",
+  halberdier: "halberdier",
+  hunter: "hunter",
+  "islamicate-warrior": "warrior",
+  mariner: "sailor",
+  "ming-crossbowman": "crossbowman",
+  "ming-swordsman": "swordsman",
+  samurai: "ronin",
+  shieldman: "shieldman",
+  spearman: "spearman",
+  swordsman: "swordsman",
+  "teppo-ashigaru": "gunner",
+  "wrapped-cloth-man": "warrior",
+  "yari-ashigaru": "spearman",
+  "yumi-samurai": "archer"
+});
 
 validateCatalog();
 
 export function cityPopulationProfileId(city) {
-  requireCity(city);
+  const cityId = requireCity(city);
   if (city.factionId === "ainu") return "ainu";
   if (city.cityType === "east-asian") {
     const profileId = EAST_ASIAN_COUNTRY_PROFILE[city.country];
@@ -243,7 +264,11 @@ export function cityPopulationProfileId(city) {
   }
   if (city.cityType === "sub-saharan") {
     if (!Array.isArray(city.religiousLandmarks)) {
-      throw new Error(`City population profile requires religious landmarks: ${city.id}`);
+      // Founded-colony runtime records deliberately omit visual landmark data.
+      // Their local recruitment pool remains African unless the baked scene
+      // explicitly identifies an Islamicate population through its mosque.
+      if (city.playerFoundedColony === true) return "african";
+      throw new Error(`City population profile requires religious landmarks: ${cityId}`);
     }
     return city.religiousLandmarks.includes("mosque") ? "african-islamicate" : "african";
   }
@@ -268,7 +293,7 @@ export function cityPopulationProfile(profileId) {
 }
 
 export function createCityPeopleAgents({ city, count, paths }) {
-  requireCity(city);
+  const cityId = requireCity(city);
   if (!Number.isInteger(count) || count < 0) throw new Error(`Invalid city person count: ${count}`);
   if (!Array.isArray(paths) || count > paths.length) {
     throw new Error(`City people require at least ${count} walking paths`);
@@ -276,17 +301,17 @@ export function createCityPeopleAgents({ city, count, paths }) {
   const derivedProfileId = cityPopulationProfileId(city);
   if (city.populationProfileId !== undefined && city.populationProfileId !== derivedProfileId) {
     throw new Error(
-      `City ${city.id} population profile drift: ${city.populationProfileId} != ${derivedProfileId}`
+      `City ${cityId} population profile drift: ${city.populationProfileId} != ${derivedProfileId}`
     );
   }
   const profile = cityPopulationProfile(city.populationProfileId || derivedProfileId);
   const garrisonCount = cityGarrisonWalkerCount(city, count, profile);
-  const garrisonIndexes = selectedGarrisonIndexes(city.id, count, garrisonCount);
+  const garrisonIndexes = selectedGarrisonIndexes(cityId, count, garrisonCount);
   const usedByRole = new Map([
     [CITY_PERSON_ROLE.AMBIENT, new Set()],
     [CITY_PERSON_ROLE.GARRISON, new Set()]
   ]);
-  let seed = hashString(`${city.id}|${profile.id}|people`);
+  let seed = hashString(`${cityId}|${profile.id}|people`);
   return Object.freeze(paths.slice(0, count).map(({ startX, endX, feetY }, index) => {
     validatePath({ startX, endX, feetY }, index);
     seed = xorshift(seed);
@@ -294,7 +319,7 @@ export function createCityPeopleAgents({ city, count, paths }) {
     const appearanceId = weightedAppearance(profile[role], seed, usedByRole.get(role));
     usedByRole.get(role).add(appearanceId);
     return Object.freeze({
-      id: `${city.id}:street-person:${index + 1}`,
+      id: `${cityId}:street-person:${index + 1}`,
       appearanceId,
       role,
       startX,
@@ -307,7 +332,7 @@ export function createCityPeopleAgents({ city, count, paths }) {
 }
 
 export function cityGarrisonAppearanceIds(city, count, seedKey = "dock-guards") {
-  requireCity(city);
+  const cityId = requireCity(city);
   if (!Number.isInteger(count) || count < 0) {
     throw new Error(`Invalid city garrison count: ${count}`);
   }
@@ -316,13 +341,36 @@ export function cityGarrisonAppearanceIds(city, count, seedKey = "dock-guards") 
   }
   const profile = cityPopulationProfile(city.populationProfileId || cityPopulationProfileId(city));
   const used = new Set();
-  let seed = hashString(`${city.id}|${profile.id}|${seedKey}`);
+  let seed = hashString(`${cityId}|${profile.id}|${seedKey}`);
   return Object.freeze(Array.from({ length: count }, () => {
     seed = xorshift(seed);
     const appearanceId = weightedAppearance(profile[CITY_PERSON_ROLE.GARRISON], seed, used);
     used.add(appearanceId);
     return appearanceId;
   }));
+}
+
+export function cityRecruitableCrewAppearances(city) {
+  const cityId = requireCity(city);
+  const profile = cityPopulationProfile(city.populationProfileId || cityPopulationProfileId(city));
+  const appearanceIds = new Set();
+  for (const role of [CITY_PERSON_ROLE.AMBIENT, CITY_PERSON_ROLE.GARRISON]) {
+    for (const { appearanceId } of profile[role]) {
+      const appearance = APPEARANCE_BY_ID.get(appearanceId);
+      const recruitable = role === CITY_PERSON_ROLE.GARRISON
+        ? !NON_RECRUITABLE_GARRISON_ARCHETYPE_IDS.has(appearance.archetypeId)
+        : RECRUITABLE_AMBIENT_ARCHETYPE_IDS.has(appearance.archetypeId);
+      if (recruitable) appearanceIds.add(appearanceId);
+    }
+  }
+  const result = [...appearanceIds].map((appearanceId) => {
+    const archetypeId = APPEARANCE_BY_ID.get(appearanceId).archetypeId;
+    const crewTypeId = CREW_TYPE_BY_ARCHETYPE_ID[archetypeId];
+    if (!crewTypeId) throw new Error(`Recruitable appearance has no crew type: ${appearanceId}`);
+    return Object.freeze({ appearanceId, crewTypeId });
+  });
+  if (result.length === 0) throw new Error(`City has no recruitable crew appearances: ${cityId}`);
+  return Object.freeze(result);
 }
 
 export function citySuspiciousMerchantAppearanceId(city) {
@@ -357,6 +405,12 @@ export function validateCityPeopleManifest(manifest) {
     }
     if (!Array.isArray(exported.animations?.walk) || exported.animations.walk.length === 0) {
       throw new Error(`City people appearance has no walk animation: ${appearance.id}`);
+    }
+    if (!Array.isArray(exported.animations?.idle) || exported.animations.idle.length === 0) {
+      throw new Error(`City people appearance has no idle animation: ${appearance.id}`);
+    }
+    if (!Array.isArray(exported.animations?.jump) || exported.animations.jump.length === 0) {
+      throw new Error(`City people appearance has no jump animation: ${appearance.id}`);
     }
     if (appearance.archetypeId === "suspicious-merchant" &&
         (!Array.isArray(exported.animations?.idle2) || exported.animations.idle2.length === 0)) {
@@ -453,8 +507,8 @@ function uniqueIndex(entries, label) {
 function requireCity(city) {
   if (
     !city ||
-    typeof city.id !== "string" ||
-    city.id === "" ||
+    typeof city.cityId !== "string" ||
+    city.cityId === "" ||
     typeof city.cityType !== "string" ||
     city.cityType === "" ||
     typeof city.country !== "string" ||
@@ -462,6 +516,10 @@ function requireCity(city) {
   ) {
     throw new Error("City people require a city with canonical ID, type, and country");
   }
+  if (city.id !== undefined && city.id !== city.cityId) {
+    throw new Error(`City people identity mismatch: ${city.id}/${city.cityId}`);
+  }
+  return city.cityId;
 }
 
 function validatePath({ startX, endX, feetY }, index) {

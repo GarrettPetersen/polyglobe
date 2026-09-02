@@ -8,9 +8,17 @@ const PALETTE_TEXTURE_WIDTH = 1024;
 const PALETTE_TEXTURE_HEIGHT = 32;
 const PREWARM_SUN_ALTITUDE_SAMPLES = 2048;
 
+export const NIGHT_WATER_GRADE_HEX = Object.freeze([
+  "2e222f", "323353", "484a77", "4d65b4", "7f708a"
+]);
+
+export const NIGHT_LAND_GRADE_HEX = Object.freeze([
+  "3e3546", "45293f", "625565", "6b3e75", "905ea9", "a884f3", "9babb2"
+]);
+
 export const NIGHT_GRADE_HEX = Object.freeze([
-  "2e222f", "3e3546", "45293f", "323353", "484a77", "625565",
-  "6b3e75", "4d65b4", "7f708a", "905ea9", "a884f3", "9babb2"
+  ...NIGHT_WATER_GRADE_HEX,
+  ...NIGHT_LAND_GRADE_HEX
 ]);
 
 export const SUNSET_WATER_GRADE_HEX = Object.freeze([
@@ -39,7 +47,19 @@ const DOMINANT_WATER_LAND_PAIRS = Object.freeze([
 ]);
 const NIGHT_CANDIDATES = paletteSubset(NIGHT_GRADE_HEX);
 const SUNSET_CANDIDATES = paletteSubset(SUNSET_GRADE_HEX);
-const NIGHT_TERRAIN_SEPARATION = paletteOverrideMap({
+const NIGHT_WATER_TERRAIN_SEPARATION = paletteOverrideMap({
+  "323353": "2e222f",
+  "484a77": "323353",
+  "4d65b4": "484a77",
+  "4d9be6": "4d65b4",
+  "9babb2": "484a77",
+  "c7dcd0": "7f708a",
+  "0b5e65": "323353",
+  "0b8a8f": "484a77",
+  "0eaf9b": "4d65b4",
+  "30e1b9": "4d65b4"
+}, paletteSubset(NIGHT_WATER_GRADE_HEX), "night water terrain");
+const NIGHT_LAND_TERRAIN_SEPARATION = paletteOverrideMap({
   "4c3e24": "3e3546",
   "676633": "45293f",
   "a2a947": "625565",
@@ -47,8 +67,13 @@ const NIGHT_TERRAIN_SEPARATION = paletteOverrideMap({
   "165a4c": "3e3546",
   "239063": "625565",
   "1ebc73": "6b3e75",
-  "91db69": "905ea9"
-}, NIGHT_CANDIDATES, "night terrain separation");
+  "91db69": "905ea9",
+  "92a984": "625565"
+}, paletteSubset(NIGHT_LAND_GRADE_HEX), "night land terrain");
+const NIGHT_TERRAIN_SEPARATION = new Map([
+  ...NIGHT_WATER_TERRAIN_SEPARATION,
+  ...NIGHT_LAND_TERRAIN_SEPARATION
+]);
 const SUNSET_WATER_TERRAIN_SEPARATION = paletteOverrideMap({
   "323353": "2e222f",
   "9babb2": "9e4539",

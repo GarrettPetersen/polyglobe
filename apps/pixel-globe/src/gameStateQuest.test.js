@@ -49,6 +49,7 @@ import { shipLoadoutPlan } from "./shipLoadouts.js";
 import { gameMinuteForDate } from "./rulers.js";
 import { NEUTRAL_FACTION_ID } from "./factions.js";
 import { PRE_NORTH_MALUKU_PORT_TILE_IDS } from "./portCatalogMigration.js";
+import { setTestCrewCount } from "./test-fixtures/crewTestFixtures.js";
 
 const PLAYER = {
   id: "player:joan-alden",
@@ -542,7 +543,7 @@ test("an allied capture recalls an active commission instead of leaving an impos
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   putEnglandAtWarWithFrance(state);
@@ -574,7 +575,7 @@ test("a fallen issuing court recalls its capture order through the original offi
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   putEnglandAtWarWithFrance(state);
@@ -602,7 +603,7 @@ test("pending political offers disappear when conquest invalidates their premise
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   putEnglandAtWarWithFrance(state);
@@ -665,7 +666,7 @@ test("a capable letter-of-marque captain can receive and complete a nearby captu
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   putEnglandAtWarWithFrance(state);
@@ -733,7 +734,7 @@ test("Mughal conquest commissions prefer historical expansion fronts over the ne
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.mughal = { factionId: "mughal", simMinute: 0 };
   state.relations.diplomacy.overrides["bengal|mughal"] = "war";
@@ -765,7 +766,7 @@ test("a mostly defeated enemy can trigger a distinct war-ending capital commissi
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   putEnglandAtWarWithFrance(state);
@@ -829,7 +830,7 @@ test("losing one port makes a two-port power eligible for a final capital commis
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   putEnglandAtWarWithFrance(state);
@@ -857,7 +858,7 @@ test("a capital-only power can receive the only possible capture commission", ()
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   putEnglandAtWarWithFrance(state);
@@ -880,7 +881,7 @@ test("an active colonization expedition does not suppress a capital capture comm
     playerCharacter: PLAYER,
     shipStats: stats
   });
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
   putEnglandAtWarWithFrance(state);
@@ -917,7 +918,7 @@ test("capture missions recommend a preset only when the selected loadout is the 
   const shortHaul = shipLoadoutPlan(stats, "short-haul");
   state.ship.loadoutId = shortHaul.id;
   state.ship.loadoutTargets = shortHaul;
-  state.ship.crew = shortHaul.crew;
+  setTestCrewCount(state, shortHaul.crew);
   state.ship.cannons = shortHaul.cannons;
 
   const recommendation = capturePortMissionLoadoutRecommendation(state, stats);
@@ -945,7 +946,7 @@ test("capture warrants require a letter of marque but may be issued before the s
     sailingDistanceKm: () => 180
   };
 
-  state.ship.crew = 36;
+  setTestCrewCount(state, 36);
   state.ship.cannons = 8;
   assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), null);
 
@@ -957,7 +958,7 @@ test("capture warrants require a letter of marque but may be issued before the s
   assert.equal(offer.targetTileId, CALAIS.tileId);
 
   state.ship.cannons = 8;
-  state.ship.crew = 35;
+  setTestCrewCount(state, 35);
   assert.equal(capturePortMissionEligibility(state).eligible, false);
   assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), offer);
 });
