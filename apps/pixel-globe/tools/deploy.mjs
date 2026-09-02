@@ -106,22 +106,31 @@ async function verifyRemoteCityVisualizer({ baseUrl, attempts, retryDelayMs }) {
       const html = await indexResponse.text();
       if (
         !html.includes("Marque &amp; Reprisal — City Visualizer") ||
-        !html.includes('src="./main.js"')
+        !html.includes('src="./bootstrap.js"')
       ) {
         throw new Error("city visualizer route returned the wrong HTML shell");
       }
 
+      const bootstrapUrl = new URL("city-visualizer/bootstrap.js", baseUrl);
+      bootstrapUrl.search = cacheBust;
       const scriptUrl = new URL("city-visualizer/main.js", baseUrl);
       scriptUrl.search = cacheBust;
       const catalogUrl = new URL("city-visualizer/data/cities.json", baseUrl);
       catalogUrl.search = cacheBust;
       const atlasUrl = new URL("city-visualizer/assets/port-parallax/static.png", baseUrl);
       atlasUrl.search = cacheBust;
-      const [scriptResponse, catalogResponse, atlasResponse] = await Promise.all([
+      const [bootstrapResponse, scriptResponse, catalogResponse, atlasResponse] = await Promise.all([
+        fetch(bootstrapUrl, { cache: "no-store" }),
         fetch(scriptUrl, { cache: "no-store" }),
         fetch(catalogUrl, { cache: "no-store" }),
         fetch(atlasUrl, { cache: "no-store", method: "HEAD" })
       ]);
+      if (!bootstrapResponse.ok) {
+        throw new Error(`city visualizer bootstrap returned HTTP ${bootstrapResponse.status}`);
+      }
+      if (!(await bootstrapResponse.text()).includes("createCitySceneRuntime")) {
+        throw new Error("city visualizer bootstrap does not initialize the reusable runtime");
+      }
       if (!scriptResponse.ok) {
         throw new Error(`city visualizer bundle returned HTTP ${scriptResponse.status}`);
       }
