@@ -12,7 +12,7 @@ export const WHALE_LIFE_STAGE_ADOLESCENT = "adolescent";
 export const WHALE_LIFE_STAGE_ADULT = "adult";
 
 const DAYS_PER_YEAR = 365.25;
-export const WHALE_CRUISE_SPEED_SCALE = 0.45;
+export const WHALE_CRUISE_SPEED_SCALE = 0.4;
 
 export const WHALE_SPECIES = Object.freeze([
   species({

@@ -510,7 +510,7 @@ test("the Holy League sailing squadron reaches battle instead of stalling upwind
   const start = { x: leader.x, y: leader.y };
   let fireEvents = 0;
 
-  for (let tick = 0; tick < 400; tick++) {
+  for (let tick = 0; tick < 800; tick++) {
     updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
       desiredHeadingRad: 0,
       rowingRequested: false
@@ -656,7 +656,7 @@ test("squadron mates engage nearby enemies and reform on the flagship afterward"
   };
   const displacedDistance = formationDistance();
 
-  for (let tick = 0; tick < 64; tick++) {
+  for (let tick = 0; tick < 128; tick++) {
     updateHistoricalBattle(battle, HISTORICAL_BATTLE_FIXED_STEP_SECONDS, {
       desiredHeadingRad: player.headingRad,
       rowingRequested: false

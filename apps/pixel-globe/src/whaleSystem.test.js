@@ -215,7 +215,7 @@ test("submerged whales swim beneath ice and wait for open water before rising", 
 
 test("whales cruise deliberately while a tethered whale can still make a fast run", () => {
   const slowestPlayerBoatSpeed = shipStatsForSlug("mesoamerican-dugout-canoe").topSpeedRad;
-  assert.equal(WHALE_CRUISE_SPEED_SCALE, 0.45);
+  assert.equal(WHALE_CRUISE_SPEED_SCALE, 0.4);
   for (const species of WHALE_SPECIES) {
     assert.ok(species.cruiseSpeedRad < slowestPlayerBoatSpeed, species.label);
     assert.ok(species.towingSpeedRad > species.cruiseSpeedRad, species.label);
