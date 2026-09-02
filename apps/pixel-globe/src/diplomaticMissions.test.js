@@ -125,7 +125,7 @@ test("the market warns before selling sealed tribute and cancellation leaves it 
   });
   acceptQuest(state, offer);
   const economy = createWorldEconomy({ ports: [SEOUL], startMinute: 0 });
-  const session = createPortDialogueSession(SEOUL, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(SEOUL, { initialNodeId: "market", marketMode: "sell" });
   const market = portDialogueView(session, SEOUL, state, economy, [SEOUL]);
   const sellAllIndex = market.options.findIndex((entry) => (
     entry.action.type === "sell-all" && entry.action.goodId === "ginseng"

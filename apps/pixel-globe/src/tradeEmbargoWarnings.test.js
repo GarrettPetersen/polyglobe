@@ -99,7 +99,8 @@ test("proceeding through the embargo modal records the issuer cooldown", () => {
   state.doubloons = 10000;
   adjustDiplomaticStance(state.relations.diplomacy, "england", "france", "improve", 1);
   const session = createPortDialogueSession(LONDON, {
-    initialNodeId: "buy",
+    initialNodeId: "market",
+    marketMode: "buy",
     admittedToPort: true
   });
   const context = { simMinute };

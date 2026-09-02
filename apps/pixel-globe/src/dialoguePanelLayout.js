@@ -298,6 +298,10 @@ export function dialogueOptionMeasurementWidths({
   const groups = dialogueOptionGroups(options);
   const widths = Array(options.length).fill(null);
   const regularWidth = width - regularWidthReserve;
+  const modeSwitchWidth = groups.modeSwitches.length === 2
+    ? Math.floor((width - gap) / 2)
+    : width;
+  for (const entry of groups.modeSwitches) widths[entry.index] = modeSwitchWidth;
   const rowCounts = new Map();
   for (const entry of groups.regular) {
     if (!entry.option.rowId) continue;
@@ -352,19 +356,28 @@ export function dialogueOptionGroups(options) {
     throw new Error("Dialogue option grouping requires at least one option");
   }
   const regular = [];
+  const modeSwitches = [];
   const exits = [];
   options.forEach((option, index) => {
     if (!option || typeof option !== "object") throw new Error(`Invalid dialogue option at index ${index}`);
-    if (option.placement !== undefined && option.placement !== "port-exit") {
+    if (option.placement !== undefined &&
+        option.placement !== "mode-switch" &&
+        option.placement !== "port-exit") {
       throw new Error(`Unknown dialogue option placement: ${option.placement}`);
     }
     const entry = Object.freeze({ index, option });
-    (option.placement === "port-exit" ? exits : regular).push(entry);
+    if (option.placement === "mode-switch") modeSwitches.push(entry);
+    else if (option.placement === "port-exit") exits.push(entry);
+    else regular.push(entry);
   });
+  if (modeSwitches.length !== 0 && modeSwitches.length !== 2) {
+    throw new Error(`Dialogue mode switch requires exactly two actions, received ${modeSwitches.length}`);
+  }
   if (exits.length > 2) {
     throw new Error(`Dialogue exit footer supports at most two actions, received ${exits.length}`);
   }
   return Object.freeze({
+    modeSwitches: Object.freeze(modeSwitches),
     regular: Object.freeze(regular),
     exits: Object.freeze(exits)
   });

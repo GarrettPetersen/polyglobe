@@ -116,7 +116,7 @@ test("the market warns before an entrusted tea sale and lets the captain cancel"
   const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring });
   acceptQuest(state, offer, { simMinute: spring });
   const economy = createWorldEconomy({ ports: [GUANGZHOU], startMinute: spring });
-  const session = createPortDialogueSession(GUANGZHOU, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(GUANGZHOU, { initialNodeId: "market", marketMode: "sell" });
   const market = portDialogueView(session, GUANGZHOU, state, economy, [GUANGZHOU]);
   const sellAllIndex = market.options.findIndex((entry) => (
     entry.action.type === "sell-all" && entry.action.goodId === "tea"

@@ -404,6 +404,9 @@ export function createPortDialogueSession(city, options = {}) {
       !["yard", "materials", "books"].includes(options.shipyardLedgerTab)) {
     throw new Error(`Unknown shipyard ledger tab: ${options.shipyardLedgerTab}`);
   }
+  if (options.marketMode !== undefined && !["buy", "sell"].includes(options.marketMode)) {
+    throw new Error(`Unknown port market mode: ${options.marketMode}`);
+  }
   return {
     kind: "port",
     cityId,
@@ -414,19 +417,19 @@ export function createPortDialogueSession(city, options = {}) {
     illicitTradeAccessPolicyId: options.illicitTradeAccessPolicyId || null,
     illicitTradeAttemptedPolicyId: options.illicitTradeAttemptedPolicyId || null,
     illicitTradeVisit: copyIllicitTradeVisit(options.illicitTradeVisit || null),
-    portugueseCartazMarketNodeId: null,
+    portugueseCartazMarketPending: false,
     portugueseCartazMarketOfferDeclined: false,
     nextPortNodeId: options.nextPortNodeId || null,
     postDrunkNodeId: options.postDrunkNodeId || null,
     drunkVariant: options.drunkVariant || 0,
     marketPurchases: {},
     marketSales: 0,
+    marketTransactionCount: 0,
+    marketMode: options.marketMode || "buy",
     marketBuyGoodIds: [],
     marketSaleGoodIds: [],
-    marketUndoNodeId: null,
     marketUndoSnapshot: null,
     marketUndoIllicitTradeVisit: null,
-    pendingMarketUndoNodeId: null,
     acknowledgedTradeEmbargoOrderIds: [],
     pendingTradeEmbargoPurchase: null,
     pendingTradeEmbargoSale: null,
@@ -476,6 +479,14 @@ export function createPortDialogueSession(city, options = {}) {
     selectedIndex: 0,
     feedback: null
   };
+}
+
+export function portMarketTransactionSessionOpen(session) {
+  if (session?.kind !== "port") return false;
+  if (!Object.hasOwn(session, "marketUndoSnapshot")) {
+    throw new Error("Port dialogue session is missing its market undo snapshot");
+  }
+  return session.marketUndoSnapshot !== null;
 }
 
 export function restorePortDialogueCityIdentity(session, city) {
@@ -1713,7 +1724,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "portuguese-cartaz-market-declined") {
     return portugueseCartazMarketDeclinedView(session, city, gameState, economy);
   }
-  if (session.nodeId === "buy") return buyView(session, city, gameState, economy, context);
+  if (session.nodeId === "market") return marketView(session, city, gameState, economy, context);
   if (session.nodeId === "trade-embargo-warning") {
     return tradeEmbargoWarningView(session);
   }
@@ -1741,7 +1752,6 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "marque-factor-followup") {
     return letterOfMarqueFactorFollowupView(session, city, gameState, context);
   }
-  if (session.nodeId === "sell") return sellView(session, city, gameState, economy, context);
   if (session.nodeId === "market-undo-confirm") {
     return marketUndoConfirmationView(session, city);
   }
@@ -1900,27 +1910,16 @@ export function selectPortDialogueOption(
       session.historicalGossip = null;
       session.nextPortNodeId = null;
     }
-    if (action.nodeId === "buy") {
-      if (shouldOfferPortugueseCartazForMarket(session, city, gameState, economy, "buy", context)) {
-        session.portugueseCartazMarketNodeId = "buy";
+    if (action.nodeId === "market") {
+      if (shouldOfferPortugueseCartazForMarket(session, city, gameState, economy, context)) {
+        session.portugueseCartazMarketPending = true;
         session.nodeId = "portuguese-cartaz-market-offer";
         session.selectedIndex = 0;
         session.feedback = null;
         return { closed: false };
       }
-      session.marketPurchases = {};
-      beginMarketUndoSession(session, "buy", gameState, economy, city);
-    }
-    if (action.nodeId === "sell") {
-      if (shouldOfferPortugueseCartazForMarket(session, city, gameState, economy, "sell", context)) {
-        session.portugueseCartazMarketNodeId = "sell";
-        session.nodeId = "portuguese-cartaz-market-offer";
-        session.selectedIndex = 0;
-        session.feedback = null;
-        return { closed: false };
-      }
-      session.marketSales = 0;
-      beginMarketUndoSession(session, "sell", gameState, economy, city);
+      enterPortMarket(session, gameState, economy, city);
+      return { closed: false };
     }
     if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
     if (action.nodeId === "conquistador") markConquistadorOfferSeen(gameState.memory.quests.conquistador);
@@ -1994,6 +1993,14 @@ export function selectPortDialogueOption(
           : 2
       : 0;
     session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "switch-market-mode") {
+    if (session.nodeId !== "market" || !["buy", "sell"].includes(action.mode)) {
+      throw new Error(`Invalid port market mode switch: ${action.mode}`);
+    }
+    session.marketMode = action.mode;
+    session.selectedIndex = marketModeOptionIndex(session);
     return { closed: false };
   }
   if (action.type === "shipyard-ledger-tab") {
@@ -2082,45 +2089,23 @@ export function selectPortDialogueOption(
     session.feedback = null;
     return { closed: false };
   }
-  if (action.type === "leave-buy") {
+  if (action.type === "leave-market") {
+    if (session.nodeId !== "market") {
+      throw new Error(`Cannot leave the market from ${session.nodeId}`);
+    }
     const madePurchase = Object.keys(session.marketPurchases).length > 0;
-    const tip = bestPurchasedTradeRoute({
-      purchases: session.marketPurchases,
-      originCity: city,
-      gameState,
-      economy,
-      portCities,
-      simMinute: context.simMinute ?? 0,
-      sailingDistanceKm: context.sailingDistanceKm
-    });
-    const questCargoTip = madePurchase ? null : bestQuestCargoSource({
-      originCity: city,
-      gameState,
-      economy,
-      portCities,
-      simMinute: context.simMinute ?? 0,
-      sailingDistanceKm: context.sailingDistanceKm,
-      random: context.random || Math.random
-    });
-    session.marketPurchases = {};
-    clearMarketUndoSession(session);
-    session.selectedIndex = 0;
-    session.feedback = null;
-    if (!tip && !questCargoTip) {
-      session.nodeId = action.nodeId;
-      return { closed: false };
-    }
-    if (questCargoTip) {
-      session.questCargoTip = { ...questCargoTip, nextNodeId: action.nodeId };
-      session.nodeId = "quest-cargo-tip";
-      return { closed: false, questCargoTip };
-    }
-    session.tradeTip = { ...tip, nextNodeId: action.nodeId };
-    session.nodeId = "trade-tip";
-    return { closed: false, tradeTip: tip };
-  }
-  if (action.type === "leave-sell") {
-    const tip = session.marketSales === 0
+    const tip = madePurchase
+      ? bestPurchasedTradeRoute({
+          purchases: session.marketPurchases,
+          originCity: city,
+          gameState,
+          economy,
+          portCities,
+          simMinute: context.simMinute ?? 0,
+          sailingDistanceKm: context.sailingDistanceKm
+        })
+      : null;
+    const heldCargoTip = !madePurchase && session.marketMode === "sell" && session.marketSales === 0
       ? bestHeldCargoTradeRoute({
           originCity: city,
           gameState,
@@ -2130,17 +2115,33 @@ export function selectPortDialogueOption(
           sailingDistanceKm: context.sailingDistanceKm
         })
       : null;
-    session.marketSales = 0;
+    const questCargoTip = madePurchase || heldCargoTip || session.marketMode !== "buy"
+      ? null
+      : bestQuestCargoSource({
+      originCity: city,
+      gameState,
+      economy,
+      portCities,
+      simMinute: context.simMinute ?? 0,
+      sailingDistanceKm: context.sailingDistanceKm,
+      random: context.random || Math.random
+    });
     clearMarketUndoSession(session);
     session.selectedIndex = 0;
     session.feedback = null;
-    if (!tip) {
+    if (!tip && !heldCargoTip && !questCargoTip) {
       session.nodeId = action.nodeId;
       return { closed: false };
     }
-    session.tradeTip = { ...tip, nextNodeId: action.nodeId };
+    if (questCargoTip) {
+      session.questCargoTip = { ...questCargoTip, nextNodeId: action.nodeId };
+      session.nodeId = "quest-cargo-tip";
+      return { closed: false, questCargoTip };
+    }
+    const tradeTip = tip || heldCargoTip;
+    session.tradeTip = { ...tradeTip, nextNodeId: action.nodeId };
     session.nodeId = "trade-tip";
-    return { closed: false, tradeTip: tip };
+    return { closed: false, tradeTip };
   }
   if (action.type === "set-port-heading") {
     if (!Number.isInteger(action.destinationTileId)) {
@@ -2246,7 +2247,7 @@ export function selectPortDialogueOption(
     };
   }
   if (action.type === "decline-portuguese-cartaz-market") {
-    requirePortugueseCartazMarketNode(session);
+    requirePortugueseCartazMarketPending(session);
     session.portugueseCartazMarketOfferDeclined = true;
     session.nodeId = "portuguese-cartaz-market-declined";
     session.selectedIndex = 0;
@@ -2254,16 +2255,16 @@ export function selectPortDialogueOption(
     return { closed: false };
   }
   if (action.type === "continue-portuguese-cartaz-market") {
-    const marketNodeId = requirePortugueseCartazMarketNode(session);
-    enterPortMarketNode(session, marketNodeId, gameState, economy, city);
+    requirePortugueseCartazMarketPending(session);
+    enterPortMarket(session, gameState, economy, city);
     return { closed: false };
   }
   if (action.type === "attempt-portuguese-cartaz-illicit-market") {
     if (typeof context.random !== "function") {
       throw new Error("Portuguese illicit spice market attempt requires a random source");
     }
-    const marketNodeId = requirePortugueseCartazMarketNode(session);
-    const goodId = portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId)[0];
+    requirePortugueseCartazMarketPending(session);
+    const goodId = portugueseCartazMarketGoodIds(city, gameState, economy)[0];
     if (!goodId) throw new Error("Portuguese illicit spice market has no controlled cargo");
     const access = playerPortugueseCrownSpiceAccess(
       gameState,
@@ -2276,7 +2277,7 @@ export function selectPortDialogueOption(
     }
     applyIllicitMarketAttempt(session, gameState, access, context.random());
     if (session.illicitTradeAccessPolicyId === PORTUGUESE_CROWN_SPICE_POLICY_ID) {
-      enterPortMarketNode(session, marketNodeId, gameState, economy, city, { preserveFeedback: true });
+      enterPortMarket(session, gameState, economy, city, { preserveFeedback: true });
     } else {
       session.nodeId = "portuguese-cartaz-market-declined";
       session.selectedIndex = 0;
@@ -2919,9 +2920,9 @@ export function selectPortDialogueOption(
   if (action.type === "purchase-portuguese-cartaz") {
     const result = purchasePortugueseCartaz(gameState, city, context.simMinute ?? 0);
     session.feedback = `Cartaz issued for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days.`;
-    if (session.portugueseCartazMarketNodeId) {
-      const marketNodeId = requirePortugueseCartazMarketNode(session);
-      enterPortMarketNode(session, marketNodeId, gameState, economy, city, { preserveFeedback: true });
+    if (session.portugueseCartazMarketPending) {
+      requirePortugueseCartazMarketPending(session);
+      enterPortMarket(session, gameState, economy, city, { preserveFeedback: true });
     }
     session.selectedIndex = 0;
     return { closed: false, cartazPurchase: result };
@@ -3082,14 +3083,15 @@ export function selectPortDialogueOption(
       ...pending.orders.map((order) => order.id)
     ])];
     session.pendingTradeEmbargoSale = null;
-    session.nodeId = "sell";
+    session.nodeId = "market";
+    session.selectedIndex = marketModeOptionIndex(session);
     return continueMarketSale(session, city, gameState, economy, pending.action, context);
   }
   if (action.type === "decline-trade-embargo-sale") {
     requiredTradeEmbargoSale(session);
     session.pendingTradeEmbargoSale = null;
-    session.nodeId = "sell";
-    session.selectedIndex = 0;
+    session.nodeId = "market";
+    session.selectedIndex = marketModeOptionIndex(session);
     session.feedback = "The forbidden cargo remains aboard.";
     return { closed: false };
   }
@@ -3109,7 +3111,8 @@ export function selectPortDialogueOption(
     const theftResult = recordQuestCargoTheft(gameState, pending.theft, context);
     clearMarketUndoSession(session);
     session.pendingTributeTheft = null;
-    session.nodeId = "sell";
+    session.nodeId = "market";
+    session.selectedIndex = marketModeOptionIndex(session);
     session.feedback = pending.theft.kind === "tea-race"
       ? "The entrusted tea was sold. The new-crop race has failed."
       : "The sealed tribute was sold. Your diplomatic mission has failed.";
@@ -3123,8 +3126,8 @@ export function selectPortDialogueOption(
     const pending = session.pendingTributeTheft;
     if (!pending) throw new Error("No entrusted cargo sale is awaiting cancellation");
     session.pendingTributeTheft = null;
-    session.nodeId = "sell";
-    session.selectedIndex = 0;
+    session.nodeId = "market";
+    session.selectedIndex = marketModeOptionIndex(session);
     session.feedback = pending.theft.kind === "tea-race"
       ? "The new tea remains sealed for London."
       : "The sealed tribute remains aboard.";
@@ -3144,7 +3147,8 @@ export function selectPortDialogueOption(
       pending.action.type === "sell-all"
     );
     session.pendingQuestCargoSale = null;
-    session.nodeId = "sell";
+    session.nodeId = "market";
+    session.selectedIndex = marketModeOptionIndex(session);
     return result;
   }
   if (action.type === "cancel-quest-cargo-sale") {
@@ -3152,23 +3156,22 @@ export function selectPortDialogueOption(
       throw new Error("No quest cargo sale is awaiting cancellation");
     }
     session.pendingQuestCargoSale = null;
-    session.nodeId = "sell";
-    session.selectedIndex = 0;
+    session.nodeId = "market";
+    session.selectedIndex = marketModeOptionIndex(session);
     session.feedback = "The quest cargo remains aboard.";
     return { closed: false };
   }
   if (action.type === "undo-market") {
-    if (session.marketUndoNodeId !== session.nodeId || !session.marketUndoSnapshot) {
-      throw new Error(`No ${session.nodeId} market actions are available to undo`);
+    if (session.nodeId !== "market" || !marketUndoAvailable(session)) {
+      throw new Error("No market trades are available to undo");
     }
-    session.pendingMarketUndoNodeId = session.nodeId;
     session.nodeId = "market-undo-confirm";
     session.selectedIndex = 1;
     session.feedback = null;
     return { closed: false };
   }
   if (action.type === "confirm-market-undo") {
-    const marketNodeId = requiredPendingMarketUndoNodeId(session);
+    requirePendingMarketUndo(session);
     const restored = restoreMarketUndoSnapshot(
       gameState,
       economy,
@@ -3177,23 +3180,18 @@ export function selectPortDialogueOption(
     );
     session.marketPurchases = {};
     session.marketSales = 0;
+    session.marketTransactionCount = 0;
     session.illicitTradeVisit = copyIllicitTradeVisit(session.marketUndoIllicitTradeVisit);
-    session.pendingMarketUndoNodeId = null;
-    session.nodeId = marketNodeId;
-    session.selectedIndex = 0;
-    session.feedback = marketNodeId === "buy"
-      ? "All purchases on this page were undone."
-      : "All sales on this page were undone.";
+    session.nodeId = "market";
+    session.selectedIndex = marketModeOptionIndex(session);
+    session.feedback = "All market trades were undone.";
     return { closed: false, marketUndo: restored };
   }
   if (action.type === "cancel-market-undo") {
-    const marketNodeId = requiredPendingMarketUndoNodeId(session);
-    session.pendingMarketUndoNodeId = null;
-    session.nodeId = marketNodeId;
-    session.selectedIndex = 0;
-    session.feedback = marketNodeId === "buy"
-      ? "The purchases remain entered in the ledger."
-      : "The sales remain entered in the ledger.";
+    requirePendingMarketUndo(session);
+    session.nodeId = "market";
+    session.selectedIndex = marketModeOptionIndex(session);
+    session.feedback = "The market trades remain entered in the ledger.";
     return { closed: false };
   }
   if (action.type === "accept-quest") {
@@ -4349,9 +4347,9 @@ function rootView(session, city, gameState, economy, portCities, context) {
   );
   const options = [
     ...(tradeAccess.allowed
-      ? [option(pirateHideout ? "Buy doubtful goods" : illicitMarket ? "Buy illicit goods" : "Buy goods", {
+      ? [option("Market", {
         type: "node",
-        nodeId: "buy"
+        nodeId: "market"
       })]
       : tradeAccess.policy && session.illicitTradeAttemptedPolicyId !== tradeAccess.policyId
         ? [option("Seek illicit market", {
@@ -4379,12 +4377,6 @@ function rootView(session, city, gameState, economy, portCities, context) {
           ? { type: "node", nodeId: "shipyard-investment" }
           : { type: "node", nodeId: "shipyard-investment-offer" }
       )]
-      : []),
-    ...(tradeAccess.allowed
-      ? [option(pirateHideout ? "Fence cargo" : illicitMarket ? "Sell cargo illicitly" : "Sell cargo", {
-        type: "node",
-        nodeId: "sell"
-      })]
       : []),
     ...(!pirateHideout && (!session.disguisedEntry || canCompleteQuest)
       ? [option(session.disguisedEntry ? "Complete current job" : "Ask about work", {
@@ -4595,7 +4587,6 @@ function shouldOfferPortugueseCartazForMarket(
   city,
   gameState,
   economy,
-  marketNodeId,
   context
 ) {
   if (session.disguisedEntry || session.portugueseCartazMarketOfferDeclined) return false;
@@ -4608,38 +4599,28 @@ function shouldOfferPortugueseCartazForMarket(
     context.shipStats?.cargoCapacity ?? gameState.cargoCapacity
   );
   return !status.exempt && !status.valid &&
-    portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId).length > 0;
+    portugueseCartazMarketGoodIds(city, gameState, economy).length > 0;
 }
 
-function portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId) {
-  if (marketNodeId === "buy") {
-    const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
-    return PORTUGUESE_CROWN_SPICE_GOOD_IDS.filter((goodId) => (market.get(goodId)?.stock || 0) >= 1);
-  }
-  if (marketNodeId === "sell") {
-    return PORTUGUESE_CROWN_SPICE_GOOD_IDS.filter((goodId) => (gameState.cargo[goodId] || 0) >= 1);
-  }
-  throw new Error(`Portuguese cartaz market requires buy or sell, received ${marketNodeId}`);
+function portugueseCartazMarketGoodIds(city, gameState, economy) {
+  const market = new Map(portMarket(economy, city).map((row) => [row.good.id, row]));
+  return PORTUGUESE_CROWN_SPICE_GOOD_IDS.filter((goodId) => (
+    (market.get(goodId)?.stock || 0) >= 1 || (gameState.cargo[goodId] || 0) >= 1
+  ));
 }
 
-function requirePortugueseCartazMarketNode(session) {
-  if (session.portugueseCartazMarketNodeId !== "buy" &&
-      session.portugueseCartazMarketNodeId !== "sell") {
-    throw new Error("Portuguese cartaz market offer has no market destination");
+function requirePortugueseCartazMarketPending(session) {
+  if (session.portugueseCartazMarketPending !== true) {
+    throw new Error("Portuguese cartaz market offer has no pending market entry");
   }
-  return session.portugueseCartazMarketNodeId;
 }
 
-function enterPortMarketNode(session, marketNodeId, gameState, economy, city, options = {}) {
-  if (marketNodeId === "buy") {
-    session.marketPurchases = {};
-  } else if (marketNodeId === "sell") {
-    session.marketSales = 0;
-  } else {
-    throw new Error(`Cannot enter unknown port market node: ${marketNodeId}`);
-  }
-  beginMarketUndoSession(session, marketNodeId, gameState, economy, city);
-  session.nodeId = marketNodeId;
+function enterPortMarket(session, gameState, economy, city, options = {}) {
+  clearMarketUndoSession(session);
+  beginMarketUndoSession(session, gameState, economy, city);
+  session.portugueseCartazMarketPending = false;
+  session.marketMode = "buy";
+  session.nodeId = "market";
   session.selectedIndex = 0;
   if (options.preserveFeedback !== true) session.feedback = null;
 }
@@ -4702,8 +4683,8 @@ function portugueseCartazView(session, city, gameState, context) {
 }
 
 function portugueseCartazMarketOfferView(session, city, gameState, economy, context) {
-  const marketNodeId = requirePortugueseCartazMarketNode(session);
-  const goodIds = portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId);
+  requirePortugueseCartazMarketPending(session);
+  const goodIds = portugueseCartazMarketGoodIds(city, gameState, economy);
   if (goodIds.length === 0) throw new Error("Portuguese cartaz offer has no controlled spices");
   const spiceLabels = goodIds.map((goodId) => tradeGoodById(goodId).label.toLowerCase()).join(", ");
   const status = portugueseCartazStatus(
@@ -4741,8 +4722,8 @@ function portugueseCartazRefusalText() {
 }
 
 function portugueseCartazMarketDeclinedView(session, city, gameState, economy) {
-  const marketNodeId = requirePortugueseCartazMarketNode(session);
-  const goodIds = portugueseCartazMarketGoodIds(city, gameState, economy, marketNodeId);
+  requirePortugueseCartazMarketPending(session);
+  const goodIds = portugueseCartazMarketGoodIds(city, gameState, economy);
   if (goodIds.length === 0) throw new Error("Portuguese cartaz refusal has no controlled spices");
   return {
     speaker: speakerName(city),
@@ -4754,7 +4735,7 @@ function portugueseCartazMarketDeclinedView(session, city, gameState, economy) {
         ? [option("Seek illicit market", { type: "attempt-portuguese-cartaz-illicit-market" })]
         : []),
       option("Browse ordinary goods", { type: "continue-portuguese-cartaz-market" }, {
-        iconId: marketNodeId === "buy" ? "action:buy" : "action:sell"
+        iconId: "action:buy"
       }),
       option("Back", { type: "node", nodeId: "root" })
     ]
@@ -6459,6 +6440,31 @@ function shipHandoverView(session, city) {
   };
 }
 
+function marketView(session, city, gameState, economy, context) {
+  if (session.marketMode === "buy") return buyView(session, city, gameState, economy, context);
+  if (session.marketMode === "sell") return sellView(session, city, gameState, economy, context);
+  throw new Error(`Unknown port market mode: ${session.marketMode}`);
+}
+
+function marketModeOptionIndex(session) {
+  if (session.marketMode === "buy") return 0;
+  if (session.marketMode === "sell") return 1;
+  throw new Error(`Unknown port market mode: ${session.marketMode}`);
+}
+
+function marketModeOptions() {
+  return [
+    option("Buy", { type: "switch-market-mode", mode: "buy" }, {
+      placement: "mode-switch",
+      iconId: "action:buy"
+    }),
+    option("Sell", { type: "switch-market-mode", mode: "sell" }, {
+      placement: "mode-switch",
+      iconId: "action:sell"
+    })
+  ];
+}
+
 function buyView(session, city, gameState, economy, context) {
   const hold = cargoHoldStatus(gameState);
   const requiredQuestCargo = activeQuestCargoReservedQuantities(gameState, {
@@ -6534,10 +6540,11 @@ function buyView(session, city, gameState, economy, context) {
         })
       ];
     });
-  if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-buy", nodeId: "loadout" }));
-  rows.push(option("Back", { type: "leave-buy", nodeId: "root" }));
-  rows.push(option("Undo all purchases", { type: "undo-market" }, {
-    disabled: !marketUndoAvailable(session, "buy")
+  if (context.shipStats) rows.push(option("Change ship loadout", { type: "leave-market", nodeId: "loadout" }));
+  rows.push(option("Back", { type: "leave-market", nodeId: "root" }));
+  rows.push(option("Undo all trades", { type: "undo-market" }, {
+    disabled: !marketUndoAvailable(session),
+    placement: "port-exit"
   }));
   return {
     speaker: speakerName(city),
@@ -6549,7 +6556,8 @@ function buyView(session, city, gameState, economy, context) {
     feedbackLineReserve: 2,
     optionHeight: 30,
     optionColumns: 2,
-    options: rows
+    presentation: { kind: "market", mode: "buy" },
+    options: [...marketModeOptions(), ...rows]
   };
 }
 
@@ -6635,7 +6643,7 @@ function requiredTradeEmbargoSale(session) {
 }
 
 function executePortMarketPurchase(session, gameState, economy, city, action, context) {
-  ensureMarketUndoSession(session, "buy", gameState, economy, city);
+  ensureMarketUndoSession(session, gameState, economy, city);
   const result = buyGood(
     gameState,
     economy,
@@ -6645,6 +6653,7 @@ function executePortMarketPurchase(session, gameState, economy, city, action, co
     tradeContext(session, context)
   );
   recordMarketPurchase(session, result);
+  session.marketTransactionCount += 1;
   recordIllicitMarketTransaction(session, result, "buy");
   session.feedback = result.quantity === 1
     ? `Bought ${result.good.label} for ${result.price} db.`
@@ -7043,18 +7052,14 @@ function copyIllicitTradeVisit(visit) {
   };
 }
 
-function beginMarketUndoSession(session, nodeId, gameState, economy, city) {
-  if (nodeId !== "buy" && nodeId !== "sell") {
-    throw new Error(`Unknown market undo node: ${nodeId}`);
-  }
-  session.marketUndoNodeId = nodeId;
+function beginMarketUndoSession(session, gameState, economy, city) {
   session.marketUndoSnapshot = createMarketUndoSnapshot(gameState, economy, city);
   session.marketUndoIllicitTradeVisit = copyIllicitTradeVisit(session.illicitTradeVisit);
 }
 
-function ensureMarketUndoSession(session, nodeId, gameState, economy, city) {
-  if (session.marketUndoNodeId === nodeId && session.marketUndoSnapshot) return;
-  beginMarketUndoSession(session, nodeId, gameState, economy, city);
+function ensureMarketUndoSession(session, gameState, economy, city) {
+  if (session.marketUndoSnapshot) return;
+  beginMarketUndoSession(session, gameState, economy, city);
 }
 
 function continueMarketSale(session, city, gameState, economy, action, context) {
@@ -7118,10 +7123,11 @@ function executeMarketSale(
   context,
   sellAll = false
 ) {
-  ensureMarketUndoSession(session, "sell", gameState, economy, city);
+  ensureMarketUndoSession(session, gameState, economy, city);
   const sale = sellAll ? sellAllGood : sellGood;
   const result = sale(gameState, economy, city, goodId, quantity, tradeContext(session, context));
   session.marketSales += result.quantity;
+  session.marketTransactionCount += 1;
   recordIllicitMarketTransaction(session, result, "sell");
   const pnl = result.pnl === null ? "--" : signedDoubloons(result.pnl);
   session.feedback = result.quantity === 1
@@ -7131,26 +7137,21 @@ function executeMarketSale(
 }
 
 function clearMarketUndoSession(session) {
-  session.marketUndoNodeId = null;
   session.marketUndoSnapshot = null;
   session.marketUndoIllicitTradeVisit = null;
-  session.pendingMarketUndoNodeId = null;
+  session.marketPurchases = {};
+  session.marketSales = 0;
+  session.marketTransactionCount = 0;
 }
 
-function requiredPendingMarketUndoNodeId(session) {
-  const nodeId = session.pendingMarketUndoNodeId;
-  if (!["buy", "sell"].includes(nodeId) || session.nodeId !== "market-undo-confirm" ||
-      session.marketUndoNodeId !== nodeId || !session.marketUndoSnapshot) {
-    throw new Error("Market undo confirmation has no matching ledger snapshot");
+function requirePendingMarketUndo(session) {
+  if (session.nodeId !== "market-undo-confirm" || !marketUndoAvailable(session)) {
+    throw new Error("Market undo confirmation has no active ledger snapshot");
   }
-  return nodeId;
 }
 
-function marketUndoAvailable(session, nodeId) {
-  if (session.marketUndoNodeId !== nodeId || !session.marketUndoSnapshot) return false;
-  return nodeId === "buy"
-    ? Object.keys(session.marketPurchases || {}).length > 0
-    : session.marketSales > 0;
+function marketUndoAvailable(session) {
+  return Boolean(session.marketUndoSnapshot && session.marketTransactionCount > 0);
 }
 
 function destinationAcceptsPlayerTrade(city, gameState, simMinute) {
@@ -7388,14 +7389,15 @@ function sellView(session, city, gameState, economy, context) {
     ];
   });
   if (rows.length === 0) {
-    rows.push(option("No cargo to sell", { type: "node", nodeId: "sell" }, {
+    rows.push(option("No cargo to sell", { type: "node", nodeId: "market" }, {
       disabled: true,
       disabledReason: "The hold has no cargo buyers will take."
     }));
   }
-  rows.push(option("Back", { type: "leave-sell", nodeId: "root" }));
-  rows.push(option("Undo all sales", { type: "undo-market" }, {
-    disabled: !marketUndoAvailable(session, "sell")
+  rows.push(option("Back", { type: "leave-market", nodeId: "root" }));
+  rows.push(option("Undo all trades", { type: "undo-market" }, {
+    disabled: !marketUndoAvailable(session),
+    placement: "port-exit"
   }));
   return {
     speaker: speakerName(city),
@@ -7407,23 +7409,21 @@ function sellView(session, city, gameState, economy, context) {
     feedbackLineReserve: 2,
     optionHeight: 30,
     optionColumns: 2,
-    options: rows
+    presentation: { kind: "market", mode: "sell" },
+    options: [...marketModeOptions(), ...rows]
   };
 }
 
 function marketUndoConfirmationView(session, city) {
-  const nodeId = requiredPendingMarketUndoNodeId(session);
-  const purchases = nodeId === "buy";
+  requirePendingMarketUndo(session);
   return {
     speaker: speakerName(city),
     expressionId: "attentive",
-    text: purchases
-      ? "Shall I strike every purchase made during this visit from the ledger, return the coin, and send the goods ashore?"
-      : "Shall I strike every sale made during this visit from the ledger, return the goods to your hold, and reclaim the coin?",
+    text: "Shall I strike every market trade made during this visit from the ledger and restore your coin, cargo, and the factor's stock?",
     bodyTone: "danger",
     feedback: null,
     options: [
-      option(purchases ? "Undo the purchases" : "Undo the sales", {
+      option("Undo all trades", {
         type: "confirm-market-undo"
       }),
       option("Let the bargains stand", { type: "cancel-market-undo" }, {

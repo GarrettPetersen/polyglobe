@@ -322,7 +322,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   root: "action:back",
   barred: "action:back",
   "disguise-failed": "action:back",
-  buy: "action:buy",
+  market: "action:buy",
   equipment: "action:inventory",
   "equipment-nets": "action:fish",
   "equipment-cannons": "action:attack",
@@ -333,7 +333,6 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   "shipyard-investment-offer": "action:shipyard",
   "shipyard-investment": "action:shipyard",
   "shipyard-dividend-arrival": "action:shipyard",
-  sell: "action:sell",
   quest: "action:quest",
   "viking-longship": "action:viking",
   "japanese-matchlocks": "good:matchlocks",
@@ -353,8 +352,8 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
 const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   close: "action:leave",
   "wait-in-port": "action:wait",
-  "leave-buy": "action:back",
-  "leave-sell": "action:back",
+  "leave-market": "action:back",
+  "switch-market-mode": "action:buy",
   "undo-market": "action:back",
   "buy-max": "action:buy",
   "sell-all": "action:sell",
@@ -631,7 +630,7 @@ export function dialogueOptionIconId(option) {
   if (option.action.goodId) return tradeGoodIconId(option.action.goodId);
   if (option.action.itemId) return perkItemIconId(option.action.itemId);
   if (option.action.type === "node" || (
-    (option.action.type === "leave-buy" || option.action.type === "leave-sell") && option.action.nodeId
+    option.action.type === "leave-market" && option.action.nodeId
   )) {
     const iconId = DIALOGUE_NODE_ICON_IDS[option.action.nodeId];
     if (!iconId) throw new Error(`Dialogue node has no icon: ${option.action.nodeId}`);

@@ -15,6 +15,7 @@ import {
   createShipDialogueSession,
   passengerDialogueView,
   personalHostilityDialogue,
+  portMarketTransactionSessionOpen,
   portDialogueView,
   prepareDamageSurrenderDialogue,
   prepareSurrenderPrizeDialogue,
@@ -1145,23 +1146,23 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.equal(purchase.marketPurchase.good.id, market.options[buyIndex].action.goodId);
   assert.equal(purchase.marketPurchase.quantity, 1);
   assert.equal(portDialogueView(session, city, gameState, economy, [city]).expressionId, "pleased");
-  selectPortDialogueOption(session, city, gameState, economy, [city], 0, { simMinute: 115201 });
-  session.nodeId = "sell";
+  selectPortDialogueOption(session, city, gameState, economy, [city], 1, { simMinute: 115201 });
+  assert.equal(session.marketMode, "sell");
   const sell = portDialogueView(session, city, gameState, economy, [city]);
   assert.ok(sell.options.every((option) => option.action.goodId !== HARDTACK_GOOD_ID));
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.equal(sell.feedbackLineReserve, 2);
   assert.equal(sell.optionHeight, 30);
-  assert.equal(sell.options.at(-2).label, "Undo all sales");
-  assert.equal(sell.options.at(-2).placement, undefined);
-  assert.equal(sell.options.at(-2).disabled, true);
-  assert.equal(sell.options.at(-1).label, "Back");
+  assert.equal(sell.options.at(-2).label, "Back");
+  assert.equal(sell.options.at(-2).placement, "port-exit");
+  assert.equal(sell.options.at(-1).label, "Undo all trades");
   assert.equal(sell.options.at(-1).placement, "port-exit");
+  assert.equal(sell.options.at(-1).disabled, false);
   assert.ok(sell.options.some((option) => /P\/L [+-]\d+ db/.test(option.detail || "")));
   assert.ok(sell.options.some((option) => /WORLD/.test(option.detail || "")));
 
   const provisionsOnlyState = createGameState({ cargoCapacity: 20 });
-  const provisionsOnlySession = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const provisionsOnlySession = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
   const provisionsOnlySell = portDialogueView(
     provisionsOnlySession,
     city,
@@ -1170,9 +1171,11 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     [city]
   );
   assert.deepEqual(provisionsOnlySell.options.map((option) => option.label), [
+    "Buy",
+    "Sell",
     "No cargo to sell",
-    "Undo all sales",
-    "Back"
+    "Back",
+    "Undo all trades"
   ]);
 });
 
@@ -1315,7 +1318,7 @@ test("Colombo offers cartaz papers before opening its official cinnamon market",
 
   let view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.ok(view.options.some((entry) => entry.label === "Portuguese cartaz"));
-  const buyGoodsIndex = view.options.findIndex((entry) => entry.label === "Buy goods");
+  const buyGoodsIndex = view.options.findIndex((entry) => entry.label === "Market");
   selectPortDialogueOption(session, city, gameState, economy, [city], buyGoodsIndex, context);
 
   view = portDialogueView(session, city, gameState, economy, [city], context);
@@ -1348,7 +1351,7 @@ test("Colombo offers cartaz papers before opening its official cinnamon market",
     gameState,
     economy,
     [city],
-    view.options.findIndex((entry) => entry.label === "Buy goods"),
+    view.options.findIndex((entry) => entry.label === "Market"),
     context
   );
   view = portDialogueView(licensedSession, city, gameState, economy, [city], context);
@@ -1363,7 +1366,7 @@ test("Colombo offers cartaz papers before opening its official cinnamon market",
     context
   );
   assert.equal(cartazResult.cartazPurchase.valid, true);
-  assert.equal(licensedSession.nodeId, "buy");
+  assert.equal(licensedSession.nodeId, "market");
   view = portDialogueView(licensedSession, city, gameState, economy, [city], context);
   assert.equal(view.options.find((entry) => (
     entry.action.type === "buy" && entry.action.goodId === "cinnamon"
@@ -1404,7 +1407,7 @@ test("Colombo offers costly cartaz papers to hostile captains and a clear refusa
     gameState,
     economy,
     [city],
-    view.options.findIndex((entry) => entry.label === "Buy goods"),
+    view.options.findIndex((entry) => entry.label === "Market"),
     context
   );
   view = portDialogueView(session, city, gameState, economy, [city], context);
@@ -1420,7 +1423,7 @@ test("Colombo offers costly cartaz papers to hostile captains and a clear refusa
     gameState,
     economy,
     [city],
-    view.options.findIndex((entry) => entry.label === "Buy goods"),
+    view.options.findIndex((entry) => entry.label === "Market"),
     context
   );
   view = portDialogueView(session, city, gameState, economy, [city], context);
@@ -1461,7 +1464,7 @@ test("Colombo smugglers sell cinnamon under the existing illicit-trade enforceme
     gameState,
     economy,
     [city],
-    view.options.findIndex((entry) => entry.label === "Buy goods"),
+    view.options.findIndex((entry) => entry.label === "Market"),
     context
   );
   view = portDialogueView(session, city, gameState, economy, [city], context);
@@ -1485,7 +1488,7 @@ test("Colombo smugglers sell cinnamon under the existing illicit-trade enforceme
     context
   );
   assert.equal(result.illicitMarketAccessPolicyId, PORTUGUESE_CROWN_SPICE_POLICY_ID);
-  assert.equal(session.nodeId, "buy");
+  assert.equal(session.nodeId, "market");
 
   view = portDialogueView(session, city, gameState, economy, [city], context);
   const cinnamonIndex = view.options.findIndex((entry) => (
@@ -1522,7 +1525,7 @@ test("buying the final unit disables its stable market row instead of moving lat
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 200 });
   gameState.doubloons = 1000000;
-  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
 
   const initial = portDialogueView(session, city, gameState, economy, [city]);
   const buyIndexes = initial.options
@@ -1578,7 +1581,7 @@ test("scrolling a port market exposes every stocked trade good that cargo hints 
   marketState.get("wool-cloth").stock = 20;
   const gameState = createGameState({ cargoCapacity: 200 });
   gameState.doubloons = 1000000;
-  const session = createPortDialogueSession(rouen, { initialNodeId: "buy" });
+  const session = createPortDialogueSession(rouen, { initialNodeId: "market", marketMode: "buy" });
 
   const expectedGoodIds = portMarket(economy, rouen)
     .filter((row) => (
@@ -1616,7 +1619,7 @@ test("Ming markets visibly offer domestic gunpowder but not scarce imported matc
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 200 });
   gameState.doubloons = 100000;
-  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
 
   const market = portDialogueView(session, city, gameState, economy, [city]);
   const goodIds = market.options
@@ -1644,7 +1647,7 @@ test("selling the final unit disables its stable market row instead of moving la
   gameState.cargo.timber = 2;
   gameState.accounts.cargoCostBasis.wool = 10;
   gameState.accounts.cargoCostBasis.timber = 20;
-  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
 
   const before = portDialogueView(session, city, gameState, economy, [city]);
   const woolIndex = before.options.findIndex((entry) => entry.action.goodId === "wool");
@@ -1687,7 +1690,7 @@ test("edible cargo market rows show remaining sale clicks instead of rations", (
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.fish = 61 / 12;
   gameState.accounts.cargoCostBasis.fish = 50;
-  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
 
   const before = portDialogueView(session, city, gameState, economy, [city]);
   const fishIndex = before.options.findIndex((entry) => entry.action.goodId === "fish");
@@ -1724,7 +1727,7 @@ test("market capacity explains provision space reserved by the selected loadout"
   gameState.cargo.fish = tradeSpace + 1;
   gameState.accounts.cargoCostBasis.fish = tradeSpace + 1;
 
-  const sellSession = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const sellSession = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
   let view = portDialogueView(sellSession, city, gameState, economy, [city]);
   const fishIndex = view.options.findIndex((entry) => (
     entry.action.type === "sell" && entry.action.goodId === "fish"
@@ -1737,7 +1740,7 @@ test("market capacity explains provision space reserved by the selected loadout"
   const hold = cargoHoldStatus(gameState);
   assert.ok(hold.physicalWholeUnits < hold.capacity);
   assert.equal(hold.freeWholeUnits, 0);
-  const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const buySession = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
   view = portDialogueView(buySession, city, gameState, economy, [city]);
   const blockedPurchase = view.options.find((entry) => entry.action.type === "buy");
   assert.ok(blockedPurchase);
@@ -1762,7 +1765,7 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
   gameState.doubloons = 1000;
   const context = { shipStats: stats };
 
-  for (const nodeId of ["buy", "sell", "equipment", "equipment-nets", "equipment-cannons", "cargo", "loadout"]) {
+  for (const nodeId of ["market", "equipment", "equipment-nets", "equipment-cannons", "cargo", "loadout"]) {
     const session = createPortDialogueSession(city, { initialNodeId: nodeId });
     const view = portDialogueView(session, city, gameState, economy, [city], context);
     const back = view.options.find((entry) => entry.label === "Back");
@@ -1779,15 +1782,19 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
     );
   }
 
-  const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const buySession = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
   const buy = portDialogueView(buySession, city, gameState, economy, [city], context);
   assert.equal(buy.options.at(-3).label, "Change ship loadout");
-  assert.ok(buy.options.slice(0, -3).every((entry) => (
+  assert.deepEqual(buy.options.slice(0, 2).map((entry) => entry.placement), [
+    "mode-switch",
+    "mode-switch"
+  ]);
+  assert.ok(buy.options.slice(2, -3).every((entry) => (
     entry.action.type === "buy" || entry.action.type === "buy-max"
   )));
   assert.deepEqual(buy.options.slice(-2).map((entry) => entry.label), [
-    "Undo all purchases",
-    "Back"
+    "Back",
+    "Undo all trades"
   ]);
   assert.equal(buy.optionColumns, 2);
 
@@ -1812,7 +1819,7 @@ test("market rows put unit and bulk actions together and undo every purchase on 
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 8 });
   gameState.doubloons = 100000;
-  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
   const initial = portDialogueView(session, city, gameState, economy, [city]);
   const buy = initial.options.find((entry) => entry.action.type === "buy");
   const buyMax = initial.options.find((entry) => (
@@ -1824,7 +1831,7 @@ test("market rows put unit and bulk actions together and undo every purchase on 
   const initialUndoIndex = initial.options.findIndex((entry) => entry.action.type === "undo-market");
   assert.ok(initialUndoIndex >= 0);
   assert.equal(initial.options[initialUndoIndex].disabled, true);
-  assert.equal(initial.options[initialUndoIndex].placement, undefined);
+  assert.equal(initial.options[initialUndoIndex].placement, "port-exit");
   const port = economy.portStates.get(city.cityId);
   const before = {
     doubloons: gameState.doubloons,
@@ -1895,7 +1902,7 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.wool = 4;
   gameState.accounts.cargoCostBasis.wool = 80;
-  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
   const initial = portDialogueView(session, city, gameState, economy, [city]);
   const sell = initial.options.find((entry) => entry.action.type === "sell" && entry.action.goodId === "wool");
   const sellAll = initial.options.find((entry) => (
@@ -1917,7 +1924,7 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
   const initialUndoIndex = initial.options.findIndex((entry) => entry.action.type === "undo-market");
   assert.ok(initialUndoIndex >= 0);
   assert.equal(initial.options[initialUndoIndex].disabled, true);
-  assert.equal(initial.options[initialUndoIndex].placement, undefined);
+  assert.equal(initial.options[initialUndoIndex].placement, "port-exit");
   const sale = selectPortDialogueOption(
     session,
     city,
@@ -1941,7 +1948,7 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
     entry.action.type === "cancel-market-undo"
   ));
   selectPortDialogueOption(session, city, gameState, economy, [city], cancelIndex);
-  assert.equal(session.nodeId, "sell");
+  assert.equal(session.nodeId, "market");
   assert.equal(gameState.cargo.wool, undefined);
   const saleView = portDialogueView(session, city, gameState, economy, [city]);
   const repeatedUndoIndex = saleView.options.findIndex((entry) => entry.action.type === "undo-market");
@@ -1964,6 +1971,102 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
   assert.equal(session.marketSales, 0);
 });
 
+test("one market ledger undoes alternating purchases and sales together", () => {
+  const city = {
+    tileId: 304,
+    cityId: "lisbon|portugal",
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    factionId: "portugal",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.doubloons = 100000;
+  gameState.cargo.wool = 2;
+  gameState.accounts.cargoCostBasis.wool = 160;
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "market",
+    marketMode: "buy"
+  });
+  const port = economy.portStates.get(city.cityId);
+  const before = {
+    doubloons: gameState.doubloons,
+    cargo: { ...gameState.cargo },
+    cargoCostBasis: { ...gameState.accounts.cargoCostBasis },
+    realizedPnl: gameState.accounts.realizedPnl,
+    ledger: gameState.accounts.ledger.map((entry) => ({ ...entry })),
+    specie: port.specie,
+    stocks: Object.fromEntries([...port.goods].map(([goodId, state]) => [goodId, state.stock]))
+  };
+
+  let view = portDialogueView(session, city, gameState, economy, [city]);
+  assert.deepEqual(view.options.slice(0, 2).map((entry) => ({
+    label: entry.label,
+    placement: entry.placement
+  })), [
+    { label: "Buy", placement: "mode-switch" },
+    { label: "Sell", placement: "mode-switch" }
+  ]);
+  const buyIndex = view.options.findIndex((entry) => entry.action.type === "buy" && !entry.disabled);
+  selectPortDialogueOption(session, city, gameState, economy, [city], buyIndex);
+  const sharedSnapshot = session.marketUndoSnapshot;
+  assert.equal(portMarketTransactionSessionOpen(session), true);
+
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  const sellModeIndex = view.options.findIndex((entry) => (
+    entry.action.type === "switch-market-mode" && entry.action.mode === "sell"
+  ));
+  selectPortDialogueOption(session, city, gameState, economy, [city], sellModeIndex);
+  assert.equal(session.marketMode, "sell");
+  assert.equal(session.marketUndoSnapshot, sharedSnapshot);
+  assert.equal(portMarketTransactionSessionOpen(session), true);
+
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  const sellIndex = view.options.findIndex((entry) => (
+    entry.action.type === "sell" && entry.action.goodId === "wool" && !entry.disabled
+  ));
+  selectPortDialogueOption(session, city, gameState, economy, [city], sellIndex);
+  assert.equal(session.marketTransactionCount, 2);
+  assert.equal(session.marketUndoSnapshot, sharedSnapshot);
+
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  const undoIndex = view.options.findIndex((entry) => entry.action.type === "undo-market");
+  assert.equal(view.options[undoIndex].label, "Undo all trades");
+  assert.equal(view.options[undoIndex].disabled, false);
+  selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex);
+  assert.equal(portMarketTransactionSessionOpen(session), true);
+  const confirmation = portDialogueView(session, city, gameState, economy, [city]);
+  const confirmIndex = confirmation.options.findIndex((entry) => (
+    entry.action.type === "confirm-market-undo"
+  ));
+  selectPortDialogueOption(session, city, gameState, economy, [city], confirmIndex);
+
+  assert.deepEqual({
+    doubloons: gameState.doubloons,
+    cargo: gameState.cargo,
+    cargoCostBasis: gameState.accounts.cargoCostBasis,
+    realizedPnl: gameState.accounts.realizedPnl,
+    ledger: gameState.accounts.ledger,
+    specie: port.specie,
+    stocks: Object.fromEntries([...port.goods].map(([goodId, state]) => [goodId, state.stock]))
+  }, before);
+  assert.equal(session.nodeId, "market");
+  assert.equal(session.marketMode, "sell");
+  assert.equal(session.selectedIndex, 1);
+  assert.equal(session.marketTransactionCount, 0);
+  assert.equal(portMarketTransactionSessionOpen(session), true);
+
+  view = portDialogueView(session, city, gameState, economy, [city]);
+  const leaveIndex = view.options.findIndex((entry) => entry.action.type === "leave-market");
+  selectPortDialogueOption(session, city, gameState, economy, [city], leaveIndex, {
+    sailingDistanceKm: () => 0
+  });
+  assert.equal(portMarketTransactionSessionOpen(session), false);
+});
+
 test("sell all remains actionable when only one unit is held", () => {
   const city = {
     tileId: 303,
@@ -1979,7 +2082,7 @@ test("sell all remains actionable when only one unit is held", () => {
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.wool = 1;
   gameState.accounts.cargoCostBasis.wool = 20;
-  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
   const view = portDialogueView(session, city, gameState, economy, [city]);
   const sellAllIndex = view.options.findIndex((entry) => (
     entry.action.type === "sell-all" && entry.action.goodId === "wool"
@@ -2023,7 +2126,8 @@ test("a factor warns before delivering Papally prohibited arms to Ottoman buyers
   const papalStanding = factionReputation(gameState, "papal-states");
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortDialogueSession(city, {
-    initialNodeId: "sell",
+    initialNodeId: "market",
+    marketMode: "sell",
     admittedToPort: true
   });
   const context = { simMinute: 100 };
@@ -2060,7 +2164,7 @@ test("sell all matches the same sequence of rounded prices as individual sales",
   const gameState = createGameState({ cargoCapacity: 20, playerCharacter: null });
   gameState.cargo.wool = 3;
   gameState.accounts.cargoCostBasis.wool = 24;
-  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
   const view = portDialogueView(session, city, gameState, economy, [city]);
   const sellAllIndex = view.options.findIndex((entry) => (
     entry.action.type === "sell-all" && entry.action.goodId === "wool"
@@ -2119,7 +2223,7 @@ test("founded colonies state and display their 15% goods discount", () => {
   const greeting = portDialogueView(greetingSession, city, gameState, economy, [city]);
   assert.match(greeting.text, /15% off goods you buy/);
 
-  const buySession = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const buySession = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
   const buy = portDialogueView(buySession, city, gameState, economy, [city]);
   const marketRows = buy.options.filter((entry) => entry.action.type === "buy");
   assert.ok(marketRows.length > 0);
@@ -2198,7 +2302,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
   const economy = createWorldEconomy({ ports, startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 200 });
   gameState.doubloons = 1000;
-  const session = createPortDialogueSession(ternate, { initialNodeId: "buy" });
+  const session = createPortDialogueSession(ternate, { initialNodeId: "market", marketMode: "buy" });
 
   for (const goodId of ["fish", "cloves"]) {
     const market = portDialogueView(session, ternate, gameState, economy, ports);
@@ -2221,7 +2325,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
   );
 
   const market = portDialogueView(session, ternate, gameState, economy, ports);
-  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-buy");
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-market");
   const result = selectPortDialogueOption(
     session,
     ternate,
@@ -2443,9 +2547,9 @@ test("leaving the buy screen without a purchase returns directly to port busines
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
-  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
   const market = portDialogueView(session, city, gameState, economy, [city]);
-  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-buy");
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-market");
 
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], backIndex, {
@@ -2515,9 +2619,9 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
     distanceKm: 14200
   });
 
-  const session = createPortDialogueSession(ternate, { initialNodeId: "buy" });
+  const session = createPortDialogueSession(ternate, { initialNodeId: "market", marketMode: "buy" });
   const market = portDialogueView(session, ternate, gameState, economy, ports);
-  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-buy");
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-market");
   const hintResult = selectPortDialogueOption(
     session,
     ternate,
@@ -2548,7 +2652,7 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
     random: () => 0
   }), null);
 
-  const laterSession = createPortDialogueSession(ternate, { initialNodeId: "buy" });
+  const laterSession = createPortDialogueSession(ternate, { initialNodeId: "market", marketMode: "buy" });
   const laterMarket = portDialogueView(laterSession, ternate, gameState, economy, ports);
   selectPortDialogueOption(
     laterSession,
@@ -2556,7 +2660,7 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
     gameState,
     economy,
     ports,
-    laterMarket.options.findIndex((entry) => entry.action.type === "leave-buy"),
+    laterMarket.options.findIndex((entry) => entry.action.type === "leave-market"),
     {
       simMinute: 100 + QUEST_CARGO_HINT_DECLINE_COOLDOWN_MINUTES,
       sailingDistanceKm,
@@ -2725,14 +2829,14 @@ test("market buy controls subtly mark goods still needed for quests", () => {
     country: "Iceland"
   }, { spawnChance: 1, simMinute: 0 });
 
-  const session = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
   const view = portDialogueView(session, city, state, economy, [city]);
   const woolControls = view.options.filter((entry) => entry.action.goodId === "wool");
   assert.equal(woolControls.length, 2);
   assert.ok(woolControls.every((entry) => entry.emphasis === "quest-cargo"));
 
   state.cargo.wool = 8;
-  const stockedSession = createPortDialogueSession(city, { initialNodeId: "buy" });
+  const stockedSession = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "buy" });
   const stockedView = portDialogueView(stockedSession, city, state, economy, [city]);
   assert.ok(stockedView.options
     .filter((entry) => entry.action.goodId === "wool")
@@ -2771,7 +2875,7 @@ test("quest cargo sale controls are red and warn once per port visit", () => {
   }, { spawnChance: 1, simMinute: 0 });
   state.cargo.wool = 8;
 
-  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
   let view = portDialogueView(session, city, state, economy, [city]);
   const woolControls = view.options.filter((entry) => entry.action.goodId === "wool");
   assert.equal(woolControls.length, 2);
@@ -2790,7 +2894,7 @@ test("quest cargo sale controls are red and warn once per port visit", () => {
     entry.action.type === "confirm-quest-cargo-sale"
   ));
   selectPortDialogueOption(session, city, state, economy, [city], confirmIndex);
-  assert.equal(session.nodeId, "sell");
+  assert.equal(session.nodeId, "market");
   assert.equal(state.cargo.wool, 7);
 
   view = portDialogueView(session, city, state, economy, [city]);
@@ -2798,7 +2902,7 @@ test("quest cargo sale controls are red and warn once per port visit", () => {
     entry.action.type === "sell" && entry.action.goodId === "wool"
   ));
   selectPortDialogueOption(session, city, state, economy, [city], secondSaleIndex);
-  assert.equal(session.nodeId, "sell");
+  assert.equal(session.nodeId, "market");
   assert.equal(state.cargo.wool, 6);
 });
 
@@ -2875,10 +2979,10 @@ test("leaving the sell screen without a sale recommends a market for held trade 
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.cloves = 2;
   gameState.accounts.cargoCostBasis.cloves = 0;
-  const session = createPortDialogueSession(ternate, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(ternate, { initialNodeId: "market", marketMode: "sell" });
   const market = portDialogueView(session, ternate, gameState, economy, ports);
   const backIndex = dialogueBackOptionIndex(market);
-  assert.equal(market.options[backIndex].action.type, "leave-sell");
+  assert.equal(market.options[backIndex].action.type, "leave-market");
 
   const result = selectPortDialogueOption(session, ternate, gameState, economy, ports, backIndex, {
     sailingDistanceKm: testSailingDistances([[ternate, london, 14200]])
@@ -2922,7 +3026,7 @@ test("held-cargo price advice does not recommend a loss-making destination", () 
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.cloves = 2;
   gameState.accounts.cargoCostBasis.cloves = 100000;
-  const session = createPortDialogueSession(ternate, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(ternate, { initialNodeId: "market", marketMode: "sell" });
   const market = portDialogueView(session, ternate, gameState, economy, ports);
   const backIndex = dialogueBackOptionIndex(market);
 
@@ -3061,7 +3165,7 @@ test("held-cargo price advice prefers a distant profit over a nearby loss", () =
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.fish = 1;
   gameState.accounts.cargoCostBasis.fish = (nearbyRevenue + distantRevenue) / 2;
-  const session = createPortDialogueSession(origin, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(origin, { initialNodeId: "market", marketMode: "sell" });
   const market = portDialogueView(session, origin, gameState, economy, ports);
   const backIndex = dialogueBackOptionIndex(market);
   const result = selectPortDialogueOption(session, origin, gameState, economy, ports, backIndex, {
@@ -3111,10 +3215,10 @@ test("trade advice praises the current port when its cargo price leads the local
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.fish = 2;
   gameState.accounts.cargoCostBasis.fish = 0;
-  const session = createPortDialogueSession(istanbul, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(istanbul, { initialNodeId: "market", marketMode: "sell" });
   const sailingDistanceKm = testSailingDistances([[istanbul, mudanya, 140]]);
   const market = portDialogueView(session, istanbul, gameState, economy, ports);
-  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-sell");
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-market");
 
   assert.ok(
     quotePortPurchase(economy, istanbul, "fish", 2) >
@@ -3138,7 +3242,7 @@ test("trade advice praises the current port when its cargo price leads the local
 
   istanbulFish.stock = istanbulFish.targetStock * 100;
   mudanyaFish.stock = 0;
-  const destinationSession = createPortDialogueSession(istanbul, { initialNodeId: "sell" });
+  const destinationSession = createPortDialogueSession(istanbul, { initialNodeId: "market", marketMode: "sell" });
   const destinationMarket = portDialogueView(
     destinationSession,
     istanbul,
@@ -3147,7 +3251,7 @@ test("trade advice praises the current port when its cargo price leads the local
     ports
   );
   const destinationBackIndex = destinationMarket.options.findIndex(
-    (entry) => entry.action.type === "leave-sell"
+    (entry) => entry.action.type === "leave-market"
   );
   const destinationResult = selectPortDialogueOption(
     destinationSession,
@@ -3186,9 +3290,9 @@ test("leaving the sell screen with no sellable cargo returns directly to port bu
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.hardtack = 1;
   gameState.accounts.cargoCostBasis.hardtack = 2;
-  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
   const market = portDialogueView(session, city, gameState, economy, [city]);
-  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-sell");
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-market");
 
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], backIndex),
@@ -3226,12 +3330,12 @@ test("leaving the sell screen after a completed sale does not offer trade advice
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.cloves = 2;
   gameState.accounts.cargoCostBasis.cloves = 20;
-  const session = createPortDialogueSession(porto, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(porto, { initialNodeId: "market", marketMode: "sell" });
   let market = portDialogueView(session, porto, gameState, economy, ports);
   const sellIndex = market.options.findIndex((entry) => entry.action.goodId === "cloves");
   selectPortDialogueOption(session, porto, gameState, economy, ports, sellIndex);
   market = portDialogueView(session, porto, gameState, economy, ports);
-  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-sell");
+  const backIndex = market.options.findIndex((entry) => entry.action.type === "leave-market");
 
   assert.deepEqual(
     selectPortDialogueOption(session, porto, gameState, economy, ports, backIndex, {
@@ -3260,7 +3364,7 @@ test("selling all cloves and leaving the market cannot restore the departed carg
   const gameState = createGameState({ cargoCapacity: 20 });
   gameState.cargo.cloves = 6;
   gameState.accounts.cargoCostBasis.cloves = 120;
-  const session = createPortDialogueSession(city, { initialNodeId: "sell" });
+  const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
   let view = portDialogueView(session, city, gameState, economy, [city]);
   const sellAllIndex = view.options.findIndex((entry) => (
     entry.action.type === "sell-all" && entry.action.goodId === "cloves"
@@ -3269,7 +3373,7 @@ test("selling all cloves and leaving the market cannot restore the departed carg
   selectPortDialogueOption(session, city, gameState, economy, [city], sellAllIndex);
   assert.equal(gameState.cargo.cloves, undefined);
   view = portDialogueView(session, city, gameState, economy, [city]);
-  const backIndex = view.options.findIndex((entry) => entry.action.type === "leave-sell");
+  const backIndex = view.options.findIndex((entry) => entry.action.type === "leave-market");
   selectPortDialogueOption(session, city, gameState, economy, [city], backIndex);
 
   assert.equal(session.nodeId, "root");
@@ -3956,7 +4060,7 @@ test("a successful disguise opens commerce but not faction business", () => {
     passengerOffer: { passenger: { name: "Pierre" } }
   });
   assert.match(root.text, /Keep your disguise intact/);
-  assert.ok(root.options.some((entry) => entry.label === "Buy goods"));
+  assert.ok(root.options.some((entry) => entry.label === "Market"));
   assert.ok(root.options.every((entry) => entry.label !== "Ask about work"));
   assert.ok(root.options.every((entry) => !entry.label.startsWith("Speak with")));
   assert.ok(root.options.every((entry) => entry.label !== "Letter of marque"));
@@ -3991,7 +4095,7 @@ test("foreign captains must find an illicit market to trade at Ming ports", () =
   let root = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(root.text, /maritime prohibition/);
   assert.match(root.text, /Water, provisions, and ordinary harbor services remain available/);
-  assert.ok(root.options.every((entry) => entry.label !== "Buy goods" && entry.label !== "Sell cargo"));
+  assert.ok(root.options.every((entry) => entry.label !== "Market"));
   assert.ok(root.options.some((entry) => entry.label === "Ship loadout"));
   assert.ok(root.options.every((entry) => entry.label !== "Equipment" && entry.label !== "Visit shipyard"));
   const illicitIndex = root.options.findIndex((entry) => entry.label === "Seek illicit market");
@@ -4000,9 +4104,9 @@ test("foreign captains must find an illicit market to trade at Ming ports", () =
   assert.equal(result.illicitMarketAccessPolicyId, "ming-maritime-prohibition");
 
   root = portDialogueView(session, city, gameState, economy, [city], context);
-  const buyIllicitIndex = root.options.findIndex((entry) => entry.label === "Buy illicit goods");
+  const buyIllicitIndex = root.options.findIndex((entry) => entry.label === "Market");
   assert.ok(buyIllicitIndex >= 0);
-  assert.ok(root.options.some((entry) => entry.label === "Sell cargo illicitly"));
+  assert.equal(root.options.filter((entry) => entry.label === "Market").length, 1);
   selectPortDialogueOption(session, city, gameState, economy, [city], buyIllicitIndex, context);
   const buy = portDialogueView(session, city, gameState, economy, [city], context);
   const buyIndex = buy.options.findIndex((entry) => entry.action.type === "buy" && !entry.disabled);
@@ -4053,15 +4157,15 @@ test("captains admitted under safe passage can seek an illicit wartime market", 
 
   let root = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(root.text, /Wartime orders close this market/);
-  assert.ok(root.options.every((entry) => entry.label !== "Buy goods" && entry.label !== "Sell cargo"));
+  assert.ok(root.options.every((entry) => entry.label !== "Market"));
   const illicitIndex = root.options.findIndex((entry) => entry.label === "Seek illicit market");
   assert.ok(illicitIndex >= 0);
 
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
   assert.equal(result.illicitMarketAccessPolicyId, WARTIME_TRADE_RESTRICTION_ID);
   root = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.ok(root.options.some((entry) => entry.label === "Buy illicit goods"));
-  assert.ok(root.options.some((entry) => entry.label === "Sell cargo illicitly"));
+  assert.ok(root.options.some((entry) => entry.label === "Market"));
+  assert.equal(root.options.filter((entry) => entry.label === "Market").length, 1);
 });
 
 test("a failed Ming illicit-market approach costs standing and cannot be repeated that visit", () => {
@@ -4129,8 +4233,8 @@ test("pirate hideouts speak and trade like covert havens", () => {
 
   const root = portDialogueView(session, hideout, gameState, economy, [marketPort]);
   assert.match(root.text, /Powder, provisions, and silence/);
-  assert.ok(root.options.some((entry) => entry.label === "Buy doubtful goods"));
-  assert.ok(root.options.some((entry) => entry.label === "Fence cargo"));
+  assert.ok(root.options.some((entry) => entry.label === "Market"));
+  assert.equal(root.options.filter((entry) => entry.label === "Market").length, 1);
   assert.ok(root.options.some((entry) => entry.label === "Lie low in the cove"));
   assert.ok(root.options.some((entry) => entry.label === "Put to sea"));
   assert.ok(root.options.every((entry) => entry.label !== "Ask about work"));

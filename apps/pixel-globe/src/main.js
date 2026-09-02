@@ -950,6 +950,7 @@ import {
   createShipDialogueSession,
   passengerDialogueView,
   personalHostilityDialogue,
+  portMarketTransactionSessionOpen,
   portDialogueView,
   prepareDamageSurrenderDialogue,
   preparePassengerDialogueArrival,
@@ -11434,7 +11435,8 @@ function updateCaptureTrade(sequence) {
       );
     }
     dialogueState = createPortDialogueSession(cityCall, {
-      initialNodeId: sequence.variant === "buy" ? "buy" : "sell",
+      initialNodeId: "market",
+      marketMode: sequence.variant,
       admittedToPort: true
     });
     dialogueLayout = createDialogueLayoutState();
@@ -11799,7 +11801,7 @@ function updateCaptureColonization(sequence) {
       openCapturePortNode(sequence.cityId, "root");
       emitCaptureEvent("capture-beat", { action: "visit-established-colony", city: sequence.cityId });
     }
-    if (captureCue("browse-established-colony-market", 6.0)) captureChooseDialogueNode("buy");
+    if (captureCue("browse-established-colony-market", 6.0)) captureChooseDialogueNode("market");
     return;
   }
   if (captureCue("open-colony", 1.0)) openCaptureColonizationDialogue(sequence.cityId);
@@ -23403,6 +23405,7 @@ function applyDialogueOption(optionIndex) {
   let dialogueNpcShipId = null;
   let missionGiftCharacter = null;
   const previousNodeId = dialogueState.nodeId || null;
+  const previousMarketMode = dialogueState.marketMode || null;
   const purchaseIconOrigin = dialogueState.kind === "port"
     ? dialogueOptionIconOrigin(optionIndex)
     : null;
@@ -23449,9 +23452,8 @@ function applyDialogueOption(optionIndex) {
       );
       showSurvivalNotice(`${result.perkItemPurchase.item.label.toUpperCase()} ACQUIRED`, "good");
     }
-    const marketPageStillOpen = dialogueState.kind === "port" &&
-      (dialogueState.nodeId === "buy" || dialogueState.nodeId === "sell");
-    if ((!result.marketPurchase && !result.marketSale) || !marketPageStillOpen) {
+    const marketLedgerOpen = portMarketTransactionSessionOpen(dialogueState);
+    if (!marketLedgerOpen) {
       saveVoyageNow("port transaction");
     }
     if (result.action?.type === "open-passenger") {
@@ -23781,7 +23783,10 @@ function applyDialogueOption(optionIndex) {
       continuePortArrivalDialogues()) {
     return;
   }
-  if ((dialogueState.nodeId || null) !== previousNodeId) dialogueLayout.scrollOffset = 0;
+  if ((dialogueState.nodeId || null) !== previousNodeId ||
+      (dialogueState.marketMode || null) !== previousMarketMode) {
+    dialogueLayout.scrollOffset = 0;
+  }
   clampDialogueSelection();
   ensureDialoguePortraitLoaded();
   dirty = true;
@@ -32445,7 +32450,8 @@ function updateFetchQuestReadinessAlerts() {
 function presentPendingFetchQuestCaptainDialogue({ allowPortMarket = false } = {}) {
   if (pendingFetchQuestCaptainDialogues.length === 0 || !gameState?.playerCharacter) return false;
   const portMarketMayBeInterrupted = allowPortMarket &&
-    dialogueState?.kind === "port" && dialogueState.nodeId === "buy";
+    dialogueState?.kind === "port" && dialogueState.nodeId === "market" &&
+    dialogueState.marketMode === "buy";
   if (startMenu || menusAreOpen() || (dialogueState && !portMarketMayBeInterrupted) ||
       playerIntroModal || captainAlertModal ||
       portWaitState || gameOverReason) {
@@ -60206,7 +60212,9 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
     : [];
   const optionHeight = dialogueOptionsHeight(view, dialogueFont, optionW);
   const optionGroups = dialogueOptionGroups(view.options);
+  const modeSwitchReserve = optionGroups.modeSwitches.length > 0 ? optionHeight : 0;
   const optionRowCount = dialogueRegularOptionRows(view, optionGroups.regular).length +
+    (optionGroups.modeSwitches.length > 0 ? 1 : 0) +
     (optionGroups.exits.length > 0 ? 1 : 0);
   const maximumPanelHeight = SCREEN_H - 13;
   let feedbackLines = view.feedback
@@ -60222,7 +60230,8 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   });
   const feedbackReserve = dialogueLineHeight * feedbackSlotCount;
   const bodyLineLimit = Math.max(1, Math.floor(
-    (maximumPanelHeight - textYOffset - optionHeight - feedbackReserve - 14) / dialogueLineHeight
+    (maximumPanelHeight - textYOffset - optionHeight - modeSwitchReserve - feedbackReserve - 14) /
+      dialogueLineHeight
   ) - topicLines.length);
   let bodyLines = wrapPixelText(view.text, dialogueFont, bodyTextW, bodyLineLimit);
   const bodyEndOffset = textYOffset +
@@ -60238,7 +60247,7 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   const panel = geometry.panel;
   const optionBottom = panel.y + panel.h - 9;
   const safeOptions = dialogueOptionStackLayout({
-    desiredY: panel.y + optionYOffset,
+    desiredY: panel.y + optionYOffset + modeSwitchReserve,
     bottom: optionBottom,
     optionHeight,
     regularCount: optionGroups.regular.length,
@@ -60246,7 +60255,7 @@ function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {
   });
   const textLineCapacity = Math.max(
     0,
-    Math.floor((safeOptions.y - 5 - (panel.y + textYOffset)) / dialogueLineHeight)
+    Math.floor((safeOptions.y - modeSwitchReserve - 5 - (panel.y + textYOffset)) / dialogueLineHeight)
   );
   const bodyTextLineCapacity = Math.max(0, textLineCapacity - topicLines.length);
   if (bodyLines.length + feedbackLines.length > bodyTextLineCapacity) {
@@ -61854,6 +61863,19 @@ function drawDialogueOptions(
     }
   }
 
+  if (groups.modeSwitches.length > 0) {
+    const modeRects = dialogueRegularOptionRowRects({
+      x,
+      y: stack.y - optionHeight,
+      width,
+      optionHeight,
+      count: groups.modeSwitches.length
+    });
+    groups.modeSwitches.forEach((entry, index) => {
+      drawDialogueOptionEntry(view, entry, modeRects[index], font, false);
+    });
+  }
+
   if (groups.exits.length > 0) {
     if (groups.regular.length > 0) {
       ctx.fillStyle = PIRATE_MENU_CHART_LINE;
@@ -61901,10 +61923,12 @@ function drawDialogueOptionEntry(view, entry, rect, font, isExit) {
   const selected = index === dialogueState.selectedIndex;
   const activeLedgerTab = view.presentation?.kind === "player-shipyard-ledger" &&
     option.action.type === "shipyard-ledger-tab" && option.action.tab === view.presentation.tab;
+  const activeMarketMode = view.presentation?.kind === "market" &&
+    option.action.type === "switch-market-mode" && option.action.mode === view.presentation.mode;
   if (isExit && !option.disabled) drawPirateHudButton(rect, selected);
   else drawPiratePaperInset(
     rect,
-    (selected || activeLedgerTab) && !option.disabled,
+    (selected || activeLedgerTab || activeMarketMode) && !option.disabled,
     option.emphasis === "quest-cargo"
       ? PIRATE_MENU_QUEST_CARGO
       : option.emphasis === "quest-cargo-danger"
@@ -62015,7 +62039,8 @@ function dialogueRegularOptionRows(view, entries) {
 
 function dialogueSelectableOptionRows(view) {
   const groups = dialogueOptionGroups(view.options);
-  const rows = dialogueRegularOptionRows(view, groups.regular);
+  const rows = groups.modeSwitches.length > 0 ? [[...groups.modeSwitches]] : [];
+  rows.push(...dialogueRegularOptionRows(view, groups.regular));
   if (groups.exits.length > 0) rows.push([...groups.exits]);
   if (rows.length === 0) throw new Error("Dialogue has no selectable option rows");
   return rows;

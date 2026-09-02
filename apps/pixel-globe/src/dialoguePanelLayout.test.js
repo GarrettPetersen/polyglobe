@@ -306,6 +306,31 @@ test("three-tab rows measure each tab without narrowing later full-width actions
   assert.deepEqual(widths, [61, 61, 61, 191]);
 });
 
+test("market modes form one pinned two-cell switch above ordinary actions", () => {
+  const options = [
+    { label: "Buy", placement: "mode-switch" },
+    { label: "Sell", placement: "mode-switch" },
+    { label: "Buy 1 Wool" },
+    { label: "Back", placement: "port-exit" }
+  ];
+  const groups = dialogueOptionGroups(options);
+  assert.deepEqual(groups.modeSwitches.map((entry) => entry.index), [0, 1]);
+  assert.deepEqual(groups.regular.map((entry) => entry.index), [2]);
+  assert.deepEqual(groups.exits.map((entry) => entry.index), [3]);
+  assert.deepEqual(dialogueOptionMeasurementWidths({
+    options,
+    width: 220,
+    regularWidthReserve: 29
+  }), [108, 108, 191, 220]);
+});
+
+test("a mode switch fails loudly unless both choices are present", () => {
+  assert.throws(
+    () => dialogueOptionGroups([{ label: "Buy", placement: "mode-switch" }]),
+    /requires exactly two actions/
+  );
+});
+
 test("one-row dialogue paging keeps previous and next touch targets separate", () => {
   const navigation = dialogueOptionNavigationLayout({
     x: 15,

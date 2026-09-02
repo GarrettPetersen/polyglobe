@@ -125,6 +125,60 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "All market trades were undone.": Object.freeze({
+    "zh-Hans": "所有市场交易均已撤销。",
+    ru: "Все сделки на рынке отменены.",
+    es: "Se deshicieron todas las transacciones del mercado.",
+    "pt-BR": "Todas as transações do mercado foram desfeitas.",
+    ja: "市場での取引をすべて取り消しました。",
+    de: "Alle Marktgeschäfte wurden rückgängig gemacht.",
+    fr: "Toutes les transactions du marché ont été annulées.",
+    pl: "Wszystkie transakcje na targu zostały cofnięte.",
+    "zh-Hant": "所有市場交易均已撤銷。",
+    ko: "시장 거래를 모두 되돌렸습니다."
+  }),
+  Buy: Object.freeze({
+    "zh-Hans": "购买", ru: "Купить", es: "Comprar", "pt-BR": "Comprar", ja: "買う",
+    de: "Kaufen", fr: "Acheter", pl: "Kup", "zh-Hant": "購買", ko: "구매"
+  }),
+  Market: Object.freeze({
+    "zh-Hans": "市场", ru: "Рынок", es: "Mercado", "pt-BR": "Mercado", ja: "市場",
+    de: "Markt", fr: "Marché", pl: "Targ", "zh-Hant": "市場", ko: "시장"
+  }),
+  Sell: Object.freeze({
+    "zh-Hans": "卖出", ru: "Продать", es: "Vender", "pt-BR": "Vender", ja: "売る",
+    de: "Verkaufen", fr: "Vendre", pl: "Sprzedaj", "zh-Hant": "賣出", ko: "판매"
+  }),
+  "Shall I strike every market trade made during this visit from the ledger and restore your coin, cargo, and the factor's stock?": Object.freeze({
+    "zh-Hans": "要从账簿中划去本次造访期间的所有市场交易，并恢复你的钱币、货物和港口商人的库存吗？",
+    ru: "Прикажете вычеркнуть из книги все сделки на рынке за это посещение и восстановить ваши монеты, груз и запасы портового купца?",
+    es: "¿Queréis que tache del libro todas las transacciones del mercado realizadas durante esta visita y restituya vuestras monedas, la carga y las existencias del factor?",
+    "pt-BR": "Quereis que eu risque do livro todas as transações do mercado feitas durante esta visita e restitua vossas moedas, carga e o estoque do feitor?",
+    ja: "今回の訪問中に行った市場取引をすべて帳簿から消し、貴殿の貨幣と積荷、商館主の在庫を元に戻しますか？",
+    de: "Soll ich alle Marktgeschäfte dieses Besuchs aus dem Hauptbuch streichen und Eure Münzen, Ladung und den Bestand des Faktors wiederherstellen?",
+    fr: "Dois-je rayer du registre toutes les transactions du marché effectuées pendant cette visite et rétablir vos pièces, votre cargaison et le stock du facteur ?",
+    pl: "Czy mam wykreślić z księgi wszystkie transakcje targowe dokonane podczas tej wizyty i przywrócić wasze monety, ładunek oraz zapasy faktora?",
+    "zh-Hant": "要從賬簿中劃去本次造訪期間的所有市場交易，並恢復你的錢幣、貨物和港口商人的庫存嗎？",
+    ko: "이번 방문 중 이뤄진 모든 시장 거래를 장부에서 지우고 선장님의 돈과 화물, 상관장의 재고를 되돌릴까요?"
+  }),
+  "The market trades remain entered in the ledger.": Object.freeze({
+    "zh-Hans": "市场交易仍记在账簿中。",
+    ru: "Сделки на рынке остаются записанными в книге.",
+    es: "Las transacciones del mercado siguen asentadas en el libro.",
+    "pt-BR": "As transações do mercado permanecem registradas no livro.",
+    ja: "市場での取引は帳簿に残されています。",
+    de: "Die Marktgeschäfte bleiben im Hauptbuch eingetragen.",
+    fr: "Les transactions du marché restent inscrites au registre.",
+    pl: "Transakcje targowe pozostają zapisane w księdze.",
+    "zh-Hant": "市場交易仍記在賬簿中。",
+    ko: "시장 거래는 장부에 그대로 기록되어 있습니다."
+  }),
+  "Undo all trades": Object.freeze({
+    "zh-Hans": "撤销所有交易", ru: "Отменить все сделки", es: "Deshacer todas las transacciones",
+    "pt-BR": "Desfazer todas as transações", ja: "すべての取引を取り消す",
+    de: "Alle Geschäfte rückgängig machen", fr: "Annuler toutes les transactions",
+    pl: "Cofnij wszystkie transakcje", "zh-Hant": "撤銷所有交易", ko: "모든 거래 되돌리기"
+  }),
   "Chan Chan has fallen. The company is ashore; Spain's flag flies over Trujillo. Keep the {0} doubloons. I march for Cuzco at dawn. If I live to take the empire, word will reach Trujillo; return then.": Object.freeze({
     "zh-Hans": "昌昌陷落了。部队已经登陆；西班牙旗帜飘扬在特鲁希略上空。留下这 {0} 枚达布隆。我黎明时向库斯科进军。若我能活着征服帝国，消息会传到特鲁希略；届时再回来。",
     ru: "Чан-Чан пал. Отряд высадился; над Трухильо реет испанский флаг. Оставьте себе {0} дублонов. На рассвете я выступаю к Куско. Если доживу до покорения империи, в Трухильо придёт весть; тогда возвращайтесь.",
