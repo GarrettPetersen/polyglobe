@@ -85,6 +85,7 @@ const appEntries = [
 
 const cityVisualizerEntries = [
   ["city-visualizer/index.html", "city-visualizer/index.html"],
+  ["city-visualizer/bootstrap.js", "city-visualizer/bootstrap.js"],
   ["city-visualizer/styles.css", "city-visualizer/styles.css"],
   ["city-visualizer/assets", "city-visualizer/assets"],
   ["city-visualizer/data", "city-visualizer/data"]
