@@ -178,6 +178,14 @@ const REVIEWED_OVERRIDES = Object.freeze({
     de: "Alle Geschäfte rückgängig machen", fr: "Annuler toutes les transactions",
     pl: "Cofnij wszystkie transakcje", "zh-Hant": "撤銷所有交易", ko: "모든 거래 되돌리기"
   }),
+  "Assault armour coverage +{0}%": Object.freeze({
+    "zh-Hans": "突击护甲覆盖 +{0}%", ru: "Покрытие брони при штурме +{0}%",
+    es: "Cobertura de armadura en asalto +{0}%",
+    "pt-BR": "Cobertura de armadura em assalto +{0}%",
+    ja: "強襲時の装甲範囲 +{0}%", de: "Rüstungsdeckung beim Sturm +{0}%",
+    fr: "Couverture d’armure en assaut +{0}%", pl: "Pokrycie pancerza w szturmie +{0}%",
+    "zh-Hant": "突擊護甲覆蓋 +{0}%", ko: "강습 방어구 범위 +{0}%"
+  }),
   ...reviewedCrewOverrides(),
   ...reviewedPortCityOverrides(),
   "Chan Chan has fallen. The company is ashore; Spain's flag flies over Trujillo. Keep the {0} doubloons. I march for Cuzco at dawn. If I live to take the empire, word will reach Trujillo; return then.": Object.freeze({

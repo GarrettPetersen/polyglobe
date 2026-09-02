@@ -9,6 +9,7 @@ import {
   pixelTextOrigin,
   pixelTextRasterHeight,
   pixelTextScratchRasterLayout,
+  resolvedPixelTextColor,
   snapPointToTransformedPixelGrid
 } from "./pixelText.js";
 import { auditPixelPirateKerning } from "../tools/fix-pixel-pirate-font-kerning.mjs";
@@ -25,6 +26,13 @@ test("pixel text alignment is applied before snapping to the canvas grid", () =>
   assert.deepEqual(pixelTextOrigin({ x: 20.4, y: 8.6, width: 7, align: "left" }), { x: 20, y: 9 });
   assert.deepEqual(pixelTextOrigin({ x: 20.4, y: 8.6, width: 7, align: "center" }), { x: 17, y: 9 });
   assert.deepEqual(pixelTextOrigin({ x: 20.4, y: 8.6, width: 7, align: "right" }), { x: 13, y: 9 });
+});
+
+test("an explicit pixel-text color overrides prior canvas UI color", () => {
+  assert.equal(resolvedPixelTextColor("#547e64", "#ffffff"), "#ffffff");
+  assert.equal(resolvedPixelTextColor("#2e222f", undefined), "#2e222f");
+  assert.throws(() => resolvedPixelTextColor({}, undefined), /solid CSS fill color/);
+  assert.throws(() => resolvedPixelTextColor("#ffffff", null), /solid CSS fill color/);
 });
 
 test("text origins snap in canvas space through fractional translations", () => {

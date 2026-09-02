@@ -14,66 +14,244 @@ export const PORT_ASSAULT_OUTCOME = Object.freeze({
   DEFEAT: "defeat"
 });
 
+export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
+  SAILOR: "sailor",
+  HUNTER: "hunter",
+  GUNNER: "gunner",
+  ARCHER: "archer",
+  CAVALIER: "cavalier",
+  CROSSBOWMAN: "crossbowman",
+  HALBERDIER: "halberdier",
+  HORSEMAN: "horseman",
+  SHIELDMAN: "shieldman",
+  SPEARMAN: "spearman",
+  SWORDSMAN: "swordsman",
+  ISLAMICATE_WARRIOR: "islamicate-warrior",
+  MING_CROSSBOWMAN: "ming-crossbowman",
+  MING_SWORDSMAN: "ming-swordsman",
+  HORSE_SAMURAI: "horse-samurai",
+  SAMURAI: "samurai",
+  TEPPO_ASHIGARU: "teppo-ashigaru",
+  TRIBAL_SPEARMAN: "tribal-spearman",
+  YARI_ASHIGARU: "yari-ashigaru",
+  YUMI_SAMURAI: "yumi-samurai"
+});
+
 export const PORT_ASSAULT_STEP_MS = 200;
 export const PORT_ASSAULT_MAX_DURATION_MS = 120_000;
 export const PORT_ASSAULT_FORECAST_SAMPLES = 32;
 
 const TRACK_INTERVAL_MS = PORT_ASSAULT_STEP_MS;
-const SHIP_ATTACK_INTERVAL_MS = 900;
 const EXPERIENCE_ATTACK_MULTIPLIER = 0.08;
 const EXPERIENCE_DEFENSE_MULTIPLIER = 0.05;
 const EXPERIENCE_HIT_POINTS_MULTIPLIER = 0.06;
-
-const UNIT_TYPES = Object.freeze({
-  sailor: unitType(8, 5, 28, PORT_ASSAULT_ATTACK_TYPE.MELEE, 0.026, 1200, 0.043),
-  warrior: unitType(9, 6, 32, PORT_ASSAULT_ATTACK_TYPE.MELEE, 0.027, 1150, 0.042),
-  swordsman: unitType(11, 7, 34, PORT_ASSAULT_ATTACK_TYPE.MELEE, 0.028, 1080, 0.041),
-  ronin: unitType(13, 8, 38, PORT_ASSAULT_ATTACK_TYPE.MELEE, 0.029, 1020, 0.042),
-  spearman: unitType(10, 8, 36, PORT_ASSAULT_ATTACK_TYPE.MELEE, 0.036, 1200, 0.039),
-  halberdier: unitType(12, 8, 38, PORT_ASSAULT_ATTACK_TYPE.MELEE, 0.036, 1280, 0.037),
-  shieldman: unitType(8, 11, 44, PORT_ASSAULT_ATTACK_TYPE.MELEE, 0.027, 1250, 0.035, 0.34),
-  archer: unitType(9, 4, 27, PORT_ASSAULT_ATTACK_TYPE.ARROW, 0.18, 1800, 0.038),
-  crossbowman: unitType(12, 5, 30, PORT_ASSAULT_ATTACK_TYPE.ARROW, 0.17, 2300, 0.035),
-  hunter: unitType(8, 5, 30, PORT_ASSAULT_ATTACK_TYPE.ARROW, 0.16, 1650, 0.04),
-  gunner: unitType(15, 4, 28, PORT_ASSAULT_ATTACK_TYPE.FIREARM, 0.2, 3000, 0.034)
+const RANGED_MELEE_RANGE = 0.03;
+const FULL_CHARGE_DISTANCE = 0.12;
+const MOMENTUM_DECAY_PER_STEP = 0.16;
+const BASE_KNOCKBACK_POSITION_BY_ATTACK_TYPE = Object.freeze({
+  [PORT_ASSAULT_ATTACK_TYPE.MELEE]: 0.006,
+  [PORT_ASSAULT_ATTACK_TYPE.ARROW]: 0.002,
+  [PORT_ASSAULT_ATTACK_TYPE.FIREARM]: 0.0045
 });
-
+const ARMOR_RESISTANCE_BY_ATTACK_TYPE = Object.freeze({
+  [PORT_ASSAULT_ATTACK_TYPE.MELEE]: 0.5,
+  [PORT_ASSAULT_ATTACK_TYPE.ARROW]: 0.75,
+  [PORT_ASSAULT_ATTACK_TYPE.FIREARM]: 0.18
+});
 const DEFAULT_MODIFIERS = Object.freeze({
   meleeDamageMultiplier: 1,
   arrowDamageMultiplier: 1,
   firearmDamageMultiplier: 1,
   defenseMultiplier: 1,
-  hitPointsMultiplier: 1
+  armorCoverageBonus: 0
 });
 
-export function portAssaultUnitType(crewTypeId) {
-  const type = UNIT_TYPES[crewTypeId];
-  if (!type) throw new Error(`Unknown port assault crew type: ${crewTypeId}`);
+const UNIT_TYPES = Object.freeze({
+  [PORT_ASSAULT_PROFILE_ID.SAILOR]: unitType({
+    attack: 8, defense: 5, hitPoints: 28, range: 0.026, cooldownMs: 1200,
+    movementPerSecond: 0.043, armorCoverage: 0.05, armorPenetration: 0.08
+  }),
+  [PORT_ASSAULT_PROFILE_ID.HUNTER]: rangedUnitType({
+    attack: 8, defense: 5, hitPoints: 30, attackType: PORT_ASSAULT_ATTACK_TYPE.ARROW,
+    range: 0.16, cooldownMs: 2600, movementPerSecond: 0.04, armorCoverage: 0.08,
+    armorPenetration: 0.05, meleeAttack: 7, meleeCooldownMs: 1400, meleeArmorPenetration: 0.08
+  }),
+  [PORT_ASSAULT_PROFILE_ID.GUNNER]: rangedUnitType({
+    attack: 20, defense: 4, hitPoints: 28, attackType: PORT_ASSAULT_ATTACK_TYPE.FIREARM,
+    range: 0.2, cooldownMs: 6000, movementPerSecond: 0.034, armorCoverage: 0.12,
+    armorPenetration: 0.82, meleeAttack: 7, meleeCooldownMs: 1550, meleeArmorPenetration: 0.08
+  }),
+  [PORT_ASSAULT_PROFILE_ID.ARCHER]: rangedUnitType({
+    attack: 9, defense: 4, hitPoints: 27, attackType: PORT_ASSAULT_ATTACK_TYPE.ARROW,
+    range: 0.18, cooldownMs: 3000, movementPerSecond: 0.038, armorCoverage: 0.1,
+    armorPenetration: 0.05, meleeAttack: 6, meleeCooldownMs: 1450, meleeArmorPenetration: 0.08
+  }),
+  [PORT_ASSAULT_PROFILE_ID.CAVALIER]: unitType({
+    attack: 18, defense: 12, hitPoints: 48, range: 0.031, cooldownMs: 1250,
+    movementPerSecond: 0.076, armorCoverage: 0.9, armorPenetration: 0.25,
+    mounted: true, knockbackMultiplier: 1.4,
+    chargeDamageMultiplier: 1.45, chargeKnockbackMultiplier: 3.2
+  }),
+  [PORT_ASSAULT_PROFILE_ID.CROSSBOWMAN]: rangedUnitType({
+    attack: 12, defense: 5, hitPoints: 30, attackType: PORT_ASSAULT_ATTACK_TYPE.ARROW,
+    range: 0.17, cooldownMs: 4400, movementPerSecond: 0.035, armorCoverage: 0.18,
+    armorPenetration: 0.35, meleeAttack: 7, meleeCooldownMs: 1550, meleeArmorPenetration: 0.08
+  }),
+  [PORT_ASSAULT_PROFILE_ID.HALBERDIER]: unitType({
+    attack: 13, defense: 8, hitPoints: 40, range: 0.042, cooldownMs: 1400,
+    movementPerSecond: 0.035, armorCoverage: 0.45, armorPenetration: 0.3,
+    antiMountedDamageMultiplier: 1.3, knockbackMultiplier: 1.55
+  }),
+  [PORT_ASSAULT_PROFILE_ID.HORSEMAN]: unitType({
+    attack: 15, defense: 8, hitPoints: 42, range: 0.03, cooldownMs: 1150,
+    movementPerSecond: 0.082, armorCoverage: 0.55, armorPenetration: 0.2,
+    mounted: true, knockbackMultiplier: 1.3,
+    chargeDamageMultiplier: 1.35, chargeKnockbackMultiplier: 2.8
+  }),
+  [PORT_ASSAULT_PROFILE_ID.SHIELDMAN]: unitType({
+    attack: 8, defense: 11, hitPoints: 44, range: 0.027, cooldownMs: 1250,
+    movementPerSecond: 0.035, armorCoverage: 0.6, armorPenetration: 0.08,
+    blockChance: 0.34
+  }),
+  [PORT_ASSAULT_PROFILE_ID.SPEARMAN]: unitType({
+    attack: 10, defense: 8, hitPoints: 36, range: 0.038, cooldownMs: 1200,
+    movementPerSecond: 0.039, armorCoverage: 0.32, armorPenetration: 0.15,
+    antiMountedDamageMultiplier: 1.45, knockbackMultiplier: 1.3
+  }),
+  [PORT_ASSAULT_PROFILE_ID.SWORDSMAN]: unitType({
+    attack: 11, defense: 7, hitPoints: 34, range: 0.028, cooldownMs: 1080,
+    movementPerSecond: 0.041, armorCoverage: 0.38, armorPenetration: 0.2,
+    knockbackMultiplier: 1.1
+  }),
+  [PORT_ASSAULT_PROFILE_ID.ISLAMICATE_WARRIOR]: unitType({
+    attack: 11, defense: 10, hitPoints: 39, range: 0.029, cooldownMs: 1020,
+    movementPerSecond: 0.045, armorCoverage: 0.48, armorPenetration: 0.18,
+    blockChance: 0.28, knockbackMultiplier: 1.1
+  }),
+  [PORT_ASSAULT_PROFILE_ID.MING_CROSSBOWMAN]: rangedUnitType({
+    attack: 11, defense: 6, hitPoints: 32, attackType: PORT_ASSAULT_ATTACK_TYPE.ARROW,
+    range: 0.17, cooldownMs: 3800, movementPerSecond: 0.038, armorCoverage: 0.28,
+    armorPenetration: 0.3, meleeAttack: 7, meleeCooldownMs: 1450, meleeArmorPenetration: 0.1
+  }),
+  [PORT_ASSAULT_PROFILE_ID.MING_SWORDSMAN]: unitType({
+    attack: 10, defense: 7, hitPoints: 34, range: 0.028, cooldownMs: 950,
+    movementPerSecond: 0.045, armorCoverage: 0.35, armorPenetration: 0.18,
+    knockbackMultiplier: 1.1
+  }),
+  [PORT_ASSAULT_PROFILE_ID.HORSE_SAMURAI]: unitType({
+    attack: 17, defense: 10, hitPoints: 46, range: 0.032, cooldownMs: 1100,
+    movementPerSecond: 0.075, armorCoverage: 0.68, armorPenetration: 0.25,
+    mounted: true, knockbackMultiplier: 1.35,
+    chargeDamageMultiplier: 1.4, chargeKnockbackMultiplier: 3
+  }),
+  [PORT_ASSAULT_PROFILE_ID.SAMURAI]: unitType({
+    attack: 14, defense: 8, hitPoints: 40, range: 0.03, cooldownMs: 950,
+    movementPerSecond: 0.046, armorCoverage: 0.62, armorPenetration: 0.28,
+    knockbackMultiplier: 1.25
+  }),
+  [PORT_ASSAULT_PROFILE_ID.TEPPO_ASHIGARU]: rangedUnitType({
+    attack: 21, defense: 5, hitPoints: 31, attackType: PORT_ASSAULT_ATTACK_TYPE.FIREARM,
+    range: 0.205, cooldownMs: 6200, movementPerSecond: 0.037, armorCoverage: 0.25,
+    armorPenetration: 0.82, meleeAttack: 8, meleeCooldownMs: 1450, meleeArmorPenetration: 0.12
+  }),
+  [PORT_ASSAULT_PROFILE_ID.TRIBAL_SPEARMAN]: unitType({
+    attack: 9, defense: 4, hitPoints: 27, range: 0.04, cooldownMs: 1050,
+    movementPerSecond: 0.052, armorCoverage: 0.04, armorPenetration: 0.08,
+    antiMountedDamageMultiplier: 1.35, knockbackMultiplier: 1.35
+  }),
+  [PORT_ASSAULT_PROFILE_ID.YARI_ASHIGARU]: unitType({
+    attack: 11, defense: 7, hitPoints: 36, range: 0.044, cooldownMs: 1100,
+    movementPerSecond: 0.043, armorCoverage: 0.28, armorPenetration: 0.15,
+    antiMountedDamageMultiplier: 1.5, knockbackMultiplier: 1.45
+  }),
+  [PORT_ASSAULT_PROFILE_ID.YUMI_SAMURAI]: rangedUnitType({
+    attack: 11, defense: 6, hitPoints: 34, attackType: PORT_ASSAULT_ATTACK_TYPE.ARROW,
+    range: 0.22, cooldownMs: 3400, movementPerSecond: 0.042, armorCoverage: 0.58,
+    armorPenetration: 0.08, meleeAttack: 9, meleeCooldownMs: 1150, meleeArmorPenetration: 0.2
+  })
+});
+
+export function portAssaultUnitProfile(combatProfileId) {
+  const type = UNIT_TYPES[combatProfileId];
+  if (!type) throw new Error(`Unknown port assault combat profile: ${combatProfileId}`);
   return type;
 }
 
 export function portAssaultUnitStats(combatant, modifiers = DEFAULT_MODIFIERS) {
   validateCombatant(combatant);
   validateModifiers(modifiers);
-  const base = portAssaultUnitType(combatant.crewTypeId);
+  const base = portAssaultUnitProfile(combatant.combatProfileId);
   const stars = combatant.experienceStars;
-  const damageMultiplier = {
-    [PORT_ASSAULT_ATTACK_TYPE.MELEE]: modifiers.meleeDamageMultiplier,
-    [PORT_ASSAULT_ATTACK_TYPE.ARROW]: modifiers.arrowDamageMultiplier,
-    [PORT_ASSAULT_ATTACK_TYPE.FIREARM]: modifiers.firearmDamageMultiplier
-  }[base.attackType];
+  const experienceAttackMultiplier = 1 + stars * EXPERIENCE_ATTACK_MULTIPLIER;
+  const damageMultiplier = damageMultiplierForType(base.attackType, modifiers);
   return Object.freeze({
-    attack: base.attack * (1 + stars * EXPERIENCE_ATTACK_MULTIPLIER) * damageMultiplier,
+    attack: base.attack * experienceAttackMultiplier * damageMultiplier,
     defense: base.defense * (1 + stars * EXPERIENCE_DEFENSE_MULTIPLIER) * modifiers.defenseMultiplier,
-    hitPoints: Math.round(
-      base.hitPoints * (1 + stars * EXPERIENCE_HIT_POINTS_MULTIPLIER) * modifiers.hitPointsMultiplier
-    ),
+    hitPoints: Math.round(base.hitPoints * (1 + stars * EXPERIENCE_HIT_POINTS_MULTIPLIER)),
     attackType: base.attackType,
     range: base.range,
     cooldownMs: base.cooldownMs,
     movementPerSecond: base.movementPerSecond,
-    blockChance: base.blockChance
+    blockChance: base.blockChance,
+    armorCoverage: clamp(base.armorCoverage + modifiers.armorCoverageBonus, 0, 1),
+    armorPenetration: base.armorPenetration,
+    antiMountedDamageMultiplier: base.antiMountedDamageMultiplier,
+    mounted: base.mounted,
+    knockbackMultiplier: base.knockbackMultiplier,
+    chargeDamageMultiplier: base.chargeDamageMultiplier,
+    chargeKnockbackMultiplier: base.chargeKnockbackMultiplier,
+    meleeFallback: base.meleeFallback
+      ? Object.freeze({
+          attack: base.meleeFallback.attack * experienceAttackMultiplier * modifiers.meleeDamageMultiplier,
+          attackType: PORT_ASSAULT_ATTACK_TYPE.MELEE,
+          range: base.meleeFallback.range,
+          cooldownMs: base.meleeFallback.cooldownMs,
+          armorPenetration: base.meleeFallback.armorPenetration
+        })
+      : null
   });
+}
+
+export function portAssaultAttackProfileAtDistance(stats, distance) {
+  validateAttackStats(stats);
+  if (!Number.isFinite(distance) || distance < 0) {
+    throw new Error(`Invalid port assault attack distance: ${distance}`);
+  }
+  if (stats.meleeFallback && distance <= stats.meleeFallback.range) return stats.meleeFallback;
+  return stats;
+}
+
+export function portAssaultKnockbackDistance({
+  attackType,
+  damage,
+  unitKnockbackMultiplier = 1,
+  chargeKnockbackMultiplier = 1
+}) {
+  const baseDistance = BASE_KNOCKBACK_POSITION_BY_ATTACK_TYPE[attackType];
+  if (!baseDistance) throw new Error(`Unknown port assault knockback attack type: ${attackType}`);
+  requirePositiveNumber(damage, "damage");
+  requirePositiveNumber(unitKnockbackMultiplier, "unitKnockbackMultiplier");
+  requirePositiveNumber(chargeKnockbackMultiplier, "chargeKnockbackMultiplier");
+  const damageMultiplier = clamp(damage / 8, 0.6, 2.2);
+  return baseDistance * damageMultiplier * unitKnockbackMultiplier * chargeKnockbackMultiplier;
+}
+
+export function portAssaultDamageAfterMitigation({
+  attackPower,
+  attackType,
+  armorPenetration,
+  targetDefense,
+  targetArmorCoverage
+}) {
+  requirePositiveCombatValue(attackPower, "attackPower");
+  requireNonNegativeCombatValue(targetDefense, "targetDefense");
+  requireUnitInterval(armorPenetration, "armorPenetration");
+  requireUnitInterval(targetArmorCoverage, "targetArmorCoverage");
+  const armorResistance = ARMOR_RESISTANCE_BY_ATTACK_TYPE[attackType];
+  if (!armorResistance) throw new Error(`Unknown port assault armor attack type: ${attackType}`);
+  const unmitigatedDamage = Math.max(1, attackPower - targetDefense * 0.34);
+  const effectiveCoverage = targetArmorCoverage * (1 - armorPenetration);
+  return Math.max(1, Math.round(unmitigatedDamage * (1 - effectiveCoverage * armorResistance)));
 }
 
 export function portAssaultGarrisonCount(city) {
@@ -83,6 +261,13 @@ export function portAssaultGarrisonCount(city) {
   }
   const populationRank = Math.max(0, Math.floor(Math.log10(Math.max(1000, city.population)) * 3 - 8));
   return Math.min(24, 5 + populationRank + (city.isFactionCapital === true ? 5 : 0));
+}
+
+export function portAssaultLandingDurationMs(dockKind) {
+  if (dockKind !== "wood" && dockKind !== "stone" && dockKind !== "none") {
+    throw new Error(`Invalid port assault dock: ${dockKind}`);
+  }
+  return dockKind === "none" ? 720 : 520;
 }
 
 export function createPortAssaultScenario({
@@ -106,9 +291,7 @@ export function createPortAssaultScenario({
     throw new Error(`Invalid assault ship hit points: ${shipHitPoints}`);
   }
   if (typeof fortified !== "boolean") throw new Error("Port assault fortification must be boolean");
-  if (!["wood", "stone", "none"].includes(dockKind)) {
-    throw new Error(`Invalid port assault dock: ${dockKind}`);
-  }
+  portAssaultLandingDurationMs(dockKind);
   validateModifiers(attackerModifiers);
   validateModifiers(defenderModifiers);
   return Object.freeze({
@@ -167,13 +350,17 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
 
     for (const unit of initiativeOrder) {
       if (!unit.alive || timeMs < unit.spawnAtMs) continue;
+      if (!unit.moving && unit.momentum > 0) {
+        unit.momentum = Math.max(0, unit.momentum - MOMENTUM_DECAY_PER_STEP);
+      }
       unit.moving = false;
       if (!unit.spawned) {
         unit.spawned = true;
+        unit.jumpStartedAtMs = timeMs;
         pushEvent(events, { timeMs, type: "jump", unitId: unit.id, dockKind: scenario.dockKind });
       }
-      const landingDurationMs = scenario.dockKind === "none" ? 720 : 520;
-      if (!unit.landed && timeMs >= unit.spawnAtMs + landingDurationMs) {
+      const landingDurationMs = portAssaultLandingDurationMs(scenario.dockKind);
+      if (!unit.landed && timeMs >= unit.jumpStartedAtMs + landingDurationMs) {
         unit.landed = true;
         pushEvent(events, {
           timeMs,
@@ -182,11 +369,18 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
           dockKind: scenario.dockKind
         });
       }
+      if (!unit.landed) continue;
       if (unit.actionUntilMs > timeMs) continue;
       const opponents = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? defenders : attackers;
       const target = nearestLivingOpponent(unit, opponents, timeMs);
-      if (target && Math.abs(target.position - unit.position) <= unit.stats.range) {
-        if (timeMs >= unit.nextAttackAtMs) attackUnit(unit, target, timeMs, random, events);
+      const targetDistance = target ? Math.abs(target.position - unit.position) : null;
+      const attackProfile = target
+        ? portAssaultAttackProfileAtDistance(unit.stats, targetDistance)
+        : null;
+      if (target && targetDistance <= attackProfile.range) {
+        if (timeMs >= nextAttackAtMs(unit, attackProfile)) {
+          attackUnit(unit, target, attackProfile, timeMs, random, events);
+        }
         continue;
       }
       const direction = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? 1 : -1;
@@ -197,13 +391,22 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
           pushEvent(events, { timeMs, type: "breach", unitId: unit.id });
           break;
         }
-        if (timeMs >= unit.nextAttackAtMs) {
-          const damage = Math.max(1, Math.round(unit.stats.attack * (0.38 + random() * 0.18)));
+        const closeAttack = portAssaultAttackProfileAtDistance(unit.stats, 0);
+        if (timeMs >= nextAttackAtMs(unit, closeAttack)) {
+          const damage = Math.max(1, Math.round(closeAttack.attack * (0.38 + random() * 0.18)));
           shipHitPoints = Math.max(0, shipHitPoints - damage);
-          unit.nextAttackAtMs = timeMs + SHIP_ATTACK_INTERVAL_MS;
+          setNextAttackAtMs(unit, closeAttack, timeMs + closeAttack.cooldownMs);
           unit.actionAnimationId = "attack";
-          unit.actionUntilMs = timeMs + 520;
-          pushEvent(events, { timeMs, type: "ship-hit", unitId: unit.id, damage, shipHitPoints });
+          unit.actionStartedAtMs = timeMs;
+          unit.actionUntilMs = timeMs + attackActionDurationMs(closeAttack.attackType);
+          pushEvent(events, {
+            timeMs,
+            type: "ship-hit",
+            unitId: unit.id,
+            attackType: closeAttack.attackType,
+            damage,
+            shipHitPoints
+          });
           if (shipHitPoints === 0) winner = PORT_ASSAULT_SIDE.DEFENDER;
         }
         continue;
@@ -215,6 +418,12 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         ? Math.min(desired, unit.position + movement)
         : Math.max(desired, unit.position - movement);
       unit.moving = unit.position !== previousPosition;
+      if (unit.moving && unit.stats.chargeDamageMultiplier > 1) {
+        unit.momentum = Math.min(
+          1,
+          unit.momentum + Math.abs(unit.position - previousPosition) / FULL_CHARGE_DISTANCE
+        );
+      }
     }
     if (collectPresentation && timeMs >= nextTrackMs) {
       recordTracks(tracks, units, timeMs, scenario.dockKind);
@@ -259,6 +468,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
           id: unit.id,
           side: unit.side,
           appearanceId: unit.appearanceId,
+          combatProfileId: unit.combatProfileId,
           attackType: unit.stats.attackType,
           lane: unit.lane,
           auxiliary: unit.auxiliary
@@ -333,7 +543,8 @@ export function portAssaultPresentationAt(battle, elapsedMs) {
 
 function eventPresentationDurationMs(type) {
   if (["splash", "dock-land", "death"].includes(type)) return 500;
-  if (["attack", "block", "hit", "ship-hit"].includes(type)) return 220;
+  if (["attack", "hit"].includes(type)) return 360;
+  if (["block", "ship-hit"].includes(type)) return 220;
   return PORT_ASSAULT_STEP_MS;
 }
 
@@ -349,50 +560,91 @@ function createBattleUnits(combatants, side, modifiers, random) {
       hitPoints: stats.hitPoints,
       alive: true,
       spawnAtMs,
-      nextAttackAtMs: spawnAtMs + Math.floor(random() * stats.cooldownMs),
+      nextPrimaryAttackAtMs: spawnAtMs + Math.floor(random() * stats.cooldownMs),
+      nextMeleeAttackAtMs: stats.meleeFallback
+        ? spawnAtMs + Math.floor(random() * stats.meleeFallback.cooldownMs)
+        : null,
       position: side === PORT_ASSAULT_SIDE.ATTACKER ? 0.04 : 0.96,
       lane: (index + Math.floor(random() * 4)) % 4,
       initiative: random(),
       actionAnimationId: null,
+      actionStartedAtMs: 0,
       actionUntilMs: 0,
       moving: false,
+      momentum: 0,
       spawned: side === PORT_ASSAULT_SIDE.DEFENDER,
-      landed: side === PORT_ASSAULT_SIDE.DEFENDER
+      landed: side === PORT_ASSAULT_SIDE.DEFENDER,
+      jumpStartedAtMs: null
     };
   });
 }
 
-function attackUnit(attacker, target, timeMs, random, events) {
-  attacker.nextAttackAtMs = timeMs + attacker.stats.cooldownMs * (0.88 + random() * 0.24);
+function attackUnit(attacker, target, attackProfile, timeMs, random, events) {
+  const chargeMomentum = attacker.momentum;
+  const chargeDamageMultiplier = 1 +
+    (attacker.stats.chargeDamageMultiplier - 1) * chargeMomentum;
+  const chargeKnockbackMultiplier = 1 +
+    (attacker.stats.chargeKnockbackMultiplier - 1) * chargeMomentum;
+  attacker.momentum = 0;
+  setNextAttackAtMs(
+    attacker,
+    attackProfile,
+    timeMs + attackProfile.cooldownMs * (0.88 + random() * 0.24)
+  );
   attacker.actionAnimationId = "attack";
-  attacker.actionUntilMs = timeMs + Math.min(520, attacker.stats.cooldownMs * 0.45);
+  attacker.actionStartedAtMs = timeMs;
+  attacker.actionUntilMs = timeMs + attackActionDurationMs(attackProfile.attackType);
   pushEvent(events, {
     timeMs,
     type: "attack",
     unitId: attacker.id,
     targetId: target.id,
-    attackType: attacker.stats.attackType
+    attackType: attackProfile.attackType,
+    chargeMomentum
   });
-  const attackRatio = attacker.stats.attack / Math.max(1, target.stats.defense);
+  const matchupMultiplier = target.stats.mounted
+    ? attacker.stats.antiMountedDamageMultiplier
+    : 1;
+  const effectiveAttack = attackProfile.attack * chargeDamageMultiplier * matchupMultiplier;
+  const attackRatio = effectiveAttack / Math.max(1, target.stats.defense);
   const hitChance = clamp(0.42 + Math.log2(attackRatio) * 0.16, 0.18, 0.82);
   if (random() >= hitChance) return;
   if (target.stats.blockChance > 0 && random() < target.stats.blockChance) {
     target.actionAnimationId = "block";
+    target.actionStartedAtMs = timeMs;
     target.actionUntilMs = timeMs + 480;
     pushEvent(events, { timeMs, type: "block", unitId: target.id, attackerId: attacker.id });
     return;
   }
-  const rawDamage = attacker.stats.attack * (0.72 + random() * 0.56) - target.stats.defense * 0.34;
-  const damage = Math.max(1, Math.round(rawDamage));
+  const damage = portAssaultDamageAfterMitigation({
+    attackPower: effectiveAttack * (0.72 + random() * 0.56),
+    attackType: attackProfile.attackType,
+    armorPenetration: attackProfile.armorPenetration,
+    targetDefense: target.stats.defense,
+    targetArmorCoverage: target.stats.armorCoverage
+  });
+  const positionBeforeHit = target.position;
+  const direction = attacker.side === PORT_ASSAULT_SIDE.ATTACKER ? 1 : -1;
+  const knockbackDistance = portAssaultKnockbackDistance({
+    attackType: attackProfile.attackType,
+    damage,
+    unitKnockbackMultiplier: attacker.stats.knockbackMultiplier,
+    chargeKnockbackMultiplier
+  });
+  target.position = clamp(target.position + direction * knockbackDistance, 0, 1);
+  const knockbackPositionDelta = target.position - positionBeforeHit;
   target.hitPoints = Math.max(0, target.hitPoints - damage);
   target.actionAnimationId = target.hitPoints === 0 ? "death" : "hit";
+  target.actionStartedAtMs = timeMs;
   target.actionUntilMs = target.hitPoints === 0 ? Number.POSITIVE_INFINITY : timeMs + 360;
   pushEvent(events, {
     timeMs,
     type: target.hitPoints === 0 ? "death" : "hit",
     unitId: target.id,
     attackerId: attacker.id,
-    attackType: attacker.stats.attackType,
+    attackType: attackProfile.attackType,
+    chargeMomentum,
+    knockbackPositionDelta,
     damage,
     hitPoints: target.hitPoints
   });
@@ -416,15 +668,25 @@ function nearestLivingOpponent(unit, opponents, timeMs) {
 function recordTracks(tracks, units, timeMs, dockKind) {
   for (const unit of units) {
     const hidden = timeMs < unit.spawnAtMs;
+    const animationId = resolvedAnimation(unit, timeMs, dockKind);
+    const animationStartedAtMs = animationId === "jump"
+      ? unit.jumpStartedAtMs
+      : animationId === unit.actionAnimationId
+        ? unit.actionStartedAtMs
+        : 0;
+    if (!Number.isFinite(animationStartedAtMs) || animationStartedAtMs > timeMs) {
+      throw new Error(`Invalid port assault animation start for ${unit.id}: ${animationStartedAtMs}`);
+    }
     const entry = {
       timeMs,
       hidden,
       position: unit.position,
       lane: unit.lane,
-      animationId: resolvedAnimation(unit, timeMs, dockKind),
+      animationId,
+      animationStartedAtMs,
       alive: unit.alive,
       inWater: unit.side === PORT_ASSAULT_SIDE.ATTACKER && dockKind === "none" &&
-        timeMs >= unit.spawnAtMs && timeMs < unit.spawnAtMs + 1250
+        unit.landed && timeMs < unit.jumpStartedAtMs + 1250
     };
     tracks[unit.id].push(Object.freeze(entry));
   }
@@ -434,7 +696,10 @@ function resolvedAnimation(unit, timeMs, dockKind) {
   if (timeMs < unit.spawnAtMs) return "idle";
   if (!unit.alive) return "death";
   if (unit.side === PORT_ASSAULT_SIDE.ATTACKER &&
-      timeMs - unit.spawnAtMs < (dockKind === "none" ? 720 : 520)) return "jump";
+      !unit.landed) {
+    portAssaultLandingDurationMs(dockKind);
+    return "jump";
+  }
   if (unit.actionUntilMs > timeMs) {
     if (!unit.actionAnimationId) throw new Error(`Port assault unit ${unit.id} lost its action animation`);
     return unit.actionAnimationId;
@@ -454,6 +719,13 @@ function trackFrameAt(track, elapsedMs) {
   const before = track[low];
   const after = track[Math.min(track.length - 1, low + 1)];
   if (before.hidden || before.animationId === "death" || after.timeMs === before.timeMs) return before;
+  if (
+    after.position !== before.position &&
+    ["hit", "death"].includes(after.animationId) &&
+    after.animationStartedAtMs === after.timeMs
+  ) {
+    return before;
+  }
   const t = clamp((elapsedMs - before.timeMs) / (after.timeMs - before.timeMs), 0, 1);
   return Object.freeze({
     ...before,
@@ -465,6 +737,47 @@ function remainingPower(units, side) {
   return units
     .filter((unit) => unit.side === side && unit.alive)
     .reduce((sum, unit) => sum + unit.hitPoints + unit.stats.attack * 1.5 + unit.stats.defense, 0);
+}
+
+function nextAttackAtMs(unit, attackProfile) {
+  return attackProfile === unit.stats.meleeFallback
+    ? unit.nextMeleeAttackAtMs
+    : unit.nextPrimaryAttackAtMs;
+}
+
+function setNextAttackAtMs(unit, attackProfile, timeMs) {
+  if (!Number.isFinite(timeMs) || timeMs < 0) {
+    throw new Error(`Invalid next attack time for ${unit.id}: ${timeMs}`);
+  }
+  if (attackProfile === unit.stats.meleeFallback) unit.nextMeleeAttackAtMs = timeMs;
+  else if (attackProfile === unit.stats) unit.nextPrimaryAttackAtMs = timeMs;
+  else throw new Error(`Port assault unit ${unit.id} received an unknown attack profile`);
+}
+
+function damageMultiplierForType(attackType, modifiers) {
+  if (attackType === PORT_ASSAULT_ATTACK_TYPE.MELEE) return modifiers.meleeDamageMultiplier;
+  if (attackType === PORT_ASSAULT_ATTACK_TYPE.ARROW) return modifiers.arrowDamageMultiplier;
+  if (attackType === PORT_ASSAULT_ATTACK_TYPE.FIREARM) return modifiers.firearmDamageMultiplier;
+  throw new Error(`Unknown port assault attack type: ${attackType}`);
+}
+
+function attackActionDurationMs(attackType) {
+  if (attackType === PORT_ASSAULT_ATTACK_TYPE.MELEE) return 1000;
+  if (attackType === PORT_ASSAULT_ATTACK_TYPE.ARROW) return 1500;
+  if (attackType === PORT_ASSAULT_ATTACK_TYPE.FIREARM) return 1100;
+  throw new Error(`Unknown port assault attack type: ${attackType}`);
+}
+
+function validateAttackStats(stats) {
+  if (!stats || typeof stats !== "object" || !Number.isFinite(stats.attack) || stats.attack <= 0) {
+    throw new Error("Port assault attack profile requires valid unit stats");
+  }
+  damageMultiplierForType(stats.attackType, DEFAULT_MODIFIERS);
+  if (!Number.isFinite(stats.range) || stats.range <= 0 ||
+      !Number.isFinite(stats.cooldownMs) || stats.cooldownMs <= 0) {
+    throw new Error("Port assault attack profile has invalid range or cooldown");
+  }
+  requireUnitInterval(stats.armorPenetration, "armorPenetration");
 }
 
 function validateScenario(scenario) {
@@ -486,7 +799,7 @@ function validateCombatant(combatant) {
   if (!combatant || typeof combatant !== "object" || Array.isArray(combatant)) {
     throw new Error("Port assault combatant must be an object");
   }
-  for (const key of ["id", "appearanceId", "crewTypeId"]) {
+  for (const key of ["id", "appearanceId", "crewTypeId", "combatProfileId"]) {
     if (typeof combatant[key] !== "string" || combatant[key].trim() === "") {
       throw new Error(`Port assault combatant requires ${key}`);
     }
@@ -497,17 +810,26 @@ function validateCombatant(combatant) {
   if (combatant.auxiliary !== undefined && typeof combatant.auxiliary !== "boolean") {
     throw new Error(`Invalid auxiliary flag for ${combatant.id}`);
   }
-  portAssaultUnitType(combatant.crewTypeId);
+  portAssaultUnitProfile(combatant.combatProfileId);
 }
 
 function validateModifiers(modifiers) {
   if (!modifiers || typeof modifiers !== "object" || Array.isArray(modifiers)) {
     throw new Error("Port assault modifiers must be an object");
   }
-  for (const key of Object.keys(DEFAULT_MODIFIERS)) {
+  for (const key of [
+    "meleeDamageMultiplier",
+    "arrowDamageMultiplier",
+    "firearmDamageMultiplier",
+    "defenseMultiplier"
+  ]) {
     if (!Number.isFinite(modifiers[key]) || modifiers[key] < 0.5 || modifiers[key] > 3) {
       throw new Error(`Invalid port assault modifier ${key}: ${modifiers[key]}`);
     }
+  }
+  if (!Number.isFinite(modifiers.armorCoverageBonus) ||
+      modifiers.armorCoverageBonus < 0 || modifiers.armorCoverageBonus > 0.5) {
+    throw new Error(`Invalid port assault modifier armorCoverageBonus: ${modifiers.armorCoverageBonus}`);
   }
   for (const key of Object.keys(modifiers)) {
     if (!(key in DEFAULT_MODIFIERS)) throw new Error(`Unknown port assault modifier: ${key}`);
@@ -519,6 +841,7 @@ function freezeCombatant(combatant) {
     id: combatant.id,
     appearanceId: combatant.appearanceId,
     crewTypeId: combatant.crewTypeId,
+    combatProfileId: combatant.combatProfileId,
     experienceStars: combatant.experienceStars,
     auxiliary: combatant.auxiliary === true
   });
@@ -532,8 +855,95 @@ function freezeTracks(tracks) {
   return Object.freeze(Object.fromEntries(Object.entries(tracks).map(([id, track]) => [id, Object.freeze(track)])));
 }
 
-function unitType(attack, defense, hitPoints, attackType, range, cooldownMs, movementPerSecond, blockChance = 0) {
-  return Object.freeze({ attack, defense, hitPoints, attackType, range, cooldownMs, movementPerSecond, blockChance });
+function unitType({
+  attack,
+  defense,
+  hitPoints,
+  attackType = PORT_ASSAULT_ATTACK_TYPE.MELEE,
+  range,
+  cooldownMs,
+  movementPerSecond,
+  armorCoverage,
+  armorPenetration,
+  antiMountedDamageMultiplier = 1,
+  mounted = false,
+  blockChance = 0,
+  knockbackMultiplier = 1,
+  chargeDamageMultiplier = 1,
+  chargeKnockbackMultiplier = 1,
+  meleeFallback = null
+}) {
+  const profile = {
+    attack,
+    defense,
+    hitPoints,
+    attackType,
+    range,
+    cooldownMs,
+    movementPerSecond,
+    armorCoverage,
+    armorPenetration,
+    antiMountedDamageMultiplier,
+    mounted,
+    blockChance,
+    knockbackMultiplier,
+    chargeDamageMultiplier,
+    chargeKnockbackMultiplier,
+    meleeFallback
+  };
+  validateUnitType(profile);
+  return Object.freeze(profile);
+}
+
+function rangedUnitType({
+  meleeAttack,
+  meleeCooldownMs,
+  meleeArmorPenetration,
+  ...primary
+}) {
+  const { attackType } = primary;
+  if (attackType !== PORT_ASSAULT_ATTACK_TYPE.ARROW && attackType !== PORT_ASSAULT_ATTACK_TYPE.FIREARM) {
+    throw new Error(`Ranged port assault unit has invalid attack type: ${attackType}`);
+  }
+  return unitType({
+    ...primary,
+    meleeFallback: Object.freeze({
+      attack: meleeAttack,
+      attackType: PORT_ASSAULT_ATTACK_TYPE.MELEE,
+      range: RANGED_MELEE_RANGE,
+      cooldownMs: meleeCooldownMs,
+      armorPenetration: meleeArmorPenetration
+    })
+  });
+}
+
+function validateUnitType(profile) {
+  for (const key of [
+    "attack",
+    "defense",
+    "hitPoints",
+    "range",
+    "cooldownMs",
+    "movementPerSecond",
+    "antiMountedDamageMultiplier",
+    "knockbackMultiplier",
+    "chargeDamageMultiplier",
+    "chargeKnockbackMultiplier"
+  ]) {
+    if (!Number.isFinite(profile[key]) || profile[key] <= 0) {
+      throw new Error(`Invalid port assault unit profile ${key}: ${profile[key]}`);
+    }
+  }
+  if (!Number.isFinite(profile.blockChance) || profile.blockChance < 0 || profile.blockChance > 1) {
+    throw new Error(`Invalid port assault unit block chance: ${profile.blockChance}`);
+  }
+  requireUnitInterval(profile.armorCoverage, "armorCoverage");
+  requireUnitInterval(profile.armorPenetration, "armorPenetration");
+  if (typeof profile.mounted !== "boolean") {
+    throw new Error(`Invalid port assault unit mounted state: ${profile.mounted}`);
+  }
+  damageMultiplierForType(profile.attackType, DEFAULT_MODIFIERS);
+  if (profile.meleeFallback) validateAttackStats(profile.meleeFallback);
 }
 
 function createRandom(seed) {
@@ -565,4 +975,28 @@ function pushEvent(events, event) {
 
 function clamp(value, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, value));
+}
+
+function requirePositiveNumber(value, label) {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`Invalid port assault knockback ${label}: ${value}`);
+  }
+}
+
+function requirePositiveCombatValue(value, label) {
+  if (!Number.isFinite(value) || value <= 0) {
+    throw new Error(`Invalid port assault combat ${label}: ${value}`);
+  }
+}
+
+function requireNonNegativeCombatValue(value, label) {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new Error(`Invalid port assault combat ${label}: ${value}`);
+  }
+}
+
+function requireUnitInterval(value, label) {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new Error(`Invalid port assault combat ${label}: ${value}`);
+  }
 }

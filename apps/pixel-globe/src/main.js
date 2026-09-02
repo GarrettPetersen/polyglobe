@@ -373,7 +373,6 @@ import {
   assignRegionalCharacterName,
   reconcileRegionalCharacterNameForms
 } from "./characterNames.js";
-import { cityRecruitableCrewAppearances } from "../city-visualizer/cityPeople.js";
 import { conflictingCharacterIdentity } from "./characterIdentity.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
 import {
@@ -778,8 +777,10 @@ import {
   validateCrewAggregate
 } from "./crewMembers.js";
 import {
+  cityCombatProfileForAppearance,
   cityCrewTypeForAppearance,
-  cityGarrisonAppearanceIds
+  cityGarrisonAppearanceIds,
+  cityRecruitableCrewAppearances
 } from "../city-visualizer/cityPeople.js";
 import {
   PORT_ASSAULT_OUTCOME,
@@ -1274,6 +1275,7 @@ import {
   pixelTextOrigin,
   pixelTextRasterHeight,
   pixelTextScratchRasterLayout,
+  resolvedPixelTextColor,
   snapPointToTransformedPixelGrid
 } from "./pixelText.js";
 import {
@@ -3216,7 +3218,7 @@ const NAVIGATION_MENU_ROW_H = 38;
 const NAVIGATION_MENU_PAGE_SIZE = 4;
 const SHIP_INFO_ASSET_VERSION = "jong-holk-1";
 const MUSIC_ASSET_VERSION = "storm-theme-1";
-const SFX_ASSET_VERSION = "physical-actions-1";
+const SFX_ASSET_VERSION = "port-assault-combat-2";
 const ANIMAL_ASSET_VERSION = "whale-species-1";
 const STORM_SHIP_STRIKE_ASSET_VERSION = "infected-tribe-1";
 const MUSIC_DEFAULT_VOLUME = 0.5;
@@ -3328,6 +3330,8 @@ const SFX_FIRE_URL = "assets/sfx/three-kingdoms-stratagem-fire-crackle-loop.ogg"
 const SFX_CREW_DEATH_URL = "assets/sfx/universfield-dramatic-death-collapse-352720.ogg";
 const SFX_WHALE_BLOW_URL = "assets/sfx/nps-humpback-whale-surface-blow.ogg";
 const SFX_BLADE_READY_URL = "assets/sfx/three-kingdoms-stratagem-unsheath-sword.ogg";
+const SFX_MELEE_SWING_URL = "assets/sfx/three-kingdoms-stratagem-melee-swing.ogg";
+const SFX_MELEE_HIT_URL = "assets/sfx/three-kingdoms-stratagem-melee-hit.ogg";
 const SFX_WHALE_KILL_URL = "assets/sfx/universfield-wet-squelch-impact-352302.ogg";
 const SFX_WHALE_SONG_URLS = Object.freeze([
   "assets/sfx/dragon-studio-creepy-whale-song-323612.ogg",
@@ -3358,6 +3362,7 @@ const SFX_LIGHTNING_POOL_SIZE = 2;
 const SFX_CREW_DEATH_POOL_SIZE = 2;
 const SFX_WHALE_BLOW_POOL_SIZE = 3;
 const SFX_BLADE_READY_POOL_SIZE = 2;
+const SFX_MELEE_POOL_SIZE = 8;
 const SFX_WHALE_KILL_POOL_SIZE = 2;
 const SHORE_BATTERY_CANNON_SOUND_DISTANCE_CAP_PX = 48;
 const SFX_CANNON_VOLUME = 0.76;
@@ -3384,6 +3389,9 @@ const SFX_LIGHTNING_VOLUME = 0.72;
 const SFX_CREW_DEATH_VOLUME = 0.52;
 const SFX_WHALE_BLOW_VOLUME = 0.7;
 const SFX_BLADE_READY_VOLUME = 0.72;
+const SFX_PORT_ASSAULT_FIREARM_VOLUME = 0.92;
+const SFX_PORT_ASSAULT_MELEE_SWING_VOLUME = 0.82;
+const SFX_PORT_ASSAULT_MELEE_HIT_VOLUME = 0.94;
 const SFX_WHALE_KILL_VOLUME = 0.86;
 const WHALE_EXHAUSTED_EXPRESSION_ID = "stern";
 const SFX_WHALE_SONG_MAX_VOLUME = 0.055;
@@ -9719,6 +9727,8 @@ function setupSoundEffects() {
     crewDeath: createSoundPool(SFX_CREW_DEATH_URL, SFX_CREW_DEATH_POOL_SIZE, "crew death"),
     whaleBlow: createSoundPool(SFX_WHALE_BLOW_URL, SFX_WHALE_BLOW_POOL_SIZE, "whale surface blow"),
     bladeReady: createSoundPool(SFX_BLADE_READY_URL, SFX_BLADE_READY_POOL_SIZE, "blade drawn"),
+    meleeSwing: createSoundPool(SFX_MELEE_SWING_URL, SFX_MELEE_POOL_SIZE, "melee swing"),
+    meleeHit: createSoundPool(SFX_MELEE_HIT_URL, SFX_MELEE_POOL_SIZE, "melee hit"),
     whaleKill: createSoundPool(SFX_WHALE_KILL_URL, SFX_WHALE_KILL_POOL_SIZE, "whale killing blow"),
     whaleSongs: createAmbientPlaylist(SFX_WHALE_SONG_URLS, "underwater whale song"),
     harbour: createAmbientLoop(SFX_HARBOUR_URL, "harbour ambience"),
@@ -14525,7 +14535,7 @@ async function beginLakeBattlePortAssault(random = Math.random) {
     ]);
     const attackers = Array.from({ length: activeCrewCount }, (_, index) => {
       const template = attackerTemplates[index % attackerTemplates.length];
-      return Object.freeze({
+      return portAssaultCombatant({
         id: `duel-crew:${navalBattle.player.slug}:${index + 1}`,
         appearanceId: template.appearanceId,
         crewTypeId: template.crewTypeId,
@@ -14535,7 +14545,7 @@ async function beginLakeBattlePortAssault(random = Math.random) {
     });
     const garrisonCount = portAssaultGarrisonCount(city);
     const defenders = cityGarrisonAppearanceIds(city, garrisonCount, "duel-port-assault")
-      .map((appearanceId, index) => Object.freeze({
+      .map((appearanceId, index) => portAssaultCombatant({
         id: `duel-garrison:${city.cityId}:${index + 1}`,
         appearanceId,
         crewTypeId: cityCrewTypeForAppearance(appearanceId),
@@ -20171,7 +20181,7 @@ function deactivatePortCityView() {
     snapshot,
     centerX,
     centerY,
-    startedAtMs: performance.now()
+    startedAtMs: lastFrameMs
   } : null;
   worldFramePresented = false;
   dirty = true;
@@ -20227,7 +20237,7 @@ async function synchronizePortCityScene() {
   if (portCityTransition?.direction === "enter-pending") {
     resetWorldNorthUpBehindPortCityCover();
     portCityTransition.direction = "enter";
-    portCityTransition.startedAtMs = performance.now();
+    portCityTransition.startedAtMs = lastFrameMs;
   }
   dirty = true;
 }
@@ -22891,6 +22901,23 @@ function openPendingDiscoveryPortDialogue() {
   return true;
 }
 
+function portAssaultCombatant({
+  id,
+  appearanceId,
+  crewTypeId,
+  experienceStars,
+  auxiliary
+}) {
+  return Object.freeze({
+    id,
+    appearanceId,
+    crewTypeId,
+    combatProfileId: cityCombatProfileForAppearance(appearanceId),
+    experienceStars,
+    auxiliary
+  });
+}
+
 function admitPlayerToPort(cityCall, { arrivedDrunk = false } = {}) {
   const needsLoadout = !gameState.ship?.loadoutId;
   visitPort(gameState, cityCall, Math.floor(weatherClockMinutes), { arrivedDrunk });
@@ -22969,9 +22996,9 @@ function playerPortConquestStatus(cityCall) {
     arrowDamageMultiplier: perks.portAssaultArrowDamageMultiplier * companyMultiplier,
     firearmDamageMultiplier: perks.portAssaultFirearmDamageMultiplier * companyMultiplier,
     defenseMultiplier: perks.portAssaultDefenseMultiplier,
-    hitPointsMultiplier: perks.portAssaultHitPointsMultiplier
+    armorCoverageBonus: perks.portAssaultArmorCoverageFlat
   });
-  const attackers = gameState.crewRoster.map((member) => Object.freeze({
+  const attackers = gameState.crewRoster.map((member) => portAssaultCombatant({
     id: member.id,
     appearanceId: member.appearanceId,
     crewTypeId: member.crewTypeId,
@@ -22980,7 +23007,7 @@ function playerPortConquestStatus(cityCall) {
   }));
   if (company?.ready) {
     for (let index = 0; index < company.strength; index += 1) {
-      attackers.push(Object.freeze({
+      attackers.push(portAssaultCombatant({
         id: `conquistador:${cityCall.cityId}:${index + 1}`,
         appearanceId: index % 3 === 0 ? "gunner-light" : "swordsman-light",
         crewTypeId: index % 3 === 0 ? "gunner" : "swordsman",
@@ -22991,7 +23018,7 @@ function playerPortConquestStatus(cityCall) {
   }
   const garrisonCount = portAssaultGarrisonCount(cityCall);
   const defenders = cityGarrisonAppearanceIds(cityCall, garrisonCount, "port-assault")
-    .map((appearanceId, index) => Object.freeze({
+    .map((appearanceId, index) => portAssaultCombatant({
       id: `garrison:${cityCall.cityId}:${index + 1}`,
       appearanceId,
       crewTypeId: cityCrewTypeForAppearance(appearanceId),
@@ -23011,8 +23038,16 @@ function playerPortConquestStatus(cityCall) {
     cityId: cityCall.cityId,
     simDay: Math.floor(simMinute / (24 * 60)),
     shipHitPoints: ship.hitPoints,
-    attackers: attackers.map(({ id, crewTypeId, experienceStars }) => [id, crewTypeId, experienceStars]),
-    defenders: defenders.map(({ id, crewTypeId, experienceStars }) => [id, crewTypeId, experienceStars]),
+    attackers: attackers.map(({ id, combatProfileId, experienceStars }) => [
+      id,
+      combatProfileId,
+      experienceStars
+    ]),
+    defenders: defenders.map(({ id, combatProfileId, experienceStars }) => [
+      id,
+      combatProfileId,
+      experienceStars
+    ]),
     sceneFeatures,
     attackerModifiers
   });
@@ -23250,15 +23285,21 @@ function playPortAssaultEventSound(event) {
   if (event.type === "attack") {
     if (event.attackType === "arrow") playBowFireSound();
     else if (event.attackType === "firearm") {
-      playSoundEffect(soundEffects?.smallFirearm, SFX_SMALL_FIREARM_VOLUME * 0.72);
+      playSoundEffect(soundEffects?.smallFirearm, SFX_PORT_ASSAULT_FIREARM_VOLUME, 0.94);
     } else if (event.attackType === "melee") {
-      playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * 0.42, 1.18);
+      playSoundEffect(soundEffects?.meleeSwing, SFX_PORT_ASSAULT_MELEE_SWING_VOLUME, 1.08);
     } else {
       throw new Error(`Unknown port assault attack sound: ${event.attackType}`);
     }
   } else if (event.type === "hit") {
     if (event.attackType === "arrow") playArrowHitSound();
-    else playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * 0.5);
+    else if (event.attackType === "firearm") {
+      playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * 0.72, 0.92);
+    } else if (event.attackType === "melee") {
+      playSoundEffect(soundEffects?.meleeHit, SFX_PORT_ASSAULT_MELEE_HIT_VOLUME, 1.08);
+    } else {
+      throw new Error(`Unknown port assault hit sound: ${event.attackType}`);
+    }
   } else if (event.type === "block") {
     playSoundEffect(soundEffects?.armorGlance, SFX_ARMOR_GLANCE_VOLUME * 0.7, 1.1);
   } else if (event.type === "death") {
@@ -52268,10 +52309,8 @@ function drawPixelText(text, x, y, options = {}) {
   const textW = measureRenderedPixelTextWidth(compatibleText, font);
   const alignedOrigin = pixelTextOrigin({ x, y, width: textW, align });
   const origin = snapPointToTransformedPixelGrid(alignedOrigin, ctx.getTransform());
-  if (typeof ctx.fillStyle !== "string") {
-    throw new Error("Pixel text requires a solid CSS fill color");
-  }
-  const raster = pixelTextRaster(compatibleText, font, ctx.fillStyle, textW);
+  const color = resolvedPixelTextColor(ctx.fillStyle, options.color);
+  const raster = pixelTextRaster(compatibleText, font, color, textW);
   ctx.save();
   ctx.imageSmoothingEnabled = false;
   ctx.drawImage(raster, origin.x, origin.y);

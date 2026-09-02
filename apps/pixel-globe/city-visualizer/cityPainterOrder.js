@@ -3,6 +3,8 @@ export const CITY_GROUND_FOREGROUND_PAINTER_Z = 74;
 export const CITY_GROUND_FOREGROUND_START_Y = 552;
 export const CITY_GATE_TRAVERSAL_PAINTER_Z = 71.8;
 
+export const CITY_PORT_ASSAULT_LANE_FEET_Y = Object.freeze([516, 524, 532, 540]);
+
 export const CITY_NPC_PATHS = Object.freeze([
   npcPath(900, 1005, 518),
   npcPath(960, 1070, 544),
@@ -48,6 +50,17 @@ export function cityGroundPainterZ(groundY) {
     : CITY_GROUND_FOREGROUND_PAINTER_Z +
       (groundY - CITY_GROUND_FOREGROUND_START_Y) / 1000;
 }
+
+export function cityPortAssaultLanePainterZ(lane) {
+  if (!Number.isInteger(lane) || lane < 0 || lane >= CITY_PORT_ASSAULT_LANE_FEET_Y.length) {
+    throw new Error(`Invalid city port-assault lane: ${lane}`);
+  }
+  return cityGroundPainterZ(CITY_PORT_ASSAULT_LANE_FEET_Y[lane]);
+}
+
+export const CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z = cityGroundPainterZ(
+  CITY_PORT_ASSAULT_LANE_FEET_Y.at(-1) + 1
+);
 
 export function cityNpcPathPoint(path, progress) {
   if (!path || ![path.startX, path.endX, path.feetY, path.endFeetY].every(Number.isFinite)) {

@@ -2,16 +2,34 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PORT_ASSAULT_OUTCOME,
+  PORT_ASSAULT_PROFILE_ID,
   createPortAssaultScenario,
   forecastPortAssault,
+  portAssaultAttackProfileAtDistance,
+  portAssaultDamageAfterMitigation,
   portAssaultGarrisonCount,
+  portAssaultKnockbackDistance,
+  portAssaultLandingDurationMs,
   portAssaultPresentationAt,
   portAssaultUnitStats,
   simulatePortAssault
 } from "./portAssaultBattle.js";
 
-function combatant(id, crewTypeId = "swordsman", experienceStars = 1, auxiliary = false) {
-  return { id, appearanceId: `${crewTypeId}-appearance`, crewTypeId, experienceStars, auxiliary };
+function combatant(
+  id,
+  crewTypeId = "swordsman",
+  experienceStars = 1,
+  auxiliary = false,
+  combatProfileId = crewTypeId
+) {
+  return {
+    id,
+    appearanceId: `${crewTypeId}-appearance`,
+    crewTypeId,
+    combatProfileId,
+    experienceStars,
+    auxiliary
+  };
 }
 
 function scenario({ attackerCount = 8, defenderCount = 8, dockKind = "wood", fortified = true } = {}) {
@@ -56,11 +74,143 @@ test("experience, arms, and armour modify concrete combat stats", () => {
     arrowDamageMultiplier: 1,
     firearmDamageMultiplier: 1.2,
     defenseMultiplier: 1.15,
-    hitPointsMultiplier: 1.1
+    armorCoverageBonus: 0.16
   });
   assert.ok(master.attack > novice.attack);
   assert.ok(master.defense > novice.defense);
   assert.ok(master.hitPoints > novice.hitPoints);
+  assert.ok(master.armorCoverage > novice.armorCoverage);
+});
+
+test("matchlocks trade the hardest ranged hit for the slowest reload", () => {
+  const hunter = portAssaultUnitStats(combatant("hunter", "hunter", 0));
+  const archer = portAssaultUnitStats(combatant("archer", "archer", 0));
+  const crossbowman = portAssaultUnitStats(combatant("crossbowman", "crossbowman", 0));
+  const gunner = portAssaultUnitStats(combatant("gunner", "gunner", 0));
+
+  assert.ok(gunner.attack > crossbowman.attack * 1.5);
+  assert.ok(hunter.cooldownMs < archer.cooldownMs);
+  assert.ok(archer.cooldownMs < crossbowman.cooldownMs);
+  assert.ok(crossbowman.cooldownMs < gunner.cooldownMs);
+  assert.ok(gunner.cooldownMs >= 6000);
+});
+
+test("ranged combatants switch to an independently tuned melee attack up close", () => {
+  const gunner = portAssaultUnitStats(combatant("gunner", "gunner", 0));
+  const firearm = portAssaultAttackProfileAtDistance(gunner, 0.12);
+  const closeAttack = portAssaultAttackProfileAtDistance(gunner, 0.02);
+
+  assert.equal(firearm.attackType, "firearm");
+  assert.equal(closeAttack.attackType, "melee");
+  assert.ok(closeAttack.attack < firearm.attack);
+  assert.ok(closeAttack.cooldownMs < firearm.cooldownMs);
+  assert.throws(() => portAssaultAttackProfileAtDistance(gunner, -0.1), /distance/);
+
+  const closeBattle = simulatePortAssault(createPortAssaultScenario({
+    cityId: "london|england",
+    attackers: [combatant("archer", "archer", 1)],
+    defenders: [combatant("shield", "shieldman", 3)],
+    shipHitPoints: 100,
+    dockKind: "wood",
+    fortified: true
+  }), 1);
+  const archerAttackTypes = closeBattle.events
+    .filter((event) => event.type === "attack" && event.unitId === "archer")
+    .map((event) => event.attackType);
+  assert.ok(archerAttackTypes.includes("arrow"));
+  assert.ok(archerAttackTypes.includes("melee"));
+});
+
+test("culture-specific profiles give cavalry, samurai, and tribal spearmen distinct identities", () => {
+  const cavalier = portAssaultUnitStats(combatant(
+    "cavalier",
+    "swordsman",
+    0,
+    false,
+    PORT_ASSAULT_PROFILE_ID.CAVALIER
+  ));
+  const samurai = portAssaultUnitStats(combatant(
+    "samurai",
+    "ronin",
+    0,
+    false,
+    PORT_ASSAULT_PROFILE_ID.SAMURAI
+  ));
+  const tribalSpearman = portAssaultUnitStats(combatant(
+    "tribal",
+    "warrior",
+    0,
+    false,
+    PORT_ASSAULT_PROFILE_ID.TRIBAL_SPEARMAN
+  ));
+
+  assert.ok(cavalier.movementPerSecond > samurai.movementPerSecond);
+  assert.ok(cavalier.attack > samurai.attack);
+  assert.ok(cavalier.defense > samurai.defense);
+  assert.ok(samurai.attack > tribalSpearman.attack);
+  assert.ok(tribalSpearman.movementPerSecond > samurai.movementPerSecond);
+  assert.ok(tribalSpearman.range > samurai.range);
+  assert.ok(cavalier.armorCoverage > samurai.armorCoverage);
+  assert.ok(samurai.armorCoverage > portAssaultUnitStats(combatant("sword", "swordsman", 0)).armorCoverage);
+  assert.ok(portAssaultUnitStats(combatant("sword", "swordsman", 0)).armorCoverage >
+    tribalSpearman.armorCoverage);
+  assert.ok(portAssaultUnitStats(combatant("spear", "spearman", 0)).antiMountedDamageMultiplier > 1);
+});
+
+test("armour strongly checks arrows while matchlocks retain penetration", () => {
+  const common = {
+    attackPower: 18,
+    targetDefense: 8,
+    targetArmorCoverage: 0.8
+  };
+  const arrowDamage = portAssaultDamageAfterMitigation({
+    ...common,
+    attackType: "arrow",
+    armorPenetration: 0.05
+  });
+  const matchlockDamage = portAssaultDamageAfterMitigation({
+    ...common,
+    attackType: "firearm",
+    armorPenetration: 0.82
+  });
+
+  assert.ok(matchlockDamage > arrowDamage * 2);
+  const swordsman = portAssaultUnitStats(combatant("sword", "swordsman", 0));
+  const halberdier = portAssaultUnitStats(combatant("halberd", "halberdier", 0));
+  assert.ok(halberdier.armorPenetration > swordsman.armorPenetration);
+});
+
+test("harder hits and cavalry charge momentum produce longer knockback", () => {
+  const glancingArrow = portAssaultKnockbackDistance({ attackType: "arrow", damage: 4 });
+  const hardArrow = portAssaultKnockbackDistance({ attackType: "arrow", damage: 12 });
+  const standingSword = portAssaultKnockbackDistance({
+    attackType: "melee",
+    damage: 12,
+    unitKnockbackMultiplier: 1.4
+  });
+  const chargingCavalier = portAssaultKnockbackDistance({
+    attackType: "melee",
+    damage: 20,
+    unitKnockbackMultiplier: 1.4,
+    chargeKnockbackMultiplier: 3.2
+  });
+
+  assert.ok(hardArrow > glancingArrow);
+  assert.ok(chargingCavalier > standingSword * 2);
+
+  const chargeBattle = simulatePortAssault(createPortAssaultScenario({
+    cityId: "calais|france",
+    attackers: [combatant("cavalier", "swordsman", 0, false, PORT_ASSAULT_PROFILE_ID.CAVALIER)],
+    defenders: [combatant("tribal", "warrior", 0, false, PORT_ASSAULT_PROFILE_ID.TRIBAL_SPEARMAN)],
+    shipHitPoints: 100,
+    dockKind: "wood",
+    fortified: false
+  }), 7);
+  const chargeHit = chargeBattle.events.find((event) =>
+    (event.type === "hit" || event.type === "death") && event.attackerId === "cavalier"
+  );
+  assert.ok(chargeHit.chargeMomentum > 0.5);
+  assert.ok(Math.abs(chargeHit.knockbackPositionDelta) > 0.04);
 });
 
 test("shield blocks negate damage and are represented in the battle timeline", () => {
@@ -77,6 +227,48 @@ test("shield blocks negate damage and are represented in the battle timeline", (
   const battle = results[0];
   const presentation = portAssaultPresentationAt(battle, Math.min(1000, battle.durationMs));
   assert.ok(Array.isArray(presentation.units));
+});
+
+test("a fallen combatant retains the exact start time of its terminal death animation", () => {
+  const input = createPortAssaultScenario({
+    cityId: "lisbon|portugal",
+    attackers: [combatant("master", "swordsman", 3)],
+    defenders: [combatant("novice", "sailor", 0)],
+    shipHitPoints: 80,
+    dockKind: "wood",
+    fortified: false
+  });
+  const battle = simulatePortAssault(input, 11);
+  const death = battle.events.find((event) => event.type === "death");
+  assert.ok(death, "the test battle must produce a casualty");
+  const presentation = portAssaultPresentationAt(battle, death.timeMs);
+  const fallen = presentation.units.find(({ id }) => id === death.unitId);
+  assert.equal(fallen.animationId, "death");
+  assert.equal(fallen.animationStartedAtMs, death.timeMs);
+});
+
+test("attackers remain at the ship until their one-shot landing completes", () => {
+  const battle = simulatePortAssault(scenario({ attackerCount: 1, defenderCount: 1 }), 19);
+  const jumpEvent = battle.events.find((event) => event.type === "jump");
+  const landingEvent = battle.events.find((event) => event.type === "dock-land");
+  assert.ok(jumpEvent);
+  assert.ok(landingEvent);
+  assert.ok(landingEvent.timeMs - jumpEvent.timeMs >= portAssaultLandingDurationMs("wood"));
+  const jumpFrames = battle.tracks["crew-0"].filter(({ animationId }) => animationId === "jump");
+  assert.ok(jumpFrames.length >= 2);
+  assert.ok(jumpFrames.every(({ position }) => position === 0.04));
+  assert.ok(jumpFrames.every(({ animationStartedAtMs }) => animationStartedAtMs === jumpEvent.timeMs));
+});
+
+test("successful melee hits displace targets in the attack direction", () => {
+  const battle = simulatePortAssault(scenario({ attackerCount: 2, defenderCount: 2 }), 7);
+  const meleeHit = battle.events.find((event) =>
+    (event.type === "hit" || event.type === "death") && event.attackType === "melee"
+  );
+  assert.ok(meleeHit, "the test battle must include a successful melee hit");
+  assert.notEqual(meleeHit.knockbackPositionDelta, 0);
+  const attacker = battle.combatants.find(({ id }) => id === meleeHit.attackerId);
+  assert.equal(Math.sign(meleeHit.knockbackPositionDelta), attacker.side === "attacker" ? 1 : -1);
 });
 
 test("garrisons scale with population and capitals but remain bounded", () => {

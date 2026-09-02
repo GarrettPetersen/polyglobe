@@ -29,6 +29,14 @@ export function pixelTextOrigin({ x, y, width, align = "left" }) {
   };
 }
 
+export function resolvedPixelTextColor(currentFillStyle, requestedColor) {
+  const color = requestedColor === undefined ? currentFillStyle : requestedColor;
+  if (typeof color !== "string" || color.trim() === "") {
+    throw new Error("Pixel text requires a solid CSS fill color");
+  }
+  return color;
+}
+
 export function pixelFontCompatibleText(text, font) {
   if (typeof text !== "string") throw new Error(`Pixel-font text must be a string: ${text}`);
   if (typeof font !== "string" || font.length === 0) {

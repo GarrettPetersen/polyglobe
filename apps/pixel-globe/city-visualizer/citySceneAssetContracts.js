@@ -77,6 +77,14 @@ export function requireCityDocksideShip(shipCatalog, shipSlug) {
   if (!ship) throw new Error(`City dockside ship manifest has no canonical ID: ${shipSlug}`);
   const dockside = ship.cityDockside;
   if (!dockside) throw new Error(`Missing native city dockside raster: ${shipSlug}`);
+  for (const [label, point] of [
+    ["deck-entry anchor", dockside.deckEntryAnchor],
+    ["sailor-spawn anchor", dockside.sailorSpawnAnchor]
+  ]) {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
+      throw new Error(`Invalid dockside ${label}: ${shipSlug}`);
+    }
+  }
   const waterShadows = dockside.waterShadows;
   const shadowKeys = waterShadows ? Object.keys(waterShadows).sort() : [];
   if (JSON.stringify(shadowKeys) !== JSON.stringify([...CITY_DOCKSIDE_SHADOW_STATES].sort())) {
@@ -85,6 +93,7 @@ export function requireCityDocksideShip(shipCatalog, shipSlug) {
   validateDocksideShadowGeometry(ship);
   for (const file of [
     dockside.file,
+    dockside.foregroundFile,
     dockside.sinkDepthFile,
     ...CITY_DOCKSIDE_SHADOW_STATES.map((state) => waterShadows[state].file)
   ]) {
@@ -132,6 +141,7 @@ export function cityDocksideAssetUrls(shipCatalog, shipSlug) {
   const ship = requireCityDocksideShip(shipCatalog, shipSlug);
   return Object.freeze([
     publicCityAssetUrl(ship.cityDockside.file),
+    publicCityAssetUrl(ship.cityDockside.foregroundFile),
     publicCityAssetUrl(ship.cityDockside.sinkDepthFile),
     ...CITY_DOCKSIDE_SHADOW_STATES.map((state) => (
       publicCityAssetUrl(ship.cityDockside.waterShadows[state].file)

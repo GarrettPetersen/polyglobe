@@ -17,6 +17,7 @@ import {
 } from "./cityPeopleCatalog.js";
 import {
   CITY_POPULATION_PROFILES,
+  cityCombatProfileForAppearance,
   cityCrewTypeForAppearance,
   cityPopulationProfileId,
   cityRecruitableCrewAppearances,
@@ -61,6 +62,7 @@ test("every garrison appearance maps to a combat type and complete combat animat
   for (const profile of CITY_POPULATION_PROFILES) {
     for (const { appearanceId } of profile.garrison) {
       assert.equal(typeof cityCrewTypeForAppearance(appearanceId), "string", appearanceId);
+      assert.equal(typeof cityCombatProfileForAppearance(appearanceId), "string", appearanceId);
       const animations = exportedById.get(appearanceId).animations;
       for (const animationId of ["attack", "hit", "death"]) {
         assert.ok(animations[animationId]?.length > 0, `${appearanceId}:${animationId}`);
@@ -185,6 +187,16 @@ test("every port recruits only attack-capable foot silhouettes from its own popu
     appearanceId === "japanese-samurai" && crewTypeId === "ronin"
   )));
   assert.ok(japanese.every(({ appearanceId }) => appearanceId !== "japanese-horse-samurai"));
+});
+
+test("combat profiles preserve culture-specific and mounted unit identities", () => {
+  assert.equal(cityCombatProfileForAppearance("cavalier-covered"), "cavalier");
+  assert.equal(cityCombatProfileForAppearance("japanese-horse-samurai"), "horse-samurai");
+  assert.equal(cityCombatProfileForAppearance("japanese-samurai"), "samurai");
+  assert.equal(cityCombatProfileForAppearance("japanese-yari-ashigaru"), "yari-ashigaru");
+  assert.equal(cityCombatProfileForAppearance("wrapped-cloth-man-dark-indigo"), "tribal-spearman");
+  assert.equal(cityCombatProfileForAppearance("ming-crossbowman"), "ming-crossbowman");
+  assert.throws(() => cityCombatProfileForAppearance("villager-woman-light-earth"), /not combat capable/);
 });
 
 test("African profiles require dark and deep civilian appearances", () => {

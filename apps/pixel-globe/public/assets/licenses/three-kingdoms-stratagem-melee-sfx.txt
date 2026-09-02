@@ -1,0 +1,5 @@
+Melee swing and hit cues
+
+Source: Three Kingdoms Stratagem project assets
+Original files: public/assets/sfx/whiff.ogg and public/assets/sfx/slash.ogg
+Imported for Marque & Reprisal with the project author's permission.

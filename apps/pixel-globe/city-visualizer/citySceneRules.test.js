@@ -49,9 +49,12 @@ import {
   CITY_GATE_FRONT_PAINTER_Z,
   CITY_GATE_TRAVERSAL_PAINTER_Z,
   CITY_GATE_TRAVERSAL_PATHS,
+  CITY_PORT_ASSAULT_LANE_FEET_Y,
+  CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
   cityGroundPainterZ,
   cityNpcPathPoint,
-  cityNpcPaths
+  cityNpcPaths,
+  cityPortAssaultLanePainterZ
 } from "./cityPainterOrder.js";
 
 const SHIP_MANIFEST = JSON.parse(readFileSync(new URL(
@@ -700,6 +703,26 @@ test("explicit scene z places walkers and the inn between gatehouse sections", (
       assert.ok(Math.abs(far.x - near.x) <= 3);
     }
   }
+});
+
+test("port-assault lanes participate in city ground painter order", () => {
+  assert.deepEqual(CITY_PORT_ASSAULT_LANE_FEET_Y, [516, 524, 532, 540]);
+  for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
+    const painterZ = cityPortAssaultLanePainterZ(lane);
+    assert.equal(painterZ, cityGroundPainterZ(CITY_PORT_ASSAULT_LANE_FEET_Y[lane]));
+    assert.ok(painterZ < layerSceneZ("Inn"), "the inn occludes road combatants");
+    assert.ok(painterZ < CITY_GATE_FRONT_PAINTER_Z, "the gate front occludes combatants");
+    assert.ok(painterZ < cityGroundPainterZ(565), "foreground trees occlude combatants");
+  }
+  assert.ok(
+    CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z >
+      cityPortAssaultLanePainterZ(CITY_PORT_ASSAULT_LANE_FEET_Y.length - 1),
+    "the near rail occludes sailors standing on the deck"
+  );
+  assert.ok(CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z < layerSceneZ("Inn"));
+  assert.throws(() => cityPortAssaultLanePainterZ(-1), /port-assault lane/);
+  assert.throws(() => cityPortAssaultLanePainterZ(4), /port-assault lane/);
+  assert.match(VISUALIZER_MAIN_SOURCE, /kind: "port-assault",\s+lane,\s+z: cityPortAssaultLanePainterZ\(lane\)/);
 });
 
 test("duplicate market layers can occupy distinct authored rows", () => {

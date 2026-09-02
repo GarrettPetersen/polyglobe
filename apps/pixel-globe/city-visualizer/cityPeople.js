@@ -3,6 +3,7 @@ import {
   CITY_PERSON_ARCHETYPES,
   CITY_PERSON_ROLE
 } from "./cityPeopleCatalog.js";
+import { PORT_ASSAULT_PROFILE_ID } from "../src/portAssaultBattle.js";
 
 const EAST_ASIAN_COUNTRY_PROFILE = Object.freeze({
   China: "ming",
@@ -242,6 +243,28 @@ const CREW_TYPE_BY_ARCHETYPE_ID = Object.freeze({
   "yari-ashigaru": "spearman",
   "yumi-samurai": "archer"
 });
+const COMBAT_PROFILE_BY_ARCHETYPE_ID = Object.freeze({
+  archer: PORT_ASSAULT_PROFILE_ID.ARCHER,
+  cavalier: PORT_ASSAULT_PROFILE_ID.CAVALIER,
+  crossbowman: PORT_ASSAULT_PROFILE_ID.CROSSBOWMAN,
+  gunner: PORT_ASSAULT_PROFILE_ID.GUNNER,
+  halberdier: PORT_ASSAULT_PROFILE_ID.HALBERDIER,
+  horseman: PORT_ASSAULT_PROFILE_ID.HORSEMAN,
+  hunter: PORT_ASSAULT_PROFILE_ID.HUNTER,
+  "horse-samurai": PORT_ASSAULT_PROFILE_ID.HORSE_SAMURAI,
+  "islamicate-warrior": PORT_ASSAULT_PROFILE_ID.ISLAMICATE_WARRIOR,
+  mariner: PORT_ASSAULT_PROFILE_ID.SAILOR,
+  "ming-crossbowman": PORT_ASSAULT_PROFILE_ID.MING_CROSSBOWMAN,
+  "ming-swordsman": PORT_ASSAULT_PROFILE_ID.MING_SWORDSMAN,
+  samurai: PORT_ASSAULT_PROFILE_ID.SAMURAI,
+  shieldman: PORT_ASSAULT_PROFILE_ID.SHIELDMAN,
+  spearman: PORT_ASSAULT_PROFILE_ID.SPEARMAN,
+  swordsman: PORT_ASSAULT_PROFILE_ID.SWORDSMAN,
+  "teppo-ashigaru": PORT_ASSAULT_PROFILE_ID.TEPPO_ASHIGARU,
+  "wrapped-cloth-man": PORT_ASSAULT_PROFILE_ID.TRIBAL_SPEARMAN,
+  "yari-ashigaru": PORT_ASSAULT_PROFILE_ID.YARI_ASHIGARU,
+  "yumi-samurai": PORT_ASSAULT_PROFILE_ID.YUMI_SAMURAI
+});
 
 validateCatalog();
 
@@ -349,6 +372,14 @@ export function cityCrewTypeForAppearance(appearanceId) {
   const crewTypeId = CREW_TYPE_BY_ARCHETYPE_ID[appearance.archetypeId];
   if (!crewTypeId) throw new Error(`City person is not combat capable: ${appearanceId}`);
   return crewTypeId;
+}
+
+export function cityCombatProfileForAppearance(appearanceId) {
+  const appearance = APPEARANCE_BY_ID.get(appearanceId);
+  if (!appearance) throw new Error(`Unknown city person appearance: ${appearanceId}`);
+  const combatProfileId = COMBAT_PROFILE_BY_ARCHETYPE_ID[appearance.archetypeId];
+  if (!combatProfileId) throw new Error(`City person is not combat capable: ${appearanceId}`);
+  return combatProfileId;
 }
 
 export function cityRecruitableCrewAppearances(city) {
@@ -464,6 +495,11 @@ function validateCatalog() {
   for (const appearance of appearances.values()) {
     if (!archetypes.has(appearance.archetypeId)) {
       throw new Error(`Unknown person archetype for ${appearance.id}: ${appearance.archetypeId}`);
+    }
+    const archetype = archetypes.get(appearance.archetypeId);
+    if (archetype.roles.includes(CITY_PERSON_ROLE.GARRISON) &&
+        !COMBAT_PROFILE_BY_ARCHETYPE_ID[appearance.archetypeId]) {
+      throw new Error(`Garrison archetype has no combat profile: ${appearance.archetypeId}`);
     }
   }
   for (const profile of CITY_POPULATION_PROFILES) {

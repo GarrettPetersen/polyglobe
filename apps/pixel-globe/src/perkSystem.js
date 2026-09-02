@@ -5,7 +5,8 @@ const ADDITIVE_PERKS = new Set([
   "disguiseChanceBonus",
   "damageResistanceChance",
   "crewCasualtyResistanceChance",
-  "hullRepairHitPointsPerDay"
+  "hullRepairHitPointsPerDay",
+  "portAssaultArmorCoverageFlat"
 ]);
 
 const MULTIPLICATIVE_PERKS = new Set([
@@ -28,8 +29,7 @@ const MULTIPLICATIVE_PERKS = new Set([
   "portAssaultMeleeDamageMultiplier",
   "portAssaultArrowDamageMultiplier",
   "portAssaultFirearmDamageMultiplier",
-  "portAssaultDefenseMultiplier",
-  "portAssaultHitPointsMultiplier"
+  "portAssaultDefenseMultiplier"
 ]);
 
 export const MAX_DAMAGE_RESISTANCE_CHANCE = 0.8;
@@ -76,6 +76,7 @@ export function aggregatePerkSources(sources) {
     0,
     MAX_HULL_REPAIR_HIT_POINTS_PER_DAY
   );
+  totals.portAssaultArmorCoverageFlat = clamp(totals.portAssaultArmorCoverageFlat, 0, 0.35);
   return Object.freeze(totals);
 }
 
@@ -164,8 +165,8 @@ export function perkEffectLabels(perks) {
   if (perks.portAssaultDefenseMultiplier) {
     labels.push(`Assault defense +${percent(perks.portAssaultDefenseMultiplier)}`);
   }
-  if (perks.portAssaultHitPointsMultiplier) {
-    labels.push(`Assault HP +${percent(perks.portAssaultHitPointsMultiplier)}`);
+  if (perks.portAssaultArmorCoverageFlat) {
+    labels.push(`Assault armour coverage +${Math.round(perks.portAssaultArmorCoverageFlat * 100)}%`);
   }
   if (perks.disguiseChanceBonus) {
     labels.push(`Hostile-port disguise +${Math.round(perks.disguiseChanceBonus * 100)}%`);

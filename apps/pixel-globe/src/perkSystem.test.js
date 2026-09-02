@@ -48,6 +48,15 @@ test("passive hull repair points stack additively under a conservative cap", () 
   assert.equal(totals.hullRepairHitPointsPerDay, MAX_HULL_REPAIR_HIT_POINTS_PER_DAY);
 });
 
+test("landing-party armour coverage stacks additively under its protection cap", () => {
+  const totals = aggregatePerkSources([
+    { id: "mail", perks: { portAssaultArmorCoverageFlat: 0.14 } },
+    { id: "brigandine", perks: { portAssaultArmorCoverageFlat: 0.16 } },
+    { id: "lamellar", perks: { portAssaultArmorCoverageFlat: 0.15 } }
+  ]);
+  assert.equal(totals.portAssaultArmorCoverageFlat, 0.35);
+});
+
 test("stacking chance and bargain perks respects their balance caps", () => {
   const totals = aggregatePerkSources(Array.from({ length: 10 }, (_, index) => ({
     id: `specialist-${index}`,

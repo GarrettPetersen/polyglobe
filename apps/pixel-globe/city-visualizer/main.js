@@ -93,10 +93,23 @@ import {
 } from "./cityShipyardSaleShips.js";
 import {
   CITY_GATE_FRONT_PAINTER_Z,
+  CITY_PORT_ASSAULT_LANE_FEET_Y,
+  CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
+  cityPortAssaultLanePainterZ,
   cityGroundPainterZ,
   cityNpcPathPoint,
   cityNpcPaths
 } from "./cityPainterOrder.js";
+import {
+  CITY_ANIMATION_PLAYBACK,
+  cityAnimationFrame
+} from "./cityAnimationFrame.js";
+import {
+  cityAssaultJumpPoint,
+  cityAssaultKnockbackOffset,
+  cityAssaultMeleeLungeOffset
+} from "./cityAssaultMotion.js";
+import { portAssaultLandingDurationMs } from "../src/portAssaultBattle.js";
 import {
   CITY_SHIPYARD_FRONT_Z,
   cityShipyardConstructionPlacement,
@@ -297,6 +310,7 @@ const state = {
   fireAtlas: null,
   peopleById: new Map(),
   shipImage: null,
+  shipForegroundImage: null,
   shipOutline: null,
   shipSinkDepthImage: null,
   shipWaterlineLayers: null,
@@ -656,6 +670,7 @@ async function selectCity(cityId, {
   state.cityFlagImage = prepared.cityFlagImage;
   state.shipSlug = prepared.ship.slug;
   state.shipImage = prepared.shipPresentation.shipImage;
+  state.shipForegroundImage = prepared.shipPresentation.shipForegroundImage;
   state.shipOutline = prepared.shipPresentation.shipOutline;
   state.shipSinkDepthImage = prepared.shipPresentation.shipSinkDepthImage;
   state.shipWaterlineLayers = prepared.shipPresentation.shipWaterlineLayers;
@@ -948,6 +963,7 @@ async function selectShip(shipSlug) {
   if (serial !== citySelectionSerial) return;
   state.shipSlug = ship.slug;
   state.shipImage = presentation.shipImage;
+  state.shipForegroundImage = presentation.shipForegroundImage;
   state.shipOutline = presentation.shipOutline;
   state.shipSinkDepthImage = presentation.shipSinkDepthImage;
   state.shipWaterlineLayers = presentation.shipWaterlineLayers;
@@ -982,12 +998,13 @@ function prepareDocksideShipPresentation(ship, latitudeDeg) {
 
 async function prepareDocksideShipPresentationUncached(ship, latitudeDeg) {
   const assetUrls = cityDocksideAssetUrls(state.docksideShipCatalog, ship.slug);
-  const [shipImage, shipSinkDepthImage, ...waterShadowMasks] = await Promise.all(
+  const [shipImage, shipForegroundImage, shipSinkDepthImage, ...waterShadowMasks] = await Promise.all(
     assetUrls.map(loadTransientImage)
   );
   const { width, height } = ship.cityDockside;
   for (const [label, image] of [
     ["raster", shipImage],
+    ["foreground raster", shipForegroundImage],
     ["sink-depth raster", shipSinkDepthImage],
     ...CITY_DOCKSIDE_SHADOW_STATES.map((shadowState, index) => [
       `${shadowState} water-shadow bake`,
@@ -1010,6 +1027,7 @@ async function prepareDocksideShipPresentationUncached(ship, latitudeDeg) {
   );
   return Object.freeze({
     shipImage,
+    shipForegroundImage,
     shipOutline: tintedImageCanvas(shipImage, "#ffe55c"),
     shipSinkDepthImage,
     shipWaterlineLayers: docksideShipWaterlineLayers(
@@ -1580,8 +1598,9 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
     drawShipyardSaleShip(entry.placement, timeMs, targetContext);
   }
   else if (entry.kind === "ship") drawDocksideShip(timeMs);
+  else if (entry.kind === "ship-foreground") drawDocksideShipForeground(timeMs);
   else if (entry.kind === "npc") drawNpc(entry.agent, timeMs);
-  else if (entry.kind === "port-assault") drawPortAssaultPresentation();
+  else if (entry.kind === "port-assault") drawPortAssaultPresentation(entry.lane);
   else throw new Error(`Unknown city scene render entry: ${entry.kind}`);
 }
 
@@ -1978,10 +1997,18 @@ function createSceneRenderEntries() {
     });
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
+  for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
+    entries.push({
+      kind: "port-assault",
+      lane,
+      z: cityPortAssaultLanePainterZ(lane),
+      authoredOrder: 38.9 + lane / 100
+    });
+  }
   entries.push({
-    kind: "port-assault",
-    z: CITY_GATE_FRONT_PAINTER_Z - 0.05,
-    authoredOrder: 38.9
+    kind: "ship-foreground",
+    z: CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
+    authoredOrder: 38.95
   });
   for (const [agentOrder, agent] of state.npcAgents.slice(0, state.features.npcs).entries()) {
     entries.push({
@@ -2881,7 +2908,7 @@ function regionalStaticFrame(frame, layerName) {
 
 function drawAnimatedLayer(layerName, timeMs, occurrence) {
   const animation = state.portManifest.animated[layerName];
-  const frame = animationFrame(animation.frames, prefersReducedMotion.matches ? 0 : timeMs);
+  const frame = cityAnimationFrame(animation.frames, prefersReducedMotion.matches ? 0 : timeMs);
   const window = sceneWindow(layerParallaxDepth(layerName, occurrence));
   const atlas = layerName === "Waves" ? state.waveAtlas : state.surfAtlas;
   if (layerName === "Waves") drawWaterToWaveEdges(atlas, frame, window);
@@ -3433,6 +3460,21 @@ function drawDocksideShip(timeMs) {
   );
 }
 
+function drawDocksideShipForeground(timeMs) {
+  if (!state.assaultPresentation) return;
+  if (!state.shipForegroundImage) {
+    throw new Error("Port assault ship is missing its foreground deck mask");
+  }
+  const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
+  context.drawImage(
+    state.shipForegroundImage,
+    placement.x,
+    placement.y + placement.bobY,
+    state.shipForegroundImage.width * placement.scale,
+    state.shipForegroundImage.height * placement.scale
+  );
+}
+
 function drawShipyardSaleShip(placement, timeMs, targetContext) {
   const screen = shipyardSaleShipScreenPlacement(placement, timeMs);
   const ship = placement.ship;
@@ -3747,7 +3789,7 @@ function drawNpc(agent, timeMs) {
   if (!Array.isArray(animation) || animation.length === 0) {
     throw new Error(`City person ${agent.appearanceId} has no ${animationId} animation`);
   }
-  const frame = animationFrame(animation, time + agent.phase * 1000);
+  const frame = cityAnimationFrame(animation, time + agent.phase * 1000);
   const dx = Math.round(x + frame.spriteSourceSize.x - window.x);
   const dy = Math.round(feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
   if (facingRight) {
@@ -3761,25 +3803,80 @@ function drawNpc(agent, timeMs) {
   }
 }
 
-function drawPortAssaultPresentation() {
+function drawPortAssaultPresentation(lane) {
   const presentation = state.assaultPresentation;
   if (!presentation) return;
-  const battleTimeMs = prefersReducedMotion.matches ? 0 : presentation.elapsedMs;
+  const feetY = CITY_PORT_ASSAULT_LANE_FEET_Y[lane];
+  if (!Number.isFinite(feetY)) throw new Error(`Invalid port-assault render lane: ${lane}`);
+  const battleTimeMs = presentation.elapsedMs;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
-  // Four fixed road lanes provide painter order without allocating and sorting
-  // the complete formation on every animation frame.
-  for (let lane = 0; lane < 4; lane += 1) {
-    for (const unit of presentation.units) {
-      if (unit.lane !== lane) continue;
-      const masterX = 666 + unit.position * 640;
-      const feetY = 516 + unit.lane * 8;
-      drawAssaultPersonSprite(unit, masterX - window.x, feetY - window.y, battleTimeMs);
-      if (unit.inWater) drawAssaultWater(unit, masterX - window.x, feetY - window.y, battleTimeMs);
-    }
+  // Each lane is its own dynamic scene entry, so buildings, trees, cargo, and
+  // gate pieces can naturally paint in front of combatants by ground depth.
+  for (const unit of presentation.units) {
+    if (unit.lane !== lane) continue;
+    const masterX = 666 + unit.position * 640;
+    const landingPoint = Object.freeze({ x: masterX - window.x, y: feetY - window.y });
+    const point = assaultPersonScreenPoint(unit, landingPoint, presentation.events, battleTimeMs);
+    drawAssaultPersonSprite(unit, point.x, point.y, battleTimeMs);
+    if (unit.inWater) drawAssaultWater(unit, point.x, point.y, battleTimeMs);
   }
   for (const event of presentation.events) {
+    const unit = presentation.units.find(({ id }) => id === event.unitId);
+    if (!unit || unit.lane !== lane) continue;
     drawAssaultEvent(event, presentation.units, window, battleTimeMs);
   }
+}
+
+function assaultPersonScreenPoint(unit, landingPoint, events, timeMs) {
+  if (unit.animationId === "jump") {
+    const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
+    const spawnAnchor = placement.ship.cityDockside.sailorSpawnAnchor;
+    if (!spawnAnchor || !Number.isFinite(spawnAnchor.x) || !Number.isFinite(spawnAnchor.y)) {
+      throw new Error(`Port assault ship has no sailor spawn anchor: ${placement.ship.slug}`);
+    }
+    return cityAssaultJumpPoint({
+      start: {
+        x: placement.x + spawnAnchor.x * placement.scale,
+        y: placement.y + placement.bobY + spawnAnchor.y * placement.scale
+      },
+      end: landingPoint,
+      elapsedMs: timeMs - unit.animationStartedAtMs,
+      durationMs: portAssaultLandingDurationMs(state.features.dock)
+    });
+  }
+
+  let latestLunge = null;
+  let latestKnockback = null;
+  for (const event of events) {
+    if (event.attackType === "melee" && event.type === "attack" && event.unitId === unit.id &&
+        (!latestLunge || event.timeMs > latestLunge.timeMs)) latestLunge = event;
+    if ((event.type === "hit" || event.type === "death") && event.unitId === unit.id &&
+        (!latestKnockback || event.timeMs > latestKnockback.timeMs)) latestKnockback = event;
+  }
+  let offsetX = 0;
+  let offsetY = 0;
+  if (latestLunge) {
+    const offset = cityAssaultMeleeLungeOffset(unit.side, timeMs - latestLunge.timeMs);
+    offsetX += offset.x;
+    offsetY += offset.y;
+  }
+  if (latestKnockback) {
+    if (!Number.isFinite(latestKnockback.knockbackPositionDelta)) {
+      throw new Error(`Port-assault hit has invalid knockback: ${unit.id}`);
+    }
+    if (latestKnockback.knockbackPositionDelta !== 0) {
+      const offset = cityAssaultKnockbackOffset({
+        knockbackPx: latestKnockback.knockbackPositionDelta * 640,
+        elapsedMs: timeMs - latestKnockback.timeMs
+      });
+      offsetX += offset.x;
+      offsetY += offset.y;
+    }
+  }
+  return Object.freeze({
+    x: Math.round(landingPoint.x + offsetX),
+    y: Math.round(landingPoint.y + offsetY)
+  });
 }
 
 function drawAssaultPersonSprite(unit, screenX, screenFeetY, timeMs) {
@@ -3789,7 +3886,15 @@ function drawAssaultPersonSprite(unit, screenX, screenFeetY, timeMs) {
   if (!Array.isArray(animation) || animation.length === 0) {
     throw new Error(`Assault appearance ${unit.appearanceId} has no ${unit.animationId} animation`);
   }
-  const frame = animationFrame(animation, timeMs);
+  if (!Number.isFinite(unit.animationStartedAtMs) || unit.animationStartedAtMs > timeMs) {
+    throw new Error(`Invalid assault animation start for ${unit.id}: ${unit.animationStartedAtMs}`);
+  }
+  const animationElapsedMs = timeMs - unit.animationStartedAtMs;
+  const playback = unit.animationId === "death" || unit.animationId === "jump" ||
+    unit.animationId === "attack"
+    ? CITY_ANIMATION_PLAYBACK.ONCE
+    : CITY_ANIMATION_PLAYBACK.LOOP;
+  const frame = cityAnimationFrame(animation, animationElapsedMs, playback);
   const dx = Math.round(screenX + frame.spriteSourceSize.x - frame.sourceSize.w / 2);
   const dy = Math.round(screenFeetY - frame.sourceSize.h + frame.spriteSourceSize.y);
   const facingRight = unit.side === "attacker";
@@ -3841,7 +3946,9 @@ function drawAssaultEvent(event, units, window, timeMs) {
   const unit = units.find(({ id }) => id === event.unitId);
   if (!unit) return;
   const x = Math.round(666 + unit.position * 640 - window.x);
-  const y = Math.round(512 + unit.lane * 8 - window.y);
+  const feetY = CITY_PORT_ASSAULT_LANE_FEET_Y[unit.lane];
+  if (!Number.isFinite(feetY)) throw new Error(`Port assault event has invalid lane: ${unit.lane}`);
+  const y = Math.round(feetY - window.y);
   if (event.type === "attack" && event.attackType === "firearm") {
     context.fillStyle = "#ffffff";
     context.fillRect(x + (unit.side === "attacker" ? 5 : -6), y - 10, 2, 1);
@@ -3892,7 +3999,7 @@ function drawPersonSprite(targetContext, {
   if (!Array.isArray(animation) || animation.length === 0) {
     throw new Error(`City person ${appearanceId} has no ${animationId} animation`);
   }
-  const frame = animationFrame(animation, prefersReducedMotion.matches ? 0 : timeMs);
+  const frame = cityAnimationFrame(animation, prefersReducedMotion.matches ? 0 : timeMs);
   const dx = Math.round(x + frame.spriteSourceSize.x * scale);
   const dy = Math.round(y + frame.spriteSourceSize.y * scale);
   const dw = Math.round(frame.frame.w * scale);
@@ -4390,16 +4497,6 @@ function frameAlpha(frame, atlas = state.staticAtlas) {
   for (let index = 0; index < alpha.length; index++) alpha[index] = rgba[index * 4 + 3];
   atlasCache.set(frame, alpha);
   return alpha;
-}
-
-function animationFrame(frames, timeMs) {
-  const duration = frames.reduce((sum, frame) => sum + frame.duration, 0);
-  let elapsed = duration === 0 ? 0 : timeMs % duration;
-  for (const frame of frames) {
-    if (elapsed < frame.duration) return frame;
-    elapsed -= frame.duration;
-  }
-  return frames[frames.length - 1];
 }
 
 function canvasPoint(event) {

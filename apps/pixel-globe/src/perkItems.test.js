@@ -53,12 +53,21 @@ test("the suite covers storage, navigation, combat, fishing, and scavenging", ()
     "portAssaultMeleeDamageMultiplier",
     "portAssaultArrowDamageMultiplier",
     "portAssaultFirearmDamageMultiplier",
-    "portAssaultDefenseMultiplier",
-    "portAssaultHitPointsMultiplier",
+    "portAssaultArmorCoverageFlat",
     "fishingChanceMultiplier",
     "scavengingChanceMultiplier",
     "damageResistanceChance"
   ]) assert.ok(keys.has(key), key);
+});
+
+test("armour inventory items directly raise landing-party armour coverage", () => {
+  const armorItemIds = ["padded-jack", "brigandine", "indo-persian-mail", "lamellar-coat"];
+  for (const itemId of armorItemIds) {
+    const perks = perkItemById(itemId).perks;
+    assert.ok(perks.portAssaultArmorCoverageFlat > 0, itemId);
+    assert.equal(perks.portAssaultDefenseMultiplier, undefined, itemId);
+    assert.equal(perks.portAssaultHitPointsMultiplier, undefined, itemId);
+  }
 });
 
 test("special equipment is an uncommon single-item port lottery", () => {

@@ -29,7 +29,12 @@ test("city asset manifests resolve canonical assets without substitution", () =>
   assert.equal(cityFlagAssetUrl(requireCityFlag(flags, "england")), "/assets/factions/flags/england.png");
   assert.equal(requireCityDocksideShip(docksideShips, "sampan").slug, "sampan");
   assert.equal(requireCitySideViewShip(sideViews, "sampan").slug, "sampan");
-  assert.equal(cityDocksideAssetUrls(docksideShips, "sampan").length, 5);
+  assert.deepEqual(cityDocksideAssetUrls(docksideShips, "sampan").slice(0, 3), [
+    "/assets/vehicles/unity-ships/port-assault/sampan-city-dockside.png",
+    "/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-foreground.png",
+    "/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-sink-depth.png"
+  ]);
+  assert.equal(cityDocksideAssetUrls(docksideShips, "sampan").length, 6);
 });
 
 test("unknown canonical IDs fail instead of selecting another city asset", () => {

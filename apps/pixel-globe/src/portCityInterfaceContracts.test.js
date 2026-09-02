@@ -21,6 +21,15 @@ test("opening the fully covered city resets north-up without a chart reframe wav
   assert.doesNotMatch(reset, /createChartModalReframeWave/);
 });
 
+test("city wipes stay on the renderer clock during deterministic capture", () => {
+  const synchronization = functionSource("synchronizePortCityScene", "beginPortCityIllicitCaughtPresentation");
+  const deactivation = functionSource("deactivatePortCityView", "queuePortCitySceneSync");
+  assert.match(synchronization, /portCityTransition\.startedAtMs = lastFrameMs/);
+  assert.match(deactivation, /startedAtMs: lastFrameMs/);
+  assert.doesNotMatch(synchronization, /performance\.now/);
+  assert.doesNotMatch(deactivation, /performance\.now/);
+});
+
 test("city Escape activates Set Sail and the normal captain menu remains available", () => {
   const keys = functionSource("handlePortCityKeyDown", "beginPortCityPointer");
   assert.match(keys, /keyAction === KEY_ACTION\.CAPTAIN_MENU[\s\S]*openCaptainMenu\(\)/);
