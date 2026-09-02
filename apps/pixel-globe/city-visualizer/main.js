@@ -83,9 +83,12 @@ import {
 } from "./cityShipyardSaleShips.js";
 import { CITY_NPC_PATHS, cityGroundPainterZ } from "./cityPainterOrder.js";
 import {
+  cityGarrisonAppearanceIds,
+  citySuspiciousMerchantAppearanceId,
   createCityPeopleAgents,
   validateCityPeopleManifest
 } from "./cityPeople.js";
+import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
@@ -132,28 +135,50 @@ import {
 import { cityVisualizerBenchmarkFromSearch } from "./cityVisualizerBenchmark.js";
 import { createCachedSceneRenderer } from "../src/cachedSceneRenderer.js";
 
-const canvas = document.querySelector("#scene");
+export async function createCitySceneRuntime({
+  canvas,
+  stage = null,
+  loading = null,
+  controls = null,
+  assetBaseUrl = "./assets",
+  catalogUrl = "./data/cities.json",
+  initialCityId = null,
+  initialShipSlug = null,
+  initialSaleShipSlugs = null,
+  externalFrameClock = false,
+  benchmark = null,
+  onDestination = null,
+  renderText = (text) => text,
+  smallFontForText = (_text) => CITY_PIXEL_FONT_SMALL_8,
+  titleFontForText = (_text) => CITY_PIXEL_FONT_TITLE_8
+} = {}) {
+if (!(canvas instanceof HTMLCanvasElement)) {
+  throw new TypeError("City scene runtime requires an HTML canvas");
+}
+for (const [label, callback] of Object.entries({ renderText, smallFontForText, titleFontForText })) {
+  if (typeof callback !== "function") throw new TypeError(`City scene runtime requires ${label}`);
+}
 const context = canvas.getContext("2d", { alpha: false });
+if (!context) throw new Error("City scene runtime could not create its 2D canvas context");
 const pixelText = createCityPixelTextRenderer(context, () => document.createElement("canvas"));
-const stage = document.querySelector("#stage");
-const loading = document.querySelector("#loading");
-const citySelect = document.querySelector("#city-select");
-const viewportSelect = document.querySelector("#viewport-select");
-const shipSelect = document.querySelector("#ship-select");
-const approachOverride = document.querySelector("#approach-override");
-const leftBankCityOverride = document.querySelector("#left-bank-city-override");
-const dockOverride = document.querySelector("#dock-override");
-const fortOverride = document.querySelector("#fort-override");
-const mountainOverride = document.querySelector("#mountain-override");
-const leftTerrainOverride = document.querySelector("#left-terrain-override");
-const rightTerrainOverride = document.querySelector("#right-terrain-override");
-const windSpeedOverride = document.querySelector("#wind-speed-override");
-const windDirectionOverride = document.querySelector("#wind-direction-override");
-const resetOverrides = document.querySelector("#reset-overrides");
-const ruleLedger = document.querySelector("#rule-ledger");
-const destinationDialog = document.querySelector("#destination-dialog");
-const destinationTitle = document.querySelector("#destination-title");
-const destinationCopy = document.querySelector("#destination-copy");
+const inertControl = (value = "auto") => ({ value });
+const citySelect = controls?.citySelect || inertControl("");
+const viewportSelect = controls?.viewportSelect || inertControl("auto");
+const shipSelect = controls?.shipSelect || inertControl("");
+const approachOverride = controls?.approachOverride || inertControl();
+const leftBankCityOverride = controls?.leftBankCityOverride || inertControl();
+const dockOverride = controls?.dockOverride || inertControl();
+const fortOverride = controls?.fortOverride || inertControl();
+const mountainOverride = controls?.mountainOverride || inertControl();
+const leftTerrainOverride = controls?.leftTerrainOverride || inertControl();
+const rightTerrainOverride = controls?.rightTerrainOverride || inertControl();
+const windSpeedOverride = controls?.windSpeedOverride || inertControl();
+const windDirectionOverride = controls?.windDirectionOverride || inertControl();
+const resetOverrides = controls?.resetOverrides || null;
+const ruleLedger = controls?.ruleLedger || null;
+const destinationDialog = controls?.destinationDialog || null;
+const destinationTitle = controls?.destinationTitle || null;
+const destinationCopy = controls?.destinationCopy || null;
 
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const imageCache = new Map();
@@ -161,13 +186,16 @@ const frameCanvasCache = new WeakMap();
 const backgroundCityAtmosphereCanvasCache = new WeakMap();
 const regionalStaticFrameCanvasCache = new Map();
 const alphaCache = new WeakMap();
+const imageAlphaCache = new WeakMap();
 const animatedRowEdgeCache = new WeakMap();
 const latitudeWaterFrameCanvasCache = new WeakMap();
 const latitudeWaterCssColorCache = new Map();
 const treeShadowMaskCache = new WeakMap();
 const treeShadowColorCache = new Map();
 const staticProjectionSpecsCache = new WeakMap();
-const CITY_VISUALIZER_BENCHMARK = cityVisualizerBenchmarkFromSearch(window.location.search);
+const CITY_VISUALIZER_BENCHMARK = benchmark ?? (
+  externalFrameClock ? null : cityVisualizerBenchmarkFromSearch(window.location.search)
+);
 const STATIC_SCENE_ENTRY_KINDS = new Set([
   "background-city-static",
   "city-building",
@@ -219,6 +247,11 @@ const state = {
   suppressClick: false,
   hoveredDestination: null,
   hoveredShipyardSaleShipId: null,
+  focusedDestinationId: null,
+  availableDestinationIds: null,
+  barred: false,
+  illicitCaughtStartedAtMs: null,
+  specialAgents: [],
   backgroundCityRows: [],
   backgroundCityPainterOrder: [],
   backgroundCitySmokeByBuilding: new Map(),
@@ -247,53 +280,60 @@ const citySceneRenderer = createCachedSceneRenderer({
 
 const DESTINATIONS = Object.freeze([
   Object.freeze({
-    id: "shipyard",
+    id: PORT_CITY_LOCATION.SHIPYARD,
     label: "Shipyard",
-    layers: Object.freeze(["Shipyard"]),
-    requiredFeature: "shipyard",
+    layers: Object.freeze(["Shipyard", "Dock", "Stone Dock"]),
     copy: "This will open the existing shipyard modal: repairs, outfitting, and available hulls."
   }),
   Object.freeze({
-    id: "market",
+    id: PORT_CITY_LOCATION.MARKET,
     label: "Market",
     layers: Object.freeze(["Market Stall", "Market Stall Copy", "Market Stall Copy Copy"]),
     requiredFeature: "market",
     copy: "This will open the existing market modal for regional cargo and prices."
   }),
   Object.freeze({
-    id: "store",
-    label: "Item store",
+    id: PORT_CITY_LOCATION.EQUIPMENT,
+    label: "Smith",
     layers: Object.freeze(["Smith"]),
     requiredFeature: "store",
     copy: "This will open the existing item-store modal for weapons, tools, and supplies."
   }),
   Object.freeze({
-    id: "inn",
+    id: PORT_CITY_LOCATION.INN,
     label: "Inn",
-    layers: Object.freeze(["Inn"]),
-    requiredFeature: "inn",
+    layers: Object.freeze(["Inn", "Home 2"]),
     copy: "This will open the existing inn flow for rumours, quests, and recruitable characters."
   }),
   Object.freeze({
-    id: "gatehouse",
-    label: "Gatehouse",
+    id: PORT_CITY_LOCATION.AUTHORITY,
+    label: "Port authority",
     layers: Object.freeze(["Far Castle", "Gate", "Near Castle"]),
-    requiresFortification: true,
     copy: "This will become the entry point for garrison business and the city-storming encounter."
+  }),
+  Object.freeze({
+    id: PORT_CITY_LOCATION.SHIP,
+    label: "Your ship",
+    layers: Object.freeze([]),
+    copy: "This opens the ship menu."
+  }),
+  Object.freeze({
+    id: PORT_CITY_LOCATION.ILLICIT_MERCHANT,
+    label: "Suspicious merchant",
+    layers: Object.freeze([]),
+    copy: "This attempts to trade illicitly."
   })
 ]);
-
-await initialize();
 
 async function initialize() {
   try {
     const [catalog, portManifest, peopleManifest, shipManifest, shipSideViewManifest, treeManifest] = await Promise.all([
-      fetchJson("./data/cities.json"),
-      fetchJson("./assets/port-parallax/manifest.json", { cache: "no-store" }),
-      fetchJson("./assets/minifolks/manifest.json"),
+      fetchJson(catalogUrl),
+      fetchJson(`${assetBaseUrl}/port-parallax/manifest.json`, { cache: "no-store" }),
+      fetchJson(`${assetBaseUrl}/minifolks/manifest.json`),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),
       fetchJson("/assets/vehicles/unity-ships/side-views/manifest.json"),
-      fetchJson("./assets/trees/manifest.json"),
+      fetchJson(`${assetBaseUrl}/trees/manifest.json`),
       document.fonts?.load?.(CITY_PIXEL_FONT_SMALL_8) || Promise.resolve(),
       document.fonts?.load?.(CITY_PIXEL_FONT_TITLE_8) || Promise.resolve()
     ]);
@@ -310,20 +350,27 @@ async function initialize() {
       loadImage(portAtlasUrl(portManifest, portManifest.staticSheet)),
       loadImage(portAtlasUrl(portManifest, portManifest.animated?.Waves?.sheet)),
       loadImage(portAtlasUrl(portManifest, portManifest.animated?.Surf?.sheet)),
-      loadImage(`./assets/trees/${treeManifest.sheet}`),
-      loadImage(`./assets/minifolks/${state.peopleManifest.sheet}`)
+      loadImage(`${assetBaseUrl}/trees/${treeManifest.sheet}`),
+      loadImage(`${assetBaseUrl}/minifolks/${state.peopleManifest.sheet}`)
     ]);
     prepareScenePixelCaches();
-    prepareControls();
+    if (controls) prepareControls();
     await selectInitialCity();
-    resizeLogicalCanvas();
+    if (!externalFrameClock) resizeLogicalCanvas();
+    else if (canvas.width <= 0 || canvas.height <= 0) {
+      throw new Error("Externally clocked city scene requires explicit canvas dimensions");
+    }
     state.ready = true;
-    loading.hidden = true;
+    if (loading) loading.hidden = true;
     if (CITY_VISUALIZER_BENCHMARK) setupCityVisualizerBenchmark();
-    scheduleRender();
+    if (!externalFrameClock) scheduleRender();
   } catch (error) {
     console.error(error);
-    loading.textContent = error instanceof Error ? error.message : String(error);
+    if (loading) {
+      loading.hidden = false;
+      loading.textContent = error instanceof Error ? error.message : String(error);
+    }
+    throw error;
   }
 }
 
@@ -388,23 +435,44 @@ function prepareControls() {
 }
 
 async function selectInitialCity() {
-  const requested = new URL(location.href).searchParams.get("city");
+  const requested = initialCityId || (
+    externalFrameClock ? null : new URL(location.href).searchParams.get("city")
+  );
   const city = state.catalog.cities.find((candidate) => candidate.id === requested) ||
     state.catalog.cities.find((candidate) => candidate.label === "London") ||
     state.catalog.cities[0];
-  await selectCity(city.id);
+  await selectCity(city.id, {
+    playerShipSlug: initialShipSlug,
+    saleShipSlugs: initialSaleShipSlugs
+  });
 }
 
-async function selectCity(cityId) {
+async function selectCity(cityId, {
+  playerShipSlug = null,
+  saleShipSlugs = null,
+  availableDestinationIds = null,
+  barred = false,
+  illicitCaughtStartedAtMs = null
+} = {}) {
   const city = state.catalog.cities.find((candidate) => candidate.id === cityId);
   if (!city) throw new Error(`Unknown visualizer city: ${cityId}`);
   state.city = city;
+  state.availableDestinationIds = availableDestinationIds === null
+    ? null
+    : validateAvailableDestinationIds(availableDestinationIds);
+  state.barred = barred === true;
+  if (illicitCaughtStartedAtMs !== null &&
+      (!Number.isFinite(illicitCaughtStartedAtMs) || illicitCaughtStartedAtMs < 0)) {
+    throw new Error(`Invalid illicit-trade city event time: ${illicitCaughtStartedAtMs}`);
+  }
+  state.illicitCaughtStartedAtMs = illicitCaughtStartedAtMs;
+  state.focusedDestinationId = null;
   state.cityFlagFactionId = city.factionId;
   state.cityFlagImage = null;
   state.shipyardSaleShips = [];
   state.shipyardSaleShipPlacements = [];
   citySelect.value = city.id;
-  canvas.setAttribute("aria-label", `${city.label}, ${city.country}`);
+  canvas.setAttribute("aria-label", `${renderText(city.label)}, ${renderText(city.country)}`);
   for (const control of [
     approachOverride,
     leftBankCityOverride,
@@ -424,19 +492,25 @@ async function selectCity(cityId) {
   state.lastCloudTimeMs = null;
   await Promise.all([
     selectCityFlag(city),
-    selectShip(city.defaultShip),
-    selectShipyardSaleShips(cityShipyardSaleShipSlugs(city, state.features))
+    selectShip(playerShipSlug || city.defaultShip),
+    selectShipyardSaleShips(saleShipSlugs || cityShipyardSaleShipSlugs(city, state.features))
   ]);
   if (state.city.id !== city.id) return;
-  const url = new URL(location.href);
-  url.searchParams.set("city", city.id);
-  history.replaceState(null, "", url);
+  const firstDestination = activeDestinations()[0];
+  if (firstDestination) focusDestination(firstDestination.id);
+  if (!externalFrameClock) {
+    const url = new URL(location.href);
+    url.searchParams.set("city", city.id);
+    history.replaceState(null, "", url);
+  }
 }
 
 function reportVisualizerError(error) {
   console.error(error);
-  loading.hidden = false;
-  loading.textContent = error instanceof Error ? error.message : String(error);
+  if (loading) {
+    loading.hidden = false;
+    loading.textContent = error instanceof Error ? error.message : String(error);
+  }
 }
 
 async function selectCityFlag(city) {
@@ -478,6 +552,7 @@ function applyFeatureOverrides() {
     count: state.features.npcs,
     paths: CITY_NPC_PATHS
   });
+  state.specialAgents = createSpecialPeopleAgents();
   state.streetBuildings = cityStreetBuildingPlacements({
     features: state.features,
     frames: state.portManifest.staticFrames,
@@ -701,6 +776,7 @@ function publicAssetUrl(file) {
 }
 
 function updateRuleLedger() {
+  if (!ruleLedger) return;
   const rows = [...sceneReasonRows(state.city, state.features)];
   if (state.wind) {
     rows.push(Object.freeze({
@@ -761,6 +837,7 @@ function resizeLogicalCanvas() {
   updateHover();
 }
 
+if (!externalFrameClock) {
 new ResizeObserver(() => {
   resizeLogicalCanvas();
 }).observe(stage);
@@ -830,10 +907,15 @@ canvas.addEventListener("click", () => {
   }
   const destination = state.hoveredDestination;
   if (!destination) return;
+  if (onDestination) {
+    onDestination(Object.freeze({ id: destination.id, saleShipId: state.hoveredShipyardSaleShipId }));
+    return;
+  }
   destinationTitle.textContent = destination.label;
   destinationCopy.textContent = destination.copy;
   destinationDialog.showModal();
 });
+}
 
 function finishCameraGesture(event) {
   const gesture = state.cameraGesture;
@@ -871,6 +953,21 @@ function panCameraByScreenPixels(screenDeltaX) {
     cameraBounds.minimum,
     cameraBounds.maximum
   );
+  updateHover();
+}
+
+function panCameraByLogicalPixels(logicalDeltaX) {
+  const delta = scenePanParallaxDelta({
+    screenDeltaX: logicalDeltaX,
+    displayWidth: canvas.width,
+    logicalWidth: canvas.width,
+    approach: state.features?.approach || "ocean"
+  });
+  if (delta === 0) return;
+  const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
+  state.cameraVelocity = 0;
+  state.cameraPanTarget = null;
+  state.parallax = clamp(state.parallax + delta, cameraBounds.minimum, cameraBounds.maximum);
   updateHover();
 }
 
@@ -1021,7 +1118,7 @@ function scheduleRender() {
   renderFrameId = requestAnimationFrame(render);
 }
 
-document.addEventListener("visibilitychange", () => {
+if (!externalFrameClock) document.addEventListener("visibilitychange", () => {
   if (document.visibilityState === "hidden") {
     if (renderFrameId !== null) cancelAnimationFrame(renderFrameId);
     renderFrameId = null;
@@ -1179,11 +1276,12 @@ function staticSceneCacheKey(entries) {
   const projectionKey = projectionSpecs.map(({ depth, parallaxAnchor }) => (
     Math.round(sceneWindow(depth, 0, 0, parallaxAnchor).x)
   )).join(",");
-  const hoveredDestinationId = state.hoveredDestination &&
+  const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
+  const hoveredDestinationId = highlightedDestination &&
     !state.hoveredShipyardSaleShipId && entries.some((entry) => (
-    entry.kind === "static" && state.hoveredDestination.layers.includes(entry.layerName)
+    entry.kind === "static" && highlightedDestination.layers.includes(entry.layerName)
   ))
-    ? state.hoveredDestination.id
+    ? highlightedDestination.id
     : "no-hover";
   return [
     `${canvas.width}x${canvas.height}`,
@@ -1436,6 +1534,14 @@ function createSceneRenderEntries() {
       agent,
       z: cityGroundPainterZ(agent.feetY),
       authoredOrder: 37.5 + agentOrder / 100
+    });
+  }
+  for (const [agentOrder, agent] of state.specialAgents.entries()) {
+    entries.push({
+      kind: "npc",
+      agent,
+      z: cityGroundPainterZ(agent.feetY),
+      authoredOrder: 38.5 + agentOrder / 100
     });
   }
   if (state.features.dock !== "none") {
@@ -1835,8 +1941,9 @@ function drawStaticFrame(frame, layerName, occurrence, targetContext) {
   const regionalFrame = regionalStaticFrame(frame, layerName);
   const sourceAtlas = regionalFrame?.atlas || state.staticAtlas;
   const sourceFrame = regionalFrame?.frame || frame;
+  const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
   if (
-    state.hoveredDestination?.layers.includes(layerName) &&
+    highlightedDestination?.layers.includes(layerName) &&
     !state.hoveredShipyardSaleShipId
   ) {
     drawFrameOutline(sourceAtlas, sourceFrame, window, targetContext);
@@ -2722,11 +2829,25 @@ function drawNpc(agent, timeMs) {
   const appearance = state.peopleById.get(agent.appearanceId);
   if (!appearance) throw new Error(`Unknown city person appearance: ${agent.appearanceId}`);
   const atlas = state.peopleAtlas;
-  const cycle = (time * agent.speed + agent.phase) % 2;
+  const caughtElapsed = agent.startedAtMs === undefined
+    ? null
+    : clamp((timeMs - agent.startedAtMs) / 850, 0, 1);
+  const scripted = ["merchant-flee", "guard-approach"].includes(agent.motion);
+  const stationary = agent.motion === "stationary";
+  const cycle = stationary ? 0 : (time * agent.speed + agent.phase) % 2;
   const progress = cycle <= 1 ? cycle : 2 - cycle;
-  const facingRight = cycle <= 1;
-  const x = agent.startX + (agent.endX - agent.startX) * progress;
-  const frame = animationFrame(appearance.animations.walk, time + agent.phase * 1000);
+  const facingRight = scripted
+    ? agent.endX >= agent.startX
+    : stationary ? agent.facingRight !== false : cycle <= 1;
+  const x = scripted
+    ? agent.startX + (agent.endX - agent.startX) * caughtElapsed
+    : stationary ? agent.startX : agent.startX + (agent.endX - agent.startX) * progress;
+  const animationId = agent.animationId || "walk";
+  const animation = appearance.animations[animationId];
+  if (!Array.isArray(animation) || animation.length === 0) {
+    throw new Error(`City person ${agent.appearanceId} has no ${animationId} animation`);
+  }
+  const frame = animationFrame(animation, time + agent.phase * 1000);
   const dx = Math.round(x + frame.spriteSourceSize.x - window.x);
   const dy = Math.round(agent.feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
   if (facingRight) {
@@ -2741,22 +2862,26 @@ function drawNpc(agent, timeMs) {
 }
 
 function drawSceneLabels() {
-  const cityLabel = state.city.label.toUpperCase();
+  const localizedCityLabel = renderText(state.city.label);
+  const cityLabel = localizedCityLabel.toUpperCase();
+  const cityFont = titleFontForText(cityLabel);
   pixelText.draw(cityLabel, 8, 8, {
     color: "#ffffff",
-    font: CITY_PIXEL_FONT_TITLE_8,
+    font: cityFont,
     wordSpacingPx: 4
   });
 
-  if (state.hoveredDestination) {
-    const label = state.hoveredDestination.label.toUpperCase();
-    const width = pixelText.measure(label, CITY_PIXEL_FONT_SMALL_8) + 10;
+  const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
+  if (highlightedDestination) {
+    const label = renderText(highlightedDestination.label).toUpperCase();
+    const font = smallFontForText(label);
+    const width = pixelText.measure(label, font) + 10;
     const x = Math.round((canvas.width - width) / 2);
     const y = canvas.height - 22;
     drawLabelPlate(x, y, width, 15);
     pixelText.draw(label, x + 5, y + 2, {
       color: "#ffe55c",
-      font: CITY_PIXEL_FONT_SMALL_8
+      font
     });
   }
 }
@@ -2770,57 +2895,261 @@ function drawLabelPlate(x, y, width, height) {
 }
 
 function updateHover() {
-  if (!state.ready || !state.pointer || !state.features) return;
-  const activeLayers = activePortSceneLayers(state.features);
-  const destinations = DESTINATIONS.filter((destination) => (
-    (!destination.requiresFortification || state.features.fortified) &&
-    (!destination.requiredFeature || state.features[destination.requiredFeature])
-  ));
-  const shipyardDestination = destinations.find(({ id }) => id === "shipyard");
+  if (!state.ready || !state.features) return;
+  const hit = state.pointer ? destinationAtPoint(state.pointer.x, state.pointer.y) : null;
+  state.hoveredShipyardSaleShipId = hit?.saleShipId || null;
+  state.hoveredDestination = hit?.destination || null;
+  canvas.classList.toggle("is-actionable", Boolean(state.hoveredDestination));
+  const cityLabel = renderText(state.city.label);
+  const destinationLabel = state.hoveredDestination
+    ? renderText(state.hoveredDestination.label)
+    : null;
+  canvas.setAttribute(
+    "aria-label",
+    `${cityLabel}, ${renderText(state.city.country)}${destinationLabel ? `, ${destinationLabel}` : ""}`
+  );
+}
+
+function activeDestinations() {
+  const explicit = state.availableDestinationIds;
+  return DESTINATIONS.filter((destination) => {
+    if (explicit && !explicit.has(destination.id)) return false;
+    if (!explicit && destination.id === PORT_CITY_LOCATION.ILLICIT_MERCHANT) return false;
+    if (destination.requiredFeature && !state.features?.[destination.requiredFeature]) return false;
+    if (destination.requiresFortification && !state.features?.fortified) return false;
+    return true;
+  });
+}
+
+function destinationById(destinationId) {
+  if (!destinationId) return null;
+  return activeDestinations().find(({ id }) => id === destinationId) || null;
+}
+
+function validateAvailableDestinationIds(destinationIds) {
+  if (!Array.isArray(destinationIds)) {
+    throw new Error("City scene destination IDs must be an array");
+  }
+  const knownIds = new Set(DESTINATIONS.map(({ id }) => id));
+  const validated = new Set();
+  for (const destinationId of destinationIds) {
+    if (!knownIds.has(destinationId)) throw new Error(`Unknown city destination: ${destinationId}`);
+    if (validated.has(destinationId)) throw new Error(`Duplicate city destination: ${destinationId}`);
+    validated.add(destinationId);
+  }
+  return validated;
+}
+
+function destinationAtPoint(x, y) {
+  if (![x, y].every(Number.isFinite)) throw new Error("Invalid city destination coordinates");
+  const destinations = activeDestinations();
+  const shipDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP);
+  if (shipDestination && docksideShipContainsPoint(x, y)) {
+    return Object.freeze({ destination: shipDestination, saleShipId: null });
+  }
+  const merchantDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.ILLICIT_MERCHANT);
+  if (merchantDestination && specialDestinationContainsPoint(PORT_CITY_LOCATION.ILLICIT_MERCHANT, x, y)) {
+    return Object.freeze({ destination: merchantDestination, saleShipId: null });
+  }
+  const authorityDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.AUTHORITY);
+  if (authorityDestination && specialDestinationContainsPoint(PORT_CITY_LOCATION.AUTHORITY, x, y)) {
+    return Object.freeze({ destination: authorityDestination, saleShipId: null });
+  }
+  const shipyardDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.SHIPYARD);
   const hoveredSaleShip = shipyardDestination
     ? [...state.shipyardSaleShipPlacements]
         .sort((left, right) => right.z - left.z)
         .find((placement) => {
-          const screen = shipyardSaleShipScreenPlacement(
-            placement,
-            state.lastRenderTimeMs ?? 0
-          );
+          const screen = shipyardSaleShipScreenPlacement(placement, state.lastRenderTimeMs ?? 0);
           return cityShipyardSaleShipContainsPoint({
             placement: { ...placement, x: screen.x, y: screen.y },
-            screenX: state.pointer.x,
-            screenY: state.pointer.y,
+            screenX: x,
+            screenY: y,
             alpha: placement.ship.alpha
           });
         })
     : null;
-  state.hoveredShipyardSaleShipId = hoveredSaleShip?.id || null;
-  state.hoveredDestination = hoveredSaleShip ? shipyardDestination : destinations.find((destination) => destination.layers.some((layerName) => {
-    if (!activeLayers.has(layerName)) return false;
-    return state.portManifest.staticFrames
-      .filter((frame) => frame.layer === layerName)
-      .some((frame, occurrence) => {
+  if (hoveredSaleShip) {
+    return Object.freeze({ destination: shipyardDestination, saleShipId: hoveredSaleShip.id });
+  }
+  const activeLayers = activePortSceneLayers(state.features);
+  for (const destination of destinations) {
+    for (const layerName of destination.layers) {
+      if (!activeLayers.has(layerName)) continue;
+      const frames = state.portManifest.staticFrames.filter((frame) => frame.layer === layerName);
+      for (const [occurrence, frame] of frames.entries()) {
         const window = sceneWindow(
           layerParallaxDepth(layerName, occurrence),
           layerSceneOffsetX(layerName, occurrence, state.features?.approach || "ocean"),
           layerSceneOffsetY(layerName, occurrence, state.features?.approach || "ocean"),
           layerParallaxAnchor(layerName, occurrence)
         );
-        const masterX = state.pointer.x + window.x;
-        const masterY = state.pointer.y + window.y;
         const regionalFrame = regionalStaticFrame(frame, layerName);
-        return frameContainsOpaquePixel(
+        if (frameContainsOpaquePixel(
           regionalFrame?.atlas || state.staticAtlas,
           regionalFrame?.frame || frame,
-          masterX,
-          masterY
-        );
-      });
-  })) || null;
-  canvas.classList.toggle("is-actionable", Boolean(state.hoveredDestination));
-  canvas.setAttribute(
-    "aria-label",
-    `${state.city.label}, ${state.city.country}${state.hoveredDestination ? `, ${state.hoveredDestination.label}` : ""}`
-  );
+          x + window.x,
+          y + window.y
+        )) return Object.freeze({ destination, saleShipId: null });
+      }
+    }
+  }
+  return null;
+}
+
+function docksideShipContainsPoint(screenX, screenY) {
+  if (!state.shipImage) return false;
+  const placement = docksideShipPlacement(state.lastRenderTimeMs ?? 0, PORT_SCENE_ENTITY_META.ship.depth);
+  if (!placement) return false;
+  const localX = Math.floor((screenX - placement.x) / placement.scale);
+  const localY = Math.floor((screenY - placement.y - placement.bobY) / placement.scale);
+  if (localX < 0 || localY < 0 || localX >= state.shipImage.width || localY >= state.shipImage.height) {
+    return false;
+  }
+  return imageAlpha(state.shipImage)[localX + localY * state.shipImage.width] > 16;
+}
+
+function specialDestinationContainsPoint(destinationId, screenX, screenY) {
+  const agent = state.specialAgents.find((candidate) => (
+    candidate.destinationId === destinationId
+  ));
+  if (!agent) return false;
+  const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+  const x = agent.startX - window.x;
+  const y = agent.feetY - window.y;
+  return screenX >= x - 6 && screenX <= x + 6 && screenY >= y - 18 && screenY <= y + 2;
+}
+
+function focusDestination(destinationId) {
+  const destination = destinationById(destinationId);
+  if (!destination) throw new Error(`City destination is unavailable: ${destinationId}`);
+  state.focusedDestinationId = destinationId;
+  const anchor = destinationScreenAnchor(destination);
+  if (anchor) panCameraByLogicalPixels(anchor.x - canvas.width / 2);
+}
+
+function moveDestinationFocus(direction) {
+  if (!["left", "right", "up", "down"].includes(direction)) {
+    throw new Error(`Invalid city focus direction: ${direction}`);
+  }
+  const destinations = activeDestinations();
+  if (destinations.length === 0) return null;
+  const currentIndex = destinations.findIndex(({ id }) => id === state.focusedDestinationId);
+  const step = direction === "left" || direction === "up" ? -1 : 1;
+  const nextIndex = currentIndex < 0
+    ? 0
+    : positiveModulo(currentIndex + step, destinations.length);
+  focusDestination(destinations[nextIndex].id);
+  return destinations[nextIndex].id;
+}
+
+function destinationScreenAnchor(destination) {
+  if (destination.id === PORT_CITY_LOCATION.SHIP) {
+    const placement = docksideShipPlacement(state.lastRenderTimeMs ?? 0, PORT_SCENE_ENTITY_META.ship.depth);
+    return placement ? { x: placement.x + state.shipImage.width / 2, y: placement.y } : null;
+  }
+  if ([PORT_CITY_LOCATION.ILLICIT_MERCHANT, PORT_CITY_LOCATION.AUTHORITY].includes(destination.id)) {
+    const agent = state.specialAgents.find(({ destinationId }) => (
+      destinationId === destination.id
+    ));
+    if (agent) {
+      const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+      return { x: agent.startX - window.x, y: agent.feetY - window.y };
+    }
+  }
+  const activeLayers = activePortSceneLayers(state.features);
+  for (const layerName of destination.layers) {
+    if (!activeLayers.has(layerName)) continue;
+    const frame = state.portManifest.staticFrames.find((candidate) => candidate.layer === layerName);
+    if (!frame) continue;
+    const window = sceneWindow(layerParallaxDepth(layerName));
+    return {
+      x: frame.spriteSourceSize.x + frame.frame.w / 2 - window.x,
+      y: frame.spriteSourceSize.y + frame.frame.h / 2 - window.y
+    };
+  }
+  return null;
+}
+
+function activateDestination(destinationId, saleShipId = null) {
+  const destination = destinationById(destinationId);
+  if (!destination) throw new Error(`City destination is unavailable: ${destinationId}`);
+  const activation = Object.freeze({ id: destination.id, saleShipId });
+  if (onDestination) onDestination(activation);
+  return activation;
+}
+
+function createSpecialPeopleAgents() {
+  if (!state.city) return Object.freeze([]);
+  const agents = [];
+  if (!state.features?.fortified &&
+      state.availableDestinationIds?.has(PORT_CITY_LOCATION.AUTHORITY)) {
+    agents.push(Object.freeze({
+      id: `${state.city.id}:port-authority`,
+      destinationId: PORT_CITY_LOCATION.AUTHORITY,
+      appearanceId: cityGarrisonAppearanceIds(state.city, 1, "port-authority")[0],
+      role: "garrison",
+      startX: 880,
+      endX: 880,
+      feetY: 518,
+      phase: 0,
+      speed: 0,
+      motion: "stationary",
+      facingRight: false
+    }));
+  }
+  const caught = state.illicitCaughtStartedAtMs !== null;
+  const guardCount = state.barred ? 5 : caught ? 3 : 0;
+  if (guardCount > 0) {
+    for (const [index, appearanceId] of cityGarrisonAppearanceIds(state.city, guardCount).entries()) {
+      const startX = 704 + index * 19;
+      agents.push(Object.freeze({
+        id: `${state.city.id}:barred-dock-guard:${index + 1}`,
+        appearanceId,
+        role: "garrison",
+        startX,
+        endX: caught ? 798 + index * 8 : startX,
+        feetY: 518 + index % 2 * 9,
+        phase: index / 5,
+        speed: caught ? 0.0014 : 0,
+        motion: caught ? "guard-approach" : "stationary",
+        startedAtMs: caught ? state.illicitCaughtStartedAtMs : undefined,
+        facingRight: index % 2 === 0
+      }));
+    }
+  }
+  if (caught || state.availableDestinationIds?.has(PORT_CITY_LOCATION.ILLICIT_MERCHANT)) {
+    agents.push(Object.freeze({
+      id: `${state.city.id}:suspicious-merchant`,
+      destinationId: PORT_CITY_LOCATION.ILLICIT_MERCHANT,
+      appearanceId: citySuspiciousMerchantAppearanceId(state.city),
+      role: "ambient",
+      startX: 823,
+      endX: caught ? 975 : 823,
+      feetY: 519,
+      phase: 0,
+      speed: caught ? 0.0017 : 0,
+      motion: caught ? "merchant-flee" : "stationary",
+      animationId: caught ? "walk" : "idle2",
+      startedAtMs: caught ? state.illicitCaughtStartedAtMs : undefined,
+      facingRight: false
+    }));
+  }
+  return Object.freeze(agents);
+}
+
+function imageAlpha(image) {
+  if (imageAlphaCache.has(image)) return imageAlphaCache.get(image);
+  const buffer = document.createElement("canvas");
+  buffer.width = image.width;
+  buffer.height = image.height;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  bufferContext.drawImage(image, 0, 0);
+  const rgba = bufferContext.getImageData(0, 0, image.width, image.height).data;
+  const alpha = new Uint8Array(image.width * image.height);
+  for (let index = 0; index < alpha.length; index++) alpha[index] = rgba[index * 4 + 3];
+  imageAlphaCache.set(image, alpha);
+  return alpha;
 }
 
 function frameContainsOpaquePixel(atlas, frame, masterX, masterY) {
@@ -2928,7 +3257,7 @@ function portAtlasUrl(manifest, sheet) {
   if (typeof manifest?.assetRevision !== "string" || manifest.assetRevision.length === 0) {
     throw new Error("City-view atlas manifest is missing its asset revision");
   }
-  return `./assets/port-parallax/${sheet}?v=${encodeURIComponent(manifest.assetRevision)}`;
+  return `${assetBaseUrl}/port-parallax/${sheet}?v=${encodeURIComponent(manifest.assetRevision)}`;
 }
 
 function loadImage(url) {
@@ -2958,4 +3287,66 @@ function clamp(value, minimum, maximum) {
 
 function positiveModulo(value, modulus) {
   return ((value % modulus) + modulus) % modulus;
+}
+
+await initialize();
+
+return Object.freeze({
+  canvas,
+  get cityId() {
+    return state.city?.id || null;
+  },
+  get renderCount() {
+    return state.renderCount;
+  },
+  async selectCity(cityId, options = {}) {
+    await selectCity(cityId, options);
+  },
+  getDestinationIds() {
+    return Object.freeze(activeDestinations().map(({ id }) => id));
+  },
+  focusDestination(destinationId) {
+    focusDestination(destinationId);
+  },
+  moveFocus(direction) {
+    return moveDestinationFocus(direction);
+  },
+  activateFocusedDestination() {
+    return activateDestination(state.focusedDestinationId);
+  },
+  destinationAt(x, y) {
+    const hit = destinationAtPoint(x, y);
+    return hit ? Object.freeze({ id: hit.destination.id, saleShipId: hit.saleShipId }) : null;
+  },
+  activateAt(x, y) {
+    const hit = destinationAtPoint(x, y);
+    return hit ? activateDestination(hit.destination.id, hit.saleShipId) : null;
+  },
+  setPointer(x, y) {
+    if (x === null && y === null) state.pointer = null;
+    else if (![x, y].every(Number.isFinite)) throw new Error("Invalid city pointer coordinates");
+    else state.pointer = Object.freeze({ x, y });
+    updateHover();
+  },
+  panByLogicalPixels(deltaX) {
+    if (!Number.isFinite(deltaX)) throw new Error(`Invalid city camera pan: ${deltaX}`);
+    panCameraByLogicalPixels(deltaX);
+  },
+  render(timeMs) {
+    if (!state.ready) throw new Error("City scene runtime rendered before initialization");
+    renderCityFrame(timeMs);
+    state.renderCount++;
+    return state.renderCount;
+  },
+  resize(width, height) {
+    if (!Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0) {
+      throw new RangeError(`City scene dimensions must be positive integers, got ${width}x${height}`);
+    }
+    canvas.width = width;
+    canvas.height = height;
+    context.imageSmoothingEnabled = false;
+    citySceneRenderer.invalidateStaticCache();
+    updateHover();
+  }
+});
 }

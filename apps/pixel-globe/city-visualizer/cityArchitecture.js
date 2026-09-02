@@ -1,3 +1,5 @@
+import { portCityServiceProfile } from "../src/portCityServices.js";
+
 export const EARTHEN_VILLAGE_BUILDING_STYLE = "earthen-village";
 export const JAPANESE_BUILDING_STYLE = "japanese";
 
@@ -47,13 +49,10 @@ export function deriveCityServiceProfile(city) {
   if (sparseVillage && (!Number.isFinite(city.population) || city.population < 0)) {
     throw new Error("Sparse village services require a valid population");
   }
-  return serviceProfile({
-    inn: !sparseVillage,
-    smith: !sparseVillage,
-    market: true,
-    // Larger villages have a visible boatbuilding beach; smaller landings do not.
-    shipyard: !sparseVillage || city.population >= 2500
-  });
+  return serviceProfile(portCityServiceProfile({
+    ...city,
+    settlementType: sparseVillage ? "village" : "city"
+  }));
 }
 
 export function cityServiceProfile(city) {

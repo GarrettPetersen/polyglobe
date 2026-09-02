@@ -20,6 +20,7 @@ import {
   prepareDamageSurrenderDialogue,
   prepareSurrenderPrizeDialogue,
   restorePortDialogueCityIdentity,
+  returnPortDialogueToCity,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
   selectPortDialogueOption,
@@ -1803,6 +1804,45 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
   assert.equal(root.options.at(-1).label, "Leave port");
   assert.equal(root.options.at(-1).placement, "port-exit");
   assert.equal(dialogueBackOptionIndex(root), root.options.length - 1);
+});
+
+test("port dialogue fallback navigation returns an admitted session to the city", () => {
+  const city = {
+    tileId: 107,
+    cityId: "lisbon|portugal",
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha" }
+  };
+  const session = createPortDialogueSession(city, {
+    admittedToPort: true,
+    initialNodeId: "shipyard-purchase-confirm"
+  });
+  session.cityMenuLocationId = "shipyard";
+  session.shipyardPurchaseListingId = "listing-1";
+  session.shipyardPurchaseReturnNodeId = "shipyard";
+  session.shipyardPurchasePending = true;
+  session.feedback = "Confirm this exchange.";
+  session.selectedIndex = 1;
+
+  assert.equal(returnPortDialogueToCity(session), session);
+  assert.equal(session.nodeId, "root");
+  assert.equal(session.cityMenuLocationId, null);
+  assert.equal(session.shipyardPurchaseListingId, null);
+  assert.equal(session.shipyardPurchaseReturnNodeId, null);
+  assert.equal(session.shipyardPurchasePending, false);
+  assert.equal(session.feedback, null);
+  assert.equal(session.selectedIndex, 0);
+
+  const barredSession = createPortDialogueSession(city, {
+    initialNodeId: "shipyard-purchase-confirm"
+  });
+  assert.throws(
+    () => returnPortDialogueToCity(barredSession),
+    /before the player is admitted/
+  );
 });
 
 test("market rows put unit and bulk actions together and undo every purchase on the page", () => {
@@ -4103,11 +4143,6 @@ test("foreign captains must find an illicit market to trade at Ming ports", () =
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
   assert.equal(result.illicitMarketAccessPolicyId, "ming-maritime-prohibition");
 
-  root = portDialogueView(session, city, gameState, economy, [city], context);
-  const buyIllicitIndex = root.options.findIndex((entry) => entry.label === "Market");
-  assert.ok(buyIllicitIndex >= 0);
-  assert.equal(root.options.filter((entry) => entry.label === "Market").length, 1);
-  selectPortDialogueOption(session, city, gameState, economy, [city], buyIllicitIndex, context);
   const buy = portDialogueView(session, city, gameState, economy, [city], context);
   const buyIndex = buy.options.findIndex((entry) => entry.action.type === "buy" && !entry.disabled);
   assert.ok(buyIndex >= 0);
@@ -4163,9 +4198,9 @@ test("captains admitted under safe passage can seek an illicit wartime market", 
 
   const result = selectPortDialogueOption(session, city, gameState, economy, [city], illicitIndex, context);
   assert.equal(result.illicitMarketAccessPolicyId, WARTIME_TRADE_RESTRICTION_ID);
-  root = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.ok(root.options.some((entry) => entry.label === "Market"));
-  assert.equal(root.options.filter((entry) => entry.label === "Market").length, 1);
+  assert.equal(session.nodeId, "market");
+  const market = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(market.text, /Calais market/);
 });
 
 test("a failed Ming illicit-market approach costs standing and cannot be repeated that visit", () => {

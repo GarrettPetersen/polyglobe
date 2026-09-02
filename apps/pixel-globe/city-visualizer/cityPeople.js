@@ -306,6 +306,33 @@ export function createCityPeopleAgents({ city, count, paths }) {
   }));
 }
 
+export function cityGarrisonAppearanceIds(city, count, seedKey = "dock-guards") {
+  requireCity(city);
+  if (!Number.isInteger(count) || count < 0) {
+    throw new Error(`Invalid city garrison count: ${count}`);
+  }
+  if (typeof seedKey !== "string" || seedKey === "") {
+    throw new Error("City garrison selection requires a seed key");
+  }
+  const profile = cityPopulationProfile(city.populationProfileId || cityPopulationProfileId(city));
+  const used = new Set();
+  let seed = hashString(`${city.id}|${profile.id}|${seedKey}`);
+  return Object.freeze(Array.from({ length: count }, () => {
+    seed = xorshift(seed);
+    const appearanceId = weightedAppearance(profile[CITY_PERSON_ROLE.GARRISON], seed, used);
+    used.add(appearanceId);
+    return appearanceId;
+  }));
+}
+
+export function citySuspiciousMerchantAppearanceId(city) {
+  requireCity(city);
+  const profileId = city.populationProfileId || cityPopulationProfileId(city);
+  return ["european", "ming", "joseon", "japanese", "ainu"].includes(profileId)
+    ? "suspicious-merchant-light"
+    : "suspicious-merchant-dark";
+}
+
 export function validateCityPeopleManifest(manifest) {
   if (!manifest || manifest.format !== "marque-city-people-atlas" || manifest.version !== 2) {
     throw new Error("Unsupported city people manifest");
@@ -330,6 +357,10 @@ export function validateCityPeopleManifest(manifest) {
     }
     if (!Array.isArray(exported.animations?.walk) || exported.animations.walk.length === 0) {
       throw new Error(`City people appearance has no walk animation: ${appearance.id}`);
+    }
+    if (appearance.archetypeId === "suspicious-merchant" &&
+        (!Array.isArray(exported.animations?.idle2) || exported.animations.idle2.length === 0)) {
+      throw new Error(`Suspicious merchant appearance has no idle2 animation: ${appearance.id}`);
     }
   }
   return manifest;

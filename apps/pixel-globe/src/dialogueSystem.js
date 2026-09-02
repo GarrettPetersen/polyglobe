@@ -1,5 +1,11 @@
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import {
+  PORT_CITY_LOCATION,
+  portCityLocation,
+  portCityNavigationModel
+} from "./portCityNavigation.js";
+import { portCityServiceProfile } from "./portCityServices.js";
+import {
   FACTION_SAFE_PASSAGE_DAYS,
   PORT_NAVIGATION_REASON_NEW_SHIP,
   PORT_NAVIGATION_REASON_QUEST_CARGO,
@@ -412,6 +418,8 @@ export function createPortDialogueSession(city, options = {}) {
     cityId,
     portId: cityId,
     nodeId: options.initialNodeId || "greeting",
+    cityMenuLocationId: null,
+    illicitTradeCaughtPolicyId: null,
     admittedToPort: options.admittedToPort === true,
     disguisedEntry: options.disguisedEntry === true,
     illicitTradeAccessPolicyId: options.illicitTradeAccessPolicyId || null,
@@ -1668,11 +1676,85 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
   return withPortExitFooter(view);
 }
 
+export function portCityNavigationView(session, city, gameState, economy, portCities, context = {}) {
+  if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
+  if (session.cityId !== city?.cityId) throw new Error("Port city navigation city does not match session");
+  return portCityNavigationModel(
+    rootView(session, city, gameState, economy, portCities, context),
+    portCityServiceProfile(city)
+  );
+}
+
+export function enterPortCityLocation(
+  session,
+  city,
+  gameState,
+  economy,
+  portCities,
+  locationId,
+  context = {}
+) {
+  const model = portCityNavigationView(session, city, gameState, economy, portCities, context);
+  const location = portCityLocation(model, locationId);
+  if (locationId === PORT_CITY_LOCATION.INN &&
+      location.actions.length === 1 &&
+      location.actions[0].action.type === "node" &&
+      location.actions[0].action.nodeId === "quest") {
+    session.nodeId = "inn-drink";
+    session.cityMenuLocationId = null;
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return Object.freeze({ openedNodeId: "inn-drink", rootOptionIndex: null });
+  }
+  if (location.actions.length === 1) {
+    const [entry] = location.actions;
+    session.nodeId = "root";
+    session.cityMenuLocationId = null;
+    session.selectedIndex = entry.rootOptionIndex;
+    session.feedback = null;
+    return Object.freeze({ openedNodeId: null, rootOptionIndex: entry.rootOptionIndex });
+  }
+  session.nodeId = "city-menu";
+  session.cityMenuLocationId = locationId;
+  session.selectedIndex = 0;
+  session.feedback = null;
+  return Object.freeze({ openedNodeId: "city-menu", rootOptionIndex: null });
+}
+
 export function dialogueBackOptionIndex(view) {
   if (!view || !Array.isArray(view.options)) throw new Error("Dialogue back navigation requires options");
   const explicitBackIndex = view.options.findIndex((entry) => entry?.label === "Back");
   if (explicitBackIndex >= 0) return explicitBackIndex;
+  const cityBackIndex = view.options.findIndex((entry) => (
+    entry?.action?.type === "node" && entry.action.nodeId === "root"
+  ));
+  if (cityBackIndex >= 0) return cityBackIndex;
   return view.options.findIndex((entry) => entry?.placement === "port-exit");
+}
+
+export function returnPortDialogueToCity(session) {
+  if (!session || session.kind !== "port") {
+    throw new Error("Returning to the port city requires a port dialogue session");
+  }
+  if (session.admittedToPort !== true) {
+    throw new Error("Cannot return to the port city before the player is admitted");
+  }
+  session.nodeId = "root";
+  session.cityMenuLocationId = null;
+  session.illicitTradeCaughtPolicyId = null;
+  session.nextPortNodeId = null;
+  session.postDrunkNodeId = null;
+  session.tradeTip = null;
+  session.questCargoTip = null;
+  session.shipHandover = null;
+  session.shipyardLedgerReturnNodeId = null;
+  session.shipyardPurchaseListingId = null;
+  session.shipyardPurchaseReturnNodeId = null;
+  session.shipyardPurchasePending = false;
+  session.specialEquipmentOffer = null;
+  session.feedback = null;
+  session.selectedIndex = 0;
+  return session;
 }
 
 export function beginShipHandoverDialogue(session, {
@@ -1714,6 +1796,13 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "root") {
     return rootView(session, city, gameState, economy, portCities, context);
   }
+  if (session.nodeId === "city-menu") {
+    return cityMenuView(session, city, gameState, economy, portCities, context);
+  }
+  if (session.nodeId === "inn-drink") {
+    return innDrinkView(session, city, gameState, economy, portCities, context);
+  }
+  if (session.nodeId === "illicit-caught") return illicitCaughtView(session, city);
   if (session.nodeId === "city-attack") return cityAttackView(session, city, gameState, context);
   if (session.nodeId === "portuguese-cartaz") {
     return portugueseCartazView(session, city, gameState, context);
@@ -1867,7 +1956,9 @@ function withPortExitFooter(view) {
   const regularOptions = [];
   const exitOptions = [];
   for (const entry of view.options) {
-    const isExit = entry.placement === "port-exit" || entry.label === "Back" || entry.action.type === "close";
+    const isExit = entry.placement === "port-exit" || entry.label === "Back" ||
+      entry.action.type === "close" ||
+      (entry.action.type === "node" && entry.action.nodeId === "root");
     (isExit ? exitOptions : regularOptions).push(isExit
       ? { ...entry, placement: "port-exit" }
       : entry);
@@ -1898,10 +1989,12 @@ export function selectPortDialogueOption(
   }
 
   const action = option.action;
-  if (session.nodeId === "root" && session.customsNoticeKey !== null) {
+  const rootActionOrigin = ["root", "city-menu", "inn-drink"].includes(session.nodeId);
+  if (rootActionOrigin && session.customsNoticeKey !== null) {
     acknowledgePlayerPortCustomsNotice(gameState, city, session.customsNoticeKey);
     session.customsNoticeKey = null;
   }
+  if (rootActionOrigin) session.cityMenuLocationId = null;
   if (action.type === "close") return { closed: true };
   if (action.type === "node") {
     if (session.nodeId === "greeting") {
@@ -1920,6 +2013,9 @@ export function selectPortDialogueOption(
       }
       enterPortMarket(session, gameState, economy, city);
       return { closed: false };
+    }
+    if (session.nodeId === "illicit-caught" && action.nodeId !== "illicit-caught") {
+      session.illicitTradeCaughtPolicyId = null;
     }
     if (action.nodeId === "colonization") markColonizationOrganizerApproached(gameState);
     if (action.nodeId === "conquistador") markConquistadorOfferSeen(gameState.memory.quests.conquistador);
@@ -1971,7 +2067,7 @@ export function selectPortDialogueOption(
         !["capture-petition", "capture-petition-result"].includes(action.nodeId)) {
       session.captureCommissionPetitionResult = null;
     }
-    if (action.nodeId === "equipment" && session.nodeId === "root") {
+    if (action.nodeId === "equipment" && rootActionOrigin) {
       const offer = enterSpecialEquipmentStore(gameState, economy, city);
       if (offer) {
         session.specialEquipmentOffer = {
@@ -2239,11 +2335,26 @@ export function selectPortDialogueOption(
     if (session.illicitTradeAttemptedPolicyId === policy.id) {
       throw new Error(`${policy.label} illicit market may only be approached once per port visit`);
     }
-    applyIllicitMarketAttempt(session, gameState, currentAccess, context.random());
-    session.selectedIndex = 0;
+    const accessGranted = applyIllicitMarketAttempt(
+      session,
+      gameState,
+      currentAccess,
+      context.random()
+    );
+    session.cityMenuLocationId = null;
+    if (accessGranted) enterPortMarket(session, gameState, economy, city);
+    else {
+      session.illicitTradeCaughtPolicyId = policy.id;
+      session.nodeId = "illicit-caught";
+      session.selectedIndex = 0;
+    }
     return {
       closed: false,
-      illicitMarketAccessPolicyId: session.illicitTradeAccessPolicyId
+      illicitMarketAccessPolicyId: session.illicitTradeAccessPolicyId,
+      illicitMarketAttempt: Object.freeze({
+        policyId: policy.id,
+        caught: !accessGranted
+      })
     };
   }
   if (action.type === "decline-portuguese-cartaz-market") {
@@ -4325,6 +4436,7 @@ function disguiseFailureView(city, gameState, context) {
 
 function rootView(session, city, gameState, economy, portCities, context) {
   const market = portEconomySummary(economy, city);
+  const cityServices = portCityServiceProfile(city);
   const pirateHideout = city.isPirateHideout === true;
   const tradeAccess = playerPortTradeAccess(session, city, gameState, context);
   const cartazIllicitMarket = session.illicitTradeAccessPolicyId ===
@@ -4357,7 +4469,7 @@ function rootView(session, city, gameState, economy, portCities, context) {
           policyId: tradeAccess.policyId
         })]
         : []),
-    ...(tradeAccess.allowed
+    ...(tradeAccess.allowed && cityServices.smith
       ? [option("Equipment", { type: "node", nodeId: "equipment" })]
       : []),
     ...(context.shipStats ? [option(pirateHideout ? "Refit and provision" : "Ship loadout", {
@@ -4513,6 +4625,76 @@ function rootView(session, city, gameState, economy, portCities, context) {
     feedback: session.feedback,
     options
   };
+}
+
+function cityMenuView(session, city, gameState, economy, portCities, context) {
+  if (typeof session.cityMenuLocationId !== "string" || session.cityMenuLocationId === "") {
+    throw new Error("City submenu has no location ID");
+  }
+  const location = portCityLocation(
+    portCityNavigationView(session, city, gameState, economy, portCities, context),
+    session.cityMenuLocationId
+  );
+  return {
+    speaker: location.label,
+    expressionId: "neutral",
+    text: cityMenuPrompt(location.id),
+    feedback: session.feedback,
+    options: [
+      ...location.actions.map((entry) => option(entry.label, entry.action, {
+        detail: entry.detail,
+        disabled: entry.disabled,
+        disabledReason: entry.disabledReason
+      })),
+      option("Back to city", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function innDrinkView(session, city, gameState, economy, portCities, context) {
+  const dialogue = context.innDialogue;
+  if (!dialogue || typeof dialogue.speaker !== "string" ||
+      typeof dialogue.text !== "string" || typeof dialogue.expressionId !== "string") {
+    throw new Error("Inn dialogue context is missing");
+  }
+  const inn = portCityLocation(
+    portCityNavigationView(session, city, gameState, economy, portCities, context),
+    PORT_CITY_LOCATION.INN
+  );
+  const work = inn.actions.find(({ action }) => action.type === "node" && action.nodeId === "quest");
+  return {
+    speaker: dialogue.speaker,
+    expressionId: dialogue.expressionId,
+    text: dialogue.text,
+    feedback: session.feedback,
+    options: [
+      ...(work ? [option(work.label, work.action)] : []),
+      option("Back to city", { type: "node", nodeId: "root" })
+    ]
+  };
+}
+
+function illicitCaughtView(session, city) {
+  if (typeof session.illicitTradeCaughtPolicyId !== "string" ||
+      session.illicitTradeCaughtPolicyId === "") {
+    throw new Error("Caught illicit trader dialogue has no policy ID");
+  }
+  return {
+    speaker: `${cityLabel(city)} harbor guard`,
+    expressionId: "angry",
+    text: "Hold there! The merchant bolts into the crowd as the harbor watch closes around you.",
+    feedback: session.feedback,
+    feedbackTone: "bad",
+    options: [option("Back to city", { type: "node", nodeId: "root" })]
+  };
+}
+
+function cityMenuPrompt(locationId) {
+  if (locationId === PORT_CITY_LOCATION.SHIP) return "What shall we do aboard?";
+  if (locationId === PORT_CITY_LOCATION.SHIPYARD) return "The yard offers several kinds of business.";
+  if (locationId === PORT_CITY_LOCATION.AUTHORITY) return "What business will you place before the authorities?";
+  if (locationId === PORT_CITY_LOCATION.INN) return "Several people look up as you enter.";
+  throw new Error(`City location does not require a submenu prompt: ${locationId}`);
 }
 
 function pendingCustomsNotice(session, city, gameState, tradeAccess) {

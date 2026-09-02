@@ -179,6 +179,7 @@ const REVIEWED_OVERRIDES = Object.freeze({
     de: "Alle Geschäfte rückgängig machen", fr: "Annuler toutes les transactions",
     pl: "Cofnij wszystkie transakcje", "zh-Hant": "撤銷所有交易", ko: "모든 거래 되돌리기"
   }),
+  ...reviewedPortCityOverrides(),
   "Chan Chan has fallen. The company is ashore; Spain's flag flies over Trujillo. Keep the {0} doubloons. I march for Cuzco at dawn. If I live to take the empire, word will reach Trujillo; return then.": Object.freeze({
     "zh-Hans": "昌昌陷落了。部队已经登陆；西班牙旗帜飘扬在特鲁希略上空。留下这 {0} 枚达布隆。我黎明时向库斯科进军。若我能活着征服帝国，消息会传到特鲁希略；届时再回来。",
     ru: "Чан-Чан пал. Отряд высадился; над Трухильо реет испанский флаг. Оставьте себе {0} дублонов. На рассвете я выступаю к Куско. Если доживу до покорения империи, в Трухильо придёт весть; тогда возвращайтесь.",
@@ -1408,6 +1409,40 @@ function reviewedLocaleOverrides(source, values) {
     throw new Error(`Reviewed locale translations are incomplete: ${source}`);
   }
   return Object.freeze(Object.fromEntries(LOCALES.map(({ id }, index) => [id, values[index]])));
+}
+
+function reviewedPortCityOverrides() {
+  const entries = [
+    ["Back to city", ["返回城中", "Вернуться в город", "Volver a la ciudad", "Voltar à cidade", "街へ戻る", "Zurück in die Stadt", "Retour en ville", "Wróć do miasta", "返回城中", "도시로 돌아가기"]],
+    ["Captain home city", ["船长的故乡城市", "Родной город капитана", "Ciudad natal del capitán", "Cidade natal do capitão", "船長の故郷の都市", "Heimatstadt des Kapitäns", "Ville d’origine du capitaine", "Rodzinne miasto kapitana", "船長的故鄉城市", "선장의 고향 도시"]],
+    ["Hold there! The merchant bolts into the crowd as the harbor watch closes around you.", [
+      "站住！商人冲进人群逃走，港口守卫从四面围来。",
+      "Стой! Купец скрывается в толпе, пока портовая стража смыкает кольцо.",
+      "¡Alto! El mercader huye entre la multitud mientras la guardia del puerto os rodea.",
+      "Alto! O mercador foge pela multidão enquanto a guarda do porto vos cerca.",
+      "待て！商人は人混みへ逃げ込み、港の衛兵がそなたを取り囲む。",
+      "Halt! Der Händler flieht in die Menge, während die Hafenwache Euch umstellt.",
+      "Halte ! Le marchand s’enfuit dans la foule tandis que la garde du port vous encercle.",
+      "Stać! Kupiec znika w tłumie, a straż portowa zaciska wokół was krąg.",
+      "站住！商人衝進人群逃走，港口守衛從四面圍來。",
+      "멈춰라! 상인은 군중 속으로 달아나고 항구 경비대가 선장을 에워싼다."
+    ]],
+    ["Inn", ["客栈", "Таверна", "Posada", "Estalagem", "酒場", "Schenke", "Auberge", "Gospoda", "客棧", "여관"]],
+    ["Inn city", ["客栈所在城市", "Город таверны", "Ciudad de la posada", "Cidade da estalagem", "酒場のある都市", "Stadt der Schenke", "Ville de l’auberge", "Miasto gospody", "客棧所在城市", "여관이 있는 도시"]],
+    ["Port authority", ["港务当局", "Портовые власти", "Autoridad portuaria", "Autoridade portuária", "港務当局", "Hafenbehörde", "Autorité portuaire", "Władze portowe", "港務當局", "항만 당국"]],
+    ["Several people look up as you enter.", ["几个人在你进门时抬起头来。", "Несколько человек поднимают глаза, когда вы входите.", "Varias personas alzan la vista cuando entráis.", "Algumas pessoas levantam os olhos quando entrais.", "入ると、何人かが顔を上げる。", "Mehrere Leute blicken auf, als Ihr eintretet.", "Plusieurs personnes lèvent les yeux à votre entrée.", "Kilka osób podnosi wzrok, gdy wchodzicie.", "幾個人在你進門時抬起頭來。", "들어서자 몇 사람이 고개를 든다."]],
+    ["Shipyard", ["船坞", "Верфь", "Astillero", "Estaleiro", "造船所", "Werft", "Chantier naval", "Stocznia", "船塢", "조선소"]],
+    ["Smith", ["铁匠", "Кузнец", "Herrero", "Ferreiro", "鍛冶屋", "Schmied", "Forgeron", "Kowal", "鐵匠", "대장간"]],
+    ["Suspicious merchant", ["可疑商人", "Подозрительный торговец", "Mercader sospechoso", "Mercador suspeito", "怪しい商人", "Verdächtiger Händler", "Marchand suspect", "Podejrzany kupiec", "可疑商人", "수상한 상인"]],
+    ["The yard offers several kinds of business.", ["船坞可办理几种事务。", "На верфи ведут несколько видов дел.", "El astillero ofrece varios negocios.", "O estaleiro oferece vários serviços.", "造船所ではいくつかの用件を扱っている。", "Die Werft bietet mehrere Geschäfte an.", "Le chantier propose plusieurs sortes d’affaires.", "Stocznia oferuje kilka rodzajów usług.", "船塢可辦理幾種事務。", "조선소에서는 여러 일을 처리할 수 있다."]],
+    ["What business will you place before the authorities?", ["你要向当局办理什么事务？", "Какое дело вы представите властям?", "¿Qué asunto presentaréis ante las autoridades?", "Que assunto apresentareis às autoridades?", "当局にどの用件を申し立てる？", "Welches Anliegen wollt Ihr den Behörden vortragen?", "Quelle affaire porterez-vous devant les autorités ?", "Jaką sprawę przedstawicie władzom?", "你要向當局辦理什麼事務？", "당국에 무슨 용건을 제시하겠는가?"]],
+    ["What shall we do aboard?", ["我们在船上做什么？", "Что будем делать на борту?", "¿Qué haremos a bordo?", "O que faremos a bordo?", "船上で何をする？", "Was sollen wir an Bord tun?", "Que ferons-nous à bord ?", "Co zrobimy na pokładzie?", "我們在船上做什麼？", "배에서 무엇을 할까?"]],
+    ["Your ship", ["你的船", "Ваш корабль", "Vuestro barco", "Vosso navio", "あなたの船", "Euer Schiff", "Votre navire", "Wasz statek", "你的船", "선장의 배"]]
+  ];
+  return Object.fromEntries(entries.map(([source, values]) => [
+    source,
+    reviewedLocaleOverrides(source, values)
+  ]));
 }
 
 function reviewedShipyardListingOverrides() {

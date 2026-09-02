@@ -946,16 +946,19 @@ import {
   createPortDialogueSession,
   deliveryMissionShouldOpenOnArrival,
   dialogueBackOptionIndex,
+  enterPortCityLocation,
   createShoreBatteryDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
   personalHostilityDialogue,
   portMarketTransactionSessionOpen,
+  portCityNavigationView,
   portDialogueView,
   prepareDamageSurrenderDialogue,
   preparePassengerDialogueArrival,
   prepareSurrenderPrizeDialogue,
   restorePortDialogueCityIdentity,
+  returnPortDialogueToCity,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
   selectPortDialogueOption,
@@ -964,6 +967,10 @@ import {
   shoreBatteryDialogueView,
   shipDialogueView
 } from "./dialogueSystem.js";
+import { PORT_CITY_LOCATION } from "./portCityNavigation.js";
+import { portInnDialogue } from "./portInnDialogue.js";
+import { portCityCircleWipeFrame } from "./portCityTransition.js";
+import { createCitySceneRuntime } from "../city-visualizer/main.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import {
   pauseDialogueShipMotion,
@@ -1844,6 +1851,7 @@ import {
   registerShipyardTradeIn,
   shipReplacementTermsWithoutTradeIn,
   shipyardAtPort,
+  shipyardListings,
   shipyardListingById,
   shipyardMaterialStatus,
   shipyardPurchaseTerms,
@@ -2502,6 +2510,7 @@ import {
 const capsuleLoadingScreen = startCapsuleLoadingScreen();
 const BASE_SCREEN_W = 455;
 const BASE_SCREEN_H = 256;
+const PORT_CITY_ILLICIT_CAUGHT_PRESENTATION_MS = 900;
 let SCREEN_W = BASE_SCREEN_W;
 let SCREEN_H = BASE_SCREEN_H;
 const SUBDIVISIONS = WORLD_GLOBE_SUBDIVISIONS;
@@ -3473,6 +3482,16 @@ const worldRenderer = createWorldWebGL2Renderer();
 worldRenderer.canvas.id = "world-view";
 worldRenderer.canvas.setAttribute("aria-hidden", "true");
 shell.insertBefore(worldRenderer.canvas, canvas);
+const portCitySceneCanvas = document.createElement("canvas");
+portCitySceneCanvas.width = SCREEN_W;
+portCitySceneCanvas.height = SCREEN_H;
+let portCityRuntime = null;
+let portCityView = null;
+let portCityTransition = null;
+let portCityIllicitEvent = null;
+let portCitySceneSyncKey = null;
+let portCitySceneSelectionSerial = 0;
+let portCityPointerDown = null;
 let gpuShipDrawCommands = [];
 let gpuWorldUnderlay = null;
 const CANVAS_WORLD_PRIMITIVE_PAINTER = Object.freeze({
@@ -4322,7 +4341,18 @@ async function main() {
     fetchBinary(
       `shared/globe-runtime-bake-${WORLD_RUNTIME_WEATHER_SUBDIVISIONS}.bin`,
       "globe runtime bake"
-    )
+    ),
+    createCitySceneRuntime({
+      canvas: portCitySceneCanvas,
+      assetBaseUrl: "/city-visualizer/assets",
+      catalogUrl: "/city-visualizer/data/cities.json",
+      initialShipSlug: START_SHIP_SLUG,
+      externalFrameClock: true,
+      onDestination: activatePortCityDestination,
+      renderText: renderedUiText,
+      smallFontForText: (text) => resolvedPixelFont(PIXEL_FONT_SMALL_8, text),
+      titleFontForText: (text) => languageTitleFont(currentLanguage, text)
+    })
   ]);
   const initializationReady = Promise.all([shellReady, startupAssets]);
   await shellReady;
@@ -4352,8 +4382,10 @@ async function main() {
     earth,
     geodesicGraphBuffer,
     discreteWeatherBuffer,
-    runtimeWeatherBuffer
+    runtimeWeatherBuffer,
+    loadedPortCityRuntime
   ] = loadedStartupAssets;
+  portCityRuntime = loadedPortCityRuntime;
   images = loadedImages;
   shipImage = null;
   shipSinkDepthImage = null;
@@ -6827,6 +6859,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (updateStatusPersonParticles(nowMs)) dirty = true;
   if (updateItemAcquisitionEffects(nowMs)) dirty = true;
   if (updateDepartureControlFeedback(nowMs)) dirty = true;
+  if (updatePortCityIllicitCaughtPresentation(nowMs)) dirty = true;
   measurePerformanceBenchmarkStage(
     "audio.ambient",
     () => updateAmbientAudio(simulationSeconds)
@@ -6841,7 +6874,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   const renderDue = shouldRenderFrame({
     forceRender: forceRender || PERFORMANCE_BENCHMARK?.forceRenderEveryFrame === true,
     dirty,
-    continuousAnimation: Boolean(startMenu),
+    continuousAnimation: Boolean(startMenu || portCityView?.sceneReady || portCityTransition),
     simulationPaused,
     nowMs,
     lastRenderCompletedAtMs: lastWorldRenderCompletedAtMs,
@@ -9373,7 +9406,10 @@ function dispatchWorldOverlayKey(event) {
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesKeyDown(event);
   else if (owner === INTERACTION_INPUT.ACHIEVEMENTS) handleAchievementsKeyDown(event);
   else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuKeyDown(event);
-  else if (owner === INTERACTION_INPUT.DIALOGUE) handleDialogueKeyDown(event);
+  else if (owner === INTERACTION_INPUT.DIALOGUE) {
+    if (portCityRootNavigationIsActive()) handlePortCityKeyDown(event);
+    else handleDialogueKeyDown(event);
+  }
   else if (owner === INTERACTION_INPUT.PORT_WAIT) handlePortWaitKeyDown(event);
   else if (owner === INTERACTION_INPUT.FISHING) event.preventDefault();
   else if (owner === INTERACTION_INPUT.WORLD) return false;
@@ -9405,7 +9441,10 @@ function dispatchWorldOverlayPointerDown(event, point) {
   else if (owner === INTERACTION_INPUT.DISCOVERIES) handleDiscoveriesPointerDown(point);
   else if (owner === INTERACTION_INPUT.ACHIEVEMENTS) handleAchievementsPointerDown(point);
   else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuPointerDown(point);
-  else if (owner === INTERACTION_INPUT.DIALOGUE) handleDialoguePointerDown(point);
+  else if (owner === INTERACTION_INPUT.DIALOGUE) {
+    if (portCityRootNavigationIsActive()) beginPortCityPointer(event, point);
+    else handleDialoguePointerDown(point);
+  }
   else if (owner === INTERACTION_INPUT.PORT_WAIT) {
     if (pointInRect(point, portWaitButtonRect)) stopWaitingInPort();
     else signalBlockedDepartureControl();
@@ -9459,7 +9498,9 @@ function dispatchWorldOverlayPointerMove(event, point) {
     updateNavigationMenuSelectionFromPoint(point);
     dirty = true;
   } else if (owner === INTERACTION_INPUT.DIALOGUE) {
-    if (dialogueLayout.activeCustomLoadoutSliderKey) {
+    if (portCityRootNavigationIsActive()) {
+      updatePortCityPointer(event, point);
+    } else if (dialogueLayout.activeCustomLoadoutSliderKey) {
       const entry = dialogueLayout.customLoadoutSliderRects.find(
         (candidate) => candidate.key === dialogueLayout.activeCustomLoadoutSliderKey
       );
@@ -17969,6 +18010,7 @@ function handlePointerLeave(event) {
   waypointArrowHoverPoint = null;
   statusHudHoverPoint = null;
   achievementNoticeHoverPoint = null;
+  if (portCityRuntime && portCityRootNavigationIsActive()) portCityRuntime.setPointer(null, null);
   canvas.style.cursor = controllerOwnsCursor ? "none" : "default";
   dirty = true;
 }
@@ -17983,6 +18025,7 @@ function handlePointerUp(event) {
     }
   }
   endPointerSteering(event?.pointerId);
+  finishPortCityPointer(event);
   if (captainMenu.mapDragPointerId === event?.pointerId) {
     captainMenu.mapDragPointerId = null;
     captainMenu.mapDragStartPoint = null;
@@ -18980,6 +19023,7 @@ function invalidateDialogueOptionGeometry() {
 
 function handleDialogueKeyDown(event) {
   event.preventDefault();
+  if (portCityIllicitEvent) return;
   if (dialogueIsCustomLoadoutEditor()) {
     handleCustomLoadoutKeyDown(event);
     return;
@@ -19015,10 +19059,81 @@ function handleDialogueKeyDown(event) {
   }
 }
 
+function handlePortCityKeyDown(event) {
+  event.preventDefault();
+  if (!portCityRuntime) throw new Error("Port city input received before runtime initialization");
+  if (event.key === "Escape") {
+    activatePortCityDestination({ id: PORT_CITY_LOCATION.SHIP });
+    return;
+  }
+  if (event.key === "Enter" || event.key === " ") {
+    portCityRuntime.activateFocusedDestination();
+    return;
+  }
+  const direction = {
+    ArrowLeft: "left",
+    ArrowRight: "right",
+    ArrowUp: "up",
+    ArrowDown: "down"
+  }[event.key];
+  if (!direction) return;
+  portCityRuntime.moveFocus(direction);
+  dirty = true;
+}
+
+function beginPortCityPointer(event, point) {
+  if (!portCityRuntime) throw new Error("Port city pointer received before runtime initialization");
+  portCityRuntime.setPointer(point.x, point.y);
+  portCityPointerDown = {
+    pointerId: event.pointerId,
+    pointerType: event.pointerType,
+    startX: point.x,
+    lastX: point.x,
+    moved: false
+  };
+  dirty = true;
+}
+
+function updatePortCityPointer(event, point) {
+  if (!portCityRuntime) throw new Error("Port city pointer moved before runtime initialization");
+  portCityRuntime.setPointer(point.x, point.y);
+  if (portCityPointerDown?.pointerId === event.pointerId) {
+    const movementX = point.x - portCityPointerDown.lastX;
+    portCityPointerDown.lastX = point.x;
+    if (!portCityPointerDown.moved && Math.abs(point.x - portCityPointerDown.startX) >= 4) {
+      portCityPointerDown.moved = true;
+    }
+    if (portCityPointerDown.moved && movementX !== 0) {
+      portCityRuntime.panByLogicalPixels(-movementX);
+    }
+  }
+  canvas.style.cursor = portCityRuntime.destinationAt(point.x, point.y) ? "pointer" : "default";
+  dirty = true;
+}
+
+function finishPortCityPointer(event) {
+  const gesture = portCityPointerDown;
+  if (!gesture || gesture.pointerId !== event?.pointerId) return;
+  portCityPointerDown = null;
+  if (!portCityRootNavigationIsActive()) return;
+  const point = canvasPointFromEvent(event);
+  if (!gesture.moved) portCityRuntime.activateAt(point.x, point.y);
+  if (gesture.pointerType !== "mouse") portCityRuntime.setPointer(null, null);
+  dirty = true;
+}
+
 function navigateBackFromDialogue() {
   const backIndex = dialogueBackOptionIndex(currentDialogueView());
   if (backIndex >= 0) {
     chooseDialogueOption(backIndex);
+    return true;
+  }
+  if (portCityView.active && dialogueState?.kind === "port") {
+    returnPortDialogueToCity(dialogueState);
+    invalidateDialogueView();
+    invalidateDialogueOptionGeometry();
+    queuePortCitySceneSync();
+    dirty = true;
     return true;
   }
   closeDialogue();
@@ -19026,6 +19141,7 @@ function navigateBackFromDialogue() {
 }
 
 function handleDialoguePointerDown(point) {
+  if (portCityIllicitEvent) return;
   if (dialogueIsCustomLoadoutEditor()) {
     for (const entry of dialogueLayout.customLoadoutSliderRects) {
       if (!pointInRect(point, entry.hitRect)) continue;
@@ -19254,6 +19370,13 @@ function handleCanvasWheel(event) {
   }
   if (owner !== INTERACTION_INPUT.DIALOGUE) return;
   event.preventDefault();
+  if (portCityIllicitEvent) return;
+  if (portCityRootNavigationIsActive()) {
+    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+    portCityRuntime.panByLogicalPixels(clamp(delta, -SCREEN_W / 4, SCREEN_W / 4));
+    dirty = true;
+    return;
+  }
   if (dialogueIsPlayerShipyardBooks()) {
     scrollPlayerShipyardJournal(event.deltaY > 0 ? 1 : -1);
     return;
@@ -19281,6 +19404,189 @@ function openActiveInteractionDialogue() {
   return true;
 }
 
+function activatePortCityView(cityCall) {
+  if (!portCityRuntime) throw new Error("Port city runtime is not initialized");
+  requireCityId(cityCall, "Port city view");
+  const center = portCityTransitionCenter(cityCall);
+  portCityView = {
+    cityId: cityCall.cityId,
+    portId: cityCall.portId || cityCall.cityId,
+    centerX: center.x,
+    centerY: center.y,
+    sceneReady: false
+  };
+  portCitySceneSyncKey = null;
+  portCityPointerDown = null;
+  portCityIllicitEvent = null;
+  portCityTransition = {
+    direction: "enter-pending",
+    snapshot: capturePresentedFrame(),
+    centerX: center.x,
+    centerY: center.y,
+    startedAtMs: null
+  };
+  queuePortCitySceneSync();
+}
+
+function deactivatePortCityView() {
+  if (!portCityView) return;
+  const { centerX, centerY, sceneReady } = portCityView;
+  const snapshot = sceneReady ? capturePresentedFrame() : null;
+  portCityView = null;
+  portCitySceneSyncKey = null;
+  portCityPointerDown = null;
+  portCityIllicitEvent = null;
+  portCitySceneSelectionSerial++;
+  portCityTransition = snapshot ? {
+    direction: "exit",
+    snapshot,
+    centerX,
+    centerY,
+    startedAtMs: performance.now()
+  } : null;
+  worldFramePresented = false;
+  dirty = true;
+}
+
+function queuePortCitySceneSync() {
+  const scheduledView = portCityView;
+  if (!scheduledView) return;
+  queueMicrotask(() => {
+    if (portCityView !== scheduledView) return;
+    void synchronizePortCityScene().catch((error) => {
+      pendingWorldAssetError = error instanceof Error ? error : new Error(String(error));
+      dirty = true;
+    });
+  });
+}
+
+async function synchronizePortCityScene() {
+  if (!portCityView || !portCityRuntime) return;
+  const city = chartPortCallById(portCityView.portId) || cityById.get(portCityView.cityId);
+  if (!city) throw new Error(`Port city view lost city ${portCityView.cityId}`);
+  let availableDestinationIds = [];
+  if (dialogueState?.kind === "port" && dialogueState.cityId === city.cityId &&
+      dialogueState.admittedToPort === true) {
+    availableDestinationIds = portCityNavigationView(
+      dialogueState,
+      currentDialogueCity(),
+      gameState,
+      worldEconomy,
+      playerAccessiblePortCities(),
+      portDialogueContext()
+    ).locations.map(({ id }) => id);
+  }
+  const nodeId = dialogueState?.nodeId || dialogueState?.nextPortNodeId || null;
+  const barred = ["barred", "recovering"].includes(nodeId);
+  const illicitCaughtStartedAtMs = portCityIllicitEvent?.startedAtMs || null;
+  const saleShipSlugs = worldEconomyHasShipyardPort(worldEconomy, city)
+    ? shipyardListings(shipyardAtPort(worldEconomy.shipyards, city))
+        .slice(0, 3)
+        .map(({ shipSlug }) => shipSlug)
+    : [];
+  const playerShipSlug = ship?.typeSlug || gameState?.ship?.slug;
+  if (!playerShipSlug) throw new Error("Port city view has no player ship slug");
+  const syncKey = JSON.stringify({
+    cityId: city.cityId,
+    availableDestinationIds,
+    barred,
+    illicitCaughtStartedAtMs,
+    playerShipSlug,
+    saleShipSlugs
+  });
+  if (syncKey === portCitySceneSyncKey && portCityView.sceneReady) return;
+  const serial = ++portCitySceneSelectionSerial;
+  await portCityRuntime.selectCity(city.cityId, {
+    availableDestinationIds,
+    barred,
+    illicitCaughtStartedAtMs,
+    playerShipSlug,
+    saleShipSlugs
+  });
+  if (!portCityView || serial !== portCitySceneSelectionSerial || portCityView.cityId !== city.cityId) return;
+  portCitySceneSyncKey = syncKey;
+  portCityView.sceneReady = true;
+  if (portCityTransition?.direction === "enter-pending") {
+    portCityTransition.direction = "enter";
+    portCityTransition.startedAtMs = performance.now();
+  }
+  dirty = true;
+}
+
+function beginPortCityIllicitCaughtPresentation() {
+  if (!portCityView?.sceneReady) {
+    throw new Error("Illicit-trade capture presentation requires an active port city");
+  }
+  portCityIllicitEvent = {
+    startedAtMs: lastFrameMs,
+    revealAtMs: lastFrameMs + PORT_CITY_ILLICIT_CAUGHT_PRESENTATION_MS
+  };
+  portCitySceneSyncKey = null;
+  queuePortCitySceneSync();
+  dirty = true;
+}
+
+function updatePortCityIllicitCaughtPresentation(nowMs) {
+  if (!portCityIllicitEvent || nowMs < portCityIllicitEvent.revealAtMs) return false;
+  portCityIllicitEvent = null;
+  portCitySceneSyncKey = null;
+  queuePortCitySceneSync();
+  return true;
+}
+
+function activatePortCityDestination({ id }) {
+  if (!portCityRootNavigationIsActive()) return null;
+  const entry = enterPortCityLocation(
+    dialogueState,
+    currentDialogueCity(),
+    gameState,
+    worldEconomy,
+    playerAccessiblePortCities(),
+    id,
+    portDialogueContext()
+  );
+  invalidateDialogueView();
+  invalidateDialogueOptionGeometry();
+  if (entry.rootOptionIndex !== null) {
+    chooseDialogueOption(entry.rootOptionIndex);
+  } else {
+    ensureDialoguePortraitLoaded();
+    dirty = true;
+  }
+  queuePortCitySceneSync();
+  return entry;
+}
+
+function portCityRootNavigationIsActive() {
+  return Boolean(
+    portCityView?.sceneReady &&
+    dialogueState?.kind === "port" &&
+    dialogueState.admittedToPort === true &&
+    dialogueState.nodeId === "root" &&
+    !captainAlertModal
+  );
+}
+
+function portCityTransitionCenter(cityCall) {
+  if (!chart || !localLayout || !Number.isFinite(cityCall?.spriteX) || !Number.isFinite(cityCall?.spriteY)) {
+    return Object.freeze({ x: SCREEN_W / 2, y: SCREEN_H / 2 });
+  }
+  const rect = cityScreenRect(cityCall, chartOffsetPixels(chart));
+  return Object.freeze({ x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 });
+}
+
+function capturePresentedFrame() {
+  const source = worldRenderer.captureFrameCanvas();
+  const snapshot = document.createElement("canvas");
+  snapshot.width = source.width;
+  snapshot.height = source.height;
+  const snapshotContext = snapshot.getContext("2d", { alpha: false });
+  if (!snapshotContext) throw new Error("Could not capture port city transition frame");
+  snapshotContext.imageSmoothingEnabled = false;
+  snapshotContext.drawImage(source, 0, 0);
+  return snapshot;
+}
+
 function openPortDialogue(cityCall) {
   if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
@@ -19289,6 +19595,7 @@ function openPortDialogue(cityCall) {
   setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   const colonyAftermath = colonizationAftermathAtSite(gameState.memory.colonization, cityCall);
   if (colonyAftermath && openColonizationAftermathSiteDialogue(cityCall, colonyAftermath)) return;
+  activatePortCityView(cityCall);
   if (isColonizationQuestTarget(gameState.memory.colonization, cityCall) &&
       cityCall.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
     dialogueState = createPortDialogueSession(cityCall, {
@@ -23272,6 +23579,7 @@ function startWaitingInPort(city) {
   dialogueState = null;
   dialogueShipMotionPause = null;
   dialogueLayout = createDialogueLayoutState();
+  deactivatePortCityView();
   stopShipForDialogue();
   clearCombatForShip(PLAYER_COMBAT_ID);
   npcCombatProjectiles = npcCombatProjectiles.filter((projectile) => projectile.targetId !== PLAYER_COMBAT_ID);
@@ -23318,6 +23626,11 @@ function stopWaitingInPort() {
     illicitTradeVisit
   });
   dialogueLayout = createDialogueLayoutState();
+  activatePortCityView({
+    ...city,
+    character,
+    portrait: characterExpression(character)
+  });
   ensureDialoguePortraitLoaded();
   saveVoyageNow("stopped waiting in port");
   dirty = true;
@@ -23361,6 +23674,7 @@ function closeDialogue() {
   clearPausedView(dialogueViewCache);
   dialogueLayout = createDialogueLayoutState();
   if (wasPortDialogue) {
+    deactivatePortCityView();
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack("ship", { force: true });
     if (!releasedAutomaticQuestSiteAnchor) playSailDeploySound();
@@ -23395,6 +23709,7 @@ function chooseDialogueOption(optionIndex) {
     return applyDialogueOption(optionIndex);
   } finally {
     invalidateDialogueView();
+    queuePortCitySceneSync();
   }
 }
 
@@ -23421,6 +23736,9 @@ function applyDialogueOption(optionIndex) {
       optionIndex,
       portDialogueContext()
     );
+    if (result.illicitMarketAttempt?.caught === true) {
+      beginPortCityIllicitCaughtPresentation();
+    }
     if (result.colonizationChanged) {
       syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
     }
@@ -24527,7 +24845,7 @@ function currentDialogueCity() {
   if (dialogueState.kind === "port") {
     const portCall = chartPortCallById(dialogueState.portId);
     if (portCall) {
-      if (["drunk-captain", "quest-cargo-sale-warning"].includes(dialogueState.nodeId)) {
+      if (["drunk-captain", "quest-cargo-sale-warning", "inn-drink"].includes(dialogueState.nodeId)) {
         const character = gameState.playerCharacter;
         if (!character) throw new Error("Captain-led port dialogue has no player captain");
         return {
@@ -24587,7 +24905,7 @@ function currentDialogueCity() {
     : placedCity;
   const questCharacter = dialogueState.kind !== "port"
     ? null
-    : ["drunk-captain", "quest-cargo-sale-warning"].includes(dialogueState.nodeId)
+    : ["drunk-captain", "quest-cargo-sale-warning", "inn-drink"].includes(dialogueState.nodeId)
       ? gameState.playerCharacter
     : dialogueState.nodeId === "japanese-matchlocks"
       ? ensureJapaneseMatchlockGunsmith(gameState)
@@ -24681,6 +24999,12 @@ function portDialogueContext() {
   const passengerOffers = city && dialogueState?.kind === "port"
     ? pendingPassengerOffersForCity(gameState, city)
     : [];
+  const homePortCityId = gameState?.playerCharacter?.homePortCityId ||
+    gameState?.playerCharacter?.originPortCityId || null;
+  const homeCity = homePortCityId ? cityById.get(homePortCityId) : null;
+  if (city && !homeCity) {
+    throw new Error(`Captain home port is missing from the city catalog: ${homePortCityId || "unset"}`);
+  }
   return {
     random: Math.random,
     missionGiftRandom: Math.random,
@@ -24727,7 +25051,13 @@ function portDialogueContext() {
       )
       : null,
     passengerOffer: passengerOffers[0] || null,
-    passengerOffers
+    passengerOffers,
+    innDialogue: city ? portInnDialogue({
+      city,
+      homeCity,
+      speakerName: gameState.playerCharacter.name,
+      variantSeed: Math.floor(simMinute / WEATHER_MINUTES_PER_DAY)
+    }) : null
   };
 }
 
@@ -38665,6 +38995,10 @@ function applyResponsiveViewport(width, height) {
   clearLakeBattleTerrainCache();
   canvas.width = width;
   canvas.height = height;
+  portCitySceneCanvas.width = width;
+  portCitySceneCanvas.height = height;
+  if (portCityRuntime) portCityRuntime.resize(width, height);
+  portCityTransition = null;
   syncCanvasAriaLabel();
   screenCtx.imageSmoothingEnabled = false;
 
@@ -39342,6 +39676,60 @@ function drawDayNightWorld(layers, nowMs) {
   worldFramePresented = true;
 }
 
+function drawPortCityScene(nowMs) {
+  if (!portCityView?.sceneReady || !portCityRuntime) {
+    throw new Error("Port city scene rendered before it was ready");
+  }
+  const revision = portCityRuntime.render(nowMs);
+  worldRenderer.beginFrame({
+    width: SCREEN_W,
+    height: SCREEN_H,
+    clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
+    paletteVariant: dayNightPaletteVariant(localDayNightLight()),
+    timeMs: nowMs,
+    oceanSwell: null,
+    modalReframe: null
+  });
+  worldRenderer.drawChunk({
+    key: "port-city-scene",
+    source: portCitySceneCanvas,
+    revision,
+    destinationRect: { x: 0, y: 0, width: SCREEN_W, height: SCREEN_H }
+  });
+  worldRenderer.endFrame();
+}
+
+function drawPortCityTransitionOverlay(nowMs) {
+  if (!portCityTransition || portCityTransition.direction === "enter-pending") return;
+  const frame = portCityCircleWipeFrame({
+    direction: portCityTransition.direction,
+    startedAtMs: portCityTransition.startedAtMs,
+    nowMs,
+    centerX: portCityTransition.centerX,
+    centerY: portCityTransition.centerY,
+    viewportWidth: SCREEN_W,
+    viewportHeight: SCREEN_H,
+    reducedMotion: reducedMotionPreferred
+  });
+  screenCtx.save();
+  screenCtx.imageSmoothingEnabled = false;
+  if (frame.direction === "enter") {
+    screenCtx.drawImage(portCityTransition.snapshot, 0, 0, SCREEN_W, SCREEN_H);
+    screenCtx.globalCompositeOperation = "destination-out";
+    screenCtx.beginPath();
+    screenCtx.arc(frame.centerX, frame.centerY, frame.radius, 0, Math.PI * 2);
+    screenCtx.fill();
+  } else {
+    screenCtx.beginPath();
+    screenCtx.arc(frame.centerX, frame.centerY, frame.radius, 0, Math.PI * 2);
+    screenCtx.clip();
+    screenCtx.drawImage(portCityTransition.snapshot, 0, 0, SCREEN_W, SCREEN_H);
+  }
+  screenCtx.restore();
+  if (frame.complete) portCityTransition = null;
+  else dirty = true;
+}
+
 function drawCachedWorldLayer(key, layer, offset, revision) {
   if (!layer?.canvas || !Number.isFinite(layer.x) || !Number.isFinite(layer.y)) {
     throw new Error(`Cannot draw malformed cached world layer: ${key}`);
@@ -39670,6 +40058,11 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
     return;
   }
   ctx = screenCtx;
+  if (portCityView?.sceneReady) {
+    drawPortCityScene(nowMs);
+    drawWorldInterface(nowMs);
+    return;
+  }
   const reframedBehindCover = prepareNorthUpWorldBehindCover();
   const coverIsActive = opaqueWorldCoverIsActive();
   const modalReframeWaveActive = Boolean(chartModalReframeWave);
@@ -39812,11 +40205,13 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
 }
 
 function drawWorldInterface(nowMs) {
+  drawPortCityTransitionOverlay(nowMs);
   const dialogueVisible = dialogueOverlayIsVisible({
-    dialogueActive: Boolean(dialogueState),
+    dialogueActive: Boolean(dialogueState) && !portCityRootNavigationIsActive() &&
+      !portCityIllicitEvent,
     characterAlertActive: Boolean(captainAlertModal)
   });
-  if (!dialogueVisible) {
+  if (!dialogueVisible && !portCityView?.sceneReady) {
     drawLandmarkDiscoveryIndicators(nowMs);
     drawWhaleKillingBlowIndicator(nowMs);
     drawOverboardCrewLabels(nowMs);
@@ -39857,7 +40252,7 @@ function drawWorldInterface(nowMs) {
   if (dialogueVisible) {
     measurePerformanceBenchmarkStage("render.dialogue", () => drawDialogueOverlay(nowMs));
   }
-  if (!dialogueVisible) drawCaptainMenuButton();
+  if (!dialogueVisible && !portCityView?.sceneReady) drawCaptainMenuButton();
   if (discoveriesMenu.isOpen) {
     measurePerformanceBenchmarkStage("render.discoveries", drawDiscoveriesMenu);
   }

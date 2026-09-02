@@ -363,28 +363,32 @@ async function exportCityPeopleAssets(privateSourceRoot) {
     for (const archetype of CITY_PERSON_ARCHETYPES) {
       const source = cityPersonSourcePath(archetype, privateSourceRoot);
       if (!existsSync(source)) throw new Error(`Missing city person source: ${source}`);
-      const jsonPath = resolve(temporaryRoot, `${archetype.id}.json`);
-      const pngPath = resolve(temporaryRoot, `${archetype.id}.png`);
-      runAseprite([
-        "--batch",
-        "--all-layers",
-        "--tag", "walk",
-        source,
-        "--trim",
-        "--sheet-pack",
-        "--merge-duplicates",
-        "--format", "json-array",
-        "--data", jsonPath,
-        "--sheet", pngPath
-      ]);
-      const sheet = JSON.parse(await readFile(jsonPath, "utf8"));
-      if (!Array.isArray(sheet.frames) || sheet.frames.length === 0) {
-        throw new Error(`City person source has no walk frames: ${archetype.id}`);
+      const animations = {};
+      for (const tag of cityPersonAnimationTags(archetype)) {
+        const jsonPath = resolve(temporaryRoot, `${archetype.id}-${tag}.json`);
+        const pngPath = resolve(temporaryRoot, `${archetype.id}-${tag}.png`);
+        runAseprite([
+          "--batch",
+          "--all-layers",
+          "--tag", tag,
+          source,
+          "--trim",
+          "--sheet-pack",
+          "--merge-duplicates",
+          "--format", "json-array",
+          "--data", jsonPath,
+          "--sheet", pngPath
+        ]);
+        const sheet = JSON.parse(await readFile(jsonPath, "utf8"));
+        if (!Array.isArray(sheet.frames) || sheet.frames.length === 0) {
+          throw new Error(`City person source has no ${tag} frames: ${archetype.id}`);
+        }
+        animations[tag] = Object.freeze({
+          image: await loadImage(pngPath),
+          frames: Object.freeze(sheet.frames.map(portableFrame))
+        });
       }
-      archetypeRasters.set(archetype.id, Object.freeze({
-        image: await loadImage(pngPath),
-        frames: Object.freeze(sheet.frames.map(portableFrame))
-      }));
+      archetypeRasters.set(archetype.id, combineCityPersonAnimations(animations));
     }
 
     const archetypeById = new Map(CITY_PERSON_ARCHETYPES.map((entry) => [entry.id, entry]));
@@ -395,7 +399,7 @@ async function exportCityPeopleAssets(privateSourceRoot) {
       return Object.freeze({
         appearance,
         archetype,
-        frames: raster.frames,
+        animations: raster.animations,
         canvas: paletteSwapCityPerson(raster.image, archetype, appearance)
       });
     });
@@ -416,12 +420,19 @@ async function exportCityPeopleAssets(privateSourceRoot) {
         archetypeId: variant.archetype.id,
         roles: variant.archetype.roles,
         skinTone: variant.appearance.skinTone,
-        animations: Object.freeze({
-          walk: Object.freeze(variant.frames.map((frame) => Object.freeze({
-            ...frame,
-            frame: Object.freeze({ ...frame.frame, x: frame.frame.x + x, y: frame.frame.y + y })
-          })))
-        })
+        animations: Object.freeze(Object.fromEntries(
+          Object.entries(variant.animations).map(([animationId, frames]) => [
+            animationId,
+            Object.freeze(frames.map((frame) => Object.freeze({
+              ...frame,
+              frame: Object.freeze({
+                ...frame.frame,
+                x: frame.frame.x + x,
+                y: frame.frame.y + y
+              })
+            })))
+          ])
+        ))
       }));
     }
 
@@ -442,6 +453,33 @@ async function exportCityPeopleAssets(privateSourceRoot) {
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+function cityPersonAnimationTags(archetype) {
+  return archetype.id === "suspicious-merchant"
+    ? Object.freeze(["walk", "idle2"])
+    : Object.freeze(["walk"]);
+}
+
+function combineCityPersonAnimations(animations) {
+  const entries = Object.entries(animations);
+  if (entries.length === 0) throw new Error("City person has no exported animations");
+  const width = Math.max(...entries.map(([, animation]) => animation.image.width));
+  const height = entries.reduce((sum, [, animation]) => sum + animation.image.height, 0);
+  const image = createCanvas(width, height);
+  const context = image.getContext("2d");
+  context.imageSmoothingEnabled = false;
+  const combined = {};
+  let y = 0;
+  for (const [animationId, animation] of entries) {
+    context.drawImage(animation.image, 0, y);
+    combined[animationId] = Object.freeze(animation.frames.map((frame) => Object.freeze({
+      ...frame,
+      frame: Object.freeze({ ...frame.frame, y: frame.frame.y + y })
+    })));
+    y += animation.image.height;
+  }
+  return Object.freeze({ image, animations: Object.freeze(combined) });
 }
 
 function cityPersonSourcePath(archetype, privateSourceRoot) {
@@ -503,7 +541,7 @@ function paletteSwapCityPerson(image, archetype, appearance) {
   const missingSources = [...replacements.keys()].filter((source) => !sourceColors.has(source));
   if (missingSources.length > 0) {
     throw new Error(
-      `Appearance ${appearance.id} palette colors are absent from its walk cycle: ` +
+      `Appearance ${appearance.id} palette colors are absent from its exported animations: ` +
       missingSources.map((source) => `#${source}`).join(", ")
     );
   }
