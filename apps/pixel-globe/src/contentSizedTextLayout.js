@@ -64,6 +64,7 @@ export function contentSizedGridLayout({
   columns,
   minimumHeight,
   measureHeight,
+  columnGap = 0,
   rowGap = 0
 }) {
   if (!Array.isArray(entries)) throw new Error("Content-sized grid requires entries");
@@ -74,18 +75,20 @@ export function contentSizedGridLayout({
     throw new Error(`Content-sized grid requires positive column count: ${columns}`);
   }
   if (!Number.isFinite(minimumHeight) || minimumHeight <= 0 ||
+      !Number.isFinite(columnGap) || columnGap < 0 ||
       !Number.isFinite(rowGap) || rowGap < 0) {
-    throw new Error("Content-sized grid requires valid row dimensions");
+    throw new Error("Content-sized grid requires valid gap and row dimensions");
   }
   if (typeof measureHeight !== "function") {
     throw new Error("Content-sized grid requires a height measurement function");
   }
-  const cellWidth = Math.floor(width / columns);
+  const usableWidth = width - columnGap * (columns - 1);
+  const cellWidth = Math.floor(usableWidth / columns);
   if (cellWidth <= 0) throw new Error(`Content-sized grid columns do not fit ${width}px`);
 
   const measured = entries.map((entry, index) => {
     const column = index % columns;
-    const entryWidth = column === columns - 1 ? width - cellWidth * column : cellWidth;
+    const entryWidth = column === columns - 1 ? usableWidth - cellWidth * column : cellWidth;
     const naturalHeight = measureHeight(entry, entryWidth);
     if (!Number.isFinite(naturalHeight) || naturalHeight <= 0) {
       throw new Error(`Content-sized grid entry ${index} has invalid height: ${naturalHeight}`);
@@ -113,7 +116,7 @@ export function contentSizedGridLayout({
   return Object.freeze({
     entries: Object.freeze(measured.map((measuredEntry) => Object.freeze({
       ...measuredEntry.entry,
-      x: measuredEntry.column * cellWidth,
+      x: measuredEntry.column * (cellWidth + columnGap),
       y: rowY[measuredEntry.row],
       w: measuredEntry.width,
       h: rowHeights[measuredEntry.row]

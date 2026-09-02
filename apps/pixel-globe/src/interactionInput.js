@@ -7,6 +7,7 @@ export const INTERACTION_INPUT = Object.freeze({
   CAPTAIN_ALERT: "captain-alert",
   PLAYER_INTRO: "player-intro",
   GAME_OVER: "game-over",
+  PORT_ASSAULT: "port-assault",
   CAPTAIN_MENU: "captain-menu",
   ABOARD: "aboard",
   SHIP_INFO: "ship-info",
@@ -42,6 +43,7 @@ const INPUT_PRIORITY = Object.freeze([
   ["politicsActive", INTERACTION_INPUT.POLITICS],
   ["discoveriesActive", INTERACTION_INPUT.DISCOVERIES],
   ["navigationActive", INTERACTION_INPUT.NAVIGATION],
+  ["portAssaultActive", INTERACTION_INPUT.PORT_ASSAULT],
   ["dialogueActive", INTERACTION_INPUT.DIALOGUE],
   ["portWaitActive", INTERACTION_INPUT.PORT_WAIT],
   ["fishingActive", INTERACTION_INPUT.FISHING]

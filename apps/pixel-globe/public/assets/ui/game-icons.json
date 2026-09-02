@@ -1,5 +1,5 @@
 {
-  "version": "resurrect-icons-50",
+  "version": "resurrect-icons-51",
   "palette": "Resurrect 64",
   "width": 256,
   "height": 224,
@@ -2373,7 +2373,7 @@
       "lightMonotone": "#6e2727"
     },
     {
-      "id": "item:wheellock-pistol",
+      "id": "item:padded-jack",
       "rect": {
         "x": 208,
         "y": 192,
@@ -2382,10 +2382,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#6e2727"
+      "lightMonotone": "#4c3e24"
     },
     {
-      "id": "item:mariners-bows",
+      "id": "item:brigandine",
       "rect": {
         "x": 224,
         "y": 192,
@@ -2394,10 +2394,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#4c3e24"
+      "lightMonotone": "#625565"
     },
     {
-      "id": "item:english-longbows",
+      "id": "item:indo-persian-mail",
       "rect": {
         "x": 240,
         "y": 192,
@@ -2406,10 +2406,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#4c3e24"
+      "lightMonotone": "#9e4539"
     },
     {
-      "id": "item:composite-recurve-bows",
+      "id": "item:lamellar-coat",
       "rect": {
         "x": 0,
         "y": 208,
@@ -2418,10 +2418,10 @@
       },
       "packId": "nikoichu",
       "assetPath": null,
-      "lightMonotone": "#9e4539"
+      "lightMonotone": "#6e2727"
     },
     {
-      "id": "item:yumi",
+      "id": "item:wheellock-pistol",
       "rect": {
         "x": 16,
         "y": 208,
@@ -2433,9 +2433,57 @@
       "lightMonotone": "#6e2727"
     },
     {
-      "id": "item:viking-bows",
+      "id": "item:mariners-bows",
       "rect": {
         "x": 32,
+        "y": 208,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:english-longbows",
+      "rect": {
+        "x": 48,
+        "y": 208,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#4c3e24"
+    },
+    {
+      "id": "item:composite-recurve-bows",
+      "rect": {
+        "x": 64,
+        "y": 208,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#9e4539"
+    },
+    {
+      "id": "item:yumi",
+      "rect": {
+        "x": 80,
+        "y": 208,
+        "w": 16,
+        "h": 16
+      },
+      "packId": "nikoichu",
+      "assetPath": null,
+      "lightMonotone": "#6e2727"
+    },
+    {
+      "id": "item:viking-bows",
+      "rect": {
+        "x": 96,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2447,7 +2495,7 @@
     {
       "id": "item:crossbows",
       "rect": {
-        "x": 48,
+        "x": 112,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2459,7 +2507,7 @@
     {
       "id": "item:matchlock-arquebuses",
       "rect": {
-        "x": 64,
+        "x": 128,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2470,7 +2518,7 @@
     {
       "id": "item:swivel-gun",
       "rect": {
-        "x": 80,
+        "x": 144,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2482,7 +2530,7 @@
     {
       "id": "item:incendiary-arrows",
       "rect": {
-        "x": 96,
+        "x": 160,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2494,7 +2542,7 @@
     {
       "id": "item:bronze-fish-hooks",
       "rect": {
-        "x": 112,
+        "x": 176,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2506,7 +2554,7 @@
     {
       "id": "item:zamzam-flask",
       "rect": {
-        "x": 128,
+        "x": 192,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2518,7 +2566,7 @@
     {
       "id": "good:gunpowder",
       "rect": {
-        "x": 144,
+        "x": 208,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2529,7 +2577,7 @@
     {
       "id": "good:matchlocks",
       "rect": {
-        "x": 160,
+        "x": 224,
         "y": 208,
         "w": 16,
         "h": 16
@@ -2540,7 +2588,7 @@
     {
       "id": "good:coal",
       "rect": {
-        "x": 176,
+        "x": 240,
         "y": 208,
         "w": 16,
         "h": 16

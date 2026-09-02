@@ -4417,13 +4417,22 @@ function barredPortView(city, gameState, context) {
   }
   const options = [];
   if (conquest?.canAttempt) {
+    if (!Number.isInteger(conquest.successPercent) || conquest.successPercent < 0 ||
+        conquest.successPercent > 100 || !Number.isInteger(conquest.casualtyRangeLow) ||
+        !Number.isInteger(conquest.casualtyRangeHigh) || conquest.casualtyRangeLow < 0 ||
+        conquest.casualtyRangeHigh < conquest.casualtyRangeLow ||
+        !Number.isInteger(conquest.expectedCasualtiesRounded) ||
+        conquest.expectedCasualtiesRounded < 0) {
+      throw new Error(`Invalid port assault forecast for ${city.cityId}`);
+    }
     options.push(option(
       attack?.mode === "raid"
-        ? "Pillage city"
-        : conquistadorLanding ? "Land the conquistadors" : "Land Marines",
+        ? "Start the raid"
+        : "Start the assault",
       { type: "land-marines" },
       {
-        detail: `${conquest.successPercent}% Chance of Success`
+        detail: `${conquest.successPercent}% victory • expect ${conquest.expectedCasualtiesRounded} lost ` +
+          `(${conquest.casualtyRangeLow}–${conquest.casualtyRangeHigh})`
       }
     ));
   }
@@ -4457,7 +4466,7 @@ function barredPortView(city, gameState, context) {
       : conquest?.conquistadorCompany?.needsReplenishment
       ? "Your adelantado's soldiers are spent. Find replacements under the Spanish flag before you waste the survivors against our walls."
       : batteryDisabled || conquest?.playerAssaultActive
-      ? `You think to take ${cityLabel(city)} with that handful? Bring fewer than ${conquest.minimumCrew} fighting hands ashore, and we will drive every one of you into the sea.`
+      ? `You think to take ${cityLabel(city)} with that handful? We will drive every one of you into the sea.`
       : independentTarget
         ? `${cityLabel(city)} answers to its own rulers. Turn about. No supplies will be sold to you.`
         : `By order of ${ruler.displayName} of ${faction.name}, your ship is barred from ${cityLabel(city)}. Turn about. No supplies will be sold to you.`,
@@ -5821,7 +5830,6 @@ function conquistadorView(session, city, gameState, portCities, context) {
       : null;
     const missing = [
       !eligibility.cannonArmed ? `${eligibility.minimumCannons} cannons` : null,
-      !eligibility.largeWarship ? `room for ${eligibility.minimumCrew} crew` : null,
       !eligibility.enoughCrew ? `${eligibility.minimumCrew} crew aboard` : null
     ].filter(Boolean);
     return {

@@ -226,7 +226,10 @@ const CREW_TYPE_BY_ARCHETYPE_ID = Object.freeze({
   gunner: "gunner",
   halberdier: "halberdier",
   hunter: "hunter",
-  "islamicate-warrior": "warrior",
+  cavalier: "swordsman",
+  horseman: "swordsman",
+  "horse-samurai": "ronin",
+  "islamicate-warrior": "shieldman",
   mariner: "sailor",
   "ming-crossbowman": "crossbowman",
   "ming-swordsman": "swordsman",
@@ -340,6 +343,14 @@ export function cityGarrisonAppearanceIds(city, count, seedKey = "dock-guards") 
   }));
 }
 
+export function cityCrewTypeForAppearance(appearanceId) {
+  const appearance = APPEARANCE_BY_ID.get(appearanceId);
+  if (!appearance) throw new Error(`Unknown city person appearance: ${appearanceId}`);
+  const crewTypeId = CREW_TYPE_BY_ARCHETYPE_ID[appearance.archetypeId];
+  if (!crewTypeId) throw new Error(`City person is not combat capable: ${appearanceId}`);
+  return crewTypeId;
+}
+
 export function cityRecruitableCrewAppearances(city) {
   const cityId = requireCity(city);
   const profile = cityPopulationProfile(city.populationProfileId || cityPopulationProfileId(city));
@@ -354,9 +365,7 @@ export function cityRecruitableCrewAppearances(city) {
     }
   }
   const result = [...appearanceIds].map((appearanceId) => {
-    const archetypeId = APPEARANCE_BY_ID.get(appearanceId).archetypeId;
-    const crewTypeId = CREW_TYPE_BY_ARCHETYPE_ID[archetypeId];
-    if (!crewTypeId) throw new Error(`Recruitable appearance has no crew type: ${appearanceId}`);
+    const crewTypeId = cityCrewTypeForAppearance(appearanceId);
     return Object.freeze({ appearanceId, crewTypeId });
   });
   if (result.length === 0) throw new Error(`City has no recruitable crew appearances: ${cityId}`);
@@ -372,7 +381,7 @@ export function citySuspiciousMerchantAppearanceId(city) {
 }
 
 export function validateCityPeopleManifest(manifest) {
-  if (!manifest || manifest.format !== "marque-city-people-atlas" || manifest.version !== 2) {
+  if (!manifest || manifest.format !== "marque-city-people-atlas" || manifest.version !== 3) {
     throw new Error("Unsupported city people manifest");
   }
   if (typeof manifest.sheet !== "string" || manifest.sheet === "") {
@@ -405,6 +414,14 @@ export function validateCityPeopleManifest(manifest) {
     if (appearance.archetypeId === "suspicious-merchant" &&
         (!Array.isArray(exported.animations?.idle2) || exported.animations.idle2.length === 0)) {
       throw new Error(`Suspicious merchant appearance has no idle2 animation: ${appearance.id}`);
+    }
+    const archetype = ARCHETYPE_BY_ID.get(appearance.archetypeId);
+    if (archetype.combatAnimations) {
+      for (const animationId of Object.keys(archetype.combatAnimations)) {
+        if (!Array.isArray(exported.animations?.[animationId]) || exported.animations[animationId].length === 0) {
+          throw new Error(`Combat appearance ${appearance.id} has no ${animationId} animation`);
+        }
+      }
     }
   }
   return manifest;

@@ -1,5 +1,4 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { get } from "node:https";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -199,13 +198,6 @@ const REVIEWED_OVERRIDES = Object.freeze({
     ja: "乗組員 {0} 大砲 {1}", de: "MANNSCHAFT {0} KANONEN {1}",
     fr: "ÉQUIPAGE {0} CANONS {1}", pl: "ZAŁOGA {0} DZIAŁA {1}",
     "zh-Hant": "船員 {0} 火炮 {1}", ko: "선원 {0} 대포 {1}"
-  }),
-  "Land the conquistadors": Object.freeze({
-    "zh-Hans": "让征服者登陆", ru: "Высадить конкистадоров",
-    es: "Desembarcar a los conquistadores", "pt-BR": "Desembarcar os conquistadores",
-    ja: "コンキスタドールを上陸させる", de: "Konquistadoren an Land setzen",
-    fr: "Débarquer les conquistadors", pl: "Wysadzić konkwistadorów",
-    "zh-Hant": "讓征服者登陸", ko: "콩키스타도르를 상륙시킨다"
   }),
   "Switch to {0}": Object.freeze({
     "zh-Hans": "切换为{0}", ru: "Переключиться на {0}", es: "Cambiar a {0}",
@@ -2226,7 +2218,7 @@ async function translateTemplates(templates, locale) {
     const requestText = batch.map((source, entryIndex) => (
       `${marker(entryIndex)}\n${translationSource(source)}`
     )).join("\n") + `\n${marker(batch.length)}`;
-    const url = new URL("https://translate.googleapis.com/translate_a/single");
+    const url = new URL("https://translate.google.com/translate_a/single");
     url.searchParams.set("client", "gtx");
     url.searchParams.set("sl", "en");
     url.searchParams.set("tl", locale.serviceCode);
@@ -2298,7 +2290,7 @@ async function repairChangedPlaceholders(source, translation, locale) {
 }
 
 async function translatePlainText(text, locale) {
-  const url = new URL("https://translate.googleapis.com/translate_a/single");
+  const url = new URL("https://translate.google.com/translate_a/single");
   url.searchParams.set("client", "gtx");
   url.searchParams.set("sl", "en");
   url.searchParams.set("tl", locale.serviceCode);
@@ -2332,23 +2324,9 @@ async function fetchTranslationPayload(url, label) {
 }
 
 function translationHttpResponse(url) {
-  return new Promise((resolve, reject) => {
-    const request = get(url, (response) => {
-      response.setEncoding("utf8");
-      let body = "";
-      response.on("data", (chunk) => {
-        body += chunk;
-      });
-      response.on("end", () => resolve({
-        status: response.statusCode || 0,
-        body
-      }));
-    });
-    request.on("error", reject);
-    request.setTimeout(30_000, () => {
-      request.destroy(new Error("Translation request timed out"));
-    });
-  });
+  return fetch(url, {
+    headers: { "User-Agent": "Mozilla/5.0" }
+  }).then(async (response) => ({ status: response.status, body: await response.text() }));
 }
 
 function placeholderSequence(value) {

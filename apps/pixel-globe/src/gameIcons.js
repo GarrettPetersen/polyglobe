@@ -2,7 +2,7 @@ import { SHIP_STATS } from "./shipStats.js";
 
 export const GAME_ICON_SIZE = 16;
 export const GAME_ICON_ATLAS_COLUMNS = 16;
-export const GAME_ICON_ASSET_VERSION = "resurrect-icons-50";
+export const GAME_ICON_ASSET_VERSION = "resurrect-icons-51";
 
 const ICON_COLOR = Object.freeze({
   achievementStatus: "#966c6c",
@@ -264,6 +264,10 @@ export const GAME_ICON_SOURCES = Object.freeze({
   "item:longsword": nikoichu("RPG_Item_Weapon_Sword_Attack_Melee_Slashing_Damage.png", ICON_COLOR.steel),
   "item:tulwar": nikoichu("RPG_Item_Weapon_Shortsword_Melee.png", ICON_COLOR.gold),
   "item:katana": nikoichu("RPG_Skill_Strike_Attack_Sword_Slash_Cleave.png", ICON_COLOR.danger),
+  "item:padded-jack": nikoichu("RPG_Item_Armor_Equipment_Slot_Chest_Breastplate_Body.png", ICON_COLOR.timber),
+  "item:brigandine": nikoichu("RPG_Item_Armor_Equipment_Slot_Chestplate_Body_Armour.png", ICON_COLOR.steel),
+  "item:indo-persian-mail": nikoichu("RPG_Item_Armor_Equipment_Slot_Shoulders.png", ICON_COLOR.gold),
+  "item:lamellar-coat": nikoichu("RPG_Item_Armor_Equipment_Slot_Legs_Leggings_Legplates.png", ICON_COLOR.danger),
   "item:wheellock-pistol": nikoichu("RPG_Item_Weapon_Pistol_Gun_Ranged.png", ICON_COLOR.danger),
   "item:mariners-bows": nikoichu("RPG_Item_Weapon_Bow_Ranged_Shooting.png", ICON_COLOR.timber),
   "item:english-longbows": nikoichu("RPG_Item_Weapon_Bow_Drawn_Ranged_Shooting.png", ICON_COLOR.timber),
@@ -307,6 +311,7 @@ const MENU_LABEL_ICON_IDS = Object.freeze({
   RESUME: "action:resume",
   RESTART: "action:restart",
   REMATCH: "action:attack",
+  "START ASSAULT": "action:attack",
   "WATCH REPLAY": "action:resume",
   "CHOOSE SHIPS": "action:choose-ships",
   "CHOOSE BATTLE": "menu:map",

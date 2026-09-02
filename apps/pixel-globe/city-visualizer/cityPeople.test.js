@@ -17,6 +17,7 @@ import {
 } from "./cityPeopleCatalog.js";
 import {
   CITY_POPULATION_PROFILES,
+  cityCrewTypeForAppearance,
   cityPopulationProfileId,
   cityRecruitableCrewAppearances,
   createCityPeopleAgents,
@@ -53,6 +54,21 @@ test("every port has an explicit reproducible population profile", () => {
   for (const [cityId, profileId] of representativeProfiles) {
     assert.equal(city(cityId).populationProfileId, profileId);
   }
+});
+
+test("every garrison appearance maps to a combat type and complete combat animations", () => {
+  const exportedById = new Map(manifest.appearances.map((entry) => [entry.id, entry]));
+  for (const profile of CITY_POPULATION_PROFILES) {
+    for (const { appearanceId } of profile.garrison) {
+      assert.equal(typeof cityCrewTypeForAppearance(appearanceId), "string", appearanceId);
+      const animations = exportedById.get(appearanceId).animations;
+      for (const animationId of ["attack", "hit", "death"]) {
+        assert.ok(animations[animationId]?.length > 0, `${appearanceId}:${animationId}`);
+      }
+    }
+  }
+  assert.ok(exportedById.get("shieldman-light").animations.block.length > 0);
+  assert.ok(exportedById.get("islamicate-warrior-medium").animations.block.length > 0);
 });
 
 test("every future sailing colony has a baked scene and a live recruitable population pool", () => {

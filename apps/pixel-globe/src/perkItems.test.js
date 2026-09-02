@@ -50,7 +50,11 @@ test("the suite covers storage, navigation, combat, fishing, and scavenging", ()
     "cargoCapacityFlat",
     "topSpeedMultiplier",
     "windwardAngleReductionDeg",
-    "assaultChanceBonus",
+    "portAssaultMeleeDamageMultiplier",
+    "portAssaultArrowDamageMultiplier",
+    "portAssaultFirearmDamageMultiplier",
+    "portAssaultDefenseMultiplier",
+    "portAssaultHitPointsMultiplier",
     "fishingChanceMultiplier",
     "scavengingChanceMultiplier",
     "damageResistanceChance"

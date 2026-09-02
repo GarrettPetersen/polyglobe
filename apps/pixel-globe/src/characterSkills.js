@@ -63,7 +63,7 @@ export const CHARACTER_SKILLS = Object.freeze([
     accelerationMultiplier: 1.12
   }),
   skill("marine-officer", "Marine Officer", "Keeps a landing party disciplined under fire.", {
-    assaultChanceBonus: 0.06
+    portAssaultDefenseMultiplier: 1.08
   }),
   skill("seasoned-forager", "Seasoned Forager", "Finds useful stores ashore and brings more back.", {
     scavengingChanceMultiplier: 1.2,

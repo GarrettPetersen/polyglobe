@@ -2,7 +2,6 @@ const ADDITIVE_PERKS = new Set([
   "cargoCapacityFlat",
   "windwardAngleReductionDeg",
   "seaworthinessFlat",
-  "assaultChanceBonus",
   "disguiseChanceBonus",
   "damageResistanceChance",
   "crewCasualtyResistanceChance",
@@ -25,7 +24,12 @@ const MULTIPLICATIVE_PERKS = new Set([
   "whalingChanceMultiplier",
   "tradePurchaseMultiplier",
   "tradeSaleMultiplier",
-  "animalEncounterChanceMultiplier"
+  "animalEncounterChanceMultiplier",
+  "portAssaultMeleeDamageMultiplier",
+  "portAssaultArrowDamageMultiplier",
+  "portAssaultFirearmDamageMultiplier",
+  "portAssaultDefenseMultiplier",
+  "portAssaultHitPointsMultiplier"
 ]);
 
 export const MAX_DAMAGE_RESISTANCE_CHANCE = 0.8;
@@ -62,7 +66,6 @@ export function aggregatePerkSources(sources) {
     totals.damageResistanceChance
   ]);
   totals.crewCasualtyResistanceChance = clamp(totals.crewCasualtyResistanceChance, 0, 0.8);
-  totals.assaultChanceBonus = clamp(totals.assaultChanceBonus, 0, 0.35);
   totals.disguiseChanceBonus = clamp(totals.disguiseChanceBonus, 0, 0.3);
   totals.tradePurchaseMultiplier = clamp(totals.tradePurchaseMultiplier, 0.9, 1);
   totals.tradeSaleMultiplier = clamp(totals.tradeSaleMultiplier, 1, 1.1);
@@ -149,7 +152,21 @@ export function perkEffectLabels(perks) {
   if (perks.fishingHaulMultiplier) labels.push(`Fishing haul +${percent(perks.fishingHaulMultiplier)}`);
   if (perks.scavengingChanceMultiplier) labels.push(`Scavenging odds +${percent(perks.scavengingChanceMultiplier)}`);
   if (perks.scavengingYieldMultiplier) labels.push(`Scavenging haul +${percent(perks.scavengingYieldMultiplier)}`);
-  if (perks.assaultChanceBonus) labels.push(`City assault +${Math.round(perks.assaultChanceBonus * 100)}%`);
+  if (perks.portAssaultMeleeDamageMultiplier) {
+    labels.push(`Assault melee damage +${percent(perks.portAssaultMeleeDamageMultiplier)}`);
+  }
+  if (perks.portAssaultArrowDamageMultiplier) {
+    labels.push(`Assault arrow damage +${percent(perks.portAssaultArrowDamageMultiplier)}`);
+  }
+  if (perks.portAssaultFirearmDamageMultiplier) {
+    labels.push(`Assault firearm damage +${percent(perks.portAssaultFirearmDamageMultiplier)}`);
+  }
+  if (perks.portAssaultDefenseMultiplier) {
+    labels.push(`Assault defense +${percent(perks.portAssaultDefenseMultiplier)}`);
+  }
+  if (perks.portAssaultHitPointsMultiplier) {
+    labels.push(`Assault HP +${percent(perks.portAssaultHitPointsMultiplier)}`);
+  }
   if (perks.disguiseChanceBonus) {
     labels.push(`Hostile-port disguise +${Math.round(perks.disguiseChanceBonus * 100)}%`);
   }

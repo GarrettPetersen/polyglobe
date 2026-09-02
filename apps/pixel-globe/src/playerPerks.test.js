@@ -95,7 +95,7 @@ test("portable matchlocks improve a marine assault without trade cargo", () => {
   state.inventory.items["matchlock-arquebuses"] = 1;
   state.cargo.matchlocks = 5;
   state.cargo.gunpowder = 3;
-  assert.equal(gameStatePerkTotals(state).assaultChanceBonus, 0.1);
+  assert.equal(gameStatePerkTotals(state).portAssaultFirearmDamageMultiplier, 1.22);
 });
 
 test("harder missions can award a persistent unowned item", () => {

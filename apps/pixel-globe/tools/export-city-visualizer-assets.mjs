@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
@@ -26,6 +26,18 @@ const treeOutputRoot = resolve(outputRoot, "trees");
 const aseprite = resolveAsepriteBinary();
 const ASEPRITE_EXPORT_TIMEOUT_MS = 30_000;
 const ASEPRITE_EXPORT_MAX_ATTEMPTS = 3;
+// A few gunner combat cels retain near-identical pre-conversion colors, plus
+// one half-opacity layer composite. Keep the repairs explicit so any other
+// out-of-palette source color still fails.
+const CITY_PERSON_SOURCE_COLOR_CORRECTIONS = Object.freeze({
+  gunner: Object.freeze({
+    bf9b58: "a2a947",
+    b77929: "cd683d",
+    ce8732: "cd683d",
+    fbb55b: "fbb954",
+    "9d8b3a": "a2a947"
+  })
+});
 
 const BUILDING_LAYER_OVERRIDES = Object.freeze({
   "Northern European Inn": "Inn",
@@ -401,13 +413,13 @@ async function exportCityPeopleAssets(privateSourceRoot) {
       const source = cityPersonSourcePath(archetype, privateSourceRoot);
       if (!existsSync(source)) throw new Error(`Missing city person source: ${source}`);
       const animations = {};
-      for (const tag of cityPersonAnimationTags(archetype)) {
-        const jsonPath = resolve(temporaryRoot, `${archetype.id}-${tag}.json`);
-        const pngPath = resolve(temporaryRoot, `${archetype.id}-${tag}.png`);
+      for (const { animationId, sourceTag } of cityPersonAnimationTags(archetype)) {
+        const jsonPath = resolve(temporaryRoot, `${archetype.id}-${animationId}.json`);
+        const pngPath = resolve(temporaryRoot, `${archetype.id}-${animationId}.png`);
         runAseprite([
           "--batch",
           "--all-layers",
-          "--tag", tag,
+          "--tag", sourceTag,
           source,
           "--trim",
           "--sheet-pack",
@@ -418,9 +430,9 @@ async function exportCityPeopleAssets(privateSourceRoot) {
         ]);
         const sheet = JSON.parse(await readFile(jsonPath, "utf8"));
         if (!Array.isArray(sheet.frames) || sheet.frames.length === 0) {
-          throw new Error(`City person source has no ${tag} frames: ${archetype.id}`);
+          throw new Error(`City person source has no ${sourceTag} frames: ${archetype.id}`);
         }
-        animations[tag] = Object.freeze({
+        animations[animationId] = Object.freeze({
           image: await loadImage(pngPath),
           frames: Object.freeze(sheet.frames.map(portableFrame))
         });
@@ -440,10 +452,10 @@ async function exportCityPeopleAssets(privateSourceRoot) {
         canvas: paletteSwapCityPerson(raster.image, archetype, appearance)
       });
     });
-    const placements = packCityPersonVariants(variants, 256);
+    const placements = packCityPersonVariants(variants, 1024);
     const atlasWidth = Math.max(...placements.map(({ x, variant }) => x + variant.canvas.width));
     const atlasHeight = Math.max(...placements.map(({ y, variant }) => y + variant.canvas.height));
-    if (atlasWidth <= 0 || atlasHeight <= 0 || atlasWidth > 256 || atlasHeight > 4096) {
+    if (atlasWidth <= 0 || atlasHeight <= 0 || atlasWidth > 1024 || atlasHeight > 4096) {
       throw new Error(`Invalid city people atlas dimensions: ${atlasWidth}x${atlasHeight}`);
     }
     const atlas = createCanvas(atlasWidth, atlasHeight);
@@ -478,7 +490,7 @@ async function exportCityPeopleAssets(privateSourceRoot) {
     await writeFile(resolve(minifolkOutputRoot, "people.png"), atlas.toBuffer("image/png"));
     await writeFile(resolve(minifolkOutputRoot, "manifest.json"), `${JSON.stringify({
       format: "marque-city-people-atlas",
-      version: 2,
+      version: 3,
       palette: "Resurrect 64",
       sheet: "people.png",
       credits: [
@@ -493,9 +505,14 @@ async function exportCityPeopleAssets(privateSourceRoot) {
 }
 
 function cityPersonAnimationTags(archetype) {
-  return archetype.id === "suspicious-merchant"
-    ? Object.freeze(["idle", "walk", "jump", "idle2"])
-    : Object.freeze(["idle", "walk", "jump"]);
+  const tags = ["idle", "walk", "jump"].map((sourceTag) => ({ animationId: sourceTag, sourceTag }));
+  if (archetype.id === "suspicious-merchant") tags.push({ animationId: "idle2", sourceTag: "idle2" });
+  if (archetype.combatAnimations) {
+    for (const [animationId, sourceTag] of Object.entries(archetype.combatAnimations)) {
+      tags.push({ animationId, sourceTag });
+    }
+  }
+  return Object.freeze(tags.map(Object.freeze));
 }
 
 function combineCityPersonAnimations(animations) {
@@ -538,6 +555,9 @@ function paletteSwapCityPerson(image, archetype, appearance) {
   const sourceColors = new Set();
   const paletteColors = new Set(RESURRECT_64_HEX);
   const replacements = new Map(Object.entries(appearance.palette));
+  const sourceCorrections = new Map(Object.entries(
+    CITY_PERSON_SOURCE_COLOR_CORRECTIONS[archetype.id] || {}
+  ));
   const targetSkin = CITY_PERSON_SKIN_RAMP[appearance.skinTone];
   if (!targetSkin) throw new Error(`Unknown city person skin tone: ${appearance.skinTone}`);
   if (targetSkin.length < archetype.skinRamp.length) {
@@ -562,11 +582,16 @@ function paletteSwapCityPerson(image, archetype, appearance) {
     }
     if (alpha === 0) continue;
     const source = rgbKey(imageData.data, offset);
-    if (!paletteColors.has(source)) {
+    const correctedSource = sourceCorrections.get(source);
+    if (!paletteColors.has(source) && !correctedSource) {
       throw new Error(`City person source ${archetype.id} contains non-Resurrect color #${source}`);
     }
-    sourceColors.add(source);
-    const target = replacements.get(source);
+    if (correctedSource && !paletteColors.has(correctedSource)) {
+      throw new Error(`City person source correction targets non-Resurrect color #${correctedSource}`);
+    }
+    const paletteSource = correctedSource || source;
+    sourceColors.add(paletteSource);
+    const target = replacements.get(paletteSource) || correctedSource;
     if (!target) continue;
     if (!paletteColors.has(target)) {
       throw new Error(`Appearance ${appearance.id} targets non-Resurrect color #${target}`);
@@ -876,6 +901,7 @@ function regionalBuildingSpriteSourceSize({
 
 function runAseprite(args) {
   const sourcePath = args.find((argument) => argument.endsWith(".aseprite")) || args.join(" ");
+  const startedAtMs = Date.now();
   for (let attempt = 1; attempt <= ASEPRITE_EXPORT_MAX_ATTEMPTS; attempt++) {
     const result = spawnSync(aseprite, args, {
       encoding: "utf8",
@@ -889,6 +915,12 @@ function runAseprite(args) {
         `${result.error?.message || result.stderr || result.stdout || args.join(" ")}`
       );
     }
+    if (asepriteExportArtifactsAreComplete(args, startedAtMs)) {
+      console.warn(
+        `[pixel-globe] Aseprite produced complete export artifacts before its process timed out: ${sourcePath}`
+      );
+      return;
+    }
     if (attempt < ASEPRITE_EXPORT_MAX_ATTEMPTS) {
       console.warn(
         `[pixel-globe] Aseprite timed out after ${ASEPRITE_EXPORT_TIMEOUT_MS}ms; ` +
@@ -901,6 +933,26 @@ function runAseprite(args) {
     );
   }
   throw new Error("Aseprite export exhausted attempts without a result");
+}
+
+function asepriteExportArtifactsAreComplete(args, startedAtMs) {
+  const dataIndex = args.indexOf("--data");
+  const sheetIndex = args.indexOf("--sheet");
+  if (dataIndex < 0 || sheetIndex < 0) return false;
+  const dataPath = args[dataIndex + 1];
+  const sheetPath = args[sheetIndex + 1];
+  if (!dataPath || !sheetPath || !existsSync(dataPath) || !existsSync(sheetPath)) return false;
+  const oldestAcceptedMtimeMs = startedAtMs - 1000;
+  if (statSync(dataPath).mtimeMs < oldestAcceptedMtimeMs ||
+      statSync(sheetPath).mtimeMs < oldestAcceptedMtimeMs) return false;
+  try {
+    const metadata = JSON.parse(readFileSync(dataPath, "utf8"));
+    const png = readFileSync(sheetPath);
+    return Array.isArray(metadata.frames) && metadata.frames.length > 0 &&
+      png.length >= 8 && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+  } catch {
+    return false;
+  }
 }
 
 function resolveAsepriteBinary() {

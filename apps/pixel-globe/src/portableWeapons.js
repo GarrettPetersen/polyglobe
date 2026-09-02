@@ -150,7 +150,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 450,
     tier: 1,
     iconId: "item:mariners-bows",
-    perks: { assaultChanceBonus: 0.01 },
+    perks: { portAssaultArrowDamageMultiplier: 1.04 },
     regions: ["global"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
@@ -166,7 +166,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 950,
     tier: 2,
     iconId: "item:english-longbows",
-    perks: { assaultChanceBonus: 0.02 },
+    perks: { portAssaultArrowDamageMultiplier: 1.08 },
     regions: ["england"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
@@ -182,7 +182,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 900,
     tier: 2,
     iconId: "item:composite-recurve-bows",
-    perks: { assaultChanceBonus: 0.02 },
+    perks: { portAssaultArrowDamageMultiplier: 1.08 },
     regions: ["islamic", "south-asia", "southeast-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
@@ -198,7 +198,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 1000,
     tier: 2,
     iconId: "item:yumi",
-    perks: { assaultChanceBonus: 0.02 },
+    perks: { portAssaultArrowDamageMultiplier: 1.09 },
     regions: ["japan"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
@@ -214,7 +214,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 850,
     tier: 2,
     iconId: "item:viking-bows",
-    perks: { assaultChanceBonus: 0.02 },
+    perks: { portAssaultArrowDamageMultiplier: 1.07 },
     regions: ["global"],
     rewardOnly: true,
     weapon: {
@@ -231,7 +231,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 1150,
     tier: 2,
     iconId: "item:crossbows",
-    perks: { assaultChanceBonus: 0.03 },
+    perks: { portAssaultArrowDamageMultiplier: 1.12 },
     regions: ["europe", "east-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_ARROW, hullDamage: 0, crewDamage: 1,
@@ -247,7 +247,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 3400,
     tier: 3,
     iconId: "item:matchlock-arquebuses",
-    perks: { assaultChanceBonus: 0.08 },
+    perks: { portAssaultFirearmDamageMultiplier: 1.22 },
     regions: ["europe", "islamic", "south-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_BULLET, hullDamage: 0, crewDamage: 1,
@@ -264,7 +264,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 3000,
     tier: 3,
     iconId: "item:wheellock-pistol",
-    perks: { assaultChanceBonus: 0.1 },
+    perks: { portAssaultFirearmDamageMultiplier: 1.25 },
     regions: ["europe"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_BULLET, hullDamage: 0, crewDamage: 1,
@@ -281,7 +281,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 2800,
     tier: 3,
     iconId: "item:swivel-gun",
-    perks: { assaultChanceBonus: 0.04 },
+    perks: { portAssaultFirearmDamageMultiplier: 1.1 },
     regions: ["europe", "islamic", "south-asia", "east-asia", "southeast-asia"],
     weapon: {
       animationKind: PORTABLE_PROJECTILE_CANNON, hullDamage: 0.5, crewDamage: 2,
@@ -298,7 +298,7 @@ export const PORTABLE_WEAPON_ITEMS = Object.freeze([
     price: 1400,
     tier: 2,
     iconId: "item:incendiary-arrows",
-    perks: { assaultChanceBonus: 0.02 },
+    perks: { portAssaultArrowDamageMultiplier: 1.08 },
     regions: ["global"],
     modifier: Object.freeze({
       kind: "incendiary-arrows",

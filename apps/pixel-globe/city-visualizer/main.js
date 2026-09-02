@@ -3,6 +3,8 @@ import {
   responsiveLogicalViewport
 } from "../src/responsiveViewport.js";
 import { canvasDisplayLayout } from "../src/displayScaling.js";
+import { requirePixelPerfectSpriteScale } from "../src/pixelPerfectSpriteScale.js";
+import { cityAssaultCameraTargetPosition } from "./cityAssaultCamera.js";
 import {
   PORT_SCENE_ENTITY_META,
   PORT_SCENE_DOCK,
@@ -186,6 +188,11 @@ import {
   cityBombardmentLayerIsDamageable,
   cityBombardmentSeed
 } from "./cityBombardmentDamage.js";
+import {
+  CITY_BOMBARDMENT_SMOKE_FRAME_MS,
+  cityBombardmentEffectGeometry,
+  cityBombardmentEffectIntersectsViewport
+} from "./cityBombardmentEffects.js";
 
 export async function createCitySceneRuntime({
   canvas,
@@ -322,6 +329,7 @@ const state = {
   barred: false,
   illicitCaughtStartedAtMs: null,
   bombardmentEventId: null,
+  assaultPresentation: null,
   specialAgents: [],
   backgroundCityRows: [],
   backgroundCityPainterOrder: [],
@@ -640,6 +648,7 @@ async function selectCity(cityId, {
   state.barred = barred;
   state.illicitCaughtStartedAtMs = illicitCaughtStartedAtMs;
   state.bombardmentEventId = bombardmentEventId;
+  state.assaultPresentation = null;
   bombardmentFrameCache.clear();
   bombardmentOverlayFrameCache = null;
   state.focusedDestinationId = null;
@@ -1319,6 +1328,28 @@ function queueCameraPanByLogicalPixels(logicalDeltaX) {
   );
 }
 
+function focusAssaultPresentation(presentation) {
+  const position = cityAssaultCameraTargetPosition(presentation.units);
+  if (position === null) return;
+  const masterX = 666 + position * 640;
+  const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+  const delta = scenePanParallaxDelta({
+    screenDeltaX: masterX - window.x - canvas.width / 2,
+    displayWidth: canvas.width,
+    logicalWidth: canvas.width,
+    approach: state.features?.approach || "ocean"
+  });
+  const bounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
+  const target = clamp(state.parallax + delta, bounds.minimum, bounds.maximum);
+  if (prefersReducedMotion.matches) {
+    state.parallax = target;
+    state.cameraVelocity = 0;
+    state.cameraPanTarget = null;
+  } else {
+    state.cameraPanTarget = target;
+  }
+}
+
 function advanceCamera(timeMs) {
   if (state.lastRenderTimeMs === null) {
     state.lastRenderTimeMs = timeMs;
@@ -1550,6 +1581,7 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
   }
   else if (entry.kind === "ship") drawDocksideShip(timeMs);
   else if (entry.kind === "npc") drawNpc(entry.agent, timeMs);
+  else if (entry.kind === "port-assault") drawPortAssaultPresentation();
   else throw new Error(`Unknown city scene render entry: ${entry.kind}`);
 }
 
@@ -1946,6 +1978,11 @@ function createSceneRenderEntries() {
     });
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
+  entries.push({
+    kind: "port-assault",
+    z: CITY_GATE_FRONT_PAINTER_Z - 0.05,
+    authoredOrder: 38.9
+  });
   for (const [agentOrder, agent] of state.npcAgents.slice(0, state.features.npcs).entries()) {
     entries.push({
       kind: "npc",
@@ -2364,23 +2401,61 @@ function bombardmentFramePresentation({ source, buildingId, seed = null }) {
 function drawBombardmentFireOverlay(timeMs) {
   if (state.bombardmentEventId === null) return;
   if (!state.fireAtlas) throw new Error("Bombarded city rendered before its fire atlas loaded");
-  const targetContext = separateEmissiveOverlay ? emissiveContext : context;
-  if (!targetContext) throw new Error("Bombarded city has no emissive render target");
-  targetContext.imageSmoothingEnabled = false;
+  const fireTargetContext = separateEmissiveOverlay ? emissiveContext : context;
+  if (!fireTargetContext) throw new Error("Bombarded city has no emissive render target");
+  fireTargetContext.imageSmoothingEnabled = false;
   if (cityStaticCacheIsUsable()) {
     const baseKey = [
       state.city.id,
       state.bombardmentEventId,
       canvas.width,
       canvas.height,
-      state.parallax
+      state.parallax,
+      state.wind.flowDirectionRad,
+      state.wind.strength
     ].join("|");
-    if (bombardmentOverlayFrameCache?.baseKey !== baseKey) {
-      bombardmentOverlayFrameCache = { baseKey, frames: new Map() };
+    if (!bombardmentOverlayFrameCache) {
+      bombardmentOverlayFrameCache = {
+        baseKey: null,
+        fireFrames: new Map(),
+        smokeOverlay: document.createElement("canvas"),
+        smokeContext: null,
+        smokeTimeMs: null
+      };
     }
+    if (bombardmentOverlayFrameCache.baseKey !== baseKey) {
+      bombardmentOverlayFrameCache.baseKey = baseKey;
+      bombardmentOverlayFrameCache.fireFrames.clear();
+      bombardmentOverlayFrameCache.smokeTimeMs = null;
+    }
+    const smokeOverlay = bombardmentOverlayFrameCache.smokeOverlay;
+    if (
+      !bombardmentOverlayFrameCache.smokeContext ||
+      smokeOverlay.width !== canvas.width ||
+      smokeOverlay.height !== canvas.height
+    ) {
+      if (smokeOverlay.width !== canvas.width) smokeOverlay.width = canvas.width;
+      if (smokeOverlay.height !== canvas.height) smokeOverlay.height = canvas.height;
+      bombardmentOverlayFrameCache.smokeContext = smokeOverlay.getContext("2d");
+      if (!bombardmentOverlayFrameCache.smokeContext) {
+        throw new Error("Could not cache city bombardment smoke overlay");
+      }
+    }
+    const smokeTimeMs = prefersReducedMotion.matches
+      ? 5000
+      : Math.floor(timeMs / CITY_BOMBARDMENT_SMOKE_FRAME_MS) * CITY_BOMBARDMENT_SMOKE_FRAME_MS;
+    if (bombardmentOverlayFrameCache.smokeTimeMs !== smokeTimeMs) {
+      const smokeContext = bombardmentOverlayFrameCache.smokeContext;
+      if (!smokeContext) throw new Error("City bombardment smoke cache has no render context");
+      smokeContext.imageSmoothingEnabled = false;
+      smokeContext.clearRect(0, 0, smokeOverlay.width, smokeOverlay.height);
+      drawBombardmentSmokeSources(smokeTimeMs, smokeContext);
+      bombardmentOverlayFrameCache.smokeTimeMs = smokeTimeMs;
+    }
+    context.drawImage(smokeOverlay, 0, 0);
     const animationFrame = Math.floor((prefersReducedMotion.matches ? 0 : timeMs) / FIRE_FRAME_MS) %
       FIRE_FRAME_COUNT;
-    let overlay = bombardmentOverlayFrameCache.frames.get(animationFrame);
+    let overlay = bombardmentOverlayFrameCache.fireFrames.get(animationFrame);
     if (!overlay) {
       overlay = document.createElement("canvas");
       overlay.width = canvas.width;
@@ -2389,44 +2464,50 @@ function drawBombardmentFireOverlay(timeMs) {
       if (!overlayContext) throw new Error("Could not cache city bombardment fire overlay");
       overlayContext.imageSmoothingEnabled = false;
       drawBombardmentFireSources(timeMs, overlayContext);
-      bombardmentOverlayFrameCache.frames.set(animationFrame, overlay);
+      bombardmentOverlayFrameCache.fireFrames.set(animationFrame, overlay);
     }
-    targetContext.drawImage(overlay, 0, 0);
+    fireTargetContext.drawImage(overlay, 0, 0);
     return;
   }
-  drawBombardmentFireSources(timeMs, targetContext);
+  const smokeTimeMs = prefersReducedMotion.matches
+    ? 5000
+    : Math.floor(timeMs / CITY_BOMBARDMENT_SMOKE_FRAME_MS) * CITY_BOMBARDMENT_SMOKE_FRAME_MS;
+  drawBombardmentSmokeSources(smokeTimeMs, context);
+  drawBombardmentFireSources(timeMs, fireTargetContext);
 }
 
 function drawBombardmentFireSources(timeMs, targetContext) {
-  drawAuthoredBombardmentFires(timeMs, targetContext);
-  drawBackgroundCityBombardmentFires("right", timeMs, targetContext);
-  if (state.features.leftBankCity) {
-    drawBackgroundCityBombardmentFires("left", timeMs, targetContext);
-  }
+  forEachBombardmentPresentation((presentation, destination) => {
+    drawBombardmentPresentationFire(presentation, destination, timeMs, targetContext);
+  });
+}
+
+function drawBombardmentSmokeSources(timeMs, targetContext) {
+  forEachBombardmentPresentation((presentation, destination) => {
+    drawBombardmentPresentationSmoke(presentation, destination, timeMs, targetContext);
+  });
+}
+
+function forEachBombardmentPresentation(visit) {
+  if (typeof visit !== "function") throw new TypeError("Bombardment presentation visitor is required");
+  visitAuthoredBombardmentPresentations(visit);
+  visitBackgroundCityBombardmentPresentations("right", visit);
+  if (state.features.leftBankCity) visitBackgroundCityBombardmentPresentations("left", visit);
   for (const placement of state.streetBuildings) {
     const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
     const source = regionalFrame || { atlas: state.staticAtlas, frame: placement.frame };
     const presentation = cityStreetBombardmentPresentation(placement, source);
-    drawBombardmentPresentationFire(presentation, {
-      x: placement.x - sceneWindow(
-        placement.depth,
-        0,
-        0,
-        placement.parallaxAnchor
-      ).x,
-      y: placement.y - sceneWindow(
-        placement.depth,
-        0,
-        0,
-        placement.parallaxAnchor
-      ).y,
+    const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
+    visit(presentation, {
+      x: placement.x - window.x,
+      y: placement.y - window.y,
       width: placement.width,
       height: placement.height
-    }, timeMs, targetContext);
+    });
   }
 }
 
-function drawAuthoredBombardmentFires(timeMs, targetContext) {
+function visitAuthoredBombardmentPresentations(visit) {
   const activeLayers = activePortSceneLayers(state.features);
   const occurrences = new Map();
   for (const layerName of state.portManifest.layerOrder) {
@@ -2448,16 +2529,16 @@ function drawAuthoredBombardmentFires(timeMs, targetContext) {
       offsetY,
       layerParallaxAnchor(layerName, occurrence)
     );
-    drawBombardmentPresentationFire(presentation, {
+    visit(presentation, {
       x: presentation.frame.spriteSourceSize.x - window.x,
       y: presentation.frame.spriteSourceSize.y - window.y,
       width: presentation.frame.frame.w,
       height: presentation.frame.frame.h
-    }, timeMs, targetContext);
+    });
   }
 }
 
-function drawBackgroundCityBombardmentFires(side, timeMs, targetContext) {
+function visitBackgroundCityBombardmentPresentations(side, visit) {
   const { rows, painterOrder } = backgroundCityRenderState(side);
   for (const entry of painterOrder) {
     const building = entry.building;
@@ -2472,36 +2553,46 @@ function drawBackgroundCityBombardmentFires(side, timeMs, targetContext) {
     const presentation = backgroundCityBombardmentPresentation(side, entry, source);
     if (!presentation) continue;
     const window = sceneWindow(entry.depth, 0, 0, entry.parallaxAnchor);
-    drawBombardmentPresentationFire(presentation, {
+    visit(presentation, {
       x: building.x - window.x,
       y: building.y - window.y,
       width: building.width,
       height: building.height
-    }, timeMs, targetContext);
+    });
   }
 }
 
 function drawBombardmentPresentationFire(presentation, destination, timeMs, targetContext) {
   if (!presentation) return;
-  const frame = fireAnimationFrame(prefersReducedMotion.matches ? 0 : timeMs, presentation.seed);
   const destinationX = Math.round(destination.x);
   const destinationY = Math.round(destination.y);
   const destinationWidth = Math.max(1, Math.round(destination.width));
   const destinationHeight = Math.max(1, Math.round(destination.height));
+  const normalizedDestination = Object.freeze({
+    x: destinationX,
+    y: destinationY,
+    width: destinationWidth,
+    height: destinationHeight
+  });
+  if (!cityBombardmentEffectIntersectsViewport({
+    destination: normalizedDestination,
+    viewportWidth: canvas.width,
+    viewportHeight: canvas.height
+  })) return;
   const holeRuns = scaledBombardmentHoleRuns(
     presentation,
     destinationWidth,
     destinationHeight
   );
-  const bounds = presentation.damage.holeBounds;
   const sourceWidth = presentation.frame.frame.w;
   const sourceHeight = presentation.frame.frame.h;
-  const scale = clamp(Math.max(bounds.width / 13, bounds.height / 15), 0.55, 1.4);
-  const fireWidth = FIRE_FRAME_WIDTH * scale;
-  const fireHeight = FIRE_FRAME_HEIGHT * scale;
-  const fireBottom = bounds.y + bounds.height + Math.max(1, Math.round(bounds.height * 0.2));
-  const fireX = bounds.x + bounds.width / 2 - fireWidth / 2;
-  const fireY = fireBottom - fireHeight;
+  const geometry = cityBombardmentEffectGeometry({
+    damage: presentation.damage,
+    sourceWidth,
+    sourceHeight,
+    destination: normalizedDestination,
+    seed: presentation.seed
+  });
   targetContext.save();
   targetContext.beginPath();
   for (const run of holeRuns) {
@@ -2513,18 +2604,64 @@ function drawBombardmentPresentationFire(presentation, destination, timeMs, targ
     );
   }
   targetContext.clip();
+  drawBombardmentFireSprite(
+    geometry.breachFlame,
+    presentation.seed,
+    timeMs,
+    targetContext
+  );
+  targetContext.restore();
+  drawBombardmentFireSprite(
+    geometry.exteriorFlame,
+    presentation.seed ^ 0x45585445,
+    timeMs,
+    targetContext
+  );
+}
+
+function drawBombardmentPresentationSmoke(presentation, destination, timeMs, targetContext) {
+  if (!presentation) return;
+  const normalizedDestination = {
+    x: Math.round(destination.x),
+    y: Math.round(destination.y),
+    width: Math.max(1, Math.round(destination.width)),
+    height: Math.max(1, Math.round(destination.height))
+  };
+  if (!cityBombardmentEffectIntersectsViewport({
+    destination: normalizedDestination,
+    viewportWidth: canvas.width,
+    viewportHeight: canvas.height
+  })) return;
+  const geometry = cityBombardmentEffectGeometry({
+    damage: presentation.damage,
+    sourceWidth: presentation.frame.frame.w,
+    sourceHeight: presentation.frame.frame.h,
+    destination: normalizedDestination,
+    seed: presentation.seed
+  });
+  targetContext.save();
+  for (const particle of cityChimneySmokeParticles(geometry.smokeEmitter, timeMs, state.wind)) {
+    if (particle.alpha <= 0) continue;
+    targetContext.globalAlpha = particle.alpha;
+    targetContext.fillStyle = particle.color;
+    targetContext.fillRect(particle.x, particle.y, particle.size, particle.size);
+  }
+  targetContext.restore();
+}
+
+function drawBombardmentFireSprite(destination, seed, timeMs, targetContext) {
+  const frame = fireAnimationFrame(prefersReducedMotion.matches ? 0 : timeMs, seed);
   targetContext.drawImage(
     state.fireAtlas,
     frame * FIRE_FRAME_WIDTH,
-    fireVariantIndex(presentation.seed) * FIRE_FRAME_HEIGHT,
+    fireVariantIndex(seed) * FIRE_FRAME_HEIGHT,
     FIRE_FRAME_WIDTH,
     FIRE_FRAME_HEIGHT,
-    destinationX + Math.round(fireX / sourceWidth * destinationWidth),
-    destinationY + Math.round(fireY / sourceHeight * destinationHeight),
-    Math.max(1, Math.round(fireWidth / sourceWidth * destinationWidth)),
-    Math.max(1, Math.round(fireHeight / sourceHeight * destinationHeight))
+    destination.x,
+    destination.y,
+    destination.width,
+    destination.height
   );
-  targetContext.restore();
 }
 
 function scaledBombardmentHoleRuns(presentation, width, height) {
@@ -3583,6 +3720,7 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineR
 }
 
 function drawNpc(agent, timeMs) {
+  if (state.assaultPresentation) return;
   if (!state.peopleManifest || !state.peopleAtlas || !state.features) return;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
   const time = prefersReducedMotion.matches ? 0 : timeMs;
@@ -3623,6 +3761,115 @@ function drawNpc(agent, timeMs) {
   }
 }
 
+function drawPortAssaultPresentation() {
+  const presentation = state.assaultPresentation;
+  if (!presentation) return;
+  const battleTimeMs = prefersReducedMotion.matches ? 0 : presentation.elapsedMs;
+  const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+  // Four fixed road lanes provide painter order without allocating and sorting
+  // the complete formation on every animation frame.
+  for (let lane = 0; lane < 4; lane += 1) {
+    for (const unit of presentation.units) {
+      if (unit.lane !== lane) continue;
+      const masterX = 666 + unit.position * 640;
+      const feetY = 516 + unit.lane * 8;
+      drawAssaultPersonSprite(unit, masterX - window.x, feetY - window.y, battleTimeMs);
+      if (unit.inWater) drawAssaultWater(unit, masterX - window.x, feetY - window.y, battleTimeMs);
+    }
+  }
+  for (const event of presentation.events) {
+    drawAssaultEvent(event, presentation.units, window, battleTimeMs);
+  }
+}
+
+function drawAssaultPersonSprite(unit, screenX, screenFeetY, timeMs) {
+  const appearance = state.peopleById.get(unit.appearanceId);
+  if (!appearance) throw new Error(`Unknown assault appearance: ${unit.appearanceId}`);
+  const animation = appearance.animations[unit.animationId];
+  if (!Array.isArray(animation) || animation.length === 0) {
+    throw new Error(`Assault appearance ${unit.appearanceId} has no ${unit.animationId} animation`);
+  }
+  const frame = animationFrame(animation, timeMs);
+  const dx = Math.round(screenX + frame.spriteSourceSize.x - frame.sourceSize.w / 2);
+  const dy = Math.round(screenFeetY - frame.sourceSize.h + frame.spriteSourceSize.y);
+  const facingRight = unit.side === "attacker";
+  context.save();
+  context.imageSmoothingEnabled = false;
+  if (unit.inWater) {
+    context.beginPath();
+    context.rect(0, 0, canvas.width, Math.max(0, Math.round(screenFeetY) - 1));
+    context.clip();
+  }
+  if (facingRight) {
+    context.drawImage(
+      state.peopleAtlas,
+      frame.frame.x,
+      frame.frame.y,
+      frame.frame.w,
+      frame.frame.h,
+      dx,
+      dy,
+      frame.frame.w,
+      frame.frame.h
+    );
+  } else {
+    context.translate(dx + frame.frame.w, 0);
+    context.scale(-1, 1);
+    context.drawImage(
+      state.peopleAtlas,
+      frame.frame.x,
+      frame.frame.y,
+      frame.frame.w,
+      frame.frame.h,
+      0,
+      dy,
+      frame.frame.w,
+      frame.frame.h
+    );
+  }
+  context.restore();
+}
+
+function drawAssaultWater(unit, x, feetY, timeMs) {
+  const phase = Math.floor(timeMs / 140 + unit.lane) % 2;
+  context.fillStyle = phase === 0 ? "#8fd3ff" : "#4d9be6";
+  context.fillRect(Math.round(x) - 3 - phase, Math.round(feetY) - 2, 7 + phase * 2, 1);
+  context.fillRect(Math.round(x) - 2, Math.round(feetY), 5, 1);
+}
+
+function drawAssaultEvent(event, units, window, timeMs) {
+  const unit = units.find(({ id }) => id === event.unitId);
+  if (!unit) return;
+  const x = Math.round(666 + unit.position * 640 - window.x);
+  const y = Math.round(512 + unit.lane * 8 - window.y);
+  if (event.type === "attack" && event.attackType === "firearm") {
+    context.fillStyle = "#ffffff";
+    context.fillRect(x + (unit.side === "attacker" ? 5 : -6), y - 10, 2, 1);
+  } else if (event.type === "attack" && event.attackType === "arrow") {
+    context.fillStyle = "#2e222f";
+    context.fillRect(x + (unit.side === "attacker" ? 5 : -9), y - 9, 5, 1);
+  } else if (event.type === "block") {
+    context.fillStyle = "#f9c22b";
+    context.fillRect(x - 3, y - 16, 7, 1);
+  } else if (event.type === "splash") {
+    const age = Math.max(0, timeMs - event.timeMs);
+    const rise = Math.floor(age / 90);
+    context.fillStyle = "#8fd3ff";
+    context.fillRect(x - 5 - rise, y - 3 - rise, 2, 1);
+    context.fillRect(x + 4 + rise, y - 4 - Math.floor(rise / 2), 2, 1);
+    if (age < 260) context.fillRect(x - 1, y - 6 - rise, 2, 2);
+  } else if (event.type === "dock-land") {
+    const age = Math.max(0, timeMs - event.timeMs);
+    const spread = Math.floor(age / 120);
+    context.fillStyle = event.dockKind === "stone" ? "#9babb2" : "#c7dcd0";
+    context.fillRect(x - 3 - spread, y - 1, 2, 1);
+    context.fillRect(x + 2 + spread, y - 1, 2, 1);
+  } else if (event.type === "death" && timeMs - event.timeMs < 500) {
+    context.fillStyle = "#ae2334";
+    context.fillRect(x - 2 - Math.floor((timeMs - event.timeMs) / 180), y - 3, 2, 1);
+  }
+}
+
 function drawPersonSprite(targetContext, {
   appearanceId,
   animationId = "walk",
@@ -3635,9 +3882,10 @@ function drawPersonSprite(targetContext, {
   if (!targetContext || typeof targetContext.drawImage !== "function") {
     throw new Error("City person sprite requires a canvas context");
   }
-  if (![timeMs, x, y, scale].every(Number.isFinite) || scale <= 0) {
-    throw new Error("City person sprite requires finite placement and a positive scale");
+  if (![timeMs, x, y].every(Number.isFinite)) {
+    throw new Error("City person sprite requires finite placement");
   }
+  requirePixelPerfectSpriteScale(scale, "City person sprite");
   const appearance = state.peopleById.get(appearanceId);
   if (!appearance) throw new Error(`Unknown city person appearance: ${appearanceId}`);
   const animation = appearance.animations[animationId];
@@ -3649,6 +3897,7 @@ function drawPersonSprite(targetContext, {
   const dy = Math.round(y + frame.spriteSourceSize.y * scale);
   const dw = Math.round(frame.frame.w * scale);
   const dh = Math.round(frame.frame.h * scale);
+  targetContext.imageSmoothingEnabled = false;
   if (facingRight) {
     targetContext.drawImage(
       state.peopleAtlas,
@@ -3820,6 +4069,11 @@ function updateHover() {
 }
 
 function activeDestinations() {
+  if (state.assaultPresentation) {
+    const setSail = DESTINATIONS.find(({ id }) => id === PORT_CITY_LOCATION.SET_SAIL);
+    if (!setSail) throw new Error("Port assault requires the Set Sail destination");
+    return [setSail];
+  }
   const explicit = state.availableDestinationIds;
   return DESTINATIONS.filter((destination) => {
     if (explicit && !explicit.has(destination.id)) return false;
@@ -4277,6 +4531,55 @@ return Object.freeze({
   activateAt(x, y) {
     const hit = destinationAtPoint(x, y);
     return hit ? activateDestination(hit.destination.id, hit.saleShipId) : null;
+  },
+  setAssaultPresentation(presentation) {
+    if (presentation !== null && (
+      !presentation || !Array.isArray(presentation.units) || !Array.isArray(presentation.events) ||
+      !Number.isFinite(presentation.elapsedMs) || presentation.elapsedMs < 0 ||
+      !Number.isFinite(presentation.durationMs) || presentation.durationMs < 0 ||
+      ![null, "victory", "defeat"].includes(presentation.outcome)
+    )) {
+      throw new Error("Invalid port assault presentation");
+    }
+    const enteringAssault = presentation !== null && state.assaultPresentation === null;
+    state.assaultPresentation = presentation;
+    if (presentation) {
+      if (enteringAssault) focusDestination(PORT_CITY_LOCATION.SET_SAIL, { immediate: true });
+      state.focusedDestinationId = PORT_CITY_LOCATION.SET_SAIL;
+      focusAssaultPresentation(presentation);
+    }
+    updateHover();
+  },
+  getSceneFeatures() {
+    if (!state.features) throw new Error("City scene features are not ready");
+    return Object.freeze({
+      dockKind: state.features.dock,
+      fortified: state.features.fortified
+    });
+  },
+  getCitySceneFeatures(cityId) {
+    const city = resolveCityRecord(cityId);
+    const features = resolveCitySceneFeatures(city, {});
+    return Object.freeze({
+      dockKind: features.dock,
+      fortified: features.fortified
+    });
+  },
+  getCityAssaultProfile(cityId) {
+    const city = resolveCityRecord(cityId);
+    return Object.freeze({
+      id: city.id,
+      cityId: city.cityId,
+      label: city.label,
+      cityType: city.cityType,
+      country: city.country,
+      factionId: city.factionId,
+      population: city.population,
+      populationProfileId: city.populationProfileId,
+      settlementType: city.settlementType,
+      capital: city.capital,
+      isFactionCapital: city.capital
+    });
   },
   drawEmissiveOverlay(targetContext) {
     if (!separateEmissiveOverlay || !emissiveCanvas) {

@@ -12,6 +12,7 @@ import {
   dismissCrewMember,
   hireCrewCandidate,
   removeCrewCasualties,
+  removeCrewMembersById,
   restoreDismissedCrew,
   validateCrewAggregate,
   validateCrewRecruitmentMemory,
@@ -162,6 +163,24 @@ test("casualty selection weights inexperienced sailors more heavily", () => {
   const [casualty] = removeCrewCasualties(state, 1, () => 0.1);
   assert.equal(casualty.member.id, inexperiencedId);
   assert.equal(state.ship.crew, 4);
+});
+
+test("battle casualties remove the exact simulated people by canonical ID", () => {
+  const roster = createMigratedCrewRoster({
+    count: 4,
+    voyageSeed: "exact-casualty-test",
+    homePort: PORT,
+    currentMinute: 200 * 24 * 60,
+    appearances: APPEARANCES,
+    nameForIdentity: (identity) => identity
+  });
+  const state = crewState([...roster]);
+  const casualties = removeCrewMembersById(state, [roster[3].id, roster[1].id]);
+  assert.deepEqual(casualties.map(({ member }) => member.id), [roster[1].id, roster[3].id]);
+  assert.deepEqual(state.crewRoster.map(({ id }) => id), [roster[0].id, roster[2].id]);
+  assert.equal(state.ship.crew, 3);
+  assert.throws(() => removeCrewMembersById(state, [roster[1].id]), /missing crew casualty/);
+  assert.throws(() => removeCrewMembersById(state, [roster[0].id, roster[0].id]), /duplicate IDs/);
 });
 
 test("aggregate validation rejects orphaned crew and count drift", () => {

@@ -161,7 +161,7 @@ test("Pizarro's company starts favored, learns from defeats, and reforms at Span
   const first = conquistadorCompanyAssaultStatus(memory, ports[1]);
   assert.equal(first.strength, CONQUISTADOR_COMPANY_MAX_STRENGTH);
   assert.equal(first.attemptNumber, 1);
-  assert.equal(first.assaultChanceBonus, 0.3);
+  assert.equal(first.combatStrengthMultiplierBonus, 0.3);
   assert.equal(first.guaranteedSuccess, false);
   assert.equal(first.ready, true);
 
@@ -170,7 +170,7 @@ test("Pizarro's company starts favored, learns from defeats, and reforms at Span
   const waiting = conquistadorCompanyAssaultStatus(memory, ports[1]);
   assert.equal(waiting.ready, false);
   assert.equal(waiting.attemptNumber, 2);
-  assert.equal(waiting.assaultChanceBonus, 0.38);
+  assert.equal(waiting.combatStrengthMultiplierBonus, 0.38);
   assert.throws(
     () => replenishConquistadorCompany(memory, ports[1], ports),
     /Spanish port or its exile base/
@@ -186,7 +186,7 @@ test("Pizarro's company starts favored, learns from defeats, and reforms at Span
   const third = conquistadorCompanyAssaultStatus(memory, ports[1]);
   assert.equal(third.attemptNumber, 3);
   assert.equal(third.guaranteedSuccess, true);
-  assert.ok(Math.abs(third.assaultChanceBonus - 0.46) < 0.000001);
+  assert.ok(Math.abs(third.combatStrengthMultiplierBonus - 0.46) < 0.000001);
 });
 
 test("version 1 active expeditions migrate with a full company", () => {

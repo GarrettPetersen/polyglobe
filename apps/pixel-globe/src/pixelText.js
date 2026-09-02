@@ -3,7 +3,11 @@ const PIXEL_FONT_DESIGN_SIZES = Object.freeze(new Map([
   ["Dogica", 8],
   ["Pixel Pirate", 8],
   ["zpix", 12],
-  ["Galmuri11", 11]
+  ["Galmuri11", 11],
+  // Pirata One is used only for the oversized battle result lettering. It is
+  // rasterized once, snapped to the logical pixel grid, and alpha-hardened by
+  // the same path as the native bitmap fonts.
+  ["Pirata One", 1]
 ]));
 
 export function pixelTextOrigin({ x, y, width, align = "left" }) {

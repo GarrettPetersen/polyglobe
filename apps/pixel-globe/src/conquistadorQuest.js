@@ -289,7 +289,7 @@ export function beginConquistadorExpedition(memory, eligibility) {
 export function conquistadorCompanyAssaultStatus(memory, city) {
   validateConquistadorQuestMemory(memory);
   if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE || city?.cityId !== memory.targetCityId) return null;
-  const assaultChanceBonus = Math.min(
+  const combatStrengthMultiplierBonus = Math.min(
     0.46,
     CONQUISTADOR_FIRST_ASSAULT_BONUS + memory.failedAssaults * CONQUISTADOR_RETRY_ASSAULT_BONUS
   );
@@ -301,7 +301,7 @@ export function conquistadorCompanyAssaultStatus(memory, city) {
     failedAssaults: memory.failedAssaults,
     attemptNumber: memory.failedAssaults + 1,
     guaranteedSuccess: memory.failedAssaults >= 2,
-    assaultChanceBonus
+    combatStrengthMultiplierBonus
   });
 }
 

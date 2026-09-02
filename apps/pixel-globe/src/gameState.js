@@ -340,11 +340,7 @@ import {
   portableWeaponCombatRating,
   regionalStarterPortableWeaponItemIds
 } from "./portableWeapons.js";
-import {
-  PORT_CONQUEST_MIN_CREW,
-  createPortConquestMemory,
-  validatePortConquestMemory
-} from "./portConquest.js";
+import { createPortConquestMemory, validatePortConquestMemory } from "./portConquest.js";
 import {
   HOSPITALLER_MALTA_QUEST_VERSION,
   HOSPITALLER_MALTA_STAGE_PETITION,
@@ -6641,38 +6637,36 @@ export function capturePortMissionEligibility(state) {
   assertGameState(state);
   const ship = state.ship;
   const cannonArmed = (ship?.cannons || 0) >= CAPTURE_PORT_MISSION_MIN_CANNONS;
-  const largeWarship = (ship?.crewCapacity || 0) >= PORT_CONQUEST_MIN_CREW;
   const effectiveCrew = ship ? crewExperienceSummary(state).effectiveCrew : 0;
-  const enoughCrew = (ship?.crew || 0) >= PORT_CONQUEST_MIN_CREW;
+  const minimumCrew = 2;
+  const enoughCrew = (ship?.crew || 0) >= minimumCrew;
   return {
-    eligible: Boolean(ship && cannonArmed && largeWarship && enoughCrew),
+    eligible: Boolean(ship && cannonArmed && enoughCrew),
     cannonArmed,
-    largeWarship,
     enoughCrew,
     effectiveCrew,
     minimumCannons: CAPTURE_PORT_MISSION_MIN_CANNONS,
-    minimumCrew: PORT_CONQUEST_MIN_CREW
+    minimumCrew
   };
 }
 
 export function capturePortMissionLoadoutRecommendation(state, stats) {
   assertGameState(state);
   const eligibility = capturePortMissionEligibility(state);
-  if (!state.ship || eligibility.eligible || !eligibility.largeWarship) return null;
+  if (!state.ship || eligibility.eligible) return null;
 
   const effectiveStats = requirePlayerShipState(state, stats);
   const minimumCrew = permanentCrewFloor(state);
   const currentPlan = selectedShipLoadoutPlan(state, effectiveStats, { minimumCrew });
   if (loadoutPlanSupportsCaptureMission(currentPlan, eligibility)) return null;
 
-  for (const preset of SHIP_LOADOUT_PRESETS) {
-    if (preset.id === state.ship.loadoutId) continue;
-    const plan = shipLoadoutPlan(effectiveStats, preset.id, { minimumCrew });
-    if (loadoutPlanSupportsCaptureMission(plan, eligibility)) {
-      return Object.freeze({ loadoutId: preset.id, label: preset.label, plan });
-    }
-  }
-  return null;
+  const preset = SHIP_LOADOUT_PRESETS.find(({ id }) => id === "combat");
+  if (!preset) throw new Error("Capture missions require the combat loadout preset");
+  if (preset.id === state.ship.loadoutId) return null;
+  const plan = shipLoadoutPlan(effectiveStats, preset.id, { minimumCrew });
+  return loadoutPlanSupportsCaptureMission(plan, eligibility)
+    ? Object.freeze({ loadoutId: preset.id, label: preset.label, plan })
+    : null;
 }
 
 function loadoutPlanSupportsCaptureMission(plan, eligibility) {

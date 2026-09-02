@@ -426,6 +426,27 @@ export function removeCrewCasualties(state, requestedLoss, random = Math.random)
   return Object.freeze(casualties);
 }
 
+export function removeCrewMembersById(state, memberIds) {
+  if (!Array.isArray(memberIds) || memberIds.some((id) => typeof id !== "string" || id === "")) {
+    throw new Error("Exact crew casualties require member IDs");
+  }
+  const uniqueIds = new Set(memberIds);
+  if (uniqueIds.size !== memberIds.length) throw new Error("Exact crew casualties contain duplicate IDs");
+  const roster = crewRosterMembers(state);
+  const rosterById = new Map(roster.map((member) => [member.id, member]));
+  for (const memberId of uniqueIds) {
+    if (!rosterById.has(memberId)) throw new Error(`Cannot remove missing crew casualty: ${memberId}`);
+  }
+  if (uniqueIds.size === 0) return Object.freeze([]);
+  const casualties = roster
+    .filter((member) => uniqueIds.has(member.id))
+    .map((member) => Object.freeze({ kind: "crew", member }));
+  state.crewRoster = roster.filter((member) => !uniqueIds.has(member.id));
+  state.ship.crew -= casualties.length;
+  validateCrewAggregate(state);
+  return Object.freeze(casualties);
+}
+
 export function validateCrewAggregate(state) {
   if (!state?.ship) {
     if (crewRosterMembers(state).length > 0) throw new Error("Crew roster exists without a player ship");

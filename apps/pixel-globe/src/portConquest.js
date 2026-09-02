@@ -4,7 +4,7 @@ import { isChristianReligion } from "./religiousAttitudes.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { cityTerritoryId, requireCityId } from "./entityIds.js";
 
-export const PORT_CONQUEST_MIN_CREW = 36;
+export const NPC_PORT_CONQUEST_MIN_CREW = 36;
 export const PORT_CONQUEST_NPC_LANDING_RANGE_PX = 28;
 export const PORT_CONQUEST_NPC_CHANCE = 0.28;
 export const PORT_CONQUEST_NPC_CAPITAL_CHANCE = 0.08;
@@ -120,97 +120,6 @@ export function validatePortConquestMemory(memory) {
     }
   }
   return memory;
-}
-
-export function portConquestStatus({
-  city,
-  batteryDisabled,
-  crew,
-  effectiveCrew = crew,
-  crewCapacity,
-  attackerFactionId,
-  assaultChanceBonus = 0,
-  auxiliaryTroops = 0
-}) {
-  assertCity(city);
-  assertFactionId(attackerFactionId);
-  assertCrew(crew, "crew");
-  const maximumEffectiveCrew = crew === 0 ? 0 : 1 + Math.max(0, crew - 1) * 1.1;
-  if (!Number.isFinite(effectiveCrew) || effectiveCrew < 0 || effectiveCrew > maximumEffectiveCrew) {
-    throw new Error(`Invalid effective conquest crew: ${effectiveCrew}/${crew}`);
-  }
-  assertCrew(crewCapacity, "crew capacity");
-  assertCrew(auxiliaryTroops, "auxiliary troops");
-  if (crew > crewCapacity) throw new Error("Port conquest crew exceeds ship capacity");
-  if (!Number.isFinite(assaultChanceBonus) || assaultChanceBonus < 0 || assaultChanceBonus > 0.5) {
-    throw new Error(`Invalid port assault chance bonus: ${assaultChanceBonus}`);
-  }
-
-  const alreadyOwned = city.factionId === attackerFactionId;
-  const largeWarship = crewCapacity >= PORT_CONQUEST_MIN_CREW;
-  const landingForce = crew + auxiliaryTroops;
-  const effectiveLandingForce = effectiveCrew + auxiliaryTroops;
-  const enoughCrew = landingForce >= PORT_CONQUEST_MIN_CREW;
-  const canAttempt = !alreadyOwned && batteryDisabled === true && largeWarship && enoughCrew;
-  const capital = city.isFactionCapital === true;
-  const crewDifference = effectiveLandingForce - PORT_CONQUEST_MIN_CREW;
-  const population = Math.max(1000, Number(city.population || 1000));
-  if (!Number.isFinite(population)) throw new Error(`Invalid conquest port population: ${city.population}`);
-  const populationPenalty = clamp((Math.log10(population) - 3.3) * 0.08, 0, 0.16);
-  const crewChance = (capital ? 0.24 : 0.48) + crewDifference * (
-    crewDifference >= 0
-      ? (capital ? 0.003 : 0.005)
-      : (capital ? 0.004 : 0.006)
-  );
-  const baseSuccessChance = clamp(
-    crewChance - populationPenalty,
-    capital ? 0.15 : 0.32,
-    capital ? 0.42 : 0.72
-  );
-  const successChance = clamp(baseSuccessChance + assaultChanceBonus, 0, 0.9);
-  const lossRange = capital
-    ? crewLossRange(landingForce, 0.42, 0.66)
-    : crewLossRange(landingForce, 0.27, 0.48);
-
-  return {
-    canAttempt,
-    alreadyOwned,
-    batteryDisabled: batteryDisabled === true,
-    largeWarship,
-    enoughCrew,
-    capital,
-    minimumCrew: PORT_CONQUEST_MIN_CREW,
-    landingForce,
-    effectiveLandingForce,
-    auxiliaryTroops,
-    populationPenalty,
-    assaultChanceBonus,
-    successChance,
-    successPercent: Math.round(successChance * 100),
-    failureCrewLossMin: lossRange.min,
-    failureCrewLossMax: lossRange.max
-  };
-}
-
-export function resolvePortConquest(status, successRoll, casualtyRoll) {
-  if (!status?.canAttempt) throw new Error("Cannot resolve an ineligible port conquest");
-  assertRoll(successRoll, "success");
-  assertRoll(casualtyRoll, "casualty");
-  if (successRoll < status.successChance) {
-    return { success: true, crewLost: 0, auxiliaryLost: 0, totalLost: 0 };
-  }
-  const span = status.failureCrewLossMax - status.failureCrewLossMin + 1;
-  const totalLost = status.failureCrewLossMin + Math.min(
-    span - 1,
-    Math.floor(casualtyRoll * span)
-  );
-  const auxiliaryLost = Math.min(status.auxiliaryTroops || 0, totalLost);
-  return {
-    success: false,
-    crewLost: totalLost - auxiliaryLost,
-    auxiliaryLost,
-    totalLost
-  };
 }
 
 export function npcPortConquestChance(city) {
@@ -829,13 +738,6 @@ export function clearPlayerPortRaid(flags, city) {
   delete flags[playerRaidFlagKey(city)];
 }
 
-function crewLossRange(crew, minRatio, maxRatio) {
-  return {
-    min: Math.max(1, Math.ceil(crew * minRatio)),
-    max: Math.max(1, Math.ceil(crew * maxRatio))
-  };
-}
-
 function playerRaidFlagKey(city) {
   return `${PLAYER_RAID_FLAG_PREFIX}${portConquestPortId(city)}`;
 }
@@ -991,10 +893,6 @@ function validatePeaceTreaty(treaty) {
   if (!Number.isFinite(treaty.simMinute) || treaty.simMinute < 0) {
     throw new Error(`Invalid conquest treaty minute: ${treaty.simMinute}`);
   }
-}
-
-function assertCrew(value, label) {
-  if (!Number.isInteger(value) || value < 0) throw new Error(`Invalid conquest ${label}: ${value}`);
 }
 
 function assertTreatyCityList(cities, ports) {

@@ -7,7 +7,6 @@ import {
   CAPITAL_PEACE_TERM_PAPAL_FAVOUR,
   CAPITAL_PEACE_TERM_TRIBUTARY,
   CAPITAL_PEACE_TERM_VASSALAGE,
-  PORT_CONQUEST_MIN_CREW,
   applyPortConquestOwnership,
   capitalPeaceTreatyOptions,
   createPortConquestMemory,
@@ -22,9 +21,7 @@ import {
   portRaidPrize,
   playerPortAssaultIsActive,
   playerPortRaidIsActive,
-  portConquestStatus,
   recordPortCapture,
-  resolvePortConquest,
   restoreCollapsedFactionAtCities,
   settleCapitalPeaceTreaty,
   validatePortConquestMemory
@@ -44,106 +41,8 @@ function city(overrides = {}) {
   };
 }
 
-test("landing marines requires a large hull and at least 36 fighting hands", () => {
-  const base = { city: city(), batteryDisabled: true, attackerFactionId: "england" };
-  assert.equal(portConquestStatus({ ...base, crew: 35, crewCapacity: 54 }).canAttempt, false);
-  assert.equal(portConquestStatus({ ...base, crew: 35, crewCapacity: 35 }).canAttempt, false);
-  assert.equal(portConquestStatus({ ...base, crew: 36, crewCapacity: 36 }).canAttempt, true);
-  assert.equal(portConquestStatus({
-    ...base,
-    crew: 12,
-    crewCapacity: 36,
-    auxiliaryTroops: 24
-  }).canAttempt, true);
-  assert.equal(PORT_CONQUEST_MIN_CREW, 36);
-});
-
-test("experience changes assault odds without replacing the minimum headcount", () => {
-  const base = {
-    city: city({ population: 25000 }),
-    batteryDisabled: true,
-    crew: 36,
-    crewCapacity: 54,
-    attackerFactionId: "england"
-  };
-  const novices = portConquestStatus({ ...base, effectiveCrew: 8 });
-  const seasoned = portConquestStatus({ ...base, effectiveCrew: 34 });
-  const veterans = portConquestStatus({ ...base, effectiveCrew: 39.5 });
-  assert.equal(novices.canAttempt, true);
-  assert.equal(seasoned.canAttempt, true);
-  assert.equal(veterans.canAttempt, true);
-  assert.ok(novices.successChance < seasoned.successChance);
-  assert.ok(seasoned.successChance < veterans.successChance);
-});
-
-test("capitals resist conquest more strongly and inflict heavier losses", () => {
-  const ordinary = portConquestStatus({
-    city: city(), batteryDisabled: true, crew: 54, crewCapacity: 54, attackerFactionId: "england"
-  });
-  const capital = portConquestStatus({
-    city: city({ isFactionCapital: true, capitalOfFactionId: "portugal" }),
-    batteryDisabled: true,
-    crew: 54,
-    crewCapacity: 54,
-    attackerFactionId: "england"
-  });
-  assert.ok(capital.successChance < ordinary.successChance);
-  assert.ok(capital.failureCrewLossMin > ordinary.failureCrewLossMin);
-  assert.deepEqual(resolvePortConquest(ordinary, 0, 0), {
-    success: true,
-    crewLost: 0,
-    auxiliaryLost: 0,
-    totalLost: 0
-  });
-  assert.equal(resolvePortConquest(capital, 0.99, 0.99).crewLost, capital.failureCrewLossMax);
+test("NPC fleets find capitals harder to seize", () => {
   assert.ok(npcPortConquestChance(city({ isFactionCapital: true })) < npcPortConquestChance(city()));
-});
-
-test("auxiliary troops improve assault odds and absorb the first casualties", () => {
-  const ordinary = portConquestStatus({
-    city: city({ population: 25000 }),
-    batteryDisabled: true,
-    crew: 36,
-    crewCapacity: 54,
-    attackerFactionId: "spain"
-  });
-  const supported = portConquestStatus({
-    city: city({ population: 25000 }),
-    batteryDisabled: true,
-    crew: 36,
-    crewCapacity: 54,
-    attackerFactionId: "spain",
-    auxiliaryTroops: 24,
-    assaultChanceBonus: 0.3
-  });
-  assert.ok(supported.successChance > 0.8);
-  assert.ok(supported.successChance > ordinary.successChance);
-  const defeat = resolvePortConquest(supported, 0.99, 0);
-  assert.equal(defeat.success, false);
-  assert.equal(defeat.totalLost, supported.failureCrewLossMin);
-  assert.equal(defeat.auxiliaryLost, Math.min(24, defeat.totalLost));
-  assert.equal(defeat.crewLost, Math.max(0, defeat.totalLost - 24));
-});
-
-test("assault success falls logarithmically with population but keeps a viable floor", () => {
-  const statusForPopulation = (population, capital = false) => portConquestStatus({
-    city: city({ population, isFactionCapital: capital, capitalOfFactionId: capital ? "portugal" : undefined }),
-    batteryDisabled: true,
-    crew: 54,
-    crewCapacity: 54,
-    attackerFactionId: "england"
-  });
-  const village = statusForPopulation(2500);
-  const cityPort = statusForPopulation(12500);
-  const metropolis = statusForPopulation(62500);
-  assert.ok(village.successChance > cityPort.successChance);
-  assert.ok(cityPort.successChance > metropolis.successChance);
-  assert.ok(Math.abs(
-    (village.successChance - cityPort.successChance) -
-    (cityPort.successChance - metropolis.successChance)
-  ) < 0.000001);
-  assert.ok(Math.abs(statusForPopulation(100000000).successChance - 0.41) < 0.000001);
-  assert.equal(statusForPopulation(100000000, true).successChance, 0.15);
 });
 
 test("conquest takes a major share of finite port specie and capitals yield more", () => {

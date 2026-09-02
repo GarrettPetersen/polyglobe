@@ -3907,14 +3907,15 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
       canAttempt: true,
       capital: false,
       successPercent: 57,
-      failureCrewLossMin: 12,
-      failureCrewLossMax: 21
+      expectedCasualtiesRounded: 16,
+      casualtyRangeLow: 12,
+      casualtyRangeHigh: 21
     }
   };
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(view.text, /harbor guns are silent/i);
-  assert.equal(view.options[0].label, "Land Marines");
-  assert.equal(view.options[0].detail, "57% Chance of Success");
+  assert.equal(view.options[0].label, "Start the assault");
+  assert.equal(view.options[0].detail, "57% victory • expect 16 lost (12–21)");
   assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
     closed: false,
     action: { type: "land-marines" }
@@ -4131,12 +4132,20 @@ test("an unauthorized marine landing pillages instead of annexing", () => {
     portEntryStatus: portEntryStatus(gameState, city, 100),
     portRecoveryStatus: { attackerShipLabel: "your ship", disabledUntilMinute: 3000, daysRemaining: 2 },
     portAttackStatus: playerPortAttackStatus(gameState, city),
-    portConquestStatus: { canAttempt: true, playerAssaultActive: true, successPercent: 57, capital: false }
+    portConquestStatus: {
+      canAttempt: true,
+      playerAssaultActive: true,
+      successPercent: 57,
+      expectedCasualtiesRounded: 11,
+      casualtyRangeLow: 8,
+      casualtyRangeHigh: 15,
+      capital: false
+    }
   };
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(view.text, /exposed to plunder/i);
-  assert.equal(view.options[0].label, "Pillage city");
-  assert.equal(view.options[0].detail, "57% Chance of Success");
+  assert.equal(view.options[0].label, "Start the raid");
+  assert.equal(view.options[0].detail, "57% victory • expect 11 lost (8–15)");
 });
 
 test("a disabled enemy harbor never admits an ineligible captain in disguise", () => {
@@ -4172,7 +4181,7 @@ test("a disabled enemy harbor never admits an ineligible captain in disguise", (
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(
     view.text,
-    "You think to take Calais with that handful? Bring fewer than 20 fighting hands ashore, and we will drive every one of you into the sea."
+    "You think to take Calais with that handful? We will drive every one of you into the sea."
   );
   assert.deepEqual(view.options.map((entry) => entry.label), ["Leave"]);
 });
@@ -6329,13 +6338,16 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
       canAttempt: true,
       playerAssaultActive: true,
       successPercent: 79,
+      expectedCasualtiesRounded: 7,
+      casualtyRangeLow: 4,
+      casualtyRangeHigh: 11,
       capital: false,
       conquistadorCompany: { ready: true }
     }
   });
   assert.match(landingView.text, /conquistadors are lowering their boats/i);
   assert.match(landingView.text, /Spanish Trujillo.*march inland toward Cuzco/i);
-  assert.equal(landingView.options[0].label, "Land the conquistadors");
+  assert.equal(landingView.options[0].label, "Start the assault");
 
   view = portDialogueView(session, panama, gameState, economy, ports, context);
   assert.match(view.text, /royal seal.*cross.*Spain's peace/s);

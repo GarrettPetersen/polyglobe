@@ -19,6 +19,12 @@
 }
 
 @font-face {
+  font-family: "Pirata One";
+  src: url("../assets/fonts/PirataOne-Regular.ttf?v=port-assault-1") format("truetype");
+  font-display: block;
+}
+
+@font-face {
   font-family: "zpix";
   src:
     url("../assets/fonts/zpix.woff2?v=web-1") format("woff2"),

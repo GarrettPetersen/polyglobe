@@ -959,7 +959,7 @@ test("capture warrants require a letter of marque but may be issued before the s
 
   state.ship.cannons = 8;
   setTestCrewCount(state, 35);
-  assert.equal(capturePortMissionEligibility(state).eligible, false);
+  assert.equal(capturePortMissionEligibility(state).eligible, true);
   assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS], context), offer);
 });
 

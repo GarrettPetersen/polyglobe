@@ -16,6 +16,28 @@ const PRIVATE_SOURCE = "polyglobe-ship-source-assets";
 const GAME_SOURCE = "polyglobe";
 const LYA_SKIN = Object.freeze(["e6904e", "fca790"]);
 const PALE_SKIN = Object.freeze(["e6904e", "fdcbb0"]);
+const COMBAT_TAGS_BY_ARCHETYPE_ID = Object.freeze({
+  hunter: combatTags("damage"),
+  mariner: combatTags("hit"),
+  gunner: combatTags("hit"),
+  archer: combatTags("damage"),
+  cavalier: combatTags("damage"),
+  crossbowman: combatTags("damage"),
+  halberdier: combatTags("damage"),
+  horseman: combatTags("damage"),
+  shieldman: combatTags("hit", true),
+  spearman: combatTags("hit"),
+  swordsman: combatTags("hit"),
+  "islamicate-warrior": combatTags("hit", true),
+  "ming-crossbowman": combatTags("damage"),
+  "ming-swordsman": combatTags("hit"),
+  "horse-samurai": combatTags("damage"),
+  samurai: combatTags("hit"),
+  "teppo-ashigaru": combatTags("hit"),
+  "yari-ashigaru": combatTags("hit"),
+  "yumi-samurai": combatTags("hit"),
+  "wrapped-cloth-man": combatTags("hit")
+});
 
 export const CITY_PERSON_ARCHETYPES = Object.freeze([
   privateArchetype("villager-man", "resurrect-64/villagers/aseprite/MiniVillagerMan.aseprite", [CITY_PERSON_ROLE.AMBIENT], LYA_SKIN),
@@ -177,7 +199,17 @@ function archetype(id, sourceRepository, sourcePath, creator, roles, skinRamp) {
     sourcePath,
     creator,
     roles: Object.freeze([...roles]),
-    skinRamp: Object.freeze([...skinRamp])
+    skinRamp: Object.freeze([...skinRamp]),
+    combatAnimations: COMBAT_TAGS_BY_ARCHETYPE_ID[id] || null
+  });
+}
+
+function combatTags(hitSourceTag, block = false) {
+  return Object.freeze({
+    attack: "attack",
+    hit: hitSourceTag,
+    death: "death",
+    ...(block ? { block: "block" } : {})
   });
 }
 

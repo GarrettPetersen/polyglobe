@@ -49,6 +49,8 @@ test("pixel font sizes occupy whole logical canvas pixels", () => {
   assert.equal(pixelFontSizePx('8px "Pixel Pirate", monospace'), 8);
   assert.equal(pixelFontSizePx('12px "zpix", monospace'), 12);
   assert.equal(pixelFontSizePx('11px "Galmuri11", monospace'), 11);
+  assert.equal(pixelFontSizePx('42px "Pirata One"'), 42);
+  assert.equal(pixelTextRasterHeight('42px "Pirata One"'), 84);
   assert.throws(() => pixelFontSizePx('10px "Silkscreen"'), /multiple of 8px/);
   assert.throws(() => pixelFontSizePx('12px "Pixel Pirate"'), /multiple of 8px/);
   assert.throws(() => pixelFontSizePx('8px "zpix"'), /multiple of 12px/);
@@ -140,12 +142,13 @@ test("runtime text can only enter the canvas through the pixel raster helper", a
   assert.deepEqual(mainSource.match(/\b[a-zA-Z]+Ctx\.fillText\(/g), ["scratchCtx.fillText("]);
 });
 
-test("the Latin, CJK, Cyrillic, Polish, and Korean pixel fonts ship at native scale", async () => {
+test("the interface fonts and Pirata One result lettering ship with the game", async () => {
   const fontFiles = (await readdir(new URL("../public/assets/fonts/", import.meta.url)))
     .filter((filename) => /\.(?:ttf|woff2)$/.test(filename))
     .sort();
   assert.deepEqual(fontFiles, [
     "Galmuri11.woff2",
+    "PirataOne-Regular.ttf",
     "Silkscreen-Regular.ttf",
     "dogicapixel.ttf",
     "pixel_pirate.ttf",
@@ -184,7 +187,10 @@ test("the Latin, CJK, Cyrillic, Polish, and Korean pixel fonts ship at native sc
     /pixel_pirate\.woff2\?v=r-kern-2[\s\S]*pixel_pirate\.ttf\?v=r-kern-2/
   );
   assert.match(stylesSource, /zpix\.woff2\?v=web-1[\s\S]*zpix\.ttf\?v=web-1/);
+  assert.match(mainSource, /42px \"Pirata One\"/);
+  assert.match(stylesSource, /font-family: "Pirata One"/);
   assert.match(credits, /SparklyDest.*Pixel Pirate.*CC BY-SA 3\.0.*DaFont/);
+  assert.match(credits, /Pirata One/);
   assert.match(credits, /Lee Minseo.*Galmuri11.*SIL Open Font License 1\.1/);
   assert.match(pixelPirateFont.toString("latin1"), /Copyright SparklyDest 2011/);
   assert.match(pixelPirateFont.toString("latin1"), /Creative Commons Attribution Share Alike/);

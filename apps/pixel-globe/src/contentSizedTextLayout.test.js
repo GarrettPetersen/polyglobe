@@ -54,6 +54,25 @@ test("a content-sized grid advances later rows by the tallest card", () => {
   assert.equal(layout.height, 233);
 });
 
+test("a content-sized grid reserves explicit gutters between cards", () => {
+  const layout = contentSizedGridLayout({
+    entries: [{ id: "one" }, { id: "two" }, { id: "three" }],
+    width: 224,
+    columns: 3,
+    minimumHeight: 20,
+    measureHeight: () => 20,
+    columnGap: 5,
+    rowGap: 7
+  });
+
+  assert.deepEqual(layout.entries.map(({ id, x, y, w, h }) => ({ id, x, y, w, h })), [
+    { id: "one", x: 0, y: 0, w: 71, h: 20 },
+    { id: "two", x: 76, y: 0, w: 71, h: 20 },
+    { id: "three", x: 152, y: 0, w: 72, h: 20 }
+  ]);
+  assert.equal(layout.height, 20);
+});
+
 test("content-sized layouts reject dimensions that cannot be measured", () => {
   assert.throws(() => contentSizedTextStackLayout({
     sections: [{ id: "label", text: "TEXT" }],
