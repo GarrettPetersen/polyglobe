@@ -291,6 +291,27 @@ test("current saves shed guns removed by a historical ship refit", () => {
   assert.equal(validateGameState(restored), restored);
 });
 
+test("current saves discharge only anonymous crew that exceed canonical hull capacity", () => {
+  const fusta = shipStatsForSlug("fusta");
+  const saved = createGameState({ cargoCapacity: fusta.cargoCapacity, shipStats: fusta });
+  initializeProvisionalShipLoadout(saved, fusta);
+  const historian = addNamedCrewMember(saved, {
+    id: "fusta-historian",
+    name: "Leif Eriksen",
+    expressions: [{ id: "neutral", src: "test.png", width: 64, height: 64 }],
+    skillIds: ["able-seaman"]
+  }, NAMED_CREW_ROLE_HISTORIAN, { replaceGenericWhenFull: true });
+  saved.ship.crewCapacity = 42;
+  saved.ship.crew = 18;
+
+  const restored = migrateGameState(saved, fusta);
+
+  assert.equal(restored.ship.crewCapacity, 12);
+  assert.equal(restored.ship.crew, 12);
+  assert.deepEqual(namedCrewMembers(restored), [historian]);
+  assert.equal(validateGameState(restored), restored);
+});
+
 test("version 27 ship saves migrate before named crew memory exists", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({

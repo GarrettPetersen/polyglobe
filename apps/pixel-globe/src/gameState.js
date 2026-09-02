@@ -1123,7 +1123,13 @@ function restoreLoadedGameState(state, shipStats = null) {
   }
   state.memory.whales = migrateWhaleMemory(state.memory.whales);
   assertGameState(state);
-  reconcileLoadedShipLoadout(state, shipStats);
+  const loadoutReconciliation = reconcileLoadedShipLoadout(state, shipStats);
+  if (loadoutReconciliation?.crewRepair) {
+    console.warn(
+      "Player crew exceeded the canonical hull capacity; anonymous crew were discharged while restoring the voyage",
+      loadoutReconciliation.crewRepair
+    );
+  }
   const repair = repairPlayerCargoOverflow(state);
   if (repair) {
     console.warn("Player cargo exceeded capacity; excess cargo was jettisoned while restoring the voyage", repair);
@@ -1140,7 +1146,9 @@ function reconcileLoadedShipLoadout(state, shipStats) {
   if (!shipStats || shipStats.slug !== state.ship.slug) {
     throw new Error(`Saved loadout hull does not match canonical stats: ${state.ship.slug}`);
   }
+  const savedCrewCapacity = state.ship.crewCapacity;
   state.ship.crewCapacity = shipStats.crewCapacity;
+  const crewRepair = repairLoadedCrewOverflow(state, savedCrewCapacity);
   state.ship.cannonCapacity = shipStats.cannons;
   state.ship.cannons = Math.min(state.ship.cannons, shipStats.cannons);
   state.ship.baseCargoCapacity = shipStats.cargoCapacity;
@@ -1148,7 +1156,29 @@ function reconcileLoadedShipLoadout(state, shipStats) {
   state.cargoCapacity = effectivePlayerShipStats(state, shipStats).cargoCapacity;
   const plan = selectedShipLoadoutPlan(state, shipStats);
   state.ship.loadoutTargets = plan;
-  return plan;
+  return { plan, crewRepair };
+}
+
+function repairLoadedCrewOverflow(state, savedCrewCapacity) {
+  const { crew, crewCapacity, slug } = state.ship;
+  if (crew <= crewCapacity) return null;
+  const permanentCrew = permanentCrewFloor(state);
+  if (permanentCrew > crewCapacity) {
+    throw new Error(
+      `Cannot reconcile saved ${slug} crew: ${permanentCrew} permanent crew require ` +
+      `${permanentCrew - crewCapacity} more berths than its canonical capacity ${crewCapacity}`
+    );
+  }
+  state.ship.crew = crewCapacity;
+  return {
+    shipSlug: slug,
+    savedCrewCapacity,
+    canonicalCrewCapacity: crewCapacity,
+    beforeCrew: crew,
+    afterCrew: state.ship.crew,
+    dischargedAnonymousCrew: crew - state.ship.crew,
+    permanentCrew
+  };
 }
 
 function migrateFactionReputationTable(reputation, { splitCombinedHabsburg = false } = {}) {
