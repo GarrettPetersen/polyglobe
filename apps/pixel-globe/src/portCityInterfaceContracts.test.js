@@ -6,7 +6,15 @@ const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
 
 test("opening the fully covered city resets north-up without a chart reframe wave", () => {
   const activation = functionSource("activatePortCityView", "resetWorldNorthUpBehindPortCityCover");
-  assert.match(activation, /snapshot: capturePresentedFrame\(\)[\s\S]*resetWorldNorthUpBehindPortCityCover\(\)/);
+  assert.match(activation, /direction: "enter-pending"[\s\S]*queuePortCitySceneSync\(\)/);
+  assert.doesNotMatch(activation, /resetWorldNorthUpBehindPortCityCover\(\)/);
+  const synchronization = functionSource("synchronizePortCityScene", "beginPortCityIllicitCaughtPresentation");
+  assert.match(
+    synchronization,
+    /portCityView\.sceneReady = true;[\s\S]*resetWorldNorthUpBehindPortCityCover\(\);[\s\S]*direction = "enter"/
+  );
+  const cover = functionSource("currentChartReframeCoverState", "activeOpaqueWorldCoverKinds");
+  assert.match(cover, /portCityScene: portCityView\?\.sceneReady === true/);
   const reset = functionSource("resetWorldNorthUpBehindPortCityCover", "deactivatePortCityView");
   assert.match(reset, /cancelChartModalReframeTransition\(\)/);
   assert.match(reset, /reframeWorldNorthUp\("port city opened"\)/);

@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   MAX_SIMULATION_FRAME_SECONDS,
   boundedSimulationSeconds,
+  elapsedAnimationFrameSeconds,
   elapsedRealSeconds
 } from "./frameTiming.js";
 
@@ -21,4 +22,16 @@ test("frame timing rejects invalid and reversed timestamps", () => {
   assert.throws(() => elapsedRealSeconds(100, -1), /current frame timestamp/);
   assert.throws(() => elapsedRealSeconds(100, 99), /moved backwards/);
   assert.throws(() => boundedSimulationSeconds(-0.1), /real frame duration/);
+});
+
+test("the first animation frame synchronizes performance.now and requestAnimationFrame clock samples", () => {
+  assert.equal(elapsedAnimationFrameSeconds(198955.2, 198954.5, { synchronize: true }), 0);
+  assert.throws(
+    () => elapsedAnimationFrameSeconds(198955.2, 198954.5),
+    /moved backwards/
+  );
+  assert.throws(
+    () => elapsedAnimationFrameSeconds(100, 101, { synchronize: "yes" }),
+    /synchronization state/
+  );
 });

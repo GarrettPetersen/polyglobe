@@ -79,7 +79,10 @@ import {
   noteSessionActivity
 } from "./sessionActivity.js";
 import { advanceFrameCadence } from "./frameCadence.js";
-import { boundedSimulationSeconds, elapsedRealSeconds } from "./frameTiming.js";
+import {
+  boundedSimulationSeconds,
+  elapsedAnimationFrameSeconds
+} from "./frameTiming.js";
 import {
   cachedPausedView,
   capturePausedView,
@@ -4122,6 +4125,7 @@ let vikingLongshipAcquisitionPending = false;
 let dirty = true;
 let lastFrameMs = performance.now();
 let lastSessionFrameMs = lastFrameMs;
+let frameClockSynchronizationPending = true;
 let nextGameFrameMs = null;
 let regularGameLoopStarted = false;
 const sessionActivityState = createSessionActivityState(lastFrameMs);
@@ -6735,9 +6739,14 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   }
   if (diagnosticModeEnabled && sampleFrameRate(frameRateMeter, nowMs)) dirty = true;
   pollGamepadControls(nowMs);
-  const realFrameSeconds = elapsedRealSeconds(lastFrameMs, nowMs);
+  const realFrameSeconds = elapsedAnimationFrameSeconds(lastFrameMs, nowMs, {
+    synchronize: frameClockSynchronizationPending
+  });
   const simulationSeconds = boundedSimulationSeconds(realFrameSeconds);
-  const sessionFrameSeconds = Math.max(0, (nowMs - lastSessionFrameMs) / 1000);
+  const sessionFrameSeconds = frameClockSynchronizationPending
+    ? 0
+    : Math.max(0, (nowMs - lastSessionFrameMs) / 1000);
+  frameClockSynchronizationPending = false;
   updateAdaptiveVisualDensity(sessionFrameSeconds);
   lastFrameMs = nowMs;
   lastSessionFrameMs = nowMs;
@@ -19593,7 +19602,6 @@ function activatePortCityView(cityCall) {
     centerY: center.y,
     startedAtMs: null
   };
-  resetWorldNorthUpBehindPortCityCover();
   queuePortCitySceneSync();
 }
 
@@ -19702,6 +19710,7 @@ async function synchronizePortCityScene() {
   portCitySceneSyncKey = syncKey;
   portCityView.sceneReady = true;
   if (portCityTransition?.direction === "enter-pending") {
+    resetWorldNorthUpBehindPortCityCover();
     portCityTransition.direction = "enter";
     portCityTransition.startedAtMs = performance.now();
   }
@@ -28458,6 +28467,7 @@ function currentChartReframeCoverState() {
       elapsedMs: gameOverElapsedMs(lastFrameMs),
       sinkDurationMs: gameOverTransitionDurationMs()
     }),
+    portCityScene: portCityView?.sceneReady === true,
     fullPortDialogue: dialogueState?.kind === "port" && dialogueState.admittedToPort === true,
     playerIntro: Boolean(playerIntroModal),
     captainMenu: captainMenu.isOpen,
@@ -29807,6 +29817,7 @@ function resetFrameClocksAfterVisibilityChange() {
   const nowMs = performance.now();
   lastFrameMs = nowMs;
   lastSessionFrameMs = nowMs;
+  frameClockSynchronizationPending = true;
   suspendMainThreadFreezeMonitor(mainThreadFreezeMonitor);
   if (document.visibilityState === "hidden") {
     clearSessionHeldControls();

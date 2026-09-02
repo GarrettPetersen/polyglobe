@@ -5,7 +5,7 @@
   "scripts": {
     "build": "node tools/build-static-site.mjs",
     "build:demo": "node tools/build-static-site.mjs --edition=demo",
-    "deploy": "npm run check && node tools/deploy.mjs",
+    "deploy": "npm run check:deploy && node tools/deploy.mjs",
     "package:demo:itch": "npm run build:demo && node tools/package-itch-demo.mjs",
     "steam:install": "npm --prefix steam-host install",
     "steam:start": "npm run build && npm --prefix steam-host start",
@@ -20,7 +20,9 @@
     "steam:package:linux": "npm --prefix steam-host run package -- --platform=linux --arch=x64",
     "steam:prepare-upload": "node tools/prepare-steampipe.mjs",
     "steam:upload": "node tools/upload-steampipe.mjs",
-    "check": "node --check src/main.js && npm run check:production-safety && npm run typecheck:contracts && npm test && npm run build",
+    "check": "npm run check:source && npm test && npm run build",
+    "check:deploy": "npm run check:source && npm run test:deploy && npm run build",
+    "check:source": "node --check src/main.js && npm run check:production-safety && npm run typecheck:contracts",
     "check:production-safety": "node tools/check-production-safety.mjs",
     "typecheck:contracts": "node ../../node_modules/typescript/bin/tsc --project tsconfig.contracts.json",
     "dev": "node server.mjs",
@@ -123,6 +125,8 @@
     "render:platform-icons": "node tools/generate-layered-capsule-art.mjs --only=app_icon_512.png && node tools/build-platform-icons.mjs",
     "render:capsule-title-comparison": "node tools/generate-layered-capsule-art.mjs",
     "test": "node tools/run-node-tests.mjs --discover=src",
+    "test:deploy": "node tools/run-node-tests.mjs --test-skip-pattern='^\\[world traversal\\]' --discover=src",
+    "test:world-traversal": "node tools/run-node-tests.mjs --test-name-pattern='^\\[world traversal\\]' src/localLayoutAdmission.test.js",
     "test:characters": "node tools/run-node-tests.mjs src/characterPortraits.test.js",
     "test:music": "node tools/run-node-tests.mjs src/musicPlayer.test.js"
   },

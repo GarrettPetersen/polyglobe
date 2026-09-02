@@ -23,6 +23,10 @@ import {
   viewportElasticCorrectionSupport
 } from "./localLayoutAdmission.js";
 
+function worldTraversalTest(name, callback) {
+  test(`[world traversal] ${name}`, callback);
+}
+
 test("live admission never moves a retained tile that may still be visible", () => {
   assert.equal(chartAdmissionTileMayMove({
     newlyAdmitted: false,
@@ -1286,7 +1290,7 @@ test("the offscreen preload margin cannot steer the visible frame fit", () => {
   assert.deepEqual(positions.get(3), { x: 48, y: 0 });
 });
 
-test("successive high-latitude chart rebuilds keep newly entering neighbors attached", () => {
+worldTraversalTest("successive high-latitude chart rebuilds keep newly entering neighbors attached", () => {
   const registered = simulateHighLatitudeTraversal(admitProjectedTiles);
   const translationOnly = simulateHighLatitudeTraversal(admitWithTranslationOnly);
 
@@ -1308,7 +1312,7 @@ test("successive high-latitude chart rebuilds keep newly entering neighbors atta
   );
 });
 
-test("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geography", () => {
+worldTraversalTest("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geography", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage();
   reportChartBenchmark("world-circuit", result);
 
@@ -1366,7 +1370,7 @@ test("a moving Lisbon-to-Kamchatka-to-Lisbon circuit never redraws visible geogr
   assertTraversalRepairBurden(result, "Round-the-world coastal voyage", 100);
 });
 
-test("a coast-heavy Mediterranean crossing keeps protected geography north-up", () => {
+worldTraversalTest("a coast-heavy Mediterranean crossing keeps protected geography north-up", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1440,7 +1444,7 @@ test("a coast-heavy Mediterranean crossing keeps protected geography north-up", 
   assertTraversalRepairBurden(result, "Mediterranean crossing", 25);
 });
 
-test("a northeast Asia coastal passage keeps distortion below telemetry limits", () => {
+worldTraversalTest("a northeast Asia coastal passage keeps distortion below telemetry limits", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1478,7 +1482,7 @@ test("a northeast Asia coastal passage keeps distortion below telemetry limits",
   assertLandTraversalIsContinuous(result, "Northeast Asia coastal passage");
 });
 
-test("the western approaches off Ireland stay below integrity telemetry limits", () => {
+worldTraversalTest("the western approaches off Ireland stay below integrity telemetry limits", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1515,7 +1519,7 @@ test("the western approaches off Ireland stay below integrity telemetry limits",
   assertLandTraversalIsContinuous(result, "Western Approaches passage");
 });
 
-test("the New England approaches stay below integrity telemetry limits", () => {
+worldTraversalTest("the New England approaches stay below integrity telemetry limits", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1551,7 +1555,7 @@ test("the New England approaches stay below integrity telemetry limits", () => {
   assertLandTraversalIsContinuous(result, "New England approaches");
 });
 
-test("the Bering Sea west of Alaska stays below integrity telemetry limits", () => {
+worldTraversalTest("the Bering Sea west of Alaska stays below integrity telemetry limits", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1592,7 +1596,7 @@ test("the Bering Sea west of Alaska stays below integrity telemetry limits", () 
   assertLandTraversalIsContinuous(result, "Bering Sea passage");
 });
 
-test("the western Aleutian approaches stay below integrity telemetry limits", () => {
+worldTraversalTest("the western Aleutian approaches stay below integrity telemetry limits", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1627,7 +1631,7 @@ test("the western Aleutian approaches stay below integrity telemetry limits", ()
   assertLandTraversalIsContinuous(result, "Western Aleutian passage");
 });
 
-test("reported protected-stitch regions retain continuous terrain after recovery", () => {
+worldTraversalTest("reported protected-stitch regions retain continuous terrain after recovery", () => {
   const regions = [
     {
       label: "Yellow Sea",
@@ -1666,7 +1670,7 @@ test("reported protected-stitch regions retain continuous terrain after recovery
   }
 });
 
-test("a Cape-to-Portugal Atlantic loop reaches Madeira with an intact coast", () => {
+worldTraversalTest("a Cape-to-Portugal Atlantic loop reaches Madeira with an intact coast", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1716,7 +1720,7 @@ test("a Cape-to-Portugal Atlantic loop reaches Madeira with an intact coast", ()
   assertLandTraversalIsContinuous(result, "Cape-to-Portugal Atlantic loop");
 });
 
-test("an east-to-west Scandinavia traversal escalates concealed repair before geometry fails", () => {
+worldTraversalTest("an east-to-west Scandinavia traversal escalates concealed repair before geometry fails", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1783,7 +1787,7 @@ test("an east-to-west Scandinavia traversal escalates concealed repair before ge
   assertTraversalRepairBurden(result, "Scandinavian crossing", 45);
 });
 
-test("a Scandinavia traversal into the Baltic reaches Gotland without distortion", () => {
+worldTraversalTest("a Scandinavia traversal into the Baltic reaches Gotland without distortion", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1826,7 +1830,7 @@ test("a Scandinavia traversal into the Baltic reaches Gotland without distortion
   assertLandTraversalIsContinuous(result, "Scandinavia-to-Baltic crossing");
 });
 
-test("an urgent closing fog settles a tilted Oresund approach before telemetry stalls", () => {
+worldTraversalTest("an urgent closing fog settles a tilted Oresund approach before telemetry stalls", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1866,7 +1870,7 @@ test("an urgent closing fog settles a tilted Oresund approach before telemetry s
   assertLandTraversalIsContinuous(result, "Oresund closing-fog approach");
 });
 
-test("a northbound Scotland-to-Arctic-Norway voyage never outruns drawn terrain", () => {
+worldTraversalTest("a northbound Scotland-to-Arctic-Norway voyage never outruns drawn terrain", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1908,7 +1912,7 @@ test("a northbound Scotland-to-Arctic-Norway voyage never outruns drawn terrain"
   );
 });
 
-test("a Scotland-to-Iceland voyage repairs North Atlantic distortion", () => {
+worldTraversalTest("a Scotland-to-Iceland voyage repairs North Atlantic distortion", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1949,7 +1953,7 @@ test("a Scotland-to-Iceland voyage repairs North Atlantic distortion", () => {
   assertLandTraversalIsContinuous(result, "Scotland-to-Iceland crossing");
 });
 
-test("a south-to-north Argentina coastal traversal cannot tear adjacent land", () => {
+worldTraversalTest("a south-to-north Argentina coastal traversal cannot tear adjacent land", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -1993,7 +1997,7 @@ test("a south-to-north Argentina coastal traversal cannot tear adjacent land", (
   assertTraversalRepairBurden(result, "Argentina crossing", 30);
 });
 
-test("a western Patagonia fjord traversal repairs broad distortion without stalling", () => {
+worldTraversalTest("a western Patagonia fjord traversal repairs broad distortion without stalling", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -2038,7 +2042,7 @@ test("a western Patagonia fjord traversal repairs broad distortion without stall
   assertTraversalRepairBurden(result, "Western Patagonia crossing", 35);
 });
 
-test("an English Channel passage stays below integrity telemetry limits", () => {
+worldTraversalTest("an English Channel passage stays below integrity telemetry limits", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -2074,7 +2078,7 @@ test("an English Channel passage stays below integrity telemetry limits", () => 
   assertTraversalRepairBurden(result, "English Channel passage", 20);
 });
 
-test("a subantarctic passage east of New Zealand stays below integrity telemetry limits", () => {
+worldTraversalTest("a subantarctic passage east of New Zealand stays below integrity telemetry limits", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -2114,7 +2118,7 @@ test("a subantarctic passage east of New Zealand stays below integrity telemetry
   assertTraversalRepairBurden(result, "Subantarctic New Zealand passage", 20);
 });
 
-test("a moving river voyage to Smolensk cannot tear visible land", () => {
+worldTraversalTest("a moving river voyage to Smolensk cannot tear visible land", () => {
   const result = simulateLisbonToKamchatkaCoastalVoyage(
     MAX_PROTECTED_ADMISSION_SLACK_PX,
     {
@@ -2140,7 +2144,7 @@ test("a moving river voyage to Smolensk cannot tear visible land", () => {
   assertTraversalRepairBurden(result, "Smolensk river voyage", 5);
 });
 
-test("uniform land cannot masquerade as the elastic ocean correction reservoir", () => {
+worldTraversalTest("uniform land cannot masquerade as the elastic ocean correction reservoir", () => {
   const support = viewportElasticCorrectionSupport({
     projectedTiles: [
       { id: 0, x: 20, y: 20 },
@@ -2159,7 +2163,7 @@ test("uniform land cannot masquerade as the elastic ocean correction reservoir",
   assert.equal(support.correctionActive, false);
 });
 
-test("one hundred high-latitude circuits keep admission drift bounded", () => {
+worldTraversalTest("one hundred high-latitude circuits keep admission drift bounded", () => {
   const result = simulateRepeatedCircuit({
     centerRowForPhase: () => 0,
     frameRotationForPhase: (phase) => phase * Math.sin(62 * Math.PI / 180)
@@ -2168,7 +2172,7 @@ test("one hundred high-latitude circuits keep admission drift bounded", () => {
   assertRepeatedCircuitIsStable(result, "62-degree latitude circuit");
 });
 
-test("one hundred oblique great-circle circuits keep admission drift bounded", () => {
+worldTraversalTest("one hundred oblique great-circle circuits keep admission drift bounded", () => {
   const result = simulateRepeatedCircuit({
     centerRowForPhase: (phase) => Math.round(Math.sin(phase) * 18),
     frameRotationForPhase: (phase) => Math.sin(phase) * 0.75 + Math.sin(phase * 2) * 0.2
@@ -2177,7 +2181,7 @@ test("one hundred oblique great-circle circuits keep admission drift bounded", (
   assertRepeatedCircuitIsStable(result, "52-degree oblique circuit");
 });
 
-test("a screen-spaced island chain permits north-up correction for one hundred circuits", () => {
+worldTraversalTest("a screen-spaced island chain permits north-up correction for one hundred circuits", () => {
   const result = simulateIslandChainCircuits();
   const settled = result.circuitMetrics[9];
   const last = result.circuitMetrics.at(-1);
