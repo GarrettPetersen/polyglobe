@@ -93,7 +93,7 @@ test("regional pools and latitude prevent implausible tree choices", () => {
   assert.ok(polynesian.filter(({ depth }) => depth === 1).every(({ shadowZ, z }) => shadowZ < z));
   assert.ok(polynesian
     .filter(({ id }) => id.endsWith(":behind-buildings"))
-    .every(({ shadowZ, z }) => shadowZ > z));
+    .every(({ shadowZ, z }) => shadowZ < z));
   assert.ok(polynesian
     .filter(({ id }) => id.endsWith(":castle-backing"))
     .every(({ shadowZ, z }) => shadowZ < z));
@@ -112,6 +112,14 @@ test("regional pools and latitude prevent implausible tree choices", () => {
   });
   assert.equal(southeastAsian[0].tree.id, "palm", "a tropical palm occupies the first foreground slot");
   assert.ok(southeastAsian.some(({ tree }) => tree.id !== "palm"), "tropical scenes retain other regional trees");
+});
+
+test("tree placement rejects an unmapped city culture", () => {
+  assert.throws(() => cityTreePlacements({
+    city: sampleCity({ cityType: "unmapped-culture" }),
+    features: { rightTerrain: "forest" },
+    trees: manifest.trees
+  }), /No city tree pool/);
 });
 
 test("some river scenes with actual opposite-bank tree cover place a regional foreground tree there", () => {
@@ -187,8 +195,7 @@ test("open terrain gets fewer accents than forest and desert only permits an occ
 });
 
 test("tree shadows keep their authored painter planes", () => {
-  assert.ok(CITY_TREE_BACKGROUND_SHADOW_Z > 42, "rear shadows cover the ground behind buildings");
-  assert.ok(CITY_TREE_BACKGROUND_SHADOW_Z < 45, "rear shadows stay behind near businesses");
+  assert.ok(CITY_TREE_BACKGROUND_SHADOW_Z < 39.6, "rear shadows stay behind their tree and hill");
   assert.ok(CITY_TREE_FOREGROUND_SHADOW_Z > 70, "near shadows cover the foreground terrain");
   assert.ok(CITY_TREE_FOREGROUND_SHADOW_Z < 74, "near shadows remain behind their trees");
 });

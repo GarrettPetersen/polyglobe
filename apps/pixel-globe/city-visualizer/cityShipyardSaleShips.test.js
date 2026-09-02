@@ -12,7 +12,7 @@ import {
   cityShipyardSaleShipSlugs,
   validateCityShipSideViewManifest
 } from "./cityShipyardSaleShips.js";
-import { PORT_SCENE_ENTITY_META } from "./citySceneRules.js";
+import { PORT_SCENE_ENTITY_META, layerSceneZ } from "./citySceneRules.js";
 
 const sideViewManifest = validateCityShipSideViewManifest(JSON.parse(await readFile(new URL(
   "../public/assets/vehicles/unity-ships/side-views/manifest.json",
@@ -66,6 +66,11 @@ test("sale ships are smaller than the foreground ship, behind and left of the sh
   for (const placement of placements) {
     assert.ok(placement.visibleRightX < 841, `${placement.ship.slug} must be left of shipyard`);
     assert.ok(placement.z > 20 && placement.z < 25, `${placement.ship.slug} painter order`);
+    assert.ok(
+      placement.z > layerSceneZ("Background City Base"),
+      `${placement.ship.slug} must draw in front of the distant city ribbon`
+    );
+    assert.ok(placement.z < layerSceneZ("Shipyard"), `${placement.ship.slug} must stay behind the yard`);
     assert.ok(placement.depth < 0.98, `${placement.ship.slug} parallax depth`);
     assert.ok(placement.visibleBottomY > placement.waterlineY, `${placement.ship.slug} submerged pixels`);
   }

@@ -11,8 +11,6 @@ export const PORT_SCENE_MASTER = Object.freeze({
   width: 1365,
   height: 910,
   leftBankX: 0,
-  safeX: 455,
-  safeWidth: 910,
   safeHeight: 256,
   safeBottom: 583
 });
@@ -278,8 +276,8 @@ export function logicalSceneWindow({
   requireLogicalDimension(width, "width");
   requireLogicalDimension(height, "height");
   if (!["ocean", "river", "lake"].includes(approach)) throw new Error(`Invalid port scene approach: ${approach}`);
-  const spanX = approach === "river" ? PORT_SCENE_MASTER.leftBankX : PORT_SCENE_MASTER.safeX;
-  const spanWidth = approach === "river" ? PORT_SCENE_MASTER.width : PORT_SCENE_MASTER.safeWidth;
+  const spanX = PORT_SCENE_MASTER.leftBankX;
+  const spanWidth = PORT_SCENE_MASTER.width;
   if (width > spanWidth) throw new Error(`Port scene width ${width} exceeds ${spanWidth}`);
   if (height > PORT_SCENE_MASTER.height) {
     throw new Error(`Port scene height ${height} exceeds ${PORT_SCENE_MASTER.height}`);
@@ -404,7 +402,7 @@ export function scenePanParallaxDelta({
   requireLogicalDimension(displayWidth, "scene display width");
   requireLogicalDimension(logicalWidth, "scene logical width");
   const bounds = sceneCameraParallaxBounds(approach);
-  const spanWidth = approach === "river" ? PORT_SCENE_MASTER.width : PORT_SCENE_MASTER.safeWidth;
+  const spanWidth = PORT_SCENE_MASTER.width;
   const travel = spanWidth - logicalWidth;
   if (travel <= 0 || screenDeltaX === 0) return 0;
   const logicalDeltaX = screenDeltaX / displayWidth * logicalWidth;
@@ -496,6 +494,19 @@ export function layerParallaxDepth(layerName, occurrence = 0) {
 
 export function layerSceneZ(layerName, occurrence = 0) {
   return resolvedLayerMeta(layerName, occurrence).z;
+}
+
+export function layerPainterZ(layerName, occurrence = 0, approach) {
+  if (!["ocean", "river", "lake"].includes(approach)) {
+    throw new Error(`Invalid port scene approach: ${approach}`);
+  }
+  if (
+    approach === "river" &&
+    ["Horizon Mountains", "Horizon Mountains Left Bank"].includes(layerName)
+  ) {
+    return PORT_SCENE_OCEAN_SLICES[0].z - 0.1;
+  }
+  return layerSceneZ(layerName, occurrence);
 }
 
 export function layerSceneOffsetX(layerName, occurrence = 0, approach = "ocean") {

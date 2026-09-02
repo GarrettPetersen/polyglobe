@@ -78,8 +78,6 @@ const WRAP_GREEN = palette({ "966c6c": "239063", "b2ba90": "91db69" });
 const WRAP_INDIGO = palette({ "966c6c": "4d65b4", "b2ba90": "4d9be6" });
 const WRAP_WARM = palette({ "966c6c": "ae2334", "b2ba90": "f57d4a" });
 const WRAP_TEAL = palette({ "966c6c": "0b8a8f", "b2ba90": "30e1b9" });
-const ARCHER_GREEN = palette({ "4d65b4": "239063", "4d9be6": "91db69" });
-const ARCHER_WARM = palette({ "4d65b4": "9e4539", "4d9be6": "f57d4a" });
 const JOSEON_UNIFORM = palette({ "4d65b4": "8fd3ff", "4d9be6": "c7dcd0" });
 
 export const CITY_PERSON_APPEARANCES = Object.freeze([
@@ -143,9 +141,6 @@ export const CITY_PERSON_APPEARANCES = Object.freeze([
   appearance("wrapped-cloth-man-deep-indigo", "wrapped-cloth-man", "deep", WRAP_INDIGO),
 
   appearance("archer-light", "archer", "light"),
-  appearance("archer-medium-green", "archer", "medium", ARCHER_GREEN),
-  appearance("archer-medium-warm", "archer", "medium", ARCHER_WARM),
-  appearance("archer-dark-green", "archer", "dark", ARCHER_GREEN),
   appearance("cavalier-covered", "cavalier", "covered"),
   appearance("crossbowman-light", "crossbowman", "light"),
   appearance("halberdier-light", "halberdier", "light"),

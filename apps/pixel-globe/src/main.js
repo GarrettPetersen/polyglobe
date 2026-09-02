@@ -1599,8 +1599,10 @@ import {
   FIRE_FRAME_HEIGHT,
   FIRE_FRAME_MS,
   FIRE_FRAME_WIDTH,
+  FIRE_VARIANT_COUNT,
   fireAnimationFrame,
-  fireSoundPresence
+  fireSoundPresence,
+  fireVariantIndex
 } from "./fireEffects.js";
 import {
   advanceCollisionMomentum,
@@ -2832,7 +2834,7 @@ const ICEBERG_CLEAR_WATER_STEPS = 2;
 const ICEBERG_CALVING_CANDIDATES_PER_FRAME = 4;
 const ROWING_SHIP_ANIMATION_SPECS = SHIP_ROWING_ANIMATION_SPECS;
 const CITY_ASSET_VERSION = "city-types-3";
-const FIRE_EFFECT_ASSET_VERSION = "fire-effect-1";
+const FIRE_EFFECT_ASSET_VERSION = "fire-effect-2";
 const FIRE_EFFECT_URL = "assets/misc/fire.png";
 const STATUS_HUD_ASSET_VERSION = "provision-icons-3";
 const STATUS_HUD_CREW_URL = "assets/misc/crew.png";
@@ -2886,6 +2888,8 @@ const PORT_INTERACTION_RADIUS_PX = 34;
 const PORT_DIALOGUE_TRAFFIC_RADIUS_PX = 120;
 const PORT_PORTRAIT_PRELOAD_RADIUS_PX = 180;
 const PORT_PORTRAIT_PRELOAD_INTERVAL_MS = 750;
+const PORT_CITY_SCENE_PRELOAD_RADIUS_PX = 220;
+const PORT_CITY_SCENE_PRELOAD_INTERVAL_MS = 250;
 const FISH_INTERACTION_RADIUS_PX = 22;
 const FISH_CLICK_PAD_PX = 5;
 const PORT_CITY_CLICK_PAD_PX = 3;
@@ -3821,6 +3825,10 @@ let banquetChef;
 let naturalistCharacter;
 let lastPortPortraitPreloadAtMs = -Infinity;
 const preloadedPortPortraitKeyByCityId = new Map();
+let lastPortCityScenePreloadAtMs = -Infinity;
+const preloadedPortCitySceneKeyByCityId = new Map();
+let pendingPortCityScenePreload = null;
+let portCityScenePreloadGeneration = 0;
 const papalNuncioPreviewCharacters = new Map();
 const hospitallerNuncioPreviewCharacters = new Map();
 let queuedCharacterAlertSteps = [];
@@ -4379,6 +4387,7 @@ async function main() {
       catalogUrl: "/city-visualizer/data/cities.json",
       initialShipSlug: START_SHIP_SLUG,
       externalFrameClock: true,
+      separateEmissiveOverlay: true,
       onDestination: activatePortCityDestination,
       renderText: renderedUiText,
       smallFontForText: (text) => resolvedPixelFont(PIXEL_FONT_SMALL_8, text),
@@ -5970,7 +5979,7 @@ async function loadFireEffectImage() {
     image,
     "world fire animation",
     FIRE_FRAME_WIDTH * FIRE_FRAME_COUNT,
-    FIRE_FRAME_HEIGHT
+    FIRE_FRAME_HEIGHT * FIRE_VARIANT_COUNT
   );
   return image;
 }
@@ -6852,6 +6861,10 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
     measurePerformanceBenchmarkStage(
       "portraits.preload",
       () => preloadNearbyPortPortraits(nowMs)
+    );
+    measurePerformanceBenchmarkStage(
+      "city.preload",
+      () => preloadNearbyPortCityScene(nowMs)
     );
     const chartRepairCheckIsDue = nowMs - chartDriftMeasuredAtMs >=
       CHART_DRIFT_MEASURE_INTERVAL_MS;
@@ -9065,6 +9078,10 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
   naturalistCharacter = null;
   lastPortPortraitPreloadAtMs = -Infinity;
   preloadedPortPortraitKeyByCityId.clear();
+  lastPortCityScenePreloadAtMs = -Infinity;
+  preloadedPortCitySceneKeyByCityId.clear();
+  pendingPortCityScenePreload = null;
+  portCityScenePreloadGeneration++;
   papalNuncioPreviewCharacters.clear();
   hospitallerNuncioPreviewCharacters.clear();
   usedCharacterNames = new Set([
@@ -9451,6 +9468,7 @@ function dispatchWorldOverlayKey(event, keyAction) {
   else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuKeyDown(event);
   else if (owner === INTERACTION_INPUT.DIALOGUE) {
     if (portCityRootNavigationIsActive()) handlePortCityKeyDown(event, keyAction);
+    else if (portCityRootPresentationIsOwned()) event.preventDefault();
     else handleDialogueKeyDown(event);
   }
   else if (owner === INTERACTION_INPUT.PORT_WAIT) handlePortWaitKeyDown(event);
@@ -9486,6 +9504,7 @@ function dispatchWorldOverlayPointerDown(event, point) {
   else if (owner === INTERACTION_INPUT.NAVIGATION) handleNavigationMenuPointerDown(point);
   else if (owner === INTERACTION_INPUT.DIALOGUE) {
     if (portCityRootNavigationIsActive()) beginPortCityPointer(event, point);
+    else if (portCityRootPresentationIsOwned()) portCityPointerDown = null;
     else handleDialoguePointerDown(point);
   }
   else if (owner === INTERACTION_INPUT.PORT_WAIT) {
@@ -9543,6 +9562,8 @@ function dispatchWorldOverlayPointerMove(event, point) {
   } else if (owner === INTERACTION_INPUT.DIALOGUE) {
     if (portCityRootNavigationIsActive()) {
       updatePortCityPointer(event, point);
+    } else if (portCityRootPresentationIsOwned()) {
+      portCityPointerDown = null;
     } else if (dialogueLayout.activeCustomLoadoutSliderKey) {
       const entry = dialogueLayout.customLoadoutSliderRects.find(
         (candidate) => candidate.key === dialogueLayout.activeCustomLoadoutSliderKey
@@ -19556,10 +19577,12 @@ function handleCanvasWheel(event) {
   if (owner !== INTERACTION_INPUT.DIALOGUE) return;
   event.preventDefault();
   if (portCityIllicitEvent) return;
-  if (portCityRootNavigationIsActive()) {
-    const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-    portCityRuntime.panByLogicalPixels(clamp(delta, -SCREEN_W / 4, SCREEN_W / 4));
-    dirty = true;
+  if (portCityRootPresentationIsOwned()) {
+    if (portCityRootNavigationIsActive()) {
+      const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      portCityRuntime.panByLogicalPixels(clamp(delta, -SCREEN_W / 4, SCREEN_W / 4));
+      dirty = true;
+    }
     return;
   }
   if (dialogueIsPlayerShipyardBooks()) {
@@ -19660,7 +19683,7 @@ function queuePortCitySceneSync() {
 
 async function synchronizePortCityScene() {
   if (!portCityView || !portCityRuntime) return;
-  const city = chartPortCallById(portCityView.portId) || cityById.get(portCityView.cityId);
+  const city = chartPortCallById(portCityView.portId);
   if (!city) throw new Error(`Port city view lost city ${portCityView.cityId}`);
   let availableDestinationIds = [];
   if (dialogueState?.kind === "port" && dialogueState.cityId === city.cityId &&
@@ -19677,6 +19700,32 @@ async function synchronizePortCityScene() {
   const nodeId = dialogueState?.nodeId || dialogueState?.nextPortNodeId || null;
   const barred = ["barred", "recovering"].includes(nodeId);
   const illicitCaughtStartedAtMs = portCityIllicitEvent?.startedAtMs || null;
+  const assetOptions = portCitySceneAssetOptions(city);
+  const label = cityLabelText(city);
+  const selectionOptions = Object.freeze({
+    ...assetOptions,
+    availableDestinationIds,
+    barred,
+    illicitCaughtStartedAtMs,
+    label
+  });
+  const syncKey = JSON.stringify({ cityId: city.cityId, ...selectionOptions });
+  if (syncKey === portCitySceneSyncKey && portCityView.sceneReady) return;
+  const serial = ++portCitySceneSelectionSerial;
+  await portCityRuntime.selectCity(city.cityId, selectionOptions);
+  if (!portCityView || serial !== portCitySceneSelectionSerial || portCityView.cityId !== city.cityId) return;
+  portCitySceneSyncKey = syncKey;
+  portCityView.sceneReady = true;
+  if (portCityTransition?.direction === "enter-pending") {
+    resetWorldNorthUpBehindPortCityCover();
+    portCityTransition.direction = "enter";
+    portCityTransition.startedAtMs = performance.now();
+  }
+  dirty = true;
+}
+
+function portCitySceneAssetOptions(city) {
+  requireCityId(city, "Port city asset selection");
   const yard = worldEconomyHasShipyardPort(worldEconomy, city)
     ? shipyardAtPort(worldEconomy.shipyards, city)
     : null;
@@ -19688,41 +19737,45 @@ async function synchronizePortCityScene() {
   const shipyardConstruction = yard
     ? shipyardCurrentBuild(yard, Math.floor(weatherClockMinutes))
     : null;
-  const playerShipSlug = ship?.typeSlug || gameState?.ship?.slug;
-  if (!playerShipSlug) throw new Error("Port city view has no player ship slug");
-  const label = cityLabelText(city);
-  const syncKey = JSON.stringify({
-    cityId: city.cityId,
-    availableDestinationIds,
-    barred,
-    illicitCaughtStartedAtMs,
+  const playerShipSlug = authoritativePlayerShipSlugForPortCity();
+  const batteryState = ensureShoreBatteryState(city);
+  const simMinute = Math.floor(weatherClockMinutes);
+  const bombardmentEventId = shoreBatteryIsDisabled(batteryState, simMinute)
+    ? disabledBatteryBombardmentEventId(city, batteryState)
+    : null;
+  return Object.freeze({
     factionId: city.factionId,
-    label,
     playerShipSlug,
     saleShipSlugs,
-    shipyardConstruction
+    shipyardConstruction,
+    bombardmentEventId
   });
-  if (syncKey === portCitySceneSyncKey && portCityView.sceneReady) return;
-  const serial = ++portCitySceneSelectionSerial;
-  await portCityRuntime.selectCity(city.cityId, {
-    availableDestinationIds,
-    barred,
-    illicitCaughtStartedAtMs,
-    factionId: city.factionId,
-    label,
-    playerShipSlug,
-    saleShipSlugs,
-    shipyardConstruction
-  });
-  if (!portCityView || serial !== portCitySceneSelectionSerial || portCityView.cityId !== city.cityId) return;
-  portCitySceneSyncKey = syncKey;
-  portCityView.sceneReady = true;
-  if (portCityTransition?.direction === "enter-pending") {
-    resetWorldNorthUpBehindPortCityCover();
-    portCityTransition.direction = "enter";
-    portCityTransition.startedAtMs = performance.now();
+}
+
+function disabledBatteryBombardmentEventId(city, batteryState) {
+  requireCityId(city, "Port bombardment presentation");
+  if (!Number.isInteger(batteryState.disabledUntilMinute) || batteryState.disabledUntilMinute <= 0) {
+    throw new Error(`Disabled port battery has no recovery deadline: ${city.cityId}`);
   }
-  dirty = true;
+  return `shore-battery-disabled-until:${batteryState.disabledUntilMinute}`;
+}
+
+function authoritativePlayerShipSlugForPortCity() {
+  const runtimeShipSlug = ship?.typeSlug;
+  const persistedShipSlug = gameState?.ship?.slug;
+  if (typeof runtimeShipSlug !== "string" || runtimeShipSlug.length === 0) {
+    throw new Error("Port city asset selection requires the runtime player ship canonical ID");
+  }
+  if (typeof persistedShipSlug !== "string" || persistedShipSlug.length === 0) {
+    throw new Error("Port city asset selection requires the persisted player ship canonical ID");
+  }
+  if (runtimeShipSlug !== persistedShipSlug) {
+    throw new Error(
+      `Port city player ship identity diverged: runtime ${runtimeShipSlug}, ` +
+      `persisted ${persistedShipSlug}`
+    );
+  }
+  return runtimeShipSlug;
 }
 
 function beginPortCityIllicitCaughtPresentation() {
@@ -19770,8 +19823,12 @@ function activatePortCityDestination({ id }) {
 }
 
 function portCityRootNavigationIsActive() {
+  return Boolean(portCityView?.sceneReady && portCityRootPresentationIsOwned());
+}
+
+function portCityRootPresentationIsOwned() {
   return Boolean(
-    portCityView?.sceneReady &&
+    portCityView &&
     dialogueState?.kind === "port" &&
     dialogueState.admittedToPort === true &&
     dialogueState.nodeId === "root" &&
@@ -28467,6 +28524,7 @@ function opaqueWorldCoverIsActive() {
 }
 
 function currentChartReframeCoverState() {
+  const cityRootPresentationOwned = portCityRootPresentationIsOwned();
   return {
     startMenu: Boolean(startMenu),
     gameOver: gameOverReframeCoverIsOpaque({
@@ -28476,7 +28534,8 @@ function currentChartReframeCoverState() {
       sinkDurationMs: gameOverTransitionDurationMs()
     }),
     portCityScene: portCityView?.sceneReady === true,
-    fullPortDialogue: dialogueState?.kind === "port" && dialogueState.admittedToPort === true,
+    fullPortDialogue: dialogueState?.kind === "port" &&
+      dialogueState.admittedToPort === true && !cityRootPresentationOwned,
     playerIntro: Boolean(playerIntroModal),
     captainMenu: captainMenu.isOpen,
     optionsMenu: optionsMenu.isOpen,
@@ -28488,7 +28547,7 @@ function currentChartReframeCoverState() {
     politicsMenu: politicsMenu.isOpen,
     navigationMenu: navigationMenu.isOpen,
     aboardMenu: aboardMenu.isOpen,
-    blockingDialogue: Boolean(captainAlertModal || dialogueState)
+    blockingDialogue: Boolean(captainAlertModal || (dialogueState && !cityRootPresentationOwned))
   };
 }
 
@@ -39975,6 +40034,7 @@ function drawDayNightWorld(layers, nowMs) {
       heatHaze: chartRepairHeatHazeEffect(nowMs)
     });
   });
+  drawVisibleWorldFiresEmissive(layers.offset, nowMs);
   lastPresentedOceanSwell = {
     layout: localLayout,
     swell,
@@ -40005,6 +40065,7 @@ function drawPortCityScene(nowMs) {
     destinationRect: { x: 0, y: 0, width: SCREEN_W, height: SCREEN_H }
   });
   worldRenderer.endFrame();
+  portCityRuntime.drawEmissiveOverlay(screenCtx);
 }
 
 function currentPortCityWeatherPresentation() {
@@ -40536,8 +40597,9 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
 
 function drawWorldInterface(nowMs) {
   drawPortCityTransitionOverlay(nowMs);
+  if (portCityRootPresentationIsOwned() && !portCityView.sceneReady) return;
   const dialogueVisible = dialogueOverlayIsVisible({
-    dialogueActive: Boolean(dialogueState) && !portCityRootNavigationIsActive() &&
+    dialogueActive: Boolean(dialogueState) && !portCityRootPresentationIsOwned() &&
       !portCityIllicitEvent,
     characterAlertActive: Boolean(captainAlertModal)
   });
@@ -43630,7 +43692,7 @@ function captainMenuButtonIsAvailable() {
   return captainMenuShortcutAvailable({
     blockingMenu: menusAreOpen(),
     blockingModal: Boolean(startMenu || gameOverReason || playerIntroModal || captainAlertModal),
-    dialogueActive: Boolean(dialogueState) && !portCityRootNavigationIsActive()
+    dialogueActive: Boolean(dialogueState) && !portCityRootPresentationIsOwned()
   });
 }
 
@@ -58396,7 +58458,6 @@ function drawCitySpriteWebGL(call, offset, nowMs) {
   const img = cityImageForCity(call);
   const battery = shoreBatteryStates.get(shoreBatteryId(call));
   const batteryDisabled = battery && shoreBatteryIsDisabled(battery, Math.floor(weatherClockMinutes));
-  const fireSource = fireSourceForCity(call, batteryDisabled);
   const batteryInPlayerCombat = battery?.engagedTargetIds.has(PLAYER_COMBAT_ID) &&
     !batteryDisabled;
   if (batteryInPlayerCombat) {
@@ -58468,7 +58529,6 @@ function drawCitySpriteWebGL(call, offset, nowMs) {
       ...flagWind
     });
   }
-  if (fireSource) drawOnFireWebGL(fireSource, offset, nowMs);
   if (batteryInPlayerCombat) drawShoreBatteryHealthBarWebGL(call, battery, offset);
 }
 
@@ -58536,28 +58596,28 @@ function fireSourceForCity(call, batteryDisabled) {
   };
 }
 
-function drawOnFireWebGL(source, offset, nowMs) {
+function drawVisibleWorldFiresEmissive(offset, nowMs) {
+  for (const source of visibleWorldFireSources()) drawOnFireEmissive(source, offset, nowMs);
+}
+
+function drawOnFireEmissive(source, offset, nowMs) {
   const fireEffectImage = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.FIRE);
   if (!fireEffectImage) {
     queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.FIRE, `visible fire source ${source.id}`);
     return;
   }
   const frame = fireAnimationFrame(nowMs, source.phaseSeed);
-  worldRenderer.drawAtlasSprite({
-    source: fireEffectImage,
-    sourceRect: {
-      x: frame * FIRE_FRAME_WIDTH,
-      y: 0,
-      width: FIRE_FRAME_WIDTH,
-      height: FIRE_FRAME_HEIGHT
-    },
-    destinationRect: {
-      x: Math.round(source.screenX - FIRE_FRAME_WIDTH / 2 + offset.x),
-      y: Math.round(source.screenBaseY - FIRE_FRAME_HEIGHT + offset.y),
-      width: FIRE_FRAME_WIDTH,
-      height: FIRE_FRAME_HEIGHT
-    }
-  });
+  screenCtx.drawImage(
+    fireEffectImage,
+    frame * FIRE_FRAME_WIDTH,
+    fireVariantIndex(source.phaseSeed) * FIRE_FRAME_HEIGHT,
+    FIRE_FRAME_WIDTH,
+    FIRE_FRAME_HEIGHT,
+    Math.round(source.screenX - FIRE_FRAME_WIDTH / 2 + offset.x),
+    Math.round(source.screenBaseY - FIRE_FRAME_HEIGHT + offset.y),
+    FIRE_FRAME_WIDTH,
+    FIRE_FRAME_HEIGHT
+  );
 }
 
 function drawShoreBatteryHealthBarWebGL(call, battery, offset) {
@@ -63232,17 +63292,7 @@ function preloadNearbyPortPortraits(nowMs) {
   if (!chart || !localLayout || !gameState) return;
   if (nowMs - lastPortPortraitPreloadAtMs < PORT_PORTRAIT_PRELOAD_INTERVAL_MS) return;
   lastPortPortraitPreloadAtMs = nowMs;
-  const radiusSquared = PORT_PORTRAIT_PRELOAD_RADIUS_PX * PORT_PORTRAIT_PRELOAD_RADIUS_PX;
-  const nearbyPortCalls = [];
-  for (const cityCall of chart.cityCalls || []) {
-    if (cityCall.hiddenSettlement) continue;
-    const x = Number.isFinite(cityCall.interactionX) ? cityCall.interactionX : cityCall.x;
-    const y = Number.isFinite(cityCall.interactionY) ? cityCall.interactionY : cityCall.y;
-    if (distance2(localLayout.viewX, localLayout.viewY, x, y) > radiusSquared) continue;
-    const dockable = cityCall.isPirateHideout === true || portCitiesByTileId.has(cityCall.tileId);
-    if (!dockable) continue;
-    nearbyPortCalls.push(cityCall);
-  }
+  const nearbyPortCalls = nearbyDockablePortCalls(PORT_PORTRAIT_PRELOAD_RADIUS_PX);
   const cityCall = nearbyPortCalls.find((candidate) => (
     preloadedPortPortraitKeyByCityId.get(candidate.cityId) !==
       `${gameState.playerCharacter.id}|${candidate.character?.id || "missing"}`
@@ -63255,6 +63305,72 @@ function preloadNearbyPortPortraits(nowMs) {
     dockable: true
   }));
   preloadedPortPortraitKeyByCityId.set(cityCall.cityId, preloadKey);
+}
+
+function preloadNearbyPortCityScene(nowMs) {
+  if (!Number.isFinite(nowMs)) throw new Error(`Invalid city scene preload time: ${nowMs}`);
+  if (!chart || !localLayout || !gameState || !portCityRuntime) return;
+  if (pendingPortCityScenePreload) return;
+  if (nowMs - lastPortCityScenePreloadAtMs < PORT_CITY_SCENE_PRELOAD_INTERVAL_MS) return;
+  lastPortCityScenePreloadAtMs = nowMs;
+  let candidate = null;
+  for (const cityCall of nearbyDockablePortCalls(PORT_CITY_SCENE_PRELOAD_RADIUS_PX)) {
+    const options = portCitySceneAssetOptions(cityCall);
+    const preloadKey = portCitySceneAssetPreloadKey(cityCall, options);
+    if (preloadedPortCitySceneKeyByCityId.get(cityCall.cityId) !== preloadKey) {
+      candidate = { cityCall, options, preloadKey };
+      break;
+    }
+  }
+  if (!candidate) return;
+  const generation = portCityScenePreloadGeneration;
+  const request = portCityRuntime.preloadCity(candidate.cityCall.cityId, candidate.options)
+    .then(() => {
+      if (generation !== portCityScenePreloadGeneration) return;
+      preloadedPortCitySceneKeyByCityId.set(candidate.cityCall.cityId, candidate.preloadKey);
+    })
+    .catch((error) => {
+      if (generation !== portCityScenePreloadGeneration) return;
+      if (!pendingWorldAssetError) {
+        const cause = error instanceof Error ? error : new Error(String(error));
+        pendingWorldAssetError = new Error(
+          `Preloading city scene ${candidate.cityCall.cityId} failed: ${cause.message}`,
+          { cause }
+        );
+      }
+      dirty = true;
+    })
+    .finally(() => {
+      if (generation !== portCityScenePreloadGeneration) return;
+      if (pendingPortCityScenePreload === request) pendingPortCityScenePreload = null;
+    });
+  pendingPortCityScenePreload = request;
+}
+
+function portCitySceneAssetPreloadKey(city, options) {
+  return JSON.stringify({
+    cityId: city.cityId,
+    factionId: options.factionId,
+    playerShipSlug: options.playerShipSlug,
+    saleShipSlugs: options.saleShipSlugs,
+    shipyardConstruction: options.shipyardConstruction,
+    bombardmentEventId: options.bombardmentEventId
+  });
+}
+
+function nearbyDockablePortCalls(radiusPx) {
+  if (!Number.isFinite(radiusPx) || radiusPx <= 0) {
+    throw new Error(`Nearby port scan requires a positive radius: ${radiusPx}`);
+  }
+  if (!chart || !localLayout || !portCitiesByTileId) return Object.freeze([]);
+  const radiusSquared = radiusPx * radiusPx;
+  return Object.freeze((chart.cityCalls || []).filter((cityCall) => {
+    if (cityCall.hiddenSettlement) return false;
+    const x = Number.isFinite(cityCall.interactionX) ? cityCall.interactionX : cityCall.x;
+    const y = Number.isFinite(cityCall.interactionY) ? cityCall.interactionY : cityCall.y;
+    if (distance2(localLayout.viewX, localLayout.viewY, x, y) > radiusSquared) return false;
+    return cityCall.isPirateHideout === true || portCitiesByTileId.has(cityCall.tileId);
+  }));
 }
 
 function preloadDialogueCharacters(characters) {

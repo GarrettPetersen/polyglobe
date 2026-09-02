@@ -70,7 +70,6 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
     garrison: [
       pool("islamicate-warrior-medium", 2),
       pool("islamicate-warrior-dark", 3),
-      pool("archer-medium-green", 1),
       pool("hunter-medium", 1),
       pool("gunner-medium", 1)
     ]
@@ -133,8 +132,6 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
       pool("mariner-medium-black-hair", 2)
     ],
     garrison: [
-      pool("archer-medium-green", 2),
-      pool("hunter-medium", 1),
       pool("wrapped-cloth-man-dark-indigo", 3),
       pool("gunner-medium", 1)
     ]
@@ -154,8 +151,6 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
       pool("mariner-dark-black-hair", 2)
     ],
     garrison: [
-      pool("archer-dark-green", 3),
-      pool("hunter-dark", 1),
       pool("wrapped-cloth-man-deep-indigo", 3),
       pool("gunner-dark", 1)
     ]
@@ -173,7 +168,6 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
     ],
     garrison: [
       pool("islamicate-warrior-dark", 4),
-      pool("archer-dark-green", 2),
       pool("gunner-dark", 1)
     ]
   }),
@@ -188,9 +182,7 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
       pool("wrapped-cloth-man-dark-indigo", 2)
     ],
     garrison: [
-      pool("archer-medium-warm", 3),
-      pool("hunter-medium", 1),
-      pool("wrapped-cloth-man-dark-indigo", 3)
+      pool("wrapped-cloth-man-dark-indigo", 6)
     ]
   }),
   populationProfile("polynesian", {
@@ -204,9 +196,7 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
       pool("wrapped-cloth-man-dark-indigo", 1)
     ],
     garrison: [
-      pool("wrapped-cloth-man-dark-indigo", 4),
-      pool("hunter-medium", 1),
-      pool("archer-medium-green", 1)
+      pool("wrapped-cloth-man-dark-indigo", 6)
     ]
   }),
   populationProfile("ainu", {
@@ -220,9 +210,7 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
       pool("wrapped-cloth-man-dark-indigo", 2)
     ],
     garrison: [
-      pool("archer-medium-green", 4),
-      pool("hunter-medium", 1),
-      pool("wrapped-cloth-man-dark-indigo", 2)
+      pool("wrapped-cloth-man-dark-indigo", 6)
     ]
   })
 ]);
@@ -312,8 +300,8 @@ export function createCityPeopleAgents({ city, count, paths }) {
     [CITY_PERSON_ROLE.GARRISON, new Set()]
   ]);
   let seed = hashString(`${cityId}|${profile.id}|people`);
-  return Object.freeze(paths.slice(0, count).map(({ startX, endX, feetY }, index) => {
-    validatePath({ startX, endX, feetY }, index);
+  return Object.freeze(paths.slice(0, count).map(({ startX, endX, feetY, painterZ }, index) => {
+    validatePath({ startX, endX, feetY, painterZ }, index);
     seed = xorshift(seed);
     const role = garrisonIndexes.has(index) ? CITY_PERSON_ROLE.GARRISON : CITY_PERSON_ROLE.AMBIENT;
     const appearanceId = weightedAppearance(profile[role], seed, usedByRole.get(role));
@@ -325,6 +313,7 @@ export function createCityPeopleAgents({ city, count, paths }) {
       startX,
       endX,
       feetY,
+      ...(painterZ === undefined ? {} : { painterZ }),
       phase: ((seed >>> 0) % 1000) / 500,
       speed: 0.00012 + ((seed >>> 12) & 255) / 1_000_000
     });
@@ -522,9 +511,12 @@ function requireCity(city) {
   return city.cityId;
 }
 
-function validatePath({ startX, endX, feetY }, index) {
+function validatePath({ startX, endX, feetY, painterZ }, index) {
   if (![startX, endX, feetY].every(Number.isFinite) || startX >= endX) {
     throw new Error(`Invalid city person path ${index}`);
+  }
+  if (painterZ !== undefined && !Number.isFinite(painterZ)) {
+    throw new Error(`Invalid city person painter order ${index}`);
   }
 }
 

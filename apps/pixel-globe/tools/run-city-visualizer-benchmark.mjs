@@ -69,6 +69,7 @@ function benchmarkUrl(baseUrl, options) {
     benchmarkDuration: String(options.durationSeconds),
     benchmarkCamera: options.cameraMode
   });
+  if (options.bombarded) params.set("bombarded", "1");
   return `${baseUrl}/city-visualizer/?${params}`;
 }
 
@@ -76,7 +77,8 @@ function printReport(report, output) {
   const workload = report.scene.renderWorkload;
   process.stdout.write([
     `${report.id} performance benchmark`,
-    `  City: ${report.scene.cityId} (${report.scene.approach}, ${report.scene.cameraMode})`,
+    `  City: ${report.scene.cityId} (${report.scene.approach}, ${report.scene.cameraMode}, ` +
+      `${report.scene.bombarded ? "bombarded" : "intact"})`,
     `  FPS: ${report.framesPerSecond}`,
     `  Frame time: ${report.frameTimeMs.mean} ms mean, ${report.frameTimeMs.p95} ms p95`,
     `  CPU time: ${report.cpuTimeMs.mean} ms mean, ${report.cpuTimeMs.p95} ms p95`,
@@ -100,6 +102,7 @@ function parseArgs(argv) {
     warmupSeconds: 2,
     durationSeconds: 8,
     headless: false,
+    bombarded: false,
     timeoutMs: 120_000,
     output: path.join(APP_ROOT, "build/performance/city-visualizer-latest.json")
   };
@@ -112,6 +115,7 @@ function parseArgs(argv) {
     else if (arg === "--warmup") parsed.warmupSeconds = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--duration") parsed.durationSeconds = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--headless") parsed.headless = true;
+    else if (arg === "--bombarded") parsed.bombarded = true;
     else if (arg === "--timeout-ms") parsed.timeoutMs = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--output") parsed.output = path.resolve(APP_ROOT, requiredValue(argv, ++index, arg));
     else throw new Error(`Unknown city benchmark argument: ${arg}`);

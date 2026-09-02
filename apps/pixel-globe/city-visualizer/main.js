@@ -21,6 +21,7 @@ import {
   docksideShipVerticalPlacement,
   layerParallaxAnchor,
   layerParallaxDepth,
+  layerPainterZ,
   layerSceneOffsetX,
   layerSceneOffsetY,
   layerSceneZ,
@@ -37,7 +38,8 @@ import {
 import {
   PIRATE_MENU_CHART_LINE,
   PIRATE_MENU_INK,
-  PIRATE_MENU_PAPER
+  PIRATE_MENU_PAPER,
+  PIRATE_MENU_PAPER_SELECTED
 } from "../src/pirateUiPalette.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import {
@@ -81,6 +83,7 @@ import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
 import { cityTreePlacements } from "./cityTrees.js";
 import { cityQuayCargoPlacements } from "./cityQuayCargo.js";
 import {
+  CITY_SHIPYARD_SALE_SHIP_MAX_COUNT,
   cityShipyardSaleShipContainsPoint,
   cityShipyardSaleShipPlacements,
   cityShipyardSaleShipSlugs,
@@ -150,10 +153,38 @@ import {
 } from "../src/performanceBenchmark.js";
 import { cityVisualizerBenchmarkFromSearch } from "./cityVisualizerBenchmark.js";
 import { createCachedSceneRenderer } from "../src/cachedSceneRenderer.js";
+import {
+  FIRE_FRAME_COUNT,
+  FIRE_FRAME_HEIGHT,
+  FIRE_FRAME_MS,
+  FIRE_FRAME_WIDTH,
+  FIRE_VARIANT_COUNT,
+  fireAnimationFrame,
+  fireVariantIndex
+} from "../src/fireEffects.js";
+import { darkerResurrect64Hex } from "../src/waterLatitudePalette.js";
 import { shipyardConstructionFillPixels } from "../src/shipyardConstructionArt.js";
 import {
   CITY_STATIC_SCENE_ENTRY_KINDS
 } from "./cityStaticSceneProjection.js";
+import {
+  CITY_DOCKSIDE_SHADOW_STATES,
+  cityDocksideAssetUrls,
+  cityFlagAssetUrl,
+  indexCitySideViewShips,
+  publicCityAssetUrl,
+  requireCityDocksideShip,
+  requireCityFlag,
+  requireCitySideViewShip,
+  validateCityDocksideShipManifest,
+  validateCityFlagManifest
+} from "./citySceneAssetContracts.js";
+import {
+  cityBombardmentBuildingIsAffected,
+  cityBombardmentDamage,
+  cityBombardmentLayerIsDamageable,
+  cityBombardmentSeed
+} from "./cityBombardmentDamage.js";
 
 export async function createCitySceneRuntime({
   canvas,
@@ -166,6 +197,7 @@ export async function createCitySceneRuntime({
   initialShipSlug = null,
   initialSaleShipSlugs = null,
   externalFrameClock = false,
+  separateEmissiveOverlay = false,
   benchmark = null,
   onDestination = null,
   renderText = (text) => text,
@@ -175,11 +207,19 @@ export async function createCitySceneRuntime({
 if (!(canvas instanceof HTMLCanvasElement)) {
   throw new TypeError("City scene runtime requires an HTML canvas");
 }
+if (typeof separateEmissiveOverlay !== "boolean") {
+  throw new TypeError("City scene runtime requires an explicit emissive-overlay mode");
+}
 for (const [label, callback] of Object.entries({ renderText, smallFontForText, titleFontForText })) {
   if (typeof callback !== "function") throw new TypeError(`City scene runtime requires ${label}`);
 }
 const context = canvas.getContext("2d", { alpha: false });
 if (!context) throw new Error("City scene runtime could not create its 2D canvas context");
+const emissiveCanvas = separateEmissiveOverlay ? document.createElement("canvas") : null;
+const emissiveContext = emissiveCanvas?.getContext("2d") || null;
+if (separateEmissiveOverlay && !emissiveContext) {
+  throw new Error("City scene runtime could not create its emissive overlay context");
+}
 const pixelText = createCityPixelTextRenderer(context, () => document.createElement("canvas"));
 const inertControl = (value = "auto") => ({ value });
 const citySelect = controls?.citySelect || inertControl("");
@@ -194,6 +234,7 @@ const leftTerrainOverride = controls?.leftTerrainOverride || inertControl();
 const rightTerrainOverride = controls?.rightTerrainOverride || inertControl();
 const windSpeedOverride = controls?.windSpeedOverride || inertControl();
 const windDirectionOverride = controls?.windDirectionOverride || inertControl();
+const bombardmentToggle = controls?.bombardmentToggle || null;
 const resetOverrides = controls?.resetOverrides || null;
 const ruleLedger = controls?.ruleLedger || null;
 const destinationDialog = controls?.destinationDialog || null;
@@ -210,6 +251,10 @@ const imageAlphaCache = new WeakMap();
 const animatedRowEdgeCache = new WeakMap();
 const latitudeWaterFrameCanvasCache = new WeakMap();
 const latitudeWaterCssColorCache = new Map();
+const docksideShipPresentationPromiseCache = new Map();
+const bombardmentFrameCache = new Map();
+const bombardmentScaledHoleRunCache = new WeakMap();
+const MAX_DOCKSIDE_SHIP_PRESENTATIONS = 4;
 const CITY_VISUALIZER_BENCHMARK = benchmark ?? (
   externalFrameClock ? null : cityVisualizerBenchmarkFromSearch(window.location.search)
 );
@@ -217,22 +262,31 @@ const STATIC_SCENE_ENTRY_KINDS = new Set(CITY_STATIC_SCENE_ENTRY_KINDS);
 const BACKGROUND_CITY_UNDERLAY_LAYER_NAMES = new Set(
   Object.values(BACKGROUND_CITY_UNDERLAY_LAYERS)
 );
+const CITY_VISUALIZER_DEFAULT_CITY_ID = "london|united kingdom";
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 let renderFrameId = null;
+let bombardmentOverlayFrameCache = null;
 const state = {
   ready: false,
   catalog: null,
   portManifest: null,
   peopleManifest: null,
   shipManifest: null,
+  docksideShipCatalog: null,
   shipSideViewManifest: null,
+  sideViewShipsBySlug: null,
+  sideViewRastersBySlug: null,
+  saleShipRastersBySlug: null,
+  flagCatalog: null,
+  flagImagesByFactionId: null,
   treeManifest: null,
   staticAtlas: null,
   waveAtlas: null,
   surfAtlas: null,
   treeAtlas: null,
   peopleAtlas: null,
+  fireAtlas: null,
   peopleById: new Map(),
   shipImage: null,
   shipOutline: null,
@@ -240,10 +294,8 @@ const state = {
   shipWaterlineLayers: null,
   shipWaterShadowImages: null,
   shipSlug: null,
-  shipyardSaleRequestKey: null,
   shipyardSaleShips: [],
   shipyardSaleShipPlacements: [],
-  shipyardConstructionRequestKey: null,
   shipyardConstructionPlacement: null,
   cityFlagFactionId: null,
   cityFlagImage: null,
@@ -268,6 +320,7 @@ const state = {
   availableDestinationIds: null,
   barred: false,
   illicitCaughtStartedAtMs: null,
+  bombardmentEventId: null,
   specialAgents: [],
   backgroundCityRows: [],
   backgroundCityPainterOrder: [],
@@ -285,6 +338,7 @@ const state = {
   renderCount: 0,
   benchmarkState: null
 };
+let citySelectionSerial = 0;
 const citySceneRenderer = createCachedSceneRenderer({
   displayContext: context,
   createSurface: createCitySceneCacheSurface,
@@ -347,15 +401,24 @@ const DESTINATIONS = Object.freeze([
 
 async function initialize() {
   try {
-    const [catalog, portManifest, peopleManifest, shipManifest, shipSideViewManifest, treeManifest] = await Promise.all([
+    const [
+      catalog,
+      portManifest,
+      peopleManifest,
+      shipManifest,
+      shipSideViewManifest,
+      treeManifest,
+      flagManifest
+    ] = await Promise.all([
       fetchJson(catalogUrl),
       fetchJson(`${assetBaseUrl}/port-parallax/manifest.json`, { cache: "no-store" }),
       fetchJson(`${assetBaseUrl}/minifolks/manifest.json`),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),
       fetchJson("/assets/vehicles/unity-ships/side-views/manifest.json"),
       fetchJson(`${assetBaseUrl}/trees/manifest.json`),
-      document.fonts?.load?.(CITY_PIXEL_FONT_SMALL_8) || Promise.resolve(),
-      document.fonts?.load?.(CITY_PIXEL_FONT_TITLE_8) || Promise.resolve()
+      fetchJson("/assets/factions/flags/manifest.json"),
+      loadRequiredCityFont(CITY_PIXEL_FONT_SMALL_8),
+      loadRequiredCityFont(CITY_PIXEL_FONT_TITLE_8)
     ]);
     state.catalog = catalog;
     state.portManifest = portManifest;
@@ -364,16 +427,36 @@ async function initialize() {
       state.peopleManifest.appearances.map((appearance) => [appearance.id, appearance])
     );
     state.shipManifest = shipManifest;
+    state.docksideShipCatalog = validateCityDocksideShipManifest(shipManifest);
     state.shipSideViewManifest = validateCityShipSideViewManifest(shipSideViewManifest);
+    state.sideViewShipsBySlug = indexCitySideViewShips(state.shipSideViewManifest);
+    state.flagCatalog = validateCityFlagManifest(flagManifest);
     state.treeManifest = treeManifest;
-    [state.staticAtlas, state.waveAtlas, state.surfAtlas, state.treeAtlas, state.peopleAtlas] = await Promise.all([
+    [
+      state.staticAtlas,
+      state.waveAtlas,
+      state.surfAtlas,
+      state.treeAtlas,
+      state.peopleAtlas,
+      state.fireAtlas
+    ] = await Promise.all([
       loadImage(portAtlasUrl(portManifest, portManifest.staticSheet)),
       loadImage(portAtlasUrl(portManifest, portManifest.animated?.Waves?.sheet)),
       loadImage(portAtlasUrl(portManifest, portManifest.animated?.Surf?.sheet)),
       loadImage(`${assetBaseUrl}/trees/${treeManifest.sheet}`),
-      loadImage(`${assetBaseUrl}/minifolks/${state.peopleManifest.sheet}`)
+      loadImage(`${assetBaseUrl}/minifolks/${state.peopleManifest.sheet}`),
+      loadImage("/assets/misc/fire.png?v=fire-effect-2")
     ]);
+    if (
+      state.fireAtlas.width !== FIRE_FRAME_WIDTH * FIRE_FRAME_COUNT ||
+      state.fireAtlas.height !== FIRE_FRAME_HEIGHT * FIRE_VARIANT_COUNT
+    ) {
+      throw new Error(
+        `City fire atlas has invalid dimensions: ${state.fireAtlas.width}x${state.fireAtlas.height}`
+      );
+    }
     prepareScenePixelCaches();
+    await preloadSharedCitySceneImages();
     if (controls) prepareControls();
     await selectInitialCity();
     if (!externalFrameClock) resizeLogicalCanvas();
@@ -392,6 +475,45 @@ async function initialize() {
     }
     throw error;
   }
+}
+
+async function loadRequiredCityFont(font) {
+  if (!document.fonts || typeof document.fonts.load !== "function") {
+    throw new Error("City scene requires the browser FontFaceSet loading contract");
+  }
+  const faces = await document.fonts.load(font);
+  if (!faces || faces.length === 0) throw new Error(`City scene font did not load: ${font}`);
+}
+
+async function preloadSharedCitySceneImages() {
+  const [flagEntries, sideViewEntries] = await Promise.all([
+    Promise.all(state.flagCatalog.manifest.factions.map(async (flag) => {
+      const image = await loadImage(cityFlagAssetUrl(flag));
+      if (image.width !== flag.width || image.height !== flag.height) {
+        throw new Error(
+          `City flag ${flag.id} must be ${flag.width}x${flag.height}, ` +
+          `got ${image.width}x${image.height}`
+        );
+      }
+      return [flag.id, image];
+    })),
+    Promise.all(state.shipSideViewManifest.ships.map(async (ship) => {
+      const image = await loadImage(publicCityAssetUrl(ship.file));
+      if (image.width !== ship.width || image.height !== ship.height) {
+        throw new Error(
+          `City ship side view has mismatched dimensions: ${ship.slug} ` +
+          `${image.width}x${image.height}`
+        );
+      }
+      return [ship.slug, cityShipSideViewRaster(ship, image)];
+    }))
+  ]);
+  state.flagImagesByFactionId = new Map(flagEntries);
+  state.sideViewRastersBySlug = new Map(sideViewEntries);
+  state.saleShipRastersBySlug = new Map(sideViewEntries.map(([shipSlug, raster]) => [
+    shipSlug,
+    cityShipyardSaleShipRaster(raster)
+  ]));
 }
 
 function prepareScenePixelCaches() {
@@ -438,6 +560,10 @@ function prepareControls() {
   for (const control of [windSpeedOverride, windDirectionOverride]) {
     control.addEventListener("change", applyWindOverrides);
   }
+  if (!bombardmentToggle) throw new Error("City visualizer is missing its bombardment toggle");
+  bombardmentToggle.addEventListener("change", () => {
+    setBombardmentEventId(bombardmentToggle.checked ? "visualizer-test-bombardment" : null);
+  });
   resetOverrides.addEventListener("click", () => {
     for (const control of [
       approachOverride,
@@ -450,21 +576,33 @@ function prepareControls() {
     ]) control.value = "auto";
     windSpeedOverride.value = "auto";
     windDirectionOverride.value = "auto";
+    bombardmentToggle.checked = false;
+    state.bombardmentEventId = null;
+    bombardmentFrameCache.clear();
+    bombardmentOverlayFrameCache = null;
     applyFeatureOverrides();
   });
 }
 
 async function selectInitialCity() {
-  const requested = initialCityId || (
-    externalFrameClock ? null : new URL(location.href).searchParams.get("city")
+  const searchParams = externalFrameClock ? null : new URL(location.href).searchParams;
+  const requested = initialCityId ?? (
+    searchParams?.get("city") || null
   );
-  const city = state.catalog.cities.find((candidate) => candidate.id === requested) ||
-    state.catalog.cities.find((candidate) => candidate.label === "London") ||
-    state.catalog.cities[0];
-  await selectCity(city.id, {
+  await selectCity(requested ?? CITY_VISUALIZER_DEFAULT_CITY_ID, {
     playerShipSlug: initialShipSlug,
-    saleShipSlugs: initialSaleShipSlugs
+    saleShipSlugs: initialSaleShipSlugs,
+    bombardmentEventId: searchParams
+      ? visualizerBombardmentEventIdFromSearch(searchParams)
+      : null
   });
+}
+
+function visualizerBombardmentEventIdFromSearch(searchParams) {
+  const raw = searchParams.get("bombarded");
+  if (raw === null || raw === "0") return null;
+  if (raw === "1") return "visualizer-test-bombardment";
+  throw new Error(`Invalid bombarded query value: ${raw}`);
 }
 
 async function selectCity(cityId, {
@@ -475,38 +613,48 @@ async function selectCity(cityId, {
   label = null,
   shipyardConstruction = null,
   barred = false,
-  illicitCaughtStartedAtMs = null
+  illicitCaughtStartedAtMs = null,
+  bombardmentEventId = null
 } = {}) {
-  const catalogCity = state.catalog.cities.find((candidate) => candidate.id === cityId);
-  if (!catalogCity) throw new Error(`Unknown visualizer city: ${cityId}`);
-  if (factionId !== null && (typeof factionId !== "string" || factionId === "")) {
-    throw new Error(`Invalid visualizer city faction: ${factionId}`);
-  }
-  if (label !== null && (typeof label !== "string" || label.trim() === "")) {
-    throw new Error(`Invalid visualizer city label: ${label}`);
-  }
-  const liveFactionId = factionId ?? catalogCity.factionId;
-  const liveLabel = label ?? catalogCity.label;
-  const city = liveFactionId === catalogCity.factionId && liveLabel === catalogCity.label
-    ? catalogCity
-    : Object.freeze({ ...catalogCity, factionId: liveFactionId, label: liveLabel });
-  state.city = city;
-  state.availableDestinationIds = availableDestinationIds === null
+  const serial = ++citySelectionSerial;
+  const city = resolveCityRecord(cityId, { factionId, label });
+  const validatedDestinationIds = availableDestinationIds === null
     ? null
     : validateAvailableDestinationIds(availableDestinationIds);
-  state.barred = barred === true;
+  if (typeof barred !== "boolean") throw new Error(`Invalid barred city state: ${barred}`);
   if (illicitCaughtStartedAtMs !== null &&
       (!Number.isFinite(illicitCaughtStartedAtMs) || illicitCaughtStartedAtMs < 0)) {
     throw new Error(`Invalid illicit-trade city event time: ${illicitCaughtStartedAtMs}`);
   }
+  validateBombardmentEventId(bombardmentEventId);
+  const prepared = await preloadCitySelection(city, {
+    playerShipSlug,
+    saleShipSlugs,
+    shipyardConstruction
+  });
+  if (serial !== citySelectionSerial) return;
+
+  state.city = city;
+  state.availableDestinationIds = validatedDestinationIds;
+  state.barred = barred;
   state.illicitCaughtStartedAtMs = illicitCaughtStartedAtMs;
+  state.bombardmentEventId = bombardmentEventId;
+  bombardmentFrameCache.clear();
+  bombardmentOverlayFrameCache = null;
   state.focusedDestinationId = null;
   state.cityFlagFactionId = city.factionId;
-  state.cityFlagImage = null;
-  state.shipyardSaleShips = [];
-  state.shipyardSaleShipPlacements = [];
-  state.shipyardConstructionPlacement = null;
+  state.cityFlagImage = prepared.cityFlagImage;
+  state.shipSlug = prepared.ship.slug;
+  state.shipImage = prepared.shipPresentation.shipImage;
+  state.shipOutline = prepared.shipPresentation.shipOutline;
+  state.shipSinkDepthImage = prepared.shipPresentation.shipSinkDepthImage;
+  state.shipWaterlineLayers = prepared.shipPresentation.shipWaterlineLayers;
+  state.shipWaterShadowImages = prepared.shipPresentation.shipWaterShadowImages;
+  state.shipyardSaleShips = prepared.saleShips;
+  state.shipyardSaleShipPlacements = cityShipyardSaleShipPlacements(prepared.saleShips);
+  state.shipyardConstructionPlacement = prepared.shipyardConstructionPlacement;
   citySelect.value = city.id;
+  shipSelect.value = prepared.ship.slug;
   canvas.setAttribute("aria-label", `${renderText(city.label)}, ${renderText(city.country)}`);
   for (const control of [
     approachOverride,
@@ -519,26 +667,149 @@ async function selectCity(cityId, {
   ]) control.value = "auto";
   windSpeedOverride.value = "auto";
   windDirectionOverride.value = "auto";
-  applyFeatureOverrides();
+  if (bombardmentToggle) bombardmentToggle.checked = bombardmentEventId !== null;
+  applyFeatureOverrides({ rebuild: false });
   state.parallax = sceneCameraDefaultParallax(state.features.approach);
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
   state.cloudDriftByLayer = new Map(CITY_CLOUD_SPECS.map(({ layer }) => [layer, 0]));
   state.lastCloudTimeMs = null;
-  await Promise.all([
-    selectCityFlag(city),
-    selectShip(playerShipSlug || city.defaultShip),
-    selectShipyardSaleShips(saleShipSlugs || cityShipyardSaleShipSlugs(city, state.features)),
-    selectShipyardConstruction(shipyardConstruction)
-  ]);
-  if (state.city.id !== city.id) return;
-  const firstDestination = activeDestinations()[0];
-  if (firstDestination) focusDestination(firstDestination.id, { immediate: true });
+  rebuildCitySceneRenderPlan();
+  updateHover();
+  const initialDestinations = activeDestinations();
+  if (initialDestinations.length === 0) {
+    state.focusedDestinationId = null;
+  } else {
+    const playerShipDestination = destinationById(PORT_CITY_LOCATION.SHIP);
+    if (!playerShipDestination) {
+      throw new Error("Interactive city scene is missing the player-ship destination");
+    }
+    state.focusedDestinationId = playerShipDestination.id;
+  }
   if (!externalFrameClock) {
     const url = new URL(location.href);
     url.searchParams.set("city", city.id);
     history.replaceState(null, "", url);
   }
+}
+
+function resolveCityRecord(cityId, { factionId = null, label = null } = {}) {
+  const catalogCity = state.catalog.cities.find((candidate) => candidate.id === cityId);
+  if (!catalogCity) throw new Error(`Unknown visualizer city: ${cityId}`);
+  if (factionId !== null && (typeof factionId !== "string" || factionId === "")) {
+    throw new Error(`Invalid visualizer city faction: ${factionId}`);
+  }
+  if (label !== null && (typeof label !== "string" || label.trim() === "")) {
+    throw new Error(`Invalid visualizer city label: ${label}`);
+  }
+  const liveFactionId = factionId ?? catalogCity.factionId;
+  const liveLabel = label ?? catalogCity.label;
+  return liveFactionId === catalogCity.factionId && liveLabel === catalogCity.label
+    ? catalogCity
+    : Object.freeze({ ...catalogCity, factionId: liveFactionId, label: liveLabel });
+}
+
+async function preloadCity(cityId, options = {}) {
+  const city = resolveCityRecord(cityId, options);
+  await preloadCitySelection(city, options);
+}
+
+async function preloadCitySelection(city, {
+  playerShipSlug = null,
+  saleShipSlugs = null,
+  shipyardConstruction = null
+} = {}) {
+  const features = resolveCitySceneFeatures(city, {});
+  const resolvedPlayerShipSlug = playerShipSlug ?? city.defaultShip;
+  const resolvedSaleShipSlugs = saleShipSlugs === null
+    ? cityShipyardSaleShipSlugs(city, features)
+    : validateSaleShipSlugs(saleShipSlugs, city.id);
+  const validatedConstruction = validateCityShipyardConstruction(shipyardConstruction);
+  const ship = requireCityDocksideShip(state.docksideShipCatalog, resolvedPlayerShipSlug);
+  const cityFlagImage = cityGatehouseFlagVisible({ fortified: true, factionId: city.factionId })
+    ? requiredPreloadedFlagImage(city.factionId)
+    : null;
+  const saleShips = Object.freeze(resolvedSaleShipSlugs.map((shipSlug) => (
+    requiredPreloadedSaleShip(shipSlug)
+  )));
+  const shipyardConstructionPlacement = validatedConstruction
+    ? preparedShipyardConstructionPlacement(validatedConstruction)
+    : null;
+  const shipPresentation = await prepareDocksideShipPresentation(ship, city.lat);
+  return Object.freeze({
+    ship,
+    shipPresentation,
+    cityFlagImage,
+    saleShips,
+    shipyardConstructionPlacement
+  });
+}
+
+function validateSaleShipSlugs(shipSlugs, cityId) {
+  if (!Array.isArray(shipSlugs)) throw new Error(`Invalid city sale ship list: ${cityId}`);
+  if (shipSlugs.length > CITY_SHIPYARD_SALE_SHIP_MAX_COUNT) {
+    throw new Error(
+      `City sale ship list exceeds ${CITY_SHIPYARD_SALE_SHIP_MAX_COUNT}: ${cityId}`
+    );
+  }
+  return Object.freeze(shipSlugs.map((shipSlug) => {
+    if (typeof shipSlug !== "string" || shipSlug.length === 0) {
+      throw new Error(`Invalid city sale ship canonical ID: ${cityId}`);
+    }
+    return shipSlug;
+  }));
+}
+
+function validateBombardmentEventId(eventId) {
+  if (eventId !== null && (typeof eventId !== "string" || eventId === "")) {
+    throw new Error(`Invalid city bombardment event ID: ${eventId}`);
+  }
+}
+
+function setBombardmentEventId(eventId) {
+  validateBombardmentEventId(eventId);
+  if (state.bombardmentEventId === eventId) return;
+  state.bombardmentEventId = eventId;
+  bombardmentFrameCache.clear();
+  bombardmentOverlayFrameCache = null;
+  rebuildCitySceneRenderPlan();
+  if (!externalFrameClock) {
+    const url = new URL(location.href);
+    if (eventId === null) url.searchParams.delete("bombarded");
+    else url.searchParams.set("bombarded", "1");
+    history.replaceState(null, "", url);
+  }
+}
+
+function requiredPreloadedFlagImage(factionId) {
+  const flag = requireCityFlag(state.flagCatalog, factionId);
+  const image = state.flagImagesByFactionId.get(flag.id);
+  if (!image) throw new Error(`City faction flag was not preloaded: ${flag.id}`);
+  return image;
+}
+
+function requiredPreloadedSaleShip(shipSlug) {
+  requireCitySideViewShip(state.sideViewShipsBySlug, shipSlug, "city sale ship side view");
+  const raster = state.saleShipRastersBySlug.get(shipSlug);
+  if (!raster) throw new Error(`City sale ship side view was not preloaded: ${shipSlug}`);
+  return raster;
+}
+
+function preparedShipyardConstructionPlacement(construction) {
+  requireCitySideViewShip(
+    state.sideViewShipsBySlug,
+    construction.shipSlug,
+    "city construction ship side view"
+  );
+  const raster = state.sideViewRastersBySlug.get(construction.shipSlug);
+  if (!raster) {
+    throw new Error(`City construction ship side view was not preloaded: ${construction.shipSlug}`);
+  }
+  const constructionImage = cityShipyardConstructionImage(raster, construction.progress);
+  return cityShipyardConstructionPlacement(
+    Object.freeze({ ...raster, image: constructionImage }),
+    construction.progress
+  );
 }
 
 function reportVisualizerError(error) {
@@ -549,26 +820,8 @@ function reportVisualizerError(error) {
   }
 }
 
-async function selectCityFlag(city) {
-  const factionId = city.factionId;
-  state.cityFlagFactionId = factionId;
-  state.cityFlagImage = null;
-  if (!cityGatehouseFlagVisible({ fortified: true, factionId })) return;
-  try {
-    const image = await loadImage(`/assets/factions/flags/${factionId}.png`);
-    if (image.width !== 32 || image.height !== 20) {
-      throw new Error(`City flag ${factionId} must be 32x20, got ${image.width}x${image.height}`);
-    }
-    if (state.cityFlagFactionId === factionId) {
-      state.cityFlagImage = image;
-      rebuildCitySceneRenderPlan();
-    }
-  } catch (error) {
-    console.error(`Could not load city flag ${factionId}`, error);
-  }
-}
-
-function applyFeatureOverrides() {
+function applyFeatureOverrides({ rebuild = true } = {}) {
+  bombardmentOverlayFrameCache = null;
   const mountain = mountainOverride.value;
   const overrides = {
     approach: autoValue(approachOverride.value),
@@ -666,7 +919,7 @@ function applyFeatureOverrides() {
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
   applyWindOverrides();
-  rebuildCitySceneRenderPlan();
+  if (rebuild) rebuildCitySceneRenderPlan();
 }
 
 function applyWindOverrides() {
@@ -678,121 +931,99 @@ function applyWindOverrides() {
   updateHover();
 }
 
-async function selectShip(slug) {
-  const ship = state.shipManifest.ships.find((candidate) => candidate.slug === slug) || state.shipManifest.ships[0];
-  if (!ship.cityDockside) throw new Error(`Missing native city dockside raster: ${ship.slug}`);
-  const waterShadowEntries = ship.cityDockside.waterShadows;
-  if (
-    !waterShadowEntries ||
-    JSON.stringify(Object.keys(waterShadowEntries).sort()) !== JSON.stringify(["down", "level", "up"])
-  ) {
-    throw new Error(`Missing dockside water-shadow bakes: ${ship.slug}`);
-  }
+async function selectShip(shipSlug) {
+  const serial = ++citySelectionSerial;
+  const ship = requireCityDocksideShip(state.docksideShipCatalog, shipSlug);
+  const presentation = await prepareDocksideShipPresentation(ship, state.city.lat);
+  if (serial !== citySelectionSerial) return;
   state.shipSlug = ship.slug;
+  state.shipImage = presentation.shipImage;
+  state.shipOutline = presentation.shipOutline;
+  state.shipSinkDepthImage = presentation.shipSinkDepthImage;
+  state.shipWaterlineLayers = presentation.shipWaterlineLayers;
+  state.shipWaterShadowImages = presentation.shipWaterShadowImages;
   shipSelect.value = ship.slug;
-  state.shipImage = null;
-  state.shipOutline = null;
-  state.shipSinkDepthImage = null;
-  state.shipWaterlineLayers = null;
-  state.shipWaterShadowImages = null;
-  const shadowStates = ["up", "level", "down"];
-  const [shipImage, shipSinkDepthImage, ...waterShadowMasks] = await Promise.all([
-    loadImage(publicAssetUrl(ship.cityDockside.file)),
-    loadImage(publicAssetUrl(ship.cityDockside.sinkDepthFile)),
-    ...shadowStates.map((bobState) => (
-      loadImage(publicAssetUrl(waterShadowEntries[bobState].file))
-    ))
-  ]);
-  if (state.shipSlug !== ship.slug) return;
-  for (const mask of waterShadowMasks) {
-    if (mask.width !== shipImage.width || mask.height !== shipImage.height) {
-      throw new Error(`Dockside water-shadow bake has mismatched dimensions: ${ship.slug}`);
-    }
-  }
-  state.shipImage = shipImage;
-  state.shipOutline = tintedImageCanvas(shipImage, "#ffe55c");
-  state.shipSinkDepthImage = shipSinkDepthImage;
-  const waterlineRgb = cityWaterPaletteRgb(
-    DOCKSIDE_SHIP_WATERLINE_RGB.r,
-    DOCKSIDE_SHIP_WATERLINE_RGB.g,
-    DOCKSIDE_SHIP_WATERLINE_RGB.b,
-    state.city.lat,
-    PORT_SCENE_DOCK.waterlineY
-  );
-  state.shipWaterlineLayers = docksideShipWaterlineLayers(
-    shipImage,
-    shipSinkDepthImage,
-    ship.slug,
-    waterlineRgb
-  );
-  state.shipWaterShadowImages = Object.freeze(Object.fromEntries(
-    shadowStates.map((bobState, index) => [
-      bobState,
-      tintedDocksideWaterShadow(waterShadowMasks[index])
-    ])
-  ));
-}
-
-async function selectShipyardSaleShips(slugs) {
-  const requestKey = `${state.city.id}:${slugs.join(",")}`;
-  state.shipyardSaleRequestKey = requestKey;
-  state.shipyardSaleShips = [];
-  state.shipyardSaleShipPlacements = [];
-  rebuildCitySceneRenderPlan();
-  const manifestBySlug = new Map(
-    state.shipSideViewManifest.ships.map((ship) => [ship.slug, ship])
-  );
-  const ships = await Promise.all(slugs.map(async (slug) => {
-    const ship = manifestBySlug.get(slug);
-    if (!ship) throw new Error(`Missing city shipyard sale side view: ${slug}`);
-    const image = await loadImage(publicAssetUrl(ship.file));
-    if (image.width !== ship.width || image.height !== ship.height) {
-      throw new Error(
-        `City shipyard sale side view has mismatched dimensions: ${slug} ` +
-        `${image.width}x${image.height}`
-      );
-    }
-    return cityShipyardSaleShipRaster(ship, image);
-  }));
-  if (state.shipyardSaleRequestKey !== requestKey) return;
-  state.shipyardSaleShips = Object.freeze(ships);
-  state.shipyardSaleShipPlacements = cityShipyardSaleShipPlacements(ships);
   rebuildCitySceneRenderPlan();
   updateHover();
 }
 
-async function selectShipyardConstruction(construction) {
-  const validated = validateCityShipyardConstruction(construction);
-  const requestKey = `${state.city.id}:${validated?.shipSlug || "none"}:${validated?.progress ?? 0}`;
-  state.shipyardConstructionRequestKey = requestKey;
-  state.shipyardConstructionPlacement = null;
-  rebuildCitySceneRenderPlan();
-  if (!validated) return;
-  const ship = state.shipSideViewManifest.ships.find(({ slug }) => slug === validated.shipSlug);
-  if (!ship) throw new Error(`Missing city construction side view: ${validated.shipSlug}`);
-  const image = await loadImage(publicAssetUrl(ship.file));
-  if (image.width !== ship.width || image.height !== ship.height) {
-    throw new Error(
-      `City construction side view has mismatched dimensions: ${ship.slug} ` +
-      `${image.width}x${image.height}`
-    );
+function prepareDocksideShipPresentation(ship, latitudeDeg) {
+  const waterBand = cityWaterLatitudeBand(latitudeDeg);
+  const cacheKey = `${ship.slug}:${waterBand}`;
+  const cached = docksideShipPresentationPromiseCache.get(cacheKey);
+  if (cached) {
+    docksideShipPresentationPromiseCache.delete(cacheKey);
+    docksideShipPresentationPromiseCache.set(cacheKey, cached);
+    return cached;
   }
-  const raster = cityShipSideViewRaster(ship, image);
-  const constructionImage = cityShipyardConstructionImage(raster, validated.progress);
-  if (state.shipyardConstructionRequestKey !== requestKey) return;
-  state.shipyardConstructionPlacement = cityShipyardConstructionPlacement(
-    Object.freeze({ ...raster, image: constructionImage }),
-    validated.progress
-  );
-  rebuildCitySceneRenderPlan();
+  const request = prepareDocksideShipPresentationUncached(ship, latitudeDeg).catch((error) => {
+    if (docksideShipPresentationPromiseCache.get(cacheKey) === request) {
+      docksideShipPresentationPromiseCache.delete(cacheKey);
+    }
+    throw error;
+  });
+  docksideShipPresentationPromiseCache.set(cacheKey, request);
+  while (docksideShipPresentationPromiseCache.size > MAX_DOCKSIDE_SHIP_PRESENTATIONS) {
+    const oldestKey = docksideShipPresentationPromiseCache.keys().next().value;
+    docksideShipPresentationPromiseCache.delete(oldestKey);
+  }
+  return request;
 }
 
-function cityShipyardSaleShipRaster(ship, image) {
-  const raster = cityShipSideViewRaster(ship, image);
+async function prepareDocksideShipPresentationUncached(ship, latitudeDeg) {
+  const assetUrls = cityDocksideAssetUrls(state.docksideShipCatalog, ship.slug);
+  const [shipImage, shipSinkDepthImage, ...waterShadowMasks] = await Promise.all(
+    assetUrls.map(loadTransientImage)
+  );
+  const { width, height } = ship.cityDockside;
+  for (const [label, image] of [
+    ["raster", shipImage],
+    ["sink-depth raster", shipSinkDepthImage],
+    ...CITY_DOCKSIDE_SHADOW_STATES.map((shadowState, index) => [
+      `${shadowState} water-shadow bake`,
+      waterShadowMasks[index]
+    ])
+  ]) {
+    if (image.width !== width || image.height !== height) {
+      throw new Error(
+        `Dockside ${label} has mismatched dimensions: ${ship.slug} ` +
+        `${image.width}x${image.height}; expected ${width}x${height}`
+      );
+    }
+  }
+  const waterlineRgb = cityWaterPaletteRgb(
+    DOCKSIDE_SHIP_WATERLINE_RGB.r,
+    DOCKSIDE_SHIP_WATERLINE_RGB.g,
+    DOCKSIDE_SHIP_WATERLINE_RGB.b,
+    latitudeDeg,
+    PORT_SCENE_DOCK.waterlineY
+  );
+  return Object.freeze({
+    shipImage,
+    shipOutline: tintedImageCanvas(shipImage, "#ffe55c"),
+    shipSinkDepthImage,
+    shipWaterlineLayers: docksideShipWaterlineLayers(
+      shipImage,
+      shipSinkDepthImage,
+      ship.slug,
+      waterlineRgb
+    ),
+    shipWaterShadowImages: Object.freeze(Object.fromEntries(
+      CITY_DOCKSIDE_SHADOW_STATES.map((shadowState, index) => [
+        shadowState,
+        tintedDocksideWaterShadow(waterShadowMasks[index])
+      ])
+    ))
+  });
+}
+
+function cityShipyardSaleShipRaster(raster) {
+  const image = raster.image;
   const outline = document.createElement("canvas");
   outline.width = raster.width;
   outline.height = raster.height;
   const outlineContext = outline.getContext("2d");
+  if (!outlineContext) throw new Error(`Could not create city sale ship outline: ${raster.slug}`);
   outlineContext.imageSmoothingEnabled = false;
   outlineContext.drawImage(image, 0, 0);
   outlineContext.globalCompositeOperation = "source-in";
@@ -806,6 +1037,7 @@ function cityShipSideViewRaster(ship, image) {
   source.width = ship.width;
   source.height = ship.height;
   const sourceContext = source.getContext("2d", { willReadFrequently: true });
+  if (!sourceContext) throw new Error(`Could not create city side-view raster: ${ship.slug}`);
   sourceContext.imageSmoothingEnabled = false;
   sourceContext.drawImage(image, 0, 0);
   const pixels = sourceContext.getImageData(0, 0, source.width, source.height).data;
@@ -854,14 +1086,6 @@ function cityShipyardConstructionImage(ship, progress) {
   target.clearRect(0, 0, canvas.width, canvas.height);
   target.putImageData(output, 0, 0);
   return canvas;
-}
-
-function publicAssetUrl(file) {
-  const prefix = "apps/pixel-globe/public";
-  if (typeof file !== "string" || !file.startsWith(`${prefix}/`)) {
-    throw new Error(`City visualizer requires a public asset path: ${file}`);
-  }
-  return file.slice(prefix.length);
 }
 
 function updateRuleLedger() {
@@ -1185,9 +1409,24 @@ function render(timeMs) {
   }
 }
 
+function prepareEmissiveFrame() {
+  if (!separateEmissiveOverlay) return;
+  if (!emissiveCanvas || !emissiveContext) {
+    throw new Error("City emissive overlay mode has no render surface");
+  }
+  if (emissiveCanvas.width !== canvas.width || emissiveCanvas.height !== canvas.height) {
+    emissiveCanvas.width = canvas.width;
+    emissiveCanvas.height = canvas.height;
+  }
+  emissiveContext.setTransform(1, 0, 0, 1, 0, 0);
+  emissiveContext.clearRect(0, 0, emissiveCanvas.width, emissiveCanvas.height);
+  emissiveContext.imageSmoothingEnabled = false;
+}
+
 function renderCityFrame(timeMs) {
   advanceCamera(timeMs);
   advanceCloudMotion(timeMs);
+  prepareEmissiveFrame();
   context.imageSmoothingEnabled = false;
   context.fillStyle = "#6385c5";
   context.fillRect(0, 0, canvas.width, canvas.height);
@@ -1207,6 +1446,7 @@ function renderBenchmarkedCityFrame(timeMs) {
     advanceCamera(timeMs);
     advanceCloudMotion(timeMs);
   });
+  prepareEmissiveFrame();
   context.imageSmoothingEnabled = false;
   measureCityBenchmarkStage("render.clear", () => {
     context.fillStyle = "#6385c5";
@@ -1282,6 +1522,7 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
   else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
   else if (entry.kind === "background-city-static") drawBackgroundCityStatic(entry.side, targetContext);
   else if (entry.kind === "background-city-smoke") drawBackgroundCitySmoke(entry.side, timeMs);
+  else if (entry.kind === "bombardment-fire-overlay") drawBombardmentFireOverlay(timeMs);
   else if (
     entry.kind === "left-bank-background-city-base" ||
     entry.kind === "left-bank-background-city-underlay"
@@ -1397,6 +1638,7 @@ function cityVisualizerBenchmarkSceneSnapshot() {
   return {
     cityId: state.city.id,
     approach: state.features.approach,
+    bombarded: state.bombardmentEventId !== null,
     cameraMode: CITY_VISUALIZER_BENCHMARK?.cameraMode || "interactive",
     staticFrames: state.portManifest.staticFrames.length,
     backgroundBuildings: state.backgroundCityPainterOrder.length +
@@ -1427,6 +1669,7 @@ function staticSceneCacheKey(entries) {
   return [
     `${canvas.width}x${canvas.height}`,
     `camera=${state.parallax}`,
+    `bombardment=${state.bombardmentEventId || "none"}`,
     hoveredDestinationId
   ].join("|");
 }
@@ -1466,6 +1709,9 @@ function createSceneRenderEntries() {
   const activeLayers = activePortSceneLayers(state.features);
   const staticOccurrence = new Map();
   const entries = [];
+  const painterZ = (layerName, occurrence = 0) => (
+    layerPainterZ(layerName, occurrence, state.features.approach)
+  );
   for (const [authoredOrder, layerName] of state.portManifest.layerOrder.entries()) {
     const occurrence = layerName === "Waves" || layerName === "Surf"
       ? 0
@@ -1478,7 +1724,7 @@ function createSceneRenderEntries() {
         kind: "animated",
         layerName,
         occurrence,
-        z: layerSceneZ(layerName, occurrence),
+        z: painterZ(layerName, occurrence),
         authoredOrder
       });
       continue;
@@ -1493,7 +1739,7 @@ function createSceneRenderEntries() {
           frame,
           layerName,
           occurrence,
-          z: layerSceneZ(layerName, occurrence),
+          z: painterZ(layerName, occurrence),
           authoredOrder
         });
       }
@@ -1504,7 +1750,7 @@ function createSceneRenderEntries() {
         entries.push({
           kind: "left-bank-background-city-underlay",
           frame,
-          z: layerSceneZ(layerName, occurrence),
+          z: painterZ(layerName, occurrence),
           authoredOrder: authoredOrder - 0.01
         });
       }
@@ -1529,13 +1775,13 @@ function createSceneRenderEntries() {
           entries.push({
             kind: "background-city-static",
             side: "right",
-            z: layerSceneZ(layerName, occurrence) - 0.1,
+            z: painterZ(layerName, occurrence) - 0.1,
             authoredOrder: authoredOrder - 0.1
           });
           entries.push({
             kind: "background-city-smoke",
             side: "right",
-            z: layerSceneZ(layerName, occurrence) - 0.1,
+            z: painterZ(layerName, occurrence) - 0.1,
             authoredOrder: authoredOrder - 0.099
           });
         }
@@ -1544,20 +1790,20 @@ function createSceneRenderEntries() {
             entries.push({
               kind: "background-city-static",
               side: "left",
-              z: layerSceneZ(layerName, occurrence) - 0.1,
+              z: painterZ(layerName, occurrence) - 0.1,
               authoredOrder: authoredOrder - 0.2
             });
             entries.push({
               kind: "background-city-smoke",
               side: "left",
-              z: layerSceneZ(layerName, occurrence) - 0.1,
+              z: painterZ(layerName, occurrence) - 0.1,
               authoredOrder: authoredOrder - 0.199
             });
           }
           entries.push({
             kind: "left-bank-background-city-base",
             frame,
-            z: layerSceneZ(layerName, occurrence),
+            z: painterZ(layerName, occurrence),
             authoredOrder: authoredOrder - 0.05
           });
         }
@@ -1567,7 +1813,7 @@ function createSceneRenderEntries() {
         frame,
         layerName,
         occurrence,
-        z: layerSceneZ(layerName, occurrence),
+        z: painterZ(layerName, occurrence),
         authoredOrder
       });
       if (
@@ -1585,7 +1831,7 @@ function createSceneRenderEntries() {
             cityArchitectureStyleForLayer(state.city, CITY_GATEHOUSE_FLAG_LAYER),
             CITY_GATEHOUSE_FLAG_LAYER
           ) || frame,
-          z: layerSceneZ(layerName, occurrence),
+          z: painterZ(layerName, occurrence),
           authoredOrder: authoredOrder + 0.01
         });
       }
@@ -1691,12 +1937,19 @@ function createSceneRenderEntries() {
       authoredOrder: 39
     });
   }
+  if (state.bombardmentEventId !== null) {
+    entries.push({
+      kind: "bombardment-fire-overlay",
+      z: 61.9,
+      authoredOrder: 37.4
+    });
+  }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
   for (const [agentOrder, agent] of state.npcAgents.slice(0, state.features.npcs).entries()) {
     entries.push({
       kind: "npc",
       agent,
-      z: cityGroundPainterZ(agent.feetY),
+      z: agent.painterZ ?? cityGroundPainterZ(agent.feetY),
       authoredOrder: 37.5 + agentOrder / 100
     });
   }
@@ -1817,9 +2070,12 @@ function drawCityTreePart(placement, part, window, targetContext) {
 function drawCityStreetBuilding(placement, targetContext) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
-  const sourceFrame = regionalFrame?.frame || placement.frame;
+  const source = regionalFrame || { atlas: state.staticAtlas, frame: placement.frame };
+  const bombarded = cityStreetBombardmentPresentation(placement, source);
+  const displayed = bombarded || source;
+  const sourceFrame = displayed.frame;
   targetContext.drawImage(
-    regionalFrame?.atlas || state.staticAtlas,
+    displayed.atlas,
     sourceFrame.frame.x,
     sourceFrame.frame.y,
     placement.frame.frame.w,
@@ -1877,32 +2133,23 @@ function drawBackgroundCityStatic(side, targetContext) {
       entry.distanceFromFront,
       rows.length
     );
-    const atmosphereFrame = backgroundCityAtmosphereFrame(frame, atmosphereLevel);
-    if (atmosphereFrame) {
-      targetContext.drawImage(
-        atmosphereFrame,
-        0,
-        0,
-        frame.frame.w,
-        frame.frame.h,
-        Math.round(building.x - window.x),
-        Math.round(building.y - window.y),
-        building.width,
-        building.height
-      );
-    } else {
-      targetContext.drawImage(
-        state.staticAtlas,
-        frame.frame.x,
-        frame.frame.y,
-        frame.frame.w,
-        frame.frame.h,
-        Math.round(building.x - window.x),
-        Math.round(building.y - window.y),
-        building.width,
-        building.height
-      );
-    }
+    const source = backgroundCityAtmosphereFrame(frame, atmosphereLevel) || {
+      atlas: state.staticAtlas,
+      frame
+    };
+    const bombarded = backgroundCityBombardmentPresentation(side, entry, source);
+    const displayed = bombarded || source;
+    targetContext.drawImage(
+      displayed.atlas,
+      displayed.frame.frame.x,
+      displayed.frame.frame.y,
+      frame.frame.w,
+      frame.frame.h,
+      Math.round(building.x - window.x),
+      Math.round(building.y - window.y),
+      building.width,
+      building.height
+    );
   }
 }
 
@@ -1942,7 +2189,7 @@ function drawBackgroundCityChimneySmoke(emitter, timeMs, window) {
 
 function backgroundCityAtmosphereFrame(frame, level) {
   const regionalFrame = regionalStaticFrame(frame, frame.layer);
-  if (level === 0) return regionalFrame?.atlas || null;
+  if (level === 0) return regionalFrame;
   let levels = backgroundCityAtmosphereCanvasCache.get(frame);
   if (!levels) {
     levels = new Map();
@@ -1984,8 +2231,342 @@ function backgroundCityAtmosphereFrame(frame, level) {
     imageData.data[offset + 2] = shifted.blue;
   }
   bufferContext.putImageData(imageData, 0, 0);
-  levels.set(cacheKey, buffer);
-  return buffer;
+  const result = Object.freeze({
+    atlas: buffer,
+    frame: Object.freeze({
+      ...sourceFrame,
+      frame: Object.freeze({ ...sourceFrame.frame, x: 0, y: 0 })
+    })
+  });
+  levels.set(cacheKey, result);
+  return result;
+}
+
+function authoredBombardmentPresentation(frame, layerName, occurrence, source) {
+  if (state.bombardmentEventId === null || !cityBombardmentLayerIsDamageable(layerName)) {
+    return null;
+  }
+  return bombardmentFramePresentation({
+    source,
+    buildingId: `authored|${layerName}|${occurrence}`
+  });
+}
+
+function cityStreetBombardmentPresentation(placement, source) {
+  if (state.bombardmentEventId === null) return null;
+  return bombardmentFramePresentation({
+    source,
+    buildingId: `street|${placement.id}`
+  });
+}
+
+function backgroundCityBombardmentPresentation(side, entry, source) {
+  if (state.bombardmentEventId === null) return null;
+  const buildingId = backgroundCityBombardmentBuildingId(side, entry);
+  const seed = cityBombardmentSeed({
+    cityId: state.city.id,
+    buildingId,
+    eventId: state.bombardmentEventId
+  });
+  if (!cityBombardmentBuildingIsAffected(seed, 0.18)) return null;
+  return bombardmentFramePresentation({ source, buildingId, seed });
+}
+
+function backgroundCityBombardmentBuildingId(side, entry) {
+  if (!Number.isInteger(entry?.rowOrder) || !Number.isInteger(entry?.buildingOrder)) {
+    throw new Error("Background city bombardment requires stable painter slots");
+  }
+  return `background|${side}|${entry.rowOrder}|${entry.buildingOrder}|${entry.building.frame.layer}`;
+}
+
+function bombardmentFramePresentation({ source, buildingId, seed = null }) {
+  if (!source?.atlas || !source?.frame?.frame) {
+    throw new Error(`Bombardment building ${buildingId} has no source frame`);
+  }
+  const resolvedSeed = seed ?? cityBombardmentSeed({
+    cityId: state.city.id,
+    buildingId,
+    eventId: state.bombardmentEventId
+  });
+  const sourceFrame = source.frame;
+  const cacheKey = [
+    state.city.id,
+    state.bombardmentEventId,
+    buildingId,
+    sourceFrame.id,
+    sourceFrame.frame.x,
+    sourceFrame.frame.y
+  ].join("|");
+  const cached = bombardmentFrameCache.get(cacheKey);
+  if (cached) return cached;
+
+  const buffer = document.createElement("canvas");
+  buffer.width = sourceFrame.frame.w;
+  buffer.height = sourceFrame.frame.h;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  if (!bufferContext) throw new Error(`Could not rasterize bombarded building: ${buildingId}`);
+  bufferContext.imageSmoothingEnabled = false;
+  bufferContext.drawImage(
+    source.atlas,
+    sourceFrame.frame.x,
+    sourceFrame.frame.y,
+    sourceFrame.frame.w,
+    sourceFrame.frame.h,
+    0,
+    0,
+    sourceFrame.frame.w,
+    sourceFrame.frame.h
+  );
+  const imageData = bufferContext.getImageData(0, 0, buffer.width, buffer.height);
+  const alpha = new Uint8Array(buffer.width * buffer.height);
+  for (let index = 0; index < alpha.length; index += 1) {
+    alpha[index] = imageData.data[index * 4 + 3];
+  }
+  const damage = cityBombardmentDamage({
+    alpha,
+    width: buffer.width,
+    height: buffer.height,
+    seed: resolvedSeed
+  });
+  for (let index = 0; index < alpha.length; index += 1) {
+    const offset = index * 4;
+    if (damage.hole[index] !== 0) {
+      imageData.data[offset + 3] = 0;
+      continue;
+    }
+    if (damage.rim[index] === 0) continue;
+    const sourceHex = [
+      imageData.data[offset],
+      imageData.data[offset + 1],
+      imageData.data[offset + 2]
+    ].map((channel) => channel.toString(16).padStart(2, "0")).join("");
+    const darkened = darkerResurrect64Hex(sourceHex, 2);
+    imageData.data[offset] = Number.parseInt(darkened.slice(0, 2), 16);
+    imageData.data[offset + 1] = Number.parseInt(darkened.slice(2, 4), 16);
+    imageData.data[offset + 2] = Number.parseInt(darkened.slice(4, 6), 16);
+  }
+  bufferContext.putImageData(imageData, 0, 0);
+
+  const presentation = Object.freeze({
+    atlas: buffer,
+    frame: Object.freeze({
+      ...sourceFrame,
+      frame: Object.freeze({ ...sourceFrame.frame, x: 0, y: 0 })
+    }),
+    damage,
+    seed: resolvedSeed
+  });
+  bombardmentFrameCache.set(cacheKey, presentation);
+  return presentation;
+}
+
+function drawBombardmentFireOverlay(timeMs) {
+  if (state.bombardmentEventId === null) return;
+  if (!state.fireAtlas) throw new Error("Bombarded city rendered before its fire atlas loaded");
+  const targetContext = separateEmissiveOverlay ? emissiveContext : context;
+  if (!targetContext) throw new Error("Bombarded city has no emissive render target");
+  targetContext.imageSmoothingEnabled = false;
+  if (cityStaticCacheIsUsable()) {
+    const baseKey = [
+      state.city.id,
+      state.bombardmentEventId,
+      canvas.width,
+      canvas.height,
+      state.parallax
+    ].join("|");
+    if (bombardmentOverlayFrameCache?.baseKey !== baseKey) {
+      bombardmentOverlayFrameCache = { baseKey, frames: new Map() };
+    }
+    const animationFrame = Math.floor((prefersReducedMotion.matches ? 0 : timeMs) / FIRE_FRAME_MS) %
+      FIRE_FRAME_COUNT;
+    let overlay = bombardmentOverlayFrameCache.frames.get(animationFrame);
+    if (!overlay) {
+      overlay = document.createElement("canvas");
+      overlay.width = canvas.width;
+      overlay.height = canvas.height;
+      const overlayContext = overlay.getContext("2d");
+      if (!overlayContext) throw new Error("Could not cache city bombardment fire overlay");
+      overlayContext.imageSmoothingEnabled = false;
+      drawBombardmentFireSources(timeMs, overlayContext);
+      bombardmentOverlayFrameCache.frames.set(animationFrame, overlay);
+    }
+    targetContext.drawImage(overlay, 0, 0);
+    return;
+  }
+  drawBombardmentFireSources(timeMs, targetContext);
+}
+
+function drawBombardmentFireSources(timeMs, targetContext) {
+  drawAuthoredBombardmentFires(timeMs, targetContext);
+  drawBackgroundCityBombardmentFires("right", timeMs, targetContext);
+  if (state.features.leftBankCity) {
+    drawBackgroundCityBombardmentFires("left", timeMs, targetContext);
+  }
+  for (const placement of state.streetBuildings) {
+    const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
+    const source = regionalFrame || { atlas: state.staticAtlas, frame: placement.frame };
+    const presentation = cityStreetBombardmentPresentation(placement, source);
+    drawBombardmentPresentationFire(presentation, {
+      x: placement.x - sceneWindow(
+        placement.depth,
+        0,
+        0,
+        placement.parallaxAnchor
+      ).x,
+      y: placement.y - sceneWindow(
+        placement.depth,
+        0,
+        0,
+        placement.parallaxAnchor
+      ).y,
+      width: placement.width,
+      height: placement.height
+    }, timeMs, targetContext);
+  }
+}
+
+function drawAuthoredBombardmentFires(timeMs, targetContext) {
+  const activeLayers = activePortSceneLayers(state.features);
+  const occurrences = new Map();
+  for (const layerName of state.portManifest.layerOrder) {
+    if (layerName === "Waves" || layerName === "Surf") continue;
+    const occurrence = incrementOccurrence(occurrences, layerName) - 1;
+    if (!activeLayers.has(layerName) || !cityBombardmentLayerIsDamageable(layerName)) continue;
+    const frame = state.portManifest.staticFrames.filter((candidate) => (
+      candidate.layer === layerName
+    ))[occurrence];
+    if (!frame) throw new Error(`Missing bombarded ${layerName} occurrence ${occurrence}`);
+    const regionalFrame = regionalStaticFrame(frame, layerName);
+    const source = regionalFrame || { atlas: state.staticAtlas, frame };
+    const presentation = authoredBombardmentPresentation(frame, layerName, occurrence, source);
+    const offsetX = layerSceneOffsetX(layerName, occurrence, state.features.approach);
+    const offsetY = layerSceneOffsetY(layerName, occurrence, state.features.approach);
+    const window = sceneWindow(
+      layerParallaxDepth(layerName, occurrence),
+      offsetX,
+      offsetY,
+      layerParallaxAnchor(layerName, occurrence)
+    );
+    drawBombardmentPresentationFire(presentation, {
+      x: presentation.frame.spriteSourceSize.x - window.x,
+      y: presentation.frame.spriteSourceSize.y - window.y,
+      width: presentation.frame.frame.w,
+      height: presentation.frame.frame.h
+    }, timeMs, targetContext);
+  }
+}
+
+function drawBackgroundCityBombardmentFires(side, timeMs, targetContext) {
+  const { rows, painterOrder } = backgroundCityRenderState(side);
+  for (const entry of painterOrder) {
+    const building = entry.building;
+    const atmosphereLevel = building.atmosphereLevel ?? cityBackgroundAtmosphereLevel(
+      entry.distanceFromFront,
+      rows.length
+    );
+    const source = backgroundCityAtmosphereFrame(building.frame, atmosphereLevel) || {
+      atlas: state.staticAtlas,
+      frame: building.frame
+    };
+    const presentation = backgroundCityBombardmentPresentation(side, entry, source);
+    if (!presentation) continue;
+    const window = sceneWindow(entry.depth, 0, 0, entry.parallaxAnchor);
+    drawBombardmentPresentationFire(presentation, {
+      x: building.x - window.x,
+      y: building.y - window.y,
+      width: building.width,
+      height: building.height
+    }, timeMs, targetContext);
+  }
+}
+
+function drawBombardmentPresentationFire(presentation, destination, timeMs, targetContext) {
+  if (!presentation) return;
+  const frame = fireAnimationFrame(prefersReducedMotion.matches ? 0 : timeMs, presentation.seed);
+  const destinationX = Math.round(destination.x);
+  const destinationY = Math.round(destination.y);
+  const destinationWidth = Math.max(1, Math.round(destination.width));
+  const destinationHeight = Math.max(1, Math.round(destination.height));
+  const holeRuns = scaledBombardmentHoleRuns(
+    presentation,
+    destinationWidth,
+    destinationHeight
+  );
+  const bounds = presentation.damage.holeBounds;
+  const sourceWidth = presentation.frame.frame.w;
+  const sourceHeight = presentation.frame.frame.h;
+  const scale = clamp(Math.max(bounds.width / 13, bounds.height / 15), 0.55, 1.4);
+  const fireWidth = FIRE_FRAME_WIDTH * scale;
+  const fireHeight = FIRE_FRAME_HEIGHT * scale;
+  const fireBottom = bounds.y + bounds.height + Math.max(1, Math.round(bounds.height * 0.2));
+  const fireX = bounds.x + bounds.width / 2 - fireWidth / 2;
+  const fireY = fireBottom - fireHeight;
+  targetContext.save();
+  targetContext.beginPath();
+  for (const run of holeRuns) {
+    targetContext.rect(
+      destinationX + run.x,
+      destinationY + run.y,
+      run.width,
+      1
+    );
+  }
+  targetContext.clip();
+  targetContext.drawImage(
+    state.fireAtlas,
+    frame * FIRE_FRAME_WIDTH,
+    fireVariantIndex(presentation.seed) * FIRE_FRAME_HEIGHT,
+    FIRE_FRAME_WIDTH,
+    FIRE_FRAME_HEIGHT,
+    destinationX + Math.round(fireX / sourceWidth * destinationWidth),
+    destinationY + Math.round(fireY / sourceHeight * destinationHeight),
+    Math.max(1, Math.round(fireWidth / sourceWidth * destinationWidth)),
+    Math.max(1, Math.round(fireHeight / sourceHeight * destinationHeight))
+  );
+  targetContext.restore();
+}
+
+function scaledBombardmentHoleRuns(presentation, width, height) {
+  let dimensions = bombardmentScaledHoleRunCache.get(presentation);
+  if (!dimensions) {
+    dimensions = new Map();
+    bombardmentScaledHoleRunCache.set(presentation, dimensions);
+  }
+  const key = `${width}x${height}`;
+  if (dimensions.has(key)) return dimensions.get(key);
+  const sourceWidth = presentation.frame.frame.w;
+  const sourceHeight = presentation.frame.frame.h;
+  const runs = [];
+  for (let destinationY = 0; destinationY < height; destinationY += 1) {
+    const sourceY = Math.min(
+      sourceHeight - 1,
+      Math.floor(destinationY / height * sourceHeight)
+    );
+    let runStart = -1;
+    for (let destinationX = 0; destinationX <= width; destinationX += 1) {
+      const inHole = destinationX < width && presentation.damage.hole[
+        sourceY * sourceWidth + Math.min(
+          sourceWidth - 1,
+          Math.floor(destinationX / width * sourceWidth)
+        )
+      ] !== 0;
+      if (inHole && runStart < 0) runStart = destinationX;
+      if (!inHole && runStart >= 0) {
+        runs.push(Object.freeze({
+          x: runStart,
+          y: destinationY,
+          width: destinationX - runStart
+        }));
+        runStart = -1;
+      }
+    }
+  }
+  if (runs.length === 0) {
+    throw new Error(`Bombardment opening vanished at ${width}x${height}`);
+  }
+  const result = Object.freeze(runs);
+  dimensions.set(key, result);
+  return result;
 }
 
 function drawBackgroundCityStreet(rows, parallaxAnchor, targetContext) {
@@ -2075,8 +2656,11 @@ function drawStaticFrame(frame, layerName, occurrence, targetContext) {
     layerParallaxAnchor(layerName, occurrence)
   );
   const regionalFrame = regionalStaticFrame(frame, layerName);
-  const sourceAtlas = regionalFrame?.atlas || state.staticAtlas;
-  const sourceFrame = regionalFrame?.frame || frame;
+  const source = regionalFrame || { atlas: state.staticAtlas, frame };
+  const bombarded = authoredBombardmentPresentation(frame, layerName, occurrence, source);
+  const displayed = bombarded || source;
+  const sourceAtlas = displayed.atlas;
+  const sourceFrame = displayed.frame;
   const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
   if (
     highlightedDestination?.layers.includes(layerName) &&
@@ -2813,9 +3397,10 @@ function drawDocksideShipWaterShadow(slice, timeMs, top, bottom) {
 }
 
 function docksideShipPlacement(timeMs, depth) {
-  if (!state.shipWaterlineLayers || !state.shipManifest || !state.features) return null;
-  const ship = state.shipManifest.ships.find((candidate) => candidate.slug === state.shipSlug);
-  if (!ship?.cityDockside) return null;
+  if (!state.shipWaterlineLayers || !state.features || !state.shipSlug) {
+    throw new Error("City dockside ship rendered before its presentation was prepared");
+  }
+  const ship = requireCityDocksideShip(state.docksideShipCatalog, state.shipSlug);
   const sideAnchor = docksideShipSideAnchor(ship);
   const window = sceneWindow(depth);
   const scale = PORT_SCENE_ENTITY_META.ship.scale;
@@ -3135,18 +3720,20 @@ function drawSetSailControl() {
   const font = titleFontForText(label);
   const layout = setSailLabelLayout(rect, label, font);
   if (!layout) return;
+  const riseY = highlighted ? -2 : 0;
+  const foregroundColor = highlighted ? PIRATE_MENU_PAPER_SELECTED : "#ffffff";
   context.save();
   context.globalAlpha = highlighted ? 1 : 0.9;
-  drawSetSailArrow(layout.arrowX + 1, layout.arrowCenterY + 1, layout.scale, PIRATE_MENU_INK);
-  pixelText.draw(label, layout.textX + 1, layout.textY + 1, {
+  drawSetSailArrow(layout.arrowX + 1, layout.arrowCenterY + riseY + 1, layout.scale, PIRATE_MENU_INK);
+  pixelText.draw(label, layout.textX + 1, layout.textY + riseY + 1, {
     color: PIRATE_MENU_INK,
     font,
     scale: layout.scale,
     wordSpacingPx: 4
   });
-  drawSetSailArrow(layout.arrowX, layout.arrowCenterY, layout.scale, "#ffffff");
-  pixelText.draw(label, layout.textX, layout.textY, {
-    color: "#ffffff",
+  drawSetSailArrow(layout.arrowX, layout.arrowCenterY + riseY, layout.scale, foregroundColor);
+  pixelText.draw(label, layout.textX, layout.textY + riseY, {
+    color: foregroundColor,
     font,
     scale: layout.scale,
     wordSpacingPx: 4
@@ -3311,9 +3898,17 @@ function destinationAtPoint(x, y) {
           layerParallaxAnchor(layerName, occurrence)
         );
         const regionalFrame = regionalStaticFrame(frame, layerName);
+        const source = regionalFrame || { atlas: state.staticAtlas, frame };
+        const bombarded = authoredBombardmentPresentation(
+          frame,
+          layerName,
+          occurrence,
+          source
+        );
+        const displayed = bombarded || source;
         if (frameContainsOpaquePixel(
-          regionalFrame?.atlas || state.staticAtlas,
-          regionalFrame?.frame || frame,
+          displayed.atlas,
+          displayed.frame,
           x + window.x,
           y + window.y
         )) return Object.freeze({ destination, saleShipId: null });
@@ -3351,6 +3946,19 @@ function focusDestination(destinationId, { immediate = false } = {}) {
   const destination = destinationById(destinationId);
   if (!destination) throw new Error(`City destination is unavailable: ${destinationId}`);
   state.focusedDestinationId = destinationId;
+  if (destination.id === PORT_CITY_LOCATION.SET_SAIL) {
+    if (!state.features) throw new Error("Set Sail focus requires resolved city features");
+    const { minimum } = sceneCameraParallaxBounds(state.features.approach);
+    state.cameraVelocity = 0;
+    if (immediate || prefersReducedMotion.matches) {
+      state.parallax = minimum;
+      state.cameraPanTarget = null;
+      updateHover();
+    } else {
+      state.cameraPanTarget = minimum;
+    }
+    return;
+  }
   const anchor = destinationScreenAnchor(destination);
   if (!anchor) return;
   const deltaX = anchor.x - canvas.width / 2;
@@ -3374,20 +3982,6 @@ function moveDestinationFocus(direction) {
 }
 
 function destinationScreenAnchor(destination) {
-  if (destination.id === PORT_CITY_LOCATION.SET_SAIL) {
-    const placement = docksideShipPlacement(
-      state.lastRenderTimeMs ?? 0,
-      PORT_SCENE_ENTITY_META.ship.depth
-    );
-    if (!placement) return null;
-    const visibleShipLeftX = placement.x +
-      state.shipWaterlineLayers.opaqueMinX * placement.scale;
-    const rect = setSailControlRect();
-    return {
-      x: visibleShipLeftX - canvas.width * 0.2,
-      y: rect ? rect.y + rect.h / 2 : canvas.height * 0.65
-    };
-  }
   if (destination.id === PORT_CITY_LOCATION.SHIP) {
     const placement = docksideShipPlacement(state.lastRenderTimeMs ?? 0, PORT_SCENE_ENTITY_META.ship.depth);
     return placement ? { x: placement.x + state.shipImage.width / 2, y: placement.y } : null;
@@ -3611,9 +4205,21 @@ function loadImage(url) {
     image.onload = () => resolve(image);
     image.onerror = () => reject(new Error(`Could not load image: ${url}`));
     image.src = url;
+  }).catch((error) => {
+    if (imageCache.get(url) === request) imageCache.delete(url);
+    throw error;
   });
   imageCache.set(url, request);
   return request;
+}
+
+function loadTransientImage(url) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error(`Could not load image: ${url}`));
+    image.src = url;
+  });
 }
 
 function hashString(value) {
@@ -3646,6 +4252,9 @@ return Object.freeze({
   async selectCity(cityId, options = {}) {
     await selectCity(cityId, options);
   },
+  async preloadCity(cityId, options = {}) {
+    await preloadCity(cityId, options);
+  },
   getDestinationIds() {
     return Object.freeze(activeDestinations().map(({ id }) => id));
   },
@@ -3665,6 +4274,18 @@ return Object.freeze({
   activateAt(x, y) {
     const hit = destinationAtPoint(x, y);
     return hit ? activateDestination(hit.destination.id, hit.saleShipId) : null;
+  },
+  drawEmissiveOverlay(targetContext) {
+    if (!separateEmissiveOverlay || !emissiveCanvas) {
+      throw new Error("City scene emissive overlay was not configured separately");
+    }
+    if (!targetContext || typeof targetContext.drawImage !== "function") {
+      throw new TypeError("City scene emissive overlay requires a 2D target context");
+    }
+    targetContext.save();
+    targetContext.imageSmoothingEnabled = false;
+    targetContext.drawImage(emissiveCanvas, 0, 0);
+    targetContext.restore();
   },
   setWeather({ wind, precipitation }) {
     if (![null, "rain", "snow"].includes(precipitation?.kind)) {

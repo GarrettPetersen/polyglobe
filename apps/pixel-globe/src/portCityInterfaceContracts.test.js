@@ -26,13 +26,45 @@ test("city Escape activates Set Sail and the normal captain menu remains availab
   assert.match(keys, /keyAction === KEY_ACTION\.CAPTAIN_MENU[\s\S]*openCaptainMenu\(\)/);
   assert.match(keys, /event\.key === "Escape"[\s\S]*PORT_CITY_LOCATION\.SET_SAIL/);
   const availability = functionSource("captainMenuButtonIsAvailable", "drawCaptainMenu");
-  assert.match(availability, /dialogueActive: Boolean\(dialogueState\) && !portCityRootNavigationIsActive\(\)/);
+  assert.match(availability, /dialogueActive: Boolean\(dialogueState\) && !portCityRootPresentationIsOwned\(\)/);
   assert.match(MAIN_SOURCE, /if \(!dialogueVisible\) drawCaptainMenuButton\(\);/);
+});
+
+test("pending city activation neither draws nor accepts input through the legacy port menu", () => {
+  const cityOwnership = functionSource(
+    "portCityRootPresentationIsOwned",
+    "portCityTransitionCenter"
+  );
+  assert.match(cityOwnership, /portCityView &&[\s\S]*nodeId === "root"/);
+  assert.doesNotMatch(cityOwnership, /sceneReady/);
+
+  const draw = functionSource("drawWorldInterface", "minimapShouldBeVisible");
+  assert.match(
+    draw,
+    /drawPortCityTransitionOverlay\(nowMs\);[\s\S]*portCityRootPresentationIsOwned\(\) && !portCityView\.sceneReady\) return;/
+  );
+  assert.match(draw, /dialogueActive: Boolean\(dialogueState\) && !portCityRootPresentationIsOwned\(\)/);
+
+  const keys = functionSource("dispatchWorldOverlayKey", "dispatchWorldOverlayPointerDown");
+  assert.match(keys, /portCityRootPresentationIsOwned\(\)[\s\S]*event\.preventDefault\(\)/);
+  const pointers = functionSource("dispatchWorldOverlayPointerDown", "dispatchWorldOverlayPointerMove");
+  assert.match(pointers, /portCityRootPresentationIsOwned\(\)[\s\S]*portCityPointerDown = null/);
+});
+
+test("pending city activation is not misreported as an opaque world cover", () => {
+  const cover = functionSource("currentChartReframeCoverState", "activeOpaqueWorldCoverKinds");
+  assert.match(cover, /const cityRootPresentationOwned = portCityRootPresentationIsOwned\(\)/);
+  assert.match(cover, /fullPortDialogue:[\s\S]*!cityRootPresentationOwned/);
+  assert.match(cover, /blockingDialogue:[\s\S]*!cityRootPresentationOwned/);
 });
 
 test("city rendering receives live weather and market modes use the compact header switch", () => {
   const cityDraw = functionSource("drawPortCityScene", "currentPortCityWeatherPresentation");
   assert.match(cityDraw, /portCityRuntime\.setWeather\(currentPortCityWeatherPresentation\(\)\)/);
+  assert.match(
+    cityDraw,
+    /worldRenderer\.endFrame\(\);[\s\S]*portCityRuntime\.drawEmissiveOverlay\(screenCtx\)/
+  );
   const dialogueDraw = functionSource("drawDialogueOverlayContent", "drawMarketModeSwitch");
   assert.match(dialogueDraw, /compactMarketSwitch = view\.presentation\?\.kind === "market"/);
   assert.match(dialogueDraw, /drawModeSwitches: !compactMarketSwitch/);
@@ -41,19 +73,31 @@ test("city rendering receives live weather and market modes use the compact head
 
 test("city rendering receives every live city name instead of retaining its baked label", () => {
   const synchronization = functionSource("synchronizePortCityScene", "beginPortCityIllicitCaughtPresentation");
+  assert.doesNotMatch(synchronization, /chartPortCallById\([^)]*\) \|\|/);
   assert.match(synchronization, /const label = cityLabelText\(city\)/);
-  assert.match(synchronization, /syncKey = JSON\.stringify\(\{[\s\S]*label,[\s\S]*\}\)/);
-  assert.match(synchronization, /portCityRuntime\.selectCity\(city\.cityId, \{[\s\S]*label,[\s\S]*\}\)/);
+  assert.match(synchronization, /selectionOptions = Object\.freeze\(\{[\s\S]*label[\s\S]*\}\)/);
+  assert.match(synchronization, /portCityRuntime\.selectCity\(city\.cityId, selectionOptions\)/);
 });
 
 test("city shipyards receive the authoritative current build for owned and ordinary yards", () => {
   const synchronization = functionSource("synchronizePortCityScene", "beginPortCityIllicitCaughtPresentation");
   assert.match(synchronization, /const shipyardConstruction = yard[\s\S]*shipyardCurrentBuild/);
-  assert.match(synchronization, /syncKey = JSON\.stringify\(\{[\s\S]*shipyardConstruction[\s\S]*\}\)/);
-  assert.match(
-    synchronization,
-    /portCityRuntime\.selectCity\(city\.cityId, \{[\s\S]*shipyardConstruction[\s\S]*\}\)/
+  assert.match(synchronization, /return Object\.freeze\(\{[\s\S]*shipyardConstruction[\s\S]*\}\)/);
+  assert.match(synchronization, /const assetOptions = portCitySceneAssetOptions\(city\)/);
+  assert.match(synchronization, /portCityRuntime\.selectCity\(city\.cityId, selectionOptions\)/);
+});
+
+test("nearby ports preload the same strict asset selection consumed by activation", () => {
+  const preloader = functionSource("preloadNearbyPortCityScene", "portCitySceneAssetPreloadKey");
+  assert.match(preloader, /const options = portCitySceneAssetOptions\(cityCall\)/);
+  assert.match(preloader, /portCityRuntime\.preloadCity\(candidate\.cityCall\.cityId, candidate\.options\)/);
+  assert.match(preloader, /pendingWorldAssetError = new Error/);
+  const identity = functionSource(
+    "authoritativePlayerShipSlugForPortCity",
+    "beginPortCityIllicitCaughtPresentation"
   );
+  assert.match(identity, /runtimeShipSlug !== persistedShipSlug/);
+  assert.match(identity, /player ship identity diverged/);
 });
 
 test("the paused-port benchmark establishes the same covered world frame as production", () => {

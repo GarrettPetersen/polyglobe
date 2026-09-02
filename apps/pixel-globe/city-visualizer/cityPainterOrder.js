@@ -1,6 +1,7 @@
 export const CITY_GROUND_REAR_PAINTER_Z = 62;
 export const CITY_GROUND_FOREGROUND_PAINTER_Z = 74;
 export const CITY_GROUND_FOREGROUND_START_Y = 552;
+export const CITY_GATE_TRAVERSAL_PAINTER_Z = 71.8;
 
 export const CITY_NPC_PATHS = Object.freeze([
   npcPath(900, 1005, 518),
@@ -12,11 +13,11 @@ export const CITY_NPC_PATHS = Object.freeze([
 ]);
 
 export const CITY_GATE_TRAVERSAL_PATHS = Object.freeze([
-  npcPath(1224, 1294, 570),
-  npcPath(1208, 1290, 581)
+  npcPath(1224, 1294, 570, CITY_GATE_TRAVERSAL_PAINTER_Z),
+  npcPath(1208, 1290, 581, CITY_GATE_TRAVERSAL_PAINTER_Z)
 ]);
 
-export const CITY_GATE_FRONT_PAINTER_Z = 76;
+export const CITY_GATE_FRONT_PAINTER_Z = 71.9;
 
 export function cityNpcPaths({ fortified }) {
   if (typeof fortified !== "boolean") {
@@ -42,6 +43,11 @@ export function cityGroundPainterZ(groundY) {
       (groundY - CITY_GROUND_FOREGROUND_START_Y) / 1000;
 }
 
-function npcPath(startX, endX, feetY) {
-  return Object.freeze({ startX, endX, feetY });
+function npcPath(startX, endX, feetY, painterZ = undefined) {
+  return Object.freeze({
+    startX,
+    endX,
+    feetY,
+    ...(painterZ === undefined ? {} : { painterZ })
+  });
 }

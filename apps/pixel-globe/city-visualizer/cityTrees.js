@@ -1,6 +1,6 @@
 import { cityGroundPainterZ } from "./cityPainterOrder.js";
 
-export const CITY_TREE_BACKGROUND_SHADOW_Z = 42.1;
+export const CITY_TREE_BACKGROUND_SHADOW_Z = 39.5;
 export const CITY_TREE_FOREGROUND_SHADOW_Z = 73.9;
 export const CITY_TREE_CASTLE_BACKING_SHADOW_Z = 44.7;
 
@@ -82,10 +82,14 @@ const TROPICAL_FOREGROUND_PALM_CITY_TYPES = new Set([
 export function cityTreePlacements({ city, features, trees }) {
   requireTreeInputs(city, features, trees);
   const availableById = new Map(trees.map((tree) => [tree.id, tree]));
-  const pool = (REGION_TREE_POOLS[city.cityType] || ["cedar", "yew"])
+  const regionalPool = REGION_TREE_POOLS[city.cityType];
+  if (!regionalPool) throw new Error(`No city tree pool for city type: ${city.cityType}`);
+  const pool = regionalPool
     .filter((id) => id !== "palm" || Math.abs(city.lat) <= 42)
     .filter((id) => availableById.has(id));
-  if (pool.length === 0) return Object.freeze([]);
+  if (pool.length === 0) {
+    throw new Error(`City tree atlas has no usable trees for city type: ${city.cityType}`);
+  }
   const count = cityTreeCount(city, features.rightTerrain, pool.includes("palm"));
   const leftBankTree = features.approach === "river" &&
     Boolean(features.leftTreeCover ?? features.leftTerrain === "forest") &&

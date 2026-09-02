@@ -65,6 +65,40 @@ test("England and Scotland use distinct naming cultures", () => {
   assert.equal(nameCultureForSubject({ cityId: "edinburgh|united kingdom", city: "Edinburgh", country: "United Kingdom", factionId: "scotland" }), "scottish");
 });
 
+test("player-founded colonies use their founding population's name culture", () => {
+  const lima = {
+    cityId: "lima|peru",
+    city: "Lima",
+    country: "Peru",
+    cityType: "mediterranean",
+    factionId: "spain",
+    foundingFactionId: "spain",
+    playerFoundedColony: true
+  };
+  assert.equal(nameCultureForSubject(lima), "spanish");
+  assert.equal(assignRegionalCharacterName({
+    identityKey: "lima-governor",
+    city: lima,
+    sex: "female",
+    usedNames: new Set()
+  }).nameCulture, "spanish");
+});
+
+test("player-founded colonies require an explicit supported founding culture", () => {
+  const colony = {
+    cityId: "test-colony|peru",
+    city: "Test Colony",
+    country: "Peru",
+    cityType: "mediterranean",
+    playerFoundedColony: true
+  };
+  assert.throws(() => nameCultureForSubject(colony), /has no founding faction/);
+  assert.throws(
+    () => nameCultureForSubject({ ...colony, foundingFactionId: "unknown-colonizer" }),
+    /has no name culture for founding faction/
+  );
+});
+
 test("Iceland and Sweden use distinct local name cultures", () => {
   assert.equal(nameCultureForSubject({
     cityId: "hafnarfjordur|iceland",

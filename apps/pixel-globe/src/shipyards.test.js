@@ -32,6 +32,7 @@ import {
   shipyardRumorForPort,
   snapshotWorldShipyards
 } from "./shipyards.js";
+import { colonizationTargetForCity } from "./colonialCities.js";
 import { JAPANESE_SHIP_SLUGS, shipLabelForProse } from "./shipStats.js";
 
 const TEST_CITY_IDS = new Map([
@@ -143,6 +144,25 @@ test("native villages build their own modest regional hulls", () => {
   for (let build = 0; build < 40; build++) {
     const listing = generateShipyardListing(andeanYard, build, build * 1000);
     assert.equal(listing.shipSlug, "mesoamerican-dugout-canoe");
+  }
+});
+
+test("a Spanish-founded Lima shipyard cannot offer indigenous canoes", () => {
+  const lima = {
+    ...colonizationTargetForCity({ cityId: "lima|peru" }),
+    tileId: 16,
+    population: 2400,
+    settlementType: "city",
+    playerFoundedColony: true,
+    foundingFactionId: "spain"
+  };
+  const yard = shipyardAtPort(createWorldShipyards({ ports: [lima], startMinute: 0 }), lima);
+  assert.equal(yard.cityType, "mediterranean");
+  for (let build = 0; build < 120; build++) {
+    assert.notEqual(
+      generateShipyardListing(yard, build, build * 1000).shipSlug,
+      "mesoamerican-dugout-canoe"
+    );
   }
 });
 

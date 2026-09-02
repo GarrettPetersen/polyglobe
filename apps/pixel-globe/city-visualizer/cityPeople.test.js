@@ -4,7 +4,12 @@ import test from "node:test";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
-import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
+import {
+  COLONIAL_CITY_FOUNDINGS,
+  COLONIAL_FOUNDING_CONQUERED,
+  COLONIAL_FOUNDING_SETTLER,
+  COLONIZATION_TARGETS
+} from "../src/colonialCities.js";
 import {
   CITY_PERSON_APPEARANCES,
   CITY_PERSON_ARCHETYPES,
@@ -51,20 +56,80 @@ test("every port has an explicit reproducible population profile", () => {
 });
 
 test("every future sailing colony has a baked scene and a live recruitable population pool", () => {
-  const bakedCityIds = new Set(catalog.cities.map(({ cityId }) => cityId));
+  const bakedCities = new Map(catalog.cities.map((entry) => [entry.cityId, entry]));
   const sailingTargets = COLONIZATION_TARGETS.filter(({ waterAccess }) => waterAccess !== "inland");
   assert.ok(sailingTargets.length > 0);
   for (const target of sailingTargets) {
-    assert.ok(bakedCityIds.has(target.cityId), `missing baked colony scene: ${target.cityId}`);
+    const baked = bakedCities.get(target.cityId);
+    assert.ok(baked, `missing baked colony scene: ${target.cityId}`);
     const liveCity = {
       ...target,
       population: 2400,
       settlementType: "city",
-      playerFoundedColony: true
+      playerFoundedColony: target.type !== COLONIAL_FOUNDING_CONQUERED &&
+        target.preexistingSettlement !== true
     };
     assert.ok(cityRecruitableCrewAppearances(liveCity).length > 0, target.cityId);
+    assert.equal(baked.cityType, target.cityType, `${target.cityId} baked city type`);
   }
-  assert.equal(city("lima|peru").cityType, "andean");
+});
+
+test("new colonies use colonizer architecture, population, and shipbuilding", () => {
+  const colonizerStyle = new Map([
+    ["spain", "mediterranean"],
+    ["portugal", "mediterranean"],
+    ["england", "northern-european"],
+    ["france", "northern-european"],
+    ["burgundian-netherlands", "northern-european"]
+  ]);
+  for (const target of COLONIZATION_TARGETS) {
+    if (target.type === COLONIAL_FOUNDING_CONQUERED || target.preexistingSettlement) continue;
+    const expectedStyle = colonizerStyle.get(target.factionId);
+    assert.ok(expectedStyle, `missing colonizer style expectation for ${target.factionId}`);
+    assert.equal(target.cityType, expectedStyle, `${target.cityId} live architecture`);
+    if (target.waterAccess === "inland") continue;
+    const baked = city(target.cityId);
+    assert.equal(baked.populationProfileId, "european", `${target.cityId} population`);
+    for (const style of ["housingStyle", "serviceStyle", "fortificationStyle"]) {
+      assert.equal(baked.architecture[style], expectedStyle, `${target.cityId} ${style}`);
+    }
+    assert.equal(
+      baked.defaultShip,
+      expectedStyle === "mediterranean" ? "xebec" : "small-cog",
+      `${target.cityId} shipyard hull`
+    );
+  }
+
+  assert.equal(city("lima|peru").populationProfileId, "european");
+  assert.equal(city("manila|philippines").populationProfileId, "southeast-asian");
+  assert.equal(city("nagasaki|japan").populationProfileId, "japanese");
+});
+
+test("every baked settler colony uses its colonizer's architectural family", () => {
+  const bakedCities = new Map(catalog.cities.map((entry) => [entry.cityId, entry]));
+  const expectedStyleByFaction = new Map([
+    ["spain", "mediterranean"],
+    ["portugal", "mediterranean"],
+    ["england", "northern-european"]
+  ]);
+  let reviewedCount = 0;
+  for (const founding of COLONIAL_CITY_FOUNDINGS) {
+    if (founding.type !== COLONIAL_FOUNDING_SETTLER) continue;
+    const baked = bakedCities.get(founding.cityId);
+    if (!baked) continue;
+    reviewedCount += 1;
+    const expectedStyle = expectedStyleByFaction.get(founding.factionId);
+    assert.ok(expectedStyle, `missing settler style expectation for ${founding.factionId}`);
+    assert.equal(baked.cityType, expectedStyle, `${founding.cityId} city type`);
+    assert.equal(baked.populationProfileId, "european", `${founding.cityId} population`);
+    assert.ok(
+      Object.values(baked.architecture).every((value) => (
+        value === expectedStyle || value === "urban"
+      )),
+      `${founding.cityId} architecture`
+    );
+  }
+  assert.ok(reviewedCount >= 10, `reviewed only ${reviewedCount} baked settler colonies`);
 });
 
 test("peacetime city populations retain a distinct deterministic garrison pool", () => {
@@ -131,6 +196,22 @@ test("the production archetype catalog excludes prohibited and named-character s
     "Ronin"
   ]) {
     assert.doesNotMatch(sources, new RegExp(forbidden));
+  }
+});
+
+test("tribal populations do not use recolored European archer silhouettes", () => {
+  const appearanceIds = new Set(CITY_PERSON_APPEARANCES.map(({ id }) => id));
+  for (const removedId of ["archer-medium-green", "archer-medium-warm", "archer-dark-green"]) {
+    assert.equal(appearanceIds.has(removedId), false, removedId);
+  }
+  for (const profileId of ["indigenous-american", "polynesian", "ainu"]) {
+    const profile = CITY_POPULATION_PROFILES.find(({ id }) => id === profileId);
+    assert.ok(profile, profileId);
+    assert.deepEqual(
+      new Set(profile.garrison.map(({ appearanceId }) => appearanceId)),
+      new Set(["wrapped-cloth-man-dark-indigo"]),
+      profileId
+    );
   }
 });
 

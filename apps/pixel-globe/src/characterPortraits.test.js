@@ -34,6 +34,23 @@ const CHARACTER_ASSET_ROOT = join(
   dirname(fileURLToPath(import.meta.url)),
   "../public/assets/characters"
 );
+
+test("a Spanish-founded Lima governor uses Spanish identity and a Mediterranean portrait", () => {
+  const lima = {
+    cityId: "lima|peru",
+    city: "Lima",
+    country: "Peru",
+    cityType: "mediterranean",
+    factionId: "spain",
+    foundingFactionId: "spain",
+    playerFoundedColony: true
+  };
+  const [governor] = assignPortCityCharacters([lima], GENERATED_MANIFEST, new Set()).values();
+  assert.equal(governor.nameCulture, "spanish");
+  assert.ok(governor.sourceRegions.includes("mediterranean"));
+  assert.equal(governor.sourceRegions.includes("americas"), false);
+});
+
 test("player portrait selection uses a directly authored regional captain sprite", () => {
   const usedNames = new Set();
   const homePort = {

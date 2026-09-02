@@ -1,7 +1,10 @@
 Pixel Fire Asset Pack
 Creator: DevKidd
 Source: https://devkidd.itch.io/pixel-fire-asset-pack
+Downloaded package: Pixel fire asset pack v1.2
 Used asset: public/assets/misc/fire.png
+Modification: twenty yellow fire animations were packed into one atlas and
+recolored to the Resurrect 64 palette.
 
 The asset was obtained from the creator's itch.io page. Refer to the source
 page and downloaded package for the applicable license terms.

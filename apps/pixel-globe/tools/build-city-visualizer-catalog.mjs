@@ -528,7 +528,7 @@ function approachRule(access, approach) {
 }
 
 function defaultShipForCityType(cityType) {
-  return ({
+  const shipSlug = ({
     "northern-european": "small-cog",
     mediterranean: "xebec",
     "islamic-desert": "dhow",
@@ -539,7 +539,9 @@ function defaultShipForCityType(cityType) {
     mesoamerican: "mesoamerican-dugout-canoe",
     andean: "mesoamerican-dugout-canoe",
     "sub-saharan": "dhow"
-  })[cityType] || "small-cog";
+  })[cityType];
+  if (!shipSlug) throw new Error(`No default city ship for city type: ${cityType}`);
+  return shipSlug;
 }
 
 function nearestTileMatching(graph, startId, predicate) {

@@ -967,6 +967,18 @@ function familyNamePlanForSubject(nameCulture, cultureId, subject) {
 }
 
 function localNameCultureForSubject(subject) {
+  if (subject.playerFoundedColony === true) {
+    if (typeof subject.foundingFactionId !== "string" || subject.foundingFactionId === "") {
+      throw new Error(`Player-founded colony has no founding faction: ${subject.cityId}`);
+    }
+    const foundingCulture = FACTION_CULTURES.get(subject.foundingFactionId);
+    if (!foundingCulture) {
+      throw new Error(
+        `Player-founded colony has no name culture for founding faction: ${subject.foundingFactionId}`
+      );
+    }
+    return foundingCulture;
+  }
   const cityCulture = CITY_CULTURES.get(subject.cityId);
   if (cityCulture) return cityCulture;
   const territoryId = cityTerritoryId(subject, "Character home city");

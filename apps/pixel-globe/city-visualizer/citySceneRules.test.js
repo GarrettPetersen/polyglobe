@@ -32,6 +32,7 @@ import {
   docksideShipVerticalPlacement,
   layerParallaxAnchor,
   layerParallaxDepth,
+  layerPainterZ,
   layerSceneOffsetX,
   layerSceneOffsetY,
   layerSceneZ,
@@ -46,6 +47,7 @@ import {
 } from "./citySceneRules.js";
 import {
   CITY_GATE_FRONT_PAINTER_Z,
+  CITY_GATE_TRAVERSAL_PAINTER_Z,
   CITY_GATE_TRAVERSAL_PATHS,
   cityGroundPainterZ,
   cityNpcPaths
@@ -130,11 +132,11 @@ test("city labels and controls stay on the game's native pixel font grid", () =>
 test("regional hover outlines and hit masks use the displayed building silhouette", () => {
   assert.match(
     VISUALIZER_MAIN_SOURCE,
-    /const sourceAtlas = regionalFrame\?\.atlas \|\| state\.staticAtlas;[\s\S]*drawFrameOutline\(sourceAtlas, sourceFrame, window, targetContext\)/
+    /const displayed = bombarded \|\| source;[\s\S]*const sourceAtlas = displayed\.atlas;[\s\S]*drawFrameOutline\(sourceAtlas, sourceFrame, window, targetContext\)/
   );
   assert.match(
     VISUALIZER_MAIN_SOURCE,
-    /const regionalFrame = regionalStaticFrame\(frame, layerName\);[\s\S]*frameContainsOpaquePixel\([\s\S]*regionalFrame\?\.atlas \|\| state\.staticAtlas,[\s\S]*regionalFrame\?\.frame \|\| frame/
+    /const regionalFrame = regionalStaticFrame\(frame, layerName\);[\s\S]*const bombarded = authoredBombardmentPresentation\([\s\S]*frameContainsOpaquePixel\([\s\S]*displayed\.atlas,[\s\S]*displayed\.frame/
   );
   assert.match(
     VISUALIZER_MAIN_SOURCE,
@@ -151,7 +153,7 @@ test("the shipyard highlight excludes inert dock layers and the player ship owns
     VISUALIZER_MAIN_SOURCE,
     /id: PORT_CITY_LOCATION\.SHIPYARD,[\s\S]*?layers: Object\.freeze\(\[[^\]]*"(?:Dock|Stone Dock)"/
   );
-  assert.match(VISUALIZER_MAIN_SOURCE, /state\.shipOutline = tintedImageCanvas\(shipImage, "#ffe55c"\)/);
+  assert.match(VISUALIZER_MAIN_SOURCE, /shipOutline: tintedImageCanvas\(shipImage, "#ffe55c"\)/);
 });
 
 test("static regional buildings emit smoke only when their displayed sprite has a chimney", () => {
@@ -161,16 +163,16 @@ test("static regional buildings emit smoke only when their displayed sprite has 
   );
 });
 
-test("coastal views use the safe span while river views can pan across the authored left bank", () => {
+test("coastal views can pan into the authored western ocean while river bounds remain restricted", () => {
   const wideLeft = logicalSceneWindow({ width: 910, height: 256, parallax: -1 });
   const wideRight = logicalSceneWindow({ width: 910, height: 256, parallax: 1 });
-  assert.equal(wideLeft.x, PORT_SCENE_MASTER.safeX);
-  assert.equal(wideRight.x, PORT_SCENE_MASTER.safeX);
+  assert.equal(wideLeft.x, PORT_SCENE_MASTER.leftBankX);
+  assert.equal(wideRight.x + wideRight.width, PORT_SCENE_MASTER.width);
 
   const canonicalLeft = logicalSceneWindow({ width: 455, height: 256, parallax: -1 });
   const canonicalRight = logicalSceneWindow({ width: 455, height: 256, parallax: 1 });
-  assert.equal(canonicalLeft.x, PORT_SCENE_MASTER.safeX);
-  assert.equal(canonicalRight.x + canonicalRight.width, PORT_SCENE_MASTER.safeX + PORT_SCENE_MASTER.safeWidth);
+  assert.equal(canonicalLeft.x, PORT_SCENE_MASTER.leftBankX);
+  assert.equal(canonicalRight.x + canonicalRight.width, PORT_SCENE_MASTER.width);
 
   const riverWideLeft = logicalSceneWindow({ width: 910, height: 256, parallax: -1, approach: "river" });
   const riverWideRight = logicalSceneWindow({ width: 910, height: 256, parallax: 1, approach: "river" });
@@ -258,7 +260,7 @@ test("wheel and swipe distances pan the camera through the authored scene", () =
     displayWidth: 910,
     logicalWidth: 455,
     approach: "ocean"
-  }), 1);
+  }), 0.5);
   assert.equal(scenePanParallaxDelta({
     screenDeltaX: -455,
     displayWidth: 910,
@@ -270,7 +272,7 @@ test("wheel and swipe distances pan the camera through the authored scene", () =
     displayWidth: 910,
     logicalWidth: 910,
     approach: "ocean"
-  }), 0);
+  }), 80 / 91);
   assert.equal(sceneInertialPanTargetVelocity({ current: 0, target: 0.5 }), 1.45);
   assert.ok(sceneInertialPanTargetVelocity({ current: 0.499, target: 0.5 }) < 0.12);
   assert.equal(sceneInertialPanTargetVelocity({ current: 0.5, target: 0.5 }), 0);
@@ -289,6 +291,12 @@ test("Set Sail uses the visible ocean left of the player ship as its hit target"
     viewportWidth: 256,
     viewportHeight: 256
   }), { x: 0, y: 228, w: 24, h: 28 });
+  assert.deepEqual(citySetSailOceanRect({
+    shipX: 700,
+    waterSurfaceY: 119,
+    viewportWidth: 455,
+    viewportHeight: 256
+  }), { x: 0, y: 119, w: 455, h: 137 });
   assert.equal(citySetSailOceanRect({
     shipX: 4,
     waterSurfaceY: 119,
@@ -299,6 +307,21 @@ test("Set Sail uses the visible ocean left of the player ship as its hit target"
     VISUALIZER_MAIN_SOURCE,
     /shipX: placement\.x \+ state\.shipWaterlineLayers\.opaqueMinX \* placement\.scale/,
     "Set Sail must anchor to the visible ship silhouette rather than transparent raster padding"
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /const riseY = highlighted \? -2 : 0;[\s\S]*PIRATE_MENU_PAPER_SELECTED/,
+    "Set Sail hover and controller focus must lift and recolor the unboxed ocean label"
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /if \(destination\.id === PORT_CITY_LOCATION\.SET_SAIL\) \{[\s\S]*state\.cameraPanTarget = minimum;/,
+    "Set Sail controller focus must pan to the authored western ocean"
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /const playerShipDestination = destinationById\(PORT_CITY_LOCATION\.SHIP\);[\s\S]*state\.focusedDestinationId = playerShipDestination\.id;/,
+    "city entry must start at the ship instead of automatically revealing the western departure area"
   );
 });
 
@@ -634,8 +657,10 @@ test("fortified cities send two walkers into the gate behind its front edge", ()
   for (const path of CITY_GATE_TRAVERSAL_PATHS) {
     assert.ok(path.startX < 1254, "walker begins outside the gate");
     assert.ok(path.endX >= 1290, "walker reaches behind the front edge");
-    assert.ok(cityGroundPainterZ(path.feetY) < CITY_GATE_FRONT_PAINTER_Z);
+    assert.equal(path.painterZ, CITY_GATE_TRAVERSAL_PAINTER_Z);
+    assert.ok(path.painterZ < CITY_GATE_FRONT_PAINTER_Z);
   }
+  assert.ok(CITY_GATE_FRONT_PAINTER_Z < layerSceneZ("Near Castle"));
 });
 
 test("explicit scene z places walkers and the inn between gatehouse sections", () => {
@@ -648,6 +673,7 @@ test("explicit scene z places walkers and the inn between gatehouse sections", (
   assert.ok(cityGroundPainterZ(565) < cityGroundPainterZ(575));
   assert.ok(layerSceneZ("Foreground Grass") < layerSceneZ("Near Castle"));
   assert.ok(layerSceneZ("Foreground Grass Castle Shadow") < layerSceneZ("Near Castle"));
+  assert.ok(CITY_GATE_FRONT_PAINTER_Z < layerSceneZ("Near Castle"));
   assert.ok(layerSceneZ("Near Castle") < layerSceneZ("Barrel"));
   assert.ok(layerParallaxDepth("Far Castle") < layerParallaxDepth("Gate"));
   assert.equal(layerParallaxDepth("Gate"), layerParallaxDepth("Near Castle"));
@@ -781,6 +807,23 @@ test("river horizons close with two parallax-locked banks while open water does 
     rightBank.spriteSourceSize.y + leftmostOpaqueY +
       layerSceneOffsetY("Distant Land", 0, "river"),
     PORT_SCENE_WATER_HORIZON_Y + PORT_SCENE_HORIZON_SHIFT_Y
+  );
+});
+
+test("river-bend water occludes both horizon mountain layers", () => {
+  const horizonOceanZ = PORT_SCENE_OCEAN_SLICES[0].z;
+  for (const layerName of ["Horizon Mountains", "Horizon Mountains Left Bank"]) {
+    assert.ok(layerPainterZ(layerName, 0, "river") < horizonOceanZ, layerName);
+    assert.equal(layerPainterZ(layerName, 0, "ocean"), layerSceneZ(layerName));
+  }
+  assert.throws(
+    () => layerPainterZ("Horizon Mountains", 0, "estuary"),
+    /Invalid port scene approach/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /layerPainterZ\(layerName, occurrence, state\.features\.approach\)/,
+    "the render plan must use the approach-aware mountain painter order"
   );
 });
 

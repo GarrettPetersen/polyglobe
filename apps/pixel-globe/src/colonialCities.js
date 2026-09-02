@@ -572,7 +572,12 @@ function colonizationTarget(cityId, city, country, lat, lon, type, year, faction
   if (!preexistingSettlement && preexistingPopulation !== null) {
     throw new Error(`New colonization target cannot have an existing population: ${city}`);
   }
-  const cityType = details.cityType || colonizationCityType(type, factionId, cityId);
+  const cityType = colonizationCityType({
+    type,
+    factionId,
+    cityId,
+    preexistingSettlement
+  });
   const aftermathId = details.aftermathId ?? null;
   if (aftermathId !== null && !/^[a-z0-9][a-z0-9-]*$/.test(aftermathId)) {
     throw new Error(`Invalid colonization aftermath id: ${city}`);
@@ -690,17 +695,26 @@ function legacyColonizationTargetKey(city, country) {
   return `${city}\u0000${country}`;
 }
 
-function colonizationCityType(type, factionId, cityId) {
+function colonizationCityType({ type, factionId, cityId, preexistingSettlement }) {
   const territoryId = cityTerritoryId({ cityId }, "Colonization target");
+  if (type !== COLONIAL_FOUNDING_CONQUERED && !preexistingSettlement) {
+    const colonialStyle = {
+      spain: "mediterranean",
+      portugal: "mediterranean",
+      england: "northern-european",
+      france: "northern-european",
+      "burgundian-netherlands": "northern-european",
+      habsburg: "northern-european"
+    }[factionId];
+    if (!colonialStyle) {
+      throw new Error(`No settler architecture for colonizing faction: ${factionId}`);
+    }
+    return colonialStyle;
+  }
   if (territoryId === "japan") return "east-asian";
   if (territoryId === "philippines") return "southeast-asian";
   if (["peru", "bolivia", "chile"].includes(territoryId)) return "andean";
   if (territoryId === "mexico") return "mesoamerican";
-  if (type === COLONIAL_FOUNDING_CONQUERED) return localCityTypeForTerritory(territoryId);
-  if (factionId === "spain" || factionId === "portugal") return "mediterranean";
-  if (["france", "england", "burgundian-netherlands", "habsburg"].includes(factionId)) {
-    return "northern-european";
-  }
   return localCityTypeForTerritory(territoryId);
 }
 

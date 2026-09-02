@@ -264,15 +264,15 @@ families.
 - [ ] Near gate frame that allows NPCs to walk through the opening
 - [x] Manual bombarded art for every building — **OMIT** in favor of the
   procedural system below
-- [ ] Deterministic procedural bombardment seeded by city, building slot, and
+- [x] Deterministic procedural bombardment seeded by city, building slot, and
   bombardment event
-- [ ] Select impact points only on substantial opaque wall or roof regions
+- [x] Select impact points only on substantial opaque wall or roof regions
 - [ ] Protect foundations, required doors, and walkable gate openings from
   nonsensical cuts
-- [ ] Remove irregular pixel clusters rather than smooth circles
-- [ ] Darken the surviving one- or two-pixel impact rim with Resurrect 64 char
+- [x] Remove irregular pixel clusters rather than smooth circles
+- [x] Darken the surviving one- or two-pixel impact rim with Resurrect 64 char
   colors
-- [ ] Draw existing fire and smoke assets behind openings so they show through
+- [x] Draw existing fire assets behind openings so they show through
   the removed pixels
 - [ ] Add restrained procedural rubble at the base of damaged buildings
 - [ ] Support stable damage severity levels without rerolling the pattern on

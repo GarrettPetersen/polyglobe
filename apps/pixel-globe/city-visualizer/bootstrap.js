@@ -23,6 +23,7 @@ await createCitySceneRuntime({
     rightTerrainOverride: requiredElement("#right-terrain-override"),
     windSpeedOverride: requiredElement("#wind-speed-override"),
     windDirectionOverride: requiredElement("#wind-direction-override"),
+    bombardmentToggle: requiredElement("#bombardment-toggle"),
     resetOverrides: requiredElement("#reset-overrides"),
     ruleLedger: requiredElement("#rule-ledger"),
     destinationDialog: requiredElement("#destination-dialog"),
