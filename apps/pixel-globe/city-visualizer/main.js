@@ -148,6 +148,10 @@ import {
 import { cityVisualizerBenchmarkFromSearch } from "./cityVisualizerBenchmark.js";
 import { createCachedSceneRenderer } from "../src/cachedSceneRenderer.js";
 import { shipyardConstructionFillPixels } from "../src/shipyardConstructionArt.js";
+import {
+  CITY_STATIC_SCENE_ENTRY_KINDS,
+  cityStaticSceneProjectionInstruction
+} from "./cityStaticSceneProjection.js";
 
 export async function createCitySceneRuntime({
   canvas,
@@ -210,20 +214,7 @@ const staticProjectionSpecsCache = new WeakMap();
 const CITY_VISUALIZER_BENCHMARK = benchmark ?? (
   externalFrameClock ? null : cityVisualizerBenchmarkFromSearch(window.location.search)
 );
-const STATIC_SCENE_ENTRY_KINDS = new Set([
-  "background-city-static",
-  "city-building",
-  "dock-shadow-extension",
-  "left-bank-background-city-base",
-  "left-bank-background-city-underlay",
-  "quay-cargo",
-  "gate-front",
-  "shipyard-construction",
-  "shipyard-front",
-  "static",
-  "tree",
-  "tree-shadow"
-]);
+const STATIC_SCENE_ENTRY_KINDS = new Set(CITY_STATIC_SCENE_ENTRY_KINDS);
 const BACKGROUND_CITY_UNDERLAY_LAYER_NAMES = new Set(
   Object.values(BACKGROUND_CITY_UNDERLAY_LAYERS)
 );
@@ -1486,39 +1477,29 @@ function staticSceneProjectionSpecs(entries) {
   };
   for (const entry of entries) {
     if (!STATIC_SCENE_ENTRY_KINDS.has(entry.kind)) continue;
-    if (entry.kind === "static") {
+    const instruction = cityStaticSceneProjectionInstruction(entry);
+    if (instruction.kind === "layer") {
       add(
-        layerParallaxDepth(entry.layerName, entry.occurrence),
-        layerParallaxAnchor(entry.layerName, entry.occurrence)
+        layerParallaxDepth(instruction.layerName, instruction.occurrence),
+        instruction.parallax === "river-default"
+          ? PORT_SCENE_CAMERA.riverDefaultParallax
+          : layerParallaxAnchor(instruction.layerName, instruction.occurrence)
       );
-    } else if (entry.kind === "background-city-static") {
-      const painterOrder = entry.side === "left"
+    } else if (instruction.kind === "explicit") {
+      add(instruction.depth, instruction.parallaxAnchor);
+    } else if (instruction.kind === "background-city") {
+      const painterOrder = instruction.side === "left"
         ? state.leftBankBackgroundCityPainterOrder
         : state.backgroundCityPainterOrder;
       for (const building of painterOrder) add(building.depth, building.parallaxAnchor);
-      const rows = entry.side === "left"
+      const rows = instruction.side === "left"
         ? state.leftBankBackgroundCityRows
         : state.backgroundCityRows;
       if (rows.length > 0) {
         add(layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER), rows.at(-1).parallaxAnchor);
       }
-    } else if (
-      entry.kind === "left-bank-background-city-base" ||
-      entry.kind === "left-bank-background-city-underlay"
-    ) {
-      add(
-        layerParallaxDepth(entry.frame.layer),
-        PORT_SCENE_CAMERA.riverDefaultParallax
-      );
-    } else if (
-      entry.kind === "city-building" ||
-      entry.kind === "tree" ||
-      entry.kind === "tree-shadow" ||
-      entry.kind === "quay-cargo"
-    ) {
-      add(entry.placement.depth, entry.placement.parallaxAnchor || 0);
-    } else if (entry.kind === "dock-shadow-extension") {
-      add(layerParallaxDepth("Sand Beach Dock Shadow"));
+    } else {
+      throw new Error(`Unknown city static projection instruction: ${instruction.kind}`);
     }
   }
   return Object.freeze([...specs.values()]);
