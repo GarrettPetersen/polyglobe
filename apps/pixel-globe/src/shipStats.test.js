@@ -13,8 +13,12 @@ import {
   shipLabelForSlug,
   shipStatsForSlug
 } from "./shipStats.js";
-import { SHIP_ACCELERATION_SCALE, SHIP_TOP_SPEED_SCALE } from "./gamePacing.js";
-import { WORLD_KINEMATIC_SCALE } from "./worldScale.js";
+import {
+  SHIP_ACCELERATION_SCALE,
+  SHIP_TOP_SPEED_SCALE,
+  SHIP_TURN_RATE_SCALE
+} from "./gamePacing.js";
+import { WORLD_KINEMATIC_SCALE, WORLD_PIXELS_PER_RADIAN } from "./worldScale.js";
 
 test("later asset silhouettes use period-appropriate game identities", () => {
   const periodIdentities = {
@@ -78,7 +82,7 @@ test("hull points count one-point cannonball hits while mass preserves ship scal
   );
 });
 
-test("all hulls share the gentler cruise-speed scale", () => {
+test("all hulls share the weightier cruise-speed scale", () => {
   assert.equal(
     shipStatsForSlug("brigantine").topSpeedRad,
     0.040 * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE
@@ -87,22 +91,30 @@ test("all hulls share the gentler cruise-speed scale", () => {
     shipStatsForSlug("felucca").topSpeedRad,
     0.031 * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE
   );
-  assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.006 * WORLD_KINEMATIC_SCALE));
+  assert.ok(SHIP_STATS.every((stats) => stats.topSpeedRad > 0.0045 * WORLD_KINEMATIC_SCALE));
 });
 
-test("hulls glide up to a restrained cruise speed instead of leaping forward", () => {
+test("hulls gather way gradually instead of moving like speedboats", () => {
+  const sampan = shipStatsForSlug("sampan");
   const brigantine = shipStatsForSlug("brigantine");
   const galleon = shipStatsForSlug("galleon");
   const greatCarrack = shipStatsForSlug("ship-of-the-line");
 
-  assert.equal(SHIP_ACCELERATION_SCALE, 0.24);
+  assert.equal(SHIP_ACCELERATION_SCALE, 0.16);
+  assert.equal(SHIP_TURN_RATE_SCALE, 0.55);
   assert.equal(
     brigantine.accelerationRad,
     0.021 * SHIP_ACCELERATION_SCALE * WORLD_KINEMATIC_SCALE
   );
-  assert.ok(brigantine.topSpeedRad / brigantine.accelerationRad > 6);
-  assert.ok(galleon.topSpeedRad / galleon.accelerationRad > 9);
-  assert.ok(greatCarrack.topSpeedRad / greatCarrack.accelerationRad > 14);
+  assert.equal(sampan.turnRateRad, 3.40 * SHIP_TURN_RATE_SCALE);
+  assert.ok(sampan.topSpeedRad * WORLD_PIXELS_PER_RADIAN < 48);
+  assert.ok(sampan.accelerationRad * WORLD_PIXELS_PER_RADIAN < 13);
+  assert.ok(Math.max(...SHIP_STATS.map(({ topSpeedRad }) => (
+    topSpeedRad * WORLD_PIXELS_PER_RADIAN
+  ))) < 83);
+  assert.ok(brigantine.topSpeedRad / brigantine.accelerationRad > 7);
+  assert.ok(galleon.topSpeedRad / galleon.accelerationRad > 11);
+  assert.ok(greatCarrack.topSpeedRad / greatCarrack.accelerationRad > 17);
 });
 
 test("native canoe hulls are small, cannonless, exposed, and regionally distinct", () => {

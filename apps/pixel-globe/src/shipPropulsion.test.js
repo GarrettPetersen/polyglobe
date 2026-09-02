@@ -47,7 +47,7 @@ test("powered thrust compensates ordinary drag so low-acceleration hulls reach h
 });
 
 test("sail power stays restrained in light airs and approaches hull speed in a strong breeze", () => {
-  assert.equal(SHIP_MINIMUM_POWERED_SPEED_RAD, 0.006 * WORLD_KINEMATIC_SCALE);
+  assert.equal(SHIP_MINIMUM_POWERED_SPEED_RAD, 0.0045 * WORLD_KINEMATIC_SCALE);
   assert.equal(sailWindSpeedFactor(0), 0.08);
   assert.ok(sailWindSpeedFactor(0.2) < 0.18);
   assert.equal(sailWindSpeedFactor(0.5), 0.54);
