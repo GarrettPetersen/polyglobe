@@ -487,12 +487,15 @@ async function exportCityPeopleAssets(privateSourceRoot) {
 
     await rm(minifolkOutputRoot, { recursive: true, force: true });
     await mkdir(minifolkOutputRoot, { recursive: true });
-    await writeFile(resolve(minifolkOutputRoot, "people.png"), atlas.toBuffer("image/png"));
+    const peopleSheetPath = resolve(minifolkOutputRoot, "people.png");
+    await writeFile(peopleSheetPath, atlas.toBuffer("image/png"));
     await writeFile(resolve(minifolkOutputRoot, "manifest.json"), `${JSON.stringify({
       format: "marque-city-people-atlas",
-      version: 3,
+      version: 4,
+      assetRevision: await cityViewAssetRevision([peopleSheetPath]),
       palette: "Resurrect 64",
       sheet: "people.png",
+      sheetSize: Object.freeze({ w: atlasWidth, h: atlasHeight }),
       credits: [
         { name: "LYASeeK", url: "https://lyaseek.itch.io/" },
         { name: "Garrett Petersen" }

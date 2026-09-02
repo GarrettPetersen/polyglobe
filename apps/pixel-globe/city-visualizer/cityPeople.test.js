@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -22,6 +24,7 @@ import {
   cityPopulationProfileId,
   cityRecruitableCrewAppearances,
   createCityPeopleAgents,
+  validateCityPeopleAtlasImage,
   validateCityPeopleManifest
 } from "./cityPeople.js";
 import { CITY_NPC_PATHS } from "./cityPainterOrder.js";
@@ -273,6 +276,12 @@ test("the packed people atlas contains every appearance with hard pixel alpha", 
     `./assets/minifolks/${manifest.sheet}`,
     import.meta.url
   ).pathname);
+  assert.equal(atlas.width, manifest.sheetSize.w);
+  assert.equal(atlas.height, manifest.sheetSize.h);
+  assert.equal(validateCityPeopleAtlasImage(manifest, atlas), atlas);
+  const digest = createHash("sha256");
+  digest.update(await readFile(new URL(`./assets/minifolks/${manifest.sheet}`, import.meta.url)));
+  assert.equal(manifest.assetRevision, digest.digest("hex").slice(0, 16));
   const canvas = createCanvas(atlas.width, atlas.height);
   const context = canvas.getContext("2d");
   context.drawImage(atlas, 0, 0);
@@ -301,6 +310,22 @@ test("the packed people atlas contains every appearance with hard pixel alpha", 
       }
     }
   }
+});
+
+test("the people atlas cannot mix image bytes and frame metadata from different exports", () => {
+  assert.throws(
+    () => validateCityPeopleAtlasImage(manifest, { width: 252, height: 1382 }),
+    /does not match manifest/
+  );
+  assert.throws(
+    () => validateCityPeopleManifest({ ...manifest, version: 3 }),
+    /Unsupported city people manifest/
+  );
+
+  const mainSource = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  assert.match(mainSource, /minifolks\/manifest\.json`, \{ cache: "no-store" \}/);
+  assert.match(mainSource, /cityPeopleAtlasUrl\(state\.peopleManifest\)/);
+  assert.match(mainSource, /manifest\.assetRevision/);
 });
 
 function city(cityId) {

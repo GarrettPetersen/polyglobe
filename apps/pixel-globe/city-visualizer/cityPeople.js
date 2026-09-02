@@ -412,11 +412,18 @@ export function citySuspiciousMerchantAppearanceId(city) {
 }
 
 export function validateCityPeopleManifest(manifest) {
-  if (!manifest || manifest.format !== "marque-city-people-atlas" || manifest.version !== 3) {
+  if (!manifest || manifest.format !== "marque-city-people-atlas" || manifest.version !== 4) {
     throw new Error("Unsupported city people manifest");
   }
   if (typeof manifest.sheet !== "string" || manifest.sheet === "") {
     throw new Error("City people manifest requires an atlas sheet");
+  }
+  if (typeof manifest.assetRevision !== "string" || !/^[0-9a-f]{16}$/.test(manifest.assetRevision)) {
+    throw new Error("City people manifest requires a content revision");
+  }
+  if (!manifest.sheetSize || !Number.isInteger(manifest.sheetSize.w) || manifest.sheetSize.w <= 0 ||
+      !Number.isInteger(manifest.sheetSize.h) || manifest.sheetSize.h <= 0) {
+    throw new Error("City people manifest requires positive atlas dimensions");
   }
   if (!Array.isArray(manifest.appearances)) {
     throw new Error("City people manifest requires appearances");
@@ -456,6 +463,20 @@ export function validateCityPeopleManifest(manifest) {
     }
   }
   return manifest;
+}
+
+export function validateCityPeopleAtlasImage(manifest, image) {
+  validateCityPeopleManifest(manifest);
+  if (!image || !Number.isInteger(image.width) || !Number.isInteger(image.height)) {
+    throw new Error("City people atlas image has invalid dimensions");
+  }
+  if (image.width !== manifest.sheetSize.w || image.height !== manifest.sheetSize.h) {
+    throw new Error(
+      `City people atlas image ${image.width}x${image.height} does not match manifest ` +
+      `${manifest.sheetSize.w}x${manifest.sheetSize.h} at revision ${manifest.assetRevision}`
+    );
+  }
+  return image;
 }
 
 function cityGarrisonWalkerCount(city, count, profile) {

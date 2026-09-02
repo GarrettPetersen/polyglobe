@@ -119,6 +119,7 @@ import {
   cityGarrisonAppearanceIds,
   citySuspiciousMerchantAppearanceId,
   createCityPeopleAgents,
+  validateCityPeopleAtlasImage,
   validateCityPeopleManifest
 } from "./cityPeople.js";
 import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
@@ -435,7 +436,7 @@ async function initialize() {
     ] = await Promise.all([
       fetchJson(catalogUrl),
       fetchJson(`${assetBaseUrl}/port-parallax/manifest.json`, { cache: "no-store" }),
-      fetchJson(`${assetBaseUrl}/minifolks/manifest.json`),
+      fetchJson(`${assetBaseUrl}/minifolks/manifest.json`, { cache: "no-store" }),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),
       fetchJson("/assets/vehicles/unity-ships/side-views/manifest.json"),
       fetchJson(`${assetBaseUrl}/trees/manifest.json`),
@@ -467,9 +468,10 @@ async function initialize() {
       loadImage(portAtlasUrl(portManifest, portManifest.animated?.Waves?.sheet)),
       loadImage(portAtlasUrl(portManifest, portManifest.animated?.Surf?.sheet)),
       loadImage(`${assetBaseUrl}/trees/${treeManifest.sheet}`),
-      loadImage(`${assetBaseUrl}/minifolks/${state.peopleManifest.sheet}`),
+      loadImage(cityPeopleAtlasUrl(state.peopleManifest)),
       loadImage("/assets/misc/fire.png?v=fire-effect-2")
     ]);
+    validateCityPeopleAtlasImage(state.peopleManifest, state.peopleAtlas);
     if (
       state.fireAtlas.width !== FIRE_FRAME_WIDTH * FIRE_FRAME_COUNT ||
       state.fireAtlas.height !== FIRE_FRAME_HEIGHT * FIRE_VARIANT_COUNT
@@ -4550,6 +4552,16 @@ function portAtlasUrl(manifest, sheet) {
     throw new Error("City-view atlas manifest is missing its asset revision");
   }
   return `${assetBaseUrl}/port-parallax/${sheet}?v=${encodeURIComponent(manifest.assetRevision)}`;
+}
+
+function cityPeopleAtlasUrl(manifest) {
+  if (typeof manifest?.sheet !== "string" || manifest.sheet.length === 0) {
+    throw new Error("City people atlas manifest is missing a sheet filename");
+  }
+  if (typeof manifest.assetRevision !== "string" || !/^[0-9a-f]{16}$/.test(manifest.assetRevision)) {
+    throw new Error("City people atlas manifest is missing its content revision");
+  }
+  return `${assetBaseUrl}/minifolks/${manifest.sheet}?v=${encodeURIComponent(manifest.assetRevision)}`;
 }
 
 function loadImage(url) {
