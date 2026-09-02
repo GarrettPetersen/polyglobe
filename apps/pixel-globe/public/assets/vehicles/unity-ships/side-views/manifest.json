@@ -17,7 +17,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/fishing-lugger.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 67,
+      "lowestOpaquePixelY": 68
     },
     {
       "slug": "small-cog",
@@ -31,7 +33,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/small-cog.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 75,
+      "lowestOpaquePixelY": 76
     },
     {
       "slug": "sampan",
@@ -45,7 +49,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/sampan.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 73,
+      "lowestOpaquePixelY": 74
     },
     {
       "slug": "large-junk",
@@ -59,7 +65,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/large-junk.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 82,
+      "lowestOpaquePixelY": 86
     },
     {
       "slug": "pirate-brig",
@@ -73,7 +81,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/pirate-brig.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 88,
+      "lowestOpaquePixelY": 92
     },
     {
       "slug": "fluyt",
@@ -87,7 +97,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/fluyt.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 82,
+      "lowestOpaquePixelY": 85
     },
     {
       "slug": "carrack",
@@ -101,7 +113,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/carrack.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 82,
+      "lowestOpaquePixelY": 86
     },
     {
       "slug": "ship-of-the-line",
@@ -115,7 +129,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/ship-of-the-line.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 83,
+      "lowestOpaquePixelY": 86
     },
     {
       "slug": "medium-junk",
@@ -129,7 +145,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/medium-junk.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 82,
+      "lowestOpaquePixelY": 86
     },
     {
       "slug": "xebec",
@@ -143,7 +161,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/xebec.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 86,
+      "lowestOpaquePixelY": 88
     },
     {
       "slug": "caravel",
@@ -157,7 +177,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/caravel.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 83,
+      "lowestOpaquePixelY": 86
     },
     {
       "slug": "holk",
@@ -171,7 +193,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/holk.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 76,
+      "lowestOpaquePixelY": 80
     },
     {
       "slug": "square-rigged-caravel",
@@ -185,7 +209,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/square-rigged-caravel.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 85,
+      "lowestOpaquePixelY": 90
     },
     {
       "slug": "brigantine",
@@ -199,7 +225,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/brigantine.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 84,
+      "lowestOpaquePixelY": 86
     },
     {
       "slug": "small-junk",
@@ -213,7 +241,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/small-junk.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 81,
+      "lowestOpaquePixelY": 83
     },
     {
       "slug": "felucca",
@@ -227,7 +257,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/felucca.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 70,
+      "lowestOpaquePixelY": 74
     },
     {
       "slug": "cutter",
@@ -241,7 +273,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/cutter.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 74,
+      "lowestOpaquePixelY": 75
     },
     {
       "slug": "ketch",
@@ -255,7 +289,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/ketch.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 77,
+      "lowestOpaquePixelY": 80
     },
     {
       "slug": "javanese-jong",
@@ -269,7 +305,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/javanese-jong.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 83,
+      "lowestOpaquePixelY": 88
     },
     {
       "slug": "polynesian-voyaging-canoe",
@@ -283,7 +321,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/polynesian-voyaging-canoe.png",
       "creator": "Hialda Alpizar",
       "license": "CC BY 4.0",
-      "sourceTitle": "Polynesian Voyaging Canoe"
+      "sourceTitle": "Polynesian Voyaging Canoe",
+      "sideViewWaterlineY": 87,
+      "lowestOpaquePixelY": 92
     },
     {
       "slug": "mesoamerican-dugout-canoe",
@@ -297,7 +337,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/mesoamerican-dugout-canoe.png",
       "creator": "irodatiii",
       "license": "Sketchfab Free Standard",
-      "sourceTitle": "Low Poly Canoe - Stylized Game Asset"
+      "sourceTitle": "Low Poly Canoe - Stylized Game Asset",
+      "sideViewWaterlineY": 58,
+      "lowestOpaquePixelY": 59
     },
     {
       "slug": "mediterranean-galley",
@@ -311,7 +353,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/mediterranean-galley.png",
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
-      "sourceTitle": "Russian 22-bank Baltic galley"
+      "sourceTitle": "Russian 22-bank Baltic galley",
+      "sideViewWaterlineY": 72,
+      "lowestOpaquePixelY": 75
     },
     {
       "slug": "fusta",
@@ -325,7 +369,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/fusta.png",
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
-      "sourceTitle": "Russian 22-bank Baltic galley"
+      "sourceTitle": "Russian 22-bank Baltic galley",
+      "sideViewWaterlineY": 65,
+      "lowestOpaquePixelY": 70
     },
     {
       "slug": "galleass",
@@ -339,7 +385,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/galleass.png",
       "creator": "Museovirasto Museiverket Finnish Heritage Agency",
       "license": "CC BY 4.0",
-      "sourceTitle": "Russian 22-bank Baltic galley"
+      "sourceTitle": "Russian 22-bank Baltic galley",
+      "sideViewWaterlineY": 76,
+      "lowestOpaquePixelY": 79
     },
     {
       "slug": "joseon-turtle-ship",
@@ -353,7 +401,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/joseon-turtle-ship.png",
       "creator": "KargaEntiti",
       "license": "CC BY 4.0",
-      "sourceTitle": "Geobukseon (Turtle Ship)"
+      "sourceTitle": "Geobukseon (Turtle Ship)",
+      "sideViewWaterlineY": 86,
+      "lowestOpaquePixelY": 87
     },
     {
       "slug": "joseon-hyeopseon",
@@ -367,7 +417,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/joseon-hyeopseon.png",
       "creator": "Heat Of Fusion, with JJakgwi",
       "license": "CC BY 4.0",
-      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船"
+      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
+      "sideViewWaterlineY": 79,
+      "lowestOpaquePixelY": 81
     },
     {
       "slug": "joseon-panokseon",
@@ -381,7 +433,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/joseon-panokseon.png",
       "creator": "Heat Of Fusion, with JJakgwi",
       "license": "CC BY 4.0",
-      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船"
+      "sourceTitle": "Panok ship (Panokseon) | 판옥선 | 板屋船",
+      "sideViewWaterlineY": 88,
+      "lowestOpaquePixelY": 91
     },
     {
       "slug": "japanese-kuribune",
@@ -395,7 +449,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/japanese-kuribune.png",
       "creator": "urszulaczyz",
       "license": "CC BY 4.0",
-      "sourceTitle": "Kamakura Period Umi-Bune Japanese Boat"
+      "sourceTitle": "Kamakura Period Umi-Bune Japanese Boat",
+      "sideViewWaterlineY": 65,
+      "lowestOpaquePixelY": 67
     },
     {
       "slug": "japanese-kobaya",
@@ -409,7 +465,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/japanese-kobaya.png",
       "creator": "HIROKAZU KOBAYASHI",
       "license": "BOOTH commercial-use license",
-      "sourceTitle": "Japanese Boat: Kobaya 3D Model"
+      "sourceTitle": "Japanese Boat: Kobaya 3D Model",
+      "sideViewWaterlineY": 61,
+      "lowestOpaquePixelY": 65
     },
     {
       "slug": "japanese-sekibune",
@@ -423,7 +481,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/japanese-sekibune.png",
       "creator": "HIROKAZU KOBAYASHI",
       "license": "BOOTH commercial-use license",
-      "sourceTitle": "Japanese Boat: Sekibune 3D Model"
+      "sourceTitle": "Japanese Boat: Sekibune 3D Model",
+      "sideViewWaterlineY": 74,
+      "lowestOpaquePixelY": 78
     },
     {
       "slug": "japanese-atakebune",
@@ -437,7 +497,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/japanese-atakebune.png",
       "creator": "LukasSI",
       "license": "CC BY 4.0",
-      "sourceTitle": "Atakebune Japanese Medieval Warship"
+      "sourceTitle": "Atakebune Japanese Medieval Warship",
+      "sideViewWaterlineY": 72,
+      "lowestOpaquePixelY": 78
     },
     {
       "slug": "spanish-nao",
@@ -451,7 +513,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/spanish-nao.png",
       "creator": "Javier López Cuadrado",
       "license": "CC BY 4.0",
-      "sourceTitle": "Nao Victoria Galleon Ship"
+      "sourceTitle": "Nao Victoria Galleon Ship",
+      "sideViewWaterlineY": 81,
+      "lowestOpaquePixelY": 88
     },
     {
       "slug": "portuguese-carrack",
@@ -465,7 +529,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/portuguese-carrack.png",
       "creator": "gogiart",
       "license": "CC BY 4.0",
-      "sourceTitle": "Portuguese Carrack"
+      "sourceTitle": "Portuguese Carrack",
+      "sideViewWaterlineY": 80,
+      "lowestOpaquePixelY": 88
     },
     {
       "slug": "dhow",
@@ -479,7 +545,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/dhow.png",
       "creator": "gogiart",
       "license": "CC BY 4.0",
-      "sourceTitle": "Dhow"
+      "sourceTitle": "Dhow",
+      "sideViewWaterlineY": 69,
+      "lowestOpaquePixelY": 74
     },
     {
       "slug": "ocean-dhow",
@@ -493,7 +561,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/ocean-dhow.png",
       "creator": "Nisa Nurul Azizah",
       "license": "CC BY 4.0",
-      "sourceTitle": "Low Poly Ancient Dhow Ship"
+      "sourceTitle": "Low Poly Ancient Dhow Ship",
+      "sideViewWaterlineY": 89,
+      "lowestOpaquePixelY": 92
     },
     {
       "slug": "galleon",
@@ -507,7 +577,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/galleon.png",
       "creator": "cyc3w",
       "license": "CC BY 4.0",
-      "sourceTitle": "Sailing ship"
+      "sourceTitle": "Sailing ship",
+      "sideViewWaterlineY": 83,
+      "lowestOpaquePixelY": 85
     },
     {
       "slug": "nusantaran-outrigger",
@@ -521,7 +593,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/nusantaran-outrigger.png",
       "creator": "Nisa Nurul Azizah",
       "license": "CC BY 4.0",
-      "sourceTitle": "Low Poly Borobudur Ship of Sriwijaya"
+      "sourceTitle": "Low Poly Borobudur Ship of Sriwijaya",
+      "sideViewWaterlineY": 80,
+      "lowestOpaquePixelY": 85
     },
     {
       "slug": "kelulus",
@@ -535,7 +609,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/kelulus.png",
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
-      "sourceTitle": "Procedural Kelulus"
+      "sourceTitle": "Procedural Kelulus",
+      "sideViewWaterlineY": 73,
+      "lowestOpaquePixelY": 78
     },
     {
       "slug": "penjajap",
@@ -549,7 +625,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/penjajap.png",
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
-      "sourceTitle": "Procedural Penjajap"
+      "sourceTitle": "Procedural Penjajap",
+      "sideViewWaterlineY": 70,
+      "lowestOpaquePixelY": 71
     },
     {
       "slug": "lancaran",
@@ -563,7 +641,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/lancaran.png",
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
-      "sourceTitle": "Procedural Lancaran"
+      "sourceTitle": "Procedural Lancaran",
+      "sideViewWaterlineY": 67,
+      "lowestOpaquePixelY": 70
     },
     {
       "slug": "royal-lancaran",
@@ -577,7 +657,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/royal-lancaran.png",
       "creator": "Marque & Reprisal project",
       "license": "Original project asset",
-      "sourceTitle": "Procedural Royal Lancaran"
+      "sourceTitle": "Procedural Royal Lancaran",
+      "sideViewWaterlineY": 68,
+      "lowestOpaquePixelY": 70
     },
     {
       "slug": "ottoman-coastal-trader",
@@ -591,7 +673,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/ottoman-coastal-trader.png",
       "creator": "Polygora",
       "license": "CC BY 4.0",
-      "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model"
+      "sourceTitle": "Ottoman Coastal Trade Tall Ship 3D Model",
+      "sideViewWaterlineY": 88,
+      "lowestOpaquePixelY": 93
     },
     {
       "slug": "viking-longship",
@@ -605,7 +689,9 @@
       "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/side-views/viking-longship.png",
       "creator": "Palmov Island",
       "license": "Standard Unity Asset Store EULA",
-      "sourceTitle": "Low Poly Cartoon Sailing Ships"
+      "sourceTitle": "Low Poly Cartoon Sailing Ships",
+      "sideViewWaterlineY": 76,
+      "lowestOpaquePixelY": 79
     }
   ]
 }

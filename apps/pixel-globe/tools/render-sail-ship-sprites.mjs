@@ -3552,9 +3552,19 @@ function unionAlphaBounds(boundsList) {
 }
 
 async function renderShipSideView(config) {
-  const { canvas: sideView } = await renderShipSideViewCanvas(config, {
+  const { canvas: sideView, waterlineY } = await renderShipSideViewCanvas(config, {
     camera: makeSideViewCamera()
   });
+  const waterlinePoint = new THREE.Vector3(0, waterlineY, 0).project(makeLevelSideViewCamera());
+  const opaqueBounds = alphaBounds(sideView);
+  const lowestOpaquePixelY = opaqueBounds.minY + opaqueBounds.height - 1;
+  // The low-angle review projection can put its nominal waterline on the last
+  // opaque raster row for especially small boats. Keep at least one real hull
+  // row submerged so consumers never have to invent pixels below the surface.
+  const sideViewWaterlineY = Math.min(
+    Math.round((1 - waterlinePoint.y) * 0.5 * sideViewHeight),
+    lowestOpaquePixelY - 1
+  );
   const outputPath = join(unityFleetSideViewOutputRoot, `${config.slug}.png`);
   writeFileSync(outputPath, sideView.toBuffer("image/png"));
   return {
@@ -3569,7 +3579,9 @@ async function renderShipSideView(config) {
     file: portablePath(outputPath),
     ...(config.creator ? { creator: config.creator } : {}),
     ...(config.license ? { license: config.license } : {}),
-    ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {})
+    ...(config.sourceTitle ? { sourceTitle: config.sourceTitle } : {}),
+    sideViewWaterlineY,
+    lowestOpaquePixelY
   };
 }
 

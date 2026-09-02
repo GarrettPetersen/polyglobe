@@ -75,6 +75,12 @@ import {
   cityTreeShadowRgb
 } from "./cityTrees.js";
 import { cityQuayCargoPlacements } from "./cityQuayCargo.js";
+import {
+  cityShipyardSaleShipContainsPoint,
+  cityShipyardSaleShipPlacements,
+  cityShipyardSaleShipSlugs,
+  validateCityShipSideViewManifest
+} from "./cityShipyardSaleShips.js";
 import { CITY_NPC_PATHS, cityGroundPainterZ } from "./cityPainterOrder.js";
 import {
   createCityPeopleAgents,
@@ -181,6 +187,7 @@ const state = {
   portManifest: null,
   peopleManifest: null,
   shipManifest: null,
+  shipSideViewManifest: null,
   treeManifest: null,
   staticAtlas: null,
   waveAtlas: null,
@@ -193,6 +200,9 @@ const state = {
   shipWaterlineLayers: null,
   shipWaterShadowImages: null,
   shipSlug: null,
+  shipyardSaleRequestKey: null,
+  shipyardSaleShips: [],
+  shipyardSaleShipPlacements: [],
   cityFlagFactionId: null,
   cityFlagImage: null,
   wind: null,
@@ -208,6 +218,7 @@ const state = {
   cameraGesture: null,
   suppressClick: false,
   hoveredDestination: null,
+  hoveredShipyardSaleShipId: null,
   backgroundCityRows: [],
   backgroundCityPainterOrder: [],
   backgroundCitySmokeByBuilding: new Map(),
@@ -276,11 +287,12 @@ await initialize();
 
 async function initialize() {
   try {
-    const [catalog, portManifest, peopleManifest, shipManifest, treeManifest] = await Promise.all([
+    const [catalog, portManifest, peopleManifest, shipManifest, shipSideViewManifest, treeManifest] = await Promise.all([
       fetchJson("./data/cities.json"),
       fetchJson("./assets/port-parallax/manifest.json", { cache: "no-store" }),
       fetchJson("./assets/minifolks/manifest.json"),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),
+      fetchJson("/assets/vehicles/unity-ships/side-views/manifest.json"),
       fetchJson("./assets/trees/manifest.json"),
       document.fonts?.load?.(CITY_PIXEL_FONT_SMALL_8) || Promise.resolve(),
       document.fonts?.load?.(CITY_PIXEL_FONT_TITLE_8) || Promise.resolve()
@@ -292,6 +304,7 @@ async function initialize() {
       state.peopleManifest.appearances.map((appearance) => [appearance.id, appearance])
     );
     state.shipManifest = shipManifest;
+    state.shipSideViewManifest = validateCityShipSideViewManifest(shipSideViewManifest);
     state.treeManifest = treeManifest;
     [state.staticAtlas, state.waveAtlas, state.surfAtlas, state.treeAtlas, state.peopleAtlas] = await Promise.all([
       loadImage(portAtlasUrl(portManifest, portManifest.staticSheet)),
@@ -388,6 +401,8 @@ async function selectCity(cityId) {
   state.city = city;
   state.cityFlagFactionId = city.factionId;
   state.cityFlagImage = null;
+  state.shipyardSaleShips = [];
+  state.shipyardSaleShipPlacements = [];
   citySelect.value = city.id;
   canvas.setAttribute("aria-label", `${city.label}, ${city.country}`);
   for (const control of [
@@ -409,7 +424,8 @@ async function selectCity(cityId) {
   state.lastCloudTimeMs = null;
   await Promise.all([
     selectCityFlag(city),
-    selectShip(city.defaultShip)
+    selectShip(city.defaultShip),
+    selectShipyardSaleShips(cityShipyardSaleShipSlugs(city, state.features))
   ]);
   if (state.city.id !== city.id) return;
   const url = new URL(location.href);
@@ -604,6 +620,78 @@ async function selectShip(slug) {
   ));
 }
 
+async function selectShipyardSaleShips(slugs) {
+  const requestKey = `${state.city.id}:${slugs.join(",")}`;
+  state.shipyardSaleRequestKey = requestKey;
+  state.shipyardSaleShips = [];
+  state.shipyardSaleShipPlacements = [];
+  rebuildCitySceneRenderPlan();
+  const manifestBySlug = new Map(
+    state.shipSideViewManifest.ships.map((ship) => [ship.slug, ship])
+  );
+  const ships = await Promise.all(slugs.map(async (slug) => {
+    const ship = manifestBySlug.get(slug);
+    if (!ship) throw new Error(`Missing city shipyard sale side view: ${slug}`);
+    const image = await loadImage(publicAssetUrl(ship.file));
+    if (image.width !== ship.width || image.height !== ship.height) {
+      throw new Error(
+        `City shipyard sale side view has mismatched dimensions: ${slug} ` +
+        `${image.width}x${image.height}`
+      );
+    }
+    return cityShipyardSaleShipRaster(ship, image);
+  }));
+  if (state.shipyardSaleRequestKey !== requestKey) return;
+  state.shipyardSaleShips = Object.freeze(ships);
+  state.shipyardSaleShipPlacements = cityShipyardSaleShipPlacements(ships);
+  rebuildCitySceneRenderPlan();
+  updateHover();
+}
+
+function cityShipyardSaleShipRaster(ship, image) {
+  const source = document.createElement("canvas");
+  source.width = ship.width;
+  source.height = ship.height;
+  const sourceContext = source.getContext("2d", { willReadFrequently: true });
+  sourceContext.imageSmoothingEnabled = false;
+  sourceContext.drawImage(image, 0, 0);
+  const pixels = sourceContext.getImageData(0, 0, source.width, source.height).data;
+  const alpha = new Uint8Array(source.width * source.height);
+  let minX = source.width;
+  let minY = source.height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let key = 0; key < alpha.length; key++) {
+    alpha[key] = pixels[key * 4 + 3];
+    if (alpha[key] <= 16) continue;
+    const x = key % source.width;
+    const y = Math.floor(key / source.width);
+    minX = Math.min(minX, x);
+    minY = Math.min(minY, y);
+    maxX = Math.max(maxX, x);
+    maxY = Math.max(maxY, y);
+  }
+  if (maxX < 0 || maxY !== ship.lowestOpaquePixelY) {
+    throw new Error(`City shipyard sale side-view metadata does not match raster: ${ship.slug}`);
+  }
+  const outline = document.createElement("canvas");
+  outline.width = source.width;
+  outline.height = source.height;
+  const outlineContext = outline.getContext("2d");
+  outlineContext.imageSmoothingEnabled = false;
+  outlineContext.drawImage(source, 0, 0);
+  outlineContext.globalCompositeOperation = "source-in";
+  outlineContext.fillStyle = "#ffe55c";
+  outlineContext.fillRect(0, 0, outline.width, outline.height);
+  return Object.freeze({
+    ...ship,
+    image,
+    alpha,
+    outline,
+    opaqueBounds: Object.freeze({ minX, minY, maxX, maxY })
+  });
+}
+
 function publicAssetUrl(file) {
   const prefix = "apps/pixel-globe/public";
   if (typeof file !== "string" || !file.startsWith(`${prefix}/`)) {
@@ -731,6 +819,7 @@ canvas.addEventListener("wheel", (event) => {
 canvas.addEventListener("pointerleave", () => {
   state.pointer = null;
   state.hoveredDestination = null;
+  state.hoveredShipyardSaleShipId = null;
   canvas.classList.remove("is-actionable");
 });
 
@@ -965,6 +1054,9 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
   else if (entry.kind === "quay-cargo") drawQuayCargo(entry.placement, targetContext);
   else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
   else if (entry.kind === "cloud") drawCloud(entry, timeMs);
+  else if (entry.kind === "shipyard-sale-ship") {
+    drawShipyardSaleShip(entry.placement, timeMs, targetContext);
+  }
   else if (entry.kind === "ship") drawDocksideShip(timeMs);
   else if (entry.kind === "npc") drawNpc(entry.agent, timeMs);
   else throw new Error(`Unknown city scene render entry: ${entry.kind}`);
@@ -1087,7 +1179,8 @@ function staticSceneCacheKey(entries) {
   const projectionKey = projectionSpecs.map(({ depth, parallaxAnchor }) => (
     Math.round(sceneWindow(depth, 0, 0, parallaxAnchor).x)
   )).join(",");
-  const hoveredDestinationId = state.hoveredDestination && entries.some((entry) => (
+  const hoveredDestinationId = state.hoveredDestination &&
+    !state.hoveredShipyardSaleShipId && entries.some((entry) => (
     entry.kind === "static" && state.hoveredDestination.layers.includes(entry.layerName)
   ))
     ? state.hoveredDestination.id
@@ -1326,6 +1419,14 @@ function createSceneRenderEntries() {
       placement,
       z: placement.z,
       authoredOrder: 36 + placementOrder / 100
+    });
+  }
+  for (const [placementOrder, placement] of state.shipyardSaleShipPlacements.entries()) {
+    entries.push({
+      kind: "shipyard-sale-ship",
+      placement,
+      z: placement.z,
+      authoredOrder: 12 + placementOrder / 100
     });
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
@@ -1734,7 +1835,10 @@ function drawStaticFrame(frame, layerName, occurrence, targetContext) {
   const regionalFrame = regionalStaticFrame(frame, layerName);
   const sourceAtlas = regionalFrame?.atlas || state.staticAtlas;
   const sourceFrame = regionalFrame?.frame || frame;
-  if (state.hoveredDestination?.layers.includes(layerName)) {
+  if (
+    state.hoveredDestination?.layers.includes(layerName) &&
+    !state.hoveredShipyardSaleShipId
+  ) {
     drawFrameOutline(sourceAtlas, sourceFrame, window, targetContext);
   }
   drawAtlasFrame(
@@ -2330,6 +2434,84 @@ function drawDocksideShip(timeMs) {
   );
 }
 
+function drawShipyardSaleShip(placement, timeMs, targetContext) {
+  const screen = shipyardSaleShipScreenPlacement(placement, timeMs);
+  const ship = placement.ship;
+  const splitSourceY = clamp(
+    ship.sideViewWaterlineY - screen.bobY,
+    0,
+    ship.height
+  );
+  if (state.hoveredShipyardSaleShipId === placement.id) {
+    for (const [dx, dy] of [
+      [-1, 0], [1, 0], [0, -1], [0, 1],
+      [-1, -1], [1, -1], [-1, 1], [1, 1]
+    ]) {
+      targetContext.drawImage(
+        ship.outline,
+        screen.x + dx,
+        screen.y + dy,
+        placement.width,
+        placement.height
+      );
+    }
+  }
+  const refractionTime = prefersReducedMotion.matches ? 0 : timeMs;
+  targetContext.save();
+  targetContext.globalAlpha = SHIP_SUBMERGED_ALPHA;
+  for (
+    let sourceY = splitSourceY;
+    sourceY < ship.height;
+    sourceY += SHIP_REFRACTION_BAND_HEIGHT
+  ) {
+    const sourceHeight = Math.min(SHIP_REFRACTION_BAND_HEIGHT, ship.height - sourceY);
+    targetContext.drawImage(
+      ship.image,
+      0,
+      sourceY,
+      ship.width,
+      sourceHeight,
+      screen.x + liveShipRefractionOffset(sourceY, refractionTime, hashString(placement.id)),
+      screen.y + sourceY * placement.scale,
+      placement.width,
+      sourceHeight * placement.scale
+    );
+  }
+  targetContext.restore();
+  if (splitSourceY > 0) {
+    targetContext.drawImage(
+      ship.image,
+      0,
+      0,
+      ship.width,
+      splitSourceY,
+      screen.x,
+      screen.y,
+      placement.width,
+      splitSourceY * placement.scale
+    );
+  }
+}
+
+function shipyardSaleShipScreenPlacement(placement, timeMs) {
+  const window = sceneWindow(
+    placement.depth,
+    0,
+    0,
+    placement.parallaxAnchor
+  );
+  const bobY = clamp(
+    oceanRowOffset(placement.waterlineY, Math.max(0, timeMs + placement.bobPhase)),
+    -1,
+    1
+  );
+  return Object.freeze({
+    x: Math.round(placement.x - window.x),
+    y: Math.round(placement.y - window.y + bobY),
+    bobY
+  });
+}
+
 function drawDocksideShipWaterShadow(slice, timeMs, top, bottom) {
   if (!state.shipWaterShadowImages) return;
   const placement = docksideShipPlacement(timeMs, slice.depth);
@@ -2594,7 +2776,25 @@ function updateHover() {
     (!destination.requiresFortification || state.features.fortified) &&
     (!destination.requiredFeature || state.features[destination.requiredFeature])
   ));
-  state.hoveredDestination = destinations.find((destination) => destination.layers.some((layerName) => {
+  const shipyardDestination = destinations.find(({ id }) => id === "shipyard");
+  const hoveredSaleShip = shipyardDestination
+    ? [...state.shipyardSaleShipPlacements]
+        .sort((left, right) => right.z - left.z)
+        .find((placement) => {
+          const screen = shipyardSaleShipScreenPlacement(
+            placement,
+            state.lastRenderTimeMs ?? 0
+          );
+          return cityShipyardSaleShipContainsPoint({
+            placement: { ...placement, x: screen.x, y: screen.y },
+            screenX: state.pointer.x,
+            screenY: state.pointer.y,
+            alpha: placement.ship.alpha
+          });
+        })
+    : null;
+  state.hoveredShipyardSaleShipId = hoveredSaleShip?.id || null;
+  state.hoveredDestination = hoveredSaleShip ? shipyardDestination : destinations.find((destination) => destination.layers.some((layerName) => {
     if (!activeLayers.has(layerName)) return false;
     return state.portManifest.staticFrames
       .filter((frame) => frame.layer === layerName)
