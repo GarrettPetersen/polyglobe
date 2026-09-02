@@ -13,6 +13,7 @@ import {
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import { cityGroundPainterZ } from "./cityPainterOrder.js";
 import {
+  BACKGROUND_CITY_UNDERLAY_LAYERS,
   PORT_SCENE_MASTER,
   PORT_SCENE_CAMERA,
   PORT_SCENE_DOCK,
@@ -730,12 +731,18 @@ test("Christian communities opt into the shared church landmark through city dat
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const london = cityById.get("london|united kingdom");
   const angers = cityById.get("angers|france");
+  const angra = cityById.get("angra|portugal");
+  const augsburg = cityById.get("augsberg|germany");
   const nanjing = cityById.get("nanjing|china");
   assert.deepEqual(london?.religiousLandmarks, ["church"]);
   assert.equal(london?.backgroundCity?.landmarks?.church, 2);
   assert.equal(london?.backgroundCity?.density, "dense");
   assert.equal(angers?.backgroundCity?.landmarks?.church, 1);
   assert.equal(angers?.backgroundCity?.density, "moderate");
+  assert.equal(angra?.backgroundCity?.density, "sparse");
+  assert.equal(angra?.backgroundCity?.landmarks?.church, 0);
+  assert.equal(augsburg?.capital, true);
+  assert.equal(augsburg?.backgroundCity?.density, "moderate");
   assert.equal(nanjing?.backgroundCity?.landmarks?.church, 0);
   assert.notDeepEqual(london?.backgroundCity?.buildingMix, angers?.backgroundCity?.buildingMix);
   assert.equal(
@@ -775,6 +782,36 @@ test("manual feature overrides can audition missing art without changing the cit
   assert.equal(layers.has("Gate"), false);
   assert.equal(layers.has("Horizon Mountains"), true);
   assert.equal(layers.has("Foreground Desert"), true);
+});
+
+test("authored terrain underlays sit on the city ribbon plane behind both developed banks", () => {
+  const features = resolveCitySceneFeatures({
+    ...CITY,
+    builtUpBothBanks: true,
+    backgroundCity: { enabled: true },
+    terrain: { ...CITY.terrain, left: "rocky" }
+  });
+  const layers = activePortSceneLayers(features);
+  assert.equal(layers.has(BACKGROUND_CITY_UNDERLAY_LAYERS.grass), true);
+  assert.equal(layers.has(BACKGROUND_CITY_UNDERLAY_LAYERS.rocky), true);
+  assert.equal(BACKGROUND_CITY_UNDERLAY_LAYERS.forest, BACKGROUND_CITY_UNDERLAY_LAYERS.grass);
+
+  const base = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => (
+    layer === "Background City Base"
+  ));
+  const baseOrder = CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Background City Base");
+  for (const layerName of new Set(Object.values(BACKGROUND_CITY_UNDERLAY_LAYERS))) {
+    const frame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === layerName);
+    assert.ok(frame, `${layerName} should be exported`);
+    assert.equal(layerParallaxDepth(layerName), layerParallaxDepth("Background City Base"));
+    assert.equal(layerParallaxAnchor(layerName), layerParallaxAnchor("Background City Base"));
+    assert.ok(CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf(layerName) < baseOrder);
+    assert.ok(frame.spriteSourceSize.y < base.spriteSourceSize.y);
+    assert.ok(
+      frame.spriteSourceSize.y + frame.spriteSourceSize.h >= base.spriteSourceSize.y,
+      `${layerName} should reach the city ribbon`
+    );
+  }
 });
 
 test("sparse earthen villages show huts and a market without urban institutions", () => {

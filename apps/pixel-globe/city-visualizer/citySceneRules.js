@@ -90,6 +90,12 @@ export const PORT_SCENE_ENTITY_META = Object.freeze({
 
 export const DOCK_STYLES = Object.freeze(["none", "wood", "stone"]);
 export const TERRAIN_FAMILIES = Object.freeze(["grass", "forest", "desert", "rocky"]);
+export const BACKGROUND_CITY_UNDERLAY_LAYERS = Object.freeze({
+  grass: "Grass Under City",
+  forest: "Grass Under City",
+  desert: "Desert Under City",
+  rocky: "Rocky Under City"
+});
 
 const ALWAYS_VISIBLE_LAYERS = Object.freeze([
   "Sky",
@@ -192,6 +198,9 @@ const LAYER_META = new Map([
   ["Distant Desert Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
   ["Distant Plains", distantLayerMeta(15)],
   ["Distant Plains Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
+  ["Rocky Under City", anchoredLayerMeta(23, BACKGROUND_CITY_FRONT_DEPTH)],
+  ["Desert Under City", anchoredLayerMeta(23, BACKGROUND_CITY_FRONT_DEPTH)],
+  ["Grass Under City", anchoredLayerMeta(23, BACKGROUND_CITY_FRONT_DEPTH)],
   [BACKGROUND_CITY_BASE_LAYER, anchoredLayerMeta(24, BACKGROUND_CITY_FRONT_DEPTH)],
   ["Shipyard", anchoredLayerMeta(25, PORT_SCENE_DEPTH.businesses)],
   ["Sand Beach", layerMeta(35, PORT_SCENE_DEPTH.foreground)],
@@ -573,7 +582,13 @@ export function activePortSceneLayers(features) {
     layers.add("Smith");
     layers.add("Inn");
   }
-  if (features.backgroundCity) layers.add(BACKGROUND_CITY_BASE_LAYER);
+  if (features.backgroundCity) {
+    layers.add(BACKGROUND_CITY_BASE_LAYER);
+    layers.add(BACKGROUND_CITY_UNDERLAY_LAYERS[features.rightTerrain]);
+    if (features.leftBankCity) {
+      layers.add(BACKGROUND_CITY_UNDERLAY_LAYERS[features.leftTerrain]);
+    }
+  }
   layers.add(DISTANT_TERRAIN_LAYERS[features.rightDistantTerrain]);
   layers.add(BETWEEN_BUILDING_LAYERS[features.rightTerrain]);
   layers.add(MIDGROUND_LAYERS[features.rightTerrain]);

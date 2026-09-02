@@ -47,9 +47,27 @@ const BACKGROUND_CITY_BUILDING_MIX_LAYERS = Object.freeze({
   smith: "Smith"
 });
 const BACKGROUND_CITY_DENSITY_OVERLAP = Object.freeze({
-  sparse: Object.freeze({ minimum: 0.07, variation: 0.05, spacingX: 38, spacingY: 10 }),
-  moderate: Object.freeze({ minimum: 0.12, variation: 0.08, spacingX: 30, spacingY: 7 }),
-  dense: Object.freeze({ minimum: 0.18, variation: 0.08, spacingX: 24, spacingY: 6 })
+  sparse: Object.freeze({
+    minimum: 0,
+    variation: 0,
+    spacingX: 64,
+    spacingY: 16,
+    fillFoundationGaps: false
+  }),
+  moderate: Object.freeze({
+    minimum: 0,
+    variation: 0,
+    spacingX: 50,
+    spacingY: 13,
+    fillFoundationGaps: false
+  }),
+  dense: Object.freeze({
+    minimum: 0.18,
+    variation: 0.08,
+    spacingX: 24,
+    spacingY: 6,
+    fillFoundationGaps: true
+  })
 });
 const ATMOSPHERE_FOG_RGB = Object.freeze([0x4d, 0x65, 0xb4]);
 const ATMOSPHERE_STRENGTH = Object.freeze([0, 0.2, 0.38]);
@@ -188,6 +206,7 @@ export function cityBackgroundFoundationPoints({
   requireFoundationBand({ baseFrame, baseTopYByX });
   const spacing = BACKGROUND_CITY_DENSITY_OVERLAP[density];
   if (!spacing) throw new Error(`Invalid background city density: ${density}`);
+  if (density === "sparse") return Object.freeze([]);
   if (!Array.isArray(seedPoints) || !seedPoints.every(validFoundationPoint)) {
     throw new Error("Invalid background city foundation point seeds");
   }
@@ -231,29 +250,31 @@ export function cityBackgroundFoundationPoints({
     generated.push(best.candidate);
   }
 
-  const gapCandidates = [];
-  const scanStepX = Math.max(5, Math.round(spacing.spacingX / 2));
-  const scanStepY = Math.max(3, Math.round(spacing.spacingY / 2));
-  for (let x = cityLeft + Math.floor(scanStepX / 2); x < cityRight; x += scanStepX) {
-    const profileX = Math.max(0, Math.min(baseTopYByX.length - 1, Math.floor(x - baseLeft)));
-    const shorelineY = baseTopYByX[profileX];
-    const slopeY = cityBackgroundFoundationTargetY(baseLeft, anchorY, x);
-    const highestY = Math.round(shorelineY - (shorelineY - slopeY) * maximumPerspective);
-    for (let foundationY = shorelineY - scanStepY; foundationY >= highestY; foundationY -= scanStepY) {
-      const perspective = cityBackgroundFoundationPerspective({
-        foundationY,
-        shorelineY,
-        slopeY
-      });
-      if (perspective < 0.08) continue;
-      gapCandidates.push({ x, foundationY, perspective });
+  if (spacing.fillFoundationGaps) {
+    const gapCandidates = [];
+    const scanStepX = Math.max(5, Math.round(spacing.spacingX / 2));
+    const scanStepY = Math.max(3, Math.round(spacing.spacingY / 2));
+    for (let x = cityLeft + Math.floor(scanStepX / 2); x < cityRight; x += scanStepX) {
+      const profileX = Math.max(0, Math.min(baseTopYByX.length - 1, Math.floor(x - baseLeft)));
+      const shorelineY = baseTopYByX[profileX];
+      const slopeY = cityBackgroundFoundationTargetY(baseLeft, anchorY, x);
+      const highestY = Math.round(shorelineY - (shorelineY - slopeY) * maximumPerspective);
+      for (let foundationY = shorelineY - scanStepY; foundationY >= highestY; foundationY -= scanStepY) {
+        const perspective = cityBackgroundFoundationPerspective({
+          foundationY,
+          shorelineY,
+          slopeY
+        });
+        if (perspective < 0.08) continue;
+        gapCandidates.push({ x, foundationY, perspective });
+      }
     }
-  }
-  shuffleInPlace(gapCandidates, random);
-  for (const candidate of gapCandidates) {
-    if (normalizedFoundationPointSeparation(candidate, accepted, spacing) < 0.72) continue;
-    accepted.push(candidate);
-    generated.push(candidate);
+    shuffleInPlace(gapCandidates, random);
+    for (const candidate of gapCandidates) {
+      if (normalizedFoundationPointSeparation(candidate, accepted, spacing) < 0.72) continue;
+      accepted.push(candidate);
+      generated.push(candidate);
+    }
   }
   generated.sort((left, right) => left.perspective - right.perspective || left.x - right.x);
   return Object.freeze(generated.map((point) => Object.freeze(point)));
@@ -281,7 +302,8 @@ export function cityBackgroundLayout({ city, frames, baseFrame, baseTopYByX }) {
   const buildingPool = backgroundCityBuildingPool(city, frameByLayer);
   const eligibleBuildingFrames = [...new Set(buildingPool)];
   const densityOverlap = backgroundCityDensityOverlap(city);
-  const densityName = city.backgroundCity?.density || "moderate";
+  const densityName = backgroundCityDensity(city);
+  if (densityName === "sparse") return Object.freeze([]);
   const random = seededRandom(hashString(`${city.id}|buildings`));
   const baseLeft = baseFrame.spriteSourceSize.x;
   const baseRight = baseLeft + baseFrame.spriteSourceSize.w;
@@ -290,7 +312,7 @@ export function cityBackgroundLayout({ city, frames, baseFrame, baseTopYByX }) {
   const landmarkGroups = backgroundCityReligiousLandmarkGroups({ city, frameByLayer });
   const placements = [];
   const cycleOffset = randomInteger(random, 0, buildingPool.length - 1);
-  let x = cityLeft;
+  let x = cityLeft + (densityName === "moderate" ? randomInteger(random, 0, 18) : 0);
   let buildingIndex = 0;
   let previousLayer = null;
   while (x < baseRight) {
@@ -319,10 +341,14 @@ export function cityBackgroundLayout({ city, frames, baseFrame, baseTopYByX }) {
     placements.push(cityBackgroundBuilding(frame, geometry));
     previousLayer = frame.layer;
     buildingIndex++;
-    const overlap = Math.max(3, Math.round(geometry.width * (
-      densityOverlap.minimum + random() * densityOverlap.variation
-    )));
-    x += geometry.width - overlap;
+    if (densityName === "dense") {
+      const overlap = Math.max(3, Math.round(geometry.width * (
+        densityOverlap.minimum + random() * densityOverlap.variation
+      )));
+      x += geometry.width - overlap;
+    } else {
+      x += geometry.width + randomInteger(random, 20, 44);
+    }
   }
 
   const points = cityBackgroundFoundationPoints({
@@ -346,21 +372,24 @@ export function cityBackgroundLayout({ city, frames, baseFrame, baseTopYByX }) {
       baseLeft,
       baseRight,
       baseTopYByX,
-      foundationAnchorY
+      foundationAnchorY,
+      allowUnderlaySupport: densityName === "moderate"
     });
     if (placement) placements.push(placement);
   }
 
-  fillBackgroundCityFoundationGaps({
-    placements,
-    buildingPool,
-    eligibleBuildingFrames,
-    random,
-    baseLeft,
-    baseRight,
-    baseTopYByX,
-    foundationAnchorY
-  });
+  if (densityName === "dense") {
+    fillBackgroundCityFoundationGaps({
+      placements,
+      buildingPool,
+      eligibleBuildingFrames,
+      random,
+      baseLeft,
+      baseRight,
+      baseTopYByX,
+      foundationAnchorY
+    });
+  }
 
   insertBackgroundCityReligiousLandmarks({
     placements,
@@ -501,6 +530,7 @@ export function cityBackgroundFlyingBuildings(rows) {
   const flying = [];
   for (const { row, building } of entries) {
     if (building.groundedOnRibbon === true) continue;
+    if (building.supportedByUnderlay === true) continue;
     if (building.groundedOnRibbon === undefined && row.distanceFromFront === 0) continue;
     const nearerBuildings = entries.filter((candidate) => (
       candidate.building !== building && (
@@ -740,10 +770,21 @@ function backgroundCityBuildingPool(city, frameByLayer) {
 }
 
 function backgroundCityDensityOverlap(city) {
-  const density = city.backgroundCity?.density || "moderate";
+  const density = backgroundCityDensity(city);
   const overlap = BACKGROUND_CITY_DENSITY_OVERLAP[density];
   if (!overlap) throw new Error(`Invalid background city density: ${density}`);
   return overlap;
+}
+
+function backgroundCityDensity(city) {
+  const configured = city.backgroundCity?.density;
+  const density = configured ?? (
+    city.population >= 50_000 ? "dense" : city.population >= 8_000 ? "moderate" : "sparse"
+  );
+  if (!BACKGROUND_CITY_DENSITY_OVERLAP[density]) {
+    throw new Error(`Invalid background city density: ${density}`);
+  }
+  return density;
 }
 
 function backgroundCityReligiousLandmarkCount(city, landmark) {
@@ -977,7 +1018,8 @@ function placeScatteredCityBuilding({
   baseLeft,
   baseRight,
   baseTopYByX,
-  foundationAnchorY
+  foundationAnchorY,
+  allowUnderlaySupport = false
 }) {
   const preferred = buildingPool[randomInteger(random, 0, buildingPool.length - 1)];
   const previousLayer = placements
@@ -1009,6 +1051,10 @@ function placeScatteredCityBuilding({
       });
       if (!geometry) continue;
       const building = cityBackgroundBuilding(frame, geometry);
+      if (allowUnderlaySupport && !building.groundedOnRibbon) {
+        building.supportedByUnderlay = true;
+        return building;
+      }
       if (
         building.groundedOnRibbon ||
         foundationSpanIsOccluded({ building, nearerBuildings: placements })
@@ -1123,8 +1169,12 @@ function insertBackgroundCityReligiousLandmarks({
       });
       if (!geometry) continue;
       const religiousLandmark = cityBackgroundBuilding(frame, geometry);
+      religiousLandmark.supportedByUnderlay = replaced.supportedByUnderlay === true;
       const otherBuildings = placements.filter((_, candidateIndex) => candidateIndex !== index);
-      if (!foundationSpanIsOccluded({ building: religiousLandmark, nearerBuildings: otherBuildings })) continue;
+      if (
+        !religiousLandmark.supportedByUnderlay &&
+        !foundationSpanIsOccluded({ building: religiousLandmark, nearerBuildings: otherBuildings })
+      ) continue;
       const skylineHeight = Math.max(1, Math.round(
         (skylineReferenceFrame.frame.h - BACKGROUND_CITY_FOUNDATION_SOURCE_HEIGHT) *
           religiousLandmark.scale
@@ -1190,6 +1240,7 @@ function foundationSpanIsOccluded({ building, nearerBuildings }) {
 function flyingCityPlacements(placements) {
   return placements.filter((building) => (
     !building.groundedOnRibbon &&
+    !building.supportedByUnderlay &&
     !foundationSpanIsOccluded({ building, nearerBuildings: placements })
   ));
 }

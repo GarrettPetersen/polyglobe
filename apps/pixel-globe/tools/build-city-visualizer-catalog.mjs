@@ -226,13 +226,15 @@ function religiousLandmarks(city, architecture) {
 
 function backgroundCityProfile(city, landmarks) {
   const population = Math.round(city.population);
-  const density = population >= 50_000 || city.declaredCapitalFactionId
+  const density = population >= 50_000
     ? "dense"
     : population >= 8_000
       ? "moderate"
       : "sparse";
   const variation = hashString(city.cityId);
-  const landmarkCount = (landmark) => landmarks.includes(landmark) && cityBackgroundEnabled(city)
+  const landmarkCount = (landmark) => (
+    density !== "sparse" && landmarks.includes(landmark) && cityBackgroundEnabled(city)
+  )
     ? population >= 100_000 ? 3 : population >= 50_000 ? 2 : 1
     : 0;
   return Object.freeze({

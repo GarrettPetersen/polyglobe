@@ -10,6 +10,7 @@ import {
   PORT_SCENE_HORIZON_SHIFT_Y,
   PORT_SCENE_MASTER,
   PORT_SCENE_OCEAN_SLICES,
+  BACKGROUND_CITY_UNDERLAY_LAYERS,
   activePortSceneLayers,
   advanceSceneParallax,
   advanceSceneScrollVelocity,
@@ -201,11 +202,15 @@ const STATIC_SCENE_ENTRY_KINDS = new Set([
   "city-building",
   "dock-shadow-extension",
   "left-bank-background-city-base",
+  "left-bank-background-city-underlay",
   "quay-cargo",
   "static",
   "tree",
   "tree-shadow"
 ]);
+const BACKGROUND_CITY_UNDERLAY_LAYER_NAMES = new Set(
+  Object.values(BACKGROUND_CITY_UNDERLAY_LAYERS)
+);
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 let renderFrameId = null;
@@ -1138,8 +1143,11 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
   else if (entry.kind === "ocean") drawOceanSlice(entry.frame, entry.slice, timeMs);
   else if (entry.kind === "background-city-static") drawBackgroundCityStatic(entry.side, targetContext);
   else if (entry.kind === "background-city-smoke") drawBackgroundCitySmoke(entry.side, timeMs);
-  else if (entry.kind === "left-bank-background-city-base") {
-    drawLeftBankBackgroundCityBase(entry.frame, targetContext);
+  else if (
+    entry.kind === "left-bank-background-city-base" ||
+    entry.kind === "left-bank-background-city-underlay"
+  ) {
+    drawLeftBankBackgroundCityFrame(entry.frame, targetContext);
   }
   else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
   else if (entry.kind === "city-building") drawCityStreetBuilding(entry.placement, targetContext);
@@ -1339,9 +1347,12 @@ function staticSceneProjectionSpecs(entries) {
       if (rows.length > 0) {
         add(layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER), rows.at(-1).parallaxAnchor);
       }
-    } else if (entry.kind === "left-bank-background-city-base") {
+    } else if (
+      entry.kind === "left-bank-background-city-base" ||
+      entry.kind === "left-bank-background-city-underlay"
+    ) {
       add(
-        layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
+        layerParallaxDepth(entry.frame.layer),
         PORT_SCENE_CAMERA.riverDefaultParallax
       );
     } else if (
@@ -1382,6 +1393,30 @@ function createSceneRenderEntries() {
     const frames = state.portManifest.staticFrames.filter((frame) => frame.layer === layerName);
     const frame = frames[occurrence];
     if (!frame) throw new Error(`Missing ${layerName} layer occurrence ${occurrence}`);
+    if (BACKGROUND_CITY_UNDERLAY_LAYER_NAMES.has(layerName)) {
+      if (layerName === BACKGROUND_CITY_UNDERLAY_LAYERS[state.features.rightTerrain]) {
+        entries.push({
+          kind: "static",
+          frame,
+          layerName,
+          occurrence,
+          z: layerSceneZ(layerName, occurrence),
+          authoredOrder
+        });
+      }
+      if (
+        state.features.leftBankCity &&
+        layerName === BACKGROUND_CITY_UNDERLAY_LAYERS[state.features.leftTerrain]
+      ) {
+        entries.push({
+          kind: "left-bank-background-city-underlay",
+          frame,
+          z: layerSceneZ(layerName, occurrence),
+          authoredOrder: authoredOrder - 0.01
+        });
+      }
+      continue;
+    }
     const cloud = cityCloudSpec(layerName);
     if (cloud) {
       entries.push({
@@ -1397,31 +1432,35 @@ function createSceneRenderEntries() {
       }
     } else {
       if (layerName === BACKGROUND_CITY_BASE_LAYER) {
-        entries.push({
-          kind: "background-city-static",
-          side: "right",
-          z: layerSceneZ(layerName, occurrence) - 0.1,
-          authoredOrder: authoredOrder - 0.1
-        });
-        entries.push({
-          kind: "background-city-smoke",
-          side: "right",
-          z: layerSceneZ(layerName, occurrence) - 0.1,
-          authoredOrder: authoredOrder - 0.099
-        });
-        if (state.features.leftBankCity) {
+        if (state.backgroundCityRows.length > 0) {
           entries.push({
             kind: "background-city-static",
-            side: "left",
+            side: "right",
             z: layerSceneZ(layerName, occurrence) - 0.1,
-            authoredOrder: authoredOrder - 0.2
+            authoredOrder: authoredOrder - 0.1
           });
           entries.push({
             kind: "background-city-smoke",
-            side: "left",
+            side: "right",
             z: layerSceneZ(layerName, occurrence) - 0.1,
-            authoredOrder: authoredOrder - 0.199
+            authoredOrder: authoredOrder - 0.099
           });
+        }
+        if (state.features.leftBankCity) {
+          if (state.leftBankBackgroundCityRows.length > 0) {
+            entries.push({
+              kind: "background-city-static",
+              side: "left",
+              z: layerSceneZ(layerName, occurrence) - 0.1,
+              authoredOrder: authoredOrder - 0.2
+            });
+            entries.push({
+              kind: "background-city-smoke",
+              side: "left",
+              z: layerSceneZ(layerName, occurrence) - 0.1,
+              authoredOrder: authoredOrder - 0.199
+            });
+          }
           entries.push({
             kind: "left-bank-background-city-base",
             frame,
@@ -1875,10 +1914,10 @@ function drawBackgroundCityStreet(rows, parallaxAnchor, targetContext) {
   }
 }
 
-function drawLeftBankBackgroundCityBase(frame, targetContext) {
+function drawLeftBankBackgroundCityFrame(frame, targetContext) {
   const parallaxAnchor = PORT_SCENE_CAMERA.riverDefaultParallax;
   const window = sceneWindow(
-    layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
+    layerParallaxDepth(frame.layer),
     0,
     0,
     parallaxAnchor

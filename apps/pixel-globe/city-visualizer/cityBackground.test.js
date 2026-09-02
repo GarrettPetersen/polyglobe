@@ -419,11 +419,18 @@ test("city profiles vary point density and weighted building mix", () => {
     baseTopYByX: FALLING_BASE_TOP
   });
   const sparse = profile("sparse", { homeA: 1, homeB: 0, inn: 0, smith: 0 });
+  const moderate = profile("moderate", { homeA: 3, homeB: 3, inn: 1, smith: 1 });
   const dense = profile("dense", { homeA: 4, homeB: 4, inn: 2, smith: 1 });
-  assert.ok(allBuildings(sparse).every(({ frame: source }) => source.layer === "Home"));
-  assert.ok(allBuildings(dense).length > allBuildings(sparse).length);
+  assert.deepEqual(allBuildings(sparse), []);
+  assert.ok(allBuildings(moderate).length > 0);
+  assert.ok(allBuildings(dense).length > allBuildings(moderate).length);
   assert.ok(new Set(allBuildings(dense).map(({ frame: source }) => source.layer)).size > 1);
-  assert.ok(Math.max(...allBuildings(sparse).map(({ perspective }) => perspective)) > 0.9);
+  assert.ok(allBuildings(moderate).some(({ supportedByUnderlay }) => supportedByUnderlay));
+  assert.ok(
+    cityBackgroundFoundationEnvelope(moderate).length < BASE_RIGHT - CITY_LEFT,
+    "moderate cities retain visible gaps over the authored terrain underlay"
+  );
+  assert.deepEqual(cityBackgroundFlyingBuildings(moderate), []);
   assert.ok(Math.max(...allBuildings(dense).map(({ perspective }) => perspective)) > 0.9);
 });
 
