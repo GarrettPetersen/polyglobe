@@ -48,6 +48,20 @@ test("legacy crew migration creates stable individual identities and a mixed exp
   validateCrewRoster(first);
 });
 
+test("legacy crew migration normalizes a fractional simulation clock to whole recruitment minutes", () => {
+  const roster = createMigratedCrewRoster({
+    count: 4,
+    voyageSeed: "fractional-clock-crew-migration",
+    homePort: PORT,
+    currentMinute: 114297.80124,
+    appearances: APPEARANCES,
+    nameForIdentity: (identity) => identity
+  });
+  assert.ok(roster.every(({ recruitedAtMinute }) => Number.isInteger(recruitedAtMinute)));
+  assert.ok(roster.every(({ recruitedAtMinute }) => recruitedAtMinute <= 114297));
+  validateCrewRoster(roster);
+});
+
 test("experience advances only with explicit sailing time and changes effective crew", () => {
   const crewRoster = createMigratedCrewRoster({
     count: 4,

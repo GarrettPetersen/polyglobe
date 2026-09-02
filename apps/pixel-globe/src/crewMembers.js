@@ -192,6 +192,7 @@ export function createMigratedCrewRoster({
   nameForIdentity
 }) {
   requireCrewGenerationContext({ count, voyageSeed, homePort, currentMinute, appearances, nameForIdentity });
+  const currentWholeMinute = Math.floor(currentMinute);
   const roster = [];
   for (let index = 0; index < count; index += 1) {
     const identityKey = `${voyageSeed}|legacy-crew|${homePort.cityId}|${index + 1}`;
@@ -204,7 +205,7 @@ export function createMigratedCrewRoster({
       homePort,
       appearanceId: appearance.appearanceId,
       crewTypeId: appearance.crewTypeId,
-      recruitedAtMinute: Math.max(0, currentMinute - migratedRecruitmentAgeMinutes(seed >>> 9, stars)),
+      recruitedAtMinute: Math.max(0, currentWholeMinute - migratedRecruitmentAgeMinutes(seed >>> 9, stars)),
       sailingMinutes: migratedSailingMinutes(seed >>> 13, stars)
     }));
   }
@@ -575,7 +576,7 @@ function requireCrewGenerationContext({ count, voyageSeed, homePort, currentMinu
   if (!Number.isInteger(count) || count < 0) throw new Error(`Invalid generated crew count: ${count}`);
   if (typeof voyageSeed !== "string" || voyageSeed === "") throw new Error("Generated crew requires a voyage seed");
   requireCityId(homePort, "Generated crew home port");
-  if (!Number.isInteger(currentMinute) || currentMinute < 0) {
+  if (!Number.isFinite(currentMinute) || currentMinute < 0) {
     throw new Error(`Invalid generated crew minute: ${currentMinute}`);
   }
   if (!Array.isArray(appearances) || appearances.length === 0) {
