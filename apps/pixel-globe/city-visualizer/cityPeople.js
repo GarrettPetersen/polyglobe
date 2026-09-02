@@ -300,8 +300,8 @@ export function createCityPeopleAgents({ city, count, paths }) {
     [CITY_PERSON_ROLE.GARRISON, new Set()]
   ]);
   let seed = hashString(`${cityId}|${profile.id}|people`);
-  return Object.freeze(paths.slice(0, count).map(({ startX, endX, feetY, painterZ }, index) => {
-    validatePath({ startX, endX, feetY, painterZ }, index);
+  return Object.freeze(paths.slice(0, count).map(({ startX, endX, feetY, endFeetY, painterZ }, index) => {
+    validatePath({ startX, endX, feetY, endFeetY, painterZ }, index);
     seed = xorshift(seed);
     const role = garrisonIndexes.has(index) ? CITY_PERSON_ROLE.GARRISON : CITY_PERSON_ROLE.AMBIENT;
     const appearanceId = weightedAppearance(profile[role], seed, usedByRole.get(role));
@@ -313,6 +313,7 @@ export function createCityPeopleAgents({ city, count, paths }) {
       startX,
       endX,
       feetY,
+      endFeetY,
       ...(painterZ === undefined ? {} : { painterZ }),
       phase: ((seed >>> 0) % 1000) / 500,
       speed: 0.00012 + ((seed >>> 12) & 255) / 1_000_000
@@ -511,9 +512,12 @@ function requireCity(city) {
   return city.cityId;
 }
 
-function validatePath({ startX, endX, feetY, painterZ }, index) {
-  if (![startX, endX, feetY].every(Number.isFinite) || startX >= endX) {
+function validatePath({ startX, endX, feetY, endFeetY, painterZ }, index) {
+  if (![startX, endX, feetY, endFeetY].every(Number.isFinite) || startX >= endX) {
     throw new Error(`Invalid city person path ${index}`);
+  }
+  if (feetY !== endFeetY && painterZ === undefined) {
+    throw new Error(`Sloped city person path ${index} requires explicit painter order`);
   }
   if (painterZ !== undefined && !Number.isFinite(painterZ)) {
     throw new Error(`Invalid city person painter order ${index}`);

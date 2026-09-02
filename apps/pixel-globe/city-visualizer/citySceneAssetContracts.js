@@ -1,4 +1,8 @@
+import { CITY_DOCKSIDE_SHADOW_LIGHT_DIRECTION } from "../src/shipBakeLighting.js";
+
 export const CITY_DOCKSIDE_SHADOW_STATES = Object.freeze(["up", "level", "down"]);
+export const CITY_DOCKSIDE_SHADOW_MAX_ABOVE_DECK_PX = 10;
+export const CITY_DOCKSIDE_SHADOW_MAX_LEFT_REACH_PX = 32;
 
 const PUBLIC_ASSET_PREFIX = "apps/pixel-globe/public";
 const CANONICAL_ASSET_ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
@@ -56,6 +60,9 @@ export function validateCityDocksideShipManifest(manifest) {
   if (!manifest || !Array.isArray(manifest.ships) || manifest.ships.length === 0) {
     throw new Error("City scene requires a non-empty dockside ship manifest");
   }
+  if (!sameVector(manifest.waterShadowLightDirection, CITY_DOCKSIDE_SHADOW_LIGHT_DIRECTION)) {
+    throw new Error("City dockside ship manifest has the wrong water-shadow light direction");
+  }
   const catalog = Object.freeze({
     manifest,
     byShipSlug: indexCanonicalEntries(manifest.ships, "slug", "city dockside ship")
@@ -75,6 +82,7 @@ export function requireCityDocksideShip(shipCatalog, shipSlug) {
   if (JSON.stringify(shadowKeys) !== JSON.stringify([...CITY_DOCKSIDE_SHADOW_STATES].sort())) {
     throw new Error(`Missing dockside water-shadow bakes: ${shipSlug}`);
   }
+  validateDocksideShadowGeometry(ship);
   for (const file of [
     dockside.file,
     dockside.sinkDepthFile,
@@ -83,6 +91,41 @@ export function requireCityDocksideShip(shipCatalog, shipSlug) {
     publicCityAssetUrl(file);
   }
   return ship;
+}
+
+function validateDocksideShadowGeometry(ship) {
+  const dockside = ship.cityDockside;
+  if (!Number.isInteger(dockside.nativeScale) || dockside.nativeScale <= 0) {
+    throw new Error(`Invalid dockside native scale: ${ship.slug}`);
+  }
+  if (!Array.isArray(dockside.deckPolygon) || dockside.deckPolygon.length !== 4 ||
+      dockside.deckPolygon.some(({ x, y }) => !Number.isFinite(x) || !Number.isFinite(y))) {
+    throw new Error(`Invalid dockside deck polygon: ${ship.slug}`);
+  }
+  const deckTopY = Math.min(...dockside.deckPolygon.map(({ y }) => y));
+  const deckLeftX = Math.min(...dockside.deckPolygon.map(({ x }) => x));
+  const deckCenterX = dockside.deckPolygon.reduce((sum, { x }) => sum + x, 0) /
+    dockside.deckPolygon.length;
+  for (const shadowState of CITY_DOCKSIDE_SHADOW_STATES) {
+    const shadow = dockside.waterShadows[shadowState];
+    const bounds = shadow?.opaqueBounds;
+    if (!bounds || ![bounds.minX, bounds.minY, bounds.width, bounds.height].every(Number.isFinite) ||
+        bounds.width <= 0 || bounds.height <= 0) {
+      throw new Error(`Invalid ${shadowState} dockside water-shadow bounds: ${ship.slug}`);
+    }
+    const aboveDeckPx = (deckTopY - bounds.minY) / dockside.nativeScale;
+    if (aboveDeckPx > CITY_DOCKSIDE_SHADOW_MAX_ABOVE_DECK_PX) {
+      throw new Error(`Distant-reaching ${shadowState} dockside water shadow: ${ship.slug}`);
+    }
+    const leftReachPx = (deckLeftX - bounds.minX) / dockside.nativeScale;
+    if (leftReachPx > CITY_DOCKSIDE_SHADOW_MAX_LEFT_REACH_PX) {
+      throw new Error(`Overlong ${shadowState} dockside water shadow: ${ship.slug}`);
+    }
+    const shadowCenterX = bounds.minX + (bounds.width - 1) / 2;
+    if (shadowCenterX >= deckCenterX) {
+      throw new Error(`Wrong-way ${shadowState} dockside water shadow: ${ship.slug}`);
+    }
+  }
 }
 
 export function cityDocksideAssetUrls(shipCatalog, shipSlug) {
@@ -126,4 +169,8 @@ function requireCanonicalId(id, label) {
   if (typeof id !== "string" || !CANONICAL_ASSET_ID.test(id)) {
     throw new Error(`${label} requires a canonical ID`);
   }
+}
+
+function sameVector(actual, expected) {
+  return actual && ["x", "y", "z"].every((axis) => actual[axis] === expected[axis]);
 }

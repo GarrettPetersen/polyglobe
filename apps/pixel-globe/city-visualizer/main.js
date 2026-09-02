@@ -92,6 +92,7 @@ import {
 import {
   CITY_GATE_FRONT_PAINTER_Z,
   cityGroundPainterZ,
+  cityNpcPathPoint,
   cityNpcPaths
 } from "./cityPainterOrder.js";
 import {
@@ -3598,9 +3599,11 @@ function drawNpc(agent, timeMs) {
   const facingRight = scripted
     ? agent.endX >= agent.startX
     : stationary ? agent.facingRight !== false : cycle <= 1;
+  const pathPoint = scripted || stationary ? null : cityNpcPathPoint(agent, progress);
   const x = scripted
     ? agent.startX + (agent.endX - agent.startX) * caughtElapsed
-    : stationary ? agent.startX : agent.startX + (agent.endX - agent.startX) * progress;
+    : stationary ? agent.startX : pathPoint.x;
+  const feetY = scripted || stationary ? agent.feetY : pathPoint.feetY;
   const animationId = agent.animationId || "walk";
   const animation = appearance.animations[animationId];
   if (!Array.isArray(animation) || animation.length === 0) {
@@ -3608,7 +3611,7 @@ function drawNpc(agent, timeMs) {
   }
   const frame = animationFrame(animation, time + agent.phase * 1000);
   const dx = Math.round(x + frame.spriteSourceSize.x - window.x);
-  const dy = Math.round(agent.feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
+  const dy = Math.round(feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
   if (facingRight) {
     context.drawImage(atlas, frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, dx, dy, frame.frame.w, frame.frame.h);
   } else {

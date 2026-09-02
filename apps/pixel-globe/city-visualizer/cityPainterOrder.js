@@ -13,8 +13,14 @@ export const CITY_NPC_PATHS = Object.freeze([
 ]);
 
 export const CITY_GATE_TRAVERSAL_PATHS = Object.freeze([
-  npcPath(1224, 1294, 570, CITY_GATE_TRAVERSAL_PAINTER_Z),
-  npcPath(1208, 1290, 581, CITY_GATE_TRAVERSAL_PAINTER_Z)
+  npcPath(1212, 1292, 578, {
+    endFeetY: 520,
+    painterZ: CITY_GATE_TRAVERSAL_PAINTER_Z
+  }),
+  npcPath(1198, 1287, 568, {
+    endFeetY: 512,
+    painterZ: CITY_GATE_TRAVERSAL_PAINTER_Z
+  })
 ]);
 
 export const CITY_GATE_FRONT_PAINTER_Z = 71.9;
@@ -43,11 +49,28 @@ export function cityGroundPainterZ(groundY) {
       (groundY - CITY_GROUND_FOREGROUND_START_Y) / 1000;
 }
 
-function npcPath(startX, endX, feetY, painterZ = undefined) {
+export function cityNpcPathPoint(path, progress) {
+  if (!path || ![path.startX, path.endX, path.feetY, path.endFeetY].every(Number.isFinite)) {
+    throw new Error("City NPC path point requires complete path geometry");
+  }
+  if (!Number.isFinite(progress) || progress < 0 || progress > 1) {
+    throw new Error(`Invalid city NPC path progress: ${progress}`);
+  }
+  return Object.freeze({
+    x: path.startX + (path.endX - path.startX) * progress,
+    feetY: path.feetY + (path.endFeetY - path.feetY) * progress
+  });
+}
+
+function npcPath(startX, endX, feetY, { endFeetY = feetY, painterZ } = {}) {
+  if (endFeetY !== feetY && painterZ === undefined) {
+    throw new Error("A sloped city NPC path requires explicit painter order");
+  }
   return Object.freeze({
     startX,
     endX,
     feetY,
+    endFeetY,
     ...(painterZ === undefined ? {} : { painterZ })
   });
 }

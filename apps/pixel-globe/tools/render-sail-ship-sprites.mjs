@@ -141,6 +141,7 @@ const ROWING_RENDER_MODES = Object.freeze([
 import { selectShipFlagAnchorPoint } from "../src/shipFlagAnchors.js";
 import { nearestShipResurrectColor } from "../src/shipResurrectPalette.js";
 import {
+  CITY_DOCKSIDE_SHADOW_LIGHT_DIRECTION,
   SHIP_BAKE_LIGHT_DIRECTION,
   shipBakeLightScale
 } from "../src/shipBakeLighting.js";
@@ -4981,9 +4982,9 @@ function makePortAssaultWaterShadow(
     y: baseAnchor.y - shadowPlaneAnchor.y
   };
   const light = new THREE.Vector3(
-    SHIP_BAKE_LIGHT_DIRECTION.x,
-    SHIP_BAKE_LIGHT_DIRECTION.y,
-    SHIP_BAKE_LIGHT_DIRECTION.z
+    CITY_DOCKSIDE_SHADOW_LIGHT_DIRECTION.x,
+    CITY_DOCKSIDE_SHADOW_LIGHT_DIRECTION.y,
+    CITY_DOCKSIDE_SHADOW_LIGHT_DIRECTION.z
   ).normalize();
   if (light.y <= 0.01) throw new Error("Port-assault water-shadow light must be above the water");
 
@@ -5822,6 +5823,7 @@ async function renderPortAssaultShips() {
     scaleNotes: "Target dimensions and frame scales follow the 47px production fleet; every hull shares one 3x-native city dockside raster scale and open sail surfaces are replaced in model space before rasterization. The 320x160 values are logical scene dimensions, not a second raster bake.",
     fleetRasterScale: Number(fleetRasterScale.toFixed(6)),
     view,
+    waterShadowLightDirection: CITY_DOCKSIDE_SHADOW_LIGHT_DIRECTION,
     depthEncoding,
     ships,
     reviewFile: portablePath(fleetContactSheetPath),

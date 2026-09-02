@@ -50,6 +50,7 @@ import {
   CITY_GATE_TRAVERSAL_PAINTER_Z,
   CITY_GATE_TRAVERSAL_PATHS,
   cityGroundPainterZ,
+  cityNpcPathPoint,
   cityNpcPaths
 } from "./cityPainterOrder.js";
 
@@ -655,11 +656,17 @@ test("fortified cities send two walkers into the gate behind its front edge", ()
   assert.equal(openPaths.some((path) => CITY_GATE_TRAVERSAL_PATHS.includes(path)), false);
   assert.deepEqual(fortifiedPaths.slice(-2), CITY_GATE_TRAVERSAL_PATHS);
   for (const path of CITY_GATE_TRAVERSAL_PATHS) {
-    assert.ok(path.startX < 1254, "walker begins outside the gate");
-    assert.ok(path.endX >= 1290, "walker reaches behind the front edge");
+    assert.ok(path.startX < 1225, "walker begins below and outside the rear tower");
+    assert.ok(path.feetY >= 568, "walker begins below the gatehouse foundations");
+    assert.ok(path.endX >= 1287 && path.endX < 1301, "walker ends inside the gateway");
+    assert.ok(path.endFeetY <= 520, "walker climbs into the visible gateway");
     assert.equal(path.painterZ, CITY_GATE_TRAVERSAL_PAINTER_Z);
     assert.ok(path.painterZ < CITY_GATE_FRONT_PAINTER_Z);
+    const midpoint = cityNpcPathPoint(path, 0.5);
+    assert.ok(midpoint.x > path.startX && midpoint.x < path.endX);
+    assert.ok(midpoint.feetY < path.feetY && midpoint.feetY > path.endFeetY);
   }
+  assert.match(VISUALIZER_MAIN_SOURCE, /cityNpcPathPoint\(agent, progress\)/);
   assert.ok(CITY_GATE_FRONT_PAINTER_Z < layerSceneZ("Near Castle"));
 });
 

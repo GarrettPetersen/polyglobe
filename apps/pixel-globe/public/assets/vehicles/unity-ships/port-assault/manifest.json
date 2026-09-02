@@ -15,6 +15,11 @@
     "bowScreenDirection": "up-right",
     "dockFacingSide": "port"
   },
+  "waterShadowLightDirection": {
+    "x": 0.5,
+    "y": 3.2,
+    "z": 0.33
+  },
   "depthEncoding": {
     "transparentAlpha": 0,
     "farValue": 1,
@@ -67,36 +72,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 364,
-              "minY": 419,
-              "width": 150,
-              "height": 57
+              "minX": 426,
+              "minY": 421,
+              "width": 93,
+              "height": 58
             },
-            "opaquePixels": 2287,
+            "opaquePixels": 1897,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.325788
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 364,
-              "minY": 419,
-              "width": 151,
-              "height": 57
+              "minX": 426,
+              "minY": 421,
+              "width": 93,
+              "height": 58
             },
-            "opaquePixels": 2283,
+            "opaquePixels": 1900,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.320408
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fishing-lugger-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 365,
-              "minY": 419,
-              "width": 150,
-              "height": 57
+              "minX": 426,
+              "minY": 421,
+              "width": 93,
+              "height": 58
             },
-            "opaquePixels": 2283,
+            "opaquePixels": 1903,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.315028
           }
@@ -215,36 +220,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 300,
-              "minY": 383,
-              "width": 217,
-              "height": 88
+              "minX": 374,
+              "minY": 387,
+              "width": 164,
+              "height": 87
             },
-            "opaquePixels": 7381,
+            "opaquePixels": 6306,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.477414
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 301,
-              "minY": 383,
-              "width": 217,
-              "height": 88
+              "minX": 374,
+              "minY": 387,
+              "width": 164,
+              "height": 87
             },
-            "opaquePixels": 7388,
+            "opaquePixels": 6306,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.472036
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-cog-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 301,
-              "minY": 383,
-              "width": 218,
-              "height": 88
+              "minX": 374,
+              "minY": 387,
+              "width": 164,
+              "height": 87
             },
-            "opaquePixels": 7389,
+            "opaquePixels": 6308,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.466658
           }
@@ -363,36 +368,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 318,
-              "minY": 352,
-              "width": 198,
-              "height": 103
+              "minX": 379,
+              "minY": 360,
+              "width": 168,
+              "height": 100
             },
-            "opaquePixels": 7638,
+            "opaquePixels": 5398,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.489379
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 318,
-              "minY": 352,
-              "width": 198,
-              "height": 104
+              "minX": 379,
+              "minY": 360,
+              "width": 168,
+              "height": 100
             },
-            "opaquePixels": 7650,
+            "opaquePixels": 5395,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.484014
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/holk-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 319,
-              "minY": 352,
-              "width": 198,
-              "height": 104
+              "minX": 379,
+              "minY": 360,
+              "width": 169,
+              "height": 100
             },
-            "opaquePixels": 7663,
+            "opaquePixels": 5397,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.478649
           }
@@ -511,36 +516,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 403,
-              "minY": 391,
-              "width": 97,
-              "height": 59
+              "minX": 445,
+              "minY": 395,
+              "width": 63,
+              "height": 57
             },
-            "opaquePixels": 2748,
+            "opaquePixels": 2020,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.323628
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 403,
-              "minY": 391,
-              "width": 98,
-              "height": 59
+              "minX": 445,
+              "minY": 395,
+              "width": 63,
+              "height": 57
             },
-            "opaquePixels": 2724,
+            "opaquePixels": 2023,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.318249
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/dhow-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 404,
-              "minY": 391,
-              "width": 97,
-              "height": 59
+              "minX": 445,
+              "minY": 395,
+              "width": 63,
+              "height": 57
             },
-            "opaquePixels": 2737,
+            "opaquePixels": 2022,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.31287
           }
@@ -659,36 +664,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 250,
-              "minY": 353,
-              "width": 296,
-              "height": 103
+              "minX": 399,
+              "minY": 357,
+              "width": 151,
+              "height": 104
             },
-            "opaquePixels": 11659,
+            "opaquePixels": 8436,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.844032
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 251,
-              "minY": 353,
-              "width": 296,
-              "height": 103
+              "minX": 399,
+              "minY": 357,
+              "width": 151,
+              "height": 104
             },
-            "opaquePixels": 11663,
+            "opaquePixels": 8424,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.838672
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ocean-dhow-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 252,
-              "minY": 353,
-              "width": 295,
-              "height": 103
+              "minX": 399,
+              "minY": 357,
+              "width": 152,
+              "height": 104
             },
-            "opaquePixels": 11629,
+            "opaquePixels": 8423,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.833312
           }
@@ -810,36 +815,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 376,
-              "minY": 399,
-              "width": 139,
-              "height": 63
+              "minX": 436,
+              "minY": 405,
+              "width": 82,
+              "height": 57
             },
-            "opaquePixels": 3243,
+            "opaquePixels": 2719,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.420573
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 376,
-              "minY": 399,
-              "width": 139,
-              "height": 63
+              "minX": 436,
+              "minY": 405,
+              "width": 82,
+              "height": 57
             },
-            "opaquePixels": 3245,
+            "opaquePixels": 2721,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.415201
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/sampan-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 377,
-              "minY": 399,
-              "width": 139,
-              "height": 63
+              "minX": 436,
+              "minY": 405,
+              "width": 82,
+              "height": 58
             },
-            "opaquePixels": 3232,
+            "opaquePixels": 2726,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.409828
           }
@@ -958,36 +963,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 328,
-              "minY": 323,
-              "width": 217,
-              "height": 127
+              "minX": 392,
+              "minY": 338,
+              "width": 158,
+              "height": 121
             },
-            "opaquePixels": 10855,
+            "opaquePixels": 8444,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.629048
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 329,
-              "minY": 323,
-              "width": 216,
-              "height": 128
+              "minX": 392,
+              "minY": 338,
+              "width": 158,
+              "height": 121
             },
-            "opaquePixels": 10849,
+            "opaquePixels": 8440,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.623679
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/large-junk-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 330,
-              "minY": 324,
-              "width": 216,
-              "height": 127
+              "minX": 393,
+              "minY": 338,
+              "width": 157,
+              "height": 121
             },
-            "opaquePixels": 10840,
+            "opaquePixels": 8445,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.61831
           }
@@ -1106,36 +1111,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 267,
-              "minY": 323,
-              "width": 275,
-              "height": 127
+              "minX": 385,
+              "minY": 328,
+              "width": 159,
+              "height": 135
             },
-            "opaquePixels": 12453,
+            "opaquePixels": 7952,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.683103
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 268,
-              "minY": 324,
-              "width": 274,
-              "height": 123
+              "minX": 385,
+              "minY": 328,
+              "width": 159,
+              "height": 135
             },
-            "opaquePixels": 12437,
+            "opaquePixels": 7947,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.677732
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/javanese-jong-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 269,
-              "minY": 324,
-              "width": 274,
-              "height": 123
+              "minX": 385,
+              "minY": 328,
+              "width": 159,
+              "height": 135
             },
-            "opaquePixels": 12389,
+            "opaquePixels": 7935,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.672361
           }
@@ -1254,37 +1259,37 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 235,
-              "minY": 352,
-              "width": 309,
-              "height": 122
+              "minX": 343,
+              "minY": 360,
+              "width": 209,
+              "height": 120
             },
-            "opaquePixels": 15709,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 11695,
+            "clippedProjectedPixels": 76,
             "shadowWaterlineY": -0.769962
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 235,
-              "minY": 352,
-              "width": 309,
-              "height": 122
+              "minX": 343,
+              "minY": 360,
+              "width": 209,
+              "height": 120
             },
-            "opaquePixels": 15718,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 11689,
+            "clippedProjectedPixels": 76,
             "shadowWaterlineY": -0.764601
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/pirate-brig-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 236,
-              "minY": 352,
-              "width": 309,
-              "height": 122
+              "minX": 344,
+              "minY": 360,
+              "width": 208,
+              "height": 120
             },
-            "opaquePixels": 15718,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 11690,
+            "clippedProjectedPixels": 76,
             "shadowWaterlineY": -0.75924
           }
         },
@@ -1402,36 +1407,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 249,
-              "minY": 302,
-              "width": 276,
+              "minX": 368,
+              "minY": 312,
+              "width": 182,
               "height": 152
             },
-            "opaquePixels": 12686,
+            "opaquePixels": 9388,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.712029
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 250,
-              "minY": 303,
-              "width": 276,
+              "minX": 368,
+              "minY": 313,
+              "width": 182,
               "height": 151
             },
-            "opaquePixels": 12655,
+            "opaquePixels": 9369,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.706667
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 251,
-              "minY": 303,
-              "width": 276,
+              "minX": 369,
+              "minY": 313,
+              "width": 181,
               "height": 151
             },
-            "opaquePixels": 12662,
+            "opaquePixels": 9403,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.701304
           }
@@ -1550,36 +1555,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 267,
-              "minY": 315,
-              "width": 256,
-              "height": 150
+              "minX": 376,
+              "minY": 322,
+              "width": 176,
+              "height": 151
             },
-            "opaquePixels": 12885,
+            "opaquePixels": 8995,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.659018
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 267,
-              "minY": 316,
-              "width": 257,
-              "height": 150
+              "minX": 376,
+              "minY": 322,
+              "width": 176,
+              "height": 151
             },
-            "opaquePixels": 12853,
+            "opaquePixels": 8998,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.653657
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fluyt-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 268,
-              "minY": 316,
-              "width": 256,
-              "height": 150
+              "minX": 376,
+              "minY": 322,
+              "width": 176,
+              "height": 151
             },
-            "opaquePixels": 12842,
+            "opaquePixels": 8995,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.648296
           }
@@ -1698,36 +1703,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 262,
-              "minY": 316,
-              "width": 274,
-              "height": 142
+              "minX": 371,
+              "minY": 325,
+              "width": 185,
+              "height": 138
             },
-            "opaquePixels": 12067,
+            "opaquePixels": 7985,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.651638
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 263,
-              "minY": 316,
-              "width": 274,
-              "height": 142
+              "minX": 372,
+              "minY": 325,
+              "width": 184,
+              "height": 138
             },
-            "opaquePixels": 12038,
+            "opaquePixels": 7986,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.646269
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/carrack-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 264,
-              "minY": 316,
-              "width": 273,
-              "height": 143
+              "minX": 372,
+              "minY": 325,
+              "width": 184,
+              "height": 138
             },
-            "opaquePixels": 12029,
+            "opaquePixels": 7979,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.640901
           }
@@ -1846,37 +1851,37 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 272,
-              "minY": 319,
-              "width": 261,
-              "height": 155
+              "minX": 377,
+              "minY": 327,
+              "width": 168,
+              "height": 153
             },
-            "opaquePixels": 12274,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 7584,
+            "clippedProjectedPixels": 16,
             "shadowWaterlineY": -0.655646
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 273,
-              "minY": 319,
-              "width": 260,
-              "height": 155
+              "minX": 377,
+              "minY": 328,
+              "width": 169,
+              "height": 152
             },
-            "opaquePixels": 12242,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 7586,
+            "clippedProjectedPixels": 21,
             "shadowWaterlineY": -0.650282
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ship-of-the-line-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 273,
-              "minY": 319,
-              "width": 261,
-              "height": 155
+              "minX": 377,
+              "minY": 328,
+              "width": 169,
+              "height": 152
             },
-            "opaquePixels": 12234,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 7584,
+            "clippedProjectedPixels": 21,
             "shadowWaterlineY": -0.644918
           }
         },
@@ -1994,36 +1999,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 321,
-              "minY": 336,
-              "width": 218,
-              "height": 118
+              "minX": 407,
+              "minY": 346,
+              "width": 136,
+              "height": 111
             },
-            "opaquePixels": 10713,
+            "opaquePixels": 7776,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.623766
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 321,
-              "minY": 336,
-              "width": 219,
-              "height": 118
+              "minX": 407,
+              "minY": 346,
+              "width": 137,
+              "height": 111
             },
-            "opaquePixels": 10718,
+            "opaquePixels": 7785,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.618396
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/medium-junk-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 322,
-              "minY": 336,
-              "width": 218,
-              "height": 118
+              "minX": 408,
+              "minY": 346,
+              "width": 136,
+              "height": 111
             },
-            "opaquePixels": 10720,
+            "opaquePixels": 7774,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.613026
           }
@@ -2142,36 +2147,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 269,
-              "minY": 330,
-              "width": 254,
-              "height": 134
+              "minX": 399,
+              "minY": 336,
+              "width": 145,
+              "height": 132
             },
-            "opaquePixels": 9972,
+            "opaquePixels": 6844,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.712327
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 270,
-              "minY": 330,
-              "width": 253,
-              "height": 134
+              "minX": 399,
+              "minY": 336,
+              "width": 145,
+              "height": 132
             },
-            "opaquePixels": 9921,
+            "opaquePixels": 6833,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.70696
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/xebec-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 270,
-              "minY": 331,
-              "width": 253,
-              "height": 133
+              "minX": 399,
+              "minY": 336,
+              "width": 145,
+              "height": 132
             },
-            "opaquePixels": 9879,
+            "opaquePixels": 6835,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.701593
           }
@@ -2290,36 +2295,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 285,
-              "minY": 337,
-              "width": 237,
-              "height": 128
+              "minX": 386,
+              "minY": 344,
+              "width": 154,
+              "height": 124
             },
-            "opaquePixels": 9026,
+            "opaquePixels": 6335,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.676166
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 285,
-              "minY": 337,
-              "width": 238,
-              "height": 128
+              "minX": 386,
+              "minY": 344,
+              "width": 154,
+              "height": 124
             },
-            "opaquePixels": 9026,
+            "opaquePixels": 6331,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.670802
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/caravel-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 286,
-              "minY": 338,
-              "width": 237,
-              "height": 127
+              "minX": 386,
+              "minY": 344,
+              "width": 155,
+              "height": 124
             },
-            "opaquePixels": 9006,
+            "opaquePixels": 6334,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.665438
           }
@@ -2438,36 +2443,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 220,
-              "minY": 350,
-              "width": 308,
-              "height": 106
+              "minX": 333,
+              "minY": 358,
+              "width": 218,
+              "height": 104
             },
-            "opaquePixels": 12661,
+            "opaquePixels": 9121,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.693969
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 220,
-              "minY": 351,
-              "width": 309,
+              "minX": 333,
+              "minY": 358,
+              "width": 218,
               "height": 105
             },
-            "opaquePixels": 12637,
+            "opaquePixels": 9126,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.688605
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/square-rigged-caravel-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 221,
-              "minY": 351,
-              "width": 308,
-              "height": 106
+              "minX": 333,
+              "minY": 358,
+              "width": 219,
+              "height": 105
             },
-            "opaquePixels": 12622,
+            "opaquePixels": 9127,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.683242
           }
@@ -2586,36 +2591,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 236,
-              "minY": 331,
-              "width": 289,
-              "height": 128
+              "minX": 344,
+              "minY": 342,
+              "width": 200,
+              "height": 119
             },
-            "opaquePixels": 12680,
+            "opaquePixels": 8723,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.687808
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 237,
-              "minY": 331,
-              "width": 289,
-              "height": 128
+              "minX": 344,
+              "minY": 342,
+              "width": 201,
+              "height": 120
             },
-            "opaquePixels": 12660,
+            "opaquePixels": 8728,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.682448
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/brigantine-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 237,
-              "minY": 332,
-              "width": 289,
-              "height": 127
+              "minX": 344,
+              "minY": 342,
+              "width": 201,
+              "height": 120
             },
-            "opaquePixels": 12630,
+            "opaquePixels": 8719,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.677087
           }
@@ -2734,36 +2739,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 318,
-              "minY": 358,
-              "width": 210,
-              "height": 100
+              "minX": 414,
+              "minY": 370,
+              "width": 122,
+              "height": 95
             },
-            "opaquePixels": 7292,
+            "opaquePixels": 5901,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.619773
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 319,
-              "minY": 358,
-              "width": 209,
-              "height": 100
+              "minX": 414,
+              "minY": 370,
+              "width": 122,
+              "height": 95
             },
-            "opaquePixels": 7290,
+            "opaquePixels": 5902,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.614414
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/small-junk-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 319,
-              "minY": 358,
-              "width": 210,
-              "height": 100
+              "minX": 415,
+              "minY": 370,
+              "width": 121,
+              "height": 95
             },
-            "opaquePixels": 7293,
+            "opaquePixels": 5897,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.609055
           }
@@ -2882,36 +2887,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 385,
-              "minY": 398,
-              "width": 133,
+              "minX": 437,
+              "minY": 400,
+              "width": 81,
               "height": 58
             },
-            "opaquePixels": 3203,
+            "opaquePixels": 2664,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.360928
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 385,
-              "minY": 399,
-              "width": 133,
-              "height": 57
+              "minX": 437,
+              "minY": 400,
+              "width": 82,
+              "height": 58
             },
-            "opaquePixels": 3187,
+            "opaquePixels": 2663,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.35557
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/felucca-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 385,
-              "minY": 399,
-              "width": 133,
-              "height": 57
+              "minX": 437,
+              "minY": 400,
+              "width": 82,
+              "height": 58
             },
-            "opaquePixels": 3156,
+            "opaquePixels": 2661,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.350212
           }
@@ -3030,36 +3035,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 360,
-              "minY": 382,
-              "width": 156,
-              "height": 82
+              "minX": 430,
+              "minY": 386,
+              "width": 90,
+              "height": 80
             },
-            "opaquePixels": 3807,
+            "opaquePixels": 3083,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.450036
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 361,
-              "minY": 382,
-              "width": 156,
-              "height": 82
+              "minX": 430,
+              "minY": 386,
+              "width": 90,
+              "height": 80
             },
-            "opaquePixels": 3798,
+            "opaquePixels": 3090,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.444663
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/cutter-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 362,
-              "minY": 382,
-              "width": 155,
-              "height": 82
+              "minX": 431,
+              "minY": 386,
+              "width": 89,
+              "height": 80
             },
-            "opaquePixels": 3783,
+            "opaquePixels": 3084,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.439291
           }
@@ -3178,36 +3183,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 325,
-              "minY": 335,
-              "width": 192,
-              "height": 118
+              "minX": 411,
+              "minY": 341,
+              "width": 121,
+              "height": 114
             },
-            "opaquePixels": 6494,
+            "opaquePixels": 4640,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.527096
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 326,
-              "minY": 335,
-              "width": 191,
-              "height": 118
+              "minX": 411,
+              "minY": 341,
+              "width": 121,
+              "height": 114
             },
-            "opaquePixels": 6492,
+            "opaquePixels": 4635,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.521733
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ketch-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 326,
-              "minY": 335,
-              "width": 192,
-              "height": 118
+              "minX": 412,
+              "minY": 341,
+              "width": 120,
+              "height": 115
             },
-            "opaquePixels": 6460,
+            "opaquePixels": 4645,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.51637
           }
@@ -3326,36 +3331,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 317,
-              "minY": 320,
-              "width": 229,
-              "height": 128
+              "minX": 402,
+              "minY": 322,
+              "width": 151,
+              "height": 129
             },
-            "opaquePixels": 9736,
+            "opaquePixels": 7809,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.501033
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 318,
-              "minY": 320,
-              "width": 229,
-              "height": 128
+              "minX": 402,
+              "minY": 322,
+              "width": 151,
+              "height": 129
             },
-            "opaquePixels": 9718,
+            "opaquePixels": 7798,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.495666
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mediterranean-galley-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 319,
-              "minY": 320,
-              "width": 228,
-              "height": 128
+              "minX": 402,
+              "minY": 322,
+              "width": 151,
+              "height": 129
             },
-            "opaquePixels": 9722,
+            "opaquePixels": 7808,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.490299
           }
@@ -3474,36 +3479,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 287,
-              "minY": 292,
-              "width": 272,
-              "height": 153
+              "minX": 386,
+              "minY": 294,
+              "width": 181,
+              "height": 154
             },
-            "opaquePixels": 14086,
+            "opaquePixels": 11151,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.599822
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 288,
-              "minY": 292,
-              "width": 271,
-              "height": 153
+              "minX": 387,
+              "minY": 294,
+              "width": 180,
+              "height": 154
             },
-            "opaquePixels": 14042,
+            "opaquePixels": 11136,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.594452
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleass-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 287,
-              "minY": 292,
-              "width": 273,
-              "height": 153
+              "minX": 387,
+              "minY": 294,
+              "width": 180,
+              "height": 155
             },
-            "opaquePixels": 14000,
+            "opaquePixels": 11129,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.589082
           }
@@ -3622,36 +3627,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 363,
-              "minY": 335,
-              "width": 176,
-              "height": 101
+              "minX": 421,
+              "minY": 355,
+              "width": 119,
+              "height": 83
             },
-            "opaquePixels": 2404,
+            "opaquePixels": 1881,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.314199
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 364,
-              "minY": 343,
-              "width": 174,
-              "height": 93
+              "minX": 421,
+              "minY": 355,
+              "width": 118,
+              "height": 83
             },
-            "opaquePixels": 2248,
+            "opaquePixels": 1744,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.308837
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/fusta-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 365,
-              "minY": 343,
-              "width": 172,
-              "height": 94
+              "minX": 421,
+              "minY": 355,
+              "width": 116,
+              "height": 83
             },
-            "opaquePixels": 2059,
+            "opaquePixels": 1600,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.303475
           }
@@ -3770,37 +3775,37 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 257,
-              "minY": 342,
-              "width": 327,
-              "height": 138
+              "minX": 347,
+              "minY": 355,
+              "width": 253,
+              "height": 125
             },
-            "opaquePixels": 20545,
-            "clippedProjectedPixels": 528,
+            "opaquePixels": 17711,
+            "clippedProjectedPixels": 817,
             "shadowWaterlineY": -0.709547
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 258,
-              "minY": 342,
-              "width": 327,
-              "height": 138
+              "minX": 347,
+              "minY": 355,
+              "width": 253,
+              "height": 125
             },
-            "opaquePixels": 20528,
-            "clippedProjectedPixels": 540,
+            "opaquePixels": 17716,
+            "clippedProjectedPixels": 817,
             "shadowWaterlineY": -0.70418
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-turtle-ship-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 258,
-              "minY": 343,
-              "width": 328,
-              "height": 137
+              "minX": 347,
+              "minY": 355,
+              "width": 253,
+              "height": 125
             },
-            "opaquePixels": 20511,
-            "clippedProjectedPixels": 552,
+            "opaquePixels": 17708,
+            "clippedProjectedPixels": 823,
             "shadowWaterlineY": -0.698812
           }
         },
@@ -3918,36 +3923,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 341,
-              "minY": 333,
-              "width": 207,
-              "height": 123
+              "minX": 395,
+              "minY": 341,
+              "width": 163,
+              "height": 118
             },
-            "opaquePixels": 12167,
+            "opaquePixels": 9788,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.612749
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 342,
-              "minY": 333,
-              "width": 207,
-              "height": 123
+              "minX": 395,
+              "minY": 341,
+              "width": 163,
+              "height": 118
             },
-            "opaquePixels": 12166,
+            "opaquePixels": 9789,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.607386
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-hyeopseon-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 343,
-              "minY": 333,
-              "width": 207,
-              "height": 124
+              "minX": 395,
+              "minY": 341,
+              "width": 163,
+              "height": 118
             },
-            "opaquePixels": 12155,
+            "opaquePixels": 9781,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.602023
           }
@@ -4066,36 +4071,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 280,
-              "minY": 303,
-              "width": 283,
-              "height": 154
+              "minX": 372,
+              "minY": 313,
+              "width": 205,
+              "height": 148
             },
-            "opaquePixels": 19257,
+            "opaquePixels": 15302,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.787675
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 281,
-              "minY": 303,
-              "width": 283,
-              "height": 154
+              "minX": 373,
+              "minY": 313,
+              "width": 204,
+              "height": 148
             },
-            "opaquePixels": 19249,
+            "opaquePixels": 15301,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.782303
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 281,
-              "minY": 304,
-              "width": 284,
-              "height": 154
+              "minX": 373,
+              "minY": 313,
+              "width": 204,
+              "height": 148
             },
-            "opaquePixels": 19239,
+            "opaquePixels": 15296,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.776932
           }
@@ -4214,36 +4219,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 389,
-              "minY": 353,
-              "width": 133,
-              "height": 101
+              "minX": 418,
+              "minY": 356,
+              "width": 114,
+              "height": 98
             },
-            "opaquePixels": 4126,
+            "opaquePixels": 3418,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.273849
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 389,
-              "minY": 353,
-              "width": 134,
-              "height": 100
+              "minX": 419,
+              "minY": 356,
+              "width": 113,
+              "height": 98
             },
-            "opaquePixels": 4113,
+            "opaquePixels": 3430,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.268498
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kuribune-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 390,
-              "minY": 353,
-              "width": 133,
-              "height": 100
+              "minX": 419,
+              "minY": 356,
+              "width": 113,
+              "height": 98
             },
-            "opaquePixels": 4105,
+            "opaquePixels": 3436,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.263146
           }
@@ -4362,36 +4367,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 388,
-              "minY": 347,
-              "width": 137,
-              "height": 115
+              "minX": 420,
+              "minY": 351,
+              "width": 111,
+              "height": 111
             },
-            "opaquePixels": 6131,
+            "opaquePixels": 4715,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.161698
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 390,
-              "minY": 348,
-              "width": 136,
-              "height": 114
+              "minX": 420,
+              "minY": 351,
+              "width": 112,
+              "height": 111
             },
-            "opaquePixels": 6113,
+            "opaquePixels": 4720,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.156335
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-kobaya-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 390,
-              "minY": 348,
-              "width": 136,
-              "height": 114
+              "minX": 420,
+              "minY": 351,
+              "width": 112,
+              "height": 111
             },
-            "opaquePixels": 6082,
+            "opaquePixels": 4710,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.150972
           }
@@ -4508,36 +4513,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 321,
-              "minY": 317,
-              "width": 231,
-              "height": 127
+              "minX": 381,
+              "minY": 321,
+              "width": 179,
+              "height": 126
             },
-            "opaquePixels": 13653,
+            "opaquePixels": 11306,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.453918
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 320,
-              "minY": 317,
-              "width": 233,
-              "height": 127
+              "minX": 381,
+              "minY": 321,
+              "width": 179,
+              "height": 126
             },
-            "opaquePixels": 13644,
+            "opaquePixels": 11310,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.448547
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 321,
-              "minY": 317,
-              "width": 233,
-              "height": 127
+              "minX": 381,
+              "minY": 321,
+              "width": 179,
+              "height": 126
             },
-            "opaquePixels": 13650,
+            "opaquePixels": 11304,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.443177
           }
@@ -4656,36 +4661,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 309,
-              "minY": 277,
-              "width": 251,
-              "height": 168
+              "minX": 356,
+              "minY": 296,
+              "width": 219,
+              "height": 150
             },
-            "opaquePixels": 21617,
+            "opaquePixels": 17647,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.431329
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 312,
-              "minY": 277,
-              "width": 245,
-              "height": 168
+              "minX": 356,
+              "minY": 296,
+              "width": 220,
+              "height": 150
             },
-            "opaquePixels": 21600,
+            "opaquePixels": 17635,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.425962
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-atakebune-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 312,
-              "minY": 278,
-              "width": 245,
-              "height": 167
+              "minX": 357,
+              "minY": 296,
+              "width": 219,
+              "height": 150
             },
-            "opaquePixels": 21594,
+            "opaquePixels": 17640,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.420595
           }
@@ -4804,36 +4809,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 279,
-              "minY": 294,
-              "width": 242,
-              "height": 147
+              "minX": 376,
+              "minY": 308,
+              "width": 172,
+              "height": 133
             },
-            "opaquePixels": 14112,
+            "opaquePixels": 9413,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.611232
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 280,
-              "minY": 294,
-              "width": 241,
-              "height": 147
+              "minX": 376,
+              "minY": 308,
+              "width": 173,
+              "height": 133
             },
-            "opaquePixels": 14071,
+            "opaquePixels": 9403,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.605868
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/spanish-nao-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 282,
-              "minY": 294,
-              "width": 240,
-              "height": 147
+              "minX": 376,
+              "minY": 308,
+              "width": 173,
+              "height": 133
             },
-            "opaquePixels": 14022,
+            "opaquePixels": 9382,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.600505
           }
@@ -4952,36 +4957,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 250,
-              "minY": 266,
-              "width": 316,
-              "height": 166
+              "minX": 332,
+              "minY": 288,
+              "width": 264,
+              "height": 155
             },
-            "opaquePixels": 20028,
+            "opaquePixels": 13716,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.649543
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 250,
-              "minY": 266,
-              "width": 317,
-              "height": 166
+              "minX": 332,
+              "minY": 288,
+              "width": 264,
+              "height": 155
             },
-            "opaquePixels": 19968,
+            "opaquePixels": 13729,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.644179
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/portuguese-carrack-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 251,
-              "minY": 266,
-              "width": 317,
-              "height": 167
+              "minX": 332,
+              "minY": 288,
+              "width": 264,
+              "height": 155
             },
-            "opaquePixels": 19936,
+            "opaquePixels": 13751,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.638815
           }
@@ -5100,36 +5105,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 231,
-              "minY": 314,
-              "width": 306,
-              "height": 151
+              "minX": 333,
+              "minY": 325,
+              "width": 227,
+              "height": 142
             },
-            "opaquePixels": 12293,
+            "opaquePixels": 8704,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.589442
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 232,
-              "minY": 314,
-              "width": 306,
-              "height": 151
+              "minX": 333,
+              "minY": 325,
+              "width": 227,
+              "height": 142
             },
-            "opaquePixels": 12261,
+            "opaquePixels": 8710,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.584066
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/viking-longship-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 232,
-              "minY": 314,
-              "width": 306,
-              "height": 151
+              "minX": 333,
+              "minY": 326,
+              "width": 227,
+              "height": 141
             },
-            "opaquePixels": 12239,
+            "opaquePixels": 8713,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.578691
           }
@@ -5248,36 +5253,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 299,
-              "minY": 286,
-              "width": 293,
-              "height": 159
+              "minX": 361,
+              "minY": 292,
+              "width": 232,
+              "height": 156
             },
-            "opaquePixels": 19676,
+            "opaquePixels": 14031,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.712368
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 299,
-              "minY": 286,
-              "width": 294,
-              "height": 159
+              "minX": 361,
+              "minY": 292,
+              "width": 232,
+              "height": 156
             },
-            "opaquePixels": 19577,
+            "opaquePixels": 14010,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.707006
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/polynesian-voyaging-canoe-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 302,
-              "minY": 286,
-              "width": 291,
-              "height": 159
+              "minX": 361,
+              "minY": 292,
+              "width": 233,
+              "height": 156
             },
-            "opaquePixels": 19442,
+            "opaquePixels": 13959,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.701643
           }
@@ -5396,36 +5401,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 402,
-              "minY": 338,
-              "width": 134,
-              "height": 125
+              "minX": 418,
+              "minY": 342,
+              "width": 120,
+              "height": 123
             },
-            "opaquePixels": 7390,
+            "opaquePixels": 6386,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.091566
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 403,
-              "minY": 339,
-              "width": 133,
-              "height": 124
+              "minX": 418,
+              "minY": 342,
+              "width": 120,
+              "height": 123
             },
-            "opaquePixels": 7213,
+            "opaquePixels": 6206,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.086187
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/mesoamerican-dugout-canoe-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 404,
-              "minY": 338,
-              "width": 133,
-              "height": 125
+              "minX": 419,
+              "minY": 342,
+              "width": 119,
+              "height": 123
             },
-            "opaquePixels": 6873,
+            "opaquePixels": 5809,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.080808
           }
@@ -5542,37 +5547,37 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 328,
-              "minY": 342,
-              "width": 291,
-              "height": 137
+              "minX": 338,
+              "minY": 359,
+              "width": 283,
+              "height": 121
             },
-            "opaquePixels": 18779,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 15581,
+            "clippedProjectedPixels": 45,
             "shadowWaterlineY": -0.586529
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 328,
-              "minY": 342,
-              "width": 292,
-              "height": 137
+              "minX": 339,
+              "minY": 359,
+              "width": 282,
+              "height": 121
             },
-            "opaquePixels": 18444,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 15137,
+            "clippedProjectedPixels": 45,
             "shadowWaterlineY": -0.581154
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/nusantaran-outrigger-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 329,
-              "minY": 342,
-              "width": 291,
-              "height": 137
+              "minX": 338,
+              "minY": 359,
+              "width": 283,
+              "height": 121
             },
-            "opaquePixels": 18124,
-            "clippedProjectedPixels": 0,
+            "opaquePixels": 14720,
+            "clippedProjectedPixels": 45,
             "shadowWaterlineY": -0.575778
           }
         },
@@ -5690,36 +5695,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 323,
-              "minY": 333,
-              "width": 208,
-              "height": 125
+              "minX": 406,
+              "minY": 339,
+              "width": 138,
+              "height": 120
             },
-            "opaquePixels": 10321,
+            "opaquePixels": 7421,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.460846
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 323,
-              "minY": 333,
-              "width": 209,
-              "height": 125
+              "minX": 405,
+              "minY": 339,
+              "width": 140,
+              "height": 120
             },
-            "opaquePixels": 10305,
+            "opaquePixels": 7430,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.45548
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/kelulus-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 324,
-              "minY": 333,
-              "width": 208,
-              "height": 125
+              "minX": 405,
+              "minY": 339,
+              "width": 140,
+              "height": 121
             },
-            "opaquePixels": 10246,
+            "opaquePixels": 7437,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.450113
           }
@@ -5838,36 +5843,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 357,
-              "minY": 314,
-              "width": 181,
-              "height": 141
+              "minX": 408,
+              "minY": 320,
+              "width": 141,
+              "height": 135
             },
-            "opaquePixels": 6377,
+            "opaquePixels": 5279,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.418382
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 358,
-              "minY": 314,
-              "width": 181,
-              "height": 140
+              "minX": 410,
+              "minY": 320,
+              "width": 139,
+              "height": 134
             },
-            "opaquePixels": 6351,
+            "opaquePixels": 5274,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.413017
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/penjajap-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 358,
-              "minY": 314,
-              "width": 181,
-              "height": 139
+              "minX": 412,
+              "minY": 320,
+              "width": 137,
+              "height": 133
             },
-            "opaquePixels": 6355,
+            "opaquePixels": 5272,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.407651
           }
@@ -5986,36 +5991,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 371,
-              "minY": 306,
-              "width": 176,
-              "height": 139
+              "minX": 420,
+              "minY": 311,
+              "width": 132,
+              "height": 136
             },
-            "opaquePixels": 5437,
+            "opaquePixels": 4248,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.35109
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 372,
-              "minY": 306,
-              "width": 175,
-              "height": 139
+              "minX": 421,
+              "minY": 311,
+              "width": 131,
+              "height": 136
             },
-            "opaquePixels": 4838,
+            "opaquePixels": 3740,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.345732
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/lancaran-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 372,
-              "minY": 306,
-              "width": 176,
-              "height": 139
+              "minX": 420,
+              "minY": 311,
+              "width": 132,
+              "height": 136
             },
-            "opaquePixels": 4506,
+            "opaquePixels": 3493,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.340374
           }
@@ -6134,36 +6139,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 367,
-              "minY": 310,
-              "width": 181,
-              "height": 140
+              "minX": 412,
+              "minY": 315,
+              "width": 141,
+              "height": 137
             },
-            "opaquePixels": 8430,
+            "opaquePixels": 6764,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.346771
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 367,
-              "minY": 310,
-              "width": 182,
-              "height": 140
+              "minX": 412,
+              "minY": 315,
+              "width": 141,
+              "height": 137
             },
-            "opaquePixels": 6707,
+            "opaquePixels": 5307,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.341411
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/royal-lancaran-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 368,
-              "minY": 310,
-              "width": 182,
-              "height": 140
+              "minX": 412,
+              "minY": 315,
+              "width": 141,
+              "height": 137
             },
-            "opaquePixels": 5434,
+            "opaquePixels": 4206,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.336052
           }
@@ -6282,36 +6287,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 258,
-              "minY": 310,
-              "width": 267,
-              "height": 147
+              "minX": 374,
+              "minY": 323,
+              "width": 159,
+              "height": 135
             },
-            "opaquePixels": 11975,
+            "opaquePixels": 8071,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.798187
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 257,
-              "minY": 310,
-              "width": 269,
-              "height": 147
+              "minX": 374,
+              "minY": 323,
+              "width": 159,
+              "height": 135
             },
-            "opaquePixels": 11960,
+            "opaquePixels": 8074,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.792824
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/ottoman-coastal-trader-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 257,
-              "minY": 310,
-              "width": 269,
-              "height": 147
+              "minX": 374,
+              "minY": 323,
+              "width": 159,
+              "height": 135
             },
-            "opaquePixels": 11912,
+            "opaquePixels": 8081,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.787462
           }

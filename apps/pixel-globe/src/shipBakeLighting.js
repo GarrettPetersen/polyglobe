@@ -6,6 +6,15 @@ const SHIP_BAKE_DIRECT_LIGHT = 0.38;
 // right shoulder, matching the hand-authored pixel-art lighting convention.
 export const SHIP_BAKE_LIGHT_DIRECTION = Object.freeze({ x: 0.5, y: 0.8, z: 0.33 });
 
+// Dockside shadows share the authored screen-left direction but use a much
+// higher sun so their water footprint stays beside the hull instead of
+// reaching into the distant parallax water.
+export const CITY_DOCKSIDE_SHADOW_LIGHT_DIRECTION = Object.freeze({
+  x: 0.5,
+  y: 3.2,
+  z: 0.33
+});
+
 export function shipBakeLightScale(normal) {
   if (!normal || ![normal.x, normal.y, normal.z].every(Number.isFinite)) {
     throw new Error("Ship bake lighting requires a finite surface normal");
