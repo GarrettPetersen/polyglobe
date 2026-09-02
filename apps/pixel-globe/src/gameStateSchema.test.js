@@ -62,6 +62,29 @@ for (const fixtureName of readdirSync(SNAPSHOT_DIRECTORY)
   });
 }
 
+test("legacy migration rebuilds stale derived cargo capacity while current saves remain strict", () => {
+  const fixture = JSON.parse(readFileSync(
+    new URL("canonical-states-v93.json", SNAPSHOT_DIRECTORY),
+    "utf8"
+  ));
+  const legacy = structuredClone(fixture.states[0].state);
+  const shipStats = shipStatsForSlug(legacy.ship.slug);
+  legacy.cargoCapacity += 4;
+
+  const migrated = migrateGameState(legacy, shipStats, {
+    legacyCityIdForPortReference: () => "london|united kingdom"
+  });
+  assert.equal(migrated.cargoCapacity, shipStats.cargoCapacity);
+  validateGameState(migrated);
+
+  const corruptCurrentSave = structuredClone(migrated);
+  corruptCurrentSave.cargoCapacity += 4;
+  assert.throws(
+    () => migrateGameState(corruptCurrentSave, shipStats),
+    /Player cargo capacity does not include current perks/
+  );
+});
+
 test("schema fingerprints include nested catalog keys and array element fields", () => {
   const entries = persistedValueSchemaEntries({
     catalog: { england: 1, hospitallers: 0 },

@@ -869,21 +869,6 @@ export function migrateGameState(state, shipStats, {
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
     throw new Error("Game state migration requires canonical ship stats");
   }
-  const savedPerksCanBeRead = state.playerCharacter?.skillIds && state.inventory?.items;
-  const migrationPerkState = state.namedCrew
-    ? state
-    : { ...state, namedCrew: createNamedCrewMemory() };
-  const migratableCargoCapacities = state.ship
-    ? new Set([
-      shipStats.cargoCapacity,
-      savedPerksCanBeRead
-        ? effectivePlayerShipStats(migrationPerkState, shipStats).cargoCapacity
-        : shipStats.cargoCapacity
-    ])
-    : null;
-  if (state.ship && !migratableCargoCapacities.has(state.cargoCapacity)) {
-    throw new Error("Saved ship capacity does not match its hull during migration");
-  }
   if (!state.relations || typeof state.relations !== "object") {
     throw new Error("Game state migration requires relations");
   }
