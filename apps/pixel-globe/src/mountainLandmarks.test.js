@@ -39,6 +39,11 @@ test("full named mountain data aligns with cached peak tiles", async () => {
   const matterhorn = registry.famous.find((mountain) => mountain.id === "mountain-matterhorn");
   assert.ok(matterhorn);
   assert.ok(matterhorn.legacyDiscoveryIds.includes("mountain-40279-matterhorn"));
+  const mountOlympus = registry.all.find(
+    (mountain) => mountain.id === "mountain-mount-olympus-n40p08325-e22p35012"
+  );
+  assert.ok(mountOlympus);
+  assert.ok(mountOlympus.legacyDiscoveryIds.includes("mountain-24808-mount-olympus"));
   assert.equal(registry.famous.some((mountain) => mountain.displayName === "Cero Raya"), false);
   assert.deepEqual(
     new Set(AUTHORED_MOUNTAIN_REPORT_IDS),

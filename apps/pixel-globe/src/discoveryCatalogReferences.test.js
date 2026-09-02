@@ -56,6 +56,41 @@ test("tile-derived mountain ids reconcile across every persisted discovery refer
   );
 });
 
+test("pre-canonical Mount Olympus saves reconcile to its stable coordinate id", () => {
+  const legacyId = "mountain-24808-mount-olympus";
+  const canonicalId = "mountain-mount-olympus-n40p08325-e22p35012";
+  const catalog = [{
+    id: canonicalId,
+    legacyIds: ["mountain-98887-mount-olympus", legacyId],
+    kind: "mountain",
+    displayName: "Mount Olympus",
+    detail: "2,917 m"
+  }];
+  const state = savedState({
+    discoveries: {
+      [legacyId]: {
+        id: legacyId,
+        kind: "mountain",
+        displayName: "Mount Olympus",
+        detail: "2,917 m"
+      }
+    },
+    discoveryOrder: [legacyId],
+    pendingDiscoveryPortDialogueIds: [],
+    campaignGoal: {
+      type: "explorer",
+      reportedDiscoveryIds: [legacyId],
+      currentLeadDiscoveryId: legacyId
+    }
+  });
+
+  assert.equal(reconcileSavedDiscoveryReferences(state, catalog), 4);
+  assert.deepEqual(state.memory.discoveryOrder, [canonicalId]);
+  assert.deepEqual(state.memory.campaignGoal.reportedDiscoveryIds, [canonicalId]);
+  assert.equal(state.memory.campaignGoal.currentLeadDiscoveryId, canonicalId);
+  assert.equal(state.memory.discoveries[canonicalId].id, canonicalId);
+});
+
 test("restore validation covers every saved discovery reference surface", () => {
   const valid = () => savedState({
     discoveries: {
