@@ -43,7 +43,8 @@ function state(crew = 4, crewCapacity = 8) {
       appearanceId: "mariner-light-black-hair",
       crewTypeId: "sailor",
       recruitedAtMinute: 0,
-      sailingMinutes: 0
+      sailingMinutes: 0,
+      wound: null
     })),
     ship: { crew, crewCapacity }
   };

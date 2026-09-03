@@ -5,6 +5,14 @@ import { religionById } from "./characterReligion.js";
 
 export const CREW_EXPERIENCE_MAX_STARS = 3;
 export const CREW_RECRUITMENT_MEMORY_VERSION = 1;
+export const CREW_WOUND_CAUSE_PORT_ASSAULT = "port-assault";
+export const CREW_WOUND_CAUSE_NAVAL_SMALL_ARMS = "naval-small-arms";
+export const CREW_WOUND_PORT_RECOVERY_MULTIPLIER = 2;
+
+const CREW_WOUND_CAUSES = new Set([
+  CREW_WOUND_CAUSE_PORT_ASSAULT,
+  CREW_WOUND_CAUSE_NAVAL_SMALL_ARMS
+]);
 
 const MINUTES_PER_DAY = 24 * 60;
 const EXPERIENCE_THRESHOLDS_MINUTES = Object.freeze([
@@ -78,29 +86,39 @@ export function crewMemberExperienceStars(member) {
   return stars;
 }
 
-export function crewExperienceSummary(state, activeCrew = state?.ship?.crew ?? 0) {
+export function crewExperienceSummary(state, activeCrew = null) {
   const roster = crewRosterMembers(state);
-  if (!Number.isInteger(activeCrew) || activeCrew < 0) {
-    throw new Error(`Invalid active crew for experience: ${activeCrew}`);
+  const woundedCount = roster.filter(crewMemberHasWound).length;
+  const availableRoster = roster.filter((member) => !crewMemberHasWound(member));
+  const maximumActiveCrew = Math.max(0, (state?.ship?.crew ?? 0) - woundedCount);
+  const requestedActiveCrew = activeCrew === null ? maximumActiveCrew : activeCrew;
+  if (!Number.isInteger(requestedActiveCrew) || requestedActiveCrew < 0) {
+    throw new Error(`Invalid active crew for experience: ${requestedActiveCrew}`);
   }
-  if (activeCrew > (state?.ship?.crew ?? 0)) {
-    throw new Error(`Active crew exceeds the aboard roster: ${activeCrew}/${state?.ship?.crew ?? 0}`);
+  if (requestedActiveCrew > (state?.ship?.crew ?? 0)) {
+    throw new Error(
+      `Active crew exceeds the aboard roster: ${requestedActiveCrew}/${state?.ship?.crew ?? 0}`
+    );
   }
-  const starTotal = roster.reduce((sum, member) => sum + crewMemberExperienceStars(member), 0);
-  const averageStars = roster.length === 0 ? 0 : starTotal / roster.length;
-  const ordinaryContribution = roster.reduce(
+  const contributingCrew = Math.min(requestedActiveCrew, maximumActiveCrew);
+  const starTotal = availableRoster.reduce((sum, member) => sum + crewMemberExperienceStars(member), 0);
+  const averageStars = availableRoster.length === 0 ? 0 : starTotal / availableRoster.length;
+  const ordinaryContribution = availableRoster.reduce(
     (sum, member) => sum + interpolatedCrewContribution(crewMemberExperienceStars(member)),
     0
   );
   const namedCount = state.namedCrew.length;
   const experiencedHands = namedCount + ordinaryContribution;
-  const handsBeyondCaptain = namedCount + roster.length;
+  const handsBeyondCaptain = namedCount + availableRoster.length;
   const contribution = handsBeyondCaptain === 0 ? 0 : experiencedHands / handsBeyondCaptain;
-  const effectiveCrew = activeCrew === 0
+  const effectiveCrew = contributingCrew === 0
     ? 0
-    : 1 + Math.max(0, activeCrew - 1) * contribution;
+    : 1 + Math.max(0, contributingCrew - 1) * contribution;
   return Object.freeze({
-    memberCount: roster.length,
+    memberCount: availableRoster.length,
+    aboardMemberCount: roster.length,
+    woundedCount,
+    activeCrew: contributingCrew,
     averageStars,
     overallStars: Math.round(averageStars),
     effectiveCrew,
@@ -154,6 +172,7 @@ export function advanceCrewSailingExperience(state, elapsedMinutes) {
   if (elapsedMinutes === 0) return Object.freeze([]);
   const levelUps = [];
   for (const member of crewRosterMembers(state)) {
+    if (crewMemberHasWound(member)) continue;
     const before = crewMemberExperienceStars(member);
     member.sailingMinutes += elapsedMinutes;
     const after = crewMemberExperienceStars(member);
@@ -186,7 +205,8 @@ export function createCrewMember({
     appearanceId,
     crewTypeId,
     recruitedAtMinute,
-    sailingMinutes
+    sailingMinutes,
+    wound: null
   };
   validateCrewMember(member);
   return member;
@@ -463,6 +483,152 @@ export function removeCrewMembersById(state, memberIds) {
   return Object.freeze(casualties);
 }
 
+export function crewMemberIsWounded(member) {
+  validateCrewMember(member);
+  return crewMemberHasWound(member);
+}
+
+export function availableCrewRosterMembers(state) {
+  return crewRosterMembers(state).filter((member) => !crewMemberHasWound(member));
+}
+
+export function woundCrewMembers(state, wounds, options) {
+  if (!Array.isArray(wounds)) throw new Error("Crew wounds must be an array");
+  if (!options || typeof options !== "object" || Array.isArray(options)) {
+    throw new Error("Crew wounds require an explicit cause");
+  }
+  const { cause } = options;
+  requireCrewWoundCause(cause);
+  const memberIds = wounds.map(({ memberId }) => memberId);
+  if (memberIds.some((memberId) => typeof memberId !== "string" || memberId === "")) {
+    throw new Error("Crew wounds require crew member IDs");
+  }
+  if (new Set(memberIds).size !== memberIds.length) {
+    throw new Error("Crew wounds contain duplicate crew member IDs");
+  }
+  const rosterById = new Map(crewRosterMembers(state).map((member) => [member.id, member]));
+  const plannedWounds = wounds.map(({ memberId, recoveryMinutes }) => {
+    if (!Number.isInteger(recoveryMinutes) || recoveryMinutes <= 0) {
+      throw new Error(`Invalid wound recovery time for ${memberId}: ${recoveryMinutes}`);
+    }
+    const member = rosterById.get(memberId);
+    if (!member) throw new Error(`Cannot wound missing crew member: ${memberId}`);
+    if (crewMemberHasWound(member)) throw new Error(`Crew member is already wounded: ${memberId}`);
+    return { member, recoveryMinutes };
+  });
+  const wounded = plannedWounds.map(({ member, recoveryMinutes }) => {
+    member.wound = {
+      cause,
+      recoveryMinutesRemaining: recoveryMinutes
+    };
+    return Object.freeze({ member, recoveryMinutes });
+  });
+  validateCrewRoster(state.crewRoster);
+  return Object.freeze(wounded);
+}
+
+export function applyCrewCombatCasualties(state, {
+  deathCount,
+  woundCount,
+  woundCause,
+  recoveryMinutesRange,
+  random = Math.random
+}) {
+  if (!Number.isInteger(deathCount) || deathCount < 0) {
+    throw new Error(`Invalid individual combat death count: ${deathCount}`);
+  }
+  if (!Number.isInteger(woundCount) || woundCount < 0) {
+    throw new Error(`Invalid individual combat wound count: ${woundCount}`);
+  }
+  requireCrewWoundCause(woundCause);
+  if (!recoveryMinutesRange || typeof recoveryMinutesRange !== "object" ||
+      Array.isArray(recoveryMinutesRange)) {
+    throw new Error("Crew combat wounds require a recovery-minute range");
+  }
+  const { minimum, maximum } = recoveryMinutesRange;
+  if (!Number.isInteger(minimum) || minimum <= 0 ||
+      !Number.isInteger(maximum) || maximum < minimum) {
+    throw new Error(`Invalid crew wound recovery-minute range: ${minimum}/${maximum}`);
+  }
+  if (typeof random !== "function") {
+    throw new Error("Crew combat casualty selection requires a random source");
+  }
+
+  const available = [...availableCrewRosterMembers(state)];
+  if (deathCount + woundCount > available.length) {
+    throw new Error(
+      `Crew combat casualties exceed available ordinary crew: ` +
+      `${deathCount + woundCount}/${available.length}`
+    );
+  }
+  const deathIds = selectWeightedCrewIds(available, deathCount, random);
+  const woundIds = selectWeightedCrewIds(available, woundCount, random);
+  const wounds = woundIds.map((memberId) => ({
+    memberId,
+    recoveryMinutes: randomIntegerInclusive(minimum, maximum, random)
+  }));
+  const deaths = removeCrewMembersById(state, deathIds);
+  const wounded = woundCrewMembers(state, wounds, { cause: woundCause });
+  return Object.freeze({ deaths, wounded });
+}
+
+export function advanceCrewWoundRecovery(state, elapsedMinutes, { safePort }) {
+  if (!Number.isFinite(elapsedMinutes) || elapsedMinutes < 0) {
+    throw new Error(`Invalid crew wound recovery interval: ${elapsedMinutes}`);
+  }
+  if (typeof safePort !== "boolean") throw new Error("Crew wound recovery requires safe-port status");
+  if (elapsedMinutes === 0) return Object.freeze([]);
+  const recoveryProgress = elapsedMinutes * (safePort ? CREW_WOUND_PORT_RECOVERY_MULTIPLIER : 1);
+  const recovered = [];
+  for (const member of crewRosterMembers(state)) {
+    if (!crewMemberHasWound(member)) continue;
+    member.wound.recoveryMinutesRemaining -= recoveryProgress;
+    if (member.wound.recoveryMinutesRemaining <= 0) {
+      member.wound = null;
+      recovered.push(Object.freeze({ memberId: member.id, name: member.name }));
+    }
+  }
+  validateCrewRoster(state.crewRoster);
+  return Object.freeze(recovered);
+}
+
+export function migrateCrewRosterWounds(roster) {
+  if (!Array.isArray(roster)) throw new Error("Crew wound migration requires a roster");
+  const migrated = roster.map((member) => (
+    Object.hasOwn(member, "wound") ? member : { ...member, wound: null }
+  ));
+  const ids = new Set();
+  for (const member of migrated) {
+    validateCrewMemberCore(member);
+    if (ids.has(member.id)) throw new Error(`Duplicate crew member ID: ${member.id}`);
+    ids.add(member.id);
+  }
+  return migrated;
+}
+
+export function migrateCrewRecruitmentWounds(memory) {
+  if (!memory || typeof memory !== "object" || Array.isArray(memory)) {
+    throw new Error("Crew recruitment wound migration requires recruitment memory");
+  }
+  const migrated = {
+    ...memory,
+    offersByCityId: Object.fromEntries(Object.entries(memory.offersByCityId).map(([cityId, offer]) => [
+      cityId,
+      {
+        ...offer,
+        candidates: offer.candidates.map((candidate) => ({
+          ...candidate,
+          member: Object.hasOwn(candidate.member, "wound")
+            ? candidate.member
+            : { ...candidate.member, wound: null }
+        }))
+      }
+    ]))
+  };
+  validateCrewRecruitmentMemory(migrated);
+  return migrated;
+}
+
 export function validateCrewAggregate(state) {
   if (!state?.ship) {
     if (crewRosterMembers(state).length > 0) throw new Error("Crew roster exists without a player ship");
@@ -535,6 +701,40 @@ function validateCrewMemberCore(member) {
   if (!Number.isFinite(member.sailingMinutes) || member.sailingMinutes < 0) {
     throw new Error(`Crew member ${member.id} has invalid sailing experience: ${member.sailingMinutes}`);
   }
+  if (!Object.hasOwn(member, "wound")) {
+    throw new Error(`Crew member ${member.id} is missing wound state`);
+  }
+  if (member.wound !== null) {
+    if (!member.wound || typeof member.wound !== "object" || Array.isArray(member.wound)) {
+      throw new Error(`Crew member ${member.id} has invalid wound state`);
+    }
+    requireCrewWoundCause(member.wound.cause, member.id);
+    if (!Number.isFinite(member.wound.recoveryMinutesRemaining) ||
+        member.wound.recoveryMinutesRemaining <= 0) {
+      throw new Error(
+        `Crew member ${member.id} has invalid wound recovery time: ` +
+        `${member.wound.recoveryMinutesRemaining}`
+      );
+    }
+  }
+}
+
+function crewMemberHasWound(member) {
+  if (!member || typeof member !== "object" || !Object.hasOwn(member, "wound")) {
+    throw new Error(`Crew member ${member?.id || "without ID"} is missing wound state`);
+  }
+  return member.wound !== null;
+}
+
+function requireCrewWoundCause(cause, memberId = null) {
+  if (!CREW_WOUND_CAUSES.has(cause)) {
+    throw new Error(
+      memberId
+        ? `Crew member ${memberId} has unknown wound cause: ${cause}`
+        : `Unknown crew wound cause: ${cause}`
+    );
+  }
+  return cause;
 }
 
 function validateCrewRecruitmentOffer(offer, expectedCityId) {
@@ -621,6 +821,25 @@ function weightedCasualtyIndex(roster, roll) {
     target -= weights[index];
   }
   return roster.length - 1;
+}
+
+function selectWeightedCrewIds(available, count, random) {
+  const selected = [];
+  for (let index = 0; index < count; index += 1) {
+    const rosterIndex = weightedCasualtyIndex(available, random());
+    const [member] = available.splice(rosterIndex, 1);
+    selected.push(member.id);
+  }
+  return selected;
+}
+
+function randomIntegerInclusive(minimum, maximum, random) {
+  if (minimum === maximum) return minimum;
+  const roll = random();
+  if (!Number.isFinite(roll) || roll < 0 || roll >= 1) {
+    throw new Error(`Crew wound recovery roll must be in [0, 1): ${roll}`);
+  }
+  return minimum + Math.floor(roll * (maximum - minimum + 1));
 }
 
 function interpolatedCrewContribution(averageStars) {

@@ -1,10 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { PORT_ASSAULT_ATTACKER_ENTRY_POSITION } from "../src/portAssaultBattle.js";
 
 import {
+  CITY_ASSAULT_MIN_FORWARD_JUMP_PX,
   CITY_ASSAULT_JUMP_ARC_HEIGHT_PX,
   CITY_ASSAULT_KNOCKBACK_DURATION_MS,
   CITY_ASSAULT_MELEE_LUNGE_DURATION_MS,
+  cityAssaultForwardEntryShift,
+  cityAssaultLaneX,
   cityAssaultJumpPoint,
   cityAssaultKnockbackOffset,
   cityAssaultMeleeLungeOffset
@@ -18,6 +22,32 @@ test("shipboard attackers follow a pixel-snapped parabolic jump onto shore", () 
   assert.equal(apex.x, 689);
   assert.equal(apex.y, 514 + 13 - CITY_ASSAULT_JUMP_ARC_HEIGHT_PX);
   assert.ok(apex.y < input.start.y, "the low road lane must still rise above the deck");
+});
+
+test("a shipboard landing always advances right without shifting the gate", () => {
+  const deckStartX = 748;
+  const baselineEntryX = 692;
+  const entryShiftX = cityAssaultForwardEntryShift({ baselineEntryX, deckStartX });
+  const landingX = cityAssaultLaneX({
+    baselineX: baselineEntryX,
+    position: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+    entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+    entryShiftX
+  });
+  assert.equal(landingX, deckStartX + CITY_ASSAULT_MIN_FORWARD_JUMP_PX);
+  assert.ok(landingX > deckStartX);
+  assert.equal(cityAssaultLaneX({
+    baselineX: 1306,
+    position: 1,
+    entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+    entryShiftX
+  }), 1306);
+  assert.equal(cityAssaultLaneX({
+    baselineX: baselineEntryX,
+    position: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+    entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+    entryShiftX: cityAssaultForwardEntryShift({ baselineEntryX, deckStartX: 650 })
+  }), baselineEntryX);
 });
 
 test("melee lunge and knockback motion return to authoritative battle positions", () => {
@@ -51,4 +81,10 @@ test("city assault motion rejects malformed spatial and timing contracts", () =>
   }), /jump start/);
   assert.throws(() => cityAssaultMeleeLungeOffset("neutral", 0), /side/);
   assert.throws(() => cityAssaultKnockbackOffset({ knockbackPx: 0, elapsedMs: 0 }), /distance/);
+  assert.throws(() => cityAssaultLaneX({
+    baselineX: 0,
+    position: -0.1,
+    entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+    entryShiftX: 0
+  }), /position/);
 });

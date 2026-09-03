@@ -4442,7 +4442,11 @@ function barredPortView(city, gameState, context) {
         !Number.isInteger(conquest.casualtyRangeHigh) || conquest.casualtyRangeLow < 0 ||
         conquest.casualtyRangeHigh < conquest.casualtyRangeLow ||
         !Number.isInteger(conquest.expectedCasualtiesRounded) ||
-        conquest.expectedCasualtiesRounded < 0) {
+        conquest.expectedCasualtiesRounded < 0 ||
+        !Number.isInteger(conquest.expectedDeathsRounded) ||
+        conquest.expectedDeathsRounded < 0 ||
+        !Number.isInteger(conquest.expectedWoundedRounded) ||
+        conquest.expectedWoundedRounded < 0) {
       throw new Error(`Invalid port assault forecast for ${city.cityId}`);
     }
     options.push(option(
@@ -4451,8 +4455,9 @@ function barredPortView(city, gameState, context) {
         : "Start the assault",
       { type: "land-marines" },
       {
-        detail: `${conquest.successPercent}% victory • expect ${conquest.expectedCasualtiesRounded} lost ` +
-          `(${conquest.casualtyRangeLow}–${conquest.casualtyRangeHigh})`
+        detail: `${conquest.successPercent}% victory • expect ${conquest.expectedDeathsRounded} dead / ` +
+          `${conquest.expectedWoundedRounded} wounded ` +
+          `(${conquest.casualtyRangeLow}–${conquest.casualtyRangeHigh} total)`
       }
     ));
   }

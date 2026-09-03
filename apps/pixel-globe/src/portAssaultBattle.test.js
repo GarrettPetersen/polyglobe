@@ -16,6 +16,7 @@ import {
   portAssaultShipHitPointsAt,
   portAssaultShipImpactShakeAt,
   portAssaultUnitStats,
+  resolvePortAssaultCrewFates,
   simulatePortAssault
 } from "./portAssaultBattle.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -63,7 +64,7 @@ test("assault simulation is repeatable for one seed and varies across real battl
   for (let seed = 1; seed <= 60; seed += 1) {
     const result = simulatePortAssault(input, seed, { collectPresentation: false });
     outcomes.add(result.outcome);
-    casualties.add(result.attackerCasualtyIds.length);
+    casualties.add(result.attackerDownedIds.length);
   }
   assert.deepEqual(outcomes, new Set([PORT_ASSAULT_OUTCOME.VICTORY, PORT_ASSAULT_OUTCOME.DEFEAT]));
   assert.ok(casualties.size >= 3);
@@ -73,9 +74,52 @@ test("forecast reports the distribution produced by the same battle rules", () =
   const forecast = forecastPortAssault(scenario(), { seedKey: "voyage-1|lisbon|day-12", sampleCount: 64 });
   assert.ok(forecast.successPercent > 0 && forecast.successPercent < 100);
   assert.ok(forecast.expectedCasualties > 0);
+  assert.ok(forecast.expectedDeaths > 0);
+  assert.ok(forecast.expectedWounded > 0);
+  assert.equal(
+    forecast.expectedCasualties,
+    forecast.expectedDeaths + forecast.expectedWounded
+  );
   assert.ok(forecast.casualtyRangeLow <= forecast.expectedCasualties);
   assert.ok(forecast.casualtyRangeHigh >= forecast.expectedCasualties);
   assert.equal(forecast.sampleCount, 64);
+});
+
+test("land-assault downed crew resolve deterministically into deaths and persistent wounds", () => {
+  const combatants = Array.from({ length: 80 }, (_, index) => combatant(
+    `crew-${index}`,
+    "swordsman",
+    index % 4
+  ));
+  const downedIds = combatants.map(({ id }) => id);
+  const defeat = resolvePortAssaultCrewFates({
+    combatants,
+    downedIds,
+    outcome: PORT_ASSAULT_OUTCOME.DEFEAT,
+    woundSurvivalBonus: 0,
+    seed: 71
+  });
+  const treatedVictory = resolvePortAssaultCrewFates({
+    combatants,
+    downedIds,
+    outcome: PORT_ASSAULT_OUTCOME.VICTORY,
+    woundSurvivalBonus: 0.28,
+    seed: 71
+  });
+
+  assert.deepEqual(defeat, resolvePortAssaultCrewFates({
+    combatants,
+    downedIds,
+    outcome: PORT_ASSAULT_OUTCOME.DEFEAT,
+    woundSurvivalBonus: 0,
+    seed: 71
+  }));
+  assert.equal(defeat.deathIds.length + defeat.wounds.length, downedIds.length);
+  assert.equal(treatedVictory.deathIds.length + treatedVictory.wounds.length, downedIds.length);
+  assert.ok(treatedVictory.wounds.length > defeat.wounds.length);
+  assert.ok(treatedVictory.wounds.every(({ recoveryDays, recoveryMinutes }) => (
+    recoveryDays >= 3 && recoveryDays <= 14 && recoveryMinutes === recoveryDays * 24 * 60
+  )));
 });
 
 test("experience, arms, and armour modify concrete combat stats", () => {

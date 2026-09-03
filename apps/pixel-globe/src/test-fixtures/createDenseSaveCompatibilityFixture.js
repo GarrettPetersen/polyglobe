@@ -1,4 +1,9 @@
 import { CAMPAIGN_GOAL_EXPLORER } from "../campaignGoals.js";
+import {
+  CREW_WOUND_CAUSE_PORT_ASSAULT,
+  createCrewMember,
+  woundCrewMembers
+} from "../crewMembers.js";
 import { COURT_ACTION_KINDS } from "../courtPolitics.js";
 import { createGameState, validateGameState } from "../gameState.js";
 import { IMPERIAL_HISTORY_EVENT_KINDS } from "../imperialConstitution.js";
@@ -55,6 +60,37 @@ export function createDenseSaveCompatibilityFixture() {
     campaignGoalType: CAMPAIGN_GOAL_EXPLORER,
     voyageSeed: "dense-save-compatibility"
   });
+  state.crewRoster = [
+    createCrewMember({
+      id: "crew:dense-save:healthy",
+      name: "Thomas Hale",
+      nameCulture: "english",
+      religionId: "roman-catholic",
+      nationalityId: "england",
+      homePort: DENSE_SAVE_PORT_CATALOG[0],
+      appearanceId: "mariner-light-black-hair",
+      crewTypeId: "sailor",
+      recruitedAtMinute: START_MINUTE,
+      sailingMinutes: 40_000
+    }),
+    createCrewMember({
+      id: "crew:dense-save:wounded",
+      name: "William Reed",
+      nameCulture: "english",
+      religionId: "roman-catholic",
+      nationalityId: "england",
+      homePort: DENSE_SAVE_PORT_CATALOG[0],
+      appearanceId: "swordsman-light",
+      crewTypeId: "swordsman",
+      recruitedAtMinute: START_MINUTE,
+      sailingMinutes: 60_000
+    })
+  ];
+  state.ship.crew = 3;
+  woundCrewMembers(state, [{
+    memberId: "crew:dense-save:wounded",
+    recoveryMinutes: 5 * 24 * 60
+  }], { cause: CREW_WOUND_CAUSE_PORT_ASSAULT });
   populatePersistentEventHistories(state);
   populateCanonicalPortMemories(state);
   validateGameState(state);

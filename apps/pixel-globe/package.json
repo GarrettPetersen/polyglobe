@@ -133,6 +133,7 @@
     "test:music": "node tools/run-node-tests.mjs src/musicPlayer.test.js"
   },
   "devDependencies": {
+    "playwright": "^1.58.2",
     "wrangler": "4.113.0"
   },
   "dependencies": {

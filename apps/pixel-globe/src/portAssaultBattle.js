@@ -13,6 +13,7 @@ export const PORT_ASSAULT_OUTCOME = Object.freeze({
   VICTORY: "victory",
   DEFEAT: "defeat"
 });
+export const PORT_ASSAULT_ATTACKER_ENTRY_POSITION = 0.04;
 
 export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
   SAILOR: "sailor",
@@ -43,6 +44,8 @@ export const PORT_ASSAULT_MAX_DURATION_MS = 120_000;
 export const PORT_ASSAULT_FORECAST_SAMPLES = 32;
 export const PORT_ASSAULT_MIN_GARRISON = 5;
 export const PORT_ASSAULT_MAX_GARRISON = 35;
+export const PORT_ASSAULT_WOUND_RECOVERY_MIN_DAYS = 3;
+export const PORT_ASSAULT_WOUND_RECOVERY_MAX_DAYS = 14;
 
 const TRACK_INTERVAL_MS = PORT_ASSAULT_STEP_MS;
 const GARRISON_CAPITAL_BONUS = 5;
@@ -57,6 +60,11 @@ const PORT_ASSAULT_FIRST_WAVE_DELAY_MS = 300;
 const PORT_ASSAULT_WAVE_INTERVAL_MS = 1_200;
 const PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS = 140;
 const PORT_ASSAULT_WAVE_JITTER_MS = 180;
+const PORT_ASSAULT_VICTORY_WOUND_CHANCE = 0.48;
+const PORT_ASSAULT_DEFEAT_WOUND_CHANCE = 0.24;
+const PORT_ASSAULT_EXPERIENCE_WOUND_CHANCE_PER_STAR = 0.06;
+const PORT_ASSAULT_MAX_WOUND_CHANCE = 0.88;
+const MINUTES_PER_DAY = 24 * 60;
 export const PORT_ASSAULT_SHIP_IMPACT_SHAKE_DURATION_MS = 220;
 const PORT_ASSAULT_SHIP_IMPACT_SHAKE_STEP_MS = 36;
 const NO_PORT_ASSAULT_SHIP_IMPACT_SHAKE = Object.freeze({ x: 0, y: 0 });
@@ -322,6 +330,7 @@ export function createPortAssaultScenario({
   shipMaxHitPoints,
   fortified,
   dockKind,
+  attackerWoundSurvivalBonus = 0,
   attackerModifiers = DEFAULT_MODIFIERS,
   defenderModifiers = DEFAULT_MODIFIERS
 }) {
@@ -341,6 +350,10 @@ export function createPortAssaultScenario({
   }
   if (typeof fortified !== "boolean") throw new Error("Port assault fortification must be boolean");
   portAssaultLandingDurationMs(dockKind);
+  if (!Number.isFinite(attackerWoundSurvivalBonus) ||
+      attackerWoundSurvivalBonus < 0 || attackerWoundSurvivalBonus > 0.8) {
+    throw new Error(`Invalid port assault wound survival bonus: ${attackerWoundSurvivalBonus}`);
+  }
   validateModifiers(attackerModifiers);
   validateModifiers(defenderModifiers);
   return Object.freeze({
@@ -351,8 +364,71 @@ export function createPortAssaultScenario({
     shipMaxHitPoints,
     fortified,
     dockKind,
+    attackerWoundSurvivalBonus,
     attackerModifiers: freezeModifiers(attackerModifiers),
     defenderModifiers: freezeModifiers(defenderModifiers)
+  });
+}
+
+export function resolvePortAssaultCrewFates({
+  combatants,
+  downedIds,
+  outcome,
+  woundSurvivalBonus,
+  seed
+}) {
+  validateCombatants(combatants, PORT_ASSAULT_SIDE.ATTACKER);
+  if (!Array.isArray(downedIds) || downedIds.some((id) => typeof id !== "string" || id === "")) {
+    throw new Error("Port assault casualty resolution requires downed crew IDs");
+  }
+  if (new Set(downedIds).size !== downedIds.length) {
+    throw new Error("Port assault casualty resolution contains duplicate crew IDs");
+  }
+  if (outcome !== PORT_ASSAULT_OUTCOME.VICTORY && outcome !== PORT_ASSAULT_OUTCOME.DEFEAT) {
+    throw new Error(`Invalid port assault casualty outcome: ${outcome}`);
+  }
+  if (!Number.isFinite(woundSurvivalBonus) || woundSurvivalBonus < 0 || woundSurvivalBonus > 0.8) {
+    throw new Error(`Invalid port assault wound survival bonus: ${woundSurvivalBonus}`);
+  }
+  if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
+    throw new Error(`Port assault casualty seed must be an unsigned integer: ${seed}`);
+  }
+  const combatantById = new Map(combatants.map((combatant) => [combatant.id, combatant]));
+  const deathIds = [];
+  const wounds = [];
+  for (const memberId of downedIds) {
+    const combatant = combatantById.get(memberId);
+    if (!combatant) throw new Error(`Downed port assault crewmate is missing: ${memberId}`);
+    if (combatant.auxiliary) {
+      throw new Error(`Auxiliary casualty cannot become an individual crew wound: ${memberId}`);
+    }
+    const woundChance = Math.min(
+      PORT_ASSAULT_MAX_WOUND_CHANCE,
+      (outcome === PORT_ASSAULT_OUTCOME.VICTORY
+        ? PORT_ASSAULT_VICTORY_WOUND_CHANCE
+        : PORT_ASSAULT_DEFEAT_WOUND_CHANCE) +
+        woundSurvivalBonus +
+        combatant.experienceStars * PORT_ASSAULT_EXPERIENCE_WOUND_CHANCE_PER_STAR
+    );
+    const survivalRandom = createRandom(hashString32(`${seed}|${memberId}|wound-survival`));
+    if (survivalRandom() >= woundChance) {
+      deathIds.push(memberId);
+      continue;
+    }
+    const recoveryRandom = createRandom(hashString32(`${seed}|${memberId}|wound-recovery`));
+    const recoveryDays = PORT_ASSAULT_WOUND_RECOVERY_MIN_DAYS + Math.floor(
+      recoveryRandom() *
+      (PORT_ASSAULT_WOUND_RECOVERY_MAX_DAYS - PORT_ASSAULT_WOUND_RECOVERY_MIN_DAYS + 1)
+    );
+    wounds.push(Object.freeze({
+      memberId,
+      recoveryDays,
+      recoveryMinutes: recoveryDays * MINUTES_PER_DAY
+    }));
+  }
+  return Object.freeze({
+    deathIds: Object.freeze(deathIds),
+    wounds: Object.freeze(wounds)
   });
 }
 
@@ -485,7 +561,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
     pushEvent(events, { timeMs, type: "time-limit", attackerPower, defenderPower });
   }
   if (collectPresentation) recordTracks(tracks, units, timeMs, scenario.dockKind);
-  const attackerCasualtyIds = units
+  const attackerDownedIds = units
     .filter((unit) => unit.side === PORT_ASSAULT_SIDE.ATTACKER && !unit.alive && !unit.auxiliary)
     .map((unit) => unit.id);
   const auxiliaryCasualtyIds = units
@@ -494,18 +570,28 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
   const defenderCasualtyIds = units
     .filter((unit) => unit.side === PORT_ASSAULT_SIDE.DEFENDER && !unit.alive)
     .map((unit) => unit.id);
+  const outcome = winner === PORT_ASSAULT_SIDE.ATTACKER
+    ? PORT_ASSAULT_OUTCOME.VICTORY
+    : PORT_ASSAULT_OUTCOME.DEFEAT;
+  const crewFates = resolvePortAssaultCrewFates({
+    combatants: scenario.attackers,
+    downedIds: attackerDownedIds,
+    outcome,
+    woundSurvivalBonus: scenario.attackerWoundSurvivalBonus,
+    seed
+  });
   pushEvent(events, { timeMs, type: "result", winner });
   return Object.freeze({
     seed,
-    outcome: winner === PORT_ASSAULT_SIDE.ATTACKER
-      ? PORT_ASSAULT_OUTCOME.VICTORY
-      : PORT_ASSAULT_OUTCOME.DEFEAT,
+    outcome,
     winner,
     durationMs: timeMs,
     initialShipHitPoints: scenario.shipHitPoints,
     maxShipHitPoints: scenario.shipMaxHitPoints,
     finalShipHitPoints: shipHitPoints,
-    attackerCasualtyIds: Object.freeze(attackerCasualtyIds),
+    attackerDownedIds: Object.freeze(attackerDownedIds),
+    attackerDeathIds: crewFates.deathIds,
+    attackerWounds: crewFates.wounds,
     auxiliaryCasualtyIds: Object.freeze(auxiliaryCasualtyIds),
     defenderCasualtyIds: Object.freeze(defenderCasualtyIds),
     events: events ? Object.freeze(events.map(Object.freeze)) : Object.freeze([]),
@@ -545,10 +631,18 @@ export function forecastPortAssault(
     if (result.outcome === PORT_ASSAULT_OUTCOME.VICTORY) victories += 1;
   }
   const casualties = results
-    .map((result) => result.attackerCasualtyIds.length + result.auxiliaryCasualtyIds.length)
+    .map((result) => result.attackerDownedIds.length + result.auxiliaryCasualtyIds.length)
+    .sort((a, b) => a - b);
+  const deaths = results
+    .map((result) => result.attackerDeathIds.length + result.auxiliaryCasualtyIds.length)
+    .sort((a, b) => a - b);
+  const wounded = results
+    .map((result) => result.attackerWounds.length)
     .sort((a, b) => a - b);
   const hullDamage = results.map((result) => result.initialShipHitPoints - result.finalShipHitPoints);
   const expectedCasualties = casualties.reduce((sum, value) => sum + value, 0) / sampleCount;
+  const expectedDeaths = deaths.reduce((sum, value) => sum + value, 0) / sampleCount;
+  const expectedWounded = wounded.reduce((sum, value) => sum + value, 0) / sampleCount;
   return Object.freeze({
     sampleCount,
     successChance: victories / sampleCount,
@@ -557,6 +651,14 @@ export function forecastPortAssault(
     expectedCasualtiesRounded: Math.round(expectedCasualties),
     casualtyRangeLow: percentile(casualties, 0.1),
     casualtyRangeHigh: percentile(casualties, 0.9),
+    expectedDeaths,
+    expectedDeathsRounded: Math.round(expectedDeaths),
+    deathRangeLow: percentile(deaths, 0.1),
+    deathRangeHigh: percentile(deaths, 0.9),
+    expectedWounded,
+    expectedWoundedRounded: Math.round(expectedWounded),
+    woundedRangeLow: percentile(wounded, 0.1),
+    woundedRangeHigh: percentile(wounded, 0.9),
     expectedHullDamage: Math.round(hullDamage.reduce((sum, value) => sum + value, 0) / sampleCount)
   });
 }
@@ -682,7 +784,9 @@ function createBattleUnits(combatants, side, modifiers, random) {
       nextMeleeAttackAtMs: stats.meleeFallback
         ? spawnAtMs + Math.floor(random() * stats.meleeFallback.cooldownMs)
         : null,
-      position: side === PORT_ASSAULT_SIDE.ATTACKER ? 0.04 : 0.96,
+      position: side === PORT_ASSAULT_SIDE.ATTACKER
+        ? PORT_ASSAULT_ATTACKER_ENTRY_POSITION
+        : 0.96,
       lane: (index + Math.floor(random() * 4)) % 4,
       initiative: random(),
       actionAnimationId: null,

@@ -200,6 +200,7 @@ function member({ crewTypeId, sailingMinutes }) {
     appearanceId: "mariner-light-black-hair",
     crewTypeId,
     recruitedAtMinute: 0,
-    sailingMinutes
+    sailingMinutes,
+    wound: null
   };
 }

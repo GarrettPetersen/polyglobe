@@ -2,7 +2,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CREW_WOUND_CAUSE_NAVAL_SMALL_ARMS,
+  CREW_WOUND_CAUSE_PORT_ASSAULT,
+  applyCrewCombatCasualties,
   advanceCrewSailingExperience,
+  advanceCrewWoundRecovery,
+  availableCrewRosterMembers,
   createCrewRecruitmentMemory,
   createCrewRecruitmentOffer,
   createCrewRoster,
@@ -17,7 +22,8 @@ import {
   restoreDismissedCrew,
   validateCrewAggregate,
   validateCrewRecruitmentMemory,
-  validateCrewRoster
+  validateCrewRoster,
+  woundCrewMembers
 } from "./crewMembers.js";
 
 const PORT = Object.freeze({
@@ -250,6 +256,90 @@ test("battle casualties remove the exact simulated people by canonical ID", () =
   assert.equal(state.ship.crew, 3);
   assert.throws(() => removeCrewMembersById(state, [roster[1].id]), /missing crew casualty/);
   assert.throws(() => removeCrewMembersById(state, [roster[0].id, roster[0].id]), /duplicate IDs/);
+});
+
+test("land-assault wounds keep individual crew aboard but unavailable until recovery", () => {
+  const roster = createMigratedCrewRoster({
+    count: 3,
+    voyageSeed: "land-wound-test",
+    homePort: PORT,
+    currentMinute: 200 * 24 * 60,
+    appearances: APPEARANCES,
+    identityForKey: crewIdentityFactory()
+  }).map((member) => ({ ...member, sailingMinutes: 0 }));
+  const state = crewState(roster);
+  const before = crewExperienceSummary(state);
+  const [wound] = woundCrewMembers(state, [{
+    memberId: roster[1].id,
+    recoveryMinutes: 4 * 24 * 60
+  }], { cause: CREW_WOUND_CAUSE_PORT_ASSAULT });
+
+  assert.equal(wound.member.id, roster[1].id);
+  assert.equal(state.ship.crew, 4);
+  assert.deepEqual(availableCrewRosterMembers(state).map(({ id }) => id), [roster[0].id, roster[2].id]);
+  assert.equal(crewExperienceSummary(state).woundedCount, 1);
+  assert.ok(crewExperienceSummary(state).effectiveCrew < before.effectiveCrew);
+  advanceCrewSailingExperience(state, 60);
+  assert.equal(roster[0].sailingMinutes, 60);
+  assert.equal(roster[1].sailingMinutes, 0);
+
+  assert.deepEqual(advanceCrewWoundRecovery(state, 24 * 60, { safePort: false }), []);
+  assert.equal(roster[1].wound.recoveryMinutesRemaining, 3 * 24 * 60);
+  const recovered = advanceCrewWoundRecovery(state, 36 * 60, { safePort: true });
+  assert.deepEqual(recovered.map(({ memberId }) => memberId), [roster[1].id]);
+  assert.equal(roster[1].wound, null);
+  assert.equal(availableCrewRosterMembers(state).length, 3);
+});
+
+test("naval small-arms casualties resolve to distinct persistent crew records", () => {
+  const roster = createMigratedCrewRoster({
+    count: 3,
+    voyageSeed: "naval-wound-test",
+    homePort: PORT,
+    currentMinute: 200 * 24 * 60,
+    appearances: APPEARANCES,
+    identityForKey: crewIdentityFactory()
+  }).map((member, index) => ({
+    ...member,
+    sailingMinutes: index === 0 ? 0 : 120 * 24 * 60
+  }));
+  const state = crewState([...roster]);
+  const result = applyCrewCombatCasualties(state, {
+    deathCount: 1,
+    woundCount: 1,
+    woundCause: CREW_WOUND_CAUSE_NAVAL_SMALL_ARMS,
+    recoveryMinutesRange: { minimum: 5 * 24 * 60, maximum: 5 * 24 * 60 },
+    random: () => 0
+  });
+
+  assert.deepEqual(result.deaths.map(({ member }) => member.id), [roster[0].id]);
+  assert.deepEqual(result.wounded.map(({ member }) => member.id), [roster[1].id]);
+  assert.equal(result.wounded[0].member.wound.cause, CREW_WOUND_CAUSE_NAVAL_SMALL_ARMS);
+  assert.equal(result.wounded[0].member.wound.recoveryMinutesRemaining, 5 * 24 * 60);
+  assert.equal(state.ship.crew, 3);
+  assert.equal(crewExperienceSummary(state).woundedCount, 1);
+  assert.deepEqual(availableCrewRosterMembers(state).map(({ id }) => id), [roster[2].id]);
+});
+
+test("individual combat casualties reject impossible counts before changing the roster", () => {
+  const roster = createMigratedCrewRoster({
+    count: 2,
+    voyageSeed: "invalid-naval-wound-test",
+    homePort: PORT,
+    currentMinute: 200 * 24 * 60,
+    appearances: APPEARANCES,
+    identityForKey: crewIdentityFactory()
+  });
+  const state = crewState([...roster]);
+  assert.throws(() => applyCrewCombatCasualties(state, {
+    deathCount: 2,
+    woundCount: 1,
+    woundCause: CREW_WOUND_CAUSE_NAVAL_SMALL_ARMS,
+    recoveryMinutesRange: { minimum: 1, maximum: 2 },
+    random: () => 0
+  }), /exceed available ordinary crew/);
+  assert.deepEqual(state.crewRoster.map(({ id }) => id), roster.map(({ id }) => id));
+  assert.equal(state.ship.crew, 3);
 });
 
 test("aggregate validation rejects orphaned crew and count drift", () => {

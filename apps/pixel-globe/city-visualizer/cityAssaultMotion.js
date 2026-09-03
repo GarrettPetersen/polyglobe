@@ -1,4 +1,5 @@
 export const CITY_ASSAULT_JUMP_ARC_HEIGHT_PX = 18;
+export const CITY_ASSAULT_MIN_FORWARD_JUMP_PX = 12;
 export const CITY_ASSAULT_MELEE_LUNGE_DURATION_MS = 280;
 export const CITY_ASSAULT_KNOCKBACK_DURATION_MS = 360;
 
@@ -21,6 +22,32 @@ export function cityAssaultJumpPoint({
     x: Math.round(start.x + (end.x - start.x) * progress),
     y: Math.round(start.y + (end.y - start.y) * progress - arcHeightPx * arc)
   });
+}
+
+export function cityAssaultForwardEntryShift({ baselineEntryX, deckStartX }) {
+  if (!Number.isFinite(baselineEntryX) || !Number.isFinite(deckStartX)) {
+    throw new Error(`Invalid city assault entry geometry: ${baselineEntryX}/${deckStartX}`);
+  }
+  return Math.max(
+    0,
+    Math.ceil(deckStartX + CITY_ASSAULT_MIN_FORWARD_JUMP_PX - baselineEntryX)
+  );
+}
+
+export function cityAssaultLaneX({ baselineX, position, entryPosition, entryShiftX }) {
+  if (!Number.isFinite(baselineX) || !Number.isFinite(position) ||
+      !Number.isFinite(entryPosition) || !Number.isFinite(entryShiftX) || entryShiftX < 0) {
+    throw new Error(
+      `Invalid city assault lane geometry: ${baselineX}/${position}/${entryPosition}/${entryShiftX}`
+    );
+  }
+  if (position < 0 || position > 1 || entryPosition <= 0 || entryPosition >= 1) {
+    throw new Error(`Invalid city assault lane position: ${position}/${entryPosition}`);
+  }
+  const shiftWeight = position <= entryPosition
+    ? 1
+    : (1 - position) / (1 - entryPosition);
+  return Math.round(baselineX + entryShiftX * shiftWeight);
 }
 
 export function cityAssaultMeleeLungeOffset(side, elapsedMs) {

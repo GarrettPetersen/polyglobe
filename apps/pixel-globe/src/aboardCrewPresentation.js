@@ -1,4 +1,4 @@
-import { crewMemberExperienceStars } from "./crewMembers.js";
+import { crewMemberExperienceStars, crewMemberIsWounded } from "./crewMembers.js";
 import { crewMemberMonthlySalary } from "./crewPayroll.js";
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
@@ -19,6 +19,7 @@ export function aboardCrewExperienceLevelKey(experienceStars) {
 
 export function aboardCrewMemberDetail(member, currentMinute) {
   const experienceStars = crewMemberExperienceStars(member);
+  const wounded = crewMemberIsWounded(member);
   if (!Number.isFinite(currentMinute) || currentMinute < 0) {
     throw new Error(`Invalid aboard crew detail minute: ${currentMinute}`);
   }
@@ -40,6 +41,10 @@ export function aboardCrewMemberDetail(member, currentMinute) {
     typeLabel: member.crewTypeId.replaceAll("-", " ").toUpperCase(),
     timeAboardDays: Math.floor((wholeMinute - member.recruitedAtMinute) / WEATHER_MINUTES_PER_DAY),
     monthlySalaryDoubloons: crewMemberMonthlySalary(member),
+    wounded,
+    woundRecoveryDays: wounded
+      ? Math.ceil(member.wound.recoveryMinutesRemaining / WEATHER_MINUTES_PER_DAY)
+      : 0,
     experienceStars,
     experienceLevelKey: aboardCrewExperienceLevelKey(experienceStars)
   });

@@ -771,7 +771,12 @@ import {
 } from "./whaleHarpoons.js";
 import { crewWorkMultiplier } from "./crewEffectiveness.js";
 import {
+  CREW_WOUND_CAUSE_NAVAL_SMALL_ARMS,
+  CREW_WOUND_CAUSE_PORT_ASSAULT,
+  applyCrewCombatCasualties,
+  advanceCrewWoundRecovery,
   advanceCrewSailingExperience,
+  availableCrewRosterMembers,
   createCrewRecruitmentOffer,
   createMigratedCrewRoster,
   crewExperienceSummary,
@@ -782,7 +787,8 @@ import {
   removeCrewMembersById,
   restoreCrewMember,
   restoreDismissedCrew,
-  validateCrewAggregate
+  validateCrewAggregate,
+  woundCrewMembers
 } from "./crewMembers.js";
 import {
   cityCombatProfileForAppearance,
@@ -790,6 +796,7 @@ import {
   cityGarrisonAppearanceIds,
   cityRecruitableCrewAppearances
 } from "../city-visualizer/cityPeople.js";
+import { CITY_ANIMATION_PLAYBACK } from "../city-visualizer/cityAnimationFrame.js";
 import {
   PORT_ASSAULT_OUTCOME,
   createPortAssaultScenario,
@@ -798,8 +805,13 @@ import {
   portAssaultPresentationAt,
   portAssaultShipHitPointsAt,
   portAssaultShipImpactShakeAt,
+  resolvePortAssaultCrewFates,
   simulatePortAssault
 } from "./portAssaultBattle.js";
+import {
+  PORT_ASSAULT_CASUALTY_FATE,
+  createPortAssaultCasualtyReport
+} from "./portAssaultCasualtyReport.js";
 import { CREW_HIRE_COST } from "./shipLoadouts.js";
 import {
   DEPARTURE_CONTROL_FEEDBACK_KINDS,
@@ -13771,7 +13783,6 @@ function applyPlayerShipType(slug, stats, assets, { stateAlreadyUpdated = false 
       starboard: 0
     };
     ship.portableWeaponCooldowns = {};
-    ship.woundedCrew = 0;
   }
   syncShipSlugToLocation(slug);
   dirty = true;
@@ -16330,7 +16341,6 @@ async function restoreSavedVoyage(payload) {
   ship.cannonSequence = savedShip.cannonSequence || 0;
   ship.cannonCooldowns = { port: 0, starboard: 0 };
   ship.portableWeaponCooldowns = {};
-  ship.woundedCrew = 0;
   ship.wakeParticles = [];
   ship.lastWakeEmit = null;
   ship.navalProjectiles = [];
@@ -19889,6 +19899,16 @@ function handlePortCityKeyDown(event, keyAction) {
 function handlePortAssaultKeyDown(event, keyAction) {
   event.preventDefault();
   if (!portAssaultState) throw new Error("Port assault input has no active assault");
+  if (portAssaultState.casualtyReport) {
+    if (["Escape", "Enter", " "].includes(event.key)) {
+      continueAfterPortAssaultCasualtyReport();
+    } else if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
+      changePortAssaultCasualtyReportPage(-1);
+    } else if (["ArrowRight", "ArrowDown"].includes(event.key)) {
+      changePortAssaultCasualtyReportPage(1);
+    }
+    return;
+  }
   if (!portAssaultState.breakOffPrompt) {
     if (keyAction === KEY_ACTION.CAPTAIN_MENU && captainMenuButtonIsAvailable()) {
       openCaptainMenu();
@@ -19911,6 +19931,15 @@ function handlePortAssaultKeyDown(event, keyAction) {
 
 function handlePortAssaultPointerDown(point) {
   if (!portAssaultState || !portCityRuntime) throw new Error("Port assault pointer has no active assault");
+  if (portAssaultState.casualtyReport) {
+    const button = portAssaultState.casualtyReportButtonRects.find(({ rect }) => pointInRect(point, rect));
+    if (!button) return;
+    if (button.action === "continue") continueAfterPortAssaultCasualtyReport();
+    else if (button.action === "previous") changePortAssaultCasualtyReportPage(-1);
+    else if (button.action === "next") changePortAssaultCasualtyReportPage(1);
+    else throw new Error(`Unknown casualty report action: ${button.action}`);
+    return;
+  }
   if (portAssaultState.breakOffPrompt) {
     const index = portAssaultState.overlayButtonRects.findIndex((rect) => pointInRect(point, rect));
     if (index < 0) return;
@@ -19924,7 +19953,10 @@ function handlePortAssaultPointerDown(point) {
 
 function updatePortAssaultPointer(point) {
   if (!portAssaultState || !portCityRuntime) throw new Error("Port assault pointer has no active assault");
-  if (portAssaultState.breakOffPrompt) {
+  if (portAssaultState.casualtyReport) {
+    const hovered = portAssaultState.casualtyReportButtonRects.some(({ rect }) => pointInRect(point, rect));
+    canvas.style.cursor = hovered ? "pointer" : "default";
+  } else if (portAssaultState.breakOffPrompt) {
     const index = portAssaultState.overlayButtonRects.findIndex((rect) => pointInRect(point, rect));
     if (index >= 0) portAssaultState.selectedIndex = index;
     canvas.style.cursor = index >= 0 ? "pointer" : "default";
@@ -19938,7 +19970,7 @@ function updatePortAssaultPointer(point) {
 }
 
 function openPortAssaultBreakOffPrompt() {
-  if (!portAssaultState || portAssaultState.breakOffPrompt) return;
+  if (!portAssaultState || portAssaultState.breakOffPrompt || portAssaultState.casualtyReport) return;
   portAssaultState.breakOffPrompt = true;
   portAssaultState.pausedAtMs = lastFrameMs;
   portAssaultState.selectedIndex = 1;
@@ -19961,6 +19993,25 @@ function activatePortAssaultBreakOffSelection() {
   if (portAssaultState.selectedIndex === 0) breakOffPortAssault();
   else if (portAssaultState.selectedIndex === 1) resumePortAssault();
   else throw new Error(`Invalid port assault break-off choice: ${portAssaultState.selectedIndex}`);
+}
+
+function changePortAssaultCasualtyReportPage(delta) {
+  if (!portAssaultState?.casualtyReport) {
+    throw new Error("Cannot paginate a missing port assault casualty report");
+  }
+  if (!Number.isInteger(delta) || Math.abs(delta) !== 1) {
+    throw new Error(`Invalid casualty report page movement: ${delta}`);
+  }
+  const pageCount = portAssaultState.casualtyReportPageCount;
+  if (!Number.isInteger(pageCount) || pageCount <= 0) {
+    throw new Error(`Invalid casualty report page count: ${pageCount}`);
+  }
+  portAssaultState.casualtyReportPage = clamp(
+    portAssaultState.casualtyReportPage + delta,
+    0,
+    pageCount - 1
+  );
+  dirty = true;
 }
 
 function beginPortCityPointer(event, point) {
@@ -23182,7 +23233,8 @@ function playerPortConquestStatus(cityCall) {
   const batteryDisabled = shoreBatteryIsDisabled(battery, simMinute);
   const alreadyOwned = cityCall.factionId === attackStatus.assaultFactionId;
   const playerRaidActive = playerPortRaidIsActive(gameState.memory.flags, cityCall, simMinute);
-  const landingForce = gameState.crewRoster.length + (company?.ready ? company.strength : 0);
+  const availableCrew = availableCrewRosterMembers(gameState);
+  const landingForce = availableCrew.length + (company?.ready ? company.strength : 0);
   const canAttempt = attackStatus.available && batteryDisabled && !alreadyOwned && landingForce > 0 &&
     !playerRaidActive && (company === null || company.ready);
   const baseStatus = {
@@ -23214,7 +23266,7 @@ function playerPortConquestStatus(cityCall) {
     defenseMultiplier: perks.portAssaultDefenseMultiplier,
     armorCoverageBonus: perks.portAssaultArmorCoverageFlat
   });
-  const attackers = gameState.crewRoster.map((member) => portAssaultCombatant({
+  const attackers = availableCrew.map((member) => portAssaultCombatant({
     id: member.id,
     appearanceId: member.appearanceId,
     crewTypeId: member.crewTypeId,
@@ -23249,6 +23301,7 @@ function playerPortConquestStatus(cityCall) {
     shipMaxHitPoints: ship.maxHitPoints,
     fortified: sceneFeatures.fortified,
     dockKind: sceneFeatures.dockKind,
+    attackerWoundSurvivalBonus: perks.crewCasualtyResistanceChance,
     attackerModifiers
   });
   const forecastKey = JSON.stringify({
@@ -23267,6 +23320,7 @@ function playerPortConquestStatus(cityCall) {
       experienceStars
     ]),
     sceneFeatures,
+    attackerWoundSurvivalBonus: perks.crewCasualtyResistanceChance,
     attackerModifiers
   });
   if (portAssaultForecastCache?.key !== forecastKey) {
@@ -23310,7 +23364,13 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     eventCursor: 0,
     lastShipImpactSoundAtMs: null,
     completionApplied: false,
-    overlayButtonRects: []
+    overlayButtonRects: [],
+    casualtyReport: null,
+    casualtyReportResultLabel: null,
+    casualtyReportPage: 0,
+    casualtyReportPageCount: 1,
+    casualtyReportButtonRects: [],
+    pendingResolution: null
   };
   dialogueState = null;
   invalidateDialogueView();
@@ -23321,6 +23381,19 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
 }
 
 function completePlayerPortAssault(cityCall, status, battle) {
+  const crewFates = applyPortAssaultCrewFates(battle.attackerDeathIds, battle.attackerWounds);
+  ship.hitPoints = battle.finalShipHitPoints;
+  syncShipCargoFromGameState();
+  openPortAssaultCasualtyReport(crewFates, {
+    kind: "battle-complete",
+    cityCall,
+    status,
+    battle,
+    crewFates
+  }, battle.outcome === PORT_ASSAULT_OUTCOME.VICTORY ? "VICTORY" : "DEFEAT");
+}
+
+function finishPlayerPortAssault(cityCall, status, battle, crewFates) {
   if (battle.outcome === PORT_ASSAULT_OUTCOME.DEFEAT) {
     const companyFailure = status.conquistadorCompany && battle.auxiliaryCasualtyIds.length > 0
       ? recordConquistadorAssaultFailure(
@@ -23328,17 +23401,13 @@ function completePlayerPortAssault(cityCall, status, battle) {
           battle.auxiliaryCasualtyIds.length
         )
       : null;
-    const casualties = removeCrewMembersById(gameState, battle.attackerCasualtyIds);
-    const lost = casualties.length;
-    presentCrewLoss(lost);
+    const lost = crewFates.deaths.length;
     const namedDeathPresented = companyFailure ? false : presentPendingNamedCrewDeathNotice();
-    ship.hitPoints = battle.finalShipHitPoints;
-    syncShipCargoFromGameState();
     restorePortAssaultDialogue();
     showSurvivalNotice(
       companyFailure
-        ? `${companyFailure.casualties} CONQUISTADORS / ${lost} CREW LOST`
-        : `${lost} MARINES LOST`,
+        ? `${companyFailure.casualties} CONQUISTADORS / ${lost} DEAD / ${crewFates.wounded.length} WOUNDED`
+        : `${lost} DEAD / ${crewFates.wounded.length} WOUNDED`,
       "warn"
     );
     if (ship.hitPoints <= 0) {
@@ -23374,7 +23443,8 @@ function completePlayerPortAssault(cityCall, status, battle) {
       saveVoyageNow("conquistador assault repelled");
     } else if (!namedDeathPresented) {
       openCaptainAlertModal(
-        `${cityLabelText(cityCall)} repelled the landing. We lost ${lost} crew in the fighting.`,
+        `${cityLabelText(cityCall)} repelled the landing. ` +
+          portAssaultCasualtySentence(lost, crewFates.wounded.length),
         "sad"
       );
       saveVoyageNow("port conquest repelled");
@@ -23383,10 +23453,12 @@ function completePlayerPortAssault(cityCall, status, battle) {
     return false;
   }
 
-  const casualties = removeCrewMembersById(gameState, battle.attackerCasualtyIds);
-  if (casualties.length > 0) presentCrewLoss(casualties.length);
-  ship.hitPoints = battle.finalShipHitPoints;
-  syncShipCargoFromGameState();
+  if (crewFates.deaths.length > 0 || crewFates.wounded.length > 0) {
+    showSurvivalNotice(
+      `${crewFates.deaths.length} DEAD / ${crewFates.wounded.length} WOUNDED`,
+      crewFates.deaths.length > 0 ? "warn" : "good"
+    );
+  }
 
   const simMinute = Math.floor(weatherClockMinutes);
   if (status.mode === "raid") {
@@ -23561,29 +23633,115 @@ function breakOffPortAssault() {
     .filter((event) => event.type === "death" && event.timeMs <= elapsedMs)
     .map((event) => event.unitId);
   const combatantById = new Map(assault.battle.combatants.map((combatant) => [combatant.id, combatant]));
-  const crewIds = deadIds.filter((id) => combatantById.get(id)?.side === "attacker" &&
+  const downedCrewIds = deadIds.filter((id) => combatantById.get(id)?.side === "attacker" &&
     combatantById.get(id)?.auxiliary === false);
   const auxiliaryLosses = deadIds.filter((id) => combatantById.get(id)?.side === "attacker" &&
     combatantById.get(id)?.auxiliary === true).length;
-  const casualties = removeCrewMembersById(gameState, crewIds);
-  if (casualties.length > 0) presentCrewLoss(casualties.length);
+  const resolvedFates = resolvePortAssaultCrewFates({
+    combatants: assault.status.scenario.attackers,
+    downedIds: downedCrewIds,
+    outcome: PORT_ASSAULT_OUTCOME.DEFEAT,
+    woundSurvivalBonus: assault.status.scenario.attackerWoundSurvivalBonus,
+    seed: assault.battle.seed
+  });
+  const crewFates = applyPortAssaultCrewFates(resolvedFates.deathIds, resolvedFates.wounds);
   if (assault.status.conquistadorCompany && auxiliaryLosses > 0) {
     recordConquistadorAssaultFailure(gameState.memory.quests.conquistador, auxiliaryLosses);
   }
   ship.hitPoints = portAssaultShipHitPointsAt(assault.battle, elapsedMs);
   syncShipCargoFromGameState();
-  const cityName = cityLabelText(assault.cityCall);
+  openPortAssaultCasualtyReport(crewFates, {
+    kind: "break-off",
+    cityName: cityLabelText(assault.cityCall),
+    crewFates
+  }, "WITHDRAWAL");
+}
+
+function finishBreakOffPortAssault({ cityName, crewFates }) {
+  if (typeof cityName !== "string" || cityName === "" || !crewFates) {
+    throw new Error("Port assault withdrawal resolution is incomplete");
+  }
   restorePortAssaultDialogue();
   closeDialogue();
-  showSurvivalNotice(`ASSAULT BROKEN OFF  ${casualties.length} CREW LOST`, "warn");
+  showSurvivalNotice(
+    `ASSAULT BROKEN OFF  ${crewFates.deaths.length} DEAD / ${crewFates.wounded.length} WOUNDED`,
+    "warn"
+  );
   openCaptainAlertModal(
-    casualties.length > 0
-      ? `We have broken off the assault on ${cityName}. ${casualties.length} of the crew did not return.`
+    crewFates.deaths.length > 0 || crewFates.wounded.length > 0
+      ? `We have broken off the assault on ${cityName}. ` +
+        portAssaultCasualtySentence(crewFates.deaths.length, crewFates.wounded.length)
       : `We have broken off the assault on ${cityName}. All hands made it back aboard.`,
-    casualties.length > 0 ? "sad" : "stern"
+    crewFates.deaths.length > 0 ? "sad" : "stern"
   );
   saveVoyageNow("broke off port assault");
   dirty = true;
+}
+
+function openPortAssaultCasualtyReport(crewFates, pendingResolution, resultLabel) {
+  if (!portAssaultState) throw new Error("Cannot report casualties without an active port assault");
+  if (portAssaultState.casualtyReport || portAssaultState.pendingResolution) {
+    throw new Error("Port assault casualty report is already open");
+  }
+  if (!pendingResolution || !["battle-complete", "break-off"].includes(pendingResolution.kind)) {
+    throw new Error(`Unknown post-assault resolution: ${pendingResolution?.kind}`);
+  }
+  if (!["VICTORY", "DEFEAT", "WITHDRAWAL"].includes(resultLabel)) {
+    throw new Error(`Unknown casualty report result: ${resultLabel}`);
+  }
+  portAssaultState.casualtyReport = createPortAssaultCasualtyReport(crewFates);
+  portAssaultState.casualtyReportResultLabel = resultLabel;
+  portAssaultState.casualtyReportPage = 0;
+  portAssaultState.casualtyReportPageCount = 1;
+  portAssaultState.casualtyReportButtonRects = [];
+  portAssaultState.pendingResolution = pendingResolution;
+  portAssaultState.breakOffPrompt = false;
+  portAssaultState.overlayButtonRects = [];
+  dirty = true;
+}
+
+function continueAfterPortAssaultCasualtyReport() {
+  if (!portAssaultState?.casualtyReport || !portAssaultState.pendingResolution) {
+    throw new Error("Cannot close a missing port assault casualty report");
+  }
+  const resolution = portAssaultState.pendingResolution;
+  portAssaultState.casualtyReport = null;
+  portAssaultState.casualtyReportResultLabel = null;
+  portAssaultState.casualtyReportButtonRects = [];
+  portAssaultState.pendingResolution = null;
+  if (resolution.kind === "battle-complete") {
+    finishPlayerPortAssault(
+      resolution.cityCall,
+      resolution.status,
+      resolution.battle,
+      resolution.crewFates
+    );
+  } else if (resolution.kind === "break-off") {
+    finishBreakOffPortAssault(resolution);
+  } else {
+    throw new Error(`Unknown post-assault resolution: ${resolution.kind}`);
+  }
+}
+
+function applyPortAssaultCrewFates(deathIds, wounds) {
+  const deaths = removeCrewMembersById(gameState, deathIds);
+  if (deaths.length > 0) presentCrewLoss(deaths.length);
+  const wounded = woundCrewMembers(gameState, wounds, {
+    cause: CREW_WOUND_CAUSE_PORT_ASSAULT
+  });
+  syncShipCargoFromGameState();
+  return Object.freeze({ deaths, wounded });
+}
+
+function portAssaultCasualtySentence(deaths, wounded) {
+  if (!Number.isInteger(deaths) || deaths < 0 || !Number.isInteger(wounded) || wounded < 0) {
+    throw new Error(`Invalid port assault casualty account: ${deaths}/${wounded}`);
+  }
+  if (deaths === 0 && wounded === 0) return "All hands survived the fighting.";
+  if (deaths === 0) return `${wounded} ${wounded === 1 ? "crewmate was" : "crewmates were"} wounded.`;
+  if (wounded === 0) return `${deaths} ${deaths === 1 ? "crewmate was" : "crewmates were"} killed.`;
+  return `${deaths} ${deaths === 1 ? "crewmate was" : "crewmates were"} killed and ` +
+    `${wounded} wounded.`;
 }
 
 function receivePlayerPortAssaultSpoils(city, kind, simMinute) {
@@ -30345,7 +30503,6 @@ function createShip(latDeg, lonDeg, shipSlug, factionId) {
       starboard: 0
     },
     portableWeaponCooldowns: {},
-    woundedCrew: 0,
     rowing: false,
     rowingMode: SHIP_ROWING_MODE_IDLE
   };
@@ -32461,10 +32618,7 @@ function firePlayerPortableWeaponsAtWill() {
   if (maximumRangeScale <= 0) return false;
   const target = nearestPlayerPortableWeaponTarget(CANNON_RANGE_PX * maximumRangeScale);
   if (!target) return false;
-  const activeCrewCount = activeCombatCrew(gameState.ship.crew, ship.woundedCrew);
-  const effectiveActiveCrew = Math.floor(
-    crewExperienceSummary(gameState, activeCrewCount).effectiveCrew
-  );
+  const effectiveActiveCrew = Math.floor(crewExperienceSummary(gameState).effectiveCrew);
   const assignments = activePortableWeaponAssignments({
     ownedItemIds,
     activeCrew: effectiveActiveCrew,
@@ -32791,7 +32945,6 @@ function playerNavalWeapon() {
 function updateNavalWeapons(dt) {
   if (!ship) return false;
   if (!playerHasCombatEngagement()) {
-    clearCombatWounds(ship);
     const cannonVolleyInFlight = ship.navalProjectiles.some((ball) => (
       ball.kind === NAVAL_WEAPON_CANNON && ball.firedDuringCombat === true
     ));
@@ -32800,8 +32953,7 @@ function updateNavalWeapons(dt) {
       playerFriendlyFirePenaltyFactionIds.clear();
     }
   }
-  const activeCrewCount = activeCombatCrew(gameState?.ship?.crew || 0, ship.woundedCrew);
-  const activeCrew = crewExperienceSummary(gameState, activeCrewCount).effectiveCrew;
+  const activeCrew = crewExperienceSummary(gameState).effectiveCrew;
   const installedCannons = gameState?.ship?.cannons || 0;
   const reloadMultiplier = currentPlayerPerkTotals().cannonReloadMultiplier;
   const reloadDt = dt / reloadMultiplier;
@@ -34060,6 +34212,11 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   if (!gameState || !ship || gameOverReason || currentMinute <= previousMinute) return false;
   const safePort = playerShipIsInvulnerable();
   const perks = currentPlayerPerkTotals();
+  const recoveredCrew = advanceCrewWoundRecovery(
+    gameState,
+    currentMinute - previousMinute,
+    { safePort }
+  );
   const result = updateSurvival(gameState, previousMinute, currentMinute, {
     freshwater: shipIsInFreshWater(),
     rainfall: playerRainfallStrength(),
@@ -34079,7 +34236,7 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   }
   if (safePort) {
     resetSurvivalDamageTimers();
-    return result.changed;
+    return result.changed || recoveredCrew.length > 0;
   }
   const hullRepaired = repairShipHullOverTime(
     ship,
@@ -34102,7 +34259,8 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
   if (status.foodRations > 0 && status.foodDays <= 3) {
     showSurvivalNotice("FOOD LOW", "warn");
   }
-  return result.changed || crewExperienceAdvanced || deprivationChanged || hullRepaired > 0;
+  return result.changed || crewExperienceAdvanced || recoveredCrew.length > 0 ||
+    deprivationChanged || hullRepaired > 0;
 }
 
 function queueWineCaptainDialogues(result) {
@@ -34307,7 +34465,6 @@ function resolveStormWaveImpact(impact) {
   const removed = sweepCrewOverboard(count, impact);
   overboardCrew.push(...removed);
   emitCaptureEvent("capture-beat", { action: "crew-swept-overboard", count });
-  ship.woundedCrew = Math.min(ship.woundedCrew || 0, Math.max(0, gameState.ship.crew - 1));
   syncShipCargoFromGameState();
   if (gameState.memory.flags[STORM_OVERBOARD_EXPLAINED_FLAG] !== true) {
     gameState.memory.flags[STORM_OVERBOARD_EXPLAINED_FLAG] = true;
@@ -36965,7 +37122,7 @@ function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
 )) {
   const weapon = playerNavalWeapon();
   const effectiveStats = currentPlayerEffectiveShipStats();
-  const activeCrew = activeCombatCrew(gameState.ship.crew, ship.woundedCrew);
+  const crewSummary = crewExperienceSummary(gameState);
   return {
     id: PLAYER_COMBAT_ID,
     factionId: ship.factionId,
@@ -36976,8 +37133,8 @@ function playerCombatEntity(portEntryContext = createPortEntryStatusContext(
     maxHitPoints: ship.maxHitPoints,
     cannons: weapon?.kind === NAVAL_WEAPON_CANNON ? gameState?.ship?.cannons || 0 : 0,
     crew: gameState.ship.crew,
-    woundedCrew: ship.woundedCrew,
-    effectiveCrew: crewExperienceSummary(gameState, activeCrew).effectiveCrew,
+    woundedCrew: crewSummary.woundedCount,
+    effectiveCrew: crewSummary.effectiveCrew,
     topSpeedRad: effectiveStats.topSpeedRad,
     combatGrace: false,
     npcAttackProtected: playerNpcAttackGraceIsActive(gameState.activePlaySeconds),
@@ -37568,27 +37725,35 @@ function applyNpcCombatHit(ball, targetId, point) {
 
 function applyPortableWeaponHitToPlayer(ball, point) {
   if (playerShipIsInvulnerable()) return;
+  const availableCrew = availableCrewRosterMembers(gameState);
+  const medicalSurvivalBonus = currentPlayerPerkTotals().crewCasualtyResistanceChance;
   const casualtyResult = applyCrewCasualties({
-    totalCrew: gameState.ship.crew,
-    woundedCrew: ship.woundedCrew,
+    // The captain is preserved; named companions do not stand in the exposed ordinary-crew line.
+    totalCrew: availableCrew.length + 1,
+    woundedCrew: 0,
     crewDamage: ball.crewDamage,
     hitChance: ball.crewHitChance,
-    fatalityChance: ball.crewFatalityChance,
+    fatalityChance: ball.crewFatalityChance * (1 - medicalSurvivalBonus),
     crewProtection: ship.stats.crewProtection,
     crewProtectionPenetration: ball.crewProtectionPenetration,
     preserveFinalCrew: true,
     random: Math.random
   });
-  if (casualtyResult.newDeaths > 0) {
-    const lost = loseCrew(gameState, casualtyResult.newDeaths);
-    if (lost !== casualtyResult.newDeaths) {
-      throw new Error(`Portable weapon casualty mismatch: ${lost}/${casualtyResult.newDeaths}`);
-    }
-    presentCrewLoss(lost);
-    presentPendingNamedCrewDeathNotice();
+  const crewFates = applyCrewCombatCasualties(gameState, {
+    deathCount: casualtyResult.newDeaths,
+    woundCount: casualtyResult.newWounds,
+    woundCause: CREW_WOUND_CAUSE_NAVAL_SMALL_ARMS,
+    recoveryMinutesRange: {
+      minimum: 3 * WEATHER_MINUTES_PER_DAY,
+      maximum: 14 * WEATHER_MINUTES_PER_DAY
+    },
+    random: Math.random
+  });
+  if (crewFates.deaths.length > 0) {
+    presentCrewLoss(crewFates.deaths.length);
     syncShipCargoFromGameState();
     spawnCrewDeathEffects({
-      count: lost,
+      count: crewFates.deaths.length,
       targetId: PLAYER_COMBAT_ID,
       cause: ball.kind === PORTABLE_PROJECTILE_ARROW ? "arrow" : "small-arms",
       projectile: ball,
@@ -37596,13 +37761,12 @@ function applyPortableWeaponHitToPlayer(ball, point) {
       playSound: false
     });
   }
-  ship.woundedCrew = casualtyResult.woundedCrew;
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
-  if (casualtyResult.newWounds > 0) {
+  if (crewFates.wounded.length > 0) {
     combatNotice = {
-      text: casualtyResult.newWounds === 1
+      text: crewFates.wounded.length === 1
         ? "1 CREW WOUNDED"
-        : `${casualtyResult.newWounds} CREW WOUNDED`,
+        : `${crewFates.wounded.length} CREW WOUNDED`,
       expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
     };
   }
@@ -37631,8 +37795,8 @@ function applyPortableWeaponHitToPlayer(ball, point) {
     targetId: PLAYER_COMBAT_ID,
     weapon: ball.weaponId,
     damage: appliedHullDamage,
-    crewWounds: casualtyResult.newWounds,
-    crewDeaths: casualtyResult.newDeaths,
+    crewWounds: crewFates.wounded.length,
+    crewDeaths: crewFates.deaths.length,
     remainingHitPoints: ship.hitPoints
   });
 }
@@ -41129,7 +41293,11 @@ function drawPortAssaultOverlay(nowMs) {
   if (!portAssaultState) return;
   const elapsedMs = portAssaultElapsedMs(nowMs);
   drawPortAssaultBattleStatus(portAssaultState, elapsedMs);
-  if (portAssaultState.breakOffPrompt) drawPortAssaultBreakOffPrompt(portAssaultState);
+  if (portAssaultState.casualtyReport) {
+    drawPortAssaultCasualtyReport(portAssaultState);
+  } else if (portAssaultState.breakOffPrompt) {
+    drawPortAssaultBreakOffPrompt(portAssaultState);
+  }
 }
 
 function drawPortAssaultBattleStatus(assault, elapsedMs) {
@@ -41209,6 +41377,171 @@ function drawPortAssaultBreakOffPrompt(assault) {
     renderedUiText("CONTINUE"),
     assault.selectedIndex === 1
   );
+}
+
+function drawPortAssaultCasualtyReport(assault) {
+  const report = assault?.casualtyReport;
+  if (!report || !Array.isArray(report.entries)) {
+    throw new Error("Port assault casualty modal requires a report");
+  }
+  const panelW = Math.min(420, SCREEN_W - 12);
+  const panelH = Math.min(244, SCREEN_H - 12);
+  const panel = {
+    x: Math.floor((SCREEN_W - panelW) / 2),
+    y: Math.floor((SCREEN_H - panelH) / 2),
+    w: panelW,
+    h: panelH
+  };
+  const compactHeader = panel.w < 320;
+  const headerBottom = panel.y + (compactHeader ? 49 : 39);
+  const footerY = panel.y + panel.h - 27;
+  const bodyTop = headerBottom + 3;
+  const bodyBottom = footerY - 4;
+  const columnGap = 8;
+  const columns = panel.w >= 360 ? 2 : 1;
+  const columnW = Math.floor((panel.w - 20 - columnGap * (columns - 1)) / columns);
+  const rowH = 38;
+  const rowsPerColumn = Math.max(1, Math.floor((bodyBottom - bodyTop) / rowH));
+  const pageSize = rowsPerColumn * columns;
+  const pageCount = Math.max(1, Math.ceil(report.entries.length / pageSize));
+  assault.casualtyReportPageCount = pageCount;
+  assault.casualtyReportPage = clamp(assault.casualtyReportPage, 0, pageCount - 1);
+
+  drawPiratePaperModal(panel, 0.9);
+  drawOptionsText("CASUALTY ROLL", panel.x + panel.w / 2, panel.y + 8, {
+    font: PIXEL_FONT_DIALOGUE_8,
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  drawOptionsText(
+    assault.casualtyReportResultLabel,
+    compactHeader ? panel.x + panel.w / 2 : panel.x + 10,
+    panel.y + 25,
+    {
+      align: compactHeader ? "center" : "left",
+      color: assault.casualtyReportResultLabel === "VICTORY"
+        ? PIRATE_MENU_INK
+        : PIRATE_MENU_DANGER
+    }
+  );
+  drawOptionsText(
+    `${report.deaths} DEAD  •  ${report.wounded} WOUNDED`,
+    compactHeader ? panel.x + panel.w / 2 : panel.x + panel.w - 10,
+    panel.y + (compactHeader ? 36 : 25),
+    {
+      align: compactHeader ? "center" : "right",
+      color: PIRATE_MENU_INK_MUTED
+    }
+  );
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(panel.x + 10, headerBottom, panel.w - 20, 1);
+
+  const pageStart = assault.casualtyReportPage * pageSize;
+  const visibleEntries = report.entries.slice(pageStart, pageStart + pageSize);
+  if (visibleEntries.length === 0) {
+    drawOptionsText(
+      "ALL HANDS RETURNED FIT FOR DUTY.",
+      panel.x + panel.w / 2,
+      bodyTop + Math.floor((bodyBottom - bodyTop) / 2) - 4,
+      { align: "center", color: PIRATE_MENU_SUCCESS }
+    );
+  }
+  visibleEntries.forEach((entry, localIndex) => {
+    const column = Math.floor(localIndex / rowsPerColumn);
+    const row = localIndex % rowsPerColumn;
+    const rowRect = {
+      x: panel.x + 10 + column * (columnW + columnGap),
+      y: bodyTop + row * rowH,
+      w: columnW,
+      h: rowH
+    };
+    drawPortAssaultCasualtyRow(entry, rowRect);
+  });
+
+  const continueRect = {
+    x: panel.x + Math.floor((panel.w - 112) / 2),
+    y: footerY,
+    w: 112,
+    h: 20
+  };
+  assault.casualtyReportButtonRects = [{ action: "continue", rect: continueRect }];
+  drawPiratePaperInset(continueRect, pointInRect(optionsMenu.hoverPoint, continueRect));
+  drawOptionsText("CONTINUE", continueRect.x + continueRect.w / 2, continueRect.y + 6, {
+    align: "center",
+    color: PIRATE_MENU_INK
+  });
+  if (pageCount > 1) {
+    const previousRect = { x: panel.x + 10, y: footerY, w: 24, h: 20 };
+    const nextRect = { x: panel.x + panel.w - 34, y: footerY, w: 24, h: 20 };
+    assault.casualtyReportButtonRects.push(
+      { action: "previous", rect: previousRect },
+      { action: "next", rect: nextRect }
+    );
+    drawOptionsArrowButton(previousRect, "<", pointInRect(optionsMenu.hoverPoint, previousRect));
+    drawOptionsArrowButton(nextRect, ">", pointInRect(optionsMenu.hoverPoint, nextRect));
+    drawOptionsText(
+      `${assault.casualtyReportPage + 1}/${pageCount}`,
+      continueRect.x - 8,
+      footerY + 6,
+      { align: "right", color: PIRATE_MENU_INK_MUTED }
+    );
+  }
+}
+
+function drawPortAssaultCasualtyRow(entry, rect) {
+  if (!entry || (
+    entry.fate !== PORT_ASSAULT_CASUALTY_FATE.DEAD &&
+    entry.fate !== PORT_ASSAULT_CASUALTY_FATE.WOUNDED
+  )) {
+    throw new Error(`Invalid port assault casualty row: ${entry?.fate}`);
+  }
+  ctx.fillStyle = entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD
+    ? PIRATE_MENU_DANGER
+    : "#9b7b24";
+  ctx.fillRect(rect.x, rect.y + 3, 2, rect.h - 7);
+  ctx.save();
+  if (entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD) ctx.globalAlpha = 0.72;
+  portCityRuntime.drawPersonSprite(ctx, {
+    appearanceId: entry.appearanceId,
+    animationId: entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD ? "death" : "idle",
+    timeMs: entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD ? 450 : 0,
+    playback: entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD
+      ? CITY_ANIMATION_PLAYBACK.ONCE
+      : CITY_ANIMATION_PLAYBACK.LOOP,
+    x: rect.x + 2,
+    y: rect.y + 1
+  });
+  ctx.restore();
+  drawCrewExperienceStars(entry.experienceStars, rect.x + 18, rect.y + 2);
+  const textX = rect.x + 37;
+  const textW = rect.w - 41;
+  drawOptionsText(
+    fitPixelText(entry.name.toUpperCase(), PIXEL_FONT_SMALL_8, textW),
+    textX,
+    rect.y + 4,
+    { color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    fitPixelText(
+      `${uiText(aboardCrewExperienceLevelKey(entry.experienceStars))} ` +
+        entry.crewTypeId.replaceAll("-", " ").toUpperCase(),
+      PIXEL_FONT_SMALL_8,
+      textW
+    ),
+    textX,
+    rect.y + 15,
+    { color: PIRATE_MENU_INK_MUTED }
+  );
+  const fateLabel = entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD
+    ? "DEAD"
+    : `WOUNDED • ${entry.recoveryDays} ${entry.recoveryDays === 1 ? "DAY" : "DAYS"}`;
+  drawOptionsText(fateLabel, textX, rect.y + 26, {
+    color: entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD
+      ? PIRATE_MENU_DANGER
+      : "#9b7b24"
+  });
+  ctx.fillStyle = PIRATE_MENU_CHART_LINE;
+  ctx.fillRect(rect.x + 3, rect.y + rect.h - 1, rect.w - 3, 1);
 }
 
 function currentPortCityWeatherPresentation() {
@@ -48768,6 +49101,12 @@ function drawAboardCrewMemberDetail(entry, panel) {
   const originValueX = panel.x + 15 + originLabelW;
   const originValueW = panel.x + panel.w - 15 - originValueX;
   const originRows = [
+    ...(detail.wounded ? [[
+      uiText("historical.wounded"),
+      `${detail.woundRecoveryDays} ${uiText(
+        detail.woundRecoveryDays === 1 ? "common.day" : "common.days"
+      )}`
+    ]] : []),
     [
       uiText("aboard.origin"),
       `${characterCultureLabel(entry.crewMember)} / ${factionById(detail.nationalityId).shortName}`
@@ -58831,12 +59170,8 @@ function shipUsesOars(stats, heading, position, tileId, rowerRatio = 1) {
 
 function playerRowerRatio() {
   if (!ship?.stats) return 0;
-  const crew = gameState?.ship?.crew ?? ship.stats.crewCapacity;
-  const activeCrew = ship.woundedCrew === undefined
-    ? crew
-    : activeCombatCrew(crew, ship.woundedCrew);
   return rowingCrewRatio(
-    crewExperienceSummary(gameState, activeCrew).effectiveCrew,
+    crewExperienceSummary(gameState).effectiveCrew,
     ship.stats.crewCapacity
   );
 }
@@ -60954,7 +61289,7 @@ function survivalHudRasterKey({
     shipLocalDateLabel(weatherClockMinutes, graph.lonDeg[ship.tileId]),
     gameState.doubloons,
     gameState.ship.crew,
-    ship?.woundedCrew || 0,
+    crewExperienceSummary(gameState).woundedCount,
     aboardAnimalCompanionIds(gameState.memory.animalCompanions),
     travelers,
     hud.occupiedCount,
@@ -61165,7 +61500,7 @@ function drawSurvivalCrewRow(x, y, panelWidth, travelerGroups = shipTravelerMani
     panelWidth,
     travelerGroups
   );
-  const woundedCrew = ship?.woundedCrew || 0;
+  const woundedCrew = crewExperienceSummary(gameState).woundedCount;
   const firstWoundedIndex = gameState.ship.crew - woundedCrew;
   for (const entry of layout.entries) {
     const variants = statusPersonImages?.get(entry.kind);

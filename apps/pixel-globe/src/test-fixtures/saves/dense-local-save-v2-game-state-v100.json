@@ -1,0 +1,1828 @@
+{
+  "version": 2,
+  "savedAt": 1800000000100,
+  "encoding": "json",
+  "payload": {
+    "worldSubdivisions": 8,
+    "anchored": false,
+    "gameState": {
+      "version": 100,
+      "voyageSeed": "dense-save-compatibility",
+      "voyageStartProfile": null,
+      "activePlaySeconds": 0,
+      "playerCharacter": {
+        "id": "player:dense-save-captain",
+        "name": "Dense Save Captain",
+        "givenName": "Dense",
+        "familyName": "Captain",
+        "gender": "female",
+        "sex": "female",
+        "nameCulture": "english",
+        "nationalityId": "england",
+        "homePortCityId": "london|united kingdom",
+        "homePortTileId": 1,
+        "homePortName": "London",
+        "homePortCountry": "United Kingdom",
+        "religionId": "roman-catholic",
+        "expressions": [
+          "neutral",
+          "happy"
+        ],
+        "skillIds": [
+          "gun-captain"
+        ]
+      },
+      "doubloons": 360,
+      "cargoCapacity": 115,
+      "cargo": {},
+      "namedCrew": [],
+      "crewRoster": [
+        {
+          "id": "crew:dense-save:healthy",
+          "name": "Thomas Hale",
+          "nameCulture": "english",
+          "religionId": "roman-catholic",
+          "nationalityId": "england",
+          "homePortCityId": "london|united kingdom",
+          "homePortTileId": 1,
+          "homePortName": "London",
+          "appearanceId": "mariner-light-black-hair",
+          "crewTypeId": "sailor",
+          "recruitedAtMinute": 123456,
+          "sailingMinutes": 40000,
+          "wound": null
+        },
+        {
+          "id": "crew:dense-save:wounded",
+          "name": "William Reed",
+          "nameCulture": "english",
+          "religionId": "roman-catholic",
+          "nationalityId": "england",
+          "homePortCityId": "london|united kingdom",
+          "homePortTileId": 1,
+          "homePortName": "London",
+          "appearanceId": "swordsman-light",
+          "crewTypeId": "swordsman",
+          "recruitedAtMinute": 123456,
+          "sailingMinutes": 60000,
+          "wound": {
+            "cause": "port-assault",
+            "recoveryMinutesRemaining": 7200
+          }
+        }
+      ],
+      "crewPayroll": {
+        "version": 1,
+        "lastSettledPeriodIndex": 18266,
+        "arrearsDoubloons": 0
+      },
+      "ship": {
+        "slug": "brigantine",
+        "loadoutId": null,
+        "loadoutTargets": null,
+        "crew": 3,
+        "crewCapacity": 23,
+        "cannons": 0,
+        "cannonCapacity": 14,
+        "baseCargoCapacity": 115,
+        "mass": 155
+      },
+      "survival": {
+        "freshWater": 0,
+        "freshWaterCapacity": 1,
+        "foodRationDebt": 0,
+        "wineOnlyMinutes": 0,
+        "wineEmergencyActive": false,
+        "lastMinute": 123456
+      },
+      "inventory": {
+        "items": {
+          "english-longbows": 1
+        },
+        "fishingNetId": "basic-cast-net",
+        "cannonEquipmentId": "standard-ordnance",
+        "whaleHarpoonId": null
+      },
+      "accounts": {
+        "cargoCostBasis": {},
+        "realizedPnl": 0,
+        "nextEntryId": 2,
+        "ledger": [
+          {
+            "id": 1,
+            "kind": "opening",
+            "simMinute": 123456,
+            "location": "Aboard",
+            "country": "",
+            "description": "Opening balance",
+            "goodId": null,
+            "quantity": 0,
+            "amount": 360,
+            "balance": 360,
+            "costBasis": null,
+            "pnl": null
+          }
+        ]
+      },
+      "relations": {
+        "factionReputation": {
+          "neutral": 0,
+          "pirate": -100,
+          "england": 8,
+          "scotland": 7,
+          "france": 2,
+          "spain": 11,
+          "portugal": 5,
+          "hormuz": -3,
+          "burgundian-netherlands": 13,
+          "habsburg": 10,
+          "hungary": 7,
+          "bohemia": 5,
+          "mainz": 7,
+          "cologne-electorate": 6,
+          "trier": 7,
+          "palatinate": 3,
+          "electoral-saxony": 4,
+          "brandenburg": 3,
+          "ducal-saxony": 5,
+          "liege": 4,
+          "magdeburg": 5,
+          "utrecht": 5,
+          "cleves-mark": 2,
+          "calenberg": 4,
+          "augsburg": 3,
+          "cologne": 4,
+          "nuremberg": 2,
+          "lubeck": 4,
+          "hamburg": 3,
+          "bremen": 5,
+          "speyer": 3,
+          "regensburg": 4,
+          "worms": 6,
+          "metz": 3,
+          "ottoman": -6,
+          "venice": 6,
+          "genoa": 6,
+          "florence": 4,
+          "papal-states": 6,
+          "hospitallers": 6,
+          "ming": -2,
+          "inca": -2,
+          "safavid": -2,
+          "muscovy": 0,
+          "kazan": -5,
+          "crimea": -4,
+          "wallachia": -2,
+          "moldavia": 1,
+          "ragusa": 3,
+          "hejaz": -6,
+          "poland-lithuania": 7,
+          "sweden": 5,
+          "denmark-norway": 2,
+          "songhai": -1,
+          "morocco": -2,
+          "ethiopia": 1,
+          "vijayanagara": -2,
+          "gujarat": -3,
+          "bengal": -2,
+          "delhi": -5,
+          "mughal": -4,
+          "ayutthaya": -1,
+          "ternate": -5,
+          "tidore": -5,
+          "japan": -1,
+          "hosokawa": -2,
+          "ouchi": 2,
+          "shimazu": -2,
+          "so": 0,
+          "shoni": 1,
+          "nagao": 1,
+          "ando": 1,
+          "kakizaki": -1,
+          "ryukyu": 2,
+          "ainu": -1,
+          "joseon": 2
+        },
+        "lettersOfMarque": {},
+        "safePassageUntilMinute": {},
+        "safePassageRefusalUntilMinute": {},
+        "tradeAccessGrants": {
+          "ming-maritime-prohibition": [
+            "joseon",
+            "ryukyu"
+          ],
+          "joseon-licensed-trade": [
+            "japan",
+            "ming"
+          ],
+          "spanish-indies-monopoly": []
+        },
+        "personalTradePasses": {},
+        "portugueseCartaz": {
+          "issuedMinute": null,
+          "untilMinute": 0,
+          "issuedAtCityId": null,
+          "graceUntilMinute": 0,
+          "inspectedShipUntilMinute": {}
+        },
+        "tradeEmbargoes": {
+          "version": 2,
+          "seed": 303519821,
+          "sequence": 0,
+          "nextOrderId": 6,
+          "startMinute": 123456,
+          "lastUpdateMinute": 123456,
+          "nextReviewMinute": 284868.00331002474,
+          "historicalTransitions": {},
+          "orders": [
+            {
+              "id": "embargo-1",
+              "authorityKind": "national",
+              "issuerFactionId": "france",
+              "targetFactionId": "england",
+              "scope": "all-goods",
+              "restrictionKind": "enemy-imports",
+              "followerFactionIds": [
+                "france"
+              ],
+              "imposedMinute": 123456,
+              "liftedMinute": null,
+              "source": "historical-1522"
+            },
+            {
+              "id": "embargo-2",
+              "authorityKind": "national",
+              "issuerFactionId": "spain",
+              "targetFactionId": "france",
+              "scope": "all-goods",
+              "restrictionKind": "enemy-imports",
+              "followerFactionIds": [
+                "spain"
+              ],
+              "imposedMinute": 123456,
+              "liftedMinute": null,
+              "source": "historical-1522"
+            },
+            {
+              "id": "embargo-3",
+              "authorityKind": "national",
+              "issuerFactionId": "burgundian-netherlands",
+              "targetFactionId": "france",
+              "scope": "all-goods",
+              "restrictionKind": "enemy-imports",
+              "followerFactionIds": [
+                "burgundian-netherlands"
+              ],
+              "imposedMinute": 123456,
+              "liftedMinute": null,
+              "source": "historical-1522"
+            },
+            {
+              "id": "embargo-4",
+              "authorityKind": "national",
+              "issuerFactionId": "habsburg",
+              "targetFactionId": "france",
+              "scope": "all-goods",
+              "restrictionKind": "enemy-imports",
+              "followerFactionIds": [
+                "habsburg"
+              ],
+              "imposedMinute": 123456,
+              "liftedMinute": null,
+              "source": "historical-1522"
+            },
+            {
+              "id": "embargo-5",
+              "authorityKind": "papal",
+              "issuerFactionId": "papal-states",
+              "targetFactionId": "ottoman",
+              "scope": "war-materiel",
+              "restrictionKind": "strategic-exports",
+              "followerFactionIds": [
+                "burgundian-netherlands",
+                "england",
+                "habsburg",
+                "hospitallers",
+                "hungary",
+                "papal-states",
+                "portugal",
+                "spain"
+              ],
+              "imposedMinute": 123456,
+              "liftedMinute": null,
+              "source": "apostolic-prohibition-1522"
+            }
+          ],
+          "history": [
+            {
+              "id": "dense-embargo-imposed",
+              "orderId": "dense-order-0",
+              "kind": "imposed",
+              "authorityKind": "national",
+              "issuerFactionId": "england",
+              "targetFactionId": "france",
+              "scope": "all-goods",
+              "restrictionKind": "enemy-imports",
+              "followerFactionIds": [
+                "england"
+              ],
+              "simMinute": 123656,
+              "source": "dense-save-compatibility"
+            },
+            {
+              "id": "dense-embargo-lifted",
+              "orderId": "dense-order-1",
+              "kind": "lifted",
+              "authorityKind": "national",
+              "issuerFactionId": "england",
+              "targetFactionId": "france",
+              "scope": "all-goods",
+              "restrictionKind": "enemy-imports",
+              "followerFactionIds": [
+                "england"
+              ],
+              "simMinute": 123657,
+              "source": "dense-save-compatibility"
+            },
+            {
+              "id": "dense-embargo-followers-changed",
+              "orderId": "dense-order-2",
+              "kind": "followers-changed",
+              "authorityKind": "national",
+              "issuerFactionId": "england",
+              "targetFactionId": "france",
+              "scope": "all-goods",
+              "restrictionKind": "enemy-imports",
+              "followerFactionIds": [
+                "england"
+              ],
+              "simMinute": 123658,
+              "source": "dense-save-compatibility"
+            }
+          ]
+        },
+        "foreignSettlementExpulsions": {
+          "version": 1,
+          "revision": 0,
+          "byId": {}
+        },
+        "diplomacy": {
+          "version": 10,
+          "seed": 2124409763,
+          "sequence": 0,
+          "startMinute": 123456,
+          "lastUpdateMinute": 123456,
+          "nextEventMinute": 322720,
+          "overrides": {},
+          "pairLastChangedMinute": {},
+          "contacts": {},
+          "suzerainties": {
+            "byVassalId": {
+              "burgundian-netherlands": {
+                "vassalFactionId": "burgundian-netherlands",
+                "suzerainFactionId": "spain",
+                "kind": "personal-union",
+                "terms": {
+                  "foreignPolicy": "shared",
+                  "tribute": false,
+                  "mutualDefense": true,
+                  "offensiveWarObligation": true,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.02,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "bohemia": {
+                "vassalFactionId": "bohemia",
+                "suzerainFactionId": "hungary",
+                "kind": "personal-union",
+                "terms": {
+                  "foreignPolicy": "shared",
+                  "tribute": false,
+                  "mutualDefense": true,
+                  "offensiveWarObligation": true,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.02,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "hormuz": {
+                "vassalFactionId": "hormuz",
+                "suzerainFactionId": "portugal",
+                "kind": "vassal",
+                "terms": {
+                  "foreignPolicy": "shared",
+                  "tribute": true,
+                  "mutualDefense": true,
+                  "offensiveWarObligation": true,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": true
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "crimea": {
+                "vassalFactionId": "crimea",
+                "suzerainFactionId": "ottoman",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": true,
+                  "offensiveWarObligation": true,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": true
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "wallachia": {
+                "vassalFactionId": "wallachia",
+                "suzerainFactionId": "ottoman",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": true,
+                  "mutualDefense": true,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": true
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "moldavia": {
+                "vassalFactionId": "moldavia",
+                "suzerainFactionId": "ottoman",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": true,
+                  "mutualDefense": true,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": true
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "hejaz": {
+                "vassalFactionId": "hejaz",
+                "suzerainFactionId": "ottoman",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": true,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": true
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "ragusa": {
+                "vassalFactionId": "ragusa",
+                "suzerainFactionId": "ottoman",
+                "kind": "tributary",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": true,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.02,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "joseon": {
+                "vassalFactionId": "joseon",
+                "suzerainFactionId": "ming",
+                "kind": "tributary",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": true,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.02,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "ryukyu": {
+                "vassalFactionId": "ryukyu",
+                "suzerainFactionId": "ming",
+                "kind": "tributary",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": true,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.02,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "hosokawa": {
+                "vassalFactionId": "hosokawa",
+                "suzerainFactionId": "japan",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "ouchi": {
+                "vassalFactionId": "ouchi",
+                "suzerainFactionId": "japan",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "shimazu": {
+                "vassalFactionId": "shimazu",
+                "suzerainFactionId": "japan",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "so": {
+                "vassalFactionId": "so",
+                "suzerainFactionId": "japan",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "shoni": {
+                "vassalFactionId": "shoni",
+                "suzerainFactionId": "japan",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "nagao": {
+                "vassalFactionId": "nagao",
+                "suzerainFactionId": "japan",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "ando": {
+                "vassalFactionId": "ando",
+                "suzerainFactionId": "japan",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              },
+              "kakizaki": {
+                "vassalFactionId": "kakizaki",
+                "suzerainFactionId": "ando",
+                "kind": "autonomous-vassal",
+                "terms": {
+                  "foreignPolicy": "independent",
+                  "tribute": false,
+                  "mutualDefense": false,
+                  "offensiveWarObligation": false,
+                  "suzerainCustomsRate": 0.02,
+                  "subjectCustomsRate": 0.05,
+                  "sovereignMarketAccess": false
+                },
+                "establishedMinute": 123456,
+                "source": "historical-1522"
+              }
+            },
+            "history": [
+              {
+                "id": "dense-suzerainty-vassal",
+                "kind": "established",
+                "vassalFactionId": "scotland",
+                "suzerainFactionId": "england",
+                "relationshipKind": "vassal",
+                "simMinute": 123556,
+                "source": "dense-save-compatibility"
+              },
+              {
+                "id": "dense-suzerainty-autonomous-vassal",
+                "kind": "released",
+                "vassalFactionId": "crimea",
+                "suzerainFactionId": "ottoman",
+                "relationshipKind": "autonomous-vassal",
+                "simMinute": 123557,
+                "source": "dense-save-compatibility"
+              },
+              {
+                "id": "dense-suzerainty-tributary",
+                "kind": "established",
+                "vassalFactionId": "ragusa",
+                "suzerainFactionId": "ottoman",
+                "relationshipKind": "tributary",
+                "simMinute": 123558,
+                "source": "dense-save-compatibility"
+              },
+              {
+                "id": "dense-suzerainty-personal-union",
+                "kind": "released",
+                "vassalFactionId": "bohemia",
+                "suzerainFactionId": "hungary",
+                "relationshipKind": "personal-union",
+                "simMinute": 123559,
+                "source": "dense-save-compatibility"
+              }
+            ]
+          },
+          "history": [
+            {
+              "id": "dense-diplomacy-war",
+              "kind": "war",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123457,
+              "headline": "Dense compatibility event: war"
+            },
+            {
+              "id": "dense-diplomacy-peace",
+              "kind": "peace",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123458,
+              "headline": "Dense compatibility event: peace"
+            },
+            {
+              "id": "dense-diplomacy-alliance-war",
+              "kind": "alliance-war",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123459,
+              "headline": "Dense compatibility event: alliance-war"
+            },
+            {
+              "id": "dense-diplomacy-alliance",
+              "kind": "alliance",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123460,
+              "headline": "Dense compatibility event: alliance"
+            },
+            {
+              "id": "dense-diplomacy-alliance-ended",
+              "kind": "alliance-ended",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123461,
+              "headline": "Dense compatibility event: alliance-ended"
+            },
+            {
+              "id": "dense-diplomacy-relations-improve",
+              "kind": "relations-improve",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123462,
+              "headline": "Dense compatibility event: relations-improve"
+            },
+            {
+              "id": "dense-diplomacy-relations-worsen",
+              "kind": "relations-worsen",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123463,
+              "headline": "Dense compatibility event: relations-worsen"
+            },
+            {
+              "id": "dense-diplomacy-vassalage",
+              "kind": "vassalage",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123464,
+              "headline": "Dense compatibility event: vassalage"
+            },
+            {
+              "id": "dense-diplomacy-rebellion",
+              "kind": "rebellion",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123465,
+              "headline": "Dense compatibility event: rebellion"
+            },
+            {
+              "id": "dense-diplomacy-independence",
+              "kind": "independence",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123466,
+              "headline": "Dense compatibility event: independence"
+            },
+            {
+              "id": "dense-diplomacy-union-dissolved",
+              "kind": "union-dissolved",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123467,
+              "headline": "Dense compatibility event: union-dissolved"
+            },
+            {
+              "id": "dense-diplomacy-succession",
+              "kind": "succession",
+              "factionAId": "england",
+              "factionBId": "france",
+              "simMinute": 123468,
+              "headline": "Dense compatibility event: succession"
+            }
+          ]
+        },
+        "imperial": {
+          "version": 4,
+          "startMinute": 123456,
+          "lastUpdateMinute": 123456,
+          "emperorFactionId": "burgundian-netherlands",
+          "emperorRulerId": "charles-v",
+          "emperorRulerName": "Charles V",
+          "emperorOfficeVacant": false,
+          "kingOfRomans": null,
+          "pendingElection": null,
+          "foundationalElectionResolved": false,
+          "authority": 46,
+          "electionSequence": 0,
+          "electors": {
+            "bohemia": {
+              "factionId": "bohemia",
+              "voteFactionId": "burgundian-netherlands",
+              "supportByCandidateId": {
+                "burgundian-netherlands": 70,
+                "habsburg": 94,
+                "bohemia": 94,
+                "france": 12,
+                "electoral-saxony": 30,
+                "palatinate": 34,
+                "brandenburg": 31
+              }
+            },
+            "mainz": {
+              "factionId": "mainz",
+              "voteFactionId": "burgundian-netherlands",
+              "supportByCandidateId": {
+                "burgundian-netherlands": 74,
+                "habsburg": 78,
+                "bohemia": 78,
+                "france": 8,
+                "electoral-saxony": 26,
+                "palatinate": 34,
+                "brandenburg": 31
+              }
+            },
+            "cologne-electorate": {
+              "factionId": "cologne-electorate",
+              "voteFactionId": "burgundian-netherlands",
+              "supportByCandidateId": {
+                "burgundian-netherlands": 68,
+                "habsburg": 74,
+                "bohemia": 74,
+                "france": 14,
+                "electoral-saxony": 24,
+                "palatinate": 34,
+                "brandenburg": 31
+              }
+            },
+            "trier": {
+              "factionId": "trier",
+              "voteFactionId": "burgundian-netherlands",
+              "supportByCandidateId": {
+                "burgundian-netherlands": 64,
+                "habsburg": 72,
+                "bohemia": 72,
+                "france": 18,
+                "electoral-saxony": 23,
+                "palatinate": 34,
+                "brandenburg": 31
+              }
+            },
+            "palatinate": {
+              "factionId": "palatinate",
+              "voteFactionId": "burgundian-netherlands",
+              "supportByCandidateId": {
+                "burgundian-netherlands": 58,
+                "habsburg": 61,
+                "bohemia": 61,
+                "france": 24,
+                "electoral-saxony": 44,
+                "palatinate": 86,
+                "brandenburg": 31
+              }
+            },
+            "electoral-saxony": {
+              "factionId": "electoral-saxony",
+              "voteFactionId": "burgundian-netherlands",
+              "supportByCandidateId": {
+                "burgundian-netherlands": 52,
+                "habsburg": 42,
+                "bohemia": 42,
+                "france": 30,
+                "electoral-saxony": 92,
+                "palatinate": 34,
+                "brandenburg": 31
+              }
+            },
+            "brandenburg": {
+              "factionId": "brandenburg",
+              "voteFactionId": "burgundian-netherlands",
+              "supportByCandidateId": {
+                "burgundian-netherlands": 60,
+                "habsburg": 58,
+                "bohemia": 58,
+                "france": 22,
+                "electoral-saxony": 56,
+                "palatinate": 34,
+                "brandenburg": 88
+              }
+            }
+          },
+          "religiousBlocByFactionId": {
+            "burgundian-netherlands": "catholic",
+            "habsburg": "catholic",
+            "bohemia": "catholic",
+            "mainz": "catholic",
+            "cologne-electorate": "catholic",
+            "trier": "catholic",
+            "palatinate": "catholic",
+            "electoral-saxony": "reform-sympathetic",
+            "brandenburg": "catholic",
+            "ducal-saxony": "catholic",
+            "liege": "catholic",
+            "magdeburg": "catholic",
+            "utrecht": "catholic",
+            "cleves-mark": "catholic",
+            "calenberg": "catholic",
+            "augsburg": "catholic",
+            "cologne": "catholic",
+            "nuremberg": "catholic",
+            "lubeck": "catholic",
+            "hamburg": "catholic",
+            "bremen": "catholic",
+            "speyer": "catholic",
+            "regensburg": "catholic",
+            "worms": "catholic",
+            "metz": "catholic"
+          },
+          "cityReligions": {
+            "brugge|belgium": "roman-catholic",
+            "gent|belgium": "roman-catholic",
+            "vienna|austria": "roman-catholic",
+            "prague|austria": "roman-catholic",
+            "wroclaw|germany": "roman-catholic",
+            "mainz|germany": "roman-catholic",
+            "erfurt|germany": "roman-catholic",
+            "bonn|germany": "roman-catholic",
+            "trier|germany": "roman-catholic",
+            "heidelberg|germany": "roman-catholic",
+            "wittenberg|germany": "roman-catholic",
+            "berlin|germany": "roman-catholic",
+            "leipzig|germany": "roman-catholic",
+            "liege|belgium": "roman-catholic",
+            "magdeburg|germany": "roman-catholic",
+            "utrecht|netherlands": "roman-catholic",
+            "soest|germany": "roman-catholic",
+            "hannover|germany": "roman-catholic",
+            "augsberg|germany": "roman-catholic",
+            "cologne|germany": "roman-catholic",
+            "nurnberg|germany": "roman-catholic",
+            "lubeck|germany": "roman-catholic",
+            "hamburg|germany": "roman-catholic",
+            "bremen|germany": "roman-catholic",
+            "speyer|germany": "roman-catholic",
+            "regensburg|germany": "roman-catholic",
+            "worms|germany": "roman-catholic",
+            "metz|france": "roman-catholic"
+          },
+          "resolutions": [],
+          "bansByFactionId": {},
+          "history": [
+            {
+              "kind": "election",
+              "simMinute": 123806,
+              "source": "dense-save-compatibility",
+              "office": "emperor",
+              "previousEmperorFactionId": "burgundian-netherlands",
+              "emperorFactionId": "habsburg",
+              "winnerFactionId": "habsburg",
+              "winnerRulerId": "ferdinand-i",
+              "winnerRulerName": "Ferdinand I",
+              "candidateFactionIds": [
+                "habsburg",
+                "electoral-saxony"
+              ],
+              "runoffCandidateFactionIds": [
+                "habsburg",
+                "electoral-saxony"
+              ],
+              "firstBallot": {
+                "habsburg": 4,
+                "electoral-saxony": 3
+              },
+              "scores": {},
+              "votes": {},
+              "tally": {
+                "habsburg": 4,
+                "electoral-saxony": 3
+              }
+            },
+            {
+              "kind": "election-convened",
+              "simMinute": 123807,
+              "electionId": "dense-election",
+              "office": "emperor",
+              "electionMinute": 123907,
+              "candidateFactionIds": [
+                "habsburg",
+                "electoral-saxony"
+              ],
+              "source": "dense-save-compatibility"
+            },
+            {
+              "kind": "king-of-romans-vacancy",
+              "simMinute": 123808,
+              "factionId": "habsburg",
+              "rulerId": "ferdinand-i",
+              "rulerName": "Ferdinand I",
+              "source": "dense-save-compatibility"
+            },
+            {
+              "kind": "king-of-romans-succeeds",
+              "simMinute": 123809,
+              "previousEmperorFactionId": "burgundian-netherlands",
+              "emperorFactionId": "habsburg",
+              "emperorRulerId": "ferdinand-i",
+              "emperorRulerName": "Ferdinand I",
+              "source": "dense-save-compatibility"
+            },
+            {
+              "kind": "imperial-vacancy",
+              "simMinute": 123810,
+              "previousEmperorFactionId": "burgundian-netherlands",
+              "previousEmperorRulerId": "charles-v",
+              "previousEmperorRulerName": "Charles V",
+              "source": "dense-save-compatibility"
+            },
+            {
+              "kind": "elector-support",
+              "simMinute": 123811,
+              "source": "dense-save-compatibility",
+              "electorFactionId": "mainz",
+              "candidateFactionId": "habsburg",
+              "previous": 60,
+              "next": 65
+            },
+            {
+              "kind": "diet-resolution",
+              "simMinute": 123812,
+              "resolution": {
+                "id": "dense-diet-resolution",
+                "kind": "mediation",
+                "sponsorFactionId": "burgundian-netherlands",
+                "targetFactionId": "france",
+                "supportingFactionIds": [
+                  "mainz",
+                  "trier",
+                  "palatinate"
+                ],
+                "simMinute": 123812,
+                "expiresMinute": 124812,
+                "scope": "target"
+              }
+            },
+            {
+              "kind": "reformation",
+              "simMinute": 123813,
+              "source": "dense-save-compatibility",
+              "cityId": "augsberg|germany",
+              "factionId": "augsburg",
+              "previousReligionId": "roman-catholic",
+              "religionId": "mixed",
+              "authorityDelta": -1
+            }
+          ]
+        },
+        "papacy": {
+          "version": 6,
+          "seed": 3640357729,
+          "sequence": 0,
+          "startMinute": 123456,
+          "lastUpdateMinute": 123456,
+          "nextActionMinute": 808896,
+          "englishReformationApplied": false,
+          "excommunications": {},
+          "activeDecrees": {},
+          "history": [
+            {
+              "id": "dense-papal-papal-favour",
+              "kind": "papal-favour",
+              "targetFactionId": "england",
+              "targetRulerId": "henry-viii",
+              "targetRulerName": "Henry VIII",
+              "popeId": "adrian-vi",
+              "popeName": "Adrian VI",
+              "respondingFactionIds": [
+                "spain"
+              ],
+              "simMinute": 123956,
+              "source": "dense-save-compatibility",
+              "logistics": null
+            },
+            {
+              "id": "dense-papal-papal-excommunication",
+              "kind": "papal-excommunication",
+              "targetFactionId": "england",
+              "targetRulerId": "henry-viii",
+              "targetRulerName": "Henry VIII",
+              "popeId": "adrian-vi",
+              "popeName": "Adrian VI",
+              "respondingFactionIds": [
+                "spain"
+              ],
+              "simMinute": 123957,
+              "source": "dense-save-compatibility",
+              "logistics": null
+            },
+            {
+              "id": "dense-papal-papal-condemnation",
+              "kind": "papal-condemnation",
+              "targetFactionId": "england",
+              "targetRulerId": "henry-viii",
+              "targetRulerName": "Henry VIII",
+              "popeId": "adrian-vi",
+              "popeName": "Adrian VI",
+              "respondingFactionIds": [
+                "spain"
+              ],
+              "simMinute": 123958,
+              "source": "dense-save-compatibility",
+              "logistics": null
+            },
+            {
+              "id": "dense-papal-papal-crusade",
+              "kind": "papal-crusade",
+              "targetFactionId": "england",
+              "targetRulerId": "henry-viii",
+              "targetRulerName": "Henry VIII",
+              "popeId": "adrian-vi",
+              "popeName": "Adrian VI",
+              "respondingFactionIds": [
+                "spain"
+              ],
+              "simMinute": 123959,
+              "source": "dense-save-compatibility",
+              "logistics": null
+            },
+            {
+              "id": "dense-papal-papal-revocation",
+              "kind": "papal-revocation",
+              "targetFactionId": "england",
+              "targetRulerId": "henry-viii",
+              "targetRulerName": "Henry VIII",
+              "popeId": "adrian-vi",
+              "popeName": "Adrian VI",
+              "respondingFactionIds": [
+                "spain"
+              ],
+              "simMinute": 123960,
+              "source": "dense-save-compatibility",
+              "logistics": null,
+              "revokedActionId": "dense-papal-papal-excommunication",
+              "revokedActionKind": "papal-excommunication"
+            }
+          ],
+          "pendingMatter": null
+        },
+        "courts": {
+          "version": 2,
+          "seed": 1246641972,
+          "sequence": 0,
+          "startMinute": 123456,
+          "lastUpdateMinute": 123456,
+          "nextActionMinute": 448896,
+          "portServiceMinutes": {},
+          "history": [
+            {
+              "id": "dense-court-ming-investiture",
+              "kind": "ming-investiture",
+              "simMinute": 123856,
+              "authorityFactionId": "ming",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: ming-investiture",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-ming-mediation",
+              "kind": "ming-mediation",
+              "simMinute": 123857,
+              "authorityFactionId": "ming",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: ming-mediation",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-ming-censure",
+              "kind": "ming-censure",
+              "simMinute": 123858,
+              "authorityFactionId": "ming",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: ming-censure",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-ming-protection",
+              "kind": "ming-protection",
+              "simMinute": 123859,
+              "authorityFactionId": "ming",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: ming-protection",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-shogunal-mediation",
+              "kind": "shogunal-mediation",
+              "simMinute": 123860,
+              "authorityFactionId": "japan",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: shogunal-mediation",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-shogunal-confirmation",
+              "kind": "shogunal-confirmation",
+              "simMinute": 123861,
+              "authorityFactionId": "japan",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: shogunal-confirmation",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-shogunal-censure",
+              "kind": "shogunal-censure",
+              "simMinute": 123862,
+              "authorityFactionId": "japan",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: shogunal-censure",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-wokou-suppression",
+              "kind": "wokou-suppression",
+              "simMinute": 123863,
+              "authorityFactionId": "japan",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: wokou-suppression",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-royal-dispatch",
+              "kind": "royal-dispatch",
+              "simMinute": 123864,
+              "authorityFactionId": "england",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: royal-dispatch",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-royal-officer",
+              "kind": "royal-officer",
+              "simMinute": 123865,
+              "authorityFactionId": "england",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: royal-officer",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-garrison-muster",
+              "kind": "garrison-muster",
+              "simMinute": 123866,
+              "authorityFactionId": "england",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: garrison-muster",
+              "detail": "A frozen compatibility record."
+            },
+            {
+              "id": "dense-court-colonial-accounts",
+              "kind": "colonial-accounts",
+              "simMinute": 123867,
+              "authorityFactionId": "england",
+              "targetFactionId": "france",
+              "secondaryFactionId": null,
+              "source": "dense-save-compatibility",
+              "destinationCityId": "london|united kingdom",
+              "destinationName": "London",
+              "headline": "Dense court action: colonial-accounts",
+              "detail": "A frozen compatibility record."
+            }
+          ],
+          "pendingMatter": null
+        },
+        "authority": {
+          "version": 1,
+          "seed": 3895685675,
+          "sequence": 0,
+          "startMinute": 123456,
+          "lastUpdateMinute": 123456,
+          "nextSubjectReviewMinute": 318759,
+          "scores": {
+            "england": 74,
+            "scotland": 52,
+            "france": 76,
+            "spain": 82,
+            "portugal": 76,
+            "hormuz": 38,
+            "burgundian-netherlands": 80,
+            "habsburg": 72,
+            "hungary": 48,
+            "bohemia": 52,
+            "mainz": 58,
+            "cologne-electorate": 54,
+            "trier": 62,
+            "palatinate": 64,
+            "electoral-saxony": 76,
+            "brandenburg": 68,
+            "ducal-saxony": 70,
+            "liege": 66,
+            "magdeburg": 48,
+            "utrecht": 46,
+            "cleves-mark": 68,
+            "calenberg": 58,
+            "augsburg": 72,
+            "cologne": 76,
+            "nuremberg": 78,
+            "lubeck": 74,
+            "hamburg": 70,
+            "bremen": 68,
+            "speyer": 66,
+            "regensburg": 68,
+            "worms": 66,
+            "metz": 68,
+            "ottoman": 88,
+            "venice": 74,
+            "genoa": 48,
+            "florence": 70,
+            "papal-states": 62,
+            "hospitallers": 76,
+            "ming": 68,
+            "inca": 84,
+            "safavid": 76,
+            "muscovy": 78,
+            "kazan": 64,
+            "crimea": 60,
+            "wallachia": 44,
+            "moldavia": 50,
+            "ragusa": 66,
+            "hejaz": 58,
+            "poland-lithuania": 64,
+            "sweden": 42,
+            "denmark-norway": 44,
+            "songhai": 80,
+            "morocco": 54,
+            "ethiopia": 66,
+            "vijayanagara": 88,
+            "gujarat": 66,
+            "bengal": 68,
+            "delhi": 46,
+            "mughal": 72,
+            "ayutthaya": 74,
+            "ternate": 58,
+            "tidore": 60,
+            "japan": 22,
+            "hosokawa": 68,
+            "ouchi": 66,
+            "shimazu": 58,
+            "so": 54,
+            "shoni": 52,
+            "nagao": 58,
+            "ando": 56,
+            "kakizaki": 48,
+            "ryukyu": 76,
+            "ainu": 46,
+            "joseon": 78
+          },
+          "papal": 58,
+          "englishReformationApplied": false,
+          "viennaSiegeApplied": false,
+          "history": []
+        }
+      },
+      "memory": {
+        "visitedPorts": {
+          "london|united kingdom": {
+            "visits": 3,
+            "drunkArrivals": 1,
+            "lastDrunkVisit": 2,
+            "lastDrunkArrivalMinute": 124056
+          }
+        },
+        "decisions": {},
+        "flags": {
+          "shoreBatteryDisabledUntil:london|united kingdom": 235067,
+          "shoreBatteryDisabledByShip:london|united kingdom": "the Pelican",
+          "shoreBatteryUpgradeLevel:london|united kingdom": 1,
+          "playerPortAssaultUntil:paris|france": 235167,
+          "playerPortRaidedUntil:paris|france": 235267
+        },
+        "discoveries": {},
+        "discoveryOrder": [],
+        "animals": {
+          "version": 1,
+          "encountered": {},
+          "encounterOrder": [],
+          "nextRollMinute": 0
+        },
+        "animalCompanions": {
+          "version": 3,
+          "byId": {
+            "panda": {
+              "status": "unmet",
+              "joinedMinute": null,
+              "naturalistOffer": "unresolved",
+              "naturalistGreetingCount": 0,
+              "naturalistPlacementVisit": null,
+              "npcReactionKeys": [],
+              "restrictedFoodRationDebt": 0
+            },
+            "raccoon": {
+              "status": "unmet",
+              "joinedMinute": null,
+              "naturalistOffer": "unresolved",
+              "naturalistGreetingCount": 0,
+              "naturalistPlacementVisit": null,
+              "npcReactionKeys": [],
+              "restrictedFoodRationDebt": 0
+            },
+            "penguin": {
+              "status": "unmet",
+              "joinedMinute": null,
+              "naturalistOffer": "unresolved",
+              "naturalistGreetingCount": 0,
+              "naturalistPlacementVisit": null,
+              "npcReactionKeys": [],
+              "restrictedFoodRationDebt": 0
+            }
+          },
+          "introductionKeys": []
+        },
+        "pendingDiscoveryPortDialogueIds": [],
+        "namedCrewDeathNotices": [],
+        "crewRecruitment": {
+          "version": 1,
+          "nextOfferSerial": 1,
+          "offersByCityId": {}
+        },
+        "aboardCalendar": {
+          "version": 1,
+          "lastObservedDateKey": null,
+          "pendingEvents": [],
+          "completedEventIds": []
+        },
+        "specialEquipmentOffers": {
+          "version": 2,
+          "byPort": {}
+        },
+        "illicitTradeEnforcement": {
+          "version": 2,
+          "nextIncidentId": 1,
+          "incidents": []
+        },
+        "tradeEmbargoEnforcement": {
+          "version": 3,
+          "nextIncidentId": 1,
+          "incidents": []
+        },
+        "chartReframeDialogue": {
+          "version": 2,
+          "shownIds": [],
+          "recentIds": [],
+          "recentCategories": [],
+          "recentPortCityIds": [],
+          "lastShownMinute": null,
+          "shownCount": 0
+        },
+        "shipyardInvestment": {
+          "version": 3,
+          "project": null,
+          "backedPortCityIds": [],
+          "lastCompletedMinute": null
+        },
+        "navigation": {
+          "lastLongitudeDeg": null,
+          "cumulativeLongitudeDeg": 0,
+          "minimumCumulativeLongitudeDeg": 0,
+          "maximumCumulativeLongitudeDeg": 0,
+          "optionalWaypoints": [
+            {
+              "id": "port:paris|france:DENSE SAVE",
+              "destinationCityId": "paris|france",
+              "destinationTileId": 2,
+              "destinationName": "Paris",
+              "reason": "DENSE SAVE"
+            }
+          ]
+        },
+        "quests": {
+          "active": null,
+          "passengerActive": null,
+          "completed": {},
+          "failed": {},
+          "onboardingDeliveriesCompleted": 0,
+          "deliveryOffers": {},
+          "deliveryRolls": {},
+          "capturePortOffers": {},
+          "capturePortRolls": {},
+          "courtMissionOffers": {},
+          "courtMissionRolls": {},
+          "passengerOffers": {},
+          "passengerRolls": {},
+          "vikingLongshipRolls": {},
+          "cargoDeliveries": {},
+          "japaneseMatchlocks": {
+            "version": 1,
+            "stage": "locked",
+            "fetchStageIndex": 0,
+            "workshopTileId": null,
+            "workshopCityId": null,
+            "offerSeen": false,
+            "completedMinute": null,
+            "spawnRolls": {}
+          },
+          "caribbeanGinger": {
+            "version": 1,
+            "stage": "locked",
+            "cultivationTileId": null,
+            "cultivationCityId": null,
+            "cultivationCity": null,
+            "cultivationCountry": null,
+            "offerSeen": false,
+            "completedMinute": null,
+            "spawnRolls": {}
+          },
+          "chef": {
+            "version": 1,
+            "stage": "locked",
+            "portTileId": null,
+            "portCityId": null,
+            "portCity": null,
+            "portCountry": null,
+            "ingredientGoodIds": [],
+            "eventProfileId": null,
+            "offerSeen": false,
+            "completedMinute": null,
+            "spawnRolls": {}
+          },
+          "pirateCaptive": {
+            "version": 2,
+            "active": null,
+            "completedCount": 0,
+            "declinedCount": 0,
+            "formerTravelers": []
+          },
+          "castaway": {
+            "version": 2,
+            "active": null,
+            "completedCount": 0,
+            "declinedCount": 0,
+            "formerTravelers": []
+          },
+          "naturalist": {
+            "version": 3,
+            "portCityId": null,
+            "portTileId": null,
+            "character": null,
+            "met": false,
+            "reportedAnimalIds": [],
+            "completionRewarded": false
+          },
+          "hospitallerMalta": {
+            "version": 2,
+            "stage": "locked",
+            "activatedMinute": null,
+            "acceptedMinute": null,
+            "grantedMinute": null,
+            "completedMinute": null,
+            "rome": null,
+            "malta": null,
+            "grantorFactionId": null,
+            "grantorCapital": null,
+            "grantedCities": [],
+            "envoy": null
+          },
+          "conquistador": {
+            "version": 3,
+            "stage": "dormant",
+            "offerSeen": false,
+            "originCityId": null,
+            "originTileId": null,
+            "targetCityId": null,
+            "targetTileId": null,
+            "fetchStageIndex": 0,
+            "companyStrength": 0,
+            "companyNeedsReplenishment": false,
+            "failedAssaults": 0,
+            "capturedAtMinute": null,
+            "rewardReadyMinute": null,
+            "transferSchedule": [],
+            "transferredCityIds": [],
+            "completedAtMinute": null
+          },
+          "sovereignWarLoan": {
+            "version": 2,
+            "sequence": 0,
+            "offer": null,
+            "contract": null,
+            "lastOfferMinuteByFactionId": {},
+            "history": []
+          }
+        },
+        "cargoReservations": {},
+        "missionItemGifts": {},
+        "colonization": {
+          "version": 3,
+          "stage": "fetch",
+          "fetchStageIndex": 0,
+          "targetTileId": null,
+          "foundedMinute": null,
+          "resupplyDeadlineMinute": null,
+          "resupplyExtensionMinutes": 0,
+          "leftSinceFounding": false,
+          "failedMinute": null,
+          "establishedMinute": null,
+          "defenseStartedMinute": null,
+          "defenseCompletedMinute": null,
+          "defenseShipIds": [],
+          "defenseDefeatedShipIds": [],
+          "aftermath": null,
+          "targetCityId": null,
+          "targetCity": null,
+          "targetCountry": null,
+          "originCityId": null,
+          "originTileId": null,
+          "originCity": null,
+          "originCountry": null,
+          "approvalCityId": null,
+          "approvalTileId": null,
+          "approvalCity": null,
+          "approvalCountry": null,
+          "approvalGranted": false,
+          "distanceKm": null,
+          "offerSeen": false,
+          "spawnRolls": {},
+          "pastSettlements": []
+        },
+        "conquest": {
+          "portFactionOverrides": {},
+          "cityDisplayNameOverrides": {},
+          "factionCapitalOverrides": {},
+          "collapsedFactionIds": [
+            "mughal"
+          ],
+          "factionSuccessors": {},
+          "treaties": [],
+          "events": [
+            {
+              "id": "dense-conquest-port-capture",
+              "kind": "port-capture",
+              "simMinute": 123756,
+              "source": "dense-save-compatibility",
+              "portId": "paris|france",
+              "cityId": "paris|france",
+              "cityTileId": 2,
+              "cityName": "Paris",
+              "previousFactionId": "france",
+              "newFactionId": "england",
+              "capitalCapturedFactionId": "france",
+              "collapsedFactionId": null,
+              "peaceTreatyId": null
+            },
+            {
+              "id": "dense-conquest-faction-collapse",
+              "kind": "faction-collapse",
+              "simMinute": 123757,
+              "source": "dense-save-compatibility",
+              "factionId": "france",
+              "successorFactionId": "england"
+            },
+            {
+              "id": "dense-conquest-faction-restoration",
+              "kind": "faction-restoration",
+              "simMinute": 123758,
+              "source": "dense-save-compatibility",
+              "factionId": "france",
+              "capitalPortId": "paris|france",
+              "cityPortIds": [
+                "paris|france"
+              ]
+            },
+            {
+              "id": "dense-conquest-faction-succession",
+              "kind": "faction-succession",
+              "simMinute": 123759,
+              "source": "dense-save-compatibility",
+              "predecessorFactionId": "france",
+              "successorFactionId": "england",
+              "capitalPortId": "paris|france",
+              "cityPortIds": [
+                "paris|france"
+              ]
+            }
+          ]
+        },
+        "achievements": {
+          "version": 2,
+          "soldSpiceGoodIds": [],
+          "foundedCityIds": [],
+          "sailedShipSlugs": [],
+          "grossDoubloonsEarned": 0,
+          "whiteWhaleKilled": false,
+          "arrivedInPortDrunk": false,
+          "married": false,
+          "defeatedShipCount": 0,
+          "whalesKilled": 0,
+          "survivedLightningStrike": false
+        },
+        "whales": {
+          "version": 4,
+          "nextId": 1,
+          "individuals": [],
+          "activeHunt": null,
+          "lastEcologyMinute": null
+        },
+        "icebergs": {
+          "version": 1,
+          "nextId": 1,
+          "individuals": [],
+          "lastAdvanceMinute": null,
+          "lastSpawnMinute": null
+        },
+        "campaignGoal": {
+          "version": 1,
+          "type": "explorer",
+          "status": "active",
+          "homePortCityId": "london|united kingdom",
+          "homePortTileId": 1,
+          "introSeen": false,
+          "endingVariant": 3,
+          "reportedDiscoveryIds": [],
+          "currentLeadDiscoveryId": null,
+          "totalWonderCount": 0
+        },
+        "cartography": {
+          "seenTilesBase64": "",
+          "seenTileCount": 0
+        }
+      }
+    },
+    "playerShip": {
+      "factionId": "england",
+      "typeSlug": "brigantine",
+      "position": [
+        1,
+        0,
+        0
+      ],
+      "tileId": 1,
+      "heading": [
+        0,
+        1,
+        0
+      ],
+      "targetHeading": [
+        0,
+        1,
+        0
+      ],
+      "velocity": [
+        0,
+        0,
+        0
+      ],
+      "hitPoints": 16,
+      "maxHitPoints": 16,
+      "wakeSeedCounter": 7,
+      "cannonSequence": 3
+    },
+    "worldClock": {
+      "currentMinute": 234567,
+      "voyageStartMinute": 123456
+    }
+  }
+}

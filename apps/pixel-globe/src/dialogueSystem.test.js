@@ -4143,6 +4143,8 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
       capital: false,
       successPercent: 57,
       expectedCasualtiesRounded: 16,
+      expectedDeathsRounded: 9,
+      expectedWoundedRounded: 7,
       casualtyRangeLow: 12,
       casualtyRangeHigh: 21
     }
@@ -4150,7 +4152,7 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(view.text, /harbor guns are silent/i);
   assert.equal(view.options[0].label, "Start the assault");
-  assert.equal(view.options[0].detail, "57% victory • expect 16 lost (12–21)");
+  assert.equal(view.options[0].detail, "57% victory • expect 9 dead / 7 wounded (12–21 total)");
   assert.deepEqual(selectPortDialogueOption(session, city, gameState, economy, [city], 0, context), {
     closed: false,
     action: { type: "land-marines" }
@@ -4372,6 +4374,8 @@ test("an unauthorized marine landing pillages instead of annexing", () => {
       playerAssaultActive: true,
       successPercent: 57,
       expectedCasualtiesRounded: 11,
+      expectedDeathsRounded: 6,
+      expectedWoundedRounded: 5,
       casualtyRangeLow: 8,
       casualtyRangeHigh: 15,
       capital: false
@@ -4380,7 +4384,7 @@ test("an unauthorized marine landing pillages instead of annexing", () => {
   const view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(view.text, /exposed to plunder/i);
   assert.equal(view.options[0].label, "Start the raid");
-  assert.equal(view.options[0].detail, "57% victory • expect 11 lost (8–15)");
+  assert.equal(view.options[0].detail, "57% victory • expect 6 dead / 5 wounded (8–15 total)");
 });
 
 test("a disabled enemy harbor never admits an ineligible captain in disguise", () => {
@@ -6574,6 +6578,8 @@ test("Panama dialogue commissions, provisions, and embarks the Inca expedition",
       playerAssaultActive: true,
       successPercent: 79,
       expectedCasualtiesRounded: 7,
+      expectedDeathsRounded: 4,
+      expectedWoundedRounded: 3,
       casualtyRangeLow: 4,
       casualtyRangeHigh: 11,
       capital: false,

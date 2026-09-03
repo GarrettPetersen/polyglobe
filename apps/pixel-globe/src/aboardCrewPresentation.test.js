@@ -19,7 +19,8 @@ const CREW_MEMBER = Object.freeze({
   appearanceId: "european-sailor",
   crewTypeId: "sailor",
   recruitedAtMinute: 10 * WEATHER_MINUTES_PER_DAY,
-  sailingMinutes: 46 * WEATHER_MINUTES_PER_DAY
+  sailingMinutes: 46 * WEATHER_MINUTES_PER_DAY,
+  wound: null
 });
 
 test("aboard crew detail presents the durable crew facts", () => {
@@ -36,6 +37,8 @@ test("aboard crew detail presents the durable crew facts", () => {
       typeLabel: "SAILOR",
       timeAboardDays: 17,
       monthlySalaryDoubloons: 5,
+      wounded: false,
+      woundRecoveryDays: 0,
       experienceStars: 2,
       experienceLevelKey: "aboard.experience.seasoned"
     }
@@ -53,6 +56,15 @@ test("each experience tier has one thematic crew label", () => {
     ]
   );
   assert.throws(() => aboardCrewExperienceLevelKey(4), /Invalid aboard crew experience level/);
+});
+
+test("aboard crew detail reports an individual's remaining wound recovery", () => {
+  const detail = aboardCrewMemberDetail({
+    ...CREW_MEMBER,
+    wound: { cause: "port-assault", recoveryMinutesRemaining: WEATHER_MINUTES_PER_DAY + 1 }
+  }, 27 * WEATHER_MINUTES_PER_DAY);
+  assert.equal(detail.wounded, true);
+  assert.equal(detail.woundRecoveryDays, 2);
 });
 
 test("aboard crew detail rejects a recruitment date in the future", () => {

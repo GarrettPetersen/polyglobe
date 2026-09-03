@@ -102,11 +102,16 @@ import {
   cityAnimationFrame
 } from "./cityAnimationFrame.js";
 import {
+  cityAssaultForwardEntryShift,
   cityAssaultJumpPoint,
   cityAssaultKnockbackOffset,
+  cityAssaultLaneX,
   cityAssaultMeleeLungeOffset
 } from "./cityAssaultMotion.js";
-import { portAssaultLandingDurationMs } from "../src/portAssaultBattle.js";
+import {
+  PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+  portAssaultLandingDurationMs
+} from "../src/portAssaultBattle.js";
 import {
   CITY_SHIPYARD_FRONT_Z,
   cityShipyardConstructionPlacement,
@@ -291,6 +296,8 @@ const BACKGROUND_CITY_UNDERLAY_LAYER_NAMES = new Set(
 const CITY_VISUALIZER_DEFAULT_CITY_ID = "london|united kingdom";
 const SUSPICIOUS_MERCHANT_HIT_PADDING_PX = 8;
 const SHIPYARD_BUILDING_HIT_PADDING_PX = 4;
+const CITY_PORT_ASSAULT_TRACK_START_X = 666;
+const CITY_PORT_ASSAULT_TRACK_SPAN_X = 640;
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 let renderFrameId = null;
@@ -3601,13 +3608,33 @@ function drawPortAssaultPresentation(lane) {
   if (!Number.isFinite(feetY)) throw new Error(`Invalid port-assault render lane: ${lane}`);
   const battleTimeMs = presentation.elapsedMs;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+  const shipboardStart = assaultShipboardStartPoint(battleTimeMs);
+  const baselineEntryX = CITY_PORT_ASSAULT_TRACK_START_X +
+    PORT_ASSAULT_ATTACKER_ENTRY_POSITION * CITY_PORT_ASSAULT_TRACK_SPAN_X - window.x;
+  const entryShiftX = cityAssaultForwardEntryShift({
+    baselineEntryX,
+    deckStartX: shipboardStart.x
+  });
   // Each lane is its own dynamic scene entry, so buildings, trees, cargo, and
   // gate pieces can naturally paint in front of combatants by ground depth.
   for (const unit of presentation.units) {
     if (unit.lane !== lane) continue;
-    const masterX = 666 + unit.position * 640;
-    const landingPoint = Object.freeze({ x: masterX - window.x, y: feetY - window.y });
-    const point = assaultPersonScreenPoint(unit, landingPoint, presentation.events, battleTimeMs);
+    const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
+      unit.position * CITY_PORT_ASSAULT_TRACK_SPAN_X - window.x;
+    const laneX = cityAssaultLaneX({
+      baselineX,
+      position: unit.position,
+      entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+      entryShiftX
+    });
+    const landingPoint = Object.freeze({ x: laneX, y: feetY - window.y });
+    const point = assaultPersonScreenPoint(
+      unit,
+      landingPoint,
+      presentation.events,
+      battleTimeMs,
+      shipboardStart
+    );
     drawAssaultPersonSprite(unit, point.x, point.y, battleTimeMs);
     if (unit.inWater) drawAssaultWater(unit, point.x, point.y, battleTimeMs);
   }
@@ -3618,18 +3645,22 @@ function drawPortAssaultPresentation(lane) {
   }
 }
 
-function assaultPersonScreenPoint(unit, landingPoint, events, timeMs) {
+function assaultShipboardStartPoint(timeMs) {
+  const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
+  const spawnAnchor = placement.ship.cityDockside.sailorSpawnAnchor;
+  if (!spawnAnchor || !Number.isFinite(spawnAnchor.x) || !Number.isFinite(spawnAnchor.y)) {
+    throw new Error(`Port assault ship has no sailor spawn anchor: ${placement.ship.slug}`);
+  }
+  return Object.freeze({
+    x: placement.x + spawnAnchor.x * placement.scale,
+    y: placement.y + placement.bobY + spawnAnchor.y * placement.scale
+  });
+}
+
+function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardStart) {
   if (unit.animationId === "jump") {
-    const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
-    const spawnAnchor = placement.ship.cityDockside.sailorSpawnAnchor;
-    if (!spawnAnchor || !Number.isFinite(spawnAnchor.x) || !Number.isFinite(spawnAnchor.y)) {
-      throw new Error(`Port assault ship has no sailor spawn anchor: ${placement.ship.slug}`);
-    }
     return cityAssaultJumpPoint({
-      start: {
-        x: placement.x + spawnAnchor.x * placement.scale,
-        y: placement.y + placement.bobY + spawnAnchor.y * placement.scale
-      },
+      start: shipboardStart,
       end: landingPoint,
       elapsedMs: timeMs - unit.animationStartedAtMs,
       durationMs: portAssaultLandingDurationMs(state.features.dock)
@@ -3775,7 +3806,8 @@ function drawPersonSprite(targetContext, {
   x,
   y,
   scale = 1,
-  facingRight = true
+  facingRight = true,
+  playback = CITY_ANIMATION_PLAYBACK.LOOP
 }) {
   if (!targetContext || typeof targetContext.drawImage !== "function") {
     throw new Error("City person sprite requires a canvas context");
@@ -3790,7 +3822,11 @@ function drawPersonSprite(targetContext, {
   if (!Array.isArray(animation) || animation.length === 0) {
     throw new Error(`City person ${appearanceId} has no ${animationId} animation`);
   }
-  const frame = cityAnimationFrame(animation, prefersReducedMotion.matches ? 0 : timeMs);
+  const frame = cityAnimationFrame(
+    animation,
+    prefersReducedMotion.matches && playback === CITY_ANIMATION_PLAYBACK.LOOP ? 0 : timeMs,
+    playback
+  );
   const dx = Math.round(x + frame.spriteSourceSize.x * scale);
   const dy = Math.round(y + frame.spriteSourceSize.y * scale);
   const dw = Math.round(frame.frame.w * scale);

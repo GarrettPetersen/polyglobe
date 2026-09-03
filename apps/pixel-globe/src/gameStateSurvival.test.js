@@ -365,6 +365,7 @@ test("version 95 crew migration preserves each sailor while adding origin traits
     nameCulture: _removedNameCulture,
     religionId: _removedReligionId,
     nationalityId: _removedNationalityId,
+    wound: _removedWound,
     ...legacyMember
   }) => legacyMember);
 
@@ -404,6 +405,23 @@ test("version 96 saves separate armoured samurai from the new unarmoured ronin t
   assert.equal(migrated.crewRoster[0].sailingMinutes, original.sailingMinutes);
   assert.equal(migrated.crewRoster[0].appearanceId, "japanese-samurai");
   assert.equal(migrated.crewRoster[0].crewTypeId, "samurai");
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 99 saves add explicit healthy crew state without resetting payroll", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const saved = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(saved, stats);
+  setTestCrewCount(saved, 3);
+  saved.version = 99;
+  saved.crewPayroll.arrearsDoubloons = 17;
+  saved.crewRoster = saved.crewRoster.map(({ wound: _removedWound, ...legacyMember }) => legacyMember);
+
+  const migrated = migrateGameState(saved, stats);
+
+  assert.equal(migrated.version, GAME_STATE_VERSION);
+  assert.ok(migrated.crewRoster.every((member) => member.wound === null));
+  assert.equal(migrated.crewPayroll.arrearsDoubloons, 17);
   assert.equal(validateGameState(migrated), migrated);
 });
 

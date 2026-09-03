@@ -50,6 +50,9 @@ jobs:
       - name: Install deployment tooling
         run: npm ci --prefix apps/pixel-globe
 
+      - name: Install save-restore smoke browser
+        run: npm exec --prefix apps/pixel-globe -- playwright install --with-deps chromium
+
       - name: Restore production Earth cache
         run: gzip --decompress --keep examples/globe-demo/public/earth-globe-cache-8.json.gz
 
