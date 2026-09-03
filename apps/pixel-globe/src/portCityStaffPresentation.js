@@ -1,4 +1,5 @@
 import { PORT_CITY_STAFF_ROLE, PORT_CITY_STAFF_ROLES } from "./characterPortraits.js";
+import { PORT_CITY_STAFF_GREETING_STYLE } from "./portGreetingStyle.js";
 
 const STANDARD_TITLES = Object.freeze({
   [PORT_CITY_STAFF_ROLE.HARBOUR_MASTER]: "harbour master",
@@ -59,4 +60,15 @@ export function portCityStaffTitle(city, role) {
   if (city.cityType === "polynesian") return POLYNESIAN_TITLES[role];
   if (city.settlementType === "village") return VILLAGE_TITLES[role];
   return STANDARD_TITLES[role];
+}
+
+export function portCityStaffGreetingStyle(city) {
+  // Reuse the title boundary validation so office and voice cannot diverge on
+  // an incomplete city record.
+  portCityStaffTitle(city, PORT_CITY_STAFF_ROLE.HARBOUR_MASTER);
+  return city.factionId === "ainu" ||
+    city.cityType === "polynesian" ||
+    city.settlementType === "village"
+    ? PORT_CITY_STAFF_GREETING_STYLE.COMMUNITY_LEADER
+    : PORT_CITY_STAFF_GREETING_STYLE.PORT_OFFICIAL;
 }

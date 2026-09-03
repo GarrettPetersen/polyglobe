@@ -1,6 +1,10 @@
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { PORT_CITY_STAFF_ROLE } from "./characterPortraits.js";
-import { portCityStaffTitle } from "./portCityStaffPresentation.js";
+import {
+  portCityStaffGreetingStyle,
+  portCityStaffTitle
+} from "./portCityStaffPresentation.js";
+import { PORT_CITY_STAFF_GREETING_STYLE } from "./portGreetingStyle.js";
 import {
   PORT_CITY_LOCATION,
   portCityLocation,
@@ -4297,6 +4301,7 @@ function greetingView(session, city, gameState, context) {
   const personalityId = city.character?.personalityId ||
     portPersonalityForKey(requireCityId(city, "Port personality city"));
   const arrival = portFlavor(city, gameState, context, memory.visits);
+  const greetingStyleId = portCityStaffGreetingStyle(city);
   const greeting = portGreetingPresentationForPersonality({
     personalityId,
     cityName: name,
@@ -4313,9 +4318,11 @@ function greetingView(session, city, gameState, context) {
     rulerRumor: context.rulerRumor || null,
     historicalGossip: context.historicalGossip || null,
     speakerReligionId: city.character?.religionId || null,
-    listenerReligionId: gameState.playerCharacter?.religionId || null
+    listenerReligionId: gameState.playerCharacter?.religionId || null,
+    greetingStyleId
   });
-  const recognitionRemark = typeof city.factionId === "string"
+  const recognitionRemark = typeof city.factionId === "string" &&
+    greetingStyleId === PORT_CITY_STAFF_GREETING_STYLE.PORT_OFFICIAL
     ? portFactorRecognitionForCaptain({
         gameState,
         city,

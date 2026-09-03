@@ -888,6 +888,84 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
     sequence: trailerSequence("pillage", "assault", { cityId: "alexandria|egypt" })
   }),
+  "short-city-assault-kyoto": trailerScenario({
+    id: "short-city-assault-kyoto",
+    title: "Sailing ship",
+    seed: "short-city-assault-kyoto-v1",
+    player: capturePlayer("joseon", "joseon-turtle-ship", 35.01, 135.77, 180),
+    world: captureWorld(148, 12, 20),
+    diplomacy: [{ factionAId: "joseon", factionBId: "japan", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      cityId: "kyoto|japan",
+      durationSeconds: 24,
+      modalPolicy: "show"
+    })
+  }),
+  "short-city-assault-london": trailerScenario({
+    id: "short-city-assault-london",
+    title: "Sailing ship",
+    seed: "short-city-assault-london-v1",
+    player: capturePlayer("france", "galleon", 51.51, -0.13, 180),
+    world: captureWorld(166, 13, 10),
+    diplomacy: [{ factionAId: "france", factionBId: "england", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      cityId: "london|united kingdom",
+      durationSeconds: 24,
+      modalPolicy: "show"
+    })
+  }),
+  "short-city-assault-havana": trailerScenario({
+    id: "short-city-assault-havana",
+    title: "Sailing ship",
+    seed: "short-city-assault-havana-v1",
+    player: capturePlayer("england", "galleon", 23.11, -82.37, 180),
+    world: captureWorld(210, 14, 40),
+    diplomacy: [{ factionAId: "england", factionBId: "spain", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      cityId: "havana|cuba",
+      durationSeconds: 24,
+      modalPolicy: "show"
+    })
+  }),
+  "short-city-assault-nanjing": trailerScenario({
+    id: "short-city-assault-nanjing",
+    title: "Sailing ship",
+    seed: "short-city-assault-nanjing-v1",
+    player: capturePlayer("japan", "japanese-atakebune", 32.06, 118.79, 180),
+    world: captureWorld(240, 14, 5),
+    diplomacy: [{ factionAId: "japan", factionBId: "ming", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      cityId: "nanjing|china",
+      durationSeconds: 24,
+      modalPolicy: "show"
+    })
+  }),
+  "short-city-assault-akkeshi": trailerScenario({
+    id: "short-city-assault-akkeshi",
+    title: "Sailing ship",
+    seed: "short-city-assault-akkeshi-v1",
+    player: capturePlayer("japan", "japanese-atakebune", 43.04, 144.85, 180),
+    world: captureWorld(196, 13, 25),
+    diplomacy: [{ factionAId: "japan", factionBId: "ainu", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      cityId: "akkeshi kotan|japan",
+      durationSeconds: 24,
+      modalPolicy: "show"
+    })
+  }),
+  "short-city-assault-alexandria": trailerScenario({
+    id: "short-city-assault-alexandria",
+    title: "Sailing ship",
+    seed: "short-city-assault-alexandria-v1",
+    player: capturePlayer("venice", "galleon", 31.2, 29.91, 180),
+    world: captureWorld(92, 15, 30),
+    diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      cityId: "alexandria|egypt",
+      durationSeconds: 24,
+      modalPolicy: "show"
+    })
+  }),
   "trailer-colonize-found": trailerScenario({
     id: "trailer-colonize-found",
     title: "Found Port Royal Colony",

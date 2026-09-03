@@ -6,9 +6,14 @@ import {
   portGreetingPresentationForPersonality as renderPortGreetingPresentation,
   portPersonalityForKey
 } from "./portDialoguePersonality.js";
+import { PORT_CITY_STAFF_GREETING_STYLE } from "./portGreetingStyle.js";
 
 function portGreetingPresentationForPersonality(options) {
-  return renderPortGreetingPresentation({ localHour: 13, ...options });
+  return renderPortGreetingPresentation({
+    localHour: 13,
+    greetingStyleId: PORT_CITY_STAFF_GREETING_STYLE.PORT_OFFICIAL,
+    ...options
+  });
 }
 
 test("port personalities are stable and distributed across factors", () => {
@@ -24,7 +29,8 @@ test("ordinary port greetings get quickly to the useful local context", () => {
     localFlavor: "The harbor is busy.",
     visitCount: 1,
     dayIndex: 10,
-    localHour: 13
+    localHour: 13,
+    greetingStyleId: PORT_CITY_STAFF_GREETING_STYLE.PORT_OFFICIAL
   }));
   assert.deepEqual([...new Set(lines)], ["Good afternoon, captain.  The harbor is busy."]);
 });
@@ -34,11 +40,35 @@ test("port salutations follow local time", () => {
     personalityId: "cordial",
     cityName: "Lisbon",
     localFlavor: "The harbor is busy.",
-    localHour
+    localHour,
+    greetingStyleId: PORT_CITY_STAFF_GREETING_STYLE.PORT_OFFICIAL
   }).text;
   assert.match(atHour(8), /^Good morning, captain\./);
   assert.match(atHour(13), /^Good afternoon, captain\./);
   assert.match(atHour(20), /^Good evening, captain\./);
+});
+
+test("community leaders speak through local custom instead of European office courtesies", () => {
+  const localFlavor = "Navigators gather beneath the meeting house to hear which stars brought you here.";
+  const presentation = portGreetingPresentationForPersonality({
+    personalityId: "enterprising",
+    cityName: "Tarawa Village",
+    localFlavor,
+    playerStanding: 25,
+    greetingStyleId: PORT_CITY_STAFF_GREETING_STYLE.COMMUNITY_LEADER
+  });
+
+  assert.equal(presentation.text, localFlavor);
+  assert.doesNotMatch(presentation.text, /Good afternoon|credit|cargo that takes no hold space/i);
+});
+
+test("unknown greeting styles fail at the dialogue boundary", () => {
+  assert.throws(() => portGreetingPresentationForPersonality({
+    personalityId: "cordial",
+    cityName: "Tarawa Village",
+    localFlavor: "The beach is busy.",
+    greetingStyleId: "factor-with-a-feather-hat"
+  }), /Unknown port greeting style/);
 });
 
 test("urgent nearby pirate traffic overrides ordinary port chatter", () => {

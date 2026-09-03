@@ -42222,8 +42222,8 @@ function drawGpuWorldUnderlay() {
     navalPainter.flush();
   });
   measurePerformanceBenchmarkStage(
-    "render.worldUnderlay.seagulls",
-    () => drawSeagullsWebGL(activeChart, nowMs, offset)
+    "render.worldUnderlay.landedSeagulls",
+    () => drawLandedSeagullsWebGL(activeChart, offset)
   );
   measurePerformanceBenchmarkStage(
     "render.worldUnderlay.discoveries",
@@ -42270,6 +42270,10 @@ function drawGpuDynamicWorld(dynamicWorld) {
     drawCannonSmokeBursts(cannonSmokeBursts, painter, CANNON_SMOKE_LAYER_FRONT);
     painter.flush();
   });
+  measurePerformanceBenchmarkStage(
+    "render.flyingSeagulls",
+    () => drawFlyingSeagullsWebGL(nowMs, offset)
+  );
   measurePerformanceBenchmarkStage("render.clouds", () => {
     drawCloudLayerWebGL(cloudCalls, offset);
   });
@@ -57213,22 +57217,38 @@ function hexToRgb(hex) {
   };
 }
 
-function drawSeagullsWebGL(activeChart, nowMs, offset) {
+function drawLandedSeagullsWebGL(activeChart, offset) {
   const assets = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS);
-  const calls = seagullDrawCalls(activeChart, nowMs, assets);
+  const calls = landedSeagullCalls(activeChart, assets)
+    .sort((a, b) => a.sortY - b.sortY || a.id - b.id);
+  drawSeagullLayerWebGL({ calls, assets, offset, resetAudioCalls: true });
+}
+
+function drawFlyingSeagullsWebGL(nowMs, offset) {
+  const assets = residentWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS);
+  const calls = flyingSeagullCalls(nowMs, assets)
+    .sort((a, b) => a.sortY - b.sortY || a.id - b.id);
+  drawSeagullLayerWebGL({ calls, assets, offset, resetAudioCalls: false });
+}
+
+function drawSeagullLayerWebGL({ calls, assets, offset, resetAudioCalls }) {
+  if (resetAudioCalls) lastRenderedSeagullScreenCalls = Object.freeze([]);
   if (calls.length === 0) {
-    lastRenderedSeagullScreenCalls = Object.freeze([]);
     return;
   }
   if (!assets) {
-    lastRenderedSeagullScreenCalls = Object.freeze([]);
     queueWorldAnimationAsset(WORLD_ANIMATION_ASSET.SEAGULLS, "visible seagulls");
     return;
   }
-  lastRenderedSeagullScreenCalls = Object.freeze(calls.map((call) => Object.freeze({
+  const audioCalls = calls.map((call) => Object.freeze({
     x: call.x + offset.x,
     y: call.y + offset.y
-  })));
+  }));
+  lastRenderedSeagullScreenCalls = Object.freeze(
+    resetAudioCalls
+      ? audioCalls
+      : [...lastRenderedSeagullScreenCalls, ...audioCalls]
+  );
   for (const call of calls) {
     if (!call.img) continue;
     worldRenderer.drawAtlasSprite({
@@ -57248,13 +57268,6 @@ function drawSeagullsWebGL(activeChart, nowMs, offset) {
       flipX: call.flip
     });
   }
-}
-
-function seagullDrawCalls(activeChart, nowMs, assets) {
-  return [
-    ...landedSeagullCalls(activeChart, assets),
-    ...flyingSeagullCalls(nowMs, assets)
-  ].sort((a, b) => a.sortY - b.sortY || a.id - b.id);
 }
 
 function landedSeagullCalls(activeChart, assets = null) {

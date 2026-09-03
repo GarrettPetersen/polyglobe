@@ -4,6 +4,7 @@ import {
 } from "./religiousDialogue.js";
 import { factionNounPhrase } from "./factions.js";
 import { shipyardListingCondition } from "./shipyardListingPresentation.js";
+import { PORT_CITY_STAFF_GREETING_STYLE } from "./portGreetingStyle.js";
 
 export const PORT_PERSONALITY_IDS = Object.freeze([
   "cordial",
@@ -130,7 +131,8 @@ export function portGreetingPresentationForPersonality({
   rulerRumor = null,
   historicalGossip = null,
   speakerReligionId = null,
-  listenerReligionId = null
+  listenerReligionId = null,
+  greetingStyleId
 }) {
   if (!PORT_PERSONALITY_IDS.includes(personalityId)) {
     throw new Error(`Unknown port personality: ${personalityId}`);
@@ -144,10 +146,15 @@ export function portGreetingPresentationForPersonality({
   if (!Number.isFinite(localHour) || localHour < 0 || localHour >= 24) {
     throw new Error(`Port greeting requires a valid local hour: ${localHour}`);
   }
+  if (!Object.values(PORT_CITY_STAFF_GREETING_STYLE).includes(greetingStyleId)) {
+    throw new Error(`Unknown port greeting style: ${greetingStyleId}`);
+  }
+  const communityLeader = greetingStyleId === PORT_CITY_STAFF_GREETING_STYLE.COMMUNITY_LEADER;
   const seed = `${personalityId}|${cityName}|${visitCount}|${dayIndex}`;
-  const salutation = localTimeGreeting(localHour);
+  const salutation = communityLeader ? null : localTimeGreeting(localHour);
   const topic = portGreetingTopic({ nearbyShips, stormy, playerStanding, rivalTerms, seed });
-  const prioritizeArrival = prioritizeLocalFlavor && topic !== "pirates" && topic !== "storm";
+  const prioritizeArrival = (prioritizeLocalFlavor || communityLeader) &&
+    topic !== "pirates" && topic !== "storm";
   const presentedTopic = prioritizeArrival ? null : topic;
   const religiousGreeting = presentedTopic !== "pirates" && presentedTopic !== "storm" &&
     speakerReligionId && listenerReligionId
@@ -176,8 +183,9 @@ export function portGreetingPresentationForPersonality({
   const contextLine = prioritizeArrival
     ? localFlavor
     : rumorLine || (presentedTopic ? contextLineFor(presentedTopic, personalityId, rivalTerms) : localFlavor);
+  const opening = religiousGreeting || salutation;
   return Object.freeze({
-    text: `${religiousGreeting || salutation}  ${contextLine}`.trim(),
+    text: opening ? `${opening}  ${contextLine}` : contextLine,
     expressionId: rulerLine
       ? "attentive"
       : historyLine

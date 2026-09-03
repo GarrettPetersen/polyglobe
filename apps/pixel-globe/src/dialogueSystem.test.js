@@ -1255,6 +1255,8 @@ test("a Polynesian arrival is greeted by the island chief", () => {
     [city]
   );
   assert.equal(greeting.speaker, "Te Rongo, island chief of Tarawa Village");
+  assert.match(greeting.text, /beach|canoe|reef|shore|village/i);
+  assert.doesNotMatch(greeting.text, /Good (morning|afternoon|evening)|credit|customs house/i);
 });
 
 test("the garrison commander reports the current fighting strength in character", () => {

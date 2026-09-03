@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PORT_CITY_STAFF_ROLE } from "./characterPortraits.js";
-import { portCityStaffTitle } from "./portCityStaffPresentation.js";
+import {
+  portCityStaffGreetingStyle,
+  portCityStaffTitle
+} from "./portCityStaffPresentation.js";
+import { PORT_CITY_STAFF_GREETING_STYLE } from "./portGreetingStyle.js";
 
 test("Polynesian port staff use community offices without changing their stable roles", () => {
   const city = { cityType: "polynesian", settlementType: "village", factionId: "neutral" };
@@ -10,6 +14,10 @@ test("Polynesian port staff use community offices without changing their stable 
   assert.equal(portCityStaffTitle(city, PORT_CITY_STAFF_ROLE.SMITH), "canoe builder");
   assert.equal(portCityStaffTitle(city, PORT_CITY_STAFF_ROLE.MERCHANT), "island trader");
   assert.equal(portCityStaffTitle(city, PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER), "war leader");
+  assert.equal(
+    portCityStaffGreetingStyle(city),
+    PORT_CITY_STAFF_GREETING_STYLE.COMMUNITY_LEADER
+  );
 });
 
 test("every non-Polynesian village uses community offices", () => {
@@ -49,6 +57,14 @@ test("urban offices keep their established names", () => {
     { cityType: "east-asian", settlementType: "city", factionId: "japan" },
     PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
   ), "harbour master");
+  assert.equal(
+    portCityStaffGreetingStyle({
+      cityType: "east-asian",
+      settlementType: "city",
+      factionId: "japan"
+    }),
+    PORT_CITY_STAFF_GREETING_STYLE.PORT_OFFICIAL
+  );
 });
 
 test("port staff titles fail loudly on incomplete or unknown identity", () => {

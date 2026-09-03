@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { seagullScreenPresence } from "./seagullAudio.js";
+import { WORLD_LAYER_ORDER } from "./worldLayerOrder.js";
+
+const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
 
 const OPTIONS = Object.freeze({
   screenWidth: 455,
@@ -55,3 +59,25 @@ test("fog visibility attenuates or silences individual seagulls", () => {
     /visibility/
   );
 });
+
+test("flying seagulls paint above vessels but below clouds", () => {
+  assert.ok(
+    WORLD_LAYER_ORDER.indexOf("dynamicUnderlay") < WORLD_LAYER_ORDER.indexOf("dynamicWorld"),
+    "the vessel layer must paint before the aerial layer"
+  );
+  const underlay = functionSource("drawGpuWorldUnderlay", "drawGpuDynamicUnderlay");
+  const aerial = functionSource("drawGpuDynamicWorld", "chartTileCallNearViewport");
+  assert.match(underlay, /drawLandedSeagullsWebGL/);
+  assert.doesNotMatch(underlay, /drawFlyingSeagullsWebGL/);
+  assert.ok(
+    aerial.indexOf("drawFlyingSeagullsWebGL") < aerial.indexOf("drawCloudLayerWebGL"),
+    "flying seagulls must paint before clouds"
+  );
+});
+
+function functionSource(startName, nextName) {
+  const start = MAIN_SOURCE.indexOf(`function ${startName}`);
+  const end = MAIN_SOURCE.indexOf(`function ${nextName}`, start + 1);
+  assert.ok(start >= 0 && end > start, `missing ${startName}`);
+  return MAIN_SOURCE.slice(start, end);
+}
