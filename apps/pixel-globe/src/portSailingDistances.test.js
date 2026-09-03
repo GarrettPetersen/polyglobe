@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
+import { assignPortCityStaff } from "./characterPortraits.js";
 import {
   CANONICAL_PORTS,
   REQUIRED_CANONICAL_PORTS,
@@ -13,6 +14,7 @@ import { COLONIZATION_TARGETS } from "./colonialCities.js";
 import { createDirectionIndex } from "./geodesic.js";
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
+import { harbourMasterForPlacedCity } from "./portCityStaff.js";
 import {
   PORT_SAILING_DISTANCE_FORMAT,
   PORT_SAILING_DISTANCE_VERSION,
@@ -76,14 +78,15 @@ test("port sailing distance bakes are strict, symmetric, and support unreachable
 });
 
 test("the checked-in bake covers colony sites and uses navigable sailing distances", async () => {
-  const [distanceSource, earthSource, graphSource, cityCsv] = await Promise.all([
+  const [distanceSource, earthSource, graphSource, cityCsv, portraitManifestSource] = await Promise.all([
     readFile(new URL("public/assets/data/port-sailing-distances.json", appRoot), "utf8"),
     readFile(new URL("examples/globe-demo/public/earth-globe-cache-8.json", repoRoot), "utf8"),
     readFile(new URL("examples/globe-demo/public/geodesic-graph-8.bin", repoRoot)),
     readFile(new URL(
       "examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
       repoRoot
-    ), "utf8")
+    ), "utf8"),
+    readFile(new URL("public/assets/characters/generated/character-portraits.json", appRoot), "utf8")
   ]);
   const earth = JSON.parse(earthSource);
   const bake = parsePortSailingDistances(JSON.parse(distanceSource), {
@@ -112,6 +115,31 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   const cityCatalog = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
   const cityByTileId = placeCityCatalogOnWorld({ ...placementOptions, cities: cityCatalog });
   const portCities = portCitiesOnWorld(cityByTileId, placementOptions);
+  const dockablePortsByTileId = new Map(portCities.map((port) => [port.tileId, port]));
+  const staffByCityId = assignPortCityStaff(
+    portCities,
+    JSON.parse(portraitManifestSource),
+    new Set()
+  );
+  for (const city of cityByTileId.values()) {
+    const harbourMaster = harbourMasterForPlacedCity(
+      staffByCityId,
+      dockablePortsByTileId,
+      city
+    );
+    assert.equal(
+      harbourMaster !== null,
+      dockablePortsByTileId.has(city.tileId),
+      `${city.cityId} staff classification must match its dockability`
+    );
+  }
+  const reims = [...cityByTileId.values()].find((city) => city.cityId === "reims|france");
+  assert.ok(reims, "Reims must remain in the production city catalog");
+  assert.equal(
+    harbourMasterForPlacedCity(staffByCityId, dockablePortsByTileId, reims),
+    null,
+    "inland Reims must not require a port staff roster"
+  );
   const canonicalPorts = validateCanonicalPortCatalog(portCities);
   assert.equal(canonicalPorts.size, REQUIRED_CANONICAL_PORTS.length);
   const colonyTargets = placeColonizationTargetsOnWorld({

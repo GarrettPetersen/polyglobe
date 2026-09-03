@@ -133,7 +133,7 @@ test("ranged combatants switch to an independently tuned melee attack up close",
   assert.ok(archerAttackTypes.includes("melee"));
 });
 
-test("culture-specific profiles give cavalry, samurai, and tribal spearmen distinct identities", () => {
+test("culture-specific profiles give cavalry, ronin, samurai, and tribal spearmen distinct identities", () => {
   const cavalier = portAssaultUnitStats(combatant(
     "cavalier",
     "swordsman",
@@ -143,10 +143,17 @@ test("culture-specific profiles give cavalry, samurai, and tribal spearmen disti
   ));
   const samurai = portAssaultUnitStats(combatant(
     "samurai",
-    "ronin",
+    "samurai",
     0,
     false,
     PORT_ASSAULT_PROFILE_ID.SAMURAI
+  ));
+  const ronin = portAssaultUnitStats(combatant(
+    "ronin",
+    "ronin",
+    0,
+    false,
+    PORT_ASSAULT_PROFILE_ID.RONIN
   ));
   const tribalSpearman = portAssaultUnitStats(combatant(
     "tribal",
@@ -159,6 +166,12 @@ test("culture-specific profiles give cavalry, samurai, and tribal spearmen disti
   assert.ok(cavalier.movementPerSecond > samurai.movementPerSecond);
   assert.ok(cavalier.attack > samurai.attack);
   assert.ok(cavalier.defense > samurai.defense);
+  assert.ok(samurai.attack > ronin.attack);
+  assert.ok(samurai.defense > ronin.defense);
+  assert.ok(samurai.hitPoints > ronin.hitPoints);
+  assert.ok(ronin.movementPerSecond > samurai.movementPerSecond);
+  assert.equal(ronin.armorCoverage, 0);
+  assert.ok(samurai.armorCoverage > ronin.armorCoverage);
   assert.ok(samurai.attack > tribalSpearman.attack);
   assert.ok(tribalSpearman.movementPerSecond > samurai.movementPerSecond);
   assert.ok(tribalSpearman.range > samurai.range);

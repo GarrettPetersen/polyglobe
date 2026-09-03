@@ -1,8 +1,3 @@
-import {
-  resolveBrowserViewportDimensions,
-  responsiveLogicalViewport
-} from "../src/responsiveViewport.js";
-import { canvasDisplayLayout } from "../src/displayScaling.js";
 import { requirePixelPerfectSpriteScale } from "../src/pixelPerfectSpriteScale.js";
 import { cityAssaultCameraTargetPosition } from "./cityAssaultCamera.js";
 import {
@@ -34,8 +29,7 @@ import {
   sceneCameraParallaxBounds,
   sceneEdgeScrollVelocity,
   sceneInertialPanTargetVelocity,
-  scenePanParallaxDelta,
-  sceneReasonRows
+  scenePanParallaxDelta
 } from "./citySceneRules.js";
 import {
   PIRATE_MENU_CHART_LINE,
@@ -43,7 +37,6 @@ import {
   PIRATE_MENU_PAPER,
   PIRATE_MENU_PAPER_SELECTED
 } from "../src/pirateUiPalette.js";
-import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import {
   BACKGROUND_CITY_BASE_LAYER,
   BACKGROUND_CITY_STREET_COLOR,
@@ -156,8 +149,6 @@ import {
   cityGatehouseFlagVisible
 } from "./cityGatehouseFlag.js";
 import {
-  CITY_WIND_DIRECTION_OPTIONS,
-  CITY_WIND_SPEED_OPTIONS,
   cityWindFromGeographicWind,
   cityWindForCity
 } from "./cityWind.js";
@@ -215,9 +206,6 @@ import {
 
 export async function createCitySceneRuntime({
   canvas,
-  stage = null,
-  loading = null,
-  controls = null,
   assetBaseUrl = "./assets",
   catalogUrl = "./data/cities.json",
   initialCityId = null,
@@ -240,6 +228,9 @@ if (typeof separateEmissiveOverlay !== "boolean") {
 for (const [label, callback] of Object.entries({ renderText, smallFontForText, titleFontForText })) {
   if (typeof callback !== "function") throw new TypeError(`City scene runtime requires ${label}`);
 }
+if (typeof onDestination !== "function") {
+  throw new TypeError("City scene runtime requires a destination callback");
+}
 const context = canvas.getContext("2d", { alpha: false });
 if (!context) throw new Error("City scene runtime could not create its 2D canvas context");
 const emissiveCanvas = separateEmissiveOverlay ? document.createElement("canvas") : null;
@@ -248,26 +239,6 @@ if (separateEmissiveOverlay && !emissiveContext) {
   throw new Error("City scene runtime could not create its emissive overlay context");
 }
 const pixelText = createCityPixelTextRenderer(context, () => document.createElement("canvas"));
-const inertControl = (value = "auto") => ({ value });
-const citySelect = controls?.citySelect || inertControl("");
-const viewportSelect = controls?.viewportSelect || inertControl("auto");
-const shipSelect = controls?.shipSelect || inertControl("");
-const approachOverride = controls?.approachOverride || inertControl();
-const leftBankCityOverride = controls?.leftBankCityOverride || inertControl();
-const dockOverride = controls?.dockOverride || inertControl();
-const fortOverride = controls?.fortOverride || inertControl();
-const mountainOverride = controls?.mountainOverride || inertControl();
-const leftTerrainOverride = controls?.leftTerrainOverride || inertControl();
-const rightTerrainOverride = controls?.rightTerrainOverride || inertControl();
-const windSpeedOverride = controls?.windSpeedOverride || inertControl();
-const windDirectionOverride = controls?.windDirectionOverride || inertControl();
-const bombardmentToggle = controls?.bombardmentToggle || null;
-const resetOverrides = controls?.resetOverrides || null;
-const ruleLedger = controls?.ruleLedger || null;
-const destinationDialog = controls?.destinationDialog || null;
-const destinationTitle = controls?.destinationTitle || null;
-const destinationCopy = controls?.destinationCopy || null;
-
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const imageCache = new Map();
 const frameCanvasCache = new WeakMap();
@@ -290,6 +261,7 @@ const BACKGROUND_CITY_UNDERLAY_LAYER_NAMES = new Set(
   Object.values(BACKGROUND_CITY_UNDERLAY_LAYERS)
 );
 const CITY_VISUALIZER_DEFAULT_CITY_ID = "london|united kingdom";
+const SUSPICIOUS_MERCHANT_HIT_PADDING_PX = 8;
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 let renderFrameId = null;
@@ -335,13 +307,12 @@ const state = {
   lastCloudTimeMs: null,
   city: null,
   features: null,
+  featureOverrides: Object.freeze({}),
   parallax: PORT_SCENE_CAMERA.defaultParallax,
   cameraVelocity: 0,
   cameraPanTarget: null,
   lastRenderTimeMs: null,
   pointer: null,
-  cameraGesture: null,
-  suppressClick: false,
   hoveredDestination: null,
   hoveredShipyardSaleShipId: null,
   focusedDestinationId: null,
@@ -379,52 +350,44 @@ const DESTINATIONS = Object.freeze([
   Object.freeze({
     id: PORT_CITY_LOCATION.SET_SAIL,
     label: "Set Sail",
-    layers: Object.freeze([]),
-    copy: "This leaves port."
+    layers: Object.freeze([])
   }),
   Object.freeze({
     id: PORT_CITY_LOCATION.SHIPYARD,
     label: "Shipyard",
-    layers: Object.freeze(["Shipyard"]),
-    copy: "This will open the existing shipyard modal: repairs, outfitting, and available hulls."
+    layers: Object.freeze(["Shipyard"])
   }),
   Object.freeze({
     id: PORT_CITY_LOCATION.MARKET,
     label: "Market",
     layers: Object.freeze(["Market Stall", "Market Stall Copy", "Market Stall Copy Copy"]),
-    requiredFeature: "market",
-    copy: "This will open the existing market modal for regional cargo and prices."
+    requiredFeature: "market"
   }),
   Object.freeze({
     id: PORT_CITY_LOCATION.EQUIPMENT,
     label: "Smith",
     layers: Object.freeze(["Smith"]),
-    requiredFeature: "store",
-    copy: "This will open the existing item-store modal for weapons, tools, and supplies."
+    requiredFeature: "store"
   }),
   Object.freeze({
     id: PORT_CITY_LOCATION.INN,
     label: "Inn",
-    layers: Object.freeze(["Inn", "Home 2"]),
-    copy: "This will open the existing inn flow for rumours, quests, and recruitable characters."
+    layers: Object.freeze(["Inn", "Home 2"])
   }),
   Object.freeze({
     id: PORT_CITY_LOCATION.AUTHORITY,
     label: "Port authority",
-    layers: Object.freeze(["Far Castle", "Gate", "Near Castle"]),
-    copy: "This will become the entry point for garrison business and the city-storming encounter."
+    layers: Object.freeze(["Far Castle", "Gate", "Near Castle"])
   }),
   Object.freeze({
     id: PORT_CITY_LOCATION.SHIP,
     label: "Your ship",
-    layers: Object.freeze([]),
-    copy: "This opens the ship menu."
+    layers: Object.freeze([])
   }),
   Object.freeze({
     id: PORT_CITY_LOCATION.ILLICIT_MERCHANT,
     label: "Suspicious merchant",
-    layers: Object.freeze([]),
-    copy: "This attempts to trade illicitly."
+    layers: Object.freeze([])
   })
 ]);
 
@@ -487,22 +450,15 @@ async function initialize() {
     }
     prepareScenePixelCaches();
     await preloadSharedCitySceneImages();
-    if (controls) prepareControls();
     await selectInitialCity();
-    if (!externalFrameClock) resizeLogicalCanvas();
-    else if (canvas.width <= 0 || canvas.height <= 0) {
-      throw new Error("Externally clocked city scene requires explicit canvas dimensions");
+    if (canvas.width <= 0 || canvas.height <= 0) {
+      throw new Error("City scene runtime requires explicit positive canvas dimensions");
     }
     state.ready = true;
-    if (loading) loading.hidden = true;
     if (CITY_VISUALIZER_BENCHMARK) setupCityVisualizerBenchmark();
     if (!externalFrameClock) scheduleRender();
   } catch (error) {
     console.error(error);
-    if (loading) {
-      loading.hidden = false;
-      loading.textContent = error instanceof Error ? error.message : String(error);
-    }
     throw error;
   }
 }
@@ -556,64 +512,6 @@ function prepareScenePixelCaches() {
   }
 }
 
-function prepareControls() {
-  citySelect.replaceChildren(...state.catalog.cities.map((city) => option(city.id, `${city.label} — ${city.country}`)));
-  shipSelect.replaceChildren(...cityVisualizerShipOptions(state.shipManifest.ships).map((ship) => (
-    option(ship.value, ship.label)
-  )));
-  setOptions(approachOverride, ["auto", "ocean", "river", "lake"]);
-  setOptions(leftBankCityOverride, ["auto", "on", "off"]);
-  setOptions(dockOverride, ["auto", "none", "wood", "stone"]);
-  setOptions(fortOverride, ["auto", "on", "off"]);
-  setOptions(mountainOverride, ["auto", "none", "left", "right", "both"]);
-  setOptions(leftTerrainOverride, ["auto", "grass", "forest", "desert", "rocky"]);
-  setOptions(rightTerrainOverride, ["auto", "grass", "forest", "desert", "rocky"]);
-  setLabeledOptions(windSpeedOverride, CITY_WIND_SPEED_OPTIONS);
-  setLabeledOptions(windDirectionOverride, CITY_WIND_DIRECTION_OPTIONS);
-
-  citySelect.addEventListener("change", () => {
-    void selectCity(citySelect.value).catch(reportVisualizerError);
-  });
-  viewportSelect.addEventListener("change", resizeLogicalCanvas);
-  shipSelect.addEventListener("change", () => {
-    void selectShip(shipSelect.value).catch(reportVisualizerError);
-  });
-  for (const control of [
-    approachOverride,
-    leftBankCityOverride,
-    dockOverride,
-    fortOverride,
-    mountainOverride,
-    leftTerrainOverride,
-    rightTerrainOverride
-  ]) control.addEventListener("change", applyFeatureOverrides);
-  for (const control of [windSpeedOverride, windDirectionOverride]) {
-    control.addEventListener("change", applyWindOverrides);
-  }
-  if (!bombardmentToggle) throw new Error("City visualizer is missing its bombardment toggle");
-  bombardmentToggle.addEventListener("change", () => {
-    setBombardmentEventId(bombardmentToggle.checked ? "visualizer-test-bombardment" : null);
-  });
-  resetOverrides.addEventListener("click", () => {
-    for (const control of [
-      approachOverride,
-      leftBankCityOverride,
-      dockOverride,
-      fortOverride,
-      mountainOverride,
-      leftTerrainOverride,
-      rightTerrainOverride
-    ]) control.value = "auto";
-    windSpeedOverride.value = "auto";
-    windDirectionOverride.value = "auto";
-    bombardmentToggle.checked = false;
-    state.bombardmentEventId = null;
-    bombardmentFrameCache.clear();
-    bombardmentOverlayFrameCache = null;
-    applyFeatureOverrides();
-  });
-}
-
 async function selectInitialCity() {
   const searchParams = externalFrameClock ? null : new URL(location.href).searchParams;
   const requested = initialCityId ?? (
@@ -644,7 +542,8 @@ async function selectCity(cityId, {
   shipyardConstruction = null,
   barred = false,
   illicitCaughtStartedAtMs = null,
-  bombardmentEventId = null
+  bombardmentEventId = null,
+  featureOverrides = Object.freeze({})
 } = {}) {
   const serial = ++citySelectionSerial;
   const city = resolveCityRecord(cityId, { factionId, label });
@@ -660,7 +559,8 @@ async function selectCity(cityId, {
   const prepared = await preloadCitySelection(city, {
     playerShipSlug,
     saleShipSlugs,
-    shipyardConstruction
+    shipyardConstruction,
+    featureOverrides
   });
   if (serial !== citySelectionSerial) return;
 
@@ -685,22 +585,9 @@ async function selectCity(cityId, {
   state.shipyardSaleShips = prepared.saleShips;
   state.shipyardSaleShipPlacements = cityShipyardSaleShipPlacements(prepared.saleShips);
   state.shipyardConstructionPlacement = prepared.shipyardConstructionPlacement;
-  citySelect.value = city.id;
-  shipSelect.value = prepared.ship.slug;
   canvas.setAttribute("aria-label", `${renderText(city.label)}, ${renderText(city.country)}`);
-  for (const control of [
-    approachOverride,
-    leftBankCityOverride,
-    dockOverride,
-    fortOverride,
-    mountainOverride,
-    leftTerrainOverride,
-    rightTerrainOverride
-  ]) control.value = "auto";
-  windSpeedOverride.value = "auto";
-  windDirectionOverride.value = "auto";
-  if (bombardmentToggle) bombardmentToggle.checked = bombardmentEventId !== null;
-  applyFeatureOverrides({ rebuild: false });
+  state.wind = cityWindForCity(state.city);
+  applyFeatureOverrides(featureOverrides, { rebuild: false });
   state.parallax = sceneCameraDefaultParallax(state.features.approach);
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
@@ -749,9 +636,10 @@ async function preloadCity(cityId, options = {}) {
 async function preloadCitySelection(city, {
   playerShipSlug = null,
   saleShipSlugs = null,
-  shipyardConstruction = null
+  shipyardConstruction = null,
+  featureOverrides = Object.freeze({})
 } = {}) {
-  const features = resolveCitySceneFeatures(city, {});
+  const features = resolveCitySceneFeatures(city, featureOverrides);
   const resolvedPlayerShipSlug = playerShipSlug ?? city.defaultShip;
   const resolvedSaleShipSlugs = saleShipSlugs === null
     ? cityShipyardSaleShipSlugs(city, features)
@@ -798,7 +686,7 @@ function validateBombardmentEventId(eventId) {
   }
 }
 
-function setBombardmentEventId(eventId) {
+function updateBombardmentEventId(eventId) {
   validateBombardmentEventId(eventId);
   if (state.bombardmentEventId === eventId) return;
   state.bombardmentEventId = eventId;
@@ -844,30 +732,13 @@ function preparedShipyardConstructionPlacement(construction) {
   );
 }
 
-function reportVisualizerError(error) {
-  console.error(error);
-  if (loading) {
-    loading.hidden = false;
-    loading.textContent = error instanceof Error ? error.message : String(error);
+function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
+  if (!overrides || typeof overrides !== "object" || Array.isArray(overrides)) {
+    throw new TypeError("City scene feature overrides must be an object");
   }
-}
-
-function applyFeatureOverrides({ rebuild = true } = {}) {
   bombardmentOverlayFrameCache = null;
-  const mountain = mountainOverride.value;
-  const overrides = {
-    approach: autoValue(approachOverride.value),
-    leftBankCity: leftBankCityOverride.value === "auto"
-      ? undefined
-      : leftBankCityOverride.value === "on",
-    dock: autoValue(dockOverride.value),
-    fortified: fortOverride.value === "auto" ? undefined : fortOverride.value === "on",
-    mountainsLeft: mountain === "auto" ? undefined : mountain === "left" || mountain === "both",
-    mountainsRight: mountain === "auto" ? undefined : mountain === "right" || mountain === "both",
-    leftTerrain: autoValue(leftTerrainOverride.value),
-    rightTerrain: autoValue(rightTerrainOverride.value)
-  };
-  state.features = resolveCitySceneFeatures(state.city, overrides);
+  state.featureOverrides = Object.freeze({ ...overrides });
+  state.features = resolveCitySceneFeatures(state.city, state.featureOverrides);
   state.npcAgents = createCityPeopleAgents({
     city: state.city,
     count: state.features.npcs,
@@ -950,17 +821,8 @@ function applyFeatureOverrides({ rebuild = true } = {}) {
   state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
-  applyWindOverrides();
-  if (rebuild) rebuildCitySceneRenderPlan();
-}
-
-function applyWindOverrides() {
-  state.wind = cityWindForCity(state.city, {
-    speed: windSpeedOverride.value,
-    direction: windDirectionOverride.value
-  });
-  updateRuleLedger();
   updateHover();
+  if (rebuild) rebuildCitySceneRenderPlan();
 }
 
 async function selectShip(shipSlug) {
@@ -975,7 +837,6 @@ async function selectShip(shipSlug) {
   state.shipSinkDepthImage = presentation.shipSinkDepthImage;
   state.shipWaterlineLayers = presentation.shipWaterlineLayers;
   state.shipWaterShadowImages = presentation.shipWaterShadowImages;
-  shipSelect.value = ship.slug;
   rebuildCitySceneRenderPlan();
   updateHover();
 }
@@ -1123,187 +984,6 @@ function cityShipyardConstructionImage(ship, progress) {
   return canvas;
 }
 
-function updateRuleLedger() {
-  if (!ruleLedger) return;
-  const rows = [...sceneReasonRows(state.city, state.features)];
-  if (state.wind) {
-    rows.push(Object.freeze({
-      label: "Wind",
-      value: `${state.wind.speedLabel}, ${state.wind.directionLabel}`,
-      reason: state.wind.automaticSpeed && state.wind.automaticDirection
-        ? "production game wind field at this city's coordinates"
-        : "visualizer weather override"
-    }));
-  }
-  ruleLedger.replaceChildren(...rows.flatMap((row) => {
-    const term = document.createElement("dt");
-    term.textContent = row.label;
-    const detail = document.createElement("dd");
-    detail.textContent = `${humanize(row.value)} — ${row.reason}`;
-    return [term, detail];
-  }));
-}
-
-function resizeLogicalCanvas() {
-  const browserViewport = window.visualViewport;
-  const dimensions = resolveBrowserViewportDimensions({
-    shellWidth: stage.clientWidth,
-    shellHeight: stage.clientHeight,
-    windowWidth: window.innerWidth,
-    windowHeight: window.innerHeight,
-    visualViewportWidth: browserViewport?.width,
-    visualViewportHeight: browserViewport?.height
-  });
-  if (!dimensions) return;
-  const { width: viewportWidth, height: viewportHeight } = dimensions;
-  const preset = viewportSelect.value;
-  const logical = preset === "auto"
-    ? responsiveLogicalViewport({
-        viewportWidth,
-        viewportHeight
-      })
-    : ({
-        canonical: { width: 455, height: 256 },
-        wide: { width: 910, height: 256 },
-        portrait: { width: 256, height: 455 },
-        tall: { width: 256, height: 910 }
-      })[preset];
-  if (!logical) return;
-  canvas.width = logical.width;
-  canvas.height = logical.height;
-  const layout = canvasDisplayLayout({
-    viewportWidth,
-    viewportHeight,
-    canvasWidth: logical.width,
-    canvasHeight: logical.height
-  });
-  canvas.style.left = `${layout.left}px`;
-  canvas.style.top = `${layout.top}px`;
-  canvas.style.width = `${layout.width}px`;
-  canvas.style.height = `${layout.height}px`;
-  context.imageSmoothingEnabled = false;
-  updateHover();
-}
-
-if (!externalFrameClock) {
-new ResizeObserver(() => {
-  resizeLogicalCanvas();
-}).observe(stage);
-window.visualViewport?.addEventListener("resize", resizeLogicalCanvas);
-
-canvas.addEventListener("pointermove", (event) => {
-  state.pointer = canvasPoint(event);
-  const gesture = state.cameraGesture;
-  if (gesture?.pointerId === event.pointerId) {
-    const movementX = event.clientX - gesture.lastClientX;
-    gesture.lastClientX = event.clientX;
-    gesture.totalX = event.clientX - gesture.startClientX;
-    if (!gesture.moved && Math.abs(gesture.totalX) >= 4) {
-      gesture.moved = true;
-      canvas.classList.add("is-panning");
-      panCameraByScreenPixels(-gesture.totalX);
-    } else if (gesture.moved && movementX !== 0) {
-      panCameraByScreenPixels(-movementX);
-    }
-  }
-  updateHover();
-});
-
-canvas.addEventListener("pointerdown", (event) => {
-  if (!event.isPrimary || event.button !== 0 || state.cameraGesture) return;
-  state.cameraVelocity = 0;
-  state.cameraPanTarget = null;
-  state.suppressClick = false;
-  state.cameraGesture = {
-    pointerId: event.pointerId,
-    pointerType: event.pointerType,
-    startClientX: event.clientX,
-    lastClientX: event.clientX,
-    totalX: 0,
-    moved: false
-  };
-  canvas.setPointerCapture(event.pointerId);
-});
-
-canvas.addEventListener("pointerup", finishCameraGesture);
-canvas.addEventListener("pointercancel", cancelCameraGesture);
-
-canvas.addEventListener("wheel", (event) => {
-  let screenDeltaX = event.deltaX;
-  if (screenDeltaX === 0 && event.shiftKey) screenDeltaX = event.deltaY;
-  if (screenDeltaX === 0 || (!event.shiftKey && Math.abs(screenDeltaX) < Math.abs(event.deltaY))) return;
-  if (event.deltaMode === 1) screenDeltaX *= 16;
-  else if (event.deltaMode === 2) screenDeltaX *= canvas.clientWidth;
-  event.preventDefault();
-  const maximumDelta = canvas.clientWidth * 0.25;
-  const boundedDelta = clamp(screenDeltaX, -maximumDelta, maximumDelta);
-  if (prefersReducedMotion.matches) panCameraByScreenPixels(boundedDelta);
-  else queueCameraPanByScreenPixels(boundedDelta);
-}, { passive: false });
-
-canvas.addEventListener("pointerleave", () => {
-  state.pointer = null;
-  state.hoveredDestination = null;
-  state.hoveredShipyardSaleShipId = null;
-  canvas.classList.remove("is-actionable");
-});
-
-canvas.addEventListener("click", () => {
-  if (state.suppressClick) {
-    state.suppressClick = false;
-    return;
-  }
-  const destination = state.hoveredDestination;
-  if (!destination) return;
-  if (onDestination) {
-    onDestination(Object.freeze({ id: destination.id, saleShipId: state.hoveredShipyardSaleShipId }));
-    return;
-  }
-  destinationTitle.textContent = destination.label;
-  destinationCopy.textContent = destination.copy;
-  destinationDialog.showModal();
-});
-}
-
-function finishCameraGesture(event) {
-  const gesture = state.cameraGesture;
-  if (!gesture || gesture.pointerId !== event.pointerId) return;
-  state.suppressClick = gesture.moved;
-  state.cameraGesture = null;
-  canvas.classList.remove("is-panning");
-  if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
-  state.pointer = gesture.pointerType === "mouse" ? canvasPoint(event) : null;
-  updateHover();
-}
-
-function cancelCameraGesture(event) {
-  if (state.cameraGesture?.pointerId !== event.pointerId) return;
-  state.cameraGesture = null;
-  state.suppressClick = false;
-  canvas.classList.remove("is-panning");
-  state.pointer = null;
-  updateHover();
-}
-
-function panCameraByScreenPixels(screenDeltaX) {
-  const delta = scenePanParallaxDelta({
-    screenDeltaX,
-    displayWidth: canvas.clientWidth,
-    logicalWidth: canvas.width,
-    approach: state.features?.approach || "ocean"
-  });
-  if (delta === 0) return;
-  const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
-  state.cameraVelocity = 0;
-  state.cameraPanTarget = null;
-  state.parallax = clamp(
-    state.parallax + delta,
-    cameraBounds.minimum,
-    cameraBounds.maximum
-  );
-  updateHover();
-}
-
 function panCameraByLogicalPixels(logicalDeltaX) {
   const delta = scenePanParallaxDelta({
     screenDeltaX: logicalDeltaX,
@@ -1317,23 +997,6 @@ function panCameraByLogicalPixels(logicalDeltaX) {
   state.cameraPanTarget = null;
   state.parallax = clamp(state.parallax + delta, cameraBounds.minimum, cameraBounds.maximum);
   updateHover();
-}
-
-function queueCameraPanByScreenPixels(screenDeltaX) {
-  const delta = scenePanParallaxDelta({
-    screenDeltaX,
-    displayWidth: canvas.clientWidth,
-    logicalWidth: canvas.width,
-    approach: state.features?.approach || "ocean"
-  });
-  if (delta === 0) return;
-  const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
-  const target = state.cameraPanTarget ?? state.parallax;
-  state.cameraPanTarget = clamp(
-    target + delta,
-    cameraBounds.minimum,
-    cameraBounds.maximum
-  );
 }
 
 function queueCameraPanByLogicalPixels(logicalDeltaX) {
@@ -1392,7 +1055,7 @@ function advanceCamera(timeMs) {
       ? cameraBounds.minimum
       : cameraBounds.maximum;
   }
-  if (prefersReducedMotion.matches || state.cameraGesture) {
+  if (prefersReducedMotion.matches) {
     state.cameraVelocity = 0;
   } else {
     const targetVelocity = state.cameraPanTarget === null
@@ -1735,7 +1398,7 @@ function staticSceneCacheKey(entries) {
 
 function cityStaticCacheIsUsable() {
   return cityStaticSceneCacheAllowed({
-    cameraGestureActive: Boolean(state.cameraGesture),
+    cameraGestureActive: false,
     panTarget: state.cameraPanTarget,
     velocity: state.cameraVelocity
   });
@@ -3829,15 +3492,30 @@ function drawNpc(agent, timeMs) {
   const frame = cityAnimationFrame(animation, time + agent.phase * 1000);
   const dx = Math.round(x + frame.spriteSourceSize.x - window.x);
   const dy = Math.round(feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
-  if (facingRight) {
-    context.drawImage(atlas, frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, dx, dy, frame.frame.w, frame.frame.h);
-  } else {
-    context.save();
-    context.translate(dx + frame.frame.w, 0);
-    context.scale(-1, 1);
-    context.drawImage(atlas, frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h, 0, dy, frame.frame.w, frame.frame.h);
-    context.restore();
+  const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
+  if (agent.interactive === true && highlightedDestination?.id === agent.destinationId) {
+    const mask = tintedFrameCanvas(atlas, frame);
+    for (const [offsetX, offsetY] of [
+      [-1, 0], [1, 0], [0, -1], [0, 1],
+      [-1, -1], [1, -1], [-1, 1], [1, 1]
+    ]) {
+      drawNpcFrame(mask, { x: 0, y: 0, w: mask.width, h: mask.height },
+        dx + offsetX, dy + offsetY, facingRight);
+    }
   }
+  drawNpcFrame(atlas, frame.frame, dx, dy, facingRight);
+}
+
+function drawNpcFrame(atlas, frame, dx, dy, facingRight) {
+  if (facingRight) {
+    context.drawImage(atlas, frame.x, frame.y, frame.w, frame.h, dx, dy, frame.w, frame.h);
+    return;
+  }
+  context.save();
+  context.translate(dx + frame.w, 0);
+  context.scale(-1, 1);
+  context.drawImage(atlas, frame.x, frame.y, frame.w, frame.h, 0, dy, frame.w, frame.h);
+  context.restore();
 }
 
 function drawPortAssaultPresentation(lane) {
@@ -4330,13 +4008,29 @@ function docksideShipContainsPoint(screenX, screenY) {
 
 function specialDestinationContainsPoint(destinationId, screenX, screenY) {
   const agent = state.specialAgents.find((candidate) => (
-    candidate.destinationId === destinationId
+    candidate.interactive === true && candidate.destinationId === destinationId
   ));
   if (!agent) return false;
+  if (destinationId !== PORT_CITY_LOCATION.ILLICIT_MERCHANT) {
+    throw new Error(`Unexpected clickable city NPC destination: ${destinationId}`);
+  }
+  const appearance = state.peopleById.get(agent.appearanceId);
+  if (!appearance) throw new Error(`Unknown clickable city person: ${agent.appearanceId}`);
+  const animation = appearance.animations[agent.animationId || "walk"];
+  if (!Array.isArray(animation) || animation.length === 0) {
+    throw new Error(`Clickable city person ${agent.appearanceId} has no animation`);
+  }
+  const sourceSize = animation[0].sourceSize;
+  if (!Number.isInteger(sourceSize?.w) || !Number.isInteger(sourceSize?.h)) {
+    throw new Error(`Clickable city person ${agent.appearanceId} has invalid source dimensions`);
+  }
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
   const x = agent.startX - window.x;
-  const y = agent.feetY - window.y;
-  return screenX >= x - 6 && screenX <= x + 6 && screenY >= y - 18 && screenY <= y + 2;
+  const y = agent.feetY - sourceSize.h - window.y;
+  return screenX >= x - SUSPICIOUS_MERCHANT_HIT_PADDING_PX &&
+    screenX <= x + sourceSize.w + SUSPICIOUS_MERCHANT_HIT_PADDING_PX &&
+    screenY >= y - SUSPICIOUS_MERCHANT_HIT_PADDING_PX &&
+    screenY <= y + sourceSize.h + SUSPICIOUS_MERCHANT_HIT_PADDING_PX;
 }
 
 function focusDestination(destinationId, { immediate = false } = {}) {
@@ -4387,7 +4081,7 @@ function destinationScreenAnchor(destination) {
   const agent = state.specialAgents.find(({ destinationId }) => (
     destinationId === destination.id
   ));
-  if (agent) {
+  if (agent?.interactive === true) {
     const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
     return { x: agent.startX - window.x, y: agent.feetY - window.y };
   }
@@ -4409,7 +4103,7 @@ function activateDestination(destinationId, saleShipId = null) {
   const destination = destinationById(destinationId);
   if (!destination) throw new Error(`City destination is unavailable: ${destinationId}`);
   const activation = Object.freeze({ id: destination.id, saleShipId });
-  if (onDestination) onDestination(activation);
+  onDestination(activation);
   return activation;
 }
 
@@ -4468,6 +4162,7 @@ function createSpecialPeopleAgents() {
         phase: 0,
         speed: 0,
         motion: "stationary",
+        interactive: false,
         animationId: "idle",
         facingRight: placement.facingRight
       }));
@@ -4505,6 +4200,7 @@ function createSpecialPeopleAgents() {
       phase: 0,
       speed: caught ? 0.0017 : 0,
       motion: caught ? "merchant-flee" : "stationary",
+      interactive: true,
       animationId: caught ? "walk" : "idle2",
       startedAtMs: caught ? state.illicitCaughtStartedAtMs : undefined,
       facingRight: false
@@ -4570,37 +4266,6 @@ function frameAlpha(frame, atlas = state.staticAtlas) {
   for (let index = 0; index < alpha.length; index++) alpha[index] = rgba[index * 4 + 3];
   atlasCache.set(frame, alpha);
   return alpha;
-}
-
-function canvasPoint(event) {
-  const rect = canvas.getBoundingClientRect();
-  return {
-    x: clamp((event.clientX - rect.left) / rect.width * canvas.width, 0, canvas.width),
-    y: clamp((event.clientY - rect.top) / rect.height * canvas.height, 0, canvas.height)
-  };
-}
-
-function option(value, label) {
-  const entry = document.createElement("option");
-  entry.value = value;
-  entry.textContent = label;
-  return entry;
-}
-
-function setOptions(select, values) {
-  select.replaceChildren(...values.map((value) => option(value, humanize(value))));
-}
-
-function setLabeledOptions(select, values) {
-  select.replaceChildren(...values.map(({ value, label }) => option(value, label)));
-}
-
-function autoValue(value) {
-  return value === "auto" ? undefined : value;
-}
-
-function humanize(value) {
-  return String(value).replace(/-/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function incrementOccurrence(map, layerName) {
@@ -4691,6 +4356,40 @@ return Object.freeze({
   },
   async preloadCity(cityId, options = {}) {
     await preloadCity(cityId, options);
+  },
+  async selectShip(shipSlug) {
+    await selectShip(shipSlug);
+  },
+  getCatalog() {
+    if (!state.catalog || !state.shipManifest) {
+      throw new Error("City scene catalog is not ready");
+    }
+    return Object.freeze({
+      cities: Object.freeze([...state.catalog.cities]),
+      ships: Object.freeze([...state.shipManifest.ships])
+    });
+  },
+  getPresentationState() {
+    if (!state.city || !state.features || !state.wind || !state.shipSlug) {
+      throw new Error("City scene presentation state is not ready");
+    }
+    return Object.freeze({
+      city: state.city,
+      features: state.features,
+      wind: state.wind,
+      shipSlug: state.shipSlug,
+      bombardmentEventId: state.bombardmentEventId
+    });
+  },
+  setFeatureOverrides(overrides) {
+    applyFeatureOverrides(overrides);
+  },
+  setPreviewWind({ speed = "auto", direction = "auto" } = {}) {
+    state.wind = cityWindForCity(state.city, { speed, direction });
+    updateHover();
+  },
+  setBombardmentEventId(eventId) {
+    updateBombardmentEventId(eventId);
   },
   getDestinationIds() {
     return Object.freeze(activeDestinations().map(({ id }) => id));

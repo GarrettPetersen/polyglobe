@@ -112,6 +112,7 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
       pool("gatherer-light-red", 3),
       pool("old-man-light", 1),
       pool("old-woman-light", 1),
+      pool("japanese-ronin", 1),
       pool("mariner-light-black-hair", 1)
     ],
     garrison: [
@@ -220,7 +221,7 @@ export const CITY_POPULATION_PROFILES = Object.freeze([
 const ARCHETYPE_BY_ID = new Map(CITY_PERSON_ARCHETYPES.map((entry) => [entry.id, entry]));
 const APPEARANCE_BY_ID = new Map(CITY_PERSON_APPEARANCES.map((entry) => [entry.id, entry]));
 const PROFILE_BY_ID = new Map(CITY_POPULATION_PROFILES.map((entry) => [entry.id, entry]));
-const RECRUITABLE_AMBIENT_ARCHETYPE_IDS = new Set(["mariner", "gunner", "hunter"]);
+const RECRUITABLE_AMBIENT_ARCHETYPE_IDS = new Set(["mariner", "gunner", "hunter", "ronin"]);
 const NON_RECRUITABLE_GARRISON_ARCHETYPE_IDS = new Set(["cavalier", "horseman", "horse-samurai"]);
 const CREW_TYPE_BY_ARCHETYPE_ID = Object.freeze({
   archer: "archer",
@@ -230,12 +231,13 @@ const CREW_TYPE_BY_ARCHETYPE_ID = Object.freeze({
   hunter: "hunter",
   cavalier: "swordsman",
   horseman: "swordsman",
-  "horse-samurai": "ronin",
+  "horse-samurai": "samurai",
   "islamicate-warrior": "shieldman",
   mariner: "sailor",
   "ming-crossbowman": "crossbowman",
   "ming-swordsman": "swordsman",
-  samurai: "ronin",
+  ronin: "ronin",
+  samurai: "samurai",
   shieldman: "shieldman",
   spearman: "spearman",
   swordsman: "swordsman",
@@ -257,6 +259,7 @@ const COMBAT_PROFILE_BY_ARCHETYPE_ID = Object.freeze({
   mariner: PORT_ASSAULT_PROFILE_ID.SAILOR,
   "ming-crossbowman": PORT_ASSAULT_PROFILE_ID.MING_CROSSBOWMAN,
   "ming-swordsman": PORT_ASSAULT_PROFILE_ID.MING_SWORDSMAN,
+  ronin: PORT_ASSAULT_PROFILE_ID.RONIN,
   samurai: PORT_ASSAULT_PROFILE_ID.SAMURAI,
   shieldman: PORT_ASSAULT_PROFILE_ID.SHIELDMAN,
   spearman: PORT_ASSAULT_PROFILE_ID.SPEARMAN,

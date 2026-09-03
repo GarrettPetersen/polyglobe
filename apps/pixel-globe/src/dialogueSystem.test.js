@@ -1162,7 +1162,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   assert.ok(sell.options.every((option) => option.action.goodId !== FRESH_WATER_GOOD_ID));
   assert.equal(sell.feedbackLineReserve, 2);
   assert.equal(sell.optionHeight, 30);
-  assert.equal(sell.options.at(-2).label, "Back");
+  assert.equal(sell.options.at(-2).label, "Back to city");
   assert.equal(sell.options.at(-2).placement, "port-exit");
   assert.equal(sell.options.at(-1).label, "Undo all trades");
   assert.equal(sell.options.at(-1).placement, "port-exit");
@@ -1183,7 +1183,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     "Buy",
     "Sell",
     "No cargo to sell",
-    "Back",
+    "Back to city",
     "Undo all trades"
   ]);
 });
@@ -1833,7 +1833,7 @@ test("market capacity explains provision space reserved by the selected loadout"
   assert.match(blockedPurchase.disabledReason, /^Needs \d+ cargo spaces; 0 free after loadout\.$/);
 });
 
-test("port menus pin Back and Leave Port after their ordinary actions", () => {
+test("port menus pin Back to city and Leave Port after their ordinary actions", () => {
   const city = {
     tileId: 106,
     cityId: "lisbon|portugal",
@@ -1853,12 +1853,15 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
   for (const nodeId of ["market", "equipment", "equipment-nets", "equipment-cannons", "cargo", "loadout"]) {
     const session = createPortDialogueSession(city, { initialNodeId: nodeId });
     const view = portDialogueView(session, city, gameState, economy, [city], context);
-    const back = view.options.find((entry) => entry.label === "Back");
-    assert.equal(back?.placement, "port-exit", `${nodeId} should mark Back for the footer`);
+    const expectedBackLabel = ["equipment-nets", "equipment-cannons"].includes(nodeId)
+      ? "Back"
+      : "Back to city";
+    const back = view.options.find((entry) => entry.label === expectedBackLabel);
+    assert.equal(back?.placement, "port-exit", `${nodeId} should mark its back action for the footer`);
     assert.equal(
       view.options[dialogueBackOptionIndex(view)]?.label,
-      "Back",
-      `${nodeId} back navigation should activate its declared Back action`
+      expectedBackLabel,
+      `${nodeId} back navigation should activate its declared action`
     );
     const firstExitIndex = view.options.findIndex((entry) => entry.placement === "port-exit");
     assert.ok(
@@ -1878,7 +1881,7 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
     entry.action.type === "buy" || entry.action.type === "buy-max"
   )));
   assert.deepEqual(buy.options.slice(-2).map((entry) => entry.label), [
-    "Back",
+    "Back to city",
     "Undo all trades"
   ]);
   assert.equal(buy.optionColumns, 2);
@@ -3362,7 +3365,7 @@ test("trade advice praises the current port when its cargo price leads the local
   assert.equal(result.tradeTip.destinationName, "Istanbul");
   const advice = portDialogueView(session, istanbul, gameState, economy, ports);
   assert.equal(advice.text, "You won't find a better price for Fish around this area.");
-  assert.deepEqual(advice.options.map((entry) => entry.label), ["Continue"]);
+  assert.deepEqual(advice.options.map((entry) => entry.label), ["Back to city"]);
 
   istanbulFish.stock = istanbulFish.targetStock * 100;
   mudanyaFish.stock = 0;
@@ -3959,7 +3962,7 @@ test("the banquet chef accepts ingredients across separate visits", () => {
   session.nextPortNodeId = "root";
   recruitChef(gameState, city);
   const recruitedView = portDialogueView(session, city, gameState, economy, [city]);
-  assert.deepEqual(recruitedView.options.map((entry) => entry.label), ["Continue"]);
+  assert.deepEqual(recruitedView.options.map((entry) => entry.label), ["Back to city"]);
 });
 
 test("enemy port guards bar resupply and offer one risky disguise route", () => {
@@ -4083,7 +4086,7 @@ test("a friendly foreign port warns before a piratical city attack", () => {
   const warning = portDialogueView(session, city, gameState, economy, [city], context);
   assert.match(warning.text, /attacking Lisbon is piracy/i);
   assert.match(warning.text, /plunder the city/i);
-  assert.deepEqual(warning.options.map((entry) => entry.label), ["Attack city anyway", "Back"]);
+  assert.deepEqual(warning.options.map((entry) => entry.label), ["Attack city anyway", "Back to city"]);
   assert.deepEqual(
     selectPortDialogueOption(session, city, gameState, economy, [city], 0, context),
     { closed: false, action: { type: "attack-city" } }
@@ -4120,7 +4123,7 @@ test("formal war permits a lawful port raid but grants no right of conquest", ()
   assert.match(warning.text, /carry off lawful spoil/i);
   assert.match(warning.text, /ruler's express commission/i);
   assert.doesNotMatch(warning.text, /taken for England/i);
-  assert.deepEqual(warning.options.map((entry) => entry.label), ["Attack city", "Back"]);
+  assert.deepEqual(warning.options.map((entry) => entry.label), ["Attack city", "Back to city"]);
 });
 
 test("a port attack button identifies the letter of marque that makes it legal", () => {
@@ -5069,12 +5072,12 @@ test("a rumor queued before an active delivery cannot trap Back in a quest self-
   assert.equal(session.nextPortNodeId, null);
   const warning = portDialogueView(session, istanbul, gameState, economy, ports);
   assert.match(warning.text, /Do not let it vanish into another captain's hold/);
-  const backIndex = warning.options.findIndex((entry) => entry.label === "Back");
+  const backIndex = warning.options.findIndex((entry) => entry.label === "Back to city");
   selectPortDialogueOption(session, istanbul, gameState, economy, ports, backIndex);
   assert.equal(session.nodeId, "root");
 });
 
-test("no-work Back returns to the city menu after an arrival continuation", () => {
+test("no-work Back to city returns to the city after an arrival continuation", () => {
   const city = {
     tileId: 25,
     cityId: "faro|portugal",
@@ -5109,7 +5112,7 @@ test("no-work Back returns to the city menu after an arrival continuation", () =
 
   const unavailable = portDialogueView(session, city, gameState, economy, ports);
   assert.match(unavailable.text, /No sealed packets/);
-  const backIndex = unavailable.options.findIndex((entry) => entry.label === "Back");
+  const backIndex = unavailable.options.findIndex((entry) => entry.label === "Back to city");
   selectPortDialogueOption(session, city, gameState, economy, ports, backIndex);
   assert.equal(session.nodeId, "root");
 });
@@ -5649,7 +5652,7 @@ test("a returning shipyard investor is invited to inspect the yard after receivi
     simMinute: 100
   });
   assert.match(review.text, /inspect the yard/);
-  assert.deepEqual(review.options.map(({ label }) => label), ["Inspect the shipyard", "Not now"]);
+  assert.deepEqual(review.options.map(({ label }) => label), ["Inspect the shipyard", "Back to city"]);
   assert.equal(review.options[0].action.nodeId, "shipyard");
   assert.equal(review.options[1].action.nodeId, "root");
 
@@ -6072,7 +6075,7 @@ test("a completed ship sale gets a named historical handover before returning to
   assert.equal(handover.expressionId, "pleased");
   assert.match(handover.text, /^The Galleon is yours for 90000 doubloons after trade-in\./);
   assert.match(handover.text, /sixteenth-century development of the carrack/);
-  assert.deepEqual(handover.options.map((entry) => entry.label), ["Continue"]);
+  assert.deepEqual(handover.options.map((entry) => entry.label), ["Back to city"]);
   assert.doesNotMatch(handover.text, /rumou?r|for sale at/i);
 
   assert.deepEqual(

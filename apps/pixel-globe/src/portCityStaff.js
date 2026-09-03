@@ -1,4 +1,5 @@
 import { PORT_CITY_STAFF_ROLE, PORT_CITY_STAFF_ROLES } from "./characterPortraits.js";
+import { requireCityId } from "./entityIds.js";
 import { PORT_CITY_LOCATION } from "./portCityNavigation.js";
 
 const HARBOUR_MASTER_NODES = new Set([
@@ -77,8 +78,17 @@ const STAFF_ROLE_BY_LOCATION = Object.freeze({
 });
 
 export function portCityStaffRoleForDialogueSession(session) {
-  if (!session || session.kind !== "port") {
-    throw new Error("Port staff selection requires a port dialogue session");
+  if (!session || typeof session.kind !== "string" || session.kind === "") {
+    throw new Error("Port staff selection requires a dialogue session kind");
+  }
+  if (session.kind === "passenger" || session.kind === "shore-battery") {
+    return PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER;
+  }
+  if (session.kind === "campaign-goal" || session.kind === "rescued-traveler") {
+    return PORT_CITY_STAFF_ROLE.HARBOUR_MASTER;
+  }
+  if (session.kind !== "port") {
+    throw new Error(`City dialogue session has no staff role: ${session.kind}`);
   }
   if (typeof session.nodeId !== "string" || session.nodeId === "") {
     throw new Error("Port staff selection requires a dialogue node");
@@ -114,6 +124,29 @@ export function requirePortCityStaffMember(staffByCityId, cityId, role) {
     throw new Error(`Port ${cityId} has no ${role}`);
   }
   return character;
+}
+
+export function harbourMasterForPlacedCity(staffByCityId, dockablePortsByTileId, city) {
+  if (!(dockablePortsByTileId instanceof Map)) {
+    throw new Error("Placed-city staff selection requires the dockable port index");
+  }
+  if (!Number.isInteger(city?.tileId) || city.tileId < 0) {
+    throw new Error("Placed-city staff selection requires a valid tile ID");
+  }
+  const cityId = requireCityId(city, "Placed city staff selection");
+  const dockablePort = dockablePortsByTileId.get(city.tileId);
+  if (!dockablePort) return null;
+  const dockablePortId = requireCityId(dockablePort, "Dockable port staff selection");
+  if (dockablePortId !== cityId) {
+    throw new Error(
+      `Dockable port tile ${city.tileId} belongs to ${dockablePortId}, not ${cityId}`
+    );
+  }
+  return requirePortCityStaffMember(
+    staffByCityId,
+    cityId,
+    PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
+  );
 }
 
 export function portCityStaffMembers(staffByCityId, cityId) {

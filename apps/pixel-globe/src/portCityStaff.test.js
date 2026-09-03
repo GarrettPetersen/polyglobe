@@ -4,6 +4,7 @@ import test from "node:test";
 import { PORT_CITY_STAFF_ROLE } from "./characterPortraits.js";
 import { PORT_CITY_LOCATION } from "./portCityNavigation.js";
 import {
+  harbourMasterForPlacedCity,
   portCityStaffMembers,
   portCityStaffRoleForDialogueSession,
   requirePortCityStaffMember
@@ -23,6 +24,29 @@ test("port dialogue routes each service to its owning staff member", () => {
   assert.equal(roleForNode("marque"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
   assert.equal(roleForNode("garrison"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
   assert.equal(roleForNode("city-attack"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
+});
+
+test("city conversations route arrivals to the harbour master and officials to the commander", () => {
+  assert.equal(
+    portCityStaffRoleForDialogueSession({ kind: "campaign-goal" }),
+    PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
+  );
+  assert.equal(
+    portCityStaffRoleForDialogueSession({ kind: "rescued-traveler" }),
+    PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
+  );
+  assert.equal(
+    portCityStaffRoleForDialogueSession({ kind: "passenger" }),
+    PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER
+  );
+  assert.equal(
+    portCityStaffRoleForDialogueSession({ kind: "shore-battery" }),
+    PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER
+  );
+  assert.throws(
+    () => portCityStaffRoleForDialogueSession({ kind: "unknown" }),
+    /City dialogue session has no staff role: unknown/
+  );
 });
 
 test("port submenus inherit the staff member for their city location", () => {
@@ -91,5 +115,43 @@ test("port staff lookup rejects incomplete rosters and unmapped dialogue nodes",
   assert.throws(
     () => portCityStaffRoleForDialogueSession({ kind: "port", nodeId: "unknown" }),
     /has no staff role/
+  );
+});
+
+test("placed inland cities do not require port staff while dockable cities do", () => {
+  const reims = { cityId: "reims|france", tileId: 17 };
+  const rouen = { cityId: "rouen|france", tileId: 18 };
+  const harbourMaster = {
+    id: "rouen-harbour-master",
+    role: PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
+  };
+  const staffByCityId = new Map([[rouen.cityId, {
+    [PORT_CITY_STAFF_ROLE.HARBOUR_MASTER]: harbourMaster
+  }]]);
+  const dockablePortsByTileId = new Map([[rouen.tileId, rouen]]);
+
+  assert.equal(
+    harbourMasterForPlacedCity(staffByCityId, dockablePortsByTileId, reims),
+    null
+  );
+  assert.equal(
+    harbourMasterForPlacedCity(staffByCityId, dockablePortsByTileId, rouen),
+    harbourMaster
+  );
+  assert.throws(
+    () => harbourMasterForPlacedCity(
+      new Map(),
+      dockablePortsByTileId,
+      rouen
+    ),
+    /Port has no staff roster: rouen\|france/
+  );
+  assert.throws(
+    () => harbourMasterForPlacedCity(
+      staffByCityId,
+      new Map([[rouen.tileId, { cityId: "honfleur|france", tileId: rouen.tileId }]]),
+      rouen
+    ),
+    /belongs to honfleur\|france, not rouen\|france/
   );
 });

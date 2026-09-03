@@ -1686,7 +1686,7 @@ export function portDialogueView(session, city, gameState, economy, portCities, 
 
   const view = portDialogueNodeView(session, city, gameState, economy, portCities, context);
   validateDialogueDecision(view, session.nodeId);
-  return withPortExitFooter(view);
+  return withPortExitFooter(view, session);
 }
 
 export function portCityNavigationView(session, city, gameState, economy, portCities, context = {}) {
@@ -1969,16 +1969,23 @@ function repeatDrunkFactorLine(session, drunkArrivals) {
   return line(drunkArrivals);
 }
 
-function withPortExitFooter(view) {
+function withPortExitFooter(view, session) {
   const regularOptions = [];
   const exitOptions = [];
   for (const entry of view.options) {
+    const returnsToCity = (
+      (entry.action.type === "node" || entry.action.type === "leave-market") &&
+      entry.action.nodeId === "root"
+    );
     const isExit = entry.placement === "port-exit" || entry.label === "Back" ||
       entry.action.type === "close" ||
-      (entry.action.type === "node" && entry.action.nodeId === "root");
+      returnsToCity;
+    const normalizedEntry = returnsToCity && session.nodeId !== "greeting"
+      ? { ...entry, label: "Back to city" }
+      : entry;
     (isExit ? exitOptions : regularOptions).push(isExit
-      ? { ...entry, placement: "port-exit" }
-      : entry);
+      ? { ...normalizedEntry, placement: "port-exit" }
+      : normalizedEntry);
   }
   if (exitOptions.length > 2) {
     throw new Error(`Port dialogue footer supports at most two exit actions, received ${exitOptions.length}`);

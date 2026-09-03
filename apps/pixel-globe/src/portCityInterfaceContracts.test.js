@@ -30,6 +30,14 @@ test("city wipes stay on the renderer clock during deterministic capture", () =>
   assert.doesNotMatch(deactivation, /performance\.now/);
 });
 
+test("city wipes require the selected city's projected map coordinates", () => {
+  const center = functionSource("portCityTransitionCenter", "capturePresentedFrame");
+  assert.match(center, /requireCityId\(cityCall, "Port city transition"\)/);
+  assert.match(center, /requires projected coordinates/);
+  assert.match(center, /produced invalid screen coordinates/);
+  assert.doesNotMatch(center, /SCREEN_W \/ 2|SCREEN_H \/ 2/);
+});
+
 test("city Escape activates Set Sail and the normal captain menu remains available", () => {
   const keys = functionSource("handlePortCityKeyDown", "beginPortCityPointer");
   assert.match(keys, /keyAction === KEY_ACTION\.CAPTAIN_MENU[\s\S]*openCaptainMenu\(\)/);

@@ -372,6 +372,7 @@ import {
   reconcileCharacterPortraitMetadata
 } from "./characterPortraits.js";
 import {
+  harbourMasterForPlacedCity,
   portCityStaffMembers,
   portCityStaffRoleForDialogueSession,
   requirePortCityStaffMember
@@ -20478,10 +20479,16 @@ function portCityRootPresentationIsOwned() {
 }
 
 function portCityTransitionCenter(cityCall) {
-  if (!chart || !localLayout || !Number.isFinite(cityCall?.spriteX) || !Number.isFinite(cityCall?.spriteY)) {
-    return Object.freeze({ x: SCREEN_W / 2, y: SCREEN_H / 2 });
+  if (!chart) throw new Error("Port city transition requires an active chart");
+  if (!localLayout) throw new Error("Port city transition requires an active local layout");
+  requireCityId(cityCall, "Port city transition");
+  if (!Number.isFinite(cityCall.spriteX) || !Number.isFinite(cityCall.spriteY)) {
+    throw new Error(`Port city transition requires projected coordinates: ${cityCall.cityId}`);
   }
   const rect = cityScreenRect(cityCall, chartOffsetPixels(chart));
+  if (![rect.x, rect.y, rect.w, rect.h].every(Number.isFinite)) {
+    throw new Error(`Port city transition produced invalid screen coordinates: ${cityCall.cityId}`);
+  }
   return Object.freeze({ x: rect.x + rect.w / 2, y: rect.y + rect.h / 2 });
 }
 
@@ -26087,7 +26094,7 @@ function currentColonizationDialogueCharacter(city) {
   return ensureColonizationOrganizer(gameState);
 }
 
-function currentPortStaffCharacter(city) {
+function currentCityStaffCharacter(city) {
   const role = portCityStaffRoleForDialogueSession(dialogueState);
   return requirePortCityStaffMember(portCityStaffByCityId, city.cityId, role);
 }
@@ -26153,7 +26160,7 @@ function currentDialogueCity() {
       }
       if (dialogueState.nodeId !== "colonization") {
         if (portCall.isPirateHideout) return portCall;
-        const character = currentPortStaffCharacter(portCall);
+        const character = currentCityStaffCharacter(portCall);
         return {
           ...portCall,
           character,
@@ -26197,7 +26204,7 @@ function currentDialogueCity() {
         : null;
   const character = questCharacter || (city.isPirateHideout
     ? pirateHideoutCharacters.get(city.cityId)
-    : currentPortStaffCharacter(city));
+    : currentCityStaffCharacter(city));
   if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
   return {
     ...city,
@@ -26716,7 +26723,7 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
     const portCounterpart = speakerCharacter.id === captain?.id
       ? dialogueCity.isPirateHideout
         ? pirateHideoutCharacters.get(dialogueCity.cityId)
-        : currentPortStaffCharacter(dialogueCity)
+        : currentCityStaffCharacter(dialogueCity)
       : speakerCharacter;
     if (!portCounterpart) throw new Error(`Port dialogue has no counterpart: ${dialogueState.cityId}`);
     return dialoguePortraitPair(
@@ -43847,9 +43854,7 @@ function makeCityCall(city, tileCall, activeChart) {
   const labelH = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
   const character = city.isPirateHideout
     ? pirateHideoutCharacters.get(city.cityId) || null
-    : portCityStaffByCityId
-      ? portCityStaffMember(city, PORT_CITY_STAFF_ROLE.HARBOUR_MASTER)
-      : null;
+    : harbourMasterForPlacedCity(portCityStaffByCityId, portCitiesByTileId, city);
   return {
     ...city,
     portId: city.cityId,

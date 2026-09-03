@@ -214,14 +214,22 @@ test("every port recruits only attack-capable foot silhouettes from its own popu
   }
   const japanese = cityRecruitableCrewAppearances(city("yamaguchi|japan"));
   assert.ok(japanese.some(({ appearanceId, crewTypeId }) => (
-    appearanceId === "japanese-samurai" && crewTypeId === "ronin"
+    appearanceId === "japanese-ronin" && crewTypeId === "ronin"
   )));
+  assert.ok(japanese.some(({ appearanceId, crewTypeId }) => (
+    appearanceId === "japanese-samurai" && crewTypeId === "samurai"
+  )));
+  assert.notEqual(
+    cityCombatProfileForAppearance("japanese-ronin"),
+    cityCombatProfileForAppearance("japanese-samurai")
+  );
   assert.ok(japanese.every(({ appearanceId }) => appearanceId !== "japanese-horse-samurai"));
 });
 
 test("combat profiles preserve culture-specific and mounted unit identities", () => {
   assert.equal(cityCombatProfileForAppearance("cavalier-covered"), "cavalier");
   assert.equal(cityCombatProfileForAppearance("japanese-horse-samurai"), "horse-samurai");
+  assert.equal(cityCombatProfileForAppearance("japanese-ronin"), "ronin");
   assert.equal(cityCombatProfileForAppearance("japanese-samurai"), "samurai");
   assert.equal(cityCombatProfileForAppearance("japanese-yari-ashigaru"), "yari-ashigaru");
   assert.equal(cityCombatProfileForAppearance("wrapped-cloth-man-dark-indigo"), "tribal-spearman");
@@ -250,8 +258,7 @@ test("the production archetype catalog excludes prohibited and named-character s
     "Prince",
     "Queen",
     "Princess",
-    "Ninja",
-    "Ronin"
+    "Ninja"
   ]) {
     assert.doesNotMatch(sources, new RegExp(forbidden));
   }

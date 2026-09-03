@@ -30,6 +30,7 @@ export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
   MING_CROSSBOWMAN: "ming-crossbowman",
   MING_SWORDSMAN: "ming-swordsman",
   HORSE_SAMURAI: "horse-samurai",
+  RONIN: "ronin",
   SAMURAI: "samurai",
   TEPPO_ASHIGARU: "teppo-ashigaru",
   TRIBAL_SPEARMAN: "tribal-spearman",
@@ -169,6 +170,11 @@ const UNIT_TYPES = Object.freeze({
     movementPerSecond: 0.075, armorCoverage: 0.68, armorPenetration: 0.25,
     mounted: true, knockbackMultiplier: 1.35,
     chargeDamageMultiplier: 1.4, chargeKnockbackMultiplier: 3
+  }),
+  [PORT_ASSAULT_PROFILE_ID.RONIN]: unitType({
+    attack: 13, defense: 6, hitPoints: 33, range: 0.029, cooldownMs: 900,
+    movementPerSecond: 0.05, armorCoverage: 0, armorPenetration: 0.24,
+    knockbackMultiplier: 1.2
   }),
   [PORT_ASSAULT_PROFILE_ID.SAMURAI]: unitType({
     attack: 14, defense: 8, hitPoints: 40, range: 0.03, cooldownMs: 950,

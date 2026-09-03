@@ -12,6 +12,7 @@ import {
 } from "./economy.js";
 import {
   FRESH_WATER_CAPACITY,
+  GAME_STATE_VERSION,
   RAIN_WATER_COLLECTION_PER_CONSUMER_DAY,
   SURVIVAL_DEHYDRATION_INTERVAL_MINUTES,
   SURVIVAL_STARVATION_INTERVAL_MINUTES,
@@ -350,6 +351,30 @@ test("version 95 crew migration preserves each sailor while adding origin traits
   assert.ok(migrated.crewRoster.every((member) => member.nameCulture === "maritime"));
   assert.ok(migrated.crewRoster.every((member) => member.religionId === "roman-catholic"));
   assert.ok(migrated.crewRoster.every((member) => member.nationalityId === "neutral"));
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 96 saves separate armoured samurai from the new unarmoured ronin type", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const saved = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(saved, stats);
+  setTestCrewCount(saved, 2);
+  saved.version = 96;
+  const original = saved.crewRoster[0];
+  saved.crewRoster[0] = {
+    ...original,
+    appearanceId: "japanese-samurai",
+    crewTypeId: "ronin"
+  };
+
+  const migrated = migrateGameState(saved, stats);
+
+  assert.equal(migrated.version, GAME_STATE_VERSION);
+  assert.equal(migrated.crewRoster[0].id, original.id);
+  assert.equal(migrated.crewRoster[0].name, original.name);
+  assert.equal(migrated.crewRoster[0].sailingMinutes, original.sailingMinutes);
+  assert.equal(migrated.crewRoster[0].appearanceId, "japanese-samurai");
+  assert.equal(migrated.crewRoster[0].crewTypeId, "samurai");
   assert.equal(validateGameState(migrated), migrated);
 });
 

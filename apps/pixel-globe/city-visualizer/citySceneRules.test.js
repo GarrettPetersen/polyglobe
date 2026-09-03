@@ -62,6 +62,7 @@ const SHIP_MANIFEST = JSON.parse(readFileSync(new URL(
   import.meta.url
 ), "utf8"));
 const VISUALIZER_MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+const VISUALIZER_BOOTSTRAP_SOURCE = readFileSync(new URL("./bootstrap.js", import.meta.url), "utf8");
 const VISUALIZER_STYLES_SOURCE = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 const VISUALIZER_HTML_SOURCE = readFileSync(new URL("./index.html", import.meta.url), "utf8");
 const CITY_VISUALIZER_CATALOG = JSON.parse(readFileSync(new URL("./data/cities.json", import.meta.url), "utf8"));
@@ -146,6 +147,36 @@ test("regional hover outlines and hit masks use the displayed building silhouett
     VISUALIZER_MAIN_SOURCE,
     /layerVisibleSourceRect\(layerName, sourceFrame\.frame\.w, sourceFrame\.frame\.h\)/
   );
+});
+
+test("only the suspicious merchant is a directly clickable NPC with a padded outlined target", () => {
+  assert.match(VISUALIZER_MAIN_SOURCE, /const SUSPICIOUS_MERCHANT_HIT_PADDING_PX = 8/);
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /candidate\.interactive === true && candidate\.destinationId === destinationId/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /destinationId !== PORT_CITY_LOCATION\.ILLICIT_MERCHANT[\s\S]*Unexpected clickable city NPC destination/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /id: `\$\{state\.city\.id\}:suspicious-merchant`[\s\S]*?interactive: true/
+  );
+  assert.match(VISUALIZER_MAIN_SOURCE, /motion: "stationary",\n\s*interactive: false/);
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /agent\.interactive === true[\s\S]*tintedFrameCanvas\(atlas, frame\)[\s\S]*drawNpcFrame\(mask/
+  );
+  assert.match(VISUALIZER_MAIN_SOURCE, /maskContext\.fillStyle = "#ffe55c"/);
+});
+
+test("standalone visualizer controls and destination copy stay outside the production scene runtime", () => {
+  assert.doesNotMatch(VISUALIZER_MAIN_SOURCE, /#city-select|destinationDialog|ResizeObserver|This will open/);
+  assert.match(VISUALIZER_BOOTSTRAP_SOURCE, /#city-select/);
+  assert.match(VISUALIZER_BOOTSTRAP_SOURCE, /destinationDialog\.showModal\(\)/);
+  assert.match(VISUALIZER_BOOTSTRAP_SOURCE, /new ResizeObserver\(resizeLogicalCanvas\)/);
+  assert.doesNotMatch(VISUALIZER_BOOTSTRAP_SOURCE, /This will open/);
 });
 
 test("the shipyard highlight excludes inert dock layers and the player ship owns a yellow outline", () => {
