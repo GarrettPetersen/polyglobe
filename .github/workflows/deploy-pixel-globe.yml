@@ -42,13 +42,13 @@ jobs:
             apps/pixel-globe/package-lock.json
 
       - name: Install repository dependencies
-        run: npm ci
+        run: npm ci --no-audit --no-fund
 
       - name: Install globe build dependencies
-        run: npm ci --prefix examples/globe-demo
+        run: npm ci --prefix examples/globe-demo --no-audit --no-fund
 
       - name: Install deployment tooling
-        run: npm ci --prefix apps/pixel-globe
+        run: npm ci --prefix apps/pixel-globe --no-audit --no-fund
 
       - name: Install save-restore smoke browser
         run: npm exec --prefix apps/pixel-globe -- playwright install --with-deps chromium
