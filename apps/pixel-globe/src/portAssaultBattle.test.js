@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PORT_ASSAULT_OUTCOME,
+  PORT_ASSAULT_MAX_GARRISON,
+  PORT_ASSAULT_MIN_GARRISON,
   PORT_ASSAULT_PROFILE_ID,
   createPortAssaultScenario,
   forecastPortAssault,
@@ -14,6 +16,12 @@ import {
   portAssaultUnitStats,
   simulatePortAssault
 } from "./portAssaultBattle.js";
+import { shipStatsForSlug } from "./shipStats.js";
+import {
+  cityCombatProfileForAppearance,
+  cityCrewTypeForAppearance,
+  cityGarrisonAppearanceIds
+} from "../city-visualizer/cityPeople.js";
 
 function combatant(
   id,
@@ -260,6 +268,17 @@ test("attackers remain at the ship until their one-shot landing completes", () =
   assert.ok(jumpFrames.every(({ animationStartedAtMs }) => animationStartedAtMs === jumpEvent.timeMs));
 });
 
+test("assault reinforcements deploy in separated three-person waves", () => {
+  const battle = simulatePortAssault(scenario({ attackerCount: 12, defenderCount: 12 }), 19);
+  const jumpTimes = battle.events
+    .filter(({ type }) => type === "jump")
+    .map(({ timeMs }) => timeMs);
+  assert.equal(jumpTimes.length, 12);
+  for (let waveStart = 3; waveStart < jumpTimes.length; waveStart += 3) {
+    assert.ok(jumpTimes[waveStart] - jumpTimes[waveStart - 1] >= 700);
+  }
+});
+
 test("successful melee hits displace targets in the attack direction", () => {
   const battle = simulatePortAssault(scenario({ attackerCount: 2, defenderCount: 2 }), 7);
   const meleeHit = battle.events.find((event) =>
@@ -272,12 +291,56 @@ test("successful melee hits displace targets in the attack direction", () => {
 });
 
 test("garrisons scale with population and capitals but remain bounded", () => {
-  const village = portAssaultGarrisonCount({ population: 1000 });
-  const city = portAssaultGarrisonCount({ population: 100000 });
-  const capital = portAssaultGarrisonCount({ population: 100000, isFactionCapital: true });
+  const village = portAssaultGarrisonCount({ population: 500 });
+  const town = portAssaultGarrisonCount({ population: 25_000 });
+  const city = portAssaultGarrisonCount({ population: 100_000 });
+  const capital = portAssaultGarrisonCount({ population: 100_000, isFactionCapital: true });
+  const worldCity = portAssaultGarrisonCount({ population: 680_000, isFactionCapital: true });
+  assert.equal(village, PORT_ASSAULT_MIN_GARRISON);
+  assert.ok(village < town);
+  assert.ok(town < city);
   assert.ok(village < city);
   assert.ok(city < capital);
-  assert.ok(capital <= 24);
+  assert.equal(worldCity, PORT_ASSAULT_MAX_GARRISON);
+});
+
+test("the largest ship crew has an uncertain fight against the strongest garrison benchmark", () => {
+  const city = {
+    cityId: "istanbul|turkey",
+    cityType: "mediterranean",
+    country: "Turkey",
+    population: 353_846,
+    populationProfileId: "islamicate",
+    isFactionCapital: true
+  };
+  const attackerTypes = ["sailor", "swordsman", "gunner", "archer"];
+  const attackers = Array.from(
+    { length: shipStatsForSlug("ship-of-the-line").crewCapacity },
+    (_, index) => combatant(`crew-${index}`, attackerTypes[index % attackerTypes.length], index % 4)
+  );
+  const defenders = cityGarrisonAppearanceIds(
+    city,
+    portAssaultGarrisonCount(city),
+    "port-assault"
+  ).map((appearanceId, index) => combatant(
+    `guard-${index}`,
+    cityCrewTypeForAppearance(appearanceId),
+    2,
+    false,
+    cityCombatProfileForAppearance(appearanceId)
+  ));
+  const forecast = forecastPortAssault(createPortAssaultScenario({
+    cityId: city.cityId,
+    attackers,
+    defenders,
+    shipHitPoints: shipStatsForSlug("ship-of-the-line").hitPoints,
+    fortified: true,
+    dockKind: "stone"
+  }), {
+    seedKey: "largest-crew-v-best-garrison",
+    sampleCount: 64
+  });
+  assert.ok(forecast.successPercent >= 40 && forecast.successPercent <= 60);
 });
 
 test("combat contracts reject duplicate IDs and unknown unit types", () => {

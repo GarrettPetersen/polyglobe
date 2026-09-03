@@ -349,6 +349,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   conquistador: "action:attack",
   "capture-petition": "action:letter",
   "capture-petition-result": "action:letter",
+  garrison: "action:attack",
   marque: "action:letter",
   "trade-pass": "action:letter",
   "portuguese-cartaz": "action:letter",

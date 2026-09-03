@@ -6,6 +6,7 @@ import {
   portCityNavigationModel
 } from "./portCityNavigation.js";
 import { portCityServiceProfile } from "./portCityServices.js";
+import { portAssaultGarrisonCount } from "./portAssaultBattle.js";
 import {
   FACTION_SAFE_PASSAGE_DAYS,
   PORT_NAVIGATION_REASON_NEW_SHIP,
@@ -1819,6 +1820,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   }
   if (session.nodeId === "illicit-caught") return illicitCaughtView(session, city);
   if (session.nodeId === "city-attack") return cityAttackView(session, city, gameState, context);
+  if (session.nodeId === "garrison") return garrisonView(city);
   if (session.nodeId === "portuguese-cartaz") {
     return portugueseCartazView(session, city, gameState, context);
   }
@@ -4642,6 +4644,9 @@ function rootView(session, city, gameState, economy, portCities, context) {
           type: "node",
           nodeId: "capture-petition"
         })]
+      : []),
+    ...(!pirateHideout
+      ? [option("Ask about the garrison", { type: "node", nodeId: "garrison" })]
       : [])
   ];
   if (vikingLongshipEnthusiastAtPort(gameState, city) && !session.disguisedEntry) {
@@ -4765,6 +4770,24 @@ function rootView(session, city, gameState, economy, portCities, context) {
     text: customsNotice ? `${customsNotice} ${statusText}` : statusText,
     feedback: session.feedback,
     options
+  };
+}
+
+function garrisonView(city) {
+  const count = portAssaultGarrisonCount(city);
+  const text = count <= 10
+    ? `I have ${count} fighting men on the rolls. It is a lean watch; every gate and quay shares the same hands.`
+    : count <= 20
+      ? `I keep ${count} fighting men under arms. Enough for the watches, if no two alarms sound together.`
+      : count <= 30
+        ? `I command ${count} fighting men. The watches are full, with a reserve ready at the alarm.`
+        : `I command ${count} fighting men. We can man every approach and keep a seasoned reserve.`;
+  return {
+    speaker: speakerName(city),
+    expressionId: "neutral",
+    text,
+    feedback: null,
+    options: [option("Back to city", { type: "node", nodeId: "root" })]
   };
 }
 

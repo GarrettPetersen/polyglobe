@@ -56,6 +56,7 @@ const GARRISON_COMMANDER_NODES = new Set([
   "capture-petition",
   "capture-petition-result",
   "city-attack",
+  "garrison",
   "illicit-caught",
   "marque",
   "marque-factor-followup",

@@ -40,8 +40,22 @@ export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
 export const PORT_ASSAULT_STEP_MS = 200;
 export const PORT_ASSAULT_MAX_DURATION_MS = 120_000;
 export const PORT_ASSAULT_FORECAST_SAMPLES = 32;
+export const PORT_ASSAULT_MIN_GARRISON = 5;
+export const PORT_ASSAULT_MAX_GARRISON = 35;
 
 const TRACK_INTERVAL_MS = PORT_ASSAULT_STEP_MS;
+const GARRISON_CAPITAL_BONUS = 5;
+// Beijing sets the population ceiling; the 35-man cap leaves a full Great Carrack near even
+// with the strongest current capital roster after culture, experience, and waves are applied.
+const GARRISON_WORLD_CITY_POPULATION = 680_000;
+const GARRISON_MINIMUM_POPULATION = 500;
+const GARRISON_MAX_NON_CAPITAL = PORT_ASSAULT_MAX_GARRISON - GARRISON_CAPITAL_BONUS;
+const PORT_ASSAULT_WAVE_SIZE = 3;
+const PORT_ASSAULT_FIRST_WAVE_DELAY_MS = 300;
+// Distinct small waves keep large assaults readable without extending beyond the battle clock.
+const PORT_ASSAULT_WAVE_INTERVAL_MS = 1_200;
+const PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS = 140;
+const PORT_ASSAULT_WAVE_JITTER_MS = 180;
 const EXPERIENCE_ATTACK_MULTIPLIER = 0.08;
 const EXPERIENCE_DEFENSE_MULTIPLIER = 0.05;
 const EXPERIENCE_HIT_POINTS_MULTIPLIER = 0.06;
@@ -259,8 +273,20 @@ export function portAssaultGarrisonCount(city) {
   if (!Number.isFinite(city.population) || city.population < 0) {
     throw new Error(`Invalid port assault city population: ${city.population}`);
   }
-  const populationRank = Math.max(0, Math.floor(Math.log10(Math.max(1000, city.population)) * 3 - 8));
-  return Math.min(24, 5 + populationRank + (city.isFactionCapital === true ? 5 : 0));
+  const populationShare = clamp(
+    (city.population - GARRISON_MINIMUM_POPULATION) /
+      (GARRISON_WORLD_CITY_POPULATION - GARRISON_MINIMUM_POPULATION),
+    0,
+    1
+  );
+  const populationGarrison = Math.round(
+    PORT_ASSAULT_MIN_GARRISON +
+      (GARRISON_MAX_NON_CAPITAL - PORT_ASSAULT_MIN_GARRISON) * Math.sqrt(populationShare)
+  );
+  return Math.min(
+    PORT_ASSAULT_MAX_GARRISON,
+    populationGarrison + (city.isFactionCapital === true ? GARRISON_CAPITAL_BONUS : 0)
+  );
 }
 
 export function portAssaultLandingDurationMs(dockKind) {
@@ -551,8 +577,12 @@ function eventPresentationDurationMs(type) {
 function createBattleUnits(combatants, side, modifiers, random) {
   return combatants.map((combatant, index) => {
     const stats = portAssaultUnitStats(combatant, modifiers);
-    const group = Math.floor(index / 3);
-    const spawnAtMs = 300 + group * 680 + (index % 3) * 120 + Math.floor(random() * 180);
+    const wave = Math.floor(index / PORT_ASSAULT_WAVE_SIZE);
+    const wavePosition = index % PORT_ASSAULT_WAVE_SIZE;
+    const spawnAtMs = PORT_ASSAULT_FIRST_WAVE_DELAY_MS +
+      wave * PORT_ASSAULT_WAVE_INTERVAL_MS +
+      wavePosition * PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS +
+      Math.floor(random() * PORT_ASSAULT_WAVE_JITTER_MS);
     return {
       ...combatant,
       side,

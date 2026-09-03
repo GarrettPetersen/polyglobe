@@ -17,6 +17,7 @@ const ROOT_VIEW = Object.freeze({
     option("Ship loadout", { type: "node", nodeId: "loadout" }),
     option("Visit shipyard", { type: "node", nodeId: "shipyard" }),
     option("Ask about work", { type: "node", nodeId: "quest" }),
+    option("Ask about the garrison", { type: "node", nodeId: "garrison" }),
     option("Letter of marque", { type: "node", nodeId: "marque" }),
     option("Attack city", { type: "node", nodeId: "city-attack" }),
     option("Cargo ledger", { type: "node", nodeId: "cargo" }),
@@ -53,6 +54,7 @@ test("city attacks live aboard the player's ship instead of requiring a fortific
 
   assert.ok(ship.actions.some(({ action }) => action.nodeId === "city-attack"));
   assert.equal(authority.actions.some(({ action }) => action.nodeId === "city-attack"), false);
+  assert.ok(authority.actions.some(({ action }) => action.nodeId === "garrison"));
 });
 
 test("villages without a smith cannot expose equipment upgrades", () => {

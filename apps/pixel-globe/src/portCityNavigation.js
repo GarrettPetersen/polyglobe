@@ -39,6 +39,7 @@ const SHIPYARD_NODE_IDS = new Set([
 ]);
 const AUTHORITY_NODE_IDS = new Set([
   "capture-petition",
+  "garrison",
   "marque",
   "portuguese-cartaz",
   "trade-pass"

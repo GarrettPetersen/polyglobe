@@ -1188,6 +1188,37 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   ]);
 });
 
+test("the garrison commander reports the current fighting strength in character", () => {
+  const city = {
+    tileId: 2,
+    cityId: "bristol|england",
+    city: "Bristol",
+    displayCity: "Bristol",
+    country: "England",
+    cityType: "mediterranean",
+    settlementType: "city",
+    population: 25_000,
+    character: { name: "Thomas Ward", role: "harbour-master", personalityId: "vigilant" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortDialogueSession(city);
+  session.nodeId = "root";
+  const root = portDialogueView(session, city, gameState, economy, [city]);
+  const garrisonIndex = root.options.findIndex(({ action }) => action.nodeId === "garrison");
+  assert.ok(garrisonIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], garrisonIndex);
+  city.character = {
+    name: "William Hales",
+    role: "garrison-commander",
+    personalityId: "stern"
+  };
+  const report = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(report.speaker, "William Hales, garrison commander of Bristol");
+  assert.match(report.text, /^I have 10 fighting men on the rolls\./);
+  assert.deepEqual(report.options.map(({ label }) => label), ["Back to city"]);
+});
+
 test("a factor explains customs once and repeats the explanation only after the rate changes", () => {
   const city = {
     tileId: 91,
