@@ -1094,6 +1094,48 @@ test("captured ports greet the player under their current sovereign", () => {
   assert.doesNotMatch(unchangedGreeting.text, /now rules Ceuta/);
 });
 
+test("port arrivals present one greeting when recognition and sovereignty news coincide", () => {
+  const york = {
+    tileId: 103,
+    cityId: "york|england",
+    city: "York",
+    displayCity: "York",
+    country: "England",
+    cityType: "northern-european",
+    population: 15000,
+    foundingFactionId: "england",
+    factionId: "france",
+    character: { name: "Jane Barrelet", role: "harbour-master", personalityId: "enterprising" }
+  };
+  const gameState = createGameState({ cargoCapacity: 20 });
+  gameState.memory.conquest.treaties.push({
+    id: "treaty-england",
+    capitalPortId: york.cityId,
+    loserFactionId: "england",
+    winnerFactionId: "france",
+    term: "vassalage",
+    annexedFactionId: null,
+    concessionCityIds: [],
+    concessionCityNames: [],
+    concessionPortIds: [],
+    papalActionTargetFactionId: null,
+    simMinute: 0,
+    source: "player"
+  });
+  const economy = createWorldEconomy({ ports: [york], startMinute: 0 });
+  const greeting = portDialogueView(
+    createPortDialogueSession(york),
+    york,
+    gameState,
+    economy,
+    [york],
+    { localHour: 13, playerStanding: 20 }
+  );
+
+  assert.match(greeting.text, /treaty|peace/i);
+  assert.doesNotMatch(greeting.text, /now rules York|Good afternoon|good name/i);
+});
+
 test("port dialogue exposes live market specie, stock, and prices", () => {
   const city = {
     tileId: 1,

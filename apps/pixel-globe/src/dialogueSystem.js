@@ -4342,7 +4342,7 @@ function greetingView(session, city, gameState, context) {
   const settlementRemark = foreignSettlementFactorLine(city, gameState);
   const suzerainRemark = vassalPortEntryLine(context.portEntryStatus);
   const sovereigntyRemark = changedPortSovereigntyLine(city);
-  const remarks = [
+  const [primaryRemark] = [
     recognitionRemark?.text,
     drunkMemoryRemark,
     settlementRemark,
@@ -4350,10 +4350,11 @@ function greetingView(session, city, gameState, context) {
     sovereigntyRemark,
     greeting.text
   ].filter(Boolean);
+  if (!primaryRemark) throw new Error("Port greeting has no primary remark");
   return {
     speaker: speakerName(city),
     expressionId: recognitionRemark?.expressionId || greeting.expressionId,
-    text: remarks.join("  "),
+    text: primaryRemark,
     feedback: null,
     options: [option("Continue", { type: "node", nodeId: "root" })]
   };
