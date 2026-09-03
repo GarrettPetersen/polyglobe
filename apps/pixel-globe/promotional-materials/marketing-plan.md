@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 2, 2026**.
+Last updated: **September 3, 2026**.
 
 ## Dated marketing calendar
 
@@ -12,8 +12,8 @@ Last updated: **September 2, 2026**.
   date has passed without a recorded result. Also confirm whether the submitted
   SCHMOOVEMENT application was accepted before its September 22 start.
 - **September 2:** Indie Game Award 2027 pre-selection materials submitted.
-- **September 4 at 10:00 a.m. PDT:** Submit to the Mobidictum Steam
-  Showcase.
+- **September 3:** Mobidictum Steam Showcase application submitted. Watch for
+  a Steamworks event invitation or a later request for jury build access.
 - **September 7:** IGF 2027 fee-waiver request deadline. Steam also pulls the
   current base-game trailer for possible inclusion in its official Next Fest
   trailer, if Valve has notified us that the game is under consideration.
@@ -482,16 +482,16 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
   - Application: https://submit.igf.com/
   - Rules and dates: https://igf.com/submission-info/
 
-- [ ] **Mobidictum Steam Showcase — apply by September 4 at 8:00 p.m. GMT+3**
+- [x] **Mobidictum Steam Showcase — submitted September 3**
   - Event: October 5–9, 2026 on Steam.
   - Why: A low-effort additional Steam showcase during the week the demo must
     already be public for Atlantic Canada Game Celebration. The application
     accepts upcoming games, asks whether the developer will attend in person,
     and allows **No**, so travel to Istanbul is not required to submit.
-  - Prepare: Steam App ID, trailer, website, press kit, capsule, logo, 3–10
-    screenshots and six full-build Steam keys for jury access.
-  - Mark the public demo as available October 5–9 and identify the developer as
-    Iron Pagoda.
+  - Submitted with the Steam App ID and requested store and promotional
+    information. No Steam keys were requested during submission.
+  - Follow up only if Mobidictum sends a Steamworks event invitation or asks
+    for jury access; provide the Cloudflare browser build or Steam keys then.
   - Application: https://form.jotform.com/261741269632965
 
 - [ ] **DevGAMM Awards 2026 — apply by September 7**
@@ -595,8 +595,8 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
 
 ## Current critical path
 
-In deadline order now: submit Mobidictum by September 4; submit DevGAMM and the
-IGF fee-waiver request by September 7; submit IGF by September 13; prepare
+In deadline order now: submit DevGAMM and the IGF fee-waiver request by
+September 7; submit IGF by September 13; prepare
 INDIE Live Expo for September 28; submit the public demo to Support the Indies
 by late September. In parallel, follow up on Galaxies and confirm SCHMOOVEMENT
 selection; complete the BiteMe demo
