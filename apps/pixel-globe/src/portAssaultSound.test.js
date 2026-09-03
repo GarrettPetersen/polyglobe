@@ -32,4 +32,8 @@ test("port assault firearm and melee events use loud, dedicated sound pools", ()
     source,
     /event\.attackType === "melee"\) \{\s*playSoundEffect\(soundEffects\?\.impact/
   );
+  assert.match(
+    source,
+    /event\.type === "ship-hit"\) \{\s*playCannonImpactSound\(0\)/
+  );
 });

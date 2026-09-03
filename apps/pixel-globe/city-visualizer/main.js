@@ -128,8 +128,11 @@ import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
+  docksideShipHullBarLayout,
   docksideShipWaterlinePixelKeys
 } from "./cityDocksideShipWaterline.js";
+import { shipHullIsDamaged } from "../src/shipHullBar.js";
+import { PLAYER_SHIP_COMBAT_COLOR } from "../src/shipCombatPresentation.js";
 import {
   SHIP_REFRACTION_BAND_HEIGHT,
   SHIP_SUBMERGED_ALPHA,
@@ -3462,6 +3465,32 @@ function drawDocksideShip(timeMs) {
     timeMs,
     hashString(placement.ship.slug)
   );
+  drawDocksideShipHullBar(placement);
+}
+
+function drawDocksideShipHullBar(placement) {
+  const presentation = state.assaultPresentation;
+  if (!presentation || !shipHullIsDamaged(
+    presentation.shipHitPoints,
+    presentation.shipMaxHitPoints
+  )) return;
+  const layout = docksideShipHullBarLayout({
+    x: placement.x,
+    y: placement.y + placement.bobY,
+    scale: placement.scale,
+    opaqueMinX: state.shipWaterlineLayers.opaqueMinX,
+    opaqueMaxX: state.shipWaterlineLayers.opaqueMaxX,
+    opaqueMaxY: state.shipWaterlineLayers.opaqueMaxY,
+    hitPoints: presentation.shipHitPoints,
+    maxHitPoints: presentation.shipMaxHitPoints,
+    viewportWidth: canvas.width,
+    viewportHeight: canvas.height
+  });
+  context.fillStyle = "#2e222f";
+  context.fillRect(layout.x, layout.y, layout.width, layout.height);
+  if (layout.fillWidth <= 0) return;
+  context.fillStyle = PLAYER_SHIP_COMBAT_COLOR;
+  context.fillRect(layout.x + 1, layout.y + 1, layout.fillWidth, 1);
 }
 
 function drawDocksideShipForeground(timeMs) {
@@ -3722,11 +3751,13 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineR
   let submergedMinY = source.height;
   let submergedMaxY = -1;
   let opaqueMinX = source.width;
+  let opaqueMaxX = -1;
   let opaqueMaxY = -1;
   const rightmostOpaqueXByRow = new Int32Array(source.height);
   rightmostOpaqueXByRow.fill(-1);
   for (const pixel of pixels) {
     opaqueMinX = Math.min(opaqueMinX, pixel.x);
+    opaqueMaxX = Math.max(opaqueMaxX, pixel.x);
     opaqueMaxY = Math.max(opaqueMaxY, pixel.y);
     rightmostOpaqueXByRow[pixel.y] = Math.max(rightmostOpaqueXByRow[pixel.y], pixel.x);
     const key = pixel.y * source.width + pixel.x;
@@ -3759,6 +3790,8 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineR
     width: source.width,
     height: source.height,
     opaqueMinX,
+    opaqueMaxX,
+    opaqueMaxY,
     rightmostOpaqueXByRow,
     submergedMinY,
     submergedMaxY
@@ -4684,6 +4717,9 @@ return Object.freeze({
       !presentation || !Array.isArray(presentation.units) || !Array.isArray(presentation.events) ||
       !Number.isFinite(presentation.elapsedMs) || presentation.elapsedMs < 0 ||
       !Number.isFinite(presentation.durationMs) || presentation.durationMs < 0 ||
+      !Number.isFinite(presentation.shipHitPoints) || presentation.shipHitPoints < 0 ||
+      !Number.isFinite(presentation.shipMaxHitPoints) || presentation.shipMaxHitPoints <= 0 ||
+      presentation.shipHitPoints > presentation.shipMaxHitPoints ||
       ![null, "victory", "defeat"].includes(presentation.outcome)
     )) {
       throw new Error("Invalid port assault presentation");
@@ -4728,16 +4764,19 @@ return Object.freeze({
       isFactionCapital: city.capital
     });
   },
-  drawEmissiveOverlay(targetContext) {
+  drawEmissiveOverlay(targetContext, offset) {
     if (!separateEmissiveOverlay || !emissiveCanvas) {
       throw new Error("City scene emissive overlay was not configured separately");
     }
     if (!targetContext || typeof targetContext.drawImage !== "function") {
       throw new TypeError("City scene emissive overlay requires a 2D target context");
     }
+    if (!offset || !Number.isInteger(offset.x) || !Number.isInteger(offset.y)) {
+      throw new TypeError("City scene emissive overlay requires an integer pixel offset");
+    }
     targetContext.save();
     targetContext.imageSmoothingEnabled = false;
-    targetContext.drawImage(emissiveCanvas, 0, 0);
+    targetContext.drawImage(emissiveCanvas, offset.x, offset.y);
     targetContext.restore();
   },
   setWeather({ wind, precipitation }) {

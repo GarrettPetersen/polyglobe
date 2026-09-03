@@ -794,6 +794,8 @@ import {
   forecastPortAssault,
   portAssaultGarrisonCount,
   portAssaultPresentationAt,
+  portAssaultShipHitPointsAt,
+  portAssaultShipImpactShakeAt,
   simulatePortAssault
 } from "./portAssaultBattle.js";
 import { CREW_HIRE_COST } from "./shipLoadouts.js";
@@ -3082,6 +3084,8 @@ const LAKE_BATTLE_CITY_VICTORY_ACTIONS = Object.freeze([
 ]);
 const LAKE_BATTLE_PORT_ASSAULT_ACTIONS = Object.freeze(["REMATCH", "CHOOSE SHIPS", "START MENU"]);
 const LAKE_BATTLE_PORT_ASSAULT_CITY_ID = "lisbon|portugal";
+const REDUCED_MOTION_MEDIA_QUERY = window.matchMedia("(prefers-reduced-motion: reduce)");
+const NO_SCREEN_SHAKE_OFFSET = Object.freeze({ x: 0, y: 0 });
 const HISTORICAL_BATTLE_PAUSE_ACTIONS = Object.freeze([
   "RESUME",
   "RESTART",
@@ -14618,6 +14622,7 @@ async function beginLakeBattlePortAssault(random = Math.random) {
       attackers,
       defenders,
       shipHitPoints: navalBattle.player.hitPoints,
+      shipMaxHitPoints: navalBattle.player.maxHitPoints,
       fortified: sceneFeatures.fortified,
       dockKind: sceneFeatures.dockKind
     });
@@ -14641,6 +14646,7 @@ async function beginLakeBattlePortAssault(random = Math.random) {
       breakOffPrompt: false,
       selectedIndex: 0,
       eventCursor: 0,
+      lastShipImpactSoundAtMs: null,
       overlayButtonRects: []
     };
     mode.screen = LAKE_BATTLE_SCREEN_PORT_ASSAULT;
@@ -14700,7 +14706,10 @@ function updateLakeBattlePortAssault(nowMs) {
     portCityRuntime.setAssaultPresentation(portAssaultPresentationAt(assault.battle, elapsedMs));
     while (assault.eventCursor < assault.battle.events.length &&
            assault.battle.events[assault.eventCursor].timeMs <= elapsedMs) {
-      playPortAssaultEventSound(assault.battle.events[assault.eventCursor]);
+      playPortAssaultTimelineEventSound(
+        assault,
+        assault.battle.events[assault.eventCursor]
+      );
       assault.eventCursor += 1;
     }
   }
@@ -23155,6 +23164,7 @@ function playerPortConquestStatus(cityCall) {
     attackers,
     defenders,
     shipHitPoints: ship.hitPoints,
+    shipMaxHitPoints: ship.maxHitPoints,
     fortified: sceneFeatures.fortified,
     dockKind: sceneFeatures.dockKind,
     attackerModifiers
@@ -23163,6 +23173,7 @@ function playerPortConquestStatus(cityCall) {
     cityId: cityCall.cityId,
     simDay: Math.floor(simMinute / (24 * 60)),
     shipHitPoints: ship.hitPoints,
+    shipMaxHitPoints: ship.maxHitPoints,
     attackers: attackers.map(({ id, combatProfileId, experienceStars }) => [
       id,
       combatProfileId,
@@ -23215,6 +23226,7 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     breakOffPrompt: false,
     selectedIndex: 0,
     eventCursor: 0,
+    lastShipImpactSoundAtMs: null,
     completionApplied: false,
     overlayButtonRects: []
   };
@@ -23395,7 +23407,10 @@ function updatePortAssault(nowMs) {
       assault.eventCursor < assault.battle.events.length &&
       assault.battle.events[assault.eventCursor].timeMs <= elapsedMs
     ) {
-      playPortAssaultEventSound(assault.battle.events[assault.eventCursor]);
+      playPortAssaultTimelineEventSound(
+        assault,
+        assault.battle.events[assault.eventCursor]
+      );
       assault.eventCursor += 1;
     }
   }
@@ -23437,12 +23452,23 @@ function playPortAssaultEventSound(event) {
     const volume = event.dockKind === "stone" ? 0.3 : 0.22;
     playSoundEffect(soundEffects?.impact, volume, event.dockKind === "stone" ? 1.15 : 0.92);
   } else if (event.type === "ship-hit") {
-    playSoundEffect(soundEffects?.impact, SFX_IMPACT_VOLUME * 0.72, 0.86);
+    playCannonImpactSound(0);
   } else if (event.type === "breach" || event.type === "result" || event.type === "time-limit") {
     // These events are visual or bookkeeping milestones and intentionally have no sound.
   } else {
     throw new Error(`Unknown port assault event sound: ${event.type}`);
   }
+}
+
+function playPortAssaultTimelineEventSound(assault, event) {
+  if (!assault || !Number.isInteger(assault.eventCursor) || !event) {
+    throw new Error("Port assault timeline sound requires active assault state and an event");
+  }
+  if (event.type === "ship-hit") {
+    if (assault.lastShipImpactSoundAtMs === event.timeMs) return;
+    assault.lastShipImpactSoundAtMs = event.timeMs;
+  }
+  playPortAssaultEventSound(event);
 }
 
 function breakOffPortAssault() {
@@ -23462,10 +23488,7 @@ function breakOffPortAssault() {
   if (assault.status.conquistadorCompany && auxiliaryLosses > 0) {
     recordConquistadorAssaultFailure(gameState.memory.quests.conquistador, auxiliaryLosses);
   }
-  const latestShipHit = assault.battle.events
-    .filter((event) => event.type === "ship-hit" && event.timeMs <= elapsedMs)
-    .at(-1);
-  ship.hitPoints = latestShipHit?.shipHitPoints ?? assault.battle.initialShipHitPoints;
+  ship.hitPoints = portAssaultShipHitPointsAt(assault.battle, elapsedMs);
   syncShipCargoFromGameState();
   const cityName = cityLabelText(assault.cityCall);
   restorePortAssaultDialogue();
@@ -40970,6 +40993,11 @@ function drawPortCityScene(nowMs) {
   }
   portCityRuntime.setWeather(currentPortCityWeatherPresentation());
   const revision = portCityRuntime.render(nowMs);
+  const shakeOffset = portAssaultState
+    ? portAssaultShipImpactShakeAt(portAssaultState.battle, portAssaultElapsedMs(nowMs), {
+        reducedMotion: REDUCED_MOTION_MEDIA_QUERY.matches
+      })
+    : NO_SCREEN_SHAKE_OFFSET;
   worldRenderer.beginFrame({
     width: SCREEN_W,
     height: SCREEN_H,
@@ -40979,14 +41007,27 @@ function drawPortCityScene(nowMs) {
     oceanSwell: null,
     modalReframe: null
   });
+  drawPortCitySceneChunk("port-city-scene", revision, shakeOffset);
+  worldRenderer.endFrame();
+  portCityRuntime.drawEmissiveOverlay(screenCtx, shakeOffset);
+}
+
+function drawPortCitySceneChunk(key, revision, shakeOffset) {
+  if (!shakeOffset || !Number.isInteger(shakeOffset.x) || !Number.isInteger(shakeOffset.y)) {
+    throw new Error("Port city scene shake requires an integer pixel offset");
+  }
   worldRenderer.drawChunk({
-    key: "port-city-scene",
+    key,
     source: portCitySceneCanvas,
     revision,
+    sourceRect: {
+      x: -shakeOffset.x,
+      y: -shakeOffset.y,
+      width: SCREEN_W,
+      height: SCREEN_H
+    },
     destinationRect: { x: 0, y: 0, width: SCREEN_W, height: SCREEN_H }
   });
-  worldRenderer.endFrame();
-  portCityRuntime.drawEmissiveOverlay(screenCtx);
 }
 
 function drawPortAssaultOverlay(nowMs) {
@@ -41010,10 +41051,7 @@ function drawPortAssaultBattleStatus(assault, elapsedMs) {
   }
   const attackers = assault.battle.combatants.filter(({ side }) => side === "attacker").length;
   const defenders = assault.battle.combatants.length - attackers;
-  const latestShipHit = assault.battle.events
-    .filter((event) => event.type === "ship-hit" && event.timeMs <= elapsedMs)
-    .at(-1);
-  const hull = latestShipHit?.shipHitPoints ?? assault.battle.initialShipHitPoints;
+  const hull = portAssaultShipHitPointsAt(assault.battle, elapsedMs);
   const panel = { x: Math.floor(SCREEN_W / 2) - 98, y: 7, w: 196, h: 28 };
   drawPirateHudPanel(panel);
   drawPixelText(
@@ -41023,7 +41061,7 @@ function drawPortAssaultBattleStatus(assault, elapsedMs) {
     { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK }
   );
   drawPixelText(
-    renderedUiText(`SHIP ${hull}/${assault.battle.initialShipHitPoints}`),
+    renderedUiText(`SHIP ${hull}/${assault.battle.maxShipHitPoints}`),
     panel.x + panel.w / 2,
     panel.y + 16,
     { font: PIXEL_FONT_SMALL_8, align: "center", color: PIRATE_MENU_INK_MUTED }
@@ -49599,6 +49637,10 @@ function drawLakeBattlePortAssault(nowMs) {
   const assault = lakeBattleMode?.portAssault;
   if (!assault || !portCityRuntime) throw new Error("Duel port assault render state is incomplete");
   const revision = portCityRuntime.render(nowMs);
+  const elapsedMs = lakeBattlePortAssaultElapsedMs(nowMs);
+  const shakeOffset = portAssaultShipImpactShakeAt(assault.battle, elapsedMs, {
+    reducedMotion: REDUCED_MOTION_MEDIA_QUERY.matches
+  });
   worldRenderer.beginFrame({
     width: SCREEN_W,
     height: SCREEN_H,
@@ -49608,15 +49650,9 @@ function drawLakeBattlePortAssault(nowMs) {
     oceanSwell: null,
     modalReframe: null
   });
-  worldRenderer.drawChunk({
-    key: "duel-port-assault-scene",
-    source: portCitySceneCanvas,
-    revision,
-    destinationRect: { x: 0, y: 0, width: SCREEN_W, height: SCREEN_H }
-  });
+  drawPortCitySceneChunk("duel-port-assault-scene", revision, shakeOffset);
   worldRenderer.endFrame();
-  portCityRuntime.drawEmissiveOverlay(screenCtx);
-  const elapsedMs = lakeBattlePortAssaultElapsedMs(nowMs);
+  portCityRuntime.drawEmissiveOverlay(screenCtx, shakeOffset);
   drawPortAssaultBattleStatus(assault, elapsedMs);
   if (assault.breakOffPrompt) {
     drawPortAssaultBreakOffPrompt(assault);

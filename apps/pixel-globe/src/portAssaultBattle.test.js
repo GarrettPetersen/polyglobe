@@ -13,6 +13,8 @@ import {
   portAssaultKnockbackDistance,
   portAssaultLandingDurationMs,
   portAssaultPresentationAt,
+  portAssaultShipHitPointsAt,
+  portAssaultShipImpactShakeAt,
   portAssaultUnitStats,
   simulatePortAssault
 } from "./portAssaultBattle.js";
@@ -46,6 +48,7 @@ function scenario({ attackerCount = 8, defenderCount = 8, dockKind = "wood", for
     attackers: Array.from({ length: attackerCount }, (_, index) => combatant(`crew-${index}`)),
     defenders: Array.from({ length: defenderCount }, (_, index) => combatant(`guard-${index}`)),
     shipHitPoints: 80,
+    shipMaxHitPoints: 100,
     dockKind,
     fortified
   });
@@ -119,6 +122,7 @@ test("ranged combatants switch to an independently tuned melee attack up close",
     attackers: [combatant("archer", "archer", 1)],
     defenders: [combatant("shield", "shieldman", 3)],
     shipHitPoints: 100,
+    shipMaxHitPoints: 100,
     dockKind: "wood",
     fortified: true
   }), 1);
@@ -211,6 +215,7 @@ test("harder hits and cavalry charge momentum produce longer knockback", () => {
     attackers: [combatant("cavalier", "swordsman", 0, false, PORT_ASSAULT_PROFILE_ID.CAVALIER)],
     defenders: [combatant("tribal", "warrior", 0, false, PORT_ASSAULT_PROFILE_ID.TRIBAL_SPEARMAN)],
     shipHitPoints: 100,
+    shipMaxHitPoints: 100,
     dockKind: "wood",
     fortified: false
   }), 7);
@@ -227,6 +232,7 @@ test("shield blocks negate damage and are represented in the battle timeline", (
     attackers: [combatant("attacker", "swordsman", 3)],
     defenders: [combatant("shield", "shieldman", 3)],
     shipHitPoints: 100,
+    shipMaxHitPoints: 100,
     dockKind: "stone",
     fortified: true
   });
@@ -243,6 +249,7 @@ test("a fallen combatant retains the exact start time of its terminal death anim
     attackers: [combatant("master", "swordsman", 3)],
     defenders: [combatant("novice", "sailor", 0)],
     shipHitPoints: 80,
+    shipMaxHitPoints: 100,
     dockKind: "wood",
     fortified: false
   });
@@ -277,6 +284,28 @@ test("assault reinforcements deploy in separated three-person waves", () => {
   for (let waveStart = 3; waveStart < jumpTimes.length; waveStart += 3) {
     assert.ok(jumpTimes[waveStart] - jumpTimes[waveStart - 1] >= 700);
   }
+});
+
+test("ship damage presentation retains current and maximum hull and drives a short impact shake", () => {
+  const battle = simulatePortAssault(scenario({ attackerCount: 1, defenderCount: 8 }), 4);
+  const hit = battle.events.find(({ type }) => type === "ship-hit");
+  assert.ok(hit, "the test battle must reach and damage the ship");
+  assert.equal(battle.outcome, PORT_ASSAULT_OUTCOME.DEFEAT);
+  assert.equal(battle.finalShipHitPoints, 0);
+  const hullAfterSimultaneousHits = battle.events
+    .filter(({ type, timeMs }) => type === "ship-hit" && timeMs === hit.timeMs)
+    .at(-1).shipHitPoints;
+  const presentation = portAssaultPresentationAt(battle, hit.timeMs);
+  assert.equal(presentation.shipHitPoints, hullAfterSimultaneousHits);
+  assert.equal(presentation.shipMaxHitPoints, 100);
+  assert.equal(portAssaultShipHitPointsAt(battle, hit.timeMs - 1), battle.initialShipHitPoints);
+  assert.notDeepEqual(portAssaultShipImpactShakeAt(battle, hit.timeMs), { x: 0, y: 0 });
+  const lastHit = battle.events.filter(({ type }) => type === "ship-hit").at(-1);
+  assert.deepEqual(portAssaultShipImpactShakeAt(battle, lastHit.timeMs + 220), { x: 0, y: 0 });
+  assert.deepEqual(
+    portAssaultShipImpactShakeAt(battle, hit.timeMs, { reducedMotion: true }),
+    { x: 0, y: 0 }
+  );
 });
 
 test("successful melee hits displace targets in the attack direction", () => {
@@ -334,6 +363,7 @@ test("the largest ship crew has an uncertain fight against the strongest garriso
     attackers,
     defenders,
     shipHitPoints: shipStatsForSlug("ship-of-the-line").hitPoints,
+    shipMaxHitPoints: shipStatsForSlug("ship-of-the-line").hitPoints,
     fortified: true,
     dockKind: "stone"
   }), {
@@ -349,8 +379,17 @@ test("combat contracts reject duplicate IDs and unknown unit types", () => {
     attackers: [combatant("same"), combatant("same")],
     defenders: [combatant("guard")],
     shipHitPoints: 20,
+    shipMaxHitPoints: 20,
     dockKind: "wood",
     fortified: true
   }), /Duplicate/);
+  assert.throws(() => createPortAssaultScenario({
+    cityId: "lisbon|portugal",
+    attackers: [combatant("crew")],
+    defenders: [combatant("guard")],
+    shipHitPoints: 20,
+    dockKind: "wood",
+    fortified: true
+  }), /maximum hit points/);
   assert.throws(() => portAssaultUnitStats(combatant("bad", "wizard")), /Unknown/);
 });

@@ -56,6 +56,18 @@ const PORT_ASSAULT_FIRST_WAVE_DELAY_MS = 300;
 const PORT_ASSAULT_WAVE_INTERVAL_MS = 1_200;
 const PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS = 140;
 const PORT_ASSAULT_WAVE_JITTER_MS = 180;
+export const PORT_ASSAULT_SHIP_IMPACT_SHAKE_DURATION_MS = 220;
+const PORT_ASSAULT_SHIP_IMPACT_SHAKE_STEP_MS = 36;
+const NO_PORT_ASSAULT_SHIP_IMPACT_SHAKE = Object.freeze({ x: 0, y: 0 });
+const PORT_ASSAULT_SHIP_IMPACT_SHAKE_PATTERN = Object.freeze([
+  Object.freeze({ x: -1, y: 0 }),
+  Object.freeze({ x: 1, y: 1 }),
+  Object.freeze({ x: -1, y: -1 }),
+  Object.freeze({ x: 1, y: 0 }),
+  Object.freeze({ x: -1, y: 0 }),
+  Object.freeze({ x: 0, y: 0 }),
+  Object.freeze({ x: 0, y: 0 })
+]);
 const EXPERIENCE_ATTACK_MULTIPLIER = 0.08;
 const EXPERIENCE_DEFENSE_MULTIPLIER = 0.05;
 const EXPERIENCE_HIT_POINTS_MULTIPLIER = 0.06;
@@ -301,6 +313,7 @@ export function createPortAssaultScenario({
   attackers,
   defenders,
   shipHitPoints,
+  shipMaxHitPoints,
   fortified,
   dockKind,
   attackerModifiers = DEFAULT_MODIFIERS,
@@ -316,6 +329,10 @@ export function createPortAssaultScenario({
   if (!Number.isFinite(shipHitPoints) || shipHitPoints <= 0) {
     throw new Error(`Invalid assault ship hit points: ${shipHitPoints}`);
   }
+  if (!Number.isFinite(shipMaxHitPoints) || shipMaxHitPoints <= 0 ||
+      shipHitPoints > shipMaxHitPoints) {
+    throw new Error(`Invalid assault ship maximum hit points: ${shipHitPoints}/${shipMaxHitPoints}`);
+  }
   if (typeof fortified !== "boolean") throw new Error("Port assault fortification must be boolean");
   portAssaultLandingDurationMs(dockKind);
   validateModifiers(attackerModifiers);
@@ -325,6 +342,7 @@ export function createPortAssaultScenario({
     attackers: Object.freeze(attackers.map(freezeCombatant)),
     defenders: Object.freeze(defenders.map(freezeCombatant)),
     shipHitPoints,
+    shipMaxHitPoints,
     fortified,
     dockKind,
     attackerModifiers: freezeModifiers(attackerModifiers),
@@ -364,10 +382,6 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
   let nextTrackMs = 0;
 
   while (winner === null && timeMs <= PORT_ASSAULT_MAX_DURATION_MS) {
-    if (!attackers.some((unit) => unit.alive)) {
-      winner = PORT_ASSAULT_SIDE.DEFENDER;
-      break;
-    }
     if (!defenders.some((unit) => unit.alive) &&
         attackers.some((unit) => unit.alive && unit.position >= 0.985)) {
       winner = PORT_ASSAULT_SIDE.ATTACKER;
@@ -483,6 +497,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
     winner,
     durationMs: timeMs,
     initialShipHitPoints: scenario.shipHitPoints,
+    maxShipHitPoints: scenario.shipMaxHitPoints,
     finalShipHitPoints: shipHitPoints,
     attackerCasualtyIds: Object.freeze(attackerCasualtyIds),
     auxiliaryCasualtyIds: Object.freeze(auxiliaryCasualtyIds),
@@ -560,6 +575,8 @@ export function portAssaultPresentationAt(battle, elapsedMs) {
     durationMs: battle.durationMs,
     finished: elapsedMs >= battle.durationMs,
     outcome: elapsedMs >= battle.durationMs ? battle.outcome : null,
+    shipHitPoints: portAssaultShipHitPointsAt(battle, elapsedMs),
+    shipMaxHitPoints: battle.maxShipHitPoints,
     units: Object.freeze(units),
     events: Object.freeze(battle.events.filter((event) => (
       event.timeMs > elapsedMs - eventPresentationDurationMs(event.type) && event.timeMs <= elapsedMs
@@ -567,11 +584,76 @@ export function portAssaultPresentationAt(battle, elapsedMs) {
   });
 }
 
+export function portAssaultShipHitPointsAt(battle, elapsedMs) {
+  validateRecordedBattleTime(battle, elapsedMs);
+  let hitPoints = battle.initialShipHitPoints;
+  for (const event of battle.events) {
+    if (event.timeMs > elapsedMs) break;
+    if (event.type !== "ship-hit") continue;
+    validateShipHitEvent(event, battle.maxShipHitPoints);
+    hitPoints = event.shipHitPoints;
+  }
+  return hitPoints;
+}
+
+export function portAssaultShipImpactShakeAt(battle, elapsedMs, { reducedMotion = false } = {}) {
+  validateRecordedBattleTime(battle, elapsedMs);
+  if (typeof reducedMotion !== "boolean") {
+    throw new Error(`Port assault reduced-motion preference must be boolean: ${reducedMotion}`);
+  }
+  if (reducedMotion) return NO_PORT_ASSAULT_SHIP_IMPACT_SHAKE;
+  let latestHit = null;
+  let simultaneousDamage = 0;
+  for (const event of battle.events) {
+    if (event.timeMs > elapsedMs) break;
+    if (event.type !== "ship-hit") continue;
+    validateShipHitEvent(event, battle.maxShipHitPoints);
+    if (!latestHit || event.timeMs !== latestHit.timeMs) simultaneousDamage = 0;
+    latestHit = event;
+    simultaneousDamage += event.damage;
+  }
+  if (!latestHit) return NO_PORT_ASSAULT_SHIP_IMPACT_SHAKE;
+  const ageMs = elapsedMs - latestHit.timeMs;
+  if (ageMs >= PORT_ASSAULT_SHIP_IMPACT_SHAKE_DURATION_MS) {
+    return NO_PORT_ASSAULT_SHIP_IMPACT_SHAKE;
+  }
+  const phase = Math.min(
+    PORT_ASSAULT_SHIP_IMPACT_SHAKE_PATTERN.length - 1,
+    Math.floor(ageMs / PORT_ASSAULT_SHIP_IMPACT_SHAKE_STEP_MS)
+  );
+  const direction = PORT_ASSAULT_SHIP_IMPACT_SHAKE_PATTERN[phase];
+  const force = Math.min(3, Math.max(1, Math.ceil(simultaneousDamage / 6)));
+  const amplitude = phase >= 4 ? 1 : force;
+  return Object.freeze({ x: direction.x * amplitude, y: direction.y * amplitude });
+}
+
 function eventPresentationDurationMs(type) {
   if (["splash", "dock-land", "death"].includes(type)) return 500;
   if (["attack", "hit"].includes(type)) return 360;
-  if (["block", "ship-hit"].includes(type)) return 220;
+  if (type === "block") return 220;
+  if (type === "ship-hit") return PORT_ASSAULT_SHIP_IMPACT_SHAKE_DURATION_MS;
   return PORT_ASSAULT_STEP_MS;
+}
+
+function validateRecordedBattleTime(battle, elapsedMs) {
+  if (!battle || !Array.isArray(battle.events) ||
+      !Number.isFinite(battle.initialShipHitPoints) || battle.initialShipHitPoints <= 0 ||
+      !Number.isFinite(battle.maxShipHitPoints) || battle.maxShipHitPoints <= 0 ||
+      battle.initialShipHitPoints > battle.maxShipHitPoints) {
+    throw new Error("Port assault ship timeline requires a recorded battle");
+  }
+  if (!Number.isFinite(elapsedMs) || elapsedMs < 0) {
+    throw new Error(`Invalid port assault ship timeline time: ${elapsedMs}`);
+  }
+}
+
+function validateShipHitEvent(event, maxShipHitPoints) {
+  if (!Number.isFinite(event.timeMs) || event.timeMs < 0 ||
+      !Number.isFinite(event.damage) || event.damage <= 0 ||
+      !Number.isFinite(event.shipHitPoints) || event.shipHitPoints < 0 ||
+      event.shipHitPoints > maxShipHitPoints) {
+    throw new Error(`Invalid port assault ship-hit event for ${event.unitId}`);
+  }
 }
 
 function createBattleUnits(combatants, side, modifiers, random) {

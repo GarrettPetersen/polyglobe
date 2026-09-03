@@ -72,7 +72,7 @@ test("city rendering receives live weather and market modes use the compact head
   assert.match(cityDraw, /portCityRuntime\.setWeather\(currentPortCityWeatherPresentation\(\)\)/);
   assert.match(
     cityDraw,
-    /worldRenderer\.endFrame\(\);[\s\S]*portCityRuntime\.drawEmissiveOverlay\(screenCtx\)/
+    /worldRenderer\.endFrame\(\);[\s\S]*portCityRuntime\.drawEmissiveOverlay\(screenCtx, shakeOffset\)/
   );
   const dialogueDraw = functionSource("drawDialogueOverlayContent", "drawMarketModeSwitch");
   assert.match(dialogueDraw, /compactMarketSwitch = view\.presentation\?\.kind === "market"/);

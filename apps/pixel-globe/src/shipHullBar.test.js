@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   npcShipHullBarColor,
   shipHullBarLayout,
+  shipHullBarLayoutBelowRect,
   shipHullIsDamaged
 } from "./shipHullBar.js";
 import {
@@ -36,6 +37,25 @@ test("ship hull bars retain the NPC geometry below a centered sprite", () => {
   });
 });
 
+test("dockside hull bars center beneath a rectangular ship silhouette", () => {
+  assert.deepEqual(shipHullBarLayoutBelowRect({
+    x: 80,
+    y: 40,
+    width: 160,
+    height: 84,
+    hitPoints: 30,
+    maxHitPoints: 60,
+    barWidth: 48,
+    gap: 2
+  }), {
+    x: 136,
+    y: 126,
+    width: 48,
+    height: 3,
+    fillWidth: 23
+  });
+});
+
 test("ship combat colors identify player, enemy, and friendly ships", () => {
   assert.equal(PLAYER_SHIP_COMBAT_COLOR, "#f9c22b");
   assert.equal(npcShipHullBarColor("enemy"), ENEMY_SHIP_COMBAT_COLOR);
@@ -52,6 +72,12 @@ test("ship hull bars reject malformed strength and geometry", () => {
   assert.throws(
     () => shipHullBarLayout({ x: 0, y: 0, frameSize: 10, hitPoints: 5, maxHitPoints: 10, width: 20 }),
     /dimensions are invalid/
+  );
+  assert.throws(
+    () => shipHullBarLayoutBelowRect({
+      x: 0, y: 0, width: 10, height: 10, hitPoints: 5, maxHitPoints: 10, barWidth: 11
+    }),
+    /rectangle is invalid/
   );
   assert.throws(
     () => shipCombatAllegianceColor("neutral"),
