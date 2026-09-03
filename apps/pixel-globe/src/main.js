@@ -575,6 +575,7 @@ import {
   shipHudStatus,
   shipTravelerManifest,
   settleCampaignGoalAtHome,
+  settleCrewPayrollThroughMinute,
   removeOptionalNavigationWaypoint,
   stowForagedFood,
   survivalStatus,
@@ -25085,6 +25086,10 @@ function applyDialogueOption(optionIndex) {
       openPassengerDialogue(currentDialogueCity(), result.action.quest);
       return;
     }
+    if (result.action?.type === "open-crew-management") {
+      openAboardMenu();
+      return;
+    }
     if (result.action?.type === "purchase-ship") {
       void purchaseShipyardShip(result.action);
       return;
@@ -33615,6 +33620,7 @@ function resetWorldClockFrameSlices() {
     stormDamage: weatherClockMinutes,
     survival: weatherClockMinutes,
     stormCaptain: weatherClockMinutes,
+    payrollPeriod: null,
     fetchQuestPeriod: null,
     birthdayPeriod: null,
     politicsPeriod: null
@@ -33641,7 +33647,8 @@ function advanceWorldClockFrameSlice(nowMs) {
     return updateStormCaptainAlert(previousMinute, weatherClockMinutes, nowMs);
   }
   if (slice === 3) {
-    return (worldClockPeriodIsDue("fetchQuestPeriod") && updateFetchQuestReadinessAlerts()) ||
+    return (worldClockPeriodIsDue("payrollPeriod") && updateCrewPayroll()) ||
+      (worldClockPeriodIsDue("fetchQuestPeriod") && updateFetchQuestReadinessAlerts()) ||
       presentPendingFetchQuestCaptainDialogue() ||
       presentPendingWineCaptainDialogue();
   }
@@ -33651,6 +33658,21 @@ function advanceWorldClockFrameSlice(nowMs) {
   }
   if (!worldClockPeriodIsDue("politicsPeriod")) return false;
   return updateSovereignWarLoanOutcome() || updateWorldDiplomacy();
+}
+
+function updateCrewPayroll() {
+  if (!gameState || gameOverReason) return false;
+  const settlement = settleCrewPayrollThroughMinute(gameState, weatherClockMinutes);
+  if (!settlement) return false;
+  if (settlement.paidDoubloons > 0) {
+    playCoinClinkSound();
+    showSurvivalNotice(uiText("status.crewSalariesPaid", {
+      amount: formatCompactNumber(settlement.paidDoubloons)
+    }), "good");
+  } else if (settlement.totalDueDoubloons > 0) {
+    showSurvivalNotice(uiText("status.crewSalariesUnpaid"), "warn");
+  }
+  return true;
 }
 
 function worldClockPeriodIsDue(key) {
@@ -34049,20 +34071,12 @@ function updatePlayerSurvival(previousMinute, currentMinute) {
       : 1
   });
   const crewExperienceAdvanced = !safePort && !anchored && gameState.crewRoster.length > 0;
-  const crewLevelUps = !crewExperienceAdvanced
-    ? []
-    : advanceCrewSailingExperience(gameState, currentMinute - previousMinute);
-  if (crewLevelUps.length > 0) {
-    showSurvivalNotice(
-      crewLevelUps.length === 1
-        ? "A CREWMATE GAINED EXPERIENCE"
-        : `${crewLevelUps.length} CREWMATES GAINED EXPERIENCE`,
-      "good"
-    );
+  if (crewExperienceAdvanced) {
+    advanceCrewSailingExperience(gameState, currentMinute - previousMinute);
   }
   if (safePort) {
     resetSurvivalDamageTimers();
-    return result.changed || crewLevelUps.length > 0;
+    return result.changed;
   }
   const hullRepaired = repairShipHullOverTime(
     ship,
@@ -46633,7 +46647,21 @@ function drawShipInfoMenu() {
     rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
   });
 
-  const cargoY = panel.y + 155;
+  const showDedicatedPayrollRow = panel.h >= 300;
+  if (showDedicatedPayrollRow) {
+    const payrollY = provisionY + localizedLineHeight(10);
+    drawSplitShipInfoTextRow({
+      leftText: uiText("ship.crewPayroll"),
+      rightText: uiText("crew.salaryPerMonth", { amount: view.monthlyCrewSalaryDoubloons }),
+      leftX: artX,
+      rightX: artX + SHIP_INFO_SIDE_VIEW_W,
+      y: payrollY,
+      leftColor: PIRATE_MENU_INK_MUTED,
+      rightColor: PIRATE_MENU_INK
+    });
+  }
+
+  const cargoY = panel.y + (showDedicatedPayrollRow ? 168 : 155);
   ctx.fillStyle = PIRATE_MENU_INK_MUTED;
   ctx.fillRect(panel.x + 10, cargoY - 3, panel.w - 20, 1);
   drawOptionsText("CARGO HOLD", panel.x + 12, cargoY + 1, { color: PIRATE_MENU_INK });
@@ -46642,10 +46670,20 @@ function drawShipInfoMenu() {
     color: PIRATE_MENU_INK
   });
   drawShipInfoBar(panel.x + 116, cargoY + 2, 150, view.cargoUsed / view.cargoCapacity, "#fbb954");
-  drawOptionsText(`${view.doubloons} DOUBLOONS`, panel.x + panel.w - 12, cargoY + 1, {
-    align: "right",
-    color: PIRATE_MENU_INK
-  });
+  const cargoHeaderBalance = showDedicatedPayrollRow
+    ? renderedUiText(`${view.doubloons} DOUBLOONS`)
+    : `${uiText("crew.salary")} ${uiText("crew.salaryPerMonth", {
+        amount: view.monthlyCrewSalaryDoubloons
+      })}`;
+  drawOptionsText(
+    fitPixelText(cargoHeaderBalance, PIXEL_FONT_SMALL_8, Math.max(80, panel.w - 285)),
+    panel.x + panel.w - 12,
+    cargoY + 1,
+    {
+      align: "right",
+      color: PIRATE_MENU_INK
+    }
+  );
 
   if (cargoPage.rows.length === 0) {
     drawOptionsText("THE HOLD IS EMPTY", panel.x + 12, cargoY + 24, { color: PIRATE_MENU_INK_MUTED });
@@ -46732,7 +46770,9 @@ function drawNotebookShipVessel(panel, view, cargoPage) {
   const holdY = supplyY + compactLineHeight;
   drawSplitShipInfoTextRow({
     leftText: `${uiText("ship.cargoHold")} ${view.cargoUsedLabel}/${view.cargoCapacity}`,
-    rightText: `${view.doubloons} DB`,
+    rightText: uiText("crew.salaryPerMonth", {
+      amount: view.monthlyCrewSalaryDoubloons
+    }),
     leftX: artX,
     rightX: leftValueX,
     y: holdY,
@@ -46877,6 +46917,16 @@ function drawCompactShipVessel(panel, view, cargoPage) {
     y: y + 1,
     leftColor: view.survival.drinkFraction <= 0.16 ? PIRATE_MENU_DANGER : PIRATE_MENU_CHART_LINE,
     rightColor: view.survival.foodDays <= 3 ? PIRATE_MENU_DANGER : PIRATE_MENU_INK_MUTED
+  });
+  y += statLineHeight + 1;
+  drawSplitShipInfoTextRow({
+    leftText: uiText("ship.crewPayroll"),
+    rightText: uiText("crew.salaryPerMonth", { amount: view.monthlyCrewSalaryDoubloons }),
+    leftX: labelX,
+    rightX: valueX,
+    y,
+    leftColor: PIRATE_MENU_INK_MUTED,
+    rightColor: PIRATE_MENU_INK
   });
   y += 17;
 
@@ -48719,7 +48769,11 @@ function drawAboardCrewMemberDetail(entry, panel) {
       uiText("aboard.origin"),
       `${characterCultureLabel(entry.crewMember)} / ${factionById(detail.nationalityId).shortName}`
     ],
-    [uiText("intro.religion"), characterReligionProfile(entry.crewMember).label]
+    [uiText("intro.religion"), characterReligionProfile(entry.crewMember).label],
+    [
+      uiText("crew.salary"),
+      uiText("crew.salaryPerMonth", { amount: detail.monthlySalaryDoubloons })
+    ]
   ];
   originRows.forEach(([label, value], index) => {
     const rowY = originDividerY + 9 + index * 16;
@@ -63022,7 +63076,7 @@ function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
 }
 
 function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
-  const { candidates, currentCrew, targetCrew, voluntary } = dialogueView.presentation;
+  const { candidates, currentCrew, targetCrew } = dialogueView.presentation;
   const panelW = Math.min(420, SCREEN_W - 12);
   const columns = crewDialogueGridColumns(panelW);
   const cardHeight = 56;
@@ -63034,12 +63088,12 @@ function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
     h: panelH
   };
   drawPiratePaperModal(panel, 0.9);
-  drawOptionsText(voluntary ? "MANAGE CREW" : "REDUCE CREW", panel.x + panel.w / 2, panel.y + 9, {
+  drawOptionsText("REDUCE CREW", panel.x + panel.w / 2, panel.y + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_DANGER
   });
-  drawOptionsText(voluntary ? `${currentCrew} ABOARD` : `${currentCrew} → ${targetCrew}`, panel.x + panel.w - 10, panel.y + 10, {
+  drawOptionsText(`${currentCrew} → ${targetCrew}`, panel.x + panel.w - 10, panel.y + 10, {
     align: "right",
     color: PIRATE_MENU_INK_MUTED
   });

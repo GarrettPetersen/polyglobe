@@ -136,6 +136,25 @@ test("city labels and controls stay on the game's native pixel font grid", () =>
   );
 });
 
+test("persistent city destination labels share the production runtime and warp before activation", () => {
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /activeDestinations\(\)[\s\S]*layoutCityDestinationLabels\(\{/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /const targetContext = emissiveContext \|\| context;[\s\S]*drawDestinationLabelPlate/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /if \(hit\.fromLabel === true\) focusDestination\(hit\.destination\.id, \{ immediate: true \}\);[\s\S]*activateDestination/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /pointerOverDestinationLabel[\s\S]*state\.pointer && !pointerOverDestinationLabel/
+  );
+});
+
 test("regional hover outlines and hit masks use the displayed building silhouette", () => {
   assert.match(
     VISUALIZER_MAIN_SOURCE,
@@ -259,12 +278,12 @@ test("Set Sail stays hidden at the dock and appears after deliberate westward tr
   }
 });
 
-test("RTS camera scrolls only at the edges with restrained start, stop, and reversal inertia", () => {
+test("RTS camera scrolls quickly at the edges with smooth start, stop, and reversal inertia", () => {
   assert.equal(sceneEdgeScrollVelocity({ pointerX: 227.5, width: 455 }), 0);
-  assert.equal(sceneEdgeScrollVelocity({ pointerX: 0, width: 455 }), -0.72);
-  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455, width: 455 }), 0.72);
-  assert.equal(sceneEdgeScrollVelocity({ pointerX: -0.39678955078125, width: 455 }), -0.72);
-  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455.39678955078125, width: 455 }), 0.72);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 0, width: 455 }), -1.15);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455, width: 455 }), 1.15);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: -0.39678955078125, width: 455 }), -1.15);
+  assert.equal(sceneEdgeScrollVelocity({ pointerX: 455.39678955078125, width: 455 }), 1.15);
   const firstFrame = advanceSceneParallax({
     current: -0.35,
     velocity: sceneEdgeScrollVelocity({ pointerX: 450, width: 455 }),
@@ -277,25 +296,25 @@ test("RTS camera scrolls only at the edges with restrained start, stop, and reve
     current: 0,
     velocity: PORT_SCENE_CAMERA.maximumPanSpeed,
     elapsedMs: 100
-  }), 0.145);
+  }), 0.24);
   assert.throws(() => advanceSceneParallax({
     current: 0,
     velocity: PORT_SCENE_CAMERA.maximumPanSpeed + 0.01,
     elapsedMs: 16
   }), /Invalid scene parallax velocity/);
-  const starting = advanceSceneScrollVelocity({ current: 0, target: 0.72, elapsedMs: 16 });
-  assert.ok(starting > 0 && starting < 0.72);
-  const stopping = advanceSceneScrollVelocity({ current: 0.72, target: 0, elapsedMs: 16 });
-  assert.ok(stopping > 0 && stopping < 0.72);
-  const reversing = advanceSceneScrollVelocity({ current: 0.72, target: -0.72, elapsedMs: 16 });
-  assert.ok(reversing > 0 && reversing < 0.72);
+  const starting = advanceSceneScrollVelocity({ current: 0, target: 1.15, elapsedMs: 16 });
+  assert.ok(starting > 0 && starting < 1.15);
+  const stopping = advanceSceneScrollVelocity({ current: 1.15, target: 0, elapsedMs: 16 });
+  assert.ok(stopping > 0 && stopping < 1.15);
+  const reversing = advanceSceneScrollVelocity({ current: 1.15, target: -1.15, elapsedMs: 16 });
+  assert.ok(reversing > 0 && reversing < 1.15);
   assert.equal(
-    advanceSceneScrollVelocity({ current: 0.01, target: -0.72, elapsedMs: 16 }),
+    advanceSceneScrollVelocity({ current: 0.01, target: -1.15, elapsedMs: 16 }),
     0
   );
   assert.equal(
-    advanceSceneScrollVelocity({ current: 0, target: 0.72, elapsedMs: 1000 }),
-    0.72
+    advanceSceneScrollVelocity({ current: 0, target: 1.15, elapsedMs: 1000 }),
+    1.15
   );
   assert.deepEqual(sceneCameraParallaxBounds("river"), { minimum: -0.30, maximum: 1 });
   assert.equal(sceneCameraDefaultParallax("river"), -0.12);
@@ -349,8 +368,9 @@ test("wheel and swipe distances pan the camera through the authored scene", () =
     logicalWidth: 910,
     approach: "ocean"
   }), 80 / 91);
-  assert.equal(sceneInertialPanTargetVelocity({ current: 0, target: 0.5 }), 1.45);
-  assert.ok(sceneInertialPanTargetVelocity({ current: 0.499, target: 0.5 }) < 0.12);
+  assert.ok(sceneInertialPanTargetVelocity({ current: 0, target: 0.5 }) > 2);
+  assert.ok(sceneInertialPanTargetVelocity({ current: 0, target: 0.5 }) <= 2.4);
+  assert.ok(sceneInertialPanTargetVelocity({ current: 0.499, target: 0.5 }) < 0.15);
   assert.equal(sceneInertialPanTargetVelocity({ current: 0.5, target: 0.5 }), 0);
 });
 

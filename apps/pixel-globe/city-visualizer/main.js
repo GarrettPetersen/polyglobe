@@ -4,6 +4,7 @@ import {
   PORT_SCENE_ENTITY_META,
   PORT_SCENE_DOCK,
   PORT_SCENE_CAMERA,
+  PORT_SCENE_DEPTH,
   PORT_SCENE_HORIZON_SHIFT_Y,
   PORT_SCENE_MASTER,
   PORT_SCENE_OCEAN_SLICES,
@@ -35,7 +36,7 @@ import {
 import {
   PIRATE_MENU_CHART_LINE,
   PIRATE_MENU_INK,
-  PIRATE_MENU_PAPER,
+  PIRATE_MENU_PAPER_BUTTON,
   PIRATE_MENU_PAPER_SELECTED
 } from "../src/pirateUiPalette.js";
 import {
@@ -210,6 +211,11 @@ import {
   cityBuildingEdgeContrastApplies,
   citySkySourceColorsByRow
 } from "./cityBuildingEdgeContrast.js";
+import {
+  cityDestinationLabelContainsPoint,
+  cityDestinationLeader,
+  layoutCityDestinationLabels
+} from "./cityDestinationLabels.js";
 
 export async function createCitySceneRuntime({
   canvas,
@@ -329,6 +335,8 @@ const state = {
   hoveredDestination: null,
   hoveredShipyardSaleShipId: null,
   focusedDestinationId: null,
+  destinationLabelLayouts: Object.freeze([]),
+  destinationLabelLayoutParallax: null,
   availableDestinationIds: null,
   barred: false,
   illicitCaughtStartedAtMs: null,
@@ -595,6 +603,7 @@ async function selectCity(cityId, {
   bombardmentFrameCache.clear();
   bombardmentOverlayFrameCache = null;
   state.focusedDestinationId = null;
+  invalidateDestinationLabelLayouts();
   state.cityFlagFactionId = city.factionId;
   state.cityFlagImage = prepared.cityFlagImage;
   state.shipSlug = prepared.ship.slug;
@@ -846,6 +855,7 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
   state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
+  invalidateDestinationLabelLayouts();
   updateHover();
   if (rebuild) rebuildCitySceneRenderPlan();
 }
@@ -1070,7 +1080,6 @@ function advanceCamera(timeMs) {
   }
   const elapsedMs = Math.min(50, Math.max(0, timeMs - state.lastRenderTimeMs));
   state.lastRenderTimeMs = timeMs;
-  const previous = state.parallax;
   const cameraBounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
   if (
     CITY_VISUALIZER_BENCHMARK?.cameraMode === "pan" &&
@@ -1083,8 +1092,11 @@ function advanceCamera(timeMs) {
   if (prefersReducedMotion.matches) {
     state.cameraVelocity = 0;
   } else {
+    const pointerOverDestinationLabel = state.pointer
+      ? Boolean(destinationLabelAtPoint(state.pointer.x, state.pointer.y))
+      : false;
     const targetVelocity = state.cameraPanTarget === null
-      ? (state.pointer
+      ? (state.pointer && !pointerOverDestinationLabel
           ? sceneEdgeScrollVelocity({ pointerX: state.pointer.x, width: canvas.width })
           : 0)
       : sceneInertialPanTargetVelocity({
@@ -1121,7 +1133,6 @@ function advanceCamera(timeMs) {
       state.cameraPanTarget = null;
     }
   }
-  if (state.pointer && state.parallax !== previous) updateHover();
 }
 
 function sceneWindow(depth, offsetX = 0, offsetY = 0, parallaxAnchor = 0) {
@@ -1169,8 +1180,7 @@ function prepareEmissiveFrame() {
 }
 
 function renderCityFrame(timeMs) {
-  advanceCamera(timeMs);
-  advanceCloudMotion(timeMs);
+  advanceCityFrame(timeMs);
   prepareEmissiveFrame();
   context.imageSmoothingEnabled = false;
   context.fillStyle = "#6385c5";
@@ -1188,8 +1198,7 @@ function renderCityFrame(timeMs) {
 
 function renderBenchmarkedCityFrame(timeMs) {
   measureCityBenchmarkStage("update", () => {
-    advanceCamera(timeMs);
-    advanceCloudMotion(timeMs);
+    advanceCityFrame(timeMs);
   });
   prepareEmissiveFrame();
   context.imageSmoothingEnabled = false;
@@ -1206,6 +1215,13 @@ function renderBenchmarkedCityFrame(timeMs) {
   }));
   measureCityBenchmarkStage("render.precipitation", () => drawCityPrecipitation(timeMs));
   measureCityBenchmarkStage("render.labels", drawSceneLabels);
+}
+
+function advanceCityFrame(timeMs) {
+  advanceCamera(timeMs);
+  advanceCloudMotion(timeMs);
+  prepareDestinationLabelLayouts();
+  if (state.pointer) updateHover();
 }
 
 function drawCityPrecipitation(timeMs) {
@@ -3870,23 +3886,50 @@ function drawPersonSprite(targetContext, {
   targetContext.restore();
 }
 
+function prepareDestinationLabelLayouts() {
+  if (state.destinationLabelLayoutParallax === state.parallax) return;
+  const setSailHasWorldControl = Boolean(setSailControlRect());
+  const entries = activeDestinations()
+    .filter((destination) => (
+      destination.id !== PORT_CITY_LOCATION.SET_SAIL || !setSailHasWorldControl
+    ))
+    .map((destination) => {
+      const label = renderText(destination.label);
+      const font = smallFontForText(label);
+      const textWidth = overlayPixelText.measure(label, font);
+      const textHeight = overlayPixelText.height(font);
+      const anchor = destinationScreenAnchor(destination);
+      if (!anchor) {
+        throw new Error(`Active city destination has no scene anchor: ${destination.id}`);
+      }
+      return Object.freeze({
+        id: destination.id,
+        label,
+        font,
+        textWidth,
+        anchor,
+        width: textWidth + 6,
+        height: textHeight + 2,
+        preferredSide: destination.id === PORT_CITY_LOCATION.SHIP ? "left" : "above"
+      });
+    });
+  state.destinationLabelLayouts = layoutCityDestinationLabels({
+    entries,
+    viewportWidth: canvas.width,
+    viewportHeight: canvas.height
+  });
+  state.destinationLabelLayoutParallax = state.parallax;
+}
+
+function invalidateDestinationLabelLayouts() {
+  state.destinationLabelLayouts = Object.freeze([]);
+  state.destinationLabelLayoutParallax = null;
+}
+
 function drawSceneLabels() {
   drawCityNameLabel();
   drawSetSailControl();
-
-  const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
-  if (highlightedDestination && highlightedDestination.id !== PORT_CITY_LOCATION.SET_SAIL) {
-    const label = renderText(highlightedDestination.label).toUpperCase();
-    const font = smallFontForText(label);
-    const width = pixelText.measure(label, font) + 10;
-    const x = Math.round((canvas.width - width) / 2);
-    const y = canvas.height - 22;
-    drawLabelPlate(x, y, width, 15);
-    pixelText.draw(label, x + 5, y + 2, {
-      color: PIRATE_MENU_INK,
-      font
-    });
-  }
+  drawDestinationLabels();
 }
 
 function drawCityNameLabel() {
@@ -4000,12 +4043,94 @@ function drawSetSailArrow(x, centerY, scale, color) {
   context.fillRect(x + 3 * scale, centerY + 3 * scale, scale, scale);
 }
 
-function drawLabelPlate(x, y, width, height) {
-  context.fillStyle = PIRATE_MENU_PAPER;
-  context.fillRect(x, y, width, height);
-  context.strokeStyle = PIRATE_MENU_CHART_LINE;
-  context.lineWidth = 1;
-  context.strokeRect(x + 0.5, y + 0.5, width - 1, height - 1);
+function drawDestinationLabels() {
+  const targetContext = emissiveContext || context;
+  const highlightedDestination = state.hoveredDestination ||
+    destinationById(state.focusedDestinationId);
+  targetContext.save();
+  targetContext.imageSmoothingEnabled = false;
+  for (const label of state.destinationLabelLayouts) {
+    drawDestinationLeader(
+      targetContext,
+      label,
+      highlightedDestination?.id === label.id
+    );
+  }
+  for (const label of state.destinationLabelLayouts) {
+    const highlighted = highlightedDestination?.id === label.id;
+    drawDestinationLabelPlate(targetContext, label, highlighted);
+    overlayPixelText.draw(label.label, label.x + 3, label.y + 1, {
+      color: PIRATE_MENU_INK,
+      font: label.font
+    });
+  }
+  targetContext.restore();
+}
+
+function drawDestinationLabelPlate(targetContext, label, highlighted) {
+  targetContext.save();
+  targetContext.globalAlpha = highlighted ? 1 : 0.76;
+  targetContext.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_PAPER_BUTTON;
+  targetContext.fillRect(label.x, label.y, label.width, label.height);
+  targetContext.strokeStyle = highlighted ? PIRATE_MENU_INK : PIRATE_MENU_CHART_LINE;
+  targetContext.lineWidth = 1;
+  targetContext.strokeRect(
+    label.x + 0.5,
+    label.y + 0.5,
+    label.width - 1,
+    label.height - 1
+  );
+  targetContext.restore();
+}
+
+function drawDestinationLeader(targetContext, label, highlighted) {
+  const leader = cityDestinationLeader(label, canvas.width, canvas.height);
+  targetContext.save();
+  targetContext.globalAlpha = highlighted ? 1 : 0.72;
+  targetContext.fillStyle = highlighted ? PIRATE_MENU_PAPER_SELECTED : PIRATE_MENU_CHART_LINE;
+  for (const segment of leader.segments) drawOrthogonalPixelSegment(targetContext, segment);
+  drawDestinationLeaderTarget(targetContext, leader.target, leader.direction);
+  targetContext.restore();
+}
+
+function drawOrthogonalPixelSegment(targetContext, segment) {
+  if (segment.y1 === segment.y2) {
+    targetContext.fillRect(
+      Math.min(segment.x1, segment.x2),
+      segment.y1,
+      Math.abs(segment.x2 - segment.x1) + 1,
+      1
+    );
+    return;
+  }
+  if (segment.x1 === segment.x2) {
+    targetContext.fillRect(
+      segment.x1,
+      Math.min(segment.y1, segment.y2),
+      1,
+      Math.abs(segment.y2 - segment.y1) + 1
+    );
+    return;
+  }
+  throw new Error(`City destination leader is not orthogonal: ${segment.x1},${segment.y1}`);
+}
+
+function drawDestinationLeaderTarget(targetContext, target, direction) {
+  if (direction === null) {
+    targetContext.fillRect(target.x - 1, target.y, 3, 1);
+    targetContext.fillRect(target.x, target.y - 1, 1, 3);
+    return;
+  }
+  const steps = {
+    left: [[0, 0], [1, -1], [1, 1], [2, -2], [2, 2]],
+    right: [[0, 0], [-1, -1], [-1, 1], [-2, -2], [-2, 2]],
+    up: [[0, 0], [-1, 1], [1, 1], [-2, 2], [2, 2]],
+    down: [[0, 0], [-1, -1], [1, -1], [-2, -2], [2, -2]]
+  }[direction];
+  if (!steps) throw new Error(`Unknown city destination direction: ${direction}`);
+  for (const [offsetX, offsetY] of steps) {
+    targetContext.fillRect(target.x + offsetX, target.y + offsetY, 1, 1);
+  }
 }
 
 function updateHover() {
@@ -4062,6 +4187,14 @@ function validateAvailableDestinationIds(destinationIds) {
 function destinationAtPoint(x, y) {
   if (![x, y].every(Number.isFinite)) throw new Error("Invalid city destination coordinates");
   const destinations = activeDestinations();
+  const label = destinationLabelAtPoint(x, y);
+  if (label) {
+    const destination = destinations.find(({ id }) => id === label.id);
+    if (!destination) {
+      throw new Error(`City destination label outlived its destination: ${label.id}`);
+    }
+    return Object.freeze({ destination, saleShipId: null, fromLabel: true });
+  }
   const setSailDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.SET_SAIL);
   if (setSailDestination) {
     const rect = setSailControlRect();
@@ -4128,6 +4261,15 @@ function destinationAtPoint(x, y) {
   return null;
 }
 
+function destinationLabelAtPoint(x, y) {
+  if (![x, y].every(Number.isFinite)) {
+    throw new Error("Invalid city destination label coordinates");
+  }
+  return state.destinationLabelLayouts.find((label) => (
+    cityDestinationLabelContainsPoint(label, x, y)
+  )) || null;
+}
+
 function docksideShipContainsPoint(screenX, screenY) {
   if (!state.shipImage) return false;
   const placement = docksideShipPlacement(state.lastRenderTimeMs ?? 0, PORT_SCENE_ENTITY_META.ship.depth);
@@ -4186,7 +4328,7 @@ function focusDestination(destinationId, { immediate = false } = {}) {
     return;
   }
   const anchor = destinationScreenAnchor(destination);
-  if (!anchor) return;
+  if (!anchor) throw new Error(`City destination has no scene anchor: ${destination.id}`);
   const deltaX = anchor.x - canvas.width / 2;
   if (immediate || prefersReducedMotion.matches) panCameraByLogicalPixels(deltaX);
   else queueCameraPanByLogicalPixels(deltaX);
@@ -4208,27 +4350,49 @@ function moveDestinationFocus(direction) {
 }
 
 function destinationScreenAnchor(destination) {
+  if (destination.id === PORT_CITY_LOCATION.SET_SAIL) {
+    const window = sceneWindow(PORT_SCENE_DEPTH.foreground);
+    return Object.freeze({
+      x: PORT_SCENE_MASTER.leftBankX + 64 - window.x,
+      y: PORT_SCENE_OCEAN_SLICES[1].top + 58 - window.y
+    });
+  }
   if (destination.id === PORT_CITY_LOCATION.SHIP) {
     const placement = docksideShipPlacement(state.lastRenderTimeMs ?? 0, PORT_SCENE_ENTITY_META.ship.depth);
-    return placement ? { x: placement.x + state.shipImage.width / 2, y: placement.y } : null;
-  }
-  const agent = state.specialAgents.find(({ destinationId }) => (
-    destinationId === destination.id
-  ));
-  if (agent?.interactive === true) {
-    const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
-    return { x: agent.startX - window.x, y: agent.feetY - window.y };
+    if (!placement) return null;
+    const sideAnchor = docksideShipSideAnchor(placement.ship);
+    return Object.freeze({
+      x: placement.x + state.shipWaterlineLayers.opaqueMinX * placement.scale,
+      y: placement.y + sideAnchor.y * placement.scale
+    });
   }
   const activeLayers = activePortSceneLayers(state.features);
   for (const layerName of destination.layers) {
     if (!activeLayers.has(layerName)) continue;
     const frame = state.portManifest.staticFrames.find((candidate) => candidate.layer === layerName);
     if (!frame) continue;
-    const window = sceneWindow(layerParallaxDepth(layerName));
-    return {
+    const occurrence = 0;
+    const approach = state.features?.approach || "ocean";
+    const window = sceneWindow(
+      layerParallaxDepth(layerName, occurrence),
+      layerSceneOffsetX(layerName, occurrence, approach),
+      layerSceneOffsetY(layerName, occurrence, approach),
+      layerParallaxAnchor(layerName, occurrence)
+    );
+    return Object.freeze({
       x: frame.spriteSourceSize.x + frame.frame.w / 2 - window.x,
-      y: frame.spriteSourceSize.y + frame.frame.h / 2 - window.y
-    };
+      y: frame.spriteSourceSize.y + Math.min(6, Math.floor(frame.frame.h / 4)) - window.y
+    });
+  }
+  const agent = state.specialAgents.find(({ destinationId }) => (
+    destinationId === destination.id
+  ));
+  if (agent) {
+    const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+    return Object.freeze({
+      x: agent.startX - window.x,
+      y: agent.feetY - 8 - window.y
+    });
   }
   return null;
 }
@@ -4543,7 +4707,9 @@ return Object.freeze({
   },
   activateAt(x, y) {
     const hit = destinationAtPoint(x, y);
-    return hit ? activateDestination(hit.destination.id, hit.saleShipId) : null;
+    if (!hit) return null;
+    if (hit.fromLabel === true) focusDestination(hit.destination.id, { immediate: true });
+    return activateDestination(hit.destination.id, hit.saleShipId);
   },
   setAssaultPresentation(presentation) {
     if (presentation !== null && (
@@ -4559,6 +4725,7 @@ return Object.freeze({
     }
     const enteringAssault = presentation !== null && state.assaultPresentation === null;
     state.assaultPresentation = presentation;
+    invalidateDestinationLabelLayouts();
     if (presentation) {
       if (enteringAssault) focusDestination(PORT_CITY_LOCATION.SET_SAIL, { immediate: true });
       state.focusedDestinationId = PORT_CITY_LOCATION.SET_SAIL;
@@ -4659,6 +4826,7 @@ return Object.freeze({
     canvas.width = width;
     canvas.height = height;
     context.imageSmoothingEnabled = false;
+    invalidateDestinationLabelLayouts();
     citySceneRenderer.invalidateStaticCache();
     updateHover();
   }

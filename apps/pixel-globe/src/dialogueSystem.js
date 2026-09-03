@@ -2036,13 +2036,9 @@ export function selectPortDialogueOption(
     return { closed: false };
   }
   if (action.type === "open-crew-management") {
-    beginCrewDismissal(session, {
-      kind: "voluntary",
-      targetCrew: null,
-      returnNodeId: "inn-drink",
-      afterNodeId: "inn-drink"
-    });
-    return { closed: false };
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false, action: { type: "open-crew-management" } };
   }
   if (action.type === "hire-crew-member") {
     const hired = hireCrewMemberAtPort(gameState, city, action.memberId, context);
@@ -2052,8 +2048,7 @@ export function selectPortDialogueOption(
   }
   if (action.type === "dismiss-crew-member") {
     const dismissal = requireCrewDismissal(session);
-    const minimumCrew = dismissal.kind === "voluntary" ? 1 : dismissal.targetCrew;
-    if (gameState.ship.crew <= minimumCrew) {
+    if (gameState.ship.crew <= dismissal.targetCrew) {
       throw new Error("Crew dismissal target is already satisfied");
     }
     dismissal.dismissals.push(dismissCrewMember(gameState, action.memberId));
@@ -2079,15 +2074,6 @@ export function selectPortDialogueOption(
   }
   if (action.type === "confirm-crew-dismissal") {
     const dismissal = requireCrewDismissal(session);
-    if (dismissal.kind === "voluntary") {
-      session.crewDismissal = null;
-      session.nodeId = dismissal.afterNodeId;
-      session.feedback = dismissal.dismissals.length === 0
-        ? "No crewmates were dismissed."
-        : `${dismissal.dismissals.length} crewmate${dismissal.dismissals.length === 1 ? "" : "s"} dismissed.`;
-      session.selectedIndex = 0;
-      return { closed: false, crewDismissalsCommitted: true };
-    }
     if (gameState.ship.crew !== dismissal.targetCrew) {
       throw new Error(`Crew dismissal is incomplete: ${gameState.ship.crew}/${dismissal.targetCrew}`);
     }
@@ -4924,13 +4910,10 @@ function beginCrewDismissal(session, {
   returnNodeId,
   afterNodeId
 }) {
-  if (!["preset", "custom", "voluntary"].includes(kind)) {
+  if (!["preset", "custom"].includes(kind)) {
     throw new Error(`Unknown crew dismissal kind: ${kind}`);
   }
-  const validTarget = kind === "voluntary"
-    ? targetCrew === null
-    : Number.isInteger(targetCrew) && targetCrew >= 1;
-  if (!validTarget) {
+  if (!Number.isInteger(targetCrew) || targetCrew < 1) {
     throw new Error(`Invalid crew dismissal target: ${targetCrew}`);
   }
   session.crewDismissal = {
@@ -4965,9 +4948,8 @@ function requireCrewDismissal(session) {
 
 function crewDismissalView(session, city, gameState) {
   const dismissal = requireCrewDismissal(session);
-  const voluntary = dismissal.kind === "voluntary";
-  const remaining = voluntary ? 0 : Math.max(0, gameState.ship.crew - dismissal.targetCrew);
-  const canDismiss = voluntary ? gameState.ship.crew > 1 : remaining > 0;
+  const remaining = Math.max(0, gameState.ship.crew - dismissal.targetCrew);
+  const canDismiss = remaining > 0;
   const candidates = gameState.crewRoster.map((member) => Object.freeze({
     member,
     stars: crewMemberExperienceStars(member)
@@ -4975,9 +4957,7 @@ function crewDismissalView(session, city, gameState) {
   return {
     speaker: `${cityLabel(city)} crew muster`,
     expressionId: "neutral",
-    text: voluntary
-      ? "Choose any crewmates to dismiss. You can undo every dismissal before leaving the muster."
-      : remaining > 0
+    text: remaining > 0
       ? `Dismiss ${remaining} more crewmate${remaining === 1 ? "" : "s"} for this loadout.`
       : "The new crew complement is ready.",
     feedback: session.feedback,
@@ -4985,7 +4965,6 @@ function crewDismissalView(session, city, gameState) {
       kind: "crew-dismissal",
       candidates: Object.freeze(candidates),
       targetCrew: dismissal.targetCrew,
-      voluntary,
       currentCrew: gameState.ship.crew,
       dismissedCount: dismissal.dismissals.length
     }),
@@ -4995,16 +4974,14 @@ function crewDismissalView(session, city, gameState) {
         { type: "dismiss-crew-member", memberId: member.id },
         {
           disabled: !canDismiss,
-          disabledReason: voluntary
-            ? "At least one crewmate must remain aboard."
-            : "The crew target is satisfied."
+          disabledReason: "The crew target is satisfied."
         }
       )),
       option("Undo all", { type: "undo-crew-dismissals" }, {
         disabled: dismissal.dismissals.length === 0,
         disabledReason: "No dismissals to undo."
       }),
-      option(voluntary ? "Done" : "Apply loadout", { type: "confirm-crew-dismissal" }, {
+      option("Apply loadout", { type: "confirm-crew-dismissal" }, {
         disabled: remaining !== 0,
         disabledReason: `${remaining} crew still need to be dismissed.`
       }),

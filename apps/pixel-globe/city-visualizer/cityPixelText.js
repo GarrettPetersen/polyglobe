@@ -16,14 +16,12 @@ export function cityPortTitleLayout({ textWidth, textHeight, viewportWidth }) {
       throw new Error(`Invalid city port title ${label}: ${value}`);
     }
   }
-  const horizontalPadding = 12;
-  const scale = textWidth * 2 <= viewportWidth - horizontalPadding * 2 ? 2 : 1;
   return Object.freeze({
-    x: Math.round((viewportWidth - textWidth * scale) / 2),
+    x: Math.round((viewportWidth - textWidth) / 2),
     y: CITY_PORT_TITLE_Y,
-    width: textWidth * scale,
-    height: textHeight * scale,
-    scale
+    width: textWidth,
+    height: textHeight,
+    scale: 1
   });
 }
 

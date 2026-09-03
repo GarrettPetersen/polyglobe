@@ -1,4 +1,5 @@
 import { crewMemberExperienceStars } from "./crewMembers.js";
+import { crewMemberMonthlySalary } from "./crewPayroll.js";
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
 const EXPERIENCE_LEVEL_KEYS = Object.freeze([
@@ -38,6 +39,7 @@ export function aboardCrewMemberDetail(member, currentMinute) {
     nationalityId: member.nationalityId,
     typeLabel: member.crewTypeId.replaceAll("-", " ").toUpperCase(),
     timeAboardDays: Math.floor((wholeMinute - member.recruitedAtMinute) / WEATHER_MINUTES_PER_DAY),
+    monthlySalaryDoubloons: crewMemberMonthlySalary(member),
     experienceStars,
     experienceLevelKey: aboardCrewExperienceLevelKey(experienceStars)
   });

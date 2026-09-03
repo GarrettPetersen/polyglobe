@@ -69,6 +69,7 @@ test("ship information uses live hull, currency, stats, and cargo", () => {
   assert.equal(view.armor, 0);
   assert.equal(view.cargoUsed, 3);
   assert.equal(view.cargoCapacity, 115);
+  assert.equal(view.monthlyCrewSalaryDoubloons, 0);
   assert.equal(view.realizedPnl, 0);
   assert.deepEqual(view.cargo.map(({ id, quantity }) => [id, quantity]), [
     ["grain", 2],

@@ -71,17 +71,17 @@ test("city pixel text enlarges with integer nearest-neighbor scaling", () => {
   );
 });
 
-test("port titles are prominent, centered, and lowered from the top edge", () => {
+test("port titles remain at the pixel font's native scale and centered below the top edge", () => {
   assert.deepEqual(cityPortTitleLayout({
     textWidth: 42,
     textHeight: 8,
     viewportWidth: 256
   }), {
-    x: 86,
+    x: 107,
     y: CITY_PORT_TITLE_Y,
-    width: 84,
-    height: 16,
-    scale: 2
+    width: 42,
+    height: 8,
+    scale: 1
   });
   assert.ok(CITY_PORT_TITLE_Y > 8);
 

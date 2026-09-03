@@ -20,6 +20,7 @@ import {
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 import { clampMenuIndex } from "./menuNavigation.js";
 import { effectivePlayerShipStats } from "./playerPerks.js";
+import { crewRosterMonthlySalary } from "./crewPayroll.js";
 import { sovereignTradePolicyById } from "./sovereignTradeAccess.js";
 import { isTreatyOfMadridQuest } from "./treatyOfMadridMission.js";
 
@@ -39,7 +40,7 @@ export function shipCargoRowsPerPageForPanel({
     }
   }
   if (width >= 400) {
-    const firstRowTop = 174;
+    const firstRowTop = height < 300 ? 174 : 187;
     const rowHeight = 17;
     const pagerTop = height - pagerHeight - 5;
     const rowsPerColumn = Math.max(1, Math.min(4, Math.floor((pagerTop - firstRowTop) / rowHeight)));
@@ -51,7 +52,7 @@ export function shipCargoRowsPerPageForPanel({
     const pagerTop = height - pagerHeight - 5;
     return Math.max(1, Math.floor((pagerTop - firstRowTop) / rowHeight));
   }
-  const firstRowTop = 299;
+  const firstRowTop = 312;
   const rowHeight = 17;
   const pagerTop = height - pagerHeight - 5;
   return Math.max(1, Math.floor((pagerTop - firstRowTop) / rowHeight));
@@ -212,6 +213,7 @@ export function createShipInfoView(ship, gameState, { ownedShipyards = [] } = {}
     armamentSummary: armament.summary,
     crew: activeCrew,
     crewCapacity: baseStats.crewCapacity,
+    monthlyCrewSalaryDoubloons: crewRosterMonthlySalary(gameState.crewRoster),
     loadoutId: gameState.ship?.loadoutId || null,
     doubloons: gameState.doubloons,
     realizedPnl: realizedTradePnl(gameState),

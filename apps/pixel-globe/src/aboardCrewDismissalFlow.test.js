@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
@@ -6,6 +7,15 @@ import {
   confirmAboardCrewDismissal,
   requestAboardCrewDismissal
 } from "./aboardCrewDismissalFlow.js";
+
+const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+
+test("inn crew management opens the same aboard roster used elsewhere", () => {
+  assert.match(
+    MAIN_SOURCE,
+    /result\.action\?\.type === "open-crew-management"[\s\S]*?openAboardMenu\(\);/
+  );
+});
 
 test("crew dismissal requires a separate request and confirmation", () => {
   const pendingMemberId = requestAboardCrewDismissal("crew:a", null);

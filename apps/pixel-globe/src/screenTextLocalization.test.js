@@ -29,6 +29,11 @@ test("ordinary screen text stays concise enough to read instead of skip", () => 
   assert.deepEqual(overlong, []);
 });
 
+test("routine crew experience gains stay silent", () => {
+  assert.equal(screenTextTemplates().includes("A CREWMATE GAINED EXPERIENCE"), false);
+  assert.equal(screenTextTemplates().includes("{0} CREWMATES GAINED EXPERIENCE"), false);
+});
+
 test("historical dialogue avoids present-day institutional framing", () => {
   const modernPhrases = [
     /\bIndigenous\b/i,

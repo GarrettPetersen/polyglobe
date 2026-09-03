@@ -101,9 +101,7 @@ export function portCityStaffRoleForDialogueSession(session) {
     return role;
   }
   if (session.nodeId === "crew-dismissal") {
-    return session.crewDismissal?.kind === "voluntary"
-      ? PORT_CITY_STAFF_ROLE.INNKEEPER
-      : PORT_CITY_STAFF_ROLE.HARBOUR_MASTER;
+    return PORT_CITY_STAFF_ROLE.HARBOUR_MASTER;
   }
   if (HARBOUR_MASTER_NODES.has(session.nodeId)) return PORT_CITY_STAFF_ROLE.HARBOUR_MASTER;
   if (INNKEEPER_NODES.has(session.nodeId)) return PORT_CITY_STAFF_ROLE.INNKEEPER;

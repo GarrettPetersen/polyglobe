@@ -17,7 +17,7 @@ const CREW_MEMBER = Object.freeze({
   homePortTileId: 42,
   homePortName: "Lisbon",
   appearanceId: "european-sailor",
-  crewTypeId: "european-sailor",
+  crewTypeId: "sailor",
   recruitedAtMinute: 10 * WEATHER_MINUTES_PER_DAY,
   sailingMinutes: 46 * WEATHER_MINUTES_PER_DAY
 });
@@ -33,8 +33,9 @@ test("aboard crew detail presents the durable crew facts", () => {
       nameCulture: "portuguese",
       religionId: "roman-catholic",
       nationalityId: "portugal",
-      typeLabel: "EUROPEAN SAILOR",
+      typeLabel: "SAILOR",
       timeAboardDays: 17,
+      monthlySalaryDoubloons: 5,
       experienceStars: 2,
       experienceLevelKey: "aboard.experience.seasoned"
     }

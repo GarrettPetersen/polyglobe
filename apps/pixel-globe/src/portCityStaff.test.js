@@ -74,15 +74,7 @@ test("port submenus inherit the staff member for their city location", () => {
   );
 });
 
-test("inn crew management belongs to the innkeeper while loadout reductions belong to the harbour master", () => {
-  assert.equal(
-    portCityStaffRoleForDialogueSession({
-      kind: "port",
-      nodeId: "crew-dismissal",
-      crewDismissal: { kind: "voluntary" }
-    }),
-    PORT_CITY_STAFF_ROLE.INNKEEPER
-  );
+test("loadout crew reductions belong to the harbour master", () => {
   assert.equal(
     portCityStaffRoleForDialogueSession({
       kind: "port",

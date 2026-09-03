@@ -491,6 +491,14 @@ import {
   validateCrewRoster
 } from "./crewMembers.js";
 import {
+  CREW_PAYROLL_RESERVE_DOUBLOONS,
+  createCrewPayrollState,
+  crewPayrollPeriodIndexAtMinute,
+  crewPayrollPeriodsDue,
+  crewRosterMonthlySalary,
+  validateCrewPayrollState
+} from "./crewPayroll.js";
+import {
   createQuestCargoDeliveryMemory,
   questCargoDeliverableQuantity,
   recordQuestCargoDelivery,
@@ -542,7 +550,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 97;
+export const GAME_STATE_VERSION = 98;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -717,6 +725,7 @@ export function createGameState({
     cargo: {},
     namedCrew: createNamedCrewMemory(),
     crewRoster: createCrewRoster(),
+    crewPayroll: createCrewPayrollState(startMinute),
     ship: shipStats === null ? null : createPlayerShipState(shipStats),
     survival: createSurvivalState(
       startMinute,
@@ -870,12 +879,57 @@ export function validateGameState(state) {
   return state;
 }
 
+export function settleCrewPayrollThroughMinute(state, currentMinute) {
+  if (!state || typeof state !== "object" || Array.isArray(state)) {
+    throw new Error("Crew payroll settlement requires game state");
+  }
+  if (!Number.isFinite(currentMinute) || currentMinute < 0) {
+    throw new Error(`Invalid crew payroll settlement minute: ${currentMinute}`);
+  }
+  validateCrewPayrollState(state.crewPayroll);
+  const periodsDue = crewPayrollPeriodsDue(state.crewPayroll, currentMinute);
+  if (periodsDue === 0) return null;
+  const monthlySalaryDoubloons = crewRosterMonthlySalary(state.crewRoster);
+  const regularDueDoubloons = monthlySalaryDoubloons * periodsDue;
+  const arrearsBeforeDoubloons = state.crewPayroll.arrearsDoubloons;
+  const totalDueDoubloons = regularDueDoubloons + arrearsBeforeDoubloons;
+  if (!Number.isSafeInteger(totalDueDoubloons)) {
+    throw new Error(`Crew salary obligation exceeds safe integer range: ${totalDueDoubloons}`);
+  }
+  const canPayInFull = state.doubloons - totalDueDoubloons >= CREW_PAYROLL_RESERVE_DOUBLOONS;
+  const paidDoubloons = totalDueDoubloons > 0 && canPayInFull ? totalDueDoubloons : 0;
+  state.crewPayroll.lastSettledPeriodIndex = crewPayrollPeriodIndexAtMinute(currentMinute);
+  state.crewPayroll.arrearsDoubloons = totalDueDoubloons - paidDoubloons;
+  if (paidDoubloons > 0) {
+    state.doubloons -= paidDoubloons;
+    recordLedgerEntry(state, null, { simMinute: Math.floor(currentMinute) }, {
+      kind: "expense",
+      description: "Crew salaries",
+      goodId: null,
+      quantity: 0,
+      amount: -paidDoubloons,
+      costBasis: null,
+      pnl: null
+    });
+  }
+  return Object.freeze({
+    periodsDue,
+    monthlySalaryDoubloons,
+    regularDueDoubloons,
+    arrearsBeforeDoubloons,
+    totalDueDoubloons,
+    paidDoubloons,
+    arrearsAfterDoubloons: state.crewPayroll.arrearsDoubloons,
+    paidInFull: paidDoubloons === totalDueDoubloons
+  });
+}
+
 export function migrateGameState(state, shipStats, {
   legacyCityIdForPortReference = null,
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -979,7 +1033,7 @@ export function migrateGameState(state, shipStats, {
       `${state.crewRoster?.length ?? "missing"}/${ordinaryCrewCount}`
     );
   }
-  const originMigratedCrewRoster = state.version === 96
+  const originMigratedCrewRoster = state.version >= 96
     ? state.crewRoster
     : state.version === 95
     ? migrateCrewRosterOriginTraits(state.crewRoster, (homePortCityId) => (
@@ -1012,6 +1066,7 @@ export function migrateGameState(state, shipStats, {
     playerCharacter: migratedPlayerCharacter,
     namedCrew: migratedNamedCrew,
     crewRoster: migratedCrewRoster,
+    crewPayroll: createCrewPayrollState(savedCrewExperienceMinute(state)),
     survival: {
       ...state.survival,
       foodRationDebt: Number.isFinite(state.survival?.foodRationDebt)
@@ -10534,6 +10589,7 @@ function assertGameState(state) {
   if (state.playerCharacter !== null) assertPlayerCharacter(state.playerCharacter);
   validateNamedCrew(state.namedCrew);
   validateCrewRoster(state.crewRoster);
+  validateCrewPayrollState(state.crewPayroll);
   assertCargoCapacity(state.cargoCapacity);
   if (!Number.isInteger(state.doubloons) || state.doubloons < 0) {
     throw new Error(`Invalid doubloon balance: ${state.doubloons}`);

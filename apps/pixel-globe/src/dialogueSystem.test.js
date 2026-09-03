@@ -3696,7 +3696,7 @@ test("crew recruitment presents a clean empty state when no hands are available"
   assert.deepEqual(view.options.map(({ label }) => label), ["Back to city"]);
 });
 
-test("the inn supports replacing crew without changing the ship loadout", () => {
+test("the inn routes crew management to the shared aboard roster", () => {
   const city = {
     tileId: 9,
     cityId: "cadiz|spain",
@@ -3728,19 +3728,19 @@ test("the inn supports replacing crew without changing the ship loadout", () => 
   const manageIndex = view.options.findIndex(({ action }) => action.type === "open-crew-management");
   assert.ok(manageIndex >= 0);
   assert.ok(view.options.some(({ action }) => action.type === "open-crew-recruitment"));
-  selectPortDialogueOption(session, city, gameState, economy, [city], manageIndex, context);
-  view = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.equal(view.presentation.voluntary, true);
-
-  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
-  assert.equal(gameState.ship.crew, initialCrew - 1);
-  view = portDialogueView(session, city, gameState, economy, [city], context);
-  const doneIndex = view.options.findIndex(({ action }) => action.type === "confirm-crew-dismissal");
-  selectPortDialogueOption(session, city, gameState, economy, [city], doneIndex, context);
-
+  const result = selectPortDialogueOption(
+    session,
+    city,
+    gameState,
+    economy,
+    [city],
+    manageIndex,
+    context
+  );
+  assert.deepEqual(result.action, { type: "open-crew-management" });
   assert.equal(session.nodeId, "inn-drink");
   assert.equal(gameState.ship.loadoutId, loadoutId);
-  assert.equal(gameState.ship.crew, initialCrew - 1);
+  assert.equal(gameState.ship.crew, initialCrew);
 });
 
 test("captain-led inn dialogue builds city navigation without treating the captain as port staff", () => {
