@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  CHART_REFRAME_OPAQUE_COVER_KINDS,
   chartReframeCoverIsOpaque,
   chartShouldReframeOnCoverOpen,
   coldCoveredWorldDefersFullRender,
@@ -15,10 +16,25 @@ test("live sailing without dialogue does not qualify as hidden chart cover", () 
   assert.equal(chartReframeCoverIsOpaque({ fullPortDialogue: false }), false);
 });
 
-test("blocking dialogue and full notebook pages can hide a correction", () => {
-  assert.equal(chartReframeCoverIsOpaque({ captainMenu: true }), true);
-  assert.equal(chartReframeCoverIsOpaque({ fullPortDialogue: true }), true);
-  assert.equal(chartReframeCoverIsOpaque({ blockingDialogue: true }), true);
+test("every declared opaque cover can hide a correction", () => {
+  for (const coverKind of CHART_REFRAME_OPAQUE_COVER_KINDS) {
+    assert.equal(
+      chartReframeCoverIsOpaque({ [coverKind]: true }),
+      true,
+      `${coverKind} should be opaque`
+    );
+  }
+});
+
+test("unknown and malformed cover state fails instead of hiding policy drift", () => {
+  assert.throws(
+    () => chartReframeCoverIsOpaque({ portCitySceneReady: true }),
+    /Unknown chart reframe cover kind: portCitySceneReady/
+  );
+  assert.throws(
+    () => chartReframeCoverIsOpaque({ portCityScene: 1 }),
+    /Chart reframe cover portCityScene must be boolean/
+  );
 });
 
 test("opaque cover only hides a costly chart rebuild when repair is severe", () => {

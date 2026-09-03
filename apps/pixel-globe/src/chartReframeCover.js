@@ -1,37 +1,37 @@
-export function chartReframeCoverIsOpaque({
-  startMenu = false,
-  gameOver = false,
-  fullPortDialogue = false,
-  playerIntro = false,
-  captainMenu = false,
-  optionsMenu = false,
-  creditsMenu = false,
-  pastVoyagesMenu = false,
-  discoveriesMenu = false,
-  achievementsMenu = false,
-  shipInfoMenu = false,
-  politicsMenu = false,
-  navigationMenu = false,
-  aboardMenu = false,
-  blockingDialogue = false
-} = {}) {
-  return Boolean(
-    startMenu ||
-    gameOver ||
-    fullPortDialogue ||
-    playerIntro ||
-    captainMenu ||
-    optionsMenu ||
-    creditsMenu ||
-    pastVoyagesMenu ||
-    discoveriesMenu ||
-    achievementsMenu ||
-    shipInfoMenu ||
-    politicsMenu ||
-    navigationMenu ||
-    aboardMenu ||
-    blockingDialogue
-  );
+export const CHART_REFRAME_OPAQUE_COVER_KINDS = Object.freeze([
+  "startMenu",
+  "gameOver",
+  "portCityScene",
+  "fullPortDialogue",
+  "playerIntro",
+  "captainMenu",
+  "optionsMenu",
+  "creditsMenu",
+  "pastVoyagesMenu",
+  "discoveriesMenu",
+  "achievementsMenu",
+  "shipInfoMenu",
+  "politicsMenu",
+  "navigationMenu",
+  "aboardMenu",
+  "blockingDialogue"
+]);
+
+const CHART_REFRAME_OPAQUE_COVER_KIND_SET = new Set(CHART_REFRAME_OPAQUE_COVER_KINDS);
+
+export function chartReframeCoverIsOpaque(coverState = {}) {
+  if (!coverState || typeof coverState !== "object" || Array.isArray(coverState)) {
+    throw new Error("Chart reframe cover state must be an object");
+  }
+  for (const [kind, active] of Object.entries(coverState)) {
+    if (!CHART_REFRAME_OPAQUE_COVER_KIND_SET.has(kind)) {
+      throw new Error(`Unknown chart reframe cover kind: ${kind}`);
+    }
+    if (typeof active !== "boolean") {
+      throw new Error(`Chart reframe cover ${kind} must be boolean`);
+    }
+  }
+  return CHART_REFRAME_OPAQUE_COVER_KINDS.some((kind) => coverState[kind] === true);
 }
 
 export function gameOverReframeCoverIsOpaque({
