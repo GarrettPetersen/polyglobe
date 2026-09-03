@@ -5,7 +5,9 @@ const CARD_GAP = 6;
 const CONTENT_TOP = 39;
 const CARD_MIN_WIDTH = 188;
 const CARD_MAX_COLUMNS = 4;
-const CARD_LABEL_WIDTH = 70;
+// "EMBARGOED BY" and "ENFORCES BAN" must remain legible beside their
+// faction tokens. The old column was narrower than either English label.
+const CARD_LABEL_WIDTH = 84;
 const CARD_TOKEN_WIDTH = 24;
 const CARD_RELATION_LINES = 4;
 const RELATION_TEXT_COLORS = Object.freeze({

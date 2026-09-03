@@ -1,7 +1,9 @@
 import { resolveShipCollision } from "./shipCollision.js";
 import {
+  WHITE_WHALE_ID,
   WHALE_LIFE_STAGE_ADOLESCENT,
-  WHALE_LIFE_STAGE_ADULT
+  WHALE_LIFE_STAGE_ADULT,
+  WHALE_SPECIES_SPERM
 } from "./whaleSpecies.js";
 
 const WHALE_RAM_PROFILE = Object.freeze({
@@ -74,6 +76,45 @@ export function whaleRamAppliedDamage(hitPoints, collisionDamage) {
   }
   const damage = Math.max(1, Math.round(collisionDamage));
   return hitPoints > 1 ? Math.min(damage, hitPoints - 1) : damage;
+}
+
+export function whaleRamWarningText(whale) {
+  assertRammingSpermWhale(whale);
+  return whale.id === WHITE_WHALE_ID
+    ? "THE WHITE WHALE WHEELS TO RAM"
+    : "THE SPERM WHALE WHEELS TO RAM";
+}
+
+export function whaleRamImpactText(whale, damageLabel) {
+  assertRammingSpermWhale(whale);
+  if (typeof damageLabel !== "string" || damageLabel === "") {
+    throw new Error("Whale ram impact requires a damage label");
+  }
+  return whale.id === WHITE_WHALE_ID
+    ? `WHITE WHALE RAM  -${damageLabel} HULL`
+    : `SPERM WHALE RAM  -${damageLabel} HULL`;
+}
+
+export function whaleRamLossText(whale) {
+  assertRammingSpermWhale(whale);
+  return whale.id === WHITE_WHALE_ID
+    ? Object.freeze({
+        sinkingReason: "The white whale stove in your hull.",
+        crewLossReason: "The last of the crew died when the white whale rammed the ship."
+      })
+    : Object.freeze({
+        sinkingReason: "A sperm whale stove in your hull.",
+        crewLossReason: "The last of the crew died when a sperm whale rammed the ship."
+      });
+}
+
+function assertRammingSpermWhale(whale) {
+  if (!whale || typeof whale.id !== "string" || whale.id === "") {
+    throw new Error("Whale ram text requires an individual whale ID");
+  }
+  if (whale.speciesId !== WHALE_SPECIES_SPERM) {
+    throw new Error(`Only sperm whales can ram ships: ${whale.id}/${whale.speciesId}`);
+  }
 }
 
 function orientedRectangle(x, y, heading, length, width) {

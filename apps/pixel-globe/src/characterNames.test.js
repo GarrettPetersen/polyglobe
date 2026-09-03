@@ -65,6 +65,26 @@ test("England and Scotland use distinct naming cultures", () => {
   assert.equal(nameCultureForSubject({ cityId: "edinburgh|united kingdom", city: "Edinburgh", country: "United Kingdom", factionId: "scotland" }), "scottish");
 });
 
+test("San Sebastian uses a local Basque name roster under Spanish rule", () => {
+  const city = {
+    cityId: "san sebastian|spain",
+    city: "San Sebastian",
+    displayCity: "San Sebastián",
+    country: "Spain",
+    factionId: "spain",
+    cityType: "northern-european"
+  };
+  assert.equal(nameCultureForSubject(city), "basque");
+  const identity = assignRegionalCharacterIdentity({
+    identityKey: "san-sebastian-harpooner",
+    city,
+    character: { sex: "male" },
+    usedNames: new Set()
+  });
+  assert.equal(identity.nameCulture, "basque");
+  assert.equal(identity.religionId, "roman-catholic");
+});
+
 test("player-founded colonies use their founding population's name culture", () => {
   const lima = {
     cityId: "lima|peru",

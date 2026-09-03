@@ -11,8 +11,9 @@ import { nearestResurrect64Hex } from "./waterLatitudePalette.js";
 import {
   assignNpcShipCaptains,
   assignMissingNpcShipCaptains,
-  assignPortCityCharacterFromSource,
-  assignPortCityCharacters,
+  assignPortCityStaff,
+  assignPortCityStaffMember,
+  assignPortCityStaffMemberFromSource,
   characterExpression,
   generateCastawayCharacter,
   generateCastawayFamilyMember,
@@ -23,7 +24,9 @@ import {
   generatePlayerCharacter,
   repairLegacyNpcCaptainHomeCityIds,
   reconcileCharacterPortraitMetadata,
-  validateCharacterPortraitManifest
+  validateCharacterPortraitManifest,
+  PORT_CITY_STAFF_ROLE,
+  PORT_CITY_STAFF_ROLES
 } from "./characterPortraits.js";
 
 const GENERATED_MANIFEST = JSON.parse(readFileSync(
@@ -35,8 +38,34 @@ const CHARACTER_ASSET_ROOT = join(
   "../public/assets/characters"
 );
 
-test("a Spanish-founded Lima governor uses Spanish identity and a Mediterranean portrait", () => {
+function assignPortCityMerchants(...args) {
+  const [ports, manifest, usedNames, options] = args;
+  return new Map([...ports].sort((left, right) => left.cityId.localeCompare(right.cityId)).map((city) => [
+    city.cityId,
+    assignPortCityStaffMember(
+      city,
+      PORT_CITY_STAFF_ROLE.MERCHANT,
+      manifest,
+      usedNames,
+      options
+    )
+  ]));
+}
+
+function assignPortCityMerchantFromSource(city, sourceId, manifest, usedNames, options) {
+  return assignPortCityStaffMemberFromSource(
+    city,
+    PORT_CITY_STAFF_ROLE.MERCHANT,
+    sourceId,
+    manifest,
+    usedNames,
+    options
+  );
+}
+
+test("Spanish-founded Lima staff use Spanish identities and Mediterranean portraits", () => {
   const lima = {
+    tileId: 601,
     cityId: "lima|peru",
     city: "Lima",
     country: "Peru",
@@ -45,10 +74,33 @@ test("a Spanish-founded Lima governor uses Spanish identity and a Mediterranean 
     foundingFactionId: "spain",
     playerFoundedColony: true
   };
-  const [governor] = assignPortCityCharacters([lima], GENERATED_MANIFEST, new Set()).values();
-  assert.equal(governor.nameCulture, "spanish");
-  assert.ok(governor.sourceRegions.includes("mediterranean"));
-  assert.equal(governor.sourceRegions.includes("americas"), false);
+  const [merchant] = assignPortCityMerchants([lima], GENERATED_MANIFEST, new Set()).values();
+  assert.equal(merchant.nameCulture, "spanish");
+  assert.ok(merchant.sourceRegions.includes("mediterranean"));
+  assert.equal(merchant.sourceRegions.includes("americas"), false);
+});
+
+test("every port receives five distinct stable staff identities", () => {
+  const city = {
+    tileId: 7,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    factionId: "spain"
+  };
+  const [first] = assignPortCityStaff([city], GENERATED_MANIFEST, new Set()).values();
+  const [second] = assignPortCityStaff([city], GENERATED_MANIFEST, new Set()).values();
+  const members = PORT_CITY_STAFF_ROLES.map((role) => first[role]);
+
+  assert.deepEqual(Object.keys(first).sort(), [...PORT_CITY_STAFF_ROLES].sort());
+  assert.equal(new Set(members.map(({ id }) => id)).size, PORT_CITY_STAFF_ROLES.length);
+  assert.equal(new Set(members.map(({ name }) => name)).size, PORT_CITY_STAFF_ROLES.length);
+  assert.equal(new Set(members.map(({ sourceId }) => sourceId)).size, PORT_CITY_STAFF_ROLES.length);
+  assert.ok(members.every(({ homePortCityId }) => homePortCityId === city.cityId));
+  assert.deepEqual(first, second);
+  assert.equal(first[PORT_CITY_STAFF_ROLE.HARBOUR_MASTER].personalityId !== null, true);
+  assert.equal(first[PORT_CITY_STAFF_ROLE.MERCHANT].personalityId, null);
 });
 
 test("player portrait selection uses a directly authored regional captain sprite", () => {
@@ -246,7 +298,7 @@ test("authored portrait weights provide extra slots without a separate religion 
     factionId: "ming",
     cityType: "east-asian"
   }));
-  const assignments = assignPortCityCharacters(cities, manifest, new Set());
+  const assignments = assignPortCityMerchants(cities, manifest, new Set());
   const sourceCounts = [...assignments.values()].reduce((counts, character) => {
     counts.set(character.sourceId, (counts.get(character.sourceId) || 0) + 1);
     return counts;
@@ -445,7 +497,7 @@ test("Japanese and Joseon factors and ship captains keep their sovereign portrai
       cityType: "east-asian"
     }
   ];
-  const factors = assignPortCityCharacters(ports, GENERATED_MANIFEST, new Set());
+  const factors = assignPortCityMerchants(ports, GENERATED_MANIFEST, new Set());
   assert.ok(isJapanesePortraitSourceId(factors.get("kyoto|japan").sourceId));
   assert.ok(factors.get("seoul|republic of korea").sourceId.startsWith("joseon-korean-portrait-pack-by-openai-"));
 
@@ -876,7 +928,7 @@ test("campaign contacts are distinct people from the home port factor", () => {
     lon: -9.14
   };
   const usedNames = new Set(["Ines Pereira"]);
-  const [factor] = assignPortCityCharacters([homePort], GENERATED_MANIFEST, usedNames).values();
+  const [factor] = assignPortCityMerchants([homePort], GENERATED_MANIFEST, usedNames).values();
   const playerCharacter = { id: "captain-lisbon", name: "Ines Pereira" };
   const patron = generateCampaignContactCharacter({
     playerCharacter,
@@ -926,7 +978,7 @@ test("the treasure campaign contact is an old warrior rather than a young factor
     lon: -9.14
   };
   const usedNames = new Set(["Ines Pereira"]);
-  const [factor] = assignPortCityCharacters([homePort], GENERATED_MANIFEST, usedNames).values();
+  const [factor] = assignPortCityMerchants([homePort], GENERATED_MANIFEST, usedNames).values();
   const buccaneer = generateCampaignContactCharacter({
     playerCharacter: { id: "captain-lisbon", name: "Ines Pereira" },
     homePort,
@@ -961,7 +1013,7 @@ test("Ternate and Tidore factors and patrons keep their own locatives", () => {
       lon: 127.4 + index * 0.1
     };
     const usedNames = new Set([`Zainal Abidin ${cityName}`]);
-    const [factor] = assignPortCityCharacters([homePort], GENERATED_MANIFEST, usedNames).values();
+    const [factor] = assignPortCityMerchants([homePort], GENERATED_MANIFEST, usedNames).values();
     const patron = generateCampaignContactCharacter({
       playerCharacter: { id: `captain-${factionId}`, name: `Zainal Abidin ${cityName}` },
       homePort,
@@ -1147,7 +1199,7 @@ test("pirate captives use expressive portraits and reunite with the same family 
 
 test("port assignments use their authored culture-group portrait pools", () => {
   const usedNames = new Set();
-  const assignments = assignPortCityCharacters([
+  const assignments = assignPortCityStaff([
     { cityId: "tenochtitlan|mexico", tileId: 1, city: "Tenochtitlan", country: "Mexico", cityType: "meso-american", lat: 19.4, lon: -99.1 },
     { cityId: "kilwa|tanzania", tileId: 2, city: "Kilwa", country: "Tanzania", cityType: "sub-saharan", lat: -8.9, lon: 39.5 },
     { cityId: "fiji village|fiji", tileId: 3, city: "Fiji Village", country: "Fiji", cityType: "polynesian", lat: -18.1, lon: 178.4 },
@@ -1157,26 +1209,29 @@ test("port assignments use their authored culture-group portrait pools", () => {
     { cityId: "alexandria|egypt", tileId: 7, city: "Alexandria", country: "Egypt", cityType: "islamic-desert", lat: 31.2, lon: 29.9 }
   ], GENERATED_MANIFEST, usedNames);
 
-  const american = assignments.get("tenochtitlan|mexico");
+  const american = assignments.get("tenochtitlan|mexico")[PORT_CITY_STAFF_ROLE.HARBOUR_MASTER];
   assert.ok(american.sourceRegions.includes("americas"));
   assert.equal(american.nameCulture, "nahua");
   assert.ok(american.name.includes(" "));
   assert.ok(PORT_PERSONALITY_IDS.includes(american.personalityId));
-  const african = assignments.get("kilwa|tanzania");
+  const african = assignments.get("kilwa|tanzania")[PORT_CITY_STAFF_ROLE.HARBOUR_MASTER];
   assert.ok(african.sourceId.startsWith("sub-saharan-african-portrait-pack-by-openai-"));
   assert.equal(african.nameCulture, "swahili");
   assert.ok(PORT_PERSONALITY_IDS.includes(african.personalityId));
-  const polynesian = assignments.get("fiji village|fiji");
+  const polynesian = assignments.get("fiji village|fiji")[PORT_CITY_STAFF_ROLE.HARBOUR_MASTER];
   assert.equal(polynesian.region, "polynesia");
   assert.ok(polynesian.sourceId.startsWith("polynesian-portrait-pack-by-openai-"));
   assert.equal(polynesian.nameCulture, "polynesian");
-  const eastAsian = assignments.get("beijing|china");
+  const eastAsian = assignments.get("beijing|china")[PORT_CITY_STAFF_ROLE.HARBOUR_MASTER];
   assert.ok(eastAsian.sourceRegions.includes("east-asia"));
   assert.equal(eastAsian.nameCulture, "chinese");
-  assert.ok(assignments.get("vijayanagar|india").sourceId.startsWith("south-asian-portrait-pack-by-openai-"));
-  assert.ok(assignments.get("malacca|malaysia").sourceId.startsWith("southeast-asian-portrait-pack-by-openai-"));
-  assert.ok(assignments.get("alexandria|egypt").sourceId.startsWith("indian-ocean-portrait-pack-by-openai-"));
-  assert.equal(usedNames.size, 7);
+  assert.ok(assignments.get("vijayanagar|india")[PORT_CITY_STAFF_ROLE.SMITH]
+    .sourceId.startsWith("south-asian-portrait-pack-by-openai-"));
+  assert.ok(assignments.get("malacca|malaysia")[PORT_CITY_STAFF_ROLE.MERCHANT]
+    .sourceId.startsWith("southeast-asian-portrait-pack-by-openai-"));
+  assert.ok(assignments.get("alexandria|egypt")[PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]
+    .sourceId.startsWith("indian-ocean-portrait-pack-by-openai-"));
+  assert.equal(usedNames.size, 35);
 });
 
 test("a fixed port source keeps the Viking helmet portrait and an Icelandic name", () => {
@@ -1190,12 +1245,12 @@ test("a fixed port source keeps the Viking helmet portrait and an Icelandic name
     lon: -21.9547
   };
   const sourceId = "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-9";
-  const character = assignPortCityCharacterFromSource(city, sourceId, GENERATED_MANIFEST, new Set());
+  const character = assignPortCityMerchantFromSource(city, sourceId, GENERATED_MANIFEST, new Set());
 
   assert.equal(character.sourceId, sourceId);
   assert.equal(character.region, "northern-europe");
   assert.equal(character.nameCulture, "icelandic");
-  assert.equal(character.role, "factor");
+  assert.equal(character.role, PORT_CITY_STAFF_ROLE.MERCHANT);
 });
 
 test("ship captains use pirate portraits only for pirate crews", () => {
@@ -1342,7 +1397,16 @@ test("a reserved player portrait source is never reused by NPC generators", () =
     lat: 36,
     lon: -6
   }));
-  const factors = assignPortCityCharacters(ports, GENERATED_MANIFEST, new Set(), exclusions);
+  const factors = new Map(ports.map((port) => [
+    port.cityId,
+    assignPortCityStaffMember(
+      port,
+      PORT_CITY_STAFF_ROLE.MERCHANT,
+      GENERATED_MANIFEST,
+      new Set(),
+      exclusions
+    )
+  ]));
   assert.ok([...factors.values()].every((character) => character.sourceId !== reservedSourceId));
 
   const ships = Array.from({ length: 20 }, (_, index) => ({
@@ -1377,7 +1441,7 @@ test("a reserved player portrait source is never reused by NPC generators", () =
   }
 
   assert.throws(
-    () => assignPortCityCharacterFromSource(
+    () => assignPortCityMerchantFromSource(
       ports[0],
       reservedSourceId,
       GENERATED_MANIFEST,

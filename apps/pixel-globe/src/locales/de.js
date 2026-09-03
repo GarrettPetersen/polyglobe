@@ -226,6 +226,7 @@ export default {
   "aboard.goal": "ZIEL",
   "aboard.skill": "FÄHIGKEIT",
   "aboard.timeAboard": "ZEIT AN BORD",
+  "aboard.origin": "HERKUNFT",
   "aboard.experience": "ERFAHRUNG",
   "aboard.experience.novice": "NEULING",
   "aboard.experience.steady": "SICHER",

@@ -15,7 +15,10 @@ const TIER_PROSPERITY_THRESHOLDS = Object.freeze([0, 0.27, 0.53, 0.8]);
 const EQUIPMENT_SPECIALIST_CITY_IDS = Object.freeze({
   [EQUIPMENT_STOCK_FISHING_NET]: Object.freeze(["brugge|belgium", "guangzhou|china", "lubeck|germany"]),
   [EQUIPMENT_STOCK_CANNON]: Object.freeze(["goa|india", "istanbul|turkey", "lisbon|portugal"]),
-  [EQUIPMENT_STOCK_WHALE_HARPOON]: Object.freeze(["bordeaux|france"])
+  [EQUIPMENT_STOCK_WHALE_HARPOON]: Object.freeze([
+    "bordeaux|france",
+    "san sebastian|spain"
+  ])
 });
 const PRE_CONTACT_NATIVE_FACTION_IDS = new Set(["inca", "neutral"]);
 

@@ -1,6 +1,6 @@
 # 2026 Festival Application Workbench
 
-Last updated: **August 3, 2026**
+Last updated: **September 2, 2026**
 
 ## Reusable game details
 
@@ -161,6 +161,19 @@ time.
 - The application accepts inclusion in the 2026 Indie X Steam Event and Sale
   and possible legacy inclusion in the following two years unless removal is
   requested.
+
+## Indie Game Award 2027
+
+Status: **Registered and pre-selection materials submitted September 2, 2026.**
+
+- Developer/team: Iron Pagoda; Garrett Petersen as solo developer and contact.
+- Official website: https://marque-and-reprisal.com/
+- Official team social profile: https://x.com/garrettpetersen
+- Target release date: December 1, 2026.
+- Monitor the application email for judging questions, build-access problems
+  or requests for replacement material.
+- INDIE HOUSE exhibition and B2B registration remain separate from this award
+  submission.
 
 ## IGDB and Twitch category
 

@@ -74,6 +74,15 @@ export function cityPopulationObservationAtYear(observations, targetYear, option
 }
 
 export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
+  // San Sebastian controlled the sheltered roadstead at Pasaia in 1522. Its
+  // merchants were already fitting out whaling and cod-fishing voyages, so it
+  // closes the otherwise empty Spanish coast on the Bay of Biscay.
+  manualCity1522("san sebastian|spain", "San Sebastian", "Spain", 43.3183, -1.9812, 6000, {
+    displayCity: "San Sebastián",
+    cityType: "northern-european",
+    manualRegion: "bay-of-biscay",
+    marketGoods: ["fish", "iron", "naval-stores"]
+  }),
   manualCity1522("hafnarfjordur|iceland", "Hafnarfjordur", "Iceland", 64.0671, -21.9547, 1500, {
     cityType: "northern-european",
     manualRegion: "iceland",

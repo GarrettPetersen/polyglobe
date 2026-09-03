@@ -4,6 +4,7 @@ import {
   CITY_PERSON_ROLE
 } from "./cityPeopleCatalog.js";
 import { PORT_ASSAULT_PROFILE_ID } from "../src/portAssaultBattle.js";
+import { PORT_CITY_STAFF_ROLE } from "../src/characterPortraits.js";
 
 const EAST_ASIAN_COUNTRY_PROFILE = Object.freeze({
   China: "ming",
@@ -364,6 +365,32 @@ export function cityGarrisonAppearanceIds(city, count, seedKey = "dock-guards") 
     used.add(appearanceId);
     return appearanceId;
   }));
+}
+
+export function cityPortStaffAppearanceIds(city) {
+  const cityId = requireCity(city);
+  const profile = cityPopulationProfile(city.populationProfileId || cityPopulationProfileId(city));
+  const appearances = {};
+  const usedAmbient = new Set();
+  let seed = hashString(`${cityId}|${profile.id}|port-staff`);
+  for (const role of [
+    PORT_CITY_STAFF_ROLE.HARBOUR_MASTER,
+    PORT_CITY_STAFF_ROLE.INNKEEPER,
+    PORT_CITY_STAFF_ROLE.SMITH,
+    PORT_CITY_STAFF_ROLE.MERCHANT
+  ]) {
+    seed = xorshift(seed);
+    const appearanceId = weightedAppearance(
+      profile[CITY_PERSON_ROLE.AMBIENT],
+      seed,
+      usedAmbient
+    );
+    usedAmbient.add(appearanceId);
+    appearances[role] = appearanceId;
+  }
+  const [commanderAppearanceId] = cityGarrisonAppearanceIds(city, 1, "garrison-commander");
+  appearances[PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER] = commanderAppearanceId;
+  return Object.freeze(appearances);
 }
 
 export function cityCrewTypeForAppearance(appearanceId) {

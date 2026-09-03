@@ -17,6 +17,7 @@ const CULTURE_NATIONALITIES = Object.freeze({
   scottish: "Scottish",
   french: "French",
   spanish: "Spanish",
+  basque: "Basque",
   portuguese: "Portuguese",
   italian: "Italian",
   germanic: "German",
@@ -235,6 +236,15 @@ export function characterNationalityLabel(character) {
     return character.homePortCountry;
   }
   throw new Error(`Character has no nationality label: ${character.id || character.name || "unknown"}`);
+}
+
+export function characterCultureLabel(character) {
+  if (!character || typeof character !== "object") throw new Error("Character culture requires a character");
+  const cultural = CULTURE_NATIONALITIES[character.nameCulture];
+  if (!cultural) {
+    throw new Error(`Character has no culture label: ${character.id || character.name || "unknown"}`);
+  }
+  return cultural;
 }
 
 export function validateCharacterBiography(character) {

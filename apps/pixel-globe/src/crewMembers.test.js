@@ -11,6 +11,7 @@ import {
   crewMemberExperienceStars,
   dismissCrewMember,
   hireCrewCandidate,
+  migrateCrewRosterOriginTraits,
   removeCrewCasualties,
   removeCrewMembersById,
   restoreDismissedCrew,
@@ -23,6 +24,9 @@ const PORT = Object.freeze({
   cityId: "edo|japan",
   tileId: 11,
   city: "Edo",
+  country: "Japan",
+  cityType: "east-asian",
+  factionId: "japan",
   population: 120_000,
   isFactionCapital: true
 });
@@ -31,6 +35,15 @@ const APPEARANCES = Object.freeze([
   Object.freeze({ appearanceId: "ashigaru-bow", crewTypeId: "archer" })
 ]);
 
+function crewIdentityFactory(nameForKey = (identityKey) => identityKey) {
+  return (identityKey) => ({
+    name: nameForKey(identityKey),
+    nameCulture: "japanese",
+    religionId: "kami-buddhist",
+    nationalityId: "japan"
+  });
+}
+
 test("legacy crew migration creates stable individual identities and a mixed experienced roster", () => {
   const options = {
     count: 24,
@@ -38,7 +51,7 @@ test("legacy crew migration creates stable individual identities and a mixed exp
     homePort: PORT,
     currentMinute: 200 * 24 * 60,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => `Name-${identity.split("|").at(-1)}`
+    identityForKey: crewIdentityFactory((identity) => `Name-${identity.split("|").at(-1)}`)
   };
   const first = createMigratedCrewRoster(options);
   const second = createMigratedCrewRoster(options);
@@ -56,11 +69,41 @@ test("legacy crew migration normalizes a fractional simulation clock to whole re
     homePort: PORT,
     currentMinute: 114297.80124,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => identity
+    identityForKey: crewIdentityFactory()
   });
   assert.ok(roster.every(({ recruitedAtMinute }) => Number.isInteger(recruitedAtMinute)));
   assert.ok(roster.every(({ recruitedAtMinute }) => recruitedAtMinute <= 114297));
   validateCrewRoster(roster);
+});
+
+test("versioned crew origin migration preserves history while adding durable regional traits", () => {
+  const [current] = createMigratedCrewRoster({
+    count: 1,
+    voyageSeed: "crew-origin-trait-migration",
+    homePort: PORT,
+    currentMinute: 90,
+    appearances: APPEARANCES,
+    identityForKey: crewIdentityFactory(() => "Generated Replacement")
+  });
+  const {
+    nameCulture: _removedNameCulture,
+    religionId: _removedReligionId,
+    nationalityId: _removedNationalityId,
+    ...legacy
+  } = current;
+  legacy.name = "Preserved Name";
+
+  const [migrated] = migrateCrewRosterOriginTraits([legacy], () => ({
+    homePort: PORT,
+    identityForKey: crewIdentityFactory(() => "Generated Replacement")
+  }));
+
+  assert.equal(migrated.name, "Preserved Name");
+  assert.equal(migrated.nameCulture, "japanese");
+  assert.equal(migrated.religionId, "kami-buddhist");
+  assert.equal(migrated.nationalityId, "japan");
+  assert.equal(migrated.recruitedAtMinute, legacy.recruitedAtMinute);
+  assert.equal(migrated.sailingMinutes, legacy.sailingMinutes);
 });
 
 test("experience advances only with explicit sailing time and changes effective crew", () => {
@@ -70,7 +113,7 @@ test("experience advances only with explicit sailing time and changes effective 
     homePort: PORT,
     currentMinute: 300 * 24 * 60,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => identity
+    identityForKey: crewIdentityFactory()
   }).map((member) => ({ ...member, sailingMinutes: 0 }));
   const state = crewState(crewRoster);
   const novice = crewExperienceSummary(state);
@@ -92,7 +135,7 @@ test("recruitment offers are persistent, respect bunks, and record the actual hi
     simMinute: 40,
     targetCrew: 5,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => identity,
+    identityForKey: crewIdentityFactory(),
     baseHireCost: 2
   });
   assert.equal(createCrewRecruitmentOffer({
@@ -102,7 +145,7 @@ test("recruitment offers are persistent, respect bunks, and record the actual hi
     simMinute: 41,
     targetCrew: 5,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => identity,
+    identityForKey: crewIdentityFactory(),
     baseHireCost: 2
   }), offer);
   const candidate = offer.candidates[0];
@@ -115,6 +158,32 @@ test("recruitment offers are persistent, respect bunks, and record the actual hi
   validateCrewRecruitmentMemory(memory);
 });
 
+test("an inn can show replacement candidates while every bunk is occupied", () => {
+  const roster = createMigratedCrewRoster({
+    count: 3,
+    voyageSeed: "full-ship-replacements",
+    homePort: PORT,
+    currentMinute: 100,
+    appearances: APPEARANCES,
+    identityForKey: crewIdentityFactory()
+  });
+  const state = crewState(roster);
+  assert.equal(state.ship.crew, state.ship.crewCapacity);
+  const offer = createCrewRecruitmentOffer({
+    memory: createCrewRecruitmentMemory(),
+    state,
+    city: PORT,
+    simMinute: 100,
+    targetCrew: state.ship.crewCapacity,
+    appearances: APPEARANCES,
+    identityForKey: crewIdentityFactory(),
+    baseHireCost: 2,
+    includeReplacementCandidates: true
+  });
+
+  assert.ok(offer.candidates.length > 0);
+});
+
 test("dismissal undo restores roster order and aggregate count", () => {
   const roster = createMigratedCrewRoster({
     count: 4,
@@ -122,7 +191,7 @@ test("dismissal undo restores roster order and aggregate count", () => {
     homePort: PORT,
     currentMinute: 200 * 24 * 60,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => identity
+    identityForKey: crewIdentityFactory()
   });
   const state = crewState([...roster]);
   const dismissed = [dismissCrewMember(state, roster[1].id), dismissCrewMember(state, roster[3].id)];
@@ -138,7 +207,7 @@ test("dismissal undo restores adjacent sailors dismissed in reverse roster order
     homePort: PORT,
     currentMinute: 200 * 24 * 60,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => identity
+    identityForKey: crewIdentityFactory()
   });
   const state = crewState([...roster]);
   const dismissed = [dismissCrewMember(state, roster[2].id), dismissCrewMember(state, roster[1].id)];
@@ -153,7 +222,7 @@ test("casualty selection weights inexperienced sailors more heavily", () => {
     homePort: PORT,
     currentMinute: 200 * 24 * 60,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => identity
+    identityForKey: crewIdentityFactory()
   }).map((member, index) => ({
     ...member,
     sailingMinutes: index === 0 ? 0 : 120 * 24 * 60
@@ -172,7 +241,7 @@ test("battle casualties remove the exact simulated people by canonical ID", () =
     homePort: PORT,
     currentMinute: 200 * 24 * 60,
     appearances: APPEARANCES,
-    nameForIdentity: (identity) => identity
+    identityForKey: crewIdentityFactory()
   });
   const state = crewState([...roster]);
   const casualties = removeCrewMembersById(state, [roster[3].id, roster[1].id]);

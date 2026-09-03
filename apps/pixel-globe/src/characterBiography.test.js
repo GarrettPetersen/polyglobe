@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   characterAgeAtMinute,
   characterBirthdayLabel,
+  characterCultureLabel,
   characterNationalityLabel,
   characterWithBiography,
   gameCalendarDateAtMinute
@@ -24,6 +25,14 @@ test("biographies preserve the portrait age estimate on the voyage start date", 
   assert.match(character.birthDateLabel, /^\d{1,2} [A-Z][a-z]+ 14\d\d$/);
   assert.match(characterBirthdayLabel(character), /^\d{2} [A-Z]{3}$/);
   assert.equal(characterNationalityLabel(character), "Chinese");
+});
+
+test("culture labels preserve local identity independently of political allegiance", () => {
+  assert.equal(characterCultureLabel({ id: "basque-sailor", nameCulture: "basque" }), "Basque");
+  assert.throws(
+    () => characterCultureLabel({ id: "unmapped-sailor", nameCulture: "unknown" }),
+    /has no culture label/
+  );
 });
 
 test("animal biography callers can use species-appropriate ages without weakening human defaults", () => {

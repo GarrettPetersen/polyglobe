@@ -216,7 +216,11 @@ function port(tileId, city, country, factionId, lat, lon) {
     cityType: factionId === "ming" ? "east-asian" : "northern-european",
     regionKey: factionId === "ming" ? "east-asian" : "northern-european",
     population: 100000,
-    character: { name: `${city} Factor`, expressions: ["neutral", "stern", "pleased"] },
+    character: {
+      name: `${city} Merchant`,
+      role: "merchant",
+      expressions: ["neutral", "stern", "pleased"]
+    },
     lat,
     lon
   });

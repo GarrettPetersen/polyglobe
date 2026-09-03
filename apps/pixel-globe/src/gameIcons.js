@@ -324,6 +324,7 @@ const MENU_LABEL_ICON_IDS = Object.freeze({
 const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   greeting: "action:talk",
   "drunk-factor": "action:talk",
+  "inn-drink": "action:talk",
   root: "action:back",
   barred: "action:back",
   "disguise-failed": "action:back",
@@ -368,6 +369,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "open-port": "action:dock",
   "open-passenger": "action:passenger",
   "open-crew-recruitment": "action:passenger",
+  "open-crew-management": "action:passenger",
   "hire-crew-member": "action:passenger",
   "dismiss-crew-member": "action:leave",
   "confirm-crew-dismissal": "action:leave",

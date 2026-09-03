@@ -37,7 +37,7 @@ const LONDON = Object.freeze({
   factionId: "england",
   cityType: "northern-european",
   population: 80000,
-  character: Object.freeze({ name: "Thomas Smythe", expressions: ["neutral"] })
+  character: Object.freeze({ name: "Thomas Smythe", role: "merchant", expressions: ["neutral"] })
 });
 
 test("embargo warnings are suppressed when every enforcer already attacks on sight", () => {

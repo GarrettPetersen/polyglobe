@@ -9,6 +9,7 @@ export const TEST_CREW_HOME_PORT = Object.freeze({
   displayCity: "Test Home",
   country: "Test",
   cityType: "northern-european",
+  factionId: "neutral",
   population: 20_000
 });
 
@@ -24,7 +25,12 @@ export function testCrewGenerationContext(homePort = TEST_CREW_HOME_PORT) {
       Object.freeze({ appearanceId: "mariner-light-black-hair", crewTypeId: "sailor" }),
       Object.freeze({ appearanceId: "gunner-light", crewTypeId: "gunner" })
     ]),
-    nameForIdentity: (identityKey) => `Crew-${identityKey.split("|").at(-1)}`
+    identityForKey: (identityKey) => ({
+      name: `Crew-${identityKey.split("|").at(-1)}`,
+      nameCulture: "maritime",
+      religionId: "roman-catholic",
+      nationalityId: "neutral"
+    })
   });
 }
 
@@ -71,7 +77,7 @@ export function setTestCrewCount(state, count, homePort = null) {
     homePort: generation.homePort,
     currentMinute: state.survival.lastMinute,
     appearances: generation.appearances,
-    nameForIdentity: generation.nameForIdentity
+    identityForKey: generation.identityForKey
   });
   state.ship.crew = count;
   validateCrewAggregate(state);

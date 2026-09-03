@@ -484,6 +484,7 @@ import {
   crewExperienceSummary,
   crewMemberExperienceStars,
   hireCrewCandidate,
+  migrateCrewRosterOriginTraits,
   removeCrewCasualties,
   validateCrewAggregate,
   validateCrewRecruitmentMemory,
@@ -541,7 +542,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 95;
+export const GAME_STATE_VERSION = 96;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -874,7 +875,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -972,7 +973,22 @@ export function migrateGameState(state, shipStats, {
   if (ordinaryCrewCount < 0) {
     throw new Error(`Saved crew is below its captain and named-crew commitments: ${state.ship.crew}`);
   }
-  const migratedCrewRoster = ordinaryCrewCount === 0
+  if (state.version === 95 && state.crewRoster?.length !== ordinaryCrewCount) {
+    throw new Error(
+      `Saved individual crew roster disagrees with its aggregate: ` +
+      `${state.crewRoster?.length ?? "missing"}/${ordinaryCrewCount}`
+    );
+  }
+  const migratedCrewRoster = state.version === 95
+    ? migrateCrewRosterOriginTraits(state.crewRoster, (homePortCityId) => (
+        requireCrewMigrationContext(
+          typeof crewMigrationContextForHomePort === "function"
+            ? crewMigrationContextForHomePort(homePortCityId)
+            : null,
+          homePortCityId
+        )
+      ))
+    : ordinaryCrewCount === 0
     ? createCrewRoster()
     : createMigratedCrewRoster({
         count: ordinaryCrewCount,
@@ -1186,8 +1202,8 @@ function requireCrewMigrationContext(context, homePortCityId) {
   if (!Array.isArray(context.appearances) || context.appearances.length === 0) {
     throw new Error(`Crew migration requires recruitable people from ${homePortCityId}`);
   }
-  if (typeof context.nameForIdentity !== "function") {
-    throw new Error(`Crew migration requires the first-name roster for ${homePortCityId}`);
+  if (typeof context.identityForKey !== "function") {
+    throw new Error(`Crew migration requires regional identities for ${homePortCityId}`);
   }
   return context;
 }
@@ -3290,7 +3306,7 @@ export function initializeProvisionalShipLoadout(state, stats, crewGenerationCon
     homePort: generation.homePort,
     currentMinute: state.survival.lastMinute,
     appearances: generation.appearances,
-    nameForIdentity: generation.nameForIdentity
+    identityForKey: generation.identityForKey
   });
   state.ship.cannons = plan.cannons;
   state.survival.freshWaterCapacity = plan.waterUnits;

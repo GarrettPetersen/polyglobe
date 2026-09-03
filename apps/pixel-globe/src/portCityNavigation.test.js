@@ -18,6 +18,7 @@ const ROOT_VIEW = Object.freeze({
     option("Visit shipyard", { type: "node", nodeId: "shipyard" }),
     option("Ask about work", { type: "node", nodeId: "quest" }),
     option("Letter of marque", { type: "node", nodeId: "marque" }),
+    option("Attack city", { type: "node", nodeId: "city-attack" }),
     option("Cargo ledger", { type: "node", nodeId: "cargo" }),
     option("Wait safely in port", { type: "wait-in-port" }),
     option("Leave port", { type: "close" })
@@ -37,12 +38,21 @@ test("port city navigation classifies every root action without using labels", (
   ]);
   assert.deepEqual(
     model.locations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP).actions.map(({ label }) => label),
-    ["Ship loadout", "Cargo ledger", "Wait safely in port"]
+    ["Ship loadout", "Attack city", "Cargo ledger", "Wait safely in port"]
   );
   assert.deepEqual(
     model.locations.find(({ id }) => id === PORT_CITY_LOCATION.SET_SAIL).actions.map(({ label }) => label),
     ["Leave port"]
   );
+});
+
+test("city attacks live aboard the player's ship instead of requiring a fortification", () => {
+  const model = portCityNavigationModel(ROOT_VIEW, serviceProfile(true));
+  const ship = model.locations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP);
+  const authority = model.locations.find(({ id }) => id === PORT_CITY_LOCATION.AUTHORITY);
+
+  assert.ok(ship.actions.some(({ action }) => action.nodeId === "city-attack"));
+  assert.equal(authority.actions.some(({ action }) => action.nodeId === "city-attack"), false);
 });
 
 test("villages without a smith cannot expose equipment upgrades", () => {

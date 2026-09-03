@@ -226,6 +226,7 @@ export default {
   "aboard.goal": "目標",
   "aboard.skill": "技能",
   "aboard.timeAboard": "船上時間",
+  "aboard.origin": "出身",
   "aboard.experience": "經驗",
   "aboard.experience.novice": "新手",
   "aboard.experience.steady": "熟手",

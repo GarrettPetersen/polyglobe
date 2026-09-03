@@ -70,7 +70,8 @@ go directly upwind," said Petersen. "Hit that perfect beam reach and your ship
 glides in an extremely satisfying way."
 
 The full game expands beyond the demo's Mediterranean campaign to a
-163,842-cell globe based on real coastlines, rivers, biomes, and settlements.
+655,362-tile globe with 277 cities, based on real coastlines, rivers, biomes,
+and settlements.
 Wind, precipitation, and seasonal polar sea ice follow an annual simulation,
 while hundreds of NPC ships trade through an economy whose prices and supplies
 change over time.

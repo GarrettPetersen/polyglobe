@@ -339,6 +339,12 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const hafnarfjordur = ports.find((city) => city.city === "Hafnarfjordur" && city.country === "Iceland");
   assert.ok(hafnarfjordur, "Hafnarfjordur should be a dockable Icelandic port");
   assert.equal(hafnarfjordur.cityType, "northern-european");
+  const sanSebastian = ports.find((city) => city.cityId === "san sebastian|spain");
+  assert.ok(sanSebastian, "San Sebastián should fill Spain's Bay of Biscay port gap");
+  assert.equal(sanSebastian.displayCity, "San Sebastián");
+  assert.equal(sanSebastian.cityType, "northern-european");
+  assert.equal(sanSebastian.factionId, "spain");
+  assert.deepEqual(sanSebastian.marketGoods, ["fish", "iron", "naval-stores"]);
   assert.equal(cambay.factionId, "gujarat");
   assert.equal(earth.tiles[38891].t, "beach", "Cambay's historical bay should be shallow water");
   assert.ok(graph.neighbors[cambay.tileId].includes(38891), "Cambay should sit beside its corrected harbor");

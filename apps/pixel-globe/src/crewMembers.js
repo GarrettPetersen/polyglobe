@@ -1,4 +1,7 @@
 import { requireCityId } from "./entityIds.js";
+import { factionById } from "./factions.js";
+import { assertNameCultureId } from "./characterNames.js";
+import { religionById } from "./characterReligion.js";
 
 export const CREW_EXPERIENCE_MAX_STARS = 3;
 export const CREW_RECRUITMENT_MEMORY_VERSION = 1;
@@ -162,6 +165,9 @@ export function advanceCrewSailingExperience(state, elapsedMinutes) {
 export function createCrewMember({
   id,
   name,
+  nameCulture,
+  religionId,
+  nationalityId,
   homePort,
   appearanceId,
   crewTypeId,
@@ -171,6 +177,9 @@ export function createCrewMember({
   const member = {
     id,
     name,
+    nameCulture,
+    religionId,
+    nationalityId,
     homePortCityId: requireCityId(homePort, "Crew home port"),
     homePortTileId: homePort.tileId,
     homePortName: crewPortLabel(homePort),
@@ -189,9 +198,9 @@ export function createMigratedCrewRoster({
   homePort,
   currentMinute,
   appearances,
-  nameForIdentity
+  identityForKey
 }) {
-  requireCrewGenerationContext({ count, voyageSeed, homePort, currentMinute, appearances, nameForIdentity });
+  requireCrewGenerationContext({ count, voyageSeed, homePort, currentMinute, appearances, identityForKey });
   const currentWholeMinute = Math.floor(currentMinute);
   const roster = [];
   for (let index = 0; index < count; index += 1) {
@@ -199,9 +208,10 @@ export function createMigratedCrewRoster({
     const seed = hashString32(identityKey);
     const appearance = appearances[seed % appearances.length];
     const stars = migratedExperienceStars(seed >>> 5);
+    const identity = requireCrewIdentity(identityForKey(identityKey), identityKey);
     roster.push(createCrewMember({
       id: crewMemberId(identityKey),
-      name: nameForIdentity(identityKey),
+      ...identity,
       homePort,
       appearanceId: appearance.appearanceId,
       crewTypeId: appearance.crewTypeId,
@@ -219,9 +229,10 @@ export function createCrewRecruitmentOffer({
   simMinute,
   targetCrew,
   appearances,
-  nameForIdentity,
+  identityForKey,
   baseHireCost,
-  allowEmpty = false
+  allowEmpty = false,
+  includeReplacementCandidates = false
 }) {
   validateCrewRecruitmentMemory(memory);
   if (!state?.ship) throw new Error("Crew recruitment requires a player ship");
@@ -237,13 +248,17 @@ export function createCrewRecruitmentOffer({
   if (!Array.isArray(appearances) || appearances.length === 0) {
     throw new Error("Crew recruitment requires at least one recruitable appearance");
   }
-  if (typeof nameForIdentity !== "function") throw new Error("Crew recruitment requires a name factory");
+  if (typeof identityForKey !== "function") throw new Error("Crew recruitment requires an identity factory");
   const cityId = requireCityId(city, "Crew recruitment city");
   const existing = memory.offersByCityId[cityId];
   if (existing) return existing;
+  if (typeof includeReplacementCandidates !== "boolean") {
+    throw new Error("Crew replacement-candidate policy must be boolean");
+  }
   const shortfall = Math.max(0, Math.min(targetCrew, state.ship.crewCapacity) - state.ship.crew);
-  const berthCount = Math.max(0, state.ship.crewCapacity - state.ship.crew);
-  const maximum = Math.min(shortfall, berthCount, recruitmentMaximumForCity(city));
+  const maximum = includeReplacementCandidates
+    ? recruitmentMaximumForCity(city)
+    : Math.min(shortfall, state.ship.crewCapacity - state.ship.crew, recruitmentMaximumForCity(city));
   const serial = memory.nextOfferSerial++;
   const seedKey = [state.voyageSeed, cityId, CREW_OFFER_ID_COMPONENT, serial, simMinute].join("|");
   let seed = hashString32(seedKey);
@@ -255,9 +270,10 @@ export function createCrewRecruitmentOffer({
     const appearance = appearances[seed % appearances.length];
     const identityKey = [seedKey, CREW_CANDIDATE_ID_COMPONENT, index + 1].join("|");
     const stars = recruitExperienceStars(seed >>> 8, city);
+    const identity = requireCrewIdentity(identityForKey(identityKey), identityKey);
     const member = createCrewMember({
       id: crewMemberId(identityKey),
-      name: nameForIdentity(identityKey),
+      ...identity,
       homePort: city,
       appearanceId: appearance.appearanceId,
       crewTypeId: appearance.crewTypeId,
@@ -470,7 +486,38 @@ export function validateCrewAggregate(state) {
   return expected;
 }
 
+export function migrateCrewRosterOriginTraits(roster, contextForHomePort) {
+  if (!Array.isArray(roster)) throw new Error("Crew origin migration requires a roster");
+  if (roster.length === 0) return [];
+  if (typeof contextForHomePort !== "function") {
+    throw new Error("Crew origin migration requires canonical home-port contexts");
+  }
+  const contextsByCityId = new Map();
+  const migrated = roster.map((member) => {
+    validateCrewMemberCore(member);
+    let context = contextsByCityId.get(member.homePortCityId);
+    if (!context) {
+      context = contextForHomePort(member.homePortCityId);
+      requireCrewIdentityContext(context, member.homePortCityId);
+      contextsByCityId.set(member.homePortCityId, context);
+    }
+    const identity = requireCrewIdentity(context.identityForKey(member.id), member.id);
+    const migratedMember = { ...member, ...identity, name: member.name };
+    validateCrewMember(migratedMember);
+    return migratedMember;
+  });
+  validateCrewRoster(migrated);
+  return migrated;
+}
+
 function validateCrewMember(member) {
+  validateCrewMemberCore(member);
+  assertNameCultureId(member.nameCulture);
+  religionById(member.religionId);
+  factionById(member.nationalityId);
+}
+
+function validateCrewMemberCore(member) {
   if (!member || typeof member !== "object" || Array.isArray(member)) {
     throw new Error("Crew member must be an object");
   }
@@ -593,7 +640,7 @@ function crewMemberId(identityKey) {
   return `crew-${first}${second}`;
 }
 
-function requireCrewGenerationContext({ count, voyageSeed, homePort, currentMinute, appearances, nameForIdentity }) {
+function requireCrewGenerationContext({ count, voyageSeed, homePort, currentMinute, appearances, identityForKey }) {
   if (!Number.isInteger(count) || count < 0) throw new Error(`Invalid generated crew count: ${count}`);
   if (typeof voyageSeed !== "string" || voyageSeed === "") throw new Error("Generated crew requires a voyage seed");
   requireCityId(homePort, "Generated crew home port");
@@ -609,7 +656,39 @@ function requireCrewGenerationContext({ count, voyageSeed, homePort, currentMinu
       throw new Error("Generated crew appearance requires appearance and type IDs");
     }
   }
-  if (typeof nameForIdentity !== "function") throw new Error("Generated crew requires a name factory");
+  if (typeof identityForKey !== "function") throw new Error("Generated crew requires an identity factory");
+}
+
+function requireCrewIdentityContext(context, homePortCityId) {
+  if (!context || typeof context !== "object" || Array.isArray(context)) {
+    throw new Error(`Crew identity migration requires the canonical home port ${homePortCityId}`);
+  }
+  if (requireCityId(context.homePort, "Crew identity home port") !== homePortCityId) {
+    throw new Error(`Crew identity home port changed: ${context.homePort.cityId}/${homePortCityId}`);
+  }
+  if (typeof context.identityForKey !== "function") {
+    throw new Error(`Crew identity migration requires an identity factory for ${homePortCityId}`);
+  }
+}
+
+function requireCrewIdentity(identity, identityKey) {
+  if (!identity || typeof identity !== "object" || Array.isArray(identity)) {
+    throw new Error(`Crew identity factory returned no identity for ${identityKey}`);
+  }
+  for (const key of ["name", "nameCulture", "religionId", "nationalityId"]) {
+    if (typeof identity[key] !== "string" || identity[key].trim() === "") {
+      throw new Error(`Crew identity ${identityKey} requires ${key}`);
+    }
+  }
+  assertNameCultureId(identity.nameCulture);
+  religionById(identity.religionId);
+  factionById(identity.nationalityId);
+  return Object.freeze({
+    name: identity.name,
+    nameCulture: identity.nameCulture,
+    religionId: identity.religionId,
+    nationalityId: identity.nationalityId
+  });
 }
 
 function crewPortLabel(city) {

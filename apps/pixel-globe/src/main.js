@@ -187,6 +187,7 @@ import { campaignRetirementObligation } from "./campaignRetirement.js";
 import {
   characterAgeAtMinute,
   characterBirthdayLabel,
+  characterCultureLabel,
   characterNationalityLabel,
   characterWithBiography,
   gameCalendarDateAtMinute
@@ -353,9 +354,10 @@ import {
 import {
   assignNpcShipCaptains,
   assignMissingNpcShipCaptains,
-  assignPortCityCharacterFromSource,
-  assignPortCityCharacters,
+  assignPortCityStaff,
+  assignPortCityStaffMemberFromSource,
   CHARACTER_PORTRAIT_ASSET_VERSION,
+  PORT_CITY_STAFF_ROLE,
   characterExpression,
   generateCastawayCharacter,
   generateCastawayFamilyMember,
@@ -370,14 +372,18 @@ import {
   reconcileCharacterPortraitMetadata
 } from "./characterPortraits.js";
 import {
-  assignRegionalCharacterName,
+  portCityStaffMembers,
+  portCityStaffRoleForDialogueSession,
+  requirePortCityStaffMember
+} from "./portCityStaff.js";
+import {
+  assignRegionalCharacterIdentity,
   reconcileRegionalCharacterNameForms
 } from "./characterNames.js";
 import { conflictingCharacterIdentity } from "./characterIdentity.js";
 import { createPortraitFrameStore } from "./portraitFrameStore.js";
 import {
-  dialoguePortraitPreloadEntries,
-  portDialoguePortraitPreloadCharacters
+  dialoguePortraitPreloadEntries
 } from "./dialoguePortraitPreload.js";
 import { portraitBottomTransparentRows } from "./portraitFrameAlignment.js";
 import {
@@ -1633,7 +1639,13 @@ import {
   resolveShipCollision,
   separateTouchingShips
 } from "./shipCollision.js";
-import { resolveWhaleRamCollision, whaleRamAppliedDamage } from "./whaleRam.js";
+import {
+  resolveWhaleRamCollision,
+  whaleRamAppliedDamage,
+  whaleRamImpactText,
+  whaleRamLossText,
+  whaleRamWarningText
+} from "./whaleRam.js";
 import {
   pointInShipFootprint,
   shipFootprintPolygonCenter,
@@ -2516,6 +2528,7 @@ import {
   markVikingLongshipOfferSeen,
   markVikingLongshipPurchased,
   maybeSpawnVikingLongshipQuest,
+  vikingLongshipEnthusiastAtPort,
   vikingLongshipOfferShouldApproach,
   vikingLongshipQuestState,
   vikingLongshipRewardDisposition,
@@ -3862,13 +3875,12 @@ let responsiveWhaleIds = new Set();
 let lastPlatformActivityUpdateMs = -Infinity;
 let characterPortraitManifest;
 let usedCharacterNames = new Set();
-let portCityCharacters;
-let vikingLongshipPortFactor = null;
+let portCityStaffByCityId;
+let vikingLongshipEnthusiast = null;
 let campaignGoalContact;
 let colonizationOrganizer;
 let colonizationOrganizerQuestKey = null;
 let conquistadorQuestGiver;
-let colonizationBaseSettlementCharacter = null;
 let japaneseMatchlockGunsmith;
 let caribbeanGingerPlanter;
 let banquetChef;
@@ -4856,7 +4868,7 @@ async function main() {
   }
   assignPortCharactersForPlayer(playerCharacter);
   console.info(
-    `[pixel-globe] character portraits: ${portCityCharacters.size} port cities, ` +
+    `[pixel-globe] character portraits: ${portCityStaffByCityId.size} port cities, ` +
     `${characterPortraitManifest.sourceCharacters.length} authored portraits`
   );
   console.info(
@@ -9130,10 +9142,10 @@ function activeRescuedTravelerCharactersForState(state, { excludeQuestId = null 
 function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = []) {
   if (!Array.isArray(permanentNamedCrew)) throw new Error("Port character assignment requires named crew");
   const playerSourceIds = playerPortraitSourceExclusions(playerCharacter, permanentNamedCrew);
+  vikingLongshipEnthusiast = null;
   colonizationOrganizer = null;
   colonizationOrganizerQuestKey = null;
   conquistadorQuestGiver = null;
-  colonizationBaseSettlementCharacter = null;
   japaneseMatchlockGunsmith = null;
   caribbeanGingerPlanter = null;
   banquetChef = null;
@@ -9150,47 +9162,75 @@ function assignPortCharactersForPlayer(playerCharacter, permanentNamedCrew = [])
     playerCharacter.name,
     ...permanentNamedCrew.map((member) => member.name)
   ]);
-  portCityCharacters = assignPortCityCharacters(
+  portCityStaffByCityId = assignPortCityStaff(
     portCities,
     characterPortraitManifest,
     usedCharacterNames,
-    { excludedSourceIds: playerSourceIds }
+    {
+      excludedSourceIds: [
+        ...playerSourceIds,
+        VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
+        VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID
+      ]
+    }
   );
-
   const vikingLongshipPort = portCities.find(isVikingLongshipQuestPort);
   if (!vikingLongshipPort) throw new Error("Hafnarfjordur is missing from the dockable 1522 port roster");
-  vikingLongshipPortFactor = portCityCharacters.get(vikingLongshipPort.cityId);
-  if (!vikingLongshipPortFactor) throw new Error("Hafnarfjordur has no generated port factor to replace");
-  usedCharacterNames.delete(vikingLongshipPortFactor.name);
   const vikingCharacterSourceId = playerSourceIds.includes(VIKING_LONGSHIP_CHARACTER_SOURCE_ID)
     ? VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID
     : VIKING_LONGSHIP_CHARACTER_SOURCE_ID;
-  const vikingEnthusiast = assignPortCityCharacterFromSource(
-    vikingLongshipPort,
-    vikingCharacterSourceId,
+  const enthusiast = generateSpecialPortCharacter({
+    identityKey: `viking-enthusiast|${vikingLongshipPort.cityId}`,
+    port: vikingLongshipPort,
+    excludedSourceIds: [
+      ...playerSourceIds,
+      ...portCityStaffMembers(portCityStaffByCityId, vikingLongshipPort.cityId)
+        .map(({ sourceId }) => sourceId)
+    ],
+    portraitSourceId: vikingCharacterSourceId,
+    role: "historical-enthusiast",
+    manifest: characterPortraitManifest,
+    usedNames: usedCharacterNames
+  });
+  vikingLongshipEnthusiast = enthusiast;
+  const enthusiastAboard = permanentNamedCrew.some((member) => member.id === enthusiast.id);
+  if (!enthusiastAboard) usedCharacterNames.add(enthusiast.name);
+}
+
+function ensurePortCityStaffRoster(city) {
+  const cityId = requireCityId(city, "Port staff roster city");
+  const existing = portCityStaffByCityId.get(cityId);
+  if (existing) return existing;
+  const [assigned] = assignPortCityStaff(
+    [city],
     characterPortraitManifest,
     usedCharacterNames,
-    { excludedSourceIds: playerSourceIds }
+    {
+      excludedSourceIds: [
+        ...playerPortraitSourceExclusions(gameState.playerCharacter),
+        VIKING_LONGSHIP_CHARACTER_SOURCE_ID,
+        VIKING_LONGSHIP_CHARACTER_FALLBACK_SOURCE_ID
+      ]
+    }
+  ).values();
+  if (!assigned) throw new Error(`Port staff generation failed: ${cityId}`);
+  portCityStaffByCityId.set(cityId, assigned);
+  return assigned;
+}
+
+function portCityStaffMember(city, role) {
+  return requirePortCityStaffMember(
+    portCityStaffByCityId,
+    requireCityId(city, "Port staff member city"),
+    role
   );
-  const enthusiast = Object.freeze({
-    ...vikingEnthusiast,
-    role: "historical-enthusiast",
-    homePortCityId: vikingLongshipPort.cityId,
-    homePortTileId: vikingLongshipPort.tileId,
-    homePortName: cityLabelText(vikingLongshipPort),
-    homePortCountry: vikingLongshipPort.country,
-    skillIds: characterSkillIdsForIdentity(
-      `viking-enthusiast|${vikingLongshipPort.cityId}|${vikingEnthusiast.id}`,
-      { traveler: true }
-    )
-  });
-  const enthusiastAboard = permanentNamedCrew.some((member) => member.id === enthusiast.id);
-  if (enthusiastAboard) {
-    portCityCharacters.set(vikingLongshipPort.cityId, vikingLongshipPortFactor);
-    usedCharacterNames.add(vikingLongshipPortFactor.name);
-  } else {
-    portCityCharacters.set(vikingLongshipPort.cityId, enthusiast);
-  }
+}
+
+function portCityStaffSourceIds(city) {
+  return portCityStaffMembers(
+    portCityStaffByCityId,
+    requireCityId(city, "Port staff portrait exclusions")
+  ).map(({ sourceId }) => sourceId);
 }
 
 function naturalistPort() {
@@ -9230,12 +9270,13 @@ function ensureNaturalistCharacter(state, { portraitSourceId = null } = {}) {
   );
   const port = cityById.get(cityId);
   if (!port) throw new Error(`Naturalist quest points to a missing port: ${cityId}`);
-  const factor = portCityCharacters.get(port.cityId);
-  if (!factor) throw new Error(`${cityLabelText(port)} has no factor to distinguish from the naturalist`);
   naturalistCharacter = generateSpecialPortCharacter({
     identityKey: `natural-philosopher-${cityId}`,
     port,
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(port),
+      ...playerPortraitSourceExclusions(state.playerCharacter)
+    ],
     portraitSourceId,
     role: "natural-philosopher",
     manifest: characterPortraitManifest,
@@ -9249,17 +9290,22 @@ function createCampaignGoalContact(playerCharacter, goal) {
   if (!goal) throw new Error("Cannot assign a campaign contact without a campaign goal");
   const homeCity = cityById.get(goal.homePortCityId);
   if (!homeCity) throw new Error(`Campaign home port is not in the port roster: ${goal.homePortCityId}`);
-  const factor = portCityCharacters.get(homeCity.cityId);
-  if (!factor) throw new Error(`Campaign home port has no factor: ${cityLabelText(homeCity)}`);
   const reservedNames = new Set([playerCharacter.name]);
-  for (const character of portCityCharacters.values()) reservedNames.add(character.name);
+  for (const cityId of portCityStaffByCityId.keys()) {
+    for (const character of portCityStaffMembers(portCityStaffByCityId, cityId)) {
+      reservedNames.add(character.name);
+    }
+  }
   if (colonizationOrganizer) reservedNames.add(colonizationOrganizer.name);
   const contact = generateCampaignContactCharacter({
     playerCharacter,
     homePort: homeCity,
     goalType: goal.type,
-    excludedSourceId: factor.sourceId,
-    excludedSourceIds: playerPortraitSourceExclusions(playerCharacter),
+    excludedSourceId: portCityStaffMember(homeCity, PORT_CITY_STAFF_ROLE.HARBOUR_MASTER).sourceId,
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(homeCity),
+      ...playerPortraitSourceExclusions(playerCharacter)
+    ],
     manifest: characterPortraitManifest,
     usedNames: reservedNames
   });
@@ -11527,18 +11573,26 @@ function stageCaptureDiscoveryMemory(sequence) {
 }
 
 function stageCaptureFactorPortrait(sequence, city) {
-  const previous = portCityCharacters.get(city.cityId);
-  if (!previous) throw new Error(`Capture trade port has no factor: ${sequence.cityId}`);
+  const previous = requirePortCityStaffMember(
+    portCityStaffByCityId,
+    city.cityId,
+    PORT_CITY_STAFF_ROLE.MERCHANT
+  );
   usedCharacterNames.delete(previous.name);
-  const factor = assignPortCityCharacterFromSource(
+  const merchant = assignPortCityStaffMemberFromSource(
     city,
+    PORT_CITY_STAFF_ROLE.MERCHANT,
     sequence.factorPortraitSourceId,
     characterPortraitManifest,
     usedCharacterNames,
     { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
   );
-  portCityCharacters.set(city.cityId, factor);
-  usedCharacterNames.add(factor.name);
+  const staff = portCityStaffByCityId.get(city.cityId);
+  portCityStaffByCityId.set(city.cityId, Object.freeze({
+    ...staff,
+    [PORT_CITY_STAFF_ROLE.MERCHANT]: merchant
+  }));
+  usedCharacterNames.add(merchant.name);
   chart = buildChart(camera);
 }
 
@@ -11607,10 +11661,14 @@ function updateCaptureExplore(sequence, nowMs) {
 function updateCaptureTrade(sequence) {
   if (captureCue("open-market", 0.7)) {
     const cityCall = capturePortCallById(sequence.cityId);
-    if (cityCall.character?.sourceId !== sequence.factorPortraitSourceId) {
+    const merchant = requirePortCityStaffMember(
+      portCityStaffByCityId,
+      cityCall.cityId,
+      PORT_CITY_STAFF_ROLE.MERCHANT
+    );
+    if (merchant.sourceId !== sequence.factorPortraitSourceId) {
       throw new Error(
-        `Capture trade factor mismatch for ${sequence.cityId}: ` +
-        `${cityCall.character?.sourceId || "missing"}`
+        `Capture trade merchant mismatch for ${sequence.cityId}: ${merchant.sourceId}`
       );
     }
     dialogueState = createPortDialogueSession(cityCall, {
@@ -11622,9 +11680,9 @@ function updateCaptureTrade(sequence) {
     stopShipForDialogue();
     ensureDialoguePortraitLoaded();
     emitCaptureEvent("capture-portrait", {
-      role: "factor",
+      role: "merchant",
       city: sequence.cityId,
-      sourceId: cityCall.character.sourceId
+      sourceId: merchant.sourceId
     });
     emitCaptureEvent("capture-beat", { action: `market-${sequence.variant}`, city: sequence.cityId });
     dirty = true;
@@ -13310,12 +13368,13 @@ function stageCapturePapal(sequence) {
     return;
   }
   if (sequence.variant === "bibles") {
-    const factor = portCityCharacters.get(city.cityId);
-    if (!factor) throw new Error(`${sequence.cityId} has no factor for the Bible capture`);
     const bookseller = generateSpecialPortCharacter({
       identityKey: `papal-capture-bookseller|${requireCityId(city, "Papal bookseller city")}`,
       port: city,
-      excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
+      excludedSourceIds: [
+        ...portCityStaffSourceIds(city),
+        ...playerPortraitSourceExclusions(gameState.playerCharacter)
+      ],
       portraitSourceId: sequence.booksellerPortraitSourceId,
       role: "bookseller",
       religionId: "lutheran",
@@ -13377,7 +13436,9 @@ function stageCaptureReligion(sequence) {
       spawnChance: 1,
       simMinute: Math.floor(weatherClockMinutes),
       sailingDistanceKm: sailingDistanceBetweenPorts,
-      portFactorReligionId: (port) => portCityCharacters.get(port.cityId)?.religionId || null,
+      portFactorReligionId: (port) => (
+        portCityStaffMember(port, PORT_CITY_STAFF_ROLE.MERCHANT).religionId
+      ),
       createCharacter: createCapturePassengerCharacter,
       ...(sequence.variant === "hajj"
         ? { scenarioId: HAJJ_PASSENGER_SCENARIO_ID, hajjScenarioChance: 1 }
@@ -15939,16 +16000,25 @@ async function continueSavedVoyage() {
 function crewGenerationContextForHomePort(homePortCityId) {
   const homePort = cityById?.get(homePortCityId);
   if (!homePort) throw new Error(`Crew home port is missing from the city catalog: ${homePortCityId}`);
+  factionById(homePort.factionId);
   const usedNames = new Set();
   return Object.freeze({
     homePort,
     appearances: cityRecruitableCrewAppearances(homePort),
-    nameForIdentity: (identityKey) => assignRegionalCharacterName({
-      identityKey,
-      city: homePort,
-      sex: "male",
-      usedNames
-    }).givenName
+    identityForKey: (identityKey) => {
+      const identity = assignRegionalCharacterIdentity({
+        identityKey,
+        city: homePort,
+        character: { sex: "male" },
+        usedNames
+      });
+      return Object.freeze({
+        name: identity.givenName,
+        nameCulture: identity.nameCulture,
+        religionId: identity.religionId,
+        nationalityId: homePort.factionId
+      });
+    }
   });
 }
 
@@ -15965,7 +16035,7 @@ function setScenarioCrewCount(count) {
     homePort: generation.homePort,
     currentMinute: Math.floor(weatherClockMinutes),
     appearances: generation.appearances,
-    nameForIdentity: generation.nameForIdentity
+    identityForKey: generation.identityForKey
   });
   gameState.ship.crew = count;
   validateCrewAggregate(gameState);
@@ -19062,7 +19132,9 @@ function closeAboardEntryDetail() {
 }
 
 function requestSelectedAboardCrewDismissal() {
-  if (portAssaultState) throw new Error("Crew cannot be dismissed during a port assault");
+  if (!aboardCrewDismissalIsAllowed()) {
+    throw new Error("Crew can only be dismissed while safely in port");
+  }
   const member = selectedAboardCrewMember();
   aboardMenu.pendingCrewDismissalMemberId = requestAboardCrewDismissal(
     member.id,
@@ -19093,7 +19165,7 @@ function activateSelectedAboardEntryAction() {
   const entry = aboardEntryById(roster, aboardMenu.selectedEntryId);
   if (entry.kind === "named") return;
   if (!entry.crewMember) throw new Error(`Selected generic aboard entry has no crewmate: ${entry.id}`);
-  if (portAssaultState) return;
+  if (!aboardCrewDismissalIsAllowed()) return;
   if (aboardMenu.pendingCrewDismissalMemberId) {
     confirmSelectedAboardCrewDismissal();
     return;
@@ -19102,7 +19174,9 @@ function activateSelectedAboardEntryAction() {
 }
 
 function dismissAboardCrewMember(memberId) {
-  if (portAssaultState) throw new Error("Crew cannot be dismissed during a port assault");
+  if (!aboardCrewDismissalIsAllowed()) {
+    throw new Error("Crew can only be dismissed while safely in port");
+  }
   const dismissal = dismissCrewMember(gameState, memberId);
   aboardMenu.crewDismissals.push(dismissal);
   aboardMenu.selectedEntryId = null;
@@ -19114,6 +19188,9 @@ function dismissAboardCrewMember(memberId) {
 }
 
 function undoAboardCrewDismissals() {
+  if (!aboardCrewDismissalIsAllowed()) {
+    throw new Error("Crew dismissals can only be undone while safely in port");
+  }
   if (aboardMenu.crewDismissals.length === 0) return false;
   restoreDismissedCrew(gameState, aboardMenu.crewDismissals);
   aboardMenu.crewDismissals = [];
@@ -19121,6 +19198,15 @@ function undoAboardCrewDismissals() {
   playCollectionDingSound();
   showSurvivalNotice("CREW DISMISSALS UNDONE", "good");
   return true;
+}
+
+function aboardCrewDismissalIsAllowed() {
+  return Boolean(
+    !portAssaultState &&
+    portCityView?.sceneReady === true &&
+    dialogueState?.kind === "port" &&
+    dialogueState.admittedToPort === true
+  );
 }
 
 function refreshAboardRosterAfterCrewChange() {
@@ -19624,6 +19710,7 @@ function createDialogueLayoutState() {
   return {
     optionRects: [],
     scrollOffset: 0,
+    crewPageSize: 0,
     previousRect: null,
     nextRect: null,
     shipyardLedgerScrollUpRect: null,
@@ -19637,6 +19724,7 @@ function createDialogueLayoutState() {
 
 function invalidateDialogueOptionGeometry() {
   dialogueLayout.optionRects = [];
+  dialogueLayout.crewPageSize = 0;
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
   dialogueLayout.shipyardLedgerScrollUpRect = null;
@@ -19648,6 +19736,9 @@ function invalidateDialogueOptionGeometry() {
 function handleDialogueKeyDown(event) {
   event.preventDefault();
   if (portCityIllicitEvent) return;
+  // A held confirm key must never spill from one dialogue state into the next;
+  // recruitment cards perform immediate purchases.
+  if (event.repeat && (event.key === "Enter" || event.key === " ")) return;
   if (dialogueIsCustomLoadoutEditor()) {
     handleCustomLoadoutKeyDown(event);
     return;
@@ -19865,11 +19956,11 @@ function handleDialoguePointerDown(point) {
     return;
   }
   if (pointInRect(point, dialogueLayout.previousRect)) {
-    stepDialogueSelection(-1);
+    stepDialoguePageOrSelection(-1);
     return;
   }
   if (pointInRect(point, dialogueLayout.nextRect)) {
-    stepDialogueSelection(1);
+    stepDialoguePageOrSelection(1);
     return;
   }
   updateDialogueSelectionFromPoint(point);
@@ -20107,7 +20198,30 @@ function handleCanvasWheel(event) {
     scrollPlayerShipyardJournal(event.deltaY > 0 ? 1 : -1);
     return;
   }
+  if (["crew-recruitment", "crew-dismissal"].includes(
+    currentDialogueView().presentation?.kind
+  )) {
+    stepDialoguePageOrSelection(event.deltaY > 0 ? 1 : -1);
+    return;
+  }
   stepDialogueSelection(event.deltaY > 0 ? 1 : -1);
+}
+
+function stepDialoguePageOrSelection(direction) {
+  if (dialogueLayout.crewPageSize <= 0) {
+    stepDialogueSelection(direction);
+    return;
+  }
+  const view = currentDialogueView();
+  const candidateCount = view.presentation?.candidates?.length;
+  if (!Number.isInteger(candidateCount) || candidateCount <= 0) return;
+  const current = Math.min(dialogueState.selectedIndex, candidateCount - 1);
+  dialogueState.selectedIndex = clamp(
+    current + direction * dialogueLayout.crewPageSize,
+    0,
+    candidateCount - 1
+  );
+  dirty = true;
 }
 
 function openActiveInteractionDialogue() {
@@ -20661,13 +20775,19 @@ function maybeOpenCrewRecruitmentArrival(cityCall) {
   if (gameState.ship.crew >= targetCrew) return false;
   const offer = prepareCrewRecruitmentAt(cityCall, { allowEmpty: false });
   if (offer.candidates.length === 0) return false;
+  dialogueState.crewRecruitmentReturnNodeId = null;
   dialogueState.nodeId = "crew-recruitment";
-  dialogueState.selectedIndex = 0;
+  // Default to the non-destructive exit. A held controller confirm from the
+  // preceding arrival dialogue must not hire the first candidate.
+  dialogueState.selectedIndex = offer.candidates.length;
   dialogueState.feedback = null;
   return true;
 }
 
-function prepareCrewRecruitmentAt(city, { allowEmpty }) {
+function prepareCrewRecruitmentAt(city, {
+  allowEmpty,
+  includeReplacementCandidates = false
+}) {
   const existing = crewRecruitmentOfferAt(gameState.memory.crewRecruitment, city);
   if (existing) return existing;
   const targetCrew = gameState.ship.loadoutTargets?.crew || gameState.ship.crewCapacity;
@@ -20679,9 +20799,10 @@ function prepareCrewRecruitmentAt(city, { allowEmpty }) {
     simMinute: Math.floor(weatherClockMinutes),
     targetCrew,
     appearances: generation.appearances,
-    nameForIdentity: generation.nameForIdentity,
+    identityForKey: generation.identityForKey,
     baseHireCost: CREW_HIRE_COST,
-    allowEmpty
+    allowEmpty,
+    includeReplacementCandidates
   });
 }
 
@@ -21790,12 +21911,13 @@ function generateHospitallerMaltaNuncio(memory, rome) {
   const identityKey = `hospitaller-malta-nuncio|${gameState.voyageSeed}|${requireCityId(rome, "Hospitaller nuncio city")}`;
   const cached = hospitallerNuncioPreviewCharacters.get(identityKey);
   if (cached) return cached;
-  const factor = portCityCharacters.get(rome.cityId);
-  if (!factor) throw new Error("Rome has no factor for the Malta petition");
   const nuncio = generateSpecialPortCharacter({
     identityKey,
     port: rome,
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(rome),
+      ...playerPortraitSourceExclusions(gameState.playerCharacter)
+    ],
     role: "papal-nuncio",
     religionId: "roman-catholic",
     manifest: characterPortraitManifest,
@@ -21917,8 +22039,10 @@ function openHospitallerMaltaGrantAudience(capital, memory) {
     relation: DIPLOMACY_FRIENDLY
   });
   applyCurrentPortConquestOwnership({ notifyForeignSettlementExpulsions: true });
-  const courtCharacter = portCityCharacters.get(capital.cityId);
-  if (!courtCharacter) throw new Error(`${cityLabelText(capital)} has no court representative`);
+  const courtCharacter = portCityStaffMember(
+    capital,
+    PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER
+  );
   const opened = startCharacterAlertSequence([
     pairedCharacterAlertStep({
       leftCharacter: gameState.playerCharacter,
@@ -22065,12 +22189,13 @@ function generatePapalNuncio(matter, rome, { portraitSourceId = null } = {}) {
   const cacheKey = `${identityKey}|${portraitSourceId || "automatic"}`;
   const cached = papalNuncioPreviewCharacters.get(cacheKey);
   if (cached) return cached;
-  const factor = portCityCharacters.get(rome.cityId);
-  if (!factor) throw new Error("Rome has no factor for the Papal commission");
   const nuncio = generateSpecialPortCharacter({
     identityKey,
     port: rome,
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(gameState.playerCharacter)],
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(rome),
+      ...playerPortraitSourceExclusions(gameState.playerCharacter)
+    ],
     portraitSourceId,
     role: "papal-nuncio",
     religionId: "roman-catholic",
@@ -24671,7 +24796,9 @@ function resetSurvivalDamageTimers() {
 function stopWaitingInPort() {
   if (!portWaitState) return false;
   const city = chartPortCallById(portWaitState.portId) || cityById.get(portWaitState.cityId);
-  const character = city?.character || (city ? portCityCharacters?.get(city.cityId) : null);
+  const character = city?.character || (city
+    ? portCityStaffMember(city, PORT_CITY_STAFF_ROLE.HARBOUR_MASTER)
+    : null);
   const disguisedEntry = portWaitState.disguisedEntry === true;
   const illicitTradeAccessPolicyId = portWaitState.illicitTradeAccessPolicyId || null;
   const illicitTradeAttemptedPolicyId = portWaitState.illicitTradeAttemptedPolicyId || null;
@@ -25460,9 +25587,8 @@ async function purchaseShipyardShip(action) {
 function placeVikingLongshipEnthusiastAtPort(historian) {
   const port = vikingLongshipQuestPort();
   if (!port) throw new Error("Cannot return the Viking longship to missing Hafnarfjordur");
-  portCityCharacters.set(port.cityId, historian);
+  vikingLongshipEnthusiast = historian;
   usedCharacterNames.add(historian.name);
-  if (vikingLongshipPortFactor) usedCharacterNames.delete(vikingLongshipPortFactor.name);
 }
 
 async function acquireVikingLongship(action) {
@@ -25521,9 +25647,6 @@ async function acquireVikingLongship(action) {
       description: "Longship armament: Viking Bows",
       context: transactionContext
     });
-    if (!vikingLongshipPortFactor) throw new Error("Viking longship handover lost the Hafnarfjordur factor");
-    portCityCharacters.set(city.cityId, vikingLongshipPortFactor);
-    usedCharacterNames.add(vikingLongshipPortFactor.name);
     applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     if (purchasing) playCoinClinkSound();
@@ -25932,11 +26055,18 @@ function currentColonizationDialogueCharacter(city) {
       dialogueState.colonizationApprovalStep === 2);
   if (!approvalConversation) return ensureColonizationOrganizer(gameState);
   if (dialogueState.colonizationApprovalStep === 1) {
-    const official = portCityCharacters.get(city.cityId);
-    if (!official) throw new Error(`${cityLabelText(city)} has no official for the colony negotiation`);
-    return official;
+    return requirePortCityStaffMember(
+      portCityStaffByCityId,
+      city.cityId,
+      PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER
+    );
   }
   return ensureColonizationOrganizer(gameState);
+}
+
+function currentPortStaffCharacter(city) {
+  const role = portCityStaffRoleForDialogueSession(dialogueState);
+  return requirePortCityStaffMember(portCityStaffByCityId, city.cityId, role);
 }
 
 function currentDialogueCity() {
@@ -25944,7 +26074,9 @@ function currentDialogueCity() {
   if (dialogueState.kind === "port") {
     const portCall = chartPortCallById(dialogueState.portId);
     if (portCall) {
-      if (["drunk-captain", "quest-cargo-sale-warning", "inn-drink"].includes(dialogueState.nodeId)) {
+      if (["drunk-captain", "quest-cargo-sale-warning", "inn-drink", "city-attack"].includes(
+        dialogueState.nodeId
+      )) {
         const character = gameState.playerCharacter;
         if (!character) throw new Error("Captain-led port dialogue has no player captain");
         return {
@@ -25985,8 +26117,25 @@ function currentDialogueCity() {
           portrait: characterExpression(character)
         };
       }
+      if (dialogueState.nodeId === "viking-longship") {
+        const character = vikingLongshipEnthusiastAtPort(gameState, portCall)
+          ? vikingLongshipEnthusiast
+          : null;
+        if (!character) throw new Error("Viking longship dialogue has no historical enthusiast");
+        return {
+          ...portCall,
+          character,
+          portrait: characterExpression(character)
+        };
+      }
       if (dialogueState.nodeId !== "colonization") {
-        return portCall;
+        if (portCall.isPirateHideout) return portCall;
+        const character = currentPortStaffCharacter(portCall);
+        return {
+          ...portCall,
+          character,
+          portrait: characterExpression(character)
+        };
       }
       const character = currentColonizationDialogueCharacter(portCall);
       if (!character) throw new Error("Colonization dialogue has no character");
@@ -26004,7 +26153,9 @@ function currentDialogueCity() {
     : placedCity;
   const questCharacter = dialogueState.kind !== "port"
     ? null
-    : ["drunk-captain", "quest-cargo-sale-warning", "inn-drink"].includes(dialogueState.nodeId)
+    : ["drunk-captain", "quest-cargo-sale-warning", "inn-drink", "city-attack"].includes(
+      dialogueState.nodeId
+    )
       ? gameState.playerCharacter
     : dialogueState.nodeId === "japanese-matchlocks"
       ? ensureJapaneseMatchlockGunsmith(gameState)
@@ -26016,8 +26167,14 @@ function currentDialogueCity() {
         ? currentColonizationDialogueCharacter(city)
       : dialogueState.nodeId === "conquistador"
         ? ensureConquistadorQuestGiver(gameState)
+      : dialogueState.nodeId === "viking-longship"
+        ? vikingLongshipEnthusiastAtPort(gameState, city)
+          ? vikingLongshipEnthusiast
+          : null
         : null;
-  const character = questCharacter || portCityCharacters?.get(city.cityId);
+  const character = questCharacter || (city.isPirateHideout
+    ? pirateHideoutCharacters.get(city.cityId)
+    : currentPortStaffCharacter(city));
   if (!character) throw new Error(`Dialogue city has no port character: ${cityLabelText(city)}`);
   return {
     ...city,
@@ -26225,7 +26382,9 @@ function travelMissionOfferContext(createCharacter) {
     historicalWorldState: historicalGossipWorldState(),
     relationBetween: currentDiplomacyBetween,
     sailingDistanceKm: sailingDistanceBetweenPorts,
-    portFactorReligionId: (port) => portCityCharacters.get(port.cityId)?.religionId || null,
+    portFactorReligionId: (port) => (
+      portCityStaffMember(port, PORT_CITY_STAFF_ROLE.MERCHANT).religionId
+    ),
     createCharacter
   };
 }
@@ -26523,14 +26682,25 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
         dialogueState.colonizationApprovalStep === 2);
     if (colonyApprovalExchange) {
       const organizer = ensureColonizationOrganizer(gameState);
-      const official = portCityCharacters.get(dialogueState.cityId);
-      if (!official) throw new Error("Colonization approval dialogue has no local official");
+      const official = requirePortCityStaffMember(
+        portCityStaffByCityId,
+        dialogueState.cityId,
+        PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER
+      );
       return dialoguePortraitPair(organizer, official, speakerCharacter);
     }
-    const portFactor = portCityCharacters?.get(dialogueState.cityId) ||
-      chartPortCallById(dialogueState.portId)?.character ||
-      null;
-    return dialoguePortraitPair(captain, speakerCharacter.id === captain?.id ? portFactor : speakerCharacter, speakerCharacter);
+    const dialogueCity = currentDialogueCity();
+    const portCounterpart = speakerCharacter.id === captain?.id
+      ? dialogueCity.isPirateHideout
+        ? pirateHideoutCharacters.get(dialogueCity.cityId)
+        : currentPortStaffCharacter(dialogueCity)
+      : speakerCharacter;
+    if (!portCounterpart) throw new Error(`Port dialogue has no counterpart: ${dialogueState.cityId}`);
+    return dialoguePortraitPair(
+      captain,
+      portCounterpart,
+      speakerCharacter
+    );
   }
 
   return dialoguePortraitPair(captain, speakerCharacter, speakerCharacter);
@@ -26728,7 +26898,7 @@ function updateWhales(dt, nowMs) {
       const towardShip = normalizeOrNull(projectTangentVector(ship.position, whale.position));
       if (!towardShip) throw new Error(`Sperm whale cannot turn toward the ship: ${whale.id}`);
       whale.heading = towardShip;
-      showSurvivalNotice("THE SPERM WHALE WHEELS TO RAM", "warn");
+      showSurvivalNotice(whaleRamWarningText(whale), "warn");
       playWhaleBlowSound();
       changed = true;
     } else if (event.type === "ram-impact") {
@@ -26783,13 +26953,10 @@ function resolveActiveWhaleRamImpact(whale) {
     sourcePoint: source ? { x: source.x, y: source.y } : null
   });
   combatNotice = {
-    text: `SPERM WHALE RAM  -${formatCombatDamage(damage)} HULL`,
+    text: whaleRamImpactText(whale, formatCombatDamage(damage)),
     expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
   };
-  const loss = resolvePlayerDamageLoss({
-    sinkingReason: "A sperm whale stove in your hull.",
-    crewLossReason: "The last of the crew died when a sperm whale rammed the ship."
-  });
+  const loss = resolvePlayerDamageLoss(whaleRamLossText(whale));
   if (!loss) saveVoyageNow("struck by a tethered sperm whale");
   return true;
 }
@@ -29599,17 +29766,13 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
   for (const settlement of colonizationSettlementMemories(state.memory.colonization)) {
     const binding = bindColonizationQuestSelection(state, settlement);
     if (!binding) throw new Error("Archived colony has no world binding");
-    syncColonizationSettlementWorldState(state, settlement, binding, { startMinute, active: false });
+    syncColonizationSettlementWorldState(state, settlement, binding, { startMinute });
   }
 
   const binding = bindColonizationQuestSelection(state);
   if (!binding) {
     colonizationTargetTileId = null;
-    colonizationBaseSettlementCharacter = null;
     return null;
-  }
-  if (colonizationTargetTileId !== binding.target.tileId) {
-    colonizationBaseSettlementCharacter = null;
   }
   colonizationTargetTileId = binding.target.tileId;
   ensureColonizationOrganizer(state, binding.origin);
@@ -29617,11 +29780,11 @@ function syncColonizationWorldState(state, { startMinute = weatherClockMinutes }
     state,
     state.memory.colonization,
     binding,
-    { startMinute, active: true }
+    { startMinute }
   );
 }
 
-function syncColonizationSettlementWorldState(state, memory, binding, { startMinute, active }) {
+function syncColonizationSettlementWorldState(state, memory, binding, { startMinute }) {
   const targetTileId = binding.target.tileId;
   const record = colonizationWorldRecord(memory);
   const restoredFactionId = colonizationGovernmentInExileFactionId(
@@ -29647,9 +29810,7 @@ function syncColonizationSettlementWorldState(state, memory, binding, { startMin
       }
       cityByTileId.set(targetTileId, baseSettlement);
       cityById.set(baseSettlement.cityId, baseSettlement);
-      if (active && colonizationBaseSettlementCharacter) {
-        portCityCharacters.set(baseSettlement.cityId, colonizationBaseSettlementCharacter);
-      }
+      ensurePortCityStaffRoster(baseSettlement);
       chart = null;
       dirty = true;
     } else {
@@ -29657,38 +29818,21 @@ function syncColonizationSettlementWorldState(state, memory, binding, { startMin
         cityByTileId.delete(targetTileId);
         cityById.delete(existing.cityId);
       }
-      portCityCharacters.delete(binding.target.cityId);
+      portCityStaffByCityId.delete(binding.target.cityId);
     }
     return null;
   }
-  let baseSettlementCharacter = null;
   if (existing && !existing.colonizationQuestSite) {
     if (!binding.target.preexistingSettlement || existing.cityId !== binding.target.cityId ||
         existing.settlementType !== "village") {
       throw new Error(`${binding.target.city} target tile is occupied by ${cityLabelText(existing)}`);
     }
-    baseSettlementCharacter = portCityCharacters.get(existing.cityId) || null;
-    if (!baseSettlementCharacter) {
-      throw new Error(`${binding.target.city} village has no resident character`);
-    }
-    if (active) colonizationBaseSettlementCharacter = baseSettlementCharacter;
+    ensurePortCityStaffRoster(existing);
   }
 
   cityByTileId.set(record.tileId, record);
   cityById.set(record.cityId, record);
-  const developedPortCharacter = record.playerDevelopedPort
-    ? baseSettlementCharacter || colonizationBaseSettlementCharacter || portCityCharacters.get(record.cityId)
-    : null;
-  if (record.playerDevelopedPort && !developedPortCharacter) {
-    throw new Error(`${binding.target.city} developed port has no local official`);
-  }
-  const settlementCharacter = developedPortCharacter ||
-    portCityCharacters.get(record.cityId) ||
-    (active
-      ? colonizationOrganizer
-      : createArchivedColonizationOrganizer(state, memory, binding));
-  if (!settlementCharacter) throw new Error(`${binding.target.city} colony has no resident official`);
-  portCityCharacters.set(record.cityId, settlementCharacter);
+  ensurePortCityStaffRoster(record);
   if (record.hiddenSettlement || record.colonyAbandoned) {
     const portIndex = portCities.findIndex((city) => city.tileId === record.tileId);
     if (portIndex >= 0) portCities.splice(portIndex, 1);
@@ -29768,36 +29912,20 @@ function bindColonizationQuestSelection(state, memory = state.memory.colonizatio
   return { target, origin, approvalPort };
 }
 
-function createArchivedColonizationOrganizer(state, memory, binding) {
-  const questState = { ...state, memory: { ...state.memory, colonization: memory } };
-  const quest = colonizationQuestView(questState, { currentMinute: Math.max(0, weatherClockMinutes) });
-  const factor = portCityCharacters.get(binding.origin.cityId);
-  if (!factor) throw new Error(`${cityLabelText(binding.origin)} has no factor for its archived colony`);
-  const identityPort = colonizationOrganizerIdentityPort(quest, binding.origin);
-  return generateSpecialPortCharacter({
-    identityKey: `colonial-organizer-${quest.target.cityId}-${binding.origin.cityId}`,
-    port: identityPort,
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
-    role: "colonial-organizer",
-    religionId: quest.history.organizerReligionId,
-    manifest: characterPortraitManifest,
-    usedNames: usedCharacterNames
-  });
-}
-
 function ensureColonizationOrganizer(state, origin = null, { portraitSourceId = null } = {}) {
   const quest = colonizationQuestView(state, { currentMinute: Math.max(0, weatherClockMinutes) });
   const organizerPort = origin || portCities.find((candidate) => candidate.cityId === quest.origin?.cityId);
   if (!quest.target || !organizerPort) throw new Error("Colonization organizer requires a selected target and origin");
   const questKey = `${quest.target.cityId}|${organizerPort.cityId}`;
   if (colonizationOrganizer && colonizationOrganizerQuestKey === questKey) return colonizationOrganizer;
-  const factor = portCityCharacters.get(organizerPort.cityId);
-  if (!factor) throw new Error(`${cityLabelText(organizerPort)} has no generated port factor`);
   const identityPort = colonizationOrganizerIdentityPort(quest, organizerPort);
   colonizationOrganizer = generateSpecialPortCharacter({
     identityKey: `colonial-organizer-${quest.target.cityId}-${organizerPort.cityId}`,
     port: identityPort,
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(organizerPort),
+      ...playerPortraitSourceExclusions(state.playerCharacter)
+    ],
     portraitSourceId,
     role: "colonial-organizer",
     religionId: quest.history.organizerReligionId,
@@ -29822,12 +29950,13 @@ function ensureConquistadorQuestGiver(state) {
     Math.max(0, weatherClockMinutes)
   );
   const origin = quest.origin;
-  const factor = portCityCharacters.get(origin.cityId);
-  if (!factor) throw new Error(`${cityLabelText(origin)} has no factor for the conquistador expedition`);
   conquistadorQuestGiver = generateSpecialPortCharacter({
     identityKey: `conquistador-adelantado-${origin.cityId}`,
     port: { ...origin, factionId: "spain" },
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(origin),
+      ...playerPortraitSourceExclusions(state.playerCharacter)
+    ],
     role: "adelantado",
     religionId: "roman-catholic",
     manifest: characterPortraitManifest,
@@ -29850,12 +29979,13 @@ function ensureJapaneseMatchlockGunsmith(state) {
   if (!workshopPort) {
     throw new Error(`${JAPANESE_MATCHLOCK_WORKSHOP_CITY} is missing from the dockable port roster`);
   }
-  const factor = portCityCharacters.get(workshopPort.cityId);
-  if (!factor) throw new Error(`${cityLabelText(workshopPort)} has no generated port factor`);
   japaneseMatchlockGunsmith = generateSpecialPortCharacter({
     identityKey: `japanese-matchlock-gunsmith-${workshopPort.cityId}`,
     port: workshopPort,
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(workshopPort),
+      ...playerPortraitSourceExclusions(state.playerCharacter)
+    ],
     role: "gunsmith",
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
@@ -29886,12 +30016,13 @@ function ensureCaribbeanGingerPlanter(state) {
   if (caribbeanGingerPlanter) return caribbeanGingerPlanter;
   const cultivationPort = currentCaribbeanGingerPort(state);
   if (!cultivationPort) throw new Error("Caribbean ginger planter requires an active cultivation port");
-  const factor = portCityCharacters.get(cultivationPort.cityId);
-  if (!factor) throw new Error(`${cityLabelText(cultivationPort)} has no generated port factor`);
   caribbeanGingerPlanter = generateSpecialPortCharacter({
     identityKey: `caribbean-ginger-planter-${cultivationPort.cityId}`,
     port: cultivationPort,
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(cultivationPort),
+      ...playerPortraitSourceExclusions(state.playerCharacter)
+    ],
     role: "planter",
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
@@ -29905,12 +30036,13 @@ function ensureBanquetChef(state, port) {
   if (banquetChef) return banquetChef;
   const quest = chefQuestState(state, port);
   if (!quest) throw new Error("Banquet chef requires an active quest at this port");
-  const factor = portCityCharacters.get(port.cityId);
-  if (!factor) throw new Error(`${cityLabelText(port)} has no generated port factor`);
   const character = generateSpecialPortCharacter({
     identityKey: `banquet-chef-${port.cityId}`,
     port,
-    excludedSourceIds: [factor.sourceId, ...playerPortraitSourceExclusions(state.playerCharacter)],
+    excludedSourceIds: [
+      ...portCityStaffSourceIds(port),
+      ...playerPortraitSourceExclusions(state.playerCharacter)
+    ],
     role: "chef",
     manifest: characterPortraitManifest,
     usedNames: usedCharacterNames
@@ -33713,7 +33845,16 @@ function reconcileEnglishReformationCharacters() {
       converted += 1;
     }
   };
-  convertMap(portCityCharacters);
+  for (const [cityId, staff] of portCityStaffByCityId) {
+    let updatedStaff = staff;
+    for (const role of Object.values(PORT_CITY_STAFF_ROLE)) {
+      const updated = convertEnglishCatholicCharacter(staff[role]);
+      if (updated === staff[role]) continue;
+      updatedStaff = { ...updatedStaff, [role]: updated };
+      converted += 1;
+    }
+    if (updatedStaff !== staff) portCityStaffByCityId.set(cityId, Object.freeze(updatedStaff));
+  }
   convertMap(npcShipCaptains);
   convertMap(pirateHideoutCharacters);
   const convertSingle = (character) => {
@@ -33721,7 +33862,7 @@ function reconcileEnglishReformationCharacters() {
     if (updated !== character) converted += 1;
     return updated;
   };
-  vikingLongshipPortFactor = convertSingle(vikingLongshipPortFactor);
+  vikingLongshipEnthusiast = convertSingle(vikingLongshipEnthusiast);
   campaignGoalContact = convertSingle(campaignGoalContact);
   colonizationOrganizer = convertSingle(colonizationOrganizer);
   japaneseMatchlockGunsmith = convertSingle(japaneseMatchlockGunsmith);
@@ -33736,20 +33877,29 @@ function reconcileEnglishReformationCharacters() {
 
 function reconcilePapalAuthorityCharacters() {
   let converted = 0;
-  const convertMap = (characters, { portFactors = false } = {}) => {
+  const convertMap = (characters) => {
     if (!(characters instanceof Map)) return;
     for (const [key, character] of characters) {
-      const updated = reconcileCharacterForPapalAuthority(
-        gameState,
-        character,
-        portFactors ? { portCityId: key } : undefined
-      );
+      const updated = reconcileCharacterForPapalAuthority(gameState, character);
       if (updated === character) continue;
       characters.set(key, updated);
       converted += 1;
     }
   };
-  convertMap(portCityCharacters, { portFactors: true });
+  for (const [cityId, staff] of portCityStaffByCityId) {
+    const merchant = staff[PORT_CITY_STAFF_ROLE.MERCHANT];
+    const updated = reconcileCharacterForPapalAuthority(
+      gameState,
+      merchant,
+      { portCityId: cityId }
+    );
+    if (updated === merchant) continue;
+    portCityStaffByCityId.set(cityId, Object.freeze({
+      ...staff,
+      [PORT_CITY_STAFF_ROLE.MERCHANT]: updated
+    }));
+    converted += 1;
+  }
   convertMap(npcShipCaptains);
   return converted;
 }
@@ -34726,8 +34876,8 @@ function createWorldSimulationScheduler() {
     {
       id: "visible-npcs",
       hz: NPC_VISUAL_UPDATE_HZ,
-      maxStepsPerAdvance: 1,
-      maxAccumulatedSteps: 2,
+      maxStepsPerAdvance: 2,
+      maxAccumulatedSteps: 3,
       update: updateNpcVisualShips
     },
     {
@@ -35001,13 +35151,14 @@ function updateNpcShips(dt) {
     distantWorldWorkerClient.requestAdvance(weatherClockMinutes, distantWorldRuntimeState);
   }
   let scheduledChanged = false;
-  if (!workerApplyPending) {
-    const scheduled = measurePerformanceBenchmarkStage(
-      "npcShips.scheduled",
-      () => worldSimulationScheduler.advance(dt)
-    );
-    for (const result of scheduled.values()) scheduledChanged ||= result.changed;
-  }
+  // Worker results are compared and restored incrementally across frames. That
+  // background bookkeeping must not pause nearby ships, weapon reloads, or
+  // projectiles; visible ships are protected from the worker's stale snapshot.
+  const scheduled = measurePerformanceBenchmarkStage(
+    "npcShips.scheduled",
+    () => worldSimulationScheduler.advance(dt)
+  );
+  for (const result of scheduled.values()) scheduledChanged ||= result.changed;
   let distantChanged = false;
   if (!distantWorldApplyState && pendingDistantWorldEvents.length > 0) {
     distantWorldApplyState = createDistantWorldApplyState(pendingDistantWorldEvents.shift());
@@ -43658,7 +43809,9 @@ function makeCityCall(city, tileCall, activeChart) {
   const labelH = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
   const character = city.isPirateHideout
     ? pirateHideoutCharacters.get(city.cityId) || null
-    : portCityCharacters?.get(city.cityId) || null;
+    : portCityStaffByCityId
+      ? portCityStaffMember(city, PORT_CITY_STAFF_ROLE.HARBOUR_MASTER)
+      : null;
   return {
     ...city,
     portId: city.cityId,
@@ -48441,10 +48594,37 @@ function drawAboardCrewMemberDetail(entry, panel) {
   );
 
   ctx.fillStyle = PIRATE_MENU_CHART_LINE;
-  ctx.fillRect(panel.x + 15, portraitFrame.y + portraitFrame.h + 10, panel.w - 30, 1);
+  const originDividerY = portraitFrame.y + portraitFrame.h + 10;
+  ctx.fillRect(panel.x + 15, originDividerY, panel.w - 30, 1);
+
+  const originLabelW = Math.min(84, Math.max(62, Math.floor((panel.w - 30) * 0.36)));
+  const originValueX = panel.x + 15 + originLabelW;
+  const originValueW = panel.x + panel.w - 15 - originValueX;
+  const originRows = [
+    [
+      uiText("aboard.origin"),
+      `${characterCultureLabel(entry.crewMember)} / ${factionById(detail.nationalityId).shortName}`
+    ],
+    [uiText("intro.religion"), characterReligionProfile(entry.crewMember).label]
+  ];
+  originRows.forEach(([label, value], index) => {
+    const rowY = originDividerY + 9 + index * 16;
+    drawOptionsText(
+      fitPixelText(String(label).toUpperCase(), PIXEL_FONT_SMALL_8, originLabelW - 4),
+      panel.x + 15,
+      rowY,
+      { color: PIRATE_MENU_INK_MUTED }
+    );
+    drawOptionsText(
+      fitPixelText(String(value).toUpperCase(), PIXEL_FONT_SMALL_8, originValueW),
+      originValueX,
+      rowY,
+      { color: PIRATE_MENU_INK }
+    );
+  });
 
   const actionY = panel.y + panel.h - 34;
-  if (aboardMenu.pendingCrewDismissalMemberId === null && !portAssaultState) {
+  if (aboardMenu.pendingCrewDismissalMemberId === null && aboardCrewDismissalIsAllowed()) {
     aboardMenu.dismissCrewMemberRect = {
       x: panel.x + Math.floor((panel.w - 156) / 2),
       y: actionY,
@@ -62629,14 +62809,24 @@ function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
   );
 
   dialogueLayout.optionRects = [];
+  dialogueLayout.crewPageSize = 0;
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
   const gap = 4;
   const cardW = Math.floor((panel.w - 20 - gap * (columns - 1)) / columns);
   const cardsY = panel.y + 45;
-  candidates.forEach((candidate, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
+  const exitY = panel.y + panel.h - 27;
+  const visibleRows = Math.max(1, Math.floor((exitY - cardsY - 26) / cardHeight));
+  const pageSize = visibleRows * columns;
+  dialogueLayout.crewPageSize = pageSize;
+  const selectedCandidateIndex = Math.min(dialogueState.selectedIndex, Math.max(0, candidates.length - 1));
+  const pageIndex = candidates.length === 0 ? 0 : Math.floor(selectedCandidateIndex / pageSize);
+  const pageCount = Math.max(1, Math.ceil(candidates.length / pageSize));
+  const pageStart = pageIndex * pageSize;
+  candidates.slice(pageStart, pageStart + pageSize).forEach((candidate, localIndex) => {
+    const index = pageStart + localIndex;
+    const column = localIndex % columns;
+    const row = Math.floor(localIndex / columns);
     const rect = {
       x: panel.x + 10 + column * (cardW + gap),
       y: cardsY + row * cardHeight,
@@ -62676,10 +62866,30 @@ function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
     dialogueLayout.optionRects.push({ index, rect });
   });
 
+  if (pageCount > 1) {
+    const pagerY = exitY - 23;
+    dialogueLayout.previousRect = { x: panel.x + 10, y: pagerY, w: 24, h: 20 };
+    dialogueLayout.nextRect = { x: panel.x + panel.w - 34, y: pagerY, w: 24, h: 20 };
+    drawOptionsArrowButton(
+      dialogueLayout.previousRect,
+      "<",
+      pointInRect(optionsMenu.hoverPoint, dialogueLayout.previousRect)
+    );
+    drawOptionsArrowButton(
+      dialogueLayout.nextRect,
+      ">",
+      pointInRect(optionsMenu.hoverPoint, dialogueLayout.nextRect)
+    );
+    drawOptionsText(`PAGE ${pageIndex + 1}/${pageCount}`, panel.x + panel.w / 2, pagerY + 6, {
+      align: "center",
+      color: PIRATE_MENU_INK_MUTED
+    });
+  }
+
   const exitIndex = dialogueView.options.length - 1;
   const exitRect = {
     x: panel.x + 10,
-    y: panel.y + panel.h - 27,
+    y: exitY,
     w: panel.w - 20,
     h: 20
   };
@@ -62700,7 +62910,7 @@ function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
 }
 
 function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
-  const { candidates, currentCrew, targetCrew } = dialogueView.presentation;
+  const { candidates, currentCrew, targetCrew, voluntary } = dialogueView.presentation;
   const panelW = Math.min(420, SCREEN_W - 12);
   const columns = crewDialogueGridColumns(panelW);
   const cardHeight = 56;
@@ -62712,12 +62922,12 @@ function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
     h: panelH
   };
   drawPiratePaperModal(panel, 0.9);
-  drawOptionsText("REDUCE CREW", panel.x + panel.w / 2, panel.y + 9, {
+  drawOptionsText(voluntary ? "MANAGE CREW" : "REDUCE CREW", panel.x + panel.w / 2, panel.y + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_DANGER
   });
-  drawOptionsText(`${currentCrew} → ${targetCrew}`, panel.x + panel.w - 10, panel.y + 10, {
+  drawOptionsText(voluntary ? `${currentCrew} ABOARD` : `${currentCrew} → ${targetCrew}`, panel.x + panel.w - 10, panel.y + 10, {
     align: "right",
     color: PIRATE_MENU_INK_MUTED
   });
@@ -62728,14 +62938,16 @@ function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
     { color: PIRATE_MENU_INK }
   );
   dialogueLayout.optionRects = [];
+  dialogueLayout.crewPageSize = 0;
   dialogueLayout.previousRect = null;
   dialogueLayout.nextRect = null;
   const gap = 4;
   const cardW = Math.floor((panel.w - 20 - gap * (columns - 1)) / columns);
   const cardsY = panel.y + 44;
   const footerY = panel.y + panel.h - 28;
-  const visibleRows = Math.max(1, Math.floor((footerY - cardsY - 5) / cardHeight));
+  const visibleRows = Math.max(1, Math.floor((footerY - cardsY - 27) / cardHeight));
   const pageSize = visibleRows * columns;
+  dialogueLayout.crewPageSize = pageSize;
   const selectedCandidateIndex = Math.min(dialogueState.selectedIndex, Math.max(0, candidates.length - 1));
   const pageIndex = candidates.length === 0 ? 0 : Math.floor(selectedCandidateIndex / pageSize);
   const pageCount = Math.max(1, Math.ceil(candidates.length / pageSize));
@@ -62777,7 +62989,20 @@ function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
     dialogueLayout.optionRects.push({ index, rect });
   });
   if (pageCount > 1) {
-    drawOptionsText(`PAGE ${pageIndex + 1}/${pageCount}`, panel.x + panel.w / 2, footerY - 11, {
+    const pagerY = footerY - 24;
+    dialogueLayout.previousRect = { x: panel.x + 10, y: pagerY, w: 24, h: 20 };
+    dialogueLayout.nextRect = { x: panel.x + panel.w - 34, y: pagerY, w: 24, h: 20 };
+    drawOptionsArrowButton(
+      dialogueLayout.previousRect,
+      "<",
+      pointInRect(optionsMenu.hoverPoint, dialogueLayout.previousRect)
+    );
+    drawOptionsArrowButton(
+      dialogueLayout.nextRect,
+      ">",
+      pointInRect(optionsMenu.hoverPoint, dialogueLayout.nextRect)
+    );
+    drawOptionsText(`PAGE ${pageIndex + 1}/${pageCount}`, panel.x + panel.w / 2, pagerY + 6, {
       align: "center",
       color: PIRATE_MENU_INK_MUTED
     });
@@ -64412,16 +64637,26 @@ function preloadNearbyPortPortraits(nowMs) {
   const nearbyPortCalls = nearbyDockablePortCalls(PORT_PORTRAIT_PRELOAD_RADIUS_PX);
   const cityCall = nearbyPortCalls.find((candidate) => (
     preloadedPortPortraitKeyByCityId.get(candidate.cityId) !==
-      `${gameState.playerCharacter.id}|${candidate.character?.id || "missing"}`
+      portPortraitPreloadKey(candidate)
   ));
   if (!cityCall) return;
-  const preloadKey = `${gameState.playerCharacter.id}|${cityCall.character?.id || "missing"}`;
-  preloadDialogueCharacters(portDialoguePortraitPreloadCharacters({
-    playerCharacter: gameState.playerCharacter,
-    portCharacter: cityCall.character,
-    dockable: true
-  }));
+  const portCharacters = cityCall.isPirateHideout
+    ? [cityCall.character]
+    : portCityStaffMembers(portCityStaffByCityId, cityCall.cityId);
+  const preloadKey = portPortraitPreloadKey(cityCall);
+  preloadDialogueCharacters([gameState.playerCharacter, ...portCharacters]);
   preloadedPortPortraitKeyByCityId.set(cityCall.cityId, preloadKey);
+}
+
+function portPortraitPreloadKey(cityCall) {
+  if (!gameState?.playerCharacter?.id) throw new Error("Port portrait preload requires the player captain");
+  const portCharacters = cityCall.isPirateHideout
+    ? [cityCall.character]
+    : portCityStaffMembers(portCityStaffByCityId, cityCall.cityId);
+  if (portCharacters.some((character) => !character?.id)) {
+    throw new Error(`Port portrait preload has an unidentified character: ${cityCall.cityId}`);
+  }
+  return [gameState.playerCharacter.id, ...portCharacters.map(({ id }) => id)].join("|");
 }
 
 function preloadNearbyPortCityScene(nowMs) {

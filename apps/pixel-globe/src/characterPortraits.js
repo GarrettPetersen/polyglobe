@@ -28,6 +28,24 @@ const OLD_BUCCANEER_MINIMUM_AGE = 45;
 const OLD_BUCCANEER_PREFERRED_SOURCE_ID =
   "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard";
 
+export const PORT_CITY_STAFF_ROLE = Object.freeze({
+  HARBOUR_MASTER: "harbour-master",
+  INNKEEPER: "innkeeper",
+  SMITH: "smith",
+  MERCHANT: "merchant",
+  GARRISON_COMMANDER: "garrison-commander"
+});
+
+export const PORT_CITY_STAFF_ROLES = Object.freeze(Object.values(PORT_CITY_STAFF_ROLE));
+
+const PORT_CITY_STAFF_SOURCE_ROLES = Object.freeze({
+  [PORT_CITY_STAFF_ROLE.HARBOUR_MASTER]: Object.freeze(["captain", "factor"]),
+  [PORT_CITY_STAFF_ROLE.INNKEEPER]: Object.freeze(["civilian", "factor"]),
+  [PORT_CITY_STAFF_ROLE.SMITH]: Object.freeze(["artisan", "factor"]),
+  [PORT_CITY_STAFF_ROLE.MERCHANT]: Object.freeze(["factor"]),
+  [PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]: Object.freeze(["warrior", "captain", "factor"])
+});
+
 const EXPRESSION_FALLBACK_IDS = Object.freeze({
   angry: Object.freeze(["stern", "shouting", "annoyed", "determined"]),
   afraid: Object.freeze(["worried", "surprised", "concerned", "wary"]),
@@ -207,7 +225,7 @@ function validateAgeRange(minAge, maxAge, label) {
   }
 }
 
-export function assignPortCityCharacters(
+export function assignPortCityStaff(
   portCities,
   manifest,
   usedNames,
@@ -217,30 +235,70 @@ export function assignPortCityCharacters(
   assertUsedNames(usedNames);
   const cities = [...portCities].sort((a, b) => stableCityKey(a).localeCompare(stableCityKey(b)));
   const assignments = new Map();
-  const used = new Set();
   for (const city of cities) {
-    const key = stableCityKey(city);
     const region = portraitRegionForCity(city);
-    const sourcePool = characterSourcesForRole(manifest, "factor", region, { excludedSourceIds });
-    const character = assignCharacterSprite(key, region, sourcePool, used);
-    assignments.set(city.cityId, {
-      ...character,
-      ...assignRegionalCharacterIdentity({
-        identityKey: key,
-        city,
-        character,
-        usedNames
-      }),
-      cityKey: key,
-      role: "factor",
-      personalityId: portPersonalityForKey(key)
-    });
+    const usedSourceIds = new Set();
+    const staff = {};
+    for (const role of PORT_CITY_STAFF_ROLES) {
+      const sourcePool = portCityStaffSources(
+        manifest,
+        role,
+        region,
+        excludedSourceIds
+      ).filter((source) => !usedSourceIds.has(source.id));
+      if (sourcePool.length === 0) {
+        throw new Error(`${city.cityId} has no distinct portrait source for ${role}`);
+      }
+      const character = createPortCityStaffMember(city, role, region, sourcePool, usedNames);
+      usedSourceIds.add(character.sourceId);
+      staff[role] = character;
+    }
+    assignments.set(city.cityId, Object.freeze(staff));
   }
   return assignments;
 }
 
-export function assignPortCityCharacterFromSource(
+export function assignPortCityStaffMember(
   city,
+  role,
+  manifest,
+  usedNames,
+  { excludedSourceIds = [] } = {}
+) {
+  validateCharacterPortraitManifest(manifest);
+  assertUsedNames(usedNames);
+  if (!city || typeof city !== "object") throw new Error("Port staff member requires a city");
+  requirePortCityStaffRole(role);
+  const region = portraitRegionForCity(city);
+  const sourcePool = portCityStaffSources(manifest, role, region, excludedSourceIds);
+  return createPortCityStaffMember(city, role, region, sourcePool, usedNames);
+}
+
+function createPortCityStaffMember(city, role, region, sourcePool, usedNames) {
+  const key = stableCityKey(city);
+  const identityKey = `${key}|staff:${role}`;
+  const character = assignCharacterSprite(identityKey, region, sourcePool, new Set());
+  return Object.freeze(characterWithBiography({
+    ...character,
+    ...assignRegionalCharacterIdentity({
+      identityKey,
+      city,
+      character,
+      usedNames
+    }),
+    cityKey: key,
+    role,
+    personalityId: role === PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
+      ? portPersonalityForKey(key)
+      : null,
+    homePortCityId: city.cityId,
+    homePortTileId: city.tileId
+  }, portBiographyOptions(identityKey, city)));
+}
+
+export function assignPortCityStaffMemberFromSource(
+  city,
+  role,
   sourceId,
   manifest,
   usedNames,
@@ -249,6 +307,7 @@ export function assignPortCityCharacterFromSource(
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);
   if (!city || typeof city !== "object") throw new Error("Fixed port character requires a city");
+  requirePortCityStaffRole(role);
   if (sourceIdExclusionSet(excludedSourceIds).has(sourceId)) {
     throw new Error(`Fixed port portrait source is reserved: ${sourceId}`);
   }
@@ -256,19 +315,27 @@ export function assignPortCityCharacterFromSource(
   if (!source) throw new Error(`Missing fixed port portrait source: ${sourceId}`);
   const key = stableCityKey(city);
   const region = portraitRegionForCity(city);
-  const character = assignCharacterSprite(key, region, [source], new Set());
-  return {
+  if (!source.regions.includes(region)) {
+    throw new Error(`Fixed ${role} portrait source is not valid for ${region}: ${sourceId}`);
+  }
+  const identityKey = `${key}|staff:${role}`;
+  const character = assignCharacterSprite(identityKey, region, [source], new Set());
+  return Object.freeze(characterWithBiography({
     ...character,
     ...assignRegionalCharacterIdentity({
-      identityKey: key,
+      identityKey,
       city,
       character,
       usedNames
     }),
     cityKey: key,
-    role: "factor",
-    personalityId: portPersonalityForKey(key)
-  };
+    role,
+    personalityId: role === PORT_CITY_STAFF_ROLE.HARBOUR_MASTER
+      ? portPersonalityForKey(key)
+      : null,
+    homePortCityId: city.cityId,
+    homePortTileId: city.tileId
+  }, portBiographyOptions(identityKey, city)));
 }
 
 export function assignNpcShipCaptains(
@@ -861,6 +928,29 @@ function characterSourcesForRole(
     throw new Error(`Character portrait manifest has no ${region} sources for role ${role}`);
   }
   return regional;
+}
+
+function portCityStaffSources(manifest, role, region, excludedSourceIds) {
+  requirePortCityStaffRole(role);
+  const excluded = sourceIdExclusionSet(excludedSourceIds);
+  const acceptedSourceRoles = PORT_CITY_STAFF_SOURCE_ROLES[role];
+  const sources = manifest.sourceCharacters.filter((source) => (
+    source.regions.includes(region) &&
+    !source.roles.includes("pirate") &&
+    !excluded.has(source.id) &&
+    acceptedSourceRoles.some((sourceRole) => source.roles.includes(sourceRole))
+  ));
+  if (sources.length === 0) {
+    throw new Error(`Character portrait manifest has no ${region} sources for ${role}`);
+  }
+  return sources;
+}
+
+function requirePortCityStaffRole(role) {
+  if (!PORT_CITY_STAFF_ROLES.includes(role)) {
+    throw new Error(`Unknown port city staff role: ${role}`);
+  }
+  return role;
 }
 
 function specialPortCharacterSources(manifest, role, region, excludedSourceIds) {

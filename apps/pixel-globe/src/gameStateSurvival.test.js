@@ -319,6 +319,40 @@ test("current saves discharge only anonymous crew that exceed canonical hull cap
   assert.equal(validateGameState(restored), restored);
 });
 
+test("version 95 crew migration preserves each sailor while adding origin traits", () => {
+  const stats = shipStatsForSlug("brigantine");
+  const saved = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(saved, stats);
+  const before = saved.crewRoster.map((member) => ({
+    id: member.id,
+    name: member.name,
+    homePortCityId: member.homePortCityId,
+    recruitedAtMinute: member.recruitedAtMinute,
+    sailingMinutes: member.sailingMinutes
+  }));
+  saved.version = 95;
+  saved.crewRoster = saved.crewRoster.map(({
+    nameCulture: _removedNameCulture,
+    religionId: _removedReligionId,
+    nationalityId: _removedNationalityId,
+    ...legacyMember
+  }) => legacyMember);
+
+  const migrated = migrateGameState(saved, stats, testCrewMigrationOptions());
+
+  assert.deepEqual(migrated.crewRoster.map((member) => ({
+    id: member.id,
+    name: member.name,
+    homePortCityId: member.homePortCityId,
+    recruitedAtMinute: member.recruitedAtMinute,
+    sailingMinutes: member.sailingMinutes
+  })), before);
+  assert.ok(migrated.crewRoster.every((member) => member.nameCulture === "maritime"));
+  assert.ok(migrated.crewRoster.every((member) => member.religionId === "roman-catholic"));
+  assert.ok(migrated.crewRoster.every((member) => member.nationalityId === "neutral"));
+  assert.equal(validateGameState(migrated), migrated);
+});
+
 test("version 27 ship saves migrate before named crew memory exists", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({

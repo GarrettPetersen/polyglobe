@@ -54,7 +54,8 @@ test("historical specialist ports permanently stock every grade of their craft",
     ["brugge|belgium", "Brugge", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
     ["lubeck|germany", "Lubeck", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
     ["guangzhou|china", "Guangzhou", EQUIPMENT_STOCK_FISHING_NET, FISHING_NETS],
-    ["bordeaux|france", "Bordeaux", EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS]
+    ["bordeaux|france", "Bordeaux", EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS],
+    ["san sebastian|spain", "San Sebastián", EQUIPMENT_STOCK_WHALE_HARPOON, WHALE_HARPOONS]
   ];
 
   for (const [cityId, cityName, kind, catalog] of specialists) {

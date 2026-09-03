@@ -23,6 +23,11 @@ const CULTURES = Object.freeze({
     ["Ana", "Beatriz", "Catalina", "Elena", "Francisca", "Ines", "Isabel", "Juana", "Leonor", "Lucia", "Maria", "Teresa"],
     ["Alvarez", "de Acosta", "de la Vega", "de Soto", "Guzman", "Herrera", "Lopez", "Manrique", "Mendez", "Navarro", "Vazquez", "Velazquez"]
   ),
+  basque: culture(
+    ["Ander", "Antton", "Domenjon", "Eneko", "Esteban", "Fortun", "Garcia", "Joanes", "Martin", "Miguel", "Ochoa", "Sancho"],
+    ["Catalina", "Domenja", "Gracia", "Inesa", "Joana", "Madalena", "Maria", "Mari Sancha", "Otxanda", "Sancha", "Teresa", "Toda"],
+    ["Aguirre", "Aramburu", "Etxeberria", "Goikoetxea", "Ibarra", "Lazcano", "Mendoza", "Oñaz", "Ugarte", "Urbieta", "Zubieta", "Zumaya"]
+  ),
   portuguese: culture(
     ["Afonso", "Antonio", "Diogo", "Duarte", "Fernao", "Francisco", "Gaspar", "Joao", "Jorge", "Luis", "Nuno", "Pero"],
     ["Beatriz", "Brites", "Catarina", "Filipa", "Francisca", "Isabel", "Joana", "Leonor", "Margarida", "Maria", "Mecia", "Violante"],
@@ -457,6 +462,7 @@ const TERRITORY_CULTURES = new Map([
 ]);
 
 const CITY_CULTURES = new Map([
+  ["san sebastian|spain", "basque"],
   ["prague|austria", "czech"],
   ["riga|russian federation", "germanic"],
   ["bakhchiserai|ukraine", "crimeanTatar"],
@@ -902,6 +908,13 @@ export function reconcileRegionalCharacterNameForms(root) {
 
 export function nameCultureForSubject(subject) {
   return nameCultureCandidatesForSubject(subject)[0];
+}
+
+export function assertNameCultureId(cultureId) {
+  if (typeof cultureId !== "string" || !Object.hasOwn(CULTURES, cultureId)) {
+    throw new Error(`Unknown character name culture: ${cultureId}`);
+  }
+  return cultureId;
 }
 
 export function nameCultureCandidatesForSubject(subject) {

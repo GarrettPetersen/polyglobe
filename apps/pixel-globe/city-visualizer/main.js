@@ -117,11 +117,13 @@ import {
 } from "./cityShipyardConstruction.js";
 import {
   cityGarrisonAppearanceIds,
+  cityPortStaffAppearanceIds,
   citySuspiciousMerchantAppearanceId,
   createCityPeopleAgents,
   validateCityPeopleAtlasImage,
   validateCityPeopleManifest
 } from "./cityPeople.js";
+import { PORT_CITY_STAFF_ROLE } from "../src/characterPortraits.js";
 import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
@@ -4226,13 +4228,10 @@ function destinationAtPoint(x, y) {
   if (shipDestination && docksideShipContainsPoint(x, y)) {
     return Object.freeze({ destination: shipDestination, saleShipId: null });
   }
-  const merchantDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.ILLICIT_MERCHANT);
-  if (merchantDestination && specialDestinationContainsPoint(PORT_CITY_LOCATION.ILLICIT_MERCHANT, x, y)) {
-    return Object.freeze({ destination: merchantDestination, saleShipId: null });
-  }
-  const authorityDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.AUTHORITY);
-  if (authorityDestination && specialDestinationContainsPoint(PORT_CITY_LOCATION.AUTHORITY, x, y)) {
-    return Object.freeze({ destination: authorityDestination, saleShipId: null });
+  for (const destination of destinations) {
+    if (specialDestinationContainsPoint(destination.id, x, y)) {
+      return Object.freeze({ destination, saleShipId: null });
+    }
   }
   const shipyardDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.SHIPYARD);
   const hoveredSaleShip = shipyardDestination
@@ -4352,14 +4351,12 @@ function destinationScreenAnchor(destination) {
     const placement = docksideShipPlacement(state.lastRenderTimeMs ?? 0, PORT_SCENE_ENTITY_META.ship.depth);
     return placement ? { x: placement.x + state.shipImage.width / 2, y: placement.y } : null;
   }
-  if ([PORT_CITY_LOCATION.ILLICIT_MERCHANT, PORT_CITY_LOCATION.AUTHORITY].includes(destination.id)) {
-    const agent = state.specialAgents.find(({ destinationId }) => (
-      destinationId === destination.id
-    ));
-    if (agent) {
-      const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
-      return { x: agent.startX - window.x, y: agent.feetY - window.y };
-    }
+  const agent = state.specialAgents.find(({ destinationId }) => (
+    destinationId === destination.id
+  ));
+  if (agent) {
+    const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+    return { x: agent.startX - window.x, y: agent.feetY - window.y };
   }
   const activeLayers = activePortSceneLayers(state.features);
   for (const layerName of destination.layers) {
@@ -4386,21 +4383,62 @@ function activateDestination(destinationId, saleShipId = null) {
 function createSpecialPeopleAgents() {
   if (!state.city) return Object.freeze([]);
   const agents = [];
-  if (!state.features?.fortified &&
-      state.availableDestinationIds?.has(PORT_CITY_LOCATION.AUTHORITY)) {
-    agents.push(Object.freeze({
-      id: `${state.city.id}:port-authority`,
-      destinationId: PORT_CITY_LOCATION.AUTHORITY,
-      appearanceId: cityGarrisonAppearanceIds(state.city, 1, "port-authority")[0],
-      role: "garrison",
-      startX: 880,
-      endX: 880,
-      feetY: 518,
-      phase: 0,
-      speed: 0,
-      motion: "stationary",
-      facingRight: false
-    }));
+  if (!state.barred) {
+    const appearances = cityPortStaffAppearanceIds(state.city);
+    const staffPlacements = [
+      {
+        role: PORT_CITY_STAFF_ROLE.HARBOUR_MASTER,
+        destinationId: null,
+        startX: 778,
+        feetY: 521,
+        facingRight: true
+      },
+      {
+        role: PORT_CITY_STAFF_ROLE.MERCHANT,
+        destinationId: PORT_CITY_LOCATION.MARKET,
+        startX: 964,
+        feetY: 515,
+        facingRight: false
+      },
+      {
+        role: PORT_CITY_STAFF_ROLE.INNKEEPER,
+        destinationId: PORT_CITY_LOCATION.INN,
+        startX: 1075,
+        feetY: 548,
+        facingRight: true
+      },
+      {
+        role: PORT_CITY_STAFF_ROLE.SMITH,
+        destinationId: PORT_CITY_LOCATION.EQUIPMENT,
+        startX: 1150,
+        feetY: 510,
+        facingRight: false
+      },
+      {
+        role: PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER,
+        destinationId: PORT_CITY_LOCATION.AUTHORITY,
+        startX: state.features?.fortified ? 1275 : 880,
+        feetY: state.features?.fortified ? 550 : 518,
+        facingRight: false
+      }
+    ];
+    for (const placement of staffPlacements) {
+      if (placement.destinationId && !destinationById(placement.destinationId)) continue;
+      agents.push(Object.freeze({
+        id: `${state.city.id}:staff:${placement.role}`,
+        ...(placement.destinationId ? { destinationId: placement.destinationId } : {}),
+        appearanceId: appearances[placement.role],
+        role: placement.role,
+        startX: placement.startX,
+        endX: placement.startX,
+        feetY: placement.feetY,
+        phase: 0,
+        speed: 0,
+        motion: "stationary",
+        animationId: "idle",
+        facingRight: placement.facingRight
+      }));
+    }
   }
   const caught = state.illicitCaughtStartedAtMs !== null;
   const guardCount = state.barred ? 5 : caught ? 3 : 0;

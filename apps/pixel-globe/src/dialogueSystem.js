@@ -1,4 +1,5 @@
 import { requireCityId, requireEntityId } from "./entityIds.js";
+import { PORT_CITY_STAFF_ROLE } from "./characterPortraits.js";
 import {
   PORT_CITY_LOCATION,
   portCityLocation,
@@ -354,7 +355,7 @@ const TRADE_TIP_DISTANCE_SCALE_KM = 1500;
 
 const DRUNK_PORT_EXCHANGES = Object.freeze([
   Object.freeze({
-    captain: "Good factor! Your harbor has two quays today, and I have docked at both of them.",
+    captain: "Good harbour master! Your harbor has two quays today, and I have docked at both of them.",
     factor: "You have docked at one quay, captain, and apologized to a bollard. Let us discuss business slowly."
   }),
   Object.freeze({
@@ -475,6 +476,7 @@ export function createPortDialogueSession(city, options = {}) {
     rulerRumor: options.rulerRumor || null,
     historicalGossip: options.historicalGossip || null,
     crewRecruitmentArrivalPresented: false,
+    crewRecruitmentReturnNodeId: null,
     crewDismissal: null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
@@ -1706,10 +1708,7 @@ export function enterPortCityLocation(
 ) {
   const model = portCityNavigationView(session, city, gameState, economy, portCities, context);
   const location = portCityLocation(model, locationId);
-  if (locationId === PORT_CITY_LOCATION.INN &&
-      location.actions.length === 1 &&
-      location.actions[0].action.type === "node" &&
-      location.actions[0].action.nodeId === "quest") {
+  if (locationId === PORT_CITY_LOCATION.INN) {
     session.nodeId = "inn-drink";
     session.cityMenuLocationId = null;
     session.selectedIndex = 0;
@@ -1831,10 +1830,10 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   }
   if (session.nodeId === "market") return marketView(session, city, gameState, economy, context);
   if (session.nodeId === "trade-embargo-warning") {
-    return tradeEmbargoWarningView(session);
+    return tradeEmbargoWarningView(session, city);
   }
   if (session.nodeId === "trade-embargo-sale-warning") {
-    return tradeEmbargoSaleWarningView(session);
+    return tradeEmbargoSaleWarningView(session, city);
   }
   if (session.nodeId === "trade-tip") return tradeTipView(session, city);
   if (session.nodeId === "quest-cargo-tip") return questCargoTipView(session, city);
@@ -2016,10 +2015,23 @@ export function selectPortDialogueOption(
     if (typeof context.prepareCrewRecruitment !== "function") {
       throw new Error("Crew recruitment requires a port recruitment provider");
     }
-    context.prepareCrewRecruitment({ allowEmpty: true });
+    context.prepareCrewRecruitment({
+      allowEmpty: true,
+      includeReplacementCandidates: true
+    });
+    session.crewRecruitmentReturnNodeId = "inn-drink";
     session.nodeId = "crew-recruitment";
     session.selectedIndex = 0;
     session.feedback = null;
+    return { closed: false };
+  }
+  if (action.type === "open-crew-management") {
+    beginCrewDismissal(session, {
+      kind: "voluntary",
+      targetCrew: null,
+      returnNodeId: "inn-drink",
+      afterNodeId: "inn-drink"
+    });
     return { closed: false };
   }
   if (action.type === "hire-crew-member") {
@@ -2030,7 +2042,8 @@ export function selectPortDialogueOption(
   }
   if (action.type === "dismiss-crew-member") {
     const dismissal = requireCrewDismissal(session);
-    if (gameState.ship.crew <= dismissal.targetCrew) {
+    const minimumCrew = dismissal.kind === "voluntary" ? 1 : dismissal.targetCrew;
+    if (gameState.ship.crew <= minimumCrew) {
       throw new Error("Crew dismissal target is already satisfied");
     }
     dismissal.dismissals.push(dismissCrewMember(gameState, action.memberId));
@@ -2056,6 +2069,15 @@ export function selectPortDialogueOption(
   }
   if (action.type === "confirm-crew-dismissal") {
     const dismissal = requireCrewDismissal(session);
+    if (dismissal.kind === "voluntary") {
+      session.crewDismissal = null;
+      session.nodeId = dismissal.afterNodeId;
+      session.feedback = dismissal.dismissals.length === 0
+        ? "No crewmates were dismissed."
+        : `${dismissal.dismissals.length} crewmate${dismissal.dismissals.length === 1 ? "" : "s"} dismissed.`;
+      session.selectedIndex = 0;
+      return { closed: false, crewDismissalsCommitted: true };
+    }
     if (gameState.ship.crew !== dismissal.targetCrew) {
       throw new Error(`Crew dismissal is incomplete: ${gameState.ship.crew}/${dismissal.targetCrew}`);
     }
@@ -4260,15 +4282,15 @@ function greetingView(session, city, gameState, context) {
   if (city.playerFoundedColony || city.playerDevelopedPort) {
     const discountPercent = founderPurchaseDiscountPercent();
     const developedPortText = memory.visits > 1
-      ? `Welcome back, captain. Nagasaki's factors still honor your ${discountPercent}% trading discount.`
+      ? `Welcome back, captain. Nagasaki's merchants still honor your ${discountPercent}% trading discount.`
       : `The China ship has made Nagasaki a city. For opening its harbor, you receive ${discountPercent}% off goods you buy here.`;
     return {
-      speaker: `${characterName(city.character)}, ${city.playerDevelopedPort ? "port steward" : "governor"} of ${cityLabel(city)}`,
+      speaker: speakerName(city),
       expressionId: "happy",
       text: city.playerDevelopedPort
         ? developedPortText
         : memory.visits > 1
-          ? `Welcome home, founder. Every factor here gives you ${discountPercent}% off goods you buy.`
+          ? `Welcome home, founder. Every merchant here gives you ${discountPercent}% off goods you buy.`
           : `You have returned to the city you saved. As its founder, you receive ${discountPercent}% off goods you buy in ${cityLabel(city)}.`,
       feedback: null,
       options: [option("Continue", { type: "node", nodeId: "root" })]
@@ -4780,18 +4802,19 @@ function innDrinkView(session, city, gameState, economy, portCities, context) {
     portCityNavigationView(session, city, gameState, economy, portCities, context),
     PORT_CITY_LOCATION.INN
   );
-  const work = inn.actions.find(({ action }) => action.type === "node" && action.nodeId === "quest");
   return {
     speaker: dialogue.speaker,
     expressionId: dialogue.expressionId,
     text: dialogue.text,
     feedback: session.feedback,
     options: [
-      ...(work ? [option(work.label, work.action)] : []),
-      option("Hire crew", { type: "open-crew-recruitment" }, {
-        disabled: gameState.ship.crew >= gameState.ship.crewCapacity,
-        disabledReason: "Every berth is occupied."
-      }),
+      ...inn.actions.map((entry) => option(entry.label, entry.action, {
+        detail: entry.detail,
+        disabled: entry.disabled,
+        disabledReason: entry.disabledReason
+      })),
+      option("Hire crew", { type: "open-crew-recruitment" }),
+      option("Manage crew", { type: "open-crew-management" }),
       option("Back to city", { type: "node", nodeId: "root" })
     ]
   };
@@ -4830,7 +4853,10 @@ function crewRecruitmentView(session, city, gameState) {
           disabledReason: !berthAvailable ? "Every berth is occupied." : `${cost} doubloons required.`
         }
       )),
-      option("Back to city", { type: "node", nodeId: "root" })
+      option(
+        session.crewRecruitmentReturnNodeId === "inn-drink" ? "Back to inn" : "Back to city",
+        { type: "node", nodeId: session.crewRecruitmentReturnNodeId || "root" }
+      )
     ]
   };
 }
@@ -4843,8 +4869,13 @@ function beginCrewDismissal(session, {
   returnNodeId,
   afterNodeId
 }) {
-  if (!["preset", "custom"].includes(kind)) throw new Error(`Unknown crew dismissal kind: ${kind}`);
-  if (!Number.isInteger(targetCrew) || targetCrew < 1) {
+  if (!["preset", "custom", "voluntary"].includes(kind)) {
+    throw new Error(`Unknown crew dismissal kind: ${kind}`);
+  }
+  const validTarget = kind === "voluntary"
+    ? targetCrew === null
+    : Number.isInteger(targetCrew) && targetCrew >= 1;
+  if (!validTarget) {
     throw new Error(`Invalid crew dismissal target: ${targetCrew}`);
   }
   session.crewDismissal = {
@@ -4879,8 +4910,9 @@ function requireCrewDismissal(session) {
 
 function crewDismissalView(session, city, gameState) {
   const dismissal = requireCrewDismissal(session);
-  const remaining = Math.max(0, gameState.ship.crew - dismissal.targetCrew);
-  const canDismiss = remaining > 0;
+  const voluntary = dismissal.kind === "voluntary";
+  const remaining = voluntary ? 0 : Math.max(0, gameState.ship.crew - dismissal.targetCrew);
+  const canDismiss = voluntary ? gameState.ship.crew > 1 : remaining > 0;
   const candidates = gameState.crewRoster.map((member) => Object.freeze({
     member,
     stars: crewMemberExperienceStars(member)
@@ -4888,7 +4920,9 @@ function crewDismissalView(session, city, gameState) {
   return {
     speaker: `${cityLabel(city)} crew muster`,
     expressionId: "neutral",
-    text: remaining > 0
+    text: voluntary
+      ? "Choose any crewmates to dismiss. You can undo every dismissal before leaving the muster."
+      : remaining > 0
       ? `Dismiss ${remaining} more crewmate${remaining === 1 ? "" : "s"} for this loadout.`
       : "The new crew complement is ready.",
     feedback: session.feedback,
@@ -4896,6 +4930,7 @@ function crewDismissalView(session, city, gameState) {
       kind: "crew-dismissal",
       candidates: Object.freeze(candidates),
       targetCrew: dismissal.targetCrew,
+      voluntary,
       currentCrew: gameState.ship.crew,
       dismissedCount: dismissal.dismissals.length
     }),
@@ -4903,13 +4938,18 @@ function crewDismissalView(session, city, gameState) {
       ...candidates.map(({ member }) => option(
         `Dismiss ${member.name}`,
         { type: "dismiss-crew-member", memberId: member.id },
-        { disabled: !canDismiss, disabledReason: "The crew target is satisfied." }
+        {
+          disabled: !canDismiss,
+          disabledReason: voluntary
+            ? "At least one crewmate must remain aboard."
+            : "The crew target is satisfied."
+        }
       )),
       option("Undo all", { type: "undo-crew-dismissals" }, {
         disabled: dismissal.dismissals.length === 0,
         disabledReason: "No dismissals to undo."
       }),
-      option("Apply loadout", { type: "confirm-crew-dismissal" }, {
+      option(voluntary ? "Done" : "Apply loadout", { type: "confirm-crew-dismissal" }, {
         disabled: remaining !== 0,
         disabledReason: `${remaining} crew still need to be dismissed.`
       }),
@@ -5129,7 +5169,7 @@ function portugueseCartazMarketOfferView(session, city, gameState, economy, cont
   return {
     speaker: speakerName(city),
     expressionId: "attentive",
-    text: `The Portuguese factor will not deal in Crown spices without a valid cartaz. That includes ${spiceLabels} here. I can issue your vessel papers for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days.`,
+    text: `The Portuguese merchant will not deal in Crown spices without a valid cartaz. That includes ${spiceLabels} here. I can issue your vessel papers for ${PORTUGUESE_CARTAZ_DURATION_DAYS} days.`,
     feedback: session.feedback,
     options: [
       ...(status.fee !== null
@@ -5721,7 +5761,7 @@ function colonizationView(session, city, gameState, context) {
     return {
       speaker: `${organizer}, ${history.settlementLeaderRole}`,
       expressionId: "happy",
-      text: `${history.established} Your name is known in every warehouse here, and our factors will always give you ${discountPercent}% off goods you buy.`,
+      text: `${history.established} Your name is known in every warehouse here, and our merchants will always give you ${discountPercent}% off goods you buy.`,
       feedback: session.feedback,
       options: [back]
     };
@@ -6990,7 +7030,7 @@ function buyView(session, city, gameState, economy, context) {
   };
 }
 
-function tradeEmbargoWarningView(session) {
+function tradeEmbargoWarningView(session, city) {
   const pending = requiredTradeEmbargoPurchase(session);
   const orders = pending.orders;
   const good = tradeGoodById(pending.purchase.goodId);
@@ -7009,7 +7049,7 @@ function tradeEmbargoWarningView(session) {
       : factionById(order.issuerFactionId).shortName.toUpperCase()} · ${tradeEmbargoScopeLabel(order.scope).toUpperCase()}`
   )).join("  ");
   return {
-    speaker: "Port factor",
+    speaker: speakerName(city),
     expressionId: "concerned",
     text: `I will sell you the ${good.label.toLowerCase()}, captain, but ${prohibition}. Their patrols may search your hold, seize the cargo, and levy a fine. Shall I have it loaded?`,
     feedback: session.feedback,
@@ -7033,7 +7073,7 @@ function requiredTradeEmbargoPurchase(session) {
   return pending;
 }
 
-function tradeEmbargoSaleWarningView(session) {
+function tradeEmbargoSaleWarningView(session, city) {
   const pending = requiredTradeEmbargoSale(session);
   const good = tradeGoodById(pending.action.goodId);
   const regimes = pending.orders.map(tradeEmbargoRegimeLabel);
@@ -7043,7 +7083,7 @@ function tradeEmbargoSaleWarningView(session) {
       : factionById(order.issuerFactionId).shortName
   )))];
   return {
-    speaker: "Port factor",
+    speaker: speakerName(city),
     expressionId: "concerned",
     text: `${authorityNames.join(" and ")} forbid this cargo to the buyers here, captain. ` +
       `The customs books will bear your name, and their agents will learn of the bargain. ` +
@@ -7849,7 +7889,7 @@ function marketUndoConfirmationView(session, city) {
   return {
     speaker: speakerName(city),
     expressionId: "attentive",
-    text: "Shall I strike every market trade made during this visit from the ledger and restore your coin, cargo, and the factor's stock?",
+    text: "Shall I strike every market trade made during this visit from the ledger and restore your coin, cargo, and the merchant's stock?",
     bodyTone: "danger",
     feedback: null,
     options: [
@@ -8641,11 +8681,20 @@ function surrenderPrizeCargo(cargo, label) {
 }
 
 function speakerName(city) {
-  return city.isPirateHideout
-    ? `${characterName(city.character)}, keeper of ${cityLabel(city)}`
-    : city.settlementType === "village"
-      ? `${characterName(city.character)}, trader of ${cityLabel(city)}`
-    : `${characterName(city.character)}, ${cityLabel(city)} factor`;
+  if (city.isPirateHideout) {
+    return `${characterName(city.character)}, keeper of ${cityLabel(city)}`;
+  }
+  const title = {
+    [PORT_CITY_STAFF_ROLE.HARBOUR_MASTER]: "harbour master",
+    [PORT_CITY_STAFF_ROLE.INNKEEPER]: "innkeeper",
+    [PORT_CITY_STAFF_ROLE.SMITH]: "smith",
+    [PORT_CITY_STAFF_ROLE.MERCHANT]: "merchant",
+    [PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]: "garrison commander"
+  }[city.character?.role];
+  if (!title) {
+    throw new Error(`Dialogue character has no port staff title: ${city.character?.role || "missing"}`);
+  }
+  return `${characterName(city.character)}, ${title} of ${cityLabel(city)}`;
 }
 
 function passengerName(quest) {

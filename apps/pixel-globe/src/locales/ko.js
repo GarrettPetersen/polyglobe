@@ -226,6 +226,7 @@ export default {
   "aboard.goal": "목표",
   "aboard.skill": "기술",
   "aboard.timeAboard": "승선 기간",
+  "aboard.origin": "출신",
   "aboard.experience": "경험",
   "aboard.experience.novice": "신참",
   "aboard.experience.steady": "안정적",

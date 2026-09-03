@@ -21,6 +21,8 @@ import {
   CITY_POPULATION_PROFILES,
   cityCombatProfileForAppearance,
   cityCrewTypeForAppearance,
+  cityGarrisonAppearanceIds,
+  cityPortStaffAppearanceIds,
   cityPopulationProfileId,
   cityRecruitableCrewAppearances,
   createCityPeopleAgents,
@@ -28,6 +30,7 @@ import {
   validateCityPeopleManifest
 } from "./cityPeople.js";
 import { CITY_NPC_PATHS } from "./cityPainterOrder.js";
+import { PORT_CITY_STAFF_ROLE, PORT_CITY_STAFF_ROLES } from "../src/characterPortraits.js";
 
 const catalog = JSON.parse(await readFile(new URL("./data/cities.json", import.meta.url), "utf8"));
 const manifest = validateCityPeopleManifest(JSON.parse(await readFile(new URL(
@@ -175,6 +178,30 @@ test("peacetime city populations retain a distinct deterministic garrison pool",
     paths: CITY_NPC_PATHS
   });
   assert.equal(capitalVillage.filter(({ role }) => role === "garrison").length, 1);
+});
+
+test("every port has deterministic local appearances for its five staff roles", () => {
+  for (const port of catalog.cities) {
+    const staff = cityPortStaffAppearanceIds(port);
+    assert.deepEqual(staff, cityPortStaffAppearanceIds(port), port.id);
+    assert.deepEqual(Object.keys(staff), PORT_CITY_STAFF_ROLES, port.id);
+    const civilianRoles = [
+      PORT_CITY_STAFF_ROLE.HARBOUR_MASTER,
+      PORT_CITY_STAFF_ROLE.INNKEEPER,
+      PORT_CITY_STAFF_ROLE.SMITH,
+      PORT_CITY_STAFF_ROLE.MERCHANT
+    ];
+    assert.equal(
+      new Set(civilianRoles.map((role) => staff[role])).size,
+      civilianRoles.length,
+      `${port.id} civilian staff silhouettes`
+    );
+    assert.equal(
+      staff[PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER],
+      cityGarrisonAppearanceIds(port, 1, "garrison-commander")[0],
+      `${port.id} garrison commander`
+    );
+  }
 });
 
 test("every port recruits only attack-capable foot silhouettes from its own population", () => {

@@ -1,19 +1,20 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **August 19, 2026**.
+Last updated: **September 2, 2026**.
 
 ## Dated marketing calendar
 
-- **August 19–30:** Continue the daily YouTube Short cadence at 9:00 a.m.
-  Pacific and cross-post each Short to X. Track the individual topics, upload
-  status and links in
-  [youtube-shorts-release-log.md](youtube-shorts-release-log.md).
-- **August 24:** Galaxies Autumn selection notices are due. If selected, begin
-  a distinct 30- or 60-second showcase trailer immediately.
-- **August 26:** The Indie Game Award 2027 pre-selection material-upload portal
-  opens. Upload the strongest current build and current promotional material;
-  record the final upload deadline when the reminder email arrives.
-- **September 7:** IGF 2027 fee-waiver request deadline.
+- **August 19–30:** The first daily YouTube Short run is complete. Reconcile
+  the published status in
+  [youtube-shorts-release-log.md](youtube-shorts-release-log.md), then schedule
+  the next batch and cross-post it to X.
+- **September 2:** Follow up on Galaxies Autumn; its August 24 selection-notice
+  date has passed without a recorded result. Also confirm whether the submitted
+  SCHMOOVEMENT application was accepted before its September 22 start.
+- **September 2:** Indie Game Award 2027 pre-selection materials submitted.
+- **September 7:** IGF 2027 fee-waiver request deadline. Steam also pulls the
+  current base-game trailer for possible inclusion in its official Next Fest
+  trailer, if Valve has notified us that the game is under consideration.
 - **September 13:** IGF 2027 application and build deadline.
 - **September 21:** Submit the Next Fest demo build and store page for review
   to be ready for the press preview.
@@ -28,9 +29,13 @@ Last updated: **August 19, 2026**.
   demo. Our operational target is earlier than October 5 because of ACGC.
 - **October 19–26:** Steam Next Fest.
 - **After October 26:** Review wishlists, demo conversion, creator coverage and
-  build stability, then make the release go/no-go decision. Tentative release
-  window remains November or early December, avoiding the December 17 Steam
-  Winter Sale start.
+  build stability, then make the release go/no-go decision for the working
+  **December 1** launch date.
+- **December 1:** Working release date. If confirmed after Next Fest, launch
+  with the planned introductory discount and a coordinated creator, press,
+  Steam, X, Reddit and YouTube campaign. A December 1 release is still within
+  Steam's 30-day release cooldown when the Winter Sale begins December 17, so
+  the game cannot be discounted in that sale.
 
 The coordinated public demo launch does not have a date yet. Set it only after
 the release-blocking demo checks below pass, then work backward one to two weeks
@@ -45,12 +50,25 @@ GamesPress posts for the same launch beat.
 
 - [ ] **Make the approved Steam demo public**
   - Status: Valve approved the demo page and build. The associated demo has
-    been marked ready in Steamworks, but the public launch and logged-out
-    install flow still need to be completed and verified.
+    been marked ready in Steamworks. As of September 2, its public page still
+    says **Coming soon**, and the base-game page has no demo install control.
+    The public launch and logged-out install flow still need to be completed
+    and verified.
   - Steam App: `5029880`.
   - The demo has no timer and retains the full feature set, but its voyages are
     centered on the family-debt quest and limited to the Mediterranean, Black
     Sea and connected rivers.
+  - After releasing the demo, republish the base-game store page so Steam adds
+    the demo install button. Verify the associated-demo prominence setting and
+    both logged-in and logged-out install flows.
+  - Use Steam's one-time demo wishlist notification for the coordinated launch
+    beat. It can be sent within two weeks after the demo first becomes playable;
+    do not spend it on an unannounced soft launch.
+
+- [ ] **Update the main-game and demo Steam descriptions for the larger world**
+  - As of September 2, the public English pages still describe a 164k-hex
+    world. Update all 11 store localizations to the current **655,362-tile
+    Earth with 277 cities**, matching the website and current build.
 
 - [x] **Get the full build approved on Steam**
   - Status: Valve approved the corrected full build on August 13.
@@ -319,7 +337,7 @@ Steam documentation: https://partner.steamgames.com/doc/marketing/upcoming_event
 
 ## Release decision
 
-Tentative window: **November or early December 2026**.
+Working release date: **December 1, 2026**.
 
 Make the release decision after Next Fest. There is no universal wishlist number that means a game is ready. Set our threshold from the number of launch sales the game needs, then use the following as the go/no-go check:
 
@@ -330,7 +348,7 @@ Make the release decision after Next Fest. There is no universal wishlist number
 - Streamer outreach is producing responses or scheduled coverage.
 - The game is no longer changing so quickly that another development window would materially improve it.
 
-If those conditions are not met, delay the release instead of forcing the 2026 window. Prefer November or early December to launching during the Steam Winter Sale, which begins December 17.
+If those conditions are not met, delay the release instead of forcing the 2026 window. Do not slip from December 1 into the Steam Winter Sale or Christmas week; move into January instead.
 
 ## Festival and showcase application plan
 
@@ -429,13 +447,10 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Cost: Free; demos and upcoming games are accepted.
   - Application: https://docs.google.com/forms/d/e/1FAIpQLSckJ8MkHT7maY5DWd58cjXLmbsVUbeYQrN6TrlxzB_pMfd7lw/viewform
 
-- [x] **Indie Game Award 2027 — registration completed**
-  - The organizer confirmed the registration. The pre-selection material-upload
-    system opens **August 26**, with an email reminder promised.
-  - On August 26, upload the strongest stable build, current trailer,
-    screenshots, team introduction and the finished Iron Pagoda logo. Record
-    the final material deadline and judging schedule from the portal rather
-    than assuming registration alone completes the entry.
+- [x] **Indie Game Award 2027 — materials submitted September 2**
+  - Registration and the pre-selection material upload are complete. Preserve
+    the confirmation and monitor email for judging questions, build-access
+    problems or requests for replacement material.
   - Enter the developer as **Iron Pagoda**, with Garrett Petersen identified as
     the solo developer and contact.
   - Use https://marque-and-reprisal.com/ as the official game/team website and
@@ -445,7 +460,7 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Schedule: https://tgs.tca.org.tw/indie_award_e.php
 
 - [ ] **Independent Games Festival 2027 — apply by September 13**
-  - Status: Submissions opened August 3. Start the application now and prepare
+  - Status: Submissions opened August 10. Start the application now and prepare
     the strongest stable full build for the final entry.
   - Why: The most prestigious general indie competition in this application
     cycle and a strong venue for the game's distinctive world simulation,
@@ -508,11 +523,13 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 
 ## Current critical path
 
-In parallel now: complete the BiteMe demo release-blocker, onboarding,
-audio/settings and store-asset audits; add the in-demo wishlist call to action;
-prepare the August 26 Indie Game Award upload; start the IGF submission; set up
-the authenticated campaign sender; finish the demo-launch package and UTM
-links; verify the first 25–50 creator contacts.
+In parallel now: submit IGF by September 13; follow up on Galaxies and confirm
+SCHMOOVEMENT selection; complete the BiteMe demo
+release-blocker, onboarding, audio/settings and store-asset audits; add the
+in-demo wishlist call to action; update both Steam descriptions for the larger
+world; set up the authenticated campaign sender; finish the demo-launch package
+and UTM links; verify the first 25–50 creator contacts; schedule the next batch
+of Shorts and X cross-posts.
 
 Generate and test full-build review keys → give selected creators advance access
 → make the approved demo public and verify its logged-out install flow → publish

@@ -124,6 +124,17 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "garrison commander": Object.freeze({
+    "zh-Hans": "驻军司令", ru: "командир гарнизона", es: "comandante de la guarnición",
+    "pt-BR": "comandante da guarnição", ja: "駐屯隊司令官", de: "Garnisonskommandant",
+    fr: "commandant de la garnison", pl: "dowódca garnizonu", "zh-Hant": "駐軍司令",
+    ko: "주둔군 사령관"
+  }),
+  "harbour master": Object.freeze({
+    "zh-Hans": "港务长", ru: "начальник порта", es: "capitán del puerto",
+    "pt-BR": "capitão do porto", ja: "港長", de: "Hafenmeister",
+    fr: "capitaine de port", pl: "kapitan portu", "zh-Hant": "港務長", ko: "항만장"
+  }),
   "All market trades were undone.": Object.freeze({
     "zh-Hans": "所有市场交易均已撤销。",
     ru: "Все сделки на рынке отменены.",

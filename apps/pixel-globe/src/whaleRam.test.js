@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { resolveWhaleRamCollision, whaleRamAppliedDamage } from "./whaleRam.js";
-import { WHALE_LIFE_STAGE_ADOLESCENT, WHALE_LIFE_STAGE_ADULT } from "./whaleSpecies.js";
+import {
+  resolveWhaleRamCollision,
+  whaleRamAppliedDamage,
+  whaleRamImpactText,
+  whaleRamLossText,
+  whaleRamWarningText
+} from "./whaleRam.js";
+import {
+  WHITE_WHALE_ID,
+  WHALE_LIFE_STAGE_ADOLESCENT,
+  WHALE_LIFE_STAGE_ADULT,
+  WHALE_SPECIES_SPERM
+} from "./whaleSpecies.js";
 
 function playerBody({ headingX = 0, headingY = 1, mass = 35 } = {}) {
   return {
@@ -66,4 +77,16 @@ test("a whale ram strikes an asymmetric baked hull instead of its nominal center
   );
   assert.ok(collision.closingSpeed > 0);
   assert.ok(collision.player.damage > 0);
+});
+
+test("ram narration preserves the White Whale's individual identity", () => {
+  const whiteWhale = { id: WHITE_WHALE_ID, speciesId: WHALE_SPECIES_SPERM };
+  const ordinaryWhale = { id: "sperm-whale:12", speciesId: WHALE_SPECIES_SPERM };
+
+  assert.equal(whaleRamWarningText(whiteWhale), "THE WHITE WHALE WHEELS TO RAM");
+  assert.equal(whaleRamImpactText(whiteWhale, "7"), "WHITE WHALE RAM  -7 HULL");
+  assert.match(whaleRamLossText(whiteWhale).sinkingReason, /white whale/i);
+  assert.equal(whaleRamWarningText(ordinaryWhale), "THE SPERM WHALE WHEELS TO RAM");
+  assert.equal(whaleRamImpactText(ordinaryWhale, "7"), "SPERM WHALE RAM  -7 HULL");
+  assert.match(whaleRamLossText(ordinaryWhale).sinkingReason, /sperm whale/i);
 });

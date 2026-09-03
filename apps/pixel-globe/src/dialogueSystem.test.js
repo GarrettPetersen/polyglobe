@@ -1067,7 +1067,7 @@ test("captured ports greet the player under their current sovereign", () => {
     population: 12000,
     foundingFactionId: "portugal",
     factionId: "ottoman",
-    character: { name: "Diogo Mendes", personalityId: "vigilant" }
+    character: { name: "Diogo Mendes", role: "harbour-master", personalityId: "vigilant" }
   };
   const gameState = createGameState({ cargoCapacity: 20 });
   const economy = createWorldEconomy({ ports: [ceuta], startMinute: 0 });
@@ -1103,7 +1103,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha", personalityId: "vigilant" }
+    character: { name: "Fernao da Cunha", role: "harbour-master", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -1111,13 +1111,13 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
 
   const context = { nearbyShips: { pirates: 1 } };
   const greeting = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.equal(greeting.speaker, "Fernao da Cunha, Lisbon factor");
+  assert.equal(greeting.speaker, "Fernao da Cunha, harbour master of Lisbon");
   assert.match(greeting.text, /Pirates/);
   assert.equal(greeting.expressionId, "afraid");
   assert.deepEqual(greeting.options.map((option) => option.label), ["Continue"]);
   selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
   const root = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.equal(root.speaker, "Fernao da Cunha, Lisbon factor");
+  assert.equal(root.speaker, "Fernao da Cunha, harbour master of Lisbon");
   assert.match(root.text, /Market specie: \d+ db/);
   const waitIndex = root.options.findIndex((option) => option.action.type === "wait-in-port");
   assert.ok(waitIndex >= 0);
@@ -1198,7 +1198,7 @@ test("a factor explains customs once and repeats the explanation only after the 
     cityType: "mediterranean",
     population: 70000,
     factionId: "portugal",
-    character: { name: "Fernao da Cunha", personalityId: "vigilant" }
+    character: { name: "Fernao da Cunha", role: "harbour-master", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -1233,7 +1233,7 @@ test("a port lists independent passenger and scripted travel offers together", (
     cityType: "northern-european",
     population: 35000,
     factionId: "denmark-norway",
-    character: { name: "Johann Adler" }
+    character: { name: "Johann Adler", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -1260,7 +1260,7 @@ test("a foreign settlement is explained by the factor and supplies its resident 
     cityType: "southeast-asian",
     population: 12000,
     factionId: "ternate",
-    character: { name: "Hamza Darwis", personalityId: "vigilant" }
+    character: { name: "Hamza Darwis", role: "harbour-master", personalityId: "vigilant" }
   });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -1311,7 +1311,7 @@ test("Colombo offers cartaz papers before opening its official cinnamon market",
     cityType: "south-asian",
     population: 12000,
     factionId: "neutral",
-    character: { name: "Dinesh Jayawardena", personalityId: "shrewd" }
+    character: { name: "Dinesh Jayawardena", role: "harbour-master", personalityId: "shrewd" }
   });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -1382,6 +1382,51 @@ test("Colombo offers cartaz papers before opening its official cinnamon market",
   )).disabled, false);
 });
 
+test("buying a Portuguese cartaz does not remove the option to attack its issuing port", () => {
+  const city = {
+    tileId: 155900,
+    cityId: "goa|india",
+    city: "Goa",
+    displayCity: "Goa",
+    country: "India",
+    cityType: "south-asian",
+    population: 75_000,
+    factionId: "portugal",
+    character: { name: "Afonso de Melo", role: "garrison-commander" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    shipStats: stats,
+    playerCharacter: {
+      name: "Joan Alden",
+      nationalityId: "england",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "root", admittedToPort: true });
+  const context = {
+    simMinute: 100,
+    shipStats: stats,
+    portAttackStatus: playerPortAttackStatus(gameState, city)
+  };
+
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  const cartazIndex = view.options.findIndex(({ action }) => action.nodeId === "portuguese-cartaz");
+  selectPortDialogueOption(session, city, gameState, economy, [city], cartazIndex, context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const purchaseIndex = view.options.findIndex(({ action }) => action.type === "purchase-portuguese-cartaz");
+  selectPortDialogueOption(session, city, gameState, economy, [city], purchaseIndex, context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const backIndex = view.options.findIndex(({ action }) => action.nodeId === "root");
+  selectPortDialogueOption(session, city, gameState, economy, [city], backIndex, context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+
+  assert.ok(view.options.some(({ action }) => action.nodeId === "city-attack"));
+  assert.ok(view.options.some(({ label }) => label === "Portuguese cartaz: valid"));
+});
+
 test("Colombo offers costly cartaz papers to hostile captains and a clear refusal during war", () => {
   const city = withForeignSettlements1522({
     tileId: 155810,
@@ -1392,7 +1437,7 @@ test("Colombo offers costly cartaz papers to hostile captains and a clear refusa
     cityType: "south-asian",
     population: 12000,
     factionId: "neutral",
-    character: { name: "Dinesh Jayawardena", personalityId: "shrewd" }
+    character: { name: "Dinesh Jayawardena", role: "harbour-master", personalityId: "shrewd" }
   });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -1452,7 +1497,7 @@ test("Colombo smugglers sell cinnamon under the existing illicit-trade enforceme
     cityType: "south-asian",
     population: 12000,
     factionId: "neutral",
-    character: { name: "Dinesh Jayawardena", personalityId: "shrewd" }
+    character: { name: "Dinesh Jayawardena", role: "harbour-master", personalityId: "shrewd" }
   });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -1529,7 +1574,7 @@ test("buying the final unit disables its stable market row instead of moving lat
     country: "Portugal",
     cityType: "mediterranean",
     population: 50000,
-    character: { name: "Ines Carvalho", personalityId: "vigilant" }
+    character: { name: "Ines Carvalho", role: "harbour-master", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 200 });
@@ -1582,7 +1627,7 @@ test("scrolling a port market exposes every stocked trade good that cargo hints 
     country: "France",
     cityType: "northern-european",
     population: 40000,
-    character: { name: "Claude Le Roux", personalityId: "vigilant" }
+    character: { name: "Claude Le Roux", role: "harbour-master", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [rouen], startMinute: 0 });
   const marketState = economy.portStates.get(rouen.cityId).goods;
@@ -1623,7 +1668,7 @@ test("Ming markets visibly offer domestic gunpowder but not scarce imported matc
     cityType: "east-asian",
     factionId: "ming",
     population: 120000,
-    character: { name: "Li Wen", personalityId: "vigilant" }
+    character: { name: "Li Wen", role: "harbour-master", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 200 });
@@ -1648,7 +1693,7 @@ test("selling the final unit disables its stable market row instead of moving la
     country: "Portugal",
     cityType: "mediterranean",
     population: 50000,
-    character: { name: "Ines Carvalho", personalityId: "vigilant" }
+    character: { name: "Ines Carvalho", role: "harbour-master", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -1693,7 +1738,7 @@ test("edible cargo market rows show remaining sale clicks instead of rations", (
     country: "Portugal",
     cityType: "mediterranean",
     population: 50000,
-    character: { name: "Ines Carvalho", personalityId: "vigilant" }
+    character: { name: "Ines Carvalho", role: "harbour-master", personalityId: "vigilant" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -1721,7 +1766,7 @@ test("market capacity explains provision space reserved by the selected loadout"
     country: "England",
     cityType: "northern-european",
     population: 50000,
-    character: { name: "Thomas More", personalityId: "shrewd" }
+    character: { name: "Thomas More", role: "harbour-master", personalityId: "shrewd" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
@@ -1765,7 +1810,7 @@ test("port menus pin Back and Leave Port after their ordinary actions", () => {
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
@@ -1822,7 +1867,7 @@ test("port dialogue fallback navigation returns an admitted session to the city"
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const session = createPortDialogueSession(city, {
     admittedToPort: true,
@@ -1862,7 +1907,7 @@ test("market rows put unit and bulk actions together and undo every purchase on 
     cityType: "mediterranean",
     factionId: "portugal",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 8 });
@@ -1944,7 +1989,7 @@ test("sell all is a paired market action and undo restores cargo, accounts, and 
     cityType: "mediterranean",
     factionId: "portugal",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -2028,7 +2073,7 @@ test("one market ledger undoes alternating purchases and sales together", () => 
     cityType: "mediterranean",
     factionId: "portugal",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -2124,7 +2169,7 @@ test("sell all remains actionable when only one unit is held", () => {
     cityType: "mediterranean",
     factionId: "portugal",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -2163,7 +2208,7 @@ test("a factor warns before delivering Papally prohibited arms to Ottoman buyers
     cityType: "mediterranean",
     population: 400000,
     factionId: "ottoman",
-    character: { name: "Kemal Reis" }
+    character: { name: "Kemal Reis", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -2203,7 +2248,7 @@ test("sell all matches the same sequence of rounded prices as individual sales",
     cityType: "mediterranean",
     factionId: "portugal",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const port = economy.portStates.get(city.cityId);
@@ -2261,7 +2306,7 @@ test("founded colonies state and display their 15% goods discount", () => {
     lon: -65.515556,
     playerFoundedColony: true,
     purchaseDiscountMultiplier: 0.85,
-    character: { name: "Jeanne Hebert", personalityId: "warm" }
+    character: { name: "Jeanne Hebert", role: "harbour-master", personalityId: "warm" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -2279,7 +2324,7 @@ test("founded colonies state and display their 15% goods discount", () => {
   assert.equal(playerTradeTerms(gameState, city, marketRows[0].action.goodId).purchaseDiscountMultiplier, 0.85);
 });
 
-test("a developed Nagasaki port states its trading discount without calling the player its founder", () => {
+test("a developed Nagasaki port has its harbour master state the discount without calling the player its founder", () => {
   const city = {
     tileId: 110,
     cityId: "nagasaki|japan",
@@ -2293,7 +2338,7 @@ test("a developed Nagasaki port states its trading discount without calling the 
     lon: 129.88,
     playerDevelopedPort: true,
     purchaseDiscountMultiplier: 0.85,
-    character: { name: "Ito Haru", personalityId: "warm" }
+    character: { name: "Ito Haru", role: "harbour-master", personalityId: "warm" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -2303,7 +2348,7 @@ test("a developed Nagasaki port states its trading discount without calling the 
   assert.match(greeting.text, /China ship has made Nagasaki a city/);
   assert.match(greeting.text, /15% off goods you buy/);
   assert.doesNotMatch(greeting.text, /founder/i);
-  assert.match(greeting.speaker, /port steward of Nagasaki/);
+  assert.match(greeting.speaker, /harbour master of Nagasaki/);
 });
 
 test("leaving the buy screen recommends the strongest distance-adjusted trade route", () => {
@@ -2317,7 +2362,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
     lat: 0.79,
     lon: 127.38,
     population: 25000,
-    character: { name: "Hamza Darwis" }
+    character: { name: "Hamza Darwis", role: "harbour-master" }
   };
   const london = {
     tileId: 102,
@@ -2340,7 +2385,7 @@ test("leaving the buy screen recommends the strongest distance-adjusted trade ro
     lat: 38.72,
     lon: -9.14,
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const ports = [ternate, london, lisbon];
   const sailingDistanceKm = testSailingDistances([
@@ -2591,7 +2636,7 @@ test("leaving the buy screen without a purchase returns directly to port busines
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -2625,7 +2670,7 @@ test("leaving a market empty-handed can reveal a source for outstanding quest ca
     lat: 0.79,
     lon: 127.38,
     population: 25000,
-    character: { name: "Hamza Darwis" }
+    character: { name: "Hamza Darwis", role: "harbour-master" }
   };
   const london = {
     tileId: 108,
@@ -2742,7 +2787,7 @@ test("an outstanding quest cargo waypoint does not suppress hints for another go
     lat: 0.79,
     lon: 127.38,
     population: 25000,
-    character: { name: "Hamza Darwis" }
+    character: { name: "Hamza Darwis", role: "harbour-master" }
   };
   const source = {
     tileId: 602,
@@ -2862,7 +2907,7 @@ test("market buy controls subtly mark goods still needed for quests", () => {
     lat: 51.51,
     lon: -0.13,
     population: 70000,
-    character: { name: "Thomas More" }
+    character: { name: "Thomas More", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   for (const [goodId, goodState] of economy.portStates.get(city.cityId).goods) {
@@ -2902,7 +2947,7 @@ test("quest cargo sale controls are red and warn once per port visit", () => {
     lat: 51.51,
     lon: -0.13,
     population: 70000,
-    character: { name: "Thomas More" }
+    character: { name: "Thomas More", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
@@ -3009,7 +3054,7 @@ test("leaving the sell screen without a sale recommends a market for held trade 
     lat: 0.79,
     lon: 127.38,
     population: 25000,
-    character: { name: "Hamza Darwis" }
+    character: { name: "Hamza Darwis", role: "harbour-master" }
   };
   const london = {
     tileId: 106,
@@ -3056,7 +3101,7 @@ test("held-cargo price advice does not recommend a loss-making destination", () 
     lat: 0.79,
     lon: 127.38,
     population: 25000,
-    character: { name: "Hamza Darwis" }
+    character: { name: "Hamza Darwis", role: "harbour-master" }
   };
   const london = {
     tileId: 206,
@@ -3177,7 +3222,7 @@ test("held-cargo price advice prefers a distant profit over a nearby loss", () =
     lon: 28.98,
     population: 180000,
     factionId: "neutral",
-    character: { name: "Kemal Reis" }
+    character: { name: "Kemal Reis", role: "harbour-master" }
   };
   const nearby = {
     tileId: 208,
@@ -3240,7 +3285,7 @@ test("trade advice praises the current port when its cargo price leads the local
     lon: 28.98,
     population: 180000,
     factionId: "neutral",
-    character: { name: "Kemal Reis" }
+    character: { name: "Kemal Reis", role: "harbour-master" }
   };
   const mudanya = {
     tileId: 108,
@@ -3332,7 +3377,7 @@ test("leaving the sell screen with no sellable cargo returns directly to port bu
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -3360,7 +3405,7 @@ test("leaving the sell screen after a completed sale does not offer trade advice
     lat: 41.16,
     lon: -8.63,
     population: 50000,
-    character: { name: "Ines Carvalho" }
+    character: { name: "Ines Carvalho", role: "harbour-master" }
   };
   const london = {
     tileId: 108,
@@ -3406,7 +3451,7 @@ test("selling all cloves and leaving the market cannot restore the departed carg
     cityType: "mediterranean",
     factionId: "spain",
     population: 55000,
-    character: { name: "Beatriz de Mendoza" }
+    character: { name: "Beatriz de Mendoza", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -3450,7 +3495,7 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
     country: "Spain",
     cityType: "mediterranean",
     population: 60000,
-    character: { name: "Isabel Mendez" }
+    character: { name: "Isabel Mendez", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -3491,7 +3536,7 @@ test("port crew offers show individuals and hire the selected sailor", () => {
     country: "Spain",
     cityType: "mediterranean",
     population: 60_000,
-    character: { name: "Isabel Mendez" }
+    character: { name: "Isabel Mendez", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -3505,7 +3550,12 @@ test("port crew offers show individuals and hire the selected sailor", () => {
     simMinute: 100,
     targetCrew: gameState.ship.loadoutTargets.crew,
     appearances: [{ appearanceId: "mariner-light-black-hair", crewTypeId: "sailor" }],
-    nameForIdentity: () => "Mateo",
+    identityForKey: () => ({
+      name: "Mateo",
+      nameCulture: "spanish",
+      religionId: "roman-catholic",
+      nationalityId: "spain"
+    }),
     baseHireCost: 2
   });
   const session = createPortDialogueSession(city, { initialNodeId: "crew-recruitment" });
@@ -3540,7 +3590,7 @@ test("crew recruitment presents a clean empty state when no hands are available"
     country: "Spain",
     cityType: "mediterranean",
     population: 60_000,
-    character: { name: "Isabel Mendez" }
+    character: { name: "Isabel Mendez", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -3552,7 +3602,12 @@ test("crew recruitment presents a clean empty state when no hands are available"
     simMinute: 100,
     targetCrew: gameState.ship.crew,
     appearances: [{ appearanceId: "mariner-light-black-hair", crewTypeId: "sailor" }],
-    nameForIdentity: () => "Mateo",
+    identityForKey: () => ({
+      name: "Mateo",
+      nameCulture: "spanish",
+      religionId: "roman-catholic",
+      nationalityId: "spain"
+    }),
     baseHireCost: 2,
     allowEmpty: true
   });
@@ -3565,6 +3620,53 @@ test("crew recruitment presents a clean empty state when no hands are available"
   assert.deepEqual(view.options.map(({ label }) => label), ["Back to city"]);
 });
 
+test("the inn supports replacing crew without changing the ship loadout", () => {
+  const city = {
+    tileId: 9,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60_000,
+    character: { name: "Isabel Mendez", role: "innkeeper" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  setTestCrewCount(gameState, 4);
+  const loadoutId = gameState.ship.loadoutId;
+  const initialCrew = gameState.ship.crew;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "inn-drink",
+    admittedToPort: true
+  });
+  const context = {
+    shipStats: stats,
+    simMinute: 120,
+    innDialogue: { speaker: "Captain", expressionId: "neutral", text: "The ale is sound." }
+  };
+
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  const manageIndex = view.options.findIndex(({ action }) => action.type === "open-crew-management");
+  assert.ok(manageIndex >= 0);
+  assert.ok(view.options.some(({ action }) => action.type === "open-crew-recruitment"));
+  selectPortDialogueOption(session, city, gameState, economy, [city], manageIndex, context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.presentation.voluntary, true);
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  assert.equal(gameState.ship.crew, initialCrew - 1);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
+  const doneIndex = view.options.findIndex(({ action }) => action.type === "confirm-crew-dismissal");
+  selectPortDialogueOption(session, city, gameState, economy, [city], doneIndex, context);
+
+  assert.equal(session.nodeId, "inn-drink");
+  assert.equal(gameState.ship.loadoutId, loadoutId);
+  assert.equal(gameState.ship.crew, initialCrew - 1);
+});
+
 test("lower loadouts require individual dismissals and support undo all", () => {
   const city = {
     tileId: 9,
@@ -3574,7 +3676,7 @@ test("lower loadouts require individual dismissals and support undo all", () => 
     country: "Spain",
     cityType: "mediterranean",
     population: 60_000,
-    character: { name: "Isabel Mendez" }
+    character: { name: "Isabel Mendez", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -3629,7 +3731,7 @@ test("custom loadout opens a slider model and reports discarded provisions", () 
     country: "Spain",
     cityType: "mediterranean",
     population: 60000,
-    character: { name: "Isabel Mendez" }
+    character: { name: "Isabel Mendez", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -3689,7 +3791,7 @@ test("custom loadout feedback never exposes scientific notation for fractional s
     country: "Spain",
     cityType: "mediterranean",
     population: 60000,
-    character: { name: "Isabel Mendez" }
+    character: { name: "Isabel Mendez", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -3720,7 +3822,7 @@ test("an already active banquet chef waits for a permanent berth before joining"
     country: "Ottoman Empire",
     cityType: "islamic-desert",
     population: 100000,
-    character: { name: "Kemal Aydin" }
+    character: { name: "Kemal Aydin", role: "harbour-master" }
   };
   const stats = {
     slug: "two-berth-craft",
@@ -3767,7 +3869,7 @@ test("the banquet chef accepts ingredients across separate visits", () => {
     country: "Ottoman Empire",
     cityType: "islamic-desert",
     population: 100000,
-    character: { name: "Kemal Aydin" }
+    character: { name: "Kemal Aydin", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -3839,7 +3941,7 @@ test("enemy port guards bar resupply and offer one risky disguise route", () => 
     cityType: "northern-european",
     factionId: "france",
     population: 18000,
-    character: { name: "Etienne Moreau" }
+    character: { name: "Etienne Moreau", role: "harbour-master" }
   };
   const playerCharacter = {
     name: "Joan Alden",
@@ -3890,7 +3992,7 @@ test("a disabled hostile harbor offers an eligible captain a marine landing", ()
     cityType: "northern-european",
     factionId: "france",
     population: 18000,
-    character: { name: "Etienne Moreau" }
+    character: { name: "Etienne Moreau", role: "harbour-master" }
   };
   const playerCharacter = { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] };
   const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
@@ -3932,7 +4034,7 @@ test("a friendly foreign port warns before a piratical city attack", () => {
     cityType: "mediterranean",
     factionId: "portugal",
     population: 65000,
-    character: { name: "Beatriz Ferreira" }
+    character: { name: "Beatriz Ferreira", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -3967,7 +4069,7 @@ test("formal war permits a lawful port raid but grants no right of conquest", ()
     cityType: "northern-european",
     factionId: "france",
     population: 18000,
-    character: { name: "Etienne Moreau" }
+    character: { name: "Etienne Moreau", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -4000,7 +4102,7 @@ test("a port attack button identifies the letter of marque that makes it legal",
     cityType: "mediterranean",
     factionId: "hospitallers",
     population: 18000,
-    character: { name: "Pierre de Villiers" }
+    character: { name: "Pierre de Villiers", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -4028,7 +4130,7 @@ test("a friendly capture-commission target closes its harbor and engages", () =>
     cityType: "mediterranean",
     factionId: "hospitallers",
     population: 18000,
-    character: { name: "Pierre de Villiers" }
+    character: { name: "Pierre de Villiers", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -4067,7 +4169,7 @@ test("an independent-port commission bars entry without naming a neutral soverei
     cityType: "islamic-desert",
     factionId: "neutral",
     population: 18000,
-    character: { name: "Ali ibn Dawud" }
+    character: { name: "Ali ibn Dawud", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -4120,7 +4222,7 @@ test("an unauthorized marine landing pillages instead of annexing", () => {
     cityType: "mediterranean",
     factionId: "portugal",
     population: 65000,
-    character: { name: "Beatriz Ferreira" }
+    character: { name: "Beatriz Ferreira", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -4158,7 +4260,7 @@ test("a disabled enemy harbor never admits an ineligible captain in disguise", (
     cityType: "northern-european",
     factionId: "france",
     population: 18000,
-    character: { name: "Etienne Moreau" }
+    character: { name: "Etienne Moreau", role: "harbour-master" }
   };
   const playerCharacter = { name: "Joan Alden", nationalityId: "england", expressions: ["neutral"] };
   const gameState = createGameState({ cargoCapacity: 20, playerCharacter });
@@ -4196,7 +4298,7 @@ test("a recovering non-enemy port refuses business and names the bombarding ship
     cityType: "mediterranean",
     factionId: "portugal",
     population: 14000,
-    character: { name: "Beatriz Ferreira" }
+    character: { name: "Beatriz Ferreira", role: "harbour-master" }
   };
   const playerCharacter = {
     name: "Joana Ferreira",
@@ -4216,7 +4318,7 @@ test("a recovering non-enemy port refuses business and names the bombarding ship
   };
 
   const view = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.equal(view.speaker, "Beatriz Ferreira, Porto factor");
+  assert.equal(view.speaker, "Beatriz Ferreira, harbour master of Porto");
   assert.match(view.text, /French Brigantine commanded by Jean Moreau/);
   assert.match(view.text, /bombarded/);
   assert.match(view.text, /quays remain closed for 2 more days/);
@@ -4233,7 +4335,7 @@ test("a successful disguise opens commerce but not faction business", () => {
     cityType: "northern-european",
     factionId: "france",
     population: 18000,
-    character: { name: "Etienne Moreau" }
+    character: { name: "Etienne Moreau", role: "harbour-master" }
   };
   const playerCharacter = {
     name: "Joan Alden",
@@ -4271,7 +4373,7 @@ test("foreign captains must find an illicit market to trade at Ming ports", () =
     cityType: "east-asian",
     factionId: "ming",
     population: 120000,
-    character: { name: "Li Wen" }
+    character: { name: "Li Wen", role: "harbour-master" }
   };
   const playerCharacter = {
     name: "Joan Alden",
@@ -4329,7 +4431,7 @@ test("captains admitted under safe passage can seek an illicit wartime market", 
     cityType: "northern-european",
     factionId: "france",
     population: 18000,
-    character: { name: "Etienne Moreau" }
+    character: { name: "Etienne Moreau", role: "harbour-master" }
   };
   const playerCharacter = {
     name: "Joan Alden",
@@ -4368,7 +4470,7 @@ test("a failed Ming illicit-market approach costs standing and cannot be repeate
     cityType: "east-asian",
     factionId: "ming",
     population: 160000,
-    character: { name: "Zhang Rui" }
+    character: { name: "Zhang Rui", role: "harbour-master" }
   };
   const playerCharacter = {
     name: "Joan Alden",
@@ -4410,7 +4512,7 @@ test("pirate hideouts speak and trade like covert havens", () => {
     isPirateHideout: true,
     settlementType: "village",
     population: 1200,
-    character: { name: "Mara Vane" }
+    character: { name: "Mara Vane", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [marketPort], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -4439,7 +4541,7 @@ test("ports stock a local selection of fishing net upgrades", () => {
     country: "United Kingdom",
     cityType: "northern-european",
     population: 50000,
-    character: { name: "Alice Cabot" }
+    character: { name: "Alice Cabot", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -4472,7 +4574,7 @@ test("a factor can proactively fit an affordable equipment upgrade", () => {
     country: "Hanseatic League",
     cityType: "northern-european",
     population: 40000,
-    character: { name: "Greta Brandt" }
+    character: { name: "Greta Brandt", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
@@ -4524,7 +4626,7 @@ test("a capital factor proactively offers a qualified captain a wartime letter o
     factionId: "england",
     isFactionCapital: true,
     capitalOfFactionId: "england",
-    character: { name: "Thomas Cromwell" }
+    character: { name: "Thomas Cromwell", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -4582,7 +4684,7 @@ test("declining a proactive marque offer leaves the ordinary request available",
     factionId: "england",
     isFactionCapital: true,
     capitalOfFactionId: "england",
-    character: { name: "Thomas Cromwell" }
+    character: { name: "Thomas Cromwell", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -4618,7 +4720,7 @@ test("a declined factor offer points the player back to the equipment store", ()
     country: "Hanseatic League",
     cityType: "northern-european",
     population: 40000,
-    character: { name: "Greta Brandt" }
+    character: { name: "Greta Brandt", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
@@ -4654,7 +4756,7 @@ test("equipment factor follow-up agrees with a plural equipment label", () => {
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
@@ -4691,7 +4793,7 @@ test("the equipment overview shows stocked levels and identifies specialist mark
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
@@ -4717,7 +4819,7 @@ test("the equipment store exposes stocked cannon upgrades and their complete fir
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
@@ -4751,7 +4853,7 @@ test("equipment merchants omit gear below the player's current tier", () => {
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
@@ -4777,7 +4879,7 @@ test("a Polynesian equipment store does not present the player's cannons as loca
     factionId: "neutral",
     cityType: "polynesian",
     population: 1200,
-    character: { name: "Te Rongo" }
+    character: { name: "Te Rongo", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const stats = shipStatsForSlug("brigantine");
@@ -4806,7 +4908,7 @@ test("a rare equipment offer persists after declining and remembers the player",
     cityType: "mediterranean",
     factionId: "portugal",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0, seedKey: voyageSeed });
   const stats = shipStatsForSlug("brigantine");
@@ -4871,7 +4973,7 @@ test("package job offers show the destination distance", () => {
     population: 70000,
     lat: 38.72,
     lon: -9.14,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const porto = {
     ...lisbon,
@@ -4909,7 +5011,7 @@ test("a rumor queued before an active delivery cannot trap Back in a quest self-
     population: 400000,
     lat: 41.01,
     lon: 28.98,
-    character: { name: "Leyla Celebi" }
+    character: { name: "Leyla Celebi", role: "harbour-master" }
   };
   const athens = {
     ...istanbul,
@@ -4954,7 +5056,7 @@ test("no-work Back returns to the city menu after an arrival continuation", () =
     population: 8000,
     lat: 37.02,
     lon: -7.93,
-    character: { name: "Diogo Vaz" }
+    character: { name: "Diogo Vaz", role: "harbour-master" }
   };
   const ports = [city];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
@@ -4994,7 +5096,7 @@ test("arrival news cannot replay after its greeting is acknowledged", () => {
     population: 45000,
     lat: 36.53,
     lon: -6.29,
-    character: { name: "Ines de Vargas", personalityId: "austere" }
+    character: { name: "Ines de Vargas", role: "harbour-master", personalityId: "austere" }
   };
   const ports = [city];
   const economy = createWorldEconomy({ ports, startMinute: 0 });
@@ -5031,7 +5133,7 @@ test("shipyards show a full vessel presentation and enforce the asking price", (
     country: "Portugal",
     cityType: "mediterranean",
     population: 100000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const currentStats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
@@ -5101,7 +5203,7 @@ test("shipyards require excess crew to be dismissed before a profitable downgrad
     country: "Portugal",
     cityType: "mediterranean",
     population: 100000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const currentStats = shipStatsForSlug("galleon");
   const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
@@ -5139,7 +5241,7 @@ test("shipyards still block a smaller ship when transferred trade cargo cannot f
     country: "Portugal",
     cityType: "mediterranean",
     population: 100000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const currentStats = shipStatsForSlug("galleon");
   const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
@@ -5171,7 +5273,7 @@ test("shipyards explain when permanent crew cannot berth instead of formatting i
     country: "Portugal",
     cityType: "mediterranean",
     population: 100000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const currentStats = shipStatsForSlug("galleon");
   const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
@@ -5212,7 +5314,7 @@ test("shipyards account for the historian leaving with a traded-in Viking longsh
     country: "Portugal",
     cityType: "mediterranean",
     population: 100000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const hafnarfjordur = {
     cityId: "hafnarfjordur|iceland",
@@ -5267,7 +5369,7 @@ test("empty shipyards direct captains to the nearest listed vessel", () => {
     country: "Portugal",
     cityType: "mediterranean",
     population: 100000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -5328,7 +5430,7 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
     settlementType: "city",
     population: 100000,
     factionId: "portugal",
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -5366,7 +5468,7 @@ test("opening a funded shipyard atomically creates its portfolio and readable wo
     settlementType: "city",
     population: 100000,
     factionId: "portugal",
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -5417,7 +5519,7 @@ test("a proactive shipyard offer can be declined back into the arrival queue", (
     settlementType: "city",
     population: 100000,
     factionId: "portugal",
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -5463,7 +5565,7 @@ test("a returning shipyard investor is invited to inspect the yard after receivi
     settlementType: "city",
     population: 100000,
     factionId: "portugal",
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -5553,7 +5655,7 @@ test("an owned shipyard buys uncommitted construction cargo through its stores t
     settlementType: "city",
     population: 100000,
     factionId: "portugal",
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -5669,7 +5771,7 @@ test("owned shipyard supply hints are cached and can become named waypoints", ()
     settlementType: "city",
     population: 100000,
     factionId: "spain",
-    character: { name: "Diego de Vargas" }
+    character: { name: "Diego de Vargas", role: "harbour-master" }
   };
   const source = {
     tileId: 11,
@@ -5683,7 +5785,7 @@ test("owned shipyard supply hints are cached and can become named waypoints", ()
     factionId: "england",
     lat: 50.72,
     lon: -3.53,
-    character: { name: "Thomas Carew" }
+    character: { name: "Thomas Carew", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -5745,7 +5847,7 @@ test("shipyard hints prefer an open supplier but still name a barred last source
     settlementType: "city",
     population: 100000,
     factionId: "england",
-    character: { name: "William Harcourt" }
+    character: { name: "William Harcourt", role: "harbour-master" }
   };
   const barredSource = {
     ...city,
@@ -5848,7 +5950,7 @@ test("a player-backed yard replaces the ordinary shipyard and keeps its finished
     settlementType: "city",
     population: 100000,
     factionId: "portugal",
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("fishing-lugger");
   const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
@@ -5921,7 +6023,7 @@ test("a completed ship sale gets a named historical handover before returning to
     country: "Portugal",
     cityType: "mediterranean",
     population: 100000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const currentStats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
@@ -5959,7 +6061,7 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
     country: "Iceland",
     cityType: "northern-european",
     population: 1500,
-    character: { name: "Leif Eriksen" }
+    character: { name: "Leif Eriksen", role: "harbour-master" }
   };
   const currentStats = shipStatsForSlug("brigantine");
   const gameState = createGameState({ cargoCapacity: currentStats.cargoCapacity, shipStats: currentStats });
@@ -6083,7 +6185,7 @@ test("a Kyoto gunsmith establishes domestic matchlock production after Nagasaki 
     country: "Japan",
     cityType: "east-asian",
     population: 100000,
-    character: { name: "Sato Masanobu" }
+    character: { name: "Sato Masanobu", role: "harbour-master" }
   };
   const gameState = createGameState({ cargoCapacity: 50 });
   establishNagasakiQuest(gameState, city);
@@ -6165,7 +6267,7 @@ test("a Caribbean planter pays for ginger roots and establishes local production
     country: "Cuba",
     cityType: "mediterranean",
     population: 8000,
-    character: { name: "Isabel de Rojas" }
+    character: { name: "Isabel de Rojas", role: "harbour-master" }
   };
   const gameState = createGameState({ cargoCapacity: 50 });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
@@ -6420,7 +6522,7 @@ function conquestQuestCity(tileId, city, country, lat, lon, factionId, character
     factionId,
     cityType: "andean",
     population: 25000,
-    character: { name: characterName, personalityId: "bold" }
+    character: { name: characterName, role: "harbour-master", personalityId: "bold" }
   };
 }
 
@@ -6462,7 +6564,7 @@ test("declining a passenger clears the offer without starting or failing it", ()
     country: "Portugal",
     cityType: "mediterranean",
     population: 70000,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const quest = {
     id: "passenger-1-2-test",
@@ -6974,7 +7076,7 @@ test("Catholic Bible inspections can pass cleanly, show sympathy, or seize the b
   const ship = {
     id: "sympathetic-ship",
     slug: "brigantine",
-    character: { name: "Hans Keller" },
+    character: { name: "Hans Keller", role: "harbour-master" },
     roleLabel: "Warship"
   };
   const sympatheticSession = createShipDialogueSession(ship, {
@@ -7003,7 +7105,7 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
     city: "London",
     country: "United Kingdom",
     factionId: "england",
-    character: { name: "Thomas Cromwell" }
+    character: { name: "Thomas Cromwell", role: "harbour-master" }
   };
   const otherPort = {
     tileId: 3,
@@ -7013,7 +7115,7 @@ test("envoy dialogue lets courts negotiate while the captain carries the answer"
     factionId: "france",
     cityType: "northern-european",
     population: 12000,
-    character: { name: "Etienne Moreau" }
+    character: { name: "Etienne Moreau", role: "harbour-master" }
   };
   const quest = {
     id: "friendly-envoy-1-2-test",
@@ -7185,7 +7287,7 @@ test("a drunk captain and factor exchange remarks before ordinary port dialogue"
     city: "Lisbon",
     country: "Portugal",
     cityType: "mediterranean",
-    character: { name: "Fernao da Cunha", personalityId: "vigilant" }
+    character: { name: "Fernao da Cunha", role: "harbour-master", personalityId: "vigilant" }
   };
   const gameState = createGameState({ cargoCapacity: 20, playerCharacter: inesPlayer(city) });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
@@ -7198,7 +7300,7 @@ test("a drunk captain and factor exchange remarks before ordinary port dialogue"
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
 
   const factor = portDialogueView(session, city, gameState, economy, [city]);
-  assert.equal(factor.speaker, "Fernao da Cunha, Lisbon factor");
+  assert.equal(factor.speaker, "Fernao da Cunha, harbour master of Lisbon");
   assert.match(factor.text, /stationary/i);
   assert.equal(dialogueOptionIconId(factor.options[0]), "action:talk");
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
@@ -7212,7 +7314,7 @@ test("a port factor remembers the captain's drunken arrivals on later visits", (
     city: "Porto",
     country: "Portugal",
     cityType: "mediterranean",
-    character: { name: "Tomas Velho", personalityId: "cordial" }
+    character: { name: "Tomas Velho", role: "harbour-master", personalityId: "cordial" }
   };
   const gameState = createGameState({ cargoCapacity: 20, playerCharacter: inesPlayer(city) });
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
@@ -7251,7 +7353,7 @@ test("a port factor receives a wealthy magnate according to her present station"
     country: "Türkiye",
     factionId: "ottoman",
     cityType: "mediterranean",
-    character: { name: "Kemal Reis", personalityId: "enterprising" }
+    character: { name: "Kemal Reis", role: "harbour-master", personalityId: "enterprising" }
   };
   const gameState = createGameState({ cargoCapacity: 20, playerCharacter: inesPlayer(city) });
   gameState.doubloons = 1_100_000;
@@ -7292,7 +7394,8 @@ test("an active package mission opens its factor before the port menu", () => {
     cityType: "mediterranean",
     routeRegion: "mediterranean",
     lat: 38.72,
-    lon: -9.14
+    lon: -9.14,
+    character: { name: "Fernao da Cunha", role: "innkeeper" }
   };
   const destination = {
     ...origin,
@@ -7322,6 +7425,13 @@ test("an active package mission opens its factor before the port menu", () => {
   assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), true);
 
   acceptQuest(gameState, available.quest);
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const innSession = createPortDialogueSession(origin, {
+    initialNodeId: "quest",
+    admittedToPort: true
+  });
+  const innView = portDialogueView(innSession, origin, gameState, economy, ports);
+  assert.equal(innView.options.some(({ action }) => action.type === "accept-quest"), false);
   assert.equal(deliveryMissionShouldOpenOnArrival(gameState, origin, ports), true);
   assert.equal(deliveryMissionShouldOpenOnArrival(gameState, destination, ports), true);
   assert.equal(deliveryMissionShouldOpenOnArrival(gameState, unrelated, ports), false);
@@ -7345,7 +7455,7 @@ test("completing an arrival delivery proceeds to the required loadout", () => {
     routeRegion: "mediterranean",
     lat: 38.72,
     lon: -9.14,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const destination = {
     ...origin,
@@ -7396,7 +7506,7 @@ test("completing a packet rolls the destination's next job without re-entering p
     routeRegion: "mediterranean",
     lat: 38.72,
     lon: -9.14,
-    character: { name: "Fernao da Cunha" }
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
   };
   const destination = {
     ...origin,
@@ -7466,7 +7576,7 @@ test("capital port dialogue can grant a letter of marque", () => {
     factionId: "england",
     isFactionCapital: true,
     capitalOfFactionId: "england",
-    character: { name: "Thomas Cromwell" }
+    character: { name: "Thomas Cromwell", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -7520,7 +7630,7 @@ test("a crown capture commission names the enemy port, spoils, and return reward
     factionId: "england",
     isFactionCapital: true,
     capitalOfFactionId: "england",
-    character: { name: "Thomas Cromwell" }
+    character: { name: "Thomas Cromwell", role: "harbour-master" }
   };
   const calais = {
     tileId: 802,
@@ -7531,7 +7641,7 @@ test("a crown capture commission names the enemy port, spoils, and return reward
     cityType: "northern-european",
     population: 18000,
     factionId: "france",
-    character: { name: "Guillaume Morel" }
+    character: { name: "Guillaume Morel", role: "harbour-master" }
   };
   const stats = shipStatsForSlug("large-junk");
   const gameState = createGameState({
@@ -7578,7 +7688,7 @@ test("capital petition dialogue lets the captain name an enemy while the court f
     factionId: "england",
     isFactionCapital: true,
     capitalOfFactionId: "england",
-    character: { name: "Thomas Cromwell" }
+    character: { name: "Thomas Cromwell", role: "harbour-master" }
   };
   const calais = {
     tileId: 804,
@@ -7589,7 +7699,7 @@ test("capital petition dialogue lets the captain name an enemy while the court f
     cityType: "northern-european",
     population: 18000,
     factionId: "france",
-    character: { name: "Guillaume Morel" }
+    character: { name: "Guillaume Morel", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -7655,7 +7765,7 @@ test("a captain may ask whether the council has designs upon an independent harb
     factionId: "ottoman",
     isFactionCapital: true,
     capitalOfFactionId: "ottoman",
-    character: { name: "Piri Reis" }
+    character: { name: "Piri Reis", role: "harbour-master" }
   };
   const aden = {
     tileId: 808,
@@ -7666,7 +7776,7 @@ test("a captain may ask whether the council has designs upon an independent harb
     cityType: "islamic-desert",
     population: 18000,
     factionId: "neutral",
-    character: { name: "Ali ibn Dawud" }
+    character: { name: "Ali ibn Dawud", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -7724,7 +7834,7 @@ test("an independent-port warrant fixes the objective without inventing a neutra
     factionId: "ottoman",
     isFactionCapital: true,
     capitalOfFactionId: "ottoman",
-    character: { name: "Piri Reis" }
+    character: { name: "Piri Reis", role: "harbour-master" }
   };
   const aden = {
     tileId: 806,
@@ -7735,7 +7845,7 @@ test("an independent-port warrant fixes the objective without inventing a neutra
     cityType: "islamic-desert",
     population: 18000,
     factionId: "neutral",
-    character: { name: "Ali ibn Dawud" }
+    character: { name: "Ali ibn Dawud", role: "harbour-master" }
   };
   const gameState = createGameState({
     cargoCapacity: 20,
@@ -7794,7 +7904,7 @@ test("a final capital commission explains the war's grievance and general peace"
     factionId: "england",
     isFactionCapital: true,
     capitalOfFactionId: "england",
-    character: { name: "Thomas Cromwell" }
+    character: { name: "Thomas Cromwell", role: "harbour-master" }
   };
   const paris = {
     tileId: 812,
@@ -7807,7 +7917,7 @@ test("a final capital commission explains the war's grievance and general peace"
     factionId: "france",
     isFactionCapital: true,
     capitalOfFactionId: "france",
-    character: { name: "Guillaume Morel" }
+    character: { name: "Guillaume Morel", role: "harbour-master" }
   };
   const capturedFrenchPorts = ["Calais", "Rouen", "Bordeaux", "Marseille"].map((name, index) => ({
     tileId: 813 + index,
@@ -7867,7 +7977,7 @@ test("letter of marque dialogue shows fractional standing until the requirement 
     factionId: "england",
     isFactionCapital: true,
     capitalOfFactionId: "england",
-    character: { name: "Thomas Cromwell" }
+    character: { name: "Thomas Cromwell", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
@@ -7910,7 +8020,7 @@ test("a trusted captain can petition a capital for a historically named personal
     factionId: "ming",
     isFactionCapital: true,
     capitalOfFactionId: "ming",
-    character: { name: "Wang Shouren" }
+    character: { name: "Wang Shouren", role: "harbour-master" }
   };
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const gameState = createGameState({
