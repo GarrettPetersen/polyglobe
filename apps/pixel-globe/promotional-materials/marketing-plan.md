@@ -12,18 +12,25 @@ Last updated: **September 2, 2026**.
   date has passed without a recorded result. Also confirm whether the submitted
   SCHMOOVEMENT application was accepted before its September 22 start.
 - **September 2:** Indie Game Award 2027 pre-selection materials submitted.
+- **September 4 at 10:00 a.m. PDT:** Submit to the Mobidictum Steam
+  Showcase.
 - **September 7:** IGF 2027 fee-waiver request deadline. Steam also pulls the
   current base-game trailer for possible inclusion in its official Next Fest
   trailer, if Valve has notified us that the game is under consideration.
+  Submit to the DevGAMM Awards by the same date.
 - **September 13:** IGF 2027 application and build deadline.
 - **September 21:** Submit the Next Fest demo build and store page for review
   to be ready for the press preview.
 - **September 22–29:** SCHMOOVEMENT Festival.
 - **September 28:** Galaxies Autumn trailer deadline, if selected.
+- **September 28 at 7:59 p.m. PDT:** Submit to INDIE Live Expo with a
+  30-second trailer and a separate 15-second gameplay clip.
 - **October 5:** Submit all Next Fest materials. The Atlantic Canada Game
   Celebration also begins, so the demo should already be public and its
   logged-out install flow verified.
 - **October 5–12:** Atlantic Canada Game Celebration.
+- **October 12–18:** Support the Indies creator event. Submit the public demo
+  by late September and track any resulting streams or coverage.
 - **October 15:** Galaxies Autumn showcase, if selected.
 - **October 19 at 10:00 a.m. PDT:** Absolute Next Fest deadline for the public
   demo. Our operational target is earlier than October 5 because of ACGC.
@@ -31,6 +38,8 @@ Last updated: **September 2, 2026**.
 - **After October 26:** Review wishlists, demo conversion, creator coverage and
   build stability, then make the release go/no-go decision for the working
   **December 1** launch date.
+- **November 6 at 12:00 noon GMT:** Post one strong elevator pitch with the
+  best current gameplay clip and `#PitchYaGame`.
 - **December 1:** Working release date. If confirmed after Next Fest, launch
   with the planned introductory discount and a coordinated creator, press,
   Steam, X, Reddit and YouTube campaign. A December 1 release is still within
@@ -352,11 +361,11 @@ If those conditions are not met, delay the release instead of forcing the 2026 w
 
 ## Festival and showcase application plan
 
-Research checked **August 2, 2026**, using the [How To Market A Game festival directory](https://howtomarketagame.com/festivals/) for discovery and the organizers' own pages for verification. Time-sensitive application statuses were updated on **August 4, 2026**.
+Research checked **September 2, 2026**, using the [How To Market A Game festival directory](https://howtomarketagame.com/festivals/) for discovery and the organizers' own pages for verification.
 
 ### Apply
 
-These are free, accept unreleased games and provide a plausible audience for Marque & Reprisal.
+These accept unreleased games and provide a plausible audience for Marque & Reprisal.
 
 - [ ] **Anime Game Festival, 3rd Edition — July 30 deadline missed**
   - Event: Early September 2026.
@@ -473,6 +482,64 @@ These are free, accept unreleased games and provide a plausible audience for Mar
   - Application: https://submit.igf.com/
   - Rules and dates: https://igf.com/submission-info/
 
+- [ ] **Mobidictum Steam Showcase — apply by September 4 at 8:00 p.m. GMT+3**
+  - Event: October 5–9, 2026 on Steam.
+  - Why: A low-effort additional Steam showcase during the week the demo must
+    already be public for Atlantic Canada Game Celebration. The application
+    accepts upcoming games, asks whether the developer will attend in person,
+    and allows **No**, so travel to Istanbul is not required to submit.
+  - Prepare: Steam App ID, trailer, website, press kit, capsule, logo, 3–10
+    screenshots and six full-build Steam keys for jury access.
+  - Mark the public demo as available October 5–9 and identify the developer as
+    Iron Pagoda.
+  - Application: https://form.jotform.com/261741269632965
+
+- [ ] **DevGAMM Awards 2026 — apply by September 7**
+  - Why: Free international competition judged by 150+ industry professionals,
+    with an Awards Celebration Steam event and an IGN-streamed ceremony.
+  - Enter: Grand Prize, Excellence in Game Design, Best Small Team Game, Most
+    Anticipated Game and Meaningful Game. Do not enter engine-specific or
+    Portugal-specific categories.
+  - Prepare: A private judging gameplay video, public trailer, key art, team
+    information and either 25 Steam keys or a durable private build link.
+  - If nominated on October 22, a representative must attend the November 18
+    ceremony in Lisbon. Decide then whether Garrett will travel or whether a
+    trusted local industry representative can attend on Iron Pagoda's behalf.
+  - Application and rules: https://devgamm.com/awards2026/rules/
+
+- [ ] **INDIE Live Expo 2026.12.1 — apply by September 28 at 7:59 p.m. PDT**
+  - Status: Submissions opened September 2. Entry is free and limited to one
+    game per company, group or individual; approximately 80 games are planned
+    for the curated INDIE Waves segment.
+  - Why: Strong fit with the game's existing Japanese interest. The program is
+    broadcast in Japanese, English, Chinese and Korean on YouTube, X, Twitch,
+    Steam, Niconico and bilibili.
+  - Prepare: A purpose-cut 30-second trailer and a separate 15-second gameplay
+    video, plus the Japanese Steam page, Japanese website and current press-kit
+    assets.
+  - The broadcast is December 1, the working release date. If selected,
+    coordinate the exact Steam release time and announcement copy around the
+    broadcast rather than treating it as an unrelated post.
+  - Application details: https://indie.live-expo.games/en/entry/
+
+- [ ] **Support the Indies — submit the public demo by late September**
+  - Event: October 12–18, 2026.
+  - Why: Free creator-discovery event announced August 24. Participating
+    creators receive the demo list and independently choose which games to
+    stream; treat it as promotion, not outsourced playtesting.
+  - Submit once the Steam demo is publicly installable, then track creator
+    selections, streams, VODs, audience size and reusable quotes in the creator
+    outreach records.
+  - Application and event details: https://helixtools.org/support-the-indies
+
+- [ ] **#PitchYaGame — prepare a November 6 post**
+  - This is a free social-media pitch beat, not a conventional judged
+    application. At 12:00 noon GMT, post a concise elevator pitch with the best
+    current gameplay clip and the `#PitchYaGame` hashtag.
+  - Prepare the post after Next Fest so its hook and footage reflect what
+    actually converted players during the festival.
+  - Instructions: https://pitchyagame.com/
+
 ### Conditional
 
 - [ ] **The MIX Fall 2026 Online Showcase — decide by August 10**
@@ -488,6 +555,11 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 
 ### Do not apply this cycle
 
+- **IndieCade 2026:** The final submission window closed August 8 and carried a
+  US$135 fee. Record it as a missed credible opportunity and watch for the 2027
+  opening rather than seeking a late exception.
+- **Low Budget, Big Heart:** Plausible fit for a solo-developed game, but its
+  August 3 deadline has passed. Watch for another edition.
 - **Roguelike Celebration:** Strong audience fit, but its Steam event requires the full game to be available by September 17. Releasing then would make the game ineligible for October Next Fest.
 - **Choose Wisely Festival:** It prioritizes branching narrative games whose story changes permanently with player choices. Marque & Reprisal has player choice, but that is not its central narrative structure.
 - **Creative Sandbox Festival:** It is for games where players build or design their own worlds, not sandbox games in the broader open-ended sense.
@@ -523,8 +595,11 @@ These are free, accept unreleased games and provide a plausible audience for Mar
 
 ## Current critical path
 
-In parallel now: submit IGF by September 13; follow up on Galaxies and confirm
-SCHMOOVEMENT selection; complete the BiteMe demo
+In deadline order now: submit Mobidictum by September 4; submit DevGAMM and the
+IGF fee-waiver request by September 7; submit IGF by September 13; prepare
+INDIE Live Expo for September 28; submit the public demo to Support the Indies
+by late September. In parallel, follow up on Galaxies and confirm SCHMOOVEMENT
+selection; complete the BiteMe demo
 release-blocker, onboarding, audio/settings and store-asset audits; add the
 in-demo wishlist call to action; update both Steam descriptions for the larger
 world; set up the authenticated campaign sender; finish the demo-launch package
