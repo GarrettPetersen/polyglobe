@@ -8,6 +8,8 @@ import {
 } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import {
   CITY_PIXEL_FONT_TITLE_8,
+  CITY_PORT_TITLE_Y,
+  cityPortTitleLayout,
   createCityPixelTextRenderer
 } from "./cityPixelText.js";
 
@@ -67,4 +69,27 @@ test("city pixel text enlarges with integer nearest-neighbor scaling", () => {
     () => renderer.draw("SET SAIL", 0, 0, { scale: 1.5 }),
     /Invalid city pixel text scale/
   );
+});
+
+test("port titles are prominent, centered, and lowered from the top edge", () => {
+  assert.deepEqual(cityPortTitleLayout({
+    textWidth: 42,
+    textHeight: 8,
+    viewportWidth: 256
+  }), {
+    x: 86,
+    y: CITY_PORT_TITLE_Y,
+    width: 84,
+    height: 16,
+    scale: 2
+  });
+  assert.ok(CITY_PORT_TITLE_Y > 8);
+
+  const longTitle = cityPortTitleLayout({
+    textWidth: 122,
+    textHeight: 8,
+    viewportWidth: 256
+  });
+  assert.equal(longTitle.x, 67);
+  assert.equal(longTitle.scale, 1);
 });

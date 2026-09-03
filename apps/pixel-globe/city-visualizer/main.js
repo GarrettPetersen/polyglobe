@@ -25,8 +25,9 @@ import {
   layerVisibleSourceRect,
   logicalSceneWindow,
   resolveCitySceneFeatures,
-  sceneCameraDefaultParallax,
+  sceneCameraDockParallax,
   sceneCameraParallaxBounds,
+  sceneCameraSetSailIsRevealed,
   sceneEdgeScrollVelocity,
   sceneInertialPanTargetVelocity,
   scenePanParallaxDelta
@@ -66,6 +67,7 @@ import {
 import {
   CITY_PIXEL_FONT_SMALL_8,
   CITY_PIXEL_FONT_TITLE_8,
+  cityPortTitleLayout,
   createCityPixelTextRenderer
 } from "./cityPixelText.js";
 import {
@@ -203,6 +205,11 @@ import {
   cityBombardmentEffectGeometry,
   cityBombardmentEffectIntersectsViewport
 } from "./cityBombardmentEffects.js";
+import {
+  applyCityBuildingEdgeContrast,
+  cityBuildingEdgeContrastApplies,
+  citySkySourceColorsByRow
+} from "./cityBuildingEdgeContrast.js";
 
 export async function createCitySceneRuntime({
   canvas,
@@ -239,6 +246,9 @@ if (separateEmissiveOverlay && !emissiveContext) {
   throw new Error("City scene runtime could not create its emissive overlay context");
 }
 const pixelText = createCityPixelTextRenderer(context, () => document.createElement("canvas"));
+const overlayPixelText = emissiveContext
+  ? createCityPixelTextRenderer(emissiveContext, () => document.createElement("canvas"))
+  : pixelText;
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const imageCache = new Map();
 const frameCanvasCache = new WeakMap();
@@ -252,6 +262,7 @@ const latitudeWaterCssColorCache = new Map();
 const docksideShipPresentationPromiseCache = new Map();
 const bombardmentFrameCache = new Map();
 const bombardmentScaledHoleRunCache = new WeakMap();
+const buildingEdgeContrastFrameCache = new WeakMap();
 const MAX_DOCKSIDE_SHIP_PRESENTATIONS = 4;
 const CITY_VISUALIZER_BENCHMARK = benchmark ?? (
   externalFrameClock ? null : cityVisualizerBenchmarkFromSearch(window.location.search)
@@ -266,6 +277,8 @@ let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 let renderFrameId = null;
 let bombardmentOverlayFrameCache = null;
+let skySourceColorsByRow = null;
+let skyMasterY = null;
 const state = {
   ready: false,
   catalog: null,
@@ -503,6 +516,15 @@ async function preloadSharedCitySceneImages() {
 }
 
 function prepareScenePixelCaches() {
+  const sky = state.portManifest.staticFrames.find((frame) => frame.layer === "Sky");
+  if (!sky) throw new Error("Port scene is missing its sky frame");
+  const skyImageData = staticFrameImageData({ atlas: state.staticAtlas, frame: sky });
+  skySourceColorsByRow = citySkySourceColorsByRow({
+    pixels: skyImageData.data,
+    width: sky.frame.w,
+    height: sky.frame.h
+  });
+  skyMasterY = sky.spriteSourceSize.y + layerSceneOffsetY("Sky", 0, "ocean");
   const beach = state.portManifest.staticFrames.find((frame) => frame.layer === "Sand Beach");
   if (!beach) throw new Error("Port scene is missing its beach frame");
   beachOpaqueRuns(beach);
@@ -588,7 +610,10 @@ async function selectCity(cityId, {
   canvas.setAttribute("aria-label", `${renderText(city.label)}, ${renderText(city.country)}`);
   state.wind = cityWindForCity(state.city);
   applyFeatureOverrides(featureOverrides, { rebuild: false });
-  state.parallax = sceneCameraDefaultParallax(state.features.approach);
+  state.parallax = sceneCameraDockParallax({
+    viewportWidth: canvas.width,
+    approach: state.features.approach
+  });
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
   state.cloudDriftByLayer = new Map(CITY_CLOUD_SPECS.map(({ layer }) => [layer, 0]));
@@ -1805,7 +1830,14 @@ function drawCityTreePart(placement, part, window, targetContext) {
 function drawCityStreetBuilding(placement, targetContext) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   const regionalFrame = regionalStaticFrame(placement.frame, placement.layerName);
-  const source = regionalFrame || { atlas: state.staticAtlas, frame: placement.frame };
+  const source = buildingEdgeContrastFrame(
+    regionalFrame || { atlas: state.staticAtlas, frame: placement.frame },
+    {
+      layerName: placement.layerName,
+      masterY: placement.y,
+      renderedHeight: placement.height
+    }
+  );
   const bombarded = cityStreetBombardmentPresentation(placement, source);
   const displayed = bombarded || source;
   const sourceFrame = displayed.frame;
@@ -1872,8 +1904,13 @@ function drawBackgroundCityStatic(side, targetContext) {
       atlas: state.staticAtlas,
       frame
     };
-    const bombarded = backgroundCityBombardmentPresentation(side, entry, source);
-    const displayed = bombarded || source;
+    const contrastSource = buildingEdgeContrastFrame(source, {
+      layerName: frame.layer,
+      masterY: building.y,
+      renderedHeight: building.height
+    });
+    const bombarded = backgroundCityBombardmentPresentation(side, entry, contrastSource);
+    const displayed = bombarded || contrastSource;
     targetContext.drawImage(
       displayed.atlas,
       displayed.frame.frame.x,
@@ -2491,7 +2528,12 @@ function drawStaticFrame(frame, layerName, occurrence, targetContext) {
     layerParallaxAnchor(layerName, occurrence)
   );
   const regionalFrame = regionalStaticFrame(frame, layerName);
-  const source = regionalFrame || { atlas: state.staticAtlas, frame };
+  const baseSource = regionalFrame || { atlas: state.staticAtlas, frame };
+  const source = buildingEdgeContrastFrame(baseSource, {
+    layerName,
+    masterY: baseSource.frame.spriteSourceSize.y + offsetY,
+    renderedHeight: baseSource.frame.frame.h
+  });
   const bombarded = authoredBombardmentPresentation(frame, layerName, occurrence, source);
   const displayed = bombarded || source;
   const sourceAtlas = displayed.atlas;
@@ -2511,6 +2553,83 @@ function drawStaticFrame(frame, layerName, occurrence, targetContext) {
     offsetX > 0,
     layerVisibleSourceRect(layerName, sourceFrame.frame.w, sourceFrame.frame.h)
   );
+}
+
+function buildingEdgeContrastFrame(source, { layerName, masterY, renderedHeight }) {
+  if (!cityBuildingEdgeContrastApplies(layerName, source.frame)) return source;
+  if (!skySourceColorsByRow || skyMasterY === null) {
+    throw new Error("City building edge contrast rendered before its sky palette was prepared");
+  }
+  let atlasCache = buildingEdgeContrastFrameCache.get(source.atlas);
+  if (!atlasCache) {
+    atlasCache = new Map();
+    buildingEdgeContrastFrameCache.set(source.atlas, atlasCache);
+  }
+  const frame = source.frame;
+  const cacheKey = [
+    frame.id,
+    frame.frame.x,
+    frame.frame.y,
+    masterY,
+    renderedHeight
+  ].join("|");
+  if (atlasCache.has(cacheKey)) return atlasCache.get(cacheKey);
+
+  const imageData = staticFrameImageData(source);
+  const changedPixels = applyCityBuildingEdgeContrast({
+    pixels: imageData.data,
+    width: frame.frame.w,
+    height: frame.frame.h,
+    masterY,
+    renderedHeight,
+    skyMasterY,
+    skySourceColorsByRow
+  });
+  if (changedPixels === 0) {
+    atlasCache.set(cacheKey, source);
+    return source;
+  }
+  const buffer = document.createElement("canvas");
+  buffer.width = frame.frame.w;
+  buffer.height = frame.frame.h;
+  const bufferContext = buffer.getContext("2d");
+  if (!bufferContext) throw new Error(`Could not create edge-safe city building: ${frame.id}`);
+  bufferContext.imageSmoothingEnabled = false;
+  bufferContext.putImageData(imageData, 0, 0);
+  const result = Object.freeze({
+    atlas: buffer,
+    frame: Object.freeze({
+      ...frame,
+      frame: Object.freeze({ ...frame.frame, x: 0, y: 0 })
+    })
+  });
+  atlasCache.set(cacheKey, result);
+  return result;
+}
+
+function staticFrameImageData(source) {
+  if (!source?.atlas || !source?.frame?.frame) {
+    throw new Error("City static frame pixels require an atlas source");
+  }
+  const frame = source.frame;
+  const buffer = document.createElement("canvas");
+  buffer.width = frame.frame.w;
+  buffer.height = frame.frame.h;
+  const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
+  if (!bufferContext) throw new Error(`Could not read city static frame: ${frame.id}`);
+  bufferContext.imageSmoothingEnabled = false;
+  bufferContext.drawImage(
+    source.atlas,
+    frame.frame.x,
+    frame.frame.y,
+    frame.frame.w,
+    frame.frame.h,
+    0,
+    0,
+    frame.frame.w,
+    frame.frame.h
+  );
+  return bufferContext.getImageData(0, 0, frame.frame.w, frame.frame.h);
 }
 
 function regionalStaticFrame(frame, layerName) {
@@ -3752,20 +3871,7 @@ function drawPersonSprite(targetContext, {
 }
 
 function drawSceneLabels() {
-  const localizedCityLabel = renderText(state.city.label);
-  const cityLabel = localizedCityLabel.toUpperCase();
-  const cityFont = titleFontForText(cityLabel);
-  pixelText.draw(cityLabel, 9, 9, {
-    color: PIRATE_MENU_INK,
-    font: cityFont,
-    wordSpacingPx: 4
-  });
-  pixelText.draw(cityLabel, 8, 8, {
-    color: PIRATE_MENU_PAPER,
-    font: cityFont,
-    wordSpacingPx: 4
-  });
-
+  drawCityNameLabel();
   drawSetSailControl();
 
   const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
@@ -3781,6 +3887,29 @@ function drawSceneLabels() {
       font
     });
   }
+}
+
+function drawCityNameLabel() {
+  const localizedCityLabel = renderText(state.city.label);
+  const cityLabel = localizedCityLabel.toUpperCase();
+  const cityFont = titleFontForText(cityLabel);
+  const cityTitle = cityPortTitleLayout({
+    textWidth: overlayPixelText.measure(cityLabel, cityFont, { wordSpacingPx: 4 }),
+    textHeight: overlayPixelText.height(cityFont),
+    viewportWidth: canvas.width
+  });
+  overlayPixelText.draw(cityLabel, cityTitle.x + 1, cityTitle.y + 1, {
+    color: PIRATE_MENU_INK,
+    font: cityFont,
+    scale: cityTitle.scale,
+    wordSpacingPx: 4
+  });
+  overlayPixelText.draw(cityLabel, cityTitle.x, cityTitle.y, {
+    color: "#ffffff",
+    font: cityFont,
+    scale: cityTitle.scale,
+    wordSpacingPx: 4
+  });
 }
 
 function drawSetSailControl() {
@@ -3816,6 +3945,11 @@ function drawSetSailControl() {
 }
 
 function setSailControlRect() {
+  if (!sceneCameraSetSailIsRevealed({
+    parallax: state.parallax,
+    viewportWidth: canvas.width,
+    approach: state.features.approach
+  })) return null;
   const placement = docksideShipPlacement(
     state.lastRenderTimeMs ?? 0,
     PORT_SCENE_ENTITY_META.ship.depth

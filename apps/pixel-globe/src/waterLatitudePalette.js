@@ -142,7 +142,7 @@ export function nearestResurrect64Hex(r, g, b) {
 }
 
 export function darkerResurrect64Hex(sourceHex, shadeSteps = 1) {
-  if (!Number.isInteger(shadeSteps) || shadeSteps <= 0 || shadeSteps > 3) {
+  if (!Number.isInteger(shadeSteps) || shadeSteps <= 0 || shadeSteps > 8) {
     throw new Error(`Invalid Resurrect shade step count: ${shadeSteps}`);
   }
   const sourceRgb = parseHex(sourceHex);

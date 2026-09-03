@@ -100,6 +100,37 @@ export const PORT_SCENE_DOCK = Object.freeze({
   waterlineY: 572
 });
 
+export function sceneCameraDockParallax({ viewportWidth, approach }) {
+  requireLogicalDimension(viewportWidth, "camera width");
+  const bounds = sceneCameraParallaxBounds(approach);
+  const travel = PORT_SCENE_MASTER.width - viewportWidth;
+  if (travel < 0) {
+    throw new Error(`Port scene width ${viewportWidth} exceeds ${PORT_SCENE_MASTER.width}`);
+  }
+  if (travel === 0) return 0;
+  const desiredWindowX = Math.max(0, Math.min(
+    travel,
+    PORT_SCENE_DOCK.shipAccessX - viewportWidth / 2
+  ));
+  const parallax = (desiredWindowX - travel / 2) / (travel / 2);
+  return Math.max(bounds.minimum, Math.min(bounds.maximum, parallax));
+}
+
+export function sceneCameraSetSailIsRevealed({ parallax, viewportWidth, approach }) {
+  if (!Number.isFinite(parallax)) throw new Error(`Invalid Set Sail camera parallax: ${parallax}`);
+  const bounds = sceneCameraParallaxBounds(approach);
+  if (parallax < bounds.minimum || parallax > bounds.maximum) {
+    throw new Error(`Set Sail camera parallax is outside its ${approach} bounds: ${parallax}`);
+  }
+  const dockParallax = sceneCameraDockParallax({ viewportWidth, approach });
+  const westernTravel = dockParallax - bounds.minimum;
+  if (westernTravel <= 0) {
+    throw new Error(`Port scene has no western camera travel for ${approach}`);
+  }
+  const westwardProgress = (dockParallax - parallax) / westernTravel;
+  return westwardProgress >= 0.55;
+}
+
 export const PORT_SCENE_ENTITY_META = Object.freeze({
   ship: Object.freeze({
     z: 55,

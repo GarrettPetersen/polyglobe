@@ -3743,6 +3743,36 @@ test("the inn supports replacing crew without changing the ship loadout", () => 
   assert.equal(gameState.ship.crew, initialCrew - 1);
 });
 
+test("captain-led inn dialogue builds city navigation without treating the captain as port staff", () => {
+  const city = {
+    tileId: 9,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60_000,
+    character: { name: "Catalina", role: "player-captain" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "inn-drink",
+    admittedToPort: true
+  });
+
+  const view = portDialogueView(session, city, gameState, economy, [city], {
+    shipStats: stats,
+    simMinute: 120,
+    innDialogue: { speaker: "Catalina", expressionId: "neutral", text: "The ale is sound." }
+  });
+
+  assert.equal(view.speaker, "Catalina");
+  assert.ok(view.options.some(({ action }) => action.type === "open-crew-recruitment"));
+  assert.ok(view.options.some(({ action }) => action.type === "open-crew-management"));
+});
+
 test("lower loadouts require individual dismissals and support undo all", () => {
   const city = {
     tileId: 9,

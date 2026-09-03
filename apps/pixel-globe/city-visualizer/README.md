@@ -121,7 +121,9 @@ documented in `PEOPLE.md`.
 
 ## Interaction boundary
 
-The city name and hovered destination label are drawn into the logical canvas.
+The hovered destination label is drawn into the graded logical canvas. The city
+name uses the post-grade overlay in production so it remains fixed white at all
+times of day.
 Shipyard, market, item store, inn, and fortified gatehouse are pixel-mask hit
 targets. Hovering draws a one-logical-pixel yellow silhouette outline. Clicking
 opens a small stand-in dialog at the same boundary where the existing game

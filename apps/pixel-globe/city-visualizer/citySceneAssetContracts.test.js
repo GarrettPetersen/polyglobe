@@ -131,6 +131,16 @@ test("city selection is atomic and every shared image is prepared during runtime
   assert.doesNotMatch(visualizerSource, /Could not load city flag/);
 });
 
+test("the city name bypasses the graded scene and remains fixed white", () => {
+  assert.match(
+    visualizerSource,
+    /const overlayPixelText = emissiveContext[\s\S]*createCityPixelTextRenderer\(emissiveContext/
+  );
+  const title = functionSource("drawCityNameLabel", "drawSetSailControl");
+  assert.match(title, /overlayPixelText\.draw[\s\S]*color: "#ffffff"/);
+  assert.doesNotMatch(title, /PIRATE_MENU_PAPER/);
+});
+
 function readJson(relativePath) {
   return JSON.parse(readFileSync(new URL(relativePath, import.meta.url), "utf8"));
 }

@@ -1948,11 +1948,13 @@ import {
 } from "./shipyardInvestment.js";
 import { formatDisplayQuantity } from "./displayNumber.js";
 import {
+  LOCAL_SAVE_STORAGE_KEY,
   LOCAL_SAVE_MODE_FULL,
   clearLocalSave,
   readLocalSave,
   writeLocalSaveWithRecoveryAsync
 } from "./localSave.js";
+import { saveRestoreSmokeEnabled } from "./saveRestoreSmoke.js";
 import {
   migrateSavedVoyageCore,
   recoverSavedVoyageWorldClock,
@@ -3521,6 +3523,10 @@ const DEBUG_STORM_WAVE_ENABLED = new URLSearchParams(window.location.search)
   .get("debugStormWave") === "1";
 const CHART_RECOVERY_TEST_ENABLED = new URLSearchParams(window.location.search)
   .get("chartRecoveryTest") === "1";
+const SAVE_RESTORE_SMOKE_ENABLED = saveRestoreSmokeEnabled(window.location);
+if (SAVE_RESTORE_SMOKE_ENABLED && (CAPTURE_SCENARIO || PERFORMANCE_BENCHMARK)) {
+  throw new Error("Save-restore smoke mode cannot run inside capture or benchmark mode");
+}
 
 const terrainAssets = [
   "water_deep_01_01", "water_deep_01_02", "water_shallow_01", "water_shallow_02",
@@ -5016,6 +5022,13 @@ async function main() {
   playerIntroModal = CAPTURE_SCENARIO ? null : createPlayerIntroModal(playerCharacter);
   startMenu = CAPTURE_SCENARIO ? null : createStartMenuState();
   hasStartedVoyage = Boolean(CAPTURE_SCENARIO);
+  if (SAVE_RESTORE_SMOKE_ENABLED) {
+    setupThemeMusic();
+    setupSoundEffects();
+    installSaveRestoreSmokeHarness();
+    capsuleLoadingScreen.finish();
+    return;
+  }
   await ensureCharacterPortraitLoaded(playerCharacter, characterExpression(playerCharacter));
   syncShipCargoFromGameState();
   camera = northUpCamera(ship.position);
@@ -16007,6 +16020,65 @@ async function continueSavedVoyage() {
   }
 }
 
+function installSaveRestoreSmokeHarness() {
+  if (!SAVE_RESTORE_SMOKE_ENABLED) {
+    throw new Error("Save-restore smoke harness requires explicit local smoke mode");
+  }
+  if (window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__) {
+    throw new Error("Save-restore smoke harness was installed more than once");
+  }
+  let running = false;
+  window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
+    async restoreSerialized(serialized) {
+      if (running) throw new Error("A save-restore smoke run is already active");
+      if (typeof serialized !== "string" || serialized.length === 0) {
+        throw new Error("Save-restore smoke run requires a serialized local save");
+      }
+      running = true;
+      try {
+        gameStorage.setItem(LOCAL_SAVE_STORAGE_KEY, serialized);
+        localSaveResult = readLocalSave();
+        if (localSaveResult.status !== "ready") throw localSaveResult.error;
+        startMenu = createStartMenuState();
+        hasStartedVoyage = false;
+        await continueSavedVoyage();
+        if (!hasStartedVoyage || startMenu !== null) {
+          throw localSaveResult.error || new Error("Saved voyage did not reach active gameplay");
+        }
+        render(performance.now(), { allowColdCoveredWorldRender: true });
+        await waitForSaveRestoreSmokePersistence();
+        if (!chart || chart.tileCalls.length === 0) {
+          throw new Error("Restored voyage produced no chart tiles");
+        }
+        if (gameState.version !== GAME_STATE_VERSION) {
+          throw new Error(
+            `Restored voyage retained game-state version ${gameState.version}/${GAME_STATE_VERSION}`
+          );
+        }
+        return Object.freeze({
+          gameStateVersion: gameState.version,
+          shipTypeSlug: ship.stats.slug,
+          chartTileCount: chart.tileCalls.length,
+          cityCallCount: chart.cityCalls.length
+        });
+      } finally {
+        running = false;
+      }
+    }
+  });
+}
+
+async function waitForSaveRestoreSmokePersistence() {
+  const deadlineMs = performance.now() + 30_000;
+  while (localSaveWriteActive) {
+    if (performance.now() >= deadlineMs) {
+      throw new Error("Continued voyage did not finish its persistence write");
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  if (savePersistenceWarning) throw savePersistenceWarning.error;
+}
+
 function crewGenerationContextForHomePort(homePortCityId) {
   const homePort = cityById?.get(homePortCityId);
   if (!homePort) throw new Error(`Crew home port is missing from the city catalog: ${homePortCityId}`);
@@ -20460,7 +20532,6 @@ function activatePortCityDestination({ id }) {
     ensureDialoguePortraitLoaded();
     dirty = true;
   }
-  queuePortCitySceneSync();
   return entry;
 }
 

@@ -40,7 +40,9 @@ import {
   logicalSceneWindow,
   resolveCitySceneFeatures,
   sceneCameraDefaultParallax,
+  sceneCameraDockParallax,
   sceneCameraParallaxBounds,
+  sceneCameraSetSailIsRevealed,
   sceneEdgeScrollVelocity,
   sceneInertialPanTargetVelocity,
   scenePanParallaxDelta
@@ -216,6 +218,45 @@ test("coastal views can pan into the authored western ocean while river bounds r
 
   const riverCanonicalLeft = logicalSceneWindow({ width: 455, height: 256, parallax: -1, approach: "river" });
   assert.equal(riverCanonicalLeft.x, PORT_SCENE_MASTER.leftBankX);
+});
+
+test("city scenes open on the player ship's connection to the dock", () => {
+  for (const viewportWidth of [256, 455, 910]) {
+    for (const approach of ["ocean", "river", "lake"]) {
+      const parallax = sceneCameraDockParallax({ viewportWidth, approach });
+      const window = logicalSceneWindow({
+        width: viewportWidth,
+        height: 256,
+        parallax,
+        depth: PORT_SCENE_ENTITY_META.ship.depth,
+        approach
+      });
+      assert.equal(
+        Math.round(PORT_SCENE_DOCK.shipAccessX - window.x),
+        Math.round(viewportWidth / 2)
+      );
+      assert.ok(parallax > sceneCameraParallaxBounds(approach).minimum);
+    }
+  }
+});
+
+test("Set Sail stays hidden at the dock and appears after deliberate westward travel", () => {
+  for (const viewportWidth of [256, 455, 910]) {
+    for (const approach of ["ocean", "river", "lake"]) {
+      const dockParallax = sceneCameraDockParallax({ viewportWidth, approach });
+      const { minimum } = sceneCameraParallaxBounds(approach);
+      assert.equal(sceneCameraSetSailIsRevealed({
+        parallax: dockParallax,
+        viewportWidth,
+        approach
+      }), false);
+      assert.equal(sceneCameraSetSailIsRevealed({
+        parallax: minimum,
+        viewportWidth,
+        approach
+      }), true);
+    }
+  }
 });
 
 test("RTS camera scrolls only at the edges with restrained start, stop, and reversal inertia", () => {

@@ -8,6 +8,24 @@ import {
 
 export const CITY_PIXEL_FONT_SMALL_8 = '8px "Silkscreen", monospace';
 export const CITY_PIXEL_FONT_TITLE_8 = '8px "Pixel Pirate", monospace';
+export const CITY_PORT_TITLE_Y = 14;
+
+export function cityPortTitleLayout({ textWidth, textHeight, viewportWidth }) {
+  for (const [label, value] of Object.entries({ textWidth, textHeight, viewportWidth })) {
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new Error(`Invalid city port title ${label}: ${value}`);
+    }
+  }
+  const horizontalPadding = 12;
+  const scale = textWidth * 2 <= viewportWidth - horizontalPadding * 2 ? 2 : 1;
+  return Object.freeze({
+    x: Math.round((viewportWidth - textWidth * scale) / 2),
+    y: CITY_PORT_TITLE_Y,
+    width: textWidth * scale,
+    height: textHeight * scale,
+    scale
+  });
+}
 
 const RASTER_CACHE_LIMIT = 128;
 

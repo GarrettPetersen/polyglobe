@@ -353,6 +353,7 @@ import {
   resolveRestrictedIllicitMarketAttempt
 } from "./tradePolicy.js";
 const TRADE_TIP_DISTANCE_SCALE_KM = 1500;
+const DEFAULT_EXPEDITION_SPONSOR_LABEL = "expedition sponsor";
 
 const DRUNK_PORT_EXCHANGES = Object.freeze([
   Object.freeze({
@@ -1693,7 +1694,7 @@ export function portCityNavigationView(session, city, gameState, economy, portCi
   if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
   if (session.cityId !== city?.cityId) throw new Error("Port city navigation city does not match session");
   return portCityNavigationModel(
-    rootView(session, city, gameState, economy, portCities, context),
+    rootNavigationView(session, city, gameState, economy, portCities, context),
     portCityServiceProfile(city)
   );
 }
@@ -4586,6 +4587,14 @@ function disguiseFailureView(city, gameState, context) {
 }
 
 function rootView(session, city, gameState, economy, portCities, context) {
+  return {
+    speaker: speakerName(city),
+    expressionId: feedbackExpressionId(session.feedback),
+    ...rootNavigationView(session, city, gameState, economy, portCities, context)
+  };
+}
+
+function rootNavigationView(session, city, gameState, economy, portCities, context) {
   const market = portEconomySummary(economy, city);
   const cityServices = portCityServiceProfile(city);
   const pirateHideout = city.isPirateHideout === true;
@@ -4641,12 +4650,7 @@ function rootView(session, city, gameState, economy, portCities, context) {
           : { type: "node", nodeId: "shipyard-investment-offer" }
       )]
       : []),
-    ...(!pirateHideout && (!session.disguisedEntry || canCompleteQuest)
-      ? [option(session.disguisedEntry ? "Complete current job" : "Ask about work", {
-        type: "node",
-        nodeId: "quest"
-      })]
-      : []),
+    ...ordinaryInnRootOptions(session, { pirateHideout, canCompleteQuest }),
     ...(capturePetitions.length > 0 && !session.disguisedEntry
       ? [option("Petition for a capture warrant", {
           type: "node",
@@ -4657,57 +4661,10 @@ function rootView(session, city, gameState, economy, portCities, context) {
       ? [option("Ask about the garrison", { type: "node", nodeId: "garrison" })]
       : [])
   ];
-  if (vikingLongshipEnthusiastAtPort(gameState, city) && !session.disguisedEntry) {
-    options.splice(4, 0, option("Speak with the historical enthusiast", {
-      type: "node",
-      nodeId: "viking-longship"
-    }));
+  for (const entry of specialInnRootOptions(session, city, gameState, context)) {
+    options.splice(4, 0, entry);
   }
-  if (japaneseMatchlockQuestState(gameState, city) && !session.disguisedEntry) {
-    options.splice(4, 0, option("Speak with the gunsmith", {
-      type: "node",
-      nodeId: "japanese-matchlocks"
-    }));
-  }
-  if (caribbeanGingerQuestState(gameState, city) && !session.disguisedEntry) {
-    options.splice(4, 0, option("Speak with the planter", {
-      type: "node",
-      nodeId: "caribbean-ginger"
-    }));
-  }
-  const chefQuest = chefQuestState(gameState, city);
-  if (chefQuest && chefQuest.stage !== CHEF_QUEST_STAGE_RECRUITED && !session.disguisedEntry) {
-    options.splice(4, 0, option("Speak with the cook", {
-      type: "node",
-      nodeId: "chef-quest"
-    }));
-  }
-  if (isColonizationQuestOrigin(gameState.memory.colonization, city) && !session.disguisedEntry) {
-    const sponsorRole = colonizationQuestView(gameState).history?.sponsorRole || "expedition sponsor";
-    options.splice(4, 0, option(`Speak with the ${sponsorRole}`, {
-      type: "node",
-      nodeId: "colonization"
-    }));
-  }
-  if (!session.disguisedEntry && conquistadorQuestShouldAppearAtCity(
-    gameState.memory.quests.conquistador,
-    city,
-    context.portCities
-  )) {
-    options.splice(4, 0, option("Speak with the adelantado", {
-      type: "node",
-      nodeId: "conquistador"
-    }));
-  }
-  const passengerOffers = Array.isArray(context.passengerOffers)
-    ? context.passengerOffers
-    : context.passengerOffer ? [context.passengerOffer] : [];
-  if (passengerOffers.length > 0 && !session.disguisedEntry && !pirateHideout) {
-    options.splice(2, 0, ...passengerOffers.map((quest) => option(
-      `Speak with ${passengerName(quest)}`,
-      { type: "open-passenger", quest }
-    )));
-  }
+  options.splice(2, 0, ...passengerInnRootOptions(session, context, pirateHideout));
   if (!session.disguisedEntry && letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
     options.push(option("Letter of marque", { type: "node", nodeId: "marque" }));
   }
@@ -4773,8 +4730,6 @@ function rootView(session, city, gameState, economy, portCities, context) {
     ? `Your ${tradeAccess.policy.permitLabel} is in order. The customs officers admit your cargo. Market specie: ${market.specie} db.`
     : `What business brings you to port? Market specie: ${market.specie} db.`;
   return {
-    speaker: speakerName(city),
-    expressionId: feedbackExpressionId(session.feedback),
     text: customsNotice ? `${customsNotice} ${statusText}` : statusText,
     feedback: session.feedback,
     options
@@ -4829,26 +4784,95 @@ function innDrinkView(session, city, gameState, economy, portCities, context) {
       typeof dialogue.text !== "string" || typeof dialogue.expressionId !== "string") {
     throw new Error("Inn dialogue context is missing");
   }
-  const inn = portCityLocation(
-    portCityNavigationView(session, city, gameState, economy, portCities, context),
-    PORT_CITY_LOCATION.INN
-  );
+  const pirateHideout = city.isPirateHideout === true;
+  const activeQuest = gameState.memory.quests?.active || null;
+  const canCompleteQuest = activeQuest?.destinationCityId === city.cityId;
+  const innRootOptions = [
+    ...passengerInnRootOptions(session, context, pirateHideout),
+    ...specialInnRootOptions(session, city, gameState, context).reverse(),
+    ...ordinaryInnRootOptions(session, { pirateHideout, canCompleteQuest })
+  ];
   return {
     speaker: dialogue.speaker,
     expressionId: dialogue.expressionId,
     text: dialogue.text,
     feedback: session.feedback,
     options: [
-      ...inn.actions.map((entry) => option(entry.label, entry.action, {
-        detail: entry.detail,
-        disabled: entry.disabled,
-        disabledReason: entry.disabledReason
-      })),
+      ...innRootOptions,
       option("Hire crew", { type: "open-crew-recruitment" }),
       option("Manage crew", { type: "open-crew-management" }),
       option("Back to city", { type: "node", nodeId: "root" })
     ]
   };
+}
+
+function ordinaryInnRootOptions(session, { pirateHideout, canCompleteQuest }) {
+  return !pirateHideout && (!session.disguisedEntry || canCompleteQuest)
+    ? [option(session.disguisedEntry ? "Complete current job" : "Ask about work", {
+        type: "node",
+        nodeId: "quest"
+      })]
+    : [];
+}
+
+function passengerInnRootOptions(session, context, pirateHideout) {
+  const passengerOffers = Array.isArray(context.passengerOffers)
+    ? context.passengerOffers
+    : context.passengerOffer ? [context.passengerOffer] : [];
+  if (passengerOffers.length === 0 || session.disguisedEntry || pirateHideout) return [];
+  return passengerOffers.map((quest) => option(
+    `Speak with ${passengerName(quest)}`,
+    { type: "open-passenger", quest }
+  ));
+}
+
+function specialInnRootOptions(session, city, gameState, context) {
+  if (session.disguisedEntry) return [];
+  const options = [];
+  if (vikingLongshipEnthusiastAtPort(gameState, city)) {
+    options.push(option("Speak with the historical enthusiast", {
+      type: "node",
+      nodeId: "viking-longship"
+    }));
+  }
+  if (japaneseMatchlockQuestState(gameState, city)) {
+    options.push(option("Speak with the gunsmith", {
+      type: "node",
+      nodeId: "japanese-matchlocks"
+    }));
+  }
+  if (caribbeanGingerQuestState(gameState, city)) {
+    options.push(option("Speak with the planter", {
+      type: "node",
+      nodeId: "caribbean-ginger"
+    }));
+  }
+  const chefQuest = chefQuestState(gameState, city);
+  if (chefQuest && chefQuest.stage !== CHEF_QUEST_STAGE_RECRUITED) {
+    options.push(option("Speak with the cook", {
+      type: "node",
+      nodeId: "chef-quest"
+    }));
+  }
+  if (isColonizationQuestOrigin(gameState.memory.colonization, city)) {
+    const sponsorRoleLabel = colonizationQuestView(gameState).history?.sponsorRole ||
+      DEFAULT_EXPEDITION_SPONSOR_LABEL;
+    options.push(option(`Speak with the ${sponsorRoleLabel}`, {
+      type: "node",
+      nodeId: "colonization"
+    }));
+  }
+  if (conquistadorQuestShouldAppearAtCity(
+    gameState.memory.quests.conquistador,
+    city,
+    context.portCities
+  )) {
+    options.push(option("Speak with the adelantado", {
+      type: "node",
+      nodeId: "conquistador"
+    }));
+  }
+  return options;
 }
 
 function crewRecruitmentView(session, city, gameState) {

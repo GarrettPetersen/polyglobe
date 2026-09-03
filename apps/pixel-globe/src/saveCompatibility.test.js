@@ -45,7 +45,7 @@ assert.ok(
 );
 
 for (const fixtureName of FIXTURE_FILES) {
-  test(`released save remains compatible: ${fixtureName}`, () => {
+  test(`released save migrates through the persistence boundary: ${fixtureName}`, () => {
     const serialized = readFileSync(new URL(fixtureName, FIXTURE_DIRECTORY), "utf8");
     const storedVersion = JSON.parse(serialized).version;
     const storage = memoryStorage(serialized);
