@@ -6,6 +6,7 @@ import {
 import { cityArchitectureProfile, cityServiceProfile } from "./cityArchitecture.js";
 import { cityQuayCargoCount } from "./cityQuayCargo.js";
 import { cityGroundPainterZ } from "./cityPainterOrder.js";
+import { CITY_HORIZON_LANDMARK, cityHasHorizonLandmark } from "./cityHorizonLandmarks.js";
 
 export const PORT_SCENE_MASTER = Object.freeze({
   width: 1365,
@@ -263,6 +264,7 @@ const RAISED_HORIZON_LAYERS = new Set([
 ]);
 
 const RAISED_DISTANT_TERRAIN_LAYERS = new Set([
+  "Pyramid",
   "Distant Hills",
   "Rocky Hills",
   "Distant Forest",
@@ -280,6 +282,13 @@ const LAYER_META = new Map([
   ["Horizon Mountains Left Bank", layerMeta(5, PORT_SCENE_DEPTH.horizon, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankHorizonOffsetY)],
   ["Distant Land", layerMeta(14, PORT_SCENE_DEPTH.horizon)],
   ["Distant Land Left Bank", layerMeta(14, PORT_SCENE_DEPTH.horizon)],
+  ["Pyramid", layerMeta(
+    14.5,
+    PORT_SCENE_DEPTH.distant,
+    0,
+    0,
+    PORT_SCENE_CAMERA.distantParallaxAnchor
+  )],
   ["Distant Hills", distantLayerMeta(15)],
   ["Distant Hills Left Bank", leftBankLayerMeta(15, PORT_SCENE_DEPTH.shoreline, PORT_SCENE_RIVER.leftBankDistantInsetX, PORT_SCENE_RIVER.leftBankDistantOffsetY)],
   ["Rocky Hills", distantLayerMeta(15)],
@@ -646,6 +655,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     leftTreeCover: Boolean(city.terrain?.leftTreeCover ?? city.terrain?.left === "forest"),
     rightTreeCover: Boolean(city.terrain?.rightTreeCover ?? city.terrain?.right === "forest"),
     backgroundCity: cityBackgroundEnabled(city),
+    pyramid: cityHasHorizonLandmark(city, CITY_HORIZON_LANDMARK.PYRAMID),
     church: !primitiveSettlement && Boolean(city.religiousLandmarks?.includes("church")),
     mosque: !primitiveSettlement && Boolean(city.religiousLandmarks?.includes("mosque")),
     primitiveSettlement,
@@ -678,6 +688,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   for (const key of [
     "leftTreeCover",
     "rightTreeCover",
+    "pyramid",
     "primitiveSettlement",
     "inn",
     "store",
@@ -708,6 +719,7 @@ export function activePortSceneLayers(features) {
       layers.add(BACKGROUND_CITY_UNDERLAY_LAYERS[features.leftTerrain]);
     }
   }
+  if (features.pyramid) layers.add("Pyramid");
   layers.add(DISTANT_TERRAIN_LAYERS[features.rightDistantTerrain]);
   layers.add(BETWEEN_BUILDING_LAYERS[features.rightTerrain]);
   layers.add(MIDGROUND_LAYERS[features.rightTerrain]);

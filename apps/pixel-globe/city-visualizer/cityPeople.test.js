@@ -40,7 +40,7 @@ const manifest = validateCityPeopleManifest(JSON.parse(await readFile(new URL(
 const appearanceById = new Map(CITY_PERSON_APPEARANCES.map((entry) => [entry.id, entry]));
 
 test("every port has an explicit reproducible population profile", () => {
-  assert.equal(catalog.version, 5);
+  assert.equal(catalog.version, 6);
   assert.equal(catalog.cityCount, catalog.cities.length);
   for (const city of catalog.cities) {
     assert.equal(city.populationProfileId, cityPopulationProfileId(city), city.id);

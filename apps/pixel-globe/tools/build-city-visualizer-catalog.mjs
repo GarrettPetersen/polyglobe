@@ -30,6 +30,7 @@ import {
   religionCandidatesForHome
 } from "../src/characterReligion.js";
 import { cityBackgroundEnabled } from "../city-visualizer/cityBackground.js";
+import { cityHorizonLandmarks } from "../city-visualizer/cityHorizonLandmarks.js";
 import {
   deriveCityArchitectureProfile,
   deriveCityServiceProfile
@@ -42,7 +43,7 @@ const NEIGHBORHOOD_RINGS = 5;
 const MAX_APPROACH_SEARCH_RINGS = 18;
 const EARTH_RADIUS_KM = 6371;
 const CITY_VISUALIZER_FORMAT = "marque-city-visualizer-catalog";
-const CITY_VISUALIZER_VERSION = 5;
+const CITY_VISUALIZER_VERSION = 6;
 const TREE_COVER_RENDER_FAMILIES = new Set([
   TERRAIN_RENDER_FAMILY.BROADLEAF,
   TERRAIN_RENDER_FAMILY.CONIFER,
@@ -169,6 +170,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   const builtUpBothBanks = approach === "river" && DEVELOPED_BOTH_BANKS_CITY_IDS.has(city.cityId);
   const architecture = deriveCityArchitectureProfile(city);
   const landmarks = religiousLandmarks(city, architecture);
+  const horizonLandmarks = cityHorizonLandmarks(city);
   const services = deriveCityServiceProfile({ ...city, architecture });
   const populationProfileId = cityPopulationProfileId({
     cityId: city.cityId,
@@ -195,6 +197,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
     services,
     capital: Boolean(city.declaredCapitalFactionId),
     religiousLandmarks: landmarks,
+    horizonLandmarks,
     populationProfileId,
     backgroundCity: backgroundCityProfile(city, landmarks),
     approach,
@@ -217,6 +220,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
       dock: dockRule(city, dock, approach),
       fortification: fortification.reason,
       mountains: mountainVisibility.reason,
+      horizonLandmarks: "distance-bounded visibility from canonical world landmarks",
       terrain: `dominant land cover within ${NEIGHBORHOOD_RINGS} game-tile rings, split across the approach axis`
     })
   });

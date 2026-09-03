@@ -220,8 +220,18 @@ const STANDALONE_BUILDING_LAYERS = Object.freeze([
   "Mosque",
   "Japan Pagoda",
   "China Pagoda",
+  "Pyramid",
   ...Object.keys(REGIONAL_BUILDING_LAYERS)
 ]);
+
+const HORIZON_LANDMARK_BUILDING_LAYERS = Object.freeze({
+  Pyramid: Object.freeze({
+    sceneX: 705,
+    sceneY: 348,
+    width: 200,
+    height: 102
+  })
+});
 
 const AUTHORED_LAYER_ORDER = Object.freeze([
   "Sky",
@@ -239,6 +249,7 @@ const AUTHORED_LAYER_ORDER = Object.freeze([
   "Rocky Hills Left Bank",
   "Distant Forest",
   "Distant Forest Left Bank",
+  "Pyramid",
   "Distant Desert",
   "Distant Desert Left Bank",
   "Distant Plains",
@@ -324,7 +335,11 @@ const staticFrames = staticSheet.frames.map((frame, index) => ({
   ...portableFrame(frame)
 }));
 const staticLayerNames = staticFrames.map((frame) => frame.layer);
-const expectedStaticNames = AUTHORED_LAYER_ORDER.filter((name) => name !== "Waves" && name !== "Surf");
+const expectedStaticNames = AUTHORED_LAYER_ORDER.filter((name) => (
+  name !== "Waves" &&
+  name !== "Surf" &&
+  !Object.hasOwn(HORIZON_LANDMARK_BUILDING_LAYERS, name)
+));
 if (JSON.stringify(staticLayerNames) !== JSON.stringify(expectedStaticNames)) {
   throw new Error(
     "Aseprite layer order changed; update the city visualizer authored layer contract before exporting"
@@ -797,6 +812,7 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
     for (const standaloneFrame of appendedFrames) {
       const regional = REGIONAL_BUILDING_LAYERS[standaloneFrame.layer];
       const foreground = BUILDING_FOREGROUND_LAYERS[standaloneFrame.layer];
+      const horizonLandmark = HORIZON_LANDMARK_BUILDING_LAYERS[standaloneFrame.layer];
       const targetFrame = foreground
         ? staticFrames.find((frame) => frame.layer === foreground.targetLayer)
         : null;
@@ -809,6 +825,8 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
             sourceBaseFrame,
             targetFrame
           })
+        : horizonLandmark
+        ? horizonLandmarkSpriteSourceSize(standaloneFrame, horizonLandmark)
         : regional
         ? regionalBuildingSpriteSourceSize({
             regionalFrame: standaloneFrame,
@@ -841,6 +859,8 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
         spriteSourceSize: canonicalSpriteSourceSize,
         sourceSize: foreground
           ? targetFrame.sourceSize
+          : horizonLandmark
+          ? staticFrames[0].sourceSize
           : regional
           ? staticFrames.find((frame) => frame.layer === regional.regionalOf).sourceSize
           : standaloneFrame.sourceSize,
@@ -861,6 +881,20 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
   } finally {
     await rm(temporaryRoot, { recursive: true, force: true });
   }
+}
+
+function horizonLandmarkSpriteSourceSize(frame, placement) {
+  if (frame.frame.w !== placement.width || frame.frame.h !== placement.height) {
+    throw new Error(
+      `${frame.layer} must remain ${placement.width}x${placement.height} to preserve its horizon placement`
+    );
+  }
+  return {
+    x: placement.sceneX,
+    y: placement.sceneY,
+    w: frame.frame.w,
+    h: frame.frame.h
+  };
 }
 
 function foregroundBuildingSpriteSourceSize({ foregroundFrame, sourceBaseFrame, targetFrame }) {

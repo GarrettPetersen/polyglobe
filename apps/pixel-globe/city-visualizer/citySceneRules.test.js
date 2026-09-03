@@ -15,6 +15,12 @@ import {
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import { cityDestinationById } from "./cityDestinations.js";
 import {
+  CITY_HORIZON_LANDMARK,
+  CITY_PYRAMID_VISIBILITY_RADIUS_KM,
+  cityHasHorizonLandmark,
+  cityHorizonLandmarks
+} from "./cityHorizonLandmarks.js";
+import {
   BACKGROUND_CITY_UNDERLAY_LAYERS,
   PORT_SCENE_MASTER,
   PORT_SCENE_CAMERA,
@@ -83,6 +89,7 @@ const CITY = Object.freeze({
   fortified: true,
   settlementType: "city",
   population: 50000,
+  horizonLandmarks: [],
   mountains: { left: true, right: false },
   terrain: {
     left: "forest",
@@ -1026,7 +1033,7 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const london = cityById.get("london|united kingdom");
   const zaragoza = cityById.get("zaragoza|spain");
-  assert.equal(CITY_VISUALIZER_CATALOG.version, 5);
+  assert.equal(CITY_VISUALIZER_CATALOG.version, 6);
   assert.equal(london?.terrain?.leftTreeCover, true);
   assert.equal(zaragoza?.terrain?.left, "grass");
   assert.equal(
@@ -1038,6 +1045,63 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
     typeof city.terrain?.leftTreeCover === "boolean" &&
     typeof city.terrain?.rightTreeCover === "boolean"
   )));
+});
+
+test("only cities within the canonical pyramid horizon receive the distant silhouette", () => {
+  const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
+  const cairo = cityById.get("cairo|egypt");
+  const alexandria = cityById.get("alexandria|egypt");
+  const dongola = cityById.get("dongola|sudan");
+
+  assert.deepEqual(cairo?.horizonLandmarks, [CITY_HORIZON_LANDMARK.PYRAMID]);
+  assert.deepEqual(alexandria?.horizonLandmarks, []);
+  assert.deepEqual(dongola?.horizonLandmarks, []);
+  assert.deepEqual(
+    cityHorizonLandmarks({ cityId: "future-meroe-port", lat: 16.95, lon: 33.74 }),
+    [CITY_HORIZON_LANDMARK.PYRAMID]
+  );
+  assert.equal(CITY_PYRAMID_VISIBILITY_RADIUS_KM, 50);
+  assert.throws(
+    () => cityHorizonLandmarks({ cityId: "missing-position" }),
+    /finite coordinates: missing-position/
+  );
+  assert.throws(
+    () => cityHasHorizonLandmark({ cityId: "missing-list" }, CITY_HORIZON_LANDMARK.PYRAMID),
+    /no explicit horizon landmark list: missing-list/
+  );
+  assert.throws(
+    () => cityHasHorizonLandmark(
+      { cityId: "unknown-landmark", horizonLandmarks: ["obelisk"] },
+      CITY_HORIZON_LANDMARK.PYRAMID
+    ),
+    /unknown horizon landmark obelisk: unknown-landmark/
+  );
+
+  const cairoFeatures = resolveCitySceneFeatures(cairo);
+  const alexandriaFeatures = resolveCitySceneFeatures(alexandria);
+  assert.equal(cairoFeatures.pyramid, true);
+  assert.equal(alexandriaFeatures.pyramid, false);
+  assert.equal(activePortSceneLayers(cairoFeatures).has("Pyramid"), true);
+  assert.equal(activePortSceneLayers(alexandriaFeatures).has("Pyramid"), false);
+  assert.ok(layerSceneZ("Pyramid") < layerSceneZ("Distant Desert"));
+  assert.ok(layerParallaxDepth("Pyramid") < layerParallaxDepth("Distant Desert"));
+  assert.equal(
+    layerSceneOffsetY("Pyramid", 0, "river"),
+    layerSceneOffsetY("Distant Desert", 0, "river")
+  );
+
+  const pyramidFrame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === "Pyramid");
+  const desertFrame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === "Distant Desert");
+  assert.deepEqual(pyramidFrame?.spriteSourceSize, { x: 705, y: 348, w: 200, h: 102 });
+  assert.ok(
+    CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Pyramid") <
+      CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Distant Desert")
+  );
+  assert.ok(
+    pyramidFrame.spriteSourceSize.y + pyramidFrame.spriteSourceSize.h >
+      desertFrame.spriteSourceSize.y,
+    "the distant desert must occlude the base of the pyramid"
+  );
 });
 
 test("every future sailing colony has a baked city scene", () => {
