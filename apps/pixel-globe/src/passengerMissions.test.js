@@ -42,10 +42,10 @@ import {
   withForeignSettlements1522
 } from "./foreignSettlements.js";
 import {
-  createBirthdayMemory,
-  observeAboardBirthdays,
-  pendingBirthdayDialogueLine
-} from "./birthdayEvents.js";
+  createAboardCalendarMemory,
+  observeAboardCalendarEvents,
+  pendingAboardCalendarDialogueLine
+} from "./aboardCalendarEvents.js";
 import { characterWithBiography } from "./characterBiography.js";
 import { gameStatePerkTotals } from "./playerPerks.js";
 
@@ -429,14 +429,14 @@ test("one passenger and one package delivery can travel aboard together", () => 
     religionId: "roman-catholic",
     birthDate: { year: 1492, month: 7, day: 10 }
   });
-  const birthdays = createBirthdayMemory();
-  observeAboardBirthdays(
-    birthdays,
+  const aboardCalendar = createAboardCalendarMemory();
+  observeAboardCalendarEvents(
+    aboardCalendar,
     [captain, activeNamedTravelMission(state).character],
     { year: 1522, month: 7, day: 10 }
   );
-  assert.equal(pendingBirthdayDialogueLine(
-    birthdays,
+  assert.equal(pendingAboardCalendarDialogueLine(
+    aboardCalendar,
     [captain, activeNamedTravelMission(state).character]
   ).character.id, passengerCharacter.id);
 

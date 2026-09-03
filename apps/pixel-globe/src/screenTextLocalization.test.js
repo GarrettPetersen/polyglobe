@@ -58,6 +58,13 @@ test("prose-form ship labels retain their localized vessel names", () => {
   }
 });
 
+test("community port offices are localized inside generated speaker names", () => {
+  const source = "Te Rongo, island chief of Tarawa Village";
+  for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
+    assert.notEqual(localizeText(language, source), source, language);
+  }
+});
+
 test("normal game text cannot be written to the screen in English-only form", () => {
   for (const { id: language } of SUPPORTED_LANGUAGES.filter(({ id }) => id !== LANGUAGE_ENGLISH)) {
     const catalog = screenTextTranslationCatalog(language);

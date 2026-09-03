@@ -6,12 +6,14 @@ import { responsiveLogicalViewport } from "../src/responsiveViewport.js";
 import { SHIP_STATS } from "../src/shipStats.js";
 import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import { pixelFontSizePx } from "../src/pixelText.js";
+import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import {
   CITY_PIXEL_FONT_SMALL_8,
   CITY_PIXEL_FONT_TITLE_8
 } from "./cityPixelText.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
+import { cityDestinationById } from "./cityDestinations.js";
 import {
   BACKGROUND_CITY_UNDERLAY_LAYERS,
   PORT_SCENE_MASTER,
@@ -26,6 +28,7 @@ import {
   activePortSceneLayers,
   advanceSceneParallax,
   advanceSceneScrollVelocity,
+  cityFrameHitMaskContainsPoint,
   citySetSailOceanRect,
   cityStaticSceneCacheAllowed,
   docksideShipSideAnchor,
@@ -151,6 +154,10 @@ test("persistent city destination labels share the production runtime and warp b
   );
   assert.match(
     VISUALIZER_MAIN_SOURCE,
+    /function activateDestination[\s\S]*state\.pointer = null;[\s\S]*state\.cameraVelocity = 0;[\s\S]*state\.cameraPanTarget = null;[\s\S]*onDestination\(activation\)/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
     /pointerOverDestinationLabel[\s\S]*state\.pointer && !pointerOverDestinationLabel/
   );
 });
@@ -201,15 +208,52 @@ test("standalone visualizer controls and destination copy stay outside the produ
 });
 
 test("the shipyard highlight excludes inert dock layers and the player ship owns a yellow outline", () => {
+  const shipyard = cityDestinationById(PORT_CITY_LOCATION.SHIPYARD);
+  assert.deepEqual(shipyard.layers, ["Shipyard"]);
+  assert.equal(shipyard.requiredFeature, "shipyard");
+  assert.match(VISUALIZER_MAIN_SOURCE, /shipOutline: tintedImageCanvas\(shipImage, "#ffe55c"\)/);
+  assert.match(VISUALIZER_MAIN_SOURCE, /const SHIPYARD_BUILDING_HIT_PADDING_PX = 4/);
   assert.match(
     VISUALIZER_MAIN_SOURCE,
-    /id: PORT_CITY_LOCATION\.SHIPYARD,[\s\S]*?layers: Object\.freeze\(\["Shipyard"\]\)/
+    /destination\.id === PORT_CITY_LOCATION\.SHIPYARD[\s\S]*SHIPYARD_BUILDING_HIT_PADDING_PX/
   );
-  assert.doesNotMatch(
-    VISUALIZER_MAIN_SOURCE,
-    /id: PORT_CITY_LOCATION\.SHIPYARD,[\s\S]*?layers: Object\.freeze\(\[[^\]]*"(?:Dock|Stone Dock)"/
-  );
-  assert.match(VISUALIZER_MAIN_SOURCE, /shipOutline: tintedImageCanvas\(shipImage, "#ffe55c"\)/);
+});
+
+test("standalone destinations expose services only when the current city provides them", () => {
+  assert.equal(cityDestinationById(PORT_CITY_LOCATION.SHIPYARD).requiredFeature, "shipyard");
+  assert.equal(cityDestinationById(PORT_CITY_LOCATION.MARKET).requiredFeature, "market");
+  assert.equal(cityDestinationById(PORT_CITY_LOCATION.EQUIPMENT).requiredFeature, "store");
+  assert.equal(cityDestinationById(PORT_CITY_LOCATION.INN).requiredFeature, "inn");
+});
+
+test("porous shipyard boards remain clickable across small transparent gaps", () => {
+  const alpha = new Uint8Array(9 * 5);
+  alpha[1 + 2 * 9] = 255;
+  alpha[7 + 2 * 9] = 255;
+  assert.equal(cityFrameHitMaskContainsPoint({
+    alpha,
+    width: 9,
+    height: 5,
+    x: 4,
+    y: 2,
+    paddingPx: 1
+  }), false);
+  assert.equal(cityFrameHitMaskContainsPoint({
+    alpha,
+    width: 9,
+    height: 5,
+    x: 4,
+    y: 2,
+    paddingPx: 4
+  }), true);
+  assert.equal(cityFrameHitMaskContainsPoint({
+    alpha,
+    width: 9,
+    height: 5,
+    x: 13,
+    y: 2,
+    paddingPx: 4
+  }), false);
 });
 
 test("static regional buildings emit smoke only when their displayed sprite has a chimney", () => {
@@ -815,6 +859,14 @@ test("port-assault lanes participate in city ground painter order", () => {
   assert.throws(() => cityPortAssaultLanePainterZ(-1), /port-assault lane/);
   assert.throws(() => cityPortAssaultLanePainterZ(4), /port-assault lane/);
   assert.match(VISUALIZER_MAIN_SOURCE, /kind: "port-assault",\s+lane,\s+z: cityPortAssaultLanePainterZ\(lane\)/);
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /if \(state\.assaultPresentation\) \{[\s\S]*kind: "port-assault"[\s\S]*\} else \{[\s\S]*kind: "npc"/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /assaultWasActive !== \(presentation !== null\)\) rebuildCitySceneRenderPlan\(\)/
+  );
 });
 
 test("duplicate market layers can occupy distinct authored rows", () => {

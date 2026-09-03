@@ -5,6 +5,12 @@ import {
   visualPresentationPoint
 } from "./visualPresentation.js";
 
+// The generic underwater shader shares one phase across every submitted sprite.
+// On a slow, mostly submerged whale its one-pixel row displacement reads as the
+// whole animal snapping sideways in unison with every other whale. Whale motion
+// comes from position interpolation instead; keep its rendered silhouette stable.
+export const WHALE_SUBMERGED_REFRACTION_PX = 0;
+
 export function retargetWhaleVisualPresentation(state, {
   whaleId,
   coordinateSpace,

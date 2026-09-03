@@ -194,12 +194,12 @@ import {
 } from "./characterBiography.js";
 import { characterReligionProfile } from "./characterReligion.js";
 import {
-  birthdayObservationNeeded,
-  birthdayCharactersForAboardEntries,
-  consumeBirthdayDialogueLine,
-  observeAboardBirthdays,
-  pendingBirthdayDialogueLine
-} from "./birthdayEvents.js";
+  aboardCalendarCharactersForEntries,
+  aboardCalendarObservationNeeded,
+  consumeAboardCalendarDialogueLine,
+  observeAboardCalendarEvents,
+  pendingAboardCalendarDialogueLine
+} from "./aboardCalendarEvents.js";
 import {
   discoveriesMenuHeaderLayout,
   discoveriesMenuListLayout
@@ -848,6 +848,7 @@ import {
   visualPresentationPoint
 } from "./visualPresentation.js";
 import {
+  WHALE_SUBMERGED_REFRACTION_PX,
   retargetWhaleVisualPresentation,
   whaleVisualPresentationIsActive,
   whaleVisualPresentationPoint
@@ -7364,7 +7365,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
   rightCharacter = null
 } = {}) {
   if (!character) throw new Error("Character alert requires a character");
-  if (!["alert", "birthday", "sequence", "choice"].includes(kind)) {
+  if (!["alert", "aboard-calendar", "sequence", "choice"].includes(kind)) {
     throw new Error(`Unknown character alert kind: ${kind}`);
   }
   if (typeof buttonLabel !== "string" || buttonLabel.trim() === "") {
@@ -9337,7 +9338,9 @@ function closeCaptainAlertModal() {
   captainAlertModal = null;
   keys.clear();
   clearPointerSteering();
-  if (closedKind === "birthday") consumeBirthdayDialogueLine(gameState.memory.birthdays);
+  if (closedKind === "aboard-calendar") {
+    consumeAboardCalendarDialogueLine(gameState.memory.aboardCalendar);
+  }
   if (closedKind === "sequence") {
     if (presentNextCharacterAlertSequenceStep()) return;
     const completion = characterAlertSequenceCompletion;
@@ -9351,7 +9354,7 @@ function closeCaptainAlertModal() {
     saveVoyageNow("left automatic quest site");
   }
   if (presentPendingNamedCrewDeathNotice()) return;
-  if (presentPendingBirthdayDialogue()) return;
+  if (presentPendingAboardCalendarDialogue()) return;
   if (continuePortArrivalDialogues()) return;
   resumeShipAfterOverlayIfReady();
   dirty = true;
@@ -27428,7 +27431,7 @@ function spawnWhaleKillEffect(whale, nowMs) {
   if (!call) throw new Error(`Cannot animate an off-screen whale killing blow: ${whale.id}`);
   whaleKillEffects.push(createWhaleKillEffect({
     id: whale.id,
-    pixels: whaleRenderedPixels(call, nowMs),
+    pixels: whaleRenderedPixels(call),
     centerX: call.x,
     centerY: call.y,
     startedAtMs: nowMs,
@@ -27616,7 +27619,7 @@ function worldInteractionTargetAtPoint(point) {
     if (iconHit || pointInRect(point, whaleRect)) {
       addCandidate(
         whaleFinishTarget,
-        iconHit || pointHitsRenderedWhalePixel(point, call, lastFrameMs),
+        iconHit || pointHitsRenderedWhalePixel(point, call),
         WORLD_INTERACTION_VISUAL_PRIORITY.whaleAction,
         call.x,
         call.y,
@@ -27684,7 +27687,7 @@ function worldInteractionTargetAtPoint(point) {
     if (!pointInRect(point, whaleTargetRect(call, SHIP_SHEET_FRAME_SIZE))) continue;
     addCandidate(
       { kind: "whale", call },
-      pointHitsRenderedWhalePixel(point, call, lastFrameMs),
+      pointHitsRenderedWhalePixel(point, call),
       WORLD_INTERACTION_VISUAL_PRIORITY.whale,
       call.x,
       call.y
@@ -27779,7 +27782,7 @@ function pointHitsRenderedShipPixel(point, call, nowMs) {
   return false;
 }
 
-function pointHitsRenderedWhalePixel(point, call, nowMs) {
+function pointHitsRenderedWhalePixel(point, call) {
   const images = residentWhaleImageSet(call.whale);
   if (!images) {
     queueWhaleAssets(call.whale, `whale hit test ${call.id}`);
@@ -27787,7 +27790,7 @@ function pointHitsRenderedWhalePixel(point, call, nowMs) {
   }
   const pixelX = Math.floor(point.x);
   const pixelY = Math.floor(point.y);
-  return whaleRenderedPixels(call, nowMs, images).some((pixel) => (
+  return whaleRenderedPixels(call, images).some((pixel) => (
     pixel.alpha > 0 && pixel.x === pixelX && pixel.y === pixelY
   ));
 }
@@ -33622,7 +33625,7 @@ function resetWorldClockFrameSlices() {
     stormCaptain: weatherClockMinutes,
     payrollPeriod: null,
     fetchQuestPeriod: null,
-    birthdayPeriod: null,
+    aboardCalendarPeriod: null,
     politicsPeriod: null
   };
 }
@@ -33653,8 +33656,8 @@ function advanceWorldClockFrameSlice(nowMs) {
       presentPendingWineCaptainDialogue();
   }
   if (slice === 4) {
-    return (worldClockPeriodIsDue("birthdayPeriod") && updateAboardBirthdayEvents()) ||
-      presentPendingBirthdayDialogue();
+    return (worldClockPeriodIsDue("aboardCalendarPeriod") && updateAboardCalendarEvents()) ||
+      presentPendingAboardCalendarDialogue();
   }
   if (!worldClockPeriodIsDue("politicsPeriod")) return false;
   return updateSovereignWarLoanOutcome() || updateWorldDiplomacy();
@@ -33685,33 +33688,33 @@ function worldClockPeriodIsDue(key) {
   return previousPeriod !== period;
 }
 
-function updateAboardBirthdayEvents() {
-  if (!gameState?.memory?.birthdays || !ship || !Number.isInteger(ship.tileId)) return false;
+function updateAboardCalendarEvents() {
+  if (!gameState?.memory?.aboardCalendar || !ship || !Number.isInteger(ship.tileId)) return false;
   const localDate = gameCalendarDateAtMinute(weatherClockMinutes, graph.lonDeg[ship.tileId]);
-  if (!birthdayObservationNeeded(gameState.memory.birthdays, localDate)) return false;
-  const characters = birthdayCharactersForAboardEntries(
+  if (!aboardCalendarObservationNeeded(gameState.memory.aboardCalendar, localDate)) return false;
+  const characters = aboardCalendarCharactersForEntries(
     currentAboardRoster().named.filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
   );
-  return observeAboardBirthdays(gameState.memory.birthdays, characters, localDate);
+  return observeAboardCalendarEvents(gameState.memory.aboardCalendar, characters, localDate);
 }
 
-function presentPendingBirthdayDialogue() {
-  if (!birthdayDialogueOpportunity()) return false;
-  if (gameState.memory.birthdays.pendingEvents.length === 0) return false;
-  const characters = birthdayCharactersForAboardEntries(
+function presentPendingAboardCalendarDialogue() {
+  if (!aboardCalendarDialogueOpportunity()) return false;
+  if (gameState.memory.aboardCalendar.pendingEvents.length === 0) return false;
+  const characters = aboardCalendarCharactersForEntries(
     currentAboardRoster().named.filter((entry) => entry.role !== ABOARD_ROLE_ANIMAL)
   );
-  const line = pendingBirthdayDialogueLine(gameState.memory.birthdays, characters);
+  const line = pendingAboardCalendarDialogueLine(gameState.memory.aboardCalendar, characters);
   if (!line) return false;
-  return openCharacterAlertModal(line.character, line.message, line.expressionId, {
-    kind: "birthday",
+  return openCharacterAlertModal(line.character, renderedUiText(line.message), line.expressionId, {
+    kind: "aboard-calendar",
     leftCharacter: line.leftCharacter,
     rightCharacter: line.rightCharacter
   });
 }
 
-function birthdayDialogueOpportunity() {
-  if (!gameState?.memory?.birthdays || !ship || startMenu || gameOverReason || lakeBattleMode) return false;
+function aboardCalendarDialogueOpportunity() {
+  if (!gameState?.memory?.aboardCalendar || !ship || startMenu || gameOverReason || lakeBattleMode) return false;
   if (menusAreOpen() || dialogueState || playerIntroModal || captainAlertModal || portWaitState || fishingAction) {
     return false;
   }
@@ -58332,7 +58335,7 @@ function drawWhalesWebGL(nowMs) {
       source: layers.submerged,
       destinationRect,
       alpha: WHALE_SUBMERGED_ALPHA,
-      refractionPx: reducedMotionPreferred ? 0 : 1
+      refractionPx: WHALE_SUBMERGED_REFRACTION_PX
     });
     worldRenderer.drawAtlasSprite({ source: layers.above, destinationRect });
   }
@@ -58449,21 +58452,17 @@ function whaleImageSet(whale) {
   return whaleAssetStore.require(slug);
 }
 
-function whaleRenderedPixels(call, nowMs, images = whaleImageSet(call.whale)) {
+function whaleRenderedPixels(call, images = whaleImageSet(call.whale)) {
   const exposure = whaleSurfaceExposure(call.whale);
   const pixels = shipSpriteFramePixels(images.image, images.sinkDepthImage, call.frame);
   const halfFrame = SHIP_SHEET_FRAME_SIZE / 2;
   const originY = Math.round(call.y + (1 - exposure) * 3);
   const surfaceThreshold = 0.502 + (1 - exposure) * 0.52;
-  const refractionTime = reducedMotionPreferred ? 0 : nowMs;
   const rendered = [];
   for (const pixel of pixels) {
     const aboveWater = pixel.sinkHeight > surfaceThreshold;
-    const offsetX = aboveWater
-      ? 0
-      : liveShipRefractionOffset(pixel.y, refractionTime, call.whale.seed);
     rendered.push(Object.freeze({
-      x: Math.round(call.x + (pixel.x - halfFrame) * call.scale + offsetX),
+      x: Math.round(call.x + (pixel.x - halfFrame) * call.scale),
       y: Math.round(originY + (pixel.y - halfFrame) * call.scale),
       color: pixel.color,
       alpha: pixel.alpha * (aboveWater ? 1 : WHALE_SUBMERGED_ALPHA)

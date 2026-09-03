@@ -1,4 +1,4 @@
-import { religionById } from "./characterReligion.js";
+import { religionById, religionFamilyId } from "./characterReligion.js";
 
 const CHRISTIAN_RELIGIONS = new Set([
   "roman-catholic",
@@ -14,16 +14,6 @@ const PROTESTANT_RELIGIONS = new Set([
   "reformed-protestant",
   "anglican",
   "quaker"
-]);
-const MUSLIM_RELIGIONS = new Set([
-  "sunni-islam",
-  "shia-islam",
-  "ibadi-islam"
-]);
-const BUDDHIST_RELIGIONS = new Set([
-  "theravada-buddhism",
-  "mahayana-buddhism",
-  "tibetan-buddhism"
 ]);
 
 const SHARED_GREETING_LINES = Object.freeze({
@@ -97,7 +87,7 @@ export function occasionalReligiousGreeting({
     return SHARED_GREETING_LINES.zoroastrianism;
   }
   const sameReligion = speakerReligionId === listenerReligionId;
-  const sameFamily = religionFamily(speakerReligionId) === religionFamily(listenerReligionId);
+  const sameFamily = religionFamilyId(speakerReligionId) === religionFamilyId(listenerReligionId);
   const divisor = sameReligion ? 3 : sameFamily ? 4 : 8;
   if (hashString32(`${key}|religious-greeting`) % divisor !== 0) return null;
   return religiousGreetingLine(speakerReligionId, listenerReligionId);
@@ -152,7 +142,7 @@ export function occasionalReligiousBirthdayWish({
   if (speakerReligionId === listenerReligionId) {
     return sharedBirthdayWish(speakerReligionId, listenerName);
   }
-  if (religionFamily(speakerReligionId) === religionFamily(listenerReligionId)) {
+  if (religionFamilyId(speakerReligionId) === religionFamilyId(listenerReligionId)) {
     return familyBirthdayWish(speakerReligionId, listenerName);
   }
   return `Our prayers differ, ${listenerName}, but I am glad this day brought you aboard. A happy birthday and a safe year ahead.`;
@@ -195,14 +185,14 @@ function religiousGreetingLine(speakerReligionId, listenerReligionId) {
   if (PROTESTANT_RELIGIONS.has(speakerReligionId) && listenerReligionId === "roman-catholic") {
     return "God's peace to you. We may differ on Rome, but a sound ledger needs no confession.";
   }
-  if (religionFamily(speakerReligionId) === religionFamily(listenerReligionId)) {
+  if (religionFamilyId(speakerReligionId) === religionFamilyId(listenerReligionId)) {
     return sharedFamilyGreeting(speakerReligionId);
   }
   return SPEAKER_BLESSINGS[speakerReligionId];
 }
 
 function sharedFamilyGreeting(religionId) {
-  const family = religionFamily(religionId);
+  const family = religionFamilyId(religionId);
   if (family === "christian") return "Christ be with you, captain. Our churches differ, but the same sea lies beneath us.";
   if (family === "muslim") return "Peace be upon you, captain. Our schools may differ; a safe voyage is a blessing to us both.";
   if (family === "buddhist") return "May compassion and clear judgment guide your voyage, captain.";
@@ -210,7 +200,7 @@ function sharedFamilyGreeting(religionId) {
 }
 
 function sharedBirthdayWish(religionId, name) {
-  const family = religionFamily(religionId);
+  const family = religionFamilyId(religionId);
   if (family === "christian") return `God keep you through the year ahead, ${name}. A blessed and happy birthday.`;
   if (family === "muslim") return `May God grant you a long life and a fortunate year, ${name}. A happy birthday to you.`;
   if (family === "buddhist") return `May the year ahead bring wisdom and freedom from suffering, ${name}. Happy birthday.`;
@@ -222,19 +212,11 @@ function sharedBirthdayWish(religionId, name) {
 }
 
 function familyBirthdayWish(speakerReligionId, name) {
-  const family = religionFamily(speakerReligionId);
+  const family = religionFamilyId(speakerReligionId);
   if (family === "christian") return `Our churches differ, ${name}, but I gladly ask God to keep you through the year ahead. Happy birthday.`;
   if (family === "muslim") return `Our schools differ, ${name}, but I gladly pray God grants you a fortunate year. Happy birthday.`;
   if (family === "buddhist") return `Our teachings differ in their forms, ${name}, but I wish you wisdom and peace in the year ahead.`;
   return `A happy birthday and a fortunate year to you, ${name}.`;
-}
-
-function religionFamily(religionId) {
-  religionById(religionId);
-  if (CHRISTIAN_RELIGIONS.has(religionId)) return "christian";
-  if (MUSLIM_RELIGIONS.has(religionId)) return "muslim";
-  if (BUDDHIST_RELIGIONS.has(religionId)) return "buddhist";
-  return religionId;
 }
 
 function assertReligionPair(speakerReligionId, listenerReligionId, label) {

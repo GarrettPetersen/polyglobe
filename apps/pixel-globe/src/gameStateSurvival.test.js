@@ -120,17 +120,46 @@ test("saved game state rejects unsupported schema versions", () => {
   assert.throws(() => migrateGameState({ version: 7 }), /Unsupported game state version/);
 });
 
-test("version 27 saves gain persistent birthday event memory", () => {
+test("version 27 saves gain persistent aboard calendar memory", () => {
   const state = createGameState({ cargoCapacity: 10 });
   state.version = 27;
-  delete state.memory.birthdays;
+  delete state.memory.aboardCalendar;
 
   const migrated = migrateGameState(state);
 
-  assert.equal(migrated.memory.birthdays.version, 1);
-  assert.equal(migrated.memory.birthdays.lastObservedDateKey, null);
-  assert.deepEqual(migrated.memory.birthdays.pendingEvents, []);
-  assert.deepEqual(migrated.memory.birthdays.celebratedEventIds, []);
+  assert.equal(migrated.memory.aboardCalendar.version, 1);
+  assert.equal(migrated.memory.aboardCalendar.lastObservedDateKey, null);
+  assert.deepEqual(migrated.memory.aboardCalendar.pendingEvents, []);
+  assert.deepEqual(migrated.memory.aboardCalendar.completedEventIds, []);
+  assert.equal(validateGameState(migrated), migrated);
+});
+
+test("version 98 saves preserve pending birthday dialogue in aboard calendar memory", () => {
+  const state = createGameState({ cargoCapacity: 10 });
+  state.version = 98;
+  delete state.memory.aboardCalendar;
+  state.memory.birthdays = {
+    version: 1,
+    lastObservedDateKey: "1522-07-10",
+    pendingEvents: [{
+      id: "1522-07-10|captain",
+      dateKey: "1522-07-10",
+      celebrantIds: ["captain"],
+      lineIndex: 1,
+      lines: [
+        { speakerId: "mate", message: "Happy birthday.", expressionId: "happy" },
+        { speakerId: "captain", message: "Thank you.", expressionId: "happy" }
+      ]
+    }],
+    celebratedEventIds: ["1522-04-02|gunner"]
+  };
+
+  const migrated = migrateGameState(state);
+
+  assert.equal(migrated.memory.birthdays, undefined);
+  assert.equal(migrated.memory.aboardCalendar.pendingEvents[0].lineIndex, 1);
+  assert.equal(migrated.memory.aboardCalendar.pendingEvents[0].kind, "birthday");
+  assert.deepEqual(migrated.memory.aboardCalendar.completedEventIds, ["1522-04-02|gunner"]);
   assert.equal(validateGameState(migrated), migrated);
 });
 

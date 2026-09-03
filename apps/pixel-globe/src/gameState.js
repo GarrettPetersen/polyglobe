@@ -62,7 +62,11 @@ import {
   setNaturalistQuestCharacter,
   validateNaturalistQuestMemory
 } from "./naturalistQuest.js";
-import { createBirthdayMemory, validateBirthdayMemory } from "./birthdayEvents.js";
+import {
+  createAboardCalendarMemory,
+  migrateBirthdayMemoryToAboardCalendar,
+  validateAboardCalendarMemory
+} from "./aboardCalendarEvents.js";
 import {
   DIPLOMACY_ALLY,
   DIPLOMACY_FRIENDLY,
@@ -550,7 +554,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 98;
+export const GAME_STATE_VERSION = 99;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -811,7 +815,7 @@ export function createGameState({
       pendingDiscoveryPortDialogueIds: [],
       namedCrewDeathNotices: [],
       crewRecruitment: createCrewRecruitmentMemory(),
-      birthdays: createBirthdayMemory(),
+      aboardCalendar: createAboardCalendarMemory(),
       specialEquipmentOffers: createSpecialEquipmentOfferMemory(),
       illicitTradeEnforcement: createIllicitTradeEnforcementMemory(),
       tradeEmbargoEnforcement: createTradeEmbargoEnforcementMemory(),
@@ -929,7 +933,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1006,8 +1010,16 @@ export function migrateGameState(state, shipStats, {
   const {
     panda: legacyPandaCompanion,
     animalCompanions: savedAnimalCompanions,
+    birthdays: legacyBirthdayMemory,
+    aboardCalendar: savedAboardCalendarMemory,
     ...migratedMemoryBase
   } = state.memory || {};
+  if (savedAboardCalendarMemory !== undefined && legacyBirthdayMemory !== undefined) {
+    throw new Error(`Game state ${state.version} contains both legacy and current aboard calendar memory`);
+  }
+  const migratedAboardCalendarMemory = savedAboardCalendarMemory === undefined
+    ? migrateBirthdayMemoryToAboardCalendar(legacyBirthdayMemory)
+    : validateAboardCalendarMemory(savedAboardCalendarMemory);
   const {
     mingOpenTradeFactionIds: legacyMingOpenTradeFactionIds,
     ...migratedRelationBase
@@ -1133,7 +1145,7 @@ export function migrateGameState(state, shipStats, {
       visitedPorts: migrateVisitedPortMemories(state.memory?.visitedPorts),
       namedCrewDeathNotices: state.memory?.namedCrewDeathNotices || [],
       crewRecruitment: createCrewRecruitmentMemory(),
-      birthdays: state.memory?.birthdays || createBirthdayMemory(),
+      aboardCalendar: migratedAboardCalendarMemory,
       specialEquipmentOffers: migrateSpecialEquipmentOfferMemory(state.memory?.specialEquipmentOffers),
       illicitTradeEnforcement: migrateIllicitTradeEnforcementMemory(
         state.memory?.illicitTradeEnforcement
@@ -10660,7 +10672,7 @@ function assertGameState(state) {
   validateVisitedPortMemories(state.memory.visitedPorts);
   validateNamedCrewDeathNotices(state.memory.namedCrewDeathNotices);
   validateCrewRecruitmentMemory(state.memory.crewRecruitment);
-  validateBirthdayMemory(state.memory.birthdays);
+  validateAboardCalendarMemory(state.memory.aboardCalendar);
   validateSpecialEquipmentOfferMemory(state.memory.specialEquipmentOffers);
   validateIllicitTradeEnforcementMemory(state.memory.illicitTradeEnforcement);
   validateTradeEmbargoEnforcementMemory(state.memory.tradeEmbargoEnforcement);

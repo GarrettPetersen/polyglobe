@@ -100,6 +100,45 @@ export const PORT_SCENE_DOCK = Object.freeze({
   waterlineY: 572
 });
 
+export function cityFrameHitMaskContainsPoint({
+  alpha,
+  width,
+  height,
+  x,
+  y,
+  paddingPx = 1,
+  alphaThreshold = 16
+}) {
+  if (![width, height].every((value) => Number.isInteger(value) && value > 0)) {
+    throw new Error("City frame hit mask dimensions must be positive integers");
+  }
+  if (!(alpha instanceof Uint8Array) || alpha.length !== width * height) {
+    throw new Error("City frame hit mask requires exact alpha dimensions");
+  }
+  if (![x, y].every(Number.isInteger)) {
+    throw new Error("City frame hit mask coordinates must be integers");
+  }
+  if (!Number.isInteger(paddingPx) || paddingPx < 0 || paddingPx > 8) {
+    throw new Error(`Invalid city frame hit padding: ${paddingPx}`);
+  }
+  if (!Number.isInteger(alphaThreshold) || alphaThreshold < 0 || alphaThreshold > 255) {
+    throw new Error(`Invalid city frame alpha threshold: ${alphaThreshold}`);
+  }
+  if (
+    x < -paddingPx || y < -paddingPx ||
+    x >= width + paddingPx || y >= height + paddingPx
+  ) return false;
+  for (let deltaY = -paddingPx; deltaY <= paddingPx; deltaY++) {
+    for (let deltaX = -paddingPx; deltaX <= paddingPx; deltaX++) {
+      const sampleX = x + deltaX;
+      const sampleY = y + deltaY;
+      if (sampleX < 0 || sampleY < 0 || sampleX >= width || sampleY >= height) continue;
+      if (alpha[sampleX + sampleY * width] > alphaThreshold) return true;
+    }
+  }
+  return false;
+}
+
 export function sceneCameraDockParallax({ viewportWidth, approach }) {
   requireLogicalDimension(viewportWidth, "camera width");
   const bounds = sceneCameraParallaxBounds(approach);

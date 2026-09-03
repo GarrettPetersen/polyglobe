@@ -1230,6 +1230,33 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   ]);
 });
 
+test("a Polynesian arrival is greeted by the island chief", () => {
+  const city = {
+    tileId: 93,
+    cityId: "tarawa village|neutral",
+    city: "Tarawa Village",
+    displayCity: "Tarawa Village",
+    country: "Neutral",
+    cityType: "polynesian",
+    settlementType: "village",
+    factionId: "neutral",
+    population: 1200,
+    lat: 1.329,
+    lon: 172.979,
+    character: { name: "Te Rongo", role: "harbour-master", personalityId: "vigilant" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const greeting = portDialogueView(
+    createPortDialogueSession(city),
+    city,
+    gameState,
+    economy,
+    [city]
+  );
+  assert.equal(greeting.speaker, "Te Rongo, island chief of Tarawa Village");
+});
+
 test("the garrison commander reports the current fighting strength in character", () => {
   const city = {
     tileId: 2,

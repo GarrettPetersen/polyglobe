@@ -1,5 +1,6 @@
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { PORT_CITY_STAFF_ROLE } from "./characterPortraits.js";
+import { portCityStaffTitle } from "./portCityStaffPresentation.js";
 import {
   PORT_CITY_LOCATION,
   portCityLocation,
@@ -8716,16 +8717,7 @@ function speakerName(city) {
   if (city.isPirateHideout) {
     return `${characterName(city.character)}, keeper of ${cityLabel(city)}`;
   }
-  const title = {
-    [PORT_CITY_STAFF_ROLE.HARBOUR_MASTER]: "harbour master",
-    [PORT_CITY_STAFF_ROLE.INNKEEPER]: "innkeeper",
-    [PORT_CITY_STAFF_ROLE.SMITH]: "smith",
-    [PORT_CITY_STAFF_ROLE.MERCHANT]: "merchant",
-    [PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]: "garrison commander"
-  }[city.character?.role];
-  if (!title) {
-    throw new Error(`Dialogue character has no port staff title: ${city.character?.role || "missing"}`);
-  }
+  const title = portCityStaffTitle(city, city.character?.role);
   return `${characterName(city.character)}, ${title} of ${cityLabel(city)}`;
 }
 

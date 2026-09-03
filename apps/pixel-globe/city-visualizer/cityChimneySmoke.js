@@ -1,6 +1,10 @@
 const DARK_SMOKE = Object.freeze(["#3e3546", "#625565", "#7f708a"]);
 const LIGHT_SMOKE = Object.freeze(["#625565", "#7f708a", "#9babb2"]);
 const DISTANT_SMOKE = Object.freeze(["#625565", "#7f708a"]);
+const DEFAULT_CITY_SMOKE_WIND = Object.freeze({ flowDirectionRad: 0, strength: 1 });
+const CITY_SMOKE_FRAME_INTERVAL_MS = 100;
+const smokeFrameCacheByEmitter = new WeakMap();
+const emitterSeedCache = new WeakMap();
 
 export const CITY_CHIMNEY_SMOKE_EMITTERS = Object.freeze([
   chimneyEmitter({
@@ -153,7 +157,7 @@ export function backgroundCityChimneySmokeEmitters({ cityId, side, rows }) {
 export function cityChimneySmokeParticles(
   emitter,
   timeMs,
-  wind = Object.freeze({ flowDirectionRad: 0, strength: 1 })
+  wind = DEFAULT_CITY_SMOKE_WIND
 ) {
   requireEmitter(emitter);
   if (!Number.isFinite(timeMs) || timeMs < 0) {
@@ -178,7 +182,7 @@ export function cityChimneySmokeParticles(
     const ageMs = timeMs - emission * emitter.emissionIntervalMs;
     if (ageMs < 0 || ageMs >= emitter.lifetimeMs) continue;
     const life = ageMs / emitter.lifetimeMs;
-    const seed = hashString(`${emitter.id}|${emission}`);
+    const seed = hashInt(emitterSeed(emitter) ^ Math.imul(emission + 1, 0x9e3779b1));
     const startOffset = signedRandom(seed, 0) * emitter.spread * 0.35;
     const wobble = Math.sin(life * Math.PI * 3 + random(seed, 1) * Math.PI * 2) *
       emitter.spread * life;
@@ -197,6 +201,35 @@ export function cityChimneySmokeParticles(
     }));
   }
   return Object.freeze(particles);
+}
+
+export function cityChimneySmokeFrameParticles(
+  emitter,
+  timeMs,
+  wind = DEFAULT_CITY_SMOKE_WIND
+) {
+  if (!Number.isFinite(timeMs) || timeMs < 0) {
+    throw new Error(`Invalid city chimney smoke time: ${timeMs}`);
+  }
+  const frameTimeMs = Math.floor(timeMs / CITY_SMOKE_FRAME_INTERVAL_MS) *
+    CITY_SMOKE_FRAME_INTERVAL_MS;
+  const cached = smokeFrameCacheByEmitter.get(emitter);
+  if (
+    cached &&
+    cached.frameTimeMs === frameTimeMs &&
+    cached.flowDirectionRad === wind?.flowDirectionRad &&
+    cached.strength === wind?.strength
+  ) {
+    return cached.particles;
+  }
+  const particles = cityChimneySmokeParticles(emitter, frameTimeMs, wind);
+  smokeFrameCacheByEmitter.set(emitter, Object.freeze({
+    frameTimeMs,
+    flowDirectionRad: wind.flowDirectionRad,
+    strength: wind.strength,
+    particles
+  }));
+  return particles;
 }
 
 function chimneyEmitter(emitter) {
@@ -289,6 +322,15 @@ function hashString(value) {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+function emitterSeed(emitter) {
+  let seed = emitterSeedCache.get(emitter);
+  if (seed === undefined) {
+    seed = hashString(emitter.id);
+    emitterSeedCache.set(emitter, seed);
+  }
+  return seed;
 }
 
 function hashInt(value) {

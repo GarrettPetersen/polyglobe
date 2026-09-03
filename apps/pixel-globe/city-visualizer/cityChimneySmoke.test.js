@@ -8,6 +8,7 @@ import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modul
 import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
   backgroundCityChimneySmokeEmitters,
+  cityChimneySmokeFrameParticles,
   cityChimneySmokeParticles,
   placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
@@ -88,6 +89,22 @@ test("one shared wind direction bends every chimney plume consistently", () => {
   assert.equal(east.length, calm.length);
   assert.ok(meanX(east) > meanX(calm));
   assert.ok(meanX(west) < meanX(calm));
+});
+
+test("render-frame smoke snapshots reuse one allocation within each pixel-art cadence", () => {
+  const emitter = CITY_CHIMNEY_SMOKE_EMITTERS[0];
+  const wind = Object.freeze({ flowDirectionRad: 0.5, strength: 1.2 });
+  const first = cityChimneySmokeFrameParticles(emitter, 4101, wind);
+  const sameFrame = cityChimneySmokeFrameParticles(emitter, 4199, wind);
+  const nextFrame = cityChimneySmokeFrameParticles(emitter, 4200, wind);
+  const changedWind = cityChimneySmokeFrameParticles(emitter, 4200, {
+    flowDirectionRad: 0.5,
+    strength: 0.8
+  });
+
+  assert.equal(sameFrame, first);
+  assert.notEqual(nextFrame, first);
+  assert.notEqual(changedWind, nextFrame);
 });
 
 test("background cities deterministically smoke from exactly half their scaled chimneys", async () => {

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import {
+  WHALE_SUBMERGED_REFRACTION_PX,
   retargetWhaleVisualPresentation,
   whaleVisualPresentationIsActive,
   whaleVisualPresentationPoint
@@ -49,6 +50,49 @@ test("whale presentation survives chart rebuilds within one local layout", () =>
     rawPoint: { x: 70, y: 24, tileId: 8 },
     nowMs: 300
   }), { x: 30, y: 20, tileId: 8 });
+});
+
+test("each whale interpolates on its own movement timeline", () => {
+  const localLayout = {};
+  const first = retargetWhaleVisualPresentation(null, {
+    whaleId: "whale-1",
+    coordinateSpace: localLayout,
+    from: { x: 0, y: 0 },
+    to: { x: 8, y: 4 },
+    nowMs: 0,
+    durationMs: 400
+  });
+  const second = retargetWhaleVisualPresentation(null, {
+    whaleId: "whale-2",
+    coordinateSpace: localLayout,
+    from: { x: 20, y: 10 },
+    to: { x: 28, y: 14 },
+    nowMs: 100,
+    durationMs: 400
+  });
+
+  assert.deepEqual(whaleVisualPresentationPoint(first, {
+    coordinateSpace: localLayout,
+    rawPoint: { x: 8, y: 4 },
+    nowMs: 200
+  }), { x: 4, y: 2 });
+  assert.deepEqual(whaleVisualPresentationPoint(second, {
+    coordinateSpace: localLayout,
+    rawPoint: { x: 28, y: 14 },
+    nowMs: 200
+  }), { x: 22, y: 11 });
+});
+
+test("submerged whales do not inherit the globally phased texture twitch", () => {
+  assert.equal(WHALE_SUBMERGED_REFRACTION_PX, 0);
+  assert.match(
+    functionSource("drawWhalesWebGL", "prebakeSubmergedObjectRenderSource"),
+    /refractionPx: WHALE_SUBMERGED_REFRACTION_PX/
+  );
+  assert.doesNotMatch(
+    functionSource("whaleRenderedPixels", "drawWhaleHuntEffectsWebGL"),
+    /liveShipRefractionOffset/
+  );
 });
 
 test("whale presentation rejects a replaced coordinate space and stale completed motion", () => {

@@ -12,6 +12,7 @@ import {
   activePortSceneLayers,
   advanceSceneParallax,
   advanceSceneScrollVelocity,
+  cityFrameHitMaskContainsPoint,
   citySetSailOceanRect,
   cityStaticSceneCacheAllowed,
   docksideShipSideAnchor,
@@ -74,7 +75,7 @@ import {
 import {
   CITY_CHIMNEY_SMOKE_EMITTERS,
   backgroundCityChimneySmokeEmitters,
-  cityChimneySmokeParticles,
+  cityChimneySmokeFrameParticles,
   placedCityBuildingChimneySmokeEmitter
 } from "./cityChimneySmoke.js";
 import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
@@ -121,6 +122,10 @@ import {
 } from "./cityPeople.js";
 import { PORT_CITY_STAFF_ROLE } from "../src/characterPortraits.js";
 import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
+import {
+  activeCityDestinations,
+  validateCityDestinationIds
+} from "./cityDestinations.js";
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
@@ -216,6 +221,12 @@ import {
   cityDestinationLeader,
   layoutCityDestinationLabels
 } from "./cityDestinationLabels.js";
+import {
+  cityGuardApproachEndX,
+  cityGuardPlacement,
+  cityPortStaffPlacements,
+  citySuspiciousMerchantPlacement
+} from "./citySpecialPeoplePlacement.js";
 
 export async function createCitySceneRuntime({
   canvas,
@@ -279,6 +290,7 @@ const BACKGROUND_CITY_UNDERLAY_LAYER_NAMES = new Set(
 );
 const CITY_VISUALIZER_DEFAULT_CITY_ID = "london|united kingdom";
 const SUSPICIOUS_MERCHANT_HIT_PADDING_PX = 8;
+const SHIPYARD_BUILDING_HIT_PADDING_PX = 4;
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 let renderFrameId = null;
@@ -366,51 +378,6 @@ const citySceneRenderer = createCachedSceneRenderer({
   drawEntry: drawMeasuredSceneEntry,
   isStaticEntry: (entry) => STATIC_SCENE_ENTRY_KINDS.has(entry.kind)
 });
-
-const DESTINATIONS = Object.freeze([
-  Object.freeze({
-    id: PORT_CITY_LOCATION.SET_SAIL,
-    label: "Set Sail",
-    layers: Object.freeze([])
-  }),
-  Object.freeze({
-    id: PORT_CITY_LOCATION.SHIPYARD,
-    label: "Shipyard",
-    layers: Object.freeze(["Shipyard"])
-  }),
-  Object.freeze({
-    id: PORT_CITY_LOCATION.MARKET,
-    label: "Market",
-    layers: Object.freeze(["Market Stall", "Market Stall Copy", "Market Stall Copy Copy"]),
-    requiredFeature: "market"
-  }),
-  Object.freeze({
-    id: PORT_CITY_LOCATION.EQUIPMENT,
-    label: "Smith",
-    layers: Object.freeze(["Smith"]),
-    requiredFeature: "store"
-  }),
-  Object.freeze({
-    id: PORT_CITY_LOCATION.INN,
-    label: "Inn",
-    layers: Object.freeze(["Inn", "Home 2"])
-  }),
-  Object.freeze({
-    id: PORT_CITY_LOCATION.AUTHORITY,
-    label: "Port authority",
-    layers: Object.freeze(["Far Castle", "Gate", "Near Castle"])
-  }),
-  Object.freeze({
-    id: PORT_CITY_LOCATION.SHIP,
-    label: "Your ship",
-    layers: Object.freeze([])
-  }),
-  Object.freeze({
-    id: PORT_CITY_LOCATION.ILLICIT_MERCHANT,
-    label: "Suspicious merchant",
-    layers: Object.freeze([])
-  })
-]);
 
 async function initialize() {
   try {
@@ -1708,34 +1675,37 @@ function createSceneRenderEntries() {
     });
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
-  for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
+  if (state.assaultPresentation) {
+    for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
+      entries.push({
+        kind: "port-assault",
+        lane,
+        z: cityPortAssaultLanePainterZ(lane),
+        authoredOrder: 38.9 + lane / 100
+      });
+    }
     entries.push({
-      kind: "port-assault",
-      lane,
-      z: cityPortAssaultLanePainterZ(lane),
-      authoredOrder: 38.9 + lane / 100
+      kind: "ship-foreground",
+      z: CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
+      authoredOrder: 38.95
     });
-  }
-  entries.push({
-    kind: "ship-foreground",
-    z: CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
-    authoredOrder: 38.95
-  });
-  for (const [agentOrder, agent] of state.npcAgents.slice(0, state.features.npcs).entries()) {
-    entries.push({
-      kind: "npc",
-      agent,
-      z: agent.painterZ ?? cityGroundPainterZ(agent.feetY),
-      authoredOrder: 37.5 + agentOrder / 100
-    });
-  }
-  for (const [agentOrder, agent] of state.specialAgents.entries()) {
-    entries.push({
-      kind: "npc",
-      agent,
-      z: cityGroundPainterZ(agent.feetY),
-      authoredOrder: 38.5 + agentOrder / 100
-    });
+  } else {
+    for (const [agentOrder, agent] of state.npcAgents.slice(0, state.features.npcs).entries()) {
+      entries.push({
+        kind: "npc",
+        agent,
+        z: agent.painterZ ?? cityGroundPainterZ(agent.feetY),
+        authoredOrder: 37.5 + agentOrder / 100
+      });
+    }
+    for (const [agentOrder, agent] of state.specialAgents.entries()) {
+      entries.push({
+        kind: "npc",
+        agent,
+        z: cityGroundPainterZ(agent.feetY),
+        authoredOrder: 38.5 + agentOrder / 100
+      });
+    }
   }
   if (state.features.dock !== "none") {
     entries.push({ kind: "dock-shadow-extension", z: 36, authoredOrder: 16.5 });
@@ -1872,20 +1842,7 @@ function drawCityStreetBuilding(placement, targetContext) {
 
 function drawCityStreetBuildingSmoke(placement, emitter, timeMs) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
-  const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
-  context.save();
-  for (const particle of cityChimneySmokeParticles(emitter, smokeTime, state.wind)) {
-    if (particle.alpha <= 0) continue;
-    context.globalAlpha = particle.alpha;
-    context.fillStyle = particle.color;
-    context.fillRect(
-      Math.round(particle.x - window.x),
-      Math.round(particle.y - window.y),
-      particle.size,
-      particle.size
-    );
-  }
-  context.restore();
+  drawCitySmokeParticles(emitter, timeMs, window, context);
 }
 
 function backgroundCityRenderState(side) {
@@ -1959,20 +1916,24 @@ function backgroundCitySmokeMap(options) {
 }
 
 function drawBackgroundCityChimneySmoke(emitter, timeMs, window) {
-  const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
-  context.save();
-  for (const particle of cityChimneySmokeParticles(emitter, smokeTime, state.wind)) {
+  drawCitySmokeParticles(emitter, timeMs, window, context);
+}
+
+function drawCitySmokeParticles(emitter, timeMs, window, targetContext) {
+  const smokeTimeMs = prefersReducedMotion.matches ? 4800 : timeMs;
+  targetContext.save();
+  for (const particle of cityChimneySmokeFrameParticles(emitter, smokeTimeMs, state.wind)) {
     if (particle.alpha <= 0) continue;
-    context.globalAlpha = particle.alpha;
-    context.fillStyle = particle.color;
-    context.fillRect(
+    targetContext.globalAlpha = particle.alpha;
+    targetContext.fillStyle = particle.color;
+    targetContext.fillRect(
       Math.round(particle.x - window.x),
       Math.round(particle.y - window.y),
       particle.size,
       particle.size
     );
   }
-  context.restore();
+  targetContext.restore();
 }
 
 function backgroundCityAtmosphereFrame(frame, level) {
@@ -2389,14 +2350,7 @@ function drawBombardmentPresentationSmoke(presentation, destination, timeMs, tar
     destination: normalizedDestination,
     seed: presentation.seed
   });
-  targetContext.save();
-  for (const particle of cityChimneySmokeParticles(geometry.smokeEmitter, timeMs, state.wind)) {
-    if (particle.alpha <= 0) continue;
-    targetContext.globalAlpha = particle.alpha;
-    targetContext.fillStyle = particle.color;
-    targetContext.fillRect(particle.x, particle.y, particle.size, particle.size);
-  }
-  targetContext.restore();
+  drawCitySmokeParticles(geometry.smokeEmitter, timeMs, { x: 0, y: 0 }, targetContext);
 }
 
 function drawBombardmentFireSprite(destination, seed, timeMs, targetContext) {
@@ -2517,20 +2471,7 @@ function drawChimneySmoke(emitter, timeMs) {
     layerSceneOffsetY(emitter.layerName, occurrence, approach),
     layerParallaxAnchor(emitter.layerName, occurrence)
   );
-  const smokeTime = prefersReducedMotion.matches ? 4800 : timeMs;
-  context.save();
-  for (const particle of cityChimneySmokeParticles(emitter, smokeTime, state.wind)) {
-    if (particle.alpha <= 0) continue;
-    context.globalAlpha = particle.alpha;
-    context.fillStyle = particle.color;
-    context.fillRect(
-      Math.round(particle.x - window.x),
-      Math.round(particle.y - window.y),
-      particle.size,
-      particle.size
-    );
-  }
-  context.restore();
+  drawCitySmokeParticles(emitter, timeMs, window, context);
 }
 
 function drawStaticFrame(frame, layerName, occurrence, targetContext) {
@@ -4150,18 +4091,10 @@ function updateHover() {
 }
 
 function activeDestinations() {
-  if (state.assaultPresentation) {
-    const setSail = DESTINATIONS.find(({ id }) => id === PORT_CITY_LOCATION.SET_SAIL);
-    if (!setSail) throw new Error("Port assault requires the Set Sail destination");
-    return [setSail];
-  }
-  const explicit = state.availableDestinationIds;
-  return DESTINATIONS.filter((destination) => {
-    if (explicit && !explicit.has(destination.id)) return false;
-    if (!explicit && destination.id === PORT_CITY_LOCATION.ILLICIT_MERCHANT) return false;
-    if (destination.requiredFeature && !state.features?.[destination.requiredFeature]) return false;
-    if (destination.requiresFortification && !state.features?.fortified) return false;
-    return true;
+  return activeCityDestinations({
+    availableDestinationIds: state.availableDestinationIds,
+    features: state.features,
+    assaultActive: state.assaultPresentation !== null
   });
 }
 
@@ -4171,17 +4104,7 @@ function destinationById(destinationId) {
 }
 
 function validateAvailableDestinationIds(destinationIds) {
-  if (!Array.isArray(destinationIds)) {
-    throw new Error("City scene destination IDs must be an array");
-  }
-  const knownIds = new Set(DESTINATIONS.map(({ id }) => id));
-  const validated = new Set();
-  for (const destinationId of destinationIds) {
-    if (!knownIds.has(destinationId)) throw new Error(`Unknown city destination: ${destinationId}`);
-    if (validated.has(destinationId)) throw new Error(`Duplicate city destination: ${destinationId}`);
-    validated.add(destinationId);
-  }
-  return validated;
+  return validateCityDestinationIds(destinationIds);
 }
 
 function destinationAtPoint(x, y) {
@@ -4253,7 +4176,10 @@ function destinationAtPoint(x, y) {
           displayed.atlas,
           displayed.frame,
           x + window.x,
-          y + window.y
+          y + window.y,
+          destination.id === PORT_CITY_LOCATION.SHIPYARD
+            ? SHIPYARD_BUILDING_HIT_PADDING_PX
+            : 1
         )) return Object.freeze({ destination, saleShipId: null });
       }
     }
@@ -4401,6 +4327,10 @@ function activateDestination(destinationId, saleShipId = null) {
   const destination = destinationById(destinationId);
   if (!destination) throw new Error(`City destination is unavailable: ${destinationId}`);
   const activation = Object.freeze({ id: destination.id, saleShipId });
+  state.pointer = null;
+  state.cameraVelocity = 0;
+  state.cameraPanTarget = null;
+  updateHover();
   onDestination(activation);
   return activation;
 }
@@ -4410,43 +4340,10 @@ function createSpecialPeopleAgents() {
   const agents = [];
   if (!state.barred) {
     const appearances = cityPortStaffAppearanceIds(state.city);
-    const staffPlacements = [
-      {
-        role: PORT_CITY_STAFF_ROLE.HARBOUR_MASTER,
-        destinationId: null,
-        startX: 778,
-        feetY: 521,
-        facingRight: true
-      },
-      {
-        role: PORT_CITY_STAFF_ROLE.MERCHANT,
-        destinationId: PORT_CITY_LOCATION.MARKET,
-        startX: 964,
-        feetY: 515,
-        facingRight: false
-      },
-      {
-        role: PORT_CITY_STAFF_ROLE.INNKEEPER,
-        destinationId: PORT_CITY_LOCATION.INN,
-        startX: 1075,
-        feetY: 548,
-        facingRight: true
-      },
-      {
-        role: PORT_CITY_STAFF_ROLE.SMITH,
-        destinationId: PORT_CITY_LOCATION.EQUIPMENT,
-        startX: 1150,
-        feetY: 510,
-        facingRight: false
-      },
-      {
-        role: PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER,
-        destinationId: PORT_CITY_LOCATION.AUTHORITY,
-        startX: state.features?.fortified ? 1275 : 880,
-        feetY: state.features?.fortified ? 550 : 518,
-        facingRight: false
-      }
-    ];
+    const staffPlacements = cityPortStaffPlacements({
+      dockKind: state.features.dock,
+      fortified: state.features.fortified
+    });
     for (const placement of staffPlacements) {
       if (placement.destinationId && !destinationById(placement.destinationId)) continue;
       agents.push(Object.freeze({
@@ -4470,14 +4367,16 @@ function createSpecialPeopleAgents() {
   const guardCount = state.barred ? 5 : caught ? 3 : 0;
   if (guardCount > 0) {
     for (const [index, appearanceId] of cityGarrisonAppearanceIds(state.city, guardCount).entries()) {
-      const startX = 704 + index * 19;
+      const placement = cityGuardPlacement({ dockKind: state.features.dock, index });
       agents.push(Object.freeze({
         id: `${state.city.id}:barred-dock-guard:${index + 1}`,
         appearanceId,
         role: "garrison",
-        startX,
-        endX: caught ? 798 + index * 8 : startX,
-        feetY: 518 + index % 2 * 9,
+        startX: placement.startX,
+        endX: caught
+          ? cityGuardApproachEndX({ dockKind: state.features.dock, index })
+          : placement.startX,
+        feetY: placement.feetY,
         phase: index / 5,
         speed: caught ? 0.0014 : 0,
         motion: caught ? "guard-approach" : "stationary",
@@ -4487,14 +4386,18 @@ function createSpecialPeopleAgents() {
     }
   }
   if (caught || state.availableDestinationIds?.has(PORT_CITY_LOCATION.ILLICIT_MERCHANT)) {
+    const placement = citySuspiciousMerchantPlacement({
+      dockKind: state.features.dock,
+      caught
+    });
     agents.push(Object.freeze({
       id: `${state.city.id}:suspicious-merchant`,
       destinationId: PORT_CITY_LOCATION.ILLICIT_MERCHANT,
       appearanceId: citySuspiciousMerchantAppearanceId(state.city),
       role: "ambient",
-      startX: 823,
-      endX: caught ? 975 : 823,
-      feetY: 519,
+      startX: placement.startX,
+      endX: placement.endX,
+      feetY: placement.feetY,
       phase: 0,
       speed: caught ? 0.0017 : 0,
       motion: caught ? "merchant-flee" : "stationary",
@@ -4521,20 +4424,17 @@ function imageAlpha(image) {
   return alpha;
 }
 
-function frameContainsOpaquePixel(atlas, frame, masterX, masterY) {
+function frameContainsOpaquePixel(atlas, frame, masterX, masterY, paddingPx = 1) {
   const localX = Math.floor(masterX - frame.spriteSourceSize.x);
   const localY = Math.floor(masterY - frame.spriteSourceSize.y);
-  if (localX < -1 || localY < -1 || localX > frame.frame.w || localY > frame.frame.h) return false;
-  const alpha = frameAlpha(frame, atlas);
-  for (let dy = -1; dy <= 1; dy++) {
-    for (let dx = -1; dx <= 1; dx++) {
-      const x = localX + dx;
-      const y = localY + dy;
-      if (x < 0 || y < 0 || x >= frame.frame.w || y >= frame.frame.h) continue;
-      if (alpha[x + y * frame.frame.w] > 16) return true;
-    }
-  }
-  return false;
+  return cityFrameHitMaskContainsPoint({
+    alpha: frameAlpha(frame, atlas),
+    width: frame.frame.w,
+    height: frame.frame.h,
+    x: localX,
+    y: localY,
+    paddingPx
+  });
 }
 
 function frameAlpha(frame, atlas = state.staticAtlas) {
@@ -4699,6 +4599,7 @@ return Object.freeze({
     return moveDestinationFocus(direction);
   },
   activateFocusedDestination() {
+    focusDestination(state.focusedDestinationId, { immediate: true });
     return activateDestination(state.focusedDestinationId);
   },
   destinationAt(x, y) {
@@ -4723,8 +4624,10 @@ return Object.freeze({
     )) {
       throw new Error("Invalid port assault presentation");
     }
-    const enteringAssault = presentation !== null && state.assaultPresentation === null;
+    const assaultWasActive = state.assaultPresentation !== null;
+    const enteringAssault = presentation !== null && !assaultWasActive;
     state.assaultPresentation = presentation;
+    if (assaultWasActive !== (presentation !== null)) rebuildCitySceneRenderPlan();
     invalidateDestinationLabelLayouts();
     if (presentation) {
       if (enteringAssault) focusDestination(PORT_CITY_LOCATION.SET_SAIL, { immediate: true });

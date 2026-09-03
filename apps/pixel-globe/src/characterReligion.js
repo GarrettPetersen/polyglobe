@@ -62,6 +62,13 @@ const PORTRAIT_RELIGION_DEFAULTS = Object.freeze({
   buddhist: "mahayana-buddhism"
 });
 
+const RELIGION_FAMILY_BY_ICON_ID = Object.freeze({
+  "religion:christian": "christian",
+  "religion:orthodox": "christian",
+  "religion:islam": "muslim",
+  "religion:buddhist": "buddhist"
+});
+
 const CATHOLIC_FACTIONS = new Set([
   "england",
   "scotland",
@@ -195,6 +202,11 @@ export function isIslamicReligion(religionId) {
 export function isChristianReligion(religionId) {
   const iconId = religionById(religionId).iconId;
   return iconId === "religion:christian" || iconId === "religion:orthodox";
+}
+
+export function religionFamilyId(religionId) {
+  const religion = religionById(religionId);
+  return RELIGION_FAMILY_BY_ICON_ID[religion.iconId] || religion.id;
 }
 
 export function islamicReligionForHome(homePort, identityKey) {
