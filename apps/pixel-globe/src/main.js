@@ -1644,6 +1644,7 @@ import {
   SHORE_BATTERY_RANGE_PX,
   SHORE_BATTERY_CREW_PROTECTION,
   armShoreBatteryReload,
+  cityHasShoreBatteryCombatPort,
   createShoreBatteryState,
   damageShoreBattery,
   damageShoreBatteryCrew,
@@ -37229,10 +37230,12 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
   const playerWeaponRange = playerNavalWeaponRangePx();
 
   for (const city of chart.cityCalls || []) {
-    if (!city.character || !factionHasFlag(city.factionId)) continue;
     // A colony becomes visible before it becomes a dockable, supplied port.
-    // Its local official and flag must not implicitly commission a battery.
-    if (!portCitiesByTileId.has(city.tileId)) continue;
+    // Scene visibility alone must not implicitly commission a battery.
+    if (!cityHasShoreBatteryCombatPort(city, portCitiesByTileId)) continue;
+    if (!city.character) {
+      throw new Error(`Dockable shore battery port has no character: ${city.cityId}`);
+    }
     if (!worldEconomyHasPort(worldEconomy, city)) {
       throw new Error(`Dockable shore battery port has no economy: ${city.tileId}`);
     }

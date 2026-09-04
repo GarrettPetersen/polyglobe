@@ -187,6 +187,24 @@ export function shoreBatteryId(city) {
   return `shore-battery:${requireCityId(city, "Shore battery city")}`;
 }
 
+export function cityHasShoreBatteryCombatPort(city, dockablePortsByTileId) {
+  assertCity(city);
+  if (!(dockablePortsByTileId instanceof Map)) {
+    throw new Error("Shore battery combat requires the dockable-port index");
+  }
+  const dockablePort = dockablePortsByTileId.get(city.tileId);
+  if (!dockablePort) return false;
+  assertCity(dockablePort);
+  const cityId = requireCityId(city, "Shore battery combat city");
+  const dockableCityId = requireCityId(dockablePort, "Shore battery dockable port");
+  if (dockableCityId !== cityId) {
+    throw new Error(
+      `Shore battery tile ${city.tileId} resolves to ${dockableCityId}, not ${cityId}`
+    );
+  }
+  return true;
+}
+
 export function shoreBatteryLevel(city, flags = null) {
   assertCity(city);
   if (flags !== null) assertFlags(flags);

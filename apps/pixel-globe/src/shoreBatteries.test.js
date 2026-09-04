@@ -9,6 +9,7 @@ import {
   SHORE_BATTERY_PORTABLE_HIT_CHANCE_SCALE,
   SHORE_BATTERY_RELOAD_SECONDS,
   armShoreBatteryReload,
+  cityHasShoreBatteryCombatPort,
   clearShoreBatteryCombatWounds,
   createShoreBatteryState,
   damageShoreBattery,
@@ -64,6 +65,36 @@ test("a commissioned captain can open a bombardment at the ship's weapon range",
     playerWeaponRangePx: 112,
     commissioned: false
   }), 76);
+});
+
+test("an independent dockable port participates in shore combat without a national flag", () => {
+  const tunis = {
+    cityId: "tunis|tunisia",
+    tileId: 141,
+    city: "Tunis",
+    factionId: "neutral",
+    cityType: "islamic-desert",
+    population: 60_000
+  };
+  const inlandCity = {
+    cityId: "reims|france",
+    tileId: 142,
+    city: "Reims",
+    factionId: "france",
+    cityType: "northern-european",
+    population: 20_000
+  };
+  const dockablePortsByTileId = new Map([[tunis.tileId, tunis]]);
+
+  assert.equal(cityHasShoreBatteryCombatPort(tunis, dockablePortsByTileId), true);
+  assert.equal(cityHasShoreBatteryCombatPort(inlandCity, dockablePortsByTileId), false);
+  assert.throws(
+    () => cityHasShoreBatteryCombatPort(
+      { ...tunis, cityId: "carthage|tunisia" },
+      dockablePortsByTileId
+    ),
+    /resolves to tunis\|tunisia, not carthage\|tunisia/
+  );
 });
 
 test("a bombardment ordered while docked survives projected distance from the battery", () => {
