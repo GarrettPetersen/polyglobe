@@ -226,10 +226,11 @@ const STANDALONE_BUILDING_LAYERS = Object.freeze([
 
 const HORIZON_LANDMARK_BUILDING_LAYERS = Object.freeze({
   Pyramid: Object.freeze({
-    sceneX: 705,
-    sceneY: 348,
-    width: 200,
-    height: 102
+    sceneX: 775,
+    sceneY: 399,
+    sourceWidth: 200,
+    sourceHeight: 102,
+    renderScale: 0.5
   })
 });
 
@@ -835,6 +836,12 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
             sceneOffsetX: regional.sceneOffsetX ?? 0
           })
         : standaloneFrame.spriteSourceSize;
+      const renderedWidth = horizonLandmark
+        ? canonicalSpriteSourceSize.w
+        : standaloneFrame.frame.w;
+      const renderedHeight = horizonLandmark
+        ? canonicalSpriteSourceSize.h
+        : standaloneFrame.frame.h;
       context.drawImage(
         overrideAtlas,
         standaloneFrame.frame.x,
@@ -843,8 +850,8 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
         standaloneFrame.frame.h,
         0,
         appendedY,
-        standaloneFrame.frame.w,
-        standaloneFrame.frame.h
+        renderedWidth,
+        renderedHeight
       );
       staticFrames.push({
         id: `building-${standaloneFrame.layer.toLowerCase().replaceAll(" ", "-")}`,
@@ -853,8 +860,8 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
         frame: {
           x: 0,
           y: appendedY,
-          w: standaloneFrame.frame.w,
-          h: standaloneFrame.frame.h
+          w: renderedWidth,
+          h: renderedHeight
         },
         spriteSourceSize: canonicalSpriteSourceSize,
         sourceSize: foreground
@@ -884,16 +891,25 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
 }
 
 function horizonLandmarkSpriteSourceSize(frame, placement) {
-  if (frame.frame.w !== placement.width || frame.frame.h !== placement.height) {
+  if (frame.frame.w !== placement.sourceWidth || frame.frame.h !== placement.sourceHeight) {
     throw new Error(
-      `${frame.layer} must remain ${placement.width}x${placement.height} to preserve its horizon placement`
+      `${frame.layer} must remain ${placement.sourceWidth}x${placement.sourceHeight} ` +
+      "to preserve its horizon placement"
     );
+  }
+  if (!Number.isFinite(placement.renderScale) || placement.renderScale <= 0 || placement.renderScale > 1) {
+    throw new Error(`${frame.layer} horizon scale must be within (0, 1]`);
+  }
+  const renderedWidth = frame.frame.w * placement.renderScale;
+  const renderedHeight = frame.frame.h * placement.renderScale;
+  if (!Number.isInteger(renderedWidth) || !Number.isInteger(renderedHeight)) {
+    throw new Error(`${frame.layer} horizon scale must produce integer pixel dimensions`);
   }
   return {
     x: placement.sceneX,
     y: placement.sceneY,
-    w: frame.frame.w,
-    h: frame.frame.h
+    w: renderedWidth,
+    h: renderedHeight
   };
 }
 

@@ -1100,7 +1100,8 @@ test("only cities within the canonical pyramid horizon receive the grounded dist
 
   const pyramidFrame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === "Pyramid");
   const desertFrame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === "Distant Desert");
-  assert.deepEqual(pyramidFrame?.spriteSourceSize, { x: 705, y: 348, w: 200, h: 102 });
+  assert.deepEqual(pyramidFrame?.spriteSourceSize, { x: 775, y: 399, w: 100, h: 51 });
+  assert.deepEqual(pyramidFrame?.frame, { x: 0, y: 4037, w: 100, h: 51 });
   assert.ok(
     CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Pyramid") <
       CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Distant Desert")
