@@ -66,8 +66,12 @@ const CONTENT_TYPES = new Map([
 ]);
 
 const fixtures = frozenSaveFixtures();
-const releaseReachability = parseReleaseReachabilityArgument(process.argv.slice(2));
-const gameplayScenarioIds = productionGameplayScenarioIds(releaseReachability);
+const reachabilityOptions = parseReachabilityArguments(process.argv.slice(2));
+const releaseReachability = reachabilityOptions.release;
+const gameplayScenarioIds = productionGameplayScenarioIds(
+  releaseReachability,
+  reachabilityOptions.scenarioId
+);
 const playwright = loadPlaywright();
 const server = await startStaticServer();
 const address = server.address();
@@ -207,17 +211,36 @@ try {
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
 }
 
-function parseReleaseReachabilityArgument(args) {
-  const knownArguments = new Set(["--release-reachability"]);
-  const unknown = args.filter((argument) => !knownArguments.has(argument));
+function parseReachabilityArguments(args) {
+  const scenarioArguments = args.filter((argument) => argument.startsWith("--scenario="));
+  const unknown = args.filter((argument) => (
+    argument !== "--release-reachability" && !argument.startsWith("--scenario=")
+  ));
   if (unknown.length > 0) {
     throw new Error(`Unknown production reachability argument: ${unknown.join(", ")}`);
   }
-  return args.includes("--release-reachability");
+  if (scenarioArguments.length > 1) {
+    throw new Error("Production reachability accepts only one scenario argument");
+  }
+  const release = args.includes("--release-reachability");
+  const scenarioId = scenarioArguments.length === 1
+    ? scenarioArguments[0].slice("--scenario=".length)
+    : null;
+  if (scenarioId === "") throw new Error("Production reachability scenario id is empty");
+  if (release && scenarioId !== null) {
+    throw new Error("Select release reachability or one scenario, not both");
+  }
+  return Object.freeze({ release, scenarioId });
 }
 
-function productionGameplayScenarioIds(release) {
-  const ids = gameplayReachabilityScenarioIds(release ? "release" : "fast");
+function productionGameplayScenarioIds(release, scenarioId) {
+  const releaseIds = gameplayReachabilityScenarioIds("release");
+  if (scenarioId !== null && !releaseIds.includes(scenarioId)) {
+    throw new Error(`Unknown production gameplay reachability scenario: ${scenarioId}`);
+  }
+  const ids = scenarioId === null
+    ? gameplayReachabilityScenarioIds(release ? "release" : "fast")
+    : Object.freeze([scenarioId]);
   if (ids.length === 0) throw new Error("Production gameplay reachability selected no scenarios");
   for (const id of ids) {
     const scenario = captureScenarioFromSearch(`?capture=${id}`);
@@ -225,12 +248,14 @@ function productionGameplayScenarioIds(release) {
       throw new Error(`Gameplay reachability scenario has unsupported kind: ${id}:${scenario.sequence.kind}`);
     }
   }
-  const representedKinds = new Set(ids.map((id) => (
-    captureScenarioFromSearch(`?capture=${id}`).sequence.kind
-  )));
-  for (const kind of GAMEPLAY_SEQUENCE_KINDS) {
-    if (!representedKinds.has(kind)) {
-      throw new Error(`Production gameplay reachability has no ${kind} scenario`);
+  if (scenarioId === null) {
+    const representedKinds = new Set(ids.map((id) => (
+      captureScenarioFromSearch(`?capture=${id}`).sequence.kind
+    )));
+    for (const kind of GAMEPLAY_SEQUENCE_KINDS) {
+      if (!representedKinds.has(kind)) {
+        throw new Error(`Production gameplay reachability has no ${kind} scenario`);
+      }
     }
   }
   return Object.freeze(ids);
@@ -277,11 +302,66 @@ async function exerciseProductionGameplayScenario(page, browserErrors, baseUrl, 
   if (result.sidecar?.scenario?.id !== scenarioId) {
     throw new Error(`${scenarioId} completed without its deterministic event record`);
   }
+  const combatSummary = assertGameplayScenarioEvidence(scenario, result.sidecar);
   await assertNoBrowserFailure(page, browserErrors, `${scenarioId} frame traversal`);
   process.stdout.write(
     `  ${scenario.sequence.kind} ${scenarioId}: ${frameCount} frames in ` +
-      `${Math.round(performance.now() - startedAt)} ms\n`
+      `${Math.round(performance.now() - startedAt)} ms${combatSummary ? `; ${combatSummary}` : ""}\n`
   );
+}
+
+function assertGameplayScenarioEvidence(scenario, sidecar) {
+  if (scenario.sequence.variant !== "2v2-broadside") return null;
+  const evaluatedNpcIds = scenario.sequence.evaluatedNpcIds;
+  if (!Array.isArray(evaluatedNpcIds) || evaluatedNpcIds.length !== 3 ||
+      new Set(evaluatedNpcIds).size !== evaluatedNpcIds.length) {
+    throw new Error(`${scenario.id} requires three unique evaluated NPC ids`);
+  }
+  const evaluatedNpcIdSet = new Set(evaluatedNpcIds);
+  const cannonVolleys = sidecar.events.filter((event) => (
+    event.type === "weapon-fired" &&
+    event.data.weapon === "cannon" &&
+    evaluatedNpcIdSet.has(event.data.ownerId)
+  ));
+  const cannonHits = sidecar.events.filter((event) => (
+    event.type === "projectile-hit" &&
+    event.data.weapon === "cannon" &&
+    evaluatedNpcIdSet.has(event.data.ownerId) &&
+    typeof event.data.combatVolleyId === "string"
+  ));
+  const hitVolleyIds = new Set(cannonHits.map((event) => event.data.combatVolleyId));
+  const effectiveVolleys = cannonVolleys.filter((event) => hitVolleyIds.has(event.data.combatVolleyId));
+  const opportunisticVolleys = cannonVolleys.filter((event) => event.data.opportunistic === true);
+  const effectiveOpportunisticVolleys = opportunisticVolleys.filter(
+    (event) => hitVolleyIds.has(event.data.combatVolleyId)
+  );
+  if (cannonVolleys.length < evaluatedNpcIds.length) {
+    const targetChanges = sidecar.events
+      .filter((event) => event.type === "combat-target-changed" && evaluatedNpcIdSet.has(event.data.shipId))
+      .map((event) => event.data);
+    throw new Error(
+      `${scenario.id} produced only ${cannonVolleys.length} evaluated NPC broadside volleys: ` +
+      `${JSON.stringify(cannonVolleys.map((event) => event.data))}; targets: ${JSON.stringify(targetChanges)}`
+    );
+  }
+  if (opportunisticVolleys.length === 0) {
+    throw new Error(
+      `${scenario.id} never exercised an opportunistic broadside: ` +
+      JSON.stringify(cannonVolleys.map((event) => event.data))
+    );
+  }
+  const volleyHitRate = effectiveVolleys.length / cannonVolleys.length;
+  const opportunisticHitRate = effectiveOpportunisticVolleys.length / opportunisticVolleys.length;
+  if (volleyHitRate < 0.5) {
+    throw new Error(`${scenario.id} useful NPC broadside rate was ${(volleyHitRate * 100).toFixed(1)}%`);
+  }
+  if (opportunisticHitRate < 0.5) {
+    throw new Error(
+      `${scenario.id} useful opportunistic broadside rate was ${(opportunisticHitRate * 100).toFixed(1)}%`
+    );
+  }
+  return `${cannonVolleys.length} NPC volleys, ${(volleyHitRate * 100).toFixed(0)}% useful; ` +
+    `${opportunisticVolleys.length} opportunistic, ${(opportunisticHitRate * 100).toFixed(0)}% useful`;
 }
 
 function frozenSaveFixtures() {

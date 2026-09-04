@@ -29,6 +29,7 @@ test("gameplay reachability uses a dedicated catalog independent of promotional 
       "sail:beam-reach",
       "sail:row-upwind",
       "fight:broadside",
+      "fight:2v2-broadside",
       "fight:small-arms",
       "pillage:bombard",
       "pillage:assault"

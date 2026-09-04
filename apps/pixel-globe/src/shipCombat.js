@@ -35,12 +35,19 @@ const COMBAT_SPATIAL_INDEX_MIN_ENTITIES = 12;
 
 export function createShipCombatState() {
   return {
-    engagements: new Map()
+    engagements: new Map(),
+    intendedTargets: new Map()
   };
 }
 
+export function clearShipCombatState(state) {
+  assertShipCombatState(state);
+  state.engagements.clear();
+  state.intendedTargets.clear();
+}
+
 export function updateShipCombatState(state, entities, relationBetween = diplomacyBetween) {
-  if (!state?.engagements) throw new Error("Missing ship combat state");
+  assertShipCombatState(state);
   assertRelationResolver(relationBetween);
   if (!Array.isArray(entities)) throw new Error("Ship combat requires an entity list");
   const byId = new Map();
@@ -122,12 +129,26 @@ export function updateShipCombatState(state, entities, relationBetween = diploma
     const entity = byId.get(entityId);
     if (!entity) throw new Error(`Combat enemy index lost entity: ${entityId}`);
     const mode = combatMode(entity, enemies, playerReinforcementIds.has(entity.id));
-    const target = chooseTarget(entity, enemies, mode);
+    const target = chooseIntendedTarget(
+      entity,
+      enemies,
+      mode,
+      state.intendedTargets.get(entity.id) ?? null
+    );
+    if (state.intendedTargets.get(entity.id) !== target.id) {
+      state.intendedTargets.set(entity.id, target.id);
+      changed = true;
+    }
     intents.set(entity.id, {
       mode,
       targetId: target.id,
       enemyIds: enemies.map((enemy) => enemy.id)
     });
+  }
+  for (const entityId of state.intendedTargets.keys()) {
+    if (enemiesById.has(entityId)) continue;
+    state.intendedTargets.delete(entityId);
+    changed = true;
   }
   return { changed, intents, engagementCount: state.engagements.size, startedEngagements };
 }
@@ -356,7 +377,7 @@ function playerEnteredPortEndsEngagement(a, b) {
 }
 
 export function forceShipEngagement(state, aId, bId) {
-  if (!state?.engagements) throw new Error("Missing ship combat state");
+  assertShipCombatState(state);
   if (typeof aId !== "string" || aId === "" || typeof bId !== "string" || bId === "") {
     throw new Error("Forced ship engagement requires two ship ids");
   }
@@ -382,9 +403,7 @@ export function engagementKey(aId, bId) {
 }
 
 export function combatantsShareEnemy(state, aId, bId) {
-  if (!state?.engagements || !(state.engagements instanceof Map)) {
-    throw new Error("Shared-enemy attribution requires ship combat state");
-  }
+  assertShipCombatState(state);
   if (typeof aId !== "string" || aId === "" || typeof bId !== "string" || bId === "") {
     throw new Error("Shared-enemy attribution requires two combatant ids");
   }
@@ -461,7 +480,12 @@ function combatMode(entity, enemies, reinforcingPlayer = false) {
   return COMBAT_MODE_ATTACK;
 }
 
-function chooseTarget(entity, enemies, mode) {
+function chooseIntendedTarget(entity, enemies, mode, intendedTargetId) {
+  const intendedTarget = intendedTargetId === null
+    ? null
+    : enemies.find((enemy) => enemy.id === intendedTargetId) ?? null;
+  if (intendedTarget) return intendedTarget;
+
   let target = enemies[0];
   if (mode === COMBAT_MODE_FLEE) {
     for (let index = 1; index < enemies.length; index++) {
@@ -485,6 +509,46 @@ function chooseTarget(entity, enemies, mode) {
     }
   }
   return target;
+}
+
+export function attemptCombatBroadside(intent, fireAtTarget) {
+  if (typeof fireAtTarget !== "function") {
+    throw new Error("Combat broadside attempt requires a firing operation");
+  }
+  const targetIds = combatFireTargetIds(intent);
+  for (let index = 0; index < targetIds.length; index++) {
+    const targetId = targetIds[index];
+    const fired = fireAtTarget(targetId, Object.freeze({
+      intendedTargetId: intent.targetId,
+      opportunistic: index > 0
+    }));
+    if (typeof fired !== "boolean") {
+      throw new Error(`Combat broadside firing operation returned a non-boolean result for ${targetId}`);
+    }
+    if (fired) return targetId;
+  }
+  return null;
+}
+
+function combatFireTargetIds(intent) {
+  if (!intent || typeof intent.targetId !== "string" || intent.targetId === "") {
+    throw new Error("Combat firing intent requires an intended target id");
+  }
+  if (!Array.isArray(intent.enemyIds) ||
+      intent.enemyIds.some((enemyId) => typeof enemyId !== "string" || enemyId === "")) {
+    throw new Error("Combat firing intent requires enemy ids");
+  }
+  if (!intent.enemyIds.includes(intent.targetId)) {
+    throw new Error(`Combat intended target is not an active enemy: ${intent.targetId}`);
+  }
+  const orderedTargetIds = [intent.targetId];
+  const seenTargetIds = new Set(orderedTargetIds);
+  for (const enemyId of intent.enemyIds) {
+    if (seenTargetIds.has(enemyId)) continue;
+    seenTargetIds.add(enemyId);
+    orderedTargetIds.push(enemyId);
+  }
+  return orderedTargetIds;
 }
 
 function validateEntity(entity) {
@@ -548,6 +612,12 @@ function validateEntity(entity) {
 
 function assertRelationResolver(relationBetween) {
   if (typeof relationBetween !== "function") throw new Error("Ship combat requires a diplomacy resolver");
+}
+
+function assertShipCombatState(state) {
+  if (!state || !(state.engagements instanceof Map) || !(state.intendedTargets instanceof Map)) {
+    throw new Error("Missing ship combat state");
+  }
 }
 
 function validatedCombatPower(entity) {

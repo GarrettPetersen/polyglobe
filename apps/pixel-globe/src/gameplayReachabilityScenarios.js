@@ -63,6 +63,63 @@ export const GAMEPLAY_REACHABILITY_SCENARIOS = deepFreeze({
       modalPolicy: "suppress"
     }
   },
+  "reachability-fight-2v2": {
+    id: "reachability-fight-2v2",
+    title: "Sailing ship",
+    seed: "reachability-fight-2v2-v1",
+    player: vessel("portugal", "portuguese-carrack", 36.25, -29, 90),
+    world: world(205, 16, 10),
+    diplomacy: [
+      relation("portugal", "england", "ally"),
+      relation("portugal", "spain", "war"),
+      relation("england", "spain", "war")
+    ],
+    encounters: [
+      {
+        ...encounter(
+        "reachability-2v2-spanish-galleon",
+        "spain",
+        "seville|spain",
+        "galleon",
+        36.25,
+        -28.42,
+        90
+        ),
+        hitPoints: 20
+      },
+      encounter(
+        "reachability-2v2-spanish-caravel",
+        "spain",
+        "seville|spain",
+        "caravel",
+        35.25,
+        -27.84,
+        90
+      ),
+      encounter(
+        "reachability-2v2-english-brigantine",
+        "england",
+        "london|united kingdom",
+        "brigantine",
+        35.25,
+        -28.42,
+        90
+      )
+    ],
+    sequence: {
+      kind: "fight",
+      variant: "2v2-broadside",
+      durationSeconds: 30,
+      encounterId: "reachability-2v2-spanish-galleon",
+      broadsideSide: "starboard",
+      modalPolicy: "suppress",
+      evaluatedNpcIds: [
+        "reachability-2v2-spanish-galleon",
+        "reachability-2v2-spanish-caravel",
+        "reachability-2v2-english-brigantine"
+      ]
+    }
+  },
   "reachability-fight-small-arms": {
     id: "reachability-fight-small-arms",
     title: "Sailing ship",

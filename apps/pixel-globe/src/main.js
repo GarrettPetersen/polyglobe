@@ -1598,6 +1598,8 @@ import {
   COMBAT_MODE_FLEE,
   COMBAT_DETECTION_RADIUS_PX,
   PLAYER_COMBAT_ID,
+  attemptCombatBroadside,
+  clearShipCombatState,
   combatantsShareEnemy,
   createShipCombatState,
   engagementKey,
@@ -11990,6 +11992,10 @@ function captureUpwindVoyageCalloutData(sequence) {
 
 function updateCaptureFight(sequence) {
   if (captureDirector.elapsedSeconds >= 1.2) dismissCaptureOverlays();
+  if (sequence.variant === "2v2-broadside") {
+    captureDirector.steeringTarget = null;
+    ship.velocity = [0, 0, 0];
+  }
   const target = npcVisualShips.get(sequence.encounterId);
   if (!target) return;
   if (sequence.holdBroadsideAim && captureDirector.elapsedSeconds <= 1.4) {
@@ -16482,7 +16488,7 @@ async function restoreSavedVoyage(payload) {
   npcCombatSplashes = [];
   pendingNpcCombatHailId = null;
   clearDamageSurrenderDecisions(pendingDamageSurrenderDecisions);
-  shipCombatState.engagements.clear();
+  clearShipCombatState(shipCombatState);
   clearFriendlyFireIncidents(playerFriendlyFireIncidents);
   playerFriendlyFirePenaltyFactionIds.clear();
   shipCollisionCooldowns.clear();
@@ -36460,6 +36466,14 @@ function updateNpcCombat(dt) {
       state.combatTargetId !== nextTargetId ||
       arrayContentsDiffer(state.combatEnemyIds, nextEnemyIds)
     ) changed = true;
+    if (state.combatTargetId !== nextTargetId) {
+      emitCaptureEvent("combat-target-changed", {
+        shipId: state.id,
+        previousTargetId: state.combatTargetId,
+        targetId: nextTargetId,
+        enemyIds: nextEnemyIds
+      });
+    }
     state.combatMode = nextMode;
     state.combatTargetId = nextTargetId;
     state.combatEnemyIds = nextEnemyIds;
@@ -36468,7 +36482,10 @@ function updateNpcCombat(dt) {
         !illicitTradeHailOpened && !tradeEmbargoHailOpened &&
         !cartazHailOpened && !batteryCombat.hailOpened &&
         intent?.mode === COMBAT_MODE_ATTACK) {
-      if (fireNpcWeaponAtTarget(state, intent.targetId)) changed = true;
+      if (attemptCombatBroadside(
+        intent,
+        (targetId, targeting) => fireNpcWeaponAtTarget(state, targetId, targeting)
+      ) !== null) changed = true;
       if (fireNpcPortableWeaponsAtTarget(state, intent.targetId)) changed = true;
     }
   }
@@ -37560,8 +37577,14 @@ function npcCombatNavigation(state) {
   });
 }
 
-function fireNpcWeaponAtTarget(state, targetId) {
+function fireNpcWeaponAtTarget(state, targetId, targeting = null) {
   if (state.combatGrace) return false;
+  const intendedTargetId = targeting?.intendedTargetId ?? targetId;
+  const opportunistic = targeting?.opportunistic ?? false;
+  if (typeof intendedTargetId !== "string" || intendedTargetId === "" ||
+      typeof opportunistic !== "boolean") {
+    throw new Error(`Invalid NPC broadside targeting policy: ${intendedTargetId}/${opportunistic}`);
+  }
   const currentTarget = combatEntityAimPoint(targetId);
   if (!currentTarget) return false;
   const stats = state.stats;
@@ -37585,14 +37608,19 @@ function fireNpcWeaponAtTarget(state, targetId) {
   if (state.broadsideCooldowns[sideName] > 0) return false;
 
   const volleyCount = broadsideCannonCount(stats.cannons);
+  state.weaponSequence += 1;
+  const combatVolleyId = `${state.id}:${state.weaponSequence}`;
   emitCaptureEvent("weapon-fired", {
     ownerId: state.id,
     targetId,
+    intendedTargetId,
+    opportunistic,
+    combatVolleyId,
+    targetDistancePx: Math.round(distance * 10) / 10,
     weapon: weapon.kind,
     count: volleyCount
   });
   state.broadsideCooldowns[sideName] = weapon.reloadSeconds;
-  state.weaponSequence += 1;
   playNavalAttackSound(
     weapon,
     volleyCount,
@@ -37623,7 +37651,10 @@ function fireNpcWeaponAtTarget(state, targetId) {
     const projectile = {
       ...shot,
       ownerId: state.id,
-      targetId
+      targetId,
+      intendedTargetId,
+      opportunistic,
+      combatVolleyId
     };
     npcCombatProjectiles.push(projectile);
     if (projectile.kind === NAVAL_WEAPON_CANNON) addCannonSmokeBurst(projectile);
@@ -37916,6 +37947,7 @@ function applyNpcCombatHit(ball, targetId, point) {
       emitCaptureEvent("projectile-hit", {
         ownerId: ball.ownerId,
         targetId,
+        ...npcBroadsideCaptureFields(ball),
         weapon: ball.kind,
         damage: 0,
         resisted: true,
@@ -37929,6 +37961,7 @@ function applyNpcCombatHit(ball, targetId, point) {
     emitCaptureEvent("projectile-hit", {
       ownerId: ball.ownerId,
       targetId,
+      ...npcBroadsideCaptureFields(ball),
       weapon: ball.kind,
       damage,
       resisted: false,
@@ -37964,6 +37997,7 @@ function applyNpcCombatHit(ball, targetId, point) {
   emitCaptureEvent("projectile-hit", {
     ownerId: ball.ownerId,
     targetId,
+    ...npcBroadsideCaptureFields(ball),
     weapon: ball.kind,
     damage: damage.damage,
     resisted: damage.resisted,
@@ -37977,6 +38011,20 @@ function applyNpcCombatHit(ball, targetId, point) {
     addHullSplinterBurst(ball, point);
     if (damage.shouldSurrender) handleNpcSurrender(targetId, ball.ownerId);
   }
+}
+
+function npcBroadsideCaptureFields(projectile) {
+  if (projectile.combatVolleyId === undefined) return {};
+  if (typeof projectile.combatVolleyId !== "string" || projectile.combatVolleyId === "" ||
+      typeof projectile.intendedTargetId !== "string" || projectile.intendedTargetId === "" ||
+      typeof projectile.opportunistic !== "boolean") {
+    throw new Error(`Invalid NPC broadside capture fields: ${projectile.combatVolleyId}`);
+  }
+  return {
+    combatVolleyId: projectile.combatVolleyId,
+    intendedTargetId: projectile.intendedTargetId,
+    opportunistic: projectile.opportunistic
+  };
 }
 
 function applyPortableWeaponHitToPlayer(ball, point) {

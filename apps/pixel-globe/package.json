@@ -42,6 +42,7 @@
     "benchmark:fog": "node tools/run-performance-benchmark.mjs --benchmark polar-fog",
     "benchmark:combat": "node tools/run-performance-benchmark.mjs --benchmark combat-hotspot",
     "benchmark:combat-ai": "node tools/benchmark-npc-combat-ai.mjs",
+    "test:combat-ai-2v2": "npm run build && node tools/run-save-restore-smoke.mjs --scenario=reachability-fight-2v2",
     "benchmark:lepanto": "node tools/benchmark-historical-battle.mjs",
     "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",
     "benchmark:gibraltar": "node tools/run-performance-benchmark.mjs --benchmark gibraltar-hotspot",

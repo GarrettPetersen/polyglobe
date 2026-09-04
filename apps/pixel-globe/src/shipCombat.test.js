@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  COMBAT_DISENGAGE_RADIUS_PX,
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
   PLAYER_COMBAT_ID,
@@ -13,6 +14,8 @@ import {
   QUEST_ATTACKER_HUNT_RADIUS_PX,
   WARSHIP_PIRATE_DISENGAGE_RADIUS_PX,
   WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX,
+  attemptCombatBroadside,
+  clearShipCombatState,
   combatantsShareEnemy,
   createShipCombatState,
   forceShipEngagement,
@@ -47,6 +50,71 @@ test("pirates trigger many-to-many combat while merchants flee", () => {
   assert.equal(result.intents.get("pirate").enemyIds.length, 2);
   assert.equal(result.intents.get("merchant-a").mode, COMBAT_MODE_FLEE);
   assert.equal(result.intents.get("merchant-b").mode, COMBAT_MODE_FLEE);
+});
+
+test("an attacking ship keeps its intended target while another enemy becomes closer", () => {
+  const state = createShipCombatState();
+  const pirate = ship("pirate", "pirate", "pirate", 0, 0, 130, 12);
+  const firstTarget = ship("merchant-a", "merchant", "portugal", 20, 0, 110, 8);
+  const secondTarget = ship("merchant-b", "merchant", "spain", 30, 0, 110, 8);
+
+  const acquired = updateShipCombatState(state, [pirate, firstTarget, secondTarget]);
+  assert.equal(acquired.intents.get(pirate.id).targetId, firstTarget.id);
+
+  firstTarget.x = 35;
+  secondTarget.x = 10;
+  const retained = updateShipCombatState(state, [pirate, firstTarget, secondTarget]);
+  assert.equal(retained.intents.get(pirate.id).targetId, firstTarget.id);
+});
+
+test("an attacking ship retargets when its intended enemy leaves the engagement", () => {
+  const state = createShipCombatState();
+  const pirate = ship("pirate", "pirate", "pirate", 0, 0, 130, 12);
+  const firstTarget = ship("merchant-a", "merchant", "portugal", 20, 0, 110, 8);
+  const secondTarget = ship("merchant-b", "merchant", "spain", 30, 0, 110, 8);
+  updateShipCombatState(state, [pirate, firstTarget, secondTarget]);
+
+  firstTarget.x = COMBAT_DISENGAGE_RADIUS_PX + 1;
+  const retargeted = updateShipCombatState(state, [pirate, firstTarget, secondTarget]);
+  assert.equal(retargeted.intents.get(pirate.id).targetId, secondTarget.id);
+});
+
+test("a broadside tries its intended target before taking an opportunistic shot", () => {
+  const attempts = [];
+  const firedAtTargetId = attemptCombatBroadside({
+    targetId: "merchant-b",
+    enemyIds: ["merchant-a", "merchant-b", "merchant-c"]
+  }, (targetId, targeting) => {
+    attempts.push({ targetId, ...targeting });
+    return targetId === "merchant-a";
+  });
+
+  assert.equal(firedAtTargetId, "merchant-a");
+  assert.deepEqual(attempts, [
+    {
+      targetId: "merchant-b",
+      intendedTargetId: "merchant-b",
+      opportunistic: false
+    },
+    {
+      targetId: "merchant-a",
+      intendedTargetId: "merchant-b",
+      opportunistic: true
+    }
+  ]);
+});
+
+test("clearing combat removes engagements and intended targets together", () => {
+  const state = createShipCombatState();
+  forceShipEngagement(state, "player", "pirate");
+  updateShipCombatState(state, [
+    ship("player", "merchant", "england", 0, 0, 40, 8),
+    ship("pirate", "pirate", "pirate", 20, 0, 130, 12)
+  ]);
+
+  clearShipCombatState(state);
+  assert.equal(state.engagements.size, 0);
+  assert.equal(state.intendedTargets.size, 0);
 });
 
 test("civilian whalers are valid combatants and flee when attacked", () => {
