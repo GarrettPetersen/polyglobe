@@ -124,6 +124,42 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Traders carry word of your wealth farther than any ship. Your business shall have first hearing.": Object.freeze({
+    "zh-Hans": "商人们把您财富的消息传得比任何船都远。您的生意会得到优先接洽。",
+    ru: "Купцы разносят вести о вашем богатстве дальше любого корабля. Ваше дело выслушают первым.",
+    es: "Los mercaderes llevan noticias de vuestra riqueza más lejos que cualquier nave. Vuestros asuntos tendrán audiencia primero.",
+    "pt-BR": "Os mercadores levam notícias de vossa riqueza mais longe que qualquer navio. Vossos negócios terão a primeira audiência.",
+    ja: "商人たちは、どの船よりも遠くまで貴殿の富を言い伝えております。貴殿の用件を真っ先に伺いましょう。",
+    de: "Händler tragen die Kunde von Eurem Reichtum weiter als jedes Schiff. Euer Anliegen wird zuerst gehört.",
+    fr: "Les marchands portent la nouvelle de votre fortune plus loin qu'aucun navire. Vos affaires seront entendues en premier.",
+    pl: "Kupcy niosą wieść o waszym bogactwie dalej niż jakikolwiek okręt. Wasza sprawa zostanie wysłuchana jako pierwsza.",
+    "zh-Hant": "商人們把您財富的消息傳得比任何船都遠。您的生意會得到優先接洽。",
+    ko: "상인들은 어떤 배보다도 멀리 선장님의 부에 관한 소문을 전합니다. 선장님의 용무를 먼저 듣겠습니다."
+  }),
+  "Your purse could fit out a fleet, captain. I shall not trouble you with small courtesies.": Object.freeze({
+    "zh-Hans": "船长，您的钱袋足以装备一支舰队。我就不拿小礼数耽搁您了。",
+    ru: "Ваш кошель мог бы снарядить целый флот, капитан. Не стану задерживать вас мелкими любезностями.",
+    es: "Vuestra bolsa podría armar una flota, capitán. No os entretendré con pequeñas cortesías.",
+    "pt-BR": "Vossa bolsa poderia armar uma frota, capitão. Não vos deterei com pequenas cortesias.",
+    ja: "船長、貴殿の財布なら艦隊一つを仕立てられましょう。些細な礼儀でお引き留めはいたしません。",
+    de: "Euer Geldbeutel könnte eine Flotte ausrüsten, Kapitän. Ich will Euch nicht mit kleinen Höflichkeiten aufhalten.",
+    fr: "Votre bourse pourrait armer une flotte, capitaine. Je ne vous retiendrai pas avec de menues politesses.",
+    pl: "Wasza sakiewka mogłaby wyposażyć całą flotę, kapitanie. Nie będę was zatrzymywać drobnymi uprzejmościami.",
+    "zh-Hant": "船長，您的錢袋足以裝備一支艦隊。我就不拿小禮數耽擱您了。",
+    ko: "선장님의 돈이라면 함대 하나도 꾸릴 수 있겠습니다. 사소한 예법으로 붙들지는 않겠습니다."
+  }),
+  "The black flags have learned your sail, captain. They flee from it sooner than from our patrols.": Object.freeze({
+    "zh-Hans": "船长，黑旗已经认得您的帆了。他们见您便逃，比见我们的巡船还快。",
+    ru: "Чёрные флаги выучили ваши паруса, капитан. От них они бегут раньше, чем от наших дозоров.",
+    es: "Las banderas negras ya conocen vuestra vela, capitán. Huyen de ella antes que de nuestras patrullas.",
+    "pt-BR": "As bandeiras negras já conhecem vossas velas, capitão. Fogem delas antes que de nossas patrulhas.",
+    ja: "船長、黒旗どもは貴殿の帆を覚えました。我らの巡船より先に、貴殿を見て逃げ出します。",
+    de: "Die schwarzen Flaggen kennen Eure Segel, Kapitän. Vor ihnen fliehen sie früher als vor unseren Patrouillen.",
+    fr: "Les pavillons noirs connaissent votre voile, capitaine. Ils la fuient avant même nos patrouilles.",
+    pl: "Czarne bandery poznały wasze żagle, kapitanie. Uciekają przed nimi wcześniej niż przed naszymi patrolami.",
+    "zh-Hant": "船長，黑旗已經認得您的帆了。他們見您便逃，比見我們的巡船還快。",
+    ko: "선장, 검은 깃발들이 선장님의 돛을 알아봅니다. 우리 순찰선보다 선장님을 보고 먼저 달아납니다."
+  }),
   "garrison commander": Object.freeze({
     "zh-Hans": "驻军司令", ru: "командир гарнизона", es: "comandante de la guarnición",
     "pt-BR": "comandante da guarnição", ja: "駐屯隊司令官", de: "Garnisonskommandant",

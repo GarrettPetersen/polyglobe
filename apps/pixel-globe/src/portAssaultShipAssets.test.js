@@ -135,12 +135,12 @@ test("every production hull has matching port-assault geometry and manifest meta
     assert.ok(Number.isInteger(cleanup.minimumComponentPixels));
     assert.ok(Number.isInteger(cleanup.removedComponents));
     assert.ok(Number.isInteger(cleanup.removedPixels));
-    if (entry.slug === "galleass") {
-      assert.deepEqual(entry.cityDockside.rasterCleanup, {
-        minimumComponentPixels: 12,
-        removedComponents: 8,
-        removedPixels: 49
-      });
+    if (entry.slug === "galleass" || entry.slug === "fusta") {
+      const reviewedCleanup = {
+        galleass: { minimumComponentPixels: 12, removedComponents: 8, removedPixels: 49 },
+        fusta: { minimumComponentPixels: 12, removedComponents: 15, removedPixels: 54 }
+      }[entry.slug];
+      assert.deepEqual(entry.cityDockside.rasterCleanup, reviewedCleanup);
     } else {
       assert.equal(entry.cityDockside.rasterCleanup.removedPixels, 0);
     }

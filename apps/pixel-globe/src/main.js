@@ -1061,7 +1061,7 @@ import {
   returnPortDialogueToCity,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
-  selectPortDialogueOption,
+  selectPortDialogueAction,
   selectShoreBatteryDialogueOption,
   selectShipDialogueOption,
   shoreBatteryDialogueView,
@@ -25564,14 +25564,14 @@ function chooseDialogueOption(optionIndex) {
   }
   invalidateDialogueView();
   try {
-    return applyDialogueOption(optionIndex);
+    return applyDialogueOption(optionIndex, selected);
   } finally {
     invalidateDialogueView();
     queuePortCitySceneSync();
   }
 }
 
-function applyDialogueOption(optionIndex) {
+function applyDialogueOption(optionIndex, displayedOption = null) {
   const selectedDialogueState = dialogueState;
   if (!selectedDialogueState) throw new Error("Dialogue option selected without an active session");
   let result;
@@ -25586,14 +25586,15 @@ function applyDialogueOption(optionIndex) {
     : null;
   invalidateDialogueOptionGeometry();
   if (dialogueState.kind === "port") {
+    if (!displayedOption) throw new Error("Port dialogue selection has no displayed option");
     const doubloonsBefore = gameState.doubloons;
-    result = selectPortDialogueOption(
+    result = selectPortDialogueAction(
       dialogueState,
       currentDialogueCity(),
       gameState,
       worldEconomy,
       playerAccessiblePortCities(),
-      optionIndex,
+      displayedOption,
       portDialogueContext()
     );
     if (acknowledgesPortArrivalGreeting && portCityView) {

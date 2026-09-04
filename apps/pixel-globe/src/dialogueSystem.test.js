@@ -23,6 +23,7 @@ import {
   returnPortDialogueToCity,
   selectPassengerDialogueOption,
   setPortCustomLoadoutValue,
+  selectPortDialogueAction,
   selectPortDialogueOption,
   selectShoreBatteryDialogueOption,
   selectShipDialogueOption,
@@ -5189,7 +5190,7 @@ test("a rare equipment offer persists after declining and remembers the player",
   );
 });
 
-test("package job offers show the destination distance", () => {
+test("a displayed package job remains the exact action selected from a multi-offer menu", () => {
   const lisbon = {
     tileId: 21,
     cityId: "lisbon|portugal",
@@ -5246,13 +5247,13 @@ test("package job offers show the destination distance", () => {
   assert.doesNotMatch(offers[0].detail, /GREAT-CIRCLE/);
   assert.equal(offers[2].action.quest.destinationCityId, cadiz.cityId);
 
-  const accepted = selectPortDialogueOption(
+  const accepted = selectPortDialogueAction(
     session,
     lisbon,
     gameState,
     economy,
     ports,
-    view.options.indexOf(offers[2])
+    offers[2]
   );
   assert.equal(accepted.acceptedQuest.scenarioId, "private-correspondence");
   assert.equal(gameState.memory.quests.deliveryOffers[lisbon.cityId], undefined);
@@ -7763,7 +7764,7 @@ test("a port factor receives a wealthy magnate according to her present station"
     dayIndex: 1,
     localHour: 12
   });
-  assert.match(greeting.text, /Augsburg's great families|royal squadron/i);
+  assert.match(greeting.text, /wealth|fit out a fleet/i);
 });
 
 test("a port continuation cannot present the wealthy reception twice during one landing", () => {
@@ -7794,7 +7795,7 @@ test("a port continuation cannot present the wealthy reception twice during one 
   };
 
   const greeting = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.match(greeting.text, /Augsburg's great families|royal squadron/i);
+  assert.match(greeting.text, /wealth|fit out a fleet/i);
   selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
   assert.equal(session.nodeId, "root");
 
@@ -7942,7 +7943,7 @@ test("completing an arrival delivery proceeds to the required loadout", () => {
   assert.equal(result.missionItemGift, null);
 });
 
-test("completing a packet rolls the destination's next job without re-entering port", () => {
+test("completing a packet does not silently roll another job before work is requested", () => {
   const origin = {
     tileId: 76,
     cityId: "lisbon|portugal",
@@ -7989,18 +7990,17 @@ test("completing a packet rolls the destination's next job without re-entering p
   );
 
   assert.equal(session.nodeId, "root");
-  assert.equal(result.nextDeliveryOffer?.originTileId, destination.tileId);
-  assert.equal(questStateForCity(gameState, destination, ports).kind, "available");
+  assert.equal(result.nextDeliveryOffer, undefined);
+  assert.equal(questStateForCity(gameState, destination, ports).kind, "unavailable");
 
   const root = portDialogueView(session, destination, gameState, economy, ports);
   const workIndex = root.options.findIndex((entry) => entry.label === "Ask about work");
-  selectPortDialogueOption(session, destination, gameState, economy, ports, workIndex);
+  selectPortDialogueOption(session, destination, gameState, economy, ports, workIndex, {
+    simMinute: 0
+  });
   assert.equal(session.nodeId, "quest");
   const nextJob = portDialogueView(session, destination, gameState, economy, ports);
-  assert.equal(
-    nextJob.options.find((entry) => entry.action.type === "accept-quest")?.action.quest.id,
-    result.nextDeliveryOffer.id
-  );
+  assert.equal(nextJob.options.some((entry) => entry.action.type === "accept-quest"), true);
 });
 
 test("only admitted port sessions carry automatic departure services", () => {

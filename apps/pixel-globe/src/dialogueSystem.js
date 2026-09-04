@@ -2022,6 +2022,32 @@ export function selectPortDialogueOption(
   const view = portDialogueView(session, city, gameState, economy, portCities, context);
   const option = view.options[optionIndex];
   if (!option) throw new Error(`Invalid dialogue option index: ${optionIndex}`);
+  return selectPortDialogueAction(
+    session,
+    city,
+    gameState,
+    economy,
+    portCities,
+    option,
+    context
+  );
+}
+
+export function selectPortDialogueAction(
+  session,
+  city,
+  gameState,
+  economy,
+  portCities,
+  option,
+  context = {}
+) {
+  if (!session || session.kind !== "port") throw new Error("Missing port dialogue session");
+  if (session.cityId !== city?.cityId) throw new Error("Dialogue city does not match active session");
+  if (!option || typeof option !== "object" || !option.action ||
+      typeof option.action.type !== "string" || option.action.type === "") {
+    throw new Error("Port dialogue action requires a displayed option");
+  }
   if (rejectDisabledDialogueOption(session, option)) {
     return { closed: false };
   }
@@ -2132,6 +2158,11 @@ export function selectPortDialogueOption(
       }
       enterPortMarket(session, gameState, economy, city);
       return { closed: false };
+    }
+    if (action.nodeId === "quest" && rootActionOrigin) {
+      deliveryOfferForCity(gameState, city, portCities, {
+        simMinute: context.simMinute ?? 0
+      });
     }
     if (session.nodeId === "illicit-caught" && action.nodeId !== "illicit-caught") {
       session.illicitTradeCaughtPolicyId = null;
@@ -3500,11 +3531,6 @@ export function selectPortDialogueOption(
   }
   if (action.type === "complete-quest") {
     const quest = completeQuest(gameState, city, context);
-    const nextDeliveryOffer = quest.kind === "delivery"
-      ? deliveryOfferForCity(gameState, city, portCities, {
-          simMinute: context.simMinute ?? 0
-        })
-      : null;
     const missionItemGift = quest.kind === "delivery" || isTeaRaceQuest(quest)
       ? null
       : maybeGrantMissionPerkItem(gameState, city, {
@@ -3537,8 +3563,7 @@ export function selectPortDialogueOption(
       closed: false,
       completedQuest: quest,
       questCargoTransfers,
-      missionItemGift,
-      nextDeliveryOffer
+      missionItemGift
     };
   }
   if (action.type === "request-marque") {
@@ -8682,7 +8707,8 @@ function questAcceptanceOption(label, quest, gameState, details = {}) {
   }, {
     ...optionDetails,
     disabled: !eligibility.eligible,
-    disabledReason: eligibility.disabledReason
+    disabledReason: eligibility.disabledReason,
+    detail: eligibility.eligible ? optionDetails.detail : eligibility.disabledReason
   });
 }
 

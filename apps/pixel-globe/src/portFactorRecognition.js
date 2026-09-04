@@ -1,11 +1,41 @@
 import { colonizationWorldRecords } from "./colonizationQuest.js";
-import { factionById } from "./factions.js";
+import { factionById, isJapanesePolityFaction } from "./factions.js";
 import { requireCityId } from "./entityIds.js";
 
 const MINUTES_PER_DAY = 24 * 60;
 const MAJOR_PORT_POPULATION = 75_000;
 const MAGNATE_DOUBLOONS = 250_000;
 const GREAT_MAGNATE_DOUBLOONS = 1_000_000;
+
+const PORT_RECOGNITION_VOICE = Object.freeze({
+  AFRICAN: "african",
+  AMERICAN: "american",
+  CHINESE: "chinese",
+  EUROPEAN_CROWN: "european-crown",
+  EUROPEAN_REPUBLIC: "european-republic",
+  EUROPEAN_STATE: "european-state",
+  INDIAN_OCEAN: "indian-ocean",
+  ISLAMIC: "islamic",
+  JAPANESE: "japanese",
+  MARITIME: "maritime"
+});
+
+const CHINESE_FACTION_IDS = new Set(["ming", "joseon"]);
+const ISLAMIC_FACTION_IDS = new Set([
+  "ottoman", "safavid", "hormuz", "hejaz", "morocco", "songhai", "gujarat",
+  "bengal", "delhi", "mughal", "ternate", "tidore", "kazan", "crimea"
+]);
+const INDIAN_OCEAN_FACTION_IDS = new Set(["vijayanagara", "ayutthaya"]);
+const AFRICAN_FACTION_IDS = new Set(["ethiopia"]);
+const AMERICAN_FACTION_IDS = new Set(["inca", "ainu"]);
+const EUROPEAN_CULTURE_IDS = new Set([
+  "english", "scottish", "french", "spanish", "basque", "portuguese", "italian",
+  "germanic", "nordic", "icelandic", "slavic", "polish", "lithuanian", "russian",
+  "ruthenian", "hungarian", "albanian", "bulgarian", "romanian", "serbian", "greek",
+  "irish", "czech", "finnish"
+]);
+const REPUBLICAN_FACTION_KINDS = new Set(["republic", "free-imperial-city"]);
+const CROWN_FACTION_KINDS = new Set(["kingdom", "monarchy"]);
 
 export function portFactorRecognitionForCaptain({
   gameState,
@@ -28,7 +58,7 @@ export function portFactorRecognitionForCaptain({
   return Object.freeze({
     kind: selected.kind,
     expressionId: recognitionExpression(selected.kind, personalityId),
-    text: recognitionText(selected, variant)
+    text: recognitionText(selected, variant, recognitionVoiceForCity(city))
   });
 }
 
@@ -148,7 +178,7 @@ function captainRecognitionCandidates(gameState, city, cities, simMinute) {
   return candidates;
 }
 
-function recognitionText(candidate, variant) {
+function recognitionText(candidate, variant, voiceId) {
   if (candidate.kind === "hero-of-port") {
     return variant === 0
       ? `Welcome, Hero of ${candidate.portName}. The tale reached our quay before your topsails.`
@@ -166,8 +196,8 @@ function recognitionText(candidate, variant) {
   }
   if (candidate.kind === "magnate") {
     return variant === 0
-      ? "The counting houses speak of your credit in the same breath as Augsburg's great families. Your business shall have first hearing."
-      : "Your purse could fit out a royal squadron, captain. I shall not trouble you with a factor's small courtesies.";
+      ? "Traders carry word of your wealth farther than any ship. Your business shall have first hearing."
+      : "Your purse could fit out a fleet, captain. I shall not trouble you with small courtesies.";
   }
   if (candidate.kind === "colonial-founder") {
     return variant === 0
@@ -177,7 +207,7 @@ function recognitionText(candidate, variant) {
   if (candidate.kind === "pirate-scourge") {
     return variant === 0
       ? "Pirates curse your name from here to the ocean sea. Honest masters drink to it."
-      : "The black flags have learned your sail, captain. They flee it sooner than the king's colors.";
+      : pirateScourgeLine(voiceId);
   }
   if (candidate.kind === "discoverer") {
     return variant === 0
@@ -185,6 +215,70 @@ function recognitionText(candidate, variant) {
       : "Your charts have made old maps look like children's guesses. Every pilot in port wants a sight of them.";
   }
   throw new Error(`Unknown captain recognition: ${candidate.kind}`);
+}
+
+function pirateScourgeLine(voiceId) {
+  if (voiceId === PORT_RECOGNITION_VOICE.CHINESE) {
+    return "The sea bandits know your sail, captain. Even the coastal patrols speak of it with respect.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.JAPANESE) {
+    return "The pirate bands know your sail, captain. The war boats of these shores could ask no better ally.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.ISLAMIC) {
+    return "The sea raiders know your sail, captain. Harbour navigators speak your name as protection against them.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.INDIAN_OCEAN) {
+    return "The sea raiders know your sail, captain. Trading fleets take heart when they see it.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.AFRICAN) {
+    return "The raiders know your sail, captain. Coastal navigators carry your name from harbour to harbour.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.AMERICAN) {
+    return "The sea raiders know your sail, captain. Every fishing canoe on this coast welcomes the sight of it.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.EUROPEAN_CROWN) {
+    return "The black flags have learned your sail, captain. They flee it sooner than the king's colors.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.EUROPEAN_REPUBLIC) {
+    return "The black flags have learned your sail, captain. They turn from it sooner than from our war galleys.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.EUROPEAN_STATE) {
+    return "The black flags have learned your sail, captain. They turn from it sooner than from our naval squadrons.";
+  }
+  if (voiceId === PORT_RECOGNITION_VOICE.MARITIME) {
+    return "The black flags have learned your sail, captain. They flee from it sooner than from our patrols.";
+  }
+  throw new Error(`Unknown port recognition voice: ${voiceId}`);
+}
+
+function recognitionVoiceForCity(city) {
+  const factionId = city.factionId;
+  if (CHINESE_FACTION_IDS.has(factionId)) return PORT_RECOGNITION_VOICE.CHINESE;
+  if (isJapanesePolityFaction(factionId) || factionId === "ryukyu") {
+    return PORT_RECOGNITION_VOICE.JAPANESE;
+  }
+  if (ISLAMIC_FACTION_IDS.has(factionId)) return PORT_RECOGNITION_VOICE.ISLAMIC;
+  if (INDIAN_OCEAN_FACTION_IDS.has(factionId)) return PORT_RECOGNITION_VOICE.INDIAN_OCEAN;
+  if (AFRICAN_FACTION_IDS.has(factionId)) return PORT_RECOGNITION_VOICE.AFRICAN;
+  if (AMERICAN_FACTION_IDS.has(factionId)) return PORT_RECOGNITION_VOICE.AMERICAN;
+
+  const faction = factionById(factionId);
+  const cultureId = city.character?.nameCulture;
+  if (EUROPEAN_CULTURE_IDS.has(cultureId)) {
+    if (CROWN_FACTION_KINDS.has(faction.kind)) return PORT_RECOGNITION_VOICE.EUROPEAN_CROWN;
+    if (REPUBLICAN_FACTION_KINDS.has(faction.kind)) return PORT_RECOGNITION_VOICE.EUROPEAN_REPUBLIC;
+    return PORT_RECOGNITION_VOICE.EUROPEAN_STATE;
+  }
+  if (city.cityType === "east-asian") return PORT_RECOGNITION_VOICE.CHINESE;
+  if (city.cityType === "south-asian" || city.cityType === "southeast-asian") {
+    return PORT_RECOGNITION_VOICE.INDIAN_OCEAN;
+  }
+  if (city.cityType === "islamic-desert") return PORT_RECOGNITION_VOICE.ISLAMIC;
+  if (city.cityType === "sub-saharan") return PORT_RECOGNITION_VOICE.AFRICAN;
+  if (["andean", "mesoamerican", "meso-american", "polynesian"].includes(city.cityType)) {
+    return PORT_RECOGNITION_VOICE.AMERICAN;
+  }
+  return PORT_RECOGNITION_VOICE.MARITIME;
 }
 
 function recognitionExpression(kind, personalityId) {

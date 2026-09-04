@@ -14,6 +14,8 @@ const istanbul = Object.freeze({
   displayCity: "Istanbul",
   country: "Türkiye",
   factionId: "ottoman",
+  cityType: "islamic-desert",
+  character: Object.freeze({ nameCulture: "ottoman" }),
   population: 400_000
 });
 const rhodes = Object.freeze({
@@ -67,7 +69,83 @@ test("a wealthy captain is received as a magnate rather than an ordinary carrier
 
   const result = recognition(state);
   assert.equal(result.kind, "magnate");
-  assert.match(result.text, /credit|royal squadron/i);
+  assert.match(result.text, /wealth|fit out a fleet/i);
+});
+
+test("shared recognition uses the port's regional political voice", () => {
+  const magnate = createGameState({ cargoCapacity: 20 });
+  magnate.doubloons = 1_250_000;
+  const pirateHunter = createGameState({ cargoCapacity: 20 });
+  pirateHunter.memory.decisions["combat.victory.pirate"] = 7;
+
+  const islamicLines = Array.from({ length: 24 }, (_value, index) => recognition(pirateHunter, {
+    visitCount: index,
+    dayIndex: 900
+  }).text);
+  assert.match(islamicLines.join(" "), /Harbour navigators/);
+  assert.doesNotMatch(islamicLines.join(" "), /\bking|\broyal|\bcrown|Augsburg/i);
+
+  const chinesePort = Object.freeze({
+    tileId: 51,
+    cityId: "nanjing|china",
+    city: "Nanjing",
+    country: "China",
+    factionId: "ming",
+    cityType: "east-asian",
+    character: Object.freeze({ nameCulture: "chinese" }),
+    population: 250_000
+  });
+  const chineseLines = Array.from({ length: 24 }, (_value, index) => recognition(pirateHunter, {
+    city: chinesePort,
+    cities: [chinesePort],
+    visitCount: index,
+    dayIndex: 900
+  }).text);
+  assert.match(chineseLines.join(" "), /sea bandits|coastal patrols/i);
+  assert.doesNotMatch(chineseLines.join(" "), /\bking|\broyal|\bcrown/i);
+
+  const englishPort = Object.freeze({
+    tileId: 52,
+    cityId: "london|united kingdom",
+    city: "London",
+    country: "United Kingdom",
+    factionId: "england",
+    cityType: "northern-european",
+    character: Object.freeze({ nameCulture: "english" }),
+    population: 60_000
+  });
+  const englishLines = Array.from({ length: 24 }, (_value, index) => recognition(pirateHunter, {
+    city: englishPort,
+    cities: [englishPort],
+    visitCount: index,
+    dayIndex: 900
+  }).text);
+  assert.match(englishLines.join(" "), /king's colors/i);
+
+  const venetianPort = Object.freeze({
+    tileId: 53,
+    cityId: "venice|italy",
+    city: "Venice",
+    country: "Italy",
+    factionId: "venice",
+    cityType: "mediterranean",
+    character: Object.freeze({ nameCulture: "italian" }),
+    population: 100_000
+  });
+  const venetianLines = Array.from({ length: 24 }, (_value, index) => recognition(pirateHunter, {
+    city: venetianPort,
+    cities: [venetianPort],
+    visitCount: index,
+    dayIndex: 900
+  }).text);
+  assert.match(venetianLines.join(" "), /our war galleys/i);
+  assert.doesNotMatch(venetianLines.join(" "), /king's colors/i);
+
+  const magnateLines = Array.from({ length: 24 }, (_value, index) => recognition(magnate, {
+    visitCount: index,
+    dayIndex: 900 + index
+  }).text);
+  assert.doesNotMatch(magnateLines.join(" "), /\bking|\broyal|\bcrown|Augsburg/i);
 });
 
 test("pirate recognition uses tracked victories and legacy rescue history", () => {

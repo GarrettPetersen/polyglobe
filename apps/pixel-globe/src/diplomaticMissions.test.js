@@ -23,6 +23,7 @@ import {
   passengerDialogueView,
   portDialogueView,
   selectPassengerDialogueOption,
+  selectPortDialogueAction,
   selectPortDialogueOption
 } from "./dialogueSystem.js";
 import { createWorldEconomy } from "./economy.js";
@@ -253,7 +254,22 @@ test("Ming and Japanese capitals can commission a persistent wokou hunt", () => 
   });
   assert.equal(isWokouHuntQuest(offer), true);
   assert.match(offer.offerText, /Pirates require no marque/i);
-  acceptQuest(state, offer);
+  const ports = [BEIJING, NINGBO];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const session = createPortDialogueSession(BEIJING, { initialNodeId: "quest" });
+  const displayed = portDialogueView(session, BEIJING, state, economy, ports)
+    .options.find((entry) => entry.action.type === "accept-quest");
+  assert.ok(displayed);
+  const acceptance = selectPortDialogueAction(
+    session,
+    BEIJING,
+    state,
+    economy,
+    ports,
+    displayed,
+    { simMinute: 0 }
+  );
+  assert.equal(acceptance.acceptedQuest.id, offer.id);
   assert.equal(recordWokouHuntVictory(state, "some-other-ship"), null);
   assert.equal(recordWokouHuntVictory(state, offer.targetShipId, { simMinute: 600 }).stage, "return");
   completeQuest(state, BEIJING, { simMinute: 800 });

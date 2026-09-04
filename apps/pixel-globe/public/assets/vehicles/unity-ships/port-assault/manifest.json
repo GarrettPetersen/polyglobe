@@ -3664,11 +3664,11 @@
         "waterShadowModelHeightPerPixel": 0.00536176,
         "opaqueBounds": {
           "minX": 420,
-          "minY": 248,
+          "minY": 250,
           "width": 120,
-          "height": 217
+          "height": 215
         },
-        "opaquePixels": 7839,
+        "opaquePixels": 7785,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3696,24 +3696,24 @@
           "x": 536,
           "y": 343
         },
-        "foregroundOpaquePixels": 5869,
+        "foregroundOpaquePixels": 5824,
         "sinkHeightMin": -0.470111,
-        "sinkHeightMax": 0.465641,
+        "sinkHeightMax": 0.432939,
         "encodedWaterlineY": -0.308837,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 3490,
+        "submergedPixels": 3487,
         "rasterCleanup": {
-          "minimumComponentPixels": 1,
-          "removedComponents": 0,
-          "removedPixels": 0
+          "minimumComponentPixels": 12,
+          "removedComponents": 15,
+          "removedPixels": 54
         },
         "colorCleanup": {
           "minimumRegionPixelsAtCityScale": 12,
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 220,
-          "recoloredPixels": 634
+          "recoloredRegions": 212,
+          "recoloredPixels": 612
         },
         "creaseShading": null
       },
