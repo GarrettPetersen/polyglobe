@@ -4,6 +4,7 @@ import {
   DEFAULT_GAME_TIME_SCALE,
   SHIP_ACCELERATION_SCALE,
   SHIP_TOP_SPEED_SCALE,
+  SHIP_TURN_RATE_FLOOR_RAD,
   SHIP_TURN_RATE_SCALE,
   advanceGameClockMinutes,
   realSecondsPerGameDay,
@@ -77,6 +78,7 @@ test("a full day takes the configured real duration on slow and fast renderers",
 test("the larger globe makes voyages last substantially longer in game time", () => {
   assert.equal(SHIP_TOP_SPEED_SCALE, 0.62);
   assert.equal(SHIP_ACCELERATION_SCALE, 0.16);
+  assert.equal(SHIP_TURN_RATE_FLOOR_RAD, 0.30);
   assert.equal(SHIP_TURN_RATE_SCALE, 0.55);
   assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) > 2.52);
   assert.ok(voyageDurationMultiplier({ previousTimeScale: 3600 }) < 2.53);

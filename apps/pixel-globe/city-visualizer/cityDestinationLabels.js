@@ -4,7 +4,12 @@ export const CITY_DESTINATION_LABEL_BOTTOM_PX = 4;
 export const CITY_DESTINATION_LABEL_GAP_PX = 2;
 export const CITY_DESTINATION_LABEL_ANCHOR_GAP_PX = 5;
 
-export function layoutCityDestinationLabels({ entries, viewportWidth, viewportHeight }) {
+export function layoutCityDestinationLabels({
+  entries,
+  viewportWidth,
+  viewportHeight,
+  pinnedLabel = null
+}) {
   requireViewport(viewportWidth, viewportHeight);
   if (!Array.isArray(entries)) throw new Error("City destination label layout requires entries");
   const seenIds = new Set();
@@ -38,9 +43,29 @@ export function layoutCityDestinationLabels({ entries, viewportWidth, viewportHe
       )
     };
   });
+  const pin = validatedPinnedLabel(pinnedLabel, prepared);
+  if (pin) {
+    const entry = prepared.find(({ id }) => id === pin.id);
+    entry.desiredX = clamp(
+      pin.x,
+      CITY_DESTINATION_LABEL_MARGIN_PX,
+      viewportWidth - CITY_DESTINATION_LABEL_MARGIN_PX - entry.width
+    );
+    entry.desiredY = clamp(
+      pin.y,
+      CITY_DESTINATION_LABEL_TOP_PX,
+      viewportHeight - CITY_DESTINATION_LABEL_BOTTOM_PX - entry.height
+    );
+  }
 
   const placed = [];
-  for (const entry of prepared) {
+  const placementOrder = pin
+    ? [
+        prepared.find(({ id }) => id === pin.id),
+        ...prepared.filter(({ id }) => id !== pin.id)
+      ]
+    : prepared;
+  for (const entry of placementOrder) {
     const maximumY = viewportHeight - CITY_DESTINATION_LABEL_BOTTOM_PX - entry.height;
     const y = nearestFreeY(entry, placed, maximumY);
     placed.push(Object.freeze({
@@ -56,7 +81,8 @@ export function layoutCityDestinationLabels({ entries, viewportWidth, viewportHe
       height: entry.height
     }));
   }
-  return Object.freeze(placed);
+  const placedById = new Map(placed.map((label) => [label.id, label]));
+  return Object.freeze(prepared.map(({ id }) => placedById.get(id)));
 }
 
 export function cityDestinationLabelContainsPoint(label, x, y) {
@@ -205,6 +231,19 @@ function validatePlacedLabel(label) {
       !label.anchor || ![label.anchor.x, label.anchor.y].every(Number.isFinite)) {
     throw new Error("Invalid placed city destination label");
   }
+}
+
+function validatedPinnedLabel(pinnedLabel, entries) {
+  if (pinnedLabel === null) return null;
+  if (!pinnedLabel || typeof pinnedLabel !== "object" || Array.isArray(pinnedLabel) ||
+      typeof pinnedLabel.id !== "string" || pinnedLabel.id.length === 0 ||
+      ![pinnedLabel.x, pinnedLabel.y].every(Number.isInteger)) {
+    throw new Error("Invalid pinned city destination label");
+  }
+  if (!entries.some(({ id }) => id === pinnedLabel.id)) {
+    throw new Error(`Pinned city destination label is unavailable: ${pinnedLabel.id}`);
+  }
+  return pinnedLabel;
 }
 
 function requireViewport(width, height) {

@@ -1,6 +1,7 @@
 import {
   SHIP_ACCELERATION_SCALE,
   SHIP_TOP_SPEED_SCALE,
+  SHIP_TURN_RATE_FLOOR_RAD,
   SHIP_TURN_RATE_SCALE
 } from "./gamePacing.js";
 import { damageResistanceRollSucceeds } from "./perkSystem.js";
@@ -343,7 +344,7 @@ function stats(
     topSpeedRad: topSpeedRad * SHIP_TOP_SPEED_SCALE * WORLD_KINEMATIC_SCALE,
     upwindStallAngleDeg: effectiveUpwindStallAngleDeg,
     upwindStallAngleRad: effectiveUpwindStallAngleDeg * DEG_TO_RAD,
-    turnRateRad: turnRateRad * SHIP_TURN_RATE_SCALE,
+    turnRateRad: SHIP_TURN_RATE_FLOOR_RAD + turnRateRad * SHIP_TURN_RATE_SCALE,
     mass,
     crewCapacity,
     hitPoints,

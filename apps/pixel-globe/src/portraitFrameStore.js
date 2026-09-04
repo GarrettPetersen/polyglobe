@@ -8,6 +8,16 @@ export function createPortraitFrameStore() {
       return framesByKey.has(frameKey);
     },
 
+    hasEvery(frameKeys) {
+      if (!Array.isArray(frameKeys) || frameKeys.length === 0) {
+        throw new Error("Portrait frame store requires a non-empty frame-key array");
+      }
+      return frameKeys.every((frameKey) => {
+        assertFrameKey(frameKey);
+        return framesByKey.has(frameKey);
+      });
+    },
+
     display(characterId, frameKey) {
       assertCharacterId(characterId);
       assertFrameKey(frameKey);

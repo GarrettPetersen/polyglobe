@@ -353,6 +353,8 @@ const state = {
   pointer: null,
   hoveredDestination: null,
   hoveredShipyardSaleShipId: null,
+  pinnedDestinationLabel: null,
+  hoverPanDestinationId: null,
   focusedDestinationId: null,
   destinationLabelLayouts: Object.freeze([]),
   destinationLabelLayoutParallax: null,
@@ -577,6 +579,8 @@ async function selectCity(cityId, {
   bombardmentFrameCache.clear();
   bombardmentOverlayFrameCache = null;
   state.focusedDestinationId = null;
+  state.pinnedDestinationLabel = null;
+  state.hoverPanDestinationId = null;
   invalidateDestinationLabelLayouts();
   state.cityFlagFactionId = city.factionId;
   state.cityFlagImage = prepared.cityFlagImage;
@@ -745,6 +749,8 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
     throw new TypeError("City scene feature overrides must be an object");
   }
   bombardmentOverlayFrameCache = null;
+  state.pinnedDestinationLabel = null;
+  state.hoverPanDestinationId = null;
   state.featureOverrides = Object.freeze({ ...overrides });
   state.features = resolveCitySceneFeatures(state.city, state.featureOverrides);
   state.npcAgents = createCityPeopleAgents({
@@ -3893,7 +3899,8 @@ function prepareDestinationLabelLayouts() {
   state.destinationLabelLayouts = layoutCityDestinationLabels({
     entries,
     viewportWidth: canvas.width,
-    viewportHeight: canvas.height
+    viewportHeight: canvas.height,
+    pinnedLabel: state.pinnedDestinationLabel
   });
   state.destinationLabelLayoutParallax = state.parallax;
 }
@@ -3901,6 +3908,11 @@ function prepareDestinationLabelLayouts() {
 function invalidateDestinationLabelLayouts() {
   state.destinationLabelLayouts = Object.freeze([]);
   state.destinationLabelLayoutParallax = null;
+}
+
+function refreshDestinationLabelLayouts() {
+  invalidateDestinationLabelLayouts();
+  if (state.ready && state.features) prepareDestinationLabelLayouts();
 }
 
 function drawSceneLabels() {
@@ -4113,6 +4125,7 @@ function drawDestinationLeaderTarget(targetContext, target, direction) {
 function updateHover() {
   if (!state.ready || !state.features) return;
   const hit = state.pointer ? destinationAtPoint(state.pointer.x, state.pointer.y) : null;
+  updateDestinationLabelHover(hit);
   state.hoveredShipyardSaleShipId = hit?.saleShipId || null;
   state.hoveredDestination = hit?.destination || null;
   canvas.classList.toggle("is-actionable", Boolean(state.hoveredDestination));
@@ -4124,6 +4137,36 @@ function updateHover() {
     "aria-label",
     `${cityLabel}, ${renderText(state.city.country)}${destinationLabel ? `, ${destinationLabel}` : ""}`
   );
+}
+
+function updateDestinationLabelHover(hit) {
+  const hitLabel = hit?.fromLabel === true
+    ? state.destinationLabelLayouts.find(({ id }) => id === hit.destination.id)
+    : null;
+  if (hit?.fromLabel === true && !hitLabel) {
+    throw new Error(`Hovered city destination has no label layout: ${hit.destination.id}`);
+  }
+  if (state.pinnedDestinationLabel?.id === hitLabel?.id) return;
+  clearDestinationLabelHover();
+  if (!hitLabel || (hitLabel.anchor.x >= 0 && hitLabel.anchor.x < canvas.width)) return;
+  state.pinnedDestinationLabel = Object.freeze({
+    id: hitLabel.id,
+    x: hitLabel.x,
+    y: hitLabel.y
+  });
+  state.hoverPanDestinationId = hit.destination.id;
+  refreshDestinationLabelLayouts();
+  panCameraToDestination(hit.destination, { immediate: prefersReducedMotion.matches });
+}
+
+function clearDestinationLabelHover() {
+  if (!state.pinnedDestinationLabel && state.hoverPanDestinationId === null) return;
+  state.pinnedDestinationLabel = null;
+  if (state.hoverPanDestinationId !== null) {
+    state.hoverPanDestinationId = null;
+    state.cameraPanTarget = null;
+  }
+  refreshDestinationLabelLayouts();
 }
 
 function activeDestinations() {
@@ -4275,7 +4318,13 @@ function focusDestination(destinationId, { immediate = false } = {}) {
   if (typeof immediate !== "boolean") throw new Error("City focus motion policy must be boolean");
   const destination = destinationById(destinationId);
   if (!destination) throw new Error(`City destination is unavailable: ${destinationId}`);
+  clearDestinationLabelHover();
   state.focusedDestinationId = destinationId;
+  panCameraToDestination(destination, { immediate });
+}
+
+function panCameraToDestination(destination, { immediate }) {
+  if (typeof immediate !== "boolean") throw new Error("City pan motion policy must be boolean");
   if (destination.id === PORT_CITY_LOCATION.SET_SAIL) {
     if (!state.features) throw new Error("Set Sail focus requires resolved city features");
     const { minimum } = sceneCameraParallaxBounds(state.features.approach);
@@ -4283,7 +4332,7 @@ function focusDestination(destinationId, { immediate = false } = {}) {
     if (immediate || prefersReducedMotion.matches) {
       state.parallax = minimum;
       state.cameraPanTarget = null;
-      updateHover();
+      invalidateDestinationLabelLayouts();
     } else {
       state.cameraPanTarget = minimum;
     }
@@ -4292,8 +4341,11 @@ function focusDestination(destinationId, { immediate = false } = {}) {
   const anchor = destinationScreenAnchor(destination);
   if (!anchor) throw new Error(`City destination has no scene anchor: ${destination.id}`);
   const deltaX = anchor.x - canvas.width / 2;
-  if (immediate || prefersReducedMotion.matches) panCameraByLogicalPixels(deltaX);
-  else queueCameraPanByLogicalPixels(deltaX);
+  if (immediate || prefersReducedMotion.matches) {
+    panCameraByLogicalPixels(deltaX);
+  } else {
+    queueCameraPanByLogicalPixels(deltaX);
+  }
 }
 
 function moveDestinationFocus(direction) {
@@ -4662,6 +4714,9 @@ return Object.freeze({
     }
     const assaultWasActive = state.assaultPresentation !== null;
     const enteringAssault = presentation !== null && !assaultWasActive;
+    if (state.hoverPanDestinationId !== null) state.cameraPanTarget = null;
+    state.pinnedDestinationLabel = null;
+    state.hoverPanDestinationId = null;
     state.assaultPresentation = presentation;
     if (assaultWasActive !== (presentation !== null)) rebuildCitySceneRenderPlan();
     invalidateDestinationLabelLayouts();

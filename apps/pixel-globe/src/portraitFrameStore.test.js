@@ -36,6 +36,17 @@ test("portrait frame store never carries a portrait across characters", () => {
   assert.equal(store.display("patron", "patron|attentive"), null);
 });
 
+test("a dialogue cannot become cacheable before every captain portrait is resident", () => {
+  const store = createPortraitFrameStore();
+  store.store("player", "player|neutral", { id: "player-frame" });
+
+  const hailFrameKeys = ["player|neutral", "pirate-captain|angry"];
+  assert.equal(store.hasEvery(hailFrameKeys), false);
+
+  store.store("pirate-captain", "pirate-captain|angry", { id: "pirate-frame" });
+  assert.equal(store.hasEvery(hailFrameKeys), true);
+});
+
 test("a late decoded expression cannot replace the frame currently being held", () => {
   const store = createPortraitFrameStore();
   const neutral = { id: "neutral-frame" };
@@ -53,5 +64,7 @@ test("portrait frame store rejects malformed cache entries", () => {
 
   assert.throws(() => store.display("", "captain|neutral"), /character id/);
   assert.throws(() => store.has(""), /frame key/);
+  assert.throws(() => store.hasEvery([]), /non-empty frame-key array/);
+  assert.throws(() => store.hasEvery([""]), /frame key/);
   assert.throws(() => store.store("captain", "captain|neutral", null), /decoded frame/);
 });

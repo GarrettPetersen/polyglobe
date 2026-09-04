@@ -22,6 +22,7 @@ export function recoveringPortBlocksArrival({
 export function resolvePortDialogueContinuation({
   requestedNodeId,
   admittedToPort,
+  arrivalGreetingPresented = false,
   entryStatus,
   recoveryStatus,
   attackStatus,
@@ -33,7 +34,14 @@ export function resolvePortDialogueContinuation({
   if (typeof admittedToPort !== "boolean") {
     throw new Error("Port continuation requires an admitted state");
   }
-  if (requestedNodeId !== "barred") return requestedNodeId;
+  if (typeof arrivalGreetingPresented !== "boolean") {
+    throw new Error("Port continuation requires an arrival-greeting state");
+  }
+  const continuationNodeId = resolvePortArrivalDialogueNode({
+    requestedNodeId,
+    arrivalGreetingPresented
+  });
+  if (continuationNodeId !== "barred") return continuationNodeId;
   if (!entryStatus || typeof entryStatus.hostile !== "boolean") {
     throw new Error("Barred-port continuation requires a diplomatic entry status");
   }
@@ -56,5 +64,25 @@ export function resolvePortDialogueContinuation({
       conquestStatus.playerAssaultActive) {
     return "barred";
   }
-  return admittedToPort ? "root" : "greeting";
+  return admittedToPort
+    ? "root"
+    : resolvePortArrivalDialogueNode({
+        requestedNodeId: "greeting",
+        arrivalGreetingPresented
+      });
+}
+
+export function resolvePortArrivalDialogueNode({
+  requestedNodeId,
+  arrivalGreetingPresented = false
+}) {
+  if (typeof requestedNodeId !== "string" || requestedNodeId === "") {
+    throw new Error("Port arrival node resolution requires a dialogue node");
+  }
+  if (typeof arrivalGreetingPresented !== "boolean") {
+    throw new Error("Port arrival node resolution requires a greeting state");
+  }
+  return requestedNodeId === "greeting" && arrivalGreetingPresented
+    ? "root"
+    : requestedNodeId;
 }

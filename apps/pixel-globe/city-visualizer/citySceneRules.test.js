@@ -167,6 +167,14 @@ test("persistent city destination labels share the production runtime and warp b
     VISUALIZER_MAIN_SOURCE,
     /pointerOverDestinationLabel[\s\S]*state\.pointer && !pointerOverDestinationLabel/
   );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /function updateDestinationLabelHover[\s\S]*pinnedDestinationLabel[\s\S]*panCameraToDestination/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /pinnedLabel: state\.pinnedDestinationLabel/
+  );
 });
 
 test("regional hover outlines and hit masks use the displayed building silhouette", () => {

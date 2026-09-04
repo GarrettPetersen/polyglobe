@@ -47,6 +47,34 @@ export function shoreBatteryPlayerEngagementRange({
   return commissioned ? Math.max(batteryRangePx, playerWeaponRangePx) : batteryRangePx;
 }
 
+export function shoreBatteryPlayerEngagementEnvelope({
+  playerDistancePx,
+  engagementRangePx,
+  playerAttackActive,
+  playerAtPortTile,
+  disengagementBufferPx
+}) {
+  for (const [label, value] of [
+    ["player distance", playerDistancePx],
+    ["engagement range", engagementRangePx],
+    ["disengagement buffer", disengagementBufferPx]
+  ]) {
+    if (!Number.isFinite(value) || value < 0) throw new Error(`Invalid ${label}: ${value}`);
+  }
+  for (const [label, value] of [
+    ["player attack state", playerAttackActive],
+    ["player port-tile state", playerAtPortTile]
+  ]) {
+    if (typeof value !== "boolean") throw new Error(`Invalid ${label}: ${value}`);
+  }
+  const dockedAttack = playerAttackActive && playerAtPortTile;
+  return Object.freeze({
+    withinEngagementRange: playerDistancePx <= engagementRangePx || dockedAttack,
+    beyondDisengagementRange: !playerAtPortTile &&
+      playerDistancePx > engagementRangePx + disengagementBufferPx
+  });
+}
+
 const SHORE_BATTERY_LEVELS = Object.freeze([
   null,
   Object.freeze({ level: 1, id: "outpost", label: "harbor watch", gunCount: 1 }),

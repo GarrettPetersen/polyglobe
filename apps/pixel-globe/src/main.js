@@ -663,6 +663,7 @@ import {
 } from "./characterHomecoming.js";
 import {
   recoveringPortBlocksArrival,
+  resolvePortArrivalDialogueNode,
   resolvePortDialogueContinuation
 } from "./portEntryFlow.js";
 import {
@@ -1631,6 +1632,7 @@ import {
   shoreBatteryIsDisabled,
   shoreBatteryMayDemandToll,
   shoreBatteryMayReceivePlayerPortableFire,
+  shoreBatteryPlayerEngagementEnvelope,
   shoreBatteryPlayerResponse,
   shoreBatteryPlayerEngagementRange,
   shoreBatteryPortableImpact,
@@ -20390,7 +20392,8 @@ function activatePortCityView(cityCall) {
     portId: cityCall.portId || cityCall.cityId,
     centerX: center.x,
     centerY: center.y,
-    sceneReady: false
+    sceneReady: false,
+    arrivalGreetingPresented: false
   };
   portCitySceneSyncKey = null;
   portCityPointerDown = null;
@@ -24083,6 +24086,7 @@ function continuePortDialogueAfterQuestCharacter() {
   const initialNodeId = resolvePortDialogueContinuation({
     requestedNodeId,
     admittedToPort,
+    arrivalGreetingPresented: currentPortArrivalGreetingPresented(city),
     entryStatus: context.portEntryStatus,
     recoveryStatus: context.portRecoveryStatus,
     attackStatus: context.portAttackStatus,
@@ -24103,7 +24107,12 @@ function continuePortDialogueAfterQuestCharacter() {
 function continuePortDialogueAfterCampaign() {
   const city = currentDialogueCity();
   const needsLoadout = dialogueState.needsLoadout === true;
-  dialogueState = createOrdinaryPortArrivalSession(city, needsLoadout);
+  const session = createOrdinaryPortArrivalSession(city, needsLoadout);
+  session.nodeId = resolvePortArrivalDialogueNode({
+    requestedNodeId: session.nodeId,
+    arrivalGreetingPresented: currentPortArrivalGreetingPresented(city)
+  });
+  dialogueState = session;
   dialogueLayout = createDialogueLayoutState();
   ensureDialoguePortraitLoaded();
   continuePortArrivalDialogues();
@@ -25184,6 +25193,8 @@ function applyDialogueOption(optionIndex) {
   let dialogueNpcShipId = null;
   let missionGiftCharacter = null;
   const previousNodeId = dialogueState.nodeId || null;
+  const acknowledgesPortArrivalGreeting = dialogueState.kind === "port" &&
+    previousNodeId === "greeting" && dialogueState.rumorText === null;
   const previousMarketMode = dialogueState.marketMode || null;
   const purchaseIconOrigin = dialogueState.kind === "port"
     ? dialogueOptionIconOrigin(optionIndex)
@@ -25200,6 +25211,9 @@ function applyDialogueOption(optionIndex) {
       optionIndex,
       portDialogueContext()
     );
+    if (acknowledgesPortArrivalGreeting && portCityView) {
+      markCurrentPortArrivalGreetingPresented(currentDialogueCity());
+    }
     if (result.illicitMarketAttempt?.caught === true) {
       beginPortCityIllicitCaughtPresentation();
     }
@@ -26536,6 +26550,7 @@ function portDialogueContext() {
     simMinute,
     dayIndex: weatherParts.dayIndex,
     localHour: city ? weatherLocalHour(simMinute, graph.lonDeg[city.tileId]) : null,
+    arrivalGreetingPresented: city ? currentPortArrivalGreetingPresented(city) : false,
     playerShipSlug: ship?.stats?.slug || gameState.ship?.slug || null,
     arrivalNavigation: city ? portArrivalNavigationByCityId?.get(city.cityId) || null : null,
     shipPower: playerShipPrivateeringPower(),
@@ -26585,6 +26600,34 @@ function portDialogueContext() {
       ? (options) => prepareCrewRecruitmentAt(city, options)
       : null
   };
+}
+
+function currentPortArrivalGreetingPresented(city) {
+  if (!city || typeof city.cityId !== "string" || city.cityId === "") {
+    throw new Error("Port arrival greeting state requires a city ID");
+  }
+  if (!portCityView) return false;
+  if (portCityView.cityId !== city.cityId) {
+    throw new Error(
+      `Port arrival greeting city changed from ${portCityView.cityId} to ${city.cityId}`
+    );
+  }
+  return portCityView.arrivalGreetingPresented === true;
+}
+
+function markCurrentPortArrivalGreetingPresented(city) {
+  if (!portCityView) {
+    throw new Error("Cannot acknowledge a port arrival greeting without an active city visit");
+  }
+  if (portCityView.cityId !== city?.cityId) {
+    throw new Error(
+      `Cannot acknowledge ${city?.cityId || "unknown city"} during ${portCityView.cityId} visit`
+    );
+  }
+  if (portCityView.arrivalGreetingPresented) {
+    throw new Error(`Port arrival greeting was acknowledged twice: ${city.cityId}`);
+  }
+  portCityView.arrivalGreetingPresented = true;
 }
 
 function nearbyPortTraffic(city) {
@@ -36812,7 +36855,14 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
       playerWeaponRangePx: playerWeaponRange,
       commissioned: commissionedTarget
     });
-    if (playerDistance <= playerEngagementRange) {
+    const playerEngagement = shoreBatteryPlayerEngagementEnvelope({
+      playerDistancePx: playerDistance,
+      engagementRangePx: playerEngagementRange,
+      playerAttackActive: state.playerAttackActive,
+      playerAtPortTile: ship.tileId === city.tileId,
+      disengagementBufferPx: 20
+    });
+    if (playerEngagement.withinEngagementRange) {
       const entryStatus = measurePerformanceBenchmarkStage(
         "npcShips.visual.combat.batteries.portStatus",
         () => portEntryStatus(gameState, city, simMinute, portEntryContext)
@@ -36858,7 +36908,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
         }
       }
     }
-    if (playerDistance > range + 20) {
+    if (playerEngagement.beyondDisengagementRange) {
       state.playerHailed = false;
       state.playerAttackActive = false;
     }
@@ -62885,7 +62935,11 @@ function drawDialogueOverlay(nowMs) {
     return;
   }
   const portraitStage = synchronizeCurrentDialoguePortraitStage(nowMs, view);
-  if (!lakeBattleMode && !portraitStage.animating) {
+  if (
+    !lakeBattleMode &&
+    !portraitStage.animating &&
+    dialoguePortraitFramesAreResident(portraitStage.frames)
+  ) {
     const cacheKey = settledDialogueOverlayCacheKey(cacheBase, portraitStage);
     if (settledDialogueOverlayCacheKeyMatches(settledDialogueOverlayCache?.key, cacheKey)) {
       ctx.drawImage(settledDialogueOverlayCache.canvas, 0, 0);
@@ -62899,6 +62953,28 @@ function drawDialogueOverlay(nowMs) {
     return;
   }
   drawDialogueOverlayContent(nowMs, subject, view, portraitStage);
+}
+
+function dialoguePortraitFramesAreResident(frames) {
+  if (!Array.isArray(frames) || frames.length === 0) {
+    throw new Error("Dialogue portrait cache requires staged portrait frames");
+  }
+  const frameKeys = [];
+  for (const frame of frames) {
+    if (!frame?.character?.id) {
+      throw new Error("Dialogue portrait cache found an unidentified character");
+    }
+    if (frame.character.historicalPortraitId) {
+      if (!historicalBattlePortraitImages.has(frame.character.historicalPortraitId)) return false;
+      continue;
+    }
+    const expression = characterExpression(frame.character, frame.expressionId);
+    if (!expression?.id) {
+      throw new Error(`Dialogue portrait cache found no expression for ${frame.character.id}`);
+    }
+    frameKeys.push(`${frame.character.id}|${expression.id}`);
+  }
+  return frameKeys.length === 0 || portraitFrameStore.hasEvery(frameKeys);
 }
 
 function drawDialogueOverlayContent(nowMs, subject, view, portraitStage) {

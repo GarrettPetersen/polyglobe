@@ -671,6 +671,70 @@ const CAPTURE_SCENARIOS = Object.freeze({
     minute: 10,
     beamSide: "starboard"
   }),
+  "short-world-scale-japan-pacific": sailingTrailerScenario({
+    id: "short-world-scale-japan-pacific",
+    title: "Sailing ship",
+    seed: "short-world-scale-japan-pacific-v1",
+    factionId: "japan",
+    shipSlug: "japanese-sekibune",
+    lat: 34.0,
+    lon: 140.5,
+    day: 148,
+    hour: 13,
+    minute: 10,
+    timeScale: 1,
+    durationSeconds: 12,
+    speedRatio: 0.3,
+    beamSide: "port"
+  }),
+  "short-world-scale-east-china-sea": sailingTrailerScenario({
+    id: "short-world-scale-east-china-sea",
+    title: "Sailing ship",
+    seed: "short-world-scale-east-china-sea-v1",
+    factionId: "ming",
+    shipSlug: "large-junk",
+    lat: 29.0,
+    lon: 127.0,
+    day: 148,
+    hour: 13,
+    minute: 20,
+    timeScale: 1,
+    durationSeconds: 12,
+    speedRatio: 0.3,
+    beamSide: "starboard"
+  }),
+  "short-world-scale-sea-of-japan": sailingTrailerScenario({
+    id: "short-world-scale-sea-of-japan",
+    title: "Sailing ship",
+    seed: "short-world-scale-sea-of-japan-v1",
+    factionId: "japan",
+    shipSlug: "japanese-sekibune",
+    lat: 39.0,
+    lon: 133.0,
+    day: 148,
+    hour: 13,
+    minute: 30,
+    timeScale: 1,
+    durationSeconds: 12,
+    speedRatio: 0.3,
+    beamSide: "port"
+  }),
+  "short-world-scale-south-japan": sailingTrailerScenario({
+    id: "short-world-scale-south-japan",
+    title: "Sailing ship",
+    seed: "short-world-scale-south-japan-v1",
+    factionId: "hosokawa",
+    shipSlug: "small-junk",
+    lat: 31.0,
+    lon: 132.0,
+    day: 148,
+    hour: 13,
+    minute: 40,
+    timeScale: 1,
+    durationSeconds: 12,
+    speedRatio: 0.3,
+    beamSide: "starboard"
+  }),
   "screenshot-sail-bosporus": sailingTrailerScenario({
     id: "screenshot-sail-bosporus",
     title: "Sailing ship",
@@ -898,7 +962,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     sequence: trailerSequence("pillage", "assault", {
       cityId: "kyoto|japan",
       durationSeconds: 24,
-      modalPolicy: "show"
+      modalPolicy: "suppress"
     })
   }),
   "short-city-assault-london": trailerScenario({
@@ -911,7 +975,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     sequence: trailerSequence("pillage", "assault", {
       cityId: "london|united kingdom",
       durationSeconds: 24,
-      modalPolicy: "show"
+      modalPolicy: "suppress"
     })
   }),
   "short-city-assault-havana": trailerScenario({
@@ -924,7 +988,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     sequence: trailerSequence("pillage", "assault", {
       cityId: "havana|cuba",
       durationSeconds: 24,
-      modalPolicy: "show"
+      modalPolicy: "suppress"
     })
   }),
   "short-city-assault-nanjing": trailerScenario({
@@ -937,7 +1001,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     sequence: trailerSequence("pillage", "assault", {
       cityId: "nanjing|china",
       durationSeconds: 24,
-      modalPolicy: "show"
+      modalPolicy: "suppress"
     })
   }),
   "short-city-assault-akkeshi": trailerScenario({
@@ -950,7 +1014,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     sequence: trailerSequence("pillage", "assault", {
       cityId: "akkeshi kotan|japan",
       durationSeconds: 24,
-      modalPolicy: "show"
+      modalPolicy: "suppress"
     })
   }),
   "short-city-assault-alexandria": trailerScenario({
@@ -963,7 +1027,20 @@ const CAPTURE_SCENARIOS = Object.freeze({
     sequence: trailerSequence("pillage", "assault", {
       cityId: "alexandria|egypt",
       durationSeconds: 24,
-      modalPolicy: "show"
+      modalPolicy: "suppress"
+    })
+  }),
+  "short-city-assault-jeddah": trailerScenario({
+    id: "short-city-assault-jeddah",
+    title: "Sailing ship",
+    seed: "short-city-assault-jeddah-v1",
+    player: capturePlayer("portugal", "portuguese-carrack", 21.49, 39.19, 180),
+    world: captureWorld(214, 15, 10),
+    diplomacy: [{ factionAId: "portugal", factionBId: "hejaz", relation: "war" }],
+    sequence: trailerSequence("pillage", "assault", {
+      cityId: "jeddah|saudi arabia",
+      durationSeconds: 24,
+      modalPolicy: "suppress"
     })
   }),
   "trailer-colonize-found": trailerScenario({

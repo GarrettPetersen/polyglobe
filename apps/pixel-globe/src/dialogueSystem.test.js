@@ -4294,6 +4294,11 @@ test("a friendly capture-commission target closes its harbor and engages", () =>
   assert.deepEqual(view.options.map((entry) => entry.label), ["Attack city", "Leave"]);
   assert.equal(view.options[0].detail, "Legal attack");
   assert.equal(view.options[0].detailTone, "success");
+  assert.deepEqual(
+    selectPortDialogueOption(session, city, gameState, economy, [city], 0, context),
+    { closed: false, action: { type: "attack-city" } }
+  );
+  assert.equal(session.nodeId, "barred");
 });
 
 test("an independent-port commission bars entry without naming a neutral sovereign", () => {
@@ -7509,6 +7514,58 @@ test("a port factor receives a wealthy magnate according to her present station"
     localHour: 12
   });
   assert.match(greeting.text, /Augsburg's great families|royal squadron/i);
+});
+
+test("a port continuation cannot present the wealthy reception twice during one landing", () => {
+  const city = {
+    tileId: 84,
+    cityId: "augsberg|germany",
+    city: "Augsberg",
+    displayCity: "Augsburg",
+    country: "Germany",
+    factionId: "augsburg",
+    cityType: "northern-european",
+    character: { name: "Hans Fugger", role: "harbour-master", personalityId: "enterprising" }
+  };
+  const gameState = createGameState({ cargoCapacity: 20, playerCharacter: inesPlayer(city) });
+  gameState.doubloons = 1_100_000;
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  visitPort(gameState, city, 100);
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "greeting",
+    admittedToPort: true
+  });
+  const context = {
+    cities: [city],
+    simMinute: 100,
+    dayIndex: 1,
+    localHour: 12,
+    arrivalGreetingPresented: false
+  };
+
+  const greeting = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.match(greeting.text, /Augsburg's great families|royal squadron/i);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  assert.equal(session.nodeId, "root");
+
+  session.nodeId = "drunk-factor";
+  session.postDrunkNodeId = "greeting";
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, {
+    ...context,
+    arrivalGreetingPresented: true
+  });
+  assert.equal(session.nodeId, "root");
+  assert.throws(
+    () => portDialogueView(
+      { ...session, nodeId: "greeting" },
+      city,
+      gameState,
+      economy,
+      [city],
+      { ...context, arrivalGreetingPresented: true }
+    ),
+    /arrival greeting was requested twice: augsberg\|germany/
+  );
 });
 
 function inesPlayer(city) {

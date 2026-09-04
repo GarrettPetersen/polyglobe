@@ -22,6 +22,7 @@ import {
   shoreBatteryMayDemandToll,
   shoreBatteryMayReceivePlayerPortableFire,
   shoreBatteryPortableImpact,
+  shoreBatteryPlayerEngagementEnvelope,
   shoreBatteryPlayerResponse,
   shoreBatteryPlayerEngagementRange,
   shoreBatteryRecoveryStatus,
@@ -63,6 +64,29 @@ test("a commissioned captain can open a bombardment at the ship's weapon range",
     playerWeaponRangePx: 112,
     commissioned: false
   }), 76);
+});
+
+test("a bombardment ordered while docked survives projected distance from the battery", () => {
+  assert.deepEqual(shoreBatteryPlayerEngagementEnvelope({
+    playerDistancePx: 104,
+    engagementRangePx: 76,
+    playerAttackActive: true,
+    playerAtPortTile: true,
+    disengagementBufferPx: 20
+  }), {
+    withinEngagementRange: true,
+    beyondDisengagementRange: false
+  });
+  assert.deepEqual(shoreBatteryPlayerEngagementEnvelope({
+    playerDistancePx: 104,
+    engagementRangePx: 76,
+    playerAttackActive: true,
+    playerAtPortTile: false,
+    disengagementBufferPx: 20
+  }), {
+    withinEngagementRange: false,
+    beyondDisengagementRange: true
+  });
 });
 
 test("battery upgrades persist as additive fortification levels", () => {

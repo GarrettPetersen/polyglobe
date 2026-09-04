@@ -105,6 +105,37 @@ test("label hit testing includes the plate and excludes its outer edge", () => {
   assert.equal(cityDestinationLabelContainsPoint(label, label.x + label.width, label.y), false);
 });
 
+test("a hovered label stays under the pointer while other labels reflow around it", () => {
+  const entries = [
+    entry("market", "Market", 46, { x: 500, y: 140 }),
+    entry("inn", "Inn", 28, { x: 510, y: 142 })
+  ];
+  const initial = layoutCityDestinationLabels({
+    entries,
+    viewportWidth: 256,
+    viewportHeight: 256
+  });
+  const market = initial.find(({ id }) => id === "market");
+  const moved = layoutCityDestinationLabels({
+    entries: entries.map((candidate) => ({
+      ...candidate,
+      anchor: { x: candidate.anchor.x - 400, y: candidate.anchor.y }
+    })),
+    viewportWidth: 256,
+    viewportHeight: 256,
+    pinnedLabel: { id: market.id, x: market.x, y: market.y }
+  });
+  const pinnedMarket = moved.find(({ id }) => id === "market");
+  const movedInn = moved.find(({ id }) => id === "inn");
+
+  assert.deepEqual(
+    { x: pinnedMarket.x, y: pinnedMarket.y },
+    { x: market.x, y: market.y }
+  );
+  assert.equal(overlaps(pinnedMarket, movedInn), false);
+  assert.deepEqual(moved.map(({ id }) => id), entries.map(({ id }) => id));
+});
+
 test("malformed and impossible destination label layouts fail loudly", () => {
   assert.throws(() => layoutCityDestinationLabels({
     entries: [entry("market", "Market", 46, { x: 20, y: 50 }), entry("market", "Market", 46, { x: 40, y: 70 })],
@@ -116,6 +147,12 @@ test("malformed and impossible destination label layouts fail loudly", () => {
     viewportWidth: 256,
     viewportHeight: 256
   }), /exceeds the viewport/);
+  assert.throws(() => layoutCityDestinationLabels({
+    entries: [entry("market", "Market", 46, { x: 20, y: 50 })],
+    viewportWidth: 256,
+    viewportHeight: 256,
+    pinnedLabel: { id: "missing", x: 4, y: 34 }
+  }), /Pinned city destination label is unavailable/);
 });
 
 function entry(id, label, width, anchor) {

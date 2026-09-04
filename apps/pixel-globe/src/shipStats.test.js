@@ -16,6 +16,7 @@ import {
 import {
   SHIP_ACCELERATION_SCALE,
   SHIP_TOP_SPEED_SCALE,
+  SHIP_TURN_RATE_FLOOR_RAD,
   SHIP_TURN_RATE_SCALE
 } from "./gamePacing.js";
 import { WORLD_KINEMATIC_SCALE, WORLD_PIXELS_PER_RADIAN } from "./worldScale.js";
@@ -101,12 +102,16 @@ test("hulls gather way gradually instead of moving like speedboats", () => {
   const greatCarrack = shipStatsForSlug("ship-of-the-line");
 
   assert.equal(SHIP_ACCELERATION_SCALE, 0.16);
+  assert.equal(SHIP_TURN_RATE_FLOOR_RAD, 0.30);
   assert.equal(SHIP_TURN_RATE_SCALE, 0.55);
   assert.equal(
     brigantine.accelerationRad,
     0.021 * SHIP_ACCELERATION_SCALE * WORLD_KINEMATIC_SCALE
   );
-  assert.equal(sampan.turnRateRad, 3.40 * SHIP_TURN_RATE_SCALE);
+  assert.equal(
+    sampan.turnRateRad,
+    SHIP_TURN_RATE_FLOOR_RAD + 3.40 * SHIP_TURN_RATE_SCALE
+  );
   assert.ok(sampan.topSpeedRad * WORLD_PIXELS_PER_RADIAN < 48);
   assert.ok(sampan.accelerationRad * WORLD_PIXELS_PER_RADIAN < 13);
   assert.ok(Math.max(...SHIP_STATS.map(({ topSpeedRad }) => (
@@ -115,6 +120,26 @@ test("hulls gather way gradually instead of moving like speedboats", () => {
   assert.ok(brigantine.topSpeedRad / brigantine.accelerationRad > 7);
   assert.ok(galleon.topSpeedRad / galleon.accelerationRad > 11);
   assert.ok(greatCarrack.topSpeedRad / greatCarrack.accelerationRad > 17);
+});
+
+test("every hull receives a playable turn floor without flattening the maneuverability ramp", () => {
+  const greatCarrack = shipStatsForSlug("ship-of-the-line");
+  const portugueseCarrack = shipStatsForSlug("portuguese-carrack");
+  const sampan = shipStatsForSlug("sampan");
+  const formerPortugueseTurnRate = 1.45 * SHIP_TURN_RATE_SCALE;
+  const portugueseTurnRadiusPx =
+    portugueseCarrack.topSpeedRad * WORLD_PIXELS_PER_RADIAN / portugueseCarrack.turnRateRad;
+
+  assert.ok(Math.min(...SHIP_STATS.map(({ turnRateRad }) => turnRateRad)) >=
+    SHIP_TURN_RATE_FLOOR_RAD);
+  assert.ok(portugueseCarrack.turnRateRad > formerPortugueseTurnRate);
+  assert.ok(portugueseTurnRadiusPx < 61);
+  assert.ok(greatCarrack.turnRateRad < portugueseCarrack.turnRateRad);
+  assert.ok(portugueseCarrack.turnRateRad < sampan.turnRateRad);
+  assert.ok(Math.abs(
+    (sampan.turnRateRad - portugueseCarrack.turnRateRad) -
+    (3.40 - 1.45) * SHIP_TURN_RATE_SCALE
+  ) < 1e-12);
 });
 
 test("native canoe hulls are small, cannonless, exposed, and regionally distinct", () => {

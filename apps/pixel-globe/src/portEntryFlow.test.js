@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   recoveringPortBlocksArrival,
+  resolvePortArrivalDialogueNode,
   resolvePortDialogueContinuation
 } from "./portEntryFlow.js";
 
@@ -83,4 +84,31 @@ test("a still-hostile quest destination resumes its barred harbor guard", () => 
     attackStatus: { commissioned: false },
     conquestStatus: { canAttempt: false, playerAssaultActive: false }
   }), "barred");
+});
+
+test("a port visit presents its arrival greeting only once across dialogue continuations", () => {
+  assert.equal(resolvePortArrivalDialogueNode({
+    requestedNodeId: "greeting",
+    arrivalGreetingPresented: false
+  }), "greeting");
+  assert.equal(resolvePortArrivalDialogueNode({
+    requestedNodeId: "greeting",
+    arrivalGreetingPresented: true
+  }), "root");
+  assert.equal(resolvePortArrivalDialogueNode({
+    requestedNodeId: "loadout",
+    arrivalGreetingPresented: true
+  }), "loadout");
+});
+
+test("a recreated admitted port session cannot repeat an acknowledged greeting", () => {
+  assert.equal(resolvePortDialogueContinuation({
+    requestedNodeId: "greeting",
+    admittedToPort: true,
+    arrivalGreetingPresented: true,
+    entryStatus: { allowed: true, hostile: false },
+    recoveryStatus: null,
+    attackStatus: { commissioned: false },
+    conquestStatus: { canAttempt: false, playerAssaultActive: false }
+  }), "root");
 });

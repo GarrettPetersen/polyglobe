@@ -176,6 +176,7 @@ import {
 } from "./eastAsianQuestlines.js";
 import { markQuestJourneyDialogueSeen } from "./questJourneyDialogue.js";
 import { questDestinationStops, questHasDestination } from "./questItinerary.js";
+import { resolvePortArrivalDialogueNode } from "./portEntryFlow.js";
 import { HAJJ_PILGRIMAGE_PERK_ITEM_ID } from "./perkItems.js";
 import {
   activeForeignSettlements,
@@ -1804,7 +1805,12 @@ export function beginShipHandoverDialogue(session, {
 function portDialogueNodeView(session, city, gameState, economy, portCities, context) {
   if (session.nodeId === "drunk-captain") return drunkCaptainArrivalView(session, gameState);
   if (session.nodeId === "drunk-factor") return drunkFactorArrivalView(session, city, gameState);
-  if (session.nodeId === "greeting") return greetingView(session, city, gameState, context);
+  if (session.nodeId === "greeting") {
+    if (context.arrivalGreetingPresented === true) {
+      throw new Error(`Port arrival greeting was requested twice: ${session.cityId}`);
+    }
+    return greetingView(session, city, gameState, context);
+  }
   if (session.nodeId === "recovering") return recoveringPortView(city, context);
   if (session.nodeId === "barred") return barredPortView(city, gameState, context);
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
@@ -2187,7 +2193,10 @@ export function selectPortDialogueOption(
         return { closed: false, specialEquipmentOffer: offer };
       }
     }
-    session.nodeId = action.nodeId;
+    session.nodeId = resolvePortArrivalDialogueNode({
+      requestedNodeId: action.nodeId,
+      arrivalGreetingPresented: context.arrivalGreetingPresented === true
+    });
     session.selectedIndex = action.nodeId === "shipyard"
       ? session.shipyardLedgerTab === "yard"
         ? 0
@@ -2950,7 +2959,10 @@ export function selectPortDialogueOption(
     if (session.colonizationApprovalStep !== 2) {
       throw new Error(`Colonization negotiation cannot finish from step ${session.colonizationApprovalStep}`);
     }
-    session.nodeId = session.nextPortNodeId || "greeting";
+    session.nodeId = resolvePortArrivalDialogueNode({
+      requestedNodeId: session.nextPortNodeId || "greeting",
+      arrivalGreetingPresented: context.arrivalGreetingPresented === true
+    });
     session.nextPortNodeId = null;
     session.colonizationApprovalStep = 0;
     session.selectedIndex = 0;
@@ -4469,11 +4481,14 @@ function barredPortView(city, gameState, context) {
     ));
   }
   if (attack?.available && !batteryDisabled && !conquest?.playerAssaultActive) {
-    options.push(portAttackOption(city, gameState, attack, {
-      type: "node",
-      nodeId: "city-attack",
-      returnNodeId: "barred"
-    }));
+    options.push(portAttackOption(
+      city,
+      gameState,
+      attack,
+      attack.commissioned
+        ? { type: "attack-city" }
+        : { type: "node", nodeId: "city-attack", returnNodeId: "barred" }
+    ));
   }
   if (!attack?.commissioned && status.hostile && !status.locked && !batteryDisabled &&
       !conquest?.playerAssaultActive) {
