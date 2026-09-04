@@ -6,7 +6,12 @@ import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
 
+import {
+  captureScenarioFromSearch
+} from "../src/captureScenarios.js";
+import { AUTOMATIC_CAPTURE_FRAME_RATE } from "../src/captureDirector.js";
 import { GAME_STATE_VERSION } from "../src/gameState.js";
+import { gameplayReachabilityScenarioIds } from "../src/gameplayReachabilityScenarios.js";
 
 const DENSE_RUNTIME_PLAYER_CHARACTER = Object.freeze({
   id: "player:dense-save-captain",
@@ -45,6 +50,8 @@ const DIST_ROOT = path.join(APP_ROOT, "dist");
 const FIXTURE_ROOT = path.join(APP_ROOT, "src/test-fixtures/saves");
 const RESTORE_TIMEOUT_MS = 10 * 60 * 1000;
 const CITY_VISUALIZER_TIMEOUT_MS = 60 * 1000;
+const GAMEPLAY_SCENARIO_TIMEOUT_MS = 10 * 60 * 1000;
+const GAMEPLAY_SEQUENCE_KINDS = new Set(["sail", "fight", "pillage"]);
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -59,6 +66,8 @@ const CONTENT_TYPES = new Map([
 ]);
 
 const fixtures = frozenSaveFixtures();
+const releaseReachability = parseReleaseReachabilityArgument(process.argv.slice(2));
+const gameplayScenarioIds = productionGameplayScenarioIds(releaseReachability);
 const playwright = loadPlaywright();
 const server = await startStaticServer();
 const address = server.address();
@@ -170,10 +179,109 @@ try {
     );
   }
   process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
+
+  const gameplayFailures = [];
+  for (const scenarioId of gameplayScenarioIds) {
+    browserErrors.length = 0;
+    try {
+      await exerciseProductionGameplayScenario(page, browserErrors, baseUrl, scenarioId);
+    } catch (error) {
+      if (!releaseReachability || page.isClosed()) throw error;
+      gameplayFailures.push({ scenarioId, message: error.message });
+      process.stderr.write(`  FAILED ${scenarioId}: ${error.message}\n`);
+    }
+  }
+  if (gameplayFailures.length > 0) {
+    throw new Error(
+      `Production gameplay reachability rejected ${gameplayFailures.length} scenario(s):\n` +
+        gameplayFailures.map(({ scenarioId, message }) => `- ${scenarioId}: ${message}`).join("\n")
+    );
+  }
+  process.stdout.write(
+    `Production gameplay reachability passed for ${gameplayScenarioIds.length} ` +
+      `${releaseReachability ? "release" : "representative"} scenarios.\n`
+  );
   await context.close();
 } finally {
   await browser.close();
   await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+}
+
+function parseReleaseReachabilityArgument(args) {
+  const knownArguments = new Set(["--release-reachability"]);
+  const unknown = args.filter((argument) => !knownArguments.has(argument));
+  if (unknown.length > 0) {
+    throw new Error(`Unknown production reachability argument: ${unknown.join(", ")}`);
+  }
+  return args.includes("--release-reachability");
+}
+
+function productionGameplayScenarioIds(release) {
+  const ids = gameplayReachabilityScenarioIds(release ? "release" : "fast");
+  if (ids.length === 0) throw new Error("Production gameplay reachability selected no scenarios");
+  for (const id of ids) {
+    const scenario = captureScenarioFromSearch(`?capture=${id}`);
+    if (!GAMEPLAY_SEQUENCE_KINDS.has(scenario.sequence.kind)) {
+      throw new Error(`Gameplay reachability scenario has unsupported kind: ${id}:${scenario.sequence.kind}`);
+    }
+  }
+  const representedKinds = new Set(ids.map((id) => (
+    captureScenarioFromSearch(`?capture=${id}`).sequence.kind
+  )));
+  for (const kind of GAMEPLAY_SEQUENCE_KINDS) {
+    if (!representedKinds.has(kind)) {
+      throw new Error(`Production gameplay reachability has no ${kind} scenario`);
+    }
+  }
+  return Object.freeze(ids);
+}
+
+async function exerciseProductionGameplayScenario(page, browserErrors, baseUrl, scenarioId) {
+  const scenario = captureScenarioFromSearch(`?capture=${scenarioId}`);
+  const startedAt = performance.now();
+  await page.goto(
+    `${baseUrl}/?capture=${encodeURIComponent(scenarioId)}&captureFormat=steam&autocapture=frames`,
+    { waitUntil: "domcontentloaded", timeout: 30_000 }
+  );
+  await page.waitForFunction(() => (
+    window.__PIXEL_GLOBE_CAPTURE_READY__ === true ||
+    typeof window.__PIXEL_GLOBE_CAPTURE_ERROR__ === "string"
+  ), null, { timeout: GAMEPLAY_SCENARIO_TIMEOUT_MS });
+  const initializationFailure = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_ERROR__ || null);
+  if (initializationFailure) {
+    throw new Error(`${scenarioId} failed to initialize: ${initializationFailure}`);
+  }
+  await assertNoBrowserFailure(page, browserErrors, `${scenarioId} initialization`);
+
+  const frameCount = await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_TOTAL_FRAMES__);
+  const expectedFrameCount = scenario.sequence.durationSeconds * AUTOMATIC_CAPTURE_FRAME_RATE;
+  if (frameCount !== expectedFrameCount) {
+    throw new Error(`${scenarioId} exposed ${frameCount}/${expectedFrameCount} deterministic frames`);
+  }
+  for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
+    const frame = await page.evaluate((index) => window.__PIXEL_GLOBE_CAPTURE_STEP__(index), frameIndex);
+    const shouldBeComplete = frameIndex === frameCount - 1;
+    if (
+      frame?.frameIndex !== frameIndex ||
+      frame?.totalFrames !== frameCount ||
+      frame?.complete !== shouldBeComplete
+    ) {
+      throw new Error(`${scenarioId} returned malformed deterministic frame ${frameIndex}`);
+    }
+  }
+  const result = await page.evaluate(() => ({
+    error: window.__PIXEL_GLOBE_CAPTURE_ERROR__ || null,
+    sidecar: window.__PIXEL_GLOBE_CAPTURE_SIDECAR__ || null
+  }));
+  if (result.error) throw new Error(`${scenarioId} failed while stepping: ${result.error}`);
+  if (result.sidecar?.scenario?.id !== scenarioId) {
+    throw new Error(`${scenarioId} completed without its deterministic event record`);
+  }
+  await assertNoBrowserFailure(page, browserErrors, `${scenarioId} frame traversal`);
+  process.stdout.write(
+    `  ${scenario.sequence.kind} ${scenarioId}: ${frameCount} frames in ` +
+      `${Math.round(performance.now() - startedAt)} ms\n`
+  );
 }
 
 function frozenSaveFixtures() {

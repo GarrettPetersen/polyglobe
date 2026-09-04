@@ -1,5 +1,6 @@
 import { factionById, factionCapitalForId } from "./factions.js";
 import { religionById } from "./characterReligion.js";
+import { GAMEPLAY_REACHABILITY_SCENARIOS } from "./gameplayReachabilityScenarios.js";
 import { ICEBERG_VARIANTS } from "./icebergSystem.js";
 import { NPC_SHIP_SLUGS } from "./npcSeaRoutes.js";
 import { shipStatsForSlug } from "./shipStats.js";
@@ -112,6 +113,10 @@ export function captureViewportFromSearch(search) {
 }
 
 const CAPTURE_SCENARIOS = Object.freeze({
+  ...Object.fromEntries(Object.entries(GAMEPLAY_REACHABILITY_SCENARIOS).map(([id, value]) => {
+    if (id !== value.id) throw new Error(`Gameplay reachability scenario id mismatch: ${id}/${value.id}`);
+    return [id, scenario(value)];
+  })),
   "icosahedron-earth": scenario({
     id: "icosahedron-earth",
     title: "Flat While You Look, Round While You Sail",

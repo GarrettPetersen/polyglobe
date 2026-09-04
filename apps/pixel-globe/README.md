@@ -46,6 +46,27 @@ Deployment reads `PRODUCTION_CLOUDFLARE_ACCOUNT_ID` and
 or the deployment workflow automatically test, build, and deploy the full game
 through `.github/workflows/deploy-pixel-globe.yml`.
 
+Deployment runs the fast reachability suite. It visits every port through the
+real city-action contracts, completes a fleet engagement at Lepanto, restores
+every supported frozen save, and frame-steps representative sailing, naval
+combat, and port-assault scenarios in the production browser build:
+
+```sh
+npm run test:reachability:fast
+```
+
+Before a user-facing release, run the opt-in exhaustive profile. It follows
+deeper port dialogue paths, runs the complete historical-battle suite, and
+frame-steps the complete dedicated sailing, naval-combat, bombardment, and
+fortified/unfortified port-assault test matrix:
+
+```sh
+npm run test:reachability:release
+```
+
+The much slower whole-world traversal remains separately opt-in with
+`npm run test:world-traversal` for changes to globe layout or traversal code.
+
 Build the unlimited HTML5 demo ZIP for itch.io:
 
 ```sh

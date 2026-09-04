@@ -173,7 +173,7 @@ test("persistent city destination labels share the production runtime and warp b
   );
   assert.match(
     VISUALIZER_MAIN_SOURCE,
-    /pinnedLabel: state\.pinnedDestinationLabel/
+    /const retainedPin = retainAvailableCityDestinationLabelPin\([\s\S]*pinnedLabel: retainedPin/
   );
 });
 
