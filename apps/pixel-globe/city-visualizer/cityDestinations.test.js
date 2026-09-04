@@ -33,6 +33,30 @@ test("city destinations cannot advertise service buildings absent from the scene
   assert.ok(!activeIds.includes(PORT_CITY_LOCATION.EQUIPMENT));
   assert.ok(activeIds.includes(PORT_CITY_LOCATION.MARKET));
   assert.ok(activeIds.includes(PORT_CITY_LOCATION.INN));
+  assert.ok(activeIds.includes(PORT_CITY_LOCATION.AUTHORITY));
+});
+
+test("a dockless village keeps authority actions without inventing service buildings", () => {
+  const activeIds = activeCityDestinations({
+    availableDestinationIds: new Set([
+      PORT_CITY_LOCATION.SET_SAIL,
+      PORT_CITY_LOCATION.SHIP,
+      PORT_CITY_LOCATION.AUTHORITY
+    ]),
+    features: Object.freeze({
+      shipyard: false,
+      market: true,
+      store: false,
+      inn: false
+    }),
+    assaultActive: false
+  }).map(({ id }) => id);
+
+  assert.deepEqual(activeIds, [
+    PORT_CITY_LOCATION.SET_SAIL,
+    PORT_CITY_LOCATION.AUTHORITY,
+    PORT_CITY_LOCATION.SHIP
+  ]);
 });
 
 test("an explicit navigation model remains constrained by rendered scene features", () => {

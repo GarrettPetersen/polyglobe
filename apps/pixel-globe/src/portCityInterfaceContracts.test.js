@@ -78,9 +78,10 @@ test("pending city activation is not misreported as an opaque world cover", () =
 test("city rendering receives live weather and market modes use the compact header switch", () => {
   const cityDraw = functionSource("drawPortCityScene", "currentPortCityWeatherPresentation");
   assert.match(cityDraw, /portCityRuntime\.setWeather\(currentPortCityWeatherPresentation\(\)\)/);
-  assert.match(
-    cityDraw,
-    /worldRenderer\.endFrame\(\);[\s\S]*portCityRuntime\.drawEmissiveOverlay\(screenCtx, shakeOffset\)/
+  assert.ok(
+    cityDraw.indexOf("worldRenderer.endFrame()") <
+      cityDraw.indexOf("portCityRuntime.drawEmissiveOverlay(screenCtx, shakeOffset)"),
+    "the GPU scene must be presented before the emissive city overlay"
   );
   const dialogueDraw = functionSource("drawDialogueOverlayContent", "drawMarketModeSwitch");
   assert.match(dialogueDraw, /compactMarketSwitch = view\.presentation\?\.kind === "market"/);
@@ -127,6 +128,25 @@ test("the paused-port benchmark establishes the same covered world frame as prod
     setup,
     /render\(performance\.now\(\), \{ allowColdCoveredWorldRender: true \}\);[\s\S]*openPortDialogue\(cityCall\)/
   );
+});
+
+test("landing after a successful bombardment preserves combat music for the assault", () => {
+  const opening = functionSource("openPortDialogue", "openColonizationAftermathSiteDialogue");
+  assert.match(opening, /continuingPortBombardmentThreat\(\{/);
+  assert.match(opening, /if \(continuingBombardment\) \{[\s\S]*startCombatMusicForThreat/);
+  assert.match(
+    opening,
+    /else \{[\s\S]*combatMusicUntilMs = 0;[\s\S]*setBackgroundMusicTrack\(musicTrackForCity/
+  );
+});
+
+test("arrival recruitment defaults to leave and rejects a spilled purchase input", () => {
+  const recruitment = functionSource("maybeOpenCrewRecruitmentArrival", "prepareCrewRecruitmentAt");
+  assert.match(recruitment, /selectedIndex = offer\.candidates\.length/);
+  assert.match(recruitment, /createArrivalRecruitmentActivationGuard/);
+  const choice = functionSource("chooseDialogueOption", "applyDialogueOption");
+  assert.match(choice, /dialogueActionBlockedByActivationGuard/);
+  assert.match(choice, /if \([\s\S]*\) \{[\s\S]*return false/);
 });
 
 function functionSource(name, nextName) {

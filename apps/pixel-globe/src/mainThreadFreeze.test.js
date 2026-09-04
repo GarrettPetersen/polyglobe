@@ -54,6 +54,30 @@ test("freeze attribution retains the largest named task completed in one frame",
   assert.equal(report.recentWorkMs, 900);
 });
 
+test("freeze attribution keeps a specific child that explains most of its parent", () => {
+  const monitor = createMainThreadFreezeMonitor();
+  beginMainThreadFreezeFrame(monitor, 100);
+  recordMainThreadWork(monitor, "render.city.raster", 920, 1_020);
+  recordMainThreadWork(monitor, "render", 1_000, 1_100);
+  finishMainThreadFreezeFrame(monitor, 1_000);
+
+  const report = beginMainThreadFreezeFrame(monitor, 1_200);
+  assert.equal(report.cause, "render.city.raster");
+  assert.equal(report.recentWorkMs, 920);
+});
+
+test("freeze attribution retains a parent when no measured child explains it", () => {
+  const monitor = createMainThreadFreezeMonitor();
+  beginMainThreadFreezeFrame(monitor, 100);
+  recordMainThreadWork(monitor, "render.city.raster", 120, 220);
+  recordMainThreadWork(monitor, "render", 1_000, 1_100);
+  finishMainThreadFreezeFrame(monitor, 1_000);
+
+  const report = beginMainThreadFreezeFrame(monitor, 1_200);
+  assert.equal(report.cause, "render");
+  assert.equal(report.recentWorkMs, 1_000);
+});
+
 test("visibility suspension and machine sleep do not impersonate freezes", () => {
   const monitor = createMainThreadFreezeMonitor();
   beginMainThreadFreezeFrame(monitor, 100);

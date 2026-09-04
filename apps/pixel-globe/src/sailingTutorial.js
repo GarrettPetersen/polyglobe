@@ -124,6 +124,14 @@ export function earlySailingHelpWindowIsActive(state) {
   return state.earlyWindowSeconds < EARLY_SAILING_HELP_WINDOW_SECONDS;
 }
 
+export function sailingTutorialTravelIsEligible({ anchored, combatEngaged, whaleTowActive }) {
+  if (typeof anchored !== "boolean" || typeof combatEngaged !== "boolean" ||
+      typeof whaleTowActive !== "boolean") {
+    throw new Error("Sailing tutorial travel state must be boolean");
+  }
+  return !anchored && !combatEngaged && !whaleTowActive;
+}
+
 export function sailingHelpPages(inputMode, controlScheme = CONTROL_SCHEME_ABSOLUTE) {
   if (!SAILING_HELP_INPUT_MODES.has(inputMode)) {
     throw new Error(`Unknown sailing help input mode: ${inputMode}`);

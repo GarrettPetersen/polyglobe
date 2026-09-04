@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   acceptQuest,
+  cargoFree,
   completeQuest,
   createGameState,
   deliveryOfferForCity,
@@ -90,6 +91,38 @@ test("the race carries entrusted tea and pays first and later finishers differen
   const laterBefore = laterState.doubloons;
   completeQuest(laterState, LONDON, { simMinute: spring + 102 });
   assert.equal(laterState.doubloons, laterBefore + TEA_RACE_FINISHER_PRIZE);
+});
+
+test("a stored tea-race offer becomes disabled if later cargo fills its hold", () => {
+  const state = raceStateWithOpenTrade();
+  const spring = gameMinuteForDate(1522, 4, 15);
+  const offer = deliveryOfferForCity(state, GUANGZHOU, PORTS, { simMinute: spring });
+  state.cargo.tea = cargoFree(state);
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: spring });
+  const session = createPortDialogueSession(GUANGZHOU, { initialNodeId: "quest" });
+
+  const view = portDialogueView(session, GUANGZHOU, state, economy, PORTS, {
+    simMinute: spring
+  });
+  const acceptIndex = view.options.findIndex(({ action }) => action.type === "accept-quest");
+
+  assert.equal(view.options[acceptIndex].disabled, true);
+  assert.match(view.options[acceptIndex].disabledReason, /needs 10 cargo spaces; 0 free/i);
+  assert.doesNotThrow(() => selectPortDialogueOption(
+    session,
+    GUANGZHOU,
+    state,
+    economy,
+    PORTS,
+    acceptIndex,
+    { simMinute: spring }
+  ));
+  assert.match(session.feedback, /needs 10 cargo spaces; 0 free/i);
+  assert.equal(state.memory.quests.active, null);
+  assert.throws(
+    () => acceptQuest(state, offer, { simMinute: spring }),
+    /Tea race requires 10 free cargo space/
+  );
 });
 
 test("selling personal tea is allowed but entrusted tea fails that year's race", () => {

@@ -32,7 +32,6 @@ export const BACKGROUND_CITY_MOSQUE_SCALE_MULTIPLIER = 1;
 export const BACKGROUND_CITY_JAPAN_PAGODA_FOUNDATION_SOURCE_HEIGHT = 18;
 export const BACKGROUND_CITY_CHINA_PAGODA_FOUNDATION_SOURCE_HEIGHT = 12;
 export const BACKGROUND_CITY_PAGODA_SCALE_MULTIPLIER = 0.72;
-export const BACKGROUND_CITY_STREET_COLOR = "#9babb2";
 export const BACKGROUND_CITY_FOUNDATION_RISE_PER_PIXEL = 1 / 24;
 export const BACKGROUND_CITY_FOUNDATION_TOLERANCE = 3;
 export const BACKGROUND_CITY_NEAR_SCALE = 0.5;
@@ -134,63 +133,6 @@ export function cityBackgroundBaseTopProfile({ alpha, width, height, sourceY }) 
   }
   for (let x = previousOpaque + 1; x < width; x++) topByX[x] = topByX[previousOpaque];
   return topByX;
-}
-
-export function cityBackgroundStreetRows({ alpha, width, height, sourceX, sourceY, rightX }) {
-  if (
-    (!Array.isArray(alpha) && !ArrayBuffer.isView(alpha)) ||
-    !Number.isInteger(width) ||
-    width <= 0 ||
-    !Number.isInteger(height) ||
-    height <= 0 ||
-    alpha.length !== width * height ||
-    !Number.isInteger(sourceX) ||
-    !Number.isInteger(sourceY) ||
-    !Number.isInteger(rightX) ||
-    rightX <= sourceX
-  ) {
-    throw new Error("Invalid background city street pixels");
-  }
-  const rows = [];
-  for (let y = 0; y < height; y++) {
-    let leftmostOpaqueX = -1;
-    for (let x = 0; x < width; x++) {
-      if (alpha[y * width + x] <= 16) continue;
-      leftmostOpaqueX = sourceX + x;
-      break;
-    }
-    if (leftmostOpaqueX < 0) continue;
-    rows.push(Object.freeze({
-      y: sourceY + y,
-      leftX: leftmostOpaqueX,
-      rightX
-    }));
-  }
-  if (rows.length === 0) throw new Error("Background city street requires opaque ribbon pixels");
-  return Object.freeze(rows);
-}
-
-export function mirrorCityBackgroundStreetRows({ rows, sceneWidth }) {
-  if (
-    !Array.isArray(rows) ||
-    !Number.isInteger(sceneWidth) ||
-    sceneWidth <= 0 ||
-    !rows.every((row) => (
-      Number.isInteger(row?.y) &&
-      Number.isInteger(row?.leftX) &&
-      Number.isInteger(row?.rightX) &&
-      row.leftX < row.rightX &&
-      row.leftX >= 0 &&
-      row.rightX <= sceneWidth
-    ))
-  ) {
-    throw new Error("Invalid background city street rows to mirror");
-  }
-  return Object.freeze(rows.map((row) => Object.freeze({
-    y: row.y,
-    leftX: sceneWidth - row.rightX,
-    rightX: sceneWidth - row.leftX
-  })));
 }
 
 export function cityBackgroundFoundationPoints({

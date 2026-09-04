@@ -47,32 +47,15 @@ export function cityBombardmentEffectGeometry({
     0.55,
     1.4
   );
-  const breachWidth = FIRE_FRAME_WIDTH * sourceFireScale;
-  const breachHeight = FIRE_FRAME_HEIGHT * sourceFireScale;
+  const flameWidth = FIRE_FRAME_WIDTH * sourceFireScale;
+  const flameHeight = FIRE_FRAME_HEIGHT * sourceFireScale;
   const breachBottom = bounds.y + bounds.height + Math.max(1, Math.round(bounds.height * 0.2));
-  const breachX = bounds.x + bounds.width / 2 - breachWidth / 2;
-  const breachY = breachBottom - breachHeight;
-  const exteriorScale = sourceFireScale * 0.72;
-  const exteriorWidth = FIRE_FRAME_WIDTH * exteriorScale;
-  const exteriorHeight = FIRE_FRAME_HEIGHT * exteriorScale;
-  const exteriorBottom = bounds.y + Math.max(
-    1,
-    Math.round(bounds.height * (damage.edge === "top" ? 0.32 : 0.48))
-  );
   const horizontalJitter = ((seed >>> 7) % 5) - 2;
-  const exteriorX = bounds.x + bounds.width / 2 - exteriorWidth / 2 + horizontalJitter;
-  const exteriorY = exteriorBottom - exteriorHeight;
-  const breachFlame = scaledRect({
-    x: breachX,
-    y: breachY,
-    width: breachWidth,
-    height: breachHeight
-  }, sourceWidth, sourceHeight, destination);
-  const exteriorFlame = scaledRect({
-    x: exteriorX,
-    y: exteriorY,
-    width: exteriorWidth,
-    height: exteriorHeight
+  const flame = scaledRect({
+    x: bounds.x + bounds.width / 2 - flameWidth / 2 + horizontalJitter,
+    y: breachBottom - flameHeight,
+    width: flameWidth,
+    height: flameHeight
   }, sourceWidth, sourceHeight, destination);
   const spriteScale = Math.sqrt(
     destination.width / sourceWidth * destination.height / sourceHeight
@@ -81,8 +64,8 @@ export function cityBombardmentEffectGeometry({
   const smokeEmitter = Object.freeze({
     id: `bombardment-fire|${seed}`,
     layerName: "Bombardment fire",
-    x: exteriorFlame.x + Math.floor(exteriorFlame.width / 2),
-    y: exteriorFlame.y + Math.max(1, Math.round(exteriorFlame.height * 0.24)),
+    x: flame.x + Math.floor(flame.width / 2),
+    y: flame.y + Math.max(1, Math.round(flame.height * 0.24)),
     emissionIntervalMs: Math.round(clamp(92 / smokeScale, 70, 280)),
     lifetimeMs: Math.round(clamp(4700 * Math.sqrt(smokeScale), 2800, 5600)),
     rise: Math.round(clamp(70 * smokeScale, 18, 100)),
@@ -92,7 +75,7 @@ export function cityBombardmentEffectGeometry({
     opacity: clamp(0.86 * Math.sqrt(smokeScale), 0.56, 0.9),
     colors: BOMBARDMENT_SMOKE_COLORS
   });
-  return Object.freeze({ breachFlame, exteriorFlame, smokeEmitter });
+  return Object.freeze({ flame, smokeEmitter });
 }
 
 function scaledRect(rect, sourceWidth, sourceHeight, destination) {

@@ -791,7 +791,7 @@ function captureSequenceAllowsSilence(sequence) {
     sequence.kind === "survive" &&
       ["wine-emergency", "drunk-arrival", "remembered-arrival"].includes(sequence.variant)
   ) || sequence.kind === "papal" || sequence.kind === "colonize" ||
-    sequence.kind === "loadout" || sequence.kind === "religion" ||
+    sequence.kind === "city" || sequence.kind === "loadout" || sequence.kind === "religion" ||
     sequence.kind === "companions";
 }
 

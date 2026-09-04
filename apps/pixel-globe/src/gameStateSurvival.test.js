@@ -51,6 +51,7 @@ import {
   setPlayerShipStats,
   shipConsumption,
   shipEmergencyAidNeed,
+  shipLoadoutDismissalRequirement,
   shipPeopleAboard,
   shipTravelerManifest,
   stowForagedFood,
@@ -1191,6 +1192,18 @@ test("automatic port services preserve crew hired above the selected loadout tar
   assert.equal(result.additions.crew, 0);
   assert.equal(result.removed.crew, 0);
   assert.ok(result.additions.food > 0);
+  assert.deepEqual(
+    shipLoadoutDismissalRequirement(state, shipLoadoutPlan(stats, "short-haul")),
+    {
+      loadoutId: "short-haul",
+      loadoutLabel: "Short haul",
+      currentCrew: selectedCrewTarget + 1,
+      targetCrew: selectedCrewTarget,
+      dismissalsRequired: 1,
+      canApply: false,
+      diagnostic: "Loadout short-haul requires dismissing 1 crew members first"
+    }
+  );
   assert.throws(
     () => restockShipLoadoutAtPort(state, LONDON, stats, "short-haul", { simMinute: 360 }),
     /requires dismissing 1 crew members first/

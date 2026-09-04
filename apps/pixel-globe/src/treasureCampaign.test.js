@@ -57,6 +57,7 @@ test("rumors are capped at three and acquired pieces clear their waypoint", () =
     assert.match(rumor.text, /black flag/i);
   }
   assert.equal(treasurePirateHints(goal).length, TREASURE_PIRATE_HINT_LIMIT);
+  assert.equal(campaignGoalDestination(goal).referenceCityName, "Port Test");
 
   const hintedPirate = goal.mapPirates[0];
   const piece = acquireTreasureMapPiece(goal, hintedPirate.id, 100);

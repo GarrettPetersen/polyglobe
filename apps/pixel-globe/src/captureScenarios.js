@@ -957,6 +957,167 @@ const CAPTURE_SCENARIOS = Object.freeze({
     diplomacy: [{ factionAId: "venice", factionBId: "ottoman", relation: "war" }],
     sequence: trailerSequence("pillage", "assault", { cityId: "alexandria|egypt" })
   }),
+  "short-city-peacetime-kyoto": trailerScenario({
+    id: "short-city-peacetime-kyoto",
+    title: "A Peaceful Visit to Kyoto",
+    seed: "short-city-peacetime-kyoto-v1",
+    player: capturePlayer("japan", "japanese-sekibune", 35.01, 135.77, 180, {
+      homeCityId: "kyoto|japan"
+    }),
+    world: captureWorld(148, 12, 20),
+    sequence: trailerSequence("city", "visit", {
+      cityId: "kyoto|japan",
+      durationSeconds: 10
+    })
+  }),
+  "short-city-peacetime-havana": trailerScenario({
+    id: "short-city-peacetime-havana",
+    title: "A Peaceful Visit to Havana",
+    seed: "short-city-peacetime-havana-v1",
+    player: capturePlayer("spain", "galleon", 23.11, -82.37, 180, {
+      homeCityId: "havana|cuba"
+    }),
+    world: captureWorld(210, 14, 40),
+    sequence: trailerSequence("city", "visit", {
+      cityId: "havana|cuba",
+      durationSeconds: 10
+    })
+  }),
+  "short-city-peacetime-london": trailerScenario({
+    id: "short-city-peacetime-london",
+    title: "A Peaceful Visit to London",
+    seed: "short-city-peacetime-london-v1",
+    player: capturePlayer("england", "galleon", 51.51, -0.13, 180, {
+      homeCityId: "london|united kingdom"
+    }),
+    world: captureWorld(166, 13, 10),
+    sequence: trailerSequence("city", "visit", {
+      cityId: "london|united kingdom",
+      durationSeconds: 10
+    })
+  }),
+  "short-city-peacetime-alexandria": trailerScenario({
+    id: "short-city-peacetime-alexandria",
+    title: "A Peaceful Visit to Alexandria",
+    seed: "short-city-peacetime-alexandria-v1",
+    player: capturePlayer("ottoman", "xebec", 31.2, 29.91, 180, {
+      homeCityId: "alexandria|egypt"
+    }),
+    world: captureWorld(92, 15, 30),
+    sequence: trailerSequence("city", "visit", {
+      cityId: "alexandria|egypt",
+      durationSeconds: 12
+    })
+  }),
+  "short-city-peacetime-jeddah": trailerScenario({
+    id: "short-city-peacetime-jeddah",
+    title: "A Peaceful Visit to Jeddah",
+    seed: "short-city-peacetime-jeddah-v1",
+    player: capturePlayer("hejaz", "ocean-dhow", 21.49, 39.19, 180, {
+      homeCityId: "jeddah|saudi arabia"
+    }),
+    world: captureWorld(214, 15, 10),
+    sequence: trailerSequence("city", "visit", {
+      cityId: "jeddah|saudi arabia",
+      durationSeconds: 10
+    })
+  }),
+  "short-city-peacetime-nanjing": trailerScenario({
+    id: "short-city-peacetime-nanjing",
+    title: "A Peaceful Visit to Nanjing",
+    seed: "short-city-peacetime-nanjing-v1",
+    player: capturePlayer("ming", "large-junk", 32.06, 118.79, 180, {
+      homeCityId: "nanjing|china"
+    }),
+    world: captureWorld(240, 14, 5),
+    sequence: trailerSequence("city", "visit", {
+      cityId: "nanjing|china",
+      durationSeconds: 10
+    })
+  }),
+  "short-city-peacetime-akkeshi": trailerScenario({
+    id: "short-city-peacetime-akkeshi",
+    title: "A Peaceful Visit to Akkeshi Kotan",
+    seed: "short-city-peacetime-akkeshi-v1",
+    player: capturePlayer("ainu", "japanese-sekibune", 43.04, 144.85, 180, {
+      homeCityId: "akkeshi kotan|japan"
+    }),
+    world: captureWorld(196, 13, 25),
+    sequence: trailerSequence("city", "visit", {
+      cityId: "akkeshi kotan|japan",
+      durationSeconds: 13
+    })
+  }),
+  "short-city-peacetime-istanbul": trailerScenario({
+    id: "short-city-peacetime-istanbul",
+    title: "A Peaceful Visit to Istanbul",
+    seed: "short-city-peacetime-istanbul-v1",
+    player: capturePlayer("ottoman", "xebec", 41.01, 28.98, 180, {
+      homeCityId: "istanbul|turkey"
+    }),
+    world: captureWorld(184, 13, 40),
+    sequence: trailerSequence("city", "visit", {
+      cityId: "istanbul|turkey",
+      durationSeconds: 13
+    })
+  }),
+  "short-city-market-tour-kyoto": trailerScenario({
+    id: "short-city-market-tour-kyoto",
+    title: "Trade in Kyoto",
+    seed: "short-city-market-tour-kyoto-v1",
+    player: capturePlayer("japan", "japanese-sekibune", 35.01, 135.77, 180, {
+      homeCityId: "kyoto|japan"
+    }),
+    world: captureWorld(148, 12, 20),
+    sequence: trailerSequence("city", "market-tour", {
+      cityId: "kyoto|japan",
+      durationSeconds: 28,
+      goodId: "rice",
+      transactionCount: 4
+    })
+  }),
+  "short-city-architecture-pan-havana": trailerScenario({
+    id: "short-city-architecture-pan-havana",
+    title: "Sailing ship",
+    seed: "short-city-architecture-pan-havana-v1",
+    player: capturePlayer("spain", "galleon", 23.11, -82.37, 180, {
+      homeCityId: "havana|cuba"
+    }),
+    world: captureWorld(210, 14, 40),
+    sequence: trailerSequence("city", "architecture-pan", {
+      cityId: "havana|cuba",
+      durationSeconds: 10,
+      panLogicalPixelsPerSecond: 80
+    })
+  }),
+  "short-city-architecture-pan-london": trailerScenario({
+    id: "short-city-architecture-pan-london",
+    title: "Sailing ship",
+    seed: "short-city-architecture-pan-london-v1",
+    player: capturePlayer("england", "galleon", 51.51, -0.13, 180, {
+      homeCityId: "london|united kingdom"
+    }),
+    world: captureWorld(166, 13, 10),
+    sequence: trailerSequence("city", "architecture-pan", {
+      cityId: "london|united kingdom",
+      durationSeconds: 10,
+      panLogicalPixelsPerSecond: 80
+    })
+  }),
+  "short-city-architecture-pan-alexandria": trailerScenario({
+    id: "short-city-architecture-pan-alexandria",
+    title: "Sailing ship",
+    seed: "short-city-architecture-pan-alexandria-v1",
+    player: capturePlayer("ottoman", "xebec", 31.2, 29.91, 180, {
+      homeCityId: "alexandria|egypt"
+    }),
+    world: captureWorld(92, 15, 30),
+    sequence: trailerSequence("city", "architecture-pan", {
+      cityId: "alexandria|egypt",
+      durationSeconds: 10,
+      panLogicalPixelsPerSecond: 80
+    })
+  }),
   "short-city-assault-kyoto": trailerScenario({
     id: "short-city-assault-kyoto",
     title: "Sailing ship",
@@ -1402,6 +1563,7 @@ const CAPTURE_SCENARIOS = Object.freeze({
     lat: 35.5,
     lon: 17.0,
     side: "starboard",
+    targetOffsetDeg: 0.72,
     variant: "fight"
   }),
   "trailer-demo-fight-galleass-port": demoTrailerGalleassFleetScenario({
@@ -2197,7 +2359,7 @@ export function validateCaptureScenario(value) {
 
 function validateCaptureSequence(value) {
   if (!value || typeof value !== "object") throw new Error("Capture sequence must be an object");
-  if (!["explore", "trade", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda", "papal", "loadout", "religion", "companions"].includes(value.kind)) {
+  if (!["explore", "trade", "city", "fish", "whale", "sail", "fight", "pillage", "colonize", "survive", "panda", "papal", "loadout", "religion", "companions"].includes(value.kind)) {
     throw new Error(`Invalid capture sequence kind: ${value.kind}`);
   }
   requiredString(value.variant, "capture sequence variant");
@@ -2206,6 +2368,7 @@ function validateCaptureSequence(value) {
   const requiredByKind = {
     explore: ["discoveryId"],
     trade: ["cityId", "goodId"],
+    city: ["cityId"],
     fish: [],
     whale: ["speciesId"],
     sail: [],
@@ -2227,8 +2390,30 @@ function validateCaptureSequence(value) {
     integerInRange(value.transactionCount, 2, 12, "capture trade transaction count");
     requiredString(value.factorPortraitSourceId, "capture trade factor portrait source id");
   }
-  if (value.factorPortraitSourceId !== undefined && value.kind !== "trade") {
-    throw new Error("Capture factor portrait source requires a trade sequence");
+  if (value.kind === "city") {
+    if (!["visit", "market-tour", "architecture-pan"].includes(value.variant)) {
+      throw new Error(`Invalid city capture variant: ${value.variant}`);
+    }
+    if (value.variant === "market-tour") {
+      requiredString(value.goodId, "city market-tour good id");
+      integerInRange(value.transactionCount, 4, 4, "city market-tour transaction count");
+    } else if (value.goodId !== undefined || value.transactionCount !== undefined ||
+        value.factorPortraitSourceId !== undefined) {
+      throw new Error("City market fields require the market-tour variant");
+    }
+    if (value.variant === "architecture-pan") {
+      numberInRange(
+        value.panLogicalPixelsPerSecond,
+        1,
+        120,
+        "city architecture pan logical pixels per second"
+      );
+    } else if (value.panLogicalPixelsPerSecond !== undefined) {
+      throw new Error("City architecture pan speed requires the architecture-pan variant");
+    }
+  }
+  if (value.factorPortraitSourceId !== undefined && !["trade", "city"].includes(value.kind)) {
+    throw new Error("Capture factor portrait source requires a trade or city sequence");
   }
   if ((value.kind === "fight" && value.variant !== "small-arms") ||
       (value.kind === "pillage" && value.variant === "bombard") ||

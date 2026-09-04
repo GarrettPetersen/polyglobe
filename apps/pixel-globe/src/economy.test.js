@@ -94,6 +94,7 @@ const KYOTO = port(11, "Kyoto", "Japan", "east-asian", 100000, "city", null, "ky
 const AYUTTHAYA = port(14, "Ayutthaya", "Thailand", "southeast-asian", 90000, "city", null, "ayutthaya|thailand");
 const HAVANA = port(12, "Havana", "Cuba", "mediterranean", 8000, "city", null, "havana|cuba");
 const SANTO_DOMINGO = port(13, "Santo Domingo", "Dominican Republic", "mediterranean", 20000, "city", null, "santo domingo|dominican republic");
+const AHMEDABAD = port(15, "Ahmedabad", "India", "south-asian", 100000, "city", null, "ahmedabad|india");
 const CITY_CATALOG = loadCityCatalogFromCsv(readFileSync(
   new URL(
     "../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
@@ -353,6 +354,8 @@ test("Southeast Asia exports ginger while Caribbean colonies begin with sugar an
   const london = marketByGood(economy, LONDON);
 
   assert.ok(malacca.get(GINGER_GOOD_ID).productionPerDay > 0);
+  assert.ok(malacca.get("pepper").productionPerDay > 0);
+  assert.equal(malacca.get("pepper").listedForSale, true);
   assert.ok(ternate.get(GINGER_GOOD_ID).productionPerDay > 0);
   assert.ok(malacca.get(GINGER_GOOD_ID).buyPrice < london.get(GINGER_GOOD_ID).sellPrice);
   assert.ok(havana.get(INDIGO_GOOD_ID).productionPerDay > 0);
@@ -364,6 +367,13 @@ test("Southeast Asia exports ginger while Caribbean colonies begin with sugar an
   assert.equal(havana.get(GINGER_GOOD_ID).productionPerDay, 0);
   assert.equal(santoDomingo.get(GINGER_GOOD_ID).productionPerDay, 0);
   assert.ok(havana.get(INDIGO_GOOD_ID).listedForSale);
+});
+
+test("Ahmedabad is the Gujarat indigo production centre", () => {
+  const economy = createWorldEconomy({ ports: [AHMEDABAD], startMinute: 0 });
+  const indigo = marketByGood(economy, AHMEDABAD).get(INDIGO_GOOD_ID);
+  assert.ok(indigo.productionPerDay > 0);
+  assert.equal(indigo.listedForSale, true);
 });
 
 test("New World production follows geography instead of city sprite style", () => {

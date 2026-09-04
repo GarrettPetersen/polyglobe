@@ -2,6 +2,9 @@ export const CITY_GROUND_REAR_PAINTER_Z = 62;
 export const CITY_GROUND_FOREGROUND_PAINTER_Z = 74;
 export const CITY_GROUND_FOREGROUND_START_Y = 552;
 export const CITY_GATE_TRAVERSAL_PAINTER_Z = 71.8;
+// Burning facades sit behind the near-ground band but in front of people on the
+// rear street. This keeps fire inside the same scene instead of treating it as UI.
+export const CITY_BOMBARDMENT_FIRE_PAINTER_Z = 63;
 
 export const CITY_PORT_ASSAULT_LANE_FEET_Y = Object.freeze([516, 524, 532, 540]);
 

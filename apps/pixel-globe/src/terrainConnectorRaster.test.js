@@ -45,32 +45,40 @@ test("water-only connectors cover integer-projected three-tile junctions", () =>
   assert.equal(terrainConnectorHalfWidthPx({
     baseHalfWidthPx: 9,
     levelDifference: 0,
-    waterOnly: true
+    surfaceKind: "water"
   }), 10);
   assert.equal(terrainConnectorHalfWidthPx({
     baseHalfWidthPx: 9,
     levelDifference: 0,
-    waterOnly: false
+    surfaceKind: "coast"
   }), 9);
   assert.equal(terrainConnectorHalfWidthPx({
     baseHalfWidthPx: 9,
     levelDifference: 4,
-    waterOnly: true
+    surfaceKind: "water"
   }), 12);
+});
+
+test("land-only connectors close the same three-tile junction pinholes", () => {
+  assert.equal(terrainConnectorHalfWidthPx({
+    baseHalfWidthPx: 9,
+    levelDifference: 0,
+    surfaceKind: "land"
+  }), 10);
 });
 
 test("terrain connector width rejects malformed geometry state", () => {
   assert.throws(
-    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 0, levelDifference: 0, waterOnly: true }),
+    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 0, levelDifference: 0, surfaceKind: "water" }),
     /positive integer/
   );
   assert.throws(
-    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 9, levelDifference: -1, waterOnly: true }),
+    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 9, levelDifference: -1, surfaceKind: "water" }),
     /non-negative integer/
   );
   assert.throws(
-    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 9, levelDifference: 0, waterOnly: "yes" }),
-    /must be boolean/
+    () => terrainConnectorHalfWidthPx({ baseHalfWidthPx: 9, levelDifference: 0, surfaceKind: "sand" }),
+    /Unknown terrain connector surface kind/
   );
 });
 

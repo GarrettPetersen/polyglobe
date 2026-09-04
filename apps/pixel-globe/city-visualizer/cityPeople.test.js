@@ -19,12 +19,14 @@ import {
 } from "./cityPeopleCatalog.js";
 import {
   CITY_POPULATION_PROFILES,
+  cityCivilianAppearanceIds,
   cityCombatProfileForAppearance,
   cityCrewTypeForAppearance,
   cityGarrisonAppearanceIds,
   cityPortStaffAppearanceIds,
   cityPopulationProfileId,
   cityRecruitableCrewAppearances,
+  createCityBombardmentCivilianAgents,
   createCityPeopleAgents,
   validateCityPeopleAtlasImage,
   validateCityPeopleManifest
@@ -40,7 +42,7 @@ const manifest = validateCityPeopleManifest(JSON.parse(await readFile(new URL(
 const appearanceById = new Map(CITY_PERSON_APPEARANCES.map((entry) => [entry.id, entry]));
 
 test("every port has an explicit reproducible population profile", () => {
-  assert.equal(catalog.version, 6);
+  assert.equal(catalog.version, 7);
   assert.equal(catalog.cityCount, catalog.cities.length);
   for (const city of catalog.cities) {
     assert.equal(city.populationProfileId, cityPopulationProfileId(city), city.id);
@@ -69,6 +71,19 @@ test("population profiles do not depend on visual landmark metadata", () => {
     delete runtimeCity.religiousLandmarks;
     delete runtimeCity.backgroundCity;
     assert.equal(cityPopulationProfileId(runtimeCity), city.populationProfileId, city.id);
+  }
+});
+
+test("every population can provide deterministic male and female colonist sprites", () => {
+  const archetypeById = new Map(CITY_PERSON_ARCHETYPES.map((entry) => [entry.id, entry]));
+  for (const port of catalog.cities) {
+    const sexes = ["female", "male", "female", "male"];
+    const first = cityCivilianAppearanceIds(port, sexes, "colonist-test");
+    assert.deepEqual(first, cityCivilianAppearanceIds(port, sexes, "colonist-test"), port.id);
+    first.forEach((appearanceId, index) => {
+      const appearance = appearanceById.get(appearanceId);
+      assert.equal(archetypeById.get(appearance.archetypeId).sex, sexes[index], `${port.id}:${appearanceId}`);
+    });
   }
 });
 
@@ -187,6 +202,41 @@ test("peacetime city populations retain a distinct deterministic garrison pool",
     paths: CITY_NPC_PATHS
   });
   assert.equal(capitalVillage.filter(({ role }) => role === "garrison").length, 1);
+});
+
+test("bombarded cities replace peacetime walkers with local fallen and panicking civilians", () => {
+  for (const cityId of [
+    "london|united kingdom",
+    "yamaguchi|japan",
+    "xicalango|mexico",
+    "yap village|federated states of micronesia"
+  ]) {
+    const port = city(cityId);
+    const civilians = createCityBombardmentCivilianAgents({
+      city: port,
+      count: 6,
+      paths: CITY_NPC_PATHS
+    });
+    assert.deepEqual(civilians, createCityBombardmentCivilianAgents({
+      city: port,
+      count: 6,
+      paths: CITY_NPC_PATHS
+    }));
+    assert.equal(civilians.length, 6);
+    assert.equal(civilians.filter(({ motion }) => motion === "fallen").length, 3);
+    assert.equal(civilians.filter(({ motion }) => motion === "panic").length, 3);
+    assert.ok(civilians.every(({ role }) => role === "ambient"));
+    const localAppearances = new Set(
+      CITY_POPULATION_PROFILES.find(({ id }) => id === port.populationProfileId)
+        .ambient.map(({ appearanceId }) => appearanceId)
+    );
+    assert.ok(civilians.every(({ appearanceId }) => localAppearances.has(appearanceId)));
+    assert.ok(civilians.filter(({ motion }) => motion === "fallen")
+      .every(({ appearanceId }) => manifest.appearances
+        .find(({ id }) => id === appearanceId).animations.death.length > 0));
+    assert.ok(civilians.filter(({ motion }) => motion === "panic")
+      .every(({ speed }) => speed >= 0.00038));
+  }
 });
 
 test("every port has deterministic local appearances for its five staff roles", () => {

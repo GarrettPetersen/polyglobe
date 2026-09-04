@@ -58,6 +58,7 @@ import {
   scenePanParallaxDelta
 } from "./citySceneRules.js";
 import {
+  CITY_BOMBARDMENT_FIRE_PAINTER_Z,
   CITY_GATE_FRONT_PAINTER_Z,
   CITY_GATE_TRAVERSAL_PAINTER_Z,
   CITY_GATE_TRAVERSAL_PATHS,
@@ -86,6 +87,7 @@ const CITY_VISUALIZER_PORT_MANIFEST = JSON.parse(readFileSync(new URL(
 const CITY = Object.freeze({
   cityType: "northern-european",
   approach: "river",
+  riverHorizon: "closed",
   dock: "wood",
   fortified: true,
   settlementType: "city",
@@ -885,6 +887,23 @@ test("port-assault lanes participate in city ground painter order", () => {
   );
 });
 
+test("bombardment fire and civilians share the city painter order", () => {
+  assert.ok(cityGroundPainterZ(544) < CITY_BOMBARDMENT_FIRE_PAINTER_Z);
+  assert.ok(CITY_BOMBARDMENT_FIRE_PAINTER_Z < cityGroundPainterZ(565));
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /kind: "bombardment-fire-overlay",\s+z: CITY_BOMBARDMENT_FIRE_PAINTER_Z/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /painterZ > CITY_BOMBARDMENT_FIRE_PAINTER_Z/
+  );
+  assert.match(
+    VISUALIZER_MAIN_SOURCE,
+    /state\.assaultPresentation[\s\S]*createCityBombardmentCivilianAgents/
+  );
+});
+
 test("duplicate market layers can occupy distinct authored rows", () => {
   assert.ok(layerSceneZ("Market Stall", 0) < layerSceneZ("Market Stall", 1));
   assert.equal(layerSceneZ("Market Stall", 1), layerSceneZ("Inn"));
@@ -936,7 +955,7 @@ test("all port scenes retain the three authored cloud layers at distinct paralla
   assert.ok(layerSceneZ("Cloud 3") > layerSceneZ("Horizon Mountains"));
 });
 
-test("river horizons close with two parallax-locked banks while open water does not", async () => {
+test("inland river horizons close while river mouths retain their banks and open-water view", async () => {
   for (const layer of ["Distant Land", "Distant Land Left Bank"]) {
     assert.equal(layerParallaxDepth(layer), layerParallaxDepth("Ocean"));
     assert.equal(layerParallaxAnchor(layer), layerParallaxAnchor("Ocean"));
@@ -948,12 +967,21 @@ test("river horizons close with two parallax-locked banks while open water does 
   const riverLayers = activePortSceneLayers(resolveCitySceneFeatures(CITY));
   const oceanLayers = activePortSceneLayers(resolveCitySceneFeatures({
     ...CITY,
-    approach: "ocean"
+    approach: "ocean",
+    riverHorizon: null
   }));
+  const riverMouthFeatures = resolveCitySceneFeatures({ ...CITY, riverHorizon: "open" });
+  const riverMouthLayers = activePortSceneLayers(riverMouthFeatures);
   assert.equal(riverLayers.has("Distant Land"), true);
   assert.equal(riverLayers.has("Distant Land Left Bank"), true);
   assert.equal(oceanLayers.has("Distant Land"), false);
   assert.equal(oceanLayers.has("Distant Land Left Bank"), false);
+  assert.equal(riverMouthFeatures.distantRiverBend, false);
+  assert.equal(riverMouthLayers.has("Distant Land"), false);
+  assert.equal(riverMouthLayers.has("Distant Land Left Bank"), false);
+  assert.equal(riverMouthLayers.has("Left Bank Sand Beach"), true);
+  assert.equal(riverMouthLayers.has("Rocky Hills Left Bank"), true);
+  assert.equal(riverMouthLayers.has("Foreground Grass Left Bank"), true);
 
   const rightBank = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find((frame) => (
     frame.layer === "Distant Land"
@@ -1019,16 +1047,36 @@ test("river-bend water occludes both horizon mountain layers", () => {
 
 test("opposite-bank development is city data with a river-only manual override", () => {
   assert.equal(resolveCitySceneFeatures({ ...CITY, builtUpBothBanks: true }).leftBankCity, true);
-  assert.equal(resolveCitySceneFeatures({ ...CITY, approach: "ocean", builtUpBothBanks: true }).leftBankCity, false);
+  assert.equal(resolveCitySceneFeatures({
+    ...CITY,
+    approach: "ocean",
+    riverHorizon: null,
+    builtUpBothBanks: true
+  }).leftBankCity, false);
   assert.equal(resolveCitySceneFeatures({ ...CITY, builtUpBothBanks: false }, { leftBankCity: true }).leftBankCity, true);
   assert.equal(
     resolveCitySceneFeatures(
-      { ...CITY, approach: "ocean", builtUpBothBanks: false },
+      { ...CITY, approach: "ocean", riverHorizon: null, builtUpBothBanks: false },
       { leftBankCity: true }
     ).leftBankCity,
     false
   );
   assert.match(VISUALIZER_HTML_SOURCE, /id="left-bank-city-override"/);
+});
+
+test("river-horizon state is explicit and valid for the city's approach", () => {
+  assert.throws(
+    () => resolveCitySceneFeatures({ ...CITY, riverHorizon: undefined }),
+    /Invalid river city river horizon/
+  );
+  assert.throws(
+    () => resolveCitySceneFeatures({ ...CITY, riverHorizon: "estuary" }),
+    /Invalid river city river horizon/
+  );
+  assert.throws(
+    () => resolveCitySceneFeatures({ ...CITY, approach: "ocean", riverHorizon: "open" }),
+    /Invalid ocean city river horizon/
+  );
 });
 
 test("London and Buda default to developed opposite banks in the generated city catalog", () => {
@@ -1042,7 +1090,7 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const london = cityById.get("london|united kingdom");
   const zaragoza = cityById.get("zaragoza|spain");
-  assert.equal(CITY_VISUALIZER_CATALOG.version, 6);
+  assert.equal(CITY_VISUALIZER_CATALOG.version, 7);
   assert.equal(london?.terrain?.leftTreeCover, true);
   assert.equal(zaragoza?.terrain?.left, "grass");
   assert.equal(
@@ -1054,6 +1102,35 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
     typeof city.terrain?.leftTreeCover === "boolean" &&
     typeof city.terrain?.rightTreeCover === "boolean"
   )));
+});
+
+test("high-resolution river-mouth geography opens Istanbul without removing its left bank", () => {
+  const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
+  const istanbul = cityById.get("istanbul|turkey");
+  const london = cityById.get("london|united kingdom");
+  const asuncion = cityById.get("asuncion|paraguay");
+  assert.equal(istanbul?.approach, "river");
+  assert.equal(istanbul?.riverHorizon, "open");
+  assert.equal(london?.riverHorizon, "closed");
+  assert.equal(
+    asuncion?.riverHorizon,
+    "closed",
+    "nearby inland water is not itself evidence of an open river mouth"
+  );
+  assert.ok(CITY_VISUALIZER_CATALOG.cities.every((city) => (
+    city.approach === "river"
+      ? ["open", "closed"].includes(city.riverHorizon)
+      : city.riverHorizon === null
+  )));
+
+  const layers = activePortSceneLayers(resolveCitySceneFeatures(istanbul));
+  assert.equal(layers.has("Distant Land"), false);
+  assert.equal(layers.has("Distant Land Left Bank"), false);
+  assert.equal(layers.has("Left Bank Sand Beach"), true);
+  assert.equal(
+    [...layers].some((layer) => layer.startsWith("Foreground ") && layer.endsWith(" Left Bank")),
+    true
+  );
 });
 
 test("only cities within the canonical pyramid horizon receive the grounded distant silhouette", async () => {
@@ -1093,7 +1170,13 @@ test("only cities within the canonical pyramid horizon receive the grounded dist
   assert.equal(activePortSceneLayers(cairoFeatures).has("Pyramid"), true);
   assert.equal(activePortSceneLayers(alexandriaFeatures).has("Pyramid"), false);
   assert.ok(layerSceneZ("Pyramid") < layerSceneZ("Distant Desert"));
-  assert.ok(layerParallaxDepth("Pyramid") < layerParallaxDepth("Distant Desert"));
+  const pyramidDepth = layerParallaxDepth("Pyramid");
+  const desertDepth = layerParallaxDepth("Distant Desert");
+  assert.ok(pyramidDepth < desertDepth);
+  assert.ok(
+    pyramidDepth / desertDepth > 0.9,
+    "the pyramid should move almost with the desert immediately in front of it"
+  );
   const pyramidOffsetY = layerSceneOffsetY("Pyramid", 0, "river");
   const desertOffsetY = layerSceneOffsetY("Distant Desert", 0, "river");
   assert.equal(pyramidOffsetY - desertOffsetY, PORT_SCENE_PYRAMID_GROUNDING_Y);

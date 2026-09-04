@@ -6,8 +6,10 @@ export const CITY_TREE_CASTLE_BACKING_SHADOW_Z = 44.7;
 
 const TREE_SLOTS = Object.freeze([
   Object.freeze({
-    id: "foreground-east",
-    centerX: 1015,
+    // Frame the join between the last market stall and the inn without
+    // obscuring the usual port-assault contact point near the road centre.
+    id: "foreground-business-gap",
+    centerX: 1090,
     baseY: 575,
     scale: 0.9,
     depth: 1,

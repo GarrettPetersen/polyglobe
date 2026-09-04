@@ -1,6 +1,9 @@
-export function fitMeasuredText(text, maxWidth, measureText) {
+export function fitMeasuredText(text, maxWidth, measureText, onTruncate = null) {
   validateTextLayoutInputs(text, maxWidth, measureText);
-  if (measureText(text) <= maxWidth) return text;
+  validateTruncationObserver(onTruncate);
+  const measuredWidth = measureText(text);
+  if (measuredWidth <= maxWidth) return text;
+  onTruncate?.(Object.freeze({ measuredWidth, availableWidth: maxWidth }));
   const suffix = "...";
   let kept = "";
   for (const character of text) {
@@ -10,14 +13,16 @@ export function fitMeasuredText(text, maxWidth, measureText) {
   return kept ? `${kept}${suffix}` : suffix;
 }
 
-export function wrapMeasuredText(text, maxWidth, maxLines, measureText) {
+export function wrapMeasuredText(text, maxWidth, maxLines, measureText, onTruncate = null) {
   validateTextLayoutInputs(text, maxWidth, measureText);
+  validateTruncationObserver(onTruncate);
   if (!Number.isInteger(maxLines) || maxLines <= 0) {
     throw new Error(`Measured text requires a positive line limit: ${maxLines}`);
   }
   const wrapped = wrapAllMeasuredText(text, maxWidth, measureText);
   const lines = wrapped.slice(0, maxLines);
   if (wrapped.length > maxLines && lines.length > 0) {
+    onTruncate?.(Object.freeze({ requiredLineCount: wrapped.length, maximumLineCount: maxLines }));
     lines[lines.length - 1] = fitMeasuredText(`${lines[lines.length - 1]} ...`, maxWidth, measureText);
   }
   return lines.length > 0 ? lines : [""];
@@ -91,4 +96,10 @@ function validateTextLayoutInputs(text, maxWidth, measureText) {
     throw new Error(`Measured text requires positive width: ${maxWidth}`);
   }
   if (typeof measureText !== "function") throw new Error("Measured text requires a measurement function");
+}
+
+function validateTruncationObserver(onTruncate) {
+  if (onTruncate !== null && typeof onTruncate !== "function") {
+    throw new Error("Measured text truncation observer must be a function");
+  }
 }

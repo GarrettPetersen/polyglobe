@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PORT_CITY_STAFF_ROLE } from "../src/characterPortraits.js";
+import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
 import {
   CITY_DOCKLESS_LAND_START_X,
   cityGuardApproachEndX,
@@ -13,8 +14,12 @@ test("dockless city staff and dock events stay on the authored landward road", (
   for (const fortified of [false, true]) {
     const staff = cityPortStaffPlacements({ dockKind: "none", fortified });
     const harbourMaster = staff.find(({ role }) => role === PORT_CITY_STAFF_ROLE.HARBOUR_MASTER);
+    const commander = staff.find(({ role }) => role === PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
     assert.ok(harbourMaster.startX >= CITY_DOCKLESS_LAND_START_X);
     assert.equal(harbourMaster.feetY, 518);
+    assert.equal(commander.destinationId, PORT_CITY_LOCATION.AUTHORITY);
+    assert.ok(commander.startX >= CITY_DOCKLESS_LAND_START_X);
+    assert.equal(commander.feetY, fortified ? 550 : 518);
   }
   for (let index = 0; index < 5; index++) {
     assert.ok(cityGuardPlacement({ dockKind: "none", index }).startX >= CITY_DOCKLESS_LAND_START_X);

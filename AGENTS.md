@@ -99,6 +99,19 @@ constraints for a subtree, but must not weaken these standards.
 
 - Fail fast and loudly on broken invariants. Do not add fallbacks that hide corrupt state,
   missing content, failed initialization, or programmer errors.
+- Fail-fast assertions are the last line of defense for impossible internal states, not a
+  substitute for modeling expected edge cases. Any state reachable through supported player
+  input, timing, saved data, or ordinary system interaction is part of the feature contract
+  and must be handled deliberately.
+- Prevent invalid transitions at their source. Player-facing actions must be omitted or shown
+  disabled with an explanation when their preconditions are not met; do not offer an action
+  and rely on its mutation function to crash after selection.
+- Define transition eligibility once and use the same policy for presentation and mutation.
+  Keep the mutation-side assertion as defense in depth so stale or non-UI callers still fail
+  loudly, but never duplicate a weaker approximation of the rule in the UI.
+- Validate constructed runtime states before they become active. Renderers and dialogue views
+  may assert their input contracts, but their callers must not create a player-reachable state
+  that violates those contracts.
 - Catch errors only when the caller can add useful context, retry safely, translate an
   expected boundary failure, or perform necessary cleanup. Never swallow errors.
 - Distinguish expected user-facing failure from impossible internal state. Do not turn an
@@ -166,6 +179,10 @@ constraints for a subtree, but must not weaken these standards.
 
 - Every behavior change needs tests proportional to its risk. Every bug fix needs a regression
   test that fails for the original cause.
+- For player-facing state machines, exercise every enabled action from representative states
+  and important boundary combinations. A test should prove both that an illegal action is not
+  executable and that selecting every action presented as enabled satisfies the transition's
+  mutation preconditions.
 - Test the broader invariant class when practical, not only the single reported example. Add
   static, schema, catalog, or property-style tests for errors that can recur across many files.
 - Include negative cases and boundary cases: missing IDs, duplicate IDs, stale saves, empty

@@ -3,7 +3,8 @@ import test from "node:test";
 
 import {
   aboardCrewExperienceLevelKey,
-  aboardCrewMemberDetail
+  aboardCrewMemberDetail,
+  crewWoundNoticeText
 } from "./aboardCrewPresentation.js";
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
 
@@ -65,6 +66,15 @@ test("aboard crew detail reports an individual's remaining wound recovery", () =
   }, 27 * WEATHER_MINUTES_PER_DAY);
   assert.equal(detail.wounded, true);
   assert.equal(detail.woundRecoveryDays, 2);
+});
+
+test("combat wound notices identify at least the first injured crewmate", () => {
+  assert.equal(crewWoundNoticeText([{ member: CREW_MEMBER }]), "MATEUS WOUNDED");
+  assert.equal(crewWoundNoticeText([
+    { member: CREW_MEMBER },
+    { member: { ...CREW_MEMBER, id: "crew-member:lisbon:2", name: "Joao" } }
+  ]), "MATEUS + 1 WOUNDED");
+  assert.throws(() => crewWoundNoticeText([]), /requires wounded crewmates/);
 });
 
 test("aboard crew detail rejects a recruitment date in the future", () => {

@@ -20,12 +20,12 @@ const effect = () => cityBombardmentEffectGeometry({
   seed: 917
 });
 
-test("bombardment flames include an unmasked crown above the breached silhouette", () => {
+test("bombardment fire is one coherent breach-anchored flame that rises above the opening", () => {
   const geometry = effect();
   const scaledOpeningTop = 120 + 4 / 48 * 96;
-  assert.ok(geometry.exteriorFlame.y < scaledOpeningTop);
-  assert.ok(geometry.exteriorFlame.height > 1);
-  assert.ok(geometry.breachFlame.height > geometry.exteriorFlame.height);
+  assert.ok(geometry.flame.y < scaledOpeningTop);
+  assert.ok(geometry.flame.height > 1);
+  assert.deepEqual(Object.keys(geometry).sort(), ["flame", "smokeEmitter"]);
   assert.deepEqual(effect(), geometry, "effect geometry must be deterministic");
 });
 

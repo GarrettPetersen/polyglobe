@@ -3466,6 +3466,33 @@ const LOADOUT_EXCESS_CREW_POLICY = Object.freeze({
   PRESERVE_ABOARD: "preserve-aboard"
 });
 
+export function shipLoadoutDismissalRequirement(state, plan) {
+  if (!state?.ship || !Number.isInteger(state.ship.crew) || state.ship.crew < 0) {
+    throw new Error("Loadout dismissal requirement needs the current aboard crew");
+  }
+  if (!plan || typeof plan.id !== "string" || plan.id === "" ||
+      typeof plan.label !== "string" || plan.label === "" ||
+      !Number.isInteger(plan.crew) || plan.crew < 1) {
+    throw new Error("Loadout dismissal requirement needs a valid loadout plan");
+  }
+  const crewFloor = permanentCrewFloor(state);
+  if (plan.crew < crewFloor) {
+    throw new Error(`Loadout crew ${plan.crew} is below permanent crew floor ${crewFloor}`);
+  }
+  const dismissalsRequired = Math.max(0, state.ship.crew - plan.crew);
+  return Object.freeze({
+    loadoutId: plan.id,
+    loadoutLabel: plan.label,
+    currentCrew: state.ship.crew,
+    targetCrew: plan.crew,
+    dismissalsRequired,
+    canApply: dismissalsRequired === 0,
+    diagnostic: dismissalsRequired > 0
+      ? `Loadout ${plan.id} requires dismissing ${dismissalsRequired} crew members first`
+      : null
+  });
+}
+
 function restockShipLoadoutPlanAtPort(
   state,
   city,
@@ -3478,17 +3505,12 @@ function restockShipLoadoutPlanAtPort(
   }
   const hardtack = tradeGoodById(HARDTACK_GOOD_ID);
   const before = shipStoresSnapshot(state);
-  const crewFloor = permanentCrewFloor(state);
-  if (plan.crew < crewFloor) {
-    throw new Error(`Loadout crew ${plan.crew} is below permanent crew floor ${crewFloor}`);
-  }
+  const dismissal = shipLoadoutDismissalRequirement(state, plan);
   if (
-    state.ship.crew > plan.crew &&
+    !dismissal.canApply &&
     excessCrewPolicy === LOADOUT_EXCESS_CREW_POLICY.REQUIRE_DISMISSAL
   ) {
-    throw new Error(
-      `Loadout ${plan.id} requires dismissing ${state.ship.crew - plan.crew} crew members first`
-    );
+    throw new Error(dismissal.diagnostic);
   }
 
   state.ship.loadoutId = plan.id;
@@ -8710,23 +8732,10 @@ export function questStateForCity(state, city, portCities) {
 }
 
 export function acceptQuest(state, quest, context = {}) {
-  assertGameState(state);
+  const eligibility = questAcceptanceEligibility(state, quest);
+  if (!eligibility.eligible) throw new Error(eligibility.diagnostic);
   const quests = questMemory(state);
-  if (quests.completed[quest.id]) throw new Error(`Quest already completed: ${quest.id}`);
   const passengerSlot = quest.kind === "passenger";
-  if (passengerSlot) {
-    if (quests.passengerActive) {
-      throw new Error("Cannot accept a passenger while another passenger is aboard");
-    }
-    if (quests.active && quests.active.kind !== "delivery" && !isTeaRaceQuest(quests.active)) {
-      throw new Error(`Cannot accept a passenger during ${quests.active.kind}`);
-    }
-  } else {
-    if (quests.active) throw new Error("Cannot accept a quest while another quest is active");
-    if (quests.passengerActive && !questMaySharePassengerSlot(quest)) {
-      throw new Error(`Cannot accept ${quest.kind} while a passenger is aboard`);
-    }
-  }
   const passenger = quest.passenger ? {
     ...quest.passenger,
     skillIds: quest.passenger.skillIds || characterSkillIdsForIdentity(
@@ -8734,15 +8743,8 @@ export function acceptQuest(state, quest, context = {}) {
       { traveler: true }
     )
   } : quest.passenger;
-  const entrustedCargo = isTributeEnvoyQuest(quest)
-    ? quest.tributeCargoRequirements
-    : teaRaceEntrustedCargo(quest);
+  const entrustedCargo = questEntrustedCargo(quest);
   if (entrustedCargo.length > 0) {
-    const requiredSpace = tributeCargoSpace(entrustedCargo);
-    if (cargoFree(state) < requiredSpace) {
-      throw new Error(`${isTeaRaceQuest(quest) ? "Tea race" : "Tribute mission"} requires ` +
-        `${requiredSpace} free cargo space`);
-    }
     for (const requirement of entrustedCargo) {
       tradeGoodById(requirement.goodId);
       state.cargo[requirement.goodId] = (state.cargo[requirement.goodId] || 0) + requirement.quantity;
@@ -8788,6 +8790,70 @@ export function acceptQuest(state, quest, context = {}) {
   if (isWokouHuntQuest(quest) && quest.originKey) delete quests.courtMissionOffers[quest.originKey];
   recordDecision(state, `quest.accept.${quest.id}`, 1);
   return quests[passengerSlot ? "passengerActive" : "active"];
+}
+
+export function questAcceptanceEligibility(state, quest) {
+  assertGameState(state);
+  if (!quest || typeof quest !== "object" || typeof quest.id !== "string" || quest.id === "" ||
+      typeof quest.kind !== "string" || quest.kind === "") {
+    throw new Error("Quest acceptance eligibility requires a quest with canonical identity and kind");
+  }
+  const quests = questMemory(state);
+  if (quests.completed[quest.id]) {
+    return questAcceptanceDenied(
+      "This commission is already complete.",
+      `Quest already completed: ${quest.id}`
+    );
+  }
+  const passengerSlot = quest.kind === "passenger";
+  if (passengerSlot && quests.passengerActive) {
+    return questAcceptanceDenied(
+      "Another passenger is already aboard.",
+      "Cannot accept a passenger while another passenger is aboard"
+    );
+  }
+  if (passengerSlot && quests.active && quests.active.kind !== "delivery" &&
+      !isTeaRaceQuest(quests.active)) {
+    return questAcceptanceDenied(
+      `Finish the current ${quests.active.kind} commission first.`,
+      `Cannot accept a passenger during ${quests.active.kind}`
+    );
+  }
+  if (!passengerSlot && quests.active) {
+    return questAcceptanceDenied(
+      "Finish the current commission first.",
+      "Cannot accept a quest while another quest is active"
+    );
+  }
+  if (!passengerSlot && quests.passengerActive && !questMaySharePassengerSlot(quest)) {
+    return questAcceptanceDenied(
+      "Set the current passenger ashore first.",
+      `Cannot accept ${quest.kind} while a passenger is aboard`
+    );
+  }
+  const entrustedCargo = questEntrustedCargo(quest);
+  if (entrustedCargo.length > 0) {
+    const requiredSpace = tributeCargoSpace(entrustedCargo);
+    const availableSpace = cargoFree(state);
+    if (availableSpace < requiredSpace) {
+      return questAcceptanceDenied(
+        `Needs ${requiredSpace} cargo spaces; ${availableSpace} free.`,
+        `${isTeaRaceQuest(quest) ? "Tea race" : "Tribute mission"} requires ` +
+          `${requiredSpace} free cargo space`
+      );
+    }
+  }
+  return Object.freeze({ eligible: true, disabledReason: null, diagnostic: null });
+}
+
+function questEntrustedCargo(quest) {
+  return isTributeEnvoyQuest(quest)
+    ? quest.tributeCargoRequirements
+    : teaRaceEntrustedCargo(quest);
+}
+
+function questAcceptanceDenied(disabledReason, diagnostic) {
+  return Object.freeze({ eligible: false, disabledReason, diagnostic });
 }
 
 function questMaySharePassengerSlot(quest) {

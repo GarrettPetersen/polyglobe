@@ -20,6 +20,7 @@ export const PORT_SCENE_DEPTH = Object.freeze({
   sky: 0,
   horizon: 0.16,
   distant: 0.32,
+  pyramid: 0.48,
   midground: 0.58,
   buildings: 0.72,
   shoreline: 0.52,
@@ -287,7 +288,7 @@ const LAYER_META = new Map([
   ["Distant Land Left Bank", layerMeta(14, PORT_SCENE_DEPTH.horizon)],
   ["Pyramid", layerMeta(
     14.5,
-    PORT_SCENE_DEPTH.distant,
+    PORT_SCENE_DEPTH.pyramid,
     0,
     0,
     PORT_SCENE_CAMERA.distantParallaxAnchor
@@ -645,11 +646,13 @@ function resolvedLayerMeta(layerName, occurrence) {
 
 export function resolveCitySceneFeatures(city, overrides = {}) {
   if (!city || typeof city !== "object") throw new Error("City scene requires a city record");
+  requireCityRiverHorizon(city);
   const architecture = cityArchitectureProfile(city);
   const services = cityServiceProfile(city);
   const primitiveSettlement = architecture.settlementForm === "sparse-village";
   const automatic = {
     approach: city.approach,
+    distantRiverBend: city.riverHorizon === "closed",
     dock: city.dock,
     fortified: primitiveSettlement ? false : Boolean(city.fortified),
     mountainsLeft: Boolean(city.mountains?.left),
@@ -692,6 +695,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   features.backgroundCity = Boolean(features.backgroundCity);
   features.leftBankCity = features.approach === "river" && Boolean(features.leftBankCity);
   for (const key of [
+    "distantRiverBend",
     "leftTreeCover",
     "rightTreeCover",
     "pyramid",
@@ -732,8 +736,10 @@ export function activePortSceneLayers(features) {
   layers.add(FOREGROUND_LAYERS[features.rightTerrain]);
 
   if (features.approach === "river") {
-    layers.add("Distant Land");
-    layers.add("Distant Land Left Bank");
+    if (features.distantRiverBend) {
+      layers.add("Distant Land");
+      layers.add("Distant Land Left Bank");
+    }
     layers.add("Left Bank Sand Beach");
     layers.add(DISTANT_LEFT_TERRAIN_LAYERS[features.leftDistantTerrain]);
     layers.add(FOREGROUND_LEFT_LAYERS[features.leftTerrain]);
@@ -758,6 +764,15 @@ export function activePortSceneLayers(features) {
     layers.add("Near Castle");
   }
   return layers;
+}
+
+function requireCityRiverHorizon(city) {
+  const expected = city.approach === "river" ? ["closed", "open"] : [null];
+  if (!expected.includes(city.riverHorizon)) {
+    throw new Error(
+      `Invalid ${city.approach || "unknown"} city river horizon: ${String(city.riverHorizon)}`
+    );
+  }
 }
 
 export function sceneReasonRows(city, features) {

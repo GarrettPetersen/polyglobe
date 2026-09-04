@@ -42,14 +42,11 @@ import {
 } from "../src/pirateUiPalette.js";
 import {
   BACKGROUND_CITY_BASE_LAYER,
-  BACKGROUND_CITY_STREET_COLOR,
   cityBackgroundAtmosphereLevel,
   cityBackgroundAtmosphereRgb,
   cityBackgroundBaseTopProfile,
   cityBackgroundLayout,
   cityBackgroundPainterOrder,
-  cityBackgroundStreetRows,
-  mirrorCityBackgroundStreetRows,
   oppositeBankCityBackgroundLayout
 } from "./cityBackground.js";
 import { cityOceanParallaxDepth, cityOceanRowOffset } from "./cityOceanMotion.js";
@@ -89,7 +86,9 @@ import {
   validateCityShipSideViewManifest
 } from "./cityShipyardSaleShips.js";
 import {
+  CITY_BOMBARDMENT_FIRE_PAINTER_Z,
   CITY_GATE_FRONT_PAINTER_Z,
+  CITY_NPC_PATHS,
   CITY_PORT_ASSAULT_LANE_FEET_Y,
   CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
   cityPortAssaultLanePainterZ,
@@ -121,6 +120,7 @@ import {
   cityGarrisonAppearanceIds,
   cityPortStaffAppearanceIds,
   citySuspiciousMerchantAppearanceId,
+  createCityBombardmentCivilianAgents,
   createCityPeopleAgents,
   validateCityPeopleAtlasImage,
   validateCityPeopleManifest
@@ -284,7 +284,11 @@ const latitudeWaterFrameCanvasCache = new WeakMap();
 const latitudeWaterCssColorCache = new Map();
 const docksideShipPresentationPromiseCache = new Map();
 const bombardmentFrameCache = new Map();
-const bombardmentScaledHoleRunCache = new WeakMap();
+const bombardmentFireMaskCanvas = document.createElement("canvas");
+const bombardmentFireMaskContext = bombardmentFireMaskCanvas.getContext("2d");
+if (!bombardmentFireMaskContext) {
+  throw new Error("City scene could not create its bombardment fire mask context");
+}
 const buildingEdgeContrastFrameCache = new WeakMap();
 const MAX_DOCKSIDE_SHIP_PRESENTATIONS = 4;
 const CITY_VISUALIZER_BENCHMARK = benchmark ?? (
@@ -372,8 +376,6 @@ const state = {
   leftBankBackgroundCityPainterOrder: [],
   leftBankBackgroundCitySmokeByBuilding: new Map(),
   backgroundCityBaseTopYByX: null,
-  backgroundCityStreetRows: [],
-  leftBankBackgroundCityStreetRows: [],
   streetBuildings: [],
   treePlacements: [],
   quayCargoPlacements: [],
@@ -703,6 +705,7 @@ function updateBombardmentEventId(eventId) {
   validateBombardmentEventId(eventId);
   if (state.bombardmentEventId === eventId) return;
   state.bombardmentEventId = eventId;
+  rebuildCityPeopleAgents();
   bombardmentFrameCache.clear();
   bombardmentOverlayFrameCache = null;
   rebuildCitySceneRenderPlan();
@@ -754,11 +757,7 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
   state.hoverPanDestinationId = null;
   state.featureOverrides = Object.freeze({ ...overrides });
   state.features = resolveCitySceneFeatures(state.city, state.featureOverrides);
-  state.npcAgents = createCityPeopleAgents({
-    city: state.city,
-    count: state.features.npcs,
-    paths: cityNpcPaths({ fortified: state.features.fortified })
-  });
+  rebuildCityPeopleAgents();
   state.specialAgents = createSpecialPeopleAgents();
   state.streetBuildings = cityStreetBuildingPlacements({
     features: state.features,
@@ -786,16 +785,6 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
         sourceY: backgroundCityBase.spriteSourceSize.y
       })
     : null;
-  state.backgroundCityStreetRows = backgroundCityBase
-    ? cityBackgroundStreetRows({
-        alpha: frameAlpha(backgroundCityBase),
-        width: backgroundCityBase.frame.w,
-        height: backgroundCityBase.frame.h,
-        sourceX: backgroundCityBase.spriteSourceSize.x,
-        sourceY: backgroundCityBase.spriteSourceSize.y,
-        rightX: PORT_SCENE_MASTER.width
-      })
-    : [];
   state.backgroundCityRows = cityBackgroundLayout({
     city: state.city,
     frames: state.portManifest.staticFrames,
@@ -808,12 +797,6 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
     side: "right",
     rows: state.backgroundCityRows
   });
-  state.leftBankBackgroundCityStreetRows = state.features.leftBankCity
-    ? mirrorCityBackgroundStreetRows({
-        rows: state.backgroundCityStreetRows,
-        sceneWidth: PORT_SCENE_MASTER.width
-      })
-    : [];
   state.leftBankBackgroundCityRows = state.features.leftBankCity
     ? oppositeBankCityBackgroundLayout({
         city: state.city,
@@ -839,6 +822,23 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
   invalidateDestinationLabelLayouts();
   updateHover();
   if (rebuild) rebuildCitySceneRenderPlan();
+}
+
+function rebuildCityPeopleAgents() {
+  if (!state.city || !state.features) {
+    throw new Error("City people cannot be built before the scene selection");
+  }
+  state.npcAgents = state.bombardmentEventId === null
+    ? createCityPeopleAgents({
+        city: state.city,
+        count: state.features.npcs,
+        paths: cityNpcPaths({ fortified: state.features.fortified })
+      })
+    : createCityBombardmentCivilianAgents({
+        city: state.city,
+        count: state.features.npcs,
+        paths: CITY_NPC_PATHS
+      });
 }
 
 async function selectShip(shipSlug) {
@@ -1684,7 +1684,7 @@ function createSceneRenderEntries() {
   if (state.bombardmentEventId !== null) {
     entries.push({
       kind: "bombardment-fire-overlay",
-      z: 61.9,
+      z: CITY_BOMBARDMENT_FIRE_PAINTER_Z,
       authoredOrder: 37.4
     });
   }
@@ -1866,9 +1866,6 @@ function backgroundCityRenderState(side) {
     painterOrder: leftBank
       ? state.leftBankBackgroundCityPainterOrder
       : state.backgroundCityPainterOrder,
-    streetRows: leftBank
-      ? state.leftBankBackgroundCityStreetRows
-      : state.backgroundCityStreetRows,
     smokeByBuilding: leftBank
       ? state.leftBankBackgroundCitySmokeByBuilding
       : state.backgroundCitySmokeByBuilding
@@ -1876,9 +1873,8 @@ function backgroundCityRenderState(side) {
 }
 
 function drawBackgroundCityStatic(side, targetContext) {
-  const { rows, painterOrder, streetRows } = backgroundCityRenderState(side);
+  const { rows, painterOrder } = backgroundCityRenderState(side);
   if (rows.length === 0) return;
-  drawBackgroundCityStreet(streetRows, rows.at(-1).parallaxAnchor, targetContext);
   for (const entry of painterOrder) {
     const building = entry.building;
     const frame = building.frame;
@@ -2304,11 +2300,6 @@ function drawBombardmentPresentationFire(presentation, destination, timeMs, targ
     viewportWidth: canvas.width,
     viewportHeight: canvas.height
   })) return;
-  const holeRuns = scaledBombardmentHoleRuns(
-    presentation,
-    destinationWidth,
-    destinationHeight
-  );
   const sourceWidth = presentation.frame.frame.w;
   const sourceHeight = presentation.frame.frame.h;
   const geometry = cityBombardmentEffectGeometry({
@@ -2318,30 +2309,39 @@ function drawBombardmentPresentationFire(presentation, destination, timeMs, targ
     destination: normalizedDestination,
     seed: presentation.seed
   });
-  targetContext.save();
-  targetContext.beginPath();
-  for (const run of holeRuns) {
-    targetContext.rect(
-      destinationX + run.x,
-      destinationY + run.y,
-      run.width,
-      1
-    );
+  const { flame } = geometry;
+  if (bombardmentFireMaskCanvas.width !== flame.width) {
+    bombardmentFireMaskCanvas.width = flame.width;
   }
-  targetContext.clip();
+  if (bombardmentFireMaskCanvas.height !== flame.height) {
+    bombardmentFireMaskCanvas.height = flame.height;
+  }
+  bombardmentFireMaskContext.imageSmoothingEnabled = false;
+  bombardmentFireMaskContext.clearRect(0, 0, flame.width, flame.height);
   drawBombardmentFireSprite(
-    geometry.breachFlame,
+    { x: 0, y: 0, width: flame.width, height: flame.height },
     presentation.seed,
     timeMs,
-    targetContext
+    bombardmentFireMaskContext
   );
-  targetContext.restore();
-  drawBombardmentFireSprite(
-    geometry.exteriorFlame,
-    presentation.seed ^ 0x45585445,
-    timeMs,
-    targetContext
+  // The damaged facade is the fire mask: intact wall pixels occlude the flame,
+  // while the cannon breach and transparent air above it expose one continuous sprite.
+  const sourceFrame = presentation.frame.frame;
+  bombardmentFireMaskContext.save();
+  bombardmentFireMaskContext.globalCompositeOperation = "destination-out";
+  bombardmentFireMaskContext.drawImage(
+    presentation.atlas,
+    sourceFrame.x,
+    sourceFrame.y,
+    sourceFrame.w,
+    sourceFrame.h,
+    destinationX - flame.x,
+    destinationY - flame.y,
+    destinationWidth,
+    destinationHeight
   );
+  bombardmentFireMaskContext.restore();
+  targetContext.drawImage(bombardmentFireMaskCanvas, flame.x, flame.y);
 }
 
 function drawBombardmentPresentationSmoke(presentation, destination, timeMs, targetContext) {
@@ -2380,72 +2380,6 @@ function drawBombardmentFireSprite(destination, seed, timeMs, targetContext) {
     destination.width,
     destination.height
   );
-}
-
-function scaledBombardmentHoleRuns(presentation, width, height) {
-  let dimensions = bombardmentScaledHoleRunCache.get(presentation);
-  if (!dimensions) {
-    dimensions = new Map();
-    bombardmentScaledHoleRunCache.set(presentation, dimensions);
-  }
-  const key = `${width}x${height}`;
-  if (dimensions.has(key)) return dimensions.get(key);
-  const sourceWidth = presentation.frame.frame.w;
-  const sourceHeight = presentation.frame.frame.h;
-  const runs = [];
-  for (let destinationY = 0; destinationY < height; destinationY += 1) {
-    const sourceY = Math.min(
-      sourceHeight - 1,
-      Math.floor(destinationY / height * sourceHeight)
-    );
-    let runStart = -1;
-    for (let destinationX = 0; destinationX <= width; destinationX += 1) {
-      const inHole = destinationX < width && presentation.damage.hole[
-        sourceY * sourceWidth + Math.min(
-          sourceWidth - 1,
-          Math.floor(destinationX / width * sourceWidth)
-        )
-      ] !== 0;
-      if (inHole && runStart < 0) runStart = destinationX;
-      if (!inHole && runStart >= 0) {
-        runs.push(Object.freeze({
-          x: runStart,
-          y: destinationY,
-          width: destinationX - runStart
-        }));
-        runStart = -1;
-      }
-    }
-  }
-  if (runs.length === 0) {
-    throw new Error(`Bombardment opening vanished at ${width}x${height}`);
-  }
-  const result = Object.freeze(runs);
-  dimensions.set(key, result);
-  return result;
-}
-
-function drawBackgroundCityStreet(rows, parallaxAnchor, targetContext) {
-  if (rows.length === 0) return;
-  const window = sceneWindow(
-    layerParallaxDepth(BACKGROUND_CITY_BASE_LAYER),
-    0,
-    0,
-    parallaxAnchor
-  );
-  targetContext.fillStyle = BACKGROUND_CITY_STREET_COLOR;
-  for (const row of rows) {
-    const screenX = Math.round(row.leftX - window.x);
-    const screenY = Math.round(row.y - window.y);
-    const screenRight = Math.round(row.rightX - window.x);
-    if (screenY < 0 || screenY >= canvas.height || screenRight <= 0 || screenX >= canvas.width) continue;
-    targetContext.fillRect(
-      Math.max(0, screenX),
-      screenY,
-      Math.max(1, Math.min(canvas.width, screenRight) - Math.max(0, screenX)),
-      1
-    );
-  }
 }
 
 function drawLeftBankBackgroundCityFrame(frame, targetContext) {
@@ -3563,7 +3497,9 @@ function drawNpc(agent, timeMs) {
     ? null
     : clamp((timeMs - agent.startedAtMs) / 850, 0, 1);
   const scripted = ["merchant-flee", "guard-approach"].includes(agent.motion);
-  const stationary = agent.motion === "stationary";
+  const fallen = agent.motion === "fallen";
+  const panicking = agent.motion === "panic";
+  const stationary = agent.motion === "stationary" || fallen;
   const cycle = stationary ? 0 : (time * agent.speed + agent.phase) % 2;
   const progress = cycle <= 1 ? cycle : 2 - cycle;
   const facingRight = scripted
@@ -3579,7 +3515,13 @@ function drawNpc(agent, timeMs) {
   if (!Array.isArray(animation) || animation.length === 0) {
     throw new Error(`City person ${agent.appearanceId} has no ${animationId} animation`);
   }
-  const frame = cityAnimationFrame(animation, time + agent.phase * 1000);
+  const frame = fallen
+    ? animation.at(-1)
+    : cityAnimationFrame(
+        animation,
+        (panicking ? time * 1.65 : time) + agent.phase * 1000
+      );
+  const painterZ = agent.painterZ ?? cityGroundPainterZ(feetY);
   const dx = Math.round(x + frame.spriteSourceSize.x - window.x);
   const dy = Math.round(feetY - frame.sourceSize.h + frame.spriteSourceSize.y - window.y);
   const highlightedDestination = state.hoveredDestination || destinationById(state.focusedDestinationId);
@@ -3590,22 +3532,37 @@ function drawNpc(agent, timeMs) {
       [-1, -1], [1, -1], [-1, 1], [1, 1]
     ]) {
       drawNpcFrame(mask, { x: 0, y: 0, w: mask.width, h: mask.height },
-        dx + offsetX, dy + offsetY, facingRight);
+        dx + offsetX, dy + offsetY, facingRight, context);
     }
   }
-  drawNpcFrame(atlas, frame.frame, dx, dy, facingRight);
+  clearNpcFrameFromEmissiveFire(atlas, frame.frame, dx, dy, facingRight, painterZ);
+  drawNpcFrame(atlas, frame.frame, dx, dy, facingRight, context);
 }
 
-function drawNpcFrame(atlas, frame, dx, dy, facingRight) {
+function drawNpcFrame(atlas, frame, dx, dy, facingRight, targetContext) {
   if (facingRight) {
-    context.drawImage(atlas, frame.x, frame.y, frame.w, frame.h, dx, dy, frame.w, frame.h);
+    targetContext.drawImage(atlas, frame.x, frame.y, frame.w, frame.h, dx, dy, frame.w, frame.h);
     return;
   }
-  context.save();
-  context.translate(dx + frame.w, 0);
-  context.scale(-1, 1);
-  context.drawImage(atlas, frame.x, frame.y, frame.w, frame.h, 0, dy, frame.w, frame.h);
-  context.restore();
+  targetContext.save();
+  targetContext.translate(dx + frame.w, 0);
+  targetContext.scale(-1, 1);
+  targetContext.drawImage(atlas, frame.x, frame.y, frame.w, frame.h, 0, dy, frame.w, frame.h);
+  targetContext.restore();
+}
+
+function clearNpcFrameFromEmissiveFire(atlas, frame, dx, dy, facingRight, painterZ) {
+  if (!npcOccludesEmissiveFire(painterZ)) return;
+  emissiveContext.save();
+  emissiveContext.globalCompositeOperation = "destination-out";
+  drawNpcFrame(atlas, frame, dx, dy, facingRight, emissiveContext);
+  emissiveContext.restore();
+}
+
+function npcOccludesEmissiveFire(painterZ) {
+  return separateEmissiveOverlay &&
+    state.bombardmentEventId !== null &&
+    painterZ > CITY_BOMBARDMENT_FIRE_PAINTER_Z;
 }
 
 function drawPortAssaultPresentation(lane) {

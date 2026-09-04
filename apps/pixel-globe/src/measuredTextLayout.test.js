@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
+import { fitMeasuredText, wrapAllMeasuredText, wrapMeasuredText } from "./measuredTextLayout.js";
 
 const measure = (text) => text.length;
 
@@ -24,8 +24,24 @@ test("unbounded measured wrapping splits long words without adding ellipses", ()
 });
 
 test("bounded measured wrapping still marks intentionally truncated text", () => {
-  const lines = wrapMeasuredText("ONE TWO THREE FOUR FIVE SIX SEVEN", 9, 2, measure);
+  let diagnostic = null;
+  const lines = wrapMeasuredText(
+    "ONE TWO THREE FOUR FIVE SIX SEVEN",
+    9,
+    2,
+    measure,
+    (entry) => { diagnostic = entry; }
+  );
 
   assert.equal(lines.length, 2);
   assert.match(lines[1], /\.\.\.$/);
+  assert.deepEqual(diagnostic, { requiredLineCount: 4, maximumLineCount: 2 });
+});
+
+test("single-line measured fitting reports the width that required truncation", () => {
+  let diagnostic = null;
+  const fitted = fitMeasuredText("TOO WIDE", 5, measure, (entry) => { diagnostic = entry; });
+
+  assert.equal(fitted, "TO...");
+  assert.deepEqual(diagnostic, { measuredWidth: 8, availableWidth: 5 });
 });

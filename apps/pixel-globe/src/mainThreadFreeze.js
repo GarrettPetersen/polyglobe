@@ -79,7 +79,10 @@ export function recordMainThreadWork(monitor, name, durationMs, completedAtMs) {
     throw new Error("Main-thread freeze work requires a bounded name, duration, and completion time");
   }
   const current = monitor.recentWork;
-  if (current === null || durationMs > current.durationMs) {
+  const currentIsSpecificChild = current !== null &&
+    current.name.startsWith(`${name}.`) &&
+    current.durationMs >= durationMs * 0.5;
+  if (!currentIsSpecificChild && (current === null || durationMs > current.durationMs)) {
     monitor.recentWork = { name, durationMs, completedAtMs };
   }
 }

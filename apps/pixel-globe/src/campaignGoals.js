@@ -317,6 +317,7 @@ export function campaignGoalDestinations(goal, {
         pirateShipLabel: hint.pirateShipLabel,
         latitudeDeg: hint.latitudeDeg,
         longitudeDeg: hint.longitudeDeg,
+        referenceCityName: hint.referenceCityName,
         reason: "treasure-map-pirate"
       }));
     }

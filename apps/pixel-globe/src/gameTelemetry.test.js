@@ -298,6 +298,93 @@ test("protected stitch diagnostics use one persisted installation-wide cooldown"
   assert.equal(storage.values.has(TELEMETRY_DIAGNOSTIC_COOLDOWNS_STORAGE_KEY), true);
 });
 
+test("UI text layout warnings report exact measured context without spamming", async () => {
+  const storage = memoryStorage({
+    [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+    [TELEMETRY_INSTALLATION_STORAGE_KEY]: "layout-installation"
+  });
+  const events = [];
+  let currentTime = 1_750_000_000_000;
+  const createTelemetry = () => createGameTelemetry({
+    storage,
+    fetchImpl: async (_url, options) => {
+      events.push(...JSON.parse(options.body).events);
+      return successfulResponse();
+    },
+    randomId: (() => {
+      let serial = 0;
+      return () => `layout-event-${++serial}`;
+    })(),
+    now: () => currentTime,
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+  const report = {
+    kind: "width-truncation",
+    containerId: "break-off-modal",
+    text: "The fighting stops. Fallen hands stay lost.",
+    measuredWidthPx: 218,
+    availableWidthPx: 200,
+    viewportWidthPx: 455,
+    viewportHeightPx: 256
+  };
+  const context = { screen: "dialogue:port", mainQuest: "explorer", ship: "caravel" };
+  const first = createTelemetry();
+  first.start();
+  await nextTask();
+  assert.equal(first.recordUiTextLayout(report, context), true);
+  assert.equal(first.recordUiTextLayout(report, context), false);
+  await nextTask();
+
+  currentTime += 6 * 86_400_000;
+  const reloaded = createTelemetry();
+  reloaded.start();
+  await nextTask();
+  assert.equal(reloaded.recordUiTextLayout(report, context), false);
+  await nextTask();
+
+  const warnings = events.filter((entry) => (
+    entry.type === "diagnostic" && entry.payload.errorName === "UiTextLayoutWarning"
+  ));
+  assert.equal(warnings.length, 1);
+  assert.match(warnings[0].payload.message, /The fighting stops\. Fallen hands stay lost\./);
+  assert.match(warnings[0].payload.message, /218px needed; 200px available/);
+  assert.match(warnings[0].payload.message, /viewport 455x256/);
+  assert.equal(warnings[0].payload.screen, "dialogue:port");
+});
+
+test("UI text layout telemetry caps distinct warnings within one play session", () => {
+  const telemetry = createGameTelemetry({
+    storage: memoryStorage({
+      [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,
+      [TELEMETRY_INSTALLATION_STORAGE_KEY]: "layout-cap-installation"
+    }),
+    fetchImpl: async () => successfulResponse(),
+    randomId: (() => {
+      let serial = 0;
+      return () => `layout-cap-event-${++serial}`;
+    })(),
+    now: () => 1_750_000_000_000,
+    setIntervalImpl: () => 1,
+    clearIntervalImpl() {},
+    metadata: metadata()
+  });
+  telemetry.start();
+  const context = { screen: "dialogue:port", mainQuest: "explorer", ship: "caravel" };
+  const outcomes = Array.from({ length: 5 }, (_value, index) => telemetry.recordUiTextLayout({
+    kind: "width-truncation",
+    containerId: "test-control",
+    text: `Distinct overflowing label ${index + 1}`,
+    measuredWidthPx: 110,
+    availableWidthPx: 100,
+    viewportWidthPx: 455,
+    viewportHeightPx: 256
+  }, context));
+
+  assert.deepEqual(outcomes, [true, true, true, true, false]);
+});
+
 test("persistent low frame rate reports once per installation and build", async () => {
   const storage = memoryStorage({
     [TELEMETRY_CONSENT_STORAGE_KEY]: TELEMETRY_CONSENT_GRANTED,

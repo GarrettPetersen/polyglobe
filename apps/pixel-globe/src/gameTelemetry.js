@@ -26,6 +26,14 @@ const TELEMETRY_CHECKPOINT_INTERVAL_MS = 15 * 60 * 1000;
 const TELEMETRY_REQUEST_TIMEOUT_MS = 2500;
 const TELEMETRY_QUEUE_LIMIT = 12;
 const TELEMETRY_BATCH_LIMIT = 8;
+// Text layout can be evaluated every rendered frame. Bound both repeat reports and
+// distinct failures so one crowded screen cannot displace crash telemetry.
+const UI_TEXT_LAYOUT_DIAGNOSTIC_COOLDOWN_MS = 7 * 86_400_000;
+const UI_TEXT_LAYOUT_DIAGNOSTIC_SESSION_LIMIT = 4;
+const UI_TEXT_LAYOUT_ISSUE_KINDS = new Set([
+  "line-truncation",
+  "width-truncation"
+]);
 /** @type {ReadonlyArray<readonly [string, (state: any, decisions: any) => boolean]>} */
 const TELEMETRY_FEATURES = Object.freeze([
   ["trade", (state, decisions) => hasDecisionPrefix(decisions, "trade.buy.") ||
@@ -84,6 +92,8 @@ export function createGameTelemetry({
   let keepaliveFlushPending = false;
   let queue = consent === TELEMETRY_CONSENT_GRANTED ? readQueue(storage) : [];
   const reportedCrashes = new Set();
+  const observedUiTextLayoutSignatures = new Set();
+  let uiTextLayoutDiagnosticAttempts = 0;
 
   function start() {
     if (started) throw new Error("Game telemetry has already started");
@@ -241,6 +251,25 @@ export function createGameTelemetry({
     return true;
   }
 
+  function recordUiTextLayout(report, context = {}) {
+    if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || installationId === null) return false;
+    const normalized = normalizeUiTextLayoutIncident(report);
+    const screen = truncate(context.screen || "unknown", 80);
+    const signature = `${screen}|${normalized.kind}|${stableTextHash(normalized.text)}`;
+    if (observedUiTextLayoutSignatures.has(signature) ||
+        uiTextLayoutDiagnosticAttempts >= UI_TEXT_LAYOUT_DIAGNOSTIC_SESSION_LIMIT) {
+      return false;
+    }
+    observedUiTextLayoutSignatures.add(signature);
+    uiTextLayoutDiagnosticAttempts += 1;
+    const error = new Error(serializeUiTextLayoutDiagnostic(normalized));
+    error.name = ["Ui", "Text", "Layout", "Warning"].join("");
+    return captureDiagnostic(error, context, {
+      key: `ui-text-layout:${signature}`,
+      cooldownMs: UI_TEXT_LAYOUT_DIAGNOSTIC_COOLDOWN_MS
+    });
+  }
+
   function recordLowFrameRate(report, context = {}) {
     if (!enabled || consent !== TELEMETRY_CONSENT_GRANTED || installationId === null) return false;
     const buildRevision = requiredShortString(metadata.revision, "low-frame-rate build revision");
@@ -378,10 +407,74 @@ export function createGameTelemetry({
     recordVoyage,
     captureCrash,
     captureDiagnostic,
+    recordUiTextLayout,
     recordLowFrameRate,
     recordFreeze,
     flush
   });
+}
+
+function normalizeUiTextLayoutIncident(report) {
+  if (!report || typeof report !== "object") {
+    throw new Error("UI text layout telemetry requires a report");
+  }
+  if (!UI_TEXT_LAYOUT_ISSUE_KINDS.has(report.kind)) {
+    throw new Error(`Unknown UI text layout issue: ${report.kind}`);
+  }
+  if (typeof report.text !== "string" || report.text.trim() === "") {
+    throw new Error("Invalid UI text layout source");
+  }
+  const text = truncate(report.text, 1_000);
+  const containerId = requiredShortString(report.containerId, "UI text layout container");
+  if (!Number.isFinite(report.availableWidthPx) || report.availableWidthPx <= 0) {
+    throw new Error(`Invalid UI text available width: ${report.availableWidthPx}`);
+  }
+  const normalized = {
+    kind: report.kind,
+    text,
+    containerId,
+    availableWidthPx: Math.round(report.availableWidthPx),
+    viewportWidthPx: positiveInteger(report.viewportWidthPx, "UI text viewport width"),
+    viewportHeightPx: positiveInteger(report.viewportHeightPx, "UI text viewport height")
+  };
+  if (report.kind === "line-truncation") {
+    if (!Number.isInteger(report.requiredLineCount) || report.requiredLineCount <= 0 ||
+        !Number.isInteger(report.maximumLineCount) || report.maximumLineCount <= 0 ||
+        report.requiredLineCount <= report.maximumLineCount) {
+      throw new Error("UI text line truncation requires valid required and maximum line counts");
+    }
+    normalized.requiredLineCount = report.requiredLineCount;
+    normalized.maximumLineCount = report.maximumLineCount;
+  } else {
+    if (!Number.isFinite(report.measuredWidthPx) || report.measuredWidthPx <= report.availableWidthPx) {
+      throw new Error(`UI text overflow requires a larger measured width: ${report.measuredWidthPx}`);
+    }
+    normalized.measuredWidthPx = Math.round(report.measuredWidthPx);
+  }
+  return normalized;
+}
+
+function serializeUiTextLayoutDiagnostic(report) {
+  const collapsedText = report.text.replace(/\s+/g, " ").trim();
+  const preview = truncate(collapsedText, 260);
+  const dimensions = report.kind === "line-truncation"
+    ? `${report.requiredLineCount} lines needed; ${report.maximumLineCount} allowed; ${report.availableWidthPx}px wide`
+    : `${report.measuredWidthPx}px needed; ${report.availableWidthPx}px available`;
+  return `UI text ${report.kind} in ${report.containerId}: "${preview}" (${dimensions}; viewport ${report.viewportWidthPx}x${report.viewportHeightPx})`;
+}
+
+function stableTextHash(value) {
+  let hash = 0x811c9dc5;
+  for (const character of value) {
+    hash ^= character.codePointAt(0);
+    hash = Math.imul(hash, 0x01000193);
+  }
+  return (hash >>> 0).toString(36);
+}
+
+function positiveInteger(value, label) {
+  if (!Number.isInteger(value) || value <= 0) throw new Error(`Invalid ${label}: ${value}`);
+  return value;
 }
 
 async function telemetryResponseBody(response) {

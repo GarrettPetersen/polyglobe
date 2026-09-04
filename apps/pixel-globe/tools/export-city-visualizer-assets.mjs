@@ -2,7 +2,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { dirname, resolve } from "node:path";
-import { spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 
@@ -310,7 +310,7 @@ await mkdir(treeOutputRoot, { recursive: true });
 await exportTreeAssets();
 const staticJsonPath = resolve(portOutputRoot, "static.json");
 const staticPngPath = resolve(portOutputRoot, "static.png");
-runAseprite([
+await runAseprite([
   "--batch",
   "--all-layers",
   "--ignore-layer", "Safe Area",
@@ -353,7 +353,7 @@ for (const layer of ["Waves", "Surf"]) {
   const slug = layer.toLowerCase();
   const jsonPath = resolve(portOutputRoot, `${slug}.json`);
   const pngPath = resolve(portOutputRoot, `${slug}.png`);
-  runAseprite([
+  await runAseprite([
     "--batch",
     "--layer", layer,
     cityViewSource,
@@ -432,7 +432,7 @@ async function exportCityPeopleAssets(privateSourceRoot) {
       for (const { animationId, sourceTag } of cityPersonAnimationTags(archetype)) {
         const jsonPath = resolve(temporaryRoot, `${archetype.id}-${animationId}.json`);
         const pngPath = resolve(temporaryRoot, `${archetype.id}-${animationId}.png`);
-        runAseprite([
+        await runAseprite([
           "--batch",
           "--all-layers",
           "--tag", sourceTag,
@@ -524,11 +524,19 @@ async function exportCityPeopleAssets(privateSourceRoot) {
 }
 
 function cityPersonAnimationTags(archetype) {
-  const tags = ["idle", "walk", "jump"].map((sourceTag) => ({ animationId: sourceTag, sourceTag }));
+  const tags = ["idle", "walk", "jump", "death"]
+    .map((sourceTag) => ({ animationId: sourceTag, sourceTag }));
   if (archetype.id === "suspicious-merchant") tags.push({ animationId: "idle2", sourceTag: "idle2" });
+  if (archetype.supplementalAnimations) {
+    for (const [animationId, sourceTag] of Object.entries(archetype.supplementalAnimations)) {
+      tags.push({ animationId, sourceTag });
+    }
+  }
   if (archetype.combatAnimations) {
     for (const [animationId, sourceTag] of Object.entries(archetype.combatAnimations)) {
-      tags.push({ animationId, sourceTag });
+      if (!tags.some((tag) => tag.animationId === animationId)) {
+        tags.push({ animationId, sourceTag });
+      }
     }
   }
   return Object.freeze(tags.map(Object.freeze));
@@ -661,7 +669,7 @@ async function exportTreeAssets() {
   if (!existsSync(treeSource)) throw new Error(`Missing city tree source: ${treeSource}`);
   const dataPath = resolve(treeOutputRoot, "source.json");
   const sheetPath = resolve(treeOutputRoot, "trees.png");
-  runAseprite([
+  await runAseprite([
     "--batch",
     "--all-layers",
     "--frame-range", "0,0",
@@ -726,7 +734,7 @@ async function applyBuildingAssets(staticFrames, staticPngPath) {
   const dataPath = resolve(temporaryRoot, "building-overrides.json");
   const sheetPath = resolve(temporaryRoot, "building-overrides.png");
   try {
-    runAseprite([
+    await runAseprite([
       "--batch",
       "--all-layers",
       "--frame-range", "0,0",
@@ -952,27 +960,22 @@ function regionalBuildingSpriteSourceSize({
   };
 }
 
-function runAseprite(args) {
+async function runAseprite(args) {
   const sourcePath = args.find((argument) => argument.endsWith(".aseprite")) || args.join(" ");
-  const startedAtMs = Date.now();
   for (let attempt = 1; attempt <= ASEPRITE_EXPORT_MAX_ATTEMPTS; attempt++) {
-    const result = spawnSync(aseprite, args, {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: ASEPRITE_EXPORT_TIMEOUT_MS
-    });
+    const result = await runAsepriteAttempt(args);
     if (!result.error && result.status === 0) return;
-    if (result.error?.code !== "ETIMEDOUT") {
-      throw new Error(
-        `Aseprite export failed (${result.status}): ` +
-        `${result.error?.message || result.stderr || result.stdout || args.join(" ")}`
-      );
-    }
-    if (asepriteExportArtifactsAreComplete(args, startedAtMs)) {
+    if (result.artifactsComplete) {
       console.warn(
-        `[pixel-globe] Aseprite produced complete export artifacts before its process timed out: ${sourcePath}`
+        `[pixel-globe] Aseprite produced complete export artifacts before its process exited: ${sourcePath}`
       );
       return;
+    }
+    if (!result.timedOut) {
+      throw new Error(
+        `Aseprite export failed (${result.status}): ` +
+        `${result.error?.message || result.stderr || result.stdout || result.signal || args.join(" ")}`
+      );
     }
     if (attempt < ASEPRITE_EXPORT_MAX_ATTEMPTS) {
       console.warn(
@@ -988,23 +991,80 @@ function runAseprite(args) {
   throw new Error("Aseprite export exhausted attempts without a result");
 }
 
-function asepriteExportArtifactsAreComplete(args, startedAtMs) {
+function runAsepriteAttempt(args) {
+  return new Promise((resolveAttempt) => {
+    const startedAtMs = Date.now();
+    let stdout = "";
+    let stderr = "";
+    let settled = false;
+    let artifactsComplete = false;
+    let timedOut = false;
+    let lastArtifactSignature = null;
+    let stableArtifactObservations = 0;
+    let forceKillTimer = null;
+    const child = spawn(aseprite, args, { stdio: ["ignore", "pipe", "pipe"] });
+    const appendOutput = (current, chunk) => `${current}${chunk}`.slice(-100_000);
+    child.stdout.on("data", (chunk) => { stdout = appendOutput(stdout, chunk); });
+    child.stderr.on("data", (chunk) => { stderr = appendOutput(stderr, chunk); });
+
+    const pollingTimer = setInterval(() => {
+      const signature = asepriteExportArtifactSignature(args, startedAtMs);
+      if (!signature) {
+        lastArtifactSignature = null;
+        stableArtifactObservations = 0;
+        return;
+      }
+      stableArtifactObservations = signature === lastArtifactSignature
+        ? stableArtifactObservations + 1
+        : 1;
+      lastArtifactSignature = signature;
+      if (stableArtifactObservations < 2 || artifactsComplete) return;
+      artifactsComplete = true;
+      child.kill("SIGTERM");
+      forceKillTimer = setTimeout(() => child.kill("SIGKILL"), 1_000);
+    }, 100);
+    const timeoutTimer = setTimeout(() => {
+      timedOut = true;
+      child.kill("SIGTERM");
+      forceKillTimer = setTimeout(() => child.kill("SIGKILL"), 1_000);
+    }, ASEPRITE_EXPORT_TIMEOUT_MS);
+
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      clearInterval(pollingTimer);
+      clearTimeout(timeoutTimer);
+      if (forceKillTimer) clearTimeout(forceKillTimer);
+      resolveAttempt({ stdout, stderr, artifactsComplete, timedOut, ...result });
+    };
+    child.on("error", (error) => finish({ status: null, signal: null, error }));
+    child.on("exit", (status, signal) => finish({ status, signal, error: null }));
+  });
+}
+
+function asepriteExportArtifactSignature(args, startedAtMs) {
   const dataIndex = args.indexOf("--data");
   const sheetIndex = args.indexOf("--sheet");
-  if (dataIndex < 0 || sheetIndex < 0) return false;
+  if (dataIndex < 0 || sheetIndex < 0) return null;
   const dataPath = args[dataIndex + 1];
   const sheetPath = args[sheetIndex + 1];
-  if (!dataPath || !sheetPath || !existsSync(dataPath) || !existsSync(sheetPath)) return false;
+  if (!dataPath || !sheetPath || !existsSync(dataPath) || !existsSync(sheetPath)) return null;
+  const dataStat = statSync(dataPath);
+  const sheetStat = statSync(sheetPath);
   const oldestAcceptedMtimeMs = startedAtMs - 1000;
-  if (statSync(dataPath).mtimeMs < oldestAcceptedMtimeMs ||
-      statSync(sheetPath).mtimeMs < oldestAcceptedMtimeMs) return false;
+  if (dataStat.mtimeMs < oldestAcceptedMtimeMs || sheetStat.mtimeMs < oldestAcceptedMtimeMs) return null;
   try {
     const metadata = JSON.parse(readFileSync(dataPath, "utf8"));
     const png = readFileSync(sheetPath);
-    return Array.isArray(metadata.frames) && metadata.frames.length > 0 &&
-      png.length >= 8 && png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+    const complete = Array.isArray(metadata.frames) && metadata.frames.length > 0 &&
+      png.length >= 20 &&
+      png.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) &&
+      png.subarray(-8, -4).equals(Buffer.from("IEND"));
+    return complete
+      ? `${dataStat.size}:${dataStat.mtimeMs}:${sheetStat.size}:${sheetStat.mtimeMs}`
+      : null;
   } catch {
-    return false;
+    return null;
   }
 }
 

@@ -39,6 +39,17 @@ const COMBAT_TAGS_BY_ARCHETYPE_ID = Object.freeze({
   "yumi-samurai": combatTags("hit"),
   "wrapped-cloth-man": combatTags("hit")
 });
+const SUPPLEMENTAL_TAGS_BY_ARCHETYPE_ID = Object.freeze({
+  "villager-man": supplementalTags({ damage: "damage" }),
+  worker: supplementalTags({ damage: "damage" }),
+  halberdier: supplementalTags({ damage: "damage" })
+});
+const FEMALE_ARCHETYPE_IDS = new Set([
+  "villager-woman",
+  "old-woman",
+  "gatherer",
+  "veiled-woman"
+]);
 
 export const CITY_PERSON_ARCHETYPES = Object.freeze([
   privateArchetype("villager-man", "resurrect-64/villagers/aseprite/MiniVillagerMan.aseprite", [CITY_PERSON_ROLE.AMBIENT], LYA_SKIN),
@@ -198,12 +209,14 @@ function gameArchetype(id, path, roles, skinRamp) {
 function archetype(id, sourceRepository, sourcePath, creator, roles, skinRamp) {
   return Object.freeze({
     id,
+    sex: FEMALE_ARCHETYPE_IDS.has(id) ? "female" : "male",
     sourceRepository,
     sourcePath,
     creator,
     roles: Object.freeze([...roles]),
     skinRamp: Object.freeze([...skinRamp]),
-    combatAnimations: COMBAT_TAGS_BY_ARCHETYPE_ID[id] || null
+    combatAnimations: COMBAT_TAGS_BY_ARCHETYPE_ID[id] || null,
+    supplementalAnimations: SUPPLEMENTAL_TAGS_BY_ARCHETYPE_ID[id] || null
   });
 }
 
@@ -214,6 +227,10 @@ function combatTags(hitSourceTag, block = false) {
     death: "death",
     ...(block ? { block: "block" } : {})
   });
+}
+
+function supplementalTags(tags) {
+  return Object.freeze({ ...tags });
 }
 
 function appearance(id, archetypeId, skinTone, directPalette = Object.freeze({})) {

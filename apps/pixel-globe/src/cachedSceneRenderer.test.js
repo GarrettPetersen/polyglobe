@@ -111,6 +111,35 @@ test("cached scene renderer draws static entries directly while the camera is mo
   assert.equal(renderer.stats().uncachedFrames, 1);
 });
 
+test("cached scene renderer reuses static surfaces when a city changes", () => {
+  let surfaceCount = 0;
+  const renderer = createCachedSceneRenderer({
+    displayContext: fakeContext("display", []),
+    createSurface: () => ({
+      width: 455,
+      height: 256,
+      getContext: () => fakeContext(`surface-${++surfaceCount}`, [])
+    }),
+    drawEntry: () => {},
+    isStaticEntry: (entry) => entry.static
+  });
+  renderer.setEntries([
+    { id: "sky-a", kind: "layer", static: true },
+    { id: "cloud-a", kind: "cloud", static: false },
+    { id: "quay-a", kind: "layer", static: true }
+  ]);
+  renderer.renderFrame({ timeMs: 10, width: 455, height: 256, staticCacheKey: "city-a" });
+  assert.equal(surfaceCount, 2);
+
+  renderer.setEntries([
+    { id: "sky-b", kind: "layer", static: true },
+    { id: "cloud-b", kind: "cloud", static: false },
+    { id: "quay-b", kind: "layer", static: true }
+  ]);
+  renderer.renderFrame({ timeMs: 20, width: 455, height: 256, staticCacheKey: "city-b" });
+  assert.equal(surfaceCount, 2);
+});
+
 test("cached scene renderer fails loudly on malformed frame contracts", () => {
   const renderer = createCachedSceneRenderer({
     displayContext: fakeContext("display", []),

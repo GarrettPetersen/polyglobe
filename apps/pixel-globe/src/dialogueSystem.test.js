@@ -3859,15 +3859,23 @@ test("lower loadouts require individual dismissals and support undo all", () => 
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortDialogueSession(city, { initialNodeId: "loadout" });
   const context = { shipStats: stats, simMinute: 120 };
+  const originalLoadoutId = gameState.ship.loadoutId;
+
+  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(view.options[1].detailTone, "danger");
 
   selectPortDialogueOption(session, city, gameState, economy, [city], 1, context);
   assert.equal(session.nodeId, "crew-dismissal");
-  let view = portDialogueView(session, city, gameState, economy, [city], context);
+  view = portDialogueView(session, city, gameState, economy, [city], context);
   assert.equal(view.presentation.kind, "crew-dismissal");
   assert.equal(view.presentation.targetCrew, 12);
+  assert.equal(view.presentation.loadoutLabel, "Short haul");
+  assert.equal(view.presentation.remainingDismissals, 1);
+  assert.match(view.text, /dismiss 1 more crewmate/i);
 
   selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
   assert.equal(gameState.ship.crew, 12);
+  assert.equal(gameState.ship.loadoutId, originalLoadoutId);
   view = portDialogueView(session, city, gameState, economy, [city], context);
   const undoIndex = view.options.findIndex(({ action }) => action.type === "undo-crew-dismissals");
   selectPortDialogueOption(session, city, gameState, economy, [city], undoIndex, context);
@@ -3881,7 +3889,9 @@ test("lower loadouts require individual dismissals and support undo all", () => 
   selectPortDialogueOption(session, city, gameState, economy, [city], cancelIndex, context);
   assert.equal(gameState.ship.crew, 13);
   assert.deepEqual(gameState.crewRoster.map(({ id }) => id), initialIds);
+  assert.equal(gameState.ship.loadoutId, originalLoadoutId);
   assert.equal(session.nodeId, "loadout");
+  assert.equal(session.feedback, "All dismissals undone.");
 
   selectPortDialogueOption(session, city, gameState, economy, [city], 1, context);
   view = portDialogueView(session, city, gameState, economy, [city], context);
@@ -5333,6 +5343,89 @@ test("no-work Back to city returns to the city after an arrival continuation", (
   selectPortDialogueOption(session, city, gameState, economy, ports, backIndex);
   assert.equal(session.nodeId, "root");
 });
+
+test("a first-click island dispatch acceptance persists through delivery", () => {
+  const tidore = deliveryPort({
+    tileId: 31,
+    cityId: "tidore|indonesia",
+    city: "Tidore",
+    lat: 0.67,
+    lon: 127.45
+  });
+  const makian = deliveryPort({
+    tileId: 32,
+    cityId: "makian village|indonesia",
+    city: "Makian Village",
+    lat: 0.15,
+    lon: 127.43
+  });
+  const gane = deliveryPort({
+    tileId: 33,
+    cityId: "gane village|indonesia",
+    city: "Gane Village",
+    lat: 0.05,
+    lon: 127.9
+  });
+  const ports = [tidore, makian, gane];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const offer = deliveryOfferForCity(gameState, tidore, ports, { spawnChance: 1, simMinute: 0 });
+  assert.equal(offer.cargoLabel, "harbor dispatch");
+
+  const originSession = createPortDialogueSession(tidore, { initialNodeId: "quest" });
+  const originView = portDialogueView(originSession, tidore, gameState, economy, ports);
+  const acceptIndex = originView.options.findIndex(({ action }) => action.type === "accept-quest");
+  assert.ok(acceptIndex >= 0);
+  selectPortDialogueOption(originSession, tidore, gameState, economy, ports, acceptIndex);
+  assert.equal(gameState.memory.quests.active.id, offer.id);
+  assert.equal(gameState.memory.quests.active.destinationCityId, offer.destinationCityId);
+  const acceptedView = portDialogueView(originSession, tidore, gameState, economy, ports);
+  const backIndex = acceptedView.options.findIndex(({ label }) => label === "Back to city");
+  assert.ok(backIndex >= 0);
+  selectPortDialogueOption(originSession, tidore, gameState, economy, ports, backIndex);
+  assert.equal(originSession.nodeId, "root");
+
+  const destination = ports.find(({ cityId }) => cityId === offer.destinationCityId);
+  assert.ok(destination);
+  const destinationSession = createPortDialogueSession(destination, { initialNodeId: "quest" });
+  const destinationView = portDialogueView(
+    destinationSession,
+    destination,
+    gameState,
+    economy,
+    ports
+  );
+  const deliverIndex = destinationView.options.findIndex(({ action }) => action.type === "complete-quest");
+  assert.ok(deliverIndex >= 0);
+  selectPortDialogueOption(
+    destinationSession,
+    destination,
+    gameState,
+    economy,
+    ports,
+    deliverIndex,
+    { simMinute: 10 }
+  );
+  assert.equal(gameState.memory.quests.active, null);
+  assert.ok(gameState.memory.quests.completed[offer.id]);
+});
+
+function deliveryPort({ tileId, cityId, city, lat, lon }) {
+  return {
+    tileId,
+    cityId,
+    city,
+    displayCity: city,
+    country: "Indonesia",
+    cityType: "southeast-asian",
+    routeRegion: "maluku",
+    factionId: "tidore",
+    population: city === "Tidore" ? 12000 : 2500,
+    lat,
+    lon,
+    character: { name: "Kaicili Yusuf", role: "harbour-master" }
+  };
+}
 
 test("arrival news cannot replay after its greeting is acknowledged", () => {
   const city = {

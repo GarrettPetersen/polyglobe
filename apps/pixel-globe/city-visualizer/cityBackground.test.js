@@ -26,7 +26,6 @@ import {
   BACKGROUND_CITY_POINT_SPACING_X,
   BACKGROUND_CITY_POINT_SPACING_Y,
   BACKGROUND_CITY_QUAY_CLEARANCE,
-  BACKGROUND_CITY_STREET_COLOR,
   cityBackgroundAtmosphereLevelForPerspective,
   cityBackgroundAtmosphereRgb,
   cityBackgroundBaseTopProfile,
@@ -44,8 +43,6 @@ import {
   cityBackgroundPainterOrder,
   cityBackgroundScaleForPerspective,
   cityBackgroundVisualPerspective,
-  cityBackgroundStreetRows,
-  mirrorCityBackgroundStreetRows,
   oppositeBankCityBackgroundLayout
 } from "./cityBackground.js";
 
@@ -618,39 +615,6 @@ test("flying-building detection checks every foundation column, not only its anc
 test("the ribbon reserves a bare fifteen-pixel quay before the first anchor", () => {
   assert.equal(BACKGROUND_CITY_QUAY_CLEARANCE, 15);
   assert.equal(CITY_LEFT, BASE_LEFT + 15);
-});
-
-test("background-city gaps expose an authored gray street rather than blue water", () => {
-  assert.equal(BACKGROUND_CITY_STREET_COLOR, "#9babb2");
-  const alpha = new Uint8Array([
-    0, 255, 255, 0,
-    0, 0, 255, 255,
-    0, 0, 0, 0
-  ]);
-  assert.deepEqual(cityBackgroundStreetRows({
-    alpha,
-    width: 4,
-    height: 3,
-    sourceX: 824,
-    sourceY: 469,
-    rightX: 1365
-  }), [
-    { y: 469, leftX: 825, rightX: 1365 },
-    { y: 470, leftX: 826, rightX: 1365 }
-  ]);
-});
-
-test("opposite-bank streets mirror the authored ribbon edge", () => {
-  assert.deepEqual(mirrorCityBackgroundStreetRows({
-    rows: [
-      { y: 469, leftX: 825, rightX: 1365 },
-      { y: 470, leftX: 826, rightX: 1365 }
-    ],
-    sceneWidth: 1365
-  }), [
-    { y: 469, leftX: 0, rightX: 540 },
-    { y: 470, leftX: 0, rightX: 539 }
-  ]);
 });
 
 test("opposite-bank buildings mirror complete right-growing placements into left-growing placements", () => {

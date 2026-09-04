@@ -195,6 +195,61 @@ test("the boarding-duel Short stages three long distinct small-arms fights", () 
   assert.equal(new Set(captures.map((capture) => capture.sequence.encounterId)).size, 3);
 });
 
+test("the city-visualization Short stages peaceful regional visits and a complete market tour", () => {
+  const visitIds = captureScenarioIds().filter((id) => id.startsWith("short-city-peacetime-"));
+  assert.deepEqual(visitIds, [
+    "short-city-peacetime-kyoto",
+    "short-city-peacetime-havana",
+    "short-city-peacetime-london",
+    "short-city-peacetime-alexandria",
+    "short-city-peacetime-jeddah",
+    "short-city-peacetime-nanjing",
+    "short-city-peacetime-akkeshi",
+    "short-city-peacetime-istanbul"
+  ]);
+  const visits = visitIds.map((id) => captureScenarioFromSearch(`?capture=${id}`));
+  assert.ok(visits.every((capture) => capture.sequence.kind === "city"));
+  assert.ok(visits.every((capture) => capture.sequence.variant === "visit"));
+  assert.equal(new Set(visits.map((capture) => capture.sequence.cityId)).size, visits.length);
+  assert.ok(visits.every((capture) => capture.diplomacy.length === 0));
+
+  const market = captureScenarioFromSearch("?capture=short-city-market-tour-kyoto");
+  assert.equal(market.sequence.kind, "city");
+  assert.equal(market.sequence.variant, "market-tour");
+  assert.equal(market.sequence.goodId, "rice");
+  assert.equal(market.sequence.transactionCount, 4);
+  assert.equal(market.sequence.factorPortraitSourceId, undefined);
+
+  const architecturePanIds = captureScenarioIds().filter((id) => (
+    id.startsWith("short-city-architecture-pan-")
+  ));
+  assert.deepEqual(architecturePanIds, [
+    "short-city-architecture-pan-havana",
+    "short-city-architecture-pan-london",
+    "short-city-architecture-pan-alexandria"
+  ]);
+  const architecturePans = architecturePanIds.map((id) => (
+    captureScenarioFromSearch(`?capture=${id}`)
+  ));
+  assert.ok(architecturePans.every((capture) => capture.sequence.kind === "city"));
+  assert.ok(architecturePans.every((capture) => capture.sequence.variant === "architecture-pan"));
+  assert.ok(architecturePans.every((capture) => (
+    capture.sequence.panLogicalPixelsPerSecond === 80
+  )));
+  assert.equal(
+    new Set(architecturePans.map((capture) => capture.sequence.cityId)).size,
+    architecturePans.length
+  );
+
+  const malformed = structuredClone(market);
+  malformed.sequence.variant = "static-menu";
+  assert.throws(() => validateCaptureScenario(malformed), /city capture variant/);
+
+  const malformedPan = structuredClone(architecturePans[0]);
+  delete malformedPan.sequence.panLogicalPixelsPerSecond;
+  assert.throws(() => validateCaptureScenario(malformedPan), /architecture pan logical pixels/);
+});
+
 test("the storm-wave Short stages a real sinking and a modal-free overboard rescue", () => {
   const sinking = captureScenarioFromSearch("?capture=short-storm-lightning-sinking");
   assert.equal(sinking.player.shipSlug, "fishing-lugger");

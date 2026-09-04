@@ -162,6 +162,11 @@ import {
   aboardRoleSkillsAreActive,
   aboardRoster
 } from "./aboardRoster.js";
+import {
+  colonistSexes,
+  createColonistTravelerPeople,
+  createConquistadorTravelerPeople
+} from "./expeditionTravelers.js";
 import { stepAboardGridIndex } from "./aboardGridSelection.js";
 import {
   contentSizedGridLayout,
@@ -169,8 +174,13 @@ import {
 } from "./contentSizedTextLayout.js";
 import {
   aboardCrewExperienceLevelKey,
-  aboardCrewMemberDetail
+  aboardCrewMemberDetail,
+  crewWoundNoticeText
 } from "./aboardCrewPresentation.js";
+import {
+  createArrivalRecruitmentActivationGuard,
+  dialogueActionBlockedByActivationGuard
+} from "./dialogueActivationGuard.js";
 import {
   cancelAboardCrewDismissal,
   confirmAboardCrewDismissal,
@@ -406,7 +416,10 @@ import {
   resolvePlayerCharacterIdentityKey
 } from "./playerCharacter.js";
 import { SeamlessMusicPlayer } from "./musicPlayer.js";
-import { combatMusicTrackForThreat } from "./combatMusic.js";
+import {
+  combatMusicTrackForThreat,
+  continuingPortBombardmentThreat
+} from "./combatMusic.js";
 import { randomizedSfxPlaybackRate } from "./sfxPitch.js";
 import {
   advanceSmoothedWindState,
@@ -782,6 +795,7 @@ import {
   createMigratedCrewRoster,
   crewExperienceSummary,
   crewMemberExperienceStars,
+  crewMemberIsWounded,
   crewRecruitmentOfferAt,
   dismissCrewMember,
   removeCrewCasualties,
@@ -792,6 +806,7 @@ import {
   woundCrewMembers
 } from "./crewMembers.js";
 import {
+  cityCivilianAppearanceIds,
   cityCombatProfileForAppearance,
   cityCrewTypeForAppearance,
   cityGarrisonAppearanceIds,
@@ -809,6 +824,7 @@ import {
   resolvePortAssaultCrewFates,
   simulatePortAssault
 } from "./portAssaultBattle.js";
+import { portAssaultBreakOffLayout } from "./portAssaultBreakOffLayout.js";
 import {
   PORT_ASSAULT_CASUALTY_FATE,
   createPortAssaultCasualtyReport
@@ -1174,6 +1190,7 @@ import {
   rowingTutorialMessage,
   sailingHelpPages,
   sailingTutorialTerrainRow,
+  sailingTutorialTravelIsEligible,
   updateEarlySailingHelpState,
   updateSailingTutorialState
 } from "./sailingTutorial.js";
@@ -4071,6 +4088,7 @@ let playerPerkTotalsCache = null;
 let playerEffectiveShipStatsCache = null;
 let playerNavalWeaponCache = null;
 let dialogueState = null;
+let dialogueActivationGuard = null;
 const dialogueViewCache = createPausedViewCache("Dialogue");
 let dialogueShipMotionPause = null;
 let dialogueLayout = createDialogueLayoutState();
@@ -7316,6 +7334,7 @@ function createCaptainMenuState() {
 function createAboardMenuState() {
   return {
     isOpen: false,
+    source: "captain-notebook",
     viewCache: createPausedViewCache("Aboard roster"),
     selectedEntryId: null,
     focusedEntryId: null,
@@ -7325,6 +7344,7 @@ function createAboardMenuState() {
     viewportHeight: 1,
     panelRect: null,
     closeButtonRect: null,
+    returnButtonRect: null,
     backButtonRect: null,
     namedEntryRects: [],
     crewEntryRects: [],
@@ -11633,6 +11653,8 @@ function stageCaptureSequence() {
       gameState.accounts.cargoCostBasis[good.id] = quantity * Math.max(1, Math.round(good.basePrice * 0.2));
     }
     syncShipCargoFromGameState();
+  } else if (sequence.kind === "city") {
+    stageCaptureCity(sequence);
   } else if (sequence.kind === "fish") {
     stageCaptureFishingGround();
   } else if (sequence.kind === "whale") {
@@ -11712,6 +11734,7 @@ function updateCaptureDirectorFrame(nowMs) {
   const sequence = captureDirector.sequence;
   if (sequence.kind === "explore") updateCaptureExplore(sequence, nowMs);
   else if (sequence.kind === "trade") updateCaptureTrade(sequence);
+  else if (sequence.kind === "city") updateCaptureCity(sequence);
   else if (sequence.kind === "fish") updateCaptureFishing(sequence);
   else if (sequence.kind === "whale") updateCaptureWhale(sequence);
   else if (sequence.kind === "sail") updateCaptureSailing(sequence);
@@ -11797,6 +11820,121 @@ function updateCaptureTrade(sequence) {
     const atSeconds = 1.45 + index * 0.36;
     if (captureCue(`trade-${index + 1}`, atSeconds)) captureChooseTradeGood(sequence);
   }
+}
+
+function stageCaptureCity(sequence) {
+  const city = captureCityById(sequence.cityId);
+  placeCapturePlayerNearTile(city.tileId);
+  gameState.doubloons = 12_000;
+  if (sequence.variant === "market-tour") {
+    if (sequence.factorPortraitSourceId) stageCaptureFactorPortrait(sequence, city);
+    const good = tradeGoodById(sequence.goodId);
+    const saleQuantity = sequence.transactionCount / 2;
+    if (saleQuantity * good.unitSize > cargoFree(gameState)) {
+      throw new Error(`City capture ship has no room for ${saleQuantity} ${good.label} sales`);
+    }
+    gameState.cargo[good.id] = saleQuantity;
+    gameState.accounts.cargoCostBasis[good.id] =
+      saleQuantity * Math.max(1, Math.round(good.basePrice * 0.2));
+  }
+  syncShipCargoFromGameState();
+}
+
+function updateCaptureCity(sequence) {
+  const cityCall = capturePortCallById(sequence.cityId);
+  if (captureCue("open-city", 0.5)) {
+    activatePortCityView(cityCall);
+    if (sequence.variant === "architecture-pan") {
+      captureShowCityRootMenu(cityCall);
+    } else {
+      dialogueState = createPortDialogueSession(cityCall, {
+        initialNodeId: "greeting",
+        admittedToPort: true
+      });
+      dialogueLayout = createDialogueLayoutState();
+      ensureDialoguePortraitLoaded();
+    }
+    stopShipForDialogue();
+    emitCaptureEvent("capture-beat", {
+      action: sequence.variant === "architecture-pan" ? "enter-city" : "greet-at-port",
+      city: sequence.cityId
+    });
+    dirty = true;
+  }
+  if (sequence.variant === "architecture-pan") {
+    updateCaptureCityArchitecturePan(sequence);
+    return;
+  }
+  if (captureCue("enter-city", 4.0)) {
+    captureShowCityRootMenu(cityCall);
+    emitCaptureEvent("capture-beat", { action: "enter-city", city: sequence.cityId });
+  }
+  if (sequence.variant === "visit") return;
+  if (sequence.variant !== "market-tour") {
+    throw new Error(`Unknown city capture variant: ${sequence.variant}`);
+  }
+  if (captureCue("enter-market-sell", 7.0)) {
+    activatePortCityDestination({ id: PORT_CITY_LOCATION.MARKET });
+    emitCaptureEvent("capture-beat", { action: "enter-market", city: sequence.cityId });
+  }
+  if (captureCue("switch-to-sell", 9.0)) {
+    captureChooseDialogueActionWithMode("switch-market-mode", "sell");
+    emitCaptureEvent("capture-beat", { action: "show-sell-market", city: sequence.cityId });
+  }
+  if (captureCue("sell-first", 10.2)) captureChooseCityTradeGood(sequence, "sell");
+  if (captureCue("sell-second", 11.4)) captureChooseCityTradeGood(sequence, "sell");
+  if (captureCue("leave-sell-market", 13.5)) {
+    captureShowCityRootMenu(cityCall);
+    emitCaptureEvent("capture-beat", { action: "return-to-city", city: sequence.cityId });
+  }
+  if (captureCue("enter-market-buy", 15.5)) {
+    activatePortCityDestination({ id: PORT_CITY_LOCATION.MARKET });
+    emitCaptureEvent("capture-beat", { action: "reenter-market", city: sequence.cityId });
+  }
+  if (captureCue("buy-first", 17.0)) captureChooseCityTradeGood(sequence, "buy");
+  if (captureCue("buy-second", 18.2)) captureChooseCityTradeGood(sequence, "buy");
+  if (captureCue("leave-buy-market", 21.0)) {
+    captureShowCityRootMenu(cityCall);
+    emitCaptureEvent("capture-beat", { action: "finish-market-visit", city: sequence.cityId });
+  }
+}
+
+function updateCaptureCityArchitecturePan(sequence) {
+  const panStartSeconds = 1.5;
+  if (captureDirector.elapsedSeconds < panStartSeconds) return;
+  if (!portCityView?.sceneReady) {
+    if (captureDirector.elapsedSeconds >= panStartSeconds + 1) {
+      throw new Error(`City architecture capture did not load in time: ${sequence.cityId}`);
+    }
+    return;
+  }
+  if (captureDirector.cityArchitecturePanStartedAtSeconds === undefined) {
+    captureDirector.cityArchitecturePanStartedAtSeconds = captureDirector.elapsedSeconds;
+    captureDirector.cityArchitecturePanAppliedLogicalPixels = 0;
+    emitCaptureEvent("capture-beat", {
+      action: "pan-across-city-architecture",
+      city: sequence.cityId
+    });
+  }
+  const desiredLogicalPixels = (
+    captureDirector.elapsedSeconds - captureDirector.cityArchitecturePanStartedAtSeconds
+  ) * sequence.panLogicalPixelsPerSecond;
+  const deltaLogicalPixels = desiredLogicalPixels -
+    captureDirector.cityArchitecturePanAppliedLogicalPixels;
+  if (deltaLogicalPixels <= 0) return;
+  portCityRuntime.panByLogicalPixels(deltaLogicalPixels);
+  captureDirector.cityArchitecturePanAppliedLogicalPixels = desiredLogicalPixels;
+  dirty = true;
+}
+
+function captureShowCityRootMenu(cityCall) {
+  dialogueState = createPortDialogueSession(cityCall, {
+    initialNodeId: "root",
+    admittedToPort: true
+  });
+  dialogueLayout = createDialogueLayoutState();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
 }
 
 function updateCaptureFishing(sequence) {
@@ -13746,11 +13884,38 @@ function captureChooseTradeGood(sequence) {
   });
 }
 
+function captureChooseCityTradeGood(sequence, mode) {
+  if (!dialogueState) throw new Error(`City capture ${mode} market closed before the transaction`);
+  const view = currentDialogueView();
+  const index = view.options.findIndex((entry) => (
+    entry.action?.type === mode && entry.action.goodId === sequence.goodId && !entry.disabled
+  ));
+  if (index < 0) {
+    throw new Error(`City capture market has no enabled ${mode} action for ${sequence.goodId}`);
+  }
+  chooseDialogueOption(index);
+  emitCaptureEvent("capture-beat", {
+    action: mode,
+    city: sequence.cityId,
+    goodId: sequence.goodId
+  });
+}
+
 function captureChooseDialogueAction(actionType) {
   if (!dialogueState) throw new Error(`Capture dialogue closed before ${actionType}`);
   const view = currentDialogueView();
   const index = view.options.findIndex((entry) => entry.action?.type === actionType && !entry.disabled);
   if (index < 0) throw new Error(`Capture dialogue has no enabled ${actionType} action`);
+  chooseDialogueOption(index);
+}
+
+function captureChooseDialogueActionWithMode(actionType, mode) {
+  if (!dialogueState) throw new Error(`Capture dialogue closed before ${actionType}/${mode}`);
+  const view = currentDialogueView();
+  const index = view.options.findIndex((entry) => (
+    entry.action?.type === actionType && entry.action.mode === mode && !entry.disabled
+  ));
+  if (index < 0) throw new Error(`Capture dialogue has no enabled ${actionType}/${mode} action`);
   chooseDialogueOption(index);
 }
 
@@ -17924,9 +18089,12 @@ function openCaptainMenu() {
   dirty = true;
 }
 
-function openAboardMenu() {
+function openAboardMenu({ source = "captain-notebook" } = {}) {
   if (!gameState?.ship || !gameState.playerCharacter) {
     throw new Error("Cannot open the aboard roster before the player ship is ready");
+  }
+  if (!["captain-notebook", "port-inn"].includes(source)) {
+    throw new Error(`Unknown aboard roster source: ${source}`);
   }
   closeOptionsMenu();
   closeDiscoveriesMenu();
@@ -17936,6 +18104,7 @@ function openAboardMenu() {
   closeNavigationMenu();
   const roster = capturePausedView(aboardMenu.viewCache, gameState, currentAboardRoster);
   aboardMenu.isOpen = true;
+  aboardMenu.source = source;
   aboardMenu.selectedEntryId = null;
   aboardMenu.pendingCrewDismissalMemberId = null;
   aboardMenu.scrollY = 0;
@@ -17943,6 +18112,7 @@ function openAboardMenu() {
   aboardMenu.scrollUpRect = null;
   aboardMenu.scrollDownRect = null;
   aboardMenu.backButtonRect = null;
+  aboardMenu.returnButtonRect = null;
   aboardMenu.namedEntryRects = [];
   aboardMenu.crewEntryRects = [];
   aboardMenu.crewDismissals = [];
@@ -17964,12 +18134,14 @@ function closeAboardMenu() {
   const shouldCommitCrewDismissals = aboardMenu.isOpen && aboardMenu.crewDismissals.length > 0;
   if (shouldCommitCrewDismissals) saveVoyageNow("dismissed crewmates");
   aboardMenu.isOpen = false;
+  aboardMenu.source = "captain-notebook";
   clearPausedView(aboardMenu.viewCache);
   aboardMenu.selectedEntryId = null;
   aboardMenu.focusedEntryId = null;
   aboardMenu.pendingCrewDismissalMemberId = null;
   aboardMenu.panelRect = null;
   aboardMenu.closeButtonRect = null;
+  aboardMenu.returnButtonRect = null;
   aboardMenu.backButtonRect = null;
   aboardMenu.namedEntryRects = [];
   aboardMenu.crewEntryRects = [];
@@ -19218,6 +19390,10 @@ function handleAchievementsPointerDown(point) {
 }
 
 function handleAboardMenuPointerDown(point) {
+  if (pointInRect(point, aboardMenu.returnButtonRect)) {
+    closeAboardMenu();
+    return;
+  }
   if (pointInRect(point, aboardMenu.closeButtonRect)) {
     closeAboardMenu();
     return;
@@ -20820,8 +20996,20 @@ function openPortDialogue(cityCall) {
   if (!gameState) throw new Error("Cannot open port dialogue before game state is ready");
   if (!cityCall.character) throw new Error(`Cannot open dialogue for non-port city: ${cityLabelText(cityCall)}`);
   clearPortNavigationWaypointsAt(gameState, cityCall.cityId);
-  combatMusicUntilMs = 0;
-  setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
+  const arrivingBattery = shoreBatteryStates.get(shoreBatteryId(cityCall));
+  const continuingBombardment = arrivingBattery
+    ? continuingPortBombardmentThreat({
+        playerAttackActive: arrivingBattery.playerAttackActive,
+        batteryDisabled: shoreBatteryIsDisabled(arrivingBattery, Math.floor(weatherClockMinutes)),
+        gunCount: arrivingBattery.gunCount
+      })
+    : null;
+  if (continuingBombardment) {
+    startCombatMusicForThreat(continuingBombardment);
+  } else {
+    combatMusicUntilMs = 0;
+    setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
+  }
   const colonyAftermath = colonizationAftermathAtSite(gameState.memory.colonization, cityCall);
   if (colonyAftermath && openColonizationAftermathSiteDialogue(cityCall, colonyAftermath)) return;
   activatePortCityView(cityCall);
@@ -21109,6 +21297,10 @@ function maybeOpenCrewRecruitmentArrival(cityCall) {
   // preceding arrival dialogue must not hire the first candidate.
   dialogueState.selectedIndex = offer.candidates.length;
   dialogueState.feedback = null;
+  dialogueActivationGuard = createArrivalRecruitmentActivationGuard(
+    dialogueState,
+    performance.now()
+  );
   return true;
 }
 
@@ -23452,24 +23644,25 @@ function playerPortConquestStatus(cityCall) {
     defenseMultiplier: perks.portAssaultDefenseMultiplier,
     armorCoverageBonus: perks.portAssaultArmorCoverageFlat
   });
-  const attackers = availableCrew.map((member) => portAssaultCombatant({
+  const attackers = [];
+  if (company?.ready) {
+    for (const member of currentConquistadorTravelerPeople(company.strength)) {
+      attackers.push(portAssaultCombatant({
+        id: member.id,
+        appearanceId: member.appearanceId,
+        crewTypeId: member.crewTypeId,
+        experienceStars: member.experienceStars,
+        auxiliary: true
+      }));
+    }
+  }
+  attackers.push(...availableCrew.map((member) => portAssaultCombatant({
     id: member.id,
     appearanceId: member.appearanceId,
     crewTypeId: member.crewTypeId,
     experienceStars: crewMemberExperienceStars(member),
     auxiliary: false
-  }));
-  if (company?.ready) {
-    for (let index = 0; index < company.strength; index += 1) {
-      attackers.push(portAssaultCombatant({
-        id: `conquistador:${cityCall.cityId}:${index + 1}`,
-        appearanceId: index % 3 === 0 ? "gunner-light" : "swordsman-light",
-        crewTypeId: index % 3 === 0 ? "gunner" : "swordsman",
-        experienceStars: 2,
-        auxiliary: true
-      }));
-    }
-  }
+  })));
   const garrisonCount = portAssaultGarrisonCount(cityCall);
   const defenders = cityGarrisonAppearanceIds(cityCall, garrisonCount, "port-assault")
     .map((appearanceId, index) => portAssaultCombatant({
@@ -25360,6 +25553,15 @@ function closeAutomaticQuestSiteAnchorOverlay(closingOverlayKind) {
 }
 
 function chooseDialogueOption(optionIndex) {
+  const selected = currentDialogueView().options[optionIndex];
+  if (dialogueActionBlockedByActivationGuard(
+    dialogueActivationGuard,
+    dialogueState,
+    selected?.action,
+    performance.now()
+  )) {
+    return false;
+  }
   invalidateDialogueView();
   try {
     return applyDialogueOption(optionIndex);
@@ -25445,7 +25647,7 @@ function applyDialogueOption(optionIndex) {
       return;
     }
     if (result.action?.type === "open-crew-management") {
-      openAboardMenu();
+      openAboardMenu({ source: "port-inn" });
       return;
     }
     if (result.action?.type === "purchase-ship") {
@@ -27580,6 +27782,12 @@ function activeWhaleTowKinematics(whale, hunt) {
     maximumRopeLengthRad: whaleTetherMaximumDistanceRad(whale, hunt),
     tautToleranceRad: 1 / PIXELS_PER_RADIAN
   });
+}
+
+function playerWhaleTowIsActive() {
+  const hunt = gameState?.memory?.whales?.activeHunt;
+  if (!hunt) return false;
+  return whaleById(gameState.memory.whales, hunt.whaleId).phase === WHALE_PHASE_TETHERED;
 }
 
 function whaleNavigationAtPosition(position) {
@@ -30997,12 +31205,16 @@ function applyPlayerBoundaryPushOff(inputHeading, boundaryContact) {
 
 function updateSailingTutorials(dt, inRiver, movedPx) {
   const flags = gameState?.memory?.flags;
+  const travelEligible = sailingTutorialTravelIsEligible({
+    anchored,
+    combatEngaged: playerHasCombatEngagement(),
+    whaleTowActive: playerWhaleTowIsActive()
+  });
   if (
     flags &&
     shipCanUseOars(ship.stats) &&
     flags.oarTutorialShown !== true &&
-    !anchored &&
-    !playerHasCombatEngagement()
+    travelEligible
   ) {
     const opened = openCaptainAlertModal(
       rowingTutorialMessage(sailingTutorialInputMode, optionsMenu.controlScheme),
@@ -31016,7 +31228,7 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
     dt,
     movedPx,
     alreadyShown: basicsAlreadyShown,
-    eligible: !anchored && !playerHasCombatEngagement()
+    eligible: travelEligible
   });
   if (flags) flags.sailingBasicsElapsedSeconds = sailingTutorialState.earlyWindowSeconds;
   if (shouldOpenBasics) {
@@ -31044,8 +31256,7 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
     eligible: shipHasWindDeadZone(ship.stats) &&
       !waitingForBasics &&
       !inRiver &&
-      !anchored &&
-      !playerHasCombatEngagement(),
+      travelEligible,
     stalled: propulsion.stalled
   });
   if (!shouldPrompt) return false;
@@ -38068,9 +38279,7 @@ function applyPortableWeaponHitToPlayer(ball, point) {
   playNavalImpactSound({ ...ball, targetX: point.x, targetY: point.y });
   if (crewFates.wounded.length > 0) {
     combatNotice = {
-      text: crewFates.wounded.length === 1
-        ? "1 CREW WOUNDED"
-        : `${crewFates.wounded.length} CREW WOUNDED`,
+      text: crewWoundNoticeText(crewFates.wounded),
       expiresAtMs: lastFrameMs + NOTICE_DURATION_MS.combat
     };
   }
@@ -41554,25 +41763,38 @@ function drawPortCityScene(nowMs) {
   if (!portCityView?.sceneReady || !portCityRuntime) {
     throw new Error("Port city scene rendered before it was ready");
   }
-  portCityRuntime.setWeather(currentPortCityWeatherPresentation());
-  const revision = portCityRuntime.render(nowMs);
+  measurePerformanceBenchmarkStage("render.city.weather", () => {
+    portCityRuntime.setWeather(currentPortCityWeatherPresentation());
+  });
+  const revision = measurePerformanceBenchmarkStage(
+    "render.city.raster",
+    () => portCityRuntime.render(nowMs)
+  );
   const shakeOffset = portAssaultState
     ? portAssaultShipImpactShakeAt(portAssaultState.battle, portAssaultElapsedMs(nowMs), {
         reducedMotion: REDUCED_MOTION_MEDIA_QUERY.matches
       })
     : NO_SCREEN_SHAKE_OFFSET;
-  worldRenderer.beginFrame({
-    width: SCREEN_W,
-    height: SCREEN_H,
-    clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
-    paletteVariant: dayNightPaletteVariant(localDayNightLight()),
-    timeMs: nowMs,
-    oceanSwell: null,
-    modalReframe: null
+  measurePerformanceBenchmarkStage("render.city.gpu.begin", () => {
+    worldRenderer.beginFrame({
+      width: SCREEN_W,
+      height: SCREEN_H,
+      clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
+      paletteVariant: dayNightPaletteVariant(localDayNightLight()),
+      timeMs: nowMs,
+      oceanSwell: null,
+      modalReframe: null
+    });
   });
-  drawPortCitySceneChunk("port-city-scene", revision, shakeOffset);
-  worldRenderer.endFrame();
-  portCityRuntime.drawEmissiveOverlay(screenCtx, shakeOffset);
+  measurePerformanceBenchmarkStage(
+    "render.city.gpu.upload",
+    () => drawPortCitySceneChunk("port-city-scene", revision, shakeOffset)
+  );
+  measurePerformanceBenchmarkStage("render.city.gpu.present", () => worldRenderer.endFrame());
+  measurePerformanceBenchmarkStage(
+    "render.city.emissive",
+    () => portCityRuntime.drawEmissiveOverlay(screenCtx, shakeOffset)
+  );
 }
 
 function drawPortCitySceneChunk(key, revision, shakeOffset) {
@@ -41652,25 +41874,28 @@ function drawPortAssaultBattleStatus(assault, elapsedMs) {
 
 function drawPortAssaultBreakOffPrompt(assault) {
   if (!assault?.breakOffPrompt) throw new Error("Port assault break-off modal requires an open prompt");
-  const modal = { x: Math.floor(SCREEN_W / 2) - 116, y: Math.floor(SCREEN_H / 2) - 47, w: 232, h: 94 };
-  drawPiratePaperModal(modal, 0.58);
-  drawPixelText(renderedUiText("BREAK OFF THE ASSAULT?"), modal.x + modal.w / 2, modal.y + 18, {
+  const message = renderedUiText("The fighting stops. Fallen hands stay lost.");
+  const layout = portAssaultBreakOffLayout({
+    screenWidth: SCREEN_W,
+    screenHeight: SCREEN_H,
+    message,
+    measureText: (line) => measureRenderedPixelTextWidth(line, PIXEL_FONT_SMALL_8),
+    lineHeight: localizedLineHeight(10)
+  });
+  drawPiratePaperModal(layout.modal, 0.58);
+  drawPixelText(renderedUiText("BREAK OFF THE ASSAULT?"), layout.title.x, layout.title.y, {
     font: PIXEL_FONT_TITLE_8,
     align: "center",
     color: PIRATE_MENU_INK
   });
-  drawPixelText(renderedUiText("The fighting stops. Fallen hands stay lost."), modal.x + modal.w / 2, modal.y + 36, {
-    font: PIXEL_FONT_SMALL_8,
-    align: "center",
-    color: PIRATE_MENU_INK_MUTED
-  });
-  const buttonWidth = 92;
-  const gap = 10;
-  const buttonY = modal.y + 60;
-  assault.overlayButtonRects = [
-    { x: modal.x + 19, y: buttonY, w: buttonWidth, h: 22 },
-    { x: modal.x + 19 + buttonWidth + gap, y: buttonY, w: buttonWidth, h: 22 }
-  ];
+  for (const [index, line] of layout.message.lines.entries()) {
+    drawPixelText(line, layout.message.x, layout.message.y + index * layout.message.lineHeight, {
+      font: PIXEL_FONT_SMALL_8,
+      align: "center",
+      color: PIRATE_MENU_INK_MUTED
+    });
+  }
+  assault.overlayButtonRects = layout.buttons.map((rect) => ({ ...rect }));
   drawStartMenuButton(
     assault.overlayButtonRects[0],
     renderedUiText("BREAK OFF"),
@@ -46930,8 +47155,9 @@ function campaignNavigationMenuEntry(destination) {
   if (destination.kind === CAMPAIGN_DESTINATION_TREASURE_PIRATE) {
     return {
       id: `campaign:treasure-pirate:${destination.pirateId}`,
-      destinationName: `Captain ${destination.pirateName}'s ${destination.pirateShipLabel}`,
-      reason: "TREASURE MAP PIECE",
+      destinationName: `Captain ${destination.pirateName}'s ${destination.pirateShipLabel} near ` +
+        destination.referenceCityName,
+      reason: `TREASURE MAP PIECE NEAR ${destination.referenceCityName.toUpperCase()}`,
       style: CAMPAIGN_NAVIGATION_STYLE,
       targetVector: latLonToDirection(destination.latitudeDeg, destination.longitudeDeg),
       optionalWaypointId: null
@@ -48698,12 +48924,17 @@ function currentAboardRoster() {
   const colonization = hasColonists
     ? colonizationQuestView(gameState, { currentMinute: Math.max(0, weatherClockMinutes) })
     : null;
+  const travelerPeople = currentExpeditionTravelerPeople({
+    travelerGroups,
+    colonyLeader
+  });
   const roster = aboardRoster({
     captain: aboardCharacterWithBiography(gameState.playerCharacter),
     crewCount: gameState.ship.crew,
     crewMembers: gameState.crewRoster,
     namedCrew: namedCrewMembers(gameState).map(aboardCharacterWithBiography),
     travelerGroups,
+    travelerPeople,
     namedTravelers: namedTravelers.map((traveler) => ({
       ...traveler,
       character: aboardCharacterWithBiography(traveler.character)
@@ -48726,6 +48957,64 @@ function currentAboardRoster() {
     })
   }));
   return Object.freeze({ ...roster, named: Object.freeze(named) });
+}
+
+function currentExpeditionTravelerPeople({ travelerGroups, colonyLeader }) {
+  if (!Array.isArray(travelerGroups)) throw new Error("Expedition roster requires traveler groups");
+  const people = [];
+  const settlerCount = travelerGroups
+    .filter(({ kind }) => kind === TRAVELER_KIND_SETTLER)
+    .reduce((sum, { count }) => sum + count, 0);
+  if (settlerCount > 0) {
+    const genericSettlerCount = settlerCount - (colonyLeader ? 1 : 0);
+    if (genericSettlerCount < 0) throw new Error("Colonization organizer exceeds the settler manifest");
+    const memory = gameState.memory.colonization;
+    const origin = requireEntityById(cityById, memory.originCityId, "Colonization expedition origin");
+    const expeditionId = `colonization:${requireEntityId(
+      memory.targetCityId,
+      "Colonization expedition target"
+    )}`;
+    const sexes = colonistSexes(genericSettlerCount, expeditionId);
+    people.push(...createColonistTravelerPeople({
+      count: genericSettlerCount,
+      expeditionId,
+      originCityId: origin.cityId,
+      appearanceIds: cityCivilianAppearanceIds(origin, sexes, expeditionId),
+      identityForPerson: expeditionIdentityFactory(origin, [colonyLeader])
+    }));
+  }
+  const soldierCount = travelerGroups
+    .filter(({ kind }) => kind === TRAVELER_KIND_SOLDIER)
+    .reduce((sum, { count }) => sum + count, 0);
+  if (soldierCount > 0) people.push(...currentConquistadorTravelerPeople(soldierCount));
+  return Object.freeze(people);
+}
+
+function currentConquistadorTravelerPeople(count) {
+  const memory = gameState.memory.quests.conquistador;
+  if (memory.stage !== CONQUISTADOR_STAGE_CAPTURE) {
+    throw new Error(`Conquistador company is not aboard during stage: ${memory.stage}`);
+  }
+  const origin = requireEntityById(cityById, memory.originCityId, "Conquistador expedition origin");
+  return createConquistadorTravelerPeople({
+    count,
+    expeditionId: `conquistador:${requireEntityId(
+      memory.targetCityId,
+      "Conquistador expedition target"
+    )}`,
+    originCityId: origin.cityId,
+    identityForPerson: expeditionIdentityFactory(origin)
+  });
+}
+
+function expeditionIdentityFactory(origin, reservedCharacters = []) {
+  const usedNames = new Set(reservedCharacters.filter(Boolean).map(({ name }) => name));
+  return ({ id, sex }) => assignRegionalCharacterIdentity({
+    identityKey: id,
+    city: origin,
+    character: { sex },
+    usedNames
+  });
 }
 
 function currentAboardMenuRoster() {
@@ -48840,15 +49129,17 @@ function drawAboardMenu() {
     w: panelW,
     h: panelH
   });
+  const portInnSource = aboardMenu.source === "port-inn";
   const body = {
     x: panel.x + 10,
     y: panel.y + 37,
     w: panel.w - 20,
-    h: panel.h - 72
+    h: panel.h - 72 - (portInnSource ? UI_PAGER_BUTTON_H + 5 : 0)
   };
   aboardMenu.panelRect = panel;
   aboardMenu.viewportHeight = body.h;
-  aboardMenu.closeButtonRect = pageCloseButtonRect(panel);
+  aboardMenu.closeButtonRect = portInnSource ? null : pageCloseButtonRect(panel);
+  aboardMenu.returnButtonRect = null;
   if (aboardMenu.selectedEntryId) {
     const selectedEntry = aboardEntryById(roster, aboardMenu.selectedEntryId);
     if (selectedEntry.kind === "named") drawAboardCharacterDetail(selectedEntry, panel);
@@ -48909,11 +49200,12 @@ function drawAboardMenu() {
   const canScrollUp = aboardMenu.scrollY > 0;
   const canScrollDown = aboardMenu.scrollY < aboardMenu.maxScrollY;
   const footerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
+  const rosterFooterY = portInnSource ? footerY - UI_PAGER_BUTTON_H - 5 : footerY;
   aboardMenu.scrollUpRect = canScrollUp
-    ? { x: panel.x + 12, y: footerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H }
+    ? { x: panel.x + 12, y: rosterFooterY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H }
     : null;
   aboardMenu.scrollDownRect = canScrollDown
-    ? { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: footerY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H }
+    ? { x: panel.x + panel.w - 12 - UI_PAGER_BUTTON_W, y: rosterFooterY, w: UI_PAGER_BUTTON_W, h: UI_PAGER_BUTTON_H }
     : null;
   if (aboardMenu.scrollUpRect) {
     drawOptionsArrowButton(
@@ -48932,7 +49224,7 @@ function drawAboardMenu() {
     drawMenuScrollTriangle(body.x + body.w / 2, body.y + body.h + 1, "down");
   }
   aboardMenu.undoCrewDismissalsRect = aboardMenu.crewDismissals.length > 0
-    ? { x: panel.x + panel.w / 2 - 43, y: footerY, w: 86, h: UI_PAGER_BUTTON_H }
+    ? { x: panel.x + panel.w / 2 - 43, y: rosterFooterY, w: 86, h: UI_PAGER_BUTTON_H }
     : null;
   if (aboardMenu.undoCrewDismissalsRect) {
     drawPiratePaperInset(
@@ -48940,7 +49232,7 @@ function drawAboardMenu() {
       aboardMenu.focusedEntryId === ABOARD_UNDO_CREW_FOCUS_ID ||
         pointInRect(captainMenu.hoverPoint, aboardMenu.undoCrewDismissalsRect)
     );
-    drawOptionsText("UNDO ALL", panel.x + panel.w / 2, footerY + 3, {
+    drawOptionsText("UNDO ALL", panel.x + panel.w / 2, rosterFooterY + 3, {
       align: "center",
       color: PIRATE_MENU_DANGER
     });
@@ -48954,12 +49246,28 @@ function drawAboardMenu() {
         panel.w - 100
       ),
       panel.x + panel.w / 2,
-      footerY + 3,
+      rosterFooterY + 3,
       {
       align: "center",
       color: PIRATE_MENU_INK_MUTED
       }
     );
+  }
+  if (portInnSource) {
+    aboardMenu.returnButtonRect = {
+      x: panel.x + Math.floor((panel.w - 112) / 2),
+      y: footerY,
+      w: 112,
+      h: UI_PAGER_BUTTON_H
+    };
+    drawPiratePaperInset(
+      aboardMenu.returnButtonRect,
+      pointInRect(captainMenu.hoverPoint, aboardMenu.returnButtonRect)
+    );
+    drawOptionsText("BACK TO INN", panel.x + panel.w / 2, footerY + 5, {
+      align: "center",
+      color: PIRATE_MENU_INK
+    });
   }
   ctx.restore();
 }
@@ -49055,14 +49363,20 @@ function aboardNamedEntryTextLayout(entry, width) {
 
 function aboardGenericEntryTextLayout(entry, width) {
   const lineHeight = localizedLineHeight(8);
-  const sections = entry.crewMember
+  const person = entry.crewMember || entry.travelerPerson;
+  const sections = person
     ? [
-        { id: "name", text: renderedUiText(entry.crewMember.name.toUpperCase()) },
+        { id: "name", text: renderedUiText(person.name.toUpperCase()) },
         {
           id: "role",
-          text: renderedUiText(entry.crewMember.crewTypeId.replaceAll("-", " ").toUpperCase()),
+          text: renderedUiText(entry.crewMember
+            ? entry.crewMember.crewTypeId.replaceAll("-", " ").toUpperCase()
+            : aboardRoleLabel(entry.role)),
           gapBefore: 1
-        }
+        },
+        ...(entry.crewMember && crewMemberIsWounded(entry.crewMember)
+          ? [{ id: "status", text: renderedUiText("WOUNDED"), gapBefore: 1 }]
+          : [])
       ]
     : [{ id: "role", text: renderedUiText(aboardRoleLabel(entry.role)) }];
   const layout = contentSizedTextStackLayout({
@@ -49071,12 +49385,13 @@ function aboardGenericEntryTextLayout(entry, width) {
     measureText: (text) => measureRenderedPixelTextWidth(text, PIXEL_FONT_SMALL_8),
     lineHeight,
     startY: 39,
-    bottomPadding: entry.crewMember ? 5 : 1,
+    bottomPadding: person ? 5 : 1,
     minimumHeight: ABOARD_GENERIC_TILE_MIN_H
   });
   return Object.freeze({
-    name: entry.crewMember ? layout.sections[0] : null,
-    role: entry.crewMember ? layout.sections[1] : layout.sections[0],
+    name: person ? layout.sections[0] : null,
+    role: person ? layout.sections[1] : layout.sections[0],
+    status: entry.crewMember && layout.sections.length > 2 ? layout.sections[2] : null,
     lineHeight,
     height: layout.height
   });
@@ -49574,19 +49889,22 @@ function drawAboardGenericEntry(entry, x, y, selected = false) {
     ABOARD_GENERIC_FRAME_SIZE - 1,
     ABOARD_GENERIC_FRAME_SIZE - 1
   );
-  if (entry.crewMember) {
+  const person = entry.crewMember || entry.travelerPerson;
+  if (person) {
     portCityRuntime.drawPersonSprite(ctx, {
-      appearanceId: entry.crewMember.appearanceId,
+      appearanceId: person.appearanceId,
       animationId: "idle",
       timeMs: performance.now(),
       x: frameX + 1,
       y: frameY + 1
     });
-    drawCrewExperienceStars(
-      crewMemberExperienceStars(entry.crewMember),
-      frameX + ABOARD_GENERIC_FRAME_SIZE / 2,
-      frameY + 2
-    );
+    if (entry.crewMember) {
+      drawCrewExperienceStars(
+        crewMemberExperienceStars(entry.crewMember),
+        frameX + ABOARD_GENERIC_FRAME_SIZE / 2,
+        frameY + 2
+      );
+    }
   } else {
     drawGameIcon("menu:captain", frameX + 9, frameY + 9, { alpha: 0.9 });
   }
@@ -49604,6 +49922,14 @@ function drawAboardGenericEntry(entry, x, y, selected = false) {
     y + entry.textLayout.role.y + index * entry.textLayout.lineHeight,
     { align: "center", color }
   ));
+  if (entry.textLayout.status) {
+    entry.textLayout.status.lines.forEach((line, index) => drawOptionsText(
+      line,
+      x + entry.w / 2,
+      y + entry.textLayout.status.y + index * entry.textLayout.lineHeight,
+      { align: "center", color: PIRATE_MENU_DANGER }
+    ));
+  }
   if (entry.crewMember) {
     drawOptionsText(
       ">",
@@ -53399,7 +53725,20 @@ function drawOptionsText(text, x, y, options = {}) {
 
 function fitPixelText(text, font, maxWidth) {
   const localized = renderedUiText(text);
-  return fitMeasuredText(localized, maxWidth, (entry) => measureRenderedPixelTextWidth(entry, font));
+  return fitMeasuredText(
+    localized,
+    maxWidth,
+    (entry) => measureRenderedPixelTextWidth(entry, font),
+    ({ measuredWidth, availableWidth }) => gameTelemetry.recordUiTextLayout({
+      kind: "width-truncation",
+      containerId: "fit-pixel-text",
+      text: localized,
+      measuredWidthPx: measuredWidth,
+      availableWidthPx: availableWidth,
+      viewportWidthPx: SCREEN_W,
+      viewportHeightPx: SCREEN_H
+    }, telemetryCrashContext())
+  );
 }
 
 function drawPixelText(text, x, y, options = {}) {
@@ -54170,7 +54509,11 @@ function terrainConnectorGeometry(call, activeChart) {
   const width = terrainConnectorHalfWidthPx({
     baseHalfWidthPx: FACE_HALF_WIDTH,
     levelDifference: Math.abs(call.nlevel - call.level),
-    waterOnly: isWaterSurfaceRow(call.row) && isWaterSurfaceRow(call.nrow)
+    surfaceKind: isWaterSurfaceRow(call.row) && isWaterSurfaceRow(call.nrow)
+      ? "water"
+      : !isWaterSurfaceRow(call.row) && !isWaterSurfaceRow(call.nrow)
+        ? "land"
+        : "coast"
   });
   const endpointWidth = width + (
     isCoastFace(call) || isLandmassChannelFace(call) ? COAST_FACE_ENDPOINT_OVERLAP_PX : 0
@@ -59966,7 +60309,8 @@ function drawOneCampaignGoalDestinationArrow(destination, nowMs) {
     const targetVector = latLonToDirection(destination.latitudeDeg, destination.longitudeDeg);
     drawWorldTargetArrow({
       id: `campaign:treasure-pirate:${destination.pirateId}`,
-      label: `Captain ${destination.pirateName}'s ${destination.pirateShipLabel}`,
+      label: `Captain ${destination.pirateName}'s ${destination.pirateShipLabel} near ` +
+        destination.referenceCityName,
       targetVector,
       localPoint: localPointForGlobeVector(targetVector),
       localYOffset: -10,
@@ -63862,7 +64206,7 @@ function drawCrewRecruitmentDialogueOverlay(nowMs, dialogueView) {
 }
 
 function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
-  const { candidates, currentCrew, targetCrew } = dialogueView.presentation;
+  const { candidates, currentCrew, targetCrew, loadoutLabel, remainingDismissals } = dialogueView.presentation;
   const panelW = Math.min(420, SCREEN_W - 12);
   const columns = crewDialogueGridColumns(panelW);
   const cardHeight = 56;
@@ -63874,14 +64218,17 @@ function drawCrewDismissalDialogueOverlay(nowMs, dialogueView) {
     h: panelH
   };
   drawPiratePaperModal(panel, 0.9);
-  drawOptionsText("REDUCE CREW", panel.x + panel.w / 2, panel.y + 9, {
+  drawOptionsText("REDUCE CREW", panel.x + 10, panel.y + 10, {
+    color: PIRATE_MENU_DANGER
+  });
+  drawOptionsText(loadoutLabel.toUpperCase(), panel.x + panel.w / 2, panel.y + 9, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
-    color: PIRATE_MENU_DANGER
+    color: PIRATE_MENU_INK
   });
   drawOptionsText(`${currentCrew} → ${targetCrew}`, panel.x + panel.w - 10, panel.y + 10, {
     align: "right",
-    color: PIRATE_MENU_INK_MUTED
+    color: remainingDismissals > 0 ? PIRATE_MENU_DANGER : PIRATE_MENU_SUCCESS
   });
   drawOptionsText(
     fitPixelText(dialogueView.text.toUpperCase(), PIXEL_FONT_SMALL_8, panel.w - 24),
@@ -65544,11 +65891,22 @@ function dialogueOptionTextMetrics(option, font, width, minimumHeight) {
 }
 
 function wrapPixelText(text, font, maxWidth, maxLines) {
+  const localized = renderedUiText(text);
   return wrapMeasuredText(
-    renderedUiText(text),
+    localized,
     maxWidth,
     maxLines,
-    (entry) => measurePixelTextWidth(entry, font)
+    (entry) => measureRenderedPixelTextWidth(entry, font),
+    ({ requiredLineCount, maximumLineCount }) => gameTelemetry.recordUiTextLayout({
+      kind: "line-truncation",
+      containerId: "wrap-pixel-text",
+      text: localized,
+      availableWidthPx: maxWidth,
+      requiredLineCount,
+      maximumLineCount,
+      viewportWidthPx: SCREEN_W,
+      viewportHeightPx: SCREEN_H
+    }, telemetryCrashContext())
   );
 }
 

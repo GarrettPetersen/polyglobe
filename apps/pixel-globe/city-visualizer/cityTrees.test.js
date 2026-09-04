@@ -58,6 +58,15 @@ test("individual trees are sparse, deterministic props across near and rear plan
   assert.ok(foreground.length >= 1, "at least one individual tree fills the open foreground");
   assert.ok(foreground.every(({ z, scale, baseY }) => z > 70 && scale >= 0.9 && baseY >= 575));
   assert.equal(foreground[0].baseY, 575, "the first foreground tree enters the normal-height viewport");
+  assert.ok(
+    foreground[0].id.endsWith(":foreground-business-gap"),
+    "the usual foreground tree occupies the business frontage instead of the assault midpoint"
+  );
+  assert.equal(
+    foreground[0].originX + foreground[0].tree.frame.sourceSize.w * foreground[0].scale / 2,
+    1090,
+    "the usual foreground tree sits between the final market stall and the inn"
+  );
   assert.equal(behindBuildings.length, 2);
   assert.ok(midgroundAccent.every(({ z, scale }) => z < 40 && scale < 0.5));
   assert.ok(castleBacking.every(({ z, scale }) => z < 45 && scale === 0.55));

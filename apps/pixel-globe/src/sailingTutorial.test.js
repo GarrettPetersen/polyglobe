@@ -8,6 +8,7 @@ import {
   createSailingTutorialState,
   earlySailingHelpWindowIsActive,
   sailingHelpPages,
+  sailingTutorialTravelIsEligible,
   sailingTutorialTerrainKind,
   sailingTutorialTerrainRow,
   updateEarlySailingHelpState,
@@ -18,6 +19,19 @@ import {
   CONTROL_SCHEME_ABSOLUTE,
   CONTROL_SCHEME_RELATIVE
 } from "./controlScheme.js";
+
+test("whale tow suppresses sailing guidance", () => {
+  assert.equal(sailingTutorialTravelIsEligible({
+    anchored: false,
+    combatEngaged: false,
+    whaleTowActive: true
+  }), false);
+  assert.equal(sailingTutorialTravelIsEligible({
+    anchored: false,
+    combatEngaged: false,
+    whaleTowActive: false
+  }), true);
+});
 
 function update(state, overrides = {}) {
   return updateSailingTutorialState(state, {

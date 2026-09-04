@@ -310,18 +310,7 @@ export function cityPopulationProfile(profileId) {
 }
 
 export function createCityPeopleAgents({ city, count, paths }) {
-  const cityId = requireCity(city);
-  if (!Number.isInteger(count) || count < 0) throw new Error(`Invalid city person count: ${count}`);
-  if (!Array.isArray(paths) || count > paths.length) {
-    throw new Error(`City people require at least ${count} walking paths`);
-  }
-  const derivedProfileId = cityPopulationProfileId(city);
-  if (city.populationProfileId !== undefined && city.populationProfileId !== derivedProfileId) {
-    throw new Error(
-      `City ${cityId} population profile drift: ${city.populationProfileId} != ${derivedProfileId}`
-    );
-  }
-  const profile = cityPopulationProfile(city.populationProfileId || derivedProfileId);
+  const { cityId, profile } = cityPeopleContext(city, count, paths);
   const garrisonCount = cityGarrisonWalkerCount(city, count, profile);
   const garrisonIndexes = selectedGarrisonIndexes(cityId, count, garrisonCount);
   const usedByRole = new Map([
@@ -350,6 +339,63 @@ export function createCityPeopleAgents({ city, count, paths }) {
   }));
 }
 
+export function createCityBombardmentCivilianAgents({ city, count, paths }) {
+  const { cityId, profile } = cityPeopleContext(city, count, paths);
+  if (count === 0) return Object.freeze([]);
+  const casualtyCount = Math.min(3, Math.max(1, Math.floor(count / 2)));
+  const casualtyIndexes = selectedIndexes(`${cityId}|bombardment-casualties`, count, casualtyCount);
+  const usedByFate = new Map([
+    ["fallen", new Set()],
+    ["panic", new Set()]
+  ]);
+  let seed = hashString(`${cityId}|${profile.id}|bombardment-civilians`);
+  return Object.freeze(paths.slice(0, count).map((path, index) => {
+    validatePath(path, index);
+    seed = xorshift(seed);
+    const fallen = casualtyIndexes.has(index);
+    const appearanceId = weightedAppearance(
+      profile[CITY_PERSON_ROLE.AMBIENT],
+      seed,
+      usedByFate.get(fallen ? "fallen" : "panic")
+    );
+    usedByFate.get(fallen ? "fallen" : "panic").add(appearanceId);
+    const phase = ((seed >>> 0) % 1000) / 500;
+    if (fallen) {
+      const restingProgress = 0.18 + ((seed >>> 8) & 255) / 255 * 0.64;
+      const startX = path.startX + (path.endX - path.startX) * restingProgress;
+      const feetY = path.feetY + (path.endFeetY - path.feetY) * restingProgress;
+      return Object.freeze({
+        id: `${cityId}:bombardment-civilian:${index + 1}`,
+        appearanceId,
+        role: CITY_PERSON_ROLE.AMBIENT,
+        motion: "fallen",
+        animationId: "death",
+        startX,
+        endX: startX + 1,
+        feetY,
+        endFeetY: feetY,
+        ...(path.painterZ === undefined ? {} : { painterZ: path.painterZ }),
+        facingRight: (seed & 1) === 0,
+        phase,
+        speed: 0
+      });
+    }
+    return Object.freeze({
+      id: `${cityId}:bombardment-civilian:${index + 1}`,
+      appearanceId,
+      role: CITY_PERSON_ROLE.AMBIENT,
+      motion: "panic",
+      startX: path.startX,
+      endX: path.endX,
+      feetY: path.feetY,
+      endFeetY: path.endFeetY,
+      ...(path.painterZ === undefined ? {} : { painterZ: path.painterZ }),
+      phase,
+      speed: 0.00038 + ((seed >>> 12) & 255) / 1_500_000
+    });
+  }));
+}
+
 export function cityGarrisonAppearanceIds(city, count, seedKey = "dock-guards") {
   const cityId = requireCity(city);
   if (!Number.isInteger(count) || count < 0) {
@@ -365,6 +411,41 @@ export function cityGarrisonAppearanceIds(city, count, seedKey = "dock-guards") 
     seed = xorshift(seed);
     const appearanceId = weightedAppearance(profile[CITY_PERSON_ROLE.GARRISON], seed, used);
     used.add(appearanceId);
+    return appearanceId;
+  }));
+}
+
+export function cityCivilianAppearanceIds(city, sexes, seedKey = "civilian-roster") {
+  const cityId = requireCity(city);
+  if (!Array.isArray(sexes) || sexes.some((sex) => sex !== "female" && sex !== "male")) {
+    throw new Error(`City civilian selection requires explicit sexes: ${cityId}`);
+  }
+  if (typeof seedKey !== "string" || seedKey === "") {
+    throw new Error("City civilian selection requires a seed key");
+  }
+  const profile = cityPopulationProfile(city.populationProfileId || cityPopulationProfileId(city));
+  const poolsBySex = new Map(["female", "male"].map((sex) => [
+    sex,
+    profile[CITY_PERSON_ROLE.AMBIENT].filter(({ appearanceId }) => {
+      const appearance = APPEARANCE_BY_ID.get(appearanceId);
+      const archetype = appearance ? ARCHETYPE_BY_ID.get(appearance.archetypeId) : null;
+      if (!appearance || !archetype) {
+        throw new Error(`Unknown civilian appearance in ${profile.id}: ${appearanceId}`);
+      }
+      return archetype.sex === sex;
+    })
+  ]));
+  for (const [sex, poolEntries] of poolsBySex) {
+    if (poolEntries.length === 0) {
+      throw new Error(`Population profile ${profile.id} has no ${sex} civilian appearance`);
+    }
+  }
+  const usedBySex = new Map([["female", new Set()], ["male", new Set()]]);
+  let seed = hashString(`${cityId}|${profile.id}|${seedKey}`);
+  return Object.freeze(sexes.map((sex) => {
+    seed = xorshift(seed);
+    const appearanceId = weightedAppearance(poolsBySex.get(sex), seed, usedBySex.get(sex));
+    usedBySex.get(sex).add(appearanceId);
     return appearanceId;
   }));
 }
@@ -478,6 +559,9 @@ export function validateCityPeopleManifest(manifest) {
     if (!Array.isArray(exported.animations?.jump) || exported.animations.jump.length === 0) {
       throw new Error(`City people appearance has no jump animation: ${appearance.id}`);
     }
+    if (!Array.isArray(exported.animations?.death) || exported.animations.death.length === 0) {
+      throw new Error(`City people appearance has no death animation: ${appearance.id}`);
+    }
     if (appearance.archetypeId === "suspicious-merchant" &&
         (!Array.isArray(exported.animations?.idle2) || exported.animations.idle2.length === 0)) {
       throw new Error(`Suspicious merchant appearance has no idle2 animation: ${appearance.id}`);
@@ -487,6 +571,13 @@ export function validateCityPeopleManifest(manifest) {
       for (const animationId of Object.keys(archetype.combatAnimations)) {
         if (!Array.isArray(exported.animations?.[animationId]) || exported.animations[animationId].length === 0) {
           throw new Error(`Combat appearance ${appearance.id} has no ${animationId} animation`);
+        }
+      }
+    }
+    if (archetype.supplementalAnimations) {
+      for (const animationId of Object.keys(archetype.supplementalAnimations)) {
+        if (!Array.isArray(exported.animations?.[animationId]) || exported.animations[animationId].length === 0) {
+          throw new Error(`City person appearance ${appearance.id} has no ${animationId} animation`);
         }
       }
     }
@@ -515,14 +606,36 @@ function cityGarrisonWalkerCount(city, count, profile) {
 }
 
 function selectedGarrisonIndexes(cityId, count, garrisonCount) {
+  return selectedIndexes(`${cityId}|garrison-slots`, count, garrisonCount);
+}
+
+function selectedIndexes(seedKey, count, selectedCount) {
   const indexes = Array.from({ length: count }, (_, index) => index);
-  let seed = hashString(`${cityId}|garrison-slots`);
+  let seed = hashString(seedKey);
   for (let index = indexes.length - 1; index > 0; index--) {
     seed = xorshift(seed);
     const swapIndex = (seed >>> 0) % (index + 1);
     [indexes[index], indexes[swapIndex]] = [indexes[swapIndex], indexes[index]];
   }
-  return new Set(indexes.slice(0, garrisonCount));
+  return new Set(indexes.slice(0, selectedCount));
+}
+
+function cityPeopleContext(city, count, paths) {
+  const cityId = requireCity(city);
+  if (!Number.isInteger(count) || count < 0) throw new Error(`Invalid city person count: ${count}`);
+  if (!Array.isArray(paths) || count > paths.length) {
+    throw new Error(`City people require at least ${count} walking paths`);
+  }
+  const derivedProfileId = cityPopulationProfileId(city);
+  if (city.populationProfileId !== undefined && city.populationProfileId !== derivedProfileId) {
+    throw new Error(
+      `City ${cityId} population profile drift: ${city.populationProfileId} != ${derivedProfileId}`
+    );
+  }
+  return Object.freeze({
+    cityId,
+    profile: cityPopulationProfile(city.populationProfileId || derivedProfileId)
+  });
 }
 
 function weightedAppearance(poolEntries, seed, used) {
@@ -547,6 +660,9 @@ function validateCatalog() {
       throw new Error(`Unknown person archetype for ${appearance.id}: ${appearance.archetypeId}`);
     }
     const archetype = archetypes.get(appearance.archetypeId);
+    if (archetype.sex !== "female" && archetype.sex !== "male") {
+      throw new Error(`Person archetype has invalid sex: ${archetype.id}/${archetype.sex}`);
+    }
     if (archetype.roles.includes(CITY_PERSON_ROLE.GARRISON) &&
         !COMBAT_PROFILE_BY_ARCHETYPE_ID[appearance.archetypeId]) {
       throw new Error(`Garrison archetype has no combat profile: ${appearance.archetypeId}`);

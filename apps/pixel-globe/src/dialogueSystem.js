@@ -64,6 +64,7 @@ import {
   portMemory,
   portEntryStatus,
   playerShipReplacementCargoUsed,
+  questAcceptanceEligibility,
   deliverPlayerShipyardMaterials,
   finishPlayerShipyardInvestment,
   playerCannonEquipment,
@@ -96,6 +97,7 @@ import {
   restoreMarketUndoSnapshot,
   restockCustomShipLoadoutAtPort,
   restockShipLoadoutAtPort,
+  shipLoadoutDismissalRequirement,
   sellAllGood,
   sellGood,
   questCargoSaleTheftStatus,
@@ -103,6 +105,7 @@ import {
   petitionCaptureCommission,
   startPlayerShipyardInvestment
 } from "./gameState.js";
+import { artilleryCircuitLegCompletionText } from "./artilleryCircuitPresentation.js";
 import {
   TRADE_EMBARGO_AUTHORITY_PAPAL,
   tradeEmbargoRegimeLabel,
@@ -1522,8 +1525,7 @@ export function selectShipDialogueOption(session, ship, optionIndex = session.se
   const view = shipDialogueView(session, ship);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid ship dialogue option index: ${optionIndex}`);
-  if (selected.disabled) {
-    session.feedback = selected.disabledReason || "That is not available.";
+  if (rejectDisabledDialogueOption(session, selected)) {
     return { closed: false, action: null };
   }
   const action = selected.action;
@@ -2020,8 +2022,7 @@ export function selectPortDialogueOption(
   const view = portDialogueView(session, city, gameState, economy, portCities, context);
   const option = view.options[optionIndex];
   if (!option) throw new Error(`Invalid dialogue option index: ${optionIndex}`);
-  if (option.disabled) {
-    session.feedback = option.disabledReason || "That is not available.";
+  if (rejectDisabledDialogueOption(session, option)) {
     return { closed: false };
   }
 
@@ -2081,9 +2082,10 @@ export function selectPortDialogueOption(
   }
   if (action.type === "cancel-crew-dismissal") {
     const dismissal = requireCrewDismissal(session);
+    const hadDismissals = dismissal.dismissals.length > 0;
     cancelPendingCrewDismissal(session, gameState);
     session.nodeId = dismissal.returnNodeId;
-    session.feedback = null;
+    session.feedback = hadDismissals ? "All dismissals undone." : null;
     session.selectedIndex = 0;
     return { closed: false, crewDismissalsUndone: true };
   }
@@ -3115,11 +3117,13 @@ export function selectPortDialogueOption(
     const plan = shipLoadoutPlan(context.shipStats, action.loadoutId, {
       minimumCrew: permanentCrewFloor(gameState)
     });
-    if (gameState.ship.crew > plan.crew) {
+    const dismissal = shipLoadoutDismissalRequirement(gameState, plan);
+    if (!dismissal.canApply) {
       beginCrewDismissal(session, {
         kind: "preset",
-        targetCrew: plan.crew,
+        targetCrew: dismissal.targetCrew,
         loadoutId: action.loadoutId,
+        loadoutLabel: dismissal.loadoutLabel,
         returnNodeId: "loadout",
         afterNodeId: action.returnNodeId || "root",
         initialCandidateIndex: gameState.crewRoster.length - 1
@@ -3154,11 +3158,13 @@ export function selectPortDialogueOption(
     const plan = shipCustomLoadoutPlan(context.shipStats, session.customLoadoutDraft, {
       minimumCrew: permanentCrewFloor(gameState)
     });
-    if (gameState.ship.crew > plan.crew) {
+    const dismissal = shipLoadoutDismissalRequirement(gameState, plan);
+    if (!dismissal.canApply) {
       beginCrewDismissal(session, {
         kind: "custom",
-        targetCrew: plan.crew,
+        targetCrew: dismissal.targetCrew,
         customDraft: { ...session.customLoadoutDraft },
+        loadoutLabel: dismissal.loadoutLabel,
         returnNodeId: "custom-loadout",
         afterNodeId: "root",
         initialCandidateIndex: gameState.crewRoster.length - 1
@@ -3660,15 +3666,16 @@ function passengerDialogueContentView(session, city, quest, gameState) {
     };
   }
   if (session.eastAsianLegDelivery && !session.eastAsianLegDelivery.final) {
-    const remaining = joinedNames(session.eastAsianLegDelivery.remainingDestinationNames);
+    const remainingDestinationNames = session.eastAsianLegDelivery.remainingDestinationNames;
     return {
       speaker,
       expressionId: "pleased",
-      text: session.eastAsianLegDelivery.batteryUpgrade
-        ? `${session.eastAsianLegDelivery.destinationName}'s battery has its new guns. ` +
-          `The remaining plans may go to ${remaining} in any order.`
-        : `Nanjing has copied the Portuguese patterns. ` +
-          `We may now refit ${remaining} in any order.`,
+      text: artilleryCircuitLegCompletionText({
+        destinationName: session.eastAsianLegDelivery.destinationName,
+        remainingDestinationNamesText: joinedNames(remainingDestinationNames),
+        remainingDestinationCount: remainingDestinationNames.length,
+        batteryUpgrade: session.eastAsianLegDelivery.batteryUpgrade
+      }),
       feedback: session.feedback,
       options: [option("Continue the artillery circuit", { type: "close" })]
     };
@@ -3985,9 +3992,10 @@ function passengerDialogueContentView(session, city, quest, gameState) {
     text: `${quest.dialogue?.offer || `I need passage to ${quest.destinationName}. I can pay ${quest.reward} db on arrival.`} Distance ${formatDistanceKm(quest.distanceKm)}.`,
     feedback: session.feedback,
     options: [
-      option(`${isEnvoyQuest(quest)
+      questAcceptanceOption(`${isEnvoyQuest(quest)
         ? quest.envoyCount > 1 ? "Carry delegation" : "Carry envoy"
-        : `Take ${roleLabel}`} to ${quest.destinationName}  ${quest.reward} db`, { type: "accept-passenger" }, {
+        : `Take ${roleLabel}`} to ${quest.destinationName}  ${quest.reward} db`, quest, gameState, {
+        actionType: "accept-passenger",
         detail: formatDistanceKm(quest.distanceKm)
       }),
       option("Decline", { type: "decline-passenger" })
@@ -4006,6 +4014,9 @@ export function selectPassengerDialogueOption(
   const view = passengerDialogueView(session, city, quest, gameState);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid passenger dialogue option index: ${optionIndex}`);
+  if (rejectDisabledDialogueOption(session, selected)) {
+    return { closed: false, action: null };
+  }
   const action = selected.action;
   if (action.type === "close") return { closed: true, action: null };
   if (action.type === "open-port") return { closed: false, action: { type: "open-port" } };
@@ -4950,6 +4961,7 @@ function beginCrewDismissal(session, {
   kind,
   targetCrew,
   loadoutId = null,
+  loadoutLabel,
   customDraft = null,
   returnNodeId,
   afterNodeId,
@@ -4961,6 +4973,9 @@ function beginCrewDismissal(session, {
   if (!Number.isInteger(targetCrew) || targetCrew < 1) {
     throw new Error(`Invalid crew dismissal target: ${targetCrew}`);
   }
+  if (typeof loadoutLabel !== "string" || loadoutLabel === "") {
+    throw new Error("Crew dismissal requires a loadout label");
+  }
   if (!Number.isInteger(initialCandidateIndex) || initialCandidateIndex < 0) {
     throw new Error(`Invalid initial crew dismissal candidate: ${initialCandidateIndex}`);
   }
@@ -4968,6 +4983,7 @@ function beginCrewDismissal(session, {
     kind,
     targetCrew,
     loadoutId,
+    loadoutLabel,
     customDraft,
     returnNodeId,
     afterNodeId,
@@ -5025,6 +5041,8 @@ function crewDismissalView(session, city, gameState) {
       candidates: Object.freeze(candidates),
       targetCrew: dismissal.targetCrew,
       currentCrew: gameState.ship.crew,
+      loadoutLabel: dismissal.loadoutLabel,
+      remainingDismissals: remaining,
       dismissedCount: dismissal.dismissals.length
     }),
     options: [
@@ -7782,12 +7800,14 @@ function loadoutView(session, city, gameState, context) {
     const plan = shipLoadoutPlan(context.shipStats, preset.id, {
       minimumCrew: permanentCrewFloor(gameState)
     });
+    const dismissal = shipLoadoutDismissalRequirement(gameState, plan);
     const selected = currentId === preset.id;
     return option(`${selected ? "* " : ""}${preset.label.toUpperCase()}`, {
       type: "select-loadout",
       loadoutId: preset.id
     }, {
-      detail: `CREW ${plan.crew}  GUNS ${plan.cannons}  FOOD ${Math.floor(plan.foodDays)}D  WATER ${Math.floor(plan.waterDays)}D`
+      detail: `CREW ${plan.crew}  GUNS ${plan.cannons}  FOOD ${Math.floor(plan.foodDays)}D  WATER ${Math.floor(plan.waterDays)}D`,
+      detailTone: dismissal.canApply ? undefined : "danger"
     });
   });
   const customSelected = currentId === CUSTOM_LOADOUT_ID;
@@ -8105,10 +8125,10 @@ function questView(session, city, gameState, portCities) {
   const returnNodeId = session.nextPortNodeId || "root";
   const questState = questStateForCity(gameState, city, portCities);
   if (isCaptureCommissionQuest(questState.quest)) {
-    return captureCommissionQuestView(session, questState, returnNodeId);
+    return captureCommissionQuestView(session, questState, returnNodeId, gameState);
   }
   if (isWokouHuntQuest(questState.quest)) {
-    return wokouHuntQuestView(session, questState, returnNodeId);
+    return wokouHuntQuestView(session, questState, returnNodeId, gameState);
   }
   if (questState.kind === "ready-to-complete") {
     if (questState.quest.kind === "passenger" || isEnvoyQuest(questState.quest)) {
@@ -8174,9 +8194,10 @@ function questView(session, city, gameState, portCities) {
           `Payment is ${questState.quest.reward} db on delivery.`,
       feedback: session.feedback,
       options: [
-        ...workOptions.map((quest) => option(
+        ...workOptions.map((quest) => questAcceptanceOption(
           `Take ${quest.cargoLabel || "packet"} to ${quest.destinationName}`,
-          { type: "accept-quest", quest },
+          quest,
+          gameState,
           { detail: `${formatDistanceKm(quest.distanceKm)} / ${quest.reward} DB` }
         )),
         option("Back", { type: "node", nodeId: returnNodeId })
@@ -8244,7 +8265,7 @@ function questView(session, city, gameState, portCities) {
   };
 }
 
-function wokouHuntQuestView(session, questState, returnNodeId) {
+function wokouHuntQuestView(session, questState, returnNodeId, gameState) {
   const quest = questState.quest;
   const back = option("Back", { type: "node", nodeId: returnNodeId });
   if (questState.kind === "available") {
@@ -8254,10 +8275,12 @@ function wokouHuntQuestView(session, questState, returnNodeId) {
       text: quest.offerText,
       feedback: session.feedback,
       options: [
-        option(`Accept: hunt wokou near ${quest.patrolName}`, {
-          type: "accept-quest",
-          quest
-        }, { detail: `${quest.reward} db` }),
+        questAcceptanceOption(
+          `Accept: hunt wokou near ${quest.patrolName}`,
+          quest,
+          gameState,
+          { detail: `${quest.reward} db` }
+        ),
         back
       ]
     };
@@ -8288,10 +8311,10 @@ function wokouHuntQuestView(session, questState, returnNodeId) {
   };
 }
 
-function captureCommissionQuestView(session, questState, returnNodeId) {
+function captureCommissionQuestView(session, questState, returnNodeId, gameState) {
   return isCaptureCapitalQuest(questState.quest)
-    ? captureCapitalQuestView(session, questState, returnNodeId)
-    : capturePortQuestView(session, questState, returnNodeId);
+    ? captureCapitalQuestView(session, questState, returnNodeId, gameState)
+    : capturePortQuestView(session, questState, returnNodeId, gameState);
 }
 
 function captureCommissionPetitionView(session, city, gameState, portCities, context) {
@@ -8349,10 +8372,7 @@ function captureCommissionPetitionResultView(session, city, gameState) {
         : `The council has heard your petition against ${factionNounPhrase(enemy.id)}. ${ruler.displayName} grants a warrant, but its object is fixed under seal: take ${quest.targetName}, raise ${quest.originFactionAdjective} colors, and return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
       feedback: session.feedback,
       options: [
-        option(`Accept the warrant: capture ${quest.targetName}`, {
-          type: "accept-quest",
-          quest
-        }, {
+        questAcceptanceOption(`Accept the warrant: capture ${quest.targetName}`, quest, gameState, {
           detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
         }),
         option("Back", { type: "node", nodeId: "root" })
@@ -8374,7 +8394,7 @@ function captureCommissionPetitionResultView(session, city, gameState) {
   };
 }
 
-function capturePortQuestView(session, questState, returnNodeId) {
+function capturePortQuestView(session, questState, returnNodeId, gameState) {
   const quest = questState.quest;
   const back = option("Back", { type: "node", nodeId: returnNodeId });
   if (questState.kind === "available") {
@@ -8386,10 +8406,7 @@ function capturePortQuestView(session, questState, returnNodeId) {
         : `By ${quest.originRulerName}'s warrant: capture ${quest.targetName} from ${quest.targetFactionNoun}. Silence its batteries, land your company, and raise ${quest.originFactionAdjective} colors. Keep the spoils; return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
       feedback: session.feedback,
       options: [
-        option(`Accept commission: capture ${quest.targetName}`, {
-          type: "accept-quest",
-          quest
-        }, {
+        questAcceptanceOption(`Accept commission: capture ${quest.targetName}`, quest, gameState, {
           detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
         }),
         back
@@ -8464,7 +8481,7 @@ function recalledCaptureCommissionView(session, quest, back) {
   };
 }
 
-function captureCapitalQuestView(session, questState, returnNodeId) {
+function captureCapitalQuestView(session, questState, returnNodeId, gameState) {
   const quest = questState.quest;
   const back = option("Back", { type: "node", nodeId: returnNodeId });
   const politicalContext = captureCapitalPoliticalContext(
@@ -8481,10 +8498,7 @@ function captureCapitalQuestView(session, questState, returnNodeId) {
         `return for ${quest.reward.toLocaleString("en-US")} doubloons.`,
       feedback: session.feedback,
       options: [
-        option(`Accept final commission: capture ${quest.targetName}`, {
-          type: "accept-quest",
-          quest
-        }, {
+        questAcceptanceOption(`Accept final commission: capture ${quest.targetName}`, quest, gameState, {
           detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
         }),
         back
@@ -8651,6 +8665,25 @@ function option(label, action, details = {}) {
   }
   if (details.placement !== undefined) entry.placement = details.placement;
   return entry;
+}
+
+function rejectDisabledDialogueOption(session, selected) {
+  if (!selected.disabled) return false;
+  session.feedback = selected.disabledReason || "That is not available.";
+  return true;
+}
+
+function questAcceptanceOption(label, quest, gameState, details = {}) {
+  const eligibility = questAcceptanceEligibility(gameState, quest);
+  const { actionType = "accept-quest", ...optionDetails } = details;
+  return option(label, {
+    type: actionType,
+    ...(actionType === "accept-passenger" ? {} : { quest })
+  }, {
+    ...optionDetails,
+    disabled: !eligibility.eligible,
+    disabledReason: eligibility.disabledReason
+  });
 }
 
 function deliveryOptionLabel(goodLabel, deliverableQuantity) {

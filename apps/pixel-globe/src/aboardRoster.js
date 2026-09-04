@@ -37,6 +37,7 @@ export function aboardRoster({
   namedCrew = [],
   travelerGroups = [],
   namedTravelers = [],
+  travelerPeople = [],
   colonyLeader = null,
   animalCompanions = []
 }) {
@@ -48,6 +49,7 @@ export function aboardRoster({
   if (!Array.isArray(namedCrew)) throw new Error("Named aboard crew must be an array");
   if (!Array.isArray(travelerGroups)) throw new Error("Aboard travelers must be an array");
   if (!Array.isArray(namedTravelers)) throw new Error("Named aboard travelers must be an array");
+  if (!Array.isArray(travelerPeople)) throw new Error("Individual aboard travelers must be an array");
   if (!Array.isArray(animalCompanions)) throw new Error("Aboard animal companions must be an array");
 
   const remainingTravelers = new Map();
@@ -106,10 +108,27 @@ export function aboardRoster({
     }
     generic.push(genericEntry(`crew:${member.id}`, ABOARD_ROLE_CREWMATE, member));
   }
+  const travelerPersonIds = new Set();
+  for (const person of travelerPeople) {
+    validateTravelerPerson(person);
+    if (travelerPersonIds.has(person.id)) {
+      throw new Error(`Duplicate aboard traveler person ID: ${person.id}`);
+    }
+    travelerPersonIds.add(person.id);
+    consumeTraveler(remainingTravelers, person.kind);
+    generic.push(genericEntry(
+      `traveler:${person.kind}:${person.id}`,
+      ABOARD_TRAVELER_ROLE[person.kind],
+      null,
+      person
+    ));
+  }
   for (const kind of TRAVELER_KINDS) {
     const count = remainingTravelers.get(kind) || 0;
-    for (let index = 0; index < count; index++) {
-      generic.push(genericEntry(`${kind}:${index}`, ABOARD_TRAVELER_ROLE[kind]));
+    if (count > 0) {
+      throw new Error(
+        `Aboard ${kind} manifest has ${count} anonymous people; every person requires an individual roster entry`
+      );
     }
   }
 
@@ -232,8 +251,20 @@ function namedEntry(id, character, role) {
   return Object.freeze({ id, kind: "named", character, role });
 }
 
-function genericEntry(id, role, crewMember = null) {
-  return Object.freeze({ id, kind: "generic", character: null, crewMember, role });
+function genericEntry(id, role, crewMember = null, travelerPerson = null) {
+  return Object.freeze({ id, kind: "generic", character: null, crewMember, travelerPerson, role });
+}
+
+function validateTravelerPerson(person) {
+  if (!person || typeof person !== "object" || typeof person.id !== "string" || person.id === "" ||
+      typeof person.name !== "string" || person.name === "" ||
+      typeof person.appearanceId !== "string" || person.appearanceId === "" ||
+      (person.sex !== "female" && person.sex !== "male")) {
+    throw new Error("Individual aboard traveler requires an ID, first name, sex, and sprite appearance");
+  }
+  if (!TRAVELER_KINDS.includes(person.kind)) {
+    throw new Error(`Individual aboard traveler has invalid kind: ${person.kind}`);
+  }
 }
 
 function assertCount(value, label) {

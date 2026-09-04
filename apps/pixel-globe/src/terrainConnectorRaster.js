@@ -1,10 +1,12 @@
 const CONNECTOR_EDGE_NOISE_PX = 1;
-const WATER_JUNCTION_OVERLAP_PX = 1;
+const SAME_SURFACE_JUNCTION_OVERLAP_PX = 1;
+
+const TERRAIN_CONNECTOR_SURFACE_KINDS = new Set(["water", "land", "coast"]);
 
 export function terrainConnectorHalfWidthPx({
   baseHalfWidthPx,
   levelDifference,
-  waterOnly
+  surfaceKind
 }) {
   if (!Number.isInteger(baseHalfWidthPx) || baseHalfWidthPx <= 0) {
     throw new Error(`Terrain connector base half-width must be a positive integer: ${baseHalfWidthPx}`);
@@ -12,14 +14,14 @@ export function terrainConnectorHalfWidthPx({
   if (!Number.isInteger(levelDifference) || levelDifference < 0) {
     throw new Error(`Terrain connector level difference must be a non-negative integer: ${levelDifference}`);
   }
-  if (typeof waterOnly !== "boolean") {
-    throw new Error("Terrain connector water-only state must be boolean");
+  if (!TERRAIN_CONNECTOR_SURFACE_KINDS.has(surfaceKind)) {
+    throw new Error(`Unknown terrain connector surface kind: ${surfaceKind}`);
   }
-  // Irregular water sprites can otherwise leave a one-pixel clear-buffer hole
-  // where three integer-projected tile silhouettes meet. Coast and land widths
-  // remain unchanged so their authored edge detail keeps its existing shape.
+  // Irregular sprites can otherwise leave a one-pixel clear-buffer hole where
+  // three integer-projected silhouettes of the same surface meet. Mixed coast
+  // edges retain their authored width so land does not bleed into water.
   return baseHalfWidthPx + Math.min(2, levelDifference) +
-    (waterOnly ? WATER_JUNCTION_OVERLAP_PX : 0);
+    (surfaceKind === "coast" ? 0 : SAME_SURFACE_JUNCTION_OVERLAP_PX);
 }
 
 export function terrainConnectorLengthIsRenderable(lengthPx, maximumLengthPx) {

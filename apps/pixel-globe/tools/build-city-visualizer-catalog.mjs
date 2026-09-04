@@ -41,9 +41,10 @@ import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 const GEOGRAPHY_SUBDIVISIONS = 7;
 const NEIGHBORHOOD_RINGS = 5;
 const MAX_APPROACH_SEARCH_RINGS = 18;
+const OPEN_RIVER_HORIZON_MAX_RINGS = 1;
 const EARTH_RADIUS_KM = 6371;
 const CITY_VISUALIZER_FORMAT = "marque-city-visualizer-catalog";
-const CITY_VISUALIZER_VERSION = 6;
+const CITY_VISUALIZER_VERSION = 7;
 const TREE_COVER_RENDER_FAMILIES = new Set([
   TERRAIN_RENDER_FAMILY.BROADLEAF,
   TERRAIN_RENDER_FAMILY.CONIFER,
@@ -91,6 +92,26 @@ const navigation = buildWorldNavigationTopology({
 });
 const mountains = JSON.parse(mountainText);
 const sailing = JSON.parse(sailingText);
+const sailingEarthCache = JSON.parse(await readFile(
+  resolve(sharedRoot, `earth-globe-cache-${sailing.subdivisions}.json`),
+  "utf8"
+));
+if (sailingEarthCache.subdivisions !== sailing.subdivisions) {
+  throw new Error(
+    `Expected sailing geography subdivision ${sailing.subdivisions}, got ${sailingEarthCache.subdivisions}`
+  );
+}
+const sailingEarthRows = applyManualTerrainOverrides(
+  sailingEarthCache.tiles,
+  sailing.subdivisions
+);
+const sailingGraph = buildGeodesicGraph(sailing.subdivisions);
+const sailingNavigation = buildWorldNavigationTopology({
+  graph: sailingGraph,
+  earthRows: sailingEarthRows,
+  earthCache: sailingEarthCache,
+  subdivisions: sailing.subdivisions
+});
 const cityCatalog = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
 const cityByEndpointKey = indexCityCatalog(cityCatalog);
 const colonyByEndpointKey = new Map(COLONIZATION_TARGETS.map((target) => [
@@ -106,7 +127,17 @@ const cities = sailing.endpoints.map((endpoint) => {
       ? colonizationVisualizerCity(colonyByEndpointKey.get(key), endpoint)
       : null;
   if (!city) throw new Error(`No city record for ${endpoint.kind} ${endpoint.name}, ${endpoint.country}`);
-  return visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows, navigation, mountains });
+  return visualizerCityRecord({
+    city,
+    endpoint,
+    graph,
+    directionIndex,
+    earthRows,
+    navigation,
+    mountains,
+    sailingGraph,
+    sailingNavigation
+  });
 }).sort((a, b) => a.label.localeCompare(b.label) || a.country.localeCompare(b.country));
 
 const output = Object.freeze({
@@ -131,7 +162,17 @@ console.log(
   `(terrain subdivision ${GEOGRAPHY_SUBDIVISIONS}, source ports subdivision ${sailing.subdivisions})`
 );
 
-function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows, navigation, mountains }) {
+function visualizerCityRecord({
+  city,
+  endpoint,
+  graph,
+  directionIndex,
+  earthRows,
+  navigation,
+  mountains,
+  sailingGraph,
+  sailingNavigation
+}) {
   const coordinates = city.placementLat === undefined
     ? { lat: city.lat, lon: city.lon }
     : { lat: city.placementLat, lon: city.placementLon };
@@ -168,6 +209,12 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
   const dock = dockStyle(city, approach);
   const fortification = fortificationEstimate(city);
   const builtUpBothBanks = approach === "river" && DEVELOPED_BOTH_BANKS_CITY_IDS.has(city.cityId);
+  const riverHorizon = cityRiverHorizon({
+    approach,
+    endpointTileId: endpoint.tileId,
+    sailingGraph,
+    sailingNavigation
+  });
   const architecture = deriveCityArchitectureProfile(city);
   const landmarks = religiousLandmarks(city, architecture);
   const horizonLandmarks = cityHorizonLandmarks(city);
@@ -201,6 +248,7 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
     populationProfileId,
     backgroundCity: backgroundCityProfile(city, landmarks),
     approach,
+    riverHorizon,
     builtUpBothBanks,
     dock,
     fortified: fortification.fortified,
@@ -214,6 +262,11 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
     defaultShip: defaultShipForCityType(city.cityType),
     rules: Object.freeze({
       approach: approachRule(access, approach),
+      riverHorizon: riverHorizon === null
+        ? "not a river scene"
+        : riverHorizon === "open"
+          ? `a river mouth lies within ${OPEN_RIVER_HORIZON_MAX_RINGS} high-resolution tile ring`
+          : "no river mouth lies beside the high-resolution approach",
       banks: builtUpBothBanks
         ? "curated 1522 urban settlement on both sides of the river"
         : "single-bank fallback until city-specific scene data is curated",
@@ -224,6 +277,20 @@ function visualizerCityRecord({ city, endpoint, graph, directionIndex, earthRows
       terrain: `dominant land cover within ${NEIGHBORHOOD_RINGS} game-tile rings, split across the approach axis`
     })
   });
+}
+
+function cityRiverHorizon({ approach, endpointTileId, sailingGraph, sailingNavigation }) {
+  if (approach !== "river") return null;
+  if (!Number.isInteger(endpointTileId) || endpointTileId < 0 || endpointTileId >= sailingGraph.tileCount) {
+    throw new Error(`Invalid sailing endpoint tile for river horizon: ${endpointTileId}`);
+  }
+  const riverMouth = searchAccessTile(
+    sailingGraph,
+    endpointTileId,
+    (tileId) => sailingNavigation.riverToWaterMasks[tileId] !== 0,
+    OPEN_RIVER_HORIZON_MAX_RINGS
+  );
+  return riverMouth ? "open" : "closed";
 }
 
 function colonizationVisualizerCity(target, endpoint) {
@@ -325,13 +392,13 @@ function nearestCandidate(...candidates) {
   return candidates.filter(Boolean).sort((a, b) => a.distance - b.distance)[0] || null;
 }
 
-function searchAccessTile(graph, cityTileId, predicate) {
+function searchAccessTile(graph, cityTileId, predicate, maximumRings = MAX_APPROACH_SEARCH_RINGS) {
   const visited = new Set([cityTileId]);
   const queue = [{ tileId: cityTileId, distance: 0 }];
   for (let head = 0; head < queue.length; head++) {
     const current = queue[head];
     if (predicate(current.tileId)) return current;
-    if (current.distance >= MAX_APPROACH_SEARCH_RINGS) continue;
+    if (current.distance >= maximumRings) continue;
     for (const neighborId of graph.neighbors[current.tileId]) {
       if (visited.has(neighborId)) continue;
       visited.add(neighborId);

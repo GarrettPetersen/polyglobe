@@ -13,8 +13,9 @@ const MAIN_SOURCE = readFileSync(new URL("./main.js", import.meta.url), "utf8");
 test("inn crew management opens the same aboard roster used elsewhere", () => {
   assert.match(
     MAIN_SOURCE,
-    /result\.action\?\.type === "open-crew-management"[\s\S]*?openAboardMenu\(\);/
+    /result\.action\?\.type === "open-crew-management"[\s\S]*?openAboardMenu\(\{ source: "port-inn" \}\);/
   );
+  assert.match(MAIN_SOURCE, /drawOptionsText\("BACK TO INN"/);
 });
 
 test("crew dismissal requires a separate request and confirmation", () => {

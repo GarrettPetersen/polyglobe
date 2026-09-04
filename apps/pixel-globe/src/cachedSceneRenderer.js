@@ -19,6 +19,7 @@ export function createCachedSceneRenderer({
 
   function setEntries(entries) {
     if (!Array.isArray(entries)) throw new Error("Cached scene renderer requires render entries");
+    const reusableStaticBatches = plan.filter(({ kind }) => kind === "static-batch");
     const kindCounts = {};
     let staticEntries = 0;
     let dynamicEntries = 0;
@@ -28,12 +29,13 @@ export function createCachedSceneRenderer({
 
     const flushStaticBatch = () => {
       if (pendingStaticEntries.length === 0) return;
+      const reusable = reusableStaticBatches[staticBatchIndex] || null;
       nextPlan.push({
         kind: "static-batch",
         id: `static-batch-${staticBatchIndex++}`,
         entries: Object.freeze(pendingStaticEntries),
-        surface: null,
-        context: null,
+        surface: reusable?.surface || null,
+        context: reusable?.context || null,
         cacheKey: null,
         cacheBuilds: 0,
         cacheHits: 0

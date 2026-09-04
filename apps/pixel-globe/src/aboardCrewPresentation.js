@@ -49,3 +49,18 @@ export function aboardCrewMemberDetail(member, currentMinute) {
     experienceLevelKey: aboardCrewExperienceLevelKey(experienceStars)
   });
 }
+
+export function crewWoundNoticeText(wounded) {
+  if (!Array.isArray(wounded) || wounded.length === 0) {
+    throw new Error("Crew wound notice requires wounded crewmates");
+  }
+  for (const entry of wounded) {
+    if (typeof entry?.member?.name !== "string" || entry.member.name === "") {
+      throw new Error("Crew wound notice requires named crewmates");
+    }
+  }
+  const firstName = wounded[0].member.name.toUpperCase();
+  return wounded.length === 1
+    ? `${firstName} WOUNDED`
+    : `${firstName} + ${wounded.length - 1} WOUNDED`;
+}

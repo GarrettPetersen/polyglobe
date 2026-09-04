@@ -28,6 +28,19 @@ function aboardRosterFixture(options) {
   );
   return aboardRoster({
     ...options,
+    travelerPeople: options.travelerPeople || (options.travelerGroups || []).flatMap((group) => (
+      ["settler", "soldier"].includes(group.kind)
+        ? Array.from({ length: Math.max(0, group.count - (
+            group.kind === "settler" && options.colonyLeader ? 1 : 0
+          )) }, (_, index) => ({
+            id: `${group.kind}-${index + 1}`,
+            kind: group.kind,
+            name: `${group.kind} ${index + 1}`,
+            sex: index % 2 === 0 ? "female" : "male",
+            appearanceId: index % 2 === 0 ? "villager-woman-light-earth" : "villager-man-light-earth"
+          }))
+        : []
+    )),
     crewMembers: Array.from({ length: genericCrewCount }, (_, index) => ({
       id: `ordinary-${index + 1}`,
       name: `Sailor ${index + 1}`
@@ -89,6 +102,18 @@ test("an expeditionary company appears among the people aboard", () => {
     travelerGroups: [{ kind: "soldier", count: 24 }]
   });
   assert.equal(roster.generic.filter((entry) => entry.role === ABOARD_ROLE_SOLDIER).length, 24);
+  assert.ok(roster.generic
+    .filter((entry) => entry.role === ABOARD_ROLE_SOLDIER)
+    .every((entry) => entry.travelerPerson?.name && entry.travelerPerson?.appearanceId));
+});
+
+test("anonymous settler and soldier groups are rejected instead of showing placeholder people", () => {
+  assert.throws(() => aboardRoster({
+    captain,
+    crewCount: 1,
+    crewMembers: [],
+    travelerGroups: [{ kind: "soldier", count: 1 }]
+  }), /every person requires an individual roster entry/);
 });
 
 test("an animal companion gets a named card without counting as a person or sailor", () => {

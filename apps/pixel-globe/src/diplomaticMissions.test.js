@@ -5,6 +5,7 @@ import {
   acceptQuest,
   advanceGamePolitics,
   adjustFactionReputation,
+  cargoFree,
   completeQuest,
   createGameState,
   diplomacyBetweenForState,
@@ -17,8 +18,11 @@ import {
   wokouHuntMissionOfferForCity
 } from "./gameState.js";
 import {
+  createPassengerDialogueSession,
   createPortDialogueSession,
+  passengerDialogueView,
   portDialogueView,
+  selectPassengerDialogueOption,
   selectPortDialogueOption
 } from "./dialogueSystem.js";
 import { createWorldEconomy } from "./economy.js";
@@ -72,6 +76,32 @@ test("a trusted subject can carry sealed tribute without consuming it", () => {
   assert.equal(state.memory.quests.active.stage, "return");
   completeQuest(state, SEOUL, { simMinute: 800 });
   assert.equal(state.memory.quests.completed[offer.id], true);
+});
+
+test("a stored tribute offer becomes disabled if later cargo fills its hold", () => {
+  const state = stateFor("joseon", 40);
+  adjustFactionReputation(state, "joseon", 40 - factionReputation(state, "joseon"));
+  const offer = envoyOfferForCapital(state, SEOUL, [SEOUL, BEIJING], {
+    envoySpawnChance: 1,
+    envoyKind: TRIBUTE_ENVOY_QUEST_KIND,
+    relationBetween: (a, b) => diplomacyBetweenForState(state, a, b),
+    simMinute: 0
+  });
+  state.cargo.tea = (state.cargo.tea || 0) + cargoFree(state);
+
+  const session = createPassengerDialogueSession(SEOUL, offer);
+  const view = passengerDialogueView(session, SEOUL, offer, state);
+  const acceptIndex = view.options.findIndex(({ action }) => action.type === "accept-passenger");
+  assert.ok(acceptIndex >= 0);
+  assert.equal(view.options[acceptIndex].disabled, true);
+  assert.match(view.options[acceptIndex].disabledReason, /needs 4 cargo spaces; 0 free/i);
+
+  assert.doesNotThrow(() => {
+    selectPassengerDialogueOption(session, SEOUL, offer, state, acceptIndex);
+  });
+  assert.match(session.feedback, /needs 4 cargo spaces; 0 free/i);
+  assert.equal(state.memory.quests.active, null);
+  assert.throws(() => acceptQuest(state, offer), /Tribute mission requires 4 free cargo space/);
 });
 
 test("Asian tributaries without a distinctive court cargo carry rice", () => {
