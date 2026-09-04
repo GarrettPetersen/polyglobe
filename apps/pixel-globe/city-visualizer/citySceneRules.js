@@ -30,6 +30,9 @@ export const PORT_SCENE_DEPTH = Object.freeze({
 
 export const PORT_SCENE_HORIZON_SHIFT_Y = -20;
 export const PORT_SCENE_DISTANT_TERRAIN_SHIFT_Y = -32;
+// The desert's opaque crest rises above its frame origin. Sink the pyramid far
+// enough for that crest to cover its full baseline instead of leaving sky below it.
+export const PORT_SCENE_PYRAMID_GROUNDING_Y = 34;
 export const PORT_SCENE_WATER_HORIZON_Y = 446;
 
 export const PORT_SCENE_OCEAN_SLICES = Object.freeze([
@@ -603,7 +606,10 @@ export function layerSceneOffsetY(layerName, occurrence = 0, approach = "ocean")
   const riverOffset = approach === "river"
     ? resolvedLayerMeta(layerName, occurrence).riverOffsetY
     : 0;
-  return backgroundOffset + riverOffset;
+  const landmarkGroundingOffset = layerName === "Pyramid"
+    ? PORT_SCENE_PYRAMID_GROUNDING_Y
+    : 0;
+  return backgroundOffset + riverOffset + landmarkGroundingOffset;
 }
 
 export function layerParallaxAnchor(layerName, occurrence = 0) {

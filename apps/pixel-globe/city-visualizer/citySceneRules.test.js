@@ -29,6 +29,7 @@ import {
   PORT_SCENE_DISTANT_TERRAIN_SHIFT_Y,
   PORT_SCENE_HORIZON_SHIFT_Y,
   PORT_SCENE_OCEAN_SLICES,
+  PORT_SCENE_PYRAMID_GROUNDING_Y,
   PORT_SCENE_RIVER,
   PORT_SCENE_WATER_HORIZON_Y,
   activePortSceneLayers,
@@ -1055,7 +1056,7 @@ test("the city catalog preserves actual tree-cover tiles even when open ground i
   )));
 });
 
-test("only cities within the canonical pyramid horizon receive the distant silhouette", () => {
+test("only cities within the canonical pyramid horizon receive the grounded distant silhouette", async () => {
   const cityById = new Map(CITY_VISUALIZER_CATALOG.cities.map((city) => [city.id, city]));
   const cairo = cityById.get("cairo|egypt");
   const alexandria = cityById.get("alexandria|egypt");
@@ -1093,10 +1094,9 @@ test("only cities within the canonical pyramid horizon receive the distant silho
   assert.equal(activePortSceneLayers(alexandriaFeatures).has("Pyramid"), false);
   assert.ok(layerSceneZ("Pyramid") < layerSceneZ("Distant Desert"));
   assert.ok(layerParallaxDepth("Pyramid") < layerParallaxDepth("Distant Desert"));
-  assert.equal(
-    layerSceneOffsetY("Pyramid", 0, "river"),
-    layerSceneOffsetY("Distant Desert", 0, "river")
-  );
+  const pyramidOffsetY = layerSceneOffsetY("Pyramid", 0, "river");
+  const desertOffsetY = layerSceneOffsetY("Distant Desert", 0, "river");
+  assert.equal(pyramidOffsetY - desertOffsetY, PORT_SCENE_PYRAMID_GROUNDING_Y);
 
   const pyramidFrame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === "Pyramid");
   const desertFrame = CITY_VISUALIZER_PORT_MANIFEST.staticFrames.find(({ layer }) => layer === "Distant Desert");
@@ -1105,11 +1105,50 @@ test("only cities within the canonical pyramid horizon receive the distant silho
     CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Pyramid") <
       CITY_VISUALIZER_PORT_MANIFEST.layerOrder.indexOf("Distant Desert")
   );
-  assert.ok(
-    pyramidFrame.spriteSourceSize.y + pyramidFrame.spriteSourceSize.h >
-      desertFrame.spriteSourceSize.y,
-    "the distant desert must occlude the base of the pyramid"
-  );
+
+  const atlas = await loadImage(new URL(
+    `./assets/port-parallax/${CITY_VISUALIZER_PORT_MANIFEST.staticSheet}`,
+    import.meta.url
+  ).pathname);
+  const alphaProfile = (frame) => {
+    const canvas = createCanvas(frame.frame.w, frame.frame.h);
+    const context = canvas.getContext("2d", { willReadFrequently: true });
+    context.drawImage(
+      atlas,
+      frame.frame.x,
+      frame.frame.y,
+      frame.frame.w,
+      frame.frame.h,
+      0,
+      0,
+      frame.frame.w,
+      frame.frame.h
+    );
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    return Array.from({ length: canvas.width }, (_, x) => {
+      let top = Number.POSITIVE_INFINITY;
+      let bottom = Number.NEGATIVE_INFINITY;
+      for (let y = 0; y < canvas.height; y++) {
+        if (pixels[(y * canvas.width + x) * 4 + 3] <= 16) continue;
+        top = Math.min(top, y);
+        bottom = Math.max(bottom, y);
+      }
+      return Object.freeze({ top, bottom });
+    });
+  };
+  const pyramidProfile = alphaProfile(pyramidFrame);
+  const desertProfile = alphaProfile(desertFrame);
+  for (let x = 0; x < pyramidProfile.length; x++) {
+    const desertX = pyramidFrame.spriteSourceSize.x + x - desertFrame.spriteSourceSize.x;
+    const pyramidBottom = pyramidProfile[x].bottom;
+    const desertTop = desertProfile[desertX]?.top;
+    if (!Number.isFinite(pyramidBottom) || !Number.isFinite(desertTop)) continue;
+    assert.ok(
+      pyramidFrame.spriteSourceSize.y + pyramidBottom + pyramidOffsetY >=
+        desertFrame.spriteSourceSize.y + desertTop + desertOffsetY,
+      `the distant desert must cover the pyramid baseline at scene x ${x}`
+    );
+  }
 });
 
 test("every future sailing colony has a baked city scene", () => {
