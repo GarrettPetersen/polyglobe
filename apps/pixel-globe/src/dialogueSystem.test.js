@@ -4585,9 +4585,62 @@ test("a successful disguise opens commerce but not faction business", () => {
   });
   assert.match(root.text, /Keep your disguise intact/);
   assert.ok(root.options.some((entry) => entry.label === "Market"));
+  assert.ok(root.options.some((entry) => entry.label === "Visit inn"));
+  const authorityIndex = root.options.findIndex((entry) => entry.label === "Port authority");
+  assert.ok(authorityIndex >= 0);
   assert.ok(root.options.every((entry) => entry.label !== "Ask about work"));
+  assert.ok(root.options.every((entry) => entry.label !== "Ask about the garrison"));
   assert.ok(root.options.every((entry) => !entry.label.startsWith("Speak with")));
   assert.ok(root.options.every((entry) => entry.label !== "Letter of marque"));
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], authorityIndex);
+  const warning = portDialogueView(session, city, gameState, economy, [city]);
+  assert.equal(warning.speaker, "Joan Alden, captain");
+  assert.match(warning.text, /need to be discreet/);
+  assert.doesNotMatch(warning.text, /garrison|troops|men under arms/i);
+});
+
+test("work requested at the inn returns to the inn", () => {
+  const city = {
+    tileId: 140,
+    cityId: "utrecht|netherlands",
+    city: "Utrecht",
+    displayCity: "Utrecht",
+    country: "Netherlands",
+    cityType: "northern-european",
+    routeRegion: "northern-european",
+    factionId: "utrecht",
+    population: 30_000,
+    lat: 52.09,
+    lon: 5.12,
+    character: { name: "Willem van Rijn", role: "harbour-master" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const session = createPortDialogueSession(city, {
+    initialNodeId: "inn-drink",
+    admittedToPort: true
+  });
+  const context = {
+    simMinute: 0,
+    innDialogue: {
+      speaker: "Lijsbeth, innkeeper",
+      expressionId: "neutral",
+      text: "The beer is sound."
+    }
+  };
+
+  const inn = portDialogueView(session, city, gameState, economy, [city], context);
+  const workIndex = inn.options.findIndex(({ label }) => label === "Ask about work");
+  assert.ok(workIndex >= 0);
+  selectPortDialogueOption(session, city, gameState, economy, [city], workIndex, context);
+
+  const work = portDialogueView(session, city, gameState, economy, [city], context);
+  const backIndex = work.options.findIndex(({ label }) => label === "Back to inn");
+  assert.ok(backIndex >= 0);
+  assert.equal(dialogueBackOptionIndex(work), backIndex);
+  selectPortDialogueOption(session, city, gameState, economy, [city], backIndex, context);
+  assert.equal(session.nodeId, "inn-drink");
 });
 
 test("foreign captains must find an illicit market to trade at Ming ports", () => {

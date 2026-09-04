@@ -38,6 +38,7 @@ const SHIPYARD_NODE_IDS = new Set([
   "shipyard-investment-offer"
 ]);
 const AUTHORITY_NODE_IDS = new Set([
+  "covert-authority",
   "capture-petition",
   "garrison",
   "marque",
@@ -49,6 +50,7 @@ const INN_NODE_IDS = new Set([
   "chef-quest",
   "colonization",
   "conquistador",
+  "inn-drink",
   "japanese-matchlocks",
   "quest",
   "viking-longship"

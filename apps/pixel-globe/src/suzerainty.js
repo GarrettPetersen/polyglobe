@@ -190,6 +190,24 @@ export function suzerainForFaction(memory, factionId) {
   return suzeraintyForVassal(memory, factionId)?.suzerainFactionId || null;
 }
 
+export function factionIsSubjectOf(memory, subjectFactionId, suzerainFactionId) {
+  assertSuzeraintyMemoryShape(memory);
+  assertFactionId(subjectFactionId);
+  assertFactionId(suzerainFactionId);
+  let currentFactionId = subjectFactionId;
+  const visited = new Set();
+  while (memory.byVassalId[currentFactionId]) {
+    if (visited.has(currentFactionId)) {
+      throw new Error(`Suzerainty cycle includes ${currentFactionId}`);
+    }
+    visited.add(currentFactionId);
+    const relationship = memory.byVassalId[currentFactionId];
+    if (relationship.suzerainFactionId === suzerainFactionId) return true;
+    currentFactionId = relationship.suzerainFactionId;
+  }
+  return false;
+}
+
 export function vassalsOf(memory, suzerainFactionId) {
   return dependentsOf(memory, suzerainFactionId)
     .filter((entry) => [

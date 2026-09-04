@@ -107,6 +107,7 @@ import {
   cityAssaultLaneX,
   cityAssaultMeleeLungeOffset
 } from "./cityAssaultMotion.js";
+import { cityMatchlockSmokeParticles } from "./cityMatchlockSmoke.js";
 import {
   PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
   portAssaultLandingDurationMs
@@ -3605,7 +3606,7 @@ function drawPortAssaultPresentation(lane) {
   for (const event of presentation.events) {
     const unit = presentation.units.find(({ id }) => id === event.unitId);
     if (!unit || unit.lane !== lane) continue;
-    drawAssaultEvent(event, presentation.units, window, battleTimeMs);
+    drawAssaultEvent(event, unit, window, battleTimeMs, entryShiftX);
   }
 }
 
@@ -3728,16 +3729,33 @@ function drawAssaultWater(unit, x, feetY, timeMs) {
   context.fillRect(Math.round(x) - 2, Math.round(feetY), 5, 1);
 }
 
-function drawAssaultEvent(event, units, window, timeMs) {
-  const unit = units.find(({ id }) => id === event.unitId);
-  if (!unit) return;
-  const x = Math.round(666 + unit.position * 640 - window.x);
-  const feetY = CITY_PORT_ASSAULT_LANE_FEET_Y[unit.lane];
-  if (!Number.isFinite(feetY)) throw new Error(`Port assault event has invalid lane: ${unit.lane}`);
+function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
+  const eventTracksShot = event.type === "attack";
+  const position = eventTracksShot ? event.position : unit.position;
+  const lane = eventTracksShot ? event.lane : unit.lane;
+  if (!Number.isFinite(position) || position < 0 || position > 1) {
+    throw new Error(`Port assault event has invalid position: ${event.unitId}`);
+  }
+  if (!Number.isInteger(lane)) {
+    throw new Error(`Port assault event has invalid lane: ${event.unitId}`);
+  }
+  const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
+    position * CITY_PORT_ASSAULT_TRACK_SPAN_X - window.x;
+  const x = Math.round(cityAssaultLaneX({
+    baselineX,
+    position,
+    entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
+    entryShiftX
+  }));
+  const feetY = CITY_PORT_ASSAULT_LANE_FEET_Y[lane];
+  if (!Number.isFinite(feetY)) throw new Error(`Port assault event has invalid lane: ${lane}`);
   const y = Math.round(feetY - window.y);
   if (event.type === "attack" && event.attackType === "firearm") {
-    context.fillStyle = "#ffffff";
-    context.fillRect(x + (unit.side === "attacker" ? 5 : -6), y - 10, 2, 1);
+    drawMatchlockSmoke(event, unit, x, y, timeMs);
+    if (timeMs - event.timeMs < 100) {
+      context.fillStyle = "#ffffff";
+      context.fillRect(x + (unit.side === "attacker" ? 5 : -6), y - 10, 2, 1);
+    }
   } else if (event.type === "attack" && event.attackType === "arrow") {
     context.fillStyle = "#2e222f";
     context.fillRect(x + (unit.side === "attacker" ? 5 : -9), y - 9, 5, 1);
@@ -3761,6 +3779,47 @@ function drawAssaultEvent(event, units, window, timeMs) {
     context.fillStyle = "#ae2334";
     context.fillRect(x - 2 - Math.floor((timeMs - event.timeMs) / 180), y - 3, 2, 1);
   }
+}
+
+function drawMatchlockSmoke(event, unit, x, feetY, timeMs) {
+  const facingRight = unit.side === "attacker";
+  const muzzleX = x + (facingRight ? 6 : -6);
+  const muzzleY = feetY - 10;
+  const particles = cityMatchlockSmokeParticles({
+    shotId: `${event.unitId}|${event.timeMs}`,
+    ageMs: timeMs - event.timeMs,
+    facingRight,
+    wind: state.wind
+  });
+  context.save();
+  for (const particle of particles) {
+    context.globalAlpha = particle.alpha;
+    context.fillStyle = particle.color;
+    drawMatchlockSmokeCluster(
+      muzzleX + particle.x,
+      muzzleY + particle.y,
+      particle.size,
+      particle.shape
+    );
+  }
+  context.restore();
+}
+
+function drawMatchlockSmokeCluster(x, y, size, shape) {
+  const left = Math.round(x - (size - 1) / 2);
+  const top = Math.round(y - (size - 1) / 2);
+  if (size === 1) {
+    context.fillRect(left, top, 1, 1);
+    return;
+  }
+  if (size === 2) {
+    context.fillRect(left, top, 2, 1);
+    context.fillRect(left + (shape % 2), top + 1, 1, 1);
+    return;
+  }
+  context.fillRect(left, top + 1, 3, 1);
+  context.fillRect(left + 1, top, 1, 3);
+  context.fillRect(left + (shape % 2 === 0 ? 0 : 2), top + (shape < 2 ? 0 : 2), 1, 1);
 }
 
 function drawPersonSprite(targetContext, {

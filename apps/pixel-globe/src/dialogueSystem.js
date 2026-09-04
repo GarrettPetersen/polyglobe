@@ -489,6 +489,7 @@ export function createPortDialogueSession(city, options = {}) {
     historicalGossip: options.historicalGossip || null,
     crewRecruitmentArrivalPresented: false,
     crewRecruitmentReturnNodeId: null,
+    questReturnNodeId: null,
     crewDismissal: null,
     rumorText: options.rumorText || null,
     colonizationArrival: options.colonizationArrival === true,
@@ -1749,6 +1750,10 @@ export function dialogueBackOptionIndex(view) {
     entry?.action?.type === "node" && entry.action.nodeId === "root"
   ));
   if (cityBackIndex >= 0) return cityBackIndex;
+  const innBackIndex = view.options.findIndex((entry) => (
+    entry?.action?.type === "node" && entry.action.nodeId === "inn-drink"
+  ));
+  if (innBackIndex >= 0) return innBackIndex;
   return view.options.findIndex((entry) => entry?.placement === "port-exit");
 }
 
@@ -1764,6 +1769,7 @@ export function returnPortDialogueToCity(session) {
   session.illicitTradeCaughtPolicyId = null;
   session.nextPortNodeId = null;
   session.postDrunkNodeId = null;
+  session.questReturnNodeId = null;
   session.tradeTip = null;
   session.questCargoTip = null;
   session.shipHandover = null;
@@ -1835,6 +1841,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   }
   if (session.nodeId === "illicit-caught") return illicitCaughtView(session, city);
   if (session.nodeId === "city-attack") return cityAttackView(session, city, gameState, context);
+  if (session.nodeId === "covert-authority") return covertAuthorityView(gameState);
   if (session.nodeId === "garrison") return garrisonView(city);
   if (session.nodeId === "portuguese-cartaz") {
     return portugueseCartazView(session, city, gameState, context);
@@ -1992,12 +1999,21 @@ function withPortExitFooter(view, session) {
       (entry.action.type === "node" || entry.action.type === "leave-market") &&
       entry.action.nodeId === "root"
     );
+    const returnsToInn = entry.action.type === "node" && entry.action.nodeId === "inn-drink";
+    const isInnBack = returnsToInn && (
+      entry.placement === "port-exit" ||
+      entry.label === "Back" ||
+      entry.label === "Back to city" ||
+      entry.label === "Back to inn"
+    );
     const isExit = entry.placement === "port-exit" || entry.label === "Back" ||
       entry.action.type === "close" ||
-      returnsToCity;
+      returnsToCity || isInnBack;
     const normalizedEntry = returnsToCity && session.nodeId !== "greeting"
       ? { ...entry, label: "Back to city" }
-      : entry;
+      : isInnBack
+        ? { ...entry, label: "Back to inn" }
+        : entry;
     (isExit ? exitOptions : regularOptions).push(isExit
       ? { ...normalizedEntry, placement: "port-exit" }
       : normalizedEntry);
@@ -2160,9 +2176,13 @@ export function selectPortDialogueAction(
       return { closed: false };
     }
     if (action.nodeId === "quest" && rootActionOrigin) {
+      session.questReturnNodeId = session.nodeId === "inn-drink" ? "inn-drink" : "root";
       deliveryOfferForCity(gameState, city, portCities, {
         simMinute: context.simMinute ?? 0
       });
+    }
+    if (session.nodeId === "quest" && action.nodeId !== "quest") {
+      session.questReturnNodeId = null;
     }
     if (session.nodeId === "illicit-caught" && action.nodeId !== "illicit-caught") {
       session.illicitTradeCaughtPolicyId = null;
@@ -4652,6 +4672,18 @@ function disguiseFailureView(city, gameState, context) {
   };
 }
 
+function covertAuthorityView(gameState) {
+  const captain = gameState.playerCharacter;
+  if (!captain?.name) throw new Error("Covert port-authority dialogue requires the player captain");
+  return {
+    speaker: `${captain.name}, captain`,
+    expressionId: "concerned",
+    text: "We need to be discreet. One official looking closely at our papers would end this disguise.",
+    feedback: null,
+    options: [option("Back", { type: "node", nodeId: "root" })]
+  };
+}
+
 function rootView(session, city, gameState, economy, portCities, context) {
   return {
     speaker: speakerName(city),
@@ -4716,14 +4748,19 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
           : { type: "node", nodeId: "shipyard-investment-offer" }
       )]
       : []),
-    ...ordinaryInnRootOptions(session, { pirateHideout, canCompleteQuest }),
+    ...(session.disguisedEntry
+      ? [option("Visit inn", { type: "node", nodeId: "inn-drink" })]
+      : ordinaryInnRootOptions(session, { pirateHideout, canCompleteQuest })),
     ...(capturePetitions.length > 0 && !session.disguisedEntry
       ? [option("Petition for a capture warrant", {
           type: "node",
           nodeId: "capture-petition"
         })]
       : []),
-    ...(!pirateHideout
+    ...(session.disguisedEntry && !pirateHideout
+      ? [option("Port authority", { type: "node", nodeId: "covert-authority" })]
+      : []),
+    ...(!pirateHideout && !session.disguisedEntry
       ? [option("Ask about the garrison", { type: "node", nodeId: "garrison" })]
       : [])
   ];
@@ -8147,7 +8184,8 @@ function cargoView(session, city, gameState) {
 }
 
 function questView(session, city, gameState, portCities) {
-  const returnNodeId = session.nextPortNodeId || "root";
+  const returnNodeId = session.questReturnNodeId || session.nextPortNodeId || "root";
+  const backLabel = returnNodeId === "inn-drink" ? "Back to inn" : "Back";
   const questState = questStateForCity(gameState, city, portCities);
   if (isCaptureCommissionQuest(questState.quest)) {
     return captureCommissionQuestView(session, questState, returnNodeId, gameState);
@@ -8180,7 +8218,7 @@ function questView(session, city, gameState, portCities) {
               ? { type: "open-passenger", quest: questState.quest }
               : { type: "complete-quest" }
           ),
-          option("Back", { type: "node", nodeId: returnNodeId })
+          option(backLabel, { type: "node", nodeId: returnNodeId })
         ]
       };
     }
@@ -8196,7 +8234,7 @@ function questView(session, city, gameState, portCities) {
         option(`Deliver ${questState.quest.cargoLabel || "packet"}  ${questState.quest.reward} db`, {
           type: "complete-quest"
         }),
-        option("Back", { type: "node", nodeId: returnNodeId })
+        option(backLabel, { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -8225,7 +8263,7 @@ function questView(session, city, gameState, portCities) {
           gameState,
           { detail: `${formatDistanceKm(quest.distanceKm)} / ${quest.reward} DB` }
         )),
-        option("Back", { type: "node", nodeId: returnNodeId })
+        option(backLabel, { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -8236,7 +8274,7 @@ function questView(session, city, gameState, portCities) {
       text: "You already handled my packet. A clean account is rare enough that I remember it.",
       feedback: session.feedback,
       options: [
-        option("Back", { type: "node", nodeId: returnNodeId })
+        option(backLabel, { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -8247,7 +8285,7 @@ function questView(session, city, gameState, portCities) {
       text: "No sealed packets are bound for our nearby ports right now.",
       feedback: session.feedback,
       options: [
-        option("Back", { type: "node", nodeId: returnNodeId })
+        option(backLabel, { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -8261,7 +8299,7 @@ function questView(session, city, gameState, portCities) {
       expressionId: questState.kind === "in-progress-here" ? "attentive" : "concerned",
       text: `The ten sealed tea chests are bound for London. ${rivalText}`,
       feedback: session.feedback,
-      options: [option("Back", { type: "node", nodeId: returnNodeId })]
+      options: [option(backLabel, { type: "node", nodeId: returnNodeId })]
     };
   }
   if (quest.kind === "passenger" || isEnvoyQuest(quest)) {
@@ -8273,7 +8311,7 @@ function questView(session, city, gameState, portCities) {
         : activeTravelMissionBusyText(quest),
       feedback: session.feedback,
       options: [
-        option("Back", { type: "node", nodeId: returnNodeId })
+        option(backLabel, { type: "node", nodeId: returnNodeId })
       ]
     };
   }
@@ -8285,7 +8323,7 @@ function questView(session, city, gameState, portCities) {
       : `Finish your delivery from ${quest.originName} to ${quest.destinationName}; then I can talk work.`,
     feedback: session.feedback,
     options: [
-      option("Back", { type: "node", nodeId: returnNodeId })
+      option(backLabel, { type: "node", nodeId: returnNodeId })
     ]
   };
 }

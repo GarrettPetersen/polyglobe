@@ -172,6 +172,7 @@ import {
   contentSizedGridLayout,
   contentSizedTextStackLayout
 } from "./contentSizedTextLayout.js";
+import { playerShipyardUsesCompactYardLayout } from "./playerShipyardLayout.js";
 import {
   aboardCrewExperienceLevelKey,
   aboardCrewMemberDetail,
@@ -21734,16 +21735,22 @@ function maybeOpenShipyardArrivalDialogue(cityCall, { allowShipyardNode = false 
   let hasUncommittedMaterial = needed.some(({ goodId }) => (
     (gameState.cargo[goodId] || 0) > (reserved[goodId] || 0)
   ));
+  let worldEconomyChanged = payout !== null;
   if (!hasUncommittedMaterial) {
-    procureWorldEconomyShipyardMaterials(worldEconomy, cityCall);
+    const procurement = procureWorldEconomyShipyardMaterials(worldEconomy, cityCall);
+    worldEconomyChanged ||= Object.values(procurement.transferred).some((quantity) => quantity > 0);
     needed = shipyardMaterialStatus(yard).filter(
       (material) => material.stockpileMissing > 0
     );
-    if (needed.length === 0) return false;
+    if (needed.length === 0 && !payout) {
+      if (worldEconomyChanged) resetDistantWorldWorkerSchedule();
+      return false;
+    }
     hasUncommittedMaterial = needed.some(({ goodId }) => (
       (gameState.cargo[goodId] || 0) > (reserved[goodId] || 0)
     ));
   }
+  if (worldEconomyChanged) resetDistantWorldWorkerSchedule();
   if (!payout && !hasUncommittedMaterial) return false;
   dialogueState.shipyardDividendArrival = payout
     ? { ...payout, salesSummary: shipyardPayoutSalesSummary(payout.sales) }
@@ -26185,6 +26192,7 @@ async function purchaseShipyardShip(action) {
           simMinute: Math.floor(weatherClockMinutes)
         })
       : null;
+    resetDistantWorldWorkerSchedule();
     applyPlayerShipType(listing.shipSlug, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     playCoinClinkSound();
@@ -64565,7 +64573,7 @@ function playerShipyardTabLabel(tab) {
 
 function drawPlayerShipyardYardTab(content, presentation) {
   const build = presentation.ledger.currentBuild;
-  const landscape = content.h < 150;
+  const landscape = playerShipyardUsesCompactYardLayout(content.h);
   const artSize = landscape
     ? (() => {
         const h = Math.max(18, Math.min(78, content.h - 15));

@@ -12,6 +12,7 @@ import {
   ledgerEntries,
   migrateGameState,
   openSovereignTradeToFaction,
+  portEntryStatus,
   recordAttackAgainstFaction,
   sovereignTradeOpenToFaction,
   negotiateEnvoyQuest
@@ -652,6 +653,51 @@ test("a hostile envoy worsens relations and the player's standing with the forei
   assert.equal(negotiation.events[0].relation, "neutral");
   assert.equal(factionReputation(state, "england"), targetStanding - 8);
   assert.equal(factionReputation(state, "portugal"), 0);
+});
+
+test("an embassy's home court keeps admitting its captain after the mission turns nations hostile", () => {
+  const utrecht = port(
+    16,
+    "Utrecht",
+    "Netherlands",
+    "northern-european",
+    "utrecht",
+    52.09,
+    5.12
+  );
+  utrecht.isFactionCapital = true;
+  utrecht.capitalOfFactionId = "utrecht";
+  const ottomanCaptain = {
+    ...PLAYER,
+    nationalityId: "ottoman",
+    homePortCityId: ISTANBUL.cityId,
+    homePortTileId: ISTANBUL.tileId,
+    homePortName: ISTANBUL.city,
+    homePortCountry: ISTANBUL.country
+  };
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: ottomanCaptain });
+  state.relations.diplomacy.overrides["ottoman|utrecht"] = "neutral";
+  const ports = [utrecht, ISTANBUL];
+  const offer = envoyOfferForCapital(state, utrecht, ports, {
+    envoySpawnChance: 1,
+    envoyKind: "hostile-envoy",
+    destinationCityId: ISTANBUL.cityId,
+    relationBetween: diplomacyBetween,
+    simMinute: 0,
+    createCharacter: () => ({ id: "envoy:utrecht", name: "Adriaen van Utrecht" })
+  });
+  assert.ok(offer);
+  acceptQuest(state, offer);
+
+  negotiateEnvoyQuest(state, ISTANBUL, { simMinute: 240, portCities: ports });
+  assert.equal(portEntryStatus(state, utrecht, 241).hostileByStance, true);
+  assert.equal(portEntryStatus(state, utrecht, 241).allowed, false);
+
+  completeQuest(state, utrecht, { simMinute: 480 });
+  const homecoming = portEntryStatus(state, utrecht, 481);
+  assert.equal(homecoming.hostileByStance, true);
+  assert.equal(homecoming.hostileStanceWaivedByStanding, true);
+  assert.equal(homecoming.allowed, true);
 });
 
 test("a hostile envoy expels a resident settlement when its host turns hostile", () => {

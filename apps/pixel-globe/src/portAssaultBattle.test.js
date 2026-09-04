@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {
   PORT_ASSAULT_OUTCOME,
+  PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS,
   PORT_ASSAULT_MAX_GARRISON,
   PORT_ASSAULT_MIN_GARRISON,
   PORT_ASSAULT_PROFILE_ID,
@@ -148,6 +149,35 @@ test("matchlocks trade the hardest ranged hit for the slowest reload", () => {
   assert.ok(archer.cooldownMs < crossbowman.cooldownMs);
   assert.ok(crossbowman.cooldownMs < gunner.cooldownMs);
   assert.ok(gunner.cooldownMs >= 6000);
+});
+
+test("matchlock discharge presentation remains anchored for the full smoke plume", () => {
+  const battle = simulatePortAssault(createPortAssaultScenario({
+    cityId: "london|england",
+    attackers: [combatant("gunner", "gunner", 1)],
+    defenders: [combatant("guard", "swordsman", 1)],
+    shipHitPoints: 100,
+    shipMaxHitPoints: 100,
+    dockKind: "wood",
+    fortified: false
+  }), 17);
+  const discharge = battle.events.find((event) => (
+    event.type === "attack" && event.attackType === "firearm"
+  ));
+
+  assert.ok(discharge, "the test battle must include a matchlock discharge");
+  assert.ok(Number.isFinite(discharge.position));
+  assert.ok(discharge.position >= 0 && discharge.position <= 1);
+  assert.ok(Number.isInteger(discharge.lane));
+  assert.ok(discharge.lane >= 0 && discharge.lane <= 3);
+  assert.ok(portAssaultPresentationAt(
+    battle,
+    discharge.timeMs + PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS - 1
+  ).events.includes(discharge));
+  assert.ok(!portAssaultPresentationAt(
+    battle,
+    discharge.timeMs + PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS
+  ).events.includes(discharge));
 });
 
 test("ranged combatants switch to an independently tuned melee attack up close", () => {

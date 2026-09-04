@@ -17,9 +17,11 @@ import {
 } from "./religiousAttitudes.js";
 import {
   rawWorldDiplomacyBetween,
-  validateWorldDiplomacy
+  validateWorldDiplomacy,
+  worldDiplomacyBetween
 } from "./worldDiplomacy.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
+import { factionIsSubjectOf } from "./suzerainty.js";
 
 export const TRADE_EMBARGO_VERSION = 2;
 export const TRADE_EMBARGO_SCOPE_ALL_GOODS = "all-goods";
@@ -275,8 +277,12 @@ export function validateTradeEmbargoMemory(memory) {
   return memory;
 }
 
-export function nextTradeEmbargoPoliticsMinute(memory) {
+export function nextTradeEmbargoPoliticsMinute(memory, diplomacy) {
   validateTradeEmbargoMemory(memory);
+  validateWorldDiplomacy(diplomacy);
+  if (tradeEmbargoPoliticsNeedsReconciliation(memory, diplomacy)) {
+    return memory.lastUpdateMinute;
+  }
   return Math.min(memory.nextReviewMinute, nextHistoricalTradeTransitionMinute(memory));
 }
 
@@ -324,6 +330,7 @@ export function advanceTradeEmbargoPolitics(memory, diplomacy, currentMinute, {
   if (guard >= MAX_CATCH_UP_REVIEWS && currentMinute >= memory.nextReviewMinute) {
     memory.nextReviewMinute = currentMinute + reviewIntervalMinutes(memory, memory.sequence + 1);
   }
+  events.push(...reconcileTradeEmbargoPolitics(memory, diplomacy, currentMinute));
   memory.lastUpdateMinute = currentMinute;
   validateTradeEmbargoMemory(memory);
   return Object.freeze(events.map((event) => Object.freeze(copyEvent(event))));
@@ -786,6 +793,15 @@ function reviewTradeEmbargoes(memory, diplomacy, simMinute, {
       events.push(liftOrder(memory, order, simMinute, "realm-inactive"));
       continue;
     }
+    const impossibleReason = tradeEmbargoPoliticalConflict(
+      diplomacy,
+      order.issuerFactionId,
+      order.targetFactionId
+    );
+    if (impossibleReason !== null) {
+      events.push(liftOrder(memory, order, simMinute, impossibleReason));
+      continue;
+    }
     const relation = rawWorldDiplomacyBetween(
       diplomacy,
       order.issuerFactionId,
@@ -881,7 +897,11 @@ function applyHistoricalTradeTransitions(memory, diplomacy, currentMinute, inact
       transition.targetFactionId
     );
     if (inactive.has(transition.issuerFactionId) || inactive.has(transition.targetFactionId) ||
-        relation !== DIPLOMACY_WAR) {
+        tradeEmbargoPoliticalConflict(
+          diplomacy,
+          transition.issuerFactionId,
+          transition.targetFactionId
+        ) !== null || relation !== DIPLOMACY_WAR) {
       memory.historicalTransitions[transition.id] = "averted";
       continue;
     }
@@ -914,7 +934,8 @@ function nationalEmbargoCandidate(memory, diplomacy, simMinute, authorityForFact
     assertAuthority(authority, `${issuer.id} embargo authority`);
     for (const target of SOVEREIGN_FACTIONS) {
       if (issuer.id === target.id || inactive.has(target.id) ||
-          hasActiveOrder(memory, TRADE_EMBARGO_AUTHORITY_NATIONAL, issuer.id, target.id)) continue;
+          hasActiveOrder(memory, TRADE_EMBARGO_AUTHORITY_NATIONAL, issuer.id, target.id) ||
+          tradeEmbargoPoliticalConflict(diplomacy, issuer.id, target.id) !== null) continue;
       const relation = rawWorldDiplomacyBetween(diplomacy, issuer.id, target.id);
       if (relation !== DIPLOMACY_WAR && relation !== DIPLOMACY_HOSTILE) continue;
       const weight = (relation === DIPLOMACY_WAR ? 5 : 1.25) * (0.55 + authority / 100);
@@ -930,6 +951,7 @@ function papalEmbargoCandidate(memory, diplomacy, simMinute, inactive) {
     !inactive.has(faction.id) &&
     isMuslimReligion(rulerAtMinute(faction.id, simMinute)?.religionId) &&
     !hasActivePapalOrder(memory, faction.id) &&
+    tradeEmbargoPoliticalConflict(diplomacy, "papal-states", faction.id) === null &&
     papalTargetJustifiesProhibition(diplomacy, faction.id, simMinute)
   )).map((faction) => ({
     targetFactionId: faction.id,
@@ -950,6 +972,9 @@ function papalTargetJustifiesProhibition(diplomacy, targetFactionId, simMinute) 
 function papalFollowersForOrder(memory, diplomacy, order, simMinute, papalAuthority, inactive) {
   return SOVEREIGN_FACTIONS.filter((faction) => {
     if (inactive.has(faction.id) || faction.id === order.targetFactionId) return false;
+    if (tradeEmbargoPoliticalConflict(diplomacy, faction.id, order.targetFactionId) !== null) {
+      return false;
+    }
     if (faction.id === "papal-states" || faction.id === "hospitallers") return true;
     const ruler = rulerAtMinute(faction.id, simMinute);
     if (!ruler || !isRomanCatholicReligion(ruler.religionId)) return false;
@@ -965,6 +990,57 @@ function papalFollowersForOrder(memory, diplomacy, order, simMinute, papalAuthor
       relationScore + targetScore);
     return embargoRandom(memory, `follow|${order.id || order.targetFactionId}|${faction.id}|${simMinute}`) < chance;
   }).map((faction) => faction.id).sort();
+}
+
+function tradeEmbargoPoliticsNeedsReconciliation(memory, diplomacy) {
+  return memory.orders.some((order) => {
+    if (order.liftedMinute !== null) return false;
+    if (tradeEmbargoPoliticalConflict(
+      diplomacy,
+      order.issuerFactionId,
+      order.targetFactionId
+    ) !== null) return true;
+    return order.followerFactionIds.some((factionId) => tradeEmbargoPoliticalConflict(
+      diplomacy,
+      factionId,
+      order.targetFactionId
+    ) !== null);
+  });
+}
+
+function reconcileTradeEmbargoPolitics(memory, diplomacy, simMinute) {
+  const events = [];
+  for (const order of memory.orders.filter((entry) => entry.liftedMinute === null)) {
+    const impossibleReason = tradeEmbargoPoliticalConflict(
+      diplomacy,
+      order.issuerFactionId,
+      order.targetFactionId
+    );
+    if (impossibleReason !== null) {
+      events.push(liftOrder(memory, order, simMinute, impossibleReason));
+      continue;
+    }
+    const followers = order.followerFactionIds.filter((factionId) => (
+      tradeEmbargoPoliticalConflict(diplomacy, factionId, order.targetFactionId) === null
+    ));
+    if (followers.length === order.followerFactionIds.length) continue;
+    order.followerFactionIds = followers;
+    const event = embargoEvent(order, "followers-changed", simMinute, "diplomatic-alignment");
+    recordEvent(memory, event);
+    events.push(event);
+  }
+  return events;
+}
+
+function tradeEmbargoPoliticalConflict(diplomacy, issuerFactionId, targetFactionId) {
+  if (factionIsSubjectOf(
+    diplomacy.suzerainties,
+    issuerFactionId,
+    targetFactionId
+  )) return "submission-to-target";
+  return worldDiplomacyBetween(diplomacy, issuerFactionId, targetFactionId) === DIPLOMACY_ALLY
+    ? "diplomatic-alliance"
+    : null;
 }
 
 function imposeOrder(memory, {

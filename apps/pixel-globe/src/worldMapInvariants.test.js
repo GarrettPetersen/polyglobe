@@ -10,26 +10,40 @@ import {
 } from "./cityPortAccessPolicy.js";
 import { validateCanonicalPortCatalog } from "./canonicalPorts.js";
 import {
+  DEMO_GIBRALTAR_BARRIER_COORDINATES,
+  DEMO_MEDITERRANEAN_SEED,
+  buildDemoMediterraneanAccessMask,
+  demoAccessiblePortsForMask
+} from "./demoVoyage.js";
+import {
   MAX_MOUNTAIN_DISCOVERY_RADIUS_PX,
   buildWorldDiscoveries,
   restrictMountainsToNavigableView
 } from "./discoveries.js";
-import { buildGeodesicGraph, createDirectionIndex } from "./geodesic.js";
+import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { buildMountainLandmarks } from "./mountainLandmarks.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
-import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
+import {
+  buildWorldNavigationTopology,
+  canTraverseWorldNavigationEdge,
+  isWorldNavigableTile
+} from "./worldNavigationTopology.js";
 import {
   WORLD_WATERWAY_INVARIANTS,
   boundedNavigablePathExists
 } from "./worldMapInvariants.js";
 import {
+  nearestTileMatching,
   placeCityCatalogOnWorld,
+  portAccessTileIds,
   portCitiesOnWorld,
   validateCityPortAccessCatalog
 } from "./worldPortPlacement.js";
+import { createWorldEconomy, portMarket } from "./economy.js";
+import { SHIPBUILDING_MATERIAL_GOOD_IDS } from "./shipyards.js";
 import {
   WORLD_GLOBE_SUBDIVISIONS,
   WORLD_LANDMARK_VIEWPORT_RADIUS_PX,
@@ -52,6 +66,11 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     repoRoot
   ), "utf8"));
   const earthRows = applyManualTerrainOverrides(earth.tiles, WORLD_GLOBE_SUBDIVISIONS);
+  assert.equal(
+    isWaterSurfaceRow(earthRows[160967]),
+    true,
+    "the Loire estuary must not become an exaggerated land island"
+  );
   const navigation = buildWorldNavigationTopology({
     graph,
     earthRows,
@@ -101,6 +120,59 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
   const ports = portCitiesOnWorld(placedByTileId, placementOptions);
   assert.equal(validateCityPortAccessCatalog(placedByTileId, ports, placementOptions), true);
   assert.doesNotThrow(() => validateCanonicalPortCatalog(ports));
+  const isNavigableTile = (tileId) => isWorldNavigableTile({
+    earthRows,
+    riverMasks: navigation.riverMasks,
+    reachableNavigationMask: navigation.reachableNavigationMask,
+    tileId
+  });
+  const nearestNavigableTile = ({ lat, lon }) => {
+    const requestedTileId = findNearestTileId(
+      graph,
+      directionIndex,
+      latLonToDirection(lat, lon)
+    );
+    const tileId = isNavigableTile(requestedTileId)
+      ? requestedTileId
+      : nearestTileMatching(graph, requestedTileId, isNavigableTile);
+    assert.notEqual(tileId, undefined, `expected demo navigation near ${lat}, ${lon}`);
+    return tileId;
+  };
+  const demoAccessMask = buildDemoMediterraneanAccessMask({
+    graph,
+    seedTileId: nearestNavigableTile(DEMO_MEDITERRANEAN_SEED),
+    blockedTileIds: DEMO_GIBRALTAR_BARRIER_COORDINATES.map(nearestNavigableTile),
+    isNavigableTile,
+    canTraverseEdge: (fromTileId, toTileId) => canTraverseWorldNavigationEdge({
+      graph,
+      earthRows,
+      riverMasks: navigation.riverMasks,
+      riverToWaterMasks: navigation.riverToWaterMasks,
+      fromTileId,
+      toTileId
+    })
+  });
+  const demoPorts = demoAccessiblePortsForMask({
+    ports,
+    accessMask: demoAccessMask,
+    accessTileIdsForPort: (port) => portAccessTileIds(placementOptions, port.tileId)
+  });
+  const demoEconomy = createWorldEconomy({
+    ports: demoPorts,
+    shipyardPorts: demoPorts,
+    startMinute: 0,
+    seedKey: "mediterranean-demo-material-coverage"
+  });
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    const suppliers = demoPorts.filter((port) => {
+      const row = portMarket(demoEconomy, port).find((candidate) => candidate.good.id === goodId);
+      return row?.listedForSale === true && row.productionPerDay > row.consumptionPerDay;
+    });
+    assert.ok(
+      suppliers.length > 0,
+      `Mediterranean demo needs a sustainable source of ${goodId}`
+    );
+  }
   const portCityIds = new Set(ports.map((city) => city.cityId));
   const northMalukuPorts = [
     ["ternate|indonesia", 366292],
@@ -245,4 +317,11 @@ function riverTilesConnected(graph, riverMasks, startTileId, targetTileId) {
     }
   }
   return false;
+}
+
+function latLonToDirection(latDeg, lonDeg) {
+  const lat = latDeg * Math.PI / 180;
+  const lon = lonDeg * Math.PI / 180;
+  const cosLat = Math.cos(lat);
+  return [cosLat * Math.cos(lon), Math.sin(lat), -cosLat * Math.sin(lon)];
 }

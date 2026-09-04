@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  DIPLOMACY_ALLY,
   DIPLOMACY_FRIENDLY,
+  DIPLOMACY_HOSTILE,
   DIPLOMACY_WAR
 } from "./factions.js";
 import {
-  createWorldDiplomacy
+  createWorldDiplomacy,
+  establishDiplomaticSuzerainty
 } from "./worldDiplomacy.js";
+import { SUZERAINTY_KIND_VASSAL } from "./suzerainty.js";
 import {
   PAPAL_EMBARGO_REPUTATION_PENALTY,
   HOSPITALLER_OTTOMAN_BLOCKADE_MINUTE,
@@ -28,6 +32,7 @@ import {
   npcWillSmuggleEmbargoedCargo,
   migrateTradeEmbargoMemory,
   migrateTradeEmbargoEnforcementMemory,
+  nextTradeEmbargoPoliticsMinute,
   recordTradeEmbargoPurchase,
   resolveTradeEmbargoInspection,
   tradeEmbargoIncidentForInspection,
@@ -268,6 +273,80 @@ test("the Hospitaller blockade begins with the Rhodes campaign and controls Otto
   });
   assert.equal(shipping.length, 1);
   assert.equal(shipping[0].restrictionKind, TRADE_EMBARGO_RESTRICTION_BLOCKADE);
+});
+
+test("embargo politics immediately lifts orders against an issuer's suzerain", () => {
+  const memory = createTradeEmbargoMemory({
+    startMinute: HOSPITALLER_OTTOMAN_BLOCKADE_MINUTE,
+    seedKey: "rhodes-submits"
+  });
+  const diplomacy = createWorldDiplomacy({
+    startMinute: HOSPITALLER_OTTOMAN_BLOCKADE_MINUTE,
+    seedKey: "rhodes-submits"
+  });
+  const submissionMinute = HOSPITALLER_OTTOMAN_BLOCKADE_MINUTE + 1;
+  establishDiplomaticSuzerainty(diplomacy, {
+    vassalFactionId: "hospitallers",
+    suzerainFactionId: "ottoman",
+    kind: SUZERAINTY_KIND_VASSAL,
+    simMinute: submissionMinute,
+    source: "test-submission",
+    relation: DIPLOMACY_HOSTILE
+  });
+
+  assert.equal(nextTradeEmbargoPoliticsMinute(memory, diplomacy), memory.lastUpdateMinute);
+  const events = advanceTradeEmbargoPolitics(memory, diplomacy, submissionMinute);
+
+  assert.ok(events.some((event) => (
+    event.kind === "lifted" && event.issuerFactionId === "hospitallers" &&
+    event.targetFactionId === "ottoman" && event.source === "submission-to-target"
+  )));
+  assert.equal(activeTradeEmbargoOrders(memory).some((order) => (
+    order.issuerFactionId === "hospitallers" && order.targetFactionId === "ottoman"
+  )), false);
+  const papalOrder = activeTradeEmbargoOrders(memory).find((order) => (
+    order.authorityKind === "papal" && order.targetFactionId === "ottoman"
+  ));
+  assert.equal(papalOrder.followerFactionIds.includes("hospitallers"), false);
+});
+
+test("embargo politics immediately lifts orders against an ally", () => {
+  const memory = createTradeEmbargoMemory({ seedKey: "allied-commerce" });
+  const diplomacy = createWorldDiplomacy({ seedKey: "allied-commerce" });
+  diplomacy.overrides["england|france"] = DIPLOMACY_ALLY;
+  diplomacy.pairLastChangedMinute["england|france"] = 1;
+
+  assert.equal(nextTradeEmbargoPoliticsMinute(memory, diplomacy), memory.lastUpdateMinute);
+  const events = advanceTradeEmbargoPolitics(memory, diplomacy, 1);
+
+  assert.ok(events.some((event) => (
+    event.kind === "lifted" && event.issuerFactionId === "france" &&
+    event.targetFactionId === "england" && event.source === "diplomatic-alliance"
+  )));
+  assert.equal(activeTradeEmbargoOrders(memory).some((order) => (
+    order.issuerFactionId === "france" && order.targetFactionId === "england"
+  )), false);
+});
+
+test("a historical embargo is averted when an upgraded voyage already made the issuer a subject", () => {
+  const startMinute = HOSPITALLER_OTTOMAN_BLOCKADE_MINUTE - 1;
+  const memory = createTradeEmbargoMemory({ startMinute, seedKey: "upgraded-rhodes" });
+  const diplomacy = createWorldDiplomacy({ startMinute, seedKey: "upgraded-rhodes" });
+  establishDiplomaticSuzerainty(diplomacy, {
+    vassalFactionId: "hospitallers",
+    suzerainFactionId: "ottoman",
+    kind: SUZERAINTY_KIND_VASSAL,
+    simMinute: startMinute,
+    source: "existing-save-submission",
+    relation: DIPLOMACY_HOSTILE
+  });
+
+  advanceTradeEmbargoPolitics(memory, diplomacy, HOSPITALLER_OTTOMAN_BLOCKADE_MINUTE);
+
+  assert.equal(memory.historicalTransitions["hospitaller-ottoman-blockade"], "averted");
+  assert.equal(activeTradeEmbargoOrders(memory).some((order) => (
+    order.issuerFactionId === "hospitallers" && order.targetFactionId === "ottoman"
+  )), false);
 });
 
 test("version 1 voyages retain their early English and Hospitaller bans without duplicate transitions", () => {

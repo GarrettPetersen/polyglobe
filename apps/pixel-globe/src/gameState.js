@@ -1858,7 +1858,10 @@ export function nextGamePoliticsMinute(state) {
     nextPapalPoliticsMinute(state.relations.papacy),
     nextCourtPoliticsMinute(state.relations.courts),
     nextImperialPoliticsMinute(state.relations.imperial),
-    nextTradeEmbargoPoliticsMinute(state.relations.tradeEmbargoes),
+    nextTradeEmbargoPoliticsMinute(
+      state.relations.tradeEmbargoes,
+      state.relations.diplomacy
+    ),
     nextSovereignAuthorityMinute(state.relations.authority),
     nextHistoricalDiplomacyMinute(state),
     nextHistoricalSovereigntyMinute(state),
@@ -5228,8 +5231,12 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
   const hostileByStance = factionId !== PIRATE_FACTION_ID &&
     relation === DIPLOMACY_HOSTILE &&
     !suzerainProtectsEntry;
-  const trustedPersonalStanding = state.relations.factionReputation[factionId] >=
-    TRADE_PASS_REPUTATION_REQUIRED;
+  // A court that entrusted this captain with an embassy still knows the
+  // captain personally when relations with their nation sour. The completed
+  // service record also repairs existing saves made after a return embassy.
+  const completedEnvoyService = (state.memory.decisions[`reputation.envoy.${factionId}`] || 0) > 0;
+  const trustedPersonalStanding = completedEnvoyService ||
+    state.relations.factionReputation[factionId] >= TRADE_PASS_REPUTATION_REQUIRED;
   const hostileStanceWaivedByStanding = hostileByStance && trustedPersonalStanding;
   const diplomaticPassage = evaluation.diplomaticPassageFactionIds.has(factionId);
   const safePassage = !catholicContraband && (diplomaticPassage || (

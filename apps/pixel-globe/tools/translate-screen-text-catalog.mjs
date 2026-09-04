@@ -124,6 +124,30 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Visit inn": Object.freeze({
+    "zh-Hans": "前往客栈",
+    ru: "Посетить трактир",
+    es: "Visitar la posada",
+    "pt-BR": "Visitar a estalagem",
+    ja: "宿屋を訪ねる",
+    de: "Gasthaus besuchen",
+    fr: "Visiter l'auberge",
+    pl: "Odwiedź zajazd",
+    "zh-Hant": "前往客棧",
+    ko: "여관 방문"
+  }),
+  "We need to be discreet. One official looking closely at our papers would end this disguise.": Object.freeze({
+    "zh-Hans": "我们得谨慎行事。只要有一名官员仔细查验我们的文书，伪装就会败露。",
+    ru: "Нам следует вести себя осторожно. Стоит чиновнику внимательно проверить наши бумаги — и прикрытие будет раскрыто.",
+    es: "Debemos ser discretos. Bastaría con que un funcionario examinara bien nuestros papeles para descubrir nuestro disfraz.",
+    "pt-BR": "Precisamos ser discretos. Basta um oficial examinar nossos papéis com atenção para desmascarar o disfarce.",
+    ja: "慎重に動かねば。役人に書類を詳しく調べられれば、この変装は見破られる。",
+    de: "Wir müssen unauffällig bleiben. Ein Beamter müsste unsere Papiere nur genauer prüfen, und unsere Tarnung wäre aufgeflogen.",
+    fr: "Nous devons rester discrets. Il suffirait qu’un officier examine nos papiers de près pour découvrir notre déguisement.",
+    pl: "Musimy zachować dyskrecję. Wystarczy, że urzędnik dokładnie sprawdzi nasze dokumenty, a przejrzy nasze przebranie.",
+    "zh-Hant": "我們得謹慎行事。只要有一名官員仔細查驗我們的文書，偽裝就會敗露。",
+    ko: "신중하게 행동해야 해. 관리 한 명이 서류를 자세히 살펴보기만 해도 우리 변장이 들통날 거야."
+  }),
   "Traders carry word of your wealth farther than any ship. Your business shall have first hearing.": Object.freeze({
     "zh-Hans": "商人们把您财富的消息传得比任何船都远。您的生意会得到优先接洽。",
     ru: "Купцы разносят вести о вашем богатстве дальше любого корабля. Ваше дело выслушают первым.",

@@ -9,6 +9,7 @@ import {
   directSuzeraintyBetween,
   defensivePartnersOf,
   establishSuzerainty,
+  factionIsSubjectOf,
   foreignPolicyPrincipal,
   migrateSuzeraintyMemory,
   offensivePartnersOf,
@@ -39,6 +40,9 @@ test("the 1522 world begins with historically grounded suzerainties", () => {
   );
   assert.equal(foreignPolicyPrincipal(memory, "crimea"), "crimea");
   assert.equal(foreignPolicyPrincipal(memory, "burgundian-netherlands"), "spain");
+  assert.equal(factionIsSubjectOf(memory, "crimea", "ottoman"), true);
+  assert.equal(factionIsSubjectOf(memory, "kakizaki", "japan"), true);
+  assert.equal(factionIsSubjectOf(memory, "ottoman", "crimea"), false);
   assert.deepEqual(vassalsOf(memory, "portugal"), ["hormuz"]);
   assert.equal(vassalsOf(memory, "spain").includes("burgundian-netherlands"), false);
   assert.equal(vassalsOf(memory, "ming").includes("joseon"), false);

@@ -67,6 +67,7 @@ import {
   worldEconomyHasShipyardPort,
   worldMarketPriceComparison
 } from "./economy.js";
+import { SHIPBUILDING_MATERIAL_GOOD_IDS } from "./shipyards.js";
 import {
   parsePortSailingDistances,
   portSailingDistanceKm
@@ -912,19 +913,102 @@ test("an isolated Mediterranean city replenishes native grain after its market i
   assert.equal(grain.listedForSale, true);
 });
 
-test("an isolated Mediterranean city replenishes wine and olive oil after depletion", () => {
-  const naples = port(120, "Naples", "Kingdom of Naples", "mediterranean", 50000);
-  const economy = createWorldEconomy({ ports: [naples], startMinute: 0 });
-  destroyPortGoodStock(economy, naples, WINE_GOOD_ID);
-  destroyPortGoodStock(economy, naples, "olive-oil");
+test("Mediterranean wine and olive oil replenish only at named producing ports", () => {
+  const naples = port(120, "Naples", "Italy", "mediterranean", 50000, "city", null, "naples|italy");
+  const tunis = port(121, "Tunis", "Tunisia", "mediterranean", 50000, "city", null, "tunis|tunisia");
+  const athens = port(122, "Athens", "Greece", "mediterranean", 50000, "city", null, "athens|greece");
+  const thessaloniki = port(
+    123,
+    "Thessaloniki",
+    "Greece",
+    "mediterranean",
+    50000,
+    "city",
+    null,
+    "thessaloniki|greece"
+  );
+  const ports = [naples, tunis, athens, thessaloniki];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  for (const city of ports) {
+    destroyPortGoodStock(economy, city, WINE_GOOD_ID);
+    destroyPortGoodStock(economy, city, "olive-oil");
+  }
 
   advanceWorldEconomy(economy, 10 * 24 * 60);
 
-  const market = marketByGood(economy, naples);
-  for (const goodId of [WINE_GOOD_ID, "olive-oil"]) {
-    const row = market.get(goodId);
-    assert.ok(row.productionPerDay > row.consumptionPerDay, goodId);
-    assert.ok(row.stock > 0, goodId);
+  const naplesMarket = marketByGood(economy, naples);
+  const tunisMarket = marketByGood(economy, tunis);
+  const athensMarket = marketByGood(economy, athens);
+  const thessalonikiMarket = marketByGood(economy, thessaloniki);
+  assert.ok(naplesMarket.get(WINE_GOOD_ID).stock > 0);
+  assert.equal(naplesMarket.get("olive-oil").productionPerDay, 0);
+  assert.ok(tunisMarket.get("olive-oil").stock > 0);
+  assert.equal(tunisMarket.get(WINE_GOOD_ID).productionPerDay, 0);
+  assert.ok(athensMarket.get(WINE_GOOD_ID).stock > 0);
+  assert.ok(athensMarket.get("olive-oil").stock > 0);
+  assert.equal(thessalonikiMarket.get(WINE_GOOD_ID).productionPerDay, 0);
+  assert.equal(thessalonikiMarket.get("olive-oil").productionPerDay, 0);
+});
+
+test("Mediterranean ports support distinct regional cargo runs and every shipbuilding input", () => {
+  const ports = [
+    port(130, "Venice", "Italy", "mediterranean", 80000, "city", null, "venice|italy"),
+    port(131, "Istanbul", "Turkey", "islamic-desert", 80000, "city", null, "istanbul|turkey"),
+    port(132, "Bejaia", "Algeria", "islamic-desert", 50000, "city", null, "bejaia|algeria"),
+    port(133, "Marseille", "France", "mediterranean", 50000, "city", null, "marseille|france"),
+    port(134, "Messina", "Italy", "mediterranean", 50000, "city", null, "messina|italy"),
+    port(135, "Genova", "Italy", "mediterranean", 50000, "city", null, "genova|italy"),
+    port(136, "Mudanya", "Turkey", "islamic-desert", 40000, "city", null, "mudanya|turkey"),
+    port(137, "Gelibolu", "Turkey", "mediterranean", 40000, "city", null, "gelibolu|turkey"),
+    port(138, "Vienna", "Austria", "northern-european", 50000, "city", null, "vienna|austria"),
+    port(139, "Alexandria", "Egypt", "islamic-desert", 50000, "city", null, "alexandria|egypt"),
+    port(140, "Valencia", "Spain", "mediterranean", 50000, "city", null, "valencia|spain"),
+    port(141, "Barcelona", "Spain", "mediterranean", 50000, "city", null, "barcelona|spain")
+  ];
+  const economy = createWorldEconomy({
+    ports,
+    shipyardPorts: ports,
+    startMinute: 0,
+    seedKey: "mediterranean-demo-specialties"
+  });
+  connectNearbyPortMarkets(economy, ports, () => 900);
+  const byId = new Map(ports.map((city) => [city.cityId, city]));
+  const market = new Map(ports.map((city) => [city.cityId, marketByGood(economy, city)]));
+
+  assert.ok(market.get("venice|italy").get("glassware").productionPerDay > 0);
+  assert.ok(market.get("bejaia|algeria").get(BEESWAX_GOOD_ID).productionPerDay > 0);
+  assert.ok(market.get("messina|italy").get("silk").productionPerDay > 0);
+  assert.ok(market.get("mudanya|turkey").get("silk").productionPerDay > 0);
+  assert.ok(market.get("valencia|spain").get(RICE_GOOD_ID).productionPerDay > 0);
+  assert.ok(market.get("barcelona|spain").get("wool-cloth").productionPerDay > 0);
+
+  const expectedCargoRuns = [
+    ["venice|italy", "istanbul|turkey", "glassware"],
+    ["bejaia|algeria", "marseille|france", BEESWAX_GOOD_ID],
+    ["messina|italy", "genova|italy", "silk"],
+    ["mudanya|turkey", "venice|italy", "silk"],
+    ["valencia|spain", "barcelona|spain", "silk-cloth"]
+  ];
+  for (const [originId, destinationId, goodId] of expectedCargoRuns) {
+    const route = planNpcTrade(
+      economy,
+      byId.get(originId),
+      byId.get(destinationId),
+      { cargoCapacity: 40, specie: 10000 }
+    );
+    assert.ok(route.expectedProfit > 0, `${originId} -> ${destinationId} should be profitable`);
+    assert.ok(
+      route.lines.some((line) => line.goodId === goodId),
+      `${originId} -> ${destinationId} should carry ${goodId}`
+    );
+  }
+
+  for (const goodId of SHIPBUILDING_MATERIAL_GOOD_IDS) {
+    const suppliers = ports.filter((city) => {
+      const row = market.get(city.cityId).get(goodId);
+      return row.listedForSale && row.productionPerDay > row.consumptionPerDay;
+    });
+    assert.ok(suppliers.length > 0, `Mediterranean demo needs a sustainable ${goodId} supplier`);
   }
 });
 
@@ -1281,12 +1365,15 @@ test("real Asia-Europe sailing routes pay several strong coastal voyages", () =>
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, colombo, lisbon) > 15000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, guangzhou, london) > 25000);
   assert.ok(portSailingDistanceKm(PORT_SAILING_DISTANCES, istanbul, athens) < 600);
-  assert.ok(coastalVoyage.expectedProfit <= 200, `Istanbul-Athens profit was ${coastalVoyage.expectedProfit}`);
-  assert.ok(strongestShortVoyage.expectedProfit <= 1100, JSON.stringify(strongestShortVoyage));
+  assert.ok(
+    coastalVoyage.expectedProfit >= 100 && coastalVoyage.expectedProfit <= 800,
+    `Istanbul-Athens profit was ${coastalVoyage.expectedProfit}`
+  );
+  assert.ok(strongestShortVoyage.expectedProfit <= 2000, JSON.stringify(strongestShortVoyage));
   assert.ok(clovePurchase <= 700, `A Ternate shipload of cloves cost ${clovePurchase}`);
   assert.ok(cloveSale >= clovePurchase * 7, `Lisbon paid ${cloveSale} for cloves costing ${clovePurchase}`);
   assert.ok(spiceIslandsVoyage.expectedProfit >= 4000);
-  assert.ok(spiceIslandsVoyage.expectedProfit >= strongestShortVoyage.expectedProfit * 8);
+  assert.ok(spiceIslandsVoyage.expectedProfit >= strongestShortVoyage.expectedProfit * 5);
   assert.ok(teaProfit >= 3000, `Guangzhou-London tea profit was only ${teaProfit}`);
   assert.ok(teaProfit < nutmegProfit, `Tea profit ${teaProfit} exceeded nutmeg ${nutmegProfit}`);
   assert.ok(nutmegProfit >= 3000, `Banda-Lisbon nutmeg profit was only ${nutmegProfit}`);

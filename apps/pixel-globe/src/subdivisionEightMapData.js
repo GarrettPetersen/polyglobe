@@ -20,6 +20,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
     125890,
     125893,
     125896,
+    160967,
     394774,
     394877,
     502393,

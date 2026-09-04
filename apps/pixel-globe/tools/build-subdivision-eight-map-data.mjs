@@ -210,6 +210,10 @@ cityRiverChains["tours|france"] = toursLoireRoute;
 cityRiverChains["angers|france"] = angersLoireRoute;
 cityRiverChains["coimbra|portugal"] = coimbraMondegoRoute;
 const shallowWaterTileIdSet = new Set(shallowWaterGroups.flatMap(refineChain));
+// The fine globe's land mask exaggerates the small island at the Loire mouth
+// into a blocking coastal hex. Keep the authored river route but restore this
+// estuary tile to navigable shallows.
+shallowWaterTileIdSet.add(160967);
 const lakeMalawiCorridor = routeThroughCoordinates([
   { lat: -9.5, lon: 34.3 },
   { lat: -10.5, lon: 34.35 },

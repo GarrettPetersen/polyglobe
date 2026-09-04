@@ -41,6 +41,7 @@ export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
 
 export const PORT_ASSAULT_STEP_MS = 200;
 export const PORT_ASSAULT_MAX_DURATION_MS = 120_000;
+export const PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS = 1_800;
 export const PORT_ASSAULT_FORECAST_SAMPLES = 32;
 export const PORT_ASSAULT_MIN_GARRISON = 5;
 export const PORT_ASSAULT_MAX_GARRISON = 35;
@@ -687,7 +688,7 @@ export function portAssaultPresentationAt(battle, elapsedMs) {
     shipMaxHitPoints: battle.maxShipHitPoints,
     units: Object.freeze(units),
     events: Object.freeze(battle.events.filter((event) => (
-      event.timeMs > elapsedMs - eventPresentationDurationMs(event.type) && event.timeMs <= elapsedMs
+      event.timeMs > elapsedMs - eventPresentationDurationMs(event) && event.timeMs <= elapsedMs
     )))
   });
 }
@@ -735,7 +736,11 @@ export function portAssaultShipImpactShakeAt(battle, elapsedMs, { reducedMotion 
   return Object.freeze({ x: direction.x * amplitude, y: direction.y * amplitude });
 }
 
-function eventPresentationDurationMs(type) {
+function eventPresentationDurationMs(event) {
+  const type = event?.type;
+  if (type === "attack" && event.attackType === PORT_ASSAULT_ATTACK_TYPE.FIREARM) {
+    return PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS;
+  }
   if (["splash", "dock-land", "death"].includes(type)) return 500;
   if (["attack", "hit"].includes(type)) return 360;
   if (type === "block") return 220;
@@ -822,6 +827,8 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events) {
     unitId: attacker.id,
     targetId: target.id,
     attackType: attackProfile.attackType,
+    position: attacker.position,
+    lane: attacker.lane,
     chargeMomentum
   });
   const matchupMultiplier = target.stats.mounted
