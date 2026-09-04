@@ -85,7 +85,6 @@ const appEntries = [
 
 const cityVisualizerEntries = [
   ["city-visualizer/index.html", "city-visualizer/index.html"],
-  ["city-visualizer/bootstrap.js", "city-visualizer/bootstrap.js"],
   ["city-visualizer/styles.css", "city-visualizer/styles.css"],
   ["city-visualizer/assets", "city-visualizer/assets"],
   ["city-visualizer/data", "city-visualizer/data"]
@@ -553,8 +552,8 @@ async function bundleBrowserRuntime() {
 async function bundleCityVisualizer() {
   await build({
     bundle: true,
-    entryPoints: [join(appRoot, "city-visualizer/main.js")],
-    outfile: join(distRoot, "city-visualizer/main.js"),
+    entryPoints: [join(appRoot, "city-visualizer/bootstrap.js")],
+    outfile: join(distRoot, "city-visualizer/bootstrap.js"),
     format: "esm",
     platform: "browser",
     target: "es2022",

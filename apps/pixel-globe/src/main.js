@@ -5028,7 +5028,8 @@ async function main() {
     usedCharacterNames,
     {
       excludedSourceIds: playerPortraitSourceExclusions(playerCharacter),
-      homeCitiesById: cityById
+      homeCitiesById: cityById,
+      captainIdentitiesByShipId: storedTreasurePirateCaptainIdentities(npcSeaRoutes.ships)
     }
   );
   if (!CAPTURE_SCENARIO) synchronizeTreasurePirateCaptains();
@@ -8792,6 +8793,28 @@ function synchronizeTreasurePirateCaptains() {
     }
   }
   return changed;
+}
+
+function storedTreasurePirateCaptainIdentities(activeShips) {
+  if (!Array.isArray(activeShips)) {
+    throw new Error("Treasure captain identity restore requires the active NPC fleet");
+  }
+  const goal = activeTreasureCampaignGoal();
+  if (!goal || goal.mapPirates.length === 0) return new Map();
+  const activeShipIds = new Set(activeShips.map(({ id }) => id));
+  const identities = new Map();
+  for (const pirate of goal.mapPirates) {
+    if (!activeShipIds.has(pirate.shipId)) continue;
+    if (pirate.captainId === null || pirate.captainId === undefined) continue;
+    if (typeof pirate.captainName !== "string" || pirate.captainName === "") {
+      throw new Error(`Treasure pirate ${pirate.id} has a captain id without a name`);
+    }
+    identities.set(pirate.shipId, Object.freeze({
+      id: pirate.captainId,
+      name: pirate.captainName
+    }));
+  }
+  return identities;
 }
 
 function repairLegacyPointEncounterCaptainHomes() {
@@ -16450,7 +16473,8 @@ async function restoreSavedVoyage(payload) {
     usedCharacterNames,
     {
       excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
-      homeCitiesById: cityById
+      homeCitiesById: cityById,
+      captainIdentitiesByShipId: storedTreasurePirateCaptainIdentities(npcSeaRoutes.ships)
     }
   );
   reconcileEnglishReformationCharacters();
@@ -36714,7 +36738,11 @@ function ensureNpcShipCaptain(npcShipId) {
     npcShipCaptains,
     characterPortraitManifest,
     usedCharacterNames,
-    { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+    {
+      excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter),
+      homeCitiesById: cityById,
+      captainIdentitiesByShipId: storedTreasurePirateCaptainIdentities([strategic])
+    }
   );
   const character = additions.get(npcShipId);
   if (!character) throw new Error(`NPC captain reconciliation produced no captain: ${npcShipId}`);

@@ -5,6 +5,10 @@ import {
 } from "./cityPeopleCatalog.js";
 import { PORT_ASSAULT_PROFILE_ID } from "../src/portAssaultBattle.js";
 import { PORT_CITY_STAFF_ROLE } from "../src/characterPortraits.js";
+import {
+  isIslamicReligion,
+  religionCandidatesForHome
+} from "../src/characterReligion.js";
 
 const EAST_ASIAN_COUNTRY_PROFILE = Object.freeze({
   China: "ming",
@@ -273,7 +277,7 @@ const COMBAT_PROFILE_BY_ARCHETYPE_ID = Object.freeze({
 validateCatalog();
 
 export function cityPopulationProfileId(city) {
-  const cityId = requireCity(city);
+  requireCity(city);
   if (city.factionId === "ainu") return "ainu";
   if (city.cityType === "east-asian") {
     const profileId = EAST_ASIAN_COUNTRY_PROFILE[city.country];
@@ -281,14 +285,9 @@ export function cityPopulationProfileId(city) {
     return profileId;
   }
   if (city.cityType === "sub-saharan") {
-    if (!Array.isArray(city.religiousLandmarks)) {
-      // Founded-colony runtime records deliberately omit visual landmark data.
-      // Their local recruitment pool remains African unless the baked scene
-      // explicitly identifies an Islamicate population through its mosque.
-      if (city.playerFoundedColony === true) return "african";
-      throw new Error(`City population profile requires religious landmarks: ${cityId}`);
-    }
-    return city.religiousLandmarks.includes("mosque") ? "african-islamicate" : "african";
+    const hasIslamicCommunity = religionCandidatesForHome(city)
+      .some(({ id }) => isIslamicReligion(id));
+    return hasIslamicCommunity ? "african-islamicate" : "african";
   }
   const profileId = {
     "northern-european": "european",

@@ -44,6 +44,7 @@ const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const DIST_ROOT = path.join(APP_ROOT, "dist");
 const FIXTURE_ROOT = path.join(APP_ROOT, "src/test-fixtures/saves");
 const RESTORE_TIMEOUT_MS = 10 * 60 * 1000;
+const CITY_VISUALIZER_TIMEOUT_MS = 60 * 1000;
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -86,6 +87,45 @@ try {
   const page = await context.newPage();
   const browserErrors = [];
   page.on("pageerror", (error) => browserErrors.push(error.message));
+  const cityStartedAt = performance.now();
+  await page.goto(`${baseUrl}/city-visualizer/`, {
+    waitUntil: "domcontentloaded",
+    timeout: 30_000
+  });
+  try {
+    await page.waitForFunction(
+      () => {
+        const canvas = document.querySelector("#scene");
+        const loading = document.querySelector("#loading");
+        return loading?.hidden === true &&
+          canvas?.getAttribute("aria-label") !== "Loading city view";
+      },
+      null,
+      { timeout: CITY_VISUALIZER_TIMEOUT_MS }
+    );
+  } catch (error) {
+    const cityFailureState = await page.evaluate(() => ({
+      label: document.querySelector("#scene")?.getAttribute("aria-label") || null,
+      loadingText: document.querySelector("#loading")?.textContent?.trim() || null,
+      loadingHidden: document.querySelector("#loading")?.hidden ?? null
+    }));
+    throw new Error(
+      `Standalone city visualizer did not initialize: ${JSON.stringify(cityFailureState)}\n` +
+      `${browserErrors.join("\n") || error.message}`
+    );
+  }
+  await assertNoBrowserFailure(page, browserErrors, "standalone city visualizer initialization");
+  const cityState = await page.evaluate(() => ({
+    label: document.querySelector("#scene")?.getAttribute("aria-label"),
+    cityOptions: document.querySelector("#city-select")?.options.length ?? 0
+  }));
+  if (typeof cityState.label !== "string" || cityState.label.length === 0 || cityState.cityOptions === 0) {
+    throw new Error("Standalone city visualizer initialized without a city scene and catalog");
+  }
+  process.stdout.write(
+    `Standalone city visualizer initialized in ${Math.round(performance.now() - cityStartedAt)} ms\n`
+  );
+
   const startedAt = performance.now();
   await page.goto(`${baseUrl}/?saveRestoreSmoke=1`, {
     waitUntil: "domcontentloaded",
@@ -255,7 +295,9 @@ async function startStaticServer() {
     try {
       const requestUrl = new URL(request.url || "/", "http://127.0.0.1");
       const pathname = decodeURIComponent(requestUrl.pathname);
-      const relativePath = pathname === "/" ? "index.html" : pathname.replace(/^\/+/, "");
+      const relativePath = pathname.endsWith("/")
+        ? `${pathname.replace(/^\/+/, "")}index.html`
+        : pathname.replace(/^\/+/, "");
       const filePath = path.resolve(DIST_ROOT, relativePath);
       const relation = path.relative(DIST_ROOT, filePath);
       if (relation.startsWith("..") || path.isAbsolute(relation)) {

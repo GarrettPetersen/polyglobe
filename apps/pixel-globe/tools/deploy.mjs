@@ -113,29 +113,24 @@ async function verifyRemoteCityVisualizer({ baseUrl, attempts, retryDelayMs }) {
 
       const bootstrapUrl = new URL("city-visualizer/bootstrap.js", baseUrl);
       bootstrapUrl.search = cacheBust;
-      const scriptUrl = new URL("city-visualizer/main.js", baseUrl);
-      scriptUrl.search = cacheBust;
       const catalogUrl = new URL("city-visualizer/data/cities.json", baseUrl);
       catalogUrl.search = cacheBust;
       const atlasUrl = new URL("city-visualizer/assets/port-parallax/static.png", baseUrl);
       atlasUrl.search = cacheBust;
-      const [bootstrapResponse, scriptResponse, catalogResponse, atlasResponse] = await Promise.all([
+      const [bootstrapResponse, catalogResponse, atlasResponse] = await Promise.all([
         fetch(bootstrapUrl, { cache: "no-store" }),
-        fetch(scriptUrl, { cache: "no-store" }),
         fetch(catalogUrl, { cache: "no-store" }),
         fetch(atlasUrl, { cache: "no-store", method: "HEAD" })
       ]);
       if (!bootstrapResponse.ok) {
         throw new Error(`city visualizer bootstrap returned HTTP ${bootstrapResponse.status}`);
       }
-      if (!(await bootstrapResponse.text()).includes("createCitySceneRuntime")) {
+      const bootstrap = await bootstrapResponse.text();
+      if (!bootstrap.includes("createCitySceneRuntime") || bootstrap.length < 10_000) {
         throw new Error("city visualizer bootstrap does not initialize the reusable runtime");
       }
-      if (!scriptResponse.ok) {
-        throw new Error(`city visualizer bundle returned HTTP ${scriptResponse.status}`);
-      }
-      if ((await scriptResponse.text()).length < 10_000) {
-        throw new Error("city visualizer bundle is unexpectedly small");
+      if (/^\s*import\s/m.test(bootstrap)) {
+        throw new Error("city visualizer bootstrap retained an unbundled static import");
       }
       if (!catalogResponse.ok) {
         throw new Error(`city visualizer catalog returned HTTP ${catalogResponse.status}`);

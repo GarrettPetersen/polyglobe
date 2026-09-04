@@ -63,6 +63,15 @@ test("every port has an explicit reproducible population profile", () => {
   }
 });
 
+test("population profiles do not depend on visual landmark metadata", () => {
+  for (const city of catalog.cities) {
+    const runtimeCity = { ...city };
+    delete runtimeCity.religiousLandmarks;
+    delete runtimeCity.backgroundCity;
+    assert.equal(cityPopulationProfileId(runtimeCity), city.populationProfileId, city.id);
+  }
+});
+
 test("every garrison appearance maps to a combat type and complete combat animations", () => {
   const exportedById = new Map(manifest.appearances.map((entry) => [entry.id, entry]));
   for (const profile of CITY_POPULATION_PROFILES) {

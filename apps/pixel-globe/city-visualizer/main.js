@@ -224,7 +224,8 @@ import {
 import {
   cityDestinationLabelContainsPoint,
   cityDestinationLeader,
-  layoutCityDestinationLabels
+  layoutCityDestinationLabels,
+  retainAvailableCityDestinationLabelPin
 } from "./cityDestinationLabels.js";
 import {
   cityGuardApproachEndX,
@@ -3896,11 +3897,23 @@ function prepareDestinationLabelLayouts() {
         preferredSide: destination.id === PORT_CITY_LOCATION.SHIP ? "left" : "above"
       });
     });
+  const retainedPin = retainAvailableCityDestinationLabelPin(
+    state.pinnedDestinationLabel,
+    entries
+  );
+  if (state.pinnedDestinationLabel !== null && retainedPin === null) {
+    const releasedDestinationId = state.pinnedDestinationLabel.id;
+    state.pinnedDestinationLabel = null;
+    if (state.hoverPanDestinationId === releasedDestinationId) {
+      state.hoverPanDestinationId = null;
+      state.cameraPanTarget = null;
+    }
+  }
   state.destinationLabelLayouts = layoutCityDestinationLabels({
     entries,
     viewportWidth: canvas.width,
     viewportHeight: canvas.height,
-    pinnedLabel: state.pinnedDestinationLabel
+    pinnedLabel: retainedPin
   });
   state.destinationLabelLayoutParallax = state.parallax;
 }

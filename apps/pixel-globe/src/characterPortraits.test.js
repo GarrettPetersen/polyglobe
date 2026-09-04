@@ -1383,6 +1383,56 @@ test("missing NPC captain assignments are reconciled without replacing existing 
   );
 });
 
+test("stored NPC captain identity survives a changed derived fleet roster", () => {
+  const ships = Array.from({ length: 3 }, (_, index) => ({
+    id: `persistent-pirate-${index + 1}`,
+    slug: "pirate-brig",
+    role: "pirate",
+    profileId: "atlantic-coast",
+    currentPort: {
+      routeRegion: "atlantic-coast",
+      cityId: "lisbon|portugal",
+      city: "Lisbon",
+      country: "Portugal",
+      cityType: "mediterranean",
+      factionId: "portugal",
+      lat: 38.7,
+      lon: -9.1
+    }
+  }));
+  const initial = assignNpcShipCaptains(ships, GENERATED_MANIFEST, new Set());
+  const persisted = initial.get("persistent-pirate-3");
+  const restored = assignNpcShipCaptains(
+    [ships[2]],
+    GENERATED_MANIFEST,
+    new Set(),
+    {
+      captainIdentitiesByShipId: new Map([[
+        ships[2].id,
+        { id: persisted.id, name: persisted.name }
+      ]])
+    }
+  ).get(ships[2].id);
+
+  assert.equal(restored.id, persisted.id);
+  assert.equal(restored.name, persisted.name);
+  assert.equal(restored.sourceId, persisted.sourceId);
+  assert.throws(
+    () => assignNpcShipCaptains(
+      [ships[2]],
+      GENERATED_MANIFEST,
+      new Set(),
+      {
+        captainIdentitiesByShipId: new Map([[
+          "missing-pirate",
+          { id: persisted.id, name: persisted.name }
+        ]])
+      }
+    ),
+    /references a missing ship: missing-pirate/
+  );
+});
+
 test("a reserved player portrait source is never reused by NPC generators", () => {
   const reservedSourceId = "knight-portrait-pack-by-captainskeleto-knight-portrait";
   const exclusions = { excludedSourceIds: [reservedSourceId] };

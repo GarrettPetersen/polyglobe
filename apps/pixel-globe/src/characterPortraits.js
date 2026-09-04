@@ -342,10 +342,23 @@ export function assignNpcShipCaptains(
   npcShips,
   manifest,
   usedNames,
-  { excludedSourceIds = [], homeCitiesById = null } = {}
+  {
+    excludedSourceIds = [],
+    homeCitiesById = null,
+    captainIdentitiesByShipId = new Map()
+  } = {}
 ) {
   validateCharacterPortraitManifest(manifest);
   assertUsedNames(usedNames);
+  if (!(captainIdentitiesByShipId instanceof Map)) {
+    throw new Error("NPC captain identities must be indexed by canonical ship id");
+  }
+  const shipIds = new Set(npcShips.map((ship) => ship.id));
+  for (const shipId of captainIdentitiesByShipId.keys()) {
+    if (!shipIds.has(shipId)) {
+      throw new Error(`Stored NPC captain identity references a missing ship: ${shipId}`);
+    }
+  }
   const assignments = new Map();
   const used = new Set();
   const excluded = sourceIdExclusionSet(excludedSourceIds);
@@ -363,7 +376,10 @@ export function assignNpcShipCaptains(
         excludedSourceIds
       });
     const identityKey = `captain|${ship.id}`;
-    const character = assignCharacterSprite(identityKey, region, sourcePool, used);
+    const storedIdentity = captainIdentitiesByShipId.get(ship.id) || null;
+    const character = storedIdentity
+      ? assignStoredCharacterSprite(identityKey, region, sourcePool, used, storedIdentity)
+      : assignCharacterSprite(identityKey, region, sourcePool, used);
     const homeCity = npcCaptainHomeCity(ship, homeCitiesById);
     assignments.set(ship.id, {
       ...character,
@@ -373,6 +389,7 @@ export function assignNpcShipCaptains(
         character,
         usedNames
       }),
+      ...(storedIdentity ? { name: storedIdentity.name } : {}),
       npcShipId: ship.id,
       role: "captain"
     });
@@ -817,6 +834,32 @@ function assignCharacterSprite(key, region, sourcePool, used, { minimumAge = nul
     region,
     source,
     ageForSource(key, source, minimumAge)
+  );
+}
+
+function assignStoredCharacterSprite(key, region, sourcePool, used, storedIdentity) {
+  if (typeof storedIdentity?.id !== "string" || storedIdentity.id === "") {
+    throw new Error(`Stored character has no canonical id: ${key}`);
+  }
+  if (typeof storedIdentity.name !== "string" || storedIdentity.name === "") {
+    throw new Error(`Stored character has no name: ${storedIdentity.id}`);
+  }
+  const identitySuffix = hashString32(key).toString(16).padStart(8, "0");
+  const source = sourcePool.find(({ id }) => (
+    storedIdentity.id === `${id}-${identitySuffix}`
+  ));
+  if (!source) {
+    throw new Error(`Stored character identity is incompatible with ${key}: ${storedIdentity.id}`);
+  }
+  const sourceTicket = portraitSourceTickets([source]).find(({ ticketId }) => !used.has(ticketId)) ||
+    portraitSourceTickets([source])[0];
+  if (!sourceTicket) throw new Error(`Stored character source has no portrait ticket: ${source.id}`);
+  used.add(sourceTicket.ticketId);
+  return assignedCharacter(
+    storedIdentity.id,
+    region,
+    source,
+    ageForSource(key, source)
   );
 }
 

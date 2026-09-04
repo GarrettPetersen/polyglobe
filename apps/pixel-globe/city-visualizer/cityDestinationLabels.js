@@ -94,6 +94,15 @@ export function cityDestinationLabelContainsPoint(label, x, y) {
     y >= label.y && y < label.y + label.height;
 }
 
+export function retainAvailableCityDestinationLabelPin(pinnedLabel, entries) {
+  const pin = validatePinnedLabelShape(pinnedLabel);
+  if (pin === null) return null;
+  if (!Array.isArray(entries)) {
+    throw new Error("City destination label pin reconciliation requires entries");
+  }
+  return entries.some(({ id }) => id === pin.id) ? pin : null;
+}
+
 export function cityDestinationLeader(label, viewportWidth, viewportHeight) {
   validatePlacedLabel(label);
   requireViewport(viewportWidth, viewportHeight);
@@ -234,14 +243,20 @@ function validatePlacedLabel(label) {
 }
 
 function validatedPinnedLabel(pinnedLabel, entries) {
+  const pin = validatePinnedLabelShape(pinnedLabel);
+  if (pin === null) return null;
+  if (!entries.some(({ id }) => id === pin.id)) {
+    throw new Error(`Pinned city destination label is unavailable: ${pin.id}`);
+  }
+  return pin;
+}
+
+function validatePinnedLabelShape(pinnedLabel) {
   if (pinnedLabel === null) return null;
   if (!pinnedLabel || typeof pinnedLabel !== "object" || Array.isArray(pinnedLabel) ||
       typeof pinnedLabel.id !== "string" || pinnedLabel.id.length === 0 ||
       ![pinnedLabel.x, pinnedLabel.y].every(Number.isInteger)) {
     throw new Error("Invalid pinned city destination label");
-  }
-  if (!entries.some(({ id }) => id === pinnedLabel.id)) {
-    throw new Error(`Pinned city destination label is unavailable: ${pinnedLabel.id}`);
   }
   return pinnedLabel;
 }

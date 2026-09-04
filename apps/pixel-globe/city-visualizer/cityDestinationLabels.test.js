@@ -7,7 +7,8 @@ import {
   CITY_DESTINATION_LABEL_TOP_PX,
   cityDestinationLabelContainsPoint,
   cityDestinationLeader,
-  layoutCityDestinationLabels
+  layoutCityDestinationLabels,
+  retainAvailableCityDestinationLabelPin
 } from "./cityDestinationLabels.js";
 
 test("every city destination stays on a narrow screen without labels overlapping", () => {
@@ -134,6 +135,22 @@ test("a hovered label stays under the pointer while other labels reflow around i
   );
   assert.equal(overlaps(pinnedMarket, movedInn), false);
   assert.deepEqual(moved.map(({ id }) => id), entries.map(({ id }) => id));
+});
+
+test("a pinned offscreen label is released when its in-world control replaces it", () => {
+  const pin = { id: "set-sail", x: 4, y: 180 };
+  assert.equal(
+    retainAvailableCityDestinationLabelPin(pin, [
+      entry("set-sail", "Set Sail", 52, { x: -350, y: 190 })
+    ]),
+    pin
+  );
+  assert.equal(
+    retainAvailableCityDestinationLabelPin(pin, [
+      entry("ship", "Your ship", 64, { x: 128, y: 158 })
+    ]),
+    null
+  );
 });
 
 test("malformed and impossible destination label layouts fail loudly", () => {
