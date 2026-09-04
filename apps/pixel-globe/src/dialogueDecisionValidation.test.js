@@ -42,3 +42,25 @@ test("informational dialogue may still have a single back option", () => {
   const view = { options: [choice("Back")] };
   assert.equal(validateDialogueDecision(view, "Test quest"), view);
 });
+
+test("dialogue text tones are validated before a view reaches the renderer", () => {
+  assert.throws(
+    () => validateDialogueDecision({
+      feedbackTone: "bad",
+      options: [choice("Back")]
+    }, "Test quest"),
+    /unknown feedback text tone: bad/
+  );
+  assert.throws(
+    () => validateDialogueDecision({
+      options: [{ ...choice("Proceed"), detailTone: "warning" }]
+    }, "Test quest"),
+    /unknown option "Proceed" detail text tone: warning/
+  );
+  const view = {
+    bodyTone: "danger",
+    feedbackTone: "success",
+    options: [{ ...choice("Proceed"), detailTone: "muted" }]
+  };
+  assert.equal(validateDialogueDecision(view, "Test quest"), view);
+});

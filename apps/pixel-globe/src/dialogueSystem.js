@@ -2031,7 +2031,9 @@ export function selectPortDialogueOption(
     acknowledgePlayerPortCustomsNotice(gameState, city, session.customsNoticeKey);
     session.customsNoticeKey = null;
   }
-  if (rootActionOrigin) session.cityMenuLocationId = null;
+  // Host-handled actions such as waiting in port still resolve the active city
+  // before replacing this session. Keep a city-menu session internally valid
+  // throughout that handoff; later nodes ignore the retained location.
   if (action.type === "close") return { closed: true };
   if (action.type === "open-crew-recruitment") {
     if (typeof context.prepareCrewRecruitment !== "function") {
@@ -3637,6 +3639,26 @@ function passengerDialogueContentView(session, city, quest, gameState) {
       options: [option("Continue the circuit", { type: "close" })]
     };
   }
+  if (session.religiousParticipationUnderway) {
+    if (!isReligiousPassengerQuest(quest) ||
+        !captainCanParticipateInReligiousMission(gameState, quest)) {
+      throw new Error("Religious mission participation is no longer valid");
+    }
+    const participation = religiousMissionParticipation(quest);
+    return {
+      speaker,
+      expressionId: "happy",
+      text: participation.text,
+      feedback: session.feedback,
+      options: [
+        option(
+          `Complete the mission  ${quest.reward + participation.bonusDoubloons} db`,
+          { type: "complete-religious-mission" },
+          { iconId: religiousMissionIconId(quest) }
+        )
+      ]
+    };
+  }
   if (session.eastAsianLegDelivery && !session.eastAsianLegDelivery.final) {
     const remaining = joinedNames(session.eastAsianLegDelivery.remainingDestinationNames);
     return {
@@ -3879,22 +3901,6 @@ function passengerDialogueContentView(session, city, quest, gameState) {
         ]
       };
     }
-    if (isReligiousPassengerQuest(quest) && session.religiousParticipationUnderway) {
-      const participation = religiousMissionParticipation(quest);
-      return {
-        speaker,
-        expressionId: "happy",
-        text: participation.text,
-        feedback: session.feedback,
-        options: [
-          option(
-            `Complete the mission  ${quest.reward + participation.bonusDoubloons} db`,
-            { type: "complete-religious-mission" },
-            { iconId: religiousMissionIconId(quest) }
-          )
-        ]
-      };
-    }
     const hajjQuest = isHajjPassengerQuest(quest);
     const captainCanJoinHajj = hajjQuest && muslimCaptainCanUndertakeHajj(gameState);
     const religiousQuest = isReligiousPassengerQuest(quest);
@@ -3936,6 +3942,12 @@ function passengerDialogueContentView(session, city, quest, gameState) {
     };
   }
   if (active?.id === quest.id) {
+    const remainingReligiousStops = isMultiPortReligiousMission(quest)
+      ? questDestinationStops(quest)
+      : null;
+    if (remainingReligiousStops?.length === 0) {
+      throw new Error("Completed religious itinerary has no pending completion dialogue");
+    }
     return {
       speaker,
       expressionId: "attentive",
@@ -3948,7 +3960,7 @@ function passengerDialogueContentView(session, city, quest, gameState) {
           )}. We may visit the remaining ports in any order.`
         : isMultiPortReligiousMission(quest)
           ? `The next bundles are bound for ${quest.destinationName}. ` +
-            `${quest.itinerary.stops.length - quest.itinerary.completedTileIds.length} deliveries remain.`
+            `${remainingReligiousStops.length} deliveries remain.`
           : quest.dialogue?.underway || `I am bound for ${quest.destinationName}.`,
       feedback: session.feedback,
       options: [
@@ -5047,7 +5059,7 @@ function illicitCaughtView(session, city) {
     expressionId: "angry",
     text: "Hold there! The merchant bolts into the crowd as the harbor watch closes around you.",
     feedback: session.feedback,
-    feedbackTone: "bad",
+    feedbackTone: "danger",
     options: [option("Back to city", { type: "node", nodeId: "root" })]
   };
 }

@@ -10,6 +10,7 @@ import {
   diplomacyBetweenForState,
   factionReputation,
   negotiateEnvoyQuest,
+  questStateForCity,
   recordTributeTheft,
   recordWokouHuntVictory,
   tributeSaleTheftStatus,
@@ -227,6 +228,51 @@ test("Ming and Japanese capitals can commission a persistent wokou hunt", () => 
   assert.equal(recordWokouHuntVictory(state, offer.targetShipId, { simMinute: 600 }).stage, "return");
   completeQuest(state, BEIJING, { simMinute: 800 });
   assert.equal(state.memory.quests.completed[offer.id], true);
+});
+
+test("a pending wokou commission cannot be accepted while a passenger is aboard", () => {
+  const state = stateFor("ming", 30);
+  adjustFactionReputation(state, "ming", 20 - factionReputation(state, "ming"));
+  const ports = [BEIJING, NINGBO];
+  const offer = wokouHuntMissionOfferForCity(state, BEIJING, ports, {
+    simMinute: 0,
+    spawnChance: 1
+  });
+  const passenger = {
+    id: "passenger-diplomatic-test",
+    kind: "passenger",
+    originKey: BEIJING.cityId,
+    originCityId: BEIJING.cityId,
+    originTileId: BEIJING.tileId,
+    originName: BEIJING.city,
+    destinationKey: NINGBO.cityId,
+    destinationCityId: NINGBO.cityId,
+    destinationTileId: NINGBO.tileId,
+    destinationName: NINGBO.city,
+    destinationCountry: NINGBO.country,
+    distanceKm: 200,
+    reward: 100,
+    passenger: {
+      id: "passenger:test-diplomatic-passenger",
+      name: "Lin Mei",
+      expressions: ["neutral"]
+    }
+  };
+  acceptQuest(state, passenger);
+
+  assert.deepEqual(questStateForCity(state, BEIJING, ports), {
+    kind: "busy",
+    quest: state.memory.quests.passengerActive
+  });
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const session = createPortDialogueSession(BEIJING, {
+    initialNodeId: "quest",
+    admittedToPort: true
+  });
+  const view = portDialogueView(session, BEIJING, state, economy, ports);
+  assert.equal(view.options.some(({ action }) => action.type === "accept-quest"), false);
+  assert.match(view.text, /finish that passage first/i);
+  assert.equal(isWokouHuntQuest(offer), true);
 });
 
 function stateFor(nationalityId, cargoCapacity) {

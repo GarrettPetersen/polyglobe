@@ -12,10 +12,19 @@ const DISMISSAL_LABELS = new Set([
   "turn away"
 ]);
 
+const DIALOGUE_TEXT_TONES = new Set([
+  "danger",
+  "ink",
+  "muted",
+  "success"
+]);
+
 export function validateDialogueDecision(view, contextLabel) {
   if (!view || !Array.isArray(view.options) || view.options.length === 0) {
     throw new Error(`${contextLabel} requires at least one dialogue option`);
   }
+  validateTextTone(view.bodyTone, "body", contextLabel);
+  validateTextTone(view.feedbackTone, "feedback", contextLabel);
   const options = view.options.map((entry, index) => validateOption(entry, index, contextLabel));
   if (!options.some((entry) => EXPLICIT_DEFERRAL_LABELS.has(entry.normalizedLabel))) {
     return view;
@@ -43,8 +52,16 @@ function validateOption(option, index, contextLabel) {
   if (!option.action || typeof option.action.type !== "string" || option.action.type === "") {
     throw new Error(`${contextLabel} option "${option.label}" requires an action`);
   }
+  validateTextTone(option.detailTone, `option "${option.label}" detail`, contextLabel);
   return {
     option,
     normalizedLabel: option.label.trim().toLowerCase()
   };
+}
+
+function validateTextTone(tone, fieldLabel, contextLabel) {
+  if (tone === undefined || tone === null) return;
+  if (!DIALOGUE_TEXT_TONES.has(tone)) {
+    throw new Error(`${contextLabel} has an unknown ${fieldLabel} text tone: ${tone}`);
+  }
 }

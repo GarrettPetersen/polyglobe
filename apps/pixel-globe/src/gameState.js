@@ -8693,9 +8693,17 @@ export function questStateForCity(state, city, portCities) {
     if (active.originCityId === city.cityId) return { kind: "in-progress-here", quest: active };
     return { kind: "busy", quest: active };
   }
-  const offer = pendingCapturePortMissionOfferForCity(state, city) ||
-    pendingWokouHuntMissionOfferForCity(state, city) ||
-    pendingDeliveryOfferForCity(state, city);
+  const pendingOffers = [
+    pendingCapturePortMissionOfferForCity(state, city),
+    pendingWokouHuntMissionOfferForCity(state, city),
+    pendingDeliveryOfferForCity(state, city)
+  ].filter(Boolean);
+  const offer = quests.passengerActive
+    ? pendingOffers.find(questMaySharePassengerSlot) || null
+    : pendingOffers[0] || null;
+  if (!offer && pendingOffers.length > 0 && quests.passengerActive) {
+    return { kind: "busy", quest: quests.passengerActive };
+  }
   return offer
     ? { kind: "available", quest: offer }
     : { kind: "unavailable", quest: null };
@@ -8715,7 +8723,7 @@ export function acceptQuest(state, quest, context = {}) {
     }
   } else {
     if (quests.active) throw new Error("Cannot accept a quest while another quest is active");
-    if (quests.passengerActive && quest.kind !== "delivery" && !isTeaRaceQuest(quest)) {
+    if (quests.passengerActive && !questMaySharePassengerSlot(quest)) {
       throw new Error(`Cannot accept ${quest.kind} while a passenger is aboard`);
     }
   }
@@ -8780,6 +8788,10 @@ export function acceptQuest(state, quest, context = {}) {
   if (isWokouHuntQuest(quest) && quest.originKey) delete quests.courtMissionOffers[quest.originKey];
   recordDecision(state, `quest.accept.${quest.id}`, 1);
   return quests[passengerSlot ? "passengerActive" : "active"];
+}
+
+function questMaySharePassengerSlot(quest) {
+  return quest?.kind === "delivery" || isTeaRaceQuest(quest);
 }
 
 export function tributeSaleTheftStatus(state, goodId, quantity) {

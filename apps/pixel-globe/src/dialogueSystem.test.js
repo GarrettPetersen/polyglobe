@@ -1965,6 +1965,43 @@ test("port menus pin Back to city and Leave Port after their ordinary actions", 
   assert.equal(dialogueBackOptionIndex(root), root.options.length - 1);
 });
 
+test("host-handled city submenu actions preserve a valid session until handoff", () => {
+  const city = {
+    tileId: 110,
+    cityId: "lisbon|portugal",
+    city: "Lisbon",
+    country: "Portugal",
+    cityType: "mediterranean",
+    population: 70000,
+    character: { name: "Fernao da Cunha", role: "harbour-master" }
+  };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  const context = { shipStats: stats };
+  const session = createPortDialogueSession(city, { admittedToPort: true });
+  session.nodeId = "city-menu";
+  session.cityMenuLocationId = "ship";
+
+  const before = portDialogueView(session, city, gameState, economy, [city], context);
+  const waitIndex = before.options.findIndex(({ action }) => action.type === "wait-in-port");
+  assert.ok(waitIndex >= 0);
+  assert.deepEqual(
+    selectPortDialogueOption(
+      session,
+      city,
+      gameState,
+      economy,
+      [city],
+      waitIndex,
+      context
+    ),
+    { closed: true, action: { type: "wait-in-port" } }
+  );
+  assert.equal(session.cityMenuLocationId, "ship");
+  assert.equal(portDialogueView(session, city, gameState, economy, [city], context).speaker, "Your ship");
+});
+
 test("port dialogue fallback navigation returns an admitted session to the city", () => {
   const city = {
     tileId: 107,
@@ -4668,6 +4705,9 @@ test("a failed Ming illicit-market approach costs standing and cannot be repeate
   assert.equal(result.illicitMarketAccessPolicyId, null);
   assert.equal(gameState.relations.factionReputation.ming, before - 8);
   assert.match(session.feedback, /Ming standing fell/);
+  assert.equal(session.nodeId, "illicit-caught");
+  const caught = portDialogueView(session, city, gameState, economy, [city], context);
+  assert.equal(caught.feedbackTone, "danger");
   const after = portDialogueView(session, city, gameState, economy, [city], context);
   assert.ok(after.options.every((entry) => entry.label !== "Seek illicit market"));
 });
@@ -7195,6 +7235,7 @@ test("three Testament deliveries convert factors before any captain may convert"
     itinerary: createQuestItinerary(itinerary, { mode: QUEST_ITINERARY_ORDERED }),
     dialogue: {}
   };
+  const lutheranCaptainQuest = structuredClone(quest);
   const state = createGameState({
     cargoCapacity: 20,
     startMinute: simMinute,
@@ -7256,6 +7297,55 @@ test("three Testament deliveries convert factors before any captain may convert"
       assert.equal(state.memory.quests.passengerActive, null);
     }
   }
+
+  lutheranCaptainQuest.itinerary.completedCityIds.push(cities[0].cityId, cities[1].cityId);
+  Object.assign(lutheranCaptainQuest, {
+    destinationKey: itinerary[2].key,
+    destinationCityId: itinerary[2].cityId,
+    destinationTileId: itinerary[2].tileId,
+    destinationName: itinerary[2].name,
+    destinationCountry: itinerary[2].country
+  });
+  const lutheranState = createGameState({
+    cargoCapacity: 20,
+    startMinute: simMinute,
+    playerCharacter: {
+      name: "Greta Albrecht",
+      nationalityId: "bremen",
+      religionId: "lutheran",
+      expressions: ["neutral", "happy"]
+    }
+  });
+  lutheranState.memory.quests.passengerActive = lutheranCaptainQuest;
+  const finalSession = createPassengerDialogueSession(cities[2], lutheranCaptainQuest);
+  const finalDelivery = selectPassengerDialogueOption(
+    finalSession,
+    cities[2],
+    lutheranCaptainQuest,
+    lutheranState,
+    0,
+    { simMinute: simMinute + 10 }
+  );
+  assert.equal(finalDelivery.closed, false);
+  assert.equal(finalDelivery.religiousLegDelivery.final, true);
+  const participation = passengerDialogueView(
+    finalSession,
+    cities[2],
+    lutheranCaptainQuest,
+    lutheranState
+  );
+  assert.match(participation.text, /forbidden books/);
+  assert.match(participation.options[0].label, /Complete the mission/);
+  const completion = selectPassengerDialogueOption(
+    finalSession,
+    cities[2],
+    lutheranCaptainQuest,
+    lutheranState,
+    0,
+    { simMinute: simMinute + 11 }
+  );
+  assert.equal(completion.closed, true);
+  assert.equal(lutheranState.memory.quests.passengerActive, null);
 });
 
 test("Catholic Bible inspections can pass cleanly, show sympathy, or seize the books", () => {
