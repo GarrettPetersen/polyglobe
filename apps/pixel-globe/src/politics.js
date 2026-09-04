@@ -7,6 +7,7 @@ import {
   FACTIONS,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
+  isJapanesePolityFaction,
   factionCapitalForId,
   factionExistsIn1522
 } from "./factions.js";
@@ -65,6 +66,7 @@ import {
   CONQUISTADOR_STAGE_COMPLETE,
   CONQUISTADOR_STAGE_REWARD_READY
 } from "./conquistadorQuest.js";
+import { POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ID } from "./politicsGroupAssets.js";
 
 export const POLITICS_RELATION_LABELS = Object.freeze({
   [DIPLOMACY_ALLY]: "Ally",
@@ -75,6 +77,8 @@ export const POLITICS_RELATION_LABELS = Object.freeze({
 });
 
 export const POLITICS_NEWS_HISTORY_LIMIT = 10;
+export const POLITICS_GROUP_HOLY_ROMAN_EMPIRE_ID = "political-group:holy-roman-empire";
+export const POLITICS_GROUP_JAPAN_ID = "political-group:japan";
 
 export function createPoliticsView(
   gameState,
@@ -145,6 +149,17 @@ export function createPoliticsView(
     pendingPapalMatter,
     pendingCourtMatter
   });
+  const imperialSummary = Object.freeze({
+    ...imperial,
+    imperialFavor: factionReputation(gameState, imperial.emperorFactionId),
+    emperorRuler: emperorRuler === null ? null : Object.freeze({
+      ...emperorRuler,
+      imperialDisplayName: `Emperor ${emperorRuler.name}`
+    }),
+    kingOfRomansRuler: kingOfRomansRuler === null ? null : Object.freeze(kingOfRomansRuler)
+  });
+  const orderedCards = orderPoliticsCards(cards, playerFactionId);
+  const groups = politicsGroups(orderedCards, imperialSummary);
   return {
     powers,
     activeEmbargoes,
@@ -157,19 +172,124 @@ export function createPoliticsView(
     recentScriptedEvents,
     pendingPapalMatter,
     pendingCourtMatter,
-    imperial: Object.freeze({
-      ...imperial,
-      imperialFavor: factionReputation(gameState, imperial.emperorFactionId),
-      emperorRuler: emperorRuler === null ? null : Object.freeze({
-        ...emperorRuler,
-        imperialDisplayName: `Emperor ${emperorRuler.name}`
-      }),
-      kingOfRomansRuler: kingOfRomansRuler === null ? null : Object.freeze(kingOfRomansRuler)
-    }),
+    imperial: imperialSummary,
     newsHistory,
     latestNews: newsHistory[0] || null,
-    cards: orderPoliticsCards(cards, playerFactionId)
+    cards: orderedCards,
+    groups,
+    overviewCards: politicsOverviewCards(orderedCards, groups)
   };
+}
+
+export function politicsGroupForFaction(view, factionId) {
+  if (typeof factionId !== "string" || factionId === "") {
+    throw new Error(`Politics group lookup requires a faction id: ${factionId}`);
+  }
+  return requirePoliticsGroups(view)
+    .find((group) => group.memberFactionIds.includes(factionId)) || null;
+}
+
+export function politicsGroupById(view, groupId) {
+  if (typeof groupId !== "string" || groupId === "") {
+    throw new Error(`Politics group requires a canonical id: ${groupId}`);
+  }
+  const group = requirePoliticsGroups(view).find(({ id }) => id === groupId) || null;
+  if (!group) throw new Error(`Politics view has no group: ${groupId}`);
+  return group;
+}
+
+function requirePoliticsGroups(view) {
+  if (!view || !Array.isArray(view.groups)) throw new Error("Politics group lookup requires a view");
+  return view.groups;
+}
+
+function politicsGroups(cards, imperial) {
+  if (!Array.isArray(cards)) throw new Error("Politics groups require faction cards");
+  if (!imperial || typeof imperial !== "object") {
+    throw new Error("Politics groups require Imperial politics");
+  }
+  const holyRomanEmpireCards = cards.filter((card) => card.imperialMembership !== null);
+  const japaneseCards = cards.filter((card) => isJapanesePolityFaction(card.faction.id));
+  const japanShogunate = japaneseCards.find((card) => card.faction.id === "japan") || null;
+  const groups = [
+    politicalGroup({
+      id: POLITICS_GROUP_HOLY_ROMAN_EMPIRE_ID,
+      titleKey: "politics.group.holyRomanEmpire",
+      flagId: POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ID,
+      headOfficeKey: "politics.emperor",
+      headFactionId: imperial.emperorOfficeVacant ? null : imperial.emperorFactionId,
+      headRuler: imperial.emperorOfficeVacant ? null : imperial.emperorRuler,
+      memberCountKey: "politics.group.memberEstates",
+      memberCards: holyRomanEmpireCards
+    }),
+    politicalGroup({
+      id: POLITICS_GROUP_JAPAN_ID,
+      titleKey: "politics.group.japan",
+      flagId: "japan",
+      headOfficeKey: "politics.shogun",
+      headFactionId: japanShogunate?.faction.id || null,
+      headRuler: japanShogunate?.ruler || null,
+      memberCountKey: "politics.group.japanesePolities",
+      memberCards: japaneseCards
+    })
+  ].filter((group) => group.memberCards.length > 0);
+  const assignedFactionIds = new Set();
+  for (const group of groups) {
+    for (const factionId of group.memberFactionIds) {
+      if (assignedFactionIds.has(factionId)) {
+        throw new Error(`Politics faction belongs to two overview groups: ${factionId}`);
+      }
+      assignedFactionIds.add(factionId);
+    }
+  }
+  return Object.freeze(groups);
+}
+
+function politicalGroup({
+  id,
+  titleKey,
+  flagId,
+  headOfficeKey,
+  headFactionId,
+  headRuler,
+  memberCountKey,
+  memberCards
+}) {
+  if (typeof id !== "string" || id === "" || !id.startsWith("political-group:")) {
+    throw new Error(`Invalid politics group id: ${id}`);
+  }
+  if (!Array.isArray(memberCards)) throw new Error(`Politics group ${id} requires member cards`);
+  return Object.freeze({
+    kind: "political-group",
+    id,
+    titleKey,
+    flagId,
+    headOfficeKey,
+    headFactionId,
+    headRuler,
+    memberCountKey,
+    memberCards: Object.freeze([...memberCards]),
+    memberFactionIds: Object.freeze(memberCards.map((card) => card.faction.id))
+  });
+}
+
+function politicsOverviewCards(cards, groups) {
+  const groupByFactionId = new Map(groups.flatMap((group) => (
+    group.memberFactionIds.map((factionId) => [factionId, group])
+  )));
+  const emittedGroupIds = new Set();
+  const overviewCards = [];
+  for (const card of cards) {
+    const group = groupByFactionId.get(card.faction.id) || null;
+    if (!group) {
+      overviewCards.push(card);
+      continue;
+    }
+    if (emittedGroupIds.has(group.id)) continue;
+    emittedGroupIds.add(group.id);
+    overviewCards.push(group);
+  }
+  return Object.freeze(overviewCards);
 }
 
 export function latestPoliticsNews(view) {
@@ -414,6 +534,7 @@ function politicsCard(
       .map((other) => other.id)
   })).filter((group) => group.factionIds.length > 0);
   return Object.freeze({
+    kind: "faction",
     faction,
     imperialMembership: imperialEstate === null ? null : Object.freeze({
       ...imperialEstate,

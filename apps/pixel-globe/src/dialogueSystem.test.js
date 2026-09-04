@@ -51,6 +51,7 @@ import {
   CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID,
   LETTER_OF_MARQUE_POWER_REQUIRED,
   LETTER_OF_MARQUE_REPUTATION_REQUIRED,
+  ONBOARDING_DELIVERY_COUNT,
   TRADE_PASS_REPUTATION_REQUIRED,
   acceptQuest,
   addPortNavigationWaypoint,
@@ -3857,6 +3858,40 @@ test("lower loadouts require individual dismissals and support undo all", () => 
   assert.equal(session.nodeId, "root");
 });
 
+test("dismissing the newest crew keeps the muster on the new final page", () => {
+  const city = {
+    tileId: 9,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    cityType: "mediterranean",
+    population: 60_000,
+    character: { name: "Isabel Mendez", role: "harbour-master" }
+  };
+  const stats = shipStatsForSlug("brigantine");
+  const gameState = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(gameState, stats);
+  setTestCrewCount(gameState, stats.crewCapacity);
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "loadout" });
+  const context = { shipStats: stats, simMinute: 120 };
+
+  selectPortDialogueOption(session, city, gameState, economy, [city], 4, context);
+  setPortCustomLoadoutValue(session, stats, "crew", 10);
+  selectPortDialogueOption(session, city, gameState, economy, [city], 0, context);
+  assert.equal(session.nodeId, "crew-dismissal");
+  assert.equal(session.selectedIndex, gameState.crewRoster.length - 1);
+
+  for (let dismissedCount = 0; dismissedCount < 4; dismissedCount += 1) {
+    const view = portDialogueView(session, city, gameState, economy, [city], context);
+    const newest = view.presentation.candidates.at(-1).member;
+    const newestIndex = view.options.findIndex(({ action }) => action.memberId === newest.id);
+    selectPortDialogueOption(session, city, gameState, economy, [city], newestIndex, context);
+    assert.equal(session.selectedIndex, gameState.crewRoster.length - 1);
+  }
+});
+
 test("custom loadout opens a slider model and reports discarded provisions", () => {
   const city = {
     tileId: 9,
@@ -5129,17 +5164,49 @@ test("package job offers show the destination distance", () => {
     lat: 41.15,
     lon: -8.61
   };
-  const economy = createWorldEconomy({ ports: [lisbon, porto], startMinute: 0 });
+  const cadiz = {
+    ...lisbon,
+    tileId: 23,
+    cityId: "cadiz|spain",
+    city: "Cadiz",
+    displayCity: "Cadiz",
+    country: "Spain",
+    factionId: "spain",
+    population: 60_000,
+    lat: 36.53,
+    lon: -6.29
+  };
+  const ports = [lisbon, porto, cadiz];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
   const gameState = createGameState({ cargoCapacity: 20 });
-  deliveryOfferForCity(gameState, lisbon, [lisbon, porto], { spawnChance: 1, simMinute: 0 });
+  gameState.memory.quests.onboardingDeliveriesCompleted = ONBOARDING_DELIVERY_COUNT;
+  deliveryOfferForCity(gameState, lisbon, ports, { spawnChance: 1, simMinute: 0 });
   const session = createPortDialogueSession(lisbon, { initialNodeId: "quest" });
 
-  const view = portDialogueView(session, lisbon, gameState, economy, [lisbon, porto]);
+  const view = portDialogueView(session, lisbon, gameState, economy, ports);
 
-  assert.match(view.text, /27\d km away/);
-  const offer = view.options.find((entry) => entry.action.type === "accept-quest");
-  assert.match(offer.detail, /27\d km/);
-  assert.doesNotMatch(offer.detail, /GREAT-CIRCLE/);
+  const offers = view.options.filter((entry) => entry.action.type === "accept-quest");
+  assert.equal(offers.length, 3);
+  assert.deepEqual(offers.map(({ action }) => action.quest.scenarioId), [
+    "sealed-packet",
+    "merchant-samples",
+    "private-correspondence"
+  ]);
+  assert.match(offers[0].detail, /27\d km \/ \d+ DB/);
+  assert.doesNotMatch(offers[0].detail, /GREAT-CIRCLE/);
+  assert.equal(offers[2].action.quest.destinationCityId, cadiz.cityId);
+
+  const accepted = selectPortDialogueOption(
+    session,
+    lisbon,
+    gameState,
+    economy,
+    ports,
+    view.options.indexOf(offers[2])
+  );
+  assert.equal(accepted.acceptedQuest.scenarioId, "private-correspondence");
+  assert.equal(gameState.memory.quests.deliveryOffers[lisbon.cityId], undefined);
+  assert.equal(gameState.memory.quests.active.destinationCityId, cadiz.cityId);
 });
 
 test("a rumor queued before an active delivery cannot trap Back in a quest self-loop", () => {

@@ -82,3 +82,9 @@ All pixels use the Resurrect 64 palette. Regenerate with `npm run render:faction
 | Ainu Communities | Ainu textile-motif identifier | `reconstruction` | Ainu communities had no centralized state flag. This is explicitly a game identifier built from traditional angular textile motifs, not a claimed historical national banner. Sources: [Hokkaido Museum Ainu culture overview](https://www.hm.pref.hokkaido.lg.jp/wp-content/themes/hokkaidomuseum/images/forign_pdf/ENG-1-3.pdf). |
 | Joseon | Yellow Dragon Flag | `period-royal-standard` | Joseon used a four-clawed dragon flag in royal processions. It represents the king's authority, not a modern Korean national flag. Sources: [Korean dragon flag tradition](https://smarthistory.org/korean-national-flag/), [Joseon Legendary Dragon Flag](https://artsandculture.google.com/asset/legendary-dragon-flag/pAG5Om1riEle4g?hl=en). |
 
+## Political group identifiers
+
+| Group | Representation | Evidence | Accuracy note |
+|---|---|---|---|
+| Holy Roman Empire | Imperial double-headed eagle banner | `period-banner` | A black double-headed Imperial Eagle on gold, the Imperial banner documented from 1400. Sources: [Banner of the Holy Roman Emperor after 1400](https://commons.wikimedia.org/wiki/File:Banner_of_the_Holy_Roman_Emperor_(after_1400).svg). |
+

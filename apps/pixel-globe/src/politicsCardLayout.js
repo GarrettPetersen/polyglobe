@@ -74,14 +74,16 @@ export function politicsCardGridLayout({
   panelHeight,
   lineHeight,
   pagerHeight,
-  newsHeight = 0
+  newsHeight = 0,
+  contentTop = CONTENT_TOP
 }) {
   for (const [label, value] of Object.entries({
     panelWidth,
     panelHeight,
     lineHeight,
     pagerHeight,
-    newsHeight
+    newsHeight,
+    contentTop
   })) {
     if (!Number.isInteger(value) || value < 0) {
       throw new Error(`Politics card ${label} must be a non-negative integer: ${value}`);
@@ -108,7 +110,7 @@ export function politicsCardGridLayout({
   const headerHeight = Math.max(26, lineHeight * 2 + 4);
   let maxRelationLines = CARD_RELATION_LINES;
   let cardHeight = headerHeight + maxRelationLines * lineHeight + 4;
-  const contentHeight = panelHeight - CONTENT_TOP - pagerHeight - 8 - newsHeight;
+  const contentHeight = panelHeight - contentTop - pagerHeight - 8 - newsHeight;
   const rows = Math.max(1, Math.floor((contentHeight + CARD_GAP) / (cardHeight + CARD_GAP)));
   if (cardHeight > contentHeight) {
     throw new Error(`Politics country card does not fit panel: ${cardHeight} > ${contentHeight}`);
@@ -129,7 +131,7 @@ export function politicsCardGridLayout({
   return Object.freeze({
     panelPadX: PANEL_PAD_X,
     cardGap: CARD_GAP,
-    contentTop: CONTENT_TOP,
+    contentTop,
     columns,
     rows,
     slotsPerPage: columns * rows,
@@ -179,6 +181,17 @@ export function politicsCardEntries(cards, {
   }
 
   return Object.freeze(cards.map((card) => {
+    if (card?.kind === "political-group") {
+      return Object.freeze({
+        card,
+        rowSpan: 1,
+        columnSpan: 1,
+        lines: Object.freeze([])
+      });
+    }
+    if (card?.kind !== "faction") {
+      throw new Error(`Unknown politics card kind: ${card?.kind}`);
+    }
     let lines = relationshipLines(card, tokensPerLine, powerCount);
     let columnSpan = 1;
     let capacityIndex = relationLineCapacities.findIndex((capacity) => lines.length <= capacity);

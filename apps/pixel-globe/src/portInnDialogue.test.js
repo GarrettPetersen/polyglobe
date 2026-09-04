@@ -26,6 +26,26 @@ test("a foreign captain compares the local drink with home", () => {
   assert.match(view.text, /ale/i);
 });
 
+test("every inn flavor variant starts with a capital letter", () => {
+  const city = {
+    cityId: "kyoto|japan",
+    cityType: "east-asian",
+    country: "Japan",
+    factionId: "hosokawa"
+  };
+  const homeCity = {
+    cityId: "london|united kingdom",
+    cityType: "northern-european",
+    country: "England",
+    factionId: "england"
+  };
+
+  for (let variantSeed = 0; variantSeed < 3; variantSeed += 1) {
+    const view = portInnDialogue({ city, homeCity, speakerName: "Joan", variantSeed });
+    assert.match(view.text, /^[A-Z]/, `variant ${variantSeed}: ${view.text}`);
+  }
+});
+
 test("Polynesian ports describe kava without calling it alcohol", () => {
   const view = portInnDialogue({
     city: { cityId: "apia|samoa", cityType: "polynesian", country: "Samoa", factionId: "neutral" },

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN,
   CAPTURE_COMMISSION_INDEPENDENT_PETITION_ID,
+  DELIVERY_COMMISSION_SCENARIOS,
   DELIVERY_ROLL_PERIOD_MINUTES,
   DELIVERY_REPUTATION_GAIN,
   CAPTURE_PORT_MISSION_REPUTATION_GAIN,
@@ -24,6 +25,7 @@ import {
   createGameState,
   deliveryOfferForCity,
   deliveryQuestForCity,
+  deliveryWorkOptionsForCity,
   factionReputation,
   grantGuaranteedMissionPerkItem,
   isCaptureCapitalQuest,
@@ -84,13 +86,44 @@ function putEnglandAtWarWithFrance(state) {
   state.relations.diplomacy.pairLastChangedMinute["england|france"] = 0;
 }
 
-test("delivery quests stay inside the same faction and region", () => {
-  const quest = deliveryQuestForCity(LISBON, [LISBON, PORTO, GOA, CADIZ]);
+test("official delivery work stays inside the same faction and region", () => {
+  const quest = deliveryWorkOptionsForCity(LISBON, [LISBON, PORTO, GOA, CADIZ])
+    .find(({ scenarioId }) => scenarioId === "sealed-packet");
 
+  assert.ok(quest);
   assert.equal(quest.factionId, "portugal");
   assert.equal(quest.regionKey, "mediterranean");
   assert.equal(quest.destinationTileId, PORTO.tileId);
   assert.ok(quest.distanceKm >= 270 && quest.distanceKm <= 280);
+});
+
+test("fragmented regions offer official, merchant, and private courier work", () => {
+  const kyoto = port(20, "Kyoto", "Japan", "east-asian", "hosokawa", 35.01, 135.77);
+  const osaka = port(21, "Osaka", "Japan", "east-asian", "hosokawa", 34.69, 135.5);
+  const sakai = port(22, "Sakai", "Japan", "east-asian", "ouchi", 34.57, 135.48);
+  const hakata = port(23, "Hakata", "Japan", "east-asian", "shoni", 33.59, 130.4);
+  const ports = [kyoto, osaka, sakai, hakata];
+  const work = deliveryWorkOptionsForCity(kyoto, ports, { offerPeriod: 7 });
+  const official = work.find(({ scenarioId }) => scenarioId === "sealed-packet");
+  const privateLetter = work.find(({ scenarioId }) => scenarioId === "private-correspondence");
+
+  assert.deepEqual(
+    work.map(({ scenarioId }) => scenarioId).sort(),
+    DELIVERY_COMMISSION_SCENARIOS.map(({ id }) => id).sort()
+  );
+  assert.equal(official.destinationCityId, osaka.cityId);
+  assert.notEqual(privateLetter.destinationCityId, osaka.cityId);
+  assert.match(privateLetter.offerText, /another lord's seal/i);
+});
+
+test("a one-port polity can offer cross-border work inside its region", () => {
+  const kyoto = port(20, "Kyoto", "Japan", "east-asian", "hosokawa", 35.01, 135.77);
+  const sakai = port(22, "Sakai", "Japan", "east-asian", "ouchi", 34.57, 135.48);
+  const quest = deliveryQuestForCity(kyoto, [kyoto, sakai], { offerPeriod: 0 });
+
+  assert.ok(quest);
+  assert.notEqual(quest.scenarioId, "sealed-packet");
+  assert.equal(quest.destinationCityId, sakai.cityId);
 });
 
 test("new captains receive four guaranteed nearby courier jobs with varied purposes", () => {
@@ -137,7 +170,7 @@ test("established saves do not restart the new-captain courier sequence", () => 
   assert.equal(state.memory.quests.onboardingDeliveriesCompleted, ONBOARDING_DELIVERY_COUNT);
 });
 
-test("ports without an intra-faction regional destination offer no delivery quest", () => {
+test("ports without any regional destination offer no delivery quest", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
 
   assert.equal(deliveryQuestForCity(DOVER, [DOVER, LISBON, PORTO]), null);

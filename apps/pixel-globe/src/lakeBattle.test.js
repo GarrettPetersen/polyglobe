@@ -21,8 +21,14 @@ import {
   lakeBattleWindFlowDirection,
   lakeBattleWeaponRange,
   resizeLakeBattle,
-  updateLakeBattle
+  updateLakeBattle,
+  updateLakeBattleAiDuel
 } from "./lakeBattle.js";
+import { evaluateLakeBattleAiDuel } from "./lakeBattleAiEvaluation.js";
+import {
+  NPC_COMBAT_CURRENT_TACTIC_ID,
+  NPC_COMBAT_TACTIC_PURSUIT_ID
+} from "./npcCombatTactics.js";
 import {
   COMPOSITE_BOWS_ITEM_ID,
   CROSSBOWS_ITEM_ID,
@@ -718,4 +724,47 @@ test("lake battle geometry follows responsive logical viewport changes", () => {
   assert.equal(lakeBattleShipFitsInWater(battle, battle.player), true);
   assert.equal(lakeBattleShipFitsInWater(battle, battle.enemy), true);
   assert.equal(resizeLakeBattle(battle, 256, 455), false);
+});
+
+test("the production NPC tactic reliably lands cannon hits from either duel position", () => {
+  for (const seed of [0x41492d01, 0x41492d02, 0x41492d03]) {
+    for (const productionRole of ["player", "enemy"]) {
+      const battle = createLakeBattle({
+        width: 455,
+        height: 256,
+        playerSlug: "brigantine",
+        enemySlug: "caravel",
+        seed
+      });
+      const productionIsPlayer = productionRole === "player";
+      const result = evaluateLakeBattleAiDuel(battle, {
+        playerTacticId: productionIsPlayer
+          ? NPC_COMBAT_CURRENT_TACTIC_ID
+          : NPC_COMBAT_TACTIC_PURSUIT_ID,
+        enemyTacticId: productionIsPlayer
+          ? NPC_COMBAT_TACTIC_PURSUIT_ID
+          : NPC_COMBAT_CURRENT_TACTIC_ID,
+        durationSeconds: 45
+      });
+      const metrics = result[productionRole];
+      assert.ok(metrics.broadsideVolleys > 0, `${productionRole} did not fire for seed ${seed}`);
+      assert.ok(metrics.cannonHits > 0, `${productionRole} did not hit for seed ${seed}`);
+      assert.ok(metrics.firstCannonHitSeconds < 12, `${productionRole} hit too late for seed ${seed}`);
+    }
+  }
+});
+
+test("AI duel updates reject unknown tactics before advancing combat", () => {
+  const battle = createLakeBattle({
+    width: 455,
+    height: 256,
+    playerSlug: "brigantine",
+    enemySlug: "caravel"
+  });
+
+  assert.throws(() => updateLakeBattleAiDuel(battle, 0.1, {
+    playerTacticId: "missing",
+    enemyTacticId: NPC_COMBAT_CURRENT_TACTIC_ID
+  }), /Unknown NPC combat tactic/);
+  assert.equal(battle.elapsedSeconds, 0);
 });

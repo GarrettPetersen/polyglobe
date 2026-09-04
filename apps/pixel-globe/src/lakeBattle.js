@@ -1,6 +1,7 @@
 import {
   advanceCannonReload,
   NAVAL_CANNON_RANGE_PX as CANNON_RANGE_PX,
+  NAVAL_CANNON_SPEED_PX,
   navalWeaponForShip,
   navalWeaponUsesBroadside,
   NAVAL_WEAPON_CANNON
@@ -63,6 +64,12 @@ import {
   chooseNpcObstacleAvoidanceDirection,
   chooseNpcSailingDirection
 } from "./npcVisualNavigation.js";
+import {
+  NPC_COMBAT_CURRENT_TACTIC_ID,
+  npcCombatAimPointForTactic,
+  npcCombatNavigationForTactic,
+  validateNpcCombatTacticId
+} from "./npcCombatTactics.js";
 import {
   buildLakeBattleMapWaterMask,
   createLakeBattleMap,
@@ -203,9 +210,25 @@ export function createLakeBattleArenaMap(width, height, seed = LAKE_BATTLE_DEFAU
 }
 
 export function updateLakeBattle(state, dt, input = {}) {
+  return updateLakeBattleWithControllers(state, dt, {
+    player: { kind: "player-input", input },
+    enemy: { kind: "npc", tacticId: NPC_COMBAT_CURRENT_TACTIC_ID }
+  });
+}
+
+export function updateLakeBattleAiDuel(state, dt, { playerTacticId, enemyTacticId }) {
+  return updateLakeBattleWithControllers(state, dt, {
+    player: { kind: "npc", tacticId: playerTacticId },
+    enemy: { kind: "npc", tacticId: enemyTacticId }
+  });
+}
+
+function updateLakeBattleWithControllers(state, dt, controllers) {
   validateBattleState(state);
   if (!Number.isFinite(dt) || dt < 0 || dt > 0.1) throw new Error(`Invalid lake battle timestep: ${dt}`);
   if (state.phase !== LAKE_BATTLE_PHASE_ACTIVE || dt === 0) return false;
+  validateLakeBattleController(controllers.player, "player");
+  validateLakeBattleController(controllers.enemy, "enemy");
 
   state.elapsedSeconds += dt;
   updateLakeBattleWind(state);
@@ -213,33 +236,39 @@ export function updateLakeBattle(state, dt, input = {}) {
   updateCooldowns(state.player, dt);
   updateCooldowns(state.enemy, dt);
 
-  const playerDesiredHeading = input.desiredHeadingRad === null || input.desiredHeadingRad === undefined
-    ? null
-    : normalizeAngle(input.desiredHeadingRad);
-  if (playerDesiredHeading !== null && !Number.isFinite(playerDesiredHeading)) {
-    throw new Error(`Invalid player lake battle heading: ${input.desiredHeadingRad}`);
-  }
-  const playerRowingMode = input.rowingMode === undefined
-    ? ((input.rowingRequested ?? playerDesiredHeading !== null)
-        ? SHIP_ROWING_MODE_AHEAD
-        : SHIP_ROWING_MODE_IDLE)
-    : normalizeShipRowingMode(input.rowingMode);
-
-  updateBattleShipMotion(state, state.player, playerDesiredHeading, playerRowingMode, dt);
+  const playerDesiredHeading = lakeBattleControllerDesiredHeading(
+    state,
+    state.player,
+    state.enemy,
+    controllers.player,
+    dt
+  );
+  updateBattleShipMotion(
+    state,
+    state.player,
+    playerDesiredHeading,
+    lakeBattleControllerRowingMode(controllers.player, playerDesiredHeading),
+    dt
+  );
   updateBattleShipMotion(
     state,
     state.enemy,
-    enemyDesiredHeading(state, dt),
-    SHIP_ROWING_MODE_AHEAD,
+    lakeBattleControllerDesiredHeading(
+      state,
+      state.enemy,
+      state.player,
+      controllers.enemy,
+      dt
+    ),
+    lakeBattleControllerRowingMode(controllers.enemy, null),
     dt
   );
   resolveBattleShipCollision(state);
 
-  if (input.firePort) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "port");
-  if (input.fireStarboard) fireLakeBattleBroadside(state, LAKE_BATTLE_PLAYER_ID, "starboard");
+  fireLakeBattleControllerWeapons(state, state.player, state.enemy, controllers.player);
+  fireLakeBattleControllerWeapons(state, state.enemy, state.player, controllers.enemy);
   fireLakeBattlePortableWeapons(state, LAKE_BATTLE_PLAYER_ID);
   fireLakeBattlePortableWeapons(state, LAKE_BATTLE_ENEMY_ID);
-  fireEnemyWhenAligned(state);
   updateProjectiles(state, dt);
   updateEffects(state, dt);
   finishBattleIfNeeded(state);
@@ -298,12 +327,22 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
   const ship = lakeBattleShipById(state, shipId);
   if (!navalWeaponUsesBroadside(ship.weapon)) return false;
   const target = ship.id === LAKE_BATTLE_PLAYER_ID ? state.enemy : state.player;
+  const targetPoint = lakeBattleCombatantAimPoint(state, target);
+  return fireLakeBattleBroadsideVolley(state, ship, target, sideName, {
+    kind: ship.id === LAKE_BATTLE_PLAYER_ID ? "manual" : "npc",
+    targetPoint
+  });
+}
+
+function fireLakeBattleBroadsideVolley(state, ship, target, sideName, aim) {
+  if (!aim || (aim.kind !== "manual" && aim.kind !== "npc")) {
+    throw new Error(`Invalid lake battle aiming mode: ${aim?.kind}`);
+  }
   if (ship.cooldowns[sideName] > 0 || ship.hitPoints <= 0) return false;
 
   ship.cooldowns[sideName] = ship.weapon.reloadSeconds;
   const count = Math.max(1, Math.ceil(ship.stats.cannons / 2));
   const sourcePoint = lakeBattleCombatantPoint(ship);
-  const targetPoint = lakeBattleCombatantAimPoint(state, target);
   const volley = createNavalBroadsideVolley({
     origin: sourcePoint,
     heading: lakeBattleHeadingVector(ship),
@@ -311,8 +350,8 @@ export function fireLakeBattleBroadside(state, shipId, sideName) {
     sideName,
     projectileCount: count,
     weapon: ship.weapon,
-    targetPoint,
-    aimAtTarget: ship.id !== LAKE_BATTLE_PLAYER_ID,
+    targetPoint: aim.targetPoint,
+    aimAtTarget: aim.kind === "npc",
     randomUnit: () => nextBattleRandom(state),
     seedForShot: () => Math.floor(nextBattleRandom(state) * 0xffffffff) >>> 0
   });
@@ -538,7 +577,7 @@ function createBattleCombatant(id, slug, x, y, headingRad, cannonEquipmentId, re
     cooldowns: { port: 0, starboard: 0 },
     rowing: false,
     rowingMode: SHIP_ROWING_MODE_IDLE,
-    orbitDirection: id === LAKE_BATTLE_ENEMY_ID ? 1 : 0,
+    orbitDirection: id === LAKE_BATTLE_ENEMY_ID ? 1 : -1,
     avoidanceActive: false,
     avoidanceSide: 0,
     avoidanceClearDecisions: 0,
@@ -686,121 +725,202 @@ function moveShipInsideLake(state, ship, distance) {
   return 0;
 }
 
-function enemyDesiredHeading(state, dt) {
-  const enemy = state.enemy;
-  if (enemy.kind === "city") return null;
-  enemy.navigationDecisionCooldown = Math.max(0, enemy.navigationDecisionCooldown - dt);
-  if (enemy.navigationDecisionCooldown > 0) return enemy.navigationCourseRad;
-  enemy.navigationDecisionCooldown = ENEMY_NAVIGATION_DECISION_SECONDS;
+function lakeBattleControllerDesiredHeading(state, ship, target, controller, dt) {
+  if (controller.kind === "player-input") {
+    const desiredHeading = controller.input.desiredHeadingRad;
+    if (desiredHeading === null || desiredHeading === undefined) return null;
+    if (!Number.isFinite(desiredHeading)) {
+      throw new Error(`Invalid player lake battle heading: ${desiredHeading}`);
+    }
+    return normalizeAngle(desiredHeading);
+  }
+  if (controller.kind === "npc") {
+    return npcDesiredHeading(state, ship, target, controller.tacticId, dt);
+  }
+  throw new Error(`Unknown lake battle controller: ${controller.kind}`);
+}
 
-  const player = state.player;
-  const toPlayer = normalizedDirection(player.x - enemy.x, player.y - enemy.y);
-  const distance = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-  const tacticalDirection = distance > Math.min(68, lakeBattleWeaponRange(enemy) * 0.86)
-    ? toPlayer
-    : rotate2(toPlayer, enemy.orbitDirection * Math.PI / 2);
-  const sailingDirection = enemySailingDirection(state, tacticalDirection);
-  const clearDistance = enemyDirectionClearDistance(state, enemy, sailingDirection);
+function lakeBattleControllerRowingMode(controller, desiredHeading) {
+  if (controller.kind === "npc") return SHIP_ROWING_MODE_AHEAD;
+  if (controller.kind !== "player-input") {
+    throw new Error(`Unknown lake battle controller: ${controller.kind}`);
+  }
+  const input = controller.input;
+  return input.rowingMode === undefined
+    ? ((input.rowingRequested ?? desiredHeading !== null)
+        ? SHIP_ROWING_MODE_AHEAD
+        : SHIP_ROWING_MODE_IDLE)
+    : normalizeShipRowingMode(input.rowingMode);
+}
 
-  if (enemy.avoidanceActive) {
-    enemy.avoidanceClearDecisions = clearDistance >= ENEMY_OBSTACLE_REJOIN_CLEARANCE_PX
-      ? enemy.avoidanceClearDecisions + 1
+function fireLakeBattleControllerWeapons(state, ship, target, controller) {
+  if (controller.kind === "player-input") {
+    if (ship.id !== LAKE_BATTLE_PLAYER_ID) {
+      throw new Error(`Player-input controller cannot operate ${ship.id}`);
+    }
+    if (controller.input.firePort) fireLakeBattleBroadside(state, ship.id, "port");
+    if (controller.input.fireStarboard) fireLakeBattleBroadside(state, ship.id, "starboard");
+    return;
+  }
+  if (controller.kind === "npc") {
+    fireNpcWhenAligned(state, ship, target, controller.tacticId);
+    return;
+  }
+  throw new Error(`Unknown lake battle controller: ${controller.kind}`);
+}
+
+function validateLakeBattleController(controller, role) {
+  if (!controller || typeof controller !== "object") {
+    throw new Error(`Lake battle ${role} controller is required`);
+  }
+  if (controller.kind === "player-input") {
+    if (role !== "player" || !controller.input || typeof controller.input !== "object") {
+      throw new Error(`Invalid lake battle ${role} player-input controller`);
+    }
+    return;
+  }
+  if (controller.kind === "npc") {
+    validateNpcCombatTacticId(controller.tacticId);
+    return;
+  }
+  throw new Error(`Unknown lake battle ${role} controller: ${controller.kind}`);
+}
+
+function npcDesiredHeading(state, ship, target, tacticId, dt) {
+  if (ship.kind === "city") return null;
+  ship.navigationDecisionCooldown = Math.max(0, ship.navigationDecisionCooldown - dt);
+  if (ship.navigationDecisionCooldown > 0) return ship.navigationCourseRad;
+  ship.navigationDecisionCooldown = ENEMY_NAVIGATION_DECISION_SECONDS;
+
+  const navigation = npcCombatNavigationForTactic(tacticId, {
+    identity: ship.id,
+    origin: ship,
+    target,
+    heading: lakeBattleHeadingVector(ship),
+    weaponRangePx: lakeBattleWeaponRange(ship),
+    routeDistancePx: ENEMY_TACK_LEG_PX
+  });
+  if (!navigation) return ship.navigationCourseRad;
+  const sailingDirection = npcSailingDirection(state, ship, navigation.course);
+  const clearDistance = npcDirectionClearDistance(state, ship, sailingDirection);
+
+  if (ship.avoidanceActive) {
+    ship.avoidanceClearDecisions = clearDistance >= ENEMY_OBSTACLE_REJOIN_CLEARANCE_PX
+      ? ship.avoidanceClearDecisions + 1
       : 0;
-    if (enemy.avoidanceClearDecisions >= ENEMY_OBSTACLE_REJOIN_DECISIONS) {
-      enemy.avoidanceActive = false;
-      enemy.avoidanceClearDecisions = 0;
-      enemy.avoidanceSide = 0;
+    if (ship.avoidanceClearDecisions >= ENEMY_OBSTACLE_REJOIN_DECISIONS) {
+      ship.avoidanceActive = false;
+      ship.avoidanceClearDecisions = 0;
+      ship.avoidanceSide = 0;
     }
   } else if (clearDistance < ENEMY_OBSTACLE_ENTER_CLEARANCE_PX) {
-    enemy.avoidanceActive = true;
-    enemy.avoidanceClearDecisions = 0;
+    ship.avoidanceActive = true;
+    ship.avoidanceClearDecisions = 0;
   }
-  if (!enemy.avoidanceActive) {
-    enemy.navigationCourseRad = Math.atan2(sailingDirection.y, sailingDirection.x);
-    return enemy.navigationCourseRad;
+  if (!ship.avoidanceActive) {
+    ship.navigationCourseRad = Math.atan2(sailingDirection.y, sailingDirection.x);
+    return ship.navigationCourseRad;
   }
 
   const avoidance = chooseNpcObstacleAvoidanceDirection({
     desiredDirection: sailingDirection,
-    currentDirection: lakeBattleHeadingVector(enemy),
+    currentDirection: lakeBattleHeadingVector(ship),
     clearDistanceFor: (candidate) => (
-      enemyDirectionCanMakeWay(state, enemy, candidate)
-        ? enemyDirectionClearDistance(state, enemy, candidate)
+      npcDirectionCanMakeWay(state, ship, candidate)
+        ? npcDirectionClearDistance(state, ship, candidate)
         : 0
     ),
-    preferredSide: enemy.avoidanceSide || enemy.orbitDirection
+    preferredSide: ship.avoidanceSide || ship.orbitDirection
   });
   if (avoidance) {
-    if (avoidance.side !== 0) enemy.avoidanceSide = avoidance.side;
-    enemy.navigationCourseRad = Math.atan2(avoidance.direction.y, avoidance.direction.x);
+    if (avoidance.side !== 0) ship.avoidanceSide = avoidance.side;
+    ship.navigationCourseRad = Math.atan2(avoidance.direction.y, avoidance.direction.x);
   }
-  return enemy.navigationCourseRad;
+  return ship.navigationCourseRad;
 }
 
-function enemySailingDirection(state, desiredDirection) {
-  const enemy = state.enemy;
-  if (enemy.stats.propulsion !== SHIP_PROPULSION_SAIL) return desiredDirection;
+function npcSailingDirection(state, ship, desiredDirection) {
+  if (ship.stats.propulsion !== SHIP_PROPULSION_SAIL) return desiredDirection;
   const windFlowDirection = lakeBattleWindFlowDirection(state);
-  const preferredTackSide = enemy.tackSide !== 0 && enemy.tackRemainingPx <= 0
-    ? -enemy.tackSide
-    : enemy.tackSide || enemy.orbitDirection;
+  const preferredTackSide = ship.tackSide !== 0 && ship.tackRemainingPx <= 0
+    ? -ship.tackSide
+    : ship.tackSide || ship.orbitDirection;
   const result = chooseNpcSailingDirection({
     desiredDirection,
     windFlowDirection: {
       x: Math.cos(windFlowDirection),
       y: Math.sin(windFlowDirection)
     },
-    stallAngleRad: enemy.stats.upwindStallAngleRad,
-    currentDirection: lakeBattleHeadingVector(enemy),
+    stallAngleRad: ship.stats.upwindStallAngleRad,
+    currentDirection: lakeBattleHeadingVector(ship),
     preferredTackSide
   });
-  if (result.tacking && (enemy.tackSide !== result.tackSide || enemy.tackRemainingPx <= 0)) {
-    enemy.tackSide = result.tackSide;
-    enemy.tackRemainingPx = ENEMY_TACK_LEG_PX;
+  if (result.tacking && (ship.tackSide !== result.tackSide || ship.tackRemainingPx <= 0)) {
+    ship.tackSide = result.tackSide;
+    ship.tackRemainingPx = ENEMY_TACK_LEG_PX;
   } else if (!result.tacking) {
-    enemy.tackSide = 0;
-    enemy.tackRemainingPx = 0;
+    ship.tackSide = 0;
+    ship.tackRemainingPx = 0;
   }
   return result.direction;
 }
 
-function enemyDirectionCanMakeWay(state, enemy, direction) {
-  if (enemy.stats.propulsion !== SHIP_PROPULSION_SAIL) return true;
+function npcDirectionCanMakeWay(state, ship, direction) {
+  if (ship.stats.propulsion !== SHIP_PROPULSION_SAIL) return true;
   const windFlowDirection = lakeBattleWindFlowDirection(state);
   const windFlow = { x: Math.cos(windFlowDirection), y: Math.sin(windFlowDirection) };
-  return sailingEfficiencyForStats(enemy.stats, direction, windFlow) > 0;
+  return sailingEfficiencyForStats(ship.stats, direction, windFlow) > 0;
 }
 
-function enemyDirectionClearDistance(state, enemy, direction) {
+function npcDirectionClearDistance(state, ship, direction) {
   let clearDistance = 0;
   for (const distance of ENEMY_OBSTACLE_PROBE_DISTANCES_PX) {
-    const x = enemy.x + direction.x * distance;
-    const y = enemy.y + direction.y * distance;
-    if (!lakeBattleShipFitsInWater(state, enemy, x, y)) break;
+    const x = ship.x + direction.x * distance;
+    const y = ship.y + direction.y * distance;
+    if (!lakeBattleShipFitsInWater(state, ship, x, y)) break;
     clearDistance = distance;
   }
   return clearDistance;
 }
 
-function fireEnemyWhenAligned(state) {
-  const enemy = state.enemy;
-  if (!navalWeaponUsesBroadside(enemy.weapon)) return false;
-  if (enemy.kind === "city") {
-    const source = lakeBattleCombatantPoint(enemy);
-    const target = lakeBattleCombatantAimPoint(state, state.player);
-    const direction = Math.atan2(target.y - source.y, target.x - source.x);
-    enemy.headingRad = normalizeAngle(direction - Math.PI / 2);
-    return fireLakeBattleBroadside(state, enemy.id, "starboard");
+function fireNpcWhenAligned(state, ship, target, tacticId) {
+  if (!navalWeaponUsesBroadside(ship.weapon)) return false;
+  const sourcePoint = lakeBattleCombatantPoint(ship);
+  const targetPoint = lakeBattleNpcAimPoint(state, ship, target, tacticId);
+  if (!targetPoint) return false;
+  if (ship.kind === "city") {
+    const direction = Math.atan2(targetPoint.y - sourcePoint.y, targetPoint.x - sourcePoint.x);
+    ship.headingRad = normalizeAngle(direction - Math.PI / 2);
+    return fireLakeBattleBroadsideVolley(state, ship, target, "starboard", {
+      kind: "npc",
+      targetPoint
+    });
   }
-  const targetDistance = Math.hypot(state.player.x - enemy.x, state.player.y - enemy.y);
-  if (targetDistance > lakeBattleWeaponRange(enemy) * 1.04) return false;
+  const targetDistance = Math.hypot(targetPoint.x - sourcePoint.x, targetPoint.y - sourcePoint.y);
+  if (targetDistance > lakeBattleWeaponRange(ship) * 1.04) return false;
   const sideName = navalBroadsideSideForTarget(
-    lakeBattleHeadingVector(enemy),
-    lakeBattleCombatantPoint(enemy),
-    lakeBattleCombatantAimPoint(state, state.player)
+    lakeBattleHeadingVector(ship),
+    sourcePoint,
+    targetPoint
   );
   if (!sideName) return false;
-  return fireLakeBattleBroadside(state, enemy.id, sideName);
+  return fireLakeBattleBroadsideVolley(state, ship, target, sideName, {
+    kind: "npc",
+    targetPoint
+  });
+}
+
+function lakeBattleNpcAimPoint(state, ship, target, tacticId) {
+  const targetPoint = lakeBattleCombatantAimPoint(state, target);
+  const targetHeading = target.kind === "city" ? null : lakeBattleHeadingVector(target);
+  return npcCombatAimPointForTactic(tacticId, {
+    origin: lakeBattleCombatantPoint(ship),
+    target: targetPoint,
+    targetVelocity: targetHeading
+      ? { x: targetHeading.x * target.speedPx, y: targetHeading.y * target.speedPx }
+      : { x: 0, y: 0 },
+    projectileSpeedPx: NAVAL_CANNON_SPEED_PX * ship.weapon.speedScale
+  });
 }
 
 function updateProjectiles(state, dt) {
@@ -1210,27 +1330,12 @@ function seedUnit(seed, salt) {
   return ((value ^ (value >>> 16)) >>> 0) / 0x100000000;
 }
 
-function normalizedDirection(x, y) {
-  const length = Math.hypot(x, y);
-  if (length <= 1e-9) return { x: 1, y: 0 };
-  return { x: x / length, y: y / length };
-}
-
 function normalizeAngle(angle) {
   return shortestAngle(angle);
 }
 
 function shortestAngle(angle) {
   return Math.atan2(Math.sin(angle), Math.cos(angle));
-}
-
-function rotate2(direction, angle) {
-  const cos = Math.cos(angle);
-  const sin = Math.sin(angle);
-  return {
-    x: direction.x * cos - direction.y * sin,
-    y: direction.x * sin + direction.y * cos
-  };
 }
 
 function dot2(a, b) {

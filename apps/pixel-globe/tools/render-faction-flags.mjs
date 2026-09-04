@@ -1,9 +1,13 @@
 import { mkdirSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { createCanvas } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { FACTIONS, factionHasFlag } from "../src/factions.js";
+import {
+  POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ASSET_PATH,
+  POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ID
+} from "../src/politicsGroupAssets.js";
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 
 const appRoot = resolve(fileURLToPath(new URL("..", import.meta.url)));
@@ -216,6 +220,22 @@ const RESEARCH = Object.freeze([
 
 const RESEARCH_BY_ID = new Map(RESEARCH.map((entry) => [entry.id, entry]));
 if (RESEARCH_BY_ID.size !== RESEARCH.length) throw new Error("Faction flag research contains duplicate ids");
+const POLITICS_GROUP_RESEARCH = Object.freeze([
+  Object.freeze({
+    groupName: "Holy Roman Empire",
+    file: basename(POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ASSET_PATH),
+    ...research(
+      POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ID,
+      "period-banner",
+      "Imperial double-headed eagle banner",
+      "A black double-headed Imperial Eagle on gold, the Imperial banner documented from 1400.",
+      [source(
+        "Banner of the Holy Roman Emperor after 1400",
+        "https://commons.wikimedia.org/wiki/File:Banner_of_the_Holy_Roman_Emperor_(after_1400).svg"
+      )]
+    )
+  })
+]);
 
 class PixelSurface {
   constructor(width, height, background = null) {
@@ -349,6 +369,19 @@ function drawFactionFlag(id) {
   if (!draw) throw new Error(`Missing faction flag renderer: ${id}`);
   const surface = draw();
   if (!(surface instanceof PixelSurface)) throw new Error(`Faction flag renderer returned invalid surface: ${id}`);
+  return surface;
+}
+
+function drawPoliticsGroupFlag(id) {
+  if (id !== POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ID) {
+    throw new Error(`Missing politics group flag renderer: ${id}`);
+  }
+  const surface = base(C.gold);
+  doubleEagle(surface, C.black);
+  surface.pixel(10, 3, C.red);
+  surface.pixel(22, 3, C.red);
+  surface.pixel(13, 16, C.red);
+  surface.pixel(19, 16, C.red);
   return surface;
 }
 
@@ -1094,7 +1127,7 @@ function renderContactSheet(entries) {
   return canvas;
 }
 
-function researchMarkdown(entries) {
+function researchMarkdown(entries, politicalGroups) {
   const lines = [
     "# Faction Flags and Heraldry, 1522",
     "",
@@ -1110,6 +1143,15 @@ function researchMarkdown(entries) {
       ? ` Sources: ${entry.sources.map((item) => `[${item.label}](${item.url})`).join(", ")}.`
       : "";
     lines.push(`| ${entry.factionName} | ${entry.representation} | \`${entry.evidence}\` | ${entry.accuracyNote}${sourceLinks} |`);
+  }
+  lines.push("", "## Political group identifiers", "");
+  lines.push("| Group | Representation | Evidence | Accuracy note |");
+  lines.push("|---|---|---|---|");
+  for (const entry of politicalGroups) {
+    const sourceLinks = entry.sources.length > 0
+      ? ` Sources: ${entry.sources.map((item) => `[${item.label}](${item.url})`).join(", ")}.`
+      : "";
+    lines.push(`| ${entry.groupName} | ${entry.representation} | \`${entry.evidence}\` | ${entry.accuracyNote}${sourceLinks} |`);
   }
   lines.push("");
   return lines.join("\n");
@@ -1136,6 +1178,11 @@ function main() {
       ...researchEntry
     });
   }
+  const politicalGroupEntries = POLITICS_GROUP_RESEARCH.map((researchEntry) => {
+    const canvas = drawPoliticsGroupFlag(researchEntry.id).toCanvas();
+    writeFileSync(join(outputRoot, researchEntry.file), canvas.toBuffer("image/png"));
+    return { ...researchEntry, width: FLAG_W, height: FLAG_H };
+  });
 
   const manifest = entries.map(({ faction, canvas, ...entry }) => entry);
   writeFileSync(join(outputRoot, "manifest.json"), `${JSON.stringify({
@@ -1164,15 +1211,24 @@ function main() {
       "period-royal-standard": "A traditional royal standard rather than a national flag.",
       reconstruction: "No secure period flag survives; the image is an explicit game reconstruction."
     },
-    factions: manifest
+    factions: manifest,
+    politicalGroups: politicalGroupEntries
   }, null, 2)}\n`);
   writeFileSync(join(outputRoot, "contact-sheet.png"), renderContactSheet(entries).toBuffer("image/png"));
-  writeFileSync(join(docsRoot, "faction-flags.md"), `${researchMarkdown(manifest)}\n`);
-  console.log(`Rendered ${entries.length} faction flags to ${outputRoot}`);
+  writeFileSync(
+    join(docsRoot, "faction-flags.md"),
+    `${researchMarkdown(manifest, politicalGroupEntries)}\n`
+  );
+  console.log(
+    `Rendered ${entries.length} faction flags and ${politicalGroupEntries.length} politics group flags to ${outputRoot}`
+  );
 }
 
 function removeObsoleteFlagFiles() {
-  const expectedFiles = new Set(FLAG_FACTIONS.map((faction) => `${faction.id}.png`));
+  const expectedFiles = new Set([
+    ...FLAG_FACTIONS.map((faction) => `${faction.id}.png`),
+    ...POLITICS_GROUP_RESEARCH.map(({ file }) => file)
+  ]);
   for (const entry of readdirSync(outputRoot, { withFileTypes: true })) {
     if (!entry.isFile() || entry.name === "contact-sheet.png" || !entry.name.endsWith(".png")) continue;
     if (!expectedFiles.has(entry.name)) unlinkSync(join(outputRoot, entry.name));

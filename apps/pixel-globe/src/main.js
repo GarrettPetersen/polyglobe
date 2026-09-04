@@ -1608,7 +1608,11 @@ import {
   playerCombatAllegiance,
   updateShipCombatState
 } from "./shipCombat.js";
-import { npcBroadsideNavigation } from "./npcCombatTactics.js";
+import {
+  NPC_COMBAT_CURRENT_TACTIC_ID,
+  npcCombatAimPointForTactic,
+  npcCombatNavigationForTactic
+} from "./npcCombatTactics.js";
 import {
   FRIENDLY_FIRE_DIRECT,
   FRIENDLY_FIRE_FORGIVEN,
@@ -1822,10 +1826,15 @@ import { recordNpcGossipHeard, unheardNpcGossip } from "./npcGossipMemory.js";
 import { dietOfWormsGossipPerspective } from "./religiousDialogue.js";
 import { isRomanCatholicReligion } from "./religiousAttitudes.js";
 import {
+  POLITICS_GROUP_HOLY_ROMAN_EMPIRE_ID,
+  POLITICS_GROUP_JAPAN_ID,
   createPoliticsView,
+  politicsGroupById,
+  politicsGroupForFaction,
   politicsMarqueMarker,
   politicsTradeCode
 } from "./politics.js";
+import { POLITICS_GROUP_FLAG_ASSETS } from "./politicsGroupAssets.js";
 import {
   BEAVER_PELTS_GOOD_ID,
   FORAGED_FOOD_GOOD_ID,
@@ -2913,7 +2922,7 @@ const STATUS_PERSON_PARTICLE_DURATION_MS = 900;
 const STATUS_PERSON_PARTICLE_GRAVITY_PX = 26;
 const STATUS_PERSON_PARTICLE_LIMIT = 320;
 const COLONY_DEPARTURE_DISTANCE_PX = 90;
-const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-5";
+const FACTION_FLAG_ASSET_VERSION = "faction-flags-1522-6";
 const FACTION_FLAG_SOURCE_W = 32;
 const FACTION_FLAG_SOURCE_H = 20;
 const FACTION_FLAG_ATLAS_COLUMNS = 8;
@@ -6236,54 +6245,86 @@ async function loadCityTypeImage(artKey) {
 
 async function loadFactionFlagImages() {
   const factions = FACTIONS.filter((faction) => factionHasFlag(faction.id));
+  let entries;
   if (BUILD_EDITION_ID === "demo") {
     const atlas = await loadAssetImage(
       `assets/factions/flags-atlas.png?v=${FACTION_FLAG_ASSET_VERSION}`,
       "faction flag atlas"
     );
-    const rows = Math.ceil(factions.length / FACTION_FLAG_ATLAS_COLUMNS);
+    const rows = Math.ceil(
+      (factions.length + POLITICS_GROUP_FLAG_ASSETS.length) / FACTION_FLAG_ATLAS_COLUMNS
+    );
     validateImageDimensions(
       atlas,
       "Faction flag atlas",
       FACTION_FLAG_ATLAS_COLUMNS * FACTION_FLAG_SOURCE_W,
       rows * FACTION_FLAG_SOURCE_H
     );
-    return new Map(factions.map((faction, index) => {
-      const image = document.createElement("canvas");
-      image.width = FACTION_FLAG_SOURCE_W;
-      image.height = FACTION_FLAG_SOURCE_H;
-      const flagContext = image.getContext("2d");
-      if (!flagContext) throw new Error(`Could not create faction flag canvas: ${faction.id}`);
-      flagContext.imageSmoothingEnabled = false;
-      flagContext.drawImage(
-        atlas,
-        (index % FACTION_FLAG_ATLAS_COLUMNS) * FACTION_FLAG_SOURCE_W,
-        Math.floor(index / FACTION_FLAG_ATLAS_COLUMNS) * FACTION_FLAG_SOURCE_H,
-        FACTION_FLAG_SOURCE_W,
-        FACTION_FLAG_SOURCE_H,
-        0,
-        0,
+    entries = factions.map((faction, index) => [
+      faction.id,
+      flagImageFromAtlas(atlas, index, faction.id)
+    ]);
+    entries.push(...POLITICS_GROUP_FLAG_ASSETS.map((flag, index) => [
+      flag.id,
+      flagImageFromAtlas(atlas, factions.length + index, flag.id)
+    ]));
+  } else {
+    entries = await Promise.all(factions.map(async (faction) => {
+      const image = await loadAssetImage(
+        `assets/factions/flags/${faction.id}.png?v=${FACTION_FLAG_ASSET_VERSION}`,
+        `faction flag: ${faction.id}`
+      );
+      validateImageDimensions(
+        image,
+        `Faction flag: ${faction.id}`,
         FACTION_FLAG_SOURCE_W,
         FACTION_FLAG_SOURCE_H
       );
       return [faction.id, image];
     }));
+    const groupEntries = await Promise.all(POLITICS_GROUP_FLAG_ASSETS.map(async (flag) => {
+      const image = await loadAssetImage(
+        `${flag.assetPath}?v=${FACTION_FLAG_ASSET_VERSION}`,
+        `politics group flag: ${flag.id}`
+      );
+      validateImageDimensions(
+        image,
+        `Politics group flag: ${flag.id}`,
+        FACTION_FLAG_SOURCE_W,
+        FACTION_FLAG_SOURCE_H
+      );
+      return [flag.id, image];
+    }));
+    entries.push(...groupEntries);
   }
-
-  const entries = await Promise.all(factions.map(async (faction) => {
-    const image = await loadAssetImage(
-      `assets/factions/flags/${faction.id}.png?v=${FACTION_FLAG_ASSET_VERSION}`,
-      `faction flag: ${faction.id}`
-    );
-    validateImageDimensions(
-      image,
-      `Faction flag: ${faction.id}`,
-      FACTION_FLAG_SOURCE_W,
-      FACTION_FLAG_SOURCE_H
-    );
-    return [faction.id, image];
-  }));
   return new Map(entries);
+}
+
+function flagImageFromAtlas(atlas, index, flagId) {
+  if (!atlas || !Number.isInteger(index) || index < 0) {
+    throw new Error(`Faction flag atlas extraction requires a non-negative index: ${index}`);
+  }
+  if (typeof flagId !== "string" || flagId === "") {
+    throw new Error(`Faction flag atlas extraction requires a flag id: ${flagId}`);
+  }
+  const image = document.createElement("canvas");
+  image.width = FACTION_FLAG_SOURCE_W;
+  image.height = FACTION_FLAG_SOURCE_H;
+  const flagContext = image.getContext("2d");
+  if (!flagContext) throw new Error(`Could not create faction flag canvas: ${flagId}`);
+  flagContext.imageSmoothingEnabled = false;
+  flagContext.drawImage(
+    atlas,
+    (index % FACTION_FLAG_ATLAS_COLUMNS) * FACTION_FLAG_SOURCE_W,
+    Math.floor(index / FACTION_FLAG_ATLAS_COLUMNS) * FACTION_FLAG_SOURCE_H,
+    FACTION_FLAG_SOURCE_W,
+    FACTION_FLAG_SOURCE_H,
+    0,
+    0,
+    FACTION_FLAG_SOURCE_W,
+    FACTION_FLAG_SOURCE_H
+  );
+  return image;
 }
 
 function loadAssetImage(src, label, { retryDelaysMs } = {}) {
@@ -9544,6 +9585,10 @@ function createPoliticsMenuState() {
   return {
     isOpen: false,
     page: 0,
+    groupDetailId: null,
+    selectedGroupId: null,
+    groupCardRects: [],
+    groupDetailBackRect: null,
     view: null,
     paginationCache: null,
     newsDetailOpen: false,
@@ -12686,10 +12731,13 @@ function adjustCaptureCustomLoadoutField(key, ratio) {
 function openCapturePoliticsFactionPage(factionId) {
   openPoliticsMenu();
   const view = currentPoliticsView();
+  const group = politicsGroupForFaction(view, factionId);
+  if (group) openPoliticsGroupDetail(group.id);
   for (let page = 0; page < view.cards.length; page += 1) {
     politicsMenu.page = page;
+    politicsMenu.paginationCache = null;
     const pagination = politicsCardPagination(view);
-    if (pagination.page.entries.some((entry) => entry.card.faction.id === factionId)) return;
+    if (pagination.page.entries.some((entry) => entry.card.faction?.id === factionId)) return;
     if (page + 1 >= pagination.page.pageCount) break;
   }
   throw new Error(`Capture politics menu has no page for ${factionId}`);
@@ -17462,6 +17510,11 @@ function openPoliticsMenu() {
   politicsMenu.paginationCache = null;
   politicsMenu.isOpen = true;
   politicsMenu.page = 0;
+  politicsMenu.groupDetailId = null;
+  politicsMenu.selectedGroupId = politicsMenu.view.overviewCards
+    .find(({ kind }) => kind === "political-group")?.id || null;
+  politicsMenu.groupCardRects = [];
+  politicsMenu.groupDetailBackRect = null;
   closePoliticsNewsDetail();
   keys.clear();
   clearPointerSteering();
@@ -17479,6 +17532,10 @@ function closePoliticsMenu() {
   politicsMenu.isOpen = false;
   politicsMenu.view = null;
   politicsMenu.paginationCache = null;
+  politicsMenu.groupDetailId = null;
+  politicsMenu.selectedGroupId = null;
+  politicsMenu.groupCardRects = [];
+  politicsMenu.groupDetailBackRect = null;
   politicsMenu.panelRect = null;
   politicsMenu.closeButtonRect = null;
   politicsMenu.newsRect = null;
@@ -17544,13 +17601,25 @@ function handlePoliticsKeyDown(event) {
     return;
   }
   if (event.key === "Escape") {
-    closePoliticsMenu();
+    if (politicsMenu.groupDetailId === null) closePoliticsMenu();
+    else closePoliticsGroupDetail();
     return;
   }
-  if (["Enter", " "].includes(event.key) && openPoliticsNewsDetail()) return;
-  if (["ArrowLeft", "ArrowUp"].includes(event.key)) {
+  if (["Enter", " "].includes(event.key)) {
+    if (politicsMenu.groupDetailId === null && politicsMenu.selectedGroupId !== null) {
+      openPoliticsGroupDetail(politicsMenu.selectedGroupId);
+    } else {
+      openPoliticsNewsDetail();
+    }
+    return;
+  }
+  if (politicsMenu.groupDetailId === null && ["ArrowUp", "ArrowDown"].includes(event.key)) {
+    focusPoliticsGroup(event.key === "ArrowUp" ? -1 : 1);
+  } else if (event.key === "ArrowLeft" ||
+      (politicsMenu.groupDetailId !== null && event.key === "ArrowUp")) {
     stepPoliticsPage(-1);
-  } else if (["ArrowRight", "ArrowDown"].includes(event.key)) {
+  } else if (event.key === "ArrowRight" ||
+      (politicsMenu.groupDetailId !== null && event.key === "ArrowDown")) {
     stepPoliticsPage(1);
   } else if (event.key === "PageUp") {
     stepPoliticsPage(-POLITICS_PAGE_JUMP);
@@ -19451,6 +19520,16 @@ function handlePoliticsPointerDown(point) {
     else if (pointInRect(point, politicsMenu.newsDetailDownRect)) scrollPoliticsNewsDetail(1);
     return;
   }
+  if (pointInRect(point, politicsMenu.groupDetailBackRect)) {
+    closePoliticsGroupDetail();
+    return;
+  }
+  for (const entry of politicsMenu.groupCardRects) {
+    if (!pointInRect(point, entry.rect)) continue;
+    politicsMenu.selectedGroupId = entry.groupId;
+    openPoliticsGroupDetail(entry.groupId);
+    return;
+  }
   if (pointInRect(point, politicsMenu.newsRect)) {
     openPoliticsNewsDetail();
     return;
@@ -19491,7 +19570,9 @@ function politicsPointerIsActionable(point) {
     politicsMenu.previousPageRect,
     politicsMenu.nextPageRect,
     politicsMenu.nextJumpPageRect,
-    politicsMenu.lastPageRect
+    politicsMenu.lastPageRect,
+    politicsMenu.groupDetailBackRect,
+    ...politicsMenu.groupCardRects.map(({ rect }) => rect)
   ].some((rect) => pointInRect(point, rect));
 }
 
@@ -19772,6 +19853,64 @@ function jumpPoliticsPage(boundary) {
     boundary === "first" ? 0 : pagination.page.pageCount - 1,
     pagination.page.pageCount
   );
+}
+
+function openPoliticsGroupDetail(groupId) {
+  const view = currentPoliticsView();
+  politicsGroupById(view, groupId);
+  politicsMenu.groupDetailId = groupId;
+  politicsMenu.page = 0;
+  politicsMenu.paginationCache = null;
+  politicsMenu.groupCardRects = [];
+  politicsMenu.groupDetailBackRect = null;
+  dirty = true;
+}
+
+function closePoliticsGroupDetail() {
+  if (politicsMenu.groupDetailId === null) {
+    throw new Error("Politics group detail is not open");
+  }
+  const groupId = politicsMenu.groupDetailId;
+  politicsMenu.groupDetailId = null;
+  politicsMenu.selectedGroupId = groupId;
+  politicsMenu.page = 0;
+  politicsMenu.paginationCache = null;
+  politicsMenu.groupDetailBackRect = null;
+  movePoliticsPageToGroup(groupId);
+  dirty = true;
+}
+
+function focusPoliticsGroup(offset) {
+  if (!Number.isInteger(offset) || offset === 0) {
+    throw new Error(`Invalid politics group focus offset: ${offset}`);
+  }
+  const view = currentPoliticsView();
+  const groups = view.overviewCards.filter(({ kind }) => kind === "political-group");
+  if (groups.length === 0) return;
+  const currentIndex = groups.findIndex(({ id }) => id === politicsMenu.selectedGroupId);
+  if (currentIndex < 0 && politicsMenu.selectedGroupId !== null) {
+    throw new Error(`Selected politics group is missing: ${politicsMenu.selectedGroupId}`);
+  }
+  const nextIndex = offsetMenuIndex(Math.max(0, currentIndex), offset, groups.length);
+  const groupId = groups[nextIndex].id;
+  politicsMenu.selectedGroupId = groupId;
+  movePoliticsPageToGroup(groupId);
+  dirty = true;
+}
+
+function movePoliticsPageToGroup(groupId) {
+  const view = currentPoliticsView();
+  politicsGroupById(view, groupId);
+  politicsMenu.groupDetailId = null;
+  politicsMenu.paginationCache = null;
+  const firstPage = politicsCardPagination(view);
+  for (let page = 0; page < firstPage.page.pageCount; page += 1) {
+    politicsMenu.page = page;
+    politicsMenu.paginationCache = null;
+    const pagination = politicsCardPagination(view);
+    if (pagination.page.entries.some((entry) => entry.card.id === groupId)) return;
+  }
+  throw new Error(`Politics overview has no card for group: ${groupId}`);
 }
 
 function updateOptionsSelectionFromPoint(point) {
@@ -37341,6 +37480,24 @@ function combatEntityAimPoint(entityId) {
   return shipFootprintPolygonCenter(footprint);
 }
 
+function combatEntityVelocityPx(entityId) {
+  if (entityId === PLAYER_COMBAT_ID) {
+    if (!ship || !localLayout) throw new Error("Player combat velocity requires the active ship layout");
+    // The chart follows the player. Cannon trajectories and combat targets both use that
+    // screen-space frame, so the player's aim point is stationary even while sailing.
+    return { x: 0, y: 0 };
+  }
+  if (shoreBatteryStates.has(entityId)) return { x: 0, y: 0 };
+  const state = npcVisualShips.get(entityId);
+  if (!state) throw new Error(`Combat velocity requires a known entity: ${entityId}`);
+  const heading = npcShipScreenHeading(state.heading);
+  const speedPx = state.combatMode ? npcLocalCombatResponseSpeedPx(state, state.heading) : 0;
+  return {
+    x: heading.x * speedPx + state.collisionVelocityX,
+    y: heading.y * speedPx + state.collisionVelocityY
+  };
+}
+
 function combatEntityCrewProtection(entityId) {
   if (entityId === PLAYER_COMBAT_ID) {
     if (!ship?.stats) throw new Error("Player combat entity has no ship stats");
@@ -37393,7 +37550,7 @@ function npcCombatNavigation(state) {
   if (distance <= 1e-6) return null;
   const weapon = npcNavalWeapon(state);
   if (!weapon || !navalWeaponUsesBroadside(weapon)) return { routePoint: target };
-  return npcBroadsideNavigation({
+  return npcCombatNavigationForTactic(NPC_COMBAT_CURRENT_TACTIC_ID, {
     identity: state.id,
     origin: state,
     target,
@@ -37405,11 +37562,18 @@ function npcCombatNavigation(state) {
 
 function fireNpcWeaponAtTarget(state, targetId) {
   if (state.combatGrace) return false;
-  const target = combatEntityAimPoint(targetId);
-  if (!target) return false;
+  const currentTarget = combatEntityAimPoint(targetId);
+  if (!currentTarget) return false;
   const stats = state.stats;
   const weapon = npcNavalWeapon(state);
   if (!weapon || !navalWeaponUsesBroadside(weapon)) return false;
+  const target = npcCombatAimPointForTactic(NPC_COMBAT_CURRENT_TACTIC_ID, {
+    origin: state,
+    target: currentTarget,
+    targetVelocity: combatEntityVelocityPx(targetId),
+    projectileSpeedPx: CANNON_SPEED_PX * weapon.speedScale
+  });
+  if (!target) return false;
   const dx = target.x - state.x;
   const dy = target.y - state.y;
   const distance = Math.hypot(dx, dy);
@@ -49655,10 +49819,29 @@ function drawPoliticsMenu() {
   politicsMenu.panelRect = panel;
   politicsMenu.closeButtonRect = pageCloseButtonRect(panel);
   drawPageCloseButton(politicsMenu.closeButtonRect, optionsMenu.hoverPoint);
-  drawOptionsText(uiText("politics.title"), panel.x + panel.w / 2, panel.y + 9, {
-    align: "center",
-    color: PIRATE_MENU_INK
-  });
+  const group = politicsMenu.newsDetailOpen || politicsMenu.groupDetailId === null
+    ? null
+    : politicsGroupById(view, politicsMenu.groupDetailId);
+  politicsMenu.groupCardRects = [];
+  politicsMenu.groupDetailBackRect = group === null
+    ? null
+    : { x: panel.x + 8, y: panel.y + 7, w: 58, h: 13 };
+  if (politicsMenu.groupDetailBackRect) {
+    drawShipInfoArrowButton(
+      politicsMenu.groupDetailBackRect,
+      `< ${uiText("common.back")}`,
+      pointInRect(optionsMenu.hoverPoint, politicsMenu.groupDetailBackRect)
+    );
+  }
+  drawOptionsText(
+    group === null ? uiText("politics.title") : uiText(group.titleKey),
+    panel.x + panel.w / 2,
+    panel.y + 9,
+    {
+      align: "center",
+      color: PIRATE_MENU_INK
+    }
+  );
   if (politicsMenu.newsDetailOpen) {
     drawPoliticsNewsDetail(view, panel);
     ctx.restore();
@@ -49670,10 +49853,16 @@ function drawPoliticsMenu() {
   politicsMenu.newsDetailDownRect = null;
   const pagination = politicsCardPagination(view, panel);
   politicsMenu.page = pagination.page.page;
-  drawPoliticsImperialSummary(view, panel);
+  if (group?.id === POLITICS_GROUP_HOLY_ROMAN_EMPIRE_ID) {
+    drawPoliticsImperialSummary(view, panel);
+  } else if (group?.id === POLITICS_GROUP_JAPAN_ID) {
+    drawPoliticsGroupSummary(group, panel);
+  } else if (group !== null) {
+    throw new Error(`Unknown politics group presentation: ${group.id}`);
+  }
 
   pagination.page.entries.forEach((entry) => {
-    drawPoliticsCountryCard(entry, view, {
+    const rect = {
       x: panel.x + pagination.layout.panelPadX +
         entry.column * (pagination.layout.cardWidth + pagination.layout.cardGap),
       y: panel.y + pagination.layout.contentTop +
@@ -49682,7 +49871,14 @@ function drawPoliticsMenu() {
         pagination.layout.cardGap * (entry.columnSpan - 1),
       h: pagination.layout.cardHeight * entry.rowSpan +
         pagination.layout.cardGap * (entry.rowSpan - 1)
-    }, pagination.layout);
+    };
+    if (entry.card.kind === "political-group") {
+      drawPoliticsGroupCard(entry.card, rect, pagination.layout);
+    } else if (entry.card.kind === "faction") {
+      drawPoliticsCountryCard(entry, view, rect, pagination.layout);
+    } else {
+      throw new Error(`Unknown politics card presentation: ${entry.card.kind}`);
+    }
   });
 
   const pagerY = panel.y + panel.h - UI_PAGER_BUTTON_H - 5;
@@ -49721,7 +49917,7 @@ function drawPoliticsMenu() {
 
 function drawPoliticsImperialSummary(view, panel) {
   const imperial = view.imperial;
-  if (!imperial || !imperial.emperorRuler) {
+  if (!imperial || (!imperial.emperorOfficeVacant && !imperial.emperorRuler)) {
     throw new Error("Politics view is missing the Imperial office");
   }
   const religious = imperial.religiousBalance;
@@ -49761,6 +49957,74 @@ function drawPoliticsImperialSummary(view, panel) {
   );
 }
 
+function drawPoliticsGroupSummary(group, panel) {
+  const headName = group.headRuler?.name || uiText("politics.vacant");
+  drawOptionsText(
+    fitPixelText(
+      `${uiText(group.headOfficeKey)} ${headName.toUpperCase()}`,
+      PIXEL_FONT_SMALL_8,
+      panel.w - 32
+    ),
+    panel.x + panel.w / 2,
+    panel.y + 19,
+    { align: "center", color: PIRATE_MENU_CHART_LINE }
+  );
+  drawOptionsText(
+    uiText(group.memberCountKey, { count: group.memberCards.length }),
+    panel.x + panel.w / 2,
+    panel.y + 29,
+    { align: "center", color: PIRATE_MENU_CHART_LINE }
+  );
+}
+
+function drawPoliticsGroupCard(group, rect, layout) {
+  const hovered = pointInRect(optionsMenu.hoverPoint, rect);
+  const selected = politicsMenu.selectedGroupId === group.id;
+  drawPiratePaperInset(rect, hovered || selected);
+  politicsMenu.groupCardRects.push(Object.freeze({ groupId: group.id, rect }));
+  const headerY = rect.y + 3;
+  drawPoliticsIdentifierFlag(group.flagId, rect.x + 4, headerY, 20, 13);
+  drawOptionsText(
+    fitPixelText(uiText(group.titleKey), PIXEL_FONT_SMALL_8, rect.w - 38),
+    rect.x + 28,
+    headerY,
+    { color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    ">",
+    rect.x + rect.w - 5,
+    headerY,
+    { align: "right", color: PIRATE_MENU_CHART_LINE }
+  );
+  const headName = group.headRuler?.name || uiText("politics.vacant");
+  drawOptionsText(
+    fitPixelText(
+      `${uiText(group.headOfficeKey)} ${headName.toUpperCase()}`,
+      PIXEL_FONT_SMALL_8,
+      rect.w - 32
+    ),
+    rect.x + 28,
+    headerY + layout.relationLineHeight,
+    { color: PIRATE_MENU_INK_MUTED }
+  );
+  drawOptionsText(
+    fitPixelText(
+      uiText(group.memberCountKey, { count: group.memberCards.length }),
+      PIXEL_FONT_SMALL_8,
+      rect.w - 8
+    ),
+    rect.x + 4,
+    rect.y + layout.headerHeight,
+    { color: PIRATE_MENU_INK }
+  );
+  drawOptionsText(
+    uiText("politics.group.viewMembers"),
+    rect.x + 4,
+    rect.y + layout.headerHeight + layout.relationLineHeight,
+    { color: PIRATE_MENU_CHART_LINE }
+  );
+}
+
 function politicsCardPagination(view, panel = captainNotebookPagePanel({
   x: POLITICS_PANEL_X,
   y: POLITICS_PANEL_Y,
@@ -49771,7 +50035,8 @@ function politicsCardPagination(view, panel = captainNotebookPagePanel({
     panel.w,
     panel.h,
     currentLanguageProfile.tableRowHeight,
-    politicsMenu.page
+    politicsMenu.page,
+    politicsMenu.groupDetailId || "overview"
   ].join(":");
   if (
     politicsMenu.paginationCache?.key === cacheKey &&
@@ -49785,9 +50050,13 @@ function politicsCardPagination(view, panel = captainNotebookPagePanel({
     panelHeight: panel.h,
     lineHeight: currentLanguageProfile.tableRowHeight,
     pagerHeight: UI_PAGER_BUTTON_H,
-    newsHeight
+    newsHeight,
+    contentTop: politicsMenu.groupDetailId === null ? 26 : 39
   });
-  const entries = politicsCardEntries(view.cards, {
+  const cards = politicsMenu.groupDetailId === null
+    ? view.overviewCards
+    : politicsGroupById(view, politicsMenu.groupDetailId).memberCards;
+  const entries = politicsCardEntries(cards, {
     tokensPerLine: layout.tokensPerLine,
     fullWidthTokensPerLine: layout.fullWidthTokensPerLine,
     maxColumnSpan: layout.columns,
@@ -50080,8 +50349,12 @@ function drawPoliticsRelationToken(power, x, y, lineHeight) {
 
 function drawPoliticsFlag(factionId, x, y, width, height) {
   if (!factionHasFlag(factionId)) throw new Error(`Politics card faction has no flag: ${factionId}`);
-  const image = factionFlagImages?.get(factionId);
-  if (!image) throw new Error(`Missing politics faction flag image: ${factionId}`);
+  drawPoliticsIdentifierFlag(factionId, x, y, width, height);
+}
+
+function drawPoliticsIdentifierFlag(identifierId, x, y, width, height) {
+  const image = factionFlagImages?.get(identifierId);
+  if (!image) throw new Error(`Missing politics flag image: ${identifierId}`);
   ctx.drawImage(image, Math.round(x), Math.round(y), width, height);
 }
 

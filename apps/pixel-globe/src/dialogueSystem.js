@@ -42,6 +42,7 @@ import {
   createMarketUndoSnapshot,
   declineEquipmentFactorPitch,
   deliveryOfferForCity,
+  deliveryWorkOptionsForCity,
   deliverEastAsianMissionLeg,
   deliverReligiousMissionLeg,
   deliverQuestCargoRequirement,
@@ -2062,10 +2063,11 @@ export function selectPortDialogueOption(
     if (gameState.ship.crew <= dismissal.targetCrew) {
       throw new Error("Crew dismissal target is already satisfied");
     }
-    dismissal.dismissals.push(dismissCrewMember(gameState, action.memberId));
+    const dismissed = dismissCrewMember(gameState, action.memberId);
+    dismissal.dismissals.push(dismissed);
     session.feedback = null;
-    session.selectedIndex = 0;
-    return { closed: false, crewDismissed: dismissal.dismissals.at(-1).member };
+    session.selectedIndex = crewDismissalSelectionIndex(gameState.crewRoster, dismissed);
+    return { closed: false, crewDismissed: dismissed.member };
   }
   if (action.type === "undo-crew-dismissals") {
     const dismissal = requireCrewDismissal(session);
@@ -3117,7 +3119,8 @@ export function selectPortDialogueOption(
         targetCrew: plan.crew,
         loadoutId: action.loadoutId,
         returnNodeId: "loadout",
-        afterNodeId: action.returnNodeId || "root"
+        afterNodeId: action.returnNodeId || "root",
+        initialCandidateIndex: gameState.crewRoster.length - 1
       });
       return { closed: false };
     }
@@ -3155,7 +3158,8 @@ export function selectPortDialogueOption(
         targetCrew: plan.crew,
         customDraft: { ...session.customLoadoutDraft },
         returnNodeId: "custom-loadout",
-        afterNodeId: "root"
+        afterNodeId: "root",
+        initialCandidateIndex: gameState.crewRoster.length - 1
       });
       return { closed: false };
     }
@@ -4936,13 +4940,17 @@ function beginCrewDismissal(session, {
   loadoutId = null,
   customDraft = null,
   returnNodeId,
-  afterNodeId
+  afterNodeId,
+  initialCandidateIndex
 }) {
   if (!["preset", "custom"].includes(kind)) {
     throw new Error(`Unknown crew dismissal kind: ${kind}`);
   }
   if (!Number.isInteger(targetCrew) || targetCrew < 1) {
     throw new Error(`Invalid crew dismissal target: ${targetCrew}`);
+  }
+  if (!Number.isInteger(initialCandidateIndex) || initialCandidateIndex < 0) {
+    throw new Error(`Invalid initial crew dismissal candidate: ${initialCandidateIndex}`);
   }
   session.crewDismissal = {
     kind,
@@ -4954,7 +4962,7 @@ function beginCrewDismissal(session, {
     dismissals: []
   };
   session.nodeId = "crew-dismissal";
-  session.selectedIndex = 0;
+  session.selectedIndex = initialCandidateIndex;
   session.feedback = null;
 }
 
@@ -4972,6 +4980,17 @@ function requireCrewDismissal(session) {
     throw new Error("Crew dismissal modal has no pending loadout change");
   }
   return dismissal;
+}
+
+function crewDismissalSelectionIndex(crewRoster, dismissal) {
+  if (!Array.isArray(crewRoster)) throw new Error("Crew dismissal focus requires the current roster");
+  const nextMemberId = dismissal.nextMemberId || dismissal.previousMemberId;
+  if (nextMemberId === null) return 0;
+  const index = crewRoster.findIndex(({ id }) => id === nextMemberId);
+  if (index < 0) {
+    throw new Error(`Crew dismissal focus member is missing: ${nextMemberId}`);
+  }
+  return index;
 }
 
 function crewDismissalView(session, city, gameState) {
@@ -8125,21 +8144,29 @@ function questView(session, city, gameState, portCities) {
     };
   }
   if (questState.kind === "available") {
+    const workOptions = questState.quest.kind === "delivery" &&
+      !questState.quest.onboarding &&
+      !isTeaRaceQuest(questState.quest)
+      ? deliveryWorkOptionsForCity(city, portCities, {
+          offerPeriod: questState.quest.offerPeriod
+        })
+      : [questState.quest];
     return {
       speaker: speakerName(city),
       expressionId: "attentive",
-      text: questState.quest.offerText ||
-        `A sealed packet needs passage to ${questState.quest.destinationName}, ` +
-        `${formatDistanceKm(questState.quest.distanceKm)} away. ` +
-        `Payment is ${questState.quest.reward} db on delivery.`,
+      text: workOptions.length > 1
+        ? "Several commissions are waiting. Choose one charge; your chart will mark the way."
+        : questState.quest.offerText ||
+          `A sealed packet needs passage to ${questState.quest.destinationName}, ` +
+          `${formatDistanceKm(questState.quest.distanceKm)} away. ` +
+          `Payment is ${questState.quest.reward} db on delivery.`,
       feedback: session.feedback,
       options: [
-        option(`Take ${questState.quest.cargoLabel || "packet"} to ${questState.quest.destinationName}`, {
-          type: "accept-quest",
-          quest: questState.quest
-        }, {
-          detail: formatDistanceKm(questState.quest.distanceKm)
-        }),
+        ...workOptions.map((quest) => option(
+          `Take ${quest.cargoLabel || "packet"} to ${quest.destinationName}`,
+          { type: "accept-quest", quest },
+          { detail: `${formatDistanceKm(quest.distanceKm)} / ${quest.reward} DB` }
+        )),
         option("Back", { type: "node", nodeId: returnNodeId })
       ]
     };

@@ -34,7 +34,7 @@ const FAMILIAR_LINES = Object.freeze([
 
 const FOREIGN_LINES = Object.freeze([
   ({ label, taste, homeLabel }) => `This ${label} is ${taste}. Nothing like ${homeLabel}, but the second cup argues well.`,
-  ({ label, taste }) => `${label}—${taste}. Strange on the first swallow; less strange on the third.`,
+  ({ sentenceLabel, taste }) => `${sentenceLabel}—${taste}. Strange on the first swallow; less strange on the third.`,
   ({ label, homeLabel }) => `They drink ${label} here. I would not mistake it for ${homeLabel}, even in a rolling cabin.`
 ]);
 
@@ -61,6 +61,7 @@ export function portInnDialogue({ city, homeCity, speakerName, variantSeed = 0 }
     : familiar ? FAMILIAR_LINES : FOREIGN_LINES;
   const line = lines[variantSeed % lines.length]({
     label: local.label,
+    sentenceLabel: sentenceCase(local.label),
     taste: local.taste,
     homeLabel: home.label
   });
@@ -71,6 +72,11 @@ export function portInnDialogue({ city, homeCity, speakerName, variantSeed = 0 }
     drinkLabel: local.label,
     familiar
   });
+}
+
+function sentenceCase(value) {
+  if (typeof value !== "string" || value === "") throw new Error("Inn flavor requires a drink label");
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 export function drinkForCity(city) {

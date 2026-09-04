@@ -617,6 +617,40 @@ export const ONBOARDING_DELIVERY_SCENARIOS = Object.freeze([
     completion: "Good. The shipwright can cut timber without guessing now."
   })
 ]);
+const DELIVERY_ROUTE_POLICY = Object.freeze({
+  SAME_FACTION_REGION: "same-faction-region",
+  REGIONAL: "regional",
+  FOREIGN_REGION: "foreign-region"
+});
+export const DELIVERY_COMMISSION_SCENARIOS = Object.freeze([
+  Object.freeze({
+    id: "sealed-packet",
+    cargoLabel: "sealed packet",
+    routePolicyId: DELIVERY_ROUTE_POLICY.SAME_FACTION_REGION,
+    rewardBonus: 0,
+    offer: ({ destinationName }) =>
+      `A sealed harbor packet needs passage to ${destinationName}.`,
+    completion: "That packet bears our seal. The account is in order."
+  }),
+  Object.freeze({
+    id: "merchant-samples",
+    cargoLabel: "merchant samples",
+    routePolicyId: DELIVERY_ROUTE_POLICY.REGIONAL,
+    rewardBonus: 20,
+    offer: ({ destinationName }) =>
+      `A merchant house needs its samples and price book carried to ${destinationName}.`,
+    completion: "The samples match the account. The merchant house will settle with you."
+  }),
+  Object.freeze({
+    id: "private-correspondence",
+    cargoLabel: "private letter",
+    routePolicyId: DELIVERY_ROUTE_POLICY.FOREIGN_REGION,
+    rewardBonus: 30,
+    offer: ({ destinationName }) =>
+      `A private correspondent in ${destinationName}, under another lord's seal, awaits this letter.`,
+    completion: "The private seal is unbroken. I will put it into the recipient's own hand."
+  })
+]);
 export const SHIP_ATTACK_REPUTATION_PENALTY = -35;
 export const FRIENDLY_FIRE_REPUTATION_PENALTY = -3;
 export const SELF_DEFENSE_REPUTATION_PENALTY = -1;
@@ -6694,50 +6728,86 @@ export function deliveryQuestForCity(city, portCities, {
   offerPeriod = 0,
   onboardingIndex = null
 } = {}) {
-  if (!Number.isInteger(offerPeriod) || offerPeriod < 0) {
-    throw new Error(`Invalid delivery offer period: ${offerPeriod}`);
-  }
+  assertDeliveryOfferPeriod(offerPeriod);
   if (onboardingIndex !== null &&
       (!Number.isInteger(onboardingIndex) || onboardingIndex < 0 ||
        onboardingIndex >= ONBOARDING_DELIVERY_COUNT)) {
     throw new Error(`Invalid onboarding delivery index: ${onboardingIndex}`);
   }
+  if (onboardingIndex !== null) {
+    const scenario = ONBOARDING_DELIVERY_SCENARIOS[onboardingIndex];
+    const candidates = deliveryCandidatePools(city, portCities)[
+      DELIVERY_ROUTE_POLICY.SAME_FACTION_REGION
+    ];
+    if (candidates.length === 0) return null;
+    const destination = [...candidates].sort((a, b) => (
+      greatCircleDistanceKm(city, a) - greatCircleDistanceKm(city, b) ||
+      cityKey(a).localeCompare(cityKey(b))
+    ))[0];
+    return createDeliveryCommissionQuest({
+      city,
+      destination,
+      scenario,
+      offerPeriod,
+      onboardingIndex
+    });
+  }
+  const workOptions = deliveryWorkOptionsForCity(city, portCities, { offerPeriod });
+  if (workOptions.length === 0) return null;
+  return workOptions[
+    hashString32(`delivery-scenario|${cityKey(city)}|${offerPeriod}`) % workOptions.length
+  ];
+}
+
+export function deliveryWorkOptionsForCity(city, portCities, { offerPeriod = 0 } = {}) {
+  assertDeliveryOfferPeriod(offerPeriod);
+  const candidatePools = deliveryCandidatePools(city, portCities);
+  return DELIVERY_COMMISSION_SCENARIOS
+    .filter((scenario) => candidatePools[scenario.routePolicyId].length > 0)
+    .map((scenario) => {
+      const candidates = candidatePools[scenario.routePolicyId];
+      const destination = candidates[
+        hashString32(`delivery|${scenario.id}|${cityKey(city)}|${offerPeriod}`) % candidates.length
+      ];
+      return createDeliveryCommissionQuest({ city, destination, scenario, offerPeriod });
+    });
+}
+
+function createDeliveryCommissionQuest({
+  city,
+  destination,
+  scenario,
+  offerPeriod,
+  onboardingIndex = null
+}) {
   const factionId = deliveryFactionId(city);
   const regionKey = deliveryRegionKey(city);
-  if (!factionId || !regionKey) return null;
-  const candidates = portCities
-    .filter((port) => (
-      port.cityId !== city.cityId &&
-      port.factionId === factionId &&
-      deliveryRegionKey(port) === regionKey
-    ))
-    .sort((a, b) => cityKey(a).localeCompare(cityKey(b)));
-  if (candidates.length === 0) return null;
+  if (!factionId || !regionKey) {
+    throw new Error(`Delivery commission requires a lawful regional origin: ${city.cityId}`);
+  }
   const onboarding = onboardingIndex !== null;
-  const destination = onboarding
-    ? [...candidates].sort((a, b) => (
-        greatCircleDistanceKm(city, a) - greatCircleDistanceKm(city, b) ||
-        cityKey(a).localeCompare(cityKey(b))
-      ))[0]
-    : candidates[hashString32(`delivery|${cityKey(city)}|${offerPeriod}`) % candidates.length];
-  const scenario = onboarding ? ONBOARDING_DELIVERY_SCENARIOS[onboardingIndex] : null;
   const reward = 65 + (hashString32(
-    `reward|${cityKey(city)}|${cityKey(destination)}|${offerPeriod}`
-  ) % 96) + (onboarding ? 50 : 0);
+    `reward|${scenario.id}|${cityKey(city)}|${cityKey(destination)}|${offerPeriod}`
+  ) % 96) + (onboarding ? 50 : scenario.rewardBonus);
   const distanceKm = Math.round(greatCircleDistanceKm(city, destination));
+  const offerLead = onboarding
+    ? scenario.offer
+    : scenario.offer({ destinationName: cityLabel(destination) });
   return {
-    id: `delivery-${hashString32(`${city.cityId}|${destination.cityId}`).toString(36)}-${offerPeriod}`,
+    id: `delivery-${hashString32(
+      `${scenario.id}|${city.cityId}|${destination.cityId}`
+    ).toString(36)}-${offerPeriod}`,
     kind: "delivery",
     onboarding,
     onboardingIndex,
-    scenarioId: scenario?.id || "sealed-packet",
-    cargoLabel: scenario?.cargoLabel || "sealed packet",
-    offerText: scenario
-      ? `${scenario.offer} Take the ${scenario.cargoLabel} to ${cityLabel(destination)}, ` +
+    scenarioId: scenario.id,
+    cargoLabel: scenario.cargoLabel,
+    offerText: offerLead
+      ? `${offerLead} Take the ${scenario.cargoLabel} to ${cityLabel(destination)}, ` +
         `${distanceKm.toLocaleString("en-US")} km away. Your chart will mark the way. ` +
         `Payment is ${reward} db.`
       : null,
-    completionText: scenario?.completion || null,
+    completionText: scenario.completion,
     offerPeriod,
     originKey: cityKey(city),
     originCityId: city.cityId,
@@ -6754,6 +6824,38 @@ export function deliveryQuestForCity(city, portCities, {
     distanceKm,
     reward
   };
+}
+
+function assertDeliveryOfferPeriod(offerPeriod) {
+  if (!Number.isInteger(offerPeriod) || offerPeriod < 0) {
+    throw new Error(`Invalid delivery offer period: ${offerPeriod}`);
+  }
+}
+
+function deliveryCandidatePools(city, portCities) {
+  if (!Array.isArray(portCities)) throw new Error("Delivery work requires a port catalog");
+  const originCityId = cityKey(city);
+  const factionId = deliveryFactionId(city);
+  const regionKey = deliveryRegionKey(city);
+  const pools = {
+    [DELIVERY_ROUTE_POLICY.SAME_FACTION_REGION]: [],
+    [DELIVERY_ROUTE_POLICY.REGIONAL]: [],
+    [DELIVERY_ROUTE_POLICY.FOREIGN_REGION]: []
+  };
+  if (!factionId || !regionKey) return pools;
+  for (const port of portCities) {
+    if (cityKey(port) === originCityId || deliveryRegionKey(port) !== regionKey) continue;
+    const destinationFactionId = deliveryFactionId(port);
+    if (!destinationFactionId) continue;
+    pools[DELIVERY_ROUTE_POLICY.REGIONAL].push(port);
+    pools[destinationFactionId === factionId
+      ? DELIVERY_ROUTE_POLICY.SAME_FACTION_REGION
+      : DELIVERY_ROUTE_POLICY.FOREIGN_REGION].push(port);
+  }
+  for (const candidates of Object.values(pools)) {
+    candidates.sort((a, b) => cityKey(a).localeCompare(cityKey(b)));
+  }
+  return pools;
 }
 
 export function isCapturePortQuest(quest) {
@@ -10215,10 +10317,37 @@ function removeInvalidatedQuestOffers(state, portCities, events) {
     if (offer?.kind !== "delivery") return true;
     const origin = portsByCityId.get(offer.originCityId);
     const destination = portsByCityId.get(offer.destinationCityId);
-    if (!origin || !destination || origin.factionId !== destination.factionId) return false;
+    if (!origin || !destination) return false;
+    const routePolicyId = deliveryRoutePolicyForScenarioId(offer.scenarioId);
+    if (!deliveryRouteAllowsDestination(origin, destination, routePolicyId)) return false;
     offer.factionId = origin.factionId;
     return true;
   }, "delivery-offer-invalidated", events);
+}
+
+function deliveryRoutePolicyForScenarioId(scenarioId) {
+  const scenario = DELIVERY_COMMISSION_SCENARIOS.find(({ id }) => id === scenarioId);
+  if (scenario) return scenario.routePolicyId;
+  if (ONBOARDING_DELIVERY_SCENARIOS.some(({ id }) => id === scenarioId)) {
+    return DELIVERY_ROUTE_POLICY.SAME_FACTION_REGION;
+  }
+  throw new Error(`Unknown delivery commission scenario: ${scenarioId}`);
+}
+
+function deliveryRouteAllowsDestination(origin, destination, routePolicyId) {
+  if (cityKey(origin) === cityKey(destination) ||
+      deliveryRegionKey(origin) !== deliveryRegionKey(destination)) return false;
+  const originFactionId = deliveryFactionId(origin);
+  const destinationFactionId = deliveryFactionId(destination);
+  if (!originFactionId || !destinationFactionId) return false;
+  if (routePolicyId === DELIVERY_ROUTE_POLICY.SAME_FACTION_REGION) {
+    return destinationFactionId === originFactionId;
+  }
+  if (routePolicyId === DELIVERY_ROUTE_POLICY.REGIONAL) return true;
+  if (routePolicyId === DELIVERY_ROUTE_POLICY.FOREIGN_REGION) {
+    return destinationFactionId !== originFactionId;
+  }
+  throw new Error(`Unknown delivery route policy: ${routePolicyId}`);
 }
 
 function pruneOfferMap(offers, valid, type, events) {

@@ -1,0 +1,9 @@
+export const POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ID = "holy-roman-empire";
+export const POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ASSET_PATH =
+  `assets/factions/flags/${POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ID}.png`;
+export const POLITICS_GROUP_FLAG_ASSETS = Object.freeze([
+  Object.freeze({
+    id: POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ID,
+    assetPath: POLITICS_GROUP_HOLY_ROMAN_EMPIRE_FLAG_ASSET_PATH
+  })
+]);

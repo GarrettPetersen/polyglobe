@@ -65,6 +65,44 @@ test("politics cards become a single compact column and respect taller localized
   assert.equal(localized.cardHeight, 148);
 });
 
+test("political group cards occupy one overview slot without faction relationship rows", () => {
+  const layout = politicsCardGridLayout({
+    panelWidth: 439,
+    panelHeight: 240,
+    lineHeight: 11,
+    pagerHeight: 24,
+    newsHeight: 12,
+    contentTop: 26
+  });
+  const group = {
+    kind: "political-group",
+    id: "political-group:holy-roman-empire"
+  };
+  const [entry] = politicsCardEntries([group], {
+    tokensPerLine: layout.tokensPerLine,
+    fullWidthTokensPerLine: layout.fullWidthTokensPerLine,
+    maxColumnSpan: layout.columns,
+    relationLineCapacities: layout.relationLineCapacities,
+    powerCount: 2
+  });
+
+  assert.equal(layout.contentTop, 26);
+  assert.equal(entry.card, group);
+  assert.equal(entry.rowSpan, 1);
+  assert.equal(entry.columnSpan, 1);
+  assert.deepEqual(entry.lines, []);
+  assert.throws(
+    () => politicsCardEntries([{ kind: "unknown" }], {
+      tokensPerLine: layout.tokensPerLine,
+      fullWidthTokensPerLine: layout.fullWidthTokensPerLine,
+      maxColumnSpan: layout.columns,
+      relationLineCapacities: layout.relationLineCapacities,
+      powerCount: 2
+    }),
+    /Unknown politics card kind/
+  );
+});
+
 test("politics pager provides first, five-page, and single-page controls on compact panels", () => {
   const layout = politicsPagerButtonLayout({
     panelX: 10,
@@ -311,7 +349,13 @@ test("politics relationship labels use distinct dark Resurrect inks", () => {
 });
 
 function card({ dependencies = [], embargoConnections = [], relationships = [] }) {
-  return { dependencies, constitutionalConnections: [], embargoConnections, relationships };
+  return {
+    kind: "faction",
+    dependencies,
+    constitutionalConnections: [],
+    embargoConnections,
+    relationships
+  };
 }
 
 function relationship(relation, factionIds) {

@@ -41,6 +41,7 @@
     "benchmark:clouds": "node tools/run-performance-benchmark.mjs --benchmark cloud-cover",
     "benchmark:fog": "node tools/run-performance-benchmark.mjs --benchmark polar-fog",
     "benchmark:combat": "node tools/run-performance-benchmark.mjs --benchmark combat-hotspot",
+    "benchmark:combat-ai": "node tools/benchmark-npc-combat-ai.mjs",
     "benchmark:lepanto": "node tools/benchmark-historical-battle.mjs",
     "benchmark:nanjing": "node tools/run-performance-benchmark.mjs --benchmark nanjing-hotspot",
     "benchmark:gibraltar": "node tools/run-performance-benchmark.mjs --benchmark gibraltar-hotspot",

@@ -9,6 +9,7 @@ import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modul
 
 import { FACTIONS, factionHasFlag } from "../src/factions.js";
 import { validateGameIconAtlasManifest } from "../src/gameIcons.js";
+import { POLITICS_GROUP_FLAG_ASSETS } from "../src/politicsGroupAssets.js";
 import { SHIP_ROWING_ANIMATION_SPECS } from "../src/shipRowingAnimation.js";
 import {
   SHIP_SPRITE_SHEET_HEIGHT,
@@ -382,20 +383,25 @@ async function buildCharacterPortraitAtlas(manifest) {
 
 async function buildDemoFactionFlagAtlas() {
   const factions = FACTIONS.filter((faction) => factionHasFlag(faction.id));
-  const rows = Math.ceil(factions.length / FACTION_FLAG_ATLAS_COLUMNS);
+  const atlasEntries = [
+    ...factions.map((faction) => ({
+      id: faction.id,
+      assetPath: `assets/factions/flags/${faction.id}.png`
+    })),
+    ...POLITICS_GROUP_FLAG_ASSETS
+  ];
+  const rows = Math.ceil(atlasEntries.length / FACTION_FLAG_ATLAS_COLUMNS);
   const canvas = createCanvas(
     FACTION_FLAG_ATLAS_COLUMNS * FACTION_FLAG_WIDTH,
     rows * FACTION_FLAG_HEIGHT
   );
   const context = canvas.getContext("2d");
   context.imageSmoothingEnabled = false;
-  for (const [index, faction] of factions.entries()) {
-    const image = await loadImage(
-      join(publicRoot, `assets/factions/flags/${faction.id}.png`)
-    );
+  for (const [index, entry] of atlasEntries.entries()) {
+    const image = await loadImage(join(publicRoot, entry.assetPath));
     if (image.width !== FACTION_FLAG_WIDTH || image.height !== FACTION_FLAG_HEIGHT) {
       throw new Error(
-        `Faction flag ${faction.id} must be ${FACTION_FLAG_WIDTH}x${FACTION_FLAG_HEIGHT}, ` +
+        `Faction flag ${entry.id} must be ${FACTION_FLAG_WIDTH}x${FACTION_FLAG_HEIGHT}, ` +
           `got ${image.width}x${image.height}`
       );
     }

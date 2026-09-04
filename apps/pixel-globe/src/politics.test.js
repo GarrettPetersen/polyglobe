@@ -39,10 +39,14 @@ import {
   grantPersonalTradePass
 } from "./sovereignTradeAccess.js";
 import {
+  POLITICS_GROUP_HOLY_ROMAN_EMPIRE_ID,
+  POLITICS_GROUP_JAPAN_ID,
   POLITICS_NEWS_HISTORY_LIMIT,
   createPoliticsView,
   playerStandingForReputation,
   politicalPowers,
+  politicsGroupById,
+  politicsGroupForFaction,
   politicsMarqueMarker,
   politicsTradeCode,
   recentPoliticsNews
@@ -70,6 +74,50 @@ test("politics cards cover every non-neutral power including pirates", () => {
   assert.equal(view.cards.length, expectedIds.length);
   assert.equal(view.cards[0].faction.id, PLAYER.nationalityId);
   assert.equal(view.cards.at(-1).faction.id, "pirate");
+});
+
+test("politics overview groups Imperial Estates and Japanese polities", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const view = createPoliticsView(state);
+  const holyRomanEmpire = view.groups.find(({ id }) => (
+    id === POLITICS_GROUP_HOLY_ROMAN_EMPIRE_ID
+  ));
+  const japan = view.groups.find(({ id }) => id === POLITICS_GROUP_JAPAN_ID);
+  const groupedFactionIds = new Set(view.groups.flatMap(({ memberFactionIds }) => memberFactionIds));
+
+  assert.ok(holyRomanEmpire);
+  assert.ok(japan);
+  assert.equal(holyRomanEmpire.headFactionId, view.imperial.emperorFactionId);
+  assert.equal(holyRomanEmpire.headRuler.name, view.imperial.emperorRuler.name);
+  assert.equal(japan.headFactionId, "japan");
+  assert.equal(japan.headRuler.name, politicsCard(view, "japan").ruler.name);
+  assert.equal(politicsGroupForFaction(view, "augsburg"), holyRomanEmpire);
+  assert.equal(politicsGroupForFaction(view, "hosokawa"), japan);
+  assert.equal(politicsGroupForFaction(view, "england"), null);
+  assert.equal(politicsGroupById(view, holyRomanEmpire.id), holyRomanEmpire);
+  assert.throws(
+    () => politicsGroupById(view, "political-group:missing"),
+    /Politics view has no group/
+  );
+  assert.equal(view.overviewCards.filter(({ kind }) => kind === "political-group").length, 2);
+  assert.ok(view.overviewCards.every((entry) => (
+    entry.kind === "political-group" || !groupedFactionIds.has(entry.faction.id)
+  )));
+  assert.equal(
+    view.overviewCards.length,
+    view.cards.length - groupedFactionIds.size + view.groups.length
+  );
+});
+
+test("politics overview keeps the player's Japanese group first", () => {
+  const state = createGameState({
+    cargoCapacity: 20,
+    playerCharacter: { ...PLAYER, nationalityId: "hosokawa" }
+  });
+  const view = createPoliticsView(state);
+
+  assert.equal(view.cards[0].faction.id, "hosokawa");
+  assert.equal(view.overviewCards[0].id, POLITICS_GROUP_JAPAN_ID);
 });
 
 test("politics replaces the Delhi Sultanate with Mughal rule after Panipat", () => {

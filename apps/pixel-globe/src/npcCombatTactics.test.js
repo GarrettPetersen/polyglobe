@@ -1,7 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { npcBroadsideNavigation } from "./npcCombatTactics.js";
+import {
+  NPC_COMBAT_CURRENT_TACTIC_ID,
+  NPC_COMBAT_TACTIC_INTERCEPT_ID,
+  npcBroadsideNavigation,
+  npcCombatAimPointForTactic,
+  npcCombatNavigationForTactic,
+  npcProjectileInterceptPoint
+} from "./npcCombatTactics.js";
 
 const RANGE = 74;
 const ROUTE_DISTANCE = 110;
@@ -59,6 +66,37 @@ test("combat navigation rejects malformed tactical inputs", () => {
   assert.throws(() => course({ identity: "" }), /ship identity/);
   assert.throws(() => course({ heading: { x: 0, y: 0 } }), /zero length/);
   assert.throws(() => course({ weaponRangePx: 0 }), /weapon range/);
+});
+
+test("intercept aim leads a crossing target by a measured fraction", () => {
+  const fullIntercept = npcProjectileInterceptPoint({
+    origin: { x: 0, y: 0 },
+    target: { x: 10, y: 0 },
+    targetVelocity: { x: 0, y: 1 },
+    projectileSpeedPx: 10
+  });
+  const tacticalAim = npcCombatAimPointForTactic(NPC_COMBAT_TACTIC_INTERCEPT_ID, {
+    origin: { x: 0, y: 0 },
+    target: { x: 10, y: 0 },
+    targetVelocity: { x: 0, y: 1 },
+    projectileSpeedPx: 10
+  });
+
+  assert.ok(Math.abs(fullIntercept.x - 10) < 1e-9);
+  assert.ok(fullIntercept.y > 1 && fullIntercept.y < 1.01);
+  assert.ok(tacticalAim.y > 0.45 && tacticalAim.y < 0.46);
+  assert.equal(NPC_COMBAT_CURRENT_TACTIC_ID, NPC_COMBAT_TACTIC_INTERCEPT_ID);
+});
+
+test("combat tactic IDs fail loudly instead of selecting an implicit policy", () => {
+  assert.throws(() => npcCombatNavigationForTactic("missing", {
+    identity: "english-galleon-1",
+    origin: { x: 0, y: 0 },
+    target: { x: 50, y: 0 },
+    heading: { x: 1, y: 0 },
+    weaponRangePx: RANGE,
+    routeDistancePx: ROUTE_DISTANCE
+  }), /Unknown NPC combat tactic/);
 });
 
 function course(overrides = {}) {

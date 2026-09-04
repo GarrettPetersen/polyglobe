@@ -20,10 +20,14 @@ test("every flag-bearing faction has a sourced Resurrect pixel identifier", asyn
     manifest.factions.map((entry) => entry.id).sort(),
     FACTIONS.filter((entry) => factionHasFlag(entry.id)).map((entry) => entry.id).sort()
   );
+  assert.deepEqual(
+    manifest.politicalGroups.map((entry) => entry.id),
+    ["holy-roman-empire"]
+  );
   await assert.rejects(access(join(flagRoot, `${NEUTRAL_FACTION_ID}.png`)), { code: "ENOENT" });
 
   const palette = new Set(RESURRECT_64_HEX);
-  for (const entry of manifest.factions) {
+  for (const entry of [...manifest.factions, ...manifest.politicalGroups]) {
     assert.ok(entry.evidence, `${entry.id} lacks an evidence level`);
     assert.ok(manifest.evidenceLevels[entry.evidence], `${entry.id} has an undocumented evidence level`);
     assert.ok(entry.representation, `${entry.id} lacks a representation`);

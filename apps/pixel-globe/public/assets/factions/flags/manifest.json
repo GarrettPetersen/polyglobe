@@ -1243,5 +1243,23 @@
         }
       ]
     }
+  ],
+  "politicalGroups": [
+    {
+      "groupName": "Holy Roman Empire",
+      "file": "holy-roman-empire.png",
+      "id": "holy-roman-empire",
+      "evidence": "period-banner",
+      "representation": "Imperial double-headed eagle banner",
+      "accuracyNote": "A black double-headed Imperial Eagle on gold, the Imperial banner documented from 1400.",
+      "sources": [
+        {
+          "label": "Banner of the Holy Roman Emperor after 1400",
+          "url": "https://commons.wikimedia.org/wiki/File:Banner_of_the_Holy_Roman_Emperor_(after_1400).svg"
+        }
+      ],
+      "width": 32,
+      "height": 20
+    }
   ]
 }
