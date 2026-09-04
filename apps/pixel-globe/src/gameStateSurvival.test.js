@@ -1174,6 +1174,29 @@ test("loadouts target crew while restocking only guns, food, and water", () => {
   assert.ok(state.accounts.ledger.some((entry) => entry.description === "Combat focused loadout restock"));
 });
 
+test("automatic port services preserve crew hired above the selected loadout target", () => {
+  const stats = shipStatsForSlug("ketch");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats });
+  initializeProvisionalShipLoadout(state, stats);
+  restockShipLoadoutAtPort(state, LONDON, stats, "short-haul", { simMinute: 120 });
+  const selectedCrewTarget = state.ship.loadoutTargets.crew;
+  setTestCrewCount(state, selectedCrewTarget + 1);
+  delete state.cargo.hardtack;
+  delete state.accounts.cargoCostBasis.hardtack;
+
+  const result = restockSelectedShipLoadoutAtPort(state, LONDON, { simMinute: 240 });
+
+  assert.equal(state.ship.crew, selectedCrewTarget + 1);
+  assert.equal(state.ship.loadoutTargets.crew, selectedCrewTarget);
+  assert.equal(result.additions.crew, 0);
+  assert.equal(result.removed.crew, 0);
+  assert.ok(result.additions.food > 0);
+  assert.throws(
+    () => restockShipLoadoutAtPort(state, LONDON, stats, "short-haul", { simMinute: 360 }),
+    /requires dismissing 1 crew members first/
+  );
+});
+
 test("organized captains can apply preset and custom loadouts using effective ship stats", () => {
   const stats = shipStatsForSlug("brigantine");
   const state = createGameState({

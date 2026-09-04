@@ -20414,6 +20414,7 @@ function activatePortCityView(cityCall) {
   portCityView = {
     cityId: cityCall.cityId,
     portId: cityCall.portId || cityCall.cityId,
+    sourceKind: cityCall.isPirateHideout === true ? "pirate-hideout" : "city",
     centerX: center.x,
     centerY: center.y,
     sceneReady: false,
@@ -20479,8 +20480,7 @@ function queuePortCitySceneSync() {
 
 async function synchronizePortCityScene() {
   if (!portCityView || !portCityRuntime) return;
-  const city = chartPortCallById(portCityView.portId);
-  if (!city) throw new Error(`Port city view lost city ${portCityView.cityId}`);
+  const city = currentPortCitySceneCity();
   let availableDestinationIds = [];
   if (dialogueState?.kind === "port" && dialogueState.cityId === city.cityId &&
       dialogueState.admittedToPort === true) {
@@ -20518,6 +20518,20 @@ async function synchronizePortCityScene() {
     portCityTransition.startedAtMs = lastFrameMs;
   }
   dirty = true;
+}
+
+function currentPortCitySceneCity() {
+  if (!portCityView) throw new Error("Port city scene city requires an active view");
+  const city = requireEntityById(cityById, portCityView.cityId, "Port city view");
+  if (portCityView.sourceKind === "city") return city;
+  if (portCityView.sourceKind !== "pirate-hideout") {
+    throw new Error(`Unknown port city view source: ${portCityView.sourceKind}`);
+  }
+  const hideout = pirateHideoutPortsByTileId.get(city.tileId);
+  if (!hideout || hideout.cityId !== city.cityId) {
+    throw new Error(`Port city view is missing pirate hideout: ${city.cityId}`);
+  }
+  return hideout;
 }
 
 function portCitySceneAssetOptions(city) {

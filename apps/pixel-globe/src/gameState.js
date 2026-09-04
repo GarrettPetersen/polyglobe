@@ -3427,14 +3427,31 @@ export function restockCustomShipLoadoutAtPort(state, city, stats, draft, contex
   return restockShipLoadoutPlanAtPort(state, city, plan, context);
 }
 
-function restockShipLoadoutPlanAtPort(state, city, plan, context) {
+const LOADOUT_EXCESS_CREW_POLICY = Object.freeze({
+  REQUIRE_DISMISSAL: "require-dismissal",
+  PRESERVE_ABOARD: "preserve-aboard"
+});
+
+function restockShipLoadoutPlanAtPort(
+  state,
+  city,
+  plan,
+  context,
+  { excessCrewPolicy = LOADOUT_EXCESS_CREW_POLICY.REQUIRE_DISMISSAL } = {}
+) {
+  if (!Object.values(LOADOUT_EXCESS_CREW_POLICY).includes(excessCrewPolicy)) {
+    throw new Error(`Unknown loadout excess crew policy: ${excessCrewPolicy}`);
+  }
   const hardtack = tradeGoodById(HARDTACK_GOOD_ID);
   const before = shipStoresSnapshot(state);
   const crewFloor = permanentCrewFloor(state);
   if (plan.crew < crewFloor) {
     throw new Error(`Loadout crew ${plan.crew} is below permanent crew floor ${crewFloor}`);
   }
-  if (state.ship.crew > plan.crew) {
+  if (
+    state.ship.crew > plan.crew &&
+    excessCrewPolicy === LOADOUT_EXCESS_CREW_POLICY.REQUIRE_DISMISSAL
+  ) {
     throw new Error(
       `Loadout ${plan.id} requires dismissing ${state.ship.crew - plan.crew} crew members first`
     );
@@ -3496,10 +3513,17 @@ export function restockSelectedShipLoadoutAtPort(state, city, context = {}) {
   assertGameState(state);
   if (!state.ship?.loadoutId) return null;
   const stats = shipStatsForSlug(state.ship.slug);
-  if (state.ship.loadoutId === CUSTOM_LOADOUT_ID) {
-    return restockCustomShipLoadoutAtPort(state, city, stats, state.ship.loadoutTargets, context);
-  }
-  return restockShipLoadoutAtPort(state, city, stats, state.ship.loadoutId, context);
+  const loadoutStats = requirePlayerShipState(state, stats);
+  const plan = state.ship.loadoutId === CUSTOM_LOADOUT_ID
+    ? shipCustomLoadoutPlan(loadoutStats, state.ship.loadoutTargets, {
+        minimumCrew: permanentCrewFloor(state)
+      })
+    : shipLoadoutPlan(loadoutStats, state.ship.loadoutId, {
+        minimumCrew: permanentCrewFloor(state)
+      });
+  return restockShipLoadoutPlanAtPort(state, city, plan, context, {
+    excessCrewPolicy: LOADOUT_EXCESS_CREW_POLICY.PRESERVE_ABOARD
+  });
 }
 
 export function loseCrew(state, requestedLoss, random = Math.random) {
