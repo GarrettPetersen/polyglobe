@@ -650,7 +650,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   const services = cityServiceProfile(city);
   const primitiveSettlement = architecture.settlementForm === "sparse-village";
   const automatic = {
-    uninhabited: false,
+    settlementStage: "city",
     approach: city.approach,
     distantRiverBend: city.riverHorizon === "closed",
     dock: city.dock,
@@ -675,9 +675,13 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     leftBankCity: Boolean(city.builtUpBothBanks),
     npcs: city.settlementType === "village" ? 3 : 6
   };
-  const features = { ...automatic, ...definedOverrides(overrides) };
-  if (typeof features.uninhabited !== "boolean") {
-    throw new Error("City scene uninhabited state must be boolean");
+  const requestedOverrides = definedOverrides(overrides);
+  for (const key of Object.keys(requestedOverrides)) {
+    if (!(key in automatic) && key !== "props") throw new Error(`Unknown city scene override: ${key}`);
+  }
+  const features = { ...automatic, ...requestedOverrides };
+  if (!["uninhabited", "colony", "city"].includes(features.settlementStage)) {
+    throw new Error(`Unknown city scene settlement stage: ${features.settlementStage}`);
   }
   if (!DOCK_STYLES.includes(features.dock)) throw new Error(`Unknown dock style: ${features.dock}`);
   if (!["ocean", "river", "lake"].includes(features.approach)) {
@@ -710,11 +714,11 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   ]) {
     features[key] = Boolean(features[key]);
   }
-  // Empty land overrides settlement details while preserving the chosen geography.
+  // Settlement development overrides amenities while preserving geography.
   // Resolve this once so rendering, residents, effects and navigation agree.
-  if (features.uninhabited) {
+  if (features.settlementStage !== "city") {
     features.dock = "none";
-    features.npcs = 0;
+    features.npcs = features.settlementStage === "uninhabited" ? 0 : Math.min(features.npcs, 3);
     features.props = 0;
     for (const key of [
       "fortified", "backgroundCity", "leftBankCity", "pyramid", "church", "mosque",
@@ -727,15 +731,15 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
 export function activePortSceneLayers(features) {
   if (!features || typeof features !== "object") throw new Error("Port scene layers require features");
   const layers = new Set(ALWAYS_VISIBLE_LAYERS);
-  if (!features.uninhabited) layers.add("Road");
+  if (features.settlementStage === "city") layers.add("Road");
   if (features.shipyard) layers.add("Shipyard");
   if (features.market) {
     const visibleMarketLayers = features.primitiveSettlement ? ["Market Stall"] : MARKET_LAYERS;
     visibleMarketLayers.forEach((layerName) => layers.add(layerName));
   }
-  if (!features.uninhabited && !features.primitiveSettlement) {
-    layers.add("Smith");
-    layers.add("Inn");
+  if (!features.primitiveSettlement) {
+    if (features.store) layers.add("Smith");
+    if (features.inn) layers.add("Inn");
   }
   if (features.backgroundCity) {
     layers.add(BACKGROUND_CITY_BASE_LAYER);
@@ -797,13 +801,13 @@ export function sceneReasonRows(city, features) {
   return Object.freeze([
     Object.freeze({
       label: "Settlement",
-      value: features.uninhabited ? "uninhabited" : "inhabited",
-      reason: features.uninhabited ? "empty-land preview" : "selected city"
+      value: features.settlementStage,
+      reason: features.settlementStage === "uninhabited" ? "empty-land preview" : "selected city"
     }),
     Object.freeze({ label: "Water", value: features.approach, reason: city.rules?.approach || "game navigation topology" }),
-    Object.freeze({ label: "Dock", value: features.dock, reason: features.uninhabited ? "empty-land preview" : city.rules?.dock || "port scale and culture" }),
-    Object.freeze({ label: "Fortification", value: features.uninhabited ? "none" : features.fortified ? "gatehouse" : "open town", reason: features.uninhabited ? "empty-land preview" : city.rules?.fortification || "1522 settlement estimate" }),
-    Object.freeze({ label: "Banks", value: features.uninhabited ? "unbuilt" : features.leftBankCity ? "city on both banks" : "single-bank city", reason: features.uninhabited ? "empty-land preview" : city.rules?.banks || "city-specific scene configuration" }),
+    Object.freeze({ label: "Dock", value: features.dock, reason: features.settlementStage === "uninhabited" ? "empty-land preview" : city.rules?.dock || "port scale and culture" }),
+    Object.freeze({ label: "Fortification", value: features.settlementStage === "uninhabited" ? "none" : features.fortified ? "gatehouse" : "open town", reason: features.settlementStage === "uninhabited" ? "empty-land preview" : city.rules?.fortification || "1522 settlement estimate" }),
+    Object.freeze({ label: "Banks", value: features.settlementStage === "uninhabited" ? "unbuilt" : features.leftBankCity ? "city on both banks" : "single-bank city", reason: features.settlementStage === "uninhabited" ? "empty-land preview" : city.rules?.banks || "city-specific scene configuration" }),
     Object.freeze({ label: "Mountains", value: mountain, reason: city.rules?.mountains || "terrain and peak visibility scan" }),
     Object.freeze({ label: "Left bank", value: features.leftTerrain, reason: city.rules?.terrain || "nearby game terrain" }),
     Object.freeze({ label: "Right bank", value: features.rightTerrain, reason: city.rules?.terrain || "nearby game terrain" })

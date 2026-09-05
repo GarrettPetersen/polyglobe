@@ -182,7 +182,7 @@ function syncControlsToScene() {
   citySelect.value = presentation.city.id;
   shipSelect.value = presentation.shipSlug;
   bombardmentToggle.checked = presentation.bombardmentEventId !== null;
-  uninhabitedToggle.checked = presentation.features.uninhabited;
+  uninhabitedToggle.checked = presentation.features.settlementStage === "uninhabited";
   syncSettlementControls();
   updateRuleLedger();
 }
@@ -196,7 +196,7 @@ function syncSettlementControls() {
 function applyFeatureOverrides() {
   const mountain = mountainOverride.value;
   runtime.setFeatureOverrides({
-    uninhabited: uninhabitedToggle.checked,
+    settlementStage: uninhabitedToggle.checked ? "uninhabited" : "city",
     approach: autoValue(approachOverride.value),
     leftBankCity: leftBankCityOverride.value === "auto"
       ? undefined

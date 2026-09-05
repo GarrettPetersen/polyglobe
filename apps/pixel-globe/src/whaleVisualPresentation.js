@@ -11,6 +11,22 @@ import {
 // comes from position interpolation instead; keep its rendered silhouette stable.
 export const WHALE_SUBMERGED_REFRACTION_PX = 0;
 
+// Body layers and selection outlines share the same submerged displacement and
+// pixel rounding, including scaled calves and adolescents.
+export function whaleSpriteDestinationRect(call, exposure, frameSizePx) {
+  if (![call?.x, call?.y, call?.scale, exposure, frameSizePx].every(Number.isFinite) ||
+      call.scale <= 0 || frameSizePx <= 0 || exposure < 0 || exposure > 1) {
+    throw new Error(`Invalid whale sprite placement: ${call?.id}`);
+  }
+  const size = frameSizePx * call.scale;
+  return {
+    x: Math.round(call.x - size / 2),
+    y: Math.round(call.y + (1 - exposure) * 3 - size / 2),
+    width: size,
+    height: size
+  };
+}
+
 export function synchronizeWhaleVisualPresentation(state, {
   whaleId,
   coordinateSpace,

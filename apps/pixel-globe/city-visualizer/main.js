@@ -111,6 +111,12 @@ import {
 } from "./cityAssaultMotion.js";
 import { cityMatchlockSmokeParticles } from "./cityMatchlockSmoke.js";
 import {
+  CITY_COLONIST_LANE_FEET_Y,
+  createCityColonistRoster,
+  cityColonistLandingFrame,
+  cityColonistScreenPoint
+} from "./cityColonistLanding.js";
+import {
   PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
   portAssaultLandingDurationMs
 } from "../src/portAssaultBattle.js";
@@ -373,6 +379,7 @@ const state = {
   illicitCaughtStartedAtMs: null,
   bombardmentEventId: null,
   assaultPresentation: null,
+  colonistLanding: null,
   specialAgents: [],
   backgroundCityRows: [],
   backgroundCityPainterOrder: [],
@@ -559,10 +566,12 @@ async function selectCity(cityId, {
   barred = false,
   illicitCaughtStartedAtMs = null,
   bombardmentEventId = null,
+  population = null,
+  settlementType = null,
   featureOverrides = Object.freeze({})
 } = {}) {
   const serial = ++citySelectionSerial;
-  const city = resolveCityRecord(cityId, { factionId, label });
+  const city = resolveCityRecord(cityId, { factionId, label, population, settlementType });
   const validatedDestinationIds = availableDestinationIds === null
     ? null
     : validateAvailableDestinationIds(availableDestinationIds);
@@ -586,6 +595,7 @@ async function selectCity(cityId, {
   state.illicitCaughtStartedAtMs = illicitCaughtStartedAtMs;
   state.bombardmentEventId = bombardmentEventId;
   state.assaultPresentation = null;
+  state.colonistLanding = null;
   bombardmentFrameCache.clear();
   bombardmentOverlayFrameCache = null;
   state.focusedDestinationId = null;
@@ -613,6 +623,7 @@ async function selectCity(cityId, {
   });
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
+  if (state.features.settlementStage === "colony") focusSceneMasterX(1100, { immediate: true });
   state.cloudDriftByLayer = new Map(CITY_CLOUD_SPECS.map(({ layer }) => [layer, 0]));
   state.lastCloudTimeMs = null;
   rebuildCitySceneRenderPlan();
@@ -634,7 +645,9 @@ async function selectCity(cityId, {
   }
 }
 
-function resolveCityRecord(cityId, { factionId = null, label = null } = {}) {
+function resolveCityRecord(cityId, {
+  factionId = null, label = null, population = null, settlementType = null
+} = {}) {
   const catalogCity = state.catalog.cities.find((candidate) => candidate.id === cityId);
   if (!catalogCity) throw new Error(`Unknown visualizer city: ${cityId}`);
   if (factionId !== null && (typeof factionId !== "string" || factionId === "")) {
@@ -643,11 +656,27 @@ function resolveCityRecord(cityId, { factionId = null, label = null } = {}) {
   if (label !== null && (typeof label !== "string" || label.trim() === "")) {
     throw new Error(`Invalid visualizer city label: ${label}`);
   }
+  if (population !== null && (!Number.isInteger(population) || population < 1)) {
+    throw new Error(`Invalid visualizer city population: ${population}`);
+  }
+  if (settlementType !== null && !["city", "village"].includes(settlementType)) {
+    throw new Error(`Invalid visualizer settlement type: ${settlementType}`);
+  }
   const liveFactionId = factionId ?? catalogCity.factionId;
   const liveLabel = label ?? catalogCity.label;
-  return liveFactionId === catalogCity.factionId && liveLabel === catalogCity.label
+  // Authored skyline density describes the catalog settlement. A live colony's
+  // population must instead determine its skyline density.
+  const { density, ...backgroundCity } = catalogCity.backgroundCity || {};
+  return liveFactionId === catalogCity.factionId && liveLabel === catalogCity.label &&
+      population === null && settlementType === null
     ? catalogCity
-    : Object.freeze({ ...catalogCity, factionId: liveFactionId, label: liveLabel });
+    : Object.freeze({
+      ...catalogCity, factionId: liveFactionId, label: liveLabel,
+      population: population ?? catalogCity.population,
+      settlementType: settlementType ?? catalogCity.settlementType,
+      ...(settlementType === null ? {} : { architecture: undefined, services: undefined }),
+      ...(population === null ? {} : { backgroundCity })
+    });
 }
 
 async function preloadCity(cityId, options = {}) {
@@ -1049,7 +1078,10 @@ function queueCameraPanByLogicalPixels(logicalDeltaX) {
 function focusAssaultPresentation(presentation) {
   const position = cityAssaultCameraTargetPosition(presentation.units);
   if (position === null) return;
-  const masterX = 666 + position * 640;
+  focusSceneMasterX(666 + position * 640);
+}
+
+function focusSceneMasterX(masterX, { immediate = false } = {}) {
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
   const delta = scenePanParallaxDelta({
     screenDeltaX: masterX - window.x - canvas.width / 2,
@@ -1059,7 +1091,7 @@ function focusAssaultPresentation(presentation) {
   });
   const bounds = sceneCameraParallaxBounds(state.features?.approach || "ocean");
   const target = clamp(state.parallax + delta, bounds.minimum, bounds.maximum);
-  if (prefersReducedMotion.matches) {
+  if (immediate || prefersReducedMotion.matches) {
     state.parallax = target;
     state.cameraVelocity = 0;
     state.cameraPanTarget = null;
@@ -1213,6 +1245,15 @@ function renderBenchmarkedCityFrame(timeMs) {
 }
 
 function advanceCityFrame(timeMs) {
+  if (state.colonistLanding && !state.colonistLanding.frame.complete) {
+    const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+    const shipboard = assaultShipboardStartPoint(timeMs);
+    const units = state.colonistLanding.frame.units;
+    const centerX = units.reduce((sum, unit) => sum + cityColonistScreenPoint(
+      unit, colonistLandingGeometry(unit, window, shipboard)
+    ).x, 0) / units.length;
+    focusSceneMasterX(centerX + window.x);
+  }
   advanceCamera(timeMs);
   advanceCloudMotion(timeMs);
   prepareDestinationLabelLayouts();
@@ -1307,6 +1348,7 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
   else if (entry.kind === "ship-foreground") drawDocksideShipForeground(timeMs);
   else if (entry.kind === "npc") drawNpc(entry.agent, timeMs);
   else if (entry.kind === "port-assault") drawPortAssaultPresentation(entry.lane);
+  else if (entry.kind === "colonist-landing") drawColonistLanding(entry.lane, timeMs);
   else throw new Error(`Unknown city scene render entry: ${entry.kind}`);
 }
 
@@ -1699,7 +1741,7 @@ function createSceneRenderEntries() {
       authoredOrder: 39
     });
   }
-  if (state.bombardmentEventId !== null && !state.features.uninhabited) {
+  if (state.bombardmentEventId !== null && state.features.settlementStage !== "uninhabited") {
     entries.push({
       kind: "bombardment-fire-overlay",
       z: CITY_BOMBARDMENT_FIRE_PAINTER_Z,
@@ -1707,6 +1749,16 @@ function createSceneRenderEntries() {
     });
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
+  if (state.colonistLanding) {
+    for (const [lane, feetY] of CITY_COLONIST_LANE_FEET_Y.entries()) {
+      entries.push({
+        kind: "colonist-landing", lane,
+        z: cityGroundPainterZ(feetY), authoredOrder: 38.9 + lane / 100
+      });
+    }
+    entries.push({ kind: "ship-foreground", z: CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
+      authoredOrder: 38.95 });
+  }
   if (state.assaultPresentation) {
     for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
       entries.push({
@@ -3192,7 +3244,7 @@ function drawDocksideShipHullBar(placement) {
 }
 
 function drawDocksideShipForeground(timeMs) {
-  if (!state.assaultPresentation) return;
+  if (!state.assaultPresentation && !state.colonistLanding) return;
   if (!state.shipForegroundImage) {
     throw new Error("Port assault ship is missing its foreground deck mask");
   }
@@ -3609,8 +3661,8 @@ function drawPortAssaultPresentation(lane) {
       battleTimeMs,
       shipboardStart
     );
-    drawAssaultPersonSprite(unit, point.x, point.y, battleTimeMs);
-    if (unit.inWater) drawAssaultWater(unit, point.x, point.y, battleTimeMs);
+    drawGroundPersonSprite(unit, point.x, point.y, battleTimeMs);
+    if (unit.inWater) drawWadingWater(unit, point.x, point.y, battleTimeMs);
   }
   for (const event of presentation.events) {
     const unit = presentation.units.find(({ id }) => id === event.unitId);
@@ -3675,15 +3727,52 @@ function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardS
   });
 }
 
-function drawAssaultPersonSprite(unit, screenX, screenFeetY, timeMs) {
+function drawColonistLanding(lane, timeMs) {
+  const landing = state.colonistLanding;
+  if (!landing) return;
+  const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+  const shipboard = assaultShipboardStartPoint(timeMs);
+  for (const unit of landing.frame.units) {
+    if (unit.lane !== lane) continue;
+    const geometry = colonistLandingGeometry(unit, window, shipboard);
+    const point = cityColonistScreenPoint(unit, geometry);
+    drawGroundPersonSprite(unit, point.x, point.y, landing.frame.elapsedMs);
+    if (unit.inWater) drawWadingWater(unit, point.x, point.y, landing.frame.elapsedMs);
+    if (unit.splashAgeMs !== null) drawLandingSplash(geometry.water.x, geometry.water.y, unit.splashAgeMs);
+  }
+}
+
+function colonistShoreline() {
+  const frame = state.portManifest.staticFrames.find(({ layer }) => layer === "Sand Beach");
+  if (!frame) throw new Error("Colonist landing requires the beach frame");
+  return Object.freeze(CITY_COLONIST_LANE_FEET_Y.map((feetY) => {
+    const runs = beachOpaqueRuns(frame)[feetY - frame.spriteSourceSize.y];
+    if (!runs?.length) throw new Error(`Colonist landing has no shore at scene y=${feetY}`);
+    return Object.freeze({ x: frame.spriteSourceSize.x + runs[0][0], feetY });
+  }));
+}
+
+function colonistLandingGeometry(unit, window, shipboard) {
+  const shore = state.colonistLanding.shoreline[unit.lane];
+  const shoreX = shore.x - window.x;
+  const feetY = shore.feetY - window.y;
+  return {
+    deck: { x: shipboard.x - unit.column * 8, y: shipboard.y - unit.lane * 2 },
+    water: { x: Math.min(shoreX - 28, shipboard.x + 20), y: feetY },
+    beach: { x: shoreX + 8, y: feetY },
+    assembly: { x: shoreX + 70 + unit.column * 20, y: feetY }
+  };
+}
+
+function drawGroundPersonSprite(unit, screenX, screenFeetY, timeMs) {
   const appearance = state.peopleById.get(unit.appearanceId);
-  if (!appearance) throw new Error(`Unknown assault appearance: ${unit.appearanceId}`);
+  if (!appearance) throw new Error(`Unknown city ground appearance: ${unit.appearanceId}`);
   const animation = appearance.animations[unit.animationId];
   if (!Array.isArray(animation) || animation.length === 0) {
-    throw new Error(`Assault appearance ${unit.appearanceId} has no ${unit.animationId} animation`);
+    throw new Error(`City ground appearance ${unit.appearanceId} has no ${unit.animationId} animation`);
   }
   if (!Number.isFinite(unit.animationStartedAtMs) || unit.animationStartedAtMs > timeMs) {
-    throw new Error(`Invalid assault animation start for ${unit.id}: ${unit.animationStartedAtMs}`);
+    throw new Error(`Invalid city ground animation start for ${unit.id}: ${unit.animationStartedAtMs}`);
   }
   const animationElapsedMs = timeMs - unit.animationStartedAtMs;
   const playback = unit.animationId === "death" || unit.animationId === "jump" ||
@@ -3731,11 +3820,19 @@ function drawAssaultPersonSprite(unit, screenX, screenFeetY, timeMs) {
   context.restore();
 }
 
-function drawAssaultWater(unit, x, feetY, timeMs) {
+function drawWadingWater(unit, x, feetY, timeMs) {
   const phase = Math.floor(timeMs / 140 + unit.lane) % 2;
   context.fillStyle = phase === 0 ? "#8fd3ff" : "#4d9be6";
   context.fillRect(Math.round(x) - 3 - phase, Math.round(feetY) - 2, 7 + phase * 2, 1);
   context.fillRect(Math.round(x) - 2, Math.round(feetY), 5, 1);
+}
+
+function drawLandingSplash(x, y, ageMs) {
+  const rise = Math.floor(ageMs / 90);
+  context.fillStyle = "#8fd3ff";
+  context.fillRect(Math.round(x) - 5 - rise, Math.round(y) - 3 - rise, 2, 1);
+  context.fillRect(Math.round(x) + 4 + rise, Math.round(y) - 4 - Math.floor(rise / 2), 2, 1);
+  if (ageMs < 260) context.fillRect(Math.round(x) - 1, Math.round(y) - 6 - rise, 2, 2);
 }
 
 function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
@@ -3768,12 +3865,7 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
     context.fillStyle = "#f9c22b";
     context.fillRect(x - 3, y - 16, 7, 1);
   } else if (event.type === "splash") {
-    const age = Math.max(0, timeMs - event.timeMs);
-    const rise = Math.floor(age / 90);
-    context.fillStyle = "#8fd3ff";
-    context.fillRect(x - 5 - rise, y - 3 - rise, 2, 1);
-    context.fillRect(x + 4 + rise, y - 4 - Math.floor(rise / 2), 2, 1);
-    if (age < 260) context.fillRect(x - 1, y - 6 - rise, 2, 2);
+    drawLandingSplash(x, y, Math.max(0, timeMs - event.timeMs));
   } else if (event.type === "dock-land") {
     const age = Math.max(0, timeMs - event.timeMs);
     const spread = Math.floor(age / 120);
@@ -4458,7 +4550,7 @@ function activateDestination(destinationId, saleShipId = null) {
 }
 
 function createSpecialPeopleAgents() {
-  if (!state.city || state.features.uninhabited) return Object.freeze([]);
+  if (!state.city || state.features.settlementStage !== "city") return Object.freeze([]);
   const agents = [];
   if (!state.barred) {
     const appearances = cityPortStaffAppearanceIds(state.city);
@@ -4735,7 +4827,41 @@ return Object.freeze({
     if (hit.fromLabel === true) focusDestination(hit.destination.id, { immediate: true });
     return activateDestination(hit.destination.id, hit.saleShipId);
   },
+  setColonistLandingElapsedMs(elapsedMs, { originCityId } = {}) {
+    if (elapsedMs === null) {
+      if (state.colonistLanding) {
+        state.colonistLanding = null;
+        rebuildCitySceneRenderPlan();
+      }
+      return null;
+    }
+    if (state.features.settlementStage !== "uninhabited" || state.assaultPresentation) {
+      throw new Error("Colonist landing requires an uninhabited shore without active combat");
+    }
+    if (typeof originCityId !== "string" || !originCityId) {
+      throw new Error("Colonist landing requires its expedition's canonical origin city ID");
+    }
+    if (state.colonistLanding && state.colonistLanding.originCityId !== originCityId) {
+      throw new Error("Colonist landing cannot change its expedition origin");
+    }
+    const roster = state.colonistLanding?.roster || createCityColonistRoster(resolveCityRecord(originCityId));
+    const frame = cityColonistLandingFrame(roster, elapsedMs);
+    const shoreline = state.colonistLanding?.shoreline || colonistShoreline();
+    const entering = state.colonistLanding === null;
+    state.colonistLanding = { originCityId, roster, frame, shoreline };
+    if (entering) {
+      state.cameraVelocity = 0;
+      state.cameraPanTarget = null;
+      state.hoverPanDestinationId = null;
+      state.focusedDestinationId = null;
+      rebuildCitySceneRenderPlan();
+    }
+    return frame.complete;
+  },
   setAssaultPresentation(presentation) {
+    if (presentation !== null && state.colonistLanding) {
+      throw new Error("Port assault cannot overlap a colonist landing");
+    }
     if (presentation !== null && (
       !presentation || !Array.isArray(presentation.units) || !Array.isArray(presentation.events) ||
       !Number.isFinite(presentation.elapsedMs) || presentation.elapsedMs < 0 ||

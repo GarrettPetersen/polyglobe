@@ -12,6 +12,12 @@ import {
 } from "../src/captureScenarios.js";
 import { AUTOMATIC_CAPTURE_FRAME_RATE } from "../src/captureDirector.js";
 import { GAME_STATE_VERSION } from "../src/gameState.js";
+import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
+import { colonizationHistoryForTarget } from "../src/colonizationHistory.js";
+import {
+  assignColonizationQuest, beginColonizationExpedition, completeColonizationFetchStage,
+  createColonizationQuestMemory, establishColony, landColonists
+} from "../src/colonizationQuest.js";
 import { gameplayReachabilityScenarioIds } from "../src/gameplayReachabilityScenarios.js";
 
 const DENSE_RUNTIME_PLAYER_CHARACTER = Object.freeze({
@@ -52,7 +58,7 @@ const FIXTURE_ROOT = path.join(APP_ROOT, "src/test-fixtures/saves");
 const RESTORE_TIMEOUT_MS = 10 * 60 * 1000;
 const CITY_VISUALIZER_TIMEOUT_MS = 60 * 1000;
 const GAMEPLAY_SCENARIO_TIMEOUT_MS = 10 * 60 * 1000;
-const GAMEPLAY_SEQUENCE_KINDS = new Set(["sail", "fight", "pillage"]);
+const GAMEPLAY_SEQUENCE_KINDS = new Set(["sail", "fight", "pillage", "colonize", "whale"]);
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -184,6 +190,7 @@ try {
     );
   }
   process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
+  await exerciseColonySaveRoundTrips(page, browserErrors);
 
   const gameplayFailures = [];
   for (const scenarioId of gameplayScenarioIds) {
@@ -284,8 +291,45 @@ async function exerciseProductionGameplayScenario(page, browserErrors, baseUrl, 
   if (frameCount !== expectedFrameCount) {
     throw new Error(`${scenarioId} exposed ${frameCount}/${expectedFrameCount} deterministic frames`);
   }
+  let previousWhaleMotion = null;
+  let earlierWhaleMotion = null;
+  let movingTowFrames = 0;
   for (let frameIndex = 0; frameIndex < frameCount; frameIndex += 1) {
     const frame = await page.evaluate((index) => window.__PIXEL_GLOBE_CAPTURE_STEP__(index), frameIndex);
+    if (scenario.sequence.kind === "whale") {
+      const motion = frame.whaleMotion;
+      if (!motion || !Number.isFinite(motion.lifeSeconds) || !Number.isFinite(motion.timeMs)) {
+        throw new Error(`${scenarioId} omitted its whale motion evidence`);
+      }
+      if (previousWhaleMotion?.phase === "tethered" && motion.phase === "tethered") {
+        const elapsedSeconds = (motion.timeMs - previousWhaleMotion.timeMs) / 1000;
+        const movementSeconds = motion.lifeSeconds - previousWhaleMotion.lifeSeconds;
+        if (movementSeconds > elapsedSeconds + 1e-7) {
+          throw new Error(`${scenarioId} batched ${movementSeconds}s of tow movement into a ${elapsedSeconds}s frame`);
+        }
+        if (movementSeconds > 0) movingTowFrames++;
+      }
+      if (scenario.sequence.variant === "harpoon" &&
+          [earlierWhaleMotion, previousWhaleMotion, motion].every((sample) =>
+            sample?.phase === "tethered" && sample.destination)) {
+        const a = earlierWhaleMotion.destination;
+        const b = previousWhaleMotion.destination;
+        const c = motion.destination;
+        // Allow a single pixel at a raster boundary, but reject the several-pixel
+        // back-and-forth caused by a whale and player advancing on different clocks.
+        if ((c.x - b.x) * (b.x - a.x) + (c.y - b.y) * (b.y - a.y) < -1) {
+          throw new Error(`${scenarioId} reversed its rendered tow motion on consecutive frames`);
+        }
+      }
+      earlierWhaleMotion = previousWhaleMotion;
+      previousWhaleMotion = motion;
+    }
+    if (scenario.sequence.kind === "colonize" && scenario.sequence.variant === "found" && frameIndex === 210) {
+      // Neither a repeated confirmation nor Escape may interrupt the landing
+      // and apply a hidden resupply action or close its port scene.
+      await page.keyboard.press("Enter");
+      await page.keyboard.press("Escape");
+    }
     const shouldBeComplete = frameIndex === frameCount - 1;
     if (
       frame?.frameIndex !== frameIndex ||
@@ -294,6 +338,9 @@ async function exerciseProductionGameplayScenario(page, browserErrors, baseUrl, 
     ) {
       throw new Error(`${scenarioId} returned malformed deterministic frame ${frameIndex}`);
     }
+  }
+  if (scenario.sequence.kind === "whale" && movingTowFrames < 10) {
+    throw new Error(`${scenarioId} exercised only ${movingTowFrames} moving tow frames`);
   }
   const result = await page.evaluate(() => ({
     error: window.__PIXEL_GLOBE_CAPTURE_ERROR__ || null,
@@ -312,6 +359,25 @@ async function exerciseProductionGameplayScenario(page, browserErrors, baseUrl, 
 }
 
 function assertGameplayScenarioEvidence(scenario, sidecar) {
+  if (scenario.sequence.kind === "colonize") {
+    const cityId = scenario.sequence.cityId;
+    const sceneEvents = sidecar.events.filter((event) =>
+      event.type === "colony-scene-ready" && event.data.cityId === cityId);
+    const stages = new Set(sceneEvents.map((event) => event.data.settlementStage));
+    const requiredStages = scenario.sequence.variant === "found" ? ["uninhabited"] :
+      scenario.sequence.variant === "resupply" ? ["colony", "city"] : ["city"];
+    for (const stage of requiredStages) {
+      if (!stages.has(stage)) throw new Error(`${scenario.id} never rendered the ${stage} colony stage`);
+    }
+    if (scenario.sequence.variant === "found") {
+      const arrivals = sidecar.events.filter((event) => event.type === "colony-proximity-arrival" && event.data.cityId === cityId);
+      if (arrivals.length !== 1) throw new Error(`${scenario.id} did not automatically arrive exactly once`);
+      const ashore = sidecar.events.filter((event) => event.type === "colonists-ashore" && event.data.cityId === cityId);
+      if (ashore.length !== 1) throw new Error(`${scenario.id} did not complete exactly one colonist landing`);
+      if (stages.has("colony")) throw new Error(`${scenario.id} built homes during the founding visit`);
+    }
+    return `colony stages: ${[...stages].join(", ")}`;
+  }
   if (scenario.sequence.variant !== "2v2-broadside") return null;
   const evaluatedNpcIds = scenario.sequence.evaluatedNpcIds;
   if (!Array.isArray(evaluatedNpcIds) || evaluatedNpcIds.length !== 3 ||
@@ -432,6 +498,47 @@ function frozenSaveFixtures() {
     throw new Error(`Save-restore smoke has no fixture for game-state version ${GAME_STATE_VERSION}`);
   }
   return fixtures;
+}
+
+async function exerciseColonySaveRoundTrips(page, browserErrors) {
+  const source = fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION);
+  const cities = JSON.parse(readFileSync(path.join(APP_ROOT, "city-visualizer/data/cities.json"), "utf8")).cities;
+  for (const [cityId, originCityId] of [
+    ["lima|peru", "seville|spain"], ["port royal|canada", "bordeaux|france"]
+  ]) {
+    const target = COLONIZATION_TARGETS.find((city) => city.cityId === cityId);
+    const placement = cities.find((city) => city.cityId === target.cityId);
+    const origin = cities.find((city) => city.cityId === originCityId);
+    for (const stage of ["awaiting-resupply", "established"]) {
+      const save = JSON.parse(source.serialized);
+      const memory = createColonizationQuestMemory();
+      assignColonizationQuest(memory, { target: { ...target, tileId: placement.tileId }, origin });
+      for (const fetch of colonizationHistoryForTarget(target).fetchStages) {
+        completeColonizationFetchStage(memory, fetch.id);
+      }
+      beginColonizationExpedition(memory);
+      landColonists(memory, Math.floor(save.payload.worldClock.currentMinute));
+      if (stage === "established") establishColony(memory, Math.floor(save.payload.worldClock.currentMinute));
+      save.payload.gameState.memory.colonization = memory;
+      let serialized = JSON.stringify(save);
+      // The second restore sees a port promoted by the first restore. Read the
+      // actual newly written save each time, so this covers saving as well as load.
+      for (let pass = 0; pass < 3; pass++) {
+        const restored = await withTimeout(page.evaluate((serialized) =>
+          window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), serialized),
+        RESTORE_TIMEOUT_MS, `${stage} colony save/load ${pass + 1}`);
+        await assertNoBrowserFailure(page, browserErrors, `${stage} colony save/load`);
+        if (JSON.stringify(restored.colonization) !== JSON.stringify(memory)) {
+          throw new Error(`${stage} colony save/load changed the colony's persistent history`);
+        }
+        if (typeof restored.serialized !== "string" || restored.serialized.length === 0) {
+          throw new Error(`${stage} colony did not write a save`);
+        }
+        serialized = restored.serialized;
+      }
+      process.stdout.write(`  ${target.city} ${stage}: three save/load round trips preserved colony history.\n`);
+    }
+  }
 }
 
 function browserAdaptedDenseFixture(save, name) {

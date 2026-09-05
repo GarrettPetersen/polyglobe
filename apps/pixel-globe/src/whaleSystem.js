@@ -282,8 +282,10 @@ export function beginWhaleAdvance(
     if (!whale) throw new Error(`Active whale movement references missing individual: ${whaleId}`);
     dueWhales.set(whale.id, whale);
   }
-  for (const whale of whaleMovementBucket(memory, schedule.bucketCount, schedule.bucket)) {
-    if (!dueWhales.has(whale.id)) dueWhales.set(whale.id, whale);
+  if (schedule.includeBackground) {
+    for (const whale of whaleMovementBucket(memory, schedule.bucketCount, schedule.bucket)) {
+      if (!dueWhales.has(whale.id)) dueWhales.set(whale.id, whale);
+    }
   }
   const job = {
     memory,
@@ -402,11 +404,16 @@ function advanceTetheredWhaleRam(hunt, whale, dt, events) {
 }
 
 function validateWhaleMovementSchedule(schedule) {
-  if (schedule === null) return { bucket: 0, bucketCount: 1, activeWhaleIds: [] };
+  if (schedule === null) return { bucket: 0, bucketCount: 1, activeWhaleIds: [], includeBackground: true };
   if (!schedule || typeof schedule !== "object") {
     throw new Error("Whale movement schedule must be an object");
   }
-  const { bucket, bucketCount, activeWhaleIds = [] } = schedule;
+  const { bucket, bucketCount, activeWhaleIds = [], includeBackground = true } = schedule;
+  // A tow shares the player's frame clock. Offscreen movement can accrue debt
+  // until the hunt ends, but must not delay its next physical movement step.
+  if (typeof includeBackground !== "boolean") {
+    throw new Error("Whale movement requires an explicit background inclusion policy");
+  }
   if (!Number.isInteger(bucketCount) || bucketCount <= 0) {
     throw new Error(`Invalid whale movement bucket count: ${bucketCount}`);
   }
@@ -418,7 +425,7 @@ function validateWhaleMovementSchedule(schedule) {
       activeWhaleIds.some((id) => typeof id !== "string" || id.length === 0)) {
     throw new Error("Whale movement active ids must be unique non-empty strings");
   }
-  return { bucket, bucketCount, activeWhaleIds };
+  return { bucket, bucketCount, activeWhaleIds, includeBackground };
 }
 
 function whaleIndex(memory) {

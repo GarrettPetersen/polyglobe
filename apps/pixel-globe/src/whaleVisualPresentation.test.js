@@ -5,10 +5,12 @@ import { runInNewContext } from "node:vm";
 import {
   WHALE_SUBMERGED_REFRACTION_PX,
   synchronizeWhaleVisualPresentation,
+  whaleSpriteDestinationRect,
   whaleVisualPresentationIsActive,
   whaleVisualPresentationPoint
 } from "./whaleVisualPresentation.js";
-import { WHALE_PHASE_DEAD, WHALE_PHASE_EXHAUSTED, WHALE_PHASE_TETHERED, whaleById, reconcileWhalePresentationIds, advanceWhaleJob, beginWhaleAdvance, createWhaleMemory, seedWhalePopulation } from "./whaleSystem.js";
+import { WHALE_HARPOONS } from "./whaleHarpoons.js";
+import { WHALE_PHASE_DEAD, WHALE_PHASE_EXHAUSTED, WHALE_PHASE_TETHERED, WHALE_PHASE_SURFACED, tetherWhale, whaleById, reconcileWhalePresentationIds, advanceWhaleJob, advanceWhaleMemory, beginWhaleAdvance, cancelWhaleAdvanceJob, whaleCanBeHarpooned, whaleHarpoonBreakMultiplier, createWhaleMemory, seedWhalePopulation } from "./whaleSystem.js";
 
 const coordinateSpace = {};
 function sync(state, worldPosition, nowMs, overrides = {}) {
@@ -128,7 +130,50 @@ function seededWhaleMemory() {
   return memory;
 }
 
-test("the production whale frame publishes movement during a partial batch", () => {
+test("production body layers and interaction outlines share whale placement at every depth and scale", () => {
+  const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const extract = (name) => {
+    const start = main.indexOf(`function ${name}(`);
+    return main.slice(start, main.indexOf("\nfunction ", start));
+  };
+  const whale = { id: "whale-1", phase: WHALE_PHASE_SURFACED };
+  let call;
+  let exposure;
+  const bodyDraws = [];
+  const outlines = [];
+  const layers = { above: {}, submerged: {} };
+  const runtime = {
+    gameState: { memory: { whales: { individuals: [whale] } } }, whaleAssetStore: {},
+    WHALE_PHASE_DEAD, SHIP_SHEET_FRAME_SIZE: 64, SHIP_SHEET_COLS: 8,
+    WHALE_SUBMERGED_ALPHA: 0.34, WHALE_SUBMERGED_REFRACTION_PX,
+    whaleInteractionCall: () => call, pointNearScreen: () => true,
+    residentWhaleImageSet: () => ({ image: {} }), whaleSurfaceExposure: () => exposure,
+    submergedObjectRenderLayers: () => layers, whaleSpriteDestinationRect,
+    worldRenderer: { drawAtlasSprite: (draw) => bodyDraws.push(draw) },
+    selectableInteractionOutlinesShouldDraw: () => true, chartOffsetPixels: () => ({ x: 0, y: 0 }),
+    chart: { cityCalls: [] }, npcVisualShips: new Map(), activeInteractionTarget: () => ({ call }),
+    reducedMotionPreferred: false, harpoonableWhaleCalls: () => [call],
+    drawSelectableSpriteOutline: (draw) => outlines.push(draw)
+  };
+  runInNewContext(["drawWhalesWebGL", "drawSelectableInteractionOutlines"].map(extract).join("\n"), runtime);
+  for (const scale of [0.45, 0.72, 1]) {
+    for (exposure of [0, 0.1, 0.5, 0.9, 1]) {
+      call = { id: whale.id, whale, x: 40.3, y: 55.7, scale, frame: 16 };
+      bodyDraws.length = outlines.length = 0;
+      runtime.drawWhalesWebGL(100);
+      runtime.drawSelectableInteractionOutlines(100);
+      assert.equal(bodyDraws.length, 2);
+      assert.equal(bodyDraws[0].source, layers.submerged);
+      assert.equal(bodyDraws[1].source, layers.above);
+      assert.deepEqual(bodyDraws[0].destinationRect, bodyDraws[1].destinationRect);
+      assert.equal(outlines.length, 1);
+      assert.equal(outlines[0].x, bodyDraws[0].destinationRect.x);
+      assert.equal(outlines[0].y, bodyDraws[0].destinationRect.y);
+    }
+  }
+});
+
+function productionWhaleRuntime() {
   const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
   const functionSource = (name) => {
     const start = main.indexOf(`function ${name}(`);
@@ -148,7 +193,7 @@ test("the production whale frame publishes movement during a partial batch", () 
     whaleSimulationAccumulator: 0, whaleBackgroundMovementBucket: 0, whaleAdvanceJob: null,
     responsiveWhaleIds: new Set([whale.id]), whaleVisualPresentations: new Map(),
     whaleHarpoonProjectile: null, whaleBlowBursts: [], whaleKillEffects: [],
-    beginWhaleAdvance, advanceWhaleJob, whaleById, reconcileWhalePresentationIds,
+    beginWhaleAdvance, advanceWhaleJob, advanceWhaleMemory, cancelWhaleAdvanceJob, whaleById, reconcileWhalePresentationIds,
     synchronizeWhaleVisualPresentation, whaleVisualPresentationPoint, whaleVisualPresentationIsActive,
     whaleNavigationAtPosition: () => ({ ok: true, canSurface: true, tileId: 1 }),
     constrainActiveWhaleTether: () => false,
@@ -157,10 +202,15 @@ test("the production whale frame publishes movement during a partial batch", () 
     })
   };
   runInNewContext([
-    "updateWhales", "synchronizeWhalePresentations", "synchronizeWhalePresentation",
+    "updateWhales", "applyWhaleAdvanceEvents", "synchronizeWhalePresentations", "synchronizeWhalePresentation",
     "presentedWhalePoint", "activeWhalePresentationExists", "responsiveWhaleMovementIds",
-    "takeWhaleSimulationElapsed"
+    "takeWhaleSimulationElapsed", "cancelPendingWhaleAdvance"
   ].map(functionSource).join("\n"), runtime);
+  return { runtime, whale };
+}
+
+test("the production whale frame publishes movement during a partial batch", () => {
+  const { runtime, whale } = productionWhaleRuntime();
   runtime.synchronizeWhalePresentations([whale.id], 0);
   const displayed = (time) => runtime.presentedWhalePoint(whale,
     runtime.localPointForKnownTileVector(whale.position, whale.tileId), time);
@@ -179,4 +229,94 @@ test("the production whale frame publishes movement during a partial batch", () 
     assert.equal(displayed(nowMs).x, before.x, "unrelated background work rewound the whale");
   }
   assert.equal(displayed(nowMs + 250).x, targetX);
+});
+
+
+test("production tow physics advances every player frame despite a larger background population", () => {
+  for (const frameRate of [30, 60, 120]) {
+    const { runtime, whale } = productionWhaleRuntime();
+    whale.phase = WHALE_PHASE_SURFACED;
+    tetherWhale(runtime.gameState.memory.whales, whale.id, WHALE_HARPOONS[0]);
+    let previous = whale.lifeSeconds;
+    for (let frame = 1; frame <= frameRate; frame++) {
+      runtime.updateWhales(1 / frameRate, frame * 1000 / frameRate);
+      assert.equal(runtime.whaleAdvanceJob, null, "a tow waited for background work");
+      assert.ok(Math.abs(whale.lifeSeconds - previous - 1 / frameRate) < 1e-9,
+        `tow movement did not share the ${frameRate}Hz player clock`);
+      previous = whale.lifeSeconds;
+    }
+  }
+});
+
+test("whale sprite placement rounds once and shares submergence across body and outline", () => {
+  for (const scale of [0.45, 0.72, 1]) {
+    for (const exposure of [0, 0.1, 0.5, 0.9, 1]) {
+      for (let fraction = 0; fraction < 1; fraction += 0.1) {
+        const call = { id: "whale-1", x: 50 + fraction, y: 60 + fraction, scale };
+        const rect = whaleSpriteDestinationRect(call, exposure, 64);
+        assert.equal(rect.x, Math.round(call.x - 32 * scale));
+        assert.equal(rect.y, Math.round(call.y + (1 - exposure) * 3 - 32 * scale));
+      }
+    }
+  }
+  assert.throws(() => whaleSpriteDestinationRect({ x: 1, y: 2, scale: 1 }, NaN, 64), /placement/);
+});
+
+test("a whale travelling with the camera keeps one screen position between pixel boundaries", () => {
+  const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const start = main.indexOf("function whaleInteractionCall(");
+  const end = main.indexOf("\nfunction ", start);
+  const runtime = {
+    chart: { visibleSet: new Set([1]) }, camera: {}, localLayout: { viewX: 0, viewY: 0 },
+    lastFrameMs: 0, SCREEN_W: 455, SCREEN_H: 256,
+    localPointForKnownTileVector: (position) => ({ x: position[0], y: position[1] }),
+    presentedWhalePoint: (_, point) => point,
+    chartOffsetPixels: () => ({ x: Math.round(227.5 - runtime.localLayout.viewX), y: Math.round(128 - runtime.localLayout.viewY) }),
+    tangentToScreenDirection: () => ({ x: 1, y: 0 }), headingFrameForScreenHeading: () => 0,
+    whaleDisplayLabel: () => "Whale", whaleLifeStageScale: () => 1
+  };
+  runInNewContext(main.slice(start, end), runtime);
+  for (let frame = 0; frame < 120; frame++) {
+    const movement = frame * 0.17;
+    runtime.localLayout.viewX = movement;
+    runtime.localLayout.viewY = movement;
+    const call = runtime.whaleInteractionCall({ id: "whale-1", tileId: 1, position: [40 + movement, 10 + movement] });
+    const rect = whaleSpriteDestinationRect(call, 0.5, 64);
+    assert.equal(rect.x, 236);
+    assert.equal(rect.y, 108);
+  }
+});
+
+
+test("a harpoon settles pending cruise time before towing and handles a whale that just submerged", () => {
+  const main = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const start = main.indexOf("function resolveWhaleHarpoonProjectile(");
+  const end = main.indexOf("\nfunction ", start);
+  for (const phase of ["surfaced", "diving"]) {
+    const { runtime, whale } = productionWhaleRuntime();
+    whale.phase = phase;
+    whale.phaseElapsedSeconds = 0;
+    whale.phaseDurationSeconds = phase === "diving" ? 0.05 : 30;
+    const before = whale.lifeSeconds;
+    Object.assign(runtime, {
+      lastFrameMs: 200, whaleSimulationAccumulator: 0.2,
+      whaleHarpoonProjectile: { whaleId: whale.id, harpoonId: WHALE_HARPOONS[0].id, distancePx: 10 },
+      whaleCanBeHarpooned, whaleHarpoonBreakMultiplier, tetherWhale,
+      playerWhaleHarpoon: () => WHALE_HARPOONS[0],
+      resolveWhaleHarpoon: () => ({ outcome: "tethered" }),
+      captureDirector: null, playerCrewWorkMultiplier: () => 1,
+      currentPlayerPerkTotals: () => ({ whalingChanceMultiplier: 1 }),
+      playArrowHitSound() {}, showSurvivalNotice() {}, WHITE_WHALE_ID: "white-whale"
+    });
+    runInNewContext(main.slice(start, end), runtime);
+    runtime.resolveWhaleHarpoonProjectile();
+    assert.equal(runtime.whaleSimulationAccumulator, 0);
+    assert.ok(Math.abs(whale.lifeSeconds - before - 0.2) < 1e-9, "unprocessed time was lost");
+    assert.equal(whale.phase, phase === "diving" ? "submerged" : "tethered");
+    if (phase === "surfaced") {
+      runtime.updateWhales(1 / 60, 200 + 1000 / 60);
+      assert.ok(Math.abs(whale.lifeSeconds - before - 0.2 - 1 / 60) < 1e-9,
+        "the first tow frame applied pre-harpoon movement debt at tow speed");
+    } else assert.equal(runtime.gameState.memory.whales.activeHunt, null);
+  }
 });

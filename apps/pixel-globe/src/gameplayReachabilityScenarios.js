@@ -1,10 +1,28 @@
 const FAST_SCENARIO_IDS = Object.freeze([
   "reachability-sail-open-ocean",
   "reachability-fight-broadside",
-  "reachability-port-assault-fortified"
+  "reachability-port-assault-fortified",
+  "reachability-colony-found",
+  "reachability-whale-tow"
 ]);
 
 export const GAMEPLAY_REACHABILITY_SCENARIOS = deepFreeze({
+  "reachability-colony-found": colonyScenario("reachability-colony-found", "found"),
+  "reachability-colony-resupply": colonyScenario("reachability-colony-resupply", "resupply"),
+  "reachability-colony-city": colonyScenario("reachability-colony-city", "city"),
+  "reachability-colony-port-royal": {
+    id: "reachability-colony-port-royal", title: "Colonist", seed: "reachability-colony-port-royal-v1",
+    player: { ...vessel("france", "galleon", 44.741944, -65.515556, 45), homeCityId: "bordeaux|france" },
+    world: world(184, 16, 35), diplomacy: [], encounters: [],
+    sequence: {
+      kind: "colonize", variant: "found", durationSeconds: 14,
+      cityId: "port royal|canada", originCityId: "bordeaux|france",
+      organizerPortraitSourceId: "merchant-portrait-pack-by-captainskolot-portrait-merchant",
+      modalPolicy: "show"
+    }
+  },
+  "reachability-whale-tow": whaleScenario("reachability-whale-tow", "harpoon", "north-atlantic-right-whale"),
+  "reachability-whale-finish": whaleScenario("reachability-whale-finish", "finish", "sperm-whale"),
   "reachability-sail-open-ocean": {
     id: "reachability-sail-open-ocean",
     title: "Sailing ship",
@@ -206,6 +224,29 @@ export function gameplayReachabilityScenarioIds(profile = "fast") {
 
 function vessel(factionId, shipSlug, lat, lon, headingDeg) {
   return { factionId, shipSlug, lat, lon, headingDeg, activePlaySeconds: 90 };
+}
+
+function whaleScenario(id, variant, speciesId) {
+  return {
+    id, title: "Sailing ship", seed: `${id}-v1`,
+    player: vessel("england", "brigantine", 42.4, -48, 90),
+    world: world(120, 15, 5), diplomacy: [], encounters: [],
+    sequence: { kind: "whale", variant, speciesId, durationSeconds: 10, modalPolicy: "show" }
+  };
+}
+
+function colonyScenario(id, variant) {
+  return {
+    id, title: "Colonist", seed: `${id}-v1`,
+    player: { ...vessel("spain", "galleon", -34.61, -58.38, 45), homeCityId: "seville|spain" },
+    world: world(184, 16, 35), diplomacy: [], encounters: [],
+    sequence: {
+      kind: "colonize", variant, durationSeconds: 14,
+      cityId: "buenos aires|argentina", originCityId: "seville|spain",
+      organizerPortraitSourceId: "merchant-portrait-pack-by-captainskolot-portrait-merchant",
+      modalPolicy: "show"
+    }
+  };
 }
 
 function world(day, hour, minute) {

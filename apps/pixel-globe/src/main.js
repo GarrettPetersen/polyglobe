@@ -881,6 +881,7 @@ import {
 import {
   WHALE_SUBMERGED_REFRACTION_PX,
   synchronizeWhaleVisualPresentation,
+  whaleSpriteDestinationRect,
   whaleVisualPresentationIsActive,
   whaleVisualPresentationPoint
 } from "./whaleVisualPresentation.js";
@@ -894,6 +895,7 @@ import {
   WHALE_PHASE_SURFACED,
   WHALE_PHASE_TETHERED,
   advanceWhaleJob,
+  advanceWhaleMemory,
   beginWhaleAdvance,
   cancelWhaleAdvanceJob,
   constrainWhaleTether,
@@ -1074,6 +1076,7 @@ import { portCityWeatherPresentation } from "./portCityWeather.js";
 import { portInnDialogue } from "./portInnDialogue.js";
 import { portCityCircleWipeFrame } from "./portCityTransition.js";
 import { createCitySceneRuntime } from "../city-visualizer/main.js";
+import { colonizationCitySceneOptions, colonizationSiteSpeakerRole } from "./colonizationCityPresentation.js";
 import { shipHandoverHistoryForSlug } from "./shipHandoverDialogue.js";
 import {
   pauseDialogueShipMotion,
@@ -3504,7 +3507,6 @@ const ICEBERG_SUBMERGED_ALPHA = 0.42;
 const WHALE_TOW_RESPONSE_PER_SECOND = 2.6;
 const WHALE_TETHER_MAX_DISTANCE_PX = 78;
 const WHALE_SIMULATION_INTERVAL_SECONDS = 0.25;
-const WHALE_HUNT_SIMULATION_INTERVAL_SECONDS = 1 / 30;
 const WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT = 32;
 const WHALE_MOVEMENTS_PER_FRAME = 4;
 const WHALE_RENDER_EXPOSURE_STEPS = 4;
@@ -7076,6 +7078,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (updateItemAcquisitionEffects(nowMs)) dirty = true;
   if (updateDepartureControlFeedback(nowMs)) dirty = true;
   if (updatePortCityIllicitCaughtPresentation(nowMs)) dirty = true;
+  if (updateColonistLanding(nowMs)) dirty = true;
   if (updatePortAssault(nowMs)) dirty = true;
   measurePerformanceBenchmarkStage(
     "audio.ambient",
@@ -11621,8 +11624,22 @@ function stepAutomaticCaptureFrame(frameIndex) {
   return Object.freeze({
     frameIndex,
     totalFrames: captureFrameStepper.totalFrames,
-    complete
+    complete,
+    whaleMotion: captureDirector.sequence.kind === "whale" ? captureWhaleMotionFrame() : null
   });
+}
+
+function captureWhaleMotionFrame() {
+  if (captureDirector.harvestedWhaleMotion) {
+    return { ...captureDirector.harvestedWhaleMotion, phase: WHALE_PHASE_DEAD, timeMs: lastFrameMs };
+  }
+  const whale = whaleById(gameState.memory.whales, captureDirector.whaleId);
+  const call = whaleInteractionCall(whale);
+  return {
+    whaleId: whale.id, phase: whale.phase, lifeSeconds: whale.lifeSeconds,
+    timeMs: lastFrameMs,
+    destination: call ? whaleSpriteDestinationRect(call, whaleSurfaceExposure(whale), SHIP_SHEET_FRAME_SIZE) : null
+  };
 }
 
 function stageCaptureSequence() {
@@ -11970,7 +11987,9 @@ function updateCaptureWhale(sequence) {
     if (whale.phase !== WHALE_PHASE_EXHAUSTED) {
       throw new Error(`Capture whale did not exhaust on cue: ${whale.phase}`);
     }
+    const finalMotion = captureWhaleMotionFrame();
     landWhaleKillingBlow();
+    captureDirector.harvestedWhaleMotion = finalMotion;
     emitCaptureEvent("capture-beat", { action: "land-whale-killing-blow", speciesId: sequence.speciesId });
   }
   if (captureCue("dismiss-kill", 7.0) && captainAlertModal) closeCaptainAlertModal();
@@ -12284,9 +12303,16 @@ function updateCaptureColonization(sequence) {
     if (captureCue("browse-established-colony-market", 6.0)) captureChooseDialogueNode("market");
     return;
   }
+  if (sequence.variant === "found") {
+    if (captureCue("verify-colony-arrival", 2.0) &&
+        (portCityView?.cityId !== sequence.cityId || !portCityView.colonistLanding)) {
+      throw new Error(`Colony proximity did not automatically start landing: ${sequence.cityId}`);
+    }
+    return;
+  }
   if (captureCue("open-colony", 1.0)) openCaptureColonizationDialogue(sequence.cityId);
   if (captureCue("complete-colony-action", 4.5)) {
-    const actionType = sequence.variant === "found" ? "land-colonists" : "deliver-colony-resupply";
+    const actionType = "deliver-colony-resupply";
     captureChooseDialogueAction(actionType);
     playSoundEffect(soundEffects?.discoverySuccess, 0.68, 1);
     emitCaptureEvent("capture-beat", { action: actionType, city: sequence.cityId });
@@ -12295,11 +12321,19 @@ function updateCaptureColonization(sequence) {
 }
 
 function openCaptureColonizationDialogue(cityName) {
-  openCapturePortNode(cityName, "colonization");
+  // Normal proximity arrival may already have opened this site before its cue.
+  if (!dialogueState) openPortDialogue(capturePortCallById(cityName));
+  if (dialogueState?.kind !== "port" || dialogueState.cityId !== cityName ||
+      portCityView?.cityId !== cityName) throw new Error("Colony capture requires its active port scene");
+  dialogueState.nodeId = "colonization";
+  dialogueState.selectedIndex = 0;
+  invalidateDialogueView();
+  ensureDialoguePortraitLoaded();
 }
 
 function openCapturePortNode(cityName, nodeId) {
   const cityCall = capturePortCallById(cityName);
+  activatePortCityView(cityCall);
   dialogueState = createPortDialogueSession(cityCall, {
     initialNodeId: nodeId,
     admittedToPort: true
@@ -12996,6 +13030,7 @@ function stageCaptureWhale(sequence) {
     entry.speciesId === sequence.speciesId && entry.lifeStage === "adult" && entry.id !== WHITE_WHALE_ID
   ));
   if (!whale) throw new Error(`Capture whale species is unavailable: ${sequence.speciesId}`);
+  captureDirector.whaleId = whale.id;
   const placement = captureWhalePlacement();
   whale.position = placement.position;
   whale.tileId = placement.tileId;
@@ -16312,11 +16347,17 @@ function installSaveRestoreSmokeHarness() {
             `Restored voyage retained game-state version ${gameState.version}/${GAME_STATE_VERSION}`
           );
         }
+        const persisted = readLocalSave();
+        if (persisted.status !== "ready") {
+          throw persisted.error || new Error("Continued voyage did not produce a readable save");
+        }
         return Object.freeze({
           gameStateVersion: gameState.version,
           shipTypeSlug: ship.stats.slug,
           chartTileCount: chart.tileCalls.length,
-          cityCallCount: chart.cityCalls.length
+          cityCallCount: chart.cityCalls.length,
+          serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY),
+          colonization: structuredClone(persisted.save.payload.gameState.memory.colonization)
         });
       } finally {
         running = false;
@@ -20183,7 +20224,7 @@ function invalidateDialogueOptionGeometry() {
 
 function handleDialogueKeyDown(event) {
   event.preventDefault();
-  if (portCityIllicitEvent) return;
+  if (portCityIllicitEvent || colonistLandingInProgress()) return;
   // A held confirm key must never spill from one dialogue state into the next;
   // recruitment cards perform immediate purchases.
   if (event.repeat && (event.key === "Enter" || event.key === " ")) return;
@@ -20426,7 +20467,7 @@ function navigateBackFromDialogue() {
 }
 
 function handleDialoguePointerDown(point) {
-  if (portCityIllicitEvent) return;
+  if (portCityIllicitEvent || colonistLandingInProgress()) return;
   if (dialogueIsCustomLoadoutEditor()) {
     for (const entry of dialogueLayout.customLoadoutSliderRects) {
       if (!pointInRect(point, entry.hitRect)) continue;
@@ -20744,7 +20785,8 @@ function activatePortCityView(cityCall) {
     centerX: center.x,
     centerY: center.y,
     sceneReady: false,
-    arrivalGreetingPresented: false
+    arrivalGreetingPresented: false,
+    colonistLanding: null
   };
   portCitySceneSyncKey = null;
   portCityPointerDown = null;
@@ -20826,6 +20868,7 @@ async function synchronizePortCityScene() {
   const label = cityLabelText(city);
   const selectionOptions = Object.freeze({
     ...assetOptions,
+    ...colonizationCitySceneOptions(city, { landingVisit: portCityView.colonistLanding !== null }),
     availableDestinationIds,
     barred,
     illicitCaughtStartedAtMs,
@@ -20838,6 +20881,19 @@ async function synchronizePortCityScene() {
   if (!portCityView || serial !== portCitySceneSelectionSerial || portCityView.cityId !== city.cityId) return;
   portCitySceneSyncKey = syncKey;
   portCityView.sceneReady = true;
+  if (city.colonizationQuestSite) {
+    emitCaptureEvent("colony-scene-ready", {
+      cityId: city.cityId,
+      settlementStage: portCityRuntime.getPresentationState().features.settlementStage,
+      population: city.population
+    });
+  }
+  if (portCityView.colonistLanding &&
+      portCityRuntime.getPresentationState().features.settlementStage === "uninhabited") {
+    portCityRuntime.setColonistLandingElapsedMs(portCityView.colonistLanding.elapsedMs, {
+      originCityId: portCityView.colonistLanding.originCityId
+    });
+  }
   if (portCityTransition?.direction === "enter-pending") {
     resetWorldNorthUpBehindPortCityCover();
     portCityTransition.direction = "enter";
@@ -20858,6 +20914,38 @@ function currentPortCitySceneCity() {
     throw new Error(`Port city view is missing pirate hideout: ${city.cityId}`);
   }
   return hideout;
+}
+
+function colonistLandingInProgress() {
+  return Boolean(portCityView?.colonistLanding && !portCityView.colonistLanding.complete);
+}
+
+function beginColonistLanding({ cityId, originCityId }) {
+  if (!portCityView || portCityView.cityId !== cityId || dialogueState?.cityId !== cityId) {
+    throw new Error(`Colonist landing requires its active port scene: ${cityId}`);
+  }
+  if (portCityView.colonistLanding) throw new Error(`Colonists have already landed: ${cityId}`);
+  requireEntityById(cityById, originCityId, "Colonist expedition origin");
+  portCityView.colonistLanding = { originCityId, startedAtMs: null, elapsedMs: 0, complete: false };
+  portCitySceneSyncKey = null;
+  invalidateDialogueOptionGeometry();
+}
+
+function updateColonistLanding(nowMs) {
+  if (!colonistLandingInProgress() || !portCityView.sceneReady ||
+      portCitySceneSyncKey === null || portCityTransition) return false;
+  const landing = portCityView.colonistLanding;
+  landing.startedAtMs ??= nowMs;
+  landing.elapsedMs = Math.max(0, nowMs - landing.startedAtMs);
+  landing.complete = portCityRuntime.setColonistLandingElapsedMs(landing.elapsedMs, {
+    originCityId: landing.originCityId
+  });
+  if (landing.complete) {
+    invalidateDialogueView();
+    ensureDialoguePortraitLoaded();
+    emitCaptureEvent("colonists-ashore", { cityId: portCityView.cityId });
+  }
+  return true;
 }
 
 function portCitySceneAssetOptions(city) {
@@ -24843,7 +24931,7 @@ function toggleAnchor({ findCastaway = true } = {}) {
 
 function maybeAutoAnchorAtNonPortQuestSite() {
   if (!ship || anchored || portWaitState || gameOverReason || dialogueState || captainAlertModal ||
-      menusAreOpen() || playerHasCombatEngagement() || !chart || !localLayout) {
+      menusAreOpen() || playerHasCombatEngagement() || !chart || !localLayout || !worldFramePresented) {
     return false;
   }
 
@@ -24874,6 +24962,13 @@ function maybeAutoAnchorAtNonPortQuestSite() {
   stopShipMotion();
   playAnchorHandlingSound({ raising: false });
   openPortDialogue(arrival.call);
+  if (arrival.actionType) {
+    const options = currentDialogueView().options;
+    const actionIndex = options.findIndex((option) => option.action?.type === arrival.actionType && !option.disabled);
+    if (actionIndex < 0) throw new Error(`Colony arrival has no enabled ${arrival.actionType}: ${arrival.call.cityId}`);
+    chooseDialogueOption(actionIndex);
+    emitCaptureEvent("colony-proximity-arrival", { cityId: arrival.call.cityId });
+  }
   automaticQuestSiteAnchorOverlayKind = questSiteArrivalOverlayKind({
     dialogueOpen: Boolean(dialogueState),
     characterAlertOpen: Boolean(captainAlertModal)
@@ -25564,6 +25659,7 @@ function closeAutomaticQuestSiteAnchorOverlay(closingOverlayKind) {
 }
 
 function chooseDialogueOption(optionIndex) {
+  if (colonistLandingInProgress()) return false;
   const selected = currentDialogueView().options[optionIndex];
   if (dialogueActionBlockedByActivationGuard(
     dialogueActivationGuard,
@@ -25617,6 +25713,7 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
     if (result.colonizationChanged) {
       syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
     }
+    if (result.colonistLanding) beginColonistLanding(result.colonistLanding);
     reconcileForeignSettlementPolitics({ notify: true });
     if (result.colonizationDefenseStarted) ensureColonizationDefenseEncounter();
     syncShipCargoFromGameState();
@@ -27482,16 +27579,15 @@ function cycleControllerInteractionTarget() {
 
 function updateWhales(dt, nowMs) {
   if (!gameState?.memory?.whales || !chart || !localLayout) return false;
-  const simulationInterval = gameState.memory.whales.activeHunt
-    ? WHALE_HUNT_SIMULATION_INTERVAL_SECONDS
-    : WHALE_SIMULATION_INTERVAL_SECONDS;
-  whaleSimulationAccumulator = Math.min(
-    simulationInterval * 2,
-    whaleSimulationAccumulator + dt
-  );
-  const simulationDue = whaleSimulationAccumulator >= simulationInterval;
+  const huntActive = Boolean(gameState.memory.whales.activeHunt);
+  const responsiveIds = responsiveWhaleMovementIds();
+  whaleSimulationAccumulator = huntActive
+    ? whaleSimulationAccumulator + dt
+    : Math.min(WHALE_SIMULATION_INTERVAL_SECONDS * 2, whaleSimulationAccumulator + dt);
+  const simulationDue = huntActive
+    ? whaleSimulationAccumulator > 0
+    : whaleSimulationAccumulator >= WHALE_SIMULATION_INTERVAL_SECONDS;
   if (simulationDue && !whaleAdvanceJob) {
-    const responsiveIds = responsiveWhaleMovementIds();
     const movementElapsed = takeWhaleSimulationElapsed();
     whaleAdvanceJob = {
       simulation: beginWhaleAdvance(
@@ -27502,7 +27598,8 @@ function updateWhales(dt, nowMs) {
         {
           bucket: whaleBackgroundMovementBucket,
           bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
-          activeWhaleIds: responsiveIds
+          activeWhaleIds: responsiveIds,
+          includeBackground: !huntActive
         }
       )
     };
@@ -27513,7 +27610,10 @@ function updateWhales(dt, nowMs) {
   if (whaleAdvanceJob) {
     const progress = advanceWhaleJob(
       whaleAdvanceJob.simulation,
-      WHALE_MOVEMENTS_PER_FRAME
+      // Finish visible tow physics on the same frame as the player. Background
+      // whales resume their accumulated movement after the hunt; a partial
+      // background batch must never hold the tether still for several frames.
+      huntActive ? Math.max(WHALE_MOVEMENTS_PER_FRAME, responsiveIds.length) : WHALE_MOVEMENTS_PER_FRAME
     );
     if (progress.complete) {
       events = progress.events;
@@ -27529,52 +27629,7 @@ function updateWhales(dt, nowMs) {
   // Synchronize every frame, including partial background batches. Waiting for
   // the whole job exposes a moved world point before interpolation catches up.
   synchronizeWhalePresentations(responsiveWhaleMovementIds(), nowMs);
-  for (const event of events) {
-    if (event.type === "blow") {
-      const whale = whaleById(gameState.memory.whales, event.whaleId);
-      const call = whaleInteractionCall(whale);
-      if (call && pointNearScreen(call, SHIP_SHEET_FRAME_SIZE)) {
-        whaleBlowBursts.push(createWhaleBlowBurst(
-          whale.seed,
-          nowMs,
-          whaleBlowOriginPosition(whale)
-        ));
-        playWhaleBlowSound();
-      }
-      changed = true;
-    } else if (event.type === "exhausted") {
-      const whale = whaleById(gameState.memory.whales, event.whaleId);
-      playBladeReadySound();
-      if (whaleExhaustionTutorialShouldOpen(gameState.memory.decisions)) {
-        const opened = openCaptainAlertModal(
-          whaleExhaustedMessage(),
-          WHALE_EXHAUSTED_EXPRESSION_ID
-        );
-        if (!opened) throw new Error("Whale exhaustion tutorial could not open");
-        markWhaleExhaustionTutorialShown(gameState.memory.decisions);
-        saveVoyageNow("showed whale exhaustion tutorial");
-      }
-      changed = true;
-    } else if (event.type === "ram-warning") {
-      const whale = whaleById(gameState.memory.whales, event.whaleId);
-      const towardShip = normalizeOrNull(projectTangentVector(ship.position, whale.position));
-      if (!towardShip) throw new Error(`Sperm whale cannot turn toward the ship: ${whale.id}`);
-      whale.heading = towardShip;
-      showSurvivalNotice(whaleRamWarningText(whale), "warn");
-      playWhaleBlowSound();
-      changed = true;
-    } else if (event.type === "ram-impact") {
-      resolveActiveWhaleRamImpact(whaleById(gameState.memory.whales, event.whaleId));
-      changed = true;
-    } else if (event.type === "ice-line-break") {
-      showSurvivalNotice("SEA ICE PARTED THE HARPOON LINE", "warn");
-      changed = true;
-    } else if (event.type === "birth") {
-      changed = true;
-    } else {
-      throw new Error(`Unknown whale event: ${event.type}`);
-    }
-  }
+  changed = applyWhaleAdvanceEvents(events, nowMs) || changed;
   if (whaleHarpoonProjectile) {
     whaleHarpoonProjectile.elapsedSeconds += dt;
     if (whaleHarpoonProjectile.elapsedSeconds >= whaleHarpoonProjectile.durationSeconds) {
@@ -27594,6 +27649,50 @@ function updateWhales(dt, nowMs) {
     whaleBlowBursts.length !== previousBurstCount ||
     whaleKillEffects.length > 0 ||
     whaleKillEffects.length !== previousKillEffectCount;
+}
+
+function applyWhaleAdvanceEvents(events, nowMs) {
+  for (const event of events) {
+    if (event.type === "blow") {
+      const whale = whaleById(gameState.memory.whales, event.whaleId);
+      const call = whaleInteractionCall(whale);
+      if (call && pointNearScreen(call, SHIP_SHEET_FRAME_SIZE)) {
+        whaleBlowBursts.push(createWhaleBlowBurst(
+          whale.seed,
+          nowMs,
+          whaleBlowOriginPosition(whale)
+        ));
+        playWhaleBlowSound();
+      }
+    } else if (event.type === "exhausted") {
+      const whale = whaleById(gameState.memory.whales, event.whaleId);
+      playBladeReadySound();
+      if (whaleExhaustionTutorialShouldOpen(gameState.memory.decisions)) {
+        const opened = openCaptainAlertModal(
+          whaleExhaustedMessage(),
+          WHALE_EXHAUSTED_EXPRESSION_ID
+        );
+        if (!opened) throw new Error("Whale exhaustion tutorial could not open");
+        markWhaleExhaustionTutorialShown(gameState.memory.decisions);
+        saveVoyageNow("showed whale exhaustion tutorial");
+      }
+    } else if (event.type === "ram-warning") {
+      const whale = whaleById(gameState.memory.whales, event.whaleId);
+      const towardShip = normalizeOrNull(projectTangentVector(ship.position, whale.position));
+      if (!towardShip) throw new Error(`Sperm whale cannot turn toward the ship: ${whale.id}`);
+      whale.heading = towardShip;
+      showSurvivalNotice(whaleRamWarningText(whale), "warn");
+      playWhaleBlowSound();
+    } else if (event.type === "ram-impact") {
+      resolveActiveWhaleRamImpact(whaleById(gameState.memory.whales, event.whaleId));
+    } else if (event.type === "ice-line-break") {
+      showSurvivalNotice("SEA ICE PARTED THE HARPOON LINE", "warn");
+    } else if (event.type === "birth") {
+    } else {
+      throw new Error(`Unknown whale event: ${event.type}`);
+    }
+  }
+  return events.length > 0;
 }
 
 function resolveActiveWhaleRamImpact(whale) {
@@ -27794,15 +27893,16 @@ function whaleInteractionCall(whale) {
   const rawPoint = localPointForKnownTileVector(whale.position, whale.tileId);
   if (!rawPoint) return null;
   const localPoint = presentedWhalePoint(whale, rawPoint, lastFrameMs);
-  const offset = chartOffsetPixels(chart);
   const heading = tangentToScreenDirection(whale.heading) || { x: 1, y: 0 };
   return {
     id: whale.id,
     label: whaleDisplayLabel(whale),
     whale,
     tileId: localPoint.tileId,
-    x: localPoint.x + offset.x,
-    y: localPoint.y + offset.y,
+    // Round only the final sprite placement. Independently rounding the camera
+    // makes two steadily moving bodies alternate their relative pixel positions.
+    x: SCREEN_W / 2 + (localPoint.x - localLayout.viewX),
+    y: SCREEN_H / 2 + (localPoint.y - localLayout.viewY),
     frame: headingFrameForScreenHeading(heading),
     scale: whaleLifeStageScale(whale)
   };
@@ -27857,6 +27957,20 @@ function resolveWhaleHarpoonProjectile() {
   if (!projectile) throw new Error("No whale harpoon is in flight");
   whaleHarpoonProjectile = null;
   const whale = whaleById(gameState.memory.whales, projectile.whaleId);
+  cancelPendingWhaleAdvance();
+  // Settle elapsed free-swimming time before changing speed and clock domain.
+  // Otherwise the first tow frame applies up to 250ms at the faster tow speed.
+  const responsiveIds = responsiveWhaleMovementIds();
+  if (!responsiveIds.includes(whale.id)) responsiveIds.push(whale.id);
+  const pendingEvents = advanceWhaleMemory(
+    gameState.memory.whales, takeWhaleSimulationElapsed(), whaleNavigationAtPosition,
+    weatherClockMinutes, {
+      bucket: whaleBackgroundMovementBucket, bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
+      activeWhaleIds: responsiveIds, includeBackground: false
+    }
+  );
+  applyWhaleAdvanceEvents(pendingEvents, lastFrameMs);
+  synchronizeWhalePresentations(responsiveIds, lastFrameMs);
   if (!whaleCanBeHarpooned(whale)) {
     showSurvivalNotice("THE WHALE DIVED BEFORE THE HARPOON STRUCK", "warn");
     return;
@@ -27878,7 +27992,6 @@ function resolveWhaleHarpoonProjectile() {
     showSurvivalNotice("THE ROPE SNAPPED", "warn");
   } else if (result.outcome === "tethered") {
     playArrowHitSound();
-    cancelPendingWhaleAdvance();
     tetherWhale(gameState.memory.whales, whale.id, harpoon);
     if (whale.id === WHITE_WHALE_ID) {
       openCaptainAlertModal(
@@ -42567,7 +42680,7 @@ function drawWorldInterface(nowMs) {
   if (portCityRootPresentationIsOwned() && !portCityView.sceneReady) return;
   const dialogueVisible = dialogueOverlayIsVisible({
     dialogueActive: Boolean(dialogueState) && !portCityRootPresentationIsOwned() &&
-      !portCityIllicitEvent,
+      !portCityIllicitEvent && !colonistLandingInProgress(),
     characterAlertActive: Boolean(captainAlertModal)
   });
   if (!dialogueVisible && !portCityView?.sceneReady) {
@@ -43469,14 +43582,15 @@ function drawSelectableInteractionOutlines(nowMs) {
       queueWhaleAssets(call.whale, `harpoonable whale ${call.id}`);
       continue;
     }
+    const destination = whaleSpriteDestinationRect(call, whaleSurfaceExposure(call.whale), SHIP_SHEET_FRAME_SIZE);
     drawSelectableSpriteOutline({
       image: images.image,
       sourceX: (call.frame % SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
       sourceY: Math.floor(call.frame / SHIP_SHEET_COLS) * SHIP_SHEET_FRAME_SIZE,
       sourceW: SHIP_SHEET_FRAME_SIZE,
       sourceH: SHIP_SHEET_FRAME_SIZE,
-      x: call.x - SHIP_SHEET_FRAME_SIZE * call.scale / 2,
-      y: call.y - SHIP_SHEET_FRAME_SIZE * call.scale / 2,
+      x: destination.x,
+      y: destination.y,
       scale: call.scale,
       primary: primaryId === call.id,
       pulseBright
@@ -44766,7 +44880,9 @@ function makeCityCall(city, tileCall, activeChart) {
   const spriteX = Math.round(tileCall.drawSurfaceX - TILE_ART_HALF + offsetX);
   const spriteY = Math.round(tileCall.drawSurfaceY - TILE_ART_HALF + offsetY);
   const labelH = CITY_LABEL_H + CITY_LABEL_PAD_Y * 2;
-  const character = city.isPirateHideout
+  const colonySpeaker = colonizationSiteSpeakerRole(city, gameState?.memory.colonization.targetCityId);
+  const character = colonySpeaker === "organizer" ? ensureColonizationOrganizer(gameState) :
+    colonySpeaker === "captain" ? gameState.playerCharacter : city.isPirateHideout
     ? pirateHideoutCharacters.get(city.cityId) || null
     : harbourMasterForPlacedCity(portCityStaffByCityId, portCitiesByTileId, city);
   return {
@@ -59391,14 +59507,7 @@ function drawWhalesWebGL(nowMs) {
     }
     const exposure = whaleSurfaceExposure(call.whale);
     const layers = submergedObjectRenderLayers(images, call.frame, exposure, "Whale");
-    const size = SHIP_SHEET_FRAME_SIZE * call.scale;
-    const originY = Math.round(call.y + (1 - exposure) * 3);
-    const destinationRect = {
-      x: Math.round(call.x - size / 2),
-      y: Math.round(originY - size / 2),
-      width: size,
-      height: size
-    };
+    const destinationRect = whaleSpriteDestinationRect(call, exposure, SHIP_SHEET_FRAME_SIZE);
     worldRenderer.drawAtlasSprite({
       source: layers.submerged,
       destinationRect,

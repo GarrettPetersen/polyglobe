@@ -233,8 +233,11 @@ test("the colonial organizer accepts carried resupply during the founding visit"
   gameState.accounts.cargoCostBasis[COLONIZATION_RESUPPLY.goodId] = 0;
   const site = { ...colonizationWorldRecord(gameState.memory.colonization), character: CHARACTER };
   const siteSession = createPortDialogueSession(site, { initialNodeId: "colonization" });
-  chooseAction(siteSession, site, gameState, economy, ports, context, "land-colonists");
+  const landing = chooseAction(siteSession, site, gameState, economy, ports, context, "land-colonists");
+  assert.deepEqual(landing.colonistLanding, { cityId: PORT_ROYAL.cityId, originCityId: BORDEAUX.cityId });
   assert.equal(cargoReservationUnits(gameState, "port-royal-colonists"), 0);
+  assert.ok(portDialogueView(siteSession, site, gameState, economy, ports, context)
+    .options.every(({ action }) => action.type !== "land-colonists"), "landing cannot be repeated");
 
   const originalDeadline = gameState.memory.colonization.resupplyDeadlineMinute;
   const foundingVisit = portDialogueView(
@@ -513,7 +516,13 @@ test("every sailing colony renders its own history through the complete dialogue
     beginColonizationExpedition(gameState.memory.colonization);
     const underwayView = portDialogueView(originSession, origin, gameState, economy, ports, context);
     assert.ok(underwayView.text.includes(history.departed), `${target.city}: departed`);
-    if (approval) grantColonizationApproval(gameState.memory.colonization, { approvalCargoDelivered: true });
+    if (approval) {
+      grantColonizationApproval(gameState.memory.colonization, { approvalCargoDelivered: true });
+      const approvalSession = createPortDialogueSession(approval, { initialNodeId: "colonization" });
+      const approvedView = portDialogueView(approvalSession, approval, gameState, economy, ports, context);
+      assert.ok(approvedView.options.every(({ action }) => action.type !== "land-colonists"),
+        `${target.city}: permission at another port must not offer landing there`);
+    }
 
     const site = {
       ...(target.preexistingSettlement

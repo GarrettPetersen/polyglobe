@@ -67,7 +67,7 @@ export function activeCityDestinations({
 
   return Object.freeze(CITY_DESTINATIONS.filter((destination) => {
     if (availableDestinationIds && !availableDestinationIds.has(destination.id)) return false;
-    if (features.uninhabited && destination.id !== PORT_CITY_LOCATION.SHIP &&
+    if (features.settlementStage !== "city" && destination.id !== PORT_CITY_LOCATION.SHIP &&
         destination.id !== PORT_CITY_LOCATION.SET_SAIL) return false;
     if (!availableDestinationIds && destination.id === PORT_CITY_LOCATION.ILLICIT_MERCHANT) {
       return false;
@@ -117,7 +117,10 @@ function requireCityFeatures(features) {
   if (!features || typeof features !== "object") {
     throw new Error("Active city destinations require scene features");
   }
-  for (const feature of ["uninhabited", "shipyard", "market", "store", "inn"]) {
+  if (!["uninhabited", "colony", "city"].includes(features.settlementStage)) {
+    throw new Error(`Invalid city destination settlement stage: ${features.settlementStage}`);
+  }
+  for (const feature of ["shipyard", "market", "store", "inn"]) {
     if (typeof features[feature] !== "boolean") {
       throw new Error(`City destination feature must be boolean: ${feature}`);
     }

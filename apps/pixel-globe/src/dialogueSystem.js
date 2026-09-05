@@ -3047,15 +3047,25 @@ export function selectPortDialogueAction(
   }
   if (action.type === "land-colonists") {
     const quest = colonizationQuestView(gameState, { currentMinute: context.simMinute ?? 0 });
+    if (!isColonizationQuestTarget(gameState.memory.colonization, city)) {
+      throw new Error(`Colonists cannot land away from their destination: ${city.cityId}`);
+    }
     if (cargoReservationUnits(gameState, COLONIZATION_CARGO_RESERVATION_ID) !==
         COLONIZATION_EXPEDITION_CARGO_UNITS) {
       throw new Error(`The ${quest.target.city} expedition has no colonist cargo reservation`);
     }
-    releaseCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID);
     landColonists(gameState.memory.colonization, context.simMinute ?? 0);
+    releaseCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID);
     session.feedback = "Settlement founded.";
     session.selectedIndex = 0;
-    return { closed: false, colonizationChanged: true };
+    return {
+      closed: false,
+      colonizationChanged: true,
+      colonistLanding: quest.target.preexistingSettlement ? null : Object.freeze({
+        cityId: quest.target.cityId,
+        originCityId: quest.origin.cityId
+      })
+    };
   }
   if (action.type === "deliver-colony-resupply") {
     const minute = context.simMinute ?? 0;
@@ -5808,7 +5818,7 @@ function colonizationView(session, city, gameState, context) {
   }
 
   if (quest.stage === COLONIZATION_STAGE_OUTBOUND) {
-    if (atOrigin) {
+    if (!atTarget) {
       const route = quest.approval && !quest.approvalGranted
         ? `${quest.approval.city} first for permission, then ${targetName}`
         : targetName;

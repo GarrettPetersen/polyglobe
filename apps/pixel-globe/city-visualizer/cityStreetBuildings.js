@@ -55,7 +55,7 @@ export function defaultCityStreetBuildingAssignments(features) {
     Object.freeze({ slotId: "rear-center", layerName: "Home 2" }),
     Object.freeze({ slotId: "rear-east", layerName: "Home" })
   ];
-  if (!features.primitiveSettlement) return Object.freeze(housing);
+  if (!features.primitiveSettlement || features.settlementStage === "colony") return Object.freeze(housing);
   return Object.freeze([
     ...housing,
     Object.freeze({ slotId: "business-east", layerName: "Home" }),
@@ -71,7 +71,7 @@ export function cityStreetBuildingPlacements({
   cityType = buildingStyle || "northern-european"
 }) {
   if (!Array.isArray(frames)) throw new Error("City street buildings require atlas frames");
-  if (features?.uninhabited) return Object.freeze([]);
+  if (features?.settlementStage === "uninhabited") return Object.freeze([]);
   const resolvedAssignments = assignments || defaultCityStreetBuildingAssignments(features);
   if (!Array.isArray(resolvedAssignments)) {
     throw new Error("City street building assignments must be an array");

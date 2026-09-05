@@ -1,3 +1,5 @@
+import { indexEntitiesById } from "./entityIds.js";
+
 // Generated from the released subdivision-seven port sailing endpoint catalog,
 // with the pre-correction Tarawa endpoint retained for older saves. Seven cities
 // which are correctly inland at subdivision eight are redirected to an authored,
@@ -48,19 +50,32 @@ export function subdivisionSevenPortReferenceCatalog(portCities, colonySites) {
     throw new Error("Subdivision-seven port migration requires port and colony-site catalogs");
   }
   const referencesByTileId = new Map();
-  for (const reference of [...portCities, ...colonySites]) {
-    if (!Number.isInteger(reference?.tileId)) {
-      throw new Error(`Invalid current port reference tile: ${reference?.tileId ?? "missing"}`);
-    }
-    if (referencesByTileId.has(reference.tileId)) {
-      const existing = referencesByTileId.get(reference.tileId);
-      if (reference.preexistingSettlement !== true ||
-          existing.cityId !== reference.cityId) {
-        throw new Error(`Conflicting current port reference tile: ${reference.tileId}`);
+  const referencesByCityId = new Map();
+  const referenceDiagnosticPrefix = "Current port reference";
+  // A founded colony occurs in both catalogs. Its canonical identity and
+  // placement must agree; the live port supplies its current name and history.
+  for (const catalog of [portCities, colonySites]) {
+    const uniqueReferences = indexEntitiesById(catalog, {
+      idField: "cityId", label: referenceDiagnosticPrefix
+    });
+    for (const reference of uniqueReferences.values()) {
+      if (!Number.isInteger(reference.tileId)) {
+        throw new Error(`Invalid current port reference tile: ${reference.tileId ?? "missing"}`);
       }
-      continue;
+      const existingCity = referencesByCityId.get(reference.cityId);
+      if (existingCity && existingCity.tileId !== reference.tileId) {
+        throw new Error(`Conflicting tiles for current port reference ${reference.cityId}: ` +
+          `${existingCity.tileId}/${reference.tileId}`);
+      }
+      const existing = referencesByTileId.get(reference.tileId);
+      if (existing && existing.cityId !== reference.cityId) {
+        throw new Error(`Conflicting current port reference tile: ${reference.tileId} ` +
+          `(${existing.cityId}/${reference.cityId})`);
+      }
+      if (existing) continue;
+      referencesByTileId.set(reference.tileId, reference);
+      referencesByCityId.set(reference.cityId, reference);
     }
-    referencesByTileId.set(reference.tileId, reference);
   }
   for (const [savedTileId, currentTileId] of SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS) {
     if (!referencesByTileId.has(currentTileId)) {

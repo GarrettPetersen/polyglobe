@@ -119,11 +119,11 @@ test("every city can become uninhabited without losing its geography or retainin
   for (const city of CITY_VISUALIZER_CATALOG.cities) {
     const inhabited = resolveCitySceneFeatures(city);
     const empty = resolveCitySceneFeatures(city, {
-      uninhabited: true, fortified: true, backgroundCity: true, leftBankCity: true,
+      settlementStage: "uninhabited", fortified: true, backgroundCity: true, leftBankCity: true,
       dock: "stone", pyramid: true, church: true, mosque: true,
       inn: true, store: true, market: true, shipyard: true, npcs: 12, props: 18
     });
-    assert.equal(empty.uninhabited, true, city.id);
+    assert.equal(empty.settlementStage, "uninhabited", city.id);
     for (const key of [
       "approach", "distantRiverBend", "mountainsLeft", "mountainsRight",
       "leftTerrain", "rightTerrain", "leftDistantTerrain", "rightDistantTerrain",
@@ -138,10 +138,31 @@ test("every city can become uninhabited without losing its geography or retainin
     assert.deepEqual(cityStreetBuildingPlacements({
       features: empty, frames: CITY_VISUALIZER_PORT_MANIFEST.staticFrames
     }), []);
-    assert.deepEqual(resolveCitySceneFeatures(city, { uninhabited: false }), inhabited);
+    assert.deepEqual(resolveCitySceneFeatures(city, { settlementStage: "city" }), inhabited);
     assert.ok(activePortSceneLayers(inhabited).has("Road"));
   }
-  assert.throws(() => resolveCitySceneFeatures(CITY, { uninhabited: "true" }), /must be boolean/);
+  assert.throws(() => resolveCitySceneFeatures(CITY, { settlementStage: "invalid" }), /settlement stage/);
+  assert.throws(() => resolveCitySceneFeatures(CITY, { unknownFeature: true }), /Unknown city scene override/);
+});
+
+test("every developing colony has just two homes, without town services, streets or skyline", () => {
+  for (const city of CITY_VISUALIZER_CATALOG.cities) {
+    const features = resolveCitySceneFeatures(city, { settlementStage: "colony", fortified: true,
+      market: true, store: true, inn: true, shipyard: true, backgroundCity: true });
+    const placements = cityStreetBuildingPlacements({
+      features, frames: CITY_VISUALIZER_PORT_MANIFEST.staticFrames
+    });
+    assert.equal(placements.length, 2, city.id);
+    assert.ok(placements.every(({ layerName }) => ["Home", "Home 2"].includes(layerName)), city.id);
+    const layers = activePortSceneLayers(features);
+    for (const layer of ["Road", "Smith", "Inn", "Shipyard", "Market Stall", "Church", "Mosque", "Gate"]) {
+      assert.equal(layers.has(layer), false, `${city.id}:${layer}`);
+    }
+    assert.equal(features.backgroundCity, false);
+    assert.equal(features.leftBankCity, false);
+    assert.equal(features.props, 0);
+    assert.equal(features.npcs, 3);
+  }
 });
 
 test("the visualizer inherits the game's exact logical viewport dimensions", () => {

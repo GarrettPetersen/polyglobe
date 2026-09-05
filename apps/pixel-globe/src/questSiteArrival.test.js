@@ -29,8 +29,20 @@ test("colony and lost-colony shore objectives automatically arrive inside intera
     });
     assert.equal(arrival.kind, "colonization");
     assert.equal(arrival.call, SITE);
+    assert.equal(arrival.actionType, kind === "found-colony" ? "land-colonists" : null);
     assert.equal(arrival.releaseAnchorOnOverlayClose, true);
   }
+});
+
+test("an unfounded colony triggers from geography without requiring nonexistent port staff", () => {
+  const site = { ...SITE, cityId: "port royal|canada", character: null };
+  const arrival = questSiteArrivalCandidate({
+    colonizationObjective: { kind: "found-colony", tileId: site.tileId },
+    cityCalls: [site], playerInteractionPoint: PLAYER_AT_SITE
+  });
+  assert.equal(arrival.call, site);
+  assert.equal(arrival.actionType, "land-colonists");
+  assert.throws(() => colonizationSiteCallIsInArrivalRange(null, PLAYER_AT_SITE), /site call/);
 });
 
 test("ordinary ports and distant quest sites retain their normal interaction", () => {

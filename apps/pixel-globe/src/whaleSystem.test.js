@@ -166,6 +166,36 @@ test("staged whale movement bounds per-frame navigation work without changing th
   assert.deepEqual(staged, synchronous);
 });
 
+test("per-frame hunts defer background work without losing its elapsed simulation time", () => {
+  const memory = createWhaleMemory();
+  seedWhalePopulation(memory, candidates(100), 20);
+  const whale = memory.individuals[0];
+  whale.phase = WHALE_PHASE_SURFACED;
+  tetherWhale(memory, whale.id, WHALE_HARPOONS[0]);
+  const initialLife = new Map(memory.individuals.map((entry) => [entry.id, entry.lifeSeconds]));
+  const initialRemaining = memory.activeHunt.remainingSeconds;
+  for (let frame = 0; frame < 120; frame++) {
+    const dt = frame % 2 ? 1 / 120 : 1 / 40;
+    const before = whale.lifeSeconds;
+    const job = beginWhaleAdvance(memory, dt, () => whaleNavigation(1), 1, {
+      bucket: 0, bucketCount: 1, activeWhaleIds: [whale.id], includeBackground: false
+    });
+    assert.equal(advanceWhaleJob(job, 1).complete, true, "offscreen whales delayed the tow");
+    assert.ok(Math.abs(whale.lifeSeconds - before - dt) < 1e-9);
+  }
+  assert.ok(Math.abs(memory.activeHunt.remainingSeconds - (initialRemaining - 2)) < 1e-9);
+  for (const other of memory.individuals.slice(1)) assert.equal(other.lifeSeconds, initialLife.get(other.id));
+  cutWhaleLoose(memory);
+  advanceWhaleMemory(memory, 0.25, () => whaleNavigation(1), 1);
+  for (const individual of memory.individuals) {
+    assert.ok(Math.abs(individual.lifeSeconds - initialLife.get(individual.id) - 2.25) < 1e-9,
+      `${individual.id} lost or double-counted deferred movement`);
+  }
+  assert.throws(() => beginWhaleAdvance(memory, 0, () => whaleNavigation(1), 1, {
+    bucket: 0, bucketCount: 1, includeBackground: "sometimes"
+  }), /background inclusion policy/);
+});
+
 test("a player-facing whale action can cancel a partial background advance", () => {
   const memory = createWhaleMemory();
   seedWhalePopulation(memory, candidates(100), 20);

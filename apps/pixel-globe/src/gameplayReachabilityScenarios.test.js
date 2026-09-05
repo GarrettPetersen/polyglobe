@@ -18,7 +18,7 @@ test("gameplay reachability uses a dedicated catalog independent of promotional 
   assert.ok(releaseIds.every((id) => !/trailer|short|screenshot/.test(id)));
   assert.deepEqual(
     new Set(releaseIds.map((id) => captureScenarioFromSearch(`?capture=${id}`).sequence.kind)),
-    new Set(["sail", "fight", "pillage"])
+    new Set(["sail", "fight", "pillage", "colonize", "whale"])
   );
   assert.deepEqual(
     new Set(releaseIds.map((id) => {
@@ -32,7 +32,12 @@ test("gameplay reachability uses a dedicated catalog independent of promotional 
       "fight:2v2-broadside",
       "fight:small-arms",
       "pillage:bombard",
-      "pillage:assault"
+      "pillage:assault",
+      "colonize:found",
+      "colonize:resupply",
+      "colonize:city",
+      "whale:harpoon",
+      "whale:finish"
     ])
   );
   assert.deepEqual(

@@ -27,6 +27,7 @@ export function questSiteArrivalCandidate({
       return Object.freeze({
         kind: "colonization",
         call: siteCall,
+        actionType: colonizationObjective.kind === "found-colony" ? "land-colonists" : null,
         releaseAnchorOnOverlayClose: true
       });
     }
@@ -39,7 +40,9 @@ export function questSiteArrivalCandidate({
 }
 
 export function colonizationSiteCallIsInArrivalRange(call, playerInteractionPoint) {
-  if (!call?.character) return false;
+  // An uninhabited destination has no port staff. Proximity is geographic;
+  // the arrival scene supplies the expedition organizer as its speaker.
+  if (!call) throw new Error("Colonization-site arrival requires its site call");
   if (!Number.isFinite(call.interactionX) || !Number.isFinite(call.interactionY)) {
     throw new Error(`Colonization-site interaction point is missing for ${call.portId || call.tileId}`);
   }
