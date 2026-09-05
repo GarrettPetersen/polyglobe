@@ -38,7 +38,7 @@ const TREE_SLOTS = Object.freeze([
 
 const LEFT_BANK_FOREGROUND_TREE_SLOT = Object.freeze({
   id: "left-bank-foreground",
-  centerX: 430,
+  centerX: 390,
   baseY: 575,
   scale: 0.9,
   depth: 1,
