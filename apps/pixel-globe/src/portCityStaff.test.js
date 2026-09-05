@@ -7,6 +7,7 @@ import {
   harbourMasterForPlacedCity,
   portCityStaffMembers,
   portCityStaffRoleForDialogueSession,
+  portDialogueHasCaptainSpeaker,
   requirePortCityStaffMember
 } from "./portCityStaff.js";
 
@@ -23,7 +24,16 @@ test("port dialogue routes each service to its owning staff member", () => {
   assert.equal(roleForNode("trade-embargo-warning"), PORT_CITY_STAFF_ROLE.MERCHANT);
   assert.equal(roleForNode("marque"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
   assert.equal(roleForNode("garrison"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
+  assert.equal(roleForNode("covert-authority"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
   assert.equal(roleForNode("city-attack"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
+});
+
+test("captain monologues use the same speaker policy in visible and restored ports", () => {
+  for (const nodeId of ["covert-authority", "inn-drink", "drunk-captain", "city-attack", "quest-cargo-sale-warning"]) {
+    assert.equal(portDialogueHasCaptainSpeaker({ kind: "port", nodeId }), true, nodeId);
+    assert.equal(portDialogueHasCaptainSpeaker({ kind: "passenger", nodeId }), false, nodeId);
+  }
+  assert.equal(portDialogueHasCaptainSpeaker({ kind: "port", nodeId: "garrison" }), false);
 });
 
 test("city conversations route arrivals to the harbour master and officials to the commander", () => {

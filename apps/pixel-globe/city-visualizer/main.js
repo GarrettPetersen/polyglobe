@@ -90,6 +90,7 @@ import {
   CITY_GATE_FRONT_PAINTER_Z,
   CITY_NPC_PATHS,
   CITY_PORT_ASSAULT_LANE_FEET_Y,
+  cityPortAssaultLaneFeetY,
   CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
   cityPortAssaultLanePainterZ,
   cityGroundPainterZ,
@@ -105,6 +106,7 @@ import {
   cityAssaultJumpPoint,
   cityAssaultKnockbackOffset,
   cityAssaultLaneX,
+  CITY_ASSAULT_TRACK_SPAN_PX,
   cityAssaultMeleeLungeOffset
 } from "./cityAssaultMotion.js";
 import { cityMatchlockSmokeParticles } from "./cityMatchlockSmoke.js";
@@ -303,7 +305,6 @@ const CITY_VISUALIZER_DEFAULT_CITY_ID = "london|united kingdom";
 const SUSPICIOUS_MERCHANT_HIT_PADDING_PX = 8;
 const SHIPYARD_BUILDING_HIT_PADDING_PX = 4;
 const CITY_PORT_ASSAULT_TRACK_START_X = 666;
-const CITY_PORT_ASSAULT_TRACK_SPAN_X = 640;
 let dockShadowExtensionRows = null;
 let beachOpaqueRowRuns = null;
 let renderFrameId = null;
@@ -3569,13 +3570,11 @@ function npcOccludesEmissiveFire(painterZ) {
 function drawPortAssaultPresentation(lane) {
   const presentation = state.assaultPresentation;
   if (!presentation) return;
-  const feetY = CITY_PORT_ASSAULT_LANE_FEET_Y[lane];
-  if (!Number.isFinite(feetY)) throw new Error(`Invalid port-assault render lane: ${lane}`);
   const battleTimeMs = presentation.elapsedMs;
   const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
   const shipboardStart = assaultShipboardStartPoint(battleTimeMs);
   const baselineEntryX = CITY_PORT_ASSAULT_TRACK_START_X +
-    PORT_ASSAULT_ATTACKER_ENTRY_POSITION * CITY_PORT_ASSAULT_TRACK_SPAN_X - window.x;
+    PORT_ASSAULT_ATTACKER_ENTRY_POSITION * CITY_ASSAULT_TRACK_SPAN_PX - window.x;
   const entryShiftX = cityAssaultForwardEntryShift({
     baselineEntryX,
     deckStartX: shipboardStart.x
@@ -3583,9 +3582,10 @@ function drawPortAssaultPresentation(lane) {
   // Each lane is its own dynamic scene entry, so buildings, trees, cargo, and
   // gate pieces can naturally paint in front of combatants by ground depth.
   for (const unit of presentation.units) {
-    if (unit.lane !== lane) continue;
+    if (Math.round(unit.lane) !== lane) continue;
+    const feetY = cityPortAssaultLaneFeetY(unit.lane);
     const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
-      unit.position * CITY_PORT_ASSAULT_TRACK_SPAN_X - window.x;
+      unit.position * CITY_ASSAULT_TRACK_SPAN_PX - window.x;
     const laneX = cityAssaultLaneX({
       baselineX,
       position: unit.position,
@@ -3605,7 +3605,7 @@ function drawPortAssaultPresentation(lane) {
   }
   for (const event of presentation.events) {
     const unit = presentation.units.find(({ id }) => id === event.unitId);
-    if (!unit || unit.lane !== lane) continue;
+    if (!unit || Math.round(event.type === "attack" ? event.lane : unit.lane) !== lane) continue;
     drawAssaultEvent(event, unit, window, battleTimeMs, entryShiftX);
   }
 }
@@ -3643,7 +3643,7 @@ function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardS
   let offsetX = 0;
   let offsetY = 0;
   if (latestLunge) {
-    const offset = cityAssaultMeleeLungeOffset(unit.side, timeMs - latestLunge.timeMs);
+    const offset = cityAssaultMeleeLungeOffset(latestLunge.facingRight ? "attacker" : "defender", timeMs - latestLunge.timeMs);
     offsetX += offset.x;
     offsetY += offset.y;
   }
@@ -3653,7 +3653,7 @@ function assaultPersonScreenPoint(unit, landingPoint, events, timeMs, shipboardS
     }
     if (latestKnockback.knockbackPositionDelta !== 0) {
       const offset = cityAssaultKnockbackOffset({
-        knockbackPx: latestKnockback.knockbackPositionDelta * 640,
+        knockbackPx: latestKnockback.knockbackPositionDelta * CITY_ASSAULT_TRACK_SPAN_PX,
         elapsedMs: timeMs - latestKnockback.timeMs
       });
       offsetX += offset.x;
@@ -3684,7 +3684,7 @@ function drawAssaultPersonSprite(unit, screenX, screenFeetY, timeMs) {
   const frame = cityAnimationFrame(animation, animationElapsedMs, playback);
   const dx = Math.round(screenX + frame.spriteSourceSize.x - frame.sourceSize.w / 2);
   const dy = Math.round(screenFeetY - frame.sourceSize.h + frame.spriteSourceSize.y);
-  const facingRight = unit.side === "attacker";
+  const facingRight = unit.facingRight;
   context.save();
   context.imageSmoothingEnabled = false;
   if (unit.inWater) {
@@ -3736,29 +3736,25 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
   if (!Number.isFinite(position) || position < 0 || position > 1) {
     throw new Error(`Port assault event has invalid position: ${event.unitId}`);
   }
-  if (!Number.isInteger(lane)) {
-    throw new Error(`Port assault event has invalid lane: ${event.unitId}`);
-  }
   const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
-    position * CITY_PORT_ASSAULT_TRACK_SPAN_X - window.x;
+    position * CITY_ASSAULT_TRACK_SPAN_PX - window.x;
   const x = Math.round(cityAssaultLaneX({
     baselineX,
     position,
     entryPosition: PORT_ASSAULT_ATTACKER_ENTRY_POSITION,
     entryShiftX
   }));
-  const feetY = CITY_PORT_ASSAULT_LANE_FEET_Y[lane];
-  if (!Number.isFinite(feetY)) throw new Error(`Port assault event has invalid lane: ${lane}`);
+  const feetY = cityPortAssaultLaneFeetY(lane);
   const y = Math.round(feetY - window.y);
   if (event.type === "attack" && event.attackType === "firearm") {
-    drawMatchlockSmoke(event, unit, x, y, timeMs);
+    drawMatchlockSmoke(event, x, y, timeMs);
     if (timeMs - event.timeMs < 100) {
       context.fillStyle = "#ffffff";
-      context.fillRect(x + (unit.side === "attacker" ? 5 : -6), y - 10, 2, 1);
+      context.fillRect(x + (event.facingRight ? 5 : -6), y - 10, 2, 1);
     }
   } else if (event.type === "attack" && event.attackType === "arrow") {
     context.fillStyle = "#2e222f";
-    context.fillRect(x + (unit.side === "attacker" ? 5 : -9), y - 9, 5, 1);
+    context.fillRect(x + (event.facingRight ? 5 : -9), y - 9, 5, 1);
   } else if (event.type === "block") {
     context.fillStyle = "#f9c22b";
     context.fillRect(x - 3, y - 16, 7, 1);
@@ -3781,8 +3777,8 @@ function drawAssaultEvent(event, unit, window, timeMs, entryShiftX) {
   }
 }
 
-function drawMatchlockSmoke(event, unit, x, feetY, timeMs) {
-  const facingRight = unit.side === "attacker";
+function drawMatchlockSmoke(event, x, feetY, timeMs) {
+  const facingRight = event.facingRight;
   const muzzleX = x + (facingRight ? 6 : -6);
   const muzzleY = feetY - 10;
   const particles = cityMatchlockSmokeParticles({

@@ -29,7 +29,7 @@ test("drawing a blade cues whale finishing, port storming, and sword confrontati
     /const SFX_BLADE_READY_URL = "assets\/sfx\/three-kingdoms-stratagem-unsheath-sword\.ogg";/
   );
 
-  const whales = functionSource(source, "updateWhales", "captureWhalePresentationStarts");
+  const whales = functionSource(source, "updateWhales", "resolveActiveWhaleRamImpact");
   assert.match(whales, /event\.type === "exhausted"[\s\S]*?playBladeReadySound\(\)/);
 
   const portAssault = functionSource(source, "attemptPlayerPortConquest", "completePlayerPortConquest");

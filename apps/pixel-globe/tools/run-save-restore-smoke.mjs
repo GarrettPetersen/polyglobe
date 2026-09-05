@@ -1,3 +1,4 @@
+import { monitorBrowserFailures } from "./reachability/browser-failures.mjs";
 import { createServer } from "node:http";
 import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -98,8 +99,7 @@ try {
     localStorage.setItem("marque-and-reprisal.telemetry-consent", "denied");
   });
   const page = await context.newPage();
-  const browserErrors = [];
-  page.on("pageerror", (error) => browserErrors.push(error.message));
+  const browserErrors = monitorBrowserFailures(page);
   const cityStartedAt = performance.now();
   await page.goto(`${baseUrl}/city-visualizer/`, {
     waitUntil: "domcontentloaded",

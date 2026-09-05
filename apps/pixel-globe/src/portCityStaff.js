@@ -2,6 +2,14 @@ import { PORT_CITY_STAFF_ROLE, PORT_CITY_STAFF_ROLES } from "./characterPortrait
 import { requireCityId } from "./entityIds.js";
 import { PORT_CITY_LOCATION } from "./portCityNavigation.js";
 
+const CAPTAIN_SPEAKER_NODES = new Set([
+  "covert-authority", "drunk-captain", "quest-cargo-sale-warning", "inn-drink", "city-attack"
+]);
+
+export function portDialogueHasCaptainSpeaker(session) {
+  return session?.kind === "port" && CAPTAIN_SPEAKER_NODES.has(session.nodeId);
+}
+
 const HARBOUR_MASTER_NODES = new Set([
   "barred",
   "cargo",
@@ -54,6 +62,7 @@ const MERCHANT_NODES = new Set([
 ]);
 
 const GARRISON_COMMANDER_NODES = new Set([
+  "covert-authority",
   "capture-petition",
   "capture-petition-result",
   "city-attack",

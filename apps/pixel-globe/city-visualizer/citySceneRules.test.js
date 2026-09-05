@@ -67,6 +67,7 @@ import {
   cityGroundPainterZ,
   cityNpcPathPoint,
   cityNpcPaths,
+  cityPortAssaultLaneFeetY,
   cityPortAssaultLanePainterZ
 } from "./cityPainterOrder.js";
 
@@ -876,6 +877,9 @@ test("port-assault lanes participate in city ground painter order", () => {
   assert.ok(CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z < layerSceneZ("Inn"));
   assert.throws(() => cityPortAssaultLanePainterZ(-1), /port-assault lane/);
   assert.throws(() => cityPortAssaultLanePainterZ(4), /port-assault lane/);
+  assert.equal(cityPortAssaultLaneFeetY(1.5), 528);
+  assert.equal(cityPortAssaultLanePainterZ(1.5), cityGroundPainterZ(528));
+  assert.throws(() => cityPortAssaultLaneFeetY(NaN), /port-assault lane/);
   assert.match(VISUALIZER_MAIN_SOURCE, /kind: "port-assault",\s+lane,\s+z: cityPortAssaultLanePainterZ\(lane\)/);
   assert.match(
     VISUALIZER_MAIN_SOURCE,

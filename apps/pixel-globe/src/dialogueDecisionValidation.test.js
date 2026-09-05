@@ -3,6 +3,28 @@ import test from "node:test";
 
 import { validateDialogueDecision } from "./dialogueDecisionValidation.js";
 
+test("all ship offers validate the vessel renderer contract at construction", () => {
+  const valid = {
+    options: [choice("Accept vessel"), choice("Keep current ship")],
+    presentation: {
+      kind: "shipyard",
+      listing: { id: "reward", source: "new-build", shipSlug: "viking-longship", price: 0 },
+      currentShipSlug: "brigantine",
+      purchaseTerms: { listingPrice: 0, tradeInValue: 0, netPrice: 0 }
+    }
+  };
+  assert.equal(validateDialogueDecision(valid, "reward"), valid);
+  const missingSource = structuredClone(valid);
+  delete missingSource.presentation.listing.source;
+  assert.throws(() => validateDialogueDecision(missingSource, "reward"), /requires a source/);
+  const unknownSource = structuredClone(valid);
+  unknownSource.presentation.listing.source = "mystery";
+  assert.throws(() => validateDialogueDecision(unknownSource, "reward"), /Unknown shipyard listing source/);
+  const invalidTerms = structuredClone(valid);
+  invalidTerms.presentation.purchaseTerms.netPrice = 100;
+  assert.throws(() => validateDialogueDecision(invalidTerms, "reward"), /invalid purchase terms/);
+});
+
 function choice(label, { disabled = false, disabledReason = null } = {}) {
   return {
     label,

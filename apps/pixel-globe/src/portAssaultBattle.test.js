@@ -22,6 +22,11 @@ import {
 } from "./portAssaultBattle.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import {
+  PORT_ASSAULT_LANE_COUNT,
+  portAssaultBodyRadius,
+  portAssaultGroundDistance
+} from "./portAssaultFormation.js";
+import {
   cityCombatProfileForAppearance,
   cityCrewTypeForAppearance,
   cityGarrisonAppearanceIds
@@ -168,7 +173,7 @@ test("matchlock discharge presentation remains anchored for the full smoke plume
   assert.ok(discharge, "the test battle must include a matchlock discharge");
   assert.ok(Number.isFinite(discharge.position));
   assert.ok(discharge.position >= 0 && discharge.position <= 1);
-  assert.ok(Number.isInteger(discharge.lane));
+  assert.ok(Number.isFinite(discharge.lane));
   assert.ok(discharge.lane >= 0 && discharge.lane <= 3);
   assert.ok(portAssaultPresentationAt(
     battle,
@@ -420,7 +425,7 @@ test("garrisons scale with population and capitals but remain bounded", () => {
   assert.equal(worldCity, PORT_ASSAULT_MAX_GARRISON);
 });
 
-test("the largest ship crew has an uncertain fight against the strongest garrison benchmark", () => {
+test("a much larger crew can replenish its front line against a strong garrison but still takes casualties", () => {
   const city = {
     cityId: "istanbul|turkey",
     cityType: "mediterranean",
@@ -457,10 +462,121 @@ test("the largest ship crew has an uncertain fight against the strongest garriso
     seedKey: "largest-crew-v-best-garrison",
     sampleCount: 64
   });
-  assert.ok(forecast.successPercent >= 40 && forecast.successPercent <= 60);
+  assert.ok(forecast.successPercent >= 75);
+  assert.ok(forecast.expectedCasualties >= defenders.length / 2);
+  assert.ok(forecast.expectedCasualties < attackers.length);
+});
+
+test("weapon reach distinguishes swords, spears, and polearms across actual lanes", () => {
+  const sword = portAssaultUnitStats(combatant("sword", "swordsman", 0));
+  const origin = { position: 0.5, lane: 0 };
+  const diagonal = { position: 0.526, lane: 1 };
+  const distance = portAssaultGroundDistance(origin, diagonal);
+  assert.ok(distance > sword.range, "the sword cannot hit diagonally across this gap");
+  for (const profile of ["spearman", "tribal-spearman", "yari-ashigaru", "halberdier"]) {
+    const stats = portAssaultUnitStats(combatant(profile, profile, 0));
+    assert.ok(distance <= stats.range, `${profile} should reach across the same gap`);
+    assert.ok(portAssaultGroundDistance(origin, { position: 0.5, lane: 2 }) > stats.range,
+      `${profile} must not strike across two full lanes`);
+  }
+  assert.ok(portAssaultGroundDistance(origin, { position: 0.511, lane: 1 }) < sword.range,
+    "a sword can strike a sufficiently close neighbor in the adjacent lane");
+});
+
+function assertAttackReach(battle) {
+  const statsById = new Map(battle.combatants.map((unit) => [unit.id,
+    portAssaultUnitStats(combatant(unit.id, unit.combatProfileId, 0))]));
+  let attacks = 0;
+  for (const event of battle.events) {
+    if (event.type !== "attack") continue;
+    attacks += 1;
+    const distance = portAssaultGroundDistance(event, { position: event.targetPosition, lane: event.targetLane });
+    const attack = portAssaultAttackProfileAtDistance(statsById.get(event.unitId), distance);
+    assert.equal(event.attackType, attack.attackType, `seed ${battle.seed}: wrong close-combat attack for ${event.unitId}`);
+    assert.ok(distance <= attack.range, `seed ${battle.seed}: ${event.unitId} hit ${event.targetId} outside ${attack.range}`);
+    assert.equal(typeof event.facingRight, "boolean");
+  }
+  assert.ok(attacks > 0, "the formations must actually engage");
+}
+
+test("every pair of combat profiles closes to real attack reach without a stalled duel", () => {
+  const profiles = Object.values(PORT_ASSAULT_PROFILE_ID);
+  for (const [a, attackerProfile] of profiles.entries()) {
+    for (const [d, defenderProfile] of profiles.entries()) {
+      const battle = simulatePortAssault(createPortAssaultScenario({
+        ...scenario({ attackerCount: 1, defenderCount: 1 }),
+        attackers: [combatant("attacker", attackerProfile)],
+        defenders: [combatant("defender", defenderProfile)]
+      }), a * profiles.length + d);
+      assertAttackReach(battle);
+      assert.ok(battle.events.some(({ type }) => type === "death"),
+        `${attackerProfile}/${defenderProfile} must fight to a casualty`);
+    }
+  }
+});
+
+test("crowded mixed formations preserve body spacing, reach, deployment and replay contracts", () => {
+  const profiles = Object.values(PORT_ASSAULT_PROFILE_ID);
+  for (const dockKind of ["wood", "stone", "none"]) {
+    for (const attackerCount of [12, shipStatsForSlug("ship-of-the-line").crewCapacity]) {
+      const input = createPortAssaultScenario({
+        ...scenario({ dockKind }),
+        attackers: Array.from({ length: attackerCount }, (_, i) => combatant(`crew-${i}`, profiles[i % profiles.length], i % 4)),
+        defenders: Array.from({ length: 35 }, (_, i) => combatant(`guard-${i}`, profiles[(i + 7) % profiles.length], i % 4))
+      });
+      const battle = simulatePortAssault(input, attackerCount);
+      assertAttackReach(battle);
+      const statsById = new Map(battle.combatants.map((unit) => [unit.id,
+        portAssaultUnitStats(combatant(unit.id, unit.combatProfileId, 0))]));
+      const tracks = Object.entries(battle.tracks);
+      for (let index = 0; index < tracks[0][1].length; index += 1) {
+        const occupants = tracks.flatMap(([id, track]) => {
+          const frame = track[index];
+          assert.ok(frame.lane >= 0 && frame.lane <= PORT_ASSAULT_LANE_COUNT - 1);
+          assert.ok(frame.position >= 0 && frame.position <= 1);
+          assert.ok(Number.isFinite(frame.animationStartedAtMs));
+          return frame.hidden || !frame.alive ? [] : [{ id, ...frame, stats: statsById.get(id) }];
+        });
+        for (let i = 0; i < occupants.length; i += 1) {
+          for (let j = i + 1; j < occupants.length; j += 1) {
+            const left = occupants[i];
+            const right = occupants[j];
+            assert.ok(portAssaultGroundDistance(left, right) + 1e-9 >= portAssaultBodyRadius(left) + portAssaultBodyRadius(right),
+              `${dockKind} ${attackerCount} at ${left.timeMs}: ${left.id}/${right.id} overlapped`);
+          }
+        }
+      }
+      const forecastBattle = simulatePortAssault(input, attackerCount, { collectPresentation: false });
+      for (const key of ["outcome", "durationMs", "attackerDownedIds", "defenderCasualtyIds", "finalShipHitPoints"]) {
+        assert.deepEqual(battle[key], forecastBattle[key], `collecting the replay changed ${key}`);
+      }
+      for (const landing of battle.events.filter(({ type }) => type === "jump")) {
+        assert.ok(!battle.events.some((event) => event.type === "attack" && event.targetId === landing.unitId &&
+          event.timeMs < landing.timeMs + portAssaultLandingDurationMs(dockKind)), "airborne soldiers cannot be attacked");
+      }
+    }
+  }
+});
+
+test("lane crossings interpolate smoothly between authoritative steps", () => {
+  const battle = simulatePortAssault(scenario({ attackerCount: 12, defenderCount: 8 }), 19);
+  for (const [id, track] of Object.entries(battle.tracks)) {
+    const index = track.findIndex((frame, i) => i < track.length - 1 && !frame.hidden &&
+      frame.animationId === "walk" && frame.lane !== track[i + 1].lane && track[i + 1].animationId === "walk");
+    if (index < 0) continue;
+    const before = track[index];
+    const after = track[index + 1];
+    const unit = portAssaultPresentationAt(battle, (before.timeMs + after.timeMs) / 2).units.find((unit) => unit.id === id);
+    assert.equal(unit.lane, (before.lane + after.lane) / 2);
+    return;
+  }
+  assert.fail("the battle must include a lane crossing");
 });
 
 test("combat contracts reject duplicate IDs and unknown unit types", () => {
+  assert.throws(() => createPortAssaultScenario({
+    ...scenario(), attackers: [combatant("same")], defenders: [combatant("same")]
+  }), /Duplicate/);
   assert.throws(() => createPortAssaultScenario({
     cityId: "lisbon|portugal",
     attackers: [combatant("same"), combatant("same")],

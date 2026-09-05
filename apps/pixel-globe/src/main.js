@@ -1,3 +1,4 @@
+import { completeChefRecruitment, completeVikingLongshipAcquisition } from "./innQuestTransactions.js";
 import {
   clamp,
   createDirectionIndex,
@@ -386,6 +387,7 @@ import {
   harbourMasterForPlacedCity,
   portCityStaffMembers,
   portCityStaffRoleForDialogueSession,
+  portDialogueHasCaptainSpeaker,
   requirePortCityStaffMember
 } from "./portCityStaff.js";
 import {
@@ -701,7 +703,6 @@ import { effectiveShipStats } from "./perkSystem.js";
 import { repairShipHullOverTime } from "./shipRepair.js";
 import {
   NAMED_CREW_ROLE_CHEF,
-  NAMED_CREW_ROLE_HISTORIAN,
   addNamedCrewMember,
   createNamedCrewDeathNotice,
   genericCrewCount,
@@ -879,7 +880,7 @@ import {
 } from "./visualPresentation.js";
 import {
   WHALE_SUBMERGED_REFRACTION_PX,
-  retargetWhaleVisualPresentation,
+  synchronizeWhaleVisualPresentation,
   whaleVisualPresentationIsActive,
   whaleVisualPresentationPoint
 } from "./whaleVisualPresentation.js";
@@ -1973,7 +1974,6 @@ import {
   claimShipyardListing,
   nearestShipyardListingForPort,
   registerShipyardTradeIn,
-  shipReplacementTermsWithoutTradeIn,
   shipyardAtPort,
   shipyardCurrentBuild,
   shipyardListings,
@@ -2438,7 +2438,6 @@ import {
   PORTABLE_WEAPON_SOUND_BOW,
   PORTABLE_WEAPON_SOUND_CANNON,
   PORTABLE_WEAPON_SOUND_SMALL_FIREARM,
-  VIKING_BOWS_ITEM_ID,
   activePortableWeaponAssignments,
   advancePortableProjectileLaunch,
   CROSSBOWS_ITEM_ID,
@@ -2573,11 +2572,9 @@ import {
   VIKING_LONGSHIP_REWARD_DECLINED,
   VIKING_LONGSHIP_REWARD_PENDING,
   VIKING_LONGSHIP_SLUG,
-  acceptVikingLongshipReward,
   isVikingLongshipQuestPort,
   markVikingLongshipReturnedToIceland,
   markVikingLongshipOfferSeen,
-  markVikingLongshipPurchased,
   maybeSpawnVikingLongshipQuest,
   vikingLongshipEnthusiastAtPort,
   vikingLongshipOfferShouldApproach,
@@ -2612,7 +2609,6 @@ import {
   chefQuestState,
   markChefQuestOfferSeen,
   maybeSpawnChefQuest,
-  recruitChef
 } from "./chefQuest.js";
 import {
   beaverCatchNarrative,
@@ -16729,21 +16725,28 @@ function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology
     : payload.worldClock.currentMinute;
   const seedKey = restoredGameState.voyageSeed;
 
-  const economyResult = restoreOrRecreateDerivedSaveState({
-    label: "world economy",
-    current: worldEconomy,
-    recreate: () => createSavedVoyageEconomy(simulationMinute, seedKey),
-    restore: (candidate) => {
-      if (savedWorldTopology.changed) {
-        throw new Error(
-          `World economy snapshot belongs to subdivision ${savedWorldTopology.savedSubdivisions}`
-        );
+  if (payload.economy === undefined) {
+    // Compact saves deliberately omit derived world snapshots, just as they
+    // omit land carts and NPC routes. Seed absent data before invoking restore;
+    // absence is not a failed attempt to read a corrupt snapshot.
+    worldEconomy = createSavedVoyageEconomy(simulationMinute, seedKey);
+  } else {
+    const economyResult = restoreOrRecreateDerivedSaveState({
+      label: "world economy",
+      current: worldEconomy,
+      recreate: () => createSavedVoyageEconomy(simulationMinute, seedKey),
+      restore: (candidate) => {
+        if (savedWorldTopology.changed) {
+          throw new Error(
+            `World economy snapshot belongs to subdivision ${savedWorldTopology.savedSubdivisions}`
+          );
+        }
+        return restoreWorldEconomy(candidate, payload.economy, { seedKey });
       }
-      return restoreWorldEconomy(candidate, payload.economy, { seedKey });
-    }
-  });
-  worldEconomy = economyResult.value;
-  recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
+    });
+    worldEconomy = economyResult.value;
+    recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
+  }
   const repairedShipyardPorts = reconcilePlayerShipyardInvestmentWorld(
     restoredGameState.memory.shipyardInvestment,
     worldEconomy,
@@ -25670,8 +25673,7 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
     if (result.action?.type === "recruit-chef") {
       const city = currentDialogueCity();
       const character = ensureBanquetChef(gameState, city);
-      addNamedCrewMember(gameState, character, NAMED_CREW_ROLE_CHEF);
-      recruitChef(gameState, city);
+      completeChefRecruitment(gameState, city, character);
       dialogueState.feedback = `${character.name} joined the crew as Master Chef.`;
       dialogueState.selectedIndex = 0;
       syncShipCargoFromGameState();
@@ -26295,34 +26297,7 @@ async function acquireVikingLongship(action) {
     const assets = await loadShipAssetSet(VIKING_LONGSHIP_SLUG);
     if (dialogueState !== session || session.nodeId !== "viking-longship") return;
     const transactionContext = { simMinute: Math.floor(weatherClockMinutes) };
-    if (acceptingReward) {
-      awardPlayerShip(
-        gameState,
-        city,
-        stats,
-        "Longship awarded for completing the historical reconstruction",
-        transactionContext
-      );
-      acceptVikingLongshipReward(gameState);
-    } else {
-      purchasePlayerShip(
-        gameState,
-        city,
-        stats,
-        shipReplacementTermsWithoutTradeIn(VIKING_LONGSHIP_PRICE),
-        transactionContext
-      );
-      markVikingLongshipPurchased(gameState);
-    }
-    addNamedCrewMember(gameState, city.character, NAMED_CREW_ROLE_HISTORIAN, {
-      replaceGenericWhenFull: true
-    });
-    grantGuaranteedMissionPerkItem(gameState, city, {
-      missionId: "viking-longship-armament",
-      itemId: VIKING_BOWS_ITEM_ID,
-      description: "Longship armament: Viking Bows",
-      context: transactionContext
-    });
+    completeVikingLongshipAcquisition(gameState, city, action, transactionContext);
     applyPlayerShipType(VIKING_LONGSHIP_SLUG, stats, assets, { stateAlreadyUpdated: true });
     syncShipCargoFromGameState();
     if (purchasing) playCoinClinkSound();
@@ -26338,8 +26313,7 @@ async function acquireVikingLongship(action) {
     dialogueLayout.scrollOffset = 0;
     saveVoyageNow(acceptingReward ? "accepted Viking longship reward" : "Viking longship purchase");
   } catch (error) {
-    console.error(new Error("Failed to acquire Viking Longship", { cause: error }));
-    session.feedback = error instanceof Error ? error.message : "The longship acquisition failed.";
+    throw new Error("Failed to acquire Viking Longship", { cause: error });
   } finally {
     vikingLongshipAcquisitionPending = false;
     invalidateDialogueView();
@@ -26750,9 +26724,7 @@ function currentDialogueCity() {
   if (dialogueState.kind === "port") {
     const portCall = chartPortCallById(dialogueState.portId);
     if (portCall) {
-      if (["drunk-captain", "quest-cargo-sale-warning", "inn-drink", "city-attack"].includes(
-        dialogueState.nodeId
-      )) {
+      if (portDialogueHasCaptainSpeaker(dialogueState)) {
         const character = gameState.playerCharacter;
         if (!character) throw new Error("Captain-led port dialogue has no player captain");
         return {
@@ -26829,9 +26801,7 @@ function currentDialogueCity() {
     : placedCity;
   const questCharacter = dialogueState.kind !== "port"
     ? null
-    : ["drunk-captain", "quest-cargo-sale-warning", "inn-drink", "city-attack"].includes(
-      dialogueState.nodeId
-    )
+    : portDialogueHasCaptainSpeaker(dialogueState)
       ? gameState.playerCharacter
     : dialogueState.nodeId === "japanese-matchlocks"
       ? ensureJapaneseMatchlockGunsmith(gameState)
@@ -27520,10 +27490,8 @@ function updateWhales(dt, nowMs) {
     whaleSimulationAccumulator + dt
   );
   const simulationDue = whaleSimulationAccumulator >= simulationInterval;
-  let completedPresentationUpdate = null;
   if (simulationDue && !whaleAdvanceJob) {
     const responsiveIds = responsiveWhaleMovementIds();
-    const presentationStarts = captureWhalePresentationStarts(responsiveIds, nowMs);
     const movementElapsed = takeWhaleSimulationElapsed();
     whaleAdvanceJob = {
       simulation: beginWhaleAdvance(
@@ -27536,9 +27504,7 @@ function updateWhales(dt, nowMs) {
           bucketCount: WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT,
           activeWhaleIds: responsiveIds
         }
-      ),
-      presentationStarts,
-      movementElapsed
+      )
     };
     whaleBackgroundMovementBucket =
       (whaleBackgroundMovementBucket + 1) % WHALE_BACKGROUND_MOVEMENT_BUCKET_COUNT;
@@ -27551,7 +27517,6 @@ function updateWhales(dt, nowMs) {
     );
     if (progress.complete) {
       events = progress.events;
-      completedPresentationUpdate = whaleAdvanceJob;
       whaleAdvanceJob = null;
     }
   }
@@ -27561,17 +27526,9 @@ function updateWhales(dt, nowMs) {
   } catch (error) {
     changed = snapFailedWhaleTether(error);
   }
-  if (completedPresentationUpdate) {
-    // A tethered whale may have swum beyond the line during its discrete
-    // simulation step. Interpolate only after the rope has constrained that
-    // movement, or the visible whale alternates between the unconstrained and
-    // constrained targets thirty times a second.
-    retargetWhalePresentations(
-      completedPresentationUpdate.presentationStarts,
-      nowMs,
-      completedPresentationUpdate.movementElapsed
-    );
-  }
+  // Synchronize every frame, including partial background batches. Waiting for
+  // the whole job exposes a moved world point before interpolation catches up.
+  synchronizeWhalePresentations(responsiveWhaleMovementIds(), nowMs);
   for (const event of events) {
     if (event.type === "blow") {
       const whale = whaleById(gameState.memory.whales, event.whaleId);
@@ -27666,57 +27623,43 @@ function resolveActiveWhaleRamImpact(whale) {
   return true;
 }
 
-function captureWhalePresentationStarts(whaleIds, nowMs) {
-  const starts = new Map();
+function synchronizeWhalePresentations(whaleIds, nowMs) {
   for (const whaleId of whaleIds) {
     const whale = whaleById(gameState.memory.whales, whaleId);
     const rawPoint = localPointForKnownTileVector(whale.position, whale.tileId);
-    if (!rawPoint) continue;
-    starts.set(whaleId, presentedWhalePoint(whale, rawPoint, nowMs));
+    if (whale.phase === WHALE_PHASE_DEAD || !rawPoint) {
+      whaleVisualPresentations.delete(whaleId);
+      continue;
+    }
+    synchronizeWhalePresentation(whale, rawPoint, nowMs);
   }
-  return starts;
 }
 
-function retargetWhalePresentations(starts, nowMs, movementElapsed) {
-  const durationMs = Math.max(1, movementElapsed * 1000);
-  for (const [whaleId, from] of starts) {
-    const whale = whaleById(gameState.memory.whales, whaleId);
-    if (whale.phase === WHALE_PHASE_DEAD || whaleUsesAuthoritativePresentation(whale)) {
-      whaleVisualPresentations.delete(whaleId);
-      continue;
+function synchronizeWhalePresentation(whale, rawPoint, nowMs) {
+  whaleVisualPresentations.set(whale.id, synchronizeWhaleVisualPresentation(
+    whaleVisualPresentations.get(whale.id),
+    {
+      whaleId: whale.id,
+      coordinateSpace: localLayout,
+      rawPoint,
+      worldPosition: whale.position,
+      cameraRight: camera.right,
+      cameraUp: camera.up,
+      pixelsPerRadian: PIXELS_PER_RADIAN,
+      nowMs,
+      durationMs: whale.phase === WHALE_PHASE_TETHERED || whale.phase === WHALE_PHASE_EXHAUSTED
+        ? 0
+        : WHALE_SIMULATION_INTERVAL_SECONDS * 1000
     }
-    const target = localPointForKnownTileVector(whale.position, whale.tileId);
-    if (!target) {
-      whaleVisualPresentations.delete(whaleId);
-      continue;
-    }
-    whaleVisualPresentations.set(whaleId, retargetWhaleVisualPresentation(
-      whaleVisualPresentations.get(whaleId),
-      {
-        whaleId,
-        coordinateSpace: localLayout,
-        from,
-        to: target,
-        nowMs,
-        durationMs
-      }
-    ));
-  }
+  ));
 }
 
 function presentedWhalePoint(whale, rawPoint, nowMs) {
-  const followAuthoritative = whaleUsesAuthoritativePresentation(whale);
-  if (followAuthoritative) whaleVisualPresentations.delete(whale.id);
   return whaleVisualPresentationPoint(whaleVisualPresentations.get(whale.id), {
     coordinateSpace: localLayout,
     rawPoint,
-    nowMs,
-    followAuthoritative
+    nowMs
   });
-}
-
-function whaleUsesAuthoritativePresentation(whale) {
-  return whale.phase === WHALE_PHASE_TETHERED || whale.phase === WHALE_PHASE_EXHAUSTED;
 }
 
 function activeWhalePresentationExists(nowMs) {
@@ -27870,8 +27813,9 @@ function whaleExhaustedMessage() {
 }
 
 function whaleBlowOriginPosition(whale) {
-  const localPoint = localPointForGlobeVector(whale.position);
-  if (!localPoint) throw new Error(`Cannot place whale spout outside the local chart: ${whale.id}`);
+  const rawPoint = localPointForKnownTileVector(whale.position, whale.tileId);
+  if (!rawPoint) throw new Error(`Cannot place whale spout outside the local chart: ${whale.id}`);
+  const localPoint = presentedWhalePoint(whale, rawPoint, lastFrameMs);
   const heading = tangentToScreenDirection(whale.heading);
   if (!heading) throw new Error(`Cannot project whale spout heading: ${whale.id}`);
   const scale = whaleLifeStageScale(whale);
@@ -35820,6 +35764,7 @@ function refreshWorldSpatialWildlifeEntries(nowMs) {
     if (whale.phase === WHALE_PHASE_DEAD || !chart.visibleSet.has(whale.tileId)) continue;
     const rawPoint = localPointForKnownTileVector(whale.position, whale.tileId);
     if (!rawPoint) continue;
+    synchronizeWhalePresentation(whale, rawPoint, nowMs);
     const point = presentedWhalePoint(whale, rawPoint, nowMs);
     whaleEntries.push({
       id: `whale:${whale.id}`,
@@ -35845,6 +35790,9 @@ function refreshWorldSpatialWildlifeEntries(nowMs) {
   }
   worldSpatialIndex.replaceKind(WORLD_SPATIAL_KIND.ICEBERG, icebergEntries);
   responsiveWhaleIds = new Set(whaleEntries.map((entry) => entry.value.id));
+  for (const whaleId of whaleVisualPresentations.keys()) {
+    if (!responsiveWhaleIds.has(whaleId)) whaleVisualPresentations.delete(whaleId);
+  }
   worldSpatialWildlifeChart = chart;
 }
 

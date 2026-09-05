@@ -4075,7 +4075,7 @@ test("an already active banquet chef waits for a permanent berth before joining"
   const view = portDialogueView(session, city, gameState, economy, [city]);
   const recruit = view.options.find((entry) => entry.action.type === "recruit-chef");
   assert.equal(recruit.disabled, true);
-  assert.match(recruit.disabledReason, /no berth/);
+  assert.match(recruit.disabledReason, /berth/);
 });
 
 test("the banquet chef accepts ingredients across separate visits", () => {

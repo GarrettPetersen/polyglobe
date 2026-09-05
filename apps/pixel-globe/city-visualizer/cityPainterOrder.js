@@ -1,3 +1,6 @@
+import { PORT_ASSAULT_LANE_COUNT, PORT_ASSAULT_LANE_SPACING } from "../src/portAssaultFormation.js";
+import { CITY_ASSAULT_GROUND_DEPTH_SCALE, CITY_ASSAULT_TRACK_SPAN_PX } from "./cityAssaultMotion.js";
+
 export const CITY_GROUND_REAR_PAINTER_Z = 62;
 export const CITY_GROUND_FOREGROUND_PAINTER_Z = 74;
 export const CITY_GROUND_FOREGROUND_START_Y = 552;
@@ -6,7 +9,10 @@ export const CITY_GATE_TRAVERSAL_PAINTER_Z = 71.8;
 // rear street. This keeps fire inside the same scene instead of treating it as UI.
 export const CITY_BOMBARDMENT_FIRE_PAINTER_Z = 63;
 
-export const CITY_PORT_ASSAULT_LANE_FEET_Y = Object.freeze([516, 524, 532, 540]);
+export const CITY_PORT_ASSAULT_LANE_FEET_Y = Object.freeze(
+  Array.from({ length: PORT_ASSAULT_LANE_COUNT }, (_, lane) =>
+    516 + lane * PORT_ASSAULT_LANE_SPACING * CITY_ASSAULT_TRACK_SPAN_PX * CITY_ASSAULT_GROUND_DEPTH_SCALE)
+);
 
 export const CITY_NPC_PATHS = Object.freeze([
   npcPath(900, 1005, 518),
@@ -55,10 +61,15 @@ export function cityGroundPainterZ(groundY) {
 }
 
 export function cityPortAssaultLanePainterZ(lane) {
-  if (!Number.isInteger(lane) || lane < 0 || lane >= CITY_PORT_ASSAULT_LANE_FEET_Y.length) {
+  return cityGroundPainterZ(cityPortAssaultLaneFeetY(lane));
+}
+
+export function cityPortAssaultLaneFeetY(lane) {
+  if (!Number.isFinite(lane) || lane < 0 || lane > PORT_ASSAULT_LANE_COUNT - 1) {
     throw new Error(`Invalid city port-assault lane: ${lane}`);
   }
-  return cityGroundPainterZ(CITY_PORT_ASSAULT_LANE_FEET_Y[lane]);
+  return CITY_PORT_ASSAULT_LANE_FEET_Y[0] + lane *
+    (CITY_PORT_ASSAULT_LANE_FEET_Y[1] - CITY_PORT_ASSAULT_LANE_FEET_Y[0]);
 }
 
 export const CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z = cityGroundPainterZ(

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 
 import {
   LANGUAGE_ENGLISH,
@@ -16,6 +18,22 @@ import {
 import { extractScreenTextSourceCatalog } from "../tools/screen-text-source-catalog.mjs";
 
 const SOURCE_ROOT = path.dirname(fileURLToPath(import.meta.url));
+
+test("shared action eligibility retains player explanations in the text catalog", () => {
+  const directory = mkdtempSync(path.join(tmpdir(), "action-text-contract-"));
+  try {
+    writeFileSync(path.join(directory, "eligibility.js"), `
+      export function eligibility() {
+        return { disabledReason: "Make room for a crewmate.", invariant: "Bad crew count." };
+      }
+    `);
+    const catalog = extractScreenTextSourceCatalog(directory);
+    assert.ok(catalog.includes("Make room for a crewmate."));
+    assert.ok(!catalog.includes("Bad crew count."));
+  } finally {
+    rmSync(directory, { recursive: true });
+  }
+});
 
 test("every authored screen-text template is committed to the localization catalog", () => {
   const baseEnglish = new Set(Object.values(localizationCatalog(LANGUAGE_ENGLISH)));

@@ -2501,22 +2501,8 @@ export function setPlayerShipStats(state, stats) {
   if (!state.ship) throw new Error("Cannot change stats without player ship state");
   const effectiveStats = effectivePlayerShipStats(state, stats);
   const crewFloor = permanentCrewFloor(state);
-  const futureCrewFloor = futurePermanentCrewFloor(state);
-  if (stats.crewCapacity < futureCrewFloor) {
-    throw new Error(`Cannot move ${futureCrewFloor} committed crew into a ${stats.crewCapacity}-berth ship`);
-  }
-  if (state.ship.crew > stats.crewCapacity) {
-    throw new Error(
-      `Cannot move ${state.ship.crew} aboard crew into a ${stats.crewCapacity}-berth ship; dismiss crew first`
-    );
-  }
-  const projectedCargoUsed = playerShipReplacementCargoUsed(state, stats);
-  if (projectedCargoUsed > effectiveStats.cargoCapacity) {
-    throw new Error(
-      `Cannot switch to cargo capacity ${effectiveStats.cargoCapacity}; current hold will not fit because ` +
-      `transferred cargo uses ${projectedCargoUsed}`
-    );
-  }
+  const eligibility = playerShipReplacementEligibility(state, stats);
+  if (!eligibility.eligible) throw new Error(eligibility.invariant);
   const previous = {
     cargoCapacity: state.cargoCapacity,
     ship: { ...state.ship },
@@ -2553,6 +2539,30 @@ export function setPlayerShipStats(state, stats) {
   return plan;
 }
 
+export function playerShipReplacementEligibility(state, stats, context = {}) {
+  const committedCrew = futurePermanentCrewFloor(state, context);
+  const departingCrew = namedCrewDepartures(state, context.departingNamedCrewIds).length;
+  const crewAfterDepartures = state.ship.crew - departingCrew;
+  const capacity = effectivePlayerShipStats(state, stats).cargoCapacity;
+  if (committedCrew > stats.crewCapacity) {
+    return { eligible: false,
+      disabledReason: `Your permanent crew require ${committedCrew} berths; this vessel has only ${stats.crewCapacity}.`,
+      invariant: `Cannot move ${committedCrew} committed crew into a ${stats.crewCapacity}-berth ship` };
+  }
+  if (crewAfterDepartures > stats.crewCapacity) {
+    return { eligible: false,
+      disabledReason: `Dismiss ${crewAfterDepartures - stats.crewCapacity} crew before taking this vessel.`,
+      invariant: `Cannot move ${crewAfterDepartures} aboard crew into a ${stats.crewCapacity}-berth ship; dismiss crew first` };
+  }
+  const transferredCargoUsed = playerShipReplacementCargoUsed(state, stats, context);
+  if (transferredCargoUsed > capacity) {
+    return { eligible: false,
+      disabledReason: `Your transferred cargo uses ${cargoSpaceLabel(transferredCargoUsed)} units and will not fit its ${capacity}-unit hold.`,
+      invariant: `Cannot switch to cargo capacity ${capacity}; current hold will not fit because transferred cargo uses ${transferredCargoUsed}` };
+  }
+  return { eligible: true, disabledReason: null, invariant: null, transferredCargoUsed, cargoCapacity: capacity };
+}
+
 export function playerShipReplacementCargoUsed(state, stats, context = {}) {
   assertGameState(state);
   if (!state.ship) throw new Error("Cannot preview a ship change without player ship state");
@@ -2572,7 +2582,7 @@ export function playerShipReplacementCargoUsed(state, stats, context = {}) {
       `Cannot preview ${crewAfterDepartures} aboard crew in a ${stats.crewCapacity}-berth ship; dismiss crew first`
     );
   }
-  const plan = selectedShipLoadoutPlan(state, stats, { minimumCrew: crewFloor });
+  const plan = selectedShipLoadoutPlan(state, stats, { minimumCrew: Math.max(crewFloor, crewAfterDepartures) });
   let usedTicks = 0;
   for (const [goodId, heldQuantity] of Object.entries(state.cargo)) {
     const good = goodById(goodId);
@@ -2581,9 +2591,9 @@ export function playerShipReplacementCargoUsed(state, stats, context = {}) {
       : heldQuantity;
     usedTicks += occupiedCargoTicks(good.unitSize * quantity, `cargo.${goodId} space`);
   }
-  usedTicks += crewHoldSpace(
-    Math.max(crewFloor, Math.min(crewAfterDepartures, plan.crew))
-  ) * CARGO_SPACE_TICKS_PER_UNIT;
+  // Replacing a hull preserves the aboard roster. A preset's smaller crew
+  // target must never make the preview pretend those people have disembarked.
+  usedTicks += crewHoldSpace(crewAfterDepartures) * CARGO_SPACE_TICKS_PER_UNIT;
   usedTicks += Math.min(state.ship.cannons, plan.cannons) * CARGO_SPACE_TICKS_PER_UNIT;
   usedTicks += freshWaterHoldUnits(
     Math.min(state.survival.freshWater, plan.waterUnits)
@@ -3614,9 +3624,22 @@ export function loseCrew(state, requestedLoss, random = Math.random) {
   return lost;
 }
 
+export function playerCrewBoardingEligibility(state) {
+  assertGameState(state);
+  const extraCrewSpace = crewHoldSpace(state.ship.crew + 1) - crewHoldSpace(state.ship.crew);
+  const disabledReason = state.ship.crew <= 0 || state.ship.crew >= state.ship.crewCapacity
+    ? "Every berth is occupied."
+    : cargoUsed(state) + extraCrewSpace > state.cargoCapacity
+      ? "Make room in the hold for another crewmate first."
+      : null;
+  return { eligible: disabledReason === null, disabledReason };
+}
+
 export function hireCrewMemberAtPort(state, city, memberId, context = {}) {
   assertGameState(state);
   assertSimulationMinute(context.simMinute);
+  const eligibility = playerCrewBoardingEligibility(state);
+  if (!eligibility.eligible) throw new Error(`Cannot hire crew: ${eligibility.disabledReason}`);
   const hired = hireCrewCandidate(
     state,
     state.memory.crewRecruitment,

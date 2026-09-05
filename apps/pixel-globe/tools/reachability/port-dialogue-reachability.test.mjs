@@ -28,4 +28,10 @@ test("every port exposes a reachable ordinary city journey", () => {
   for (const nodeId of ["cargo", "equipment", "garrison", "inn-drink", "loadout", "market", "shipyard"]) {
     assert.ok(result.nodeIds.includes(nodeId), `fast reachability missed ${nodeId}`);
   }
+  for (const actionType of ["buy", "buy-max", "open-crew-recruitment", "confirm-ship-purchase"]) {
+    assert.ok(result.actionTypes.includes(actionType), `enabled action was not exercised: ${actionType}`);
+  }
+  for (const nodeId of ["chef-quest", "caribbean-ginger", "viking-longship", "crew-recruitment"]) {
+    assert.ok(result.nodeIds.includes(nodeId), `NPC was not visited: ${nodeId}`);
+  }
 });

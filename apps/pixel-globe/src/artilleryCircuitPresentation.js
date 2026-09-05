@@ -13,8 +13,10 @@ export function artilleryCircuitLegCompletionText({
   if (!Number.isInteger(remainingDestinationCount) || remainingDestinationCount <= 0) {
     throw new Error("Artillery-circuit completion requires a remaining destination count");
   }
-  if (typeof batteryUpgrade !== "boolean") {
-    throw new Error("Artillery-circuit completion requires a battery-upgrade state");
+  if (batteryUpgrade !== null &&
+      (!batteryUpgrade || typeof batteryUpgrade !== "object" ||
+        typeof batteryUpgrade.upgraded !== "boolean")) {
+    throw new Error("Artillery-circuit completion requires a battery-upgrade record or null");
   }
   if (batteryUpgrade) {
     return remainingDestinationCount === 1

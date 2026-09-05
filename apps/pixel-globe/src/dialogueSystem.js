@@ -1,3 +1,4 @@
+import { vikingLongshipAcquisitionEligibility } from "./innQuestTransactions.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { PORT_CITY_STAFF_ROLE } from "./characterPortraits.js";
 import {
@@ -48,7 +49,6 @@ import {
   deliverQuestCargoRequirement,
   enterSpecialEquipmentStore,
   factionReputation,
-  futurePermanentCrewFloor,
   grantGuaranteedMissionPerkItem,
   grantLetterOfMarque,
   hireCrewMemberAtPort,
@@ -63,7 +63,8 @@ import {
   ningboMissionBribeDecision,
   portMemory,
   portEntryStatus,
-  playerShipReplacementCargoUsed,
+  playerShipReplacementEligibility,
+  playerCrewBoardingEligibility,
   questAcceptanceEligibility,
   deliverPlayerShipyardMaterials,
   finishPlayerShipyardInvestment,
@@ -252,7 +253,7 @@ import {
   saleableEquipmentCatalog
 } from "./portEquipment.js";
 import { perkItemSummary } from "./perkItems.js";
-import { canAddNamedCrewMember, permanentCrewFloor } from "./namedCrew.js";
+import { permanentCrewFloor } from "./namedCrew.js";
 import {
   CHEF_QUEST_REWARD,
   CHEF_QUEST_STAGE_GATHERING,
@@ -4981,13 +4982,13 @@ function specialInnRootOptions(session, city, gameState, context) {
 function crewRecruitmentView(session, city, gameState) {
   const offer = crewRecruitmentOfferAt(gameState.memory.crewRecruitment, city);
   if (!offer) throw new Error(`Crew recruitment opened without an offer at ${cityLabel(city)}`);
-  const full = gameState.ship.crew >= gameState.ship.crewCapacity;
+  const boarding = playerCrewBoardingEligibility(gameState);
   const candidates = offer.candidates.map(({ member, cost }) => Object.freeze({
     member,
     cost,
     stars: crewMemberExperienceStars(member),
     affordable: gameState.doubloons >= cost,
-    berthAvailable: !full
+    boardingEligible: boarding.eligible
   }));
   return {
     speaker: `${cityLabel(city)} muster`,
@@ -5003,12 +5004,12 @@ function crewRecruitmentView(session, city, gameState) {
       crewCapacity: gameState.ship.crewCapacity
     }),
     options: [
-      ...candidates.map(({ member, cost, affordable, berthAvailable }) => option(
+      ...candidates.map(({ member, cost, affordable, boardingEligible }) => option(
         `Hire ${member.name} — ${cost} db`,
         { type: "hire-crew-member", memberId: member.id },
         {
-          disabled: !affordable || !berthAvailable,
-          disabledReason: !berthAvailable ? "Every berth is occupied." : `${cost} doubloons required.`
+          disabled: !affordable || !boardingEligible,
+          disabledReason: !boardingEligible ? boarding.disabledReason : `${cost} doubloons required.`
         }
       )),
       option(
@@ -5414,21 +5415,15 @@ function vikingLongshipView(session, city, gameState, context) {
     };
   }
 
-  const stats = shipStatsForSlug(VIKING_LONGSHIP_SLUG);
   const currentShipSlug = context.shipStats?.slug;
   if (!currentShipSlug) {
     throw new Error("Viking longship reward requires the current ship type");
   }
   const alreadyOwned = currentShipSlug === VIKING_LONGSHIP_SLUG;
-  const cargoDoesNotFit = cargoUsed(gameState) > stats.cargoCapacity;
   const shipLabel = shipLabelForSlug(VIKING_LONGSHIP_SLUG);
   if (quest.rewardDisposition === VIKING_LONGSHIP_REWARD_PENDING) {
     const currentShipLabel = shipLabelForSlug(currentShipSlug);
-    const disabledReason = alreadyOwned
-      ? "You already command a Viking Longship."
-      : cargoDoesNotFit
-        ? `Your current cargo will not fit its ${stats.cargoCapacity}-unit hold.`
-        : null;
+    const { disabledReason } = vikingLongshipAcquisitionEligibility(gameState, city);
     return {
       speaker,
       expressionId: "happy",
@@ -5438,6 +5433,7 @@ function vikingLongshipView(session, city, gameState, context) {
         kind: "shipyard",
         listing: {
           id: "quest-viking-longship-reward",
+          source: "new-build",
           shipSlug: VIKING_LONGSHIP_SLUG,
           shipLabel,
           price: 0
@@ -5472,14 +5468,7 @@ function vikingLongshipView(session, city, gameState, context) {
   if (quest.rewardDisposition !== VIKING_LONGSHIP_REWARD_DECLINED) {
     throw new Error(`Unknown Viking longship reward disposition: ${quest.rewardDisposition}`);
   }
-  const cannotAfford = gameState.doubloons < VIKING_LONGSHIP_PRICE;
-  const disabledReason = alreadyOwned
-    ? "You already command the reconstructed longship."
-    : cargoDoesNotFit
-      ? `Your current cargo will not fit its ${stats.cargoCapacity}-unit hold.`
-      : cannotAfford
-        ? `You need ${VIKING_LONGSHIP_PRICE - gameState.doubloons} more doubloons.`
-        : null;
+  const { disabledReason } = vikingLongshipAcquisitionEligibility(gameState, city);
   return {
     speaker,
     expressionId: alreadyOwned ? "pleased" : "happy",
@@ -5489,6 +5478,7 @@ function vikingLongshipView(session, city, gameState, context) {
       kind: "shipyard",
       listing: {
         id: "quest-viking-longship",
+        source: "new-build",
         shipSlug: VIKING_LONGSHIP_SLUG,
         shipLabel,
         price: VIKING_LONGSHIP_PRICE
@@ -5547,7 +5537,7 @@ function chefQuestView(session, city, gameState) {
     };
   }
   if (quest.stage === CHEF_QUEST_STAGE_RECRUITMENT) {
-    const hasBerth = canAddNamedCrewMember(gameState);
+    const eligibility = playerCrewBoardingEligibility(gameState);
     return {
       speaker,
       expressionId: "happy",
@@ -5555,8 +5545,8 @@ function chefQuestView(session, city, gameState) {
       feedback: session.feedback,
       options: [
         option("Welcome aboard", { type: "recruit-chef" }, {
-          disabled: !hasBerth,
-          disabledReason: "This ship has no berth for another permanent crewmate."
+          disabled: !eligibility.eligible,
+          disabledReason: eligibility.disabledReason
         }),
         back
       ]
@@ -6957,25 +6947,13 @@ function shipyardPurchaseOffer(listing, gameState, context) {
   const replacementContext = {
     departingNamedCrewIds: vikingTradeIn?.departingNamedCrewIds || []
   };
-  const committedCrew = futurePermanentCrewFloor(gameState, replacementContext);
-  const permanentCrewDoesNotFit = committedCrew > stats.crewCapacity;
-  const crewAfterDepartures = gameState.ship.crew - replacementContext.departingNamedCrewIds.length;
-  const aboardCrewDoesNotFit = crewAfterDepartures > stats.crewCapacity;
-  const transferredCargoUsed = permanentCrewDoesNotFit || aboardCrewDoesNotFit
-    ? null
-    : playerShipReplacementCargoUsed(gameState, stats, replacementContext);
-  const cargoDoesNotFit = transferredCargoUsed !== null && transferredCargoUsed > stats.cargoCapacity;
+  const replacement = playerShipReplacementEligibility(gameState, stats, replacementContext);
   const alreadyOwned = currentShipSlug === listing.shipSlug;
   const cannotAfford = gameState.doubloons < purchaseTerms.netPrice;
   const disabledReason = alreadyOwned
     ? "You already command this type of vessel."
-    : permanentCrewDoesNotFit
-      ? `Your permanent crew require ${committedCrew} berths; this vessel has only ${stats.crewCapacity}.`
-    : aboardCrewDoesNotFit
-      ? `Dismiss ${crewAfterDepartures - stats.crewCapacity} crew before taking this vessel.`
-    : cargoDoesNotFit
-      ? `Your transferred cargo uses ${cargoSpaceLabel(transferredCargoUsed)} units and will not fit its ` +
-        `${stats.cargoCapacity}-unit hold.`
+    : !replacement.eligible
+      ? replacement.disabledReason
       : cannotAfford
         ? `You need ${purchaseTerms.netPrice - gameState.doubloons} more doubloons.`
         : null;

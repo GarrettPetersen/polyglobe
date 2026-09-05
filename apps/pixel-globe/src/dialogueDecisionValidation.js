@@ -1,3 +1,5 @@
+import { validateShipyardDialoguePresentation } from "./shipyardListingPresentation.js";
+
 const EXPLICIT_DEFERRAL_LABELS = new Set([
   "decline",
   "not now",
@@ -25,6 +27,9 @@ export function validateDialogueDecision(view, contextLabel) {
   }
   validateTextTone(view.bodyTone, "body", contextLabel);
   validateTextTone(view.feedbackTone, "feedback", contextLabel);
+  if (view.presentation?.kind === "shipyard") {
+    validateShipyardDialoguePresentation(view.presentation);
+  }
   const options = view.options.map((entry, index) => validateOption(entry, index, contextLabel));
   if (!options.some((entry) => EXPLICIT_DEFERRAL_LABELS.has(entry.normalizedLabel))) {
     return view;

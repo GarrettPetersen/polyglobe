@@ -425,6 +425,12 @@ test("captured Portuguese guns reinforce each Chinese battery only after visitin
       portCities: PORTS
     });
     assert.equal(result.eastAsianLegDelivery.legNumber, index + 1);
+    // A successful mutation must also produce a renderable next dialogue.
+    if (!result.closed) {
+      const completion = passengerDialogueView(session, city, active, state);
+      assert.ok(completion.options.some((entry) => !entry.disabled));
+      assert.equal(completion.options[0].action.type, "close");
+    }
     if (index === 0) {
       assert.equal(shoreBatteryGunCount(NINGBO, state.memory.flags), 2);
     } else {

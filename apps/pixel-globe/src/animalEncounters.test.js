@@ -334,6 +334,21 @@ test("every catalog animal has geographic and terrain habitat boundaries", () =>
   }
 });
 
+test("animal habitat lookup handles every baked shore, including seasonally frozen water", () => {
+  const { rows, landmassWorldFractions } = actualWorldHabitatFixture();
+  // Water tiles become valid anchor shores when surface ice forms. They have
+  // no terrestrial landmass, unlike the land-only fixture in the habitat test.
+  for (const row of rows) {
+    const fraction = animalLandmassWorldFraction(row, landmassWorldFractions);
+    assert.ok(Number.isFinite(fraction), `terrain ${row.t}`);
+    if (isWaterSurfaceRow(row)) assert.equal(fraction, 0);
+  }
+  assert.throws(() => animalLandmassWorldFraction({ t: "forest" }, landmassWorldFractions),
+    /no landmass id/);
+  assert.throws(() => animalLandmassWorldFraction({ t: "forest", m: -1 }, landmassWorldFractions),
+    /no valid fraction/);
+});
+
 test("brown bears include the Atlas Mountains but not coastal Tripoli", () => {
   const brownBear = ANIMAL_CATALOG_BY_ID.get("brown-bear");
   assert.equal(brownBear.matches(habitat({

@@ -1,3 +1,12 @@
+import {
+  PORT_ASSAULT_LANE_COUNT,
+  PORT_ASSAULT_LANE_SPACING,
+  PortAssaultOccupancy,
+  portAssaultFormationStep,
+  portAssaultGroundDistance,
+  portAssaultPositionIsFree
+} from "./portAssaultFormation.js";
+
 export const PORT_ASSAULT_ATTACK_TYPE = Object.freeze({
   MELEE: "melee",
   ARROW: "arrow",
@@ -50,8 +59,8 @@ export const PORT_ASSAULT_WOUND_RECOVERY_MAX_DAYS = 14;
 
 const TRACK_INTERVAL_MS = PORT_ASSAULT_STEP_MS;
 const GARRISON_CAPITAL_BONUS = 5;
-// Beijing sets the population ceiling; the 35-man cap leaves a full Great Carrack near even
-// with the strongest current capital roster after culture, experience, and waves are applied.
+// Beijing sets the population ceiling; culture and experience determine the
+// quality of the bounded garrison, while formation frontage limits engagement.
 const GARRISON_WORLD_CITY_POPULATION = 680_000;
 const GARRISON_MINIMUM_POPULATION = 500;
 const GARRISON_MAX_NON_CAPITAL = PORT_ASSAULT_MAX_GARRISON - GARRISON_CAPITAL_BONUS;
@@ -84,6 +93,7 @@ const EXPERIENCE_HIT_POINTS_MULTIPLIER = 0.06;
 const RANGED_MELEE_RANGE = 0.03;
 const FULL_CHARGE_DISTANCE = 0.12;
 const MOMENTUM_DECAY_PER_STEP = 0.16;
+const FORMATION_LANE_RECONSIDER_MS = 600;
 const BASE_KNOCKBACK_POSITION_BY_ATTACK_TYPE = Object.freeze({
   [PORT_ASSAULT_ATTACK_TYPE.MELEE]: 0.006,
   [PORT_ASSAULT_ATTACK_TYPE.ARROW]: 0.002,
@@ -340,6 +350,10 @@ export function createPortAssaultScenario({
   }
   validateCombatants(attackers, PORT_ASSAULT_SIDE.ATTACKER);
   validateCombatants(defenders, PORT_ASSAULT_SIDE.DEFENDER);
+  const attackerIds = new Set(attackers.map(({ id }) => id));
+  for (const defender of defenders) {
+    if (attackerIds.has(defender.id)) throw new Error(`Duplicate port assault combatant ID: ${defender.id}`);
+  }
   if (attackers.length === 0) throw new Error("Port assault requires at least one attacker");
   if (defenders.length === 0) throw new Error("Port assault requires at least one defender");
   if (!Number.isFinite(shipHitPoints) || shipHitPoints <= 0) {
@@ -452,6 +466,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
     random
   );
   const units = [...attackers, ...defenders];
+  const occupancy = new PortAssaultOccupancy();
   const initiativeOrder = [...units].sort((left, right) => (
     left.initiative - right.initiative || left.id.localeCompare(right.id)
   ));
@@ -478,9 +493,13 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       }
       unit.moving = false;
       if (!unit.spawned) {
+        if (!portAssaultPositionIsFree(unit, occupancy.nearby(unit))) continue;
         unit.spawned = true;
-        unit.jumpStartedAtMs = timeMs;
-        pushEvent(events, { timeMs, type: "jump", unitId: unit.id, dockKind: scenario.dockKind });
+        occupancy.add(unit);
+        if (unit.side === PORT_ASSAULT_SIDE.ATTACKER) {
+          unit.jumpStartedAtMs = timeMs;
+          pushEvent(events, { timeMs, type: "jump", unitId: unit.id, dockKind: scenario.dockKind });
+        }
       }
       const landingDurationMs = portAssaultLandingDurationMs(scenario.dockKind);
       if (!unit.landed && timeMs >= unit.jumpStartedAtMs + landingDurationMs) {
@@ -496,17 +515,20 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       if (unit.actionUntilMs > timeMs) continue;
       const opponents = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? defenders : attackers;
       const target = nearestLivingOpponent(unit, opponents, timeMs);
-      const targetDistance = target ? Math.abs(target.position - unit.position) : null;
+      const targetDistance = target ? portAssaultGroundDistance(unit, target) : null;
       const attackProfile = target
         ? portAssaultAttackProfileAtDistance(unit.stats, targetDistance)
         : null;
       if (target && targetDistance <= attackProfile.range) {
+        unit.facingRight = target.position === unit.position
+          ? unit.facingRight : target.position > unit.position;
+        unit.laneGoal = null;
         if (timeMs >= nextAttackAtMs(unit, attackProfile)) {
-          attackUnit(unit, target, attackProfile, timeMs, random, events);
+          attackUnit(unit, target, attackProfile, timeMs, random, events, occupancy);
+          if (!target.alive) occupancy.remove(target);
         }
         continue;
       }
-      const direction = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? 1 : -1;
       const goal = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? 1 : 0;
       if (!target && Math.abs(goal - unit.position) <= 0.015) {
         if (unit.side === PORT_ASSAULT_SIDE.ATTACKER) {
@@ -535,12 +557,17 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         continue;
       }
       const movement = unit.stats.movementPerSecond * (PORT_ASSAULT_STEP_MS / 1000);
-      const desired = target ? target.position - direction * Math.min(unit.stats.range * 0.78, 0.025) : goal;
       const previousPosition = unit.position;
-      unit.position = direction > 0
-        ? Math.min(desired, unit.position + movement)
-        : Math.max(desired, unit.position - movement);
-      unit.moving = unit.position !== previousPosition;
+      const previousLane = unit.lane;
+      const destination = target || { position: goal, lane: unit.lane };
+      // Stop at weapon reach instead of walking through the enemy. Lateral
+      // movement consumes the same speed budget as advancing along the road.
+      const next = moveInFormation(unit, destination, movement, occupancy, target ? unit.stats.range : 0, timeMs);
+      unit.position = next.position;
+      unit.lane = next.lane;
+      occupancy.update(unit);
+      unit.moving = portAssaultGroundDistance({ position: previousPosition, lane: previousLane }, unit) > 1e-9;
+      if (unit.position !== previousPosition) unit.facingRight = unit.position > previousPosition;
       if (unit.moving && unit.stats.chargeDamageMultiplier > 1) {
         unit.momentum = Math.min(
           1,
@@ -770,6 +797,7 @@ function validateShipHitEvent(event, maxShipHitPoints) {
 }
 
 function createBattleUnits(combatants, side, modifiers, random) {
+  const firstLane = Math.floor(random() * PORT_ASSAULT_LANE_COUNT);
   return combatants.map((combatant, index) => {
     const stats = portAssaultUnitStats(combatant, modifiers);
     const wave = Math.floor(index / PORT_ASSAULT_WAVE_SIZE);
@@ -792,21 +820,28 @@ function createBattleUnits(combatants, side, modifiers, random) {
       position: side === PORT_ASSAULT_SIDE.ATTACKER
         ? PORT_ASSAULT_ATTACKER_ENTRY_POSITION
         : 0.96,
-      lane: (index + Math.floor(random() * 4)) % 4,
+      lane: (firstLane + index) % PORT_ASSAULT_LANE_COUNT,
+      laneGoal: null,
+      nextLaneChangeAtMs: 0,
+      facingRight: side === PORT_ASSAULT_SIDE.ATTACKER,
       initiative: random(),
       actionAnimationId: null,
       actionStartedAtMs: 0,
       actionUntilMs: 0,
       moving: false,
       momentum: 0,
-      spawned: side === PORT_ASSAULT_SIDE.DEFENDER,
+      spawned: false,
       landed: side === PORT_ASSAULT_SIDE.DEFENDER,
       jumpStartedAtMs: null
     };
   });
 }
 
-function attackUnit(attacker, target, attackProfile, timeMs, random, events) {
+function attackUnit(attacker, target, attackProfile, timeMs, random, events, occupancy) {
+  if (!target.alive || !target.spawned || !target.landed ||
+      portAssaultGroundDistance(attacker, target) > attackProfile.range) {
+    throw new Error(`Port assault target is outside attack reach: ${attacker.id}/${target.id}`);
+  }
   const chargeMomentum = attacker.momentum;
   const chargeDamageMultiplier = 1 +
     (attacker.stats.chargeDamageMultiplier - 1) * chargeMomentum;
@@ -829,6 +864,9 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events) {
     attackType: attackProfile.attackType,
     position: attacker.position,
     lane: attacker.lane,
+    facingRight: attacker.facingRight,
+    targetPosition: target.position,
+    targetLane: target.lane,
     chargeMomentum
   });
   const matchupMultiplier = target.stats.mounted
@@ -853,14 +891,21 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events) {
     targetArmorCoverage: target.stats.armorCoverage
   });
   const positionBeforeHit = target.position;
-  const direction = attacker.side === PORT_ASSAULT_SIDE.ATTACKER ? 1 : -1;
+  const direction = attacker.facingRight ? 1 : -1;
   const knockbackDistance = portAssaultKnockbackDistance({
     attackType: attackProfile.attackType,
     damage,
     unitKnockbackMultiplier: attacker.stats.knockbackMultiplier,
     chargeKnockbackMultiplier
   });
-  target.position = clamp(target.position + direction * knockbackDistance, 0, 1);
+  const knockbackGoal = {
+    position: clamp(target.position + direction * knockbackDistance, 0, 1),
+    lane: target.lane
+  };
+  const knockedBack = portAssaultFormationStep(target, knockbackGoal, knockbackDistance,
+    occupancy.nearby(target, knockbackGoal, knockbackDistance));
+  target.position = knockedBack.position;
+  occupancy.update(target);
   const knockbackPositionDelta = target.position - positionBeforeHit;
   target.hitPoints = Math.max(0, target.hitPoints - damage);
   target.actionAnimationId = target.hitPoints === 0 ? "death" : "hit";
@@ -880,12 +925,51 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events) {
   if (target.hitPoints === 0) target.alive = false;
 }
 
+function moveInFormation(unit, destination, movement, occupancy, range, timeMs) {
+  if (unit.laneGoal !== null && Math.abs(unit.laneGoal - unit.lane) < 1e-9) unit.laneGoal = null;
+  const lateralDistance = Math.abs(destination.lane - unit.lane) * PORT_ASSAULT_LANE_SPACING;
+  const lane = unit.laneGoal ?? (lateralDistance < range * 0.95 ? unit.lane : destination.lane);
+  const direction = Math.sign(destination.position - unit.position);
+  const standOff = Math.sqrt(Math.max(0, (range * 0.95) ** 2 -
+    ((destination.lane - lane) * PORT_ASSAULT_LANE_SPACING) ** 2));
+  const goal = { position: clamp(destination.position - direction * standOff, 0, 1), lane };
+  let next = portAssaultFormationStep(unit, goal, movement, occupancy.nearby(unit, goal, movement));
+  if (portAssaultGroundDistance(unit, next) > movement * 0.1) return next;
+
+  // A blocked rank may take an open adjacent lane, but only if that lane also
+  // lets it advance. Commit to the crossing so target changes don't cause a
+  // left/right shuffle. Troops otherwise wait for the soldier ahead to move.
+  if (timeMs < unit.nextLaneChangeAtMs) return next;
+  unit.nextLaneChangeAtMs = timeMs + FORMATION_LANE_RECONSIDER_MS;
+  unit.laneGoal = null;
+  const alternatives = [Math.round(unit.lane) - 1, Math.round(unit.lane) + 1]
+    .filter((candidate) => candidate >= 0 && candidate < PORT_ASSAULT_LANE_COUNT)
+    .sort((left, right) => Math.abs(left - destination.lane) - Math.abs(right - destination.lane) || left - right);
+  for (const candidate of alternatives) {
+    const sideGoal = { position: unit.position, lane: candidate };
+    const sideStep = portAssaultFormationStep(unit, sideGoal, PORT_ASSAULT_LANE_SPACING * 2,
+      occupancy.nearby(unit));
+    if (Math.abs(sideStep.lane - candidate) > 1e-9) continue;
+    const advanceGoal = {
+      position: goal.position, lane: candidate
+    };
+    const probe = { ...unit, ...sideStep };
+    const advanced = portAssaultFormationStep(probe, advanceGoal, movement,
+      occupancy.nearby(probe, advanceGoal, movement));
+    if (Math.abs(advanced.position - unit.position) < movement * 0.5) continue;
+    unit.laneGoal = candidate;
+    next = portAssaultFormationStep(unit, sideGoal, movement, occupancy.nearby(unit));
+    break;
+  }
+  return next;
+}
+
 function nearestLivingOpponent(unit, opponents, timeMs) {
   let selected = null;
   let bestDistance = Number.POSITIVE_INFINITY;
   for (const candidate of opponents) {
-    if (!candidate.alive || timeMs < candidate.spawnAtMs) continue;
-    const distance = Math.abs(candidate.position - unit.position) + Math.abs(candidate.lane - unit.lane) * 0.006;
+    if (!candidate.alive || !candidate.spawned || !candidate.landed || timeMs < candidate.spawnAtMs) continue;
+    const distance = portAssaultGroundDistance(unit, candidate);
     if (distance < bestDistance || (distance === bestDistance && candidate.id < selected.id)) {
       selected = candidate;
       bestDistance = distance;
@@ -896,7 +980,7 @@ function nearestLivingOpponent(unit, opponents, timeMs) {
 
 function recordTracks(tracks, units, timeMs, dockKind) {
   for (const unit of units) {
-    const hidden = timeMs < unit.spawnAtMs;
+    const hidden = !unit.spawned;
     const animationId = resolvedAnimation(unit, timeMs, dockKind);
     const animationStartedAtMs = animationId === "jump"
       ? unit.jumpStartedAtMs
@@ -911,6 +995,7 @@ function recordTracks(tracks, units, timeMs, dockKind) {
       hidden,
       position: unit.position,
       lane: unit.lane,
+      facingRight: unit.facingRight,
       animationId,
       animationStartedAtMs,
       alive: unit.alive,
@@ -922,7 +1007,7 @@ function recordTracks(tracks, units, timeMs, dockKind) {
 }
 
 function resolvedAnimation(unit, timeMs, dockKind) {
-  if (timeMs < unit.spawnAtMs) return "idle";
+  if (!unit.spawned) return "idle";
   if (!unit.alive) return "death";
   if (unit.side === PORT_ASSAULT_SIDE.ATTACKER &&
       !unit.landed) {
@@ -958,7 +1043,8 @@ function trackFrameAt(track, elapsedMs) {
   const t = clamp((elapsedMs - before.timeMs) / (after.timeMs - before.timeMs), 0, 1);
   return Object.freeze({
     ...before,
-    position: before.position + (after.position - before.position) * t
+    position: before.position + (after.position - before.position) * t,
+    lane: before.lane + (after.lane - before.lane) * t
   });
 }
 

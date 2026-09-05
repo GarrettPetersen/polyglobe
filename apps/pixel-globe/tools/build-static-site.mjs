@@ -155,6 +155,19 @@ async function copyEntry(fromRoot, [from, to], filter = null) {
     recursive: true,
     filter: filter ? (sourcePath) => filter(relative(fromRoot, sourcePath)) : undefined
   });
+  if (fromRoot === sharedDataRoot && sourceStat.isFile() &&
+      (extname(from) === ".bin" || from === "earth-globe-cache-8.json")) {
+    // These loaders request a chunk manifest first. Even a single-file build
+    // must describe its layout instead of using a failed HTTP request to find it.
+    await writeSingleFileChunkManifest(target, sourceStat.size);
+  }
+}
+
+async function writeSingleFileChunkManifest(target, byteLength) {
+  await writeFile(`${target}.chunks.json`, JSON.stringify({
+    byteLength,
+    chunks: [{ path: basename(target), byteLength }]
+  }, null, 2));
 }
 
 async function copyLargeFileAsChunks(source, target, byteLength) {
@@ -211,6 +224,7 @@ async function copySharedEntry(entry) {
     await writeLargeBytesAsChunks(bytes, target);
   } else {
     await writeFile(target, bytes);
+    await writeSingleFileChunkManifest(target, bytes.byteLength);
   }
 }
 

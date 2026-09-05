@@ -1,0 +1,53 @@
+name: Game action and runtime checks
+
+on:
+  pull_request:
+    paths:
+      - apps/pixel-globe/**
+      - examples/globe-demo/public/**
+      - examples/globe-demo/package*.json
+      - package*.json
+      - .github/workflows/test-pixel-globe.yml
+  schedule:
+    - cron: "23 11 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: game-tests-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            examples/globe-demo/package-lock.json
+            apps/pixel-globe/package-lock.json
+      - name: Install dependencies
+        run: |
+          npm ci --no-audit --no-fund
+          npm ci --prefix examples/globe-demo --no-audit --no-fund
+          npm ci --prefix apps/pixel-globe --no-audit --no-fund
+          npm exec --prefix apps/pixel-globe -- playwright install --with-deps chromium
+      - name: Restore production Earth cache
+        run: gzip --decompress --keep examples/globe-demo/public/earth-globe-cache-8.json.gz
+      - name: Source contracts and regression tests
+        run: |
+          npm run --prefix apps/pixel-globe check:source
+          npm run --prefix apps/pixel-globe test:deploy
+      - name: All ports and production browser journeys
+        if: github.event_name == 'pull_request'
+        run: npm run --prefix apps/pixel-globe test:reachability:fast
+      - name: Deeper action and simulation journeys
+        if: github.event_name != 'pull_request'
+        run: npm run --prefix apps/pixel-globe test:reachability:release

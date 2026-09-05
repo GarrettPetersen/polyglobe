@@ -1,4 +1,5 @@
 import { TERRAIN_TRAIT, terrainHasAnyTrait } from "./terrainMetadata.js";
+import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 export const ANIMAL_ENCOUNTER_MEMORY_VERSION = 1;
 export const ANIMAL_ENCOUNTER_ROLL_INTERVAL_MINUTES = 6 * 60;
@@ -113,7 +114,9 @@ export function buildAnimalLandmassWorldFractions(earthRows) {
 }
 
 export function animalLandmassWorldFraction(row, landmassWorldFractions) {
-  if (row?.t === "ice" || row?.t === "ice_cap") return 0;
+  // Seasonal ice makes water an anchor-accessible shore without turning it
+  // into a terrestrial landmass. Missing landmass IDs on land remain errors.
+  if (isWaterSurfaceRow(row) || row?.t === "ice" || row?.t === "ice_cap") return 0;
   if (!Number.isInteger(row?.m)) {
     throw new Error(`Animal habitat terrain has no landmass id: ${row?.m ?? "missing"}`);
   }
