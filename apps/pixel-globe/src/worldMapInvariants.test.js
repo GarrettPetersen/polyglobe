@@ -214,6 +214,18 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
       toTileId
     })
   });
+  for (const [name, lat, lon, accessible] of [
+    ["Mediterranean side of Gibraltar", 36, -5, 1],
+    ["Atlantic side of Gibraltar", 35.8, -6.2, 0],
+    ["Atlantic Ocean", 34, -10, 0],
+    ["Black Sea", 43, 34, 1],
+    ["Nile", 30.5, 31.25, 1],
+    ["Danube", 45.5, 28.5, 1],
+    ["Red Sea", 21, 38, 0]
+  ]) {
+    assert.equal(demoAccessMask[nearestNavigableTile({ lat, lon })], accessible,
+      `the subdivision-eight demo boundary must preserve access at ${name}`);
+  }
   const demoPorts = demoAccessiblePortsForMask({
     ports,
     accessMask: demoAccessMask,
