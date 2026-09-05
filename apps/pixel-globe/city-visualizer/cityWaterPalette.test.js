@@ -16,7 +16,8 @@ import {
   cityWaterLatitudeBand,
   cityWaterPaletteHexForSourceHex,
   cityWaterPaletteRgb,
-  cityWaterPaletteRgbAt
+  cityWaterPaletteRgbAt,
+  applyCityWaterPalette
 } from "./cityWaterPalette.js";
 
 test("city water uses every production depth band from horizon to foreground", () => {
@@ -137,9 +138,53 @@ test("static ocean, animated waves, shoreline fill, and ship waterlines share th
   const source = fs.readFileSync(new URL("./main.js", import.meta.url), "utf8");
   assert.match(source, /drawOceanSlice[\s\S]*latitudeWaterFrame\(state\.staticAtlas, frame, PORT_SCENE_HORIZON_SHIFT_Y\)/);
   assert.match(source, /drawAnimatedLayer[\s\S]*cityWaterAnimatedLayerUsesPalette\(layerName\)[\s\S]*latitudeWaterFrame\(atlas, frame\)/);
-  assert.match(source, /latitudeWaterFrame[\s\S]*cityWaterPaletteRgbAt\([\s\S]*masterX,[\s\S]*masterY/);
+  assert.match(source, /latitudeWaterFrame[\s\S]*applyCityWaterPalette\(/);
   assert.match(source, /drawWaterToWaveEdges[\s\S]*latitudeWaterCssColor\("4d65b4", masterY\)/);
   assert.match(source, /docksideShipWaterlineLayers\([\s\S]*waterlineRgb/);
+});
+
+test("raster water colours match scalar presentation across latitude, depth, offsets and alpha", () => {
+  const width = 83;
+  const height = 257;
+  for (const latitudeDeg of [-90, -51.5, -6.2, 0, 34.7, 90]) {
+    for (const masterX of [-46.5, 0, 1300]) {
+      const masterY = PORT_SCENE_OCEAN_SLICES[0].top - 8.5;
+      const actual = new Uint8ClampedArray(width * height * 4);
+      const expected = new Uint8ClampedArray(actual.length);
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const offset = (y * width + x) * 4;
+          const rgba = [(x * 37) % 256, (y * 71) % 256, ((x + y) * 43) % 256, (x + y) % 256];
+          actual.set(rgba, offset);
+          if (rgba[3] === 0) expected.set(rgba, offset);
+          else {
+            const rgb = cityWaterPaletteRgbAt(...rgba.slice(0, 3), latitudeDeg, masterX + x, masterY + y);
+            expected.set([rgb.r, rgb.g, rgb.b, rgba[3]], offset);
+          }
+        }
+      }
+      applyCityWaterPalette({ pixels: actual, width, height, latitudeDeg, masterX, masterY });
+      assert.deepEqual(actual, expected, `${latitudeDeg} degrees at x=${masterX}`);
+    }
+  }
+});
+
+test("water contour work grows with raster width rather than area", (t) => {
+  const sin = t.mock.method(Math, "sin");
+  const width = 80;
+  const height = 400;
+  applyCityWaterPalette({
+    pixels: new Uint8ClampedArray(width * height * 4).fill(255),
+    width, height, latitudeDeg: 51.5, masterX: 0, masterY: 0
+  });
+  assert.ok(sin.mock.callCount() <= width * 15, `repeated contour work: ${sin.mock.callCount()} calls`);
+});
+
+test("water raster preparation rejects malformed inputs", () => {
+  const options = { pixels: new Uint8ClampedArray(4), width: 1, height: 1, latitudeDeg: 0, masterX: 0, masterY: 0 };
+  assert.throws(() => applyCityWaterPalette({ ...options, width: 2 }), /RGBA raster/);
+  assert.throws(() => applyCityWaterPalette({ ...options, masterX: NaN }), /finite scene coordinates/);
+  assert.throws(() => applyCityWaterPalette({ ...options, latitudeDeg: NaN }), /latitude/i);
 });
 
 function toHex({ r, g, b }) {

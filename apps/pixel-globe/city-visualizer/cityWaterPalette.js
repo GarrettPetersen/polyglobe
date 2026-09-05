@@ -14,6 +14,8 @@ const TAU = Math.PI * 2;
 const CITY_WATER_ART_BASE_RGB = parseHex(CITY_WATER_ART_BASE_HEX);
 const CITY_WATER_ART_BASE_BRIGHTNESS = perceptualBrightness(CITY_WATER_ART_BASE_RGB);
 const WATER_SOURCE_BASE_RGB = WATER_SOURCE_BASE_HEX.map(parseHex);
+const WATER_TOP = PORT_SCENE_OCEAN_SLICES[0].top;
+const WATER_BOTTOM = PORT_SCENE_OCEAN_SLICES[2].bottom - 1;
 
 export function cityWaterDepthIndex(masterY) {
   return cityWaterDepthIndexAt(0, masterY);
@@ -22,17 +24,12 @@ export function cityWaterDepthIndex(masterY) {
 export function cityWaterDepthIndexAt(masterX, masterY) {
   if (!Number.isFinite(masterY)) throw new Error(`City water row must be finite, got ${masterY}`);
   if (!Number.isFinite(masterX)) throw new Error(`City water column must be finite, got ${masterX}`);
-  const top = PORT_SCENE_OCEAN_SLICES[0].top;
-  const bottom = PORT_SCENE_OCEAN_SLICES[2].bottom - 1;
-  if (masterY <= top) return CITY_WATER_DEPTH_LEVELS - 1;
-  if (masterY >= bottom) return 0;
+  if (masterY <= WATER_TOP) return CITY_WATER_DEPTH_LEVELS - 1;
+  if (masterY >= WATER_BOTTOM) return 0;
 
   let depthIndex = CITY_WATER_DEPTH_LEVELS - 1;
   for (let boundaryIndex = 0; boundaryIndex < CITY_WATER_DEPTH_BOUNDARIES; boundaryIndex++) {
-    const baseY = top + (
-      (boundaryIndex + 0.5) * (bottom - top) / CITY_WATER_DEPTH_BOUNDARIES
-    );
-    if (masterY >= baseY + cityWaterContourOffset(masterX, boundaryIndex)) {
+    if (masterY >= cityWaterBoundaryY(masterX, boundaryIndex)) {
       depthIndex--;
     }
   }
@@ -76,6 +73,58 @@ export function cityWaterPaletteRgbAt(red, green, blue, latitudeDeg, masterX, ma
   assertChannel(green, "green");
   assertChannel(blue, "blue");
   const depthIndex = cityWaterDepthIndexAt(masterX, masterY);
+  return cityWaterRgbAtDepth(red, green, blue, cityWaterLatitudeBand(latitudeDeg), depthIndex);
+}
+
+// Raster preparation shares contour geometry by column and colour decisions by
+// depth. Neither depends on the number of pixels painted with the same colour.
+export function applyCityWaterPalette({ pixels, width, height, latitudeDeg, masterX, masterY }) {
+  if (!(pixels instanceof Uint8ClampedArray) ||
+      !Number.isInteger(width) || width <= 0 || !Number.isInteger(height) || height <= 0 ||
+      pixels.length !== width * height * 4) {
+    throw new Error("City water palette requires a complete clamped RGBA raster");
+  }
+  if (!Number.isFinite(masterX) || !Number.isFinite(masterY)) {
+    throw new Error("City water palette requires finite scene coordinates");
+  }
+  const latitudeBand = cityWaterLatitudeBand(latitudeDeg);
+  const colorsByDepth = Array.from({ length: CITY_WATER_DEPTH_LEVELS }, () => new Map());
+  const boundaries = new Float64Array(width * CITY_WATER_DEPTH_BOUNDARIES);
+  for (let x = 0; x < width; x++) {
+    for (let boundary = 0; boundary < CITY_WATER_DEPTH_BOUNDARIES; boundary++) {
+      boundaries[x * CITY_WATER_DEPTH_BOUNDARIES + boundary] = cityWaterBoundaryY(masterX + x, boundary);
+    }
+  }
+  for (let y = 0; y < height; y++) {
+    const sceneY = masterY + y;
+    for (let x = 0; x < width; x++) {
+      const offset = (y * width + x) * 4;
+      if (pixels[offset + 3] === 0) continue;
+      let depth = CITY_WATER_DEPTH_LEVELS - 1;
+      if (sceneY >= WATER_BOTTOM) depth = 0;
+      else if (sceneY > WATER_TOP) {
+        for (let boundary = 0; boundary < CITY_WATER_DEPTH_BOUNDARIES; boundary++) {
+          if (sceneY >= boundaries[x * CITY_WATER_DEPTH_BOUNDARIES + boundary]) depth--;
+        }
+      }
+      const red = pixels[offset];
+      const green = pixels[offset + 1];
+      const blue = pixels[offset + 2];
+      const key = red << 16 | green << 8 | blue;
+      const colors = colorsByDepth[depth];
+      let mapped = colors.get(key);
+      if (!mapped) {
+        mapped = cityWaterRgbAtDepth(red, green, blue, latitudeBand, depth);
+        colors.set(key, mapped);
+      }
+      pixels[offset] = mapped.r;
+      pixels[offset + 1] = mapped.g;
+      pixels[offset + 2] = mapped.b;
+    }
+  }
+}
+
+function cityWaterRgbAtDepth(red, green, blue, latitudeBand, depthIndex) {
   const sourceBaseBrightness = perceptualBrightness(WATER_SOURCE_BASE_RGB[depthIndex]);
   const artBrightnessRatio = perceptualBrightness({ r: red, g: green, b: blue }) /
     CITY_WATER_ART_BASE_BRIGHTNESS;
@@ -87,7 +136,7 @@ export function cityWaterPaletteRgbAt(red, green, blue, latitudeDeg, masterX, ma
     neutralBrightness,
     neutralBrightness,
     neutralBrightness,
-    cityWaterLatitudeBand(latitudeDeg),
+    latitudeBand,
     depthIndex
   );
   return Object.freeze({
@@ -95,6 +144,12 @@ export function cityWaterPaletteRgbAt(red, green, blue, latitudeDeg, masterX, ma
     g: Number.parseInt(hex.slice(2, 4), 16),
     b: Number.parseInt(hex.slice(4, 6), 16)
   });
+}
+
+function cityWaterBoundaryY(masterX, boundaryIndex) {
+  return WATER_TOP + (
+    (boundaryIndex + 0.5) * (WATER_BOTTOM - WATER_TOP) / CITY_WATER_DEPTH_BOUNDARIES
+  ) + cityWaterContourOffset(masterX, boundaryIndex);
 }
 
 function cityWaterContourOffset(masterX, boundaryIndex) {

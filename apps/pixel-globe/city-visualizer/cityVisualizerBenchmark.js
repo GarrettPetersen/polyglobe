@@ -28,6 +28,17 @@ function cameraMode(value) {
   return resolved;
 }
 
+export function assertCityFrameCpuBudget(report, budgetMs) {
+  if (!Number.isFinite(budgetMs) || budgetMs <= 0 ||
+      !Number.isFinite(report?.coldFrameCpuMs) || report.coldFrameCpuMs < 0 ||
+      !Number.isFinite(report?.maxFrameCpuMs) || report.maxFrameCpuMs < report.coldFrameCpuMs) {
+    throw new Error("City frame budget requires a positive limit and cold/warm frame measurements");
+  }
+  if (report.maxFrameCpuMs > budgetMs) {
+    throw new Error(`City frame CPU exceeded ${budgetMs} ms: ${report.maxFrameCpuMs.toFixed(1)} ms including warmup`);
+  }
+}
+
 function positiveDuration(params, key, fallback) {
   const raw = params.get(key);
   if (raw === null) return fallback;

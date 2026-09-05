@@ -2,17 +2,16 @@ import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import {
-  collectCapturePageErrors,
-  launchCaptureBrowser
-} from "./capture-browser.mjs";
+import { launchCaptureBrowser } from "./capture-browser.mjs";
+import { monitorBrowserFailures } from "./reachability/browser-failures.mjs";
 import {
   startBenchmarkServer,
   waitForBenchmarkServer
 } from "./benchmark-server.mjs";
 import {
   CITY_VISUALIZER_BENCHMARK_CAMERA_MODES,
-  CITY_VISUALIZER_BENCHMARK_ID
+  CITY_VISUALIZER_BENCHMARK_ID,
+  assertCityFrameCpuBudget
 } from "../city-visualizer/cityVisualizerBenchmark.js";
 
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -25,8 +24,7 @@ try {
   const browser = await launchCaptureBrowser({ headless: args.headless });
   try {
     const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
-    const errors = [];
-    collectCapturePageErrors(page, errors);
+    const errors = monitorBrowserFailures(page);
     const url = benchmarkUrl(baseUrl, args);
     const loadStartedAtMs = performance.now();
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: args.timeoutMs });
@@ -54,6 +52,7 @@ try {
     await mkdir(path.dirname(args.output), { recursive: true });
     await writeFile(args.output, `${JSON.stringify(report, null, 2)}\n`);
     printReport(report, args.output);
+    if (args.maxFrameCpuMs !== null) assertCityFrameCpuBudget(report, args.maxFrameCpuMs);
   } finally {
     await browser.close();
   }
@@ -82,6 +81,8 @@ function printReport(report, output) {
     `  FPS: ${report.framesPerSecond}`,
     `  Frame time: ${report.frameTimeMs.mean} ms mean, ${report.frameTimeMs.p95} ms p95`,
     `  CPU time: ${report.cpuTimeMs.mean} ms mean, ${report.cpuTimeMs.p95} ms p95`,
+    `  Cold frame CPU: ${report.coldFrameCpuMs.toFixed(1)} ms; ` +
+      `worst including warmup: ${report.maxFrameCpuMs.toFixed(1)} ms`,
     `  Render: ${report.stages["render.scene"]?.mean ?? 0} ms mean, ` +
       `${report.stages["render.scene"]?.p95 ?? 0} ms p95`,
     `  Scene work: ${workload.entries} entries, ${workload.staticEntries} static in ` +
@@ -103,6 +104,7 @@ function parseArgs(argv) {
     durationSeconds: 8,
     headless: false,
     bombarded: false,
+    maxFrameCpuMs: null,
     timeoutMs: 120_000,
     output: path.join(APP_ROOT, "build/performance/city-visualizer-latest.json")
   };
@@ -116,6 +118,7 @@ function parseArgs(argv) {
     else if (arg === "--duration") parsed.durationSeconds = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--headless") parsed.headless = true;
     else if (arg === "--bombarded") parsed.bombarded = true;
+    else if (arg === "--max-frame-cpu-ms") parsed.maxFrameCpuMs = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--timeout-ms") parsed.timeoutMs = positiveNumber(requiredValue(argv, ++index, arg), arg);
     else if (arg === "--output") parsed.output = path.resolve(APP_ROOT, requiredValue(argv, ++index, arg));
     else throw new Error(`Unknown city benchmark argument: ${arg}`);

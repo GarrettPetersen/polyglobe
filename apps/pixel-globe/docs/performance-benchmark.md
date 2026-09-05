@@ -66,6 +66,19 @@ the same hardware-accelerated rendering path as normal play. `--headless` is
 available for CI machines with accelerated headless Chromium; software-only
 headless rendering is not representative of gameplay performance.
 
+City rendering has its own benchmark. It reports the first frame and worst CPU
+frame **including warmup**, as well as steady-state timings. Cold sprite preparation
+previously caused port-entry freezes that the warmup excluded from the report.
+Use a budget calibrated on the same machine to fail on those spikes:
+
+```sh
+npm --prefix apps/pixel-globe run city-visualizer:benchmark -- --city 'london|united kingdom' --max-frame-cpu-ms 250
+npm --prefix apps/pixel-globe run city-visualizer:benchmark -- --camera pan --bombarded --max-frame-cpu-ms 250
+```
+
+The report is saved even if the budget fails. Source tests also bound repeated
+atlas reads and water-contour calculations independently of machine speed.
+
 The browser cache is retained under `build/performance/browser-profile` so
 repeat runs do not spend their time re-downloading the large world and sprite
 asset set. Use `--profile path/to/profile` when an isolated cache is needed.

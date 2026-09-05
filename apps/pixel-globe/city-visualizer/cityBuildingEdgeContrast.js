@@ -45,10 +45,10 @@ export function citySkySourceColorsByRow({ pixels, width, height }) {
     for (let x = 0; x < width; x += 1) {
       const offset = (y * width + x) * 4;
       if (pixels[offset + 3] <= OPAQUE_ALPHA_THRESHOLD) continue;
-      colors.add(rgbHex(pixels, offset));
+      colors.add(rgbValue(pixels, offset));
     }
     if (colors.size === 0) throw new Error(`City sky row ${y} has no opaque colors`);
-    return Object.freeze([...colors]);
+    return Object.freeze([...colors].map((value) => value.toString(16).padStart(6, "0")));
   }));
 }
 
@@ -72,6 +72,7 @@ export function applyCityBuildingEdgeContrast({
     throw new Error("City building edge contrast requires sky source rows");
   }
   const exterior = exteriorTransparentPixels(pixels, width, height);
+  const contrastsBySkyColors = new Map();
   let changedPixels = 0;
   for (let y = 0; y < height; y += 1) {
     const sceneY = masterY + (y + 0.5) * renderedHeight / height;
@@ -80,6 +81,12 @@ export function applyCityBuildingEdgeContrast({
     const skyColors = skySourceColorsByRow[skyRow];
     if (!Array.isArray(skyColors) || skyColors.length === 0) {
       throw new Error(`City sky row ${skyRow} has no source colors`);
+    }
+    const skyKey = skyColors.join("|");
+    let contrasts = contrastsBySkyColors.get(skyKey);
+    if (!contrasts) {
+      contrasts = new Map();
+      contrastsBySkyColors.set(skyKey, contrasts);
     }
     for (let x = 0; x < width; x += 1) {
       const index = y * width + x;
@@ -91,12 +98,19 @@ export function applyCityBuildingEdgeContrast({
         isExteriorTransparent(exterior, width, height, x + 1, y) ||
         isExteriorTransparent(exterior, width, height, x, y - 1)
       )) continue;
-      const sourceHex = rgbHex(pixels, offset);
-      if (!collidesWithSkyGrade(sourceHex, skyColors)) continue;
-      const contrastHex = darkerContrastingHex(sourceHex, skyColors);
-      pixels[offset] = Number.parseInt(contrastHex.slice(0, 2), 16);
-      pixels[offset + 1] = Number.parseInt(contrastHex.slice(2, 4), 16);
-      pixels[offset + 2] = Number.parseInt(contrastHex.slice(4, 6), 16);
+      const source = rgbValue(pixels, offset);
+      let contrast = contrasts.get(source);
+      if (contrast === undefined) {
+        const sourceHex = source.toString(16).padStart(6, "0");
+        contrast = collidesWithSkyGrade(sourceHex, skyColors)
+          ? Number.parseInt(darkerContrastingHex(sourceHex, skyColors), 16)
+          : source;
+        contrasts.set(source, contrast);
+      }
+      if (contrast === source) continue;
+      pixels[offset] = contrast >>> 16;
+      pixels[offset + 1] = (contrast >>> 8) & 255;
+      pixels[offset + 2] = contrast & 255;
       changedPixels += 1;
     }
   }
@@ -204,7 +218,9 @@ function validateRaster(pixels, width, height, label) {
 }
 
 function rgbHex(pixels, offset) {
-  return [pixels[offset], pixels[offset + 1], pixels[offset + 2]]
-    .map((channel) => channel.toString(16).padStart(2, "0"))
-    .join("");
+  return rgbValue(pixels, offset).toString(16).padStart(6, "0");
+}
+
+function rgbValue(pixels, offset) {
+  return pixels[offset] << 16 | pixels[offset + 1] << 8 | pixels[offset + 2];
 }

@@ -56,7 +56,7 @@ import {
   cityWaterLatitudeBand,
   cityWaterPaletteHexForSourceHex,
   cityWaterPaletteRgb,
-  cityWaterPaletteRgbAt
+  applyCityWaterPalette
 } from "./cityWaterPalette.js";
 import {
   flagFabricColumnLayout,
@@ -237,6 +237,8 @@ import {
   citySuspiciousMerchantPlacement
 } from "./citySpecialPeoplePlacement.js";
 
+import { createRasterFramePixelReader } from "../src/rasterFramePixels.js";
+
 export async function createCitySceneRuntime({
   canvas,
   assetBaseUrl = "./assets",
@@ -293,6 +295,7 @@ if (!bombardmentFireMaskContext) {
   throw new Error("City scene could not create its bombardment fire mask context");
 }
 const buildingEdgeContrastFrameCache = new WeakMap();
+const readStaticFramePixels = createRasterFramePixelReader(readAtlasFramePixels);
 const MAX_DOCKSIDE_SHIP_PRESENTATIONS = 4;
 const CITY_VISUALIZER_BENCHMARK = benchmark ?? (
   externalFrameClock ? null : cityVisualizerBenchmarkFromSearch(window.location.search)
@@ -383,7 +386,9 @@ const state = {
   quayCargoPlacements: [],
   npcAgents: [],
   renderCount: 0,
-  benchmarkState: null
+  benchmarkState: null,
+  benchmarkColdFrameCpuMs: null,
+  benchmarkMaxFrameCpuMs: 0
 };
 let citySelectionSerial = 0;
 const citySceneRenderer = createCachedSceneRenderer({
@@ -1343,6 +1348,8 @@ function setupCityVisualizerBenchmark() {
 
 function updateCityVisualizerBenchmark(timeMs, cpuMs) {
   if (!state.benchmarkState || state.benchmarkState.result) return;
+  state.benchmarkColdFrameCpuMs ??= cpuMs;
+  state.benchmarkMaxFrameCpuMs = Math.max(state.benchmarkMaxFrameCpuMs, cpuMs);
   const result = recordPerformanceBenchmarkFrame(
     state.benchmarkState,
     timeMs,
@@ -1353,6 +1360,8 @@ function updateCityVisualizerBenchmark(timeMs, cpuMs) {
   if (!result) return;
   window.__CITY_VISUALIZER_BENCHMARK_RESULT__ = Object.freeze({
     ...result,
+    coldFrameCpuMs: state.benchmarkColdFrameCpuMs,
+    maxFrameCpuMs: state.benchmarkMaxFrameCpuMs,
     viewport: Object.freeze({ width: canvas.width, height: canvas.height }),
     environment: Object.freeze({
       hardwareConcurrency: navigator.hardwareConcurrency || null,
@@ -2519,24 +2528,28 @@ function staticFrameImageData(source) {
     throw new Error("City static frame pixels require an atlas source");
   }
   const frame = source.frame;
+  return new ImageData(readStaticFramePixels(source.atlas, frame.frame), frame.frame.w, frame.frame.h);
+}
+
+function readAtlasFramePixels(atlas, frame) {
   const buffer = document.createElement("canvas");
-  buffer.width = frame.frame.w;
-  buffer.height = frame.frame.h;
+  buffer.width = frame.w;
+  buffer.height = frame.h;
   const bufferContext = buffer.getContext("2d", { willReadFrequently: true });
-  if (!bufferContext) throw new Error(`Could not read city static frame: ${frame.id}`);
+  if (!bufferContext) throw new Error("Could not read city static frame pixels");
   bufferContext.imageSmoothingEnabled = false;
   bufferContext.drawImage(
-    source.atlas,
-    frame.frame.x,
-    frame.frame.y,
-    frame.frame.w,
-    frame.frame.h,
+    atlas,
+    frame.x,
+    frame.y,
+    frame.w,
+    frame.h,
     0,
     0,
-    frame.frame.w,
-    frame.frame.h
+    frame.w,
+    frame.h
   );
-  return bufferContext.getImageData(0, 0, frame.frame.w, frame.frame.h);
+  return bufferContext.getImageData(0, 0, frame.w, frame.h).data;
 }
 
 function regionalStaticFrame(frame, layerName) {
@@ -2981,25 +2994,14 @@ function latitudeWaterFrame(atlas, frame, masterYOffset = 0) {
     frame.frame.h
   );
   const imageData = bufferContext.getImageData(0, 0, buffer.width, buffer.height);
-  for (let y = 0; y < buffer.height; y++) {
-    const masterY = frame.spriteSourceSize.y + masterYOffset + y;
-    for (let x = 0; x < buffer.width; x++) {
-      const masterX = frame.spriteSourceSize.x + x;
-      const offset = (y * buffer.width + x) * 4;
-      if (imageData.data[offset + 3] === 0) continue;
-      const mapped = cityWaterPaletteRgbAt(
-        imageData.data[offset],
-        imageData.data[offset + 1],
-        imageData.data[offset + 2],
-        state.city.lat,
-        masterX,
-        masterY
-      );
-      imageData.data[offset] = mapped.r;
-      imageData.data[offset + 1] = mapped.g;
-      imageData.data[offset + 2] = mapped.b;
-    }
-  }
+  applyCityWaterPalette({
+    pixels: imageData.data,
+    width: buffer.width,
+    height: buffer.height,
+    latitudeDeg: state.city.lat,
+    masterX: frame.spriteSourceSize.x,
+    masterY: frame.spriteSourceSize.y + masterYOffset
+  });
   bufferContext.putImageData(imageData, 0, 0);
 
   const result = Object.freeze({
