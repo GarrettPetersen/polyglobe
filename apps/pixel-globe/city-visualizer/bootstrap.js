@@ -34,6 +34,7 @@ const rightTerrainOverride = requiredElement("#right-terrain-override");
 const windSpeedOverride = requiredElement("#wind-speed-override");
 const windDirectionOverride = requiredElement("#wind-direction-override");
 const bombardmentToggle = requiredElement("#bombardment-toggle");
+const uninhabitedToggle = requiredElement("#uninhabited-toggle");
 const resetOverrides = requiredElement("#reset-overrides");
 const ruleLedger = requiredElement("#rule-ledger");
 const destinationDialog = requiredElement("#destination-dialog");
@@ -120,7 +121,7 @@ function prepareControls() {
       .then(updateRuleLedger)
       .catch(reportVisualizerError);
   });
-  for (const control of featureControls()) {
+  for (const control of [...featureControls(), uninhabitedToggle]) {
     control.addEventListener("change", applyFeatureOverrides);
   }
   for (const control of [windSpeedOverride, windDirectionOverride]) {
@@ -172,6 +173,8 @@ function resetControlValues() {
   windSpeedOverride.value = "auto";
   windDirectionOverride.value = "auto";
   bombardmentToggle.checked = false;
+  uninhabitedToggle.checked = false;
+  syncSettlementControls();
 }
 
 function syncControlsToScene() {
@@ -179,12 +182,21 @@ function syncControlsToScene() {
   citySelect.value = presentation.city.id;
   shipSelect.value = presentation.shipSlug;
   bombardmentToggle.checked = presentation.bombardmentEventId !== null;
+  uninhabitedToggle.checked = presentation.features.uninhabited;
+  syncSettlementControls();
   updateRuleLedger();
+}
+
+function syncSettlementControls() {
+  for (const control of [leftBankCityOverride, dockOverride, fortOverride, bombardmentToggle]) {
+    control.disabled = uninhabitedToggle.checked;
+  }
 }
 
 function applyFeatureOverrides() {
   const mountain = mountainOverride.value;
   runtime.setFeatureOverrides({
+    uninhabited: uninhabitedToggle.checked,
     approach: autoValue(approachOverride.value),
     leftBankCity: leftBankCityOverride.value === "auto"
       ? undefined
@@ -196,6 +208,7 @@ function applyFeatureOverrides() {
     leftTerrain: autoValue(leftTerrainOverride.value),
     rightTerrain: autoValue(rightTerrainOverride.value)
   });
+  syncSettlementControls();
   updateRuleLedger();
 }
 

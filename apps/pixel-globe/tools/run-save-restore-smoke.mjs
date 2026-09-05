@@ -138,6 +138,7 @@ try {
   process.stdout.write(
     `Standalone city visualizer initialized in ${Math.round(performance.now() - cityStartedAt)} ms\n`
   );
+  await exerciseUninhabitedCityPreview(page, browserErrors);
 
   const startedAt = performance.now();
   await page.goto(`${baseUrl}/?saveRestoreSmoke=1`, {
@@ -362,6 +363,47 @@ function assertGameplayScenarioEvidence(scenario, sidecar) {
   }
   return `${cannonVolleys.length} NPC volleys, ${(volleyHitRate * 100).toFixed(0)}% useful; ` +
     `${opportunisticVolleys.length} opportunistic, ${(opportunisticHitRate * 100).toFixed(0)}% useful`;
+}
+
+async function exerciseUninhabitedCityPreview(page, browserErrors) {
+  await page.locator("#drawer").evaluate((drawer) => { drawer.open = true; });
+  const toggle = page.getByLabel("Uninhabited", { exact: true });
+  await page.locator("#fort-override").selectOption("on");
+  await page.locator("#dock-override").selectOption("stone");
+  await page.getByLabel("Bombarded and burning").check();
+  await toggle.check();
+  await waitForCityFrame();
+  for (const selector of ["#fort-override", "#dock-override", "#left-bank-city-override", "#bombardment-toggle"]) {
+    if (!await page.locator(selector).isDisabled()) {
+      throw new Error(`Uninhabited city did not disable settlement control ${selector}`);
+    }
+  }
+  await assertNoBrowserFailure(page, browserErrors, "uninhabited city rendering");
+  await toggle.uncheck();
+  await waitForCityFrame();
+  if (await page.locator("#dock-override").isDisabled() ||
+      await page.locator("#dock-override").inputValue() !== "stone" ||
+      await page.locator("#fort-override").inputValue() !== "on" ||
+      !await page.getByLabel("Bombarded and burning").isChecked()) {
+    throw new Error("Inhabited city did not restore its previous settlement overrides");
+  }
+  await toggle.check();
+  await page.locator("#reset-overrides").click();
+  await waitForCityFrame();
+  if (await toggle.isChecked() || await page.locator("#dock-override").isDisabled() ||
+      await page.locator("#dock-override").inputValue() !== "auto" ||
+      await page.getByLabel("Bombarded and burning").isChecked()) {
+    throw new Error("City preview reset did not restore the inhabited geography defaults");
+  }
+  await assertNoBrowserFailure(page, browserErrors, "inhabited city restoration");
+  await page.locator("#drawer").evaluate((drawer) => { drawer.open = false; });
+  process.stdout.write("  Uninhabited city toggle, override restoration and reset passed.\n");
+
+  async function waitForCityFrame() {
+    await page.evaluate(() => new Promise((resolve) => {
+      requestAnimationFrame(() => requestAnimationFrame(resolve));
+    }));
+  }
 }
 
 function frozenSaveFixtures() {

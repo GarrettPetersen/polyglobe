@@ -14,6 +14,7 @@ import {
 } from "./cityPixelText.js";
 import { cityVisualizerShipOptions } from "./cityVisualizerLabels.js";
 import { cityDestinationById } from "./cityDestinations.js";
+import { cityStreetBuildingPlacements } from "./cityStreetBuildings.js";
 import {
   CITY_HORIZON_LANDMARK,
   CITY_PYRAMID_VISIBILITY_RADIUS_KM,
@@ -101,6 +102,46 @@ const CITY = Object.freeze({
     leftDistant: "rocky",
     rightDistant: "grass"
   }
+});
+
+test("every city can become uninhabited without losing its geography or retaining structures", () => {
+  const naturalLayers = new Set([
+    "Sky", "Ocean", "Cloud 1", "Cloud 2", "Cloud 3", "Sand Beach", "Waves", "Surf",
+    "Distant Land", "Distant Land Left Bank", "Left Bank Sand Beach",
+    "Horizon Mountains", "Horizon Mountains Left Bank",
+    "Distant Plains", "Distant Forest", "Distant Desert", "Rocky Hills",
+    "Distant Plains Left Bank", "Distant Forest Left Bank", "Distant Desert Left Bank", "Rocky Hills Left Bank",
+    "Grass Behind Buildings", "Desert Behind Buildings", "Rocks Behind Buildings",
+    "Midground Grass", "Midground Desert", "Midground Rocky",
+    "Foreground Grass", "Foreground Desert", "Foreground Rocky",
+    "Foreground Grass Left Bank", "Foreground Desert Left Bank", "Foreground Rocky Left Bank"
+  ]);
+  for (const city of CITY_VISUALIZER_CATALOG.cities) {
+    const inhabited = resolveCitySceneFeatures(city);
+    const empty = resolveCitySceneFeatures(city, {
+      uninhabited: true, fortified: true, backgroundCity: true, leftBankCity: true,
+      dock: "stone", pyramid: true, church: true, mosque: true,
+      inn: true, store: true, market: true, shipyard: true, npcs: 12, props: 18
+    });
+    assert.equal(empty.uninhabited, true, city.id);
+    for (const key of [
+      "approach", "distantRiverBend", "mountainsLeft", "mountainsRight",
+      "leftTerrain", "rightTerrain", "leftDistantTerrain", "rightDistantTerrain",
+      "leftTreeCover", "rightTreeCover"
+    ]) assert.equal(empty[key], inhabited[key], `${city.id}: ${key}`);
+    assert.equal(empty.npcs, 0);
+    assert.equal(empty.props, 0);
+    assert.equal(empty.dock, "none");
+    for (const layer of activePortSceneLayers(empty)) {
+      assert.ok(naturalLayers.has(layer), `${city.id} still renders ${layer}`);
+    }
+    assert.deepEqual(cityStreetBuildingPlacements({
+      features: empty, frames: CITY_VISUALIZER_PORT_MANIFEST.staticFrames
+    }), []);
+    assert.deepEqual(resolveCitySceneFeatures(city, { uninhabited: false }), inhabited);
+    assert.ok(activePortSceneLayers(inhabited).has("Road"));
+  }
+  assert.throws(() => resolveCitySceneFeatures(CITY, { uninhabited: "true" }), /must be boolean/);
 });
 
 test("the visualizer inherits the game's exact logical viewport dimensions", () => {

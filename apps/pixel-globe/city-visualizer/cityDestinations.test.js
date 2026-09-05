@@ -10,6 +10,7 @@ import {
 import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
 
 const ALL_SERVICES = Object.freeze({
+  uninhabited: false,
   shipyard: true,
   market: true,
   store: true,
@@ -18,6 +19,7 @@ const ALL_SERVICES = Object.freeze({
 
 test("city destinations cannot advertise service buildings absent from the scene", () => {
   const features = Object.freeze({
+    uninhabited: false,
     shipyard: false,
     market: true,
     store: false,
@@ -44,6 +46,7 @@ test("a dockless village keeps authority actions without inventing service build
       PORT_CITY_LOCATION.AUTHORITY
     ]),
     features: Object.freeze({
+      uninhabited: false,
       shipyard: false,
       market: true,
       store: false,
@@ -78,6 +81,20 @@ test("assaults expose only the set-sail destination", () => {
     features: ALL_SERVICES,
     assaultActive: true
   }).map(({ id }) => id), [PORT_CITY_LOCATION.SET_SAIL]);
+});
+
+test("uninhabited land exposes only the arriving ship and departure, even with explicit town actions", () => {
+  const features = { ...ALL_SERVICES, uninhabited: true };
+  for (const availableDestinationIds of [null, new Set(CITY_DESTINATIONS.map(({ id }) => id))]) {
+    assert.deepEqual(activeCityDestinations({ availableDestinationIds, features, assaultActive: false })
+      .map(({ id }) => id), [PORT_CITY_LOCATION.SET_SAIL, PORT_CITY_LOCATION.SHIP]);
+  }
+  assert.deepEqual(activeCityDestinations({
+    availableDestinationIds: new Set([PORT_CITY_LOCATION.INN]), features, assaultActive: false
+  }), []);
+  assert.throws(() => activeCityDestinations({
+    availableDestinationIds: null, features: { ...features, uninhabited: "yes" }, assaultActive: false
+  }), /uninhabited/);
 });
 
 test("the destination catalog and explicit ids fail loudly when malformed", () => {

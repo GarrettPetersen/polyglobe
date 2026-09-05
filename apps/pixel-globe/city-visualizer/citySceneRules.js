@@ -201,7 +201,6 @@ const ALWAYS_VISIBLE_LAYERS = Object.freeze([
   "Cloud 2",
   "Cloud 3",
   "Sand Beach",
-  "Road",
   "Waves",
   "Surf"
 ]);
@@ -651,6 +650,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   const services = cityServiceProfile(city);
   const primitiveSettlement = architecture.settlementForm === "sparse-village";
   const automatic = {
+    uninhabited: false,
     approach: city.approach,
     distantRiverBend: city.riverHorizon === "closed",
     dock: city.dock,
@@ -676,6 +676,9 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     npcs: city.settlementType === "village" ? 3 : 6
   };
   const features = { ...automatic, ...definedOverrides(overrides) };
+  if (typeof features.uninhabited !== "boolean") {
+    throw new Error("City scene uninhabited state must be boolean");
+  }
   if (!DOCK_STYLES.includes(features.dock)) throw new Error(`Unknown dock style: ${features.dock}`);
   if (!["ocean", "river", "lake"].includes(features.approach)) {
     throw new Error(`Unknown water approach: ${features.approach}`);
@@ -707,18 +710,30 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   ]) {
     features[key] = Boolean(features[key]);
   }
+  // Empty land overrides settlement details while preserving the chosen geography.
+  // Resolve this once so rendering, residents, effects and navigation agree.
+  if (features.uninhabited) {
+    features.dock = "none";
+    features.npcs = 0;
+    features.props = 0;
+    for (const key of [
+      "fortified", "backgroundCity", "leftBankCity", "pyramid", "church", "mosque",
+      "inn", "store", "market", "shipyard"
+    ]) features[key] = false;
+  }
   return Object.freeze(features);
 }
 
 export function activePortSceneLayers(features) {
   if (!features || typeof features !== "object") throw new Error("Port scene layers require features");
   const layers = new Set(ALWAYS_VISIBLE_LAYERS);
+  if (!features.uninhabited) layers.add("Road");
   if (features.shipyard) layers.add("Shipyard");
   if (features.market) {
     const visibleMarketLayers = features.primitiveSettlement ? ["Market Stall"] : MARKET_LAYERS;
     visibleMarketLayers.forEach((layerName) => layers.add(layerName));
   }
-  if (!features.primitiveSettlement) {
+  if (!features.uninhabited && !features.primitiveSettlement) {
     layers.add("Smith");
     layers.add("Inn");
   }
@@ -780,10 +795,15 @@ export function sceneReasonRows(city, features) {
     .filter(Boolean)
     .join(" + ") || "none in sightline";
   return Object.freeze([
+    Object.freeze({
+      label: "Settlement",
+      value: features.uninhabited ? "uninhabited" : "inhabited",
+      reason: features.uninhabited ? "empty-land preview" : "selected city"
+    }),
     Object.freeze({ label: "Water", value: features.approach, reason: city.rules?.approach || "game navigation topology" }),
-    Object.freeze({ label: "Dock", value: features.dock, reason: city.rules?.dock || "port scale and culture" }),
-    Object.freeze({ label: "Fortification", value: features.fortified ? "gatehouse" : "open town", reason: city.rules?.fortification || "1522 settlement estimate" }),
-    Object.freeze({ label: "Banks", value: features.leftBankCity ? "city on both banks" : "single-bank city", reason: city.rules?.banks || "city-specific scene configuration" }),
+    Object.freeze({ label: "Dock", value: features.dock, reason: features.uninhabited ? "empty-land preview" : city.rules?.dock || "port scale and culture" }),
+    Object.freeze({ label: "Fortification", value: features.uninhabited ? "none" : features.fortified ? "gatehouse" : "open town", reason: features.uninhabited ? "empty-land preview" : city.rules?.fortification || "1522 settlement estimate" }),
+    Object.freeze({ label: "Banks", value: features.uninhabited ? "unbuilt" : features.leftBankCity ? "city on both banks" : "single-bank city", reason: features.uninhabited ? "empty-land preview" : city.rules?.banks || "city-specific scene configuration" }),
     Object.freeze({ label: "Mountains", value: mountain, reason: city.rules?.mountains || "terrain and peak visibility scan" }),
     Object.freeze({ label: "Left bank", value: features.leftTerrain, reason: city.rules?.terrain || "nearby game terrain" }),
     Object.freeze({ label: "Right bank", value: features.rightTerrain, reason: city.rules?.terrain || "nearby game terrain" })

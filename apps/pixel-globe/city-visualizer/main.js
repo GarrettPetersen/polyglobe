@@ -792,12 +792,14 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
         sourceY: backgroundCityBase.spriteSourceSize.y
       })
     : null;
-  state.backgroundCityRows = cityBackgroundLayout({
-    city: state.city,
-    frames: state.portManifest.staticFrames,
-    baseFrame: backgroundCityBase,
-    baseTopYByX: state.backgroundCityBaseTopYByX
-  });
+  state.backgroundCityRows = state.features.backgroundCity
+    ? cityBackgroundLayout({
+        city: state.city,
+        frames: state.portManifest.staticFrames,
+        baseFrame: backgroundCityBase,
+        baseTopYByX: state.backgroundCityBaseTopYByX
+      })
+    : [];
   state.backgroundCityPainterOrder = cityBackgroundPainterOrder(state.backgroundCityRows);
   state.backgroundCitySmokeByBuilding = backgroundCitySmokeMap({
     cityId: state.city.id,
@@ -826,6 +828,11 @@ function applyFeatureOverrides(overrides, { rebuild = true } = {}) {
   state.parallax = clamp(state.parallax, cameraBounds.minimum, cameraBounds.maximum);
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
+  if (state.focusedDestinationId !== null && !destinationById(state.focusedDestinationId)) {
+    const destinations = activeDestinations();
+    state.focusedDestinationId = destinations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP)?.id ??
+      destinations[0]?.id ?? null;
+  }
   invalidateDestinationLabelLayouts();
   updateHover();
   if (rebuild) rebuildCitySceneRenderPlan();
@@ -1692,7 +1699,7 @@ function createSceneRenderEntries() {
       authoredOrder: 39
     });
   }
-  if (state.bombardmentEventId !== null) {
+  if (state.bombardmentEventId !== null && !state.features.uninhabited) {
     entries.push({
       kind: "bombardment-fire-overlay",
       z: CITY_BOMBARDMENT_FIRE_PAINTER_Z,
@@ -4451,7 +4458,7 @@ function activateDestination(destinationId, saleShipId = null) {
 }
 
 function createSpecialPeopleAgents() {
-  if (!state.city) return Object.freeze([]);
+  if (!state.city || state.features.uninhabited) return Object.freeze([]);
   const agents = [];
   if (!state.barred) {
     const appearances = cityPortStaffAppearanceIds(state.city);
@@ -4714,6 +4721,7 @@ return Object.freeze({
     return moveDestinationFocus(direction);
   },
   activateFocusedDestination() {
+    if (state.focusedDestinationId === null) return null;
     focusDestination(state.focusedDestinationId, { immediate: true });
     return activateDestination(state.focusedDestinationId);
   },
