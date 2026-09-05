@@ -33,6 +33,7 @@ test("aboard crew detail presents the durable crew facts", () => {
       homePortCityId: "lisbon|portugal",
       homePortName: "Lisbon",
       nameCulture: "portuguese",
+      cultureLabel: "Portuguese",
       religionId: "roman-catholic",
       nationalityId: "portugal",
       typeLabel: "SAILOR",

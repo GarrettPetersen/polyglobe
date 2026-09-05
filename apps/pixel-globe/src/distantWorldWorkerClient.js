@@ -88,6 +88,14 @@ export function createDistantWorldWorkerClient({
     return true;
   }
 
+  function invalidate() {
+    if (disposed) throw new Error("Cannot invalidate a disposed distant-world worker");
+    generation += 1;
+    ready = false;
+    inFlight = false;
+    nextMinute = Infinity;
+  }
+
   function dispose() {
     if (disposed) return;
     disposed = true;
@@ -96,6 +104,7 @@ export function createDistantWorldWorkerClient({
 
   return Object.freeze({
     reset,
+    invalidate,
     requestAdvance,
     dispose,
     state: () => Object.freeze({ ready, inFlight, nextMinute, generation })

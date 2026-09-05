@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { NAME_CULTURE_IDS } from "./nameCultures.js";
+import { assertNameCultureId } from "./characterNames.js";
 
 import {
   characterAgeAtMinute,
@@ -33,6 +35,18 @@ test("culture labels preserve local identity independently of political allegian
     () => characterCultureLabel({ id: "unmapped-sailor", nameCulture: "unknown" }),
     /has no culture label/
   );
+});
+
+test("every generatable culture has a usable biography label, including Ryukyu, Ainu and Iceland", () => {
+  for (const nameCulture of NAME_CULTURE_IDS) {
+    assertNameCultureId(nameCulture);
+    const character = { id: `crew:${nameCulture}`, nameCulture };
+    assert.ok(characterCultureLabel(character).length > 0, nameCulture);
+    assert.equal(characterNationalityLabel(character), characterCultureLabel(character));
+  }
+  assert.equal(characterCultureLabel({ id: "ronin", nameCulture: "ryukyuan" }), "Ryukyuan");
+  assert.equal(characterCultureLabel({ id: "hunter", nameCulture: "ainu" }), "Ainu");
+  assert.equal(characterCultureLabel({ id: "sailor", nameCulture: "icelandic" }), "Icelandic");
 });
 
 test("animal biography callers can use species-appropriate ages without weakening human defaults", () => {

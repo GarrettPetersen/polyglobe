@@ -291,7 +291,7 @@ export function createPirateCaptiveDialogueSession(quest, options = {}) {
     stepIndex: 0,
     selectedIndex: 0,
     feedback: null,
-    cityTileId: options.cityTileId,
+    cityId: options.cityId,
     admittedToPort: options.admittedToPort === true,
     continueToPortOnClose: options.continueToPortOnClose === true,
     nextPortNodeId: options.nextPortNodeId || "greeting",

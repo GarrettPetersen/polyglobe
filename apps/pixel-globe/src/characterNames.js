@@ -1,3 +1,5 @@
+import { NAME_CULTURE_IDS, assertNameCultureId } from "./nameCultures.js";
+export { assertNameCultureId } from "./nameCultures.js";
 import { inferCharacterReligion, religionById } from "./characterReligion.js";
 import { cityTerritoryId, requireCityId } from "./entityIds.js";
 import { registerCharacterProperName } from "./properNounLocalization.js";
@@ -422,6 +424,13 @@ const CULTURES = Object.freeze({
     ["Bell", "Drake", "Ferro", "Gale", "Harbor", "Marin", "North", "Quill", "Rivers", "Sable", "Storm", "Vale"]
   )
 });
+
+// A newly authored naming culture must have a display label before any character
+// can be generated, and every registered culture must have name pools.
+for (const cultureId of Object.keys(CULTURES)) assertNameCultureId(cultureId);
+for (const cultureId of NAME_CULTURE_IDS) {
+  if (!Object.hasOwn(CULTURES, cultureId)) throw new Error(`Name pools missing for culture: ${cultureId}`);
+}
 
 const TERRITORY_CULTURES = new Map([
   ["france", "french"], ["spain", "spanish"], ["portugal", "portuguese"],
@@ -908,13 +917,6 @@ export function reconcileRegionalCharacterNameForms(root) {
 
 export function nameCultureForSubject(subject) {
   return nameCultureCandidatesForSubject(subject)[0];
-}
-
-export function assertNameCultureId(cultureId) {
-  if (typeof cultureId !== "string" || !Object.hasOwn(CULTURES, cultureId)) {
-    throw new Error(`Unknown character name culture: ${cultureId}`);
-  }
-  return cultureId;
 }
 
 export function nameCultureCandidatesForSubject(subject) {

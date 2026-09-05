@@ -202,7 +202,6 @@ import { campaignRetirementObligation } from "./campaignRetirement.js";
 import {
   characterAgeAtMinute,
   characterBirthdayLabel,
-  characterCultureLabel,
   characterNationalityLabel,
   characterWithBiography,
   gameCalendarDateAtMinute
@@ -3920,6 +3919,7 @@ let worldClockProcessedMinutes = null;
 let lastWorldObjectiveScanAtMs = null;
 let worldSimulationScheduler = createWorldSimulationScheduler();
 let distantWorldWorkerClient = null;
+let distantWorldWorkerResetPending = false;
 const pendingDistantWorldEvents = [];
 let distantWorldApplyState = null;
 const worldSpatialIndex = createSpatialHash({ cellSize: 32 });
@@ -16406,6 +16406,22 @@ function installSaveRestoreSmokeHarness() {
   }
   let running = false;
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
+    inspectCrew() {
+      if (running) throw new Error("Cannot inspect crew during save restoration");
+      openAboardMenu();
+      try {
+        const entries = currentAboardMenuRoster().generic.filter((entry) => entry.crewMember);
+        for (const entry of entries) {
+          aboardMenu.focusedEntryId = entry.id;
+          activateFocusedAboardEntry();
+          render(performance.now(), { allowColdCoveredWorldRender: true });
+          closeAboardEntryDetail();
+        }
+        return entries.map(({ crewMember }) => ({ id: crewMember.id, culture: crewMember.nameCulture }));
+      } finally {
+        closeAboardMenu();
+      }
+    },
     async restoreSerialized(serialized) {
       if (running) throw new Error("A save-restore smoke run is already active");
       if (typeof serialized !== "string" || serialized.length === 0) {
@@ -22347,7 +22363,7 @@ function createRescuedTravelerHomecomingSession(cityCall, {
     : createRescuedTravelerDialogueSession;
   return createSession(quest, {
     phase,
-    cityTileId: cityCall.tileId,
+    cityId: requireCityId(cityCall, "Rescued traveler arrival"),
     admittedToPort,
     continueToPortOnClose,
     nextPortNodeId,
@@ -24607,6 +24623,7 @@ function treatyConcessionLabel(treaty) {
 }
 
 function applyAutomaticPortServices(cityCall) {
+  invalidateDistantWorldWorkerState();
   const context = portDialogueContext();
   const repaired = repairPlayerShipAtPort();
   const loadout = restockSelectedShipLoadoutAtPort(gameState, cityCall, context);
@@ -25822,6 +25839,7 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
   invalidateDialogueOptionGeometry();
   if (dialogueState.kind === "port") {
     if (!displayedOption) throw new Error("Port dialogue selection has no displayed option");
+    invalidateDistantWorldWorkerState();
     const doubloonsBefore = gameState.doubloons;
     result = selectPortDialogueAction(
       dialogueState,
@@ -35897,6 +35915,22 @@ function resetDistantWorldWorkerSchedule() {
     }),
     maintenanceIntervalMinutes: NPC_STRATEGIC_MAINTENANCE_INTERVAL_MINUTES
   });
+  distantWorldWorkerResetPending = false;
+}
+
+function invalidateDistantWorldWorkerState() {
+  if (!distantWorldWorkerClient) throw new Error("Cannot invalidate an uninitialized distant world");
+  // Once restoration has started, some ports may already contain the new stock
+  // while the economy clock still has its old value. Finish that bounded commit
+  // before the player mutates anything; abandoning it would simulate stock twice.
+  while (distantWorldApplyState?.phase === "restore") advanceDistantWorldSimulationApply();
+  // Cancel uncommitted comparisons and queued or in-flight results. A player
+  // transaction can occur between any two apply frames.
+  distantWorldWorkerClient.invalidate();
+  pendingDistantWorldEvents.length = 0;
+  distantWorldApplyState = null;
+  // Several menu actions share one fresh worker snapshot when sailing resumes.
+  distantWorldWorkerResetPending = true;
 }
 
 function nextDistantWorldMaintenanceMinute(clockMinute) {
@@ -36071,6 +36105,7 @@ function updateNpcShips(dt) {
   if (!distantWorldWorkerClient) {
     throw new Error("NPC simulation requires the distant-world worker");
   }
+  if (distantWorldWorkerResetPending) resetDistantWorldWorkerSchedule();
   const workerApplyPending = Boolean(distantWorldApplyState) || pendingDistantWorldEvents.length > 0;
   if (!workerApplyPending) {
     distantWorldWorkerClient.requestAdvance(weatherClockMinutes, distantWorldRuntimeState);
@@ -49942,7 +49977,7 @@ function drawAboardCrewMemberDetail(entry, panel) {
     ]] : []),
     [
       uiText("aboard.origin"),
-      `${characterCultureLabel(entry.crewMember)} / ${factionById(detail.nationalityId).shortName}`
+      `${detail.cultureLabel} / ${factionById(detail.nationalityId).shortName}`
     ],
     [uiText("intro.religion"), characterReligionProfile(entry.crewMember).label],
     [

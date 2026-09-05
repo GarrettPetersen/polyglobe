@@ -1,3 +1,4 @@
+import { characterCultureLabel } from "./characterBiography.js";
 import { crewMemberExperienceStars, crewMemberIsWounded } from "./crewMembers.js";
 import { crewMemberMonthlySalary } from "./crewPayroll.js";
 import { WEATHER_MINUTES_PER_DAY } from "./weather.js";
@@ -36,6 +37,7 @@ export function aboardCrewMemberDetail(member, currentMinute) {
     homePortCityId: member.homePortCityId,
     homePortName: member.homePortName,
     nameCulture: member.nameCulture,
+    cultureLabel: characterCultureLabel(member),
     religionId: member.religionId,
     nationalityId: member.nationalityId,
     typeLabel: member.crewTypeId.replaceAll("-", " ").toUpperCase(),

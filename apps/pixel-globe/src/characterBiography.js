@@ -1,3 +1,4 @@
+import { NAME_CULTURE_LABELS } from "./nameCultures.js";
 import { WEATHER_DAYS, WEATHER_MINUTES_PER_DAY } from "./weather.js";
 import { inferCharacterReligion, religionById } from "./characterReligion.js";
 import { requireEntityId } from "./entityIds.js";
@@ -11,83 +12,6 @@ const MONTH_NAMES = Object.freeze([
   "July", "August", "September", "October", "November", "December"
 ]);
 const MONTH_LENGTHS = Object.freeze([31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]);
-const CULTURE_NATIONALITIES = Object.freeze({
-  english: "English",
-  irish: "Irish",
-  scottish: "Scottish",
-  french: "French",
-  spanish: "Spanish",
-  basque: "Basque",
-  portuguese: "Portuguese",
-  italian: "Italian",
-  germanic: "German",
-  czech: "Czech",
-  nordic: "Norse",
-  finnish: "Finnish",
-  slavic: "Slavic",
-  polish: "Polish",
-  lithuanian: "Lithuanian",
-  russian: "Russian",
-  ruthenian: "Ruthenian",
-  hungarian: "Hungarian",
-  albanian: "Albanian",
-  bulgarian: "Bulgarian",
-  romanian: "Romanian",
-  serbian: "Serbian",
-  greek: "Greek",
-  ottoman: "Ottoman",
-  crimeanTatar: "Crimean Tatar",
-  tatar: "Tatar",
-  arabic: "Arab",
-  centralAsian: "Central Asian",
-  persian: "Persian",
-  indoMuslim: "South Asian Muslim",
-  jewish: "Jewish",
-  sikh: "Sikh",
-  southAsian: "South Asian",
-  northIndian: "North Indian",
-  gujarati: "Gujarati",
-  bengali: "Bengali",
-  southIndian: "South Indian",
-  malayali: "Malayali",
-  sinhalese: "Sinhalese",
-  southeastAsian: "Southeast Asian",
-  malay: "Malay",
-  javanese: "Javanese",
-  malukan: "Malukan",
-  cebuano: "Cebuano",
-  thai: "Thai",
-  monBurmese: "Mon-Burmese",
-  vietnamese: "Vietnamese",
-  cham: "Cham",
-  lao: "Lao",
-  polynesian: "Polynesian",
-  chinese: "Chinese",
-  japanese: "Japanese",
-  korean: "Korean",
-  westAfrican: "West African",
-  mande: "Mande",
-  yoruba: "Yoruba",
-  hausa: "Hausa",
-  kanuri: "Kanuri",
-  kongo: "Kongo",
-  khoikhoi: "Khoikhoi",
-  eastAfrican: "East African",
-  swahili: "Swahili",
-  somali: "Somali",
-  ethiopian: "Ethiopian",
-  shona: "Shona",
-  northwestCoast: "Northwest Coast",
-  wendat: "Wendat",
-  shawnee: "Shawnee",
-  taino: "Taino",
-  tupi: "Tupi",
-  maya: "Maya",
-  purepecha: "Purepecha",
-  nahua: "Nahua",
-  andean: "Andean",
-  maritime: "Maritime"
-});
 
 export function characterWithBiography(character, {
   identityKey = character?.id,
@@ -227,7 +151,7 @@ export function characterNationalityLabel(character) {
       character.nationalityAdjective.trim() !== "" && character.nationalityAdjective !== "Neutral") {
     return character.nationalityAdjective;
   }
-  const cultural = CULTURE_NATIONALITIES[character.nameCulture];
+  const cultural = NAME_CULTURE_LABELS[character.nameCulture];
   if (cultural) return cultural;
   if (typeof character.nationalityName === "string" && character.nationalityName.trim() !== "") {
     return character.nationalityName;
@@ -240,7 +164,7 @@ export function characterNationalityLabel(character) {
 
 export function characterCultureLabel(character) {
   if (!character || typeof character !== "object") throw new Error("Character culture requires a character");
-  const cultural = CULTURE_NATIONALITIES[character.nameCulture];
+  const cultural = NAME_CULTURE_LABELS[character.nameCulture];
   if (!cultural) {
     throw new Error(`Character has no culture label: ${character.id || character.name || "unknown"}`);
   }

@@ -1,3 +1,4 @@
+import { crewRolePayGrade } from "./crewPayGrades.js";
 import { gameCalendarDateAtMinute } from "./characterBiography.js";
 import {
   CREW_EXPERIENCE_MAX_STARS,
@@ -11,20 +12,6 @@ export const CREW_MONTHLY_SALARY_MIN_DOUBLOONS = 1;
 export const CREW_MONTHLY_SALARY_MAX_DOUBLOONS = 10;
 
 const EXPERIENCE_SALARY_DOUBLOONS = Object.freeze([1, 3, 5, 7]);
-const ROLE_SALARY_PREMIUM_DOUBLOONS = Object.freeze({
-  sailor: 0,
-  warrior: 0,
-  hunter: 0,
-  archer: 1,
-  spearman: 1,
-  swordsman: 2,
-  crossbowman: 2,
-  shieldman: 2,
-  halberdier: 2,
-  gunner: 2,
-  ronin: 2,
-  samurai: 3
-});
 
 export function createCrewPayrollState(startMinute) {
   return {
@@ -52,10 +39,7 @@ export function validateCrewPayrollState(payroll) {
 
 export function crewMemberMonthlySalary(member) {
   const stars = crewMemberExperienceStars(member);
-  const rolePremium = ROLE_SALARY_PREMIUM_DOUBLOONS[member.crewTypeId];
-  if (rolePremium === undefined) {
-    throw new Error(`Crew member ${member.id} has no salary grade for type ${member.crewTypeId}`);
-  }
+  const rolePremium = crewRolePayGrade(member.crewTypeId);
   const salary = EXPERIENCE_SALARY_DOUBLOONS[stars] + rolePremium;
   if (!Number.isInteger(salary) || salary < CREW_MONTHLY_SALARY_MIN_DOUBLOONS ||
       salary > CREW_MONTHLY_SALARY_MAX_DOUBLOONS) {

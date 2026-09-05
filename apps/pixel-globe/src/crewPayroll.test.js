@@ -67,6 +67,16 @@ test("crew salaries span one to ten doubloons by role and experience", () => {
   })), 10);
 });
 
+test("equally experienced combat crew earn more than ordinary sailors", () => {
+  for (const sailingMinutes of [0, 14, 45, 120].map((days) => days * WEATHER_MINUTES_PER_DAY)) {
+    const salary = (crewTypeId) => crewMemberMonthlySalary(member({ crewTypeId, sailingMinutes }));
+    assert.equal(salary("hunter"), salary("sailor") + 1);
+    assert.equal(salary("warrior"), salary("hunter") + 1);
+    assert.equal(salary("ronin"), salary("warrior"));
+    assert.equal(salary("samurai"), salary("ronin") + 1);
+  }
+});
+
 test("unknown crew roles cannot silently receive a generic salary", () => {
   assert.throws(
     () => crewMemberMonthlySalary(member({ crewTypeId: "wizard", sailingMinutes: 0 })),

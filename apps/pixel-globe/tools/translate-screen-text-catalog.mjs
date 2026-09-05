@@ -124,6 +124,22 @@ const REVIEWED_SHIP_TYPE_TRANSLATIONS = Object.freeze({
 });
 
 const REVIEWED_OVERRIDES = Object.freeze({
+  "Norse": Object.freeze({
+    "zh-Hans": "北欧人", "zh-Hant": "北歐人", ja: "北欧人", ko: "노르드인"
+  }),
+  "North Indian": Object.freeze({
+    ja: "北インド人", ko: "북인도인"
+  }),
+  "South Indian": Object.freeze({
+    ja: "南インド人", ko: "남인도인"
+  }),
+  "Malayali": Object.freeze({
+    ja: "マラヤーリ人", ko: "말라얄리인"
+  }),
+  "Mon-Burmese": Object.freeze({
+    ja: "モン・ビルマ系", ko: "몬·버마계"
+  }),
+  "Kongo": Object.freeze({ ja: "コンゴ" }),
   "Visit inn": Object.freeze({
     "zh-Hans": "前往客栈",
     ru: "Посетить трактир",

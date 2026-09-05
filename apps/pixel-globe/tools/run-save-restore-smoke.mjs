@@ -14,6 +14,9 @@ import { AUTOMATIC_CAPTURE_FRAME_RATE } from "../src/captureDirector.js";
 import { GAME_STATE_VERSION, addPortNavigationWaypoint, deliverQuestCargoRequirement } from "../src/gameState.js";
 import { readLocalSave } from "../src/localSave.js";
 import { PORT_CATALOG_VERSION } from "../src/portCatalogMigration.js";
+import { createCrewMember } from "../src/crewMembers.js";
+import { cityRecruitableCrewAppearances } from "../city-visualizer/cityPeople.js";
+import { characterWithBiography } from "../src/characterBiography.js";
 import { maybeSpawnChefQuest, prepareChefBanquet, serveChefBanquet, completeChefBanquet } from "../src/chefQuest.js";
 import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import { colonizationHistoryForTarget } from "../src/colonizationHistory.js";
@@ -24,7 +27,7 @@ import {
 } from "../src/colonizationQuest.js";
 import { gameplayReachabilityScenarioIds } from "../src/gameplayReachabilityScenarios.js";
 
-const DENSE_RUNTIME_PLAYER_CHARACTER = Object.freeze({
+const DENSE_RUNTIME_PLAYER_CHARACTER = Object.freeze(characterWithBiography({
   id: "player:dense-save-captain",
   name: "Jane Smith",
   givenName: "Jane",
@@ -50,10 +53,8 @@ const DENSE_RUNTIME_PLAYER_CHARACTER = Object.freeze({
   homePortName: "London",
   homePortCountry: "United Kingdom",
   religionId: "roman-catholic",
-  birthDate: Object.freeze({ year: 1492, month: 5, day: 18 }),
-  birthDateLabel: "18 May 1492",
   expressions: Object.freeze(["neutral", "happy"])
-});
+}));
 
 const require = createRequire(import.meta.url);
 const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -203,6 +204,7 @@ try {
     );
   }
   process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
+  await exerciseCrewManagementSaveRoundTrips(page, browserErrors);
   await exerciseDjenneSaveRoundTrips(page, browserErrors);
   await exerciseColonySaveRoundTrips(page, browserErrors);
   await exerciseChefSaveRoundTrips(page, browserErrors);
@@ -572,6 +574,43 @@ async function exerciseDjenneSaveRoundTrips(page, browserErrors) {
     serialized = restored.serialized;
   }
   process.stdout.write("  Djenne: three save/load round trips preserved the corrected city reference.\n");
+}
+
+async function exerciseCrewManagementSaveRoundTrips(page, browserErrors) {
+  const source = fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION);
+  const save = JSON.parse(source.serialized);
+  const cities = JSON.parse(readFileSync(path.join(APP_ROOT, "city-visualizer/data/cities.json"), "utf8")).cities;
+  const origins = [
+    ["naha|japan", "ryukyuan", "kami-buddhist", "ronin"],
+    ["akkeshi kotan|japan", "ainu", "ainu-traditional", "hunter"],
+    ["hafnarfjordur|iceland", "icelandic", "roman-catholic", "sailor"]
+  ];
+  const extraCrew = Math.max(0, origins.length - save.payload.gameState.crewRoster.length);
+  save.payload.gameState.ship.crew += extraCrew;
+  if (save.payload.gameState.ship.crew > save.payload.gameState.ship.crewCapacity) throw new Error("Crew smoke fixture has too few berths");
+  for (const [index, [cityId, nameCulture, religionId, crewTypeId]] of origins.entries()) {
+    const city = cities.find((entry) => entry.cityId === cityId);
+    const appearance = cityRecruitableCrewAppearances(city).find((entry) => entry.crewTypeId === crewTypeId);
+    if (!appearance) throw new Error(`Crew smoke origin has no ${crewTypeId}: ${cityId}`);
+    save.payload.gameState.crewRoster[index] = createCrewMember({
+      id: `crew-smoke:${nameCulture}`, name: `Crew ${index + 1}`, nameCulture, religionId,
+      nationalityId: city.factionId, homePort: city, ...appearance, recruitedAtMinute: 0
+    });
+  }
+  let serialized = JSON.stringify(save);
+  for (let pass = 0; pass < 2; pass++) {
+    const restored = await page.evaluate((serialized) =>
+      window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), serialized);
+    const inspected = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectCrew());
+    await assertNoBrowserFailure(page, browserErrors, "crew management after save/load");
+    for (const [, culture] of origins) {
+      if (!inspected.some((entry) => entry.id === `crew-smoke:${culture}` && entry.culture === culture)) {
+        throw new Error(`Crew management lost the saved ${culture} recruit`);
+      }
+    }
+    serialized = restored.serialized;
+  }
+  process.stdout.write("  Ryukyuan ronin, Ainu hunter and Icelandic sailor: saved, loaded and inspected in the crew menu twice.\n");
 }
 
 async function exerciseColonySaveRoundTrips(page, browserErrors) {

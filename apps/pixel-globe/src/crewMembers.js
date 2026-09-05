@@ -2,6 +2,7 @@ import { requireCityId } from "./entityIds.js";
 import { factionById } from "./factions.js";
 import { assertNameCultureId } from "./characterNames.js";
 import { religionById } from "./characterReligion.js";
+import { crewRolePayGrade } from "./crewPayGrades.js";
 
 export const CREW_EXPERIENCE_MAX_STARS = 3;
 export const CREW_RECRUITMENT_MEMORY_VERSION = 1;
@@ -302,7 +303,7 @@ export function createCrewRecruitmentOffer({
     });
     candidates.push(Object.freeze({
       member,
-      cost: baseHireCost * RECRUIT_COST_MULTIPLIERS[stars]
+      cost: crewRecruitmentHireCost(member, baseHireCost)
     }));
   }
   const offer = {
@@ -314,6 +315,16 @@ export function createCrewRecruitmentOffer({
   validateCrewRecruitmentOffer(offer, cityId);
   memory.offersByCityId[cityId] = offer;
   return offer;
+}
+
+export function crewRecruitmentHireCost(member, baseHireCost) {
+  if (!Number.isSafeInteger(baseHireCost) || baseHireCost <= 0) {
+    throw new Error(`Invalid base crew hire cost: ${baseHireCost}`);
+  }
+  const experienceCost = baseHireCost * RECRUIT_COST_MULTIPLIERS[crewMemberExperienceStars(member)];
+  const cost = experienceCost + Math.ceil(crewRolePayGrade(member.crewTypeId) / 2);
+  if (!Number.isSafeInteger(cost)) throw new Error(`Crew hire cost exceeds safe currency range: ${member.id}`);
+  return cost;
 }
 
 export function crewRecruitmentOfferAt(memory, city) {
