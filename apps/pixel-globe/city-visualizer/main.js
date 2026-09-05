@@ -250,11 +250,11 @@ import {
 } from "./citySpecialPeoplePlacement.js";
 
 import { createRasterFramePixelReader } from "../src/rasterFramePixels.js";
+import { loadCitySceneCatalog } from "../src/cityCatalogAssets.js";
 
 export async function createCitySceneRuntime({
   canvas,
   assetBaseUrl = "./assets",
-  catalogUrl = "./data/cities.json",
   initialCityId = null,
   initialShipSlug = null,
   initialSaleShipSlugs = null,
@@ -426,7 +426,7 @@ async function initialize() {
       treeManifest,
       flagManifest
     ] = await Promise.all([
-      fetchJson(catalogUrl),
+      loadCitySceneCatalog(),
       fetchJson(`${assetBaseUrl}/port-parallax/manifest.json`, { cache: "no-store" }),
       fetchJson(`${assetBaseUrl}/minifolks/manifest.json`, { cache: "no-store" }),
       fetchJson("/assets/vehicles/unity-ships/port-assault/manifest.json"),

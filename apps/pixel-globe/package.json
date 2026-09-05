@@ -5,6 +5,8 @@
   "scripts": {
     "build": "node tools/build-static-site.mjs",
     "build:demo": "node tools/build-static-site.mjs --edition=demo",
+    "catalog:update": "node tools/update-city-catalog.mjs",
+    "check:catalog": "node tools/check-city-catalog.mjs",
     "deploy": "npm run check:deploy && node tools/deploy.mjs",
     "package:demo:itch": "npm run build:demo && node tools/package-itch-demo.mjs",
     "steam:install": "npm --prefix steam-host install",
@@ -22,7 +24,7 @@
     "steam:upload": "node tools/upload-steampipe.mjs",
     "check": "npm run check:source && npm test && npm run build",
     "check:deploy": "npm run check:source && npm run test:deploy && npm run test:reachability:fast",
-    "check:source": "node --check src/main.js && npm run check:production-safety && npm run typecheck:contracts",
+    "check:source": "npm run check:catalog && node --check src/main.js && npm run check:production-safety && npm run typecheck:contracts",
     "check:production-safety": "node tools/check-production-safety.mjs",
     "typecheck:contracts": "node ../../node_modules/typescript/bin/tsc --project tsconfig.contracts.json",
     "dev": "node server.mjs",

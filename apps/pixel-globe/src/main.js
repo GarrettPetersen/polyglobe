@@ -2075,7 +2075,6 @@ import {
 } from "./buildEdition.js";
 import { COLONIZATION_TARGETS } from "./colonialCities.js";
 import {
-  CITY_DATA_URL,
   CITY_DATA_YEAR,
   CITY_IMAGE_KEYS,
   CITY_TYPE_ART_KEYS,
@@ -2084,6 +2083,7 @@ import {
   cityLabelText,
   loadCityCatalogFromCsv
 } from "./cityCatalogData.js";
+import { loadCityCatalogCsv, loadLandRoadData, loadSailingDistanceData } from "./cityCatalogAssets.js";
 import {
   CANONICAL_PORTS,
   portMatchesCanonicalReference,
@@ -2956,8 +2956,6 @@ const DIALOGUE_FLAG_W = FACTION_FLAG_SOURCE_W;
 const DIALOGUE_FLAG_H = FACTION_FLAG_SOURCE_H;
 const DIALOGUE_FACTION_BLOCK_W = 128;
 const CITY_TYPE_KEY_SET = new Set(CITY_TYPE_KEYS);
-const PORT_SAILING_DISTANCE_URL = "assets/data/port-sailing-distances.json";
-const LAND_ROAD_URL = "assets/data/land-roads.json";
 const LAND_VEHICLE_ASSET_VERSION = "land-vehicle-2";
 const LAND_VEHICLE_ASSET_TYPES = new Set([
   LAND_VEHICLE_HORSE_CART,
@@ -4487,8 +4485,8 @@ async function main() {
     loadCharacterPortraitManifest(),
     loadNamedMountains(),
     fetchText(CREDITS_MARKDOWN_URL, "credits"),
-    fetchJson(PORT_SAILING_DISTANCE_URL, "port sailing distances"),
-    fetchJson(LAND_ROAD_URL, "land roads"),
+    loadSailingDistanceData(),
+    loadLandRoadData(),
     fetchEarthCache(),
     fetchBinary(
       `shared/geodesic-graph-${SUBDIVISIONS}.bin`,
@@ -4505,7 +4503,6 @@ async function main() {
     createCitySceneRuntime({
       canvas: portCitySceneCanvas,
       assetBaseUrl: "/city-visualizer/assets",
-      catalogUrl: "/city-visualizer/data/cities.json",
       initialShipSlug: START_SHIP_SLUG,
       externalFrameClock: true,
       separateEmissiveOverlay: true,
@@ -6368,7 +6365,7 @@ function waitForVisiblePage() {
 }
 
 async function loadCityCatalog(targetYear) {
-  const csv = await fetchText(CITY_DATA_URL, `${targetYear} city dataset`);
+  const csv = await loadCityCatalogCsv();
   return loadCityCatalogFromCsv(csv, targetYear);
 }
 

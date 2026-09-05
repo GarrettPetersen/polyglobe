@@ -4,18 +4,24 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { verifyRemoteModuleGraph } from "./moduleGraphVerifier.mjs";
 import { verifyRemoteStartupAssets } from "./startupAssetVerifier.mjs";
+import { CATALOG_MANIFEST_PATH, verifyCityCatalogRelease } from "./cityCatalogRelease.mjs";
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repoRoot = path.resolve(appRoot, "../..");
 const envPath = path.join(repoRoot, ".env");
 const wranglerPath = path.join(appRoot, "node_modules/.bin/wrangler");
 const distPath = path.join(appRoot, "dist");
+await verifyCityCatalogRelease(appRoot);
 
 if (!existsSync(wranglerPath)) {
   throw new Error("Wrangler is not installed. Run npm install in " + appRoot);
 }
 if (!existsSync(path.join(distPath, "index.html"))) {
   throw new Error("Game build is missing. Run npm run build first.");
+}
+if (readFileSync(path.join(distPath, "assets/data/city-catalog-release.json"), "utf8") !==
+    readFileSync(path.join(appRoot, CATALOG_MANIFEST_PATH), "utf8")) {
+  throw new Error("Game build has a different city catalog release; run npm run build before deploying");
 }
 const buildEditionSource = readFileSync(path.join(distPath, "src/buildEdition.js"), "utf8");
 const revisionMatch = buildEditionSource.match(/BUILD_REVISION\s*=\s*"([^"]+)"/);
@@ -106,7 +112,7 @@ async function verifyRemoteCityVisualizer({ baseUrl, attempts, retryDelayMs }) {
       const html = await indexResponse.text();
       if (
         !html.includes("Marque &amp; Reprisal — City Visualizer") ||
-        !html.includes('src="./bootstrap.js"')
+        !/src="\.\/bootstrap\.js(?:\?v=[^"]+)?"/.test(html)
       ) {
         throw new Error("city visualizer route returned the wrong HTML shell");
       }

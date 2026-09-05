@@ -3,6 +3,8 @@ import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
+import { verifyCityCatalogRelease } from "./cityCatalogRelease.mjs";
+import { cityCatalogBundlePlugin } from "./cityCatalogBundle.mjs";
 import { gunzip } from "node:zlib";
 import { build } from "esbuild";
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
@@ -71,6 +73,8 @@ const execFileAsync = promisify(execFile);
 const gunzipAsync = promisify(gunzip);
 const publicRoot = join(appRoot, "public");
 const sharedDataRoot = join(repoRoot, "examples/globe-demo/public");
+await verifyCityCatalogRelease(appRoot);
+const catalogBundlePlugin = await cityCatalogBundlePlugin(appRoot);
 const edition = buildEditionFromArgs(process.argv.slice(2));
 const distRoot = join(appRoot, edition === BUILD_EDITION_DEMO ? "dist-demo" : "dist");
 const maxHostedFileBytes = edition === BUILD_EDITION_DEMO
@@ -553,7 +557,7 @@ function browserBundleOptions() {
     platform: "browser",
     target: "es2022",
     legalComments: "none",
-    plugins: [buildEditionPlugin()]
+    plugins: [buildEditionPlugin(), catalogBundlePlugin]
   };
 }
 
@@ -577,7 +581,8 @@ async function bundleCityVisualizer() {
     format: "esm",
     platform: "browser",
     target: "es2022",
-    legalComments: "none"
+    legalComments: "none",
+    plugins: [catalogBundlePlugin]
   });
 }
 
@@ -602,6 +607,16 @@ if (edition === BUILD_EDITION_DEMO) {
 }
 await bundleBrowserRuntime();
 await bundleCityVisualizer();
+for (const path of ["index.html", "city-visualizer/index.html"]) {
+  const target = join(distRoot, path);
+  const html = await readFile(target, "utf8");
+  await writeFile(target, html.replace(/src="([^"]*bootstrap\.js)"/, `src="$1?v=${encodeURIComponent(buildRevision)}"`));
+}
+const revalidatedPaths = [
+  "/", "/index.html", "/src/*", "/city-visualizer", "/city-visualizer/",
+  "/city-visualizer/index.html", "/city-visualizer/bootstrap.js"
+];
+await writeFile(join(distRoot, "_headers"), revalidatedPaths.map((path) => `${path}\n  Cache-Control: no-cache\n`).join(""));
 await writeFile(
   join(distRoot, CHARACTER_MANIFEST_PATH),
   `${JSON.stringify(buildCharacterManifest, null, 2)}\n`

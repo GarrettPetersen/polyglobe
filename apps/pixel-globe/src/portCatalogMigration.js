@@ -56,7 +56,7 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
   if (payload.portCatalogVersion === PORT_CATALOG_VERSION) return null;
   return new Map([
     ...(payload.portCatalogVersion < 3 ? PRE_RIVER_OUTLET_PORT_TILE_IDS : []),
-    ...PRE_DJENNE_CORRECTION_TILE_IDS
+    ...(payload.portCatalogVersion < 4 ? PRE_DJENNE_CORRECTION_TILE_IDS : [])
   ]);
 }
 

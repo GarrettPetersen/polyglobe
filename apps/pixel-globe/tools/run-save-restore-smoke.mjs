@@ -108,6 +108,14 @@ try {
   await context.addInitScript(() => {
     localStorage.setItem("marque-and-reprisal.telemetry-consent", "denied");
   });
+  // Simulate catalogs changing underneath a cached JavaScript release. The
+  // production bundles must contain their own compatible data and never ask
+  // these unversioned endpoints for a later deployment's city definitions.
+  const catalogRequests = [];
+  await context.route(/\/(?:assets\/data\/(?:land-roads|port-sailing-distances)\.json|city-visualizer\/data\/cities\.json|shared\/datasets\/urbanization-dominance-pruned\/urbanization-dominance-pruned\.csv)(?:\?|$)/, (route) => {
+    catalogRequests.push(route.request().url());
+    return route.abort("failed");
+  });
   const page = await context.newPage();
   const browserErrors = monitorBrowserFailures(page);
   const cityStartedAt = performance.now();
@@ -220,6 +228,7 @@ try {
     `Production gameplay reachability passed for ${gameplayScenarioIds.length} ` +
       `${releaseReachability ? "release" : "representative"} scenarios.\n`
   );
+  if (catalogRequests.length) throw new Error(`Production loaded mutable city catalogs: ${catalogRequests.join(", ")}`);
   await context.close();
 } finally {
   await browser.close();

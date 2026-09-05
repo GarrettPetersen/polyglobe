@@ -71,7 +71,8 @@ import {
   declareDiplomaticWar,
   establishDiplomaticSuzerainty,
   makeFactionPeaceWithAllEnemies,
-  makeDiplomaticPeace
+  makeDiplomaticPeace,
+  playerDiplomacyBias
 } from "./worldDiplomacy.js";
 import { shipStatsForSlug } from "./shipStats.js";
 import {
@@ -651,6 +652,41 @@ test("lawful wartime attacks do not turn commissioned privateers into permanent 
   assert.equal(factionReputation(state, "france"), frenchBefore);
   assert.equal(state.memory.decisions["privateering.attack.france"], 1);
   assert.equal(state.memory.decisions["reputation.attack.france"], undefined);
+});
+
+test("a Mughal commission cannot excuse betraying Bengal's commission", () => {
+  const state = createGameState({ cargoCapacity: 10, playerCharacter: { ...PLAYER, nationalityId: "ottoman" } });
+  declareDiplomaticWar(state.relations.diplomacy, "mughal", "bengal", 0);
+  for (const factionId of ["mughal", "bengal"]) {
+    state.relations.lettersOfMarque[factionId] = { factionId, simMinute: 0 };
+    state.relations.factionReputation[factionId] = 30;
+  }
+  const diplomacyBefore = structuredClone(state.relations.diplomacy);
+  const ottomanBefore = factionReputation(state, "ottoman");
+  assert.equal(hasPrivateeringAuthorityAgainst(state, "bengal"), true);
+  recordAttackAgainstFaction(state, "bengal", { lawfulWartimeAction: true });
+  assert.equal(hasLetterOfMarqueFrom(state, "bengal"), false);
+  assert.equal(hasLetterOfMarqueFrom(state, "mughal"), true);
+  assert.equal(factionReputation(state, "bengal"), HOSTILE_PORT_REPUTATION_THRESHOLD);
+  assert.equal(factionReputation(state, "mughal"), 30);
+  assert.equal(factionReputation(state, "ottoman"), ottomanBefore);
+  assert.equal(state.memory.decisions["privateering.attack.bengal"], 1);
+  assert.equal(state.memory.decisions["reputation.attack.bengal"], 1);
+  assert.equal(state.memory.decisions["reputation.piracy.bengal"], undefined);
+  assert.deepEqual(state.relations.diplomacy, diplomacyBefore, "an attack is not an immediate declaration of national war");
+  const influence = { homeFactionId: "ottoman", homeFactionInGoodStanding: true,
+    reputation: state.relations.factionReputation, decisions: state.memory.decisions };
+  const beforeInfluence = { ...influence, reputation: { ...influence.reputation, bengal: 30 }, decisions: {} };
+  assert.ok(playerDiplomacyBias(influence, "ottoman", "bengal", "war") > 1,
+    "hostile conduct feeds the existing later diplomacy simulation");
+  assert.ok(playerDiplomacyBias(influence, "ottoman", "bengal", "peace") < 1);
+  for (const kind of ["war", "peace"]) {
+    assert.equal(playerDiplomacyBias(influence, "ottoman", "mughal", kind),
+      playerDiplomacyBias(beforeInfluence, "ottoman", "mughal", kind), "Mughal national relations receive no penalty");
+  }
+  const restored = migrateGameState(JSON.parse(JSON.stringify(state)), null);
+  assert.equal(factionReputation(restored, "bengal"), HOSTILE_PORT_REPUTATION_THRESHOLD);
+  assert.equal(hasLetterOfMarqueFrom(restored, "bengal"), false);
 });
 
 test("version 78 saves conservatively pardon privateering penalties but not recorded piracy", () => {

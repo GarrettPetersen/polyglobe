@@ -30,11 +30,31 @@ scan's positive and negative cases.
 
 Corrections belong in `tools/build-subdivision-eight-map-data.mjs`. Regenerate
 with `node tools/build-subdivision-eight-map-data.mjs`; do not hand-edit its
-generated module. After navigation changes, regenerate sailing distances with
-`npm run render:port-sailing-distances`. If settlement placement changes, update
-the port catalog migration, regenerate `npm run render:land-roads` and
-`npm run city-visualizer:catalog`, and
-exercise saved colonies through `npm run test:save-restore-runtime`.
+generated module. Then run `npm run catalog:update` for any catalog, navigation,
+terrain, or placement change. This is the complete catalog release workflow:
+it regenerates sailing distances, roads, and city scenes in dependency order,
+validates their endpoints against live world placement, checks all frozen
+catalog migrations, and runs geography, road, sailing, quest, and migration
+regressions before writing the release manifest.
+
+If the canonical sailing endpoint set or any existing endpoint changes,
+increment `PORT_CATALOG_VERSION` and author the required old-to-new mappings
+in `portCatalogMigration.js` (and the subdivision-seven map where applicable).
+The update command refuses to replace an existing frozen release. It adds a new
+fixture only after proving every older released reference still resolves to its
+canonical city or explicitly authored gateway.
+
+`npm run check:catalog` checks hashes of all producer modules and their imported
+policies, the external geography inputs, and each generated artifact. Source
+checks, both production builds, and deployment require it. Low-level individual
+bake commands do not certify a release. Deployment also rejects a built artifact
+whose catalog manifest differs from the current validated source release.
+
+Production embeds the CSV and the three generated catalogs in the JavaScript
+bundle. Cached code therefore retains its matching catalog generation when a
+later deployment moves a settlement. Browser startup and save/load tests block
+the mutable catalog URLs to enforce this. The HTML requests a revision-tagged
+bootstrap so returning players do not reuse an earlier startup bundle.
 
 The September 2026 scan repaired twelve reviewed delta and river openings and
 the Long Island/Chesapeake geography. Its remaining candidates include inland

@@ -5512,13 +5512,16 @@ export function recordAttackAgainstFaction(state, factionId, options = {}) {
     }
   }
   revokeSafePassageAfterAttack(state, id);
-  if (state.relations.lettersOfMarque[id]) {
+  const betrayedCommission = Boolean(state.relations.lettersOfMarque[id]);
+  if (betrayedCommission) {
     delete state.relations.lettersOfMarque[id];
     recordDecision(state, `letter-of-marque.revoked.${id}`, 1);
   }
   if (lawfulWartimeAction) {
     recordDecision(state, `privateering.attack.${id}`, 1);
-    return factionReputation(state, id);
+    // A rival's commission licenses the prize, but cannot excuse betrayal of
+    // the victim's own commission. Legality and personal loyalty are distinct.
+    if (!betrayedCommission) return factionReputation(state, id);
   }
   const before = factionReputation(state, id);
   const after = applyAttackReputationPenalty(state, id);
