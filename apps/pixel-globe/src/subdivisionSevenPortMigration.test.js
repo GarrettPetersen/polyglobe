@@ -96,6 +96,11 @@ test("the reported Cempoala, Angra, and Ozette references have authored migratio
   assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(46523), 185827);
 });
 
+test("released Dienne references follow the corrected river city and remain distinct from Timbuktu", () => {
+  assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(158826), 162642);
+  assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(163712), 654806);
+});
+
 test("released North Maluku references target the separated subdivision-eight islands", () => {
   assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(23005), 366292);
   assert.equal(SUBDIVISION_SEVEN_TO_EIGHT_PORT_TILE_IDS.get(91718), 366350);

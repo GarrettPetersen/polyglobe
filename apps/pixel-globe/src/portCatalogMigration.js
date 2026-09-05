@@ -3,7 +3,7 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 3;
+export const PORT_CATALOG_VERSION = 4;
 const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
@@ -20,9 +20,13 @@ export const PRE_NORTH_MALUKU_PORT_TILE_IDS = new Map([
 // Restoring the Parana's outlet lets Asuncion occupy the Paraguay River again,
 // instead of the Brazilian coast chosen by the former nearest-port search.
 export const PRE_RIVER_OUTLET_PORT_TILE_IDS = new Map([[431742, 430596]]);
+// Dienne's erroneous Senegal location becomes Djenné on the Bani in Mali.
+// Only its spatial reference changes; the canonical city ID is retained.
+export const PRE_DJENNE_CORRECTION_TILE_IDS = new Map([[636087, 162642]]);
 const UNVERSIONED_PORT_TILE_IDS = new Map([
   ...PRE_NORTH_MALUKU_PORT_TILE_IDS,
-  ...PRE_RIVER_OUTLET_PORT_TILE_IDS
+  ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
+  ...PRE_DJENNE_CORRECTION_TILE_IDS
 ]);
 
 export function sameTopologyPortMigrationForSavedVoyage(payload, {
@@ -49,7 +53,11 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
         `${PORT_CATALOG_VERSION}`
     );
   }
-  return payload.portCatalogVersion < 3 ? PRE_RIVER_OUTLET_PORT_TILE_IDS : null;
+  if (payload.portCatalogVersion === PORT_CATALOG_VERSION) return null;
+  return new Map([
+    ...(payload.portCatalogVersion < 3 ? PRE_RIVER_OUTLET_PORT_TILE_IDS : []),
+    ...PRE_DJENNE_CORRECTION_TILE_IDS
+  ]);
 }
 
 export function portReferenceMigrationForSavedVoyage(payload, topology, currentPlacements) {

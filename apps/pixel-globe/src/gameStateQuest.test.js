@@ -379,6 +379,37 @@ test("every saved inland sailing reference moves to its canonical maritime gatew
   });
 });
 
+test("saved Dienne jobs and home histories follow the corrected city without changing identity", () => {
+  const oldCityId = "dienne|senegal";
+  const djenne = { ...PORTO, cityId: oldCityId, city: "Djenne", displayCity: "Djenne",
+    country: "Mali", factionId: "songhai", lat: 13.90556, lon: -4.555, tileId: 162642 };
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  acceptQuest(state, deliveryQuestForCity(LISBON, [LISBON, PORTO]));
+  Object.assign(state.memory.quests.active, {
+    destinationCityId: oldCityId, destinationTileId: 636087,
+    destinationName: "Dienne", destinationCountry: "Senegal", destinationKey: oldCityId
+  });
+  addPortNavigationWaypoint(state, { destinationCityId: oldCityId, destinationTileId: 636087,
+    destinationName: "Dienne", reason: "PLAYER HEADING" });
+  Object.assign(state.playerCharacter, { homePortCityId: oldCityId, homePortTileId: 636087,
+    homePortName: "Dienne", homePortCountry: "Senegal" });
+  Object.assign(state.memory.campaignGoal, { homePortCityId: oldCityId, homePortTileId: 636087 });
+  const restored = JSON.parse(JSON.stringify(state));
+  reconcileQuestPortTiles(restored, [LISBON, djenne]);
+  const quest = restored.memory.quests.active;
+  assert.equal(quest.destinationCityId, oldCityId);
+  assert.equal(quest.destinationTileId, djenne.tileId);
+  assert.equal(quest.destinationName, "Djenne");
+  assert.equal(quest.destinationCountry, "Mali");
+  assert.equal(restored.playerCharacter.homePortCityId, oldCityId);
+  assert.equal(restored.playerCharacter.homePortTileId, djenne.tileId);
+  assert.equal(restored.playerCharacter.nationalityId, "england", "preserve the captain's history");
+  assert.equal(restored.memory.navigation.optionalWaypoints[0].destinationName, "Djenne");
+  assert.equal(reconcileQuestPortTiles(restored, [LISBON, djenne]), 0, "the correction is idempotent");
+  completeQuest(restored, djenne, { simMinute: 100 });
+  assert.equal(restored.memory.quests.active, null);
+});
+
 test("a legacy port mapping wins when its old tile is now another canonical port", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const oldMakian = port(

@@ -74,6 +74,14 @@ export function cityPopulationObservationAtYear(observations, targetYear, option
 }
 
 export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
+  // Senegal's UNESCO submission (tentative-list property 2081) describes
+  // Rufisque as a fishing village named in the sixteenth century. Population
+  // is a modest gameplay estimate, not a surviving 1522 census.
+  manualVillage1522("rufisque|senegal", "Rufisque", "Senegal", 14.6842, -17.1866, 1500, {
+    cityType: "sub-saharan",
+    manualRegion: "senegambia",
+    marketGoods: ["fish", "salt", "hides"]
+  }),
   // San Sebastian controlled the sheltered roadstead at Pasaia in 1522. Its
   // merchants were already fitting out whaling and cod-fishing voyages, so it
   // closes the otherwise empty Spanish coast on the Bay of Biscay.

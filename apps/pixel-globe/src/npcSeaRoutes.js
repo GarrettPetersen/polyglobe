@@ -6206,9 +6206,11 @@ function portRouteRegion(port) {
 }
 
 function anchorIdsForPort(port) {
-  const name = portName(port).toLowerCase();
-  if (name === "timbuktu" || name === "tombouctou") return ["niger-bend"];
-  if (name === "gao") return ["niger-gao"];
+  // River membership follows canonical identity, including Djenné's retained
+  // pre-correction ID. Renames must never turn an inland call into a sea leg.
+  if (port.cityId === "dienne|senegal") return ["niger-inner-delta"];
+  if (port.cityId === "tombouctou|mali") return ["niger-bend"];
+  if (port.cityId === "gao|mali") return ["niger-gao"];
   if (isNorthwestCoastRoutePoint(port)) return ["yuquot"];
   const region = portRouteRegion(port);
   if (region === "east-asia") return nearestAnchors(port, ["canton", "nagasaki", "manila"], 2);

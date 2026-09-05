@@ -11,7 +11,9 @@ import {
   captureScenarioFromSearch
 } from "../src/captureScenarios.js";
 import { AUTOMATIC_CAPTURE_FRAME_RATE } from "../src/captureDirector.js";
-import { GAME_STATE_VERSION, deliverQuestCargoRequirement } from "../src/gameState.js";
+import { GAME_STATE_VERSION, addPortNavigationWaypoint, deliverQuestCargoRequirement } from "../src/gameState.js";
+import { readLocalSave } from "../src/localSave.js";
+import { PORT_CATALOG_VERSION } from "../src/portCatalogMigration.js";
 import { maybeSpawnChefQuest, prepareChefBanquet, serveChefBanquet, completeChefBanquet } from "../src/chefQuest.js";
 import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import { colonizationHistoryForTarget } from "../src/colonizationHistory.js";
@@ -147,6 +149,7 @@ try {
     `Standalone city visualizer initialized in ${Math.round(performance.now() - cityStartedAt)} ms\n`
   );
   await exerciseUninhabitedCityPreview(page, browserErrors);
+  await exerciseSenegambiaCityPreviews(page, browserErrors);
 
   const startedAt = performance.now();
   await page.goto(`${baseUrl}/?saveRestoreSmoke=1`, {
@@ -192,6 +195,7 @@ try {
     );
   }
   process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
+  await exerciseDjenneSaveRoundTrips(page, browserErrors);
   await exerciseColonySaveRoundTrips(page, browserErrors);
   await exerciseChefSaveRoundTrips(page, browserErrors);
 
@@ -453,6 +457,18 @@ function assertGameplayScenarioEvidence(scenario, sidecar) {
     `${opportunisticVolleys.length} opportunistic, ${(opportunisticHitRate * 100).toFixed(0)}% useful`;
 }
 
+async function exerciseSenegambiaCityPreviews(page, browserErrors) {
+  await page.locator("#drawer").evaluate((drawer) => { drawer.open = true; });
+  for (const [cityId, label] of [["dienne|senegal", "Djenne"], ["rufisque|senegal", "Rufisque"]]) {
+    await page.locator("#city-select").selectOption(cityId);
+    await page.waitForFunction((label) => document.querySelector("#scene")?.getAttribute("aria-label")?.startsWith(label), label);
+    await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    await assertNoBrowserFailure(page, browserErrors, `${label} city scene`);
+  }
+  await page.locator("#drawer").evaluate((drawer) => { drawer.open = false; });
+  process.stdout.write("  Djenne and Rufisque city scenes rendered with their catalog labels.\n");
+}
+
 async function exerciseUninhabitedCityPreview(page, browserErrors) {
   await page.locator("#drawer").evaluate((drawer) => { drawer.open = true; });
   const toggle = page.getByLabel("Uninhabited", { exact: true });
@@ -520,6 +536,33 @@ function frozenSaveFixtures() {
     throw new Error(`Save-restore smoke has no fixture for game-state version ${GAME_STATE_VERSION}`);
   }
   return fixtures;
+}
+
+async function exerciseDjenneSaveRoundTrips(page, browserErrors) {
+  const source = fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION);
+  const save = JSON.parse(source.serialized);
+  save.payload.portCatalogVersion = 3;
+  addPortNavigationWaypoint(save.payload.gameState, {
+    destinationCityId: "dienne|senegal", destinationTileId: 636087,
+    destinationName: "Dienne", reason: "PLAYER HEADING"
+  });
+  let serialized = JSON.stringify(save);
+  for (let pass = 0; pass < 3; pass++) {
+    const restored = await withTimeout(page.evaluate((serialized) =>
+      window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), serialized),
+    RESTORE_TIMEOUT_MS, `Djenne save/load ${pass + 1}`);
+    await assertNoBrowserFailure(page, browserErrors, "Djenne save/load");
+    const saved = readLocalSave({ storage: { getItem: () => restored.serialized } });
+    if (saved.status !== "ready") throw saved.error;
+    const waypoint = saved.save.payload.gameState.memory.navigation.optionalWaypoints
+      .find(({ destinationCityId }) => destinationCityId === "dienne|senegal");
+    if (saved.save.payload.portCatalogVersion !== PORT_CATALOG_VERSION ||
+        waypoint?.destinationTileId !== 162642 || waypoint.destinationName !== "Djenne") {
+      throw new Error(`Djenne save/load did not preserve the corrected waypoint: ${JSON.stringify(waypoint)}`);
+    }
+    serialized = restored.serialized;
+  }
+  process.stdout.write("  Djenne: three save/load round trips preserved the corrected city reference.\n");
 }
 
 async function exerciseColonySaveRoundTrips(page, browserErrors) {

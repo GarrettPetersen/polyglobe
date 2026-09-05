@@ -7,7 +7,6 @@ export const INLAND_CITY_IDS_1522 = Object.freeze([
   "aleppo|syria",
   "bursa|turkey",
   "chillicothe|united states of america",
-  "dienne|senegal",
   "granada|spain",
   "jerusalem|israel",
   "mecca|saudi arabia",
@@ -17,14 +16,13 @@ export const INLAND_CITY_IDS_1522 = Object.freeze([
 
 // Canonical replacements for sailing references created before the inland
 // distinction was enforced. Most are the settlement's historic seaward gate.
-// Dienne and Chillicothe retain the regional successors used by the released
+// Chillicothe retains the regional successor used by the released
 // subdivision-seven migration because those saves may already contain active
 // passengers and commissions which must remain completable.
 export const INLAND_CITY_SAILING_GATEWAYS_1522 = Object.freeze([
   gateway("aleppo|syria", "antioch|syria/turkey"),
   gateway("bursa|turkey", "mudanya|turkey"),
   gateway("chillicothe|united states of america", "wendat village|canada"),
-  gateway("dienne|senegal", "tombouctou|mali"),
   gateway("granada|spain", "almeria|spain"),
   gateway("jerusalem|israel", "jaffa|israel"),
   gateway("mecca|saudi arabia", "jeddah|saudi arabia"),

@@ -1,4 +1,5 @@
 import { withColonialFounding, colonizationSiteIsRuined } from "./colonialCities.js";
+import { CITY_GEOGRAPHY_CORRECTIONS } from "./cityGeographyCorrections.js";
 import {
   MANUAL_CITY_RECORDS_1522,
   cityDatasetRecordAllowedIn1522,
@@ -170,7 +171,8 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
     if (population <= 0) continue;
     if (!cityDatasetRecordAllowedIn1522(cityId)) continue;
     const observations = observationsByCity.get(cityId) || [];
-    observations.push({ cityId, city, country, lat, lon, year, population, coastalIntent, lakeIntent });
+    observations.push({ cityId, city, country, lat, lon, year, population, coastalIntent, lakeIntent,
+      ...CITY_GEOGRAPHY_CORRECTIONS.get(cityId) });
     observationsByCity.set(cityId, observations);
   }
 

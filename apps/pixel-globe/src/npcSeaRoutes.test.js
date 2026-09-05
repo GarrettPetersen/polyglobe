@@ -98,9 +98,12 @@ const DARDANELLES_PORTS = Object.freeze([
 
 const NIGER_PORTS = Object.freeze([
   ...PORTS,
-  port(14, "Dienne", "Senegal", "sub-saharan", 15.03, -16.35, 16000, "songhai"),
+  { ...port(14, "Djenne", "Mali", "sub-saharan", 13.90556, -4.555, 20000, "songhai"),
+    cityId: "dienne|senegal" },
   port(15, "Gao", "Mali", "sub-saharan", 16.27, -0.05, 70000, "songhai"),
-  port(16, "Tombouctou", "Mali", "sub-saharan", 16.77, -3.01, 25000, "songhai")
+  port(16, "Tombouctou", "Mali", "sub-saharan", 16.77, -3.01, 25000, "songhai"),
+  { ...port(17, "Rufisque", "Senegal", "sub-saharan", 14.6842, -17.1866, 1500, "neutral"),
+    settlementType: "village" }
 ]);
 
 const PACIFIC_PORTS = Object.freeze([
@@ -400,19 +403,21 @@ test("NPC routes traverse the Dardanelles and Bosporus rails in both directions"
 test("Niger routes stop at the furthest inhabited river anchor", () => {
   const economy = createWorldEconomy({ ports: NIGER_PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: NIGER_PORTS, startMinute: 0, economy });
-  const dienne = routes.ports.find((port) => port.city === "Dienne");
+  const djenne = routes.ports.find((port) => port.cityId === "dienne|senegal");
+  const rufisque = routes.ports.find((port) => port.cityId === "rufisque|senegal");
   const gao = routes.ports.find((port) => port.city === "Gao");
   const timbuktu = routes.ports.find((port) => port.city === "Tombouctou");
   const lisbon = routes.ports.find((port) => port.city === "Lisbon");
-  assert.ok(dienne);
+  assert.ok(djenne);
   assert.ok(gao);
   assert.ok(timbuktu);
   assert.ok(lisbon);
-  assert.ok(!dienne.routeAnchors.some((anchorId) => anchorId.startsWith("niger-")));
+  assert.deepEqual(djenne.routeAnchors, ["niger-inner-delta"]);
+  assert.ok(!rufisque.routeAnchors.some((anchorId) => anchorId.startsWith("niger-")));
   assert.deepEqual(gao.routeAnchors, ["niger-gao"]);
   assert.deepEqual(timbuktu.routeAnchors, ["niger-bend"]);
-  assert.deepEqual(routes.baseEdges.get("niger-inner-delta"), []);
-  assert.ok(!(routes.baseEdges.get("niger-bend") || []).some((edge) => (
+  assert.ok(routes.baseEdges.get("niger-inner-delta").some((edge) => edge.to === "niger-bend"));
+  assert.ok(routes.baseEdges.get("niger-bend").some((edge) => (
     edge.to === "niger-inner-delta"
   )));
 
@@ -423,12 +428,22 @@ test("Niger routes stop at the furthest inhabited river anchor", () => {
     "niger-delta->niger-bight",
     "niger-bight->guinea"
   ];
-  for (const origin of [timbuktu, gao]) {
+  for (const origin of [djenne, timbuktu, gao]) {
     const sailPairs = routeBetweenPorts(routes, origin, lisbon, "small-cog", 0).segments
       .filter((segment) => segment.kind === "sail")
       .map((segment) => `${segment.from.id}->${segment.to.id}`);
     for (const pair of expectedDownstream) assert.ok(sailPairs.includes(pair), sailPairs.join(", "));
-    assert.ok(!sailPairs.some((pair) => pair.includes("niger-inner-delta")), sailPairs.join(", "));
+    assert.equal(sailPairs.includes("niger-inner-delta->niger-bend"), origin === djenne, sailPairs.join(", "));
+  }
+});
+
+test("Niger river membership survives changed display labels", () => {
+  const ports = NIGER_PORTS.map((city) => ({ ...city, city: "Changed city label", displayCity: "Changed label" }));
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports, startMinute: 0, economy });
+  for (const [cityId, anchor] of [["dienne|senegal", "niger-inner-delta"],
+    ["tombouctou|mali", "niger-bend"], ["gao|mali", "niger-gao"]]) {
+    assert.deepEqual(routes.ports.find((city) => city.cityId === cityId).routeAnchors, [anchor]);
   }
 });
 

@@ -6,6 +6,7 @@ import {
   PORT_CATALOG_VERSION,
   PRE_NORTH_MALUKU_PORT_TILE_IDS,
   PRE_RIVER_OUTLET_PORT_TILE_IDS,
+  PRE_DJENNE_CORRECTION_TILE_IDS,
   portReferenceMigrationForSavedVoyage,
   sameTopologyPortMigrationForSavedVoyage
 } from "./portCatalogMigration.js";
@@ -28,7 +29,8 @@ test("pre-version subdivision-eight saves migrate all North Maluku ports exactly
   };
   assert.deepEqual(
     sameTopologyPortMigrationForSavedVoyage({}, topology),
-    new Map([...PRE_NORTH_MALUKU_PORT_TILE_IDS, ...PRE_RIVER_OUTLET_PORT_TILE_IDS])
+    new Map([...PRE_NORTH_MALUKU_PORT_TILE_IDS, ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
+      ...PRE_DJENNE_CORRECTION_TILE_IDS])
   );
   assert.deepEqual(
     Object.fromEntries(PRE_NORTH_MALUKU_PORT_TILE_IDS),
@@ -82,10 +84,21 @@ test("older catalogs move Asuncion to the restored Paraguay-Parana route without
     const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion }, {
       savedSubdivisions: 8, currentSubdivisions: 8
     });
-    assert.deepEqual([...migration], [[431742, 430596]]);
+    assert.deepEqual([...migration], [[431742, 430596], [636087, 162642]]);
     assert.equal(migration.has(366350), false, "current Tidore must keep its identity");
   }
   assert.equal(currentPortBake.endpoints.find(({ name }) => name === "Asuncion").tileId, 430596);
+});
+
+test("the Djenne correction migrates old tiles without moving current saves or Timbuktu", () => {
+  const topology = { savedSubdivisions: 8, currentSubdivisions: 8 };
+  const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 3 }, topology);
+  assert.deepEqual([...migration], [[636087, 162642]]);
+  assert.equal(migration.has(654806), false, "previously redirected Timbuktu jobs remain Timbuktu jobs");
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 4 }, topology), null);
+  const djenne = currentPortBake.endpoints.find(({ name }) => name === "Djenne");
+  assert.equal(djenne.tileId, 162642);
+  assert.equal(djenne.country, "Mali");
 });
 
 test("same-topology port migration rejects unknown catalog versions and topologies", () => {

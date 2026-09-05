@@ -1,3 +1,5 @@
+import { CITY_GEOGRAPHY_CORRECTIONS } from "./cityGeographyCorrections.js";
+
 export function requireEntityId(value, label = "Entity") {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${label} requires a canonical id`);
@@ -13,6 +15,8 @@ export function requireCityId(city, label = "City") {
 
 export function cityTerritoryId(city, label = "City") {
   const cityId = requireCityId(city, label);
+  const correction = CITY_GEOGRAPHY_CORRECTIONS.get(cityId);
+  if (correction) return correction.territoryId;
   const separator = cityId.lastIndexOf("|");
   if (separator <= 0 || separator === cityId.length - 1) {
     throw new Error(`${label} canonical id has no territory component: ${cityId}`);

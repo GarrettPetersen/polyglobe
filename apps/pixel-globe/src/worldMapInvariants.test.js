@@ -167,6 +167,21 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
   const ports = portCitiesOnWorld(placedByTileId, placementOptions);
   assert.equal(validateCityPortAccessCatalog(placedByTileId, ports, placementOptions), true);
   assert.doesNotThrow(() => validateCanonicalPortCatalog(ports));
+  for (const cityId of ["dienne|senegal", "rufisque|senegal"]) {
+    const port = ports.find((city) => city.cityId === cityId);
+    assert.ok(port, `${cityId} must be a reachable port`);
+    assert.deepEqual(settlementPlacementDisplacements({ graph, settlements: [port], minimumDistanceKm: 20 }), [],
+      `${cityId} must remain within one hex of its historical location`);
+    const approaches = portAccessTileIds(placementOptions, port.tileId);
+    assert.ok(approaches.every((tileId) => navigation.reachableNavigationMask[tileId] === 1));
+    if (cityId === "rufisque|senegal") {
+      assert.ok(approaches.some((tileId) => isWaterSurfaceRow(earthRows[tileId])),
+        "Rufisque requires a surface-water Atlantic approach, not an inland river shortcut");
+    } else {
+      assert.ok(approaches.some((tileId) => navigation.riverMasks[tileId] !== 0),
+        "Djenne must use the Bani/Niger river network");
+    }
+  }
   const isNavigableTile = (tileId) => isWorldNavigableTile({
     earthRows,
     riverMasks: navigation.riverMasks,

@@ -32,7 +32,8 @@ Corrections belong in `tools/build-subdivision-eight-map-data.mjs`. Regenerate
 with `node tools/build-subdivision-eight-map-data.mjs`; do not hand-edit its
 generated module. After navigation changes, regenerate sailing distances with
 `npm run render:port-sailing-distances`. If settlement placement changes, update
-the port catalog migration, regenerate `npm run city-visualizer:catalog`, and
+the port catalog migration, regenerate `npm run render:land-roads` and
+`npm run city-visualizer:catalog`, and
 exercise saved colonies through `npm run test:save-restore-runtime`.
 
 The September 2026 scan repaired twelve reviewed delta and river openings and
@@ -40,3 +41,26 @@ the Long Island/Chesapeake geography. Its remaining candidates include inland
 river discontinuities and misplaced Kazan, Soest, and Kholmogory; these require
 separate geographic and settlement-policy review. A passing contract suite is
 not a claim that the entire world map is geographically exact.
+
+## Djenne and the Senegal coast
+
+The imported Chandler record calls the city "Dienne", lists the alias "Jenne",
+and places it in Senegal. It represents Djenné, the historic city in Mali's
+Bani/Niger floodplain ([UNESCO](https://whc.unesco.org/en/list/116/)). The game
+applies the correction at catalog import through `cityGeographyCorrections.js`,
+before assigning territory, faction, or routes. Its released `dienne|senegal`
+ID remains stable; the ID's old suffix no longer determines its territory.
+The displayed name is "Djenne" in every font, avoiding inconsistent accent
+transliteration between map labels, city titles, dialogue, and journal text.
+
+Rufisque is a separate coastal village near present-day Dakar. Senegal's
+[heritage submission](https://whc.unesco.org/fr/listesindicatives/2081/)
+describes the fishing settlement and its sixteenth-century name. Its population
+of 1,500 is a gameplay estimate. European trade does not make it a Portuguese
+possession. The terrain contracts require an Atlantic surface-water approach
+to Rufisque and a river approach to Djenne, each within 20 km of its location.
+
+Port catalog version 4 migrates Dienne's former subdivision-eight tile to the
+corrected city. The original subdivision-seven endpoint also resolves there.
+Jobs already redirected to Timbuktu by earlier releases remain there: restoring
+the city's geography must not rewrite those completed migrations or player history.
