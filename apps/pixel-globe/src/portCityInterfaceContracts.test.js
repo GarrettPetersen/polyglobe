@@ -131,7 +131,7 @@ test("the paused-port benchmark establishes the same covered world frame as prod
 });
 
 test("landing after a successful bombardment preserves combat music for the assault", () => {
-  const opening = functionSource("openPortDialogue", "openColonizationAftermathSiteDialogue");
+  const opening = functionSource("openPortDialogue", "withPortArrivalGossip");
   assert.match(opening, /continuingPortBombardmentThreat\(\{/);
   assert.match(opening, /if \(continuingBombardment\) \{[\s\S]*startCombatMusicForThreat/);
   assert.match(

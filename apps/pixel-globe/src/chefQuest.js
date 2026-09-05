@@ -6,9 +6,11 @@ import {
   questCargoDeliveryProgress
 } from "./questCargoDeliveries.js";
 
-export const CHEF_QUEST_VERSION = 1;
+export const CHEF_QUEST_VERSION = 2;
 export const CHEF_QUEST_STAGE_LOCKED = "locked";
 export const CHEF_QUEST_STAGE_GATHERING = "gathering";
+export const CHEF_QUEST_STAGE_PREPARING = "preparing";
+export const CHEF_QUEST_STAGE_FEASTING = "feasting";
 export const CHEF_QUEST_STAGE_RECRUITMENT = "recruitment";
 export const CHEF_QUEST_STAGE_RECRUITED = "recruited";
 export const CHEF_QUEST_REWARD = 500;
@@ -18,6 +20,8 @@ export const CHEF_QUEST_ROLL_PERIOD_MINUTES = 21 * 24 * 60;
 const STAGES = new Set([
   CHEF_QUEST_STAGE_LOCKED,
   CHEF_QUEST_STAGE_GATHERING,
+  CHEF_QUEST_STAGE_PREPARING,
+  CHEF_QUEST_STAGE_FEASTING,
   CHEF_QUEST_STAGE_RECRUITMENT,
   CHEF_QUEST_STAGE_RECRUITED
 ]);
@@ -41,8 +45,21 @@ export function createChefQuestMemory() {
     eventProfileId: null,
     offerSeen: false,
     completedMinute: null,
+    servedMinute: null,
     spawnRolls: {}
   };
+}
+
+export function migrateChefQuestMemory(saved) {
+  if (saved === undefined) return createChefQuestMemory();
+  const memory = structuredClone(saved);
+  if (memory?.version === 1) {
+    memory.version = CHEF_QUEST_VERSION;
+    if (memory.portCityId === undefined) memory.portCityId = null;
+    // Released banquets already completed offscreen; preserve their rewards and recruitment.
+    memory.servedMinute = null;
+  }
+  return validateChefQuestMemory(memory);
 }
 
 export function validateChefQuestMemory(memory) {
@@ -52,6 +69,14 @@ export function validateChefQuestMemory(memory) {
   if (!STAGES.has(memory.stage)) throw new Error(`Invalid chef quest stage: ${memory.stage}`);
   if (typeof memory.offerSeen !== "boolean") throw new Error("Chef quest requires an offer-seen flag");
   validateRolls(memory.spawnRolls);
+  if (memory.servedMinute !== null && (!Number.isFinite(memory.servedMinute) || memory.servedMinute < 0)) {
+    throw new Error("Chef feast requires a valid serving minute");
+  }
+  if (memory.stage === CHEF_QUEST_STAGE_FEASTING && memory.servedMinute === null) {
+    throw new Error("A served chef feast requires its serving minute");
+  }
+  if ([CHEF_QUEST_STAGE_LOCKED, CHEF_QUEST_STAGE_GATHERING, CHEF_QUEST_STAGE_PREPARING].includes(memory.stage) &&
+      memory.servedMinute !== null) throw new Error("Chef feast was served before preparation finished");
   if (memory.stage === CHEF_QUEST_STAGE_LOCKED) {
     if (memory.portTileId !== null || memory.portCityId !== null || memory.portCity !== null || memory.portCountry !== null ||
         memory.ingredientGoodIds.length !== 0 || memory.eventProfileId !== null || memory.offerSeen ||
@@ -76,6 +101,9 @@ export function validateChefQuestMemory(memory) {
   if ([CHEF_QUEST_STAGE_RECRUITMENT, CHEF_QUEST_STAGE_RECRUITED].includes(memory.stage)) {
     if (!Number.isFinite(memory.completedMinute) || memory.completedMinute < 0) {
       throw new Error("Completed chef banquet requires a completion minute");
+    }
+    if (memory.servedMinute !== null && memory.completedMinute <= memory.servedMinute) {
+      throw new Error("Chef banquet completion must follow serving");
     }
   } else if (memory.completedMinute !== null) {
     throw new Error("Gathering chef quest already has a completion minute");
@@ -155,6 +183,7 @@ export function chefQuestState(state, city) {
     complete: memory.stage === CHEF_QUEST_STAGE_GATHERING &&
       ingredients.every((entry) => entry.ready),
     offerSeen: memory.offerSeen,
+    servedMinute: memory.servedMinute,
     event: chefEventProfile(memory.eventProfileId),
     port: Object.freeze({
       cityId: memory.portCityId,
@@ -176,6 +205,8 @@ export function chefQuestJournalText(quest) {
   if (quest.stage === CHEF_QUEST_STAGE_RECRUITMENT) {
     return `Offer the cook a berth at ${quest.port.city}.`;
   }
+  if (quest.stage === CHEF_QUEST_STAGE_PREPARING) return `Return to the cook at ${quest.port.city} for the feast at sunset.`;
+  if (quest.stage === CHEF_QUEST_STAGE_FEASTING) return `Join the feast at ${quest.port.city}.`;
   if (quest.stage !== CHEF_QUEST_STAGE_GATHERING) {
     throw new Error(`Unknown chef quest journal stage: ${quest.stage}`);
   }
@@ -192,12 +223,38 @@ export function markChefQuestOfferSeen(state) {
   memory.offerSeen = true;
 }
 
-export function completeChefBanquet(state, city, currentMinute) {
+export function prepareChefBanquet(state, city) {
   const quest = chefQuestState(state, city);
   if (!quest || quest.stage !== CHEF_QUEST_STAGE_GATHERING || !quest.complete) {
     throw new Error("Chef banquet ingredients are not ready");
   }
+  const memory = chefQuestMemory(state);
+  memory.stage = CHEF_QUEST_STAGE_PREPARING;
+  return chefQuestState(state, city);
+}
+
+export function serveChefBanquet(state, city, currentMinute) {
+  const quest = chefQuestState(state, city);
+  if (quest?.stage !== CHEF_QUEST_STAGE_PREPARING) throw new Error("Chef banquet is not being prepared");
   if (!Number.isFinite(currentMinute) || currentMinute < 0) {
+    throw new Error(`Invalid chef feast serving minute: ${currentMinute}`);
+  }
+  const memory = chefQuestMemory(state);
+  memory.stage = CHEF_QUEST_STAGE_FEASTING;
+  memory.servedMinute = currentMinute;
+  return chefQuestState(state, city);
+}
+
+export function chefFeastCompletionEligible(quest, { chefFeastGuestsGathered = true } = {}) {
+  if (typeof chefFeastGuestsGathered !== "boolean") throw new Error("Feast guest readiness must be boolean");
+  return quest?.stage === CHEF_QUEST_STAGE_FEASTING && chefFeastGuestsGathered;
+}
+
+export function completeChefBanquet(state, city, currentMinute, context = {}) {
+  const quest = chefQuestState(state, city);
+  if (quest?.stage !== CHEF_QUEST_STAGE_FEASTING) throw new Error("Chef banquet has not been served");
+  if (!chefFeastCompletionEligible(quest, context)) throw new Error("Chef feast guests have not gathered");
+  if (!Number.isFinite(currentMinute) || currentMinute <= quest.servedMinute) {
     throw new Error(`Invalid chef banquet completion minute: ${currentMinute}`);
   }
   const memory = chefQuestMemory(state);

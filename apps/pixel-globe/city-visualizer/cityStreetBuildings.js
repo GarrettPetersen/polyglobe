@@ -55,7 +55,7 @@ export function defaultCityStreetBuildingAssignments(features) {
     Object.freeze({ slotId: "rear-center", layerName: "Home 2" }),
     Object.freeze({ slotId: "rear-east", layerName: "Home" })
   ];
-  if (!features.primitiveSettlement || features.settlementStage === "colony") return Object.freeze(housing);
+  if (!features.primitiveSettlement || ["colony", "ruins"].includes(features.settlementStage)) return Object.freeze(housing);
   return Object.freeze([
     ...housing,
     Object.freeze({ slotId: "business-east", layerName: "Home" }),

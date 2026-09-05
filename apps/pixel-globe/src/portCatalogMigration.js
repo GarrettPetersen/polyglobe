@@ -3,7 +3,7 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 2;
+export const PORT_CATALOG_VERSION = 3;
 const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
@@ -15,6 +15,14 @@ export const PRE_NORTH_MALUKU_PORT_TILE_IDS = new Map([
   [23005, 366292],
   [366276, 366350],
   [366350, 366359]
+]);
+
+// Restoring the Parana's outlet lets Asuncion occupy the Paraguay River again,
+// instead of the Brazilian coast chosen by the former nearest-port search.
+export const PRE_RIVER_OUTLET_PORT_TILE_IDS = new Map([[431742, 430596]]);
+const UNVERSIONED_PORT_TILE_IDS = new Map([
+  ...PRE_NORTH_MALUKU_PORT_TILE_IDS,
+  ...PRE_RIVER_OUTLET_PORT_TILE_IDS
 ]);
 
 export function sameTopologyPortMigrationForSavedVoyage(payload, {
@@ -31,7 +39,7 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
     );
   }
   if (payload.portCatalogVersion === undefined) {
-    return PRE_NORTH_MALUKU_PORT_TILE_IDS;
+    return UNVERSIONED_PORT_TILE_IDS;
   }
   if (!Number.isInteger(payload.portCatalogVersion) ||
       payload.portCatalogVersion < EARLIEST_SUPPORTED_PORT_CATALOG_VERSION ||
@@ -41,9 +49,7 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
         `${PORT_CATALOG_VERSION}`
     );
   }
-  // Catalog version 2 adds maritime gateways without moving version-1 ports.
-  // Canonical inland references are reconciled to those gateways at load time.
-  return null;
+  return payload.portCatalogVersion < 3 ? PRE_RIVER_OUTLET_PORT_TILE_IDS : null;
 }
 
 export function portReferenceMigrationForSavedVoyage(payload, topology, currentPlacements) {

@@ -1052,14 +1052,18 @@ export function colonizationAftermathAtSite(memory, city) {
   return settlement ? colonizationAftermathViewForSettlement(settlement) : null;
 }
 
+export function colonizationAftermathInspectionAvailable(memory, city) {
+  return colonizationAftermathAtSite(memory, city)?.stage === COLONIZATION_AFTERMATH_INVESTIGATING;
+}
+
 export function inspectColonizationAftermath(memory, city, currentMinute) {
-  validateColonizationQuestMemory(memory);
   assertMinute(currentMinute);
+  if (!colonizationAftermathInspectionAvailable(memory, city)) {
+    throw new Error("No colony investigation is active at this site");
+  }
   const settlement = colonizationAllSettlementRecords(memory).find((candidate) => (
-    candidate.targetCityId === city?.cityId &&
-    candidate.aftermath?.stage === COLONIZATION_AFTERMATH_INVESTIGATING
+    candidate.targetCityId === city.cityId
   ));
-  if (!settlement) throw new Error("No colony investigation is active at this site");
   settlement.aftermath.stage = COLONIZATION_AFTERMATH_REPORTING;
   settlement.aftermath.inspectedMinute = currentMinute;
   validateColonizationQuestMemory(memory);
@@ -1186,7 +1190,6 @@ function colonizationWorldRecordUnchecked(memory) {
     colonizationAftermathStage: aftermathStage,
     hiddenSettlement: outbound || missing,
     colonyAbandoned: abandoned,
-    colonyBurning: failed,
     playerFoundedColony: upgraded && !abandoned && !target.preexistingSettlement,
     playerDevelopedPort: upgraded && !abandoned && target.preexistingSettlement,
     purchaseDiscountMultiplier: upgraded && !abandoned ? COLONIZATION_FOUNDER_DISCOUNT_MULTIPLIER : 1,
@@ -1363,6 +1366,7 @@ function beginColonizationAftermathInvestigation(memory, settlement, reportCity,
   const aftermath = settlement.aftermath;
   aftermath.stage = COLONIZATION_AFTERMATH_INVESTIGATING;
   aftermath.offeredMinute = currentMinute;
+  aftermath.reportCityId = requireEntityId(reportCity.cityId, "Roanoke investigation report city");
   aftermath.reportTileId = reportCity.tileId;
   aftermath.reportCity = reportCity.city;
   aftermath.reportCountry = reportCity.country;

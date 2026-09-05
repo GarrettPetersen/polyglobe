@@ -1,4 +1,4 @@
-import { withColonialFounding } from "./colonialCities.js";
+import { withColonialFounding, colonizationSiteIsRuined } from "./colonialCities.js";
 import {
   MANUAL_CITY_RECORDS_1522,
   cityDatasetRecordAllowedIn1522,
@@ -78,7 +78,8 @@ export const CITY_TYPE_ART_KEYS = Object.freeze({ polynesian: "village" });
 export const CITY_IMAGE_KEYS = Object.freeze([...new Set([
   ...CITY_TYPE_KEYS.map((cityType) => CITY_TYPE_ART_KEYS[cityType] || cityType),
   "native-american",
-  "village"
+  "village",
+  "ruins"
 ])]);
 
 const NATIVE_AMERICAN_CITY_ART_COUNTRIES = territoryIds([
@@ -423,6 +424,7 @@ export function cityIsInEurope(city) {
 export function cityArtKeyForCity(city) {
   if (!city || typeof city !== "object") throw new Error("City art requires a city record");
   if (!CITY_TYPE_KEYS.includes(city.cityType)) throw new Error(`Unknown city type: ${city.cityType}`);
+  if (colonizationSiteIsRuined(city)) return "ruins";
   if (city.settlementType === "village") return "village";
   if (
     city.cityType === "mesoamerican" &&

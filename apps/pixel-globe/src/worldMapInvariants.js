@@ -1,5 +1,6 @@
 import { createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import { canTraverseWorldNavigationEdge } from "./worldNavigationTopology.js";
+import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 export const WORLD_WATERWAY_INVARIANTS = Object.freeze([
   passage("Strait of Gibraltar", [35.8, -6.2], [36.0, -5.0], [34.5, 37.5, -7.0, -3.0]),
@@ -13,8 +14,28 @@ export const WORLD_WATERWAY_INVARIANTS = Object.freeze([
   passage("Mozambique Channel", [-19.0, 39.0], [-19.0, 42.0], [-27.0, -10.0, 32.0, 47.0]),
   passage("Lake Malawi and Shire approach", [-9.7, 34.3], [-14.3, 35.2], [-15.0, -9.0, 33.5, 36.0]),
   passage("Strait of Magellan", [-52.7, -75.0], [-52.7, -70.0], [-55.0, -50.0, -76.0, -68.0]),
+  surfacePassage("Long Island Sound", [41.01, -73.77], [41.15, -72.50], [40.85, 41.45, -73.95, -72.1]),
+  surfacePassage("East River outlet", [40.55, -73.96], [41.01, -73.77], [40.3, 41.15, -74.2, -73.55]),
+  surfacePassage("Upper Chesapeake Bay", [39.03, -76.41], [38.18, -76.21], [38.0, 39.25, -76.65, -75.9]),
+  surfacePassage("Chesapeake Bay mouth", [38.18, -76.21], [36.9, -75.8], [36.5, 38.4, -76.6, -75.5]),
+  passage("Tidal James via Jamestown", [37.53, -77.43], [37.10, -76.15], [36.8, 37.7, -77.7, -75.9]),
+  passage("Tidal Potomac", [38.90, -77.05], [38.10, -76.25], [38.0, 39.2, -77.5, -76.0]),
+  // Independent geographic probes, kept separate from the generated repair
+  // chains so deleting a correction cannot also delete its regression test.
+  riverOutlet("Niger central outlet", [4.54, 6.31], [4.30, 6.40]),
+  riverOutlet("Niger western outlet", [5.26, 5.51], [5.02, 5.36]),
+  riverOutlet("Niger eastern outlet", [4.54, 6.81], [4.30, 6.66]),
+  riverOutlet("Ob outlet", [66.84, 69.23], [66.65, 69.79]),
+  riverOutlet("Amur outlet", [52.98, 140.76], [53.05, 141.16]),
+  riverOutlet("Zambezi delta outlet", [-18.79, 35.95], [-18.95, 36.17]),
+  riverOutlet("Orinoco western outlet", [8.97, -61.09], [8.82, -60.83]),
+  riverOutlet("Mackenzie delta outlet", [68.78, -135.84], [69.07, -136.03]),
+  riverOutlet("Irrawaddy western outlet", [16.10, 94.71], [15.84, 94.70]),
+  riverOutlet("Irrawaddy central outlet", [16.00, 94.95], [15.74, 94.95]),
+  riverOutlet("Irrawaddy eastern outlet", [16.37, 95.96], [16.11, 95.95]),
+  riverOutlet("Parana delta outlet", [-33.89, -58.54], [-34.31, -58.28]),
   barrier("Isthmus of Panama", [9.3, -80.3], [8.0, -79.0], [6.0, 11.0, -83.0, -77.0]),
-  barrier("Isthmus of Suez", [29.8, 32.5], [31.6, 32.3], [28.0, 32.5, 30.5, 34.0]),
+  barrier("Isthmus of Suez", [29.4, 32.6], [31.6, 32.3], [28.0, 32.5, 30.5, 34.0]),
   barrier("Isthmus of Corinth", [38.0, 22.8], [37.8, 23.2], [37.4, 38.6, 21.5, 24.0])
 ]);
 
@@ -25,11 +46,19 @@ export function boundedNavigablePathExists({
   from,
   to,
   bounds,
+  endpointSearchRings = 1,
+  surfaceWaterOnly = false,
   directionIndex = createDirectionIndex(graph)
 }) {
   validateInvariantInputs(graph, earthRows, navigation, from, to, bounds);
-  const startTileId = nearestNavigableTile(graph, directionIndex, navigation, from);
-  const destinationTileId = nearestNavigableTile(graph, directionIndex, navigation, to);
+  if (!Number.isInteger(endpointSearchRings) || endpointSearchRings < 0 || endpointSearchRings > 1) {
+    throw new Error("Waterway endpoint search must be limited to zero or one graph ring");
+  }
+  const acceptsTile = (tileId) => tileWithinBounds(graph, tileId, bounds) && (
+    isWaterSurfaceRow(earthRows[tileId]) || (!surfaceWaterOnly && navigation.riverMasks[tileId] !== 0)
+  );
+  const startTileId = nearestNavigableTile(graph, directionIndex, from, acceptsTile, endpointSearchRings);
+  const destinationTileId = nearestNavigableTile(graph, directionIndex, to, acceptsTile, endpointSearchRings);
   const seen = new Uint8Array(graph.tileCount);
   const queue = new Uint32Array(graph.tileCount);
   let head = 0;
@@ -40,8 +69,7 @@ export function boundedNavigablePathExists({
     const tileId = queue[head++];
     if (tileId === destinationTileId) return true;
     for (const neighborId of graph.neighbors[tileId]) {
-      if (seen[neighborId] || !tileWithinBounds(graph, neighborId, bounds) ||
-          navigation.reachableNavigationMask[neighborId] !== 1) continue;
+      if (seen[neighborId] || !acceptsTile(neighborId)) continue;
       if (!canTraverseWorldNavigationEdge({
         graph,
         earthRows,
@@ -57,24 +85,14 @@ export function boundedNavigablePathExists({
   return false;
 }
 
-function nearestNavigableTile(graph, directionIndex, navigation, [lat, lon]) {
+function nearestNavigableTile(graph, directionIndex, [lat, lon], acceptsTile, searchRings) {
   const startTileId = findNearestTileId(graph, directionIndex, latLonToDirection(lat, lon));
-  const seen = new Uint8Array(graph.tileCount);
-  const queue = new Uint32Array(graph.tileCount);
-  let head = 0;
-  let tail = 0;
-  seen[startTileId] = 1;
-  queue[tail++] = startTileId;
-  while (head < tail) {
-    const tileId = queue[head++];
-    if (navigation.reachableNavigationMask[tileId] === 1) return tileId;
-    for (const neighborId of graph.neighbors[tileId]) {
-      if (seen[neighborId]) continue;
-      seen[neighborId] = 1;
-      queue[tail++] = neighborId;
-    }
-  }
-  throw new Error(`No navigable world tile exists near ${lat}/${lon}`);
+  // Never jump to a distant reachable shore: that can skip the very blockage
+  // being audited. Isolated water is a valid endpoint whose route must fail.
+  const candidates = searchRings === 0 ? [startTileId] : [startTileId, ...graph.neighbors[startTileId]];
+  const tileId = candidates.find(acceptsTile);
+  if (tileId !== undefined) return tileId;
+  throw new Error(`Waterway endpoint ${lat}/${lon} has no local navigation tile within ${searchRings} rings`);
 }
 
 function tileWithinBounds(graph, tileId, [south, north, west, east]) {
@@ -109,6 +127,16 @@ function validCoordinatePair(value) {
 
 function passage(name, from, to, bounds) {
   return Object.freeze({ name, from: Object.freeze(from), to: Object.freeze(to), bounds: Object.freeze(bounds), connected: true });
+}
+
+function surfacePassage(name, from, to, bounds) {
+  return Object.freeze({ ...passage(name, from, to, bounds), endpointSearchRings: 0, surfaceWaterOnly: true });
+}
+
+function riverOutlet(name, from, to) {
+  const bounds = [Math.min(from[0], to[0]) - 0.3, Math.max(from[0], to[0]) + 0.3,
+    Math.min(from[1], to[1]) - 0.3, Math.max(from[1], to[1]) + 0.3];
+  return Object.freeze({ ...passage(name, from, to, bounds), endpointSearchRings: 0 });
 }
 
 function barrier(name, from, to, bounds) {

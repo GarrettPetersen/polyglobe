@@ -2391,7 +2391,7 @@ function validateCaptureSequence(value) {
     requiredString(value.factorPortraitSourceId, "capture trade factor portrait source id");
   }
   if (value.kind === "city") {
-    if (!["visit", "market-tour", "architecture-pan"].includes(value.variant)) {
+    if (!["visit", "market-tour", "architecture-pan", "chef-feast"].includes(value.variant)) {
       throw new Error(`Invalid city capture variant: ${value.variant}`);
     }
     if (value.variant === "market-tour") {
@@ -2538,8 +2538,11 @@ function validateCaptureSequence(value) {
     }
   }
   if (value.kind === "colonize") {
-    if (!["offer", "embark", "found", "deadline", "resupply", "establish", "defend", "city"].includes(value.variant)) {
+    if (!["offer", "embark", "found", "deadline", "resupply", "establish", "defend", "city", "investigate", "ruins"].includes(value.variant)) {
       throw new Error(`Invalid colonization capture variant: ${value.variant}`);
+    }
+    if (value.variant === "investigate" && !["timber", "label"].includes(value.clueActivation)) {
+      throw new Error(`Invalid Roanoke clue activation: ${value.clueActivation}`);
     }
     if (value.originCityId !== undefined) {
       requiredCityId(value.originCityId, "colonization capture origin city");

@@ -110,3 +110,16 @@ test("the destination catalog and explicit ids fail loudly when malformed", () =
   );
   assert.throws(() => validateCityDestinationIds(["lost-building"]), /Unknown city destination/);
 });
+
+test("ruined colony clues require explicit quest availability and never expose town services", () => {
+  const features = { ...ALL_SERVICES, settlementStage: "ruins" };
+  const availableDestinationIds = new Set(CITY_DESTINATIONS.map(({ id }) => id));
+  assert.deepEqual(activeCityDestinations({ availableDestinationIds, features, assaultActive: false })
+    .map(({ id }) => id), [PORT_CITY_LOCATION.COLONY_CLUE, PORT_CITY_LOCATION.SET_SAIL, PORT_CITY_LOCATION.SHIP]);
+  availableDestinationIds.delete(PORT_CITY_LOCATION.COLONY_CLUE);
+  assert.ok(!activeCityDestinations({ availableDestinationIds, features, assaultActive: false })
+    .some(({ id }) => id === PORT_CITY_LOCATION.COLONY_CLUE));
+  assert.ok(!activeCityDestinations({ availableDestinationIds: null, features, assaultActive: false })
+    .some(({ id }) => id === PORT_CITY_LOCATION.COLONY_CLUE));
+  assert.equal(cityDestinationById(PORT_CITY_LOCATION.COLONY_CLUE).label, "?");
+});

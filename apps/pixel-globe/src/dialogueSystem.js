@@ -1,3 +1,4 @@
+import { colonizationSiteIsRuined } from "./colonialCities.js";
 import { vikingLongshipAcquisitionEligibility } from "./innQuestTransactions.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { PORT_CITY_STAFF_ROLE } from "./characterPortraits.js";
@@ -257,12 +258,18 @@ import { permanentCrewFloor } from "./namedCrew.js";
 import {
   CHEF_QUEST_REWARD,
   CHEF_QUEST_STAGE_GATHERING,
+  CHEF_QUEST_STAGE_PREPARING,
+  CHEF_QUEST_STAGE_FEASTING,
   CHEF_QUEST_STAGE_RECRUITED,
   CHEF_QUEST_STAGE_RECRUITMENT,
   chefQuestState,
+  chefFeastCompletionEligible,
   completeChefBanquet,
+  prepareChefBanquet,
+  serveChefBanquet,
   markChefQuestOfferSeen
 } from "./chefQuest.js";
+import { nextChefFeastMinute } from "./solarClock.js";
 import {
   VIKING_LONGSHIP_PRICE,
   VIKING_LONGSHIP_REWARD_ACCEPTED,
@@ -292,6 +299,9 @@ import {
   assertColonizationFetchDelivery,
   assertColonizationResupplyDelivery,
   beginColonizationExpedition,
+  colonizationAftermathAtSite,
+  colonizationAftermathInspectionAvailable,
+  inspectColonizationAftermath,
   colonizationQuestView,
   colonizationFetchRequirementId,
   colonizationOriginCanHostExiledSponsor,
@@ -489,7 +499,6 @@ export function createPortDialogueSession(city, options = {}) {
     rulerRumor: options.rulerRumor || null,
     historicalGossip: options.historicalGossip || null,
     crewRecruitmentArrivalPresented: false,
-    crewRecruitmentReturnNodeId: null,
     questReturnNodeId: null,
     crewDismissal: null,
     rumorText: options.rumorText || null,
@@ -1825,6 +1834,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "barred") return barredPortView(city, gameState, context);
   if (session.nodeId === "disguise-success") return disguiseSuccessView(session, city);
   if (session.nodeId === "disguise-failed") return disguiseFailureView(city, gameState, context);
+  if (session.nodeId === "colony-clue") return colonyClueView(city, gameState);
   if (session.nodeId === "root") {
     return rootView(session, city, gameState, economy, portCities, context);
   }
@@ -1929,7 +1939,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "caribbean-ginger") {
     return caribbeanGingerView(session, city, gameState);
   }
-  if (session.nodeId === "chef-quest") return chefQuestView(session, city, gameState);
+  if (session.nodeId === "chef-quest") return chefQuestView(session, city, gameState, context);
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
   if (session.nodeId === "conquistador") {
     return conquistadorView(session, city, gameState, portCities, context);
@@ -2079,6 +2089,17 @@ export function selectPortDialogueAction(
   // before replacing this session. Keep a city-menu session internally valid
   // throughout that handoff; later nodes ignore the retained location.
   if (action.type === "close") return { closed: true };
+  if (action.type === "leave-colony-site") {
+    if (!colonizationSiteIsRuined(city)) throw new Error(`Cannot leave a non-ruined colony site: ${city.cityId}`);
+    return { closed: true };
+  }
+  if (action.type === "inspect-colony-clue") {
+    inspectColonizationAftermath(gameState.memory.colonization, city, context.simMinute ?? 0);
+    session.nodeId = "colony-clue";
+    session.selectedIndex = 0;
+    session.feedback = null;
+    return { closed: false, colonizationChanged: true, colonyClueInspected: true };
+  }
   if (action.type === "open-crew-recruitment") {
     if (typeof context.prepareCrewRecruitment !== "function") {
       throw new Error("Crew recruitment requires a port recruitment provider");
@@ -2087,7 +2108,6 @@ export function selectPortDialogueAction(
       allowEmpty: true,
       includeReplacementCandidates: true
     });
-    session.crewRecruitmentReturnNodeId = "inn-drink";
     session.nodeId = "crew-recruitment";
     session.selectedIndex = 0;
     session.feedback = null;
@@ -2678,7 +2698,7 @@ export function selectPortDialogueAction(
         questCargoTransfers: questCargoTransfersFromDeliveries(deliveries)
       };
     }
-    const result = completeChefBanquet(gameState, city, context.simMinute ?? 0);
+    const result = prepareChefBanquet(gameState, city);
     const payment = receiveQuestPayment(
       gameState,
       city,
@@ -2697,12 +2717,24 @@ export function selectPortDialogueAction(
     session.selectedIndex = 0;
     return {
       closed: false,
-      chefBanquetCompleted: result,
+      chefBanquetPrepared: result,
       chefIngredientDeliveries: deliveries,
       questCargoTransfers: questCargoTransfersFromDeliveries(deliveries),
       payment,
       missionItemGift
     };
+  }
+  if (action.type === "serve-chef-feast" || action.type === "finish-chef-feast") {
+    const phase = action.type === "serve-chef-feast" ? "served" : "afterwards";
+    const currentMinute = context.simMinute ?? 0;
+    const minute = nextChefFeastMinute({
+      currentMinute, latitudeDeg: city.lat, longitudeDeg: city.lon, phase
+    });
+    if (phase === "served") serveChefBanquet(gameState, city, minute);
+    else completeChefBanquet(gameState, city, minute, context);
+    session.feedback = null;
+    session.selectedIndex = 0;
+    return { closed: false, chefFeast: { cityId: city.cityId, phase, minute } };
   }
   if (action.type === "recruit-chef") {
     return { closed: false, action, chefRecruitmentRequested: true };
@@ -4695,15 +4727,41 @@ function covertAuthorityView(gameState) {
   };
 }
 
+function colonyClueView(city, gameState) {
+  if (!colonizationSiteIsRuined(city) ||
+      !["reporting", "complete"].includes(colonizationAftermathAtSite(gameState.memory.colonization, city)?.stage)) {
+    throw new Error(`Colony clue dialogue requires the inspected Roanoke site: ${city.cityId}`);
+  }
+  return {
+    speaker: gameState.playerCharacter.name,
+    expressionId: "thoughtful",
+    text: "The word CROATOAN is cut into the palisade, with no cross of distress. I will take a rubbing and careful notes back to England.",
+    feedback: null,
+    options: [option("Continue", { type: "node", nodeId: "root" })]
+  };
+}
+
 function rootView(session, city, gameState, economy, portCities, context) {
   return {
-    speaker: speakerName(city),
+    speaker: colonizationSiteIsRuined(city) ? gameState.playerCharacter.name : speakerName(city),
     expressionId: feedbackExpressionId(session.feedback),
     ...rootNavigationView(session, city, gameState, economy, portCities, context)
   };
 }
 
 function rootNavigationView(session, city, gameState, economy, portCities, context) {
+  if (colonizationSiteIsRuined(city)) {
+    return {
+      text: "No smoke. No voices. The houses were taken down carefully, not burned.",
+      feedback: null,
+      options: [
+        ...(colonizationAftermathInspectionAvailable(gameState.memory.colonization, city)
+          ? [option("?", { type: "inspect-colony-clue" })] : []),
+        option("Return to ship", { type: "leave-colony-site" }),
+        option("Set Sail", { type: "close" })
+      ]
+    };
+  }
   const market = portEconomySummary(economy, city);
   const cityServices = portCityServiceProfile(city);
   const pirateHideout = city.isPirateHideout === true;
@@ -5022,10 +5080,7 @@ function crewRecruitmentView(session, city, gameState) {
           disabledReason: !boardingEligible ? boarding.disabledReason : `${cost} doubloons required.`
         }
       )),
-      option(
-        session.crewRecruitmentReturnNodeId === "inn-drink" ? "Back to inn" : "Back to city",
-        { type: "node", nodeId: session.crewRecruitmentReturnNodeId || "root" }
-      )
+      option("Back to inn", { type: "node", nodeId: "inn-drink" })
     ]
   };
 }
@@ -5509,7 +5564,7 @@ function vikingLongshipView(session, city, gameState, context) {
   };
 }
 
-function chefQuestView(session, city, gameState) {
+function chefQuestView(session, city, gameState, context) {
   const quest = chefQuestState(gameState, city);
   if (!quest) throw new Error("Chef dialogue opened outside its origin port");
   const speaker = `${characterName(city.character)}, cook`;
@@ -5519,6 +5574,25 @@ function chefQuestView(session, city, gameState) {
         { type: "node", nodeId: session.nextPortNodeId || "greeting" }
       )
     : option("Back", { type: "node", nodeId: "root" });
+  if (quest.stage === CHEF_QUEST_STAGE_PREPARING) {
+    return {
+      speaker, expressionId: "pleased",
+      text: "My thanks, Captain! You have brought everything I need. Leave the pots to me; I shall prepare a fine meal. Come, join us at sunset.",
+      feedback: session.feedback,
+      options: [option("Join the feast at sunset", { type: "serve-chef-feast" }), back]
+    };
+  }
+  if (quest.stage === CHEF_QUEST_STAGE_FEASTING) {
+    return {
+      speaker, expressionId: "happy",
+      text: "The feast is served! Come, friends, gather round. There is enough for every plate, and a place for our captain among us.",
+      feedback: session.feedback,
+      options: [option("Eat and make merry", { type: "finish-chef-feast" }, {
+        disabled: !chefFeastCompletionEligible(quest, context),
+        disabledReason: "Wait for everyone to gather."
+      })]
+    };
+  }
   if (quest.stage === CHEF_QUEST_STAGE_GATHERING) {
     const list = quest.ingredients.map((ingredient) => ingredient.label).join(", ");
     const missing = quest.ingredients
@@ -5551,7 +5625,7 @@ function chefQuestView(session, city, gameState) {
     return {
       speaker,
       expressionId: "happy",
-      text: `${quest.event.successText} Now I want to see beyond this shore. Give me a berth, and I will make your provisions last.`,
+      text: `${quest.event.successText} My thanks, Captain; our guests have eaten well. Now I long for adventure beyond this shore. Give me a berth, and I will make your provisions last.`,
       feedback: session.feedback,
       options: [
         option("Welcome aboard", { type: "recruit-chef" }, {

@@ -3,7 +3,7 @@ import { requireCityId } from "./entityIds.js";
 import { PORT_CITY_LOCATION } from "./portCityNavigation.js";
 
 const CAPTAIN_SPEAKER_NODES = new Set([
-  "covert-authority", "drunk-captain", "quest-cargo-sale-warning", "inn-drink", "city-attack"
+  "colony-clue", "covert-authority", "drunk-captain", "quest-cargo-sale-warning", "inn-drink", "city-attack"
 ]);
 
 export function portDialogueHasCaptainSpeaker(session) {

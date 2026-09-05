@@ -1066,6 +1066,29 @@ test("historically attacked colonies upgrade, survive a canoe defense, and await
   assert.equal(colonizationObjective(memory), null);
 });
 
+test("rebinding an old Jamestown save corrects its tile without restarting the founded colony", () => {
+  const target = { ...colonizationTargetForCity({ cityId: "jamestown|united states of america" }), tileId: 294247 };
+  const memory = createColonizationQuestMemory();
+  assignColonizationQuest(memory, { target, origin: LONDON });
+  for (const stage of colonizationQuestView(questViewState(memory)).history.fetchStages) {
+    completeColonizationFetchStage(memory, stage.id);
+  }
+  beginColonizationExpedition(memory);
+  landColonists(memory, 1000);
+  advanceColonizationQuest(memory, 1100, { awayFromColony: true });
+  const savedHistory = structuredClone(memory);
+  assignColonizationQuest(memory, { target: { ...target, tileId: 294323 }, origin: LONDON });
+  assert.deepEqual(memory, { ...savedHistory, targetTileId: 294323 });
+  const record = colonizationWorldRecord(memory);
+  assert.equal(record.cityId, target.cityId);
+  assert.equal(record.tileId, 294323);
+  assert.equal(record.lat, 37.2092);
+  assert.equal(record.lon, -76.7752);
+  const rebound = structuredClone(memory);
+  assignColonizationQuest(memory, { target: { ...target, tileId: 294323 }, origin: LONDON });
+  assert.deepEqual(memory, rebound, "reloading the corrected save must be idempotent");
+});
+
 function questViewState(memory, cargo = {}) {
   return {
     memory: {
@@ -1076,7 +1099,7 @@ function questViewState(memory, cargo = {}) {
   };
 }
 
-test("late resupply leaves a burning dead village", () => {
+test("late resupply leaves deserted ruins without an ongoing fire", () => {
   const memory = awaitingResupplyMemory();
   const lateMinute = memory.resupplyDeadlineMinute + 1;
   assert.equal(advanceColonizationQuest(memory, lateMinute, { awayFromColony: true }), true);
@@ -1085,7 +1108,7 @@ test("late resupply leaves a burning dead village", () => {
   assert.equal(memory.stage, COLONIZATION_STAGE_FAILED);
   assert.equal(ruins.displayCity, "Port Royal Ruins");
   assert.equal(ruins.settlementType, "village");
-  assert.equal(ruins.colonyBurning, true);
+  assert.equal(Object.hasOwn(ruins, "colonyBurning"), false);
   assert.equal(ruins.factionId, "neutral");
   assert.throws(() => establishColony(memory, lateMinute), /during failed/);
 });

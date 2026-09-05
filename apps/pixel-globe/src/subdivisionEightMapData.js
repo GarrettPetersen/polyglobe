@@ -14,6 +14,8 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
     31618,
     38891,
     38903,
+    73665,
+    74786,
     88775,
     98867,
     98890,
@@ -21,6 +23,9 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
     125893,
     125896,
     160967,
+    298720,
+    298999,
+    299005,
     394774,
     394877,
     502393,
@@ -180,6 +185,13 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "landmassId": 3015
     },
     {
+      "tileId": 74856,
+      "sourceTerrain": "warm_summer_humid",
+      "terrainType": "warm_summer_humid",
+      "elevation": -0.042,
+      "landmassId": 4000
+    },
+    {
       "tileId": 84770,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
@@ -290,6 +302,27 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "terrainType": "mediterranean_warm",
       "elevation": -0.03,
       "landmassId": 3011
+    },
+    {
+      "tileId": 299000,
+      "sourceTerrain": "humid_continental",
+      "terrainType": "humid_continental",
+      "elevation": -0.041342913489842974,
+      "landmassId": 4000
+    },
+    {
+      "tileId": 299003,
+      "sourceTerrain": "warm_summer_humid",
+      "terrainType": "warm_summer_humid",
+      "elevation": -0.041098771505904366,
+      "landmassId": 4000
+    },
+    {
+      "tileId": 299014,
+      "sourceTerrain": "warm_summer_humid",
+      "terrainType": "warm_summer_humid",
+      "elevation": -0.041972935240486786,
+      "landmassId": 4000
     },
     {
       "tileId": 340714,
@@ -1648,22 +1681,6 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       92992
     ],
     [
-      73682,
-      294316,
-      18469,
-      294272,
-      73670
-    ],
-    [
-      18467,
-      294251,
-      73665,
-      294277,
-      73671,
-      294271,
-      73669
-    ],
-    [
       74307,
       298719,
       74785,
@@ -2096,6 +2113,72 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       93279
     ],
     [
+      294313,
+      294315,
+      73682,
+      294323,
+      73681,
+      294310
+    ],
+    [
+      294373,
+      294384,
+      294263,
+      294264,
+      294275,
+      294277
+    ],
+    [
+      641566,
+      641561
+    ],
+    [
+      640433,
+      640436
+    ],
+    [
+      641563,
+      160439
+    ],
+    [
+      234409,
+      58711
+    ],
+    [
+      240757,
+      240763,
+      240760
+    ],
+    [
+      502564,
+      502566
+    ],
+    [
+      554732,
+      138895
+    ],
+    [
+      193912,
+      12171
+    ],
+    [
+      372134,
+      372135
+    ],
+    [
+      23377,
+      372125
+    ],
+    [
+      372156,
+      93196
+    ],
+    [
+      426715,
+      426716,
+      106926
+    ],
+    [
       25502,
       405838,
       101640
@@ -2124,16 +2207,6 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       47521,
       189845,
       11910
-    ],
-    [
-      73670,
-      294267,
-      4642
-    ],
-    [
-      73669,
-      294266,
-      4642
     ],
     [
       74845,

@@ -369,6 +369,42 @@
     "duration": 100
    },
    {
+    "filename": "port-parallax (Table shadow).aseprite",
+    "frame": { "x": 164, "y": 1432, "w": 173, "h": 23 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 961, "y": 498, "w": 173, "h": 23 },
+    "sourceSize": { "w": 1365, "h": 910 },
+    "duration": 100
+   },
+   {
+    "filename": "port-parallax (Table).aseprite",
+    "frame": { "x": 0, "y": 1432, "w": 164, "h": 26 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 971, "y": 495, "w": 164, "h": 26 },
+    "sourceSize": { "w": 1365, "h": 910 },
+    "duration": 100
+   },
+   {
+    "filename": "port-parallax (Plate).aseprite",
+    "frame": { "x": 2720, "y": 540, "w": 10, "h": 7 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 988, "y": 506, "w": 10, "h": 7 },
+    "sourceSize": { "w": 1365, "h": 910 },
+    "duration": 100
+   },
+   {
+    "filename": "port-parallax (Serving Platter).aseprite",
+    "frame": { "x": 2675, "y": 734, "w": 22, "h": 8 },
+    "rotated": false,
+    "trimmed": true,
+    "spriteSourceSize": { "x": 1000, "y": 500, "w": 22, "h": 8 },
+    "sourceSize": { "w": 1365, "h": 910 },
+    "duration": 100
+   },
+   {
     "filename": "port-parallax (Castle Shadow).aseprite",
     "frame": { "x": 1986, "y": 1606, "w": 183, "h": 110 },
     "rotated": false,
@@ -568,7 +604,7 @@
    },
    {
     "filename": "port-parallax (Crate).aseprite",
-    "frame": { "x": 2720, "y": 540, "w": 7, "h": 6 },
+    "frame": { "x": 2720, "y": 547, "w": 7, "h": 6 },
     "rotated": false,
     "trimmed": true,
     "spriteSourceSize": { "x": 1185, "y": 480, "w": 7, "h": 6 },
@@ -625,6 +661,10 @@
    { "name": "Midground Desert", "opacity": 255, "blendMode": "normal" },
    { "name": "Midground Rocky", "opacity": 255, "blendMode": "normal" },
    { "name": "Road", "opacity": 255, "blendMode": "normal" },
+   { "name": "Table shadow", "opacity": 255, "blendMode": "normal" },
+   { "name": "Table", "opacity": 255, "blendMode": "normal" },
+   { "name": "Plate", "opacity": 255, "blendMode": "normal" },
+   { "name": "Serving Platter", "opacity": 255, "blendMode": "normal" },
    { "name": "Castle Shadow", "opacity": 255, "blendMode": "normal" },
    { "name": "Dock Background", "opacity": 255, "blendMode": "normal" },
    { "name": "Dock", "opacity": 255, "blendMode": "normal" },

@@ -174,6 +174,8 @@ import {
 import {
   CHEF_QUEST_REWARD,
   completeChefBanquet,
+  prepareChefBanquet,
+  serveChefBanquet,
   maybeSpawnChefQuest,
   recruitChef
 } from "./chefQuest.js";
@@ -3761,7 +3763,15 @@ test("crew recruitment presents a clean empty state when no hands are available"
 
   assert.deepEqual(view.presentation.candidates, []);
   assert.match(view.text, /No suitable hands/);
-  assert.deepEqual(view.options.map(({ label }) => label), ["Back to city"]);
+  assert.deepEqual(view.options.map(({ label }) => label), ["Back to inn"]);
+  const result = selectPortDialogueOption(session, city, gameState, economy, [city], 0);
+  assert.equal(result.closed, false);
+  assert.equal(session.nodeId, "inn-drink");
+  const inn = portDialogueView(session, city, gameState, economy, [city], {
+    simMinute: 120,
+    innDialogue: { speaker: "Captain", expressionId: "neutral", text: "The ale is sound." }
+  });
+  assert.ok(inn.options.some(({ action }) => action.type === "open-crew-management"));
 });
 
 test("the inn routes crew management to the shared aboard roster", () => {
@@ -4069,6 +4079,8 @@ test("an already active banquet chef waits for a permanent berth before joining"
       ingredient.requirementId
     );
   }
+  prepareChefBanquet(gameState, city);
+  serveChefBanquet(gameState, city, 50);
   completeChefBanquet(gameState, city, 100);
   const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
   const session = createPortDialogueSession(city, { initialNodeId: "chef-quest" });
@@ -4080,6 +4092,8 @@ test("an already active banquet chef waits for a permanent berth before joining"
 
 test("the banquet chef accepts ingredients across separate visits", () => {
   const city = {
+    lat: 41.01,
+    lon: 28.97,
     tileId: 45,
     cityId: "istanbul|ottoman empire",
     city: "Istanbul",
@@ -4112,7 +4126,7 @@ test("the banquet chef accepts ingredients across separate visits", () => {
     { simMinute: 100 }
   );
   assert.equal(partial.chefIngredientDeliveries.length, 1);
-  assert.equal(partial.chefBanquetCompleted, undefined);
+  assert.equal(partial.chefBanquetPrepared, undefined);
   assert.equal(gameState.doubloons, startingDoubloons);
 
   for (const ingredient of quest.ingredients.slice(1)) {
@@ -4132,16 +4146,32 @@ test("the banquet chef accepts ingredients across separate visits", () => {
     deliveryIndex,
     { simMinute: 200 }
   );
-  assert.ok(completed.chefBanquetCompleted);
+  assert.ok(completed.chefBanquetPrepared);
   assert.equal(gameState.doubloons, startingDoubloons + CHEF_QUEST_REWARD);
   const completedView = portDialogueView(session, city, gameState, economy, [city]);
-  assert.ok(completedView.text.includes(completed.chefBanquetCompleted.event.successText));
+  assert.match(completedView.text, /prepare a fine meal/);
   assert.equal(completedView.feedback, `The hosts paid ${CHEF_QUEST_REWARD} db.`);
   assert.equal(
-    completedView.feedback.includes(completed.chefBanquetCompleted.event.successText),
+    completedView.feedback.includes(completed.chefBanquetPrepared.event.successText),
     false
   );
 
+  const served = selectPortDialogueOption(session, city, gameState, economy, [city], 0, { simMinute: 200 });
+  assert.equal(served.chefFeast.phase, "served");
+  assert.ok(served.chefFeast.minute > 200);
+  const gathering = { simMinute: served.chefFeast.minute, chefFeastGuestsGathered: false };
+  const waitingView = portDialogueView(session, city, gameState, economy, [city], gathering);
+  assert.equal(waitingView.options[0].disabled, true);
+  assert.match(waitingView.options[0].disabledReason, /gather/);
+  const before = structuredClone(gameState);
+  const blocked = selectPortDialogueOption(session, city, gameState, economy, [city], 0, gathering);
+  assert.equal(blocked.chefFeast, undefined);
+  assert.deepEqual(gameState, before);
+  const finished = selectPortDialogueOption(session, city, gameState, economy, [city], 0,
+    { ...gathering, chefFeastGuestsGathered: true });
+  assert.equal(finished.chefFeast.phase, "afterwards");
+  assert.ok(finished.chefFeast.minute > served.chefFeast.minute);
+  assert.equal(gameState.doubloons, startingDoubloons + CHEF_QUEST_REWARD);
   session.chefQuestArrival = true;
   session.nextPortNodeId = "root";
   recruitChef(gameState, city);

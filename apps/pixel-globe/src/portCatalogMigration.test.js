@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   PORT_CATALOG_VERSION,
   PRE_NORTH_MALUKU_PORT_TILE_IDS,
+  PRE_RIVER_OUTLET_PORT_TILE_IDS,
   portReferenceMigrationForSavedVoyage,
   sameTopologyPortMigrationForSavedVoyage
 } from "./portCatalogMigration.js";
@@ -25,9 +26,9 @@ test("pre-version subdivision-eight saves migrate all North Maluku ports exactly
     savedSubdivisions: 8,
     currentSubdivisions: 8
   };
-  assert.equal(
+  assert.deepEqual(
     sameTopologyPortMigrationForSavedVoyage({}, topology),
-    PRE_NORTH_MALUKU_PORT_TILE_IDS
+    new Map([...PRE_NORTH_MALUKU_PORT_TILE_IDS, ...PRE_RIVER_OUTLET_PORT_TILE_IDS])
   );
   assert.deepEqual(
     Object.fromEntries(PRE_NORTH_MALUKU_PORT_TILE_IDS),
@@ -76,16 +77,20 @@ test("a current-topology save still repairs an orphaned subdivision-seven refere
   assert.equal(migration.has(366350), false, "placed Tidore must retain its current identity");
 });
 
-test("version-one saves remain compatible after maritime gateways are added", () => {
-  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 1 }, {
-    savedSubdivisions: 8,
-    currentSubdivisions: 8
-  }), null);
+test("older catalogs move Asuncion to the restored Paraguay-Parana route without moving other ports", () => {
+  for (const portCatalogVersion of [1, 2]) {
+    const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion }, {
+      savedSubdivisions: 8, currentSubdivisions: 8
+    });
+    assert.deepEqual([...migration], [[431742, 430596]]);
+    assert.equal(migration.has(366350), false, "current Tidore must keep its identity");
+  }
+  assert.equal(currentPortBake.endpoints.find(({ name }) => name === "Asuncion").tileId, 430596);
 });
 
 test("same-topology port migration rejects unknown catalog versions and topologies", () => {
   assert.throws(
-    () => sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 3 }, {
+    () => sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: PORT_CATALOG_VERSION + 1 }, {
       savedSubdivisions: 8,
       currentSubdivisions: 8
     }),

@@ -1,4 +1,5 @@
 export const PORT_CITY_LOCATION = Object.freeze({
+  COLONY_CLUE: "colony-clue",
   SET_SAIL: "set-sail",
   MARKET: "market",
   EQUIPMENT: "equipment",
@@ -10,6 +11,7 @@ export const PORT_CITY_LOCATION = Object.freeze({
 });
 
 const LOCATION_ORDER = Object.freeze([
+  PORT_CITY_LOCATION.COLONY_CLUE,
   PORT_CITY_LOCATION.SET_SAIL,
   PORT_CITY_LOCATION.SHIP,
   PORT_CITY_LOCATION.MARKET,
@@ -21,6 +23,7 @@ const LOCATION_ORDER = Object.freeze([
 ]);
 
 const LOCATION_LABELS = Object.freeze({
+  [PORT_CITY_LOCATION.COLONY_CLUE]: "?",
   [PORT_CITY_LOCATION.SET_SAIL]: "Set Sail",
   [PORT_CITY_LOCATION.MARKET]: "Market",
   [PORT_CITY_LOCATION.EQUIPMENT]: "Smith",
@@ -94,6 +97,8 @@ export function portCityLocationForRootAction(action) {
   if (action.type === "attempt-restricted-illicit-trade") {
     return PORT_CITY_LOCATION.ILLICIT_MERCHANT;
   }
+  if (action.type === "inspect-colony-clue") return PORT_CITY_LOCATION.COLONY_CLUE;
+  if (action.type === "leave-colony-site") return PORT_CITY_LOCATION.SHIP;
   if (action.type === "open-passenger") return PORT_CITY_LOCATION.INN;
   if (action.type === "open-trade-pass") return PORT_CITY_LOCATION.AUTHORITY;
   if (action.type === "close") return PORT_CITY_LOCATION.SET_SAIL;

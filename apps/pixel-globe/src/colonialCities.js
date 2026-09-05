@@ -729,3 +729,13 @@ function localCityTypeForTerritory(territoryId) {
 function nonEmptyString(value) {
   return typeof value === "string" && value.trim() !== "";
 }
+
+// Failed trading missions leave their pre-existing host settlement intact.
+// Colony destruction is derived from quest history, never a second saved state.
+export function colonizationSiteIsRuined(city) {
+  return city?.colonizationQuestSite === true && (
+    city.colonyAbandoned === true ||
+    (city.colonizationQuestStage === "failed" &&
+      colonizationTargetForCity(city)?.preexistingSettlement !== true)
+  );
+}

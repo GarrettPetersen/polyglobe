@@ -1,6 +1,7 @@
 import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
 
 export const CITY_DESTINATIONS = Object.freeze([
+  cityDestination({ id: PORT_CITY_LOCATION.COLONY_CLUE, label: "?", layers: [] }),
   cityDestination({
     id: PORT_CITY_LOCATION.SET_SAIL,
     label: "Set Sail",
@@ -67,6 +68,9 @@ export function activeCityDestinations({
 
   return Object.freeze(CITY_DESTINATIONS.filter((destination) => {
     if (availableDestinationIds && !availableDestinationIds.has(destination.id)) return false;
+    if (destination.id === PORT_CITY_LOCATION.COLONY_CLUE) {
+      return features.settlementStage === "ruins" && availableDestinationIds?.has(destination.id) === true;
+    }
     if (features.settlementStage !== "city" && destination.id !== PORT_CITY_LOCATION.SHIP &&
         destination.id !== PORT_CITY_LOCATION.SET_SAIL) return false;
     if (!availableDestinationIds && destination.id === PORT_CITY_LOCATION.ILLICIT_MERCHANT) {
@@ -117,7 +121,7 @@ function requireCityFeatures(features) {
   if (!features || typeof features !== "object") {
     throw new Error("Active city destinations require scene features");
   }
-  if (!["uninhabited", "colony", "city"].includes(features.settlementStage)) {
+  if (!["uninhabited", "colony", "ruins", "city"].includes(features.settlementStage)) {
     throw new Error(`Invalid city destination settlement stage: ${features.settlementStage}`);
   }
   for (const feature of ["shipyard", "market", "store", "inn"]) {

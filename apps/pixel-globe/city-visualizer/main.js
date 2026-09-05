@@ -1,5 +1,11 @@
+import { CROATOAN_CLUE, cityRuinsDamage, croatoanClueScreenRect, croatoanClueContainsPoint } from "./cityColonyRuins.js";
+import { GAME_ICON_ASSET_VERSION, gameIconAtlasRect, gameIconAtlasDimensions } from "../src/gameIcons.js";
 import { requirePixelPerfectSpriteScale } from "../src/pixelPerfectSpriteScale.js";
 import { cityAssaultCameraTargetPosition } from "./cityAssaultCamera.js";
+import {
+  CITY_FEAST_TABLE, CITY_FEAST_TABLE_Z, CITY_FEAST_SHADOW_Z, CITY_FEAST_FOOD_FILES,
+  cityFeastFrames, createCityFeastGuests, cityFeastGuestPose, cityFeastDishes
+} from "./cityFeast.js";
 import {
   PORT_SCENE_ENTITY_META,
   PORT_SCENE_DOCK,
@@ -372,6 +378,8 @@ const state = {
   pinnedDestinationLabel: null,
   hoverPanDestinationId: null,
   focusedDestinationId: null,
+  colonyClueId: null,
+  gameIconAtlas: null,
   destinationLabelLayouts: Object.freeze([]),
   destinationLabelLayoutParallax: null,
   availableDestinationIds: null,
@@ -380,6 +388,8 @@ const state = {
   bombardmentEventId: null,
   assaultPresentation: null,
   colonistLanding: null,
+  feast: null,
+  feastFoodImages: null,
   specialAgents: [],
   backgroundCityRows: [],
   backgroundCityPainterOrder: [],
@@ -453,7 +463,20 @@ async function initialize() {
       loadImage(cityPeopleAtlasUrl(state.peopleManifest)),
       loadImage("/assets/misc/fire.png?v=fire-effect-2")
     ]);
+    state.gameIconAtlas = await loadImage(`/assets/ui/game-icons.png?v=${GAME_ICON_ASSET_VERSION}`);
+    const iconDimensions = gameIconAtlasDimensions();
+    if (state.gameIconAtlas.width !== iconDimensions.width || state.gameIconAtlas.height !== iconDimensions.height) {
+      throw new Error("City clue icon atlas dimensions do not match the game icon catalog");
+    }
     validateCityPeopleAtlasImage(state.peopleManifest, state.peopleAtlas);
+    cityFeastFrames(portManifest);
+    state.feastFoodImages = Object.fromEntries(await Promise.all(
+      Object.entries(CITY_FEAST_FOOD_FILES).map(async ([id, file]) => {
+        const image = await loadImage(`/assets/misc/${file}.png?v=provision-icons-3`);
+        if (image.width !== 6 || image.height !== 6) throw new Error(`Feast food must be 6x6: ${id}`);
+        return [id, image];
+      })
+    ));
     if (
       state.fireAtlas.width !== FIRE_FRAME_WIDTH * FIRE_FRAME_COUNT ||
       state.fireAtlas.height !== FIRE_FRAME_HEIGHT * FIRE_VARIANT_COUNT
@@ -566,6 +589,7 @@ async function selectCity(cityId, {
   barred = false,
   illicitCaughtStartedAtMs = null,
   bombardmentEventId = null,
+  colonyClueId = null,
   population = null,
   settlementType = null,
   featureOverrides = Object.freeze({})
@@ -589,6 +613,11 @@ async function selectCity(cityId, {
   });
   if (serial !== citySelectionSerial) return;
 
+  if (colonyClueId !== null && (colonyClueId !== CROATOAN_CLUE.id ||
+      featureOverrides.settlementStage !== "ruins")) {
+    throw new Error(`Invalid colony scene clue: ${colonyClueId}`);
+  }
+  state.colonyClueId = colonyClueId;
   state.city = city;
   state.availableDestinationIds = validatedDestinationIds;
   state.barred = barred;
@@ -596,6 +625,7 @@ async function selectCity(cityId, {
   state.bombardmentEventId = bombardmentEventId;
   state.assaultPresentation = null;
   state.colonistLanding = null;
+  state.feast = null;
   bombardmentFrameCache.clear();
   bombardmentOverlayFrameCache = null;
   state.focusedDestinationId = null;
@@ -623,7 +653,7 @@ async function selectCity(cityId, {
   });
   state.cameraVelocity = 0;
   state.cameraPanTarget = null;
-  if (state.features.settlementStage === "colony") focusSceneMasterX(1100, { immediate: true });
+  if (["colony", "ruins"].includes(state.features.settlementStage)) focusSceneMasterX(1100, { immediate: true });
   state.cloudDriftByLayer = new Map(CITY_CLOUD_SPECS.map(({ layer }) => [layer, 0]));
   state.lastCloudTimeMs = null;
   rebuildCitySceneRenderPlan();
@@ -1327,6 +1357,7 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
     drawLeftBankBackgroundCityFrame(entry.frame, targetContext);
   }
   else if (entry.kind === "chimney-smoke") drawChimneySmoke(entry.emitter, timeMs);
+  else if (entry.kind === "colony-clue") drawColonyClue(targetContext);
   else if (entry.kind === "city-building") drawCityStreetBuilding(entry.placement, targetContext);
   else if (entry.kind === "city-building-smoke") {
     drawCityStreetBuildingSmoke(entry.placement, entry.emitter, timeMs);
@@ -1349,6 +1380,11 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
   else if (entry.kind === "npc") drawNpc(entry.agent, timeMs);
   else if (entry.kind === "port-assault") drawPortAssaultPresentation(entry.lane);
   else if (entry.kind === "colonist-landing") drawColonistLanding(entry.lane, timeMs);
+  else if (entry.kind === "feast-table") drawFeastTable(targetContext);
+  else if (entry.kind === "feast-shadow") drawFeastShadow(targetContext);
+  else if (entry.kind === "feast-guest") {
+    drawNpc(cityFeastGuestPose(entry.guest, state.feast.phase, state.feast.elapsedMs), timeMs);
+  }
   else throw new Error(`Unknown city scene render entry: ${entry.kind}`);
 }
 
@@ -1663,7 +1699,7 @@ function createSceneRenderEntries() {
   for (const [placementOrder, placement] of state.streetBuildings.entries()) {
     const authoredOrder = 15 + placementOrder / 10;
     const emitter = placedCityBuildingChimneySmokeEmitter(placement);
-    if (emitter) {
+    if (emitter && state.features.settlementStage !== "ruins") {
       entries.push({
         kind: "city-building-smoke",
         placement,
@@ -1694,6 +1730,9 @@ function createSceneRenderEntries() {
     });
   }
   for (const [placementOrder, placement] of state.quayCargoPlacements.entries()) {
+    if (state.feast && placement.x + placement.width >= CITY_FEAST_TABLE.x &&
+        placement.x <= CITY_FEAST_TABLE.x + CITY_FEAST_TABLE.width &&
+        placement.groundY >= 505 && placement.groundY <= 540) continue;
     entries.push({
       kind: "quay-cargo",
       placement,
@@ -1741,12 +1780,15 @@ function createSceneRenderEntries() {
       authoredOrder: 39
     });
   }
-  if (state.bombardmentEventId !== null && state.features.settlementStage !== "uninhabited") {
+  if (state.bombardmentEventId !== null && !["uninhabited", "ruins"].includes(state.features.settlementStage)) {
     entries.push({
       kind: "bombardment-fire-overlay",
       z: CITY_BOMBARDMENT_FIRE_PAINTER_Z,
       authoredOrder: 37.4
     });
+  }
+  if (state.colonyClueId !== null) {
+    entries.push({ kind: "colony-clue", z: CROATOAN_CLUE.z, authoredOrder: 37.5 });
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
   if (state.colonistLanding) {
@@ -1773,6 +1815,13 @@ function createSceneRenderEntries() {
       z: CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
       authoredOrder: 38.95
     });
+  } else if (state.feast) {
+    entries.push({ kind: "feast-shadow", z: CITY_FEAST_SHADOW_Z, authoredOrder: 37 });
+    entries.push({ kind: "feast-table", z: CITY_FEAST_TABLE_Z, authoredOrder: 38 });
+    for (const guest of state.feast.guests) {
+      entries.push({ kind: "feast-guest", guest, z: cityGroundPainterZ(guest.feetY),
+        authoredOrder: 39 + guest.index / 100 });
+    }
   } else {
     for (const [agentOrder, agent] of state.npcAgents.slice(0, state.features.npcs).entries()) {
       entries.push({
@@ -1800,6 +1849,34 @@ function createSceneRenderEntries() {
 function drawCityTree(placement, targetContext) {
   const window = sceneWindow(placement.depth, 0, 0, placement.parallaxAnchor);
   drawCityTreePart(placement, placement.tree.frame, window, targetContext);
+}
+
+function drawFeastPart(frame, x, y, targetContext) {
+  const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+  targetContext.drawImage(state.staticAtlas, frame.frame.x, frame.frame.y, frame.frame.w, frame.frame.h,
+    Math.round(x - window.x), Math.round(y - window.y), frame.frame.w, frame.frame.h);
+}
+
+function drawFeastShadow(targetContext) {
+  const frames = state.feast.frames;
+  const table = frames.Table.spriteSourceSize;
+  const shadow = frames["Table shadow"].spriteSourceSize;
+  // Like tree shadows, this is painted immediately above its ground band:
+  // the street here, before its people, table and foreground market stalls.
+  drawFeastPart(frames["Table shadow"], CITY_FEAST_TABLE.x + shadow.x - table.x,
+    CITY_FEAST_TABLE.y + shadow.y - table.y, targetContext);
+}
+
+function drawFeastTable(targetContext) {
+  drawFeastPart(state.feast.frames.Table, CITY_FEAST_TABLE.x, CITY_FEAST_TABLE.y, targetContext);
+  const window = sceneWindow(PORT_SCENE_ENTITY_META.npcs.depth);
+  for (const dish of state.feast.dishes) {
+    drawFeastPart(state.feast.frames[dish.layer], dish.x, dish.y, targetContext);
+    for (const food of dish.foods) {
+      targetContext.drawImage(state.feastFoodImages[food.id],
+        Math.round(dish.x + food.x - window.x), Math.round(dish.y + food.y - window.y));
+    }
+  }
 }
 
 function drawQuayCargo(placement, targetContext) {
@@ -1895,6 +1972,17 @@ function drawCityTreePart(placement, part, window, targetContext) {
     destinationHeight
   );
   targetContext.restore();
+}
+
+function colonyClueScreenRect() {
+  return croatoanClueScreenRect(sceneWindow(PORT_SCENE_DEPTH.foreground));
+}
+
+function drawColonyClue(targetContext) {
+  const rect = colonyClueScreenRect();
+  const source = gameIconAtlasRect(CROATOAN_CLUE.iconId);
+  targetContext.drawImage(state.gameIconAtlas, source.x, source.y, source.w, source.h,
+    rect.x, rect.y, rect.width, rect.height);
 }
 
 function drawCityStreetBuilding(placement, targetContext) {
@@ -2075,15 +2163,19 @@ function authoredBombardmentPresentation(frame, layerName, occurrence, source) {
   if (state.bombardmentEventId === null || !cityBombardmentLayerIsDamageable(layerName)) {
     return null;
   }
-  return bombardmentFramePresentation({
+  return damagedBuildingFramePresentation({
     source,
     buildingId: `authored|${layerName}|${occurrence}`
   });
 }
 
 function cityStreetBombardmentPresentation(placement, source) {
+  if (state.features.settlementStage === "ruins") {
+    return damagedBuildingFramePresentation({ source, buildingId: `street|${placement.id}`,
+      foundationHeight: placement.foundationHeight });
+  }
   if (state.bombardmentEventId === null) return null;
-  return bombardmentFramePresentation({
+  return damagedBuildingFramePresentation({
     source,
     buildingId: `street|${placement.id}`
   });
@@ -2098,7 +2190,7 @@ function backgroundCityBombardmentPresentation(side, entry, source) {
     eventId: state.bombardmentEventId
   });
   if (!cityBombardmentBuildingIsAffected(seed, 0.18)) return null;
-  return bombardmentFramePresentation({ source, buildingId, seed });
+  return damagedBuildingFramePresentation({ source, buildingId, seed });
 }
 
 function backgroundCityBombardmentBuildingId(side, entry) {
@@ -2108,19 +2200,20 @@ function backgroundCityBombardmentBuildingId(side, entry) {
   return `background|${side}|${entry.rowOrder}|${entry.buildingOrder}|${entry.building.frame.layer}`;
 }
 
-function bombardmentFramePresentation({ source, buildingId, seed = null }) {
+function damagedBuildingFramePresentation({ source, buildingId, seed = null, foundationHeight = null }) {
+  const eventId = foundationHeight === null ? state.bombardmentEventId : "colony-ruins";
   if (!source?.atlas || !source?.frame?.frame) {
     throw new Error(`Bombardment building ${buildingId} has no source frame`);
   }
   const resolvedSeed = seed ?? cityBombardmentSeed({
     cityId: state.city.id,
     buildingId,
-    eventId: state.bombardmentEventId
+    eventId
   });
   const sourceFrame = source.frame;
   const cacheKey = [
     state.city.id,
-    state.bombardmentEventId,
+    eventId,
     buildingId,
     sourceFrame.id,
     sourceFrame.frame.x,
@@ -2151,12 +2244,10 @@ function bombardmentFramePresentation({ source, buildingId, seed = null }) {
   for (let index = 0; index < alpha.length; index += 1) {
     alpha[index] = imageData.data[index * 4 + 3];
   }
-  const damage = cityBombardmentDamage({
-    alpha,
-    width: buffer.width,
-    height: buffer.height,
-    seed: resolvedSeed
-  });
+  const damageInput = { alpha, width: buffer.width, height: buffer.height, seed: resolvedSeed };
+  const damage = foundationHeight === null
+    ? cityBombardmentDamage(damageInput)
+    : cityRuinsDamage({ ...damageInput, foundationHeight });
   for (let index = 0; index < alpha.length; index += 1) {
     const offset = index * 4;
     if (damage.hole[index] !== 0) {
@@ -4043,6 +4134,7 @@ function refreshDestinationLabelLayouts() {
 
 function drawSceneLabels() {
   drawCityNameLabel();
+  if (state.feast) return;
   drawSetSailControl();
   drawDestinationLabels();
 }
@@ -4334,6 +4426,10 @@ function destinationAtPoint(x, y) {
   if (shipDestination && docksideShipContainsPoint(x, y)) {
     return Object.freeze({ destination: shipDestination, saleShipId: null });
   }
+  const clueDestination = destinations.find(({ id }) => id === PORT_CITY_LOCATION.COLONY_CLUE);
+  if (clueDestination && croatoanClueContainsPoint(colonyClueScreenRect(), x, y)) {
+    return Object.freeze({ destination: clueDestination, saleShipId: null });
+  }
   for (const destination of destinations) {
     if (specialDestinationContainsPoint(destination.id, x, y)) {
       return Object.freeze({ destination, saleShipId: null });
@@ -4490,6 +4586,11 @@ function moveDestinationFocus(direction) {
 }
 
 function destinationScreenAnchor(destination) {
+  if (destination.id === PORT_CITY_LOCATION.COLONY_CLUE) {
+    if (state.colonyClueId !== CROATOAN_CLUE.id) throw new Error("CROATOAN destination has no visible clue");
+    const rect = colonyClueScreenRect();
+    return Object.freeze({ x: rect.x + rect.width / 2, y: rect.y });
+  }
   if (destination.id === PORT_CITY_LOCATION.SET_SAIL) {
     const window = sceneWindow(PORT_SCENE_DEPTH.foreground);
     return Object.freeze({
@@ -4790,7 +4891,11 @@ return Object.freeze({
       features: state.features,
       wind: state.wind,
       shipSlug: state.shipSlug,
-      bombardmentEventId: state.bombardmentEventId
+      bombardmentEventId: state.bombardmentEventId,
+      colonyClue: state.colonyClueId === null ? null : Object.freeze({
+        id: state.colonyClueId, rect: colonyClueScreenRect(),
+        label: state.destinationLabelLayouts.find(({ id }) => id === PORT_CITY_LOCATION.COLONY_CLUE) || null
+      })
     });
   },
   setFeatureOverrides(overrides) {
@@ -4857,6 +4962,35 @@ return Object.freeze({
       rebuildCitySceneRenderPlan();
     }
     return frame.complete;
+  },
+  setFeastPresentation(presentation) {
+    if (presentation === null) {
+      if (state.feast) {
+        state.feast = null;
+        rebuildCitySceneRenderPlan();
+      }
+      return;
+    }
+    const { phase, elapsedMs } = presentation;
+    if (!["served", "afterwards"].includes(phase) || !Number.isFinite(elapsedMs) || elapsedMs < 0 ||
+        !state.city || state.colonistLanding || state.assaultPresentation) {
+      throw new Error("Invalid city feast presentation");
+    }
+    const changed = state.feast?.phase !== phase;
+    state.feast = {
+      phase, elapsedMs,
+      guests: state.feast?.guests || createCityFeastGuests(state.city),
+      frames: state.feast?.frames || cityFeastFrames(state.portManifest),
+      dishes: changed ? cityFeastDishes(phase) : state.feast.dishes
+    };
+    if (changed) {
+      state.cameraVelocity = 0;
+      state.cameraPanTarget = null;
+      state.hoverPanDestinationId = null;
+      state.focusedDestinationId = null;
+      focusSceneMasterX(CITY_FEAST_TABLE.x + CITY_FEAST_TABLE.width / 2, { immediate: true });
+      rebuildCitySceneRenderPlan();
+    }
   },
   setAssaultPresentation(presentation) {
     if (presentation !== null && state.colonistLanding) {

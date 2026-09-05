@@ -78,3 +78,16 @@ async function assertNonblankTransparentCitySprite(filename) {
   assert.ok(opaquePixels > 0);
   assert.ok(transparentPixels > 0);
 }
+
+test("abandoned and failed colonies use the authored ruins marker", async () => {
+  assert.ok(CITY_IMAGE_KEYS.includes("ruins"));
+  for (const history of [
+    { colonizationQuestStage: "established", colonyAbandoned: true },
+    { colonizationQuestStage: "failed" }
+  ]) {
+    assert.equal(cityArtKeyForCity({ cityId: "roanoke|united states of america",
+      cityType: "northern-european", settlementType: "village", colonizationQuestSite: true,
+      ...history }), "ruins");
+  }
+  await assertNonblankTransparentCitySprite("city-ruins.png");
+});

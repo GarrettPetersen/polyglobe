@@ -680,7 +680,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
     if (!(key in automatic) && key !== "props") throw new Error(`Unknown city scene override: ${key}`);
   }
   const features = { ...automatic, ...requestedOverrides };
-  if (!["uninhabited", "colony", "city"].includes(features.settlementStage)) {
+  if (!["uninhabited", "colony", "ruins", "city"].includes(features.settlementStage)) {
     throw new Error(`Unknown city scene settlement stage: ${features.settlementStage}`);
   }
   if (!DOCK_STYLES.includes(features.dock)) throw new Error(`Unknown dock style: ${features.dock}`);
@@ -718,7 +718,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
   // Resolve this once so rendering, residents, effects and navigation agree.
   if (features.settlementStage !== "city") {
     features.dock = "none";
-    features.npcs = features.settlementStage === "uninhabited" ? 0 : Math.min(features.npcs, 3);
+    features.npcs = features.settlementStage === "colony" ? Math.min(features.npcs, 3) : 0;
     features.props = 0;
     for (const key of [
       "fortified", "backgroundCity", "leftBankCity", "pyramid", "church", "mosque",
@@ -731,7 +731,7 @@ export function resolveCitySceneFeatures(city, overrides = {}) {
 export function activePortSceneLayers(features) {
   if (!features || typeof features !== "object") throw new Error("Port scene layers require features");
   const layers = new Set(ALWAYS_VISIBLE_LAYERS);
-  if (features.settlementStage === "city") layers.add("Road");
+  if (["city", "ruins"].includes(features.settlementStage)) layers.add("Road");
   if (features.shipyard) layers.add("Shipyard");
   if (features.market) {
     const visibleMarketLayers = features.primitiveSettlement ? ["Market Stall"] : MARKET_LAYERS;

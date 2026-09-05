@@ -26,6 +26,8 @@ import { buildMountainLandmarks } from "./mountainLandmarks.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
+import { COLONIZATION_TARGETS } from "./colonialCities.js";
+import { connectedLandTileIds, isolatedCoastalWaterRegions, riverOpeningAudit, settlementPlacementDisplacements } from "./worldGeographyAudit.js";
 import {
   buildWorldNavigationTopology,
   canTraverseWorldNavigationEdge,
@@ -38,6 +40,7 @@ import {
 import {
   nearestTileMatching,
   placeCityCatalogOnWorld,
+  placeColonizationTargetsOnWorld,
   portAccessTileIds,
   portCitiesOnWorld,
   validateCityPortAccessCatalog
@@ -104,6 +107,36 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     );
   }
 
+  const islandTileIds = connectedLandTileIds({ graph, earthRows, startTileId: 299003 });
+  assert.deepEqual(islandTileIds, [74856, 299000, 299003, 299014],
+    "Long Island must retain its land and be separated from the mainland by water");
+  assert.equal(new Set(islandTileIds.map((id) => earthRows[id].m)).size, 1);
+  assert.notEqual(earthRows[299003].m, earthRows[4714].m);
+  for (const blockedChannelTile of [298999, 298720, 74786, 299005]) {
+    const regressedRows = earthRows.slice();
+    regressedRows[blockedChannelTile] = earth.tiles[blockedChannelTile];
+    assert.ok(connectedLandTileIds({ graph, earthRows: regressedRows, startTileId: 299003 }).includes(4714),
+      `restoring false land tile ${blockedChannelTile} must reproduce the mainland attachment`);
+  }
+  const upperBay = WORLD_WATERWAY_INVARIANTS.find(({ name }) => name === "Upper Chesapeake Bay");
+  const blockedBayRows = earthRows.slice();
+  blockedBayRows[73665] = earth.tiles[73665];
+  assert.equal(boundedNavigablePathExists({ graph, earthRows: blockedBayRows, navigation, directionIndex, ...upperBay }), false,
+    "the upper bay contract must reject the original land bridge, even if a river crosses it");
+  assert.ok(isolatedCoastalWaterRegions({ graph, earthRows: blockedBayRows })
+    .some(({ tileIds }) => tileIds.includes(294253)), "the broad scan must detect the original enclosed upper bay");
+  assert.ok(!isolatedCoastalWaterRegions({ graph, earthRows })
+    .some(({ tileIds }) => tileIds.includes(294253)), "the corrected bay must open to the ocean");
+  for (const tileId of [294316, 18469, 18467, 294251]) {
+    assert.equal(navigation.riverMasks[tileId], 0, `tidal rivers must not cut across peninsula tile ${tileId}`);
+  }
+  const openingAudit = riverOpeningAudit({ graph, earthRows, navigation });
+  for (const { name, from } of WORLD_WATERWAY_INVARIANTS.filter(({ name }) => name.endsWith("outlet"))) {
+    const startTileId = findNearestTileId(graph, directionIndex, latLonToDirection(...from));
+    assert.ok(!openingAudit.coastalDeadEnds.some(({ tileId }) => tileId === startTileId), `${name} must have an outlet`);
+    assert.equal(navigation.reachableNavigationMask[startTileId], 1, `${name} must reach the ocean`);
+  }
+
   const cityCsv = await readFile(new URL(
     "examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
     repoRoot
@@ -117,6 +150,20 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     riverMasks: navigation.riverMasks
   };
   const placedByTileId = placeCityCatalogOnWorld({ ...placementOptions, cities });
+  const colonySites = placeColonizationTargetsOnWorld({
+    ...placementOptions, targets: COLONIZATION_TARGETS, occupiedCities: [...placedByTileId.values()]
+  });
+  const jamestown = colonySites.find(({ cityId }) => cityId === "jamestown|united states of america");
+  const roanoke = colonySites.find(({ cityId }) => cityId === "roanoke|united states of america");
+  assert.equal(jamestown.tileId, 294323);
+  assert.deepEqual(settlementPlacementDisplacements({ graph, settlements: [jamestown], minimumDistanceKm: 20 }), []);
+  assert.ok(graph.latDeg[jamestown.tileId] > graph.latDeg[roanoke.tileId] + 1,
+    "Jamestown belongs on the James, well north of Roanoke");
+  assert.notEqual(navigation.riverMasks[jamestown.tileId], 0, "Jamestown must stand on the tidal James route");
+  const asuncion = colonySites.find(({ cityId }) => cityId === "asuncion|paraguay");
+  assert.equal(asuncion.tileId, 430596);
+  assert.deepEqual(settlementPlacementDisplacements({ graph, settlements: [asuncion], minimumDistanceKm: 20 }), [],
+    "the Paraguay-Parana outlet must keep Asuncion off Brazil's coast");
   const ports = portCitiesOnWorld(placedByTileId, placementOptions);
   assert.equal(validateCityPortAccessCatalog(placedByTileId, ports, placementOptions), true);
   assert.doesNotThrow(() => validateCanonicalPortCatalog(ports));

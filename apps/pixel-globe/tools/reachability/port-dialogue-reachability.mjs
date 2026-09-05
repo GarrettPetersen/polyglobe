@@ -435,6 +435,7 @@ function transitionScenario(scenario, offered, { executeHostEffects = false } = 
     offered.index,
     context
   );
+  if (result.chefFeast) next.simMinute = result.chefFeast.minute;
   if (executeHostEffects && result.action) {
     const city = cityForSession(next);
     switch (result.action.type) {
@@ -484,7 +485,7 @@ function contextForScenario(scenario) {
   return {
     random: () => 0.75,
     missionGiftRandom: () => 0.75,
-    simMinute: 0,
+    simMinute: scenario.simMinute ?? 0,
     dayIndex: 0,
     localHour: 12,
     arrivalGreetingPresented: true,

@@ -1504,3 +1504,21 @@ test("generated regional architecture profiles remain explicit city data", () =>
     });
   }
 });
+
+test("ruins retain a street and foundations but no residents, amenities or skyline", () => {
+  for (const city of CITY_VISUALIZER_CATALOG.cities) {
+    const features = resolveCitySceneFeatures(city, { settlementStage: "ruins", npcs: 12, props: 18 });
+    assert.equal(features.npcs, 0);
+    assert.equal(features.props, 0);
+    assert.equal(features.backgroundCity, false);
+    assert.equal(features.fortified, false);
+    assert.equal(features.dock, "none");
+    const layers = activePortSceneLayers(features);
+    assert.ok(layers.has("Road"));
+    for (const layer of ["Smith", "Inn", "Shipyard", "Market Stall", "Church", "Mosque", "Gate"]) {
+      assert.equal(layers.has(layer), false, `${city.id}:${layer}`);
+    }
+    const buildings = cityStreetBuildingPlacements({ features, frames: CITY_VISUALIZER_PORT_MANIFEST.staticFrames });
+    assert.equal(buildings.length, 2);
+  }
+});

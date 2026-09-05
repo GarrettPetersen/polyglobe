@@ -3,10 +3,22 @@ const FAST_SCENARIO_IDS = Object.freeze([
   "reachability-fight-broadside",
   "reachability-port-assault-fortified",
   "reachability-colony-found",
-  "reachability-whale-tow"
+  "reachability-whale-tow",
+  "reachability-chef-feast",
+  "reachability-roanoke-timber"
 ]);
 
 export const GAMEPLAY_REACHABILITY_SCENARIOS = deepFreeze({
+  "reachability-roanoke-timber": roanokeScenario("reachability-roanoke-timber", "timber"),
+  "reachability-roanoke-label": roanokeScenario("reachability-roanoke-label", "label"),
+  "reachability-colony-ruins": colonyScenario("reachability-colony-ruins", "ruins"),
+  "reachability-chef-feast": {
+    id: "reachability-chef-feast", title: "Village feast", seed: "reachability-chef-feast-v1",
+    player: vessel("portugal", "brigantine", 38.7, -9.2, 90),
+    world: world(150, 10, 0), diplomacy: [], encounters: [],
+    sequence: { kind: "city", variant: "chef-feast", durationSeconds: 24,
+      cityId: "lisbon|portugal", modalPolicy: "show" }
+  },
   "reachability-colony-found": colonyScenario("reachability-colony-found", "found"),
   "reachability-colony-resupply": colonyScenario("reachability-colony-resupply", "resupply"),
   "reachability-colony-city": colonyScenario("reachability-colony-city", "city"),
@@ -275,4 +287,16 @@ function deepFreeze(value) {
   if (!value || typeof value !== "object" || Object.isFrozen(value)) return value;
   for (const child of Object.values(value)) deepFreeze(child);
   return Object.freeze(value);
+}
+
+function roanokeScenario(id, clueActivation) {
+  return {
+    id, title: "Colonist", seed: `${id}-v1`,
+    player: { ...vessel("england", "galleon", 35.9, -75.65, 45), homeCityId: "london|united kingdom" },
+    world: world(184, 16, 35), diplomacy: [], encounters: [],
+    sequence: { kind: "colonize", variant: "investigate", clueActivation, durationSeconds: 12,
+      cityId: "roanoke|united states of america", originCityId: "london|united kingdom",
+      organizerPortraitSourceId: "merchant-portrait-pack-by-captainskolot-portrait-merchant",
+      modalPolicy: "show" }
+  };
 }

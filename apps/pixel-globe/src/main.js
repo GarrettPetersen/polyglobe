@@ -1,3 +1,6 @@
+import { colonizationSiteIsRuined } from "./colonialCities.js";
+import { dateToSubsolarPoint } from "./solarClock.js";
+import { CITY_FEAST_GATHER_DURATION_MS } from "../city-visualizer/cityFeast.js";
 import { completeChefRecruitment, completeVikingLongshipAcquisition } from "./innQuestTransactions.js";
 import {
   clamp,
@@ -2160,7 +2163,6 @@ import {
   isColonizationDefenseShip,
   isColonizationQuestApproval,
   isColonizationQuestTarget,
-  inspectColonizationAftermath,
   landColonists,
   markColonizationOrganizerApproached,
   reconcileColonizationQuestOriginAfterConquest
@@ -4175,6 +4177,7 @@ let scavengeButtonRect = null;
 let shoreScavengeAction = null;
 let anchored = false;
 let automaticQuestSiteAnchorOverlayKind = null;
+let lastAutomaticQuestSiteCityId = null;
 let initialAnimalEncounterRollPending = false;
 let portWaitState = null;
 let portWaitButtonRect = null;
@@ -7079,6 +7082,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (updateDepartureControlFeedback(nowMs)) dirty = true;
   if (updatePortCityIllicitCaughtPresentation(nowMs)) dirty = true;
   if (updateColonistLanding(nowMs)) dirty = true;
+  if (updateChefFeastPresentation(nowMs)) dirty = true;
   if (updatePortAssault(nowMs)) dirty = true;
   measurePerformanceBenchmarkStage(
     "audio.ambient",
@@ -8399,8 +8403,6 @@ function maybeDiscoverMissingColonizationAftermath() {
   if (!discoverableColonizationAftermath(gameState.memory.colonization, distancePx)) return false;
   const reportPort = colonizationAftermathReportPort(gameState.memory.colonization, portCities);
   if (!reportPort) return false;
-  const message = `Roanoke? It is gone! We will search the shore and carry word to ${reportPort.city}.`;
-  if (!openCaptainAlertModal(message, "concerned")) return false;
   discoverColonizationAftermath(
     gameState.memory.colonization,
     aftermath.target,
@@ -11070,6 +11072,7 @@ function setupPerformanceBenchmark() {
   captainAlertModal = null;
   dialogueState = null;
   automaticQuestSiteAnchorOverlayKind = null;
+  lastAutomaticQuestSiteCityId = null;
   dialogueShipMotionPause = null;
   gameState.memory.flags.oarTutorialShown = true;
   gameState.memory.flags.sailingBasicsTutorialShown = true;
@@ -11841,6 +11844,14 @@ function stageCaptureCity(sequence) {
   const city = captureCityById(sequence.cityId);
   placeCapturePlayerNearTile(city.tileId);
   gameState.doubloons = 12_000;
+  if (sequence.variant === "chef-feast") {
+    const quest = maybeSpawnChefQuest(gameState, city, { simMinute: weatherClockMinutes, spawnChance: 1 });
+    if (!quest) throw new Error("Feast capture could not prepare its chef quest");
+    for (const ingredient of quest.ingredients) {
+      gameState.cargo[ingredient.goodId] = 1;
+      gameState.accounts.cargoCostBasis[ingredient.goodId] = 1;
+    }
+  }
   if (sequence.variant === "market-tour") {
     if (sequence.factorPortraitSourceId) stageCaptureFactorPortrait(sequence, city);
     const good = tradeGoodById(sequence.goodId);
@@ -11856,6 +11867,19 @@ function stageCaptureCity(sequence) {
 }
 
 function updateCaptureCity(sequence) {
+  if (sequence.variant === "chef-feast") {
+    if (captureCue("dismiss-ingredient-notice", 0.4) && captainAlertModal) closeCaptainAlertModal();
+    if (captureCue("open-chef", 0.5)) openCapturePortNode(sequence.cityId, "chef-quest");
+    if (captureCue("deliver-chef", 2.0)) captureChooseDialogueAction("deliver-chef-ingredients");
+    if (captureCue("serve-chef", 5.0)) captureChooseDialogueAction("serve-chef-feast");
+    if (captureCue("finish-chef", 15.0)) captureChooseDialogueAction("finish-chef-feast");
+    if (captureCue("recruit-chef", 22.0)) {
+      captureChooseDialogueAction("recruit-chef");
+      if (gameState.memory.quests.chef.stage !== "recruited") throw new Error("Feast did not recruit its chef");
+      emitCaptureEvent("chef-feast-recruited", { cityId: sequence.cityId, minute: weatherClockMinutes });
+    }
+    return;
+  }
   const cityCall = capturePortCallById(sequence.cityId);
   if (captureCue("open-city", 0.5)) {
     activatePortCityView(cityCall);
@@ -12253,6 +12277,52 @@ function updateCapturePillage(sequence) {
 }
 
 function updateCaptureColonization(sequence) {
+  if (sequence.variant === "investigate") {
+    if (captureCue("verify-roanoke-arrival", 1.5)) {
+      if (!portCityView?.sceneReady || captainAlertModal ||
+          gameState.memory.colonization.aftermath.stage !== COLONIZATION_AFTERMATH_INVESTIGATING) {
+        throw new Error("Roanoke proximity must open an uninspected city scene without alerts");
+      }
+      emitCaptureEvent("roanoke-ruins-arrival", { cityId: sequence.cityId });
+    }
+    if (captureCue("leave-roanoke-uninspected", 2)) activatePortCityDestination({ id: PORT_CITY_LOCATION.SHIP });
+    if (captureCue("revisit-roanoke", 3.5)) {
+      if (portCityView || dialogueState || anchored) throw new Error("Leaving Roanoke reopened or retained its investigation");
+      openPortDialogue(capturePortCallById(sequence.cityId));
+    }
+    if (captureCue("inspect-roanoke-timber", 5)) {
+      const clue = portCityRuntime.getPresentationState().colonyClue;
+      const rect = sequence.clueActivation === "label" ? clue?.label : clue?.rect;
+      if (!rect || (sequence.clueActivation === "label" && rect.label !== "?")) {
+        throw new Error(`Roanoke clue has no visible ${sequence.clueActivation} target`);
+      }
+      const hit = portCityRuntime.activateAt(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      if (hit?.id !== PORT_CITY_LOCATION.COLONY_CLUE || dialogueState?.nodeId !== "colony-clue") {
+        throw new Error(`Roanoke ${sequence.clueActivation} click did not open the captain's clue dialogue`);
+      }
+    }
+    if (captureCue("finish-roanoke-reading", 7.5)) captureChooseDialogueNode("root");
+    if (captureCue("return-from-roanoke", 9)) activatePortCityDestination({ id: PORT_CITY_LOCATION.SHIP });
+    if (captureCue("verify-roanoke-departure", 10)) {
+      if (portCityView || dialogueState || anchored ||
+          gameState.memory.colonization.aftermath.stage !== COLONIZATION_AFTERMATH_REPORTING) {
+        throw new Error("Roanoke investigation did not return the captain to the ship with the report objective");
+      }
+      emitCaptureEvent("roanoke-investigation-departed", { cityId: sequence.cityId });
+    }
+    return;
+  }
+  if (sequence.variant === "ruins") {
+    if (captureCue("visit-failed-colony", 0.8)) openPortDialogue(capturePortCallById(sequence.cityId));
+    if (captureCue("verify-failed-colony", 3)) {
+      const presentation = portCityRuntime.getPresentationState();
+      if (presentation.features.settlementStage !== "ruins" || presentation.features.npcs !== 0 ||
+          presentation.bombardmentEventId !== null || presentation.colonyClue !== null) {
+        throw new Error("Failed colony must render deserted, extinguished ruins without a Roanoke clue");
+      }
+    }
+    return;
+  }
   if (sequence.variant === "offer") {
     if (captureCue("open-colony-offer", 0.8)) {
       openCaptureColonizationDialogue(sequence.originCityId);
@@ -13433,7 +13503,7 @@ function stageCaptureColonization(sequence) {
 
   reserveCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID, 24);
   beginColonizationExpedition(memory);
-  if (["deadline", "resupply", "establish", "defend", "city"].includes(sequence.variant)) {
+  if (["deadline", "resupply", "establish", "defend", "city", "investigate", "ruins"].includes(sequence.variant)) {
     releaseCargoSpace(gameState, COLONIZATION_CARGO_RESERVATION_ID);
     landColonists(memory, Math.floor(weatherClockMinutes) - WEATHER_MINUTES_PER_DAY * 30);
     if (sequence.variant !== "deadline") {
@@ -13445,10 +13515,20 @@ function stageCaptureColonization(sequence) {
     gameState.cargo[quest.resupply.goodId] = quest.resupply.quantity;
     gameState.accounts.cargoCostBasis[quest.resupply.goodId] = 120;
   }
-  if (["defend", "city"].includes(sequence.variant)) {
+  if (["defend", "city", "investigate"].includes(sequence.variant)) {
     establishColony(memory, Math.floor(weatherClockMinutes));
   }
 
+  if (sequence.variant === "investigate") {
+    weatherClockMinutes = memory.aftermath.dueMinute + 1;
+    advanceColonizationAftermaths(memory, weatherClockMinutes, { isTileVisible: () => false });
+    if (sequence.clueActivation === "label") {
+      commissionColonizationAftermath(memory, origin, Math.floor(weatherClockMinutes));
+    }
+  } else if (sequence.variant === "ruins") {
+    weatherClockMinutes = memory.resupplyDeadlineMinute + 1;
+    advanceColonizationQuest(memory, weatherClockMinutes, { awayFromColony: true });
+  }
   syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
   placeCapturePlayerNearTile(memory.targetTileId);
   if (sequence.variant === "defend") {
@@ -13456,6 +13536,14 @@ function stageCaptureColonization(sequence) {
     ensureColonizationDefenseEncounter({ assignCaptains: false });
   } else {
     stopShipMotion();
+  }
+  if (["investigate", "ruins"].includes(sequence.variant)) {
+    // This fixture skips years before arrival; today's shipboard observances
+    // have already been heard before the shore investigation begins.
+    updateAboardCalendarEvents();
+    while (gameState.memory.aboardCalendar.pendingEvents.length > 0) {
+      consumeAboardCalendarDialogueLine(gameState.memory.aboardCalendar);
+    }
   }
   syncShipCargoFromGameState();
 }
@@ -16357,7 +16445,8 @@ function installSaveRestoreSmokeHarness() {
           chartTileCount: chart.tileCalls.length,
           cityCallCount: chart.cityCalls.length,
           serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY),
-          colonization: structuredClone(persisted.save.payload.gameState.memory.colonization)
+          colonization: structuredClone(persisted.save.payload.gameState.memory.colonization),
+          chef: structuredClone(persisted.save.payload.gameState.memory.quests.chef)
         });
       } finally {
         running = false;
@@ -16636,6 +16725,7 @@ async function restoreSavedVoyage(payload) {
 
   anchored = payload.anchored;
   automaticQuestSiteAnchorOverlayKind = null;
+  lastAutomaticQuestSiteCityId = null;
   initialAnimalEncounterRollPending = false;
   survivalDeprivationTimers.waterNextMinute = finiteMinuteOrNull(payload.survivalDamageTimers?.waterNextMinute);
   survivalDeprivationTimers.foodNextMinute = finiteMinuteOrNull(payload.survivalDamageTimers?.foodNextMinute);
@@ -20224,7 +20314,7 @@ function invalidateDialogueOptionGeometry() {
 
 function handleDialogueKeyDown(event) {
   event.preventDefault();
-  if (portCityIllicitEvent || colonistLandingInProgress()) return;
+  if (portCityIllicitEvent || colonistLandingInProgress() || chefFeastInputBlocked()) return;
   // A held confirm key must never spill from one dialogue state into the next;
   // recruitment cards perform immediate purchases.
   if (event.repeat && (event.key === "Enter" || event.key === " ")) return;
@@ -20467,7 +20557,7 @@ function navigateBackFromDialogue() {
 }
 
 function handleDialoguePointerDown(point) {
-  if (portCityIllicitEvent || colonistLandingInProgress()) return;
+  if (portCityIllicitEvent || colonistLandingInProgress() || chefFeastInputBlocked()) return;
   if (dialogueIsCustomLoadoutEditor()) {
     for (const entry of dialogueLayout.customLoadoutSliderRects) {
       if (!pointInRect(point, entry.hitRect)) continue;
@@ -20786,7 +20876,10 @@ function activatePortCityView(cityCall) {
     centerY: center.y,
     sceneReady: false,
     arrivalGreetingPresented: false,
-    colonistLanding: null
+    colonistLanding: null,
+    feast: gameState.memory.quests.chef.portCityId === cityCall.cityId &&
+      gameState.memory.quests.chef.stage === "feasting"
+      ? { phase: "served", startedAtMs: null, elapsedMs: 0 } : null
   };
   portCitySceneSyncKey = null;
   portCityPointerDown = null;
@@ -20851,7 +20944,7 @@ async function synchronizePortCityScene() {
   const city = currentPortCitySceneCity();
   let availableDestinationIds = [];
   if (dialogueState?.kind === "port" && dialogueState.cityId === city.cityId &&
-      dialogueState.admittedToPort === true) {
+      (dialogueState.admittedToPort === true || colonizationSiteIsRuined(city))) {
     availableDestinationIds = portCityNavigationView(
       dialogueState,
       currentDialogueCity(),
@@ -20881,6 +20974,7 @@ async function synchronizePortCityScene() {
   if (!portCityView || serial !== portCitySceneSelectionSerial || portCityView.cityId !== city.cityId) return;
   portCitySceneSyncKey = syncKey;
   portCityView.sceneReady = true;
+  if (portCityView.feast) portCityRuntime.setFeastPresentation(portCityView.feast);
   if (city.colonizationQuestSite) {
     emitCaptureEvent("colony-scene-ready", {
       cityId: city.cityId,
@@ -20918,6 +21012,60 @@ function currentPortCitySceneCity() {
 
 function colonistLandingInProgress() {
   return Boolean(portCityView?.colonistLanding && !portCityView.colonistLanding.complete);
+}
+
+function chefFeastInputBlocked() {
+  const feast = portCityView?.feast;
+  return Boolean(feast && (portCityTransition ||
+    (feast.phase === "served" && feast.elapsedMs < CITY_FEAST_GATHER_DURATION_MS) ||
+    (feast.phase === "afterwards" && feast.elapsedMs < 3000)));
+}
+
+function chefFeastSceneOnly() {
+  const feast = portCityView?.feast;
+  // Give the served announcement a beat, then let the gathering play unobscured.
+  // After the second cut, show the cleared table before the cook speaks again.
+  return Boolean(feast && !portCityTransition && (feast.phase === "afterwards"
+    ? feast.elapsedMs < 3000
+    : feast.elapsedMs >= 2000 && feast.elapsedMs < CITY_FEAST_GATHER_DURATION_MS));
+}
+
+function beginChefFeastTimeCut({ cityId, phase, minute }) {
+  if (!portCityView?.sceneReady || portCityView.cityId !== cityId ||
+      !["served", "afterwards"].includes(phase) || !Number.isFinite(minute) || minute <= weatherClockMinutes) {
+    throw new Error(`Invalid chef feast time cut at ${cityId}: ${minute}`);
+  }
+  const snapshot = capturePresentedFrame();
+  weatherClockMinutes = minute;
+  // Keep the normal world-clock consumers' cursors: payroll, survival, weather,
+  // politics and timed quests must observe the elapsed hours as actual game time.
+  refreshWeatherState(true);
+  portCityView.feast = { phase, startedAtMs: null, elapsedMs: 0 };
+  for (let slice = 0; slice < 6; slice++) advanceWorldClockFrameSlice(lastFrameMs);
+  updateColonizationQuest();
+  portCityRuntime.setFeastPresentation(portCityView.feast);
+  portCityTransition = {
+    direction: "exit", snapshot, centerX: SCREEN_W / 2, centerY: SCREEN_H / 2,
+    startedAtMs: lastFrameMs, sceneTimeCut: true
+  };
+  invalidateDialogueView();
+  emitCaptureEvent("chef-feast-time-cut", { cityId, phase, minute });
+  dirty = true;
+}
+
+function updateChefFeastPresentation(nowMs) {
+  const feast = portCityView?.feast;
+  if (!feast || !portCityView.sceneReady || portCityTransition) return false;
+  feast.startedAtMs ??= nowMs;
+  const wasBlocked = chefFeastInputBlocked();
+  feast.elapsedMs = Math.max(0, nowMs - feast.startedAtMs);
+  portCityRuntime.setFeastPresentation(feast);
+  if (wasBlocked && !chefFeastInputBlocked()) {
+    invalidateDialogueView();
+    emitCaptureEvent(feast.phase === "served" ? "chef-feast-guests-gathered" : "chef-feast-aftermath-shown",
+      { cityId: portCityView.cityId });
+  }
+  return true;
 }
 
 function beginColonistLanding({ cityId, originCityId }) {
@@ -21053,7 +21201,7 @@ function portCityRootPresentationIsOwned() {
   return Boolean(
     portCityView &&
     dialogueState?.kind === "port" &&
-    dialogueState.admittedToPort === true &&
+    (dialogueState.admittedToPort === true || colonizationSiteIsRuined(currentPortCitySceneCity())) &&
     dialogueState.nodeId === "root" &&
     !captainAlertModal
   );
@@ -21103,9 +21251,18 @@ function openPortDialogue(cityCall) {
     combatMusicUntilMs = 0;
     setBackgroundMusicTrack(musicTrackForCity(cityCall), { force: true });
   }
-  const colonyAftermath = colonizationAftermathAtSite(gameState.memory.colonization, cityCall);
-  if (colonyAftermath && openColonizationAftermathSiteDialogue(cityCall, colonyAftermath)) return;
   activatePortCityView(cityCall);
+  if (colonizationSiteIsRuined(cityCall)) {
+    dialogueState = createPortDialogueSession(cityCall, {
+      initialNodeId: "root", admittedToPort: false
+    });
+    dialogueLayout = createDialogueLayoutState();
+    stopShipForDialogue();
+    ensureDialoguePortraitLoaded();
+    saveVoyageNow(`visited ${cityCall.city} colony site`);
+    dirty = true;
+    return;
+  }
   if (isColonizationQuestTarget(gameState.memory.colonization, cityCall) &&
       cityCall.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED) {
     dialogueState = createPortDialogueSession(cityCall, {
@@ -21240,40 +21397,6 @@ function openPortDialogue(cityCall) {
   dirty = true;
 }
 
-function openColonizationAftermathSiteDialogue(cityCall, aftermath) {
-  if (aftermath.stage === COLONIZATION_AFTERMATH_INVESTIGATING) {
-    const captain = gameState.playerCharacter;
-    const opened = startCharacterAlertSequence([
-      {
-        character: captain,
-        expressionId: "thoughtful",
-        message: "No smoke. No voices. The houses were taken down carefully, not burned."
-      },
-      {
-        character: captain,
-        expressionId: "stern",
-        message: "The word CROATOAN is cut into the palisade, with no cross of distress. I will take a rubbing and careful notes back to England."
-      }
-    ], () => {
-      showSurvivalNotice("ROANOKE CLUES ACQUIRED", "good");
-      saveVoyageNow("investigated the abandoned Roanoke colony");
-      dirty = true;
-    });
-    if (!opened) return false;
-    inspectColonizationAftermath(
-      gameState.memory.colonization,
-      cityCall,
-      Math.floor(weatherClockMinutes)
-    );
-    syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
-    return true;
-  }
-  const message = aftermath.stage === COLONIZATION_AFTERMATH_REPORTING
-    ? "Roanoke remains silent. I have gathered all the clues this shore will yield; England must see them."
-    : "The empty earthworks remain, but Roanoke has surrendered no final answer.";
-  return openCaptainAlertModal(message, "thoughtful");
-}
-
 function withPortArrivalGossip(session, cityCall) {
   if (session.kind !== "port" || !portSessionWillShowGreeting(session)) return session;
   const simMinute = Math.floor(weatherClockMinutes);
@@ -21384,7 +21507,6 @@ function maybeOpenCrewRecruitmentArrival(cityCall) {
   if (gameState.ship.crew >= targetCrew) return false;
   const offer = prepareCrewRecruitmentAt(cityCall, { allowEmpty: false });
   if (offer.candidates.length === 0) return false;
-  dialogueState.crewRecruitmentReturnNodeId = null;
   dialogueState.nodeId = "crew-recruitment";
   // Default to the non-destructive exit. A held controller confirm from the
   // preceding arrival dialogue must not hire the first candidate.
@@ -23825,6 +23947,8 @@ function attemptPlayerPortConquest(cityCall, random = Math.random) {
     throw new Error("Port assault requires a ready city scene");
   }
   if (portAssaultState) throw new Error("A port assault is already active");
+  portCityView.feast = null;
+  portCityRuntime.setFeastPresentation(null);
   playBladeReadySound();
   startCombatMusicForThreat("big");
   const seed = Math.floor(random() * 0x100000000) >>> 0;
@@ -24949,14 +25073,21 @@ function maybeAutoAnchorAtNonPortQuestSite() {
     treasureTileId,
     nearestShoreTileId: treasureTileId === null ? null : nearestScavengeShoreCall()?.id ?? null
   });
-  if (!arrival) return false;
+  if (!arrival) {
+    lastAutomaticQuestSiteCityId = null;
+    return false;
+  }
   if (arrival.kind === "treasure") return toggleAnchor();
+  // A captain may leave an investigation before taking its clue. Rearm only
+  // after leaving the arrival radius, so departure cannot reopen the scene.
+  if (arrival.call.cityId === lastAutomaticQuestSiteCityId) return false;
   if (arrival.kind !== "colonization" || arrival.releaseAnchorOnOverlayClose !== true) {
     throw new Error(`Unknown automatic quest-site arrival policy: ${arrival.kind}`);
   }
   if (automaticQuestSiteAnchorOverlayKind !== null) {
     throw new Error(`Automatic quest-site anchor already belongs to ${automaticQuestSiteAnchorOverlayKind}`);
   }
+  lastAutomaticQuestSiteCityId = arrival.call.cityId;
   anchored = true;
   initialAnimalEncounterRollPending = false;
   stopShipMotion();
@@ -25659,7 +25790,7 @@ function closeAutomaticQuestSiteAnchorOverlay(closingOverlayKind) {
 }
 
 function chooseDialogueOption(optionIndex) {
-  if (colonistLandingInProgress()) return false;
+  if (colonistLandingInProgress() || chefFeastInputBlocked()) return false;
   const selected = currentDialogueView().options[optionIndex];
   if (dialogueActionBlockedByActivationGuard(
     dialogueActivationGuard,
@@ -25713,7 +25844,13 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
     if (result.colonizationChanged) {
       syncColonizationWorldState(gameState, { startMinute: weatherClockMinutes });
     }
+    if (result.colonyClueInspected) {
+      showSurvivalNotice("ROANOKE CLUES ACQUIRED", "good");
+      emitCaptureEvent("roanoke-clue-inspected", { cityId: dialogueState.cityId,
+        sceneReady: portCityView?.sceneReady === true });
+    }
     if (result.colonistLanding) beginColonistLanding(result.colonistLanding);
+    if (result.chefFeast) beginChefFeastTimeCut(result.chefFeast);
     reconcileForeignSettlementPolitics({ notify: true });
     if (result.colonizationDefenseStarted) ensureColonizationDefenseEncounter();
     syncShipCargoFromGameState();
@@ -26821,7 +26958,7 @@ function currentDialogueCity() {
   if (dialogueState.kind === "port") {
     const portCall = chartPortCallById(dialogueState.portId);
     if (portCall) {
-      if (portDialogueHasCaptainSpeaker(dialogueState)) {
+      if (portDialogueHasCaptainSpeaker(dialogueState) || colonizationSiteIsRuined(portCall)) {
         const character = gameState.playerCharacter;
         if (!character) throw new Error("Captain-led port dialogue has no player captain");
         return {
@@ -26898,7 +27035,7 @@ function currentDialogueCity() {
     : placedCity;
   const questCharacter = dialogueState.kind !== "port"
     ? null
-    : portDialogueHasCaptainSpeaker(dialogueState)
+    : portDialogueHasCaptainSpeaker(dialogueState) || colonizationSiteIsRuined(city)
       ? gameState.playerCharacter
     : dialogueState.nodeId === "japanese-matchlocks"
       ? ensureJapaneseMatchlockGunsmith(gameState)
@@ -26990,6 +27127,9 @@ function portDialogueContext() {
   const city = dialogueState?.cityId === undefined
     ? null
     : chartPortCallById(dialogueState.portId) || cityById.get(dialogueState.cityId);
+  // Ruins have no economy, staff, passenger offers, or port authority. Their
+  // inspection and departure actions need only the simulation clock.
+  if (colonizationSiteIsRuined(city)) return { simMinute: Math.floor(weatherClockMinutes) };
   const questOnlyColony = city?.colonizationQuestSite === true &&
     city.colonizationQuestStage !== COLONIZATION_STAGE_ESTABLISHED;
   const shipyard = city && !questOnlyColony ? shipyardAtPort(worldEconomy.shipyards, city) : null;
@@ -27007,6 +27147,7 @@ function portDialogueContext() {
   return {
     random: Math.random,
     missionGiftRandom: Math.random,
+    chefFeastGuestsGathered: !chefFeastInputBlocked(),
     portCities: accessiblePorts,
     cities: [...cityByTileId.values()],
     simMinute,
@@ -27448,6 +27589,9 @@ function currentDialoguePortraitParticipants(subject = currentDialogueSubject())
   }
 
   if (dialogueState.kind === "port") {
+    if (colonizationSiteIsRuined(currentDialogueCity())) {
+      return dialoguePortraitPair(captain, null, captain);
+    }
     const colonyApprovalExchange = dialogueState.nodeId === "colonization" &&
       isColonizationQuestApproval(gameState.memory.colonization, currentDialogueCity()) &&
       (gameState.memory.colonization.approvalGranted !== true ||
@@ -35476,6 +35620,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
   gameTelemetry.recordVoyage(voyageRecord, gameState);
   anchored = false;
   automaticQuestSiteAnchorOverlayKind = null;
+  lastAutomaticQuestSiteCityId = null;
   initialAnimalEncounterRollPending = false;
   fishingAction = null;
   shoreScavengeAction = null;
@@ -41853,7 +41998,12 @@ function drawPortCityScene(nowMs) {
       width: SCREEN_W,
       height: SCREEN_H,
       clearColor: [31 / 255, 54 / 255, 80 / 255, 1],
-      paletteVariant: dayNightPaletteVariant(localDayNightLight()),
+      paletteVariant: dayNightPaletteVariant(portCityView.feast
+        // The feast's evening/night art direction remains legible even in
+        // polar twilight. The actual clock still follows the local solar event.
+        ? portCityView.feast.phase === "served"
+          ? { sunset: 1, night: 0 } : { sunset: 0, night: 1 }
+        : localDayNightLight()),
       timeMs: nowMs,
       oceanSwell: null,
       modalReframe: null
@@ -42387,21 +42537,6 @@ function shipSunLightState() {
   };
 }
 
-function dateToSubsolarPoint(date) {
-  const utcMs = date.getTime();
-  const yearStart = Date.UTC(date.getUTCFullYear(), 0, 0, 0, 0, 0, 0);
-  const dayOfYear = (utcMs - yearStart) / 86400000;
-  const utcHours = date.getUTCHours() +
-    date.getUTCMinutes() / 60 +
-    date.getUTCSeconds() / 3600 +
-    date.getUTCMilliseconds() / 3600000;
-  const b = (2 * Math.PI / 365.25) * (dayOfYear - 81);
-  const eotMinutes = 9.87 * Math.sin(2 * b) - 7.53 * Math.cos(b) - 1.5 * Math.sin(b);
-  return {
-    latDeg: dateToSubsolarLatDeg(date),
-    lonDeg: normalizeLonDeg(-15 * (utcHours - 12 + eotMinutes / 60))
-  };
-}
 
 function normalizeLonDeg(lonDeg) {
   return ((((lonDeg + 180) % 360) + 360) % 360) - 180;
@@ -42675,12 +42810,13 @@ function render(nowMs, { allowColdCoveredWorldRender = false } = {}) {
 }
 
 function drawWorldInterface(nowMs) {
-  drawPortCityTransitionOverlay(nowMs);
+  const sceneTimeCut = portCityTransition?.sceneTimeCut === true;
+  if (!sceneTimeCut) drawPortCityTransitionOverlay(nowMs);
   if (portAssaultState) drawPortAssaultOverlay(nowMs);
   if (portCityRootPresentationIsOwned() && !portCityView.sceneReady) return;
   const dialogueVisible = dialogueOverlayIsVisible({
     dialogueActive: Boolean(dialogueState) && !portCityRootPresentationIsOwned() &&
-      !portCityIllicitEvent && !colonistLandingInProgress(),
+      !portCityIllicitEvent && !colonistLandingInProgress() && !chefFeastSceneOnly(),
     characterAlertActive: Boolean(captainAlertModal)
   });
   if (!dialogueVisible && !portCityView?.sceneReady) {
@@ -42767,6 +42903,7 @@ function drawWorldInterface(nowMs) {
   drawSavePersistenceWarning();
   drawStormLightningFlash(nowMs);
   if (telemetryConsentModal) drawTelemetryConsentModal();
+  if (sceneTimeCut) drawPortCityTransitionOverlay(nowMs);
   if (diagnosticModeEnabled) drawFrameRateOverlay();
   if (CAPTURE_SCENARIO && !PERFORMANCE_BENCHMARK && !CAPTURE_FRAME_PASS) {
     screenCtx.save();
@@ -61221,9 +61358,9 @@ function visibleWorldFireSources() {
 }
 
 function fireSourceForCity(call, batteryDisabled) {
-  if (call.hiddenSettlement || (!call.colonyBurning && !batteryDisabled)) return null;
+  if (call.hiddenSettlement || colonizationSiteIsRuined(call) || !batteryDisabled) return null;
   return {
-    id: call.colonyBurning ? `colony-fire:${call.tileId}` : `battery-fire:${call.tileId}`,
+    id: `battery-fire:${call.cityId}`,
     x: call.x,
     y: call.y,
     screenX: call.spriteX + CITY_SPRITE_W / 2,

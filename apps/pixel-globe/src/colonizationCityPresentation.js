@@ -1,4 +1,4 @@
-import { colonizationTargetForCity } from "./colonialCities.js";
+import { colonizationTargetForCity, colonizationSiteIsRuined } from "./colonialCities.js";
 import {
   COLONIZATION_STAGE_OUTBOUND,
   COLONIZATION_STAGE_AWAITING_RESUPPLY,
@@ -10,7 +10,7 @@ import {
 
 export function colonizationSiteSpeakerRole(city, activeTargetCityId) {
   if (city?.colonizationQuestSite !== true) return null;
-  if (city.colonyAbandoned === true) return "captain";
+  if (colonizationSiteIsRuined(city)) return "captain";
   if (city.cityId !== activeTargetCityId) return null;
   switch (city.colonizationQuestStage) {
     case COLONIZATION_STAGE_OUTBOUND:
@@ -62,12 +62,13 @@ export function colonizationCitySceneOptions(city, { landingVisit = false } = {}
   // Trading missions develop inhabited ports; their existing homes and services
   // must not disappear when the visiting delegation disembarks.
   if (target.preexistingSettlement) settlementStage = "city";
-  if (city.colonyAbandoned) settlementStage = "colony";
-  const deserted = city.colonizationQuestStage === COLONIZATION_STAGE_FAILED || city.colonyAbandoned === true;
+  const deserted = colonizationSiteIsRuined(city);
+  if (deserted) settlementStage = "ruins";
   return Object.freeze({
+    colonyClueId: city.colonyAbandoned === true ? "croatoan" : null,
     population: city.population,
     settlementType: city.settlementType,
-    ...(city.colonyBurning ? { bombardmentEventId: `failed-colony:${city.cityId}` } : {}),
+    ...(deserted ? { bombardmentEventId: null } : {}),
     featureOverrides: Object.freeze({
       settlementStage,
       ...(target.preexistingSettlement ? {} : {

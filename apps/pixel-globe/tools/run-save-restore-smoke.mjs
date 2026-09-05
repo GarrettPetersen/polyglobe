@@ -11,12 +11,14 @@ import {
   captureScenarioFromSearch
 } from "../src/captureScenarios.js";
 import { AUTOMATIC_CAPTURE_FRAME_RATE } from "../src/captureDirector.js";
-import { GAME_STATE_VERSION } from "../src/gameState.js";
+import { GAME_STATE_VERSION, deliverQuestCargoRequirement } from "../src/gameState.js";
+import { maybeSpawnChefQuest, prepareChefBanquet, serveChefBanquet, completeChefBanquet } from "../src/chefQuest.js";
 import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import { colonizationHistoryForTarget } from "../src/colonizationHistory.js";
 import {
   assignColonizationQuest, beginColonizationExpedition, completeColonizationFetchStage,
-  createColonizationQuestMemory, establishColony, landColonists
+  createColonizationQuestMemory, establishColony, landColonists, advanceColonizationAftermaths,
+  commissionColonizationAftermath, inspectColonizationAftermath, advanceColonizationQuest
 } from "../src/colonizationQuest.js";
 import { gameplayReachabilityScenarioIds } from "../src/gameplayReachabilityScenarios.js";
 
@@ -58,7 +60,7 @@ const FIXTURE_ROOT = path.join(APP_ROOT, "src/test-fixtures/saves");
 const RESTORE_TIMEOUT_MS = 10 * 60 * 1000;
 const CITY_VISUALIZER_TIMEOUT_MS = 60 * 1000;
 const GAMEPLAY_SCENARIO_TIMEOUT_MS = 10 * 60 * 1000;
-const GAMEPLAY_SEQUENCE_KINDS = new Set(["sail", "fight", "pillage", "colonize", "whale"]);
+const GAMEPLAY_SEQUENCE_KINDS = new Set(["sail", "fight", "pillage", "colonize", "whale", "city"]);
 const CONTENT_TYPES = new Map([
   [".css", "text/css; charset=utf-8"],
   [".html", "text/html; charset=utf-8"],
@@ -191,6 +193,7 @@ try {
   }
   process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
   await exerciseColonySaveRoundTrips(page, browserErrors);
+  await exerciseChefSaveRoundTrips(page, browserErrors);
 
   const gameplayFailures = [];
   for (const scenarioId of gameplayScenarioIds) {
@@ -359,15 +362,34 @@ async function exerciseProductionGameplayScenario(page, browserErrors, baseUrl, 
 }
 
 function assertGameplayScenarioEvidence(scenario, sidecar) {
+  if (scenario.sequence.variant === "chef-feast") {
+    const cuts = sidecar.events.filter((event) => event.type === "chef-feast-time-cut");
+    if (cuts.length !== 2 || cuts[0].data.phase !== "served" || cuts[1].data.phase !== "afterwards" ||
+        cuts[1].data.minute <= cuts[0].data.minute ||
+        !sidecar.events.some((event) => event.type === "chef-feast-guests-gathered") ||
+        !sidecar.events.some((event) => event.type === "chef-feast-recruited")) {
+      throw new Error(`${scenario.id} failed its sunset feast, night aftermath, or recruitment`);
+    }
+    return `feast clock advanced ${Math.round(cuts[1].data.minute - cuts[0].data.minute)} minutes into night`;
+  }
   if (scenario.sequence.kind === "colonize") {
     const cityId = scenario.sequence.cityId;
     const sceneEvents = sidecar.events.filter((event) =>
       event.type === "colony-scene-ready" && event.data.cityId === cityId);
     const stages = new Set(sceneEvents.map((event) => event.data.settlementStage));
     const requiredStages = scenario.sequence.variant === "found" ? ["uninhabited"] :
-      scenario.sequence.variant === "resupply" ? ["colony", "city"] : ["city"];
+      scenario.sequence.variant === "resupply" ? ["colony", "city"] :
+      ["investigate", "ruins"].includes(scenario.sequence.variant) ? ["ruins"] : ["city"];
     for (const stage of requiredStages) {
       if (!stages.has(stage)) throw new Error(`${scenario.id} never rendered the ${stage} colony stage`);
+    }
+    if (scenario.sequence.variant === "investigate") {
+      const clueEvents = sidecar.events.filter((event) => event.type === "roanoke-clue-inspected");
+      if (clueEvents.length !== 1 || clueEvents[0].data.sceneReady !== true ||
+          !sidecar.events.some((event) => event.type === "roanoke-ruins-arrival") ||
+          !sidecar.events.some((event) => event.type === "roanoke-investigation-departed")) {
+        throw new Error(`${scenario.id} failed its visible investigation, clue click, or return to ship`);
+      }
     }
     if (scenario.sequence.variant === "found") {
       const arrivals = sidecar.events.filter((event) => event.type === "colony-proximity-arrival" && event.data.cityId === cityId);
@@ -503,13 +525,17 @@ function frozenSaveFixtures() {
 async function exerciseColonySaveRoundTrips(page, browserErrors) {
   const source = fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION);
   const cities = JSON.parse(readFileSync(path.join(APP_ROOT, "city-visualizer/data/cities.json"), "utf8")).cities;
-  for (const [cityId, originCityId] of [
-    ["lima|peru", "seville|spain"], ["port royal|canada", "bordeaux|france"]
+  for (const [cityId, originCityId, legacyTileId] of [
+    ["lima|peru", "seville|spain"], ["port royal|canada", "bordeaux|france"],
+    ["asuncion|paraguay", "seville|spain", 431742],
+    ["roanoke|united states of america", "london|united kingdom"]
   ]) {
     const target = COLONIZATION_TARGETS.find((city) => city.cityId === cityId);
     const placement = cities.find((city) => city.cityId === target.cityId);
     const origin = cities.find((city) => city.cityId === originCityId);
-    for (const stage of ["awaiting-resupply", "established"]) {
+    const stages = cityId === "roanoke|united states of america"
+      ? ["investigating", "reporting", "failed"] : ["awaiting-resupply", "established"];
+    for (const stage of stages) {
       const save = JSON.parse(source.serialized);
       const memory = createColonizationQuestMemory();
       assignColonizationQuest(memory, { target: { ...target, tileId: placement.tileId }, origin });
@@ -518,8 +544,23 @@ async function exerciseColonySaveRoundTrips(page, browserErrors) {
       }
       beginColonizationExpedition(memory);
       landColonists(memory, Math.floor(save.payload.worldClock.currentMinute));
-      if (stage === "established") establishColony(memory, Math.floor(save.payload.worldClock.currentMinute));
-      save.payload.gameState.memory.colonization = memory;
+      if (["established", "investigating", "reporting"].includes(stage)) {
+        establishColony(memory, Math.floor(save.payload.worldClock.currentMinute));
+      }
+      if (["investigating", "reporting"].includes(stage)) {
+        const minute = memory.aftermath.dueMinute + 1;
+        save.payload.worldClock.currentMinute = minute;
+        advanceColonizationAftermaths(memory, minute, { isTileVisible: () => false });
+        commissionColonizationAftermath(memory, origin, minute);
+        if (stage === "reporting") inspectColonizationAftermath(memory, target, minute);
+      } else if (stage === "failed") {
+        const minute = memory.resupplyDeadlineMinute + 1;
+        save.payload.worldClock.currentMinute = minute;
+        advanceColonizationQuest(memory, minute, { awayFromColony: true });
+      }
+      save.payload.gameState.memory.colonization = legacyTileId === undefined
+        ? memory : { ...memory, targetTileId: legacyTileId };
+      if (legacyTileId !== undefined) save.payload.portCatalogVersion = 2;
       let serialized = JSON.stringify(save);
       // The second restore sees a port promoted by the first restore. Read the
       // actual newly written save each time, so this covers saving as well as load.
@@ -529,7 +570,10 @@ async function exerciseColonySaveRoundTrips(page, browserErrors) {
         RESTORE_TIMEOUT_MS, `${stage} colony save/load ${pass + 1}`);
         await assertNoBrowserFailure(page, browserErrors, `${stage} colony save/load`);
         if (JSON.stringify(restored.colonization) !== JSON.stringify(memory)) {
-          throw new Error(`${stage} colony save/load changed the colony's persistent history`);
+          const changedFields = Object.keys(memory).filter((key) =>
+            JSON.stringify(restored.colonization[key]) !== JSON.stringify(memory[key]));
+          throw new Error(`${stage} colony save/load changed the colony's persistent history: ` +
+            JSON.stringify(changedFields.map((key) => ({ key, expected: memory[key], actual: restored.colonization[key] }))));
         }
         if (typeof restored.serialized !== "string" || restored.serialized.length === 0) {
           throw new Error(`${stage} colony did not write a save`);
@@ -538,6 +582,36 @@ async function exerciseColonySaveRoundTrips(page, browserErrors) {
       }
       process.stdout.write(`  ${target.city} ${stage}: three save/load round trips preserved colony history.\n`);
     }
+  }
+}
+
+async function exerciseChefSaveRoundTrips(page, browserErrors) {
+  const source = fixtures.find((fixture) => fixture.gameStateVersion === GAME_STATE_VERSION);
+  const cities = JSON.parse(readFileSync(path.join(APP_ROOT, "city-visualizer/data/cities.json"), "utf8")).cities;
+  const city = cities.find((city) => city.cityId === "lisbon|portugal");
+  for (const stage of ["preparing", "feasting", "recruitment"]) {
+    const save = JSON.parse(source.serialized);
+    const state = save.payload.gameState;
+    const quest = maybeSpawnChefQuest(state, city, { spawnChance: 1 });
+    for (const ingredient of quest.ingredients) {
+      state.cargo[ingredient.goodId] = 1;
+      deliverQuestCargoRequirement(state, city, ingredient.goodId, 1, ingredient.requirementId);
+    }
+    prepareChefBanquet(state, city);
+    if (stage !== "preparing") serveChefBanquet(state, city, 120);
+    if (stage === "recruitment") completeChefBanquet(state, city, 300);
+    const expected = JSON.stringify(state.memory.quests.chef);
+    let serialized = JSON.stringify(save);
+    for (let pass = 0; pass < 2; pass++) {
+      const restored = await withTimeout(page.evaluate((serialized) =>
+        window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), serialized),
+        RESTORE_TIMEOUT_MS, `${stage} feast save/load ${pass + 1}`);
+      await assertNoBrowserFailure(page, browserErrors, `${stage} feast save/load`);
+      if (JSON.stringify(restored.chef) !== expected) throw new Error(`${stage} feast save/load changed quest history`);
+      if (typeof restored.serialized !== "string") throw new Error(`${stage} feast did not write a save`);
+      serialized = restored.serialized;
+    }
+    process.stdout.write(`  Chef ${stage}: two save/load round trips preserved feast history.\n`);
   }
 }
 

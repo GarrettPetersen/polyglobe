@@ -9,6 +9,10 @@ import {
   chefQuestPortEligible,
   chefQuestState,
   completeChefBanquet,
+  prepareChefBanquet,
+  serveChefBanquet,
+  migrateChefQuestMemory,
+  validateChefQuestMemory,
   maybeSpawnChefQuest,
   recruitChef
 } from "./chefQuest.js";
@@ -88,11 +92,51 @@ test("delivering every ingredient advances to a persistent recruitment", () => {
   }
   assert.equal(chefQuestState(state, city).complete, true);
   assert.equal(chefQuestJournalText(chefQuestState(state, city)), "Bring all ingredients to Istanbul.");
+  prepareChefBanquet(state, city);
+  serveChefBanquet(state, city, 50);
   const recruitment = completeChefBanquet(state, city, 100);
   assert.equal(recruitment.stage, CHEF_QUEST_STAGE_RECRUITMENT);
   assert.equal(chefQuestJournalText(recruitment), "Offer the cook a berth at Istanbul.");
   assert.deepEqual(state.cargo, {});
   assert.equal(recruitChef(state, city).stage, CHEF_QUEST_STAGE_RECRUITED);
+});
+
+test("feast preparation and serving survive reloads and reject skipped or repeated transitions", () => {
+  const state = game();
+  const quest = maybeSpawnChefQuest(state, city, { spawnChance: 1 });
+  assert.throws(() => prepareChefBanquet(state, city), /ingredients/);
+  assert.throws(() => serveChefBanquet(state, city, 50), /prepared/);
+  assert.throws(() => completeChefBanquet(state, city, 100), /served/);
+  for (const ingredient of quest.ingredients) {
+    state.cargo[ingredient.goodId] = 1;
+    deliverQuestCargoRequirement(state, city, ingredient.goodId, 1, ingredient.requirementId);
+  }
+  prepareChefBanquet(state, city);
+  state.memory.quests.chef = migrateChefQuestMemory(state.memory.quests.chef);
+  assert.equal(chefQuestState(state, city).stage, "preparing");
+  assert.throws(() => prepareChefBanquet(state, city), /ingredients/);
+  serveChefBanquet(state, city, 60);
+  state.memory.quests.chef = migrateChefQuestMemory(state.memory.quests.chef);
+  assert.equal(chefQuestState(state, city).stage, "feasting");
+  assert.throws(() => completeChefBanquet(state, city, 60), /completion minute/);
+  assert.throws(() => serveChefBanquet(state, city, 90), /prepared/);
+  assert.throws(() => recruitChef(state, city), /not ready/);
+  assert.throws(() => completeChefBanquet(state, city, 100, { chefFeastGuestsGathered: false }), /not gathered/);
+  const invalid = { ...state.memory.quests.chef, servedMinute: null };
+  assert.throws(() => validateChefQuestMemory(invalid), /serving minute/);
+  completeChefBanquet(state, city, 120);
+  assert.throws(() => completeChefBanquet(state, city, 130), /served/);
+  const current = state.memory.quests.chef;
+  const { servedMinute, ...legacy } = current;
+  legacy.version = 1;
+  const migrated = migrateChefQuestMemory(legacy);
+  assert.equal(migrated.stage, "recruitment");
+  assert.equal(migrated.completedMinute, 120);
+  assert.equal(migrated.servedMinute, null);
+  assert.deepEqual(migrateChefQuestMemory(migrated), migrated);
+  assert.equal(legacy.version, 1);
+  assert.throws(() => migrateChefQuestMemory(null), /Unsupported chef quest memory/);
+  assert.throws(() => migrateChefQuestMemory({ ...legacy, version: 999 }), /Unsupported chef quest memory/);
 });
 
 test("chef event copy follows the host region", () => {

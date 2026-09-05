@@ -8,7 +8,7 @@ test("every colony renders its quest stage without retaining the catalog city's 
   for (const target of COLONIZATION_TARGETS) {
     for (const [questStage, expected] of [
       ["outbound", "uninhabited"], ["awaiting-resupply", "colony"],
-      ["failed", "colony"], ["defend-colony", "city"],
+      ["failed", "ruins"], ["defend-colony", "city"],
       ["report-defense", "city"], ["established", "city"]
     ]) {
       const city = colony(target, questStage);
@@ -41,15 +41,17 @@ test("ordinary ports retain their presentation and invalid colony states fail lo
   assert.throws(() => colonizationCitySceneOptions({ ...city, colonizationQuestStage: "unexpected" }), /quest stage/);
 });
 
-test("failed and abandoned colonies retain homes without resurrecting inhabitants or town services", () => {
+test("failed and abandoned colonies retain ruins without resurrecting inhabitants or town services", () => {
   const target = COLONIZATION_TARGETS.find(({ preexistingSettlement }) => !preexistingSettlement);
   const failed = colonizationCitySceneOptions({ ...colony(target, "failed"), colonyBurning: true });
   assert.equal(failed.featureOverrides.npcs, 0);
-  assert.equal(failed.featureOverrides.settlementStage, "colony");
-  assert.ok(failed.bombardmentEventId.includes(target.cityId));
+  assert.equal(failed.featureOverrides.settlementStage, "ruins");
+  assert.equal(failed.bombardmentEventId, null);
   const abandoned = colonizationCitySceneOptions({ ...colony(target, "established"), colonyAbandoned: true });
   assert.equal(abandoned.featureOverrides.npcs, 0);
-  assert.equal(abandoned.featureOverrides.settlementStage, "colony");
+  assert.equal(abandoned.featureOverrides.settlementStage, "ruins");
+  assert.equal(abandoned.colonyClueId, "croatoan");
+  assert.equal(abandoned.bombardmentEventId, null);
 });
 
 test("uninhabited quest sites can trigger arrival without a harbour master or port economy", () => {

@@ -29,7 +29,7 @@ test("port dialogue routes each service to its owning staff member", () => {
 });
 
 test("captain monologues use the same speaker policy in visible and restored ports", () => {
-  for (const nodeId of ["covert-authority", "inn-drink", "drunk-captain", "city-attack", "quest-cargo-sale-warning"]) {
+  for (const nodeId of ["colony-clue", "covert-authority", "inn-drink", "drunk-captain", "city-attack", "quest-cargo-sale-warning"]) {
     assert.equal(portDialogueHasCaptainSpeaker({ kind: "port", nodeId }), true, nodeId);
     assert.equal(portDialogueHasCaptainSpeaker({ kind: "passenger", nodeId }), false, nodeId);
   }

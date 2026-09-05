@@ -38,6 +38,53 @@ const fineGraph = decodeGeodesicGraphBake(
 const fineDirectionIndex = createDirectionIndex(fineGraph);
 const earth = JSON.parse(await readFile(resolve(sharedRoot, "earth-globe-cache-8.json"), "utf8"));
 
+// These tidal rivers need their actual bends at this resolution. Refining the
+// old straight corridors sends the James through the York peninsula and the
+// Potomac east across Maryland instead of downstream around its southern bend.
+// Reference: https://www.nps.gov/cajo/planyourvisit/maps.htm
+const jamesRiverRoute = routeThroughCoordinates([
+  { lat: 37.53, lon: -77.43 },
+  { lat: 37.30, lon: -77.25 },
+  { lat: 37.20, lon: -77.02 },
+  { lat: 37.15, lon: -76.72 },
+  { lat: 36.98, lon: -76.40 },
+  { lat: 37.10, lon: -76.15 }
+]);
+const potomacRiverRoute = routeThroughCoordinates([
+  { lat: 38.90, lon: -77.05 },
+  { lat: 38.67, lon: -77.14 },
+  { lat: 38.42, lon: -77.02 },
+  { lat: 38.28, lon: -76.85 },
+  { lat: 38.25, lon: -76.55 },
+  { lat: 38.10, lon: -76.25 }
+]);
+// Reviewed against the checked-in Natural Earth 1:10m river centerlines and
+// coast mask. The bake drops these mouths where its river trace meets coastal
+// "beach" water; several entire drainage networks consequently lose sea access.
+// Keep individual delta outlets: another working branch does not repair them.
+const riverOutlets = [
+  { name: "Niger central outlet", tileIds: [641566, 641561] },
+  { name: "Niger western outlet", tileIds: [640433, 640436] },
+  { name: "Niger eastern outlet", tileIds: [641563, 160439] },
+  { name: "Ob outlet", tileIds: [234409, 58711] },
+  { name: "Amur outlet", tileIds: [240757, 240763, 240760] },
+  { name: "Zambezi delta outlet", tileIds: [502564, 502566] },
+  { name: "Orinoco western outlet", tileIds: [554732, 138895] },
+  { name: "Mackenzie delta outlet", tileIds: [193912, 12171] },
+  { name: "Irrawaddy western outlet", tileIds: [372134, 372135] },
+  { name: "Irrawaddy central outlet", tileIds: [23377, 372125] },
+  { name: "Irrawaddy eastern outlet", tileIds: [372156, 93196] },
+  { name: "Parana delta outlet", tileIds: [426715, 426716, 106926] }
+];
+for (const { name, tileIds } of riverOutlets) {
+  if (!earth.riverEdges[tileIds[0]]?.length || !isWaterSurface(earth.tiles[tileIds.at(-1)])) {
+    throw new Error(`${name} must connect a baked river to surface water`);
+  }
+  for (const [a, b] of adjacentPairs(tileIds)) {
+    if (!fineGraph.neighbors[a].includes(b)) throw new Error(`${name} contains a nonadjacent edge ${a}/${b}`);
+  }
+}
+
 const shallowWaterGroups = [
   [38891],
   [38903],
@@ -45,7 +92,9 @@ const shallowWaterGroups = [
   [88775],
   [31618, 125890, 125896]
 ];
-const manualMouthChains = MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[7].map(({ tile, edge }) => (
+const manualMouthChains = MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[7]
+  .filter(({ tile }) => tile !== 73670 && tile !== 73669)
+  .map(({ tile, edge }) => (
   refineChain([tile, requiredCoarseEdgeNeighbor(tile, edge)])
 ));
 const saveRiverApproach = routeThroughCoordinates([
@@ -172,7 +221,12 @@ const coimbraMondegoRoute = routeThroughCoordinates([
   { lat: 40.1, lon: -9.05 }
 ]);
 const riverChains = [
-  ...MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7].map(refineChain),
+  ...MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]
+    .filter((chain) => chain[0] !== 73682 && chain[0] !== 18467)
+    .map(refineChain),
+  jamesRiverRoute,
+  potomacRiverRoute,
+  ...riverOutlets.map(({ tileIds }) => tileIds),
   ...manualMouthChains,
   saveRiverApproach,
   delhiYamunaApproach,
@@ -214,6 +268,13 @@ const shallowWaterTileIdSet = new Set(shallowWaterGroups.flatMap(refineChain));
 // into a blocking coastal hex. Keep the authored river route but restore this
 // estuary tile to navigable shallows.
 shallowWaterTileIdSet.add(160967);
+// Open the upper Chesapeake's false cross-bay land bridge. Keep Delmarva
+// attached at its northern end; this is an estuary, not an island channel.
+shallowWaterTileIdSet.add(73665);
+// Preserve Long Island Sound and its western outlet at hex resolution.
+// The narrow East River occupies a full water hex here so ships can sail it.
+// Reference: https://gnome.orr.noaa.gov/doc/location_files/central_long_island_sound_tech.html
+for (const tileId of [298999, 298720, 74786, 299005]) shallowWaterTileIdSet.add(tileId);
 const lakeMalawiCorridor = routeThroughCoordinates([
   { lat: -9.5, lon: 34.3 },
   { lat: -10.5, lon: 34.35 },
@@ -321,6 +382,19 @@ if (!landOverrideByTileId.has(moaiTileId)) {
   });
 }
 const shallowWaterTileIds = [...shallowWaterTileIdSet].sort((a, b) => a - b);
+// Long Island is a separate landmass even though the raster bake merged it
+// with North America. These tile IDs describe this authored spatial correction.
+for (const tileId of [299000, 299003, 74856, 299014]) {
+  const source = earth.tiles[tileId];
+  if (isWaterSurface(source)) throw new Error(`Long Island land tile ${tileId} is submerged`);
+  landOverrideByTileId.set(tileId, {
+    tileId,
+    sourceTerrain: source.t,
+    terrainType: source.t,
+    elevation: source.e,
+    landmassId: 4000
+  });
+}
 const landOverrides = [...landOverrideByTileId.values()].sort((a, b) => a.tileId - b.tileId);
 const blockedRiverEdges = MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[7]
   .flatMap(([a, b]) => adjacentPairs(refineChain([a, b])))
