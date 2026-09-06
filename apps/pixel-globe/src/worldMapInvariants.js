@@ -3,6 +3,7 @@ import { canTraverseWorldNavigationEdge } from "./worldNavigationTopology.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 export const WORLD_WATERWAY_INVARIANTS = Object.freeze([
+  passage("Upper Mississippi from Minnesota to Missouri confluence", [44.94, -93.09], [38.8, -90.12], [38.5, 45.2, -93.5, -89.0]),
   passage("Chillicothe via Scioto to Ohio", [39.3364, -82.9839], [38.73, -83.02], [38.5, 39.5, -83.3, -82.7]),
   // Audit each link, not merely whether the entire drainage has one ocean outlet.
   passage("Superior to Huron through St Marys", [46.6, -84.8], [45.9, -83.8], [45.7, 46.9, -85.1, -83.5]),

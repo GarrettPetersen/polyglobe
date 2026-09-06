@@ -1,3 +1,4 @@
+import { sailingCorrectionDistancePx } from "./sailingContinuity.js";
 import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
 import { planPlaytestRoute } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
@@ -17529,6 +17530,7 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
 }
 
 function snapshotVoyagePayload({ includeWorldTraffic }) {
+  finishPendingDistantWorldCommit();
   const payload = {
     gameState,
     playerShip: snapshotPlayerShip(),
@@ -33262,6 +33264,14 @@ function applyShipMove(position, tileId) {
 
   ship.tileId = drawnTileId;
   ship.position = globePositionForLocalPoint(ship.tileId, localLayout.viewX, localLayout.viewY);
+  const correctionPx = sailingCorrectionDistancePx(position, ship.position, PIXELS_PER_RADIAN);
+  if (correctionPx > 8) {
+    reportRuntimeDiagnosticAssertion(
+      `Sailing chart correction moved the globe position ${correctionPx.toFixed(1)}px during a ` +
+        `${Math.hypot(dx, dy) * PIXELS_PER_RADIAN}px step: ${tileId} -> ${drawnTileId}`,
+      "sailing-position-discontinuity"
+    );
+  }
   ship.heading = normalizeTangentOrFallback(ship.heading, ship.position, WORLD_NORTH);
   ship.targetHeading = normalizeTangentOrFallback(ship.targetHeading, ship.position, ship.heading);
   ship.velocity = projectTangentVector(ship.velocity, ship.position);
@@ -36210,12 +36220,18 @@ function resetDistantWorldWorkerSchedule() {
   distantWorldWorkerResetPending = false;
 }
 
+function finishPendingDistantWorldCommit() {
+  // A save must observe one committed generation of stock, sales and ships.
+  // Snapshot/compare phases have not mutated the live world and need no drain.
+  while (distantWorldApplyState?.phase === "restore") advanceDistantWorldSimulationApply();
+}
+
 function invalidateDistantWorldWorkerState() {
   if (!distantWorldWorkerClient) throw new Error("Cannot invalidate an uninitialized distant world");
   // Once restoration has started, some ports may already contain the new stock
   // while the economy clock still has its old value. Finish that bounded commit
   // before the player mutates anything; abandoning it would simulate stock twice.
-  while (distantWorldApplyState?.phase === "restore") advanceDistantWorldSimulationApply();
+  finishPendingDistantWorldCommit();
   // Cancel uncommitted comparisons and queued or in-flight results. A player
   // transaction can occur between any two apply frames.
   distantWorldWorkerClient.invalidate();
@@ -44231,6 +44247,13 @@ function recoverPersistentlyUncoveredViewport() {
   if (chartViewportCoverageIsComplete(coverage)) return false;
 
   chartViewportCoverageRepairPending = true;
+  // A successful emergency reframe used to erase the evidence of a visible jump.
+  reportRuntimeDiagnostic(
+    `Visible chart reframe at tile ${ship.tileId}; edge gap ${coverage.edge.maximumGapPx.toFixed(1)}px; ` +
+      `interior gap ${coverage.interior.maximumNearestTileDistancePx.toFixed(1)}px`,
+    "chart-visible-reframe",
+    (error, options) => gameTelemetry.captureDiagnostic(error, telemetryCrashContext("chart-repair"), options)
+  );
   const reframed = reframeWorldNorthUp("uncovered viewport recovery", { allowUncovered: true });
   if (reframed) {
     coverage = currentChartViewportCoverage(chart, true);

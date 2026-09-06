@@ -320,7 +320,7 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
       text: papalActionNotice(action),
       tiePriority: 1
     })),
-    ...(view.recentEmbargoEvents || []).map((event) => ({
+    ...dailyEmbargoNews(view.recentEmbargoEvents || []).map((event) => ({
       source: "trade-embargo",
       simMinute: event.simMinute,
       tone: event.kind === "lifted" ? "good" : "warn",
@@ -809,4 +809,18 @@ function buildPoliticsCodes() {
     used.add(code);
   }
   return codes;
+}
+
+// Several diplomatic changes can revise the same order within a day. The news
+// ledger reports that day's final observance; the embargo history keeps each event.
+export function dailyEmbargoNews(events) {
+  const latest = new Map();
+  const otherEvents = [];
+  for (const event of events) {
+    if (event.kind !== "followers-changed") { otherEvents.push(event); continue; }
+    const key = `${event.orderId}|${Math.floor(event.simMinute / 1440)}`;
+    const previous = latest.get(key);
+    if (!previous || event.simMinute > previous.simMinute) latest.set(key, event);
+  }
+  return [...otherEvents, ...latest.values()];
 }

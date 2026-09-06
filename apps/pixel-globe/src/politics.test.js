@@ -591,3 +591,19 @@ function relationshipFactionIds(card, relation) {
 function dependencySummaries(card) {
   return card.dependencies.map(({ kind, role, factionId }) => ({ kind, role, factionId }));
 }
+
+test("same-day Papal observance revisions produce one final headline per order", async () => {
+  const { dailyEmbargoNews } = await import("./politics.js");
+  const early = { id: "a:early", orderId: "a", kind: "followers-changed", simMinute: 1441 };
+  const late = { ...early, id: "a:late", simMinute: 1500 };
+  const other = { ...late, id: "b:late", orderId: "b" };
+  const lifted = { ...late, id: "a:lifted", kind: "lifted" };
+  const nextDay = { ...late, id: "a:next", simMinute: 2880 };
+  for (const events of [[early, late, other, lifted, nextDay], [nextDay, lifted, other, late, early]]) {
+    const result = dailyEmbargoNews(events);
+    assert.equal(result.length, 4);
+    assert.ok(!result.includes(early));
+    assert.ok(result.includes(late) && result.includes(lifted) && result.includes(nextDay));
+    assert.equal(events.length, 5, "raw historical events are retained");
+  }
+});

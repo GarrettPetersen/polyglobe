@@ -488,7 +488,8 @@ export function tradeEmbargoEventNotice(event) {
       : `${issuer.shortName.toUpperCase()} LIFTS ITS BAN ON ${target.adjective.toUpperCase()} MERCHANDISE`;
   }
   if (event.kind === "followers-changed") {
-    return `CATHOLIC POWERS RECONSIDER THE PAPAL PROHIBITION AGAINST ${target.shortName.toUpperCase()}`;
+    const observers = event.followerFactionIds.map((id) => factionById(id).shortName.toUpperCase()).join(", ");
+    return `PAPAL ARMS BAN AGAINST ${target.shortName.toUpperCase()}: OBSERVED BY ${observers || "NONE"}`;
   }
   throw new Error(`Unknown trade embargo event: ${event.kind}`);
 }

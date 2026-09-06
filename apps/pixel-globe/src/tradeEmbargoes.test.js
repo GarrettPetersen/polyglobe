@@ -529,3 +529,17 @@ test("friendly Papal–Tidore relations still permit an arms ban when Tidore fig
     .some((order) => order.authorityKind === "papal"), false);
   assert.equal(diplomacy.overrides["papal-states|tidore"], DIPLOMACY_FRIENDLY);
 });
+
+test("Papal observance news names its followers and does not imply the ban was lifted", async () => {
+  const { tradeEmbargoEventNotice } = await import("./tradeEmbargoes.js");
+  const order = createTradeEmbargoMemory().orders.find(entry => entry.authorityKind === "papal");
+  assert.ok(order);
+  const event = { ...order, orderId: order.id, id: `${order.id}:followers-changed:100`,
+    kind: "followers-changed", simMinute: 100, source: "papal-alignment",
+    targetFactionId: "tidore", followerFactionIds: ["papal-states", "portugal"] };
+  const text = tradeEmbargoEventNotice(event);
+  assert.match(text, /ARMS BAN AGAINST TIDORE/);
+  assert.match(text, /PORTUGAL/);
+  assert.doesNotMatch(text, /LIFTS|RECONSIDER/);
+  assert.notEqual(text, tradeEmbargoEventNotice({ ...event, followerFactionIds: ["papal-states"] }));
+});

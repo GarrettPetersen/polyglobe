@@ -234,6 +234,11 @@ const coimbraMondegoRoute = routeThroughCoordinates([
 const sourceRivers = JSON.parse(await readFile(resolve(sharedRoot,
   "ne_10m_rivers_lake_centerlines.json"), "utf8")).features;
 const sourceRiverRepairs = [
+  // Natural Earth splits the upper Mississippi from the larger lower river.
+  // Keep both its channel and lake-centerline links through Minnesota.
+  // https://www.nps.gov/miss/riverfacts.htm
+  ...sourceRiverRoutes("156River"),
+  ...sourceRiverRoutes("156Lake Centerline"),
   // Scioto joins the Ohio at Portsmouth, giving Chillicothe its own river approach.
   // https://pubs.usgs.gov/wsp/0169/report.pdf
   ...sourceRiverRoutes("773River"),

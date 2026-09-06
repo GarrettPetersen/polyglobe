@@ -12,7 +12,7 @@ import { assertPlayerShipyardInvestmentWorldConsistency, SHIPYARD_INVESTMENT_MAT
 import { shipyardAtPort } from "./shipyards.js";
 
 const source = ts.createSourceFile("main.js", readFileSync(new URL("./main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
-const transactionSource = ["invalidateDistantWorldWorkerState", "applyDialogueOption",
+const transactionSource = ["finishPendingDistantWorldCommit", "snapshotVoyagePayload", "invalidateDistantWorldWorkerState", "applyDialogueOption",
   "advanceDistantWorldSimulationApply", "advanceDistantWorldPartRestore", "finishDistantWorldSimulationApply"].map((name) => {
   const declaration = source.statements.find((node) => ts.isFunctionDeclaration(node) && node.name.text === name);
   assert.ok(declaration, name);
@@ -106,3 +106,32 @@ for (const phase of ["in-flight", "queued", "compare", "restore"]) {
     assert.equal(client.requestAdvance(101, () => ({})), true, "fresh simulation resumes after the menu");
   });
 }
+
+test("saving during a worker commit cannot mix unsold stock with the purchased fleet", () => {
+  const runtime = {
+    distantWorldApplyState: { phase: "restore" },
+    worldEconomy: { shipyards: { yards: [], npcSales: ["sale-a"] } },
+    npcSeaRoutes: { ships: [] }, gameState: {}, weatherClockMinutes: 100,
+    voyageStartClockMinutes: 0, SUBDIVISIONS: 8, PORT_CATALOG_VERSION: 8,
+    firstDayNightNoticeState: {}, anchored: false, survivalDeprivationTimers: {}, demoVoyageScope: null,
+    snapshotPlayerShip: () => ({}), snapshotFirstDayNightNoticeState: () => ({}),
+    snapshotPlayerShipyards: (yards) => structuredClone(yards),
+    snapshotNpcSurrenderContinuity: (routes) => structuredClone(routes.ships),
+    snapshotWorldEconomy: (economy) => structuredClone(economy),
+    snapshotLandTradeSystem: () => ({}), landTradeSystem: {},
+    snapshotNpcSeaRouteSystem: (routes) => structuredClone(routes),
+    addOptionalSaveSnapshot: (payload, errors, key, label, snapshot) => { payload[key] = snapshot(); }
+  };
+  const declarations = ["finishPendingDistantWorldCommit", "snapshotVoyagePayload"].map(name =>
+    source.statements.find(node => ts.isFunctionDeclaration(node) && node.name.text === name).getText(source)).join("\n");
+  let steps = 0;
+  runtime.advanceDistantWorldSimulationApply = () => {
+    if (steps++ === 0) runtime.worldEconomy.shipyards.npcSales = [];
+    else { runtime.npcSeaRoutes.ships.push("shipyard:sale-a"); runtime.distantWorldApplyState = null; }
+  };
+  const saved = runInNewContext(`${declarations}; snapshotVoyagePayload({includeWorldTraffic:true})`, runtime).payload;
+  assert.equal(steps, 2);
+  assert.deepEqual(saved.economy.shipyards.npcSales, []);
+  assert.deepEqual(saved.npcRoutes.ships, ["shipyard:sale-a"]);
+  assert.deepEqual(saved.npcSurrenders, ["shipyard:sale-a"]);
+});
