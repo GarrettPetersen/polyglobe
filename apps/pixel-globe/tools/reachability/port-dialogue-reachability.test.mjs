@@ -25,7 +25,7 @@ test("every port exposes a reachable ordinary city journey", () => {
     "ship",
     "shipyard"
   ]);
-  for (const nodeId of ["cargo", "equipment", "garrison", "inn-drink", "loadout", "market", "shipyard"]) {
+  for (const nodeId of ["cargo", "equipment", "garrison", "inn-drink", "loadout", "market", "foreign-settlements", "shipyard"]) {
     assert.ok(result.nodeIds.includes(nodeId), `fast reachability missed ${nodeId}`);
   }
   for (const actionType of ["buy", "buy-max", "open-crew-recruitment", "confirm-ship-purchase"]) {

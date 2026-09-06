@@ -5,7 +5,7 @@ import {
   BUILD_EDITION_ID
 } from "./buildEdition.js";
 import {
-  DEMO_ESCAPE_GRACE_HEXES,
+  DEMO_ESCAPE_GRACE_DISTANCE_KM,
   DEMO_VOYAGE_SCOPE_MEDITERRANEAN,
   DEMO_VOYAGE_SCOPE_WORLDWIDE,
   buildDemoMediterraneanAccessMask,
@@ -14,7 +14,7 @@ import {
   demoNaturalistAnimalIdsForLandfalls,
   demoEscapeRequiresRecovery,
   isMediterraneanDemoVoyage,
-  navigationDistanceFromAccessMask,
+  navigationDistanceKmFromAccessMask,
   startMenuEditionLabel
 } from "./demoVoyage.js";
 
@@ -115,9 +115,10 @@ test("the Mediterranean demo derives its port list from the current navigation m
   );
 });
 
-test("escape recovery allows a ten-hex grace band beyond the demo access mask", () => {
-  const tileCount = DEMO_ESCAPE_GRACE_HEXES + 3;
+test("escape recovery allows a 600 km grace band beyond the demo access mask", () => {
+  const tileCount = 13;
   const graph = {
+    subdivisions: 7,
     tileCount,
     neighbors: Array.from({ length: tileCount }, (_, tileId) => (
       [tileId - 1, tileId + 1].filter((neighborId) => neighborId >= 0 && neighborId < tileCount)
@@ -125,10 +126,10 @@ test("escape recovery allows a ten-hex grace band beyond the demo access mask", 
   };
   const accessMask = new Uint8Array(tileCount);
   accessMask[0] = 1;
-  const distances = navigationDistanceFromAccessMask(graph, accessMask);
+  const distances = navigationDistanceKmFromAccessMask(graph, accessMask);
 
-  assert.equal(demoEscapeRequiresRecovery(DEMO_ESCAPE_GRACE_HEXES, distances), false);
-  assert.equal(demoEscapeRequiresRecovery(DEMO_ESCAPE_GRACE_HEXES + 1, distances), true);
+  assert.equal(demoEscapeRequiresRecovery(10, distances), false);
+  assert.equal(demoEscapeRequiresRecovery(11, distances), true);
 });
 
 test("the demo naturalist roster contains only animals at accessible landfalls", () => {

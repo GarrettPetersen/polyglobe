@@ -1,3 +1,6 @@
+import { terrainStepDistanceKm } from "./terrainDistance.js";
+const STORM_COAST_SHELTER_DISTANCE_KM = 60;
+const STORM_OFFSHORE_TRANSITION_DISTANCE_KM = 240;
 const STORM_SPAWN_INTERVAL_MINUTES = 6 * 60;
 const STORMS_PER_INTERVAL = 4;
 const STORM_LOOKBACK_INTERVALS = 9;
@@ -26,6 +29,7 @@ export function rainCollectionStrength({ raining, snowing, stormIntensity }) {
 
 export function createStormSystem({
   neighbors,
+  subdivisions,
   latDeg,
   lonDeg,
   waterMask,
@@ -46,7 +50,7 @@ export function createStormSystem({
     neighbors,
     latDeg,
     lonDeg,
-    exposure: buildStormExposure({ neighbors, waterMask, oceanMask }),
+    exposure: buildStormExposure({ neighbors, waterMask, oceanMask, subdivisions }),
     nearestShelterTile: shelterRoutes.nearest,
     nextShelterTile: shelterRoutes.next,
     seed: seed | 0,
@@ -99,21 +103,22 @@ export function nextStormShelterTile(system, tileId) {
   return nextTileId >= 0 ? nextTileId : null;
 }
 
-export function buildStormExposure({ neighbors, waterMask, oceanMask }) {
+export function buildStormExposure({ neighbors, waterMask, oceanMask, subdivisions }) {
   const tileCount = neighbors.length;
-  const landDistance = new Int16Array(tileCount);
-  landDistance.fill(-1);
+  const stepKm = terrainStepDistanceKm(subdivisions);
+  const landDistanceSteps = new Int32Array(tileCount);
+  landDistanceSteps.fill(-1);
   const queue = [];
   for (let tileId = 0; tileId < tileCount; tileId++) {
     if (waterMask[tileId]) continue;
-    landDistance[tileId] = 0;
+    landDistanceSteps[tileId] = 0;
     queue.push(tileId);
   }
   for (let head = 0; head < queue.length; head++) {
     const tileId = queue[head];
     for (const neighborId of neighbors[tileId]) {
-      if (landDistance[neighborId] >= 0) continue;
-      landDistance[neighborId] = landDistance[tileId] + 1;
+      if (landDistanceSteps[neighborId] >= 0) continue;
+      landDistanceSteps[neighborId] = landDistanceSteps[tileId] + 1;
       queue.push(neighborId);
     }
   }
@@ -129,7 +134,9 @@ export function buildStormExposure({ neighbors, waterMask, oceanMask }) {
     const neighborOpenness = smoothstep(
       (waterNeighbors / Math.max(1, adjacent.length) - 0.4) / 0.6
     );
-    const offshoreDistance = smoothstep((landDistance[tileId] - 1) / 4);
+    const distanceKm = landDistanceSteps[tileId] < 0 ? Infinity : landDistanceSteps[tileId] * stepKm;
+    const offshoreDistance = smoothstep((distanceKm - STORM_COAST_SHELTER_DISTANCE_KM) /
+      STORM_OFFSHORE_TRANSITION_DISTANCE_KM);
     exposure[tileId] = 0.08 + 0.92 * (
       offshoreDistance * 0.75 + neighborOpenness * 0.25
     );

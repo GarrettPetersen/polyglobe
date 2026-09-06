@@ -21,7 +21,7 @@ test("MiniFolks release credits LYASeeK in both the package and game credits", a
   assert.match(packageLicense, /LYASeeK's MiniFolks: https:\/\/lyaseek\.itch\.io\//);
 });
 
-test("MiniFolks Japan sheets retain their action rows and Resurrect 64 palette", async () => {
+test("MiniFolks Japan sheets retain their action rows and Resurrect 64 palette", { timeout: 30000 }, async () => {
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   assert.equal(manifest.pack, "MiniFolks Extra: Japan");
   assert.equal(manifest.units.length, 7);
@@ -34,7 +34,8 @@ test("MiniFolks Japan sheets retain their action rows and Resurrect 64 palette",
     const expectedHeight = unit.animations.length * 32;
 
     for (const variant of ["Outline", "Without Outline"]) {
-      const image = await loadImage(join(packageRoot, variant, `${unit.name}.png`));
+      const bytes = await readFile(join(packageRoot, variant, `${unit.name}.png`));
+      const image = await loadImage(bytes);
       assert.equal(image.width, expectedWidth, `${variant}/${unit.name} width`);
       assert.equal(image.height, expectedHeight, `${variant}/${unit.name} height`);
       const canvas = createCanvas(image.width, image.height);

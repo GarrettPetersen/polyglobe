@@ -3699,6 +3699,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "The memorial invokes investiture, tribute, and the peace of the seas. Its force lies in the imperial seal, but whether {0} obeys will measure that force.",
   "The memorial remains sealed. Beijing is ahead.",
   "The memorial remains sealed. Our audience awaits in {0}.",
+  "The merchants await your business.",
   "the merchants' guild banquet",
   "The migration must not consume its spring planting. Add",
   "THE MING COURT DELIBERATES POLICY CONCERNING {0}",

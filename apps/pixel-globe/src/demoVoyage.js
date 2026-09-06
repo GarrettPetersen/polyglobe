@@ -1,3 +1,4 @@
+import { terrainStepDistanceKm } from "./terrainDistance.js";
 import {
   animalLandmassWorldFraction,
   buildAnimalLandmassWorldFractions
@@ -5,7 +6,8 @@ import {
 
 export const DEMO_GIBRALTAR_MESSAGE =
   "The full version has many adventures and riches to be found on the high seas.";
-export const DEMO_ESCAPE_GRACE_HEXES = 10;
+export const DEMO_ESCAPE_GRACE_DISTANCE_KM = 600;
+export const DEMO_WARNING_REARM_DISTANCE_KM = 240;
 export const DEMO_VOYAGE_SCOPE_MEDITERRANEAN = "mediterranean";
 export const DEMO_VOYAGE_SCOPE_WORLDWIDE = "worldwide-grandfathered";
 export const LAST_WORLDWIDE_DEMO_GAME_STATE_VERSION = 51;
@@ -173,13 +175,14 @@ export function buildDemoMediterraneanAccessMask({
   return mask;
 }
 
-export function navigationDistanceFromAccessMask(graph, accessMask) {
+export function navigationDistanceKmFromAccessMask(graph, accessMask) {
   validateNavigationGraph(graph);
   if (!(accessMask instanceof Uint8Array) || accessMask.length !== graph.tileCount) {
     throw new Error("Demo access-distance calculation requires a complete access mask");
   }
-  const unreachable = 0xffff;
-  const distances = new Uint16Array(graph.tileCount);
+  const stepKm = terrainStepDistanceKm(graph.subdivisions);
+  const unreachable = Infinity;
+  const distances = new Float64Array(graph.tileCount);
   distances.fill(unreachable);
   const queue = [];
   for (let tileId = 0; tileId < graph.tileCount; tileId++) {
@@ -190,7 +193,7 @@ export function navigationDistanceFromAccessMask(graph, accessMask) {
   if (queue.length === 0) throw new Error("Demo access mask contains no navigable tiles");
   for (let head = 0; head < queue.length; head++) {
     const fromTileId = queue[head];
-    const nextDistance = distances[fromTileId] + 1;
+    const nextDistance = distances[fromTileId] + stepKm;
     for (const toTileId of graph.neighbors[fromTileId]) {
       if (distances[toTileId] <= nextDistance) continue;
       distances[toTileId] = nextDistance;
@@ -202,19 +205,19 @@ export function navigationDistanceFromAccessMask(graph, accessMask) {
 
 export function demoEscapeRequiresRecovery(
   tileId,
-  distanceFromAccessMask,
-  graceHexes = DEMO_ESCAPE_GRACE_HEXES
+  distanceKmFromAccessMask,
+  graceDistanceKm = DEMO_ESCAPE_GRACE_DISTANCE_KM
 ) {
-  if (!(distanceFromAccessMask instanceof Uint16Array)) {
+  if (!(distanceKmFromAccessMask instanceof Float64Array)) {
     throw new Error("Demo escape recovery requires navigation distances");
   }
-  if (!Number.isInteger(tileId) || tileId < 0 || tileId >= distanceFromAccessMask.length) {
+  if (!Number.isInteger(tileId) || tileId < 0 || tileId >= distanceKmFromAccessMask.length) {
     return true;
   }
-  if (!Number.isInteger(graceHexes) || graceHexes < 0) {
-    throw new Error(`Invalid demo escape grace distance: ${graceHexes}`);
+  if (!Number.isFinite(graceDistanceKm) || graceDistanceKm < 0) {
+    throw new Error(`Invalid demo escape grace distance: ${graceDistanceKm}`);
   }
-  return distanceFromAccessMask[tileId] > graceHexes;
+  return distanceKmFromAccessMask[tileId] > graceDistanceKm;
 }
 
 function validateNavigationGraph(graph) {

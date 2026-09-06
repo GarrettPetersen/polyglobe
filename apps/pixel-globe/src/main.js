@@ -1,3 +1,4 @@
+import { coastalWaterBands } from "./terrainDistance.js";
 import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, SOUND_DUES_FACTION_ID, advanceSoundDuesPassage, soundDuesEnforcementApplies } from "./soundDues.js";
 import { PoliticalNoticeQueue } from "./politicalNoticeQueue.js";
@@ -37,6 +38,7 @@ import {
   WORLD_DISCRETE_WEATHER_SUBDIVISIONS,
   WORLD_GLOBE_SUBDIVISIONS,
   WORLD_PIXELS_PER_RADIAN,
+  WORLD_KINEMATIC_SCALE,
   WORLD_RUNTIME_WEATHER_SUBDIVISIONS,
   buildFineToCoarseTileMapping,
   geodesicTileCount
@@ -2066,7 +2068,8 @@ import { NOTICE_DURATION_MS } from "./notificationTiming.js";
 import { fullNoticeTextLayout } from "./noticeTextLayout.js";
 import { steamStatValues } from "./steamStats.js";
 import {
-  DEMO_ESCAPE_GRACE_HEXES,
+  DEMO_ESCAPE_GRACE_DISTANCE_KM,
+  DEMO_WARNING_REARM_DISTANCE_KM,
   DEMO_GIBRALTAR_BARRIER_COORDINATES,
   DEMO_GIBRALTAR_MESSAGE,
   DEMO_GIBRALTAR_RECOVERY_COORDINATES,
@@ -2078,7 +2081,7 @@ import {
   demoEscapeRequiresRecovery,
   demoVoyageScopeForSavedGame,
   isMediterraneanDemoVoyage,
-  navigationDistanceFromAccessMask,
+  navigationDistanceKmFromAccessMask,
   startMenuEditionLabel
 } from "./demoVoyage.js";
 import {
@@ -2718,7 +2721,7 @@ const SHIP_LIGHT_BIN_COUNT = SHIP_LIGHT_AZIMUTH_BINS * SHIP_LIGHT_ELEVATION_BINS
 const SHIP_LIGHT_HIGH_ALTITUDE = 0.5;
 const SHIP_SHADOW_HALF = SHIP_SHADOW_FRAME_SIZE / 2;
 const SHIP_SHADOW_SURFACE_SAMPLE_PX = 2;
-const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015;
+const SHIP_MIN_SLIDE_SPEED_RAD = 0.0015 * WORLD_KINEMATIC_SCALE;
 const SHIP_COLLISION_SLIDE_SPEED_KEEP = 0.96;
 const SHIP_COLLISION_MIN_TANGENT_RATIO = 0.05;
 const SHIP_COLLISION_SLIDE_SEARCH_MIN_ALIGN = -0.08;
@@ -2732,13 +2735,13 @@ const SHIP_RIVER_CHANNEL_TOLERANCE_PX = 0.75;
 const SHIP_RIVER_TURN_RATE_MULTIPLIER = 2.4;
 const SHIP_BOUNDARY_CONTACT_PROBE_PX = 1;
 const SHIP_BOUNDARY_CONTACT_RELEASE_PX = 6;
-const SHIP_CONTACT_ESCAPE_SPEED_RAD = 0.0015;
-const SHIP_RIVER_HAUL_ACCEL_RAD = 0.009;
-const SHIP_RIVER_HAUL_MAX_SPEED_RAD = 0.0085;
+const SHIP_CONTACT_ESCAPE_SPEED_RAD = 0.0015 * WORLD_KINEMATIC_SCALE;
+const SHIP_RIVER_HAUL_ACCEL_RAD = 0.009 * WORLD_KINEMATIC_SCALE;
+const SHIP_RIVER_HAUL_MAX_SPEED_RAD = 0.0085 * WORLD_KINEMATIC_SCALE;
 const SHIP_HAUL_RECOVERY_AFTER_SECONDS = 0.3;
 const SHIP_HAUL_RECOVERY_MAX_RADIUS_PX = 8;
 const SHIP_RESTORE_RECOVERY_MAX_RADIUS_PX = 8;
-const SHIP_HAUL_RECOVERY_SPEED_RAD = 0.0045;
+const SHIP_HAUL_RECOVERY_SPEED_RAD = 0.0045 * WORLD_KINEMATIC_SCALE;
 const SHIP_STUCK_RECOVERY_AFTER_SECONDS = 1.25;
 const SHIP_STUCK_RECOVERY_MAX_RADIUS_PX = 32;
 const SHIP_STUCK_RECOVERY_MIN_RADIUS_PX = 6;
@@ -4021,8 +4024,8 @@ let riverToWaterMasks;
 let riverBasinIds;
 let oceanReachableNavigationMask;
 let demoMediterraneanAccessMask = null;
-let demoDistanceFromMediterraneanAccess = null;
-let demoDistanceFromGibraltarBarrier = null;
+let demoDistanceKmFromMediterraneanAccess = null;
+let demoDistanceKmFromGibraltarBarrier = null;
 let demoAccessiblePortCities = null;
 let demoAccessiblePortIds = null;
 let demoNaturalistAnimalIds = null;
@@ -4742,6 +4745,7 @@ async function main() {
   }
   waterDepthBands = buildWaterDepthBands();
   stormSystem = createStormSystem({
+    subdivisions: graph.subdivisions,
     neighbors: graph.neighbors,
     latDeg: graph.latDeg,
     lonDeg: graph.lonDeg,
@@ -6669,36 +6673,12 @@ function chartProtectionFeatureTileIds() {
 }
 
 function buildWaterDepthBands() {
-  const deepBand = WATER_DEPTH_GRADATION_COUNT + 1;
-  const bands = new Uint8Array(graph.tileCount);
-  bands.fill(deepBand);
-
-  const queue = [];
-  for (let id = 0; id < graph.tileCount; id++) {
-    if (!isOceanWaterRow(earthById[id])) continue;
-    for (const neighborId of graph.neighbors[id]) {
-      if (isOceanWaterRow(earthById[neighborId])) continue;
-      bands[id] = 1;
-      queue.push(id);
-      break;
-    }
-  }
-
-  let head = 0;
-  while (head < queue.length) {
-    const id = queue[head++];
-    const nextBand = bands[id] + 1;
-    if (nextBand > WATER_DEPTH_GRADATION_COUNT) continue;
-    for (const neighborId of graph.neighbors[id]) {
-      if (!isOceanWaterRow(earthById[neighborId])) continue;
-      if (bands[neighborId] <= nextBand) continue;
-      bands[neighborId] = nextBand;
-      queue.push(neighborId);
-    }
-  }
-
-  console.info(`[pixel-globe] water depth bands: ${queue.length} coastal/intermediate ocean tiles`);
-  return bands;
+  return coastalWaterBands({
+    neighbors: graph.neighbors,
+    oceanMask: Uint8Array.from(earthRows, (row) => isOceanWaterRow(row) ? 1 : 0),
+    subdivisions: graph.subdivisions,
+    bandCount: WATER_DEPTH_GRADATION_COUNT
+  });
 }
 
 function isOceanWaterRow(row) {
@@ -31289,13 +31269,13 @@ function initializeDemoMediterraneanNavigation() {
       toTileId
     })
   });
-  demoDistanceFromMediterraneanAccess = navigationDistanceFromAccessMask(
+  demoDistanceKmFromMediterraneanAccess = navigationDistanceKmFromAccessMask(
     graph,
     demoMediterraneanAccessMask
   );
   const barrierMask = new Uint8Array(graph.tileCount);
   for (const tileId of blockedTileIds) barrierMask[tileId] = 1;
-  demoDistanceFromGibraltarBarrier = navigationDistanceFromAccessMask(graph, barrierMask);
+  demoDistanceKmFromGibraltarBarrier = navigationDistanceKmFromAccessMask(graph, barrierMask);
   const requestedRecoveryTileId = nearestNavigableTile(DEMO_GIBRALTAR_RECOVERY_COORDINATES);
   demoGibraltarRecoveryTileId = demoMediterraneanAccessMask[requestedRecoveryTileId] === 1
     ? requestedRecoveryTileId
@@ -31549,11 +31529,11 @@ function updateSailing(dt) {
 function recoverEscapedDemoShip() {
   if (
     !mediterraneanDemoVoyageIsActive() ||
-    !demoDistanceFromMediterraneanAccess ||
+    !demoDistanceKmFromMediterraneanAccess ||
     !demoEscapeRequiresRecovery(
       ship.tileId,
-      demoDistanceFromMediterraneanAccess,
-      DEMO_ESCAPE_GRACE_HEXES
+      demoDistanceKmFromMediterraneanAccess,
+      DEMO_ESCAPE_GRACE_DISTANCE_KM
     )
   ) {
     return false;
@@ -32843,15 +32823,15 @@ function demoShipStepCrossesBoundary(fromTileId, toTileId) {
   ) {
     if (
       mediterraneanDemoVoyageIsActive() &&
-      demoDistanceFromGibraltarBarrier?.[toTileId] >= 4
+      demoDistanceKmFromGibraltarBarrier?.[toTileId] >= DEMO_WARNING_REARM_DISTANCE_KM
     ) {
       demoGibraltarWarningArmed = true;
     }
     return false;
   }
-  const fromDistance = demoDistanceFromMediterraneanAccess[fromTileId];
-  const toDistance = demoDistanceFromMediterraneanAccess[toTileId];
-  return demoMediterraneanAccessMask[fromTileId] === 1 || toDistance >= fromDistance;
+  const fromDistanceKm = demoDistanceKmFromMediterraneanAccess[fromTileId];
+  const toDistanceKm = demoDistanceKmFromMediterraneanAccess[toTileId];
+  return demoMediterraneanAccessMask[fromTileId] === 1 || toDistanceKm >= fromDistanceKm;
 }
 
 function movementCanUseDrawnNavigation(fromTileId, toTileId, fromNavKind, toNavKind, movementDirection) {

@@ -21,6 +21,7 @@ test("port dialogue routes each service to its owning staff member", () => {
   assert.equal(roleForNode("equipment"), PORT_CITY_STAFF_ROLE.SMITH);
   assert.equal(roleForNode("equipment-factor-offer"), PORT_CITY_STAFF_ROLE.SMITH);
   assert.equal(roleForNode("market"), PORT_CITY_STAFF_ROLE.MERCHANT);
+  assert.equal(roleForNode("foreign-settlements"), PORT_CITY_STAFF_ROLE.MERCHANT);
   assert.equal(roleForNode("trade-embargo-warning"), PORT_CITY_STAFF_ROLE.MERCHANT);
   assert.equal(roleForNode("marque"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
   assert.equal(roleForNode("garrison"), PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);

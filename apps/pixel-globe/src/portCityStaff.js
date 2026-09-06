@@ -49,6 +49,7 @@ const SMITH_NODES = new Set([
 ]);
 
 const MERCHANT_NODES = new Set([
+  "foreign-settlements",
   "market",
   "market-undo-confirm",
   "portuguese-cartaz-market-declined",

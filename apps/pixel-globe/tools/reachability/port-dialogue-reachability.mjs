@@ -10,6 +10,7 @@ import { VIKING_LONGSHIP_FETCH_STAGES, VIKING_LONGSHIP_PRICE, VIKING_LONGSHIP_SL
   maybeSpawnVikingLongshipQuest } from "../../src/vikingLongshipQuest.js";
 import { CARIBBEAN_GINGER_FETCH_STAGE, maybeSpawnCaribbeanGingerQuest } from "../../src/caribbeanGingerQuest.js";
 import { createWorldEconomy } from "../../src/economy.js";
+import { withForeignSettlements1522 } from "../../src/foreignSettlements.js";
 import { createCrewRecruitmentOffer } from "../../src/crewMembers.js";
 import { cargoUsed, hireCrewMemberAtPort, migrateGameState, setPlayerShipStats, validateGameState } from "../../src/gameState.js";
 import assert from "node:assert/strict";
@@ -574,7 +575,7 @@ function reachableCity(record) {
     throw new Error(`Reachable city has no service contract: ${record.cityId}`);
   }
   return Object.freeze({
-    ...record,
+    ...withForeignSettlements1522(record),
     displayCity: record.label,
     portId: record.cityId,
     character: Object.freeze({

@@ -3699,6 +3699,7 @@ export default Object.freeze({
   "The memorial invokes investiture, tribute, and the peace of the seas. Its force lies in the imperial seal, but whether {0} obeys will measure that force.": "Das Denkmal beschwört Investitur, Ehrung und den Frieden der Meere. Seine Kraft liegt im kaiserlichen Siegel, aber ob {0} gehorcht, wird diese Kraft messen.",
   "The memorial remains sealed. Beijing is ahead.": "Das Denkmal bleibt versiegelt. Peking hat die Nase vorn.",
   "The memorial remains sealed. Our audience awaits in {0}.": "Das Denkmal bleibt versiegelt. Unser Publikum erwartet Sie in {0}.",
+  "The merchants await your business.": "Die Kaufleute erwarten Eure Geschäfte.",
   "the merchants' guild banquet": "das Bankett der Kaufmannszunft",
   "The migration must not consume its spring planting. Add": "Die Migration darf die Frühjahrspflanzung nicht verzehren. Hinzufügen",
   "THE MING COURT DELIBERATES POLICY CONCERNING {0}": "DAS MING-GERICHT ENTWICKELT POLITIK BEZÜGLICH {0}",

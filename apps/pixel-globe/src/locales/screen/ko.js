@@ -3699,6 +3699,7 @@ export default Object.freeze({
   "The memorial invokes investiture, tribute, and the peace of the seas. Its force lies in the imperial seal, but whether {0} obeys will measure that force.": "기념관은 수사, 헌정, 바다의 평화를 기원합니다. 그 힘은 황실 인장에 있지만 {0}이 이를 준수하는지 여부가 그 힘을 측정할 것입니다.",
   "The memorial remains sealed. Beijing is ahead.": "기념관은 봉인되어 있습니다. 베이징이 앞서 있다.",
   "The memorial remains sealed. Our audience awaits in {0}.": "기념관은 봉인되어 있습니다. {0}에서 시청자를 기다리고 있습니다.",
+  "The merchants await your business.": "상인들이 거래를 기다리고 있습니다.",
   "the merchants' guild banquet": "상인 길드 연회",
   "The migration must not consume its spring planting. Add": "이주로 인해 봄철 재배가 소비되어서는 안 됩니다. 추가",
   "THE MING COURT DELIBERATES POLICY CONCERNING {0}": "MING 법원은 {0}에 관한 정책을 심의합니다.",

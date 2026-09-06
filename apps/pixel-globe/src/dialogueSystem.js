@@ -5244,6 +5244,7 @@ function illicitCaughtView(session, city) {
 }
 
 function cityMenuPrompt(locationId) {
+  if (locationId === PORT_CITY_LOCATION.MARKET) return "The merchants await your business.";
   if (locationId === PORT_CITY_LOCATION.SHIP) return "What shall we do aboard?";
   if (locationId === PORT_CITY_LOCATION.SHIPYARD) return "The yard offers several kinds of business.";
   if (locationId === PORT_CITY_LOCATION.AUTHORITY) return "What business will you place before the authorities?";

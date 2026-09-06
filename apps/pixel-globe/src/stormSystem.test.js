@@ -36,7 +36,7 @@ test("open ocean is more storm-exposed than an enclosed bay", () => {
   ];
   const waterMask = Uint8Array.from([0, 0, 1, 1, 1, 1, 1]);
   const oceanMask = Uint8Array.from([0, 0, 1, 1, 1, 1, 1]);
-  const exposure = buildStormExposure({ neighbors, waterMask, oceanMask });
+  const exposure = buildStormExposure({ neighbors, waterMask, oceanMask, subdivisions: 7 });
 
   assert.ok(exposure[6] > exposure[2]);
   assert.ok(exposure[6] > 0.5);

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  CASTAWAY_REMOTE_MIN_HEX_DISTANCE,
+  CASTAWAY_REMOTE_MIN_DISTANCE_KM,
   isRemoteCastawayShore
 } from "./remoteShore.js";
 
@@ -10,6 +10,7 @@ function lineWorld(count, waterIds = []) {
   const water = new Set(waterIds);
   return {
     graph: {
+      subdivisions: 7,
       tileCount: count,
       neighbors: Array.from({ length: count }, (_, index) => [index - 1, index + 1]
         .filter((neighbor) => neighbor >= 0 && neighbor < count))
@@ -21,17 +22,17 @@ function lineWorld(count, waterIds = []) {
   };
 }
 
-test("a shore ten land hexes from the nearest settlement is remote", () => {
+test("a shore 600 nominal land kilometres from the nearest settlement is remote", () => {
   const world = lineWorld(14);
   assert.equal(isRemoteCastawayShore({
     ...world,
     settlementTileIds: [10],
     shoreTileId: 0
   }), true);
-  assert.equal(CASTAWAY_REMOTE_MIN_HEX_DISTANCE, 10);
+  assert.equal(CASTAWAY_REMOTE_MIN_DISTANCE_KM, 600);
 });
 
-test("a settlement fewer than ten connected land hexes away prevents a castaway", () => {
+test("a settlement closer than 600 nominal land kilometres prevents a castaway", () => {
   const world = lineWorld(10);
   assert.equal(isRemoteCastawayShore({
     ...world,
