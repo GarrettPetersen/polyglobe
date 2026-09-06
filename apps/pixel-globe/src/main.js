@@ -16512,6 +16512,29 @@ function installSaveRestoreSmokeHarness() {
   }
   let running = false;
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
+    async inspectMarketExit(mode) {
+      if (running || !["buy", "sell"].includes(mode)) throw new Error("Market smoke requires an idle restored voyage and a valid mode");
+      const city = chart.cityCalls.find((candidate) => portCitiesByTileId.has(candidate.tileId));
+      if (!city) throw new Error("Market smoke requires a visible dockable city");
+      visitPort(gameState, city, Math.floor(weatherClockMinutes));
+      dialogueState = createPortDialogueSession(city, { initialNodeId: "market", marketMode: mode, admittedToPort: true });
+      dialogueLayout = createDialogueLayoutState();
+      activatePortCityView(city);
+      await synchronizePortCityScene();
+      const view = currentDialogueView();
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      const index = view.options.findIndex(({ action }) => action.type === "leave-market");
+      if (index < 0 || view.options[index].disabled) throw new Error("Market smoke has no enabled exit");
+      const startedAtMs = performance.now();
+      chooseDialogueOption(index);
+      const actionDurationMs = performance.now() - startedAtMs;
+      const nextNodeId = dialogueState.nodeId;
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      await synchronizePortCityScene();
+      await waitForSaveRestoreSmokePersistence();
+      return { mode, cityId: city.cityId, nextNodeId, actionDurationMs,
+        serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
+    },
     async inspectSoundDues(decision = null) {
       if (running) throw new Error("Cannot inspect Sound Dues during save restoration");
       updateSoundDues();

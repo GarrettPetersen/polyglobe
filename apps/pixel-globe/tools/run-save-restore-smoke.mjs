@@ -210,6 +210,7 @@ try {
     );
   }
   process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
+  await exerciseMarketExits(page, browserErrors);
   await exerciseCrewManagementSaveRoundTrips(page, browserErrors);
   await exerciseDjenneSaveRoundTrips(page, browserErrors);
   await exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors);
@@ -985,4 +986,22 @@ async function exerciseLandmassChannelRestore(page, browserErrors) {
   assert.ok(result.chartTileCount > 0);
   await assertNoBrowserFailure(page, browserErrors, "Montreal inland island channel rendering");
   process.stdout.write("  Montreal river-island channels rendered after save restoration.\n");
+}
+
+async function exerciseMarketExits(page, browserErrors) {
+  const name = `dense-local-save-v2-game-state-v${GAME_STATE_VERSION}.json`;
+  for (const mode of ["buy", "sell"]) {
+    const fixture = browserAdaptedDenseFixture(JSON.parse(readFileSync(path.join(FIXTURE_ROOT, name), "utf8")), name);
+    fixture.payload.gameState.memory.campaignGoal.introSeen = true;
+    fixture.payload.gameState.memory.navalCasualties = [];
+    await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), JSON.stringify(fixture));
+    const result = await page.evaluate((mode) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectMarketExit(mode), mode);
+    assert.notEqual(result.nextNodeId, "market");
+    const saved = readLocalSave({ storage: { getItem: () => result.serialized } });
+    assert.equal(saved.status, "ready");
+    assert.equal(saved.save.payload.gameState.doubloons, fixture.payload.gameState.doubloons);
+    assert.deepEqual(saved.save.payload.gameState.cargo, fixture.payload.gameState.cargo);
+    await assertNoBrowserFailure(page, browserErrors, `${mode} market exit`);
+    process.stdout.write(`  ${mode} market exited to ${result.nextNodeId} in ${Math.round(result.actionDurationMs)} ms; city scene and save remained valid.\n`);
+  }
 }

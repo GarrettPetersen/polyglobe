@@ -1,3 +1,4 @@
+import { playerTradeAdviceByCity } from "./gameState.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, soundDuesPaymentEligibility } from "./soundDues.js";
 import { colonizationSiteIsRuined } from "./colonialCities.js";
 import { vikingLongshipAcquisitionEligibility } from "./innQuestTransactions.js";
@@ -7004,9 +7005,10 @@ function shipyardMaterialSourceHints({
   if (!Array.isArray(portCities) || typeof sailingDistanceKm !== "function") return Object.freeze([]);
   const needed = materials.filter((material) => material.stockpileMissing > 0);
   const bestByGoodId = new Map();
+  const advice = playerTradeAdviceByCity(gameState, portCities, { simMinute });
   for (const destination of portCities) {
     if (destination.cityId === originCity.cityId) continue;
-    const accessible = destinationAcceptsPlayerTrade(destination, gameState, simMinute);
+    const accessible = advice.get(destination.cityId).allowed;
     const available = needed
       .map((material) => ({
         material,
@@ -7497,6 +7499,7 @@ export function bestQuestCargoSource({
   }
   if (typeof random !== "function") throw new Error("Quest cargo advice requires a random source");
 
+  const advice = playerTradeAdviceByCity(gameState, portCities, { simMinute });
   const portByCityId = new Map(portCities.map((port) => [port.cityId, port]));
   const waypointGoodIds = new Set();
   for (const waypoint of gameState.memory.navigation.optionalWaypoints) {
@@ -7504,7 +7507,7 @@ export function bestQuestCargoSource({
       continue;
     }
     const destination = portByCityId.get(waypoint.destinationCityId);
-    if (!destination || !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
+    if (!destination || !advice.get(destination.cityId).allowed) continue;
     const row = portMarket(economy, destination)
       .find((entry) => entry.good.id === waypoint.questCargoGoodId);
     if (row?.listedForSale && row.stock >= 1) waypointGoodIds.add(waypoint.questCargoGoodId);
@@ -7522,7 +7525,7 @@ export function bestQuestCargoSource({
     const sources = [];
     for (const destination of portCities) {
       if (destination.cityId === originCity.cityId ||
-          !destinationAcceptsPlayerTrade(destination, gameState, simMinute)) {
+          !advice.get(destination.cityId).allowed) {
         continue;
       }
       const row = portMarket(economy, destination).find((entry) => entry.good.id === goodId);
@@ -7627,6 +7630,12 @@ export function bestPurchasedTradeRoute({
     if (!Number.isFinite(purchase.cost) || purchase.cost < 0) {
       throw new Error("Trade-route purchase cost must be non-negative");
     }
+    tradeGoodById(purchase.goodId);
+  }
+  const advice = playerTradeAdviceByCity(gameState, portCities, {
+    goodIds: Object.values(purchases).map(({ goodId }) => goodId), simMinute
+  });
+  for (const purchase of Object.values(purchases)) {
     const good = tradeGoodById(purchase.goodId);
     if ((requiredQuestCargo[good.id] || 0) > 0) continue;
     const heldBasis = cargoCostBasis(gameState, good.id);
@@ -7639,8 +7648,8 @@ export function bestPurchasedTradeRoute({
     const candidates = [];
     for (const destination of portCities) {
       if (!includeLocalMarket && destination.cityId === originCity.cityId) continue;
-      if (!destinationAcceptsPlayerTrade(destination, gameState, simMinute)) continue;
-      const terms = playerTradeTerms(gameState, destination, good.id);
+      if (!advice.get(destination.cityId).allowed) continue;
+      const terms = advice.get(destination.cityId).termsByGoodId.get(good.id);
       if (maximumPortPurchaseQuantity(
         economy,
         destination,
@@ -7896,10 +7905,6 @@ function marketUndoAvailable(session) {
   return Boolean(session.marketUndoSnapshot && session.marketTransactionCount > 0);
 }
 
-function destinationAcceptsPlayerTrade(city, gameState, simMinute) {
-  if (!portEntryStatus(gameState, city, simMinute).allowed) return false;
-  return playerTradeAccess(gameState, city, { simMinute }).allowed;
-}
 
 function tradeTermsDetail(terms, side) {
   const parts = [];

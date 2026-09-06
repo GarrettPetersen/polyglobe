@@ -5279,8 +5279,8 @@ export function portEntryStatus(state, city, simMinute = 0, context = null) {
   const hostile = catholicContraband ||
     ((hostileByWar || (hostileByStance && !hostileStanceWaivedByStanding) || hostileByStanding) &&
       !safePassage);
-  const memory = requiredPortMemory(state, city);
-  const storedLock = Number.isFinite(memory.disguiseLockUntilMinute)
+  const memory = state.memory.visitedPorts[requireCityId(city, "Port entry")];
+  const storedLock = Number.isFinite(memory?.disguiseLockUntilMinute)
     ? memory.disguiseLockUntilMinute
     : null;
   const locked = hostile && storedLock !== null && storedLock > simMinute;
@@ -6267,6 +6267,10 @@ function copyLedgerEntry(entry) {
 
 export function playerTradeAccess(state, city, context = {}) {
   assertGameState(state);
+  return playerTradeAccessUnchecked(state, city, context);
+}
+
+function playerTradeAccessUnchecked(state, city, context) {
   const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
   const suzeraintyPrivilege = suzeraintyTradePrivilege(
@@ -6312,13 +6316,16 @@ function assertPlayerTradeAccess(state, city, context) {
 
 export function playerTradeTerms(state, city, goodId, context = {}) {
   assertGameState(state);
+  return playerTradeTermsUnchecked(state, city, goodId, context,
+    gameStatePerkTotals(state), playerTradeAccessUnchecked(state, city, context));
+}
+
+function playerTradeTermsUnchecked(state, city, goodId, context, perks, access) {
   tradeGoodById(goodId);
   const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
   const portFactionId = city?.factionId || NEUTRAL_FACTION_ID;
   const reputation = state.relations.factionReputation[portFactionId] || 0;
-  const perks = gameStatePerkTotals(state);
-  const access = playerTradeAccess(state, city, context);
-  const crownSpiceAccess = playerPortugueseCrownSpiceAccess(
+  const crownSpiceAccess = playerPortugueseCrownSpiceAccessUnchecked(
     state,
     city,
     goodId,
@@ -6371,9 +6378,13 @@ export function playerPortugueseCrownSpiceAccess(
   resolvedPortAccess = null
 ) {
   assertGameState(state);
+  return playerPortugueseCrownSpiceAccessUnchecked(state, city, goodId, context,
+    resolvedPortAccess || playerTradeAccessUnchecked(state, city, context));
+}
+
+function playerPortugueseCrownSpiceAccessUnchecked(state, city, goodId, context, portAccess) {
   tradeGoodById(goodId);
   const traderFactionId = state.playerCharacter?.nationalityId || NEUTRAL_FACTION_ID;
-  const portAccess = resolvedPortAccess || playerTradeAccess(state, city, context);
   const estadoPort = isPortugueseEstadoPort(city, state.relations.foreignSettlementExpulsions);
   const cartazValid = !estadoPort || traderFactionId === PORTUGUESE_FACTION_ID ||
     state.relations.portugueseCartaz.untilMinute > (context.simMinute ?? 0);
@@ -6387,6 +6398,34 @@ export function playerPortugueseCrownSpiceAccess(
     otherIllicitAccess: portAccess.illicit,
     disguisedEntry: context.disguisedEntry === true
   });
+}
+
+// A synchronous, read-only advice snapshot. Validate the voyage at this boundary,
+// then share port admission, trade access and crew perks across the whole scan.
+// Actual purchases and sales still validate current state through their own APIs.
+export function playerTradeAdviceByCity(state, cities, { goodIds = [], simMinute = 0 } = {}) {
+  assertGameState(state);
+  assertSimulationMinute(simMinute);
+  if (!Array.isArray(cities) || !Array.isArray(goodIds)) throw new Error("Trade advice requires city and good catalogs");
+  const uniqueGoodIds = [...new Set(goodIds)];
+  for (const goodId of uniqueGoodIds) tradeGoodById(goodId);
+  const entryContext = createPortEntryStatusContext(state, simMinute);
+  const context = { simMinute };
+  const perks = uniqueGoodIds.length > 0 ? gameStatePerkTotals(state) : null;
+  const result = new Map();
+  for (const city of cities) {
+    const cityId = requireCityId(city, "Trade advice");
+    if (result.has(cityId)) throw new Error(`Duplicate trade advice city: ${cityId}`);
+    const admitted = portEntryStatus(state, city, simMinute, entryContext).allowed;
+    const access = admitted ? playerTradeAccessUnchecked(state, city, context) : null;
+    const allowed = admitted && access.allowed;
+    const termsByGoodId = new Map();
+    if (allowed) for (const goodId of uniqueGoodIds) {
+      termsByGoodId.set(goodId, playerTradeTermsUnchecked(state, city, goodId, context, perks, access));
+    }
+    result.set(cityId, Object.freeze({ allowed, termsByGoodId }));
+  }
+  return result;
 }
 
 export function playerPortCustomsNotice(state, city) {
