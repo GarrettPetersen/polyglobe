@@ -1103,6 +1103,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "checked white whale rumor",
   "Chengdu",
   "Chichen Itza",
+  "Chief’s hut",
   "Chimborazo lifts an ice-covered dome almost directly above the equatorial country. Its broad white mass seems to push higher because tropical fields lie within sight below.",
   "Chinese",
   "Chip-chip-chip!",

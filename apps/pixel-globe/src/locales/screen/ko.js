@@ -1103,6 +1103,7 @@ export default Object.freeze({
   "checked white whale rumor": "흰고래 소문을 확인했다",
   "Chengdu": "청두",
   "Chichen Itza": "치첸이트사",
+  "Chief’s hut": "추장의 오두막",
   "Chimborazo lifts an ice-covered dome almost directly above the equatorial country. Its broad white mass seems to push higher because tropical fields lie within sight below.": "Chimborazo는 적도 국가 바로 위에 얼음으로 덮인 돔을 들어 올립니다. 그 넓은 흰색 덩어리는 아래 시야에 열대 들판이 있기 때문에 더 높이 솟아오르는 것처럼 보입니다.",
   "Chinese": "중국어",
   "Chip-chip-chip!": "칩칩칩!",

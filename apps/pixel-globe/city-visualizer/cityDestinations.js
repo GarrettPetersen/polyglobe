@@ -1,4 +1,4 @@
-import { PORT_CITY_LOCATION } from "../src/portCityNavigation.js";
+import { PORT_CITY_LOCATION, portCityAuthorityLabel } from "../src/portCityNavigation.js";
 
 export const CITY_DESTINATIONS = Object.freeze([
   cityDestination({ id: PORT_CITY_LOCATION.COLONY_CLUE, label: "?", layers: [] }),
@@ -33,7 +33,7 @@ export const CITY_DESTINATIONS = Object.freeze([
   }),
   cityDestination({
     id: PORT_CITY_LOCATION.AUTHORITY,
-    label: "Port authority",
+    label: portCityAuthorityLabel(),
     layers: ["Far Castle", "Gate", "Near Castle"]
   }),
   cityDestination({
@@ -51,6 +51,11 @@ export const CITY_DESTINATIONS = Object.freeze([
 const CITY_DESTINATION_BY_ID = new Map(
   CITY_DESTINATIONS.map((destination) => [destination.id, destination])
 );
+
+const VILLAGE_AUTHORITY_DESTINATION = Object.freeze({
+  ...CITY_DESTINATION_BY_ID.get(PORT_CITY_LOCATION.AUTHORITY),
+  label: portCityAuthorityLabel("village")
+});
 
 export function activeCityDestinations({
   availableDestinationIds,
@@ -77,7 +82,9 @@ export function activeCityDestinations({
       return false;
     }
     return !destination.requiredFeature || features[destination.requiredFeature] === true;
-  }));
+  }).map((destination) => features.primitiveSettlement && destination.id === PORT_CITY_LOCATION.AUTHORITY
+    ? VILLAGE_AUTHORITY_DESTINATION
+    : destination));
 }
 
 export function cityDestinationById(destinationId) {

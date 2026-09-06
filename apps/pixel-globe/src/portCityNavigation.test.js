@@ -96,3 +96,13 @@ function option(label, action) {
 function serviceProfile(smith) {
   return Object.freeze({ inn: true, smith, market: true, shipyard: true });
 }
+
+test("village authority uses the chief's hut without changing its actions or identity", () => {
+  const services = portCityServiceProfile({ settlementType: "village", population: 3000 });
+  const village = portCityNavigationModel(ROOT_VIEW, services, "village");
+  const city = portCityNavigationModel(ROOT_VIEW, services, "city");
+  const authority = (model) => model.locations.find(({ id }) => id === PORT_CITY_LOCATION.AUTHORITY);
+  assert.equal(authority(village).label, "Chief’s hut");
+  assert.equal(authority(city).label, "Port authority");
+  assert.deepEqual(authority(village).actions, authority(city).actions);
+});

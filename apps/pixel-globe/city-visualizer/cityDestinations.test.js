@@ -123,3 +123,14 @@ test("ruined colony clues require explicit quest availability and never expose t
     .some(({ id }) => id === PORT_CITY_LOCATION.COLONY_CLUE));
   assert.equal(cityDestinationById(PORT_CITY_LOCATION.COLONY_CLUE).label, "?");
 });
+
+test("village chief's hut and town port authority share the authority destination", () => {
+  const authority = (primitiveSettlement) => activeCityDestinations({
+    availableDestinationIds: null, assaultActive: false,
+    features: { ...ALL_SERVICES, primitiveSettlement }
+  }).find(({ id }) => id === PORT_CITY_LOCATION.AUTHORITY);
+  assert.equal(authority(true).label, "Chief’s hut");
+  assert.equal(authority(false).label, "Port authority");
+  assert.deepEqual(authority(true).layers, authority(false).layers);
+  assert.equal(cityDestinationById(PORT_CITY_LOCATION.AUTHORITY).label, "Port authority");
+});

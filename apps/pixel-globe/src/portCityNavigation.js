@@ -28,7 +28,7 @@ const LOCATION_LABELS = Object.freeze({
   [PORT_CITY_LOCATION.MARKET]: "Market",
   [PORT_CITY_LOCATION.EQUIPMENT]: "Smith",
   [PORT_CITY_LOCATION.SHIPYARD]: "Shipyard",
-  [PORT_CITY_LOCATION.AUTHORITY]: "Port authority",
+  [PORT_CITY_LOCATION.AUTHORITY]: portCityAuthorityLabel(),
   [PORT_CITY_LOCATION.INN]: "Inn",
   [PORT_CITY_LOCATION.SHIP]: "Your ship",
   [PORT_CITY_LOCATION.ILLICIT_MERCHANT]: "Suspicious merchant"
@@ -60,7 +60,11 @@ const INN_NODE_IDS = new Set([
   "viking-longship"
 ]);
 
-export function portCityNavigationModel(rootView, services) {
+export function portCityAuthorityLabel(settlementType = "city") {
+  return settlementType === "village" ? "Chief’s hut" : "Port authority";
+}
+
+export function portCityNavigationModel(rootView, services, settlementType = "city") {
   if (!rootView || !Array.isArray(rootView.options)) {
     throw new Error("Port city navigation requires the current root options");
   }
@@ -81,7 +85,7 @@ export function portCityNavigationModel(rootView, services) {
   }
   const locations = LOCATION_ORDER.map((id) => Object.freeze({
     id,
-    label: LOCATION_LABELS[id],
+    label: id === PORT_CITY_LOCATION.AUTHORITY ? portCityAuthorityLabel(settlementType) : LOCATION_LABELS[id],
     actions: Object.freeze(actionsByLocation.get(id))
   })).filter(({ actions }) => actions.length > 0);
   return Object.freeze({

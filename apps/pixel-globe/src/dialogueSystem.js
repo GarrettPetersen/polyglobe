@@ -12,6 +12,7 @@ import { PORT_CITY_STAFF_GREETING_STYLE } from "./portGreetingStyle.js";
 import {
   PORT_CITY_LOCATION,
   portCityLocation,
+  portCityAuthorityLabel,
   portCityNavigationModel
 } from "./portCityNavigation.js";
 import { portCityServiceProfile } from "./portCityServices.js";
@@ -1740,7 +1741,8 @@ export function portCityNavigationView(session, city, gameState, economy, portCi
   if (session.cityId !== city?.cityId) throw new Error("Port city navigation city does not match session");
   return portCityNavigationModel(
     rootNavigationView(session, city, gameState, economy, portCities, context),
-    portCityServiceProfile(city)
+    portCityServiceProfile(city),
+    city.settlementType
   );
 }
 
@@ -4853,7 +4855,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
         }, { disabled: !capturePetition.eligible, disabledReason: capturePetitionDisabledReasonText(capturePetition.reason) })]
       : []),
     ...(session.disguisedEntry && !pirateHideout
-      ? [option("Port authority", { type: "node", nodeId: "covert-authority" })]
+      ? [option(portCityAuthorityLabel(city.settlementType), { type: "node", nodeId: "covert-authority" })]
       : []),
     ...(!pirateHideout && !session.disguisedEntry
       ? [option("Ask about the garrison", { type: "node", nodeId: "garrison" })]

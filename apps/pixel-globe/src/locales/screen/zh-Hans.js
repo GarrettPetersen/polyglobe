@@ -1103,6 +1103,7 @@ export default Object.freeze({
   "checked white whale rumor": "检查白鲸谣言",
   "Chengdu": "成都",
   "Chichen Itza": "奇琴伊察",
+  "Chief’s hut": "酋长小屋",
   "Chimborazo lifts an ice-covered dome almost directly above the equatorial country. Its broad white mass seems to push higher because tropical fields lie within sight below.": "钦博拉索山几乎在赤道国家的正上方升起了一个冰雪覆盖的圆顶。它宽阔的白色物体似乎在推高，因为热带田野就在下面的视线范围内。",
   "Chinese": "中文",
   "Chip-chip-chip!": "芯片芯片芯片！",
