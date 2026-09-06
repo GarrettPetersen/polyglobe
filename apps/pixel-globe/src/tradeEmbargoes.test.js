@@ -478,3 +478,26 @@ test("NPC cargo provenance exposes only violations the player's commissions may 
   assert.deepEqual(spanish.map((violation) => violation.cargo), [{ gunpowder: 2 }]);
   assert.deepEqual(french, []);
 });
+
+test("friendly Papal–Tidore relations still permit an arms ban when Tidore fights Catholic Portugal", () => {
+  const memory = createTradeEmbargoMemory({ seedKey: "tidore-papal-feedback" });
+  const diplomacy = createWorldDiplomacy({ seedKey: "tidore-papal-feedback" });
+  diplomacy.overrides["papal-states|tidore"] = DIPLOMACY_FRIENDLY;
+  diplomacy.overrides["papal-states|portugal"] = DIPLOMACY_HOSTILE;
+  diplomacy.overrides["portugal|tidore"] = DIPLOMACY_WAR;
+  let imposed;
+  for (let review = 0; review < 30 && !imposed; review++) {
+    const events = advanceTradeEmbargoPolitics(memory, diplomacy, memory.nextReviewMinute, {
+      authorityForFaction: () => 80, papalAuthority: 80
+    });
+    imposed = events.find((event) => event.kind === "imposed" && event.authorityKind === "papal" && event.targetFactionId === "tidore");
+  }
+  assert.ok(imposed, "the religious prohibition is distinct from ordinary diplomatic hostility");
+  assert.equal(imposed.scope, TRADE_EMBARGO_SCOPE_WAR_MATERIEL);
+  assert.equal(imposed.restrictionKind, TRADE_EMBARGO_RESTRICTION_EXPORTS);
+  assert.ok(tradeEmbargoOrdersForSale(memory, { destinationFactionId: "tidore", goodId: "gunpowder" })
+    .some((order) => order.id === imposed.orderId));
+  assert.equal(tradeEmbargoOrdersForSale(memory, { destinationFactionId: "tidore", goodId: "rice" })
+    .some((order) => order.authorityKind === "papal"), false);
+  assert.equal(diplomacy.overrides["papal-states|tidore"], DIPLOMACY_FRIENDLY);
+});

@@ -5,8 +5,8 @@ const CARD_GAP = 6;
 const CONTENT_TOP = 39;
 const CARD_MIN_WIDTH = 188;
 const CARD_MAX_COLUMNS = 4;
-// "EMBARGOED BY" and "ENFORCES BAN" must remain legible beside their
-// faction tokens. The old column was narrower than either English label.
+// Restriction labels need room to distinguish arms bans from import bans
+// beside their faction tokens.
 const CARD_LABEL_WIDTH = 84;
 const CARD_TOKEN_WIDTH = 24;
 const CARD_RELATION_LINES = 4;
@@ -180,7 +180,7 @@ export function politicsCardEntries(cards, {
     throw new Error("Politics card relation-line capacities must be increasing positive integers");
   }
 
-  return Object.freeze(cards.map((card) => {
+  return Object.freeze(cards.flatMap((card) => {
     if (card?.kind === "political-group") {
       return Object.freeze({
         card,
@@ -201,15 +201,25 @@ export function politicsCardEntries(cards, {
       capacityIndex = relationLineCapacities.findIndex((capacity) => lines.length <= capacity);
     }
     if (capacityIndex < 0) {
-      throw new Error(
-        `Politics country card needs ${lines.length} relation lines but only ` +
-          `${relationLineCapacities.at(-1)} fit: ${card.faction?.id || "unknown"}`
-      );
+      // Diplomatic history can legitimately exceed even a full-page card.
+      // Continue the same realm on numbered cards without omitting any ties.
+      const capacity = relationLineCapacities.at(-1);
+      const partCount = Math.ceil(lines.length / capacity);
+      return Array.from({ length: partCount }, (_unused, partIndex) => Object.freeze({
+        card,
+        rowSpan: relationLineCapacities.length,
+        columnSpan,
+        partIndex,
+        partCount,
+        lines: Object.freeze(lines.slice(partIndex * capacity, (partIndex + 1) * capacity))
+      }));
     }
     return Object.freeze({
       card,
       rowSpan: capacityIndex + 1,
       columnSpan,
+      partIndex: 0,
+      partCount: 1,
       lines: Object.freeze(lines)
     });
   }));
@@ -312,12 +322,15 @@ function relationshipLines(card, tokensPerLine, powerCount) {
   }
   const embargoGroups = new Map();
   for (const connection of card.embargoConnections) {
-    const key = `${connection.kind}:${connection.role}`;
+    const key = `${connection.kind}:${connection.role}:${connection.authorityKind}:${connection.restrictionKind}:${connection.scope}`;
     if (!embargoGroups.has(key)) {
       embargoGroups.set(key, {
         type: "embargo",
         kind: connection.kind,
         role: connection.role,
+        authorityKind: connection.authorityKind,
+        restrictionKind: connection.restrictionKind,
+        scope: connection.scope,
         factionIds: []
       });
     }
@@ -374,4 +387,20 @@ function pushFactionLines(lines, group, tokensPerLine) {
       factionIds: Object.freeze(group.factionIds.slice(start, start + tokensPerLine))
     }));
   }
+}
+
+export function politicsEmbargoLabelKey(line) {
+  if (line.kind !== "trade-embargo") throw new Error(`Unknown politics embargo connection: ${line.kind}`);
+  const suffix = { issuer: "", target: "By", follower: "Enforced" }[line.role];
+  if (suffix === undefined) throw new Error(`Unknown politics embargo role: ${line.role}`);
+  if (line.scope !== "war-materiel" && line.scope !== "all-goods") {
+    throw new Error(`Unknown politics embargo scope: ${line.scope}`);
+  }
+  const restriction = {
+    "enemy-imports": "importBan",
+    "strategic-exports": line.scope === "war-materiel" ? "armsBan" : "exportBan",
+    "naval-blockade": "blockade"
+  }[line.restrictionKind];
+  if (!restriction) throw new Error(`Unknown politics embargo restriction: ${line.restrictionKind}`);
+  return `politics.${restriction}${suffix}`;
 }

@@ -590,12 +590,15 @@ function politicsEmbargoConnections(faction, activeEmbargoes, powerById) {
     // ledger, but there is no longer a living power to put on a politics card.
     if (!powerById.has(factionId)) continue;
     if (connections.some((connection) => (
-      connection.role === role && connection.factionId === factionId
+      connection.role === role && connection.factionId === factionId &&
+      connection.authorityKind === order.authorityKind &&
+      connection.restrictionKind === order.restrictionKind && connection.scope === order.scope
     ))) continue;
     connections.push(Object.freeze({
       kind: "trade-embargo",
       role,
       factionId,
+      authorityKind: order.authorityKind,
       restrictionKind: order.restrictionKind,
       scope: order.scope
     }));

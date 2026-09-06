@@ -7,6 +7,7 @@ import {
   politicsCardEntries,
   politicsCardEntriesPage,
   politicsCardGridLayout,
+  politicsEmbargoLabelKey,
   politicsPagerButtonLayout,
   politicsRelationTextColor
 } from "./politicsCardLayout.js";
@@ -397,3 +398,69 @@ function relativeLuminance(hex) {
   });
   return 0.2126 * channels[0] + 0.7152 * channels[1] + 0.0722 * channels[2];
 }
+
+test("politics cards retain separate arms, import and naval restrictions against the same realm", () => {
+  const state = createGameState({ cargoCapacity: 20 });
+  const memory = state.relations.tradeEmbargoes;
+  const papal = memory.orders.find((order) => order.authorityKind === "papal");
+  assert.ok(papal);
+  memory.orders.push({ ...papal, id: `${papal.id}-national`, authorityKind: "national",
+    restrictionKind: "enemy-imports", scope: "all-goods", followerFactionIds: ["papal-states"] });
+  memory.orders.push({ ...papal, id: `${papal.id}-blockade`, authorityKind: "national",
+    restrictionKind: "naval-blockade", scope: "all-goods", followerFactionIds: ["papal-states"] });
+  const view = createPoliticsView(state);
+  const papalCard = view.cards.find((entry) => entry.faction?.id === "papal-states");
+  const targetCard = view.cards.find((entry) => entry.faction?.id === papal.targetFactionId);
+  for (const [country, role] of [[papalCard, "issuer"], [targetCard, "target"]]) {
+    const connections = country.embargoConnections.filter((entry) => entry.role === role &&
+      entry.factionId === (role === "issuer" ? papal.targetFactionId : "papal-states"));
+    assert.equal(connections.length, 3);
+    const entries = politicsCardEntries([country], {
+      tokensPerLine: 4, fullWidthTokensPerLine: 13, maxColumnSpan: 2, relationLineCapacities: [8], powerCount: view.powers.length
+    });
+    const lines = entries.flatMap((entry) => entry.lines).filter((line) => line.type === "embargo" && line.role === role);
+    assert.equal(lines.length, 3);
+    assert.deepEqual(new Set(lines.map(politicsEmbargoLabelKey)), new Set(role === "issuer"
+      ? ["politics.armsBan", "politics.importBan", "politics.blockade"]
+      : ["politics.armsBanBy", "politics.importBanBy", "politics.blockadeBy"]));
+  }
+});
+
+test("restriction labels distinguish role and commodity scope, rejecting unknown contracts", () => {
+  for (const [restrictionKind, scope, label] of [
+    ["strategic-exports", "war-materiel", "armsBan"], ["strategic-exports", "all-goods", "exportBan"],
+    ["enemy-imports", "all-goods", "importBan"], ["naval-blockade", "all-goods", "blockade"]
+  ]) for (const [role, suffix] of [["issuer", ""], ["target", "By"], ["follower", "Enforced"]]) {
+    assert.equal(politicsEmbargoLabelKey({ kind: "trade-embargo", role, restrictionKind, scope }), `politics.${label}${suffix}`);
+  }
+  const line = { kind: "trade-embargo", role: "issuer", restrictionKind: "strategic-exports", scope: "war-materiel" };
+  for (const key of ["kind", "role", "restrictionKind", "scope"]) {
+    assert.throws(() => politicsEmbargoLabelKey({ ...line, [key]: "unknown" }), /Unknown politics embargo/);
+  }
+});
+
+test("crowded politics cards continue across numbered pages without losing or duplicating any tie", () => {
+  const country = card({
+    relationships: [relationship("friendly", ids("friend", 48)), relationship("hostile", ids("foe", 42))],
+    embargoConnections: Array.from({ length: 48 }, (_unused, index) => ({
+      kind: "trade-embargo", authorityKind: "national", role: ["issuer", "target", "follower"][index % 3],
+      restrictionKind: index % 2 ? "enemy-imports" : "strategic-exports",
+      scope: index % 2 ? "all-goods" : "war-materiel", factionId: `embargo${index}`
+    }))
+  });
+  for (const [panelWidth, lineHeight] of [[439, 11], [439, 14], [340, 14]]) {
+    const layout = politicsCardGridLayout({ panelWidth, panelHeight: 240, lineHeight, pagerHeight: 24, newsHeight: 12 });
+    const entries = politicsCardEntries([country], { ...layout, maxColumnSpan: layout.columns, powerCount: 150 });
+    assert.ok(entries.length > 1);
+    assert.ok(entries.every((entry, index) => entry.card === country && entry.partIndex === index &&
+      entry.partCount === entries.length && entry.lines.length <= layout.relationLineCapacities.at(-1)));
+    const firstPage = politicsCardEntriesPage(entries, 0, layout);
+    const seen = [];
+    for (let page = 0; page < firstPage.pageCount; page++) {
+      const current = politicsCardEntriesPage(entries, page, layout);
+      seen.push(...current.entries.flatMap((entry) => entry.lines).flatMap((line) => line.factionIds));
+    }
+    assert.deepEqual([...seen].sort(), [...ids("friend", 48), ...ids("foe", 42), ...ids("embargo", 48)].sort());
+    assert.equal(new Set(seen).size, seen.length);
+  }
+});

@@ -1,3 +1,4 @@
+import { PoliticalNoticeQueue } from "./politicalNoticeQueue.js";
 import { colonizationSiteIsRuined } from "./colonialCities.js";
 import { dateToSubsolarPoint } from "./solarClock.js";
 import { CITY_FEAST_GATHER_DURATION_MS } from "../city-visualizer/cityFeast.js";
@@ -1368,6 +1369,7 @@ import {
   politicsCardEntries,
   politicsCardEntriesPage,
   politicsCardGridLayout,
+  politicsEmbargoLabelKey,
   politicsPagerButtonLayout,
   politicsRelationTextColor
 } from "./politicsCardLayout.js";
@@ -3832,6 +3834,7 @@ let whaleBlowBursts = [];
 let whaleKillEffects = [];
 let itemAcquisitionEffects = [];
 let goldTreasureSequence = null;
+const politicalNoticeQueue = new PoliticalNoticeQueue();
 let survivalNotice = null;
 let survivalNoticeRect = null;
 let savePersistenceWarning = null;
@@ -7089,6 +7092,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (updateChefFeastPresentation(nowMs)) dirty = true;
   if (updatePortAssault(nowMs)) dirty = true;
   if (updateNavalAfterAction(nowMs)) dirty = true;
+  updatePoliticalNotices(nowMs);
   measurePerformanceBenchmarkStage(
     "audio.ambient",
     () => updateAmbientAudio(simulationSeconds)
@@ -10079,6 +10083,8 @@ function combatMusicIsActive(nowMs) {
     lakeBattleMode.screen === LAKE_BATTLE_SCREEN_SINKING ||
     lakeBattleMode.screen === LAKE_BATTLE_SCREEN_PORT_ASSAULT
   )) return true;
+  if (portAssaultState && !portAssaultState.completionApplied) return true;
+  if (playerHasCombatEngagement()) return true;
   return nowMs < combatMusicUntilMs;
 }
 
@@ -16373,6 +16379,7 @@ function closeStartMenu() {
 }
 
 function startNewVoyage() {
+  clearPoliticalNotices();
   familyDebtReturnReminderDelivered = false;
   if (localSaveResult.status === "ready") {
     if (!archiveSavedVoyageBeforeStartingOver()) {
@@ -16642,6 +16649,7 @@ function setScenarioCrewCount(count) {
 }
 
 async function restoreSavedVoyage(payload) {
+  clearPoliticalNotices();
   resetStormPassageState(stormPassageState);
   resetFogStrengthEnvelope(stormFogStrengthEnvelope);
   resetStormWaveState(stormWaveState);
@@ -28965,6 +28973,14 @@ function showSurvivalNotice(text, tone, action = null) {
   if (action !== null && action !== "politics-news") {
     throw new Error(`Unknown survival notice action: ${action}`);
   }
+  if (action === "politics-news") {
+    politicalNoticeQueue.enqueue({ text, tone });
+    dirty = true;
+    return;
+  }
+  if (survivalNotice?.action === "politics-news" && lastFrameMs < survivalNotice.expiresAtMs) {
+    politicalNoticeQueue.prepend(survivalNotice);
+  }
   survivalNotice = {
     text,
     tone,
@@ -28973,6 +28989,41 @@ function showSurvivalNotice(text, tone, action = null) {
   };
   survivalNoticeRect = null;
   dirty = true;
+}
+
+// Political history is durable; this queue only owns uninterrupted HUD reading time.
+function updatePoliticalNotices(nowMs) {
+  const obscured = Boolean(startMenu || playerIntroModal || captainAlertModal || dialogueState ||
+    portCityView?.sceneReady || portCityTransition || portAssaultState || gameOverReason || menusAreOpen());
+  if (obscured) {
+    if (survivalNotice?.action === "politics-news") {
+      if (nowMs < survivalNotice.expiresAtMs) politicalNoticeQueue.prepend(survivalNotice);
+      survivalNotice = null;
+      survivalNoticeRect = null;
+      dirty = true;
+    }
+    return;
+  }
+  if (survivalNotice && nowMs < survivalNotice.expiresAtMs) return;
+  const next = politicalNoticeQueue.take();
+  if (!next) return;
+  survivalNotice = {
+    ...next,
+    text: next.kind === "overflow" ? uiText("politics.moreDispatches", { count: next.count }) : next.text,
+    tone: next.kind === "overflow" ? "warn" : next.tone,
+    action: "politics-news",
+    expiresAtMs: nowMs + NOTICE_DURATION_MS.survival
+  };
+  survivalNoticeRect = null;
+  dirty = true;
+}
+
+function clearPoliticalNotices() {
+  politicalNoticeQueue.clear();
+  if (survivalNotice?.action === "politics-news") {
+    survivalNotice = null;
+    survivalNoticeRect = null;
+  }
 }
 
 function syncShipCargoFromGameState() {
@@ -34805,106 +34856,39 @@ function updateWorldDiplomacy() {
     saveVoyageNow("conquistador campaign advanced");
     dirty = true;
   }
-  if (result.historicalTransitions.length > 0) {
-    const transition = result.historicalTransitions.at(-1);
-    showSurvivalNotice(uiText("status.mughalsTakeDelhi"), "warn", "politics-news");
+  let announced = false;
+  const announce = (text, tone = "warn") => {
+    showSurvivalNotice(text, tone, "politics-news");
+    announced = true;
+  };
+  for (const transition of result.historicalTransitions) {
+    announce(uiText("status.mughalsTakeDelhi"));
     if (transition.playerFactionChanged) {
-      openCharacterAlertModal(
-        gameState.playerCharacter,
-        uiText("dialogue.mughalSuccessionPlayer"),
-        "thoughtful"
-      );
+      openCharacterAlertModal(gameState.playerCharacter, uiText("dialogue.mughalSuccessionPlayer"), "thoughtful");
     }
-    dirty = true;
-    return true;
   }
-  if (conquistadorAdvanced) {
-    const latest = result.conquistadorTransfers.at(-1);
-    showSurvivalNotice(
-      result.conquistadorRewardReady
-        ? "THE CONQUEST'S SPOILS AWAIT AT TRUJILLO"
-        : `${latest.cityName.toUpperCase()} FALLS TO THE SPANISH COLUMNS`,
-      "warn",
-      "politics-news"
-    );
-    return true;
+  for (const transfer of result.conquistadorTransfers) {
+    announce(`${transfer.cityName.toUpperCase()} FALLS TO THE SPANISH COLUMNS`);
   }
+  if (result.conquistadorRewardReady) announce("THE CONQUEST'S SPOILS AWAIT AT TRUJILLO");
   const expulsions = reconcileForeignSettlementPolitics();
-  if (result.englishReformation) {
-    showSurvivalNotice("ENGLAND BREAKS WITH ROME", "warn", "politics-news");
-    dirty = true;
-    return true;
-  }
-  if (result.papalActions.length > 0) {
-    showSurvivalNotice(
-      papalActionNotice(result.papalActions[result.papalActions.length - 1]),
-      "warn",
-      "politics-news"
-    );
-    dirty = true;
-    return true;
-  }
+  if (result.englishReformation) announce("ENGLAND BREAKS WITH ROME");
+  for (const action of result.papalActions) announce(papalActionNotice(action));
   if (result.papalCommissionRevoked) {
     clearPapalCommissionSafePassage(result.papalCommissionRevoked);
     clearPapalCommissionCargoProgress(result.papalCommissionRevoked);
-    showSurvivalNotice(
-      papalCommissionRevocationNotice(result.papalCommissionRevoked),
-      "warn",
-      "politics-news"
-    );
-    dirty = true;
-    return true;
+    announce(papalCommissionRevocationNotice(result.papalCommissionRevoked));
   }
-  if (result.papalMattersOpened.length > 0) {
-    showSurvivalNotice(
-      papalMatterNotice(result.papalMattersOpened.at(-1)),
-      "warn",
-      "politics-news"
-    );
-    dirty = true;
-    return true;
+  for (const matter of result.papalMattersOpened) announce(papalMatterNotice(matter));
+  for (const event of result.embargoEvents) announce(tradeEmbargoEventNotice(event));
+  for (const action of result.courtActions) announce(courtActionNotice(action));
+  for (const matter of result.courtMattersOpened) announce(courtMatterNotice(matter));
+  if (expulsions.length > 0) announce(foreignSettlementExpulsionNotice(expulsions));
+  for (const event of result.diplomacyEvents) {
+    announce(diplomacyEventNotice(event), event.kind === "peace" ? "good" : "warn");
   }
-  if (result.embargoEvents.length > 0) {
-    showSurvivalNotice(
-      tradeEmbargoEventNotice(result.embargoEvents.at(-1)),
-      "warn",
-      "politics-news"
-    );
-    dirty = true;
-    return true;
-  }
-  if (result.courtActions.length > 0) {
-    showSurvivalNotice(
-      courtActionNotice(result.courtActions.at(-1)),
-      "warn",
-      "politics-news"
-    );
-    dirty = true;
-    return true;
-  }
-  if (result.courtMattersOpened.length > 0) {
-    showSurvivalNotice(
-      courtMatterNotice(result.courtMattersOpened.at(-1)),
-      "warn",
-      "politics-news"
-    );
-    dirty = true;
-    return true;
-  }
-  if (result.diplomacyEvents.length === 0 && expulsions.length === 0) {
-    return result.authorityEvents.length > 0;
-  }
-  if (expulsions.length > 0) {
-    showSurvivalNotice(foreignSettlementExpulsionNotice(expulsions), "warn", "politics-news");
-    return true;
-  }
-  const latest = result.diplomacyEvents[result.diplomacyEvents.length - 1];
-  showSurvivalNotice(
-    diplomacyEventNotice(latest),
-    latest.kind === "peace" ? "good" : "warn",
-    "politics-news"
-  );
-  return true;
+  if (announced) dirty = true;
+  return announced || result.authorityEvents.length > 0;
 }
 
 function reconcileEnglishReformationCharacters() {
@@ -35748,6 +35732,7 @@ function endPlayerVoyage(reason, { sinkShip, outcomeType, victory = null }) {
     durationSeconds: 0,
     clipPriority: PLATFORM_CLIP_PRIORITY.FEATURED
   });
+  clearPoliticalNotices();
   gameOverReason = reason;
   gameOverState = createGameOverState(reason, lastFrameMs, sinkShip, outcomeType, victory);
   if (outcomeType === "death" && gameOverState.character) {
@@ -42211,7 +42196,7 @@ function drawPortAssaultOverlay(nowMs) {
   const elapsedMs = portAssaultElapsedMs(nowMs);
   drawPortAssaultBattleStatus(portAssaultState, elapsedMs);
   if (portAssaultState.casualtyReport) {
-    drawCrewCasualtyReport(portAssaultState);
+    drawCrewCasualtyReport(portAssaultState, uiText("combat.cityAssaultReport"));
   } else if (portAssaultState.breakOffPrompt) {
     drawPortAssaultBreakOffPrompt(portAssaultState);
   }
@@ -42299,7 +42284,8 @@ function drawPortAssaultBreakOffPrompt(assault) {
   );
 }
 
-function drawCrewCasualtyReport(modal) {
+function drawCrewCasualtyReport(modal, heading) {
+  if (typeof heading !== "string" || !heading) throw new Error("Crew casualty report requires a heading");
   const report = modal?.casualtyReport;
   if (!report || !Array.isArray(report.entries)) {
     throw new Error("Crew casualty modal requires a report");
@@ -42328,7 +42314,7 @@ function drawCrewCasualtyReport(modal) {
   modal.casualtyReportPage = clamp(modal.casualtyReportPage, 0, pageCount - 1);
 
   drawPiratePaperModal(panel, 0.9);
-  drawOptionsText("CASUALTY ROLL", panel.x + panel.w / 2, panel.y + 8, {
+  drawOptionsText(heading, panel.x + panel.w / 2, panel.y + 8, {
     font: PIXEL_FONT_DIALOGUE_8,
     align: "center",
     color: PIRATE_MENU_INK
@@ -51006,7 +50992,8 @@ function drawPoliticsCountryCard(entry, view, rect, layout) {
   }
   drawOptionsText(
     fitPixelText(
-      card.faction.shortName.toUpperCase(),
+      (entry.partCount > 1 ? `(${entry.partIndex + 1}/${entry.partCount}) ` : "") +
+        card.faction.shortName.toUpperCase(),
       PIXEL_FONT_SMALL_8,
       rect.w - 32 - statusWidth - marqueWidth - imperialWidth
     ),
@@ -51133,16 +51120,7 @@ function politicsCardLineLabel(line) {
     return uiText(line.role === "estate" ? "politics.emperor" : "politics.imperialEstates");
   }
   if (line.type === "embargo") {
-    if (line.kind !== "trade-embargo") {
-      throw new Error(`Unknown politics embargo connection: ${line.kind}`);
-    }
-    const key = {
-      issuer: "politics.embargoes",
-      target: "politics.embargoedBy",
-      follower: "politics.enforcesBan"
-    }[line.role];
-    if (!key) throw new Error(`Unknown politics embargo role: ${line.role}`);
-    return uiText(key);
+    return uiText(politicsEmbargoLabelKey(line));
   }
   if (line.type !== "dependency") throw new Error(`Unknown politics card line type: ${line.type}`);
   if (line.kind === "personal-union") return uiText("politics.unionWith");
@@ -63279,7 +63257,7 @@ function drawCaptainAlertModal(nowMs) {
   const modal = captainAlertModal;
   if (!modal) return;
   if (modal.kind === "naval-casualty-report") {
-    drawCrewCasualtyReport(modal);
+    drawCrewCasualtyReport(modal, uiText("combat.navalReport"));
     return;
   }
   if (modal.kind === "sailing-help") {
