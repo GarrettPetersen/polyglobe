@@ -37,7 +37,6 @@ const CAPITAL_TARGET_STAKES = Object.freeze({
   inca: "The Inca court still binds the imperial roads, storehouses, and provincial armies together.",
   safavid: "The Safavid court still commands Persia's royal roads and the loyalty of its warrior households.",
   muscovy: "The Muscovite court still gathers the northern rivers and frontier garrisons beneath one authority.",
-  kazan: "The khan still commands the Volga crossings, the citadel, and the Tatar hosts gathered around Kazan.",
   crimea: "The Crimean court still commands the steppe roads and the northern shores of the Black Sea.",
   wallachia: "The Wallachian court still commands the lower Danube crossings and the loyalty of its boyars.",
   moldavia: "The Moldavian court still commands the eastern Carpathian passes and the fortresses above the Danube.",

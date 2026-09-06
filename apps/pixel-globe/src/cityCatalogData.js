@@ -7,9 +7,9 @@ import {
   selectCityCatalogRecords
 } from "./cityCatalogSelection.js";
 import {
-  FACTION_CAPITALS_1522,
-  factionCapitalCityRecords1522,
-  factionCapitalForCity,
+  FACTION_SEA_CAPITALS_1522,
+  factionSeaCapitalCityRecords1522,
+  factionSeaCapitalForCity,
   factionIdForCity1522
 } from "./factions.js";
 import { withForeignSettlements1522 } from "./foreignSettlements.js";
@@ -178,7 +178,7 @@ export function loadCityCatalogFromCsv(csv, targetYear = CITY_DATA_YEAR) {
 
   const bestByCity = new Map();
   for (const [cityId, observations] of observationsByCity) {
-    const capitalSpec = factionCapitalForCity(observations[0]);
+    const capitalSpec = factionSeaCapitalForCity(observations[0]);
     const observation = cityPopulationObservationAtYear(observations, targetYear, {
       allowStaleObservation: Boolean(capitalSpec)
     });
@@ -247,7 +247,7 @@ function ensureManualCityRecords(bestByCity, targetYear) {
         economyRegion: manualSpec.economyRegion || null
       })
     });
-    const capitalSpec = factionCapitalForCity(cityRecord);
+    const capitalSpec = factionSeaCapitalForCity(cityRecord);
     bestByCity.set(cityId, withForeignSettlements1522({
       ...cityRecord,
       factionId: factionIdForCity1522(cityRecord),
@@ -257,7 +257,7 @@ function ensureManualCityRecords(bestByCity, targetYear) {
 }
 
 function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
-  for (const capitalSpec of factionCapitalCityRecords1522()) {
+  for (const capitalSpec of factionSeaCapitalCityRecords1522()) {
     const cityId = requireEntityId(capitalSpec.cityId, "Faction capital city");
     if (bestByCity.has(cityId)) continue;
     const baseCityRecord = {
@@ -288,7 +288,7 @@ function ensureFactionCapitalCityRecords(bestByCity, targetYear) {
 
 function ensureFactionCapitalsInCityCatalog(cities, bestByCity) {
   const included = new Set(cities.map((city) => city.cityId));
-  for (const capitalSpec of FACTION_CAPITALS_1522) {
+  for (const capitalSpec of FACTION_SEA_CAPITALS_1522) {
     const cityId = requireEntityId(capitalSpec.cityId, "Faction capital city");
     if (included.has(cityId)) continue;
     const city = bestByCity.get(cityId);

@@ -24,9 +24,9 @@ export const MANUAL_SHALLOW_WATER_TILE_IDS_BY_SUBDIVISIONS = Object.freeze({
 // though its southern outlet correctly joins the Shire River.
 export const MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS = Object.freeze({
   7: Object.freeze([
-    Object.freeze({ tileId: 124778, sourceTerrain: "humid_subtropical" }),
-    Object.freeze({ tileId: 7886, sourceTerrain: "humid_subtropical" }),
-    Object.freeze({ tileId: 31571, sourceTerrain: "subtropical_highland" })
+    Object.freeze({ tileId: 124778, sourceTerrain: "humid_subtropical", lakeId: 11, elevation: LAKE_MALAWI_ELEVATION }),
+    Object.freeze({ tileId: 7886, sourceTerrain: "humid_subtropical", lakeId: 11, elevation: LAKE_MALAWI_ELEVATION }),
+    Object.freeze({ tileId: 31571, sourceTerrain: "subtropical_highland", lakeId: 11, elevation: LAKE_MALAWI_ELEVATION })
   ]),
   8: SUBDIVISION_EIGHT_MAP_DATA.lakeOverrides
 });
@@ -508,6 +508,9 @@ export function applyManualTerrainOverrides(earthRows, subdivisions) {
     };
   }
   for (const override of lakeOverrides) {
+    if (!Number.isInteger(override.lakeId) || override.lakeId <= 0 || !Number.isFinite(override.elevation)) {
+      throw new Error(`Manual lake tile ${override.tileId} requires a lake ID and finite elevation`);
+    }
     const source = manualTerrainSource(earthRows, override.tileId, "lake");
     if (source.t !== override.sourceTerrain) {
       throw new Error(
@@ -518,8 +521,8 @@ export function applyManualTerrainOverrides(earthRows, subdivisions) {
     correctedRows[override.tileId] = {
       ...shared,
       t: "lake",
-      e: LAKE_MALAWI_ELEVATION,
-      l: 11
+      e: override.elevation,
+      l: override.lakeId
     };
   }
   for (const override of landOverrides) {

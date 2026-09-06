@@ -59,7 +59,7 @@ export const HISTORICAL_GOSSIP_EVENTS = Object.freeze([
     date: [1521, 7, 1],
     gossipUntil: [1523, 1, 1],
     countries: ["Russian Federation", "Poland", "Ukraine"],
-    factionIds: ["muscovy", "kazan", "crimea", "poland-lithuania"],
+    factionIds: ["muscovy", "crimea", "poland-lithuania"],
     place: "Moscow",
     report: "the Crimean Khan's riders reached the approaches to Moscow, and Muscovy is still repairing defenses and reputations",
     tradeImpact: "Fur caravans are hiring more guards before taking the southern roads.",

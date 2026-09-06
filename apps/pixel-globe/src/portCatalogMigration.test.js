@@ -7,6 +7,7 @@ import {
   PRE_NORTH_MALUKU_PORT_TILE_IDS,
   PRE_RIVER_OUTLET_PORT_TILE_IDS,
   PRE_DJENNE_CORRECTION_TILE_IDS,
+  PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS,
   portReferenceMigrationForSavedVoyage,
   sameTopologyPortMigrationForSavedVoyage
 } from "./portCatalogMigration.js";
@@ -30,7 +31,7 @@ test("pre-version subdivision-eight saves migrate all North Maluku ports exactly
   assert.deepEqual(
     sameTopologyPortMigrationForSavedVoyage({}, topology),
     new Map([...PRE_NORTH_MALUKU_PORT_TILE_IDS, ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
-      ...PRE_DJENNE_CORRECTION_TILE_IDS])
+      ...PRE_DJENNE_CORRECTION_TILE_IDS, ...PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS])
   );
   assert.deepEqual(
     Object.fromEntries(PRE_NORTH_MALUKU_PORT_TILE_IDS),
@@ -74,8 +75,8 @@ test("a current-topology save still repairs an orphaned subdivision-seven refere
     { savedSubdivisions: 8, currentSubdivisions: 8 },
     currentPortBake.endpoints
   );
-  assert.equal(migration.get(160888), 643413, "escaped Utrecht reference must be repaired");
-  assert.equal(migration.has(160923), false, "placed York must retain its current identity");
+  assert.equal(migration.has(160888), false, "Utrecht now occupies its actual geographic tile");
+  assert.equal(migration.get(160923), 643561, "escaped subdivision-seven Hull follows its authored migration");
   assert.equal(migration.has(366350), false, "placed Tidore must retain its current identity");
 });
 
@@ -84,7 +85,8 @@ test("older catalogs move Asuncion to the restored Paraguay-Parana route without
     const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion }, {
       savedSubdivisions: 8, currentSubdivisions: 8
     });
-    assert.deepEqual([...migration], [[431742, 430596], [636087, 162642]]);
+    assert.equal(migration.get(431742), 430596);
+    assert.equal(migration.get(636087), 162642);
     assert.equal(migration.has(366350), false, "current Tidore must keep its identity");
   }
   assert.equal(currentPortBake.endpoints.find(({ name }) => name === "Asuncion").tileId, 430596);
@@ -93,9 +95,9 @@ test("older catalogs move Asuncion to the restored Paraguay-Parana route without
 test("the Djenne correction migrates old tiles without moving current saves or Timbuktu", () => {
   const topology = { savedSubdivisions: 8, currentSubdivisions: 8 };
   const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 3 }, topology);
-  assert.deepEqual([...migration], [[636087, 162642]]);
+  assert.equal(migration.get(636087), 162642);
   assert.equal(migration.has(654806), false, "previously redirected Timbuktu jobs remain Timbuktu jobs");
-  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 4 }, topology), null);
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: PORT_CATALOG_VERSION }, topology), null);
   const djenne = currentPortBake.endpoints.find(({ name }) => name === "Djenne");
   assert.equal(djenne.tileId, 162642);
   assert.equal(djenne.country, "Mali");
@@ -124,4 +126,14 @@ test("same-topology port migration rejects unknown catalog versions and topologi
     null,
     "world-topology migrations own subdivision-seven references"
   );
+});
+
+
+test("catalog version disambiguates old York from subdivision-seven Hull on the same tile", () => {
+  const topology = {savedSubdivisions: 8, currentSubdivisions: 8};
+  assert.equal(portReferenceMigrationForSavedVoyage({portCatalogVersion: 4}, topology,
+    currentPortBake.endpoints).get(160923), 643564);
+  assert.equal(portReferenceMigrationForSavedVoyage({portCatalogVersion: 5}, topology,
+    currentPortBake.endpoints).get(160923), 643561);
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({portCatalogVersion: 5}, topology), null);
 });

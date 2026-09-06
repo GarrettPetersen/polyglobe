@@ -122,10 +122,6 @@ const RESEARCH = Object.freeze([
   research("muscovy", "period-emblem", "Seal of Ivan III", "The double-headed eagle entered Muscovite state seals under Ivan III; the banner field is a reconstruction around that contemporary emblem.", [
     source("Russian treaty seals", "https://www.athensjournals.gr/history/2024-5981-AJHIS-ART-Ning-02.pdf")
   ]),
-  research("kazan", "reconstruction", "Kazan Zilant banner tradition", "A yellow banner with a black winged dragon is traditionally attributed to the khanate, but secure surviving images are later. This is explicitly a game-facing reconstruction, not a modern Kazan flag.", [
-    source("Kazan city library: history of the Kazan banner", "https://kitaphane.tatarstan.ru/eng/state_symbols/flag_kazan.htm"),
-    source("Heraldic Council account of the Zilant tradition", "https://realnoevremya.com/articles/598")
-  ]),
   research("crimea", "period-emblem", "Giray tamga", "The Giray dynasty's tarak tamga is the strongest period identifier for the Crimean Khanate. The blue field is a game-facing banner reconstruction.", [
     source("Crimean Tatar tamga", "https://en.wikipedia.org/wiki/Taraq_Tamga")
   ]),
@@ -542,11 +538,6 @@ const DRAWERS = Object.freeze({
     s.line(14, 12, 18, 8, C.cream);
     return s;
   },
-  kazan: () => {
-    const s = base(C.gold);
-    zilant(s, C.black);
-    return s;
-  },
   crimea: () => {
     const s = base(C.darkBlue);
     s.line(10, 4, 10, 14, C.gold, 2);
@@ -874,18 +865,6 @@ function clanMon(field, draw) {
   const s = base(field);
   draw(s);
   return s;
-}
-
-function zilant(s, color) {
-  s.polygon([[8, 10], [13, 5], [16, 9], [19, 4], [23, 9], [20, 12], [12, 12]], color);
-  s.rect(11, 10, 11, 4, color);
-  s.line(11, 12, 6, 16, color, 2);
-  s.line(21, 12, 26, 16, color, 2);
-  s.line(14, 14, 11, 18, color, 2);
-  s.line(20, 14, 23, 18, color, 2);
-  s.line(22, 10, 27, 7, color, 2);
-  s.pixel(27, 6, color);
-  s.pixel(28, 7, color);
 }
 
 function swallowtail(s, field) {

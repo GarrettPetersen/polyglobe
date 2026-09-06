@@ -11,6 +11,7 @@ import {
 } from "./portConquest.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
+import { factionSeaCapitalForId, NEUTRAL_FACTION_ID } from "./factions.js";
 
 export const CONQUISTADOR_QUEST_VERSION = 3;
 export const CONQUISTADOR_QUEST_ID = "spanish-conquest-of-the-inca";
@@ -408,18 +409,26 @@ export function nextConquistadorQuestMinute(memory) {
   return Math.min(nextTransfer?.simMinute ?? Number.POSITIVE_INFINITY, memory.rewardReadyMinute);
 }
 
-export function advanceConquistadorCampaign(memory, conquestMemory, cities, currentMinute) {
+export function advanceConquistadorCampaign(memory, conquestMemory, cities, currentMinute, { ports } = {}) {
   validateConquistadorQuestMemory(memory);
   assertMinute(currentMinute, "conquistador campaign");
   if (memory.stage !== CONQUISTADOR_STAGE_CAMPAIGN) return Object.freeze({ transfers: [], rewardReady: false });
   const completed = new Set(memory.transferredCityIds);
   const transfers = [];
+  reconcileConquistadorSovereignty(memory, conquestMemory, cities, { ports });
   for (const scheduled of memory.transferSchedule) {
     if (scheduled.simMinute > currentMinute || completed.has(scheduled.cityId)) continue;
     const city = cities.find((candidate) => candidate.cityId === scheduled.cityId);
     if (!city) throw new Error(`Conquistador campaign city is missing: ${scheduled.cityId}`);
-    if (effectivePortFactionId(conquestMemory, city) === CONQUISTADOR_TARGET_FACTION_ID) {
-      const currentCity = { ...city, factionId: CONQUISTADOR_TARGET_FACTION_ID };
+    const factionId = effectivePortFactionId(conquestMemory, city);
+    // Once Cuzco falls, its unoccupied towns become independent remnants.
+    // The columns still arrive on schedule, but may not overwrite a later conquest.
+    const unoccupiedRemnant = factionId === NEUTRAL_FACTION_ID &&
+      conquestMemory.collapsedFactionIds.includes(CONQUISTADOR_TARGET_FACTION_ID) &&
+      (city.foundingFactionId || city.factionId) === CONQUISTADOR_TARGET_FACTION_ID &&
+      !Object.hasOwn(conquestMemory.portFactionOverrides, city.cityId);
+    if (factionId === CONQUISTADOR_TARGET_FACTION_ID || unoccupiedRemnant) {
+      const currentCity = { ...city, factionId };
       transfers.push(recordPortCapture(
         conquestMemory,
         currentCity,
@@ -431,8 +440,9 @@ export function advanceConquistadorCampaign(memory, conquestMemory, cities, curr
       if (spanishName) recordCityDisplayName(conquestMemory, city, spanishName);
     }
     completed.add(scheduled.cityId);
+    memory.transferredCityIds = [...completed];
+    reconcileConquistadorSovereignty(memory, conquestMemory, cities, { ports });
   }
-  memory.transferredCityIds = [...completed];
   const rewardReady = currentMinute >= memory.rewardReadyMinute;
   if (rewardReady) {
     const incaCitiesRemain = cities.some((city) => (
@@ -450,6 +460,43 @@ export function advanceConquistadorCampaign(memory, conquestMemory, cities, curr
   }
   validateConquistadorQuestMemory(memory);
   return Object.freeze({ transfers: Object.freeze(transfers), rewardReady });
+}
+
+// Apply at ownership synchronization as well as campaign ticks. Released saves
+// can already be between Cuzco's fall and the reward date; their existing
+// conquests and future transfer dates must survive repairing the vacant office.
+export function reconcileConquistadorSovereignty(memory, conquestMemory, cities, { ports } = {}) {
+  validateConquistadorQuestMemory(memory);
+  if (!Array.isArray(ports)) throw new Error("Conquistador sovereignty requires the functional port catalog");
+  if (![CONQUISTADOR_STAGE_CAMPAIGN, CONQUISTADOR_STAGE_REWARD_READY, CONQUISTADOR_STAGE_COMPLETE]
+    .includes(memory.stage) || conquestMemory.collapsedFactionIds.includes(CONQUISTADOR_TARGET_FACTION_ID)) return null;
+  const capitalCityId = conquestMemory.factionCapitalOverrides[CONQUISTADOR_TARGET_FACTION_ID] ||
+    factionSeaCapitalForId(CONQUISTADOR_TARGET_FACTION_ID).cityId;
+  if (!memory.transferredCityIds.includes(capitalCityId)) return null;
+  const capital = cities.find(({cityId}) => cityId === capitalCityId);
+  if (!capital) throw new Error(`Conquistador capital is missing: ${capitalCityId}`);
+  if (effectivePortFactionId(conquestMemory, capital) === CONQUISTADOR_TARGET_FACTION_ID) return null;
+  const retreatPort = ports.filter((city) => effectivePortFactionId(conquestMemory, city) === CONQUISTADOR_TARGET_FACTION_ID)
+    .sort((left, right) => greatCircleDistanceKm(capital, left) - greatCircleDistanceKm(capital, right) ||
+      left.cityId.localeCompare(right.cityId, "en"))[0];
+  if (retreatPort) {
+    // Divergent conquests may have left another functioning port. Transfer the
+    // office to that existing city; never move any city's geographic position.
+    conquestMemory.factionCapitalOverrides[CONQUISTADOR_TARGET_FACTION_ID] = requireCityId(retreatPort);
+    return null;
+  }
+  for (const city of cities) {
+    if (conquestMemory.portFactionOverrides[city.cityId] === CONQUISTADOR_TARGET_FACTION_ID) {
+      conquestMemory.portFactionOverrides[city.cityId] = NEUTRAL_FACTION_ID;
+    }
+  }
+  const transfer = memory.transferSchedule.find(({cityId}) => cityId === capitalCityId);
+  return markFactionCollapsedByConquest(conquestMemory, {
+    factionId: CONQUISTADOR_TARGET_FACTION_ID,
+    successorFactionId: CONQUISTADOR_ORIGIN_FACTION_ID,
+    simMinute: transfer.simMinute,
+    source: "conquistador-campaign"
+  });
 }
 
 export function completeConquistadorQuest(memory, simMinute) {

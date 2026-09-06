@@ -660,6 +660,38 @@ test("a fallen issuing court recalls its capture order through the original offi
   assert.equal(state.memory.quests.active, null);
 });
 
+test("a retired sovereign cannot send a recalled commission to an unrelated independent village", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({
+    cargoCapacity: stats.cargoCapacity,
+    playerCharacter: PLAYER,
+    shipStats: stats
+  });
+  setTestCrewCount(state, 36);
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  putEnglandAtWarWithFrance(state);
+  const offer = capturePortMissionOfferForCity(state, LONDON, [LONDON, CALAIS, PARIS], {
+    simMinute: 0,
+    spawnChance: 1,
+    sailingDistanceKm: () => 180
+  });
+  acceptQuest(state, offer);
+  state.memory.quests.active.originFactionId = "neutral";
+  state.memory.quests.active.independentTarget = true;
+  const unrelatedVillage = {...LONDON, cityId: "unrelated-independent-village", tileId: 9999,
+    factionId: "neutral", population: 900000, isFactionCapital: false, capitalOfFactionId: null};
+  const capturedLondon = { ...LONDON, factionId: "france", foundingFactionId: "england" };
+
+  reconcileQuestWorldAssumptions(state, [capturedLondon, CALAIS, PARIS, unrelatedVillage]);
+
+  assert.equal(state.memory.quests.active.stage, "return");
+  assert.equal(state.memory.quests.active.captureCommissionResolution, "issuer-fallen");
+  assert.equal(state.memory.quests.active.destinationTileId, LONDON.tileId);
+  completeQuest(state, capturedLondon, { simMinute: 100 });
+  assert.equal(state.memory.quests.active, null);
+});
+
 test("pending political offers disappear when conquest invalidates their premise", () => {
   const stats = shipStatsForSlug("large-junk");
   const state = createGameState({

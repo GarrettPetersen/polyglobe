@@ -8,7 +8,7 @@ import {
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   isJapanesePolityFaction,
-  factionCapitalForId,
+  factionSeaCapitalForId,
   factionExistsIn1522
 } from "./factions.js";
 import { requireCityId } from "./entityIds.js";
@@ -385,7 +385,7 @@ export function recentPoliticsNews(view, limit = POLITICS_NEWS_HISTORY_LIMIT) {
 function recentScriptedPoliticsEvents(gameState, limit) {
   const entries = [];
   for (const event of gameState.memory.conquest.events) {
-    if (event.source !== "conquistador-campaign") continue;
+    if (event.source !== "conquistador-campaign" || event.kind !== "port-capture") continue;
     entries.push({
       source: "conquistador",
       simMinute: event.simMinute,
@@ -669,7 +669,7 @@ function politicsCapitals(gameState, powers, cities) {
 
 function politicsHistoricalCapital(gameState, factionId) {
   if (factionExistsIn1522(factionId)) {
-    return Object.freeze({ city: factionCapitalForId(factionId).city, portId: null });
+    return Object.freeze({ city: factionSeaCapitalForId(factionId).city, portId: null });
   }
   const predecessors = Object.entries(gameState.memory.conquest.factionSuccessors)
     .filter(([, successorFactionId]) => successorFactionId === factionId)
@@ -677,7 +677,7 @@ function politicsHistoricalCapital(gameState, factionId) {
   if (predecessors.length !== 1) {
     throw new Error(`Politics view cannot resolve the historical capital for ${factionId}`);
   }
-  const capital = factionCapitalForId(predecessors[0]);
+  const capital = factionSeaCapitalForId(predecessors[0]);
   return Object.freeze({
     city: capital.city,
     portId: gameState.memory.conquest.factionCapitalOverrides[factionId] || null

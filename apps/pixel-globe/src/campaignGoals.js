@@ -1282,10 +1282,6 @@ const FAMILY_DEBT_ORIGINS_BY_FACTION = Object.freeze({
     "Smolensk changed hands. This deed did not.",
     "We fitted wagons and horses for the long siege. The court's promise of payment proved less durable than the fortress."
   ),
-  kazan: debtOrigin(
-    "The khan rode against Moscow and returned with glory. Your family's account returned unpaid.",
-    "We supplied horses and grain for Sahib Giray's campaign. The spoils passed to greater hands before our wagons came home."
-  ),
   crimea: debtOrigin(
     "The khan returned from Moscow with captives and glory. Your family's wagons returned empty.",
     "We provisioned the great raid of 1521 on promises of a share. The court celebrated; its suppliers were left to their creditors."
@@ -1455,7 +1451,6 @@ const EXPLORER_PATRON_OUTLOOKS_BY_FACTION = Object.freeze({
   inca: "The Sapa Inca's roads bind mountains beyond counting, yet every official map stops at the sea. Mine need not.",
   safavid: "Ottoman armies close one road and Portuguese cannon command another at Hormuz. Knowledge may reveal a third.",
   muscovy: "Novgorod's merchants know the Baltic by price and rumor. I want bearings that reach beyond their counting houses.",
-  kazan: "The Volga brings merchants from Muscovy, Persia, and the steppe, each with a different world in his telling. Set their roads upon one chart.",
   crimea: "Ottoman galleys hold the southern coast while our riders know the northern steppe. I want a Crimean chart of the seas between and beyond them.",
   wallachia: "The Danube carries Ottoman, Hungarian, and Black Sea news past our shore. I want to know the waters beyond their quarrels.",
   moldavia: "Merchants reach us from the Black Sea and Poland with maps that agree on very little. Bring me a captain's evidence.",

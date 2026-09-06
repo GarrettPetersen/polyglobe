@@ -13,7 +13,7 @@ terrain and navigation graph as the game and emits a JSON report.
   another branch still works, and river networks with no outlet at all.
 - The coast scan reports surface-water regions classified as coastal ocean
   that have no continuous surface-water connection to open ocean.
-- Placement diagnostics flag settlements more than 75 km from their intended
+- Placement diagnostics reject settlements more than 45 km from their intended
   coordinates, respecting explicitly authored harbor coordinates.
 
 Candidate reports require geographic review. Headwaters can lie near a different
@@ -32,7 +32,7 @@ Corrections belong in `tools/build-subdivision-eight-map-data.mjs`. Regenerate
 with `node tools/build-subdivision-eight-map-data.mjs`; do not hand-edit its
 generated module. Then run `npm run catalog:update` for any catalog, navigation,
 terrain, or placement change. This is the complete catalog release workflow:
-it regenerates sailing distances, roads, and city scenes in dependency order,
+it regenerates map corrections, sailing distances, roads, and city scenes in dependency order,
 validates their endpoints against live world placement, checks all frozen
 catalog migrations, and runs geography, road, sailing, quest, and migration
 regressions before writing the release manifest.
@@ -56,11 +56,90 @@ later deployment moves a settlement. Browser startup and save/load tests block
 the mutable catalog URLs to enforce this. The HTML requests a revision-tagged
 bootstrap so returning players do not reuse an earlier startup bundle.
 
-The September 2026 scan repaired twelve reviewed delta and river openings and
-the Long Island/Chesapeake geography. Its remaining candidates include inland
-river discontinuities and misplaced Kazan, Soest, and Kholmogory; these require
-separate geographic and settlement-policy review. A passing contract suite is
-not a claim that the entire world map is geographically exact.
+## Completed September review
+
+The review covers every catalog settlement and colonization site. Each canonical
+city ID must be assigned to a reviewed landmass in `settlementGeographyData.js`.
+Placement checks that identity and searches only within 45 km of the authored
+coordinates. It does not inspect navigation when placing a city. Missing
+coastlines and river approaches must be repaired in the authoring data; capital
+status can never pull a city to a convenient shore. New cities with no reviewed
+landmass fail immediately. Island IDs no longer depend on catalog order.
+
+Corrections include Copenhagen on Zealand, Kalmar on the Swedish mainland,
+Gresik on Java, and explicit small-island identities for Hormuz, Diu, Kilwa,
+Roanoke, Manhattan and Montreal. The Caspian Sea is restored as closed basin 39;
+Lake Taupo is 47. A Greenland inland water component incorrectly labeled ocean
+beach is classified as lake 48 rather than given an invented sea outlet.
+
+River corrections follow the checked-in Natural Earth centerlines. They repair
+Columbia and Jinsha discontinuities, Angara/Yenisey connections, Rhine/Main
+approaches, and river docks formerly hidden by settlement relocation. Old
+Sanggan/Wei/Fen spurs crossing drainage divides and the false Chorokhi route
+toward Ararat are removed. The Lena cannot drain into Baikal. Ararat therefore
+no longer has the fictional Black Sea approach that previously made it visible.
+The game still abstracts river depth and vessel draft: a functional river
+capital does not imply that an ocean galleon historically sailed its entire river.
+
+`reviewedCoastalWaterCorridors.js` records explicit corrections following source
+water through narrow bays and fjords, including Sognefjord, Hamilton Inlet,
+Arctic inlets, Patagonia, Halmahera, and the St Lawrence/Xingu approaches.
+The Ninglick channel is independently documented in the
+[US Army Corps of Engineers Newtok assessment](https://www.poa.usace.army.mil/Portals/34/docs/civilworks/reports/Newtok%20Evacuation%20Center%20EA%20%26%20FONSI%20July%2008.pdf).
+The runtime does not search for or carve an outlet automatically.
+
+The audit now fails for any river network with no water outlet or any marine
+inlet without ocean navigation. Real closed basins must have their proper lake
+classification. Independent bounded route tests check downstream bodies of
+water and barriers; reaching an ocean somewhere is insufficient. The coast
+report can still list surface-isolated waters connected by explicitly modeled
+narrow channels, such as Marmara. Coastal headwater candidates are diagnostic:
+being near another coast does not justify a shortcut through a watershed.
+
+## True seats and functional sea capitals
+
+`FACTION_SEA_CAPITALS_1522` names the playable capital separately from its
+`trueCapital` historical seat. Historical seats are metadata records with stable
+city IDs; they need not all be represented in the economic city catalog.
+Spain and Ethiopia have itinerant courts, and the Ainu polity represents local
+councils, so these cases do not invent a fixed historical capital. See the
+[University of Teramo's account of Charles V's court](https://digitalhistory.unite.it/en/territorios/itinerarios-urbanos/valladolid/iglesia-de-san-pablo/corte/)
+and [The Wandering Capitals of Ethiopia](https://www.cambridge.org/core/journals/journal-of-african-history/article/abs/wandering-capitals-of-ethiopia/BE9AC2F5F278FADD48BBB4702DBE7C1F).
+
+Every active sovereign faction must have exactly one sea capital in its own
+port roster, with an ocean-reachable approach on the actual corrected graph.
+The test also removes all navigation and capital annotations and verifies that
+city placement stays identical. Broken access fails the build; there is no
+"move capital to coast" policy.
+
+Campaign tests also open Politics at every conquest phase. Cuzco's fall ends
+the Inca government immediately if it has no surviving port, independently of
+the later reward date. Unoccupied inland remnants become independent until the
+columns arrive; a later player conquest is preserved. If divergent history left
+another functioning Inca port, the government retreats to that existing city.
+Ownership synchronization repairs older saves stranded between the capital's
+fall and the reward without moving cities or changing their scheduled dates.
+
+Wesel serves Cleves-Mark while Cleves remains its historical seat. Dresden
+serves Ducal Saxony; Soest and Leipzig remain at their inland locations.
+Crimea uses Kezlev as its sea capital, with the court at Salachik (the stable
+Bakhchiserai city ID). The [Encyclopedia of Ukraine](https://www.encyclopediaofukraine.com/display.asp?linkpath=pages%5CY%5CE%5CYevpatoriia.htm)
+records Kezlev passing from direct Ottoman administration to the khanate in 1485.
+New settlement populations are gameplay estimates.
+
+The landlocked Kazan settlement remains independent and Tatar. No game event
+grants the khanate ocean access. [Kazan's official history](https://culture.kzn.ru/o-kazani/istoriya-kazani/?lang=en)
+records Muscovy's conquest in 1552. Its earlier fictional White Sea dock is
+removed. Save schema 102 retires sovereign offices and papers while preserving
+characters, other reputations and divergent conquest ownership. Recalled
+commissions cannot relocate to unrelated independent villages.
+
+Port catalog version 5 preserves every previously released endpoint through
+explicit mappings, including inland sailing gateways. Kazan's former White Sea
+voyages remain deliverable at Kholmogory; this is legacy recovery, not a claim
+of a Volga–White Sea route. Tests distinguish old York from old Hull when their
+historical tile numbers collide. All released catalog and game-state fixtures
+remain frozen and are checked by the release pipeline.
 
 ## Djenne and the Senegal coast
 

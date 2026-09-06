@@ -613,7 +613,6 @@ const FACTION_CULTURES = new Map([
   ["inca", "andean"],
   ["safavid", "persian"],
   ["muscovy", "russian"],
-  ["kazan", "tatar"],
   ["poland-lithuania", "polish"],
   ["crimea", "crimeanTatar"],
   ["wallachia", "romanian"],

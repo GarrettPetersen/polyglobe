@@ -1,3 +1,4 @@
+import { isRetiredFactionId } from "./retiredFactionMigration.js";
 import {
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
@@ -112,11 +113,13 @@ export function migrateSuzeraintyMemory(memory, startMinute = 0, { inactiveFacti
   const source = memory == null ? createSuzeraintyMemory(startMinute) : memory;
   const migrated = {
     byVassalId: Object.fromEntries(Object.entries(source.byVassalId || {})
+      .filter(([, entry]) => !isRetiredFactionId(entry.vassalFactionId) && !isRetiredFactionId(entry.suzerainFactionId))
       .map(([factionId, entry]) => [factionId, relationship(entry)])
       .filter(([, entry]) => (
         !inactive.has(entry.vassalFactionId) && !inactive.has(entry.suzerainFactionId)
       ))),
-    history: source.history || []
+    history: (source.history || []).filter((event) =>
+      !isRetiredFactionId(event.vassalFactionId) && !isRetiredFactionId(event.suzerainFactionId))
   };
   const formerCombinedUnion = migrated.byVassalId.spain;
   if (formerCombinedUnion?.source === "historical-1522" &&

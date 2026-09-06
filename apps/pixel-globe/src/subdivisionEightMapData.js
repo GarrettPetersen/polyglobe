@@ -10,131 +10,2901 @@ function freezeDeep(value) {
 
 export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
   "shallowWaterTileIds": [
+    16,
+    6430,
+    13301,
+    13386,
+    13793,
+    14624,
+    16479,
     24803,
+    28039,
     31618,
     38891,
     38903,
+    49147,
+    53052,
+    53137,
+    53218,
+    53358,
+    54857,
+    55013,
+    58272,
+    58274,
+    58277,
+    58283,
+    59254,
+    59284,
+    61625,
+    65606,
     73665,
+    74373,
     74786,
+    74808,
     88775,
+    91721,
+    91733,
+    98455,
     98867,
     98890,
+    111385,
+    111386,
+    111698,
+    111700,
+    111702,
     125890,
     125893,
     125896,
+    136404,
+    136411,
     160967,
+    196338,
+    196339,
+    196340,
+    196346,
+    204131,
+    205845,
+    205846,
+    205889,
+    205896,
+    206890,
+    206891,
+    206896,
+    211896,
+    211908,
+    212250,
+    212251,
+    212322,
+    212324,
+    212326,
+    212579,
+    212580,
+    213154,
+    213163,
+    213359,
+    213360,
+    213362,
+    219108,
+    219109,
+    219112,
+    219742,
+    219750,
+    219811,
+    219812,
+    222022,
+    222027,
+    232667,
+    232670,
+    232674,
+    232689,
+    232690,
+    232691,
+    232703,
+    232704,
+    232705,
+    232706,
+    232708,
+    232709,
+    236604,
+    236678,
+    236680,
+    236754,
+    236767,
+    246087,
+    246092,
+    296963,
+    296964,
+    297038,
+    297040,
     298720,
+    298812,
     298999,
     299005,
+    366284,
+    366297,
+    366299,
+    366341,
+    366343,
+    366532,
+    366547,
+    366548,
+    393039,
+    393180,
     394774,
     394877,
+    406912,
+    444590,
+    444611,
+    444961,
+    445081,
+    445084,
+    445836,
+    445837,
+    445844,
+    445854,
+    445855,
     502393,
     502418,
-    502419
+    502419,
+    544679,
+    544680,
+    544684,
+    544697,
+    544701,
+    545447
   ],
   "lakeOverrides": [
     {
       "tileId": 124778,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 7886,
-      "sourceTerrain": "humid_subtropical"
+      "sourceTerrain": "humid_subtropical",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 31571,
-      "sourceTerrain": "subtropical_highland"
+      "sourceTerrain": "subtropical_highland",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 498022,
-      "sourceTerrain": "tropical_savanna"
+      "sourceTerrain": "tropical_savanna",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 124781,
-      "sourceTerrain": "tropical_savanna"
+      "sourceTerrain": "tropical_savanna",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 498026,
-      "sourceTerrain": "tropical_savanna"
+      "sourceTerrain": "tropical_savanna",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 31333,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 498016,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 498013,
-      "sourceTerrain": "humid_subtropical"
+      "sourceTerrain": "humid_subtropical",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 497168,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 124560,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 497175,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 124561,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 497185,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 124558,
-      "sourceTerrain": "subtropical_highland"
+      "sourceTerrain": "subtropical_highland",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 497165,
-      "sourceTerrain": "subtropical_highland"
+      "sourceTerrain": "subtropical_highland",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 31274,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 501588,
-      "sourceTerrain": "subtropical_highland"
+      "sourceTerrain": "subtropical_highland",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 501609,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 501610,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 501607,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 501606,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 125695,
-      "sourceTerrain": "lake"
+      "sourceTerrain": "lake",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 501601,
-      "sourceTerrain": "humid_subtropical"
+      "sourceTerrain": "humid_subtropical",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
     },
     {
       "tileId": 7967,
-      "sourceTerrain": "humid_subtropical"
+      "sourceTerrain": "humid_subtropical",
+      "lakeId": 11,
+      "elevation": -0.0369949146978479
+    },
+    {
+      "tileId": 1627,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 6414,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 6415,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 6417,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 6418,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 6476,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25466,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25467,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25468,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25469,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25470,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25472,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25477,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25479,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25481,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25483,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25484,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25485,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25487,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25491,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25493,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25723,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25728,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25732,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 25733,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101440,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101441,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101481,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101482,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101483,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101484,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101485,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101486,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101487,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101488,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101489,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101490,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101491,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101492,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101493,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101494,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101495,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101496,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101498,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101499,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101500,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101501,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101503,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101504,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101505,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101506,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101507,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101531,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101534,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101538,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101542,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101549,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101554,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101555,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101556,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101557,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101558,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101559,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101560,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101561,
+      "sourceTerrain": "humid_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101562,
+      "sourceTerrain": "humid_subtropical_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101563,
+      "sourceTerrain": "humid_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101564,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101565,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101566,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101567,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101568,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101569,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101575,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101578,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101592,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101593,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101594,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101595,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101596,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101600,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101602,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101603,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101604,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101606,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101607,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 101609,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102551,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102552,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102573,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102584,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102585,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102586,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102587,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102588,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102589,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102590,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102591,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102592,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102593,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102620,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102622,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 102624,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 404701,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405014,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405015,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405016,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405171,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405172,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405173,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405174,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405175,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405176,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405177,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405179,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405180,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405181,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405182,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405184,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405185,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405186,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405188,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405192,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405193,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405194,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405195,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405196,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405197,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405198,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405199,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405200,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405201,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405203,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405204,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405205,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405206,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405207,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405208,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405209,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405210,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405211,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405212,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405213,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405214,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405215,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405216,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405217,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405218,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405219,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405220,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405221,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405222,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405224,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405225,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405226,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405227,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405231,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405232,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405233,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405234,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405235,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405236,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405237,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405238,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405239,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405241,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405242,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405243,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405245,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405246,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405247,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405248,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405249,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405250,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405251,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405252,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405253,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405254,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405255,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405256,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405257,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405258,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405259,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405260,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405261,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405262,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405263,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405264,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405265,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405266,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405267,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405268,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405269,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405314,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405316,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405317,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405318,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405329,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405376,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405378,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405379,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405380,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405383,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405384,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405385,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405389,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405390,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405391,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405406,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405407,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405416,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405417,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405418,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405419,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405420,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405421,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405451,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405452,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405453,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405454,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405455,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405457,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405462,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405469,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405470,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405472,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405473,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405474,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405475,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405476,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405477,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405478,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405479,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405480,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405481,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405482,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405483,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405484,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405485,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405486,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405487,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405488,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405489,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405490,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405491,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405492,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405493,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405494,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405495,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405497,
+      "sourceTerrain": "humid_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405498,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405499,
+      "sourceTerrain": "humid_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405500,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405502,
+      "sourceTerrain": "humid_subtropical_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405503,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405504,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405505,
+      "sourceTerrain": "humid_subtropical_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405507,
+      "sourceTerrain": "humid_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405508,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405509,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405510,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405511,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405512,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405513,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405514,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405515,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405516,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405517,
+      "sourceTerrain": "humid_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405518,
+      "sourceTerrain": "hot_summer_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405519,
+      "sourceTerrain": "humid_continental",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405520,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405521,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405522,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405523,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405524,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405525,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405526,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405527,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405528,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405529,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405530,
+      "sourceTerrain": "humid_subtropical_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405531,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405532,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405533,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405534,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405535,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405536,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405537,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405561,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405562,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405563,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405564,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405569,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405573,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405574,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405575,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405630,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405631,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405632,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405633,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405634,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405635,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405636,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405637,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405638,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405639,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405640,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405641,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405642,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405643,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405644,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405645,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405646,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405647,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405648,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405649,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405650,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405651,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405664,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405665,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405667,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405670,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405674,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405675,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405676,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405677,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405678,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405679,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405680,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405681,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405682,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405683,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405684,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405685,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405687,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405688,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405689,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405690,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405691,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405692,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405693,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405694,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405695,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405696,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405699,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405700,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405702,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405704,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405706,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405707,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405708,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405709,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405710,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405711,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405712,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 405713,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409528,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409529,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409530,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409531,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409532,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409534,
+      "sourceTerrain": "cold_desert",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409542,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409551,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409608,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409609,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409614,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409615,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409617,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409618,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409619,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409620,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409654,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409655,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409656,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409657,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409658,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409659,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409660,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409661,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409662,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409663,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409664,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409665,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409666,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409667,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409668,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409669,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409670,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409671,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409672,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409673,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409674,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409675,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409676,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409677,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409678,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409679,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409681,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409682,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409683,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409684,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409685,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409686,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409687,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409688,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409689,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409690,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409691,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409692,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409693,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409694,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409695,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409696,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409697,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409798,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409799,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409800,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409801,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409802,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409803,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409804,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409805,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409807,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409808,
+      "sourceTerrain": "mediterranean_hot",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409809,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409812,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409817,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409818,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 409819,
+      "sourceTerrain": "cold_steppe",
+      "lakeId": 39,
+      "elevation": -0.057
+    },
+    {
+      "tileId": 88824,
+      "sourceTerrain": "oceanic",
+      "lakeId": 47,
+      "elevation": -0.02
+    },
+    {
+      "tileId": 205851,
+      "sourceTerrain": "beach",
+      "lakeId": 48,
+      "elevation": -0.20500000000000002
     }
   ],
   "landOverrides": [
+    {
+      "terrainType": "humid_continental",
+      "elevation": -0.03,
+      "tileId": 4714,
+      "sourceTerrain": "humid_continental",
+      "landmassId": 4004
+    },
     {
       "tileId": 16921,
       "sourceTerrain": "water",
@@ -154,28 +2924,28 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.02,
-      "landmassId": 3036
+      "landmassId": 1027
     },
     {
       "tileId": 22966,
       "sourceTerrain": "lake",
       "terrainType": "tropical_rainforest",
       "elevation": -0.025,
-      "landmassId": 3031
+      "landmassId": 789
     },
     {
       "tileId": 34387,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.015,
-      "landmassId": 2021
+      "landmassId": 1291
     },
     {
       "tileId": 34610,
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",
       "elevation": -0.042,
-      "landmassId": 3041
+      "landmassId": 592
     },
     {
       "tileId": 39426,
@@ -210,28 +2980,35 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "humid_subtropical",
       "elevation": -0.02,
-      "landmassId": 2024
+      "landmassId": 1294
     },
     {
       "tileId": 89845,
       "sourceTerrain": "water",
       "terrainType": "humid_subtropical",
       "elevation": -0.02,
-      "landmassId": 2023
+      "landmassId": 1293
+    },
+    {
+      "terrainType": "tropical_savanna",
+      "elevation": -0.03,
+      "tileId": 96083,
+      "sourceTerrain": "beach",
+      "landmassId": 940
     },
     {
       "tileId": 106244,
       "sourceTerrain": "water",
       "terrainType": "mediterranean_warm",
       "elevation": -0.015,
-      "landmassId": 2022
+      "landmassId": 1292
     },
     {
       "tileId": 141773,
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",
       "elevation": -0.02,
-      "landmassId": 3027
+      "landmassId": 1106
     },
     {
       "tileId": 143707,
@@ -245,35 +3022,35 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.015,
-      "landmassId": 2026
+      "landmassId": 1296
     },
     {
       "tileId": 147600,
       "sourceTerrain": "lake",
       "terrainType": "humid_subtropical",
       "elevation": -0.018,
-      "landmassId": 2025
+      "landmassId": 1295
     },
     {
       "tileId": 160114,
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.03,
-      "landmassId": 3014
+      "landmassId": 850
     },
     {
       "tileId": 259517,
       "sourceTerrain": "lake",
       "terrainType": "humid_subtropical_hot",
       "elevation": -0.03,
-      "landmassId": 3018
+      "landmassId": 555
     },
     {
       "tileId": 261221,
       "sourceTerrain": "lake",
       "terrainType": "humid_subtropical_hot",
       "elevation": -0.03,
-      "landmassId": 3017
+      "landmassId": 504
     },
     {
       "tileId": 270430,
@@ -294,14 +3071,28 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.042,
-      "landmassId": 3022
+      "landmassId": 636
     },
     {
       "tileId": 291080,
       "sourceTerrain": "beach",
       "terrainType": "mediterranean_warm",
       "elevation": -0.03,
-      "landmassId": 3011
+      "landmassId": 441
+    },
+    {
+      "terrainType": "humid_subtropical_hot",
+      "elevation": -0.03,
+      "tileId": 294245,
+      "sourceTerrain": "beach",
+      "landmassId": 488
+    },
+    {
+      "terrainType": "warm_summer_humid",
+      "elevation": -0.03,
+      "tileId": 296827,
+      "sourceTerrain": "warm_summer_humid",
+      "landmassId": 4005
     },
     {
       "tileId": 299000,
@@ -329,28 +3120,28 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.02,
-      "landmassId": 3023
+      "landmassId": 1093
     },
     {
       "tileId": 352953,
       "sourceTerrain": "beach",
       "terrainType": "humid_subtropical",
       "elevation": -0.02,
-      "landmassId": 3028
+      "landmassId": 1110
     },
     {
       "tileId": 355983,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.02,
-      "landmassId": 3038
+      "landmassId": 1038
     },
     {
       "tileId": 356017,
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.03,
-      "landmassId": 3037
+      "landmassId": 1030
     },
     {
       "tileId": 356127,
@@ -364,7 +3155,7 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_rainforest",
       "elevation": -0.03,
-      "landmassId": 3024
+      "landmassId": 1079
     },
     {
       "tileId": 363767,
@@ -378,21 +3169,21 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.033,
-      "landmassId": 3020
+      "landmassId": 913
     },
     {
       "tileId": 366292,
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.026,
-      "landmassId": 3006
+      "landmassId": 846
     },
     {
       "tileId": 366350,
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.026,
-      "landmassId": 3007
+      "landmassId": 847
     },
     {
       "tileId": 366359,
@@ -409,18 +3200,46 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "landmassId": 3019
     },
     {
+      "terrainType": "warm_summer_humid",
+      "elevation": -0.03,
+      "tileId": 393227,
+      "sourceTerrain": "beach",
+      "landmassId": 57
+    },
+    {
+      "terrainType": "warm_summer_humid",
+      "elevation": -0.03,
+      "tileId": 393304,
+      "sourceTerrain": "beach",
+      "landmassId": 280
+    },
+    {
       "tileId": 394799,
       "sourceTerrain": "beach",
       "terrainType": "mediterranean_hot",
       "elevation": -0.03,
-      "landmassId": 3010
+      "landmassId": 432
+    },
+    {
+      "terrainType": "hot_desert",
+      "elevation": -0.03,
+      "tileId": 408401,
+      "sourceTerrain": "beach",
+      "landmassId": 4001
     },
     {
       "tileId": 497668,
       "sourceTerrain": "beach",
       "terrainType": "tropical_savanna",
       "elevation": -0.03,
-      "landmassId": 3016
+      "landmassId": 936
+    },
+    {
+      "terrainType": "tropical_savanna",
+      "elevation": -0.03,
+      "tileId": 497864,
+      "sourceTerrain": "beach",
+      "landmassId": 4002
     },
     {
       "tileId": 502402,
@@ -434,14 +3253,14 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",
       "elevation": -0.024,
-      "landmassId": 3027
+      "landmassId": 1106
     },
     {
       "tileId": 570899,
       "sourceTerrain": "beach",
       "terrainType": "tropical_rainforest",
       "elevation": -0.015,
-      "landmassId": 3043
+      "landmassId": 1002
     },
     {
       "tileId": 573047,
@@ -458,32 +3277,39 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "landmassId": 3025
     },
     {
+      "terrainType": "hot_steppe",
+      "elevation": -0.03,
+      "tileId": 621479,
+      "sourceTerrain": "lake",
+      "landmassId": 4003
+    },
+    {
       "tileId": 636414,
       "sourceTerrain": "beach",
       "terrainType": "hot_desert",
       "elevation": -0.03,
-      "landmassId": 3013
+      "landmassId": 688
     },
     {
       "tileId": 647524,
       "sourceTerrain": "lake",
       "terrainType": "mediterranean_hot",
       "elevation": -0.03,
-      "landmassId": 3009
+      "landmassId": 487
     },
     {
       "tileId": 648650,
       "sourceTerrain": "lake",
       "terrainType": "mediterranean_hot",
       "elevation": -0.03,
-      "landmassId": 3008
+      "landmassId": 414
     },
     {
       "tileId": 652728,
       "sourceTerrain": "beach",
       "terrainType": "cold_desert",
       "elevation": -0.03,
-      "landmassId": 3012
+      "landmassId": 548
     }
   ],
   "cityRiverChains": {
@@ -1505,25 +4331,6 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       102230
     ],
     [
-      160887,
-      643410,
-      160886,
-      644557,
-      161172,
-      644566,
-      161174,
-      644561,
-      161055,
-      644085,
-      161056,
-      644080,
-      40282,
-      644090,
-      161057,
-      644162,
-      161070
-    ],
-    [
       40285,
       644153,
       161075,
@@ -1561,44 +4368,6 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       6211,
       392847,
       98379
-    ],
-    [
-      62166,
-      249223,
-      62412,
-      249978,
-      62596,
-      249975,
-      15686
-    ],
-    [
-      62627,
-      250103,
-      62626,
-      250215,
-      62653,
-      250231,
-      62656
-    ],
-    [
-      62610,
-      250062,
-      62617,
-      250065,
-      62615,
-      250050,
-      62606
-    ],
-    [
-      62346,
-      248946,
-      252,
-      245067,
-      61367,
-      245074,
-      61368,
-      245095,
-      61374
     ],
     [
       61297,
@@ -1838,21 +4607,6 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       24652,
       392461,
       98280
-    ],
-    [
-      161095,
-      644221,
-      40292,
-      648738,
-      162219,
-      648735,
-      40573,
-      648746,
-      162221,
-      648741,
-      10152,
-      648705,
-      162210
     ],
     [
       10151,
@@ -2129,6 +4883,664 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       294277
     ],
     [
+      11868,
+      189803,
+      47510,
+      189805
+    ],
+    [
+      262516,
+      65713,
+      262454,
+      16479,
+      262463
+    ],
+    [
+      261380,
+      65382,
+      261091,
+      261093
+    ],
+    [
+      161189,
+      644623,
+      644554,
+      161171,
+      644620,
+      161180
+    ],
+    [
+      392432,
+      98272,
+      392430,
+      392428
+    ],
+    [
+      160888,
+      643415
+    ],
+    [
+      98411,
+      392996,
+      392993,
+      392998,
+      392997,
+      393017,
+      393016,
+      393002,
+      24686
+    ],
+    [
+      643564,
+      643562,
+      643561,
+      40246,
+      643568
+    ],
+    [
+      24688,
+      393038,
+      393039,
+      98424
+    ],
+    [
+      98335,
+      392687,
+      392685
+    ],
+    [
+      220062,
+      220046,
+      220047
+    ],
+    [
+      262000,
+      65606,
+      262273,
+      262271
+    ],
+    [
+      624802,
+      624684,
+      624685,
+      624690
+    ],
+    [
+      178062,
+      179185
+    ],
+    [
+      178062
+    ],
+    [
+      228697,
+      57282,
+      228705,
+      228707,
+      57280,
+      228689,
+      228690,
+      228435,
+      228436,
+      57220,
+      228437,
+      228450,
+      14324,
+      227885,
+      227887,
+      227881,
+      57079,
+      227914,
+      227913,
+      227916,
+      227906,
+      227894,
+      227906
+    ],
+    [
+      57293,
+      228759,
+      228757,
+      57286,
+      228717,
+      228715,
+      228728
+    ],
+    [
+      228728,
+      228725,
+      228724,
+      228726,
+      228724,
+      57288,
+      228752,
+      57281,
+      228695,
+      228697
+    ],
+    [
+      235813,
+      3607,
+      227858,
+      227859,
+      57074,
+      227902
+    ],
+    [
+      235826
+    ],
+    [
+      235826,
+      235827,
+      59058,
+      235831,
+      59053,
+      235812,
+      235810,
+      235960,
+      235958,
+      59017,
+      235677,
+      235682,
+      235681,
+      235701,
+      235694,
+      59023,
+      235695,
+      235693,
+      227664,
+      227663,
+      3602,
+      227613,
+      227612,
+      57004,
+      227617
+    ],
+    [
+      235838,
+      235826
+    ],
+    [
+      235813,
+      235842,
+      235846,
+      235845,
+      235838,
+      235826
+    ],
+    [
+      227906,
+      57086,
+      227908,
+      14323,
+      227864,
+      227901,
+      57085,
+      227902
+    ],
+    [
+      237578,
+      237579,
+      59482,
+      237582,
+      237852,
+      237851,
+      237860,
+      237861,
+      59486,
+      237592,
+      237593,
+      3751,
+      237559,
+      237561,
+      59477,
+      237564,
+      237562,
+      59479,
+      237576,
+      237577,
+      59481,
+      237570,
+      237571,
+      237570,
+      237557,
+      14884,
+      237026,
+      14884,
+      237025,
+      237027,
+      59350,
+      237029,
+      237043,
+      237045,
+      237044,
+      59354,
+      237040,
+      237097,
+      237126,
+      237127,
+      237129,
+      59374,
+      237134,
+      237121,
+      59372,
+      237123,
+      237125,
+      59302,
+      236842,
+      59303,
+      236859,
+      236861,
+      236859,
+      236858,
+      236868,
+      59307,
+      236863,
+      236869,
+      236863,
+      236855,
+      14868,
+      236786,
+      236787,
+      59288,
+      236788,
+      14802,
+      235655,
+      235675,
+      59011,
+      235675,
+      235673,
+      235652,
+      235662,
+      14301,
+      227616,
+      227617,
+      227616,
+      227617
+    ],
+    [
+      368063
+    ],
+    [
+      368063,
+      368062,
+      368059,
+      368048,
+      23114,
+      368123,
+      368137,
+      368135,
+      92180,
+      368136,
+      92181,
+      368133,
+      92181,
+      368132,
+      368134,
+      368130,
+      368134,
+      368104,
+      23119,
+      368133,
+      368126,
+      23119,
+      368126,
+      368114,
+      368127,
+      92177,
+      368125
+    ],
+    [
+      368257,
+      368256
+    ],
+    [
+      245351,
+      245072,
+      61367,
+      245067,
+      244566,
+      252,
+      248946,
+      62346,
+      248950,
+      250067,
+      15642,
+      250076,
+      250077,
+      250072,
+      250071,
+      250140,
+      250104,
+      62628,
+      250110,
+      250109,
+      62629,
+      250112,
+      62627,
+      250102,
+      250103,
+      250101,
+      250217,
+      62654,
+      250219,
+      250209
+    ],
+    [
+      249981,
+      249991,
+      15701,
+      250059,
+      250065,
+      62617,
+      250062,
+      250060,
+      250062,
+      250058,
+      62610,
+      250032,
+      15705,
+      250043,
+      250042,
+      250044,
+      250038,
+      62612,
+      250169,
+      250167,
+      250166,
+      250165,
+      15711,
+      250227,
+      250241,
+      250240
+    ],
+    [
+      161070,
+      644162,
+      161057,
+      644087,
+      644092,
+      161057,
+      644090,
+      644092,
+      644091,
+      161058,
+      644094,
+      644093,
+      644072,
+      644074,
+      644073,
+      161052,
+      644073,
+      161052,
+      644073,
+      644550,
+      161052,
+      644550,
+      644546,
+      160882,
+      643400,
+      643399,
+      643411,
+      643412,
+      643413
+    ],
+    [
+      644344,
+      161116,
+      644313,
+      161063,
+      644107,
+      644113,
+      644110,
+      644108,
+      40285,
+      644120,
+      40285,
+      644120,
+      644153,
+      644154,
+      644156,
+      161075,
+      644156,
+      644155,
+      40282,
+      644080,
+      40282,
+      644080,
+      40282,
+      644080,
+      644094,
+      644091,
+      161058
+    ],
+    [
+      644561,
+      161174,
+      644567,
+      161174,
+      644567,
+      161170,
+      644567,
+      161170,
+      644548,
+      643398,
+      40238,
+      643411,
+      643412,
+      160886
+    ],
+    [
+      643408,
+      644552,
+      643408,
+      644552,
+      160886
+    ],
+    [
+      644607
+    ],
+    [
+      644124,
+      161067,
+      644119,
+      161065,
+      644607,
+      644602,
+      161184,
+      644601,
+      644630,
+      644601,
+      644630,
+      644601,
+      644630,
+      161173,
+      644559,
+      644561
+    ],
+    [
+      643411,
+      160888,
+      643413,
+      643410,
+      643408,
+      643409
+    ],
+    [
+      160885,
+      643406,
+      643417,
+      160883,
+      643399
+    ],
+    [
+      392427,
+      98270,
+      392485,
+      392429,
+      392428,
+      24651,
+      392440,
+      392441,
+      98275,
+      392442,
+      98274,
+      392476,
+      392435,
+      392436,
+      392435,
+      392434,
+      6203,
+      392396,
+      644087,
+      644086,
+      644087,
+      161057
+    ],
+    [
+      98286,
+      392484,
+      392491,
+      392493,
+      392487,
+      392479,
+      24648,
+      392487,
+      392488,
+      392410,
+      392412,
+      392410,
+      392412,
+      98266,
+      392409,
+      392407,
+      392408,
+      392980,
+      392989,
+      98406,
+      392989,
+      392991,
+      392990,
+      98410,
+      392988,
+      392985,
+      98128,
+      391889
+    ],
+    [
+      261380,
+      65382
+    ],
+    [
+      352890,
+      352891,
+      352889,
+      353912,
+      353899,
+      353919,
+      353917,
+      353908,
+      353907,
+      88639,
+      354659,
+      354661
+    ],
+    [
+      354666,
+      88824,
+      354661
+    ],
+    [
+      218332,
+      218330,
+      218331,
+      13708,
+      218322,
+      54663,
+      218319,
+      218388,
+      218352,
+      218319,
+      3433,
+      218352,
+      217240,
+      217239,
+      217189,
+      54385,
+      217270,
+      217274
+    ],
+    [
+      249977,
+      249225,
+      249226,
+      249223,
+      249228,
+      248206,
+      248205,
+      248218,
+      62171,
+      248214,
+      15602,
+      248295,
+      248309,
+      62193
+    ],
+    [
+      249995,
+      62596,
+      249977
+    ],
+    [
+      62193
+    ],
+    [
+      62193,
+      248293,
+      248294,
+      248293,
+      15605,
+      248293,
+      15605,
+      248257,
+      62183,
+      248260,
+      248259,
+      248235
+    ],
+    [
+      222084,
+      222083,
+      222114,
+      55619,
+      222114,
+      222110,
+      222029,
+      55605,
+      222034,
+      13950
+    ],
+    [
+      13950,
+      222022
+    ],
+    [
+      392979,
+      98408,
+      392990,
+      392987,
+      392988,
+      392985
+    ],
+    [
+      18747,
+      298683,
+      74775,
+      298950,
+      74808,
+      298812
+    ],
+    [
       641566,
       641561
     ],
@@ -2387,12 +5799,11 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       408803,
       102374,
       409090,
-      102417,
-      408976,
-      102418,
-      408995,
-      102421,
-      408984
+      409094,
+      102446,
+      409111,
+      409110,
+      409097
     ],
     [
       9724,
@@ -2653,6 +6064,14 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
     [
       368135,
       92180
+    ],
+    [
+      354666,
+      354653
+    ],
+    [
+      88824,
+      354666
     ]
   ],
   "blockedRiverMouths": [
@@ -2667,6 +6086,18 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
     {
       "tile": 228481,
       "edge": 2
+    },
+    {
+      "tile": 228481,
+      "edge": 1
+    },
+    {
+      "tile": 228470,
+      "edge": 5
+    },
+    {
+      "tile": 228470,
+      "edge": 1
     }
   ],
   "riverMouths": [],

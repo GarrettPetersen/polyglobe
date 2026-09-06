@@ -1,4 +1,4 @@
-import { factionById, factionCapitalForId } from "./factions.js";
+import { factionById, factionSeaCapitalForId } from "./factions.js";
 import { religionById } from "./characterReligion.js";
 import { GAMEPLAY_REACHABILITY_SCENARIOS } from "./gameplayReachabilityScenarios.js";
 import { ICEBERG_VARIANTS } from "./icebergSystem.js";
@@ -2705,7 +2705,7 @@ function captureEncounter(id, factionId, shipSlug, lat, lon, headingDeg) {
 
 function captureCaptainHomeCityId(factionId) {
   if (factionId === "pirate") return "algiers|algeria";
-  return factionCapitalForId(factionId).cityId;
+  return factionSeaCapitalForId(factionId).cityId;
 }
 
 function captureFightEncounter(id, factionId, shipSlug, lat, lon, headingDeg) {

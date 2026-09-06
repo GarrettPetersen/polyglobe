@@ -4,10 +4,10 @@ import test from "node:test";
 
 import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import {
-  FACTION_CAPITALS_1522,
+  FACTION_SEA_CAPITALS_1522,
   NEUTRAL_FACTION_ID,
-  factionCapitalCityRecords1522,
-  factionCapitalForCity,
+  factionSeaCapitalCityRecords1522,
+  factionSeaCapitalForCity,
   factionIdForCity1522
 } from "./factions.js";
 import {
@@ -670,7 +670,7 @@ function buildCityRecords1522(csv) {
 
   const bestByCity = new Map();
   for (const [cityId, observations] of observationsByCity) {
-    const capitalSpec = factionCapitalForCity(observations[0]);
+    const capitalSpec = factionSeaCapitalForCity(observations[0]);
     const observation = cityPopulationObservationAtYear(observations, 1522, {
       allowStaleObservation: Boolean(capitalSpec)
     });
@@ -708,7 +708,7 @@ function buildCityRecords1522(csv) {
       marketGoods: manualSpec.marketGoods || null,
       playerHomeExcluded: Boolean(manualSpec.playerHomeExcluded)
     });
-    const capitalSpec = factionCapitalForCity(cityRecord);
+    const capitalSpec = factionSeaCapitalForCity(cityRecord);
     bestByCity.set(cityId, {
       ...cityRecord,
       factionId: factionIdForCity1522(cityRecord),
@@ -716,7 +716,7 @@ function buildCityRecords1522(csv) {
     });
   }
 
-  for (const capitalSpec of factionCapitalCityRecords1522()) {
+  for (const capitalSpec of factionSeaCapitalCityRecords1522()) {
     const cityId = capitalSpec.cityId;
     if (bestByCity.has(cityId)) continue;
     const cityRecord = withColonialFounding({
@@ -743,7 +743,7 @@ function buildCityRecords1522(csv) {
 function ensureRequiredCities(cities, cityRecords) {
   const included = new Set(cities.map((city) => city.cityId));
   const out = [...cities];
-  for (const capitalSpec of FACTION_CAPITALS_1522) {
+  for (const capitalSpec of FACTION_SEA_CAPITALS_1522) {
     const cityId = cityKey(capitalSpec.city, capitalSpec.country);
     if (included.has(cityId)) continue;
     const city = cityRecords.get(cityId);

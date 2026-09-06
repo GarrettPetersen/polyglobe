@@ -1,3 +1,4 @@
+import { REVIEWED_COASTAL_WATER_CORRIDORS } from "../src/reviewedCoastalWaterCorridors.js";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -9,6 +10,9 @@ import {
   findNearestTileId,
   graphCenter
 } from "../src/geodesic.js";
+import { loadCityCatalogFromCsv, CITY_DATA_YEAR } from "../src/cityCatalogData.js";
+import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
+import { reviewedSettlementLandmassId } from "../src/settlementGeography.js";
 import { MANUAL_CITY_RECORDS_1522 } from "../src/cityCatalogSelection.js";
 import {
   MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS,
@@ -140,9 +144,12 @@ const sanJoaquinRiverApproach = routeThroughCoordinates([
 ]);
 const chorokhiRiverApproach = routeThroughCoordinates([
   { lat: 41.8, lon: 41.2 },
-  { lat: 41.6, lon: 41.8 },
-  { lat: 41.1, lon: 42.5 },
-  { lat: 40.5, lon: 43.0 }
+  { lat: 41.65, lon: 41.55 },
+  { lat: 41.5, lon: 41.72 },
+  { lat: 41.18, lon: 41.82 },
+  { lat: 40.82, lon: 41.55 },
+  { lat: 40.8, lon: 41.38 },
+  { lat: 40.4, lon: 40.8 }
 ]);
 // At subdivision seven, one graph ring covered enough ground for these cities
 // to touch their authored or baked river. Subdivision eight halves that physical
@@ -220,12 +227,73 @@ const coimbraMondegoRoute = routeThroughCoordinates([
   { lat: 40.18, lon: -8.8 },
   { lat: 40.1, lon: -9.05 }
 ]);
+// Resolve stable Natural Earth source feature IDs, then follow their actual
+// centerlines. These replace straight legacy spurs that crossed watersheds.
+const sourceRivers = JSON.parse(await readFile(resolve(sharedRoot,
+  "ne_10m_rivers_lake_centerlines.json"), "utf8")).features;
+const sourceRiverRepairs = [
+  // Ninglick tidal channel connects Baird Inlet to the Bering Sea. The
+  // coastline raster cannot resolve its narrow outlet (USACE Newtok EA, 2008).
+  routeThroughCoordinates([
+    {lat: 60.84, lon: -164.35}, {lat: 60.84, lon: -164.72},
+    {lat: 60.90, lon: -164.94}, {lat: 60.88, lon: -165.30},
+    {lat: 60.85, lon: -165.85}
+  ]),
+  // Actual city river approaches. Their coordinates locate rivers and mouths;
+  // they never serve as alternative coordinates for the capital itself.
+  ...[
+    [[35.02,135.77],[34.97,135.77],[34.91,135.75],[34.886,135.683],[34.8,135.63],[34.73,135.54],[34.68,135.41],[34.63,135.32],[34.57,135.23],[34.45,135.05]],
+    [[37.57,126.98],[37.53,126.85],[37.64,126.77],[37.79,126.65],[37.85,126.5],[37.79,126.3]],
+    [[51.05,3.73],[51.00,3.84],[51.015,4.1],[51.12,4.18],[51.24,4.35],[51.40,4.16],[51.42,3.65],[51.48,3.36],[51.5,3.15]],
+    [[49.45,11.08],[49.476,10.994],[49.60,10.97],[49.75,11.04],[49.9,10.89],[49.95,10.88]],
+    [[52.09,5.12],[52.15,5.02],[52.21,5.02],[52.32,5.08],[52.43,5.12]],
+    [[52.52,13.40],[52.53,13.21],[52.45,13.16],[52.40,13.07],[52.38,12.91],[52.42,12.57],[52.62,12.39],[52.91,11.90],[53.02,11.71]],
+    [[53.96,-1.08],[53.85,-1.11],[53.78,-1.07],[53.74,-0.98],[53.69,-0.97],[53.70,-0.83],[53.72,-0.70],[53.66,-0.43],[53.58,-0.13],[53.53,0.05],[53.56,0.25]],
+    [[53.87,10.69],[53.91,10.79],[53.96,10.87],[53.98,11.03],[54.1,11.0],[54.20,11.2],[54.30,11.3]],
+    [[58.48,16.32],[58.48,16.48],[58.46,16.65],[58.42,16.79],[58.42,17.07]],
+    [[60.675,17.14],[60.68,17.24],[60.68,17.42],[60.68,17.60],[60.70,17.80]],
+    [[35.69,139.75],[35.66,139.79],[35.60,139.80],[35.50,139.86],[35.33,139.77],[35.2,139.78],[35.0,139.75]],
+    [[17.01,81.78],[16.83,81.76],[16.73,81.72],[16.45,81.69],[16.25,81.77],[16.15,81.87]]
+  ].map((points) => routeThroughCoordinates(points.map(([lat, lon]) => ({lat, lon})))),
+  ...sourceRiverRoutes("103River", [46, 46.4, -119.3, -118.8]),
+  ...sourceRiverRoutes("28Lake Centerline"), ...sourceRiverRoutes("28River"),
+  ...sourceRiverRoutes("32Lake Centerline"), ...sourceRiverRoutes("32River"),
+  ...sourceRiverRoutes("113River"),
+  ...sourceRiverRoutes("15River", [26.5, 28.2, 99.3, 101.5]),
+  ...sourceRiverRoutes("873River"), ...sourceRiverRoutes("1070River"),
+  ...sourceRiverRoutes("150River", [49.6, 52.2, 4, 9]),
+  ...sourceRiverRoutes("534River"), ...sourceRiverRoutes("970River"),
+  ...sourceRiverRoutes("724River", [49, 52, 3, 7], 2),
+  ...sourceRiverRoutes("142River"), ...sourceRiverRoutes("1147River"),
+  ...sourceRiverRoutes("721River"), ...sourceRiverRoutes("563River"),
+  ...sourceRiverRoutes("626River"),
+  ...sourceRiverRoutes("274River"), ...sourceRiverRoutes("274Lake Centerline"),
+  ...sourceRiverRoutes("12River", [69.8, 72.4, 125.5, 129.0]),
+  ...sourceRiverRoutes("422River"), ...sourceRiverRoutes("422Lake Centerline"),
+  ...sourceRiverRoutes("609River"),
+  ...sourceRiverRoutes("136River", [63.5, 65, 39, 43]),
+  routeThroughCoordinates([
+    { lat: 64.55, lon: 40.53 }, { lat: 64.65, lon: 40.30 }, { lat: 64.85, lon: 40.0 }
+  ]),
+  // The Leine reaches the Aller and Weser; Hanover is not on the Elbe.
+  routeThroughCoordinates([
+    { lat: 52.37, lon: 9.73 }, { lat: 52.5, lon: 9.45 },
+    { lat: 52.72, lon: 9.58 }, { lat: 52.92, lon: 9.17 }, { lat: 53.05, lon: 8.84 }
+  ]),
+  // Tidal Delaware, including the Philadelphia waterfront.
+  routeThroughCoordinates([
+    { lat: 40.016, lon: -75.023 }, { lat: 39.95, lon: -75.14 },
+    { lat: 39.87, lon: -75.19 }, { lat: 39.68, lon: -75.50 },
+    { lat: 39.48, lon: -75.56 }, { lat: 39.15, lon: -75.40 }, { lat: 38.97, lon: -75.18 }
+  ])
+];
 const riverChains = [
   ...MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]
-    .filter((chain) => chain[0] !== 73682 && chain[0] !== 18467)
+    .filter((chain) => ![73682, 18467, 62166, 62627, 62610, 62346, 160887, 161095].includes(chain[0]))
     .map(refineChain),
   jamesRiverRoute,
   potomacRiverRoute,
+  ...sourceRiverRepairs,
   ...riverOutlets.map(({ tileIds }) => tileIds),
   ...manualMouthChains,
   saveRiverApproach,
@@ -264,6 +332,12 @@ cityRiverChains["tours|france"] = toursLoireRoute;
 cityRiverChains["angers|france"] = angersLoireRoute;
 cityRiverChains["coimbra|portugal"] = coimbraMondegoRoute;
 const shallowWaterTileIdSet = new Set(shallowWaterGroups.flatMap(refineChain));
+for (const { name, tileIds } of REVIEWED_COASTAL_WATER_CORRIDORS) {
+  for (const tileId of tileIds) {
+    if (!earth.tiles[tileId]) throw new Error(`Invalid coastal correction ${name}: ${tileId}`);
+    shallowWaterTileIdSet.add(tileId);
+  }
+}
 // The fine globe's land mask exaggerates the small island at the Loire mouth
 // into a blocking coastal hex. Keep the authored river route but restore this
 // estuary tile to navigable shallows.
@@ -275,6 +349,16 @@ shallowWaterTileIdSet.add(73665);
 // The narrow East River occupies a full water hex here so ships can sail it.
 // Reference: https://gnome.orr.noaa.gov/doc/location_files/central_long_island_sound_tech.html
 for (const tileId of [298999, 298720, 74786, 299005]) shallowWaterTileIdSet.add(tileId);
+// Reviewed tidal water: Dvina Bay, Delaware Bay, Gulf of Suez and Roskilde
+// Fjord. Widening a sub-hex estuary is explicit terrain authoring, not an
+// automatic "nearest coast" shortcut through an unrelated drainage basin.
+for (const [lat, lon] of [
+  [64.85,40.0], [65.0,39.6],
+  [39.15,-75.30], [39.0,-75.20], [38.9,-75.08],
+  [29.80,32.55], [29.7,32.65],
+  [35.50,139.86], [34.57,135.23], [54.1,11.0],
+  [55.80,12.03], [55.90,12.02], [56.05,11.95]
+]) shallowWaterTileIdSet.add(findNearestTileId(fineGraph, fineDirectionIndex, latLonToDirection(lat, lon)));
 const lakeMalawiCorridor = routeThroughCoordinates([
   { lat: -9.5, lon: 34.3 },
   { lat: -10.5, lon: 34.35 },
@@ -288,26 +372,57 @@ const lakeOverrides = unique([
   ...lakeMalawiCorridor
 ]).map((tileId) => ({
   tileId,
-  sourceTerrain: earth.tiles[tileId].t
+  sourceTerrain: earth.tiles[tileId].t,
+  lakeId: 11, elevation: -0.0369949146978479
 }));
-const landmassIdByCoarseOverride = new Map();
-const inheritedLandOverrides = MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[7].map((override) => {
-  const source = earth.tiles[override.tileId];
-  const sourceIsWater = source.t === "water" || source.t === "lake" || source.t === "beach";
-  if (sourceIsWater && !landmassIdByCoarseOverride.has(override.landmassId)) {
-    landmassIdByCoarseOverride.set(override.landmassId, 2000 + landmassIdByCoarseOverride.size);
-  }
-  return {
-    ...override,
-    sourceTerrain: source.t,
-    landmassId: sourceIsWater ? landmassIdByCoarseOverride.get(override.landmassId) : source.m
-  };
-});
+// The marine polygon is present in the sources, but the raster bake omitted
+// the whole Caspian. It is a closed basin, never an ocean-navigation seed.
+const marineFeatures = JSON.parse(await readFile(resolve(sharedRoot,
+  "ne_110m_geography_marine_polys.json"), "utf8")).features;
+const caspianFeatures = marineFeatures.filter((feature) => feature.properties.name === "Caspian Sea");
+if (caspianFeatures.length !== 1 || caspianFeatures[0].geometry.type !== "Polygon") {
+  throw new Error("Caspian reference polygon must resolve uniquely");
+}
+for (let tileId = 0; tileId < fineGraph.tileCount; tileId++) {
+  const lat = fineGraph.latDeg[tileId], lon = fineGraph.lonDeg[tileId];
+  if (lat < 36 || lat > 48 || lon < 46 || lon > 55) continue;
+  if (!pointInPolygon(lon, lat, caspianFeatures[0].geometry.coordinates)) continue;
+  lakeOverrides.push({ tileId, sourceTerrain: earth.tiles[tileId].t,
+    lakeId: 39, elevation: -0.057 });
+}
+// Lake Taupo is absent from the 1:110m lake input. Its sub-hex width is
+// represented by the tile at the checked-in Waikato lake centerline.
+const taupoTileId = findNearestTileId(fineGraph, fineDirectionIndex, latLonToDirection(-38.8, 175.9));
+lakeOverrides.push({tileId: taupoTileId, sourceTerrain: earth.tiles[taupoTileId].t,
+  lakeId: 47, elevation: -0.02});
+// This isolated Greenland water body is component 12 in the source water
+// raster, separated from the surrounding marine component. The bake labeled
+// it ocean beach; preserve the closed water body instead of carving a fjord.
+lakeOverrides.push({tileId: 205851, sourceTerrain: earth.tiles[205851].t,
+  lakeId: 48, elevation: earth.tiles[205851].e});
+const inheritedLandOverrides = MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS[7].map((override) => ({
+  ...override, sourceTerrain: earth.tiles[override.tileId].t
+}));
 const northMalukuIslandCities = new Set(["Ternate", "Tidore", "Makian Village"]);
 const islandCities = MANUAL_CITY_RECORDS_1522.filter((record) => (
   record.islandSettlement ||
   (record.country === "Indonesia" && northMalukuIslandCities.has(record.city))
 ));
+// These shore tiles belong to existing landmasses, or to real islands omitted
+// by the coarse raster. Restoring the tile must preserve that identity.
+const additionalRestorationIds = new Set([
+  "copenhagen|denmark", "kalmar|sweden", "gresik|indonesia", "hormuz|iran",
+  "kilwa|tanzania", "diu|india", "roanoke|united states of america",
+  "new amsterdam|united states of america", "ville-marie|canada"
+]);
+const cityCatalog = loadCityCatalogFromCsv(await readFile(resolve(sharedRoot,
+  "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"), "utf8"), CITY_DATA_YEAR);
+const additionalRestorations = [...cityCatalog, ...COLONIZATION_TARGETS]
+  .filter((city) => additionalRestorationIds.has(city.cityId));
+if (additionalRestorations.length !== additionalRestorationIds.size) {
+  throw new Error("Reviewed coast restoration is missing a unique settlement");
+}
+islandCities.push(...additionalRestorations);
 const islandDirections = islandCities.map(cityPlacementDirection);
 const mozambique = MANUAL_CITY_RECORDS_1522.find((record) => (
   record.city === "Mozambique" && record.country === "Mozambique"
@@ -331,13 +446,16 @@ for (const city of islandCities) {
     cityPlacementDirection(city)
   );
   const source = earth.tiles[tileId];
-  if (!isWaterSurface(source) || landOverrideByTileId.has(tileId)) continue;
-  const template = nearestInheritedLandOverride(tileId, inheritedLandOverrides);
+  const landmassId = reviewedSettlementLandmassId(city);
+  if ((!isWaterSurface(source) && source.m === landmassId) || landOverrideByTileId.has(tileId)) continue;
+  const template = additionalRestorationIds.has(city.cityId)
+    ? nearbyLandClimateTemplate(tileId)
+    : nearestInheritedLandOverride(tileId, inheritedLandOverrides);
   landOverrideByTileId.set(tileId, {
     ...template,
     tileId,
     sourceTerrain: source.t,
-    landmassId: 3000 + landOverrideByTileId.size
+    landmassId
   });
 }
 const mozambiqueTileId = findNearestTileId(
@@ -378,7 +496,7 @@ if (!landOverrideByTileId.has(moaiTileId)) {
     tileId: moaiTileId,
     sourceTerrain: source.t,
     terrainType: "tropical_savanna",
-    landmassId: landOverrideByTileId.get(rapaVillageTileId)?.landmassId ?? 3998
+    landmassId: reviewedSettlementLandmassId(rapaVillage)
   });
 }
 const shallowWaterTileIds = [...shallowWaterTileIdSet].sort((a, b) => a - b);
@@ -399,10 +517,20 @@ const landOverrides = [...landOverrideByTileId.values()].sort((a, b) => a.tileId
 const blockedRiverEdges = MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[7]
   .flatMap(([a, b]) => adjacentPairs(refineChain([a, b])))
   .filter(([a, b]) => baseRiverEdgeIsSet(a, b) && baseRiverEdgeIsSet(b, a));
+// A baked Moawhango spur crosses the divide into Tongariro/Taupo. Keep the
+// real Waikato route above and remove the false southern connection.
+blockedRiverEdges.push([354666, 354653], [88824, 354666]);
 const blockedRiverMouths = MANUAL_BLOCKED_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[7]
   .flatMap(({ tile, edge }) => blockedMouthsAlong(
     refineChain([tile, requiredCoarseEdgeNeighbor(tile, edge)])
   ));
+// Refining old blocked edges does not cover new hexes touching Baikal.
+// These are the three actual subdivision-eight Lena-to-Baikal half-edges.
+for (const [tile, waterTileId] of [[228481, 228460], [228470, 227346], [228470, 228460]]) {
+  const edge = fineGraph.edgeNeighbors[tile].indexOf(waterTileId);
+  if (edge < 0 || earth.tiles[waterTileId].l !== 1) throw new Error("Invalid reviewed Lena divide");
+  blockedRiverMouths.push({ tile, edge });
+}
 const saltwaterPassageTileIds = unique([
   ...refineChain([98820, 98676, 98678, 24757]),
   ...refineChain([98682, 6233, 98694, 98704])
@@ -573,4 +701,52 @@ function directionDot(tileId, direction) {
 function greatCircleDistanceKm(a, b) {
   const dot = Math.max(-1, Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]));
   return Math.acos(dot) * 6371.0088;
+}
+
+function nearbyLandClimateTemplate(tileId) {
+  const direction = graphCenter(fineGraph, tileId);
+  const queue = [tileId];
+  const seen = new Set(queue);
+  for (let head = 0; head < queue.length; head++) {
+    const id = queue[head];
+    if (greatCircleDistanceKm(graphCenter(fineGraph, id), direction) > 60) continue;
+    const row = earth.tiles[id];
+    if (!isWaterSurface(row)) return { terrainType: row.t, elevation: Math.max(-0.03, row.e) };
+    for (const neighborId of fineGraph.neighbors[id]) {
+      if (!seen.has(neighborId)) { seen.add(neighborId); queue.push(neighborId); }
+    }
+  }
+  throw new Error(`No local land climate for reviewed shore tile ${tileId}`);
+}
+
+function sourceRiverRoutes(sourceId, bounds = [-90, 90, -180, 180], expectedFeatureCount = 1) {
+  const matches = sourceRivers.filter((feature) => feature.properties.dissolve === sourceId);
+  if (matches.length !== expectedFeatureCount || matches.some((feature) => !feature.geometry)) {
+    throw new Error(`Source river ${sourceId} must have ${expectedFeatureCount} reviewed features`);
+  }
+  const lines = matches.flatMap(({geometry}) => geometry.type === "MultiLineString" ? geometry.coordinates : [geometry.coordinates]);
+  const result = [];
+  for (const line of lines) {
+    let segment = [];
+    const flush = () => { if (segment.length > 1) result.push(routeThroughCoordinates(segment)); segment = []; };
+    for (const [lon, lat] of line) {
+      if (lat < bounds[0] || lat > bounds[1] || lon < bounds[2] || lon > bounds[3]) { flush(); continue; }
+      segment.push({ lat, lon });
+    }
+    flush();
+  }
+  if (result.length === 0) throw new Error(`Source river ${sourceId} has no segment in its reviewed bounds`);
+  return result;
+}
+
+function pointInPolygon(lon, lat, rings) {
+  const contains = (ring) => {
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if ((yi > lat) !== (yj > lat) && lon < (xj - xi) * (lat - yi) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  };
+  return contains(rings[0]) && !rings.slice(1).some(contains);
 }

@@ -14,12 +14,18 @@ import {
 } from "./cityPortAccess.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 import { requireCityId } from "./entityIds.js";
+import { localSettlementTiles, reviewedSettlementLandmassId,
+  MAX_SETTLEMENT_PLACEMENT_DISTANCE_KM } from "./settlementGeography.js";
 
 export function placeCityCatalogOnWorld(options) {
   const { cities } = options;
   if (!Array.isArray(cities)) throw new Error("City placement requires a city catalog array");
   const placed = new Map();
+  const cityIds = new Set();
   for (const city of cities) {
+    const cityId = requireCityId(city, "City placement");
+    if (cityIds.has(cityId)) throw new Error(`Duplicate city placement ID: ${cityId}`);
+    cityIds.add(cityId);
     const placement = cityPlacementCoordinates(city);
     const startId = findNearestTileId(
       options.graph,
@@ -29,23 +35,14 @@ export function placeCityCatalogOnWorld(options) {
     const predicate = cityPlacementPredicate(options, city);
     if (city.islandSettlement && !predicate(startId)) {
       throw new Error(
-        `Island settlement has no dockable land at its real coordinates: ${city.city}, ${city.country}`
+        `Island settlement has no land on its reviewed landmass at its real coordinates: ${city.city}, ${city.country}`
       );
     }
-    let tileId = predicate(startId) ? startId : nearestTileMatching(options.graph, startId, predicate);
-    if (tileId === undefined) throw new Error(`Could not place city on drawable land tile: ${city.city}, ${city.country}`);
-    if (placed.has(tileId)) {
-      if (city.islandSettlement) {
-        throw new Error(
-          `Island settlement tile is already occupied at its real coordinates: ${city.city}, ${city.country}`
-        );
-      }
-      if (!cityRequiresPortAccess(city)) continue;
-      tileId = nearestTileMatching(options.graph, tileId, (id) => predicate(id) && !placed.has(id));
-      if (tileId === undefined) {
-        throw new Error(`Could not place required port city on an unoccupied land tile: ${city.city}, ${city.country}`);
-      }
-    }
+    const candidates = city.islandSettlement ? [startId] : localSettlementTiles({
+      graph: options.graph, startId, coordinates: placement
+    });
+    const tileId = candidates.find((id) => predicate(id) && !placed.has(id));
+    if (tileId === undefined) throw placementFailure(city);
     placed.set(tileId, placedSettlement(city, tileId, options.earthRows));
   }
   return placed;
@@ -104,13 +101,15 @@ export function placeColonizationTargetsOnWorld({
       options.directionIndex,
       latLonToDirection(target.lat, target.lon)
     );
-    const tileId = nearestTileMatching(options.graph, startId, (id) => (
+    const expectedLandmassId = reviewedSettlementLandmassId(target);
+    const tileId = localSettlementTiles({ graph: options.graph, startId, coordinates: target }).find((id) => (
       isCityDrawableTile(options.earthRows, id) &&
+      options.earthRows[id].m === expectedLandmassId &&
       !occupied.has(id) &&
       cityHasPortAccess(portAccessOptions(options, id))
     ));
     if (tileId === undefined) {
-      throw new Error(`Could not place water-accessible colony on an empty port tile: ${target.city}, ${target.country}`);
+      throw placementFailure(target);
     }
     occupied.add(tileId);
     placed.push(Object.freeze(placedSettlement(target, tileId, options.earthRows)));
@@ -227,11 +226,17 @@ export function nearestTileMatching(graph, startId, predicate) {
 }
 
 function cityPlacementPredicate(options, city) {
-  if (!cityRequiresPortAccess(city)) return (tileId) => isCityDrawableTile(options.earthRows, tileId);
+  const landmassId = reviewedSettlementLandmassId(city);
   return (tileId) => (
     isCityDrawableTile(options.earthRows, tileId) &&
-    cityHasPortAccess(portAccessOptions(options, tileId))
+    options.earthRows[tileId].m === landmassId
   );
+}
+
+function placementFailure(city) {
+  return new Error(`No available settlement tile for ${requireCityId(city, "Settlement placement")} ` +
+    `on reviewed landmass ${reviewedSettlementLandmassId(city)} within ` +
+    `${MAX_SETTLEMENT_PLACEMENT_DISTANCE_KM} km; repair the geography or access policy`);
 }
 
 function portAccessOptions(options, tileId) {
@@ -254,6 +259,9 @@ function placedSettlement(settlement, tileId, earthRows) {
     throw new Error(`Placed settlement has no landmass id: ${settlement?.city || "unknown"} at ${tileId}`);
   }
   const cityId = requireCityId(settlement, "Placed settlement");
+  if (landmassId !== reviewedSettlementLandmassId(settlement)) {
+    throw new Error(`Settlement ${cityId} is on wrong landmass ${landmassId}`);
+  }
   return { ...settlement, cityId, portId: settlement.portId || cityId, tileId, landmassId };
 }
 

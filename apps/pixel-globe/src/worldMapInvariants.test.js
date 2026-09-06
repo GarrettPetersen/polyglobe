@@ -1,3 +1,5 @@
+import { FACTION_SEA_CAPITALS_1522, markFactionSeaCapitalsOnPorts } from "./factions.js";
+import { MAX_SETTLEMENT_PLACEMENT_DISTANCE_KM, localSettlementTiles, reviewedSettlementLandmassId } from "./settlementGeography.js";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -23,7 +25,7 @@ import {
 import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { buildMountainLandmarks } from "./mountainLandmarks.js";
-import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
+import { applyManualTerrainOverrides, assertManualShallowWaterReachesOcean } from "./manualTerrainOverrides.js";
 import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 import { COLONIZATION_TARGETS } from "./colonialCities.js";
@@ -81,6 +83,7 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     subdivisions: WORLD_GLOBE_SUBDIVISIONS
   });
   const directionIndex = createDirectionIndex(graph);
+  assertManualShallowWaterReachesOcean(navigation.reachableNavigationMask, 8);
 
   assert.equal(
     riverTilesConnected(graph, navigation.riverMasks, 93216, 61636),
@@ -131,6 +134,15 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     assert.equal(navigation.riverMasks[tileId], 0, `tidal rivers must not cut across peninsula tile ${tileId}`);
   }
   const openingAudit = riverOpeningAudit({ graph, earthRows, navigation });
+  assert.deepEqual(openingAudit.networksWithoutOutlet, [], "every river component needs its real water outlet");
+  assert.deepEqual(isolatedCoastalWaterRegions({graph, earthRows}).filter(({tileIds}) =>
+    !tileIds.some((id) => navigation.reachableNavigationMask[id] === 1)), [],
+    "marine inlets need ocean access; real closed water bodies must be classified as lakes");
+  const caspianTileId = findNearestTileId(graph, directionIndex, latLonToDirection(42, 50));
+  assert.equal(earthRows[caspianTileId].l, 39, "Caspian identity must be retained");
+  assert.equal(navigation.reachableNavigationMask[caspianTileId], 0, "the Caspian is an endorheic basin");
+  assert.equal(earthRows[88824].l, 47, "Lake Taupo belongs to the Waikato drainage");
+  assert.equal(navigation.riverMasks[354653], 0, "Moawhango must not cross into Tongariro");
   for (const { name, from } of WORLD_WATERWAY_INVARIANTS.filter(({ name }) => name.endsWith("outlet"))) {
     const startTileId = findNearestTileId(graph, directionIndex, latLonToDirection(...from));
     assert.ok(!openingAudit.coastalDeadEnds.some(({ tileId }) => tileId === startTileId), `${name} must have an outlet`);
@@ -150,6 +162,21 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     riverMasks: navigation.riverMasks
   };
   const placedByTileId = placeCityCatalogOnWorld({ ...placementOptions, cities });
+  // Navigation availability and capital status must never move a settlement.
+  const withoutNavigation = { ...placementOptions,
+    reachableNavigationMask: new Uint8Array(graph.tileCount), riverMasks: new Uint8Array(graph.tileCount) };
+  const landOnly = placeCityCatalogOnWorld({ ...withoutNavigation,
+    cities: cities.map((city) => ({ ...city, declaredCapitalFactionId: undefined })) });
+  assert.deepEqual([...landOnly.keys()], [...placedByTileId.keys()]);
+  assert.throws(() => placeCityCatalogOnWorld({ ...placementOptions, cities: [cities[0], cities[0]] }), /Duplicate city placement ID/);
+  const soest = cities.find(({cityId}) => cityId === "soest|germany");
+  const soestTileId = [...placedByTileId.values()].find(({cityId}) => cityId === soest.cityId).tileId;
+  const wrongLandmassRows = earthRows.slice();
+  for (const tileId of localSettlementTiles({graph, startId: soestTileId, coordinates: soest})) {
+    wrongLandmassRows[tileId] = { ...earthRows[tileId], m: 120 };
+  }
+  assert.throws(() => placeCityCatalogOnWorld({ ...placementOptions, earthRows: wrongLandmassRows,
+    cities: [soest] }), /reviewed landmass 57 within 45 km/);
   const colonySites = placeColonizationTargetsOnWorld({
     ...placementOptions, targets: COLONIZATION_TARGETS, occupiedCities: [...placedByTileId.values()]
   });
@@ -247,6 +274,20 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
       `Mediterranean demo needs a sustainable source of ${goodId}`
     );
   }
+  const capitalPorts = markFactionSeaCapitalsOnPorts(ports);
+  assert.equal(capitalPorts.size, FACTION_SEA_CAPITALS_1522.length);
+  for (const capital of FACTION_SEA_CAPITALS_1522) {
+    const port = ports.find(({cityId}) => cityId === capital.cityId);
+    assert.equal(port.factionId, capital.factionId);
+    assert.ok(portAccessTileIds(placementOptions, port.tileId).length > 0,
+      `${capital.factionId} needs a functional capital at ${capital.cityId}`);
+  }
+  const settlements = [...placedByTileId.values(), ...colonySites];
+  for (const settlement of settlements) {
+    assert.equal(settlement.landmassId, reviewedSettlementLandmassId(settlement), settlement.cityId);
+  }
+  assert.deepEqual(settlementPlacementDisplacements({graph, settlements,
+    minimumDistanceKm: MAX_SETTLEMENT_PLACEMENT_DISTANCE_KM}), []);
   const portCityIds = new Set(ports.map((city) => city.cityId));
   const northMalukuPorts = [
     ["ternate|indonesia", 366292],
@@ -348,8 +389,8 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
   );
   assert.deepEqual(
     mountainRegistry.inaccessibleFamous.map((mountain) => mountain.displayName).sort(),
-    ["Mount Kenya", "Muztag Feng", "Vinson Massif"],
-    "the larger globe must not strand mountains that were discoverable on the old map"
+    ["Mount Ararat", "Mount Kenya", "Muztag Feng", "Vinson Massif"],
+    "mountain visibility must respect real drainage divides; Ararat has no Black Sea river approach"
   );
 
   const subdivisionSevenEarth = JSON.parse(await readFile(new URL(

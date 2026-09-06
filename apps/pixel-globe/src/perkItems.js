@@ -216,7 +216,7 @@ function portHasRegion(city, region) {
   if (region === "europe") return EUROPEAN_FACTIONS.has(city.factionId);
   if (region === "england") return city.factionId === "england" || city.factionId === "scotland";
   if (region === "islamic") {
-    return ["ottoman", "crimea", "kazan", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"]
+    return ["ottoman", "crimea", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"]
       .includes(city.factionId) || city.cityType === "islamic-desert";
   }
   if (region === "east-asia") {

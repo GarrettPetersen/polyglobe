@@ -69,6 +69,8 @@ const DISPLAY_FUNCTION_NAME = /(?:Accounts?|Biographies|Biography|Comments?|Copi
 const EXCLUDED_FILES = new Set([
   "localization.js",
   "properNounLocalization.js",
+  // Cartographic review names appear only in build diagnostics.
+  "reviewedCoastalWaterCorridors.js",
   "screenTextCatalog.js",
   "screenTextLocalization.js",
   "worldWebglRenderer.js"

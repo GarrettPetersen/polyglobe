@@ -19,6 +19,7 @@ export const APP_ROOT = fileURLToPath(new URL("../", import.meta.url));
 export const CATALOG_MANIFEST_PATH = "public/assets/data/city-catalog-release.json";
 export const CATALOG_HISTORY_PATH = "src/test-fixtures/city-catalog-releases";
 export const CATALOG_BUILD_TOOLS = Object.freeze([
+  "tools/build-subdivision-eight-map-data.mjs",
   "tools/build-port-sailing-distances.mjs",
   "tools/build-land-roads.mjs",
   "tools/build-city-visualizer-catalog.mjs"
@@ -32,6 +33,7 @@ const SHARED_ROOT = "../../examples/globe-demo/public";
 const CATALOG_DATA_INPUTS = Object.freeze([
   "earth-globe-cache-7.json", "earth-globe-cache-8.json", "geodesic-graph-8.bin",
   "globe-runtime-bake-7.bin", "mountains.json",
+  "ne_10m_rivers_lake_centerlines.json", "ne_110m_geography_marine_polys.json",
   "datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv"
 ]);
 

@@ -41,7 +41,6 @@ export const CANONICAL_PORTS = Object.freeze({
   JINJIANG: canonicalPort("jinjiang", "tsinkiang|china", "Tsinkiang", "China"),
   KAGOSHIMA: canonicalPort("kagoshima", "kagoshima|japan", "Kagoshima", "Japan"),
   KERKIRA: canonicalPort("kerkira", "kerkira|greece", "Kerkira", "Greece"),
-  KAZAN: canonicalPort("kazan", "kazan|russian federation", "Kazan", "Russian Federation"),
   KYOTO: canonicalPort("kyoto", "kyoto|japan", "Kyoto", "Japan"),
   LISBON: canonicalPort("lisbon", "lisbon|portugal", "Lisbon", "Portugal"),
   LONDON: canonicalPort("london", "london|united kingdom", "London", "United Kingdom"),

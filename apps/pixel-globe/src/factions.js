@@ -62,7 +62,6 @@ export const FACTIONS = Object.freeze([
   faction("inca", "Inca Empire", "Tawantinsuyu", "Inca", "empire"),
   faction("safavid", "Safavid Empire", "Safavid Persia", "Safavid", "empire"),
   faction("muscovy", "Grand Duchy of Muscovy", "Muscovy", "Muscovite", "duchy"),
-  faction("kazan", "Kazan Khanate", "Kazan", "Kazan Tatar", "khanate", "the"),
   faction("crimea", "Crimean Khanate", "Crimea", "Crimean", "khanate"),
   faction("wallachia", "Principality of Wallachia", "Wallachia", "Wallachian", "principality"),
   faction("moldavia", "Principality of Moldavia", "Moldavia", "Moldavian", "principality"),
@@ -109,17 +108,19 @@ export function isJapanesePolityFaction(factionId) {
 }
 
 const FACTIONS_BY_ID = new Map(FACTIONS.map((item) => [item.id, item]));
-const RETIRED_FACTION_SUCCESSORS_1522 = Object.freeze({ aztec: "spain" });
+export const RETIRED_FACTION_SUCCESSORS_1522 = Object.freeze({ aztec: "spain", kazan: NEUTRAL_FACTION_ID });
 
 if (FACTIONS_BY_ID.size !== FACTIONS.length) {
   throw new Error("Faction registry contains duplicate ids");
 }
 
-export const FACTION_CAPITALS_1522 = Object.freeze([
+export const FACTION_SEA_CAPITALS_1522 = Object.freeze([
   capital("england", "london|united kingdom", "London", "United Kingdom"),
   capital("scotland", "edinburgh|united kingdom", "Edinburgh", "United Kingdom"),
   capital("france", "paris|france", "Paris", "France"),
-  capital("spain", "seville|spain", "Seville", "Spain"),
+  capital("spain", "seville|spain", "Seville", "Spain", {
+    trueCapital: Object.freeze({kind: "itinerant-court"})
+  }),
   capital("portugal", "lisbon|portugal", "Lisbon", "Portugal"),
   capital("hormuz", "hormuz|iran", "Hormuz", "Iran"),
   capital("burgundian-netherlands", "gent|belgium", "Gent", "Belgium"),
@@ -140,11 +141,16 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("brandenburg", "berlin|germany", "Berlin", "Germany", {
     lat: 52.52, lon: 13.405, population: 12000
   }),
-  capital("ducal-saxony", "leipzig|germany", "Leipzig", "Germany"),
+  capital("ducal-saxony", "dresden|germany", "Dresden", "Germany", {
+    lat: 51.05, lon: 13.74, population: 6000
+  }),
   capital("liege", "liege|belgium", "Liege", "Belgium"),
   capital("magdeburg", "magdeburg|germany", "Magdeburg", "Germany"),
   capital("utrecht", "utrecht|netherlands", "Utrecht", "Netherlands"),
-  capital("cleves-mark", "soest|germany", "Soest", "Germany", { seatCity: "Cleves" }),
+  capital("cleves-mark", "wesel|germany", "Wesel", "Germany", {
+    lat: 51.657, lon: 6.617, population: 6000,
+    trueCapital: capitalReference("cleves|germany", "Cleves", "Germany")
+  }),
   capital("calenberg", "hannover|germany", "Hannover", "Germany"),
   capital("augsburg", "augsberg|germany", "Augsberg", "Germany"),
   capital("cologne", "cologne|germany", "Cologne", "Germany"),
@@ -164,30 +170,36 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("hospitallers", "rhodes|greece", "Rhodes", "Greece"),
   capital("ming", "beijing|china", "Beijing", "China"),
   capital("inca", "cuzco|peru", "Cuzco", "Peru"),
-  capital("safavid", "siraf|iran", "Siraf", "Iran"),
+  capital("safavid", "siraf|iran", "Siraf", "Iran", { trueCapital: capitalReference("tabriz|iran", "Tabriz", "Iran") }),
   capital("muscovy", "kholmogory|russian federation", "Kholmogory", "Russian Federation", {
+    trueCapital: capitalReference("moscow|russian federation", "Moscow", "Russian Federation"),
     lat: 64.225,
     lon: 41.65,
     population: 7000
   }),
-  capital("kazan", "kazan|russian federation", "Kazan", "Russian Federation"),
-  capital("crimea", "bakhchiserai|ukraine", "Bakhchiserai", "Ukraine"),
-  capital("wallachia", "braila|romania", "Braila", "Romania", { seatCity: "Targoviste" }),
-  capital("moldavia", "galati|romania", "Galati", "Romania", { seatCity: "Suceava" }),
+  // Kezlev passed from Ottoman administration to the khanate in 1485.
+  // The inland court remained at Salachik, beside later Bakhchiserai.
+  capital("crimea", "kezlev|ukraine", "Kezlev", "Ukraine", {
+    lat: 45.198, lon: 33.37, population: 6000,
+    trueCapital: capitalReference("bakhchiserai|ukraine", "Salachik", "Ukraine")
+  }),
+  capital("wallachia", "braila|romania", "Braila", "Romania", { trueCapital: capitalReference("targoviste|romania", "Targoviste", "Romania") }),
+  capital("moldavia", "galati|romania", "Galati", "Romania", { trueCapital: capitalReference("suceava|romania", "Suceava", "Romania") }),
   capital("ragusa", "ragusa|croatia", "Ragusa", "Croatia"),
-  capital("hejaz", "jeddah|saudi arabia", "Jeddah", "Saudi Arabia", { seatCity: "Mecca" }),
+  capital("hejaz", "jeddah|saudi arabia", "Jeddah", "Saudi Arabia", { trueCapital: capitalReference("mecca|saudi arabia", "Mecca", "Saudi Arabia") }),
   capital("poland-lithuania", "krakow|poland", "Krakow", "Poland"),
-  capital("sweden", "soderkoping|sweden", "Soderkoping", "Sweden"),
-  capital("denmark-norway", "roskilde|denmark", "Roskilde", "Denmark"),
+  capital("sweden", "soderkoping|sweden", "Soderkoping", "Sweden", { trueCapital: capitalReference("stockholm|sweden", "Stockholm", "Sweden") }),
+  capital("denmark-norway", "roskilde|denmark", "Roskilde", "Denmark", { trueCapital: capitalReference("copenhagen|denmark", "Copenhagen", "Denmark") }),
   capital("songhai", "gao|mali", "Gao", "Mali"),
-  capital("morocco", "azemmour|morocco", "Azemmour", "Morocco"),
+  capital("morocco", "azemmour|morocco", "Azemmour", "Morocco", { trueCapital: capitalReference("fez|morocco", "Fez", "Morocco") }),
   capital("ethiopia", "massawa|ethiopia", "Massawa", "Ethiopia", {
+    trueCapital: Object.freeze({kind: "itinerant-court"}),
     lat: 15.6097,
     lon: 39.45,
     population: 8000
   }),
-  capital("vijayanagara", "rajahmundry|india", "Rajahmundry", "India"),
-  capital("gujarat", "cambay|india", "Cambay", "India"),
+  capital("vijayanagara", "rajahmundry|india", "Rajahmundry", "India", { trueCapital: capitalReference("vijayanagar|india", "Vijayanagar", "India") }),
+  capital("gujarat", "cambay|india", "Cambay", "India", { trueCapital: capitalReference("ahmedabad|india", "Ahmedabad", "India") }),
   capital("bengal", "gauda|india", "Gauda", "India"),
   capital("delhi", "agra|india", "Agra", "India"),
   capital("ayutthaya", "ayutthaya|thailand", "Ayutthaya", "Thailand"),
@@ -199,16 +211,18 @@ export const FACTION_CAPITALS_1522 = Object.freeze([
   capital("shimazu", "kagoshima|japan", "Kagoshima", "Japan"),
   capital("so", "tsushima fuchu|japan", "Tsushima Fuchu", "Japan"),
   capital("shoni", "nagasaki|japan", "Nagasaki", "Japan"),
-  capital("nagao", "naoetsu|japan", "Naoetsu", "Japan", { seatCity: "Kasugayama" }),
-  capital("ando", "tsuchizaki minato|japan", "Tsuchizaki Minato", "Japan", { seatCity: "Hiyama" }),
+  capital("nagao", "naoetsu|japan", "Naoetsu", "Japan", { trueCapital: capitalReference("kasugayama|japan", "Kasugayama", "Japan") }),
+  capital("ando", "tsuchizaki minato|japan", "Tsuchizaki Minato", "Japan", { trueCapital: capitalReference("hiyama|japan", "Hiyama", "Japan") }),
   capital("kakizaki", "kaminokuni|japan", "Kaminokuni", "Japan"),
-  capital("ryukyu", "naha|japan", "Naha", "Japan", { seatCity: "Shuri" }),
-  capital("ainu", "akkeshi kotan|japan", "Akkeshi Kotan", "Japan"),
+  capital("ryukyu", "naha|japan", "Naha", "Japan", { trueCapital: capitalReference("shuri|japan", "Shuri", "Japan") }),
+  capital("ainu", "akkeshi kotan|japan", "Akkeshi Kotan", "Japan", {
+    trueCapital: Object.freeze({kind: "local-councils"})
+  }),
   capital("joseon", "seoul|republic of korea", "Seoul", "Republic of Korea")
 ]);
 
-const FACTION_CAPITALS_BY_ID = new Map(FACTION_CAPITALS_1522.map((item) => [item.factionId, item]));
-const FACTION_CAPITALS_BY_CITY_ID = new Map(FACTION_CAPITALS_1522.map((item) => [item.cityId, item]));
+const FACTION_SEA_CAPITALS_BY_ID = new Map(FACTION_SEA_CAPITALS_1522.map((item) => [item.factionId, item]));
+const FACTION_SEA_CAPITALS_BY_CITY_ID = new Map(FACTION_SEA_CAPITALS_1522.map((item) => [item.cityId, item]));
 
 const ALLIANCES_1522 = Object.freeze([
   ["england", "spain"],
@@ -225,7 +239,6 @@ const ALLIANCES_1522 = Object.freeze([
   ["habsburg", "papal-states"],
   ["burgundian-netherlands", "papal-states"],
   ["spain", "papal-states"],
-  ["kazan", "crimea"],
   ["ming", "joseon"]
 ]);
 
@@ -324,7 +337,6 @@ const WARS_1522 = Object.freeze([
   ["portugal", "gujarat"],
   ["portugal", "morocco"],
   ["muscovy", "poland-lithuania"],
-  ["muscovy", "kazan"],
   ["sweden", "denmark-norway"]
 ]);
 
@@ -357,10 +369,12 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
   cityRule("wittenberg|germany", "electoral-saxony"),
   cityRule("berlin|germany", "brandenburg"),
   cityRule("leipzig|germany", "ducal-saxony"),
+  cityRule("dresden|germany", "ducal-saxony"),
   cityRule("liege|belgium", "liege"),
   cityRule("magdeburg|germany", "magdeburg"),
   cityRule("utrecht|netherlands", "utrecht"),
   cityRule("soest|germany", "cleves-mark"),
+  cityRule("wesel|germany", "cleves-mark"),
   cityRule("hannover|germany", "calenberg"),
   cityRule("augsberg|germany", "augsburg"),
   cityRule("cologne|germany", "cologne"),
@@ -451,10 +465,11 @@ const CITY_FACTION_OVERRIDES = uniqueMap([
 
   cityRule("sarai|russian federation", NEUTRAL_FACTION_ID),
   cityRule("astrakhan|russian federation", NEUTRAL_FACTION_ID),
-  cityRule("kazan|russian federation", "kazan"),
+  cityRule("kazan|russian federation", NEUTRAL_FACTION_ID),
   cityRule("feodosia|russian federation", "ottoman"),
   cityRule("sudak|russian federation", "ottoman"),
   cityRule("bakhchiserai|ukraine", "crimea"),
+  cityRule("kezlev|ukraine", "crimea"),
 
   cityRule("stockholm|sweden", "denmark-norway"),
   cityRule("kalmar|sweden", "denmark-norway"),
@@ -567,32 +582,32 @@ export function factionExistsIn1522(factionId) {
   return factionById(factionId).emergent !== true;
 }
 
-export function factionCapitalForId(factionId) {
+export function factionSeaCapitalForId(factionId) {
   assertFactionId(factionId);
-  const capitalSpec = FACTION_CAPITALS_BY_ID.get(factionId);
+  const capitalSpec = FACTION_SEA_CAPITALS_BY_ID.get(factionId);
   if (!capitalSpec) throw new Error(`Faction has no 1522 water-accessible capital: ${factionId}`);
   return capitalSpec;
 }
 
-export function factionCapitalForCity(city) {
+export function factionSeaCapitalForCity(city) {
   if (!city || typeof city !== "object") throw new Error("Capital lookup requires a city");
-  return FACTION_CAPITALS_BY_CITY_ID.get(requireCityId(city)) || null;
+  return FACTION_SEA_CAPITALS_BY_CITY_ID.get(requireCityId(city)) || null;
 }
 
-export function factionCapitalCityRecords1522() {
-  return FACTION_CAPITALS_1522.filter((capitalSpec) => (
+export function factionSeaCapitalCityRecords1522() {
+  return FACTION_SEA_CAPITALS_1522.filter((capitalSpec) => (
     Number.isFinite(capitalSpec.lat) &&
     Number.isFinite(capitalSpec.lon) &&
     Number.isInteger(capitalSpec.population)
   ));
 }
 
-export function markFactionCapitalsOnPorts(ports) {
+export function markFactionSeaCapitalsOnPorts(ports) {
   if (!Array.isArray(ports)) throw new Error("Faction capitals require a list of water-accessible ports");
   const portsByCityId = new Map(ports.map((port) => [requireCityId(port), port]));
   const capitalPorts = new Map();
 
-  for (const capitalSpec of FACTION_CAPITALS_1522) {
+  for (const capitalSpec of FACTION_SEA_CAPITALS_1522) {
     const port = portsByCityId.get(capitalSpec.cityId);
     if (!port) {
       throw new Error(
@@ -645,6 +660,15 @@ function faction(id, name, shortName, adjective, kind, article = null, details =
   return Object.freeze({ id, name, shortName, adjective, kind, article, emergent: details.emergent === true });
 }
 
+function capitalReference(cityId, city, country) {
+  requireCityId({ cityId }, "True capital");
+  return Object.freeze({ kind: "city", cityId, city, country });
+}
+
+export function factionTrueCapitalForId(factionId) {
+  return factionSeaCapitalForId(factionId).trueCapital;
+}
+
 function capital(factionId, cityId, city, country, details = {}) {
   return Object.freeze({
     factionId,
@@ -654,7 +678,7 @@ function capital(factionId, cityId, city, country, details = {}) {
     lat: details.lat,
     lon: details.lon,
     population: details.population,
-    seatCity: details.seatCity || city
+    trueCapital: details.trueCapital || capitalReference(cityId, city, country)
   });
 }
 
@@ -730,17 +754,17 @@ function validateFactionCapitalRules() {
     ))
     .map((faction) => faction.id)
     .sort();
-  const capitalFactionIds = FACTION_CAPITALS_1522.map((capitalSpec) => capitalSpec.factionId).sort();
+  const capitalFactionIds = FACTION_SEA_CAPITALS_1522.map((capitalSpec) => capitalSpec.factionId).sort();
   if (JSON.stringify(capitalFactionIds) !== JSON.stringify(expectedFactionIds)) {
     throw new Error("Faction capital registry must cover every non-special faction exactly once");
   }
-  if (FACTION_CAPITALS_BY_ID.size !== FACTION_CAPITALS_1522.length) {
+  if (FACTION_SEA_CAPITALS_BY_ID.size !== FACTION_SEA_CAPITALS_1522.length) {
     throw new Error("Faction capital registry contains duplicate faction ids");
   }
-  if (FACTION_CAPITALS_BY_CITY_ID.size !== FACTION_CAPITALS_1522.length) {
+  if (FACTION_SEA_CAPITALS_BY_CITY_ID.size !== FACTION_SEA_CAPITALS_1522.length) {
     throw new Error("Faction capital registry contains duplicate city keys");
   }
-  for (const capitalSpec of FACTION_CAPITALS_1522) {
+  for (const capitalSpec of FACTION_SEA_CAPITALS_1522) {
     assertFactionId(capitalSpec.factionId);
     if (!nonEmptyString(capitalSpec.city) || !nonEmptyString(capitalSpec.country)) {
       throw new Error(`Invalid faction capital city for ${capitalSpec.factionId}`);

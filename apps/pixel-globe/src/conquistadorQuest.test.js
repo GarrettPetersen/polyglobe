@@ -29,6 +29,7 @@ import {
   isConquistadorCompanyReplenishmentPort,
   migrateConquistadorQuestMemory,
   recordConquistadorAssaultFailure,
+  reconcileConquistadorSovereignty,
   replenishConquistadorCompany,
   recordConquistadorTargetCapture
 } from "./conquistadorQuest.js";
@@ -45,6 +46,8 @@ import {
   effectivePortFactionId,
   recordPortCapture
 } from "./portConquest.js";
+import { FACTION_SEA_CAPITALS_1522 } from "./factions.js";
+import { createPoliticsView } from "./politics.js";
 
 const DAY = 24 * 60;
 
@@ -135,12 +138,14 @@ test("capturing Chan Chan renames Trujillo and advances inland conquest over one
   assert.equal(effectivePortFactionId(conquest, cuzco), "inca");
 
   const transferMinute = quest.transferSchedule[0].simMinute;
-  const transition = advanceConquistadorCampaign(quest, conquest, ports, transferMinute);
+  assert.throws(() => advanceConquistadorCampaign(quest, conquest, ports, transferMinute), /requires the functional port catalog/);
+  const transition = advanceConquistadorCampaign(quest, conquest, ports, transferMinute, { ports });
   assert.equal(transition.transfers.length, 1);
   assert.equal(effectivePortFactionId(conquest, cuzco), "spain");
   assert.equal(quest.stage, CONQUISTADOR_STAGE_CAMPAIGN);
+  assert.ok(conquest.collapsedFactionIds.includes("inca"), "the government ends when its final capital falls, before the reward date");
 
-  const final = advanceConquistadorCampaign(quest, conquest, ports, quest.rewardReadyMinute);
+  const final = advanceConquistadorCampaign(quest, conquest, ports, quest.rewardReadyMinute, { ports });
   assert.equal(final.rewardReady, true);
   assert.equal(quest.stage, CONQUISTADOR_STAGE_REWARD_READY);
   assert.ok(conquest.collapsedFactionIds.includes("inca"));
@@ -150,6 +155,75 @@ test("capturing Chan Chan renames Trujillo and advances inland conquest over one
   assert.equal(CONQUISTADOR_REWARD_DOUBLOONS, 20000);
   assert.equal(origin.factionId, "spain");
 });
+
+for (const retreatPortSurvives of [false, true]) {
+  test(`every conquistador campaign phase has valid politics and functional capitals; retreat port=${retreatPortSurvives}`, () => {
+    const state = createGameState({ cargoCapacity: 20 });
+    const citiesById = new Map(FACTION_SEA_CAPITALS_1522.map((capital, index) => [capital.cityId,
+      city(5000 + index, capital.city, capital.country, capital.lat || 0, capital.lon || 0, capital.factionId,
+        { cityId: capital.cityId, isFactionCapital: true, capitalOfFactionId: capital.factionId })]));
+    for (const port of questPorts()) citiesById.set(port.cityId, port);
+    const arequipa = city(6000, "Arequipa", "Peru", -16.4, -71.5, "inca");
+    citiesById.set(arequipa.cityId, arequipa);
+    if (retreatPortSurvives) {
+      const bristol = city(6001, "Bristol", "United Kingdom", 51.45, -2.6, "england");
+      citiesById.set(bristol.cityId, bristol);
+    }
+    const cities = [...citiesById.values()];
+    const ports = cities.filter((entry) => entry !== arequipa);
+    const quest = state.memory.quests.conquistador;
+    const conquest = state.memory.conquest;
+    acceptConquistadorQuest(quest, ports);
+    for (const stage of CONQUISTADOR_FETCH_STAGES) completeConquistadorFetchStage(quest, stage.id);
+    beginConquistadorExpedition(quest, { eligible: true });
+    const target = citiesById.get("chanchan|peru");
+    const event = recordPortCapture(conquest, target, "spain", 1000, "player");
+    recordConquistadorTargetCapture(quest, conquest, cities, event, 1000);
+    // Another conquest after the columns' schedule was set gives the government
+    // somewhere to retreat; its ownership must survive the scripted campaign.
+    if (retreatPortSurvives) recordPortCapture(conquest, citiesById.get("bristol|united kingdom"), "inca", 1001, "npc:test");
+    const snapshots = [];
+    const checkPolitics = (minute) => {
+      applyPortConquestOwnership(conquest, cities);
+      const view = createPoliticsView(state, minute, cities);
+      for (const card of view.cards.filter(({faction}) => faction.id !== "pirate")) {
+        assert.ok(ports.some((port) => port.cityId === card.capital.portId && port.factionId === card.faction.id),
+          `${card.faction.id} needs a functioning capital at minute ${minute}`);
+      }
+      snapshots.push(structuredClone({ quest, conquest }));
+    };
+    checkPolitics(1000);
+    for (const transfer of quest.transferSchedule) {
+      advanceConquistadorCampaign(quest, conquest, cities, transfer.simMinute, { ports });
+      checkPolitics(transfer.simMinute);
+    }
+    advanceConquistadorCampaign(quest, conquest, cities, quest.rewardReadyMinute, { ports });
+    checkPolitics(quest.rewardReadyMinute);
+    completeConquistadorQuest(quest, quest.rewardReadyMinute);
+    checkPolitics(quest.rewardReadyMinute);
+    assert.equal(conquest.collapsedFactionIds.includes("inca"), !retreatPortSurvives);
+    if (retreatPortSurvives) assert.equal(conquest.factionCapitalOverrides.inca, "bristol|united kingdom");
+    assert.equal(effectivePortFactionId(conquest, arequipa), "spain");
+
+    // Reproduce a released save after Cuzco fell but before sovereignty was
+    // reconciled. Repair must precede opening Politics and preserve the clock.
+    Object.assign(quest, snapshots[1].quest);
+    Object.assign(conquest, snapshots[1].conquest);
+    conquest.collapsedFactionIds = conquest.collapsedFactionIds.filter((id) => id !== "inca");
+    delete conquest.factionCapitalOverrides.inca;
+    delete conquest.factionSuccessors.inca;
+    conquest.events = conquest.events.filter(({kind}) => kind !== "faction-collapse");
+    const schedule = structuredClone(quest.transferSchedule);
+    const rewardMinute = quest.rewardReadyMinute;
+    reconcileConquistadorSovereignty(quest, conquest, cities, { ports });
+    checkPolitics(quest.transferSchedule[0].simMinute);
+    const repaired = structuredClone(conquest);
+    reconcileConquistadorSovereignty(quest, conquest, cities, { ports });
+    assert.deepEqual(conquest, repaired);
+    assert.deepEqual(quest.transferSchedule, schedule);
+    assert.equal(quest.rewardReadyMinute, rewardMinute);
+  });
+}
 
 test("Pizarro's company starts favored, learns from defeats, and reforms at Spanish ports", () => {
   const ports = questPorts();

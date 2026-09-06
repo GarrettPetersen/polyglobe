@@ -708,26 +708,6 @@
       ]
     },
     {
-      "id": "kazan",
-      "factionName": "Kazan Khanate",
-      "width": 32,
-      "height": 20,
-      "file": "kazan.png",
-      "evidence": "reconstruction",
-      "representation": "Kazan Zilant banner tradition",
-      "accuracyNote": "A yellow banner with a black winged dragon is traditionally attributed to the khanate, but secure surviving images are later. This is explicitly a game-facing reconstruction, not a modern Kazan flag.",
-      "sources": [
-        {
-          "label": "Kazan city library: history of the Kazan banner",
-          "url": "https://kitaphane.tatarstan.ru/eng/state_symbols/flag_kazan.htm"
-        },
-        {
-          "label": "Heraldic Council account of the Zilant tradition",
-          "url": "https://realnoevremya.com/articles/598"
-        }
-      ]
-    },
-    {
       "id": "crimea",
       "factionName": "Crimean Khanate",
       "width": 32,

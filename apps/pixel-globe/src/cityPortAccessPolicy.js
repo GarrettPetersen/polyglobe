@@ -6,12 +6,16 @@ import { requireEntityId } from "./entityIds.js";
 export const INLAND_CITY_IDS_1522 = Object.freeze([
   "aleppo|syria",
   "bursa|turkey",
+  "bakhchiserai|ukraine",
   "chillicothe|united states of america",
   "granada|spain",
   "jerusalem|israel",
+  "kazan|russian federation",
+  "leipzig|germany",
   "mecca|saudi arabia",
   "merida|mexico",
-  "nimes|france"
+  "nimes|france",
+  "soest|germany"
 ]);
 
 // Canonical replacements for sailing references created before the inland
@@ -22,12 +26,20 @@ export const INLAND_CITY_IDS_1522 = Object.freeze([
 export const INLAND_CITY_SAILING_GATEWAYS_1522 = Object.freeze([
   gateway("aleppo|syria", "antioch|syria/turkey"),
   gateway("bursa|turkey", "mudanya|turkey"),
+  gateway("bakhchiserai|ukraine", "kezlev|ukraine"),
   gateway("chillicothe|united states of america", "wendat village|canada"),
   gateway("granada|spain", "almeria|spain"),
   gateway("jerusalem|israel", "jaffa|israel"),
   gateway("mecca|saudi arabia", "jeddah|saudi arabia"),
   gateway("merida|mexico", "chakan putum|mexico"),
-  gateway("nimes|france", "arles|france")
+  gateway("nimes|france", "arles|france"),
+  gateway("leipzig|germany", "dresden|germany"),
+  gateway("soest|germany", "wesel|germany"),
+  // Recovery for released saves only: the erroneous Kazan dock was on the
+  // White Sea, beside Kholmogory. There is no navigable Volga–White Sea route
+  // in 1522. Keep existing passengers deliverable at that voyage's coast;
+  // never generate new sailing destinations for the inland city.
+  gateway("kazan|russian federation", "kholmogory|russian federation")
 ]);
 
 const INLAND_CITY_ID_SET = new Set(INLAND_CITY_IDS_1522);

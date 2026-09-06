@@ -1,3 +1,4 @@
+import { MAX_SETTLEMENT_PLACEMENT_DISTANCE_KM } from "../src/settlementGeography.js";
 import { readFile } from "node:fs/promises";
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "../src/cityCatalogData.js";
 import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
@@ -7,7 +8,7 @@ import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
 import { WORLD_WATERWAY_INVARIANTS, boundedNavigablePathExists } from "../src/worldMapInvariants.js";
 import { isolatedCoastalWaterRegions, riverOpeningAudit, settlementPlacementDisplacements } from "../src/worldGeographyAudit.js";
 import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
-import { placeCityCatalogOnWorld, placeColonizationTargetsOnWorld } from "../src/worldPortPlacement.js";
+import { placeCityCatalogOnWorld, placeColonizationTargetsOnWorld, portCitiesOnWorld, validateCityPortAccessCatalog } from "../src/worldPortPlacement.js";
 import { WORLD_GLOBE_SUBDIVISIONS } from "../src/worldScale.js";
 
 const sharedRoot = new URL("../../../examples/globe-demo/public/", import.meta.url);
@@ -38,14 +39,30 @@ for (const invariant of WORLD_WATERWAY_INVARIANTS) {
 const placementOptions = { graph, earthRows, directionIndex, ...navigation };
 const cities = placeCityCatalogOnWorld({ ...placementOptions, cities: loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR) });
 const colonies = placeColonizationTargetsOnWorld({ ...placementOptions, targets: COLONIZATION_TARGETS, occupiedCities: [...cities.values()] });
+const verifiedWaterwaysAndBarriers = WORLD_WATERWAY_INVARIANTS.length - failures.length;
+const ports = portCitiesOnWorld(cities, placementOptions);
+validateCityPortAccessCatalog(cities, ports, placementOptions);
+const riverOpenings = riverOpeningAudit({graph, earthRows, navigation});
+const isolatedCoastalWaterCandidates = isolatedCoastalWaterRegions({graph, earthRows});
+const displacedSettlementCandidates = settlementPlacementDisplacements({graph,
+  settlements: [...cities.values(), ...colonies], minimumDistanceKm: MAX_SETTLEMENT_PLACEMENT_DISTANCE_KM});
+for (const network of riverOpenings.networksWithoutOutlet) {
+  failures.push(`River network has no reviewed outlet: ${network.riverTileIds[0]}`);
+}
+for (const {tileIds} of isolatedCoastalWaterCandidates) {
+  if (!tileIds.some((id) => navigation.reachableNavigationMask[id] === 1)) {
+    failures.push(`Marine inlet has no ocean connection: ${tileIds[0]}`);
+  }
+}
+for (const settlement of displacedSettlementCandidates) failures.push(`Displaced settlement: ${settlement.cityId}`);
 const report = {
-  verifiedWaterwaysAndBarriers: WORLD_WATERWAY_INVARIANTS.length - failures.length,
+  verifiedWaterwaysAndBarriers,
   failures,
-  riverOpenings: riverOpeningAudit({ graph, earthRows, navigation }),
+  riverOpenings,
   // Candidate lists require map review: lagoons and explicit harbor choices
   // must not become automatic terrain edits or silently relocated settlements.
-  isolatedCoastalWaterCandidates: isolatedCoastalWaterRegions({ graph, earthRows }),
-  displacedSettlementCandidates: settlementPlacementDisplacements({ graph, settlements: [...cities.values(), ...colonies] })
+  isolatedCoastalWaterCandidates,
+  displacedSettlementCandidates
 };
 console.log(JSON.stringify(report, null, 2));
 if (failures.length > 0) process.exitCode = 1;

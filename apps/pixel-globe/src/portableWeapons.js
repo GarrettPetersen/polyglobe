@@ -47,7 +47,7 @@ const EUROPEAN_FACTIONS = new Set([
   "sweden", "denmark-norway"
 ]);
 const ISLAMIC_BOW_FACTIONS = new Set([
-  "ottoman", "crimea", "kazan", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"
+  "ottoman", "crimea", "morocco", "safavid", "hormuz", "gujarat", "delhi", "mughal", "bengal"
 ]);
 const SOUTH_ASIAN_FACTIONS = new Set(["vijayanagara", "gujarat", "bengal", "delhi", "mughal"]);
 const EAST_ASIAN_CROSSBOW_FACTIONS = new Set(["ming", "joseon"]);

@@ -27,7 +27,6 @@ const HISTORICAL_CONQUEST_TARGETS = historicalTargets([
   ["ottoman", CANONICAL_PORTS.BAGHDAD, 2],
   ["ottoman", CANONICAL_PORTS.TRIPOLI, 1.5],
   ["mughal", CANONICAL_PORTS.DELHI, 3],
-  ["muscovy", CANONICAL_PORTS.KAZAN, 3],
   ["spain", CANONICAL_PORTS.TUNIS, 2]
 ]);
 

@@ -122,8 +122,9 @@ test("legacy tile collisions resolve by saved topology rather than current tile 
 
 test("orphan recovery repairs escaped old tiles without rewriting current placed cities", () => {
   const orphaned = orphanedSubdivisionSevenPortTileIds(currentPortBake.endpoints);
-  assert.equal(orphaned.get(160888), 643413, "old Utrecht must recover to current Utrecht");
-  assert.equal(orphaned.has(160923), false, "current York must not be mistaken for old Hull");
+  assert.equal(orphaned.has(160888), false, "Utrecht now occupies its geographic tile");
+  assert.equal(orphaned.get(160923), 643561, "escaped subdivision-seven Hull keeps its own identity");
+  assert.equal(orphaned.has(643564), false, "current York keeps its own tile");
   assert.equal(orphaned.has(366350), false, "current Tidore must not be mistaken for old Makian");
 });
 

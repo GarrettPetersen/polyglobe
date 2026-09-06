@@ -23,7 +23,7 @@ const PORT_RECOGNITION_VOICE = Object.freeze({
 const CHINESE_FACTION_IDS = new Set(["ming", "joseon"]);
 const ISLAMIC_FACTION_IDS = new Set([
   "ottoman", "safavid", "hormuz", "hejaz", "morocco", "songhai", "gujarat",
-  "bengal", "delhi", "mughal", "ternate", "tidore", "kazan", "crimea"
+  "bengal", "delhi", "mughal", "ternate", "tidore", "crimea"
 ]);
 const INDIAN_OCEAN_FACTION_IDS = new Set(["vijayanagara", "ayutthaya"]);
 const AFRICAN_FACTION_IDS = new Set(["ethiopia"]);

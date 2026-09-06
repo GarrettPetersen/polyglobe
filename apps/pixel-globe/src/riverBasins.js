@@ -32,7 +32,7 @@ const NAMED_RIVER_BASINS = Object.freeze([
   basin(RIVER_BASIN_ID.EAST_CHINA_NETWORK, "Yangtze-Yellow river network", 61636),
   basin(RIVER_BASIN_ID.AMUR, "Amur", 15074),
   basin(RIVER_BASIN_ID.PEARL, "Pearl", 61752),
-  basin(RIVER_BASIN_ID.RHINE, "Rhine", 161056),
+  basin(RIVER_BASIN_ID.RHINE, "Rhine", 161056, 160882),
   basin(RIVER_BASIN_ID.DANUBE_BLACK_SEA_NETWORK, "Danube-Black Sea river network", 24784),
   basin(RIVER_BASIN_ID.VOLGA_CASPIAN_NETWORK, "Volga-Caspian river network", 24872),
   basin(RIVER_BASIN_ID.ELBE_ODER_NETWORK, "Elbe-Oder river network", 98242),
@@ -44,13 +44,13 @@ const NAMED_RIVER_BASINS = Object.freeze([
   basin(RIVER_BASIN_ID.IRRAWADDY, "Irrawaddy", 93194)
 ]);
 
-function basin(id, name, subdivisionSevenAnchorTileId) {
+function basin(id, name, subdivisionSevenAnchorTileId, subdivisionEightAnchorTileId = subdivisionSevenAnchorTileId) {
   return Object.freeze({
     id,
     name,
     anchorTileBySubdivisions: Object.freeze({
       7: subdivisionSevenAnchorTileId,
-      8: subdivisionSevenAnchorTileId
+      8: subdivisionEightAnchorTileId
     })
   });
 }

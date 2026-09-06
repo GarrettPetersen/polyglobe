@@ -1,6 +1,7 @@
 import { withColonialFounding } from "./colonialCities.js";
 import { greatCircleDistanceKm } from "./worldDistance.js";
 import { cityTerritoryId, requireEntityId } from "./entityIds.js";
+import { cityMustRemainInland } from "./cityPortAccessPolicy.js";
 export { cityMustRemainInland } from "./cityPortAccessPolicy.js";
 
 export const CITY_WATER_ACCESS_SCORE_BONUS = 45000;
@@ -375,7 +376,7 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     islandSettlement: true,
     marketGoods: ["fish", "salt", "perfume"]
   }),
-  manualVillage1522("edo|japan", "Edo", "Japan", 35.6896, 139.692, 1500, {
+  manualVillage1522("edo|japan", "Edo", "Japan", 35.686, 139.754, 1500, {
     cityType: "east-asian",
     manualRegion: "edo-bay",
     marketGoods: ["fish", "rice", "timber"]
@@ -796,6 +797,7 @@ export function cityHasWaterAccessIntent(city) {
 }
 
 export function cityRequiresPortAccess(city) {
+  if (cityMustRemainInland(city)) return false;
   return Boolean(
     city?.declaredCapitalFactionId ||
     city?.requiredTradePort ||

@@ -9,19 +9,20 @@ import {
   DIPLOMACY_NEUTRAL,
   DIPLOMACY_WAR,
   FACTIONS,
-  FACTION_CAPITALS_1522,
+  FACTION_SEA_CAPITALS_1522,
   NEUTRAL_FACTION_ID,
   PIRATE_FACTION_ID,
   diplomacyBetween,
-  factionCapitalCityRecords1522,
-  factionCapitalForCity,
-  factionCapitalForId,
+  factionSeaCapitalCityRecords1522,
+  factionSeaCapitalForCity,
+  factionSeaCapitalForId,
+  factionTrueCapitalForId,
   factionExistsIn1522,
   factionHasFlag,
   factionIdForCity1522,
   factionNounPhrase,
   migrateFactionIdTo1522,
-  markFactionCapitalsOnPorts
+  markFactionSeaCapitalsOnPorts
 } from "./factions.js";
 
 test("neutral allegiance has no flag while real factions do", () => {
@@ -112,8 +113,6 @@ test("matrix captures clear 1522 alliances, wars, and neutral relationships", ()
   assert.equal(diplomacyBetween("ming", "ryukyu"), DIPLOMACY_FRIENDLY);
   assert.equal(diplomacyBetween("japan", "ainu"), DIPLOMACY_HOSTILE);
   assert.equal(diplomacyBetween("florence", "papal-states"), DIPLOMACY_FRIENDLY);
-  assert.equal(diplomacyBetween("kazan", "crimea"), DIPLOMACY_ALLY);
-  assert.equal(diplomacyBetween("kazan", "muscovy"), DIPLOMACY_WAR);
   assert.equal(diplomacyBetween("inca", "muscovy"), DIPLOMACY_NEUTRAL);
   for (const faction of FACTIONS) {
     if (faction.id !== PIRATE_FACTION_ID) {
@@ -207,7 +206,7 @@ test("overseas possessions and uncertain small powers are handled explicitly", (
   assert.equal(factionIdForCity1522({ cityId: "kiev|ukraine", city: "Kiev", country: "Ukraine" }), "poland-lithuania");
   assert.equal(factionIdForCity1522({ cityId: "florence|italy", city: "Florence", country: "Italy" }), "florence");
   assert.equal(factionIdForCity1522({ cityId: "pisa|italy", city: "Pisa", country: "Italy" }), "florence");
-  assert.equal(factionIdForCity1522({ cityId: "kazan|russian federation", city: "Kazan", country: "Russian Federation" }), "kazan");
+  assert.equal(factionIdForCity1522({ cityId: "kazan|russian federation", city: "Kazan", country: "Russian Federation" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ cityId: "chiang mai|thailand", city: "Chiang Mai", country: "Thailand" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ cityId: "banda village|indonesia", city: "Banda Village", country: "Indonesia" }), NEUTRAL_FACTION_ID);
   assert.equal(factionIdForCity1522({ cityId: "unknown|unknown", city: "Unknown", country: "Unknown" }), NEUTRAL_FACTION_ID);
@@ -241,29 +240,32 @@ test("every sovereign faction has one declared water-accessible capital", () => 
     .sort();
 
   assert.deepEqual(
-    FACTION_CAPITALS_1522.map((capital) => capital.factionId).sort(),
+    FACTION_SEA_CAPITALS_1522.map((capital) => capital.factionId).sort(),
     sovereignFactionIds
   );
 
-  for (const capital of FACTION_CAPITALS_1522) {
-    assert.equal(factionCapitalForId(capital.factionId), capital);
-    assert.equal(factionCapitalForCity(capital), capital);
+  for (const capital of FACTION_SEA_CAPITALS_1522) {
+    assert.equal(factionSeaCapitalForId(capital.factionId), capital);
+    assert.equal(factionSeaCapitalForCity(capital), capital);
     assert.equal(factionIdForCity1522(capital), capital.factionId, `${capital.city}, ${capital.country}`);
   }
-  assert.equal(factionCapitalForId("ming").city, "Beijing");
-  assert.equal(factionCapitalForId("scotland").city, "Edinburgh");
-  assert.equal(factionCapitalForId("sweden").city, "Soderkoping");
-  assert.equal(factionCapitalForId("ternate").city, "Ternate");
-  assert.equal(factionCapitalForId("tidore").city, "Tidore");
-  assert.equal(factionCapitalForId("hospitallers").city, "Rhodes");
+  assert.equal(factionSeaCapitalForId("ming").city, "Beijing");
+  assert.equal(factionSeaCapitalForId("scotland").city, "Edinburgh");
+  assert.equal(factionSeaCapitalForId("sweden").city, "Soderkoping");
+  assert.equal(factionSeaCapitalForId("ternate").city, "Ternate");
+  assert.equal(factionSeaCapitalForId("tidore").city, "Tidore");
+  assert.equal(factionSeaCapitalForId("hospitallers").city, "Rhodes");
 });
 
 test("required capital port records cover factions missing a suitable catalog city", () => {
   assert.deepEqual(
-    factionCapitalCityRecords1522().map((capital) => `${capital.factionId}:${capital.city}`).sort(),
+    factionSeaCapitalCityRecords1522().map((capital) => `${capital.factionId}:${capital.city}`).sort(),
     [
       "brandenburg:Berlin",
+      "cleves-mark:Wesel",
       "cologne-electorate:Bonn",
+      "crimea:Kezlev",
+      "ducal-saxony:Dresden",
       "electoral-saxony:Wittenberg",
       "ethiopia:Massawa",
       "muscovy:Kholmogory",
@@ -273,16 +275,16 @@ test("required capital port records cover factions missing a suitable catalog ci
 });
 
 test("capital resolver annotates only water-accessible ports and fails loudly otherwise", () => {
-  const ports = FACTION_CAPITALS_1522.map((capital, index) => ({
+  const ports = FACTION_SEA_CAPITALS_1522.map((capital, index) => ({
     ...capital,
     tileId: index + 1,
     displayCity: capital.city,
     factionId: capital.factionId
   }));
-  const capitalPorts = markFactionCapitalsOnPorts(ports);
+  const capitalPorts = markFactionSeaCapitalsOnPorts(ports);
 
-  assert.equal(capitalPorts.size, FACTION_CAPITALS_1522.length);
-  for (const capital of FACTION_CAPITALS_1522) {
+  assert.equal(capitalPorts.size, FACTION_SEA_CAPITALS_1522.length);
+  for (const capital of FACTION_SEA_CAPITALS_1522) {
     const port = capitalPorts.get(capital.factionId);
     assert.equal(port.city, capital.city);
     assert.equal(port.isFactionCapital, true);
@@ -290,14 +292,49 @@ test("capital resolver annotates only water-accessible ports and fails loudly ot
   }
 
   assert.throws(
-    () => markFactionCapitalsOnPorts(ports.filter((port) => port.factionId !== "england")),
+    () => markFactionSeaCapitalsOnPorts(ports.filter((port) => port.factionId !== "england")),
     /england capital London, United Kingdom is not water accessible/
   );
 
   assert.throws(
-    () => markFactionCapitalsOnPorts(ports.map((port) => (
+    () => markFactionSeaCapitalsOnPorts(ports.map((port) => (
       port.factionId === "england" ? { ...port, factionId: "neutral" } : port
     ))),
     /London, United Kingdom belongs to neutral, not england/
   );
+});
+
+
+test("inland sovereign seats remain distinct from functional sea capitals", () => {
+  for (const [factionId, seatId, seaId] of [
+    ["muscovy", "moscow|russian federation", "kholmogory|russian federation"],
+    ["cleves-mark", "cleves|germany", "wesel|germany"],
+    ["crimea", "bakhchiserai|ukraine", "kezlev|ukraine"],
+    ["ryukyu", "shuri|japan", "naha|japan"],
+    ["safavid", "tabriz|iran", "siraf|iran"]
+  ]) {
+    assert.equal(factionTrueCapitalForId(factionId).cityId, seatId);
+    assert.equal(factionSeaCapitalForId(factionId).cityId, seaId);
+  }
+  for (const capital of FACTION_SEA_CAPITALS_1522) {
+    assert.ok(["city", "itinerant-court", "local-councils"].includes(capital.trueCapital.kind));
+    if (capital.trueCapital.kind === "city") {
+      assert.ok(capital.trueCapital.cityId);
+      assert.ok(capital.trueCapital.city);
+    }
+  }
+});
+
+test("a functional sea capital does not invent a fixed historical royal seat", () => {
+  for (const factionId of ["spain", "ethiopia"]) {
+    assert.equal(factionTrueCapitalForId(factionId).kind, "itinerant-court");
+    assert.ok(factionSeaCapitalForId(factionId).cityId);
+  }
+  assert.equal(factionTrueCapitalForId("ainu").kind, "local-councils");
+});
+
+test("landlocked Kazan remains a Tatar settlement without an invented maritime faction", () => {
+  assert.equal(FACTIONS.some(({id}) => id === "kazan"), false);
+  assert.equal(migrateFactionIdTo1522("kazan"), NEUTRAL_FACTION_ID);
+  assert.throws(() => factionSeaCapitalForId("kazan"), /Unknown faction/);
 });

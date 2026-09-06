@@ -3,7 +3,7 @@ import test from "node:test";
 
 import {
   FACTIONS,
-  FACTION_CAPITALS_1522,
+  FACTION_SEA_CAPITALS_1522,
   NEUTRAL_FACTION_ID,
   factionExistsIn1522
 } from "./factions.js";
@@ -139,7 +139,7 @@ test("politics cards name each nation's capital while pirates have none", () => 
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
 
-  for (const capital of FACTION_CAPITALS_1522) {
+  for (const capital of FACTION_SEA_CAPITALS_1522) {
     assert.equal(
       politicsCard(view, capital.factionId).capital.city,
       capital.city,
@@ -155,7 +155,7 @@ test("politics cards name each nation's capital while pirates have none", () => 
 
 test("politics cards follow a restored nation's current capital", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
-  const cities = FACTION_CAPITALS_1522.map((capital, index) => ({
+  const cities = FACTION_SEA_CAPITALS_1522.map((capital, index) => ({
     cityId: `${capital.city.toLowerCase()}|${capital.factionId}`,
     tileId: index + 1,
     city: capital.factionId === "hospitallers" ? "Birgu" : capital.city,
@@ -268,12 +268,11 @@ test("Imperial Estates show a constitutional connection to the elected Emperor",
   }]);
 });
 
-test("Metz, Florence, and Kazan expose their constitutional and diplomatic ties", () => {
+test("Metz and Florence expose their constitutional and diplomatic ties", () => {
   const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
   const view = createPoliticsView(state);
   const metz = politicsCard(view, "metz");
   const florence = politicsCard(view, "florence");
-  const kazan = politicsCard(view, "kazan");
 
   assert.deepEqual(metz.constitutionalConnections, [{
     kind: "imperial-constitution",
@@ -283,8 +282,6 @@ test("Metz, Florence, and Kazan expose their constitutional and diplomatic ties"
   assert.equal(metz.dependencies.length, 0);
   assert.ok(relationshipFactionIds(florence, "friendly").includes("papal-states"));
   assert.ok(relationshipFactionIds(florence, "friendly").includes("spain"));
-  assert.ok(relationshipFactionIds(kazan, "ally").includes("crimea"));
-  assert.ok(relationshipFactionIds(kazan, "war").includes("muscovy"));
 });
 
 test("politics cards show embargo issuers, targets, and Papal followers without hiding wars", () => {

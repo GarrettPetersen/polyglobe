@@ -25,7 +25,7 @@ test("a new voyage starts with independent Imperial constitutional state", () =>
   assert.equal(createPoliticsView(state).imperial.authority, 46);
 });
 
-test("version 84 voyages gain Metz, Florence, and Kazan without rewriting existing history", () => {
+test("version 84 voyages gain Metz and Florence without rewriting existing history", () => {
   const fixture = JSON.parse(readFileSync(
     new URL("./test-fixtures/save-schemas/canonical-states-v84.json", import.meta.url),
     "utf8"
@@ -41,7 +41,7 @@ test("version 84 voyages gain Metz, Florence, and Kazan without rewriting existi
   assert.equal(migrated.version, GAME_STATE_VERSION);
   assert.equal(migrated.relations.factionReputation.metz, 0);
   assert.equal(migrated.relations.factionReputation.florence, 0);
-  assert.equal(migrated.relations.factionReputation.kazan, 0);
+  assert.equal(migrated.relations.factionReputation.kazan, undefined);
   assert.equal(migrated.relations.imperial.authority, 31);
   assert.equal(migrated.relations.imperial.religiousBlocByFactionId.worms, "lutheran");
   assert.equal(migrated.relations.imperial.religiousBlocByFactionId.metz, "catholic");
@@ -49,8 +49,8 @@ test("version 84 voyages gain Metz, Florence, and Kazan without rewriting existi
   assert.equal(migrated.relations.diplomacy.overrides["france|worms"], "hostile");
   assert.equal(migrated.relations.diplomacy.overrides["france|metz"], undefined);
   assert.equal(migrated.relations.diplomacy.overrides["florence|papal-states"], "neutral");
-  assert.equal(migrated.relations.diplomacy.overrides["crimea|kazan"], "neutral");
-  assert.equal(migrated.relations.diplomacy.overrides["kazan|muscovy"], "neutral");
+  assert.equal(migrated.relations.diplomacy.overrides["crimea|kazan"], undefined);
+  assert.equal(migrated.relations.diplomacy.overrides["kazan|muscovy"], undefined);
 });
 
 test("version 81 voyages gain the Empire and preserve formerly combined player standing", () => {

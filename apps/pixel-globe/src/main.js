@@ -1722,7 +1722,7 @@ import {
   factionById,
   factionHasFlag,
   factionNounPhrase,
-  markFactionCapitalsOnPorts
+  markFactionSeaCapitalsOnPorts
 } from "./factions.js";
 import {
   cityFlagFactionIds,
@@ -1773,6 +1773,7 @@ import {
   isConquistadorQuestOrigin,
   markConquistadorOfferSeen,
   recordConquistadorAssaultFailure,
+  reconcileConquistadorSovereignty,
   recordConquistadorTargetCapture
 } from "./conquistadorQuest.js";
 import {
@@ -4826,7 +4827,7 @@ async function main() {
     `[pixel-globe] port sailing distances: ${portSailingDistances.endpoints.length} ` +
     "current ports and colony sites"
   );
-  factionCapitalPorts = markFactionCapitalsOnPorts(portCities);
+  factionCapitalPorts = markFactionSeaCapitalsOnPorts(portCities);
   portCitiesByTileId = new Map(portCities.map((city) => [city.tileId, city]));
   if (BUILD_EDITION_ID === "demo") {
     demoAccessiblePortCities = demoAccessiblePortsForMask({
@@ -17573,6 +17574,8 @@ function applyCurrentPortConquestOwnership({
 } = {}) {
   if (!gameState?.memory?.conquest) throw new Error("Cannot apply port ownership without conquest state");
   const allCities = [...cityByTileId.values()];
+  reconcileConquistadorSovereignty(gameState.memory.quests.conquistador,
+    gameState.memory.conquest, allCities, { ports: portCities });
   applyPortConquestOwnership(gameState.memory.conquest, allCities);
   const dockablePortTileIds = new Set(portCities.map((city) => city.tileId));
   const currentPorts = allCities.filter((city) => dockablePortTileIds.has(city.tileId));

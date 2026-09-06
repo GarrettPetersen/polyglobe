@@ -1,3 +1,4 @@
+import { isRetiredFactionId, withoutRetiredFactionKeys, migrateRetiredFactionReferences, migrateRetiredSovereignState } from "./retiredFactionMigration.js";
 import {
   FORAGED_FOOD_GOOD_ID,
   FRESH_WATER_GOOD_ID,
@@ -556,7 +557,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 101;
+export const GAME_STATE_VERSION = 102;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -969,7 +970,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -978,6 +979,8 @@ export function migrateGameState(state, shipStats, {
   if (!state.relations || typeof state.relations !== "object") {
     throw new Error("Game state migration requires relations");
   }
+
+  state = migrateRetiredSovereignState(state);
 
   const legacyHomePortCityId = migratedHomePortCityId(
     state.playerCharacter,
@@ -1407,13 +1410,9 @@ function migrateFactionReputationTable(reputation, { splitCombinedHabsburg = fal
   ]));
 }
 
-function removeRetiredFactionKeys(table) {
-  if (!table || typeof table !== "object" || Array.isArray(table)) return table;
-  return Object.fromEntries(Object.entries(table).filter(([factionId]) => factionId !== "aztec"));
-}
 
 function migrateCombinedHabsburgFactionTable(table, { splitCombinedHabsburg = false } = {}) {
-  const migrated = removeRetiredFactionKeys(table);
+  const migrated = withoutRetiredFactionKeys(table);
   if (splitCombinedHabsburg && migrated && migrated["burgundian-netherlands"] === undefined &&
       migrated.habsburg !== undefined) {
     migrated["burgundian-netherlands"] = migrated.habsburg?.factionId === "habsburg"
@@ -1525,12 +1524,6 @@ function migrateNavigationWaypointIdentities(waypoints, legacyCityIdForPortRefer
   });
 }
 
-function migrateRetiredFactionReferences(value) {
-  if (value === "aztec") return "spain";
-  if (Array.isArray(value)) return value.map(migrateRetiredFactionReferences);
-  if (!value || typeof value !== "object") return value;
-  return Object.fromEntries(Object.entries(value).map(([key, entry]) => [key, migrateRetiredFactionReferences(entry)]));
-}
 
 function migrateSovereignTradeQuestReferences(quests) {
   if (!quests || typeof quests !== "object") return quests;
@@ -1631,8 +1624,9 @@ function migrateConquestFactionReferences(memory, { splitCombinedHabsburg = fals
     ...memory
   };
   const migrated = migrateRetiredFactionReferences(source);
-  migrated.factionSuccessors = migrateRetiredFactionReferences(source.factionSuccessors || {});
-  migrated.collapsedFactionIds = source.collapsedFactionIds.filter((factionId) => factionId !== "aztec");
+  migrated.factionSuccessors = migrateRetiredFactionReferences(withoutRetiredFactionKeys(source.factionSuccessors || {}));
+  migrated.factionCapitalOverrides = withoutRetiredFactionKeys(source.factionCapitalOverrides);
+  migrated.collapsedFactionIds = source.collapsedFactionIds.filter((factionId) => !isRetiredFactionId(factionId));
   if (splitCombinedHabsburg && migrated.collapsedFactionIds.includes("habsburg") &&
       !migrated.collapsedFactionIds.includes("burgundian-netherlands")) {
     migrated.collapsedFactionIds.push("burgundian-netherlands");
@@ -1648,11 +1642,10 @@ function migrateConquestFactionReferences(memory, { splitCombinedHabsburg = fals
   migrated.events = source.events.map((event, index) => ({
     ...migrateRetiredFactionReferences(event),
     id: event.id || `legacy-capture-${event.simMinute}-${event.portId || index}`,
-    capitalCapturedFactionId: event.capitalCapturedFactionId ||
-      event.collapsedFactionId ||
-      null,
+    capitalCapturedFactionId: isRetiredFactionId(event.capitalCapturedFactionId || event.collapsedFactionId)
+      ? null : event.capitalCapturedFactionId || event.collapsedFactionId || null,
     peaceTreatyId: event.peaceTreatyId || null,
-    collapsedFactionId: event.collapsedFactionId === "aztec" ? null : event.collapsedFactionId
+    collapsedFactionId: isRetiredFactionId(event.collapsedFactionId) ? null : event.collapsedFactionId
   }));
   migrateAddedAgraOwnership(migrated);
   return migrated;
@@ -1932,7 +1925,8 @@ export function advanceGamePolitics(state, currentMinute, { portCities = [], cit
     state.memory.quests.conquistador,
     state.memory.conquest,
     cities,
-    currentMinute
+    currentMinute,
+    { ports: portCities }
   );
   let englishReformationConversions = 0;
   let englishReformationAuthorityEvents = Object.freeze([]);
@@ -10473,7 +10467,8 @@ function reconcileActiveCaptureCommission(state, quest, portCities, events) {
   }
   if (quest.stage !== "capture") return;
   const target = portCities.find((port) => port.cityId === quest.targetCityId) || null;
-  const issuingCourtSurvives = portCities.some((port) => port.factionId === quest.originFactionId);
+  const issuingCourtSurvives = quest.originFactionId !== NEUTRAL_FACTION_ID &&
+    portCities.some((port) => port.factionId === quest.originFactionId);
   const targetStillEnemy = target?.factionId === quest.targetFactionId;
   const authorityContinues = targetStillEnemy && (
     quest.independentTarget === true ||
@@ -10560,6 +10555,9 @@ function relocateReturningCommission(quest, portCities, events) {
 }
 
 function preferredFactionPort(portCities, factionId) {
+  // Independent settlements are not branches of a single surviving court.
+  // Retired sovereign commissions stay at their original office for recall.
+  if (factionId === NEUTRAL_FACTION_ID) return null;
   return portCities
     .filter((port) => port.factionId === factionId)
     .sort((left, right) => (
