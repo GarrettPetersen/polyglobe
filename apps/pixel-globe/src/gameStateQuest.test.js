@@ -600,6 +600,22 @@ test("conquistador inland transfers use the city catalog without entering port r
   assert.equal(state.memory.quests.conquistador.transferSchedule[0].cityId, cuzco.cityId);
 });
 
+test("inland conquest identities survive reconciliation and reload but unknown cities still fail", () => {
+  const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+  const arequipa = port(6000, "Arequipa", "Peru", "andean", "inca", -16.4, -71.5);
+  const identityCities = [LISBON, arequipa];
+  state.memory.conquest.portFactionOverrides[arequipa.cityId] = "spain";
+  state.memory.conquest.cityDisplayNameOverrides[arequipa.cityId] = "Arequipa";
+  const before = structuredClone(state.memory.conquest);
+  for (const voyage of [state, JSON.parse(JSON.stringify(state))]) {
+    reconcileQuestWorldAssumptions(voyage, [LISBON], { identityCities });
+    reconcileQuestWorldAssumptions(voyage, [LISBON], { identityCities });
+    assert.deepEqual(voyage.memory.conquest, before);
+    assert.throws(() => reconcileQuestWorldAssumptions(voyage, [LISBON]),
+      /Conquest ownership override.*arequipa\|peru/);
+  }
+});
+
 test("an allied capture recalls an active commission instead of leaving an impossible target", () => {
   const stats = shipStatsForSlug("large-junk");
   const state = createGameState({

@@ -8292,7 +8292,9 @@ export function reconcileQuestPortTiles(state, portCities, {
     updates += 1;
   }
 
-  updates += reconcilePortConquestIdentities(state, portCities, legacyPortTileIds);
+  // Sovereignty includes inland settlements; only maritime quest endpoints
+  // are restricted to the sailing catalog.
+  updates += reconcilePortConquestIdentities(state, identityCities, legacyPortTileIds);
   updates += reconcileVisitedPortIdentities(state, portCities, legacyPortTileIds);
   updates += reconcileSpecialEquipmentOfferIdentities(state, portCities, legacyPortTileIds);
   updates += reconcilePortFlagIdentities(state, portCities, legacyPortTileIds);
@@ -8742,10 +8744,9 @@ export function reconcileQuestWorldAssumptions(state, portCities, options = {}) 
   if (!Array.isArray(identityCities)) {
     throw new Error("Quest world reconciliation requires an identity city list");
   }
-  // Port references resolve only against the sailing catalog. The one known
-  // overland exception—conquistador campaign transfers—receives the full city
-  // identity catalog separately, so an inland destination cannot leak back
-  // into maritime routing.
+  // Maritime endpoints use the sailing catalog. Conquest ownership, history,
+  // and overland campaign transfers use the full city identity catalog without
+  // admitting inland destinations into maritime routing.
   const endpointUpdates = reconcileQuestPortTiles(state, portCities, {
     ...options,
     identityCities

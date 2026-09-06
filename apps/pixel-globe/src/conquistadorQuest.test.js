@@ -38,6 +38,7 @@ import {
   commissionedPortCaptureFactionId,
   createGameState,
   deliverQuestCargoRequirement,
+  reconcileQuestWorldAssumptions,
   migrateGameState
 } from "./gameState.js";
 import {
@@ -185,6 +186,9 @@ for (const retreatPortSurvives of [false, true]) {
     const snapshots = [];
     const checkPolitics = (minute) => {
       applyPortConquestOwnership(conquest, cities);
+      const priorConquest = structuredClone(conquest);
+      reconcileQuestWorldAssumptions(state, ports, { identityCities: cities });
+      assert.deepEqual(conquest, priorConquest, "world reconciliation must preserve inland conquest history");
       const view = createPoliticsView(state, minute, cities);
       for (const card of view.cards.filter(({faction}) => faction.id !== "pirate")) {
         assert.ok(ports.some((port) => port.cityId === card.capital.portId && port.factionId === card.faction.id),
