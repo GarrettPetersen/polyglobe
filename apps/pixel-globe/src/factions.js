@@ -344,7 +344,7 @@ export const DIPLOMACY_MATRIX_1522 = buildDiplomacyMatrix();
 
 const CITY_FACTION_OVERRIDES = uniqueMap([
   ...cityRules([
-    "london|united kingdom", "norwich|united kingdom", "exeter|united kingdom", "bristol|united kingdom",
+    "london|united kingdom", "norwich|united kingdom", "exeter|united kingdom", "topsham|united kingdom", "bristol|united kingdom",
     "southampton|united kingdom", "york|united kingdom", "hull|united kingdom", "newcastle upon tyne|united kingdom"
   ], "england"),
   cityRule("dublin|ireland", "england"),

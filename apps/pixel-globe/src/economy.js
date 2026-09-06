@@ -576,6 +576,7 @@ const CITY_SPECIALTIES = uniqueMap([
   specialty("liege|belgium", [COAL_GOOD_ID]),
   specialty("norwich|united kingdom", ["wool-cloth"]),
   specialty("exeter|united kingdom", ["tin", "wool-cloth"]),
+  specialty("topsham|united kingdom", ["tin", "wool-cloth"]),
   specialty("bristol|united kingdom", ["wool-cloth"]),
   specialty("southampton|united kingdom", ["wool", "wool-cloth"]),
   specialty("york|united kingdom", ["grain", "wool"]),

@@ -3,7 +3,7 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 6;
+export const PORT_CATALOG_VERSION = 7;
 const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
@@ -77,11 +77,13 @@ export const PRE_EXACT_NEAREST_PORT_TILE_IDS = new Map([
   [99518, 397385], // vilnius|lithuania
   [392451, 392449], // wittenberg|germany
 ]);
-const UNVERSIONED_PORT_TILE_IDS = composePortTileMigrations(composePortTileMigrations(new Map([
+// Exeter's former dock now resolves to its distinct historical outport, Topsham.
+export const PRE_EXETER_OUTPORT_TILE_IDS = new Map([[644452, 644451]]);
+const UNVERSIONED_PORT_TILE_IDS = composePortTileMigrations(composePortTileMigrations(composePortTileMigrations(new Map([
   ...PRE_NORTH_MALUKU_PORT_TILE_IDS,
   ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
   ...PRE_DJENNE_CORRECTION_TILE_IDS
-]), PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS), PRE_EXACT_NEAREST_PORT_TILE_IDS);
+]), PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS), PRE_EXACT_NEAREST_PORT_TILE_IDS), PRE_EXETER_OUTPORT_TILE_IDS);
 
 export function sameTopologyPortMigrationForSavedVoyage(payload, {
   savedSubdivisions,
@@ -108,11 +110,12 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
     );
   }
   if (payload.portCatalogVersion === PORT_CATALOG_VERSION) return null;
-  return composePortTileMigrations(composePortTileMigrations(new Map([
+  return composePortTileMigrations(composePortTileMigrations(composePortTileMigrations(new Map([
     ...(payload.portCatalogVersion < 3 ? PRE_RIVER_OUTLET_PORT_TILE_IDS : []),
     ...(payload.portCatalogVersion < 4 ? PRE_DJENNE_CORRECTION_TILE_IDS : [])
   ]), payload.portCatalogVersion < 5 ? PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS : new Map()),
-  PRE_EXACT_NEAREST_PORT_TILE_IDS);
+  payload.portCatalogVersion < 6 ? PRE_EXACT_NEAREST_PORT_TILE_IDS : new Map()),
+  PRE_EXETER_OUTPORT_TILE_IDS);
 }
 
 export function portReferenceMigrationForSavedVoyage(payload, topology, currentPlacements) {

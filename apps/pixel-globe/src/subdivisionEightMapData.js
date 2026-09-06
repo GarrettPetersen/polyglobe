@@ -3701,6 +3701,17 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       372490,
       93279
     ],
+    "norwich|united kingdom": [
+      643467,
+      160904,
+      643475,
+      160904
+    ],
+    "topsham|united kingdom": [
+      644451,
+      161146,
+      644444
+    ],
     "delhi|india": [
       386720,
       24278,
@@ -4138,6 +4149,17 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
     ]
   },
   "riverChains": [
+    [
+      643467,
+      160904,
+      643475,
+      160904
+    ],
+    [
+      644451,
+      161146,
+      644444
+    ],
     [
       74294,
       296750,

@@ -1,3 +1,4 @@
+import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "../src/manualRiverHexChains.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -137,6 +138,7 @@ const cities = sailing.endpoints.map((endpoint) => {
     navigation,
     mountains,
     sailingGraph,
+    sailingEarthRows,
     sailingNavigation
   });
 }).sort((a, b) => a.label.localeCompare(b.label) || a.country.localeCompare(b.country));
@@ -172,6 +174,7 @@ function visualizerCityRecord({
   navigation,
   mountains,
   sailingGraph,
+  sailingEarthRows,
   sailingNavigation
 }) {
   const coordinates = city.placementLat === undefined
@@ -182,7 +185,19 @@ function visualizerCityRecord({
   if (cityTileId === undefined) throw new Error(`No land terrain near ${cityLabelText(city)}`);
   const access = nearestAccessTile({ graph, earthRows, navigation, cityTileId });
   if (!access) throw new Error(`No water approach near ${cityLabelText(city)}`);
-  const approach = approachKind(access.tileId, earthRows, navigation);
+  // Authored city river approaches must use the sailing map that contains
+  // those routes. Keep the existing coarse scenery policy for other ports.
+  const sailingAccess = nearestAccessTile({ graph: sailingGraph, earthRows: sailingEarthRows,
+    navigation: sailingNavigation, cityTileId: endpoint.tileId });
+  if (!sailingAccess || sailingAccess.coarseFallback) {
+    throw new Error(`City scene has no navigable sailing approach: ${city.cityId}`);
+  }
+  const authoredRiverApproach = Boolean(
+    MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[sailingGraph.subdivisions]?.[city.cityId]
+  );
+  const approach = authoredRiverApproach
+    ? approachKind(sailingAccess.tileId, sailingEarthRows, sailingNavigation)
+    : approachKind(access.tileId, earthRows, navigation);
   const shorelineAxis = shorelineTangent(graph, cityTileId, access.tileId);
   const neighborhood = terrainNeighborhood({
     graph,
@@ -263,7 +278,7 @@ function visualizerCityRecord({
     terrain: Object.freeze(neighborhood),
     defaultShip: defaultShipForCityType(city.cityType),
     rules: Object.freeze({
-      approach: approachRule(access, approach),
+      approach: approachRule(authoredRiverApproach ? sailingAccess : access, approach),
       riverHorizon: riverHorizon === null
         ? "not a river scene"
         : riverHorizon === "open"

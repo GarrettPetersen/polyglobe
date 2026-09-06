@@ -5539,13 +5539,13 @@ export function recordAttackAgainstFaction(state, factionId, options = {}) {
   }
   if (lawfulWartimeAction) {
     recordDecision(state, `privateering.attack.${id}`, 1);
-    // A rival's commission licenses the prize, but cannot excuse betrayal of
-    // the victim's own commission. Legality and personal loyalty are distinct.
-    if (!betrayedCommission) return factionReputation(state, id);
+    // A commission establishes legality, not the victim's goodwill.
+    // Keep privateering separate from piracy while recording the same harm.
   }
   const before = factionReputation(state, id);
   const after = applyAttackReputationPenalty(state, id);
   if (after !== before) recordDecision(state, `reputation.attack.${id}`, 1);
+  if (lawfulWartimeAction && !betrayedCommission) return after;
   const emperorFactionId = state.relations.imperial.emperorFactionId;
   if (imperialEstateForFaction(id) &&
       state.relations.imperial.emperorOfficeVacant !== true &&
@@ -7072,6 +7072,20 @@ export function capturePortMissionOfferForCity(state, city, portCities, context 
   );
 }
 
+export function captureCommissionPetitionEligibility(state, city) {
+  assertGameState(state);
+  const holdsCommission = hasLetterOfMarqueFrom(state, city.factionId);
+  let reason = null;
+  if (!holdsCommission) reason = "missing-marque";
+  else if (!currentSovereignCapitalFactionId(city)) reason = "not-capital";
+  else if (questMemory(state).active || questMemory(state).passengerActive) {
+    reason = "active-voyage";
+  } else if (pendingCapturePortMissionOfferForCity(state, city)) {
+    reason = "pending-offer";
+  }
+  return Object.freeze({ visible: holdsCommission, eligible: reason === null, reason });
+}
+
 export function captureCommissionPetitionOptionsForCity(
   state,
   city,
@@ -7085,9 +7099,7 @@ export function captureCommissionPetitionOptionsForCity(
   const simMinute = context.simMinute ?? 0;
   assertSimulationMinute(simMinute);
   const issuerFactionId = currentSovereignCapitalFactionId(city);
-  const quests = questMemory(state);
-  if (!issuerFactionId || !hasLetterOfMarqueFrom(state, issuerFactionId) ||
-      quests.active || quests.passengerActive || pendingCapturePortMissionOfferForCity(state, city)) {
+  if (!captureCommissionPetitionEligibility(state, city).eligible) {
     return [];
   }
   const enemyFactionIds = [...new Set(portCities

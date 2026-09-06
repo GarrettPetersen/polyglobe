@@ -238,6 +238,14 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
   const ports = portCitiesOnWorld(placedByTileId, placementOptions);
   assert.equal(validateCityPortAccessCatalog(placedByTileId, ports, placementOptions), true);
   assert.doesNotThrow(() => validateCanonicalPortCatalog(ports));
+  assert.equal(ports.some(({ cityId }) => cityId === "exeter|united kingdom"), false,
+    "Exeter's weirs barred seagoing trade in 1522; ships must use Topsham");
+  for (const cityId of ["norwich|united kingdom", "topsham|united kingdom"]) {
+    const port = ports.find((city) => city.cityId === cityId);
+    assert.ok(port, `${cityId} must remain an accessible river port`);
+    assert.ok(navigation.riverMasks[port.tileId] !== 0, `${cityId} needs its own river reach`);
+    assert.ok(portAccessTileIds(placementOptions, port.tileId).some((id) => navigation.riverMasks[id] !== 0));
+  }
   for (const cityId of ["dienne|senegal", "rufisque|senegal"]) {
     const port = ports.find((city) => city.cityId === cityId);
     assert.ok(port, `${cityId} must be a reachable port`);

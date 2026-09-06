@@ -52,3 +52,26 @@ test("the new settlement labels print unchanged in every game font and case", ()
     }
   }
 });
+
+test("Exeter remains inland and Topsham is its distinct English outport", () => {
+  const exeter = cities.find(({ cityId }) => cityId === "exeter|united kingdom");
+  const topsham = cities.find(({ cityId }) => cityId === "topsham|united kingdom");
+  assert.equal(cityMustRemainInland(exeter), true);
+  assert.equal(cityRequiresPortAccess(exeter), false);
+  assert.equal(cityMustRemainInland(topsham), false);
+  assert.equal(cityRequiresPortAccess(topsham), true);
+  assert.equal(topsham.factionId, "england");
+  assert.equal(topsham.settlementType, "village");
+  assert.equal(topsham.marketGoods.length, 3);
+  assert.ok(topsham.lat < exeter.lat && exeter.lat - topsham.lat < 0.1);
+});
+
+test("the English river ports use river scenes and Exeter is absent from sailing scenes", () => {
+  const sceneCatalog = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url)));
+  assert.equal(sceneCatalog.cities.some(({ id }) => id === "exeter|united kingdom"), false);
+  for (const id of ["norwich|united kingdom", "topsham|united kingdom"]) {
+    const city = sceneCatalog.cities.find((entry) => entry.id === id);
+    assert.equal(city.approach, "river");
+    assert.equal(city.factionId, "england");
+  }
+});

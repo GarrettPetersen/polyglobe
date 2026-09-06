@@ -48727,11 +48727,12 @@ function drawShipPaperDetail(panel, view) {
     lines: wrapPixelTextAll(String(value).toUpperCase(), PIXEL_FONT_SMALL_8, valueW)
   }));
 
+  const contentTop = panel.w < 400 ? 35 + localizedLineHeight(10) + 8 : 43;
   const viewport = {
     x: left,
-    y: panel.y + 43,
+    y: panel.y + contentTop,
     w: contentRight - left,
-    h: panel.h - 43 - UI_PAGER_BUTTON_H - 13
+    h: panel.h - contentTop - UI_PAGER_BUTTON_H - 13
   };
   const titleHeight = titleLines.length * titleLineHeight;
   const fieldsHeight = fields.reduce((sum, field) => sum + Math.max(1, field.lines.length) * lineHeight + 5, 0);
@@ -49669,7 +49670,7 @@ function drawAboardMenu() {
     const experience = crewExperienceSummary(gameState);
     drawOptionsText(
       fitPixelText(
-        `${gameState.ship.crew} CREW  ${uiText("aboard.experience")} ` +
+        `${gameState.ship.crew}/${gameState.ship.crewCapacity} CREW  ${uiText("aboard.experience")} ` +
           uiText(aboardCrewExperienceLevelKey(experience.overallStars)),
         PIXEL_FONT_SMALL_8,
         panel.w - 100

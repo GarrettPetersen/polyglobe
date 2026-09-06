@@ -643,15 +643,17 @@ test("attacking a nation's ships makes that faction hate the player", () => {
   assert.equal(factionReputation(state, "pirate"), pirateBefore);
 });
 
-test("lawful wartime attacks do not turn commissioned privateers into permanent outlaws", () => {
+test("lawful wartime attacks cost victim standing without recording piracy", () => {
   const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
   const frenchBefore = factionReputation(state, "france");
 
   recordAttackAgainstFaction(state, "france", { lawfulWartimeAction: true });
 
-  assert.equal(factionReputation(state, "france"), frenchBefore);
+  assert.equal(factionReputation(state, "france"),
+    Math.min(frenchBefore + SHIP_ATTACK_REPUTATION_PENALTY, HOSTILE_PORT_REPUTATION_THRESHOLD));
   assert.equal(state.memory.decisions["privateering.attack.france"], 1);
-  assert.equal(state.memory.decisions["reputation.attack.france"], undefined);
+  assert.equal(state.memory.decisions["reputation.attack.france"], 1);
+  assert.equal(state.memory.decisions["reputation.piracy.france"], undefined);
 });
 
 test("a Mughal commission cannot excuse betraying Bengal's commission", () => {
@@ -1339,3 +1341,21 @@ function pickAttackStatus(status) {
     captureFactionId: status.captureFactionId
   };
 }
+
+test("privateering harms every victim without penalizing the commissioning nation or declaring war", () => {
+  for (const victim of ["france", "spain", "bengal", "augsburg"]) {
+    const state = createGameState({ cargoCapacity: 10, playerCharacter: PLAYER });
+    state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+    state.relations.factionReputation[victim] = 40;
+    const issuerBefore = factionReputation(state, "england");
+    const diplomacyBefore = structuredClone(state.relations.diplomacy);
+    recordAttackAgainstFaction(state, victim, { lawfulWartimeAction: true });
+    assert.ok(factionReputation(state, victim) < 40);
+    assert.equal(factionReputation(state, "england"), issuerBefore);
+    assert.equal(hasLetterOfMarqueFrom(state, "england"), true);
+    assert.equal(state.memory.decisions[`reputation.piracy.${victim}`], undefined);
+    assert.deepEqual(state.relations.diplomacy, diplomacyBefore);
+    const restored = migrateGameState(JSON.parse(JSON.stringify(state)), null);
+    assert.equal(factionReputation(restored, victim), factionReputation(state, victim));
+  }
+});

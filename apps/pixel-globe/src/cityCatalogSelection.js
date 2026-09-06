@@ -101,6 +101,20 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     cityType: "northern-european",
     manualRegion: "british-isles"
   }),
+  // Weirs blocked Exeter's maritime approach until the canal opened in 1566.
+  // Topsham was the distinct outport, not a coastal relocation of Exeter.
+  // https://tour.topshammuseum.org.uk/maritime-home/maritime-4/
+  manualCity1522("topsham|united kingdom", "Topsham", "United Kingdom", 50.682, -3.466, 1500, {
+    // Exeter and Topsham share one 30 km hex; place the outport on the
+    // adjacent southern bank tile while retaining its actual coordinates.
+    placementLat: 50.60,
+    placementLon: -3.55,
+    settlementType: "village",
+    cityType: "northern-european",
+    manualRegion: "british-isles",
+    marketGoods: ["wool-cloth", "tin", "wine"],
+    requiredTradePort: true
+  }),
   manualCity1522("bristol|united kingdom", "Bristol", "United Kingdom", 51.4545, -2.5879, 12000, {
     cityType: "northern-european",
     manualRegion: "british-isles"

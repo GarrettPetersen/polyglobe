@@ -1,3 +1,4 @@
+import { grantPersonalTradePass } from "./sovereignTradeAccess.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -1142,6 +1143,7 @@ test("port arrivals present one greeting when recognition and sovereignty news c
 
 test("port dialogue exposes live market specie, stock, and prices", () => {
   const city = {
+    factionId: "portugal",
     tileId: 1,
     cityId: "lisbon|portugal",
     city: "Lisbon",
@@ -1174,6 +1176,7 @@ test("port dialogue exposes live market specie, stock, and prices", () => {
   session.nodeId = "root";
   selectPortDialogueOption(session, city, gameState, economy, [city], 0);
   const market = portDialogueView(session, city, gameState, economy, [city]);
+  assert.match(market.text, /Market specie: \d+ db/);
   assert.equal(market.feedbackLineReserve, 2);
   assert.equal(market.optionHeight, 30);
   assert.ok(market.options.some((option) => /\d+ db/.test(option.label)));
@@ -1265,6 +1268,7 @@ test("a Polynesian arrival is greeted by the island chief", () => {
 
 test("the garrison commander reports the current fighting strength in character", () => {
   const city = {
+    factionId: "england",
     tileId: 2,
     cityId: "bristol|england",
     city: "Bristol",
@@ -1917,6 +1921,7 @@ test("market capacity explains provision space reserved by the selected loadout"
 
 test("port menus pin Back to city and Leave Port after their ordinary actions", () => {
   const city = {
+    factionId: "portugal",
     tileId: 106,
     cityId: "lisbon|portugal",
     city: "Lisbon",
@@ -1977,6 +1982,7 @@ test("port menus pin Back to city and Leave Port after their ordinary actions", 
 
 test("host-handled city submenu actions preserve a valid session until handoff", () => {
   const city = {
+    factionId: "portugal",
     tileId: 110,
     cityId: "lisbon|portugal",
     city: "Lisbon",
@@ -6526,6 +6532,7 @@ test("a completed ship sale gets a named historical handover before returning to
 
 test("the Icelandic enthusiast unlocks the Viking longship after three fetch deliveries", () => {
   const city = {
+    factionId: "denmark-norway",
     tileId: 64,
     cityId: "hafnarfjordur|iceland",
     city: "Hafnarfjordur",
@@ -6650,6 +6657,7 @@ test("the Icelandic enthusiast unlocks the Viking longship after three fetch del
 
 test("a Kyoto gunsmith establishes domestic matchlock production after Nagasaki opens", () => {
   const city = {
+    factionId: "japan",
     tileId: 65,
     cityId: "kyoto|japan",
     city: "Kyoto",
@@ -8294,6 +8302,8 @@ test("capital petition dialogue lets the captain name an enemy while the court f
     sailingDistanceKm: () => 180
   };
   const session = createPortDialogueSession(london, { initialNodeId: "root" });
+  session.nodeId = "city-menu";
+  session.cityMenuLocationId = "authority";
   const root = portDialogueView(session, london, gameState, economy, ports, context);
   const openIndex = root.options.findIndex((entry) => entry.action.nodeId === "capture-petition");
   assert.ok(openIndex >= 0);
@@ -8643,3 +8653,62 @@ function testSailingDistances(entries) {
     return distance;
   };
 }
+
+test("a marque holder can find capture petitions at port authority even away from court", () => {
+  const city = { cityId: "bristol|united kingdom", tileId: 803, city: "Bristol", country: "United Kingdom",
+    factionId: "england", cityType: "northern-european", population: 12000,
+    character: { name: "Thomas Ward", role: "harbour-master" } };
+  const state = createGameState({ cargoCapacity: 20 });
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "city-menu" });
+  session.cityMenuLocationId = "authority";
+  const view = portDialogueView(session, city, state, economy, [city]);
+  const index = view.options.findIndex(({ action }) => action.nodeId === "capture-petition");
+  assert.ok(index >= 0);
+  assert.equal(view.options[index].disabled, true);
+  assert.match(view.options[index].disabledReason, /capital/);
+  const before = structuredClone(state);
+  selectPortDialogueOption(session, city, state, economy, [city], index);
+  assert.equal(session.nodeId, "city-menu");
+  assert.deepEqual(state, before);
+});
+
+test("Spanish colonist embarkation warns unlicensed foreigners without warning licensed or domestic captains", () => {
+  const target = { ...colonizationTargetForCity({ cityId: "lima|peru" }), tileId: 900 };
+  const origin = { cityId: "seville|spain", city: "Seville", country: "Spain", factionId: "spain",
+    tileId: 901, lat: 37.39, lon: -5.98, cityType: "mediterranean", population: 60000,
+    character: { name: "Juan de Medina", role: "harbour-master" } };
+  const stats = shipStatsForSlug("galleon");
+  for (const [nationalityId, licensed, warned] of [["england", false, true], ["england", true, false], ["spain", false, false]]) {
+    const state = createGameState({ cargoCapacity: stats.cargoCapacity, shipStats: stats,
+      playerCharacter: { name: "Test Captain", nationalityId, expressions: ["neutral", "happy"] } });
+    if (licensed) grantPersonalTradePass(state.relations.personalTradePasses, "spanish-indies-monopoly", 0);
+    assignColonizationQuest(state.memory.colonization, { target, origin });
+    for (const stage of colonizationQuestView(state).history.fetchStages) {
+      completeColonizationFetchStage(state.memory.colonization, stage.id);
+    }
+    const session = createPortDialogueSession(origin, { initialNodeId: "colonization" });
+    const economy = createWorldEconomy({ ports: [origin], startMinute: 0 });
+    const view = portDialogueView(session, origin, state, economy, [origin], { shipStats: stats, simMinute: 0 });
+    assert.equal(/grants no trading privilege/.test(view.text), warned);
+    assert.ok(view.options.some(({ action }) => action.type === "embark-colonists"));
+  }
+});
+
+test("both market modes show the current finite specie including an empty treasury", () => {
+  const city = { cityId: "lisbon|portugal", tileId: 902, city: "Lisbon", country: "Portugal",
+    factionId: "portugal", cityType: "mediterranean", population: 70000,
+    character: { name: "Fernao da Cunha", role: "harbour-master" } };
+  const state = createGameState({ cargoCapacity: 20 });
+  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const session = createPortDialogueSession(city, { initialNodeId: "market" });
+  for (const specie of [1200, 37, 0]) {
+    economy.portStates.get(city.cityId).specie = specie;
+    for (const mode of ["buy", "sell"]) {
+      session.marketMode = mode;
+      const view = portDialogueView(session, city, state, economy, [city]);
+      assert.ok(view.text.startsWith(`Market specie: ${specie} db.`));
+    }
+  }
+});

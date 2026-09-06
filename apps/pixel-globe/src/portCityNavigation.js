@@ -34,13 +34,14 @@ const LOCATION_LABELS = Object.freeze({
   [PORT_CITY_LOCATION.ILLICIT_MERCHANT]: "Suspicious merchant"
 });
 
-const SHIP_NODE_IDS = new Set(["loadout", "cargo", "city-attack"]);
+const SHIP_NODE_IDS = new Set(["loadout", "cargo"]);
 const SHIPYARD_NODE_IDS = new Set([
   "shipyard",
   "shipyard-investment",
   "shipyard-investment-offer"
 ]);
 const AUTHORITY_NODE_IDS = new Set([
+  "city-attack",
   "covert-authority",
   "capture-petition",
   "garrison",

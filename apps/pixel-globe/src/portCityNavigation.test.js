@@ -39,7 +39,7 @@ test("port city navigation classifies every root action without using labels", (
   ]);
   assert.deepEqual(
     model.locations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP).actions.map(({ label }) => label),
-    ["Ship loadout", "Attack city", "Cargo ledger", "Wait safely in port"]
+    ["Ship loadout", "Cargo ledger", "Wait safely in port"]
   );
   assert.deepEqual(
     model.locations.find(({ id }) => id === PORT_CITY_LOCATION.SET_SAIL).actions.map(({ label }) => label),
@@ -47,13 +47,13 @@ test("port city navigation classifies every root action without using labels", (
   );
 });
 
-test("city attacks live aboard the player's ship instead of requiring a fortification", () => {
+test("city attacks are available through port authority", () => {
   const model = portCityNavigationModel(ROOT_VIEW, serviceProfile(true));
   const ship = model.locations.find(({ id }) => id === PORT_CITY_LOCATION.SHIP);
   const authority = model.locations.find(({ id }) => id === PORT_CITY_LOCATION.AUTHORITY);
 
-  assert.ok(ship.actions.some(({ action }) => action.nodeId === "city-attack"));
-  assert.equal(authority.actions.some(({ action }) => action.nodeId === "city-attack"), false);
+  assert.equal(ship.actions.some(({ action }) => action.nodeId === "city-attack"), false);
+  assert.ok(authority.actions.some(({ action }) => action.nodeId === "city-attack"));
   assert.ok(authority.actions.some(({ action }) => action.nodeId === "garrison"));
 });
 

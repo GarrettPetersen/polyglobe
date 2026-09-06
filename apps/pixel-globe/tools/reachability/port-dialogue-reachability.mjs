@@ -1,3 +1,7 @@
+import { readFileSync } from "node:fs";
+import { loadCityCatalogFromCsv } from "../../src/cityCatalogData.js";
+import { COLONIZATION_TARGETS } from "../../src/colonialCities.js";
+import { factionSeaCapitalForCity } from "../../src/factions.js";
 import {
   createPortDialogueSession,
   enterPortCityLocation,
@@ -24,6 +28,16 @@ import { shipyardAtPort } from "../../src/shipyards.js";
 import { createPlayerTestGameState } from "../../src/test-fixtures/createTestGameState.js";
 import { initializeTestProvisionalShipLoadout, setTestCrewCount } from "../../src/test-fixtures/crewTestFixtures.js";
 import { exploreReachableActionGraph } from "./action-graph.mjs";
+
+// Scene records describe appearance, not the full gameplay catalog. Preserve
+// production market limits and capital metadata when exercising player actions.
+const gameplayCityById = new Map([
+  ...COLONIZATION_TARGETS,
+  ...loadCityCatalogFromCsv(readFileSync(new URL(
+    "../../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv",
+    import.meta.url
+  ), "utf8"))
+].map((city) => [city.cityId, city]));
 
 const PLAYER_SHIP_SLUG = "brigantine";
 const FAST_NAVIGATION_ACTION_TYPES = new Set([
@@ -574,8 +588,13 @@ function reachableCity(record) {
   if (!record.services || typeof record.services.shipyard !== "boolean") {
     throw new Error(`Reachable city has no service contract: ${record.cityId}`);
   }
+  const gameplayCity = gameplayCityById.get(record.cityId);
+  if (!gameplayCity) throw new Error(`Reachability city missing from gameplay catalog: ${record.cityId}`);
+  const capital = factionSeaCapitalForCity(record);
   return Object.freeze({
-    ...withForeignSettlements1522(record),
+    ...withForeignSettlements1522({ ...gameplayCity, ...record }),
+    isFactionCapital: capital?.factionId === record.factionId,
+    capitalOfFactionId: capital?.factionId === record.factionId ? capital.factionId : null,
     displayCity: record.label,
     portId: record.cityId,
     character: Object.freeze({

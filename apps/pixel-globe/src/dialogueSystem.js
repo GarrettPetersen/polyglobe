@@ -37,6 +37,7 @@ import {
   cargoRows,
   cargoSpaceLabel,
   cargoUsed,
+  captureCommissionPetitionEligibility,
   captureCommissionPetitionOptionsForCity,
   capturePortMissionEligibility,
   capturePortMissionLoadoutRecommendation,
@@ -4808,12 +4809,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
     context.shipyard,
     context.simMinute ?? 0
   );
-  const capturePetitions = captureCommissionPetitionOptionsForCity(
-    gameState,
-    city,
-    portCities,
-    context
-  );
+  const capturePetition = captureCommissionPetitionEligibility(gameState, city);
   const options = [
     ...(tradeAccess.allowed
       ? [option("Market", {
@@ -4850,11 +4846,11 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
     ...(session.disguisedEntry
       ? [option("Visit inn", { type: "node", nodeId: "inn-drink" })]
       : ordinaryInnRootOptions(session, { pirateHideout, canCompleteQuest })),
-    ...(capturePetitions.length > 0 && !session.disguisedEntry
+    ...(capturePetition.visible && !session.disguisedEntry
       ? [option("Petition for a capture warrant", {
           type: "node",
           nodeId: "capture-petition"
-        })]
+        }, { disabled: !capturePetition.eligible, disabledReason: capturePetitionDisabledReasonText(capturePetition.reason) })]
       : []),
     ...(session.disguisedEntry && !pirateHideout
       ? [option("Port authority", { type: "node", nodeId: "covert-authority" })]
@@ -5908,10 +5904,14 @@ function colonizationView(session, city, gameState, context) {
       ? ` The emissaries must also carry ${colonizationApprovalCargoSummary(quest.approvalCargo)} from ${quest.origin.country} as a trade demonstration.`
       : "";
     const travelers = developsExistingPort ? "The delegation" : "The settlers";
+    const destinationAccess = playerTradeAccess(gameState, quest.target, { simMinute: context.simMinute ?? 0 });
+    const tradeWarning = destinationAccess.allowed ? "" : destinationAccess.policy
+      ? ` ${destinationAccess.policy.closedMarketText} Carrying these settlers grants no trading privilege. Seek a trade pass before sailing.`
+      : " War closes the destination market to your cargo. Carrying these settlers grants no trading privilege.";
     return {
       speaker: `${organizer}, ${history.sponsorRole}`,
       expressionId: eligibility?.eligible && quest.approvalCargoReady ? "happy" : "concerned",
-      text: `${history.ready} ${travelers} need 24 hold spaces.${negotiationCargo} ${targetName} lies ${Math.round(quest.target.distanceKm || 0).toLocaleString("en-US")} km away.${route} They need a capacious, seaworthy ship.`,
+      text: `${tradeWarning} ${history.ready} ${travelers} need 24 hold spaces.${negotiationCargo} ${targetName} lies ${Math.round(quest.target.distanceKm || 0).toLocaleString("en-US")} km away.${route} They need a capacious, seaworthy ship.`,
       feedback: session.feedback,
       options: [
         option(developsExistingPort ? "Take the delegation aboard" : "Take the colonists aboard", {
@@ -7184,9 +7184,12 @@ function shipHandoverView(session, city) {
 }
 
 function marketView(session, city, gameState, economy, context) {
-  if (session.marketMode === "buy") return buyView(session, city, gameState, economy, context);
-  if (session.marketMode === "sell") return sellView(session, city, gameState, economy, context);
-  throw new Error(`Unknown port market mode: ${session.marketMode}`);
+  let view;
+  if (session.marketMode === "buy") view = buyView(session, city, gameState, economy, context);
+  else if (session.marketMode === "sell") view = sellView(session, city, gameState, economy, context);
+  else throw new Error(`Unknown port market mode: ${session.marketMode}`);
+  const { specie } = portEconomySummary(economy, city);
+  return { ...view, text: `Market specie: ${specie} db. ${view.text}` };
 }
 
 function marketModeOptionIndex(session) {
@@ -8488,6 +8491,15 @@ function captureCommissionQuestView(session, questState, returnNodeId, gameState
     : capturePortQuestView(session, questState, returnNodeId, gameState);
 }
 
+function capturePetitionDisabledReasonText(reason) {
+  if (reason === null) return null;
+  if (reason === "missing-marque") return "You must first hold this nation's letter of marque.";
+  if (reason === "not-capital") return "Capture petitions must be heard at the nation's capital.";
+  if (reason === "active-voyage") return "Finish your present commission or passenger passage before seeking a capture warrant.";
+  if (reason === "pending-offer") return "A capture warrant already awaits your answer. Ask about commissions at the inn.";
+  throw new Error(`Unknown capture petition eligibility: ${reason}`);
+}
+
 function captureCommissionPetitionView(session, city, gameState, portCities, context) {
   const simMinute = context.simMinute ?? 0;
   const ruler = rulerAtMinute(city.factionId, simMinute);
@@ -8501,7 +8513,9 @@ function captureCommissionPetitionView(session, city, gameState, portCities, con
   return {
     speaker: `${ruler.displayName}'s war secretary`,
     expressionId: "stern",
-    text: "A letter of marque licenses prizes at sea; it does not grant the choice of a harbor. Name an enemy, or ask after an independent port. The council will judge the realm's need and name any target.",
+    text: petitions.length > 0
+      ? "A letter of marque licenses prizes at sea; it does not grant the choice of a harbor. Name an enemy, or ask after an independent port. The council will judge the realm's need and name any target."
+      : "The council has no suitable harbor to name for a capture warrant at present.",
     feedback: session.feedback,
     options: [
       ...petitions.map((petition) => option(

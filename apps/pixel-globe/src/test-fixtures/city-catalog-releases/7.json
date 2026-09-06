@@ -1,0 +1,1246 @@
+{
+  "version": 7,
+  "subdivisions": 8,
+  "ports": [
+    {
+      "cityId": "aceh|indonesia",
+      "tileId": 368848
+    },
+    {
+      "cityId": "aden|yemen",
+      "tileId": 25169
+    },
+    {
+      "cityId": "agra|india",
+      "tileId": 619432
+    },
+    {
+      "cityId": "akkeshi kotan|japan",
+      "tileId": 60554
+    },
+    {
+      "cityId": "alexandria|egypt",
+      "tileId": 405854
+    },
+    {
+      "cityId": "algiers|algeria",
+      "tileId": 40551
+    },
+    {
+      "cityId": "almeria|spain",
+      "tileId": 648484
+    },
+    {
+      "cityId": "angers|france",
+      "tileId": 644541
+    },
+    {
+      "cityId": "angra|portugal",
+      "tileId": 291080
+    },
+    {
+      "cityId": "antioch|syria/turkey",
+      "tileId": 406788
+    },
+    {
+      "cityId": "arles|france",
+      "tileId": 648741
+    },
+    {
+      "cityId": "asuncion|paraguay",
+      "tileId": 430596
+    },
+    {
+      "cityId": "athens|greece",
+      "tileId": 394627
+    },
+    {
+      "cityId": "augsberg|germany",
+      "tileId": 392538
+    },
+    {
+      "cityId": "avignon|france",
+      "tileId": 648742
+    },
+    {
+      "cityId": "ayutthaya|thailand",
+      "tileId": 372461
+    },
+    {
+      "cityId": "azemmour|morocco",
+      "tileId": 645402
+    },
+    {
+      "cityId": "babeldaob village|palau",
+      "tileId": 22966
+    },
+    {
+      "cityId": "baghdad|iraq",
+      "tileId": 410160
+    },
+    {
+      "cityId": "banaba village|kiribati",
+      "tileId": 21751
+    },
+    {
+      "cityId": "banda village|indonesia",
+      "tileId": 366615
+    },
+    {
+      "cityId": "bandar seri begawan|brunei",
+      "tileId": 380551
+    },
+    {
+      "cityId": "barcelona|spain",
+      "tileId": 162341
+    },
+    {
+      "cityId": "basra|iraq",
+      "tileId": 409227
+    },
+    {
+      "cityId": "bastia|italy",
+      "tileId": 648650
+    },
+    {
+      "cityId": "bay of islands village|aotearoa",
+      "tileId": 352953
+    },
+    {
+      "cityId": "beijing|china",
+      "tileId": 15605
+    },
+    {
+      "cityId": "bejaia|algeria",
+      "tileId": 161865
+    },
+    {
+      "cityId": "belgrade|serbia",
+      "tileId": 394414
+    },
+    {
+      "cityId": "berlin|germany",
+      "tileId": 392993
+    },
+    {
+      "cityId": "bhimavaram|india",
+      "tileId": 156249
+    },
+    {
+      "cityId": "binh dinh|vietnam",
+      "tileId": 371421
+    },
+    {
+      "cityId": "birgu|malta",
+      "tileId": 647524
+    },
+    {
+      "cityId": "bologna|italy",
+      "tileId": 648588
+    },
+    {
+      "cityId": "bonn|germany",
+      "tileId": 644093
+    },
+    {
+      "cityId": "bordeaux|france",
+      "tileId": 162042
+    },
+    {
+      "cityId": "boston|united states of america",
+      "tileId": 74340
+    },
+    {
+      "cityId": "braila|romania",
+      "tileId": 397118
+    },
+    {
+      "cityId": "bremen|germany",
+      "tileId": 392985
+    },
+    {
+      "cityId": "bridgetown|barbados",
+      "tileId": 553648
+    },
+    {
+      "cityId": "bristol|united kingdom",
+      "tileId": 644421
+    },
+    {
+      "cityId": "brugge|belgium",
+      "tileId": 644588
+    },
+    {
+      "cityId": "budapest|hungary",
+      "tileId": 396840
+    },
+    {
+      "cityId": "buenos aires|argentina",
+      "tileId": 426721
+    },
+    {
+      "cityId": "buru village|indonesia",
+      "tileId": 366134
+    },
+    {
+      "cityId": "cadiz|spain",
+      "tileId": 645235
+    },
+    {
+      "cityId": "caen|france",
+      "tileId": 644708
+    },
+    {
+      "cityId": "cagliari|italy",
+      "tileId": 646871
+    },
+    {
+      "cityId": "cairo|egypt",
+      "tileId": 406890
+    },
+    {
+      "cityId": "calicut|india",
+      "tileId": 623907
+    },
+    {
+      "cityId": "cambay|india",
+      "tileId": 621196
+    },
+    {
+      "cityId": "caracas|venezuela",
+      "tileId": 553961
+    },
+    {
+      "cityId": "ceuta|morocco",
+      "tileId": 161368
+    },
+    {
+      "cityId": "chakan putum|mexico",
+      "tileId": 312499
+    },
+    {
+      "cityId": "chanchan|peru",
+      "tileId": 134664
+    },
+    {
+      "cityId": "changsha|china",
+      "tileId": 15508
+    },
+    {
+      "cityId": "changzhou|china",
+      "tileId": 246403
+    },
+    {
+      "cityId": "charleston|united states of america",
+      "tileId": 294699
+    },
+    {
+      "cityId": "chengdu|china",
+      "tileId": 244788
+    },
+    {
+      "cityId": "chiang mai|thailand",
+      "tileId": 373213
+    },
+    {
+      "cityId": "chuuk village|federated states of micronesia",
+      "tileId": 16921
+    },
+    {
+      "cityId": "cochin|india",
+      "tileId": 622694
+    },
+    {
+      "cityId": "coimbra|portugal",
+      "tileId": 645775
+    },
+    {
+      "cityId": "cologne|germany",
+      "tileId": 644072
+    },
+    {
+      "cityId": "colombo|sri lanka",
+      "tileId": 622870
+    },
+    {
+      "cityId": "concepcion|chile",
+      "tileId": 427729
+    },
+    {
+      "cityId": "copenhagen|denmark",
+      "tileId": 393293
+    },
+    {
+      "cityId": "cordoba|spain",
+      "tileId": 162135
+    },
+    {
+      "cityId": "coroa vermelha village|brazil",
+      "tileId": 105823
+    },
+    {
+      "cityId": "cremona|italy",
+      "tileId": 643985
+    },
+    {
+      "cityId": "cuttack|india",
+      "tileId": 9724
+    },
+    {
+      "cityId": "cuzamil|mexico",
+      "tileId": 546417
+    },
+    {
+      "cityId": "cuzco|peru",
+      "tileId": 535761
+    },
+    {
+      "cityId": "delhi|india",
+      "tileId": 386720
+    },
+    {
+      "cityId": "dienne|senegal",
+      "tileId": 162642
+    },
+    {
+      "cityId": "diu|india",
+      "tileId": 621479
+    },
+    {
+      "cityId": "diyarbakir|turkey",
+      "tileId": 408881
+    },
+    {
+      "cityId": "dongola|sudan",
+      "tileId": 25257
+    },
+    {
+      "cityId": "dresden|germany",
+      "tileId": 392535
+    },
+    {
+      "cityId": "dublin|ireland",
+      "tileId": 287251
+    },
+    {
+      "cityId": "edinburgh|united kingdom",
+      "tileId": 18006
+    },
+    {
+      "cityId": "edirne|turkey",
+      "tileId": 98639
+    },
+    {
+      "cityId": "edo|japan",
+      "tileId": 262000
+    },
+    {
+      "cityId": "feodosia|russian federation",
+      "tileId": 396848
+    },
+    {
+      "cityId": "fiji village|fiji",
+      "tileId": 90076
+    },
+    {
+      "cityId": "florence|italy",
+      "tileId": 162182
+    },
+    {
+      "cityId": "fort orange|united states of america",
+      "tileId": 298719
+    },
+    {
+      "cityId": "fukuoka|japan",
+      "tileId": 65406
+    },
+    {
+      "cityId": "funafuti village|tuvalu",
+      "tileId": 356127
+    },
+    {
+      "cityId": "funchal|portugal",
+      "tileId": 645110
+    },
+    {
+      "cityId": "futuna village|wallis and futuna",
+      "tileId": 355983
+    },
+    {
+      "cityId": "fuzhou|china",
+      "tileId": 61836
+    },
+    {
+      "cityId": "galati|romania",
+      "tileId": 397117
+    },
+    {
+      "cityId": "gane village|indonesia",
+      "tileId": 366344
+    },
+    {
+      "cityId": "gao|mali",
+      "tileId": 655190
+    },
+    {
+      "cityId": "garassiq|indonesia",
+      "tileId": 383349
+    },
+    {
+      "cityId": "gauda|india",
+      "tileId": 619024
+    },
+    {
+      "cityId": "gavle|sweden",
+      "tileId": 220062
+    },
+    {
+      "cityId": "gdansk|poland",
+      "tileId": 98438
+    },
+    {
+      "cityId": "gelibolu|turkey",
+      "tileId": 98676
+    },
+    {
+      "cityId": "genova|italy",
+      "tileId": 648620
+    },
+    {
+      "cityId": "gent|belgium",
+      "tileId": 161189
+    },
+    {
+      "cityId": "glasgow|united kingdom",
+      "tileId": 287102
+    },
+    {
+      "cityId": "goa|india",
+      "tileId": 620908
+    },
+    {
+      "cityId": "gresik|indonesia",
+      "tileId": 96083
+    },
+    {
+      "cityId": "guanahani village|bahamas",
+      "tileId": 34610
+    },
+    {
+      "cityId": "guangzhou|china",
+      "tileId": 246568
+    },
+    {
+      "cityId": "gyeongju|republic of korea",
+      "tileId": 16418
+    },
+    {
+      "cityId": "hafnarfjordur|iceland",
+      "tileId": 202033
+    },
+    {
+      "cityId": "hamburg|germany",
+      "tileId": 393058
+    },
+    {
+      "cityId": "hangzhou|china",
+      "tileId": 246283
+    },
+    {
+      "cityId": "hannover|germany",
+      "tileId": 392979
+    },
+    {
+      "cityId": "hartford|united states of america",
+      "tileId": 18749
+    },
+    {
+      "cityId": "havana|cuba",
+      "tileId": 136966
+    },
+    {
+      "cityId": "hawaii village|hawaii",
+      "tileId": 277347
+    },
+    {
+      "cityId": "heidelberg|germany",
+      "tileId": 644137
+    },
+    {
+      "cityId": "hitu village|indonesia",
+      "tileId": 366120
+    },
+    {
+      "cityId": "hormuz|iran",
+      "tileId": 408401
+    },
+    {
+      "cityId": "hull|united kingdom",
+      "tileId": 643561
+    },
+    {
+      "cityId": "iraklion|greece",
+      "tileId": 98541
+    },
+    {
+      "cityId": "istanbul|turkey",
+      "tileId": 394133
+    },
+    {
+      "cityId": "jaffa|israel",
+      "tileId": 101937
+    },
+    {
+      "cityId": "jamestown|united states of america",
+      "tileId": 294323
+    },
+    {
+      "cityId": "jaunpur|india",
+      "tileId": 155087
+    },
+    {
+      "cityId": "jeddah|saudi arabia",
+      "tileId": 403450
+    },
+    {
+      "cityId": "jingdezhen|china",
+      "tileId": 246985
+    },
+    {
+      "cityId": "kaesong|dem. people's republic of korea",
+      "tileId": 261091
+    },
+    {
+      "cityId": "kagoshima|japan",
+      "tileId": 261140
+    },
+    {
+      "cityId": "kaifeng|china",
+      "tileId": 249403
+    },
+    {
+      "cityId": "kalmar|sweden",
+      "tileId": 393227
+    },
+    {
+      "cityId": "kaminokuni|japan",
+      "tileId": 261840
+    },
+    {
+      "cityId": "kamtapur|india",
+      "tileId": 154846
+    },
+    {
+      "cityId": "kerkira|greece",
+      "tileId": 394799
+    },
+    {
+      "cityId": "kezlev|ukraine",
+      "tileId": 99402
+    },
+    {
+      "cityId": "kholmogory|russian federation",
+      "tileId": 55605
+    },
+    {
+      "cityId": "kiev|ukraine",
+      "tileId": 397772
+    },
+    {
+      "cityId": "kilwa|tanzania",
+      "tileId": 497864
+    },
+    {
+      "cityId": "kosrae village|federated states of micronesia",
+      "tileId": 68532
+    },
+    {
+      "cityId": "krakow|poland",
+      "tileId": 396757
+    },
+    {
+      "cityId": "kyoto|japan",
+      "tileId": 262516
+    },
+    {
+      "cityId": "lahore|pakistan",
+      "tileId": 24284
+    },
+    {
+      "cityId": "las palmas|spain",
+      "tileId": 652728
+    },
+    {
+      "cityId": "liege|belgium",
+      "tileId": 644561
+    },
+    {
+      "cityId": "lifou village|new caledonia",
+      "tileId": 357368
+    },
+    {
+      "cityId": "lima|peru",
+      "tileId": 538749
+    },
+    {
+      "cityId": "lisbon|portugal",
+      "tileId": 645826
+    },
+    {
+      "cityId": "london|united kingdom",
+      "tileId": 644682
+    },
+    {
+      "cityId": "luanda|angola",
+      "tileId": 520323
+    },
+    {
+      "cityId": "luang prabang|lao people's democratic republic",
+      "tileId": 93327
+    },
+    {
+      "cityId": "lubeck|germany",
+      "tileId": 24688
+    },
+    {
+      "cityId": "lyon|france",
+      "tileId": 644228
+    },
+    {
+      "cityId": "mactan village|philippines",
+      "tileId": 363767
+    },
+    {
+      "cityId": "magdeburg|germany",
+      "tileId": 98280
+    },
+    {
+      "cityId": "mainz|germany",
+      "tileId": 161057
+    },
+    {
+      "cityId": "majuro village|marshall islands",
+      "tileId": 271694
+    },
+    {
+      "cityId": "makian village|indonesia",
+      "tileId": 366359
+    },
+    {
+      "cityId": "malacca|malaysia",
+      "tileId": 382107
+    },
+    {
+      "cityId": "malangke|indonesia",
+      "tileId": 383058
+    },
+    {
+      "cityId": "male|maldives",
+      "tileId": 39426
+    },
+    {
+      "cityId": "manila|philippines",
+      "tileId": 379607
+    },
+    {
+      "cityId": "marseille|france",
+      "tileId": 648936
+    },
+    {
+      "cityId": "massawa|ethiopia",
+      "tileId": 101163
+    },
+    {
+      "cityId": "maynila|philippines",
+      "tileId": 379627
+    },
+    {
+      "cityId": "messina|italy",
+      "tileId": 646896
+    },
+    {
+      "cityId": "metz|france",
+      "tileId": 40285
+    },
+    {
+      "cityId": "mogadishu|somalia",
+      "tileId": 612156
+    },
+    {
+      "cityId": "mombasa|kenya",
+      "tileId": 607193
+    },
+    {
+      "cityId": "montpellier|france",
+      "tileId": 162210
+    },
+    {
+      "cityId": "mossel bay village|south africa",
+      "tileId": 122199
+    },
+    {
+      "cityId": "mozambique|mozambique",
+      "tileId": 502418
+    },
+    {
+      "cityId": "mudanya|turkey",
+      "tileId": 393993
+    },
+    {
+      "cityId": "multan|pakistan",
+      "tileId": 98013
+    },
+    {
+      "cityId": "muscat|oman",
+      "tileId": 24432
+    },
+    {
+      "cityId": "nagasaki|japan",
+      "tileId": 261154
+    },
+    {
+      "cityId": "naha|japan",
+      "tileId": 259517
+    },
+    {
+      "cityId": "nan madol|federated states of micronesia",
+      "tileId": 269929
+    },
+    {
+      "cityId": "nanchang|china",
+      "tileId": 247002
+    },
+    {
+      "cityId": "nanjing|china",
+      "tileId": 15479
+    },
+    {
+      "cityId": "naoetsu|japan",
+      "tileId": 65618
+    },
+    {
+      "cityId": "naples|italy",
+      "tileId": 647020
+    },
+    {
+      "cityId": "nauru village|nauru",
+      "tileId": 86665
+    },
+    {
+      "cityId": "new amsterdam|united states of america",
+      "tileId": 4714
+    },
+    {
+      "cityId": "new haven|united states of america",
+      "tileId": 298724
+    },
+    {
+      "cityId": "newcastle upon tyne|united kingdom",
+      "tileId": 643237
+    },
+    {
+      "cityId": "nicosia|cyprus",
+      "tileId": 101929
+    },
+    {
+      "cityId": "ningbo|china",
+      "tileId": 246295
+    },
+    {
+      "cityId": "niue village|niue",
+      "tileId": 358401
+    },
+    {
+      "cityId": "nombre de dios|panama",
+      "tileId": 34419
+    },
+    {
+      "cityId": "norwich|united kingdom",
+      "tileId": 643467
+    },
+    {
+      "cityId": "novgorod|russian federation",
+      "tileId": 24836
+    },
+    {
+      "cityId": "nurnberg|germany",
+      "tileId": 392432
+    },
+    {
+      "cityId": "nykoping|sweden",
+      "tileId": 392690
+    },
+    {
+      "cityId": "ohrid|bulgaria",
+      "tileId": 394384
+    },
+    {
+      "cityId": "oporto|portugal",
+      "tileId": 647977
+    },
+    {
+      "cityId": "ozette village|makah",
+      "tileId": 185827
+    },
+    {
+      "cityId": "palermo|italy",
+      "tileId": 646942
+    },
+    {
+      "cityId": "palma|spain",
+      "tileId": 649136
+    },
+    {
+      "cityId": "panama city|panama",
+      "tileId": 547985
+    },
+    {
+      "cityId": "paris|france",
+      "tileId": 644664
+    },
+    {
+      "cityId": "patani|thailand",
+      "tileId": 369345
+    },
+    {
+      "cityId": "patna|india",
+      "tileId": 620317
+    },
+    {
+      "cityId": "pegu|myanmar",
+      "tileId": 372151
+    },
+    {
+      "cityId": "philadelphia|united states of america",
+      "tileId": 298683
+    },
+    {
+      "cityId": "pisa|italy",
+      "tileId": 40562
+    },
+    {
+      "cityId": "plovdiv|bulgaria",
+      "tileId": 394704
+    },
+    {
+      "cityId": "plymouth|united states of america",
+      "tileId": 18641
+    },
+    {
+      "cityId": "port royal|canada",
+      "tileId": 297830
+    },
+    {
+      "cityId": "prague|austria",
+      "tileId": 392562
+    },
+    {
+      "cityId": "providence|united states of america",
+      "tileId": 298882
+    },
+    {
+      "cityId": "quebec|canada",
+      "tileId": 297004
+    },
+    {
+      "cityId": "quilon|india",
+      "tileId": 38984
+    },
+    {
+      "cityId": "ragusa|croatia",
+      "tileId": 394549
+    },
+    {
+      "cityId": "rajahmundry|india",
+      "tileId": 624802
+    },
+    {
+      "cityId": "rangiroa village|french polynesia",
+      "tileId": 575023
+    },
+    {
+      "cityId": "rapa nui village|rapa nui",
+      "tileId": 141773
+    },
+    {
+      "cityId": "rarotonga village|cook islands",
+      "tileId": 340714
+    },
+    {
+      "cityId": "recife|brazil",
+      "tileId": 418059
+    },
+    {
+      "cityId": "regensburg|germany",
+      "tileId": 392558
+    },
+    {
+      "cityId": "rhodes|greece",
+      "tileId": 405910
+    },
+    {
+      "cityId": "ribeira grande|cape verde",
+      "tileId": 636414
+    },
+    {
+      "cityId": "riga|russian federation",
+      "tileId": 392949
+    },
+    {
+      "cityId": "rikitea village|french polynesia",
+      "tileId": 574230
+    },
+    {
+      "cityId": "rio de janeiro|brazil",
+      "tileId": 104847
+    },
+    {
+      "cityId": "roanoke|united states of america",
+      "tileId": 294245
+    },
+    {
+      "cityId": "rome|italy",
+      "tileId": 646755
+    },
+    {
+      "cityId": "roskilde|denmark",
+      "tileId": 393294
+    },
+    {
+      "cityId": "rotuma village|fiji",
+      "tileId": 22330
+    },
+    {
+      "cityId": "rouen|france",
+      "tileId": 40316
+    },
+    {
+      "cityId": "rufisque|senegal",
+      "tileId": 636093
+    },
+    {
+      "cityId": "sakai|japan",
+      "tileId": 262453
+    },
+    {
+      "cityId": "salerno|italy",
+      "tileId": 161765
+    },
+    {
+      "cityId": "salvador|brazil",
+      "tileId": 421514
+    },
+    {
+      "cityId": "samoa village|samoa",
+      "tileId": 89076
+    },
+    {
+      "cityId": "san juan|puerto rico",
+      "tileId": 137444
+    },
+    {
+      "cityId": "san sebastian|spain",
+      "tileId": 162060
+    },
+    {
+      "cityId": "santo domingo|dominican republic",
+      "tileId": 550088
+    },
+    {
+      "cityId": "sao tome|sao tome and principe",
+      "tileId": 160114
+    },
+    {
+      "cityId": "seoul|republic of korea",
+      "tileId": 261380
+    },
+    {
+      "cityId": "seville|spain",
+      "tileId": 645249
+    },
+    {
+      "cityId": "shkoder|albania",
+      "tileId": 98803
+    },
+    {
+      "cityId": "siraf|iran",
+      "tileId": 102346
+    },
+    {
+      "cityId": "smolensk|russian federation",
+      "tileId": 99530
+    },
+    {
+      "cityId": "soderkoping|sweden",
+      "tileId": 98335
+    },
+    {
+      "cityId": "sofala|mozambique",
+      "tileId": 31592
+    },
+    {
+      "cityId": "southampton|united kingdom",
+      "tileId": 644427
+    },
+    {
+      "cityId": "speyer|germany",
+      "tileId": 644136
+    },
+    {
+      "cityId": "st. augustine|united states of america",
+      "tileId": 294413
+    },
+    {
+      "cityId": "st. george's|bermuda",
+      "tileId": 298482
+    },
+    {
+      "cityId": "st. john's|canada",
+      "tileId": 76559
+    },
+    {
+      "cityId": "stockholm|sweden",
+      "tileId": 392698
+    },
+    {
+      "cityId": "suez|egypt",
+      "tileId": 406360
+    },
+    {
+      "cityId": "suq|yemen",
+      "tileId": 152555
+    },
+    {
+      "cityId": "surat|india",
+      "tileId": 621372
+    },
+    {
+      "cityId": "suzhou|china",
+      "tileId": 246415
+    },
+    {
+      "cityId": "syracuse|italy",
+      "tileId": 647473
+    },
+    {
+      "cityId": "szczecin|poland",
+      "tileId": 393256
+    },
+    {
+      "cityId": "tahiti village|french polynesia",
+      "tileId": 143888
+    },
+    {
+      "cityId": "taiyuan|china",
+      "tileId": 250058
+    },
+    {
+      "cityId": "tarawa village|kiribati",
+      "tileId": 270430
+    },
+    {
+      "cityId": "ternate|indonesia",
+      "tileId": 366292
+    },
+    {
+      "cityId": "thana|india",
+      "tileId": 621351
+    },
+    {
+      "cityId": "thatta|india",
+      "tileId": 389371
+    },
+    {
+      "cityId": "thessaloniki|greece",
+      "tileId": 394865
+    },
+    {
+      "cityId": "tidore|indonesia",
+      "tileId": 366350
+    },
+    {
+      "cityId": "tokelau village|tokelau",
+      "tileId": 84770
+    },
+    {
+      "cityId": "tombouctou|mali",
+      "tileId": 654806
+    },
+    {
+      "cityId": "tomogaura|japan",
+      "tileId": 262222
+    },
+    {
+      "cityId": "tonga village|tonga",
+      "tileId": 90267
+    },
+    {
+      "cityId": "topsham|united kingdom",
+      "tileId": 644451
+    },
+    {
+      "cityId": "toulouse|france",
+      "tileId": 10151
+    },
+    {
+      "cityId": "tours|france",
+      "tileId": 644530
+    },
+    {
+      "cityId": "trabzon|turkey",
+      "tileId": 408818
+    },
+    {
+      "cityId": "trakai|lithuania",
+      "tileId": 99518
+    },
+    {
+      "cityId": "trier|germany",
+      "tileId": 644156
+    },
+    {
+      "cityId": "tripoli|libya",
+      "tileId": 646547
+    },
+    {
+      "cityId": "trois-rivieres|canada",
+      "tileId": 297098
+    },
+    {
+      "cityId": "tsinkiang|china",
+      "tileId": 61538
+    },
+    {
+      "cityId": "tsuchizaki minato|japan",
+      "tileId": 65639
+    },
+    {
+      "cityId": "tsushima fuchu|japan",
+      "tileId": 261221
+    },
+    {
+      "cityId": "tubuai village|french polynesia",
+      "tileId": 573047
+    },
+    {
+      "cityId": "tunis|tunisia",
+      "tileId": 647622
+    },
+    {
+      "cityId": "turku|finland",
+      "tileId": 55099
+    },
+    {
+      "cityId": "umatac village|guam",
+      "tileId": 16050
+    },
+    {
+      "cityId": "utrecht|netherlands",
+      "tileId": 160888
+    },
+    {
+      "cityId": "uvea village|wallis and futuna",
+      "tileId": 356017
+    },
+    {
+      "cityId": "vaitahu village|french polynesia",
+      "tileId": 570899
+    },
+    {
+      "cityId": "valencia|spain",
+      "tileId": 649233
+    },
+    {
+      "cityId": "venice|italy",
+      "tileId": 24629
+    },
+    {
+      "cityId": "veracruz|mexico",
+      "tileId": 317280
+    },
+    {
+      "cityId": "verona|italy",
+      "tileId": 643991
+    },
+    {
+      "cityId": "vienna|austria",
+      "tileId": 396515
+    },
+    {
+      "cityId": "ville-marie|canada",
+      "tileId": 296827
+    },
+    {
+      "cityId": "vilnius|lithuania",
+      "tileId": 397385
+    },
+    {
+      "cityId": "visby|sweden",
+      "tileId": 392732
+    },
+    {
+      "cityId": "wendat village|canada",
+      "tileId": 49949
+    },
+    {
+      "cityId": "wesel|germany",
+      "tileId": 160882
+    },
+    {
+      "cityId": "wittenberg|germany",
+      "tileId": 392449
+    },
+    {
+      "cityId": "worms|germany",
+      "tileId": 644162
+    },
+    {
+      "cityId": "wroclaw|germany",
+      "tileId": 392385
+    },
+    {
+      "cityId": "wuhan|china",
+      "tileId": 246938
+    },
+    {
+      "cityId": "xian|china",
+      "tileId": 250102
+    },
+    {
+      "cityId": "xicalango|mexico",
+      "tileId": 78243
+    },
+    {
+      "cityId": "yamaguchi|japan",
+      "tileId": 261182
+    },
+    {
+      "cityId": "yap village|federated states of micronesia",
+      "tileId": 251131
+    },
+    {
+      "cityId": "yinchuan|china",
+      "tileId": 249669
+    },
+    {
+      "cityId": "york|united kingdom",
+      "tileId": 643564
+    },
+    {
+      "cityId": "yuquot village|nuu-chah-nulth",
+      "tileId": 46555
+    },
+    {
+      "cityId": "zanzibar|tanzania",
+      "tileId": 497668
+    },
+    {
+      "cityId": "zaragoza|spain",
+      "tileId": 649289
+    },
+    {
+      "cityId": "zempoala|mexico",
+      "tileId": 317231
+    }
+  ]
+}

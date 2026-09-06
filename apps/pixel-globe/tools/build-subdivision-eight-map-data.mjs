@@ -294,7 +294,21 @@ const sourceRiverRepairs = [
     { lat: 39.48, lon: -75.56 }, { lat: 39.15, lon: -75.40 }, { lat: 38.97, lon: -75.18 }
   ])
 ];
+// Wensum/Yare: Norwich reaches the North Sea through Great Yarmouth.
+// The Exe approach ends at Topsham, below the medieval obstruction at Exeter.
+const norwichYareRoute = routeThroughCoordinates([
+  { lat: 52.63, lon: 1.30 }, { lat: 52.62, lon: 1.35 },
+  { lat: 52.57, lon: 1.45 }, { lat: 52.56, lon: 1.57 },
+  { lat: 52.61, lon: 1.72 }, { lat: 52.57, lon: 1.73 }, { lat: 52.57, lon: 1.90 }
+]);
+const topshamExeRoute = routeThroughCoordinates([
+  // Adjacent bank hex reserved for Topsham because Exeter occupies its nearest hex.
+  { lat: 50.60, lon: -3.55 }, { lat: 50.62, lon: -3.43 },
+  { lat: 50.62, lon: -3.43 }, { lat: 50.59, lon: -3.43 }, { lat: 50.50, lon: -3.42 }
+]);
 const riverChains = [
+  norwichYareRoute,
+  topshamExeRoute,
   ...MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]
     .filter((chain) => ![73682, 18467, 62166, 62627, 62610, 62346, 160887, 161095].includes(chain[0]))
     .map(refineChain),
@@ -324,6 +338,8 @@ const riverChains = [
 const cityRiverChains = Object.fromEntries(Object.entries(
   MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]
 ).map(([cityId, chain]) => [cityId, refineChain(chain)]));
+cityRiverChains["norwich|united kingdom"] = norwichYareRoute;
+cityRiverChains["topsham|united kingdom"] = topshamExeRoute;
 cityRiverChains["delhi|india"] = delhiYamunaApproach;
 cityRiverChains["gao|mali"] = nigerRiverRoute;
 cityRiverChains["tombouctou|mali"] = nigerRiverRoute;

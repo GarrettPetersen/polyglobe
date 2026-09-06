@@ -149,3 +149,13 @@ test("nearest-tile migration composes old Copenhagen and disambiguates Trakai fr
   assert.equal(v5.get(99518), 397385, "old Vilnius retains its own identity");
   assert.equal(v5.has(393189), false, "already migrated saves do not reapply an earlier catalog's positions");
 });
+
+test("released Exeter voyages go to Topsham once while current inland identity stays Exeter", () => {
+  const topology = { savedSubdivisions: 8, currentSubdivisions: 8 };
+  const old = JSON.parse(readFileSync(new URL("./test-fixtures/city-catalog-releases/6.json", import.meta.url)));
+  const exeter = old.ports.find(({ cityId }) => cityId === "exeter|united kingdom");
+  const topsham = currentPortBake.endpoints.find(({ name }) => name === "Topsham");
+  assert.ok(exeter && topsham);
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 6 }, topology).get(exeter.tileId), topsham.tileId);
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: PORT_CATALOG_VERSION }, topology), null);
+});
