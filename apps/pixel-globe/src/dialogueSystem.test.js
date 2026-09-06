@@ -1386,6 +1386,13 @@ test("a foreign settlement is explained by the factor and supplies its resident 
   const root = portDialogueView(rootSession, city, gameState, economy, [city]);
   assert.match(root.text, /enters Portuguese cargo under its own privileges/i);
   assert.equal(playerTradeTerms(gameState, city, "cloves").customsRate, 0);
+  const factory = root.options.findIndex(({ action }) => action.nodeId === "foreign-settlements");
+  assert.ok(factory >= 0);
+  selectPortDialogueOption(rootSession, city, gameState, economy, [city], factory);
+  const account = portDialogueView(rootSession, city, gameState, economy, [city]);
+  assert.match(account.text, /Portuguese masons are raising a fort and factory/i);
+  selectPortDialogueOption(rootSession, city, gameState, economy, [city], 0);
+  assert.equal(rootSession.nodeId, "root");
 
   expelHostileForeignSettlements({
     memory: gameState.relations.foreignSettlementExpulsions,
@@ -2635,6 +2642,7 @@ test("trade advice scores net proceeds after customs and crown duties", () => {
   const purchases = {
     cloves: { goodId: "cloves", quantity: 1, cost: 100 }
   };
+  gameState.cargo.cloves = 1;
   const sailingDistanceKm = testSailingDistances([[ternate, goa, 6800]]);
   const route = () => bestPurchasedTradeRoute({
     purchases,
@@ -2709,6 +2717,7 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   const purchases = {
     silver: { goodId: "silver", quantity: 1, cost: 60 }
   };
+  gameState.cargo.silver = 1;
   const sailingDistanceKm = testSailingDistances([
     [istanbul, cairo, 1250],
     [istanbul, wuhan, 10700]
@@ -2730,6 +2739,33 @@ test("trade advice prefers a useful regional price over a better transcontinenta
   const recommended = route([cairo, wuhan]);
   assert.equal(recommended.destinationName, "Cairo");
   assert.equal(recommended.goodLabel, "Silver");
+});
+
+test("leaving after reselling purchases only recommends the cargo still aboard", () => {
+  const city = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", country: "Portugal",
+    cityType: "mediterranean", population: 100000, factionId: "neutral",
+    character: { name: "Merchant", role: "harbour-master" } };
+  const destination = { ...city, cityId: "london|united kingdom", tileId: 2, city: "London" };
+  const ports = [city, destination];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
+  const gameState = createGameState({ cargoCapacity: 20 });
+  const context = { sailingDistanceKm: () => 1000 };
+  for (const held of [1, 0]) {
+    const session = createPortDialogueSession(city, { initialNodeId: "market", marketMode: "sell" });
+    session.marketPurchases = { cloves: { goodId: "cloves", quantity: 3, cost: 3 } };
+    session.marketSales = 3 - held;
+    gameState.cargo = held ? { cloves: held } : {};
+    gameState.accounts.cargoCostBasis = held ? { cloves: held } : {};
+    const market = portDialogueView(session, city, gameState, economy, ports, context);
+    const result = selectPortDialogueOption(session, city, gameState, economy, ports,
+      market.options.findIndex(({ action }) => action.type === "leave-market"), context);
+    if (held === 0) {
+      assert.equal(result.tradeTip, undefined);
+      assert.equal(session.nodeId, "root");
+    } else {
+      assert.equal(result.tradeTip.quantity, 1);
+    }
+  }
 });
 
 test("post-purchase trade advice uses the blended ledger cost basis", () => {
@@ -5883,6 +5919,14 @@ test("a wealthy captain sees and can begin the major-port shipyard project", () 
   const capital = project.options.find((entry) => entry.action.type === "pay-shipyard-investment");
   assert.equal(capital.disabled, true);
   assert.equal(capital.disabledReason, "Need 25000 more doubloons.");
+  session.shipyardInvestmentArrival = true;
+  for (const [cargo, label] of [[{}, "Not now"], [{ fish: 3 }, "Not now"],
+    [{ timber: 1 }, "Keep the cargo aboard"]]) {
+    gameState.cargo = cargo;
+    const arrival = portDialogueView(session, city, gameState, economy, [city], context);
+    assert.equal(arrival.options[0].label, label);
+    assert.equal(arrival.options[0].disabled, false);
+  }
 });
 
 test("opening a funded shipyard atomically creates its portfolio and readable world ledger", () => {

@@ -3,9 +3,9 @@ import test from "node:test";
 
 import { createCrewMember } from "./crewMembers.js";
 import {
-  PORT_ASSAULT_CASUALTY_FATE,
-  createPortAssaultCasualtyReport
-} from "./portAssaultCasualtyReport.js";
+  CREW_CASUALTY_FATE,
+  createCrewCasualtyReport
+} from "./crewCasualtyReport.js";
 
 const PORT = Object.freeze({
   cityId: "lisbon|portugal",
@@ -18,7 +18,7 @@ test("assault casualty reports preserve each sailor's identity and presentation"
   const hurt = member("crew:wounded", "Tomas", "gunner-light", 14 * 24 * 60);
   hurt.wound = { cause: "port-assault", recoveryMinutesRemaining: 5 * 24 * 60 };
 
-  const report = createPortAssaultCasualtyReport({
+  const report = createCrewCasualtyReport({
     deaths: [{ kind: "crew", member: dead }],
     wounded: [{ member: hurt, recoveryMinutes: 5 * 24 * 60 }]
   });
@@ -32,7 +32,7 @@ test("assault casualty reports preserve each sailor's identity and presentation"
       appearanceId: dead.appearanceId,
       crewTypeId: dead.crewTypeId,
       experienceStars: 2,
-      fate: PORT_ASSAULT_CASUALTY_FATE.DEAD,
+      fate: CREW_CASUALTY_FATE.DEAD,
       recoveryDays: 0
     },
     {
@@ -41,7 +41,7 @@ test("assault casualty reports preserve each sailor's identity and presentation"
       appearanceId: hurt.appearanceId,
       crewTypeId: hurt.crewTypeId,
       experienceStars: 1,
-      fate: PORT_ASSAULT_CASUALTY_FATE.WOUNDED,
+      fate: CREW_CASUALTY_FATE.WOUNDED,
       recoveryDays: 5
     }
   ]);
@@ -50,11 +50,11 @@ test("assault casualty reports preserve each sailor's identity and presentation"
 test("assault casualty reports reject duplicate or inconsistent identities", () => {
   const sailor = member("crew:duplicate", "Luis", "sailor-light", 0);
   sailor.wound = { cause: "port-assault", recoveryMinutesRemaining: 60 };
-  assert.throws(() => createPortAssaultCasualtyReport({
+  assert.throws(() => createCrewCasualtyReport({
     deaths: [{ kind: "crew", member: sailor }],
     wounded: [{ member: sailor, recoveryMinutes: 60 }]
   }), /repeats a crew member/);
-  assert.throws(() => createPortAssaultCasualtyReport({
+  assert.throws(() => createCrewCasualtyReport({
     deaths: [],
     wounded: [{ member: sailor, recoveryMinutes: 30 }]
   }), /does not match/);

@@ -3,6 +3,7 @@ import test from "node:test";
 
 import {
   COMBAT_DISENGAGE_RADIUS_PX,
+  PLAYER_COMBAT_DISENGAGE_RADIUS_PX,
   COMBAT_MODE_ATTACK,
   COMBAT_MODE_FLEE,
   PLAYER_COMBAT_ID,
@@ -25,6 +26,21 @@ import {
   playerCombatAllegiance,
   updateShipCombatState
 } from "./shipCombat.js";
+
+test("a player can turn outside detection and the old combat radius without losing engagement", () => {
+  const state = createShipCombatState();
+  const player = ship(PLAYER_COMBAT_ID, "merchant", "england", 0, 0, 200, 20);
+  const enemy = ship("enemy", "warship", "portugal", 60, 0, 150, 16);
+  forceShipEngagement(state, player.id, enemy.id);
+  for (const distance of [149, 190, PLAYER_COMBAT_DISENGAGE_RADIUS_PX, 180, 90]) {
+    enemy.x = distance;
+    assert.ok(updateShipCombatState(state, [player, enemy]).intents.has(PLAYER_COMBAT_ID));
+  }
+  enemy.x = PLAYER_COMBAT_DISENGAGE_RADIUS_PX + 1;
+  assert.equal(updateShipCombatState(state, [player, enemy]).engagementCount, 0);
+  enemy.x = 180;
+  assert.equal(updateShipCombatState(state, [player, enemy]).engagementCount, 0);
+});
 
 test("shore batteries confiscate prizes without masquerading as NPC ships", () => {
   const npcShips = new Map([["merchant-1", {}], ["warship-1", {}]]);

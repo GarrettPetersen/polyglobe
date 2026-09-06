@@ -851,6 +851,7 @@ export default Object.freeze({
   "Battle joined": "Битва вступила",
   "Battle of Lepanto": "Битва при Лепанто",
   "BATTLE OFF NINGBO": "БИТВА У НИНБО",
+  "BATTLE OVER": "БОЙ ОКОНЧЕН",
   "Bay of Biscay whaling grounds": "Китобойный промысел Бискайского залива",
   "BEAT THE {0} DELEGATION TO NINGBO": "ПОБЕДИТЕ {0} ДЕЛЕГИРОВАНИЕ В НИНБО",
   "beaver narrative": "бобровый рассказ",

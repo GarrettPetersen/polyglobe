@@ -108,7 +108,7 @@ function explorerReminder(goal, {
   if (!(discoveredIds instanceof Set)) {
     throw new Error("Explorer reminder requires discovered ids");
   }
-  const wonders = explorerWonderCatalog(wonderCatalog);
+  const wonders = explorerWonderCatalog(wonderCatalog, discoveredIds);
   const wonderById = new Map(wonders.map((wonder) => [wonder.id, wonder]));
   const reported = new Set(goal.reportedDiscoveryIds);
   const unreported = wonders.filter(

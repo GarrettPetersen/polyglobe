@@ -2,6 +2,8 @@ import { CROATOAN_CLUE, cityRuinsDamage, croatoanClueScreenRect, croatoanClueCon
 import { GAME_ICON_ASSET_VERSION, gameIconAtlasRect, gameIconAtlasDimensions } from "../src/gameIcons.js";
 import { requirePixelPerfectSpriteScale } from "../src/pixelPerfectSpriteScale.js";
 import { cityAssaultCameraTargetPosition } from "./cityAssaultCamera.js";
+import { cityCombatEntryOpacity } from "./cityCombatVisibility.js";
+import { activeForeignSettlements, foreignSettlementsForCity1522 } from "../src/foreignSettlements.js";
 import {
   CITY_FEAST_TABLE, CITY_FEAST_TABLE_Z, CITY_FEAST_SHADOW_Z, CITY_FEAST_FOOD_FILES,
   cityFeastFrames, createCityFeastGuests, cityFeastGuestPose, cityFeastDishes
@@ -338,6 +340,7 @@ const state = {
   sideViewRastersBySlug: null,
   saleShipRastersBySlug: null,
   flagCatalog: null,
+  foreignSettlements: [],
   flagImagesByFactionId: null,
   treeManifest: null,
   staticAtlas: null,
@@ -583,6 +586,7 @@ async function selectCity(cityId, {
   playerShipSlug = null,
   saleShipSlugs = null,
   availableDestinationIds = null,
+  foreignSettlements = null,
   factionId = null,
   label = null,
   shipyardConstruction = null,
@@ -596,6 +600,10 @@ async function selectCity(cityId, {
 } = {}) {
   const serial = ++citySelectionSerial;
   const city = resolveCityRecord(cityId, { factionId, label, population, settlementType });
+  const selectedForeignSettlements = activeForeignSettlements({
+    ...city, foreignSettlements: foreignSettlements ?? foreignSettlementsForCity1522(city)
+  });
+  for (const settlement of selectedForeignSettlements) requiredPreloadedFlagImage(settlement.factionId);
   const validatedDestinationIds = availableDestinationIds === null
     ? null
     : validateAvailableDestinationIds(availableDestinationIds);
@@ -619,6 +627,7 @@ async function selectCity(cityId, {
   }
   state.colonyClueId = colonyClueId;
   state.city = city;
+  state.foreignSettlements = selectedForeignSettlements;
   state.availableDestinationIds = validatedDestinationIds;
   state.barred = barred;
   state.illicitCaughtStartedAtMs = illicitCaughtStartedAtMs;
@@ -1341,6 +1350,11 @@ if (!externalFrameClock) document.addEventListener("visibilitychange", () => {
 });
 
 function drawSceneEntry(entry, timeMs, targetContext = context) {
+  const opacity = cityCombatEntryOpacity(entry, state.assaultPresentation !== null);
+  if (opacity !== 1) {
+    targetContext.save();
+    targetContext.globalAlpha *= opacity;
+  }
   if (entry.kind === "static") {
     drawStaticFrame(entry.frame, entry.layerName, entry.occurrence, targetContext);
   }
@@ -1371,6 +1385,7 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
   }
   else if (entry.kind === "shipyard-front") drawShipyardFront(entry.frame, targetContext);
   else if (entry.kind === "gatehouse-flag") drawGatehouseFlag(entry.frame, timeMs);
+  else if (entry.kind === "foreign-settlement-flag") drawForeignSettlementFlag(entry, timeMs);
   else if (entry.kind === "cloud") drawCloud(entry, timeMs);
   else if (entry.kind === "shipyard-sale-ship") {
     drawShipyardSaleShip(entry.placement, timeMs, targetContext);
@@ -1386,6 +1401,7 @@ function drawSceneEntry(entry, timeMs, targetContext = context) {
     drawNpc(cityFeastGuestPose(entry.guest, state.feast.phase, state.feast.elapsedMs), timeMs);
   }
   else throw new Error(`Unknown city scene render entry: ${entry.kind}`);
+  if (opacity !== 1) targetContext.restore();
 }
 
 function drawMeasuredSceneEntry(entry, timeMs, targetContext) {
@@ -1508,6 +1524,7 @@ function staticSceneCacheKey(entries) {
     : "no-hover";
   return [
     `${canvas.width}x${canvas.height}`,
+    `assault=${state.assaultPresentation !== null}`,
     `camera=${state.parallax}`,
     `bombardment=${state.bombardmentEventId || "none"}`,
     hoveredDestinationId
@@ -1842,6 +1859,19 @@ function createSceneRenderEntries() {
   }
   if (state.features.dock !== "none") {
     entries.push({ kind: "dock-shadow-extension", z: 36, authoredOrder: 16.5 });
+  }
+  if (state.features.market) {
+    for (const [index, settlement] of state.foreignSettlements.entries()) {
+      const frame = state.portManifest.staticFrames.find((frame) => frame.layer === "Market Stall");
+      if (!frame) throw new Error("Foreign factory requires a market frame");
+      const poleX = frame.spriteSourceSize.x + 8 + index * 24;
+      const roofY = frame.spriteSourceSize.y;
+      entries.push({ kind: "foreign-settlement-flag", settlement,
+        // Fly above the market's destination label so the flag stays readable.
+        geometry: { poleX, poleTopY: roofY - 40, poleBottomY: roofY + 4,
+          flagY: roofY - 38, flagWidth: 18, flagHeight: 12, waveAmplitudeScale: 1 },
+        z: painterZ("Market Stall", 0), authoredOrder: 100 + index });
+    }
   }
   return entries.sort((a, b) => a.z - b.z || a.authoredOrder - b.authoredOrder);
 }
@@ -2787,7 +2817,19 @@ function drawGatehouseFlag(frame, timeMs) {
     layerSceneOffsetY(CITY_GATEHOUSE_FLAG_LAYER, 0, approach),
     layerParallaxAnchor(CITY_GATEHOUSE_FLAG_LAYER, 0)
   );
-  const geometry = cityGatehouseFlagGeometry(frame);
+  drawCityFlag(image, cityGatehouseFlagGeometry(frame), window, timeMs);
+}
+
+function drawForeignSettlementFlag(entry, timeMs) {
+  const approach = state.features.approach;
+  const window = sceneWindow(layerParallaxDepth("Market Stall", 0),
+    layerSceneOffsetX("Market Stall", 0, approach),
+    layerSceneOffsetY("Market Stall", 0, approach),
+    layerParallaxAnchor("Market Stall", 0));
+  drawCityFlag(requiredPreloadedFlagImage(entry.settlement.factionId), entry.geometry, window, timeMs);
+}
+
+function drawCityFlag(image, geometry, window, timeMs) {
   const poleX = Math.round(geometry.poleX - window.x);
   const poleTopY = Math.round(geometry.poleTopY - window.y);
   const poleBottomY = Math.round(geometry.poleBottomY - window.y);
@@ -4891,6 +4933,7 @@ return Object.freeze({
       features: state.features,
       wind: state.wind,
       shipSlug: state.shipSlug,
+      foreignSettlements: state.foreignSettlements,
       bombardmentEventId: state.bombardmentEventId,
       colonyClue: state.colonyClueId === null ? null : Object.freeze({
         id: state.colonyClueId, rect: colonyClueScreenRect(),

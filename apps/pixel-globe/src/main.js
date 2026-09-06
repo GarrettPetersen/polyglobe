@@ -2,6 +2,9 @@ import { colonizationSiteIsRuined } from "./colonialCities.js";
 import { dateToSubsolarPoint } from "./solarClock.js";
 import { CITY_FEAST_GATHER_DURATION_MS } from "../city-visualizer/cityFeast.js";
 import { completeChefRecruitment, completeVikingLongshipAcquisition } from "./innQuestTransactions.js";
+import { portGovernmentAudienceAvailable } from "./portGovernmentAudience.js";
+import { activeForeignSettlements } from "./foreignSettlements.js";
+import { recordNavalCasualties, navalCasualtyReport, navalAfterActionReady } from "./navalCasualtyReport.js";
 import {
   clamp,
   createDirectionIndex,
@@ -830,9 +833,9 @@ import {
 } from "./portAssaultBattle.js";
 import { portAssaultBreakOffLayout } from "./portAssaultBreakOffLayout.js";
 import {
-  PORT_ASSAULT_CASUALTY_FATE,
-  createPortAssaultCasualtyReport
-} from "./portAssaultCasualtyReport.js";
+  CREW_CASUALTY_FATE,
+  createCrewCasualtyReport
+} from "./crewCasualtyReport.js";
 import { CREW_HIRE_COST } from "./shipLoadouts.js";
 import {
   DEPARTURE_CONTROL_FEEDBACK_KINDS,
@@ -967,6 +970,7 @@ import {
   explorerWonderCatalog,
   familyDebtPayoffProjection,
   isExplorerLeadAssignable,
+  isExplorerWonder,
   markWhiteWhaleKilled,
   markCampaignGoalIntroSeen,
   reachWhiteWhaleSighting,
@@ -1024,10 +1028,11 @@ import {
   buildWorldDiscoveries,
   captainDialogueForDiscovery,
   isDiscoveryNovelToCharacter,
-  mountainDiscovery,
+  mountainDiscoveryCatalog,
   restrictMountainsToNavigableView
 } from "./discoveries.js";
 import {
+  availableDiscoveryCatalog,
   reconcileSavedDiscoveryReferences,
   validateDiscoveryCatalog,
   validateSavedDiscoveryReferences
@@ -4762,12 +4767,12 @@ async function main() {
     ])
   });
   discoveryCatalog = [
-    ...mountainLandmarks.famous.map(mountainDiscovery),
+    ...mountainDiscoveryCatalog(mountainLandmarks),
     ...worldDiscoveries,
     CIRCUMNAVIGATION_DISCOVERY
   ];
   validateDiscoveryCatalog(discoveryCatalog);
-  validateExplorerReportDialogueCatalog(explorerWonderCatalog(discoveryCatalog));
+  validateExplorerReportDialogueCatalog(discoveryCatalog.filter(isExplorerWonder));
   validateNaturalistReportDialogueCatalog(ANIMAL_CATALOG);
   discoveryCatalogById = new Map(discoveryCatalog.map((discovery) => [discovery.id, discovery]));
   chartTileProtection = buildChartTileProtection({
@@ -4797,11 +4802,11 @@ async function main() {
     `[pixel-globe] mountains: ${mountainLandmarks.all.length} named peaks, ` +
     `${mountainLandmarks.peakTileIds.size} peak tiles, ` +
     `${mountainLandmarks.famous.length} navigable discoveries, ` +
-    `${mountainLandmarks.inaccessibleFamous.length} inaccessible discoveries removed`
+    `${mountainLandmarks.inaccessibleFamous.length} inaccessible discoveries retained for saved journals`
   );
   if (mountainLandmarks.inaccessibleFamous.length > 0) {
     console.info(
-      `[pixel-globe] inaccessible mountain discoveries removed: ` +
+      `[pixel-globe] mountain discoveries unavailable for new sightings: ` +
       mountainLandmarks.inaccessibleFamous.map((mountain) => mountain.displayName).join(", ")
     );
   }
@@ -7082,6 +7087,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
   if (updateColonistLanding(nowMs)) dirty = true;
   if (updateChefFeastPresentation(nowMs)) dirty = true;
   if (updatePortAssault(nowMs)) dirty = true;
+  if (updateNavalAfterAction(nowMs)) dirty = true;
   measurePerformanceBenchmarkStage(
     "audio.ambient",
     () => updateAmbientAudio(simulationSeconds)
@@ -7446,7 +7452,7 @@ function createCharacterAlertModal(character, message, expressionId = "neutral",
   rightCharacter = null
 } = {}) {
   if (!character) throw new Error("Character alert requires a character");
-  if (!["alert", "aboard-calendar", "sequence", "choice"].includes(kind)) {
+  if (!["alert", "aboard-calendar", "sequence", "choice", "naval-casualty-report"].includes(kind)) {
     throw new Error(`Unknown character alert kind: ${kind}`);
   }
   if (typeof buttonLabel !== "string" || buttonLabel.trim() === "") {
@@ -7583,8 +7589,47 @@ function openCrewAlertModal(message, expressionId = "neutral") {
   );
 }
 
+let navalAfterActionQuietSinceMs = null;
+
+function updateNavalAfterAction(nowMs) {
+  if (!gameState || gameState.memory.navalCasualties.length === 0) {
+    navalAfterActionQuietSinceMs = null;
+    return false;
+  }
+  const engaged = playerHasCombatEngagement();
+  const projectilesActive = npcCombatProjectiles.some((shot) =>
+    shot.ownerId === PLAYER_COMBAT_ID || shot.targetId === PLAYER_COMBAT_ID);
+  const blocked = Boolean(startMenu || gameOverReason || dialogueState || captainAlertModal ||
+    portAssaultState || menusAreOpen() || queuedCharacterAlertSteps.length || characterAlertSequenceCompletion);
+  if (engaged || projectilesActive || blocked) {
+    navalAfterActionQuietSinceMs = null;
+    return false;
+  }
+  navalAfterActionQuietSinceMs ??= nowMs;
+  if (!navalAfterActionReady({ quietSinceMs: navalAfterActionQuietSinceMs, nowMs,
+    engaged, projectilesActive, blocked })) return false;
+  const report = navalCasualtyReport(gameState.memory.navalCasualties);
+  if (!openCharacterAlertModal(gameState.playerCharacter, "CASUALTY ROLL", "sad", {
+    kind: "naval-casualty-report"
+  })) return false;
+  Object.assign(captainAlertModal, { casualtyReport: report,
+    casualtyReportResultLabel: "BATTLE OVER", casualtyReportPage: 0,
+    casualtyReportPageCount: 1, casualtyReportButtonRects: [] });
+  navalAfterActionQuietSinceMs = null;
+  return true;
+}
+
+function stepNavalCasualtyReport(delta) {
+  const modal = captainAlertModal;
+  if (modal?.kind !== "naval-casualty-report" || ![-1, 1].includes(delta)) {
+    throw new Error("Cannot page a missing naval casualty report");
+  }
+  modal.casualtyReportPage = clamp(modal.casualtyReportPage + delta, 0, modal.casualtyReportPageCount - 1);
+  dirty = true;
+}
+
 function presentPendingNamedCrewDeathNotice() {
-  if (!gameState || captainAlertModal || gameOverReason) return false;
+  if (!gameState || captainAlertModal || gameOverReason || playerHasCombatEngagement()) return false;
   const notice = pendingNamedCrewDeathNotice(gameState);
   if (!notice) return false;
   const opened = openCharacterAlertModal(notice.character, notice.lastWords, "dying");
@@ -7639,6 +7684,12 @@ function handlePlayerIntroKeyDown(event) {
 
 function handleCaptainAlertKeyDown(event) {
   event.preventDefault();
+  if (captainAlertModal?.kind === "naval-casualty-report") {
+    if (["Escape", "Enter", " "].includes(event.key)) closeCaptainAlertModal();
+    else if (["ArrowRight", "ArrowDown", "PageDown"].includes(event.key)) stepNavalCasualtyReport(1);
+    else if (["ArrowLeft", "ArrowUp", "PageUp"].includes(event.key)) stepNavalCasualtyReport(-1);
+    return;
+  }
   if (captainAlertModal?.kind === "sailing-help") {
     if (event.key === "Escape") closeCaptainAlertModal();
     else if (["Enter", " ", "ArrowRight", "ArrowDown", "PageDown"].includes(event.key)) {
@@ -7679,6 +7730,13 @@ function handlePlayerIntroPointerDown(point) {
 }
 
 function handleCaptainAlertPointerDown(point) {
+  if (captainAlertModal?.kind === "naval-casualty-report") {
+    const button = captainAlertModal.casualtyReportButtonRects.find(({ rect }) => pointInRect(point, rect));
+    if (!button) return;
+    if (button.action === "continue") closeCaptainAlertModal();
+    else stepNavalCasualtyReport(button.action === "next" ? 1 : -1);
+    return;
+  }
   if (captainAlertModal?.kind === "choice") {
     const pages = captainAlertPages(captainAlertModal);
     if (!characterAlertChoicesAreVisible(captainAlertModal.page, pages.length)) {
@@ -9436,6 +9494,11 @@ function createCampaignGoalContact(playerCharacter, goal) {
 
 function closeCaptainAlertModal() {
   const closedKind = captainAlertModal?.kind || null;
+  if (closedKind === "naval-casualty-report") {
+    const reportedIds = new Set(captainAlertModal.casualtyReport.entries.map(({ memberId }) => memberId));
+    gameState.memory.navalCasualties = gameState.memory.navalCasualties.filter(({ memberId }) => !reportedIds.has(memberId));
+    saveVoyageNow("acknowledged naval casualty roll");
+  }
   captainAlertModal = null;
   keys.clear();
   clearPointerSteering();
@@ -11842,6 +11905,9 @@ function stageCaptureCity(sequence) {
   const city = captureCityById(sequence.cityId);
   placeCapturePlayerNearTile(city.tileId);
   gameState.doubloons = 12_000;
+  if (sequence.variant === "castaway-homecoming") {
+    stageCaptureCompanions({ variant: "castaway-arrival", homeCityId: sequence.cityId });
+  }
   if (sequence.variant === "chef-feast") {
     const quest = maybeSpawnChefQuest(gameState, city, { simMinute: weatherClockMinutes, spawnChance: 1 });
     if (!quest) throw new Error("Feast capture could not prepare its chef quest");
@@ -11865,6 +11931,27 @@ function stageCaptureCity(sequence) {
 }
 
 function updateCaptureCity(sequence) {
+  if (sequence.variant === "castaway-homecoming") {
+    if (captureCue("arrive-with-castaway", 0.5)) openPortDialogue(capturePortCallById(sequence.cityId));
+    if (captureCue("verify-castaway-scene", 3)) {
+      if (!portCityView?.sceneReady || portCityTransition || dialogueState?.kind !== "rescued-traveler" ||
+          dialogueState.phase !== "homecoming" || dialogueState.cityId !== sequence.cityId) {
+        throw new Error("Castaway homecoming did not activate its city scene and reunion dialogue");
+      }
+      emitCaptureEvent("castaway-homecoming-visible", { cityId: sequence.cityId });
+    }
+    for (const at of [4, 6, 8]) {
+      if (captureCue(`castaway-reunion-${at}`, at)) captureChooseDialogueAction("continue-rescued-traveler-homecoming");
+    }
+    if (captureCue("castaway-farewell", 10)) {
+      captureChooseDialogueAction("complete-rescued-traveler-reunion");
+      if (gameState.memory.quests.castaway.active !== null || !portCityView?.sceneReady) {
+        throw new Error("Castaway reunion did not complete in the city");
+      }
+      emitCaptureEvent("castaway-homecoming-complete", { cityId: sequence.cityId });
+    }
+    return;
+  }
   if (sequence.variant === "chef-feast") {
     if (captureCue("dismiss-ingredient-notice", 0.4) && captainAlertModal) closeCaptainAlertModal();
     if (captureCue("open-chef", 0.5)) openCapturePortNode(sequence.cityId, "chef-quest");
@@ -13908,6 +13995,11 @@ function stageCaptureCompanions(sequence) {
       return;
     }
     acceptCastawayQuest(memory, quest.id);
+    if (sequence.variant === "castaway-arrival") {
+      placeCapturePlayerNearTile(home.tileId);
+      stopShipMotion();
+      return;
+    }
     const rewardItem = familySurvived
       ? prepareHighValueMissionPerkItem(gameState, home, quest.id)
       : null;
@@ -16407,6 +16499,29 @@ function installSaveRestoreSmokeHarness() {
   }
   let running = false;
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
+    async inspectNavalCasualtyReport() {
+      if (running || gameState.memory.navalCasualties.length === 0) {
+        throw new Error("Naval report smoke requires a restored pending casualty roll");
+      }
+      navalAfterActionQuietSinceMs = null;
+      updateNavalAfterAction(lastFrameMs);
+      updateNavalAfterAction(lastFrameMs + 5000);
+      if (captainAlertModal?.kind !== "naval-casualty-report") {
+        throw new Error("Restored naval casualty roll failed to open after combat ended");
+      }
+      render(lastFrameMs, { allowColdCoveredWorldRender: true });
+      const report = captainAlertModal.casualtyReport;
+      const retained = gameState.memory.navalCasualties.length;
+      for (let page = 1; page < captainAlertModal.casualtyReportPageCount; page++) {
+        stepNavalCasualtyReport(1);
+        render(lastFrameMs, { allowColdCoveredWorldRender: true });
+      }
+      closeCaptainAlertModal();
+      await waitForSaveRestoreSmokePersistence();
+      const saved = readLocalSave();
+      if (saved.status !== "ready") throw saved.error;
+      return { report, retained, pending: saved.save.payload.gameState.memory.navalCasualties.length };
+    },
     inspectCrew() {
       if (running) throw new Error("Cannot inspect crew during save restoration");
       openAboardMenu();
@@ -17405,7 +17520,8 @@ function currentAchievementSnapshot() {
   const visitedPortCount = state ? achievementVisitedPortCount(state) : 0;
   return {
     discoveryIds: state ? [...state.memory.discoveryOrder] : [],
-    discoveryCatalogIds: discoveryCatalog.map((entry) => entry.id),
+    discoveryCatalogIds: availableDiscoveryCatalog(discoveryCatalog,
+      new Set(state?.memory.discoveryOrder || [])).map((entry) => entry.id),
     animalIds: state ? [...state.memory.animals.encounterOrder] : [],
     animalCatalogIds: ANIMAL_CATALOG.map((entry) => entry.id),
     circumnavigationDiscoveryId: CIRCUMNAVIGATION_DISCOVERY.id,
@@ -21134,6 +21250,7 @@ function portCitySceneAssetOptions(city) {
   return Object.freeze({
     factionId: city.factionId,
     playerShipSlug,
+    foreignSettlements: activeForeignSettlements(city, gameState.relations.foreignSettlementExpulsions),
     saleShipSlugs,
     shipyardConstruction,
     bombardmentEventId
@@ -21558,6 +21675,7 @@ function prepareCrewRecruitmentAt(city, {
 }
 
 function maybeOpenSovereignWarLoanDialogue(cityCall) {
+  if (!currentPortGovernmentAudienceAvailable(cityCall)) return false;
   const memory = gameState.memory.quests.sovereignWarLoan;
   const simMinute = Math.floor(weatherClockMinutes);
   const contract = memory.contract;
@@ -21596,6 +21714,11 @@ function maybeOpenSovereignWarLoanDialogue(cityCall) {
   }
   if (!sovereignWarLoanOfferNeedsPresentation(memory, cityCall, gameState.doubloons)) return false;
   return openSovereignWarLoanOfferDialogue(cityCall);
+}
+
+function currentPortGovernmentAudienceAvailable(city) {
+  return portGovernmentAudienceAvailable(dialogueState, city,
+    portEntryStatus(gameState, city, Math.floor(weatherClockMinutes)));
 }
 
 function sovereignCapitalFactionId(city) {
@@ -21756,6 +21879,9 @@ function refuseSovereignWarLoan(cityCall) {
 }
 
 function acceptSovereignWarLoan(cityCall) {
+  if (!currentPortGovernmentAudienceAvailable(cityCall)) {
+    throw new Error(`War-loan audience is unavailable at ${cityCall.cityId}`);
+  }
   const simMinute = Math.floor(weatherClockMinutes);
   const issuance = issueSovereignWarLoanForState(gameState, cityCall, portCities, { simMinute });
   const contract = issuance.contract;
@@ -24307,7 +24433,7 @@ function openPortAssaultCasualtyReport(crewFates, pendingResolution, resultLabel
   if (!["VICTORY", "DEFEAT", "WITHDRAWAL"].includes(resultLabel)) {
     throw new Error(`Unknown casualty report result: ${resultLabel}`);
   }
-  portAssaultState.casualtyReport = createPortAssaultCasualtyReport(crewFates);
+  portAssaultState.casualtyReport = createCrewCasualtyReport(crewFates);
   portAssaultState.casualtyReportResultLabel = resultLabel;
   portAssaultState.casualtyReportPage = 0;
   portAssaultState.casualtyReportPageCount = 1;
@@ -38517,6 +38643,7 @@ function applyPortableWeaponHitToPlayer(ball, point) {
     },
     random: Math.random
   });
+  recordNavalCasualties(gameState.memory.navalCasualties, crewFates);
   if (crewFates.deaths.length > 0) {
     presentCrewLoss(crewFates.deaths.length);
     syncShipCargoFromGameState();
@@ -39736,7 +39863,9 @@ function applyCrewCasualtiesFromHullDamage(damage, {
     showSurvivalNotice("CREW PROTECTED", "good");
     return 0;
   }
-  const lost = rollCrewCasualtiesForDamage(gameState, damage);
+  const lost = rollCrewCasualtiesForDamage(gameState, damage, Math.random, {
+    navalCombat: playerHasCombatEngagement() || cause === "cannon" || cause === "arrow"
+  });
   if (lost <= 0) return 0;
   presentCrewLoss(lost);
   spawnCrewDeathEffects({
@@ -42078,7 +42207,7 @@ function drawPortAssaultOverlay(nowMs) {
   const elapsedMs = portAssaultElapsedMs(nowMs);
   drawPortAssaultBattleStatus(portAssaultState, elapsedMs);
   if (portAssaultState.casualtyReport) {
-    drawPortAssaultCasualtyReport(portAssaultState);
+    drawCrewCasualtyReport(portAssaultState);
   } else if (portAssaultState.breakOffPrompt) {
     drawPortAssaultBreakOffPrompt(portAssaultState);
   }
@@ -42166,10 +42295,10 @@ function drawPortAssaultBreakOffPrompt(assault) {
   );
 }
 
-function drawPortAssaultCasualtyReport(assault) {
-  const report = assault?.casualtyReport;
+function drawCrewCasualtyReport(modal) {
+  const report = modal?.casualtyReport;
   if (!report || !Array.isArray(report.entries)) {
-    throw new Error("Port assault casualty modal requires a report");
+    throw new Error("Crew casualty modal requires a report");
   }
   const panelW = Math.min(420, SCREEN_W - 12);
   const panelH = Math.min(244, SCREEN_H - 12);
@@ -42191,8 +42320,8 @@ function drawPortAssaultCasualtyReport(assault) {
   const rowsPerColumn = Math.max(1, Math.floor((bodyBottom - bodyTop) / rowH));
   const pageSize = rowsPerColumn * columns;
   const pageCount = Math.max(1, Math.ceil(report.entries.length / pageSize));
-  assault.casualtyReportPageCount = pageCount;
-  assault.casualtyReportPage = clamp(assault.casualtyReportPage, 0, pageCount - 1);
+  modal.casualtyReportPageCount = pageCount;
+  modal.casualtyReportPage = clamp(modal.casualtyReportPage, 0, pageCount - 1);
 
   drawPiratePaperModal(panel, 0.9);
   drawOptionsText("CASUALTY ROLL", panel.x + panel.w / 2, panel.y + 8, {
@@ -42201,12 +42330,12 @@ function drawPortAssaultCasualtyReport(assault) {
     color: PIRATE_MENU_INK
   });
   drawOptionsText(
-    assault.casualtyReportResultLabel,
+    modal.casualtyReportResultLabel,
     compactHeader ? panel.x + panel.w / 2 : panel.x + 10,
     panel.y + 25,
     {
       align: compactHeader ? "center" : "left",
-      color: assault.casualtyReportResultLabel === "VICTORY"
+      color: modal.casualtyReportResultLabel === "VICTORY"
         ? PIRATE_MENU_INK
         : PIRATE_MENU_DANGER
     }
@@ -42223,7 +42352,7 @@ function drawPortAssaultCasualtyReport(assault) {
   ctx.fillStyle = PIRATE_MENU_CHART_LINE;
   ctx.fillRect(panel.x + 10, headerBottom, panel.w - 20, 1);
 
-  const pageStart = assault.casualtyReportPage * pageSize;
+  const pageStart = modal.casualtyReportPage * pageSize;
   const visibleEntries = report.entries.slice(pageStart, pageStart + pageSize);
   if (visibleEntries.length === 0) {
     drawOptionsText(
@@ -42242,7 +42371,7 @@ function drawPortAssaultCasualtyReport(assault) {
       w: columnW,
       h: rowH
     };
-    drawPortAssaultCasualtyRow(entry, rowRect);
+    drawCrewCasualtyRow(entry, rowRect);
   });
 
   const continueRect = {
@@ -42251,7 +42380,7 @@ function drawPortAssaultCasualtyReport(assault) {
     w: 112,
     h: 20
   };
-  assault.casualtyReportButtonRects = [{ action: "continue", rect: continueRect }];
+  modal.casualtyReportButtonRects = [{ action: "continue", rect: continueRect }];
   drawPiratePaperInset(continueRect, pointInRect(optionsMenu.hoverPoint, continueRect));
   drawOptionsText("CONTINUE", continueRect.x + continueRect.w / 2, continueRect.y + 6, {
     align: "center",
@@ -42260,14 +42389,14 @@ function drawPortAssaultCasualtyReport(assault) {
   if (pageCount > 1) {
     const previousRect = { x: panel.x + 10, y: footerY, w: 24, h: 20 };
     const nextRect = { x: panel.x + panel.w - 34, y: footerY, w: 24, h: 20 };
-    assault.casualtyReportButtonRects.push(
+    modal.casualtyReportButtonRects.push(
       { action: "previous", rect: previousRect },
       { action: "next", rect: nextRect }
     );
     drawOptionsArrowButton(previousRect, "<", pointInRect(optionsMenu.hoverPoint, previousRect));
     drawOptionsArrowButton(nextRect, ">", pointInRect(optionsMenu.hoverPoint, nextRect));
     drawOptionsText(
-      `${assault.casualtyReportPage + 1}/${pageCount}`,
+      `${modal.casualtyReportPage + 1}/${pageCount}`,
       continueRect.x - 8,
       footerY + 6,
       { align: "right", color: PIRATE_MENU_INK_MUTED }
@@ -42275,24 +42404,24 @@ function drawPortAssaultCasualtyReport(assault) {
   }
 }
 
-function drawPortAssaultCasualtyRow(entry, rect) {
+function drawCrewCasualtyRow(entry, rect) {
   if (!entry || (
-    entry.fate !== PORT_ASSAULT_CASUALTY_FATE.DEAD &&
-    entry.fate !== PORT_ASSAULT_CASUALTY_FATE.WOUNDED
+    entry.fate !== CREW_CASUALTY_FATE.DEAD &&
+    entry.fate !== CREW_CASUALTY_FATE.WOUNDED
   )) {
-    throw new Error(`Invalid port assault casualty row: ${entry?.fate}`);
+    throw new Error(`Invalid crew casualty row: ${entry?.fate}`);
   }
-  ctx.fillStyle = entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD
+  ctx.fillStyle = entry.fate === CREW_CASUALTY_FATE.DEAD
     ? PIRATE_MENU_DANGER
     : "#9b7b24";
   ctx.fillRect(rect.x, rect.y + 3, 2, rect.h - 7);
   ctx.save();
-  if (entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD) ctx.globalAlpha = 0.72;
-  portCityRuntime.drawPersonSprite(ctx, {
+  if (entry.fate === CREW_CASUALTY_FATE.DEAD) ctx.globalAlpha = 0.72;
+  if (entry.appearanceId !== null) portCityRuntime.drawPersonSprite(ctx, {
     appearanceId: entry.appearanceId,
-    animationId: entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD ? "death" : "idle",
-    timeMs: entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD ? 450 : 0,
-    playback: entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD
+    animationId: entry.fate === CREW_CASUALTY_FATE.DEAD ? "death" : "idle",
+    timeMs: entry.fate === CREW_CASUALTY_FATE.DEAD ? 450 : 0,
+    playback: entry.fate === CREW_CASUALTY_FATE.DEAD
       ? CITY_ANIMATION_PLAYBACK.ONCE
       : CITY_ANIMATION_PLAYBACK.LOOP,
     x: rect.x + 2,
@@ -42300,8 +42429,8 @@ function drawPortAssaultCasualtyRow(entry, rect) {
   });
   ctx.restore();
   drawCrewExperienceStars(entry.experienceStars, rect.x + 18, rect.y + 2);
-  const textX = rect.x + 37;
-  const textW = rect.w - 41;
+  const textX = rect.x + (entry.appearanceId === null ? 8 : 37);
+  const textW = rect.w - (textX - rect.x) - 4;
   drawOptionsText(
     fitPixelText(entry.name.toUpperCase(), PIXEL_FONT_SMALL_8, textW),
     textX,
@@ -42310,7 +42439,7 @@ function drawPortAssaultCasualtyRow(entry, rect) {
   );
   drawOptionsText(
     fitPixelText(
-      `${uiText(aboardCrewExperienceLevelKey(entry.experienceStars))} ` +
+      (entry.appearanceId === null ? "" : `${uiText(aboardCrewExperienceLevelKey(entry.experienceStars))} `) +
         entry.crewTypeId.replaceAll("-", " ").toUpperCase(),
       PIXEL_FONT_SMALL_8,
       textW
@@ -42319,11 +42448,11 @@ function drawPortAssaultCasualtyRow(entry, rect) {
     rect.y + 15,
     { color: PIRATE_MENU_INK_MUTED }
   );
-  const fateLabel = entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD
+  const fateLabel = entry.fate === CREW_CASUALTY_FATE.DEAD
     ? "DEAD"
     : `WOUNDED • ${entry.recoveryDays} ${entry.recoveryDays === 1 ? "DAY" : "DAYS"}`;
   drawOptionsText(fateLabel, textX, rect.y + 26, {
-    color: entry.fate === PORT_ASSAULT_CASUALTY_FATE.DEAD
+    color: entry.fate === CREW_CASUALTY_FATE.DEAD
       ? PIRATE_MENU_DANGER
       : "#9b7b24"
   });
@@ -43971,6 +44100,7 @@ function updateDiscoveryWorldProgress(nowMs) {
   for (const discovery of discoveryCatalog) {
     if (
       discovery.kind === "achievement" ||
+      discovery.navigationAccessible === false ||
       gameStateHasDiscovery(gameState, discovery.id) ||
       captureDiscoveryIsDeferred(discovery)
     ) continue;
@@ -48696,6 +48826,7 @@ function buildDiscoveriesMenuView() {
   );
   return {
     wonderEntries: discoveredEntries(gameState),
+    wonderCount: availableDiscoveryCatalog(discoveryCatalog, new Set(gameState.memory.discoveryOrder)).length,
     animalEntries: encounteredAnimalEntries(gameState.memory.animals),
     mappedFraction: minimap ? minimap.seenTileCount / graph.tileCount : 0,
     naturalistSummary: naturalistPresentation.reportSummary
@@ -48745,7 +48876,7 @@ function drawDiscoveriesMenu() {
   const wonderEntries = view.wonderEntries;
   const animalEntries = view.animalEntries;
   const entries = discoveriesMenu.tab === "animals" ? animalEntries : wonderEntries;
-  const total = discoveriesMenu.tab === "animals" ? ANIMAL_CATALOG.length : discoveryCatalog.length;
+  const total = discoveriesMenu.tab === "animals" ? ANIMAL_CATALOG.length : view.wonderCount;
   const foundFraction = total > 0 ? entries.length / total : 0;
   const mappedFraction = view.mappedFraction;
   const progressWidth = panel.w - 24;
@@ -63143,6 +63274,10 @@ function drawCharacterSkillBadge(character, x, y, width) {
 function drawCaptainAlertModal(nowMs) {
   const modal = captainAlertModal;
   if (!modal) return;
+  if (modal.kind === "naval-casualty-report") {
+    drawCrewCasualtyReport(modal);
+    return;
+  }
   if (modal.kind === "sailing-help") {
     drawSailingHelpModal(modal);
     return;

@@ -1,4 +1,5 @@
 import { explorerReportDialogueForDiscovery } from "./explorerDiscoveryDialogue.js";
+import { availableDiscoveryCatalog } from "./discoveryCatalogReferences.js";
 import { FACTIONS, NEUTRAL_FACTION_ID, PIRATE_FACTION_ID } from "./factions.js";
 import { greatCircleDistanceKm, MAX_GREAT_CIRCLE_DISTANCE_KM } from "./worldDistance.js";
 import { WHITE_WHALE_ID } from "./whaleSpecies.js";
@@ -216,12 +217,13 @@ export function isExplorerWonder(discovery) {
 }
 
 export function isExplorerLeadAssignable(discovery) {
-  return isExplorerWonder(discovery) && discovery.explorerLeadAssignable !== false;
+  return isExplorerWonder(discovery) && discovery.navigationAccessible !== false &&
+    discovery.explorerLeadAssignable !== false;
 }
 
-export function explorerWonderCatalog(discoveries) {
+export function explorerWonderCatalog(discoveries, discoveredIds = new Set()) {
   if (!Array.isArray(discoveries)) throw new Error("Explorer wonder catalog must be an array");
-  const wonders = discoveries.filter(isExplorerWonder);
+  const wonders = availableDiscoveryCatalog(discoveries, discoveredIds).filter(isExplorerWonder);
   const ids = new Set();
   for (const wonder of wonders) {
     if (typeof wonder.id !== "string" || wonder.id === "") throw new Error("Explorer wonder has no id");
@@ -395,7 +397,7 @@ export function settleExplorerHomecoming(goal, {
   if (!Number.isFinite(homePort?.lat) || !Number.isFinite(homePort?.lon)) {
     throw new Error("Explorer settlement requires a placed home port");
   }
-  const wonders = explorerWonderCatalog(wonderCatalog);
+  const wonders = explorerWonderCatalog(wonderCatalog, discoveredIds);
   const reported = new Set(goal.reportedDiscoveryIds);
   const newlyReportedWonders = wonders
     .filter((wonder) => discoveredIds.has(wonder.id) && !reported.has(wonder.id));

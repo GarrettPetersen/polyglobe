@@ -1871,6 +1871,12 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
     return tradeEmbargoSaleWarningView(session, city);
   }
   if (session.nodeId === "trade-tip") return tradeTipView(session, city);
+  if (session.nodeId === "foreign-settlements") {
+    const text = foreignSettlementFactorLine(city, gameState);
+    if (!text) throw new Error(`Port has no foreign settlement account: ${city.cityId}`);
+    return { speaker: speakerName(city), expressionId: "attentive", text,
+      feedback: null, options: [option("Back", { type: "node", nodeId: "root" })] };
+  }
   if (session.nodeId === "quest-cargo-tip") return questCargoTipView(session, city);
   if (session.nodeId === "equipment") return equipmentView(session, city, gameState, economy);
   if (session.nodeId === "equipment-nets") return fishingNetView(session, city, gameState, economy);
@@ -4837,6 +4843,9 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
     options.splice(4, 0, entry);
   }
   options.splice(2, 0, ...passengerInnRootOptions(session, context, pirateHideout));
+  if (foreignSettlementFactorLine(city, gameState)) {
+    options.push(option("Resident foreign settlements", { type: "node", nodeId: "foreign-settlements" }));
+  }
   if (!session.disguisedEntry && letterOfMarqueStatus(gameState, city, context.shipPower || 0).available) {
     options.push(option("Letter of marque", { type: "node", nodeId: "marque" }));
   }
@@ -7089,7 +7098,13 @@ function shipyardInvestmentView(session, city, gameState, context) {
   if (!yard) throw new Error("Shipyard investment dialogue requires the local yard");
   if (!project) throw new Error("Shipyard investment dialogue requires the local project");
 
-  const back = option(session.shipyardInvestmentArrival ? "Keep the cargo aboard" : "Back", {
+  const materials = shipyardInvestmentMaterialProgress(project);
+  const hasDeliverableCargo = materials.some(({ goodId, remaining }) => (
+    remaining > 0 && (gameState.cargo[goodId] || 0) > 0
+  ));
+  const back = option(session.shipyardInvestmentArrival
+    ? hasDeliverableCargo ? "Keep the cargo aboard" : "Not now"
+    : "Back", {
     type: "node",
     nodeId: session.shipyardInvestmentArrival ? session.nextPortNodeId || "greeting" : "shipyard"
   });
@@ -7104,7 +7119,7 @@ function shipyardInvestmentView(session, city, gameState, context) {
         : null
     }));
   }
-  for (const { goodId, required, delivered, remaining } of shipyardInvestmentMaterialProgress(project)) {
+  for (const { goodId, required, delivered, remaining } of materials) {
     if (remaining <= 0) continue;
     const held = Math.floor(gameState.cargo[goodId] || 0);
     const label = tradeGoodById(goodId).label;
@@ -7593,9 +7608,11 @@ export function bestPurchasedTradeRoute({
     if ((requiredQuestCargo[good.id] || 0) > 0) continue;
     const heldBasis = cargoCostBasis(gameState, good.id);
     const heldQuantity = gameState.cargo[good.id] || 0;
-    const expectedCost = heldBasis.known && heldQuantity >= purchase.quantity
-      ? heldBasis.average * purchase.quantity
-      : purchase.cost;
+    const quantity = Math.min(heldQuantity, purchase.quantity);
+    if (quantity <= 0) continue;
+    const expectedCost = heldBasis.known
+      ? heldBasis.average * quantity
+      : purchase.cost * quantity / purchase.quantity;
     const candidates = [];
     for (const destination of portCities) {
       if (!includeLocalMarket && destination.cityId === originCity.cityId) continue;
@@ -7605,14 +7622,14 @@ export function bestPurchasedTradeRoute({
         economy,
         destination,
         good.id,
-        purchase.quantity,
+        quantity,
         terms.saleMultiplier
-      ) < purchase.quantity) continue;
+      ) < quantity) continue;
       const revenue = quotePortPurchase(
         economy,
         destination,
         good.id,
-        purchase.quantity,
+        quantity,
         terms.saleMultiplier
       );
       const pnl = revenue - expectedCost;
@@ -7629,7 +7646,7 @@ export function bestPurchasedTradeRoute({
         destinationCityId: destination.cityId,
         destinationTileId: destination.tileId,
         destinationName: cityLabel(destination),
-        quantity: purchase.quantity,
+        quantity,
         expectedPnl: pnl,
         distanceKm,
         recommendationScore: distanceAdjustedTradeProfit(pnl, distanceKm),

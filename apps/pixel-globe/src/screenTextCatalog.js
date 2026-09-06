@@ -851,6 +851,7 @@ export const SCREEN_TEXT_TEMPLATES = Object.freeze([
   "Battle joined",
   "Battle of Lepanto",
   "BATTLE OFF NINGBO",
+  "BATTLE OVER",
   "Bay of Biscay whaling grounds",
   "BEAT THE {0} DELEGATION TO NINGBO",
   "beaver narrative",

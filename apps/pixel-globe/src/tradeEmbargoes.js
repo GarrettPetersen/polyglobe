@@ -1038,6 +1038,11 @@ function tradeEmbargoPoliticalConflict(diplomacy, issuerFactionId, targetFaction
     issuerFactionId,
     targetFactionId
   )) return "submission-to-target";
+  if (factionIsSubjectOf(
+    diplomacy.suzerainties,
+    targetFactionId,
+    issuerFactionId
+  )) return "target-submission";
   return worldDiplomacyBetween(diplomacy, issuerFactionId, targetFactionId) === DIPLOMACY_ALLY
     ? "diplomatic-alliance"
     : null;

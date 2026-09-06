@@ -2391,7 +2391,7 @@ function validateCaptureSequence(value) {
     requiredString(value.factorPortraitSourceId, "capture trade factor portrait source id");
   }
   if (value.kind === "city") {
-    if (!["visit", "market-tour", "architecture-pan", "chef-feast"].includes(value.variant)) {
+    if (!["visit", "market-tour", "architecture-pan", "chef-feast", "castaway-homecoming"].includes(value.variant)) {
       throw new Error(`Invalid city capture variant: ${value.variant}`);
     }
     if (value.variant === "market-tour") {

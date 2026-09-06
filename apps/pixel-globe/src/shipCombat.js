@@ -18,6 +18,9 @@ import { activeCombatCrew, crewWoundsForceSurrender } from "./combatWounds.js";
 export const PLAYER_COMBAT_ID = "player";
 export const COMBAT_DETECTION_RADIUS_PX = 92;
 export const COMBAT_DISENGAGE_RADIUS_PX = 148;
+// Retain a player engagement beyond cannon range so a slow ship can turn for
+// its next broadside. Detection remains short: passing ships do not start wars.
+export const PLAYER_COMBAT_DISENGAGE_RADIUS_PX = 240;
 export const PIRATE_PLAYER_DETECTION_RADIUS_PX = 68;
 export const PIRATE_TREASURE_DETECTION_RADIUS_PX = 112;
 export const WARSHIP_PIRATE_INTERCEPTION_RADIUS_PX = 138;
@@ -295,6 +298,9 @@ function combatDetectionRadius(a, b) {
 }
 
 function combatDisengageRadius(a, b) {
+  if (a.id === PLAYER_COMBAT_ID || b.id === PLAYER_COMBAT_ID) {
+    return PLAYER_COMBAT_DISENGAGE_RADIUS_PX;
+  }
   return isNpcWarshipPiratePair(a, b)
     ? WARSHIP_PIRATE_DISENGAGE_RADIUS_PX
     : COMBAT_DISENGAGE_RADIUS_PX;

@@ -1679,6 +1679,8 @@ function reviewedCrewOverrides() {
 
 function reviewedPortCityOverrides() {
   const entries = [
+    ["BATTLE OVER", ["战斗结束", "БОЙ ОКОНЧЕН", "BATALLA TERMINADA", "BATALHA ENCERRADA",
+      "戦闘終了", "KAMPF BEENDET", "BATAILLE TERMINÉE", "KONIEC BITWY", "戰鬥結束", "전투 종료"]],
     ["Back to city", ["返回城中", "Вернуться в город", "Volver a la ciudad", "Voltar à cidade", "街へ戻る", "Zurück in die Stadt", "Retour en ville", "Wróć do miasta", "返回城中", "도시로 돌아가기"]],
     ["Captain home city", ["船长的故乡城市", "Родной город капитана", "Ciudad natal del capitán", "Cidade natal do capitão", "船長の故郷の都市", "Heimatstadt des Kapitäns", "Ville d’origine du capitaine", "Rodzinne miasto kapitana", "船長的故鄉城市", "선장의 고향 도시"]],
     ["Hold there! The merchant bolts into the crowd as the harbor watch closes around you.", [

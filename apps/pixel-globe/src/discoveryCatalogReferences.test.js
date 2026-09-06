@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  availableDiscoveryCatalog,
   reconcileSavedDiscoveryReferences,
   validateDiscoveryCatalog,
   validateSavedDiscoveryReferences
@@ -22,6 +23,29 @@ const CATALOG = Object.freeze([
     detail: "Giza"
   })
 ]);
+
+test("navigation changes preserve discovery history and release unreachable explorer leads", () => {
+  const ararat = { id: "mountain-mount-ararat", kind: "mountain", displayName: "Mount Ararat",
+    navigationAccessible: false, legacyIds: ["mountain-123-mount-ararat"] };
+  const catalog = [...CATALOG, ararat];
+  for (const discovered of [false, true]) {
+    const legacyId = ararat.legacyIds[0];
+    const state = savedState({
+      discoveries: discovered ? { [legacyId]: { ...ararat, id: legacyId, portArrivalDialogue: "I saw Ararat." } } : {},
+      discoveryOrder: discovered ? [legacyId] : [],
+      pendingDiscoveryPortDialogueIds: discovered ? [legacyId] : [],
+      campaignGoal: { type: "explorer", reportedDiscoveryIds: discovered ? [legacyId] : [],
+        currentLeadDiscoveryId: legacyId }
+    });
+    reconcileSavedDiscoveryReferences(state, catalog);
+    assert.equal(state.memory.campaignGoal.currentLeadDiscoveryId, null);
+    assert.deepEqual(state.memory.discoveryOrder, discovered ? [ararat.id] : []);
+    assert.deepEqual(state.memory.campaignGoal.reportedDiscoveryIds, discovered ? [ararat.id] : []);
+    if (discovered) assert.equal(state.memory.discoveries[ararat.id].portArrivalDialogue, "I saw Ararat.");
+    assert.equal(availableDiscoveryCatalog(catalog, new Set(state.memory.discoveryOrder)).includes(ararat), discovered);
+    assert.equal(reconcileSavedDiscoveryReferences(state, catalog), 0);
+  }
+});
 
 test("tile-derived mountain ids reconcile across every persisted discovery reference", () => {
   const legacyMountainId = "mountain-161118-mont-blanc";

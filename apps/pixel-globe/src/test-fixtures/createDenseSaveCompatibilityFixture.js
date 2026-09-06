@@ -21,6 +21,7 @@ import {
   SUZERAINTY_KIND_VASSAL
 } from "../suzerainty.js";
 import { TRADE_EMBARGO_EVENT_KINDS } from "../tradeEmbargoes.js";
+import { recordNavalCasualties } from "../navalCasualtyReport.js";
 import { WORLD_DIPLOMACY_EVENT_KINDS } from "../worldDiplomacy.js";
 
 const START_MINUTE = 123_456;
@@ -92,6 +93,11 @@ export function createDenseSaveCompatibilityFixture() {
     recoveryMinutes: 5 * 24 * 60
   }], { cause: CREW_WOUND_CAUSE_PORT_ASSAULT });
   populatePersistentEventHistories(state);
+  recordNavalCasualties(state.memory.navalCasualties, {
+    deaths: [{ kind: "crew", member: { ...state.crewRoster[0], id: "crew:dense-save:fallen" } },
+      { kind: "named", member: { id: "named:dense-save:fallen", name: "Henry Cook", role: "chef" } }],
+    wounded: [{ member: state.crewRoster[1], recoveryMinutes: 5 * 24 * 60 }]
+  });
   populateCanonicalPortMemories(state);
   validateGameState(state);
 

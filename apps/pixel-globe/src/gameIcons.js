@@ -350,6 +350,7 @@ const DIALOGUE_NODE_ICON_IDS = Object.freeze({
   "capture-petition": "action:letter",
   "capture-petition-result": "action:letter",
   garrison: "action:attack",
+  "foreign-settlements": "action:talk",
   "covert-authority": "action:letter",
   marque: "action:letter",
   "trade-pass": "action:letter",

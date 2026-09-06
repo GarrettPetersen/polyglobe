@@ -481,6 +481,18 @@ export function mountainDiscovery(mountain) {
   };
 }
 
+export function mountainDiscoveryCatalog(registry) {
+  if (!Array.isArray(registry?.famous) || !Array.isArray(registry.inaccessibleFamous)) {
+    throw new Error("Mountain discovery catalog requires reviewed navigation access");
+  }
+  // Navigation controls new sightings and leads, never the existence of a
+  // landmark already recorded in a captain's journal.
+  return [
+    ...registry.famous.map((mountain) => ({ ...mountainDiscovery(mountain), navigationAccessible: true })),
+    ...registry.inaccessibleFamous.map((mountain) => ({ ...mountainDiscovery(mountain), navigationAccessible: false }))
+  ];
+}
+
 function latLonToDirection(latDeg, lonDeg) {
   const lat = latDeg * Math.PI / 180;
   const lon = lonDeg * Math.PI / 180;

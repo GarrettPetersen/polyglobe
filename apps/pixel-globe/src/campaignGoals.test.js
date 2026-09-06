@@ -67,6 +67,22 @@ const EXPLORER_OBJECTIVES = Object.freeze([
   CIRCUMNAVIGATION_DISCOVERY
 ]);
 
+test("explorer completion excludes unreachable new objectives but honours previously discovered wonders", () => {
+  const archived = { ...WONDERS[0], id: "mountain-mount-ararat", navigationAccessible: false };
+  const catalog = [WONDERS[1], archived];
+  assert.equal(isExplorerLeadAssignable(archived), false);
+  for (const previouslyDiscovered of [false, true]) {
+    const goal = createCampaignGoal({ playerCharacter: CHARACTER, type: CAMPAIGN_GOAL_EXPLORER });
+    const discoveredIds = new Set([WONDERS[1].id, ...(previouslyDiscovered ? [archived.id] : [])]);
+    const result = settleExplorerHomecoming(goal, { discoveredIds, wonderCatalog: catalog, homePort: HOME });
+    assert.equal(result.completed, true);
+    assert.equal(result.totalWonderCount, previouslyDiscovered ? 2 : 1);
+    assert.equal(result.reward, 3000 + (previouslyDiscovered ? 100 : 0));
+    assert.deepEqual(new Set(goal.reportedDiscoveryIds), discoveredIds);
+    assert.equal(settleExplorerHomecoming(goal, { discoveredIds, wonderCatalog: catalog, homePort: HOME }).reward, 0);
+  }
+});
+
 test("every campaign goal exposes a persistent journal and character objective", () => {
   const presentations = [
     CAMPAIGN_GOAL_EXPLORER,

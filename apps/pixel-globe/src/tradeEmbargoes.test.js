@@ -310,6 +310,28 @@ test("embargo politics immediately lifts orders against an issuer's suzerain", (
   assert.equal(papalOrder.followerFactionIds.includes("hospitallers"), false);
 });
 
+for (const kind of ["vassal", "autonomous-vassal", "tributary", "personal-union"]) {
+  test(`an overlord never embargoes its own ${kind}, including an existing bad order`, () => {
+    const memory = createTradeEmbargoMemory({ seedKey: "ottoman-hungary" });
+    const diplomacy = createWorldDiplomacy({ seedKey: "ottoman-hungary" });
+    const order = memory.orders.find((entry) => entry.authorityKind === "national");
+    Object.assign(order, { issuerFactionId: "ottoman", targetFactionId: "hungary",
+      followerFactionIds: ["ottoman"] });
+    establishDiplomaticSuzerainty(diplomacy, { vassalFactionId: "hungary",
+      suzerainFactionId: "ottoman", kind, simMinute: 1, source: "test-submission",
+      relation: DIPLOMACY_HOSTILE });
+    assert.equal(nextTradeEmbargoPoliticsMinute(memory, diplomacy), memory.lastUpdateMinute);
+    assert.ok(advanceTradeEmbargoPolitics(memory, diplomacy, 1).some((event) =>
+      event.kind === "lifted" && event.source === "target-submission" && event.orderId === order.id));
+    for (let review = 0; review < 12; review++) {
+      advanceTradeEmbargoPolitics(memory, diplomacy, nextTradeEmbargoPoliticsMinute(memory, diplomacy));
+      assert.equal(activeTradeEmbargoOrders(memory).some((entry) =>
+        (entry.issuerFactionId === "ottoman" && entry.targetFactionId === "hungary") ||
+        (entry.issuerFactionId === "hungary" && entry.targetFactionId === "ottoman")), false);
+    }
+  });
+}
+
 test("embargo politics immediately lifts orders against an ally", () => {
   const memory = createTradeEmbargoMemory({ seedKey: "allied-commerce" });
   const diplomacy = createWorldDiplomacy({ seedKey: "allied-commerce" });

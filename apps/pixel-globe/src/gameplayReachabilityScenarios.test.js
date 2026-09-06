@@ -27,6 +27,7 @@ test("gameplay reachability uses a dedicated catalog independent of promotional 
     })),
     new Set([
       "city:chef-feast",
+      "city:castaway-homecoming",
       "sail:beam-reach",
       "sail:row-upwind",
       "fight:broadside",

@@ -20,8 +20,11 @@ import {
 import {
   MAX_MOUNTAIN_DISCOVERY_RADIUS_PX,
   buildWorldDiscoveries,
+  mountainDiscoveryCatalog,
   restrictMountainsToNavigableView
 } from "./discoveries.js";
+import { reconcileSavedDiscoveryReferences } from "./discoveryCatalogReferences.js";
+import { validateExplorerReportDialogueCatalog } from "./explorerDiscoveryDialogue.js";
 import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import { decodeGeodesicGraphBake } from "./geodesicBake.js";
 import { buildMountainLandmarks } from "./mountainLandmarks.js";
@@ -392,6 +395,17 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     ["Mount Ararat", "Mount Kenya", "Muztag Feng", "Vinson Massif"],
     "mountain visibility must respect real drainage divides; Ararat has no Black Sea river approach"
   );
+  const fullMountainCatalog = mountainDiscoveryCatalog(mountainRegistry);
+  validateExplorerReportDialogueCatalog(fullMountainCatalog);
+  assert.deepEqual(new Set(fullMountainCatalog.map(({ id }) => id)),
+    new Set(subdivisionEightMountainRegistry.famous.map(({ id }) => id)),
+    "navigation changes must not remove canonical landmarks from saved journals");
+  const savedDiscoveries = { memory: {
+    discoveries: Object.fromEntries(fullMountainCatalog.map((entry) => [entry.id, { ...entry }])),
+    discoveryOrder: fullMountainCatalog.map(({ id }) => id),
+    pendingDiscoveryPortDialogueIds: [], campaignGoal: null
+  } };
+  assert.equal(reconcileSavedDiscoveryReferences(savedDiscoveries, fullMountainCatalog), 0);
 
   const subdivisionSevenEarth = JSON.parse(await readFile(new URL(
     "examples/globe-demo/public/earth-globe-cache-7.json",

@@ -5,6 +5,13 @@ import {
 
 const DISCOVERY_KINDS = new Set(["mountain", "landmark", "legend", "achievement"]);
 
+export function availableDiscoveryCatalog(catalog, discoveredIds) {
+  if (!Array.isArray(catalog) || !(discoveredIds instanceof Set)) {
+    throw new Error("Available discoveries require a catalog and discovered ID set");
+  }
+  return catalog.filter((entry) => entry.navigationAccessible !== false || discoveredIds.has(entry.id));
+}
+
 export function validateDiscoveryCatalog(catalog) {
   if (!Array.isArray(catalog) || catalog.length === 0) {
     throw new Error("Discovery catalog must be a non-empty array");
@@ -87,6 +94,12 @@ export function reconcileSavedDiscoveryReferences(state, catalog) {
       ).id;
       if (canonicalId !== goal.currentLeadDiscoveryId) migratedReferenceCount += 1;
       goal.currentLeadDiscoveryId = canonicalId;
+      if (resolver.byId.get(canonicalId).navigationAccessible === false) {
+        // The old route is no longer navigable. Keep any recorded discovery,
+        // but let the next homecoming assign a reachable lead.
+        goal.currentLeadDiscoveryId = null;
+        migratedReferenceCount += 1;
+      }
     }
   }
 
@@ -220,6 +233,9 @@ function validateCatalogDiscovery(discovery) {
     throw new Error("Discovery catalog entry has no id");
   }
   requireCanonicalDiscoveryId(discovery.id, "Discovery catalog entry");
+  if (discovery.navigationAccessible !== undefined && typeof discovery.navigationAccessible !== "boolean") {
+    throw new Error(`Discovery catalog entry has invalid navigation access: ${discovery.id}`);
+  }
   if (typeof discovery.displayName !== "string" || discovery.displayName.trim() === "") {
     throw new Error(`Discovery catalog entry has no display name: ${discovery.id}`);
   }

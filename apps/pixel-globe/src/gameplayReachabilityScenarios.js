@@ -5,10 +5,18 @@ const FAST_SCENARIO_IDS = Object.freeze([
   "reachability-colony-found",
   "reachability-whale-tow",
   "reachability-chef-feast",
+  "reachability-castaway-homecoming",
   "reachability-roanoke-timber"
 ]);
 
 export const GAMEPLAY_REACHABILITY_SCENARIOS = deepFreeze({
+  "reachability-castaway-homecoming": {
+    id: "reachability-castaway-homecoming", title: "CASTAWAY", seed: "castaway-homecoming-v1",
+    player: vessel("portugal", "brigantine", 0.34, 6.74, 90),
+    world: world(150, 10, 0), diplomacy: [], encounters: [],
+    sequence: { kind: "city", variant: "castaway-homecoming", durationSeconds: 14,
+      cityId: "sao tome|sao tome and principe", modalPolicy: "show" }
+  },
   "reachability-roanoke-timber": roanokeScenario("reachability-roanoke-timber", "timber"),
   "reachability-roanoke-label": roanokeScenario("reachability-roanoke-label", "label"),
   "reachability-colony-ruins": colonyScenario("reachability-colony-ruins", "ruins"),

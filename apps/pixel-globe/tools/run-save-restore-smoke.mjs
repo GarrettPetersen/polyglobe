@@ -206,8 +206,18 @@ try {
   process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
   await exerciseCrewManagementSaveRoundTrips(page, browserErrors);
   await exerciseDjenneSaveRoundTrips(page, browserErrors);
+  await exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors);
   await exerciseColonySaveRoundTrips(page, browserErrors);
   await exerciseChefSaveRoundTrips(page, browserErrors);
+  const navalFixtureName = "dense-local-save-v2-game-state-v103.json";
+  const navalFixture = browserAdaptedDenseFixture(JSON.parse(readFileSync(path.join(FIXTURE_ROOT, navalFixtureName), "utf8")), navalFixtureName);
+  await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), JSON.stringify(navalFixture));
+  const navalReport = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectNavalCasualtyReport());
+  if (navalReport.report.deaths !== 2 || navalReport.report.wounded !== 1 || navalReport.retained !== 3 || navalReport.pending !== 0) {
+    throw new Error(`Naval casualty roll did not preserve and acknowledge the restored casualties: ${JSON.stringify(navalReport)}`);
+  }
+  await assertNoBrowserFailure(page, browserErrors, "restored naval casualty roll");
+  process.stdout.write("  Naval casualty roll rendered individual sailors and a named companion, then saved its acknowledgement.\n");
 
   const gameplayFailures = [];
   for (const scenarioId of gameplayScenarioIds) {
@@ -377,6 +387,13 @@ async function exerciseProductionGameplayScenario(page, browserErrors, baseUrl, 
 }
 
 function assertGameplayScenarioEvidence(scenario, sidecar) {
+  if (scenario.sequence.variant === "castaway-homecoming") {
+    for (const type of ["castaway-homecoming-visible", "castaway-homecoming-complete"]) {
+      if (!sidecar.events.some((event) => event.type === type && event.data.cityId === scenario.sequence.cityId)) {
+        throw new Error(`${scenario.id} did not prove ${type}`);
+      }
+    }
+  }
   if (scenario.sequence.variant === "chef-feast") {
     const cuts = sidecar.events.filter((event) => event.type === "chef-feast-time-cut");
     if (cuts.length !== 2 || cuts[0].data.phase !== "served" || cuts[1].data.phase !== "afterwards" ||
@@ -574,6 +591,34 @@ async function exerciseDjenneSaveRoundTrips(page, browserErrors) {
     serialized = restored.serialized;
   }
   process.stdout.write("  Djenne: three save/load round trips preserved the corrected city reference.\n");
+}
+
+async function exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors) {
+  const save = JSON.parse(fixtures.find((fixture) => fixture.gameStateVersion === 102).serialized);
+  const memory = save.payload.gameState.memory;
+  const ids = ["mountain-mount-ararat", "mountain-mount-kenya", "mountain-muztag-feng", "mountain-vinson-massif"];
+  for (const id of ids) {
+    memory.discoveries[id] = { id, kind: "mountain", displayName: id, detail: "Previously discovered",
+      portArrivalDialogue: "I have brought my account of the mountain." };
+    memory.discoveryOrder.push(id);
+    memory.pendingDiscoveryPortDialogueIds.push(id);
+  }
+  memory.campaignGoal.currentLeadDiscoveryId = ids[0];
+  let serialized = JSON.stringify(save);
+  for (let pass = 0; pass < 2; pass++) {
+    const restored = await page.evaluate((serialized) =>
+      window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), serialized);
+    await assertNoBrowserFailure(page, browserErrors, "inaccessible discovery save/load");
+    const loaded = readLocalSave({ storage: { getItem: () => restored.serialized } });
+    if (loaded.status !== "ready") throw loaded.error;
+    const restoredMemory = loaded.save.payload.gameState.memory;
+    if (ids.some((id) => !restoredMemory.discoveries[id] || !restoredMemory.discoveryOrder.includes(id)) ||
+        restoredMemory.campaignGoal.currentLeadDiscoveryId !== null) {
+      throw new Error("Navigation change lost a recorded discovery or retained an unreachable lead");
+    }
+    serialized = restored.serialized;
+  }
+  process.stdout.write("  All four inland mountain discoveries survived v102 restore and another save/load.\n");
 }
 
 async function exerciseCrewManagementSaveRoundTrips(page, browserErrors) {
