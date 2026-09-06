@@ -11,8 +11,8 @@ export const DEMO_VOYAGE_SCOPE_WORLDWIDE = "worldwide-grandfathered";
 export const LAST_WORLDWIDE_DEMO_GAME_STATE_VERSION = 51;
 export const DEMO_MEDITERRANEAN_SEED = Object.freeze({ lat: 36, lon: 15 });
 export const DEMO_GIBRALTAR_BARRIER_COORDINATES = Object.freeze([
-  Object.freeze({ lat: 35.82, lon: -5.68 }),
-  Object.freeze({ lat: 36.25, lon: -5.37 })
+  // Close the western throat, leaving Ceuta's eastern harbor inside the demo.
+  Object.freeze({ lat: 36.02, lon: -5.875 })
 ]);
 export const DEMO_GIBRALTAR_RECOVERY_COORDINATES = Object.freeze({ lat: 36, lon: -3.5 });
 

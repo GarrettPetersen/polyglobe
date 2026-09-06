@@ -1,3 +1,4 @@
+import { minorCoastalIslandCandidates } from "../src/worldGeographyAudit.js";
 import { REVIEWED_COASTAL_WATER_CORRIDORS } from "../src/reviewedCoastalWaterCorridors.js";
 import { readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -15,6 +16,7 @@ import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import { reviewedSettlementLandmassId } from "../src/settlementGeography.js";
 import { MANUAL_CITY_RECORDS_1522 } from "../src/cityCatalogSelection.js";
 import {
+  applyTerrainCorrections,
   MANUAL_LAKE_TILE_OVERRIDES_BY_SUBDIVISIONS,
   MANUAL_LAND_TILE_OVERRIDES_BY_SUBDIVISIONS
 } from "../src/manualTerrainOverrides.js";
@@ -246,6 +248,11 @@ const sourceRiverRepairs = [
     [[37.57,126.98],[37.53,126.85],[37.64,126.77],[37.79,126.65],[37.85,126.5],[37.79,126.3]],
     [[51.05,3.73],[51.00,3.84],[51.015,4.1],[51.12,4.18],[51.24,4.35],[51.40,4.16],[51.42,3.65],[51.48,3.36],[51.5,3.15]],
     [[49.45,11.08],[49.476,10.994],[49.60,10.97],[49.75,11.04],[49.9,10.89],[49.95,10.88]],
+    // The Vaartse Rijn joined Utrecht to the Lek by the Middle Ages.
+    // Keep that junction explicit: it previously depended on a bucket-edge
+    // error pulling a point of the Lek north to the Utrecht tile.
+    // https://www.hdsr.nl/werk/watererfgoed/digitale/watererfgoedverhalen/lurken-lek-kranen-hollandse-waterlinies/
+    [[51.96,5.10],[52.03,5.10],[52.09,5.12]],
     [[52.09,5.12],[52.15,5.02],[52.21,5.02],[52.32,5.08],[52.43,5.12]],
     [[52.52,13.40],[52.53,13.21],[52.45,13.16],[52.40,13.07],[52.38,12.91],[52.42,12.57],[52.62,12.39],[52.91,11.90],[53.02,11.71]],
     [[53.96,-1.08],[53.85,-1.11],[53.78,-1.07],[53.74,-0.98],[53.69,-0.97],[53.70,-0.83],[53.72,-0.70],[53.66,-0.43],[53.58,-0.13],[53.53,0.05],[53.56,0.25]],
@@ -499,7 +506,6 @@ if (!landOverrideByTileId.has(moaiTileId)) {
     landmassId: reviewedSettlementLandmassId(rapaVillage)
   });
 }
-const shallowWaterTileIds = [...shallowWaterTileIdSet].sort((a, b) => a - b);
 // Long Island is a separate landmass even though the raster bake merged it
 // with North America. These tile IDs describe this authored spatial correction.
 for (const tileId of [299000, 299003, 74856, 299014]) {
@@ -514,6 +520,27 @@ for (const tileId of [299000, 299003, 74856, 299014]) {
   });
 }
 const landOverrides = [...landOverrideByTileId.values()].sort((a, b) => a.tileId - b.tileId);
+// Review candidates using the same significance/isolation rule everywhere.
+// Explicit omissions stay reviewable; the rule can never erase a new city or
+// quest site, nor consume a substantial island or an isolated resupply landfall.
+const islandCandidates = minorCoastalIslandCandidates({ graph: fineGraph,
+  earthRows: applyTerrainCorrections(earth.tiles, {
+    shallowWaterTileIds: [...shallowWaterTileIdSet], lakeOverrides, landOverrides
+  }),
+  gameplaySites: [...cityCatalog, ...COLONIZATION_TARGETS].map((city) => ({
+    id: city.cityId, tileId: findNearestTileId(fineGraph, fineDirectionIndex, cityPlacementDirection(city))
+  }))
+});
+// Iki is squeezed against Tsushima by the raster; Dawson is reduced to one
+// empty fragment beside Tierra del Fuego after opening Almirantazgo Sound.
+for (const tileId of [261225, 444587]) {
+  if (!islandCandidates.some(({ tileIds }) => tileIds.includes(tileId))) {
+    throw new Error(`Coastal island omission violates retention policy: ${tileId}`);
+  }
+  shallowWaterTileIdSet.add(tileId);
+}
+const shallowWaterTileIds = [...shallowWaterTileIdSet].sort((a, b) => a - b);
+
 const blockedRiverEdges = MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[7]
   .flatMap(([a, b]) => adjacentPairs(refineChain([a, b])))
   .filter(([a, b]) => baseRiverEdgeIsSet(a, b) && baseRiverEdgeIsSet(b, a));

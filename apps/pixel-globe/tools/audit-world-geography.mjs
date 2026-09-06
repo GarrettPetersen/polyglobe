@@ -1,3 +1,4 @@
+import { REVIEWED_LANDMASS_CONTACTS } from "../src/reviewedLandmassContacts.js";
 import { MAX_SETTLEMENT_PLACEMENT_DISTANCE_KM } from "../src/settlementGeography.js";
 import { readFile } from "node:fs/promises";
 import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "../src/cityCatalogData.js";
@@ -6,7 +7,7 @@ import { createDirectionIndex } from "../src/geodesic.js";
 import { decodeGeodesicGraphBake } from "../src/geodesicBake.js";
 import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
 import { WORLD_WATERWAY_INVARIANTS, boundedNavigablePathExists } from "../src/worldMapInvariants.js";
-import { isolatedCoastalWaterRegions, riverOpeningAudit, settlementPlacementDisplacements } from "../src/worldGeographyAudit.js";
+import { minorCoastalIslandCandidates, landmassSeparationAudit, isolatedCoastalWaterRegions, riverOpeningAudit, settlementPlacementDisplacements } from "../src/worldGeographyAudit.js";
 import { buildWorldNavigationTopology } from "../src/worldNavigationTopology.js";
 import { placeCityCatalogOnWorld, placeColonizationTargetsOnWorld, portCitiesOnWorld, validateCityPortAccessCatalog } from "../src/worldPortPlacement.js";
 import { WORLD_GLOBE_SUBDIVISIONS } from "../src/worldScale.js";
@@ -55,7 +56,15 @@ for (const {tileIds} of isolatedCoastalWaterCandidates) {
   }
 }
 for (const settlement of displacedSettlementCandidates) failures.push(`Displaced settlement: ${settlement.cityId}`);
+const landmassSeparation = landmassSeparationAudit({ graph, earthRows, reviewedContacts: REVIEWED_LANDMASS_CONTACTS });
+for (const contact of landmassSeparation.unexpectedContacts) failures.push(`Unreviewed landmass bridge: ${contact.tileIds.join("/")}`);
+for (const contact of landmassSeparation.obsoleteReviews) failures.push(`Obsolete landmass review: ${contact.reviewReason}`);
+for (const part of landmassSeparation.splitLandmasses) failures.push(`Split landmass: ${part.landmassId}`);
+const minorCoastalIslands = minorCoastalIslandCandidates({ graph, earthRows,
+  gameplaySites: [...cities.values(), ...colonies].map(({ cityId, tileId }) => ({ id: cityId, tileId })) });
 const report = {
+  landmassSeparation,
+  minorCoastalIslands,
   verifiedWaterwaysAndBarriers,
   failures,
   riverOpenings,

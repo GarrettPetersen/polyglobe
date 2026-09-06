@@ -1,3 +1,4 @@
+import { advanceSoundDuesPassage, resolveSoundDuesPassage } from "../soundDues.js";
 import { CAMPAIGN_GOAL_EXPLORER } from "../campaignGoals.js";
 import {
   CREW_WOUND_CAUSE_PORT_ASSAULT,
@@ -99,6 +100,8 @@ export function createDenseSaveCompatibilityFixture() {
     wounded: [{ member: state.crewRoster[1], recoveryMinutes: 5 * 24 * 60 }]
   });
   populateCanonicalPortMemories(state);
+  advanceSoundDuesPassage(state, { lat: 55.71, lon: 12.88 });
+  resolveSoundDuesPassage(state, state.memory.soundDues.active.id, "pay");
   validateGameState(state);
 
   return {

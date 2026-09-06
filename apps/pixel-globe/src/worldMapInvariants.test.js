@@ -1,3 +1,6 @@
+import { soundDuesStraitAt } from "./soundDues.js";
+import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
+import { REVIEWED_LANDMASS_CONTACTS } from "./reviewedLandmassContacts.js";
 import { FACTION_SEA_CAPITALS_1522, markFactionSeaCapitalsOnPorts } from "./factions.js";
 import { MAX_SETTLEMENT_PLACEMENT_DISTANCE_KM, localSettlementTiles, reviewedSettlementLandmassId } from "./settlementGeography.js";
 import assert from "node:assert/strict";
@@ -32,7 +35,7 @@ import { applyManualTerrainOverrides, assertManualShallowWaterReachesOcean } fro
 import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 import { COLONIZATION_TARGETS } from "./colonialCities.js";
-import { connectedLandTileIds, isolatedCoastalWaterRegions, riverOpeningAudit, settlementPlacementDisplacements } from "./worldGeographyAudit.js";
+import { landmassSeparationAudit, connectedLandTileIds, isolatedCoastalWaterRegions, riverOpeningAudit, settlementPlacementDisplacements } from "./worldGeographyAudit.js";
 import {
   buildWorldNavigationTopology,
   canTraverseWorldNavigationEdge,
@@ -113,6 +116,44 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     );
   }
 
+  const danishPassage = { from: [56.5, 12], to: [54.5, 12], bounds: [54.3, 57, 8.8, 14], surfaceWaterOnly: true };
+  assert.equal(boundedNavigablePathExists({ graph, earthRows, navigation, directionIndex, ...danishPassage }), true);
+  const tollBlockedRows = earthRows.map((row, tileId) =>
+    isWaterSurfaceRow(row) && soundDuesStraitAt({ lat: graph.latDeg[tileId], lon: graph.lonDeg[tileId] })
+      ? { ...row, t: "temperate", m: 57 } : row);
+  assert.equal(boundedNavigablePathExists({ graph, earthRows: tollBlockedRows, navigation, directionIndex, ...danishPassage }), false,
+    "every Baltic/Kattegat route through the actual map must cross a Sound Dues gate");
+
+  for (const tileId of [261225, 444587]) assert.equal(isWaterSurfaceRow(earthRows[tileId]), true,
+    "minor empty coastal fragments may be omitted instead of joining larger islands");
+  const separation = landmassSeparationAudit({ graph, earthRows, reviewedContacts: REVIEWED_LANDMASS_CONTACTS });
+  assert.deepEqual(separation.unexpectedContacts, [], "unreviewed landmass bridges");
+  assert.deepEqual(separation.obsoleteReviews, [], "obsolete channel exceptions need review");
+  assert.deepEqual(separation.splitLandmasses, [], "one connected island per landmass ID");
+  for (const { tileIds: [a, b] } of REVIEWED_LANDMASS_CONTACTS) {
+    const anchor = landmassChannelNavigationAnchor({ graph, earthRows, riverMasks: navigation.riverMasks, a, b });
+    assert.equal(navigation.reachableNavigationMask[anchor.tileId], 1, `channel ${a}:${b} must connect to navigable water`);
+    if (a === 74311 && b === 296827) assert.equal(anchor.kind, "river", "Montreal is a river island");
+  }
+  const bridgedSound = earthRows.slice();
+  bridgedSound[393304] = { ...earthRows[393293], id: 393304 };
+  assert.equal(landmassSeparationAudit({ graph, earthRows: bridgedSound,
+    reviewedContacts: REVIEWED_LANDMASS_CONTACTS }).unexpectedContacts.length, 3);
+  assert.equal(boundedNavigablePathExists({ graph, earthRows: bridgedSound, navigation, directionIndex,
+    ...WORLD_WATERWAY_INVARIANTS.find(({ name }) => name === "Oresund") }), false,
+    "the original Copenhagen land bridge must fail even though both shores retain correct IDs");
+  for (const landTileId of [393293, 391910]) {
+    const connected = connectedLandTileIds({ graph, earthRows, startTileId: landTileId });
+    assert.equal(new Set(connected.map((id) => earthRows[id].m)).size, 1, "Danish islands must not touch another landmass");
+  }
+  const vancouver = connectedLandTileIds({ graph, earthRows, startTileId: 185976 });
+  assert.ok(vancouver.length >= 30, "Vancouver Island must retain its substantial land area");
+  assert.ok(vancouver.every((id) => earthRows[id].m === 358), "Vancouver Island must stay separate from mainland BC");
+  assert.ok(!vancouver.includes(46552));
+  for (const [tileId, landmassId] of [[366292, 846], [366350, 847]]) {
+    assert.equal(isWaterSurfaceRow(earthRows[tileId]), false, "Ternate and Tidore must remain land despite their small size");
+    assert.equal(earthRows[tileId].m, landmassId, "Ternate and Tidore retain distinct island identities");
+  }
   const islandTileIds = connectedLandTileIds({ graph, earthRows, startTileId: 299003 });
   assert.deepEqual(islandTileIds, [74856, 299000, 299003, 299014],
     "Long Island must retain its land and be separated from the mainland by water");
@@ -261,6 +302,7 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     accessMask: demoAccessMask,
     accessTileIdsForPort: (port) => portAccessTileIds(placementOptions, port.tileId)
   });
+  assert.ok(demoPorts.some((port) => port.cityId === "ceuta|morocco"), "Ceuta must remain inside the demo boundary");
   const demoEconomy = createWorldEconomy({
     ports: demoPorts,
     shipyardPorts: demoPorts,

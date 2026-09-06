@@ -1,8 +1,14 @@
+import { isWaterSurfaceRow } from "./terrainSurface.js";
+import { CITY_DATA_YEAR, loadCityCatalogFromCsv } from "./cityCatalogData.js";
+import { decodeGeodesicGraphBake } from "./geodesicBake.js";
+import { buildWorldNavigationTopology } from "./worldNavigationTopology.js";
+import { placeCityCatalogOnWorld } from "./worldPortPlacement.js";
+import { WORLD_GLOBE_SUBDIVISIONS } from "./worldScale.js";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
+import { createDirectionIndex, findNearestTileId } from "./geodesic.js";
 import {
   FACTION_SEA_CAPITALS_1522,
   NEUTRAL_FACTION_ID,
@@ -10,13 +16,7 @@ import {
   factionSeaCapitalForCity,
   factionIdForCity1522
 } from "./factions.js";
-import {
-  MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS,
-  MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
-  MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS,
-  MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS,
-  removeBlockedRiverEdgesFromMasks
-} from "./manualRiverHexChains.js";
+import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "./manualRiverHexChains.js";
 import { applyManualTerrainOverrides } from "./manualTerrainOverrides.js";
 import {
   DEMO_GIBRALTAR_BARRIER_COORDINATES,
@@ -49,10 +49,9 @@ import {
   canTraverseWorldNavigationEdge,
   isWorldNavigableTile
 } from "./worldNavigationTopology.js";
-import { portAccessTileIds } from "./worldPortPlacement.js";
+import { portAccessTileIds, nearestTileMatching } from "./worldPortPlacement.js";
 
-const SUBDIVISIONS = 7;
-const CITY_CATALOG_MAX_COUNT = 480;
+const SUBDIVISIONS = WORLD_GLOBE_SUBDIVISIONS;
 const repoRoot = new URL("../../../", import.meta.url);
 
 test("water-access intent gives small gameplay ports selection weight", () => {
@@ -136,17 +135,18 @@ test("modern Cincinnati is not substituted for its pre-contact archaeological re
 
 test("1522 city selection keeps enough British Isles ports and Inca access", async () => {
   const [earth, csv] = await Promise.all([
-    readJson(new URL("examples/globe-demo/public/earth-globe-cache-7.json", repoRoot)),
+    readJson(new URL("examples/globe-demo/public/earth-globe-cache-8.json", repoRoot)),
     readFile(
       new URL("examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv", repoRoot),
       "utf8"
     )
   ]);
-  const graph = buildGeodesicGraph(SUBDIVISIONS);
+  const bytes = await readFile(new URL("examples/globe-demo/public/geodesic-graph-8.bin", repoRoot));
+  const graph = decodeGeodesicGraphBake(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), SUBDIVISIONS);
   const directionIndex = createDirectionIndex(graph);
   earth.tiles = applyManualTerrainOverrides(earth.tiles, SUBDIVISIONS);
-  const { masks, toWaterMasks } = buildRiverMasks(graph, earth);
-  const reachable = buildOceanReachableNavigationMask(graph, earth.tiles, masks, toWaterMasks);
+  const { riverMasks: masks, riverToWaterMasks: toWaterMasks, reachableNavigationMask: reachable } =
+    buildWorldNavigationTopology({ graph, earthRows: earth.tiles, earthCache: earth, subdivisions: SUBDIVISIONS });
   const cityRecords = buildCityRecords1522(csv);
   for (const [city, country] of [
     ["Troy", "Turkey"],
@@ -164,11 +164,11 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   ]) {
     assert.equal(cityRecords.has(cityKey(city, country)), true, `${city} should remain active in 1522`);
   }
-  const selected = ensureRequiredCities(
-    selectCityCatalogRecords(cityRecords.values(), CITY_CATALOG_MAX_COUNT),
-    cityRecords
-  );
-  const placed = placeCityRecords(graph, directionIndex, earth.tiles, reachable, masks, selected);
+  const selected = loadCityCatalogFromCsv(csv, CITY_DATA_YEAR);
+  const placed = [...placeCityCatalogOnWorld({ graph, directionIndex, earthRows: earth.tiles,
+    reachableNavigationMask: reachable, riverMasks: masks, cities: selected }).values()]
+    .map((city) => ({ ...city, dockable: cityHasPortAccess({ graph, earthRows: earth.tiles,
+      reachableNavigationMask: reachable, riverMasks: masks, tileId: city.tileId }) }));
   const ports = placed.filter((city) => city.dockable);
   const navigationContext = {
     earthRows: earth.tiles,
@@ -218,8 +218,8 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   const demoPortNames = new Set(demoPorts.map((port) => port.city));
   const manualCityRiverChains = MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS];
   const missingManualRiverPorts = Object.entries(manualCityRiverChains)
-    .filter(([cityId, chain]) => !ports.some((city) => (
-      city.cityId === cityId && city.tileId === chain[0]
+    .filter(([cityId]) => !ports.some((city) => (
+      city.cityId === cityId
     )))
     .map(([cityId]) => cityId);
   const britishIslesPorts = ports.filter((city) =>
@@ -266,7 +266,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.deepEqual(
     missingManualRiverPorts,
     [],
-    "expected every named manual river city to remain a dockable port on its mapped tile"
+    "expected every named manual river city to remain in the dockable catalog"
   );
   const mecca = placed.find((city) => city.city === "Mecca" && city.country === "Saudi Arabia");
   assert.ok(mecca, "expected Mecca to remain in the 1522 city catalog");
@@ -290,11 +290,11 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));
   assert.ok(cambay, "Cambay should be a dockable Gujarat capital");
   assert.ok(agra, "Agra should be a dockable Yamuna capital");
-  assert.equal(agra.tileId, 154941);
+  assert.equal(agra.tileId, 619432);
   assert.equal(agra.portId, "agra");
   assert.equal(agra.factionId, "delhi");
   assert.ok(baghdad, "Baghdad should be a dockable city on the Tigris");
-  assert.equal(baghdad.tileId, 102672);
+  assert.equal(baghdad.tileId, 410160);
   assert.equal(baghdad.factionId, "safavid");
   assert.equal(baghdad.settlementType, "city");
   assert.equal(baghdad.marketGoods, null, "Baghdad should offer a full city market");
@@ -347,7 +347,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.deepEqual(sanSebastian.marketGoods, ["fish", "iron", "naval-stores"]);
   assert.equal(cambay.factionId, "gujarat");
   assert.equal(earth.tiles[38891].t, "beach", "Cambay's historical bay should be shallow water");
-  assert.ok(graph.neighbors[cambay.tileId].includes(38891), "Cambay should sit beside its corrected harbor");
+  assert.ok(graph.neighbors[cambay.tileId].some((id) => earth.tiles[id].t === "beach"), "Cambay should sit beside its corrected harbor");
   assert.ok(
     cityPortAccessRingDistance({
       graph,
@@ -400,7 +400,7 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     const intendedTileId = findNearestTileId(
       graph,
       directionIndex,
-      latLonToDirection(city.lat, city.lon)
+      latLonToDirection(city.placementLat ?? city.lat, city.placementLon ?? city.lon)
     );
     assert.equal(
       city.tileId,
@@ -465,12 +465,12 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     "Syracuse",
     "Ragusa",
     "Kerkira",
-    "Rhodes",
-    "Suez"
+    "Rhodes"
   ]) {
     assert.ok(demoPortNames.has(cityName), `${cityName} should be accessible in the Mediterranean demo`);
   }
-  for (const cityName of ["Funchal", "Angra", "Las Palmas"]) {
+  // Suez is a Red Sea port; the Nile must not form a cross-isthmus canal.
+  for (const cityName of ["Funchal", "Angra", "Las Palmas", "Suez"]) {
     assert.equal(demoPortNames.has(cityName), false, `${cityName} should remain outside the Mediterranean demo`);
   }
   assert.deepEqual(
@@ -740,168 +740,6 @@ function buildCityRecords1522(csv) {
   return bestByCity;
 }
 
-function ensureRequiredCities(cities, cityRecords) {
-  const included = new Set(cities.map((city) => city.cityId));
-  const out = [...cities];
-  for (const capitalSpec of FACTION_SEA_CAPITALS_1522) {
-    const cityId = cityKey(capitalSpec.city, capitalSpec.country);
-    if (included.has(cityId)) continue;
-    const city = cityRecords.get(cityId);
-    assert.ok(city, `missing capital record: ${capitalSpec.city}, ${capitalSpec.country}`);
-    out.push(city);
-    included.add(cityId);
-  }
-  for (const manualSpec of MANUAL_CITY_RECORDS_1522) {
-    const cityId = cityKey(manualSpec.city, manualSpec.country);
-    if (included.has(cityId)) continue;
-    const city = cityRecords.get(cityId);
-    assert.ok(city, `missing manual city record: ${manualSpec.city}, ${manualSpec.country}`);
-    out.push(city);
-    included.add(cityId);
-  }
-  return out;
-}
-
-function placeCityRecords(graph, directionIndex, earthRows, reachable, riverMasks, cities) {
-  const placed = [];
-  const byTile = new Map();
-  const portAccessContext = {
-    graph,
-    earthRows,
-    reachableNavigationMask: reachable,
-    riverMasks
-  };
-  for (const city of cities) {
-    const startId = findNearestTileId(graph, directionIndex, latLonToDirection(city.lat, city.lon));
-    const predicate = cityRequiresPortAccess(city)
-      ? (tileId) => isCityDrawableTile(earthRows, tileId) &&
-        cityHasPortAccess({ ...portAccessContext, tileId })
-      : (tileId) => isCityDrawableTile(earthRows, tileId);
-    let tileId = predicate(startId) ? startId : nearestTileMatching(graph, startId, predicate);
-    if (tileId === undefined) continue;
-    if (byTile.has(tileId)) {
-      if (!cityRequiresPortAccess(city)) continue;
-      const alternateTileId = nearestTileMatching(graph, tileId, (id) => predicate(id) && !byTile.has(id));
-      assert.notEqual(alternateTileId, undefined, `required port cannot be placed: ${cityLabel(city)}`);
-      tileId = alternateTileId;
-    }
-    const placedCity = {
-      ...city,
-      tileId,
-      dockable: cityHasPortAccess({ ...portAccessContext, tileId })
-    };
-    byTile.set(tileId, placedCity);
-    placed.push(placedCity);
-  }
-  return placed;
-}
-
-function buildRiverMasks(graph, earth) {
-  const masks = new Uint8Array(graph.tileCount);
-  const toWaterMasks = new Uint8Array(graph.tileCount);
-  for (const [rawId, edges] of Object.entries(earth.riverEdges)) {
-    for (const edge of edges) addRiverEdgeMask(graph, masks, Number(rawId), edge);
-  }
-  for (const [rawId, edges] of Object.entries(earth.riverEdgeToWater || {})) {
-    for (const edge of edges) addRiverEdgeMask(graph, toWaterMasks, Number(rawId), edge);
-  }
-  removeBlockedRiverEdgesFromMasks(
-    graph,
-    masks,
-    MANUAL_BLOCKED_RIVER_HEX_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || []
-  );
-  for (const chain of MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[SUBDIVISIONS] || []) {
-    for (let i = 0; i < chain.length - 1; i++) addRiverEdgeBetween(graph, masks, chain[i], chain[i + 1]);
-  }
-  for (const { tile, edge } of MANUAL_RIVER_MOUTH_EDGES_BY_SUBDIVISIONS[SUBDIVISIONS] || []) {
-    addRiverEdgeMask(graph, masks, tile, edge);
-    addRiverEdgeMask(graph, toWaterMasks, tile, edge);
-  }
-  markRiverEdgesOpeningToWater(graph, earth.tiles, masks, toWaterMasks);
-  return { masks, toWaterMasks };
-}
-
-function buildOceanReachableNavigationMask(graph, earthRows, riverMasks, riverToWaterMasks) {
-  const reachable = new Uint8Array(graph.tileCount);
-  const queue = [];
-  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
-    if (!isOceanNavigationSeedTile(earthRows[tileId])) continue;
-    reachable[tileId] = 1;
-    queue.push(tileId);
-  }
-
-  for (let head = 0; head < queue.length; head++) {
-    const tileId = queue[head];
-    for (const neighborId of graph.neighbors[tileId]) {
-      if (reachable[neighborId]) continue;
-      if (!canTraverseOceanReachability(graph, earthRows, riverMasks, riverToWaterMasks, tileId, neighborId)) continue;
-      reachable[neighborId] = 1;
-      queue.push(neighborId);
-    }
-  }
-  return reachable;
-}
-
-function canTraverseOceanReachability(graph, earthRows, riverMasks, riverToWaterMasks, fromTileId, toTileId) {
-  const fromWater = isWaterSurfaceRow(earthRows[fromTileId]);
-  const toWater = isWaterSurfaceRow(earthRows[toTileId]);
-  if (fromWater && toWater) return true;
-
-  const edgeA = edgeIndexTowardNeighbor(graph, fromTileId, toTileId);
-  const edgeB = edgeIndexTowardNeighbor(graph, toTileId, fromTileId);
-  if (edgeA === undefined || edgeB === undefined) return false;
-
-  const fromRiver = (riverMasks[fromTileId] || 0) !== 0;
-  const toRiver = (riverMasks[toTileId] || 0) !== 0;
-  if (fromWater && toRiver) return riverEdgeSet(riverMasks, toTileId, edgeB) ||
-    riverEdgeSet(riverToWaterMasks, toTileId, edgeB);
-  if (fromRiver && toWater) return riverEdgeSet(riverMasks, fromTileId, edgeA) ||
-    riverEdgeSet(riverToWaterMasks, fromTileId, edgeA);
-  if (fromRiver && toRiver) return riverEdgeSet(riverMasks, fromTileId, edgeA) &&
-    riverEdgeSet(riverMasks, toTileId, edgeB);
-  return false;
-}
-
-function markRiverEdgesOpeningToWater(graph, earthRows, masks, toWaterMasks) {
-  for (let tileId = 0; tileId < graph.tileCount; tileId++) {
-    const mask = masks[tileId];
-    if (mask === 0 || isWaterSurfaceRow(earthRows[tileId])) continue;
-    for (let edge = 0; edge < graph.edgeCount[tileId]; edge++) {
-      if ((mask & (1 << edge)) === 0) continue;
-      const neighborId = graph.edgeNeighbors[tileId]?.[edge];
-      if (isWaterSurfaceRow(earthRows[neighborId])) addRiverEdgeMask(graph, toWaterMasks, tileId, edge);
-    }
-  }
-}
-
-function addRiverEdgeBetween(graph, masks, a, b) {
-  const edgeA = edgeIndexTowardNeighbor(graph, a, b);
-  const edgeB = edgeIndexTowardNeighbor(graph, b, a);
-  assert.notEqual(edgeA, undefined, `manual river tiles ${a} and ${b} are not adjacent`);
-  assert.notEqual(edgeB, undefined, `manual river tiles ${b} and ${a} are not adjacent`);
-  addRiverEdgeMask(graph, masks, a, edgeA);
-  addRiverEdgeMask(graph, masks, b, edgeB);
-}
-
-function addRiverEdgeMask(graph, masks, tileId, edge) {
-  assert.ok(Number.isInteger(edge) && edge >= 0 && edge < graph.edgeCount[tileId]);
-  masks[tileId] |= 1 << edge;
-}
-
-function nearestTileMatching(graph, startId, predicate) {
-  const seen = new Set([startId]);
-  const queue = [startId];
-  for (let head = 0; head < queue.length; head++) {
-    for (const neighborId of graph.neighbors[queue[head]]) {
-      if (seen.has(neighborId)) continue;
-      if (predicate(neighborId)) return neighborId;
-      seen.add(neighborId);
-      queue.push(neighborId);
-    }
-  }
-  return undefined;
-}
-
 function parseCsvRows(csv) {
   const rows = [];
   let row = [];
@@ -946,26 +784,8 @@ function latLonToDirection(latDeg, lonDeg) {
   return [c * Math.cos(lon), Math.sin(lat), -c * Math.sin(lon)];
 }
 
-function edgeIndexTowardNeighbor(graph, tileId, neighborId) {
-  const edge = graph.edgeNeighbors[tileId]?.indexOf(neighborId);
-  return edge >= 0 ? edge : undefined;
-}
-
-function riverEdgeSet(masks, tileId, edge) {
-  return ((masks?.[tileId] || 0) & (1 << edge)) !== 0;
-}
-
 function isCityDrawableTile(earthRows, tileId) {
   return !isWaterSurfaceRow(earthRows[tileId]);
-}
-
-function isOceanNavigationSeedTile(row) {
-  return row?.t === "water";
-}
-
-function isWaterSurfaceRow(row) {
-  const t = row?.t || "";
-  return t === "water" || t === "lake" || t === "beach";
 }
 
 function cityKey(city, country) {

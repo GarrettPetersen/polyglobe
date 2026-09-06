@@ -1,3 +1,4 @@
+import { SOUND_DUES_COLLECTOR_CITY_ID, soundDuesPaymentEligibility } from "./soundDues.js";
 import { colonizationSiteIsRuined } from "./colonialCities.js";
 import { vikingLongshipAcquisitionEligibility } from "./innQuestTransactions.js";
 import { requireCityId, requireEntityId } from "./entityIds.js";
@@ -952,9 +953,31 @@ export function createShoreBatteryDialogueSession(city, context = {}) {
   };
 }
 
-export function shoreBatteryDialogueView(session, city) {
+export function createSoundDuesDialogueSession(city, state) {
+  if (city?.cityId !== SOUND_DUES_COLLECTOR_CITY_ID || !city.character) {
+    throw new Error("Sound Dues require the Copenhagen customs officer");
+  }
+  const passageId = state.memory.soundDues.active?.id;
+  if (!soundDuesPaymentEligibility(state, passageId).offered) throw new Error("No Sound Dues payment is pending");
+  return { kind: "shore-battery", purpose: "sound-dues", cityId: city.cityId,
+    portId: city.cityId, passageId, selectedIndex: 0 };
+}
+
+export function shoreBatteryDialogueView(session, city, state) {
   if (!session || session.kind !== "shore-battery" || session.cityId !== city?.cityId) {
     throw new Error("Shore battery dialogue city does not match active session");
+  }
+  if (session.purpose === "sound-dues") {
+    const eligibility = soundDuesPaymentEligibility(state, session.passageId);
+    if (!eligibility.offered) throw new Error(`Sound Dues dialogue has a stale passage: ${session.passageId}`);
+    return {
+      speaker: characterName(city.character), expressionId: "stern", topic: "SOUND DUES",
+      text: `Heave to! The Sound Dues are ${eligibility.tollDoubloons} doubloons, whatever your flag. One receipt covers the Sound and both Belts until open sea. Refusal risks Danish guns; payment does not end a war.`,
+      feedback: null,
+      options: [option(`Pay ${eligibility.tollDoubloons} db`, { type: "pay-sound-dues" }, {
+        disabled: !eligibility.canPay, disabledReason: "Not enough doubloons."
+      }), option("Refuse the toll", { type: "refuse-sound-dues" })]
+    };
   }
   const faction = factionById(city.factionId);
   const cityName = city.portAlias || city.displayCity || city.city;
@@ -998,8 +1021,8 @@ function safePassageDurationLabel() {
   return FACTION_SAFE_PASSAGE_DAYS === 30 ? "one month" : `${FACTION_SAFE_PASSAGE_DAYS} days`;
 }
 
-export function selectShoreBatteryDialogueOption(session, city, optionIndex = session.selectedIndex) {
-  const view = shoreBatteryDialogueView(session, city);
+export function selectShoreBatteryDialogueOption(session, city, optionIndex = session.selectedIndex, state) {
+  const view = shoreBatteryDialogueView(session, city, state);
   const selected = view.options[optionIndex];
   if (!selected) throw new Error(`Invalid shore battery dialogue option index: ${optionIndex}`);
   if (selected.disabled) {
@@ -1010,7 +1033,7 @@ export function selectShoreBatteryDialogueOption(session, city, optionIndex = se
     };
   }
   if (selected.action.type === "close") return { closed: true, action: null };
-  if (selected.action.type === "purchase-safe-passage") {
+  if (["pay-sound-dues", "refuse-sound-dues", "purchase-safe-passage"].includes(selected.action.type)) {
     return { closed: true, action: selected.action };
   }
   if (selected.action.type === "refuse-safe-passage") {

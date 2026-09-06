@@ -8,6 +8,7 @@ import {
   PRE_RIVER_OUTLET_PORT_TILE_IDS,
   PRE_DJENNE_CORRECTION_TILE_IDS,
   PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS,
+  PRE_EXACT_NEAREST_PORT_TILE_IDS,
   portReferenceMigrationForSavedVoyage,
   sameTopologyPortMigrationForSavedVoyage
 } from "./portCatalogMigration.js";
@@ -28,11 +29,11 @@ test("pre-version subdivision-eight saves migrate all North Maluku ports exactly
     savedSubdivisions: 8,
     currentSubdivisions: 8
   };
-  assert.deepEqual(
-    sameTopologyPortMigrationForSavedVoyage({}, topology),
-    new Map([...PRE_NORTH_MALUKU_PORT_TILE_IDS, ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
-      ...PRE_DJENNE_CORRECTION_TILE_IDS, ...PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS])
-  );
+  const migration = sameTopologyPortMigrationForSavedVoyage({}, topology);
+  for (const [oldTile, tile] of [...PRE_NORTH_MALUKU_PORT_TILE_IDS, ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
+    ...PRE_DJENNE_CORRECTION_TILE_IDS, ...PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS]) {
+    assert.equal(migration.get(oldTile), PRE_EXACT_NEAREST_PORT_TILE_IDS.get(tile) ?? tile);
+  }
   assert.deepEqual(
     Object.fromEntries(PRE_NORTH_MALUKU_PORT_TILE_IDS),
     {
@@ -135,5 +136,16 @@ test("catalog version disambiguates old York from subdivision-seven Hull on the 
     currentPortBake.endpoints).get(160923), 643564);
   assert.equal(portReferenceMigrationForSavedVoyage({portCatalogVersion: 5}, topology,
     currentPortBake.endpoints).get(160923), 643561);
-  assert.equal(sameTopologyPortMigrationForSavedVoyage({portCatalogVersion: 5}, topology), null);
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({portCatalogVersion: PORT_CATALOG_VERSION}, topology), null);
+});
+
+test("nearest-tile migration composes old Copenhagen and disambiguates Trakai from Vilnius", () => {
+  const topology = {savedSubdivisions: 8, currentSubdivisions: 8};
+  const v4 = sameTopologyPortMigrationForSavedVoyage({portCatalogVersion: 4}, topology);
+  const v5 = sameTopologyPortMigrationForSavedVoyage({portCatalogVersion: 5}, topology);
+  assert.equal(v4.get(393189), 393293);
+  assert.equal(v5.get(393304), 393293);
+  assert.equal(v5.get(397387), 99518, "old Trakai becomes new Trakai, not new Vilnius");
+  assert.equal(v5.get(99518), 397385, "old Vilnius retains its own identity");
+  assert.equal(v5.has(393189), false, "already migrated saves do not reapply an earlier catalog's positions");
 });

@@ -42,6 +42,7 @@ const GEOGRAPHY_SUBDIVISIONS = 7;
 const NEIGHBORHOOD_RINGS = 5;
 const MAX_APPROACH_SEARCH_RINGS = 18;
 const OPEN_RIVER_HORIZON_MAX_RINGS = 1;
+const OPEN_RIVER_HORIZON_MAX_DISTANCE_KM = 30;
 const EARTH_RADIUS_KM = 6371;
 const CITY_VISUALIZER_FORMAT = "marque-city-visualizer-catalog";
 const CITY_VISUALIZER_VERSION = 7;
@@ -210,6 +211,7 @@ function visualizerCityRecord({
   const fortification = fortificationEstimate(city);
   const builtUpBothBanks = approach === "river" && DEVELOPED_BOTH_BANKS_CITY_IDS.has(city.cityId);
   const riverHorizon = cityRiverHorizon({
+    coordinates,
     approach,
     endpointTileId: endpoint.tileId,
     sailingGraph,
@@ -265,7 +267,7 @@ function visualizerCityRecord({
       riverHorizon: riverHorizon === null
         ? "not a river scene"
         : riverHorizon === "open"
-          ? `a river mouth lies within ${OPEN_RIVER_HORIZON_MAX_RINGS} high-resolution tile ring`
+          ? `a river mouth lies within ${OPEN_RIVER_HORIZON_MAX_RINGS} high-resolution tile ring and ${OPEN_RIVER_HORIZON_MAX_DISTANCE_KM} km`
           : "no river mouth lies beside the high-resolution approach",
       banks: builtUpBothBanks
         ? "curated 1522 urban settlement on both sides of the river"
@@ -279,7 +281,7 @@ function visualizerCityRecord({
   });
 }
 
-function cityRiverHorizon({ approach, endpointTileId, sailingGraph, sailingNavigation }) {
+function cityRiverHorizon({ coordinates, approach, endpointTileId, sailingGraph, sailingNavigation }) {
   if (approach !== "river") return null;
   if (!Number.isInteger(endpointTileId) || endpointTileId < 0 || endpointTileId >= sailingGraph.tileCount) {
     throw new Error(`Invalid sailing endpoint tile for river horizon: ${endpointTileId}`);
@@ -287,7 +289,11 @@ function cityRiverHorizon({ approach, endpointTileId, sailingGraph, sailingNavig
   const riverMouth = searchAccessTile(
     sailingGraph,
     endpointTileId,
-    (tileId) => sailingNavigation.riverToWaterMasks[tileId] !== 0,
+    // Tile adjacency alone can put an upstream city at the mouth when its
+    // nearest hex changes. Measure from the settlement's actual coordinates.
+    (tileId) => sailingNavigation.riverToWaterMasks[tileId] !== 0 &&
+      greatCircleDistanceKm(coordinates.lat, coordinates.lon,
+        sailingGraph.latDeg[tileId], sailingGraph.lonDeg[tileId]) <= OPEN_RIVER_HORIZON_MAX_DISTANCE_KM,
     OPEN_RIVER_HORIZON_MAX_RINGS
   );
   return riverMouth ? "open" : "closed";

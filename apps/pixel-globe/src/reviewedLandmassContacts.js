@@ -1,0 +1,41 @@
+// Subdivision-eight spatial exceptions for islands narrower than a whole hex.
+// The renderer draws a water channel between these distinct landmass IDs;
+// land roads must not cross them. These channels do not promise ship navigation
+// between their centers. Major sailing straits instead require continuous water
+// routes in worldMapInvariants.js. New contacts must be reviewed individually.
+export const REVIEWED_LANDMASS_CONTACTS = Object.freeze([
+  { reviewReason: "Manhattan: Hudson and Harlem channels", tileIds: [4714, 298687], landmassIds: [4004, 120] },
+  { reviewReason: "Manhattan: Hudson and Harlem channels", tileIds: [4714, 298688], landmassIds: [4004, 120] },
+  { reviewReason: "Manhattan: Hudson and Harlem channels", tileIds: [4714, 298721], landmassIds: [4004, 120] },
+  { reviewReason: "Ternate: Halmahera channel", tileIds: [23005, 366292], landmassIds: [831, 846] },
+  { reviewReason: "Tidore: Ternate and Halmahera channels", tileIds: [23005, 366350], landmassIds: [831, 847] },
+  { reviewReason: "Montreal: St Lawrence and Riviere des Prairies", tileIds: [74311, 296827], landmassIds: [120, 4005] },
+  { reviewReason: "Montreal: St Lawrence and Riviere des Prairies", tileIds: [74316, 296827], landmassIds: [120, 4005] },
+  { reviewReason: "Mactan: Cebu and Bohol channels", tileIds: [90803, 363767], landmassIds: [746, 3042] },
+  { reviewReason: "Madura: Java channel", tileIds: [96083, 383664], landmassIds: [940, 947] },
+  { reviewReason: "Madura: Java channel", tileIds: [96083, 383666], landmassIds: [940, 947] },
+  { reviewReason: "Oland: Kalmar channel", tileIds: [98463, 393227], landmassIds: [260, 57] },
+  { reviewReason: "Corfu: mainland channel", tileIds: [98873, 394799], landmassIds: [57, 432] },
+  { reviewReason: "Hormuz: mainland channel", tileIds: [102280, 408401], landmassIds: [57, 4001] },
+  { reviewReason: "Kilwa Kisiwani: mainland channel", tileIds: [124740, 497864], landmassIds: [57, 4002] },
+  { reviewReason: "Tahuata: Hiva Oa channel", tileIds: [142904, 570899], landmassIds: [1000, 1002] },
+  { reviewReason: "Diu: mainland tidal channel", tileIds: [155459, 621479], landmassIds: [57, 4003] },
+  { reviewReason: "Roanoke: mainland sound", tileIds: [294245, 294247], landmassIds: [488, 120] },
+  { reviewReason: "Montreal: St Lawrence and Riviere des Prairies", tileIds: [296807, 296827], landmassIds: [120, 4005] },
+  { reviewReason: "Montreal: St Lawrence and Riviere des Prairies", tileIds: [296819, 296827], landmassIds: [120, 4005] },
+  { reviewReason: "Montreal: St Lawrence and Riviere des Prairies", tileIds: [296825, 296827], landmassIds: [120, 4005] },
+  { reviewReason: "Montreal: St Lawrence and Riviere des Prairies", tileIds: [296826, 296827], landmassIds: [120, 4005] },
+  { reviewReason: "Mactan: Cebu and Bohol channels", tileIds: [362666, 363767], landmassIds: [746, 3042] },
+  { reviewReason: "Mactan: Cebu and Bohol channels", tileIds: [363765, 363767], landmassIds: [761, 3042] },
+  { reviewReason: "Ternate: Halmahera channel", tileIds: [366291, 366292], landmassIds: [831, 846] },
+  { reviewReason: "Tidore: Ternate and Halmahera channels", tileIds: [366292, 366350], landmassIds: [846, 847] },
+  { reviewReason: "Makian: Tidore channel", tileIds: [366350, 366359], landmassIds: [847, 3021] },
+  { reviewReason: "Oland: Kalmar channel", tileIds: [393207, 393227], landmassIds: [260, 57] },
+  { reviewReason: "Corfu: mainland channel", tileIds: [394798, 394799], landmassIds: [57, 432] },
+  { reviewReason: "Hormuz: mainland channel", tileIds: [408401, 408402], landmassIds: [4001, 57] },
+  { reviewReason: "Hormuz: mainland channel", tileIds: [408401, 408403], landmassIds: [4001, 57] },
+  { reviewReason: "Zanzibar: mainland channel", tileIds: [497667, 497668], landmassIds: [57, 936] },
+  { reviewReason: "Kilwa Kisiwani: mainland channel", tileIds: [497854, 497864], landmassIds: [57, 4002] },
+  { reviewReason: "Kilwa Kisiwani: mainland channel", tileIds: [497863, 497864], landmassIds: [57, 4002] },
+  { reviewReason: "Diu: mainland tidal channel", tileIds: [621477, 621479], landmassIds: [57, 4003] },
+].map((entry) => Object.freeze({ ...entry, tileIds: Object.freeze(entry.tileIds), landmassIds: Object.freeze(entry.landmassIds) })));

@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { connectedLandTileIds, isolatedCoastalWaterRegions, riverOpeningAudit, settlementPlacementDisplacements } from "./worldGeographyAudit.js";
+import { landmassSeparationAudit, connectedLandTileIds, isolatedCoastalWaterRegions, riverOpeningAudit, settlementPlacementDisplacements } from "./worldGeographyAudit.js";
 import { boundedNavigablePathExists } from "./worldMapInvariants.js";
 
 function fixture() {
   const graph = {
     tileCount: 5,
-    centers: new Float32Array([1, 0, 0, 1, 0, -.02, 1, 0, -.04, 1, 0, -.06, 1, 0, -.08]),
+    centers: new Float32Array([0, 1, 2, 3, 4].flatMap((lon) => [Math.cos(lon * Math.PI / 180), 0, -Math.sin(lon * Math.PI / 180)])),
     latDeg: new Float32Array(5), lonDeg: new Float32Array([0, 1, 2, 3, 4]),
     neighbors: [[1], [0, 2], [1, 3], [2, 4], [3]],
     edgeNeighbors: [[1], [0, 2], [1, 3], [2, 4], [3]]
@@ -73,4 +73,23 @@ test("river scans detect a closed mouth and still report a closed branch when an
   assert.deepEqual(report.coastalDeadEnds.map(({ tileId }) => tileId), [1]);
   world.navigation.riverMasks[1] = 3;
   assert.deepEqual(riverOpeningAudit(world).coastalDeadEnds, []);
+});
+
+test("separation scan catches new bridges, wrong island IDs, splits and stale exceptions", () => {
+  const { graph } = fixture();
+  const earthRows = [{ t: "forest", m: 1 }, { t: "forest", m: 1 }, { t: "water" },
+    { t: "forest", m: 2 }, { t: "ice" }];
+  const options = { graph, earthRows };
+  assert.deepEqual(landmassSeparationAudit(options).unexpectedContacts, []);
+  earthRows[2] = { t: "forest", m: 1 };
+  assert.deepEqual(landmassSeparationAudit(options).unexpectedContacts, [{ tileIds: [2, 3], landmassIds: [1, 2] }]);
+  const reviewedContacts = [{ reviewReason: "sub-hex island", tileIds: [2, 3], landmassIds: [1, 2] }];
+  assert.deepEqual(landmassSeparationAudit({ ...options, reviewedContacts }).unexpectedContacts, []);
+  assert.throws(() => landmassSeparationAudit({ ...options, reviewedContacts: [...reviewedContacts, ...reviewedContacts] }), /Duplicate/);
+  earthRows[2] = { t: "water" };
+  assert.deepEqual(landmassSeparationAudit({ ...options, reviewedContacts }).obsoleteReviews, reviewedContacts);
+  earthRows[3].m = 1;
+  assert.equal(landmassSeparationAudit(options).splitLandmasses[0].landmassId, 1);
+  delete earthRows[3].m;
+  assert.throws(() => landmassSeparationAudit(options), /lacks landmass ID/);
 });

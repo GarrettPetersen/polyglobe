@@ -1,3 +1,6 @@
+import { decodeGeodesicGraphBake } from "../src/geodesicBake.js";
+import { createSoundDuesMemory } from "../src/soundDues.js";
+import assert from "node:assert/strict";
 import { monitorBrowserFailures } from "./reachability/browser-failures.mjs";
 import { createServer } from "node:http";
 import { createReadStream, existsSync, readFileSync, readdirSync, statSync } from "node:fs";
@@ -213,6 +216,8 @@ try {
   await exerciseRetiredPortraitSaveRoundTrips(page, browserErrors);
   await exerciseColonySaveRoundTrips(page, browserErrors);
   await exerciseChefSaveRoundTrips(page, browserErrors);
+  await exerciseLandmassChannelRestore(page, browserErrors);
+  await exerciseSoundDuesRoundTrips(page, browserErrors);
   const navalFixtureName = "dense-local-save-v2-game-state-v103.json";
   const navalFixture = browserAdaptedDenseFixture(JSON.parse(readFileSync(path.join(FIXTURE_ROOT, navalFixtureName), "utf8")), navalFixtureName);
   await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), JSON.stringify(navalFixture));
@@ -931,4 +936,53 @@ async function startStaticServer() {
     server.listen(0, "127.0.0.1", resolve);
   });
   return server;
+}
+
+async function exerciseSoundDuesRoundTrips(page, browserErrors) {
+  const name = `dense-local-save-v2-game-state-v${GAME_STATE_VERSION}.json`;
+  const fixture = browserAdaptedDenseFixture(JSON.parse(readFileSync(path.join(FIXTURE_ROOT, name), "utf8")), name);
+  fixture.payload.portCatalogVersion = PORT_CATALOG_VERSION;
+  fixture.payload.gameState.memory.soundDues = createSoundDuesMemory();
+  fixture.payload.gameState.memory.navalCasualties = [];
+  fixture.payload.gameState.memory.campaignGoal.introSeen = true;
+  fixture.payload.gameState.doubloons = 1000;
+  const lat = 55.710662841796875 * Math.PI / 180, lon = 12.885918617248535 * Math.PI / 180;
+  fixture.payload.playerShip.position = [Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon)];
+  fixture.payload.playerShip.tileId = 393304;
+  fixture.payload.playerShip.heading = [-Math.sin(lat) * Math.cos(lon), Math.cos(lat), Math.sin(lat) * Math.sin(lon)];
+  fixture.payload.playerShip.targetHeading = fixture.payload.playerShip.heading;
+  await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), JSON.stringify(fixture));
+  const pending = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectSoundDues());
+  assert.equal(pending.memory.active.status, "awaiting-payment");
+  assert.equal(pending.view.topic, "SOUND DUES");
+  await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), pending.serialized);
+  const paid = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectSoundDues("pay"));
+  assert.equal(paid.memory.active.status, "paid");
+  assert.equal(paid.balance, 1000 - pending.memory.active.tollDoubloons);
+  await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), paid.serialized);
+  const reloaded = await page.evaluate(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectSoundDues());
+  assert.equal(reloaded.view, null);
+  assert.equal(reloaded.balance, paid.balance);
+  assert.deepEqual(reloaded.memory, paid.memory);
+  await assertNoBrowserFailure(page, browserErrors, "Sound Dues demand, payment and reload");
+  process.stdout.write("  Sound Dues rendered; interrupted demand resumed; paid passage retained after reload.\n");
+}
+
+async function exerciseLandmassChannelRestore(page, browserErrors) {
+  const name = `dense-local-save-v2-game-state-v${GAME_STATE_VERSION}.json`;
+  const fixture = browserAdaptedDenseFixture(JSON.parse(readFileSync(path.join(FIXTURE_ROOT, name), "utf8")), name);
+  const bytes = readFileSync(path.resolve(APP_ROOT, "../../examples/globe-demo/public/geodesic-graph-8.bin"));
+  const graph = decodeGeodesicGraphBake(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength), 8);
+  const tileId = 296827;
+  const lat = graph.latDeg[tileId] * Math.PI / 180, lon = graph.lonDeg[tileId] * Math.PI / 180;
+  Object.assign(fixture.payload.playerShip, {
+    tileId,
+    position: [Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon)],
+    heading: [-Math.sin(lat) * Math.cos(lon), Math.cos(lat), Math.sin(lat) * Math.sin(lon)],
+    targetHeading: [-Math.sin(lat) * Math.cos(lon), Math.cos(lat), Math.sin(lat) * Math.sin(lon)]
+  });
+  const result = await page.evaluate((serialized) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), JSON.stringify(fixture));
+  assert.ok(result.chartTileCount > 0);
+  await assertNoBrowserFailure(page, browserErrors, "Montreal inland island channel rendering");
+  process.stdout.write("  Montreal river-island channels rendered after save restoration.\n");
 }

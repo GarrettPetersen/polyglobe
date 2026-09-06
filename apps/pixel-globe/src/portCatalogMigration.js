@@ -3,7 +3,7 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 5;
+export const PORT_CATALOG_VERSION = 6;
 const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an
@@ -57,11 +57,31 @@ export const PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS = new Map([
   [643413, 160888], // utrecht|netherlands
   [160923, 643564], // york|united kingdom
 ]);
-const UNVERSIONED_PORT_TILE_IDS = composePortTileMigrations(new Map([
+// v6 fixes nearest-tile lookup at spatial-index bucket boundaries. Keep the
+// canonical destinations from released saves even where a new tile was formerly
+// occupied by another city (Trakai/Vilnius); apply this mapping once at load.
+export const PRE_EXACT_NEAREST_PORT_TILE_IDS = new Map([
+  [648485, 648484], // almeria|spain
+  [161169, 644541], // angers|france
+  [98411, 392993], // berlin|germany
+  [406959, 406890], // cairo|egypt
+  [393304, 393293], // copenhagen|denmark
+  [644410, 644682], // london|united kingdom
+  [502402, 502418], // mozambique|mozambique
+  [643508, 643237], // newcastle upon tyne|united kingdom
+  [143707, 574230], // rikitea village|french polynesia
+  [646757, 646755], // rome|italy
+  [262224, 262222], // tomogaura|japan
+  [397387, 99518], // trakai|lithuania
+  [262138, 65639], // tsuchizaki minato|japan
+  [99518, 397385], // vilnius|lithuania
+  [392451, 392449], // wittenberg|germany
+]);
+const UNVERSIONED_PORT_TILE_IDS = composePortTileMigrations(composePortTileMigrations(new Map([
   ...PRE_NORTH_MALUKU_PORT_TILE_IDS,
   ...PRE_RIVER_OUTLET_PORT_TILE_IDS,
   ...PRE_DJENNE_CORRECTION_TILE_IDS
-]), PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS);
+]), PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS), PRE_EXACT_NEAREST_PORT_TILE_IDS);
 
 export function sameTopologyPortMigrationForSavedVoyage(payload, {
   savedSubdivisions,
@@ -88,10 +108,11 @@ export function sameTopologyPortMigrationForSavedVoyage(payload, {
     );
   }
   if (payload.portCatalogVersion === PORT_CATALOG_VERSION) return null;
-  return composePortTileMigrations(new Map([
+  return composePortTileMigrations(composePortTileMigrations(new Map([
     ...(payload.portCatalogVersion < 3 ? PRE_RIVER_OUTLET_PORT_TILE_IDS : []),
     ...(payload.portCatalogVersion < 4 ? PRE_DJENNE_CORRECTION_TILE_IDS : [])
-  ]), PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS);
+  ]), payload.portCatalogVersion < 5 ? PRE_GEOGRAPHY_REVIEW_PORT_TILE_IDS : new Map()),
+  PRE_EXACT_NEAREST_PORT_TILE_IDS);
 }
 
 export function portReferenceMigrationForSavedVoyage(payload, topology, currentPlacements) {

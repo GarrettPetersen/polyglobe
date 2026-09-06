@@ -1,4 +1,4 @@
-import { createDirectionIndex, findNearestTileId } from "./geodesic.js";
+import { buildGeodesicGraph, createDirectionIndex, findNearestTileId } from "./geodesic.js";
 
 export const WORLD_GLOBE_SUBDIVISIONS = 8;
 export const WORLD_DISCRETE_WEATHER_SUBDIVISIONS = 6;
@@ -48,12 +48,9 @@ export function buildFineToCoarseTileMapping(graph, coarseSubdivisions) {
     }
     return mapping;
   }
-  const coarseGraph = {
-    tileCount: coarseTileCount,
-    centers: graph.centers.subarray(0, coarseTileCount * 3),
-    latDeg: graph.latDeg.subarray(0, coarseTileCount),
-    lonDeg: graph.lonDeg.subarray(0, coarseTileCount)
-  };
+  // A center-only prefix is not a graph: exact nearest lookup traverses the
+  // coarse mesh, whose edges differ from the fine mesh's edges.
+  const coarseGraph = buildGeodesicGraph(coarseSubdivisions);
   const directionIndex = createDirectionIndex(coarseGraph);
   for (let tileId = coarseTileCount; tileId < graph.tileCount; tileId++) {
     const offset = tileId * 3;

@@ -1,3 +1,5 @@
+import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
+import { SOUND_DUES_COLLECTOR_CITY_ID, SOUND_DUES_FACTION_ID, advanceSoundDuesPassage, soundDuesEnforcementApplies } from "./soundDues.js";
 import { PoliticalNoticeQueue } from "./politicalNoticeQueue.js";
 import { colonizationSiteIsRuined } from "./colonialCities.js";
 import { dateToSubsolarPoint } from "./solarClock.js";
@@ -489,6 +491,7 @@ import {
   factionReputation,
   HOSTILE_PORT_REPUTATION_THRESHOLD,
   factionSafePassageToll,
+  settleSoundDues,
   foodRationsForCargoQuantity,
   futurePermanentCrewFloor,
   grantGuaranteedMissionPerkItem,
@@ -1060,6 +1063,7 @@ import {
   dialogueBackOptionIndex,
   enterPortCityLocation,
   createShoreBatteryDialogueSession,
+  createSoundDuesDialogueSession,
   createShipDialogueSession,
   passengerDialogueView,
   personalHostilityDialogue,
@@ -16508,6 +16512,25 @@ function installSaveRestoreSmokeHarness() {
   }
   let running = false;
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
+    async inspectSoundDues(decision = null) {
+      if (running) throw new Error("Cannot inspect Sound Dues during save restoration");
+      updateSoundDues();
+      let view = null;
+      if (dialogueState?.purpose === "sound-dues") {
+        view = currentDialogueView();
+        render(lastFrameMs, { allowColdCoveredWorldRender: true });
+        if (decision !== null) {
+          const actionType = decision === "pay" ? "pay-sound-dues" : "refuse-sound-dues";
+          const index = view.options.findIndex(({ action }) => action.type === actionType);
+          if (index < 0 || view.options[index].disabled) throw new Error("Sound Dues smoke selected an unavailable action");
+          applyDialogueOption(index, view.options[index]);
+          render(lastFrameMs, { allowColdCoveredWorldRender: true });
+        }
+      } else if (decision !== null) throw new Error("No Sound Dues dialogue is active");
+      await waitForSaveRestoreSmokePersistence();
+      return { view, memory: structuredClone(gameState.memory.soundDues),
+        balance: gameState.doubloons, serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
+    },
     async inspectNavalCasualtyReport() {
       if (running || gameState.memory.navalCasualties.length === 0) {
         throw new Error("Naval report smoke requires a restored pending casualty roll");
@@ -26159,9 +26182,18 @@ function applyDialogueOption(optionIndex, displayedOption = null) {
     result = selectShipDialogueOption(dialogueState, currentDialogueShip(), optionIndex);
   } else if (dialogueState.kind === "shore-battery") {
     const city = currentDialogueCity();
-    result = selectShoreBatteryDialogueOption(dialogueState, city, optionIndex);
+    result = selectShoreBatteryDialogueOption(dialogueState, city, optionIndex, gameState);
     if (result.feedback) {
       showSurvivalNotice(result.feedback.toUpperCase(), "warn");
+    } else if (result.action?.type === "pay-sound-dues" || result.action?.type === "refuse-sound-dues") {
+      const decision = result.action.type === "pay-sound-dues" ? "pay" : "refuse";
+      settleSoundDues(gameState, dialogueState.passageId, decision, city, Math.floor(weatherClockMinutes));
+      if (decision === "pay") {
+        playCoinClinkSound();
+        showSurvivalNotice("SOUND DUES PAID", "good");
+      }
+      saveVoyageNow("answered Sound Dues demand");
+      result.action = null;
     } else if (result.action?.type === "purchase-safe-passage") {
       const simMinute = Math.floor(weatherClockMinutes);
       const entryStatus = portEntryStatus(gameState, city, simMinute);
@@ -27254,7 +27286,7 @@ function buildCurrentDialogueView() {
     return shipDialogueView(dialogueState, currentDialogueShip());
   }
   if (dialogueState.kind === "shore-battery") {
-    return shoreBatteryDialogueView(dialogueState, currentDialogueCity());
+    return shoreBatteryDialogueView(dialogueState, currentDialogueCity(), gameState);
   }
   if (dialogueState.kind === "campaign-goal") {
     return campaignDialogueView(
@@ -32851,7 +32883,8 @@ function shipNavigabilityAtLocalPoint(x, y, tileId, position) {
   if (surface?.water) {
     return {
       ok: true,
-      kind: freshWaterSurfaceMask?.[surface.tileId] ? "lake" : "openWater",
+      kind: surface.riverTileId !== null ? "river" : freshWaterSurfaceMask?.[surface.tileId] ? "lake" : "openWater",
+      riverTileId: surface.riverTileId,
       tileId: surface.tileId,
       clearancePx: surface.clearancePx,
       flow: surface.flow
@@ -32873,7 +32906,9 @@ function drawnSurfaceNavigationAtLocalPoint(x, y) {
     x,
     y,
     chart,
-    isPlayerUsableSurfaceWaterTile
+    (tileId) => shipTileHasRiver(tileId) && !isWaterSurfaceRow(earthById[tileId])
+      ? isWorldReachableNavigationTile(tileId)
+      : isPlayerUsableSurfaceWaterTile(tileId)
   );
 }
 
@@ -32910,6 +32945,7 @@ function drawnSurfaceNavigationAtPoint(x, y, activeChart, isUsableWaterTile) {
       ),
       maxDistancePx: SHIP_LOCAL_COLLISION_SEARCH_RADIUS_PX,
       isWaterTile: (candidateTileId) => isWaterSurfaceRow(earthById[candidateTileId]),
+      isRiverTile: shipTileHasRiver,
       isUsableWaterTile: () => true,
       tileRaster: drawnNavigationTileRaster
     });
@@ -32923,6 +32959,7 @@ function drawnSurfaceNavigationAtPoint(x, y, activeChart, isUsableWaterTile) {
     tileId: resolution.tileId,
     water,
     source: resolution.source,
+    riverTileId: resolution.riverTileId,
     clearancePx: water ? resolution.clearancePx : 0,
     flow: water ? resolution.flow : null
   };
@@ -36896,9 +36933,26 @@ function updateNpcFishermenHarvest() {
   return changed;
 }
 
+function updateSoundDues() {
+  const position = { lat: latitudeDegForDirection(ship.position), lon: longitudeDegForDirection(ship.position) };
+  if (advanceSoundDuesPassage(gameState, position)) saveVoyageNow("Danish straits passage");
+  if (gameState.memory.soundDues.active?.status !== "awaiting-payment" ||
+      combatHailIsBlockedByOverlay() || captureSuppressesCombatHails()) return false;
+  const city = cityById.get(SOUND_DUES_COLLECTOR_CITY_ID);
+  if (!city) throw new Error("Sound Dues collector city is missing");
+  const character = requirePortCityStaffMember(portCityStaffByCityId, city.cityId, PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER);
+  dialogueState = createSoundDuesDialogueSession({ ...city, character }, gameState);
+  dialogueLayout = createDialogueLayoutState();
+  pauseShipForOverlay();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
+}
+
 function updateNpcCombat(dt) {
   if (!ship || gameOverReason) return false;
   const simMinute = Math.floor(weatherClockMinutes);
+  if (updateSoundDues()) return true;
   if (maybeOpenNingboRivalDelegationHail()) return true;
   const portEntryContext = measurePerformanceBenchmarkStage(
     "npcShips.visual.combat.portContext",
@@ -37400,6 +37454,9 @@ function forceNearbyTradeEnforcementEngagements(simMinute) {
   )) {
     enforcingFactions.add(factionId);
   }
+  if (soundDuesEnforcementApplies(gameState.memory.soundDues, SOUND_DUES_FACTION_ID)) {
+    enforcingFactions.add(SOUND_DUES_FACTION_ID);
+  }
   if (enforcingFactions.size === 0) return false;
   let changed = false;
   let largestBroadside = 0;
@@ -37648,7 +37705,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
         !playerNpcAttackGraceIsActive(gameState.activePlaySeconds) && entryStatus.hostile
       );
       const passageRefusalActive = playerHostile && entryStatus.passageRefusalActive;
-      if (commissionedTarget) {
+      if (commissionedTarget || soundDuesEnforcementApplies(gameState.memory.soundDues, city.factionId)) {
         state.playerHailed = true;
         nextTargets.add(PLAYER_COMBAT_ID);
       } else {
@@ -45336,7 +45393,7 @@ function buildWakeWaterIndex(tileCalls, faceCalls, riverConnectorCalls, activeCh
       }, {
         kind: "landmassChannel",
         call,
-        waterTileId: landmassChannelWaterTileId(call, activeChart),
+        navigationAnchor: landmassChannelNavigationAnchor({ graph, earthRows: earthById, riverMasks, a: call.a, b: call.b }),
         raster
       });
     }
@@ -54922,28 +54979,6 @@ function terrainConnectorAlphaRaster(call, geometry) {
     alpha.fill(255, span.x - x + (span.y - y) * width, span.x - x + span.width + (span.y - y) * width);
   }
   return { x, y, width, height, alpha };
-}
-
-function landmassChannelWaterTileId(call, activeChart) {
-  const candidates = new Set([...graph.neighbors[call.a], ...graph.neighbors[call.b]]);
-  const midpointX = (call.ax + call.bx) * 0.5;
-  const midpointY = (call.ay + call.by) * 0.5;
-  const waterTiles = [...candidates]
-    .filter((tileId) => isWaterSurfaceRow(earthById[tileId]))
-    .map((tileId) => ({ tileId, tileCall: activeChart.tileById.get(tileId) }))
-    .sort((a, b) => {
-      const aDistance = a.tileCall
-        ? Math.hypot(a.tileCall.drawSurfaceX - midpointX, a.tileCall.drawSurfaceY - midpointY)
-        : Infinity;
-      const bDistance = b.tileCall
-        ? Math.hypot(b.tileCall.drawSurfaceX - midpointX, b.tileCall.drawSurfaceY - midpointY)
-        : Infinity;
-      return aDistance - bDistance || a.tileId - b.tileId;
-    });
-  if (waterTiles.length === 0) {
-    throw new Error(`Landmass channel ${call.a}:${call.b} has no adjacent water tile`);
-  }
-  return waterTiles[0].tileId;
 }
 
 function drawTerrainConnectorStaticDetails(targetCtx, entry) {

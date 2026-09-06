@@ -25,7 +25,7 @@ export const MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS = Object.freeze({
     ]),
     "bremen|germany": Object.freeze([98128, 98127, 98140]),
     "glasgow|united kingdom": Object.freeze([71858, 71857, 71934]),
-    "hamburg|germany": Object.freeze([98427, 98409, 6192, 98140]),
+    "hamburg|germany": Object.freeze([98420, 98427, 98409, 6192, 98140]),
     "magdeburg|germany": Object.freeze([98280, 98417, 24686, 98425, 98427]),
     "prague|austria": Object.freeze([98296, 98297, 98293, 98277, 98276, 24652, 98280]),
     "lyon|france": Object.freeze([161095, 40292, 162219, 40573, 162221, 10152, 162210]),

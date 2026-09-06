@@ -11,6 +11,7 @@ export function rasterizeDrawnNavigationChunk({
   candidates,
   maxDistancePx,
   isWaterTile,
+  isRiverTile,
   isUsableWaterTile,
   tileRaster,
   padding = DEFAULT_PADDING
@@ -22,6 +23,7 @@ export function rasterizeDrawnNavigationChunk({
     candidates,
     maxDistancePx,
     isWaterTile,
+    isRiverTile,
     isUsableWaterTile,
     tileRaster,
     padding
@@ -40,11 +42,16 @@ export function rasterizeDrawnNavigationChunk({
   const landmassChannels = candidates.filter((entry) => entry?.kind === "landmassChannel");
 
   for (const entry of landmassChannels) {
+    const { tileId, kind } = entry.navigationAnchor;
+    if (!Number.isInteger(tileId) || tileId < 0 ||
+        !(kind === "surface" ? isWaterTile(tileId) : kind === "river" && isRiverTile(tileId))) {
+      throw new Error(`Invalid landmass channel navigation anchor: ${kind}/${tileId}`);
+    }
     overlayTileRaster({
       raster: entry.raster,
-      tileId: entry.waterTileId,
-      navigable: isWaterTile(entry.waterTileId) && isUsableWaterTile(entry.waterTileId),
-      sourceValue: 3,
+      tileId,
+      navigable: isUsableWaterTile(tileId),
+      sourceValue: kind === "river" ? 4 : 3,
       rasterOriginX,
       rasterOriginY,
       rasterSize,
@@ -130,9 +137,10 @@ export function drawnNavigationFieldPoint(chunk, x, y) {
   return Object.freeze({
     tileId,
     water: chunk.water[index] === 1,
+    riverTileId: chunk.source[index] === 4 ? tileId : null,
     source: chunk.source[index] === 1
       ? "opaque-sprite"
-      : chunk.source[index] === 3
+      : chunk.source[index] === 3 || chunk.source[index] === 4
         ? "landmass-channel"
         : "connector-gap",
     clearancePx: chunk.clearance[index],
@@ -295,7 +303,7 @@ function validateInputs(options) {
   if (!Number.isFinite(options.maxDistancePx) || options.maxDistancePx <= 0) {
     throw new Error("Drawn navigation raster requires a positive gap distance");
   }
-  for (const predicate of [options.isWaterTile, options.isUsableWaterTile, options.tileRaster]) {
+  for (const predicate of [options.isWaterTile, options.isRiverTile, options.isUsableWaterTile, options.tileRaster]) {
     if (typeof predicate !== "function") {
       throw new Error("Drawn navigation raster requires tile predicates and raster access");
     }

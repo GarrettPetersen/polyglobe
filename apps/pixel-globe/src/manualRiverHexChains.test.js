@@ -29,7 +29,7 @@ const MANUAL_CITY_RIVER_CONNECTIONS = Object.freeze([
   { cityId: "wroclaw|germany", city: "Wroclaw", lat: 51.116667, lon: 17.033333, tileId: 98257 },
   { cityId: "bremen|germany", city: "Bremen", lat: 53.07516, lon: 8.80777, tileId: 98128 },
   { cityId: "glasgow|united kingdom", city: "Glasgow", lat: 55.86515, lon: -4.25763, tileId: 71858 },
-  { cityId: "hamburg|germany", city: "Hamburg", lat: 53.57532, lon: 10.01534, tileId: 98427 },
+  { cityId: "hamburg|germany", city: "Hamburg", lat: 53.57532, lon: 10.01534, tileId: 98420 },
   { cityId: "magdeburg|germany", city: "Magdeburg", lat: 52.130808, lon: 11.628878, tileId: 98280 },
   { cityId: "prague|austria", city: "Prague", lat: 50.08804, lon: 14.42076, tileId: 98296 },
   { cityId: "lyon|france", city: "Lyon", lat: 45.74846, lon: 4.84671, tileId: 161095 },

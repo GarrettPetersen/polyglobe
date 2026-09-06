@@ -21,10 +21,10 @@ function tile(id, drawOrder, x, y, pixels, water = false) {
   };
 }
 
-function landmassChannel(waterTileId, x, y, width, pixels) {
+function landmassChannel(waterTileId, x, y, width, pixels, kind = "surface") {
   return {
     kind: "landmassChannel",
-    waterTileId,
+    navigationAnchor: { tileId: waterTileId, kind },
     raster: {
       x,
       y,
@@ -47,6 +47,7 @@ function rasterize(tiles, options = {}) {
     candidates: tiles,
     maxDistancePx: 6,
     isWaterTile: (tileId) => byId.get(tileId).water,
+    isRiverTile: (tileId) => options.riverIds?.has(tileId) === true,
     isUsableWaterTile: (tileId) => !options.blockedWaterIds?.has(tileId),
     tileRaster: (call) => byId.get(call.id).raster
   });
@@ -137,4 +138,16 @@ test("clearance flow points away from a nearby blocked shore", () => {
   assert.equal(nearShore.water, true);
   assert.ok(nearShore.flow.x > 0);
   assert.ok(openWater.clearancePx >= nearShore.clearancePx);
+});
+
+test("river-island channels retain river identity and honor navigation restrictions", () => {
+  const tiles = [landmassChannel(296827, 2, 3, 5, [255, 255, 255, 255, 255], "river")];
+  const options = { riverIds: new Set([296827]) };
+  const point = drawnNavigationFieldPoint(rasterize(tiles, options), 4, 3);
+  assert.equal(point.water, true);
+  assert.equal(point.riverTileId, 296827);
+  assert.equal(point.source, "landmass-channel");
+  const blocked = rasterize(tiles, { ...options, blockedWaterIds: new Set([296827]) });
+  assert.equal(drawnNavigationFieldPoint(blocked, 4, 3).water, false);
+  assert.throws(() => rasterize(tiles), /Invalid landmass channel navigation anchor/);
 });

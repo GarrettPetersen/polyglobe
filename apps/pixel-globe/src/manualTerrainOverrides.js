@@ -490,6 +490,14 @@ export function applyManualTerrainOverrides(earthRows, subdivisions) {
     subdivisions,
     "manual land corrections"
   );
+  return applyTerrainCorrections(earthRows, { shallowWaterTileIds, lakeOverrides, landOverrides });
+}
+
+export function applyTerrainCorrections(earthRows, { shallowWaterTileIds, lakeOverrides, landOverrides }) {
+  if (!Array.isArray(earthRows) || !Array.isArray(shallowWaterTileIds) ||
+      !Array.isArray(lakeOverrides) || !Array.isArray(landOverrides)) {
+    throw new Error("Terrain corrections require Earth rows and explicit override arrays");
+  }
   if (
     shallowWaterTileIds.length === 0 &&
     lakeOverrides.length === 0 &&

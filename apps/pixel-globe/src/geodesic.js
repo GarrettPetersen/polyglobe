@@ -180,7 +180,23 @@ export function findNearestTileId(graph, index, dir) {
         }
       }
     }
-    if (bestDot > -Infinity) return bestId;
+    if (bestDot > -Infinity) {
+      // The nearest center may lie across a latitude/longitude bucket edge.
+      // The index supplies a nearby seed; ascend the convex geodesic mesh to
+      // the actual nearest center instead of treating a bucket as a boundary.
+      while (true) {
+        let nextId = bestId;
+        for (const neighborId of graph.neighbors[bestId]) {
+          const d = dotGraphCenter(graph, neighborId, dir);
+          if (d > bestDot || (d === bestDot && neighborId < nextId)) {
+            bestDot = d;
+            nextId = neighborId;
+          }
+        }
+        if (nextId === bestId) return bestId;
+        bestId = nextId;
+      }
+    }
   }
 
   for (let id = 0; id < graph.tileCount; id++) {

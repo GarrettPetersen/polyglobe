@@ -3,6 +3,10 @@ import { canTraverseWorldNavigationEdge } from "./worldNavigationTopology.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 export const WORLD_WATERWAY_INVARIANTS = Object.freeze([
+  surfacePassage("Oresund", [56.1, 12.65], [55.35, 12.65], [55.2, 56.3, 12.2, 13.2]),
+  surfacePassage("Great Belt", [55.8, 10.95], [54.9, 11.0], [54.8, 56.0, 10.5, 11.5]),
+  surfacePassage("Little Belt", [55.72, 10.05], [54.9, 9.9], [54.8, 55.9, 9.4, 10.5]),
+  passage("Utrecht via Vaartse Rijn and Lek", [52.09, 5.12], [51.96, 3.85], [51.5, 52.5, 3.5, 5.5]),
   passage("Strait of Gibraltar", [35.8, -6.2], [36.0, -5.0], [34.5, 37.5, -7.0, -3.0]),
   passage("Bosporus", [40.7, 28.7], [41.25, 29.1], [40.3, 41.6, 28.4, 29.5]),
   passage("Dardanelles", [40.05, 25.8], [40.65, 27.4], [39.5, 41.0, 25.0, 28.0]),
