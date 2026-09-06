@@ -20,6 +20,7 @@ export const TELEMETRY_CONSENT_GRANTED = "granted";
 export const TELEMETRY_CONSENT_DENIED = "denied";
 
 const TELEMETRY_SCHEMA_VERSION = 1;
+
 const TELEMETRY_EVENT_WEIGHT = 1;
 const TELEMETRY_ENDPOINT = "https://telemetry.marque-and-reprisal.com/v1/events";
 const TELEMETRY_CHECKPOINT_INTERVAL_MS = 15 * 60 * 1000;
@@ -52,6 +53,17 @@ const TELEMETRY_FEATURES = Object.freeze([
   ["penguin", (state) => animalCompanionWasAcquired(state, "penguin")],
   ["raccoon", (state) => animalCompanionWasAcquired(state, "raccoon")]
 ]);
+
+// Restoration may fail before the saved voyage replaces startup state. Diagnostics
+// must describe the attempted save, including when its contents are incomplete.
+export function savedVoyageCrashContext(payload) {
+  return {
+    screen: "save-restore",
+    mainQuest: payload?.gameState?.memory?.campaignGoal?.type ?? "unknown",
+    ship: payload?.playerShip?.typeSlug ?? "unknown",
+    redact: [payload?.gameState?.playerCharacter?.name].filter(Boolean)
+  };
+}
 
 export function shouldCaptureGlobalTelemetryError(error, sourceUrl = "") {
   return globalTelemetryFailureIsActionable({

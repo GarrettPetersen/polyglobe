@@ -363,24 +363,20 @@ test("portrait metadata reconciliation rejects unknown character sources", () =>
 });
 
 test("saved characters inherit corrected neutral expression assignments", () => {
-  const strawHatWoman = GENERATED_MANIFEST.sourceCharacters.find(
-    (source) => source.id === "women-peasant-pack-by-captainskeleto-women-peasant"
+  const source = GENERATED_MANIFEST.sourceCharacters.find(
+    (source) => source.id === "blond-villager-women-portrait-pack-by-captainskeleto-blond-villager-women"
   );
   const savedCharacter = {
-    sourceId: strawHatWoman.id,
-    sex: strawHatWoman.sex,
-    expressions: strawHatWoman.expressions.map((expression) => ({
-      id: expression.index === 1 ? "sad" : expression.index === 3 ? "neutral" : expression.id,
-      label: expression.index === 1 ? "Sad" : expression.index === 3 ? "Neutral" : expression.label,
-      src: expression.src,
-      width: expression.width,
-      height: expression.height
+    sourceId: source.id,
+    sex: source.sex,
+    expressions: source.expressions.map((expression) => ({
+      ...expression,
+      id: expression.index === 1 ? "neutral" : expression.index === 9 ? "happy" : expression.id
     }))
   };
-
   assert.equal(reconcileCharacterPortraitMetadata(savedCharacter, GENERATED_MANIFEST), 1);
-  assert.match(characterExpression(savedCharacter).src, /Women%20Peasant_9\.png$/);
-  assert.match(characterExpression(savedCharacter, "sad").src, /Women%20Peasant_2\.png$/);
+  assert.match(characterExpression(savedCharacter).src, /Blond%20Villager%20Women_9\.png$/);
+  assert.match(characterExpression(savedCharacter, "sad").src, /Blond%20Villager%20Women_2\.png$/);
 });
 
 test("saved characters inherit corrected visual ages and consistent birthdays", () => {
@@ -792,7 +788,6 @@ test("visually reviewed expression packs use calm neutral frames", () => {
     ["ultimate-portrait-pack-v1-0-young-peasant-girl-villager-young-girl-portrait", 4],
     ["ultimate-portrait-pack-v1-0-women-baker-women-baker-portrait", 6],
     ["women-knight-portrait-pack-by-captainskeleto-women-knight-portrait", 12],
-    ["women-peasant-pack-by-captainskeleto-women-peasant", 9],
     ["ultimate-portrait-pack-v1-0-seamstress-women-portrait-women-seamstress-portrait", 1],
     ["ultimate-portrait-pack-v1-0-young-peasant-boy-young-peasant-boy-portrait", 6],
     ["warrior-with-beard-pack-by-captainskolot-warrior-with-beard", 1],
@@ -838,42 +833,13 @@ test("the blond villager portrait uses its visually reviewed expression frames",
   assert.equal(characterExpression(source, "overjoyed").index, 6);
 });
 
-test("the blond straw-hat peasant uses its visually reviewed expression frames", () => {
-  const source = GENERATED_MANIFEST.sourceCharacters.find(
-    (character) => character.id === "women-peasant-pack-by-captainskeleto-women-peasant"
-  );
-  const expressionIndices = Object.fromEntries(
-    source.expressions.map((expression) => [expression.id, expression.index])
-  );
-
-  assert.deepEqual(expressionIndices, {
-    happy: 1,
-    sad: 2,
-    serious: 3,
-    overjoyed: 4,
-    worried: 5,
-    "soft-smile": 6,
-    laughing: 7,
-    crying: 8,
-    neutral: 9,
-    pleased: 10,
-    angry: 11,
-    embarrassed: 12
-  });
-  assert.equal(characterExpression(source).index, 9);
-  assert.equal(characterExpression(source, "sad").index, 2);
-  assert.equal(characterExpression(source, "crying").index, 8);
-  assert.equal(characterExpression(source, "afraid").index, 5);
-  assert.equal(characterExpression(source, "happy").index, 1);
-  assert.equal(characterExpression(source, "overjoyed").index, 4);
-});
 
 test("women portrait grid entries are individual people, not expression sets", () => {
   const womenPortraits = GENERATED_MANIFEST.sourceCharacters.filter((source) => (
     source.sourceDirectory === "Women Portrait Pack by Captainskeleto/Women Portrait"
   ));
 
-  assert.equal(womenPortraits.length, 30);
+  assert.equal(womenPortraits.length, 5);
   assert.ok(womenPortraits.every((source) => source.groupingMode === "single-portrait"));
   assert.ok(womenPortraits.every((source) => source.expressions.length === 1));
 });

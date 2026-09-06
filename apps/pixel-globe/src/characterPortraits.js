@@ -20,8 +20,9 @@ import {
 import { NEUTRAL_FACTION_ID, factionById } from "./factions.js";
 import { portPersonalityForKey } from "./portDialoguePersonality.js";
 import { fetchStaticAsset } from "./staticAssetFetch.js";
+import { retiredCharacterPortrait } from "./retiredCharacterPortraits.js";
 
-export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-22";
+export const CHARACTER_PORTRAIT_ASSET_VERSION = "portrait-authored-sprites-23";
 export const CHARACTER_PORTRAIT_MANIFEST_URL = `assets/characters/generated/character-portraits.json?v=${CHARACTER_PORTRAIT_ASSET_VERSION}`;
 
 const OLD_BUCCANEER_MINIMUM_AGE = 45;
@@ -84,6 +85,9 @@ export function validateCharacterPortraitManifest(manifest) {
   const characterIds = new Set();
   for (const character of manifest.sourceCharacters) {
     assertSlug(character.id, "character id");
+    if (retiredCharacterPortrait(character.id)) {
+      throw new Error(`Retired portrait must not enter the runtime catalog: ${character.id}`);
+    }
     if (characterIds.has(character.id)) throw new Error(`Duplicate source character id: ${character.id}`);
     characterIds.add(character.id);
     if (typeof character.label !== "string" || character.label.trim() === "") {
@@ -149,21 +153,43 @@ export function reconcileCharacterPortraitMetadata(root, manifest) {
     if (!value || typeof value !== "object" || ArrayBuffer.isView(value) || visited.has(value)) return;
     visited.add(value);
     if (typeof value.sourceId === "string" && (value.sex === "female" || value.sex === "male")) {
-      const source = sourceById.get(value.sourceId);
+      const retirement = retiredCharacterPortrait(value.sourceId);
+      const source = sourceById.get(retirement?.replacementSourceId ?? value.sourceId);
       if (!source) {
-        throw new Error("Character uses an unknown portrait source: " + value.sourceId);
+        throw new Error("Character uses an unknown portrait source: " +
+          (retirement?.replacementSourceId ?? value.sourceId));
       }
       const expressions = assignedExpressions(source);
+      if (retirement) {
+        if (source.sex !== retirement.sex || value.sex !== retirement.sex ||
+            (source.requiredReligionFamily != null &&
+              !portraitAllowsReligion(source.requiredReligionFamily, value.religionId))) {
+          throw new Error(`Incompatible retired portrait replacement: ${value.sourceId} -> ${source.id}`);
+        }
+        if (Object.isFrozen(value)) {
+          throw new Error("Cannot replace frozen character portrait: " + value.sourceId);
+        }
+        // Replace appearance only. Age, birthday, identity, skills, culture and
+        // relationships belong to the person, not to the new source image.
+        Object.assign(value, {
+          sourceId: source.id,
+          sourceLabel: source.label,
+          sourceRoles: [...source.roles],
+          sourceRegions: [...source.regions],
+          minAge: source.minAge,
+          maxAge: source.maxAge,
+          requiredReligionFamily: source.requiredReligionFamily ?? null,
+          expressions
+        });
+        correctedCount += 1;
+      }
       const expressionsChanged = Array.isArray(value.expressions) && !sameExpressions(value.expressions, expressions);
       const hasAgeMetadata = Number.isInteger(value.age);
-      const correctedAge = hasAgeMetadata
+      const ageRangeChanged = value.minAge !== source.minAge || value.maxAge !== source.maxAge;
+      const correctedAge = hasAgeMetadata && ageRangeChanged
         ? Math.min(source.maxAge, Math.max(source.minAge, value.age))
-        : null;
-      const ageChanged = hasAgeMetadata && (
-        value.age !== correctedAge ||
-        value.minAge !== source.minAge ||
-        value.maxAge !== source.maxAge
-      );
+        : value.age;
+      const ageChanged = hasAgeMetadata && ageRangeChanged;
       const requiredReligionFamily = source.requiredReligionFamily ?? null;
       const religionFamilyChanged =
         (value.requiredReligionFamily ?? null) !== requiredReligionFamily;
@@ -845,9 +871,14 @@ function assignStoredCharacterSprite(key, region, sourcePool, used, storedIdenti
     throw new Error(`Stored character has no name: ${storedIdentity.id}`);
   }
   const identitySuffix = hashString32(key).toString(16).padStart(8, "0");
-  const source = sourcePool.find(({ id }) => (
-    storedIdentity.id === `${id}-${identitySuffix}`
-  ));
+  // Supported compact captain records stored appearance inside their original
+  // ID. Resolve that old source explicitly, but retain the person's exact ID.
+  const suffix = `-${identitySuffix}`;
+  const savedSourceId = storedIdentity.id.endsWith(suffix)
+    ? storedIdentity.id.slice(0, -suffix.length)
+    : null;
+  const sourceId = retiredCharacterPortrait(savedSourceId)?.replacementSourceId ?? savedSourceId;
+  const source = sourcePool.find(({ id }) => id === sourceId);
   if (!source) {
     throw new Error(`Stored character identity is incompatible with ${key}: ${storedIdentity.id}`);
   }

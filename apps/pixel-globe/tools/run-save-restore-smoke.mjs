@@ -16,7 +16,10 @@ import { readLocalSave } from "../src/localSave.js";
 import { PORT_CATALOG_VERSION } from "../src/portCatalogMigration.js";
 import { createCrewMember } from "../src/crewMembers.js";
 import { cityRecruitableCrewAppearances } from "../city-visualizer/cityPeople.js";
-import { characterWithBiography } from "../src/characterBiography.js";
+import { RETIRED_CHARACTER_PORTRAITS } from "../src/retiredCharacterPortraits.js";
+import { declareDiplomaticWar } from "../src/worldDiplomacy.js";
+import { createSovereignWarLoanMemory, createSovereignWarLoanOffer } from "../src/sovereignWarLoan.js";
+import { characterWithBiography, correctedCharacterPortraitAge } from "../src/characterBiography.js";
 import { maybeSpawnChefQuest, prepareChefBanquet, serveChefBanquet, completeChefBanquet } from "../src/chefQuest.js";
 import { COLONIZATION_TARGETS } from "../src/colonialCities.js";
 import { colonizationHistoryForTarget } from "../src/colonizationHistory.js";
@@ -207,6 +210,7 @@ try {
   await exerciseCrewManagementSaveRoundTrips(page, browserErrors);
   await exerciseDjenneSaveRoundTrips(page, browserErrors);
   await exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors);
+  await exerciseRetiredPortraitSaveRoundTrips(page, browserErrors);
   await exerciseColonySaveRoundTrips(page, browserErrors);
   await exerciseChefSaveRoundTrips(page, browserErrors);
   const navalFixtureName = "dense-local-save-v2-game-state-v103.json";
@@ -604,6 +608,18 @@ async function exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors) 
     memory.pendingDiscoveryPortDialogueIds.push(id);
   }
   memory.campaignGoal.currentLeadDiscoveryId = ids[0];
+  save.payload.gameState.doubloons = 1_000_000;
+  const capital = JSON.parse(readFileSync(path.join(APP_ROOT, "city-visualizer/data/cities.json"), "utf8"))
+    .cities.find(city => city.cityId === "seville|spain");
+  declareDiplomaticWar(save.payload.gameState.relations.diplomacy, "spain", "portugal", save.payload.worldClock.currentMinute);
+  memory.quests.sovereignWarLoan = createSovereignWarLoanMemory();
+  createSovereignWarLoanOffer(memory.quests.sovereignWarLoan, {
+    borrowerFactionId: "spain", enemyFactionId: "portugal",
+    capital: { ...capital, isFactionCapital: capital.capital, capitalOfFactionId: capital.factionId },
+    simMinute: save.payload.worldClock.currentMinute, doubloons: 1_000_000
+  });
+  memory.quests.sovereignWarLoan.offer.presentationTier = 2;
+  const expectedShip = save.payload.playerShip.typeSlug;
   let serialized = JSON.stringify(save);
   for (let pass = 0; pass < 2; pass++) {
     const restored = await page.evaluate((serialized) =>
@@ -612,13 +628,60 @@ async function exerciseInaccessibleDiscoverySaveRoundTrips(page, browserErrors) 
     const loaded = readLocalSave({ storage: { getItem: () => restored.serialized } });
     if (loaded.status !== "ready") throw loaded.error;
     const restoredMemory = loaded.save.payload.gameState.memory;
+    if (restored.shipTypeSlug !== expectedShip ||
+        loaded.save.payload.gameState.doubloons !== 1_000_000 ||
+        restoredMemory.quests.sovereignWarLoan.offer?.presentationTier !== 0 ||
+        restoredMemory.quests.sovereignWarLoan.contract !== null) {
+      throw new Error("Interrupted Spanish loan request changed the ship, purse or unanswered offer");
+    }
     if (ids.some((id) => !restoredMemory.discoveries[id] || !restoredMemory.discoveryOrder.includes(id)) ||
         restoredMemory.campaignGoal.currentLeadDiscoveryId !== null) {
       throw new Error("Navigation change lost a recorded discovery or retained an unreachable lead");
     }
     serialized = restored.serialized;
   }
-  process.stdout.write("  All four inland mountain discoveries survived v102 restore and another save/load.\n");
+  process.stdout.write("  All four inland mountains and an interrupted Spanish loan request survived v102 restore and another save/load, preserving ship and money.\n");
+}
+
+async function exerciseRetiredPortraitSaveRoundTrips(page, browserErrors) {
+  const retiredSources = JSON.parse(readFileSync(path.join(APP_ROOT,
+    "src/test-fixtures/retired-character-portraits-v22.json"), "utf8"));
+  for (const id of [
+    "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-3",
+    "women-peasant-pack-by-captainskeleto-women-peasant"
+  ]) {
+    const save = JSON.parse(fixtures.find(fixture => fixture.gameStateVersion === GAME_STATE_VERSION).serialized);
+    const old = retiredSources.find(source => source.id === id);
+    const person = save.payload.gameState.playerCharacter;
+    Object.assign(person, {
+      // Each fixture models a distinct existing person, so its first render
+      // cannot reuse a frame decoded for an earlier fixture's captain.
+      id: `player:portrait-retirement:${id}`,
+      sourceId: old.id, sourceLabel: old.label, sourceRoles: old.roles, sourceRegions: old.regions,
+      sex: old.sex, minAge: old.minAge, maxAge: old.maxAge,
+      expressions: old.expressions, ...correctedCharacterPortraitAge(person, old.maxAge)
+    });
+    const historyKeys = ["id", "name", "givenName", "familyName", "sex", "age", "birthDate", "birthDateLabel",
+      "religionId", "nationalityId", "homePortCityId", "nameCulture"];
+    const history = character => JSON.stringify(historyKeys.map(key => character[key]));
+    const expectedHistory = history(person);
+    let serialized = JSON.stringify(save);
+    for (let pass = 0; pass < 2; pass++) {
+      const restored = await page.evaluate(serialized =>
+        window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(serialized), serialized);
+      await assertNoBrowserFailure(page, browserErrors, `retired portrait ${id}`);
+      const loaded = readLocalSave({ storage: { getItem: () => restored.serialized } });
+      if (loaded.status !== "ready") throw loaded.error;
+      const character = loaded.save.payload.gameState.playerCharacter;
+      if (character.sourceId !== RETIRED_CHARACTER_PORTRAITS[id].replacementSourceId ||
+          history(character) !== expectedHistory ||
+          character.expressions.some(expression => expression.src !== "assets/characters/generated/character-portraits-atlas.png")) {
+        throw new Error(`Retired portrait did not cleanly replace its appearance: ${id}`);
+      }
+      serialized = restored.serialized;
+    }
+  }
+  process.stdout.write("  Retired Viking and woman's hat portraits rendered from the new atlas across two save/load cycles without changing their people.\n");
 }
 
 async function exerciseCrewManagementSaveRoundTrips(page, browserErrors) {

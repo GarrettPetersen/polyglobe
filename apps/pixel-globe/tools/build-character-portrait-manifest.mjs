@@ -1,6 +1,8 @@
 import { mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { basename, dirname, extname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { retiredCharacterPortrait } from "../src/retiredCharacterPortraits.js";
+import { validateCharacterPortraitManifest } from "../src/characterPortraits.js";
 
 const appRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const characterRoot = join(appRoot, "public/assets/characters");
@@ -923,7 +925,8 @@ function main() {
   if (!statSync(characterRoot).isDirectory()) {
     throw new Error(`Missing character asset root: ${characterRoot}`);
   }
-  const sourceCharacters = withUniqueIds(groupPortraitFiles(walkPngFiles(characterRoot)));
+  const sourceCharacters = withUniqueIds(groupPortraitFiles(walkPngFiles(characterRoot)))
+    .filter((source) => !retiredCharacterPortrait(source.id));
   if (sourceCharacters.length === 0) throw new Error(`No ${portraitSize}x${portraitSize} portrait expressions found in ${characterRoot}`);
   const expressionCount = sourceCharacters.reduce((total, character) => total + character.expressions.length, 0);
   const manifest = {
@@ -934,6 +937,7 @@ function main() {
     sourceCharacters
   };
 
+  validateCharacterPortraitManifest(manifest);
   mkdirSync(dirname(outputPath), { recursive: true });
   writeFileSync(outputPath, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`Wrote ${outputPath}`);

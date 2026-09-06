@@ -1288,6 +1288,9 @@ function restoreLoadedGameState(state, shipStats = null) {
   }
   state.memory.whales = migrateWhaleMemory(state.memory.whales);
   assertGameState(state);
+  state.memory.quests.sovereignWarLoan = migrateSovereignWarLoanMemory(
+    state.memory.quests.sovereignWarLoan
+  );
   const loadoutReconciliation = reconcileLoadedShipLoadout(state, shipStats);
   if (loadoutReconciliation?.crewRepair) {
     console.warn(

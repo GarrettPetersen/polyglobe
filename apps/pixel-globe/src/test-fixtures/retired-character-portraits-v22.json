@@ -1,0 +1,926 @@
+[
+  {
+    "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-3",
+    "label": "Viking Portrait Male 3",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+    "sex": "male",
+    "roles": [
+      "captain",
+      "warrior",
+      "factor"
+    ],
+    "regions": [
+      "northern-europe"
+    ],
+    "minAge": 35,
+    "maxAge": 50,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_3.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "viking-men-portrait-pack-by-captainskeleto-viking-portrait-male-5",
+    "label": "Viking Portrait Male 5",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Viking Men Portrait Pack by Captainskeleto",
+    "sex": "male",
+    "roles": [
+      "captain",
+      "warrior",
+      "factor"
+    ],
+    "regions": [
+      "northern-europe"
+    ],
+    "minAge": 35,
+    "maxAge": 50,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Viking%20Men%20Portrait%20Pack%20by%20Captainskeleto/Viking%20Portrait%20male_5.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-peasant-pack-by-captainskeleto-women-peasant",
+    "label": "Women Peasant",
+    "groupingMode": "expression-set",
+    "sourceDirectory": "Women Peasant Pack by Captainskeleto",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 32,
+    "expressionCount": 12,
+    "expressions": [
+      {
+        "id": "happy",
+        "label": "Happy",
+        "index": 1,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_1.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "sad",
+        "label": "Sad",
+        "index": 2,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_2.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "serious",
+        "label": "Serious",
+        "index": 3,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_3.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "overjoyed",
+        "label": "Overjoyed",
+        "index": 4,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_4.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "worried",
+        "label": "Worried",
+        "index": 5,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_5.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "soft-smile",
+        "label": "Soft Smile",
+        "index": 6,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_6.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "laughing",
+        "label": "Laughing",
+        "index": 7,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_7.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "crying",
+        "label": "Crying",
+        "index": 8,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_8.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 9,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_9.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "pleased",
+        "label": "Pleased",
+        "index": 10,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_10.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "angry",
+        "label": "Angry",
+        "index": 11,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_11.png",
+        "width": 64,
+        "height": 64
+      },
+      {
+        "id": "embarrassed",
+        "label": "Embarrassed",
+        "index": 12,
+        "src": "assets/characters/Women%20Peasant%20Pack%20by%20Captainskeleto/Women%20Peasant_12.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-00",
+    "label": "Women Portrait 00",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 35,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/00.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-01",
+    "label": "Women Portrait 01",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/01.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-02",
+    "label": "Women Portrait 02",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 32,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/02.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-03",
+    "label": "Women Portrait 03",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 22,
+    "maxAge": 36,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/03.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-04",
+    "label": "Women Portrait 04",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/04.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-10",
+    "label": "Women Portrait 10",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 35,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/10.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-11",
+    "label": "Women Portrait 11",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/11.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-12",
+    "label": "Women Portrait 12",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 34,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/12.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-13",
+    "label": "Women Portrait 13",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 22,
+    "maxAge": 36,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/13.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-14",
+    "label": "Women Portrait 14",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/14.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-20",
+    "label": "Women Portrait 20",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 35,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/20.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-21",
+    "label": "Women Portrait 21",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/21.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-24",
+    "label": "Women Portrait 24",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 25,
+    "maxAge": 42,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/24.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-30",
+    "label": "Women Portrait 30",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/30.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-31",
+    "label": "Women Portrait 31",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 34,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/31.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-32",
+    "label": "Women Portrait 32",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 34,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/32.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-34",
+    "label": "Women Portrait 34",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/34.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-40",
+    "label": "Women Portrait 40",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 28,
+    "maxAge": 44,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/40.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-41",
+    "label": "Women Portrait 41",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/41.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-42",
+    "label": "Women Portrait 42",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 34,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/42.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-43",
+    "label": "Women Portrait 43",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 22,
+    "maxAge": 38,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/43.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-44",
+    "label": "Women Portrait 44",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 24,
+    "maxAge": 42,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/44.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-50",
+    "label": "Women Portrait 50",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 25,
+    "maxAge": 42,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/50.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-51",
+    "label": "Women Portrait 51",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 20,
+    "maxAge": 36,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/51.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  },
+  {
+    "id": "women-portrait-pack-by-captainskeleto-women-portrait-women-portrait-53",
+    "label": "Women Portrait 53",
+    "groupingMode": "single-portrait",
+    "sourceDirectory": "Women Portrait Pack by Captainskeleto/Women Portrait",
+    "sex": "female",
+    "roles": [
+      "factor",
+      "civilian"
+    ],
+    "regions": [
+      "global",
+      "europe",
+      "northern-europe",
+      "mediterranean"
+    ],
+    "minAge": 18,
+    "maxAge": 30,
+    "expressionCount": 1,
+    "expressions": [
+      {
+        "id": "neutral",
+        "label": "Neutral",
+        "index": 0,
+        "src": "assets/characters/Women%20Portrait%20Pack%20by%20Captainskeleto/Women%20Portrait/53.png",
+        "width": 64,
+        "height": 64
+      }
+    ]
+  }
+]

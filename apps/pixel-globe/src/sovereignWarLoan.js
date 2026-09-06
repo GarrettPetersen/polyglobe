@@ -74,10 +74,15 @@ export function migrateSovereignWarLoanMemory(memory) {
       version: SOVEREIGN_WAR_LOAN_MEMORY_VERSION,
       contract
     };
-    validateSovereignWarLoanMemory(migrated);
-    return migrated;
+    return migrateSovereignWarLoanMemory(migrated);
   }
   validateSovereignWarLoanMemory(memory);
+  // Earlier builds acknowledged the request before the player answered. At
+  // tier two the only choices settle/remove the offer, so a retained offer is
+  // an interrupted audience. Restore its eligibility without touching money.
+  if (memory.offer?.presentationTier === 2) {
+    return { ...memory, offer: { ...memory.offer, presentationTier: 0 } };
+  }
   return memory;
 }
 
@@ -154,13 +159,14 @@ export function sovereignWarLoanOfferNeedsPresentation(memory, city, doubloons) 
   return offer.presentationTier < tier;
 }
 
-export function markSovereignWarLoanOfferPresented(memory, doubloons) {
+export function deferSovereignWarLoanOffer(memory, doubloons) {
   validateSovereignWarLoanMemory(memory);
-  if (!memory.offer) throw new Error("No sovereign war-loan offer is awaiting presentation");
-  if (!Number.isFinite(doubloons) || doubloons < SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD) {
-    throw new Error("A sovereign war loan cannot be presented below its wealth threshold");
+  if (!memory.offer) throw new Error("No sovereign war-loan offer can be deferred");
+  if (!Number.isFinite(doubloons) || doubloons < SOVEREIGN_WAR_LOAN_OFFER_THRESHOLD ||
+      doubloons >= SOVEREIGN_WAR_LOAN_PRINCIPAL) {
+    throw new Error("A sovereign war loan can only be deferred while assembling the full million");
   }
-  memory.offer.presentationTier = doubloons >= SOVEREIGN_WAR_LOAN_PRINCIPAL ? 2 : 1;
+  memory.offer.presentationTier = 1;
   validateSovereignWarLoanMemory(memory);
   return memory.offer;
 }

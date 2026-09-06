@@ -9,13 +9,13 @@ test("save read and restore failures use the standard crash report presentation"
     /if \(localSaveResult\.status === "invalid"\) \{[\s\S]*?\n  \}/
   )?.[0];
   const saveRestoreFailure = MAIN_SOURCE.match(
-    /async function continueSavedVoyage\(\) \{[\s\S]*?\n\}\n\nasync function restoreSavedVoyage/
+    /async function continueSavedVoyage\(\) \{[\s\S]*?\n\}/
   )?.[0];
 
   assert.ok(saveReadFailure, "save-read failure branch must remain explicit");
   assert.match(saveReadFailure, /drawFatalError\([\s\S]*telemetryCrashContext\("save-read"\)/);
   assert.ok(saveRestoreFailure, "save-restore handler must remain explicit");
-  assert.match(saveRestoreFailure, /drawFatalError\([\s\S]*telemetryCrashContext\("save-restore"\)/);
+  assert.match(saveRestoreFailure, /drawFatalError\([\s\S]*crashContext/);
 });
 
 test("fatal presentation freezes ordinary rendering and exposes crash details", () => {

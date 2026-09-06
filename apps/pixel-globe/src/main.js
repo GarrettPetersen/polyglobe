@@ -1160,7 +1160,7 @@ import {
   cancelStaleSovereignWarLoanOffer,
   createSovereignWarLoanOffer,
   declineSovereignWarLoanOffer,
-  markSovereignWarLoanOfferPresented,
+  deferSovereignWarLoanOffer,
   recordSovereignWarLoanMobilization,
   selectSovereignWarLoanCustomsSecurity,
   sovereignWarLoanOfferNeedsPresentation
@@ -1469,6 +1469,7 @@ import {
   TELEMETRY_CONSENT_GRANTED,
   TELEMETRY_CONSENT_UNKNOWN,
   createGameTelemetry,
+  savedVoyageCrashContext,
   shouldCaptureGlobalTelemetryError,
   telemetryRuntimeChannel
 } from "./gameTelemetry.js";
@@ -16447,6 +16448,7 @@ function archiveSavedVoyageBeforeStartingOver() {
 async function continueSavedVoyage() {
   if (!startMenu || startMenu.isLoading || localSaveResult.status !== "ready") return;
   const menu = startMenu;
+  const crashContext = savedVoyageCrashContext(localSaveResult.save.payload);
   menu.isLoading = true;
   menu.message = "";
   dirty = true;
@@ -16474,7 +16476,7 @@ async function continueSavedVoyage() {
       dirty = true;
       return;
     }
-    gameTelemetry.captureCrash(error, telemetryCrashContext("save-restore"));
+    gameTelemetry.captureCrash(error, crashContext);
     localSaveResult = { status: "invalid", save: null, error };
     if (startMenu === menu) {
       menu.isLoading = false;
@@ -16484,7 +16486,7 @@ async function continueSavedVoyage() {
     drawFatalError(
       error,
       "Save could not be loaded",
-      telemetryCrashContext("save-restore")
+      crashContext
     );
     dirty = true;
   }
@@ -21769,7 +21771,8 @@ function sovereignWarLoanEnemyForCapital(capital, borrowerFactionId) {
 
 function openSovereignWarLoanOfferDialogue(cityCall) {
   const memory = gameState.memory.quests.sovereignWarLoan;
-  const offer = markSovereignWarLoanOfferPresented(memory, gameState.doubloons);
+  const offer = memory.offer;
+  if (!offer) throw new Error("No sovereign war-loan offer is awaiting presentation");
   const ruler = rulerAtMinute(offer.borrowerFactionId, Math.floor(weatherClockMinutes));
   if (!ruler) throw new Error(`War-loan offer has no sovereign: ${offer.borrowerFactionId}`);
   const official = cityCall.character;
@@ -21831,6 +21834,7 @@ function openSovereignWarLoanChoice(cityCall, rulerName) {
 }
 
 function deferSovereignWarLoan(cityCall) {
+  deferSovereignWarLoanOffer(gameState.memory.quests.sovereignWarLoan, gameState.doubloons);
   const official = cityCall.character;
   const opened = startCharacterAlertSequence([
     pairedCharacterAlertStep({
