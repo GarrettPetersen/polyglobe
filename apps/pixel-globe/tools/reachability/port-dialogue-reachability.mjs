@@ -11,7 +11,7 @@ import { VIKING_LONGSHIP_FETCH_STAGES, VIKING_LONGSHIP_PRICE, VIKING_LONGSHIP_SL
 import { CARIBBEAN_GINGER_FETCH_STAGE, maybeSpawnCaribbeanGingerQuest } from "../../src/caribbeanGingerQuest.js";
 import { createWorldEconomy } from "../../src/economy.js";
 import { createCrewRecruitmentOffer } from "../../src/crewMembers.js";
-import { cargoUsed, hireCrewMemberAtPort, setPlayerShipStats, validateGameState } from "../../src/gameState.js";
+import { cargoUsed, hireCrewMemberAtPort, migrateGameState, setPlayerShipStats, validateGameState } from "../../src/gameState.js";
 import assert from "node:assert/strict";
 import { completeChefRecruitment, completeVikingLongshipAcquisition } from "../../src/innQuestTransactions.js";
 import { dialogueOptionIconId } from "../../src/gameIcons.js";
@@ -452,6 +452,16 @@ function transitionScenario(scenario, offered, { executeHostEffects = false } = 
   }
   if (offered.disabled) assert.ok(result.action == null, "Disabled choice requested a host effect");
   validateGameState(next.gameState);
+  if (!offered.disabled) {
+    const restored = migrateGameState(JSON.parse(JSON.stringify(next.gameState)), next.shipStats);
+    const expected = structuredClone(next.gameState);
+    // Provision targets are a derived plan rebuilt for the current crew at load.
+    // Actual cargo, sailors, money, equipment and quest history must stay exact.
+    if (expected.ship) expected.ship.loadoutTargets = restored.ship.loadoutTargets;
+    assert.deepEqual(restored, expected,
+      `Enabled action ${offered.kind} must preserve voyage state through saving and restoring`);
+    next.gameState = restored;
+  }
   if (result.closed === true || EXTERNAL_TERMINAL_ACTION_TYPES.has(offered.kind)) return null;
   return next;
 }

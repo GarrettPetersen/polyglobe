@@ -7,6 +7,7 @@ import {
   DIPLOMACY_HOSTILE,
   DIPLOMACY_WAR
 } from "./factions.js";
+import { FACTIONS } from "./factions.js";
 import {
   createWorldDiplomacy,
   establishDiplomaticSuzerainty
@@ -41,7 +42,34 @@ import {
   tradeEmbargoOrdersForShipping,
   validateTradeEmbargoEnforcementMemory
 } from "./tradeEmbargoes.js";
+import { TRADE_EMBARGO_RETIRED_ORDER_LIMIT, validateTradeEmbargoMemory } from "./tradeEmbargoes.js";
 import { npcTradeEmbargoViolations } from "./npcSeaRoutes.js";
+
+test("active embargoes survive the history budget and retired orders remain bounded", () => {
+  const memory = createTradeEmbargoMemory();
+  const diplomacy = createWorldDiplomacy();
+  const factions = FACTIONS.filter(({ id }) => !["neutral", "pirate"].includes(id)).map(({ id }) => id);
+  const template = memory.orders.find(({ authorityKind }) => authorityKind === TRADE_EMBARGO_AUTHORITY_NATIONAL);
+  memory.orders = [];
+  for (const issuerFactionId of factions) {
+    for (const targetFactionId of factions) {
+      if (issuerFactionId === targetFactionId || memory.orders.length >= 70) continue;
+      memory.orders.push({ ...template, id: `embargo-${memory.orders.length + 1}`,
+        issuerFactionId, targetFactionId, followerFactionIds: [issuerFactionId],
+        imposedMinute: 0, liftedMinute: null });
+    }
+  }
+  memory.nextOrderId = 71;
+  validateTradeEmbargoMemory(memory);
+  assert.equal(activeTradeEmbargoOrders(memory).length, 70);
+  const duplicate = structuredClone(memory);
+  duplicate.orders.push({ ...duplicate.orders[0], id: "embargo-71" });
+  assert.throws(() => validateTradeEmbargoMemory(duplicate), /Duplicate active trade embargo policy/);
+  advanceTradeEmbargoPolitics(memory, diplomacy, memory.nextReviewMinute, { inactiveFactionIds: factions });
+  validateTradeEmbargoMemory(memory);
+  assert.equal(activeTradeEmbargoOrders(memory).length, 0);
+  assert.equal(memory.orders.length, TRADE_EMBARGO_RETIRED_ORDER_LIMIT);
+});
 
 const RHODES = Object.freeze({
   tileId: 12,

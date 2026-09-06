@@ -32,7 +32,7 @@ export const TRADE_EMBARGO_RESTRICTION_BLOCKADE = "naval-blockade";
 export const TRADE_EMBARGO_AUTHORITY_NATIONAL = "national";
 export const TRADE_EMBARGO_AUTHORITY_PAPAL = "papal";
 export const TRADE_EMBARGO_HISTORY_LIMIT = 32;
-export const TRADE_EMBARGO_ORDER_LIMIT = 48;
+export const TRADE_EMBARGO_RETIRED_ORDER_LIMIT = 48;
 export const TRADE_EMBARGO_ENFORCEMENT_VERSION = 3;
 export const TRADE_EMBARGO_REPUTATION_PENALTY = 9;
 export const PAPAL_EMBARGO_REPUTATION_PENALTY = 5;
@@ -65,6 +65,12 @@ const EMBARGO_RESTRICTIONS = new Set([
   TRADE_EMBARGO_RESTRICTION_EXPORTS,
   TRADE_EMBARGO_RESTRICTION_BLOCKADE
 ]);
+// Active orders are sovereign policy, not disposable history. There can be one
+// order per authority, scope, restriction and directed faction pair; only retired
+// orders age out. Import bans, arms restrictions and blockades remain distinct.
+export const TRADE_EMBARGO_ORDER_LIMIT = TRADE_EMBARGO_RETIRED_ORDER_LIMIT +
+  EMBARGO_AUTHORITIES.size * EMBARGO_SCOPES.size * EMBARGO_RESTRICTIONS.size *
+  FACTIONS.length * (FACTIONS.length - 1);
 const EMBARGO_EVENT_KINDS = new Set(TRADE_EMBARGO_EVENT_KINDS);
 const HISTORICAL_TRANSITION_STATES = new Set(["completed", "averted"]);
 
@@ -268,10 +274,16 @@ export function validateTradeEmbargoMemory(memory) {
     }
   }
   const orderIds = new Set();
+  const activePolicies = new Set();
   for (const order of memory.orders) {
     validateEmbargoOrder(order);
     if (orderIds.has(order.id)) throw new Error(`Duplicate trade embargo order: ${order.id}`);
     orderIds.add(order.id);
+    if (order.liftedMinute === null) {
+      const policy = `${order.authorityKind}|${order.scope}|${order.restrictionKind}|${order.issuerFactionId}|${order.targetFactionId}`;
+      if (activePolicies.has(policy)) throw new Error(`Duplicate active trade embargo policy: ${policy}`);
+      activePolicies.add(policy);
+    }
   }
   for (const event of memory.history) validateEmbargoEvent(event);
   return memory;
@@ -1089,11 +1101,6 @@ function imposeOrder(memory, {
   };
   validateEmbargoOrder(order);
   memory.orders.push(order);
-  if (memory.orders.length > TRADE_EMBARGO_ORDER_LIMIT) {
-    const retiredIndex = memory.orders.findIndex((entry) => entry.liftedMinute !== null);
-    if (retiredIndex < 0) throw new Error("Active trade embargo order limit exceeded");
-    memory.orders.splice(retiredIndex, 1);
-  }
   const event = embargoEvent(order, "imposed", simMinute, source);
   recordEvent(memory, event);
   return event;
@@ -1102,6 +1109,12 @@ function imposeOrder(memory, {
 function liftOrder(memory, order, simMinute, source) {
   if (order.liftedMinute !== null) throw new Error(`Trade embargo already lifted: ${order.id}`);
   order.liftedMinute = simMinute;
+  let retiredCount = memory.orders.filter((entry) => entry.liftedMinute !== null).length;
+  memory.orders = memory.orders.filter((entry) => {
+    if (entry.liftedMinute === null || retiredCount <= TRADE_EMBARGO_RETIRED_ORDER_LIMIT) return true;
+    retiredCount--;
+    return false;
+  });
   const event = embargoEvent(order, "lifted", simMinute, source);
   recordEvent(memory, event);
   return event;

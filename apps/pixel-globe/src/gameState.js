@@ -1871,7 +1871,9 @@ export function nextGamePoliticsMinute(state) {
 export function advanceGamePolitics(state, currentMinute, { portCities = [], cities = portCities } = {}) {
   assertGameState(state);
   assertSimulationMinute(currentMinute);
-  const historicalTransitions = advanceHistoricalSovereignty(state, currentMinute, { portCities });
+  // Territorial succession is worldwide even when the player's sailing catalog
+  // is restricted by the demo boundary.
+  const historicalTransitions = advanceHistoricalSovereignty(state, currentMinute, { portCities: cities });
   const historicalDiplomaticTransitions = advanceHistoricalDiplomacy(
     state,
     currentMinute,

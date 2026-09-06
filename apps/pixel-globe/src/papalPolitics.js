@@ -792,9 +792,7 @@ function enactPapalAction(memory, diplomacy, {
     throw new Error("Papal action requires a source");
   }
   if (logistics !== null) validatePapalLogistics(logistics);
-  if (Object.values(memory.activeDecrees).some((action) => (
-    action.kind === kind && action.targetFactionId === targetFactionId
-  ))) {
+  if (hasActivePapalDecree(memory, kind, targetFactionId)) {
     throw new Error(`Papal decree is already active: ${kind}/${targetFactionId}`);
   }
   const pope = rulerAtMinute(PAPAL_FACTION_ID, simMinute);
@@ -865,6 +863,12 @@ function enactPapalAction(memory, diplomacy, {
   return Object.freeze({ action, diplomacyEvents });
 }
 
+function hasActivePapalDecree(memory, kind, targetFactionId) {
+  return Object.values(memory.activeDecrees).some((action) => (
+    action.kind === kind && action.targetFactionId === targetFactionId
+  ));
+}
+
 function chooseScheduledPapalAction(memory, diplomacy, simMinute) {
   const candidates = [];
   for (const faction of SOVEREIGN_FACTIONS) {
@@ -893,9 +897,7 @@ function chooseScheduledPapalAction(memory, diplomacy, simMinute) {
     }
   }
   const inactiveCandidates = candidates.filter(({ kind, targetFactionId }) => (
-    !Object.values(memory.activeDecrees).some((action) => (
-      action.kind === kind && action.targetFactionId === targetFactionId
-    ))
+    !hasActivePapalDecree(memory, kind, targetFactionId)
   ));
   const filtered = inactiveCandidates.filter(({ kind, targetFactionId }) => (
     !memory.history.slice(0, 3).some((action) => (
@@ -1000,6 +1002,7 @@ function createPapalMatter(memory, diplomacy, proposal, simMinute) {
   const pope = rulerAtMinute(PAPAL_FACTION_ID, simMinute);
   const catholicWarPair = firstCatholicWarPair(memory, diplomacy, simMinute);
   const reformCandidate = pope?.id === "adrian-vi" &&
+    !hasActivePapalDecree(memory, PAPAL_ACTION_FAVOUR, "burgundian-netherlands") &&
     !memory.history.some((action) => action.source === "player-papal-reform") &&
     papalRandom(memory, memory.sequence, `adrian-reform|${simMinute}`) < 0.45;
 
@@ -1019,7 +1022,8 @@ function createPapalMatter(memory, diplomacy, proposal, simMinute) {
   } else if (proposal.kind === PAPAL_ACTION_EXCOMMUNICATION ||
       proposal.kind === PAPAL_ACTION_CONDEMNATION) {
     commissionKind = PAPAL_COMMISSION_ADMONITION;
-  } else if (catholicWarPair) {
+  } else if (catholicWarPair &&
+      !hasActivePapalDecree(memory, PAPAL_ACTION_FAVOUR, catholicWarPair[0])) {
     commissionKind = PAPAL_COMMISSION_PEACE;
     actionKind = PAPAL_ACTION_FAVOUR;
     targetFactionId = catholicWarPair[0];
