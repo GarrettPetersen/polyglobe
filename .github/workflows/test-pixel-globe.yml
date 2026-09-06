@@ -45,9 +45,24 @@ jobs:
         run: |
           npm run --prefix apps/pixel-globe check:source
           npm run --prefix apps/pixel-globe test:deploy
+      - name: Seeded persistent game journeys
+        run: npm run --prefix apps/pixel-globe test:playtest
       - name: All ports and production browser journeys
         if: github.event_name == 'pull_request'
         run: npm run --prefix apps/pixel-globe test:reachability:fast
       - name: Deeper action and simulation journeys
         if: github.event_name != 'pull_request'
         run: npm run --prefix apps/pixel-globe test:reachability:release
+      - name: Rotating stateful journeys
+        if: github.event_name != 'pull_request'
+        env:
+          PLAYTEST_SEED: ${{ github.run_number }}
+        run: node apps/pixel-globe/tools/playtest/run.mjs --steps=500 --seed="$PLAYTEST_SEED"
+      - name: Preserve playtest reports and replays
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: game-playtest
+          path: apps/pixel-globe/.playtest/
+          include-hidden-files: true
+          retention-days: 14

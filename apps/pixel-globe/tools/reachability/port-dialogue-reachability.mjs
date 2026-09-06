@@ -16,7 +16,7 @@ import { CARIBBEAN_GINGER_FETCH_STAGE, maybeSpawnCaribbeanGingerQuest } from "..
 import { createWorldEconomy } from "../../src/economy.js";
 import { withForeignSettlements1522 } from "../../src/foreignSettlements.js";
 import { createCrewRecruitmentOffer } from "../../src/crewMembers.js";
-import { cargoUsed, hireCrewMemberAtPort, migrateGameState, setPlayerShipStats, validateGameState } from "../../src/gameState.js";
+import { cargoUsed, factionReputation, hireCrewMemberAtPort, migrateGameState, setPlayerShipStats, validateGameState } from "../../src/gameState.js";
 import assert from "node:assert/strict";
 import { completeChefRecruitment, completeVikingLongshipAcquisition } from "../../src/innQuestTransactions.js";
 import { dialogueOptionIconId } from "../../src/gameIcons.js";
@@ -211,7 +211,7 @@ function validateScenarioState(scenario) {
   validateGameState(scenario.gameState);
 }
 
-function validateDisabledAction(scenario, offered) {
+export function validateDisabledAction(scenario, offered) {
   const next = transitionScenario(scenario, offered);
   assert.ok(next, "Disabled choice closed its dialogue");
   assert.deepEqual(next.gameState, scenario.gameState, "Disabled choice mutated game state");
@@ -395,12 +395,13 @@ function auditLocationEntry(city, locationId, environment) {
   });
 }
 
-function createScenario(city, environment) {
+export function createScenario(city, environment, { playerCharacter } = {}) {
   const shipStats = shipStatsForSlug(PLAYER_SHIP_SLUG);
   const gameState = createPlayerTestGameState({
     cargoCapacity: shipStats.cargoCapacity,
     shipStats,
-    voyageSeed: `reachability:${city.cityId}`
+    voyageSeed: `reachability:${city.cityId}`,
+    ...(playerCharacter === undefined ? {} : { playerCharacter })
   });
   initializeTestProvisionalShipLoadout(gameState, shipStats);
   gameState.doubloons = 10_000;
@@ -421,7 +422,7 @@ function createScenario(city, environment) {
   };
 }
 
-function renderScenario(scenario) {
+export function renderScenario(scenario) {
   const view = portDialogueView(
     scenario.session,
     cityForSession(scenario),
@@ -433,7 +434,7 @@ function renderScenario(scenario) {
   return { ...view, kind: scenario.session.nodeId };
 }
 
-function transitionScenario(scenario, offered, { executeHostEffects = false } = {}) {
+export function transitionScenario(scenario, offered, { executeHostEffects = false, preserveTerminal = false } = {}) {
   const next = {
     ...scenario,
     gameState: structuredClone(scenario.gameState),
@@ -469,7 +470,9 @@ function transitionScenario(scenario, offered, { executeHostEffects = false } = 
   validateGameState(next.gameState);
   if (!offered.disabled) {
     const restored = migrateGameState(JSON.parse(JSON.stringify(next.gameState)), next.shipStats);
-    const expected = structuredClone(next.gameState);
+    // Optional undefined properties have no persisted representation. Compare
+    // the JSON contract rather than JavaScript object property presence.
+    const expected = JSON.parse(JSON.stringify(next.gameState));
     // Provision targets are a derived plan rebuilt for the current crew at load.
     // Actual cargo, sailors, money, equipment and quest history must stay exact.
     if (expected.ship) expected.ship.loadoutTargets = restored.ship.loadoutTargets;
@@ -477,6 +480,7 @@ function transitionScenario(scenario, offered, { executeHostEffects = false } = 
       `Enabled action ${offered.kind} must preserve voyage state through saving and restoring`);
     next.gameState = restored;
   }
+  if (preserveTerminal) return { ...next, transitionResult: result };
   if (result.closed === true || EXTERNAL_TERMINAL_ACTION_TYPES.has(offered.kind)) return null;
   return next;
 }
@@ -506,19 +510,19 @@ function freezeEconomyRecords(economy) {
   for (const record of economy.shipyards.yards.values()) freeze(record);
 }
 
-function contextForScenario(scenario) {
+export function contextForScenario(scenario) {
   return {
     random: () => 0.75,
     missionGiftRandom: () => 0.75,
     simMinute: scenario.simMinute ?? 0,
-    dayIndex: 0,
+    dayIndex: Math.floor((scenario.simMinute ?? 0) / 1440),
     localHour: 12,
     arrivalGreetingPresented: true,
     playerShipSlug: scenario.shipStats.slug,
     shipPower: scenario.gameState.ship.cannons + scenario.shipStats.hitPoints,
     shipStats: scenario.shipStats,
     nearbyShips: { merchants: 0, warships: 0, pirates: 0, fishermen: 0, whalers: 0 },
-    playerStanding: 0,
+    playerStanding: scenario.city.factionId ? factionReputation(scenario.gameState, scenario.city.factionId) : 0,
     shipyard: scenario.city.services.shipyard
       ? shipyardAtPort(scenario.economy.shipyards, scenario.city)
       : null,
@@ -537,7 +541,7 @@ function contextForScenario(scenario) {
       memory: scenario.gameState.memory.crewRecruitment,
       state: scenario.gameState,
       city: scenario.city,
-      simMinute: 0,
+      simMinute: scenario.simMinute ?? 0,
       targetCrew: scenario.gameState.ship.crewCapacity,
       appearances: [{ appearanceId: "mariner-light-black-hair", crewTypeId: "sailor" }],
       identityForKey: (key) => ({
@@ -548,7 +552,7 @@ function contextForScenario(scenario) {
   };
 }
 
-function cityForSession(scenario) {
+export function cityForSession(scenario) {
   if (portDialogueHasCaptainSpeaker(scenario.session)) {
     return { ...scenario.city, character: scenario.gameState.playerCharacter };
   }
@@ -578,7 +582,7 @@ function cityForSession(scenario) {
   };
 }
 
-function reachableCity(record) {
+export function reachableCity(record) {
   if (!record || typeof record !== "object" || Array.isArray(record)) {
     throw new Error("Reachable city catalog entries must be objects");
   }
@@ -637,7 +641,7 @@ function scenarioKey(scenario) {
   });
 }
 
-function validateDialogueView(view, scenario) {
+export function validateDialogueView(view, scenario) {
   const cityId = scenario.city.cityId;
   if (typeof view.speaker !== "string" || view.speaker.trim() === "") {
     throw new Error(`Reachable ${scenario.session.nodeId} view has no speaker: ${cityId}`);

@@ -1831,3 +1831,18 @@ function strongestTradeVoyageWithin(economy, ports, maximumDistanceKm) {
 function normalizeName(value) {
   return String(value).toLowerCase().replace(/[^a-z0-9]/g, "");
 }
+
+test("unchanged market targets preserve fractional specie exactly across repeated restores", () => {
+  const economy = createWorldEconomy({ ports: [LONDON, GOA], startMinute: 0, seedKey: "restore-specie-drift" });
+  advanceWorldEconomy(economy, 30 * 1440);
+  const original = snapshotWorldEconomy(economy);
+  for (const specie of [0.1, 24691.02442553188, 53094.61737933281, Math.PI * 10000]) {
+    for (const port of original.ports) port.specie = specie;
+    let saved = structuredClone(original);
+    for (let iteration = 0; iteration < 20; iteration++) {
+      restoreWorldEconomy(economy, saved);
+      saved = snapshotWorldEconomy(economy);
+      assert.deepEqual(saved, original);
+    }
+  }
+});

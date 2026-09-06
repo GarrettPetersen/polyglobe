@@ -1274,7 +1274,9 @@ function applySavedPortEconomyState(economy, saved) {
     );
   }
   const savedTargetSpecie = saved.targetSpecie ?? legacyTargetSpecie(port);
-  port.specie = saved.specie * port.targetSpecie / savedTargetSpecie;
+  // Unchanged catalogs must restore exactly; multiplying before dividing
+  // introduces rounding drift even when the target has not changed.
+  port.specie = saved.specie * (port.targetSpecie / savedTargetSpecie);
 }
 
 function assertWorldEconomyRestorePlan(plan) {
