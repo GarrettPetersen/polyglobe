@@ -19,3 +19,18 @@ test("every replayed reload verifies durable consequences", () => {
   }
   assert.doesNotThrow(() => assertBrowserJourneyTransition(state(), state(), { type: "reload" }));
 });
+test("reload permits omitted optional properties without hiding lost mission data", () => {
+  const before = state();
+  before.gameState.memory.quests.active.passenger = undefined;
+  before.gameState.crewRoster[0].optional = undefined;
+  const after = JSON.parse(JSON.stringify(before));
+  assert.doesNotThrow(() => assertBrowserJourneyTransition(before, after, { type: "reload" }));
+  assert.ok(Object.hasOwn(before.gameState.memory.quests.active, "passenger"));
+  for (const value of [null, false, 0, "", { id: "passenger-a" }, [undefined], NaN, Infinity]) {
+    before.gameState.memory.quests.active.passenger = value;
+    assert.throws(() => assertBrowserJourneyTransition(before, after, { type: "reload" }), /mission history/);
+  }
+  before.gameState.memory.quests.active.passenger = NaN;
+  after.gameState.memory.quests.active.passenger = null;
+  assert.throws(() => assertBrowserJourneyTransition(before, after, { type: "reload" }), /mission history/);
+});
