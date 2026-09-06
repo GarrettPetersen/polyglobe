@@ -1,3 +1,5 @@
+import { planPlaytestRoute } from "./playtestNavigation.js";
+import { playerActionId } from "./playerActionIdentity.js";
 import { coastalWaterBands } from "./terrainDistance.js";
 import { landmassChannelNavigationAnchor } from "./landmassChannels.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, SOUND_DUES_FACTION_ID, advanceSoundDuesPassage, soundDuesEnforcementApplies } from "./soundDues.js";
@@ -610,7 +612,8 @@ import {
   updateCircumnavigationProgress,
   updateSurvival,
   visitPort,
-  wokouHuntMissionOfferForCity
+  wokouHuntMissionOfferForCity,
+  validateGameState
 } from "./gameState.js";
 import {
   TEA_RACE_CARGO_QUANTITY,
@@ -1990,6 +1993,7 @@ import {
   stepShipPaperSelectionIndex
 } from "./shipInfo.js";
 import {
+  reconcileRebuiltShipyardFleetHistory,
   availablePlayerShipyardPayouts,
   claimShipyardListing,
   nearestShipyardListingForPort,
@@ -2020,7 +2024,7 @@ import {
   readLocalSave,
   writeLocalSaveWithRecoveryAsync
 } from "./localSave.js";
-import { saveRestoreSmokeEnabled } from "./saveRestoreSmoke.js";
+import { browserJourneyEnabled, saveRestoreSmokeEnabled } from "./saveRestoreSmoke.js";
 import {
   migrateSavedVoyageCore,
   recoverSavedVoyageWorldClock,
@@ -3582,6 +3586,9 @@ const DEBUG_STORM_WAVE_ENABLED = new URLSearchParams(window.location.search)
   .get("debugStormWave") === "1";
 const CHART_RECOVERY_TEST_ENABLED = new URLSearchParams(window.location.search)
   .get("chartRecoveryTest") === "1";
+const BROWSER_JOURNEY_ENABLED = browserJourneyEnabled(window.location);
+let browserJourneySteering = null;
+let browserJourneyRoute = null;
 const SAVE_RESTORE_SMOKE_ENABLED = saveRestoreSmokeEnabled(window.location);
 if (SAVE_RESTORE_SMOKE_ENABLED && (CAPTURE_SCENARIO || PERFORMANCE_BENCHMARK)) {
   throw new Error("Save-restore smoke mode cannot run inside capture or benchmark mode");
@@ -11631,6 +11638,14 @@ function setupAutomaticFramePass() {
   window.__PIXEL_GLOBE_CAPTURE_STEP__ = stepAutomaticCaptureFrame;
   window.__PIXEL_GLOBE_CAPTURE_SET_LANGUAGE__ = rerenderAutomaticCaptureLanguage;
   window.__PIXEL_GLOBE_CAPTURE_SCREENSHOT__ = captureAutomaticFrameScreenshot;
+  if (BROWSER_JOURNEY_ENABLED) {
+    window.__PIXEL_GLOBE_CAPTURE_VOYAGE__ = () => {
+      validateGameState(gameState);
+      const { payload, snapshotErrors } = snapshotVoyagePayload({ includeWorldTraffic: false });
+      if (snapshotErrors.length) throw new Error(`Journey snapshot failed: ${snapshotErrors.join(", ")}`);
+      return JSON.stringify({ version: 2, encoding: "json", savedAt: Date.now(), payload });
+    };
+  }
   window.__PIXEL_GLOBE_CAPTURE_READY__ = true;
 }
 
@@ -16492,6 +16507,7 @@ function installSaveRestoreSmokeHarness() {
   }
   let running = false;
   window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__ = Object.freeze({
+    journey: runBrowserJourneyCommand,
     async inspectMarketExit(mode) {
       if (running || !["buy", "sell"].includes(mode)) throw new Error("Market smoke requires an idle restored voyage and a valid mode");
       const city = chart.cityCalls.find((candidate) => portCitiesByTileId.has(candidate.tileId));
@@ -16579,6 +16595,7 @@ function installSaveRestoreSmokeHarness() {
         throw new Error("Save-restore smoke run requires a serialized local save");
       }
       running = true;
+      browserJourneyRoute = null;
       try {
         gameStorage.setItem(LOCAL_SAVE_STORAGE_KEY, serialized);
         localSaveResult = readLocalSave();
@@ -16617,6 +16634,94 @@ function installSaveRestoreSmokeHarness() {
       }
     }
   });
+}
+
+async function runBrowserJourneyCommand(command) {
+  if (!BROWSER_JOURNEY_ENABLED || !SAVE_RESTORE_SMOKE_ENABLED || !hasStartedVoyage) {
+    throw new Error("Browser journey requires an active voyage on the local test host");
+  }
+  if (!command || typeof command.type !== "string") throw new Error("Journey command requires a type");
+  const offered = () => dialogueState ? currentDialogueView().options : [];
+  if (command.type === "choose") {
+    const options = offered();
+    const index = options.findIndex((option) => playerActionId(option.action) === command.id);
+    if (index < 0 || options[index].disabled) throw new Error(`Journey action unavailable: ${command.id}`);
+    chooseDialogueOption(index);
+  } else if (command.type === "location") {
+    if (!portCityRootNavigationIsActive()) throw new Error("Journey city navigation is unavailable");
+    const locations = portCityNavigationView(dialogueState, currentDialogueCity(), gameState,
+      worldEconomy, playerAccessiblePortCities(), portDialogueContext()).locations;
+    if (!locations.some((location) => location.id === command.id)) throw new Error(`Unavailable city location: ${command.id}`);
+    activatePortCityDestination({ id: command.id });
+  } else if (command.type === "dock") {
+    const city = chart.cityCalls.find((call) => call.cityId === command.cityId && portCallInInteractionRange(call));
+    if (!city || dialogueState || captainAlertModal) throw new Error(`Journey cannot dock here: ${command.cityId}`);
+    openPortDialogue(city);
+  } else if (command.type === "continue") {
+    if (playerIntroModal) closePlayerIntroModal();
+    else if (portAssaultState?.casualtyReport) continueAfterPortAssaultCasualtyReport();
+    else if (captainAlertModal) closeCaptainAlertModal();
+    else throw new Error("Journey has no continuation to acknowledge");
+  } else if (command.type === "step") {
+    if (!Number.isInteger(command.frames) || command.frames < 1 || command.frames > 120) throw new Error("Journey frame batch must be 1..120");
+    const city = command.cityId === undefined ? null : cityById.get(command.cityId);
+    if (command.cityId !== undefined && !city) throw new Error(`Unknown steering destination: ${command.cityId}`);
+    try {
+      for (let frame = 0; frame < command.frames; frame++) {
+        if (city) {
+          if (!browserJourneyRoute || browserJourneyRoute.cityId !== city.cityId) {
+            const destination = tileCenterVector(city.tileId);
+            browserJourneyRoute = { cityId: city.cityId, index: 1,
+              tiles: planPlaytestRoute({ startId: ship.tileId, neighbors: (id) => graph.neighbors[id],
+                isNavigable: isShipBaseNavigableTile,
+                isDestination: (id) => vectorArcDistance(tileCenterVector(id), destination) * PIXELS_PER_RADIAN < PORT_INTERACTION_RADIUS_PX * 1.7 }) };
+          }
+          const route = browserJourneyRoute;
+          while (route.index < route.tiles.length - 1 &&
+            vectorArcDistance(ship.position, tileCenterVector(route.tiles[route.index])) * PIXELS_PER_RADIAN < 24) route.index++;
+          const lastTile = route.tiles[route.tiles.length - 1];
+          const approachingPort = vectorArcDistance(ship.position, tileCenterVector(lastTile)) * PIXELS_PER_RADIAN < 8;
+          const toward = tileCenterVector(approachingPort ? city.tileId : route.tiles[Math.min(route.index, route.tiles.length - 1)]);
+          browserJourneySteering = normalizeOrNull(projectTangentVector([
+            toward[0] - ship.position[0], toward[1] - ship.position[1], toward[2] - ship.position[2]
+          ], ship.position));
+        }
+        runFrame(lastFrameMs + 1000 / 60, { scheduleNextFrame: false, forceRender: true });
+      }
+    } finally { browserJourneySteering = null; }
+  } else if (command.type === "close-menu") {
+    if (aboardMenu.isOpen) closeAboardMenu();
+    else if (politicsMenu.isOpen) closePoliticsMenu();
+    else if (captainMenu.isOpen) closeCaptainMenu();
+    else if (portWaitState) stopWaitingInPort();
+    else throw new Error("Journey has no supported menu to close");
+  } else if (command.type === "inspect-crew") {
+    window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.inspectCrew();
+  } else if (command.type === "politics") {
+    openPoliticsMenu();
+  } else if (command.type === "save") {
+    if (!saveVoyageNow("browser journey checkpoint", { includeWorldTraffic: true })) throw new Error("Journey could not save");
+  } else if (command.type !== "observe") {
+    throw new Error(`Unknown browser journey command: ${command.type}`);
+  }
+  await synchronizePortCityScene();
+  render(lastFrameMs, { allowColdCoveredWorldRender: true });
+  await waitForSaveRestoreSmokePersistence();
+  if (displayedCrashReport || pendingWorldAssetError || pendingWorldSimulationError) throw new Error("Browser journey reached a runtime failure");
+  validateGameState(gameState);
+  const options = offered();
+  return {
+    gameState: structuredClone(gameState), playerShip: snapshotPlayerShip(), minute: weatherClockMinutes,
+    nodeId: dialogueState?.nodeId || dialogueState?.kind || null, cityId: dialogueState?.cityId || null,
+    menu: aboardMenu.isOpen || politicsMenu.isOpen || captainMenu.isOpen || Boolean(portWaitState),
+    modal: Boolean(playerIntroModal || captainAlertModal || portAssaultState?.casualtyReport),
+    locations: portCityRootNavigationIsActive() ? portCityNavigationView(dialogueState, currentDialogueCity(),
+      gameState, worldEconomy, playerAccessiblePortCities(), portDialogueContext()).locations.map(({ id }) => id) : [],
+    options: options.map((option) => ({ id: playerActionId(option.action), action: option.action, disabled: option.disabled === true })),
+    ports: chart.cityCalls.filter((city) => city.character).map((city) => ({ cityId: city.cityId,
+      inRange: portCallInInteractionRange(city), distancePx: Math.sqrt(distance2(localLayout.viewX, localLayout.viewY, city.interactionX, city.interactionY)) })),
+    serialized: command.type === "save" ? gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) : null
+  };
 }
 
 async function waitForSaveRestoreSmokePersistence() {
@@ -16809,6 +16914,12 @@ async function restoreSavedVoyage(payload) {
   ensureNingboMissionEncounters({ assignCaptains: false });
   ensureTeaRaceEncounters({ assignCaptains: false });
   restoreNpcSurrenderContinuity(npcSeaRoutes, payload.npcSurrenders);
+  if (!payload.economy || recoveredDerivedSystems.includes("world economy")) {
+    reconcileRebuiltShipyardFleetHistory(worldEconomy.shipyards, [
+      ...npcSeaRoutes.ships.map((entry) => entry.id),
+      ...npcSeaRoutes.replacementQueue.map((entry) => entry.shipId)
+    ]);
+  }
   refreshHospitallerMaltaQuestState();
   refreshWeatherState(true);
   invalidateIcebergSpawnCandidates();
@@ -17369,33 +17480,7 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
       worldEconomy,
       cityById
     );
-    const payload = {
-      gameState,
-      playerShip: snapshotPlayerShip(),
-      worldClock: {
-        currentMinute: weatherClockMinutes,
-        voyageStartMinute: voyageStartClockMinutes
-      },
-      worldSubdivisions: SUBDIVISIONS,
-      portCatalogVersion: PORT_CATALOG_VERSION,
-      firstDayNightNotices: snapshotFirstDayNightNoticeState(firstDayNightNoticeState),
-      anchored,
-      survivalDamageTimers: { ...survivalDeprivationTimers },
-      npcSurrenders: snapshotNpcSurrenderContinuity(npcSeaRoutes)
-    };
-    if (demoVoyageScope) payload.demoVoyageScope = demoVoyageScope;
-    const snapshotErrors = [];
-    addOptionalSaveSnapshot(payload, snapshotErrors, "economy", "world economy", () => (
-      snapshotWorldEconomy(worldEconomy)
-    ));
-    if (includeWorldTraffic) {
-      addOptionalSaveSnapshot(payload, snapshotErrors, "landTrade", "land trade", () => (
-        snapshotLandTradeSystem(landTradeSystem)
-      ));
-      addOptionalSaveSnapshot(payload, snapshotErrors, "npcRoutes", "NPC sea routes", () => (
-        snapshotNpcSeaRouteSystem(npcSeaRoutes)
-      ));
-    }
+    const { payload, snapshotErrors } = snapshotVoyagePayload({ includeWorldTraffic });
     const materializeSave = includeWorldTraffic || localSaveResult.status !== "ready" ||
       Boolean(savePersistenceWarning);
     queueLocalSaveWrite(payload, {
@@ -17430,6 +17515,37 @@ function saveVoyageNow(reason, { includeWorldTraffic = false } = {}) {
       );
     }
   }
+}
+
+function snapshotVoyagePayload({ includeWorldTraffic }) {
+  const payload = {
+    gameState,
+    playerShip: snapshotPlayerShip(),
+    worldClock: {
+      currentMinute: weatherClockMinutes,
+      voyageStartMinute: voyageStartClockMinutes
+    },
+    worldSubdivisions: SUBDIVISIONS,
+    portCatalogVersion: PORT_CATALOG_VERSION,
+    firstDayNightNotices: snapshotFirstDayNightNoticeState(firstDayNightNoticeState),
+    anchored,
+    survivalDamageTimers: { ...survivalDeprivationTimers },
+    npcSurrenders: snapshotNpcSurrenderContinuity(npcSeaRoutes)
+  };
+  if (demoVoyageScope) payload.demoVoyageScope = demoVoyageScope;
+  const snapshotErrors = [];
+  addOptionalSaveSnapshot(payload, snapshotErrors, "economy", "world economy", () => (
+    snapshotWorldEconomy(worldEconomy)
+  ));
+  if (includeWorldTraffic) {
+    addOptionalSaveSnapshot(payload, snapshotErrors, "landTrade", "land trade", () => (
+      snapshotLandTradeSystem(landTradeSystem)
+    ));
+    addOptionalSaveSnapshot(payload, snapshotErrors, "npcRoutes", "NPC sea routes", () => (
+      snapshotNpcSeaRouteSystem(npcSeaRoutes)
+    ));
+  }
+  return { payload, snapshotErrors };
 }
 
 function queueLocalSaveWrite(
@@ -31715,6 +31831,7 @@ function updateSailingTutorials(dt, inRiver, movedPx) {
 }
 
 function inputCommandForShip() {
+  if (BROWSER_JOURNEY_ENABLED && browserJourneySteering) return directionalShipInputCommand(browserJourneySteering);
   if (chartRecoveryDiagnosticRunning) return directionalShipInputCommand(ship.heading);
   const captureHeading = captureAutopilotHeading();
   if (captureHeading) return directionalShipInputCommand(captureHeading);

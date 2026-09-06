@@ -1,3 +1,6 @@
+import { createRandomStream } from "../../src/seededRandom.js";
+import { playerActionId as portActionId } from "../../src/playerActionIdentity.js";
+export { portActionId };
 import assert from "node:assert/strict";
 import { assertTradeConservation } from "./oracles.mjs";
 import { readFileSync } from "node:fs";
@@ -32,17 +35,7 @@ function runtimeCities(gameState) {
   applyPortConquestOwnership(gameState.memory.conquest, ports);
   return ports;
 }
-export function portActionId(action) {
-  const canonical = (value, nested = false) => {
-    if (value === null || typeof value !== "object") return value;
-    if (nested && typeof value.id === "string") return { id: value.id };
-    if (Array.isArray(value)) return value.map((entry) => canonical(entry, true));
-    return Object.fromEntries(Object.entries(value).sort(([left], [right]) => left.localeCompare(right))
-      .filter(([key]) => !/^(name|label|text|country)$|(?:Name|Label|Text|Country)$/.test(key))
-      .map(([key, entry]) => [key, canonical(entry, true)]));
-  };
-  return `choose:${JSON.stringify(canonical(action))}`;
-}
+
 function nextDestination(state) {
   const index = state.portCities.findIndex((city) => city.cityId === state.city.cityId);
   assert.ok(index >= 0, `Current city missing from journey catalog: ${state.city.cityId}`);
@@ -64,7 +57,7 @@ function record(state) {
   return { gameState: state.gameState, economy: snapshotWorldEconomy(state.economy),
     cityId: state.city.cityId, shipSlug: state.shipStats.slug, session: state.session,
     simMinute: state.simMinute ?? 0, seedKey: state.economy.seedKey,
-    visited: state.visited, excluded: state.excluded };
+    randomStream: state.randomStream, visited: state.visited, excluded: state.excluded };
 }
 export function createPortJourneyAdapter({ startCityId = "london|united kingdom" } = {}) {
   return {
@@ -77,12 +70,15 @@ export function createPortJourneyAdapter({ startCityId = "london|united kingdom"
           homePortCityId: home.cityId, homePortTileId: home.tileId,
           homePortName: home.city, homePortCountry: home.country }
       });
+      state.randomStream = createRandomStream(seed);
       state.visited = [city.cityId];
       state.excluded = [];
       return record(state);
     },
     snapshot: record,
     restore(saved) {
+      assert.ok(saved.randomStream && Number.isInteger(saved.randomStream.value) && saved.randomStream.value >= 0 &&
+        saved.randomStream.value <= 0xffffffff, "Invalid saved random cursor");
       assert.ok(Number.isFinite(saved.simMinute) && saved.simMinute >= 0, "Invalid journey clock");
       assert.ok(Array.isArray(saved.visited) && saved.visited.every((id) => byId.has(id)), "Invalid visited city IDs");
       assert.equal(new Set(saved.visited).size, saved.visited.length, "Duplicate visited city IDs");
@@ -92,7 +88,7 @@ export function createPortJourneyAdapter({ startCityId = "london|united kingdom"
       const shipStats = shipStatsForSlug(saved.shipSlug);
       const gameState = migrateGameState(structuredClone(saved.gameState), shipStats);
       const portCities = runtimeCities(gameState);
-      return { ...saved, city: portCities.find((port) => port.cityId === city.cityId), shipStats, portCities,
+      return { ...structuredClone(saved), city: portCities.find((port) => port.cityId === city.cityId), shipStats, portCities,
         gameState,
         economy: restoreWorldEconomy(economy(saved.seedKey), saved.economy) };
     },

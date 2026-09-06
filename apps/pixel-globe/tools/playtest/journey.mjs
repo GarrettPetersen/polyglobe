@@ -1,16 +1,11 @@
+import { createRandomStream, nextSeededRandom } from "../../src/seededRandom.js";
 import assert from "node:assert/strict";
 
 /** Seeded, coverage-biased state-machine exploration. Adapters own real domain
  * transitions; the runner never repairs state or suppresses failed invariants. */
 export function randomForSeed(seed) {
-  assert.ok(Number.isSafeInteger(seed), "Seed must be an integer");
-  let value = seed >>> 0;
-  return () => {
-    value = (value + 0x6D2B79F5) >>> 0;
-    let word = Math.imul(value ^ value >>> 15, 1 | value);
-    word ^= word + Math.imul(word ^ word >>> 7, 61 | word);
-    return ((word ^ word >>> 14) >>> 0) / 4294967296;
-  };
+  const stream = createRandomStream(seed);
+  return () => nextSeededRandom(stream);
 }
 
 function available(adapter, state) {

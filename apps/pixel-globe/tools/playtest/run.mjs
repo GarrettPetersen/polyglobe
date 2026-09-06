@@ -28,7 +28,7 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encodin
 const dirty = execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim() !== "";
 const started = Date.now();
 const report = { version: 1, revision, dirty, started: new Date(started).toISOString(), journeys: [],
-  browser: "not run", scope: "Persistent port-domain journeys; travel is a scenario seam. Browser suite covers fixed gameplay scenarios separately." };
+  browser: "not run", scope: "Seeded persistent domain journeys plus continuous browser combat, sailing, docking, trade, mission delivery and reload; domain travel remains a setup seam." };
 const checkpoints = new Map();
 let cycle = 0;
 const saveReport = () => writeFileSync(resolve(output, "report.json"), JSON.stringify(report, null, 2));
@@ -74,6 +74,10 @@ function main() {
           const log = execFileSync(process.execPath, ["tools/run-save-restore-smoke.mjs", "--release-reachability"],
             { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
           writeFileSync(resolve(output, "browser.log"), log);
+          const journeyLog = execFileSync(process.execPath,
+            ["tools/playtest/browser.mjs", `--seed=${seed}`, `--output=${resolve(output, "browser-journey")}`],
+            { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+          writeFileSync(resolve(output, "browser-journey.log"), journeyLog);
           report.browser = "passed";
         } catch (error) {
           writeFileSync(resolve(output, "browser-failure.log"), `${error.stdout ?? ""}\n${error.stderr ?? ""}`);

@@ -3289,3 +3289,50 @@ function whalingCandidates() {
     };
   });
 }
+
+test("shipyard sales remain exactly once through repeated economy and fleet restoration", async () => {
+  const { snapshotWorldEconomy, restoreWorldEconomy } = await import("./economy.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  for (let month = 1; month <= 120; month++) {
+    const minute = month * 30 * 1440;
+    advanceWorldEconomy(economy, minute);
+    updateNpcSeaRouteEvents(routes, minute, [], { maintenance: true });
+    const economySave = snapshotWorldEconomy(economy);
+    const fleetSave = snapshotNpcSeaRouteSystem(routes);
+    restoreWorldEconomy(economy, economySave);
+    restoreNpcSeaRouteSystem(routes, fleetSave, { economy });
+    assert.equal(new Set(routes.ships.map((ship) => ship.id)).size, routes.ships.length);
+  }
+});
+
+test("compact-save yard reconstruction cannot resell a retained surrendered hull", async () => {
+  const { reconcileRebuiltShipyardFleetHistory } = await import("./shipyards.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const sale = { id: `shipyard-${PORTS[0].cityId}-0:npc-sale`, portId: PORTS[0].cityId,
+    factionId: "portugal", shipSlug: "caravel", price: 12000, soldMinute: 0 };
+  economy.shipyards.npcSales = [sale];
+  routes.shipyardFleetGrowthLimit = routes.ships.length + 2;
+  updateNpcSeaRouteEvents(routes, 1, [], { maintenance: true });
+  const retained = routes.shipById.get(`shipyard:${sale.id}`);
+  assert.ok(retained, "Fixture must purchase the hull through normal fleet growth");
+  surrenderNpcShip(routes, retained.id, null, { preserveHull: true, retainLoot: true });
+  const continuity = snapshotNpcSurrenderContinuity(routes);
+  const rebuilt = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const restored = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy: rebuilt });
+  restored.shipyardFleetGrowthLimit = restored.ships.length + 4;
+  restoreNpcSurrenderContinuity(restored, continuity);
+  rebuilt.shipyards.npcSales = [sale];
+  // Without the load-boundary reconciliation this is the production duplicate-ID crash.
+  assert.throws(() => updateNpcSeaRouteEvents(restored, 2, [], { maintenance: true }), /duplicate ship id/);
+  rebuilt.shipyards.npcSales = [sale];
+  reconcileRebuiltShipyardFleetHistory(rebuilt.shipyards, restored.ships.map((ship) => ship.id));
+  assert.equal(rebuilt.shipyards.npcSales.length, 0);
+  assert.equal(rebuilt.shipyards.yards.get(PORTS[0].cityId).listing, null);
+  const before = JSON.stringify(rebuilt.shipyards.npcSales);
+  reconcileRebuiltShipyardFleetHistory(rebuilt.shipyards, restored.ships.map((ship) => ship.id));
+  assert.equal(JSON.stringify(rebuilt.shipyards.npcSales), before);
+  assert.doesNotThrow(() => updateNpcSeaRouteEvents(restored, 3, [], { maintenance: true }));
+  assert.equal(restored.ships.filter((ship) => ship.id === retained.id).length, 1);
+});

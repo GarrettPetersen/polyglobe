@@ -22,7 +22,7 @@ scenario suite. It finishes its current cycle before stopping. To choose a budge
 node tools/playtest/run.mjs --seed=42 --steps=500 --hours=2 --browser=true
 ```
 
-Browser runs require a current `npm run build`. The browser suite has a 30-minute
+The release gate also runs one continuous browser journey. Browser runs require a current `npm run build`. The browser suite has a 30-minute
 process timeout. Reports, replay saves, minimized failures, checkpoints and browser
 logs go to ignored `.playtest/`, or a directory passed with `--output=...`.
 `report.json` describes the latest run; failure files from older runs are retained
@@ -69,15 +69,26 @@ normal-step gameplay capture machinery; this runner does not enlarge physics dt.
 Domain travel is a scenario seam: it materializes the next port, including active
 mission destinations. It does not prove navigability, docking admission, hunger,
 or continuous sailing. World aging is another setup seam, not a month of player
-survival. The dialogue fixture uses deterministic fixed domain random draws;
-seeds vary choices and economy initialization. Browser scenarios are fixed
-journeys, not extensions of the domain voyage. Their combat and scene state is
-not fed back into that voyage. Host actions without domain executors are listed
+survival. Domain random outcomes now use a seeded stream stored with each checkpoint,
+so continuing or replaying a save resumes its random cursor. Browser randomness
+is seeded per page load. Sailing replays the destination intent with a bounded
+48000-frame budget, allowing asynchronous worker timing to vary while retaining
+normal docking preconditions. The fixed browser scenarios remain separate probes,
+while an additional continuous journey exports an actual naval battle voyage,
+restores it through the normal save loader, sails to Lisbon, trades, accepts a
+mission, sails to its destination, completes it, inspects crew and politics, and
+reloads again to check the resulting cargo, money, crew and mission history.
+The pilot plans over the production navigability graph and submits directional
+input at normal 60 Hz physics steps. Wind, collisions, weather, survival and
+docking admission remain active. It never teleports the ship after the battle. Host actions without domain executors are listed
 as boundaries; unexpected host effects fail instead of being ignored.
 
-Passing this suite does not mean every combination is covered. In particular,
-long continuous browser journeys across combat, diplomacy and missions remain
-a coverage gap. Do not label domain port visits as sailing or browser coverage.
+Passing this suite does not mean every combination is covered. The continuous
+browser journey currently begins with one Portuguese battle fixture; it is not
+a universal combat strategist or an exhaustive mission solver. Separate city
+assault and quest-scene probes still supply coverage outside that journey.
+Host boundaries in the domain report remain explicit rather than being counted
+as executed browser actions. Do not label domain port visits as sailing.
 
 ## Reproduction and extension
 
@@ -94,3 +105,21 @@ public transitions in new adapters. Register meaningful behavior oracles: a bot
 that only checks for exceptions will miss reputation, reward and accounting bugs.
 Keep unsupported host work explicit. Add a named regression test for every real
 bug the bot discovers; random exploration supplements those tests.
+
+Browser traces include real action IDs, sailing destinations, menu commands and
+save/reload boundaries. Replay a browser failure (or a successful trace) with:
+
+```sh
+node tools/playtest/browser.mjs --replay=.playtest/browser-journey/failure.json
+```
+
+Browser failures retain the starting post-combat save and last observation.
+Browser traces are not minimized; asynchronous browser/worker timing can vary,
+so they are reproductions to inspect rather than a promise of bit-exact replay.
+Domain traces retain deterministic minimization. Each browser process has a
+30-minute timeout in the soak and a 400-action mission budget; failure to reach its objectives
+fails the run, including pilot limitations, instead of silently skipping the case.
+
+Regression tests also advance the coupled economy and NPC fleet through ten
+years and 120 save/load cycles. Compact-save tests verify that retained
+surrendered hulls prevent reconstructed shipyards from selling their IDs again.

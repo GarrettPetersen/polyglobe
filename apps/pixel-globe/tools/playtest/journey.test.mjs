@@ -87,6 +87,10 @@ test("watchdog identifies a repeating screen cycle despite individual transition
 test("corrupt replay metadata fails at restoration", () => {
   const adapter = createPortJourneyAdapter();
   const saved = adapter.initial(1);
+  assert.throws(() => adapter.restore({ ...saved, randomStream: { value: -1 } }), /random cursor/);
+  const restored = adapter.restore(saved);
+  restored.randomStream.value = 99;
+  assert.equal(saved.randomStream.value, 1, "Restoration must not mutate the checkpoint cursor");
   assert.throws(() => adapter.restore({ ...saved, simMinute: -1 }), /clock/);
   assert.throws(() => adapter.restore({ ...saved, visited: ["missing-city"] }), /city IDs/);
   assert.throws(() => adapter.restore({ ...saved, visited: [saved.cityId, saved.cityId] }), /Duplicate/);

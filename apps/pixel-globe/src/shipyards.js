@@ -203,6 +203,43 @@ export function replaceWorldShipyardPort(system, port, startMinute = system?.las
   return replacement;
 }
 
+/** Compact saves may rebuild yards while retaining surrendered ships. Those
+ * durable hulls prove their original listings were sold; reconstructed stock
+ * and serial counters must not offer or manufacture those same hulls again.
+ * The shipyard fleet ID namespace is the persisted provenance of these ships.
+ * Call only at the boundary where the economy was explicitly reconstructed. */
+export function reconcileRebuiltShipyardFleetHistory(system, retainedShipIds) {
+  assertShipyardSystem(system);
+  if (!Array.isArray(retainedShipIds) || retainedShipIds.some((id) => typeof id !== "string" || !id)) {
+    throw new Error("Rebuilt shipyards require retained ship IDs");
+  }
+  const ids = new Set(retainedShipIds);
+  for (const yard of system.yards.values()) {
+    const prefix = `shipyard:shipyard-${yard.portId}-`;
+    let lastBuild = -1;
+    let lastTradeIn = 0;
+    for (const id of ids) {
+      if (!id.startsWith(prefix)) continue;
+      const match = /^(used-)?(\d+):npc-sale$/.exec(id.slice(prefix.length));
+      if (!match) throw new Error(`Invalid retained shipyard provenance: ${id}`);
+      const number = Number(match[2]);
+      if (!Number.isSafeInteger(number)) throw new Error(`Invalid retained shipyard serial: ${id}`);
+      if (match[1]) lastTradeIn = Math.max(lastTradeIn, number);
+      else lastBuild = Math.max(lastBuild, number);
+    }
+    if (lastBuild >= yard.buildNumber) {
+      yard.buildNumber = lastBuild;
+      yard.listing = null;
+      // Construction materials belong to the reconstructed build, not the
+      // next serial established by the retained hull history.
+      yard.materialConsumedForBuild = emptyMaterialInventory();
+    }
+    yard.nextTradeInNumber = Math.max(yard.nextTradeInNumber, lastTradeIn + 1);
+    yard.usedListings = yard.usedListings.filter((listing) => !ids.has(`shipyard:${listing.id}:npc-sale`));
+  }
+  system.npcSales = system.npcSales.filter((sale) => !ids.has(`shipyard:${sale.id}`));
+}
+
 export function snapshotWorldShipyards(system) {
   assertShipyardSystem(system);
   return {

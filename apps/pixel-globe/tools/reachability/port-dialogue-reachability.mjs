@@ -1,3 +1,4 @@
+import { nextSeededRandom } from "../../src/seededRandom.js";
 import { readFileSync } from "node:fs";
 import { loadCityCatalogFromCsv } from "../../src/cityCatalogData.js";
 import { COLONIZATION_TARGETS } from "../../src/colonialCities.js";
@@ -437,6 +438,7 @@ export function renderScenario(scenario) {
 export function transitionScenario(scenario, offered, { executeHostEffects = false, preserveTerminal = false } = {}) {
   const next = {
     ...scenario,
+    randomStream: scenario.randomStream === undefined ? undefined : structuredClone(scenario.randomStream),
     gameState: structuredClone(scenario.gameState),
     session: structuredClone(scenario.session),
     economy: forkCityEconomy(scenario.economy, scenario.city.cityId)
@@ -512,8 +514,8 @@ function freezeEconomyRecords(economy) {
 
 export function contextForScenario(scenario) {
   return {
-    random: () => 0.75,
-    missionGiftRandom: () => 0.75,
+    random: () => scenario.randomStream === undefined ? 0.75 : nextSeededRandom(scenario.randomStream),
+    missionGiftRandom: () => scenario.randomStream === undefined ? 0.75 : nextSeededRandom(scenario.randomStream),
     simMinute: scenario.simMinute ?? 0,
     dayIndex: Math.floor((scenario.simMinute ?? 0) / 1440),
     localHour: 12,
