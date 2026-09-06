@@ -1,3 +1,4 @@
+import { exercisePlayerShipyardSaveRoundTrips } from "./reachability/player-shipyard-restore.mjs";
 import { loadPlaywright, browserExecutablePath, startStaticServer } from "./reachability/browser-runtime.mjs";
 import { decodeGeodesicGraphBake } from "../src/geodesicBake.js";
 import { createSoundDuesMemory } from "../src/soundDues.js";
@@ -195,6 +196,7 @@ try {
     );
   }
   process.stdout.write(`Save-restore smoke passed for ${fixtures.length} frozen boundary fixtures.\n`);
+  await exercisePlayerShipyardSaveRoundTrips(page, fixtures.at(-1).serialized, browserErrors);
   await exerciseMarketExits(page, browserErrors);
   await exerciseCrewManagementSaveRoundTrips(page, browserErrors);
   await exerciseDjenneSaveRoundTrips(page, browserErrors);

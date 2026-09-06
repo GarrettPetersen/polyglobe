@@ -65,7 +65,7 @@
     "src/portAssaultBattle.js": "9544ecbb2e2683d3252ba69ba846a0ae6a314980df6bde3997b614dba7d9e39b",
     "src/portAssaultFormation.js": "583154a09bce409f1a55a092acb3a35e285953e0427da14649eb2a0e43e2bfd5",
     "src/portCatalogMigration.js": "a3d4c45a1d40508765c7195fdd3ec659b2b96f58e686d91321232e33a3d00bc4",
-    "src/portCityServices.js": "e743124ddc693bb54c7912e226862f39df91cbbef0c715cb1ef552c260887769",
+    "src/portCityServices.js": "33754a1db0ae102d66267987c46374c0442cecf099feb163b39569d00bf1914e",
     "src/portDialoguePersonality.js": "597ff0eefac84db5ad5565cccaa4925b5a1ef01ffa4e651bca3ef09a66083287",
     "src/portGreetingStyle.js": "334245bdcbaafc705aa06383b54f1d6296f4096bf9377dbe0edd83a2a11a1286",
     "src/portSailingDistances.js": "a51199b42ed70cceea1812b2418974dcab85a4393263c7431e6f7e7a65c8b41c",
@@ -82,7 +82,7 @@
     "src/shipStats.js": "c8cadff6ddd156f4983d56dfa65bb8e10fada9db4c1990dc636ecfd3143a4de7",
     "src/shipyardListingPresentation.js": "bab47e245b1852a345e57d6c800508c391e60b9c47f21db663238a4d46aad7e1",
     "src/staticAssetFetch.js": "502a7a5b5c2efc6f5c8fc7093d9c16e7ef183b1146e1cf1ab8f847b0506a0f1e",
-    "src/subdivisionEightMapData.js": "f18a9a97ed768656f8a79c968663c9be77bcc8ba95ed910d6791d0a99f76918e",
+    "src/subdivisionEightMapData.js": "65911645b82413be6df574aada819ffce9b1629d7153f346612648bd14c0e737",
     "src/subdivisionSevenPortMigration.js": "254f4b9a4e5b7d5621c056cd14ba30bbdbebfbc753853e515148fa919380d2af",
     "src/terrainMetadata.js": "caedd99411b0f38f90fc0f8f0bc414ecfcde780b02129f37514ff19a745e5838",
     "src/terrainSurface.js": "95c00856b2684786e891e32771306b63c1e689269897dc2edf439754aced9541",
@@ -104,11 +104,11 @@
     "tools/build-city-visualizer-catalog.mjs": "8072d2a0598c6bd6b9d923c055dadeb8df64e10e06677654f3547798f01daba6",
     "tools/build-land-roads.mjs": "78e6d4317213db674e1e60cf006df4528b3783c6345b65f5f420b20cb58a4f00",
     "tools/build-port-sailing-distances.mjs": "71a6d445697196d7ba24607f3c7ef10f4b48e783532219c8b21fe67e61b15050",
-    "tools/build-subdivision-eight-map-data.mjs": "e02ab91525fdf7a4bbd7ae1a8e679d02f360fc8b34a24a56913b3d686a3d706b"
+    "tools/build-subdivision-eight-map-data.mjs": "244f91da11417b508edfa352abd707a74654e89cc36bc9a10948025ea2a58739"
   },
   "artifacts": {
-    "public/assets/data/port-sailing-distances.json": "1c0068db202fcac650e80df0aa8970157fb61ce248e77d52b2842105e874ba08",
+    "public/assets/data/port-sailing-distances.json": "f9c2b25a09bab73e48271a38e66a3aa2c8f6819511f5c1a85039fce87679921f",
     "public/assets/data/land-roads.json": "c3acdf5f78138d39a0681f8693587ab9d371ad8ccb0db479d3db6839d25816ea",
-    "city-visualizer/data/cities.json": "c24442baff9b7c4bf44524b710201081697b84c41406acbb85d8735c9be68981"
+    "city-visualizer/data/cities.json": "b79dc407ed70861990573fe7338057e5af3828b6ed855bcc9174ab393b90c1c1"
   }
 }

@@ -29,7 +29,7 @@ test("every catalog village uses the sparse earthen settlement form instead of r
     assert.equal(architecture.housingStyle, EARTHEN_VILLAGE_BUILDING_STYLE);
     assert.equal(architecture.settlementForm, "sparse-village");
     assert.deepEqual(deriveCityServiceProfile(city), {
-      inn: false,
+      inn: true,
       smith: false,
       market: true,
       shipyard: false
@@ -37,10 +37,10 @@ test("every catalog village uses the sparse earthen settlement form instead of r
   }
 });
 
-test("larger earthen villages can show a boatbuilding beach without gaining urban services", () => {
+test("larger earthen villages can show a boatbuilding beach while retaining a village host", () => {
   const city = cityRecord({ cityType: "polynesian", settlementType: "village", population: 3000 });
   assert.deepEqual(deriveCityServiceProfile(city), {
-    inn: false,
+    inn: true,
     smith: false,
     market: true,
     shipyard: true

@@ -3,6 +3,14 @@ import { canTraverseWorldNavigationEdge } from "./worldNavigationTopology.js";
 import { isWaterSurfaceRow } from "./terrainSurface.js";
 
 export const WORLD_WATERWAY_INVARIANTS = Object.freeze([
+  // Audit each link, not merely whether the entire drainage has one ocean outlet.
+  passage("Superior to Huron through St Marys", [46.6, -84.8], [45.9, -83.8], [45.7, 46.9, -85.1, -83.5]),
+  passage("Michigan to Huron through Mackinac", [45.85, -85.1], [45.8, -84.2], [45.5, 46.1, -85.4, -83.9]),
+  passage("Huron to Erie through St Clair and Detroit", [43.1, -82.3], [41.9, -83.0], [41.6, 43.4, -83.4, -82.0]),
+  passage("Erie to Ontario through Niagara", [42.85, -79.0], [43.4, -79.0], [42.5, 43.7, -79.5, -78.5]),
+  passage("Ontario to Montreal through St Lawrence", [44.1, -76.5], [45.5, -73.5], [43.8, 45.8, -76.8, -73.2]),
+  passage("Montreal to Quebec through St Lawrence", [45.5, -73.5], [46.85, -71.2], [45.2, 47.2, -73.8, -70.9]),
+  surfacePassage("St Lawrence estuary below Orleans", [47.05, -70.8], [48.14, -69.69], [46.8, 48.4, -71.15, -69.1]),
   surfacePassage("Oresund", [56.1, 12.65], [55.35, 12.65], [55.2, 56.3, 12.2, 13.2]),
   surfacePassage("Great Belt", [55.8, 10.95], [54.9, 11.0], [54.8, 56.0, 10.5, 11.5]),
   surfacePassage("Little Belt", [55.72, 10.05], [54.9, 9.9], [54.8, 55.9, 9.4, 10.5]),

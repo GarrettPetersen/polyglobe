@@ -1421,7 +1421,7 @@ test("sparse earthen villages show huts and a market without urban institutions"
     backgroundCity: false,
     church: false,
     fortified: false,
-    inn: false,
+    inn: true,
     market: true,
     mosque: false,
     primitiveSettlement: true,
@@ -1457,7 +1457,7 @@ test("generated regional architecture profiles remain explicit city data", () =>
     settlementForm: "sparse-village"
   });
   assert.deepEqual(fiji?.services, {
-    inn: false,
+    inn: true,
     smith: false,
     market: true,
     shipyard: true
@@ -1470,7 +1470,7 @@ test("generated regional architecture profiles remain explicit city data", () =>
     settlementForm: "sparse-village"
   });
   assert.deepEqual(makian?.services, {
-    inn: false,
+    inn: true,
     smith: false,
     market: true,
     shipyard: false

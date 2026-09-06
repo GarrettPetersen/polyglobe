@@ -10,7 +10,8 @@ export function portCityServiceProfile(city) {
     throw new Error("Port services require a non-negative population");
   }
   return Object.freeze({
-    inn: !sparseVillage,
+    // Villages host travelers and recruit crew in their communal house.
+    inn: true,
     smith: !sparseVillage,
     market: true,
     shipyard: !sparseVillage || city.population >= 2500

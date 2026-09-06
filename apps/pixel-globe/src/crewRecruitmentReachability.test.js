@@ -1,3 +1,6 @@
+import { portCityServiceProfile } from "./portCityServices.js";
+import { activeCityDestinations } from "../city-visualizer/cityDestinations.js";
+import { resolveCitySceneFeatures } from "../city-visualizer/citySceneRules.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -13,6 +16,14 @@ const { cities } = JSON.parse(readFileSync(new URL("../city-visualizer/data/citi
 test("every recruitable appearance at every port can be hired, saved and inspected", () => {
   const cultures = new Set();
   for (const city of cities) {
+    if (city.settlementType === "village") {
+      assert.equal(portCityServiceProfile(city).inn, true, city.cityId);
+      const destinations = activeCityDestinations({ availableDestinationIds: null,
+        features: resolveCitySceneFeatures(city), assaultActive: false });
+      const host = destinations.find(({ id }) => id === "inn");
+      assert.ok(host?.layers.includes("Home 2"), `${city.cityId}: large house hosts recruitment`);
+      assert.ok(cityRecruitableCrewAppearances(city).length > 0, city.cityId);
+    }
     for (const appearance of cityRecruitableCrewAppearances(city)) {
       const state = { voyageSeed: "crew-action-audit", doubloons: 1000,
         namedCrew: [], crewRoster: [], ship: { crew: 1, crewCapacity: 2 } };

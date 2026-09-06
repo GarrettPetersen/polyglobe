@@ -1,3 +1,4 @@
+import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
 import { planPlaytestRoute } from "./playtestNavigation.js";
 import { playerActionId } from "./playerActionIdentity.js";
 import { coastalWaterBands } from "./terrainDistance.js";
@@ -16877,7 +16878,8 @@ async function restoreSavedVoyage(payload) {
   let recoveredDerivedSystems = restoreSavedDerivedWorld(
     payload,
     restoredGameState,
-    savedWorldTopology
+    savedWorldTopology,
+    legacyCityIdForPortReference
   );
   if (migratedDiscoveryReferenceCount > 0) {
     recoveredDerivedSystems = addDerivedSaveRecoveryLabel(
@@ -17122,7 +17124,7 @@ async function restoreSavedVoyage(payload) {
   return { recoveredDerivedSystems, grandfatheredWorldwideDemo };
 }
 
-function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology) {
+function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology, legacyCityIdForPortReference) {
   const recovered = [];
   if (!savedWorldTopology || typeof savedWorldTopology.changed !== "boolean") {
     throw new Error("Saved derived-world restore requires world-topology migration state");
@@ -17153,6 +17155,15 @@ function restoreSavedDerivedWorld(payload, restoredGameState, savedWorldTopology
     });
     worldEconomy = economyResult.value;
     recordDerivedSaveRecovery(recovered, "world economy", economyResult.error);
+  }
+  const savedPlayerShipyards = payload.playerShipyards !== undefined ? payload.playerShipyards :
+    (payload.economy?.shipyards ? playerShipyardSnapshot(payload.economy.shipyards) : undefined);
+  if (savedPlayerShipyards !== undefined) {
+    restorePlayerShipyardSnapshot(worldEconomy.shipyards, savedPlayerShipyards, {
+      seedKey, legacyCityIdForPortReference,
+      expectedCityIds: payload.playerShipyards !== undefined
+        ? restoredGameState.memory.shipyardInvestment.backedPortCityIds : undefined
+    });
   }
   const repairedShipyardPorts = reconcilePlayerShipyardInvestmentWorld(
     restoredGameState.memory.shipyardInvestment,
@@ -17530,6 +17541,8 @@ function snapshotVoyagePayload({ includeWorldTraffic }) {
     firstDayNightNotices: snapshotFirstDayNightNoticeState(firstDayNightNoticeState),
     anchored,
     survivalDamageTimers: { ...survivalDeprivationTimers },
+    // Versioned shipyard books are durable even when market/traffic caches are discarded.
+    playerShipyards: snapshotPlayerShipyards(worldEconomy.shipyards),
     npcSurrenders: snapshotNpcSurrenderContinuity(npcSeaRoutes)
   };
   if (demoVoyageScope) payload.demoVoyageScope = demoVoyageScope;
@@ -17537,6 +17550,10 @@ function snapshotVoyagePayload({ includeWorldTraffic }) {
   addOptionalSaveSnapshot(payload, snapshotErrors, "economy", "world economy", () => (
     snapshotWorldEconomy(worldEconomy)
   ));
+  if (payload.economy) {
+    // Each player book has one authoritative copy in the durable payload.
+    payload.economy.shipyards.yards = payload.economy.shipyards.yards.filter((yard) => !yard.playerBacking);
+  }
   if (includeWorldTraffic) {
     addOptionalSaveSnapshot(payload, snapshotErrors, "landTrade", "land trade", () => (
       snapshotLandTradeSystem(landTradeSystem)

@@ -1,3 +1,5 @@
+import { createWorldShipyards, fundPlayerShipyard, snapshotWorldShipyards } from "./shipyards.js";
+import { playerShipyardSnapshot } from "./playerShipyardPersistence.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -197,8 +199,14 @@ test("save materialization options fail loudly when malformed", async () => {
 });
 
 test("capacity recovery can preserve the voyage when all derived state is too large", async () => {
+  const port = { cityId: "lisbon|portugal", tileId: 1, city: "Lisbon", cityType: "mediterranean",
+    population: 100000, lat: 38.72, lon: -9.14, factionId: "portugal" };
+  const yards = createWorldShipyards({ ports: [port], startMinute: 0 });
+  fundPlayerShipyard(yards, port, { investedMinute: 12, seedCapital: 100000,
+    materialContributions: { timber: 20, iron: 12, "naval-stores": 10 } });
   const payload = {
     ...savePayload(),
+    playerShipyards: playerShipyardSnapshot(snapshotWorldShipyards(yards)),
     npcSurrenders: { version: 1, ships: [{ id: "ship-1" }] },
     economy: { version: 1, ports: [noise(12_000, 3)] },
     landTrade: { version: 1, carts: [noise(12_000, 4)] },
@@ -216,6 +224,7 @@ test("capacity recovery can preserve the voyage when all derived state is too la
   const result = await writeLocalSaveWithRecoveryAsync(payload, { storage, savedAt: 123456 });
 
   assert.equal(result.mode, "core");
+  assert.deepEqual(readLocalSave({ storage }).save.payload.playerShipyards, payload.playerShipyards);
   assert.equal(result.save.payload.worldClock.currentMinute, 200);
   assert.deepEqual(result.save.payload.npcSurrenders, payload.npcSurrenders);
   assert.equal(result.save.payload.economy, undefined);

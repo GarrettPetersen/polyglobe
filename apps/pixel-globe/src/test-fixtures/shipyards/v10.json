@@ -1,0 +1,76 @@
+{
+  "version": 10,
+  "lastMinute": 0,
+  "npcSales": [],
+  "yards": [
+    {
+      "portId": 1,
+      "buildNumber": 0,
+      "listing": {
+        "id": "shipyard-lisbon|portugal-0",
+        "portId": 1,
+        "portName": "Lisbon",
+        "shipSlug": "fishing-lugger",
+        "shipLabel": "Fishing Barque",
+        "price": 1800,
+        "builtMinute": -218977.34035248338,
+        "expiresMinute": 126622.65964751662,
+        "masterwork": true,
+        "source": "new-build",
+        "acquisitionCost": 0
+      },
+      "usedListings": [],
+      "nextTradeInNumber": 1,
+      "nextBuildMinute": 129723,
+      "buildStartedMinute": 123,
+      "materialDelayDays": 0,
+      "materialInventory": {
+        "timber": 20,
+        "iron": 12,
+        "naval-stores": 10,
+        "linen-cloth": 0
+      },
+      "materialConsumedForBuild": {
+        "timber": 0,
+        "iron": 0,
+        "naval-stores": 0,
+        "linen-cloth": 0
+      },
+      "playerBacking": {
+        "investedMinute": 123,
+        "seedCapital": 100000,
+        "materialContributions": {
+          "timber": 20,
+          "iron": 12,
+          "naval-stores": 10
+        }
+      },
+      "playerDividendBalance": 0,
+      "lifetimePlayerDividends": 0,
+      "playerPendingSales": [],
+      "playerAccounts": {
+        "capitalContributions": 100000,
+        "salesRevenue": 0,
+        "inventoryPurchases": 0,
+        "constructionExpenses": 0,
+        "operatingExpenses": 0,
+        "playerPayouts": 0,
+        "nextEntryNumber": 2,
+        "entries": [
+          {
+            "id": "yard-account-1",
+            "kind": "capital",
+            "simMinute": 123,
+            "amount": 100000,
+            "description": "Owner's seed capital",
+            "materialContributions": {
+              "timber": 20,
+              "iron": 12,
+              "naval-stores": 10
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -234,6 +234,33 @@ const coimbraMondegoRoute = routeThroughCoordinates([
 const sourceRivers = JSON.parse(await readFile(resolve(sharedRoot,
   "ne_10m_rivers_lake_centerlines.json"), "utf8")).features;
 const sourceRiverRepairs = [
+  // The checked-in river source omits this short inter-lake channel. A
+  // drainage's ocean outlet does not prove that its upstream lakes connect.
+  // St Marys connects Superior to Huron (NOAA Coast Pilot 6, chapter 12).
+  // This is the natural river route; no modern lock/canal shortcut is added.
+  routeThroughCoordinates([
+    {lat:46.6,lon:-84.8},{lat:46.47,lon:-84.6},{lat:46.51,lon:-84.36},
+    {lat:46.49,lon:-84.2},{lat:46.35,lon:-84.13},{lat:46.2,lon:-84.1},
+    {lat:46.08,lon:-83.9},{lat:45.98,lon:-83.9},{lat:45.9,lon:-83.8}
+  ]),
+  // Replace the coarse St Lawrence chain instead of subdividing its bank
+  // detour; refining old tile IDs preserves cartographic errors at finer scales.
+  routeThroughCoordinates([
+    {lat:44.1,lon:-76.5},{lat:44.3,lon:-76.2},{lat:44.5,lon:-75.79}
+  ]),
+  ...sourceRiverRoutes("23River"),
+  // Natural Earth ends its named river at Lake Saint Francis; retain the
+  // continuation through the lake and Montreal channels as one drainage.
+  routeThroughCoordinates([
+    {lat:45.0,lon:-74.73},{lat:45.08,lon:-74.55},{lat:45.15,lon:-74.4},
+    {lat:45.25,lon:-74.15},{lat:45.32,lon:-73.98},{lat:45.43,lon:-73.72},
+    {lat:45.5,lon:-73.5},{lat:45.65,lon:-73.45},{lat:45.85,lon:-73.25},
+    {lat:46.05,lon:-73.08},{lat:46.2,lon:-72.9},{lat:46.35,lon:-72.55},
+    {lat:46.5,lon:-72.24},{lat:46.6,lon:-71.9},{lat:46.67,lon:-71.65},
+    {lat:46.74,lon:-71.45},{lat:46.81,lon:-71.21},{lat:46.92,lon:-70.96},
+    {lat:47.05,lon:-70.8}
+  ]),
+
   // Ninglick tidal channel connects Baird Inlet to the Bering Sea. The
   // coastline raster cannot resolve its narrow outlet (USACE Newtok EA, 2008).
   routeThroughCoordinates([
@@ -310,7 +337,7 @@ const riverChains = [
   norwichYareRoute,
   topshamExeRoute,
   ...MANUAL_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[7]
-    .filter((chain) => ![73682, 18467, 62166, 62627, 62610, 62346, 160887, 161095].includes(chain[0]))
+    .filter((chain) => ![74294, 73682, 18467, 62166, 62627, 62610, 62346, 160887, 161095].includes(chain[0]))
     .map(refineChain),
   jamesRiverRoute,
   potomacRiverRoute,
@@ -368,6 +395,13 @@ shallowWaterTileIdSet.add(160967);
 // Open the upper Chesapeake's false cross-bay land bridge. Keep Delmarva
 // attached at its northern end; this is an estuary, not an island channel.
 shallowWaterTileIdSet.add(73665);
+// The river and marine rasters must overlap at the fluvial estuary. At this
+// scale Orleans cannot occupy a whole land hex without closing the south
+// channel and pushing the mouth far downstream. General waterway contracts
+// independently check the river approach and the surface-water continuation.
+// https://www.canada.ca/en/environment-climate-change/services/environmental-indicators/nutrients-st-lawrence-river.html
+for (const tileId of [297001, 297000]) shallowWaterTileIdSet.add(tileId);
+
 // Preserve Long Island Sound and its western outlet at hex resolution.
 // The narrow East River occupies a full water hex here so ships can sail it.
 // Reference: https://gnome.orr.noaa.gov/doc/location_files/central_long_island_sound_tech.html
