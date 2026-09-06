@@ -159,3 +159,10 @@ test("released Exeter voyages go to Topsham once while current inland identity s
   assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 6 }, topology).get(exeter.tileId), topsham.tileId);
   assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: PORT_CATALOG_VERSION }, topology), null);
 });
+
+test("adding the Scioto port leaves version-seven destinations unchanged", () => {
+  const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 7 }, {
+    savedSubdivisions: 8, currentSubdivisions: 8
+  });
+  assert.equal(migration.size, 0);
+});

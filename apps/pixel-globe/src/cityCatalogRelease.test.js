@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { updateCityCatalog } from "../tools/update-city-catalog.mjs";
+import { CATALOG_BUILD_TOOLS } from "../tools/cityCatalogRelease.mjs";
 import { cityCatalogBundleSource } from "../tools/cityCatalogBundle.mjs";
 import { validateCatalogReleaseHashes, validateReleasedCatalogMigration, verifyCityCatalogRelease } from "../tools/cityCatalogRelease.mjs";
 
@@ -56,4 +58,21 @@ test("a cached game bundle keeps its own catalog generation without fetching a l
   const changed = await oldBundle.loadLandRoadData();
   changed.cities.length = 0;
   assert.deepEqual(await oldBundle.loadLandRoadData(), original.roads, "runtime mutation must not modify the bundled source");
+});
+
+test("catalog updates validate in a fresh process after generation and stop on any failure", () => {
+  const commands = [];
+  updateCityCatalog((args) => commands.push(args));
+  assert.deepEqual(commands.slice(0, CATALOG_BUILD_TOOLS.length), CATALOG_BUILD_TOOLS.map(tool => [tool]));
+  assert.equal(commands.at(-2)[0], "--test");
+  assert.deepEqual(commands.at(-1), ["tools/finalize-city-catalog.mjs"]);
+  for (let failureIndex = 0; failureIndex < commands.length - 1; failureIndex++) {
+    const attempted = [];
+    assert.throws(() => updateCityCatalog((args) => {
+      attempted.push(args);
+      if (attempted.length === failureIndex + 1) throw new Error("pipeline stage failed");
+    }), /pipeline stage failed/);
+    assert.equal(attempted.length, failureIndex + 1);
+    assert.ok(!attempted.some(args => args[0] === "tools/finalize-city-catalog.mjs"));
+  }
 });

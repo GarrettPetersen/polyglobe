@@ -50,6 +50,7 @@ export async function catalogReleaseHashes(appRoot = APP_ROOT) {
     ...Object.keys(result.metafile.inputs),
     ...CATALOG_DATA_INPUTS.map((path) => `${SHARED_ROOT}/${path}`),
     "src/portCatalogMigration.js", "src/subdivisionSevenPortMigration.js",
+    "tools/update-city-catalog.mjs", "tools/finalize-city-catalog.mjs",
     ...history.filter((name) => name.endsWith(".json")).map((name) => `${CATALOG_HISTORY_PATH}/${name}`)
   ])].sort();
   const hashes = async (paths) => Object.fromEntries(await Promise.all(paths.map(async (path) => [

@@ -383,6 +383,7 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     "cremona|italy",
     "tours|france",
     "angers|france",
+    "chillicothe|united states of america",
     "coimbra|portugal"
   ]) {
     assert.ok(portCityIds.has(cityId), `${cityId} must retain its historic river approach`);

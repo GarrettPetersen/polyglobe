@@ -327,6 +327,27 @@ test("saved jobs rebind through an explicit coastal-port migration", () => {
   assert.equal(state.memory.quests.active, null);
 });
 
+test("Scioto access preserves Chillicothe missions and already assigned Wendat destinations", () => {
+  const chillicothe = canonicalTestCity("chillicothe|united states of america", 1001);
+  const wendat = canonicalTestCity("wendat village|canada", 1002);
+  for (const destination of [chillicothe, wendat]) {
+    const state = createGameState({ cargoCapacity: 20, playerCharacter: PLAYER });
+    acceptQuest(state, deliveryQuestForCity(LISBON, [LISBON, PORTO]));
+    Object.assign(state.memory.quests.active, {
+      destinationCityId: destination.cityId,
+      destinationTileId: destination.tileId,
+      destinationName: destination.city,
+      destinationCountry: destination.country,
+      destinationKey: destination.cityId
+    });
+    reconcileQuestWorldAssumptions(state, [LISBON, chillicothe, wendat], {
+      identityCities: [LISBON, chillicothe, wendat]
+    });
+    assert.equal(state.memory.quests.active.destinationCityId, destination.cityId);
+    assert.equal(state.memory.quests.active.destinationTileId, destination.tileId);
+  }
+});
+
 test("every saved inland sailing reference moves to its canonical maritime gateway", () => {
   INLAND_CITY_SAILING_GATEWAYS_1522.forEach(({ inlandCityId, gatewayCityId }, index) => {
     const inland = canonicalTestCity(inlandCityId, 1000 + index);

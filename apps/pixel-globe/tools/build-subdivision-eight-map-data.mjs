@@ -234,6 +234,9 @@ const coimbraMondegoRoute = routeThroughCoordinates([
 const sourceRivers = JSON.parse(await readFile(resolve(sharedRoot,
   "ne_10m_rivers_lake_centerlines.json"), "utf8")).features;
 const sourceRiverRepairs = [
+  // Scioto joins the Ohio at Portsmouth, giving Chillicothe its own river approach.
+  // https://pubs.usgs.gov/wsp/0169/report.pdf
+  ...sourceRiverRoutes("773River"),
   // The checked-in river source omits this short inter-lake channel. A
   // drainage's ocean outlet does not prove that its upstream lakes connect.
   // St Marys connects Superior to Huron (NOAA Coast Pilot 6, chapter 12).

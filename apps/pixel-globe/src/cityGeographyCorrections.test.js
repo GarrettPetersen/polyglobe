@@ -75,3 +75,14 @@ test("the English river ports use river scenes and Exeter is absent from sailing
     assert.equal(city.factionId, "england");
   }
 });
+
+test("Chillicothe remains at its Scioto location and has a river scene", () => {
+  const city = cities.find(({ cityId }) => cityId === "chillicothe|united states of america");
+  assert.equal(cityMustRemainInland(city), false);
+  assert.equal(city.lat, 39.3364);
+  assert.equal(city.lon, -82.9839);
+  const scenes = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url)));
+  const scene = scenes.cities.find(({ id }) => id === city.cityId);
+  assert.ok(scene, "Chillicothe must be included in the sailing city catalog");
+  assert.equal(scene.approach, "river");
+});
