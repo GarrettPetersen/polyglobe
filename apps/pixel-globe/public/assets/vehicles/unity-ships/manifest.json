@@ -1921,11 +1921,11 @@
       "frameScale": 0.6667,
       "turntableAnchor": {
         "x": 23.5,
-        "y": 25.3227
+        "y": 25.9194
       },
       "scaleMode": "light-galley-pixel-derivative",
-      "waterlineY": -0.30387512345727413,
-      "waterlineOffsetY": -0.238,
+      "waterlineY": -0.3718751234572742,
+      "waterlineOffsetY": -0.30600000000000005,
       "waterlineSlice": {
         "expectedHullCount": 1,
         "componentCount": 1,
@@ -1933,10 +1933,10 @@
         "hullIntervalMinY": -0.072809,
         "hullIntervalMaxY": -0.045072
       },
-      "encodedWaterlineY": -0.303875,
+      "encodedWaterlineY": -0.371875,
       "sinkHeightBins": 256,
-      "sinkHeightMin": -0.437249,
-      "sinkHeightMax": 0.432157,
+      "sinkHeightMin": -0.438516,
+      "sinkHeightMax": 0.414442,
       "sinkWaterlineLevel": 0.501961,
       "frameSize": 47,
       "shadowFrameSize": 95,

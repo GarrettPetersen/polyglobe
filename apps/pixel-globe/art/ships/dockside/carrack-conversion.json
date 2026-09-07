@@ -7,7 +7,7 @@
     "passes": 1
   },
   "geometrySha256": "98f54eaf9e4068e2412c24d4472efa48deba13df3135522ca05362586ae05391",
-  "imageSha256": "beee5bf8ad2414760c16b9c489669633de287e568013f4d517b053ddde497f99",
+  "imageSha256": "26ab7cb7f1a5ee6caddd021aa9bf751bb6a7de39c4042a57a49c84109837f369",
   "palette": [
     "2e222f",
     "3e3546",
@@ -24,12 +24,12 @@
     "0b8a8f",
     "e6904e"
   ],
-  "referenceSha256": "d5255503032e3ebc62c2eff19104dff7cff62791ba2bb64e63be127086a454b3",
+  "referenceSha256": "f3da9601a2192954ff4e32236658d4fc242b80eedc594967ad2432373a2470b6",
   "referenceCrop": {
-    "minX": 56,
-    "minY": 18,
-    "width": 835,
-    "height": 1630
+    "minX": 64,
+    "minY": 27,
+    "width": 814,
+    "height": 1625
   },
   "placement": {
     "minX": 393,
@@ -38,6 +38,7 @@
     "height": 333
   },
   "colors": [
+    "2e222f",
     "374e4a",
     "3e3546",
     "4c3e24",
@@ -47,8 +48,7 @@
     "9e4539",
     "ab947a",
     "c7dcd0",
-    "cd683d",
-    "e6904e"
+    "cd683d"
   ],
-  "opaquePixels": 20895
+  "opaquePixels": 20661
 }

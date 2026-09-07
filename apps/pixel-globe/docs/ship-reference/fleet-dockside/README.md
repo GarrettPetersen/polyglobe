@@ -14,11 +14,16 @@ silently replace a missing painting with the unpainted model render.
   may be furled or lowered, but structural yards must remain accounted for.
 - Use quiet two- or three-tone material planes. Suggest wood with a few disconnected
   marks; do not tile every plank, add grain, dither, distressed paint, or random dust.
+  Quiet surfaces still need clear construction: separate deck tops, stair treads,
+  risers, cabin walls, rail caps and hull bands with deliberate connected edges.
+  Do not let large areas become irregular patches of nearly identical tones.
   Structural patterns that identify a vessel still matter: the turtle ship needs
   recognizable hexagonal armor plates, the double canoe two hulls, and the Atakebune
   its roofed superstructure.
 - Compare the final sprite at 1× and 2×, against an authored city building and in
-  both river and coastal water. An attractive enlarged intermediate is insufficient.
+  both river and coastal water, in daylight and under the game's night palette.
+  An attractive enlarged intermediate is insufficient. Several daylight timber
+  colors collapse to the same night color; check whether the structural edges survive.
 
 ## Authoritative files
 
@@ -94,6 +99,9 @@ contact sheet. Color, foreground, depth, and sink-depth must be rebuilt together
    editing of the native master is sufficient. If using an image model, save the
    exact prompt and accepted enlarged reference; explicitly forbid invented cabins,
    extra yards, missing cloth, altered roof positions, or crew painted into the ship.
+   Save the previous native master outside the authoring directory before replacing
+   it. Compare against that released painting as well as the raw geometry: beating
+   the raw render does not establish that a revision improves the current art.
 3. For a new or deliberately revised geometry registration, copy the exported
    `geometrySha256` and `{width,height,opaqueBounds}` into the registration's
    `sourceFrame`. Add explicit palettes to `palettes.json`. Initially retain a
@@ -117,6 +125,17 @@ contact sheet. Color, foreground, depth, and sink-depth must be rebuilt together
    yard or changed hull is not justified by passing this distance check. Inspect
    internal landmarks and missing geometry too. Store the reviewed integer radius
    in the registration, then rebuild the ship's dockside layers.
+   Compare both native sizes and the production night grade with:
+
+   ```sh
+   node tools/review-dockside-clarity.mjs portuguese-carrack /absolute/path/to/previous-master.png
+   ```
+
+   This writes 1× and 2× before/after day/night sheets under
+   `.captures/fleet-art/refinement/`, using the registered crop and the game's
+   `applyDayNightPaletteGrade`. Reject conversion speckles even when the enlarged
+   reference appears smooth. Ask for a single flat deck pigment when gradients
+   fall across a quantization boundary; do not hide the problem with dithering.
 6. Review the waterline after painting. The rudder blade and lowest exterior hull
    must enter the water; the deck/gallery and boarding anchor must remain dry.
    Use the three-panel waterline review and the actual city scene, with selection
@@ -206,3 +225,43 @@ a diagnostic of the underlying model, not the final painted surface.
 Release uses the repository's deployment test suite and browser reachability
 gate. Keep the enlarged references and native masters together when changing a
 ship; a successful geometry transfer does not replace visual review.
+
+## Clarity revision — 2026-09-07
+
+Reviewed the released fleet again and refined eight weaker paintings: Portuguese
+carrack, ocean dhow, heavy caravel (`pirate-brig`), urca (`fluyt`), carrack,
+brigantine, fusta and Japanese kobaya. Their `*-clarity-prompt.txt` files record
+the surface and construction instructions; the dhow and heavy caravel also have
+corrective prompts after rejecting the first converted result.
+
+The Portuguese carrack now separates stairs, deck levels, rails and cabin walls.
+Other revisions remove repeated deck striping and mottled panels while retaining
+doors, hatches, gunports, shields, yards and distinctive trim. The ocean dhow's
+pale furled cloth is restored on both lateen yards; an asset regression checks
+both cloth regions. Material pigment sets remain unchanged. Compare against the
+identity cards when making future edits.
+
+The carrack's reviewed contour radius increases from 3 to 6 native pixels and the
+brigantine's from 3 to 4, after inspecting spar edges and hull contours against the
+original geometry. The fusta receives a separate draft correction: its previous
+waterline was above the main deck, leaving submerged strips through the painting.
+The waterline is lowered in the shared ship configuration, its new geometry guide
+and hash are reviewed, and its sailing/profile, rowing/turning and packed assets
+are rebuilt along with the dockside layers. A regression checks that its main deck
+stays dry; the keel remains submerged. Other source geometry hashes are unchanged.
+Color, foreground, depth, sink-depth and waterline reviews are exported together
+for each revised ship.
+
+The `*-clarity-review.png` sheets in this directory preserve native-size
+before/after comparisons under both daylight and the production night palette.
+
+Validation for this pass: 6,008 deployment tests; 79 focused ship/asset tests after
+the fusta draft rebake; 279 city tests; all eight ships loaded in Bejaia and London
+without browser errors. Reviewed native 1×/2× day/night sheets, water composites,
+and the Portuguese carrack/fusta identity cards. Fresh four-journey playtesting,
+worker/economy/fleet and reserve campaigns, and 13 frozen save fixtures passed.
+An old local campaign checkpoint failed with an inactive Asunción entry; it was
+preserved, and the fresh run used a separate output directory. The 24-hour telemetry
+review contained only older-build incidents, with no ship-art/asset failures.
+The complete `test:reachability:fast` gate also passed, including the production
+build, saved-startup scenarios, eight gameplay scenarios and the browser voyage.

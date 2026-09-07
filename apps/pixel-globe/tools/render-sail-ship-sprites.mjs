@@ -6382,7 +6382,10 @@ const MEDITERRANEAN_GALLEY_WATERLINE_OFFSET_Y = -0.15;
 const MEDITERRANEAN_GALLEY_SCALE = 0.85;
 const GALLEASS_SCALE = 1.025;
 const FUSTA_SCALE = 0.68;
-const FUSTA_WATERLINE_OFFSET_Y = -0.35;
+// The reduced galley's main deck lies near model Y=-0.33. Its previous draft
+// (-0.309 after scaling) put that deck below water and submerged strips through
+// the dockside painting. Keep the water below the deck at every sprite size.
+const FUSTA_WATERLINE_OFFSET_Y = -0.45;
 
 function mediterraneanGalleyConfig() {
   const slug = "mediterranean-galley";

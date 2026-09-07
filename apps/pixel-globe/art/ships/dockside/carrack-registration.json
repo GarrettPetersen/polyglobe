@@ -1,7 +1,7 @@
 {
   "version": 1,
   "geometrySha256": "98f54eaf9e4068e2412c24d4472efa48deba13df3135522ca05362586ae05391",
-  "maximumDistancePx": 3,
+  "maximumDistancePx": 6,
   "sourceFrame": {
     "width": 960,
     "height": 480,

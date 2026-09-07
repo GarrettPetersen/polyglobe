@@ -677,28 +677,28 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
     "deckPolygon": [
       {
         "x": 495,
-        "y": 341
+        "y": 354
       },
       {
         "x": 449,
-        "y": 391
+        "y": 404
       },
       {
         "x": 471,
-        "y": 394
+        "y": 406
       },
       {
         "x": 518,
-        "y": 343
+        "y": 356
       }
     ],
     "deckEntryAnchor": {
       "x": 512,
-      "y": 345
+      "y": 358
     },
     "sailorSpawnAnchor": {
       "x": 536,
-      "y": 343
+      "y": 355
     }
   },
   "joseon-turtle-ship": {

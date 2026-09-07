@@ -112,25 +112,25 @@
     {
       "slug": "fusta",
       "label": "Fusta",
-      "waterlineY": -0.30387512345727413,
-      "waterlineOffsetY": -0.238,
-      "sideViewWaterlineY": 66,
+      "waterlineY": -0.3718751234572742,
+      "waterlineOffsetY": -0.30600000000000005,
+      "sideViewWaterlineY": 69,
       "lowestOpaquePixelY": 71,
-      "lowestOpaqueRelativeToWaterlinePx": 5,
-      "opaqueRowsBelowWaterline": 5,
+      "lowestOpaqueRelativeToWaterlinePx": 2,
+      "opaqueRowsBelowWaterline": 2,
       "oarPivotCount": 6,
       "oarPivotPixels": [
         {
           "x": 82,
-          "y": 64
+          "y": 67
         },
         {
           "x": 96,
-          "y": 64
+          "y": 67
         },
         {
           "x": 110,
-          "y": 64
+          "y": 67
         }
       ],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/fusta-waterline.png"

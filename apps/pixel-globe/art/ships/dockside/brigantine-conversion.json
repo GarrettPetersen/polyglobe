@@ -7,7 +7,7 @@
     "passes": 1
   },
   "geometrySha256": "d7e96ed94f48772962392a58a77eca2ad9449b813a28f45e5dcf51510496981c",
-  "imageSha256": "85b16df496bcd42276d7e7774d3373231987ca01ef72972876a9df725d0bc8c7",
+  "imageSha256": "ebf1f346d53fd3d839ec75fd571a2c96c2853e2eb40d65dbdd46a2d84d0d45e1",
   "palette": [
     "2e222f",
     "3e3546",
@@ -23,12 +23,12 @@
     "374e4a",
     "0b8a8f"
   ],
-  "referenceSha256": "2b971347456ccaa7583ef4e6fc9b9cf6af258285d8a74b5bfe06f99529a94977",
+  "referenceSha256": "9a724cfcf5a6f0c68f6eed84a1e894f4ce5beb67b3572ffe6d4f85d15d8fe79b",
   "referenceCrop": {
-    "minX": 27,
+    "minX": 30,
     "minY": 21,
-    "width": 938,
-    "height": 1519
+    "width": 934,
+    "height": 1531
   },
   "placement": {
     "minX": 380,
@@ -47,7 +47,8 @@
     "966c6c",
     "9e4539",
     "ab947a",
+    "c7dcd0",
     "cd683d"
   ],
-  "opaquePixels": 21134
+  "opaquePixels": 21318
 }

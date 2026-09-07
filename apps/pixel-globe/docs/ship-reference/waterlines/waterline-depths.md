@@ -9,7 +9,6 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Spanish Nao | 7 | 81 | 88 | -0.025 |
 | Atakebune | 6 | 72 | 78 | 0.073 |
 | Dhow | 5 | 69 | 74 | -0.244 |
-| Fusta | 5 | 66 | 71 | -0.238 |
 | Javanese Jong | 5 | 84 | 89 | 0.000 |
 | Kancabash | 5 | 88 | 93 | -0.883 |
 | Kelulus | 5 | 73 | 78 | -0.020 |
@@ -36,6 +35,7 @@ Procedural oars and outriggers are included because this is a literal whole-rast
 | Urca | 3 | 83 | 86 | 0.000 |
 | Viking Longship | 3 | 76 | 79 | 0.000 |
 | Brigantine | 2 | 85 | 87 | 0.000 |
+| Fusta | 2 | 69 | 71 | -0.306 |
 | Hyeopseon | 2 | 79 | 81 | -0.265 |
 | Royal Lancaran | 2 | 68 | 70 | 0.040 |
 | Small Junk | 2 | 81 | 83 | 0.000 |
