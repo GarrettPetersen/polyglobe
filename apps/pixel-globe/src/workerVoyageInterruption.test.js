@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createWorkerVoyage, createWorkerDriver, createApplyProbe, snapshotWorkerVoyage,
@@ -66,4 +67,46 @@ test("current regional fishing voyages survive reload without being relocated", 
   const saved = JSON.parse(JSON.stringify(snapshotNpcSeaRouteSystem(routes)));
   restoreNpcSeaRouteSystem(routes, saved, { economy: voyage.worldEconomy });
   assert.deepEqual(snapshotNpcSeaRouteSystem(routes), saved);
+});
+
+test("released mixed-generation Istanbul books cannot resell an existing fleet hull", { timeout: 120000 }, async () => {
+  const { updateNpcSeaRouteEvents, restoreNpcSeaRouteSystem, snapshotNpcSeaRouteSystem } = await import("./npcSeaRoutes.js");
+  const { snapshotWorldEconomy, restoreWorldEconomy } = await import("./economy.js");
+  const voyage = createWorkerVoyage("istanbul-mixed-save");
+  const yard = voyage.worldEconomy.shipyards.yards.get("istanbul|turkey");
+  const fixture = JSON.parse(readFileSync(new URL("./test-fixtures/shipyards/v6-mixed-istanbul-fleet.json", import.meta.url), "utf8"));
+  const listing = fixture.listing;
+  const sale = { id: `${listing.id}:npc-sale`, portId: yard.portId, factionId: "ottoman",
+    shipSlug: listing.shipSlug, price: listing.price, soldMinute: 0 };
+  yard.listing = null;
+  voyage.worldEconomy.shipyards.npcSales.push(sale);
+  voyage.npcSeaRoutes.shipyardFleetGrowthLimit = voyage.npcSeaRoutes.ships.length + 20;
+  updateNpcSeaRouteEvents(voyage.npcSeaRoutes, 1, [], { maintenance: true });
+  const shipId = `shipyard:${sale.id}`;
+  assert.ok(voyage.npcSeaRoutes.shipById.has(shipId), "Production purchase must create the Istanbul hull");
+  const fleet = snapshotNpcSeaRouteSystem(voyage.npcSeaRoutes);
+  const economy = snapshotWorldEconomy(voyage.worldEconomy);
+  // A released save can already contain this disagreement. Fixing future
+  // transaction boundaries cannot remove the stale stock from that save.
+  economy.shipyards.yards.find(entry => entry.portId === yard.portId).listing = listing;
+  economy.shipyards.npcSales.push(sale);
+  restoreWorldEconomy(voyage.worldEconomy, structuredClone(economy));
+  assert.throws(() => restoreNpcSeaRouteSystem(voyage.npcSeaRoutes, fleet, { economy: voyage.worldEconomy }), /already belongs to fleet/);
+  fleet.version = fixture.npcSnapshotVersion;
+  fleet.ships = fleet.ships.map(ship => ship.id === shipId ? structuredClone(fixture.ship) : ship);
+  restoreNpcSeaRouteSystem(voyage.npcSeaRoutes, fleet, { economy: voyage.worldEconomy });
+  assertFleetSaleIntegrity(voyage);
+  assert.equal(yard.listing, null);
+  assert.ok(voyage.npcSeaRoutes.shipById.has(shipId));
+  const migrated = snapshotWorkerVoyage(voyage);
+  restoreWorkerVoyage(voyage, JSON.parse(JSON.stringify(migrated)));
+  assert.deepEqual(snapshotWorkerVoyage(voyage), migrated, "Migration must be idempotent");
+  const worker = createWorkerDriver();
+  try {
+    await worker.reset(voyage, 1);
+    const event = await worker.advance(voyage, 360);
+    const apply = createApplyProbe(voyage, event, 360);
+    while (apply.state()) apply.step();
+    assertFleetSaleIntegrity(voyage);
+  } finally { await worker.close(); }
 });

@@ -38,8 +38,8 @@ buy and sell, undo market transactions, accept and deliver missions, visit city
 services and encounter policies at other ports. Cargo, money, crew, reservations,
 quests and the entire economy persist across actions and visits.
 
-Each cycle alternates fresh starts with continuation from the preceding cycle's
-checkpoints. Checkpoint storage is bounded to one save per starting scenario.
+Each cycle continues the preceding cycle's checkpoints, retaining the entire
+player history for the duration of the soak. Checkpoint storage is bounded to one save per starting scenario.
 The report lists actual action coverage, visited cities and observed host-action
 boundaries. Action identities use canonical entity IDs, not translated labels
 or option positions. Each replay resolves the action against the current view.
@@ -184,3 +184,9 @@ The reserve campaign then forces abolition and capital loss for four realms and
 worker updates in mature historical worlds, independent of random selection.
 This explicitly covers both crash fingerprints seen through 7 September 2026;
 it does not claim exhaustive coverage of every future political combination.
+
+The September 7 follow-up adds a frozen mixed-generation Istanbul stock/fleet
+save and checks its versioned migration before a real worker advance. Current
+snapshots with the same collision must fail validation. It also runs the actual
+storm sweep and rescue functions, saving airborne and swimming individual crew;
+obsolete anonymous-crew fixtures no longer stand in for production sailors.

@@ -32,7 +32,6 @@ const started = Date.now();
 const report = { version: 1, revision, dirty, started: new Date(started).toISOString(), journeys: [],
   browser: "not run", performance: { status: "not run" }, scope: "Seeded persistent domain journeys plus continuous browser combat, sailing, docking, trade, mission delivery and reload; domain travel remains a setup seam." };
 const checkpoints = new Map();
-let cycle = 0;
 const saveReport = () => writeFileSync(resolve(output, "report.json"), JSON.stringify(report, null, 2));
 function execute(adapter, options, startCityId) {
   try { return runJourney(adapter, options); }
@@ -59,7 +58,7 @@ function main() {
     do {
       for (const startCityId of portJourneyStarts) {
         console.log(`Journey seed=${seed} start=${startCityId} steps=${steps}`);
-        const initial = cycle % 2 === 1 ? checkpoints.get(startCityId) : undefined;
+        const initial = checkpoints.get(startCityId);
         const result = execute(createPortJourneyAdapter({ startCityId }), { seed, steps, initial }, startCityId);
         checkpoints.set(startCityId, result.final);
         report.journeys.push({ seed, startCityId, continued: initial !== undefined, steps: result.steps, states: result.states,
@@ -123,7 +122,6 @@ function main() {
           throw error;
         }
       }
-      cycle++;
     } while (hours > 0 && Date.now() - started < hours * 3_600_000);
     report.elapsedSeconds = (Date.now() - started) / 1000;
     saveReport();

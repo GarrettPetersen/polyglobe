@@ -60,6 +60,8 @@ import {
 } from "./fishingNets.js";
 import { defaultSovereignTradeGrantedToFaction } from "./sovereignTradeAccess.js";
 import {
+  reconcileRebuiltShipyardFleetHistory,
+  assertShipyardFleetIdentity,
   claimNpcShipyardSale,
   claimNpcShipyardSaleById,
   npcShipyardSales,
@@ -107,7 +109,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
-export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 6;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 7;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 212;
 export const NPC_PACIFIC_FLEET_TARGET = 32;
@@ -1552,7 +1554,7 @@ export function restoreNpcSeaRouteSystem(
 ) {
   assertSaveableNpcRouteSystem(system);
   validateOptionalSeedKey(seedKey, "restored NPC routes");
-  if (!snapshot || ![1, 2, 3, 4, 5, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, 2, 3, 4, 5, 6, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil) ||
       (snapshot.version >= 3 && !Array.isArray(snapshot.capitalNavalReserveSlots))) {
     throw new Error("Unsupported NPC route save data");
@@ -1634,6 +1636,14 @@ export function restoreNpcSeaRouteSystem(
   if (system.shipById.size !== system.ships.length) {
     throw new Error("NPC route restore created duplicate ship ids");
   }
+  const retainedIds = [...system.ships.map(ship => ship.id), ...system.replacementQueue.map(entry => entry.shipId)];
+  // Released saves can contain pre-purchase yard stock beside a post-purchase
+  // fleet. Repair the proven consumed identities once, not during live sales.
+  if (snapshot.version < 7) {
+    const repairedRecords = reconcileRebuiltShipyardFleetHistory(system.economy.shipyards, retainedIds);
+    if (repairedRecords > 0) console.warn(`Migrated ${repairedRecords} stale shipyard records from NPC snapshot v${snapshot.version}`);
+  }
+  assertShipyardFleetIdentity(system.economy.shipyards, retainedIds);
   return system;
 }
 

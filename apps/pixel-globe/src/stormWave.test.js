@@ -1,3 +1,7 @@
+import vm from "node:vm";
+import * as crew from "./crewMembers.js";
+import * as named from "./namedCrew.js";
+import { overboardFlightDurationSeconds } from "./stormWave.js";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
@@ -238,8 +242,8 @@ test("overboard crew swim for one to three active minutes", () => {
 test("overboard crew round-trip through voyage saves", () => {
   const entry = {
     id: "overboard-1",
-    kind: "generic",
-    character: null,
+    kind: "crew",
+    character: testSailor("crew:storm"),
     position: [1, 0, 0],
     startPosition: [0.999, 0.04, 0],
     ageSeconds: 4,
@@ -261,3 +265,33 @@ function sequenceRandom(values) {
   let index = 0;
   return () => values[Math.min(index++, values.length - 1)];
 }
+
+function testSailor(id) {
+  return crew.createCrewMember({ id, name: "Joao", nameCulture: "portuguese", religionId: "roman-catholic",
+    nationalityId: "portugal", homePort: { cityId: "lisbon|portugal", tileId: 42, city: "Lisbon" },
+    appearanceId: "swordsman-light", crewTypeId: "swordsman", recruitedAtMinute: 0, sailingMinutes: 100 });
+}
+
+test("production storm sweep saves in flight and after splash, then rescues the same sailors", () => {
+  const roster = [testSailor("crew:storm-a"), testSailor("crew:storm-b")];
+  const gameState = { ship: { crew: 3, crewCapacity: 3 }, crewRoster: structuredClone(roster), namedCrew: [] };
+  const context = vm.createContext({ ...crew, ...named, gameState, ship: { position: [1, 0, 0] },
+    weatherClockMinutes: 100, Math: Object.assign(Object.create(Math), { random: () => 0 }),
+    hashInt: value => value >>> 0, stormWaveEjectionPosition: () => [0.999, 0.04, 0],
+    overboardFlightDurationSeconds, overboardSwimDurationSeconds });
+  vm.runInContext(functionSource("sweepCrewOverboard", "stormWaveEjectionPosition") +
+    functionSource("restoreSweptCrewMember", "recordDrownedCrewMember"), context);
+  const swimmers = context.sweepCrewOverboard(2, { id: "wave:1", seed: 42, flow: { x: 1, y: 0 } });
+  assert.equal(gameState.ship.crew, 1);
+  for (const splashed of [false, true]) {
+    for (const swimmer of swimmers) swimmer.splashed = splashed;
+    const saved = JSON.parse(JSON.stringify(snapshotOverboardCrew(swimmers)));
+    const restored = restoreOverboardCrew(saved);
+    assert.deepEqual(restored.map(entry => entry.character), roster);
+    if (splashed) for (const entry of restored) context.restoreSweptCrewMember(entry);
+  }
+  assert.equal(gameState.ship.crew, 3);
+  assert.deepEqual(gameState.crewRoster, roster);
+  assert.throws(() => snapshotOverboardCrew([{ ...swimmers[0], character: null }]), /crew member/i);
+  assert.throws(() => snapshotOverboardCrew([{ ...swimmers[0], kind: "generic" }]), /kind/);
+});

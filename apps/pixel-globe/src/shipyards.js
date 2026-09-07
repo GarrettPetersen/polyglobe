@@ -207,13 +207,14 @@ export function replaceWorldShipyardPort(system, port, startMinute = system?.las
  * durable hulls prove their original listings were sold; reconstructed stock
  * and serial counters must not offer or manufacture those same hulls again.
  * The shipyard fleet ID namespace is the persisted provenance of these ships.
- * Call only at the boundary where the economy was explicitly reconstructed. */
+ * Call only when reconstructing the economy or migrating released mixed-generation saves. */
 export function reconcileRebuiltShipyardFleetHistory(system, retainedShipIds) {
   assertShipyardSystem(system);
   if (!Array.isArray(retainedShipIds) || retainedShipIds.some((id) => typeof id !== "string" || !id)) {
     throw new Error("Rebuilt shipyards require retained ship IDs");
   }
   const ids = new Set(retainedShipIds);
+  let repairedRecords = 0;
   for (const yard of system.yards.values()) {
     const prefix = `shipyard:shipyard-${yard.portId}-`;
     let lastBuild = -1;
@@ -227,17 +228,39 @@ export function reconcileRebuiltShipyardFleetHistory(system, retainedShipIds) {
       if (match[1]) lastTradeIn = Math.max(lastTradeIn, number);
       else lastBuild = Math.max(lastBuild, number);
     }
-    if (lastBuild >= yard.buildNumber) {
+    if (lastBuild > yard.buildNumber || (lastBuild === yard.buildNumber && yard.listing !== null)) {
+      repairedRecords++;
       yard.buildNumber = lastBuild;
       yard.listing = null;
       // Construction materials belong to the reconstructed build, not the
       // next serial established by the retained hull history.
       yard.materialConsumedForBuild = emptyMaterialInventory();
     }
+    if (yard.nextTradeInNumber <= lastTradeIn) repairedRecords++;
     yard.nextTradeInNumber = Math.max(yard.nextTradeInNumber, lastTradeIn + 1);
+    const usedCount = yard.usedListings.length;
     yard.usedListings = yard.usedListings.filter((listing) => !ids.has(`shipyard:${listing.id}:npc-sale`));
+    repairedRecords += usedCount - yard.usedListings.length;
   }
+  const saleCount = system.npcSales.length;
   system.npcSales = system.npcSales.filter((sale) => !ids.has(`shipyard:${sale.id}`));
+  return repairedRecords + saleCount - system.npcSales.length;
+}
+
+// A live or replacement hull is proof that its originating sale was consumed.
+export function assertShipyardFleetIdentity(system, retainedShipIds) {
+  assertShipyardSystem(system);
+  const retained = new Set(retainedShipIds);
+  for (const sale of system.npcSales) {
+    if (retained.has(`shipyard:${sale.id}`)) throw new Error(`Saved shipyard sale already belongs to fleet: ${sale.id}`);
+  }
+  for (const yard of system.yards.values()) {
+    for (const listing of [yard.listing, ...yard.usedListings]) {
+      if (listing && retained.has(`shipyard:${listing.id}:npc-sale`)) {
+        throw new Error(`Saved shipyard listing already belongs to fleet: ${listing.id}`);
+      }
+    }
+  }
 }
 
 // Used listings were renumbered by released save loaders. Even after their

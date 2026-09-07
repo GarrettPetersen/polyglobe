@@ -62,3 +62,13 @@ test("frozen released used-listing save preserves IDs and repairs the allocator 
   duplicate.yards[0].usedListings.push(duplicate.yards[0].usedListings[0]);
   assert.throws(() => restoreWorldShipyards(system, duplicate), /Duplicate saved used/);
 });
+
+test("migration preserves materials already committed to the next legitimate build", () => {
+  const system = createWorldShipyards({ ports: [port], startMinute: 0 });
+  const yard = system.yards.get(port.cityId);
+  yard.listing = null;
+  yard.materialConsumedForBuild.timber = 3;
+  const before = snapshotWorldShipyards(system);
+  assert.equal(reconcileRebuiltShipyardFleetHistory(system, [`shipyard:shipyard-${port.cityId}-0:npc-sale`]), 0);
+  assert.deepEqual(snapshotWorldShipyards(system), before);
+});

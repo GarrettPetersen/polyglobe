@@ -1,3 +1,4 @@
+import { validateCrewRoster } from "./crewMembers.js";
 import { SHIP_WATERLINE_LEVEL } from "./shipWaterline.js";
 import { STORM_ACTIVE_INTENSITY } from "./stormSystem.js";
 
@@ -291,12 +292,13 @@ function validateOverboardEntry(entry) {
   if (typeof entry.id !== "string" || entry.id.trim() === "") {
     throw new Error("Overboard crew entry requires an id");
   }
-  if (entry.kind !== "generic" && entry.kind !== "named") {
+  if (entry.kind !== "crew" && entry.kind !== "named") {
     throw new Error(`Invalid overboard crew kind: ${entry.kind}`);
   }
   if (entry.kind === "named" && (!entry.character || typeof entry.character !== "object")) {
     throw new Error(`Named overboard sailor ${entry.id} requires character data`);
   }
+  if (entry.kind === "crew") validateCrewRoster([entry.character]);
   for (const [label, vector] of [["position", entry.position], ["startPosition", entry.startPosition]]) {
     if (!Array.isArray(vector) || vector.length !== 3 || vector.some((value) => !Number.isFinite(value)) ||
         Math.hypot(...vector) < 0.5) {

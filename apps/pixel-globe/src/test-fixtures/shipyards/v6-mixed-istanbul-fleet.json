@@ -1,0 +1,442 @@
+{
+  "npcSnapshotVersion": 6,
+  "listing": {
+    "id": "shipyard-istanbul|turkey-0",
+    "portId": "istanbul|turkey",
+    "portName": "Istanbul",
+    "shipSlug": "ocean-dhow",
+    "shipLabel": "Ocean Dhow",
+    "price": 5100,
+    "builtMinute": -225195.1696040284,
+    "expiresMinute": 120404.8303959716,
+    "masterwork": true,
+    "source": "new-build",
+    "acquisitionCost": 0
+  },
+  "sale": {
+    "id": "shipyard-istanbul|turkey-0:npc-sale",
+    "portId": "istanbul|turkey",
+    "factionId": "ottoman",
+    "shipSlug": "ocean-dhow",
+    "price": 5100,
+    "soldMinute": 0
+  },
+  "ship": {
+    "id": "shipyard:shipyard-istanbul|turkey-0:npc-sale",
+    "captainHomeCityId": "istanbul|turkey",
+    "factionId": "ottoman",
+    "role": "fisherman",
+    "profileId": "cape-trade",
+    "mode": "interregional",
+    "cultureType": "islamic-desert",
+    "slugs": [
+      "ocean-dhow",
+      "caravel",
+      "brigantine"
+    ],
+    "slug": "ocean-dhow",
+    "seed": 409909620,
+    "hitPoints": 11,
+    "maxHitPoints": 11,
+    "cargoCapacity": 125,
+    "fishingNetId": "basic-cast-net",
+    "lastWhaleHuntMinute": null,
+    "cargo": {},
+    "cargoCost": {},
+    "cargoOrigins": {},
+    "tradeEmbargoConvictions": 0,
+    "lastTradeEmbargoEnforcement": null,
+    "specie": 620,
+    "lifetimeProfit": 0,
+    "cartazUntilMinute": 0,
+    "portVisits": 0,
+    "graceUntilPortVisit": 0,
+    "seekingHideout": false,
+    "hideoutDestinationTileId": null,
+    "hiddenAtHideout": false,
+    "hiddenUntilMinute": 0,
+    "hideoutCooldownUntilPortVisit": 0,
+    "nationalCircuitId": null,
+    "nationalCircuitFactionId": null,
+    "nationalCircuitCityIds": [],
+    "capitalNavalReserveSlotId": null,
+    "capitalNavalReserveDestinationCityId": null,
+    "capitalNavalReserveDocked": false,
+    "portResponse": null,
+    "currentPort": {
+      "cityId": "istanbul|turkey",
+      "city": "Istanbul",
+      "country": "Turkey",
+      "lat": 41.005275,
+      "lon": 28.976944,
+      "year": 1522,
+      "population": 353846,
+      "coastalIntent": false,
+      "lakeIntent": false,
+      "sourceYear": 1515,
+      "nextSourceYear": 1528,
+      "displayCity": "Istanbul",
+      "cityType": "islamic-desert",
+      "economyRegion": "islamic-desert",
+      "factionId": "ottoman",
+      "declaredCapitalFactionId": "ottoman",
+      "foreignSettlements": [
+        {
+          "id": "venetian-constantinople",
+          "cityId": "istanbul|turkey",
+          "city": "Istanbul",
+          "country": "Turkey",
+          "factionId": "venice",
+          "label": "Venetian merchant quarter",
+          "factorText": "The Venetian bailo and his merchants keep their own warehouses across the Golden Horn in Pera.",
+          "activeAtStart": true
+        }
+      ],
+      "portId": "istanbul|turkey",
+      "tileId": 394133,
+      "landmassId": 57,
+      "services": {
+        "inn": true,
+        "smith": true,
+        "market": true,
+        "shipyard": true
+      },
+      "foundingFactionId": "ottoman",
+      "foundingDisplayCity": "Istanbul",
+      "foundingCapitalOfFactionId": null,
+      "capitalOfFactionId": null,
+      "isFactionCapital": false,
+      "routeRegion": "europe",
+      "routeAnchors": [
+        "constantinople"
+      ]
+    },
+    "finalDestination": null,
+    "plan": {
+      "origin": {
+        "cityId": "istanbul|turkey",
+        "city": "Istanbul",
+        "country": "Turkey",
+        "lat": 41.005275,
+        "lon": 28.976944,
+        "year": 1522,
+        "population": 353846,
+        "coastalIntent": false,
+        "lakeIntent": false,
+        "sourceYear": 1515,
+        "nextSourceYear": 1528,
+        "displayCity": "Istanbul",
+        "cityType": "islamic-desert",
+        "economyRegion": "islamic-desert",
+        "factionId": "ottoman",
+        "declaredCapitalFactionId": "ottoman",
+        "foreignSettlements": [
+          {
+            "id": "venetian-constantinople",
+            "cityId": "istanbul|turkey",
+            "city": "Istanbul",
+            "country": "Turkey",
+            "factionId": "venice",
+            "label": "Venetian merchant quarter",
+            "factorText": "The Venetian bailo and his merchants keep their own warehouses across the Golden Horn in Pera.",
+            "activeAtStart": true
+          }
+        ],
+        "portId": "istanbul|turkey",
+        "tileId": 394133,
+        "landmassId": 57,
+        "services": {
+          "inn": true,
+          "smith": true,
+          "market": true,
+          "shipyard": true
+        },
+        "foundingFactionId": "ottoman",
+        "foundingDisplayCity": "Istanbul",
+        "foundingCapitalOfFactionId": null,
+        "capitalOfFactionId": null,
+        "isFactionCapital": false,
+        "routeRegion": "europe",
+        "routeAnchors": [
+          "constantinople"
+        ]
+      },
+      "destination": {
+        "tileId": -5171587,
+        "isFishingGround": true,
+        "city": "Fishing grounds 536,186",
+        "displayCity": "Herring grounds 53.6N 18.6E",
+        "country": "Open sea",
+        "cityType": "northern-european",
+        "population": 7600,
+        "factionId": "neutral",
+        "routeRegion": "other",
+        "routeAnchors": [
+          "north-sea",
+          "venice"
+        ],
+        "lat": 53.60545208057876,
+        "lon": 18.584911824292362,
+        "habitat": {
+          "tileId": -5171587,
+          "kind": "coastal",
+          "lat": 53.60545208057876,
+          "lon": 18.584911824292362
+        },
+        "speciesLabel": "Herring",
+        "initialDensity": 0.5526315789473685,
+        "initialPopulation": 42
+      },
+      "segments": [
+        {
+          "kind": "sail",
+          "from": {
+            "id": "origin:istanbul|turkey",
+            "label": "Istanbul",
+            "lat": 41.005275,
+            "lon": 28.976944,
+            "port": {
+              "cityId": "istanbul|turkey",
+              "city": "Istanbul",
+              "country": "Turkey",
+              "lat": 41.005275,
+              "lon": 28.976944,
+              "year": 1522,
+              "population": 353846,
+              "coastalIntent": false,
+              "lakeIntent": false,
+              "sourceYear": 1515,
+              "nextSourceYear": 1528,
+              "displayCity": "Istanbul",
+              "cityType": "islamic-desert",
+              "economyRegion": "islamic-desert",
+              "factionId": "ottoman",
+              "declaredCapitalFactionId": "ottoman",
+              "foreignSettlements": [
+                {
+                  "id": "venetian-constantinople",
+                  "cityId": "istanbul|turkey",
+                  "city": "Istanbul",
+                  "country": "Turkey",
+                  "factionId": "venice",
+                  "label": "Venetian merchant quarter",
+                  "factorText": "The Venetian bailo and his merchants keep their own warehouses across the Golden Horn in Pera.",
+                  "activeAtStart": true
+                }
+              ],
+              "portId": "istanbul|turkey",
+              "tileId": 394133,
+              "landmassId": 57,
+              "services": {
+                "inn": true,
+                "smith": true,
+                "market": true,
+                "shipyard": true
+              },
+              "foundingFactionId": "ottoman",
+              "foundingDisplayCity": "Istanbul",
+              "foundingCapitalOfFactionId": null,
+              "capitalOfFactionId": null,
+              "isFactionCapital": false,
+              "routeRegion": "europe",
+              "routeAnchors": [
+                "constantinople"
+              ]
+            }
+          },
+          "to": {
+            "id": "constantinople",
+            "label": "Constantinople Roads",
+            "lat": 41.06873,
+            "lon": 28.76007
+          },
+          "startMinute": -70167,
+          "endMinute": -69519
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "constantinople",
+            "label": "Constantinople Roads",
+            "lat": 41.06873,
+            "lon": 28.76007
+          },
+          "to": {
+            "id": "marmara-east",
+            "label": "Sea of Marmara East",
+            "lat": 40.5859,
+            "lon": 28.93853
+          },
+          "startMinute": -69519,
+          "endMinute": -67186.53109940137
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "marmara-east",
+            "label": "Sea of Marmara East",
+            "lat": 40.5859,
+            "lon": 28.93853
+          },
+          "to": {
+            "id": "marmara-center",
+            "label": "Sea of Marmara",
+            "lat": 40.64675,
+            "lon": 28.26621
+          },
+          "startMinute": -67186.53109940137,
+          "endMinute": -64801.705961566055
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "marmara-center",
+            "label": "Sea of Marmara",
+            "lat": 40.64675,
+            "lon": 28.26621
+          },
+          "to": {
+            "id": "marmara-west",
+            "label": "Sea of Marmara West",
+            "lat": 40.70369,
+            "lon": 27.59271
+          },
+          "startMinute": -64801.705961566055,
+          "endMinute": -62367.76040061085
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "marmara-west",
+            "label": "Sea of Marmara West",
+            "lat": 40.70369,
+            "lon": 27.59271
+          },
+          "to": {
+            "id": "dardanelles-north",
+            "label": "Dardanelles North",
+            "lat": 40.27811,
+            "lon": 27.10846
+          },
+          "startMinute": -62367.76040061085,
+          "endMinute": -58763.12461427229
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "dardanelles-north",
+            "label": "Dardanelles North",
+            "lat": 40.27811,
+            "lon": 27.10846
+          },
+          "to": {
+            "id": "dardanelles-south",
+            "label": "Dardanelles South",
+            "lat": 40.32832,
+            "lon": 26.43773
+          },
+          "startMinute": -58763.12461427229,
+          "endMinute": -55911.640974986316
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "dardanelles-south",
+            "label": "Dardanelles South",
+            "lat": 40.32832,
+            "lon": 26.43773
+          },
+          "to": {
+            "id": "aegean",
+            "label": "Northern Aegean",
+            "lat": 39.8952,
+            "lon": 25.95852
+          },
+          "startMinute": -55911.640974986316,
+          "endMinute": -52277.732717315426
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "aegean",
+            "label": "Northern Aegean",
+            "lat": 39.8952,
+            "lon": 25.95852
+          },
+          "to": {
+            "id": "sicily",
+            "label": "Sicily Channel",
+            "lat": 36.8,
+            "lon": 13.4
+          },
+          "startMinute": -52277.732717315426,
+          "endMinute": 11132.209712901065
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "sicily",
+            "label": "Sicily Channel",
+            "lat": 36.8,
+            "lon": 13.4
+          },
+          "to": {
+            "id": "venice",
+            "label": "Venice Lagoon",
+            "lat": 45.2,
+            "lon": 12.5
+          },
+          "startMinute": 11132.209712901065,
+          "endMinute": 27287.378242628824
+        },
+        {
+          "kind": "sail",
+          "from": {
+            "id": "venice",
+            "label": "Venice Lagoon",
+            "lat": 45.2,
+            "lon": 12.5
+          },
+          "to": {
+            "id": "destination:tile:-5171587",
+            "label": "Herring grounds 53.6N 18.6E",
+            "lat": 53.60545208057876,
+            "lon": 18.584911824292362,
+            "port": {
+              "tileId": -5171587,
+              "isFishingGround": true,
+              "city": "Fishing grounds 536,186",
+              "displayCity": "Herring grounds 53.6N 18.6E",
+              "country": "Open sea",
+              "cityType": "northern-european",
+              "population": 7600,
+              "factionId": "neutral",
+              "routeRegion": "other",
+              "routeAnchors": [
+                "north-sea",
+                "venice"
+              ],
+              "lat": 53.60545208057876,
+              "lon": 18.584911824292362,
+              "habitat": {
+                "tileId": -5171587,
+                "kind": "coastal",
+                "lat": 53.60545208057876,
+                "lon": 18.584911824292362
+              },
+              "speciesLabel": "Herring",
+              "initialDensity": 0.5526315789473685,
+              "initialPopulation": 42
+            }
+          },
+          "startMinute": 27287.378242628824,
+          "endMinute": 52404.481409342145
+        }
+      ],
+      "startMinute": -70167,
+      "endMinute": 52404.481409342145
+    },
+    "clockOffsetMinutes": 0,
+    "visualNavigation": null
+  }
+}
