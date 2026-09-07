@@ -11,6 +11,7 @@ export function portDialogueHasCaptainSpeaker(session) {
 }
 
 const HARBOUR_MASTER_NODES = new Set([
+  "exeter-canal",
   "barred",
   "cargo",
   "disguise-failed",

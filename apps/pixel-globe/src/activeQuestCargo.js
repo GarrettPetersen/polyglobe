@@ -1,3 +1,4 @@
+import { EXETER_CANAL_MATERIALS } from "./exeterCanal.js";
 import {
   CHEF_QUEST_STAGE_GATHERING,
   chefQuestMemory,
@@ -132,6 +133,14 @@ export function activeQuestCargoRequirements(state, { currentMinute = 0 } = {}) 
       country: gingerMemory.cultivationCountry
     });
     add(`ginger.${ginger.fetchStage.id}`, ginger.fetchStage.goodId, ginger.remaining);
+  }
+
+  const canal = state.memory.quests.exeterCanal;
+  if (canal?.accepted && canal.startedMinute === null) {
+    for (const material of EXETER_CANAL_MATERIALS) {
+      const progress = questCargoDeliveryProgress(state, material.requirementId, material.quantity);
+      add(material.requirementId, material.goodId, progress.remainingQuantity);
+    }
   }
 
   const chefMemory = chefQuestMemory(state);

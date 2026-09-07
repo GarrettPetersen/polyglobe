@@ -1,3 +1,4 @@
+import { exeterCanalNavigation, exeterCanalPort } from "../src/exeterCanalNavigation.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -101,18 +102,19 @@ const annualIceFractions = Float32Array.from(
   (tileId) => coarseAnnualIceFractions[tileId]
 );
 const directionIndex = createDirectionIndex(graph);
-const navigation = buildWorldNavigationTopology({
+const baseNavigation = buildWorldNavigationTopology({
   graph,
   earthRows,
   earthCache,
   subdivisions: SUBDIVISIONS
 });
+const navigation = exeterCanalNavigation(baseNavigation, graph, earthRows, 3);
 const placementOptions = {
   graph,
   directionIndex,
   earthRows,
-  reachableNavigationMask: navigation.reachableNavigationMask,
-  riverMasks: navigation.riverMasks
+  reachableNavigationMask: baseNavigation.reachableNavigationMask,
+  riverMasks: baseNavigation.riverMasks
 };
 const cityCatalog = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
 const cityByTileId = placeCityCatalogOnWorld({ ...placementOptions, cities: cityCatalog });
@@ -124,7 +126,9 @@ const colonyTargets = placeColonizationTargetsOnWorld({
   occupiedCities: cityByTileId.values()
 });
 const portTileIds = new Set(portCities.map((port) => port.tileId));
+const postCanalPlacementOptions = { ...placementOptions, reachableNavigationMask: navigation.reachableNavigationMask, riverMasks: navigation.riverMasks };
 const endpoints = [
+  endpointRecord(exeterCanalPort(cityByTileId.values()), "project", "Exeter", postCanalPlacementOptions),
   ...portCities.map((city) => endpointRecord(city, "port", cityLabelText(city), placementOptions)),
   ...colonyTargets
     .filter((colony) => !portTileIds.has(colony.tileId))

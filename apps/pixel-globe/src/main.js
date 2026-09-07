@@ -1,3 +1,5 @@
+import { EXETER_CITY_ID, TOPSHAM_CITY_ID, exeterCanalStage, exeterCanalQuestView } from "./exeterCanal.js";
+import { exeterCanalNavigation, exeterCanalPort } from "./exeterCanalNavigation.js";
 import { sailingCorrectionDistancePx } from "./sailingContinuity.js";
 import { playerShipyardSnapshot, restorePlayerShipyardSnapshot, snapshotPlayerShipyards } from "./playerShipyardPersistence.js";
 import { planPlaytestRoute } from "./playtestNavigation.js";
@@ -4030,6 +4032,8 @@ let snowyTerrainImages;
 let snowySpriteColors;
 let riverColors;
 let riverMasks;
+let exeterCanalBaseNavigation;
+let appliedExeterCanalStage = 0;
 let riverToWaterMasks;
 let riverBasinIds;
 let oceanReachableNavigationMask;
@@ -4714,6 +4718,7 @@ async function main() {
     earthCache: earth,
     subdivisions: SUBDIVISIONS
   });
+  exeterCanalBaseNavigation = navigationTopology;
   riverMasks = navigationTopology.riverMasks;
   riverToWaterMasks = navigationTopology.riverToWaterMasks;
   riverBasinIds = navigationTopology.riverBasinIds;
@@ -4843,7 +4848,7 @@ async function main() {
   });
   assertPortSailingDistanceCoverage(
     portSailingDistances,
-    [...portCities, ...colonizationTargetPlacements]
+    [...portCities, ...colonizationTargetPlacements, exeterCanalPort(cityById.values())]
   );
   portArrivalNavigationByCityId = buildPortArrivalNavigation({
     ports: portCities,
@@ -7015,6 +7020,7 @@ function runFrame(nowMs, { scheduleNextFrame = true, forceRender = false } = {})
       let changed = updateCampaignGoalReturnReminder();
       changed = updateWhiteWhaleSightingObjective() || changed;
       changed = updateTreasurePirateSearchObjective() || changed;
+      changed = syncExeterCanalWorldState(gameState, weatherClockMinutes) || changed;
       changed = updateColonizationQuest() || changed;
       changed = maybeDiscoverMissingColonizationAftermath() || changed;
       changed = measurePerformanceBenchmarkStage(
@@ -16534,6 +16540,25 @@ function installSaveRestoreSmokeHarness() {
       return { mode, cityId: city.cityId, nextNodeId, actionDurationMs,
         serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
     },
+    async inspectExeterCanal() {
+      if (running) throw new Error("Canal smoke requires an idle restored voyage");
+      if (playerIntroModal) closePlayerIntroModal();
+      const stage = exeterCanalStage(gameState.memory.quests.exeterCanal, weatherClockMinutes);
+      const cityId = stage === 3 ? EXETER_CITY_ID : TOPSHAM_CITY_ID;
+      const city = capturePortCallById(cityId);
+      openCapturePortNode(cityId, stage === 3 ? "market" : "exeter-canal");
+      await synchronizePortCityScene();
+      const view = currentDialogueView();
+      render(performance.now(), { allowColdCoveredWorldRender: true });
+      await waitForSaveRestoreSmokePersistence();
+      return { stage, nodeId: dialogueState.nodeId, sceneCityId: portCityView.cityId,
+        exeterActive: portCities.some((port) => port.cityId === EXETER_CITY_ID),
+        exeterIndexed: portCitiesByTileId.has(cityById.get(EXETER_CITY_ID).tileId),
+        npcPortActive: npcSeaRouteHasPort(npcSeaRoutes, cityById.get(EXETER_CITY_ID)),
+        shipNavigable: isShipBaseNavigableTile(ship.tileId), shipTileId: ship.tileId,
+        options: view.options.map((option) => ({ label: option.label, disabled: option.disabled })),
+        serialized: gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) };
+    },
     async inspectSoundDues(decision = null) {
       if (running) throw new Error("Cannot inspect Sound Dues during save restoration");
       updateSoundDues();
@@ -16870,6 +16895,7 @@ async function restoreSavedVoyage(payload) {
     );
   }
   gameState = restoredGameState;
+  syncExeterCanalWorldState(restoredGameState, restoredWorldClock.currentMinute, { restoring: true });
   syncColonizationWorldState(restoredGameState, {
     startMinute: Number.isFinite(payload.economy?.lastMinute)
       ? payload.economy.lastMinute
@@ -31047,6 +31073,42 @@ function clearLocalChartTransientEffects() {
   }
 }
 
+function syncExeterCanalWorldState(state, currentMinute, { restoring = false } = {}) {
+  const stage = exeterCanalStage(state.memory.quests.exeterCanal, currentMinute);
+  if (!restoring && stage === appliedExeterCanalStage) return false;
+  const city = exeterCanalPort(cityById.values());
+  const navigation = exeterCanalNavigation(exeterCanalBaseNavigation, graph, earthById, stage);
+  if (!restoring && distantWorldWorkerClient) invalidateDistantWorldWorkerState();
+  riverMasks = navigation.riverMasks;
+  oceanReachableNavigationMask = navigation.reachableNavigationMask;
+  appliedExeterCanalStage = stage;
+  const open = stage === 3;
+  const index = portCities.findIndex((port) => port.cityId === EXETER_CITY_ID);
+  if (open) {
+    if (index < 0) portCities.push(city);
+    portCitiesByTileId.set(city.tileId, city);
+    if (!restoring) {
+      // Exeter already has an inland market: preserve its stock, specie,
+      // industries, ownership and history when adding its maritime facilities.
+      if (!worldEconomyHasPort(worldEconomy, city)) throw new Error("Exeter lost its inland market");
+      if (!worldEconomyHasShipyardPort(worldEconomy, city)) addWorldEconomyShipyardPort(worldEconomy, city, currentMinute);
+      connectNearbyPortMarkets(worldEconomy, portCities, sailingDistanceBetweenPorts);
+      if (!npcSeaRouteHasPort(npcSeaRoutes, city)) addNpcSeaRoutePort(npcSeaRoutes, city);
+      ensurePortCityStaffRoster(city);
+    }
+  } else if (index >= 0) {
+    if (!restoring) throw new Error("A completed Exeter canal cannot close during a voyage");
+    portCities.splice(index, 1);
+    portCitiesByTileId.delete(city.tileId);
+  }
+  portArrivalNavigationByCityId = buildPortArrivalNavigation({
+    ports: portCities, sailingDistanceKm: sailingDistanceBetweenPorts, approachKindForPort: portArrivalApproachKind
+  });
+  chart = null;
+  dirty = true;
+  return true;
+}
+
 function syncColonizationWorldState(state, { startMinute = weatherClockMinutes } = {}) {
   if (!state?.memory?.colonization) throw new Error("Cannot sync colonization without quest state");
   for (const settlement of colonizationSettlementMemories(state.memory.colonization)) {
@@ -31352,6 +31414,7 @@ function syncCaribbeanGingerIndustry(state) {
 
 function worldPortPlacementOptions() {
   return {
+    exeterCanalOpen: appliedExeterCanalStage === 3,
     graph,
     directionIndex,
     earthRows: earthById,
@@ -31361,6 +31424,11 @@ function worldPortPlacementOptions() {
 }
 
 function sailingDistanceBetweenPorts(origin, destination) {
+  for (const port of [origin, destination]) {
+    if (port.cityId === EXETER_CITY_ID && !portCitiesByTileId.has(port.tileId)) {
+      throw new Error("Exeter sailing distances require the completed canal");
+    }
+  }
   return portSailingDistanceKm(portSailingDistances, origin, destination);
 }
 
@@ -46560,7 +46628,13 @@ function currentFetchQuestRequirements() {
   if (shipyardProject && !shipyardDestination) {
     throw new Error(`Player-backed shipyard port is missing: ${shipyardProject.portName}`);
   }
+  const canalPort = cityById.get(TOPSHAM_CITY_ID);
+  const canal = exeterCanalQuestView(gameState, canalPort, Math.max(0, weatherClockMinutes));
   return fetchQuestRequirements({
+    exeterCanal: canal ? { ...canal, materials: canal.materials.map((material) => ({
+      ...material, goodLabel: tradeGoodById(material.goodId).label
+    })) } : null,
+    exeterCanalPort: canalPort,
     colonization: colonizationQuestView(gameState, {
       currentMinute: Math.max(0, weatherClockMinutes)
     }),
@@ -46601,6 +46675,14 @@ function currentReadyFetchQuestDestinations() {
 function questJournalEntries() {
   if (!gameState) return [];
   const entries = [];
+  const canal = exeterCanalQuestView(gameState, cityById.get(TOPSHAM_CITY_ID), Math.max(0, weatherClockMinutes));
+  if (canal?.accepted && !canal.complete) {
+    entries.push({ id: "exeter-canal", title: "EXETER CANAL",
+      nextStep: canal.building ? `WORKS AT TOPSHAM: ${canal.daysRemaining} DAYS REMAINING`
+        : `DELIVER TO TOPSHAM: ${canal.materials.filter((material) => !material.complete)
+          .map((material) => `${tradeGoodById(material.goodId).label} x${material.remainingQuantity}`).join(", ")}`,
+      style: QUEST_NAVIGATION_STYLE });
+  }
   const warLoan = gameState.memory.quests.sovereignWarLoan.contract;
   if (warLoan) {
     const borrower = factionById(warLoan.borrowerFactionId);
@@ -47628,7 +47710,7 @@ function fetchQuestNavigationReason(fetchTarget) {
   if (fetchTarget.questId === "caribbean-ginger") {
     return uiText("navigation.deliverGingerRoots");
   }
-  if (fetchTarget.questId === "banquet-chef") {
+  if (fetchTarget.questId === "banquet-chef" || fetchTarget.questId === "exeter-canal") {
     return uiText("navigation.deliveryMission");
   }
   if (fetchTarget.questId === "conquistador") {

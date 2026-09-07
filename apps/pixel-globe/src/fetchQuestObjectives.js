@@ -19,6 +19,8 @@ export function fetchQuestRequirements({
   caribbeanGingerPort = null,
   viking = null,
   vikingPort = null,
+  exeterCanal = null,
+  exeterCanalPort = null,
   chef = null,
   chefPort = null,
   conquistador = null,
@@ -99,6 +101,17 @@ export function fetchQuestRequirements({
       delivered: caribbeanGinger.delivered,
       destination: caribbeanGingerPort
     }));
+  }
+
+  if (exeterCanal?.accepted && !exeterCanal.building && !exeterCanal.complete && exeterCanalPort) {
+    for (const material of exeterCanal.materials) {
+      if (material.complete) continue;
+      requirements.push(requirement({
+        id: material.requirementId, questId: "exeter-canal", stageId: material.goodId,
+        good: { goodId: material.goodId, goodLabel: material.goodLabel, quantity: material.quantity },
+        held: material.held, delivered: material.deliveredQuantity, destination: exeterCanalPort
+      }));
+    }
   }
 
   if (chef?.stage === "gathering" && chefPort) {

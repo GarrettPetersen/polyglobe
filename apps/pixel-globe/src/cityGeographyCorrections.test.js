@@ -66,9 +66,9 @@ test("Exeter remains inland and Topsham is its distinct English outport", () => 
   assert.ok(topsham.lat < exeter.lat && exeter.lat - topsham.lat < 0.1);
 });
 
-test("the English river ports use river scenes and Exeter is absent from sailing scenes", () => {
+test("English river ports and the future Exeter canal have river scene assets", () => {
   const sceneCatalog = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url)));
-  assert.equal(sceneCatalog.cities.some(({ id }) => id === "exeter|united kingdom"), false);
+  assert.equal(sceneCatalog.cities.find(({ id }) => id === "exeter|united kingdom").approach, "river");
   for (const id of ["norwich|united kingdom", "topsham|united kingdom"]) {
     const city = sceneCatalog.cities.find((entry) => entry.id === id);
     assert.equal(city.approach, "river");

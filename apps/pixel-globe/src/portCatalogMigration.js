@@ -3,7 +3,7 @@ import {
   subdivisionSevenPortMigrationForWorld
 } from "./subdivisionSevenPortMigration.js";
 
-export const PORT_CATALOG_VERSION = 8;
+export const PORT_CATALOG_VERSION = 9;
 const EARLIEST_SUPPORTED_PORT_CATALOG_VERSION = 1;
 
 // The first subdivision-eight release placed North Maluku's three ports on an

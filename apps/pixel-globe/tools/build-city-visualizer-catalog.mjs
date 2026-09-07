@@ -1,3 +1,4 @@
+import { exeterCanalNavigation } from "../src/exeterCanalNavigation.js";
 import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "../src/manualRiverHexChains.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
@@ -108,12 +109,13 @@ const sailingEarthRows = applyManualTerrainOverrides(
   sailing.subdivisions
 );
 const sailingGraph = buildGeodesicGraph(sailing.subdivisions);
-const sailingNavigation = buildWorldNavigationTopology({
+const sailingBaseNavigation = buildWorldNavigationTopology({
   graph: sailingGraph,
   earthRows: sailingEarthRows,
   earthCache: sailingEarthCache,
   subdivisions: sailing.subdivisions
 });
+const sailingNavigation = exeterCanalNavigation(sailingBaseNavigation, sailingGraph, sailingEarthRows, 3);
 const cityCatalog = loadCityCatalogFromCsv(cityCsv, CITY_DATA_YEAR);
 const cityByEndpointKey = indexCityCatalog(cityCatalog);
 const colonyByEndpointKey = new Map(COLONIZATION_TARGETS.map((target) => [
@@ -123,7 +125,7 @@ const colonyByEndpointKey = new Map(COLONIZATION_TARGETS.map((target) => [
 
 const cities = sailing.endpoints.map((endpoint) => {
   const key = endpointKey(endpoint.name, endpoint.country);
-  const city = endpoint.kind === "port"
+  const city = (endpoint.kind === "port" || endpoint.kind === "project")
     ? cityByEndpointKey.get(key)
     : endpoint.kind === "colony"
       ? colonizationVisualizerCity(colonyByEndpointKey.get(key), endpoint)
@@ -192,7 +194,7 @@ function visualizerCityRecord({
   if (!sailingAccess || sailingAccess.coarseFallback) {
     throw new Error(`City scene has no navigable sailing approach: ${city.cityId}`);
   }
-  const authoredRiverApproach = Boolean(
+  const authoredRiverApproach = endpoint.kind === "project" || Boolean(
     MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS[sailingGraph.subdivisions]?.[city.cityId]
   );
   const approach = authoredRiverApproach

@@ -1,5 +1,5 @@
 export const PORT_SAILING_DISTANCE_FORMAT = "pixel-globe-port-sailing-distances";
-export const PORT_SAILING_DISTANCE_VERSION = 2;
+export const PORT_SAILING_DISTANCE_VERSION = 3;
 
 export function parsePortSailingDistances(raw, expected = {}) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -48,7 +48,7 @@ export function parsePortSailingDistances(raw, expected = {}) {
     if (typeof endpoint.name !== "string" || endpoint.name.trim() === "") {
       throw new Error(`Port sailing endpoint ${endpoint.tileId} has no name`);
     }
-    if (endpoint.kind !== "port" && endpoint.kind !== "colony") {
+    if (endpoint.kind !== "port" && endpoint.kind !== "colony" && endpoint.kind !== "project") {
       throw new Error(`Port sailing endpoint ${endpoint.tileId} has invalid kind: ${endpoint.kind}`);
     }
     indexByTileId.set(endpoint.tileId, index);

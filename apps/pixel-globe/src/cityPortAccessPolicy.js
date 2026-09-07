@@ -61,8 +61,10 @@ for (const { inlandCityId, gatewayCityId } of INLAND_CITY_SAILING_GATEWAYS_1522)
   }
 }
 
-export function cityMustRemainInland(city) {
-  return INLAND_CITY_ID_SET.has(requireEntityId(city?.cityId, "Inland city"));
+export function cityMustRemainInland(city, { exeterCanalOpen = false } = {}) {
+  const cityId = requireEntityId(city?.cityId, "Inland city");
+  if (typeof exeterCanalOpen !== "boolean") throw new Error("Invalid Exeter canal port-access state");
+  return INLAND_CITY_ID_SET.has(cityId) && !(cityId === "exeter|united kingdom" && exeterCanalOpen);
 }
 
 export function sailingGatewayCityIdForInlandCity(cityId) {

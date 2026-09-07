@@ -1,3 +1,4 @@
+import { EXETER_CANAL_MATERIALS } from "./exeterCanal.js";
 import {
   CAMPAIGN_GOAL_EXPLORER,
   CAMPAIGN_GOAL_FAMILY_DEBT,
@@ -53,8 +54,12 @@ export function canonicalGameStateFixtures() {
       voyageSeed: `save-schema-${campaignGoalType}`
     })
   }));
+  const canalConstruction = structuredClone(campaignFixtures[0].state);
+  canalConstruction.memory.quests.exeterCanal = { version: 1, accepted: true, startedMinute: 123456 };
+  for (const material of EXETER_CANAL_MATERIALS) canalConstruction.memory.quests.cargoDeliveries[material.requirementId] = material.quantity;
   return [
     ...campaignFixtures,
+    { campaignGoalType: "exeter-canal-construction", state: canalConstruction },
     {
       campaignGoalType: "dense-save-compatibility",
       state: createDenseSaveCompatibilityFixture().payload.gameState

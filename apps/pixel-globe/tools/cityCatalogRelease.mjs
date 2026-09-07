@@ -1,3 +1,4 @@
+import { exeterCanalPort } from "../src/exeterCanalNavigation.js";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
@@ -95,18 +96,20 @@ export async function currentCatalogSnapshot(appRoot = APP_ROOT) {
   validateCityPortAccessCatalog(placed, ports, options);
   const colonies = placeColonizationTargetsOnWorld({ ...options, targets: COLONIZATION_TARGETS, occupiedCities: placed.values() });
   const portTiles = new Set(ports.map(({ tileId }) => tileId));
-  const endpoints = [...ports, ...colonies.filter(({ tileId }) => !portTiles.has(tileId))];
+  const projects = [exeterCanalPort(placed.values())];
+  const endpoints = [...projects, ...ports, ...colonies.filter(({ tileId }) => !portTiles.has(tileId))];
   const roadRecord = (city) => ({ tileId: city.tileId, name: cityLabelText(city), country: city.country });
   const byTile = (a, b) => a.tileId - b.tileId;
   assert.deepEqual(roads.cities, [...placed.values()].map(roadRecord).sort(byTile), "Regenerate land roads for the current city catalog");
   assert.deepEqual(sailing.endpoints, [
     ...ports.map((city) => ({ ...roadRecord(city), kind: "port" })),
+    ...projects.map((city) => ({ ...roadRecord(city), kind: "project" })),
     ...colonies.filter(({ tileId }) => !portTiles.has(tileId)).map((city) => ({ ...roadRecord(city), kind: "colony" }))
   ].sort(byTile), "Regenerate sailing distances for the current city catalog");
   assert.deepEqual(scenes.cities.map(({ id, tileId }) => ({ cityId: id, tileId })).sort(byTile),
     endpoints.map(({ cityId, tileId }) => ({ cityId, tileId })).sort(byTile), "Regenerate city scenes for the current city catalog");
   const byId = new Map();
-  for (const { cityId, tileId } of [...ports, ...colonies]) {
+  for (const { cityId, tileId } of [...ports, ...colonies, ...projects]) {
     if (byId.has(cityId) && byId.get(cityId) !== tileId) throw new Error(`Conflicting catalog placement for ${cityId}`);
     byId.set(cityId, tileId);
   }
@@ -121,7 +124,8 @@ export function validateReleasedCatalogMigration(released, current, migration, g
     assert.deepEqual(current, released, "City endpoints changed without a PORT_CATALOG_VERSION bump; preserve the frozen release and author migrations");
   }
   for (const oldPort of released.ports) {
-    const targetId = gatewayForCity(oldPort.cityId) || oldPort.cityId;
+    const targetId = (oldPort.cityId === "exeter|united kingdom" && released.version >= 9)
+      ? oldPort.cityId : gatewayForCity(oldPort.cityId) || oldPort.cityId;
     const target = byId.get(targetId);
     if (!target) throw new Error(`Released city ${oldPort.cityId} has no canonical successor`);
     const tileId = migration?.get(oldPort.tileId) ?? oldPort.tileId;

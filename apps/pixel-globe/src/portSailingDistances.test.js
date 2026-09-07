@@ -1,3 +1,4 @@
+import { exeterCanalPort } from "./exeterCanalNavigation.js";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
@@ -188,7 +189,8 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   assert.equal(nagasakiTarget?.tileId, nagasakiVillage.tileId);
   assert.doesNotThrow(() => assertPortSailingDistanceCoverage(bake, [
     ...portCities,
-    ...colonyTargets
+    ...colonyTargets,
+    exeterCanalPort(cityByTileId.values())
   ]));
 
   const colonyNames = new Set(bake.endpoints.filter((endpoint) => endpoint.kind === "colony").map((endpoint) => endpoint.name));

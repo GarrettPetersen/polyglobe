@@ -124,7 +124,7 @@ function settlementKey(record) {
 export function portCitiesOnWorld(cityByTileId, options) {
   if (!(cityByTileId instanceof Map)) throw new Error("Port city selection requires a placed city map");
   const ports = [...cityByTileId.values()].filter((city) => (
-    !cityMustRemainInland(city) && cityHasPortAccess(portAccessOptions(options, city.tileId))
+    !cityMustRemainInland(city, options) && cityHasPortAccess(portAccessOptions(options, city.tileId))
   ));
   if (ports.length === 0) throw new Error("No water-accessible ports were placed on the world");
   return ports;
@@ -145,7 +145,7 @@ export function validateCityPortAccessCatalog(cityByTileId, portCities, options)
     if (!placed || placed.tileId !== port.tileId) {
       throw new Error(`Port is absent from its placed canonical city: ${port.cityId}`);
     }
-    if (cityMustRemainInland(port)) {
+    if (cityMustRemainInland(port, options)) {
       throw new Error(`Inland city entered the port catalog: ${port.cityId}`);
     }
     if (!cityHasPortAccess(portAccessOptions(options, port.tileId))) {
@@ -162,7 +162,7 @@ export function validateCityPortAccessCatalog(cityByTileId, portCities, options)
     if (!citiesById.has(cityId)) {
       throw new Error(`Inland city registry points to a missing placed city: ${cityId}`);
     }
-    if (portsById.has(cityId)) {
+    if (portsById.has(cityId) && cityMustRemainInland(citiesById.get(cityId), options)) {
       throw new Error(`Inland city is incorrectly dockable: ${cityId}`);
     }
   }

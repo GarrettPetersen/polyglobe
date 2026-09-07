@@ -1,3 +1,4 @@
+import { TOPSHAM_CITY_ID, acceptExeterCanalQuest, exeterCanalQuestView, startExeterCanalConstruction } from "./exeterCanal.js";
 import { playerTradeAdviceByCity } from "./gameState.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, soundDuesPaymentEligibility } from "./soundDues.js";
 import { colonizationSiteIsRuined } from "./colonialCities.js";
@@ -1972,6 +1973,7 @@ function portDialogueNodeView(session, city, gameState, economy, portCities, con
   if (session.nodeId === "caribbean-ginger") {
     return caribbeanGingerView(session, city, gameState);
   }
+  if (session.nodeId === "exeter-canal") return exeterCanalDialogueView(session, city, gameState, context);
   if (session.nodeId === "chef-quest") return chefQuestView(session, city, gameState, context);
   if (session.nodeId === "colonization") return colonizationView(session, city, gameState, context);
   if (session.nodeId === "conquistador") {
@@ -2704,6 +2706,26 @@ export function selectPortDialogueAction(
       questCargoTransfers: [questCargoTransferFromDelivery(result)],
       missionItemGift
     };
+  }
+  if (action.type === "accept-exeter-canal") {
+    if (session.disguisedEntry || session.nodeId !== "exeter-canal") throw new Error("Canal commission requires an open audience");
+    acceptExeterCanalQuest(gameState, city, context.simMinute ?? 0);
+    session.selectedIndex = 0;
+    return { closed: false };
+  }
+  if (action.type === "deliver-exeter-canal") {
+    const quest = exeterCanalQuestView(gameState, city, context.simMinute ?? 0);
+    if (session.disguisedEntry || session.nodeId !== "exeter-canal" || !quest?.canDeliver) {
+      throw new Error("No commissioned Exeter canal materials can be delivered here");
+    }
+    const deliveries = quest.materials.filter((material) => material.deliverableQuantity > 0).map((material) => (
+      deliverQuestCargoRequirement(gameState, city, material.goodId, material.quantity, material.requirementId, context)
+    ));
+    const updated = exeterCanalQuestView(gameState, city, context.simMinute ?? 0);
+    if (updated.materials.every((material) => material.complete)) startExeterCanalConstruction(gameState, city, context.simMinute ?? 0);
+    session.selectedIndex = 0;
+    session.feedback = "Your stores have been delivered to the canal works.";
+    return { closed: false, questCargoTransfers: questCargoTransfersFromDeliveries(deliveries) };
   }
   if (action.type === "deliver-chef-ingredients") {
     const quest = chefQuestState(gameState, city);
@@ -5032,6 +5054,9 @@ function passengerInnRootOptions(session, context, pirateHideout) {
 function specialInnRootOptions(session, city, gameState, context) {
   if (session.disguisedEntry) return [];
   const options = [];
+  if (city.cityId === TOPSHAM_CITY_ID) {
+    options.push(option("Speak with Exeter's canal commissioner", { type: "node", nodeId: "exeter-canal" }));
+  }
   if (vikingLongshipEnthusiastAtPort(gameState, city)) {
     options.push(option("Speak with the historical enthusiast", {
       type: "node",
@@ -5076,6 +5101,30 @@ function specialInnRootOptions(session, city, gameState, context) {
     }));
   }
   return options;
+}
+
+function exeterCanalDialogueView(session, city, gameState, context) {
+  const quest = exeterCanalQuestView(gameState, city, context.simMinute ?? 0);
+  if (!quest || session.disguisedEntry) throw new Error("Exeter canal audience is unavailable");
+  const requirements = quest.materials.filter((material) => !material.complete)
+    .map((material) => `${tradeGoodById(material.goodId).label} x${material.remainingQuantity}`).join(", ");
+  return {
+    speaker: "Exeter's canal commissioner",
+    expressionId: "neutral",
+    text: quest.complete
+      ? "The locks are sound and the quay is ready, captain! Exeter is open to shipping. Our merchants shall remember your service."
+      : quest.building
+        ? `The work proceeds: ${quest.stage === 0 ? "the lower cut" : quest.stage === 1 ? "the upper cut" : "the locks and quay"}. We expect to open Exeter in ${quest.daysRemaining} days.`
+        : `Help us cut a canal past Exeter's weirs. Bring ${requirements} to Topsham for the gates, fittings and labourers. Once provisioned, the works will take ninety days.`,
+    feedback: session.feedback,
+    options: [
+      ...(!quest.accepted ? [option("I shall bring the materials", { type: "accept-exeter-canal" })] : []),
+      ...(quest.accepted && !quest.building && !quest.complete ? [option("Deliver canal materials", { type: "deliver-exeter-canal" }, {
+        disabled: !quest.canDeliver, disabledReason: "No requested materials aboard."
+      })] : []),
+      option("Back to inn", { type: "node", nodeId: "inn-drink" })
+    ]
+  };
 }
 
 function crewRecruitmentView(session, city, gameState) {

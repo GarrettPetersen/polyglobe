@@ -3,14 +3,14 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   playerTradeAdviceByCity, playerTradeAccess, playerTradeTerms, portEntryStatus,
-  validateGameState
+  GAME_STATE_VERSION, validateGameState
 } from "./gameState.js";
 import { bestPurchasedTradeRoute } from "./dialogueSystem.js";
 import { createWorldEconomy } from "./economy.js";
 
 const ports = JSON.parse(readFileSync(new URL("../city-visualizer/data/cities.json", import.meta.url))).cities;
 function voyage() {
-  return JSON.parse(readFileSync(new URL("./test-fixtures/saves/dense-local-save-v2-game-state-v104.json", import.meta.url))).payload.gameState;
+  return JSON.parse(readFileSync(new URL(`./test-fixtures/saves/dense-local-save-v2-game-state-v${GAME_STATE_VERSION}.json`, import.meta.url))).payload.gameState;
 }
 
 test("batched advice preserves admission, trade restrictions and prices at every port", () => {

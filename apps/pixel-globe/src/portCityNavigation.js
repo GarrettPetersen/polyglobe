@@ -54,6 +54,7 @@ const AUTHORITY_NODE_IDS = new Set([
 const INN_NODE_IDS = new Set([
   "caribbean-ginger",
   "chef-quest",
+  "exeter-canal",
   "colonization",
   "conquistador",
   "inn-drink",
