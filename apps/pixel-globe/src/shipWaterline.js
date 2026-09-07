@@ -45,6 +45,20 @@ export function floatingShipSubmergedPixelKeysForDimensions(
   frameHeight,
   maxRasterDepth = SHIP_MAX_RASTER_WATERLINE_DEPTH
 ) {
+  if (!Number.isInteger(maxRasterDepth) || maxRasterDepth < SHIP_MIN_RASTER_WATERLINE_DEPTH) {
+    throw new Error(`Floating ship waterline has invalid maximum raster depth: ${maxRasterDepth}`);
+  }
+  const submerged = shipSubmergedSilhouettePixelKeys(pixels, frameWidth, frameHeight);
+  return capSubmergedRasterDepth(
+    removeUnsupportedSubmergedColumns(submerged, frameWidth, frameHeight),
+    frameWidth,
+    maxRasterDepth
+  );
+}
+
+// Detailed dockside rasters retain their geometric draft. Tiny overworld sprites
+// apply readability limits separately; a five-pixel cap would expose a large rudder.
+export function shipSubmergedSilhouettePixelKeys(pixels, frameWidth, frameHeight) {
   if (!Array.isArray(pixels) || pixels.length === 0) {
     throw new Error("Floating ship waterline requires opaque sprite pixels");
   }
@@ -52,9 +66,6 @@ export function floatingShipSubmergedPixelKeysForDimensions(
     if (!Number.isInteger(value) || value <= 0) {
       throw new Error(`Floating ship waterline has invalid frame ${label}: ${value}`);
     }
-  }
-  if (!Number.isInteger(maxRasterDepth) || maxRasterDepth < SHIP_MIN_RASTER_WATERLINE_DEPTH) {
-    throw new Error(`Floating ship waterline has invalid maximum raster depth: ${maxRasterDepth}`);
   }
 
   const pixelKinds = new Uint8Array(frameWidth * frameHeight);
@@ -87,11 +98,7 @@ export function floatingShipSubmergedPixelKeysForDimensions(
       rawSubmerged.add(key);
     }
   }
-  return capSubmergedRasterDepth(
-    removeUnsupportedSubmergedColumns(rawSubmerged, frameWidth, frameHeight),
-    frameWidth,
-    maxRasterDepth
-  );
+  return rawSubmerged;
 }
 
 function capSubmergedRasterDepth(submerged, frameWidth, maxRasterDepth) {

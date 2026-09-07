@@ -113,7 +113,7 @@
           "width": 85,
           "height": 120
         },
-        "opaquePixels": 3051,
+        "opaquePixels": 3291,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -141,12 +141,12 @@
           "x": 515,
           "y": 425
         },
-        "foregroundOpaquePixels": 1982,
-        "sinkHeightMin": -0.312209,
-        "sinkHeightMax": 0.337177,
-        "encodedWaterlineY": -0.307095,
+        "foregroundOpaquePixels": 2186,
+        "sinkHeightMin": -0.316243,
+        "sinkHeightMax": 0.336413,
+        "encodedWaterlineY": -0.311104,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 13,
+        "submergedPixels": 16,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -160,10 +160,20 @@
           "recoloredRegions": 121,
           "recoloredPixels": 327
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/fishing-lugger.png",
+          "geometrySha256": "d9be24c56a2549bbf16413e885eb25f78942594395c6edbbf62e29bb01c3d5fa",
+          "imageSha256": "51fa06a95510101fb6c176ed96b659545722f11d05b1b0b769606f9d06eb2d31",
+          "maximumDistancePx": 8,
+          "opaquePixels": 3291,
+          "extendedPixels": 673,
+          "maximumUsedDistancePx": 8
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 0,
         "selectorType": "topology-components",
         "removedRigSelectorType": null,
         "bundleMode": "remove",
@@ -261,7 +271,7 @@
           "width": 164,
           "height": 219
         },
-        "opaquePixels": 10355,
+        "opaquePixels": 10148,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -289,12 +299,12 @@
           "x": 560,
           "y": 396
         },
-        "foregroundOpaquePixels": 7116,
-        "sinkHeightMin": -0.451731,
+        "foregroundOpaquePixels": 6914,
+        "sinkHeightMin": -0.452525,
         "sinkHeightMax": 0.495502,
-        "encodedWaterlineY": -0.444272,
+        "encodedWaterlineY": -0.445061,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 36,
+        "submergedPixels": 55,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -308,7 +318,16 @@
           "recoloredRegions": 82,
           "recoloredPixels": 463
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/small-cog.png",
+          "geometrySha256": "ef1d1f63aa0c11614af6d7137539d7cdeda5513a275def3495c65589f45b9bf7",
+          "imageSha256": "a57c0052efd98117c49fed9069fcb4c48b1cfff783dddb2f071a80bd0231ba2d",
+          "maximumDistancePx": 2,
+          "opaquePixels": 10148,
+          "extendedPixels": 109,
+          "maximumUsedDistancePx": 2
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -409,7 +428,7 @@
           "width": 160,
           "height": 242
         },
-        "opaquePixels": 12611,
+        "opaquePixels": 12907,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -437,12 +456,12 @@
           "x": 561,
           "y": 371
         },
-        "foregroundOpaquePixels": 10693,
-        "sinkHeightMin": -0.586299,
+        "foregroundOpaquePixels": 10942,
+        "sinkHeightMin": -0.591037,
         "sinkHeightMax": 0.588952,
         "encodedWaterlineY": -0.484014,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 83,
+        "submergedPixels": 500,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -456,7 +475,16 @@
           "recoloredRegions": 158,
           "recoloredPixels": 641
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/holk.png",
+          "geometrySha256": "87385864f7717e5a110399b1aa787b7337891d08528f7c41be7f30c858ac05d0",
+          "imageSha256": "18a58c5200cadf7d9264a9e74cfa2f1c5aad591c09769dc71a6caf48b59304c4",
+          "maximumDistancePx": 4,
+          "opaquePixels": 12907,
+          "extendedPixels": 865,
+          "maximumUsedDistancePx": 3.1622776601683795
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -557,7 +585,7 @@
           "width": 63,
           "height": 153
         },
-        "opaquePixels": 3848,
+        "opaquePixels": 3402,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -585,12 +613,12 @@
           "x": 520,
           "y": 398
         },
-        "foregroundOpaquePixels": 3098,
+        "foregroundOpaquePixels": 2771,
         "sinkHeightMin": -0.405005,
         "sinkHeightMax": 0.41236,
         "encodedWaterlineY": -0.318249,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 120,
+        "submergedPixels": 201,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -604,7 +632,16 @@
           "recoloredRegions": 640,
           "recoloredPixels": 1522
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/dhow.png",
+          "geometrySha256": "9a3192b1dba9833a9e31c0d31b2728bef55fffac9d42c979be1457abf15a66c5",
+          "imageSha256": "20d73a2b2c1c01efa03bd9c4aa7d80784583275aaadfdd764cb92250a60117aa",
+          "maximumDistancePx": 2,
+          "opaquePixels": 3402,
+          "extendedPixels": 118,
+          "maximumUsedDistancePx": 2
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -705,7 +742,7 @@
           "width": 148,
           "height": 360
         },
-        "opaquePixels": 16411,
+        "opaquePixels": 16334,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -733,12 +770,12 @@
           "x": 560,
           "y": 351
         },
-        "foregroundOpaquePixels": 13331,
+        "foregroundOpaquePixels": 13273,
         "sinkHeightMin": -0.943261,
-        "sinkHeightMax": 0.946952,
+        "sinkHeightMax": 0.944629,
         "encodedWaterlineY": -0.838672,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 96,
+        "submergedPixels": 677,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -755,6 +792,15 @@
         "creaseShading": {
           "shadeScale": 0.68,
           "shadedPixels": 1094
+        },
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/ocean-dhow.png",
+          "geometrySha256": "b386b9289486ea9d0b101be810e05cd533166d1429626d835f0395f872fe99d5",
+          "imageSha256": "f914506234610c739fc5e3c3bf85f2e7b8f1cc8d893906c09f1fd7d03a778381",
+          "maximumDistancePx": 10,
+          "opaquePixels": 16334,
+          "extendedPixels": 2029,
+          "maximumUsedDistancePx": 10
         }
       },
       "dockRig": {
@@ -856,7 +902,7 @@
           "width": 81,
           "height": 206
         },
-        "opaquePixels": 4595,
+        "opaquePixels": 4670,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -884,12 +930,12 @@
           "x": 519,
           "y": 404
         },
-        "foregroundOpaquePixels": 3374,
+        "foregroundOpaquePixels": 3278,
         "sinkHeightMin": -0.454482,
         "sinkHeightMax": 0.470219,
         "encodedWaterlineY": -0.415201,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 16,
+        "submergedPixels": 124,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -903,7 +949,16 @@
           "recoloredRegions": 105,
           "recoloredPixels": 406
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/sampan.png",
+          "geometrySha256": "f8c7e23196388685506fbe441e58adcf11e9594d49d41e3d75addcdab2699350",
+          "imageSha256": "4383cee9b9fbf6f6e3e68eae6fbc1c8236d45a4d63dfa9448ad569854369cd48",
+          "maximumDistancePx": 8,
+          "opaquePixels": 4670,
+          "extendedPixels": 430,
+          "maximumUsedDistancePx": 8
+        }
       },
       "dockRig": {
         "state": "lowered",
@@ -1004,7 +1059,7 @@
           "width": 147,
           "height": 333
         },
-        "opaquePixels": 15722,
+        "opaquePixels": 16233,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -1032,12 +1087,12 @@
           "x": 548,
           "y": 343
         },
-        "foregroundOpaquePixels": 10748,
-        "sinkHeightMin": -0.732267,
+        "foregroundOpaquePixels": 10975,
+        "sinkHeightMin": -0.731784,
         "sinkHeightMax": 0.729538,
         "encodedWaterlineY": -0.623679,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 275,
+        "submergedPixels": 611,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1051,7 +1106,16 @@
           "recoloredRegions": 222,
           "recoloredPixels": 903
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/large-junk.png",
+          "geometrySha256": "80547d224e7499ff0a7f6c41dfc0045a348969add4c910e669c8d005074ea2da",
+          "imageSha256": "b38bbe6a9a4f682c5d85bc34d64b464a5f2df90dd0554076553061ed009fa8f2",
+          "maximumDistancePx": 9,
+          "opaquePixels": 16233,
+          "extendedPixels": 1072,
+          "maximumUsedDistancePx": 8.06225774829855
+        }
       },
       "dockRig": {
         "state": "lowered",
@@ -1152,7 +1216,7 @@
           "width": 140,
           "height": 321
         },
-        "opaquePixels": 16695,
+        "opaquePixels": 16731,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -1180,12 +1244,12 @@
           "x": 553,
           "y": 335
         },
-        "foregroundOpaquePixels": 12519,
-        "sinkHeightMin": -0.795431,
-        "sinkHeightMax": 0.793898,
+        "foregroundOpaquePixels": 12577,
+        "sinkHeightMin": -0.800173,
+        "sinkHeightMax": 0.795715,
         "encodedWaterlineY": -0.677732,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 458,
+        "submergedPixels": 972,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1199,7 +1263,16 @@
           "recoloredRegions": 280,
           "recoloredPixels": 938
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/javanese-jong.png",
+          "geometrySha256": "6cf085c9baa33dfaa701e51f1bb496bb1821b8ec5735c3e8cc2b179ceb44fc27",
+          "imageSha256": "ac416d881d7bb66b85bbeae16054054adc7b73b48321f747c0cd7293c6f29865",
+          "maximumDistancePx": 5,
+          "opaquePixels": 16731,
+          "extendedPixels": 1359,
+          "maximumUsedDistancePx": 4.47213595499958
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1300,7 +1373,7 @@
           "width": 201,
           "height": 356
         },
-        "opaquePixels": 23991,
+        "opaquePixels": 24010,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -1328,12 +1401,12 @@
           "x": 581,
           "y": 365
         },
-        "foregroundOpaquePixels": 19637,
-        "sinkHeightMin": -0.826204,
+        "foregroundOpaquePixels": 19639,
+        "sinkHeightMin": -0.829112,
         "sinkHeightMax": 0.86279,
         "encodedWaterlineY": -0.764601,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 83,
+        "submergedPixels": 533,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1347,7 +1420,16 @@
           "recoloredRegions": 302,
           "recoloredPixels": 1348
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/pirate-brig.png",
+          "geometrySha256": "4449468f14f0ce6ab6c6bcd31dbd1afb8d875b1e4dc5c94793a2aae0501a1bf6",
+          "imageSha256": "ff9443b1dd3c40f0a4a3a116ecd7c77ec03743150810f46aeb2078e36b83ae94",
+          "maximumDistancePx": 23,
+          "opaquePixels": 24010,
+          "extendedPixels": 1094,
+          "maximumUsedDistancePx": 23
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1407,48 +1489,48 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 368,
-              "minY": 312,
+              "minX": 370,
+              "minY": 301,
               "width": 182,
-              "height": 152
+              "height": 151
             },
-            "opaquePixels": 9388,
+            "opaquePixels": 9373,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.712029
+            "shadowWaterlineY": -0.645494
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 368,
-              "minY": 313,
-              "width": 182,
+              "minX": 371,
+              "minY": 301,
+              "width": 181,
               "height": 151
             },
-            "opaquePixels": 9369,
+            "opaquePixels": 9388,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.706667
+            "shadowWaterlineY": -0.640131
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/galleon-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 369,
-              "minY": 313,
+              "minX": 371,
+              "minY": 301,
               "width": 181,
               "height": 151
             },
-            "opaquePixels": 9403,
+            "opaquePixels": 9390,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.701304
+            "shadowWaterlineY": -0.634769
           }
         },
         "waterShadowModelHeightPerPixel": 0.00536262,
         "opaqueBounds": {
-          "minX": 391,
-          "minY": 125,
-          "width": 177,
-          "height": 340
+          "minX": 390,
+          "minY": 124,
+          "width": 180,
+          "height": 343
         },
-        "opaquePixels": 21902,
+        "opaquePixels": 26063,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -1476,12 +1558,12 @@
           "x": 594,
           "y": 326
         },
-        "foregroundOpaquePixels": 18594,
-        "sinkHeightMin": -0.772314,
-        "sinkHeightMax": 0.773106,
-        "encodedWaterlineY": -0.706667,
+        "foregroundOpaquePixels": 22078,
+        "sinkHeightMin": -0.777603,
+        "sinkHeightMax": 0.768631,
+        "encodedWaterlineY": -0.640131,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 227,
+        "submergedPixels": 883,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1495,7 +1577,16 @@
           "recoloredRegions": 1672,
           "recoloredPixels": 5816
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/galleon.png",
+          "geometrySha256": "bd87b817be59641249c3c94210e9eaf6b64386f73fc845fb7f7e2ecf03861220",
+          "imageSha256": "315cb216cbe6a22d45f3ac8b60e17f8912ab446fa1323b346c360f3f70cadb3e",
+          "maximumDistancePx": 10,
+          "opaquePixels": 26063,
+          "extendedPixels": 8207,
+          "maximumUsedDistancePx": 10
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1596,7 +1687,7 @@
           "width": 163,
           "height": 311
         },
-        "opaquePixels": 19986,
+        "opaquePixels": 19107,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -1624,12 +1715,12 @@
           "x": 585,
           "y": 335
         },
-        "foregroundOpaquePixels": 16966,
-        "sinkHeightMin": -0.696805,
+        "foregroundOpaquePixels": 16224,
+        "sinkHeightMin": -0.700901,
         "sinkHeightMax": 0.726114,
         "encodedWaterlineY": -0.653657,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 43,
+        "submergedPixels": 417,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1643,7 +1734,16 @@
           "recoloredRegions": 681,
           "recoloredPixels": 2542
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/fluyt.png",
+          "geometrySha256": "38eee494e7d5c9b00d252f85f39c69abe2602fec827fb8d79782ac762b5d3524",
+          "imageSha256": "a0dc57e10fabb84e231843565b1d5e89ed6855893341e1851d5efbc3f7ae7891",
+          "maximumDistancePx": 4,
+          "opaquePixels": 19107,
+          "extendedPixels": 419,
+          "maximumUsedDistancePx": 4
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1744,7 +1844,7 @@
           "width": 173,
           "height": 333
         },
-        "opaquePixels": 20996,
+        "opaquePixels": 20895,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -1772,12 +1872,12 @@
           "x": 559,
           "y": 335
         },
-        "foregroundOpaquePixels": 17842,
+        "foregroundOpaquePixels": 17755,
         "sinkHeightMin": -0.737561,
         "sinkHeightMax": 0.743865,
         "encodedWaterlineY": -0.646269,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 62,
+        "submergedPixels": 720,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1791,7 +1891,16 @@
           "recoloredRegions": 832,
           "recoloredPixels": 3336
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/carrack.png",
+          "geometrySha256": "98f54eaf9e4068e2412c24d4472efa48deba13df3135522ca05362586ae05391",
+          "imageSha256": "beee5bf8ad2414760c16b9c489669633de287e568013f4d517b053ddde497f99",
+          "maximumDistancePx": 3,
+          "opaquePixels": 20895,
+          "extendedPixels": 1509,
+          "maximumUsedDistancePx": 2.8284271247461903
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -1892,7 +2001,7 @@
           "width": 164,
           "height": 328
         },
-        "opaquePixels": 20580,
+        "opaquePixels": 18089,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -1920,12 +2029,12 @@
           "x": 575,
           "y": 341
         },
-        "foregroundOpaquePixels": 17385,
-        "sinkHeightMin": -0.727852,
+        "foregroundOpaquePixels": 15358,
+        "sinkHeightMin": -0.717782,
         "sinkHeightMax": 0.734483,
         "encodedWaterlineY": -0.650282,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 93,
+        "submergedPixels": 926,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -1939,7 +2048,16 @@
           "recoloredRegions": 609,
           "recoloredPixels": 2257
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/ship-of-the-line.png",
+          "geometrySha256": "b6e8f87b0bb9ec5ff02e824f9790d77671e4fa92a2b3bb79629a7423bcd25f6c",
+          "imageSha256": "45261abc80135f731e6e931e9ee4abe6859a6c6e11082c61827a6aa9242bb126",
+          "maximumDistancePx": 7,
+          "opaquePixels": 18089,
+          "extendedPixels": 2050,
+          "maximumUsedDistancePx": 7
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2040,7 +2158,7 @@
           "width": 130,
           "height": 325
         },
-        "opaquePixels": 15367,
+        "opaquePixels": 15850,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -2068,12 +2186,12 @@
           "x": 543,
           "y": 349
         },
-        "foregroundOpaquePixels": 10837,
-        "sinkHeightMin": -0.725824,
+        "foregroundOpaquePixels": 11134,
+        "sinkHeightMin": -0.717316,
         "sinkHeightMax": 0.736427,
         "encodedWaterlineY": -0.618396,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 70,
+        "submergedPixels": 1005,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2087,7 +2205,16 @@
           "recoloredRegions": 229,
           "recoloredPixels": 932
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/medium-junk.png",
+          "geometrySha256": "8cf2c151a1ff3a120c1859a8f9fcaf0b7888733acd47ad610279863fc6ca9b00",
+          "imageSha256": "fa1b5611fc38de56ac1d7a58e5e14a82cb7e1b40242d65a7f854979d17d9fc09",
+          "maximumDistancePx": 15,
+          "opaquePixels": 15850,
+          "extendedPixels": 1123,
+          "maximumUsedDistancePx": 15
+        }
       },
       "dockRig": {
         "state": "lowered",
@@ -2188,7 +2315,7 @@
           "width": 147,
           "height": 308
         },
-        "opaquePixels": 15257,
+        "opaquePixels": 14804,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -2216,12 +2343,12 @@
           "x": 562,
           "y": 342
         },
-        "foregroundOpaquePixels": 12936,
+        "foregroundOpaquePixels": 12579,
         "sinkHeightMin": -0.779239,
         "sinkHeightMax": 0.783992,
         "encodedWaterlineY": -0.70696,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 76,
+        "submergedPixels": 486,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2235,7 +2362,16 @@
           "recoloredRegions": 519,
           "recoloredPixels": 1980
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/xebec.png",
+          "geometrySha256": "c4f2b5110e053e7a5dc76db05e3eaf1ef7825e392138514269b94460c43e214e",
+          "imageSha256": "37a7e55e35270832a7bc7c4517efc0de0a43facbf48bb68d35b43ff45369c55e",
+          "maximumDistancePx": 2,
+          "opaquePixels": 14804,
+          "extendedPixels": 242,
+          "maximumUsedDistancePx": 1.4142135623730951
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2336,7 +2472,7 @@
           "width": 141,
           "height": 332
         },
-        "opaquePixels": 13091,
+        "opaquePixels": 12644,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -2364,12 +2500,12 @@
           "x": 553,
           "y": 349
         },
-        "foregroundOpaquePixels": 11123,
-        "sinkHeightMin": -0.742576,
-        "sinkHeightMax": 0.746937,
+        "foregroundOpaquePixels": 10732,
+        "sinkHeightMin": -0.719241,
+        "sinkHeightMax": 0.746107,
         "encodedWaterlineY": -0.670802,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 42,
+        "submergedPixels": 129,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2383,10 +2519,20 @@
           "recoloredRegions": 392,
           "recoloredPixels": 1443
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/caravel.png",
+          "geometrySha256": "a893a8e3d70d7478cbc512f4ea14802fc23c4d07ee291c616f0abb95a684dda2",
+          "imageSha256": "953750c54392b79f53ab6f0b682cbaf75c99481641ee821cc8d4c68aa2b57e04",
+          "maximumDistancePx": 16,
+          "opaquePixels": 12644,
+          "extendedPixels": 1504,
+          "maximumUsedDistancePx": 16
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 0,
         "selectorType": "topology-components",
         "removedRigSelectorType": null,
         "bundleMode": "remove",
@@ -2484,7 +2630,7 @@
           "width": 219,
           "height": 332
         },
-        "opaquePixels": 19464,
+        "opaquePixels": 19387,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -2512,12 +2658,12 @@
           "x": 591,
           "y": 363
         },
-        "foregroundOpaquePixels": 15802,
+        "foregroundOpaquePixels": 15742,
         "sinkHeightMin": -0.815303,
         "sinkHeightMax": 0.821553,
         "encodedWaterlineY": -0.688605,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 77,
+        "submergedPixels": 640,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2531,7 +2677,16 @@
           "recoloredRegions": 134,
           "recoloredPixels": 525
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/square-rigged-caravel.png",
+          "geometrySha256": "6cacc7ba7562dbd4f72cc50263b39f8556d09281340e5ba340549258b66e2a36",
+          "imageSha256": "07f813c9fe7b047929b021f95b91eb102cf0b4c925dafc28e9f6437338b5392d",
+          "maximumDistancePx": 2,
+          "opaquePixels": 19387,
+          "extendedPixels": 277,
+          "maximumUsedDistancePx": 2
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2632,7 +2787,7 @@
           "width": 200,
           "height": 315
         },
-        "opaquePixels": 21156,
+        "opaquePixels": 21134,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -2660,12 +2815,12 @@
           "x": 597,
           "y": 352
         },
-        "foregroundOpaquePixels": 17945,
+        "foregroundOpaquePixels": 17894,
         "sinkHeightMin": -0.745605,
         "sinkHeightMax": 0.742137,
         "encodedWaterlineY": -0.682448,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 60,
+        "submergedPixels": 489,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2679,7 +2834,16 @@
           "recoloredRegions": 525,
           "recoloredPixels": 1956
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/brigantine.png",
+          "geometrySha256": "d7e96ed94f48772962392a58a77eca2ad9449b813a28f45e5dcf51510496981c",
+          "imageSha256": "85b16df496bcd42276d7e7774d3373231987ca01ef72972876a9df725d0bc8c7",
+          "maximumDistancePx": 3,
+          "opaquePixels": 21134,
+          "extendedPixels": 692,
+          "maximumUsedDistancePx": 3
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -2780,7 +2944,7 @@
           "width": 120,
           "height": 278
         },
-        "opaquePixels": 10881,
+        "opaquePixels": 11218,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -2808,12 +2972,12 @@
           "x": 537,
           "y": 372
         },
-        "foregroundOpaquePixels": 7041,
-        "sinkHeightMin": -0.660807,
+        "foregroundOpaquePixels": 7220,
+        "sinkHeightMin": -0.666579,
         "sinkHeightMax": 0.660196,
         "encodedWaterlineY": -0.614414,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 79,
+        "submergedPixels": 192,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2827,7 +2991,16 @@
           "recoloredRegions": 130,
           "recoloredPixels": 519
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/small-junk.png",
+          "geometrySha256": "3f43719863255023ff3d4562399ece50b6b62714db464a49817b43d8ac585975",
+          "imageSha256": "228c26a61f74d6bbbc963a372a0549d52d184351c7982950ac4e421034c4b76e",
+          "maximumDistancePx": 6,
+          "opaquePixels": 11218,
+          "extendedPixels": 698,
+          "maximumUsedDistancePx": 5.656854249492381
+        }
       },
       "dockRig": {
         "state": "lowered",
@@ -2928,7 +3101,7 @@
           "width": 81,
           "height": 192
         },
-        "opaquePixels": 4758,
+        "opaquePixels": 4589,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -2956,12 +3129,12 @@
           "x": 518,
           "y": 399
         },
-        "foregroundOpaquePixels": 3613,
+        "foregroundOpaquePixels": 3458,
         "sinkHeightMin": -0.453076,
         "sinkHeightMax": 0.452251,
         "encodedWaterlineY": -0.35557,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 50,
+        "submergedPixels": 521,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -2975,10 +3148,20 @@
           "recoloredRegions": 55,
           "recoloredPixels": 173
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/felucca.png",
+          "geometrySha256": "0b2a39e907a8bd0e5437e4091fc91357fd6da362bd5a9dd8cfe35cf1eb666df2",
+          "imageSha256": "624eebb267c073da3d71d2044aed73ff5566b8846a6df901244ffd8c495a11b6",
+          "maximumDistancePx": 1,
+          "opaquePixels": 4589,
+          "extendedPixels": 15,
+          "maximumUsedDistancePx": 1
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 0,
         "selectorType": "topology-components",
         "removedRigSelectorType": "topology-components",
         "bundleMode": "remove",
@@ -3076,7 +3259,7 @@
           "width": 91,
           "height": 206
         },
-        "opaquePixels": 5084,
+        "opaquePixels": 5119,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3104,12 +3287,12 @@
           "x": 530,
           "y": 388
         },
-        "foregroundOpaquePixels": 4315,
-        "sinkHeightMin": -0.475093,
+        "foregroundOpaquePixels": 4345,
+        "sinkHeightMin": -0.474711,
         "sinkHeightMax": 0.485845,
         "encodedWaterlineY": -0.444663,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 9,
+        "submergedPixels": 130,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3123,10 +3306,20 @@
           "recoloredRegions": 106,
           "recoloredPixels": 440
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/cutter.png",
+          "geometrySha256": "e9a9448f4a0c4712cabdd3b7762c3175d7b695a0eb6a2b1dfd6670710849b620",
+          "imageSha256": "29f7c359b1a3f0b0ab3cd978c737dc1a111819d69bf89a4ef0894ee5f3ad951c",
+          "maximumDistancePx": 5,
+          "opaquePixels": 5119,
+          "extendedPixels": 176,
+          "maximumUsedDistancePx": 4.123105625617661
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 0,
         "selectorType": "topology-components",
         "removedRigSelectorType": "topology-components",
         "bundleMode": "remove",
@@ -3224,7 +3417,7 @@
           "width": 120,
           "height": 254
         },
-        "opaquePixels": 9530,
+        "opaquePixels": 9234,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3252,12 +3445,12 @@
           "x": 537,
           "y": 348
         },
-        "foregroundOpaquePixels": 8098,
+        "foregroundOpaquePixels": 7843,
         "sinkHeightMin": -0.590832,
         "sinkHeightMax": 0.590294,
         "encodedWaterlineY": -0.521733,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 128,
+        "submergedPixels": 291,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3271,7 +3464,16 @@
           "recoloredRegions": 341,
           "recoloredPixels": 1186
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/ketch.png",
+          "geometrySha256": "7b1ad7d48fce560be3bd9b16c83922f4e3ae8973d5cef170f441200d0ff86820",
+          "imageSha256": "d5e28f095b7a936b14767cb1e5f2424f0c74fdbec668bef172576a700c2f787a",
+          "maximumDistancePx": 5,
+          "opaquePixels": 9234,
+          "extendedPixels": 285,
+          "maximumUsedDistancePx": 5
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -3372,7 +3574,7 @@
           "width": 151,
           "height": 271
         },
-        "opaquePixels": 12633,
+        "opaquePixels": 12948,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3400,12 +3602,12 @@
           "x": 550,
           "y": 332
         },
-        "foregroundOpaquePixels": 9616,
-        "sinkHeightMin": -0.590197,
-        "sinkHeightMax": 0.59164,
+        "foregroundOpaquePixels": 10280,
+        "sinkHeightMin": -0.608894,
+        "sinkHeightMax": 0.563529,
         "encodedWaterlineY": -0.495666,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 151,
+        "submergedPixels": 968,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3422,6 +3624,15 @@
         "creaseShading": {
           "shadeScale": 0.68,
           "shadedPixels": 3081
+        },
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/mediterranean-galley.png",
+          "geometrySha256": "5dc7efb5b1f5bf58e0a0285e7a9ebd181fb4856517ebc16da6a99032a237d8b4",
+          "imageSha256": "49a9a6a8d5c5d761e01c71d749c069496dde6ac8d2bbeadd4a0b09632c64b036",
+          "maximumDistancePx": 12,
+          "opaquePixels": 12948,
+          "extendedPixels": 2780,
+          "maximumUsedDistancePx": 11.704699910719626
         }
       },
       "dockRig": {
@@ -3526,7 +3737,7 @@
           "width": 181,
           "height": 325
         },
-        "opaquePixels": 18564,
+        "opaquePixels": 19037,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3554,12 +3765,12 @@
           "x": 563,
           "y": 306
         },
-        "foregroundOpaquePixels": 14375,
-        "sinkHeightMin": -0.706079,
-        "sinkHeightMax": 0.70725,
+        "foregroundOpaquePixels": 14640,
+        "sinkHeightMin": -0.706419,
+        "sinkHeightMax": 0.716734,
         "encodedWaterlineY": -0.594452,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 207,
+        "submergedPixels": 666,
         "rasterCleanup": {
           "minimumComponentPixels": 12,
           "removedComponents": 6,
@@ -3576,6 +3787,15 @@
         "creaseShading": {
           "shadeScale": 0.68,
           "shadedPixels": 4671
+        },
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/galleass.png",
+          "geometrySha256": "a928a9f4f2d9b0c33a20c7a826953fa6cef9a873efbdd6b15b40c8b5e1b4ddd1",
+          "imageSha256": "5813bca1f6d78f44c1aef8956e7c5002b73f2624c215cb16836f4c45e2b44071",
+          "maximumDistancePx": 5,
+          "opaquePixels": 19037,
+          "extendedPixels": 1063,
+          "maximumUsedDistancePx": 4.242640687119285
         }
       },
       "dockRig": {
@@ -3680,7 +3900,7 @@
           "width": 120,
           "height": 215
         },
-        "opaquePixels": 7629,
+        "opaquePixels": 7441,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3708,12 +3928,12 @@
           "x": 536,
           "y": 343
         },
-        "foregroundOpaquePixels": 5685,
-        "sinkHeightMin": -0.470111,
-        "sinkHeightMax": 0.465776,
+        "foregroundOpaquePixels": 5500,
+        "sinkHeightMin": -0.474845,
+        "sinkHeightMax": 0.455886,
         "encodedWaterlineY": -0.308837,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 3472,
+        "submergedPixels": 4548,
         "rasterCleanup": {
           "minimumComponentPixels": 12,
           "removedComponents": 11,
@@ -3730,6 +3950,15 @@
         "creaseShading": {
           "shadeScale": 0.68,
           "shadedPixels": 1824
+        },
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/fusta.png",
+          "geometrySha256": "e36a1f972665f1d4e28970372396216633d728bb5667a484484a6099d6940da3",
+          "imageSha256": "1e84d47401e4bac8adeee52728e07d31dae1fc7a8b95c716a6e12de4838f1ef1",
+          "maximumDistancePx": 5,
+          "opaquePixels": 7441,
+          "extendedPixels": 588,
+          "maximumUsedDistancePx": 4.123105625617661
         }
       },
       "dockRig": {
@@ -3798,7 +4027,7 @@
               "width": 253,
               "height": 125
             },
-            "opaquePixels": 17711,
+            "opaquePixels": 17713,
             "clippedProjectedPixels": 817,
             "shadowWaterlineY": -0.709547
           },
@@ -3810,7 +4039,7 @@
               "width": 253,
               "height": 125
             },
-            "opaquePixels": 17716,
+            "opaquePixels": 17718,
             "clippedProjectedPixels": 817,
             "shadowWaterlineY": -0.70418
           },
@@ -3822,7 +4051,7 @@
               "width": 253,
               "height": 125
             },
-            "opaquePixels": 17708,
+            "opaquePixels": 17710,
             "clippedProjectedPixels": 823,
             "shadowWaterlineY": -0.698812
           }
@@ -3834,7 +4063,7 @@
           "width": 252,
           "height": 304
         },
-        "opaquePixels": 32447,
+        "opaquePixels": 32938,
         "berthFraction": 0.9,
         "deckPolygon": [
           {
@@ -3862,12 +4091,12 @@
           "x": 572,
           "y": 368
         },
-        "foregroundOpaquePixels": 25935,
-        "sinkHeightMin": -0.737841,
+        "foregroundOpaquePixels": 26292,
+        "sinkHeightMin": -0.681424,
         "sinkHeightMax": 0.738744,
-        "encodedWaterlineY": -0.70418,
+        "encodedWaterlineY": -0.670242,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 25,
+        "submergedPixels": 239,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -3878,18 +4107,28 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 2327,
-          "recoloredPixels": 6403
+          "recoloredRegions": 2395,
+          "recoloredPixels": 6674
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/joseon-turtle-ship.png",
+          "geometrySha256": "4de562d0690b6e435d4487bf5365dafd3fc6667e7b3cae74af36db803b116594",
+          "imageSha256": "589bfb5d23a755b3eec12040e6f6aed2af0f1f9c4e036638929ff3eb238ef941",
+          "maximumDistancePx": 6,
+          "opaquePixels": 32938,
+          "extendedPixels": 1503,
+          "maximumUsedDistancePx": 6
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 72,
         "selectorType": "source-materials",
         "removedRigSelectorType": "source-meshes",
         "bundleMode": "remove",
         "removedOpenSailTriangles": 204,
-        "removedDeployedRigTriangles": 6472,
+        "removedDeployedRigTriangles": 6400,
         "sourceSailComponents": 2,
         "furledBundles": 0,
         "generatedFurledTriangles": 0,
@@ -3909,7 +4148,7 @@
           "y": 114
         },
         {
-          "x": 145,
+          "x": 144,
           "y": 132
         },
         {
@@ -3917,7 +4156,7 @@
           "y": 133
         },
         {
-          "x": 173,
+          "x": 174,
           "y": 115
         }
       ],
@@ -3926,7 +4165,7 @@
         "y": 116
       },
       "sailorSpawnAnchor": {
-        "x": 181,
+        "x": 182,
         "y": 116
       },
       "cityDockside": {
@@ -3946,7 +4185,7 @@
               "width": 163,
               "height": 118
             },
-            "opaquePixels": 9788,
+            "opaquePixels": 9815,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.612749
           },
@@ -3958,7 +4197,7 @@
               "width": 163,
               "height": 118
             },
-            "opaquePixels": 9789,
+            "opaquePixels": 9816,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.607386
           },
@@ -3970,7 +4209,7 @@
               "width": 163,
               "height": 118
             },
-            "opaquePixels": 9781,
+            "opaquePixels": 9808,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.602023
           }
@@ -3982,15 +4221,15 @@
           "width": 164,
           "height": 336
         },
-        "opaquePixels": 16940,
+        "opaquePixels": 17826,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
-            "x": 483,
+            "x": 482,
             "y": 342
           },
           {
-            "x": 434,
+            "x": 433,
             "y": 395
           },
           {
@@ -3998,7 +4237,7 @@
             "y": 399
           },
           {
-            "x": 520,
+            "x": 521,
             "y": 346
           }
         ],
@@ -4007,15 +4246,15 @@
           "y": 347
         },
         "sailorSpawnAnchor": {
-          "x": 544,
+          "x": 546,
           "y": 349
         },
-        "foregroundOpaquePixels": 13304,
-        "sinkHeightMin": -0.679582,
+        "foregroundOpaquePixels": 14318,
+        "sinkHeightMin": -0.680229,
         "sinkHeightMax": 0.682044,
         "encodedWaterlineY": -0.607386,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 267,
+        "submergedPixels": 636,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4026,18 +4265,28 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 53,
-          "recoloredPixels": 241
+          "recoloredRegions": 61,
+          "recoloredPixels": 267
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/joseon-hyeopseon.png",
+          "geometrySha256": "4dfb2e26777ba3412b5e7b4f6bb1d3557240e206633b81bd81773d635a8f29bc",
+          "imageSha256": "a1a4af94e5d2fc19b8580347494ecda46e092a65e9dfe47afded37bfc4d028c3",
+          "maximumDistancePx": 9,
+          "opaquePixels": 17826,
+          "extendedPixels": 1625,
+          "maximumUsedDistancePx": 8.54400374531753
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 28,
         "selectorType": "source-materials",
         "removedRigSelectorType": "source-meshes",
         "bundleMode": "remove",
         "removedOpenSailTriangles": 684,
-        "removedDeployedRigTriangles": 280,
+        "removedDeployedRigTriangles": 252,
         "sourceSailComponents": 1,
         "furledBundles": 0,
         "generatedFurledTriangles": 0,
@@ -4053,7 +4302,7 @@
       "targetModelMaxDim": 2.1516,
       "deckPolygon": [
         {
-          "x": 162,
+          "x": 161,
           "y": 105
         },
         {
@@ -4070,11 +4319,11 @@
         }
       ],
       "deckEntryAnchor": {
-        "x": 173,
+        "x": 174,
         "y": 107
       },
       "sailorSpawnAnchor": {
-        "x": 187,
+        "x": 188,
         "y": 108
       },
       "cityDockside": {
@@ -4089,36 +4338,36 @@
           "up": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-up.png",
             "opaqueBounds": {
-              "minX": 372,
+              "minX": 362,
               "minY": 313,
-              "width": 205,
+              "width": 215,
               "height": 148
             },
-            "opaquePixels": 15302,
+            "opaquePixels": 15379,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.787675
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-level.png",
             "opaqueBounds": {
-              "minX": 373,
+              "minX": 362,
               "minY": 313,
-              "width": 204,
+              "width": 215,
               "height": 148
             },
-            "opaquePixels": 15301,
+            "opaquePixels": 15377,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.782303
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/joseon-panokseon-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 373,
+              "minX": 362,
               "minY": 313,
-              "width": 204,
+              "width": 215,
               "height": 148
             },
-            "opaquePixels": 15296,
+            "opaquePixels": 15372,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.776932
           }
@@ -4130,40 +4379,40 @@
           "width": 205,
           "height": 420
         },
-        "opaquePixels": 27382,
+        "opaquePixels": 29547,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
-            "x": 485,
+            "x": 483,
             "y": 315
           },
           {
-            "x": 423,
-            "y": 382
+            "x": 422,
+            "y": 381
           },
           {
-            "x": 468,
+            "x": 469,
             "y": 387
           },
           {
-            "x": 530,
+            "x": 531,
             "y": 320
           }
         ],
         "deckEntryAnchor": {
-          "x": 520,
+          "x": 521,
           "y": 322
         },
         "sailorSpawnAnchor": {
-          "x": 561,
+          "x": 563,
           "y": 324
         },
-        "foregroundOpaquePixels": 21715,
-        "sinkHeightMin": -0.851558,
+        "foregroundOpaquePixels": 23649,
+        "sinkHeightMin": -0.870723,
         "sinkHeightMax": 0.853194,
         "encodedWaterlineY": -0.782303,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 329,
+        "submergedPixels": 1390,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4174,18 +4423,28 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 47,
-          "recoloredPixels": 152
+          "recoloredRegions": 65,
+          "recoloredPixels": 285
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/joseon-panokseon.png",
+          "geometrySha256": "bfa9142e8d9d57a1fac8a3537098f29b9bfb54c3f33e554084fca5b05fbd5f7e",
+          "imageSha256": "36e8cf49fee987ea6c02782e8ac825f74e494932559757429ad9fd79c964bc0c",
+          "maximumDistancePx": 10,
+          "opaquePixels": 29547,
+          "extendedPixels": 2717,
+          "maximumUsedDistancePx": 9.486832980505138
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 56,
         "selectorType": "source-materials",
         "removedRigSelectorType": "source-meshes",
         "bundleMode": "remove",
         "removedOpenSailTriangles": 1368,
-        "removedDeployedRigTriangles": 560,
+        "removedDeployedRigTriangles": 504,
         "sourceSailComponents": 2,
         "furledBundles": 0,
         "generatedFurledTriangles": 0,
@@ -4278,7 +4537,7 @@
           "width": 115,
           "height": 175
         },
-        "opaquePixels": 5306,
+        "opaquePixels": 5440,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -4306,12 +4565,12 @@
           "x": 529,
           "y": 369
         },
-        "foregroundOpaquePixels": 3845,
+        "foregroundOpaquePixels": 4016,
         "sinkHeightMin": -0.317921,
         "sinkHeightMax": 0.323876,
         "encodedWaterlineY": -0.268498,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 79,
+        "submergedPixels": 384,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4325,7 +4584,16 @@
           "recoloredRegions": 684,
           "recoloredPixels": 1865
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/japanese-kuribune.png",
+          "geometrySha256": "aeab9146674372cb5b39bc31523fb9d0aae853a121f4eba9d15f53805d4b9eeb",
+          "imageSha256": "7319e5de986ea0b2084cd86a76130eeee5cadd9d24de1cf1529442a8a806302e",
+          "maximumDistancePx": 5,
+          "opaquePixels": 5440,
+          "extendedPixels": 710,
+          "maximumUsedDistancePx": 5
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -4426,7 +4694,7 @@
           "width": 115,
           "height": 168
         },
-        "opaquePixels": 7837,
+        "opaquePixels": 7662,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -4454,12 +4722,12 @@
           "x": 540,
           "y": 368
         },
-        "foregroundOpaquePixels": 6407,
-        "sinkHeightMin": -0.235541,
+        "foregroundOpaquePixels": 6195,
+        "sinkHeightMin": -0.240277,
         "sinkHeightMax": 0.274121,
         "encodedWaterlineY": -0.156335,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 194,
+        "submergedPixels": 406,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4473,7 +4741,16 @@
           "recoloredRegions": 477,
           "recoloredPixels": 1290
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/japanese-kobaya.png",
+          "geometrySha256": "1bc0e44e219c1865929a70ffca91acd694580ccefa9262e15928991460397731",
+          "imageSha256": "4210c4dae82680c3e1ec4d75d65ad40247f40b4d33837300d990e4e129ea06ac",
+          "maximumDistancePx": 3,
+          "opaquePixels": 7662,
+          "extendedPixels": 191,
+          "maximumUsedDistancePx": 3
+        }
       },
       "dockRig": {
         "state": "no-sail",
@@ -4536,9 +4813,9 @@
               "width": 179,
               "height": 126
             },
-            "opaquePixels": 11306,
+            "opaquePixels": 11310,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.453918
+            "shadowWaterlineY": -0.453925
           },
           "level": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-water-shadow-level.png",
@@ -4548,31 +4825,31 @@
               "width": 179,
               "height": 126
             },
-            "opaquePixels": 11310,
+            "opaquePixels": 11304,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.448547
           },
           "down": {
             "file": "apps/pixel-globe/public/assets/vehicles/unity-ships/port-assault/japanese-sekibune-city-dockside-water-shadow-down.png",
             "opaqueBounds": {
-              "minX": 381,
+              "minX": 382,
               "minY": 321,
-              "width": 179,
+              "width": 178,
               "height": 126
             },
-            "opaquePixels": 11304,
+            "opaquePixels": 11301,
             "clippedProjectedPixels": 0,
-            "shadowWaterlineY": -0.443177
+            "shadowWaterlineY": -0.44317
           }
         },
-        "waterShadowModelHeightPerPixel": 0.00537035,
+        "waterShadowModelHeightPerPixel": 0.00537719,
         "opaqueBounds": {
           "minX": 396,
-          "minY": 214,
+          "minY": 213,
           "width": 167,
-          "height": 251
+          "height": 252
         },
-        "opaquePixels": 16927,
+        "opaquePixels": 17544,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -4600,12 +4877,12 @@
           "x": 565,
           "y": 333
         },
-        "foregroundOpaquePixels": 14368,
-        "sinkHeightMin": -0.566904,
-        "sinkHeightMax": 0.568443,
+        "foregroundOpaquePixels": 14864,
+        "sinkHeightMin": -0.575198,
+        "sinkHeightMax": 0.573191,
         "encodedWaterlineY": -0.448547,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 214,
+        "submergedPixels": 357,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4616,18 +4893,28 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 130,
-          "recoloredPixels": 536
+          "recoloredRegions": 125,
+          "recoloredPixels": 495
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/japanese-sekibune.png",
+          "geometrySha256": "39f452ba2ba7d5edb7cd19018f373d154476180c5648fa5a71bdee49768c3bd0",
+          "imageSha256": "c932f90f22ab846389e0560199de6e4d482aaf89e3dea613329871772ea4cdf9",
+          "maximumDistancePx": 8,
+          "opaquePixels": 17544,
+          "extendedPixels": 1099,
+          "maximumUsedDistancePx": 8
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 124,
         "selectorType": "source-meshes",
         "removedRigSelectorType": "source-meshes",
         "bundleMode": "remove",
         "removedOpenSailTriangles": 128,
-        "removedDeployedRigTriangles": 124,
+        "removedDeployedRigTriangles": 0,
         "sourceSailComponents": 1,
         "furledBundles": 0,
         "generatedFurledTriangles": 0,
@@ -4720,7 +5007,7 @@
           "width": 241,
           "height": 345
         },
-        "opaquePixels": 29762,
+        "opaquePixels": 30342,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -4748,12 +5035,12 @@
           "x": 573,
           "y": 322
         },
-        "foregroundOpaquePixels": 25256,
-        "sinkHeightMin": -0.566977,
+        "foregroundOpaquePixels": 25782,
+        "sinkHeightMin": -0.571716,
         "sinkHeightMax": 0.571945,
         "encodedWaterlineY": -0.425962,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 1262,
+        "submergedPixels": 2208,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4767,7 +5054,16 @@
           "recoloredRegions": 475,
           "recoloredPixels": 1509
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/japanese-atakebune.png",
+          "geometrySha256": "a8a397fd449b1637a56bf2e0b99dddb165b7c818477c47135b5e6c32f7d969ce",
+          "imageSha256": "9ee5879de5a685e0664348e00d3935cc23e281a2bc76a6a5266b68dc6461df59",
+          "maximumDistancePx": 7,
+          "opaquePixels": 30342,
+          "extendedPixels": 2406,
+          "maximumUsedDistancePx": 7
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -4868,7 +5164,7 @@
           "width": 172,
           "height": 336
         },
-        "opaquePixels": 23043,
+        "opaquePixels": 21570,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -4896,12 +5192,12 @@
           "x": 565,
           "y": 319
         },
-        "foregroundOpaquePixels": 19527,
-        "sinkHeightMin": -0.763171,
-        "sinkHeightMax": 0.756324,
+        "foregroundOpaquePixels": 18275,
+        "sinkHeightMin": -0.779798,
+        "sinkHeightMax": 0.757102,
         "encodedWaterlineY": -0.605868,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 702,
+        "submergedPixels": 2069,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -4915,7 +5211,16 @@
           "recoloredRegions": 1583,
           "recoloredPixels": 5315
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/spanish-nao.png",
+          "geometrySha256": "69d1014e20b77ae9444ad313b85debc0cf1a354714b9d64a8ffd48cd4e720479",
+          "imageSha256": "872da8829700ad48d2e8335220fc180fdf9757d0ae2d6b3d7708516410ac2eac",
+          "maximumDistancePx": 19,
+          "opaquePixels": 21570,
+          "extendedPixels": 5956,
+          "maximumUsedDistancePx": 18.973665961010276
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -5016,7 +5321,7 @@
           "width": 268,
           "height": 410
         },
-        "opaquePixels": 34890,
+        "opaquePixels": 35591,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -5044,12 +5349,12 @@
           "x": 610,
           "y": 306
         },
-        "foregroundOpaquePixels": 29574,
-        "sinkHeightMin": -0.840941,
-        "sinkHeightMax": 0.838235,
+        "foregroundOpaquePixels": 30197,
+        "sinkHeightMin": -0.845077,
+        "sinkHeightMax": 0.842971,
         "encodedWaterlineY": -0.644179,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 1659,
+        "submergedPixels": 1856,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5063,10 +5368,20 @@
           "recoloredRegions": 2007,
           "recoloredPixels": 6087
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/portuguese-carrack.png",
+          "geometrySha256": "8064a39130e6220557d3f917f64c7fd19e02d1f21ad78eaf6c4309d5e1927d13",
+          "imageSha256": "3c295cc107f670fcaa2a2c336349b9c403cf1758e6b4c817383b7aa93678766e",
+          "maximumDistancePx": 6,
+          "opaquePixels": 35591,
+          "extendedPixels": 4449,
+          "maximumUsedDistancePx": 6
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 0,
         "selectorType": "source-materials",
         "removedRigSelectorType": null,
         "bundleMode": "remove",
@@ -5164,7 +5479,7 @@
           "width": 227,
           "height": 293
         },
-        "opaquePixels": 17232,
+        "opaquePixels": 16930,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -5192,12 +5507,12 @@
           "x": 608,
           "y": 344
         },
-        "foregroundOpaquePixels": 12494,
+        "foregroundOpaquePixels": 12212,
         "sinkHeightMin": -0.672926,
         "sinkHeightMax": 0.673518,
         "encodedWaterlineY": -0.584066,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 68,
+        "submergedPixels": 447,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5211,7 +5526,16 @@
           "recoloredRegions": 157,
           "recoloredPixels": 672
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/viking-longship.png",
+          "geometrySha256": "5c80feedd599435352f430f2598ab5a22171ba74a627740d167c2e0b70ad7ea7",
+          "imageSha256": "8a142ef5532be442450c81e4c342991b959d97a5691e262f65f4a5fce6ef109b",
+          "maximumDistancePx": 2,
+          "opaquePixels": 16930,
+          "extendedPixels": 84,
+          "maximumUsedDistancePx": 2
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -5312,7 +5636,7 @@
           "width": 229,
           "height": 426
         },
-        "opaquePixels": 26981,
+        "opaquePixels": 27916,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -5340,12 +5664,12 @@
           "x": 567,
           "y": 304
         },
-        "foregroundOpaquePixels": 19723,
-        "sinkHeightMin": -0.856545,
+        "foregroundOpaquePixels": 20383,
+        "sinkHeightMin": -0.86312,
         "sinkHeightMax": 0.852187,
         "encodedWaterlineY": -0.707006,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 1330,
+        "submergedPixels": 2670,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5359,7 +5683,16 @@
           "recoloredRegions": 497,
           "recoloredPixels": 1693
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/polynesian-voyaging-canoe.png",
+          "geometrySha256": "2cbe8cf474eb64924aa19bae2e8858abd38f27404c2385677187bfe905637a0c",
+          "imageSha256": "7586e2731e0ea00e76e14d043da4c528e21e39b925bcbe2d33e5eafbef9a0b30",
+          "maximumDistancePx": 6,
+          "opaquePixels": 27916,
+          "extendedPixels": 3743,
+          "maximumUsedDistancePx": 5.385164807134504
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -5460,7 +5793,7 @@
           "width": 118,
           "height": 153
         },
-        "opaquePixels": 8464,
+        "opaquePixels": 8465,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -5488,12 +5821,12 @@
           "x": 552,
           "y": 367
         },
-        "foregroundOpaquePixels": 6278,
+        "foregroundOpaquePixels": 6280,
         "sinkHeightMin": -0.126179,
         "sinkHeightMax": 0.126622,
         "encodedWaterlineY": -0.086187,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 81,
+        "submergedPixels": 280,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5507,7 +5840,16 @@
           "recoloredRegions": 65,
           "recoloredPixels": 167
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/mesoamerican-dugout-canoe.png",
+          "geometrySha256": "2dc324397695e74fa16c1b9377b4e4eb01f6cbeadaaa9951d70ce0c7015c8f90",
+          "imageSha256": "790b12d3c4a1a1319a8374673907adeb82837d54f4c73420b3b9eb2d876790a3",
+          "maximumDistancePx": 1,
+          "opaquePixels": 8465,
+          "extendedPixels": 14,
+          "maximumUsedDistancePx": 1
+        }
       },
       "dockRig": {
         "state": "no-sail",
@@ -5606,7 +5948,7 @@
           "width": 282,
           "height": 293
         },
-        "opaquePixels": 28654,
+        "opaquePixels": 30985,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -5634,12 +5976,12 @@
           "x": 597,
           "y": 374
         },
-        "foregroundOpaquePixels": 21430,
-        "sinkHeightMin": -0.661004,
-        "sinkHeightMax": 0.692208,
+        "foregroundOpaquePixels": 22968,
+        "sinkHeightMin": -0.646364,
+        "sinkHeightMax": 0.694396,
         "encodedWaterlineY": -0.581154,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 733,
+        "submergedPixels": 944,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5653,10 +5995,20 @@
           "recoloredRegions": 135,
           "recoloredPixels": 364
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/nusantaran-outrigger.png",
+          "geometrySha256": "06c04fea99201175a63d27a6897fffebb4291250e8468c410f3ce668080d6773",
+          "imageSha256": "5e5ac8dcd1f16fa8b86e5decd04d05469e4421ce3577dff78f84c5093f7bbd7a",
+          "maximumDistancePx": 17,
+          "opaquePixels": 30985,
+          "extendedPixels": 3910,
+          "maximumUsedDistancePx": 16.278820596099706
+        }
       },
       "dockRig": {
         "state": "stowed",
+        "retainedYardTriangles": 0,
         "selectorType": "source-materials",
         "removedRigSelectorType": "source-materials",
         "bundleMode": "remove",
@@ -5754,7 +6106,7 @@
           "width": 140,
           "height": 271
         },
-        "opaquePixels": 13892,
+        "opaquePixels": 13048,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -5782,12 +6134,12 @@
           "x": 539,
           "y": 347
         },
-        "foregroundOpaquePixels": 11052,
+        "foregroundOpaquePixels": 10059,
         "sinkHeightMin": -0.577683,
-        "sinkHeightMax": 0.596544,
+        "sinkHeightMax": 0.601138,
         "encodedWaterlineY": -0.45548,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 52,
+        "submergedPixels": 758,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5801,7 +6153,16 @@
           "recoloredRegions": 69,
           "recoloredPixels": 233
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/kelulus.png",
+          "geometrySha256": "7c0312181b91fca158c831134e2a80ab420dd36537ced7a70ca2ff38f7e8de75",
+          "imageSha256": "12dc83067bf0d56883ddbba02d937bcca683065d3c463e3b6e7b2b9e587de5ea",
+          "maximumDistancePx": 6,
+          "opaquePixels": 13048,
+          "extendedPixels": 1477,
+          "maximumUsedDistancePx": 5.385164807134504
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -5902,7 +6263,7 @@
           "width": 157,
           "height": 238
         },
-        "opaquePixels": 8052,
+        "opaquePixels": 7897,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -5930,12 +6291,12 @@
           "x": 556,
           "y": 336
         },
-        "foregroundOpaquePixels": 6206,
-        "sinkHeightMin": -0.447802,
+        "foregroundOpaquePixels": 6156,
+        "sinkHeightMin": -0.476229,
         "sinkHeightMax": 0.451715,
         "encodedWaterlineY": -0.413017,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 42,
+        "submergedPixels": 132,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -5949,7 +6310,16 @@
           "recoloredRegions": 40,
           "recoloredPixels": 133
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/penjajap.png",
+          "geometrySha256": "134c5c3c9a0ee132159d21b3f96c9561c65901af82195d1f32b4ac41d33b49d0",
+          "imageSha256": "103bc821f4d32622593233b9b4590aa8453952c8b0de4cce216d6ea6e44a666e",
+          "maximumDistancePx": 7,
+          "opaquePixels": 7897,
+          "extendedPixels": 1100,
+          "maximumUsedDistancePx": 6.324555320336759
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -6050,7 +6420,7 @@
           "width": 159,
           "height": 241
         },
-        "opaquePixels": 9450,
+        "opaquePixels": 9390,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -6078,12 +6448,12 @@
           "x": 558,
           "y": 328
         },
-        "foregroundOpaquePixels": 7408,
+        "foregroundOpaquePixels": 7352,
         "sinkHeightMin": -0.422869,
         "sinkHeightMax": 0.435501,
         "encodedWaterlineY": -0.345732,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 1969,
+        "submergedPixels": 2223,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -6097,7 +6467,16 @@
           "recoloredRegions": 65,
           "recoloredPixels": 252
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/lancaran.png",
+          "geometrySha256": "d239e0ed34ff158a325f5ad5084fdceae37f664df6543905b790132c976defbf",
+          "imageSha256": "d2e8748d498273fd900df2b3b3d72e102ad68478ce6d1ffaba4acae8b4488ea3",
+          "maximumDistancePx": 2,
+          "opaquePixels": 9390,
+          "extendedPixels": 17,
+          "maximumUsedDistancePx": 2
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -6198,7 +6577,7 @@
           "width": 157,
           "height": 229
         },
-        "opaquePixels": 10692,
+        "opaquePixels": 10530,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -6226,12 +6605,12 @@
           "x": 557,
           "y": 332
         },
-        "foregroundOpaquePixels": 8395,
+        "foregroundOpaquePixels": 8234,
         "sinkHeightMin": -0.401116,
         "sinkHeightMax": 0.4308,
         "encodedWaterlineY": -0.341411,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 1406,
+        "submergedPixels": 1634,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -6245,7 +6624,16 @@
           "recoloredRegions": 44,
           "recoloredPixels": 185
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/royal-lancaran.png",
+          "geometrySha256": "c0368bd2673753b4f5cd4b4ce79f95aef564e4dd53f99642a533ed13b37e4189",
+          "imageSha256": "272bd5e1f1a297957e4becca1531f70a715d239a07e6a18dfa8e41567d392e3e",
+          "maximumDistancePx": 4,
+          "opaquePixels": 10530,
+          "extendedPixels": 794,
+          "maximumUsedDistancePx": 4
+        }
       },
       "dockRig": {
         "state": "furled",
@@ -6346,7 +6734,7 @@
           "width": 161,
           "height": 381
         },
-        "opaquePixels": 19224,
+        "opaquePixels": 18372,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -6374,12 +6762,12 @@
           "x": 580,
           "y": 331
         },
-        "foregroundOpaquePixels": 16304,
-        "sinkHeightMin": -0.867506,
+        "foregroundOpaquePixels": 15589,
+        "sinkHeightMin": -0.872241,
         "sinkHeightMax": 0.887306,
         "encodedWaterlineY": -0.792824,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 263,
+        "submergedPixels": 844,
         "rasterCleanup": {
           "minimumComponentPixels": 1,
           "removedComponents": 0,
@@ -6393,7 +6781,16 @@
           "recoloredRegions": 237,
           "recoloredPixels": 1002
         },
-        "creaseShading": null
+        "creaseShading": null,
+        "paintover": {
+          "file": "apps/pixel-globe/art/ships/dockside/ottoman-coastal-trader.png",
+          "geometrySha256": "854491be349128a394a4e538d4a5df7298e11b8723d7276140931a8be4a0a1fa",
+          "imageSha256": "8b7bd10e23555295df92c23eb1fd81faba77038c53ec0fd649dca61bec6d6dbe",
+          "maximumDistancePx": 13,
+          "opaquePixels": 18372,
+          "extendedPixels": 2867,
+          "maximumUsedDistancePx": 13
+        }
       },
       "dockRig": {
         "state": "furled",

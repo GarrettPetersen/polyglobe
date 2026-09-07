@@ -56,6 +56,13 @@ same final model-space geometry.
   `src/portAssaultShipAssets.js` combines it with deterministic runtime paths
   and fails loudly if the bake and production roster differ.
 
+The galleon now uses a registered pixel-art finishing pass after the model bake.
+Its editable master, eight-color palette, neural downscaling steps, registration
+limits, and isolated regeneration command are documented in
+[the galleon art process](../galleon-dockside/README.md). The color and compositing
+reviews show that final painting; orientation and rig reviews remain geometry
+checks. The finished PNG is applied before foreground and sink-depth generation.
+
 All color pixels use Resurrect 64 and binary alpha. Warm source colors use a
 restricted warm subset during quantization so brown timber cannot drift into
 Resurrect 64's olive ramp. Two muted mauves remain normally available to the
@@ -135,3 +142,8 @@ and side views. The private source models and their licenses remain under
 `source-models`; only derived PNGs ship as runtime content. Attribution for
 each hull is carried from the production render configuration into the
 port-assault manifest.
+
+## Finished fleet artwork
+
+See the [fleet dockside workflow](../fleet-dockside/README.md) for the authoritative
+masters, exact palettes, retained-yard rules and reproducible conversion process.

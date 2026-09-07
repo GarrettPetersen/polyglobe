@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "geometrySha256": "bfa9142e8d9d57a1fac8a3537098f29b9bfb54c3f33e554084fca5b05fbd5f7e",
+  "maximumDistancePx": 10,
+  "sourceFrame": {
+    "width": 960,
+    "height": 480,
+    "opaqueBounds": {
+      "minX": 377,
+      "minY": 45,
+      "width": 205,
+      "height": 420
+    }
+  }
+}

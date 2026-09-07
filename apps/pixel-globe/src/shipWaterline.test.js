@@ -11,7 +11,8 @@ import {
   liveShipRefractionOffset,
   shipMaxRasterWaterlineDepth,
   shipPixelBakeHeight,
-  shipPixelIsAboveWater
+  shipPixelIsAboveWater,
+  shipSubmergedSilhouettePixelKeys
 } from "./shipWaterline.js";
 import { UNDERWATER_REFRACTION_PERIOD_MS } from "./underwaterRefraction.js";
 
@@ -20,6 +21,20 @@ test("the baked midpoint divides submerged and above-water hull pixels", () => {
   assert.equal(shipPixelIsAboveWater(SHIP_WATERLINE_LEVEL), false);
   assert.equal(shipPixelIsAboveWater(SHIP_WATERLINE_LEVEL + 1 / 255), true);
   assert.equal(shipPixelIsAboveWater(1), true);
+});
+
+test("docked ships preserve deep rudders and sloping waterlines without flooding enclosed pixels", () => {
+  const pixels = [];
+  for (let y = 3; y < 30; y++) pixels.push({ x: 2, y, sinkHeight: 0.4 });
+  for (let y = 2; y < 14; y++) pixels.push({ x: 8, y, sinkHeight: 0.4 });
+  pixels.push({ x: 5, y: 2, sinkHeight: 0.4 }, { x: 5, y: 3, sinkHeight: 0.8 });
+  const submerged = shipSubmergedSilhouettePixelKeys(pixels, 12, 32);
+  assert.equal(submerged.size, 39);
+  assert.ok(submerged.has(2 + 3 * 12), "the upper blade remains immersed");
+  assert.ok(submerged.has(8 + 2 * 12), "the bow is independent of the stern's lowest row");
+  assert.ok(!submerged.has(5 + 2 * 12), "an enclosed low deck stays dry");
+  assert.throws(() => shipSubmergedSilhouettePixelKeys(pixels, 0, 32), /invalid frame/);
+  assert.throws(() => shipSubmergedSilhouettePixelKeys([...pixels, pixels[0]], 12, 32), /duplicate/);
 });
 
 test("a floating ship submerges only low pixels exposed along the lower silhouette", () => {

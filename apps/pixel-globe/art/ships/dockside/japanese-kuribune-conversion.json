@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "engine": "Retro Diffusion Pixel Fixer grid reconstruction",
+  "engineRevision": "ef376e57e1c272633ca2dbf5f29ec3fcf6596465",
+  "cleanup": {
+    "minimumRegionPixels": 3,
+    "passes": 1
+  },
+  "geometrySha256": "aeab9146674372cb5b39bc31523fb9d0aae853a121f4eba9d15f53805d4b9eeb",
+  "imageSha256": "7319e5de986ea0b2084cd86a76130eeee5cadd9d24de1cf1529442a8a806302e",
+  "palette": [
+    "2e222f",
+    "3e3546",
+    "4c3e24",
+    "625565",
+    "694f62",
+    "966c6c",
+    "ab947a",
+    "c7dcd0",
+    "9e4539",
+    "cd683d",
+    "165a4c",
+    "374e4a",
+    "0b8a8f"
+  ],
+  "referenceSha256": "323b64e490ea870e46658bb6d6ca99a174cb1a70ad0f543325b2dcdcf7248c9c",
+  "referenceCrop": {
+    "minX": 49,
+    "minY": 47,
+    "width": 939,
+    "height": 1449
+  },
+  "placement": {
+    "minX": 422,
+    "minY": 290,
+    "width": 115,
+    "height": 175
+  },
+  "colors": [
+    "2e222f",
+    "3e3546",
+    "4c3e24",
+    "625565",
+    "694f62",
+    "966c6c",
+    "ab947a"
+  ],
+  "opaquePixels": 5440
+}

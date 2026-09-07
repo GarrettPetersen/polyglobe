@@ -1,3 +1,7 @@
+import { createHash } from "node:crypto";
+import { docksidePaintoverSamples } from "../src/shipDocksidePaintover.js";
+import { dockRigHardwareToRemove } from "../src/shipDockRigRetention.js";
+import { finishShipSpritePixels } from "../src/shipPaintoverFinishing.js";
 import { authoredRigAlignment, selectAuthoredRigComponents } from "./authored-ship-rig.mjs";
 import {
   existsSync,
@@ -2161,6 +2165,18 @@ function makePreview(sheet) {
   return preview;
 }
 
+function finishProductionShipColors(canvas, config) {
+  // Ad hoc model imports have no production art contract yet.
+  if (config.outputDir !== unityFleetOutputRoot) return;
+  const palettes = JSON.parse(readFileSync(join(appRoot, "art/ships/dockside/palettes.json"), "utf8"));
+  const palette = palettes.ships[config.slug]?.sailing;
+  if (!palette) throw new Error(`Missing sailing art palette for ${config.slug}`);
+  const context = canvas.getContext("2d");
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  image.data.set(finishShipSpritePixels(image.data, palette, { mutedGalleonTimber: config.slug === "galleon" }));
+  context.putImageData(image, 0, 0);
+}
+
 async function renderShipSpriteSet(config) {
   mkdirSync(config.outputDir, { recursive: true });
   const scene = await loadScene(config.modelPath);
@@ -2278,6 +2294,7 @@ async function renderShipSpriteSet(config) {
   for (let i = 0; i < headings; i++) {
     copyFrameToSheet(frames[i], sheetCtx, i, config.creaseOutline);
   }
+  finishProductionShipColors(sheet, config);
   const sinkDepth = makeSinkDepthSheet(frames, waterlineY, {
     exactModelHeight: config.exactSinkDepth === true,
     requireVisibleExteriorWaterline: config.requireVisibleExteriorWaterline === true
@@ -2437,6 +2454,7 @@ function renderShipAnimationSheets({
       ? firstSheet
       : makeShipHeadingSheet(frames, config.creaseOutline)
   ));
+  for (const sheet of animationSheets) finishProductionShipColors(sheet, config);
   const animationFlagAnchors = animationFrames.map((frames) => makeFlagAnchors(
     flagAnchorModelPoint,
     frames,
@@ -3623,6 +3641,7 @@ async function renderShipSideViewCanvas(config, { camera, waterlineY, modelYaw }
   ctx.clearRect(0, 0, sideViewWidth, sideViewHeight);
   ctx.drawImage(rendered.canvas, 0, 0, sideViewWidth, sideViewHeight);
   shadeEdgesAndQuantizeToResurrect(sideView);
+  finishProductionShipColors(sideView, config);
   const finalBounds = alphaBounds(sideView);
   if (
     finalBounds.minX <= 0 ||
@@ -3731,13 +3750,14 @@ function sourceMeshSelector({
   });
 }
 
-function dockRig(selector, { removedRigSelector = null, bundleMode = "furled" } = {}) {
+function dockRig(selector, { removedRigSelector = null, retainedRigSelector = null, bundleMode = "furled" } = {}) {
   if (!["furled", "junk-lowered", "remove"].includes(bundleMode)) {
     throw new Error(`Unsupported port-assault dock-rig bundle mode: ${bundleMode}`);
   }
   return Object.freeze({
     selector,
     removedRigSelector,
+    retainedRigSelector,
     bundleMode
   });
 }
@@ -3920,6 +3940,8 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
   ["fusta", materialDockRig(["M_Ship03_Sail"], { expectedTriangleCount: 499 })],
   ["joseon-turtle-ship", materialDockRig(["Vela"], {
     expectedTriangleCount: 204,
+    // The top yard shares a source mesh with deployed sail battens.
+    retainedRigSelector: topologyComponentSelector({ 551: 44, 583: 28 }),
     removedRigSelector: sourceMeshSelector({
       sourceMeshNames: [
         "Object_28",
@@ -3933,6 +3955,8 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
   })],
   ["joseon-hyeopseon", materialDockRig(["sail"], {
     expectedTriangleCount: 684,
+    // The top yard shares a source mesh with deployed sail battens.
+    retainedRigSelector: topologyComponentSelector({ 244: 28 }),
     removedRigSelector: sourceMeshSelector({
       sourceMeshNames: ["Object_87"],
       expectedTriangleCount: 280
@@ -3941,6 +3965,8 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
   })],
   ["joseon-panokseon", materialDockRig(["sail"], {
     expectedTriangleCount: 1368,
+    // The top yard shares a source mesh with deployed sail battens.
+    retainedRigSelector: topologyComponentSelector({ 245: 28, 256: 28 }),
     removedRigSelector: sourceMeshSelector({
       sourceMeshNames: ["Object_84", "Object_87"],
       expectedTriangleCount: 560
@@ -3954,7 +3980,8 @@ const PORT_ASSAULT_DOCK_RIGS = new Map([
   ["japanese-kobaya", noSailDockRig("The oared Kobaya source has no working sail")],
   ["japanese-sekibune", meshDockRig(
     { sourceMeshNames: ["帆"], expectedTriangleCount: 128 },
-    { removedRigSelector: sourceMeshSelector({
+    { retainedRigSelector: topologyComponentSelector({ 70: 124 }),
+      removedRigSelector: sourceMeshSelector({
       sourceMeshNames: ["帆桁"],
       expectedTriangleCount: 124
     }), bundleMode: "remove" }
@@ -4161,7 +4188,7 @@ function selectedPortAssaultSailGeometry(slug, triangles) {
     dockRig.selector,
     "open sail"
   );
-  const removedRigIndexes = dockRig.removedRigSelector
+  const hardwareIndexes = dockRig.removedRigSelector
     ? portAssaultSelectorTriangleIndexes(
       slug,
       triangles,
@@ -4169,6 +4196,10 @@ function selectedPortAssaultSailGeometry(slug, triangles) {
       "deployed sail hardware"
     )
     : new Set();
+  const retainedIndexes = dockRig.retainedRigSelector
+    ? portAssaultSelectorTriangleIndexes(slug, triangles, dockRig.retainedRigSelector, "retained structural yard")
+    : new Set();
+  const removedRigIndexes = dockRigHardwareToRemove({ hardwareIndexes, retainedIndexes, sailIndexes: selectedIndexes });
   for (const index of removedRigIndexes) {
     if (selectedIndexes.has(index)) {
       throw new Error(`${slug} dock-rig sail and hardware selectors overlap at triangle ${index}`);
@@ -4192,7 +4223,8 @@ function selectedPortAssaultSailGeometry(slug, triangles) {
     removedRigTriangles,
     sailComponents,
     removedTriangleCount: removedIndexes.size,
-    removedRigTriangleCount: removedRigIndexes.size
+    removedRigTriangleCount: removedRigIndexes.size,
+    retainedYardTriangleCount: retainedIndexes.size
   };
 }
 
@@ -4434,6 +4466,7 @@ function furledPortAssaultRig(slug, loaded) {
       selected,
       metadata: {
         state: "stowed",
+        retainedYardTriangles: selected.retainedYardTriangleCount,
         selectorType: selected.selectorType,
         removedRigSelectorType: selected.removedRigSelectorType,
         bundleMode: selected.bundleMode,
@@ -4739,6 +4772,73 @@ function fitArtDirectedPortAssaultRaster(
     : { ...cleaned, creaseShading: null };
 }
 
+async function applyPortAssaultPaintover(frame, config, camera) {
+  const geometryHash = createHash("sha256");
+  for (const values of [frame.alpha, frame.depth, frame.normals, frame.positions]) {
+    geometryHash.update(Buffer.from(values.buffer, values.byteOffset, values.byteLength));
+  }
+  const geometrySha256 = geometryHash.digest("hex");
+  if (process.argv.includes("--export-paintover-guides") || process.argv.includes("--paintover-guides-only")) {
+    const guideRoot = join(appRoot, ".captures/fleet-art/geometry");
+    mkdirSync(guideRoot, { recursive: true });
+    writeFileSync(join(guideRoot, `${config.slug}.png`), frame.canvas.toBuffer("image/png"));
+    writeFileSync(join(guideRoot, `${config.slug}.json`), JSON.stringify({
+      version: 1, geometrySha256, width: frame.canvas.width,
+      height: frame.canvas.height, opaqueBounds: frame.bounds
+    }, null, 2) + "\n");
+  }
+  if (process.argv.includes("--paintover-guides-only")) return frame;
+  const artRoot = join(appRoot, "art/ships/dockside");
+  const imagePath = join(artRoot, `${config.slug}.png`);
+  const registrationPath = join(artRoot, `${config.slug}-registration.json`);
+  const registration = JSON.parse(readFileSync(registrationPath, "utf8"));
+  if (registration.version !== 1 || registration.geometrySha256 !== geometrySha256) {
+    throw new Error(`Dockside paintover ${config.slug} needs geometry review: ${geometrySha256}`);
+  }
+  const painting = await loadImage(imagePath);
+  const width = frame.canvas.width;
+  const height = frame.canvas.height;
+  if (painting.width !== width || painting.height !== height) {
+    throw new Error(`Dockside paintover ${config.slug} must be ${width}x${height}`);
+  }
+  const canvas = createCanvas(width, height);
+  const context = canvas.getContext("2d");
+  context.drawImage(painting, 0, 0);
+  const rgba = context.getImageData(0, 0, width, height).data;
+  const { samples, ...transfer } = docksidePaintoverSamples({
+    rgba, width, height, sourceAlpha: frame.alpha,
+    maximumDistancePx: registration.maximumDistancePx
+  });
+  const alpha = new Uint8Array(width * height);
+  const depth = new Float32Array(width * height).fill(-Infinity);
+  const positions = new Float32Array(width * height * 3);
+  const normals = new Float32Array(width * height * 3);
+  const worldPerPixelX = (camera.right - camera.left) /
+    (PORT_ASSAULT_SHIP_WIDTH * PORT_ASSAULT_RENDER_SCALE) * frame.sourceBounds.width / frame.drawWidth;
+  const worldPerPixelY = (camera.top - camera.bottom) /
+    (PORT_ASSAULT_SHIP_HEIGHT * PORT_ASSAULT_RENDER_SCALE) * frame.sourceBounds.height / frame.drawHeight;
+  const cameraBasis = camera.matrixWorld.elements;
+  for (let pixel = 0; pixel < samples.length; pixel++) {
+    const source = samples[pixel];
+    if (source < 0) continue;
+    alpha[pixel] = 1;
+    depth[pixel] = frame.depth[source];
+    const dx = ((pixel % width) - (source % width)) * worldPerPixelX;
+    const dy = (Math.floor(source / width) - Math.floor(pixel / width)) * worldPerPixelY;
+    for (let axis = 0; axis < 3; axis++) {
+      // Move in the camera plane while retaining the reviewed source depth.
+      // Copying height unchanged would make an extended keel float above water.
+      positions[pixel * 3 + axis] = frame.positions[source * 3 + axis] +
+        cameraBasis[axis] * dx + cameraBasis[4 + axis] * dy;
+      normals[pixel * 3 + axis] = frame.normals[source * 3 + axis];
+    }
+  }
+  return { ...frame, canvas, bounds: alphaBounds(canvas), alpha, depth, normals, positions,
+    paintover: { file: portablePath(imagePath), geometrySha256,
+      imageSha256: createHash("sha256").update(readFileSync(imagePath)).digest("hex"),
+      maximumDistancePx: registration.maximumDistancePx, ...transfer } };
+}
+
 function shadePortAssaultDeckCreases(frame, options, nativeScale) {
   const shadeScale = options?.shadeScale ?? 0.68;
   if (!Number.isFinite(shadeScale) || shadeScale <= 0 || shadeScale >= 1) {
@@ -4909,21 +5009,15 @@ function makePortAssaultSinkDepthMap(frame, waterlineY) {
     throw new Error(`Port-assault sink-depth bake has no usable height range: ${heightRange}`);
   }
   const encodedWaterlineY = encodedShipWaterlineY(waterlineY, minHeight, maxHeight);
-  const waterlineRasterPadding = heightRange / (SHIP_WATERLINE_DEPTH_BYTE - 1);
   const canvas = createCanvas(frame.canvas.width, frame.canvas.height);
   const ctx = canvas.getContext("2d");
   const image = ctx.createImageData(canvas.width, canvas.height);
   const levels = new Uint8Array(frame.alpha.length);
   for (let pixel = 0; pixel < frame.alpha.length; pixel++) {
     if (!frame.alpha[pixel]) continue;
-    const normalY = frame.normals[pixel * 3 + 1];
-    const modelHeight = frame.positions[pixel * 3 + 1];
-    const height = shipPixelBakeHeight(
-      modelHeight,
-      normalY,
-      encodedWaterlineY,
-      waterlineRasterPadding
-    );
+    // Sloped rudders can have upward-facing normals. At this resolution the
+    // actual height determines immersion; the tiny-sprite deck heuristic does not.
+    const height = frame.positions[pixel * 3 + 1];
     const level = height < encodedWaterlineY
       ? Math.round(clamp(
           (height - minHeight) / (encodedWaterlineY - minHeight),
@@ -5174,10 +5268,16 @@ function makePortAssaultForeground(frame, sailorDepth) {
   return { canvas, opaquePixels };
 }
 
-function portAssaultDeckCompositing(loaded, selected) {
+function portAssaultDeckCompositing(loaded, selected, config) {
   const points = loaded.triangles.flatMap((triangle) => triangle.points);
   const bounds = boundsForPoints(points);
-  const deckY = loaded.waterlineY + bounds.size.y * 0.14;
+  const deckRatio = config.portAssaultDeckBoundsRatio;
+  if (deckRatio !== undefined && (!Number.isFinite(deckRatio) || deckRatio <= 0 || deckRatio >= 1)) {
+    throw new Error(`Invalid dockside deck bounds ratio for ${config.slug}: ${deckRatio}`);
+  }
+  const deckY = deckRatio === undefined
+    ? loaded.waterlineY + bounds.size.y * 0.14
+    : bounds.box.min.y + bounds.size.y * deckRatio;
   const centerX = bounds.center.x;
   const centerZ = bounds.center.z;
   const farX = centerX + bounds.size.x * 0.12;
@@ -5573,7 +5673,13 @@ function writePortAssaultGeometryModule(ships) {
   );
 }
 
-async function renderPortAssaultShips() {
+async function renderPortAssaultShips(onlySlug = null) {
+  if (onlySlug !== null && !SHIP_STATS.some(ship => ship.slug === onlySlug)) {
+    throw new Error(`Unknown dockside ship: ${onlySlug}`);
+  }
+  const manifestPath = join(portAssaultShipOutputRoot, "manifest.json");
+  const previous = onlySlug === null ? null : JSON.parse(readFileSync(manifestPath, "utf8"));
+  const previousEntries = previous ? uniqueShipEntriesBySlug(previous.ships, "dockside ship manifest") : null;
   const configs = productionShipRenderConfigs();
   const productionManifest = JSON.parse(
     readFileSync(join(unityFleetOutputRoot, "manifest.json"), "utf8")
@@ -5591,6 +5697,10 @@ async function renderPortAssaultShips() {
       JSON.stringify([...rosterSlugs].sort())
   ) {
     throw new Error("Port-assault configs, dock rigs, and production fleet must match the roster");
+  }
+  if (previousEntries && JSON.stringify([...previousEntries.keys()].sort()) !==
+      JSON.stringify([...rosterSlugs].sort())) {
+    throw new Error("Dockside manifest roster changed; regenerate the complete fleet");
   }
   const productionVariant = PORT_ASSAULT_VARIANTS.find((variant) => variant.selected);
   if (!productionVariant) throw new Error("Port-assault fleet has no selected production view");
@@ -5613,6 +5723,14 @@ async function renderPortAssaultShips() {
   if (!galleonOpenSelectedRaw) throw new Error("Galleon scale reference has no production view");
   const fleetRasterScale = portAssaultRasterScale(galleonOpenSelectedRaw.rendered) *
     PORT_ASSAULT_FLEET_SCALE_SAFETY;
+  if (previous && (
+    previous.fleetRasterScale !== Number(fleetRasterScale.toFixed(6)) ||
+    previous.nativeScale !== PORT_ASSAULT_CITY_NATIVE_SCALE ||
+    previous.view.broadsideOffsetDegrees !== productionVariant.broadsideOffsetDegrees ||
+    previous.view.cameraElevationDegrees !== productionVariant.cameraElevationDegrees
+  )) {
+    throw new Error("Dockside fleet projection changed; regenerate the complete fleet");
+  }
   const galleonDockRig = furledPortAssaultRig("galleon", galleonOpenLoaded);
   const galleonDockRawVariants = PORT_ASSAULT_VARIANTS.map((variant) => (
     renderPortAssaultVariant(galleonDockRig.loaded, galleonConfig, variant)
@@ -5633,7 +5751,6 @@ async function renderPortAssaultShips() {
     portAssaultShipReferenceOutputRoot,
     "galleon-dockside-contact-sheet.png"
   );
-  const manifestPath = join(portAssaultShipOutputRoot, "manifest.json");
   const compositingReviewPath = join(
     portAssaultShipReferenceOutputRoot,
     "galleon-dockside-compositing-review.png"
@@ -5647,7 +5764,7 @@ async function renderPortAssaultShips() {
   const renderedShips = [];
   const rigReviewShips = [];
   let galleonCompositing = null;
-  for (const slug of rosterSlugs) {
+  for (const slug of onlySlug === null ? rosterSlugs : [onlySlug]) {
     console.log(`port assault ${slug}`);
     const config = configs.get(slug);
     const productionEntry = productionBySlug.get(slug);
@@ -5676,15 +5793,16 @@ async function renderPortAssaultShips() {
       variant: raw.variant,
       camera: raw.camera,
       modelYaw: raw.modelYaw,
-      ...fitArtDirectedPortAssaultRaster(
+      ...await applyPortAssaultPaintover(fitArtDirectedPortAssaultRaster(
         slug,
         raw.rendered,
         fleetRasterScale * PORT_ASSAULT_CITY_NATIVE_SCALE,
         PORT_ASSAULT_CITY_NATIVE_SCALE,
         { ...PORT_ASSAULT_COLOR_CLEANUP, ...config.portAssaultColorCleanup },
         config.portAssaultCreaseOutline || config.creaseOutline
-      )
+      ), config, raw.camera)
     };
+    if (process.argv.includes("--paintover-guides-only")) continue;
     const reviewLoads = [
       openLoaded,
       {
@@ -5702,7 +5820,7 @@ async function renderPortAssaultShips() {
       renderPortAssaultVariant(reviewLoaded, config, productionVariant).rendered,
       fleetRasterScale
     ).canvas);
-    const cityDeck = portAssaultDeckCompositing(loaded, citySelected);
+    const cityDeck = portAssaultDeckCompositing(loaded, citySelected, config);
     const logicalDeck = logicalPortAssaultDeck(cityDeck);
     const cityDepthMap = makePortAssaultDepthMap(citySelected);
     const citySinkDepth = makePortAssaultSinkDepthMap(citySelected, loaded.waterlineY);
@@ -5806,7 +5924,8 @@ async function renderPortAssaultShips() {
         submergedPixels: citySinkDepth.submergedPixels,
         rasterCleanup: citySelected.rasterCleanup,
         colorCleanup: citySelected.colorCleanup,
-        creaseShading: citySelected.creaseShading
+        creaseShading: citySelected.creaseShading,
+        ...(citySelected.paintover ? { paintover: citySelected.paintover } : {})
       },
       dockRig: dockRig.metadata
     };
@@ -5821,6 +5940,23 @@ async function renderPortAssaultShips() {
         deck: cityDeck
       };
     }
+  }
+  if (process.argv.includes("--paintover-guides-only")) return;
+  if (onlySlug !== null) {
+    previousEntries.set(onlySlug, ships[0]);
+    previous.ships = rosterSlugs.map(slug => previousEntries.get(slug));
+    writeFileSync(manifestPath, `${JSON.stringify(previous, null, 2)}\n`);
+    writePortAssaultGeometryModule(previous.ships);
+    const fleet = await Promise.all(previous.ships.map(async entry => ({
+      slug: entry.slug,
+      canvas: await loadImage(join(repoRoot, entry.cityDockside.file))
+    })));
+    writeFileSync(join(repoRoot, previous.reviewFile),
+      makePortAssaultFleetContactSheet(fleet).toBuffer("image/png"));
+    if (galleonCompositing) writeFileSync(compositingReviewPath,
+      makePortAssaultCompositingReview(galleonCompositing).toBuffer("image/png"));
+    console.log(`Rebuilt dockside ${onlySlug}`);
+    return;
   }
   if (!galleonCompositing) throw new Error("Port-assault fleet omitted the Galleon review");
   writeFileSync(
@@ -6909,6 +7045,11 @@ function cyc3wGalleonConfig() {
     modelPath: join(cyc3wSailingShipSourceRoot, "scene.gltf"),
     targetModelMaxDim: 2.3,
     frameScale: 0.62,
+    // Reviewed flotation plane: rudder blade submerged, stern gallery dry.
+    // A bounds ratio preserves that plane across overworld, profile and dock scales.
+    waterlineBoundsRatio: 0.086,
+    // The reviewed painted deck is fixed geometry; changing draft cannot lift it.
+    portAssaultDeckBoundsRatio: 0.18296875,
     sideViewTargetModelMaxDim: 2.1,
     colorTransform: simplifyGalleonTextureColor,
     flattenTexturePerTriangle: true,
@@ -8992,6 +9133,12 @@ async function main() {
   }
   if (args.has("--port-assault-components")) {
     await reportPortAssaultTopologyComponents(args.value("--port-assault-components"));
+    return;
+  }
+  if (args.has("--port-assault-ship")) {
+    const slug = args.value("--port-assault-ship");
+    if (!slug) throw new Error("--port-assault-ship requires a ship slug");
+    await renderPortAssaultShips(slug);
     return;
   }
   if (args.has("--port-assault-ships")) {

@@ -190,3 +190,17 @@ and the same per-animal curved-road placement as llama caravans. Their private
 sources and CC BY license files live under
 `source-models/sketchfab/dromedary-camel-walk/` and
 `source-models/sketchfab/bactrian-camel-low-poly/`.
+
+## Finished galleon dockside painting
+
+The large docked galleon uses a stored Resurrect 64 pixel-art paintover registered
+to its model bake. See [the galleon art process](ship-reference/galleon-dockside/README.md)
+for the editable source, model/image/neural reconstruction workflow, palette, and
+geometry constraints. Run `npm run render:galleon-dockside` to reproduce it without
+rebaking other ships. Sailing sprites continue to use the existing model treatment.
+
+## Finished dockside fleet
+
+All 43 ships use registered Resurrect64 pixel masters. See the
+[fleet art workflow](ship-reference/fleet-dockside/README.md) for repeatable generation,
+Aseprite edits, local Pixel Fixer conversion, palette matching and waterline review.

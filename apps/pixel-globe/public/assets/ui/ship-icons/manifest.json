@@ -12,11 +12,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 20,
-        "y": 18,
+        "y": 14,
         "w": 9,
-        "h": 13
+        "h": 18
       },
-      "opaquePixels": 81
+      "opaquePixels": 57
     },
     {
       "slug": "small-cog",
@@ -26,11 +26,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 15,
-        "y": 16,
+        "y": 15,
         "w": 16,
-        "h": 18
+        "h": 19
       },
-      "opaquePixels": 141
+      "opaquePixels": 136
     },
     {
       "slug": "holk",
@@ -39,12 +39,12 @@
       "output": "public/assets/ui/ship-icons/holk.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 15,
+        "x": 14,
         "y": 11,
-        "w": 19,
+        "w": 20,
         "h": 26
       },
-      "opaquePixels": 97
+      "opaquePixels": 108
     },
     {
       "slug": "dhow",
@@ -96,11 +96,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 12,
-        "y": 11,
+        "y": 10,
         "w": 22,
-        "h": 26
+        "h": 27
       },
-      "opaquePixels": 117
+      "opaquePixels": 113
     },
     {
       "slug": "javanese-jong",
@@ -123,12 +123,12 @@
       "output": "public/assets/ui/ship-icons/pirate-brig.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 12,
-        "y": 7,
-        "w": 22,
-        "h": 34
+        "x": 11,
+        "y": 6,
+        "w": 23,
+        "h": 36
       },
-      "opaquePixels": 105
+      "opaquePixels": 100
     },
     {
       "slug": "galleon",
@@ -151,12 +151,12 @@
       "output": "public/assets/ui/ship-icons/fluyt.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 10,
-        "y": 8,
-        "w": 25,
-        "h": 29
+        "x": 9,
+        "y": 7,
+        "w": 27,
+        "h": 31
       },
-      "opaquePixels": 109
+      "opaquePixels": 104
     },
     {
       "slug": "carrack",
@@ -166,9 +166,9 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 12,
-        "y": 8,
+        "y": 7,
         "w": 23,
-        "h": 28
+        "h": 29
       },
       "opaquePixels": 107
     },
@@ -179,12 +179,12 @@
       "output": "public/assets/ui/ship-icons/ship-of-the-line.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 12,
-        "y": 8,
-        "w": 22,
-        "h": 28
+        "x": 11,
+        "y": 7,
+        "w": 25,
+        "h": 30
       },
-      "opaquePixels": 120
+      "opaquePixels": 118
     },
     {
       "slug": "medium-junk",
@@ -196,9 +196,9 @@
         "x": 14,
         "y": 11,
         "w": 19,
-        "h": 25
+        "h": 26
       },
-      "opaquePixels": 108
+      "opaquePixels": 104
     },
     {
       "slug": "xebec",
@@ -207,12 +207,12 @@
       "output": "public/assets/ui/ship-icons/xebec.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 12,
-        "y": 7,
-        "w": 21,
-        "h": 30
+        "x": 11,
+        "y": 6,
+        "w": 23,
+        "h": 32
       },
-      "opaquePixels": 95
+      "opaquePixels": 90
     },
     {
       "slug": "caravel",
@@ -222,11 +222,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 12,
-        "y": 9,
-        "w": 21,
-        "h": 28
+        "y": 8,
+        "w": 22,
+        "h": 29
       },
-      "opaquePixels": 90
+      "opaquePixels": 85
     },
     {
       "slug": "square-rigged-caravel",
@@ -236,11 +236,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 13,
-        "y": 11,
-        "w": 19,
-        "h": 26
+        "y": 10,
+        "w": 20,
+        "h": 28
       },
-      "opaquePixels": 123
+      "opaquePixels": 117
     },
     {
       "slug": "brigantine",
@@ -254,7 +254,7 @@
         "w": 21,
         "h": 24
       },
-      "opaquePixels": 146
+      "opaquePixels": 148
     },
     {
       "slug": "small-junk",
@@ -265,10 +265,10 @@
       "sourceBounds": {
         "x": 15,
         "y": 11,
-        "w": 16,
+        "w": 17,
         "h": 25
       },
-      "opaquePixels": 85
+      "opaquePixels": 89
     },
     {
       "slug": "felucca",
@@ -282,7 +282,7 @@
         "w": 18,
         "h": 14
       },
-      "opaquePixels": 129
+      "opaquePixels": 133
     },
     {
       "slug": "cutter",
@@ -296,7 +296,7 @@
         "w": 16,
         "h": 18
       },
-      "opaquePixels": 140
+      "opaquePixels": 147
     },
     {
       "slug": "ketch",
@@ -306,11 +306,11 @@
       "headingFrame": 28,
       "sourceBounds": {
         "x": 13,
-        "y": 11,
+        "y": 10,
         "w": 19,
-        "h": 22
+        "h": 23
       },
-      "opaquePixels": 99
+      "opaquePixels": 87
     },
     {
       "slug": "mediterranean-galley",
@@ -529,9 +529,9 @@
       "output": "public/assets/ui/ship-icons/nusantaran-outrigger.png",
       "headingFrame": 28,
       "sourceBounds": {
-        "x": 8,
-        "y": 15,
-        "w": 29,
+        "x": 10,
+        "y": 14,
+        "w": 27,
         "h": 25
       },
       "opaquePixels": 144

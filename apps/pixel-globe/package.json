@@ -96,6 +96,7 @@
     "render:dhow": "node tools/render-sail-ship-sprites.mjs --gogiart-dhow",
     "render:ocean-dhow": "node tools/render-sail-ship-sprites.mjs --ocean-dhow",
     "render:galleon": "node tools/render-sail-ship-sprites.mjs --cyc3w-galleon",
+    "render:galleon-dockside": "node tools/render-sail-ship-sprites.mjs --port-assault-ship galleon",
     "render:port-assault-ships": "node tools/render-sail-ship-sprites.mjs --port-assault-ships",
     "render:nusantaran-outrigger": "node tools/render-sail-ship-sprites.mjs --nusantaran-outrigger",
     "render:kelulus": "node tools/render-sail-ship-sprites.mjs --kelulus",

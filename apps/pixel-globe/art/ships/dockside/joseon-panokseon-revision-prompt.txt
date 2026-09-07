@@ -1,0 +1,1 @@
+Remove the green and cream person/object inside the tiny mauve-roofed observation shelter. Fill that occupied space with empty dark shadow inside the shelter. Preserve the entire remainder exactly: hull, deck, mast, railing, roof, rudder, framing and original image dimensions. No people or crew should be baked into this ship sprite. Quiet flat pixel art.

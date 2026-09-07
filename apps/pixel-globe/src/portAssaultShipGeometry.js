@@ -732,11 +732,11 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
   "joseon-hyeopseon": {
     "deckPolygon": [
       {
-        "x": 483,
+        "x": 482,
         "y": 342
       },
       {
-        "x": 434,
+        "x": 433,
         "y": 395
       },
       {
@@ -744,7 +744,7 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
         "y": 399
       },
       {
-        "x": 520,
+        "x": 521,
         "y": 346
       }
     ],
@@ -753,35 +753,35 @@ export const PORT_ASSAULT_SHIP_GEOMETRY = {
       "y": 347
     },
     "sailorSpawnAnchor": {
-      "x": 544,
+      "x": 546,
       "y": 349
     }
   },
   "joseon-panokseon": {
     "deckPolygon": [
       {
-        "x": 485,
+        "x": 483,
         "y": 315
       },
       {
-        "x": 423,
-        "y": 382
+        "x": 422,
+        "y": 381
       },
       {
-        "x": 468,
+        "x": 469,
         "y": 387
       },
       {
-        "x": 530,
+        "x": 531,
         "y": 320
       }
     ],
     "deckEntryAnchor": {
-      "x": 520,
+      "x": 521,
       "y": 322
     },
     "sailorSpawnAnchor": {
-      "x": 561,
+      "x": 563,
       "y": 324
     }
   },

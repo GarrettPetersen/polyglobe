@@ -176,12 +176,12 @@
     {
       "slug": "galleon",
       "label": "Galleon",
-      "waterlineY": -0.7066668082951645,
+      "waterlineY": -0.640131410344912,
       "waterlineOffsetY": 0,
-      "sideViewWaterlineY": 83,
+      "sideViewWaterlineY": 81,
       "lowestOpaquePixelY": 85,
-      "lowestOpaqueRelativeToWaterlinePx": 2,
-      "opaqueRowsBelowWaterline": 2,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
       "oarPivotCount": 0,
       "oarPivotPixels": [],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/galleon-waterline.png"
@@ -588,12 +588,12 @@
     {
       "slug": "nusantaran-outrigger",
       "label": "Nusantaran Outrigger",
-      "waterlineY": -0.6052930799427692,
+      "waterlineY": -0.6001253756057376,
       "waterlineOffsetY": -0.012,
       "sideViewWaterlineY": 81,
-      "lowestOpaquePixelY": 86,
-      "lowestOpaqueRelativeToWaterlinePx": 5,
-      "opaqueRowsBelowWaterline": 5,
+      "lowestOpaquePixelY": 85,
+      "lowestOpaqueRelativeToWaterlinePx": 4,
+      "opaqueRowsBelowWaterline": 4,
       "oarPivotCount": 0,
       "oarPivotPixels": [],
       "file": "apps/pixel-globe/docs/ship-reference/waterlines/nusantaran-outrigger-waterline.png"

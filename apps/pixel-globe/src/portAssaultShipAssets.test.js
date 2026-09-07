@@ -3,15 +3,70 @@ import test from "node:test";
 import { access, readFile, readdir } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { createHash } from "node:crypto";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import { PORT_ASSAULT_SHIP_ASSETS, portAssaultShipAsset } from "./portAssaultShipAssets.js";
 import { SHIP_STATS, shipLabelForSlug } from "./shipStats.js";
-import { SHIP_WATERLINE_DEPTH_BYTE } from "./shipWaterline.js";
+import { SHIP_WATERLINE_DEPTH_BYTE, shipSubmergedSilhouettePixelKeys } from "./shipWaterline.js";
 import { RESURRECT_64_HEX } from "./waterLatitudePalette.js";
 
 const appRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 const assetRoot = join(appRoot, "public/assets/vehicles/unity-ships/port-assault");
+
+test("galleon waterline immerses the rudder blade while keeping the stern gallery dry", async () => {
+  const dockManifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
+  const dock = dockManifest.ships.find(ship => ship.slug === "galleon").cityDockside;
+  assert.deepEqual(dock.deckEntryAnchor, { x: 546, y: 326 }, "draft must not move the painted deck");
+  const production = JSON.parse(await readFile(join(assetRoot, "../manifest.json"), "utf8"))
+    .ships.find(ship => ship.slug === "galleon");
+  const profile = JSON.parse(await readFile(join(assetRoot, "../side-views/manifest.json"), "utf8"))
+    .ships.find(ship => ship.slug === "galleon");
+  const review = JSON.parse(await readFile(join(appRoot, "docs/ship-reference/waterlines/manifest.json"), "utf8"))
+    .ships.find(ship => ship.slug === "galleon");
+  assert.ok(production.waterlineY > -0.65 && production.waterlineY < -0.63);
+  assert.ok(Math.abs(dock.encodedWaterlineY - production.waterlineY) < 0.000001);
+  assert.equal(review.waterlineY, production.waterlineY);
+  assert.equal(profile.sideViewWaterlineY, review.sideViewWaterlineY);
+  assert.equal(profile.lowestOpaquePixelY - profile.sideViewWaterlineY, 4, "profile keeps the reviewed rudder draft");
+  const sink = imagePixels(await loadImage(join(assetRoot, "galleon-city-dockside-sink-depth.png")));
+  const pixels = [];
+  for (let p = 0; p < sink.length / 4; p++) {
+    if (sink[p * 4 + 3]) pixels.push({ x: p % 960, y: Math.floor(p / 960), sinkHeight: sink[p * 4] / 255 });
+  }
+  const submerged = shipSubmergedSilhouettePixelKeys(pixels, 960, 480);
+  for (const [x, y] of [[429, 448], [429, 456], [433, 460], [445, 444]]) {
+    assert.equal(sink[(y * 960 + x) * 4 + 3], 255);
+    assert.ok(submerged.has(y * 960 + x), `rudder blade at ${x},${y} must be underwater`);
+  }
+  assert.ok(!submerged.has(428 * 960 + 429), "stern gallery remains above water");
+  assert.ok(submerged.size > 700, "the runtime must preserve the full geometric draft");
+});
+
+test("finished galleon art survives rebakes with exact palette and matching occlusion", async () => {
+  const manifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
+  const entry = manifest.ships.find(ship => ship.slug === "galleon").cityDockside;
+  const sourcePath = join(appRoot, "..", "..", entry.paintover.file);
+  const source = await readFile(sourcePath);
+  assert.equal(createHash("sha256").update(source).digest("hex"), entry.paintover.imageSha256);
+  const original = imagePixels(await loadImage(sourcePath));
+  const base = imagePixels(await loadImage(join(assetRoot, "galleon-city-dockside.png")));
+  assert.deepEqual(base, original, "rebaking must not quantize or filter finished pixel clusters");
+  const foreground = imagePixels(await loadImage(join(assetRoot, "galleon-city-dockside-foreground.png")));
+  const depth = imagePixels(await loadImage(join(assetRoot, "galleon-city-dockside-depth.png")));
+  const sink = imagePixels(await loadImage(join(assetRoot, "galleon-city-dockside-sink-depth.png")));
+  const colors = new Set();
+  for (let offset = 0; offset < base.length; offset += 4) {
+    assert.equal(depth[offset + 3], base[offset + 3]);
+    assert.equal(sink[offset + 3], base[offset + 3]);
+    if (foreground[offset + 3]) assert.deepEqual(foreground.slice(offset, offset + 4), base.slice(offset, offset + 4));
+    if (base[offset + 3]) colors.add(Buffer.from(base.slice(offset, offset + 3)).toString("hex"));
+  }
+  assert.equal(colors.size, 8, "the reviewed galleon uses eight deliberate material tones");
+  for (const color of colors) assert.ok(RESURRECT_64_HEX.includes(color));
+  assert.ok(entry.paintover.maximumUsedDistancePx <= entry.paintover.maximumDistancePx);
+  assert.equal(entry.paintover.maximumDistancePx, 10);
+});
 
 test("every production hull has matching port-assault geometry and manifest metadata", async () => {
   const manifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
@@ -65,7 +120,7 @@ test("every production hull has matching port-assault geometry and manifest meta
     ["japanese-sekibune", {
       sourceSailComponents: 1,
       removedOpenSailTriangles: 128,
-      removedDeployedRigTriangles: 124
+      removedDeployedRigTriangles: 0
     }]
   ]);
   const loweredJunkSailSlugs = new Set([
@@ -164,6 +219,16 @@ test("every production hull has matching port-assault geometry and manifest meta
       entry.cityDockside.opaquePixels > 900,
       `${entry.slug} retains a readable native-scale silhouette`
     );
+    const retainedYardTriangles = {
+      "joseon-panokseon": 56,
+      "joseon-hyeopseon": 28,
+      "joseon-turtle-ship": 72,
+      "japanese-sekibune": 124
+    }[entry.slug];
+    if (retainedYardTriangles) {
+      assert.equal(entry.dockRig.retainedYardTriangles, retainedYardTriangles,
+        `${entry.slug} must retain its top yards when sail battens are stowed`);
+    }
     assert.ok(Number.isInteger(entry.dockRig.removedOpenSailTriangles));
     assert.ok(Number.isInteger(entry.dockRig.removedDeployedRigTriangles));
     assert.ok(Number.isInteger(entry.dockRig.generatedStackedBattenTriangles));
@@ -260,7 +325,15 @@ test("every port-assault hull is hard-edged Resurrect pixel art with complete co
       assert.equal(image.width, asset.width);
       assert.equal(image.height, asset.height);
     }
+    assert.ok(entry.cityDockside.paintover, `${slug} requires finished artwork`);
+    const artPath = join(appRoot, "art/ships/dockside", `${slug}.png`);
+    const artBytes = await readFile(artPath);
+    assert.equal(createHash("sha256").update(artBytes).digest("hex"), entry.cityDockside.paintover.imageSha256);
+    const registration = JSON.parse(await readFile(join(appRoot, "art/ships/dockside", `${slug}-registration.json`), "utf8"));
+    assert.equal(registration.geometrySha256, entry.cityDockside.paintover.geometrySha256);
+    const masterPixels = imagePixels(await loadImage(artPath));
     const basePixels = imagePixels(base);
+    assert.deepEqual(basePixels, masterPixels, `${slug} bake must preserve the finished master exactly`);
     const foregroundPixels = imagePixels(foreground);
     const depthPixels = imagePixels(depth);
     const sinkDepthPixels = imagePixels(sinkDepth);

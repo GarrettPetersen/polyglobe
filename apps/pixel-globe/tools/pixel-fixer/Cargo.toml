@@ -1,0 +1,13 @@
+[package]
+name = "dockside-pixel-fixer"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+pixelfixer = { git = "https://github.com/Retro-Diffusion/pixel-art-fixer.git", rev = "ef376e57e1c272633ca2dbf5f29ec3fcf6596465" }
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[[bin]]
+name = "dockside-pixel-fixer"
+path = "main.rs"

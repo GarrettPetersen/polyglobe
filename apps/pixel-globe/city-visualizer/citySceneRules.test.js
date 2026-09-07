@@ -292,7 +292,8 @@ test("the shipyard highlight excludes inert dock layers and the player ship owns
   const shipyard = cityDestinationById(PORT_CITY_LOCATION.SHIPYARD);
   assert.deepEqual(shipyard.layers, ["Shipyard"]);
   assert.equal(shipyard.requiredFeature, "shipyard");
-  assert.match(VISUALIZER_MAIN_SOURCE, /shipOutline: tintedImageCanvas\(shipImage, "#ffe55c"\)/);
+  assert.match(VISUALIZER_MAIN_SOURCE, /shipOutline: tintedImageCanvas\(shipWaterlineLayers\.above, "#ffe55c"\)/);
+  assert.match(VISUALIZER_MAIN_SOURCE, /drawDryDocksideShipOverlay\(foregroundContext, shipForegroundImage, shipWaterlineLayers\.above\)/);
   assert.match(VISUALIZER_MAIN_SOURCE, /const SHIPYARD_BUILDING_HIT_PADDING_PX = 4/);
   assert.match(
     VISUALIZER_MAIN_SOURCE,

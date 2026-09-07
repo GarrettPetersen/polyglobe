@@ -6,6 +6,20 @@ export const DOCKSIDE_SHIP_WATERLINE_RGB = Object.freeze({
   b: 230
 });
 
+export function drawDryDocksideShipOverlay(context, overlay, aboveWater) {
+  if (overlay.width !== aboveWater.width || overlay.height !== aboveWater.height ||
+      context.canvas.width !== overlay.width || context.canvas.height !== overlay.height) {
+    throw new Error("Dockside dry overlay requires matching raster dimensions");
+  }
+  context.save();
+  context.clearRect(0, 0, overlay.width, overlay.height);
+  context.globalCompositeOperation = "source-over";
+  context.drawImage(overlay, 0, 0);
+  context.globalCompositeOperation = "destination-in";
+  context.drawImage(aboveWater, 0, 0);
+  context.restore();
+}
+
 export function docksideShipWaterlinePixelKeys(submergedKeys, width, height) {
   if (!(submergedKeys instanceof Set)) {
     throw new Error("Dockside ship waterline requires a submerged pixel set");

@@ -151,6 +151,7 @@ import {
 import { cityArchitectureStyleForLayer } from "./cityArchitecture.js";
 import {
   DOCKSIDE_SHIP_WATERLINE_RGB,
+  drawDryDocksideShipOverlay,
   docksideShipHullBarLayout,
   docksideShipWaterlinePixelKeys
 } from "./cityDocksideShipWaterline.js";
@@ -159,9 +160,8 @@ import { PLAYER_SHIP_COMBAT_COLOR } from "../src/shipCombatPresentation.js";
 import {
   SHIP_REFRACTION_BAND_HEIGHT,
   SHIP_SUBMERGED_ALPHA,
-  floatingShipSubmergedPixelKeysForDimensions,
-  liveShipRefractionOffset,
-  shipMaxRasterWaterlineDepth
+  shipSubmergedSilhouettePixelKeys,
+  liveShipRefractionOffset
 } from "../src/shipWaterline.js";
 import {
   SHIP_SURFACE_LIGHTING_BLEND,
@@ -991,17 +991,22 @@ async function prepareDocksideShipPresentationUncached(ship, latitudeDeg) {
     latitudeDeg,
     PORT_SCENE_DOCK.waterlineY
   );
+  const shipWaterlineLayers = docksideShipWaterlineLayers(
+    shipImage, shipSinkDepthImage, ship.slug, waterlineRgb
+  );
+  // Opaque overlays must not repaint the translucent underwater hull. In
+  // particular, a full yellow silhouette fills the rudder through its refraction.
+  const dryForeground = document.createElement("canvas");
+  dryForeground.width = width;
+  dryForeground.height = height;
+  const foregroundContext = dryForeground.getContext("2d");
+  drawDryDocksideShipOverlay(foregroundContext, shipForegroundImage, shipWaterlineLayers.above);
   return Object.freeze({
     shipImage,
-    shipForegroundImage,
-    shipOutline: tintedImageCanvas(shipImage, "#ffe55c"),
+    shipForegroundImage: dryForeground,
+    shipOutline: tintedImageCanvas(shipWaterlineLayers.above, "#ffe55c"),
     shipSinkDepthImage,
-    shipWaterlineLayers: docksideShipWaterlineLayers(
-      shipImage,
-      shipSinkDepthImage,
-      ship.slug,
-      waterlineRgb
-    ),
+    shipWaterlineLayers,
     shipWaterShadowImages: Object.freeze(Object.fromEntries(
       CITY_DOCKSIDE_SHADOW_STATES.map((shadowState, index) => [
         shadowState,
@@ -3609,11 +3614,10 @@ function docksideShipWaterlineLayers(shipImage, sinkDepthImage, slug, waterlineR
     });
   }
   if (pixels.length === 0) throw new Error(`Dockside ship image has no opaque pixels: ${slug}`);
-  const submergedKeys = floatingShipSubmergedPixelKeysForDimensions(
+  const submergedKeys = shipSubmergedSilhouettePixelKeys(
     pixels,
     source.width,
-    source.height,
-    shipMaxRasterWaterlineDepth(slug)
+    source.height
   );
   const waterlineKeys = docksideShipWaterlinePixelKeys(
     submergedKeys,

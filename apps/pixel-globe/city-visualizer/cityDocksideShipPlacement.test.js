@@ -6,8 +6,7 @@ import test from "node:test";
 
 import { createCanvas, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
 import {
-  floatingShipSubmergedPixelKeysForDimensions,
-  shipMaxRasterWaterlineDepth
+  shipSubmergedSilhouettePixelKeys
 } from "../src/shipWaterline.js";
 import {
   PORT_SCENE_DOCK,
@@ -147,11 +146,10 @@ async function loadDocksideRasterMetrics(ship) {
     rightmostOpaqueXByRow[y] = Math.max(rightmostOpaqueXByRow[y], x);
     pixels.push({ x, y, sinkHeight: depth[offset] / 255 });
   }
-  const submerged = floatingShipSubmergedPixelKeysForDimensions(
+  const submerged = shipSubmergedSilhouettePixelKeys(
     pixels,
     canvas.width,
-    canvas.height,
-    shipMaxRasterWaterlineDepth(ship.slug)
+    canvas.height
   );
   let submergedMinY = canvas.height;
   for (const key of submerged) {
