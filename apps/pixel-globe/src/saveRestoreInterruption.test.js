@@ -37,7 +37,7 @@ test("a failed restore reports the attempted ship and quest without overwriting 
     gameTelemetry: { captureCrash: (error, context) => captured.push({ error, context }) },
     drawFatalError: (error, heading, context) => captured.push({ error, context, heading })
   };
-  await liveFunctions(["continueSavedVoyage"], runtime).continueSavedVoyage();
+  await liveFunctions(["prepareSavedVoyageForMenu", "continueSavedVoyage"], runtime).continueSavedVoyage();
   assert.equal(captured.length, 2);
   for (const { error, context } of captured) {
     assert.equal(error, failure);
