@@ -1,4 +1,6 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { assertSoakPerformance } from "./performance-oracles.mjs";
+import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
@@ -28,7 +30,7 @@ const revision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encodin
 const dirty = execFileSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).trim() !== "";
 const started = Date.now();
 const report = { version: 1, revision, dirty, started: new Date(started).toISOString(), journeys: [],
-  browser: "not run", scope: "Seeded persistent domain journeys plus continuous browser combat, sailing, docking, trade, mission delivery and reload; domain travel remains a setup seam." };
+  browser: "not run", performance: { status: "not run" }, scope: "Seeded persistent domain journeys plus continuous browser combat, sailing, docking, trade, mission delivery and reload; domain travel remains a setup seam." };
 const checkpoints = new Map();
 let cycle = 0;
 const saveReport = () => writeFileSync(resolve(output, "report.json"), JSON.stringify(report, null, 2));
@@ -68,8 +70,16 @@ function main() {
         seed++;
         saveReport();
       }
+      console.log("Running persistent worker/economy/fleet campaign");
+      const workerLog = execFileSync(process.execPath,
+        ["tools/playtest/worker-campaign.mjs", `--output=${resolve(output, "worker-campaign")}`],
+        { cwd: root, timeout: 10 * 60_000, maxBuffer: 16 * 1024 * 1024 });
+      writeFileSync(resolve(output, "worker-campaign.log"), workerLog);
+      report.workerCampaign = JSON.parse(readFileSync(resolve(output, "worker-campaign/report.json"), "utf8"));
+      saveReport();
       if (args.get("browser") === "true") {
         console.log("Running real-browser gameplay and save/restore scenarios");
+        let lane = "browser";
         try {
           const log = execFileSync(process.execPath, ["tools/run-save-restore-smoke.mjs", "--release-reachability"],
             { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
@@ -79,9 +89,25 @@ function main() {
             { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
           writeFileSync(resolve(output, "browser-journey.log"), journeyLog);
           report.browser = "passed";
+          lane = "performance";
+          const profile = mkdtempSync(resolve(tmpdir(), "pixel-globe-soak-performance-"));
+          try {
+            const performancePath = resolve(output, "performance.json");
+            const performanceLog = execFileSync(process.execPath, ["tools/run-performance-benchmark.mjs",
+              "--benchmark", "busy-world", "--headless", "--profile", profile, "--warmup", "5", "--duration", "15",
+              "--cpu-throttle", "4", "--output", performancePath],
+              { cwd: root, timeout: 10 * 60_000, maxBuffer: 16 * 1024 * 1024 });
+            writeFileSync(resolve(output, "performance.log"), performanceLog);
+            const performance = JSON.parse(readFileSync(performancePath, "utf8"));
+            assertSoakPerformance(performance);
+            report.performance = { status: "passed", renderFramesPerSecond: performance.renderFramesPerSecond,
+              maxFrameMs: performance.frameTimeMs.max, cpuThrottle: performance.cpuThrottle };
+          } finally { rmSync(profile, { recursive: true, force: true }); }
         } catch (error) {
           writeFileSync(resolve(output, "browser-failure.log"), `${error.stdout ?? ""}\n${error.stderr ?? ""}`);
-          report.browser = "failed";
+          if (lane === "browser") report.browser = "failed";
+          else report.performance = { status: "failed" };
+          report.failure = error.message;
           saveReport();
           throw error;
         }
@@ -98,6 +124,8 @@ try {
   main();
 } catch (error) {
   // Artifacts can contain a whole world save. Print the diagnostic, not the save.
+  report.failure = error.message;
+  saveReport();
   console.error(error.stack);
   process.exitCode = 1;
 }

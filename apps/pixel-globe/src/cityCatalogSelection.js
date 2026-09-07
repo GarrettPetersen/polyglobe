@@ -109,7 +109,7 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     // adjacent southern bank tile while retaining its actual coordinates.
     placementLat: 50.60,
     placementLon: -3.55,
-    settlementType: "village",
+    settlementType: "town",
     cityType: "northern-european",
     manualRegion: "british-isles",
     marketGoods: ["wool-cloth", "tin", "wine"],

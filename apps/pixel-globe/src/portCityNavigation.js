@@ -1,3 +1,5 @@
+import { settlementTypeForCity } from "./settlementTypes.js";
+
 export const PORT_CITY_LOCATION = Object.freeze({
   COLONY_CLUE: "colony-clue",
   SET_SAIL: "set-sail",
@@ -61,7 +63,7 @@ const INN_NODE_IDS = new Set([
 ]);
 
 export function portCityAuthorityLabel(settlementType = "city") {
-  return settlementType === "village" ? "Chief’s hut" : "Port authority";
+  return settlementTypeForCity({ settlementType }) === "village" ? "Chief’s hut" : "Port authority";
 }
 
 export function portCityNavigationModel(rootView, services, settlementType = "city") {

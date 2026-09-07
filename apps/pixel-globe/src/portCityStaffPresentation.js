@@ -1,3 +1,4 @@
+import { settlementTypeForCity } from "./settlementTypes.js";
 import { PORT_CITY_STAFF_ROLE, PORT_CITY_STAFF_ROLES } from "./characterPortraits.js";
 import { PORT_CITY_STAFF_GREETING_STYLE } from "./portGreetingStyle.js";
 
@@ -50,12 +51,11 @@ export function portCityStaffTitle(city, role) {
   if (!CITY_TYPES.has(city.cityType)) {
     throw new Error(`Unknown port staff title city type: ${city.cityType}`);
   }
-  if (city.settlementType !== undefined && !["city", "village"].includes(city.settlementType)) {
-    throw new Error(`Unknown port staff title settlement type: ${city.settlementType}`);
-  }
+  settlementTypeForCity(city);
   if (!PORT_CITY_STAFF_ROLES.includes(role)) {
     throw new Error(`Unknown port staff title role: ${role}`);
   }
+  if (city.settlementType === "town") return STANDARD_TITLES[role];
   if (city.factionId === "ainu") return AINU_TITLES[role];
   if (city.cityType === "polynesian") return POLYNESIAN_TITLES[role];
   if (city.settlementType === "village") return VILLAGE_TITLES[role];
@@ -66,6 +66,7 @@ export function portCityStaffGreetingStyle(city) {
   // Reuse the title boundary validation so office and voice cannot diverge on
   // an incomplete city record.
   portCityStaffTitle(city, PORT_CITY_STAFF_ROLE.HARBOUR_MASTER);
+  if (city.settlementType === "town") return PORT_CITY_STAFF_GREETING_STYLE.PORT_OFFICIAL;
   return city.factionId === "ainu" ||
     city.cityType === "polynesian" ||
     city.settlementType === "village"

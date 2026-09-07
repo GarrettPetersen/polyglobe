@@ -240,6 +240,24 @@ export function reconcileRebuiltShipyardFleetHistory(system, retainedShipIds) {
   system.npcSales = system.npcSales.filter((sale) => !ids.has(`shipyard:${sale.id}`));
 }
 
+// Used listings were renumbered by released save loaders. Even after their
+// resale, the retained fleet/replacement IDs prove those serials are occupied.
+// Repair the allocator without deleting listings, sales, ships or accounts.
+export function advanceShipyardTradeInSerialsPastFleet(system, retainedShipIds) {
+  assertShipyardSystem(system);
+  if (!Array.isArray(retainedShipIds) || retainedShipIds.some(id => typeof id !== "string" || !id)) {
+    throw new Error("Shipyard serial reconciliation requires retained ship IDs");
+  }
+  for (const id of retainedShipIds) {
+    const match = /^shipyard:shipyard-(.+)-used-(\d+):npc-sale$/.exec(id);
+    if (!match) continue;
+    const yard = system.yards.get(match[1]);
+    if (!yard) throw new Error(`Retained used ship has no shipyard: ${id}`);
+    yard.nextTradeInNumber = Math.max(yard.nextTradeInNumber,
+      usedShipyardListingSerial(id.replace(/:npc-sale$/, "")) + 1);
+  }
+}
+
 export function snapshotWorldShipyards(system) {
   assertShipyardSystem(system);
   return {
@@ -282,6 +300,12 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
   system.npcSales = snapshot.version >= 3
     ? snapshot.npcSales.map((sale) => restoreNpcSale(sale, system, snapshot.version))
     : [];
+  const nextTradeInByPort = new Map();
+  for (const sale of system.npcSales) {
+    if (!/-used-\d+:npc-sale$/.test(sale.id)) continue;
+    const nextSerial = usedShipyardListingSerial(sale.id.replace(/:npc-sale$/, "")) + 1;
+    nextTradeInByPort.set(sale.portId, Math.max(nextTradeInByPort.get(sale.portId) || 1, nextSerial));
+  }
   for (const yard of system.yards.values()) yard.seedKey = seedKey;
   for (const saved of snapshot.yards) {
     const yard = restoredShipyard(system, saved.portId, snapshot.version);
@@ -319,7 +343,15 @@ export function restoreWorldShipyards(system, snapshot, { seedKey = system?.seed
     yard.usedListings = snapshot.version >= 9
       ? saved.usedListings.map((listing) => restoreUsedShipyardListing(yard, listing, snapshot.version))
       : [];
-    yard.nextTradeInNumber = snapshot.version >= 9 ? saved.nextTradeInNumber : 1;
+    // Released loaders renumbered used listings before restoring this counter.
+    // Preserve their saved identities and advance the allocator past all of
+    // them, including current saves produced by that faulty loader.
+    yard.nextTradeInNumber = yard.usedListings.reduce((nextSerial, listing) =>
+      Math.max(nextSerial, usedShipyardListingSerial(listing.id) + 1),
+      Math.max(snapshot.version >= 9 ? saved.nextTradeInNumber : 1, nextTradeInByPort.get(yard.portId) || 1));
+    if (new Set(yard.usedListings.map(listing => listing.id)).size !== yard.usedListings.length) {
+      throw new Error(`Duplicate saved used shipyard listing at ${yard.portId}`);
+    }
     yard.nextBuildMinute = snapshot.version === 1 && saved.nextBuildMinute > snapshot.lastMinute
       ? Math.round(
           snapshot.lastMinute +
@@ -393,10 +425,29 @@ function restoreUsedShipyardListing(yard, listing, snapshotVersion) {
   shipStatsForSlug(listing.shipSlug);
   return Object.freeze({
     ...listing,
-    id: `shipyard-${yard.portId}-used-${yard.nextTradeInNumber++}`,
+    id: canonicalUsedShipyardListingId(yard, listing.id, snapshotVersion),
     portId: yard.portId,
     masterwork: false
   });
+}
+
+function usedShipyardListingSerial(id) {
+  const match = /-used-(\d+)$/.exec(id);
+  const serial = match ? Number(match[1]) : NaN;
+  if (!Number.isSafeInteger(serial) || serial < 1 || serial >= Number.MAX_SAFE_INTEGER) {
+    throw new Error(`Invalid used shipyard listing serial: ${id}`);
+  }
+  return serial;
+}
+
+function canonicalUsedShipyardListingId(yard, id, snapshotVersion) {
+  const serial = usedShipyardListingSerial(id);
+  const canonical = `shipyard-${yard.portId}-used-${serial}`;
+  if (id === canonical) return id;
+  // Only the pre-canonical snapshot versions used tile-based yard prefixes.
+  // Ownership has already been resolved by the listing's port reference.
+  if (snapshotVersion < SHIPYARD_SNAPSHOT_VERSION && /^shipyard-\d+-used-\d+$/.test(id)) return canonical;
+  throw new Error(`Used shipyard listing belongs to another yard: ${id} at ${yard.portId}`);
 }
 
 export function advanceWorldShipyards(system, simMinute, materialMarket = null) {

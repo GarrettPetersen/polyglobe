@@ -1996,6 +1996,7 @@ import {
 } from "./shipInfo.js";
 import {
   reconcileRebuiltShipyardFleetHistory,
+  advanceShipyardTradeInSerialsPastFleet,
   availablePlayerShipyardPayouts,
   claimShipyardListing,
   nearestShipyardListingForPort,
@@ -16917,6 +16918,10 @@ async function restoreSavedVoyage(payload) {
   ensureNingboMissionEncounters({ assignCaptains: false });
   ensureTeaRaceEncounters({ assignCaptains: false });
   restoreNpcSurrenderContinuity(npcSeaRoutes, payload.npcSurrenders);
+  advanceShipyardTradeInSerialsPastFleet(worldEconomy.shipyards, [
+    ...npcSeaRoutes.ships.map(entry => entry.id),
+    ...npcSeaRoutes.replacementQueue.map(entry => entry.shipId)
+  ]);
   if (!payload.economy || recoveredDerivedSystems.includes("world economy")) {
     reconcileRebuiltShipyardFleetHistory(worldEconomy.shipyards, [
       ...npcSeaRoutes.ships.map((entry) => entry.id),

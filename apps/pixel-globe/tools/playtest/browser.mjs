@@ -36,6 +36,7 @@ try {
   const context = await browser.newContext({ viewport: { width: 455, height: 256 } });
   await context.addInitScript({ content: `(() => {
     localStorage.setItem("marque-and-reprisal.telemetry-consent", "denied");
+    localStorage.setItem("pixel_globe_diagnostic_mode", "true");
     const stream = { value: ${seed >>> 0} };
     const next = ${nextSeededRandom.toString()};
     Math.random = () => next(stream);

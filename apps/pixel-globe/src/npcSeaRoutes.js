@@ -1,3 +1,4 @@
+import { settlementTypeForCity } from "./settlementTypes.js";
 import {
   WEATHER_DAYS,
   WEATHER_MINUTES_PER_DAY,
@@ -646,7 +647,7 @@ export function npcSeaRoutePortSettlementType(system, port) {
   const cityId = requireCityId(port, "NPC route settlement lookup");
   const existing = system.ports.find((candidate) => candidate.cityId === cityId);
   if (!existing) throw new Error(`NPC route port does not exist: ${cityId}`);
-  return existing.settlementType === "village" ? "village" : "city";
+  return settlementTypeForCity(existing);
 }
 
 export function configureCaptureEncounter(system, spec, clockMinutes) {
@@ -1935,10 +1936,11 @@ function repairInvalidRegionalFishermanRoutes(system, ships) {
 }
 
 function regionalFishermanDestinationBelongsToProfile(profileSpec, profilePorts, destination) {
-  if (destination.isFishingGround) {
-    return profilePorts.some((port) => npcRoutePointsShareAnchor(port, destination));
-  }
-  return profileSpec.portPredicate(destination);
+  // Sale-port selection permits nearby ports on the same sea-lane anchor,
+  // even across a fleet-profile boundary. Reload must not relocate those
+  // legitimate fishing voyages as if they were obsolete ocean crossings.
+  return profileSpec.portPredicate(destination) ||
+    profilePorts.some((port) => npcRoutePointsShareAnchor(port, destination));
 }
 
 function replanNpcRoutesForCurrentTopology(system, ships) {
@@ -4957,7 +4959,9 @@ function enterPirateHideout(ship, arrivalMinute) {
 }
 
 function npcMerchantCanTradeAtPort(system, ship, port) {
-  if (port?.isFishingGround || port?.isWhalingGround) return true;
+  // Encounter waypoints are open-water positions, not markets. Applying city
+  // trade restrictions to them violates the canonical-city-ID contract.
+  if (port?.isFishingGround || port?.isWhalingGround || isSavedEncounterPoint(port)) return true;
   const relation = system.relationBetween(ship.factionId, port.factionId);
   return evaluateTradeAccess({
     port,

@@ -32,3 +32,33 @@ test("reconstructed stock unrelated to retained fleet history remains available"
   assert.throws(() => reconcileRebuiltShipyardFleetHistory(system, [null]), /retained ship IDs/);
   assert.throws(() => reconcileRebuiltShipyardFleetHistory(system, [`shipyard:shipyard-${port.cityId}-bad:npc-sale`]), /provenance/);
 });
+
+test("released used-listing counter damage repairs from retained fleet IDs without erasing history", async () => {
+  const { advanceShipyardTradeInSerialsPastFleet, registerShipyardTradeIn, snapshotWorldShipyards } = await import("./shipyards.js");
+  const system = createWorldShipyards({ ports: [port], startMinute: 0 });
+  const before = snapshotWorldShipyards(system);
+  const retained = [`shipyard:shipyard-${port.cityId}-used-8:npc-sale`];
+  advanceShipyardTradeInSerialsPastFleet(system, retained);
+  assert.equal(system.yards.get(port.cityId).nextTradeInNumber, 9);
+  assert.deepEqual(snapshotWorldShipyards(system).yards[0].listing, before.yards[0].listing);
+  advanceShipyardTradeInSerialsPastFleet(system, retained);
+  const listing = registerShipyardTradeIn(system, port, { shipSlug: "caravel", seller: "player", acquiredMinute: 0 });
+  assert.equal(listing.id, `shipyard-${port.cityId}-used-9`);
+});
+
+test("frozen released used-listing save preserves IDs and repairs the allocator idempotently", async () => {
+  const { readFileSync } = await import("node:fs");
+  const { restoreWorldShipyards } = await import("./shipyards.js");
+  const saved = JSON.parse(readFileSync(new URL("./test-fixtures/shipyards/v11-renumbered-used.json", import.meta.url)));
+  const system = createWorldShipyards({ ports: [port], startMinute: 0 });
+  restoreWorldShipyards(system, saved);
+  const repaired = snapshotWorldShipyards(system);
+  assert.equal(repaired.yards[0].usedListings[0].id, saved.yards[0].usedListings[0].id);
+  assert.equal(repaired.yards[0].nextTradeInNumber, 3);
+  assert.deepEqual(repaired.yards[0].usedListings, saved.yards[0].usedListings);
+  restoreWorldShipyards(system, repaired);
+  assert.deepEqual(snapshotWorldShipyards(system), repaired);
+  const duplicate = structuredClone(saved);
+  duplicate.yards[0].usedListings.push(duplicate.yards[0].usedListings[0]);
+  assert.throws(() => restoreWorldShipyards(system, duplicate), /Duplicate saved used/);
+});

@@ -88,6 +88,6 @@ test("port staff titles fail loudly on incomplete or unknown identity", () => {
       { cityType: "polynesian", settlementType: "camp" },
       PORT_CITY_STAFF_ROLE.MERCHANT
     ),
-    /Unknown port staff title settlement type/
+    /Unknown settlement type/
   );
 });

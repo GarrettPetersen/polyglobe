@@ -698,7 +698,7 @@ function resolveCityRecord(cityId, {
   if (population !== null && (!Number.isInteger(population) || population < 1)) {
     throw new Error(`Invalid visualizer city population: ${population}`);
   }
-  if (settlementType !== null && !["city", "village"].includes(settlementType)) {
+  if (settlementType !== null && !["city", "town", "village"].includes(settlementType)) {
     throw new Error(`Invalid visualizer settlement type: ${settlementType}`);
   }
   const liveFactionId = factionId ?? catalogCity.factionId;

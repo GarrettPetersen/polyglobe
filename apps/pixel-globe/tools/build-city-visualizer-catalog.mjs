@@ -578,6 +578,7 @@ function dominantTerrain(scores) {
 }
 
 function dockStyle(city, approach) {
+  if (city.settlementType === "town") return "wood";
   if (city.settlementType === "village" || city.population < 3500) return "none";
   if (approach === "river") return city.population >= 80000 ? "stone" : "wood";
   if (city.requiredTradePort || city.declaredCapitalFactionId || city.population >= 25000) return "stone";
@@ -596,6 +597,9 @@ function dockRule(city, dock, approach) {
 }
 
 function fortificationEstimate(city) {
+  if (city.settlementType === "town") {
+    return { fortified: false, confidence: "provisional", reason: "Small port town; no defensive enclosure declared" };
+  }
   if (city.settlementType === "village") {
     return { fortified: false, confidence: "high", reason: "1522 village catalog: no urban gatehouse" };
   }

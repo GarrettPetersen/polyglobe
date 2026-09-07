@@ -123,3 +123,48 @@ fails the run, including pilot limitations, instead of silently skipping the cas
 Regression tests also advance the coupled economy and NPC fleet through ten
 years and 120 save/load cycles. Compact-save tests verify that retained
 surrendered hulls prevent reconstructed shipyards from selling their IDs again.
+
+## Worker lifecycle and accumulated history
+
+Every soak cycle also continues `worker-campaign/checkpoint.json` for another
+30 game days. It runs the shipped worker message handler in a Node worker thread,
+with authored settlement metadata, the generated road network, real economies,
+NPC fleets, fisheries and a frozen older player-shipyard investment. Strategic
+catch-up is bounded to six hours per request; this does not alter physics dt.
+Every second month captures a merchant and trades the prize into the backed
+Lisbon yard, exercising replacement queues and subsequent secondhand resales. Monthly
+JSON round trips must preserve the complete economy, fleet and land trade state.
+Every worker commit checks sale/listing IDs against both live and queued ships.
+The checkpoint carries across cycles, rather than alternating back to a fresh
+world. Failure artifacts retain the last checkpoint and the failing month.
+
+Run or resume this lane independently:
+
+```sh
+node tools/playtest/worker-campaign.mjs --months=12 --output=.playtest/worker-campaign
+node --test src/workerVoyageInterruption.test.js
+```
+
+The interruption regression runs a real worker purchase, then snapshots at every
+incremental main-thread snapshot, comparison and restore boundary. It executes
+the production apply functions extracted from `main.js`, with real incremental
+restore plans; rendering callbacks are excluded. Both durable player-yard books
+and optional world snapshots must belong to the same completed generation.
+Separate resale tests cover NPC upgrades, player trade-ins, captures, repeated
+reloads and the frozen v11 counter corruption produced by the released loader.
+
+Browser journeys now enable diagnostic mode: chart reframes and excessive
+sailing-position corrections fail the run even when FPS remains high.
+
+This still does not reproduce an arbitrary player's history without their save.
+Worker campaigns hold diplomatic policy neutral and treat fishing-ground
+navigability as a setup seam; they do not replace browser combat, geographic
+navigation tests, or hardware performance benchmarks. The process reports these
+lanes separately rather than adding worker ticks to player-action counts.
+
+Browser-enabled cycles also run a 15-second busy-world benchmark after warmup,
+with 4× CPU throttling and an isolated temporary browser profile. The gate fails
+below 15 rendered FPS or above a 500 ms maximum frame gap. It checks rendered
+frames separately from update-loop FPS, retains the measured report, and catches
+runtime errors as failures. These are broad release regression limits, not
+hardware certification or evidence that every weather/port combination is fast.

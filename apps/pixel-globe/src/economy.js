@@ -1,3 +1,4 @@
+import { settlementTypeForCity } from "./settlementTypes.js";
 import {
   SHIPBUILDING_MATERIAL_GOOD_IDS,
   addWorldShipyardPort,
@@ -1805,7 +1806,7 @@ export function cargoSaleValue(economy, city, cargo, salePriceMultiplier = (_goo
 
 function createPortState(port, seedKey) {
   const populationScale = clamp(Math.sqrt(Math.max(1000, port.population || 10000) / 30000), 0.45, 4.2);
-  const settlementType = port.settlementType === "village" ? "village" : "city";
+  const settlementType = settlementTypeForCity(port);
   const productionMultiplier = settlementType === "village" ? VILLAGE_PRODUCTION_MULTIPLIER : 1;
   const consumptionMultiplier = settlementType === "village" ? VILLAGE_CONSUMPTION_MULTIPLIER : 1;
   const declaredMarketGoodIds = Array.isArray(port.marketGoods)

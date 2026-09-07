@@ -1,0 +1,61 @@
+{
+  "version": 11,
+  "lastMinute": 0,
+  "npcSales": [],
+  "yards": [
+    {
+      "portId": "lisbon|portugal",
+      "buildNumber": 0,
+      "listing": {
+        "id": "shipyard-lisbon|portugal-0",
+        "portId": "lisbon|portugal",
+        "portName": "Lisbon",
+        "shipSlug": "ketch",
+        "shipLabel": "Lateen Barque",
+        "price": 3700,
+        "builtMinute": -81450.47379262988,
+        "expiresMinute": 264149.5262073701,
+        "masterwork": true,
+        "source": "new-build",
+        "acquisitionCost": 0
+      },
+      "usedListings": [
+        {
+          "id": "shipyard-lisbon|portugal-used-2",
+          "portId": "lisbon|portugal",
+          "portName": "Lisbon",
+          "shipSlug": "caravel",
+          "shipLabel": "Caravel",
+          "price": 20700,
+          "builtMinute": 0,
+          "expiresMinute": 259200,
+          "masterwork": false,
+          "source": "trade-in",
+          "acquisitionCost": 14400,
+          "seller": "fixture-captain"
+        }
+      ],
+      "nextTradeInNumber": 2,
+      "nextBuildMinute": 78389.52620737012,
+      "buildStartedMinute": -81450.47379262988,
+      "materialDelayDays": 0,
+      "materialInventory": {
+        "timber": 0,
+        "iron": 0,
+        "naval-stores": 0,
+        "linen-cloth": 0
+      },
+      "materialConsumedForBuild": {
+        "timber": 1.019150072480354,
+        "iron": 0.509575036240177,
+        "naval-stores": 1.019150072480354,
+        "linen-cloth": 1.019150072480354
+      },
+      "playerBacking": null,
+      "playerDividendBalance": 0,
+      "lifetimePlayerDividends": 0,
+      "playerPendingSales": [],
+      "playerAccounts": null
+    }
+  ]
+}

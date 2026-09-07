@@ -3336,3 +3336,80 @@ test("compact-save yard reconstruction cannot resell a retained surrendered hull
   assert.doesNotThrow(() => updateNpcSeaRouteEvents(restored, 3, [], { maintenance: true }));
   assert.equal(restored.ships.filter((ship) => ship.id === retained.id).length, 1);
 });
+
+test("secondhand resales retain distinct IDs through fleet purchase, capture, and repeated reloads", async () => {
+  const { snapshotWorldEconomy, restoreWorldEconomy } = await import("./economy.js");
+  const { registerShipyardTradeIn, advanceWorldShipyards } = await import("./shipyards.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const port = PORTS[0];
+  const yard = economy.shipyards.yards.get(port.cityId);
+  const first = registerShipyardTradeIn(economy.shipyards, port, { shipSlug: "caravel", seller: "player", acquiredMinute: 0 });
+  advanceWorldShipyards(economy.shipyards, first.expiresMinute);
+  routes.shipyardFleetGrowthLimit = routes.ships.length + 100;
+  updateNpcSeaRouteEvents(routes, first.expiresMinute, [], { maintenance: true });
+  const id = `shipyard:${first.id}:npc-sale`;
+  assert.ok(routes.shipById.has(id), "Secondhand sale must actually create an NPC ship");
+  surrenderNpcShip(routes, id, null, { preserveHull: true });
+  captureSurrenderedNpcShip(routes, id, first.expiresMinute);
+  const next = registerShipyardTradeIn(economy.shipyards, port, { shipSlug: "caravel", seller: "player", acquiredMinute: first.expiresMinute });
+  assert.notEqual(next.id, first.id, "Trading a prize back cannot recycle its earlier sale identity");
+  for (let reload = 0; reload < 3; reload++) {
+    restoreWorldEconomy(economy, JSON.parse(JSON.stringify(snapshotWorldEconomy(economy))));
+    restoreNpcSeaRouteSystem(routes, JSON.parse(JSON.stringify(snapshotNpcSeaRouteSystem(routes))), { economy });
+    assert.equal(yard.nextTradeInNumber, 3);
+  }
+  advanceWorldShipyards(economy.shipyards, next.expiresMinute);
+  routes.shipyardFleetGrowthLimit = routes.ships.length + 100;
+  for (let attempt = 0; attempt < 20 && economy.shipyards.npcSales.some(sale => sale.id === `${next.id}:npc-sale`); attempt++) {
+    updateNpcSeaRouteEvents(routes, next.expiresMinute + attempt, [], { maintenance: true });
+  }
+  const allIds = [...routes.ships.map(ship => ship.id), ...routes.replacementQueue.map(entry => entry.shipId)];
+  assert.equal(new Set(allIds).size, allIds.length);
+  assert.ok(!economy.shipyards.npcSales.some(sale => [first.id, next.id].includes(sale.id.replace(/:npc-sale$/, ""))));
+});
+
+test("an NPC upgrade trades its old hull into a separate resale identity", async () => {
+  const { snapshotWorldEconomy, restoreWorldEconomy } = await import("./economy.js");
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const port = routes.ports.find(port => port.cityId === PORTS[0].cityId);
+  const buyer = routes.ships.find(ship => ship.factionId === "portugal" && ship.role === NPC_ROLE_MERCHANT && ship.profileId === "cape-trade");
+  assert.ok(buyer);
+  const oldId = buyer.id;
+  const oldSlug = buyer.slug;
+  const sailingPlan = buyer.plan;
+  const sailingPort = buyer.currentPort;
+  buyer.plan = null;
+  buyer.currentPort = port;
+  economy.shipyards.npcSales = [{ id: `shipyard-${port.cityId}-0:npc-sale`, portId: port.cityId,
+    factionId: "portugal", shipSlug: "galleon", price: 100000, soldMinute: 0 }];
+  updateNpcSeaRouteEvents(routes, 1, [], { maintenance: true });
+  assert.equal(buyer.slug, "galleon");
+  assert.equal(buyer.id, oldId);
+  const yard = economy.shipyards.yards.get(port.cityId);
+  const tradeIn = yard.usedListings.find(listing => listing.seller === `npc:${oldId}`);
+  assert.ok(tradeIn);
+  assert.equal(tradeIn.shipSlug, oldSlug);
+  assert.match(tradeIn.id, /-used-\d+$/);
+  // End the staged dockside transaction before serializing a sailing voyage.
+  buyer.plan = sailingPlan;
+  buyer.currentPort = sailingPort;
+  restoreWorldEconomy(economy, JSON.parse(JSON.stringify(snapshotWorldEconomy(economy))));
+  restoreNpcSeaRouteSystem(routes, JSON.parse(JSON.stringify(snapshotNpcSeaRouteSystem(routes))), { economy });
+  assert.equal(yard.usedListings.find(listing => listing.id === tradeIn.id).shipSlug, oldSlug);
+  assert.equal(economy.shipyards.npcSales.length, 0);
+});
+
+test("trade-policy maintenance distinguishes open-water encounter waypoints from cities", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  for (const role of [NPC_ROLE_MERCHANT, NPC_ROLE_FISHERMAN, NPC_ROLE_WHALER]) {
+    const encounter = configureNpcEncounter(routes, { id: `open-water-${role}`, captainHomeCityId: PORTS[0].cityId,
+      factionId: "portugal", role, shipSlug: "caravel", lat: 37, lon: -12, headingDeg: 90,
+      cultureType: "mediterranean", routeRegion: "europe", durationDays: 30, replaceOnSink: false }, 0);
+    const destination = encounter.finalDestination;
+    assert.doesNotThrow(() => updateNpcSeaRouteEvents(routes, 30, [], { maintenance: true }));
+    assert.strictEqual(encounter.finalDestination, destination);
+  }
+});

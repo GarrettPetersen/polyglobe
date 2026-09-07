@@ -61,7 +61,7 @@ test("Exeter remains inland and Topsham is its distinct English outport", () => 
   assert.equal(cityMustRemainInland(topsham), false);
   assert.equal(cityRequiresPortAccess(topsham), true);
   assert.equal(topsham.factionId, "england");
-  assert.equal(topsham.settlementType, "village");
+  assert.equal(topsham.settlementType, "town");
   assert.equal(topsham.marketGoods.length, 3);
   assert.ok(topsham.lat < exeter.lat && exeter.lat - topsham.lat < 0.1);
 });

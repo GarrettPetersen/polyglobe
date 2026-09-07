@@ -1,3 +1,4 @@
+import { settlementTypeForCity } from "../src/settlementTypes.js";
 import { portCityServiceProfile } from "../src/portCityServices.js";
 
 export const EARTHEN_VILLAGE_BUILDING_STYLE = "earthen-village";
@@ -15,7 +16,7 @@ const SETTLEMENT_FORMS = new Set(["sparse-village", "urban"]);
 
 export function deriveCityArchitectureProfile(city) {
   requireCityArchitectureSource(city);
-  const settlementType = city.settlementType || "city";
+  const settlementType = settlementTypeForCity(city);
   const sparseEarthenVillage = settlementType === "village";
   const swahiliCoast = city.manualRegion === "swahili-coast";
   const regionalStyle = city.country === "Japan"
