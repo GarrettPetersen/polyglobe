@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 6, 2026**.
+Last updated: **September 7, 2026**.
 
 ## Dated marketing calendar
 
@@ -14,10 +14,10 @@ Last updated: **September 6, 2026**.
 - **September 2:** Indie Game Award 2027 pre-selection materials submitted.
 - **September 3:** Mobidictum Steam Showcase application submitted. Watch for
   a Steamworks event invitation or a later request for jury build access.
-- **September 7:** IGF 2027 fee-waiver request deadline. Steam also pulls the
+- **September 7:** DevGAMM Awards application submitted. IGF 2027 fee-waiver
+  request deadline. Steam also pulls the
   current base-game trailer for possible inclusion in its official Next Fest
   trailer, if Valve has notified us that the game is under consideration.
-  Submit to the DevGAMM Awards by the same date.
 - **September 13:** IGF 2027 application and build deadline.
 - **September 21:** Submit the Next Fest demo build and store page for review
   to be ready for the press preview.
@@ -518,14 +518,21 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
     for jury access; provide the Cloudflare browser build or Steam keys then.
   - Application: https://form.jotform.com/261741269632965
 
-- [ ] **DevGAMM Awards 2026 — apply by September 7**
+- [x] **DevGAMM Awards 2026 — submitted September 7**
   - Why: Free international competition judged by 150+ industry professionals,
     with an Awards Celebration Steam event and an IGN-streamed ceremony.
-  - Enter: Grand Prize, Excellence in Game Design, Best Small Team Game, Most
-    Anticipated Game and Meaningful Game. Do not enter engine-specific or
-    Portugal-specific categories.
-  - Prepare: A private judging gameplay video, public trailer, key art, team
-    information and either 25 Steam keys or a durable private build link.
+  - Entered Excellence in Game Design, Best Small Team Game, Most Anticipated
+    Game and Meaningful Game; Grand Prize and DevGAMM Choice consideration are
+    automatic. Meaningful Game areas: Culture, Education and Politics.
+  - Submitted a private judging gameplay video, public trailer, key art and the
+    public Cloudflare browser build. The build requires no keys.
+  - Also entered the Steam event, but not the in-person Game Showcase, Public
+    Pitch or discounted INDIE DEV ticket. No Steam-event activity was promised.
+  - The form records the game as Beta, self-published by Iron Pagoda, targeting
+    Windows, macOS and Linux with a planned November 20 release.
+  - A possible November 18 ceremony feature was offered for the launch trailer
+    and imminent November 20 release. Prepare it only if DevGAMM follows up.
+  - Judging runs September 11–November 9; nominees are announced October 22.
   - If nominated on October 22, a representative must attend the November 18
     ceremony in Lisbon. Decide then whether Garrett will travel or whether a
     trusted local industry representative can attend on Iron Pagoda's behalf.
@@ -619,10 +626,10 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
 
 ## Current critical path
 
-In deadline order now: submit DevGAMM and the IGF fee-waiver request by
-September 7; submit IGF by September 13; prepare
-INDIE Live Expo for September 28; submit the public demo to Support the Indies
-by late September. In parallel, follow up on Galaxies and confirm SCHMOOVEMENT
+In deadline order now: wait for the IGF fee-waiver decision and submit IGF by
+September 13; prepare INDIE Live Expo for September 28; submit the public demo
+to Support the Indies by late September. In parallel, follow up on Galaxies and
+confirm SCHMOOVEMENT
 selection; complete the BiteMe demo
 release-blocker, onboarding, audio/settings and store-asset audits; add the
 in-demo wishlist call to action; update both Steam descriptions for the larger

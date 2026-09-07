@@ -1,6 +1,6 @@
 # 2026 Festival Application Workbench
 
-Last updated: **September 2, 2026**
+Last updated: **September 7, 2026**
 
 ## Reusable game details
 
@@ -13,7 +13,7 @@ Last updated: **September 2, 2026**
 - **Website and browser demo:** https://marque-and-reprisal.com/
 - **Press kit:** https://marque-and-reprisal.com/press/
 - **Platform:** PC
-- **Target release date for applications:** December 1, 2026
+- **Target release date for applications:** November 20, 2026
 - **Genres:** Sailing simulation, strategy, roguelike
 
 **One-sentence pitch:** Marque & Reprisal is a globe-spanning sailing
@@ -174,6 +174,30 @@ Status: **Registered and pre-selection materials submitted September 2, 2026.**
   or requests for replacement material.
 - INDIE HOUSE exhibition and B2B registration remain separate from this award
   submission.
+
+## DevGAMM Awards 2026
+
+Status: **Submitted September 7, 2026.**
+
+- Activities: DevGAMM Awards and Steam Event; no Game Showcase, Public Pitch or
+  discounted INDIE DEV ticket.
+- Categories: Excellence in Game Design, Most Anticipated Game, Best Small Team
+  Game and Meaningful Game. Grand Prize and DevGAMM Choice consideration are
+  automatic.
+- Meaningful Game areas: Culture, Education and Politics.
+- Development milestone: Beta.
+- Developer and publisher: Iron Pagoda; self-publishing; one-person team.
+- Platforms: Windows, macOS and Linux.
+- Planned release date: November 20, 2026.
+- Judge access: public Cloudflare browser build; no key required.
+- Media: public gameplay trailer, private judging gameplay video and English
+  main-capsule key art.
+- Steam event: entered with no additional activity promised.
+- Ceremony announcement: Yes; if DevGAMM follows up, offer the launch trailer
+  and imminent November 20 release as the update.
+- Judging: September 11–November 9. Nominees are announced October 22; a team
+  representative must attend the November 18 ceremony in Lisbon if nominated.
+- Application and rules: https://devgamm.com/awards2026/rules/
 
 ## IGDB and Twitch category
 
