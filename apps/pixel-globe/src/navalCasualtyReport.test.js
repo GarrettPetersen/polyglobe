@@ -63,9 +63,9 @@ test("version 102 voyages acquire an empty report without losing existing histor
 });
 
 test("after-action reports wait for sustained quiet, all opponents, projectiles and overlays", () => {
-  const base = { quietSinceMs: 100, nowMs: 5100, engaged: false, projectilesActive: false, blocked: false };
+  const base = { quietSinceMs: 100, nowMs: 8100, engaged: false, projectilesActive: false, blocked: false };
   assert.equal(navalAfterActionReady(base), true);
-  for (const change of [{ quietSinceMs: null }, { nowMs: 5099 }, { engaged: true },
+  for (const change of [{ quietSinceMs: null }, { nowMs: 8099 }, { engaged: true },
     { projectilesActive: true }, { blocked: true }, { quietSinceMs: 4000 }]) {
     assert.equal(navalAfterActionReady({ ...base, ...change }), false);
   }

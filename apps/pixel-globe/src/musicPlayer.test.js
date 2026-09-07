@@ -253,3 +253,39 @@ class FakeBufferSourceNode {
     this.onended?.();
   }
 }
+
+test("repeated requests while decoding share one transition and do not restart the current track", async () => {
+  const context = new FakeAudioContext();
+  const gate = deferred();
+  const player = createPlayer(context, async url => {
+    if (url.includes("combat")) await gate.promise;
+    return fakeBufferForUrl(url);
+  });
+  await player.request("ship");
+  await player.activate();
+  const first = player.request("combat");
+  assert.equal(player.request("combat"), first);
+  gate.resolve();
+  await first;
+  const count = context.sources.length;
+  await player.request("combat");
+  await player.activate();
+  assert.equal(context.sources.length, count);
+});
+
+test("minimum track duration defers ordinary switches but combat can interrupt immediately", async () => {
+  const context = new FakeAudioContext();
+  const player = createPlayer(context);
+  player.minimumTrackSeconds = 8;
+  await player.request("ship");
+  await player.activate();
+  context.currentTime = 11;
+  await player.request("city");
+  await player.ensureRequestedTrack();
+  assert.equal(player.currentTrackKey, "ship");
+  context.currentTime = 19;
+  await player.ensureRequestedTrack();
+  assert.equal(player.currentTrackKey, "city");
+  await player.request("combat", { immediate: true });
+  assert.equal(player.currentTrackKey, "combat");
+});

@@ -1,4 +1,5 @@
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createCanvas, createImageData, loadImage } from "../../../examples/globe-demo/node_modules/canvas/index.js";
@@ -26,7 +27,7 @@ const ROWING_STEMS = Object.freeze(["rowing", "pivot-port", "pivot-starboard"]);
 const BUNDLE_COUNT = 4;
 
 export async function bakeAllShipRenderLayers() {
-  await rm(outputRoot, { recursive: true, force: true });
+  // Keep published bundles: an already-open voyage may stream them after a later release.
   await mkdir(outputRoot, { recursive: true });
   const bakedShips = [];
   for (const stats of SHIP_STATS) bakedShips.push(await bakeShip(stats.slug));
@@ -34,8 +35,9 @@ export async function bakeAllShipRenderLayers() {
   const ships = {};
   const bundles = {};
   for (let bundleIndex = 0; bundleIndex < bundleGroups.length; bundleIndex++) {
-    const bundleName = `ship-render-layers-${bundleIndex}.bin`;
     const entries = [...bundleGroups[bundleIndex]].sort((a, b) => a.slug.localeCompare(b.slug));
+    const bytes = Buffer.concat(entries.map((entry) => entry.png));
+    const bundleName = `ship-render-layers-${createHash("sha256").update(bytes).digest("hex")}.bin`;
     let byteOffset = 0;
     for (const baked of entries) {
       ships[baked.slug] = {
@@ -46,7 +48,6 @@ export async function bakeAllShipRenderLayers() {
       };
       byteOffset += baked.png.length;
     }
-    const bytes = Buffer.concat(entries.map((entry) => entry.png), byteOffset);
     bundles[bundleName] = { byteLength: bytes.length };
     await writeFile(join(outputRoot, bundleName), bytes);
   }

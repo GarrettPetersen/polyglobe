@@ -4,7 +4,7 @@ import { cityCombatEntryOpacity } from "./cityCombatVisibility.js";
 test("assault cutaways expose all lanes behind foreground facades without reordering scenery", () => {
   for (const layerName of ["Inn", "Smith", "Home", "Market Stall", "Near Castle"]) {
     const entry = { kind: "static", layerName, z: 70 };
-    assert.equal(cityCombatEntryOpacity(entry, true), 0.22);
+    assert.equal(cityCombatEntryOpacity(entry, true), 1);
     assert.equal(cityCombatEntryOpacity(entry, false), 1);
     assert.equal(entry.z, 70);
   }

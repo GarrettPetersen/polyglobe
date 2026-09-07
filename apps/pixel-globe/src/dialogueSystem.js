@@ -524,6 +524,7 @@ export function createPortDialogueSession(city, options = {}) {
     tradePassGrantedPolicyId: null,
     captureCommissionPetitionResult: null,
     customsNoticeKey: null,
+    recentConquestCityId: options.recentConquestCityId || null,
     selectedIndex: 0,
     feedback: null
   };
@@ -684,6 +685,7 @@ export function createPortArrivalDialogueSession(city, options = {}) {
     initialNodeId: arrivedDrunk ? "drunk-captain" : initialNodeId,
     admittedToPort: true,
     rumorText: options.rumorText,
+    recentConquestCityId: options.recentConquestCityId,
     nextPortNodeId: options.nextPortNodeId,
     postDrunkNodeId: arrivedDrunk ? initialNodeId : null,
     drunkVariant
@@ -2157,6 +2159,7 @@ export function selectPortDialogueAction(
     const hired = hireCrewMemberAtPort(gameState, city, action.memberId, context);
     session.feedback = `${hired.member.name} joined the crew.`;
     session.selectedIndex = 0;
+    if (session.crewRecruitmentArrival) session.nodeId = "root";
     return { closed: false, crewHire: hired };
   }
   if (action.type === "dismiss-crew-member") {
@@ -4469,6 +4472,17 @@ function greetingView(session, city, gameState, context) {
     };
   }
   if (city.isPirateHideout) return pirateHideoutGreetingView(city, memory, context);
+  if (session.recentConquestCityId === city.cityId) {
+    const conquestRemark = changedPortSovereigntyLine(city);
+    if (!conquestRemark) throw new Error(`Recent conquest greeting lost sovereignty record: ${city.cityId}`);
+    return {
+      speaker: speakerName(city),
+      expressionId: "stern",
+      text: conquestRemark,
+      feedback: null,
+      options: [option("Continue", { type: "node", nodeId: "root" })]
+    };
+  }
   if (city.playerFoundedColony || city.playerDevelopedPort) {
     const discountPercent = founderPurchaseDiscountPercent();
     const developedPortText = memory.visits > 1
@@ -4824,6 +4838,13 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
       ]
     };
   }
+  if (context.portRecoveryStatus) {
+    return {
+      text: recoveringPortView(city, context).text,
+      feedback: null,
+      options: [option("Leave port", { type: "close" })]
+    };
+  }
   const market = portEconomySummary(economy, city);
   const cityServices = portCityServiceProfile(city);
   const pirateHideout = city.isPirateHideout === true;
@@ -5129,7 +5150,10 @@ function exeterCanalDialogueView(session, city, gameState, context) {
       ...(quest.accepted && !quest.building && !quest.complete ? [option("Deliver canal materials", { type: "deliver-exeter-canal" }, {
         disabled: !quest.canDeliver, disabledReason: "No requested materials aboard."
       })] : []),
-      option("Back to inn", { type: "node", nodeId: "inn-drink" })
+      option(session.crewRecruitmentArrival ? "Back to city" : "Back to inn", {
+        type: "node",
+        nodeId: session.crewRecruitmentArrival ? "root" : "inn-drink"
+      })
     ]
   };
 }

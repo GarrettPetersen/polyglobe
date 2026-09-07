@@ -2205,6 +2205,10 @@ function authoredBombardmentPresentation(frame, layerName, occurrence, source) {
 }
 
 function cityStreetBombardmentPresentation(placement, source) {
+  if (state.assaultPresentation !== null) {
+    const foundationHeight = placement.foundationHeight ?? Math.max(8, Math.round(placement.height * 0.2));
+    return damagedBuildingFramePresentation({ source, buildingId: `assault|street|${placement.id}`, foundationHeight });
+  }
   if (state.features.settlementStage === "ruins") {
     return damagedBuildingFramePresentation({ source, buildingId: `street|${placement.id}`,
       foundationHeight: placement.foundationHeight });
@@ -3810,9 +3814,9 @@ function drawPortAssaultPresentation(lane) {
 
 function assaultShipboardStartPoint(timeMs) {
   const placement = docksideShipPlacement(timeMs, PORT_SCENE_ENTITY_META.ship.depth);
-  const spawnAnchor = placement.ship.cityDockside.sailorSpawnAnchor;
+  const spawnAnchor = placement.ship.cityDockside.deckEntryAnchor;
   if (!spawnAnchor || !Number.isFinite(spawnAnchor.x) || !Number.isFinite(spawnAnchor.y)) {
-    throw new Error(`Port assault ship has no sailor spawn anchor: ${placement.ship.slug}`);
+    throw new Error(`Port assault ship has no deck entry anchor: ${placement.ship.slug}`);
   }
   return Object.freeze({
     x: placement.x + spawnAnchor.x * placement.scale,

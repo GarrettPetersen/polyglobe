@@ -3,6 +3,7 @@ import {
   PORT_ASSAULT_LANE_SPACING,
   PortAssaultOccupancy,
   portAssaultFormationStep,
+  portAssaultFormationSpacing,
   portAssaultGroundDistance,
   portAssaultPositionIsFree
 } from "./portAssaultFormation.js";
@@ -67,9 +68,9 @@ const GARRISON_MAX_NON_CAPITAL = PORT_ASSAULT_MAX_GARRISON - GARRISON_CAPITAL_BO
 const PORT_ASSAULT_WAVE_SIZE = 3;
 const PORT_ASSAULT_FIRST_WAVE_DELAY_MS = 300;
 // Distinct small waves keep large assaults readable without extending beyond the battle clock.
-const PORT_ASSAULT_WAVE_INTERVAL_MS = 1_200;
-const PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS = 140;
-const PORT_ASSAULT_WAVE_JITTER_MS = 180;
+const PORT_ASSAULT_WAVE_INTERVAL_MS = 1_500;
+const PORT_ASSAULT_WAVE_MEMBER_INTERVAL_MS = 240;
+const PORT_ASSAULT_WAVE_JITTER_MS = 120;
 const PORT_ASSAULT_VICTORY_WOUND_CHANCE = 0.48;
 const PORT_ASSAULT_DEFEAT_WOUND_CHANCE = 0.24;
 const PORT_ASSAULT_EXPERIENCE_WOUND_CHANCE_PER_STAR = 0.06;
@@ -933,6 +934,9 @@ function moveInFormation(unit, destination, movement, occupancy, range, timeMs) 
   const standOff = Math.sqrt(Math.max(0, (range * 0.95) ** 2 -
     ((destination.lane - lane) * PORT_ASSAULT_LANE_SPACING) ** 2));
   const goal = { position: clamp(destination.position - direction * standOff, 0, 1), lane };
+  const spacing = portAssaultFormationSpacing(unit, occupancy.nearby(unit));
+  goal.position = clamp(goal.position + spacing.positionOffset, 0, 1);
+  goal.lane = Math.max(0, Math.min(PORT_ASSAULT_LANE_COUNT - 1, goal.lane + spacing.laneOffset));
   let next = portAssaultFormationStep(unit, goal, movement, occupancy.nearby(unit, goal, movement));
   if (portAssaultGroundDistance(unit, next) > movement * 0.1) return next;
 

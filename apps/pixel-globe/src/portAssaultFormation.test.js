@@ -6,6 +6,7 @@ import {
   PortAssaultOccupancy,
   portAssaultBodyRadius,
   portAssaultFormationStep,
+  portAssaultFormationSpacing,
   portAssaultGroundDistance,
   portAssaultPositionIsFree
 } from "./portAssaultFormation.js";
@@ -17,6 +18,15 @@ test("ground distance includes lane separation and diagonals in the same units",
   const unit = soldier("a", 0.5);
   close(portAssaultGroundDistance(unit, soldier("b", 0.5, 1)), PORT_ASSAULT_LANE_SPACING);
   close(portAssaultGroundDistance(unit, soldier("b", 0.53, 1)), Math.hypot(0.03, PORT_ASSAULT_LANE_SPACING));
+});
+
+test("soft formation spacing pushes same-side soldiers apart before hard contact", () => {
+  const unit = { ...soldier("a", 0.5), side: "attacker", alive: true };
+  const ally = { ...soldier("b", 0.501), side: "attacker", alive: true };
+  const enemy = { ...soldier("e", 0.501), side: "defender", alive: true };
+  const spacing = portAssaultFormationSpacing(unit, [unit, ally, enemy]);
+  assert.ok(spacing.positionOffset < 0);
+  assert.equal(portAssaultFormationSpacing(unit, [unit, enemy]).positionOffset, 0);
 });
 
 test("a rear rank waits at body spacing and advances into a moving or fallen comrade's gap", () => {

@@ -16,6 +16,11 @@ export class SeamlessMusicPlayer {
     this.crossfadeSeconds = options.crossfadeSeconds ?? DEFAULT_CROSSFADE_SECONDS;
     this.initialFadeSeconds = options.initialFadeSeconds ?? DEFAULT_INITIAL_FADE_SECONDS;
     this.scheduleLeadSeconds = options.scheduleLeadSeconds ?? DEFAULT_SCHEDULE_LEAD_SECONDS;
+    this.minimumTrackSeconds = options.minimumTrackSeconds ?? 0;
+    if (!Number.isFinite(this.minimumTrackSeconds) || this.minimumTrackSeconds < 0) {
+      throw new Error("Invalid minimum music track duration");
+    }
+    this.desiredOptions = {};
     this.cacheSize = options.cacheSize ?? DEFAULT_CACHE_SIZE;
     this.context = options.context || createAudioContext();
     this.bufferLoader = options.bufferLoader || ((url, label) => this.loadAudioBuffer(url, label));
@@ -85,10 +90,13 @@ export class SeamlessMusicPlayer {
     const sameDesired = this.desiredTrackKey === trackKey;
     if (!restart && sameCurrent && sameDesired) return Promise.resolve(false);
 
+    if (!restart && sameDesired && this.transitionPending) return this.pendingTransition.promise;
+    this.desiredOptions = options;
     this.desiredTrackKey = trackKey;
     const requestId = ++this.requestSerial;
     if (!this.activated) return this.preload(trackKey).then(() => false);
     if (!restart && sameCurrent) return Promise.resolve(false);
+    if (this.trackMinimumIsActive(options)) return Promise.resolve(false);
     return this.beginTransition(trackKey, requestId, options);
   }
 
@@ -104,8 +112,14 @@ export class SeamlessMusicPlayer {
         this.pendingTransition.trackKey === this.desiredTrackKey) {
       return this.pendingTransition.promise;
     }
+    if (this.trackMinimumIsActive(this.desiredOptions)) return Promise.resolve(false);
     const requestId = ++this.requestSerial;
-    return this.beginTransition(this.desiredTrackKey, requestId, { restart: true });
+    return this.beginTransition(this.desiredTrackKey, requestId, this.desiredOptions);
+  }
+
+  trackMinimumIsActive(options) {
+    return this.minimumTrackSeconds > 0 && !options.immediate && this.currentInstance && !this.currentInstance.ended &&
+      this.context.currentTime - this.currentInstance.startedAt < this.minimumTrackSeconds;
   }
 
   beginTransition(trackKey, requestId, options) {
@@ -121,6 +135,8 @@ export class SeamlessMusicPlayer {
     const buffers = await this.loadTrackBuffers(trackKey);
     if (requestId !== this.requestSerial || trackKey !== this.desiredTrackKey) return false;
 
+    if (!options.restart && this.currentTrackKey === trackKey) return false;
+    if (this.trackMinimumIsActive(options)) return false;
     const startAt = this.context.currentTime + this.scheduleLeadSeconds;
     const oldInstance = this.currentInstance;
     const fadeSeconds = Math.max(
@@ -145,6 +161,7 @@ export class SeamlessMusicPlayer {
 
     const instance = {
       key: trackKey,
+      startedAt: startAt,
       gain,
       introSource: null,
       loopSource: null,

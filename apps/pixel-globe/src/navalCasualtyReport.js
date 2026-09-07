@@ -1,6 +1,6 @@
 import { createCrewCasualtyReport } from "./crewCasualtyReport.js";
 
-export const NAVAL_AFTER_ACTION_QUIET_MS = 5000;
+export const NAVAL_AFTER_ACTION_QUIET_MS = 8000;
 const MAX_PENDING_CASUALTIES = 4096;
 
 export function recordNavalCasualties(entries, { deaths, wounded }) {

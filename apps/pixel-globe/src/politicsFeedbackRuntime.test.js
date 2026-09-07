@@ -223,3 +223,26 @@ test("city and naval reports pass distinct localized headings to their shared re
     assert.ok(headings.every((heading) => heading && !heading.startsWith("combat.")));
   }
 });
+
+test("a bombardment score does not alternate when player and battery volleys differ in size", () => {
+  const played = [];
+  const context = { lastFrameMs: 100, combatMusicUntilMs: 0, COMBAT_MUSIC_HOLD_MS: 18000,
+    MUSIC_COMBAT_CROSSFADE_SECONDS: 1, navalAfterActionQuietSinceMs: 0,
+    themeMusic: { requestedTrackKey: "ship" }, combatMusicIsActive: () => true,
+    combatMusicTrackForThreat: threat => threat === "big" ? "combatBig" : "combatSmall",
+    playMusicTrack(key) { context.themeMusic.requestedTrackKey = key; played.push(key); } };
+  const h = runtime(["startCombatMusicForThreat"], context);
+  for (const threat of ["big", "small", "big", "small"]) h.startCombatMusicForThreat(threat);
+  assert.deepEqual(played, ["combatBig", "combatBig", "combatBig", "combatBig"]);
+  assert.equal(context.navalAfterActionQuietSinceMs, null);
+});
+
+test("silenced attacked shore batteries keep the player engaged until the bombardment ends", () => {
+  const h = musicHarness();
+  h.context.shoreBatteryStates.set("tunis", { playerAttackActive: true, engagedTargetIds: new Set() });
+  h.updateMusicContext(100000);
+  assert.deepEqual(h.played, []);
+  h.context.shoreBatteryStates.get("tunis").playerAttackActive = false;
+  h.updateMusicContext(100001);
+  assert.deepEqual(h.played, ["ship"]);
+});

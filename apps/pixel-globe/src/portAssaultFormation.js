@@ -74,6 +74,23 @@ export function portAssaultPositionIsFree(unit, occupants) {
       portAssaultBodyRadius(unit) + portAssaultBodyRadius(other));
 }
 
+// A soft repulsion keeps a formation from compressing into a single pixel
+// before hard collision resolution has to stop movement.
+export function portAssaultFormationSpacing(unit, occupants) {
+  let positionOffset = 0;
+  let laneOffset = 0;
+  for (const other of occupants) {
+    if (other.id === unit.id || other.side !== unit.side || other.alive === false) continue;
+    const distance = portAssaultGroundDistance(unit, other);
+    const desired = (portAssaultBodyRadius(unit) + portAssaultBodyRadius(other)) * 3;
+    if (distance >= desired) continue;
+    const weight = (desired - distance) / desired;
+    positionOffset += Math.sign(unit.position - other.position || (unit.id < other.id ? -1 : 1)) * weight * 0.004;
+    laneOffset += Math.sign(unit.lane - other.lane || (unit.id < other.id ? -1 : 1)) * weight * 0.12;
+  }
+  return Object.freeze({ positionOffset, laneOffset });
+}
+
 // Sweep the whole movement segment, so a charge or knockback cannot tunnel
 // through another body. Fallen soldiers no longer occupy formation space;
 // callers pass only the living, deployed occupants (including landing troops).

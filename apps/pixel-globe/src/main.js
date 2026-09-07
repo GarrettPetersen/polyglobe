@@ -14,7 +14,7 @@ import { CITY_FEAST_GATHER_DURATION_MS } from "../city-visualizer/cityFeast.js";
 import { completeChefRecruitment, completeVikingLongshipAcquisition } from "./innQuestTransactions.js";
 import { portGovernmentAudienceAvailable } from "./portGovernmentAudience.js";
 import { activeForeignSettlements } from "./foreignSettlements.js";
-import { recordNavalCasualties, navalCasualtyReport, navalAfterActionReady } from "./navalCasualtyReport.js";
+import { NAVAL_AFTER_ACTION_QUIET_MS, recordNavalCasualties, navalCasualtyReport, navalAfterActionReady } from "./navalCasualtyReport.js";
 import {
   clamp,
   createDirectionIndex,
@@ -2947,7 +2947,7 @@ const SHIP_HULL_FOOTPRINTS_URL =
   "assets/vehicles/unity-ships/hull-footprints.json?v=projectile-silhouette-1";
 const SHIP_FLAG_ANCHORS_URL = `assets/vehicles/unity-ships/flag-anchors.json?v=${VEHICLE_ASSET_VERSION}`;
 const SHIP_RENDER_LAYERS_URL =
-  `assets/vehicles/ship-render-layers/manifest.json?v=${VEHICLE_ASSET_VERSION}`;
+  `assets/vehicles/ship-render-layers/manifest.json?v=${BUILD_REVISION}`;
 const ICEBERG_ASSET_VERSION = "iceberg-1";
 const ICEBERG_MANIFEST_URL = `assets/icebergs/manifest.json?v=${ICEBERG_ASSET_VERSION}`;
 const ICEBERG_CLEAR_WATER_STEPS = 2;
@@ -7620,7 +7620,7 @@ function updateNavalAfterAction(nowMs) {
     return false;
   }
   const engaged = playerHasCombatEngagement();
-  const projectilesActive = npcCombatProjectiles.some((shot) =>
+  const projectilesActive = ship.navalProjectiles.length > 0 || npcCombatProjectiles.some((shot) =>
     shot.ownerId === PLAYER_COMBAT_ID || shot.targetId === PLAYER_COMBAT_ID);
   const blocked = Boolean(startMenu || gameOverReason || dialogueState || captainAlertModal ||
     portAssaultState || menusAreOpen() || queuedCharacterAlertSteps.length || characterAlertSequenceCompletion);
@@ -9910,6 +9910,7 @@ function setupThemeMusic() {
   if (themeMusic) return;
   themeMusic = new SeamlessMusicPlayer({
     trackSpecs: MUSIC_TRACK_SPECS,
+    minimumTrackSeconds: 8,
     assetVersion: MUSIC_ASSET_VERSION,
     crossfadeSeconds: MUSIC_CROSSFADE_SECONDS,
     cacheSize: MUSIC_DECODED_TRACK_CACHE_SIZE
@@ -10090,9 +10091,13 @@ function musicTrackForCity(city) {
 }
 
 function startCombatMusicForThreat(threat) {
-  const trackKey = combatMusicTrackForThreat(threat);
+  const requested = combatMusicTrackForThreat(threat);
+  const current = themeMusic?.requestedTrackKey;
+  const trackKey = current === "combatBig" && combatMusicIsActive(lastFrameMs)
+    ? current : requested;
+  navalAfterActionQuietSinceMs = null;
   combatMusicUntilMs = Math.max(combatMusicUntilMs, lastFrameMs + COMBAT_MUSIC_HOLD_MS);
-  playMusicTrack(trackKey, { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS });
+  playMusicTrack(trackKey, { crossfadeSeconds: MUSIC_COMBAT_CROSSFADE_SECONDS, immediate: true });
 }
 
 function combatMusicIsActive(nowMs) {
@@ -16782,7 +16787,7 @@ function installSaveRestoreSmokeHarness() {
       }
       navalAfterActionQuietSinceMs = null;
       updateNavalAfterAction(lastFrameMs);
-      updateNavalAfterAction(lastFrameMs + 5000);
+      updateNavalAfterAction(lastFrameMs + NAVAL_AFTER_ACTION_QUIET_MS);
       if (captainAlertModal?.kind !== "naval-casualty-report") {
         throw new Error("Restored naval casualty roll failed to open after combat ended");
       }
@@ -22061,6 +22066,7 @@ function maybeOpenCrewRecruitmentArrival(cityCall) {
   const offer = prepareCrewRecruitmentAt(cityCall, { allowEmpty: false });
   if (offer.candidates.length === 0) return false;
   dialogueState.nodeId = "crew-recruitment";
+  dialogueState.crewRecruitmentArrival = true;
   // Default to the non-destructive exit. A held controller confirm from the
   // preceding arrival dialogue must not hire the first candidate.
   dialogueState.selectedIndex = offer.candidates.length;
@@ -24948,7 +24954,10 @@ function completePlayerPortConquest(
   const playerRetainsPort = !conquistadorCapture && capturedCity.factionId === ship.factionId;
   if (playerRetainsPort) {
     const needsLoadout = admitPlayerToPort(capturedCity);
-    dialogueState = createPortArrivalDialogueSession(capturedCity, { needsLoadout });
+    dialogueState = createPortArrivalDialogueSession(capturedCity, {
+      needsLoadout,
+      recentConquestCityId: capturedCity.cityId
+    });
     dialogueLayout = createDialogueLayoutState();
     stopShipForDialogue();
     ensureDialoguePortraitLoaded();
@@ -37947,7 +37956,7 @@ function playerHasCombatEngagement() {
 
 function playerHasShoreBatteryEngagement() {
   for (const state of shoreBatteryStates.values()) {
-    if (state.engagedTargetIds.has(PLAYER_COMBAT_ID)) return true;
+    if (state.playerAttackActive || state.engagedTargetIds.has(PLAYER_COMBAT_ID)) return true;
   }
   return false;
 }
@@ -38115,7 +38124,7 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
     );
     visibleIds.add(state.id);
     if (updateShoreBatteryState(state, flags, simMinute, dt)) changed = true;
-    if (shoreBatteryIsDisabled(state, simMinute)) continue;
+
     const weapon = measurePerformanceBenchmarkStage(
       "npcShips.visual.combat.batteries.weapon",
       () => shoreBatteryWeapon(state)
@@ -38140,6 +38149,16 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
       playerAtPortTile: ship.tileId === city.tileId,
       disengagementBufferPx: 20
     });
+    if (playerEngagement.beyondDisengagementRange) {
+      state.playerHailed = false;
+      state.playerAttackActive = false;
+    }
+    // Silencing the guns does not end a bombardment while the player remains
+    // beside the city, potentially preparing to land troops.
+    if (shoreBatteryIsDisabled(state, simMinute)) {
+      state.engagedTargetIds.clear();
+      continue;
+    }
     if (playerEngagement.withinEngagementRange) {
       const entryStatus = measurePerformanceBenchmarkStage(
         "npcShips.visual.combat.batteries.portStatus",
@@ -38185,10 +38204,6 @@ function updateShoreBatteryCombat(dt, anotherHailOpened, portEntryContext, playe
           }
         }
       }
-    }
-    if (playerEngagement.beyondDisengagementRange) {
-      state.playerHailed = false;
-      state.playerAttackActive = false;
     }
 
     measurePerformanceBenchmarkStage("npcShips.visual.combat.batteries.targetScan", () => {
