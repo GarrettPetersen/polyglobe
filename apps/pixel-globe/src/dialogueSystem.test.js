@@ -3715,7 +3715,8 @@ test("the first port requires a chunky loadout choice and provisions the ship", 
   assert.match(session.feedback, /Balanced:/);
 });
 
-test("port crew offers show individuals and hire the selected sailor", () => {
+for (const returnNodeId of [null, "greeting", "root"]) {
+test(`port crew offers hire and exit correctly from ${returnNodeId || "inn"}`, () => {
   const city = {
     tileId: 9,
     cityId: "cadiz|spain",
@@ -3747,9 +3748,16 @@ test("port crew offers show individuals and hire the selected sailor", () => {
     baseHireCost: 2
   });
   const session = createPortDialogueSession(city, { initialNodeId: "crew-recruitment" });
+  session.crewRecruitmentReturnNodeId = returnNodeId;
   const context = { shipStats: stats, simMinute: 120 };
   let view = portDialogueView(session, city, gameState, economy, [city], context);
   const offeredCount = offer.candidates.length;
+  assert.equal(view.options.at(-1).action.nodeId, returnNodeId || "inn-drink");
+  selectPortDialogueOption(session, city, gameState, economy, [city], view.options.length - 1, context);
+  assert.equal(session.nodeId, returnNodeId || "inn-drink");
+  assert.equal(session.crewRecruitmentReturnNodeId, null);
+  session.nodeId = "crew-recruitment";
+  session.crewRecruitmentReturnNodeId = returnNodeId;
 
   assert.equal(view.presentation.kind, "crew-recruitment");
   assert.equal(view.presentation.candidates.length, offer.candidates.length);
@@ -3765,9 +3773,14 @@ test("port crew offers show individuals and hire the selected sailor", () => {
   assert.equal(crewRecruitmentOfferAt(gameState.memory.crewRecruitment, city).candidates.length,
     offeredCount - 1);
 
-  view = portDialogueView(session, city, gameState, economy, [city], context);
-  assert.equal(view.presentation.candidates.some(({ member }) => member.id === candidate.member.id), false);
+  assert.equal(session.nodeId, returnNodeId || "crew-recruitment");
+  assert.equal(session.crewRecruitmentReturnNodeId, null);
+  if (!returnNodeId) {
+    view = portDialogueView(session, city, gameState, economy, [city], context);
+    assert.equal(view.presentation.candidates.some(({ member }) => member.id === candidate.member.id), false);
+  }
 });
+}
 
 test("crew recruitment presents a clean empty state when no hands are available", () => {
   const city = {

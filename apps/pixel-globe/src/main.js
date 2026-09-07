@@ -22076,14 +22076,15 @@ function maybeOpenExeterCanalArrivalDialogue(cityCall) {
 }
 
 function maybeOpenCrewRecruitmentArrival(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId)) return false;
   if (dialogueState.crewRecruitmentArrivalPresented) return false;
   dialogueState.crewRecruitmentArrivalPresented = true;
   const targetCrew = gameState.ship.loadoutTargets?.crew || gameState.ship.crewCapacity;
   if (gameState.ship.crew >= targetCrew) return false;
   const offer = prepareCrewRecruitmentAt(cityCall, { allowEmpty: false });
   if (offer.candidates.length === 0) return false;
+  dialogueState.crewRecruitmentReturnNodeId = dialogueState.nodeId;
   dialogueState.nodeId = "crew-recruitment";
-  dialogueState.crewRecruitmentArrival = true;
   // Default to the non-destructive exit. A held controller confirm from the
   // preceding arrival dialogue must not hire the first candidate.
   dialogueState.selectedIndex = offer.candidates.length;

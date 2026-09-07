@@ -504,6 +504,7 @@ export function createPortDialogueSession(city, options = {}) {
     rulerRumor: options.rulerRumor || null,
     historicalGossip: options.historicalGossip || null,
     crewRecruitmentArrivalPresented: false,
+    crewRecruitmentReturnNodeId: null,
     exeterCanalArrivalPresented: false,
     exeterCanalReturnNodeId: null,
     questReturnNodeId: null,
@@ -2147,6 +2148,7 @@ export function selectPortDialogueAction(
       allowEmpty: true,
       includeReplacementCandidates: true
     });
+    session.crewRecruitmentReturnNodeId = null;
     session.nodeId = "crew-recruitment";
     session.selectedIndex = 0;
     session.feedback = null;
@@ -2161,7 +2163,10 @@ export function selectPortDialogueAction(
     const hired = hireCrewMemberAtPort(gameState, city, action.memberId, context);
     session.feedback = `${hired.member.name} joined the crew.`;
     session.selectedIndex = 0;
-    if (session.crewRecruitmentArrival) session.nodeId = "root";
+    if (session.crewRecruitmentReturnNodeId) {
+      session.nodeId = session.crewRecruitmentReturnNodeId;
+      session.crewRecruitmentReturnNodeId = null;
+    }
     return { closed: false, crewHire: hired };
   }
   if (action.type === "dismiss-crew-member") {
@@ -2219,6 +2224,7 @@ export function selectPortDialogueAction(
     return { closed: false, loadoutResult: result, crewDismissalsCommitted: true };
   }
   if (action.type === "node") {
+    if (session.nodeId === "crew-recruitment") session.crewRecruitmentReturnNodeId = null;
     if (session.nodeId === "exeter-canal") session.exeterCanalReturnNodeId = null;
     if (session.nodeId === "greeting") {
       session.rumorText = null;
@@ -5194,7 +5200,9 @@ function crewRecruitmentView(session, city, gameState) {
           disabledReason: !boardingEligible ? boarding.disabledReason : `${cost} doubloons required.`
         }
       )),
-      option("Back to inn", { type: "node", nodeId: "inn-drink" })
+      option(session.crewRecruitmentReturnNodeId ? "Continue" : "Back to inn", {
+        type: "node", nodeId: session.crewRecruitmentReturnNodeId || "inn-drink"
+      })
     ]
   };
 }
