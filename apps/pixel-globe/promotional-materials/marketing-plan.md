@@ -1,6 +1,6 @@
 # Marque & Reprisal Marketing Plan
 
-Last updated: **September 3, 2026**.
+Last updated: **September 6, 2026**.
 
 ## Dated marketing calendar
 
@@ -21,6 +21,19 @@ Last updated: **September 3, 2026**.
 - **September 13:** IGF 2027 application and build deadline.
 - **September 21:** Submit the Next Fest demo build and store page for review
   to be ready for the press preview.
+- **September 24:** Release-date commitment gate. Confirm that the build and
+  remaining launch work support a November 20 release before spending the
+  date-announcement beat.
+- **September 25:** Announce **November 20, 2026** as the official release date
+  and publish the exact date on Steam. This is eight weeks before release, so
+  it preserves the maximum current Steam Personal Calendar runway. Treat the
+  reveal as a coordinated marketing beat: update Steam and the website; use a
+  strong current gameplay asset; send the human-written announcement to press,
+  creators and the Steam community; post it on X, Reddit and YouTube; and
+  capture the pre-announcement wishlist and traffic baseline. Do not quietly
+  change the date or combine this with the public demo launch.
+  Sources verified September 6: [Steam Personal Calendar](https://steamcommunity.com/games/593110/announcements/detail/507342099205587495)
+  and [Steam release dates](https://partner.steamgames.com/doc/store/release_dates).
 - **September 22–29:** SCHMOOVEMENT Festival.
 - **September 28:** Galaxies Autumn trailer deadline, if selected.
 - **September 28 at 7:59 p.m. PDT:** Submit to INDIE Live Expo with a
@@ -35,16 +48,21 @@ Last updated: **September 3, 2026**.
 - **October 19 at 10:00 a.m. PDT:** Absolute Next Fest deadline for the public
   demo. Our operational target is earlier than October 5 because of ACGC.
 - **October 19–26:** Steam Next Fest.
-- **After October 26:** Review wishlists, demo conversion, creator coverage and
-  build stability, then make the release go/no-go decision for the working
-  **December 1** launch date.
+- **October 27:** Review wishlists, demo conversion, creator coverage and build
+  stability, then reconfirm the November 20 launch. If the launch is no longer
+  supportable, move it before Steam's two-week date lock rather than forcing an
+  unstable release.
 - **November 6 at 12:00 noon GMT:** Post one strong elevator pitch with the
   best current gameplay clip and `#PitchYaGame`.
-- **December 1:** Working release date. If confirmed after Next Fest, launch
-  with the planned introductory discount and a coordinated creator, press,
-  Steam, X, Reddit and YouTube campaign. A December 1 release is still within
-  Steam's 30-day release cooldown when the Winter Sale begins December 17, so
-  the game cannot be discounted in that sale.
+- **November 6:** Steam's two-week release-date lock begins. The approved
+  release build, packages, price, launch discount, localized store assets,
+  creator keys, support plan and rollback path should all be ready.
+- **November 20 at 10:00 a.m. PST:** Release **Marque & Reprisal** with the
+  planned introductory discount and a coordinated creator, press, Steam, X,
+  Reddit and YouTube campaign.
+- **December 20 at 10:00 a.m. PST:** The 30-day post-release discount cooldown
+  ends. If the Steam discount dashboard permits it as expected, manually join
+  the Winter Sale already in progress; it runs through January 4, 2027.
 
 The coordinated public demo launch does not have a date yet. Set it only after
 the release-blocking demo checks below pass, then work backward one to two weeks
@@ -346,9 +364,13 @@ Steam documentation: https://partner.steamgames.com/doc/marketing/upcoming_event
 
 ## Release decision
 
-Working release date: **December 1, 2026**.
+Planned release date: **Friday, November 20, 2026 at 10:00 a.m. PST**.
 
-Make the release decision after Next Fest. There is no universal wishlist number that means a game is ready. Set our threshold from the number of launch sales the game needs, then use the following as the go/no-go check:
+Make the commitment decision on September 24, immediately before the public
+date reveal. Reconfirm it after Next Fest and before Steam's November 6 date
+lock. There is no universal wishlist number that means a game is ready. Set our
+threshold from the number of launch sales the game needs, then use the following
+as the go/no-go check:
 
 - The full build is stable and ready.
 - Steam Stats and Cloud saves are tested.
@@ -357,7 +379,9 @@ Make the release decision after Next Fest. There is no universal wishlist number
 - Streamer outreach is producing responses or scheduled coverage.
 - The game is no longer changing so quickly that another development window would materially improve it.
 
-If those conditions are not met, delay the release instead of forcing the 2026 window. Do not slip from December 1 into the Steam Winter Sale or Christmas week; move into January instead.
+If those conditions are not met, delay the release instead of forcing the 2026
+window. Do not slip into the Steam Winter Sale or Christmas week; move into
+January instead.
 
 ## Festival and showcase application plan
 
@@ -517,9 +541,9 @@ These accept unreleased games and provide a plausible audience for Marque & Repr
   - Prepare: A purpose-cut 30-second trailer and a separate 15-second gameplay
     video, plus the Japanese Steam page, Japanese website and current press-kit
     assets.
-  - The broadcast is December 1, the working release date. If selected,
-    coordinate the exact Steam release time and announcement copy around the
-    broadcast rather than treating it as an unrelated post.
+  - The broadcast is December 1, eleven days after the planned release. If
+    selected, use it as a coordinated post-launch visibility beat rather than
+    treating it as an unrelated post.
   - Application details: https://indie.live-expo.games/en/entry/
 
 - [ ] **Support the Indies — submit the public demo by late September**
