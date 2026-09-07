@@ -296,7 +296,7 @@ test("Mediterranean galley family separates deck planes, hull bands, and rig", (
     };
     const deck = transform(
       {},
-      { ...surface, normal: { y: 0 } },
+      { ...surface, normal: { y: 1 } },
       { y: -0.3, modelX: 0.03, modelZ: 0.17 }
     );
     const hull = transform(
@@ -547,4 +547,36 @@ test("ship-specific dockside palettes fail loudly when source materials drift", 
     ),
     /Unmapped Ottoman/
   );
+});
+
+
+test("low galley rowing decks retain planking while vertical fittings retain hull shading", () => {
+  for (const [transform, scale] of [
+    [mediterraneanGalleyPortAssaultSurfaceColor, 0.85],
+    [galleassPortAssaultSurfaceColor, 1.025],
+    [fustaPortAssaultSurfaceColor, 0.68]
+  ]) {
+    const surface = { sourceMaterialName: "M_Ship03_WoodDark_01",
+      sourceMeshName: "Object_21", waterlineY: -0.5, normal: { y: 1 } };
+    const point = { y: -0.5 + 0.025 * scale, modelX: 0.03 * scale, modelZ: 0.06 * scale };
+    const plank = transform({}, surface, point);
+    assert.deepEqual(plank, { r: 171, g: 148, b: 122, bakeLighting: false });
+    assert.notDeepEqual(transform({}, surface, { ...point, modelX: 0 }), plank);
+    assert.notDeepEqual(transform({}, { ...surface, sourceMeshName: "Object_24", normal: { y: 0 } }, point), plank);
+    assert.deepEqual(transform({}, surface, { ...point, y: -0.51 }), plank);
+    assert.notDeepEqual(transform({}, { ...surface, normal: { y: -1 } }, { ...point, y: -0.51 }), plank);
+  }
+});
+
+
+test("authored galley cloth retains pale highlights and distinct shaded folds", () => {
+  for (const transform of [mediterraneanGalleyPortAssaultSurfaceColor, galleassPortAssaultSurfaceColor, fustaPortAssaultSurfaceColor]) {
+    const surface = { sourceMaterialName: "M_Ship03_SailTied" };
+    const lit = transform({}, { ...surface, normal: { y: 1 } });
+    const shade = transform({}, { ...surface, normal: { y: -1 } });
+    assert.equal(lit.bakeLighting, false);
+    assert.equal(shade.bakeLighting, false);
+    assert.ok(lit.r > shade.r);
+    assert.throws(() => transform({}, surface), /surface normal/);
+  }
 });

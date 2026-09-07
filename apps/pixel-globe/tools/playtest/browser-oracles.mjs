@@ -12,12 +12,13 @@ function durableProperties(value) {
 
 export function assertBrowserJourneyTransition(before, after, command) {
   if (!before) return;
-  if (command.type === "reload") {
-    for (const key of ["cargo", "crewRoster", "doubloons"]) {
+  if (["reload", "teleport"].includes(command.type)) {
+    for (const key of ["cargo", "crewRoster", "namedCrew", "inventory", "doubloons"]) {
       assert.deepEqual(durableProperties(after.gameState[key]), durableProperties(before.gameState[key]), `Reload changed ${key}`);
     }
     assert.deepEqual(durableProperties(after.gameState.memory.quests), durableProperties(before.gameState.memory.quests), "Reload changed mission history");
     assert.equal(after.playerShip.hitPoints, before.playerShip.hitPoints, "Reload changed hull damage");
+    assert.deepEqual(durableProperties(after.playerShip.overboardCrew), durableProperties(before.playerShip.overboardCrew), "Persistence lost swimmers");
     return;
   }
   if (command.type !== "choose") return;

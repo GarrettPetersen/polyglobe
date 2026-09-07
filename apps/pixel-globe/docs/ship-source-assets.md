@@ -106,8 +106,22 @@ blendswap/greek-trireme/trireme-bsw.blend
 
 The Polynesian canoe, Mesoamerican canoe, and unfurled Mediterranean galley are
 runtime sources. The fusta, Mediterranean galley, and galleass are distinct production
-derivatives of the same credited galley source. The furled galley and Greek trireme are
-retained as source references and are not currently loaded by the game.
+derivatives of the same credited galley source. The furled galley supplies the
+authored tied-sail geometry for their dockside renders; the Greek trireme remains
+a source reference.
+
+The large dockside galley family uses the open model's mast selections and
+the furled model's five tied cloth sections. Every shared hull vertex verifies
+the source orientation and uniform scale before the cloth is registered. Sections
+are matched to retained yards: five for the galleass, four for the galley, and
+two for the fusta. A missing yard, changed source topology, or ambiguous match
+fails the bake. Sources: [sailing model](https://sketchfab.com/3d-models/russian-22-bank-baltic-galley-4f38ab83cacc477b9f5b5f6d0230f1c9)
+and [furled model](https://sketchfab.com/3d-models/russian-22-bank-baltic-galley-98de2960dcb54b839639681dcdc6448b),
+both by Museovirasto Museiverket Finnish Heritage Agency, CC BY 4.0. Its low rowing decks are classified by upward
+timber faces rather than height above water: hull-band thresholds erase the
+planking, especially on the fusta. The dockside crease pass distinguishes raised
+bench/deck edges from their sides without changing geometry or the sailing
+sprites.
 
 ## Baking runtime assets
 

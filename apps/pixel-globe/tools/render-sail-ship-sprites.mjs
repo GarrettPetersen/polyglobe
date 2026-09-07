@@ -1,3 +1,4 @@
+import { authoredRigAlignment, selectAuthoredRigComponents } from "./authored-ship-rig.mjs";
 import {
   existsSync,
   mkdirSync,
@@ -4458,6 +4459,29 @@ function furledPortAssaultRig(slug, loaded) {
     });
   }
   if (supports.length === 0) throw new Error(`${slug} generated no furled sail bundles`);
+  if (loaded.authoredRig) {
+    const { components, hullWidth, retainedSections } = loaded.authoredRig;
+    const indices = selectAuthoredRigComponents(
+      components.map(component => boundsForPoints(uniquePortAssaultComponentPoints(component)).center),
+      supports.map(entry => entry.support),
+      { maxDistance: hullWidth * 0.3, expectedCount: retainedSections }
+    );
+    const cloth = indices.flatMap(index => components[index].triangles);
+    return {
+      loaded: { ...loaded, triangles: [...selected.hullTriangles, ...cloth] },
+      selected,
+      metadata: {
+        state: "furled", selectorType: selected.selectorType,
+        removedRigSelectorType: selected.removedRigSelectorType, bundleMode: "authored-furled",
+        removedOpenSailTriangles: selected.removedTriangleCount - selected.removedRigTriangleCount,
+        removedDeployedRigTriangles: selected.removedRigTriangleCount,
+        sourceSailComponents: selected.sailComponents.length, furledBundles: supports.length,
+        authoredFurledSections: indices.length, authoredFurledTriangles: cloth.length,
+        generatedFurledTriangles: 0, generatedStackedBattenTriangles: 0,
+        sourceUrl: "https://sketchfab.com/3d-models/russian-22-bank-baltic-galley-98de2960dcb54b839639681dcdc6448b"
+      }
+    };
+  }
   const furledTriangles = [];
   supports.forEach(({ support, color }, supportIndex) => {
     for (let segmentIndex = 0; segmentIndex < PORT_ASSAULT_FURLED_SAIL_SEGMENTS; segmentIndex++) {
@@ -5453,7 +5477,7 @@ function portAssaultTargetModelMaxDim(productionEntry, galleonProductionEntry) {
 }
 
 async function loadPortAssaultShip(config, targetModelMaxDim) {
-  return loadConfiguredShipTriangles(config, {
+  const loaded = await loadConfiguredShipTriangles(config, {
     targetMaxDim: targetModelMaxDim,
     includeAnimation: false,
     flattenTexturePerTriangle: false,
@@ -5462,6 +5486,25 @@ async function loadPortAssaultShip(config, targetModelMaxDim) {
       maxDimension: 64
     }
   });
+  if (config.authoredDockRig) {
+    const scene = await loadScene(config.authoredDockRig.modelPath);
+    const source = collectTriangles(scene, { targetMaxDim: null,
+      includeMesh: node => ["Object_19", "Object_20", "Object_21"].includes(node.name) }).triangles;
+    const anchorPoints = triangles => triangles.filter(t => t.sourceMeshName === "Object_21").flatMap(t => t.points);
+    const alignment = authoredRigAlignment(anchorPoints(source), anchorPoints(loaded.triangles));
+    const cloth = source.filter(t => t.sourceMaterialName === "M_Ship03_SailTied").map(t => ({
+      ...t, textureSampler: null, points: t.points.map(point => {
+        const aligned = alignment.transform(point);
+        return new THREE.Vector3(aligned.x, aligned.y, aligned.z);
+      })
+    }));
+    if (cloth.length !== 49986) throw new Error("Authored galley tied-sail topology changed");
+    const components = portAssaultTopologyComponents(cloth);
+    if (components.length !== 5) throw new Error("Authored galley must contain five tied cloth sections");
+    loaded.authoredRig = { components, hullWidth: alignment.hullWidth,
+      retainedSections: config.authoredDockRig.retainedSections };
+  }
+  return loaded;
 }
 
 function renderPortAssaultVariant(loaded, config, variant) {
@@ -6226,6 +6269,9 @@ function mediterraneanGalleyConfig() {
       MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * MEDITERRANEAN_GALLEY_SCALE,
     colorTransform: mediterraneanGalleyHullColor,
     portAssaultColorTransform: mediterraneanGalleyPortAssaultSurfaceColor,
+    portAssaultCreaseOutline: Object.freeze({ shadeScale: 0.68 }),
+    authoredDockRig: { modelPath: join(shipSourceRoot, "sketchfab/mediterranean-galley-furled/scene.gltf"),
+      retainedSections: 4 },
     scaleMode: "galley-pixel-derivative",
     outputDir: unityFleetOutputRoot,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
@@ -6261,6 +6307,7 @@ function galleassConfig() {
     frameRegistrationMargin: 1,
     sideViewTargetModelMaxDim: MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * GALLEASS_SCALE,
     scaleMode: "large-galley-pixel-derivative",
+    authoredDockRig: { ...mediterraneanGalleyConfig().authoredDockRig, retainedSections: 5 },
     colorTransform: galleassHullColor,
     portAssaultColorTransform: galleassPortAssaultSurfaceColor,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,
@@ -6300,6 +6347,7 @@ function fustaConfig() {
     sideViewTargetModelMaxDim: MEDITERRANEAN_GALLEY_SIDE_BASE_MAX_DIM * FUSTA_SCALE,
     flagAnchorMaxSnapDistancePx: 5,
     scaleMode: "light-galley-pixel-derivative",
+    authoredDockRig: { ...mediterraneanGalleyConfig().authoredDockRig, retainedSections: 2 },
     colorTransform: fustaHullColor,
     portAssaultColorTransform: fustaPortAssaultSurfaceColor,
     outputPrefix: `${slug}-${SHIP_SPRITE_HEADING_SUFFIX}`,

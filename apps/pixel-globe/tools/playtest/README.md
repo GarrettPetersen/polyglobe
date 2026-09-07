@@ -190,3 +190,40 @@ save and checks its versioned migration before a real worker advance. Current
 snapshots with the same collision must fail validation. It also runs the actual
 storm sweep and rescue functions, saving airborne and swimming individual crew;
 obsolete anonymous-crew fixtures no longer stand in for production sailors.
+
+
+## Persistent browser checklist player
+
+Browser-enabled cycles additionally run a seeded, shuffled checklist in one
+voyage. Run it directly after building:
+
+```sh
+node tools/playtest/browser.mjs --checklist=true --seed=42 --output=.playtest/checklist
+```
+
+The initial objectives are buying and selling cargo, recruiting a sailor,
+inspecting crew, equipment, shipyard and inn menus, completing a delivery,
+opening politics, saving/reloading, sailing to a port and teleporting to a port.
+Menu inspection is reported as inspection, not an equipment or ship purchase.
+The planner chooses offered, enabled action IDs and checks the actual resulting
+state. A dialogue with exactly one option advances automatically only if that
+option is enabled. Repeated choices still consume the bounded action budget;
+an unhandled dialogue or unfinished objective fails with the pending checklist.
+
+Every completed objective crosses a save/page-reload boundary. Later objectives
+inherit the voyage's cargo, crew, quests, damage, economy and politics. At least
+one leg must sail with normal physics, weather and worker updates. Teleport
+legs are reported separately: a local-only test command moves the ship through
+a full voyage snapshot/restore, then the player must dock normally. It does not
+advance time or create new resources. The report records actual sailing frames,
+travel legs, action types, shuffled order and completion evidence.
+
+Pass `--initial=/absolute/path/to/save.json` to start with a saved voyage rather
+than the initial naval-battle fixture. This does not guarantee the current
+planner can satisfy its checklist from every possible starting situation:
+lack of money, unavailable recruitment or unsupported missions fail explicitly.
+The first implementation has no autonomous naval/city combat, colony,
+whale-hunt or ship-purchase strategy. The separate scenario probes remain
+necessary. Recorded commands can be replayed, but a planner dead end requires
+inspection of the last state and pending checklist; replaying successful prior
+commands alone does not reproduce the planner's failure to choose its next one.

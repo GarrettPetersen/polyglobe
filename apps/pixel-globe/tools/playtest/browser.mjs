@@ -1,3 +1,4 @@
+import { runBrowserChecklist } from "./checklist.mjs";
 import assert from "node:assert/strict";
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
@@ -10,7 +11,7 @@ import { assertBrowserJourneyTransition } from "./browser-oracles.mjs";
 import { randomForSeed } from "./journey.mjs";
 
 for (const argument of process.argv.slice(2)) {
-  if (!/^--(?:seed|output|replay)=.+/.test(argument)) throw new Error(`Unknown browser journey option: ${argument}`);
+  if (!/^--(?:seed|output|replay|checklist|initial)=.+/.test(argument)) throw new Error(`Unknown browser journey option: ${argument}`);
 }
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const revision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
@@ -21,6 +22,9 @@ const seed = replay?.seed ?? Number(process.argv.find((value) => value.startsWit
 const output = resolve(process.argv.find((value) => value.startsWith("--output="))?.slice(9) ?? resolve(root, ".playtest/browser"));
 if (!Number.isSafeInteger(seed) || seed < 1) throw new Error("Invalid browser journey seed");
 if (replay && replay.version !== 1) throw new Error("Unsupported browser journey replay");
+const checklistArgument = process.argv.find(value => value.startsWith("--checklist="));
+if (checklistArgument && !["--checklist=true", "--checklist=false"].includes(checklistArgument)) throw new Error("Checklist must be true or false");
+const checklist = checklistArgument === "--checklist=true";
 const random = randomForSeed(seed);
 mkdirSync(output, { recursive: true });
 const playwright = loadPlaywright();
@@ -43,7 +47,8 @@ try {
   })();` });
   const page = await context.newPage();
   const failures = monitorBrowserFailures(page);
-  if (!replay) {
+  const initialPath = process.argv.find(value => value.startsWith("--initial="))?.slice(10);
+  if (!replay && !initialPath) {
     await page.goto(`${baseUrl}/?capture=reachability-fight-lisbon-journey&captureFormat=steam&autocapture=frames&browserJourney=1`);
     await page.waitForFunction(() => window.__PIXEL_GLOBE_CAPTURE_READY__ || window.__PIXEL_GLOBE_CAPTURE_ERROR__, null, { timeout: 600_000 });
     assert.equal(await page.evaluate(() => window.__PIXEL_GLOBE_CAPTURE_ERROR__), undefined);
@@ -56,7 +61,7 @@ try {
     assert.ok(afterCombat.playerShip.hitPoints < beforeCombat.playerShip.hitPoints, "Combat never damaged the player hull");
     report.phases.push("naval-combat");
     writeFileSync(resolve(output, "post-combat.json"), initial);
-  } else initial = replay.initial;
+  } else initial = replay ? replay.initial : readFileSync(initialPath, "utf8");
   const afterCombat = JSON.parse(initial).payload;
   await page.goto(`${baseUrl}/?saveRestoreSmoke=1&browserJourney=1`);
   await page.waitForFunction(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__, null, { timeout: 600_000 });
@@ -65,9 +70,13 @@ try {
     trace.push(value);
     const recordedCommand = value;
     const before = lastState;
-    if (value.type === "reload") {
-      assert.ok(lastState?.serialized, "Reload must follow a save");
-      const serialized = lastState.serialized;
+    if (value.type === "reload" || value.type === "teleport") {
+      const serialized = value.type === "teleport"
+        ? (await page.evaluate(cityId => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.journey({
+          type: "prepare-teleport", cityId
+        }), value.cityId)).serialized
+        : lastState?.serialized;
+      assert.ok(serialized, "Reload or teleport requires a complete save");
       await page.reload();
       await page.waitForFunction(() => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__, null, { timeout: 600_000 });
       await page.evaluate((saved) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.restoreSerialized(saved), serialized);
@@ -81,6 +90,7 @@ try {
         result = await page.evaluate((cityId) => window.__PIXEL_GLOBE_SAVE_RESTORE_SMOKE__.journey({
           type: "step", frames: 120, cityId
         }), value.cityId);
+        report.sailingFrames = (report.sailingFrames || 0) + 120;
         lastState = result;
         assert.deepEqual(failures, [], "Browser emitted a runtime error while sailing");
         if (result.modal || result.menu || result.nodeId || result.options.length ||
@@ -102,6 +112,13 @@ try {
   if (replay) {
     for (const value of replay.trace) await command(value);
     console.log("Browser replay completed without the recorded failure.");
+  } else if (checklist) {
+    report.checklist = await runBrowserChecklist({ command, initialState: await command({ type: "observe" }), random,
+      checkpoint: value => {
+        report.checklist = value;
+        writeFileSync(resolve(output, "report.json"), JSON.stringify(report, null, 2));
+        writeFileSync(resolve(output, "replay.json"), JSON.stringify({ version: 1, revision, dirty, seed, initial, trace }));
+      } });
   } else {
     let state = await command({ type: "observe" });
     assert.deepEqual(state.gameState.cargo, afterCombat.gameState.cargo, "Combat cargo lost at restore");
@@ -176,7 +193,7 @@ try {
   }
   writeFileSync(resolve(output, "report.json"), JSON.stringify(report, null, 2));
 } catch (error) {
-  writeFileSync(resolve(output, "failure.json"), JSON.stringify({ version: 1, revision, dirty, seed, initial, trace, lastState, failure: error.stack }, null, 2));
+  writeFileSync(resolve(output, "failure.json"), JSON.stringify({ version: 1, revision, dirty, seed, initial, trace, lastState, checklist: report.checklist, failure: error.stack }, null, 2));
   throw error;
 } finally {
   await browser.close();

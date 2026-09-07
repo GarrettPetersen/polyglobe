@@ -137,8 +137,8 @@ test("every production hull has matching port-assault geometry and manifest meta
     assert.ok(Number.isInteger(cleanup.removedPixels));
     if (entry.slug === "galleass" || entry.slug === "fusta") {
       const reviewedCleanup = {
-        galleass: { minimumComponentPixels: 12, removedComponents: 8, removedPixels: 49 },
-        fusta: { minimumComponentPixels: 12, removedComponents: 15, removedPixels: 54 }
+        galleass: { minimumComponentPixels: 12, removedComponents: 6, removedPixels: 38 },
+        fusta: { minimumComponentPixels: 12, removedComponents: 11, removedPixels: 39 }
       }[entry.slug];
       assert.deepEqual(entry.cityDockside.rasterCleanup, reviewedCleanup);
     } else {
@@ -193,6 +193,14 @@ test("every production hull has matching port-assault geometry and manifest meta
       assert.ok(entry.dockRig.generatedFurledTriangles > 0);
       assert.ok(entry.dockRig.removedDeployedRigTriangles > 0);
       assert.ok(entry.dockRig.generatedStackedBattenTriangles > 0);
+    } else if (["mediterranean-galley", "galleass", "fusta"].includes(entry.slug)) {
+      assert.equal(entry.dockRig.state, "furled");
+      assert.equal(entry.dockRig.bundleMode, "authored-furled");
+      assert.equal(entry.dockRig.generatedFurledTriangles, 0);
+      assert.equal(entry.dockRig.authoredFurledSections,
+        { "mediterranean-galley": 4, galleass: 5, fusta: 2 }[entry.slug]);
+      assert.ok(entry.dockRig.authoredFurledTriangles > 19000);
+      assert.match(entry.dockRig.sourceUrl, /98de2960dcb54b839639681dcdc6448b$/);
     } else {
       assert.equal(entry.dockRig.state, "furled");
       assert.equal(entry.dockRig.bundleMode, "furled");
@@ -418,3 +426,16 @@ function enclosedTransparentPixelCount(pixels, width, height) {
   }
   return count;
 }
+
+
+test("large galley-family renders retain shaded deck and bench edges", async () => {
+  const manifest = JSON.parse(await readFile(join(assetRoot, "manifest.json"), "utf8"));
+  for (const slug of ["mediterranean-galley", "galleass", "fusta"]) {
+    const ship = manifest.ships.find(entry => entry.slug === slug);
+    assert.ok(ship, `Missing galley-family render: ${slug}`);
+    const shading = ship.cityDockside.creaseShading;
+    assert.ok(shading && shading.shadeScale > 0 && shading.shadeScale < 1,
+      `${slug} must distinguish raised deck faces from their sides`);
+    assert.ok(shading.shadedPixels > 0, `${slug} deck shading did not reach its raster`);
+  }
+});

@@ -498,6 +498,7 @@ import {
   diplomacyBetweenForState,
   factionReputation,
   HOSTILE_PORT_REPUTATION_THRESHOLD,
+  LETTER_OF_MARQUE_REPUTATION_REQUIRED,
   factionSafePassageToll,
   settleSoundDues,
   foodRationsForCargoQuantity,
@@ -2009,6 +2010,7 @@ import {
   shipyardListingById,
   shipyardMaterialStatus,
   shipyardPurchaseTerms,
+  shipConstructionPrice,
   shipyardRumorForPort
 } from "./shipyards.js";
 import { shipyardListingCondition } from "./shipyardListingPresentation.js";
@@ -2024,6 +2026,7 @@ import {
 import { formatDisplayQuantity } from "./displayNumber.js";
 import {
   LOCAL_SAVE_STORAGE_KEY,
+  LOCAL_SAVE_VERSION,
   LOCAL_SAVE_MODE_FULL,
   clearLocalSave,
   readLocalSave,
@@ -11727,6 +11730,7 @@ function stageCaptureSequence() {
   gameState.memory.flags.oarTutorialShown = true;
   gameState.memory.flags.sailingBasicsTutorialShown = true;
   gameState.memory.flags.tackingTutorialShown = true;
+  stageCaptureDemoPortControl(sequence);
   stageCaptureDiscoveryMemory(sequence);
   if (sequence.kind === "explore") {
     const discovery = captureDiscoveryById(sequence.discoveryId);
@@ -11903,7 +11907,7 @@ function updateCaptureTrade(sequence) {
     stopShipForDialogue();
     ensureDialoguePortraitLoaded();
     emitCaptureEvent("capture-portrait", {
-      role: "merchant",
+      role: "factor",
       city: sequence.cityId,
       sourceId: merchant.sourceId
     });
@@ -11920,6 +11924,20 @@ function stageCaptureCity(sequence) {
   const city = captureCityById(sequence.cityId);
   placeCapturePlayerNearTile(city.tileId);
   gameState.doubloons = 12_000;
+  if (sequence.variant === "shipyard-purchase") {
+    stageCaptureShipyardPurchase(sequence, city);
+  }
+  if (sequence.variant === "letter-of-marque") {
+    stageCaptureGarrisonOfficer(sequence, city);
+    maximizeCaptureCombatLoadout();
+    const standing = factionReputation(gameState, city.factionId);
+    adjustFactionReputation(
+      gameState,
+      city.factionId,
+      LETTER_OF_MARQUE_REPUTATION_REQUIRED + 5 - standing,
+      { reason: "direct", simMinute: Math.max(0, weatherClockMinutes) }
+    );
+  }
   if (sequence.variant === "castaway-homecoming") {
     stageCaptureCompanions({ variant: "castaway-arrival", homeCityId: sequence.cityId });
   }
@@ -11980,6 +11998,14 @@ function updateCaptureCity(sequence) {
     }
     return;
   }
+  if (sequence.variant === "shipyard-purchase") {
+    updateCaptureCityShipyardPurchase(sequence);
+    return;
+  }
+  if (sequence.variant === "letter-of-marque") {
+    updateCaptureCityLetterOfMarque(sequence);
+    return;
+  }
   const cityCall = capturePortCallById(sequence.cityId);
   if (captureCue("open-city", 0.5)) {
     activatePortCityView(cityCall);
@@ -12036,6 +12062,132 @@ function updateCaptureCity(sequence) {
     captureShowCityRootMenu(cityCall);
     emitCaptureEvent("capture-beat", { action: "finish-market-visit", city: sequence.cityId });
   }
+}
+
+function stageCaptureGarrisonOfficer(sequence, city) {
+  if (sequence.garrisonPortraitSourceId === undefined) return;
+  const previous = requirePortCityStaffMember(
+    portCityStaffByCityId,
+    city.cityId,
+    PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER
+  );
+  usedCharacterNames.delete(previous.name);
+  const officer = assignPortCityStaffMemberFromSource(
+    { ...city, cityType: "mediterranean" },
+    PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER,
+    sequence.garrisonPortraitSourceId,
+    characterPortraitManifest,
+    usedCharacterNames,
+    { excludedSourceIds: playerPortraitSourceExclusions(gameState.playerCharacter) }
+  );
+  const staff = portCityStaffByCityId.get(city.cityId);
+  portCityStaffByCityId.set(city.cityId, Object.freeze({
+    ...staff,
+    [PORT_CITY_STAFF_ROLE.GARRISON_COMMANDER]: officer
+  }));
+  usedCharacterNames.add(officer.name);
+  chart = buildChart(camera);
+}
+
+function stageCaptureShipyardPurchase(sequence, city) {
+  const yard = shipyardAtPort(worldEconomy.shipyards, city);
+  const builtMinute = Math.floor(weatherClockMinutes) - WEATHER_MINUTES_PER_DAY;
+  const price = shipConstructionPrice(sequence.shipSlug);
+  yard.listing = Object.freeze({
+    id: `capture-${CAPTURE_SCENARIO.id}-${sequence.shipSlug}`,
+    portId: city.cityId,
+    portName: city.displayCity || city.city,
+    shipSlug: sequence.shipSlug,
+    shipLabel: shipLabelForSlug(sequence.shipSlug),
+    price,
+    builtMinute,
+    expiresMinute: builtMinute + WEATHER_MINUTES_PER_DAY * 240,
+    masterwork: false,
+    source: "new-build",
+    acquisitionCost: 0
+  });
+  yard.usedListings = [];
+  gameState.doubloons = Math.max(gameState.doubloons, price + 20_000);
+}
+
+function updateCaptureCityShipyardPurchase(sequence) {
+  if (captureCue("open-shipyard", 0.5)) {
+    openCapturePortNode(sequence.cityId, "shipyard");
+    emitCaptureEvent("capture-beat", {
+      action: "inspect-shipyard",
+      city: sequence.cityId,
+      shipSlug: sequence.shipSlug
+    });
+  }
+  if (captureCue("confirm-ship-purchase", 3.2)) {
+    captureChooseDialogueActionForShip("confirm-ship-purchase", sequence.shipSlug);
+    emitCaptureEvent("capture-beat", {
+      action: "confirm-ship-purchase",
+      city: sequence.cityId,
+      shipSlug: sequence.shipSlug
+    });
+  }
+  if (captureCue("purchase-ship", 5.9)) {
+    captureChooseDialogueActionForShip("purchase-ship", sequence.shipSlug);
+    emitCaptureEvent("capture-beat", {
+      action: "purchase-ship",
+      city: sequence.cityId,
+      shipSlug: sequence.shipSlug
+    });
+  }
+}
+
+function updateCaptureCityLetterOfMarque(sequence) {
+  if (captureCue("open-marque", 0.5)) {
+    openCapturePortNode(sequence.cityId, "marque");
+    emitCaptureEvent("capture-beat", {
+      action: "request-letter-of-marque",
+      city: sequence.cityId
+    });
+  }
+  if (captureCue("accept-marque", 4.0)) {
+    captureChooseDialogueAction("request-marque");
+    if (!hasLetterOfMarqueFrom(gameState, gameState.playerCharacter.nationalityId)) {
+      throw new Error("Capture letter of marque was not granted");
+    }
+    emitCaptureEvent("capture-beat", {
+      action: "letter-of-marque-granted",
+      city: sequence.cityId,
+      factionId: gameState.playerCharacter.nationalityId
+    });
+  }
+}
+
+function stageCaptureDemoPortControl(sequence) {
+  const factionId = sequence.conquerDemoPortsForFactionId;
+  if (factionId === undefined) return;
+  if (BUILD_EDITION_ID !== "demo" || !demoMediterraneanAccessMask) {
+    throw new Error("Demo port conquest capture requires the Mediterranean demo build");
+  }
+  const captureMinute = Math.floor(weatherClockMinutes);
+  const accessiblePorts = playerAccessiblePortCities();
+  for (const city of accessiblePorts) {
+    if (city.factionId === factionId) continue;
+    recordPortCapture(
+      gameState.memory.conquest,
+      city,
+      factionId,
+      captureMinute,
+      "capture-staging"
+    );
+  }
+  applyCurrentPortConquestOwnership({ refreshMaltaQuest: false });
+  const remaining = accessiblePorts.filter((city) => city.factionId !== factionId);
+  if (remaining.length > 0) {
+    throw new Error(
+      `Demo port conquest capture left ${remaining.length} ports outside ${factionId} control`
+    );
+  }
+  emitCaptureEvent("capture-beat", {
+    action: "demo-ports-controlled",
+    factionId,
+    portCount: accessiblePorts.length
+  });
 }
 
 function updateCaptureCityArchitecturePan(sequence) {
@@ -12368,9 +12520,11 @@ function updateCapturePillage(sequence) {
     }
     return;
   }
-  if (captureCue("open-assault", 1.0)) openPortDialogue(cityCall);
-  if (captureDirector.elapsedSeconds >= 2.3 && portCityView?.sceneReady &&
-      captureCue("land-marines", 2.3)) {
+  const openSeconds = sequence.assaultOpenSeconds ?? 1.0;
+  const landingSeconds = sequence.assaultLandingSeconds ?? 2.3;
+  if (captureCue("open-assault", openSeconds)) openPortDialogue(cityCall);
+  if (captureDirector.elapsedSeconds >= landingSeconds && portCityView?.sceneReady &&
+      captureCue("land-marines", landingSeconds)) {
     attemptPlayerPortConquest(cityCall, () => 0);
     emitCaptureEvent("capture-beat", { action: "land-marines", city: sequence.cityId });
   }
@@ -13513,6 +13667,7 @@ function assertCaptureBroadsideGeometry(geometry, targetLabel) {
 
 function stageCapturePillage(sequence) {
   const city = captureCityById(sequence.cityId);
+  if (sequence.variant === "assault") stageCaptureGarrisonOfficer(sequence, city);
   if (sequence.variant === "bombard") {
     placeCapturePlayerForBroadsideTarget(city.tileId, sequence.cityId);
   } else {
@@ -14132,6 +14287,18 @@ function captureChooseDialogueAction(actionType) {
   const view = currentDialogueView();
   const index = view.options.findIndex((entry) => entry.action?.type === actionType && !entry.disabled);
   if (index < 0) throw new Error(`Capture dialogue has no enabled ${actionType} action`);
+  chooseDialogueOption(index);
+}
+
+function captureChooseDialogueActionForShip(actionType, shipSlug) {
+  if (!dialogueState) throw new Error(`Capture dialogue closed before ${actionType}/${shipSlug}`);
+  const view = currentDialogueView();
+  const index = view.options.findIndex((entry) => (
+    entry.action?.type === actionType && entry.action.shipSlug === shipSlug && !entry.disabled
+  ));
+  if (index < 0) {
+    throw new Error(`Capture dialogue has no enabled ${actionType} action for ${shipSlug}`);
+  }
   chooseDialogueOption(index);
 }
 
@@ -16681,6 +16848,24 @@ async function runBrowserJourneyCommand(command) {
       worldEconomy, playerAccessiblePortCities(), portDialogueContext()).locations;
     if (!locations.some((location) => location.id === command.id)) throw new Error(`Unavailable city location: ${command.id}`);
     activatePortCityDestination({ id: command.id });
+  } else if (command.type === "prepare-teleport") {
+    if (dialogueState || playerIntroModal || captainAlertModal || captainMenu.isOpen || aboardMenu.isOpen || politicsMenu.isOpen || portWaitState) {
+      throw new Error("Journey teleport requires idle sailing");
+    }
+    const city = playerAccessiblePortCities().find(city => city.cityId === command.cityId);
+    if (!city) throw new Error(`Journey teleport requires an active port: ${command.cityId}`);
+    const tileId = [city.tileId, ...graph.neighbors[city.tileId]].find(isShipBaseNavigableTile);
+    if (!Number.isInteger(tileId)) throw new Error(`Journey teleport has no navigable shore: ${city.cityId}`);
+    const { payload, snapshotErrors } = snapshotVoyagePayload({ includeWorldTraffic: true });
+    if (snapshotErrors.length) throw new Error("Journey teleport could not retain the complete voyage");
+    const moved = structuredClone(payload);
+    moved.playerShip.position = tileCenterVector(tileId);
+    moved.playerShip.tileId = tileId;
+    moved.playerShip.velocity = [0, 0, 0];
+    // The runner reloads the page before restoring this local-only travel
+    // cheat. A live restore would violate the visible-chart reframe guard.
+    return { serialized: JSON.stringify({ version: LOCAL_SAVE_VERSION, encoding: "json",
+      savedAt: Date.now(), payload: moved }) };
   } else if (command.type === "dock") {
     const city = chart.cityCalls.find((call) => call.cityId === command.cityId && portCallInInteractionRange(call));
     if (!city || dialogueState || captainAlertModal) throw new Error(`Journey cannot dock here: ${command.cityId}`);
@@ -16748,6 +16933,8 @@ async function runBrowserJourneyCommand(command) {
     options: options.map((option) => ({ id: playerActionId(option.action), action: option.action, disabled: option.disabled === true })),
     ports: chart.cityCalls.filter((city) => city.character).map((city) => ({ cityId: city.cityId,
       inRange: portCallInInteractionRange(city), distancePx: Math.sqrt(distance2(localLayout.viewX, localLayout.viewY, city.interactionX, city.interactionY)) })),
+    destinations: playerAccessiblePortCities().map(city => ({ cityId: city.cityId,
+      distancePx: vectorArcDistance(ship.position, tileCenterVector(city.tileId)) * PIXELS_PER_RADIAN })),
     serialized: command.type === "save" ? gameStorage.getItem(LOCAL_SAVE_STORAGE_KEY) : null
   };
 }

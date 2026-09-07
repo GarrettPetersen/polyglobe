@@ -1,0 +1,177 @@
+{
+  "title": "Marque & Reprisal Demo Launch Trailer",
+  "outroFrames": 150,
+  "validation": {
+    "chapterCount": 6
+  },
+  "music": {
+    "primary": {
+      "name": "city-mediterranean",
+      "intro": "public/assets/music/city-mediterranean-intro.ogg",
+      "loop": "public/assets/music/city-mediterranean-loop.ogg",
+      "bpm": 130
+    },
+    "secondary": {
+      "name": "combat-big",
+      "intro": "public/assets/music/combat-big-intro.ogg",
+      "loop": "public/assets/music/combat-big-loop.ogg",
+      "bpm": 87.5
+    },
+    "fightStartFrame": 657,
+    "crossfadeFrames": 54,
+    "combatSyncAttackFrame": 27,
+    "transitionHeading": "Fight",
+    "requiredPreviousHeading": "Commission",
+    "syncCutFrames": [
+      60, 210, 291, 372, 447, 552, 657, 777, 897, 1017,
+      1301, 1376, 1451, 1526
+    ]
+  },
+  "chapters": [
+    {
+      "heading": "Opening",
+      "clips": [
+        {
+          "source": "demo/trailer-demo-launch-sail-bosphorus.mp4",
+          "startFrame": 15,
+          "durationFrames": 60,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-launch-trade-istanbul.mp4",
+          "startFrame": 21,
+          "durationFrames": 150,
+          "audioGain": 1.1,
+          "requiredModalPolicy": "show",
+          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard",
+          "requiredSfx": { "kind": "coin", "minimum": 5 }
+        }
+      ]
+    },
+    {
+      "heading": "Upgrade",
+      "clips": [
+        {
+          "source": "demo/trailer-demo-launch-buy-galley.mp4",
+          "startFrame": 15,
+          "durationFrames": 81,
+          "requiredModalPolicy": "show",
+          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+        },
+        {
+          "source": "demo/trailer-demo-launch-buy-galley.mp4",
+          "startFrame": 96,
+          "durationFrames": 81,
+          "requiredModalPolicy": "show",
+          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+        },
+        {
+          "source": "demo/trailer-demo-launch-sail-galley.mp4",
+          "startFrame": 15,
+          "durationFrames": 75,
+          "requiredModalPolicy": "suppress"
+        }
+      ]
+    },
+    {
+      "heading": "Commission",
+      "clips": [
+        {
+          "source": "demo/trailer-demo-launch-letter-of-marque.mp4",
+          "startFrame": 15,
+          "durationFrames": 105,
+          "requiredModalPolicy": "show",
+          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+        },
+        {
+          "source": "demo/trailer-demo-launch-letter-of-marque.mp4",
+          "startFrame": 120,
+          "durationFrames": 105,
+          "requiredModalPolicy": "show",
+          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+        }
+      ]
+    },
+    {
+      "heading": "Fight",
+      "clips": [
+        {
+          "source": "demo/trailer-demo-launch-fight-venetians.mp4",
+          "startFrame": 12,
+          "durationFrames": 120,
+          "audioGain": 0.82,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetId": "trailer-demo-launch-fight-venetians-target",
+            "minimumHits": 1
+          }
+        },
+        {
+          "source": "demo/trailer-demo-launch-fight-hospitallers.mp4",
+          "startFrame": 12,
+          "durationFrames": 120,
+          "audioGain": 0.82,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "port",
+            "targetId": "trailer-demo-launch-fight-hospitallers-target",
+            "minimumHits": 1
+          }
+        }
+      ]
+    },
+    {
+      "heading": "Conquer",
+      "clips": [
+        {
+          "source": "demo/trailer-demo-launch-bombard-rhodes.mp4",
+          "startFrame": 12,
+          "durationFrames": 120,
+          "audioGain": 0.82,
+          "requiredModalPolicy": "suppress",
+          "requiredSfx": { "kind": "cannon", "minimum": 1 },
+          "requiredBroadside": {
+            "side": "starboard",
+            "targetIdPrefix": "shore-battery:",
+            "minimumHits": 1
+          }
+        },
+        {
+          "source": "demo/trailer-demo-launch-assault-rhodes.mp4",
+          "startFrame": 16,
+          "durationFrames": 284,
+          "audioGain": 0.7,
+          "requiredModalPolicy": "show",
+          "requiredPlayerPortraitSourceId": "old-warrior-grey-beard-by-captainskolot-old-warrior-grey-beard"
+        }
+      ]
+    },
+    {
+      "heading": "Empire",
+      "clips": [
+        {
+          "source": "demo/trailer-demo-launch-ottoman-west.mp4",
+          "startFrame": 15,
+          "durationFrames": 75,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-launch-ottoman-central.mp4",
+          "startFrame": 15,
+          "durationFrames": 75,
+          "requiredModalPolicy": "suppress"
+        },
+        {
+          "source": "demo/trailer-demo-launch-ottoman-east.mp4",
+          "startFrame": 15,
+          "durationFrames": 75,
+          "requiredModalPolicy": "suppress"
+        }
+      ]
+    }
+  ],
+  "montages": []
+}

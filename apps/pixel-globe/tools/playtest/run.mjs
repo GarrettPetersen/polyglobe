@@ -98,6 +98,12 @@ function main() {
             ["tools/playtest/browser.mjs", `--seed=${seed}`, `--output=${resolve(output, "browser-journey")}`],
             { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
           writeFileSync(resolve(output, "browser-journey.log"), journeyLog);
+          const checklistOutput = resolve(output, "browser-checklist");
+          const checklistLog = execFileSync(process.execPath,
+            ["tools/playtest/browser.mjs", "--checklist=true", `--seed=${seed}`, `--output=${checklistOutput}`],
+            { cwd: root, timeout: 30 * 60_000, maxBuffer: 16 * 1024 * 1024, stdio: ["ignore", "pipe", "pipe"] });
+          writeFileSync(resolve(output, "browser-checklist.log"), checklistLog);
+          report.browserChecklist = JSON.parse(readFileSync(resolve(checklistOutput, "report.json"), "utf8")).checklist;
           report.browser = "passed";
           lane = "performance";
           const profile = mkdtempSync(resolve(tmpdir(), "pixel-globe-soak-performance-"));

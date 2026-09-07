@@ -34,3 +34,20 @@ test("reload permits omitted optional properties without hiding lost mission dat
   after.gameState.memory.quests.active.passenger = null;
   assert.throws(() => assertBrowserJourneyTransition(before, after, { type: "reload" }), /mission history/);
 });
+
+test("teleport permits movement but preserves cargo, crew, equipment and swimmers", () => {
+  const before = state();
+  before.gameState.namedCrew = [{ id: "officer-a" }];
+  before.gameState.inventory = [{ id: "net-a" }];
+  before.playerShip.overboardCrew = [{ crewId: "crew-a" }];
+  const after = structuredClone(before);
+  after.playerShip.position = [0, 1, 0];
+  assert.doesNotThrow(() => assertBrowserJourneyTransition(before, after, { type: "teleport" }));
+  for (const mutate of [
+    s => s.gameState.namedCrew.pop(), s => s.gameState.inventory.pop(),
+    s => s.playerShip.overboardCrew.pop(), s => s.gameState.cargo.rice++
+  ]) {
+    const broken = structuredClone(after); mutate(broken);
+    assert.throws(() => assertBrowserJourneyTransition(before, broken, { type: "teleport" }));
+  }
+});

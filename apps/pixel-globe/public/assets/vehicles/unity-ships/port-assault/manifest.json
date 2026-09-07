@@ -3336,7 +3336,7 @@
               "width": 151,
               "height": 129
             },
-            "opaquePixels": 7809,
+            "opaquePixels": 7789,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.501033
           },
@@ -3348,7 +3348,7 @@
               "width": 151,
               "height": 129
             },
-            "opaquePixels": 7798,
+            "opaquePixels": 7779,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.495666
           },
@@ -3360,7 +3360,7 @@
               "width": 151,
               "height": 129
             },
-            "opaquePixels": 7808,
+            "opaquePixels": 7791,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.490299
           }
@@ -3372,7 +3372,7 @@
           "width": 151,
           "height": 271
         },
-        "opaquePixels": 12975,
+        "opaquePixels": 12633,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3400,7 +3400,7 @@
           "x": 550,
           "y": 332
         },
-        "foregroundOpaquePixels": 9875,
+        "foregroundOpaquePixels": 9616,
         "sinkHeightMin": -0.590197,
         "sinkHeightMax": 0.59164,
         "encodedWaterlineY": -0.495666,
@@ -3416,22 +3416,28 @@
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 575,
-          "recoloredPixels": 1563
+          "recoloredRegions": 935,
+          "recoloredPixels": 2566
         },
-        "creaseShading": null
+        "creaseShading": {
+          "shadeScale": 0.68,
+          "shadedPixels": 3081
+        }
       },
       "dockRig": {
         "state": "furled",
         "selectorType": "source-materials",
         "removedRigSelectorType": null,
-        "bundleMode": "furled",
+        "bundleMode": "authored-furled",
         "removedOpenSailTriangles": 999,
         "removedDeployedRigTriangles": 0,
         "sourceSailComponents": 2,
         "furledBundles": 2,
-        "generatedFurledTriangles": 240,
-        "generatedStackedBattenTriangles": 0
+        "authoredFurledSections": 4,
+        "authoredFurledTriangles": 39989,
+        "generatedFurledTriangles": 0,
+        "generatedStackedBattenTriangles": 0,
+        "sourceUrl": "https://sketchfab.com/3d-models/russian-22-bank-baltic-galley-98de2960dcb54b839639681dcdc6448b"
       }
     },
     {
@@ -3484,7 +3490,7 @@
               "width": 181,
               "height": 154
             },
-            "opaquePixels": 11151,
+            "opaquePixels": 11128,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.599822
           },
@@ -3496,7 +3502,7 @@
               "width": 180,
               "height": 154
             },
-            "opaquePixels": 11136,
+            "opaquePixels": 11116,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.594452
           },
@@ -3508,7 +3514,7 @@
               "width": 180,
               "height": 155
             },
-            "opaquePixels": 11129,
+            "opaquePixels": 11106,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.589082
           }
@@ -3520,7 +3526,7 @@
           "width": 181,
           "height": 325
         },
-        "opaquePixels": 18712,
+        "opaquePixels": 18564,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3548,7 +3554,7 @@
           "x": 563,
           "y": 306
         },
-        "foregroundOpaquePixels": 14448,
+        "foregroundOpaquePixels": 14375,
         "sinkHeightMin": -0.706079,
         "sinkHeightMax": 0.70725,
         "encodedWaterlineY": -0.594452,
@@ -3556,30 +3562,36 @@
         "submergedPixels": 207,
         "rasterCleanup": {
           "minimumComponentPixels": 12,
-          "removedComponents": 8,
-          "removedPixels": 49
+          "removedComponents": 6,
+          "removedPixels": 38
         },
         "colorCleanup": {
           "minimumRegionPixelsAtCityScale": 12,
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 643,
-          "recoloredPixels": 1781
+          "recoloredRegions": 1160,
+          "recoloredPixels": 3405
         },
-        "creaseShading": null
+        "creaseShading": {
+          "shadeScale": 0.68,
+          "shadedPixels": 4671
+        }
       },
       "dockRig": {
         "state": "furled",
         "selectorType": "source-materials",
         "removedRigSelectorType": null,
-        "bundleMode": "furled",
+        "bundleMode": "authored-furled",
         "removedOpenSailTriangles": 1498,
         "removedDeployedRigTriangles": 0,
         "sourceSailComponents": 3,
         "furledBundles": 3,
-        "generatedFurledTriangles": 360,
-        "generatedStackedBattenTriangles": 0
+        "authoredFurledSections": 5,
+        "authoredFurledTriangles": 49986,
+        "generatedFurledTriangles": 0,
+        "generatedStackedBattenTriangles": 0,
+        "sourceUrl": "https://sketchfab.com/3d-models/russian-22-bank-baltic-galley-98de2960dcb54b839639681dcdc6448b"
       }
     },
     {
@@ -3632,7 +3644,7 @@
               "width": 119,
               "height": 83
             },
-            "opaquePixels": 1881,
+            "opaquePixels": 1761,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.314199
           },
@@ -3644,7 +3656,7 @@
               "width": 118,
               "height": 83
             },
-            "opaquePixels": 1744,
+            "opaquePixels": 1626,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.308837
           },
@@ -3656,7 +3668,7 @@
               "width": 116,
               "height": 83
             },
-            "opaquePixels": 1600,
+            "opaquePixels": 1484,
             "clippedProjectedPixels": 0,
             "shadowWaterlineY": -0.303475
           }
@@ -3668,7 +3680,7 @@
           "width": 120,
           "height": 215
         },
-        "opaquePixels": 7785,
+        "opaquePixels": 7629,
         "berthFraction": 0.5,
         "deckPolygon": [
           {
@@ -3696,38 +3708,44 @@
           "x": 536,
           "y": 343
         },
-        "foregroundOpaquePixels": 5824,
+        "foregroundOpaquePixels": 5685,
         "sinkHeightMin": -0.470111,
-        "sinkHeightMax": 0.432939,
+        "sinkHeightMax": 0.465776,
         "encodedWaterlineY": -0.308837,
         "sinkWaterlineLevel": 0.501961,
-        "submergedPixels": 3487,
+        "submergedPixels": 3472,
         "rasterCleanup": {
           "minimumComponentPixels": 12,
-          "removedComponents": 15,
-          "removedPixels": 54
+          "removedComponents": 11,
+          "removedPixels": 39
         },
         "colorCleanup": {
           "minimumRegionPixelsAtCityScale": 12,
           "minimumRegionPixels": 12,
           "requestedPasses": 2,
           "completedPasses": 2,
-          "recoloredRegions": 212,
-          "recoloredPixels": 612
+          "recoloredRegions": 673,
+          "recoloredPixels": 1993
         },
-        "creaseShading": null
+        "creaseShading": {
+          "shadeScale": 0.68,
+          "shadedPixels": 1824
+        }
       },
       "dockRig": {
         "state": "furled",
         "selectorType": "source-materials",
         "removedRigSelectorType": null,
-        "bundleMode": "furled",
+        "bundleMode": "authored-furled",
         "removedOpenSailTriangles": 499,
         "removedDeployedRigTriangles": 0,
         "sourceSailComponents": 1,
         "furledBundles": 1,
-        "generatedFurledTriangles": 120,
-        "generatedStackedBattenTriangles": 0
+        "authoredFurledSections": 2,
+        "authoredFurledTriangles": 19994,
+        "generatedFurledTriangles": 0,
+        "generatedStackedBattenTriangles": 0,
+        "sourceUrl": "https://sketchfab.com/3d-models/russian-22-bank-baltic-galley-98de2960dcb54b839639681dcdc6448b"
       }
     },
     {

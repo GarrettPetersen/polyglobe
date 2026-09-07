@@ -1,0 +1,70 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { CHECKLIST_GOALS, shuffledChecklist, checklistMenuCommand, singleDialogueOptionCommand, runBrowserChecklist } from "./checklist.mjs";
+import { randomForSeed } from "./journey.mjs";
+
+test("every seeded checklist includes every objective once, in reproducible varied orders", () => {
+  const orders = new Set();
+  for (let seed = 1; seed <= 30; seed++) {
+    const order = shuffledChecklist(randomForSeed(seed));
+    assert.deepEqual([...order].sort(), [...CHECKLIST_GOALS].sort());
+    assert.deepEqual(order, shuffledChecklist(randomForSeed(seed)));
+    orders.add(order.join());
+  }
+  assert.equal(orders.size, 30);
+});
+
+test("planner chooses offered enabled actions and routes around disabled purchases", () => {
+  const state = { locations: [], options: [
+    { id: "disabled", disabled: true, action: { type: "buy" } },
+    { id: "buy", disabled: false, action: { type: "buy", goodId: "rice" } }
+  ] };
+  assert.deepEqual(checklistMenuCommand(state, "buy-cargo"), { type: "choose", id: "buy" });
+  state.options[1].disabled = true;
+  assert.equal(checklistMenuCommand(state, "buy-cargo"), null);
+  state.options.push({ id: "root", disabled: false, action: { type: "node", nodeId: "root" } });
+  assert.deepEqual(checklistMenuCommand(state, "buy-cargo"), { type: "choose", id: "root" });
+});
+
+test("sale plan selects the actual market mode and refuses unknown goals", () => {
+  const state = { locations: [], options: [{ id: "sell-mode", action: { type: "switch-market-mode", mode: "sell" } }] };
+  assert.deepEqual(checklistMenuCommand(state, "sell-cargo"), { type: "choose", id: "sell-mode" });
+  assert.throws(() => checklistMenuCommand(state, "invented-goal"), /No menu planner/);
+});
+
+
+test("single-option dialogue continuation uses the offered action and never chooses disabled or ambiguous options", () => {
+  const state = { nodeId: "acknowledgement", options: [{ id: "continue", action: { type: "close" } }] };
+  assert.deepEqual(singleDialogueOptionCommand(state), { type: "choose", id: "continue" });
+  assert.equal(singleDialogueOptionCommand({ ...state, nodeId: null }), null);
+  assert.equal(singleDialogueOptionCommand({ ...state, options: [] }), null);
+  assert.equal(singleDialogueOptionCommand({ ...state, options: [{ ...state.options[0], disabled: true }] }), null);
+  assert.equal(singleDialogueOptionCommand({ ...state, options: [...state.options, { id: "buy", disabled: true }] }), null);
+});
+
+test("selling before buying first acquires a saleable lot through the market", () => {
+  const state = { gameState: { cargo: { hardtack: 25 } }, locations: [], options: [
+    { id: "buy", action: { type: "switch-market-mode", mode: "buy" } },
+    { id: "sell", action: { type: "switch-market-mode", mode: "sell" } }
+  ] };
+  assert.deepEqual(checklistMenuCommand(state, "sell-cargo"), { type: "choose", id: "buy" });
+  state.options.push({ id: "rice", action: { type: "buy", goodId: "rice" } });
+  assert.deepEqual(checklistMenuCommand(state, "sell-cargo"), { type: "choose", id: "rice" });
+  state.gameState.cargo.rice = 1;
+  assert.deepEqual(checklistMenuCommand(state, "sell-cargo"), { type: "choose", id: "sell" });
+});
+
+
+test("automatic acknowledgements are traced and a stuck single-option dialogue fails its budget", async () => {
+  const state = { nodeId: "acknowledgement", options: [{ id: "continue", action: { type: "close" } }] };
+  const clicks = [];
+  let report;
+  await assert.rejects(runBrowserChecklist({
+    initialState: state, random: randomForSeed(1), maxActions: 3,
+    command: async input => { clicks.push(input); return state; },
+    checkpoint: value => { report = value; }
+  }), /Checklist exhausted 3 actions/);
+  assert.deepEqual(clicks, Array.from({ length: 3 }, () => ({ type: "choose", id: "continue" })));
+  assert.equal(report.actionCoverage.close, 3);
+  assert.deepEqual(report.completed, []);
+});

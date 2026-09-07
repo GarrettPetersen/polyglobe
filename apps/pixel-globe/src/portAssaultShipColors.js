@@ -480,6 +480,12 @@ function oceanDhowUpwardFacingSurface(surface) {
 
 function galleyPortAssaultSurfaceColor(surface, point, label, colors, scale) {
   const materialName = requiredMaterialName(surface, `${label} dockside`);
+  if (materialName === "M_Ship03_SailTied") {
+    // A restrained two-tone cloth ramp retains the tied folds without the
+    // general hull lighting turning the dense authored cloth dark grey.
+    if (!Number.isFinite(surface.normal?.y)) throw new Error("Authored galley cloth needs a surface normal");
+    return surface.normal.y >= -0.1 ? colors.sail : flatColor(144, 161, 168);
+  }
   if (materialName === "M_Ship03_Sail" || materialName === "procedural-furled-sail-cloth") {
     return colors.sail;
   }
@@ -494,8 +500,10 @@ function galleyPortAssaultSurfaceColor(surface, point, label, colors, scale) {
     materialName === "M_Ship03_WoodDark_02"
   ) {
     const height = heightAboveWaterline(surface, point, label);
-    const isDeckPlane = surface?.sourceMeshName === "Object_24" || horizontalFacingSurface(surface);
-    if (height >= 0.11 * scale && isDeckPlane) {
+    // Deck planking follows the upward timber faces, independent of draft.
+    // These low rowing decks cross the hull-band cutoff (and the fusta's
+    // waterline). Object_24 contains fittings, not a dedicated deck mesh.
+    if (upwardFacingSurface(surface)) {
       if (modelSpacePlankSeam(point, {
         plankWidth: 0.075 * scale,
         plankLength: 0.22 * scale,
@@ -530,11 +538,6 @@ function bandedHullColor(height, colors, { lowerHullTop, hullTop, upperHullTop }
 function upwardFacingSurface(surface) {
   const normalY = surface?.normal?.y;
   return Number.isFinite(normalY) && normalY >= 0.62;
-}
-
-function horizontalFacingSurface(surface) {
-  const normalY = surface?.normal?.y;
-  return Number.isFinite(normalY) && Math.abs(normalY) >= 0.62;
 }
 
 function oceanDhowDeckPlankSeam(point) {

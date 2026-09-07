@@ -139,7 +139,9 @@ test("the general trailer roster includes feature pairs and eight fast sailing s
 });
 
 test("the demo trailer roster replaces colonization with Mediterranean fleet combat", () => {
-  const trailerIds = captureScenarioIds().filter((id) => id.startsWith("trailer-demo-"));
+  const trailerIds = captureScenarioIds().filter((id) => (
+    id.startsWith("trailer-demo-") && !id.startsWith("trailer-demo-launch-")
+  ));
   assert.equal(trailerIds.length, 19);
   const counts = new Map();
   for (const id of trailerIds) {
@@ -175,6 +177,54 @@ test("the demo trailer roster replaces colonization with Mediterranean fleet com
       "A Habsburg Galley Reaches Vienna"
     ]
   );
+});
+
+test("the demo launch trailer follows one Ottoman captain through trade, war, and conquest", () => {
+  const ids = captureScenarioIds().filter((id) => id.startsWith("trailer-demo-launch-"));
+  assert.equal(ids.length, 12);
+  const captures = ids.map((id) => captureScenarioFromSearch(`?capture=${id}`));
+  assert.deepEqual(Object.fromEntries(
+    [...new Set(captures.map((capture) => capture.sequence.kind))].map((kind) => [
+      kind,
+      captures.filter((capture) => capture.sequence.kind === kind).length
+    ])
+  ), {
+    sail: 5,
+    trade: 1,
+    city: 2,
+    fight: 2,
+    pillage: 2
+  });
+  assert.ok(captures.every((capture) => capture.player.factionId === "ottoman"));
+  assert.equal(
+    new Set(captures.map((capture) => capture.player.characterPortraitSourceId)).size,
+    1
+  );
+  assert.ok(captures.every((capture) => capture.player.homeCityId === "thessaloniki|greece"));
+  assert.ok(captures.every((capture) => capture.player.religionId === "sunni-islam"));
+  assert.ok(captures.every((capture) => ["show", "suppress"].includes(capture.sequence.modalPolicy)));
+  assert.ok(captures.every((capture) => capture.sequence.durationSeconds <= 10));
+
+  const shipyard = captures.find((capture) => capture.sequence.variant === "shipyard-purchase");
+  assert.equal(shipyard.sequence.shipSlug, "mediterranean-galley");
+  const marque = captures.find((capture) => capture.sequence.variant === "letter-of-marque");
+  assert.equal(marque.sequence.cityId, "istanbul|turkey");
+  assert.equal(
+    marque.sequence.garrisonPortraitSourceId,
+    "women-knight-portrait-pack-by-captainskeleto-women-knight-portrait"
+  );
+  const rhodes = captures.filter((capture) => capture.sequence.cityId === "rhodes|greece");
+  assert.deepEqual(rhodes.map((capture) => capture.sequence.variant), ["bombard", "assault"]);
+  assert.equal(
+    rhodes.find((capture) => capture.sequence.variant === "assault").sequence.garrisonPortraitSourceId,
+    "knight-portrait-pack-by-captainskeleto-knight-portrait"
+  );
+
+  const victoryPans = captures.filter((capture) => (
+    capture.sequence.conquerDemoPortsForFactionId === "ottoman"
+  ));
+  assert.equal(victoryPans.length, 3);
+  assert.ok(victoryPans.every((capture) => capture.sequence.kind === "sail"));
 });
 
 test("the boarding-duel Short stages three long distinct small-arms fights", () => {
