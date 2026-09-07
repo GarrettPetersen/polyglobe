@@ -559,3 +559,68 @@ test("Belgrade identities couple religion, local culture, and portrait attire", 
   assert.equal(priest.religionId, "eastern-orthodox");
   assert.equal(priest.nameCulture, "serbian");
 });
+
+
+test("Khoikhoi generation excludes colonial aliases and unsupported personal names", () => {
+  const city = { cityId: "mossel bay village|south africa", city: "Mossel Bay Village", country: "South Africa", factionId: "neutral" };
+  const retired = new Set(["Klaas", "Doman", "Schacher", "Sara", "Goreinghaicona", "Hoena", "Kamies", "Nama", "Tsoa"]);
+  for (const sex of ["male", "female"]) {
+    const usedNames = new Set();
+    for (let index = 0; index < 1000; index++) {
+      const person = assignRegionalCharacterName({ identityKey: `historical-${sex}-${index}`, city, sex, usedNames });
+      assert.equal(person.nameCulture, "khoikhoi");
+      assert.equal(retired.has(person.givenName), false, person.name);
+    }
+    assert.equal(usedNames.size, sex === "male" ? 30 : 6);
+  }
+});
+
+test("retired Khoikhoi names are corrected in crew, recruitment offers and named characters", () => {
+  const replacements = { Klaas: "Gogosoa", Doman: "Autshumao", Schacher: "Gonnema", Goreinghaicona: "Oedasoa", Sara: "Krotoa" };
+  const crewRoster = Object.keys(replacements).map((givenName, index) => ({
+    id: `crew-frozen-${index}`, name: `${givenName} Cochoqua`, nameCulture: "khoikhoi",
+    homePortCityId: "mossel bay village|south africa", sailingMinutes: 2400, experienceStars: 3
+  }));
+  const saved = {
+    crewRoster,
+    recruitmentOffers: structuredClone(crewRoster),
+    character: { ...crewRoster[0], givenName: "Klaas", familyName: "Cochoqua", sex: "male" },
+    otherCulture: { ...crewRoster[0], nameCulture: "germanic" },
+    customName: { ...crewRoster[0], name: "Klaas the Navigator" }
+  };
+  const before = structuredClone(saved);
+  assert.equal(reconcileRegionalCharacterNameForms(saved), 11);
+  for (const collection of ["crewRoster", "recruitmentOffers"]) {
+    saved[collection].forEach((member, index) => {
+      const old = before[collection][index];
+      assert.deepEqual(member, { ...old, name: `${replacements[old.name.split(" ")[0]]} Cochoqua` });
+    });
+  }
+  assert.equal(saved.character.givenName, "Gogosoa");
+  assert.equal(saved.character.name, "Gogosoa Cochoqua");
+  assert.deepEqual(saved.otherCulture, before.otherCulture);
+  assert.deepEqual(saved.customName, before.customName);
+  assert.equal(reconcileRegionalCharacterNameForms(saved), 0);
+});
+
+
+test("scarce Khoikhoi personal names may be shared without exhausting family creation", () => {
+  const relative = { name: "Krotoa Cochoqua", givenName: "Krotoa", familyName: "Cochoqua", nameCulture: "khoikhoi", sex: "female" };
+  const usedNames = new Set([relative.name]);
+  for (let index = 0; index < 20; index++) {
+    const member = assignRegionalFamilyMemberName({ identityKey: `khoikhoi-relative-${index}`, relative, sex: "female", usedNames });
+    assert.equal(member.name, relative.name);
+    assert.equal(member.givenName, "Krotoa");
+  }
+});
+
+test("unsupported Khoikhoi female personal names are repaired without changing custom text", () => {
+  for (const givenName of ["Hoena", "Kamies", "Nama", "Tsoa"]) {
+    const person = { id: `saved-${givenName}`, name: `${givenName} Namaqua`, givenName, familyName: "Namaqua", sex: "female", nameCulture: "khoikhoi" };
+    assert.equal(reconcileRegionalCharacterNameForms(person), 1);
+    assert.equal(person.name, "Krotoa Namaqua");
+    assert.equal(person.givenName, "Krotoa");
+    assert.equal(person.id, `saved-${givenName}`);
+    assert.equal(reconcileRegionalCharacterNameForms(person), 0);
+  }
+});

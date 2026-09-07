@@ -320,9 +320,11 @@ const CULTURES = Object.freeze({
     ["Ana", "Isabel", "Lukeni", "Mpemba", "Nzinga", "Teresa"],
     ["Kanda", "Kinlaza", "Kimpanzu", "Kwilu", "Lukeni", "Mpanzu", "Nsaku", "Nzinga"]
   ),
+  // Indigenous names, not the Dutch aliases recorded after Cape settlement.
+  // Evidence and remaining historical-review limits: docs/character-name-history.md.
   khoikhoi: culture(
-    ["Autshumao", "Doman", "Gonnema", "Goreinghaicona", "Klaas", "Oedasoa", "Schacher", "Sousoa"],
-    ["Krotoa", "Sara", "Hoena", "Kamies", "Nama", "Tsoa"],
+    ["Autshumao", "Gogosoa", "Gonnema", "Oedasoa", "Sousoa"],
+    ["Krotoa"],
     ["Chainouqua", "Chariguriqua", "Cochoqua", "Goringhaiqua", "Gorachouqua", "Namaqua"]
   ),
   malay: culture(
@@ -812,7 +814,7 @@ export function assignRegionalCharacterName({
     const name = nameCulture.order === "family-first"
       ? `${familyName} ${givenName}`
       : `${givenName} ${familyName}`;
-    if (usedNames.has(name)) continue;
+    if (!canUseCharacterName(name, cultureId, usedNames)) continue;
     usedNames.add(name);
     const identity = {
       name,
@@ -852,7 +854,7 @@ export function assignRegionalFamilyMemberName({ identityKey, relative, sex, use
     const name = nameCulture.order === "family-first"
       ? `${familyName} ${givenName}`
       : `${givenName} ${familyName}`;
-    if (usedNames.has(name)) continue;
+    if (!canUseCharacterName(name, cultureId, usedNames)) continue;
     usedNames.add(name);
     const identity = {
       name,
@@ -874,6 +876,48 @@ export function charactersShareFamilyName(left, right) {
   );
 }
 
+// Personal names are presentation, not identity. The documented Khoikhoi pool
+// is too small to promise globally unique names; do not pad it with colonial
+// aliases, place names, or invented names to satisfy an artificial uniqueness rule.
+function canUseCharacterName(name, cultureId, usedNames) {
+  return cultureId === "khoikhoi" || !usedNames.has(name);
+}
+
+// Explicit content repair for names emitted by the old Khoikhoi pool. Keep this
+// while saves containing that pool are supported. These are replacement fictional
+// names, not claims that the colonial aliases translate to the replacement names.
+const RETIRED_KHOIKHOI_GIVEN_NAMES = Object.freeze({
+  Doman: "Autshumao",
+  Klaas: "Gogosoa",
+  Schacher: "Gonnema",
+  Goreinghaicona: "Oedasoa",
+  Sara: "Krotoa",
+  Hoena: "Krotoa",
+  Kamies: "Krotoa",
+  Nama: "Krotoa",
+  Tsoa: "Krotoa"
+});
+
+function reconcileRetiredKhoikhoiName(character) {
+  if (character.nameCulture !== "khoikhoi" || typeof character.name !== "string") return false;
+  for (const [retiredName, givenName] of Object.entries(RETIRED_KHOIKHOI_GIVEN_NAMES)) {
+    // Ordinary crew save only the full name; named NPCs also save its components.
+    // Match the exact old generated form, never arbitrary player-written text.
+    const familyName = character.name.slice(retiredName.length + 1);
+    // IDENTITY_PRESENTATION_SYNC: recognize only the retired generated display form.
+    if (character.name !== `${retiredName} ${familyName}` ||
+        !CULTURES.khoikhoi.family.includes(familyName)) continue;
+    if (character.givenName !== undefined && character.givenName !== retiredName) continue;
+    if (character.familyName !== undefined && character.familyName !== familyName) continue;
+    if (Object.isFrozen(character)) throw new Error(`Cannot reconcile frozen character name: ${character.name}`);
+    // IDENTITY_PRESENTATION_SYNC: repair presentation without replacing the person.
+    character.name = `${givenName} ${familyName}`;
+    if (character.givenName !== undefined) character.givenName = givenName;
+    return true;
+  }
+  return false;
+}
+
 export function reconcileRegionalCharacterNameForms(root) {
   if (!root || typeof root !== "object") {
     throw new Error("Character name reconciliation requires an object graph");
@@ -884,6 +928,7 @@ export function reconcileRegionalCharacterNameForms(root) {
   function visit(value) {
     if (!value || typeof value !== "object" || ArrayBuffer.isView(value) || visited.has(value)) return;
     visited.add(value);
+    if (reconcileRetiredKhoikhoiName(value)) correctedCount += 1;
     if (
       (value.sex === "female" || value.sex === "male") &&
       typeof value.givenName === "string" &&
