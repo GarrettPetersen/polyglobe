@@ -104,6 +104,19 @@ const CITY = Object.freeze({
   }
 });
 
+test("opposite-bank mountains require a river, including when terrain overrides enable them", () => {
+  for (const city of CITY_VISUALIZER_CATALOG.cities) {
+    for (const approach of ["ocean", "lake", "river"]) {
+      const features = resolveCitySceneFeatures(city, {
+        approach, mountainsLeft: true, mountainsRight: true
+      });
+      const layers = activePortSceneLayers(features);
+      assert.equal(layers.has("Horizon Mountains Left Bank"), approach === "river", `${city.id}: ${approach}`);
+      assert.ok(layers.has("Horizon Mountains"), `${city.id}: landward mountains remain visible`);
+    }
+  }
+});
+
 test("every city can become uninhabited without losing its geography or retaining structures", () => {
   const naturalLayers = new Set([
     "Sky", "Ocean", "Cloud 1", "Cloud 2", "Cloud 3", "Sand Beach", "Waves", "Surf",

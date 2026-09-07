@@ -762,8 +762,9 @@ export function activePortSceneLayers(features) {
     layers.add("Left Bank Sand Beach");
     layers.add(DISTANT_LEFT_TERRAIN_LAYERS[features.leftDistantTerrain]);
     layers.add(FOREGROUND_LEFT_LAYERS[features.leftTerrain]);
+    // This artwork belongs to the opposite river bank, not the open-water horizon.
+    if (features.mountainsLeft) layers.add("Horizon Mountains Left Bank");
   }
-  if (features.mountainsLeft) layers.add("Horizon Mountains Left Bank");
   if (features.mountainsRight) layers.add("Horizon Mountains");
 
   if (features.dock !== "none") layers.add("Sand Beach Dock Shadow");
