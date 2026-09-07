@@ -13825,7 +13825,7 @@ function stageCapturePapal(sequence) {
     return;
   }
   if (sequence.variant === "nuncio") {
-    adjustFactionReputation(gameState, "papal-states", 50);
+    adjustFactionReputation(gameState, "papal-states", 50, { reason: "direct", simMinute: Math.max(0, weatherClockMinutes) });
     const papacy = gameState.relations.papacy;
     papacy.pendingMatter = null;
     papacy.nextActionMinute = Math.floor(weatherClockMinutes);
@@ -23164,7 +23164,7 @@ function completeHospitallerMaltaMissionAtRome(rome, memory) {
     "Papal reward for restoring the Order at Malta",
     portDialogueContext()
   );
-  adjustFactionReputation(gameState, "papal-states", 20);
+  adjustFactionReputation(gameState, "papal-states", 20, { reason: "papalService", simMinute: Math.max(0, weatherClockMinutes) });
   playCoinClinkSound();
   const opened = startCharacterAlertSequence([
     pairedCharacterAlertStep({
@@ -23646,7 +23646,7 @@ function completePapalCommissionAtRome(rome, matter) {
     papalCommissionLabel(completion.commissionKind),
     portDialogueContext()
   );
-  adjustFactionReputation(gameState, "papal-states", 15);
+  adjustFactionReputation(gameState, "papal-states", 15, { reason: "papalService", simMinute: Math.max(0, weatherClockMinutes) });
   playCoinClinkSound();
   const opened = startCharacterAlertSequence([
     pairedCharacterAlertStep({
@@ -37496,7 +37496,7 @@ function maybeOpenIllicitTradeInspection(simMinute) {
       continue;
     }
     if (inspection.newlyDetected) {
-      adjustFactionReputation(gameState, incident.enforcementFactionId, -incident.reputationPenalty);
+      adjustFactionReputation(gameState, incident.enforcementFactionId, -incident.reputationPenalty, { reason: "embargo", simMinute: Math.max(0, weatherClockMinutes) });
     }
     const illicitCargo = illicitCargoAvailable(incident, gameState.cargo);
     const cargoQuantity = Object.values(illicitCargo).reduce((sum, quantity) => sum + quantity, 0);
@@ -51344,6 +51344,12 @@ function drawPoliticsCountryCard(entry, view, rect, layout) {
 
   entry.lines.forEach((line, lineIndex) => {
     const y = rect.y + layout.headerHeight + lineIndex * layout.relationLineHeight;
+    if (line.type === "standing-change") {
+      const change = line.change;
+      drawOptionsText(fitPixelText(renderedUiText(`LAST: ${formatSignedReputation(change.delta)} ${change.reasonLabel} (${change.daysAgo}d)`),
+        PIXEL_FONT_SMALL_8, rect.w - 8), rect.x + 4, y, { color: PIRATE_MENU_INK_MUTED });
+      return;
+    }
     const label = politicsCardLineLabel(line);
     const color = line.type === "relationship"
       ? politicsRelationTextColor(line.relation)

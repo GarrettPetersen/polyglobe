@@ -1,3 +1,5 @@
+import { createPortDialogueSession, portDialogueView, selectPortDialogueAction } from "./dialogueSystem.js";
+import { dialogueOptionIconId } from "./gameIcons.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -25,6 +27,8 @@ import {
   createGameState,
   deliveryOfferForCity,
   deliveryQuestForCity,
+  declineCaptureCommission,
+  pendingCapturePortMissionOfferForCity,
   deliveryWorkOptionsForCity,
   factionReputation,
   grantGuaranteedMissionPerkItem,
@@ -1497,3 +1501,36 @@ function canonicalTestCity(cityId, tileId) {
     cityId
   };
 }
+
+
+test("independent capture warrants require an actual nearby foothold and can be declined without blocking work", () => {
+  const stats = shipStatsForSlug("large-junk");
+  const state = createGameState({ cargoCapacity: stats.cargoCapacity, playerCharacter: PLAYER, shipStats: stats });
+  setTestCrewCount(state, 36);
+  state.ship.cannons = 8;
+  state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
+  const farVillage = { ...CALAIS, cityId: "chillicothe|united states of america", city: "Chillicothe", factionId: "neutral", foundingFactionId: "neutral", settlementType: "village" };
+  const context = { simMinute: 0, spawnChance: 1, sailingDistanceKm: () => 14000 };
+  assert.equal(capturePortMissionOfferForCity(state, LONDON, [LONDON, farVillage], context), null);
+  const foothold = { ...DOVER, tileId: 15, cityId: "new-foothold", city: "Foothold" };
+  const ports = [LONDON, farVillage, foothold];
+  const reachable = { ...context, sailingDistanceKm: (base) => base.cityId === foothold.cityId ? 1000 : 14000 };
+  const offer = capturePortMissionOfferForCity(state, LONDON, ports, reachable);
+  assert.equal(offer.targetCityId, farVillage.cityId);
+  const session = createPortDialogueSession(LONDON, { initialNodeId: "capture-petition-result" });
+  session.captureCommissionPetitionResult = { granted: true, independentTarget: true, issuerFactionId: "england", simMinute: 0, offer };
+  const view = portDialogueView(session, LONDON, state, null, ports, reachable);
+  const decline = view.options.find(option => option.action.type === "decline-capture-commission");
+  assert.ok(decline && !decline.disabled);
+  assert.ok(dialogueOptionIconId(decline));
+  selectPortDialogueAction(session, LONDON, state, null, ports, decline, reachable);
+  assert.equal(pendingCapturePortMissionOfferForCity(state, LONDON), null);
+  assert.equal(state.memory.quests.active, null);
+  assert.equal(capturePortMissionOfferForCity(state, LONDON, ports, reachable), null, "Declining must not immediately regenerate the warrant");
+  const delivery = deliveryOfferForCity(state, LONDON, [LONDON, DOVER], { simMinute: 0, spawnChance: 1 });
+  assert.ok(delivery, "Declining must restore ordinary inn job generation");
+  assert.equal(questStateForCity(state, LONDON, [LONDON, DOVER]).quest.id, delivery.id);
+  acceptQuest(state, delivery);
+  assert.equal(state.memory.quests.active.id, delivery.id);
+  assert.throws(() => declineCaptureCommission(state, LONDON, offer.id), /No pending/);
+});

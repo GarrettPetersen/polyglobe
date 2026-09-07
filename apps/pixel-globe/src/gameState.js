@@ -1,4 +1,5 @@
 import { createExeterCanalMemory, validateExeterCanalState } from "./exeterCanal.js";
+import { recordReputationChange, validateReputationChanges } from "./reputationHistory.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, createSoundDuesMemory, validateSoundDuesMemory, shipPassageTollDoubloons, resolveSoundDuesPassage } from "./soundDues.js";
 import { isRetiredFactionId, withoutRetiredFactionKeys, migrateRetiredFactionReferences, migrateRetiredSovereignState } from "./retiredFactionMigration.js";
 import { recordNavalCasualties, validateNavalCasualties } from "./navalCasualtyReport.js";
@@ -560,7 +561,7 @@ import {
 } from "./sovereignWarLoan.js";
 
 export const STARTING_DOUBLOONS = 360;
-export const GAME_STATE_VERSION = 105;
+export const GAME_STATE_VERSION = 106;
 const CIRCUMNAVIGATION_COMPLETION_TOLERANCE_DEG = 1e-6;
 export const PLAYER_LEDGER_ENTRY_LIMIT = 750;
 export const PORT_NAVIGATION_REASON_NEW_SHIP = "NEW SHIP FOR SALE";
@@ -592,6 +593,7 @@ export const WOKOU_HUNT_MISSION_ROLL_PERIOD_MINUTES = 30 * 24 * 60;
 export const WOKOU_HUNT_REPUTATION_REQUIRED = 10;
 export const WOKOU_HUNT_REPUTATION_GAIN = 8;
 export const CAPTURE_PORT_MISSION_MAX_DISTANCE_KM = 20000;
+export const CAPTURE_INDEPENDENT_FRONTIER_DISTANCE_KM = 2500;
 export const CAPTURE_CAPITAL_MISSION_MAX_DISTANCE_KM = 20000;
 export const CAPTURE_CAPITAL_MISSION_MAX_REMAINING_PORTS = 2;
 export const ONBOARDING_DELIVERY_COUNT = 4;
@@ -809,6 +811,7 @@ export function createGameState({
       }]
     },
     relations: {
+      factionReputationChanges: {},
       factionReputation: initialFactionReputation(
         playerFactionId,
         normalizedPlayerCharacter?.religionId || null,
@@ -976,7 +979,7 @@ export function migrateGameState(state, shipStats, {
   crewMigrationContextForHomePort = null
 } = {}) {
   if (state?.version === GAME_STATE_VERSION) return restoreLoadedGameState(state, shipStats);
-  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104].includes(state?.version)) {
+  if (![8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105].includes(state?.version)) {
     throw new Error(`Unsupported game state version: ${state?.version ?? "missing"}`);
   }
   if (state.ship && (!shipStats || typeof shipStats !== "object")) {
@@ -1152,6 +1155,7 @@ export function migrateGameState(state, shipStats, {
     },
     relations: {
       ...migratedRelationBase,
+      factionReputationChanges: {},
       factionReputation: migrateLawfulWartimeAttackReputation(
         state,
         migrateFactionReputationTable(state.relations.factionReputation, {
@@ -1235,7 +1239,7 @@ export function migrateGameState(state, shipStats, {
           ...(state.memory?.quests?.caribbeanGinger || {})
         },
         chef: migrateChefQuestMemory(state.memory?.quests?.chef),
-        exeterCanal: createExeterCanalMemory(),
+        exeterCanal: state.version >= 105 ? state.memory.quests.exeterCanal : createExeterCanalMemory(),
         pirateCaptive: migratePirateCaptiveQuestMemory(state.memory?.quests?.pirateCaptive, {
           legacyCityIdForPortReference
         }),
@@ -5007,7 +5011,7 @@ export function negotiateEnvoyQuest(state, city, context = {}) {
       : isStatusEnvoyQuest(active)
         ? statusResolution.accepted ? 5 : -2
         : 4;
-  adjustFactionReputation(state, active.targetFactionId, targetReputationDelta);
+  adjustFactionReputation(state, active.targetFactionId, targetReputationDelta, { reason: "diplomacy", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
   const tradeAccessOpenedFactionId = active.kind === "friendly-envoy"
     ? tradeAccessOpeningFactionId(state, active)
     : null;
@@ -5092,12 +5096,13 @@ function activeEnvoySafePassageIdsUnchecked(state, simMinute) {
     .map(([factionId]) => assertFactionId(factionId));
 }
 
-export function adjustFactionReputation(state, factionId, delta) {
+export function adjustFactionReputation(state, factionId, delta, { reason = "direct", simMinute = Math.max(0, state.survival.lastMinute) } = {}) {
   assertGameState(state);
   const id = assertFactionId(factionId);
   assertReputationDelta(delta);
   const current = state.relations.factionReputation[id];
   const next = roundReputation(clampReputation(current + delta));
+  recordReputationChange(state.relations.factionReputationChanges, id, current, next, reason, simMinute);
   state.relations.factionReputation[id] = next;
   return next;
 }
@@ -5128,7 +5133,7 @@ export function changePlayerReligion(state, religionId, simMinute) {
     const intendedDelta = Math.round((newAttitude - oldAttitude) * ruler.piety);
     if (intendedDelta === 0) continue;
     const before = factionReputation(state, faction.id);
-    const after = adjustFactionReputation(state, faction.id, intendedDelta);
+    const after = adjustFactionReputation(state, faction.id, intendedDelta, { reason: "religion", simMinute });
     if (after === before) continue;
     reputationChanges.push(Object.freeze({
       factionId: faction.id,
@@ -5148,7 +5153,7 @@ export function changePlayerReligion(state, religionId, simMinute) {
 export function reconcileFactionReputationAfterPlayerVassalage(state, factionId) {
   const current = factionReputation(state, factionId);
   if (current >= 0) return current;
-  return adjustFactionReputation(state, factionId, -current);
+  return adjustFactionReputation(state, factionId, -current, { reason: "vassalage" });
 }
 
 export function createPortEntryStatusContext(state, simMinute = 0) {
@@ -5494,7 +5499,7 @@ export function recordTradeWithFaction(state, factionId) {
   const id = assertFactionId(factionId);
   if (id === NEUTRAL_FACTION_ID) return factionReputation(state, id);
   const before = factionReputation(state, id);
-  const after = adjustFactionReputation(state, id, TRADE_REPUTATION_GAIN);
+  const after = adjustFactionReputation(state, id, TRADE_REPUTATION_GAIN, { reason: "trade" });
   if (after !== before) recordDecision(state, `reputation.trade.${id}`, 1);
   return after;
 }
@@ -5504,7 +5509,7 @@ export function recordDeliveryForFaction(state, factionId) {
   const id = assertFactionId(factionId);
   if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) return factionReputation(state, id);
   const before = factionReputation(state, id);
-  const after = adjustFactionReputation(state, id, DELIVERY_REPUTATION_GAIN);
+  const after = adjustFactionReputation(state, id, DELIVERY_REPUTATION_GAIN, { reason: "delivery" });
   if (after !== before) recordDecision(state, `reputation.delivery.${id}`, 1);
   return after;
 }
@@ -5557,7 +5562,7 @@ export function recordAttackAgainstFaction(state, factionId, options = {}) {
     const emperorAfter = adjustFactionReputation(
       state,
       emperorFactionId,
-      IMPERIAL_PUBLIC_PEACE_REPUTATION_PENALTY
+      IMPERIAL_PUBLIC_PEACE_REPUTATION_PENALTY, { reason: "imperialPeace" }
     );
     if (emperorAfter !== emperorBefore) {
       recordDecision(state, `reputation.imperial-public-peace.${emperorFactionId}`, 1);
@@ -5592,7 +5597,7 @@ export function recordFriendlyFireAgainstFaction(state, factionId) {
   if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
     return { factionId: id, before, after: before, delta: 0 };
   }
-  const after = adjustFactionReputation(state, id, FRIENDLY_FIRE_REPUTATION_PENALTY);
+  const after = adjustFactionReputation(state, id, FRIENDLY_FIRE_REPUTATION_PENALTY, { reason: "friendlyFire" });
   const delta = roundReputation(after - before);
   if (delta !== 0) recordDecision(state, `reputation.friendly-fire.${id}`, 1);
   return { factionId: id, before, after, delta };
@@ -5605,7 +5610,7 @@ export function recordSelfDefenseAgainstFaction(state, factionId) {
   if (id === NEUTRAL_FACTION_ID || id === PIRATE_FACTION_ID) {
     return { factionId: id, before, after: before, delta: 0 };
   }
-  const after = adjustFactionReputation(state, id, SELF_DEFENSE_REPUTATION_PENALTY);
+  const after = adjustFactionReputation(state, id, SELF_DEFENSE_REPUTATION_PENALTY, { reason: "selfDefense" });
   const delta = roundReputation(after - before);
   if (delta !== 0) recordDecision(state, `reputation.self-defense.${id}`, 1);
   return { factionId: id, before, after, delta };
@@ -5615,7 +5620,7 @@ export function recordShipMercyForFaction(state, factionId) {
   assertGameState(state);
   const id = assertFactionId(factionId);
   const before = factionReputation(state, id);
-  const after = adjustFactionReputation(state, id, SHIP_MERCY_REPUTATION_GAIN);
+  const after = adjustFactionReputation(state, id, SHIP_MERCY_REPUTATION_GAIN, { reason: "mercy" });
   const delta = roundReputation(after - before);
   if (delta !== 0) recordDecision(state, `reputation.ship-mercy.${id}`, 1);
   return { factionId: id, before, after, delta };
@@ -5653,11 +5658,11 @@ export function recordPiracyAgainstFaction(state, victimFactionId, options = {})
     const before = factionReputation(state, faction.id);
     const after = faction.id === victimId
       ? applyAttackReputationPenalty(state, faction.id)
-      : adjustFactionReputation(state, faction.id, penalty);
+      : adjustFactionReputation(state, faction.id, penalty, { reason: "piracy" });
     if (after !== before) changes[faction.id] = { before, after };
   }
   const pirateBefore = factionReputation(state, PIRATE_FACTION_ID);
-  const pirateAfter = adjustFactionReputation(state, PIRATE_FACTION_ID, PIRATE_REPUTATION_GAIN_PER_PIRACY);
+  const pirateAfter = adjustFactionReputation(state, PIRATE_FACTION_ID, PIRATE_REPUTATION_GAIN_PER_PIRACY, { reason: "piracy" });
   if (pirateAfter !== pirateBefore) {
     changes[PIRATE_FACTION_ID] = { before: pirateBefore, after: pirateAfter };
   }
@@ -5703,10 +5708,9 @@ function piracyReputationPenalty(state, observerFactionId, victimFactionId) {
 }
 
 function applyAttackReputationPenalty(state, factionId) {
-  const penalized = adjustFactionReputation(state, factionId, SHIP_ATTACK_REPUTATION_PENALTY);
-  const hostile = Math.min(penalized, HOSTILE_PORT_REPUTATION_THRESHOLD);
-  state.relations.factionReputation[factionId] = hostile;
-  return hostile;
+  const current = factionReputation(state, factionId);
+  const hostile = Math.min(current + SHIP_ATTACK_REPUTATION_PENALTY, HOSTILE_PORT_REPUTATION_THRESHOLD);
+  return adjustFactionReputation(state, factionId, hostile - current, { reason: "attack" });
 }
 
 export function pirateHideoutsVisibleToPlayer(state) {
@@ -6108,7 +6112,7 @@ function recordTradeEmbargoDeliveryConsequences(state, orders) {
   }
   return Object.freeze([...penalties].map(([factionId, penalty]) => {
     const before = factionReputation(state, factionId);
-    const after = adjustFactionReputation(state, factionId, -penalty);
+    const after = adjustFactionReputation(state, factionId, -penalty, { reason: "embargo" });
     return Object.freeze({ factionId, before, after, delta: after - before });
   }));
 }
@@ -6679,7 +6683,7 @@ export function recordTradeEmbargoDetectionConsequences(state, incidentId) {
   const reputationChanges = [];
   for (const [factionId, penalty] of penalties) {
     const before = factionReputation(state, factionId);
-    const after = adjustFactionReputation(state, factionId, -penalty);
+    const after = adjustFactionReputation(state, factionId, -penalty, { reason: "embargo" });
     reputationChanges.push(Object.freeze({ factionId, before, after, delta: after - before }));
   }
   recordDecision(state, `trade.embargo.detected.${status.order.id}`, 1);
@@ -7366,6 +7370,18 @@ export function pendingCapturePortMissionOfferForCity(state, city) {
   return offer;
 }
 
+export function declineCaptureCommission(state, city, questId) {
+  assertGameState(state);
+  const offer = pendingCapturePortMissionOfferForCity(state, city);
+  if (!offer || offer.id !== questId || state.memory.quests.active?.id === questId) {
+    throw new Error(`No pending capture warrant to decline: ${questId}`);
+  }
+  const quests = questMemory(state);
+  delete quests.capturePortOffers[cityKey(city)];
+  quests.capturePortRolls[`${cityKey(city)}|${offer.originFactionId}|${offer.offerPeriod}`] = true;
+  pruneQuestRolls(quests.capturePortRolls);
+}
+
 export function commissionedPortCaptureFactionId(state, city) {
   assertGameState(state);
   if (!city || !Number.isInteger(city.tileId)) {
@@ -7560,6 +7576,14 @@ function capturePortMissionTarget(
           };
       if (!defeat.mostlyDefeated) return null;
       const priority = captureCommissionPriorityForPort(issuerFactionId, port, simMinute);
+      // A neutral settlement is not a worldwide free target. Unscripted
+      // expansion must adjoin the issuer's actual maritime possessions.
+      if (port.factionId === NEUTRAL_FACTION_ID && priority.kind === "strategic" &&
+          !portCities.some((base) => {
+            if (base.factionId !== issuerFactionId) return false;
+            const frontierKm = sailingDistanceKm(base, port);
+            return Number.isFinite(frontierKm) && frontierKm > 0 && frontierKm <= CAPTURE_INDEPENDENT_FRONTIER_DISTANCE_KM;
+          })) return null;
       return {
         port,
         distanceKm,
@@ -8988,10 +9012,10 @@ export function recordTributeTheft(state, theft, context = {}) {
       theft.stolenQuantity > requirement.quantity) {
     throw new Error("Invalid sealed tribute quantity in theft record");
   }
-  const originStanding = adjustFactionReputation(state, active.originFactionId, theft.originPenalty);
+  const originStanding = adjustFactionReputation(state, active.originFactionId, theft.originPenalty, { reason: "theft", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
   const suzerainStanding = active.targetFactionId === active.originFactionId
     ? originStanding
-    : adjustFactionReputation(state, active.targetFactionId, theft.suzerainPenalty);
+    : adjustFactionReputation(state, active.targetFactionId, theft.suzerainPenalty, { reason: "theft", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
   active.tributeStolen = true;
   quests.failed[active.id] = {
     reason: "tribute-theft",
@@ -9026,7 +9050,7 @@ export function recordTeaRaceTheft(state, theft, context = {}) {
       theft.stolenQuantity <= 0 || theft.stolenQuantity > TEA_RACE_CARGO_QUANTITY) {
     throw new Error("Invalid entrusted tea quantity in theft record");
   }
-  const standing = adjustFactionReputation(state, active.originFactionId, TEA_RACE_THEFT_REPUTATION);
+  const standing = adjustFactionReputation(state, active.originFactionId, TEA_RACE_THEFT_REPUTATION, { reason: "theft", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
   active.teaRaceCargoStolen = true;
   quests.failed[active.id] = {
     reason: "tea-race-theft",
@@ -9367,13 +9391,13 @@ export function completeQuest(state, city, context = {}) {
     recordDeliveryForFaction(state, active.originFactionId);
   }
   if (isEnvoyQuest(active)) {
-    adjustFactionReputation(state, active.originFactionId, ENVOY_HOME_REPUTATION);
+    adjustFactionReputation(state, active.originFactionId, ENVOY_HOME_REPUTATION, { reason: "mission", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
     recordDecision(state, `reputation.envoy.${active.originFactionId}`, 1);
     if (isImperialElectionEnvoyQuest(active) &&
         state.relations.imperial.emperorOfficeVacant !== true) {
       const emperorFactionId = state.relations.imperial.emperorFactionId;
       if (emperorFactionId !== active.originFactionId) {
-        adjustFactionReputation(state, emperorFactionId, 5);
+        adjustFactionReputation(state, emperorFactionId, 5, { reason: "mission", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
         recordDecision(state, `reputation.imperial-service.${emperorFactionId}`, 1);
       }
     }
@@ -9383,12 +9407,12 @@ export function completeQuest(state, city, context = {}) {
       const reputationGain = isCaptureCapitalQuest(active)
         ? CAPTURE_CAPITAL_MISSION_REPUTATION_GAIN
         : CAPTURE_PORT_MISSION_REPUTATION_GAIN;
-      adjustFactionReputation(state, active.originFactionId, reputationGain);
+      adjustFactionReputation(state, active.originFactionId, reputationGain, { reason: "mission", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
       recordDecision(state, `reputation.${active.kind}.${active.originFactionId}`, 1);
     }
   }
   if (isWokouHuntQuest(active)) {
-    adjustFactionReputation(state, active.originFactionId, WOKOU_HUNT_REPUTATION_GAIN);
+    adjustFactionReputation(state, active.originFactionId, WOKOU_HUNT_REPUTATION_GAIN, { reason: "mission", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
     recordDecision(state, `reputation.wokou-hunt.${active.originFactionId}`, 1);
     adjustSovereignAuthority(state.relations.authority, active.originFactionId, 0.8, {
       simMinute: context.simMinute ?? state.survival.lastMinute,
@@ -9435,7 +9459,7 @@ function applyEastAsianMissionConsequences(state, quest, context) {
   const tradeAccessGrants = [];
   const batteryUpgrades = [];
   const reputation = (factionId, amount) => {
-    adjustFactionReputation(state, factionId, amount);
+    adjustFactionReputation(state, factionId, amount, { reason: "mission", simMinute: context.simMinute ?? Math.max(0, state.survival.lastMinute) });
     reputationChanges.push(Object.freeze({ factionId, amount }));
   };
   const authority = (factionId, amount, source) => {
@@ -11003,6 +11027,7 @@ function assertGameState(state) {
     throw new Error("Game state cargo cost basis must be an object");
   }
   assertFactionReputationTable(state.relations?.factionReputation);
+  validateReputationChanges(state.relations.factionReputationChanges);
   validateSovereignTradeGrantMemory(state.relations?.tradeAccessGrants);
   validatePersonalTradePassMemory(state.relations?.personalTradePasses);
   assertLettersOfMarqueTable(state.relations?.lettersOfMarque);

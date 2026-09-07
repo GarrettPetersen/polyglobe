@@ -1,3 +1,4 @@
+import { recordReputationChange } from "./reputationHistory.js";
 import { CANONICAL_PORTS, requireCanonicalPort } from "./canonicalPorts.js";
 import { effectivePortFactionId, replaceFactionAtControlledCities } from "./portConquest.js";
 import { gameMinuteForDate } from "./rulers.js";
@@ -146,6 +147,9 @@ function inheritPlayerRelations(relations, predecessorFactionId, successorFactio
       !relations.safePassageUntilMinute || !relations.safePassageRefusalUntilMinute) {
     throw new Error("Historical sovereignty requires player relation ledgers");
   }
+  recordReputationChange(relations.factionReputationChanges, successorFactionId,
+    relations.factionReputation[successorFactionId], relations.factionReputation[predecessorFactionId],
+    "succession", FIRST_BATTLE_OF_PANIPAT_MINUTE);
   relations.factionReputation[successorFactionId] = relations.factionReputation[predecessorFactionId];
   if (relations.lettersOfMarque[predecessorFactionId]) {
     relations.lettersOfMarque[successorFactionId] = {

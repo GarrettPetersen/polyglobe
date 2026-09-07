@@ -12,6 +12,7 @@ import {
   factionExistsIn1522
 } from "./factions.js";
 import { requireCityId } from "./entityIds.js";
+import { recentReputationChange } from "./reputationHistory.js";
 import {
   activeGameTradeEmbargoes,
   diplomacyBetweenForState,
@@ -560,6 +561,7 @@ function politicsCard(
         }),
     player: Object.freeze({
       ...playerStandingForReputation(factionReputation(gameState, faction.id)),
+      recentChange: recentReputationChange(gameState.relations.factionReputationChanges, faction.id, simMinute),
       hasLetterOfMarque: hasLetterOfMarqueFrom(gameState, faction.id),
       trade: playerTradeStanding(gameState, faction, simMinute)
     }),

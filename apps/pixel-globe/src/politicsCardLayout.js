@@ -304,6 +304,9 @@ function relationshipLines(card, tokensPerLine, powerCount) {
     throw new Error("Invalid politics country card");
   }
   const lines = [];
+  if (card.player?.recentChange) lines.push(Object.freeze({
+    type: "standing-change", change: card.player.recentChange, factionIds: Object.freeze([])
+  }));
   const constitutionalGroups = new Map();
   for (const connection of card.constitutionalConnections) {
     const key = `${connection.kind}:${connection.role}`;

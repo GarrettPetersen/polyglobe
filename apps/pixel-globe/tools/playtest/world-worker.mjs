@@ -1,3 +1,5 @@
+import { PORT_CATALOG_VERSION } from "../../src/portCatalogMigration.js";
+import { initialCampaignCities } from "./world-catalog.mjs";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { Worker } from "node:worker_threads";
@@ -8,20 +10,17 @@ import * as fleet from "../../src/npcSeaRoutes.js";
 import * as land from "../../src/landTradeSystem.js";
 import * as distant from "../../src/distantWorldSimulation.js";
 import { parseLandRoadNetwork } from "../../src/landRoadNetwork.js";
-import { loadCityCatalogFromCsv } from "../../src/cityCatalogData.js";
-import { createGameState } from "../../src/gameState.js";
+import { applyPortConquestOwnership } from "../../src/portConquest.js";
+import { createGameState, diplomacyBetweenForState, sovereignTradeOpenToFaction, advanceGamePolitics, migrateGameState } from "../../src/gameState.js";
 import { SOVEREIGN_TRADE_ACCESS_POLICIES } from "../../src/sovereignTradeAccess.js";
 import { fisheryForHabitat } from "../../src/fishEcology.js";
 import { FACTIONS } from "../../src/factions.js";
 import { registerShipyardTradeIn } from "../../src/shipyards.js";
 import { snapshotPlayerShipyards, restorePlayerShipyardSnapshot } from "../../src/playerShipyardPersistence.js";
 
-const catalog = JSON.parse(readFileSync(new URL("../../city-visualizer/data/cities.json", import.meta.url))).cities;
-// Keep the whole real catalog/road network: an old two-port fixture never
-// exercised an Istanbul yard alongside an ocean fleet and inland trade.
-const authored = loadCityCatalogFromCsv(readFileSync(new URL("../../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv", import.meta.url), "utf8"));
-const byId = new Map(authored.map(city => [city.cityId, city]));
-const ports = catalog.map(city => ({ ...byId.get(city.id), ...city, cityId: city.id, displayCity: city.label }));
+const scenes = new Map(JSON.parse(readFileSync(new URL("../../city-visualizer/data/cities.json", import.meta.url))).cities.map(city => [city.id, city]));
+const initialCatalog = initialCampaignCities();
+const initialPortIds = new Set(initialCatalog.ports.map(port => port.cityId));
 const roadData = JSON.parse(readFileSync(new URL("../../public/assets/data/land-roads.json", import.meta.url)));
 const roads = parseLandRoadNetwork(roadData, roadData);
 const source = ts.createSourceFile("main.js", readFileSync(new URL("../../src/main.js", import.meta.url), "utf8"), ts.ScriptTarget.Latest, true);
@@ -35,18 +34,25 @@ const declarations = names.map(name => {
   return node.getText(source);
 }).join("\n");
 
-export function createWorkerVoyage(seed = "worker-interruption") {
-  const gameState = createGameState({ cargoCapacity: 200, voyageSeed: seed });
-  fisheryForHabitat(gameState, { tileId: 1, kind: "lake", lat: -1, lon: 33 }, 0);
-  const worldEconomy = economy.createWorldEconomy({ ports, shipyardPorts: ports.filter(p => p.services.shipyard), startMinute: 0, seedKey: seed });
-  const npcSeaRoutes = fleet.createNpcSeaRouteSystem({ ports, economy: worldEconomy, startMinute: 0, seedKey: seed, fishState: gameState, whaleMemory: gameState.memory.whales, fishingGroundIsNavigable: () => true });
-  const landTradeSystem = land.createLandTradeSystem({ roads, cities: ports, economy: worldEconomy, startMinute: 0, seedKey: seed });
-  return { gameState, worldEconomy, npcSeaRoutes, landTradeSystem };
+export function createWorkerVoyage(seed = "worker-interruption", { startMinute = 0 } = {}) {
+  const cities = structuredClone(initialCatalog.cities);
+  const ports = cities.filter(city => initialPortIds.has(city.cityId));
+  for (const port of ports) port.services = scenes.get(port.cityId).services;
+  const gameState = createGameState({ cargoCapacity: 200, voyageSeed: seed, startMinute });
+  const initialPolitics = startMinute > 0 ? advanceGamePolitics(gameState, startMinute, { portCities: ports, cities }) : null;
+  applyPortConquestOwnership(gameState.memory.conquest, cities);
+  fisheryForHabitat(gameState, { tileId: 1, kind: "lake", lat: -1, lon: 33 }, startMinute);
+  const worldEconomy = economy.createWorldEconomy({ ports: cities, shipyardPorts: ports.filter(p => p.services.shipyard), startMinute, seedKey: seed });
+  const npcSeaRoutes = fleet.createNpcSeaRouteSystem({ ports, economy: worldEconomy, startMinute, seedKey: seed, fishState: gameState, whaleMemory: gameState.memory.whales, fishingGroundIsNavigable: () => true,
+    relationBetween: (a, b) => diplomacyBetweenForState(gameState, a, b),
+    sovereignTradeOpenToFaction: (id, factionId) => sovereignTradeOpenToFaction(gameState, id, factionId) });
+  const landTradeSystem = land.createLandTradeSystem({ roads, cities, economy: worldEconomy, startMinute, seedKey: seed });
+  return { gameState, worldEconomy, npcSeaRoutes, landTradeSystem, cities, ports, initialPolitics };
 }
 
 export function workerRuntime(voyage) {
-  return { relations: FACTIONS.flatMap((a, index) => FACTIONS.slice(index).map(b => [distant.relationKey(a.id, b.id), "neutral"])),
-    sovereignAccess: SOVEREIGN_TRADE_ACCESS_POLICIES.flatMap(({ id }) => FACTIONS.map(f => [`${id}|${f.id}`, true])),
+  return { relations: FACTIONS.flatMap((a, index) => FACTIONS.slice(index).map(b => [distant.relationKey(a.id, b.id), diplomacyBetweenForState(voyage.gameState, a.id, b.id)])),
+    sovereignAccess: SOVEREIGN_TRADE_ACCESS_POLICIES.flatMap(({ id }) => FACTIONS.map(f => [`${id}|${f.id}`, sovereignTradeOpenToFaction(voyage.gameState, id, f.id)])),
     protectedNpcShipIds: [], foreignSettlementExpulsions: voyage.gameState.relations.foreignSettlementExpulsions,
     suzeraintyMemory: voyage.gameState.relations.diplomacy.suzerainties,
     tradeEmbargoes: voyage.gameState.relations.tradeEmbargoes, player: { lat: 0, lon: 0 } };
@@ -89,11 +95,11 @@ export function createWorkerDriver() {
 export function createApplyProbe(voyage, event, minute) {
   const context = { ...economy, ...fleet, ...land, ...distant, ...voyage,
     snapshotPlayerShipyards, weatherClockMinutes: minute, voyageStartClockMinutes: 0,
-    SUBDIVISIONS: 8, PORT_CATALOG_VERSION: 8, firstDayNightNoticeState: {}, anchored: false,
+    SUBDIVISIONS: 8, PORT_CATALOG_VERSION, firstDayNightNoticeState: {}, anchored: false,
     survivalDeprivationTimers: {}, demoVoyageScope: null, npcVisualShips: new Map(),
     snapshotPlayerShip: () => ({}), snapshotFirstDayNightNoticeState: () => ({}),
-    measurePerformanceBenchmarkStage: (_name, run) => run(), currentDiplomacyBetween: () => "neutral",
-    sovereignTradeOpenToFaction: () => true, releaseNpcVisualStatesWithoutStrategicState: () => false,
+    measurePerformanceBenchmarkStage: (_name, run) => run(), currentDiplomacyBetween: (a, b) => diplomacyBetweenForState(voyage.gameState, a, b),
+    sovereignTradeOpenToFaction: (id, factionId) => sovereignTradeOpenToFaction(voyage.gameState, id, factionId), releaseNpcVisualStatesWithoutStrategicState: () => false,
     recordNpcDiplomaticPortCall: () => {}, lifecycle: { resets: 0 },
     resetDistantWorldWorkerSchedule: () => { context.lifecycle.resets++; },
     addOptionalSaveSnapshot: (payload, _errors, key, _label, snapshot) => { payload[key] = snapshot(); }, console
@@ -111,13 +117,24 @@ export function snapshotWorkerVoyage(voyage) {
     landTrade: land.snapshotLandTradeSystem(voyage.landTradeSystem) };
 }
 export function restoreWorkerVoyage(voyage, saved) {
+  applyPortConquestOwnership(voyage.gameState.memory.conquest, voyage.cities);
   economy.restoreWorldEconomy(voyage.worldEconomy, saved.economy);
   if (saved.playerShipyards !== undefined) restorePlayerShipyardSnapshot(voyage.worldEconomy.shipyards, saved.playerShipyards, {
     seedKey: voyage.gameState.voyageSeed,
     expectedCityIds: saved.playerShipyards.yards.map(yard => yard.portId)
   });
   land.restoreLandTradeSystem(voyage.landTradeSystem, saved.landTrade);
-  fleet.restoreNpcSeaRouteSystem(voyage.npcSeaRoutes, saved.npcRoutes, { economy: voyage.worldEconomy, fishState: voyage.gameState, whaleMemory: voyage.gameState.memory.whales });
+  fleet.restoreNpcSeaRouteSystem(voyage.npcSeaRoutes, saved.npcRoutes, { economy: voyage.worldEconomy, fishState: voyage.gameState, whaleMemory: voyage.gameState.memory.whales,
+    relationBetween: (a, b) => diplomacyBetweenForState(voyage.gameState, a, b),
+    sovereignTradeOpenToFaction: (id, factionId) => sovereignTradeOpenToFaction(voyage.gameState, id, factionId) });
+}
+
+export function synchronizeCampaignOwnership(voyage) {
+  const memory = voyage.gameState.memory.conquest;
+  applyPortConquestOwnership(memory, voyage.cities);
+  fleet.applyNpcConquestOwnership(voyage.npcSeaRoutes,
+    new Map(voyage.ports.map(port => [port.cityId, port.factionId])),
+    new Set(memory.collapsedFactionIds), new Map(Object.entries(memory.factionSuccessors)));
 }
 
 export function assertFleetSaleIntegrity(voyage) {
@@ -144,7 +161,7 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
   }
   let month = checkpoint?.month ?? 0;
   if (checkpoint) {
-    voyage.gameState = checkpoint.gameState;
+    voyage.gameState = migrateGameState(checkpoint.gameState);
     restoreWorkerVoyage(voyage, checkpoint.world);
   }
   if (!checkpoint) {
@@ -158,6 +175,7 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
   const driver = createWorkerDriver();
   let steps = 0;
   let captures = 0;
+  let politicalEvents = 0;
   try {
     await driver.reset(voyage, month * 30 * 1440);
     for (let iteration = 0; iteration < months; iteration++) {
@@ -165,6 +183,12 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
       // Bound strategic catch-up to six hours, as opposed to skipping an
       // entire month past the production cart-arrival watchdog.
       for (let tick = minute - 30 * 1440 + 360; tick <= minute; tick += 360) {
+        const politics = advanceGamePolitics(voyage.gameState, tick, { portCities: voyage.ports, cities: voyage.cities });
+        politicalEvents += politics.diplomacyEvents.length + politics.embargoEvents.length + politics.courtActions.length + politics.papalActions.length;
+        if (politics.historicalTransitions.length || politics.conquistadorTransfers.length) {
+          synchronizeCampaignOwnership(voyage);
+          await driver.reset(voyage, tick - 360);
+        }
         const event = await driver.advance(voyage, tick);
         const probe = createApplyProbe(voyage, event, tick);
         while (probe.state()) {
@@ -191,6 +215,6 @@ export async function runWorkerCampaign({ months = 12, checkpoint = null, seed =
       onCheckpoint({ version: 1, seed, month, gameState: voyage.gameState, world });
       await driver.reset(voyage, minute);
     }
-    return { months, endingMonth: month, captures, incrementalSteps: steps, fleetSize: voyage.npcSeaRoutes.ships.length };
+    return { months, endingMonth: month, captures, politicalEvents, incrementalSteps: steps, fleetSize: voyage.npcSeaRoutes.ships.length };
   } finally { await driver.close(); }
 }

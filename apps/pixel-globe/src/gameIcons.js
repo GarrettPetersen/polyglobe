@@ -493,6 +493,7 @@ const DIALOGUE_ACTION_ICON_IDS = Object.freeze({
   "buy-cannon-equipment": "action:attack",
   "buy-whale-harpoon": "action:harpoon",
   "buy-perk-item": "action:inventory",
+  "decline-capture-commission": "action:back",
   "decline-special-equipment": "action:back",
   "buy-equipment-factor-pitch": "action:inventory",
   "decline-equipment-factor-pitch": "action:back",

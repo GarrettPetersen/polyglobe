@@ -55,6 +55,8 @@ export function canonicalGameStateFixtures() {
     })
   }));
   const canalConstruction = structuredClone(campaignFixtures[0].state);
+  canalConstruction.relations.factionReputation.spain = -25;
+  canalConstruction.relations.factionReputationChanges.spain = { before: 0, after: -25, reason: "attack", simMinute: 123456 };
   canalConstruction.memory.quests.exeterCanal = { version: 1, accepted: true, startedMinute: 123456 };
   for (const material of EXETER_CANAL_MATERIALS) canalConstruction.memory.quests.cargoDeliveries[material.requirementId] = material.quantity;
   return [

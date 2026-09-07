@@ -876,9 +876,7 @@ test("a realm retires its reserve only after losing every navigable port", () =>
     new Set()
   );
   assert.equal(npcCapitalNavalReserveStatus(routes, "inca").targetCount, 0);
-  const detached = routes.shipById.get(response.shipId);
-  assert.equal(detached.capitalNavalReserveSlotId, null);
-  assert.equal(detached.replaceOnSink, false);
+  assert.equal(routes.shipById.has(response.shipId), false);
 
   const workerSnapshot = snapshotNpcSeaRouteStrategicSystem(routes);
   applyNpcSeaRouteSimulationSnapshot(routes, workerSnapshot);
@@ -2136,7 +2134,7 @@ test("a worker snapshot cannot demobilize the reserve slot of a preserved visibl
   assert.equal(restoredSlot.shipSlug, null);
 });
 
-test("a preserved reserve ship detaches when its worker snapshot removes the slot", () => {
+test("a preserved reserve ship demobilizes when its worker snapshot abolishes the slot", () => {
   const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
   const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
   const response = orderNpcPortResponse(routes, {
@@ -2158,11 +2156,10 @@ test("a preserved reserve ship detaches when its worker snapshot removes the slo
     preserveShipIds: [protectedShip.id]
   });
 
-  const restored = routes.shipById.get(protectedShip.id);
-  assert.equal(restored.capitalNavalReserveSlotId, null);
-  assert.equal(restored.capitalNavalReserveDestinationCityId, null);
-  assert.equal(restored.capitalNavalReserveDocked, false);
-  assert.equal(restored.replaceOnSink, true);
+  assert.equal(routes.shipById.has(protectedShip.id), false);
+  assert.equal(routes.ships.some((ship) => ship.id === protectedShip.id), false);
+  updateNpcSeaRouteEvents(routes, 1000000, [protectedShip.id]);
+  assert.equal(routes.replacementQueue.some((entry) => entry.shipId === protectedShip.id), false);
 });
 
 test("a worker snapshot demobilizes any reserve ship whose faction slot was abolished", () => {
@@ -2183,11 +2180,10 @@ test("a worker snapshot demobilizes any reserve ship whose faction slot was abol
 
   applyNpcSeaRouteSimulationSnapshot(routes, snapshot);
 
-  const restored = routes.shipById.get(reserveShip.id);
-  assert.equal(restored.capitalNavalReserveSlotId, null);
-  assert.equal(restored.capitalNavalReserveDestinationCityId, null);
-  assert.equal(restored.capitalNavalReserveDocked, false);
-  assert.equal(restored.replaceOnSink, true);
+  assert.equal(routes.shipById.has(reserveShip.id), false);
+  assert.equal(routes.ships.some((ship) => ship.id === reserveShip.id), false);
+  updateNpcSeaRouteEvents(routes, 1000000, [reserveShip.id]);
+  assert.equal(routes.replacementQueue.some((entry) => entry.shipId === reserveShip.id), false);
 });
 
 test("version 1 NPC routes transfer retired Aztec ships to Spain", () => {
@@ -3412,4 +3408,44 @@ test("trade-policy maintenance distinguishes open-water encounter waypoints from
     assert.doesNotThrow(() => updateNpcSeaRouteEvents(routes, 30, [], { maintenance: true }));
     assert.strictEqual(encounter.finalDestination, destination);
   }
+});
+
+
+test("v5 saves demobilize previously detached reserve patrols and their replacement orders", () => {
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const response = orderNpcPortResponse(routes, { factionId: "portugal", targetCityId: routeCityId(routes, 2),
+    reason: NPC_PORT_RESPONSE_LOST, clockMinutes: 100 });
+  const snapshot = snapshotNpcSeaRouteSystem(routes);
+  snapshot.version = 5;
+  const ship = snapshot.ships.find(ship => ship.id === response.shipId);
+  snapshot.capitalNavalReserveSlots = snapshot.capitalNavalReserveSlots.filter(slot => slot.id !== ship.capitalNavalReserveSlotId);
+  ship.capitalNavalReserveSlotId = null;
+  ship.capitalNavalReserveDestinationCityId = null;
+  ship.capitalNavalReserveDocked = false;
+  ship.replaceOnSink = true;
+  snapshot.replacementQueue.push({ shipId: ship.id, readyMinute: 1000 });
+  restoreNpcSeaRouteSystem(routes, JSON.parse(JSON.stringify(snapshot)), { economy });
+  assert.equal(routes.shipById.has(ship.id), false);
+  assert.equal(routes.replacementQueue.some(entry => entry.shipId === ship.id), false);
+  const current = snapshotNpcSeaRouteSystem(routes);
+  restoreNpcSeaRouteSystem(routes, current, { economy });
+  assert.equal(routes.shipById.has(ship.id), false);
+});
+
+
+test("the frozen pre-fix Inca save cannot resurrect its demobilized reserve", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const saved = JSON.parse(await readFile(new URL("./test-fixtures/npc-routes/detached-inca-reserve-v5.json", import.meta.url), "utf8"));
+  assert.equal(saved.version, 5);
+  const id = saved.ships[0].id;
+  const economy = createWorldEconomy({ ports: PORTS, startMinute: 0 });
+  const routes = createNpcSeaRouteSystem({ ports: PORTS, startMinute: 0, economy });
+  const duplicate = structuredClone(saved);
+  duplicate.ships.push(structuredClone(saved.ships[0]));
+  assert.throws(() => restoreNpcSeaRouteSystem(routes, duplicate, { economy }), /duplicate saved NPC ship id/);
+  restoreNpcSeaRouteSystem(routes, saved, { economy });
+  assert.equal(routes.shipById.has(id), false);
+  updateNpcSeaRouteEvents(routes, 1000000, [id], { maintenance: true });
+  assert.equal(routes.shipById.has(id), false);
 });

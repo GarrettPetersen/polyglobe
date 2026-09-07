@@ -107,7 +107,7 @@ const ROUTE_MONTH_DAYS = WEATHER_DAYS / ROUTE_MONTHS;
 const ROUTE_MONTH_MINUTES = ROUTE_MONTH_DAYS * WEATHER_MINUTES_PER_DAY;
 const ROUTE_MAX_MONTH_STEPS = 18;
 const ROUTE_CACHE_LIMIT = 1800;
-export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 5;
+export const NPC_SEA_ROUTE_SNAPSHOT_VERSION = 6;
 const ROUTE_WIND_SEED = 90210;
 const NPC_FLEET_TARGET = 212;
 export const NPC_PACIFIC_FLEET_TARGET = 32;
@@ -1523,18 +1523,10 @@ function reconcileCapitalNavalReserveShipsWithSnapshot(system, ships) {
       staleShipIds.add(ship.id);
       continue;
     }
-    // Reserve slots are authoritative in a worker snapshot. A conquest can abolish a
-    // faction's reserve while the corresponding ship is crossing the worker boundary.
-    // Demobilize that ship instead of restoring a reference to a constitutional owner
-    // which no longer exists.
-    ship.capitalNavalReserveSlotId = null;
-    ship.capitalNavalReserveDestinationCityId = null;
-    ship.capitalNavalReserveDocked = false;
-    ship.replaceOnSink = Boolean(npcControlledNavalBaseForShipOrNull(
-      system,
-      ship,
-      ship.portResponse?.returnCityId ?? null
-    ));
+    // Abolishing a reserve demobilizes its finite ships. Detaching the slot
+    // used to create an ordinary warship, even when its hull profile had no
+    // autonomous circuit (the Inca reserve has only one coastal home port).
+    staleShipIds.add(ship.id);
   }
   if (staleShipIds.size > 0) {
     system.ships = system.ships.filter((ship) => !staleShipIds.has(ship.id));
@@ -1560,13 +1552,14 @@ export function restoreNpcSeaRouteSystem(
 ) {
   assertSaveableNpcRouteSystem(system);
   validateOptionalSeedKey(seedKey, "restored NPC routes");
-  if (!snapshot || ![1, 2, 3, 4, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
+  if (!snapshot || ![1, 2, 3, 4, 5, NPC_SEA_ROUTE_SNAPSHOT_VERSION].includes(snapshot.version) || !Array.isArray(snapshot.ships) ||
       !Array.isArray(snapshot.replacementQueue) || !Array.isArray(snapshot.pirateHideoutDangerUntil) ||
       (snapshot.version >= 3 && !Array.isArray(snapshot.capitalNavalReserveSlots))) {
     throw new Error("Unsupported NPC route save data");
   }
   const ships = cloneJsonData(snapshot.ships);
   const replacementQueue = cloneJsonData(snapshot.replacementQueue);
+  if (snapshot.version < 6) migrateDetachedCapitalReserveShips(ships, replacementQueue);
   if (snapshot.version === 1) migrateNpcRouteFactionsTo1522(ships, replacementQueue);
   if (snapshot.version < NPC_SEA_ROUTE_SNAPSHOT_VERSION) {
     migrateNpcRouteEntityReferences(system, ships, replacementQueue);
@@ -1642,6 +1635,26 @@ export function restoreNpcSeaRouteSystem(
     throw new Error("NPC route restore created duplicate ship ids");
   }
   return system;
+}
+
+// v5 demobilization erased the reserve metadata and left ordinary patrols
+// and replacement orders. The old generated ID is the only surviving category
+// marker; resolve it once at the supported save boundary, never in live routing.
+function migrateDetachedCapitalReserveShips(ships, replacements) {
+  const seen = new Set();
+  for (const ship of ships) {
+    if (!ship || typeof ship.id !== "string" || ship.id === "" || seen.has(ship.id)) {
+      throw new Error(`Invalid or duplicate saved NPC ship id: ${ship?.id}`);
+    }
+    seen.add(ship.id);
+  }
+  const legacyReserveId = (id) => typeof id === "string" && /^capital-reserve:.+:sortie:[1-9][0-9]*$/.test(id);
+  const removed = new Set(ships.filter((ship) => legacyReserveId(ship.id) && !ship.capitalNavalReserveSlotId).map((ship) => ship.id));
+  for (let index = ships.length - 1; index >= 0; index--) if (removed.has(ships[index].id)) ships.splice(index, 1);
+  for (let index = replacements.length - 1; index >= 0; index--) {
+    if (legacyReserveId(replacements[index].shipId)) replacements.splice(index, 1);
+  }
+  if (removed.size > 0) console.info(`Demobilized ${removed.size} obsolete saved naval reserve sorties`);
 }
 
 function reconcileRestoredNpcShip(ship, context) {
@@ -2501,9 +2514,7 @@ function reconcileCapitalNavalReservePortsAfterOwnershipChange(system, collapsed
     ship.capitalNavalReserveDestinationCityId = null;
     ship.capitalNavalReserveDocked = false;
     ship.replaceOnSink = false;
-    if (!ship.portResponse || ship.portResponse.phase === "returning") {
-      retiredShipIds.add(ship.id);
-    }
+    retiredShipIds.add(ship.id);
   }
   if (removedSlotIds.size > 0) {
     system.capitalNavalReserveSlots = system.capitalNavalReserveSlots.filter((slot) => (

@@ -76,6 +76,11 @@ function main() {
         { cwd: root, timeout: 10 * 60_000, maxBuffer: 16 * 1024 * 1024 });
       writeFileSync(resolve(output, "worker-campaign.log"), workerLog);
       report.workerCampaign = JSON.parse(readFileSync(resolve(output, "worker-campaign/report.json"), "utf8"));
+      console.log("Exercising naval reserve demobilization across political and worker transitions");
+      const reserveLog = execFileSync(process.execPath, ["tools/playtest/reserve-campaign.mjs"],
+        { cwd: root, timeout: 10 * 60_000, maxBuffer: 16 * 1024 * 1024, encoding: "utf8" });
+      writeFileSync(resolve(output, "reserve-campaign.log"), reserveLog);
+      report.reserveCampaign = JSON.parse(reserveLog.trim().split("\n").at(-1));
       saveReport();
       if (args.get("browser") === "true") {
         console.log("Running real-browser gameplay and save/restore scenarios");

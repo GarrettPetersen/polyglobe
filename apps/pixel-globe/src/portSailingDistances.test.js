@@ -206,6 +206,10 @@ test("the checked-in bake covers colony sites and uses navigable sailing distanc
   const kholmogory = requiredEndpoint(bake, "Kholmogory");
   const salerno = requiredEndpoint(bake, "Salerno");
   const lisbon = requiredEndpoint(bake, "Lisbon");
+  const chillicothe = portCities.find((port) => port.cityId === "chillicothe|united states of america");
+  assert.ok(chillicothe, "Scioto must connect Chillicothe to the active port network");
+  assert.ok(portSailingDistanceKm(bake, chillicothe, lisbon) > 0, "Chillicothe must reach the Atlantic through the Scioto, Ohio and Mississippi");
+  assert.ok(portAccessTileIds(placementOptions, chillicothe.tileId).some((tileId) => navigation.riverMasks[tileId] !== 0));
   const tombouctou = requiredEndpoint(bake, "Timbuktu");
   const gao = requiredEndpoint(bake, "Gao");
   const baghdad = requiredEndpoint(bake, "Baghdad");

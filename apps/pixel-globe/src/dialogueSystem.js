@@ -1,5 +1,5 @@
 import { TOPSHAM_CITY_ID, acceptExeterCanalQuest, exeterCanalQuestView, startExeterCanalConstruction } from "./exeterCanal.js";
-import { playerTradeAdviceByCity } from "./gameState.js";
+import { declineCaptureCommission, playerTradeAdviceByCity } from "./gameState.js";
 import { SOUND_DUES_COLLECTOR_CITY_ID, soundDuesPaymentEligibility } from "./soundDues.js";
 import { colonizationSiteIsRuined } from "./colonialCities.js";
 import { vikingLongshipAcquisitionEligibility } from "./innQuestTransactions.js";
@@ -2707,6 +2707,13 @@ export function selectPortDialogueAction(
       missionItemGift
     };
   }
+  if (action.type === "decline-capture-commission") {
+    declineCaptureCommission(gameState, city, action.questId);
+    session.captureCommissionPetitionResult = null;
+    session.nodeId = session.questReturnNodeId || "root";
+    session.selectedIndex = 0;
+    return { closed: false };
+  }
   if (action.type === "accept-exeter-canal") {
     if (session.disguisedEntry || session.nodeId !== "exeter-canal") throw new Error("Canal commission requires an open audience");
     acceptExeterCanalQuest(gameState, city, context.simMinute ?? 0);
@@ -4354,7 +4361,7 @@ export function selectPassengerDialogueOption(
       adjustFactionReputation(
         gameState,
         city.factionId,
-        religiousMissionParticipationResult.reputationBonus
+        religiousMissionParticipationResult.reputationBonus, { reason: "mission", simMinute: context.simMinute ?? Math.max(0, gameState.survival.lastMinute) }
       );
     }
     const missionItemGift = completingHajj
@@ -5426,7 +5433,7 @@ function applyIllicitMarketAttempt(session, gameState, access, roll) {
   adjustFactionReputation(
     gameState,
     policy.hostFactionId,
-    -policy.illicitMarketReputationPenalty
+    -policy.illicitMarketReputationPenalty, { reason: "embargo" }
   );
   const faction = factionById(policy.hostFactionId);
   session.feedback = `The broker reports you to the harbor watch. ${faction.adjective} standing fell.`;
@@ -8611,7 +8618,7 @@ function captureCommissionPetitionResultView(session, city, gameState) {
         questAcceptanceOption(`Accept the warrant: capture ${quest.targetName}`, quest, gameState, {
           detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
         }),
-        option("Back", { type: "node", nodeId: "root" })
+        option("Decline the warrant", { type: "decline-capture-commission", questId: quest.id })
       ]
     };
   }
@@ -8645,6 +8652,7 @@ function capturePortQuestView(session, questState, returnNodeId, gameState) {
         questAcceptanceOption(`Accept commission: capture ${quest.targetName}`, quest, gameState, {
           detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
         }),
+        option("Decline the warrant", { type: "decline-capture-commission", questId: quest.id }),
         back
       ]
     };
@@ -8737,6 +8745,7 @@ function captureCapitalQuestView(session, questState, returnNodeId, gameState) {
         questAcceptanceOption(`Accept final commission: capture ${quest.targetName}`, quest, gameState, {
           detail: `${formatDistanceKm(quest.distanceKm)}  ${quest.reward.toLocaleString("en-US")} db`
         }),
+        option("Decline the warrant", { type: "decline-capture-commission", questId: quest.id }),
         back
       ]
     };

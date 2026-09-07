@@ -137,6 +137,7 @@ function historicalState(playerFactionId) {
     relations: {
       diplomacy: createWorldDiplomacy({ seedKey: "panipat" }),
       authority: createSovereignAuthority({ seedKey: "panipat" }),
+      factionReputationChanges: {},
       factionReputation: Object.fromEntries(FACTIONS.map(({ id }) => [id, 0])),
       lettersOfMarque: {},
       safePassageUntilMinute: {},

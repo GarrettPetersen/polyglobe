@@ -1,0 +1,323 @@
+{
+  "version": 5,
+  "ships": [
+    {
+      "id": "capital-reserve:inca:0:sortie:1",
+      "captainHomeCityId": "chanchan|peru",
+      "factionId": "inca",
+      "role": "warship",
+      "profileId": "andean-coast",
+      "mode": "regional",
+      "cultureType": "andean",
+      "slugs": [
+        "mesoamerican-dugout-canoe"
+      ],
+      "slug": "mesoamerican-dugout-canoe",
+      "seed": 314160782,
+      "hitPoints": 3,
+      "maxHitPoints": 3,
+      "cargoCapacity": 16,
+      "fishingNetId": null,
+      "lastWhaleHuntMinute": null,
+      "cargo": {},
+      "cargoCost": {},
+      "cargoOrigins": {},
+      "tradeEmbargoConvictions": 0,
+      "lastTradeEmbargoEnforcement": null,
+      "specie": 250,
+      "lifetimeProfit": 0,
+      "cartazUntilMinute": 0,
+      "portVisits": 0,
+      "graceUntilPortVisit": 0,
+      "seekingHideout": false,
+      "hideoutDestinationTileId": null,
+      "hiddenAtHideout": false,
+      "hiddenUntilMinute": 0,
+      "hideoutCooldownUntilPortVisit": 0,
+      "nationalCircuitId": null,
+      "nationalCircuitFactionId": null,
+      "nationalCircuitCityIds": [],
+      "capitalNavalReserveSlotId": null,
+      "capitalNavalReserveDestinationCityId": null,
+      "capitalNavalReserveDocked": false,
+      "portResponse": {
+        "factionId": "inca",
+        "targetCityId": "chanchan|peru",
+        "returnCityId": "chanchan|peru",
+        "reason": "burning-port",
+        "phase": "responding",
+        "orderedMinute": 0,
+        "threatUntilMinute": 1
+      },
+      "currentPort": {
+        "cityId": "chanchan|peru",
+        "city": "Chanchan",
+        "displayCity": "Chan Chan",
+        "country": "Peru",
+        "lat": -8.106,
+        "lon": -79.074536,
+        "cityType": "andean",
+        "year": 1522,
+        "population": 25000,
+        "coastalIntent": true,
+        "lakeIntent": false,
+        "requiredTradePort": true,
+        "portId": "chanchan|peru",
+        "manualRegion": "inca-coast",
+        "npcInterregionalTradeExcluded": false,
+        "settlementType": "city",
+        "islandSettlement": false,
+        "marketGoods": null,
+        "playerHomeExcluded": false,
+        "economyRegion": "andean-coast",
+        "factionId": "inca",
+        "declaredCapitalFactionId": null,
+        "tileId": 134664,
+        "landmassId": 120,
+        "services": {
+          "inn": true,
+          "smith": true,
+          "market": true,
+          "shipyard": true
+        },
+        "routeRegion": "americas",
+        "routeAnchors": [
+          "caribbean",
+          "havana"
+        ]
+      },
+      "finalDestination": {
+        "cityId": "chanchan|peru",
+        "city": "Chanchan",
+        "displayCity": "Chan Chan",
+        "country": "Peru",
+        "lat": -8.106,
+        "lon": -79.074536,
+        "cityType": "andean",
+        "year": 1522,
+        "population": 25000,
+        "coastalIntent": true,
+        "lakeIntent": false,
+        "requiredTradePort": true,
+        "portId": "chanchan|peru",
+        "manualRegion": "inca-coast",
+        "npcInterregionalTradeExcluded": false,
+        "settlementType": "city",
+        "islandSettlement": false,
+        "marketGoods": null,
+        "playerHomeExcluded": false,
+        "economyRegion": "andean-coast",
+        "factionId": "inca",
+        "declaredCapitalFactionId": null,
+        "tileId": 134664,
+        "landmassId": 120,
+        "services": {
+          "inn": true,
+          "smith": true,
+          "market": true,
+          "shipyard": true
+        },
+        "routeRegion": "americas",
+        "routeAnchors": [
+          "caribbean",
+          "havana"
+        ]
+      },
+      "plan": {
+        "origin": {
+          "cityId": "chanchan|peru",
+          "city": "Chanchan",
+          "displayCity": "Chan Chan",
+          "country": "Peru",
+          "lat": -8.106,
+          "lon": -79.074536,
+          "cityType": "andean",
+          "year": 1522,
+          "population": 25000,
+          "coastalIntent": true,
+          "lakeIntent": false,
+          "requiredTradePort": true,
+          "portId": "chanchan|peru",
+          "manualRegion": "inca-coast",
+          "npcInterregionalTradeExcluded": false,
+          "settlementType": "city",
+          "islandSettlement": false,
+          "marketGoods": null,
+          "playerHomeExcluded": false,
+          "economyRegion": "andean-coast",
+          "factionId": "inca",
+          "declaredCapitalFactionId": null,
+          "tileId": 134664,
+          "landmassId": 120,
+          "services": {
+            "inn": true,
+            "smith": true,
+            "market": true,
+            "shipyard": true
+          },
+          "routeRegion": "americas",
+          "routeAnchors": [
+            "caribbean",
+            "havana"
+          ]
+        },
+        "destination": {
+          "cityId": "cuzco|peru",
+          "city": "Cuzco",
+          "country": "Peru",
+          "lat": -13.525,
+          "lon": -71.972222,
+          "year": 1522,
+          "population": 40000,
+          "coastalIntent": false,
+          "lakeIntent": false,
+          "sourceYear": 1500,
+          "nextSourceYear": 1533,
+          "displayCity": "Cuzco",
+          "cityType": "andean",
+          "economyRegion": "andean",
+          "factionId": "inca",
+          "declaredCapitalFactionId": "inca",
+          "portId": "cuzco|peru",
+          "tileId": 535761,
+          "landmassId": 120,
+          "services": {
+            "inn": true,
+            "smith": true,
+            "market": true,
+            "shipyard": true
+          },
+          "routeRegion": "americas",
+          "routeAnchors": [
+            "caribbean",
+            "brazil-bulge"
+          ]
+        },
+        "segments": [
+          {
+            "kind": "sail",
+            "from": {
+              "id": "origin:chanchan|peru",
+              "label": "Chan Chan",
+              "lat": -8.106,
+              "lon": -79.074536,
+              "port": {
+                "cityId": "chanchan|peru",
+                "city": "Chanchan",
+                "displayCity": "Chan Chan",
+                "country": "Peru",
+                "lat": -8.106,
+                "lon": -79.074536,
+                "cityType": "andean",
+                "year": 1522,
+                "population": 25000,
+                "coastalIntent": true,
+                "lakeIntent": false,
+                "requiredTradePort": true,
+                "portId": "chanchan|peru",
+                "manualRegion": "inca-coast",
+                "npcInterregionalTradeExcluded": false,
+                "settlementType": "city",
+                "islandSettlement": false,
+                "marketGoods": null,
+                "playerHomeExcluded": false,
+                "economyRegion": "andean-coast",
+                "factionId": "inca",
+                "declaredCapitalFactionId": null,
+                "tileId": 134664,
+                "landmassId": 120,
+                "services": {
+                  "inn": true,
+                  "smith": true,
+                  "market": true,
+                  "shipyard": true
+                },
+                "routeRegion": "americas",
+                "routeAnchors": [
+                  "caribbean",
+                  "havana"
+                ]
+              }
+            },
+            "to": {
+              "id": "caribbean",
+              "label": "Caribbean",
+              "lat": 18.4,
+              "lon": -67
+            },
+            "startMinute": 0,
+            "endMinute": 88129.47071146607
+          },
+          {
+            "kind": "sail",
+            "from": {
+              "id": "caribbean",
+              "label": "Caribbean",
+              "lat": 18.4,
+              "lon": -67
+            },
+            "to": {
+              "id": "destination:cuzco|peru",
+              "label": "Cuzco",
+              "lat": -13.525,
+              "lon": -71.972222,
+              "port": {
+                "cityId": "cuzco|peru",
+                "city": "Cuzco",
+                "country": "Peru",
+                "lat": -13.525,
+                "lon": -71.972222,
+                "year": 1522,
+                "population": 40000,
+                "coastalIntent": false,
+                "lakeIntent": false,
+                "sourceYear": 1500,
+                "nextSourceYear": 1533,
+                "displayCity": "Cuzco",
+                "cityType": "andean",
+                "economyRegion": "andean",
+                "factionId": "inca",
+                "declaredCapitalFactionId": "inca",
+                "portId": "cuzco|peru",
+                "tileId": 535761,
+                "landmassId": 120,
+                "services": {
+                  "inn": true,
+                  "smith": true,
+                  "market": true,
+                  "shipyard": true
+                },
+                "routeRegion": "americas",
+                "routeAnchors": [
+                  "caribbean",
+                  "brazil-bulge"
+                ]
+              }
+            },
+            "startMinute": 88129.47071146607,
+            "endMinute": 186079.67077547233
+          }
+        ],
+        "startMinute": 0,
+        "endMinute": 186079.67077547233
+      },
+      "clockOffsetMinutes": 0,
+      "visualNavigation": {
+        "vector": [
+          0.18763820476440055,
+          -0.14100490619981448,
+          0.9720645660347744
+        ],
+        "heading": [
+          0.7522088042633639,
+          -0.615776965062381,
+          -0.23452216118576838
+        ]
+      },
+      "replaceOnSink": true
+    }
+  ],
+  "replacementQueue": [],
+  "capitalNavalReserveSlots": [],
+  "pirateHideoutDangerUntil": []
+}
