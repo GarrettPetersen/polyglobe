@@ -23,7 +23,7 @@
     "src/characterReligion.js": "cd8ef2532801ca3434cacf9c5a413da70fb7bbaf3fb901bf2fdb8aeee9a2bcc8",
     "src/characterSkills.js": "b581c5ec7f48f9f0c0af714fc38b2117a3198dfcb446379b6ee104ff6a546eb3",
     "src/cityCatalogData.js": "801077888f5277d2cc6011d8ad1cbefef382de3880f3565a82f9cb94d45c13ec",
-    "src/cityCatalogSelection.js": "113a365eec8531dc4ddcc8618440389df234655f97ffe5e0b4e4a3709c08666b",
+    "src/cityCatalogSelection.js": "e2b510704e06ebe3317613a99a99112e871a5f8a4cda309eace636e31b0806e8",
     "src/cityGeographyCorrections.js": "26ec8f5161e54d50d8cb3a0c4ca19ef22e03986ae03a7e60c8a193d5826347af",
     "src/cityPortAccess.js": "72f63bd93036439373a78f2cabf9ed054bc925ef5937a56446ddebd378cc1081",
     "src/cityPortAccessPolicy.js": "b5b8bbdcfa05d0d2185574d39a5938a7d25437d599207ebbda13aee7c06e5eaa",
@@ -33,7 +33,7 @@
     "src/economyRegions.js": "5a83e605487118c4efd7938fab31fc3f3624d8e9e6cfcc37b5d99a9da2e56f86",
     "src/entityIds.js": "b4247de271799a83354f9045cdeea952661bbe3d7af882ed805aa4709e0e23a7",
     "src/exeterCanal.js": "d31839af22ec935f8444a7df09f7ae08caf35870a49c9ea5f34fe9603b0588ac",
-    "src/exeterCanalNavigation.js": "d7d79a33afe578c7b2bc660b0d2c3e690b3f7c9fc5268f0aca61c6960eac33fb",
+    "src/exeterCanalNavigation.js": "ea1a4aeaeface068d4dffdf2980f31a7e2bf1ec9c871a8fc85bdcdd2648b24c5",
     "src/factions.js": "67c5194429f679035d2249aaca2146e93692e45b039f45b47babb1aa1aa4c248",
     "src/foreignSettlements.js": "b759c575b9e59c188c6112281fc3a4c82d4ce35da8ddcab2a0f1aac9bb60e46f",
     "src/gamePacing.js": "0fbf8afdb2e5961c0305c4e832e3a2758854fe6f946fdefaae1b0a75b6ab03aa",
@@ -67,7 +67,7 @@
     "src/placeNameLocalization.js": "4663bfe61ea4f07e4d37a21268c60cc4db7a5f45e464a95cb9ae0d0361bbb86b",
     "src/portAssaultBattle.js": "7ed6e917ae3119998d6e5e6e9a922dcd947a21f09e27bdf2cf5c3d1031c98e88",
     "src/portAssaultFormation.js": "37b7f908373554d69818f483bddbe93e77b7e51b24f038b0748aa4844c9e5497",
-    "src/portCatalogMigration.js": "aeb977b98bc667c53008b383fe71ccedc7130a7e7209c370ac6319c2572a4fed",
+    "src/portCatalogMigration.js": "096af73b882ad323cb4ba6f6cbe1d608ec7e5c2f51e939cfabeaed65251b7c8e",
     "src/portCityServices.js": "e459bce751816d8b54da49723fd700e67b52ecbcbe84e66a477e2d5d3ed76997",
     "src/portDialoguePersonality.js": "597ff0eefac84db5ad5565cccaa4925b5a1ef01ffa4e651bca3ef09a66083287",
     "src/portGreetingStyle.js": "334245bdcbaafc705aa06383b54f1d6296f4096bf9377dbe0edd83a2a11a1286",
@@ -92,6 +92,7 @@
     "src/terrainMetadata.js": "caedd99411b0f38f90fc0f8f0bc414ecfcde780b02129f37514ff19a745e5838",
     "src/terrainSurface.js": "95c00856b2684786e891e32771306b63c1e689269897dc2edf439754aced9541",
     "src/test-fixtures/city-catalog-releases/1.json": "27d920fe5fce67329a9da7923141800c8c59713c2b5c81b90e3730330b2aad55",
+    "src/test-fixtures/city-catalog-releases/10.json": "e0befb24d386dba9877bc7962615bb609c389aa36f9a19ec16df8706fc0dfb78",
     "src/test-fixtures/city-catalog-releases/2.json": "ddccbb4ba9cdabed04477f55fa13afb8441bd7879a1c7a3ea0dc461ed8e4062e",
     "src/test-fixtures/city-catalog-releases/3.json": "e8dcd8dadf27c13c899b8440546d9368a235d8d2272be8c6cd842bce1fa5961b",
     "src/test-fixtures/city-catalog-releases/4.json": "55928c32486bd2447b567112c96c2a9a931f0f71bf64bb6e125c0aca9f54a0d4",
@@ -116,8 +117,8 @@
     "tools/update-city-catalog.mjs": "3c1202bc59f0533b123c7c224f3781b517ee5f67cd3491c9bdb8003d5669c03d"
   },
   "artifacts": {
-    "public/assets/data/port-sailing-distances.json": "e22ec4f575ed87637df7166f9d26f6b56270d469aa9d082ef2176376f20cba1a",
-    "public/assets/data/land-roads.json": "c3acdf5f78138d39a0681f8693587ab9d371ad8ccb0db479d3db6839d25816ea",
-    "city-visualizer/data/cities.json": "8a8e524f765c6ce0af2089ba9a2ca609186df8a1bd6674432840a96e0fb52dfd"
+    "public/assets/data/port-sailing-distances.json": "c017d2d52f48672ba5ab7d24fa2ce8af29a1e2b5b3ea0e86438760d7d966aa6d",
+    "public/assets/data/land-roads.json": "6efa1da44237e5f46f576f64f9d991211eaae310203d85ff80b311d5addf8ee5",
+    "city-visualizer/data/cities.json": "0b1e9bd01adc85dc24fd45369cad780b95396b133f89c640148ee735a924e8dc"
   }
 }

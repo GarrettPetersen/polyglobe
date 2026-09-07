@@ -504,6 +504,8 @@ export function createPortDialogueSession(city, options = {}) {
     rulerRumor: options.rulerRumor || null,
     historicalGossip: options.historicalGossip || null,
     crewRecruitmentArrivalPresented: false,
+    exeterCanalArrivalPresented: false,
+    exeterCanalReturnNodeId: null,
     questReturnNodeId: null,
     crewDismissal: null,
     rumorText: options.rumorText || null,
@@ -2217,6 +2219,7 @@ export function selectPortDialogueAction(
     return { closed: false, loadoutResult: result, crewDismissalsCommitted: true };
   }
   if (action.type === "node") {
+    if (session.nodeId === "exeter-canal") session.exeterCanalReturnNodeId = null;
     if (session.nodeId === "greeting") {
       session.rumorText = null;
       session.rulerRumor = null;
@@ -5150,9 +5153,9 @@ function exeterCanalDialogueView(session, city, gameState, context) {
       ...(quest.accepted && !quest.building && !quest.complete ? [option("Deliver canal materials", { type: "deliver-exeter-canal" }, {
         disabled: !quest.canDeliver, disabledReason: "No requested materials aboard."
       })] : []),
-      option(session.crewRecruitmentArrival ? "Back to city" : "Back to inn", {
+      option(session.exeterCanalReturnNodeId ? "Continue" : "Back to inn", {
         type: "node",
-        nodeId: session.crewRecruitmentArrival ? "root" : "inn-drink"
+        nodeId: session.exeterCanalReturnNodeId || "inn-drink"
       })
     ]
   };

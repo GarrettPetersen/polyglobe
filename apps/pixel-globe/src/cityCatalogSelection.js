@@ -98,6 +98,10 @@ export const MANUAL_CITY_RECORDS_1522 = Object.freeze([
     marketGoods: ["fish", "salt", "cheese"]
   }),
   manualCity1522("exeter|united kingdom", "Exeter", "United Kingdom", 50.7236, -3.52751, 6000, {
+    // Schematic inland hex beyond normal docking reach. Preserve the actual
+    // coordinates and identity; Topsham remains the accessible outport.
+    placementLat: 50.9791,
+    placementLon: -3.6978,
     cityType: "northern-european",
     manualRegion: "british-isles"
   }),

@@ -274,7 +274,6 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
   assert.equal(mecca.factionId, "hejaz", "Mecca should retain its Sharif under Ottoman protection in 1522");
   for (const city of [
     "Bristol",
-    "Exeter",
     "Hull",
     "Newcastle upon Tyne",
     "Southampton",
@@ -285,6 +284,11 @@ test("1522 city selection keeps enough British Isles ports and Inca access", asy
     assert.equal(port.factionId, "england", `${city} should belong to England in 1522`);
     assert.equal(port.marketGoods, null, `${city} should use the full city market`);
   }
+  const exeter = placed.find((city) => city.cityId === "exeter|united kingdom");
+  const topsham = britishIslesPorts.find((city) => city.cityId === "topsham|united kingdom");
+  assert.equal(exeter.dockable, false, "Exeter remains inland until the canal is built");
+  assert.ok(topsham, "Topsham provides Exeter's initial maritime access");
+  assert.equal(topsham.factionId, "england");
   assert.ok(glasgow, "Glasgow should reach the Irish Sea through the Clyde");
   assert.equal(glasgow.factionId, "scotland");
   assert.ok(incaPorts.some((city) => city.city === "Chanchan" || city.city === "Pachacamac"));

@@ -5,6 +5,7 @@ import { portCityStaffRoleForDialogueSession } from "./portCityStaff.js";
 import { dialogueOptionIconId } from "./gameIcons.js";
 import { portCityLocationForRootAction } from "./portCityNavigation.js";
 import { cityMustRemainInland } from "./cityPortAccessPolicy.js";
+import { cityHasPortAccess } from "./cityPortAccess.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
@@ -23,7 +24,7 @@ import { fetchQuestRequirements, readyFetchQuestDestinations } from "./fetchQues
 import { tradeGoodById } from "./economy.js";
 
 const topsham = { cityId: TOPSHAM_CITY_ID, portId: TOPSHAM_CITY_ID, tileId: 644451, city: "Topsham", country: "United Kingdom", cityType: "northern-european", factionId: "england", settlementType: "town", population: 1500 };
-const exeter = { ...topsham, cityId: EXETER_CITY_ID, portId: EXETER_CITY_ID, tileId: 644452, city: "Exeter", settlementType: "city", population: 6000 };
+const exeter = { ...topsham, cityId: EXETER_CITY_ID, portId: EXETER_CITY_ID, tileId: 161147, city: "Exeter", settlementType: "city", population: 6000 };
 
 function commission() {
   const state = createPlayerTestGameState({ cargoCapacity: 100 });
@@ -41,6 +42,46 @@ function commission() {
   };
   return { state, session, view, choose };
 }
+
+test("Topsham's commissioner approaches on arrival and resumes the interrupted greeting", () => {
+  const { state, session, view, choose } = commission();
+  session.nodeId = "greeting";
+  const source = readFileSync(new URL("./main.js", import.meta.url), "utf8");
+  const start = source.indexOf("function maybeOpenExeterCanalArrivalDialogue(");
+  const end = source.indexOf("function maybeOpenCrewRecruitmentArrival(", start);
+  const context = vm.createContext({
+    dialogueState: session, gameState: state, weatherClockMinutes: 0,
+    exeterCanalQuestView, invalidateDialogueOptionGeometry() {},
+    ensureDialoguePortraitLoaded() {}, dirty: false
+  });
+  vm.runInContext(source.slice(start, end), context);
+  assert.match(source.slice(source.indexOf("function continuePortArrivalDialogues("), start),
+    /\(\) => maybeOpenExeterCanalArrivalDialogue\(cityCall\)/);
+  assert.equal(context.maybeOpenExeterCanalArrivalDialogue(exeter), false);
+  session.disguisedEntry = true;
+  assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham), false);
+  session.disguisedEntry = false;
+  assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham), true);
+  assert.equal(session.nodeId, "exeter-canal");
+  assert.equal(view().options.at(-1).action.nodeId, "greeting");
+  choose("accept-exeter-canal");
+  choose("node");
+  assert.equal(session.nodeId, "greeting");
+  assert.equal(session.exeterCanalReturnNodeId, null);
+  assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham), false);
+  session.nodeId = "exeter-canal";
+  assert.equal(view().options.at(-1).action.nodeId, "inn-drink");
+  session.nodeId = "root";
+  session.exeterCanalArrivalPresented = false;
+  assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham), false,
+    "an accepted commission with no materials does not interrupt every visit");
+  state.cargo.timber = 10;
+  assert.equal(context.maybeOpenExeterCanalArrivalDialogue(topsham), true,
+    "returning with requested materials surfaces the delivery");
+  assert.equal(view().options.at(-1).action.nodeId, "root");
+  choose("node");
+  assert.equal(session.nodeId, "root");
+});
 
 test("the canal commission permits partial deliveries and never offers an executable empty delivery", () => {
   const { state, view, choose } = commission();
@@ -122,6 +163,13 @@ test("real-map canal stages add connected cuts and restore the original map with
   const placement = { graph, earthRows, ...base, directionIndex: createDirectionIndex(graph) };
   const csv = readFileSync(new URL("../../../examples/globe-demo/public/datasets/urbanization-dominance-pruned/urbanization-dominance-pruned.csv", import.meta.url), "utf8");
   const placed = placeCityCatalogOnWorld({ ...placement, cities: loadCityCatalogFromCsv(csv, CITY_DATA_YEAR) });
+
+  const inlandCity = [...placed.values()].find(({ cityId }) => cityId === EXETER_CITY_ID);
+  assert.equal(inlandCity.tileId, exeter.tileId);
+  assert.equal(cityHasPortAccess({ ...placement, tileId: inlandCity.tileId }), false,
+    "Exeter must be beyond ordinary docking reach without relying on its quest exclusion");
+  assert.equal(cityHasPortAccess({ ...placement, tileId: topsham.tileId }), true);
+  assert.equal(exeterCanalPort(placed.values()).cityId, EXETER_CITY_ID);
 
   assert.equal(exeterCanalPort([topsham, exeter]).cityId, EXETER_CITY_ID);
   for (const stage of [0, 1, 2, 3]) {

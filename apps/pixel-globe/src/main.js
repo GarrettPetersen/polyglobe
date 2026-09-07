@@ -22035,6 +22035,7 @@ function continuePortArrivalDialogues() {
   return openNextPortArrivalFollowup([
     () => maybeOpenSovereignWarLoanDialogue(cityCall),
     () => maybeOpenShipyardArrivalDialogue(cityCall),
+    () => maybeOpenExeterCanalArrivalDialogue(cityCall),
     () => maybeOpenConquistadorReplenishmentDialogue(cityCall),
     () => maybeOpenConquistadorRewardDialogue(cityCall),
     () => maybeOpenConquistadorEmbarkationDialogue(cityCall),
@@ -22056,6 +22057,22 @@ function continuePortArrivalDialogues() {
     () => maybeOpenCharacterHomecoming(cityCall),
     () => maybeOpenCrewRecruitmentArrival(cityCall)
   ]);
+}
+
+function maybeOpenExeterCanalArrivalDialogue(cityCall) {
+  if (!["greeting", "root"].includes(dialogueState.nodeId) ||
+      dialogueState.exeterCanalArrivalPresented || dialogueState.disguisedEntry) return false;
+  const quest = exeterCanalQuestView(gameState, cityCall, Math.floor(weatherClockMinutes));
+  if (!quest || (quest.accepted && !quest.canDeliver)) return false;
+  dialogueState.exeterCanalArrivalPresented = true;
+  dialogueState.exeterCanalReturnNodeId = dialogueState.nodeId;
+  dialogueState.nodeId = "exeter-canal";
+  dialogueState.selectedIndex = 0;
+  dialogueState.feedback = null;
+  invalidateDialogueOptionGeometry();
+  ensureDialoguePortraitLoaded();
+  dirty = true;
+  return true;
 }
 
 function maybeOpenCrewRecruitmentArrival(cityCall) {

@@ -5,7 +5,7 @@ import { isWaterSurfaceRow } from "./terrainSurface.js";
 // Spatial observations for the subdivision-eight chart, not settlement identity.
 // A schematic west-bank bypass uses two visible river segments at this scale.
 // The final month fits the locks and opens the quay; it does not add another cut.
-export const EXETER_CANAL_TILE_CHAIN = Object.freeze([644451, 644453, 644452]);
+export const EXETER_CANAL_TILE_CHAIN = Object.freeze([644451, 644453, 161147]);
 
 export function exeterCanalNavigation(base, graph, earthRows, stage) {
   if (graph.subdivisions !== 8) throw new Error("Exeter canal geometry requires subdivision eight");

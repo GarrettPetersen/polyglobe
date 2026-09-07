@@ -19,6 +19,14 @@ const CURRENT_NORTH_MALUKU_TILES = Object.freeze({
   "Makian Village": 366359
 });
 
+test("moving Exeter inland preserves completed-canal destinations and old Topsham gateways", () => {
+  const topology = { savedSubdivisions: 8, currentSubdivisions: 8 };
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 9 }, topology).get(644452), 161147);
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 6 }, topology).get(644452), 644451);
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({}, topology).get(644452), 644451);
+  assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: PORT_CATALOG_VERSION }, topology), null);
+});
+
 const currentPortBake = JSON.parse(readFileSync(
   new URL("../public/assets/data/port-sailing-distances.json", import.meta.url),
   "utf8"
@@ -160,9 +168,9 @@ test("released Exeter voyages go to Topsham once while current inland identity s
   assert.equal(sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: PORT_CATALOG_VERSION }, topology), null);
 });
 
-test("adding the Scioto port leaves version-seven destinations unchanged", () => {
+test("version-seven ports stay unchanged apart from the later Exeter project relocation", () => {
   const migration = sameTopologyPortMigrationForSavedVoyage({ portCatalogVersion: 7 }, {
     savedSubdivisions: 8, currentSubdivisions: 8
   });
-  assert.equal(migration.size, 0);
+  assert.deepEqual([...migration], [[644452, 161147]]);
 });
