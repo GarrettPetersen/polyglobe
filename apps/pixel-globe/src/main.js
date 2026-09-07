@@ -5111,14 +5111,28 @@ async function main() {
     capsuleLoadingScreen.finish();
     return;
   }
-  await ensureCharacterPortraitLoaded(playerCharacter, characterExpression(playerCharacter));
-  syncShipCargoFromGameState();
-  camera = northUpCamera(ship.position);
-  centerTileId = ship.tileId;
-  localLayout = createLocalLayout(centerTileId);
-  chart = buildChart(camera);
-  reframeWorldNorthUp("new game setup", { allowUncovered: true });
-  await loadInitialNearbyWorldAssets();
+  if (!CAPTURE_SCENARIO && localSaveResult.status === "ready") {
+    startMenu.isLoading = true;
+    try {
+      await prepareSavedVoyageForMenu(startMenu);
+      startMenu.isLoading = false;
+    } catch (error) {
+      const crashContext = savedVoyageCrashContext(localSaveResult.save.payload);
+      gameTelemetry.captureCrash(error, crashContext);
+      capsuleLoadingScreen.fail(error);
+      drawFatalError(error, "Save could not be loaded", crashContext);
+      return;
+    }
+  } else {
+    await ensureCharacterPortraitLoaded(playerCharacter, characterExpression(playerCharacter));
+    syncShipCargoFromGameState();
+    camera = northUpCamera(ship.position);
+    centerTileId = ship.tileId;
+    localLayout = createLocalLayout(centerTileId);
+    chart = buildChart(camera);
+    reframeWorldNorthUp("new game setup", { allowUncovered: true });
+    await loadInitialNearbyWorldAssets();
+  }
   if (!CAPTURE_SCENARIO && !CAPTURE_FRAME_PASS) {
     // Compile and cache the first complete world frame while the dedicated
     // loading screen is still visible. The start menu must never absorb this
@@ -7386,7 +7400,8 @@ function createStartMenuState() {
     scrollDownRect: null,
     isLoading: false,
     message: localSaveResult.status === "invalid" ? "SAVE COULD NOT BE READ" : "",
-    newGameConfirmation: null
+    newGameConfirmation: null,
+    preparedVoyage: null
   };
 }
 
@@ -16627,6 +16642,22 @@ function archiveSavedVoyageBeforeStartingOver() {
   }
 }
 
+async function prepareSavedVoyageForMenu(menu) {
+  if (menu !== startMenu || localSaveResult.status !== "ready") {
+    throw new Error("Saved voyage preparation requires the current start menu and a readable save");
+  }
+  const payload = localSaveResult.save.payload;
+  if (menu.preparedVoyage?.payload === payload) return menu.preparedVoyage.restoration;
+  const restoration = await restoreSavedVoyage(payload);
+  if (menu !== startMenu || localSaveResult.save?.payload !== payload) {
+    throw new Error("Start menu or saved voyage changed during restoration");
+  }
+  // This result belongs to this menu instance. Returning from another game
+  // mode creates a new menu and must restore the voyage again.
+  menu.preparedVoyage = { payload, restoration };
+  return restoration;
+}
+
 async function continueSavedVoyage() {
   if (!startMenu || startMenu.isLoading || localSaveResult.status !== "ready") return;
   const menu = startMenu;
@@ -16635,7 +16666,7 @@ async function continueSavedVoyage() {
   menu.message = "";
   dirty = true;
   try {
-    const restoration = await restoreSavedVoyage(localSaveResult.save.payload);
+    const restoration = await prepareSavedVoyageForMenu(menu);
     hasStartedVoyage = true;
     gameTelemetry.recordVoyageStart(gameState);
     closeStartMenu();
