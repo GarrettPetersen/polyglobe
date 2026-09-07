@@ -1,3 +1,4 @@
+import { citySceneLandwardAxis } from "../city-visualizer/citySceneGeography.js";
 import { exeterCanalNavigation } from "../src/exeterCanalNavigation.js";
 import { MANUAL_CITY_RIVER_HEX_CHAINS_BY_SUBDIVISIONS } from "../src/manualRiverHexChains.js";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -11,10 +12,8 @@ import {
 import {
   buildGeodesicGraph,
   createDirectionIndex,
-  cross3,
   findNearestTileId,
-  graphCenter,
-  normalize3
+  graphCenter
 } from "../src/geodesic.js";
 import { applyManualTerrainOverrides } from "../src/manualTerrainOverrides.js";
 import {
@@ -200,12 +199,12 @@ function visualizerCityRecord({
   const approach = authoredRiverApproach
     ? approachKind(sailingAccess.tileId, sailingEarthRows, sailingNavigation)
     : approachKind(access.tileId, earthRows, navigation);
-  const shorelineAxis = shorelineTangent(graph, cityTileId, access.tileId);
+  const landwardAxis = citySceneLandwardAxis(graphCenter(graph, cityTileId), graphCenter(graph, access.tileId));
   const neighborhood = terrainNeighborhood({
     graph,
     earthRows,
     cityTileId,
-    shorelineAxis
+    landwardAxis
   });
   // Production peaks supply coverage between named landmarks. Their real
   // elevation still has to clear the same horizon test, so a low nearby hill
@@ -213,7 +212,7 @@ function visualizerCityRecord({
   const peakSides = visiblePeakTileSides({
     graph,
     cityTileId,
-    shorelineAxis,
+    landwardAxis,
     peakEntries: earthCache.peaks || []
   });
   const mountainVisibility = visibleMountainSides({
@@ -221,7 +220,7 @@ function visualizerCityRecord({
     mountains,
     graph,
     cityTileId,
-    shorelineAxis,
+    landwardAxis,
     nearbyPeakSides: peakSides
   });
   const dock = dockStyle(city, approach);
@@ -438,7 +437,7 @@ function approachKind(tileId, earthRows, navigation) {
   return "ocean";
 }
 
-function terrainNeighborhood({ graph, earthRows, cityTileId, shorelineAxis }) {
+function terrainNeighborhood({ graph, earthRows, cityTileId, landwardAxis }) {
   const scores = {
     left: newTerrainScore(),
     right: newTerrainScore(),
@@ -454,7 +453,7 @@ function terrainNeighborhood({ graph, earthRows, cityTileId, shorelineAxis }) {
     const row = earthRows[current.tileId];
     if (!isWaterSurfaceRow(row)) {
       const direction = graphCenter(graph, current.tileId);
-      const side = signedSide(cityDirection, direction, shorelineAxis) < 0 ? "left" : "right";
+      const side = signedSide(cityDirection, direction, landwardAxis) < 0 ? "left" : "right";
       const distanceWeight = 1 / (1 + current.ring * 0.7);
       scores[side][terrainFamily(row)] += distanceWeight;
       if (current.ring > 0 && terrainHasTreeCover(row)) treeCover[side] = true;
@@ -481,7 +480,7 @@ function terrainHasTreeCover(row) {
   return TREE_COVER_RENDER_FAMILIES.has(terrainRenderFamily(row?.t || "land"));
 }
 
-function visiblePeakTileSides({ graph, cityTileId, shorelineAxis, peakEntries }) {
+function visiblePeakTileSides({ graph, cityTileId, landwardAxis, peakEntries }) {
   const result = { left: false, right: false };
   const cityDirection = graphCenter(graph, cityTileId);
   for (const [tileId, elevationM] of peakEntries) {
@@ -494,13 +493,13 @@ function visiblePeakTileSides({ graph, cityTileId, shorelineAxis, peakEntries })
     );
     const distanceKm = Math.acos(dot) * EARTH_RADIUS_KM;
     if (distanceKm > mountainVisibilityRadiusKm(elevationM)) continue;
-    const side = signedSide(cityDirection, peakDirection, shorelineAxis) < 0 ? "left" : "right";
+    const side = signedSide(cityDirection, peakDirection, landwardAxis) < 0 ? "left" : "right";
     result[side] = true;
   }
   return result;
 }
 
-function visibleMountainSides({ city, mountains, graph, cityTileId, shorelineAxis, nearbyPeakSides }) {
+function visibleMountainSides({ city, mountains, graph, cityTileId, landwardAxis, nearbyPeakSides }) {
   const cityDirection = graphCenter(graph, cityTileId);
   const visible = [];
   for (const mountain of mountains) {
@@ -509,7 +508,7 @@ function visibleMountainSides({ city, mountains, graph, cityTileId, shorelineAxi
     const visibilityKm = mountainVisibilityRadiusKm(mountain.elevationM);
     if (distanceKm > visibilityKm) continue;
     const direction = latLonToDirection(mountain.lat, mountain.lon);
-    const side = signedSide(cityDirection, direction, shorelineAxis) < 0 ? "left" : "right";
+    const side = signedSide(cityDirection, direction, landwardAxis) < 0 ? "left" : "right";
     visible.push({
       name: mountain.nameAlt || mountain.name,
       elevationM: Math.round(mountain.elevationM),
@@ -540,18 +539,6 @@ function mountainVisibilityRadiusKm(elevationM) {
 
 function clamp3Dot(value) {
   return Math.max(-1, Math.min(1, value));
-}
-
-function shorelineTangent(graph, cityTileId, accessTileId) {
-  const city = graphCenter(graph, cityTileId);
-  const water = graphCenter(graph, accessTileId);
-  const dot = city[0] * water[0] + city[1] * water[1] + city[2] * water[2];
-  const approach = normalize3([
-    water[0] - city[0] * dot,
-    water[1] - city[1] * dot,
-    water[2] - city[2] * dot
-  ]);
-  return normalize3(cross3(city, approach));
 }
 
 function signedSide(origin, target, axis) {

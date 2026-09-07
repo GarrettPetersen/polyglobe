@@ -16,6 +16,7 @@
     "city-visualizer/cityPeople.js": "e9ba2c97a0ba3101ff64e3d9f735c1049cf198cf0f91a035114288e0dc2fafac",
     "city-visualizer/cityPeopleCatalog.js": "8aa9437ce70c17c48c202e5261f55cb725f127c60e085dad04d34bc5c2c85718",
     "city-visualizer/cityRegionalBuildings.js": "cf9f3a4d5e42a2f0749d1c0beec33b8f664ed6a73e1cd1e0a3f3deece6ef2788",
+    "city-visualizer/citySceneGeography.js": "d474632c5c94d7ebb6bcf50923f562bbb20a02b782d70c38e0c3f13f465f7367",
     "src/characterBiography.js": "37d8d28ea87db6751c3bf56c4e3f45563c3e045d268faf36da87e0693f909be3",
     "src/characterNames.js": "5e20b5b5e07a3564a7022dd25d4860f8c29c8ce9575d931741bbecad69e40035",
     "src/characterPortraits.js": "16b67eed22c188c272cab73f95caf69243af5968ccb53f7368f7c193122a0152",
@@ -107,7 +108,7 @@
     "src/worldNavigationTopology.js": "ac4c850620152a38bd49effdbe18e142c65279c4756d0636a8cdc9a739efde43",
     "src/worldPortPlacement.js": "093937219d6ea97f6d6fabdb8945aab849e5dc64922cef27b359359504ea5999",
     "src/worldScale.js": "b690dceab0dc8fb0105a5cf48b85e8b715f1717e5b2b9347e23431980e99bbfb",
-    "tools/build-city-visualizer-catalog.mjs": "2f2cac0f6f140f4161ec175f2fd84348c28e8f2384a25fa27216c1b878a8373b",
+    "tools/build-city-visualizer-catalog.mjs": "80424cb2e34359eeb03c1044d2955e2249b8d45402b2a6eafdd08ab80a5df181",
     "tools/build-land-roads.mjs": "78e6d4317213db674e1e60cf006df4528b3783c6345b65f5f420b20cb58a4f00",
     "tools/build-port-sailing-distances.mjs": "b3556002fb80bbd9f6676f8faf5da388e78f068f78a2d84739de085b3381fb22",
     "tools/build-subdivision-eight-map-data.mjs": "8a4276d0911cec811c2b72c120761aebd4e9573da413c33f6e250e7e312089c9",
@@ -117,6 +118,6 @@
   "artifacts": {
     "public/assets/data/port-sailing-distances.json": "e22ec4f575ed87637df7166f9d26f6b56270d469aa9d082ef2176376f20cba1a",
     "public/assets/data/land-roads.json": "c3acdf5f78138d39a0681f8693587ab9d371ad8ccb0db479d3db6839d25816ea",
-    "city-visualizer/data/cities.json": "6a6d5fca74fcf9b8ad93631fa992c6dc3c0725464481c4e2e1213f93ae375ac1"
+    "city-visualizer/data/cities.json": "8a8e524f765c6ce0af2089ba9a2ca609186df8a1bd6674432840a96e0fb52dfd"
   }
 }
