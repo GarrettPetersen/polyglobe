@@ -157,8 +157,9 @@ Browser journeys now enable diagnostic mode: chart reframes and excessive
 sailing-position corrections fail the run even when FPS remains high.
 
 This still does not reproduce an arbitrary player's history without their save.
-Worker campaigns hold diplomatic policy neutral and treat fishing-ground
-navigability as a setup seam; they do not replace browser combat, geographic
+Worker campaigns use live diplomacy and sovereign trade access, including
+changes after war, grants, and save restoration. Fishing-ground navigability
+remains a setup seam; they do not replace browser combat, geographic
 navigation tests, or hardware performance benchmarks. The process reports these
 lanes separately rather than adding worker ticks to player-action counts.
 
@@ -168,3 +169,18 @@ below 15 rendered FPS or above a 500 ms maximum frame gap. It checks rendered
 frames separately from update-loop FPS, retains the measured report, and catches
 runtime errors as failures. These are broad release regression limits, not
 hardware certification or evidence that every weather/port combination is fast.
+
+## Mandatory recent-crash regressions
+
+Every cycle runs `telemetry-regressions.mjs` before the persistent world campaign.
+It runs the shipyard identity/reconstruction and resale tests, the production
+worker interruption test at every incremental apply/save boundary, and naval
+routing regressions including the frozen detached Inca reserve save. A separate
+policy contract proves war and trade grants reach both live NPC routing and worker
+messages before and after reload. Required test files must exist; subprocess
+failures stop the soak. The report names the covered telemetry fingerprints.
+
+The reserve campaign then forces abolition and capital loss for four realms and
+worker updates in mature historical worlds, independent of random selection.
+This explicitly covers both crash fingerprints seen through 7 September 2026;
+it does not claim exhaustive coverage of every future political combination.

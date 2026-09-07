@@ -70,6 +70,12 @@ function main() {
         seed++;
         saveReport();
       }
+      console.log("Running recent telemetry regressions, including interrupted worker saves");
+      const regressionLog = execFileSync(process.execPath, ["tools/playtest/telemetry-regressions.mjs"],
+        { cwd: root, timeout: 10 * 60_000, maxBuffer: 16 * 1024 * 1024, encoding: "utf8" });
+      writeFileSync(resolve(output, "telemetry-regressions.log"), regressionLog);
+      report.telemetryRegressions = JSON.parse(regressionLog.trim().split("\n").at(-1));
+      saveReport();
       console.log("Running persistent worker/economy/fleet campaign");
       const workerLog = execFileSync(process.execPath,
         ["tools/playtest/worker-campaign.mjs", `--output=${resolve(output, "worker-campaign")}`],
@@ -130,6 +136,7 @@ try {
 } catch (error) {
   // Artifacts can contain a whole world save. Print the diagnostic, not the save.
   report.failure = error.message;
+  if (error.stdout || error.stderr) writeFileSync(resolve(output, "subprocess-failure.log"), `${error.stdout ?? ""}\n${error.stderr ?? ""}`);
   saveReport();
   console.error(error.stack);
   process.exitCode = 1;
