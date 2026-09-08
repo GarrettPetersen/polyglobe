@@ -5,7 +5,8 @@ import { PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS } from "../src/portAssaultBattle
 import { RESURRECT_64_HEX } from "../src/waterLatitudePalette.js";
 import {
   CITY_MATCHLOCK_SMOKE_MAX_PUFFS,
-  cityMatchlockSmokeParticles
+  cityMatchlockSmokeParticles,
+  drawCityMatchlockSmokeCluster
 } from "./cityMatchlockSmoke.js";
 
 const CALM = Object.freeze({ flowX: 1, flowY: 0, strength: 0 });
@@ -25,7 +26,7 @@ test("one matchlock discharge creates a bounded deterministic pixel plume", () =
     Number.isInteger(particle.x) &&
     Number.isInteger(particle.y) &&
     Number.isInteger(particle.size) &&
-    particle.size >= 1 && particle.size <= 3 &&
+    particle.size >= 1 && particle.size <= 4 &&
     Number.isInteger(particle.shape) &&
     particle.shape >= 0 && particle.shape <= 3 &&
     particle.alpha >= 0 && particle.alpha <= 0.88 &&
@@ -72,3 +73,24 @@ test("the initial powder jet follows the matchlock's firing direction", () => {
 function mean(particles, key) {
   return particles.reduce((sum, particle) => sum + particle[key], 0) / particles.length;
 }
+
+test("powder smoke is dense, pale, and lingers between volleys", () => {
+  const shot = { shotId: "volley", facingRight: true, wind: CALM };
+  const early = cityMatchlockSmokeParticles({ ...shot, ageMs: 700 });
+  const lingering = cityMatchlockSmokeParticles({ ...shot, ageMs: 2500 });
+  assert.ok(early.length >= 12);
+  assert.ok(early.some(puff => puff.color === "#ffffff"));
+  assert.ok(lingering.length > 0);
+  assert.ok(lingering.every(puff => ["#ffffff", "#c7dcd0"].includes(puff.color)));
+});
+
+test("the renderer expands mature smoke puffs instead of capping them at three pixels", () => {
+  const pixels = new Set();
+  const context = { fillRect(x, y, width, height) {
+    for (let dx = 0; dx < width; dx++) for (let dy = 0; dy < height; dy++) pixels.add(`${x + dx},${y + dy}`);
+  } };
+  drawCityMatchlockSmokeCluster(context, 10, 10, 4, 0);
+  assert.ok(pixels.size >= 12);
+  const xs = [...pixels].map(pixel => Number(pixel.split(",")[0]));
+  assert.equal(Math.max(...xs) - Math.min(...xs) + 1, 4);
+});

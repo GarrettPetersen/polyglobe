@@ -36,11 +36,11 @@ export class PortAssaultOccupancy {
     this.add(unit);
   }
 
-  nearby(unit, destination = unit, distance = 0) {
+  nearby(unit, destination = unit, distance = 0, paddingScale = 1) {
     const length = portAssaultGroundDistance(unit, destination);
     const endPosition = length === 0 ? unit.position : unit.position +
       (destination.position - unit.position) * Math.min(1, distance / length);
-    const padding = portAssaultBodyRadius(unit) + PORT_ASSAULT_MOUNTED_RADIUS;
+    const padding = (portAssaultBodyRadius(unit) + PORT_ASSAULT_MOUNTED_RADIUS) * paddingScale;
     const first = this.columnAt(Math.max(0, Math.min(unit.position, endPosition) - padding));
     const last = this.columnAt(Math.min(1, Math.max(unit.position, endPosition) + padding));
     const candidates = [];
@@ -84,9 +84,14 @@ export function portAssaultFormationSpacing(unit, occupants) {
     const distance = portAssaultGroundDistance(unit, other);
     const desired = (portAssaultBodyRadius(unit) + portAssaultBodyRadius(other)) * 3;
     if (distance >= desired) continue;
-    const weight = (desired - distance) / desired;
-    positionOffset += Math.sign(unit.position - other.position || (unit.id < other.id ? -1 : 1)) * weight * 0.004;
-    laneOffset += Math.sign(unit.lane - other.lane || (unit.id < other.id ? -1 : 1)) * weight * 0.12;
+    const dx = unit.position - other.position;
+    const dy = (unit.lane - other.lane) * PORT_ASSAULT_LANE_SPACING;
+    // Repulsion is a ground-space vector, not an offset to a distant target.
+    const strength = (desired - distance) / desired;
+    const directionX = distance > CONTACT_EPSILON ? dx / distance : (unit.id < other.id ? -1 : 1);
+    const directionY = distance > CONTACT_EPSILON ? dy / distance : 0;
+    positionOffset += directionX * strength;
+    laneOffset += directionY * strength / PORT_ASSAULT_LANE_SPACING;
   }
   return Object.freeze({ positionOffset, laneOffset });
 }

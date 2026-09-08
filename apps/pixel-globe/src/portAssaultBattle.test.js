@@ -596,3 +596,38 @@ test("combat contracts reject duplicate IDs and unknown unit types", () => {
   }), /maximum hit points/);
   assert.throws(() => portAssaultUnitStats(combatant("bad", "wizard")), /Unknown/);
 });
+
+test("rear ranks spread into the fight rather than waiting in a blocked queue", () => {
+  for (const seed of [1, 19, 42]) {
+    const battle = simulatePortAssault(createPortAssaultScenario({
+      ...scenario(),
+      attackers: Array.from({ length: 24 }, (_, i) => combatant(`a${i}`)),
+      defenders: Array.from({ length: 24 }, (_, i) => combatant(`d${i}`))
+    }), seed);
+    const engaged = new Set(battle.events.filter(event => event.type === "attack" &&
+      event.unitId.startsWith("a") && event.timeMs <= 30_000).map(event => event.unitId));
+    assert.ok(engaged.size >= 9, `Only ${engaged.size} of 24 attackers joined by 30 seconds (seed ${seed})`);
+  }
+});
+
+test("mixed formations skirmish, reload on the move, and enter melee sooner against cavalry", () => {
+  const makeBattle = enemyType => simulatePortAssault(createPortAssaultScenario({
+    ...scenario({ dockKind: "stone" }),
+    attackers: Array.from({ length: 12 }, (_, i) => combatant(`a${i}`, i < 6 ? "gunner" : "spearman")),
+    defenders: Array.from({ length: 12 }, (_, i) => combatant(`d${i}`,
+      enemyType || (i < 6 ? "gunner" : "spearman")))
+  }), 19);
+  const mixed = makeBattle(null);
+  const cavalry = makeBattle("horseman");
+  const firstAttack = (battle, type) => battle.events.find(event => event.type === "attack" && event.attackType === type);
+  assert.ok(firstAttack(mixed, "firearm").timeMs < firstAttack(mixed, "melee").timeMs);
+  assert.ok(firstAttack(cavalry, "melee").timeMs < firstAttack(mixed, "melee").timeMs,
+    "charging cavalry must shorten the skirmish through actual movement");
+  const gunShots = mixed.events.filter(event => event.type === "attack" && event.attackType === "firearm" && event.unitId.startsWith("a"));
+  assert.ok(gunShots.some(shot => {
+    const track = mixed.tracks[shot.unitId];
+    return track.some((frame, i) => i > 0 && frame.timeMs > shot.timeMs + 1100 &&
+      frame.timeMs < shot.timeMs + 4000 && frame.animationId === "walk" &&
+      frame.position < track[i - 1].position);
+  }), "a discharged arquebusier retreats while reloading");
+});

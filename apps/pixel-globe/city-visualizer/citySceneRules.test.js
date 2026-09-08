@@ -64,7 +64,7 @@ import {
   CITY_GATE_TRAVERSAL_PAINTER_Z,
   CITY_GATE_TRAVERSAL_PATHS,
   CITY_PORT_ASSAULT_LANE_FEET_Y,
-  CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
+  cityShipLandingForegroundPainterZ,
   cityGroundPainterZ,
   cityNpcPathPoint,
   cityNpcPaths,
@@ -945,12 +945,16 @@ test("port-assault lanes participate in city ground painter order", () => {
     assert.ok(painterZ < CITY_GATE_FRONT_PAINTER_Z, "the gate front occludes combatants");
     assert.ok(painterZ < cityGroundPainterZ(565), "foreground trees occlude combatants");
   }
-  assert.ok(
-    CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z >
-      cityPortAssaultLanePainterZ(CITY_PORT_ASSAULT_LANE_FEET_Y.length - 1),
-    "the near rail occludes sailors standing on the deck"
-  );
-  assert.ok(CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z < layerSceneZ("Inn"));
+  for (const dockKind of ["wood", "stone"]) {
+    assert.equal(cityShipLandingForegroundPainterZ(dockKind), null,
+      "docked landings must not repaint the hull over the quay");
+  }
+  for (const layer of ["Dock Background", "Dock", "Stone Dock", "Dock Foreground"]) {
+    assert.ok(PORT_SCENE_ENTITY_META.ship.z < layerSceneZ(layer));
+  }
+  assert.ok(cityShipLandingForegroundPainterZ("none") > cityPortAssaultLanePainterZ(3),
+    "beach landings retain the near rail in front of jumping soldiers");
+  assert.throws(() => cityShipLandingForegroundPainterZ("invalid"), /Invalid landing dock/);
   assert.throws(() => cityPortAssaultLanePainterZ(-1), /port-assault lane/);
   assert.throws(() => cityPortAssaultLanePainterZ(4), /port-assault lane/);
   assert.equal(cityPortAssaultLaneFeetY(1.5), 528);

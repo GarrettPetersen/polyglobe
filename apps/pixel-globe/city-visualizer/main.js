@@ -99,7 +99,7 @@ import {
   CITY_NPC_PATHS,
   CITY_PORT_ASSAULT_LANE_FEET_Y,
   cityPortAssaultLaneFeetY,
-  CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
+  cityShipLandingForegroundPainterZ,
   cityPortAssaultLanePainterZ,
   cityGroundPainterZ,
   cityNpcPathPoint,
@@ -117,7 +117,7 @@ import {
   CITY_ASSAULT_TRACK_SPAN_PX,
   cityAssaultMeleeLungeOffset
 } from "./cityAssaultMotion.js";
-import { cityMatchlockSmokeParticles } from "./cityMatchlockSmoke.js";
+import { cityMatchlockSmokeParticles, drawCityMatchlockSmokeCluster } from "./cityMatchlockSmoke.js";
 import {
   CITY_COLONIST_LANE_FEET_Y,
   createCityColonistRoster,
@@ -1813,6 +1813,12 @@ function createSceneRenderEntries() {
     entries.push({ kind: "colony-clue", z: CROATOAN_CLUE.z, authoredOrder: 37.5 });
   }
   entries.push({ kind: "ship", ...PORT_SCENE_ENTITY_META.ship, authoredOrder: 34.5 });
+  if (state.colonistLanding || state.assaultPresentation) {
+    const shipForegroundZ = cityShipLandingForegroundPainterZ(state.features.dock);
+    if (shipForegroundZ !== null) {
+      entries.push({ kind: "ship-foreground", z: shipForegroundZ, authoredOrder: 38.95 });
+    }
+  }
   if (state.colonistLanding) {
     for (const [lane, feetY] of CITY_COLONIST_LANE_FEET_Y.entries()) {
       entries.push({
@@ -1820,8 +1826,6 @@ function createSceneRenderEntries() {
         z: cityGroundPainterZ(feetY), authoredOrder: 38.9 + lane / 100
       });
     }
-    entries.push({ kind: "ship-foreground", z: CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
-      authoredOrder: 38.95 });
   }
   if (state.assaultPresentation) {
     for (const lane of CITY_PORT_ASSAULT_LANE_FEET_Y.keys()) {
@@ -1832,11 +1836,6 @@ function createSceneRenderEntries() {
         authoredOrder: 38.9 + lane / 100
       });
     }
-    entries.push({
-      kind: "ship-foreground",
-      z: CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z,
-      authoredOrder: 38.95
-    });
   } else if (state.feast) {
     entries.push({ kind: "feast-shadow", z: CITY_FEAST_SHADOW_Z, authoredOrder: 37 });
     entries.push({ kind: "feast-table", z: CITY_FEAST_TABLE_Z, authoredOrder: 38 });
@@ -4037,7 +4036,8 @@ function drawMatchlockSmoke(event, x, feetY, timeMs) {
   for (const particle of particles) {
     context.globalAlpha = particle.alpha;
     context.fillStyle = particle.color;
-    drawMatchlockSmokeCluster(
+    drawCityMatchlockSmokeCluster(
+      context,
       muzzleX + particle.x,
       muzzleY + particle.y,
       particle.size,
@@ -4045,23 +4045,6 @@ function drawMatchlockSmoke(event, x, feetY, timeMs) {
     );
   }
   context.restore();
-}
-
-function drawMatchlockSmokeCluster(x, y, size, shape) {
-  const left = Math.round(x - (size - 1) / 2);
-  const top = Math.round(y - (size - 1) / 2);
-  if (size === 1) {
-    context.fillRect(left, top, 1, 1);
-    return;
-  }
-  if (size === 2) {
-    context.fillRect(left, top, 2, 1);
-    context.fillRect(left + (shape % 2), top + 1, 1, 1);
-    return;
-  }
-  context.fillRect(left, top + 1, 3, 1);
-  context.fillRect(left + 1, top, 1, 3);
-  context.fillRect(left + (shape % 2 === 0 ? 0 : 2), top + (shape < 2 ? 0 : 2), 1, 1);
 }
 
 function drawPersonSprite(targetContext, {

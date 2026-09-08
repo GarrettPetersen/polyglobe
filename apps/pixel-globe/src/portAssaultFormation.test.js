@@ -102,3 +102,15 @@ test("the nearby-unit index preserves full-roster collisions through movement, k
   assert.throws(() => occupancy.remove(removed), /Missing/);
   assert.throws(() => occupancy.add(soldier("bad", NaN)), /Invalid/);
 });
+
+test("soft spacing uses radial forces and sees neighbors across index boundaries", () => {
+  const unit = { ...soldier("a", 0.11, 1), side: "attacker" };
+  const neighbor = { ...soldier("b", 0.145, 1), side: "attacker" };
+  const occupancy = new PortAssaultOccupancy();
+  occupancy.add(unit);
+  occupancy.add(neighbor);
+  const force = portAssaultFormationSpacing(unit, occupancy.nearby(unit, unit, 0, 3));
+  assert.deepEqual(force, portAssaultFormationSpacing(unit, [unit, neighbor]));
+  assert.ok(force.positionOffset < 0);
+  assert.equal(force.laneOffset, 0, "a horizontal neighbor must not invent a lateral force");
+});

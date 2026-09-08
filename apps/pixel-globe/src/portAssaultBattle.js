@@ -1,3 +1,4 @@
+import { portAssaultTacticalDecision, portAssaultShotIsClear } from "./portAssaultTactics.js";
 import {
   PORT_ASSAULT_LANE_COUNT,
   PORT_ASSAULT_LANE_SPACING,
@@ -51,7 +52,7 @@ export const PORT_ASSAULT_PROFILE_ID = Object.freeze({
 
 export const PORT_ASSAULT_STEP_MS = 200;
 export const PORT_ASSAULT_MAX_DURATION_MS = 120_000;
-export const PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS = 1_800;
+export const PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS = 4_000;
 export const PORT_ASSAULT_FORECAST_SAMPLES = 32;
 export const PORT_ASSAULT_MIN_GARRISON = 5;
 export const PORT_ASSAULT_MAX_GARRISON = 35;
@@ -467,6 +468,8 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
     random
   );
   const units = [...attackers, ...defenders];
+  const attackerSkirmishers = attackers.filter(unit => unit.stats.attackType !== "melee");
+  const defenderSkirmishers = defenders.filter(unit => unit.stats.attackType !== "melee");
   const occupancy = new PortAssaultOccupancy();
   const initiativeOrder = [...units].sort((left, right) => (
     left.initiative - right.initiative || left.id.localeCompare(right.id)
@@ -515,12 +518,16 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       if (!unit.landed) continue;
       if (unit.actionUntilMs > timeMs) continue;
       const opponents = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? defenders : attackers;
-      const target = nearestLivingOpponent(unit, opponents, timeMs);
+      const allies = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackers : defenders;
+      const tactic = portAssaultTacticalDecision(unit, allies, opponents, timeMs,
+        unit.side === PORT_ASSAULT_SIDE.ATTACKER ? attackerSkirmishers : defenderSkirmishers);
+      const target = tactic?.target || null;
       const targetDistance = target ? portAssaultGroundDistance(unit, target) : null;
       const attackProfile = target
         ? portAssaultAttackProfileAtDistance(unit.stats, targetDistance)
         : null;
-      if (target && targetDistance <= attackProfile.range) {
+      if (target && targetDistance <= attackProfile.range &&
+          (attackProfile.attackType === "melee" || portAssaultShotIsClear(unit, target, allies))) {
         unit.facingRight = target.position === unit.position
           ? unit.facingRight : target.position > unit.position;
         unit.laneGoal = null;
@@ -531,7 +538,7 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
         continue;
       }
       const goal = unit.side === PORT_ASSAULT_SIDE.ATTACKER ? 1 : 0;
-      if (!target && Math.abs(goal - unit.position) <= 0.015) {
+      if (!tactic && Math.abs(goal - unit.position) <= 0.015) {
         if (unit.side === PORT_ASSAULT_SIDE.ATTACKER) {
           winner = PORT_ASSAULT_SIDE.ATTACKER;
           pushEvent(events, { timeMs, type: "breach", unitId: unit.id });
@@ -560,10 +567,10 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const movement = unit.stats.movementPerSecond * (PORT_ASSAULT_STEP_MS / 1000);
       const previousPosition = unit.position;
       const previousLane = unit.lane;
-      const destination = target || { position: goal, lane: unit.lane };
+      const destination = tactic?.destination || target || { position: goal, lane: unit.lane };
       // Stop at weapon reach instead of walking through the enemy. Lateral
       // movement consumes the same speed budget as advancing along the road.
-      const next = moveInFormation(unit, destination, movement, occupancy, target ? unit.stats.range : 0, timeMs);
+      const next = moveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs);
       unit.position = next.position;
       unit.lane = next.lane;
       occupancy.update(unit);
@@ -815,6 +822,7 @@ function createBattleUnits(combatants, side, modifiers, random) {
       alive: true,
       spawnAtMs,
       nextPrimaryAttackAtMs: spawnAtMs + Math.floor(random() * stats.cooldownMs),
+      lastRangedAttackPosition: null,
       nextMeleeAttackAtMs: stats.meleeFallback
         ? spawnAtMs + Math.floor(random() * stats.meleeFallback.cooldownMs)
         : null,
@@ -843,6 +851,11 @@ function attackUnit(attacker, target, attackProfile, timeMs, random, events, occ
       portAssaultGroundDistance(attacker, target) > attackProfile.range) {
     throw new Error(`Port assault target is outside attack reach: ${attacker.id}/${target.id}`);
   }
+  if (attackProfile.attackType !== "melee" && !portAssaultShotIsClear(attacker, target,
+    occupancy.nearby(attacker, target, attackProfile.range))) {
+    throw new Error(`Port assault shot blocked by a friendly soldier: ${attacker.id}/${target.id}`);
+  }
+  if (attackProfile.attackType !== "melee") attacker.lastRangedAttackPosition = attacker.position;
   const chargeMomentum = attacker.momentum;
   const chargeDamageMultiplier = 1 +
     (attacker.stats.chargeDamageMultiplier - 1) * chargeMomentum;
@@ -934,52 +947,34 @@ function moveInFormation(unit, destination, movement, occupancy, range, timeMs) 
   const standOff = Math.sqrt(Math.max(0, (range * 0.95) ** 2 -
     ((destination.lane - lane) * PORT_ASSAULT_LANE_SPACING) ** 2));
   const goal = { position: clamp(destination.position - direction * standOff, 0, 1), lane };
-  const spacing = portAssaultFormationSpacing(unit, occupancy.nearby(unit));
-  goal.position = clamp(goal.position + spacing.positionOffset, 0, 1);
-  goal.lane = Math.max(0, Math.min(PORT_ASSAULT_LANE_COUNT - 1, goal.lane + spacing.laneOffset));
+  const goalDistance = portAssaultGroundDistance(unit, goal);
+  const attractionScale = goalDistance > 0 ? Math.min(1, movement / goalDistance) : 0;
+  const spacing = portAssaultFormationSpacing(unit, occupancy.nearby(unit, unit, 0, 3));
+  goal.position = clamp(unit.position + (goal.position - unit.position) * attractionScale +
+    spacing.positionOffset * movement, 0, 1);
+  goal.lane = clamp(unit.lane + (goal.lane - unit.lane) * attractionScale +
+    spacing.laneOffset * movement, 0, PORT_ASSAULT_LANE_COUNT - 1);
   let next = portAssaultFormationStep(unit, goal, movement, occupancy.nearby(unit, goal, movement));
   if (portAssaultGroundDistance(unit, next) > movement * 0.1) return next;
 
-  // A blocked rank may take an open adjacent lane, but only if that lane also
-  // lets it advance. Commit to the crossing so target changes don't cause a
-  // left/right shuffle. Troops otherwise wait for the soldier ahead to move.
+  // Probe a single physical step around the obstruction. Requiring the whole
+  // adjacent lane to be empty stranded rear ranks even when they could sidestep.
   if (timeMs < unit.nextLaneChangeAtMs) return next;
   unit.nextLaneChangeAtMs = timeMs + FORMATION_LANE_RECONSIDER_MS;
   unit.laneGoal = null;
   const alternatives = [Math.round(unit.lane) - 1, Math.round(unit.lane) + 1]
-    .filter((candidate) => candidate >= 0 && candidate < PORT_ASSAULT_LANE_COUNT)
+    .filter(candidate => candidate >= 0 && candidate < PORT_ASSAULT_LANE_COUNT)
     .sort((left, right) => Math.abs(left - destination.lane) - Math.abs(right - destination.lane) || left - right);
   for (const candidate of alternatives) {
     const sideGoal = { position: unit.position, lane: candidate };
-    const sideStep = portAssaultFormationStep(unit, sideGoal, PORT_ASSAULT_LANE_SPACING * 2,
-      occupancy.nearby(unit));
-    if (Math.abs(sideStep.lane - candidate) > 1e-9) continue;
-    const advanceGoal = {
-      position: goal.position, lane: candidate
-    };
-    const probe = { ...unit, ...sideStep };
-    const advanced = portAssaultFormationStep(probe, advanceGoal, movement,
-      occupancy.nearby(probe, advanceGoal, movement));
-    if (Math.abs(advanced.position - unit.position) < movement * 0.5) continue;
+    const sideStep = portAssaultFormationStep(unit, sideGoal, movement,
+      occupancy.nearby(unit, sideGoal, movement));
+    if (portAssaultGroundDistance(unit, sideStep) < movement * 0.5) continue;
     unit.laneGoal = candidate;
-    next = portAssaultFormationStep(unit, sideGoal, movement, occupancy.nearby(unit));
+    next = sideStep;
     break;
   }
   return next;
-}
-
-function nearestLivingOpponent(unit, opponents, timeMs) {
-  let selected = null;
-  let bestDistance = Number.POSITIVE_INFINITY;
-  for (const candidate of opponents) {
-    if (!candidate.alive || !candidate.spawned || !candidate.landed || timeMs < candidate.spawnAtMs) continue;
-    const distance = portAssaultGroundDistance(unit, candidate);
-    if (distance < bestDistance || (distance === bestDistance && candidate.id < selected.id)) {
-      selected = candidate;
-      bestDistance = distance;
-    }
-  }
-  return selected;
 }
 
 function recordTracks(tracks, units, timeMs, dockKind) {

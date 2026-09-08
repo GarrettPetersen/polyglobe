@@ -1,12 +1,12 @@
 import { PORT_ASSAULT_FIREARM_SMOKE_DURATION_MS } from "../src/portAssaultBattle.js";
 
-export const CITY_MATCHLOCK_SMOKE_MAX_PUFFS = 7;
+export const CITY_MATCHLOCK_SMOKE_MAX_PUFFS = 14;
 
 const EMPTY_PARTICLES = Object.freeze([]);
 const SMOKE_COLORS = Object.freeze([
+  "#ffffff",
   "#c7dcd0",
-  "#9babb2",
-  "#7f708a"
+  "#c7dcd0"
 ]);
 
 export function cityMatchlockSmokeParticles({
@@ -49,10 +49,10 @@ export function cityMatchlockSmokeParticles({
     if (life >= 1) continue;
 
     const windDistance = life * (5 + wind.strength * 9);
-    const initialJet = (1 - Math.min(1, life * 1.8)) * (1 + random(seed, 1) * 3);
+    const initialJet = (1 - Math.min(1, life * 1.8)) * (2 + random(seed, 1) * 6);
     const wobble = Math.sin(life * Math.PI * 3 + random(seed, 2) * Math.PI * 2) *
       (0.5 + life * 1.5);
-    const size = life < 0.18 ? 1 : life < 0.58 ? 2 : 3;
+    const size = life < 0.12 ? 2 : life < 0.58 ? 3 : 4;
     const fade = life <= 0.58 ? 1 : 1 - (life - 0.58) / 0.42;
     particles.push(Object.freeze({
       x: Math.round(
@@ -99,4 +99,23 @@ function random(seed, channel) {
 
 function signedRandom(seed, channel) {
   return random(seed, channel) * 2 - 1;
+}
+
+export function drawCityMatchlockSmokeCluster(context, x, y, size, shape) {
+  if (!Number.isInteger(size) || size < 1 || size > 4) {
+    throw new Error(`Invalid matchlock smoke size: ${size}`);
+  }
+  const left = Math.round(x - (size - 1) / 2);
+  const top = Math.round(y - (size - 1) / 2);
+  if (size === 1) {
+    context.fillRect(left, top, 1, 1);
+  } else if (size === 2) {
+    context.fillRect(left, top, 2, 1);
+    context.fillRect(left + shape % 2, top + 1, 1, 1);
+  } else {
+    context.fillRect(left, top + 1, size, size - 2);
+    context.fillRect(left + 1, top, size - 2, size);
+    context.fillRect(left + (shape % 2 === 0 ? 0 : size - 1),
+      top + (shape < 2 ? 0 : size - 1), 1, 1);
+  }
 }

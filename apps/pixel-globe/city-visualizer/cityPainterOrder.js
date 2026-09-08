@@ -72,9 +72,13 @@ export function cityPortAssaultLaneFeetY(lane) {
     (CITY_PORT_ASSAULT_LANE_FEET_Y[1] - CITY_PORT_ASSAULT_LANE_FEET_Y[0]);
 }
 
-export const CITY_PORT_ASSAULT_SHIP_FOREGROUND_PAINTER_Z = cityGroundPainterZ(
-  CITY_PORT_ASSAULT_LANE_FEET_Y.at(-1) + 1
-);
+export function cityShipLandingForegroundPainterZ(dockKind) {
+  // The quay already occludes the hull. Repainting the rail after land troops
+  // would also paint it over the quay. Beach landings still need the near rail.
+  if (dockKind === "wood" || dockKind === "stone") return null;
+  if (dockKind !== "none") throw new Error(`Invalid landing dock kind: ${dockKind}`);
+  return cityGroundPainterZ(CITY_PORT_ASSAULT_LANE_FEET_Y.at(-1) + 1);
+}
 
 export function cityNpcPathPoint(path, progress) {
   if (!path || ![path.startX, path.endX, path.feetY, path.endFeetY].every(Number.isFinite)) {
