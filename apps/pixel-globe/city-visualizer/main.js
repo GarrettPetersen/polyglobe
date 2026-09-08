@@ -1,3 +1,4 @@
+import { CityAssaultHitFlashes, cityAssaultDepthBand, cityAssaultDepthOrder } from "./cityAssaultFeedback.js";
 import { CROATOAN_CLUE, cityRuinsDamage, croatoanClueScreenRect, croatoanClueContainsPoint } from "./cityColonyRuins.js";
 import { GAME_ICON_ASSET_VERSION, gameIconAtlasRect, gameIconAtlasDimensions } from "../src/gameIcons.js";
 import { requirePixelPerfectSpriteScale } from "../src/pixelPerfectSpriteScale.js";
@@ -295,6 +296,7 @@ const overlayPixelText = emissiveContext
 const prefersReducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
 const imageCache = new Map();
 const frameCanvasCache = new WeakMap();
+const assaultHitFlashes = new CityAssaultHitFlashes();
 const backgroundCityAtmosphereCanvasCache = new WeakMap();
 const regionalStaticFrameCanvasCache = new Map();
 const alphaCache = new WeakMap();
@@ -634,6 +636,7 @@ async function selectCity(cityId, {
   state.illicitCaughtStartedAtMs = illicitCaughtStartedAtMs;
   state.bombardmentEventId = bombardmentEventId;
   state.assaultPresentation = null;
+  assaultHitFlashes.reset();
   state.colonistLanding = null;
   state.feast = null;
   bombardmentFrameCache.clear();
@@ -3292,13 +3295,15 @@ function drawFrameOutline(atlas, frame, window, targetContext) {
   }
 }
 
-function tintedFrameCanvas(atlas, frame) {
+function tintedFrameCanvas(atlas, frame, color = "#ffe55c") {
   let atlasCache = frameCanvasCache.get(atlas);
   if (!atlasCache) {
     atlasCache = new WeakMap();
     frameCanvasCache.set(atlas, atlasCache);
   }
-  if (atlasCache.has(frame)) return atlasCache.get(frame);
+  let colors = atlasCache.get(frame);
+  if (!colors) { colors = new Map(); atlasCache.set(frame, colors); }
+  if (colors.has(color)) return colors.get(color);
   const mask = document.createElement("canvas");
   mask.width = frame.frame.w;
   mask.height = frame.frame.h;
@@ -3316,9 +3321,9 @@ function tintedFrameCanvas(atlas, frame) {
     frame.frame.h
   );
   maskContext.globalCompositeOperation = "source-in";
-  maskContext.fillStyle = "#ffe55c";
+  maskContext.fillStyle = color;
   maskContext.fillRect(0, 0, mask.width, mask.height);
-  atlasCache.set(frame, mask);
+  colors.set(color, mask);
   return mask;
 }
 
@@ -3793,10 +3798,8 @@ function drawPortAssaultPresentation(lane) {
     baselineEntryX,
     deckStartX: shipboardStart.x
   });
-  // Each lane is its own dynamic scene entry, so buildings, trees, cargo, and
-  // gate pieces can naturally paint in front of combatants by ground depth.
+  const placements = [];
   for (const unit of presentation.units) {
-    if (Math.round(unit.lane) !== lane) continue;
     const feetY = cityPortAssaultLaneFeetY(unit.lane);
     const baselineX = CITY_PORT_ASSAULT_TRACK_START_X +
       unit.position * CITY_ASSAULT_TRACK_SPAN_PX - window.x;
@@ -3814,7 +3817,12 @@ function drawPortAssaultPresentation(lane) {
       battleTimeMs,
       shipboardStart
     );
-    drawGroundPersonSprite(unit, point.x, point.y, battleTimeMs);
+    const groundY = unit.animationId === "jump" ? feetY : point.y + window.y;
+    if (cityAssaultDepthBand(groundY) === lane) placements.push({ unit, point, groundY });
+  }
+  for (const { unit, point } of placements.sort(cityAssaultDepthOrder)) {
+    const hitFlash = assaultHitFlashes.consume(unit.id, presentation.events, battleTimeMs);
+    drawGroundPersonSprite(unit, point.x, point.y, battleTimeMs, hitFlash);
     if (unit.inWater) drawWadingWater(unit, point.x, point.y, battleTimeMs);
   }
   for (const event of presentation.events) {
@@ -3917,7 +3925,7 @@ function colonistLandingGeometry(unit, window, shipboard) {
   };
 }
 
-function drawGroundPersonSprite(unit, screenX, screenFeetY, timeMs) {
+function drawGroundPersonSprite(unit, screenX, screenFeetY, timeMs, hitFlash = false) {
   const appearance = state.peopleById.get(unit.appearanceId);
   if (!appearance) throw new Error(`Unknown city ground appearance: ${unit.appearanceId}`);
   const animation = appearance.animations[unit.animationId];
@@ -3947,33 +3955,9 @@ function drawGroundPersonSprite(unit, screenX, screenFeetY, timeMs) {
     context.rect(0, 0, canvas.width, Math.max(0, Math.round(screenFeetY) - 1));
     context.clip();
   }
-  if (facingRight) {
-    context.drawImage(
-      state.peopleAtlas,
-      frame.frame.x,
-      frame.frame.y,
-      frame.frame.w,
-      frame.frame.h,
-      dx,
-      dy,
-      frame.frame.w,
-      frame.frame.h
-    );
-  } else {
-    context.translate(dx + frame.frame.w, 0);
-    context.scale(-1, 1);
-    context.drawImage(
-      state.peopleAtlas,
-      frame.frame.x,
-      frame.frame.y,
-      frame.frame.w,
-      frame.frame.h,
-      0,
-      dy,
-      frame.frame.w,
-      frame.frame.h
-    );
-  }
+  const image = hitFlash ? tintedFrameCanvas(state.peopleAtlas, frame, "#ffffff") : state.peopleAtlas;
+  const source = hitFlash ? { x: 0, y: 0, w: frame.frame.w, h: frame.frame.h } : frame.frame;
+  drawNpcFrame(image, source, dx, dy, facingRight, context);
   context.restore();
 }
 
@@ -5072,6 +5056,7 @@ return Object.freeze({
     if (state.hoverPanDestinationId !== null) state.cameraPanTarget = null;
     state.pinnedDestinationLabel = null;
     state.hoverPanDestinationId = null;
+    if (!presentation || enteringAssault) assaultHitFlashes.reset();
     state.assaultPresentation = presentation;
     if (assaultWasActive !== (presentation !== null)) rebuildCitySceneRenderPlan();
     invalidateDestinationLabelLayouts();

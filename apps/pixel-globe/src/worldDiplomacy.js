@@ -470,7 +470,7 @@ export function makeDiplomaticPeace(state, factionAId, factionBId, simMinute, in
   return events;
 }
 
-export function makeFactionPeaceWithAllEnemies(state, factionId, simMinute, influence = {}) {
+export function makeFactionPeaceWithAllEnemies(state, factionId, simMinute, influence, { inactiveFactionIds }) {
   validateWorldDiplomacy(state);
   assertFactionId(factionId);
   assertMinute(simMinute, "general peace treaty minute");
@@ -478,9 +478,14 @@ export function makeFactionPeaceWithAllEnemies(state, factionId, simMinute, infl
     throw new Error(`General peace requires a sovereign faction: ${factionId}`);
   }
 
+  if (!Array.isArray(inactiveFactionIds)) throw new Error("General peace requires inactive faction ids");
+  for (const id of inactiveFactionIds) assertFactionId(id);
+  const inactive = new Set(inactiveFactionIds);
   const events = [];
   for (const faction of SOVEREIGN_FACTIONS) {
-    if (faction.id === factionId) continue;
+    // The defeated party may itself have just been annexed, but extinct
+    // counterparties cannot sign a new treaty. Their old wars remain history.
+    if (faction.id === factionId || inactive.has(faction.id)) continue;
     if (worldDiplomacyBetween(state, factionId, faction.id) !== DIPLOMACY_WAR) continue;
     events.push(...makeDiplomaticPeace(state, factionId, faction.id, simMinute, influence));
   }

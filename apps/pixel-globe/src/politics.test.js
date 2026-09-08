@@ -620,3 +620,18 @@ test("same-day Papal membership reversals produce no net-change headline", async
     previousFollowerFactionIds: first.followerFactionIds, followerFactionIds: first.previousFollowerFactionIds };
   assert.deepEqual(dailyEmbargoNews([last, first]), []);
 });
+
+test("overview puts alphabetical collections after home and before individual powers", () => {
+  for (const nationalityId of ["england", "ainu", "hosokawa", "augsburg"]) {
+    const view = createPoliticsView(createGameState({
+      cargoCapacity: 20, playerCharacter: { ...PLAYER, nationalityId }
+    }));
+    const homeGroup = politicsGroupForFaction(view, nationalityId);
+    const expectedGroups = [POLITICS_GROUP_HOLY_ROMAN_EMPIRE_ID, POLITICS_GROUP_JAPAN_ID]
+      .filter(id => id !== homeGroup?.id);
+    assert.equal(view.overviewCards[0].id || view.overviewCards[0].faction.id, homeGroup?.id || nationalityId);
+    assert.deepEqual(view.overviewCards.slice(1, 1 + expectedGroups.length).map(card => card.id), expectedGroups);
+    assert.ok(view.overviewCards.slice(1 + expectedGroups.length).every(card => card.kind !== "political-group"));
+    assert.equal(new Set(view.overviewCards.map(card => card.id || card.faction.id)).size, view.overviewCards.length);
+  }
+});

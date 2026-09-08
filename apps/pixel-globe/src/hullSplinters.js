@@ -2,7 +2,24 @@ import { NAVAL_WEAPON_ARROW, NAVAL_WEAPON_CANNON } from "./navalWeapons.js";
 
 export const HULL_SPLINTER_TTL_SECONDS = 0.92;
 
-export function createHullSplinterBurst(projectile, point) {
+export function spriteSplinterColors(rgba) {
+  if (!(rgba instanceof Uint8Array || rgba instanceof Uint8ClampedArray) || rgba.length % 4 !== 0) {
+    throw new Error("Splinter sprite requires complete RGBA pixels");
+  }
+  const colors = new Map();
+  for (let i = 0; i < rgba.length; i += 4) {
+    // Omit translucent shadows and antialiasing, keeping actual surface colors.
+    if (rgba[i + 3] !== 255) continue;
+    const color = `${rgba[i]}, ${rgba[i + 1]}, ${rgba[i + 2]}`;
+    colors.set(color, (colors.get(color) || 0) + 1);
+  }
+  if (colors.size === 0) throw new Error("Splinter sprite has no opaque surface pixels");
+  // A small palette keeps the dominant wall, roof, hull and sail pigments visible.
+  return Object.freeze([...colors].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 8).map(([color]) => color));
+}
+
+export function createHullSplinterBurst(projectile, point, sprite = null) {
   validateProjectile(projectile);
   if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) {
     throw new Error(`Invalid hull splinter impact point: ${point?.x}, ${point?.y}`);
@@ -12,6 +29,7 @@ export function createHullSplinterBurst(projectile, point) {
   const length = Math.hypot(dx, dy);
   if (length <= 1e-6) throw new Error("Hull splinter projectile has no direction");
   return {
+    sprite,
     x: point.x,
     y: point.y,
     incomingX: dx / length,
@@ -39,18 +57,17 @@ export function advanceHullSplinterBursts(bursts, dt) {
   return active;
 }
 
-export function hullSplinterPixels(burst) {
+export function hullSplinterPixels(burst, paletteSize = 3) {
   validateBurst(burst);
+  if (!Number.isInteger(paletteSize) || paletteSize < 1) throw new Error(`Invalid splinter palette size: ${paletteSize}`);
   const cannon = burst.kind === NAVAL_WEAPON_CANNON;
   if (burst.age >= burst.ttl) return [];
-  const count = cannon
-    ? Math.min(24, 14 + Math.ceil(burst.damage * 2))
-    : burst.incendiary ? 5 : 3;
+  const count = cannon || burst.incendiary ? 3 : 2;
   const pixels = [];
   for (let index = 0; index < count; index++) {
     const random = splinterRandom(burst.seed, index);
     const speed = (cannon ? 22 : 5) + random[0] * (cannon ? 34 : 7);
-    // Most wood follows the shot; a few fragments kick back from the struck face.
+    // Most debris follows the shot; a few fragments kick back from the struck face.
     const spread = (random[1] * 2 - 1) * (cannon ? 1.4 : 0.72) +
       (cannon && index % 4 === 0 ? Math.PI : 0);
     const cos = Math.cos(spread);
@@ -66,7 +83,7 @@ export function hullSplinterPixels(burst) {
     const y = burst.y + directionY * speed * travel - z;
     const alpha = cannon ? Math.min(1, (burst.ttl - burst.age) / 0.32)
       : Math.pow(1 - burst.age / burst.ttl, 0.8);
-    const shade = Math.min(2, Math.floor(random[3] * 3));
+    const shade = Math.min(paletteSize - 1, Math.floor(random[3] * paletteSize));
     const length = cannon ? 2 + Math.floor(random[3] * 3) : 1;
     const angle = random[1] * Math.PI * 2 + (random[2] - .5) * 18 * burst.age;
     let previousX = null;

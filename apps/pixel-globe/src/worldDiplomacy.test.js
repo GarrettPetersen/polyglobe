@@ -18,6 +18,7 @@ import {
   adjustDiplomaticStance,
   createWorldDiplomacy,
   declareDiplomaticWar,
+  succeedDiplomaticFaction,
   diplomaticContactBetween,
   diplomacyPairKey,
   diplomacyEventNotice,
@@ -280,7 +281,7 @@ test("a defeated capital settlement ends every war involving that power", () => 
 
   const events = makeFactionPeaceWithAllEnemies(state, "france", 200 * DAY, {
     eventReason: "capital-peace-treaty"
-  });
+  }, { inactiveFactionIds: [] });
 
   assert.ok(events.length >= 2);
   assert.equal(worldDiplomacyBetween(state, "france", "england"), DIPLOMACY_HOSTILE);
@@ -391,4 +392,41 @@ test("diplomacy history remains bounded in saved state", () => {
 
   assert.equal(recentDiplomacyEvents(state, 100).length, DIPLOMACY_HISTORY_LIMIT);
   assert.doesNotThrow(() => validateWorldDiplomacy(JSON.parse(JSON.stringify(state))));
+});
+
+test("general peace excludes a succeeded or collapsed power while retaining its living successor", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "bengal-delhi-succession" });
+  declareDiplomaticWar(state, "bengal", "delhi", 200 * DAY);
+  succeedDiplomaticFaction(state, {
+    predecessorFactionId: "delhi", successorFactionId: "mughal", simMinute: 201 * DAY,
+    headline: "Mughal rule replaces Delhi."
+  });
+  assert.equal(worldDiplomacyBetween(state, "bengal", "delhi"), DIPLOMACY_WAR);
+  assert.equal(worldDiplomacyBetween(state, "bengal", "mughal"), DIPLOMACY_WAR);
+  const events = makeFactionPeaceWithAllEnemies(state, "bengal", 300 * DAY, {}, {
+    inactiveFactionIds: ["delhi"]
+  });
+  assert.ok(events.some(event => [event.factionAId, event.factionBId].includes("mughal")));
+  assert.ok(events.every(event => ![event.factionAId, event.factionBId].includes("delhi")));
+  assert.equal(worldDiplomacyBetween(state, "bengal", "mughal"), DIPLOMACY_HOSTILE);
+  validateWorldDiplomacy(state);
+});
+
+test("general peace still includes Delhi in a divergent game where it survives", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "surviving-delhi" });
+  declareDiplomaticWar(state, "bengal", "delhi", 200 * DAY);
+  const events = makeFactionPeaceWithAllEnemies(state, "bengal", 300 * DAY, {}, { inactiveFactionIds: [] });
+  assert.ok(events.some(event => [event.factionAId, event.factionBId].includes("delhi")));
+});
+
+test("an annexed defeated power still settles wars with surviving counterparties", () => {
+  const state = createWorldDiplomacy({ startMinute: 0, seedKey: "annexed-peace" });
+  const events = makeFactionPeaceWithAllEnemies(state, "france", 200 * DAY, {}, {
+    inactiveFactionIds: ["france"]
+  });
+  assert.ok(events.length >= 2);
+  assert.equal(worldDiplomacyBetween(state, "france", "spain"), DIPLOMACY_HOSTILE);
+  assert.throws(() => makeFactionPeaceWithAllEnemies(state, "france", 201 * DAY, {}, {
+    inactiveFactionIds: null
+  }), /requires inactive faction ids/);
 });

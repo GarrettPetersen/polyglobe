@@ -997,7 +997,9 @@ test("a qualified captain receives one proactive marque offer only while the iss
   makeFactionPeaceWithAllEnemies(
     peaceful.relations.diplomacy,
     "england",
-    200 * 24 * 60
+    200 * 24 * 60,
+    {},
+    { inactiveFactionIds: peaceful.memory.conquest.collapsedFactionIds }
   );
   assert.equal(
     prepareProactiveLetterOfMarque(

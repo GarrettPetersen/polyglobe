@@ -442,6 +442,7 @@ test("a cannonball damages the first ship crossed before its endpoint", () => {
   assert.equal(battle.enemy.hitPoints, initialHitPoints - 1);
   assert.equal(battle.projectiles.length, 0);
   assert.equal(battle.hullSplinterBursts.length, 1);
+  assert.deepEqual(battle.hullSplinterBursts[0].sprite, { shipSlug: battle.enemy.slug });
   assert.ok(drainLakeBattleEvents(battle).some((event) => (
     event.type === "hit" && event.shipId === LAKE_BATTLE_ENEMY_ID
   )));
@@ -486,6 +487,7 @@ test("a close Royal Foundry shot crossing the rendered rig damages the ship", ()
   assert.equal(battle.enemy.hitPoints, initialHitPoints - 1.58);
   assert.equal(battle.projectiles.length, 0);
   assert.equal(battle.hullSplinterBursts.length, 1);
+  assert.deepEqual(battle.hullSplinterBursts[0].sprite, { shipSlug: battle.enemy.slug });
 });
 
 test("the turtle ship shell can reject a cannon hit in lake combat", () => {

@@ -2518,7 +2518,8 @@ import { cannonShotDistanceGain } from "./cannonAudio.js";
 import {
   advanceHullSplinterBursts,
   createHullSplinterBurst,
-  hullSplinterPixels
+  hullSplinterPixels,
+  spriteSplinterColors
 } from "./hullSplinters.js";
 import {
   LAKE_BATTLE_PHASE_ACTIVE,
@@ -2867,8 +2868,7 @@ const CANNON_MAX_SPLASHES = 128;
 const CANNON_MAX_SMOKE_BURSTS = 192;
 const CANNON_SMOKE_COLORS = Object.freeze(["92, 84, 76", "199, 204, 195", "255, 253, 231"]);
 const HULL_SPLINTER_MAX_BURSTS = 128;
-const HULL_SPLINTER_COLORS = Object.freeze(["84, 51, 30", "139, 82, 41", "218, 145, 62"]);
-const FIRE_ARROW_IMPACT_COLORS = Object.freeze(["239, 125, 37", "249, 194, 43", "255, 255, 255"]);
+const splinterSpritePaletteCache = new WeakMap();
 const ARROW_LINE_LENGTH_PX = 4;
 const WIND_INDICATOR_RADIUS_PX = 20;
 const WIND_INDICATOR_DIRECTION_COUNT = 16;
@@ -25167,7 +25167,8 @@ function settleCapitalCaptureDiplomacy(event, roll) {
     gameState.relations.diplomacy,
     treaty.loserFactionId,
     simMinute,
-    { eventReason: "capital-peace-treaty" }
+    { eventReason: "capital-peace-treaty" },
+    { inactiveFactionIds: gameState.memory.conquest.collapsedFactionIds }
   );
   if (settlement.term === CAPITAL_PEACE_TERM_ANNEXATION) {
     dissolveFactionDiplomaticSuzerainties(
@@ -34685,7 +34686,7 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
         simMinute,
         attackerLabel
       );
-      addHullSplinterBurst(ball, point);
+      addHullSplinterBurst(ball, point, { cityArtKey: cityArtKeyForCity(requireEntityById(cityById, battery.portId, "Struck shore battery city")) });
     }
   } else {
     result = damageShoreBattery(
@@ -34695,7 +34696,7 @@ function applyShoreBatteryHit(ball, battery, point, hitByPlayer) {
       simMinute,
       attackerLabel
     );
-    addHullSplinterBurst(ball, point);
+    addHullSplinterBurst(ball, point, { cityArtKey: cityArtKeyForCity(requireEntityById(cityById, battery.portId, "Struck shore battery city")) });
   }
   emitCaptureEvent("projectile-hit", {
     ownerId: ball.ownerId,
@@ -34886,7 +34887,7 @@ function applyPlayerNavalHit(ball, target, point) {
   const winnerId = accidentalFriendlyFire ? null : PLAYER_COMBAT_ID;
   if (damage.sunk) handleNpcSinking(target.id, winnerId);
   else {
-    addHullSplinterBurst(ball, point);
+    addHullSplinterBurst(ball, point, { shipSlug: target.slug });
     if (damage.shouldSurrender) {
       handleNpcSurrender(target.id, PLAYER_COMBAT_ID, {
         damageInduced: true,
@@ -34940,7 +34941,7 @@ function applyPortableWeaponHitToNpc(ball, target, point, winnerId) {
       handleNpcSinking(target.id, winnerId);
       return;
     }
-    addHullSplinterBurst(ball, point);
+    addHullSplinterBurst(ball, point, { shipSlug: target.slug });
     if (damage.shouldSurrender) {
       emitPortableWeaponHitCapture(
         ball,
@@ -35083,17 +35084,52 @@ function drawCannonSmokeBursts(
   }
 }
 
-function addHullSplinterBurst(projectile, point) {
-  hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
+function addHullSplinterBurst(projectile, point, sprite) {
+  hullSplinterBursts.push(createHullSplinterBurst(projectile, point, sprite));
   if (hullSplinterBursts.length > HULL_SPLINTER_MAX_BURSTS) {
     hullSplinterBursts.splice(0, hullSplinterBursts.length - HULL_SPLINTER_MAX_BURSTS);
   }
 }
 
+function hullSplinterSpritePalette(sprite) {
+  let image;
+  let width;
+  let height;
+  if (sprite?.shipSlug) {
+    const asset = lakeBattleShipAssets.get(sprite.shipSlug) || residentShipVisualAsset(sprite.shipSlug);
+    if (!asset) {
+      // Combat simulation can hit a newly arrived hull before its streamed art
+      // is resident. Its debris waits for the same asset as the ship itself.
+      queueShipVisualAssets(sprite.shipSlug, "impact debris");
+      return null;
+    }
+    image = asset.image;
+    width = height = SHIP_SHEET_FRAME_SIZE;
+  } else if (sprite?.cityArtKey) {
+    image = cityImageForArtKey(sprite.cityArtKey);
+    width = CITY_SPRITE_W;
+    height = CITY_SHADOW_SOURCE_Y;
+  } else {
+    throw new Error("Splinter burst requires its struck sprite");
+  }
+  let palette = splinterSpritePaletteCache.get(image);
+  if (palette) return palette;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Cannot sample splinter sprite colors");
+  context.drawImage(image, 0, 0, width, height, 0, 0, width, height);
+  palette = spriteSplinterColors(context.getImageData(0, 0, width, height).data);
+  splinterSpritePaletteCache.set(image, palette);
+  return palette;
+}
+
 function drawHullSplinterBursts(bursts, painter = CANVAS_WORLD_PRIMITIVE_PAINTER) {
   for (const burst of bursts) {
-    const colors = burst.incendiary ? FIRE_ARROW_IMPACT_COLORS : HULL_SPLINTER_COLORS;
-    for (const pixel of hullSplinterPixels(burst)) {
+    const colors = hullSplinterSpritePalette(burst.sprite);
+    if (!colors) continue;
+    for (const pixel of hullSplinterPixels(burst, colors.length)) {
       painter.rect(
         pixel.x,
         pixel.y,
@@ -39222,7 +39258,7 @@ function applyNpcCombatHit(ball, targetId, point) {
       crewLossReason: "The last of the crew fell in battle.",
       winnerId: ball.ownerId
     });
-    if (!lossOutcome) addHullSplinterBurst(ball, point);
+    if (!lossOutcome) addHullSplinterBurst(ball, point, { shipSlug: ship.typeSlug });
     return;
   }
 
@@ -39253,7 +39289,7 @@ function applyNpcCombatHit(ball, targetId, point) {
   if (damage.resisted) return;
   if (damage.sunk) handleNpcSinking(targetId, ball.ownerId);
   else {
-    addHullSplinterBurst(ball, point);
+    addHullSplinterBurst(ball, point, { shipSlug: npcSeaRoutes.shipById.get(targetId).slug });
     if (damage.shouldSurrender) handleNpcSurrender(targetId, ball.ownerId);
   }
 }
@@ -39335,7 +39371,7 @@ function applyPortableWeaponHitToPlayer(ball, point) {
         crewLossReason: "The last of the crew fell in battle.",
         winnerId: ball.ownerId
       });
-      if (!lossOutcome) addHullSplinterBurst(ball, point);
+      if (!lossOutcome) addHullSplinterBurst(ball, point, { shipSlug: ship.typeSlug });
     }
   }
   emitCaptureEvent("projectile-hit", {

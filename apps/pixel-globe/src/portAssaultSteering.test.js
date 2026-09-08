@@ -13,6 +13,10 @@ test("spacing cannot push a holding soldier backward, but ordered retreats still
     const occupancy = new PortAssaultOccupancy();
     occupancy.add(soldier);
     occupancy.add(neighbor);
+    soldier.stats.attackType = "melee";
+    const shortAdvance = portAssaultMoveInFormation(soldier,
+      { position: position + direction * .0001, lane: 1 }, .003, occupancy, 0, 800, { clearingLanding: true });
+    assert.ok((shortAdvance.position - position) * direction >= 0, "spacing cannot reverse an advance order");
     const holding = portAssaultMoveInFormation(soldier, { position, lane: 1 }, .003, occupancy, 0, 1000);
     assert.equal(holding.position, position);
     const retreat = portAssaultMoveInFormation(soldier, { position: position - direction * .02, lane: 1 },
@@ -50,4 +54,40 @@ test("skirmishers can pass both ways through a standing four-file infantry forma
         `lane ${entryLane}, direction ${direction} remained trapped`);
     }
   }
+});
+
+test("skirmishers retreat through three intact infantry ranks without overlapping", () => {
+  for (const side of ["attacker", "defender"]) for (const attackType of ["firearm", "arrow"]) {
+    const mirror = x => side === "attacker" ? x : 1 - x;
+    const soldier = { id: "skirmisher", side, position: mirror(.52), lane: 1.1,
+      alive: true, stats: { mounted: false, attackType }, laneGoal: null, nextLaneChangeAtMs: 0 };
+    const occupancy = new PortAssaultOccupancy();
+    const infantry = [];
+    occupancy.add(soldier);
+    for (let rank = 0; rank < 3; rank++) for (let file = 0; file < 4; file++) {
+      const ally = { ...soldier, id: `infantry-${rank}-${file}`,
+        stats: { mounted: false, attackType: "melee" }, position: mirror(.46 - rank * .03), lane: file };
+      infantry.push(ally); occupancy.add(ally);
+    }
+    for (let timeMs = 0; timeMs < 30000; timeMs += 200) {
+      Object.assign(soldier, portAssaultMoveInFormation(soldier,
+        { position: mirror(.32), lane: 1.1 }, .004, occupancy, 0, timeMs));
+      occupancy.update(soldier);
+      assert.ok(portAssaultPositionIsFree(soldier, infantry));
+    }
+    assert.ok(Math.abs(soldier.position - mirror(.32)) < .005, `${side}/${attackType} trapped at ${soldier.position}`);
+  }
+});
+
+test("a moving gunner ignores personal-space pressure but a formation infantryman keeps it", () => {
+  function step(attackType) {
+    const soldier = { id: "subject", side: "attacker", position: .5, lane: 1,
+      alive: true, stats: { mounted: false, attackType }, laneGoal: null, nextLaneChangeAtMs: 0 };
+    const occupancy = new PortAssaultOccupancy();
+    occupancy.add(soldier);
+    for (const lane of [.45, 1.55]) occupancy.add({ ...soldier, id: `ally-${lane}`, position: .47, lane });
+    return portAssaultMoveInFormation(soldier, { position: .45, lane: 1 }, .004, occupancy, 0, 200);
+  }
+  assert.equal(step("firearm").position, .496, "the body fits, so retreat at full speed");
+  assert.ok(step("melee").position > .496, "formation troops resist compressing the working gap");
 });

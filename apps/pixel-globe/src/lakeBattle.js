@@ -1036,7 +1036,8 @@ function applyLakeBattleProjectileHit(state, projectile, target, point) {
   target.surrendered = result.surrendered;
   target.hitPoints = result.hitPoints;
   if (result.damage > 0 && target.hitPoints > 0) {
-    state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
+    state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point,
+      lakeBattleCombatantIsCity(target) ? { cityArtKey: "mediterranean" } : { shipSlug: target.slug }));
   }
   state.impacts.push({
     x: Math.round(point.x),

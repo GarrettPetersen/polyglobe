@@ -597,7 +597,10 @@ export function simulatePortAssault(scenario, seed, { collectPresentation = true
       const destination = tactic?.destination || target || { position: goal, lane: unit.lane };
       // Stop at weapon reach instead of walking through the enemy. Lateral
       // movement consumes the same speed budget as advancing along the road.
-      const next = portAssaultMoveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs);
+      const next = portAssaultMoveInFormation(unit, destination, movement, occupancy, tactic?.range ?? (target ? unit.stats.range : 0), timeMs, {
+        clearingLanding: unit.side === PORT_ASSAULT_SIDE.ATTACKER &&
+          timeMs < unit.jumpStartedAtMs + landingDurationMs + 1000
+      });
       unit.position = next.position;
       unit.lane = next.lane;
       occupancy.update(unit);

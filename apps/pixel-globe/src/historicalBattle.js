@@ -1910,7 +1910,7 @@ function applyHistoricalProjectileHit(state, projectile, shipIndex, point) {
   }
   if (result.damage > 0 && target.hitPoints > 0 &&
       (projectile.kind === "cannon" || projectile.kind === "arrow")) {
-    state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point));
+    state.hullSplinterBursts.push(createHullSplinterBurst(projectile, point, { shipSlug: target.shipSlug }));
   }
   state.impacts.push({
     x: Math.round(point.x),

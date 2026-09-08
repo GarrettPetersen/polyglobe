@@ -290,7 +290,7 @@ test("only the suspicious merchant is a directly clickable NPC with a padded out
     VISUALIZER_MAIN_SOURCE,
     /agent\.interactive === true[\s\S]*tintedFrameCanvas\(atlas, frame\)[\s\S]*drawNpcFrame\(mask/
   );
-  assert.match(VISUALIZER_MAIN_SOURCE, /maskContext\.fillStyle = "#ffe55c"/);
+  assert.match(VISUALIZER_MAIN_SOURCE, /function tintedFrameCanvas\(atlas, frame, color = "#ffe55c"\)/);
 });
 
 test("standalone visualizer controls and destination copy stay outside the production scene runtime", () => {

@@ -178,7 +178,7 @@ export function createPoliticsView(
     latestNews: newsHistory[0] || null,
     cards: orderedCards,
     groups,
-    overviewCards: politicsOverviewCards(orderedCards, groups)
+    overviewCards: politicsOverviewCards(orderedCards, groups, playerFactionId)
   };
 }
 
@@ -274,23 +274,17 @@ function politicalGroup({
   });
 }
 
-function politicsOverviewCards(cards, groups) {
-  const groupByFactionId = new Map(groups.flatMap((group) => (
-    group.memberFactionIds.map((factionId) => [factionId, group])
-  )));
-  const emittedGroupIds = new Set();
-  const overviewCards = [];
-  for (const card of cards) {
-    const group = groupByFactionId.get(card.faction.id) || null;
-    if (!group) {
-      overviewCards.push(card);
-      continue;
-    }
-    if (emittedGroupIds.has(group.id)) continue;
-    emittedGroupIds.add(group.id);
-    overviewCards.push(group);
-  }
-  return Object.freeze(overviewCards);
+function politicsOverviewCards(cards, groups, playerFactionId) {
+  const groupedIds = new Set(groups.flatMap(group => group.memberFactionIds));
+  const homeGroup = groups.find(group => group.memberFactionIds.includes(playerFactionId));
+  const home = homeGroup || cards.find(card => card.faction.id === playerFactionId);
+  // Collections are authored in alphabetical display order (Holy Roman Empire,
+  // Japan). Keep that section ahead of individual powers, after the home card.
+  return Object.freeze([
+    ...(home ? [home] : []),
+    ...groups.filter(group => group !== homeGroup),
+    ...cards.filter(card => card !== home && !groupedIds.has(card.faction.id))
+  ]);
 }
 
 export function latestPoliticsNews(view) {
