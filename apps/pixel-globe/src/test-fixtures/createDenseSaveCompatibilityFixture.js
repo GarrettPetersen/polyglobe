@@ -170,6 +170,7 @@ function populatePersistentEventHistories(state) {
     scope: "all-goods",
     restrictionKind: "enemy-imports",
     followerFactionIds: ["england"],
+    previousFollowerFactionIds: null,
     simMinute: START_MINUTE + 200 + index,
     source: "dense-save-compatibility"
   }));

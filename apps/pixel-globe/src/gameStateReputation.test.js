@@ -573,7 +573,7 @@ test("version 88 voyages gain trade embargo politics and enforcement ledgers", (
   const restored = migrateGameState(saved, null);
 
   assert.equal(restored.version, GAME_STATE_VERSION);
-  assert.equal(restored.relations.tradeEmbargoes.version, 2);
+  assert.equal(restored.relations.tradeEmbargoes.version, 3);
   assert.ok(restored.relations.tradeEmbargoes.orders.some((order) => (
     order.issuerFactionId === "papal-states" && order.targetFactionId === "ottoman" &&
     order.restrictionKind === "strategic-exports"

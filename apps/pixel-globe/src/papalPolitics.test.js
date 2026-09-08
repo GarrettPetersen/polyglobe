@@ -254,6 +254,7 @@ test("every durable Papal decree can be rescinded without erasing its history", 
     assert.ok(papacy.history.some(({ id }) => id === revoked.id));
     if (kind === PAPAL_ACTION_EXCOMMUNICATION) {
       assert.equal(papacy.excommunications[targetFactionId], undefined);
+      assert.match(papalActionNotice(revoked), / OF .* TO COMMUNION$/);
     }
   }
 });

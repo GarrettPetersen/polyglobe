@@ -4934,7 +4934,7 @@ function rootNavigationView(session, city, gameState, economy, portCities, conte
       ? [option("Petition for a capture warrant", {
           type: "node",
           nodeId: "capture-petition"
-        }, { disabled: !capturePetition.eligible, disabledReason: capturePetitionDisabledReasonText(capturePetition.reason) })]
+        }, { disabled: !capturePetition.eligible, disabledReason: capturePetitionDisabledReasonText(capturePetition.reason, city, portCities) })]
       : []),
     ...(session.disguisedEntry && !pirateHideout
       ? [option(portCityAuthorityLabel(city.settlementType), { type: "node", nodeId: "covert-authority" })]
@@ -8629,10 +8629,17 @@ function captureCommissionQuestView(session, questState, returnNodeId, gameState
     : capturePortQuestView(session, questState, returnNodeId, gameState);
 }
 
-function capturePetitionDisabledReasonText(reason) {
+function capturePetitionDisabledReasonText(reason, city, portCities) {
   if (reason === null) return null;
   if (reason === "missing-marque") return "You must first hold this nation's letter of marque.";
-  if (reason === "not-capital") return "Capture petitions must be heard at the nation's capital.";
+  if (reason === "not-capital") {
+    const capitals = portCities.filter((port) => port.isFactionCapital === true &&
+      port.capitalOfFactionId === city.factionId && port.factionId === city.factionId);
+    // Conquest can leave a surviving faction without a court until it relocates.
+    if (capitals.length === 0) return "No court can grant such a warrant at present, Captain.";
+    if (capitals.length !== 1) throw new Error(`Capture petition requires one current capital for ${city.factionId}; found ${capitals.length}`);
+    return `Such a warrant requires the council's seal, Captain. Present your petition at ${cityLabel(capitals[0])}.`;
+  }
   if (reason === "active-voyage") return "Finish your present commission or passenger passage before seeking a capture warrant.";
   if (reason === "pending-offer") return "A capture warrant already awaits your answer. Ask about commissions at the inn.";
   throw new Error(`Unknown capture petition eligibility: ${reason}`);

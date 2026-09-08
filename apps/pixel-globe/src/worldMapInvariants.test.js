@@ -89,6 +89,12 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     subdivisions: WORLD_GLOBE_SUBDIVISIONS
   });
   const directionIndex = createDirectionIndex(graph);
+  // An isolated, uninhabited resupply landfall must survive the coarse land bake.
+  const saintHelenaTileId = findNearestTileId(graph, directionIndex, latLonToDirection(-15.965, -5.708));
+  assert.equal(isWaterSurfaceRow(earthRows[saintHelenaTileId]), false);
+  assert.equal(earthRows[saintHelenaTileId].m, 5001);
+  assert.ok([...graph.neighbors[saintHelenaTileId]].every(id =>
+    isWaterSurfaceRow(earthRows[id]) && navigation.reachableNavigationMask[id]));
   assertManualShallowWaterReachesOcean(navigation.reachableNavigationMask, 8);
 
   assert.equal(
@@ -206,6 +212,7 @@ test("subdivision-eight preserves authored waterways, ports, barriers, and landm
     riverMasks: navigation.riverMasks
   };
   const placedByTileId = placeCityCatalogOnWorld({ ...placementOptions, cities });
+  assert.ok([...placedByTileId.values()].every(city => city.tileId !== saintHelenaTileId));
   // Navigation availability and capital status must never move a settlement.
   const withoutNavigation = { ...placementOptions,
     reachableNavigationMask: new Uint8Array(graph.tileCount), riverMasks: new Uint8Array(graph.tileCount) };

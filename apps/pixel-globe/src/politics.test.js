@@ -594,8 +594,10 @@ function dependencySummaries(card) {
 
 test("same-day Papal observance revisions produce one final headline per order", async () => {
   const { dailyEmbargoNews } = await import("./politics.js");
-  const early = { id: "a:early", orderId: "a", kind: "followers-changed", simMinute: 1441 };
-  const late = { ...early, id: "a:late", simMinute: 1500 };
+  const early = { id: "a:early", orderId: "a", kind: "followers-changed", simMinute: 1441,
+    previousFollowerFactionIds: ["papal-states"], followerFactionIds: ["papal-states", "portugal"] };
+  const late = { ...early, id: "a:late", simMinute: 1500,
+    previousFollowerFactionIds: early.followerFactionIds, followerFactionIds: ["papal-states", "portugal", "england"] };
   const other = { ...late, id: "b:late", orderId: "b" };
   const lifted = { ...late, id: "a:lifted", kind: "lifted" };
   const nextDay = { ...late, id: "a:next", simMinute: 2880 };
@@ -603,7 +605,18 @@ test("same-day Papal observance revisions produce one final headline per order",
     const result = dailyEmbargoNews(events);
     assert.equal(result.length, 4);
     assert.ok(!result.includes(early));
-    assert.ok(result.includes(late) && result.includes(lifted) && result.includes(nextDay));
+    assert.ok(result.some(event => event.id === late.id) && result.includes(lifted) && result.some(event => event.id === nextDay.id));
+    assert.deepEqual(result.find(event => event.id === late.id).previousFollowerFactionIds, early.previousFollowerFactionIds);
     assert.equal(events.length, 5, "raw historical events are retained");
   }
+});
+
+
+test("same-day Papal membership reversals produce no net-change headline", async () => {
+  const { dailyEmbargoNews } = await import("./politics.js");
+  const first = { id: "a:early", orderId: "a", kind: "followers-changed", simMinute: 100,
+    previousFollowerFactionIds: ["papal-states"], followerFactionIds: ["papal-states", "portugal"] };
+  const last = { ...first, id: "a:late", simMinute: 200,
+    previousFollowerFactionIds: first.followerFactionIds, followerFactionIds: first.previousFollowerFactionIds };
+  assert.deepEqual(dailyEmbargoNews([last, first]), []);
 });

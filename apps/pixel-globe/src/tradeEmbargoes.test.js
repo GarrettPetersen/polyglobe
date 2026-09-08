@@ -336,6 +336,10 @@ test("embargo politics immediately lifts orders against an issuer's suzerain", (
     order.authorityKind === "papal" && order.targetFactionId === "ottoman"
   ));
   assert.equal(papalOrder.followerFactionIds.includes("hospitallers"), false);
+  const change = events.find(event => event.kind === "followers-changed" && event.orderId === papalOrder.id);
+  assert.ok(change.previousFollowerFactionIds.includes("hospitallers"));
+  assert.ok(!change.followerFactionIds.includes("hospitallers"));
+  assert.deepEqual(migrateTradeEmbargoMemory(memory).history, memory.history);
 });
 
 for (const kind of ["vassal", "autonomous-vassal", "tributary", "personal-union"]) {
@@ -536,10 +540,34 @@ test("Papal observance news names its followers and does not imply the ban was l
   assert.ok(order);
   const event = { ...order, orderId: order.id, id: `${order.id}:followers-changed:100`,
     kind: "followers-changed", simMinute: 100, source: "papal-alignment",
-    targetFactionId: "tidore", followerFactionIds: ["papal-states", "portugal"] };
+    targetFactionId: "tidore", followerFactionIds: ["papal-states", "portugal"], previousFollowerFactionIds: null };
   const text = tradeEmbargoEventNotice(event);
   assert.match(text, /ARMS BAN AGAINST TIDORE/);
   assert.match(text, /PORTUGAL/);
   assert.doesNotMatch(text, /LIFTS|RECONSIDER/);
   assert.notEqual(text, tradeEmbargoEventNotice({ ...event, followerFactionIds: ["papal-states"] }));
+});
+
+
+test("Papal membership updates name only joining and departing countries", async () => {
+  const { tradeEmbargoEventNotice } = await import("./tradeEmbargoes.js");
+  const order = createTradeEmbargoMemory().orders.find(entry => entry.authorityKind === "papal");
+  const event = { ...order, orderId: order.id, id: `${order.id}:followers-changed:100`,
+    kind: "followers-changed", simMinute: 100, source: "papal-alignment", targetFactionId: "tidore",
+    previousFollowerFactionIds: ["papal-states", "england"], followerFactionIds: ["papal-states", "portugal"] };
+  assert.equal(tradeEmbargoEventNotice(event),
+    "PORTUGAL JOINED THE PAPAL ARMS BAN AGAINST TIDORE; ENGLAND LEFT IT");
+  assert.equal(tradeEmbargoEventNotice({ ...event, followerFactionIds: ["papal-states"] }),
+    "ENGLAND LEFT THE PAPAL ARMS BAN AGAINST TIDORE");
+  assert.throws(() => tradeEmbargoEventNotice({ ...event, followerFactionIds: event.previousFollowerFactionIds }), /no changes/);
+});
+
+test("version two embargo history migrates without inventing membership changes", () => {
+  const previous = createTradeEmbargoMemory();
+  previous.version = 2;
+  for (const event of previous.history) delete event.previousFollowerFactionIds;
+  const migrated = migrateTradeEmbargoMemory(previous);
+  assert.equal(migrated.version, 3);
+  assert.deepEqual(migrateTradeEmbargoMemory(migrated), migrated);
+  assert.deepEqual(migrated.orders, previous.orders);
 });

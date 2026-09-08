@@ -23,7 +23,7 @@ import {
 import { requireCityId, requireEntityId } from "./entityIds.js";
 import { factionIsSubjectOf } from "./suzerainty.js";
 
-export const TRADE_EMBARGO_VERSION = 2;
+export const TRADE_EMBARGO_VERSION = 3;
 export const TRADE_EMBARGO_SCOPE_ALL_GOODS = "all-goods";
 export const TRADE_EMBARGO_SCOPE_WAR_MATERIEL = "war-materiel";
 export const TRADE_EMBARGO_RESTRICTION_IMPORTS = "enemy-imports";
@@ -202,6 +202,14 @@ export function migrateTradeEmbargoMemory(memory, { startMinute = 0, seedKey = "
   if (memory.version === TRADE_EMBARGO_VERSION) {
     return validateTradeEmbargoMemory(structuredClone(memory));
   }
+  if (memory.version === 2) {
+    // Older history recorded only the resulting membership, so its first notice
+    // remains a roster. New transitions retain both sides of the change.
+    const migrated = structuredClone(memory);
+    migrated.version = TRADE_EMBARGO_VERSION;
+    migrated.history = migrated.history.map(event => ({ ...event, previousFollowerFactionIds: null }));
+    return validateTradeEmbargoMemory(migrated);
+  }
   if (memory.version !== 1) {
     throw new Error(`Unsupported trade embargo version: ${memory.version ?? "missing"}`);
   }
@@ -215,6 +223,7 @@ export function migrateTradeEmbargoMemory(memory, { startMinute = 0, seedKey = "
   }));
   migrated.history = migrated.history.map((event) => ({
     ...event,
+    previousFollowerFactionIds: null,
     restrictionKind: event.authorityKind === TRADE_EMBARGO_AUTHORITY_PAPAL
       ? TRADE_EMBARGO_RESTRICTION_EXPORTS
       : TRADE_EMBARGO_RESTRICTION_IMPORTS
@@ -488,6 +497,17 @@ export function tradeEmbargoEventNotice(event) {
       : `${issuer.shortName.toUpperCase()} LIFTS ITS BAN ON ${target.adjective.toUpperCase()} MERCHANDISE`;
   }
   if (event.kind === "followers-changed") {
+    if (event.previousFollowerFactionIds !== null) {
+      const previous = new Set(event.previousFollowerFactionIds);
+      const current = new Set(event.followerFactionIds);
+      const joined = event.followerFactionIds.filter(id => !previous.has(id));
+      const left = event.previousFollowerFactionIds.filter(id => !current.has(id));
+      const names = ids => ids.map(id => factionById(id).shortName.toUpperCase()).join(", ");
+      if (joined.length && left.length) return `${names(joined)} JOINED THE PAPAL ARMS BAN AGAINST ${target.shortName.toUpperCase()}; ${names(left)} LEFT IT`;
+      if (joined.length) return `${names(joined)} JOINED THE PAPAL ARMS BAN AGAINST ${target.shortName.toUpperCase()}`;
+      if (left.length) return `${names(left)} LEFT THE PAPAL ARMS BAN AGAINST ${target.shortName.toUpperCase()}`;
+      throw new Error(`Papal follower change has no changes: ${event.id}`);
+    }
     const observers = event.followerFactionIds.map((id) => factionById(id).shortName.toUpperCase()).join(", ");
     return `PAPAL ARMS BAN AGAINST ${target.shortName.toUpperCase()}: OBSERVED BY ${observers || "NONE"}`;
   }
@@ -843,8 +863,9 @@ function reviewTradeEmbargoes(memory, diplomacy, simMinute, {
         inactive
       );
       if (!arrayEqual(followers, order.followerFactionIds)) {
+        const previousFollowers = order.followerFactionIds;
         order.followerFactionIds = followers;
-        const event = embargoEvent(order, "followers-changed", simMinute, "papal-alignment");
+        const event = embargoEvent(order, "followers-changed", simMinute, "papal-alignment", previousFollowers);
         recordEvent(memory, event);
         events.push(event);
       }
@@ -1037,8 +1058,9 @@ function reconcileTradeEmbargoPolitics(memory, diplomacy, simMinute) {
       tradeEmbargoPoliticalConflict(diplomacy, factionId, order.targetFactionId) === null
     ));
     if (followers.length === order.followerFactionIds.length) continue;
+    const previousFollowers = order.followerFactionIds;
     order.followerFactionIds = followers;
-    const event = embargoEvent(order, "followers-changed", simMinute, "diplomatic-alignment");
+    const event = embargoEvent(order, "followers-changed", simMinute, "diplomatic-alignment", previousFollowers);
     recordEvent(memory, event);
     events.push(event);
   }
@@ -1121,7 +1143,7 @@ function liftOrder(memory, order, simMinute, source) {
   return event;
 }
 
-function embargoEvent(order, kind, simMinute, source) {
+function embargoEvent(order, kind, simMinute, source, previousFollowers = null) {
   const event = {
     id: `${order.id}:${kind}:${simMinute}`,
     orderId: order.id,
@@ -1132,6 +1154,7 @@ function embargoEvent(order, kind, simMinute, source) {
     scope: order.scope,
     restrictionKind: order.restrictionKind,
     followerFactionIds: [...order.followerFactionIds],
+    previousFollowerFactionIds: previousFollowers === null ? null : [...previousFollowers],
     simMinute,
     source
   };
@@ -1208,6 +1231,7 @@ function validateEmbargoEvent(event) {
   assertFactionId(event.issuerFactionId);
   assertFactionId(event.targetFactionId);
   normalizedFactionIds(event.followerFactionIds);
+  if (event.previousFollowerFactionIds !== null) normalizedFactionIds(event.previousFollowerFactionIds);
   assertMinute(event.simMinute, "trade embargo event");
   if (typeof event.source !== "string" || event.source === "") {
     throw new Error(`Trade embargo event has no source: ${event.id}`);
@@ -1309,7 +1333,8 @@ function copyOrder(order) {
 }
 
 function copyEvent(event) {
-  return { ...event, followerFactionIds: [...event.followerFactionIds] };
+  return { ...event, followerFactionIds: [...event.followerFactionIds],
+    previousFollowerFactionIds: event.previousFollowerFactionIds === null ? null : [...event.previousFollowerFactionIds] };
 }
 
 function copyIncident(incident) {

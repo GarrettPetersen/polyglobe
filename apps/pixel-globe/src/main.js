@@ -47951,7 +47951,6 @@ function navigationMenuEntries() {
       optionalWaypointId: null
     });
   }
-  entries.push(...shipyardDividendNavigationEntries());
   const papalMatter = papalPendingMatter(gameState.relations.papacy);
   if (papalMatter?.status === PAPAL_MATTER_COMMISSIONED) {
     const objective = papalCommissionObjective(gameState.relations.papacy);
@@ -48080,6 +48079,7 @@ function navigationMenuEntries() {
       optionalWaypointId: waypoint.id
     });
   }
+  entries.push(...shipyardDividendNavigationEntries());
   return entries;
 }
 

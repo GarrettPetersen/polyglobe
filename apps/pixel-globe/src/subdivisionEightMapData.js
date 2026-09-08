@@ -3009,6 +3009,13 @@ export const SUBDIVISION_EIGHT_MAP_DATA = freezeDeep({
       "landmassId": 1292
     },
     {
+      "tileId": 133347,
+      "sourceTerrain": "water",
+      "terrainType": "humid_subtropical",
+      "elevation": -0.025,
+      "landmassId": 5001
+    },
+    {
       "tileId": 141773,
       "sourceTerrain": "water",
       "terrainType": "tropical_savanna",

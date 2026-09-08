@@ -76,7 +76,7 @@ function papalGossipForAction(action) {
     if (action.revokedActionKind === PAPAL_ACTION_EXCOMMUNICATION) {
       return gossip({
         action,
-        report: `${action.popeName} has restored ${action.targetRulerName} to the communion of the Church`,
+        report: `${action.popeName} has restored ${action.targetRulerName} of ${target.name} to the communion of the Church`,
         tradeImpact: "Envoys and lenders are waiting to see which courts renew their dealings.",
         reflection: "Absolution opens a door, though old quarrels do not pass through it so quickly."
       });

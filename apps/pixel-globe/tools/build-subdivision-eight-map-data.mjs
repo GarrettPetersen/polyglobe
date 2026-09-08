@@ -577,6 +577,17 @@ for (const tileId of [299000, 299003, 74856, 299014]) {
     landmassId: 4000
   });
 }
+// Saint Helena: isolated South Atlantic landfall, without a settlement in 1522.
+// https://www.sainthelena.gov.sh/st-helena/history-and-heritage/
+// One hex preserves this navigationally important island below the bake's scale.
+const saintHelenaTileId = findNearestTileId(fineGraph, fineDirectionIndex, latLonToDirection(-15.965, -5.708));
+landOverrideByTileId.set(saintHelenaTileId, {
+  tileId: saintHelenaTileId,
+  sourceTerrain: earth.tiles[saintHelenaTileId].t,
+  terrainType: "humid_subtropical",
+  elevation: -0.025,
+  landmassId: 5001
+});
 const landOverrides = [...landOverrideByTileId.values()].sort((a, b) => a.tileId - b.tileId);
 // Review candidates using the same significance/isolation rule everywhere.
 // Explicit omissions stay reviewable; the rule can never erase a new city or

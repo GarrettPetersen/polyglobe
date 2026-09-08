@@ -814,8 +814,10 @@ function buildPoliticsCodes() {
 }
 
 // Several diplomatic changes can revise the same order within a day. The news
-// ledger reports that day's final observance; the embargo history keeps each event.
+// ledger reports the net change from the first revision to the last.
+// The embargo history keeps each event.
 export function dailyEmbargoNews(events) {
+  const earliest = new Map();
   const latest = new Map();
   const otherEvents = [];
   for (const event of events) {
@@ -823,6 +825,12 @@ export function dailyEmbargoNews(events) {
     const key = `${event.orderId}|${Math.floor(event.simMinute / 1440)}`;
     const previous = latest.get(key);
     if (!previous || event.simMinute > previous.simMinute) latest.set(key, event);
+    if (!earliest.has(key) || event.simMinute < earliest.get(key).simMinute) earliest.set(key, event);
   }
-  return [...otherEvents, ...latest.values()];
+  const changes = [...latest].map(([key, event]) => ({
+    ...event, previousFollowerFactionIds: earliest.get(key).previousFollowerFactionIds
+  })).filter(event => event.previousFollowerFactionIds === null ||
+    event.previousFollowerFactionIds.length !== event.followerFactionIds.length ||
+    event.previousFollowerFactionIds.some(id => !event.followerFactionIds.includes(id)));
+  return [...otherEvents, ...changes];
 }

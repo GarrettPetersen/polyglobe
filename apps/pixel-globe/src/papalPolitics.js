@@ -730,7 +730,7 @@ export function papalActionNotice(action) {
   const target = factionById(action.targetFactionId);
   if (action.kind === PAPAL_ACTION_REVOCATION) {
     if (action.revokedActionKind === PAPAL_ACTION_EXCOMMUNICATION) {
-      return `${action.popeName.toUpperCase()} RESTORES ${action.targetRulerName.toUpperCase()} TO COMMUNION`;
+      return `${action.popeName.toUpperCase()} RESTORES ${action.targetRulerName.toUpperCase()} OF ${target.shortName.toUpperCase()} TO COMMUNION`;
     }
     if (action.revokedActionKind === PAPAL_ACTION_CRUSADE) {
       return `${action.popeName.toUpperCase()} WITHDRAWS THE CRUSADE AGAINST ${target.shortName.toUpperCase()}`;

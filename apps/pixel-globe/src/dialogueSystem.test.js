@@ -8674,18 +8674,30 @@ test("a marque holder can find capture petitions at port authority even away fro
     character: { name: "Thomas Ward", role: "harbour-master" } };
   const state = createGameState({ cargoCapacity: 20 });
   state.relations.lettersOfMarque.england = { factionId: "england", simMinute: 0 };
-  const economy = createWorldEconomy({ ports: [city], startMinute: 0 });
+  const capital = { ...city, cityId: "london|united kingdom", tileId: 804, city: "London", factionId: "england", isFactionCapital: true, capitalOfFactionId: "england" };
+  const ports = [city, capital];
+  const economy = createWorldEconomy({ ports, startMinute: 0 });
   const session = createPortDialogueSession(city, { initialNodeId: "city-menu" });
   session.cityMenuLocationId = "authority";
-  const view = portDialogueView(session, city, state, economy, [city]);
+  const view = portDialogueView(session, city, state, economy, ports);
   const index = view.options.findIndex(({ action }) => action.nodeId === "capture-petition");
   assert.ok(index >= 0);
   assert.equal(view.options[index].disabled, true);
-  assert.match(view.options[index].disabledReason, /capital/);
+  assert.match(view.options[index].disabledReason, /London/);
   const before = structuredClone(state);
-  selectPortDialogueOption(session, city, state, economy, [city], index);
+  selectPortDialogueOption(session, city, state, economy, ports, index);
   assert.equal(session.nodeId, "city-menu");
   assert.deepEqual(state, before);
+  capital.isFactionCapital = false;
+  capital.capitalOfFactionId = null;
+  const displacedView = portDialogueView(session, city, state, economy, ports);
+  const displacedPetition = displacedView.options.find(({ action }) => action.nodeId === "capture-petition");
+  assert.equal(displacedPetition.disabled, true);
+  assert.match(displacedPetition.disabledReason, /No court/);
+  const relocated = { ...capital, cityId: "york|united kingdom", city: "York", tileId: 805,
+    isFactionCapital: true, capitalOfFactionId: "england" };
+  const relocatedView = portDialogueView(session, city, state, economy, [city, relocated]);
+  assert.match(relocatedView.options.find(({ action }) => action.nodeId === "capture-petition").disabledReason, /York/);
 });
 
 test("Spanish colonist embarkation warns unlicensed foreigners without warning licensed or domestic captains", () => {
